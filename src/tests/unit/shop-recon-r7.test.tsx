@@ -11,6 +11,7 @@ function order(overrides: Record<string, unknown> = {}) {
     repairOrderNumber: "RO-1001",
     origin: "CUSTOMER_REPAIR",
     stage: "INTAKE",
+    stageStartedAt: "2026-07-18T14:30:00.000Z",
     operatingState: "ACTIVE",
     targetAt: "2026-07-19T15:00:00.000Z",
     nextAction: "Complete intake",
@@ -20,7 +21,7 @@ function order(overrides: Record<string, unknown> = {}) {
     vehicle: { vehicleNumber: "V-101", year: 2024, make: "Ford", model: "F-150" },
     customer: { displayName: "Jordan Customer" },
     inventoryUnit: null,
-    serviceVisit: { promisedAt: "2026-07-19T15:00:00.000Z", concernSummary: "Brake vibration" },
+    serviceVisit: { arrivedAt: "2026-07-18T14:30:00.000Z", keysReceivedCount: 1, promisedAt: "2026-07-19T15:00:00.000Z", concernSummary: "Brake vibration" },
     estimateVersions: [],
     releaseAuthorization: null,
     repairJobs: [],
@@ -37,7 +38,7 @@ describe("R7 Shop & Recon landing projection", () => {
     ];
     const model = buildShopReconProjection(orders, now);
     expect(model.pipeline.reduce((sum, stage) => sum + stage.count, 0)).toBe(model.totals.openOrders);
-    expect(model.pipeline.find((stage) => stage.key === "QC")?.count).toBe(1);
+    expect(model.pipeline.find((stage) => stage.key === "QC_RELEASE_READINESS")?.count).toBe(1);
   });
 
   it("keeps customer repair and inventory recon operationally distinct", () => {
@@ -48,7 +49,23 @@ describe("R7 Shop & Recon landing projection", () => {
     expect(model.totals).toMatchObject({ customerRepair: 1, inventoryRecon: 1, openOrders: 2 });
     expect(model.foundation.stages).toHaveLength(16);
     expect(model.foundation.wipLimits.operatingRepairBays).toBe(2);
-    expect(model.foundation.activation.workflowTransitions).toBe("NOT_MIGRATED");
+    expect(model.foundation.activation.workflowTransitions).toBe("PROJECTED_FROM_EXISTING_REPAIR_ORDER");
+    expect(model.items.find(item => item.origin === "CUSTOMER_REPAIR")).toMatchObject({ workLaneLabel: "Customer Vehicle", cardTone: "SLATE_GRAY", commitmentLabel: "Customer promise" });
+    expect(model.items.find(item => item.origin === "INVENTORY_RECON")).toMatchObject({ workLaneLabel: "Inventory Recon", cardTone: "DARK_BLUE", commitmentLabel: "Frontline target" });
+  });
+
+  it("renders one lane-colored vehicle card per vehicle", () => {
+    const projection = buildShopReconProjection([
+      order(),
+      order({ id: "ro-2", repairOrderNumber: "RO-1002", origin: "INVENTORY_RECON", customer: null, inventoryUnit: { inventoryNumber: "INV-200" } }),
+    ], now);
+    const html = renderToStaticMarkup(<ShopReconLanding model={projection} />);
+    expect((html.match(/shop-vehicle-card lane-customer/g) ?? [])).toHaveLength(1);
+    expect((html.match(/shop-vehicle-card lane-inventory/g) ?? [])).toHaveLength(1);
+    expect(html).toContain("Customer Vehicle");
+    expect(html).toContain("Inventory Recon");
+    expect(html).toContain("Customer promise");
+    expect(html).toContain("Frontline target");
   });
 
   it("surfaces parts, assignment, promise, approval, and quality constraints", () => {
@@ -86,7 +103,8 @@ describe("R7 Shop & Recon landing projection", () => {
     expect(html).toContain("16 stages");
     expect(html).toContain("2 shared bays");
     expect(html).toContain("Walter Hernandez");
-    expect(html).toContain("Foundation only");
+    expect(html).toContain("Evidence-driven");
+    expect(html).toContain("Live 16-Stage Lifecycle");
     expect(html).toContain("External adapters: DISABLED");
     expect(html).not.toContain("/vehicles/shop-execution");
   });

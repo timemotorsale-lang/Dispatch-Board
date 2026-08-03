@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import {
   AlertTriangle,
+  Building2,
   CalendarDays,
   CheckCircle2,
   ClipboardList,
@@ -21,7 +22,22 @@ type Item = {
   id: string;
   repairOrderNumber: string;
   origin: string;
+  workLane: "INVENTORY_RECON" | "CUSTOMER_REPAIR";
+  workLaneLabel: string;
+  cardTone: string;
+  commitmentLabel: string;
+  authorizationPath: string;
+  completionHandoff: string;
   stage: string;
+  shopLifecycleStage: string;
+  shopLifecycleLabel: string;
+  shopLifecycleOrder: number;
+  shopZoneCode: string;
+  stageTargetBand: string;
+  stageElapsedMinutes: number;
+  priorityScore: number;
+  priorityBand: string;
+  priorityReasons: ReadonlyArray<{ code: string; points: number }>;
   operatingState: string;
   targetAt: string;
   nextAction: string;
@@ -73,7 +89,7 @@ type Model = {
     customerRepair: number;
     inventoryRecon: number;
   };
-  pipeline: Array<{ key: string; label: string; count: number }>;
+  pipeline: Array<{ key: string; label: string; count: number; wipLimit: number | null; wipBreached: boolean }>;
   items: Item[];
   reviews: { quality: number; comebacks: number };
   approvals: { estimate: number };
@@ -118,39 +134,14 @@ export function ShopReconLanding({
   const partsOperationsHref = withReturnTo("/vehicles/parts-operations", returnTo);
 
   const columns = [
-    { key: "unassigned", label: "Unassigned", items: model.items.filter((item) => item.unassigned) },
-    {
-      key: "diagnosing",
-      label: "Diagnosing",
-      items: model.items.filter((item) => ["INTAKE", "DIAGNOSIS"].includes(item.stage)),
-    },
-    {
-      key: "approval",
-      label: "Estimate / Approval",
-      items: model.items.filter(
-        (item) =>
-          item.approvalPending || ["ESTIMATE", "AUTHORIZATION"].includes(item.stage),
-      ),
-    },
-    { key: "parts", label: "Waiting on Parts", items: model.items.filter((item) => item.waitingParts) },
-    {
-      key: "repair",
-      label: "In Progress",
-      items: model.items.filter(
-        (item) => ["READY_FOR_REPAIR", "REPAIRS"].includes(item.stage) && !item.waitingParts,
-      ),
-    },
-    {
-      key: "quality",
-      label: "Quality Check",
-      items: model.items.filter((item) => item.stage === "QUALITY_CONTROL" || item.qcPending > 0),
-    },
-    {
-      key: "complete",
-      label: "Complete / Handoff",
-      items: model.items.filter((item) => ["ADVISOR_REVIEW", "HANDOFF"].includes(item.stage)),
-    },
-  ];
+    { key: "entry", label: "Entry & Triage", from: 1, to: 4 },
+    { key: "diagnosis", label: "Inspect & Diagnose", from: 5, to: 7 },
+    { key: "approval", label: "Plan & Approval", from: 8, to: 9 },
+    { key: "parts", label: "Parts Readiness", from: 10, to: 10 },
+    { key: "dispatch", label: "Ready & Assigned", from: 11, to: 12 },
+    { key: "repair", label: "Repair & Complete", from: 13, to: 14 },
+    { key: "quality", label: "QC & Handoff", from: 15, to: 16 },
+  ].map(column => ({ ...column, items: model.items.filter(item => item.shopLifecycleOrder >= column.from && item.shopLifecycleOrder <= column.to) }));
 
   const allBlockers = model.items.filter(
     (item) => item.blocker || item.waitingParts || item.approvalPending || item.atRisk,
@@ -306,8 +297,27 @@ export function ShopReconLanding({
           </p>
           <p>
             <span>Activation</span>
-            <strong>{model.foundation.activation.workflowTransitions === "NOT_MIGRATED" ? "Foundation only" : "Review required"}</strong>
+            <strong>{model.foundation.activation.workflowTransitions === "PROJECTED_FROM_EXISTING_REPAIR_ORDER" ? "Evidence-driven" : "Review required"}</strong>
           </p>
+        </div>
+      </section>
+
+      <section className="vcp-panel" aria-label="Sixteen-stage Shop and Recon lifecycle">
+        <header>
+          <div>
+            <strong>Live 16-Stage Lifecycle</strong>
+            <span>Derived from current repair evidence; no manual status invention</span>
+          </div>
+        </header>
+        <div className="shop-parts-facts">
+          {model.pipeline.map(stage => (
+            <p key={stage.key}>
+              <span>{stage.label}</span>
+              <strong>
+                {stage.count}{stage.wipLimit === null ? "" : ` / ${stage.wipLimit}`}{stage.wipBreached ? " · WIP HOLD" : ""}
+              </strong>
+            </p>
+          ))}
         </div>
       </section>
 
@@ -336,6 +346,12 @@ export function ShopReconLanding({
         ))}
       </section>
 
+      <div className="shop-lane-legend" aria-label="Vehicle ownership lane legend">
+        <span className="lane-inventory"><Building2 size={13} /> Inventory Recon · dark blue</span>
+        <span className="lane-customer"><UserRound size={13} /> Customer Vehicle · slate gray</span>
+        <small>Amber and red remain reserved for timing risk and blockers.</small>
+      </div>
+
       <section className="shop-board" aria-label="Shop production board">
         {columns.map((column) => (
           <article
@@ -352,14 +368,21 @@ export function ShopReconLanding({
             <div>
               {column.items.slice(0, 3).map((item) => (
                 <Link
+                  className={`shop-vehicle-card ${item.workLane === "INVENTORY_RECON" ? "lane-inventory" : "lane-customer"}`}
                   href={withReturnTo(
                     `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(item.id)}`,
                     returnTo,
                   )}
                   key={item.id}
                 >
-                  <header>
-                    <strong>{item.vehicle}</strong>
+                  <header className="shop-vehicle-card-header">
+                    <div>
+                      <span className="shop-work-lane">
+                        {item.workLane === "INVENTORY_RECON" ? <Building2 size={10} /> : <UserRound size={10} />}
+                        {item.workLaneLabel}
+                      </span>
+                      <strong>{item.vehicle}</strong>
+                    </div>
                     <span
                       className={
                         item.atRisk
@@ -370,15 +393,20 @@ export function ShopReconLanding({
                       }
                     >
                       {item.atRisk
-                        ? "High"
+                        ? item.priorityBand
                         : item.waitingParts || item.approvalPending
                           ? "Medium"
-                          : "Standard"}
+                          : item.priorityBand}
                     </span>
                   </header>
                   <small>
                     {item.repairOrderNumber} · {item.subject}
                   </small>
+                  <small>
+                    Stage {item.shopLifecycleOrder}: {item.shopLifecycleLabel} · {item.shopZoneCode}
+                  </small>
+                  <small>{item.stageTargetBand.replaceAll("_", " ")} · {item.stageElapsedMinutes} staffed min · Priority {item.priorityScore}</small>
+                  <small>{item.authorizationPath} · {item.completionHandoff}</small>
                   <p>{item.blocker ?? item.nextAction}</p>
                   <footer>
                     <em>
@@ -392,7 +420,7 @@ export function ShopReconLanding({
                       {item.technician ?? item.owner}
                     </em>
                     <time dateTime={item.targetAt}>
-                      Promised
+                      {item.commitmentLabel}
                       <br />
                       {new Date(item.targetAt).toLocaleString()}
                     </time>

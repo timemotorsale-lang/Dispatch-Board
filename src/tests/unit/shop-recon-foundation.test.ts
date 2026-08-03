@@ -22,8 +22,8 @@ describe("Shop and Recon coded foundation", () => {
     expect(SHOP_RECON_STAGES[0].code).toBe("SHOP_ENTRY");
     expect(SHOP_RECON_STAGES[15].code).toBe("HANDOFF_SHOP_EXIT");
     expect(getShopReconFoundation().activation).toMatchObject({
-      stageAlgorithms: "NOT_ADOPTED",
-      workflowTransitions: "NOT_MIGRATED",
+      stageAlgorithms: "ACTIVE_DETERMINISTIC_READ_MODEL",
+      workflowTransitions: "PROJECTED_FROM_EXISTING_REPAIR_ORDER",
       inventoryWriteback: "DISABLED",
     });
   });

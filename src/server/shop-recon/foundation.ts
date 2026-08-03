@@ -233,6 +233,16 @@ export function isShopOpenAt(at: Date) {
     && minute < SHOP_RECON_OPERATING_CALENDAR.closeMinute;
 }
 
+export function shopStaffedMinutesBetween(start: Date, end: Date) {
+  if (end <= start) return 0;
+  let staffedMinutes = 0;
+  const oneMinute = 60_000;
+  for (let cursor = Math.ceil(start.getTime() / oneMinute) * oneMinute; cursor < end.getTime(); cursor += oneMinute) {
+    if (isShopOpenAt(new Date(cursor))) staffedMinutes += 1;
+  }
+  return staffedMinutes;
+}
+
 function missingFields(value: unknown, required: readonly string[]) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return [...required];
   const record = value as Record<string, unknown>;
@@ -252,7 +262,7 @@ export function validateShopToInventoryHandoffDraft(value: unknown) {
 export function getShopReconFoundation() {
   return {
     contractVersion: SHOP_RECON_FOUNDATION_VERSION,
-    status: "CODED_FOUNDATION_NOT_WORKFLOW_ACTIVATED",
+    status: "DETERMINISTIC_WORKFLOW_READ_MODEL_ACTIVE",
     configurationStatus: "PARTIALLY_CONFIRMED",
     stages: SHOP_RECON_STAGES,
     operatingStates: SHOP_RECON_OPERATING_STATES,
@@ -277,8 +287,8 @@ export function getShopReconFoundation() {
       "DATA_RECONCILIATION_OWNER",
     ],
     activation: {
-      stageAlgorithms: "NOT_ADOPTED",
-      workflowTransitions: "NOT_MIGRATED",
+      stageAlgorithms: "ACTIVE_DETERMINISTIC_READ_MODEL",
+      workflowTransitions: "PROJECTED_FROM_EXISTING_REPAIR_ORDER",
       automaticVehicleMovement: "PROHIBITED",
       inventoryWriteback: "DISABLED",
     },

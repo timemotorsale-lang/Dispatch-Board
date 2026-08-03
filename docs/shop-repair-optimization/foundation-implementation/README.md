@@ -1,6 +1,6 @@
 # Shop and Recon Controlled Foundation Implementation
 
-**Status:** `CODED READ-ONLY FOUNDATION - NO STAGE ALGORITHMS, WORKFLOW MIGRATION OR ACTIVATION`
+**Status:** `CODED FOUNDATION + ACTIVE DETERMINISTIC 16-STAGE READ MODEL`
 **Policy extension:** Proposed `SRO-1.1-foundation`
 **Location:** Time Motor Sales / Minneapolis
 **Established:** 2026-08-03
@@ -10,7 +10,7 @@
 
 This package converts the approved Shop and Repair operating principles into seven exact, reviewable foundation phases. It defines how a vehicle is controlled from physical shop entry through accepted shop exit and how Inventory Recon crosses the Inventory-to-Frontline boundary.
 
-The versioned read-only code foundation is implemented and exposed through the existing Shop & Recon projection. It does not authorize integration writeback, shadow evaluation, pilot operation, production activation, vehicle movement, customer communication, purchasing, repair execution, QC, release, or migration of the existing repair-order workflow to the new stages.
+The versioned foundation and deterministic sixteen-stage workflow read model are implemented through the existing Shop & Recon projection. The model derives progress from governed RepairOrder, RepairJob, dispatch, parts, QC and release evidence; it does not create a competing manual status. It does not authorize integration writeback, automatic vehicle movement, customer communication, purchasing, repair execution, QC pass or release.
 
 ## Approval integrity
 
@@ -64,8 +64,9 @@ Changed scope, missing parts, resource failure, customer delay and QC failure ar
 ## Current gate
 
 ```text
-PHASES 1-7: CODED AS READ-ONLY FOUNDATION / POLICY CONFIRMATIONS REMAIN
+PHASES 1-7: CODED FOUNDATION / POLICY CONFIRMATIONS REMAIN
 POLICY EXTENSION: PARTIALLY CONFIRMED / NOT OPERATIONALLY EFFECTIVE
-STAGE ALGORITHMS / WORKFLOW MIGRATION / SHADOW / PILOT / ACTIVATION: NOT AUTHORIZED
-SAFE DEFAULT: EXISTING MANUAL SHOP AND INVENTORY-RECON PROCESS
+STAGE DERIVATION / GATES / LOOPS / CLOCKS / PRIORITY / WIP: ACTIVE READ MODEL
+AUTOMATIC MOVEMENT / INVENTORY WRITEBACK: DISABLED
+MUTATION AUTHORITY: EXISTING GOVERNED SHOP COMMANDS
 ```
