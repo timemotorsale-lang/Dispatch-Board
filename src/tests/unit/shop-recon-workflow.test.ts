@@ -61,7 +61,7 @@ describe("Shop and Recon sixteen-stage workflow", () => {
 
   it("keeps ownership lane semantics separate from urgency", () => {
     expect(shopReconLaneIntelligence("INVENTORY_RECON")).toMatchObject({ workLaneLabel: "Inventory Recon", cardTone: "DARK_BLUE", commitmentLabel: "Frontline target" });
-    expect(shopReconLaneIntelligence("CUSTOMER_REPAIR")).toMatchObject({ workLaneLabel: "Customer Vehicle", cardTone: "SLATE_GRAY", commitmentLabel: "Customer promise" });
+    expect(shopReconLaneIntelligence("CUSTOMER_REPAIR")).toMatchObject({ workLaneLabel: "Customer Vehicle", cardTone: "BRIGHT_BLUE", commitmentLabel: "Customer promise" });
     const customer = scoreShopReconPriority({ workLane: "CUSTOMER_REPAIR", targetBand: "ON_TRACK", operatingState: "ACTIVE", commitmentAtRisk: true, operationalTargetOverdue: false, waitingParts: false, approvalPending: true, unassigned: false, qcPending: 0 });
     expect(customer.reasons.map(reason => reason.code)).toEqual(["CUSTOMER_PROMISE_RISK", "CUSTOMER_AUTHORIZATION_PENDING"]);
   });

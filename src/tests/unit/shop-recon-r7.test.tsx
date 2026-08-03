@@ -50,7 +50,7 @@ describe("R7 Shop & Recon landing projection", () => {
     expect(model.foundation.stages).toHaveLength(16);
     expect(model.foundation.wipLimits.operatingRepairBays).toBe(2);
     expect(model.foundation.activation.workflowTransitions).toBe("PROJECTED_FROM_EXISTING_REPAIR_ORDER");
-    expect(model.items.find(item => item.origin === "CUSTOMER_REPAIR")).toMatchObject({ workLaneLabel: "Customer Vehicle", cardTone: "SLATE_GRAY", commitmentLabel: "Customer promise" });
+    expect(model.items.find(item => item.origin === "CUSTOMER_REPAIR")).toMatchObject({ workLaneLabel: "Customer Vehicle", cardTone: "BRIGHT_BLUE", commitmentLabel: "Customer promise" });
     expect(model.items.find(item => item.origin === "INVENTORY_RECON")).toMatchObject({ workLaneLabel: "Inventory Recon", cardTone: "DARK_BLUE", commitmentLabel: "Frontline target" });
   });
 
@@ -105,6 +105,7 @@ describe("R7 Shop & Recon landing projection", () => {
     expect(html).toContain("Walter Hernandez");
     expect(html).toContain("Evidence-driven");
     expect(html).toContain("Live 16-Stage Lifecycle");
+    expect(html).toContain('/vehicles/shop-recon/ro-1');
     expect(html).toContain("External adapters: DISABLED");
     expect(html).not.toContain("/vehicles/shop-execution");
   });

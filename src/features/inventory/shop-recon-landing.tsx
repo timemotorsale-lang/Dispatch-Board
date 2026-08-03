@@ -348,7 +348,7 @@ export function ShopReconLanding({
 
       <div className="shop-lane-legend" aria-label="Vehicle ownership lane legend">
         <span className="lane-inventory"><Building2 size={13} /> Inventory Recon · dark blue</span>
-        <span className="lane-customer"><UserRound size={13} /> Customer Vehicle · slate gray</span>
+        <span className="lane-customer"><UserRound size={13} /> Customer Vehicle · bright blue</span>
         <small>Amber and red remain reserved for timing risk and blockers.</small>
       </div>
 
@@ -370,7 +370,7 @@ export function ShopReconLanding({
                 <Link
                   className={`shop-vehicle-card ${item.workLane === "INVENTORY_RECON" ? "lane-inventory" : "lane-customer"}`}
                   href={withReturnTo(
-                    `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(item.id)}`,
+                    `/vehicles/shop-recon/${encodeURIComponent(item.id)}`,
                     returnTo,
                   )}
                   key={item.id}

@@ -22,7 +22,7 @@ The coded foundation publishes the controlled policy and now executes determinis
 - twenty-five stable blocker definitions;
 - inbound and outbound Inventory handoff envelope requirements and non-mutating validators;
 - evidence-driven mapping from the authoritative RepairOrder, RepairJob, dispatch, parts, QC and release records into the sixteen stages;
-- one continuously moving vehicle card, with labeled dark-blue Inventory Recon and slate-gray Customer Vehicle ownership lanes;
+- one continuously moving vehicle card, with labeled dark-navy Inventory Recon and vivid-blue Customer Vehicle ownership lanes;
 - lane-specific commitment, authorization, priority and completion-handoff intelligence with urgency represented separately;
 - hard transition-gate evaluation, controlled changed-scope and QC rework loops;
 - staffed-minute aging, target bands, explainable priority scoring and controlled-queue WIP checks;
@@ -35,6 +35,8 @@ The coded foundation publishes the controlled policy and now executes determinis
 | Foundation policy contract and validators | `src/server/shop-recon/foundation.ts` |
 | Existing Shop & Recon read projection | `src/server/shop-recon/projection.ts` |
 | Deterministic stage, gate, loop, priority and WIP algorithms | `src/server/shop-recon/workflow.ts` |
+| Sixteen-stage checklist and form design catalog | `src/server/shop-recon/stage-workspace.ts` |
+| Unified read-only vehicle-card visual workspace | `src/features/inventory/shop-recon-vehicle-card.tsx` |
 | Foundation contract tests | `src/tests/unit/shop-recon-foundation.test.ts` |
 | Projection conformance tests | `src/tests/unit/shop-recon-r7.test.tsx` |
 

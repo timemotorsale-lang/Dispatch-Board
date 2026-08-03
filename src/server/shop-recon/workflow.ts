@@ -73,7 +73,7 @@ export function shopReconLaneIntelligence(origin: string) {
   return {
     workLane: "CUSTOMER_REPAIR" as const,
     workLaneLabel: "Customer Vehicle",
-    cardTone: "SLATE_GRAY",
+    cardTone: "BRIGHT_BLUE",
     commitmentLabel: "Customer promise",
     authorizationPath: "Customer/advisor authorization",
     completionHandoff: "Advisor/customer handoff",
