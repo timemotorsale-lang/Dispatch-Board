@@ -483,7 +483,7 @@ export function InventoryLifecyclePrototype({
           readinessLabel: current.readyForHandoff ? `Ready for ${nextStageLabel}` : `Not ready for ${nextStageLabel}`,
           summary: current.readyForHandoff ? `${item.label} can hand off to ${nextStageLabel}.` : `${item.label} is holding before ${nextStageLabel}.`,
         },
-        lastUpdatedLabel: current.trailCount || completedActions ? "Prototype session evidence" : "No evidence recorded",
+        lastUpdatedLabel: current.trailCount || completedActions ? (embedded ? "Guided lifecycle session evidence" : "Prototype session evidence") : "No evidence recorded",
         trailCount: current.trailCount,
         recommendation: current.recommendation,
         readyForHandoff: current.readyForHandoff,
@@ -491,7 +491,7 @@ export function InventoryLifecyclePrototype({
         workTrail,
       };
     });
-  }, [currentUnit.inventoryNumber, dtgProgress, fqcProgress, flgProgress, igiProgress, iiiProgress, iqiProgress, pmmProgress, pslProgress, rbiProgress, rnrProgress, slgProgress, stlProgress, taiProgress, tciProgress, tlrProgress, wopProgress]);
+  }, [currentUnit.inventoryNumber, dtgProgress, embedded, fqcProgress, flgProgress, igiProgress, iiiProgress, iqiProgress, pmmProgress, pslProgress, rbiProgress, rnrProgress, slgProgress, stlProgress, taiProgress, tciProgress, tlrProgress, wopProgress]);
 
   const lifecycleHistory = useMemo(() => summarizeLifecycleHistory(stageSnapshots), [stageSnapshots]);
   const currentSnapshot = stageSnapshots[selectedStage];
@@ -551,18 +551,18 @@ export function InventoryLifecyclePrototype({
       else next.add(key);
       return next;
     });
-    setNotice("Prototype progress updated locally. No operational record was changed.");
+    setNotice(embedded ? "Guided lifecycle progress updated locally. No operational record was changed." : "Prototype progress updated locally. No operational record was changed.");
   }
 
   function simulateHandoff() {
     if (!ready) return;
     if (selectedStage === lifecycleStages.length - 1) {
-      setNotice("Prototype lifecycle completed. No production vehicle or workflow was changed.");
+      setNotice(embedded ? "Guided lifecycle completed for this session. No production vehicle or workflow was changed." : "Prototype lifecycle completed. No production vehicle or workflow was changed.");
       return;
     }
     const nextStage = selectedStage + 1;
     setSelectedStage(nextStage);
-    setNotice(`Prototype handoff passed. Previewing ${lifecycleStages[nextStage].label}; no operational record was changed.`);
+    setNotice(embedded ? `Guided handoff passed. Previewing ${lifecycleStages[nextStage].label}; no operational record was changed.` : `Prototype handoff passed. Previewing ${lifecycleStages[nextStage].label}; no operational record was changed.`);
   }
 
   function resetPrototype() {
@@ -585,7 +585,7 @@ export function InventoryLifecyclePrototype({
     setStlProgress({ blockerCount: 0, buyerComplete: false, figuresComplete: false, packetComplete: false, qcComplete: false, recommendation: "Verify buyer", signaturesComplete: false, submissionComplete: false, trailCount: 0 });
     setFlgProgress({ blockerCount: 0, fileAssemblyComplete: false, filingLockComplete: false, financialComplete: false, recommendation: "Assemble file", retentionComplete: false, signaturesComplete: false, trailCount: 0, versionComplete: false });
     setPslProgress({ blockerCount: 0, closureComplete: false, deliveryComplete: false, fundingComplete: false, recommendation: "Confirm delivery", titleComplete: false, trailCount: 0, warrantyComplete: false, weOweComplete: false });
-    setNotice("Prototype reset to Acquisition. Operational records remain unchanged.");
+    setNotice(embedded ? "Guided lifecycle reset to Acquisition. Operational records remain unchanged." : "Prototype reset to Acquisition. Operational records remain unchanged.");
   }
 
   return (
@@ -598,7 +598,7 @@ export function InventoryLifecyclePrototype({
         </div>
         <div className={styles.bannerActions}>
           <Link href={currentUnit.returnHref}>{embedded ? "Refresh Inventory Console" : "Return to real Inventory Lifecycle"}</Link>
-          <button type="button" onClick={resetPrototype}><RotateCcw size={15} />Reset prototype</button>
+          <button type="button" onClick={resetPrototype}><RotateCcw size={15} />{embedded ? "Reset guided lifecycle" : "Reset prototype"}</button>
         </div>
       </header>
 

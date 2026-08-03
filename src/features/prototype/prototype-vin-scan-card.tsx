@@ -23,7 +23,7 @@ export type PrototypeVinScanEvidence = {
 export function PrototypeVinScanCard({
   expectedVin,
   helperText,
-  intakeHref = "/vehicles/workflows/add-vehicle?returnTo=%2Fvehicles%2Finventory%2Fprototype",
+  intakeHref = "/vehicles/workflows/add-vehicle?returnTo=%2Fvehicles%2Finventory",
   onEvidenceChange,
   stageLabel,
 }: {

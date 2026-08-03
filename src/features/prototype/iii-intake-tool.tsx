@@ -201,7 +201,7 @@ export function IiiIntakeTool({ onProgressChange }: { onProgressChange: (progres
         <h3>III intake workspace</h3>
         <p>Carry forward verified facts once, set the inventory objective, and release a clean record into inspection.</p>
         <div className={styles.iiiHeaderActions}>
-          <Link className={styles.iiiHeaderLink} href="/vehicles/workflows/add-vehicle?returnTo=%2Fvehicles%2Finventory%2Fprototype">Open Vehicle Intake form</Link>
+          <Link className={styles.iiiHeaderLink} href="/vehicles/workflows/add-vehicle?returnTo=%2Fvehicles%2Finventory">Open Vehicle Intake form</Link>
         </div>
       </div>
       <div className={styles.iiiVersion}>

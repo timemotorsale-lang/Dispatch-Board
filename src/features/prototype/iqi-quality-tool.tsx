@@ -179,7 +179,7 @@ export function IqiQualityTool({ onProgressChange }: { onProgressChange: (progre
         <h3>IQI initial QC workspace</h3>
         <p>Independently verify the inspection package, disposition every finding, and release only a complete package into recon planning.</p>
         <div className={styles.iqiHeaderActions}>
-          <Link className={styles.iqiHeaderLink} href="/vehicles/quality-control?returnTo=%2Fvehicles%2Finventory%2Fprototype">Open live QC workspace</Link>
+          <Link className={styles.iqiHeaderLink} href="/vehicles/quality-control?returnTo=%2Fvehicles%2Finventory">Open live QC workspace</Link>
         </div>
       </div>
       <div className={styles.iqiVersion}>
