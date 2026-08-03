@@ -1,7 +1,7 @@
 import { AlertTriangle, Boxes, CarFront, Clock3, Gauge, Landmark, Wrench } from "lucide-react";
 import Link from "next/link";
 
-import { buildPrototypeLifecycleHref } from "@/features/inventory/lifecycle/shell";
+import { buildInventoryLifecycleHref } from "@/features/inventory/lifecycle/shell";
 import type { InventoryControlTowerBaseProjection, InventoryControlTowerProjection } from "@/server/inventory-control-tower/service";
 import { buildVehicleLifecycleCardProjection } from "@/server/inventory-execution/vehicle-card-projection";
 
@@ -90,8 +90,8 @@ export function InventoryControlTower({
     : null;
 
   const lifecycleHref = selected
-    ? buildPrototypeLifecycleHref(selected.id)
-    : buildPrototypeLifecycleHref();
+    ? buildInventoryLifecycleHref(selected.id)
+    : buildInventoryLifecycleHref();
 
   const rollupNow = new Date();
   const readinessRollup = projection.items.reduce(

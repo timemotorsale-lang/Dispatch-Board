@@ -31,7 +31,7 @@ describe("LifecycleQualityControlPreview", () => {
       <LifecycleQualityControlPreview
         initial={model}
         initialRepairOrderId="ro_1"
-        returnTo="/vehicles/inventory/prototype"
+        returnTo="/vehicles/inventory"
       />,
     );
 

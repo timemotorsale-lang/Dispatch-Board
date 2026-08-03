@@ -60,7 +60,7 @@ const initialInput: WopPartsOrderingInput = {
   visibleDamageClear: false,
 };
 
-const helperReturnTo = "/vehicles/inventory/prototype";
+const helperReturnTo = "/vehicles/inventory";
 
 function timeStamp() {
   return new Intl.DateTimeFormat("en-US", {

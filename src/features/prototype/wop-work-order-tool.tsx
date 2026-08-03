@@ -76,7 +76,7 @@ const stepIndex: Record<StepKey, number> = {
 };
 
 const planOptions: WopPlanType[] = ["Retail recon", "Safety first", "Fast frontline", "Exception"];
-const workOrderReturnTo = "/vehicles/inventory/prototype";
+const workOrderReturnTo = "/vehicles/inventory";
 
 function timeStamp() {
   return new Intl.DateTimeFormat("en-US", {

@@ -72,7 +72,7 @@ const initialInput: ReconInput = {
   vendorOrCalibrationClosed: false,
 };
 
-const returnTo = "/vehicles/inventory/prototype";
+const returnTo = "/vehicles/inventory";
 
 function timeStamp() {
   return new Intl.DateTimeFormat("en-US", {

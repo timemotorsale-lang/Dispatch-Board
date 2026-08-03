@@ -17,7 +17,7 @@ import { useCallback, useMemo, useState } from "react";
 import { completionKey, lifecycleStages } from "@/features/inventory/lifecycle/stage-config";
 import {
   buildLifecycleUnitContext,
-  buildPrototypeLifecycleHref,
+  buildInventoryLifecycleHref,
   summarizeLifecycleHistory,
   withLifecycleReturnTo,
 } from "@/features/inventory/lifecycle/shell";
@@ -57,9 +57,11 @@ function buildHandoffLabel(stageIndex: number) {
 }
 
 export function InventoryLifecyclePrototype({
+  embedded = false,
   initialStage = 0,
   initialUnitContext,
 }: {
+  embedded?: boolean;
   initialStage?: number;
   initialUnitContext?: InventoryLifecycleUnitContext | null;
 }) {
@@ -85,7 +87,7 @@ export function InventoryLifecyclePrototype({
   const [pslProgress, setPslProgress] = useState<PslWorkflowProgress>({ blockerCount: 0, closureComplete: false, deliveryComplete: false, fundingComplete: false, recommendation: "Confirm delivery", titleComplete: false, trailCount: 0, warrantyComplete: false, weOweComplete: false });
   const [notice, setNotice] = useState("This workspace is isolated. Prototype actions do not update operational records.");
   const stage = lifecycleStages[selectedStage];
-  const lifecycleReturnHref = useMemo(() => buildPrototypeLifecycleHref(currentUnit.inventoryUnitId, selectedStage), [currentUnit.inventoryUnitId, selectedStage]);
+  const lifecycleReturnHref = useMemo(() => buildInventoryLifecycleHref(currentUnit.inventoryUnitId, selectedStage), [currentUnit.inventoryUnitId, selectedStage]);
   const completedCount = useMemo(
     () => stage.tasks.filter((_, index) => completed.has(completionKey(selectedStage, index))).length,
     [completed, selectedStage, stage.tasks],
@@ -498,6 +500,14 @@ export function InventoryLifecyclePrototype({
     handoffReady: stageSnapshots.filter((snapshot) => snapshot.readyForHandoff).length,
     stagesInMotion: stageSnapshots.filter((snapshot) => snapshot.status === "IN_PROGRESS").length,
   }), [stageSnapshots]);
+  const selectedStageStatusLabel =
+    currentSnapshot.status === "READY"
+      ? "Ready For Handoff"
+      : currentSnapshot.status === "BLOCKED"
+        ? "Blocked"
+        : currentSnapshot.status === "IN_PROGRESS"
+          ? "In Progress"
+          : "Not Started";
 
   function toggleAction(actionIndex: number) {
     if (selectedStage === 0 || selectedStage === 1 || selectedStage === 2 || selectedStage === 3 || selectedStage === 4 || selectedStage === 5 || selectedStage === 6 || selectedStage === 7 || selectedStage === 8 || selectedStage === 9 || selectedStage === 10 || selectedStage === 11 || selectedStage === 12 || selectedStage === 13 || selectedStage === 14 || selectedStage === 15) {
@@ -582,12 +592,12 @@ export function InventoryLifecyclePrototype({
     <section className={styles.prototype} aria-label="Inventory Lifecycle prototype workspace">
       <header className={styles.prototypeBanner}>
         <div>
-          <span><ShieldCheck size={16} />Official prototype workspace</span>
-          <strong>Safe review environment</strong>
-          <p>No production lifecycle, InventoryUnit, repair order, vehicle location, or evidence record is changed here.</p>
+          <span><ShieldCheck size={16} />{embedded ? "Integrated lifecycle workspace" : "Official prototype workspace"}</span>
+          <strong>{embedded ? "One Inventory Console lifecycle" : "Safe review environment"}</strong>
+          <p>{embedded ? "Guided stage operations, evidence, handoffs, and history now live inside the Inventory Console." : "No production lifecycle, InventoryUnit, repair order, vehicle location, or evidence record is changed here."}</p>
         </div>
         <div className={styles.bannerActions}>
-          <Link href={currentUnit.returnHref}>Return to real Inventory Lifecycle</Link>
+          <Link href={currentUnit.returnHref}>{embedded ? "Refresh Inventory Console" : "Return to real Inventory Lifecycle"}</Link>
           <button type="button" onClick={resetPrototype}><RotateCcw size={15} />Reset prototype</button>
         </div>
       </header>
@@ -602,9 +612,9 @@ export function InventoryLifecyclePrototype({
           </div>
         </div>
         <div className={styles.authoritativeState}>
-          <span>Prototype lifecycle state</span>
-          <strong><i />{currentUnit.currentStageLabel} | {currentUnit.currentStageStatus}</strong>
-          <small>One sample vehicle, one simulated journey</small>
+          <span>{embedded ? "Guided lifecycle state" : "Prototype lifecycle state"}</span>
+          <strong><i />{stage.label} | {selectedStageStatusLabel}</strong>
+          <small>{embedded ? `Vehicle is previewing stage ${selectedStage + 1} of ${lifecycleStages.length}` : "One sample vehicle, one simulated journey"}</small>
         </div>
       </section>
 

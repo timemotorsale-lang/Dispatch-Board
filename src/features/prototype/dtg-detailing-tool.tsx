@@ -76,7 +76,7 @@ const initialInput: DetailingInput = {
   vehicleDisclosureReviewed: false,
 };
 
-const returnTo = "/vehicles/inventory/prototype";
+const returnTo = "/vehicles/inventory";
 
 function timeStamp() {
   return new Intl.DateTimeFormat("en-US", {
@@ -239,7 +239,7 @@ export function DtgDetailingTool({ onProgressChange }: { onProgressChange: (prog
   }
 
   const qcHref = `/vehicles/quality-control?returnTo=${encodeURIComponent(returnTo)}`;
-  const lifecycleHref = "/vehicles/inventory/prototype";
+  const lifecycleHref = "/vehicles/inventory";
   const stepCount = Object.values(completedSteps).filter(Boolean).length;
 
   return <section className={styles.wopWorkspace} aria-label="TMS Detailing workspace">

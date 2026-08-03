@@ -1,15 +1,15 @@
 import type { InventoryLifecycleHistoryEntry, InventoryLifecycleStageSnapshot, InventoryLifecycleUnitContext } from "./types";
 
-export function buildPrototypeLifecycleHref(inventoryUnitId?: string | null, stage?: number) {
+export function buildInventoryLifecycleHref(inventoryUnitId?: string | null, stage?: number) {
   const params = new URLSearchParams();
   if (inventoryUnitId) params.set("inventoryUnitId", inventoryUnitId);
-  if (typeof stage === "number" && Number.isFinite(stage)) params.set("stage", String(stage));
+  if (typeof stage === "number" && Number.isFinite(stage)) params.set("guidedStage", String(stage));
   const query = params.toString();
-  return query ? `/vehicles/inventory/prototype?${query}` : "/vehicles/inventory/prototype";
+  return query ? `/vehicles/inventory?${query}` : "/vehicles/inventory";
 }
 
 export function withLifecycleReturnTo(href: string, inventoryUnitId?: string | null, stage?: number) {
-  const returnTo = buildPrototypeLifecycleHref(inventoryUnitId, stage);
+  const returnTo = buildInventoryLifecycleHref(inventoryUnitId, stage);
   const url = new URL(href, "http://inventory-lifecycle.local");
   url.searchParams.set("returnTo", returnTo);
   return `${url.pathname}${url.search}`;

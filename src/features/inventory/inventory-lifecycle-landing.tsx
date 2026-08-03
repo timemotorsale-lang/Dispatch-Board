@@ -1,6 +1,8 @@
 import type { CSSProperties } from "react";
 import { AlertTriangle, BarChart3, CarFront, CheckCircle2, ClipboardList, Clock3, Download, FileCheck2, Gauge, Handshake, Layers3, MoreVertical, Play, Search, ShieldCheck, Tags, Truck, Wrench } from "lucide-react";
 import Link from "next/link";
+import type { InventoryLifecycleUnitContext } from "@/features/inventory/lifecycle/types";
+import { InventoryLifecyclePrototype } from "@/features/prototype/inventory-lifecycle-prototype";
 import type { InventoryControlTowerBaseProjection, InventoryControlTowerProjection } from "@/server/inventory-control-tower/service";
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
@@ -14,7 +16,7 @@ const lifecycleGroups = [
   { icon: CarFront, label: "Sold / Wholesale / Transferred", stages: ["SOLD", "DELIVERED", "WHOLESALED_OR_OTHER_DISPOSITION"] },
 ] as const;
 
-export function InventoryLifecycleLanding({ projection, controlTowerHref, currentUserId = "", activeWorkView = "MY" }: { projection: InventoryControlTowerProjection | InventoryControlTowerBaseProjection; controlTowerHref: string; currentUserId?: string; activeWorkView?: "MY" | "TEAM" | "EXCEPTIONS" }) {
+export function InventoryLifecycleLanding({ projection, controlTowerHref, currentUserId = "", activeWorkView = "MY", guidedLifecycleStage = 0, guidedLifecycleUnitContext = null }: { projection: InventoryControlTowerProjection | InventoryControlTowerBaseProjection; controlTowerHref: string; currentUserId?: string; activeWorkView?: "MY" | "TEAM" | "EXCEPTIONS"; guidedLifecycleStage?: number; guidedLifecycleUnitContext?: InventoryLifecycleUnitContext | null }) {
   const connected = "decisions" in projection ? projection : null;
   const grouped = lifecycleGroups.map((group) => {
     const stages = projection.byStage.filter((stage) => (group.stages as readonly string[]).includes(stage.stage));
@@ -47,7 +49,7 @@ export function InventoryLifecycleLanding({ projection, controlTowerHref, curren
   return <section aria-label={`Inventory Lifecycle; ${projection.freshness}; quality ${projection.dataQualityGrade}; ${projection.reconciliation.stageUnits} of ${projection.reconciliation.scopedUnits} units reconciled`} className="inventory-lifecycle-landing visual-console-page">
     <header className="vcp-header">
       <div><p>Inventory Console</p><h1>Inventory Lifecycle</h1><span>Enterprise inventory health and movement</span></div>
-      <div className="vcp-actions"><Link className="vcp-primary" href="/vehicles/registry"><Search size={15} />Find Vehicle / Open Workbench</Link><Link href="/vehicles/inventory/prototype"><Layers3 size={15} />Lifecycle Prototype</Link><Link href={controlTowerHref}><Gauge size={15} />Open Control Tower</Link><Link href="/vehicles/workflows/add-vehicle">Add / Find Vehicle</Link><Link href="/vehicles/disposition-wholesale">Open Disposition &amp; Wholesale</Link><button disabled title="Saved views activation is pending">Saved Views</button><button disabled title="Export activation is pending"><Download size={15} />Export</button></div>
+      <div className="vcp-actions"><Link className="vcp-primary" href="/vehicles/registry"><Search size={15} />Find Vehicle / Open Workbench</Link><Link href="#integrated-lifecycle"><Layers3 size={15} />Guided Lifecycle</Link><Link href={controlTowerHref}><Gauge size={15} />Open Control Tower</Link><Link href="/vehicles/workflows/add-vehicle">Add / Find Vehicle</Link><Link href="/vehicles/disposition-wholesale">Open Disposition &amp; Wholesale</Link><button disabled title="Saved views activation is pending">Saved Views</button><button disabled title="Export activation is pending"><Download size={15} />Export</button></div>
     </header>
 
     <form className="vcp-filter-bar" action="/vehicles/inventory">
@@ -61,6 +63,10 @@ export function InventoryLifecycleLanding({ projection, controlTowerHref, curren
     <nav aria-label="Inventory Lifecycle governed workspaces" className="sr-only"><Link href="/vehicles/registry">Find Vehicle / Open Workbench</Link><Link href="/vehicles/acquisition-appraisal">Acquisition &amp; Appraisal</Link><Link href="/vehicles/inventory-to-frontline">Inventory to Frontline</Link><Link href="/vehicles/retail-completion">Retail Completion</Link><Link href="/vehicles/workflows"><Play size={14} />Workflow Launcher</Link></nav>
 
     {!projection.totals.units ? <section className="vehicle-map-empty lifecycle-map" aria-label="Vehicle map guidance"><h2>No inventory lifecycle units are visible yet</h2><p>A vehicle may still exist in the canonical registry even when it has not become an InventoryUnit. Staff should search the vehicle first, open its Vehicle Workbench, and only start acquisition or lifecycle work when that is the right business step.</p><div className="form-actions"><Link className="button button-primary" href="/vehicles/registry">Find Vehicle / Open Workbench</Link><Link className="button button-secondary" href="/vehicles/workflows/add-vehicle">Add / Find Vehicle</Link><Link className="button button-secondary" href="/vehicles/acquisition-appraisal">Start Acquisition</Link></div></section> : null}
+
+    <section id="integrated-lifecycle" aria-label="Integrated guided inventory lifecycle">
+      <InventoryLifecyclePrototype embedded initialStage={guidedLifecycleStage} initialUnitContext={guidedLifecycleUnitContext} />
+    </section>
 
     <section aria-label="Inventory lifecycle KPIs" className="vcp-kpis">
       {[
