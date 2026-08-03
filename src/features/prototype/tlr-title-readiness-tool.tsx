@@ -10,7 +10,6 @@ import {
   FileText,
   ShieldCheck,
 } from "lucide-react";
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import styles from "./inventory-lifecycle-prototype.module.css";
@@ -68,8 +67,6 @@ const initialInput: TitleInput = {
   transferChainVerified: false,
   vinOwnerJurisdictionMatch: false,
 };
-
-const returnTo = "/vehicles/inventory/prototype";
 
 function timeStamp() {
   return new Intl.DateTimeFormat("en-US", {
@@ -133,7 +130,13 @@ function evaluateTitle(input: TitleInput) {
   };
 }
 
-export function TlrTitleReadinessTool({ onProgressChange }: { onProgressChange: (progress: TlrWorkflowProgress) => void }) {
+export function TlrTitleReadinessTool({
+  onProgressChange,
+  onReturnToLifecycle,
+}: {
+  onProgressChange: (progress: TlrWorkflowProgress) => void;
+  onReturnToLifecycle: () => void;
+}) {
   const [input, setInput] = useState(initialInput);
   const [completedSteps, setCompletedSteps] = useState<Record<StepKey, boolean>>({
     brand: false,
@@ -230,7 +233,6 @@ export function TlrTitleReadinessTool({ onProgressChange }: { onProgressChange: 
     setNotice(input.readinessDecision === "Title ready" ? "Title Readiness is complete. The vehicle can now move into Selling." : "Title readiness decision recorded. The unit remains governed by the issued decision.");
   }
 
-  const lifecycleHref = `/vehicles/inventory/prototype`;
   const stepCount = Object.values(completedSteps).filter(Boolean).length;
 
   return <section className={styles.wopWorkspace} aria-label="TMS Title Readiness workspace">
@@ -240,7 +242,7 @@ export function TlrTitleReadinessTool({ onProgressChange }: { onProgressChange: 
         <h3>TLR legal-readiness workspace</h3>
         <p>Guide the title team through identity, ownership chain, lien and brand status, odometer compliance, custody control, and final sale-readiness release.</p>
         <div className={styles.wopHeaderActions}>
-          <Link className={styles.wopHeaderLink} href={lifecycleHref}><FileText size={14} />Return to lifecycle</Link>
+          <button className={`${styles.wopHeaderLink} ${styles.wopHeaderButton}`} onClick={onReturnToLifecycle} type="button"><FileText size={14} />Return to lifecycle</button>
         </div>
       </div>
       <div className={styles.wopVersion}>

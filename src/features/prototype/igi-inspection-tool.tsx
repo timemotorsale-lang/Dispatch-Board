@@ -10,7 +10,6 @@ import {
   ScanLine,
   ShieldCheck,
 } from "lucide-react";
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import styles from "./inventory-lifecycle-prototype.module.css";

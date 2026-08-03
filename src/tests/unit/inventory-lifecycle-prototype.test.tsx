@@ -2,6 +2,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { InventoryLifecyclePrototype } from "@/features/prototype/inventory-lifecycle-prototype";
+import { PmmPhotosMarketingTool } from "@/features/prototype/pmm-photos-marketing-tool";
+import { TlrTitleReadinessTool } from "@/features/prototype/tlr-title-readiness-tool";
 
 describe("InventoryLifecyclePrototype", () => {
   it("renders the isolated official lifecycle prototype shell", () => {
@@ -36,5 +38,19 @@ describe("InventoryLifecyclePrototype", () => {
     const markup = renderToStaticMarkup(<InventoryLifecyclePrototype />);
 
     expect(markup).toContain("Open Vehicle Intake form");
+  });
+
+  it("renders return-to-lifecycle controls in the later lifecycle workspaces", () => {
+    const pmmMarkup = renderToStaticMarkup(
+      <PmmPhotosMarketingTool onProgressChange={() => undefined} onReturnToLifecycle={() => undefined} />,
+    );
+    const tlrMarkup = renderToStaticMarkup(
+      <TlrTitleReadinessTool onProgressChange={() => undefined} onReturnToLifecycle={() => undefined} />,
+    );
+
+    expect(pmmMarkup).toContain("PMM merchandising workspace");
+    expect(pmmMarkup).toContain("Return to lifecycle");
+    expect(tlrMarkup).toContain("TLR legal-readiness workspace");
+    expect(tlrMarkup).toContain("Return to lifecycle");
   });
 });

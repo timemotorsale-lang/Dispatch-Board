@@ -1,5 +1,4 @@
 import {
-  AlertTriangle,
   ArrowRight,
   BadgeDollarSign,
   CalendarDays,

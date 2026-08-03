@@ -12,7 +12,6 @@ import {
   ShieldCheck,
   Tags,
 } from "lucide-react";
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import styles from "./inventory-lifecycle-prototype.module.css";
@@ -71,8 +70,6 @@ const initialInput: MarketingInput = {
   titleOrSafetyHoldCleared: false,
   vinAndDashPhotosCaptured: false,
 };
-
-const returnTo = "/vehicles/inventory/prototype";
 
 function timeStamp() {
   return new Intl.DateTimeFormat("en-US", {
@@ -133,7 +130,13 @@ function evaluateMarketing(input: MarketingInput) {
   };
 }
 
-export function PmmPhotosMarketingTool({ onProgressChange }: { onProgressChange: (progress: PmmWorkflowProgress) => void }) {
+export function PmmPhotosMarketingTool({
+  onProgressChange,
+  onReturnToLifecycle,
+}: {
+  onProgressChange: (progress: PmmWorkflowProgress) => void;
+  onReturnToLifecycle: () => void;
+}) {
   const [input, setInput] = useState(initialInput);
   const [completedSteps, setCompletedSteps] = useState<Record<StepKey, boolean>>({
     compliance: false,
@@ -235,7 +238,6 @@ export function PmmPhotosMarketingTool({ onProgressChange }: { onProgressChange:
     setNotice("Photos & Marketing is complete. The vehicle can now move into Title Readiness.");
   }
 
-  const detailingHref = `/vehicles/inventory/prototype`;
   const stepCount = Object.values(completedSteps).filter(Boolean).length;
 
   return <section className={styles.wopWorkspace} aria-label="TMS Photos and Marketing workspace">
@@ -245,7 +247,7 @@ export function PmmPhotosMarketingTool({ onProgressChange }: { onProgressChange:
         <h3>PMM merchandising workspace</h3>
         <p>Guide the merchandising team through media capture, specs, listing copy, pricing, compliance, and publication.</p>
         <div className={styles.wopHeaderActions}>
-          <Link className={styles.wopHeaderLink} href={detailingHref}><Camera size={14} />Return to lifecycle</Link>
+          <button className={`${styles.wopHeaderLink} ${styles.wopHeaderButton}`} onClick={onReturnToLifecycle} type="button"><Camera size={14} />Return to lifecycle</button>
         </div>
       </div>
       <div className={styles.wopVersion}>

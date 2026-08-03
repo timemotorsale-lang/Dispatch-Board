@@ -95,12 +95,6 @@ export function WopPartsOrderingTool({
   const result = useMemo(() => evaluateWopPartsOrdering(input, approvedBudgetDollars), [approvedBudgetDollars, input]);
 
   useEffect(() => {
-    setInput((current) => current.revisedWorkOrderTotalDollars === 0 && approvedBudgetDollars > 0
-      ? { ...current, revisedWorkOrderTotalDollars: approvedBudgetDollars }
-      : current);
-  }, [approvedBudgetDollars]);
-
-  useEffect(() => {
     onProgressChange({
       approvalComplete: completedSteps.approval && result.approvalComplete,
       blockerCount: result.blockerCount,

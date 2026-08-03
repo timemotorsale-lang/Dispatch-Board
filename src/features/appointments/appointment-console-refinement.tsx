@@ -3,7 +3,6 @@
 import {
   AlertTriangle,
   CalendarDays,
-  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Gauge,
@@ -726,6 +725,8 @@ function LegacyAppointmentConsoleNewAppointment() {
   );
 }
 
+void LegacyAppointmentConsoleNewAppointment;
+
 export function AppointmentConsoleNewAppointment() {
   const [selectedPurposeCode, setSelectedPurposeCode] = useState<(typeof purposeOptions)[number]["value"]>("CUSTOMER_ISSUE");
   const selectedPurpose = purposeOptions.find((purpose) => purpose.value === selectedPurposeCode) ?? purposeOptions[0];
@@ -750,10 +751,13 @@ export function AppointmentConsoleNewAppointment() {
   const [selectedCustomer, setSelectedCustomer] = useState<AppointmentIdentityCustomer | null>(null);
   const [selectedVehicle, setSelectedVehicle] = useState<AppointmentIdentityVehicle | null>(null);
   const appointmentWindow = useAppointmentWindow(form.localDate, calendarView);
+  const identityQuery = (customerQuery || vehicleQuery).trim();
+  const effectiveIdentityResults = identityQuery.length < 2 ? { customers: [], vehicles: [] } : identityResults;
+  const effectiveIdentityStatus = identityQuery.length < 2 ? "idle" : identityStatus;
   const startsAtIso = useMemo(() => localDateTimeToIso(form.localDate, form.startTime), [form.localDate, form.startTime]);
   const endsAtIso = useMemo(() => addMinutesToIso(startsAtIso, form.durationMinutes), [startsAtIso, form.durationMinutes]);
   const monthCells = useMemo(() => buildMonthCells(form.localDate), [form.localDate]);
-  const visibleAppointments = appointmentWindow.data?.appointments ?? [];
+  const visibleAppointments = useMemo(() => appointmentWindow.data?.appointments ?? [], [appointmentWindow.data?.appointments]);
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(weekStart(form.localDate), index)), [form.localDate]);
   const appointmentsByDate = useMemo(() => {
     const grouped = new Map<string, LiveAppointment[]>();
@@ -776,11 +780,7 @@ export function AppointmentConsoleNewAppointment() {
   }
 
   useEffect(() => {
-    const query = (customerQuery || vehicleQuery).trim();
-
-    if (query.length < 2) {
-      setIdentityResults({ customers: [], vehicles: [] });
-      setIdentityStatus("idle");
+    if (identityQuery.length < 2) {
       return;
     }
 
@@ -790,7 +790,7 @@ export function AppointmentConsoleNewAppointment() {
         setIdentityStatus("loading");
 
         try {
-          const response = await fetch(`/api/appointments/identity-search?query=${encodeURIComponent(query)}`);
+          const response = await fetch(`/api/appointments/identity-search?query=${encodeURIComponent(identityQuery)}`);
           const result = await response.json().catch(() => null) as AppointmentIdentitySearchResponse | { error?: string } | null;
 
           if (!response.ok || !result || !("customers" in result)) {
@@ -816,7 +816,7 @@ export function AppointmentConsoleNewAppointment() {
       cancelled = true;
       window.clearTimeout(timeout);
     };
-  }, [customerQuery, vehicleQuery]);
+  }, [identityQuery]);
 
   function chooseCustomer(customer: AppointmentIdentityCustomer) {
     setSelectedCustomer(customer);
@@ -954,12 +954,12 @@ export function AppointmentConsoleNewAppointment() {
               </label>
               {customerQuery.trim().length >= 2 ? (
                 <div className="appointment-identity-results">
-                  {identityResults.customers.length > 0 ? identityResults.customers.map((customer) => (
+                  {effectiveIdentityResults.customers.length > 0 ? effectiveIdentityResults.customers.map((customer) => (
                     <button className={selectedCustomer?.id === customer.id ? "selected" : ""} key={customer.id} onClick={() => chooseCustomer(customer)} type="button">
                       <UserRound />
                       <span><strong>{customer.displayName}</strong><small>{customer.phoneNumber ?? customer.email ?? customer.customerNumber ?? "Canonical customer"}</small></span>
                     </button>
-                  )) : <p>{identityStatus === "loading" ? "Searching customers..." : "No matching customer found. Typed customer name will be preserved as draft context."}</p>}
+                  )) : <p>{effectiveIdentityStatus === "loading" ? "Searching customers..." : "No matching customer found. Typed customer name will be preserved as draft context."}</p>}
                 </div>
               ) : null}
               <label>
@@ -968,12 +968,12 @@ export function AppointmentConsoleNewAppointment() {
               </label>
               {vehicleQuery.trim().length >= 2 ? (
                 <div className="appointment-identity-results">
-                  {identityResults.vehicles.length > 0 ? identityResults.vehicles.map((vehicle) => (
+                  {effectiveIdentityResults.vehicles.length > 0 ? effectiveIdentityResults.vehicles.map((vehicle) => (
                     <button className={selectedVehicle?.id === vehicle.id ? "selected" : ""} key={vehicle.id} onClick={() => chooseVehicle(vehicle)} type="button">
                       <CalendarDays />
                       <span><strong>{identityVehicleLabel(vehicle)}</strong><small>{vehicle.vin ?? vehicle.licensePlate ?? vehicle.stockNumber ?? vehicle.vehicleNumber}</small></span>
                     </button>
-                  )) : <p>{identityStatus === "loading" ? "Searching vehicles..." : "No matching vehicle found. Typed vehicle details will be preserved as draft context."}</p>}
+                  )) : <p>{effectiveIdentityStatus === "loading" ? "Searching vehicles..." : "No matching vehicle found. Typed vehicle details will be preserved as draft context."}</p>}
                 </div>
               ) : null}
               <label>

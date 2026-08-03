@@ -10,7 +10,6 @@ import { BackToPartsWorkspace } from "./parts-return-link";
 type Model = Awaited<ReturnType<typeof getPartsOperationsWorkspace>>;
 type PurchaseOrder = Model["service"]["purchaseOrders"][number];
 type Part = Model["waveOne"]["parts"][number];
-type StockLocation = Model["waveOne"]["stockLocations"][number];
 
 type ReceiveLine = {
   condition: "GOOD" | "DAMAGED" | "WRONG_PART" | "MISSING_SHORT" | "EXTRA_OVER";

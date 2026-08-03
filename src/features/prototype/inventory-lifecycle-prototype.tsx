@@ -852,7 +852,10 @@ export function InventoryLifecyclePrototype() {
             <div><span>Stage {selectedStage + 1} of {lifecycleStages.length}</span><h2>{stage.title}</h2><p>{stage.purpose}</p></div>
             <strong>{stage.gate}</strong>
           </header>
-          {selectedStage === 11 ? <TlrTitleReadinessTool key={`tlr-${prototypeVersion}`} onProgressChange={syncTlrProgress} /> : null}
+          {selectedStage === 11 ? <TlrTitleReadinessTool key={`tlr-${prototypeVersion}`} onProgressChange={syncTlrProgress} onReturnToLifecycle={() => {
+            document.getElementById("prototype-lifecycle-rail")?.scrollIntoView({ behavior: "smooth", block: "start" });
+            setNotice("Returned to the lifecycle overview. Prototype progress is stored only in this screen.");
+          }} /> : null}
           {selectedStage === 12 ? <SlgSellingTool key={`slg-${prototypeVersion}`} onProgressChange={syncSlgProgress} onReturnToLifecycle={() => {
             document.getElementById("prototype-lifecycle-rail")?.scrollIntoView({ behavior: "smooth", block: "start" });
             setNotice("Returned to the lifecycle overview. Prototype progress is stored only in this screen.");
@@ -869,7 +872,10 @@ export function InventoryLifecyclePrototype() {
             document.getElementById("prototype-lifecycle-rail")?.scrollIntoView({ behavior: "smooth", block: "start" });
             setNotice("Returned to the lifecycle overview. Prototype progress is stored only in this screen.");
           }} /> : null}
-          {selectedStage === 10 ? <PmmPhotosMarketingTool key={`pmm-${prototypeVersion}`} onProgressChange={syncPmmProgress} /> : null}
+          {selectedStage === 10 ? <PmmPhotosMarketingTool key={`pmm-${prototypeVersion}`} onProgressChange={syncPmmProgress} onReturnToLifecycle={() => {
+            document.getElementById("prototype-lifecycle-rail")?.scrollIntoView({ behavior: "smooth", block: "start" });
+            setNotice("Returned to the lifecycle overview. Prototype progress is stored only in this screen.");
+          }} /> : null}
           {selectedStage === 9 ? <DtgDetailingTool key={`dtg-${prototypeVersion}`} onProgressChange={syncDtgProgress} /> : null}
           {selectedStage === 8 ? <FqcFinalQcTool key={`fqc-${prototypeVersion}`} onProgressChange={syncFqcProgress} /> : null}
           {selectedStage === 7 ? <RnrReconTool key={`rnr-${prototypeVersion}`} onProgressChange={syncRnrProgress} /> : null}

@@ -1,8 +1,7 @@
 import {
   getSalesConsoleAppointmentHref,
   getSalesConsoleCustomer360Href,
-  getSalesConsoleTaskHref,
-  getSalesConsoleVehicle360Href
+  getSalesConsoleTaskHref
 } from "./sales-console-cross-console-integration";
 import type { SalesConsoleFreshness, SalesConsoleRevenueLaneName } from "./sales-console-operational-domain";
 
@@ -76,7 +75,7 @@ export function buildSalesConsoleSourceRecord(input: {
         : input.sourceKey === "tasks"
           ? getSalesConsoleTaskHref(input.id)
           : input.sourceKey === "inventory"
-            ? getSalesConsoleVehicle360Href(input.id)
+            ? `/vehicles/360/${encodeURIComponent(input.id)}`
             : (salesConsoleReadSourceDefinitions.find((source) => source.key === input.sourceKey)?.appRoute ?? "/sales");
 
   return {

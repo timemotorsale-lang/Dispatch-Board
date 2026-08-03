@@ -23,7 +23,6 @@ import {
   ShieldCheck,
   SquareCheckBig,
   Stethoscope,
-  Sparkles,
   UserRoundCheck,
   Users,
   Wrench,
@@ -128,14 +127,6 @@ export const appointmentConsoleNavigationItems: NavigationItem[] = [
 ];
 
 export const dispatchNavigationItems: NavigationItem[] = [
-  {
-    href: "/today",
-    title: "Today",
-    description: "Mobile-first action center for urgent work, due-next tasks, and quick actions.",
-    icon: Sparkles,
-    parentHref: "/board",
-    matchExact: true
-  },
   {
     href: "/board",
     title: "Overview",
@@ -350,7 +341,6 @@ const workspaceNavigationItems: Partial<Record<WorkspaceKey, NavigationItem[]>> 
     { href: "/vehicles/repair-workbench", title: "Repair Orders", description: "Read repair scope and completion evidence.", icon: ClipboardCheck }
   ],
   SALES: [
-    { href: "/sales", title: "Sales Console", description: "Lead, deal, vehicle match, and manager command center.", icon: BadgeDollarSign, matchExact: true },
     { href: "/my-tasks", title: "My Work", description: "Assigned follow-up and delivery actions.", icon: UserRoundCheck },
     { href: "/tasks?department=SALES", title: "Sales Tasks", description: "Task-level lead, negotiation, and delivery work.", icon: BadgeDollarSign, activeQuery: { department: "SALES" } },
     { href: "/appointments", title: "Appointments", description: "Customer appointments and commitments.", icon: CalendarDays },

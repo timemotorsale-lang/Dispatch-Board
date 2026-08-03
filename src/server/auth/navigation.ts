@@ -107,7 +107,7 @@ export const WORKSPACE_DEFINITIONS: readonly WorkspaceDefinition[] = [
     key: "SALES",
     label: "Sales Workspace",
     description: "Lead follow-up, deal desk, vehicle match, appointments, customers, and delivery work.",
-    landingRoute: "/sales",
+    landingRoute: "/tasks?department=SALES",
     roleNames: ["Salesperson", "Sales Manager"],
     dutyTerms: ["sales", "lead follow-up", "sold vehicle prep"]
   },

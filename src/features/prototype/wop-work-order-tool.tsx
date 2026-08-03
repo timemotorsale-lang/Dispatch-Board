@@ -110,13 +110,11 @@ export function WopWorkOrderTool({ onProgressChange }: { onProgressChange: (prog
   });
   const [trail, setTrail] = useState<TrailEntry[]>([]);
   const [notice, setNotice] = useState("Start Work Order planning by mapping every accepted finding into governed jobs before estimating.");
-  const result = useMemo(() => evaluateWopWorkOrder(input), [input]);
-
-  useEffect(() => {
-    setInput((current) => current.partsAvailabilityConfirmed === partsProgress.readinessComplete
-      ? current
-      : { ...current, partsAvailabilityConfirmed: partsProgress.readinessComplete });
-  }, [partsProgress.readinessComplete]);
+  const effectiveInput = useMemo(() => ({
+    ...input,
+    partsAvailabilityConfirmed: input.partsAvailabilityConfirmed || partsProgress.readinessComplete,
+  }), [input, partsProgress.readinessComplete]);
+  const result = useMemo(() => evaluateWopWorkOrder(effectiveInput), [effectiveInput]);
 
   useEffect(() => {
     onProgressChange({
