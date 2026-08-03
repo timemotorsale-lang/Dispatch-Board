@@ -1,5 +1,13 @@
 # Current Implementation Status
 
+## 2026-08-03 - Shop and Recon seven-phase coded foundation implemented
+
+The Shop and Recon controlled foundation package is established under [`docs/shop-repair-optimization/foundation-implementation/README.md`](shop-repair-optimization/foundation-implementation/README.md), with its read-only code contract in `src/server/shop-recon/foundation.ts`. It publishes the exact sixteen-stage vehicle-flow lifecycle from physical shop entry through accepted exit, twelve logical shop/custody zones, Monday-Friday 9:00 AM-6:00 PM Central hours, the confirmed two-bay shared-space constraint, Walter Hernandez as primary technician, Brock/Eli operating authority, stage and aggregate timing baselines, WIP limits, a stable twenty-five-code blocker taxonomy, and versioned Inventory-to-Shop inbound/outbound envelope validators.
+
+The existing Shop & Recon projection now exposes the foundation as contract `shop-recon/foundation/1.0.0` under projection `shop-recon/r8.0.0`. The package preserves the existing `SRO-1.0` Workshop 1-7 decisions and introduces seven separately reviewable `SRO-FND-*` decisions as a proposed `SRO-1.1-foundation` extension. Physical parking capacities, break policy, Saturday custody/key handling, QC independence, road-test eligibility controls and other unnamed authorities remain unresolved.
+
+This checkpoint adds a typed policy contract, non-mutating handoff validators, API projection data and focused tests. It adds no schema migration, mutation route, workflow transition, stage algorithm, integration writeback, vehicle movement, repair authority, customer communication, purchasing, QC pass, Inventory transition, shadow use, pilot or production activation. Existing authoritative RepairOrder/RepairJob behavior and manual Shop and Inventory-Recon processes remain the safe default until deliberate vertical-slice migration.
+
 ## 2026-07-27 — Enterprise Sales Console planning baseline
 
 The documentation-only Enterprise Sales Console planning package is established under [`docs/sales-console/README.md`](sales-console/README.md). It defines Sales as the commercial decision and execution layer over authoritative Customers, Inventory, Appointments, Tasks, and Documents records. The package includes the target modular-monolith architecture, sales-owned domain boundaries, dealership selling operating model, 18 lead-to-delivery and exception workflows, 15 deterministic decision algorithms, a 12-phase roadmap, 27 gated vertical milestones, and an outcome-to-proof traceability matrix.

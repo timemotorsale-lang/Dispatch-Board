@@ -46,6 +46,9 @@ describe("R7 Shop & Recon landing projection", () => {
       order({ id: "ro-2", origin: "INVENTORY_RECON", customer: null, inventoryUnit: { inventoryNumber: "INV-200" } }),
     ], now);
     expect(model.totals).toMatchObject({ customerRepair: 1, inventoryRecon: 1, openOrders: 2 });
+    expect(model.foundation.stages).toHaveLength(16);
+    expect(model.foundation.wipLimits.operatingRepairBays).toBe(2);
+    expect(model.foundation.activation.workflowTransitions).toBe("NOT_MIGRATED");
   });
 
   it("surfaces parts, assignment, promise, approval, and quality constraints", () => {
@@ -79,6 +82,11 @@ describe("R7 Shop & Recon landing projection", () => {
     expect(html).toContain("Capacity &amp; Assignment");
     expect(html).toContain("Blocker Center");
     expect(html).toContain("At-Risk Completion");
+    expect(html).toContain("Controlled Shop Foundation");
+    expect(html).toContain("16 stages");
+    expect(html).toContain("2 shared bays");
+    expect(html).toContain("Walter Hernandez");
+    expect(html).toContain("Foundation only");
     expect(html).toContain("External adapters: DISABLED");
     expect(html).not.toContain("/vehicles/shop-execution");
   });

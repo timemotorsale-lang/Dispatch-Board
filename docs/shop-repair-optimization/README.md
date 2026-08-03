@@ -47,6 +47,7 @@ The program reuses canonical `Vehicle`, `ServiceVisit`, `RepairOrder`, `RepairJo
 | [`APPROVAL_REGISTER.md`](APPROVAL_REGISTER.md) | All open dealership decisions required before implementation or activation. |
 | [`approval-execution/README.md`](approval-execution/README.md) | Controlled AE-0 entry, 79-decision ledger, eight workshop gates, signature journal, missing inputs, tabletop suite, and separate authorization resolution. |
 | [`approval-decisions/README.md`](approval-decisions/README.md) | Active authority confirmation, AE-0 session entry, and actual eight-workshop decision-recording workspace. |
+| [`foundation-implementation/README.md`](foundation-implementation/README.md) | Proposed seven-phase operating foundation for the 16-stage lifecycle, physical zones, lane authorities, targets, WIP, blockers, and Inventory-to-Shop handoff. |
 | [`IMPLEMENTATION_AND_PILOT_ROADMAP.md`](IMPLEMENTATION_AND_PILOT_ROADMAP.md) | Safe vertical slices from instrumentation through monitored decision support. |
 | [`TRACEABILITY_MATRIX.md`](TRACEABILITY_MATRIX.md) | Workstream-to-algorithm, decision, scenario, workshop, outcome, and implementation mapping. |
 
