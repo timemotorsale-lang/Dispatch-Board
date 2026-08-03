@@ -142,6 +142,6 @@ export function RepairOrderEnterpriseWorkbench({ diagnostics, order, options, re
         <section className="rowb-next"><h2>Next Best Action</h2><Wrench /><strong>{diagnosis ? "Prepare exact-version estimate" : "Release to Diagnosis"}</strong><span>{order.nextAction}</span><Link href={planningHref}>{diagnosis ? "Open Planning" : "Release to Diagnosis"}</Link></section>
       </aside>
     </div>
-    <footer className="rowb-footer"><span><ShieldAlert />Customer authorization is required before any repair work is performed.</span><div><Link href="/vehicles/shop-recon">Shop &amp; Recon</Link><Link href="/vehicles/repair-workbench?view=all">All Repair Orders</Link><Link className="primary" href={planningHref}>Open Planning &amp; Diagnosis</Link></div></footer>
+    <footer className="rowb-footer"><span><ShieldAlert />Customer authorization is required before any repair work is performed.</span><div>{returnTo ? <Link href={returnTo}>Inventory Lifecycle</Link> : null}<Link href="/vehicles/shop-recon">Shop &amp; Recon</Link><Link href="/vehicles/repair-workbench?view=all">All Repair Orders</Link><Link className="primary" href={planningHref}>Open Planning &amp; Diagnosis</Link></div></footer>
   </section>;
 }

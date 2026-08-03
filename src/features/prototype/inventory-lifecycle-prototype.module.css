@@ -477,6 +477,76 @@
   font-size: .76rem;
 }
 
+.stageCommand li small {
+  display: block;
+  flex-basis: 100%;
+  color: #718197;
+  font-size: .66rem;
+  font-weight: 650;
+}
+
+.lifecycleEvidencePanel {
+  border-bottom: 1px solid #e0e8ef;
+  background: #fbfdff;
+}
+
+.lifecycleEvidencePanel header {
+  padding: 10px 16px;
+  background: transparent;
+}
+
+.lifecycleEvidencePanel dl {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+.lifecycleEvidencePanel ol {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 10px 16px 14px;
+  list-style: none;
+}
+
+.lifecycleEvidencePanel ol li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid #dbe6f0;
+  border-radius: 6px;
+  padding: 7px 9px;
+  background: #fff;
+}
+
+.lifecycleEvidencePanel ol span {
+  color: #23364d;
+  font-size: .68rem;
+  font-weight: 800;
+}
+
+.lifecycleEvidencePanel ol strong {
+  color: #66798d;
+  font-size: .64rem;
+}
+
+.lifecycleEvidenceComplete {
+  border-color: #c9e8d6 !important;
+  background: #f1fbf5 !important;
+}
+
+.lifecycleEvidenceComplete strong {
+  color: #237349 !important;
+}
+
+.lifecycleEvidenceBlocked {
+  border-color: #f0c8c8 !important;
+  background: #fff7f7 !important;
+}
+
+.lifecycleEvidenceBlocked strong {
+  color: #b4232d !important;
+}
+
 .stageCommand > button {
   display: flex;
   width: calc(100% - 32px);
