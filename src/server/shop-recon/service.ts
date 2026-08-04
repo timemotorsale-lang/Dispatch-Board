@@ -5,7 +5,6 @@ import { createEnterpriseCommandRepository, type EnterpriseCommandRepository } f
 import { evaluateVehicleOperationsFeature } from "@/server/enterprise-command/service";
 import { assertVehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
 import { assertAuthenticatedUser, isGeneralManager } from "@/server/policies/access";
-import { SHOP_RECON_STAGES } from "./foundation";
 import { deriveShopReconStage, SHOP_RECON_ZONE_BY_STAGE } from "./workflow";
 import { canCompleteShopReconStage, normalizePublishShopReconEvidence, normalizeShopReconDraft, normalizeShopReconOverride, normalizeShopReconScopeChange, normalizeShopReconTransition } from "./policy";
 import { createShopReconLifecycleRepository, type ShopReconLifecycleRepository } from "./repository";
@@ -36,7 +35,7 @@ export async function getShopReconLifecycleWorkspace(actor: AuthenticatedUser | 
     history: lifecycle?.events.map(event => ({ sequence: event.sequence, eventType: event.eventType, fromStage: event.fromStage, toStage: event.toStage, fromOperatingState: event.fromOperatingState, toOperatingState: event.toOperatingState, scopeVersion: event.scopeVersion, actorUserId: event.actorUserId, actorName: names.get(event.actorUserId) ?? "Unknown user", reason: event.reason, payload: event.payload, occurredAt: event.occurredAt.toISOString() })) ?? [],
     overrides: lifecycle?.overrides.map(record => ({ id: record.id, stage: record.stage, kind: record.kind, authorizedByUserId: record.authorizedByUserId, authorizedByName: names.get(record.authorizedByUserId) ?? "Unknown user", reason: record.reason, boundaries: record.boundaries, expiresAt: record.expiresAt?.toISOString() ?? null, followUpAt: record.followUpAt?.toISOString() ?? null, createdAt: record.createdAt.toISOString() })) ?? [],
     scopeChanges: lifecycle?.scopeChanges.map(record => ({ id: record.id, version: record.version, status: record.status, discoveredAtStage: record.discoveredAtStage, returnStage: record.returnStage, finding: record.finding, affectedRepairJobIds: record.affectedRepairJobIds, originalScope: record.originalScope, proposedScope: record.proposedScope, submittedByUserId: record.submittedByUserId, submittedByName: names.get(record.submittedByUserId) ?? "Unknown user", submittedAt: record.submittedAt.toISOString() })) ?? [],
-    permissions: { canSave: true, canPublishEvidence: canCompleteShopReconStage(user, currentStage).allowed && (SHOP_RECON_STAGES.find(item => item.code === currentStage)?.order ?? 99) <= 12, canComplete: canCompleteShopReconStage(user, currentStage).allowed, canOverride: isGeneralManager(user), overrideAuthority: "General Manager" },
+    permissions: { canSave: true, canPublishEvidence: canCompleteShopReconStage(user, currentStage).allowed, canComplete: canCompleteShopReconStage(user, currentStage).allowed, canOverride: isGeneralManager(user), overrideAuthority: "General Manager" },
   };
 }
 

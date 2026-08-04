@@ -37,6 +37,22 @@ describe("Shop and Recon sixteen-stage workflow", () => {
     expect(assigned.allowed).toBe(true);
   });
 
+  it("requires execution evidence and technician sign-off before independent QC", () => {
+    const blocked = evaluateShopReconTransition({ fromStage: "TECHNICIAN_COMPLETE", toStage: "QC_RELEASE_READINESS", facts: { EXECUTION_COMPLETE: true, COMPLETION_EVIDENCE: true } });
+    expect(blocked.allowed).toBe(false);
+    expect(blocked.missingFacts).toEqual(["TECHNICIAN_SIGNOFF"]);
+    const allowed = evaluateShopReconTransition({ fromStage: "TECHNICIAN_COMPLETE", toStage: "QC_RELEASE_READINESS", facts: { EXECUTION_COMPLETE: true, COMPLETION_EVIDENCE: true, TECHNICIAN_SIGNOFF: true } });
+    expect(allowed.allowed).toBe(true);
+  });
+
+  it("closes the terminal shop-exit stage only after QC, road test and handoff acceptance", () => {
+    const blocked = evaluateShopReconTransition({ fromStage: "HANDOFF_SHOP_EXIT", toStage: "HANDOFF_SHOP_EXIT", facts: { QC_PASSED: true, ROAD_TEST_PASSED_OR_NOT_REQUIRED: true } });
+    expect(blocked.allowed).toBe(false);
+    expect(blocked.missingFacts).toEqual(["HANDOFF_ACCEPTED"]);
+    const allowed = evaluateShopReconTransition({ fromStage: "HANDOFF_SHOP_EXIT", toStage: "HANDOFF_SHOP_EXIT", facts: { QC_PASSED: true, ROAD_TEST_PASSED_OR_NOT_REQUIRED: true, HANDOFF_ACCEPTED: true } });
+    expect(allowed.allowed).toBe(true);
+  });
+
   it("derives early stages from custody and inspection evidence", () => {
     expect(deriveShopReconWorkflow({ ...base, serviceVisit: { ...base.serviceVisit, keysReceivedCount: 0 } }, new Date("2026-08-03T14:10:00.000Z")).stage).toBe("CUSTODY_CHECK_IN");
     expect(deriveShopReconWorkflow(base, new Date("2026-08-03T14:10:00.000Z")).stage).toBe("SAFETY_PRIORITY_TRIAGE");

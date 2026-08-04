@@ -32,4 +32,12 @@ describe("Shop Recon governed transition policy", () => {
     expect(canCompleteShopReconStage(actor("Eli Manager"), "READY_FOR_DISPATCH").allowed).toBe(true);
     expect(canCompleteShopReconStage(actor("Walter Hernandez"), "ASSIGNED_STAGED").allowed).toBe(false);
   });
+
+  it("assigns the approved authorities across execution, QC and shop exit", () => {
+    expect(canCompleteShopReconStage(actor("Walter Hernandez"), "REPAIR_EXECUTION").allowed).toBe(true);
+    expect(canCompleteShopReconStage(actor("Walter Hernandez"), "TECHNICIAN_COMPLETE").allowed).toBe(true);
+    expect(canCompleteShopReconStage(actor("Brock"), "QC_RELEASE_READINESS").allowed).toBe(true);
+    expect(canCompleteShopReconStage(actor("Walter Hernandez"), "QC_RELEASE_READINESS").allowed).toBe(false);
+    expect(canCompleteShopReconStage(actor("Eli"), "HANDOFF_SHOP_EXIT").allowed).toBe(true);
+  });
 });

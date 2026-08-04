@@ -1,6 +1,6 @@
 # R7 Shop & Recon Implementation
 
-Status: governed lifecycle and operational Stages 1–12 implemented; activation pending
+Status: governed lifecycle and operational Stages 1–16 implemented; activation pending
 Roadmap release: R7  
 Milestone: M7  
 Slices: IC-070 through IC-079
@@ -83,7 +83,20 @@ Stages 8–12 extend the same controlled draft, publication, and completion patt
 
 The card links directly to the Repair Workbench for estimate and authorization work, Parts Operations for reservation work, and Shop Dispatch for procedure, qualification, bay, and assignment work. Any downstream change invalidates the latest card draft until it is saved and republished.
 
-## 7. Projection rules
+## 7. Operational Stages 13–16
+
+Stages 13–16 close the controlled shop loop while preserving the specialist execution, QC, release, delivery-readiness, and custody records as the operational source of truth.
+
+| Stage | Authoritative validation and publication |
+| --- | --- |
+| 13. Repair Execution | Reconciles the card status with every repair job, requires attributable labor events, and records current job and labor-clock versions. “Complete for QC” is available only when all clocks are finished and all jobs contain completion evidence. A new finding must use the governed scope-change action. |
+| 14. Technician Complete | Walter Hernandez or another assigned qualified technician publishes the final measurements, completion notes, current job versions, and technician sign-off. Partial or blocked work remains in Stage 13. |
+| 15. QC & Release Readiness | Brock or another qualified independent QC authority verifies that every latest QC inspection passed, the road-test result matches those inspections, and the release authorization references those exact inspection records. Failed QC or road test returns the same card through the controlled rework loop. |
+| 16. Handoff & Shop Exit | Verifies a current READY delivery evaluation tied to the release authorization, enforces the lane-specific destination, reconciles all checked-in keys, records receiver acceptance, and creates one attributable custody handoff. Republishing does not duplicate the physical exit event. |
+
+Completing Stage 16 closes the Shop & Recon lifecycle only. An Inventory Recon vehicle returns to the Inventory lifecycle; a Customer Repair vehicle continues through the advisor/customer financial and delivery close process. This prevents a shop exit from falsely representing that every downstream business obligation is complete.
+
+## 8. Projection rules
 
 - Every open RepairOrder occupies exactly one displayed pipeline stage. Later operational states take precedence over earlier planning states.
 - Waiting on Parts is true when a job explicitly waits for Parts or required quantity exceeds reserved quantity.
@@ -94,16 +107,16 @@ The card links directly to the Repair Workbench for estimate and authorization w
 - Quality-review count is based on RepairJobs ready for QC; comeback-review count uses open comeback cases.
 - Customer Repair and Inventory Recon are never merged into one workload total without their origin remaining visible.
 
-## 8. Verification evidence
+## 9. Verification evidence
 
 - TypeScript typecheck: passed.
-- Focused Shop & Recon Stage 1–12 policy, workflow, foundation, and vehicle-card tests: passed.
+- Focused Shop & Recon Stage 1–16 policy, workflow, foundation, execution, completion, QC, close, and vehicle-card tests: passed.
 - Full lint: passed with zero warnings.
 - Prisma schema validation: passed.
 - Production build: passed; 144 routes generated, including `/vehicles/shop-production`, `/vehicles/shop-metrics`, and `/api/shop-recon`.
-- Prisma migrations support the governed lifecycle, immutable draft/event history, GM overrides, versioned scope changes, and immutable Stage 1–12 evidence publication.
+- Prisma migrations support the governed lifecycle, immutable draft/event history, GM overrides, versioned scope changes, and immutable Stage 1–16 evidence publication.
 
-## 9. Activation boundary
+## 10. Activation boundary
 
 This repository state does not authorize production activation. The following remain pending:
 
