@@ -1,6 +1,6 @@
 # R7 Shop & Recon Implementation
 
-Status: governed lifecycle and operational Stages 1–7 implemented; activation pending
+Status: governed lifecycle and operational Stages 1–12 implemented; activation pending
 Roadmap release: R7  
 Milestone: M7  
 Slices: IC-070 through IC-079
@@ -69,7 +69,21 @@ Stages 1–7 now use a controlled three-step record on the unified vehicle card:
 
 Every publication stores the draft revision, publisher, timestamp, reason, source references, scope version, and an immutable lifecycle event. Prior records remain available for audit rather than being overwritten.
 
-## 6. Projection rules
+## 6. Operational Stages 8–12
+
+Stages 8–12 extend the same controlled draft, publication, and completion pattern without duplicating the established planning, Parts, procedure, qualification, resource, or dispatch systems. The unified vehicle card is the control layer; the specialist workspace records remain authoritative.
+
+| Stage | Authoritative validation and publication |
+| --- | --- |
+| 8. Repair Plan & Estimate | Binds the current presented, unexpired estimate version and verifies the exact total and labor-guide minutes entered on the card. |
+| 9. Authorization & Approval | Binds the decision to the exact estimate version and verifies disposition, approved amount, decision reference, and lane authority. Pending or declined work cannot advance. |
+| 10. Parts & Resource Readiness | Verifies authorized repair jobs, complete Parts reservations, effective procedures, at least one qualified technician candidate, and matching active bay/tool resources. |
+| 11. Ready for Dispatch | Publishes a dispatch-ready queue decision only after Stage 10 is fully clear and the two-bay WIP limit has capacity, unless a current General Manager WIP exception exists. |
+| 12. Assigned & Staged | Binds every active repair job to its governed technician, bay, schedule, and active/staged dispatch record before execution can begin. |
+
+The card links directly to the Repair Workbench for estimate and authorization work, Parts Operations for reservation work, and Shop Dispatch for procedure, qualification, bay, and assignment work. Any downstream change invalidates the latest card draft until it is saved and republished.
+
+## 7. Projection rules
 
 - Every open RepairOrder occupies exactly one displayed pipeline stage. Later operational states take precedence over earlier planning states.
 - Waiting on Parts is true when a job explicitly waits for Parts or required quantity exceeds reserved quantity.
@@ -80,16 +94,16 @@ Every publication stores the draft revision, publisher, timestamp, reason, sourc
 - Quality-review count is based on RepairJobs ready for QC; comeback-review count uses open comeback cases.
 - Customer Repair and Inventory Recon are never merged into one workload total without their origin remaining visible.
 
-## 7. Verification evidence
+## 8. Verification evidence
 
 - TypeScript typecheck: passed.
-- Focused Shop & Recon Stage 1–7 policy, workflow, foundation, and vehicle-card tests: passed.
+- Focused Shop & Recon Stage 1–12 policy, workflow, foundation, and vehicle-card tests: passed.
 - Full lint: passed with zero warnings.
 - Prisma schema validation: passed.
 - Production build: passed; 144 routes generated, including `/vehicles/shop-production`, `/vehicles/shop-metrics`, and `/api/shop-recon`.
-- Prisma migrations added for the governed lifecycle, immutable draft/event history, GM overrides, versioned scope changes, and immutable Stage 1–7 evidence publication.
+- Prisma migrations support the governed lifecycle, immutable draft/event history, GM overrides, versioned scope changes, and immutable Stage 1–12 evidence publication.
 
-## 8. Activation boundary
+## 9. Activation boundary
 
 This repository state does not authorize production activation. The following remain pending:
 

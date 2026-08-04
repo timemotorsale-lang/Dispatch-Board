@@ -29,6 +29,14 @@ describe("Shop and Recon sixteen-stage workflow", () => {
     expect(SHOP_RECON_TRANSITIONS.QC_RELEASE_READINESS).toContain("REPAIR_EXECUTION");
   });
 
+  it("separates dispatch readiness from the attributable assignment", () => {
+    const readyQueue = evaluateShopReconTransition({ fromStage: "READY_FOR_DISPATCH", toStage: "ASSIGNED_STAGED", facts: { DISPATCH_READY: true } });
+    expect(readyQueue.allowed).toBe(true);
+    expect(evaluateShopReconTransition({ fromStage: "READY_FOR_DISPATCH", toStage: "ASSIGNED_STAGED", facts: {} }).missingFacts).toEqual(["DISPATCH_READY"]);
+    const assigned = evaluateShopReconTransition({ fromStage: "ASSIGNED_STAGED", toStage: "REPAIR_EXECUTION", facts: { DISPATCH_CONFIRMED: true, AUTHORIZATION_CURRENT: true } });
+    expect(assigned.allowed).toBe(true);
+  });
+
   it("derives early stages from custody and inspection evidence", () => {
     expect(deriveShopReconWorkflow({ ...base, serviceVisit: { ...base.serviceVisit, keysReceivedCount: 0 } }, new Date("2026-08-03T14:10:00.000Z")).stage).toBe("CUSTODY_CHECK_IN");
     expect(deriveShopReconWorkflow(base, new Date("2026-08-03T14:10:00.000Z")).stage).toBe("SAFETY_PRIORITY_TRIAGE");

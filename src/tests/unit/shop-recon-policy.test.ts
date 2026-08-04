@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AuthenticatedUser } from "@/server/auth/store";
-import { evaluateGovernedTransition, normalizeShopReconScopeChange } from "@/server/shop-recon/policy";
+import { canCompleteShopReconStage, evaluateGovernedTransition, normalizeShopReconScopeChange } from "@/server/shop-recon/policy";
 
 const actor = (name: string, roles: string[] = []): AuthenticatedUser => ({ id: name.toLowerCase().replaceAll(" ", "-"), name, email: `${name}@example.com`, isActive: true, roles, duties: { direct: [], roleDefaults: [], all: [] } });
 const completeDraft = { checklist: { item_1: true, item_2: true, item_3: true }, formData: { observedIdentifier: "VIN", arrivalCondition: "Normal", entryNotes: "No exceptions" }, evidence: ["arrival-observation", "entry-photo"] };
@@ -23,5 +23,13 @@ describe("Shop Recon governed transition policy", () => {
   it("version-controls a changed scope and requires a material finding", () => {
     expect(normalizeShopReconScopeChange({ expectedVersion: 4, idempotencyKey: "scope-1", reason: "New condition found during repair.", finding: "Corrosion extends beyond the approved repair area.", affectedRepairJobIds: ["job-1"], originalScope: { line: "A" }, proposedScope: { line: "B" } })).toMatchObject({ expectedVersion: 4, affectedRepairJobIds: ["job-1"] });
     expect(() => normalizeShopReconScopeChange({ expectedVersion: 4, idempotencyKey: "scope-2", reason: "New condition found during repair.", finding: "short", originalScope: {}, proposedScope: {} })).toThrow("New finding is required");
+  });
+
+  it("assigns the approved authorities across planning and dispatch stages", () => {
+    expect(canCompleteShopReconStage(actor("Brock"), "REPAIR_PLAN_ESTIMATE").allowed).toBe(true);
+    expect(canCompleteShopReconStage(actor("Eli Manager"), "AUTHORIZATION_APPROVAL").allowed).toBe(true);
+    expect(canCompleteShopReconStage(actor("Brock"), "PARTS_RESOURCE_READINESS").allowed).toBe(true);
+    expect(canCompleteShopReconStage(actor("Eli Manager"), "READY_FOR_DISPATCH").allowed).toBe(true);
+    expect(canCompleteShopReconStage(actor("Walter Hernandez"), "ASSIGNED_STAGED").allowed).toBe(false);
   });
 });
