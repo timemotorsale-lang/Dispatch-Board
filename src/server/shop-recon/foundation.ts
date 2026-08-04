@@ -243,6 +243,17 @@ export function shopStaffedMinutesBetween(start: Date, end: Date) {
   return staffedMinutes;
 }
 
+export function addShopStaffedMinutes(start: Date, minutes: number) {
+  if (minutes <= 0) return new Date(start);
+  const oneMinute = 60_000;
+  let remaining = Math.ceil(minutes), cursor = Math.ceil(start.getTime() / oneMinute) * oneMinute;
+  while (remaining > 0) {
+    if (isShopOpenAt(new Date(cursor))) remaining -= 1;
+    cursor += oneMinute;
+  }
+  return new Date(cursor);
+}
+
 function missingFields(value: unknown, required: readonly string[]) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return [...required];
   const record = value as Record<string, unknown>;

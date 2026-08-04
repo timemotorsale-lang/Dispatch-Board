@@ -1,13 +1,13 @@
 # R7 Shop & Recon Implementation
 
-Status: bounded repository implementation complete; activation pending  
+Status: governed lifecycle and operational Stages 1–7 implemented; activation pending
 Roadmap release: R7  
 Milestone: M7  
 Slices: IC-070 through IC-079
 
 ## 1. Outcome
 
-R7 provides one permission-aware Shop & Recon operating entry point at `/vehicles/shop-recon`. The earlier `/vehicles/shop-production` deep link remains compatible and renders the same authoritative landing projection. It separates Customer Repair from Inventory Recon while projecting both from the authoritative RepairOrder and RepairJob records. It does not create a second shop state model.
+R7 provides one permission-aware Shop & Recon operating entry point at `/vehicles/shop-recon`. The unified vehicle card now has a governed 16-stage lifecycle aggregate for stage control, attributable drafts, scope versions, overrides, and immutable stage history. Existing RepairOrder, RepairJob, inspection, estimate, authorization, dispatch, labor, QC, release, and custody records remain the authoritative operational evidence used by every stage gate.
 
 The approved landing composition now includes:
 
@@ -43,7 +43,33 @@ The landing read path is:
 
 The projection adds no mutation path. The same `REPAIR_ORDER_VIEW` capability and organization boundary used by the established Shop workspace protect the read. Commands continue through their existing domain services, capability grants, rollout checks, idempotency keys, expected aggregate versions, immutable events, and reason capture.
 
-## 4. Projection rules
+## 4. Governed transition policy
+
+- Any user who is authorized to access the repair order may save the current stage draft. Every revision records the saving user, time, reason, checklist, form values, and evidence references.
+- A save never completes a checklist, approves work, changes authorization, moves a vehicle, or advances the stage.
+- Normal movement is sequential. Controlled backward movement and reopening require a current General Manager override.
+- General Manager exceptions are limited to WIP, target time, queue order, noncritical documentation, temporary resources, controlled backward movement, and reopening. Identity, custody, safety, customer authorization, Inventory spending authority, technician qualification, required procedures/legal evidence, failed QC, failed road test, and receiving-owner acceptance remain non-overridable.
+- A changed-scope submission preserves the original scope, creates a new version, stops affected repair jobs, and moves the card to Findings Verification. The card must pass the revised plan, exact-version authorization, Parts/resource readiness, dispatch, and repair gates before the scope record resolves and execution resumes.
+- Failed QC or road test preserves the failed inspection, records reason codes and rework instructions, resets the affected job for repair, and synchronizes the same vehicle card to `REWORK` at Repair Execution. A fresh technician-complete record and fresh QC inspection are required. Pre-release rework is not classified as a comeback and does not automatically create a customer charge.
+- Shop targets and the original customer/frontline commitment continue aging through scope change and QC rework.
+
+## 5. Operational Stages 1–7
+
+Stages 1–7 now use a controlled three-step record on the unified vehicle card: any authorized card user may save an attributable draft; the named stage authority publishes the latest draft as operational evidence; the authority then completes the stage after the server rechecks all gates. Editing and saving after publication invalidates the completion-ready state until that newest revision is republished.
+
+| Stage | Operational record created or updated | Completion control |
+| --- | --- | --- |
+| 1. Shop Entry | Identity match against the canonical vehicle, repair order, and service visit | A mismatch cannot be published or overridden |
+| 2. Custody & Check-In | Key count/tag, custody restrictions, and immutable vehicle custody check-in | At least one key and accepted custody are required |
+| 3. Lane & Scope Confirmation | Inventory Recon or Customer Repair lane plus frozen initial scope version | Lane must match the repair-order origin |
+| 4. Safety & Priority Triage | Mobility, hazards, and operational priority | “Do not move” quarantines and blocks the card until a cleared triage is republished |
+| 5. Inspection | Versioned inspection and accepted odometer observation | Complete checklist, fields, and evidence are required |
+| 6. Diagnosis | Versioned diagnosis, tests, measurements, supported cause, uncertainty, correction, and recommendation | Walter Hernandez or another qualified assigned technician publishes the technical record |
+| 7. Findings Verification | Verified finding set linked to the current diagnosis and classification | Only “Verified” advances; changed scope or more testing follows the controlled loop |
+
+Every publication stores the draft revision, publisher, timestamp, reason, source references, scope version, and an immutable lifecycle event. Prior records remain available for audit rather than being overwritten.
+
+## 6. Projection rules
 
 - Every open RepairOrder occupies exactly one displayed pipeline stage. Later operational states take precedence over earlier planning states.
 - Waiting on Parts is true when a job explicitly waits for Parts or required quantity exceeds reserved quantity.
@@ -54,16 +80,16 @@ The projection adds no mutation path. The same `REPAIR_ORDER_VIEW` capability an
 - Quality-review count is based on RepairJobs ready for QC; comeback-review count uses open comeback cases.
 - Customer Repair and Inventory Recon are never merged into one workload total without their origin remaining visible.
 
-## 5. Verification evidence
+## 7. Verification evidence
 
 - TypeScript typecheck: passed.
-- Focused R7 and existing Shop/Recon contract gate: 13 test files, 44 tests passed.
+- Focused Shop & Recon Stage 1–7 policy, workflow, foundation, and vehicle-card tests: passed.
 - Full lint: passed with zero warnings.
 - Prisma schema validation: passed.
 - Production build: passed; 144 routes generated, including `/vehicles/shop-production`, `/vehicles/shop-metrics`, and `/api/shop-recon`.
-- No Prisma schema change or migration was required because the authoritative R7 domain records already existed.
+- Prisma migrations added for the governed lifecycle, immutable draft/event history, GM overrides, versioned scope changes, and immutable Stage 1–7 evidence publication.
 
-## 6. Activation boundary
+## 8. Activation boundary
 
 This repository state does not authorize production activation. The following remain pending:
 

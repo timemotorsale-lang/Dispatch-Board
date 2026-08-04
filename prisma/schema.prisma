@@ -494,6 +494,49 @@ enum RepairOrderEventSource {
   MIGRATION
 }
 
+enum ShopReconLifecycleStage {
+  SHOP_ENTRY
+  CUSTODY_CHECK_IN
+  LANE_SCOPE_CONFIRMATION
+  SAFETY_PRIORITY_TRIAGE
+  INSPECTION
+  DIAGNOSIS
+  FINDINGS_VERIFICATION
+  REPAIR_PLAN_ESTIMATE
+  AUTHORIZATION_APPROVAL
+  PARTS_RESOURCE_READINESS
+  READY_FOR_DISPATCH
+  ASSIGNED_STAGED
+  REPAIR_EXECUTION
+  TECHNICIAN_COMPLETE
+  QC_RELEASE_READINESS
+  HANDOFF_SHOP_EXIT
+}
+
+enum ShopReconLifecycleState {
+  ACTIVE
+  WAITING
+  BLOCKED
+  PAUSED
+  REWORK
+  CANCELLED
+  CLOSED
+}
+
+enum ShopReconLifecycleEventType {
+  INITIALIZED
+  DRAFT_SAVED
+  STAGE_EVIDENCE_PUBLISHED
+  STAGE_COMPLETED
+  STAGE_MOVED
+  OVERRIDE_GRANTED
+  SCOPE_CHANGE_SUBMITTED
+  SCOPE_CHANGE_RESOLVED
+  QC_FAILED_REWORK
+  QC_PASSED
+  RELEASED
+}
+
 enum PartStatus {
   ACTIVE
   INACTIVE
@@ -3285,6 +3328,7 @@ model RepairOrder {
   diagnosticRepairHandoffs     DiagnosticRepairHandoffVersion[]
   diagnosticEstimateDrafts     DiagnosticEstimateDraftVersion[]
   diagnosticVerifications      DiagnosticVerificationVersion[]
+  shopReconLifecycle           ShopReconLifecycle?
 
   @@unique([organizationId, repairOrderNumber])
   @@unique([id, organizationId])
@@ -3293,6 +3337,147 @@ model RepairOrder {
   @@index([organizationId, ownerUserId, targetAt])
   @@index([organizationId, locationId, stage])
   @@index([vehicleId, closedAt])
+}
+
+model ShopReconLifecycle {
+  id                String                      @id @default(cuid())
+  organizationId    String
+  locationId        String
+  repairOrderId     String                      @unique
+  stage             ShopReconLifecycleStage
+  operatingState    ShopReconLifecycleState     @default(ACTIVE)
+  stageStartedAt    DateTime
+  ownerUserId       String
+  zoneCode          String
+  targetAt          DateTime
+  nextAction        String
+  blockerCodes      Json
+  version           Int                         @default(0)
+  scopeVersion      Int                         @default(1)
+  lastSavedByUserId String?
+  lastSavedAt       DateTime?
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @updatedAt
+  repairOrder       RepairOrder                 @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  drafts            ShopReconStageDraft[]
+  events            ShopReconLifecycleEvent[]
+  overrides         ShopReconOverride[]
+  scopeChanges      ShopReconScopeChange[]
+  stageEvidence     ShopReconStageEvidence[]
+
+  @@index([organizationId, stage, operatingState, targetAt])
+  @@index([locationId, stage, operatingState])
+  @@index([ownerUserId, targetAt])
+}
+
+model ShopReconStageEvidence {
+  id                String                  @id @default(cuid())
+  organizationId    String
+  lifecycleId       String
+  repairOrderId     String
+  stage             ShopReconLifecycleStage
+  scopeVersion      Int
+  version           Int
+  payload           Json
+  sourceReferences  Json
+  publishedByUserId String
+  publishedAt       DateTime
+  reason            String
+  lifecycle         ShopReconLifecycle      @relation(fields: [lifecycleId], references: [id], onDelete: Restrict)
+
+  @@unique([lifecycleId, stage, scopeVersion, version])
+  @@index([repairOrderId, stage, publishedAt])
+  @@index([publishedByUserId, publishedAt])
+}
+
+model ShopReconStageDraft {
+  id             String                  @id @default(cuid())
+  organizationId String
+  lifecycleId    String
+  repairOrderId  String
+  stage          ShopReconLifecycleStage
+  scopeVersion   Int
+  revision       Int
+  checklist      Json
+  formData       Json
+  evidence       Json
+  savedByUserId  String
+  savedAt        DateTime
+  reason         String
+  lifecycle      ShopReconLifecycle      @relation(fields: [lifecycleId], references: [id], onDelete: Restrict)
+
+  @@unique([lifecycleId, stage, scopeVersion, revision])
+  @@index([repairOrderId, stage, savedAt])
+  @@index([savedByUserId, savedAt])
+}
+
+model ShopReconLifecycleEvent {
+  id                     String                      @id @default(cuid())
+  organizationId         String
+  lifecycleId            String
+  repairOrderId          String
+  sequence               Int
+  eventType              ShopReconLifecycleEventType
+  fromStage              ShopReconLifecycleStage?
+  toStage                ShopReconLifecycleStage?
+  fromOperatingState     ShopReconLifecycleState?
+  toOperatingState       ShopReconLifecycleState?
+  scopeVersion           Int
+  actorUserId            String
+  overrideAuthorizedById String?
+  reason                 String
+  payload                Json
+  correlationId          String
+  occurredAt             DateTime                    @default(now())
+  lifecycle              ShopReconLifecycle          @relation(fields: [lifecycleId], references: [id], onDelete: Restrict)
+
+  @@unique([lifecycleId, sequence])
+  @@index([repairOrderId, occurredAt])
+  @@index([actorUserId, occurredAt])
+  @@index([correlationId])
+}
+
+model ShopReconOverride {
+  id                 String                  @id @default(cuid())
+  organizationId     String
+  lifecycleId        String
+  repairOrderId      String
+  stage              ShopReconLifecycleStage
+  kind               String
+  authorizedByUserId String
+  reason             String
+  boundaries         Json
+  expiresAt          DateTime?
+  followUpAt         DateTime?
+  createdAt          DateTime                @default(now())
+  lifecycle          ShopReconLifecycle      @relation(fields: [lifecycleId], references: [id], onDelete: Restrict)
+
+  @@index([repairOrderId, createdAt])
+  @@index([authorizedByUserId, createdAt])
+}
+
+model ShopReconScopeChange {
+  id                  String                  @id @default(cuid())
+  organizationId      String
+  lifecycleId         String
+  repairOrderId       String
+  version             Int
+  status              String
+  discoveredAtStage   ShopReconLifecycleStage
+  returnStage         ShopReconLifecycleStage
+  finding             String
+  affectedRepairJobIds Json
+  originalScope       Json
+  proposedScope       Json
+  submittedByUserId   String
+  submittedAt         DateTime
+  resolvedByUserId    String?
+  resolvedAt          DateTime?
+  resolutionReference String?
+  lifecycle           ShopReconLifecycle      @relation(fields: [lifecycleId], references: [id], onDelete: Restrict)
+
+  @@unique([lifecycleId, version])
+  @@index([repairOrderId, status, submittedAt])
 }
 
 model DiagnosticCase {

@@ -7,7 +7,7 @@ export type ShopReconGateFact =
   | "PROCEDURE_CURRENT" | "DISPATCH_CONFIRMED" | "EXECUTION_COMPLETE" | "COMPLETION_EVIDENCE"
   | "QC_PASSED" | "ROAD_TEST_PASSED_OR_NOT_REQUIRED" | "HANDOFF_ACCEPTED";
 
-const requiredFacts: Record<ShopReconStageCode, readonly ShopReconGateFact[]> = {
+export const SHOP_RECON_REQUIRED_FACTS: Record<ShopReconStageCode, readonly ShopReconGateFact[]> = {
   SHOP_ENTRY: [],
   CUSTODY_CHECK_IN: ["IDENTITY_MATCHED"],
   LANE_SCOPE_CONFIRMATION: ["IDENTITY_MATCHED", "CUSTODY_ACCEPTED"],
@@ -45,7 +45,7 @@ export function evaluateShopReconTransition(input: {
   facts: Partial<Record<ShopReconGateFact, boolean>>;
 }) {
   const transitionAllowed = SHOP_RECON_TRANSITIONS[input.fromStage].includes(input.toStage);
-  const missingFacts = requiredFacts[input.toStage].filter(fact => input.facts[fact] !== true);
+  const missingFacts = SHOP_RECON_REQUIRED_FACTS[input.toStage].filter(fact => input.facts[fact] !== true);
   return {
     allowed: transitionAllowed && missingFacts.length === 0,
     transitionAllowed,
@@ -136,9 +136,10 @@ type OrderEvidence = {
   estimateVersions: Array<{ status: string; authorizations: Array<{ disposition: string }> }>;
   releaseAuthorization: { id: string } | null;
   repairJobs: Array<{ status: string; partDemands: Array<{ quantityRequired: number; quantityReserved: number }>; dispatches: unknown[] }>;
+  shopReconLifecycle?: { stage: ShopReconStageCode; operatingState: string; stageStartedAt: Date | string; zoneCode: string; blockerCodes: unknown } | null;
 };
 
-const zoneByStage: Record<ShopReconStageCode, string> = {
+export const SHOP_RECON_ZONE_BY_STAGE: Record<ShopReconStageCode, string> = {
   SHOP_ENTRY: "Z01_INBOUND", CUSTODY_CHECK_IN: "Z02_CHECK_IN", LANE_SCOPE_CONFIRMATION: "Z02_CHECK_IN",
   SAFETY_PRIORITY_TRIAGE: "Z03_TRIAGE_INSPECTION", INSPECTION: "Z03_TRIAGE_INSPECTION", DIAGNOSIS: "Z04_DIAGNOSTIC",
   FINDINGS_VERIFICATION: "Z04_DIAGNOSTIC", REPAIR_PLAN_ESTIMATE: "Z05_CONTROLLED_WAIT", AUTHORIZATION_APPROVAL: "Z05_CONTROLLED_WAIT",
@@ -165,10 +166,10 @@ export function deriveShopReconStage(orderRecord: OrderEvidence): ShopReconStage
 }
 
 export function deriveShopReconWorkflow(orderRecord: OrderEvidence, now: Date) {
-  const stage = deriveShopReconStage(orderRecord);
+  const persisted = orderRecord.shopReconLifecycle, stage = persisted?.stage ?? deriveShopReconStage(orderRecord);
   const definition = SHOP_RECON_STAGES.find(item => item.code === stage)!;
   const targetMinutes = SHOP_RECON_TARGETS.stageMinutes[stage];
-  const startedAt = new Date(orderRecord.stageStartedAt ?? orderRecord.serviceVisit.arrivedAt ?? now);
+  const startedAt = new Date(persisted?.stageStartedAt ?? orderRecord.stageStartedAt ?? orderRecord.serviceVisit.arrivedAt ?? now);
   const elapsedMinutes = shopStaffedMinutesBetween(startedAt, now);
   const ratio = targetMinutes ? elapsedMinutes / targetMinutes : null;
   const targetBand: ShopReconTargetBand = ratio === null ? "VARIABLE" : ratio >= 1.5 ? "CRITICAL" : ratio >= 1 ? "BREACHED" : ratio >= .75 ? "WARNING" : "ON_TRACK";
@@ -178,11 +179,11 @@ export function deriveShopReconWorkflow(orderRecord: OrderEvidence, now: Date) {
     stageLabel: definition.label,
     stageOrder: definition.order,
     nextStage,
-    zoneCode: zoneByStage[stage],
+    zoneCode: persisted?.zoneCode ?? SHOP_RECON_ZONE_BY_STAGE[stage],
     targetMinutes,
     elapsedMinutes,
     targetBand,
-    operatingState: orderRecord.operatingState,
-    blockerCodes: orderRecord.stateReason ? [orderRecord.stateReason] : [],
+    operatingState: persisted?.operatingState ?? orderRecord.operatingState,
+    blockerCodes: persisted && Array.isArray(persisted.blockerCodes) ? persisted.blockerCodes.filter((item): item is string => typeof item === "string") : orderRecord.stateReason ? [orderRecord.stateReason] : [],
   };
 }
