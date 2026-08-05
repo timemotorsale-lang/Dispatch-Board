@@ -37,6 +37,8 @@ describe("enterprise service intake workspace", () => {
     const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialTimestamp="2026-08-02T07:00:00.000Z" options={options} />);
 
     expect(html).toContain("Find Customer, Vehicle, or Appointment");
+    expect(html).toContain("Vehicle Identity Intelligence");
+    expect(html).toContain("Search, decode, and duplicate guard are always available at intake.");
     expect(html).toContain("Search name, phone, email, VIN, plate, appointment, or RO...");
     expect(html).toContain(">Search</button>");
     expect(html).toContain("Add New Customer");
@@ -61,6 +63,7 @@ describe("enterprise service intake workspace", () => {
     expect(html).toContain("2024 Ford F-150");
     expect(html).toContain("Customer reports brake vibration.");
     expect(html).toContain("Decoded vehicle information");
+    expect(html).toContain("Canonical vehicle selected");
     expect(html).toContain("Vehicle 360");
     expect(html).toContain("Next: Add / Select Customer");
   });
@@ -70,6 +73,7 @@ describe("enterprise service intake workspace", () => {
     const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialConcernSummary="Complete inventory safety inspection and recon estimate." initialTimestamp="2026-08-02T07:00:00.000Z" initialVehicleId="vehicle-1" initialVehicleRelationship="DEALERSHIP_INVENTORY" options={inventoryOptions} />);
 
     expect(html).toContain("Dealership inventory");
+    expect(html).toContain("Inventory source");
     expect(html).toContain("Customer not required");
     expect(html).toContain("Inventory unit INV-100 linked");
     expect(html).toContain("Internal recon readiness");

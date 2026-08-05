@@ -1,5 +1,7 @@
 import type { ShopReconStageCode } from "./foundation";
 
+export type ShopReconWorkLane = "CUSTOMER_REPAIR" | "INVENTORY_RECON";
+
 export type ShopReconOperationalAction = {
   key: string;
   title: string;
@@ -16,17 +18,28 @@ export type ShopReconOperationalTool = {
   description: string;
 };
 
+export type ShopReconOperationalSummaryField = {
+  key: string;
+  label: string;
+  fallback: "none" | "workLaneLabel" | "vehicleIdentifier" | "subject" | "concern" | "targetDate" | "owner" | "inventoryLifecycleStage" | "completionHandoff" | "repairOrderNumber" | "authorizationPath";
+};
+
 export type ShopReconOperationalWorkspace = {
   stage: ShopReconStageCode;
   workTitle: string;
   workInstruction: string;
   tools?: readonly ShopReconOperationalTool[];
+  summaryTitle?: string;
+  summaryInstruction?: string;
+  summaryFields?: readonly ShopReconOperationalSummaryField[];
   pilotValues: Readonly<Record<string, unknown>>;
   actions: readonly ShopReconOperationalAction[];
+  laneVariants?: Partial<Record<ShopReconWorkLane, Partial<Omit<ShopReconOperationalWorkspace, "stage" | "laneVariants">>>>;
 };
 
 const action = (key: string, title: string, instruction: string, owner: string, evidence: string, requiredFields: readonly string[]): ShopReconOperationalAction => ({ key, title, instruction, owner, evidence, requiredFields });
 const tool = (key: string, label: string, href: string, description: string): ShopReconOperationalTool => ({ key, label, href, description });
+const summaryField = (key: string, label: string, fallback: ShopReconOperationalSummaryField["fallback"]): ShopReconOperationalSummaryField => ({ key, label, fallback });
 
 export const SHOP_RECON_OPERATIONAL_WORKSPACES: readonly ShopReconOperationalWorkspace[] = [
   {
@@ -37,6 +50,16 @@ export const SHOP_RECON_OPERATIONAL_WORKSPACES: readonly ShopReconOperationalWor
       tool("INTAKE_FORM", "Open Intake Form", "/vehicles/repair-orders?intakeSource=WALK_IN", "Create or continue the customer vehicle intake record."),
       tool("SERVICE_ADVISOR", "Open Service Advisor", "/vehicles/advisor", "Review advisor queue, customer concern, appointment context, and handoff state."),
     ],
+    summaryTitle: "Service Intake Summary",
+    summaryInstruction: "Service Intake is the source of entry. The vehicle card verifies readiness and records the governed Shop decision.",
+    summaryFields: [
+      summaryField("workLane", "Work lane", "workLaneLabel"),
+      summaryField("vehicleIdentifier", "VIN / vehicle / RO", "vehicleIdentifier"),
+      summaryField("requester", "Customer / authorization contact", "subject"),
+      summaryField("concern", "Concern or requested outcome", "concern"),
+      summaryField("commitmentAt", "Customer promise", "targetDate"),
+      summaryField("intakeOwner", "Service owner", "owner"),
+    ],
     pilotValues: { workLane: "Inventory Recon", vehicleIdentifier: "PILOT-INV-001", requester: "Brock", concern: "Complete frontline mechanical inspection and approved recon work.", commitmentAt: "2026-08-05", intakeOwner: "Brock" },
     actions: [
       action("SELECT_LANE", "Identify the work lane", "Choose Customer Repair or Inventory Recon so the correct authority and commitment rules apply.", "Service Advisor or Inventory owner", "Lane declaration", ["workLane"]),
@@ -46,6 +69,39 @@ export const SHOP_RECON_OPERATIONAL_WORKSPACES: readonly ShopReconOperationalWor
       action("SET_COMMITMENT", "Record timing and commitment", "Capture the customer promise or frontline target that will govern priority.", "Intake owner", "Commitment record", ["commitmentAt"]),
       action("ASSIGN_OWNER", "Assign and submit intake", "Name the accountable intake owner and submit a complete request to Job Scope Definition.", "Service Advisor or Brock", "Attributable intake submission", ["intakeOwner"]),
     ],
+    laneVariants: {
+      INVENTORY_RECON: {
+        workTitle: "Verify the Inventory-to-Shop handoff packet",
+        workInstruction: "Confirm the upstream Inventory Lifecycle packet is complete enough for Shop control without repeating dealership intake.",
+        tools: [
+          tool("INVENTORY_CARD", "Open Inventory Vehicle Card", "/vehicles/inventory", "Review the dealership inventory vehicle and lifecycle context."),
+          tool("INVENTORY_HANDOFF", "Open Inventory-to-Shop Handoff", "/vehicles/repair-orders?intakeSource=INVENTORY_RECON", "Create or review the inventory recon repair-order handoff."),
+          tool("PRIOR_INSPECTION", "Open Prior Inspection / Photos", "/vehicles/inventory", "Review upstream intake, inspection, photos, and recon context."),
+          tool("ACCEPT_HANDOFF", "Accept Shop Handoff", "#stage-completion", "Go to the governed completion controls after the handoff is verified."),
+        ],
+        summaryTitle: "Inventory-to-Shop Handoff Summary",
+        summaryInstruction: "Inventory Lifecycle is the source of entry. The Shop card verifies the handoff packet and accepts the vehicle as controlled Shop work.",
+        summaryFields: [
+          summaryField("vehicleIdentifier", "Stock / VIN / unit identity", "vehicleIdentifier"),
+          summaryField("inventoryStage", "Source inventory stage", "inventoryLifecycleStage"),
+          summaryField("requester", "Inventory owner / approver", "owner"),
+          summaryField("concern", "Recon objective", "concern"),
+          summaryField("commitmentAt", "Frontline target", "targetDate"),
+          summaryField("priorInspection", "Prior inspection / photos", "none"),
+          summaryField("handoffAccepted", "Shop handoff acceptance", "none"),
+        ],
+        pilotValues: { workLane: "Inventory Recon", vehicleIdentifier: "PILOT-INV-001", inventoryStage: "Recon Plan and Approval", requester: "Brock", concern: "Complete frontline mechanical inspection and approved recon work.", commitmentAt: "2026-08-05", priorInspection: "Inventory intake and prior inspection packet available", handoffAccepted: "Ready for Brock acceptance" },
+        actions: [
+          action("VERIFY_INVENTORY_IDENTITY", "Verify inventory identity", "Confirm the stock, VIN, unit, and repair-order identity match the upstream Inventory Lifecycle record.", "Inventory owner or Brock", "Inventory identity match", ["vehicleIdentifier"]),
+          action("VERIFY_SOURCE_STAGE", "Verify source inventory stage", "Confirm which Inventory Lifecycle stage sent the vehicle into Shop control.", "Inventory owner", "Source-stage reference", ["inventoryStage"]),
+          action("CONFIRM_RECON_AUTHORITY", "Confirm inventory owner and approver", "Name the person who controls recon scope and spending decisions for this dealership-owned unit.", "Inventory owner or Brock", "Inventory authority record", ["requester"]),
+          action("VERIFY_RECON_OBJECTIVE", "Verify recon objective", "Confirm the exact Shop objective without creating a duplicate customer-style intake.", "Brock", "Recon objective statement", ["concern"]),
+          action("VERIFY_FRONTLINE_TARGET", "Verify frontline target", "Confirm the target date that should drive inventory urgency and priority.", "Inventory owner", "Frontline target record", ["commitmentAt"]),
+          action("VERIFY_PRIOR_PACKET", "Verify prior inspection and photos", "Confirm upstream intake, inspection notes, photos, and known blockers are available to Shop.", "Brock or Eli", "Prior packet reference", ["priorInspection"]),
+          action("ACCEPT_SHOP_HANDOFF", "Accept Shop handoff", "Record that Shop accepts the inventory unit as controlled Shop work and can proceed to Job Scope Definition.", "Brock; Eli as backup", "Shop handoff acceptance", ["handoffAccepted"]),
+        ],
+      },
+    },
   },
   {
     stage: "JOB_SCOPE_DEFINITION",
@@ -89,6 +145,8 @@ export const SHOP_RECON_OPERATIONAL_WORKSPACES: readonly ShopReconOperationalWor
   },
 ] as const;
 
-export function getShopReconOperationalWorkspace(stage: ShopReconStageCode) {
-  return SHOP_RECON_OPERATIONAL_WORKSPACES.find(workspace => workspace.stage === stage) ?? null;
+export function getShopReconOperationalWorkspace(stage: ShopReconStageCode, lane?: ShopReconWorkLane) {
+  const workspace = SHOP_RECON_OPERATIONAL_WORKSPACES.find(workspace => workspace.stage === stage);
+  const variant = lane ? workspace?.laneVariants?.[lane] : null;
+  return workspace && variant ? { ...workspace, ...variant, laneVariants: workspace.laneVariants } : workspace ?? null;
 }

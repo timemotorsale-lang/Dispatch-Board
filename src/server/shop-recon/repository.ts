@@ -7,6 +7,7 @@ import { addShopStaffedMinutes, SHOP_RECON_STAGES, SHOP_RECON_TARGETS, type Shop
 import { deriveShopReconStage, SHOP_RECON_ZONE_BY_STAGE } from "./workflow";
 import { canCompleteShopReconStage, evaluateDraftCompletion, evaluateGovernedTransition } from "./policy";
 import { getShopReconStageWorkspace } from "./stage-workspace";
+import type { ShopReconWorkLane } from "./operational-workspace";
 
 type DraftData = { checklist: Record<string, boolean>; formData: Record<string, unknown>; evidence: string[]; reason: string };
 
@@ -20,6 +21,7 @@ function draftRecord(value: unknown) { return value && typeof value === "object"
 function draftText(form: Record<string, unknown>, key: string, label: string) { const value = typeof form[key] === "string" ? form[key].trim() : ""; if (!value) throw new Error(`${label} is required before operational evidence can be published.`); return value; }
 function draftNumber(form: Record<string, unknown>, key: string, label: string) { const value = Number(form[key]); if (!Number.isFinite(value) || value < 0) throw new Error(`${label} must be a non-negative number.`); return Math.round(value); }
 function draftMoneyCents(form: Record<string, unknown>, key: string, label: string) { const value = Number(form[key]); if (!Number.isFinite(value) || value < 0) throw new Error(`${label} must be a non-negative amount.`); return Math.round(value * 100); }
+function workLane(origin: string): ShopReconWorkLane { return origin === "INVENTORY_RECON" ? "INVENTORY_RECON" : "CUSTOMER_REPAIR"; }
 type FactOrder = { id: string; vehicleId: string; serviceVisit: { keysReceivedCount: number }; origin: string; inspectionVersions: unknown[]; diagnosisVersions: unknown[]; estimateVersions: Array<{ id: string; version: number; authorizations: Array<{ id: string; disposition: string }> }>; repairJobs: Array<{ id: string; version: number; status: string; partsRequired: boolean; procedureVersionId: string | null; executionEvidence: unknown; partDemands: Array<{ id: string; quantityReserved: number; quantityRequired: number }>; dispatches: Array<{ id: string; version: number; status: string; bayResourceId: string | null }>; qualityInspections: Array<{ id: string; version: number; disposition: string; roadTestOutcome: string }> }>; releaseAuthorization: { id: string } | null };
 type FactLifecycle = { stage: ShopReconStageCode; scopeVersion: number; events: Array<{ eventType: string; fromStage: ShopReconStageCode | null }>; stageEvidence: Array<{ stage: ShopReconStageCode; scopeVersion: number; payload: unknown }> };
 function authoritativeFacts(order: FactOrder, lifecycle: FactLifecycle) {
@@ -80,7 +82,7 @@ export function createShopReconLifecycleRepository(database: PrismaClient = pris
         if (!authority.allowed) throw new Error(`${authority.authority} is required to publish this stage's operational evidence.`);
         const draft = await tx.shopReconStageDraft.findFirst({ where: { lifecycleId: lifecycle.id, stage: lifecycle.stage, scopeVersion: lifecycle.scopeVersion }, orderBy: { revision: "desc" } });
         if (!draft) throw new Error("Save the current stage before publishing operational evidence.");
-        const completion = evaluateDraftCompletion(lifecycle.stage, draft);
+        const completion = evaluateDraftCompletion(lifecycle.stage, draft, workLane(order.origin));
         if (!completion.complete) throw new Error("Complete every required checklist item, form field, and evidence reference before publishing operational evidence.");
         const form = draftRecord(draft.formData), evidenceReferences = Array.isArray(draft.evidence) ? draft.evidence.filter((item): item is string => typeof item === "string") : [], sourceReferences: Array<{ type: string; id: string; version?: number }> = [];
         let publishedOperatingState = lifecycle.operatingState;
@@ -88,11 +90,11 @@ export function createShopReconLifecycleRepository(database: PrismaClient = pris
         const vehicle = await tx.vehicle.findFirst({ where: { id: order.vehicleId, organizationId: command.organizationId }, select: { id: true, vin: true, vehicleNumber: true } });
         if (!vehicle) throw new Error("The canonical vehicle record was not found.");
         if (lifecycle.stage === "SERVICE_RECON_JOB_INTAKE") {
-          const lane = draftText(form, "workLane", "Work lane"), expectedLane = order.origin === "INVENTORY_RECON" ? "Inventory Recon" : "Customer Repair";
+          const expectedLane = order.origin === "INVENTORY_RECON" ? "Inventory Recon" : "Customer Repair", lane = typeof form.workLane === "string" && form.workLane.trim() ? form.workLane.trim() : expectedLane;
           if (lane !== expectedLane) throw new Error(`The selected lane conflicts with the repair order. Expected ${expectedLane}.`);
           const observed = draftText(form, "vehicleIdentifier", "Vehicle identifier").replace(/[^A-Z0-9]/gi, "").toUpperCase(), expected = [vehicle.vin, vehicle.vehicleNumber, order.repairOrderNumber].filter(Boolean).map(value => String(value).replace(/[^A-Z0-9]/gi, "").toUpperCase());
           if (!expected.includes(observed)) throw new Error("The selected vehicle does not match the VIN, vehicle number, or repair order.");
-          payload = { ...payload, canonicalVehicleId: vehicle.id, repairOrderOrigin: order.origin, intakeComplete: true };
+          payload = { ...payload, canonicalVehicleId: vehicle.id, repairOrderOrigin: order.origin, intakeComplete: true, handoffVerified: order.origin === "INVENTORY_RECON", sourceInventoryStage: form.inventoryStage ?? order.inventoryUnit?.lifecycleStage ?? null };
           sourceReferences.push({ type: "VEHICLE", id: vehicle.id }, { type: "REPAIR_ORDER", id: order.id, version: order.version });
         } else if (lifecycle.stage === "JOB_SCOPE_DEFINITION") {
           payload = { ...payload, jobScopeDefined: true, scopeVersion: lifecycle.scopeVersion };
@@ -263,7 +265,7 @@ export function createShopReconLifecycleRepository(database: PrismaClient = pris
         const blockers = Array.isArray(lifecycle.blockerCodes) ? lifecycle.blockerCodes.filter((code): code is string => typeof code === "string") : [];
         if (blockers.includes("BLK-SAFE-MOVEMENT_RESTRICTED")) throw new Error("Stage completion blocked: BLK-SAFE-MOVEMENT_RESTRICTED. Publish a cleared safety triage before moving the vehicle.");
         const override = data.overrideId ? await tx.shopReconOverride.findFirst({ where: { id: data.overrideId, lifecycleId: lifecycle.id } }) : null;
-        const facts = authoritativeFacts(order, lifecycle), decision = evaluateGovernedTransition({ actor, fromStage: lifecycle.stage, toStage: data.toStage, facts, draft, override, now });
+        const facts = authoritativeFacts(order, lifecycle), decision = evaluateGovernedTransition({ actor, fromStage: lifecycle.stage, toStage: data.toStage, facts, draft, lane: workLane(order.origin), override, now });
         if (!decision.allowed) throw new Error(`Stage completion blocked: ${decision.blockerCodes.join(", ")}.`);
         if (lifecycle.stage === "QUALITY_CONTROL_ROAD_TEST") {
           const jobs = order.repairJobs.filter(job => job.status !== "CANCELLED");

@@ -279,6 +279,33 @@ export function ServiceIntakeWorkspace({ initialConcernSummary = "", initialTime
               ? "Complete Authorization"
               : "Complete Check-In & Create Repair Order";
   const noticeIsError = /could not|invalid|required|cannot|failed|unavailable|complete the required/i.test(notice);
+  const arrivalMatchCount = arrivalMatches.appointments.length + arrivalMatches.customers.length + arrivalMatches.inventoryUnits.length + arrivalMatches.repairOrders.length + arrivalMatches.vehicles.length;
+  const identityIntelligenceRows = [
+    {
+      key: "search",
+      label: "Search / decode",
+      ready: Boolean(selectedVehicle) || arrivalQueryIsVin || arrivalMatchCount > 0,
+      value: selectedVehicle ? "Canonical vehicle selected" : arrivalQueryIsVin ? "VIN ready for decode if no local match exists" : arrivalMatchCount ? `${arrivalMatchCount} possible local match${arrivalMatchCount === 1 ? "" : "es"}` : "Search by VIN, stock, plate, customer, appointment, or RO",
+    },
+    {
+      key: "canonical",
+      label: "Canonical record",
+      ready: Boolean(selectedVehicle),
+      value: selectedVehicle ? vehicleLabel(selectedVehicle) : "No vehicle selected yet",
+    },
+    {
+      key: "decode",
+      label: "Decoded identity",
+      ready: Boolean(selectedVehicleDetails || vehicleIdentityPreview),
+      value: selectedVehicleDetails ? `${selectedVehicleDetails.provider} specification snapshot available` : vehicleIdentityPreview ? `Decoded ${[vehicleQuickDetails.year, vehicleQuickDetails.make, vehicleQuickDetails.model].filter(Boolean).join(" ")}` : selectedVehicleDetailsLoading || vehicleIdentityBusy ? "Retrieving decoded vehicle information" : "Decode appears after selection or complete VIN entry",
+    },
+    {
+      key: "source",
+      label: isDealershipInventory ? "Inventory source" : "Customer source",
+      ready: isDealershipInventory ? Boolean(selectedInventoryUnit) : Boolean(selectedCustomer || readiness?.appointment),
+      value: isDealershipInventory ? selectedInventoryUnit ? `${selectedInventoryUnit.inventoryNumber} linked` : "Inventory unit required for internal recon" : selectedCustomer ? selectedCustomer.displayName : readiness?.appointment ? readiness.appointment.appointmentNumber : "Customer or appointment not selected",
+    },
+  ];
 
   const evaluateReadiness = useCallback(async () => {
     if (form.vehicleRelationship === "DEALERSHIP_INVENTORY") {
@@ -825,6 +852,7 @@ export function ServiceIntakeWorkspace({ initialConcernSummary = "", initialTime
           <section className="sic-relationship-intent" aria-label="Vehicle relationship to dealership"><div><small>First, identify the relationship</small><strong>Who is this vehicle being handled for?</strong></div><div><button className={isCustomerVehicle ? "active" : ""} onClick={() => chooseVehicleRelationship("CUSTOMER_VEHICLE")} type="button"><UserRound /><span><b>Customer vehicle</b><small>Customer required</small></span></button><button className={isDealershipInventory ? "active inventory" : ""} onClick={() => chooseVehicleRelationship("DEALERSHIP_INVENTORY")} type="button"><CarFront /><span><b>Dealership inventory</b><small>No customer required</small></span></button><button className={form.vehicleRelationship === "TRADE_ACQUISITION" ? "active" : ""} onClick={() => chooseVehicleRelationship("TRADE_ACQUISITION")} type="button"><ClipboardCheck /><span><b>Trade / acquisition</b><small>Appraisal required</small></span></button><button className={form.vehicleRelationship === "OWNERSHIP_UNCONFIRMED" ? "active" : ""} onClick={() => chooseVehicleRelationship("OWNERSHIP_UNCONFIRMED")} type="button"><ShieldAlert /><span><b>Ownership unconfirmed</b><small>Document custody</small></span></button></div></section>
           {!canCompleteRelationshipIntake ? <div className="sic-relationship-route"><ShieldAlert /><div><strong>{form.vehicleRelationship === "TRADE_ACQUISITION" ? "Inventory cannot begin before governed acquisition" : "Ownership must be established before work is created"}</strong><span>{form.vehicleRelationship === "TRADE_ACQUISITION" ? "Continue through appraisal and financial acquisition; that workflow creates the eligible inventory unit once authority is confirmed." : "Record custody and ownership evidence. Do not create a customer or dealership inventory record merely to bypass this decision."}</span></div><Link href={form.vehicleRelationship === "TRADE_ACQUISITION" ? "/vehicles/acquisition-appraisal" : selectedVehicle ? `/vehicles/360/${selectedVehicle.id}` : "/vehicles"}>{form.vehicleRelationship === "TRADE_ACQUISITION" ? "Continue to Acquisition Review" : "Open Vehicle Records"}</Link></div> : null}
           <div className="sic-arrival-search"><Search /><input aria-label={isDealershipInventory ? "Find dealership vehicle or inventory unit" : "Find customer, vehicle, or appointment"} onChange={(event) => { setArrivalMode("search"); setArrivalQuery(event.target.value); setVehicleAddOpen(false); resetVehicleIdentityPreview(); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); runArrivalSearch(); } }} placeholder={isDealershipInventory ? "Search VIN, stock number, inventory number, plate, make, or model..." : "Search name, phone, email, VIN, plate, appointment, or RO..."} ref={arrivalSearchRef} type="search" value={arrivalQuery} /><button onClick={runArrivalSearch} type="button"><Search />Search</button></div>
+          <section className="sic-vehicle-identity-intelligence" aria-label="Vehicle identity intelligence"><header><Search /><div><small>Vehicle Identity Intelligence</small><strong>Search, decode, and duplicate guard are always available at intake.</strong><span>{isDealershipInventory ? "Use this before opening internal recon so the shop receives the correct inventory unit." : "Use this before creating customer work so the shop receives the correct customer and vehicle."}</span></div></header><div>{identityIntelligenceRows.map((row) => <article className={row.ready ? "ready" : ""} key={row.key}>{row.ready ? <CheckCircle2 /> : <AlertTriangle />}<span><b>{row.label}</b>{row.value}</span></article>)}</div></section>
           <div className="sic-arrival-actions"><div>{isCustomerVehicle ? <><button onClick={() => { setArrivalQuery(""); setArrivalMode("today"); setVehicleAddOpen(false); resetVehicleIdentityPreview(); }} type="button"><CalendarDays />Today&apos;s Arrivals</button><button onClick={() => { setArrivalQuery(""); setArrivalMode("recent"); setVehicleAddOpen(false); resetVehicleIdentityPreview(); }} type="button"><UserRound />Recent Customers</button><button onClick={() => { setArrivalMode("search"); setArrivalQuery(""); setVehicleAddOpen(false); resetVehicleIdentityPreview(); setNotice("Walk-in intake selected. Find or add the customer and vehicle to continue."); }} type="button">Walk-In</button></> : <span className="sic-internal-intake-label"><CarFront />Internal dealership inventory intake</span>}<button onClick={() => { update("transportMode", "TOW"); setNotice("Tow-in selected. Capture the vehicle, keys, and custody facts before check-in."); }} type="button"><CarFront />Tow-In</button></div><div>{isCustomerVehicle ? <button className="create" onClick={() => setDrawer("customer")} type="button"><Plus />Add New Customer</button> : null}<button className="create" onClick={() => { setVehicleAddOpen(true); if (arrivalQueryIsVin) void decodeVehicleForIntake(); else { arrivalSearchRef.current?.focus(); setNotice("Search the local database first, then enter the complete VIN if the vehicle is not found."); } }} type="button"><Plus />Add New Vehicle</button></div></div>
           {arrivalQuery || arrivalMode !== "search" ? <div className="sic-arrival-results" role="listbox" aria-label="Arrival search results">
             {isCustomerVehicle ? arrivalMatches.appointments.map((appointment) => <button key={appointment.id} onClick={() => chooseAppointment(appointment)} type="button"><CalendarClock /><span><strong>{appointment.appointmentNumber} · {appointment.title}</strong><small>{appointment.participants[0]?.customer?.displayName ?? "Customer"} · {appointment.vehicles[0] ? vehicleLabel(appointment.vehicles[0].vehicle) : "Vehicle not linked"}</small></span><b>Appointment</b></button>) : null}

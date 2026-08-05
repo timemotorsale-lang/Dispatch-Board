@@ -1,6 +1,7 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { isGeneralManager } from "@/server/policies/access";
 import { SHOP_RECON_STAGES, type ShopReconStageCode } from "./foundation";
+import { getShopReconOperationalWorkspace, type ShopReconWorkLane } from "./operational-workspace";
 import { getShopReconStageWorkspace } from "./stage-workspace";
 import { evaluateShopReconTransition, type ShopReconGateFact } from "./workflow";
 
@@ -121,19 +122,23 @@ export function canCompleteShopReconStage(actor: AuthenticatedUser, stageCode: S
   return { allowed: false, authority: "Designated stage authority" };
 }
 
-export function evaluateDraftCompletion(stageCode: ShopReconStageCode, draft: { checklist: unknown; formData: unknown; evidence: unknown }) {
+export function evaluateDraftCompletion(stageCode: ShopReconStageCode, draft: { checklist: unknown; formData: unknown; evidence: unknown }, lane?: ShopReconWorkLane) {
   const workspace = getShopReconStageWorkspace(stageCode), checklist = record(draft.checklist, "Checklist"), formData = record(draft.formData, "Form data"), evidence = strings(draft.evidence, "Evidence");
-  const incompleteChecklist = workspace.checklist.filter((_, index) => checklist[`item_${index + 1}`] !== true);
-  const missingFields = workspace.fields.filter(field => {
-    const value = formData[field.key];
-    return value === undefined || value === null || value === "" || (field.type === "checkbox" && value !== true);
-  }).map(field => field.key);
+  const operationalWorkspace = stageCode === "SERVICE_RECON_JOB_INTAKE" ? getShopReconOperationalWorkspace(stageCode, lane) : null;
+  const checklistItems = operationalWorkspace?.actions ?? workspace.checklist;
+  const requiredFieldKeys = operationalWorkspace?.actions.flatMap(action => action.requiredFields) ?? workspace.fields.map(field => field.key);
+  const incompleteChecklist = checklistItems.filter((_, index) => checklist[`item_${index + 1}`] !== true);
+  const missingFields = [...new Set(requiredFieldKeys)].filter(key => {
+    const value = formData[key];
+    const definition = workspace.fields.find(field => field.key === key);
+    return value === undefined || value === null || value === "" || (definition?.type === "checkbox" && value !== true);
+  });
   const missingEvidenceCount = Math.max(0, workspace.evidence.length - evidence.length);
   return { complete: !incompleteChecklist.length && !missingFields.length && missingEvidenceCount === 0, incompleteChecklist, missingFields, missingEvidenceCount };
 }
 
-export function evaluateGovernedTransition(input: { actor: AuthenticatedUser; fromStage: ShopReconStageCode; toStage: ShopReconStageCode; facts: Partial<Record<ShopReconGateFact, boolean>>; draft: { checklist: unknown; formData: unknown; evidence: unknown }; override: { kind: string; authorizedByUserId: string; expiresAt: Date | null } | null; now: Date }) {
-  const base = evaluateShopReconTransition({ fromStage: input.fromStage, toStage: input.toStage, facts: input.facts }), draft = evaluateDraftCompletion(input.fromStage, input.draft), authority = canCompleteShopReconStage(input.actor, input.fromStage);
+export function evaluateGovernedTransition(input: { actor: AuthenticatedUser; fromStage: ShopReconStageCode; toStage: ShopReconStageCode; facts: Partial<Record<ShopReconGateFact, boolean>>; draft: { checklist: unknown; formData: unknown; evidence: unknown }; lane?: ShopReconWorkLane; override: { kind: string; authorizedByUserId: string; expiresAt: Date | null } | null; now: Date }) {
+  const base = evaluateShopReconTransition({ fromStage: input.fromStage, toStage: input.toStage, facts: input.facts }), draft = evaluateDraftCompletion(input.fromStage, input.draft, input.lane), authority = canCompleteShopReconStage(input.actor, input.fromStage);
   const overrideActive = Boolean(input.override && (!input.override.expiresAt || input.override.expiresAt > input.now));
   const hardMissingFacts = base.missingFacts.filter(fact => hardFacts.includes(fact));
   const backwards = SHOP_RECON_STAGES.find(item => item.code === input.toStage)!.order <= SHOP_RECON_STAGES.find(item => item.code === input.fromStage)!.order;

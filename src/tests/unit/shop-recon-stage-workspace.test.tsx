@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { ShopReconVehicleCard, type ShopReconLifecycleWorkspaceModel, type ShopReconVehicleCardModel } from "@/features/inventory/shop-recon-vehicle-card";
 import { SHOP_RECON_STAGES } from "@/server/shop-recon/foundation";
-import { SHOP_RECON_OPERATIONAL_WORKSPACES } from "@/server/shop-recon/operational-workspace";
+import { getShopReconOperationalWorkspace, SHOP_RECON_OPERATIONAL_WORKSPACES } from "@/server/shop-recon/operational-workspace";
 import { SHOP_RECON_STAGE_WORKSPACES } from "@/server/shop-recon/stage-workspace";
 
 const item: ShopReconVehicleCardModel = {
@@ -49,6 +49,7 @@ describe("Shop Recon unified vehicle-card design", () => {
       expect(Object.keys(definition.pilotValues).length).toBeGreaterThanOrEqual(3);
     }
     expect(SHOP_RECON_OPERATIONAL_WORKSPACES[0].tools?.map(tool => tool.label)).toEqual(["Open Intake Form", "Open Service Advisor"]);
+    expect(getShopReconOperationalWorkspace("SERVICE_RECON_JOB_INTAKE", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Open Inventory Vehicle Card", "Open Inventory-to-Shop Handoff", "Open Prior Inspection / Photos", "Accept Shop Handoff"]);
   });
 
   it("renders the Inventory-style identity and active-stage operating workspace", () => {
@@ -57,20 +58,24 @@ describe("Shop Recon unified vehicle-card design", () => {
     expect(html).toContain("Current Shop Stage");
     expect(html).toContain("Viewing Stage 1 of 16");
     expect(html).toContain("Service / Recon Job Intake");
+    expect(html).toContain("Inventory-to-Shop Handoff Summary");
+    expect(html).toContain("Inventory Lifecycle is the source of entry");
+    expect(html).toContain("Vehicle Identity Intelligence");
+    expect(html).toContain("Verify the vehicle before Stage 1 can be trusted");
+    expect(html).toContain("Duplicate guard");
+    expect(html).toContain("Verify inventory identity");
+    expect(html).toContain("Verify prior inspection and photos");
+    expect(html).toContain("Open Inventory Vehicle Card");
+    expect(html).toContain("Open Inventory-to-Shop Handoff");
+    expect(html).toContain("Correct in Inventory Handoff");
+    expect(html).toContain("Source &amp; Return Path");
+    expect(html).toContain("Pending Shop exit sync");
     expect(html).toContain("Governed operational workspace");
     expect(html).toContain("Work to Perform");
     expect(html).toContain("Stage Activity");
     expect(html).toContain("Documents &amp; Evidence");
     expect(html).toContain("Stage Completion");
     expect(html).toContain("Perform the work here");
-    expect(html).toContain("Open Intake Form");
-    expect(html).toContain("Open Service Advisor");
-    expect(html).toContain("Stage 1 Intake Summary");
-    expect(html).toContain("Intake Form is the source of entry");
-    expect(html).toContain("Correct in Intake Form");
-    expect(html).toContain("Identify the work lane");
-    expect(html).toContain("Find or create the vehicle record");
-    expect(html).toContain("Capture concern or requested outcome");
     expect(html).toContain("Working as Brock");
     expect(html).toContain("No governed stage events yet");
   });

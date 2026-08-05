@@ -8,6 +8,11 @@ const completeDraft = {
   formData: { workLane: "Inventory Recon", vehicleIdentifier: "VIN", requester: "Inventory", concern: "Complete recon", commitmentAt: "2026-08-10", intakeOwner: "Brock" },
   evidence: ["job-intake-record", "request-snapshot"],
 };
+const completeInventoryHandoffDraft = {
+  checklist: { item_1: true, item_2: true, item_3: true, item_4: true, item_5: true, item_6: true, item_7: true },
+  formData: { vehicleIdentifier: "VIN", inventoryStage: "Recon Plan and Approval", requester: "Brock", concern: "Complete recon", commitmentAt: "2026-08-10", priorInspection: "Inventory intake photos available", handoffAccepted: "Brock accepted Shop handoff" },
+  evidence: ["inventory-handoff-packet", "prior-inspection-snapshot"],
+};
 
 describe("Shop Recon governed transition policy", () => {
   it("allows any attributable draft shape but keeps stage completion with the named authority", () => {
@@ -16,6 +21,17 @@ describe("Shop Recon governed transition policy", () => {
     expect(decision.authority.allowed).toBe(true);
     const unauthorized = evaluateGovernedTransition({ actor: actor("Unassigned User"), fromStage: "SERVICE_RECON_JOB_INTAKE", toStage: "JOB_SCOPE_DEFINITION", facts: { JOB_INTAKE_COMPLETE: true }, draft: completeDraft, override: null, now: new Date("2026-08-03T15:00:00.000Z") });
     expect(unauthorized.blockerCodes).toContain("BLK-STAGE-AUTHORITY");
+  });
+
+  it("uses inventory handoff facts for inventory Stage 1 instead of customer-style intake fields", () => {
+    const incomplete = evaluateGovernedTransition({ actor: actor("Brock"), fromStage: "SERVICE_RECON_JOB_INTAKE", toStage: "JOB_SCOPE_DEFINITION", facts: { JOB_INTAKE_COMPLETE: true }, draft: completeDraft, lane: "INVENTORY_RECON", override: null, now: new Date("2026-08-03T15:00:00.000Z") });
+    expect(incomplete.allowed).toBe(false);
+    expect(incomplete.draft.missingFields).toContain("inventoryStage");
+    expect(incomplete.draft.missingFields).toContain("priorInspection");
+    expect(incomplete.draft.missingFields).toContain("handoffAccepted");
+
+    const complete = evaluateGovernedTransition({ actor: actor("Brock"), fromStage: "SERVICE_RECON_JOB_INTAKE", toStage: "JOB_SCOPE_DEFINITION", facts: { JOB_INTAKE_COMPLETE: true }, draft: completeInventoryHandoffDraft, lane: "INVENTORY_RECON", override: null, now: new Date("2026-08-03T15:00:00.000Z") });
+    expect(complete.allowed).toBe(true);
   });
 
   it("does not let a documentation override bypass identity, authorization, QC, road-test, or release facts", () => {

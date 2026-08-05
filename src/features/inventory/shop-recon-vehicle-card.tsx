@@ -1,11 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Activity, AlertTriangle, ArrowLeft, BookOpenCheck, Building2, Camera, CarFront, Check, CheckCircle2, Circle, ClipboardCheck, Clock3, FileText, FlaskConical, History, LockKeyhole, MapPin, Paperclip, PlayCircle, RotateCcw, Save, ShieldCheck, UserRound, Wrench } from "lucide-react";
+import { Activity, AlertTriangle, ArrowLeft, BookOpenCheck, Building2, Camera, CarFront, Check, CheckCircle2, Circle, ClipboardCheck, Clock3, FileText, FlaskConical, History, LockKeyhole, MapPin, Paperclip, PlayCircle, RotateCcw, Save, Search, ShieldCheck, UserRound, Wrench } from "lucide-react";
 import Link from "next/link";
 
 import { SHOP_RECON_STAGES, type ShopReconStageCode } from "@/server/shop-recon/foundation";
-import { getShopReconOperationalWorkspace, type ShopReconOperationalTool } from "@/server/shop-recon/operational-workspace";
+import { getShopReconOperationalWorkspace, type ShopReconOperationalSummaryField, type ShopReconOperationalTool } from "@/server/shop-recon/operational-workspace";
 import { evaluateShopReconPilotProgress, type ShopReconPilotScenario } from "@/server/shop-recon/pilot";
 import { getShopReconStageWorkspace, type ShopReconFormField } from "@/server/shop-recon/stage-workspace";
 
@@ -77,7 +77,7 @@ export function ShopReconVehicleCard({ item, lifecycleWorkspace, returnTo = "/ve
   const [overrideKind, setOverrideKind] = useState("NONCRITICAL_DOCUMENTATION"), [overrideReason, setOverrideReason] = useState(""), [scopeFinding, setScopeFinding] = useState("");
   const selectedDefinition = SHOP_RECON_STAGES.find(stage => stage.code === selectedStage)!;
   const workspace = getShopReconStageWorkspace(selectedStage);
-  const operationalWorkspace = getShopReconOperationalWorkspace(selectedStage);
+  const operationalWorkspace = getShopReconOperationalWorkspace(selectedStage, item.workLane);
   const usesExternalIntake = selectedStage === "SERVICE_RECON_JOB_INTAKE";
   const laneClass = item.workLane === "INVENTORY_RECON" ? "inventory" : "customer", isCurrent = selectedStage === lifecycle.stage;
   const overallLifecycle = item.workLane === "INVENTORY_RECON" ? words(item.inventoryLifecycleStage ?? "RECONDITIONING") : "Customer Repair";
@@ -87,6 +87,8 @@ export function ShopReconVehicleCard({ item, lifecycleWorkspace, returnTo = "/ve
   const pilotProgress = item.pilot ? evaluateShopReconPilotProgress(item.pilot, currentIndex + 1, lifecycle.operatingState) : [];
   const sourceWorkspace = currentIndex === 7 || currentIndex === 8 ? { href: `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(item.id)}`, label: "Open estimate & authorization workspace" } : currentIndex === 9 ? { href: `/vehicles/parts-operations?repairOrderId=${encodeURIComponent(item.id)}`, label: "Open Parts & resource workspace" } : currentIndex >= 10 && currentIndex <= 13 ? { href: "/vehicles/shop-dispatch", label: currentIndex >= 12 ? "Open technician execution workspace" : "Open dispatch & assignment workspace" } : currentIndex === 14 ? { href: "/vehicles/quality-control", label: "Open QC & release workspace" } : currentIndex === 15 ? { href: "/vehicles/advisor", label: "Open recipient readiness workspace" } : null;
   const activityEntries = operationalActivity(formData.__activity).slice().reverse();
+  const stageTitle = operationalWorkspace?.summaryTitle ?? selectedDefinition.label;
+  const stagePurpose = operationalWorkspace?.summaryInstruction ?? workspace.purpose;
 
   async function post(path: string, body: Record<string, unknown>) { const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); const result = await response.json(); if (!response.ok) throw new Error(result.error ?? "The action could not be completed."); return result; }
   async function saveDraft() { setBusy(true); setFeedback(null); try { await post(`/api/shop-recon/${item.id}/draft`, { stage: lifecycle.stage, expectedVersion: lifecycle.version, idempotencyKey: crypto.randomUUID(), reason: saveReason, checklist, formData, evidence }); setDirty(false); setFeedback({ tone: "success", text: "Draft saved. The vehicle did not move; your name and save time were recorded." }); window.location.reload(); } catch (error) { setFeedback({ tone: "error", text: error instanceof Error ? error.message : "Draft could not be saved." }); } finally { setBusy(false); } }
@@ -109,9 +111,10 @@ export function ShopReconVehicleCard({ item, lifecycleWorkspace, returnTo = "/ve
     }
     const missingFields = action.requiredFields.filter(field => !fieldHasValue(formData[field]));
     if (missingFields.length) {
-      const labels = missingFields.map(field => workspace.fields.find(item => item.key === field)?.label ?? field);
+      const labels = missingFields.map(field => operationalWorkspace.summaryFields?.find(item => item.key === field)?.label ?? workspace.fields.find(item => item.key === field)?.label ?? field);
       if (usesExternalIntake) {
-        setWorkGuidance(`Complete or correct ${labels.join(" and ")} in the Intake Form, then return here to record "${action.title}".`);
+        const source = item.workLane === "INVENTORY_RECON" ? "Inventory-to-Shop Handoff" : "Intake Form";
+        setWorkGuidance(`Complete or correct ${labels.join(" and ")} in the ${source}, then return here to record "${action.title}".`);
         return;
       }
       setWorkGuidance(`Complete ${labels.join(" and ")} before recording “${action.title}.”`);
@@ -215,7 +218,7 @@ export function ShopReconVehicleCard({ item, lifecycleWorkspace, returnTo = "/ve
       <section className="srv-workspace-main">
         <header>
           <span>Stage {selectedDefinition.order}</span>
-          <div><small>{isCurrent ? "Current operational workspace" : "Read-only stage review"}</small><h2>{selectedDefinition.label}</h2><p>{workspace.purpose}</p></div>
+          <div><small>{isCurrent ? "Current operational workspace" : "Read-only stage review"}</small><h2>{stageTitle}</h2><p>{stagePurpose}</p></div>
           <b>{isCurrent ? "CURRENT" : selectedDefinition.order < currentIndex + 1 ? "HISTORY" : "UPCOMING"}</b>
         </header>
 
@@ -228,11 +231,11 @@ export function ShopReconVehicleCard({ item, lifecycleWorkspace, returnTo = "/ve
           </nav>
 
           {workspaceView === "work" ? <div className="srv-operational-work">
-            <header><div><small>Perform the work here</small><h3>{operationalWorkspace.workTitle}</h3><p>{operationalWorkspace.workInstruction}</p>{operationalWorkspace.tools?.length ? <nav aria-label={`${workspace.formTitle} tools`} className="srv-stage-tools">{operationalWorkspace.tools.map(tool => <Link href={tool.href} key={tool.key} title={tool.description}><FileText />{tool.label}</Link>)}</nav> : null}</div><div className="srv-operational-header-actions"><span>{isCurrent ? `Working as ${lifecycleWorkspace.permissions.currentUserName}` : `Preview only · Stage ${currentIndex + 1} is active`}</span>{item.pilot && isCurrent ? <button onClick={loadPilotExample} type="button"><FlaskConical />Load sample stage work</button> : null}</div></header>
+            <header><div><small>Perform the work here</small><h3>{operationalWorkspace.workTitle}</h3><p>{operationalWorkspace.workInstruction}</p>{operationalWorkspace.tools?.length ? <nav aria-label={`${workspace.formTitle} tools`} className="srv-stage-tools">{operationalWorkspace.tools.map(tool => <Link href={resolveStageToolHref(tool, item, returnTo)} key={tool.key} title={tool.description}><FileText />{tool.label}</Link>)}</nav> : null}</div><div className="srv-operational-header-actions"><span>{isCurrent ? `Working as ${lifecycleWorkspace.permissions.currentUserName}` : `Preview only · Stage ${currentIndex + 1} is active`}</span>{item.pilot && isCurrent ? <button onClick={loadPilotExample} type="button"><FlaskConical />Load sample stage work</button> : null}</div></header>
             {workGuidance ? <p className="srv-work-guidance"><AlertTriangle /><span>{workGuidance}</span></p> : null}
             <div className="srv-operational-grid">
-              <section className="srv-operation-list">{operationalWorkspace.actions.map((action, index) => { const completed = checklist[`item_${index + 1}`] === true, missing = action.requiredFields.filter(field => !fieldHasValue(formData[field])), ready = missing.length === 0; return <article className={completed ? "complete" : ""} key={action.key}><header><i>{completed ? <Check /> : index + 1}</i><div><strong>{action.title}</strong><small>{action.owner}</small></div><b>{completed ? "Recorded" : ready ? "Ready" : "Needs facts"}</b></header><p>{action.instruction}</p><dl><div><dt>Required record</dt><dd>{action.requiredFields.map(field => workspace.fields.find(item => item.key === field)?.label ?? field).join(" · ")}</dd></div><div><dt>Evidence created</dt><dd>{action.evidence}</dd></div></dl>{!completed && !ready && isCurrent ? <small className="srv-operation-help">Click below to enter: {missing.map(field => workspace.fields.find(item => item.key === field)?.label ?? field).join(" and ")}</small> : null}<button disabled={busy} onClick={() => recordOperationalAction(index)} type="button">{!isCurrent ? <><RotateCcw />Return to active Stage {currentIndex + 1}</> : completed ? <><RotateCcw />Reopen operation</> : ready ? <><CheckCircle2 />Record operation</> : <><FileText />Enter required facts</>}</button></article>; })}</section>
-              {usesExternalIntake ? <IntakeSummaryPanel fields={workspace.fields} formData={formData} item={item} tools={operationalWorkspace.tools ?? []} /> : <section className="srv-stage-record"><header><FileText /><div><h3>{workspace.formTitle}</h3><p>Enter the facts used by the operations. Changing a recorded fact reopens its operation for confirmation.</p></div><span>{lifecycleWorkspace.currentDraft?.revision ? `Saved v${lifecycleWorkspace.currentDraft.revision}` : "Unsaved work"}</span></header><div>{workspace.fields.map(field => isCurrent ? <OperationalField disabled={busy} field={field} key={field.key} onChange={updateOperationalField} value={formData[field.key]} /> : <PreviewField field={field} key={field.key} />)}</div></section>}
+              <section className="srv-operation-list">{operationalWorkspace.actions.map((action, index) => { const labelFor = (key: string) => operationalWorkspace.summaryFields?.find(item => item.key === key)?.label ?? workspace.fields.find(item => item.key === key)?.label ?? key, completed = checklist[`item_${index + 1}`] === true, missing = action.requiredFields.filter(field => !fieldHasValue(formData[field])), ready = missing.length === 0; return <article className={completed ? "complete" : ""} key={action.key}><header><i>{completed ? <Check /> : index + 1}</i><div><strong>{action.title}</strong><small>{action.owner}</small></div><b>{completed ? "Recorded" : ready ? "Ready" : "Needs facts"}</b></header><p>{action.instruction}</p><dl><div><dt>Required record</dt><dd>{action.requiredFields.map(labelFor).join(" · ")}</dd></div><div><dt>Evidence created</dt><dd>{action.evidence}</dd></div></dl>{!completed && !ready && isCurrent ? <small className="srv-operation-help">Click below to enter: {missing.map(labelFor).join(" and ")}</small> : null}<button disabled={busy} onClick={() => recordOperationalAction(index)} type="button">{!isCurrent ? <><RotateCcw />Return to active Stage {currentIndex + 1}</> : completed ? <><RotateCcw />Reopen operation</> : ready ? <><CheckCircle2 />Record operation</> : <><FileText />Enter required facts</>}</button></article>; })}</section>
+              {usesExternalIntake ? <IntakeSummaryPanel formData={formData} item={item} returnTo={returnTo} summaryFields={operationalWorkspace.summaryFields ?? []} summaryInstruction={operationalWorkspace.summaryInstruction} summaryTitle={operationalWorkspace.summaryTitle} tools={operationalWorkspace.tools ?? []} /> : <section className="srv-stage-record"><header><FileText /><div><h3>{workspace.formTitle}</h3><p>Enter the facts used by the operations. Changing a recorded fact reopens its operation for confirmation.</p></div><span>{lifecycleWorkspace.currentDraft?.revision ? `Saved v${lifecycleWorkspace.currentDraft.revision}` : "Unsaved work"}</span></header><div>{workspace.fields.map(field => isCurrent ? <OperationalField disabled={busy} field={field} key={field.key} onChange={updateOperationalField} value={formData[field.key]} /> : <PreviewField field={field} key={field.key} />)}</div></section>}
             </div>
           </div> : null}
 
@@ -240,13 +243,14 @@ export function ShopReconVehicleCard({ item, lifecycleWorkspace, returnTo = "/ve
 
           {workspaceView === "evidence" ? <section className="srv-evidence srv-operational-evidence"><header><Camera /><div><h3>Documents &amp; Evidence</h3><p>Attach or reference the actual photos, scans, measurements, records, and documents produced while performing this stage.</p></div></header><div>{workspace.evidence.map((requirement, index) => <p key={requirement}><span>{evidence[index] ? <CheckCircle2 /> : <Camera />}</span><strong>{requirement}</strong><small>{evidence[index] ?? "Evidence reference required"}</small></p>)}</div>{isCurrent ? <label className="srv-evidence-entry"><span>Evidence references</span><textarea disabled={busy} onChange={event => { setEvidenceText(event.target.value); changed(); }} placeholder="One photo, document, measurement, or source record per line" value={evidenceText} /></label> : null}</section> : null}
 
-          {workspaceView === "completion" ? <section className="srv-completion-workspace"><header><BookOpenCheck /><div><h3>Stage Completion Gate</h3><p>Review recorded work separately from the decision to publish evidence and move the vehicle.</p></div></header><div className="srv-completion-summary"><p><span>Operations recorded</span><strong>{workspace.checklist.filter((_, index) => checklist[`item_${index + 1}`]).length} / {workspace.checklist.length}</strong></p><p><span>Evidence supplied</span><strong>{evidence.length} / {workspace.evidence.length}</strong></p><p><span>Completion authority</span><strong>{workspace.authority}</strong></p><p><span>Current status</span><strong>{dirty ? "Unsaved changes" : lifecycleWorkspace.currentEvidence ? "Published" : lifecycleWorkspace.currentDraft ? "Saved work" : "Work not saved"}</strong></p></div>{completionControls}{feedback ? <p className={`srv-action-feedback ${feedback.tone}`}>{feedback.text}</p> : null}</section> : null}
+          {workspaceView === "completion" ? <section className="srv-completion-workspace" id="stage-completion"><header><BookOpenCheck /><div><h3>Stage Completion Gate</h3><p>Review recorded work separately from the decision to publish evidence and move the vehicle.</p></div></header><div className="srv-completion-summary"><p><span>Operations recorded</span><strong>{workspace.checklist.filter((_, index) => checklist[`item_${index + 1}`]).length} / {workspace.checklist.length}</strong></p><p><span>Evidence supplied</span><strong>{evidence.length} / {workspace.evidence.length}</strong></p><p><span>Completion authority</span><strong>{workspace.authority}</strong></p><p><span>Current status</span><strong>{dirty ? "Unsaved changes" : lifecycleWorkspace.currentEvidence ? "Published" : lifecycleWorkspace.currentDraft ? "Saved work" : "Work not saved"}</strong></p></div>{completionControls}{feedback ? <p className={`srv-action-feedback ${feedback.tone}`}>{feedback.text}</p> : null}</section> : null}
         </section> : <><div className="srv-work-grid"><section className="srv-checklist"><header><ClipboardCheck /><div><h3>Stage Checklist</h3><p>Required before the card can advance.</p></div><span>{workspace.checklist.filter((_, index) => checklist[`item_${index + 1}`]).length} / {workspace.checklist.length}</span></header>{workspace.checklist.map((label, index) => { const key = `item_${index + 1}`, checked = checklist[key] === true; return <label key={label}><input checked={checked} disabled={!isCurrent || busy} onChange={event => { setChecklist(value => ({ ...value, [key]: event.target.checked })); changed(); }} type="checkbox" /><i>{checked ? <Check /> : <Circle />}</i><span><strong>{label}</strong><small>Required gate {index + 1}</small></span></label>; })}</section><section className="srv-form-preview"><header><FileText /><div><h3>{workspace.formTitle}</h3><p>{isCurrent ? "Work saves as an attributable draft." : "Read-only stage review."}</p></div><span>{lifecycleWorkspace.currentDraft?.revision ? `Draft v${lifecycleWorkspace.currentDraft.revision}` : "New draft"}</span></header><div>{workspace.fields.map(field => isCurrent ? <OperationalField disabled={busy} field={field} key={field.key} onChange={(key, value) => { setFormData(current => ({ ...current, [key]: value })); changed(); }} value={formData[field.key]} /> : <PreviewField field={field} key={field.key} />)}</div></section></div><section className="srv-evidence"><header><Camera /><div><h3>Required Evidence</h3><p>Enter one attachment, photo, measurement, or source reference per line. The saved revision remains in history.</p></div></header><div>{workspace.evidence.map((requirement, index) => <p key={requirement}><span>{evidence[index] ? <CheckCircle2 /> : <Camera />}</span><strong>{requirement}</strong><small>{evidence[index] ?? "Evidence reference required"}</small></p>)}</div>{isCurrent ? <label className="srv-evidence-entry"><span>Evidence references</span><textarea disabled={busy} onChange={event => { setEvidenceText(event.target.value); changed(); }} placeholder="One evidence reference per line" value={evidenceText} /></label> : null}</section></>}
       </section>
 
       <aside className="srv-workspace-rail">
         {item.pilot ? <section className="srv-pilot-panel"><h2><FlaskConical /> {item.pilot.label}</h2><p>{item.pilot.objective}</p><strong>Journey validation</strong><div>{pilotProgress.map(group => <p className={group.status.toLowerCase()} key={group.id}>{group.status === "COMPLETE" ? <CheckCircle2 /> : group.status === "IN_PROGRESS" ? <Clock3 /> : <Circle />}<span>{group.label}<small>Stages {group.fromStage}–{group.toStage} · {words(group.status)}</small></span></p>)}</div><details><summary>Exception drills</summary>{item.pilot.exceptionDrills.map(drill => <p key={drill.id}><AlertTriangle /><span><strong>{drill.label}</strong><small>Stage {SHOP_RECON_STAGES.find(stage => stage.code === drill.stage)?.order}: {drill.expectedControl}</small></span></p>)}</details><footer>Expected exit: <strong>{item.pilot.expectedHandoff}</strong></footer></section> : null}
         <section className="srv-current-context"><h2>Current Vehicle Context</h2><Fact icon={MapPin} label="Location" value={item.location} /><Fact icon={UserRound} label="Accountable owner" value={item.owner} /><Fact icon={Wrench} label="Technician / bay" value={[item.technician, item.bay].filter(Boolean).join(" · ") || "Not assigned"} /><Fact icon={Clock3} label={item.commitmentLabel} value={date(lifecycle.targetAt)} /></section>
+        <SourceReturnPathPanel item={item} />
         <section><h2>Decision Authority</h2><p className="srv-authority"><LockKeyhole />{workspace.authority}</p><small>{item.authorizationPath}</small></section>
         <section><h2>Constraint &amp; Priority</h2>{lifecycle.blockerCodes.length ? <p className="srv-blocker"><AlertTriangle />{lifecycle.blockerCodes.map(String).join(", ")}</p> : <p className="srv-clear"><CheckCircle2 />No controlling blocker recorded.</p>}<dl><div><dt>Priority</dt><dd>{item.priorityBand} · {item.priorityScore}</dd></div><div><dt>Timing</dt><dd>{words(item.stageTargetBand)}</dd></div><div><dt>Parts</dt><dd>{item.waitingParts ? "Constrained" : "No constraint"}</dd></div></dl></section>
         <section><h2>Completion Path</h2><p>{item.completionHandoff}</p><small>The same card and history continue through handoff.</small></section>
@@ -263,6 +267,18 @@ export function ShopReconVehicleCard({ item, lifecycleWorkspace, returnTo = "/ve
 
 function LaneIcon({ lane }: { lane: ShopReconVehicleCardModel["workLane"] }) { return lane === "INVENTORY_RECON" ? <Building2 /> : <UserRound />; }
 function Fact({ icon: Icon, label, value }: { icon: typeof MapPin; label: string; value: string }) { return <p className="srv-fact"><Icon /><span>{label}<strong>{value}</strong></span></p>; }
+function resolveStageToolHref(tool: ShopReconOperationalTool, item: ShopReconVehicleCardModel, returnTo: string) {
+  const encodedReturn = encodeURIComponent(returnTo);
+  if (tool.key === "INVENTORY_CARD" && item.vehicleId) return `/vehicles/360/${encodeURIComponent(item.vehicleId)}?returnTo=${encodedReturn}`;
+  if (tool.key === "INVENTORY_HANDOFF" && item.vehicleId) return `/vehicles/repair-orders?intakeSource=INVENTORY_RECON&vehicleId=${encodeURIComponent(item.vehicleId)}&returnTo=${encodedReturn}`;
+  if (tool.key === "PRIOR_INSPECTION" && item.vehicleId) return `/vehicles/${encodeURIComponent(item.vehicleId)}/inventory-planning?returnTo=${encodedReturn}`;
+  if (tool.key === "ACCEPT_HANDOFF") return "#stage-completion";
+  return tool.href;
+}
+function SourceReturnPathPanel({ item }: { item: ShopReconVehicleCardModel }) {
+  const inventory = item.workLane === "INVENTORY_RECON";
+  return <section className="srv-source-path"><h2>Source &amp; Return Path</h2><dl><div><dt>Source system</dt><dd>{inventory ? "Inventory Lifecycle" : "Service Advisor"}</dd></div><div><dt>Shop lane</dt><dd>{item.workLaneLabel}</dd></div><div><dt>Source context</dt><dd>{inventory ? words(item.inventoryLifecycleStage ?? "RECON_PLAN_AND_APPROVAL") : item.repairOrderNumber}</dd></div><div><dt>Return destination</dt><dd>{inventory ? "Inventory Lifecycle" : "Service Advisor / Customer"}</dd></div><div><dt>Writeback status</dt><dd>{inventory ? "Pending Shop exit sync" : "Advisor handoff pending"}</dd></div></dl><p>{inventory ? "At Stage 16, Shop exit returns this dealership-owned unit to the Inventory Lifecycle with repair, QC, cost, and readiness evidence." : "At Stage 16, Shop exit returns this customer-owned vehicle to advisor/customer handoff with repair, QC, and release evidence."}</p></section>;
+}
 function PreviewField({ field }: { field: ShopReconFormField }) {
   if (field.type === "textarea") return <label className="wide"><span>{field.label}</span><textarea disabled placeholder={field.placeholder ?? "Stage notes"} /></label>;
   if (field.type === "select") return <label><span>{field.label}</span><select disabled defaultValue=""><option value="">Select…</option>{field.options?.map(option => <option key={option}>{option}</option>)}</select></label>;
@@ -270,22 +286,34 @@ function PreviewField({ field }: { field: ShopReconFormField }) {
   return <label><span>{field.label}</span><input disabled placeholder={field.placeholder} type={field.type} /></label>;
 }
 
-function IntakeSummaryPanel({ fields, formData, item, tools }: { fields: readonly ShopReconFormField[]; formData: Record<string, unknown>; item: ShopReconVehicleCardModel; tools: readonly ShopReconOperationalTool[] }) {
-  const valueFor = (key: string) => {
-    const value = formData[key];
+function IntakeSummaryPanel({ formData, item, returnTo, summaryFields, summaryInstruction, summaryTitle, tools }: { formData: Record<string, unknown>; item: ShopReconVehicleCardModel; returnTo: string; summaryFields: readonly ShopReconOperationalSummaryField[]; summaryInstruction?: string; summaryTitle?: string; tools: readonly ShopReconOperationalTool[] }) {
+  const valueFor = (field: ShopReconOperationalSummaryField) => {
+    const value = formData[field.key];
     if (fieldHasValue(value)) return String(value);
-    if (key === "workLane") return item.workLaneLabel;
-    if (key === "vehicleIdentifier") return item.vin ?? item.subject;
-    if (key === "requester") return item.subject;
-    if (key === "concern") return item.concern;
-    if (key === "commitmentAt") return item.targetAt ? new Date(item.targetAt).toLocaleDateString("en-US") : "";
-    if (key === "intakeOwner") return item.owner;
-    return "";
+    if (field.fallback === "workLaneLabel") return item.workLaneLabel;
+    if (field.fallback === "vehicleIdentifier") return item.vin ?? item.subject;
+    if (field.fallback === "subject") return item.subject;
+    if (field.fallback === "concern") return item.concern;
+    if (field.fallback === "targetDate") return item.targetAt ? new Date(item.targetAt).toLocaleDateString("en-US") : "";
+    if (field.fallback === "owner") return item.owner;
+    if (field.fallback === "inventoryLifecycleStage") return words(item.inventoryLifecycleStage ?? "RECON_PLAN_AND_APPROVAL");
+    if (field.fallback === "completionHandoff") return item.completionHandoff;
+    if (field.fallback === "repairOrderNumber") return item.repairOrderNumber;
+    if (field.fallback === "authorizationPath") return item.authorizationPath;
   };
-  const rows = fields.map(field => ({ field, value: valueFor(field.key) }));
+  const rows = summaryFields.map(field => ({ field, value: valueFor(field) }));
   const missing = rows.filter(row => !fieldHasValue(row.value));
   const complete = missing.length === 0;
-  return <section className="srv-intake-summary"><header><FileText /><div><h3>Stage 1 Intake Summary</h3><p>Intake Form is the source of entry. The vehicle card verifies readiness and records the governed stage decision.</p></div><span className={complete ? "complete" : "missing"}>{complete ? "Ready from intake" : `${missing.length} missing`}</span></header><div className="srv-intake-summary-grid">{rows.map(({ field, value }) => <p className={fieldHasValue(value) ? "complete" : "missing"} key={field.key}><span>{field.label}</span><strong>{fieldHasValue(value) ? value : "Needs Intake Form"}</strong></p>)}</div>{missing.length ? <p className="srv-intake-missing"><AlertTriangle />Missing intake facts: {missing.map(row => row.field.label).join(", ")}</p> : <p className="srv-intake-ready"><CheckCircle2 />Required intake facts are present for Stage 1 review.</p>}<nav aria-label="Correct Stage 1 intake facts">{tools.map(tool => <Link href={tool.href} key={tool.key} title={tool.description}><FileText />{tool.key === "INTAKE_FORM" ? "Correct in Intake Form" : tool.label}</Link>)}</nav></section>;
+  const correctionLabel = item.workLane === "INVENTORY_RECON" ? "Correct in Inventory Handoff" : "Correct in Intake Form";
+  const normalizedVin = item.vin?.toUpperCase().replace(/[^A-Z0-9]/g, "") ?? "";
+  const vinLooksValid = /^[A-HJ-NPR-Z0-9]{17}$/.test(normalizedVin);
+  const identityRows = [
+    { key: "vin", label: "VIN / decode", ready: vinLooksValid, value: vinLooksValid ? `${normalizedVin} ready for decode verification` : item.vin ? "VIN exception review required" : "VIN or documented exception required" },
+    { key: "canonical", label: "Canonical vehicle", ready: Boolean(item.vehicleId), value: item.vehicleId ? item.vehicle : "Vehicle 360 record not linked" },
+    { key: "source", label: item.workLane === "INVENTORY_RECON" ? "Inventory source" : "Customer source", ready: item.workLane === "INVENTORY_RECON" ? Boolean(item.inventoryLifecycleStage) : Boolean(item.repairOrderNumber), value: item.workLane === "INVENTORY_RECON" ? words(item.inventoryLifecycleStage ?? "RECON_PLAN_AND_APPROVAL") : item.repairOrderNumber },
+    { key: "duplicate", label: "Duplicate guard", ready: true, value: item.workLane === "INVENTORY_RECON" ? "Verify against inventory unit and open shop work" : "Verify against customer, appointment, and open RO" },
+  ];
+  return <section className="srv-intake-summary"><header><FileText /><div><h3>{summaryTitle ?? "Stage 1 Intake Summary"}</h3><p>{summaryInstruction ?? "The source workspace supplies Stage 1 facts. The vehicle card verifies readiness and records the governed stage decision."}</p></div><span className={complete ? "complete" : "missing"}>{complete ? item.workLane === "INVENTORY_RECON" ? "Handoff ready" : "Ready from intake" : `${missing.length} missing`}</span></header><div className="srv-intake-summary-grid">{rows.map(({ field, value }) => <p className={fieldHasValue(value) ? "complete" : "missing"} key={field.key}><span>{field.label}</span><strong>{fieldHasValue(value) ? value : item.workLane === "INVENTORY_RECON" ? "Needs Inventory Handoff" : "Needs Intake Form"}</strong></p>)}</div><section className="srv-identity-intelligence" aria-label="Vehicle identity intelligence"><header><Search /><div><small>Vehicle Identity Intelligence</small><strong>Verify the vehicle before Stage 1 can be trusted.</strong><span>{item.workLane === "INVENTORY_RECON" ? "Inventory source controls ownership; shop confirms identity and duplicate risk." : "Intake source controls customer identity; shop confirms the exact vehicle and RO path."}</span></div></header><div>{identityRows.map(row => <p className={row.ready ? "ready" : "missing"} key={row.key}>{row.ready ? <CheckCircle2 /> : <AlertTriangle />}<span><b>{row.label}</b>{row.value}</span></p>)}</div></section>{missing.length ? <p className="srv-intake-missing"><AlertTriangle />Missing Stage 1 facts: {missing.map(row => row.field.label).join(", ")}</p> : <p className="srv-intake-ready"><CheckCircle2 />Required Stage 1 handoff facts are present for review.</p>}<nav aria-label="Correct Stage 1 source facts">{tools.map(tool => <Link href={resolveStageToolHref(tool, item, returnTo)} key={tool.key} title={tool.description}><FileText />{tool.key === "INTAKE_FORM" || tool.key === "INVENTORY_HANDOFF" ? correctionLabel : tool.label}</Link>)}</nav></section>;
 }
 
 function OperationalField({ field, value, disabled, onChange }: { field: ShopReconFormField; value: unknown; disabled: boolean; onChange: (key: string, value: unknown) => void }) {
