@@ -26,22 +26,22 @@ An exclusion never hides total elapsed time. Customer promises and Inventory fro
 
 | Stage | Controllable target | Required warning/review behavior |
 | --- | ---: | --- |
-| 1 Shop Entry | 15 minutes | Unmatched arrival or custody risk escalates immediately at target |
-| 2 Custody and Check-In | 30 minutes | Identity/key/condition exception routes to containment |
-| 3 Lane and Scope Confirmation | 30 minutes | Conflicting or missing authority becomes a blocker |
-| 4 Safety and Priority Triage | 60 minutes | Suspected safety risk is contained immediately, not at deadline |
-| 5 Inspection | 4 staffed hours | Incomplete inspection receives owner and recovery time |
-| 6 Diagnosis | 8 staffed hours | Complex diagnosis may receive one versioned extension up to 24 staffed hours |
-| 7 Findings Verification | 2 staffed hours | Reviewer accepts or returns exact deficiencies |
-| 8 Repair Plan and Estimate | 4 staffed hours | Plan delay exposes downstream target impact |
-| 9 Authorization and Approval | 2 staffed hours for Inventory response; 4 staffed hours for first customer contact attempt | External response time remains visible; follow-up event required |
+| 1 Service / Recon Job Intake | 30 minutes | Missing lane, vehicle, requester, concern, commitment or owner escalates |
+| 2 Job Scope Definition | 30 minutes | Conflicting inclusions, exclusions or scope authority become a blocker |
+| 3 Work Order Creation | 30 minutes | Missing work-order or scope linkage blocks physical intake |
+| 4 Vehicle Intake & Custody | 30 minutes | Identity, key or condition exception routes to containment |
+| 5 Safety & Mobility Triage | 1 staffed hour | Suspected safety risk is contained immediately, not at deadline |
+| 6 Inspection & Concern Verification | 4 staffed hours | Incomplete inspection receives owner and recovery time |
+| 7 Diagnosis | 8 staffed hours | Complex diagnosis may receive one versioned extension up to 24 staffed hours |
+| 8 Findings & Repair Plan | 4 staffed hours | Plan delay exposes downstream target impact |
+| 9 Authorization | External wait; lane-specific follow-up target | External response time remains visible; follow-up event required |
 | 10 Parts and Resource Readiness | 2 staffed hours to establish source/reservation/resource plan | Non-stock/vendor wait reviewed at least once each staffed day |
-| 11 Ready for Dispatch | 2 staffed hours | Ready-age breach escalates dispatch review |
-| 12 Assigned and Staged | 1 staffed hour | Assignment must be revalidated if start does not occur |
-| 13 Repair Execution | Current approved low/expected/high job range | No unexplained active-time gap over 60 minutes; pause or progress required |
-| 14 Technician Complete | 30 minutes | Missing completion evidence returns to Stage 13 |
-| 15 QC and Release Readiness | 2 staffed hours; 4 when an approved road test is required | Failed QC creates exact rework immediately |
-| 16 Handoff and Shop Exit | 1 staffed hour for Inventory acceptance; 2 staffed hours for customer-ready notification/handoff preparation | Receiving delay remains visible with custody owner |
+| 11 Dispatch & Work Staging | 2 staffed hours | Assignment must be revalidated if start does not occur |
+| 12 Repair Execution | Current approved low/expected/high job range | No unexplained active-time gap over 60 minutes; pause or progress required |
+| 13 Technician Completion | 30 minutes | Missing completion evidence returns to Stage 12 |
+| 14 Quality Control & Road Test | 2 staffed hours | Failed QC creates exact rework immediately |
+| 15 Release & Handover Readiness | 1 staffed hour | Final scope, cost, keys, documents and receiver must reconcile |
+| 16 Vehicle Handover & Shop Exit | 1 staffed hour | Receiving delay remains visible with custody owner |
 
 ## Aggregate baseline
 

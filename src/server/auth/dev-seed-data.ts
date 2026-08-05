@@ -390,7 +390,7 @@ export const developmentUserDefinitions = [
     directDutyNames: []
   },
   {
-    name: "Walter Mechanic",
+    name: "Walter Hernandez",
     email: "casey.mechanic@local.test",
     password: SHARED_DEVELOPMENT_PASSWORD,
     isActive: true,

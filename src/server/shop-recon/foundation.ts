@@ -1,4 +1,4 @@
-export const SHOP_RECON_FOUNDATION_VERSION = "shop-recon/foundation/1.0.0" as const;
+export const SHOP_RECON_FOUNDATION_VERSION = "shop-recon/foundation/2.0.0" as const;
 export const SHOP_RECON_TIME_ZONE = "America/Chicago" as const;
 
 export const SHOP_RECON_OPERATING_STATES = [
@@ -12,22 +12,22 @@ export const SHOP_RECON_OPERATING_STATES = [
 ] as const;
 
 export const SHOP_RECON_STAGES = [
-  { code: "SHOP_ENTRY", label: "Shop Entry / Arrival Detected", order: 1 },
-  { code: "CUSTODY_CHECK_IN", label: "Custody and Check-In", order: 2 },
-  { code: "LANE_SCOPE_CONFIRMATION", label: "Lane and Scope Confirmation", order: 3 },
-  { code: "SAFETY_PRIORITY_TRIAGE", label: "Safety and Priority Triage", order: 4 },
-  { code: "INSPECTION", label: "Inspection", order: 5 },
-  { code: "DIAGNOSIS", label: "Diagnosis", order: 6 },
-  { code: "FINDINGS_VERIFICATION", label: "Findings Verification", order: 7 },
-  { code: "REPAIR_PLAN_ESTIMATE", label: "Repair Plan and Estimate", order: 8 },
-  { code: "AUTHORIZATION_APPROVAL", label: "Authorization and Approval", order: 9 },
-  { code: "PARTS_RESOURCE_READINESS", label: "Parts and Resource Readiness", order: 10 },
-  { code: "READY_FOR_DISPATCH", label: "Ready for Dispatch", order: 11 },
-  { code: "ASSIGNED_STAGED", label: "Assigned and Staged", order: 12 },
-  { code: "REPAIR_EXECUTION", label: "Repair Execution", order: 13 },
-  { code: "TECHNICIAN_COMPLETE", label: "Technician Complete", order: 14 },
-  { code: "QC_RELEASE_READINESS", label: "QC, Road Test and Release Readiness", order: 15 },
-  { code: "HANDOFF_SHOP_EXIT", label: "Handoff and Shop Exit", order: 16 },
+  { code: "SERVICE_RECON_JOB_INTAKE", label: "Service / Recon Job Intake", order: 1, phase: "REQUEST_WORK_CREATION", physicalPresenceRequired: false },
+  { code: "JOB_SCOPE_DEFINITION", label: "Job Scope Definition", order: 2, phase: "REQUEST_WORK_CREATION", physicalPresenceRequired: false },
+  { code: "WORK_ORDER_CREATION", label: "Work Order Creation", order: 3, phase: "REQUEST_WORK_CREATION", physicalPresenceRequired: false },
+  { code: "VEHICLE_INTAKE_CUSTODY", label: "Vehicle Intake & Custody", order: 4, phase: "VEHICLE_RECEPTION_VERIFICATION", physicalPresenceRequired: true },
+  { code: "SAFETY_MOBILITY_TRIAGE", label: "Safety & Mobility Triage", order: 5, phase: "VEHICLE_RECEPTION_VERIFICATION", physicalPresenceRequired: true },
+  { code: "INSPECTION_CONCERN_VERIFICATION", label: "Inspection & Concern Verification", order: 6, phase: "VEHICLE_RECEPTION_VERIFICATION", physicalPresenceRequired: true },
+  { code: "DIAGNOSIS", label: "Diagnosis", order: 7, phase: "TECHNICAL_DECISION", physicalPresenceRequired: true },
+  { code: "FINDINGS_REPAIR_PLAN", label: "Findings & Repair Plan", order: 8, phase: "TECHNICAL_DECISION", physicalPresenceRequired: true },
+  { code: "AUTHORIZATION", label: "Authorization", order: 9, phase: "TECHNICAL_DECISION", physicalPresenceRequired: false },
+  { code: "PARTS_RESOURCE_READINESS", label: "Parts & Resource Readiness", order: 10, phase: "READINESS_REPAIR", physicalPresenceRequired: true },
+  { code: "DISPATCH_WORK_STAGING", label: "Dispatch & Work Staging", order: 11, phase: "READINESS_REPAIR", physicalPresenceRequired: true },
+  { code: "REPAIR_EXECUTION", label: "Repair Execution", order: 12, phase: "READINESS_REPAIR", physicalPresenceRequired: true },
+  { code: "TECHNICIAN_COMPLETION", label: "Technician Completion", order: 13, phase: "READINESS_REPAIR", physicalPresenceRequired: true },
+  { code: "QUALITY_CONTROL_ROAD_TEST", label: "Quality Control & Road Test", order: 14, phase: "QUALITY_HANDOVER", physicalPresenceRequired: true },
+  { code: "RELEASE_HANDOVER_READINESS", label: "Release & Handover Readiness", order: 15, phase: "QUALITY_HANDOVER", physicalPresenceRequired: true },
+  { code: "VEHICLE_HANDOVER_SHOP_EXIT", label: "Vehicle Handover & Shop Exit", order: 16, phase: "QUALITY_HANDOVER", physicalPresenceRequired: true },
 ] as const;
 
 export type ShopReconStageCode = (typeof SHOP_RECON_STAGES)[number]["code"];
@@ -107,22 +107,22 @@ export const SHOP_RECON_TARGETS = {
   aggregateInventoryReconMinutes: 72 * 60,
   alertBands: { warningAtRatio: 0.75, breachedAtRatio: 1, criticalAtRatio: 1.5 },
   stageMinutes: {
-    SHOP_ENTRY: 15,
-    CUSTODY_CHECK_IN: 30,
-    LANE_SCOPE_CONFIRMATION: 30,
-    SAFETY_PRIORITY_TRIAGE: 60,
-    INSPECTION: 240,
+    SERVICE_RECON_JOB_INTAKE: 30,
+    JOB_SCOPE_DEFINITION: 30,
+    WORK_ORDER_CREATION: 30,
+    VEHICLE_INTAKE_CUSTODY: 30,
+    SAFETY_MOBILITY_TRIAGE: 60,
+    INSPECTION_CONCERN_VERIFICATION: 240,
     DIAGNOSIS: 480,
-    FINDINGS_VERIFICATION: 120,
-    REPAIR_PLAN_ESTIMATE: 240,
-    AUTHORIZATION_APPROVAL: null,
+    FINDINGS_REPAIR_PLAN: 240,
+    AUTHORIZATION: null,
     PARTS_RESOURCE_READINESS: 120,
-    READY_FOR_DISPATCH: 120,
-    ASSIGNED_STAGED: 60,
+    DISPATCH_WORK_STAGING: 120,
     REPAIR_EXECUTION: null,
-    TECHNICIAN_COMPLETE: 30,
-    QC_RELEASE_READINESS: 120,
-    HANDOFF_SHOP_EXIT: 60,
+    TECHNICIAN_COMPLETION: 30,
+    QUALITY_CONTROL_ROAD_TEST: 120,
+    RELEASE_HANDOVER_READINESS: 60,
+    VEHICLE_HANDOVER_SHOP_EXIT: 60,
   } satisfies Record<ShopReconStageCode, number | null>,
   variableTargets: {
     authorizationInventoryMinutes: 120,
@@ -298,8 +298,8 @@ export function getShopReconFoundation() {
       "DATA_RECONCILIATION_OWNER",
     ],
     activation: {
-      stageAlgorithms: "ACTIVE_DETERMINISTIC_READ_MODEL",
-      workflowTransitions: "PROJECTED_FROM_EXISTING_REPAIR_ORDER",
+      stageAlgorithms: "ACTIVE_GOVERNED_LIFECYCLE",
+      workflowTransitions: "ACTIVE_GOVERNED_TRANSITIONS",
       automaticVehicleMovement: "PROHIBITED",
       inventoryWriteback: "DISABLED",
     },

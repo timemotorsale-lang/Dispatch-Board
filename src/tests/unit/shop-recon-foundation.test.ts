@@ -15,15 +15,15 @@ import {
 } from "@/server/shop-recon/foundation";
 
 describe("Shop and Recon coded foundation", () => {
-  it("publishes sixteen ordered unique stages without activating workflow transitions", () => {
+  it("publishes and activates sixteen ordered unique governed stages", () => {
     expect(SHOP_RECON_STAGES).toHaveLength(16);
     expect(new Set(SHOP_RECON_STAGES.map(stage => stage.code))).toHaveLength(16);
     expect(SHOP_RECON_STAGES.map(stage => stage.order)).toEqual(Array.from({ length: 16 }, (_, index) => index + 1));
-    expect(SHOP_RECON_STAGES[0].code).toBe("SHOP_ENTRY");
-    expect(SHOP_RECON_STAGES[15].code).toBe("HANDOFF_SHOP_EXIT");
+    expect(SHOP_RECON_STAGES[0].code).toBe("SERVICE_RECON_JOB_INTAKE");
+    expect(SHOP_RECON_STAGES[15].code).toBe("VEHICLE_HANDOVER_SHOP_EXIT");
     expect(getShopReconFoundation().activation).toMatchObject({
-      stageAlgorithms: "ACTIVE_DETERMINISTIC_READ_MODEL",
-      workflowTransitions: "PROJECTED_FROM_EXISTING_REPAIR_ORDER",
+      stageAlgorithms: "ACTIVE_GOVERNED_LIFECYCLE",
+      workflowTransitions: "ACTIVE_GOVERNED_TRANSITIONS",
       inventoryWriteback: "DISABLED",
     });
   });

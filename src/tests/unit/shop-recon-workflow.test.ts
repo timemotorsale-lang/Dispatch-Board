@@ -17,53 +17,51 @@ const base = {
 
 describe("Shop and Recon sixteen-stage workflow", () => {
   it("requires hard-gate evidence before a forward transition", () => {
-    const blocked = evaluateShopReconTransition({ fromStage: "PARTS_RESOURCE_READINESS", toStage: "READY_FOR_DISPATCH", facts: { AUTHORIZATION_CURRENT: true, PARTS_READY: true } });
+    const blocked = evaluateShopReconTransition({ fromStage: "PARTS_RESOURCE_READINESS", toStage: "DISPATCH_WORK_STAGING", facts: { AUTHORIZATION_CURRENT: true, PARTS_READY: true } });
     expect(blocked.allowed).toBe(false);
     expect(blocked.missingFacts).toEqual(["TECHNICIAN_ELIGIBLE", "BAY_ELIGIBLE", "PROCEDURE_CURRENT"]);
-    const allowed = evaluateShopReconTransition({ fromStage: "PARTS_RESOURCE_READINESS", toStage: "READY_FOR_DISPATCH", facts: { AUTHORIZATION_CURRENT: true, PARTS_READY: true, TECHNICIAN_ELIGIBLE: true, BAY_ELIGIBLE: true, PROCEDURE_CURRENT: true } });
+    const allowed = evaluateShopReconTransition({ fromStage: "PARTS_RESOURCE_READINESS", toStage: "DISPATCH_WORK_STAGING", facts: { AUTHORIZATION_CURRENT: true, PARTS_READY: true, TECHNICIAN_ELIGIBLE: true, BAY_ELIGIBLE: true, PROCEDURE_CURRENT: true } });
     expect(allowed.allowed).toBe(true);
   });
 
   it("supports controlled changed-scope and QC rework loops", () => {
-    expect(SHOP_RECON_TRANSITIONS.REPAIR_EXECUTION).toContain("REPAIR_PLAN_ESTIMATE");
-    expect(SHOP_RECON_TRANSITIONS.QC_RELEASE_READINESS).toContain("REPAIR_EXECUTION");
+    expect(SHOP_RECON_TRANSITIONS.REPAIR_EXECUTION).toContain("FINDINGS_REPAIR_PLAN");
+    expect(SHOP_RECON_TRANSITIONS.QUALITY_CONTROL_ROAD_TEST).toContain("REPAIR_EXECUTION");
   });
 
-  it("separates dispatch readiness from the attributable assignment", () => {
-    const readyQueue = evaluateShopReconTransition({ fromStage: "READY_FOR_DISPATCH", toStage: "ASSIGNED_STAGED", facts: { DISPATCH_READY: true } });
-    expect(readyQueue.allowed).toBe(true);
-    expect(evaluateShopReconTransition({ fromStage: "READY_FOR_DISPATCH", toStage: "ASSIGNED_STAGED", facts: {} }).missingFacts).toEqual(["DISPATCH_READY"]);
-    const assigned = evaluateShopReconTransition({ fromStage: "ASSIGNED_STAGED", toStage: "REPAIR_EXECUTION", facts: { DISPATCH_CONFIRMED: true, AUTHORIZATION_CURRENT: true } });
+  it("requires a ready, attributable dispatch before repair execution", () => {
+    const assigned = evaluateShopReconTransition({ fromStage: "DISPATCH_WORK_STAGING", toStage: "REPAIR_EXECUTION", facts: { DISPATCH_READY: true, DISPATCH_CONFIRMED: true, AUTHORIZATION_CURRENT: true } });
     expect(assigned.allowed).toBe(true);
+    expect(evaluateShopReconTransition({ fromStage: "DISPATCH_WORK_STAGING", toStage: "REPAIR_EXECUTION", facts: { AUTHORIZATION_CURRENT: true } }).missingFacts).toEqual(["DISPATCH_READY", "DISPATCH_CONFIRMED"]);
   });
 
   it("requires execution evidence and technician sign-off before independent QC", () => {
-    const blocked = evaluateShopReconTransition({ fromStage: "TECHNICIAN_COMPLETE", toStage: "QC_RELEASE_READINESS", facts: { EXECUTION_COMPLETE: true, COMPLETION_EVIDENCE: true } });
+    const blocked = evaluateShopReconTransition({ fromStage: "TECHNICIAN_COMPLETION", toStage: "QUALITY_CONTROL_ROAD_TEST", facts: { EXECUTION_COMPLETE: true, COMPLETION_EVIDENCE: true } });
     expect(blocked.allowed).toBe(false);
     expect(blocked.missingFacts).toEqual(["TECHNICIAN_SIGNOFF"]);
-    const allowed = evaluateShopReconTransition({ fromStage: "TECHNICIAN_COMPLETE", toStage: "QC_RELEASE_READINESS", facts: { EXECUTION_COMPLETE: true, COMPLETION_EVIDENCE: true, TECHNICIAN_SIGNOFF: true } });
+    const allowed = evaluateShopReconTransition({ fromStage: "TECHNICIAN_COMPLETION", toStage: "QUALITY_CONTROL_ROAD_TEST", facts: { EXECUTION_COMPLETE: true, COMPLETION_EVIDENCE: true, TECHNICIAN_SIGNOFF: true } });
     expect(allowed.allowed).toBe(true);
   });
 
   it("closes the terminal shop-exit stage only after QC, road test and handoff acceptance", () => {
-    const blocked = evaluateShopReconTransition({ fromStage: "HANDOFF_SHOP_EXIT", toStage: "HANDOFF_SHOP_EXIT", facts: { QC_PASSED: true, ROAD_TEST_PASSED_OR_NOT_REQUIRED: true } });
+    const blocked = evaluateShopReconTransition({ fromStage: "VEHICLE_HANDOVER_SHOP_EXIT", toStage: "VEHICLE_HANDOVER_SHOP_EXIT", facts: {} });
     expect(blocked.allowed).toBe(false);
-    expect(blocked.missingFacts).toEqual(["HANDOFF_ACCEPTED"]);
-    const allowed = evaluateShopReconTransition({ fromStage: "HANDOFF_SHOP_EXIT", toStage: "HANDOFF_SHOP_EXIT", facts: { QC_PASSED: true, ROAD_TEST_PASSED_OR_NOT_REQUIRED: true, HANDOFF_ACCEPTED: true } });
+    expect(blocked.missingFacts).toEqual(["RELEASE_READY"]);
+    const allowed = evaluateShopReconTransition({ fromStage: "VEHICLE_HANDOVER_SHOP_EXIT", toStage: "VEHICLE_HANDOVER_SHOP_EXIT", facts: { RELEASE_READY: true } });
     expect(allowed.allowed).toBe(true);
   });
 
   it("derives early stages from custody and inspection evidence", () => {
-    expect(deriveShopReconWorkflow({ ...base, serviceVisit: { ...base.serviceVisit, keysReceivedCount: 0 } }, new Date("2026-08-03T14:10:00.000Z")).stage).toBe("CUSTODY_CHECK_IN");
-    expect(deriveShopReconWorkflow(base, new Date("2026-08-03T14:10:00.000Z")).stage).toBe("SAFETY_PRIORITY_TRIAGE");
-    expect(deriveShopReconWorkflow({ ...base, stage: "DIAGNOSIS", inspectionVersions: [{}] }, new Date("2026-08-03T15:00:00.000Z")).stage).toBe("DIAGNOSIS");
+    expect(deriveShopReconWorkflow({ ...base, serviceVisit: { ...base.serviceVisit, keysReceivedCount: 0 } }, new Date("2026-08-03T14:10:00.000Z")).stage).toBe("VEHICLE_INTAKE_CUSTODY");
+    expect(deriveShopReconWorkflow(base, new Date("2026-08-03T14:10:00.000Z")).stage).toBe("SAFETY_MOBILITY_TRIAGE");
+    expect(deriveShopReconWorkflow({ ...base, stage: "DIAGNOSIS", inspectionVersions: [{}], diagnosisVersions: [{}] }, new Date("2026-08-03T15:00:00.000Z")).stage).toBe("DIAGNOSIS");
   });
 
   it("derives readiness, execution, QC and handoff from authoritative repair facts", () => {
-    expect(deriveShopReconWorkflow({ ...base, stage: "READY_FOR_REPAIR" }, new Date()).stage).toBe("READY_FOR_DISPATCH");
+    expect(deriveShopReconWorkflow({ ...base, stage: "READY_FOR_REPAIR" }, new Date()).stage).toBe("DISPATCH_WORK_STAGING");
     expect(deriveShopReconWorkflow({ ...base, repairJobs: [{ status: "IN_PROGRESS", partDemands: [], dispatches: [{}] }] }, new Date()).stage).toBe("REPAIR_EXECUTION");
-    expect(deriveShopReconWorkflow({ ...base, repairJobs: [{ status: "READY_FOR_QC", partDemands: [], dispatches: [{}] }] }, new Date()).stage).toBe("QC_RELEASE_READINESS");
-    expect(deriveShopReconWorkflow({ ...base, stage: "HANDOFF", releaseAuthorization: { id: "release-1" } }, new Date()).stage).toBe("HANDOFF_SHOP_EXIT");
+    expect(deriveShopReconWorkflow({ ...base, repairJobs: [{ status: "READY_FOR_QC", partDemands: [], dispatches: [{}] }] }, new Date()).stage).toBe("QUALITY_CONTROL_ROAD_TEST");
+    expect(deriveShopReconWorkflow({ ...base, stage: "HANDOFF", releaseAuthorization: { id: "release-1" } }, new Date()).stage).toBe("VEHICLE_HANDOVER_SHOP_EXIT");
   });
 
   it("reports stage target bands without turning them into promises", () => {

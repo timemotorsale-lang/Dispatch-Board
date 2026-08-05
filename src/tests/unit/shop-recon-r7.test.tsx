@@ -38,7 +38,7 @@ describe("R7 Shop & Recon landing projection", () => {
     ];
     const model = buildShopReconProjection(orders, now);
     expect(model.pipeline.reduce((sum, stage) => sum + stage.count, 0)).toBe(model.totals.openOrders);
-    expect(model.pipeline.find((stage) => stage.key === "QC_RELEASE_READINESS")?.count).toBe(1);
+    expect(model.pipeline.find((stage) => stage.key === "QUALITY_CONTROL_ROAD_TEST")?.count).toBe(1);
   });
 
   it("keeps customer repair and inventory recon operationally distinct", () => {
@@ -49,7 +49,7 @@ describe("R7 Shop & Recon landing projection", () => {
     expect(model.totals).toMatchObject({ customerRepair: 1, inventoryRecon: 1, openOrders: 2 });
     expect(model.foundation.stages).toHaveLength(16);
     expect(model.foundation.wipLimits.operatingRepairBays).toBe(2);
-    expect(model.foundation.activation.workflowTransitions).toBe("PROJECTED_FROM_EXISTING_REPAIR_ORDER");
+    expect(model.foundation.activation.workflowTransitions).toBe("ACTIVE_GOVERNED_TRANSITIONS");
     expect(model.items.find(item => item.origin === "CUSTOMER_REPAIR")).toMatchObject({ workLaneLabel: "Customer Vehicle", cardTone: "BRIGHT_BLUE", commitmentLabel: "Customer promise" });
     expect(model.items.find(item => item.origin === "INVENTORY_RECON")).toMatchObject({ workLaneLabel: "Inventory Recon", cardTone: "DARK_BLUE", commitmentLabel: "Frontline target" });
   });
@@ -66,6 +66,16 @@ describe("R7 Shop & Recon landing projection", () => {
     expect(html).toContain("Inventory Recon");
     expect(html).toContain("Customer promise");
     expect(html).toContain("Frontline target");
+  });
+
+  it("identifies operational pilot records without changing ordinary repair orders", () => {
+    const model = buildShopReconProjection([
+      order({ repairOrderNumber: "PILOT-CUST-001" }),
+      order({ id: "ro-2", repairOrderNumber: "RO-1002" }),
+    ], now);
+    expect(model.items[0].pilot).toMatchObject({ id: "CUSTOMER_STANDARD", expectedHandoff: "Service advisor / customer" });
+    expect(model.items[1].pilot).toBeNull();
+    expect(renderToStaticMarkup(<ShopReconLanding model={model} />)).toContain("shop-pilot-badge");
   });
 
   it("surfaces parts, assignment, promise, approval, and quality constraints", () => {
@@ -103,7 +113,7 @@ describe("R7 Shop & Recon landing projection", () => {
     expect(html).toContain("16 stages");
     expect(html).toContain("2 shared bays");
     expect(html).toContain("Walter Hernandez");
-    expect(html).toContain("Evidence-driven");
+    expect(html).toContain("Governed live");
     expect(html).toContain("Live 16-Stage Lifecycle");
     expect(html).toContain('/vehicles/shop-recon/ro-1');
     expect(html).toContain("External adapters: DISABLED");

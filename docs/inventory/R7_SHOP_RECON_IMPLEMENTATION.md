@@ -1,6 +1,6 @@
 # R7 Shop & Recon Implementation
 
-Status: governed lifecycle and operational Stages 1–16 implemented; activation pending
+Status: adopted 16-stage taxonomy and governed operational lifecycle implemented; rollout pending
 Roadmap release: R7  
 Milestone: M7  
 Slices: IC-070 through IC-079
@@ -49,7 +49,7 @@ The projection adds no mutation path. The same `REPAIR_ORDER_VIEW` capability an
 - A save never completes a checklist, approves work, changes authorization, moves a vehicle, or advances the stage.
 - Normal movement is sequential. Controlled backward movement and reopening require a current General Manager override.
 - General Manager exceptions are limited to WIP, target time, queue order, noncritical documentation, temporary resources, controlled backward movement, and reopening. Identity, custody, safety, customer authorization, Inventory spending authority, technician qualification, required procedures/legal evidence, failed QC, failed road test, and receiving-owner acceptance remain non-overridable.
-- A changed-scope submission preserves the original scope, creates a new version, stops affected repair jobs, and moves the card to Findings Verification. The card must pass the revised plan, exact-version authorization, Parts/resource readiness, dispatch, and repair gates before the scope record resolves and execution resumes.
+- A changed-scope submission preserves the original scope, creates a new version, stops affected repair jobs, and moves the card to Findings & Repair Plan. The card must pass the revised plan, exact-version authorization, Parts/resource readiness, dispatch, and repair gates before the scope record resolves and execution resumes.
 - Failed QC or road test preserves the failed inspection, records reason codes and rework instructions, resets the affected job for repair, and synchronizes the same vehicle card to `REWORK` at Repair Execution. A fresh technician-complete record and fresh QC inspection are required. Pre-release rework is not classified as a comeback and does not automatically create a customer charge.
 - Shop targets and the original customer/frontline commitment continue aging through scope change and QC rework.
 
@@ -59,15 +59,26 @@ Stages 1–7 now use a controlled three-step record on the unified vehicle card:
 
 | Stage | Operational record created or updated | Completion control |
 | --- | --- | --- |
-| 1. Shop Entry | Identity match against the canonical vehicle, repair order, and service visit | A mismatch cannot be published or overridden |
-| 2. Custody & Check-In | Key count/tag, custody restrictions, and immutable vehicle custody check-in | At least one key and accepted custody are required |
-| 3. Lane & Scope Confirmation | Inventory Recon or Customer Repair lane plus frozen initial scope version | Lane must match the repair-order origin |
-| 4. Safety & Priority Triage | Mobility, hazards, and operational priority | “Do not move” quarantines and blocks the card until a cleared triage is republished |
-| 5. Inspection | Versioned inspection and accepted odometer observation | Complete checklist, fields, and evidence are required |
-| 6. Diagnosis | Versioned diagnosis, tests, measurements, supported cause, uncertainty, correction, and recommendation | Walter Hernandez or another qualified assigned technician publishes the technical record |
-| 7. Findings Verification | Verified finding set linked to the current diagnosis and classification | Only “Verified” advances; changed scope or more testing follows the controlled loop |
+| 1. Service / Recon Job Intake | Lane, vehicle, requester, concern, commitment and accountable intake owner | All six intake actions and their evidence are required |
+| 2. Job Scope Definition | Versioned outcome, inclusions, exclusions, work intent and scope authority | Silent scope expansion is prohibited |
+| 3. Work Order Creation | Controlled repair order linked to the exact scope and requested operations | The work order must be complete before physical intake |
+| 4. Vehicle Intake & Custody | Identity, condition, keys, location, restrictions and immutable custody check-in | At least one key and accepted custody are required |
+| 5. Safety & Mobility Triage | Mobility, hazards, containment and operational priority | A Do Not Move decision quarantines the card until a cleared triage is republished |
+| 6. Inspection & Concern Verification | Versioned inspection, measurements and concern-verification result | Complete checklist, fields and evidence are required |
+| 7. Diagnosis | Versioned tests, measurements, supported cause, uncertainty, correction and recommendation | Walter Hernandez or another qualified assigned technician publishes the technical record |
 
 Every publication stores the draft revision, publisher, timestamp, reason, source references, scope version, and an immutable lifecycle event. Prior records remain available for audit rather than being overwritten.
+
+### Active-stage operating workspace
+
+Stages 1–4 now use the first version of the Inventory-style staff operating workspace. The selected stage remains part of the same unified vehicle card, but active work is separated into four deliberate sections:
+
+- **Work to Perform** — staff enter the facts, perform each named operation, and explicitly record it. Changing a supporting fact reopens the affected operation.
+- **Stage Activity** — shows attributable operations and corrections alongside governed save, publication, and movement history.
+- **Documents & Evidence** — holds the stage-specific photos, documents, measurements, and source references produced by the work.
+- **Stage Completion** — summarizes readiness and keeps saving, publishing, and advancing separate so ordinary work entry cannot accidentally move the vehicle.
+
+This design is implemented for Stages 1–4 for visual and operational refinement before the same interaction model is extended across Stages 5–16.
 
 ## 6. Operational Stages 8–12
 
@@ -75,11 +86,11 @@ Stages 8–12 extend the same controlled draft, publication, and completion patt
 
 | Stage | Authoritative validation and publication |
 | --- | --- |
-| 8. Repair Plan & Estimate | Binds the current presented, unexpired estimate version and verifies the exact total and labor-guide minutes entered on the card. |
-| 9. Authorization & Approval | Binds the decision to the exact estimate version and verifies disposition, approved amount, decision reference, and lane authority. Pending or declined work cannot advance. |
+| 8. Findings & Repair Plan | Binds verified findings to the current presented, unexpired estimate version and verifies the exact total and labor-guide minutes entered on the card. |
+| 9. Authorization | Binds the decision to the exact repair-plan and estimate version and verifies disposition, approved amount, decision reference, and lane authority. Pending or declined work cannot advance. |
 | 10. Parts & Resource Readiness | Verifies authorized repair jobs, complete Parts reservations, effective procedures, at least one qualified technician candidate, and matching active bay/tool resources. |
-| 11. Ready for Dispatch | Publishes a dispatch-ready queue decision only after Stage 10 is fully clear and the two-bay WIP limit has capacity, unless a current General Manager WIP exception exists. |
-| 12. Assigned & Staged | Binds every active repair job to its governed technician, bay, schedule, and active/staged dispatch record before execution can begin. |
+| 11. Dispatch & Work Staging | Publishes readiness and binds every active repair job to its governed technician, bay, schedule, keys, parts, instructions and active/staged dispatch record before execution can begin. The two-bay WIP limit remains enforced unless a current General Manager WIP exception exists. |
+| 12. Repair Execution | Reconciles the card status with every repair job, requires attributable labor events and records current job and labor-clock versions. A new finding must use the governed scope-change action. |
 
 The card links directly to the Repair Workbench for estimate and authorization work, Parts Operations for reservation work, and Shop Dispatch for procedure, qualification, bay, and assignment work. Any downstream change invalidates the latest card draft until it is saved and republished.
 
@@ -89,14 +100,25 @@ Stages 13–16 close the controlled shop loop while preserving the specialist ex
 
 | Stage | Authoritative validation and publication |
 | --- | --- |
-| 13. Repair Execution | Reconciles the card status with every repair job, requires attributable labor events, and records current job and labor-clock versions. “Complete for QC” is available only when all clocks are finished and all jobs contain completion evidence. A new finding must use the governed scope-change action. |
-| 14. Technician Complete | Walter Hernandez or another assigned qualified technician publishes the final measurements, completion notes, current job versions, and technician sign-off. Partial or blocked work remains in Stage 13. |
-| 15. QC & Release Readiness | Brock or another qualified independent QC authority verifies that every latest QC inspection passed, the road-test result matches those inspections, and the release authorization references those exact inspection records. Failed QC or road test returns the same card through the controlled rework loop. |
-| 16. Handoff & Shop Exit | Verifies a current READY delivery evaluation tied to the release authorization, enforces the lane-specific destination, reconciles all checked-in keys, records receiver acceptance, and creates one attributable custody handoff. Republishing does not duplicate the physical exit event. |
+| 13. Technician Completion | Walter Hernandez or another assigned qualified technician publishes final measurements, completion notes, current job versions and technician sign-off. Partial or blocked work remains in Stage 12. |
+| 14. Quality Control & Road Test | Brock or another qualified independent QC authority verifies every latest QC inspection and road-test result. Failure returns the same card to Repair Execution through the controlled rework loop. |
+| 15. Release & Handover Readiness | Verifies a current READY delivery evaluation tied to the release authorization, reconciles final scope, cost, checked-in keys, documents, lane destination and receiving party. |
+| 16. Vehicle Handover & Shop Exit | Enforces the lane-specific destination, records receiver acceptance and creates one attributable custody handoff. Republishing does not duplicate the physical exit event. |
 
 Completing Stage 16 closes the Shop & Recon lifecycle only. An Inventory Recon vehicle returns to the Inventory lifecycle; a Customer Repair vehicle continues through the advisor/customer financial and delivery close process. This prevents a shop exit from falsely representing that every downstream business obligation is complete.
 
-## 8. Projection rules
+## 8. Operational pilot
+
+The repeatable local pilot setup creates two clearly marked, non-production repair orders at Stage 1:
+
+- `PILOT-CUST-001` — Customer Repair pilot for customer authorization, promise, changed scope, QC/road-test rework, key reconciliation, and advisor/customer handoff.
+- `PILOT-INV-001` — Inventory Recon pilot for spending authority, Parts constraints, the two-bay WIP limit, technician/bay assignment, and return to the Inventory lifecycle.
+
+Run `npm run db:seed:shop-recon-pilot` after the foundation development seed. The command creates missing pilot records, aligns the development technician identity to Walter Hernandez, and preserves lifecycle progress when rerun. It does not reset an active pilot.
+
+Pilot cards show a visible Operational Pilot badge, five journey-validation checkpoints spanning all 16 stages, the expected lane-specific exit, and expandable exception drills with the expected system control. All stage work still uses the production-shaped save, publish, complete, scope-change, QC, override, and custody policies.
+
+## 9. Projection rules
 
 - Every open RepairOrder occupies exactly one displayed pipeline stage. Later operational states take precedence over earlier planning states.
 - Waiting on Parts is true when a job explicitly waits for Parts or required quantity exceeds reserved quantity.
@@ -107,7 +129,7 @@ Completing Stage 16 closes the Shop & Recon lifecycle only. An Inventory Recon v
 - Quality-review count is based on RepairJobs ready for QC; comeback-review count uses open comeback cases.
 - Customer Repair and Inventory Recon are never merged into one workload total without their origin remaining visible.
 
-## 9. Verification evidence
+## 10. Verification evidence
 
 - TypeScript typecheck: passed.
 - Focused Shop & Recon Stage 1–16 policy, workflow, foundation, execution, completion, QC, close, and vehicle-card tests: passed.
@@ -116,7 +138,7 @@ Completing Stage 16 closes the Shop & Recon lifecycle only. An Inventory Recon v
 - Production build: passed; 144 routes generated, including `/vehicles/shop-production`, `/vehicles/shop-metrics`, and `/api/shop-recon`.
 - Prisma migrations support the governed lifecycle, immutable draft/event history, GM overrides, versioned scope changes, and immutable Stage 1–16 evidence publication.
 
-## 10. Activation boundary
+## 11. Activation boundary
 
 This repository state does not authorize production activation. The following remain pending:
 

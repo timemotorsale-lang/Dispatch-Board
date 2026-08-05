@@ -29,10 +29,10 @@ export const SHOP_RECON_NON_OVERRIDABLE_BOUNDARIES = [
   "RELEASE_ACCEPTANCE",
 ] as const;
 
-const technicalStages: ShopReconStageCode[] = ["INSPECTION", "DIAGNOSIS", "REPAIR_EXECUTION", "TECHNICIAN_COMPLETE"];
-const shopAuthorityStages: ShopReconStageCode[] = ["SHOP_ENTRY", "CUSTODY_CHECK_IN", "LANE_SCOPE_CONFIRMATION", "SAFETY_PRIORITY_TRIAGE", "FINDINGS_VERIFICATION", "REPAIR_PLAN_ESTIMATE", "PARTS_RESOURCE_READINESS", "READY_FOR_DISPATCH", "ASSIGNED_STAGED", "HANDOFF_SHOP_EXIT"];
+const technicalStages: ShopReconStageCode[] = ["INSPECTION_CONCERN_VERIFICATION", "DIAGNOSIS", "REPAIR_EXECUTION", "TECHNICIAN_COMPLETION"];
+const shopAuthorityStages: ShopReconStageCode[] = ["JOB_SCOPE_DEFINITION", "WORK_ORDER_CREATION", "VEHICLE_INTAKE_CUSTODY", "SAFETY_MOBILITY_TRIAGE", "FINDINGS_REPAIR_PLAN", "PARTS_RESOURCE_READINESS", "DISPATCH_WORK_STAGING", "RELEASE_HANDOVER_READINESS", "VEHICLE_HANDOVER_SHOP_EXIT"];
 const technicalRoles = ["Technician", "Mechanic", "Service Technician", "Master Technician"];
-const hardFacts: ShopReconGateFact[] = ["IDENTITY_MATCHED", "CUSTODY_ACCEPTED", "AUTHORIZATION_CURRENT", "TECHNICIAN_ELIGIBLE", "PROCEDURE_CURRENT", "EXECUTION_COMPLETE", "COMPLETION_EVIDENCE", "TECHNICIAN_SIGNOFF", "QC_PASSED", "ROAD_TEST_PASSED_OR_NOT_REQUIRED", "HANDOFF_ACCEPTED"];
+const hardFacts: ShopReconGateFact[] = ["JOB_INTAKE_COMPLETE", "JOB_SCOPE_DEFINED", "WORK_ORDER_CREATED", "IDENTITY_MATCHED", "CUSTODY_ACCEPTED", "AUTHORIZATION_CURRENT", "TECHNICIAN_ELIGIBLE", "PROCEDURE_CURRENT", "EXECUTION_COMPLETE", "COMPLETION_EVIDENCE", "TECHNICIAN_SIGNOFF", "QC_PASSED", "ROAD_TEST_PASSED_OR_NOT_REQUIRED", "RELEASE_READY", "HANDOFF_ACCEPTED"];
 
 function requiredText(value: unknown, label: string, minimum = 1, maximum = 2_000) {
   const text = typeof value === "string" ? value.trim() : "";
@@ -113,8 +113,9 @@ export function normalizeShopReconScopeChange(value: unknown) {
 }
 
 export function canCompleteShopReconStage(actor: AuthenticatedUser, stageCode: ShopReconStageCode) {
-  if (stageCode === "AUTHORIZATION_APPROVAL") return { allowed: named(actor, "Brock") || named(actor, "Eli") || actor.roles.includes("Service Advisor") || actor.roles.includes("Inventory Manager"), authority: "Lane authorization authority" };
-  if (stageCode === "QC_RELEASE_READINESS") return { allowed: named(actor, "Brock") || actor.roles.includes("Quality Control") || actor.roles.includes("Quality Inspector"), authority: "Qualified independent QC" };
+  if (stageCode === "SERVICE_RECON_JOB_INTAKE") return { allowed: named(actor, "Brock") || named(actor, "Eli") || actor.roles.includes("Service Advisor") || actor.roles.includes("Inventory Manager"), authority: "Service Advisor or Inventory intake authority" };
+  if (stageCode === "AUTHORIZATION") return { allowed: named(actor, "Brock") || named(actor, "Eli") || actor.roles.includes("Service Advisor") || actor.roles.includes("Inventory Manager"), authority: "Lane authorization authority" };
+  if (stageCode === "QUALITY_CONTROL_ROAD_TEST") return { allowed: named(actor, "Brock") || actor.roles.includes("Quality Control") || actor.roles.includes("Quality Inspector"), authority: "Qualified independent QC" };
   if (technicalStages.includes(stageCode)) return { allowed: named(actor, "Walter Hernandez") || actor.roles.some(role => technicalRoles.includes(role)), authority: "Assigned qualified technician" };
   if (shopAuthorityStages.includes(stageCode)) return { allowed: named(actor, "Brock") || named(actor, "Eli") || actor.roles.includes("Service Department Manager"), authority: "Shop operations authority" };
   return { allowed: false, authority: "Designated stage authority" };

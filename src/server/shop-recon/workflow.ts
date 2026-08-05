@@ -1,29 +1,29 @@
 import { shopStaffedMinutesBetween, SHOP_RECON_STAGES, SHOP_RECON_TARGETS, type ShopReconStageCode } from "./foundation";
 
 export type ShopReconGateFact =
-  | "IDENTITY_MATCHED" | "CUSTODY_ACCEPTED" | "LANE_CONFIRMED" | "SAFETY_TRIAGED"
-  | "INSPECTION_COMPLETE" | "DIAGNOSIS_COMPLETE" | "FINDINGS_VERIFIED" | "PLAN_CURRENT"
+  | "JOB_INTAKE_COMPLETE" | "JOB_SCOPE_DEFINED" | "WORK_ORDER_CREATED" | "IDENTITY_MATCHED" | "CUSTODY_ACCEPTED" | "SAFETY_TRIAGED"
+  | "INSPECTION_COMPLETE" | "DIAGNOSIS_COMPLETE" | "PLAN_CURRENT"
   | "AUTHORIZATION_CURRENT" | "PARTS_READY" | "TECHNICIAN_ELIGIBLE" | "BAY_ELIGIBLE"
   | "PROCEDURE_CURRENT" | "DISPATCH_READY" | "DISPATCH_CONFIRMED" | "EXECUTION_COMPLETE" | "COMPLETION_EVIDENCE" | "TECHNICIAN_SIGNOFF"
-  | "QC_PASSED" | "ROAD_TEST_PASSED_OR_NOT_REQUIRED" | "HANDOFF_ACCEPTED";
+  | "QC_PASSED" | "ROAD_TEST_PASSED_OR_NOT_REQUIRED" | "RELEASE_READY" | "HANDOFF_ACCEPTED";
 
 export const SHOP_RECON_REQUIRED_FACTS: Record<ShopReconStageCode, readonly ShopReconGateFact[]> = {
-  SHOP_ENTRY: [],
-  CUSTODY_CHECK_IN: ["IDENTITY_MATCHED"],
-  LANE_SCOPE_CONFIRMATION: ["IDENTITY_MATCHED", "CUSTODY_ACCEPTED"],
-  SAFETY_PRIORITY_TRIAGE: ["LANE_CONFIRMED", "CUSTODY_ACCEPTED"],
-  INSPECTION: ["SAFETY_TRIAGED"],
+  SERVICE_RECON_JOB_INTAKE: [],
+  JOB_SCOPE_DEFINITION: ["JOB_INTAKE_COMPLETE"],
+  WORK_ORDER_CREATION: ["JOB_SCOPE_DEFINED"],
+  VEHICLE_INTAKE_CUSTODY: ["WORK_ORDER_CREATED"],
+  SAFETY_MOBILITY_TRIAGE: ["IDENTITY_MATCHED", "CUSTODY_ACCEPTED"],
+  INSPECTION_CONCERN_VERIFICATION: ["SAFETY_TRIAGED"],
   DIAGNOSIS: ["INSPECTION_COMPLETE"],
-  FINDINGS_VERIFICATION: ["DIAGNOSIS_COMPLETE"],
-  REPAIR_PLAN_ESTIMATE: ["FINDINGS_VERIFIED"],
-  AUTHORIZATION_APPROVAL: ["PLAN_CURRENT"],
+  FINDINGS_REPAIR_PLAN: ["DIAGNOSIS_COMPLETE"],
+  AUTHORIZATION: ["PLAN_CURRENT"],
   PARTS_RESOURCE_READINESS: ["AUTHORIZATION_CURRENT"],
-  READY_FOR_DISPATCH: ["AUTHORIZATION_CURRENT", "PARTS_READY", "TECHNICIAN_ELIGIBLE", "BAY_ELIGIBLE", "PROCEDURE_CURRENT"],
-  ASSIGNED_STAGED: ["DISPATCH_READY"],
-  REPAIR_EXECUTION: ["DISPATCH_CONFIRMED", "AUTHORIZATION_CURRENT"],
-  TECHNICIAN_COMPLETE: ["EXECUTION_COMPLETE", "COMPLETION_EVIDENCE"],
-  QC_RELEASE_READINESS: ["EXECUTION_COMPLETE", "COMPLETION_EVIDENCE", "TECHNICIAN_SIGNOFF"],
-  HANDOFF_SHOP_EXIT: ["QC_PASSED", "ROAD_TEST_PASSED_OR_NOT_REQUIRED", "HANDOFF_ACCEPTED"],
+  DISPATCH_WORK_STAGING: ["AUTHORIZATION_CURRENT", "PARTS_READY", "TECHNICIAN_ELIGIBLE", "BAY_ELIGIBLE", "PROCEDURE_CURRENT"],
+  REPAIR_EXECUTION: ["DISPATCH_READY", "DISPATCH_CONFIRMED", "AUTHORIZATION_CURRENT"],
+  TECHNICIAN_COMPLETION: ["EXECUTION_COMPLETE", "COMPLETION_EVIDENCE"],
+  QUALITY_CONTROL_ROAD_TEST: ["EXECUTION_COMPLETE", "COMPLETION_EVIDENCE", "TECHNICIAN_SIGNOFF"],
+  RELEASE_HANDOVER_READINESS: ["QC_PASSED", "ROAD_TEST_PASSED_OR_NOT_REQUIRED"],
+  VEHICLE_HANDOVER_SHOP_EXIT: ["RELEASE_READY"],
 };
 
 const codeAt = (position: number) => SHOP_RECON_STAGES.find(stage => stage.order === position)?.code ?? null;
@@ -32,10 +32,10 @@ export const SHOP_RECON_TRANSITIONS: Record<ShopReconStageCode, readonly ShopRec
   SHOP_RECON_STAGES.map(stage => {
     const next = codeAt(stage.order + 1);
     const loops: ShopReconStageCode[] = [];
-    if (stage.order >= 6 && stage.order <= 9) loops.push("INSPECTION", "DIAGNOSIS");
-    if (stage.order >= 10 && stage.order <= 15) loops.push("REPAIR_PLAN_ESTIMATE", "AUTHORIZATION_APPROVAL", "PARTS_RESOURCE_READINESS");
-    if (stage.code === "QC_RELEASE_READINESS") loops.push("REPAIR_EXECUTION");
-    if (stage.code === "HANDOFF_SHOP_EXIT") loops.push("HANDOFF_SHOP_EXIT");
+    if (stage.order >= 7 && stage.order <= 9) loops.push("INSPECTION_CONCERN_VERIFICATION", "DIAGNOSIS");
+    if (stage.order >= 10 && stage.order <= 15) loops.push("FINDINGS_REPAIR_PLAN", "AUTHORIZATION", "PARTS_RESOURCE_READINESS");
+    if (stage.code === "QUALITY_CONTROL_ROAD_TEST") loops.push("REPAIR_EXECUTION");
+    if (stage.code === "VEHICLE_HANDOVER_SHOP_EXIT") loops.push("VEHICLE_HANDOVER_SHOP_EXIT");
     return [stage.code, [...new Set([...(next ? [next] : []), ...loops])]];
   }),
 ) as unknown as Record<ShopReconStageCode, readonly ShopReconStageCode[]>;
@@ -112,11 +112,10 @@ export function scoreShopReconPriority(input: {
 
 export function shopReconStageWipLimit(stage: ShopReconStageCode) {
   const limits: Partial<Record<ShopReconStageCode, number>> = {
-    READY_FOR_DISPATCH: 2,
-    ASSIGNED_STAGED: 2,
+    DISPATCH_WORK_STAGING: 2,
     REPAIR_EXECUTION: 2,
-    TECHNICIAN_COMPLETE: 2,
-    QC_RELEASE_READINESS: 2,
+    TECHNICIAN_COMPLETION: 2,
+    QUALITY_CONTROL_ROAD_TEST: 2,
   };
   return limits[stage] ?? null;
 }
@@ -141,29 +140,30 @@ type OrderEvidence = {
 };
 
 export const SHOP_RECON_ZONE_BY_STAGE: Record<ShopReconStageCode, string> = {
-  SHOP_ENTRY: "Z01_INBOUND", CUSTODY_CHECK_IN: "Z02_CHECK_IN", LANE_SCOPE_CONFIRMATION: "Z02_CHECK_IN",
-  SAFETY_PRIORITY_TRIAGE: "Z03_TRIAGE_INSPECTION", INSPECTION: "Z03_TRIAGE_INSPECTION", DIAGNOSIS: "Z04_DIAGNOSTIC",
-  FINDINGS_VERIFICATION: "Z04_DIAGNOSTIC", REPAIR_PLAN_ESTIMATE: "Z05_CONTROLLED_WAIT", AUTHORIZATION_APPROVAL: "Z05_CONTROLLED_WAIT",
-  PARTS_RESOURCE_READINESS: "Z05_CONTROLLED_WAIT", READY_FOR_DISPATCH: "Z07_READY_QUEUE", ASSIGNED_STAGED: "Z07_READY_QUEUE",
-  REPAIR_EXECUTION: "Z08_REPAIR_BAY", TECHNICIAN_COMPLETE: "Z10_QC", QC_RELEASE_READINESS: "Z10_QC", HANDOFF_SHOP_EXIT: "Z11_OUTBOUND",
+  SERVICE_RECON_JOB_INTAKE: "PRE_ARRIVAL_COORDINATION", JOB_SCOPE_DEFINITION: "PRE_ARRIVAL_COORDINATION", WORK_ORDER_CREATION: "PRE_ARRIVAL_COORDINATION",
+  VEHICLE_INTAKE_CUSTODY: "Z02_CHECK_IN", SAFETY_MOBILITY_TRIAGE: "Z03_TRIAGE_INSPECTION", INSPECTION_CONCERN_VERIFICATION: "Z03_TRIAGE_INSPECTION",
+  DIAGNOSIS: "Z04_DIAGNOSTIC", FINDINGS_REPAIR_PLAN: "Z05_CONTROLLED_WAIT", AUTHORIZATION: "Z05_CONTROLLED_WAIT",
+  PARTS_RESOURCE_READINESS: "Z06_PARTS_KIT", DISPATCH_WORK_STAGING: "Z07_READY_QUEUE", REPAIR_EXECUTION: "Z08_REPAIR_BAY",
+  TECHNICIAN_COMPLETION: "Z10_QC", QUALITY_CONTROL_ROAD_TEST: "Z10_QC", RELEASE_HANDOVER_READINESS: "Z11_OUTBOUND", VEHICLE_HANDOVER_SHOP_EXIT: "Z11_OUTBOUND",
 };
 
 export function deriveShopReconStage(orderRecord: OrderEvidence): ShopReconStageCode {
-  if (["HANDOFF", "CLOSED"].includes(orderRecord.stage) || orderRecord.releaseAuthorization) return "HANDOFF_SHOP_EXIT";
-  if (orderRecord.stage === "ADVISOR_REVIEW") return "QC_RELEASE_READINESS";
-  if (orderRecord.stage === "QUALITY_CONTROL" || orderRecord.repairJobs.some(job => ["READY_FOR_QC", "QC_PASSED"].includes(job.status))) return "QC_RELEASE_READINESS";
+  if (["HANDOFF", "CLOSED"].includes(orderRecord.stage) || orderRecord.releaseAuthorization) return "VEHICLE_HANDOVER_SHOP_EXIT";
+  if (orderRecord.stage === "ADVISOR_REVIEW") return "RELEASE_HANDOVER_READINESS";
+  if (orderRecord.stage === "QUALITY_CONTROL" || orderRecord.repairJobs.some(job => ["READY_FOR_QC", "QC_PASSED"].includes(job.status))) return "QUALITY_CONTROL_ROAD_TEST";
   if (orderRecord.repairJobs.some(job => ["IN_PROGRESS", "PAUSED"].includes(job.status))) return "REPAIR_EXECUTION";
-  if (orderRecord.repairJobs.some(job => job.status === "DISPATCHED")) return "ASSIGNED_STAGED";
-  if (orderRecord.stage === "READY_FOR_REPAIR") return "READY_FOR_DISPATCH";
+  if (orderRecord.repairJobs.some(job => job.status === "DISPATCHED")) return "DISPATCH_WORK_STAGING";
+  if (orderRecord.stage === "READY_FOR_REPAIR") return "DISPATCH_WORK_STAGING";
   if (orderRecord.repairJobs.some(job => job.status === "WAITING_PARTS" || job.partDemands.some(part => part.quantityReserved < part.quantityRequired))) return "PARTS_RESOURCE_READINESS";
   const authorization = orderRecord.estimateVersions.flatMap(estimate => estimate.authorizations).find(item => ["ACCEPTED", "PARTIAL"].includes(item.disposition));
   if (authorization) return "PARTS_RESOURCE_READINESS";
-  if (orderRecord.stage === "AUTHORIZATION" || orderRecord.estimateVersions.some(estimate => estimate.status === "PRESENTED")) return "AUTHORIZATION_APPROVAL";
-  if (orderRecord.stage === "ESTIMATE" || orderRecord.estimateVersions.length) return "REPAIR_PLAN_ESTIMATE";
-  if (orderRecord.diagnosisVersions?.length) return "FINDINGS_VERIFICATION";
-  if (orderRecord.stage === "DIAGNOSIS" || orderRecord.inspectionVersions?.length) return "DIAGNOSIS";
-  if ((orderRecord.serviceVisit.keysReceivedCount ?? 0) < 1) return "CUSTODY_CHECK_IN";
-  return "SAFETY_PRIORITY_TRIAGE";
+  if (orderRecord.stage === "AUTHORIZATION" || orderRecord.estimateVersions.some(estimate => estimate.status === "PRESENTED")) return "AUTHORIZATION";
+  if (orderRecord.stage === "ESTIMATE" || orderRecord.estimateVersions.length) return "FINDINGS_REPAIR_PLAN";
+  if (orderRecord.diagnosisVersions?.length) return "DIAGNOSIS";
+  if (orderRecord.stage === "DIAGNOSIS" || orderRecord.inspectionVersions?.length) return "INSPECTION_CONCERN_VERIFICATION";
+  if (!orderRecord.serviceVisit.arrivedAt) return "SERVICE_RECON_JOB_INTAKE";
+  if ((orderRecord.serviceVisit.keysReceivedCount ?? 0) < 1) return "VEHICLE_INTAKE_CUSTODY";
+  return "SAFETY_MOBILITY_TRIAGE";
 }
 
 export function deriveShopReconWorkflow(orderRecord: OrderEvidence, now: Date) {

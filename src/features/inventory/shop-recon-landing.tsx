@@ -8,6 +8,7 @@ import {
   ClipboardPlus,
   Clock3,
   Download,
+  FlaskConical,
   PackageOpen,
   UserRound,
   Wrench,
@@ -15,6 +16,7 @@ import {
 import Link from "next/link";
 
 import { BackToServiceAdvisorWorkspace } from "@/features/advisor/advisor-return-link";
+import type { ShopReconPilotScenario } from "@/server/shop-recon/pilot";
 
 import { BackToVehicleOperationsWorkspace } from "./workspace-return-link";
 
@@ -55,6 +57,7 @@ type Item = {
   bay: string | null;
   jobCount: number;
   qcPending: number;
+  pilot: ShopReconPilotScenario | null;
 };
 
 type Model = {
@@ -142,6 +145,7 @@ export function ShopReconLanding({
     { key: "repair", label: "Repair & Complete", from: 13, to: 14 },
     { key: "quality", label: "QC & Handoff", from: 15, to: 16 },
   ].map(column => ({ ...column, items: model.items.filter(item => item.shopLifecycleOrder >= column.from && item.shopLifecycleOrder <= column.to) }));
+  const pilotItems = model.items.filter(item => item.pilot);
 
   const allBlockers = model.items.filter(
     (item) => item.blocker || item.waitingParts || item.approvalPending || item.atRisk,
@@ -297,7 +301,7 @@ export function ShopReconLanding({
           </p>
           <p>
             <span>Activation</span>
-            <strong>{model.foundation.activation.workflowTransitions === "PROJECTED_FROM_EXISTING_REPAIR_ORDER" ? "Evidence-driven" : "Review required"}</strong>
+            <strong>{model.foundation.activation.workflowTransitions === "ACTIVE_GOVERNED_TRANSITIONS" ? "Governed live" : "Review required"}</strong>
           </p>
         </div>
       </section>
@@ -352,6 +356,8 @@ export function ShopReconLanding({
         <small>Amber and red remain reserved for timing risk and blockers.</small>
       </div>
 
+      {pilotItems.length ? <section className="shop-pilot-launchpad" aria-label="Shop and Recon operational pilots"><header><FlaskConical /><div><strong>16-Stage Operational Pilot</strong><small>Use these controlled records to validate the normal journey and exception safeguards.</small></div><b>{pilotItems.length} ready</b></header><div>{pilotItems.map(item => <Link className={item.workLane === "INVENTORY_RECON" ? "inventory" : "customer"} href={withReturnTo(`/vehicles/shop-recon/${encodeURIComponent(item.id)}`, returnTo)} key={item.id}><span><b>Pilot</b>{item.workLaneLabel}</span><strong>{item.repairOrderNumber} · {item.vehicle}</strong><small>Stage {item.shopLifecycleOrder} of 16 · {item.shopLifecycleLabel}</small><p>{item.pilot?.objective}</p><footer>Expected exit: {item.pilot?.expectedHandoff}</footer></Link>)}</div></section> : null}
+
       <section className="shop-board" aria-label="Shop production board">
         {columns.map((column) => (
           <article
@@ -380,6 +386,7 @@ export function ShopReconLanding({
                       <span className="shop-work-lane">
                         {item.workLane === "INVENTORY_RECON" ? <Building2 size={10} /> : <UserRound size={10} />}
                         {item.workLaneLabel}
+                        {item.pilot ? <b className="shop-pilot-badge">Pilot</b> : null}
                       </span>
                       <strong>{item.vehicle}</strong>
                     </div>
