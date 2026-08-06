@@ -109,12 +109,8 @@ describe("R7 Shop & Recon landing projection", () => {
     expect(html).toContain("Capacity &amp; Assignment");
     expect(html).toContain("Blocker Center");
     expect(html).toContain("At-Risk Completion");
-    expect(html).toContain("Controlled Shop Foundation");
-    expect(html).toContain("16 stages");
-    expect(html).toContain("2 shared bays");
-    expect(html).toContain("Walter Hernandez");
-    expect(html).toContain("Governed live");
-    expect(html).toContain("Live 16-Stage Lifecycle");
+    expect(html).not.toContain("Controlled Shop Foundation");
+    expect(html).not.toContain("Live 16-Stage Lifecycle");
     expect(html).toContain('/vehicles/shop-recon/ro-1');
     expect(html).toContain("External adapters: DISABLED");
     expect(html).not.toContain("/vehicles/shop-execution");

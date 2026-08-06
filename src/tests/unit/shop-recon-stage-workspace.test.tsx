@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { ShopReconVehicleCard, type ShopReconLifecycleWorkspaceModel, type ShopReconVehicleCardModel } from "@/features/inventory/shop-recon-vehicle-card";
+import { ShopReconInspectionConcernVerification } from "@/features/inventory/shop-recon-inspection-concern-verification";
 import { ShopReconVehicleIntakeCustody } from "@/features/inventory/shop-recon-vehicle-intake-custody";
 import { ShopReconSafetyMobilityTriage } from "@/features/inventory/shop-recon-safety-mobility-triage";
 import { ShopReconScopeBuilder } from "@/features/inventory/shop-recon-scope-builder";
@@ -40,8 +41,8 @@ describe("Shop Recon unified vehicle-card design", () => {
     }
   });
 
-  it("defines executable operations for the first five shop stages", () => {
-    expect(SHOP_RECON_OPERATIONAL_WORKSPACES).toHaveLength(5);
+  it("defines executable operations for the first seven shop stages", () => {
+    expect(SHOP_RECON_OPERATIONAL_WORKSPACES).toHaveLength(7);
     for (const definition of SHOP_RECON_OPERATIONAL_WORKSPACES) {
       expect(definition.actions.length).toBeGreaterThanOrEqual(5);
       for (const action of definition.actions) {
@@ -56,6 +57,8 @@ describe("Shop Recon unified vehicle-card design", () => {
     expect(getShopReconOperationalWorkspace("WORK_ORDER_CREATION", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Labor Guide"]);
     expect(getShopReconOperationalWorkspace("VEHICLE_INTAKE_CUSTODY", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Vehicle Intake & Custody"]);
     expect(getShopReconOperationalWorkspace("SAFETY_MOBILITY_TRIAGE", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Safety & Mobility Triage"]);
+    expect(getShopReconOperationalWorkspace("INSPECTION_CONCERN_VERIFICATION", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Inspection / Concern Verification"]);
+    expect(getShopReconOperationalWorkspace("DIAGNOSIS", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Diagnostic Module"]);
   });
 
   it("renders the Inventory-style identity and active-stage operating workspace", () => {
@@ -205,5 +208,57 @@ describe("Shop Recon unified vehicle-card design", () => {
     expect(html).toContain("Stage 5 checklist");
     expect(html).toContain("Save Triage Draft");
     expect(html).toContain("Complete Safety Triage");
+  });
+
+  it("renders Stage 6 with Inspection & Concern Verification above the inspection checklist", () => {
+    const stageSixItem = { ...item, shopLifecycleStage: "INSPECTION_CONCERN_VERIFICATION" as const, shopLifecycleLabel: "Inspection & Concern Verification", shopLifecycleOrder: 6 };
+    const stageSixLifecycle = { ...lifecycleWorkspace, lifecycle: { ...lifecycleWorkspace.lifecycle, stage: "INSPECTION_CONCERN_VERIFICATION" as const, nextAction: "Verify inspection and concern" } };
+    const html = renderToStaticMarkup(<ShopReconVehicleCard item={stageSixItem} lifecycleWorkspace={stageSixLifecycle} />);
+
+    expect(html).toContain("Official Stage 6 Tool");
+    expect(html).toContain("Inspection / Concern Verification");
+    expect(html).toContain("/vehicles/shop-recon/ro-1/inspection-concern-verification");
+    expect(html).toContain("Scope and work order reviewed");
+    expect(html).toContain("Vehicle identity and odometer confirmed");
+    expect(html).toContain("Required inspection checklist completed");
+    expect(html).toContain("Concern verified or outcome classified");
+    expect(html).toContain("Measurements and observations recorded");
+    expect(html).toContain("Photo / video / scan evidence attached");
+    expect(html).toContain("Inspection result submitted for next decision");
+  });
+
+  it("renders the official Inspection & Concern Verification form as the source of truth", () => {
+    const stageSixLifecycle = { ...lifecycleWorkspace, lifecycle: { ...lifecycleWorkspace.lifecycle, stage: "INSPECTION_CONCERN_VERIFICATION" as const } };
+    const html = renderToStaticMarkup(<ShopReconInspectionConcernVerification item={item} lifecycleWorkspace={stageSixLifecycle} returnTo="/vehicles/shop-recon/ro-1" />);
+
+    expect(html).toContain("Inspection &amp; Concern Verification Form");
+    expect(html).toContain("Scope control");
+    expect(html).toContain("Vehicle verification");
+    expect(html).toContain("Inspection checklist");
+    expect(html).toContain("Concern outcome");
+    expect(html).toContain("Inspection findings");
+    expect(html).toContain("Measurements / observations");
+    expect(html).toContain("I confirm the inspection result is complete and ready for the next decision.");
+    expect(html).toContain("Stage 6 checklist");
+    expect(html).toContain("Save Inspection Draft");
+    expect(html).toContain("Complete Inspection");
+  });
+
+  it("renders Stage 7 with Diagnostic Module above the diagnosis checklist", () => {
+    const stageSevenItem = { ...item, shopLifecycleStage: "DIAGNOSIS" as const, shopLifecycleLabel: "Diagnosis", shopLifecycleOrder: 7 };
+    const stageSevenLifecycle = { ...lifecycleWorkspace, lifecycle: { ...lifecycleWorkspace.lifecycle, stage: "DIAGNOSIS" as const, nextAction: "Complete evidence-backed diagnosis" } };
+    const html = renderToStaticMarkup(<ShopReconVehicleCard item={stageSevenItem} lifecycleWorkspace={stageSevenLifecycle} />);
+
+    expect(html).toContain("Official Stage 7 Tool");
+    expect(html).toContain("Diagnostic Module");
+    expect(html).toContain("/vehicles/repair-workbench?repairOrderId=ro-1&amp;vehicleId=vehicle-1");
+    expect(html).toContain("#diagnosis");
+    expect(html).toContain("Stage 6 verified concern reviewed");
+    expect(html).toContain("Diagnostic route selected");
+    expect(html).toContain("Required diagnostic tests recorded");
+    expect(html).toContain("Scan data / measurements attached");
+    expect(html).toContain("Supported cause or uncertainty documented");
+    expect(html).toContain("Recommended correction entered");
+    expect(html).toContain("Diagnosis submitted for repair-plan decision");
   });
 });

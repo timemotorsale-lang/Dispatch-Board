@@ -187,6 +187,42 @@ export const SHOP_RECON_OPERATIONAL_WORKSPACES: readonly ShopReconOperationalWor
       action("CONFIRM_TRIAGE_DECISION", "Safety triage decision confirmed", "Confirm the safety and movement decision is clear before the next stage.", "Brock", "Triage confirmation", ["nextAllowedStage", "confirmedBy", "safetyDecisionConfirmed"]),
     ],
   },
+  {
+    stage: "INSPECTION_CONCERN_VERIFICATION",
+    workTitle: "Complete Inspection & Concern Verification",
+    workInstruction: "Open the official inspection form to review the scope, verify the vehicle, complete the inspection, classify the concern outcome, and submit the inspection result.",
+    tools: [
+      tool("INSPECTION_CONCERN_VERIFICATION", "Inspection / Concern Verification", "#inspection-concern-verification", "Open the official Stage 6 inspection and concern-verification form."),
+    ],
+    pilotValues: { scopePacket: "Reviewed", workOrderOperations: "Brake noise / warning light", stopRule: "Stop before repair", vinRoMatch: "Match confirmed", odometer: 84216, inspector: "Walter Hernandez", inspectionTemplate: "Customer concern inspection", inspectionChecklistStatus: "Completed", safetyItems: "Brake pulsation and ABS light noted", concernStatus: "Verified", testCondition: "Low-speed braking", inspectionSummary: "Concern verified during low-speed braking. ABS light present. Front brake pulsation observed.", measurementsRecorded: "Front pads 3mm; rotors show pulsation; ABS code stored", inspectionEvidence: "Photos + scan attached", nextDecision: "Proceed to Diagnosis", inspectionPacketComplete: true },
+    actions: [
+      action("REVIEW_SCOPE_WORK_ORDER", "Scope and work order reviewed", "Confirm the approved scope, Labor Guide operation, and stop rule before inspection begins.", "Walter Hernandez or assigned technician", "Scope/work-order review", ["scopePacket", "workOrderOperations", "stopRule"]),
+      action("CONFIRM_VEHICLE_ODOMETER", "Vehicle identity and odometer confirmed", "Confirm the VIN/RO match, observed odometer, and inspector.", "Walter Hernandez or assigned technician", "Identity and odometer confirmation", ["vinRoMatch", "odometer", "inspector"]),
+      action("COMPLETE_INSPECTION_CHECKLIST", "Required inspection checklist completed", "Complete the correct inspection template and record safety items observed.", "Walter Hernandez or assigned technician", "Completed inspection checklist", ["inspectionTemplate", "inspectionChecklistStatus", "safetyItems"]),
+      action("CLASSIFY_CONCERN_OUTCOME", "Concern verified or outcome classified", "Record whether the concern was verified, not reproduced, intermittent, unsafe to test, or not applicable.", "Walter Hernandez or assigned technician", "Concern-verification outcome", ["concernStatus", "testCondition", "inspectionSummary"]),
+      action("RECORD_MEASUREMENTS", "Measurements and observations recorded", "Record measurements, observations, and condition details needed for diagnosis or repair planning.", "Walter Hernandez or assigned technician", "Measurements and observations", ["measurementsRecorded"]),
+      action("ATTACH_INSPECTION_EVIDENCE", "Photo / video / scan evidence attached", "Attach or reference photos, video, scan results, or other material inspection evidence.", "Walter Hernandez or assigned technician", "Inspection evidence", ["inspectionEvidence"]),
+      action("SUBMIT_INSPECTION_RESULT", "Inspection result submitted for next decision", "Confirm the inspection packet is complete and select the next decision path.", "Walter Hernandez or Brock", "Submitted inspection result", ["nextDecision", "inspectionPacketComplete"]),
+    ],
+  },
+  {
+    stage: "DIAGNOSIS",
+    workTitle: "Complete diagnosis in the Diagnostic Module",
+    workInstruction: "Open the Diagnostic Module to perform the actual diagnostic work. Use the checklist below only to govern whether the module produced the required outputs.",
+    tools: [
+      tool("DIAGNOSTIC_MODULE", "Diagnostic Module", "/vehicles/repair-workbench", "Open the existing repair workbench diagnostic module for this repair order."),
+    ],
+    pilotValues: { verifiedConcernReviewed: true, diagnosticRouteSelected: true, diagnosticTestsRecorded: true, diagnosticMeasurementsAttached: true, supportedCauseDocumented: true, recommendedCorrectionEntered: true, diagnosisSubmitted: true },
+    actions: [
+      action("REVIEW_VERIFIED_CONCERN", "Stage 6 verified concern reviewed", "Confirm the Diagnostic Module is using the verified concern and inspection result from Stage 6.", "Walter Hernandez or assigned technician", "Verified concern review", ["verifiedConcernReviewed"]),
+      action("SELECT_DIAGNOSTIC_ROUTE", "Diagnostic route selected", "Select the diagnostic route in the module: scan, electrical, mechanical, drivability, brake, suspension, HVAC, leak, or other.", "Walter Hernandez or assigned technician", "Diagnostic route selection", ["diagnosticRouteSelected"]),
+      action("RECORD_DIAGNOSTIC_TESTS", "Required diagnostic tests recorded", "Record the tests performed in the Diagnostic Module.", "Walter Hernandez or assigned technician", "Diagnostic test record", ["diagnosticTestsRecorded"]),
+      action("ATTACH_SCAN_MEASUREMENTS", "Scan data / measurements attached", "Attach or record scan codes, live data, measurements, readings, photos, or other diagnostic evidence.", "Walter Hernandez or assigned technician", "Scan data and measurements", ["diagnosticMeasurementsAttached"]),
+      action("DOCUMENT_CAUSE_OR_UNCERTAINTY", "Supported cause or uncertainty documented", "Document the supported cause, or clearly state uncertainty and the additional test needed.", "Walter Hernandez or assigned technician", "Cause or uncertainty statement", ["supportedCauseDocumented"]),
+      action("ENTER_RECOMMENDED_CORRECTION", "Recommended correction entered", "Enter the technician's recommended repair, adjustment, teardown, sublet, or next action.", "Walter Hernandez or assigned technician", "Recommended correction", ["recommendedCorrectionEntered"]),
+      action("SUBMIT_DIAGNOSIS", "Diagnosis submitted for repair-plan decision", "Submit the diagnostic packet so the next stage can build the repair plan.", "Walter Hernandez or Brock", "Submitted diagnosis packet", ["diagnosisSubmitted"]),
+    ],
+  },
 ] as const;
 
 export function getShopReconOperationalWorkspace(stage: ShopReconStageCode, lane?: ShopReconWorkLane) {

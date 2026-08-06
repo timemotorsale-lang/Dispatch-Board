@@ -275,56 +275,6 @@ export function ShopReconLanding({
         </label>
       </section>
 
-      <section className="vcp-panel" aria-label="Shop foundation configuration">
-        <header>
-          <div>
-            <strong>Controlled Shop Foundation</strong>
-            <span>{model.foundation.contractVersion} · {model.foundation.configurationStatus.replaceAll("_", " ").toLowerCase()}</span>
-          </div>
-        </header>
-        <div className="shop-parts-facts">
-          <p>
-            <span>Lifecycle</span>
-            <strong>{model.foundation.stages.length} stages</strong>
-          </p>
-          <p>
-            <span>Operating window</span>
-            <strong>Mon-Fri · 9 AM-6 PM</strong>
-          </p>
-          <p>
-            <span>Repair capacity</span>
-            <strong>{model.foundation.wipLimits.operatingRepairBays} shared bays</strong>
-          </p>
-          <p>
-            <span>Primary technician</span>
-            <strong>{model.foundation.staffing.find(person => person.role === "PRIMARY_TECHNICIAN")?.name ?? "Unconfirmed"}</strong>
-          </p>
-          <p>
-            <span>Activation</span>
-            <strong>{model.foundation.activation.workflowTransitions === "ACTIVE_GOVERNED_TRANSITIONS" ? "Governed live" : "Review required"}</strong>
-          </p>
-        </div>
-      </section>
-
-      <section className="vcp-panel" aria-label="Sixteen-stage Shop and Recon lifecycle">
-        <header>
-          <div>
-            <strong>Live 16-Stage Lifecycle</strong>
-            <span>Derived from current repair evidence; no manual status invention</span>
-          </div>
-        </header>
-        <div className="shop-parts-facts">
-          {model.pipeline.map(stage => (
-            <p key={stage.key}>
-              <span>{stage.label}</span>
-              <strong>
-                {stage.count}{stage.wipLimit === null ? "" : ` / ${stage.wipLimit}`}{stage.wipBreached ? " · WIP HOLD" : ""}
-              </strong>
-            </p>
-          ))}
-        </div>
-      </section>
-
       <Link className="sr-only" href="/vehicles/control-tower">
         Inventory Control Tower
       </Link>

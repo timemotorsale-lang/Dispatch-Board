@@ -117,7 +117,25 @@ export function ShopReconVehicleCard({ item, lifecycleWorkspace, returnTo = "/ve
     item_6: ["containment", "physicalHoldLocation"].every(key => fieldHasValue(formData[key])),
     item_7: ["nextAllowedStage", "confirmedBy"].every(key => fieldHasValue(formData[key])) && formData.safetyDecisionConfirmed === true,
   } : {};
-  const activeChecklist: Record<string, boolean> = selectedStage === "JOB_SCOPE_DEFINITION" ? { ...checklist, ...scopeBuilderChecklist } : selectedStage === "VEHICLE_INTAKE_CUSTODY" ? { ...checklist, ...vehicleIntakeChecklist } : selectedStage === "SAFETY_MOBILITY_TRIAGE" ? { ...checklist, ...safetyTriageChecklist } : checklist;
+  const inspectionChecklist: Record<string, boolean> = selectedStage === "INSPECTION_CONCERN_VERIFICATION" ? {
+    item_1: ["scopePacket", "workOrderOperations", "stopRule"].every(key => fieldHasValue(formData[key])),
+    item_2: formData.vinRoMatch === "Match confirmed" && Number(formData.odometer) > 0 && fieldHasValue(formData.inspector),
+    item_3: ["inspectionTemplate", "inspectionChecklistStatus", "safetyItems"].every(key => fieldHasValue(formData[key])),
+    item_4: ["concernStatus", "testCondition", "inspectionSummary"].every(key => fieldHasValue(formData[key])),
+    item_5: fieldHasValue(formData.measurementsRecorded),
+    item_6: fieldHasValue(formData.inspectionEvidence),
+    item_7: fieldHasValue(formData.nextDecision) && formData.inspectionPacketComplete === true,
+  } : {};
+  const diagnosisChecklist: Record<string, boolean> = selectedStage === "DIAGNOSIS" ? {
+    item_1: formData.verifiedConcernReviewed === true,
+    item_2: formData.diagnosticRouteSelected === true,
+    item_3: formData.diagnosticTestsRecorded === true,
+    item_4: formData.diagnosticMeasurementsAttached === true,
+    item_5: formData.supportedCauseDocumented === true,
+    item_6: formData.recommendedCorrectionEntered === true,
+    item_7: formData.diagnosisSubmitted === true,
+  } : {};
+  const activeChecklist: Record<string, boolean> = selectedStage === "JOB_SCOPE_DEFINITION" ? { ...checklist, ...scopeBuilderChecklist } : selectedStage === "VEHICLE_INTAKE_CUSTODY" ? { ...checklist, ...vehicleIntakeChecklist } : selectedStage === "SAFETY_MOBILITY_TRIAGE" ? { ...checklist, ...safetyTriageChecklist } : selectedStage === "INSPECTION_CONCERN_VERIFICATION" ? { ...checklist, ...inspectionChecklist } : selectedStage === "DIAGNOSIS" ? { ...checklist, ...diagnosisChecklist } : checklist;
 
   async function post(path: string, body: Record<string, unknown>) { const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); const result = await response.json(); if (!response.ok) throw new Error(result.error ?? "The action could not be completed."); return result; }
   async function saveDraft() { setBusy(true); setFeedback(null); try { await post(`/api/shop-recon/${item.id}/draft`, { stage: lifecycle.stage, expectedVersion: lifecycle.version, idempotencyKey: crypto.randomUUID(), reason: saveReason, checklist: activeChecklist, formData, evidence }); setDirty(false); setFeedback({ tone: "success", text: "Draft saved. The vehicle did not move; your name and save time were recorded." }); window.location.reload(); } catch (error) { setFeedback({ tone: "error", text: error instanceof Error ? error.message : "Draft could not be saved." }); } finally { setBusy(false); } }
@@ -262,7 +280,7 @@ export function ShopReconVehicleCard({ item, lifecycleWorkspace, returnTo = "/ve
           {workspaceView === "work" ? <div className="srv-operational-work">
             <header><div><small>Perform the work here</small><h3>{selectedStage === "JOB_SCOPE_DEFINITION" ? "Follow the Job Scope Checklist" : operationalWorkspace.workTitle}</h3><p>{operationalWorkspace.workInstruction}</p>{selectedStage !== "JOB_SCOPE_DEFINITION" && operationalWorkspace.tools?.length ? <nav aria-label={`${workspace.formTitle} tools`} className="srv-stage-tools">{operationalWorkspace.tools.map(tool => <Link href={resolveStageToolHref(tool, item, returnTo)} key={tool.key} title={tool.description}><FileText />{tool.label}</Link>)}</nav> : null}</div><div className="srv-operational-header-actions"><span>{isCurrent ? `Working as ${lifecycleWorkspace.permissions.currentUserName}` : `Preview only · Stage ${currentIndex + 1} is active`}</span>{item.pilot && isCurrent ? <button onClick={loadPilotExample} type="button"><FlaskConical />Load sample stage work</button> : null}</div></header>
             {workGuidance ? <p className="srv-work-guidance"><AlertTriangle /><span>{workGuidance}</span></p> : null}
-            {selectedStage === "JOB_SCOPE_DEFINITION" ? <ScopeCommandWorkspace checklist={activeChecklist} item={item} returnTo={returnTo} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "WORK_ORDER_CREATION" ? <WorkOrderCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={returnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "VEHICLE_INTAKE_CUSTODY" ? <VehicleIntakeCommandWorkspace checklist={activeChecklist} item={item} returnTo={returnTo} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "SAFETY_MOBILITY_TRIAGE" ? <SafetyTriageCommandWorkspace checklist={activeChecklist} item={item} returnTo={returnTo} tools={operationalWorkspace.tools ?? []} /> : <div className="srv-operational-grid">
+            {selectedStage === "JOB_SCOPE_DEFINITION" ? <ScopeCommandWorkspace checklist={activeChecklist} item={item} returnTo={returnTo} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "WORK_ORDER_CREATION" ? <WorkOrderCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={returnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "VEHICLE_INTAKE_CUSTODY" ? <VehicleIntakeCommandWorkspace checklist={activeChecklist} item={item} returnTo={returnTo} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "SAFETY_MOBILITY_TRIAGE" ? <SafetyTriageCommandWorkspace checklist={activeChecklist} item={item} returnTo={returnTo} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "INSPECTION_CONCERN_VERIFICATION" ? <InspectionVerificationCommandWorkspace checklist={activeChecklist} item={item} returnTo={returnTo} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "DIAGNOSIS" ? <DiagnosisCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={returnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : <div className="srv-operational-grid">
               <section className="srv-operation-list">{operationalWorkspace.actions.map((action, index) => { const labelFor = (key: string) => operationalWorkspace.summaryFields?.find(item => item.key === key)?.label ?? workspace.fields.find(item => item.key === key)?.label ?? key, completed = checklist[`item_${index + 1}`] === true, missing = action.requiredFields.filter(field => !fieldHasValue(formData[field])), ready = missing.length === 0; return <article className={completed ? "complete" : ""} key={action.key}><header><i>{completed ? <Check /> : index + 1}</i><div><strong>{action.title}</strong><small>{action.owner}</small></div><b>{completed ? "Recorded" : ready ? "Ready" : "Needs facts"}</b></header><p>{action.instruction}</p><dl><div><dt>Required record</dt><dd>{action.requiredFields.map(labelFor).join(" · ")}</dd></div><div><dt>Evidence created</dt><dd>{action.evidence}</dd></div></dl>{!completed && !ready && isCurrent ? <small className="srv-operation-help">Click below to enter: {missing.map(labelFor).join(" and ")}</small> : null}<button disabled={busy} onClick={() => recordOperationalAction(index)} type="button">{!isCurrent ? <><RotateCcw />Return to active Stage {currentIndex + 1}</> : completed ? <><RotateCcw />Reopen operation</> : ready ? <><CheckCircle2 />Record operation</> : <><FileText />Enter required facts</>}</button></article>; })}</section>
               {usesExternalIntake ? <IntakeSummaryPanel formData={formData} item={item} returnTo={returnTo} summaryFields={operationalWorkspace.summaryFields ?? []} summaryInstruction={operationalWorkspace.summaryInstruction} summaryTitle={operationalWorkspace.summaryTitle} tools={operationalWorkspace.tools ?? []} /> : <section className="srv-stage-record"><header><FileText /><div><h3>{workspace.formTitle}</h3><p>Enter the facts used by the operations. Changing a recorded fact reopens its operation for confirmation.</p></div><span>{lifecycleWorkspace.currentDraft?.revision ? `Saved v${lifecycleWorkspace.currentDraft.revision}` : "Unsaved work"}</span></header><div>{workspace.fields.map(field => isCurrent ? <OperationalField disabled={busy} field={field} key={field.key} onChange={updateOperationalField} value={formData[field.key]} /> : <PreviewField field={field} key={field.key} />)}</div></section>}
             </div>}
@@ -302,6 +320,11 @@ function resolveStageToolHref(tool: ShopReconOperationalTool, item: ShopReconVeh
   if (tool.key === "LABOR_GUIDE") return `/diagnostics/labor-guide?repairOrderId=${encodeURIComponent(item.id)}&returnTo=${encodedReturn}`;
   if (tool.key === "VEHICLE_INTAKE_CUSTODY") return `/vehicles/shop-recon/${encodeURIComponent(item.id)}/vehicle-intake-custody?returnTo=${encodeURIComponent(`/vehicles/shop-recon/${item.id}`)}`;
   if (tool.key === "SAFETY_MOBILITY_TRIAGE") return `/vehicles/shop-recon/${encodeURIComponent(item.id)}/safety-mobility-triage?returnTo=${encodeURIComponent(`/vehicles/shop-recon/${item.id}`)}`;
+  if (tool.key === "INSPECTION_CONCERN_VERIFICATION") return `/vehicles/shop-recon/${encodeURIComponent(item.id)}/inspection-concern-verification?returnTo=${encodeURIComponent(`/vehicles/shop-recon/${item.id}`)}`;
+  if (tool.key === "DIAGNOSTIC_MODULE") {
+    const params = new URLSearchParams({ repairOrderId: item.id, ...(item.vehicleId ? { vehicleId: item.vehicleId } : {}), returnTo });
+    return `/vehicles/repair-workbench?${params.toString()}#diagnosis`;
+  }
   if (tool.key === "INVENTORY_CARD" && item.vehicleId) return `/vehicles/360/${encodeURIComponent(item.vehicleId)}?returnTo=${encodedReturn}`;
   if (tool.key === "INVENTORY_HANDOFF" && item.vehicleId) return `/vehicles/repair-orders?intakeSource=INVENTORY_RECON&vehicleId=${encodeURIComponent(item.vehicleId)}&returnTo=${encodedReturn}`;
   if (tool.key === "PRIOR_INSPECTION" && item.vehicleId) return `/vehicles/${encodeURIComponent(item.vehicleId)}/inventory-planning?returnTo=${encodedReturn}`;
@@ -425,6 +448,49 @@ function SafetyTriageCommandWorkspace({ checklist, item, returnTo, tools }: { ch
     <header><ClipboardCheck /><div><small>Official Stage 5 Tool</small><h3>Safety &amp; Mobility Triage</h3><p>The triage form is the source of truth. Complete it there; the checklist underneath clears from the saved form answers.</p></div><span>{completed}/7 checked</span></header>
     <section className="srv-scope-tool-tray single" aria-label="Safety & Mobility Triage tool link">{tools.map(tool => <Link href={resolveStageToolHref(tool, item, returnTo)} key={tool.key}><FileText /><span><b>Open {tool.label}</b>{tool.description}</span></Link>)}</section>
     <section className="srv-scope-action-checklist official" aria-label="Checklist required to unlock Stage 5">{gates.map(([label, checked, note], index) => <article className={checked ? "checked" : ""} key={label}><i>{checked ? <Check /> : index + 1}</i><div><strong>{label}</strong><span>{note}</span></div><b>{checked ? "Checked" : "Locked"}</b></article>)}</section>
+  </section>;
+}
+
+function InspectionVerificationCommandWorkspace({ checklist, item, returnTo, tools }: { checklist: Record<string, boolean>; item: ShopReconVehicleCardModel; returnTo: string; tools: readonly ShopReconOperationalTool[] }) {
+  const gates = [
+    ["Scope and work order reviewed", checklist.item_1, "Approved scope, Labor Guide operation, and stop rule are reviewed."],
+    ["Vehicle identity and odometer confirmed", checklist.item_2, "VIN/RO match, odometer, and inspector are recorded."],
+    ["Required inspection checklist completed", checklist.item_3, "The correct inspection template and safety items are recorded."],
+    ["Concern verified or outcome classified", checklist.item_4, "The concern outcome and test condition are classified."],
+    ["Measurements and observations recorded", checklist.item_5, "Measurements and observations are captured for diagnosis or repair planning."],
+    ["Photo / video / scan evidence attached", checklist.item_6, "Material inspection evidence is attached or referenced."],
+    ["Inspection result submitted for next decision", checklist.item_7, "The inspection packet is complete and the next decision path is selected."],
+  ] as const;
+  const completed = gates.filter(([, checked]) => checked).length;
+  return <section className="srv-scope-command lifecycle-style" aria-label="Inspection & Concern Verification Checklist">
+    <header><ClipboardCheck /><div><small>Official Stage 6 Tool</small><h3>Inspection / Concern Verification</h3><p>The inspection form is the source of truth. Complete it there; the checklist underneath clears from the saved form answers.</p></div><span>{completed}/7 checked</span></header>
+    <section className="srv-scope-tool-tray single" aria-label="Inspection & Concern Verification tool link">{tools.map(tool => <Link href={resolveStageToolHref(tool, item, returnTo)} key={tool.key}><FileText /><span><b>Open {tool.label}</b>{tool.description}</span></Link>)}</section>
+    <section className="srv-scope-action-checklist official" aria-label="Checklist required to unlock Stage 6">{gates.map(([label, checked, note], index) => <article className={checked ? "checked" : ""} key={label}><i>{checked ? <Check /> : index + 1}</i><div><strong>{label}</strong><span>{note}</span></div><b>{checked ? "Checked" : "Locked"}</b></article>)}</section>
+  </section>;
+}
+
+function DiagnosisCommandWorkspace({ busy, checklist, isCurrent, item, onChange, returnTo, setChecklist, setFormData, tools }: { busy: boolean; checklist: Record<string, boolean>; isCurrent: boolean; item: ShopReconVehicleCardModel; onChange: () => void; returnTo: string; setChecklist: Dispatch<SetStateAction<Record<string, boolean>>>; setFormData: Dispatch<SetStateAction<Record<string, unknown>>>; tools: readonly ShopReconOperationalTool[] }) {
+  const gates = [
+    ["Stage 6 verified concern reviewed", "verifiedConcernReviewed", checklist.item_1, "The Diagnostic Module is using the verified Stage 6 concern and inspection result."],
+    ["Diagnostic route selected", "diagnosticRouteSelected", checklist.item_2, "The technician selected the diagnostic path inside the module."],
+    ["Required diagnostic tests recorded", "diagnosticTestsRecorded", checklist.item_3, "The module contains the required tests performed."],
+    ["Scan data / measurements attached", "diagnosticMeasurementsAttached", checklist.item_4, "Codes, live data, measurements, readings, photos, or evidence are attached."],
+    ["Supported cause or uncertainty documented", "supportedCauseDocumented", checklist.item_5, "The module identifies the supported cause or explains the remaining uncertainty."],
+    ["Recommended correction entered", "recommendedCorrectionEntered", checklist.item_6, "The technician entered the recommended repair, adjustment, teardown, sublet, or next action."],
+    ["Diagnosis submitted for repair-plan decision", "diagnosisSubmitted", checklist.item_7, "The diagnostic packet is submitted for Findings & Repair Plan."],
+  ] as const;
+  const completed = gates.filter(([, , checked]) => checked).length;
+  function toggle(index: number, fieldKey: string, current: boolean) {
+    if (!isCurrent || busy) return;
+    const next = !current;
+    setChecklist(value => ({ ...value, [`item_${index + 1}`]: next }));
+    setFormData(value => ({ ...value, [fieldKey]: next }));
+    onChange();
+  }
+  return <section className="srv-scope-command lifecycle-style" aria-label="Diagnosis Checklist">
+    <header><ClipboardCheck /><div><small>Official Stage 7 Tool</small><h3>Diagnostic Module</h3><p>Use the existing Diagnostic Module for the actual diagnosis. This checklist only governs whether the required diagnostic outputs are complete enough to advance.</p></div><span>{completed}/7 checked</span></header>
+    <section className="srv-scope-tool-tray single" aria-label="Diagnostic Module tool link">{tools.map(tool => <Link href={resolveStageToolHref(tool, item, returnTo)} key={tool.key}><FileText /><span><b>Open {tool.label}</b>{tool.description}</span></Link>)}</section>
+    <section className="srv-scope-action-checklist official" aria-label="Checklist required to unlock Stage 7">{gates.map(([label, fieldKey, checked, note], index) => <button className={checked ? "checked" : ""} disabled={!isCurrent || busy} key={fieldKey} onClick={() => toggle(index, fieldKey, checked)} type="button"><i>{checked ? <Check /> : index + 1}</i><div><strong>{label}</strong><span>{note}</span></div><b>{checked ? "Checked" : "Check when done"}</b></button>)}</section>
   </section>;
 }
 
