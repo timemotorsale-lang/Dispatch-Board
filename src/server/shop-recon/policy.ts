@@ -124,7 +124,7 @@ export function canCompleteShopReconStage(actor: AuthenticatedUser, stageCode: S
 
 export function evaluateDraftCompletion(stageCode: ShopReconStageCode, draft: { checklist: unknown; formData: unknown; evidence: unknown }, lane?: ShopReconWorkLane) {
   const workspace = getShopReconStageWorkspace(stageCode), checklist = record(draft.checklist, "Checklist"), formData = record(draft.formData, "Form data"), evidence = strings(draft.evidence, "Evidence");
-  const operationalWorkspace = stageCode === "SERVICE_RECON_JOB_INTAKE" ? getShopReconOperationalWorkspace(stageCode, lane) : null;
+  const operationalWorkspace = getShopReconOperationalWorkspace(stageCode, lane);
   const checklistItems = operationalWorkspace?.actions ?? workspace.checklist;
   const requiredFieldKeys = operationalWorkspace?.actions.flatMap(action => action.requiredFields) ?? workspace.fields.map(field => field.key);
   const incompleteChecklist = checklistItems.filter((_, index) => checklist[`item_${index + 1}`] !== true);

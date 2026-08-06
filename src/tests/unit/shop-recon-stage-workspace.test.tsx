@@ -2,6 +2,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { ShopReconVehicleCard, type ShopReconLifecycleWorkspaceModel, type ShopReconVehicleCardModel } from "@/features/inventory/shop-recon-vehicle-card";
+import { ShopReconVehicleIntakeCustody } from "@/features/inventory/shop-recon-vehicle-intake-custody";
+import { ShopReconScopeBuilder } from "@/features/inventory/shop-recon-scope-builder";
 import { SHOP_RECON_STAGES } from "@/server/shop-recon/foundation";
 import { getShopReconOperationalWorkspace, SHOP_RECON_OPERATIONAL_WORKSPACES } from "@/server/shop-recon/operational-workspace";
 import { SHOP_RECON_STAGE_WORKSPACES } from "@/server/shop-recon/stage-workspace";
@@ -50,6 +52,8 @@ describe("Shop Recon unified vehicle-card design", () => {
     }
     expect(SHOP_RECON_OPERATIONAL_WORKSPACES[0].tools?.map(tool => tool.label)).toEqual(["Open Intake Form", "Open Service Advisor"]);
     expect(getShopReconOperationalWorkspace("SERVICE_RECON_JOB_INTAKE", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Open Inventory Vehicle Card", "Open Inventory-to-Shop Handoff", "Open Prior Inspection / Photos", "Accept Shop Handoff"]);
+    expect(getShopReconOperationalWorkspace("WORK_ORDER_CREATION", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Labor Guide"]);
+    expect(getShopReconOperationalWorkspace("VEHICLE_INTAKE_CUSTODY", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Vehicle Intake & Custody"]);
   });
 
   it("renders the Inventory-style identity and active-stage operating workspace", () => {
@@ -78,5 +82,93 @@ describe("Shop Recon unified vehicle-card design", () => {
     expect(html).toContain("Perform the work here");
     expect(html).toContain("Working as Brock");
     expect(html).toContain("No governed stage events yet");
+  });
+
+  it("renders Stage 2 with only the official Scope Builder link and unlock checklist", () => {
+    const stageTwoItem = { ...item, shopLifecycleStage: "JOB_SCOPE_DEFINITION" as const, shopLifecycleLabel: "Job Scope Definition", shopLifecycleOrder: 2 };
+    const stageTwoLifecycle = { ...lifecycleWorkspace, lifecycle: { ...lifecycleWorkspace.lifecycle, stage: "JOB_SCOPE_DEFINITION" as const, nextAction: "Define the job scope" } };
+    const html = renderToStaticMarkup(<ShopReconVehicleCard item={stageTwoItem} lifecycleWorkspace={stageTwoLifecycle} />);
+
+    expect(html).toContain("Scope Builder");
+    expect(html).toContain("Official Stage 2 Tool");
+    expect(html).toContain("Open Scope Builder");
+    expect(html).toContain("/vehicles/shop-recon/ro-1/scope-builder");
+    expect(html).toContain("Reason selected");
+    expect(html).toContain("Work area selected");
+    expect(html).toContain("Allowed work defined");
+    expect(html).toContain("Stop rule defined");
+    expect(html).toContain("Risk check completed");
+    expect(html).toContain("Approval owner named");
+    expect(html).toContain("Scope reviewed and ready");
+    expect(html).not.toContain("What is the shop allowed to do?");
+  });
+
+  it("renders the official Scope Builder form as the source of truth", () => {
+    const html = renderToStaticMarkup(<ShopReconScopeBuilder item={item} lifecycleWorkspace={lifecycleWorkspace} returnTo="/vehicles/shop-recon/ro-1" />);
+
+    expect(html).toContain("Define what the shop is allowed to do before Work Order.");
+    expect(html).toContain("Vehicle:");
+    expect(html).toContain("2024 Toyota RAV4");
+    expect(html).toContain("Lane:");
+    expect(html).toContain("Inventory Recon");
+    expect(html).toContain("1. Why is the vehicle here?");
+    expect(html).toContain("2. What area does it involve?");
+    expect(html).toContain("3. What is the shop allowed to do?");
+    expect(html).toContain("4. When must the technician stop?");
+    expect(html).toContain("5. Risk check");
+    expect(html).toContain("6. Approval owner");
+    expect(html).toContain("Scope Summary");
+    expect(html).toContain("Save Scope Draft");
+    expect(html).toContain("Complete Scope Builder");
+    expect(html).toContain("Stage 2 checklist cleared by this form");
+  });
+
+  it("renders Stage 3 with Labor Guide above the work-order checklist", () => {
+    const stageThreeItem = { ...item, shopLifecycleStage: "WORK_ORDER_CREATION" as const, shopLifecycleLabel: "Work Order Creation", shopLifecycleOrder: 3 };
+    const stageThreeLifecycle = { ...lifecycleWorkspace, lifecycle: { ...lifecycleWorkspace.lifecycle, stage: "WORK_ORDER_CREATION" as const, nextAction: "Create the controlled work order" } };
+    const html = renderToStaticMarkup(<ShopReconVehicleCard item={stageThreeItem} lifecycleWorkspace={stageThreeLifecycle} />);
+
+    expect(html).toContain("Official Stage 3 Tool");
+    expect(html).toContain("Labor Guide");
+    expect(html).toContain("/diagnostics/labor-guide?repairOrderId=ro-1");
+    expect(html).toContain("Scope Builder packet reviewed");
+    expect(html).toContain("Work order type selected");
+    expect(html).toContain("Labor operations created");
+    expect(html).toContain("Parts/material needs identified");
+    expect(html).toContain("Authorization/approval path attached");
+    expect(html).toContain("Technician stop instructions recorded");
+    expect(html).toContain("Work order ready for dispatch");
+  });
+
+  it("renders Stage 4 with Vehicle Intake & Custody above the custody checklist", () => {
+    const stageFourItem = { ...item, shopLifecycleStage: "VEHICLE_INTAKE_CUSTODY" as const, shopLifecycleLabel: "Vehicle Intake & Custody", shopLifecycleOrder: 4 };
+    const stageFourLifecycle = { ...lifecycleWorkspace, lifecycle: { ...lifecycleWorkspace.lifecycle, stage: "VEHICLE_INTAKE_CUSTODY" as const, nextAction: "Accept physical custody" } };
+    const html = renderToStaticMarkup(<ShopReconVehicleCard item={stageFourItem} lifecycleWorkspace={stageFourLifecycle} />);
+
+    expect(html).toContain("Official Stage 4 Tool");
+    expect(html).toContain("Vehicle Intake &amp; Custody");
+    expect(html).toContain("/vehicles/shop-recon/ro-1/vehicle-intake-custody");
+    expect(html).toContain("Vehicle identity matched");
+    expect(html).toContain("Arrival condition recorded");
+    expect(html).toContain("Keys counted and tagged");
+    expect(html).toContain("Photos/evidence captured");
+    expect(html).toContain("Physical location assigned");
+    expect(html).toContain("Movement restriction noted");
+    expect(html).toContain("Custody accepted");
+  });
+
+  it("renders the official Vehicle Intake & Custody form as the source of truth", () => {
+    const stageFourLifecycle = { ...lifecycleWorkspace, lifecycle: { ...lifecycleWorkspace.lifecycle, stage: "VEHICLE_INTAKE_CUSTODY" as const } };
+    const html = renderToStaticMarkup(<ShopReconVehicleIntakeCustody item={item} lifecycleWorkspace={stageFourLifecycle} returnTo="/vehicles/shop-recon/ro-1" />);
+
+    expect(html).toContain("Physical Check-In Form");
+    expect(html).toContain("Match the vehicle");
+    expect(html).toContain("Keys &amp; custody");
+    expect(html).toContain("Arrival condition");
+    expect(html).toContain("Physical location");
+    expect(html).toContain("I confirm this exact vehicle is now under Shop custody.");
+    expect(html).toContain("Stage 4 checklist");
+    expect(html).toContain("Save Custody Draft");
+    expect(html).toContain("Complete Vehicle Intake");
   });
 });
