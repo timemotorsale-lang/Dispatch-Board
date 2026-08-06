@@ -169,6 +169,24 @@ export const SHOP_RECON_OPERATIONAL_WORKSPACES: readonly ShopReconOperationalWor
       action("ACCEPT_CUSTODY", "Custody accepted", "Confirm the exact vehicle is now under Shop custody.", "Brock or Eli", "Custody acceptance", ["custodyAcceptedBy", "custodyAccepted"]),
     ],
   },
+  {
+    stage: "SAFETY_MOBILITY_TRIAGE",
+    workTitle: "Complete Safety & Mobility Triage",
+    workInstruction: "Open the official triage form to decide how this vehicle may safely move, be road-tested, or enter inspection.",
+    tools: [
+      tool("SAFETY_MOBILITY_TRIAGE", "Safety & Mobility Triage", "#safety-mobility-triage", "Open the official Stage 5 safety and movement decision form."),
+    ],
+    pilotValues: { leaksFluids: "No active leak", brakeSteeringConcern: "Needs caution", fireElectricalRisk: "No fire risk", mobility: "Restricted movement", startRunStatus: "Starts and runs", moveMethod: "Technician or Brock only", roadTestDecision: "Pending technician approval", roadTestReason: "Brake concern", roadTestAuthority: "Walter / Brock", movementRestriction: "No customer road test", containment: "Park in hold zone", physicalHoldLocation: "Safety Hold A", priority: "P2 High", nextAllowedStage: "Inspection / Concern Verification", confirmedBy: "Brock", hazards: "Leaks/fluids: No active leak; Brake/steering: Needs caution; Fire/electrical: No fire risk", safetyDecisionConfirmed: true },
+    actions: [
+      action("SCREEN_IMMEDIATE_HAZARDS", "Immediate safety hazard screen completed", "Record leaks, brake/steering concern, and fire/electrical risk before anyone moves the vehicle.", "Brock or qualified technician", "Immediate hazard screen", ["leaksFluids", "brakeSteeringConcern", "fireElectricalRisk", "hazards"]),
+      action("CLASSIFY_MOBILITY", "Mobility status classified", "Choose how the vehicle may move based on start/run status and movement method.", "Brock or qualified technician", "Mobility classification", ["mobility", "startRunStatus", "moveMethod"]),
+      action("DECIDE_ROAD_TEST", "Road-test eligibility decided", "Decide whether the vehicle may be road-tested, why, and who controls the decision.", "Brock or qualified technician", "Road-test decision", ["roadTestDecision", "roadTestReason", "roadTestAuthority"]),
+      action("RECORD_MOVEMENT_RESTRICTION", "Shop movement restriction recorded", "Record the operating restriction for movement inside the shop or lot.", "Brock or Eli", "Movement restriction", ["movementRestriction"]),
+      action("ASSIGN_PRIORITY", "Priority / risk level assigned", "Assign the operational safety priority that controls urgency and queue behavior.", "Brock", "Priority/risk assignment", ["priority"]),
+      action("RECORD_CONTAINMENT", "Required containment action recorded", "Record the containment action and hold location required before inspection.", "Brock or Eli", "Containment action", ["containment", "physicalHoldLocation"]),
+      action("CONFIRM_TRIAGE_DECISION", "Safety triage decision confirmed", "Confirm the safety and movement decision is clear before the next stage.", "Brock", "Triage confirmation", ["nextAllowedStage", "confirmedBy", "safetyDecisionConfirmed"]),
+    ],
+  },
 ] as const;
 
 export function getShopReconOperationalWorkspace(stage: ShopReconStageCode, lane?: ShopReconWorkLane) {

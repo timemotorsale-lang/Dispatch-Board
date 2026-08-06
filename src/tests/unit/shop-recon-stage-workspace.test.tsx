@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { ShopReconVehicleCard, type ShopReconLifecycleWorkspaceModel, type ShopReconVehicleCardModel } from "@/features/inventory/shop-recon-vehicle-card";
 import { ShopReconVehicleIntakeCustody } from "@/features/inventory/shop-recon-vehicle-intake-custody";
+import { ShopReconSafetyMobilityTriage } from "@/features/inventory/shop-recon-safety-mobility-triage";
 import { ShopReconScopeBuilder } from "@/features/inventory/shop-recon-scope-builder";
 import { SHOP_RECON_STAGES } from "@/server/shop-recon/foundation";
 import { getShopReconOperationalWorkspace, SHOP_RECON_OPERATIONAL_WORKSPACES } from "@/server/shop-recon/operational-workspace";
@@ -39,8 +40,8 @@ describe("Shop Recon unified vehicle-card design", () => {
     }
   });
 
-  it("defines executable operations for the first four shop stages", () => {
-    expect(SHOP_RECON_OPERATIONAL_WORKSPACES).toHaveLength(4);
+  it("defines executable operations for the first five shop stages", () => {
+    expect(SHOP_RECON_OPERATIONAL_WORKSPACES).toHaveLength(5);
     for (const definition of SHOP_RECON_OPERATIONAL_WORKSPACES) {
       expect(definition.actions.length).toBeGreaterThanOrEqual(5);
       for (const action of definition.actions) {
@@ -54,6 +55,7 @@ describe("Shop Recon unified vehicle-card design", () => {
     expect(getShopReconOperationalWorkspace("SERVICE_RECON_JOB_INTAKE", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Open Inventory Vehicle Card", "Open Inventory-to-Shop Handoff", "Open Prior Inspection / Photos", "Accept Shop Handoff"]);
     expect(getShopReconOperationalWorkspace("WORK_ORDER_CREATION", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Labor Guide"]);
     expect(getShopReconOperationalWorkspace("VEHICLE_INTAKE_CUSTODY", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Vehicle Intake & Custody"]);
+    expect(getShopReconOperationalWorkspace("SAFETY_MOBILITY_TRIAGE", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Safety & Mobility Triage"]);
   });
 
   it("renders the Inventory-style identity and active-stage operating workspace", () => {
@@ -170,5 +172,38 @@ describe("Shop Recon unified vehicle-card design", () => {
     expect(html).toContain("Stage 4 checklist");
     expect(html).toContain("Save Custody Draft");
     expect(html).toContain("Complete Vehicle Intake");
+  });
+
+  it("renders Stage 5 with Safety & Mobility Triage above the safety checklist", () => {
+    const stageFiveItem = { ...item, shopLifecycleStage: "SAFETY_MOBILITY_TRIAGE" as const, shopLifecycleLabel: "Safety & Mobility Triage", shopLifecycleOrder: 5 };
+    const stageFiveLifecycle = { ...lifecycleWorkspace, lifecycle: { ...lifecycleWorkspace.lifecycle, stage: "SAFETY_MOBILITY_TRIAGE" as const, nextAction: "Triage safety and mobility" } };
+    const html = renderToStaticMarkup(<ShopReconVehicleCard item={stageFiveItem} lifecycleWorkspace={stageFiveLifecycle} />);
+
+    expect(html).toContain("Official Stage 5 Tool");
+    expect(html).toContain("Safety &amp; Mobility Triage");
+    expect(html).toContain("/vehicles/shop-recon/ro-1/safety-mobility-triage");
+    expect(html).toContain("Immediate safety hazard screen completed");
+    expect(html).toContain("Mobility status classified");
+    expect(html).toContain("Road-test eligibility decided");
+    expect(html).toContain("Shop movement restriction recorded");
+    expect(html).toContain("Priority / risk level assigned");
+    expect(html).toContain("Required containment action recorded");
+    expect(html).toContain("Safety triage decision confirmed");
+  });
+
+  it("renders the official Safety & Mobility Triage form as the source of truth", () => {
+    const stageFiveLifecycle = { ...lifecycleWorkspace, lifecycle: { ...lifecycleWorkspace.lifecycle, stage: "SAFETY_MOBILITY_TRIAGE" as const } };
+    const html = renderToStaticMarkup(<ShopReconSafetyMobilityTriage item={item} lifecycleWorkspace={stageFiveLifecycle} returnTo="/vehicles/shop-recon/ro-1" />);
+
+    expect(html).toContain("Safety &amp; Mobility Triage Form");
+    expect(html).toContain("Immediate hazard screen");
+    expect(html).toContain("Mobility status");
+    expect(html).toContain("Road-test eligibility");
+    expect(html).toContain("Restriction &amp; containment");
+    expect(html).toContain("Triage decision");
+    expect(html).toContain("I confirm the safety and movement decision is clear for this vehicle.");
+    expect(html).toContain("Stage 5 checklist");
+    expect(html).toContain("Save Triage Draft");
+    expect(html).toContain("Complete Safety Triage");
   });
 });
