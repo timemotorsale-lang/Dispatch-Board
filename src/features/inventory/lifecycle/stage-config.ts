@@ -37,7 +37,7 @@ export const lifecycleStages: LifecycleStage[] = [
     owner: "Acquisition manager",
     deadline: "Before any transport release",
     blockerPolicy: "Missing identity, title, economics, or authority keeps the vehicle outside inventory.",
-    actionLabel: "Simulate acquisition handoff",
+    actionLabel: "Release to Transportation",
     tasks: [
       action("Validate vehicle and seller identity", "VIN, seller authority, source listing, disclosures, and duplicate review agree.", "Buyer", "Identity proof"),
       action("Complete condition and market appraisal", "Condition, market comparables, expected retail, and days-to-sell are documented.", "Appraiser", "Appraisal"),
@@ -56,14 +56,16 @@ export const lifecycleStages: LifecycleStage[] = [
     owner: "Logistics coordinator",
     deadline: "Delivery target plus escalation SLA",
     blockerPolicy: "Release, tow, carrier, delay, damage, or routing exceptions remain assigned until resolved.",
-    actionLabel: "Simulate transportation handoff",
+    actionLabel: "Release to Receiving",
     tasks: [
-      action("Establish where the vehicle is currently", "Auction source and exact current location are confirmed before dispatch begins.", "Transportation", "Source confirmation"),
-      action("Confirm gate pass and auction release", "Gate pass, release desk coordination, paperwork, and auction-held keys are ready.", "Transportation", "Release readiness"),
-      action("Coordinate driver movement to the auction", "Driver, Uber support, tow, or carrier plan, destination, cost, and ETA are approved.", "Transportation", "Driver coordination"),
-      action("Decide whether to drive or tow and complete pre-trip checks", "Drive or tow decision, oil, coolant, plate reminder, and jumper reminder are complete.", "Driver", "Movement readiness"),
-      action("Capture pickup custody and departure", "Pickup contact, odometer, signatures, and departure proof are recorded; auction photos are recommended when TMS staff drive.", "Driver", "Pickup proof"),
-      action("Prove delivery and receiving acceptance", "Arrival, keys, location, and custody transfer are accepted so receiving can create the photo baseline.", "Receiver", "Delivery proof"),
+      action("Current source location confirmed", "Source type, exact location, source contact, and physical vehicle verification are recorded.", "Transportation", "Source confirmation"),
+      action("Release/gate pass readiness confirmed", "Gate pass, release desk, and release path are ready before dispatch.", "Transportation", "Release readiness"),
+      action("Keys and paperwork confirmed", "Keys status and release paperwork are verified or the exception is assigned.", "Transportation", "Keys and paperwork"),
+      action("Driver/vendor assigned", "Internal driver, tow, carrier, or vendor responsibility is named.", "Transportation", "Driver assignment"),
+      action("Destination and pickup window confirmed", "Receiving destination, pickup window, ETA, and expected transport cost are recorded.", "Transportation", "Pickup window"),
+      action("Movement method selected", "Drive, tow, carrier, or hold decision is recorded before the vehicle leaves source.", "Transportation", "Movement method"),
+      action("Safety/pre-trip decision recorded", "Starts/runs status, oil/coolant checks when driving, plate reminder, and jumper readiness are recorded.", "Driver", "Pre-trip decision"),
+      action("Open transportation blockers resolved or assigned", "Delay, damage, no-release, unsafe-to-drive, reroute, or other blockers have an owner.", "Transportation lead", "Blocker control"),
     ],
   },
   {
@@ -75,7 +77,7 @@ export const lifecycleStages: LifecycleStage[] = [
     owner: "Receiving coordinator",
     deadline: "Within 30 minutes of arrival",
     blockerPolicy: "Identity mismatch or disputed custody creates a receiving hold.",
-    actionLabel: "Simulate receiving handoff",
+    actionLabel: "Release to Intake",
     tasks: [
       action("Scan and match the VIN", "The physical VIN matches acquisition, transport, and canonical records.", "Receiver", "VIN scan"),
       action("Record arrival facts", "Time, odometer, exact location, fuel or charge, keys, documents, and releasing party are complete.", "Receiver", "Arrival record"),
@@ -94,7 +96,7 @@ export const lifecycleStages: LifecycleStage[] = [
     owner: "Inventory coordinator",
     deadline: "Same shift as receiving",
     blockerPolicy: "Duplicates, missing InventoryUnit, ownership, or identity issues are resolved in place.",
-    actionLabel: "Simulate intake handoff",
+    actionLabel: "Release to Inspection",
     tasks: [
       action("Confirm canonical vehicle linkage", "Vehicle 360, VIN, InventoryUnit, stock number, and source record are linked.", "Coordinator", "Canonical link"),
       action("Validate decoded vehicle facts", "Year, make, model, trim, body, drivetrain, engine, and factory facts are reviewed.", "Coordinator", "Decode snapshot"),
@@ -113,7 +115,7 @@ export const lifecycleStages: LifecycleStage[] = [
     owner: "Certified inspector",
     deadline: "Within the assigned inspection slot",
     blockerPolicy: "Unsafe-to-move findings immediately stop movement and create a safety hold.",
-    actionLabel: "Simulate inspection handoff",
+    actionLabel: "Release to Initial QC",
     tasks: [
       action("Perform identity and safety pre-check", "VIN, warnings, recalls, restraints, tires, brakes, steering, and mobility risks are checked.", "Inspector", "Safety check"),
       action("Complete mechanical and bodywork inspection", "Powertrain, fluids, cooling, charging, suspension, exhaust, HVAC, leaks, body panels, paint, dents, scratches, rust, and repair quality are evaluated.", "Inspector", "Mechanical and bodywork checklist"),
@@ -132,7 +134,7 @@ export const lifecycleStages: LifecycleStage[] = [
     owner: "QC reviewer",
     deadline: "Before any work order is released",
     blockerPolicy: "Failed evidence returns only the affected item to inspection with a correction request.",
-    actionLabel: "Simulate initial QC handoff",
+    actionLabel: "Release to Work Order",
     tasks: [
       action("Audit inspection completeness", "Every applicable system and required evidence item is present.", "QC reviewer", "Completeness audit"),
       action("Validate safety classification", "Mobility, recall, restraint, brake, tire, and warning findings use the correct severity.", "QC reviewer", "Safety decision"),
@@ -151,7 +153,7 @@ export const lifecycleStages: LifecycleStage[] = [
     owner: "Recon planner",
     deadline: "Before technician or vendor dispatch",
     blockerPolicy: "Over-limit cost or missing authority routes to the exact approver without losing the plan.",
-    actionLabel: "Simulate work-order handoff",
+    actionLabel: "Release to Recon & Repair",
     tasks: [
       action("Create jobs from accepted findings", "Every approved finding belongs to a controlled diagnostic, repair, vendor, or detail job.", "Planner", "Job map"),
       action("Estimate labor and parts", "Labor, rates, parts, fees, tax, sublet, and contingency are versioned.", "Estimator", "Estimate"),
@@ -170,7 +172,7 @@ export const lifecycleStages: LifecycleStage[] = [
     owner: "Recon team lead",
     deadline: "Per job target and frontline date",
     blockerPolicy: "Approval, part, bay, vendor, diagnosis, or rework blockers remain visible with one owner.",
-    actionLabel: "Simulate recon handoff",
+    actionLabel: "Release to Final QC",
     tasks: [
       action("Acknowledge the next ready job", "The technician or vendor accepts scope, vehicle, bay, and target.", "Technician", "Job acceptance"),
       action("Complete required diagnosis", "Tests, root cause, safety relevance, and revised recommendation are documented.", "Technician", "Diagnosis"),
@@ -189,7 +191,7 @@ export const lifecycleStages: LifecycleStage[] = [
     owner: "Final QC inspector",
     deadline: "Before detailing release",
     blockerPolicy: "A failed item returns to its exact job through a controlled rework loop.",
-    actionLabel: "Simulate final QC handoff",
+    actionLabel: "Release to Detailing",
     tasks: [
       action("Verify every completed job", "Scope, parts, workmanship, torque, fluid, fit, and evidence match authorization.", "QC inspector", "Job verification"),
       action("Complete the final diagnostic scan", "Codes, monitors, warning indicators, resets, and calibrations are verified.", "QC inspector", "Final scan"),
@@ -208,7 +210,7 @@ export const lifecycleStages: LifecycleStage[] = [
     owner: "Detail team lead",
     deadline: "Before the media appointment",
     blockerPolicy: "Damage beyond detail scope returns to an approved repair or disclosure decision.",
-    actionLabel: "Simulate detailing handoff",
+    actionLabel: "Release to Photos & Marketing",
     tasks: [
       action("Confirm detail scope and condition", "Approved services, disclosures, materials, keys, and location are verified.", "Detail lead", "Detail scope"),
       action("Complete exterior preparation", "Wash, decontamination, finish, glass, wheels, tires, trim, and jambs meet standard.", "Detailer", "Exterior checklist"),
@@ -227,7 +229,7 @@ export const lifecycleStages: LifecycleStage[] = [
     owner: "Merchandising manager",
     deadline: "Same day as detail completion",
     blockerPolicy: "Missing media, title hold, safety issue, disclosure, or price prevents publication.",
-    actionLabel: "Simulate media handoff",
+    actionLabel: "Release to Title Readiness",
     tasks: [
       action("Capture the required media set", "Exterior, interior, feature, VIN, dash, cargo, wheels, defects, and disclosure photos pass.", "Photographer", "Photo set"),
       action("Verify canonical specifications", "Decoded facts and observed equipment are reconciled without duplicate entry.", "Merchandiser", "Spec review"),
@@ -246,7 +248,7 @@ export const lifecycleStages: LifecycleStage[] = [
     owner: "Inventory title specialist",
     deadline: "Before sale finalization",
     blockerPolicy: "A title hold blocks sale completion and names the exact missing correction.",
-    actionLabel: "Simulate title-readiness handoff",
+    actionLabel: "Release to Selling",
     tasks: [
       action("Match title identity", "VIN, owner, seller, year, make, odometer, and jurisdiction match source records.", "Title specialist", "Identity match"),
       action("Verify ownership chain", "Assignments, powers of attorney, bills of sale, and reassignments are complete.", "Title specialist", "Chain review"),
@@ -265,7 +267,7 @@ export const lifecycleStages: LifecycleStage[] = [
     owner: "Sales manager",
     deadline: "Through accepted buyer agreement",
     blockerPolicy: "Availability, pricing, finance, title, or disclosure conflict pauses contracting.",
-    actionLabel: "Simulate selling handoff",
+    actionLabel: "Release to Sale Titling",
     tasks: [
       action("Confirm frontline availability", "Vehicle, keys, location, price, disclosures, media, and test-drive readiness are current.", "Sales coordinator", "Availability"),
       action("Manage customer engagement", "Inquiry, appointment, demonstration, and follow-up are linked to this vehicle.", "Sales advisor", "Activity log"),
@@ -284,7 +286,7 @@ export const lifecycleStages: LifecycleStage[] = [
     owner: "Customer title specialist",
     deadline: "Jurisdiction filing deadline",
     blockerPolicy: "Field, signature, payment, identity, or document defects prevent submission.",
-    actionLabel: "Simulate transfer handoff",
+    actionLabel: "Release to Filing",
     tasks: [
       action("Verify buyer and jurisdiction", "Legal names, address, identity, insurance, entity, and jurisdiction are confirmed.", "Title specialist", "Buyer verification"),
       action("Prepare transfer documents", "Assignment, registration, tax, odometer, lienholder, plates, and disclosures are generated.", "Title specialist", "Transfer packet"),
@@ -303,7 +305,7 @@ export const lifecycleStages: LifecycleStage[] = [
     owner: "Deal file coordinator",
     deadline: "Policy retention and close deadline",
     blockerPolicy: "The file stays open with an exact missing-document owner and due date.",
-    actionLabel: "Simulate filing handoff",
+    actionLabel: "Release to Post-Sale",
     tasks: [
       action("Assemble the complete record", "Acquisition, transport, inventory, recon, title, sale, payment, and transfer records are present.", "File coordinator", "Document index"),
       action("Reconcile authoritative versions", "Final appraisal, work order, estimate, contract, title, and disclosure versions agree.", "Auditor", "Version audit"),
@@ -322,7 +324,7 @@ export const lifecycleStages: LifecycleStage[] = [
     owner: "Post-sale coordinator",
     deadline: "Until all obligations are closed",
     blockerPolicy: "Only unresolved obligations remain open, each with owner, due date, and escalation.",
-    actionLabel: "Simulate lifecycle closure",
+    actionLabel: "Close Lifecycle",
     tasks: [
       action("Confirm delivery completion", "Vehicle, keys, documents, condition, orientation, and acceptance are recorded.", "Delivery specialist", "Delivery proof"),
       action("Close promises and due bills", "Accessories, repairs, we-owe items, appointments, and commitments are complete.", "Coordinator", "Promise closure"),

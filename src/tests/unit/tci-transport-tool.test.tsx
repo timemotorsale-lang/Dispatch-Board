@@ -8,11 +8,12 @@ describe("TciTransportTool", () => {
     const markup = renderToStaticMarkup(<TciTransportTool onProgressChange={() => undefined} />);
 
     expect(markup).toContain("TMS Transport Custody Intelligence");
-    expect(markup).toContain("TCI transportation custody workspace");
-    expect(markup).toContain("Establish where the vehicle is currently");
-    expect(markup).toContain("Confirm gate pass and auction release");
-    expect(markup).toContain("Coordinate driver movement to the auction");
-    expect(markup).toContain("Decide whether to drive or tow and complete pre-trip checks");
+    expect(markup).toContain("Transportation Custody Builder");
+    expect(markup).toContain("Source location");
+    expect(markup).toContain("Release readiness");
+    expect(markup).toContain("Driver / carrier coordination");
+    expect(markup).toContain("Movement safety");
+    expect(markup).toContain("0/8 checklist lines cleared");
     expect(markup).toContain("Operational work trail");
     expect(markup).toContain("No transportation action has been recorded yet.");
   });
