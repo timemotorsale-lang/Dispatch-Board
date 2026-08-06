@@ -329,6 +329,24 @@ describe("Shop Recon unified vehicle-card design", () => {
     expect(html).toContain("Readiness decision submitted");
   });
 
+  it("synchronizes source-tool facts into stage checklist readiness", () => {
+    const stageTenItem = { ...item, shopLifecycleStage: "PARTS_RESOURCE_READINESS" as const, shopLifecycleLabel: "Parts & Resource Readiness", shopLifecycleOrder: 10 };
+    const stageTenLifecycle: ShopReconLifecycleWorkspaceModel = {
+      ...lifecycleWorkspace,
+      lifecycle: { ...lifecycleWorkspace.lifecycle, stage: "PARTS_RESOURCE_READINESS" as const, nextAction: "Confirm parts and resources" },
+      currentEvidence: {
+        id: "ev-10", stage: "PARTS_RESOURCE_READINESS", scopeVersion: 1, version: 1,
+        payload: { partReservations: { demand: { quantityRequired: 1, quantityReserved: 1 } }, partsReady: true, procedureCurrent: true, technicianEligible: true, bayEligible: true, readinessDecisionSubmitted: true },
+        sourceReferences: [], publishedAt: "2026-08-04T16:00:00.000Z", publishedByUserId: "brock", publishedByName: "Brock", reason: "Published parts readiness.",
+      },
+    };
+    const html = renderToStaticMarkup(<ShopReconVehicleCard item={stageTenItem} lifecycleWorkspace={stageTenLifecycle} />);
+
+    expect(html).toContain("Source tool sync");
+    expect(html).toContain("4 checklist lines cleared from saved tool facts or published evidence.");
+    expect(html).toContain("4/6 ready");
+  });
+
   it("renders Stage 11 with Shop Dispatch and Repair Workbench above the dispatch checklist", () => {
     const stageElevenItem = { ...item, shopLifecycleStage: "DISPATCH_WORK_STAGING" as const, shopLifecycleLabel: "Dispatch & Work Staging", shopLifecycleOrder: 11 };
     const stageElevenLifecycle = { ...lifecycleWorkspace, lifecycle: { ...lifecycleWorkspace.lifecycle, stage: "DISPATCH_WORK_STAGING" as const, nextAction: "Dispatch and stage work" } };
@@ -398,6 +416,16 @@ describe("Shop Recon unified vehicle-card design", () => {
     expect(html).toContain("Road test completed or marked not required");
     expect(html).toContain("QC disposition passed");
     expect(html).toContain("Rework loop controlled if failed");
+  });
+
+  it("shows blocker and loop guidance for constrained operational stages", () => {
+    const blockedItem = { ...item, waitingParts: true, shopLifecycleStage: "PARTS_RESOURCE_READINESS" as const, shopLifecycleLabel: "Parts & Resource Readiness", shopLifecycleOrder: 10 };
+    const blockedLifecycle = { ...lifecycleWorkspace, lifecycle: { ...lifecycleWorkspace.lifecycle, stage: "PARTS_RESOURCE_READINESS" as const, blockerCodes: ["BLK-PARTS-NOT_READY"], nextAction: "Resolve parts readiness" } };
+    const html = renderToStaticMarkup(<ShopReconVehicleCard item={blockedItem} lifecycleWorkspace={blockedLifecycle} />);
+
+    expect(html).toContain("Parts blocker: keep the vehicle out of dispatch until Parts Ordering shows ready or no parts required.");
+    expect(html).toContain("Active blocker: BLK-PARTS-NOT_READY.");
+    expect(html).toContain("0/6 blocked");
   });
 
   it("renders Stage 15 with lane-aware release readiness tools above the checklist", () => {
