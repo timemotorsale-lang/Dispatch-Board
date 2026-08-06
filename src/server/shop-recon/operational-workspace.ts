@@ -303,6 +303,123 @@ export const SHOP_RECON_OPERATIONAL_WORKSPACES: readonly ShopReconOperationalWor
       action("PUBLISH_DISPATCH", "Dispatch published", "Record who, where, when, and under what instructions the work is dispatched.", "Brock or Eli", "Attributable dispatch publication", ["dispatchPublished"]),
     ],
   },
+  {
+    stage: "REPAIR_EXECUTION",
+    workTitle: "Perform the authorized repair",
+    workInstruction: "Use Technician Workspace / My Work to start, pause, resume, finish, and evidence the assigned repair. Use Repair Workbench to review the current authorized instructions.",
+    tools: [
+      tool("TECHNICIAN_WORKSPACE", "Technician Workspace / My Work", "/my-tasks", "Open the technician's current assigned repair and labor controls."),
+      tool("REPAIR_WORKBENCH_EXECUTION", "Repair Workbench", "/vehicles/repair-workbench", "Open the repair order workbench to review the authorized work packet, estimate, jobs, and timeline."),
+    ],
+    pilotValues: { dispatchAcceptedWorkStarted: true, authorizedInstructionsReviewedForRepair: true, laborClockEventRecorded: true, authorizedRepairWorkPerformed: true, partsMaterialsConsumedRecorded: true, repairEvidenceMeasurementsAttached: true, changedScopeStoppedOrNoChangeConfirmed: true },
+    actions: [
+      action("ACCEPT_DISPATCH_START_WORK", "Dispatch accepted and work started", "Technician accepts the dispatched job and begins only the authorized work.", "Walter Hernandez or assigned technician", "Repair dispatch acceptance and start", ["dispatchAcceptedWorkStarted"]),
+      action("REVIEW_CURRENT_INSTRUCTIONS", "Current authorized instructions reviewed", "Review the latest scope, stop rules, safety limits, parts status, and procedure notes before repair.", "Walter Hernandez or assigned technician", "Current instruction review", ["authorizedInstructionsReviewedForRepair"]),
+      action("RECORD_LABOR_EVENT", "Labor clock / event recorded", "Record an attributable labor start, pause, resume, or finish event in the technician workspace.", "Walter Hernandez or assigned technician", "Labor clock / event", ["laborClockEventRecorded"]),
+      action("PERFORM_AUTHORIZED_REPAIR", "Authorized repair work performed", "Perform only the authorized repair work using the current procedure and staged resources.", "Walter Hernandez or assigned technician", "Repair work record", ["authorizedRepairWorkPerformed"]),
+      action("RECORD_PARTS_MATERIALS", "Parts/materials consumed recorded", "Record installed parts, fluids, materials, or no-consumption status against the repair.", "Walter Hernandez or assigned technician", "Parts/material consumption record", ["partsMaterialsConsumedRecorded"]),
+      action("ATTACH_REPAIR_EVIDENCE", "Repair evidence / measurements attached", "Attach photos, measurements, scan results, readings, or repair proof required for QC.", "Walter Hernandez or assigned technician", "Repair execution evidence", ["repairEvidenceMeasurementsAttached"]),
+      action("CONTROL_CHANGED_SCOPE", "Changed scope stopped or no-change confirmed", "If new findings exceed authorization, stop affected work and submit changed scope; otherwise confirm no scope change.", "Walter Hernandez or Brock", "Changed-scope control", ["changedScopeStoppedOrNoChangeConfirmed"]),
+    ],
+  },
+  {
+    stage: "TECHNICIAN_COMPLETION",
+    workTitle: "Complete technician sign-off",
+    workInstruction: "Use Technician Workspace / My Work to finish labor, document the correction, attach completion evidence, and submit the repair for independent QC.",
+    tools: [
+      tool("TECHNICIAN_WORKSPACE", "Technician Workspace / My Work", "/my-tasks", "Open the technician's assigned repair, finish labor, and submit completion evidence."),
+      tool("REPAIR_WORKBENCH_EXECUTION", "Repair Workbench", "/vehicles/repair-workbench", "Open the repair order workbench to review job status, execution evidence, and timeline."),
+    ],
+    pilotValues: { executionCompleteConfirmed: true, completionEvidenceAttached: true, laborClosedNoRunningClock: true, correctionMeasurementsDocumented: true, submittedForIndependentQc: true },
+    actions: [
+      action("CONFIRM_EXECUTION_COMPLETE", "Execution complete confirmed", "Confirm the authorized repair work is complete enough for QC.", "Walter Hernandez or assigned technician", "Execution completion confirmation", ["executionCompleteConfirmed"]),
+      action("ATTACH_COMPLETION_EVIDENCE", "Completion evidence attached", "Confirm required photos, measurements, scans, readings, or proof are attached.", "Walter Hernandez or assigned technician", "Completion evidence", ["completionEvidenceAttached"]),
+      action("CLOSE_LABOR", "Labor closed / no running clock", "Confirm labor is finished and no running clock remains for the repair.", "Walter Hernandez or assigned technician", "Closed labor record", ["laborClosedNoRunningClock"]),
+      action("DOCUMENT_CORRECTION", "Correction and measurements documented", "Document the correction performed, final measurements, and technician notes.", "Walter Hernandez or assigned technician", "Technician correction statement", ["correctionMeasurementsDocumented"]),
+      action("SUBMIT_FOR_QC", "Submitted for independent QC", "Submit the completed repair packet for independent QC and road-test decision.", "Walter Hernandez or assigned technician", "QC-ready submission", ["submittedForIndependentQc"]),
+    ],
+  },
+  {
+    stage: "QUALITY_CONTROL_ROAD_TEST",
+    workTitle: "Perform QC and road-test decision",
+    workInstruction: "Use Quality Control as the independent verification workspace. Failed QC or road test returns the vehicle to repair execution for rework.",
+    tools: [
+      tool("QUALITY_CONTROL", "Quality Control", "/vehicles/quality-control", "Open the QC workspace to inspect, road test, pass, hold, or send the repair back to rework."),
+      tool("REPAIR_WORKBENCH_EXECUTION", "Repair Workbench", "/vehicles/repair-workbench", "Open the repair order workbench to review technician completion evidence."),
+    ],
+    pilotValues: { repairEvidenceReviewedForQc: true, independentQcPerformed: true, roadTestCompletedOrNotRequired: true, qcDispositionPassed: true, reworkLoopControlledIfFailed: true },
+    actions: [
+      action("REVIEW_REPAIR_EVIDENCE", "Repair evidence reviewed", "Review technician completion evidence, measurements, notes, and repair history.", "Brock or QC authority", "Repair evidence review", ["repairEvidenceReviewedForQc"]),
+      action("PERFORM_INDEPENDENT_QC", "Independent QC performed", "Perform QC independently from the repair technician whenever possible.", "Brock or QC authority", "Independent QC inspection", ["independentQcPerformed"]),
+      action("COMPLETE_ROAD_TEST_DECISION", "Road test completed or marked not required", "Record road-test pass, fail, or not-required reason.", "Brock or eligible road-test staff", "Road-test result", ["roadTestCompletedOrNotRequired"]),
+      action("PASS_QC_DISPOSITION", "QC disposition passed", "Record the QC pass decision that allows release readiness.", "Brock or QC authority", "QC pass disposition", ["qcDispositionPassed"]),
+      action("CONTROL_REWORK_LOOP", "Rework loop controlled if failed", "If QC or road test fails, route back to Repair Execution; otherwise confirm no rework loop is open.", "Brock", "QC rework control", ["reworkLoopControlledIfFailed"]),
+    ],
+  },
+  {
+    stage: "RELEASE_HANDOVER_READINESS",
+    workTitle: "Prepare release and handover",
+    workInstruction: "Use the lane return tool to prepare the vehicle for release: Service Advisor for customer vehicles, Inventory Lifecycle for dealership units.",
+    tools: [
+      tool("SERVICE_ADVISOR", "Service Advisor / Customer Release", "/vehicles/advisor", "Open Service Advisor to prepare customer communication, payment, promise, and release readiness."),
+      tool("INVENTORY_LIFECYCLE_RETURN", "Inventory Lifecycle Return", "/vehicles/inventory", "Open Inventory Lifecycle to prepare dealership-owned vehicle return."),
+      tool("REPAIR_WORKBENCH_EXECUTION", "Repair Workbench", "/vehicles/repair-workbench", "Open the repair order workbench to review final cost, QC, and release evidence."),
+    ],
+    pilotValues: { qcRoadTestPassConfirmed: true, finalScopeCostReconciled: true, keysDocumentsReconciled: true, destinationReceivingPartyConfirmed: true, releaseReadinessSubmitted: true },
+    actions: [
+      action("CONFIRM_QC_ROAD_TEST", "QC and road-test pass confirmed", "Confirm QC passed and road test passed or was not required.", "Brock", "QC and road-test confirmation", ["qcRoadTestPassConfirmed"]),
+      action("RECONCILE_SCOPE_COST", "Final scope and cost reconciled", "Confirm final scope, cost, approved amount, declined work, and lane-specific charges are reconciled.", "Brock or Service Advisor", "Final scope/cost reconciliation", ["finalScopeCostReconciled"]),
+      action("RECONCILE_KEYS_DOCUMENTS", "Keys and documents reconciled", "Confirm keys, documents, photos, final notes, and required release records are ready.", "Brock or Service Advisor", "Key/document reconciliation", ["keysDocumentsReconciled"]),
+      action("CONFIRM_DESTINATION_RECEIVER", "Destination and receiving party confirmed", "Confirm the vehicle returns to Inventory Lifecycle or Service Advisor/customer handoff as appropriate.", "Brock or receiving owner", "Destination and receiving-party confirmation", ["destinationReceivingPartyConfirmed"]),
+      action("SUBMIT_RELEASE_READINESS", "Release readiness submitted", "Submit release readiness so physical handoff can occur.", "Brock or Service Advisor", "Release-readiness submission", ["releaseReadinessSubmitted"]),
+    ],
+    laneVariants: {
+      INVENTORY_RECON: {
+        tools: [
+          tool("INVENTORY_LIFECYCLE_RETURN", "Inventory Lifecycle Return", "/vehicles/inventory", "Open Inventory Lifecycle to prepare dealership-owned vehicle return."),
+          tool("REPAIR_WORKBENCH_EXECUTION", "Repair Workbench", "/vehicles/repair-workbench", "Open the repair order workbench to review final cost, QC, and release evidence."),
+        ],
+      },
+      CUSTOMER_REPAIR: {
+        tools: [
+          tool("SERVICE_ADVISOR", "Service Advisor / Customer Release", "/vehicles/advisor", "Open Service Advisor to prepare customer communication, payment, promise, and release readiness."),
+          tool("REPAIR_WORKBENCH_EXECUTION", "Repair Workbench", "/vehicles/repair-workbench", "Open the repair order workbench to review final cost, QC, and release evidence."),
+        ],
+      },
+    },
+  },
+  {
+    stage: "VEHICLE_HANDOVER_SHOP_EXIT",
+    workTitle: "Record vehicle handover and Shop exit",
+    workInstruction: "Use the lane return tool to record accepted custody transfer and the vehicle's physical exit from Shop control.",
+    tools: [
+      tool("SERVICE_ADVISOR", "Service Advisor / Customer Handoff", "/vehicles/advisor", "Open Service Advisor for customer handoff and delivery acceptance."),
+      tool("INVENTORY_LIFECYCLE_RETURN", "Inventory Lifecycle Return", "/vehicles/inventory", "Open Inventory Lifecycle for dealership-owned vehicle return acceptance."),
+      tool("VEHICLE_360", "Vehicle 360", "/vehicles/360", "Open the vehicle record to verify final location, custody, and evidence."),
+    ],
+    pilotValues: { releaseReadinessVerified: true, vehicleKeysTransferred: true, receivingPartyAcceptanceCaptured: true, finalLocationExitRecorded: true, returnPathSynced: true },
+    actions: [
+      action("VERIFY_RELEASE_READINESS", "Release readiness verified", "Confirm the release-readiness version is current before physical handoff.", "Brock or Eli", "Release-readiness verification", ["releaseReadinessVerified"]),
+      action("TRANSFER_VEHICLE_KEYS", "Vehicle and keys transferred", "Confirm vehicle, keys, documents, and custody are transferred to the receiving party.", "Brock or Eli", "Vehicle/key transfer", ["vehicleKeysTransferred"]),
+      action("CAPTURE_RECEIVER_ACCEPTANCE", "Receiving-party acceptance captured", "Record the receiving Inventory owner, Service Advisor, or customer acceptance.", "Brock or receiving owner", "Receiving-party acceptance", ["receivingPartyAcceptanceCaptured"]),
+      action("RECORD_FINAL_EXIT", "Final location and exit recorded", "Record final location, exit time, and physical Shop exit.", "Brock or Eli", "Final location and exit record", ["finalLocationExitRecorded"]),
+      action("SYNC_RETURN_PATH", "Return path synced", "Confirm the card returns to Inventory Lifecycle or Service Advisor/customer handoff.", "Brock or receiving owner", "Return-path sync", ["returnPathSynced"]),
+    ],
+    laneVariants: {
+      INVENTORY_RECON: {
+        tools: [
+          tool("INVENTORY_LIFECYCLE_RETURN", "Inventory Lifecycle Return", "/vehicles/inventory", "Open Inventory Lifecycle for dealership-owned vehicle return acceptance."),
+          tool("VEHICLE_360", "Vehicle 360", "/vehicles/360", "Open the vehicle record to verify final location, custody, and evidence."),
+        ],
+      },
+      CUSTOMER_REPAIR: {
+        tools: [
+          tool("SERVICE_ADVISOR", "Service Advisor / Customer Handoff", "/vehicles/advisor", "Open Service Advisor for customer handoff and delivery acceptance."),
+          tool("VEHICLE_360", "Vehicle 360", "/vehicles/360", "Open the vehicle record to verify final location, custody, and evidence."),
+        ],
+      },
+    },
+  },
 ] as const;
 
 export function getShopReconOperationalWorkspace(stage: ShopReconStageCode, lane?: ShopReconWorkLane) {

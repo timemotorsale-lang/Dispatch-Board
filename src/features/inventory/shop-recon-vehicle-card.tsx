@@ -85,7 +85,7 @@ export function ShopReconVehicleCard({ item, lifecycleWorkspace, returnTo = "/ve
   const evidence = useMemo(() => evidenceText.split("\n").map(value => value.trim()).filter(Boolean), [evidenceText]);
   const activeOverrides = lifecycleWorkspace.overrides.filter(record => !record.expiresAt || new Date(record.expiresAt) > new Date());
   const pilotProgress = item.pilot ? evaluateShopReconPilotProgress(item.pilot, currentIndex + 1, lifecycle.operatingState) : [];
-  const sourceWorkspace = currentIndex === 7 || currentIndex === 8 ? { href: `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(item.id)}`, label: "Open estimate & authorization workspace" } : currentIndex === 9 ? { href: `/diagnostics/parts-ordering?repairOrderId=${encodeURIComponent(item.id)}&repairOrderNumber=${encodeURIComponent(item.repairOrderNumber)}&vehicle=${encodeURIComponent(item.vehicle)}&returnTo=${encodeURIComponent(returnTo)}`, label: "Open Parts Ordering Form" } : currentIndex >= 10 && currentIndex <= 13 ? { href: "/vehicles/shop-dispatch", label: currentIndex >= 12 ? "Open technician execution workspace" : "Open dispatch & assignment workspace" } : currentIndex === 14 ? { href: "/vehicles/quality-control", label: "Open QC & release workspace" } : currentIndex === 15 ? { href: "/vehicles/advisor", label: "Open recipient readiness workspace" } : null;
+  const sourceWorkspace = currentIndex === 7 || currentIndex === 8 ? { href: `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(item.id)}`, label: "Open estimate & authorization workspace" } : currentIndex === 9 ? { href: `/diagnostics/parts-ordering?repairOrderId=${encodeURIComponent(item.id)}&repairOrderNumber=${encodeURIComponent(item.repairOrderNumber)}&vehicle=${encodeURIComponent(item.vehicle)}&returnTo=${encodeURIComponent(returnTo)}`, label: "Open Parts Ordering Form" } : currentIndex === 10 ? { href: "/vehicles/shop-dispatch", label: "Open dispatch & assignment workspace" } : currentIndex === 11 ? { href: "/my-tasks", label: "Open technician execution workspace" } : currentIndex >= 12 && currentIndex <= 13 ? { href: "/vehicles/shop-dispatch", label: "Open technician execution workspace" } : currentIndex === 14 ? { href: "/vehicles/quality-control", label: "Open QC & release workspace" } : currentIndex === 15 ? { href: "/vehicles/advisor", label: "Open recipient readiness workspace" } : null;
   const activityEntries = operationalActivity(formData.__activity).slice().reverse();
   const stageTitle = operationalWorkspace?.summaryTitle ?? selectedDefinition.label;
   const stagePurpose = operationalWorkspace?.summaryInstruction ?? workspace.purpose;
@@ -166,7 +166,44 @@ export function ShopReconVehicleCard({ item, lifecycleWorkspace, returnTo = "/ve
     item_6: formData.wipQueuePositionConfirmed === true,
     item_7: formData.dispatchPublished === true,
   } : {};
-  const activeChecklist: Record<string, boolean> = selectedStage === "JOB_SCOPE_DEFINITION" ? { ...checklist, ...scopeBuilderChecklist } : selectedStage === "VEHICLE_INTAKE_CUSTODY" ? { ...checklist, ...vehicleIntakeChecklist } : selectedStage === "SAFETY_MOBILITY_TRIAGE" ? { ...checklist, ...safetyTriageChecklist } : selectedStage === "INSPECTION_CONCERN_VERIFICATION" ? { ...checklist, ...inspectionChecklist } : selectedStage === "DIAGNOSIS" ? { ...checklist, ...diagnosisChecklist } : selectedStage === "FINDINGS_REPAIR_PLAN" ? { ...checklist, ...findingsRepairPlanChecklist } : selectedStage === "AUTHORIZATION" ? { ...checklist, ...authorizationChecklist } : selectedStage === "PARTS_RESOURCE_READINESS" ? { ...checklist, ...partsResourceReadinessChecklist } : selectedStage === "DISPATCH_WORK_STAGING" ? { ...checklist, ...dispatchWorkStagingChecklist } : checklist;
+  const repairExecutionChecklist: Record<string, boolean> = selectedStage === "REPAIR_EXECUTION" ? {
+    item_1: formData.dispatchAcceptedWorkStarted === true,
+    item_2: formData.authorizedInstructionsReviewedForRepair === true,
+    item_3: formData.laborClockEventRecorded === true,
+    item_4: formData.authorizedRepairWorkPerformed === true,
+    item_5: formData.partsMaterialsConsumedRecorded === true,
+    item_6: formData.repairEvidenceMeasurementsAttached === true,
+    item_7: formData.changedScopeStoppedOrNoChangeConfirmed === true,
+  } : {};
+  const technicianCompletionChecklist: Record<string, boolean> = selectedStage === "TECHNICIAN_COMPLETION" ? {
+    item_1: formData.executionCompleteConfirmed === true,
+    item_2: formData.completionEvidenceAttached === true,
+    item_3: formData.laborClosedNoRunningClock === true,
+    item_4: formData.correctionMeasurementsDocumented === true,
+    item_5: formData.submittedForIndependentQc === true,
+  } : {};
+  const qualityControlChecklist: Record<string, boolean> = selectedStage === "QUALITY_CONTROL_ROAD_TEST" ? {
+    item_1: formData.repairEvidenceReviewedForQc === true,
+    item_2: formData.independentQcPerformed === true,
+    item_3: formData.roadTestCompletedOrNotRequired === true,
+    item_4: formData.qcDispositionPassed === true,
+    item_5: formData.reworkLoopControlledIfFailed === true,
+  } : {};
+  const releaseReadinessChecklist: Record<string, boolean> = selectedStage === "RELEASE_HANDOVER_READINESS" ? {
+    item_1: formData.qcRoadTestPassConfirmed === true,
+    item_2: formData.finalScopeCostReconciled === true,
+    item_3: formData.keysDocumentsReconciled === true,
+    item_4: formData.destinationReceivingPartyConfirmed === true,
+    item_5: formData.releaseReadinessSubmitted === true,
+  } : {};
+  const shopExitChecklist: Record<string, boolean> = selectedStage === "VEHICLE_HANDOVER_SHOP_EXIT" ? {
+    item_1: formData.releaseReadinessVerified === true,
+    item_2: formData.vehicleKeysTransferred === true,
+    item_3: formData.receivingPartyAcceptanceCaptured === true,
+    item_4: formData.finalLocationExitRecorded === true,
+    item_5: formData.returnPathSynced === true,
+  } : {};
+  const activeChecklist: Record<string, boolean> = selectedStage === "JOB_SCOPE_DEFINITION" ? { ...checklist, ...scopeBuilderChecklist } : selectedStage === "VEHICLE_INTAKE_CUSTODY" ? { ...checklist, ...vehicleIntakeChecklist } : selectedStage === "SAFETY_MOBILITY_TRIAGE" ? { ...checklist, ...safetyTriageChecklist } : selectedStage === "INSPECTION_CONCERN_VERIFICATION" ? { ...checklist, ...inspectionChecklist } : selectedStage === "DIAGNOSIS" ? { ...checklist, ...diagnosisChecklist } : selectedStage === "FINDINGS_REPAIR_PLAN" ? { ...checklist, ...findingsRepairPlanChecklist } : selectedStage === "AUTHORIZATION" ? { ...checklist, ...authorizationChecklist } : selectedStage === "PARTS_RESOURCE_READINESS" ? { ...checklist, ...partsResourceReadinessChecklist } : selectedStage === "DISPATCH_WORK_STAGING" ? { ...checklist, ...dispatchWorkStagingChecklist } : selectedStage === "REPAIR_EXECUTION" ? { ...checklist, ...repairExecutionChecklist } : selectedStage === "TECHNICIAN_COMPLETION" ? { ...checklist, ...technicianCompletionChecklist } : selectedStage === "QUALITY_CONTROL_ROAD_TEST" ? { ...checklist, ...qualityControlChecklist } : selectedStage === "RELEASE_HANDOVER_READINESS" ? { ...checklist, ...releaseReadinessChecklist } : selectedStage === "VEHICLE_HANDOVER_SHOP_EXIT" ? { ...checklist, ...shopExitChecklist } : checklist;
 
   async function post(path: string, body: Record<string, unknown>) { const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); const result = await response.json(); if (!response.ok) throw new Error(result.error ?? "The action could not be completed."); return result; }
   async function saveDraft() { setBusy(true); setFeedback(null); try { await post(`/api/shop-recon/${item.id}/draft`, { stage: lifecycle.stage, expectedVersion: lifecycle.version, idempotencyKey: crypto.randomUUID(), reason: saveReason, checklist: activeChecklist, formData, evidence }); setDirty(false); setFeedback({ tone: "success", text: "Draft saved. The vehicle did not move; your name and save time were recorded." }); window.location.reload(); } catch (error) { setFeedback({ tone: "error", text: error instanceof Error ? error.message : "Draft could not be saved." }); } finally { setBusy(false); } }
@@ -311,7 +348,7 @@ export function ShopReconVehicleCard({ item, lifecycleWorkspace, returnTo = "/ve
           {workspaceView === "work" ? <div className="srv-operational-work">
             <header><div><small>Perform the work here</small><h3>{selectedStage === "JOB_SCOPE_DEFINITION" ? "Follow the Job Scope Checklist" : operationalWorkspace.workTitle}</h3><p>{operationalWorkspace.workInstruction}</p>{selectedStage !== "JOB_SCOPE_DEFINITION" && operationalWorkspace.tools?.length ? <nav aria-label={`${workspace.formTitle} tools`} className="srv-stage-tools">{operationalWorkspace.tools.map(tool => <Link href={resolveStageToolHref(tool, item, returnTo)} key={tool.key} title={tool.description}><FileText />{tool.label}</Link>)}</nav> : null}</div><div className="srv-operational-header-actions"><span>{isCurrent ? `Working as ${lifecycleWorkspace.permissions.currentUserName}` : `Preview only · Stage ${currentIndex + 1} is active`}</span>{item.pilot && isCurrent ? <button onClick={loadPilotExample} type="button"><FlaskConical />Load sample stage work</button> : null}</div></header>
             {workGuidance ? <p className="srv-work-guidance"><AlertTriangle /><span>{workGuidance}</span></p> : null}
-            {selectedStage === "JOB_SCOPE_DEFINITION" ? <ScopeCommandWorkspace checklist={activeChecklist} item={item} returnTo={returnTo} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "WORK_ORDER_CREATION" ? <WorkOrderCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={returnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "VEHICLE_INTAKE_CUSTODY" ? <VehicleIntakeCommandWorkspace checklist={activeChecklist} item={item} returnTo={returnTo} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "SAFETY_MOBILITY_TRIAGE" ? <SafetyTriageCommandWorkspace checklist={activeChecklist} item={item} returnTo={returnTo} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "INSPECTION_CONCERN_VERIFICATION" ? <InspectionVerificationCommandWorkspace checklist={activeChecklist} item={item} returnTo={returnTo} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "DIAGNOSIS" ? <DiagnosisCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={returnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "FINDINGS_REPAIR_PLAN" ? <FindingsRepairPlanCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={returnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "AUTHORIZATION" ? <AuthorizationCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={returnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "PARTS_RESOURCE_READINESS" ? <PartsResourceReadinessCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={returnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "DISPATCH_WORK_STAGING" ? <DispatchWorkStagingCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={returnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : <div className="srv-operational-grid">
+            {selectedStage === "JOB_SCOPE_DEFINITION" ? <ScopeCommandWorkspace checklist={activeChecklist} item={item} returnTo={returnTo} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "WORK_ORDER_CREATION" ? <WorkOrderCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={returnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "VEHICLE_INTAKE_CUSTODY" ? <VehicleIntakeCommandWorkspace checklist={activeChecklist} item={item} returnTo={returnTo} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "SAFETY_MOBILITY_TRIAGE" ? <SafetyTriageCommandWorkspace checklist={activeChecklist} item={item} returnTo={returnTo} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "INSPECTION_CONCERN_VERIFICATION" ? <InspectionVerificationCommandWorkspace checklist={activeChecklist} item={item} returnTo={returnTo} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "DIAGNOSIS" ? <DiagnosisCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={returnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "FINDINGS_REPAIR_PLAN" ? <FindingsRepairPlanCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={returnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "AUTHORIZATION" ? <AuthorizationCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={returnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "PARTS_RESOURCE_READINESS" ? <PartsResourceReadinessCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={returnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "DISPATCH_WORK_STAGING" ? <DispatchWorkStagingCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={returnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "REPAIR_EXECUTION" ? <RepairExecutionCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={returnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "TECHNICIAN_COMPLETION" ? <TechnicianCompletionCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={returnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "QUALITY_CONTROL_ROAD_TEST" ? <QualityControlCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={returnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "RELEASE_HANDOVER_READINESS" ? <ReleaseReadinessCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={returnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : selectedStage === "VEHICLE_HANDOVER_SHOP_EXIT" ? <ShopExitCommandWorkspace busy={busy} checklist={activeChecklist} isCurrent={isCurrent} item={item} onChange={changed} returnTo={returnTo} setChecklist={setChecklist} setFormData={setFormData} tools={operationalWorkspace.tools ?? []} /> : <div className="srv-operational-grid">
               <section className="srv-operation-list">{operationalWorkspace.actions.map((action, index) => { const labelFor = (key: string) => operationalWorkspace.summaryFields?.find(item => item.key === key)?.label ?? workspace.fields.find(item => item.key === key)?.label ?? key, completed = checklist[`item_${index + 1}`] === true, missing = action.requiredFields.filter(field => !fieldHasValue(formData[field])), ready = missing.length === 0; return <article className={completed ? "complete" : ""} key={action.key}><header><i>{completed ? <Check /> : index + 1}</i><div><strong>{action.title}</strong><small>{action.owner}</small></div><b>{completed ? "Recorded" : ready ? "Ready" : "Needs facts"}</b></header><p>{action.instruction}</p><dl><div><dt>Required record</dt><dd>{action.requiredFields.map(labelFor).join(" · ")}</dd></div><div><dt>Evidence created</dt><dd>{action.evidence}</dd></div></dl>{!completed && !ready && isCurrent ? <small className="srv-operation-help">Click below to enter: {missing.map(labelFor).join(" and ")}</small> : null}<button disabled={busy} onClick={() => recordOperationalAction(index)} type="button">{!isCurrent ? <><RotateCcw />Return to active Stage {currentIndex + 1}</> : completed ? <><RotateCcw />Reopen operation</> : ready ? <><CheckCircle2 />Record operation</> : <><FileText />Enter required facts</>}</button></article>; })}</section>
               {usesExternalIntake ? <IntakeSummaryPanel formData={formData} item={item} returnTo={returnTo} summaryFields={operationalWorkspace.summaryFields ?? []} summaryInstruction={operationalWorkspace.summaryInstruction} summaryTitle={operationalWorkspace.summaryTitle} tools={operationalWorkspace.tools ?? []} /> : <section className="srv-stage-record"><header><FileText /><div><h3>{workspace.formTitle}</h3><p>Enter the facts used by the operations. Changing a recorded fact reopens its operation for confirmation.</p></div><span>{lifecycleWorkspace.currentDraft?.revision ? `Saved v${lifecycleWorkspace.currentDraft.revision}` : "Unsaved work"}</span></header><div>{workspace.fields.map(field => isCurrent ? <OperationalField disabled={busy} field={field} key={field.key} onChange={updateOperationalField} value={formData[field.key]} /> : <PreviewField field={field} key={field.key} />)}</div></section>}
             </div>}
@@ -372,6 +409,21 @@ function resolveStageToolHref(tool: ShopReconOperationalTool, item: ShopReconVeh
     const params = new URLSearchParams({ repairOrderId: item.id, ...(item.vehicleId ? { vehicleId: item.vehicleId } : {}), returnTo });
     return `/vehicles/shop-dispatch?${params.toString()}`;
   }
+  if (tool.key === "TECHNICIAN_WORKSPACE") return "/my-tasks";
+  if (tool.key === "REPAIR_WORKBENCH_EXECUTION") {
+    const params = new URLSearchParams({ repairOrderId: item.id, ...(item.vehicleId ? { vehicleId: item.vehicleId } : {}), returnTo });
+    return `/vehicles/repair-workbench?${params.toString()}#repair`;
+  }
+  if (tool.key === "QUALITY_CONTROL") {
+    const params = new URLSearchParams({ repairOrderId: item.id, ...(item.vehicleId ? { vehicleId: item.vehicleId } : {}), returnTo });
+    return `/vehicles/quality-control?${params.toString()}`;
+  }
+  if (tool.key === "SERVICE_ADVISOR") {
+    const params = new URLSearchParams({ repairOrderId: item.id, ...(item.vehicleId ? { vehicleId: item.vehicleId } : {}), returnTo });
+    return `/vehicles/advisor?${params.toString()}`;
+  }
+  if (tool.key === "INVENTORY_LIFECYCLE_RETURN" && item.vehicleId) return `/vehicles/${encodeURIComponent(item.vehicleId)}/inventory-planning?returnTo=${encodedReturn}`;
+  if (tool.key === "VEHICLE_360" && item.vehicleId) return `/vehicles/360/${encodeURIComponent(item.vehicleId)}?returnTo=${encodedReturn}`;
   if (tool.key === "INVENTORY_CARD" && item.vehicleId) return `/vehicles/360/${encodeURIComponent(item.vehicleId)}?returnTo=${encodedReturn}`;
   if (tool.key === "INVENTORY_LIFECYCLE_AUTHORIZATION" && item.vehicleId) return `/vehicles/${encodeURIComponent(item.vehicleId)}/inventory-planning?returnTo=${encodedReturn}`;
   if (tool.key === "INVENTORY_HANDOFF" && item.vehicleId) return `/vehicles/repair-orders?intakeSource=INVENTORY_RECON&vehicleId=${encodeURIComponent(item.vehicleId)}&returnTo=${encodedReturn}`;
@@ -635,6 +687,90 @@ function DispatchWorkStagingCommandWorkspace({ busy, checklist, isCurrent, item,
     <header><ClipboardCheck /><div><small>Official Stage 11 Tools</small><h3>Shop Dispatch + Repair Workbench</h3><p>Use Shop Dispatch as the control tower for assignment, bay, WIP, keys, parts, and staging. Use Repair Workbench to review the current authorized instructions.</p></div><span>{completed}/7 checked</span></header>
     <section className="srv-scope-tool-tray single" aria-label="Dispatch & Work Staging tool links">{tools.map(tool => <Link href={resolveStageToolHref(tool, item, returnTo)} key={tool.key}><FileText /><span><b>Open {tool.label}</b>{tool.description}</span></Link>)}</section>
     <section className="srv-scope-action-checklist official" aria-label="Checklist required to unlock Stage 11">{gates.map(([label, fieldKey, checked, note], index) => <button className={checked ? "checked" : ""} disabled={!isCurrent || busy} key={fieldKey} onClick={() => toggle(index, fieldKey, checked)} type="button"><i>{checked ? <Check /> : index + 1}</i><div><strong>{label}</strong><span>{note}</span></div><b>{checked ? "Checked" : "Check when done"}</b></button>)}</section>
+  </section>;
+}
+
+function RepairExecutionCommandWorkspace({ busy, checklist, isCurrent, item, onChange, returnTo, setChecklist, setFormData, tools }: { busy: boolean; checklist: Record<string, boolean>; isCurrent: boolean; item: ShopReconVehicleCardModel; onChange: () => void; returnTo: string; setChecklist: Dispatch<SetStateAction<Record<string, boolean>>>; setFormData: Dispatch<SetStateAction<Record<string, unknown>>>; tools: readonly ShopReconOperationalTool[] }) {
+  const gates = [
+    ["Dispatch accepted and work started", "dispatchAcceptedWorkStarted", checklist.item_1, "The assigned technician accepted the dispatched job and began controlled work."],
+    ["Current authorized instructions reviewed", "authorizedInstructionsReviewedForRepair", checklist.item_2, "Latest scope, stop rules, safety limits, parts status, and procedure notes are reviewed."],
+    ["Labor clock / event recorded", "laborClockEventRecorded", checklist.item_3, "An attributable labor start, pause, resume, or finish event exists."],
+    ["Authorized repair work performed", "authorizedRepairWorkPerformed", checklist.item_4, "Only the approved repair work was performed using current procedures and staged resources."],
+    ["Parts/materials consumed recorded", "partsMaterialsConsumedRecorded", checklist.item_5, "Installed parts, fluids, materials, or no-consumption status are recorded."],
+    ["Repair evidence / measurements attached", "repairEvidenceMeasurementsAttached", checklist.item_6, "Photos, measurements, scans, readings, or repair proof are attached for QC."],
+    ["Changed scope stopped or no-change confirmed", "changedScopeStoppedOrNoChangeConfirmed", checklist.item_7, "New findings were stopped for scope review, or no scope change is confirmed."],
+  ] as const;
+  const completed = gates.filter(([, , checked]) => checked).length;
+  function toggle(index: number, fieldKey: string, current: boolean) {
+    if (!isCurrent || busy) return;
+    const next = !current;
+    setChecklist(value => ({ ...value, [`item_${index + 1}`]: next }));
+    setFormData(value => ({ ...value, [fieldKey]: next }));
+    onChange();
+  }
+  return <section className="srv-scope-command lifecycle-style" aria-label="Repair Execution Checklist">
+    <header><ClipboardCheck /><div><small>Official Stage 12 Tools</small><h3>Technician Workspace + Repair Workbench</h3><p>Use Technician Workspace / My Work for labor clocks, repair events, evidence, and changed-scope control. Use Repair Workbench to review the current authorized packet.</p></div><span>{completed}/7 checked</span></header>
+    <section className="srv-scope-tool-tray single" aria-label="Repair Execution tool links">{tools.map(tool => <Link href={resolveStageToolHref(tool, item, returnTo)} key={tool.key}><FileText /><span><b>Open {tool.label}</b>{tool.description}</span></Link>)}</section>
+    <section className="srv-scope-action-checklist official" aria-label="Checklist required to unlock Stage 12">{gates.map(([label, fieldKey, checked, note], index) => <button className={checked ? "checked" : ""} disabled={!isCurrent || busy} key={fieldKey} onClick={() => toggle(index, fieldKey, checked)} type="button"><i>{checked ? <Check /> : index + 1}</i><div><strong>{label}</strong><span>{note}</span></div><b>{checked ? "Checked" : "Check when done"}</b></button>)}</section>
+  </section>;
+}
+
+function TechnicianCompletionCommandWorkspace(props: FinalStageCommandProps) {
+  return <FinalStageCommandWorkspace {...props} ariaLabel="Technician Completion Checklist" checklistLabel="Checklist required to unlock Stage 13" countLabel="5" gates={[
+    ["Execution complete confirmed", "executionCompleteConfirmed", props.checklist.item_1, "The authorized repair is complete enough for QC."],
+    ["Completion evidence attached", "completionEvidenceAttached", props.checklist.item_2, "Photos, measurements, scans, readings, or proof are attached."],
+    ["Labor closed / no running clock", "laborClosedNoRunningClock", props.checklist.item_3, "Labor is finished and no running repair clock remains."],
+    ["Correction and measurements documented", "correctionMeasurementsDocumented", props.checklist.item_4, "The correction, final measurements, and technician notes are documented."],
+    ["Submitted for independent QC", "submittedForIndependentQc", props.checklist.item_5, "The completed repair packet is submitted for QC."],
+  ]} heading="Technician Workspace + Repair Workbench" stageLabel="Official Stage 13 Tools" text="Use Technician Workspace / My Work to finish labor and submit completion evidence. Use Repair Workbench to review job status and execution history." />;
+}
+
+function QualityControlCommandWorkspace(props: FinalStageCommandProps) {
+  return <FinalStageCommandWorkspace {...props} ariaLabel="Quality Control & Road Test Checklist" checklistLabel="Checklist required to unlock Stage 14" countLabel="5" gates={[
+    ["Repair evidence reviewed", "repairEvidenceReviewedForQc", props.checklist.item_1, "Technician completion evidence and repair history are reviewed."],
+    ["Independent QC performed", "independentQcPerformed", props.checklist.item_2, "QC is performed independently from the repair technician whenever possible."],
+    ["Road test completed or marked not required", "roadTestCompletedOrNotRequired", props.checklist.item_3, "Road test result or not-required reason is recorded."],
+    ["QC disposition passed", "qcDispositionPassed", props.checklist.item_4, "QC pass decision is recorded for release readiness."],
+    ["Rework loop controlled if failed", "reworkLoopControlledIfFailed", props.checklist.item_5, "Failed QC/road test is routed back to repair; otherwise no rework loop is open."],
+  ]} heading="Quality Control + Repair Workbench" stageLabel="Official Stage 14 Tools" text="Use Quality Control for independent verification and road-test decision. Failed QC returns to repair execution for rework." />;
+}
+
+function ReleaseReadinessCommandWorkspace(props: FinalStageCommandProps) {
+  const inventory = props.item.workLane === "INVENTORY_RECON";
+  return <FinalStageCommandWorkspace {...props} ariaLabel="Release & Handover Readiness Checklist" checklistLabel="Checklist required to unlock Stage 15" countLabel="5" gates={[
+    ["QC and road-test pass confirmed", "qcRoadTestPassConfirmed", props.checklist.item_1, "QC passed and road test passed or was not required."],
+    ["Final scope and cost reconciled", "finalScopeCostReconciled", props.checklist.item_2, "Final scope, cost, approval, declined work, and lane-specific charges are reconciled."],
+    ["Keys and documents reconciled", "keysDocumentsReconciled", props.checklist.item_3, "Keys, documents, photos, and final notes are ready."],
+    ["Destination and receiving party confirmed", "destinationReceivingPartyConfirmed", props.checklist.item_4, "The receiving destination and accountable receiving party are clear."],
+    ["Release readiness submitted", "releaseReadinessSubmitted", props.checklist.item_5, "Release readiness is submitted for physical handoff."],
+  ]} heading={inventory ? "Inventory Lifecycle Return + Repair Workbench" : "Service Advisor + Repair Workbench"} stageLabel="Official Stage 15 Tools" text={inventory ? "Prepare the dealership-owned vehicle to return to Inventory Lifecycle with final cost, QC, keys, and readiness evidence." : "Prepare the customer vehicle for advisor/customer release with final cost, QC, keys, and readiness evidence."} />;
+}
+
+function ShopExitCommandWorkspace(props: FinalStageCommandProps) {
+  const inventory = props.item.workLane === "INVENTORY_RECON";
+  return <FinalStageCommandWorkspace {...props} ariaLabel="Vehicle Handover & Shop Exit Checklist" checklistLabel="Checklist required to unlock Stage 16" countLabel="5" gates={[
+    ["Release readiness verified", "releaseReadinessVerified", props.checklist.item_1, "The current release-readiness version is verified before handoff."],
+    ["Vehicle and keys transferred", "vehicleKeysTransferred", props.checklist.item_2, "Vehicle, keys, documents, and custody are transferred."],
+    ["Receiving-party acceptance captured", "receivingPartyAcceptanceCaptured", props.checklist.item_3, "Receiving Inventory owner, Service Advisor, or customer acceptance is recorded."],
+    ["Final location and exit recorded", "finalLocationExitRecorded", props.checklist.item_4, "Final location, exit time, and physical Shop exit are recorded."],
+    ["Return path synced", "returnPathSynced", props.checklist.item_5, "The card returns to Inventory Lifecycle or Service Advisor/customer handoff."],
+  ]} heading={inventory ? "Inventory Lifecycle Return + Vehicle 360" : "Service Advisor + Vehicle 360"} stageLabel="Official Stage 16 Tools" text={inventory ? "Record accepted custody transfer back to Inventory Lifecycle and close Shop control." : "Record customer/advisor handoff, final custody transfer, and Shop exit."} />;
+}
+
+type FinalStageCommandProps = { busy: boolean; checklist: Record<string, boolean>; isCurrent: boolean; item: ShopReconVehicleCardModel; onChange: () => void; returnTo: string; setChecklist: Dispatch<SetStateAction<Record<string, boolean>>>; setFormData: Dispatch<SetStateAction<Record<string, unknown>>>; tools: readonly ShopReconOperationalTool[] };
+function FinalStageCommandWorkspace({ ariaLabel, busy, checklistLabel, countLabel, gates, heading, isCurrent, item, onChange, returnTo, setChecklist, setFormData, stageLabel, text, tools }: FinalStageCommandProps & { ariaLabel: string; checklistLabel: string; countLabel: string; gates: readonly (readonly [string, string, boolean, string])[]; heading: string; stageLabel: string; text: string }) {
+  const completed = gates.filter(([, , checked]) => checked).length;
+  function toggle(index: number, fieldKey: string, current: boolean) {
+    if (!isCurrent || busy) return;
+    const next = !current;
+    setChecklist(value => ({ ...value, [`item_${index + 1}`]: next }));
+    setFormData(value => ({ ...value, [fieldKey]: next }));
+    onChange();
+  }
+  return <section className="srv-scope-command lifecycle-style" aria-label={ariaLabel}>
+    <header><ClipboardCheck /><div><small>{stageLabel}</small><h3>{heading}</h3><p>{text}</p></div><span>{completed}/{countLabel} checked</span></header>
+    <section className="srv-scope-tool-tray single" aria-label={`${ariaLabel} tool links`}>{tools.map(tool => <Link href={resolveStageToolHref(tool, item, returnTo)} key={tool.key}><FileText /><span><b>Open {tool.label}</b>{tool.description}</span></Link>)}</section>
+    <section className="srv-scope-action-checklist official" aria-label={checklistLabel}>{gates.map(([label, fieldKey, checked, note], index) => <button className={checked ? "checked" : ""} disabled={!isCurrent || busy} key={fieldKey} onClick={() => toggle(index, fieldKey, checked)} type="button"><i>{checked ? <Check /> : index + 1}</i><div><strong>{label}</strong><span>{note}</span></div><b>{checked ? "Checked" : "Check when done"}</b></button>)}</section>
   </section>;
 }
 

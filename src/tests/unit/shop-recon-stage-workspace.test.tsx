@@ -41,8 +41,8 @@ describe("Shop Recon unified vehicle-card design", () => {
     }
   });
 
-  it("defines executable operations for the first eleven shop stages", () => {
-    expect(SHOP_RECON_OPERATIONAL_WORKSPACES).toHaveLength(11);
+  it("defines executable operations for all sixteen shop stages", () => {
+    expect(SHOP_RECON_OPERATIONAL_WORKSPACES).toHaveLength(16);
     for (const definition of SHOP_RECON_OPERATIONAL_WORKSPACES) {
       expect(definition.actions.length).toBeGreaterThanOrEqual(5);
       for (const action of definition.actions) {
@@ -64,6 +64,11 @@ describe("Shop Recon unified vehicle-card design", () => {
     expect(getShopReconOperationalWorkspace("AUTHORIZATION", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Repair Workbench / Authorization", "Inventory Lifecycle Authorization"]);
     expect(getShopReconOperationalWorkspace("PARTS_RESOURCE_READINESS", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Parts Ordering Form", "Repair Workbench"]);
     expect(getShopReconOperationalWorkspace("DISPATCH_WORK_STAGING", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Shop Dispatch / Assignment", "Repair Workbench"]);
+    expect(getShopReconOperationalWorkspace("REPAIR_EXECUTION", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Technician Workspace / My Work", "Repair Workbench"]);
+    expect(getShopReconOperationalWorkspace("TECHNICIAN_COMPLETION", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Technician Workspace / My Work", "Repair Workbench"]);
+    expect(getShopReconOperationalWorkspace("QUALITY_CONTROL_ROAD_TEST", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Quality Control", "Repair Workbench"]);
+    expect(getShopReconOperationalWorkspace("RELEASE_HANDOVER_READINESS", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Inventory Lifecycle Return", "Repair Workbench"]);
+    expect(getShopReconOperationalWorkspace("VEHICLE_HANDOVER_SHOP_EXIT", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Inventory Lifecycle Return", "Vehicle 360"]);
   });
 
   it("renders the Inventory-style identity and active-stage operating workspace", () => {
@@ -342,5 +347,88 @@ describe("Shop Recon unified vehicle-card design", () => {
     expect(html).toContain("Current repair instructions reviewed");
     expect(html).toContain("WIP limit / queue position confirmed");
     expect(html).toContain("Dispatch published");
+  });
+
+  it("renders Stage 12 with Technician Workspace and Repair Workbench above the repair execution checklist", () => {
+    const stageTwelveItem = { ...item, shopLifecycleStage: "REPAIR_EXECUTION" as const, shopLifecycleLabel: "Repair Execution", shopLifecycleOrder: 12 };
+    const stageTwelveLifecycle = { ...lifecycleWorkspace, lifecycle: { ...lifecycleWorkspace.lifecycle, stage: "REPAIR_EXECUTION" as const, nextAction: "Perform authorized repair" } };
+    const html = renderToStaticMarkup(<ShopReconVehicleCard item={stageTwelveItem} lifecycleWorkspace={stageTwelveLifecycle} />);
+
+    expect(html).toContain("Official Stage 12 Tools");
+    expect(html).toContain("Technician Workspace + Repair Workbench");
+    expect(html).toContain("Open Technician Workspace / My Work");
+    expect(html).toContain("/my-tasks");
+    expect(html).toContain("Open Repair Workbench");
+    expect(html).toContain("/vehicles/repair-workbench?repairOrderId=ro-1&amp;vehicleId=vehicle-1");
+    expect(html).toContain("#repair");
+    expect(html).toContain("Dispatch accepted and work started");
+    expect(html).toContain("Current authorized instructions reviewed");
+    expect(html).toContain("Labor clock / event recorded");
+    expect(html).toContain("Authorized repair work performed");
+    expect(html).toContain("Parts/materials consumed recorded");
+    expect(html).toContain("Repair evidence / measurements attached");
+    expect(html).toContain("Changed scope stopped or no-change confirmed");
+  });
+
+  it("renders Stage 13 with technician completion tools above the sign-off checklist", () => {
+    const stageThirteenItem = { ...item, shopLifecycleStage: "TECHNICIAN_COMPLETION" as const, shopLifecycleLabel: "Technician Completion", shopLifecycleOrder: 13 };
+    const stageThirteenLifecycle = { ...lifecycleWorkspace, lifecycle: { ...lifecycleWorkspace.lifecycle, stage: "TECHNICIAN_COMPLETION" as const, nextAction: "Complete technician sign-off" } };
+    const html = renderToStaticMarkup(<ShopReconVehicleCard item={stageThirteenItem} lifecycleWorkspace={stageThirteenLifecycle} />);
+
+    expect(html).toContain("Official Stage 13 Tools");
+    expect(html).toContain("Technician Workspace + Repair Workbench");
+    expect(html).toContain("Execution complete confirmed");
+    expect(html).toContain("Completion evidence attached");
+    expect(html).toContain("Labor closed / no running clock");
+    expect(html).toContain("Correction and measurements documented");
+    expect(html).toContain("Submitted for independent QC");
+  });
+
+  it("renders Stage 14 with Quality Control above the QC checklist", () => {
+    const stageFourteenItem = { ...item, shopLifecycleStage: "QUALITY_CONTROL_ROAD_TEST" as const, shopLifecycleLabel: "Quality Control & Road Test", shopLifecycleOrder: 14 };
+    const stageFourteenLifecycle = { ...lifecycleWorkspace, lifecycle: { ...lifecycleWorkspace.lifecycle, stage: "QUALITY_CONTROL_ROAD_TEST" as const, nextAction: "Perform QC and road test" } };
+    const html = renderToStaticMarkup(<ShopReconVehicleCard item={stageFourteenItem} lifecycleWorkspace={stageFourteenLifecycle} />);
+
+    expect(html).toContain("Official Stage 14 Tools");
+    expect(html).toContain("Quality Control + Repair Workbench");
+    expect(html).toContain("Open Quality Control");
+    expect(html).toContain("/vehicles/quality-control?repairOrderId=ro-1&amp;vehicleId=vehicle-1");
+    expect(html).toContain("Repair evidence reviewed");
+    expect(html).toContain("Independent QC performed");
+    expect(html).toContain("Road test completed or marked not required");
+    expect(html).toContain("QC disposition passed");
+    expect(html).toContain("Rework loop controlled if failed");
+  });
+
+  it("renders Stage 15 with lane-aware release readiness tools above the checklist", () => {
+    const stageFifteenItem = { ...item, shopLifecycleStage: "RELEASE_HANDOVER_READINESS" as const, shopLifecycleLabel: "Release & Handover Readiness", shopLifecycleOrder: 15 };
+    const stageFifteenLifecycle = { ...lifecycleWorkspace, lifecycle: { ...lifecycleWorkspace.lifecycle, stage: "RELEASE_HANDOVER_READINESS" as const, nextAction: "Prepare release" } };
+    const html = renderToStaticMarkup(<ShopReconVehicleCard item={stageFifteenItem} lifecycleWorkspace={stageFifteenLifecycle} />);
+
+    expect(html).toContain("Official Stage 15 Tools");
+    expect(html).toContain("Inventory Lifecycle Return + Repair Workbench");
+    expect(html).toContain("Open Inventory Lifecycle Return");
+    expect(html).toContain("/vehicles/vehicle-1/inventory-planning");
+    expect(html).toContain("QC and road-test pass confirmed");
+    expect(html).toContain("Final scope and cost reconciled");
+    expect(html).toContain("Keys and documents reconciled");
+    expect(html).toContain("Destination and receiving party confirmed");
+    expect(html).toContain("Release readiness submitted");
+  });
+
+  it("renders Stage 16 with lane-aware Shop exit tools above the handoff checklist", () => {
+    const stageSixteenItem = { ...item, shopLifecycleStage: "VEHICLE_HANDOVER_SHOP_EXIT" as const, shopLifecycleLabel: "Vehicle Handover & Shop Exit", shopLifecycleOrder: 16 };
+    const stageSixteenLifecycle = { ...lifecycleWorkspace, lifecycle: { ...lifecycleWorkspace.lifecycle, stage: "VEHICLE_HANDOVER_SHOP_EXIT" as const, nextAction: "Record Shop exit" } };
+    const html = renderToStaticMarkup(<ShopReconVehicleCard item={stageSixteenItem} lifecycleWorkspace={stageSixteenLifecycle} />);
+
+    expect(html).toContain("Official Stage 16 Tools");
+    expect(html).toContain("Inventory Lifecycle Return + Vehicle 360");
+    expect(html).toContain("Open Vehicle 360");
+    expect(html).toContain("/vehicles/360/vehicle-1");
+    expect(html).toContain("Release readiness verified");
+    expect(html).toContain("Vehicle and keys transferred");
+    expect(html).toContain("Receiving-party acceptance captured");
+    expect(html).toContain("Final location and exit recorded");
+    expect(html).toContain("Return path synced");
   });
 });
