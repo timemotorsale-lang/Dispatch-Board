@@ -116,6 +116,28 @@ describe("R7 Shop & Recon landing projection", () => {
     expect(html).not.toContain("/vehicles/shop-execution");
   });
 
+  it("renders the unified operations command center and optimization intelligence", () => {
+    const projection = buildShopReconProjection([
+      order({ id: "ro-inv", origin: "INVENTORY_RECON", customer: null, inventoryUnit: { inventoryNumber: "INV-200" }, estimateVersions: [{ status: "AUTHORIZED", totalCents: 125000, authorizations: [{ disposition: "ACCEPTED" }] }] }),
+      order({ id: "ro-cust", stage: "READY_FOR_REPAIR", repairJobs: [{ id: "job-1", jobNumber: "1", description: "Front brakes", status: "READY_FOR_REPAIR", partDemands: [{ quantityRequired: 2, quantityReserved: 0 }], dispatches: [] }] }),
+    ], now);
+    const html = renderToStaticMarkup(<ShopReconLanding model={projection} />);
+
+    expect(projection.contractVersion).toBe("shop-recon/r10.0.0");
+    expect(projection.capability).toMatchObject({ unifiedCommandCenter: "ACTIVE", exceptionLoopEngine: "ACTIVE_UI_GUIDANCE", inventoryShopHandoff: "LANE_AWARE_RETURN_PATH" });
+    expect(projection.totals.authorizedReconCents).toBe(125000);
+    expect(html).toContain("Unified Vehicle Command Center");
+    expect(html).toContain("Exception &amp; Loop Engine");
+    expect(html).toContain("Technician Daily Work View");
+    expect(html).toContain("Manager Exception Dashboard");
+    expect(html).toContain("Cross-System Handoff Rules");
+    expect(html).toContain("Cost &amp; Profitability Intelligence");
+    expect(html).toContain("Returns to Inventory Lifecycle");
+    expect(html).toContain("Returns to Service Advisor / Customer");
+    expect(html).toContain("Hold dispatch until parts are ready");
+    expect(html).toContain("$1,250 authorized recon captured");
+  });
+
   it("makes blocker category links change the rendered queue and active state", () => {
     const projection = buildShopReconProjection([order({
       repairJobs: [{ id: "job-1", jobNumber: "1", description: "Front brakes", status: "READY_FOR_REPAIR", partDemands: [{ quantityRequired: 2, quantityReserved: 0 }], dispatches: [] }],
