@@ -5,6 +5,7 @@ type SearchParams = Promise<{
   parts?: string | string[];
   repairOrderId?: string | string[];
   repairOrderNumber?: string | string[];
+  returnLabel?: string | string[];
   returnTo?: string | string[];
   vehicle?: string | string[];
 }>;
@@ -50,6 +51,7 @@ export default async function DiagnosticsPartsOrderingPage({ searchParams }: { s
     parts={parts}
     repairOrderId={first(params.repairOrderId)}
     repairOrderNumber={first(params.repairOrderNumber)}
+    returnLabel={first(params.returnLabel)?.slice(0, 120)}
     returnTo={returnTo}
     vehicleLabel={first(params.vehicle)}
   />;

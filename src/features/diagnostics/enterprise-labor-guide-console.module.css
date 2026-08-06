@@ -30,6 +30,20 @@
   margin-bottom: 12px;
 }
 
+.returnLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  margin-bottom: 8px;
+  padding: 8px 11px;
+  border: 1px solid #bfd0e7;
+  border-radius: 8px;
+  background: #fff;
+  color: #123461 !important;
+  font-weight: 800;
+}
+
 .pageHeader h1 {
   margin: 0;
   color: #07142b;

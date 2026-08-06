@@ -192,16 +192,17 @@ const localTabs = [
 type PartsView = (typeof localTabs)[number][1];
 const validViews = new Set<PartsView>(localTabs.map(([, view]) => view));
 
-function partsHref(view: PartsView, repairOrderId?: string, returnTo?: string) {
+function partsHref(view: PartsView, repairOrderId?: string, returnTo?: string, returnLabel?: string) {
   const params = new URLSearchParams();
   if (view !== "overview") params.set("view", view);
   if (repairOrderId) params.set("repairOrderId", repairOrderId);
   if (returnTo) params.set("returnTo", returnTo);
+  if (returnLabel) params.set("returnLabel", returnLabel);
   const query = params.toString();
   return query ? `/vehicles/parts-operations?${query}` : "/vehicles/parts-operations";
 }
 
-export function PartsOperationsWorkspace({ initial, initialRepairOrderId, initialView, returnTo, showAdvisorReturn = false, showPartsReturn = false, showWorkspaceReturn = false }: { initial: Model; initialRepairOrderId?: string; initialView?: string; returnTo?: string; showAdvisorReturn?: boolean; showPartsReturn?: boolean; showWorkspaceReturn?: boolean }) {
+export function PartsOperationsWorkspace({ initial, initialRepairOrderId, initialView, returnLabel, returnTo, showAdvisorReturn = false, showPartsReturn = false, showWorkspaceReturn = false }: { initial: Model; initialRepairOrderId?: string; initialView?: string; returnLabel?: string; returnTo?: string; showAdvisorReturn?: boolean; showPartsReturn?: boolean; showWorkspaceReturn?: boolean }) {
   const currentView: PartsView = validViews.has(initialView as PartsView) ? initialView as PartsView : "overview";
   const [renderedAt] = useState(() => Date.now());
   const [locationId, setLocationId] = useState("ALL");
@@ -406,7 +407,7 @@ export function PartsOperationsWorkspace({ initial, initialRepairOrderId, initia
     <section aria-label={`Parts Operations; Vendor adapters: ${initial.capability.vendorAdapters}; barcode: ${initial.capability.barcodeHardware}; recommendations: ${initial.capability.recommendations}`} className="parts-operations-page">
       <header className="parts-operations-header">
         <div>
-          {returnTo ? <Link href={returnTo}>← Return to inventory lifecycle</Link> : showAdvisorReturn ? <BackToServiceAdvisorWorkspace /> : showPartsReturn ? <BackToPartsWorkspace /> : showWorkspaceReturn ? <BackToVehicleOperationsWorkspace /> : null}
+          {returnTo ? <Link href={returnTo}>&larr; {returnLabel ?? "Return to source workspace"}</Link> : showAdvisorReturn ? <BackToServiceAdvisorWorkspace /> : showPartsReturn ? <BackToPartsWorkspace /> : showWorkspaceReturn ? <BackToVehicleOperationsWorkspace /> : null}
           <p><Link href={returnTo ?? "/vehicles/inventory"}>Inventory Lifecycle</Link><span>/</span><Link href="/vehicles/shop-recon">Shop &amp; Recon</Link><span>/</span>Parts Operations</p>
           <h1>Parts Operations</h1>
           <small>Demand, sourcing, custody, availability, and recovery control</small>
@@ -420,7 +421,7 @@ export function PartsOperationsWorkspace({ initial, initialRepairOrderId, initia
       </header>
 
       <nav aria-label="Parts Operations workspace" className="parts-operations-tabs">
-        {localTabs.map(([label, view]) => <Link aria-current={currentView === view ? "page" : undefined} className={currentView === view ? "active" : ""} href={partsHref(view, initialRepairOrderId, returnTo)} key={label}>{label}</Link>)}
+        {localTabs.map(([label, view]) => <Link aria-current={currentView === view ? "page" : undefined} className={currentView === view ? "active" : ""} href={partsHref(view, initialRepairOrderId, returnTo, returnLabel)} key={label}>{label}</Link>)}
       </nav>
 
       <section aria-label="Parts Operations filters" className="parts-operations-filters">
@@ -445,7 +446,7 @@ export function PartsOperationsWorkspace({ initial, initialRepairOrderId, initia
         <div className="parts-milestones">
           {milestones.map(([label, value, tone], index) => (
             <div className="parts-milestone-wrap" key={label}>
-              <Link className={`parts-milestone parts-state-${tone}`} href={partsHref(localTabs[Math.min(index + 1, localTabs.length - 1)][1], initialRepairOrderId, returnTo)}><span>{label}</span><strong>{value}</strong><i /></Link>
+              <Link className={`parts-milestone parts-state-${tone}`} href={partsHref(localTabs[Math.min(index + 1, localTabs.length - 1)][1], initialRepairOrderId, returnTo, returnLabel)}><span>{label}</span><strong>{value}</strong><i /></Link>
               {index < milestones.length - 1 ? <ArrowRight aria-hidden="true" size={14} /> : null}
             </div>
           ))}
@@ -515,3 +516,4 @@ export function PartsOperationsWorkspace({ initial, initialRepairOrderId, initia
     </section>
   );
 }
+

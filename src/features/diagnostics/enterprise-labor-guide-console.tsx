@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Brain, CarFront, Check, ChevronLeft, ClipboardList, Edit3, Grid2X2, History, List, Package, Plus, ScanBarcode, Search, ShoppingCart, Trash2, UserRound, X } from "lucide-react";
+import { ArrowLeft, BookOpen, Brain, CarFront, Check, ChevronLeft, ClipboardList, Edit3, Grid2X2, History, List, Package, Plus, ScanBarcode, Search, ShoppingCart, Trash2, UserRound, X } from "lucide-react";
 import Link from "next/link";
 import type { KeyboardEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -179,7 +179,7 @@ function matchesRepairText(operation: LaborRepairOperation, searchText: string) 
   return matchedWords.length >= Math.min(2, words.length);
 }
 
-export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "manual", initialQuery = "", initialSelectedWork = "starter", initialWorkTab = "selected", repairTaxonomy }: { activeRepairOrder: ActiveRepairOrder | null; catalog: unknown[]; initialMode?: "manual" | "engine"; initialQuery?: string; initialSelectedWork?: "empty" | "starter" | "transmission"; initialWorkTab?: WorkTab; laborAddOns: unknown[]; repairOrders?: { id: string; label: string }[]; repairTaxonomy: LaborOperationSystem[] }) {
+export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "manual", initialQuery = "", initialSelectedWork = "starter", initialWorkTab = "selected", repairTaxonomy, returnLabel, returnTo }: { activeRepairOrder: ActiveRepairOrder | null; catalog: unknown[]; initialMode?: "manual" | "engine"; initialQuery?: string; initialSelectedWork?: "empty" | "starter" | "transmission"; initialWorkTab?: WorkTab; laborAddOns: unknown[]; repairOrders?: { id: string; label: string }[]; repairTaxonomy: LaborOperationSystem[]; returnLabel?: string; returnTo?: string }) {
   const allOperations = useMemo(() => repairTaxonomy.flatMap((system) => system.groups.flatMap((group) => group.operations)), [repairTaxonomy]);
   const brakeStarter = allOperations.filter((operation) => ["front-brake-pads-rotors", "brake-caliper-front"].includes(operation.id));
   const transmissionStarter = allOperations.filter((operation) => operation.id === "transmission-remove-install");
@@ -661,6 +661,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
     <section className={styles.console} aria-label="RO Creation Workspace">
       <header className={styles.pageHeader}>
         <div>
+          {returnTo ? <Link className={styles.returnLink} href={returnTo}><ArrowLeft size={15} />{returnLabel ?? "Return to source workspace"}</Link> : null}
           <h1>RO Creation Workspace</h1>
           <p>CCC Home / Dispatch Board / Diagnostics / Estimate</p>
         </div>

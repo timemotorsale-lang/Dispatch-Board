@@ -53,12 +53,14 @@ export function DiagnosticsPartsOrderingWorkspace({
   parts,
   repairOrderId,
   repairOrderNumber,
+  returnLabel,
   returnTo,
   vehicleLabel,
 }: {
   parts: PartsDemandLine[];
   repairOrderId?: string;
   repairOrderNumber?: string;
+  returnLabel?: string;
   returnTo: string;
   vehicleLabel?: string;
 }) {
@@ -199,8 +201,8 @@ export function DiagnosticsPartsOrderingWorkspace({
       </div>
 
       <div className={styles.commandRail}>
-        <Link href={repairOrderId ? `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(repairOrderId)}&returnTo=${encodeURIComponent(returnTo)}` : returnTo}><Truck size={15} />Send estimate to repair workbench</Link>
-        <Link href={returnTo}><ScanBarcode size={15} />Return and document parts demand</Link>
+        <Link href={repairOrderId ? `/vehicles/repair-workbench?${new URLSearchParams({ repairOrderId, ...(returnLabel ? { returnLabel } : {}), returnTo }).toString()}` : returnTo}><Truck size={15} />Send estimate to repair workbench</Link>
+        <Link href={returnTo}><ScanBarcode size={15} />{returnLabel ?? "Return and document parts demand"}</Link>
       </div>
     </section>
 

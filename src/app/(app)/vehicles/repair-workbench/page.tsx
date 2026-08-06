@@ -19,6 +19,7 @@ type PageProps = {
     contextError?: string;
     query?: string;
     repairOrderId?: string;
+    returnLabel?: string;
     returnTo?: string;
     vehicleId?: string;
     view?: string;
@@ -51,6 +52,7 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
     params.returnTo?.startsWith("/") && !params.returnTo.startsWith("//")
       ? params.returnTo
       : undefined;
+  const returnLabel = params.returnLabel?.slice(0, 120);
   const showWorkspaceReturn = getPermittedWorkspaces(user).some(
     (workspace) => workspace.key === "VEHICLE_OPERATIONS_LEAD",
   );
@@ -89,6 +91,7 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
         diagnostics={JSON.parse(JSON.stringify(diagnostics))}
         options={{ users: JSON.parse(JSON.stringify(options.users)) }}
         order={JSON.parse(JSON.stringify(order))}
+        returnLabel={returnLabel}
         returnTo={returnTo}
         showAdvisorReturn={showAdvisorReturn}
         showWorkspaceReturn={showWorkspaceReturn}
