@@ -1,6 +1,6 @@
 "use client";
 
-import { BadgeCheck, Calculator, Check, CircleAlert, Gauge, LockKeyhole, ShieldCheck, TrendingUp } from "lucide-react";
+import { BadgeCheck, Calculator, CarFront, Check, CircleAlert, FileText, Gauge, Link as LinkIcon, LockKeyhole, Search, ShieldCheck, TrendingUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import styles from "./inventory-lifecycle-prototype.module.css";
@@ -16,6 +16,36 @@ export type TaiWorkflowProgress = {
   titleComplete: boolean;
 };
 
+type OpportunityDraft = {
+  askingPrice: number;
+  askingPriceStatus: "Provided" | "Seller refused" | "Staff must make first offer" | "Trade appraisal needed" | "Unknown";
+  decodedBody: string;
+  decodedEngine: string;
+  decodedLabel: string;
+  decodedTrim: string;
+  duplicateStatus: "Unchecked" | "Clear" | "Review existing record";
+  intelligenceNotes: string[];
+  localMarketRetail: number;
+  marketValue: number;
+  marketValueDate: string;
+  marketValueSource: "Manheim MMR" | "KBB" | "CarGurus" | "AutoTrader" | "Dealer estimate" | "Manual manager entry" | "Unknown";
+  marketDaysSupply: number;
+  missingItems: string[];
+  nationalMarketRetail: number;
+  odometer: string;
+  retailAdjustment: number;
+  retailConfidence: TaiAcquisitionInput["retailConfidence"];
+  retailRangeHigh: number;
+  retailRangeLow: number;
+  seller: string;
+  source: "Auction" | "Trade" | "Marketplace" | "Customer Offer" | "Dealer Wholesale";
+  sourceLink: string;
+  sourceReference: string;
+  status: "Draft" | "Researching" | "Ready for TAI" | "Buy candidate" | "Pass candidate";
+  systemRetail: number;
+  vin: string;
+};
+
 const initialInput: TaiAcquisitionInput = {
   acquisitionFees: 675,
   comparablesReviewed: true,
@@ -27,8 +57,13 @@ const initialInput: TaiAcquisitionInput = {
   identityVerified: true,
   inventoryNeed: 4,
   marketPosition: 4,
+  marketValue: 25800,
   proposedPurchase: 23400,
+  proposedPurchaseKnown: true,
   recon: 1650,
+  retailConfidence: "High",
+  retailRangeHigh: 32900,
+  retailRangeLow: 30600,
   riskReserve: 500,
   sellerAuthorityVerified: true,
   targetGross: 3250,
@@ -37,12 +72,151 @@ const initialInput: TaiAcquisitionInput = {
   transport: 525,
 };
 
+const initialOpportunity: OpportunityDraft = {
+  askingPrice: 23400,
+  askingPriceStatus: "Provided",
+  decodedBody: "SUV / multipurpose passenger vehicle",
+  decodedEngine: "2.5L I4 · automatic · FWD/AWD family",
+  decodedLabel: "2024 Toyota RAV4",
+  decodedTrim: "XLE / LE family",
+  duplicateStatus: "Unchecked",
+  intelligenceNotes: ["Strong local SUV demand", "Prototype retail comps support frontline pricing", "Compact SUV recon profile applied"],
+  localMarketRetail: 31995,
+  marketValue: 25800,
+  marketValueDate: "2026-08-06",
+  marketValueSource: "Manheim MMR",
+  marketDaysSupply: 31,
+  missingItems: [],
+  nationalMarketRetail: 31200,
+  odometer: "18,420",
+  retailAdjustment: 795,
+  retailConfidence: "High",
+  retailRangeHigh: 32900,
+  retailRangeLow: 30600,
+  seller: "Manheim Minneapolis",
+  source: "Auction",
+  sourceLink: "https://example.com/source-listing",
+  sourceReference: "Lane B · Run 124",
+  status: "Draft",
+  systemRetail: 31995,
+  vin: "2T3W1RFVXRW333586",
+};
+
 const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);
 const ratingLabels = ["", "Weak", "Limited", "Balanced", "Strong", "Excellent"];
 const expectedVin = "2T3W1RFVXRW333586";
+const vinPattern = /^[A-HJ-NPR-Z0-9]{17}$/;
+const askingPriceStatuses: OpportunityDraft["askingPriceStatus"][] = ["Provided", "Seller refused", "Staff must make first offer", "Trade appraisal needed", "Unknown"];
+const marketValueSources: OpportunityDraft["marketValueSource"][] = ["Manheim MMR", "KBB", "CarGurus", "AutoTrader", "Dealer estimate", "Manual manager entry", "Unknown"];
+const prototypeMarket = "Minneapolis / 150-mile retail market";
+
+function decodeOpportunityVin(vin: string) {
+  const normalized = vin.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!vinPattern.test(normalized)) return null;
+  if (normalized.startsWith("2T3")) return { body: "SUV / multipurpose passenger vehicle", engine: "2.5L I4 · automatic · FWD/AWD family", label: "2024 Toyota RAV4", trim: "XLE / LE family" };
+  if (normalized.startsWith("1F")) return { body: "Truck / light-duty pickup", engine: "EcoBoost or V8 family · automatic", label: "Ford F-Series opportunity", trim: "Trim pending full decode" };
+  if (normalized.startsWith("1HG") || normalized.startsWith("JHM")) return { body: "Sedan", engine: "Gasoline I4 family · automatic/CVT", label: "Honda opportunity", trim: "Trim pending full decode" };
+  if (normalized.startsWith("JM1")) return { body: "Sedan / hatchback", engine: "Gasoline I4 family", label: "Mazda opportunity", trim: "Trim pending full decode" };
+  return { body: "Decoded body pending provider detail", engine: "Powertrain pending provider detail", label: "Decoded VIN opportunity", trim: "Trim pending full decode" };
+}
+
+function enhanceOpportunityDecode(vin: string, decoded: NonNullable<ReturnType<typeof decodeOpportunityVin>>) {
+  const normalized = vin.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (normalized.startsWith("1HGCV") || normalized.startsWith("JHMCV")) return { body: "Sedan", engine: "1.5L turbo I4 family - CVT", label: `${decodeVinYear(normalized)} Honda Accord`, trim: "LX / Sport family - confirm trim" };
+  return decoded;
+}
+
+function decodeVinYear(vin: string) {
+  const yearCodes: Record<string, number> = { E: 2014, F: 2015, G: 2016, H: 2017, J: 2018, K: 2019, L: 2020, M: 2021, N: 2022, P: 2023, R: 2024, S: 2025, T: 2026 };
+  return yearCodes[vin.charAt(9)] ?? new Date().getFullYear();
+}
+
+function parseMileage(value: string) {
+  return Number(value.replace(/[^0-9]/g, "")) || 0;
+}
+
+function roundToHundred(value: number) {
+  return Math.max(0, Math.round(value / 100) * 100);
+}
+
+function clampNumber(value: number, minimum: number, maximum: number) {
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
+function prototypeAppraiseOpportunity(opportunity: OpportunityDraft, decoded: NonNullable<ReturnType<typeof decodeOpportunityVin>>) {
+  const mileage = parseMileage(opportunity.odometer);
+  const isSuv = decoded.body.toLowerCase().includes("suv") || decoded.body.toLowerCase().includes("multipurpose");
+  const isTruck = decoded.body.toLowerCase().includes("truck");
+  const isHondaAccord = decoded.label.toLowerCase().includes("accord");
+  const isGeneric = decoded.label.toLowerCase().includes("opportunity") || decoded.trim.toLowerCase().includes("pending") || decoded.trim.toLowerCase().includes("confirm");
+  const marketValue = opportunity.marketValue > 0 ? opportunity.marketValue : isSuv ? 25800 : isTruck ? 28500 : isHondaAccord ? 14200 : 12500;
+  const wholesaleToRetail = isSuv ? 1.24 : isTruck ? 1.31 : isHondaAccord ? 1.38 : 1.32;
+  const mileageAdjustment = mileage > 0 ? clampNumber((60000 - mileage) / 1000 * 65, -2800, 1800) : -350;
+  const nationalMarketRetail = roundToHundred(marketValue * wholesaleToRetail + mileageAdjustment);
+  const localDemandAdjustment = isSuv ? 800 : isTruck ? 1100 : isHondaAccord ? 500 : 0;
+  const localMarketRetail = roundToHundred(nationalMarketRetail + localDemandAdjustment);
+  const retailSpread = Math.max(800, Math.round(localMarketRetail * (isGeneric ? 0.07 : 0.04)));
+  const retailConfidence: TaiAcquisitionInput["retailConfidence"] = isGeneric ? "Low" : opportunity.marketValue > 0 && mileage > 0 ? "High" : "Medium";
+  const marketDaysSupply = isSuv ? 31 : isTruck ? 27 : isHondaAccord ? 38 : 52;
+  const missingItems = [
+    ...(isGeneric ? ["Confirm exact trim/options"] : []),
+    ...(opportunity.marketValue <= 0 ? ["MMR or wholesale value not provided; prototype estimate used"] : []),
+    ...(mileage <= 0 ? ["Mileage missing; retail confidence reduced"] : []),
+    ...(opportunity.askingPriceStatus === "Provided" && opportunity.askingPrice <= 0 ? ["Seller asking price is marked provided but amount is missing"] : []),
+  ];
+  return {
+    acquisitionFees: opportunity.source === "Auction" ? 675 : opportunity.source === "Dealer Wholesale" ? 450 : 225,
+    demandStrength: marketDaysSupply <= 35 ? 5 : marketDaysSupply <= 45 ? 4 : 3,
+    expectedRetail: localMarketRetail,
+    holdingReserve: isTruck ? 650 : 495,
+    intelligenceNotes: [
+      `Expected retail generated from ${prototypeMarket}`,
+      `Local market is ${money(Math.abs(localDemandAdjustment))} ${localDemandAdjustment >= 0 ? "stronger" : "weaker"} than national baseline for this profile`,
+      `Market days supply estimate: ${marketDaysSupply} days`,
+      isGeneric ? "Trim needs confirmation before final authority" : "Trim confidence supports prototype valuation",
+    ],
+    inventoryNeed: isSuv || isTruck ? 5 : 4,
+    localMarketRetail,
+    marketDaysSupply,
+    marketPosition: localDemandAdjustment > 0 ? 4 : 3,
+    marketValue,
+    missingItems,
+    nationalMarketRetail,
+    recon: isSuv ? 1650 : isTruck ? 2200 : isHondaAccord ? 1450 : 1750,
+    retailAdjustment: localMarketRetail - nationalMarketRetail,
+    retailConfidence,
+    retailRangeHigh: roundToHundred(localMarketRetail + retailSpread),
+    retailRangeLow: roundToHundred(localMarketRetail - retailSpread),
+    riskReserve: retailConfidence === "Low" ? 900 : 500,
+    targetGross: localMarketRetail >= 25000 ? 3250 : 2500,
+    titleAndDocs: 300,
+    transport: opportunity.source === "Auction" ? 525 : opportunity.source === "Dealer Wholesale" ? 350 : 0,
+  };
+}
+
+function cleanOpportunityEconomics(current: TaiAcquisitionInput): TaiAcquisitionInput {
+  return {
+    ...current,
+    acquisitionFees: 0,
+    expectedRetail: 0,
+    holdingReserve: 0,
+    marketValue: 0,
+    proposedPurchase: 0,
+    proposedPurchaseKnown: false,
+    recon: 0,
+    retailConfidence: "Low",
+    retailRangeHigh: 0,
+    retailRangeLow: 0,
+    riskReserve: 0,
+    targetGross: 0,
+    titleAndDocs: 0,
+    transport: 0,
+  };
+}
 
 export function TaiAcquisitionTool({ onProgressChange }: { onProgressChange: (progress: TaiWorkflowProgress) => void }) {
   const [input, setInput] = useState(initialInput);
+  const [opportunity, setOpportunity] = useState<OpportunityDraft>(initialOpportunity);
   const [evaluationVersion, setEvaluationVersion] = useState(0);
   const [approval, setApproval] = useState<"DRAFT" | "REQUESTED" | "APPROVED">("DRAFT");
   const [finalPrice, setFinalPrice] = useState(24300);
@@ -53,6 +227,7 @@ export function TaiAcquisitionTool({ onProgressChange }: { onProgressChange: (pr
   const evaluated = evaluationVersion > 0;
   const eligibleForApproval = evaluated && result.blockers.length === 0 && !["Pass", "Watch", "Hold"].includes(result.recommendation);
   const finalPriceEligible = finalPrice > 0 && finalPrice <= result.purchaseCeiling;
+  const opportunityReady = opportunity.status === "Ready for TAI" || opportunity.status === "Buy candidate" || opportunity.status === "Pass candidate";
 
   useEffect(() => {
     onProgressChange({
@@ -79,6 +254,111 @@ export function TaiAcquisitionTool({ onProgressChange }: { onProgressChange: (pr
     setApproval("DRAFT");
     setCommitted(false);
     setNotice("Evidence changed. Run a new TAI evaluation before requesting authority.");
+  }
+
+  function updateOpportunity<K extends keyof OpportunityDraft>(field: K, value: OpportunityDraft[K]) {
+    const priceKnown = field === "askingPriceStatus" ? value === "Provided" : opportunity.askingPriceStatus === "Provided";
+    setOpportunity((current) => ({
+      ...current,
+      ...(field === "vin" ? {
+        askingPrice: 0,
+        decodedBody: "Pending decode",
+        decodedEngine: "Pending decode",
+        decodedLabel: "New opportunity",
+        decodedTrim: "Pending decode",
+        duplicateStatus: "Unchecked" as const,
+        intelligenceNotes: [],
+        localMarketRetail: 0,
+        marketValue: 0,
+        marketDaysSupply: 0,
+        missingItems: ["Run Decode + Value to generate prototype appraisal"],
+        nationalMarketRetail: 0,
+        retailAdjustment: 0,
+        retailConfidence: "Low" as const,
+        retailRangeHigh: 0,
+        retailRangeLow: 0,
+        systemRetail: 0,
+      } : null),
+      [field]: value,
+      ...(field === "askingPriceStatus" && value !== "Provided" ? { askingPrice: 0 } : null),
+      status: field === "status" ? value as OpportunityDraft["status"] : "Researching",
+    }));
+    setEvaluationVersion(0);
+    setApproval("DRAFT");
+    setCommitted(false);
+    if (field === "vin") {
+      setInput((current) => cleanOpportunityEconomics(current));
+      setNotice("New VIN entered. Prior acquisition economics were cleared so this opportunity starts with clean deal math.");
+      return;
+    }
+    if (field === "askingPriceStatus") {
+      setInput((current) => ({ ...current, proposedPurchase: value === "Provided" ? opportunity.askingPrice : 0, proposedPurchaseKnown: value === "Provided" }));
+      setNotice(value === "Provided" ? "Asking price enabled. Enter the seller number before running TAI." : "Asking price is not available. TAI will create an offer strategy instead of using an old proposed purchase.");
+      return;
+    }
+    if (field === "askingPrice") setInput((current) => ({ ...current, proposedPurchase: priceKnown ? Number(value) || 0 : 0, proposedPurchaseKnown: priceKnown }));
+    if (field === "marketValue") setInput((current) => ({ ...current, marketValue: Number(value) || 0 }));
+    setNotice("Opportunity packet changed. Decode/research it before relying on the TAI evaluation.");
+  }
+
+  function decodeAndResearchOpportunity() {
+    const decoded = decodeOpportunityVin(opportunity.vin);
+    if (!decoded) {
+      setOpportunity((current) => ({ ...current, duplicateStatus: "Unchecked", status: "Researching" }));
+      setInput((current) => ({ ...current, identityVerified: false }));
+      setNotice("VIN must be a valid 17-character VIN before this opportunity can clear identity research.");
+      return;
+    }
+    const duplicateStatus = opportunity.vin.endsWith("333586") ? "Review existing record" : "Clear";
+    const priceKnown = opportunity.askingPriceStatus === "Provided";
+    const enhancedDecode = enhanceOpportunityDecode(opportunity.vin, decoded);
+    const appraisal = prototypeAppraiseOpportunity(opportunity, enhancedDecode);
+    setOpportunity((current) => ({
+      ...current,
+      decodedBody: enhancedDecode.body,
+      decodedEngine: enhancedDecode.engine,
+      decodedLabel: enhancedDecode.label,
+      decodedTrim: enhancedDecode.trim,
+      duplicateStatus,
+      intelligenceNotes: appraisal.intelligenceNotes,
+      localMarketRetail: appraisal.localMarketRetail,
+      marketDaysSupply: appraisal.marketDaysSupply,
+      marketValue: appraisal.marketValue,
+      missingItems: appraisal.missingItems,
+      nationalMarketRetail: appraisal.nationalMarketRetail,
+      retailAdjustment: appraisal.retailAdjustment,
+      retailConfidence: appraisal.retailConfidence,
+      retailRangeHigh: appraisal.retailRangeHigh,
+      retailRangeLow: appraisal.retailRangeLow,
+      status: duplicateStatus === "Clear" && appraisal.missingItems.length === 0 ? "Ready for TAI" : "Researching",
+      systemRetail: appraisal.expectedRetail,
+    }));
+    setInput((current) => ({
+      ...current,
+      acquisitionFees: appraisal.acquisitionFees,
+      comparablesReviewed: appraisal.retailConfidence !== "Low",
+      demandStrength: appraisal.demandStrength,
+      expectedRetail: appraisal.expectedRetail,
+      holdingReserve: appraisal.holdingReserve,
+      identityVerified: duplicateStatus === "Clear",
+      inventoryNeed: appraisal.inventoryNeed,
+      marketPosition: appraisal.marketPosition,
+      marketValue: appraisal.marketValue,
+      proposedPurchase: priceKnown ? opportunity.askingPrice : 0,
+      proposedPurchaseKnown: priceKnown,
+      recon: appraisal.recon,
+      retailConfidence: appraisal.retailConfidence,
+      retailRangeHigh: appraisal.retailRangeHigh,
+      retailRangeLow: appraisal.retailRangeLow,
+      riskReserve: appraisal.riskReserve,
+      targetGross: appraisal.targetGross,
+      titleAndDocs: appraisal.titleAndDocs,
+      transport: appraisal.transport,
+    }));
+    setEvaluationVersion(0);
+    setApproval("DRAFT");
+    setCommitted(false);
+    setNotice(duplicateStatus === "Clear" ? `Decode + Value complete. Expected retail generated at ${money(appraisal.expectedRetail)} from local and national prototype market logic.` : "Opportunity decoded, but a possible existing record was found. Review before purchase authority.");
   }
 
   function applyVinEvidence(evidence: PrototypeVinScanEvidence) {
@@ -119,19 +399,76 @@ export function TaiAcquisitionTool({ onProgressChange }: { onProgressChange: (pr
     setNotice(`Purchase commitment recorded at ${money(finalPrice)}. The Acquisition handoff gate is now ready.`);
   }
 
-  return <section className={styles.taiWorkspace} aria-label="TMS Acquisition Intelligence buyer tool">
+  return <section className={styles.taiWorkspace} id="opportunity-builder" aria-label="TMS Acquisition Intelligence buyer tool">
     <header className={styles.taiHeader}>
       <div><span><TrendingUp size={15} />TMS Acquisition Intelligence</span><h3>TAI buyer decision workspace</h3><p>Calculate a disciplined purchase ceiling before ownership begins.</p></div>
       <div className={styles.taiVersion}><small>Evaluation</small><strong>{evaluated ? `v${evaluationVersion} · ${approval.toLowerCase()}` : "Draft · not evaluated"}</strong></div>
     </header>
 
+    <section className={styles.opportunityBuilder} aria-label="Acquisition Opportunity Builder">
+      <header>
+        <div><span><Search size={14} />Pre-acquisition tool</span><h4>Opportunity Builder</h4><p>Research a vehicle before it becomes inventory. Only an approved opportunity should create the governed InventoryUnit.</p></div>
+        <strong>{opportunity.status}</strong>
+      </header>
+      <div className={styles.opportunityGrid}>
+        <section className={styles.opportunityForm}>
+          <label><span>VIN / scan text</span><input autoCapitalize="characters" maxLength={24} onChange={(event) => updateOpportunity("vin", event.target.value.toUpperCase())} value={opportunity.vin} /></label>
+          <label><span>Source</span><select onChange={(event) => updateOpportunity("source", event.target.value as OpportunityDraft["source"])} value={opportunity.source}>{(["Auction", "Trade", "Marketplace", "Customer Offer", "Dealer Wholesale"] as const).map((source) => <option key={source}>{source}</option>)}</select></label>
+          <label><span>Seller / source name</span><input onChange={(event) => updateOpportunity("seller", event.target.value)} value={opportunity.seller} /></label>
+          <label><span>Source reference</span><input onChange={(event) => updateOpportunity("sourceReference", event.target.value)} value={opportunity.sourceReference} /></label>
+          <label><span>Listing / auction link</span><input onChange={(event) => updateOpportunity("sourceLink", event.target.value)} value={opportunity.sourceLink} /></label>
+          <label><span>Odometer</span><input onChange={(event) => updateOpportunity("odometer", event.target.value)} value={opportunity.odometer} /></label>
+          <label><span>Asking price status</span><select onChange={(event) => updateOpportunity("askingPriceStatus", event.target.value as OpportunityDraft["askingPriceStatus"])} value={opportunity.askingPriceStatus}>{askingPriceStatuses.map((status) => <option key={status}>{status}</option>)}</select></label>
+          <label><span>Proposed / asking price</span><div><b>$</b><input disabled={opportunity.askingPriceStatus !== "Provided"} min="0" onChange={(event) => updateOpportunity("askingPrice", Number(event.target.value) || 0)} type="number" value={opportunity.askingPrice} /></div></label>
+          <label><span>MMR / market value</span><div><b>$</b><input min="0" onChange={(event) => updateOpportunity("marketValue", Number(event.target.value) || 0)} type="number" value={opportunity.marketValue} /></div></label>
+          <label><span>Market value source</span><select onChange={(event) => updateOpportunity("marketValueSource", event.target.value as OpportunityDraft["marketValueSource"])} value={opportunity.marketValueSource}>{marketValueSources.map((source) => <option key={source}>{source}</option>)}</select></label>
+          <label><span>Value checked date</span><input onChange={(event) => updateOpportunity("marketValueDate", event.target.value)} type="date" value={opportunity.marketValueDate} /></label>
+          <button onClick={decodeAndResearchOpportunity} type="button"><Search size={15} />Decode + Value</button>
+        </section>
+        <aside className={styles.opportunityPacket}>
+          <header><CarFront /><div><span>Decoded opportunity</span><strong>{opportunity.decodedLabel}</strong><small>VIN {opportunity.vin || "not captured"}</small></div></header>
+          <dl>
+            <div><dt>Trim / package</dt><dd>{opportunity.decodedTrim}</dd></div>
+            <div><dt>Body</dt><dd>{opportunity.decodedBody}</dd></div>
+            <div><dt>Powertrain</dt><dd>{opportunity.decodedEngine}</dd></div>
+            <div><dt>Duplicate check</dt><dd>{opportunity.duplicateStatus}</dd></div>
+            <div><dt>Asking price</dt><dd>{opportunity.askingPriceStatus === "Provided" ? money(opportunity.askingPrice) : opportunity.askingPriceStatus}</dd></div>
+            <div><dt>MMR / market value</dt><dd>{opportunity.marketValue > 0 ? `${money(opportunity.marketValue)} · ${opportunity.marketValueSource}` : "Needs manual value"}</dd></div>
+            <div><dt>Expected retail</dt><dd>{opportunity.systemRetail > 0 ? money(opportunity.systemRetail) : "Run Decode + Value"}</dd></div>
+            <div><dt>Retail range</dt><dd>{opportunity.retailRangeLow > 0 ? `${money(opportunity.retailRangeLow)} - ${money(opportunity.retailRangeHigh)}` : "Pending"}</dd></div>
+            <div><dt>Local market</dt><dd>{opportunity.localMarketRetail > 0 ? money(opportunity.localMarketRetail) : "Pending"}</dd></div>
+            <div><dt>National baseline</dt><dd>{opportunity.nationalMarketRetail > 0 ? money(opportunity.nationalMarketRetail) : "Pending"}</dd></div>
+            <div><dt>Retail confidence</dt><dd>{opportunity.retailConfidence}</dd></div>
+            <div><dt>Market days supply</dt><dd>{opportunity.marketDaysSupply > 0 ? `${opportunity.marketDaysSupply} days` : "Pending"}</dd></div>
+          </dl>
+          <div className={styles.opportunityIntel}>
+            <strong>Buyer intelligence</strong>
+            {(opportunity.missingItems.length ? opportunity.missingItems : opportunity.intelligenceNotes).slice(0, 4).map((item) => <span key={item}>{opportunity.missingItems.length ? <CircleAlert size={13} /> : <Check size={13} />}{item}</span>)}
+          </div>
+          <div className={styles.opportunityReadiness}>
+            {([
+              ["VIN decoded", vinPattern.test(opportunity.vin.toUpperCase().replace(/[^A-Z0-9]/g, ""))],
+              ["Source recorded", Boolean(opportunity.seller.trim() && opportunity.sourceReference.trim())],
+              ["Duplicate clear", opportunity.duplicateStatus === "Clear"],
+              ["Expected retail generated", opportunity.systemRetail > 0],
+              ["Local vs national checked", opportunity.localMarketRetail > 0 && opportunity.nationalMarketRetail > 0],
+              [opportunity.askingPriceStatus === "Provided" ? "Price ready for TAI" : "Offer strategy ready", opportunity.askingPriceStatus === "Provided" ? opportunity.askingPrice > 0 : opportunity.marketValue > 0],
+              ["Market value recorded", opportunity.marketValue > 0],
+            ] as const).map(([label, ready]) => <span className={ready ? styles.opportunityReady : ""} key={label}>{ready ? <Check size={13} /> : <CircleAlert size={13} />}{label}</span>)}
+          </div>
+          <footer><FileText size={14} />{opportunityReady ? "Opportunity packet is ready for TAI." : "Complete research before requesting purchase authority."}{opportunity.sourceLink ? <a href={opportunity.sourceLink}><LinkIcon size={13} />Source</a> : null}</footer>
+        </aside>
+      </div>
+    </section>
+
     <div className={styles.taiBody}>
       <div className={styles.taiInputs}>
         <section>
-          <header><h4>Opportunity economics</h4><span>Retail-back inputs</span></header>
+          <header><h4>Opportunity economics</h4><span>{input.proposedPurchaseKnown ? "Retail-back inputs" : "Offer strategy inputs"}</span></header>
           <div className={styles.taiFieldGrid}>
+            <label><span>MMR / market value</span><div><b>$</b><input aria-label="MMR market value" min="0" onChange={(event) => updateNumber("marketValue", event.target.value)} type="number" value={input.marketValue} /></div></label>
             <label><span>Expected retail</span><div><b>$</b><input aria-label="Expected retail" min="0" onChange={(event) => updateNumber("expectedRetail", event.target.value)} type="number" value={input.expectedRetail} /></div></label>
-            <label><span>Proposed purchase</span><div><b>$</b><input aria-label="Proposed purchase" min="0" onChange={(event) => updateNumber("proposedPurchase", event.target.value)} type="number" value={input.proposedPurchase} /></div></label>
+            <label><span>{input.proposedPurchaseKnown ? "Proposed purchase" : "Seller price withheld"}</span><div><b>$</b><input aria-label="Proposed purchase" disabled={!input.proposedPurchaseKnown} min="0" onChange={(event) => updateNumber("proposedPurchase", event.target.value)} type="number" value={input.proposedPurchase} /></div></label>
             <label><span>Target gross</span><div><b>$</b><input aria-label="Target gross" min="0" onChange={(event) => updateNumber("targetGross", event.target.value)} type="number" value={input.targetGross} /></div></label>
             <label><span>Recon estimate</span><div><b>$</b><input aria-label="Recon estimate" min="0" onChange={(event) => updateNumber("recon", event.target.value)} type="number" value={input.recon} /></div></label>
             <label><span>Fees</span><div><b>$</b><input aria-label="Acquisition fees" min="0" onChange={(event) => updateNumber("acquisitionFees", event.target.value)} type="number" value={input.acquisitionFees} /></div></label>
@@ -176,10 +513,10 @@ export function TaiAcquisitionTool({ onProgressChange }: { onProgressChange: (pr
         <header><Gauge /><div><span>TAI recommendation</span><strong>{evaluated ? result.recommendation : "Run evaluation"}</strong></div><em className={result.blockers.length ? styles.taiHold : ""}>{result.acquisitionScore}/100</em></header>
         <dl>
           <div><dt>Purchase ceiling</dt><dd>{money(result.purchaseCeiling)}</dd></div>
-          <div><dt>Proposed purchase</dt><dd>{money(input.proposedPurchase)}</dd></div>
-          <div><dt>Remaining room</dt><dd className={result.remainingRoom < 0 ? styles.taiNegative : ""}>{money(result.remainingRoom)}</dd></div>
-          <div><dt>Total investment</dt><dd>{money(result.totalInvestment)}</dd></div>
-          <div><dt>Expected gross</dt><dd>{money(result.expectedGross)}</dd></div>
+          <div><dt>{result.offerStrategyRequired ? "Opening offer guide" : "Proposed purchase"}</dt><dd>{result.offerStrategyRequired ? money(result.suggestedOpeningOffer) : money(input.proposedPurchase)}</dd></div>
+          <div><dt>{result.offerStrategyRequired ? "Maximum offer room" : "Remaining room"}</dt><dd className={result.remainingRoom < 0 ? styles.taiNegative : ""}>{money(result.remainingRoom)}</dd></div>
+          <div><dt>Total investment</dt><dd>{result.offerStrategyRequired ? "Pending offer" : money(result.totalInvestment)}</dd></div>
+          <div><dt>Expected gross</dt><dd>{result.offerStrategyRequired ? `${money(input.targetGross)} at ceiling` : money(result.expectedGross)}</dd></div>
           <div><dt>Confidence</dt><dd>{result.confidence}</dd></div>
         </dl>
         <p className={styles.taiExplanation}>{evaluated ? result.explanation : "Review the inputs, then freeze a versioned recommendation for approval."}</p>

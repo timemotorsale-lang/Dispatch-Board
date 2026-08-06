@@ -1,5 +1,6 @@
 export type TaiConfidence = "High" | "Medium" | "Low" | "Insufficient";
-export type TaiRecommendation = "Buy" | "Buy up to" | "Manager review" | "Watch" | "Pass" | "Hold";
+export type TaiRecommendation = "Buy" | "Buy up to" | "Offer strategy" | "Manager review" | "Watch" | "Pass" | "Hold";
+export type TaiRetailConfidence = "High" | "Medium" | "Low";
 
 export type TaiAcquisitionInput = {
   acquisitionFees: number;
@@ -12,8 +13,13 @@ export type TaiAcquisitionInput = {
   identityVerified: boolean;
   inventoryNeed: number;
   marketPosition: number;
+  marketValue: number;
   proposedPurchase: number;
+  proposedPurchaseKnown: boolean;
   recon: number;
+  retailConfidence: TaiRetailConfidence;
+  retailRangeHigh: number;
+  retailRangeLow: number;
   riskReserve: number;
   sellerAuthorityVerified: boolean;
   targetGross: number;
@@ -29,10 +35,12 @@ export type TaiAcquisitionResult = {
   expectedGross: number;
   explanation: string;
   negativeDrivers: string[];
+  offerStrategyRequired: boolean;
   positiveDrivers: string[];
   purchaseCeiling: number;
   recommendation: TaiRecommendation;
   remainingRoom: number;
+  suggestedOpeningOffer: number;
   totalInvestment: number;
 };
 
@@ -51,8 +59,13 @@ export function evaluateTaiAcquisition(raw: TaiAcquisitionInput): TaiAcquisition
     holdingReserve: dollars(raw.holdingReserve),
     inventoryNeed: rating(raw.inventoryNeed),
     marketPosition: rating(raw.marketPosition),
+    marketValue: dollars(raw.marketValue),
     proposedPurchase: dollars(raw.proposedPurchase),
+    proposedPurchaseKnown: raw.proposedPurchaseKnown,
     recon: dollars(raw.recon),
+    retailConfidence: raw.retailConfidence,
+    retailRangeHigh: dollars(raw.retailRangeHigh),
+    retailRangeLow: dollars(raw.retailRangeLow),
     riskReserve: dollars(raw.riskReserve),
     targetGross: dollars(raw.targetGross),
     titleAndDocs: dollars(raw.titleAndDocs),
@@ -61,9 +74,13 @@ export function evaluateTaiAcquisition(raw: TaiAcquisitionInput): TaiAcquisition
 
   const nonPurchaseCosts = input.acquisitionFees + input.transport + input.recon + input.titleAndDocs + input.holdingReserve + input.riskReserve;
   const purchaseCeiling = Math.max(0, input.expectedRetail - input.targetGross - nonPurchaseCosts);
-  const totalInvestment = input.proposedPurchase + nonPurchaseCosts;
+  const offerStrategyRequired = !input.proposedPurchaseKnown;
+  const proposedForMath = offerStrategyRequired ? purchaseCeiling : input.proposedPurchase;
+  const totalInvestment = proposedForMath + nonPurchaseCosts;
   const expectedGross = input.expectedRetail - totalInvestment;
-  const remainingRoom = purchaseCeiling - input.proposedPurchase;
+  const remainingRoom = purchaseCeiling - proposedForMath;
+  const marketAnchor = input.marketValue > 0 ? input.marketValue : purchaseCeiling;
+  const suggestedOpeningOffer = offerStrategyRequired ? Math.max(0, Math.round(Math.min(purchaseCeiling, marketAnchor * 0.92) / 100) * 100) : 0;
 
   const demandPoints = input.demandStrength / 5 * 25;
   const inventoryPoints = input.inventoryNeed / 5 * 20;
@@ -73,7 +90,8 @@ export function evaluateTaiAcquisition(raw: TaiAcquisitionInput): TaiAcquisition
   const economicsPoints = clamp(economicsRatio, 0, 1) * 30;
   const acquisitionScore = Math.round(demandPoints + inventoryPoints + marketPoints + riskPoints + economicsPoints);
 
-  const evidenceCount = [input.identityVerified, input.sellerAuthorityVerified, input.titleReviewed, input.conditionInspected, input.comparablesReviewed].filter(Boolean).length;
+  const retailConfidencePenalty = input.retailConfidence === "Low" ? 1 : 0;
+  const evidenceCount = [input.identityVerified, input.sellerAuthorityVerified, input.titleReviewed, input.conditionInspected, input.comparablesReviewed].filter(Boolean).length - retailConfidencePenalty;
   const confidence: TaiConfidence = evidenceCount === 5 ? "High" : evidenceCount === 4 ? "Medium" : evidenceCount === 3 ? "Low" : "Insufficient";
   const blockers = [
     ...(!input.identityVerified ? ["Vehicle identity is not verified"] : []),
@@ -81,12 +99,14 @@ export function evaluateTaiAcquisition(raw: TaiAcquisitionInput): TaiAcquisition
     ...(!input.titleReviewed ? ["Title and ownership risk is not reviewed"] : []),
     ...(!input.conditionInspected ? ["Condition inspection is incomplete"] : []),
     ...(input.expectedRetail <= 0 ? ["Expected retail value is required"] : []),
+    ...(input.retailConfidence === "Low" ? ["Retail value confidence is low"] : []),
     ...(purchaseCeiling <= 0 ? ["Retail-back economics do not support a purchase"] : []),
   ];
 
   let recommendation: TaiRecommendation;
   if (blockers.length) recommendation = "Hold";
   else if (confidence === "Insufficient" || confidence === "Low") recommendation = "Manager review";
+  else if (offerStrategyRequired) recommendation = "Offer strategy";
   else if (input.proposedPurchase > purchaseCeiling) recommendation = acquisitionScore >= 55 ? "Watch" : "Pass";
   else if (acquisitionScore >= 85) recommendation = "Buy";
   else if (acquisitionScore >= 70) recommendation = "Buy up to";
@@ -97,18 +117,24 @@ export function evaluateTaiAcquisition(raw: TaiAcquisitionInput): TaiAcquisition
     ...(input.demandStrength >= 4 ? ["Strong expected local demand"] : []),
     ...(input.inventoryNeed >= 4 ? ["Fills a current TMS inventory need"] : []),
     ...(input.marketPosition >= 4 ? ["Favorable competitive market position"] : []),
-    ...(remainingRoom >= 0 ? [`Proposed price is ${money(remainingRoom)} inside the retail-back ceiling`] : []),
+    ...(offerStrategyRequired ? [`Use ${money(purchaseCeiling)} as the maximum offer ceiling`] : []),
+    ...(input.retailConfidence === "High" ? [`Retail range confidence is high: ${money(input.retailRangeLow)}-${money(input.retailRangeHigh)}`] : []),
+    ...(!offerStrategyRequired && remainingRoom >= 0 ? [`Proposed price is ${money(remainingRoom)} inside the retail-back ceiling`] : []),
     ...(expectedGross >= input.targetGross ? ["Expected gross meets dealership target"] : []),
   ].slice(0, 3);
   const negativeDrivers = [
     ...(input.conditionRisk >= 4 ? ["Condition exposure is elevated"] : []),
-    ...(remainingRoom < 0 ? [`Proposed price is ${money(Math.abs(remainingRoom))} above the purchase ceiling`] : []),
+    ...(offerStrategyRequired ? ["Seller asking price is not provided"] : []),
+    ...(input.retailConfidence === "Low" ? ["Retail value needs manager or comp review"] : []),
+    ...(!offerStrategyRequired && remainingRoom < 0 ? [`Proposed price is ${money(Math.abs(remainingRoom))} above the purchase ceiling`] : []),
     ...(expectedGross < input.targetGross ? [`Expected gross is ${money(input.targetGross - expectedGross)} below target`] : []),
     ...(!input.comparablesReviewed ? ["Comparable market evidence is incomplete"] : []),
     ...blockers,
   ].slice(0, 3);
   const explanation = blockers.length
     ? `Hold the opportunity until ${blockers[0].toLowerCase()}.`
+    : offerStrategyRequired
+      ? `Offer strategy required. Open near ${money(suggestedOpeningOffer)} and do not exceed ${money(purchaseCeiling)} without manager override.`
     : recommendation === "Watch" || recommendation === "Pass"
       ? `${recommendation} at the current ${money(input.proposedPurchase)} proposal; the disciplined ceiling is ${money(purchaseCeiling)}.`
       : `${recommendation} at no more than ${money(purchaseCeiling)} based on retail-back economics, inventory fit, market position, and documented risk.`;
@@ -120,10 +146,12 @@ export function evaluateTaiAcquisition(raw: TaiAcquisitionInput): TaiAcquisition
     expectedGross,
     explanation,
     negativeDrivers,
+    offerStrategyRequired,
     positiveDrivers,
     purchaseCeiling,
     recommendation,
     remainingRoom,
+    suggestedOpeningOffer,
     totalInvestment,
   };
 }
