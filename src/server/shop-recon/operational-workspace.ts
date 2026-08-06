@@ -240,6 +240,32 @@ export const SHOP_RECON_OPERATIONAL_WORKSPACES: readonly ShopReconOperationalWor
       action("SUBMIT_FOR_AUTHORIZATION", "Submitted for authorization", "Submit the current repair-plan version to the correct approval path.", "Brock or Service Advisor", "Authorization-ready repair plan", ["submittedForAuthorization"]),
     ],
   },
+  {
+    stage: "AUTHORIZATION",
+    workTitle: "Record customer / owner authorization",
+    workInstruction: "Use Repair Workbench to record the exact authorization decision. Use the lane support tool only when the approving party or source context needs review.",
+    tools: [
+      tool("REPAIR_WORKBENCH_AUTHORIZATION", "Repair Workbench / Authorization", "/vehicles/repair-workbench", "Open the repair workbench authorization area for this repair order."),
+      tool("SERVICE_ADVISOR", "Service Advisor / Approval Desk", "/vehicles/advisor", "Open Service Advisor to document or review customer authorization communication."),
+    ],
+    pilotValues: { repairPlanVersionReviewed: true, approvalAuthorityConfirmed: true, authorizationDecisionRecorded: true, approvedScopeAmountCaptured: true, authorizationSubmittedForReadiness: true },
+    actions: [
+      action("REVIEW_REPAIR_PLAN_VERSION", "Current repair-plan version reviewed", "Confirm the approving party is looking at the exact current repair plan and estimate version.", "Service Advisor, Brock, or Inventory owner", "Reviewed repair-plan version", ["repairPlanVersionReviewed"]),
+      action("CONFIRM_APPROVAL_AUTHORITY", "Approval authority confirmed", "Confirm who controls permission and spend: customer, Service Advisor, Brock, Inventory owner, or General Manager exception.", "Service Advisor or Brock", "Approval authority confirmation", ["approvalAuthorityConfirmed"]),
+      action("RECORD_AUTHORIZATION_DECISION", "Decision recorded", "Record accepted, partially accepted, declined, pending, or revision requested.", "Service Advisor or Brock", "Authorization decision", ["authorizationDecisionRecorded"]),
+      action("CAPTURE_SCOPE_AMOUNT", "Approved scope and amount captured", "Record exactly what is approved, what is not approved, and the dollar, labor, or resource limit.", "Service Advisor or Brock", "Authorized scope and amount", ["approvedScopeAmountCaptured"]),
+      action("SUBMIT_AUTHORIZATION_READINESS", "Authorization submitted for readiness", "Submit the authorization packet so Parts & Resource Readiness can begin with a frozen authorized scope.", "Service Advisor or Brock", "Authorization-ready submission", ["authorizationSubmittedForReadiness"]),
+    ],
+    laneVariants: {
+      INVENTORY_RECON: {
+        workInstruction: "Use Repair Workbench to record the exact inventory authorization decision and Inventory Lifecycle Authorization to confirm the dealership-owned unit is approved to proceed.",
+        tools: [
+          tool("REPAIR_WORKBENCH_AUTHORIZATION", "Repair Workbench / Authorization", "/vehicles/repair-workbench", "Open the repair workbench authorization area for this repair order."),
+          tool("INVENTORY_LIFECYCLE_AUTHORIZATION", "Inventory Lifecycle Authorization", "/vehicles/inventory", "Open the inventory lifecycle source authorization for dealership-owned recon work."),
+        ],
+      },
+    },
+  },
 ] as const;
 
 export function getShopReconOperationalWorkspace(stage: ShopReconStageCode, lane?: ShopReconWorkLane) {

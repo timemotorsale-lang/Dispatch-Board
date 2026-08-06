@@ -41,8 +41,8 @@ describe("Shop Recon unified vehicle-card design", () => {
     }
   });
 
-  it("defines executable operations for the first eight shop stages", () => {
-    expect(SHOP_RECON_OPERATIONAL_WORKSPACES).toHaveLength(8);
+  it("defines executable operations for the first nine shop stages", () => {
+    expect(SHOP_RECON_OPERATIONAL_WORKSPACES).toHaveLength(9);
     for (const definition of SHOP_RECON_OPERATIONAL_WORKSPACES) {
       expect(definition.actions.length).toBeGreaterThanOrEqual(5);
       for (const action of definition.actions) {
@@ -60,6 +60,8 @@ describe("Shop Recon unified vehicle-card design", () => {
     expect(getShopReconOperationalWorkspace("INSPECTION_CONCERN_VERIFICATION", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Inspection / Concern Verification"]);
     expect(getShopReconOperationalWorkspace("DIAGNOSIS", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Diagnostic Module"]);
     expect(getShopReconOperationalWorkspace("FINDINGS_REPAIR_PLAN", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Repair Workbench", "Labor Guide"]);
+    expect(getShopReconOperationalWorkspace("AUTHORIZATION", "CUSTOMER_REPAIR")?.tools?.map(tool => tool.label)).toEqual(["Repair Workbench / Authorization", "Service Advisor / Approval Desk"]);
+    expect(getShopReconOperationalWorkspace("AUTHORIZATION", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Repair Workbench / Authorization", "Inventory Lifecycle Authorization"]);
   });
 
   it("renders the Inventory-style identity and active-stage operating workspace", () => {
@@ -280,5 +282,24 @@ describe("Shop Recon unified vehicle-card design", () => {
     expect(html).toContain("Repair plan created");
     expect(html).toContain("Cost / resource impact prepared");
     expect(html).toContain("Submitted for authorization");
+  });
+
+  it("renders Stage 9 with customer or inventory authorization tools above the authorization checklist", () => {
+    const stageNineItem = { ...item, shopLifecycleStage: "AUTHORIZATION" as const, shopLifecycleLabel: "Authorization", shopLifecycleOrder: 9 };
+    const stageNineLifecycle = { ...lifecycleWorkspace, lifecycle: { ...lifecycleWorkspace.lifecycle, stage: "AUTHORIZATION" as const, nextAction: "Capture owner authorization" } };
+    const html = renderToStaticMarkup(<ShopReconVehicleCard item={stageNineItem} lifecycleWorkspace={stageNineLifecycle} />);
+
+    expect(html).toContain("Official Stage 9 Tools");
+    expect(html).toContain("Repair Workbench + Inventory Lifecycle Authorization");
+    expect(html).toContain("Open Repair Workbench / Authorization");
+    expect(html).toContain("/vehicles/repair-workbench?repairOrderId=ro-1&amp;vehicleId=vehicle-1");
+    expect(html).toContain("#authorization");
+    expect(html).toContain("Open Inventory Lifecycle Authorization");
+    expect(html).toContain("/vehicles/vehicle-1/inventory-planning");
+    expect(html).toContain("Current repair-plan version reviewed");
+    expect(html).toContain("Approval authority confirmed");
+    expect(html).toContain("Decision recorded");
+    expect(html).toContain("Approved scope and amount captured");
+    expect(html).toContain("Authorization submitted for readiness");
   });
 });
