@@ -41,8 +41,8 @@ describe("Shop Recon unified vehicle-card design", () => {
     }
   });
 
-  it("defines executable operations for the first ten shop stages", () => {
-    expect(SHOP_RECON_OPERATIONAL_WORKSPACES).toHaveLength(10);
+  it("defines executable operations for the first eleven shop stages", () => {
+    expect(SHOP_RECON_OPERATIONAL_WORKSPACES).toHaveLength(11);
     for (const definition of SHOP_RECON_OPERATIONAL_WORKSPACES) {
       expect(definition.actions.length).toBeGreaterThanOrEqual(5);
       for (const action of definition.actions) {
@@ -63,6 +63,7 @@ describe("Shop Recon unified vehicle-card design", () => {
     expect(getShopReconOperationalWorkspace("AUTHORIZATION", "CUSTOMER_REPAIR")?.tools?.map(tool => tool.label)).toEqual(["Repair Workbench / Authorization", "Service Advisor / Approval Desk"]);
     expect(getShopReconOperationalWorkspace("AUTHORIZATION", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Repair Workbench / Authorization", "Inventory Lifecycle Authorization"]);
     expect(getShopReconOperationalWorkspace("PARTS_RESOURCE_READINESS", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Parts Ordering Form", "Repair Workbench"]);
+    expect(getShopReconOperationalWorkspace("DISPATCH_WORK_STAGING", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Shop Dispatch / Assignment", "Repair Workbench"]);
   });
 
   it("renders the Inventory-style identity and active-stage operating workspace", () => {
@@ -321,5 +322,25 @@ describe("Shop Recon unified vehicle-card design", () => {
     expect(html).toContain("Resources and procedure needs confirmed");
     expect(html).toContain("Sublet / vendor need resolved");
     expect(html).toContain("Readiness decision submitted");
+  });
+
+  it("renders Stage 11 with Shop Dispatch and Repair Workbench above the dispatch checklist", () => {
+    const stageElevenItem = { ...item, shopLifecycleStage: "DISPATCH_WORK_STAGING" as const, shopLifecycleLabel: "Dispatch & Work Staging", shopLifecycleOrder: 11 };
+    const stageElevenLifecycle = { ...lifecycleWorkspace, lifecycle: { ...lifecycleWorkspace.lifecycle, stage: "DISPATCH_WORK_STAGING" as const, nextAction: "Dispatch and stage work" } };
+    const html = renderToStaticMarkup(<ShopReconVehicleCard item={stageElevenItem} lifecycleWorkspace={stageElevenLifecycle} />);
+
+    expect(html).toContain("Official Stage 11 Tools");
+    expect(html).toContain("Shop Dispatch + Repair Workbench");
+    expect(html).toContain("Open Shop Dispatch / Assignment");
+    expect(html).toContain("/vehicles/shop-dispatch?repairOrderId=ro-1&amp;vehicleId=vehicle-1");
+    expect(html).toContain("Open Repair Workbench");
+    expect(html).toContain("/vehicles/repair-workbench?repairOrderId=ro-1&amp;vehicleId=vehicle-1");
+    expect(html).toContain("Authorization and readiness gates passed");
+    expect(html).toContain("Technician eligibility confirmed");
+    expect(html).toContain("Bay and time slot reserved");
+    expect(html).toContain("Vehicle, keys, and parts staged");
+    expect(html).toContain("Current repair instructions reviewed");
+    expect(html).toContain("WIP limit / queue position confirmed");
+    expect(html).toContain("Dispatch published");
   });
 });

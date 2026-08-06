@@ -284,6 +284,25 @@ export const SHOP_RECON_OPERATIONAL_WORKSPACES: readonly ShopReconOperationalWor
       action("SUBMIT_READINESS_DECISION", "Readiness decision submitted", "Record ready for dispatch, waiting parts, waiting resource, waiting vendor, or manager review.", "Brock", "Parts/resource readiness decision", ["readinessDecisionSubmitted"]),
     ],
   },
+  {
+    stage: "DISPATCH_WORK_STAGING",
+    workTitle: "Dispatch and stage the job",
+    workInstruction: "Use Shop Dispatch as the control tower for technician, bay, time, WIP, keys, parts, and instructions before repair begins.",
+    tools: [
+      tool("SHOP_DISPATCH", "Shop Dispatch / Assignment", "/vehicles/shop-dispatch", "Open the dispatch workspace to assign technician, bay, schedule, queue position, and staging."),
+      tool("REPAIR_WORKBENCH", "Repair Workbench", "/vehicles/repair-workbench", "Open the repair workbench to review the authorized work packet and current instructions."),
+    ],
+    pilotValues: { authorizationReadinessGatesPassed: true, technicianEligibilityConfirmed: true, bayTimeSlotReserved: true, vehicleKeysPartsStaged: true, currentRepairInstructionsReviewed: true, wipQueuePositionConfirmed: true, dispatchPublished: true },
+    actions: [
+      action("CONFIRM_AUTHORIZATION_READINESS", "Authorization and readiness gates passed", "Confirm authorization, parts, resources, procedures, technician eligibility, and bay eligibility are clear before dispatch.", "Brock or Eli", "Authorization and readiness gate check", ["authorizationReadinessGatesPassed"]),
+      action("CONFIRM_TECHNICIAN_ELIGIBILITY", "Technician eligibility confirmed", "Confirm Walter Hernandez or another qualified technician is appropriate for the job.", "Brock or Eli", "Technician eligibility confirmation", ["technicianEligibilityConfirmed"]),
+      action("RESERVE_BAY_TIME", "Bay and time slot reserved", "Reserve one of the two shop bays and a staffed working time window.", "Brock or Eli", "Bay and time reservation", ["bayTimeSlotReserved"]),
+      action("STAGE_VEHICLE_KEYS_PARTS", "Vehicle, keys, and parts staged", "Confirm vehicle location, keys, parts kit, materials, and any sublet items are staged.", "Brock or Eli", "Vehicle, keys, and parts staging", ["vehicleKeysPartsStaged"]),
+      action("REVIEW_REPAIR_INSTRUCTIONS", "Current repair instructions reviewed", "Confirm the technician sees the latest authorized scope, stop rules, safety limits, and notes.", "Brock or assigned technician", "Current instruction review", ["currentRepairInstructionsReviewed"]),
+      action("CONFIRM_WIP_QUEUE", "WIP limit / queue position confirmed", "Confirm the two-bay WIP limit and queue position are respected, or a General Manager exception exists.", "Brock; GM for exception", "WIP and queue confirmation", ["wipQueuePositionConfirmed"]),
+      action("PUBLISH_DISPATCH", "Dispatch published", "Record who, where, when, and under what instructions the work is dispatched.", "Brock or Eli", "Attributable dispatch publication", ["dispatchPublished"]),
+    ],
+  },
 ] as const;
 
 export function getShopReconOperationalWorkspace(stage: ShopReconStageCode, lane?: ShopReconWorkLane) {
