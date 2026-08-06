@@ -41,8 +41,8 @@ describe("Shop Recon unified vehicle-card design", () => {
     }
   });
 
-  it("defines executable operations for the first seven shop stages", () => {
-    expect(SHOP_RECON_OPERATIONAL_WORKSPACES).toHaveLength(7);
+  it("defines executable operations for the first eight shop stages", () => {
+    expect(SHOP_RECON_OPERATIONAL_WORKSPACES).toHaveLength(8);
     for (const definition of SHOP_RECON_OPERATIONAL_WORKSPACES) {
       expect(definition.actions.length).toBeGreaterThanOrEqual(5);
       for (const action of definition.actions) {
@@ -59,6 +59,7 @@ describe("Shop Recon unified vehicle-card design", () => {
     expect(getShopReconOperationalWorkspace("SAFETY_MOBILITY_TRIAGE", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Safety & Mobility Triage"]);
     expect(getShopReconOperationalWorkspace("INSPECTION_CONCERN_VERIFICATION", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Inspection / Concern Verification"]);
     expect(getShopReconOperationalWorkspace("DIAGNOSIS", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Diagnostic Module"]);
+    expect(getShopReconOperationalWorkspace("FINDINGS_REPAIR_PLAN", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Repair Workbench", "Labor Guide"]);
   });
 
   it("renders the Inventory-style identity and active-stage operating workspace", () => {
@@ -260,5 +261,24 @@ describe("Shop Recon unified vehicle-card design", () => {
     expect(html).toContain("Supported cause or uncertainty documented");
     expect(html).toContain("Recommended correction entered");
     expect(html).toContain("Diagnosis submitted for repair-plan decision");
+  });
+
+  it("renders Stage 8 with Repair Workbench and Labor Guide above the repair-plan checklist", () => {
+    const stageEightItem = { ...item, shopLifecycleStage: "FINDINGS_REPAIR_PLAN" as const, shopLifecycleLabel: "Findings & Repair Plan", shopLifecycleOrder: 8 };
+    const stageEightLifecycle = { ...lifecycleWorkspace, lifecycle: { ...lifecycleWorkspace.lifecycle, stage: "FINDINGS_REPAIR_PLAN" as const, nextAction: "Build repair plan for authorization" } };
+    const html = renderToStaticMarkup(<ShopReconVehicleCard item={stageEightItem} lifecycleWorkspace={stageEightLifecycle} />);
+
+    expect(html).toContain("Official Stage 8 Tools");
+    expect(html).toContain("Repair Workbench + Labor Guide");
+    expect(html).toContain("Open Repair Workbench");
+    expect(html).toContain("/vehicles/repair-workbench?repairOrderId=ro-1&amp;vehicleId=vehicle-1");
+    expect(html).toContain("#estimate");
+    expect(html).toContain("Open Labor Guide");
+    expect(html).toContain("/diagnostics/labor-guide?repairOrderId=ro-1");
+    expect(html).toContain("Findings reviewed");
+    expect(html).toContain("Work needed classified");
+    expect(html).toContain("Repair plan created");
+    expect(html).toContain("Cost / resource impact prepared");
+    expect(html).toContain("Submitted for authorization");
   });
 });

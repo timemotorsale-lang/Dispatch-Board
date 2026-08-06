@@ -223,6 +223,23 @@ export const SHOP_RECON_OPERATIONAL_WORKSPACES: readonly ShopReconOperationalWor
       action("SUBMIT_DIAGNOSIS", "Diagnosis submitted for repair-plan decision", "Submit the diagnostic packet so the next stage can build the repair plan.", "Walter Hernandez or Brock", "Submitted diagnosis packet", ["diagnosisSubmitted"]),
     ],
   },
+  {
+    stage: "FINDINGS_REPAIR_PLAN",
+    workTitle: "Build the Findings & Repair Plan",
+    workInstruction: "Use Repair Workbench and Labor Guide to convert verified findings into a plan that is ready for authorization.",
+    tools: [
+      tool("REPAIR_WORKBENCH", "Repair Workbench", "/vehicles/repair-workbench", "Open the repair workbench to build the repair plan, estimate, and authorization packet."),
+      tool("LABOR_GUIDE", "Labor Guide", "/diagnostics/labor-guide", "Open Labor Guide to refine labor operations and time assumptions."),
+    ],
+    pilotValues: { findingsReviewed: true, workNeededClassified: true, repairPlanCreated: true, costResourceImpactPrepared: true, submittedForAuthorization: true },
+    actions: [
+      action("REVIEW_FINDINGS", "Findings reviewed", "Review inspection and diagnosis evidence before building the repair plan.", "Brock or assigned technician", "Reviewed finding evidence", ["findingsReviewed"]),
+      action("CLASSIFY_WORK_NEEDED", "Work needed classified", "Classify each finding as safety, required, recommended, optional, cosmetic, deferred, or no action.", "Brock or assigned technician", "Finding classification", ["workNeededClassified"]),
+      action("CREATE_REPAIR_PLAN", "Repair plan created", "Create the repair operations clearly enough for labor, parts, dispatch, and technician execution.", "Brock with technician input", "Repair-plan operations", ["repairPlanCreated"]),
+      action("PREPARE_COST_RESOURCE_IMPACT", "Cost / resource impact prepared", "Identify labor, parts, sublet, special tools, bay needs, dependencies, and estimated cost impact.", "Brock or Service Advisor", "Cost and resource impact", ["costResourceImpactPrepared"]),
+      action("SUBMIT_FOR_AUTHORIZATION", "Submitted for authorization", "Submit the current repair-plan version to the correct approval path.", "Brock or Service Advisor", "Authorization-ready repair plan", ["submittedForAuthorization"]),
+    ],
+  },
 ] as const;
 
 export function getShopReconOperationalWorkspace(stage: ShopReconStageCode, lane?: ShopReconWorkLane) {
