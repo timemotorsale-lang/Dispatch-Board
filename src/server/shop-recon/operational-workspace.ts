@@ -266,6 +266,24 @@ export const SHOP_RECON_OPERATIONAL_WORKSPACES: readonly ShopReconOperationalWor
       },
     },
   },
+  {
+    stage: "PARTS_RESOURCE_READINESS",
+    workTitle: "Confirm Parts & Resource Readiness",
+    workInstruction: "Use the adopted Parts Ordering Form as the source of truth, and Repair Workbench to review the authorized repair plan.",
+    tools: [
+      tool("PARTS_ORDERING_FORM", "Parts Ordering Form", "/diagnostics/parts-ordering", "Open the existing governed parts ordering form adopted from the inventory lifecycle."),
+      tool("REPAIR_WORKBENCH", "Repair Workbench", "/vehicles/repair-workbench", "Open the repair workbench to review the authorized repair plan and estimate."),
+    ],
+    pilotValues: { authorizedRepairPlanReviewed: true, partsDemandCreatedOrNotRequired: true, partsAvailabilityConfirmed: true, resourcesProcedureNeedsConfirmed: true, subletVendorNeedResolved: true, readinessDecisionSubmitted: true },
+    actions: [
+      action("REVIEW_AUTHORIZED_PLAN", "Authorized repair plan reviewed", "Review the Stage 9 approved repair scope before reserving, ordering, or staging resources.", "Brock or Parts owner", "Authorized repair-plan review", ["authorizedRepairPlanReviewed"]),
+      action("CREATE_PARTS_DEMAND", "Parts demand created or marked not required", "Create required parts, fluids, tires, and materials demand, or mark no parts required.", "Parts owner or Brock", "Parts demand / not-required decision", ["partsDemandCreatedOrNotRequired"]),
+      action("CONFIRM_PARTS_STATUS", "Parts availability / order status confirmed", "Confirm parts are reserved, ordered, received, backordered, or intentionally held.", "Parts owner", "Parts status confirmation", ["partsAvailabilityConfirmed"]),
+      action("CONFIRM_RESOURCES_PROCEDURES", "Resources and procedure needs confirmed", "Confirm special tools, bay needs, scan/calibration, service information, and procedure requirements.", "Brock or assigned technician", "Resource and procedure readiness", ["resourcesProcedureNeedsConfirmed"]),
+      action("RESOLVE_SUBLET_VENDOR", "Sublet / vendor need resolved", "Mark vendor/sublet work not required, selected, scheduled, or blocking.", "Brock or Parts owner", "Sublet/vendor readiness", ["subletVendorNeedResolved"]),
+      action("SUBMIT_READINESS_DECISION", "Readiness decision submitted", "Record ready for dispatch, waiting parts, waiting resource, waiting vendor, or manager review.", "Brock", "Parts/resource readiness decision", ["readinessDecisionSubmitted"]),
+    ],
+  },
 ] as const;
 
 export function getShopReconOperationalWorkspace(stage: ShopReconStageCode, lane?: ShopReconWorkLane) {

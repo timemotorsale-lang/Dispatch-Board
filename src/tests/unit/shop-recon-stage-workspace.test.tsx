@@ -41,8 +41,8 @@ describe("Shop Recon unified vehicle-card design", () => {
     }
   });
 
-  it("defines executable operations for the first nine shop stages", () => {
-    expect(SHOP_RECON_OPERATIONAL_WORKSPACES).toHaveLength(9);
+  it("defines executable operations for the first ten shop stages", () => {
+    expect(SHOP_RECON_OPERATIONAL_WORKSPACES).toHaveLength(10);
     for (const definition of SHOP_RECON_OPERATIONAL_WORKSPACES) {
       expect(definition.actions.length).toBeGreaterThanOrEqual(5);
       for (const action of definition.actions) {
@@ -62,6 +62,7 @@ describe("Shop Recon unified vehicle-card design", () => {
     expect(getShopReconOperationalWorkspace("FINDINGS_REPAIR_PLAN", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Repair Workbench", "Labor Guide"]);
     expect(getShopReconOperationalWorkspace("AUTHORIZATION", "CUSTOMER_REPAIR")?.tools?.map(tool => tool.label)).toEqual(["Repair Workbench / Authorization", "Service Advisor / Approval Desk"]);
     expect(getShopReconOperationalWorkspace("AUTHORIZATION", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Repair Workbench / Authorization", "Inventory Lifecycle Authorization"]);
+    expect(getShopReconOperationalWorkspace("PARTS_RESOURCE_READINESS", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Parts Ordering Form", "Repair Workbench"]);
   });
 
   it("renders the Inventory-style identity and active-stage operating workspace", () => {
@@ -301,5 +302,24 @@ describe("Shop Recon unified vehicle-card design", () => {
     expect(html).toContain("Decision recorded");
     expect(html).toContain("Approved scope and amount captured");
     expect(html).toContain("Authorization submitted for readiness");
+  });
+
+  it("renders Stage 10 with the adopted Parts Ordering Form and Repair Workbench above the readiness checklist", () => {
+    const stageTenItem = { ...item, shopLifecycleStage: "PARTS_RESOURCE_READINESS" as const, shopLifecycleLabel: "Parts & Resource Readiness", shopLifecycleOrder: 10 };
+    const stageTenLifecycle = { ...lifecycleWorkspace, lifecycle: { ...lifecycleWorkspace.lifecycle, stage: "PARTS_RESOURCE_READINESS" as const, nextAction: "Confirm parts and resources" } };
+    const html = renderToStaticMarkup(<ShopReconVehicleCard item={stageTenItem} lifecycleWorkspace={stageTenLifecycle} />);
+
+    expect(html).toContain("Official Stage 10 Tools");
+    expect(html).toContain("Parts Ordering Form + Repair Workbench");
+    expect(html).toContain("Open Parts Ordering Form");
+    expect(html).toContain("/diagnostics/parts-ordering?repairOrderId=ro-1&amp;repairOrderNumber=RO-1001&amp;vehicle=2024+Toyota+RAV4");
+    expect(html).toContain("Open Repair Workbench");
+    expect(html).toContain("/vehicles/repair-workbench?repairOrderId=ro-1&amp;vehicleId=vehicle-1");
+    expect(html).toContain("Authorized repair plan reviewed");
+    expect(html).toContain("Parts demand created or marked not required");
+    expect(html).toContain("Parts availability / order status confirmed");
+    expect(html).toContain("Resources and procedure needs confirmed");
+    expect(html).toContain("Sublet / vendor need resolved");
+    expect(html).toContain("Readiness decision submitted");
   });
 });
