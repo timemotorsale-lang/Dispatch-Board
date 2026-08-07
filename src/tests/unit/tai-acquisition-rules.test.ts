@@ -17,6 +17,7 @@ const eligible: TaiAcquisitionInput = {
   proposedPurchase: 23400,
   proposedPurchaseKnown: true,
   recon: 1650,
+  reliabilityRisk: "Low",
   retailConfidence: "High",
   retailRangeHigh: 32900,
   retailRangeLow: 30600,

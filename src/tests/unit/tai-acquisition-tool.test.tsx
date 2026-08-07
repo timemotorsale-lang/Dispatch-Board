@@ -21,6 +21,10 @@ describe("TaiAcquisitionTool", () => {
     expect(markup).toContain("Local market");
     expect(markup).toContain("National baseline");
     expect(markup).toContain("Buyer intelligence");
+    expect(markup).toContain("Decoded vehicle intelligence");
+    expect(markup).toContain("Known issue watch");
+    expect(markup).toContain("Inspection focus");
+    expect(markup).toContain("reliability risk");
     expect(markup).toContain("Acquisition identity capture");
     expect(markup).toContain("Paste VIN barcode text or Manheim / ADESA windshield details here");
     expect(markup).toContain("Open Vehicle Intake form");

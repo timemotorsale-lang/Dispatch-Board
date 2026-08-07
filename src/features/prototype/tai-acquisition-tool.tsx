@@ -37,6 +37,7 @@ type OpportunityDraft = {
   retailConfidence: TaiAcquisitionInput["retailConfidence"];
   retailRangeHigh: number;
   retailRangeLow: number;
+  vehicleIntelligence: VehicleIntelligenceProfile;
   seller: string;
   source: "Auction" | "Trade" | "Marketplace" | "Customer Offer" | "Dealer Wholesale";
   sourceLink: string;
@@ -44,6 +45,15 @@ type OpportunityDraft = {
   status: "Draft" | "Researching" | "Ready for TAI" | "Buy candidate" | "Pass candidate";
   systemRetail: number;
   vin: string;
+};
+
+type VehicleIntelligenceProfile = {
+  commonIssues: string[];
+  inspectionFocus: string[];
+  marketPerformance: "Fast seller" | "Average seller" | "Price-sensitive" | "Slow seller";
+  recommendationNote: string;
+  reliabilityRisk: TaiAcquisitionInput["reliabilityRisk"];
+  resaleVelocity: "Fast turn" | "Normal turn" | "Slow turn";
 };
 
 const initialInput: TaiAcquisitionInput = {
@@ -61,6 +71,7 @@ const initialInput: TaiAcquisitionInput = {
   proposedPurchase: 23400,
   proposedPurchaseKnown: true,
   recon: 1650,
+  reliabilityRisk: "Low",
   retailConfidence: "High",
   retailRangeHigh: 32900,
   retailRangeLow: 30600,
@@ -93,6 +104,14 @@ const initialOpportunity: OpportunityDraft = {
   retailConfidence: "High",
   retailRangeHigh: 32900,
   retailRangeLow: 30600,
+  vehicleIntelligence: {
+    commonIssues: ["Hybrid battery/cooling checks on hybrid trims", "AWD driveline noise check", "Normal compact SUV wear items"],
+    inspectionFocus: ["Confirm trim/options", "Scan for AWD and safety-system faults", "Inspect tires, brakes, and underbody"],
+    marketPerformance: "Fast seller",
+    recommendationNote: "Compact SUV demand is strong; buy if recon stays controlled.",
+    reliabilityRisk: "Low",
+    resaleVelocity: "Fast turn",
+  },
   seller: "Manheim Minneapolis",
   source: "Auction",
   sourceLink: "https://example.com/source-listing",
@@ -143,8 +162,63 @@ function clampNumber(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
 }
 
+function buildVehicleIntelligence(decoded: NonNullable<ReturnType<typeof decodeOpportunityVin>>): VehicleIntelligenceProfile {
+  const label = decoded.label.toLowerCase();
+  const body = decoded.body.toLowerCase();
+  const trim = decoded.trim.toLowerCase();
+  if (label.includes("accord")) return {
+    commonIssues: ["1.5T oil dilution / drivability watch", "CVT operation must be verified", "A/C condenser and infotainment complaints are common checks"],
+    inspectionFocus: ["Cold-start scan and road test", "Verify turbo/CVT behavior", "Confirm trim and accident/title history"],
+    marketPerformance: "Average seller",
+    recommendationNote: "Accord demand is good, but reliability/recon risk should tighten the ceiling.",
+    reliabilityRisk: "Elevated",
+    resaleVelocity: "Normal turn",
+  };
+  if (body.includes("suv") || body.includes("multipurpose")) return {
+    commonIssues: ["Normal compact SUV brakes/tires wear", "AWD system/noise check when equipped", "Safety sensor calibration after prior damage"],
+    inspectionFocus: ["Confirm trim/options", "Inspect tires, brakes, and suspension", "Scan safety/ADAS modules"],
+    marketPerformance: "Fast seller",
+    recommendationNote: "SUV demand supports buying if recon stays controlled.",
+    reliabilityRisk: "Low",
+    resaleVelocity: "Fast turn",
+  };
+  if (body.includes("truck")) return {
+    commonIssues: ["Turbo/V8 maintenance history matters", "4x4 engagement and driveline noise", "Rust/tow-use exposure"],
+    inspectionFocus: ["Frame/rust inspection", "4x4 and transmission road test", "Check tow package and tires"],
+    marketPerformance: "Fast seller",
+    recommendationNote: "Truck demand is strong, but repair exposure requires higher reserve.",
+    reliabilityRisk: "Moderate",
+    resaleVelocity: "Fast turn",
+  };
+  if (label.includes("mazda")) return {
+    commonIssues: ["Rust and suspension wear on older units", "Infotainment/electrical checks", "Engine mount and brake wear"],
+    inspectionFocus: ["Undercarriage/rust review", "Road test suspension noise", "Confirm maintenance history"],
+    marketPerformance: "Price-sensitive",
+    recommendationNote: "Buy only with disciplined recon and price control.",
+    reliabilityRisk: "Moderate",
+    resaleVelocity: "Normal turn",
+  };
+  if (trim.includes("pending") || trim.includes("confirm")) return {
+    commonIssues: ["Exact trim/options not confirmed", "Known issue profile is incomplete", "Use conservative recon until inspection"],
+    inspectionFocus: ["Confirm trim from window sticker/photos", "Run history/title check", "Complete pre-buy inspection"],
+    marketPerformance: "Price-sensitive",
+    recommendationNote: "Hold final authority until trim and issue profile are confirmed.",
+    reliabilityRisk: "Elevated",
+    resaleVelocity: "Normal turn",
+  };
+  return {
+    commonIssues: ["No specific prototype issue profile found", "Use conservative condition review", "Require manager review if data remains thin"],
+    inspectionFocus: ["Confirm exact vehicle facts", "Complete pre-buy inspection", "Review local comps"],
+    marketPerformance: "Slow seller",
+    recommendationNote: "Prototype intelligence is thin; do not overpay without stronger evidence.",
+    reliabilityRisk: "High",
+    resaleVelocity: "Slow turn",
+  };
+}
+
 function prototypeAppraiseOpportunity(opportunity: OpportunityDraft, decoded: NonNullable<ReturnType<typeof decodeOpportunityVin>>) {
   const mileage = parseMileage(opportunity.odometer);
+  const vehicleIntelligence = buildVehicleIntelligence(decoded);
   const isSuv = decoded.body.toLowerCase().includes("suv") || decoded.body.toLowerCase().includes("multipurpose");
   const isTruck = decoded.body.toLowerCase().includes("truck");
   const isHondaAccord = decoded.label.toLowerCase().includes("accord");
@@ -158,6 +232,7 @@ function prototypeAppraiseOpportunity(opportunity: OpportunityDraft, decoded: No
   const retailSpread = Math.max(800, Math.round(localMarketRetail * (isGeneric ? 0.07 : 0.04)));
   const retailConfidence: TaiAcquisitionInput["retailConfidence"] = isGeneric ? "Low" : opportunity.marketValue > 0 && mileage > 0 ? "High" : "Medium";
   const marketDaysSupply = isSuv ? 31 : isTruck ? 27 : isHondaAccord ? 38 : 52;
+  const reliabilityReserve = vehicleIntelligence.reliabilityRisk === "High" ? 1000 : vehicleIntelligence.reliabilityRisk === "Elevated" ? 650 : vehicleIntelligence.reliabilityRisk === "Moderate" ? 350 : 0;
   const missingItems = [
     ...(isGeneric ? ["Confirm exact trim/options"] : []),
     ...(opportunity.marketValue <= 0 ? ["MMR or wholesale value not provided; prototype estimate used"] : []),
@@ -174,6 +249,7 @@ function prototypeAppraiseOpportunity(opportunity: OpportunityDraft, decoded: No
       `Local market is ${money(Math.abs(localDemandAdjustment))} ${localDemandAdjustment >= 0 ? "stronger" : "weaker"} than national baseline for this profile`,
       `Market days supply estimate: ${marketDaysSupply} days`,
       isGeneric ? "Trim needs confirmation before final authority" : "Trim confidence supports prototype valuation",
+      vehicleIntelligence.recommendationNote,
     ],
     inventoryNeed: isSuv || isTruck ? 5 : 4,
     localMarketRetail,
@@ -182,15 +258,16 @@ function prototypeAppraiseOpportunity(opportunity: OpportunityDraft, decoded: No
     marketValue,
     missingItems,
     nationalMarketRetail,
-    recon: isSuv ? 1650 : isTruck ? 2200 : isHondaAccord ? 1450 : 1750,
+    recon: (isSuv ? 1650 : isTruck ? 2200 : isHondaAccord ? 1450 : 1750) + reliabilityReserve,
     retailAdjustment: localMarketRetail - nationalMarketRetail,
     retailConfidence,
     retailRangeHigh: roundToHundred(localMarketRetail + retailSpread),
     retailRangeLow: roundToHundred(localMarketRetail - retailSpread),
-    riskReserve: retailConfidence === "Low" ? 900 : 500,
+    riskReserve: (retailConfidence === "Low" ? 900 : 500) + reliabilityReserve,
     targetGross: localMarketRetail >= 25000 ? 3250 : 2500,
     titleAndDocs: 300,
     transport: opportunity.source === "Auction" ? 525 : opportunity.source === "Dealer Wholesale" ? 350 : 0,
+    vehicleIntelligence,
   };
 }
 
@@ -278,6 +355,7 @@ export function TaiAcquisitionTool({ onProgressChange }: { onProgressChange: (pr
         retailRangeHigh: 0,
         retailRangeLow: 0,
         systemRetail: 0,
+        vehicleIntelligence: buildVehicleIntelligence({ body: "Unknown", engine: "Unknown", label: "Unknown opportunity", trim: "Trim pending full decode" }),
       } : null),
       [field]: value,
       ...(field === "askingPriceStatus" && value !== "Provided" ? { askingPrice: 0 } : null),
@@ -332,6 +410,7 @@ export function TaiAcquisitionTool({ onProgressChange }: { onProgressChange: (pr
       retailRangeLow: appraisal.retailRangeLow,
       status: duplicateStatus === "Clear" && appraisal.missingItems.length === 0 ? "Ready for TAI" : "Researching",
       systemRetail: appraisal.expectedRetail,
+      vehicleIntelligence: appraisal.vehicleIntelligence,
     }));
     setInput((current) => ({
       ...current,
@@ -347,6 +426,7 @@ export function TaiAcquisitionTool({ onProgressChange }: { onProgressChange: (pr
       proposedPurchase: priceKnown ? opportunity.askingPrice : 0,
       proposedPurchaseKnown: priceKnown,
       recon: appraisal.recon,
+      reliabilityRisk: appraisal.vehicleIntelligence.reliabilityRisk,
       retailConfidence: appraisal.retailConfidence,
       retailRangeHigh: appraisal.retailRangeHigh,
       retailRangeLow: appraisal.retailRangeLow,
@@ -444,6 +524,15 @@ export function TaiAcquisitionTool({ onProgressChange }: { onProgressChange: (pr
           <div className={styles.opportunityIntel}>
             <strong>Buyer intelligence</strong>
             {(opportunity.missingItems.length ? opportunity.missingItems : opportunity.intelligenceNotes).slice(0, 4).map((item) => <span key={item}>{opportunity.missingItems.length ? <CircleAlert size={13} /> : <Check size={13} />}{item}</span>)}
+          </div>
+          <div className={styles.opportunityVehicleIntel}>
+            <header><strong>Decoded vehicle intelligence</strong><em>{opportunity.vehicleIntelligence.reliabilityRisk} reliability risk</em></header>
+            <p>{opportunity.vehicleIntelligence.recommendationNote}</p>
+            <div>
+              <section><b>Known issue watch</b>{opportunity.vehicleIntelligence.commonIssues.slice(0, 3).map((item) => <span key={item}><CircleAlert size={13} />{item}</span>)}</section>
+              <section><b>Inspection focus</b>{opportunity.vehicleIntelligence.inspectionFocus.slice(0, 3).map((item) => <span key={item}><Check size={13} />{item}</span>)}</section>
+            </div>
+            <footer><span>{opportunity.vehicleIntelligence.marketPerformance}</span><span>{opportunity.vehicleIntelligence.resaleVelocity}</span></footer>
           </div>
           <div className={styles.opportunityReadiness}>
             {([

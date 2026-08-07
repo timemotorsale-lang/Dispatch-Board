@@ -17,6 +17,7 @@ export type TaiAcquisitionInput = {
   proposedPurchase: number;
   proposedPurchaseKnown: boolean;
   recon: number;
+  reliabilityRisk: "Low" | "Moderate" | "Elevated" | "High";
   retailConfidence: TaiRetailConfidence;
   retailRangeHigh: number;
   retailRangeLow: number;
@@ -63,6 +64,7 @@ export function evaluateTaiAcquisition(raw: TaiAcquisitionInput): TaiAcquisition
     proposedPurchase: dollars(raw.proposedPurchase),
     proposedPurchaseKnown: raw.proposedPurchaseKnown,
     recon: dollars(raw.recon),
+    reliabilityRisk: raw.reliabilityRisk,
     retailConfidence: raw.retailConfidence,
     retailRangeHigh: dollars(raw.retailRangeHigh),
     retailRangeLow: dollars(raw.retailRangeLow),
@@ -85,7 +87,9 @@ export function evaluateTaiAcquisition(raw: TaiAcquisitionInput): TaiAcquisition
   const demandPoints = input.demandStrength / 5 * 25;
   const inventoryPoints = input.inventoryNeed / 5 * 20;
   const marketPoints = input.marketPosition / 5 * 15;
-  const riskPoints = (6 - input.conditionRisk) / 5 * 10;
+  const reliabilityPenalty = input.reliabilityRisk === "High" ? 2 : input.reliabilityRisk === "Elevated" ? 1 : 0;
+  const adjustedConditionRisk = rating(input.conditionRisk + reliabilityPenalty);
+  const riskPoints = (6 - adjustedConditionRisk) / 5 * 10;
   const economicsRatio = input.targetGross > 0 ? expectedGross / input.targetGross : expectedGross > 0 ? 1 : 0;
   const economicsPoints = clamp(economicsRatio, 0, 1) * 30;
   const acquisitionScore = Math.round(demandPoints + inventoryPoints + marketPoints + riskPoints + economicsPoints);
@@ -124,6 +128,7 @@ export function evaluateTaiAcquisition(raw: TaiAcquisitionInput): TaiAcquisition
   ].slice(0, 3);
   const negativeDrivers = [
     ...(input.conditionRisk >= 4 ? ["Condition exposure is elevated"] : []),
+    ...(["Elevated", "High"].includes(input.reliabilityRisk) ? [`${input.reliabilityRisk} decoded reliability risk affects buying discipline`] : []),
     ...(offerStrategyRequired ? ["Seller asking price is not provided"] : []),
     ...(input.retailConfidence === "Low" ? ["Retail value needs manager or comp review"] : []),
     ...(!offerStrategyRequired && remainingRoom < 0 ? [`Proposed price is ${money(Math.abs(remainingRoom))} above the purchase ceiling`] : []),
