@@ -185,12 +185,12 @@ function mergeById<T extends { id: string }>(current: T[], saved: T[] = []) {
   return [...current, ...saved.filter((item) => !current.some((record) => record.id === item.id))];
 }
 
-export function ServiceIntakeWorkspace({ initialConcernSummary = "", initialTimestamp, initialVehicleId = "", initialVehicleRelationship = "CUSTOMER_VEHICLE", options, returnTo, showAdvisorReturn = false }: { initialConcernSummary?: string; initialTimestamp: string; initialVehicleId?: string; initialVehicleRelationship?: VehicleRelationshipIntent; options: ServiceIntakeOptions; returnTo?: string; showAdvisorReturn?: boolean }) {
+export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcernSummary = "", initialTimestamp, initialVehicleId = "", initialVehicleRelationship = "CUSTOMER_VEHICLE", options, returnTo, showAdvisorReturn = false }: { initialArrivalQuery?: string; initialConcernSummary?: string; initialTimestamp: string; initialVehicleId?: string; initialVehicleRelationship?: VehicleRelationshipIntent; options: ServiceIntakeOptions; returnTo?: string; showAdvisorReturn?: boolean }) {
   const concernRef = useRef<HTMLTextAreaElement>(null);
   const arrivalSearchRef = useRef<HTMLInputElement>(null);
   const inventoryUnitSectionRef = useRef<HTMLElement>(null);
   const [form, setForm] = useState<IntakeState>(() => buildInitial(options, initialTimestamp, initialConcernSummary, initialVehicleId, initialVehicleRelationship));
-  const [arrivalQuery, setArrivalQuery] = useState("");
+  const [arrivalQuery, setArrivalQuery] = useState(initialArrivalQuery);
   const [arrivalMode, setArrivalMode] = useState<"recent" | "search" | "today">("search");
   const [customerRecords, setCustomerRecords] = useState(options.customers);
   const [vehicleRecords, setVehicleRecords] = useState(options.vehicles);

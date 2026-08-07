@@ -17,6 +17,7 @@ import { isDispatchConsolePath } from "./navigation";
 import { useWorkspaceMode, WorkspaceModeProvider } from "./workspace-mode";
 import { AppearanceProvider } from "./appearance";
 import { InventoryConsoleRouteTabs } from "./inventory-console-route-tabs";
+import { AdvisorWorkspaceTabs } from "./advisor-workspace-tabs";
 
 type AppShellProps = {
   children: ReactNode;
@@ -44,6 +45,7 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
     !salesConsole;
   const showInventoryRouteTabs = isInventoryConsolePath(pathname);
   const showFullInventoryNavigation = consoleNavigation?.title === "Inventory Console";
+  const advisorWorkspace = preferredWorkspace === "ADVISOR";
 
   return (
     <div
@@ -74,7 +76,8 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
             <span>Opened from Sales Console</span>
           </nav>
         ) : null}
-        {showInventoryRouteTabs ? <InventoryConsoleRouteTabs allowedHrefs={consoleNavigation?.items.map(item => item.href) ?? []} pathname={pathname} searchParams={new URLSearchParams(searchParams.toString())} showFullNavigation={showFullInventoryNavigation} showReturn={!showSalesConsoleReturn} /> : null}
+        {advisorWorkspace ? <AdvisorWorkspaceTabs pathname={pathname} searchParams={new URLSearchParams(searchParams.toString())} /> : null}
+        {showInventoryRouteTabs && !advisorWorkspace ? <InventoryConsoleRouteTabs allowedHrefs={consoleNavigation?.items.map(item => item.href) ?? []} pathname={pathname} searchParams={new URLSearchParams(searchParams.toString())} showFullNavigation={showFullInventoryNavigation} showReturn={!showSalesConsoleReturn} /> : null}
         <main className="app-content">{children}</main>
       </div>
     </div>

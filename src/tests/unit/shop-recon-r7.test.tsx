@@ -59,7 +59,7 @@ describe("R7 Shop & Recon landing projection", () => {
       order(),
       order({ id: "ro-2", repairOrderNumber: "RO-1002", origin: "INVENTORY_RECON", customer: null, inventoryUnit: { inventoryNumber: "INV-200" } }),
     ], now);
-    const html = renderToStaticMarkup(<ShopReconLanding model={projection} />);
+    const html = renderToStaticMarkup(<ShopReconLanding initialView="high-volume" model={projection} />);
     expect((html.match(/shop-vehicle-card lane-customer/g) ?? [])).toHaveLength(1);
     expect((html.match(/shop-vehicle-card lane-inventory/g) ?? [])).toHaveLength(1);
     expect(html).toContain("Customer Vehicle");
@@ -75,7 +75,7 @@ describe("R7 Shop & Recon landing projection", () => {
     ], now);
     expect(model.items[0].pilot).toMatchObject({ id: "CUSTOMER_STANDARD", expectedHandoff: "Service advisor / customer" });
     expect(model.items[1].pilot).toBeNull();
-    expect(renderToStaticMarkup(<ShopReconLanding model={model} />)).toContain("shop-pilot-badge");
+    expect(renderToStaticMarkup(<ShopReconLanding initialView="high-volume" model={model} />)).toContain("shop-pilot-badge");
   });
 
   it("surfaces parts, assignment, promise, approval, and quality constraints", () => {
@@ -99,7 +99,7 @@ describe("R7 Shop & Recon landing projection", () => {
 
   it("renders service intake, Parts, reviews, handoffs, and capability truth", () => {
     const projection = buildShopReconProjection([order()], now);
-    const html = renderToStaticMarkup(<ShopReconLanding model={{ ...projection, reviews: { ...projection.reviews, comebacks: 2 } }} />);
+    const html = renderToStaticMarkup(<ShopReconLanding initialView="high-volume" model={{ ...projection, reviews: { ...projection.reviews, comebacks: 2 } }} />);
     expect(html).toContain("Check In Vehicle");
     expect(html).toContain("/vehicles/repair-orders?intakeSource=WALK_IN");
     expect(html).toContain("Parts Operations");
@@ -121,10 +121,10 @@ describe("R7 Shop & Recon landing projection", () => {
       order({ id: "ro-inv", origin: "INVENTORY_RECON", customer: null, inventoryUnit: { inventoryNumber: "INV-200" }, estimateVersions: [{ status: "AUTHORIZED", totalCents: 125000, authorizations: [{ disposition: "ACCEPTED" }] }] }),
       order({ id: "ro-cust", stage: "READY_FOR_REPAIR", repairJobs: [{ id: "job-1", jobNumber: "1", description: "Front brakes", status: "READY_FOR_REPAIR", partDemands: [{ quantityRequired: 2, quantityReserved: 0 }], dispatches: [] }] }),
     ], now);
-    const html = renderToStaticMarkup(<ShopReconLanding model={projection} />);
+    const html = renderToStaticMarkup(<ShopReconLanding initialView="high-volume" model={projection} />);
 
-    expect(projection.contractVersion).toBe("shop-recon/r10.0.0");
-    expect(projection.capability).toMatchObject({ unifiedCommandCenter: "ACTIVE", exceptionLoopEngine: "ACTIVE_UI_GUIDANCE", inventoryShopHandoff: "LANE_AWARE_RETURN_PATH" });
+    expect(projection.contractVersion).toBe("shop-recon/r11.0.0");
+    expect(projection.capability).toMatchObject({ unifiedCommandCenter: "ACTIVE", exceptionLoopEngine: "ACTIVE_UI_GUIDANCE", inventoryShopHandoff: "LANE_AWARE_RETURN_PATH", rapidFlow: "CALM_DEFAULT_HIGH_VOLUME_OPTIONAL" });
     expect(projection.totals.authorizedReconCents).toBe(125000);
     expect(html).toContain("Unified Vehicle Command Center");
     expect(html).toContain("Exception &amp; Loop Engine");
@@ -142,11 +142,30 @@ describe("R7 Shop & Recon landing projection", () => {
     const projection = buildShopReconProjection([order({
       repairJobs: [{ id: "job-1", jobNumber: "1", description: "Front brakes", status: "READY_FOR_REPAIR", partDemands: [{ quantityRequired: 2, quantityReserved: 0 }], dispatches: [] }],
     })], now);
-    const html = renderToStaticMarkup(<ShopReconLanding initialBlocker="parts" model={projection} />);
+    const html = renderToStaticMarkup(<ShopReconLanding initialBlocker="parts" initialView="high-volume" model={projection} />);
 
-    expect(html).toContain('href="/vehicles/shop-recon?blocker=parts"');
+    expect(html).toContain('href="/vehicles/shop-recon?blocker=parts&amp;view=high-volume"');
     expect(html).toContain('aria-current="page"');
     expect(html).toContain("Part backorder");
     expect(html).toContain('href="/vehicles/repair-workbench?repairOrderId=ro-1"');
+  });
+
+  it("defaults to a calm Rapid Flow workspace with accountable exception details", () => {
+    const projection = buildShopReconProjection([order({
+      targetAt: "2026-07-18T14:00:00.000Z",
+      repairJobs: [{ id: "job-1", jobNumber: "1", description: "Front brakes", status: "READY_FOR_REPAIR", partDemands: [{ quantityRequired: 2, quantityReserved: 0 }], dispatches: [] }],
+    })], now);
+    const html = renderToStaticMarkup(<ShopReconLanding model={projection} />);
+
+    expect(html).toContain("Rapid Flow");
+    expect(html).toContain("Calm promotes only constraints");
+    expect(html).toContain("Needs attention now");
+    expect(html).toContain("Waiting parts");
+    expect(html).toContain("Alex Advisor");
+    expect(html).toContain("Complete intake");
+    expect(html).toContain("Daily flow brief");
+    expect(html).toContain("Flow protections");
+    expect(html).toContain('href="/vehicles/shop-recon?view=high-volume"');
+    expect(html).not.toContain("Unified Vehicle Command Center");
   });
 });

@@ -17,6 +17,7 @@ import styles from "./repair-workbench.module.css";
 type PageProps = {
   searchParams?: Promise<{
     contextError?: string;
+    compose?: string;
     query?: string;
     repairOrderId?: string;
     returnLabel?: string;
@@ -74,6 +75,7 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
         repairOrderId: params.repairOrderId,
         vehicleId: order.vehicle.id,
       });
+      if (params.compose === "customer" || params.compose === "management" || params.compose === "team") canonical.set("compose", params.compose);
       if (returnTo) canonical.set("returnTo", returnTo);
       redirect(`/vehicles/repair-workbench?${canonical}`);
     }
@@ -83,7 +85,8 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
     ]);
 
     if (showAdvisorReturn) {
-      return <AdvisorRepairOrderStatusView order={JSON.parse(JSON.stringify(order))} />;
+      const compose = params.compose === "customer" || params.compose === "management" || params.compose === "team" ? params.compose : undefined;
+      return <AdvisorRepairOrderStatusView compose={compose} order={JSON.parse(JSON.stringify(order))} />;
     }
 
     return (

@@ -13,8 +13,32 @@ const model = {
     customers: 1,
     todaysArrivals: 1,
     waitingCheckIn: 1,
-    handoffs: 1
+    handoffs: 1,
+    needsAttention: 1,
+    waitingOnOthers: 0,
+    inboxNeedsResponse: 1
   },
+  inbox: [
+    {
+      id: "update_1",
+      audience: "CUSTOMER",
+      authorName: "Alex Carter",
+      channel: "SMS",
+      customerName: "Jordan Customer",
+      direction: "INBOUND",
+      dueAt: "2026-07-20T20:00:00.000Z",
+      exceptionCodes: ["CUSTOMER_ACTION"],
+      needsResponse: true,
+      occurredAt: "2026-07-20T13:45:00.000Z",
+      preview: "Can you explain the brake recommendation?",
+      repairOrderId: "ro_1",
+      repairOrderNumber: "RO-1001",
+      statusCode: "WAITING_APPROVAL",
+      subject: "Customer replied about estimate",
+      transportState: "RECORDED_CONTACT",
+      vehicleLabel: "2024 Ford F-150"
+    }
+  ],
   actionQueue: [
     {
       id: "ro_1",
@@ -56,11 +80,33 @@ describe("ServiceAdvisorHome", () => {
   it("surfaces a direct advisor action queue with repair-order routing", () => {
     const html = renderToStaticMarkup(<ServiceAdvisorHome model={model} />);
 
-    expect(html).toContain("Advisor action queue");
+    expect(html).toContain("My next actions");
     expect(html).toContain("Authorization needed");
     expect(html).toContain("Customer decision may be required before work can continue.");
-    expect(html).toContain("Last advisor note: Customer requested a callback before approval.");
+    expect(html).toContain("Last note: Customer requested a callback before approval.");
     expect(html).toContain("/vehicles/repair-workbench?repairOrderId=ro_1");
     expect(html).toContain("Check In Vehicle");
+    expect(html).toContain("Search &amp; check in");
+    expect(html).toContain("Record decision");
+    expect(html).toContain("Calm");
+    expect(html).toContain("High-volume");
+    expect(html).toContain("Inbox");
+    expect(html).toContain("Can you explain the brake recommendation?");
+    expect(html).toContain('aria-label="Advisor workspace display mode"');
+    expect(html).toContain('aria-pressed="true"');
+    expect(html).not.toContain("Repair-order handoffs");
+  });
+
+  it("renders a dedicated inbox with explicit customer delivery boundaries", () => {
+    const html = renderToStaticMarkup(<ServiceAdvisorHome initialSection="INBOX" model={model} />);
+
+    expect(html).toContain("Unified Inbox");
+    expect(html).toContain("Needs response");
+    expect(html).toContain("Customers");
+    expect(html).toContain("Internal team");
+    expect(html).toContain("Management");
+    expect(html).toContain("external delivery not verified");
+    expect(html).toContain("Respond to customer");
+    expect(html).toContain("compose=customer");
   });
 });

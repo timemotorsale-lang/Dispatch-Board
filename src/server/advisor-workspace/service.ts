@@ -130,6 +130,36 @@ export async function getServiceAdvisorWorkspace(actor: AuthenticatedUser) {
     .map((order) => ({ order, action: advisorActionFor(order) }))
     .sort((left, right) => left.action.priority - right.action.priority || left.order.targetAt.getTime() - right.order.targetAt.getTime());
   const activeHandoffs = actionQueue.filter(({ action }) => !["CUSTOMER_UPDATE", "FOLLOW_UP_SCHEDULED"].includes(action.kind));
+  const needsAttention = actionQueue.filter(({ action }) => ["AUTHORIZATION", "PROMISE_RISK", "HANDOFF", "CUSTOMER_UPDATE"].includes(action.kind));
+  const waitingOnOthers = actionQueue.filter(({ action }) => ["PARTS_DELAY", "TECHNICIAN_CLARIFICATION", "FOLLOW_UP_SCHEDULED"].includes(action.kind));
+  const inbox = openOrders.items.flatMap((order) => order.advisorUpdates.map((update) => {
+    const exceptionCodes = advisorExceptionCodes(update.exceptionCodes);
+    const audience = exceptionCodes.includes("MANAGER_REVIEW")
+      ? "MANAGEMENT" as const
+      : update.contactDirection === "INTERNAL" || update.contactChannel === "INTERNAL" || exceptionCodes.some((code) => ["TECHNICIAN_CLARIFICATION", "WAITING_PARTS"].includes(code))
+        ? "TEAM" as const
+        : "CUSTOMER" as const;
+    const needsResponse = update.contactDirection === "INBOUND" || exceptionCodes.length > 0 || audience !== "CUSTOMER" && update.authorUser.id !== actor.id;
+    return {
+      id: update.id,
+      audience,
+      authorName: update.authorUser.name,
+      channel: update.contactChannel,
+      customerName: order.customer?.displayName ?? order.inventoryUnit?.inventoryNumber ?? "Internal vehicle",
+      direction: update.contactDirection,
+      dueAt: update.nextContactAt?.toISOString() ?? null,
+      exceptionCodes,
+      needsResponse,
+      occurredAt: update.occurredAt.toISOString(),
+      preview: audience === "CUSTOMER" ? update.customerVisibleSummary : update.internalNotes ?? update.contactOutcome,
+      repairOrderId: order.id,
+      repairOrderNumber: order.repairOrderNumber,
+      statusCode: update.statusCode,
+      subject: update.contactOutcome,
+      transportState: audience === "CUSTOMER" ? "RECORDED_CONTACT" as const : audience === "MANAGEMENT" ? "ESCALATION_RECORDED" as const : "SHARED_IN_REPAIR_ORDER" as const,
+      vehicleLabel: [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber
+    };
+  })).sort((left, right) => Number(right.needsResponse) - Number(left.needsResponse) || new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime());
 
   return {
     generatedAt: now.toISOString(),
@@ -140,9 +170,13 @@ export async function getServiceAdvisorWorkspace(actor: AuthenticatedUser) {
       customers: options.customers.length,
       todaysArrivals: todaysArrivals.length,
       waitingCheckIn: waitingCheckIn.length,
-      handoffs: activeHandoffs.length
+      handoffs: activeHandoffs.length,
+      needsAttention: needsAttention.length,
+      waitingOnOthers: waitingOnOthers.length,
+      inboxNeedsResponse: inbox.filter((item) => item.needsResponse).length
     },
-    actionQueue: actionQueue.slice(0, 6).map(({ order, action }) => ({
+    inbox: inbox.slice(0, 40),
+    actionQueue: actionQueue.slice(0, 12).map(({ order, action }) => ({
       id: order.id,
       actionKind: action.kind,
       actionLabel: action.label,

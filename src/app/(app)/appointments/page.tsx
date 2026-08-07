@@ -10,8 +10,10 @@ type AppointmentsPageProps = {
   searchParams?: Promise<{
     appointment?: string;
     action?: string;
+    inbox?: string;
     section?: string;
     sourceTask?: string;
+    queue?: string;
     view?: string;
     workspace?: string;
   }>;
@@ -37,7 +39,7 @@ export default async function AppointmentsPage({ searchParams }: AppointmentsPag
 
   if (advisorMode) {
     const model = await getServiceAdvisorWorkspace(user);
-    return <ServiceAdvisorHome model={JSON.parse(JSON.stringify(model))} />;
+    return <ServiceAdvisorHome initialFilter={focusParams?.queue === "authorization" ? "AUTHORIZATION" : "ATTENTION"} initialSection={focusParams?.inbox ? "INBOX" : "WORK"} model={JSON.parse(JSON.stringify(model))} />;
   }
   if (newAppointmentMode) {
     return <AppointmentConsoleNewAppointment />;

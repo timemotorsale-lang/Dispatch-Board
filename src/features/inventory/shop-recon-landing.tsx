@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import {
   AlertTriangle,
+  ArrowRight,
   Building2,
   CalendarDays,
   CheckCircle2,
@@ -9,7 +10,11 @@ import {
   Clock3,
   Download,
   FlaskConical,
+  Gauge,
+  ListFilter,
   PackageOpen,
+  ShieldCheck,
+  TimerReset,
   UserRound,
   Wrench,
 } from "lucide-react";
@@ -37,6 +42,8 @@ type Item = {
   shopZoneCode: string;
   stageTargetBand: string;
   stageElapsedMinutes: number;
+  cycleElapsedMinutes: number;
+  waitingReason: string | null;
   priorityScore: number;
   priorityBand: string;
   priorityReasons: ReadonlyArray<{ code: string; points: number }>;
@@ -103,6 +110,7 @@ type Model = {
     unifiedCommandCenter?: string;
     exceptionLoopEngine?: string;
     inventoryShopHandoff?: string;
+    rapidFlow?: string;
   };
 };
 
@@ -112,6 +120,8 @@ function withReturnTo(href: string, returnTo?: string) {
   return `${href}${separator}returnTo=${encodeURIComponent(returnTo)}`;
 }
 function money(cents: number) { return new Intl.NumberFormat("en-US", { currency: "USD", maximumFractionDigits: 0, style: "currency" }).format(cents / 100); }
+function duration(minutes: number) { const days = Math.floor(minutes / 1440), hours = Math.floor((minutes % 1440) / 60), mins = minutes % 60; return days ? `${days}d ${hours}h` : hours ? `${hours}h ${mins}m` : `${mins}m`; }
+function readable(value: string) { return value.replaceAll("_", " ").toLocaleLowerCase().replace(/^./, letter => letter.toUpperCase()); }
 function handoffLabel(item: Item) { return item.workLane === "INVENTORY_RECON" ? "Returns to Inventory Lifecycle" : "Returns to Service Advisor / Customer"; }
 function loopGuidance(item: Item) {
   if (item.qcPending > 0 || item.blocker === "BLK-QC-FAILED") return { label: "QC / road-test loop", route: "Back to Repair Execution, then fresh QC", action: "Review rework" };
@@ -125,12 +135,14 @@ function loopGuidance(item: Item) {
 
 export function ShopReconLanding({
   initialBlocker = "all",
+  initialView = "calm",
   model,
   returnTo,
   showAdvisorReturn = false,
   showWorkspaceReturn = false,
 }: {
   initialBlocker?: string;
+  initialView?: "calm" | "high-volume";
   model: Model;
   returnTo?: string;
   showAdvisorReturn?: boolean;
@@ -218,6 +230,57 @@ export function ShopReconLanding({
   const inventoryEconomicRows = model.items.filter(item => item.workLane === "INVENTORY_RECON").slice(0, 5);
   const authorizedReconCents = model.items.reduce((sum, item) => sum + (typeof (item as Item & { authorizedEstimateCents?: number }).authorizedEstimateCents === "number" ? (item as Item & { authorizedEstimateCents: number }).authorizedEstimateCents : 0), 0);
   const missingCostCapture = model.items.filter(item => (item as Item & { costCaptureStatus?: string }).costCaptureStatus === "COST_CAPTURE_NEEDED").length;
+  const waitingCount = model.items.filter(item => item.waitingReason).length;
+  const wipBreaches = model.pipeline.filter(stage => stage.wipBreached).length;
+  const stageAges = model.items.map(item => item.stageElapsedMinutes).sort((left, right) => left - right);
+  const medianStageAge = stageAges.length ? stageAges[Math.floor(stageAges.length / 2)] : 0;
+  const rapidExceptions = model.items.filter(item => item.waitingReason || item.atRisk).slice(0, 8);
+  const flowingNormally = model.items.filter(item => !item.waitingReason && !item.atRisk).slice(0, 5);
+  const calmHref = withReturnTo("/vehicles/shop-recon?view=calm", returnTo);
+  const highVolumeHref = withReturnTo("/vehicles/shop-recon?view=high-volume", returnTo);
+
+  if (initialView === "calm") return (
+    <section aria-label={`Rapid Flow Shop and Recon; ${model.totals.openOrders} open; ${model.totals.atRisk} at risk; ${model.capability.rapidFlow ?? "REVIEW"}`} className="shop-r7-landing rapid-flow-calm visual-console-page">
+      <header className="vcp-header rapid-flow-header">
+        <div>
+          {returnTo ? <Link href={returnTo}>← Return to inventory lifecycle</Link> : showAdvisorReturn ? <BackToServiceAdvisorWorkspace /> : showWorkspaceReturn ? <BackToVehicleOperationsWorkspace /> : null}
+          <p>Inventory Console</p><h1>Shop &amp; Recon</h1><span>Rapid Flow · exception-first reconditioning control</span>
+        </div>
+        <div className="vcp-actions"><Link className="vcp-primary" href="/vehicles/repair-orders?intakeSource=WALK_IN"><ClipboardPlus size={15} />Check In Vehicle</Link><Link href={repairWorkbenchHref}><ClipboardList size={15} />Repair Workbench</Link><Link href={partsOperationsHref}><PackageOpen size={15} />Parts</Link></div>
+      </header>
+
+      <nav aria-label="Shop and Recon workspace density" className="rapid-flow-mode"><span><Gauge />Workspace density</span><Link aria-current="page" className="active" href={calmHref}>Calm</Link><Link href={highVolumeHref}>High volume</Link><small>Calm promotes only constraints and accountable next actions.</small></nav>
+
+      <section aria-label="Rapid Flow health" className="rapid-flow-kpis">
+        <article className={model.totals.atRisk ? "danger" : "healthy"}><AlertTriangle /><span><small>Needs intervention</small><strong>{model.totals.atRisk}</strong><em>Priority exceptions</em></span></article>
+        <article className={waitingCount ? "warning" : "healthy"}><TimerReset /><span><small>Waiting</small><strong>{waitingCount}</strong><em>Reason identified</em></span></article>
+        <article className={overdue ? "danger" : "healthy"}><CalendarDays /><span><small>Overdue target</small><strong>{overdue}</strong><em>Owner follow-up needed</em></span></article>
+        <article className="healthy"><CheckCircle2 /><span><small>Ready to move</small><strong>{readyNow.length}</strong><em>No known blocker</em></span></article>
+        <article><Clock3 /><span><small>Median stage age</small><strong>{duration(medianStageAge)}</strong><em>Current open work</em></span></article>
+      </section>
+
+      <section aria-label="Seven-stage flow summary" className="rapid-flow-stage-strip">
+        {columns.map(column => { const oldest = Math.max(0, ...column.items.map(item => item.stageElapsedMinutes)); const risks = column.items.filter(item => item.atRisk).length; return <article className={risks ? "attention" : ""} key={column.key}><header><strong>{column.label}</strong><b>{column.items.length}</b></header><span>{column.items.length ? `Oldest ${duration(oldest)}` : "No current work"}</span>{risks ? <em>{risks} at risk</em> : <em>Flowing normally</em>}</article>; })}
+      </section>
+
+      <div className="rapid-flow-layout">
+        <main className="rapid-flow-focus">
+          <header><span><ListFilter /><span><strong>Needs attention now</strong><small>Ranked by risk, delay and readiness—not by arrival order alone.</small></span></span><b>{rapidExceptions.length} shown</b></header>
+          <div className="rapid-flow-focus-head"><span>Vehicle / lane</span><span>Current stage</span><span>Elapsed</span><span>Accountable owner</span><span>Next action</span><span /></div>
+          {rapidExceptions.map(item => <Link href={withReturnTo(`/vehicles/shop-recon/${encodeURIComponent(item.id)}`, returnTo)} key={item.id}><strong>{item.vehicle}<small>{item.subject} · {item.repairOrderNumber} · {item.workLaneLabel}</small></strong><span>{item.shopLifecycleLabel}<small className="rapid-wait-reason">{item.waitingReason ? readable(item.waitingReason) : "Timing risk"}</small></span><span><b>{duration(item.stageElapsedMinutes)}</b><small>{duration(item.cycleElapsedMinutes)} total</small></span><span>{item.technician ?? item.owner}<small>{item.unassigned ? "Technician assignment needed" : item.bay ?? "Owner accountable"}</small></span><span>{item.nextAction}</span><ArrowRight /></Link>)}
+          {!rapidExceptions.length ? <p className="rapid-flow-empty"><CheckCircle2 /> No active exception requires intervention.</p> : null}
+        </main>
+
+        <aside className="rapid-flow-brief">
+          <section><header><strong>Daily flow brief</strong><small>Management actions that unblock the most work</small></header><Link href={withReturnTo("/vehicles/shop-recon?blocker=parts&view=high-volume", returnTo)}><PackageOpen /><span><strong>{model.totals.waitingParts} waiting on parts</strong><small>Confirm ETA and reservation</small></span><ArrowRight /></Link><Link href="/manager-review?scope=shop&view=approvals"><ShieldCheck /><span><strong>{model.approvals.estimate} approvals pending</strong><small>Decide exact estimate versions</small></span><ArrowRight /></Link><Link href="/vehicles/shop-dispatch"><UserRound /><span><strong>{model.totals.unassigned} ready but unassigned</strong><small>Assign technician and bay</small></span><ArrowRight /></Link><Link href="/vehicles/quality-control"><CheckCircle2 /><span><strong>{model.reviews.quality} quality reviews</strong><small>Resolve before handoff</small></span><ArrowRight /></Link></section>
+          <section className="rapid-flow-guardrail"><header><strong>Flow protections</strong><small>Speed never overrides control</small></header><p><ShieldCheck /> Exact-version approval remains required.</p><p><ShieldCheck /> QC and frontline readiness remain separate.</p><p><ShieldCheck /> Inventory, shop and advisor ownership remain distinct.</p><p><ShieldCheck /> External vendor adapters: {readable(model.capability.externalAdapters)}.</p></section>
+          {wipBreaches ? <section className="rapid-flow-wip"><AlertTriangle /><span><strong>{wipBreaches} WIP limit breach{wipBreaches === 1 ? "" : "es"}</strong><small>Stop starting and finish constrained work first.</small></span></section> : null}
+        </aside>
+      </div>
+
+      {flowingNormally.length ? <details className="rapid-flow-normal"><summary><span><strong>Flowing normally</strong><small>{flowingNormally.length} healthy vehicle{flowingNormally.length === 1 ? "" : "s"} available for review</small></span><b>Expand</b></summary><div>{flowingNormally.map(item => <Link href={withReturnTo(`/vehicles/shop-recon/${encodeURIComponent(item.id)}`, returnTo)} key={item.id}><strong>{item.vehicle}<small>{item.repairOrderNumber} · {item.workLaneLabel}</small></strong><span>{item.shopLifecycleLabel}</span><span>{item.owner}</span><span>{duration(item.stageElapsedMinutes)}</span></Link>)}</div></details> : null}
+    </section>
+  );
 
   return (
     <section
@@ -259,6 +322,8 @@ export function ShopReconLanding({
           </button>
         </div>
       </header>
+
+      <nav aria-label="Shop and Recon workspace density" className="rapid-flow-mode"><span><Gauge />Workspace density</span><Link href={calmHref}>Calm</Link><Link aria-current="page" className="active" href={highVolumeHref}>High volume</Link><small>Detailed production, capacity, economics and exception intelligence.</small></nav>
 
       <section className="vcp-filter-bar" aria-label="Shop and Recon filters">
         <label>
@@ -506,28 +571,28 @@ export function ShopReconLanding({
             <Link
               aria-current={initialBlocker === "all" ? "page" : undefined}
               className={initialBlocker === "all" ? "active" : ""}
-              href={withReturnTo("/vehicles/shop-recon", returnTo)}
+              href={withReturnTo("/vehicles/shop-recon?view=high-volume", returnTo)}
             >
               All Blockers
             </Link>
             <Link
               aria-current={initialBlocker === "parts" ? "page" : undefined}
               className={initialBlocker === "parts" ? "active" : ""}
-              href={withReturnTo("/vehicles/shop-recon?blocker=parts", returnTo)}
+              href={withReturnTo("/vehicles/shop-recon?blocker=parts&view=high-volume", returnTo)}
             >
               Parts
             </Link>
             <Link
               aria-current={initialBlocker === "approvals" ? "page" : undefined}
               className={initialBlocker === "approvals" ? "active" : ""}
-              href={withReturnTo("/vehicles/shop-recon?blocker=approvals", returnTo)}
+              href={withReturnTo("/vehicles/shop-recon?blocker=approvals&view=high-volume", returnTo)}
             >
               Approvals
             </Link>
             <Link
               aria-current={initialBlocker === "vendors" ? "page" : undefined}
               className={initialBlocker === "vendors" ? "active" : ""}
-              href={withReturnTo("/vehicles/shop-recon?blocker=vendors", returnTo)}
+              href={withReturnTo("/vehicles/shop-recon?blocker=vendors&view=high-volume", returnTo)}
             >
               Vendors
             </Link>

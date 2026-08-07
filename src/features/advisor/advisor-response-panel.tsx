@@ -47,6 +47,8 @@ function codes(value: unknown) {
 }
 
 export function AdvisorResponsePanel({
+  defaultContactChannel = "INTERNAL",
+  defaultContactDirection = "INTERNAL",
   defaultSummary,
   defaultContactOutcome = "Technician clarification requested",
   defaultExceptionCodes = ["TECHNICIAN_CLARIFICATION"],
@@ -54,6 +56,8 @@ export function AdvisorResponsePanel({
   latestUpdates,
   repairOrderId
 }: {
+  defaultContactChannel?: string;
+  defaultContactDirection?: string;
   defaultContactOutcome?: string;
   defaultExceptionCodes?: string[];
   defaultSummary: string;
@@ -64,8 +68,8 @@ export function AdvisorResponsePanel({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [statusCode, setStatusCode] = useState(defaultStatusCode);
-  const [contactChannel, setContactChannel] = useState("INTERNAL");
-  const [contactDirection, setContactDirection] = useState("INTERNAL");
+  const [contactChannel, setContactChannel] = useState(defaultContactChannel);
+  const [contactDirection, setContactDirection] = useState(defaultContactDirection);
   const [contactOutcome, setContactOutcome] = useState(defaultContactOutcome);
   const [customerVisibleSummary, setCustomerVisibleSummary] = useState(defaultSummary);
   const [internalNotes, setInternalNotes] = useState("");
@@ -124,6 +128,7 @@ export function AdvisorResponsePanel({
           <span>Document customer contact, technician clarification, promise risk, and next step.</span>
         </div>
       </header>
+      <p className="advisor-response-boundary">This panel records communication and internal collaboration in the repair-order timeline. SMS and email are not transmitted until an external communications provider is connected.</p>
 
       <form onSubmit={submit}>
         <label>
