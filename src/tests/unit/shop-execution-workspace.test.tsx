@@ -4,31 +4,43 @@ import { describe, expect, it } from "vitest";
 import { ShopExecutionWorkspace } from "@/features/inventory/shop-execution-workspace";
 
 describe("shop execution workspace", () => {
-  it("carries the intake technician into the later dispatch form", () => {
+  const users = [{ id: "advisor-1", name: "Alex Advisor" }, { id: "tech-1", name: "Walter Mechanic" }];
+  const resources = [{ code: "TECH-WALTER", id: "resource-1", locationId: "location-1", name: "Walter Mechanic", resourceType: { kind: "STAFF", name: "Technician" }, userId: "tech-1" }];
+
+  it("carries the intake technician into the dispatch form", () => {
     const html = renderToStaticMarkup(<ShopExecutionWorkspace initial={{
       jobs: [{
-        bayRequirements: [], description: "Inspect warning lights", dispatches: [], executionBlockerReason: null,
-        id: "job-1", jobNumber: "JOB-1", laborClocks: [], lane: "DIAGNOSTIC_LIGHT", partDemands: [],
-        plannedCorrection: "Diagnose warning indicators", priorityReasonCodes: [], priorityScore: 50,
-        procedureVersion: null, qcHandoffNotes: null, requiredCertifications: [], requiredSkills: [],
+        description: "Inspect warning lights", dispatches: [], id: "job-1", jobNumber: "JOB-1", laborClocks: [], plannedCorrection: "Diagnose warning indicators", status: "READY_FOR_REPAIR",
         repairOrder: {
-          id: "ro-100",
-          customer: null, inventoryUnit: { inventoryNumber: "INV-100" }, location: { id: "location-1", name: "Minneapolis" },
-          locationId: "location-1", ownerUser: { id: "tech-1", name: "Walter Mechanic" }, repairOrderNumber: "RO-100",
-          serviceVisit: { concernSummary: "Warning lights are illuminated.", promisedAt: null },
-          vehicle: { make: "Honda", model: "Accord", vehicleNumber: "VEH-100", year: 2019 },
+          id: "ro-100", assignedTechnician: { id: "tech-1", name: "Walter Mechanic" }, customer: null, inventoryUnit: { inventoryNumber: "INV-100" },
+          location: { id: "location-1", name: "Minneapolis" }, locationId: "location-1", ownerUser: { id: "advisor-1", name: "Alex Advisor" }, repairOrderNumber: "RO-100",
+          serviceVisit: { concernSummary: "Warning lights are illuminated.", promisedAt: null }, vehicle: { make: "Honda", model: "Accord", vehicleNumber: "VEH-100", year: 2019 },
         },
-        status: "READY_FOR_REPAIR", toolRequirements: [], workTypeCode: "GENERAL_REPAIR",
       }],
-      procedures: [], qualifications: [],
-      resources: [{ code: "TECH-WALTER", id: "resource-1", locationId: "location-1", name: "Walter Mechanic", resourceType: { kind: "STAFF", name: "Technician" }, userId: "tech-1" }],
-      users: [{ id: "advisor-1", name: "Alex Advisor" }, { id: "tech-1", name: "Walter Mechanic" }],
+      resources, users,
     }} initialRepairOrderId="ro-100" />);
 
-    expect(html).toContain("Dispatcher board");
-    expect(html).toContain("Vehicle card opened:");
+    expect(html).toContain("Repair job assignment");
     expect(html).toContain("VEH-100 · RO-100");
     expect(html).toContain('<option value="tech-1" selected="">Walter Mechanic</option>');
-    expect(html).toContain("Book current/next work");
+    expect(html).toContain("Save technician");
+    expect(html).toContain("Book work");
+  });
+
+  it("keeps technician assignment available before a repair job exists", () => {
+    const html = renderToStaticMarkup(<ShopExecutionWorkspace initial={{
+      jobs: [],
+      repairOrders: [{
+        assignedTechnician: null, assignedTechnicianUserId: null, id: "ro-intake", location: { id: "location-1", name: "Minneapolis" }, locationId: "location-1",
+        nextAction: "Create repair plan", ownerUser: { id: "advisor-1", name: "Alex Advisor" }, repairOrderNumber: "RO-INTAKE", stage: "INTAKE", targetAt: "2026-08-09T10:00:00Z",
+        serviceVisit: { concernSummary: "Check engine light", promisedAt: null }, vehicle: { make: "Honda", model: "Accord", vehicleNumber: "VEH-200", year: 2019 },
+      }],
+      resources, users,
+    }} initialRepairOrderId="ro-intake" />);
+
+    expect(html).toContain("No repair job created yet");
+    expect(html).toContain("Save technician");
+    expect(html).toContain("Prepare repair job");
+    expect(html).not.toContain("Book work");
   });
 });

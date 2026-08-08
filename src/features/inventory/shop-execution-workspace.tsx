@@ -1,41 +1,191 @@
 "use client";
+
 import Link from "next/link";
-import { FormEvent,useMemo,useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 
-type User={id:string;name:string};
-type Resource={id:string;code:string;name:string;locationId:string;userId:string|null;resourceType:{kind:string;name:string}};
-type Procedure={id:string;workTypeCode:string;version:number;title:string;instructions:string[];safetySteps:string[];requiredEvidence:string[];qcRules:string[];standardMinutes:number};
-type Dispatch={id:string;technicianUserId:string;position:string;status:string;scheduledStartAt:string;scheduledEndAt:string;technicianUser:{id:string;name:string};bayResource:{id:string;code:string;name:string}|null};
-type Clock={technicianUserId:string;state:string;accumulatedMinutes:number;lastResumedAt:string|null};
-type Job={id:string;jobNumber:string;workTypeCode:string;description:string;plannedCorrection:string;status:string;priorityScore:number;lane:string;priorityReasonCodes:string[];requiredSkills:string[];requiredCertifications:string[];bayRequirements:string[];toolRequirements:string[];executionBlockerReason:string|null;qcHandoffNotes:string|null;procedureVersion:Procedure|null;dispatches:Dispatch[];laborClocks:Clock[];partDemands:Array<{quantityRequired:number;quantityReserved:number;part:{partNumber:string;description:string}}>;repairOrder:{id?:string;repairOrderNumber:string;locationId:string;location:{id:string;name:string};ownerUser:{id:string;name:string};vehicle:{vehicleNumber:string;year:number|null;make:string|null;model:string|null};customer:{displayName:string}|null;inventoryUnit:{inventoryNumber:string}|null;serviceVisit:{promisedAt:string|null;concernSummary:string}}};
-type Model={jobs:Job[];users:User[];resources:Resource[];procedures:Procedure[];qualifications:Array<{id:string;technicianUserId:string;code:string;type:string;effectiveTo:string|null;technicianUser:{id:string;name:string}}>};
-const local=(value:Date)=>new Date(value.getTime()-value.getTimezoneOffset()*60000).toISOString().slice(0,16);
-const list=(value:string)=>value.split(",").map(item=>item.trim()).filter(Boolean);
-const executableJob=(job:Job)=>["READY_FOR_REPAIR","DISPATCHED","IN_PROGRESS","PAUSED","READY_FOR_QC"].includes(job.status);
+type User = { id: string; name: string; roles?: string[] };
+type Resource = { id: string; code: string; name: string; locationId: string; userId: string | null; resourceType: { kind: string; name: string } };
+type Dispatch = { id: string; technicianUserId: string; position: string; status: string; scheduledStartAt: string; scheduledEndAt: string; technicianUser: User; bayResource: { id: string; code: string; name: string } | null };
+type Clock = { technicianUserId: string; state: string; accumulatedMinutes: number; lastResumedAt: string | null };
+type RepairOrderSummary = {
+  id: string;
+  repairOrderNumber: string;
+  stage: string;
+  locationId: string;
+  targetAt: string;
+  nextAction: string;
+  assignedTechnicianUserId: string | null;
+  assignedTechnician: User | null;
+  ownerUser: User;
+  location: { id: string; name: string };
+  vehicle: { vehicleNumber: string; year: number | null; make: string | null; model: string | null };
+  serviceVisit: { concernSummary: string; promisedAt: string | null };
+};
+type Job = {
+  id: string;
+  jobNumber: string;
+  description: string;
+  plannedCorrection: string;
+  status: string;
+  dispatches: Dispatch[];
+  laborClocks: Clock[];
+  repairOrder: {
+    id?: string;
+    repairOrderNumber: string;
+    locationId: string;
+    location: { id: string; name: string };
+    ownerUser: User;
+    assignedTechnician?: User | null;
+    vehicle: { vehicleNumber: string; year: number | null; make: string | null; model: string | null };
+    customer: { displayName: string } | null;
+    inventoryUnit: { inventoryNumber: string } | null;
+    serviceVisit: { promisedAt: string | null; concernSummary: string };
+  };
+};
+type Model = {
+  jobs: Job[];
+  repairOrders?: RepairOrderSummary[];
+  users: User[];
+  resources: Resource[];
+};
 
-export function ShopExecutionWorkspace({initial,initialRepairOrderId}:{initial:Model;initialRepairOrderId?:string}){
- const requestedJob=initialRepairOrderId?initial.jobs.find(job=>job.repairOrder.id===initialRepairOrderId&&executableJob(job)):undefined;
- const initialJob=requestedJob??initial.jobs.find(x=>x.status==="READY_FOR_REPAIR")??initial.jobs[0],initialTechnicianId=initialJob&&initial.resources.some(resource=>resource.resourceType.kind==="STAFF"&&resource.userId===initialJob.repairOrder.ownerUser.id)?initialJob.repairOrder.ownerUser.id:initial.resources.find(resource=>resource.resourceType.kind==="STAFF"&&resource.userId)?.userId??initial.users[0]?.id??"";
- const[model,setModel]=useState(initial),[jobId,setJobId]=useState(initialJob?.id??""),[notice,setNotice]=useState(""),[busy,setBusy]=useState(false);const now=new Date(),later=new Date(now.getTime()+60*60000);
- const[procedure,setProcedure]=useState({workTypeCode:"GENERAL_REPAIR",title:"General repair procedure",standardMinutes:60,instructions:"Confirm concern, perform approved correction",safetySteps:"Apply vehicle and equipment safety controls",requiredEvidence:"Before and after evidence",qcRules:"Correction complete and evidence reviewed"});
- const[qualification,setQualification]=useState({technicianUserId:initial.users[0]?.id??"",type:"SKILL",code:"GENERAL_REPAIR",sourceReference:"Manager verified",effectiveFrom:local(now)});
- const[dispatch,setDispatch]=useState({technicianUserId:initialTechnicianId,bayResourceId:"",resourceIds:[] as string[],position:"CURRENT",scheduledStartAt:local(now),scheduledEndAt:local(later),overrideReason:""});
- const[labor,setLabor]=useState({technicianUserId:initial.users[0]?.id??"",eventType:"START",blockerReason:"",correctionMinutes:0,evidence:"",qcHandoffNotes:"",approvedNonProductiveCode:""});
- const selected=model.jobs.find(x=>x.id===jobId),technicians=useMemo(()=>model.resources.filter(x=>x.resourceType.kind==="STAFF"&&x.userId).map(x=>model.users.find(u=>u.id===x.userId)).filter((x):x is User=>Boolean(x)),[model]),locationResources=model.resources.filter(x=>!selected||x.locationId===selected.repairOrder.locationId),openDispatches=model.jobs.flatMap(job=>job.dispatches.filter(x=>["ACTIVE","STAGED"].includes(x.status)).map(x=>({job,...x})));
- function chooseJob(nextJobId:string){const nextJob=model.jobs.find(job=>job.id===nextJobId),carriedTechnicianId=nextJob?.dispatches.find(item=>["ACTIVE","STAGED"].includes(item.status))?.technicianUserId??nextJob?.repairOrder.ownerUser.id;setJobId(nextJobId);if(carriedTechnicianId&&technicians.some(technician=>technician.id===carriedTechnicianId))setDispatch(current=>({...current,technicianUserId:carriedTechnicianId}));}
- async function request(url:string,init?:RequestInit){const response=await fetch(url,init),body=await response.json().catch(()=>({}));if(!response.ok)throw new Error(body.error??"Shop execution request failed.");return body;}
- async function refresh(){setModel(await request("/api/shop-execution") as Model);}
- async function submit(url:string,value:Record<string,unknown>,success:string){setBusy(true);setNotice("");try{await request(url,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({...value,idempotencyKey:crypto.randomUUID()})});setNotice(success);await refresh();}catch(error){setNotice(error instanceof Error?error.message:"Shop execution request failed.");}finally{setBusy(false);}}
- const techId=selected?.dispatches.find(x=>["ACTIVE","STAGED"].includes(x.status))?.technicianUserId??labor.technicianUserId,clock=selected?.laborClocks.find(x=>x.technicianUserId===techId);
- return <section className="page-stack"><header className="page-copy"><span className="eyebrow">Shop Operations · Milestone 4C</span><h1>Live dispatch and technician execution</h1><p>Put qualified work into one current and one next position, protect scarce resources, capture labor truth, and hand completed work to QC with evidence.</p><div className="form-actions"><Link className="pill pill-secondary" href="/vehicles/shop-planning">Planning &amp; approvals</Link><Link className="pill pill-secondary" href="/vehicles/parts">Parts &amp; readiness</Link><Link className="pill pill-secondary" href="/vehicles/quality-control">Quality control</Link><Link className="pill pill-secondary" href="/settings/vehicle-operations">Rollout &amp; health</Link></div></header>
- {notice?<div className={/required|must|conflict|not |already|only/i.test(notice)?"notice notice-danger":"notice notice-success"}><p>{notice}</p></div>:null}
- <section className="settings-overview-grid"><article className="panel-card"><h2>Ready queue</h2><p><strong>{model.jobs.filter(x=>x.status==="READY_FOR_REPAIR").length}</strong> ready · <strong>{openDispatches.length}</strong> assigned</p></article><article className="panel-card"><h2>Active floor</h2><p><strong>{model.jobs.filter(x=>x.status==="IN_PROGRESS").length}</strong> working · <strong>{model.jobs.filter(x=>x.status==="PAUSED").length}</strong> blocked · <strong>{model.jobs.filter(x=>x.status==="READY_FOR_QC").length}</strong> awaiting QC</p></article></section>
- <section className="panel-card page-stack"><h2>Dispatcher board</h2>{requestedJob?<div className="notice notice-info"><p><strong>Vehicle card opened:</strong> {requestedJob.repairOrder.vehicle.vehicleNumber} · {requestedJob.repairOrder.repairOrderNumber}. Assign this job below.</p></div>:initialRepairOrderId?<div className="notice notice-info"><p>This repair order does not have an executable job yet. Complete its repair plan and readiness gates, then return here to dispatch it.</p></div>:null}<label className="form-field"><span>Repair job</span><select value={jobId} onChange={e=>chooseJob(e.target.value)}>{model.jobs.filter(executableJob).map(x=><option key={x.id} value={x.id}>{x.jobNumber} · {x.repairOrder.vehicle.vehicleNumber} · {x.status}</option>)}</select></label>{selected?<><div className="settings-overview-grid"><article><h3>{selected.description}</h3><p>{selected.repairOrder.repairOrderNumber} · {selected.repairOrder.location.name}<br/>Lane: {selected.lane} · Priority {selected.priorityScore}<br/>Promise: {selected.repairOrder.serviceVisit.promisedAt?new Date(selected.repairOrder.serviceVisit.promisedAt).toLocaleString():"Not set"}</p></article><article><h3>Readiness</h3><p>Skills: {selected.requiredSkills.join(", ")||"None"}<br/>Certifications: {selected.requiredCertifications.join(", ")||"None"}<br/>Bay/tools: {[...selected.bayRequirements,...selected.toolRequirements].join(", ")||"No special requirement"}</p>{selected.partDemands.map(x=><p key={x.part.partNumber}>{x.part.partNumber}: {x.quantityReserved}/{x.quantityRequired} reserved</p>)}</article></div>
- <form className="settings-overview-grid" onSubmit={(e:FormEvent)=>{e.preventDefault();submit(`/api/repair-jobs/${selected.id}/dispatch`,{...dispatch,resourceIds:dispatch.resourceIds,reason:"Assign qualified technician and protected resources to repair work."},"Repair job dispatched.")}}><label className="form-field"><span>Technician</span><select value={dispatch.technicianUserId} onChange={e=>setDispatch(v=>({...v,technicianUserId:e.target.value}))}>{technicians.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label><label className="form-field"><span>Queue position</span><select value={dispatch.position} onChange={e=>setDispatch(v=>({...v,position:e.target.value}))}><option>CURRENT</option><option>NEXT</option></select></label><label className="form-field"><span>Service bay</span><select value={dispatch.bayResourceId} onChange={e=>setDispatch(v=>({...v,bayResourceId:e.target.value}))}><option value="">No dedicated bay</option>{locationResources.filter(x=>x.resourceType.kind==="SERVICE_BAY").map(x=><option key={x.id} value={x.id}>{x.code} · {x.name}</option>)}</select></label><label className="form-field"><span>Start</span><input type="datetime-local" value={dispatch.scheduledStartAt} onChange={e=>setDispatch(v=>({...v,scheduledStartAt:e.target.value}))}/></label><label className="form-field"><span>End</span><input type="datetime-local" value={dispatch.scheduledEndAt} onChange={e=>setDispatch(v=>({...v,scheduledEndAt:e.target.value}))}/></label><fieldset><legend>Tools and equipment</legend>{locationResources.filter(x=>["TOOL","EQUIPMENT"].includes(x.resourceType.kind)).map(x=><label key={x.id}><input type="checkbox" checked={dispatch.resourceIds.includes(x.id)} onChange={e=>setDispatch(v=>({...v,resourceIds:e.target.checked?[...v.resourceIds,x.id]:v.resourceIds.filter(id=>id!==x.id)}))}/>{x.code} · {x.name}</label>)}</fieldset><label className="form-field"><span>Conflict override reason</span><input value={dispatch.overrideReason} onChange={e=>setDispatch(v=>({...v,overrideReason:e.target.value}))} placeholder="Required only when conflicts exist"/></label><button className="button button-primary" disabled={busy}>Book current/next work</button></form></>:<p>No executable repair jobs are available.</p>}</section>
- <section className="panel-card page-stack"><h2>Technician current / next</h2>{technicians.map(tech=>{const queue=openDispatches.filter(x=>x.technicianUserId===tech.id);return <article key={tech.id}><h3>{tech.name}</h3>{queue.length?queue.sort((a,b)=>a.position.localeCompare(b.position)).map(x=><p key={x.id}><strong>{x.position}</strong> · {x.job.jobNumber} · {x.job.description} · {x.status}</p>):<p>No work staged.</p>}</article>;})}</section>
- {selected?<section className="panel-card page-stack"><h2>Technician execution</h2><p><strong>{selected.jobNumber}</strong> · {selected.plannedCorrection}<br/>Clock: {clock?.state??"NOT_STARTED"} · {clock?.accumulatedMinutes??0} recorded minutes{selected.executionBlockerReason?<><br/>Blocker: {selected.executionBlockerReason}</>:null}</p>{selected.procedureVersion?<article><h3>{selected.procedureVersion.title} · v{selected.procedureVersion.version}</h3><p><strong>Instructions:</strong> {selected.procedureVersion.instructions.join(" · ")}<br/><strong>Safety:</strong> {selected.procedureVersion.safetySteps.join(" · ")}<br/><strong>Evidence:</strong> {selected.procedureVersion.requiredEvidence.join(" · ")}<br/><strong>QC:</strong> {selected.procedureVersion.qcRules.join(" · ")}</p></article>:<p>No effective procedure is attached.</p>}
- <form className="settings-overview-grid" onSubmit={(e:FormEvent)=>{e.preventDefault();submit(`/api/repair-jobs/${selected.id}/labor`,{...labor,technicianUserId:techId,eventType:labor.eventType,correctionMinutes:labor.eventType==="CORRECTION"?labor.correctionMinutes:undefined,evidence:list(labor.evidence),occurredAt:new Date().toISOString(),reason:`${labor.eventType} repair labor with attributable technician evidence.`},`${labor.eventType} recorded.`)}}><label className="form-field"><span>Action</span><select value={labor.eventType} onChange={e=>setLabor(v=>({...v,eventType:e.target.value}))}>{["START","PAUSE","RESUME","FINISH","CORRECTION"].map(x=><option key={x}>{x}</option>)}</select></label><label className="form-field"><span>Technician</span><select value={techId} onChange={e=>setLabor(v=>({...v,technicianUserId:e.target.value}))}>{technicians.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>{labor.eventType==="PAUSE"?<label className="form-field"><span>Blocker</span><input value={labor.blockerReason} onChange={e=>setLabor(v=>({...v,blockerReason:e.target.value}))}/></label>:null}{labor.eventType==="CORRECTION"?<label className="form-field"><span>Minute correction</span><input type="number" value={labor.correctionMinutes} onChange={e=>setLabor(v=>({...v,correctionMinutes:Number(e.target.value)}))}/></label>:null}{labor.eventType==="FINISH"?<><label className="form-field"><span>Evidence references, comma separated</span><input value={labor.evidence} onChange={e=>setLabor(v=>({...v,evidence:e.target.value}))}/></label><label className="form-field"><span>QC handoff notes</span><textarea value={labor.qcHandoffNotes} onChange={e=>setLabor(v=>({...v,qcHandoffNotes:e.target.value}))}/></label></>:null}<button className="button button-primary" disabled={busy}>Record technician action</button></form></section>:null}
- <section className="settings-overview-grid"><form className="panel-card page-stack" onSubmit={(e:FormEvent)=>{e.preventDefault();submit("/api/shop-execution/procedures",{...procedure,instructions:list(procedure.instructions),safetySteps:list(procedure.safetySteps),requiredEvidence:list(procedure.requiredEvidence),qcRules:list(procedure.qcRules),effectiveFrom:new Date().toISOString(),reason:"Publish an effective and governed shop work procedure version."},"Procedure version published.")}}><h2>Procedure governance</h2>{Object.entries(procedure).map(([key,value])=><label className="form-field" key={key}><span>{key.replace(/([A-Z])/g," $1")}</span><input type={key==="standardMinutes"?"number":"text"} value={value} onChange={e=>setProcedure(v=>({...v,[key]:key==="standardMinutes"?Number(e.target.value):e.target.value}))}/></label>)}<button className="button button-primary" disabled={busy}>Publish procedure version</button></form>
- <form className="panel-card page-stack" onSubmit={(e:FormEvent)=>{e.preventDefault();submit("/api/shop-execution/qualifications",{...qualification,effectiveFrom:new Date(qualification.effectiveFrom).toISOString(),verifiedAt:new Date().toISOString(),reason:"Verify technician qualification for governed dispatch eligibility."},"Technician qualification verified.")}}><h2>Qualification governance</h2><label className="form-field"><span>Technician</span><select value={qualification.technicianUserId} onChange={e=>setQualification(v=>({...v,technicianUserId:e.target.value}))}>{model.users.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label><label className="form-field"><span>Type</span><select value={qualification.type} onChange={e=>setQualification(v=>({...v,type:e.target.value}))}><option>SKILL</option><option>CERTIFICATION</option></select></label><label className="form-field"><span>Code</span><input value={qualification.code} onChange={e=>setQualification(v=>({...v,code:e.target.value}))}/></label><label className="form-field"><span>Source</span><input value={qualification.sourceReference} onChange={e=>setQualification(v=>({...v,sourceReference:e.target.value}))}/></label><label className="form-field"><span>Effective from</span><input type="datetime-local" value={qualification.effectiveFrom} onChange={e=>setQualification(v=>({...v,effectiveFrom:e.target.value}))}/></label><button className="button button-primary" disabled={busy}>Verify qualification</button></form></section>
- <div className="notice notice-info"><p>QC release, advisor communications, invoicing, comeback handling, and production analytics remain governed later milestones.</p></div></section>;
+const local = (value: Date) => new Date(value.getTime() - value.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+const executableJob = (job: Job) => ["READY_FOR_REPAIR", "DISPATCHED", "IN_PROGRESS", "PAUSED", "READY_FOR_QC"].includes(job.status);
+
+function derivedRepairOrders(model: Model): RepairOrderSummary[] {
+  if (model.repairOrders) return model.repairOrders;
+  return model.jobs.map((job) => ({
+    id: job.repairOrder.id ?? "",
+    repairOrderNumber: job.repairOrder.repairOrderNumber,
+    stage: job.status,
+    locationId: job.repairOrder.locationId,
+    targetAt: "",
+    nextAction: "",
+    assignedTechnicianUserId: job.repairOrder.assignedTechnician?.id ?? null,
+    assignedTechnician: job.repairOrder.assignedTechnician ?? null,
+    ownerUser: job.repairOrder.ownerUser,
+    location: job.repairOrder.location,
+    vehicle: job.repairOrder.vehicle,
+    serviceVisit: job.repairOrder.serviceVisit,
+  })).filter((order, index, orders) => order.id && orders.findIndex((item) => item.id === order.id) === index);
+}
+
+export function ShopExecutionWorkspace({ initial, initialRepairOrderId }: { initial: Model; initialRepairOrderId?: string }) {
+  const initialOrders = derivedRepairOrders(initial);
+  const firstOrderId = initialRepairOrderId ?? initial.jobs.find((job) => job.status === "READY_FOR_REPAIR")?.repairOrder.id ?? initialOrders[0]?.id ?? "";
+  const firstJob = initial.jobs.find((job) => job.repairOrder.id === firstOrderId && executableJob(job)) ?? initial.jobs.find((job) => job.repairOrder.id === firstOrderId);
+  const firstOrder = initialOrders.find((order) => order.id === firstOrderId);
+  const firstTechnicianId = firstJob?.dispatches.find((item) => ["ACTIVE", "STAGED"].includes(item.status))?.technicianUserId ?? firstOrder?.assignedTechnicianUserId ?? firstOrder?.ownerUser.id ?? initial.resources.find((resource) => resource.resourceType.kind === "STAFF" && resource.userId)?.userId ?? "";
+  const now = new Date();
+  const later = new Date(now.getTime() + 60 * 60_000);
+
+  const [model, setModel] = useState(initial);
+  const [repairOrderId, setRepairOrderId] = useState(firstOrderId);
+  const [jobId, setJobId] = useState(firstJob?.id ?? "");
+  const [notice, setNotice] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [assignment, setAssignment] = useState({
+    technicianUserId: firstTechnicianId,
+    bayResourceId: "",
+    resourceIds: [] as string[],
+    position: "CURRENT",
+    scheduledStartAt: local(now),
+    scheduledEndAt: local(later),
+    overrideReason: "",
+  });
+
+  const repairOrders = derivedRepairOrders(model);
+  const selectedOrder = repairOrders.find((order) => order.id === repairOrderId);
+  const orderJobs = model.jobs.filter((job) => job.repairOrder.id === repairOrderId);
+  const selectedJob = orderJobs.find((job) => job.id === jobId);
+  const technicians = useMemo(() => {
+    const staff = model.resources.filter((resource) => resource.resourceType.kind === "STAFF" && resource.userId).map((resource) => model.users.find((user) => user.id === resource.userId)).filter((user): user is User => Boolean(user));
+    const repairTechnicians = staff.filter((user) => user.roles?.some((role) => ["Mechanic", "Technician"].includes(role)));
+    return repairTechnicians.length ? repairTechnicians : staff;
+  }, [model]);
+  const locationResources = model.resources.filter((resource) => !selectedOrder || resource.locationId === selectedOrder.locationId);
+  const openDispatches = model.jobs.flatMap((job) => job.dispatches.filter((dispatch) => ["ACTIVE", "STAGED"].includes(dispatch.status)).map((dispatch) => ({ job, ...dispatch })));
+
+  async function request(url: string, init?: RequestInit) {
+    const response = await fetch(url, init);
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error ?? "Shop dispatch request failed.");
+    return body;
+  }
+
+  async function submit(url: string, value: Record<string, unknown>, success: string) {
+    setBusy(true);
+    setNotice("");
+    try {
+      await request(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...value, idempotencyKey: crypto.randomUUID() }) });
+      setNotice(success);
+      setModel(await request("/api/shop-execution") as Model);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Shop dispatch request failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function chooseRepairOrder(nextRepairOrderId: string) {
+    const nextOrder = repairOrders.find((order) => order.id === nextRepairOrderId);
+    const nextJob = model.jobs.find((job) => job.repairOrder.id === nextRepairOrderId && executableJob(job)) ?? model.jobs.find((job) => job.repairOrder.id === nextRepairOrderId);
+    const technicianUserId = nextJob?.dispatches.find((item) => ["ACTIVE", "STAGED"].includes(item.status))?.technicianUserId ?? nextOrder?.assignedTechnicianUserId ?? nextOrder?.ownerUser.id ?? "";
+    setRepairOrderId(nextRepairOrderId);
+    setJobId(nextJob?.id ?? "");
+    setAssignment((current) => ({ ...current, technicianUserId }));
+  }
+
+  function chooseJob(nextJobId: string) {
+    const nextJob = model.jobs.find((job) => job.id === nextJobId);
+    const technicianUserId = nextJob?.dispatches.find((item) => ["ACTIVE", "STAGED"].includes(item.status))?.technicianUserId ?? selectedOrder?.assignedTechnicianUserId ?? assignment.technicianUserId;
+    setJobId(nextJobId);
+    setAssignment((current) => ({ ...current, technicianUserId }));
+  }
+
+  return <section className="page-stack shop-dispatch-workspace">
+    <header className="page-copy shop-dispatch-header">
+      <div><span className="eyebrow">Shop Dispatch</span><h1>Assign work. Keep the shop moving.</h1><p>Select the repair order, technician, queue position, bay, and time in one place.</p></div>
+      <div className="form-actions"><Link className="pill pill-secondary" href="/vehicles/shop-planning">Planning &amp; approvals</Link><Link className="pill pill-secondary" href="/vehicles/parts">Parts readiness</Link><Link className="pill pill-secondary" href="/vehicles/quality-control">Quality control</Link></div>
+    </header>
+
+    {notice ? <div className={/required|must|conflict|not |already|only/i.test(notice) ? "notice notice-danger" : "notice notice-success"}><p>{notice}</p></div> : null}
+
+    <section className="shop-dispatch-metrics">
+      <article><strong>{model.jobs.filter((job) => job.status === "READY_FOR_REPAIR").length}</strong><span>Ready</span></article>
+      <article><strong>{openDispatches.length}</strong><span>Assigned</span></article>
+      <article><strong>{model.jobs.filter((job) => job.status === "IN_PROGRESS").length}</strong><span>Working</span></article>
+      <article><strong>{model.jobs.filter((job) => job.status === "PAUSED").length}</strong><span>Blocked</span></article>
+    </section>
+
+    <section className="panel-card page-stack shop-dispatch-desk">
+      <header><div><span className="eyebrow">One-step assignment</span><h2>Repair job assignment</h2></div><span className={selectedJob && executableJob(selectedJob) ? "shop-dispatch-ready" : "shop-dispatch-waiting"}>{selectedJob && executableJob(selectedJob) ? "Ready to book" : "Planning assignment"}</span></header>
+
+      <div className="shop-dispatch-context-grid">
+        <label className="form-field"><span>Vehicle / repair order</span><select aria-label="Vehicle and repair order" value={repairOrderId} onChange={(event) => chooseRepairOrder(event.target.value)}><option value="">Select a repair order</option>{repairOrders.map((order) => <option key={order.id} value={order.id}>{order.vehicle.vehicleNumber} · {order.repairOrderNumber} · {order.stage}</option>)}</select></label>
+        <label className="form-field"><span>Repair job</span><select aria-label="Repair job" disabled={!orderJobs.length} value={jobId} onChange={(event) => chooseJob(event.target.value)}><option value="">{orderJobs.length ? "Select a repair job" : "No repair job created yet"}</option>{orderJobs.map((job) => <option key={job.id} value={job.id}>{job.jobNumber} · {job.description} · {job.status}</option>)}</select></label>
+      </div>
+
+      {selectedOrder ? <>
+        <section className="shop-dispatch-vehicle-summary"><div><small>Selected vehicle</small><strong>{selectedOrder.vehicle.vehicleNumber} · {[selectedOrder.vehicle.year, selectedOrder.vehicle.make, selectedOrder.vehicle.model].filter(Boolean).join(" ")}</strong><span>{selectedOrder.repairOrderNumber} · {selectedOrder.location.name}</span></div><div><small>Concern</small><strong>{selectedOrder.serviceVisit.concernSummary}</strong><span>Next: {selectedOrder.nextAction || "Complete repair planning"}</span></div></section>
+
+        <form className="shop-dispatch-preassign" onSubmit={(event: FormEvent) => { event.preventDefault(); submit(`/api/repair-orders/${selectedOrder.id}/technician-assignment`, { technicianUserId: assignment.technicianUserId, reason: "Preassign the accountable technician from the Shop Dispatch assignment desk." }, "Technician assignment saved."); }}>
+          <label className="form-field"><span>Technician</span><select aria-label="Technician" value={assignment.technicianUserId} onChange={(event) => setAssignment((current) => ({ ...current, technicianUserId: event.target.value }))}>{technicians.map((technician) => <option key={technician.id} value={technician.id}>{technician.name}</option>)}</select></label>
+          <button className="button button-secondary" disabled={busy || !assignment.technicianUserId}>Save technician</button>
+          <small>This selection carries forward. Final booking stays protected until an authorized repair job is ready.</small>
+        </form>
+
+        {selectedJob && executableJob(selectedJob) ? <form className="shop-dispatch-booking-grid" onSubmit={(event: FormEvent) => { event.preventDefault(); submit(`/api/repair-jobs/${selectedJob.id}/dispatch`, { ...assignment, reason: "Assign qualified technician and protected resources to repair work." }, "Repair job dispatched."); }}>
+          <label className="form-field"><span>Queue position</span><select value={assignment.position} onChange={(event) => setAssignment((current) => ({ ...current, position: event.target.value }))}><option value="CURRENT">Current</option><option value="NEXT">Next</option></select></label>
+          <label className="form-field"><span>Service bay</span><select value={assignment.bayResourceId} onChange={(event) => setAssignment((current) => ({ ...current, bayResourceId: event.target.value }))}><option value="">No dedicated bay</option>{locationResources.filter((resource) => resource.resourceType.kind === "SERVICE_BAY").map((resource) => <option key={resource.id} value={resource.id}>{resource.code} · {resource.name}</option>)}</select></label>
+          <label className="form-field"><span>Start</span><input type="datetime-local" value={assignment.scheduledStartAt} onChange={(event) => setAssignment((current) => ({ ...current, scheduledStartAt: event.target.value }))} /></label>
+          <label className="form-field"><span>End</span><input type="datetime-local" value={assignment.scheduledEndAt} onChange={(event) => setAssignment((current) => ({ ...current, scheduledEndAt: event.target.value }))} /></label>
+          <label className="form-field shop-dispatch-override"><span>Conflict note (only if needed)</span><input value={assignment.overrideReason} onChange={(event) => setAssignment((current) => ({ ...current, overrideReason: event.target.value }))} /></label>
+          <button className="button button-primary" disabled={busy}>Book work</button>
+        </form> : <section className="shop-dispatch-gate"><div><strong>{orderJobs.length ? "Repair job is not ready to book" : "Repair job has not been created"}</strong><span>Your technician choice can be saved now. Finish the repair plan, authorization, and parts readiness; then booking unlocks here.</span></div><Link className="button button-primary" href={`/vehicles/repair-workbench?repairOrderId=${selectedOrder.id}`}>Prepare repair job</Link></section>}
+      </> : <div className="shop-dispatch-empty"><strong>Select a vehicle or repair order</strong><span>The technician assignment appears immediately—even before the repair job is ready.</span></div>}
+    </section>
+
+    <section className="panel-card page-stack shop-dispatch-queues"><h2>Technician current / next</h2><div>{technicians.map((technician) => { const queue = openDispatches.filter((item) => item.technicianUserId === technician.id); return <article key={technician.id}><h3>{technician.name}</h3>{queue.length ? queue.sort((a, b) => a.position.localeCompare(b.position)).map((item) => <p key={item.id}><strong>{item.position}</strong> · {item.job.jobNumber} · {item.job.description}</p>) : <p>Available · no work staged</p>}</article>; })}</div></section>
+  </section>;
 }

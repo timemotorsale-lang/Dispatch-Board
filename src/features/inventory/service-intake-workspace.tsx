@@ -858,7 +858,7 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
       <h1>{created.repairOrderNumber}</h1>
       <span>{isDealershipInventory ? selectedInventoryUnit?.inventoryNumber ?? "Dealership inventory" : selectedCustomer?.displayName} · {selectedVehicle ? vehicleLabel(selectedVehicle) : "Vehicle"}</span>
       <div className="sic-success-summary"><strong>{created.reused ? "No duplicate created" : "Ready for intake review"}</strong><span>{created.reused ? "The VIN and concern matched this open repair order, so the existing governed record was used." : "The governed repair order, customer concern, custody details, owner, target, and audit evidence are now available to Shop & Recon."}</span></div>
-      <div className="sic-success-actions"><Link className="primary" href={returnTo ? returnHref : `/vehicles/repair-workbench?repairOrderId=${created.id}`}>{returnTo ? "Return to Labor Guide" : "Open repair workbench"} <ChevronRight /></Link><Link href="/vehicles/shop-dispatch">Open Shop Dispatch</Link><Link href={`/vehicles/repair-workbench?repairOrderId=${created.id}`}>Open repair workbench</Link><Link href="/vehicles/shop-recon">Return to Shop &amp; Recon</Link></div>
+      <div className="sic-success-actions"><Link className="primary" href={returnTo ? returnHref : `/vehicles/repair-workbench?repairOrderId=${created.id}`}>{returnTo ? "Return to Labor Guide" : "Open repair workbench"} <ChevronRight /></Link><Link href={`/vehicles/shop-dispatch?repairOrderId=${created.id}`}>Open Shop Dispatch</Link><Link href={`/vehicles/repair-workbench?repairOrderId=${created.id}`}>Open repair workbench</Link><Link href="/vehicles/shop-recon">Return to Shop &amp; Recon</Link></div>
     </section>;
   }
 
