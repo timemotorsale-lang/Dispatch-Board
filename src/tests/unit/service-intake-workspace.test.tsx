@@ -90,6 +90,28 @@ describe("enterprise service intake workspace", () => {
     expect(html).not.toContain("Next: Add / Select Customer");
   });
 
+  it("offers the matching open RO when VIN and concern are the same", () => {
+    const matchingOptions = { ...options, repairOrders: [{ closedAt: null, customer: { displayName: "Jordan Customer" }, id: "ro-existing", openedAt: "2026-08-01T10:00:00.000Z", operatingState: "ACTIVE", repairOrderNumber: "RO-EXISTING", serviceVisit: { concernSummary: "Check engine light is on" }, stage: "INTAKE", vehicle: options.vehicles[0] }] };
+    const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialConcernSummary="Customer reports a check engine warning lamp." initialTimestamp="2026-08-02T07:00:00.000Z" initialVehicleId="vehicle-1" options={matchingOptions} />);
+
+    expect(html).toContain("VIN / canonical vehicle match");
+    expect(html).toContain("Same open concern detected");
+    expect(html).toContain("RO-EXISTING");
+    expect(html).toContain("Open matching RO");
+    expect(html).toContain("Duplicate RO blocked");
+    expect(html).toContain("Repair-order decision");
+  });
+
+  it("requires a deliberate new-RO choice for a different concern on the same VIN", () => {
+    const matchingOptions = { ...options, repairOrders: [{ closedAt: null, customer: { displayName: "Jordan Customer" }, id: "ro-existing", openedAt: "2026-08-01T10:00:00.000Z", operatingState: "ACTIVE", repairOrderNumber: "RO-EXISTING", serviceVisit: { concernSummary: "Check engine light is on" }, stage: "INTAKE", vehicle: options.vehicles[0] }] };
+    const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialConcernSummary="Customer reports vibration above highway speed." initialTimestamp="2026-08-02T07:00:00.000Z" initialVehicleId="vehicle-1" options={matchingOptions} />);
+
+    expect(html).toContain("The concern appears different");
+    expect(html).toContain("Open existing");
+    expect(html).toContain("Create separate RO for this concern");
+    expect(html).toContain("Repair-order decision");
+  });
+
   it("builds a governed canonical-vehicle command for an unmatched decoded VIN", () => {
     const command = buildServiceIntakeVehicleCommand({ description: "Customer reports an airbag warning light.", idempotencyKey: "service-intake-vin-1", locationId: "location-1", make: "HONDA", model: "Accord", odometer: "125000", odometerUnit: "MILES", vin: "1HGCM82633A004352", year: "2003" });
 

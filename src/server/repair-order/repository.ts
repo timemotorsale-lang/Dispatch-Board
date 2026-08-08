@@ -40,7 +40,7 @@ export function createRepairOrderRepository(database: PrismaClient = prisma) { r
         where: { organizationId },
         orderBy: { updatedAt: "desc" },
         take: 200,
-        select: { closedAt: true, id: true, openedAt: true, operatingState: true, repairOrderNumber: true, stage: true, customer: { select: { displayName: true } }, vehicle: { select: vehicleSelect } },
+        select: { closedAt: true, id: true, openedAt: true, operatingState: true, repairOrderNumber: true, stage: true, customer: { select: { displayName: true } }, serviceVisit: { select: { concernSummary: true } }, vehicle: { select: vehicleSelect } },
       })
     ]);
     return { appointments, vehicles, customers, inventoryUnits, locations, users: users.map(({ userRoles, ...user }) => ({ ...user, roles: userRoles.map(({ role }) => role.name) })), repairOrders };

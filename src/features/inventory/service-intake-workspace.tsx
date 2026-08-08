@@ -25,6 +25,7 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { BackToServiceAdvisorWorkspace } from "@/features/advisor/advisor-return-link";
+import { isSameRepairOrderConcern } from "@/server/repair-order/domain";
 import type { VehicleDecode } from "@/server/vehicle-identification/nhtsa";
 import type { NhtsaSafetyIntelligence } from "@/server/vehicle-identification/nhtsa-safety";
 
@@ -33,7 +34,7 @@ export type ServiceIntakeOptions = {
   customers: Array<{ customerNumber?: string; displayName: string; email?: string | null; id: string; phoneNumber?: string | null }>;
   inventoryUnits: Array<{ id: string; inventoryNumber: string; locationId: string; vehicle: ServiceIntakeOptions["vehicles"][number] }>;
   locations: Array<{ code?: string; id: string; name: string }>;
-  repairOrders: Array<{ closedAt: string | null; customer: null | { displayName: string }; id: string; openedAt: string; operatingState: string; repairOrderNumber: string; stage: string; vehicle: ServiceIntakeOptions["vehicles"][number] }>;
+  repairOrders: Array<{ closedAt: string | null; customer: null | { displayName: string }; id: string; openedAt: string; operatingState: string; repairOrderNumber: string; serviceVisit: { concernSummary: string }; stage: string; vehicle: ServiceIntakeOptions["vehicles"][number] }>;
   users: Array<{ email?: string; id: string; name: string; roles?: string[] }>;
   vehicles: Array<{ color?: string | null; id: string; licensePlate?: string | null; make: string | null; model: string | null; registryRelationships?: Array<{ relationshipType: string }>; specificationSnapshot?: unknown; stockNumber?: string | null; vehicleNumber: string; version?: number; vin?: string | null; year: number | null }>;
 };
@@ -194,6 +195,7 @@ function mergeById<T extends { id: string }>(current: T[], saved: T[] = []) {
 
 export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcernSummary = "", initialTimestamp, initialVehicleId = "", initialVehicleRelationship = "CUSTOMER_VEHICLE", options, returnTo, showAdvisorReturn = false }: { initialArrivalQuery?: string; initialConcernSummary?: string; initialTimestamp: string; initialVehicleId?: string; initialVehicleRelationship?: VehicleRelationshipIntent; options: ServiceIntakeOptions; returnTo?: string; showAdvisorReturn?: boolean }) {
   const concernRef = useRef<HTMLTextAreaElement>(null);
+  const repairOrderDecisionRef = useRef<HTMLElement>(null);
   const arrivalSearchRef = useRef<HTMLInputElement>(null);
   const inventoryUnitSectionRef = useRef<HTMLElement>(null);
   const [form, setForm] = useState<IntakeState>(() => buildInitial(options, initialTimestamp, initialConcernSummary, initialVehicleId, initialVehicleRelationship));
@@ -205,7 +207,8 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
   const [newCustomer, setNewCustomer] = useState({ address: "", displayName: "", email: "", phoneNumber: "", preferredContactMethod: "PHONE" });
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
-  const [created, setCreated] = useState<{ id: string; repairOrderNumber: string } | null>(null);
+  const [created, setCreated] = useState<{ id: string; repairOrderNumber: string; reused?: boolean } | null>(null);
+  const [newRepairOrderConfirmed, setNewRepairOrderConfirmed] = useState(false);
   const [readiness, setReadiness] = useState<ServiceReadiness | null>(null);
   const [readinessError, setReadinessError] = useState("");
   const [readinessLoading, setReadinessLoading] = useState(false);
@@ -251,6 +254,10 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
     };
   }, [arrivalMode, arrivalQuery, customerRecords, inventoryUnitRecords, options.appointments, options.repairOrders, vehicleRecords]);
   const selectedVehicle = vehicleRecords.find((vehicle) => vehicle.id === form.vehicleId);
+  const selectedVehicleOrders = options.repairOrders.filter((order) => order.vehicle.id === form.vehicleId).slice().sort((left, right) => new Date(left.openedAt).getTime() - new Date(right.openedAt).getTime());
+  const openVehicleOrders = selectedVehicleOrders.filter((order) => !order.closedAt);
+  const sameConcernOrder = form.concernSummary.trim().length >= 10 ? openVehicleOrders.find((order) => isSameRepairOrderConcern(order.serviceVisit.concernSummary, form.concernSummary)) : undefined;
+  const requiresRepairOrderDecision = form.concernSummary.trim().length >= 10 && openVehicleOrders.length > 0 && !sameConcernOrder;
   const selectedCustomer = customerRecords.find((customer) => customer.id === form.customerId);
   const selectedInventoryUnit = inventoryUnitRecords.find((unit) => unit.id === form.inventoryUnitId);
   const assignableTechnicians = technicianOptions(options.users);
@@ -263,6 +270,7 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
     { label: isDealershipInventory ? "Inventory unit linked" : "Customer selected", ready: isDealershipInventory ? Boolean(form.inventoryUnitId) : isCustomerVehicle && Boolean(form.customerId) },
     { label: "Vehicle selected", ready: Boolean(form.vehicleId) },
     { label: "Concern captured", ready: form.concernSummary.trim().length >= 10 },
+    { label: "Repair-order decision", ready: !requiresRepairOrderDecision || newRepairOrderConfirmed },
     { label: "Keys & transportation", ready: form.keysReceivedCount >= 0 && Boolean(form.transportMode) },
     { label: isDealershipInventory ? "Internal recon readiness" : "Live service readiness", ready: isDealershipInventory || Boolean(readiness) },
     { label: "Technician & target", ready: Boolean(form.ownerUserId && form.targetAt) },
@@ -279,6 +287,10 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
         ? "Create / Link Inventory Unit"
       : form.concernSummary.trim().length < 10
         ? isDealershipInventory ? "Capture Inventory Concern" : "Capture Customer Concern"
+        : sameConcernOrder
+          ? "Use Existing Repair Order"
+          : requiresRepairOrderDecision && !newRepairOrderConfirmed
+            ? "Choose Existing or New RO"
         : isCustomerVehicle && !readiness
           ? "Refresh Live Readiness"
           : !form.ownerUserId || !form.targetAt
@@ -407,6 +419,7 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
   }, [customerRecords, form, inventoryUnitRecords, returnTo, vehicleRecords]);
 
   function update<K extends keyof IntakeState>(key: K, value: IntakeState[K]) {
+    if (key === "concernSummary" || key === "vehicleId") setNewRepairOrderConfirmed(false);
     setForm((current) => ({ ...current, [key]: value }));
   }
 
@@ -430,6 +443,7 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
 
   function chooseVehicle(vehicleId: string) {
     const inventoryUnitId = form.vehicleRelationship === "DEALERSHIP_INVENTORY" ? inventoryUnitRecords.find((unit) => unit.vehicle.id === vehicleId)?.id ?? "" : "";
+    setNewRepairOrderConfirmed(false);
     setForm((current) => ({ ...current, inventoryUnitId, vehicleId }));
     setArrivalQuery("");
     setNotice(form.vehicleRelationship === "DEALERSHIP_INVENTORY" ? inventoryUnitId ? "Dealership vehicle and its active inventory unit were selected." : "Dealership vehicle selected. Create its governed inventory unit to continue internal recon." : form.customerId ? "Vehicle selected. Capture the concern, then refresh live readiness." : "Vehicle selected. Add or select the customer next.");
@@ -455,6 +469,7 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
     const vehicle = appointment.vehicles[0]?.vehicle;
     if (customer && !customerRecords.some((record) => record.id === customer.id)) setCustomerRecords((records) => [...records, customer]);
     if (vehicle && !vehicleRecords.some((record) => record.id === vehicle.id)) setVehicleRecords((records) => [...records, vehicle]);
+    setNewRepairOrderConfirmed(false);
     setForm((current) => ({ ...current, customerId: customer?.id ?? current.customerId, vehicleId: vehicle?.id ?? current.vehicleId, locationId: appointment.locationId || current.locationId }));
     setArrivalQuery("");
     setNotice("Appointment context selected. Confirm the concern and live readiness before creating the repair order.");
@@ -590,6 +605,11 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
     if (form.concernSummary.trim().length < 10) {
       concernRef.current?.focus();
       setNotice("Capture the customer concern before creating the repair order.");
+      return;
+    }
+    if (requiresRepairOrderDecision && !newRepairOrderConfirmed) {
+      repairOrderDecisionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      setNotice("This VIN already has open repair work. Choose an existing RO or confirm a separate RO for the different concern.");
       return;
     }
     if (isCustomerVehicle && !readiness) {
@@ -817,10 +837,11 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error ?? "Vehicle check-in failed.");
-      const result = body.result as { id: string; repairOrderNumber: string };
-      setCreated(result);
+      const result = body.result as { duplicateReason?: string; id: string; repairOrderNumber: string };
+      const reused = body.duplicate === true;
+      setCreated({ ...result, reused });
       window.localStorage.removeItem(serviceIntakeDraftKey);
-      setNotice(`${result.repairOrderNumber} was created and placed into Shop & Recon.`);
+      setNotice(reused ? `${result.repairOrderNumber} already covers this vehicle and concern. The existing RO was opened; no duplicate was created.` : `${result.repairOrderNumber} was created for this vehicle and new concern.`);
       if (returnTo) window.location.assign(appendRepairOrderContext(returnTo, result.id));
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Vehicle check-in failed.");
@@ -833,10 +854,10 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
     const returnHref = returnTo ? appendRepairOrderContext(returnTo, created.id) : "/vehicles/shop-recon";
     return <section className="service-intake-shell service-intake-complete">
       <div className="sic-success-icon"><CheckCircle2 /></div>
-      <p>Check-in complete</p>
+      <p>{created.reused ? "Existing repair order found" : "Check-in complete"}</p>
       <h1>{created.repairOrderNumber}</h1>
       <span>{isDealershipInventory ? selectedInventoryUnit?.inventoryNumber ?? "Dealership inventory" : selectedCustomer?.displayName} · {selectedVehicle ? vehicleLabel(selectedVehicle) : "Vehicle"}</span>
-      <div className="sic-success-summary"><strong>Ready for intake review</strong><span>The governed repair order, customer concern, custody details, owner, target, and audit evidence are now available to Shop &amp; Recon.</span></div>
+      <div className="sic-success-summary"><strong>{created.reused ? "No duplicate created" : "Ready for intake review"}</strong><span>{created.reused ? "The VIN and concern matched this open repair order, so the existing governed record was used." : "The governed repair order, customer concern, custody details, owner, target, and audit evidence are now available to Shop & Recon."}</span></div>
       <div className="sic-success-actions"><Link className="primary" href={returnTo ? returnHref : `/vehicles/repair-workbench?repairOrderId=${created.id}`}>{returnTo ? "Return to Labor Guide" : "Open repair workbench"} <ChevronRight /></Link><Link href="/vehicles/shop-dispatch">Open Shop Dispatch</Link><Link href={`/vehicles/repair-workbench?repairOrderId=${created.id}`}>Open repair workbench</Link><Link href="/vehicles/shop-recon">Return to Shop &amp; Recon</Link></div>
     </section>;
   }
@@ -920,6 +941,10 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
         <section className="sic-card sic-concern">
           <header><span>3</span><div><h2>{isDealershipInventory ? "Inventory concern & recon request" : "Customer concern"}</h2><p>{isDealershipInventory ? "Record why the dealership vehicle entered recon and what inspection or condition requires attention." : "Record what the customer reports in their own words. This becomes the technician's starting context."}</p></div><em>{form.concernSummary.length} / 2,000</em></header>
           <label className="sic-concern-field"><span>{isDealershipInventory ? "What does inventory need inspected or repaired?" : "What is the customer experiencing?"} <b>Required</b></span><textarea maxLength={2000} onChange={(event) => update("concernSummary", event.target.value)} placeholder={isDealershipInventory ? "Example: Newly acquired inventory requires a complete safety inspection, front brake evaluation, warning-light diagnosis, and recon estimate." : "Example: Customer reports a grinding noise from the front passenger side when braking below 25 mph. It started three days ago and is getting louder. ABS warning light came on this morning…"} ref={concernRef} rows={5} value={form.concernSummary} /><small><MessageSquareText />Be specific about the symptom, location, conditions, timing, and what changed.</small></label>
+          {selectedVehicle && selectedVehicleOrders.length ? <section className={`sic-ro-match ${sameConcernOrder ? "same-concern" : "vehicle-history"}`} ref={repairOrderDecisionRef}>
+            <header><CarFront /><div><small>VIN / canonical vehicle match</small><strong>{selectedVehicle.vin ?? selectedVehicle.vehicleNumber} already exists</strong><span>This is the same canonical vehicle. The system will not create a second vehicle record.</span></div><b>{selectedVehicleOrders.length} RO{selectedVehicleOrders.length === 1 ? "" : "s"} found</b></header>
+            {sameConcernOrder ? <div className="sic-ro-decision"><div><small>Same open concern detected</small><strong>{sameConcernOrder.repairOrderNumber} · {sameConcernOrder.stage.replaceAll("_", " ")}</strong><span>{sameConcernOrder.serviceVisit.concernSummary}</span></div><nav><Link href={`/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(sameConcernOrder.id)}`}>Open matching RO</Link><em>Duplicate RO blocked</em></nav></div> : openVehicleOrders.length ? <><div className="sic-ro-list">{openVehicleOrders.map((order) => <article key={order.id}><div><strong>{order.repairOrderNumber}</strong><span>{order.serviceVisit.concernSummary}</span></div><Link href={`/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(order.id)}`}>Open existing</Link></article>)}</div><div className="sic-ro-new-choice"><div><strong>The concern appears different</strong><span>Review the open work above. Create another RO only when this is a separate problem or visit.</span></div><button className={newRepairOrderConfirmed ? "confirmed" : ""} onClick={() => setNewRepairOrderConfirmed(true)} type="button">{newRepairOrderConfirmed ? <><Check /> Separate RO confirmed</> : <><Plus /> Create separate RO for this concern</>}</button></div></> : <div className="sic-ro-decision"><div><small>Service history found</small><strong>No open repair order</strong><span>A new RO may be created for this visit while preserving the same canonical VIN record.</span></div><em>New visit allowed</em></div>}
+          </section> : null}
           <div className="sic-prompts"><span><Sparkles />Helpful prompts</span>{["Customer states…", "Occurs when…", "Started approximately…", "Warning light/message…", "Previous repair related to…"].map((prompt) => <button key={prompt} onClick={() => addPrompt(prompt)} type="button">+ {prompt}</button>)}</div>
           <details className="sic-more-context"><summary>Additional concern context &amp; advisor notes</summary><div className="sic-three-column"><label><span>When did it start?</span><input onChange={(event) => update("onset", event.target.value)} placeholder="Today, last week, after repair…" value={form.onset} /></label><label><span>Frequency / conditions</span><input onChange={(event) => update("frequency", event.target.value)} placeholder="Constant, cold start, highway…" value={form.frequency} /></label><label><span>Warning indicators</span><input onChange={(event) => update("warningIndicators", event.target.value)} placeholder="ABS, check engine, message…" value={form.warningIndicators} /></label></div><label className="sic-notes"><span>Advisor-only intake notes</span><textarea maxLength={2000} onChange={(event) => update("intakeNotes", event.target.value)} placeholder="Observations, prior conversations, access instructions, or context not stated by the customer." rows={3} value={form.intakeNotes} /></label></details>
         </section>
