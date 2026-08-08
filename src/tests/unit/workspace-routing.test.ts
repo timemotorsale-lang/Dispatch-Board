@@ -26,7 +26,7 @@ function user(roles: string[], duties: string[] = []): AuthenticatedUser {
 
 describe("role landing and record routing", () => {
   it("routes each primary role to its approved landing", () => {
-    expect(getDefaultLandingRoute(user(["General Manager"]))).toBe("/board");
+    expect(getDefaultLandingRoute(user(["General Manager"]))).toBe("/manager-workspace");
     expect(getDefaultLandingRoute(user(["Vehicle Operations Lead"]))).toBe("/vehicles?workspace=vehicle-operations-lead");
     expect(getDefaultLandingRoute(user(["Service Department Manager"]))).toBe("/vehicles/shop-recon");
     expect(getDefaultLandingRoute(user(["Inventory Manager"]))).toBe("/vehicles");
@@ -46,7 +46,7 @@ describe("role landing and record routing", () => {
     const multiRole = user(["Mechanic", "General Manager"]);
     expect(getWorkspaceKey(multiRole)).toBe("MANAGEMENT");
     expect(isTechnicianOnlyUser(multiRole)).toBe(false);
-    expect(getDefaultLandingRoute(multiRole)).toBe("/board");
+    expect(getDefaultLandingRoute(multiRole)).toBe("/manager-workspace");
     expect(getDefaultLandingRoute(multiRole, "TECHNICIAN")).toBe("/my-tasks");
   });
 

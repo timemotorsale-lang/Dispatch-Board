@@ -6182,13 +6182,22 @@ code {
   box-shadow: 0 7px 18px rgb(26 52 84 / 5%);
 }
 .app-return-banner a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: #075ed8;
   font-weight: 900;
   text-decoration: none;
 }
 .app-return-banner span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   color: #65748b;
 }
+.app-return-banner svg { width: 14px; height: 14px; flex: 0 0 auto; }
+.app-manager-workspace-guard { border-color: #b9ccec; background: linear-gradient(90deg, #eef6ff, #f7f9ff); }
+.app-manager-workspace-guard span { margin-left: auto; }
 .app-frame-sales-standalone .app-return-banner {
   display: none;
 }

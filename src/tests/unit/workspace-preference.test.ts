@@ -34,7 +34,7 @@ describe("workspace preference", () => {
     expect(resolveWorkspacePreference(actor, "VEHICLE_OPERATIONS_LEAD")).toBe("VEHICLE_OPERATIONS_LEAD");
     expect(resolveWorkspacePreference(actor, "INVENTORY")).toBe("INVENTORY");
     expect(resolveWorkspacePreference(actor, "SERVICE")).toBe("SERVICE");
-    expect(resolveWorkspacePreference(actor, "TECHNICIAN")).toBeNull();
+    expect(resolveWorkspacePreference(actor, "TECHNICIAN")).toBe("TECHNICIAN");
   });
 
   it("stores a non-authoritative, server-only preference cookie", () => {

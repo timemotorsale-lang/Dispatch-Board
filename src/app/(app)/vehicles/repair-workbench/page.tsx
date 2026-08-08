@@ -11,6 +11,7 @@ import { getPermittedWorkspaces, getWorkspaceKey } from "@/server/auth/navigatio
 import { getRepairOrderDiagnosticsBridge } from "@/server/diagnostics/service";
 import { getRepairOrderCreateOptions, listRepairOrders } from "@/server/repair-order/service";
 import { getShopPlanningDetail } from "@/server/shop-planning/service";
+import { readManagerWorkspaceContext } from "@/lib/manager-workspace-context";
 
 import styles from "./repair-workbench.module.css";
 
@@ -25,8 +26,15 @@ type PageProps = {
     vehicleId?: string;
     view?: string;
     workspace?: string;
+    workspaceContext?: string;
+    managerMode?: string;
   }>;
 };
+
+function preserveManagerContext(query: URLSearchParams, mode: "CEO" | "COO" | "WORK") {
+  query.set("workspaceContext", "MANAGEMENT");
+  query.set("managerMode", mode);
+}
 
 function vehicleLabel(order: Awaited<ReturnType<typeof listRepairOrders>>["items"][number]) {
   return [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber;
@@ -55,7 +63,14 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
       ? params.returnTo
       : undefined;
   const returnLabel = params.returnLabel?.slice(0, 120);
-  const showWorkspaceReturn = getPermittedWorkspaces(user).some(
+  const permittedWorkspaces = getPermittedWorkspaces(user);
+  const managerContext = permittedWorkspaces.some((workspace) => workspace.key === "MANAGEMENT")
+    ? readManagerWorkspaceContext(new URLSearchParams({
+        workspaceContext: params.workspaceContext ?? "",
+        managerMode: params.managerMode ?? ""
+      }))
+    : null;
+  const showWorkspaceReturn = permittedWorkspaces.some(
     (workspace) => workspace.key === "VEHICLE_OPERATIONS_LEAD",
   );
   const showAdvisorReturn =
@@ -73,6 +88,7 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
       });
       if (params.workspace === "advisor") mismatch.set("workspace", "advisor");
       if (returnTo) mismatch.set("returnTo", returnTo);
+      if (managerContext) preserveManagerContext(mismatch, managerContext.mode);
       redirect(`/vehicles/repair-workbench?${mismatch}`);
     }
     if (!params.vehicleId) {
@@ -83,6 +99,7 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
       if (params.compose === "customer" || params.compose === "management" || params.compose === "team") canonical.set("compose", params.compose);
       if (params.workspace === "advisor") canonical.set("workspace", "advisor");
       if (returnTo) canonical.set("returnTo", returnTo);
+      if (managerContext) preserveManagerContext(canonical, managerContext.mode);
       redirect(`/vehicles/repair-workbench?${canonical}`);
     }
     const [options, diagnostics] = await Promise.all([
@@ -123,6 +140,7 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
     });
     if (params.workspace === "advisor") exact.set("workspace", "advisor");
     if (returnTo) exact.set("returnTo", returnTo);
+    if (managerContext) preserveManagerContext(exact, managerContext.mode);
     redirect(`/vehicles/repair-workbench?${exact}`);
   }
 

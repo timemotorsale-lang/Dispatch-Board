@@ -35,7 +35,7 @@ export const WORKSPACE_DEFINITIONS: readonly WorkspaceDefinition[] = [
     key: "MANAGEMENT",
     label: "Management",
     description: "Company-wide operating command, decisions, and review.",
-    landingRoute: "/board",
+    landingRoute: "/manager-workspace",
     roleNames: ["General Manager"],
     dutyTerms: ["delegated manager capabilities"]
   },
@@ -156,6 +156,7 @@ function hasOperationsCoordinatorDefaultRoles(user: AuthenticatedUser) {
 }
 
 const ROUTE_WORKSPACES: Array<{ prefix: string; workspaces: WorkspaceKey[] }> = [
+  { prefix: "/manager-workspace", workspaces: ["MANAGEMENT"] },
   { prefix: "/administration", workspaces: ["MANAGEMENT"] },
   { prefix: "/settings", workspaces: ["MANAGEMENT"] },
   { prefix: "/integrations", workspaces: ["MANAGEMENT"] },

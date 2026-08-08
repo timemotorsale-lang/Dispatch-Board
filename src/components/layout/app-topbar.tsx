@@ -22,6 +22,7 @@ import { useAppearance } from "./appearance";
 
 type AppTopbarProps = {
   commandCenterHome: boolean;
+  containedWorkspace?: boolean;
   onMenuOpen(): void;
   preferredWorkspace?: WorkspaceKey | null;
   showNavigationMenu: boolean;
@@ -69,7 +70,7 @@ function getBreadcrumb(pathname: string, dispatchView: "overview" | "live", tech
   return ["Command Control Center", "Dispatch", "Workspace"];
 }
 
-export function AppTopbar({ commandCenterHome, onMenuOpen, preferredWorkspace, showNavigationMenu, user }: AppTopbarProps) {
+export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMenuOpen, preferredWorkspace, showNavigationMenu, user }: AppTopbarProps) {
   const { appearance, setAppearance } = useAppearance();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -80,9 +81,9 @@ export function AppTopbar({ commandCenterHome, onMenuOpen, preferredWorkspace, s
   const roleWorkspace = activeWorkspace !== "MANAGEMENT";
   const operationsCoordinatorAwayFromHome = activeWorkspace === "OPERATIONS_COORDINATOR" && pathname !== "/operations-coordinator";
   const appointmentConsoleAwayFromHome =
-    (isAppointmentConsolePath(pathname) && (pathname !== "/appointments" || searchParams.toString() !== "")) ||
+    !containedWorkspace && ((isAppointmentConsolePath(pathname) && (pathname !== "/appointments" || searchParams.toString() !== "")) ||
     pathname.startsWith("/settings/appointments") ||
-    (pathname.startsWith("/manager-review") && searchParams.get("scope") === "appointments");
+    (pathname.startsWith("/manager-review") && searchParams.get("scope") === "appointments"));
   const workspaceHome = activeWorkspaceDefinition.landingRoute;
   const inventoryConsole = isInventoryConsolePath(pathname);
   const dispatchConsole = isDispatchConsolePath(pathname) && !inventoryConsole;
@@ -186,7 +187,7 @@ export function AppTopbar({ commandCenterHome, onMenuOpen, preferredWorkspace, s
         </Link>
       ) : null}
       <WorkspaceSwitcher preferredWorkspace={preferredWorkspace} user={user} />
-      {inventoryConsole && activeWorkspace === "MANAGEMENT" ? (
+      {inventoryConsole && activeWorkspace === "MANAGEMENT" && !containedWorkspace ? (
         <Link aria-label="Open Dispatch Board console" className="ccc-home-link ccc-dispatch-link" href="/board">
           <Columns3 size={15} /><span>Dispatch</span>
         </Link>

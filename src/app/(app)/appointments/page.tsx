@@ -1,10 +1,13 @@
 import { AppointmentBoardLoader } from "@/features/appointments/appointment-board-loader";
 import { AppointmentConsoleNewAppointment, AppointmentConsoleTodayFlow } from "@/features/appointments/appointment-console-refinement";
 import { ServiceAdvisorHome } from "@/features/advisor/service-advisor-home";
+import { cookies } from "next/headers";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { getPermittedWorkspaces, getWorkspaceKey } from "@/server/auth/navigation";
+import { resolveWorkspacePreference, WORKSPACE_COOKIE_NAME } from "@/server/auth/workspace-preference";
 import { getServiceAdvisorWorkspace } from "@/server/advisor-workspace/service";
 import { getAppointmentBoardSettings } from "@/server/services/appointment-admin-settings";
+import { readManagerWorkspaceContext } from "@/lib/manager-workspace-context";
 
 type AppointmentsPageProps = {
   searchParams?: Promise<{
@@ -16,25 +19,37 @@ type AppointmentsPageProps = {
     queue?: string;
     view?: string;
     workspace?: string;
+    workspaceContext?: string;
+    managerMode?: string;
+    launch?: string;
+    returnTo?: string;
   }>;
 };
 
 export default async function AppointmentsPage({ searchParams }: AppointmentsPageProps) {
-  const [user, boardSettings, focusParams] = await Promise.all([
+  const [user, boardSettings, focusParams, cookieStore] = await Promise.all([
     requireCurrentUser(),
     getAppointmentBoardSettings().catch(() => null),
-    searchParams
+    searchParams,
+    cookies()
   ]);
 
-  const workspaceKey = getWorkspaceKey(user);
-  const canOpenAdvisorWorkspace = workspaceKey === "ADVISOR" ||
-    getPermittedWorkspaces(user).some((workspace) => workspace.key === "ADVISOR") ||
-    getPermittedWorkspaces(user).some((workspace) => workspace.key === "OPERATIONS_COORDINATOR");
+  const permittedWorkspaces = getPermittedWorkspaces(user);
+  const preferredWorkspace = resolveWorkspacePreference(user, cookieStore.get(WORKSPACE_COOKIE_NAME)?.value);
+  const workspaceKey = getWorkspaceKey(user, preferredWorkspace);
+  const managerContext = permittedWorkspaces.some((workspace) => workspace.key === "MANAGEMENT")
+    ? readManagerWorkspaceContext(new URLSearchParams({
+        workspaceContext: focusParams?.workspaceContext ?? "",
+        managerMode: focusParams?.managerMode ?? ""
+      }))
+    : null;
+  const canOpenAdvisorWorkspace = workspaceKey === "ADVISOR" || Boolean(managerContext);
+  const containedAdvisorLaunch = Boolean(managerContext) && focusParams?.launch === "advisor";
   const advisorMode = canOpenAdvisorWorkspace &&
     focusParams?.view !== "board" &&
     focusParams?.workspace !== "board" &&
-    (workspaceKey === "ADVISOR" || focusParams?.workspace === "advisor");
-  const showAdvisorReturn = workspaceKey === "ADVISOR" || focusParams?.workspace === "advisor";
+    (workspaceKey === "ADVISOR" || containedAdvisorLaunch);
+  const showAdvisorReturn = !managerContext && workspaceKey === "ADVISOR";
   const newAppointmentMode = focusParams?.action === "new";
   const boardMode = focusParams?.view === "board" || focusParams?.workspace === "board";
 
