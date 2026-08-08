@@ -32,6 +32,8 @@ describe("enterprise service intake workspace", () => {
     expect(html).toContain("Choose once at intake");
     expect(html).toContain("Walter Mechanic");
     expect(html).toContain("Assigned technician");
+    expect(html).toContain('href="/vehicles/shop-dispatch"');
+    expect(html).toContain("Open Shop Dispatch");
     expect(html).toContain("Technician &amp; target");
     expect(html).not.toContain("Advisor / owner");
     expect(html).toContain("Check-in requirements");

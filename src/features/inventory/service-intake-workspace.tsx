@@ -837,7 +837,7 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
       <h1>{created.repairOrderNumber}</h1>
       <span>{isDealershipInventory ? selectedInventoryUnit?.inventoryNumber ?? "Dealership inventory" : selectedCustomer?.displayName} · {selectedVehicle ? vehicleLabel(selectedVehicle) : "Vehicle"}</span>
       <div className="sic-success-summary"><strong>Ready for intake review</strong><span>The governed repair order, customer concern, custody details, owner, target, and audit evidence are now available to Shop &amp; Recon.</span></div>
-      <div className="sic-success-actions"><Link className="primary" href={returnTo ? returnHref : `/vehicles/repair-workbench?repairOrderId=${created.id}`}>{returnTo ? "Return to Labor Guide" : "Open repair workbench"} <ChevronRight /></Link><Link href={`/vehicles/repair-workbench?repairOrderId=${created.id}`}>Open repair workbench</Link><Link href="/vehicles/shop-recon">Return to Shop &amp; Recon</Link></div>
+      <div className="sic-success-actions"><Link className="primary" href={returnTo ? returnHref : `/vehicles/repair-workbench?repairOrderId=${created.id}`}>{returnTo ? "Return to Labor Guide" : "Open repair workbench"} <ChevronRight /></Link><Link href="/vehicles/shop-dispatch">Open Shop Dispatch</Link><Link href={`/vehicles/repair-workbench?repairOrderId=${created.id}`}>Open repair workbench</Link><Link href="/vehicles/shop-recon">Return to Shop &amp; Recon</Link></div>
     </section>;
   }
 
@@ -926,7 +926,7 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
 
         <section className="sic-card sic-technician-assignment" id="technician-assignment">
           <header><span>4</span><div><h2>Assign technician</h2><p>Choose once at intake. This technician carries into the repair order and is preselected when authorized work reaches Shop Dispatch.</p></div><em>Simple handoff</em></header>
-          <div className="sic-technician-assignment-row"><label><span>Technician</span><select aria-label="Assign technician" onChange={(event) => update("ownerUserId", event.target.value)} value={form.ownerUserId}>{assignableTechnicians.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></label><div><UserRound /><span><strong>{selectedOwner?.name ?? "Select a technician"}</strong><small>Accountable from check-in · bay and schedule remain optional until dispatch</small></span></div></div>
+          <div className="sic-technician-assignment-row"><label><span>Technician</span><select aria-label="Assign technician" onChange={(event) => update("ownerUserId", event.target.value)} value={form.ownerUserId}>{assignableTechnicians.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></label><div><UserRound /><span><strong>{selectedOwner?.name ?? "Select a technician"}</strong><small>Accountable from check-in · bay and schedule remain optional until dispatch</small></span></div><Link className="sic-open-dispatch" href="/vehicles/shop-dispatch">Open Shop Dispatch <ChevronRight /></Link></div>
           <footer><ShieldCheck /><span>This assignment does not authorize repairs or bypass technician qualification, capacity, parts, or QC controls.</span></footer>
         </section>
 
