@@ -9,11 +9,13 @@ import { getInventoryConsoleSavedView, INVENTORY_CONSOLE_WORK_VIEWS, listInvento
 import { getInventoryControlTowerProjection } from "@/server/inventory-control-tower";
 import { getInventoryGovernanceConsole } from "@/server/inventory-governance/service";
 import { isManager } from "@/server/policies/access";
+import { getServiceAdvisorWorkspace } from "@/server/advisor-workspace/service";
+import { getMyTasksViewModelForToday } from "@/server/services/my-tasks";
 
 const stageLabels: Record<string, string> = { PURCHASED_OR_TRADE_IN: "Acquired", TRANSPORTATION: "Transport", RECEIVED: "Received", INSPECTION: "Inspection", RECONDITIONING: "Recon", TITLE_DOCUMENT_READINESS: "Title", PHOTOGRAPHY_MERCHANDISING: "Merchandising", FRONTLINE_READY: "Frontline", RESERVED_DEAL_PENDING: "Deal pending", SOLD: "Sold", DELIVERED: "Delivered", WHOLESALED_OR_OTHER_DISPOSITION: "Disposition" };
 
-export default async function VehiclesPage({ searchParams }: { searchParams: Promise<{ locationId?: string; savedViewId?: string; view?: string; workspace?: string }> }) {
-  const [user, { locationId: requestedLocationId, savedViewId, view: requestedView, workspace }] = await Promise.all([
+export default async function VehiclesPage({ searchParams }: { searchParams: Promise<{ locationId?: string; mode?: string; savedViewId?: string; view?: string; workspace?: string }> }) {
+  const [user, { locationId: requestedLocationId, mode, savedViewId, view: requestedView, workspace }] = await Promise.all([
     requireCurrentUser(),
     searchParams
   ]);
@@ -51,7 +53,7 @@ export default async function VehiclesPage({ searchParams }: { searchParams: Pro
     data = {
       activeSavedViewId: selectedSavedView?.id ?? null,
       byLocation: projection.byLocation.map((item) => ({ count: item.count, locationId: item.locationId, name: item.name })),
-      byStage: projection.byStage.map((summary) => ({ count: summary.count, label: stageLabels[summary.stage] ?? summary.label, stage: summary.stage })),
+      byStage: projection.byStage.map((summary) => ({ averageStageAgeDays: summary.averageStageAgeDays, blocked: summary.blocked, count: summary.count, label: stageLabels[summary.stage] ?? summary.label, overdue: summary.overdue, stage: summary.stage })),
       canShareSavedViews: isManager(user), error: null, freshness: projection.freshness === "COMPLETE" ? "LIVE" : "STALE", generatedAt: projection.generatedAt,
       locationId: projection.filters.locationId, operational, savedViews, savedView, savedViewNotice,
       priorityWork: priorityItems,
@@ -62,11 +64,19 @@ export default async function VehiclesPage({ searchParams }: { searchParams: Pro
     data = { activeSavedViewId: selectedSavedView?.id ?? null, byLocation: [], byStage: [], canShareSavedViews: isManager(user), error: error instanceof Error ? error.message : "Inventory Home is unavailable.", freshness: "UNAVAILABLE", generatedAt: null, locationId: locationId ?? null, operational: null, savedViews, savedView, savedViewNotice, priorityWork: [], reviews: { approvals: 0, reviews: 0, available: false, items: [] }, totals: { active: 0, agedExposureCents: 0, blocked: 0, exposureCents: 0, overdue: 0, waiting: 0 } };
   }
   const hasVehicleOperationsLeadWorkspace = getPermittedWorkspaces(user).some((item) => item.key === "VEHICLE_OPERATIONS_LEAD");
-  const vehicleOperationsLeadMode = hasVehicleOperationsLeadWorkspace && (
+  const vehicleOperationsLeadMode = hasVehicleOperationsLeadWorkspace && workspace !== "inventory" && (
     workspace === "vehicle-operations-lead" || getWorkspaceKey(user) === "VEHICLE_OPERATIONS_LEAD"
   );
 
-  return vehicleOperationsLeadMode
-    ? <VehicleOperationsLeadHome data={data} />
-    : <InventoryConsoleHome data={data} />;
+  if (vehicleOperationsLeadMode) {
+    const [advisorResult, tasksResult] = await Promise.allSettled([
+      getServiceAdvisorWorkspace(user),
+      getMyTasksViewModelForToday(user)
+    ]);
+    const advisor = advisorResult.status === "fulfilled" ? advisorResult.value : null;
+    const tasks = tasksResult.status === "fulfilled" ? tasksResult.value.tasks : [];
+    return <VehicleOperationsLeadHome advisor={advisor ? JSON.parse(JSON.stringify(advisor)) : null} data={data} tasks={JSON.parse(JSON.stringify(tasks))} userName={user.name} />;
+  }
+
+  return <InventoryConsoleHome data={data} highVolume={mode === "volume"} showMyWorkdayReturn={hasVehicleOperationsLeadWorkspace} userName={user.name} />;
 }

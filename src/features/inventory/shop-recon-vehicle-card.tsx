@@ -8,6 +8,7 @@ import { SHOP_RECON_STAGES, type ShopReconStageCode } from "@/server/shop-recon/
 import { getShopReconOperationalWorkspace, type ShopReconOperationalSummaryField, type ShopReconOperationalTool } from "@/server/shop-recon/operational-workspace";
 import { evaluateShopReconPilotProgress, type ShopReconPilotScenario } from "@/server/shop-recon/pilot";
 import { getShopReconStageWorkspace, type ShopReconFormField } from "@/server/shop-recon/stage-workspace";
+import { ShopReconParallelTitlePreparation, type TitlePreparationWorkspace } from "./shop-recon-parallel-title-preparation";
 
 export type ShopReconVehicleCardModel = {
   id: string;
@@ -94,7 +95,7 @@ function stageLoopGuidance(stage: ShopReconStageCode, item: ShopReconVehicleCard
   return guidance;
 }
 
-export function ShopReconVehicleCard({ initialStage, item, lifecycleWorkspace, returnTo = "/vehicles/shop-recon" }: { initialStage?: string; item: ShopReconVehicleCardModel; lifecycleWorkspace: ShopReconLifecycleWorkspaceModel; returnTo?: string }) {
+export function ShopReconVehicleCard({ initialStage, item, lifecycleWorkspace, returnTo = "/vehicles/shop-recon", titlePreparationWorkspace = null }: { initialStage?: string; item: ShopReconVehicleCardModel; lifecycleWorkspace: ShopReconLifecycleWorkspaceModel; returnTo?: string; titlePreparationWorkspace?: TitlePreparationWorkspace }) {
   const lifecycle = lifecycleWorkspace.lifecycle;
   const [selectedStage, setSelectedStage] = useState<ShopReconStageCode>(() => stageFromQuery(initialStage, lifecycle.stage));
   const [checklist, setChecklist] = useState<Record<string, boolean>>(lifecycleWorkspace.currentDraft?.checklist ?? {});
@@ -352,6 +353,8 @@ export function ShopReconVehicleCard({ initialStage, item, lifecycleWorkspace, r
     </section>
 
     <div className="srv-design-notice"><ShieldCheck /><span><strong>Governed operational workspace</strong> Any authorized user with access may save an attributable draft. Saving never completes a stage or moves the vehicle. Movement requires all gates and the named stage authority.</span></div>
+
+    {item.workLane === "INVENTORY_RECON" ? <ShopReconParallelTitlePreparation currentStageLabel={SHOP_RECON_STAGES[currentIndex].label} initial={titlePreparationWorkspace} repairOrderId={item.id} /> : null}
 
     <section className="srv-stage-control" aria-label="Shop stage selector">
       <div><span><i /> Current Shop Stage</span><strong>{currentIndex + 1}. {SHOP_RECON_STAGES[currentIndex].label}</strong><small>Select a stage below to review it. Selecting alone never moves the operational vehicle.</small></div>

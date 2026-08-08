@@ -28,6 +28,7 @@ export default async function AppointmentsPage({ searchParams }: AppointmentsPag
 
   const workspaceKey = getWorkspaceKey(user);
   const canOpenAdvisorWorkspace = workspaceKey === "ADVISOR" ||
+    getPermittedWorkspaces(user).some((workspace) => workspace.key === "ADVISOR") ||
     getPermittedWorkspaces(user).some((workspace) => workspace.key === "OPERATIONS_COORDINATOR");
   const advisorMode = canOpenAdvisorWorkspace &&
     focusParams?.view !== "board" &&

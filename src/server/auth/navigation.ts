@@ -42,7 +42,7 @@ export const WORKSPACE_DEFINITIONS: readonly WorkspaceDefinition[] = [
   {
     key: "VEHICLE_OPERATIONS_LEAD",
     label: "Vehicle Operations Lead",
-    description: "Multi-hat vehicle operations workspace for inventory, shop, parts runner, and lot support.",
+    description: "Multi-hat personal operations workspace for advisor, inventory, technician, parts, lot, and detail execution.",
     landingRoute: "/vehicles?workspace=vehicle-operations-lead",
     roleNames: ["Vehicle Operations Lead"],
     dutyTerms: ["vehicle operations lead", "shop/parts support", "lot/detail support"]
@@ -68,7 +68,7 @@ export const WORKSPACE_DEFINITIONS: readonly WorkspaceDefinition[] = [
     label: "Advisor Workspace",
     description: "Appointments, check-in, customers, and repair-order coordination.",
     landingRoute: "/appointments",
-    roleNames: ["Service Advisor"],
+    roleNames: ["Service Advisor", "Vehicle Operations Lead"],
     dutyTerms: ["service advisor", "vehicle intake", "customer intake"]
   },
   {
@@ -76,7 +76,7 @@ export const WORKSPACE_DEFINITIONS: readonly WorkspaceDefinition[] = [
     label: "Technician Workspace",
     description: "Assigned repairs, available work, and diagnostic tools.",
     landingRoute: "/my-tasks",
-    roleNames: ["Mechanic", "Technician"],
+    roleNames: ["Mechanic", "Technician", "Vehicle Operations Lead"],
     dutyTerms: ["mechanic", "repair execution", "diagnostic execution"]
   },
   {

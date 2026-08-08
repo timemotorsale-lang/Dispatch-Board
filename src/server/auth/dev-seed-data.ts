@@ -239,15 +239,19 @@ export const dayOneRoleDefinitions = [
   },
   {
     name: "Vehicle Operations Lead",
-    description: "Coordinates the current multi-hat vehicle operations workload across inventory, shop, parts runner, and lot support.",
+    description: "Coordinates the current multi-hat workload across service advising, inventory, repair support, parts runner, lot, and detail work.",
     defaultDutyNames: [
       "Coordinate vehicle operations lead priorities",
+      "Coordinate service advisor arrivals",
+      "Manage customer repair-order updates",
       "Review inventory status and priority vehicles",
       "Review service production priorities",
       "Check vehicles awaiting parts",
       "Check vehicles awaiting QC",
       "Support parts pickup and returns",
+      "Support authorized repair execution",
       "Support lot readiness and vehicle movement",
+      "Support vehicle detail and merchandising readiness",
       "Submit inventory and service production update"
     ]
   },

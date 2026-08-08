@@ -70,8 +70,16 @@ describe("AdvisorRepairOrderStatusView", () => {
   });
 
   it("opens a customer communication workspace from an inbox compose link", () => {
-    const html = renderToStaticMarkup(<AdvisorRepairOrderStatusView compose="customer" order={makeOrder()} />);
+    const html = renderToStaticMarkup(
+      <AdvisorRepairOrderStatusView
+        compose="customer"
+        order={makeOrder()}
+        returnTo="/vehicles?workspace=vehicle-operations-lead"
+      />
+    );
 
+    expect(html).toContain("Back to My Workday");
+    expect(html).toContain('href="/vehicles?workspace=vehicle-operations-lead"');
     expect(html).toContain("Repair-order communications");
     expect(html).toContain("Customer conversation");
     expect(html).toContain("555-0100");

@@ -537,6 +537,14 @@ enum ShopReconLifecycleEventType {
   RELEASED
 }
 
+enum ShopReconParallelOperationStatus {
+  IN_PROGRESS
+  BLOCKED
+  READY_FOR_INVENTORY_REVIEW
+  REVALIDATION_REQUIRED
+  CANCELLED
+}
+
 enum PartStatus {
   ACTIVE
   INACTIVE
@@ -3364,10 +3372,41 @@ model ShopReconLifecycle {
   overrides         ShopReconOverride[]
   scopeChanges      ShopReconScopeChange[]
   stageEvidence     ShopReconStageEvidence[]
+  parallelOperations ShopReconParallelOperation[]
 
   @@index([organizationId, stage, operatingState, targetAt])
   @@index([locationId, stage, operatingState])
   @@index([ownerUserId, targetAt])
+}
+
+/// Administrative work that may run beside Shop & Recon without owning or advancing its lifecycle stage.
+model ShopReconParallelOperation {
+  id                    String                           @id @default(cuid())
+  organizationId        String
+  lifecycleId           String
+  repairOrderId         String
+  inventoryUnitId       String?
+  vehicleId             String
+  operationCode         String
+  status                ShopReconParallelOperationStatus @default(IN_PROGRESS)
+  ownerUserId           String
+  sourceVin             String?
+  sourceScopeVersion    Int
+  checklist             Json
+  evidenceReferences    Json
+  blockerNote           String?
+  handoffNote           String?
+  version               Int                              @default(1)
+  startedAt             DateTime                         @default(now())
+  submittedAt           DateTime?
+  lastValidatedAt       DateTime                         @default(now())
+  updatedAt             DateTime                         @updatedAt
+  lifecycle             ShopReconLifecycle               @relation(fields: [lifecycleId], references: [id], onDelete: Restrict)
+
+  @@unique([lifecycleId, operationCode])
+  @@index([organizationId, status, updatedAt])
+  @@index([repairOrderId, operationCode])
+  @@index([ownerUserId, status])
 }
 
 model ShopReconStageEvidence {

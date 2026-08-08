@@ -1,14 +1,48 @@
-import { AlertTriangle, ArrowRight, Boxes, CarFront, CheckCircle2, ChevronRight, CircleDollarSign, ClipboardList, Clock3, Database, Download, FileCheck2, Gift, Handshake, History, Play, Search, ShieldCheck, Tags, Truck, Wrench } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ArrowRight,
+  CarFront,
+  CheckCircle2,
+  ChevronRight,
+  CircleDollarSign,
+  Clock3,
+  FileCheck2,
+  Handshake,
+  Inbox,
+  Gauge,
+  MessageSquareText,
+  Plus,
+  Search,
+  Settings2,
+  ShieldCheck,
+  Sparkles,
+  Truck,
+  Wrench,
+} from "lucide-react";
 import Link from "next/link";
-import { InventoryConsoleSavedViews } from "./inventory-console-saved-views";
-import { InventorySavedViewsMenu } from "./inventory-saved-views-menu";
-import type { InventoryConsoleSavedViewModel, InventoryConsoleWorkView } from "@/server/inventory-console-saved-views";
+
 import type { InventoryConsoleOperationalFacts } from "@/server/inventory-console-home";
 import type { InventoryPriorityWorkItem } from "@/server/inventory-console-home/priority-work";
+import type {
+  InventoryConsoleSavedViewModel,
+  InventoryConsoleWorkView,
+} from "@/server/inventory-console-saved-views";
+
+import { InventoryConsoleSavedViews } from "./inventory-console-saved-views";
+import { InventorySavedViewsMenu } from "./inventory-saved-views-menu";
+import styles from "./inventory-manager-home.module.css";
 
 export type InventoryHomeData = {
   byLocation: Array<{ count: number; locationId: string; name: string }>;
-  byStage: Array<{ count: number; label: string; stage: string }>;
+  byStage: Array<{
+    averageStageAgeDays?: number | null;
+    blocked?: number;
+    count: number;
+    label: string;
+    overdue?: number;
+    stage: string;
+  }>;
   error: string | null;
   freshness: "LIVE" | "STALE" | "UNAVAILABLE";
   generatedAt: string | null;
@@ -20,82 +54,218 @@ export type InventoryHomeData = {
   savedViewNotice: string | null;
   operational: InventoryConsoleOperationalFacts | null;
   priorityWork: InventoryPriorityWorkItem[];
-  reviews: { approvals: number; reviews: number; available: boolean; items: Array<{ actionHref: string; actionLabel: string; ageHours: number; amountCents: number | null; domain: string; id: string; kind: "REVIEW" | "APPROVAL"; overdue: boolean; owner: string; state: string; subject: string; title: string }> };
-  totals: { active: number; agedExposureCents: number; blocked: number; exposureCents: number; overdue: number; waiting: number };
+  reviews: {
+    approvals: number;
+    reviews: number;
+    available: boolean;
+    items: Array<{
+      actionHref: string;
+      actionLabel: string;
+      ageHours: number;
+      amountCents: number | null;
+      domain: string;
+      id: string;
+      kind: "REVIEW" | "APPROVAL";
+      overdue: boolean;
+      owner: string;
+      state: string;
+      subject: string;
+      title: string;
+    }>;
+  };
+  totals: {
+    active: number;
+    agedExposureCents: number;
+    blocked: number;
+    exposureCents: number;
+    overdue: number;
+    waiting: number;
+  };
 };
 
-const money = (cents: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(cents / 100);
+const HOME = "/vehicles?workspace=inventory";
+const MY_WORKDAY = "/vehicles?workspace=vehicle-operations-lead";
 
-export function InventoryConsoleHome({ data }: { data: InventoryHomeData }) {
-  const attention = data.totals.blocked + data.totals.overdue + data.totals.waiting;
-  const freshnessLabel = data.freshness === "LIVE" ? "Live data" : data.freshness === "STALE" ? "Stale — verify before acting" : "Unavailable";
-  const lifecycleGroups = [
-    ["Acquired", ["PURCHASED_OR_TRADE_IN"], Handshake], ["Received", ["TRANSPORTATION", "RECEIVED"], Truck], ["Inspected", ["INSPECTION"], Search], ["Recon", ["RECONDITIONING", "TITLE_DOCUMENT_READINESS"], Wrench], ["Merchandising", ["PHOTOGRAPHY_MERCHANDISING"], Tags], ["Frontline Ready", ["FRONTLINE_READY", "RESERVED_DEAL_PENDING"], FileCheck2], ["Sold / Wholesale / Transferred", ["SOLD", "DELIVERED", "WHOLESALED_OR_OTHER_DISPOSITION"], CarFront],
-  ] as const;
-  const groupedLifecycle = lifecycleGroups.map(([label, stages, Icon]) => ({ label, stage: stages[0], Icon, count: data.byStage.filter((item) => (stages as readonly string[]).includes(item.stage)).reduce((sum, item) => sum + item.count, 0) }));
-  const lifecycleTarget = data.totals.active ? Math.max(0, Math.round((data.totals.active - data.totals.overdue) / data.totals.active * 100)) : 100;
-  const shopTarget = data.operational?.shop.active ? Math.max(0, Math.round((data.operational.shop.active - data.operational.shop.blocked) / data.operational.shop.active * 100)) : null;
-  const shopStages = [["Unassigned", "—", CarFront], ["Diagnosing", "—", Search], ["Estimate / Approval", "—", ClipboardList], ["Waiting on Parts", data.operational?.parts.waitingDemands ?? "—", Boxes], ["In Progress", data.operational?.shop.active ?? "—", Wrench], ["Quality Check", "—", ShieldCheck], ["Complete", "—", CheckCircle2]] as const;
+const lifecycleGroups = [
+  { label: "Acquired", stages: ["PURCHASED_OR_TRADE_IN"], Icon: Handshake },
+  { label: "Received", stages: ["TRANSPORTATION", "RECEIVED"], Icon: Truck },
+  { label: "Inspection", stages: ["INSPECTION"], Icon: Search },
+  { label: "Recon", stages: ["RECONDITIONING", "TITLE_DOCUMENT_READINESS"], Icon: Wrench },
+  { label: "Merchandising", stages: ["PHOTOGRAPHY_MERCHANDISING"], Icon: Sparkles },
+  { label: "Frontline Ready", stages: ["FRONTLINE_READY", "RESERVED_DEAL_PENDING"], Icon: FileCheck2 },
+  { label: "Sold / Disposition", stages: ["SOLD", "DELIVERED", "WHOLESALED_OR_OTHER_DISPOSITION"], Icon: CarFront },
+] as const;
+
+function formatStage(value: string) {
+  return value
+    .toLocaleLowerCase()
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toLocaleUpperCase());
+}
+
+function date(value: string) {
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(value));
+}
+
+function money(cents: number) {
+  return new Intl.NumberFormat("en-US", { currency: "USD", maximumFractionDigits: 0, style: "currency" }).format(cents / 100);
+}
+
+function inventoryHref(view: InventoryConsoleWorkView, highVolume = false) {
+  return `/vehicles?${new URLSearchParams({ workspace: "inventory", view, ...(highVolume ? { mode: "volume" } : {}) })}`;
+}
+
+export function InventoryConsoleHome({
+  data,
+  highVolume = false,
+  showMyWorkdayReturn = false,
+  userName = "Inventory Manager",
+}: {
+  data: InventoryHomeData;
+  highVolume?: boolean;
+  showMyWorkdayReturn?: boolean;
+  userName?: string;
+}) {
+  const home = highVolume ? "/vehicles?workspace=inventory&mode=volume" : HOME;
+  const reference = data.generatedAt ? new Date(data.generatedAt) : null;
+  const dueToday = reference
+    ? data.priorityWork.filter((item) => new Date(item.dueAt).toDateString() === reference.toDateString()).length
+    : 0;
+  const groupedLifecycle = lifecycleGroups.map((group) => {
+    const stages = data.byStage.filter((item) => (group.stages as readonly string[]).includes(item.stage));
+    const count = stages.reduce((sum, item) => sum + item.count, 0);
+    const averageDays = count
+      ? stages.reduce((sum, item) => sum + (item.averageStageAgeDays ?? 0) * item.count, 0) / count
+      : 0;
+    return {
+      ...group,
+      averageDays,
+      blocked: stages.reduce((sum, item) => sum + (item.blocked ?? 0), 0),
+      count,
+      overdue: stages.reduce((sum, item) => sum + (item.overdue ?? 0), 0),
+      stage: group.stages[0],
+    };
+  });
+  const frontlineReady = groupedLifecycle.find((item) => item.label === "Frontline Ready")?.count ?? 0;
+  const inboxItems = [
+    ...data.reviews.items.slice(0, 3).map((item) => ({
+      href: item.actionHref,
+      id: `review-${item.id}`,
+      label: item.kind === "APPROVAL" ? "Approval" : "Review",
+      meta: `${item.owner} · ${item.ageHours < 24 ? `${item.ageHours}h` : `${Math.floor(item.ageHours / 24)}d`} waiting`,
+      title: item.title,
+      tone: item.overdue ? "urgent" : "decision",
+    })),
+    ...(data.operational?.parts.waitingDemands
+      ? [{ href: `/vehicles/parts-operations?${new URLSearchParams({ returnTo: home, returnLabel: "Back to Inventory Manager" })}`, id: "parts", label: "Parts", meta: `${data.operational.parts.unreservedUnits} unreserved unit(s)`, title: `${data.operational.parts.waitingDemands} parts constraint(s) need coordination`, tone: "dependency" }]
+      : []),
+    ...(data.operational?.shop.blocked
+      ? [{ href: `/vehicles/shop-recon?${new URLSearchParams({ returnTo: home })}`, id: "shop", label: "Shop", meta: "Cross-team dependency", title: `${data.operational.shop.blocked} shop blocker(s) affecting flow`, tone: "urgent" }]
+      : []),
+  ].slice(0, 4);
+  const firstName = userName.trim().split(/\s+/)[0] || "there";
+
   return (
-    <section className="inventory-console-home">
-      <header className="ich-hero">
-        <div><p>Operations Home</p><h1>Inventory Console</h1><span>My operational view&nbsp; • &nbsp;{data.locationId ? "Selected location" : "All Locations"}</span></div>
-        <div className="ich-hero-actions"><Link className="ich-primary-action" href="/vehicles/workflows"><Play size={16} />Start Workflow</Link><InventorySavedViewsMenu><InventoryConsoleSavedViews activeId={data.activeSavedViewId} activeView={data.savedView} canShare={data.canShareSavedViews} locationId={data.locationId} savedViews={data.savedViews} /></InventorySavedViewsMenu><Link href="/reports?scope=inventory"><Download size={16} />Reports &amp; Exports</Link></div>
+    <section className={`${styles.home} ${highVolume ? styles.highVolume : ""}`}>
+      <header className={styles.hero}>
+        <div>
+          {showMyWorkdayReturn ? <Link className={styles.back} href={MY_WORKDAY}><ArrowLeft />Back to My Workday</Link> : null}
+          <p>Inventory Manager Workspace</p>
+          <h1>Good morning, {firstName}. Keep inventory moving.</h1>
+          <span>See the exceptions, make the decision, and move the vehicle forward.</span>
+        </div>
+        <div className={styles.heroActions}>
+          <Link className={styles.primary} href={`/vehicles/workflows/add-vehicle?returnTo=${encodeURIComponent(home)}`}><Plus />Add / receive vehicle</Link>
+          <Link href="/vehicles/registry"><Search />Find vehicle</Link>
+        </div>
       </header>
 
-      {data.freshness !== "LIVE" ? <div className={`ich-data-state ich-data-${data.freshness.toLowerCase()}`} role="status">
-        <Database size={15} /><strong>{freshnessLabel}</strong><span>{data.generatedAt ? `Cutoff ${new Date(data.generatedAt).toLocaleString()}` : data.error ?? "No authoritative snapshot is available."}</span>
-      </div> : null}
+      <nav aria-label="Inventory Manager workspace navigation" className={styles.nav}>
+        {showMyWorkdayReturn ? <Link href={MY_WORKDAY}>My Workday</Link> : null}
+        <Link aria-current="page" href={home}>Inventory Manager</Link>
+        <Link href="/vehicles/inventory">Lifecycle</Link>
+        <a href="#inventory-inbox">Inbox <b>{inboxItems.length}</b></a>
+        <Link href="/manager-review?scope=inventory">Approvals <b>{data.reviews.approvals}</b></Link>
+        <div aria-label="Inventory Manager display mode" className={styles.modeSwitch} role="group"><Link aria-current={!highVolume ? "page" : undefined} href={HOME}>Calm</Link><Link aria-current={highVolume ? "page" : undefined} href="/vehicles?workspace=inventory&amp;mode=volume">High volume</Link></div>
+      </nav>
 
-      <form action="/vehicles" className="ich-scope-bar" method="get">
-        <label>Location<select defaultValue={data.locationId ?? ""} name="locationId"><option value="">All Locations</option>{data.byLocation.map((location) => <option key={location.locationId} value={location.locationId}>{location.name} ({location.count})</option>)}</select></label>
-        <label>Owner<select disabled><option>All Owners</option></select></label><label>Date<select disabled><option>{data.generatedAt ? new Date(data.generatedAt).toLocaleDateString() : "Current operating window"}</option></select></label>
-        <button className="sr-only" type="submit">Apply filters</button><Link className="sr-only" href="/vehicles">Clear filters</Link><span className="sr-only">{data.generatedAt ? `Live · updated ${new Date(data.generatedAt).toLocaleTimeString()}` : "Authoritative data unavailable"}</span>
+      <form action="/vehicles/registry" className={styles.search} method="get">
+        <Search />
+        <label className="sr-only" htmlFor="inventory-manager-search">Find inventory</label>
+        <input id="inventory-manager-search" name="q" placeholder="Find stock #, VIN, vehicle, or owner" />
+        <button type="submit">Find vehicle <ArrowRight /></button>
       </form>
-      {data.savedViewNotice ? <p className="ich-view-notice" role="status">{data.savedViewNotice}</p> : null}
 
-      <section aria-label="Inventory Console KPIs" className="ich-kpis">
-        <article><i className="blue"><CarFront /></i><span>Active Inventory<strong>{data.freshness === "UNAVAILABLE" ? "—" : data.totals.active}</strong><small>Current permitted scope</small></span><ChevronRight /></article>
-        <article><i className="green"><CircleDollarSign /></i><span>Inventory Capital<strong>{data.freshness === "UNAVAILABLE" ? "—" : money(data.totals.exposureCents)}</strong><small>Recorded non-void exposure</small></span><ChevronRight /></article>
-        <article><i className="purple"><Clock3 /></i><span>Aged Exposure<strong>{data.freshness === "UNAVAILABLE" ? "—" : money(data.totals.agedExposureCents)}</strong><small>Recorded 31+ day exposure</small></span><ChevronRight /></article>
-        <article className={attention ? "attention" : ""}><i className="orange"><AlertTriangle /></i><span>Needs Attention<strong>{data.freshness === "UNAVAILABLE" ? "—" : attention}</strong><small>{data.totals.blocked} blocked · {data.totals.overdue} overdue · {data.totals.waiting} waiting</small></span><ChevronRight /></article>
-        <article><i className="blue"><Wrench /></i><span>In Shop<strong>{data.operational?.shop.active ?? "—"}</strong><small>{data.operational ? `${data.operational.shop.blocked} blocked repair orders` : "Shop facts unavailable"}</small></span><ChevronRight /></article>
-        <article><i className="orange"><Gift /></i><span>Waiting on Parts<strong>{data.operational?.parts.waitingDemands ?? "—"}</strong><small>{data.operational ? `${data.operational.parts.unreservedUnits} units not reserved` : "Parts facts unavailable"}</small></span><ChevronRight /></article>
+      {data.freshness !== "LIVE" ? <div className={styles.dataState} role="status"><AlertTriangle /><strong>{data.freshness === "STALE" ? "Inventory data may be delayed" : "Inventory workspace unavailable"}</strong><span>{data.error ?? "Verify the source record before acting."}</span></div> : null}
+      {data.savedViewNotice ? <p className={styles.notice} role="status">{data.savedViewNotice}</p> : null}
+
+      <section aria-label="Inventory pulse" className={styles.metrics}>
+        <Link href="/vehicles/inventory/units"><CarFront /><span>Active inventory<strong>{data.freshness === "UNAVAILABLE" ? "—" : data.totals.active}</strong><small>Vehicles in current scope</small></span><ChevronRight /></Link>
+        <Link className={data.priorityWork.length ? styles.attention : ""} href={inventoryHref("ATTENTION", highVolume)}><AlertTriangle /><span>Needs attention<strong>{data.freshness === "UNAVAILABLE" ? "—" : data.priorityWork.length}</strong><small>Unique exceptions in this view</small></span><ChevronRight /></Link>
+        <Link className={data.totals.overdue ? styles.attention : ""} href={inventoryHref("OVERDUE", highVolume)}><Clock3 /><span>Overdue<strong>{data.freshness === "UNAVAILABLE" ? "—" : data.totals.overdue}</strong><small>Past the current stage target</small></span><ChevronRight /></Link>
+        <Link href="/vehicles/inventory?stage=FRONTLINE_READY"><FileCheck2 /><span>Frontline ready<strong>{data.freshness === "UNAVAILABLE" ? "—" : frontlineReady}</strong><small>Available for the next handoff</small></span><ChevronRight /></Link>
+        {highVolume ? <><Link className={data.totals.blocked ? styles.attention : ""} href={inventoryHref("BLOCKED", true)}><ShieldCheck /><span>Blocked<strong>{data.totals.blocked}</strong><small>Requires direct intervention</small></span><ChevronRight /></Link><Link href={inventoryHref("ATTENTION", true)}><Gauge /><span>Waiting<strong>{data.totals.waiting}</strong><small>Dependent on another owner</small></span><ChevronRight /></Link><Link href="/vehicles/control-tower"><CircleDollarSign /><span>Capital exposure<strong>{money(data.totals.exposureCents)}</strong><small>Recorded active inventory value</small></span><ChevronRight /></Link></> : null}
       </section>
 
-      <section className="ich-route-grid">
-        <article className="ich-route-card">
-          <header><div><strong>Inventory Lifecycle</strong><span>Move every unit from acquisition to frontline readiness.</span></div><em>{lifecycleTarget}% within stage target</em></header>
-          <div className="ich-stage-strip">{groupedLifecycle.map((stage) => <Link href={`/vehicles/inventory?stage=${encodeURIComponent(stage.stage)}`} key={stage.label}><stage.Icon /><span>{stage.label}</span><strong>{stage.count}</strong><i /></Link>)}</div>
-          <footer><Link className="primary" href="/vehicles/inventory">Open Inventory Lifecycle</Link><Link href="/vehicles/inventory/units">All Vehicles</Link><Link href="/vehicles/acquisition-appraisal">Acquisition</Link><Link className="outline" href="/vehicles/disposition-wholesale">Open Disposition &amp; Wholesale <b>{data.reviews.items.filter((item) => item.domain === "DISPOSITION_WHOLESALE").length}</b></Link><Link href="/vehicles/control-tower">Aging</Link></footer>
-        </article>
-        <article className="ich-route-card">
-          <header><div><strong>Shop &amp; Recon</strong><span>Manage production, capacity, parts, and completion risk.</span></div>{shopTarget === null ? null : <em>{shopTarget}% projected on time</em>}</header>
-          <p className="ich-shop-facts"><Wrench />Inventory Recon&nbsp; <strong>{data.operational?.shop.active ?? "—"}</strong><span>•</span><CarFront />Customer Repair&nbsp; <strong>—</strong></p>
-          <div className="ich-stage-strip ich-shop-strip">{shopStages.map(([label, value, Icon]) => <Link href="/vehicles/shop-recon" key={label}><Icon /><span>{label}</span><strong>{value}</strong><i /></Link>)}</div>
-          <footer><Link className="primary" href="/vehicles/shop-recon">Open Shop &amp; Recon</Link><Link href="/vehicles/repair-orders">Repair Orders</Link><Link className="outline" href="/vehicles/parts-operations">Open Parts Operations</Link><Link href="/vehicles/shop-dispatch">Shop Dispatch</Link><Link href="/vehicles/quality-control">Quality Control</Link></footer>
-        </article>
-      </section>
-
-      <div className="ich-work-grid">
-        <section className="ich-panel ich-priority"><header><strong>Priority Work</strong></header>
-          <nav aria-label="Priority Work views"><Link className={data.savedView === "MY" ? "active" : ""} href="/vehicles?view=MY">My Work</Link><Link className={data.savedView === "ALL" ? "active" : ""} href="/vehicles?view=ALL">Team</Link><Link className={data.savedView === "BLOCKED" || data.savedView === "OVERDUE" ? "active" : ""} href="/vehicles?view=BLOCKED">Exceptions</Link></nav>
-          <div className="ich-priority-head"><span>Vehicle</span><span>Current Stage</span><span>Issue</span><span>Owner</span><span>Age / Due</span><span>Next Action</span></div>{data.priorityWork.length ? <ol className="ich-priority-list">{data.priorityWork.slice(0, 6).map((item) => <li key={item.id}><div className="vehicle"><CarFront /><span><strong>{item.vehicle}</strong><small>Stock # {item.inventoryNumber}</small></span></div><span className={`stage ${item.tier === "P0" ? "critical" : item.tier === "P1" ? "warning" : "neutral"}`}>{item.state.replaceAll("_", " ")}</span><div><span>{item.issue}</span><small>{item.reasonCode}</small></div><div className="owner"><i>{item.owner.split(" ").map((part) => part[0]).join("").slice(0, 2)}</i><span>{item.owner}</span></div><div className="due"><span>{item.ageDays}d</span><small className={item.overdue ? "overdue" : "risk"}>{item.overdue ? "Overdue" : `Due ${new Date(item.dueAt).toLocaleDateString()}`}</small></div><Link href={`/vehicles/control-tower?inventoryUnitId=${encodeURIComponent(item.id)}&returnTo=${encodeURIComponent(`/vehicles?view=${data.savedView}`)}`}>{item.nextAction}<ChevronRight /></Link></li>)}</ol> : <div className="ich-empty"><CheckCircle2 size={20} /><span>No priority work matches this authorized view.</span></div>}
-          <Link className="ich-view-all" href="/vehicles?view=ALL">View all my work <ArrowRight /></Link>
+      <div className={styles.mainGrid}>
+        <section className={styles.queue}>
+          <header><div><p>Execution queue</p><h2>What needs attention</h2><span>Highest-risk inventory appears first.</span></div><b>{highVolume ? "High-volume view" : "Calm view"}</b></header>
+          <nav aria-label="Inventory exception views">
+            {(["MY", "ATTENTION", "BLOCKED", "OVERDUE", "ALL"] as const).map((view) => <Link aria-current={data.savedView === view ? "page" : undefined} href={inventoryHref(view, highVolume)} key={view}>{view === "MY" ? "My priorities" : view === "ATTENTION" ? "Needs attention" : view.charAt(0) + view.slice(1).toLocaleLowerCase()}</Link>)}
+          </nav>
+          {data.priorityWork.length ? <ol>{data.priorityWork.slice(0, highVolume ? 16 : 7).map((item, index) => <PriorityRow index={index} item={item} key={item.id} returnTo={home} />)}</ol> : <div className={styles.empty}><CheckCircle2 /><div><strong>No inventory exceptions in this view.</strong><span>Normal work remains available in the lifecycle workspace.</span></div></div>}
+          <Link className={styles.textLink} href="/vehicles/control-tower">Open full inventory control tower <ArrowRight /></Link>
         </section>
 
-        <section className="ich-panel ich-decisions"><header><strong>Reviews &amp; Approvals</strong></header>
-          {data.reviews.available ? <><nav aria-label="Decision views"><Link className="active" href="/manager-review?scope=inventory&view=reviews">Reviews <b>{data.reviews.reviews}</b></Link><Link href="/manager-review?scope=inventory&view=approvals">Approvals <b>{data.reviews.approvals}</b></Link></nav><div className="ich-decision-head"><span>Item</span><span>Owner</span><span>Age</span><span>Amount</span><span>Action</span></div><ol>{data.reviews.items.slice(0, 5).map((item) => <li key={item.id}><i>{item.kind === "APPROVAL" ? <ShieldCheck /> : <ClipboardList />}</i><div><strong>{item.title}</strong><small>{item.subject}</small></div><span className="owner"><i>{item.owner.split(" ").map((part) => part[0]).join("").slice(0, 2)}</i>{item.owner}</span><span className={item.overdue ? "overdue" : ""}>{item.ageHours < 24 ? `${item.ageHours}h` : `${Math.floor(item.ageHours / 24)}d`}</span><span>{item.amountCents == null ? "—" : money(item.amountCents)}</span><Link href={item.actionHref}>{item.kind === "APPROVAL" ? "Approve" : "Review"}</Link></li>)}{!data.reviews.items.length ? <li className="empty"><CheckCircle2 />No reviews or approvals in this permitted scope.</li> : null}</ol><Link className="ich-view-all" href="/manager-review?scope=inventory&view=reviews">View all reviews &amp; approvals <ArrowRight /></Link></> : <div className="ich-unavailable"><ShieldCheck size={18} /><span>Your current role cannot view enterprise decision counts.</span></div>}
-        </section>
+        <aside className={styles.rail}>
+          <section>
+            <header><div><p>Today</p><h2>Daily flow brief</h2></div><Clock3 /></header>
+            <Link href={inventoryHref("OVERDUE", highVolume)}><span><strong>{data.totals.overdue}</strong> overdue</span><small>Recover missed stage targets</small><ChevronRight /></Link>
+            <Link href="/manager-review?scope=inventory"><span><strong>{data.reviews.approvals}</strong> approvals</span><small>Decisions waiting for authority</small><ChevronRight /></Link>
+            <Link href={`/vehicles/parts-operations?${new URLSearchParams({ returnTo: home })}`}><span><strong>{data.operational?.parts.waitingDemands ?? 0}</strong> parts constraints</span><small>Confirm availability or ETA</small><ChevronRight /></Link>
+            <Link href={inventoryHref("ATTENTION", highVolume)}><span><strong>{dueToday}</strong> due today</span><small>Protect today&apos;s flow</small><ChevronRight /></Link>
+          </section>
+
+          <section id="inventory-inbox" className={styles.inbox}>
+            <header><div><p>Operational inbox</p><h2>Handoffs and decisions</h2></div><Inbox /></header>
+            {inboxItems.length ? inboxItems.map((item) => <Link href={item.href} key={item.id}><i className={styles[item.tone]}><MessageSquareText /></i><span><small>{item.label}</small><strong>{item.title}</strong><em>{item.meta}</em></span><ChevronRight /></Link>) : <div className={styles.inboxClear}><CheckCircle2 />No inventory handoffs need a response.</div>}
+          </section>
+        </aside>
       </div>
 
-      <section className="ich-health-grid">
-        <article className="ich-flow-health"><strong>Flow Health</strong><span>Inventory Lifecycle</span><i><b style={{ width: data.freshness === "LIVE" ? "88%" : "42%" }} /></i><em className={data.freshness === "LIVE" ? "healthy" : "warning"}>{freshnessLabel}</em><span>Shop &amp; Recon</span><i><b style={{ width: data.operational ? `${Math.max(12, 100 - Math.min(88, data.operational.shop.blocked * 8))}%` : "12%" }} /></i><em className={data.operational ? "healthy" : "warning"}>{data.operational ? "Connected" : "Unavailable"}</em></article>
-        <article className="ich-throughput"><strong>Today&apos;s Throughput</strong><div><span><b style={{ height: `${Math.max(8, Math.min(100, (data.operational?.throughput.inventoryTransitions ?? 0) * 8))}%` }} /></span><span><b style={{ height: `${Math.max(8, Math.min(100, (data.operational?.throughput.repairOrdersClosed ?? 0) * 8))}%` }} /></span></div><small>Inventory transitions <strong>{data.operational?.throughput.inventoryTransitions ?? "—"}</strong></small><small>Repair orders closed <strong>{data.operational?.throughput.repairOrdersClosed ?? "—"}</strong></small></article>
-        <article className="ich-integration-health"><strong>Data &amp; Integration Health</strong><span>Inventory projection</span><b className={data.freshness === "LIVE" ? "healthy" : "warning"}>{data.freshness}</b><span>Shop operations</span><b className={data.operational ? "healthy" : "warning"}>{data.operational ? "CONNECTED" : "UNAVAILABLE"}</b><span>Parts readiness</span><b className={data.operational ? "healthy" : "warning"}>{data.operational ? "CONNECTED" : "UNAVAILABLE"}</b><span>Provider-neutral exchanges</span><b className={data.operational?.integration.status === "HEALTHY" ? "healthy" : data.operational?.integration.status === "ATTENTION" ? "warning" : ""}>{data.operational ? `${data.operational.integration.status} · ${data.operational.integration.exceptions} exceptions` : "UNAVAILABLE"}</b></article>
+      <section className={styles.lifecycle}>
+        <header><div><p>Flow visibility</p><h2>Inventory lifecycle</h2><span>Select a stage to work only the vehicles inside it.</span></div><Link href="/vehicles/inventory">Open full lifecycle <ArrowRight /></Link></header>
+        <div>{groupedLifecycle.map((stage) => <Link className={stage.blocked || stage.overdue ? styles.stageRisk : ""} href={`/vehicles/inventory?${new URLSearchParams({ stage: stage.stage, returnTo: home })}`} key={stage.label}><stage.Icon /><span><strong>{stage.label}</strong><small>{stage.averageDays ? `${stage.averageDays.toFixed(1)} average days` : "No active stage time"}</small></span><b>{stage.count}</b>{stage.blocked || stage.overdue ? <em>{stage.blocked ? `${stage.blocked} blocked` : `${stage.overdue} overdue`}</em> : <em>On flow</em>}</Link>)}</div>
       </section>
 
-      <footer className="ich-footer"><Link href="/activity?scope=inventory"><History size={15} />View Event Log</Link><span>Mockup values are never used as operational facts.</span></footer>
+      {highVolume ? <section aria-label="High-volume operating signals" className={styles.volumeSignals}><header><div><p>Expanded operations</p><h2>High-volume signals</h2><span>Cross-team capacity and throughput remain visible while the queue stays actionable.</span></div></header><div><Link href="/vehicles/shop-recon"><Wrench /><span>Shop work<strong>{data.operational?.shop.active ?? "—"}</strong><small>{data.operational?.shop.blocked ?? 0} blocked</small></span></Link><Link href={`/vehicles/parts-operations?${new URLSearchParams({ returnTo: home })}`}><Truck /><span>Parts demand<strong>{data.operational?.parts.waitingDemands ?? "—"}</strong><small>{data.operational?.parts.unreservedUnits ?? 0} unreserved</small></span></Link><Link href="/manager-review?scope=inventory"><ShieldCheck /><span>Decisions<strong>{data.reviews.approvals + data.reviews.reviews}</strong><small>Approvals and reviews</small></span></Link><Link href="/activity?scope=inventory"><Gauge /><span>24-hour flow<strong>{data.operational?.throughput.inventoryTransitions ?? "—"}</strong><small>Inventory transitions</small></span></Link></div></section> : null}
+
+      <details className={styles.tools}>
+        <summary><span><Settings2 /><b>More inventory tools</b><small>Planning, analysis, disposition, saved views, reports, and audit history.</small></span><strong>Show tools</strong></summary>
+        <div>
+          <Link href="/vehicles/acquisition-appraisal">Acquisition &amp; appraisal</Link>
+          <Link href="/vehicles/control-tower">Aging &amp; cost exposure</Link>
+          <Link href="/vehicles/disposition-wholesale">Disposition &amp; wholesale</Link>
+          <Link href="/vehicles/shop-recon">Shop &amp; Recon</Link>
+          <Link href="/vehicles/parts-operations">Parts operations</Link>
+          <Link href="/reports?scope=inventory">Reports &amp; exports</Link>
+          <Link href="/activity?scope=inventory">Inventory event history</Link>
+          <InventorySavedViewsMenu><InventoryConsoleSavedViews activeId={data.activeSavedViewId} activeView={data.savedView} canShare={data.canShareSavedViews} locationId={data.locationId} mode={highVolume ? "volume" : undefined} savedViews={data.savedViews} workspace="inventory" /></InventorySavedViewsMenu>
+        </div>
+      </details>
+
+      <footer className={styles.safeguard}><ShieldCheck /><span><strong>Role protection stays active.</strong> Inventory actions retain their source ownership, permissions, and return path.</span></footer>
     </section>
+  );
+}
+
+function PriorityRow({ index, item, returnTo }: { index: number; item: InventoryPriorityWorkItem; returnTo: string }) {
+  return (
+    <li>
+      <span className={styles.rank}>{index + 1}</span>
+      <div className={styles.vehicle}><CarFront /><span><strong>{item.vehicle}</strong><small>Stock # {item.inventoryNumber}</small></span></div>
+      <div className={styles.issue}><span><b className={styles[item.tier.toLocaleLowerCase()]}>{item.reasonCode}</b>{formatStage(item.lifecycleStage)}</span><strong>{item.issue}</strong><small>{item.owner} · {item.ageDays} days in inventory · {item.overdue ? "Overdue" : `Due ${date(item.dueAt)}`}</small></div>
+      <Link href={`/vehicles/control-tower?${new URLSearchParams({ inventoryUnitId: item.id, returnTo })}`}><span>{item.nextAction}</span><ArrowRight /></Link>
+    </li>
   );
 }

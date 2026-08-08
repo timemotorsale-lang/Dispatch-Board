@@ -1,245 +1,169 @@
+"use client";
+
 import {
   AlertTriangle,
   ArrowRight,
   Boxes,
   CarFront,
   CheckCircle2,
-  ChevronRight,
   ClipboardList,
-  ClipboardPlus,
   Clock3,
-  FileCheck2,
-  Flag,
+  Gauge,
+  Inbox,
   MapPinned,
-  PackageCheck,
-  RefreshCw,
+  MessageSquareText,
   Search,
   ShieldCheck,
-  Truck,
-  Wrench
+  Sparkles,
+  UserRound,
+  Wrench,
 } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 
+import type { ServiceAdvisorWorkspaceModel } from "@/server/advisor-workspace/service";
+import type { BoardReadTask } from "@/server/services/board-read";
 import type { InventoryHomeData } from "./inventory-console-home";
 
-const number = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+type Hat = "ADVISOR" | "ALL" | "DETAIL" | "INVENTORY" | "LOT" | "PARTS" | "TECHNICIAN";
+type Density = "CALM" | "HIGH_VOLUME";
+type WorkItem = {
+  action: string;
+  dueAt: string;
+  hat: Exclude<Hat, "ALL">;
+  href: string;
+  id: string;
+  overdue: boolean;
+  reason: string;
+  score: number;
+  subject: string;
+  title: string;
+};
 
-function countStages(data: InventoryHomeData, stages: string[]) {
-  return data.byStage
-    .filter((item) => stages.includes(item.stage))
-    .reduce((sum, item) => sum + item.count, 0);
+const hats: Array<{ id: Hat; label: string }> = [
+  { id: "ALL", label: "All work" },
+  { id: "ADVISOR", label: "Service Advisor" },
+  { id: "INVENTORY", label: "Inventory" },
+  { id: "TECHNICIAN", label: "Technician" },
+  { id: "LOT", label: "Lot" },
+  { id: "PARTS", label: "Parts" },
+  { id: "DETAIL", label: "Detail" },
+];
+
+function hatForTask(task: BoardReadTask): Exclude<Hat, "ALL"> {
+  const text = `${task.title} ${task.description ?? ""} ${task.workflowArea}`.toLocaleLowerCase();
+  if (/customer|appointment|advisor|authorization|call|handoff/.test(text)) return "ADVISOR";
+  if (/part|pickup|pick up|return|vendor/.test(text)) return "PARTS";
+  if (/detail|wash|clean|photo|merchandis/.test(text)) return "DETAIL";
+  if (/lot|move|movement|key|transport|park/.test(text)) return "LOT";
+  if (/technician|mechanic|repair|diagnos|inspect/.test(text)) return "TECHNICIAN";
+  return "INVENTORY";
 }
 
-function initials(value: string) {
-  return value.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
+function hatIcon(hat: Exclude<Hat, "ALL">) {
+  if (hat === "ADVISOR") return <MessageSquareText />;
+  if (hat === "TECHNICIAN") return <Wrench />;
+  if (hat === "LOT") return <MapPinned />;
+  if (hat === "PARTS") return <Boxes />;
+  if (hat === "DETAIL") return <Sparkles />;
+  return <CarFront />;
 }
 
-export function VehicleOperationsLeadHome({ data }: { data: InventoryHomeData }) {
+function hatLabel(hat: Exclude<Hat, "ALL">) {
+  return hats.find((item) => item.id === hat)?.label ?? hat;
+}
+
+function date(value: string) {
+  return new Date(value).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function taskScore(task: BoardReadTask, now: number) {
+  const priority = task.priority.toLocaleUpperCase();
+  const overdue = new Date(task.dueAt).getTime() < now;
+  return (overdue ? 500 : 0) + (priority === "URGENT" || priority === "CRITICAL" ? 400 : priority === "HIGH" ? 300 : priority === "MEDIUM" ? 200 : 100);
+}
+
+function advisorCompose(kind: ServiceAdvisorWorkspaceModel["actionQueue"][number]["actionKind"]) {
+  return ["PARTS_DELAY", "TECHNICIAN_CLARIFICATION", "FOLLOW_UP_SCHEDULED"].includes(kind) ? "team" : "customer";
+}
+
+function advisorActionLabel(kind: ServiceAdvisorWorkspaceModel["actionQueue"][number]["actionKind"]) {
+  if (kind === "AUTHORIZATION") return "Record decision";
+  if (kind === "PROMISE_RISK") return "Protect promise";
+  if (kind === "PARTS_DELAY") return "Check ETA";
+  if (kind === "HANDOFF") return "Prepare handoff";
+  if (kind === "TECHNICIAN_CLARIFICATION") return "Get clarification";
+  return "Update customer";
+}
+
+export function VehicleOperationsLeadHome({ advisor, data, tasks, userName }: { advisor: ServiceAdvisorWorkspaceModel | null; data: InventoryHomeData; tasks: BoardReadTask[]; userName: string }) {
+  const [activeHat, setActiveHat] = useState<Hat>("ALL");
+  const [density, setDensity] = useState<Density>("CALM");
+  const returnTo = "/vehicles?workspace=vehicle-operations-lead";
+  const referenceNow = data.generatedAt ? new Date(data.generatedAt).getTime() : 0;
+  const advisorItems: WorkItem[] = (advisor?.actionQueue ?? []).map((item) => ({
+    action: advisorActionLabel(item.actionKind),
+    dueAt: item.targetAt,
+    hat: "ADVISOR",
+    href: `/vehicles/repair-workbench?${new URLSearchParams({ repairOrderId: item.id, workspace: "advisor", compose: advisorCompose(item.actionKind), returnTo })}`,
+    id: `advisor:${item.id}`,
+    overdue: item.overdue,
+    reason: item.actionReason,
+    score: (item.overdue ? 1000 : 500) + (["AUTHORIZATION", "PROMISE_RISK"].includes(item.actionKind) ? 300 : 100),
+    subject: `${item.customerName} · ${item.repairOrderNumber}`,
+    title: item.actionLabel,
+  }));
+  const inventoryItems: WorkItem[] = data.priorityWork.map((item) => ({
+    action: item.nextAction,
+    dueAt: item.dueAt,
+    hat: "INVENTORY",
+    href: `/vehicles/control-tower?inventoryUnitId=${encodeURIComponent(item.id)}&returnTo=${encodeURIComponent(returnTo)}`,
+    id: `inventory:${item.id}`,
+    overdue: item.overdue,
+    reason: item.issue,
+    score: (item.overdue ? 900 : 400) + (item.tier === "P0" ? 400 : item.tier === "P1" ? 300 : 100),
+    subject: `${item.vehicle} · ${item.inventoryNumber}`,
+    title: item.state.replaceAll("_", " "),
+  }));
+  const boardItems: WorkItem[] = tasks.filter((task) => !["DONE", "COMPLETED", "CANCELLED"].includes(task.status.toLocaleUpperCase())).map((task) => ({
+    action: task.status === "READY_FOR_REVIEW" ? "Review task" : "Open task",
+    dueAt: task.dueAt,
+    hat: hatForTask(task),
+    href: `/tasks/${encodeURIComponent(task.id)}`,
+    id: `task:${task.id}`,
+    overdue: referenceNow > 0 && new Date(task.dueAt).getTime() < referenceNow,
+    reason: task.blockerReason ?? task.description ?? "Complete the assigned next action.",
+    score: taskScore(task, referenceNow),
+    subject: task.vehicleReference ?? task.customerReference ?? task.workflowArea.replaceAll("_", " "),
+    title: task.title,
+  }));
+  const allWork = [...advisorItems, ...inventoryItems, ...boardItems].sort((left, right) => right.score - left.score || new Date(left.dueAt).getTime() - new Date(right.dueAt).getTime());
+  const filtered = activeHat === "ALL" ? allWork : allWork.filter((item) => item.hat === activeHat);
+  const visible = filtered.slice(0, density === "CALM" ? 7 : 24);
+  const dueToday = referenceNow > 0 ? allWork.filter((item) => new Date(item.dueAt).toDateString() === new Date(referenceNow).toDateString()).length : 0;
   const attention = data.totals.blocked + data.totals.overdue + data.totals.waiting;
-  const received = countStages(data, ["TRANSPORTATION", "RECEIVED"]);
-  const inspection = countStages(data, ["INSPECTION"]);
-  const recon = countStages(data, ["RECONDITIONING", "TITLE_DOCUMENT_READINESS"]);
-  const merchandising = countStages(data, ["PHOTOGRAPHY_MERCHANDISING"]);
-  const frontline = countStages(data, ["FRONTLINE_READY", "RESERVED_DEAL_PENDING"]);
-  const shopActive = data.operational?.shop.active ?? null;
-  const waitingParts = data.operational?.parts.waitingDemands ?? null;
-  const leadQueue = data.priorityWork.slice(0, 5);
-  const reviewQueue = data.reviews.items.slice(0, 4);
+  const inbox = (advisor?.inbox ?? []).filter((item) => item.needsResponse).slice(0, 4);
 
-  const lanes = [
-    {
-      title: "Receive and lot",
-      href: "/vehicles/workflows/add-vehicle",
-      Icon: Truck,
-      count: received,
-      detail: "Arrival, keys, custody, lot placement",
-      action: "Receive vehicle"
-    },
-    {
-      title: "Inspect and triage",
-      href: "/vehicles/inventory?stage=INSPECTION",
-      Icon: Search,
-      count: inspection,
-      detail: "First look, issue capture, readiness call",
-      action: "Open inspection"
-    },
-    {
-      title: "Shop and recon",
-      href: "/vehicles/shop-recon",
-      Icon: Wrench,
-      count: shopActive ?? recon,
-      detail: "Production, blockers, QC, promise risk",
-      action: "Open shop"
-    },
-    {
-      title: "Parts runner",
-      href: "/vehicles/parts-operations",
-      Icon: Boxes,
-      count: waitingParts ?? 0,
-      detail: "Pickup, receiving, returns, waiting demand",
-      action: "Open parts"
-    },
-    {
-      title: "Merchandising",
-      href: "/vehicles/inventory?stage=PHOTOGRAPHY_MERCHANDISING",
-      Icon: FileCheck2,
-      count: merchandising,
-      detail: "Photos, listing facts, frontline prep",
-      action: "Open queue"
-    }
-  ];
+  return <section className="personal-operations-home">
+    <header className="poh-hero">
+      <div><p>Personal Operations Workspace</p><h1>Good morning, {userName}. Execute the next task.</h1><span>Customer commitments, inventory flow, repair support, parts, lot, and detail—one prioritized workday.</span></div>
+      <nav aria-label="Personal operations workspace navigation"><Link aria-current="page" href={returnTo}>My Workday</Link><Link href="/appointments?workspace=advisor&inbox=1">Inbox</Link><Link href="/appointments?workspace=advisor">Service Advisor</Link><Link href="/vehicles?workspace=inventory">Inventory Manager</Link><Link href="/manager-review?scope=inventory">Approvals</Link><Link href="/vehicles/inventory-to-frontline">Frontline</Link><Link href="/vehicles/shop-recon">Shop &amp; Recon</Link></nav>
+    </header>
 
-  return (
-    <section className="vehicle-operations-lead-home">
-      <header className="vol-hero">
-        <div>
-          <p>Vehicle Operations Lead</p>
-          <h1>Move the next vehicle forward</h1>
-          <span>Inventory, shop, parts runner, and lot support in one focused workspace.</span>
-        </div>
-        <nav aria-label="Primary vehicle operations actions">
-          <Link className="primary" href="/my-tasks?workspace=vehicle-operations-lead">
-            <ClipboardList size={16} /> My Vehicle Work
-          </Link>
-          <Link href="/vehicles/workflows/add-vehicle">
-            <ClipboardPlus size={16} /> Receive Vehicle
-          </Link>
-          <Link href="/vehicles/shop-recon">
-            <Wrench size={16} /> Shop &amp; Recon
-          </Link>
-        </nav>
-      </header>
+    <form action="/vehicles/registry" className="poh-search" role="search"><Search /><label><strong>Find anything</strong><span>Vehicle, VIN, stock number, customer, repair order, or key tag</span><input aria-label="Find vehicle, customer, repair order, or task" name="query" /></label><button type="submit">Search</button></form>
 
-      <section aria-label="Vehicle operations attention" className="vol-command-strip">
-        <article className={attention ? "attention" : ""}>
-          <AlertTriangle />
-          <span>Needs action</span>
-          <strong>{data.freshness === "UNAVAILABLE" ? "-" : number.format(attention)}</strong>
-          <small>{data.totals.blocked} blocked, {data.totals.overdue} overdue, {data.totals.waiting} waiting</small>
-        </article>
-        <article>
-          <CarFront />
-          <span>Active inventory</span>
-          <strong>{data.freshness === "UNAVAILABLE" ? "-" : number.format(data.totals.active)}</strong>
-          <small>Permitted vehicle scope</small>
-        </article>
-        <article>
-          <Wrench />
-          <span>In shop</span>
-          <strong>{shopActive ?? "-"}</strong>
-          <small>{data.operational ? `${data.operational.shop.blocked} blocked repair orders` : "Shop facts unavailable"}</small>
-        </article>
-        <article>
-          <PackageCheck />
-          <span>Parts constraints</span>
-          <strong>{waitingParts ?? "-"}</strong>
-          <small>{data.operational ? `${data.operational.parts.unreservedUnits} units unreserved` : "Parts facts unavailable"}</small>
-        </article>
-        <article>
-          <ShieldCheck />
-          <span>Exceptions</span>
-          <strong>{data.reviews.available ? data.reviews.reviews + data.reviews.approvals : "-"}</strong>
-          <small>Reviews and approvals in scope</small>
-        </article>
-      </section>
+    <div className="poh-controls"><nav aria-label="Work hats">{hats.map((hat) => <button aria-pressed={activeHat === hat.id} key={hat.id} onClick={() => setActiveHat(hat.id)} type="button">{hat.label}<span>{hat.id === "ALL" ? allWork.length : allWork.filter((item) => item.hat === hat.id).length}</span></button>)}</nav><div><span>Density</span><button aria-pressed={density === "CALM"} onClick={() => setDensity("CALM")} type="button">Calm</button><button aria-pressed={density === "HIGH_VOLUME"} onClick={() => setDensity("HIGH_VOLUME")} type="button">High volume</button></div></div>
 
-      <section className="vol-grid">
-        <article className="vol-panel vol-lead-queue">
-          <header>
-            <div>
-              <strong>Start here</strong>
-              <span>Only the vehicle work that needs movement now.</span>
-            </div>
-            <Link href="/vehicles?view=BLOCKED">View all <ArrowRight size={14} /></Link>
-          </header>
-          {leadQueue.length ? (
-            <ol>
-              {leadQueue.map((item) => (
-                <li key={item.id}>
-                  <div className={`vol-tier ${item.tier.toLowerCase()}`}>{item.tier}</div>
-                  <div>
-                    <strong>{item.vehicle}</strong>
-                    <small>Stock # {item.inventoryNumber} | {item.state.replaceAll("_", " ")}</small>
-                  </div>
-                  <span>{item.issue}</span>
-                  <em>{item.overdue ? "Overdue" : `Due ${new Date(item.dueAt).toLocaleDateString()}`}</em>
-                  <Link href={`/vehicles/control-tower?inventoryUnitId=${encodeURIComponent(item.id)}`}>
-                    {item.nextAction} <ChevronRight size={13} />
-                  </Link>
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <div className="vol-empty"><CheckCircle2 /> No blocked or overdue vehicle work in this view.</div>
-          )}
-        </article>
+    <section aria-label="My Workday summary" className="poh-metrics"><article><ClipboardList /><span>My active tasks<strong>{allWork.length}</strong><small>Across authorized hats</small></span></article><article className={advisor?.counts.needsAttention ? "attention" : ""}><MessageSquareText /><span>Customer commitments<strong>{advisor?.counts.needsAttention ?? 0}</strong><small>Advisor action required</small></span></article><article className={attention ? "attention" : ""}><AlertTriangle /><span>Flow blocked<strong>{attention}</strong><small>Inventory intervention</small></span></article><article><Clock3 /><span>Due today<strong>{dueToday}</strong><small>Current workday</small></span></article></section>
 
-        <aside className="vol-panel vol-now">
-          <header>
-            <strong>Today&apos;s operating pulse</strong>
-            <span>{data.generatedAt ? `Updated ${new Date(data.generatedAt).toLocaleTimeString()}` : data.freshness}</span>
-          </header>
-          <div>
-            <span><Clock3 /> Inventory transitions <b>{data.operational?.throughput.inventoryTransitions ?? "-"}</b></span>
-            <span><CheckCircle2 /> Repair orders closed <b>{data.operational?.throughput.repairOrdersClosed ?? "-"}</b></span>
-            <span><Flag /> Integration exceptions <b>{data.operational?.integration.exceptions ?? "-"}</b></span>
-          </div>
-          <Link href="/activity?scope=inventory">Open activity log <ArrowRight size={13} /></Link>
-        </aside>
-      </section>
+    <div className="poh-layout"><main className="poh-queue"><header><span><Gauge /><span><strong>What I should do next</strong><small>Ranked by safety, customer promise, blocked work, deadline, and financial exposure.</small></span></span><b>{visible.length} shown</b></header>{visible.map((item, index) => <article key={item.id}><b>{index + 1}</b><i className={item.hat.toLocaleLowerCase()}>{hatIcon(item.hat)}</i><div><span>{hatLabel(item.hat)}</span><strong>{item.title}</strong><small>{item.subject}</small></div><p>{item.reason}</p><time className={item.overdue ? "overdue" : ""}>{item.overdue ? "Overdue" : date(item.dueAt)}</time><Link href={item.href}><small>Acting as {hatLabel(item.hat)}</small>{item.action}<ArrowRight /></Link></article>)}{!visible.length ? <div className="poh-empty"><CheckCircle2 /> No active work in this hat.</div> : null}</main>
 
-      <section aria-label="Vehicle operations work modes" className="vol-lanes">
-        {lanes.map(({ Icon, action, count, detail, href, title }) => (
-          <Link href={href} key={title}>
-            <Icon />
-            <span>{title}</span>
-            <strong>{number.format(count)}</strong>
-            <small>{detail}</small>
-            <b>{action} <ChevronRight size={12} /></b>
-          </Link>
-        ))}
-      </section>
+      <aside className="poh-rail"><section><header><strong>Workday brief</strong><small>Fast routes to unblock today</small></header><Link href="/appointments?workspace=advisor"><MessageSquareText /><span><strong>{advisor?.counts.needsAttention ?? 0} advisor actions</strong><small>Promises, approvals, and handoffs</small></span><ArrowRight /></Link><Link href="/vehicles/parts-operations"><Boxes /><span><strong>{data.operational?.parts.waitingDemands ?? 0} parts constraints</strong><small>Pickup, receiving, and ETA</small></span><ArrowRight /></Link><Link href="/vehicles/shop-recon"><Wrench /><span><strong>{data.operational?.shop.blocked ?? 0} shop blockers</strong><small>Repair and recon dependencies</small></span><ArrowRight /></Link><Link href="/vehicles/inventory?stage=PHOTOGRAPHY_MERCHANDISING"><Sparkles /><span><strong>Detail and merchandising</strong><small>Prepare the next frontline unit</small></span><ArrowRight /></Link></section>
+        <section className="poh-inbox"><header><strong>Inbox</strong><Link href="/appointments?workspace=advisor&inbox=1">Open all</Link></header>{inbox.map((item) => <Link href={`/vehicles/repair-workbench?${new URLSearchParams({ repairOrderId: item.repairOrderId, workspace: "advisor", compose: item.audience.toLocaleLowerCase() === "team" ? "team" : item.audience.toLocaleLowerCase(), returnTo })}`} key={item.id}><i className={item.audience.toLocaleLowerCase()}><Inbox /></i><span><strong>{item.subject}</strong><small>{item.customerName} · {item.repairOrderNumber}</small><p>{item.preview}</p></span></Link>)}{!inbox.length ? <p><CheckCircle2 /> No communication needs a response.</p> : null}</section>
+        <section className="poh-boundary"><ShieldCheck /><span><strong>Role protection stays active</strong><small>The selected task activates its hat. Customer authorization, internal approval, technician evidence, QC, and frontline release remain separately governed.</small></span></section>
+      </aside>
+    </div>
 
-      <section className="vol-secondary-grid">
-        <article className="vol-panel vol-handoff">
-          <header>
-            <strong>Handoff map</strong>
-            <span>Keep work in one canonical record.</span>
-          </header>
-          <div>
-            <Link href="/vehicles/inventory"><RefreshCw /> Inventory Flow <span>{received + inspection + recon + merchandising + frontline}</span></Link>
-            <Link href="/vehicles/repair-workbench"><ClipboardList /> Repair Orders <span>{shopActive ?? "-"}</span></Link>
-            <Link href="/vehicles/parts-operations"><Boxes /> Parts Runner <span>{waitingParts ?? "-"}</span></Link>
-            <Link href="/vehicles/workflows/add-vehicle"><MapPinned /> Receive and Lot <span>{received}</span></Link>
-          </div>
-        </article>
-
-        <article className="vol-panel vol-exceptions">
-          <header>
-            <div>
-              <strong>Exceptions</strong>
-              <span>Lead review without full manager clutter.</span>
-            </div>
-            <Link href="/manager-review?scope=inventory">Open exceptions</Link>
-          </header>
-          {reviewQueue.length ? (
-            <ol>
-              {reviewQueue.map((item) => (
-                <li key={item.id}>
-                  <i>{initials(item.owner)}</i>
-                  <div>
-                    <strong>{item.title}</strong>
-                    <small>{item.subject} | {item.kind}</small>
-                  </div>
-                  <Link href={item.actionHref}>{item.actionLabel}</Link>
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <div className="vol-empty"><CheckCircle2 /> No vehicle operations exceptions in this scope.</div>
-          )}
-        </article>
-      </section>
-    </section>
-  );
+    <details className="poh-specialists"><summary><span><strong>Open a focused workspace</strong><small>Use specialist views when the task needs deeper context.</small></span><b>Show workspaces</b></summary><div><Link href="/appointments?workspace=advisor"><UserRound />Service Advisor</Link><Link href="/vehicles?workspace=inventory"><CarFront />Inventory Manager</Link><Link href="/my-tasks"><Wrench />Technician / assigned work</Link><Link href="/vehicles/parts-operations"><Boxes />Parts Operations</Link><Link href="/vehicles/workflows/add-vehicle"><MapPinned />Receive and Lot</Link><Link href="/vehicles/inventory?stage=PHOTOGRAPHY_MERCHANDISING"><Sparkles />Detail and merchandising</Link></div></details>
+  </section>;
 }

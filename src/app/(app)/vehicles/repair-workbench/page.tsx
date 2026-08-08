@@ -24,6 +24,7 @@ type PageProps = {
     returnTo?: string;
     vehicleId?: string;
     view?: string;
+    workspace?: string;
   }>;
 };
 
@@ -57,7 +58,10 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
   const showWorkspaceReturn = getPermittedWorkspaces(user).some(
     (workspace) => workspace.key === "VEHICLE_OPERATIONS_LEAD",
   );
-  const showAdvisorReturn = getWorkspaceKey(user) === "ADVISOR";
+  const showAdvisorReturn =
+    getWorkspaceKey(user) === "ADVISOR" ||
+    (params.workspace === "advisor" &&
+      getPermittedWorkspaces(user).some((workspace) => workspace.key === "ADVISOR"));
 
   if (params.repairOrderId) {
     const order = await getShopPlanningDetail(user, params.repairOrderId);
@@ -67,6 +71,7 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
         vehicleId: params.vehicleId,
         view: "all",
       });
+      if (params.workspace === "advisor") mismatch.set("workspace", "advisor");
       if (returnTo) mismatch.set("returnTo", returnTo);
       redirect(`/vehicles/repair-workbench?${mismatch}`);
     }
@@ -76,6 +81,7 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
         vehicleId: order.vehicle.id,
       });
       if (params.compose === "customer" || params.compose === "management" || params.compose === "team") canonical.set("compose", params.compose);
+      if (params.workspace === "advisor") canonical.set("workspace", "advisor");
       if (returnTo) canonical.set("returnTo", returnTo);
       redirect(`/vehicles/repair-workbench?${canonical}`);
     }
@@ -86,7 +92,7 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
 
     if (showAdvisorReturn) {
       const compose = params.compose === "customer" || params.compose === "management" || params.compose === "team" ? params.compose : undefined;
-      return <AdvisorRepairOrderStatusView compose={compose} order={JSON.parse(JSON.stringify(order))} />;
+      return <AdvisorRepairOrderStatusView compose={compose} order={JSON.parse(JSON.stringify(order))} returnTo={returnTo} />;
     }
 
     return (
@@ -115,6 +121,7 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
       repairOrderId: orders.items[0].id,
       vehicleId: params.vehicleId,
     });
+    if (params.workspace === "advisor") exact.set("workspace", "advisor");
     if (returnTo) exact.set("returnTo", returnTo);
     redirect(`/vehicles/repair-workbench?${exact}`);
   }

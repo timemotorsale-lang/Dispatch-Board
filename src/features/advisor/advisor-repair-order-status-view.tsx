@@ -107,7 +107,7 @@ const workspaceTabs: Array<{ id: WorkspaceTab; label: string }> = [
   { id: "TIMELINE", label: "Timeline" },
 ];
 
-export function AdvisorRepairOrderStatusView({ compose, order }: { compose?: "customer" | "management" | "team"; order: Order }) {
+export function AdvisorRepairOrderStatusView({ compose, order, returnTo }: { compose?: "customer" | "management" | "team"; order: Order; returnTo?: string }) {
   const [activeTab, setActiveTab] = useState<WorkspaceTab>(compose ? "COMMUNICATIONS" : "OVERVIEW");
   const [audience, setAudience] = useState<CommunicationAudience>(compose === "management" ? "MANAGEMENT" : compose === "team" || (!compose && order.origin === "INVENTORY_RECON") ? "TEAM" : "CUSTOMER");
   const diagnosis = order.diagnosisVersions[0] ?? null;
@@ -137,7 +137,7 @@ export function AdvisorRepairOrderStatusView({ compose, order }: { compose?: "cu
 
   return <section className="advisor-ro-status">
     <header className="advisor-ro-hero">
-      <div><BackToServiceAdvisorWorkspace /><div className="advisor-ro-eyebrow"><p>Advisor Repair Order Status</p><b className={isInventoryRecon ? "inventory" : "customer"}>{isInventoryRecon ? "Inventory recon" : "Customer service"}</b></div><h1>{order.repairOrderNumber}</h1><span>{order.customer?.displayName ?? order.inventoryUnit?.inventoryNumber ?? "Internal vehicle"} · {vehicle}</span></div>
+      <div><BackToServiceAdvisorWorkspace href={returnTo} label={returnTo ? "Back to My Workday" : undefined} /><div className="advisor-ro-eyebrow"><p>Advisor Repair Order Status</p><b className={isInventoryRecon ? "inventory" : "customer"}>{isInventoryRecon ? "Inventory recon" : "Customer service"}</b></div><h1>{order.repairOrderNumber}</h1><span>{order.customer?.displayName ?? order.inventoryUnit?.inventoryNumber ?? "Internal vehicle"} · {vehicle}</span></div>
       <aside><strong>{format(order.stage)}</strong><span>{format(order.operatingState)}</span><small>Promise: {date(order.serviceVisit.promisedAt ?? order.targetAt)}</small></aside>
     </header>
 

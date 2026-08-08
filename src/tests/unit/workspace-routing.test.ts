@@ -81,6 +81,19 @@ describe("role landing and record routing", () => {
     expect(getDefaultLandingRoute(brock, "INVENTORY")).toBe("/vehicles");
   });
 
+  it("gives the vehicle operations lead governed advisor and technician workspaces", () => {
+    const lead = user(["Vehicle Operations Lead"]);
+
+    expect(getPermittedWorkspaces(lead).map((workspace) => workspace.key)).toEqual([
+      "VEHICLE_OPERATIONS_LEAD",
+      "ADVISOR",
+      "TECHNICIAN"
+    ]);
+    expect(isRoutePermittedForUser(lead, "/appointments")).toBe(true);
+    expect(isRoutePermittedForUser(lead, "/my-tasks")).toBe(true);
+    expect(getDefaultLandingRoute(lead)).toBe("/vehicles?workspace=vehicle-operations-lead");
+  });
+
   it("rejects return targets outside every role's permitted experience", () => {
     const mechanic = user(["Mechanic"]);
     expect(resolvePostLoginRoute(mechanic, "/vehicles/control-tower")).toBe("/my-tasks");
