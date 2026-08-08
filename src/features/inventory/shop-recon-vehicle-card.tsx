@@ -117,6 +117,8 @@ export function ShopReconVehicleCard({ initialStage, item, lifecycleWorkspace, r
   const stageReturnTo = `/vehicles/shop-recon/${encodeURIComponent(item.id)}?stage=${selectedDefinition.order}`;
   const stageReturnLabel = `Return to Shop & Recon · Stage ${selectedDefinition.order}: ${selectedDefinition.label}`;
   const sourceContext = new URLSearchParams({ repairOrderId: item.id, returnLabel: stageReturnLabel, returnTo: stageReturnTo, ...(item.vehicleId ? { vehicleId: item.vehicleId } : {}) });
+  const assignmentHref = `/vehicles/repair-workbench?${sourceContext.toString()}#assignment`;
+  const dispatchHref = `/vehicles/shop-dispatch?${sourceContext.toString()}`;
   const evidence = useMemo(() => evidenceText.split("\n").map(value => value.trim()).filter(Boolean), [evidenceText]);
   const activeOverrides = lifecycleWorkspace.overrides.filter(record => !record.expiresAt || new Date(record.expiresAt) > new Date());
   const pilotProgress = item.pilot ? evaluateShopReconPilotProgress(item.pilot, currentIndex + 1, lifecycle.operatingState) : [];
@@ -350,6 +352,18 @@ export function ShopReconVehicleCard({ initialStage, item, lifecycleWorkspace, r
       <p><span>Physical zone</span><strong>{lifecycle.zoneCode}</strong></p>
       <p><span>Owner</span><strong>{item.owner}</strong></p>
       <p><span>{item.commitmentLabel}</span><strong>{date(lifecycle.targetAt)}</strong></p>
+    </section>
+
+    <section className="srv-quick-dispatch" aria-label="Assign and dispatch this vehicle">
+      <div>
+        <span><Wrench /></span>
+        <p><small>Quick execution</small><strong>Assign &amp; Dispatch</strong><em>{item.technician ? `Assigned to ${item.technician}` : "Technician not assigned"} · Uses {item.repairOrderNumber}</em></p>
+      </div>
+      <p>Continue the existing repair order—no duplicate intake or vehicle record.</p>
+      <nav aria-label="Vehicle assignment shortcuts">
+        <Link className="secondary" href={assignmentHref}><UserRound />{item.technician ? "Change technician" : "Assign technician"}</Link>
+        <Link href={dispatchHref}><Wrench />Open Shop Dispatch</Link>
+      </nav>
     </section>
 
     <div className="srv-design-notice"><ShieldCheck /><span><strong>Governed operational workspace</strong> Any authorized user with access may save an attributable draft. Saving never completes a stage or moves the vehicle. Movement requires all gates and the named stage authority.</span></div>

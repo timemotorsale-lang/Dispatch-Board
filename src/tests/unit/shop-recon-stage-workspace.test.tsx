@@ -74,6 +74,12 @@ describe("Shop Recon unified vehicle-card design", () => {
   it("renders the Inventory-style identity and active-stage operating workspace", () => {
     const html = renderToStaticMarkup(<ShopReconVehicleCard item={item} lifecycleWorkspace={lifecycleWorkspace} />);
     expect(html).toContain("Unified vehicle card for 2024 Toyota RAV4");
+    expect(html).toContain("Assign &amp; Dispatch");
+    expect(html).toContain("Assigned to Walter Hernandez");
+    expect(html).toContain("Change technician");
+    expect(html).toContain("Open Shop Dispatch");
+    expect(html).toContain("/vehicles/repair-workbench?repairOrderId=ro-1&amp;returnLabel=Return+to+Shop+%26+Recon+%C2%B7+Stage+1%3A+Service+%2F+Recon+Job+Intake&amp;returnTo=%2Fvehicles%2Fshop-recon%2Fro-1%3Fstage%3D1&amp;vehicleId=vehicle-1#assignment");
+    expect(html).toContain("/vehicles/shop-dispatch?repairOrderId=ro-1&amp;returnLabel=Return+to+Shop+%26+Recon+%C2%B7+Stage+1%3A+Service+%2F+Recon+Job+Intake&amp;returnTo=%2Fvehicles%2Fshop-recon%2Fro-1%3Fstage%3D1&amp;vehicleId=vehicle-1");
     expect(html).toContain("Current Shop Stage");
     expect(html).toContain("Viewing Stage 1 of 16");
     expect(html).toContain("Service / Recon Job Intake");
