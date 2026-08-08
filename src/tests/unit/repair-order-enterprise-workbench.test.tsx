@@ -28,5 +28,9 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain('href="#timeline"');
     expect(html).toContain('id="timeline"');
     expect(html).toContain("Not yet recorded");
+    expect(html).toContain('aria-label="Accountable owner or technician"');
+    expect(html).toContain("Assigned to Alex Advisor");
+    expect(html).toContain("Alex Advisor is already assigned. Select a different person to change the assignment.");
+    expect(html).toContain("Walter Mechanic");
   });
 });
