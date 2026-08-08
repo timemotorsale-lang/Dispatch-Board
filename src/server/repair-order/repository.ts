@@ -26,7 +26,7 @@ export function createRepairOrderRepository(database: PrismaClient = prisma) { r
       database.customer.findMany({ where: { organizationId, status: "ACTIVE", mergedIntoCustomerId: null }, orderBy: { displayName: "asc" }, select: { id: true, customerNumber: true, displayName: true, phoneNumber: true, email: true } }),
       database.inventoryUnit.findMany({ where: { organizationId, closedAt: null }, orderBy: { inventoryNumber: "asc" }, select: { id: true, inventoryNumber: true, locationId: true, vehicle: { select: vehicleSelect } } }),
       database.location.findMany({ where: { organizationId }, orderBy: { name: "asc" }, select: { id: true, code: true, name: true } }),
-      database.user.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true, email: true } }),
+      database.user.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true, email: true, userRoles: { select: { role: { select: { name: true } } } } } }),
       database.repairOrder.findMany({
         where: { organizationId },
         orderBy: { updatedAt: "desc" },
@@ -34,7 +34,7 @@ export function createRepairOrderRepository(database: PrismaClient = prisma) { r
         select: { closedAt: true, id: true, openedAt: true, operatingState: true, repairOrderNumber: true, stage: true, customer: { select: { displayName: true } }, vehicle: { select: vehicleSelect } },
       })
     ]);
-    return { appointments, vehicles, customers, inventoryUnits, locations, users, repairOrders };
+    return { appointments, vehicles, customers, inventoryUnits, locations, users: users.map(({ userRoles, ...user }) => ({ ...user, roles: userRoles.map(({ role }) => role.name) })), repairOrders };
   },
   async validateReadinessSnapshot(organizationId: string, data: Pick<RepairOrderCreateRecord, "appointmentId" | "customerId" | "locationId" | "readinessSnapshotId" | "vehicleId">, now: Date) {
     if (!data.readinessSnapshotId) return;

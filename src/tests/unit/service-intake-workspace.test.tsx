@@ -10,7 +10,7 @@ const options = {
   inventoryUnits: [],
   locations: [{ code: "MPLS", id: "location-1", name: "Minneapolis" }],
   repairOrders: [],
-  users: [{ email: "advisor@example.test", id: "advisor-1", name: "Alex Advisor" }],
+  users: [{ email: "advisor@example.test", id: "advisor-1", name: "Alex Advisor", roles: ["Service Advisor"] }, { email: "walter@example.test", id: "tech-1", name: "Walter Mechanic", roles: ["Mechanic"] }],
   vehicles: [{ id: "vehicle-1", make: "Ford", model: "F-150", vehicleNumber: "VEH-100", year: 2024 }],
 };
 
@@ -27,6 +27,13 @@ describe("enterprise service intake workspace", () => {
     expect(html).toContain("maxLength=\"2000\"");
     expect(html).toContain("Helpful prompts");
     expect(html).toContain("Visit &amp; Custody");
+    expect(html).toContain("Assign technician");
+    expect(html).toContain('aria-label="Assign technician"');
+    expect(html).toContain("Choose once at intake");
+    expect(html).toContain("Walter Mechanic");
+    expect(html).toContain("Assigned technician");
+    expect(html).toContain("Technician &amp; target");
+    expect(html).not.toContain("Advisor / owner");
     expect(html).toContain("Check-in requirements");
     expect(html).toContain("Next: Add / Select Customer");
     expect(html).toContain("Add / Select Customer");
@@ -47,7 +54,7 @@ describe("enterprise service intake workspace", () => {
     expect(html).toContain("Select customer");
     expect(html).toContain("Select vehicle");
     expect(html).toContain("Minneapolis");
-    expect(html).toContain("Alex Advisor");
+    expect(html).toContain("Walter Mechanic");
   });
 
   it("preserves a labor-guide return path for repair-order creation", () => {

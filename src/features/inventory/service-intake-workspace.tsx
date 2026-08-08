@@ -34,7 +34,7 @@ export type ServiceIntakeOptions = {
   inventoryUnits: Array<{ id: string; inventoryNumber: string; locationId: string; vehicle: ServiceIntakeOptions["vehicles"][number] }>;
   locations: Array<{ code?: string; id: string; name: string }>;
   repairOrders: Array<{ closedAt: string | null; customer: null | { displayName: string }; id: string; openedAt: string; operatingState: string; repairOrderNumber: string; stage: string; vehicle: ServiceIntakeOptions["vehicles"][number] }>;
-  users: Array<{ email?: string; id: string; name: string }>;
+  users: Array<{ email?: string; id: string; name: string; roles?: string[] }>;
   vehicles: Array<{ color?: string | null; id: string; licensePlate?: string | null; make: string | null; model: string | null; registryRelationships?: Array<{ relationshipType: string }>; specificationSnapshot?: unknown; stockNumber?: string | null; vehicleNumber: string; version?: number; vin?: string | null; year: number | null }>;
 };
 
@@ -113,9 +113,16 @@ const vehicleLabel = (vehicle: ServiceIntakeOptions["vehicles"][number]) =>
   `${[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || "Vehicle"} · ${vehicle.vehicleNumber}`;
 
 const serviceIntakeDraftKey = "service-intake-active-draft-v1";
+const technicianRoleNames = new Set(["Mechanic", "Technician"]);
+
+function technicianOptions(users: ServiceIntakeOptions["users"]) {
+  const technicians = users.filter((user) => user.roles?.some((role) => technicianRoleNames.has(role)));
+  return technicians.length ? technicians : users;
+}
 
 function buildInitial(options: ServiceIntakeOptions, initialTimestamp: string, initialConcernSummary = "", initialVehicleId = "", initialVehicleRelationship: VehicleRelationshipIntent = "CUSTOMER_VEHICLE"): IntakeState {
   const now = new Date(initialTimestamp);
+  const initialTechnician = technicianOptions(options.users)[0];
   return {
     arrivedAt: local(now),
     concernSummary: initialConcernSummary,
@@ -131,7 +138,7 @@ function buildInitial(options: ServiceIntakeOptions, initialTimestamp: string, i
     locationId: options.locations[0]?.id ?? "",
     nextAction: "Complete intake review and prepare for digital vehicle inspection",
     onset: "",
-    ownerUserId: options.users[0]?.id ?? "",
+    ownerUserId: initialTechnician?.id ?? "",
     promisedAt: "",
     promiseNotes: "",
     targetAt: local(new Date(now.getTime() + 2 * 60 * 60_000)),
@@ -219,7 +226,7 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
   const [inventoryUnitBusy, setInventoryUnitBusy] = useState(false);
   const [inventoryUnitDraft, setInventoryUnitDraft] = useState(() => {
     const initialDate = new Date(initialTimestamp);
-    return { acquisitionSource: "OTHER" as "AUCTION" | "CONSIGNMENT" | "DEALER_TRANSFER" | "DIRECT_PURCHASE" | "OTHER" | "TRADE", financialAcquiredAt: local(initialDate), inventoryNumber: "", nextAction: "Complete inventory receipt and begin recon inspection", targetAt: local(new Date(initialDate.getTime() + 24 * 60 * 60_000)) };
+    return { acquisitionSource: "OTHER" as "AUCTION" | "CONSIGNMENT" | "DEALER_TRANSFER" | "DIRECT_PURCHASE" | "OTHER" | "TRADE", financialAcquiredAt: local(initialDate), inventoryNumber: "", nextAction: "Complete inventory receipt and begin recon inspection", ownerUserId: options.users[0]?.id ?? "", targetAt: local(new Date(initialDate.getTime() + 24 * 60 * 60_000)) };
   });
 
   const normalizedArrivalVin = arrivalQuery.toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -246,18 +253,19 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
   const selectedVehicle = vehicleRecords.find((vehicle) => vehicle.id === form.vehicleId);
   const selectedCustomer = customerRecords.find((customer) => customer.id === form.customerId);
   const selectedInventoryUnit = inventoryUnitRecords.find((unit) => unit.id === form.inventoryUnitId);
+  const assignableTechnicians = technicianOptions(options.users);
   const isCustomerVehicle = form.vehicleRelationship === "CUSTOMER_VEHICLE";
   const isDealershipInventory = form.vehicleRelationship === "DEALERSHIP_INVENTORY";
   const canCompleteRelationshipIntake = isCustomerVehicle || isDealershipInventory;
   const selectedLocation = options.locations.find((location) => location.id === form.locationId);
-  const selectedOwner = options.users.find((user) => user.id === form.ownerUserId);
+  const selectedOwner = assignableTechnicians.find((user) => user.id === form.ownerUserId);
   const checklist = [
     { label: isDealershipInventory ? "Inventory unit linked" : "Customer selected", ready: isDealershipInventory ? Boolean(form.inventoryUnitId) : isCustomerVehicle && Boolean(form.customerId) },
     { label: "Vehicle selected", ready: Boolean(form.vehicleId) },
     { label: "Concern captured", ready: form.concernSummary.trim().length >= 10 },
     { label: "Keys & transportation", ready: form.keysReceivedCount >= 0 && Boolean(form.transportMode) },
     { label: isDealershipInventory ? "Internal recon readiness" : "Live service readiness", ready: isDealershipInventory || Boolean(readiness) },
-    { label: "Owner & target", ready: Boolean(form.ownerUserId && form.targetAt) },
+    { label: "Technician & target", ready: Boolean(form.ownerUserId && form.targetAt) },
     { label: "Consent disposition", ready: form.consentStatus !== "DOCUMENTED" || Boolean(form.consentReference && form.consentedAt) },
   ];
   const ready = checklist.every((item) => item.ready);
@@ -274,7 +282,7 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
         : isCustomerVehicle && !readiness
           ? "Refresh Live Readiness"
           : !form.ownerUserId || !form.targetAt
-            ? "Complete Owner & Target"
+            ? "Assign Technician & Target"
             : form.consentStatus === "DOCUMENTED" && (!form.consentReference || !form.consentedAt)
               ? "Complete Authorization"
               : "Complete Check-In & Create Repair Order";
@@ -369,7 +377,7 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
               concernSummary: initialConcernSummary || draftForm.concernSummary || current.concernSummary,
               inventoryUnitId,
               locationId: options.locations.some((location) => location.id === draftForm.locationId) ? draftForm.locationId : current.locationId,
-              ownerUserId: options.users.some((user) => user.id === draftForm.ownerUserId) ? draftForm.ownerUserId : current.ownerUserId,
+              ownerUserId: technicianOptions(options.users).some((user) => user.id === draftForm.ownerUserId) ? draftForm.ownerUserId : current.ownerUserId,
               vehicleId,
               vehicleRelationship,
             };
@@ -713,7 +721,7 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
         vehicleVersion = Number(relationshipBody.version ?? relationshipBody.result?.version ?? vehicleVersion + 1);
         setVehicleRecords((records) => records.map((vehicle) => vehicle.id === selectedVehicle.id ? { ...vehicle, registryRelationships: [...(vehicle.registryRelationships ?? []), { relationshipType: inventoryUnitDraft.acquisitionSource === "TRADE" ? "TRADE_IN" : inventoryUnitDraft.acquisitionSource === "CONSIGNMENT" ? "CONSIGNMENT" : "DEALERSHIP_OWNED" }], version: vehicleVersion } : vehicle));
       }
-      const response = await fetch("/api/inventory-units", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ financialAcquiredAt: new Date(inventoryUnitDraft.financialAcquiredAt).toISOString(), idempotencyKey: crypto.randomUUID(), inventoryNumber: inventoryUnitDraft.inventoryNumber, locationId: form.locationId, nextAction: inventoryUnitDraft.nextAction, operatingState: "ACTIVE", ownerUserId: form.ownerUserId, reason: "Create dealership inventory unit from governed vehicle intake.", stateReason: null, targetAt: new Date(inventoryUnitDraft.targetAt).toISOString(), vehicleId: selectedVehicle.id }) });
+      const response = await fetch("/api/inventory-units", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ financialAcquiredAt: new Date(inventoryUnitDraft.financialAcquiredAt).toISOString(), idempotencyKey: crypto.randomUUID(), inventoryNumber: inventoryUnitDraft.inventoryNumber, locationId: form.locationId, nextAction: inventoryUnitDraft.nextAction, operatingState: "ACTIVE", ownerUserId: inventoryUnitDraft.ownerUserId, reason: "Create dealership inventory unit from governed vehicle intake.", stateReason: null, targetAt: new Date(inventoryUnitDraft.targetAt).toISOString(), vehicleId: selectedVehicle.id }) });
       const body = await response.json().catch(() => ({}));
       if (!response.ok || !body.result?.id) throw new Error(body.error ?? "The inventory unit could not be created.");
       const unit = { id: String(body.result.id), inventoryNumber: String(body.result.inventoryNumber ?? inventoryUnitDraft.inventoryNumber.toUpperCase()), locationId: form.locationId, vehicle: { ...selectedVehicle, version: vehicleVersion } } satisfies ServiceIntakeOptions["inventoryUnits"][number];
@@ -916,6 +924,12 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
           <details className="sic-more-context"><summary>Additional concern context &amp; advisor notes</summary><div className="sic-three-column"><label><span>When did it start?</span><input onChange={(event) => update("onset", event.target.value)} placeholder="Today, last week, after repair…" value={form.onset} /></label><label><span>Frequency / conditions</span><input onChange={(event) => update("frequency", event.target.value)} placeholder="Constant, cold start, highway…" value={form.frequency} /></label><label><span>Warning indicators</span><input onChange={(event) => update("warningIndicators", event.target.value)} placeholder="ABS, check engine, message…" value={form.warningIndicators} /></label></div><label className="sic-notes"><span>Advisor-only intake notes</span><textarea maxLength={2000} onChange={(event) => update("intakeNotes", event.target.value)} placeholder="Observations, prior conversations, access instructions, or context not stated by the customer." rows={3} value={form.intakeNotes} /></label></details>
         </section>
 
+        <section className="sic-card sic-technician-assignment" id="technician-assignment">
+          <header><span>4</span><div><h2>Assign technician</h2><p>Choose once at intake. This technician carries into the repair order and is preselected when authorized work reaches Shop Dispatch.</p></div><em>Simple handoff</em></header>
+          <div className="sic-technician-assignment-row"><label><span>Technician</span><select aria-label="Assign technician" onChange={(event) => update("ownerUserId", event.target.value)} value={form.ownerUserId}>{assignableTechnicians.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></label><div><UserRound /><span><strong>{selectedOwner?.name ?? "Select a technician"}</strong><small>Accountable from check-in · bay and schedule remain optional until dispatch</small></span></div></div>
+          <footer><ShieldCheck /><span>This assignment does not authorize repairs or bypass technician qualification, capacity, parts, or QC controls.</span></footer>
+        </section>
+
         <section className="sic-card sic-custody-card">
           <header><div><h2>{isDealershipInventory ? "Inventory receipt & custody" : "Visit & Custody"}</h2><p>{isDealershipInventory ? "Establish arrival, keys, location, and accountable internal custody." : "Establish arrival, keys, and customer transportation."}</p></div></header>
           <div className="sic-custody-row">
@@ -924,7 +938,7 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
             <label><span>Key tag</span><input onChange={(event) => update("keyTag", event.target.value)} placeholder="Tag reference" value={form.keyTag} /></label>
             <label><span>Transportation</span><select onChange={(event) => update("transportMode", event.target.value)} value={form.transportMode}>{isDealershipInventory ? <option value="INTERNAL_TRANSPORT">Internal transport</option> : <><option value="CUSTOMER_WAITING">Customer waiting</option><option value="DROP_OFF">Customer drive / drop-off</option><option value="LOANER">Loaner</option><option value="SHUTTLE">Shuttle</option></>}<option value="TOW">Tow</option><option value="OTHER">Other</option></select></label>
           </div>
-          <details className="sic-more-context"><summary>Authorization, ownership, promise &amp; advanced custody</summary><div className="sic-three-column"><label><span><CalendarClock />Intake target</span><input onChange={(event) => update("targetAt", event.target.value)} required type="datetime-local" value={form.targetAt} /></label><label><span>Customer promise</span><input onChange={(event) => update("promisedAt", event.target.value)} type="datetime-local" value={form.promisedAt} /></label><label><span>Location</span><select onChange={(event) => update("locationId", event.target.value)} value={form.locationId}>{options.locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label><label><span>Advisor / owner</span><select onChange={(event) => update("ownerUserId", event.target.value)} value={form.ownerUserId}>{options.users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></label><label><span>Priority</span><select onChange={(event) => update("urgency", event.target.value)} value={form.urgency}><option value="STANDARD">Standard</option><option value="WAITING_CUSTOMER">Customer waiting</option><option value="SAFETY_CONCERN">Potential safety concern</option><option value="COMEBACK_REVIEW">Possible comeback</option></select></label></div><div className="sic-two-column sic-consent">
+          <details className="sic-more-context"><summary>Authorization, ownership, promise &amp; advanced custody</summary><div className="sic-three-column"><label><span><CalendarClock />Intake target</span><input onChange={(event) => update("targetAt", event.target.value)} required type="datetime-local" value={form.targetAt} /></label><label><span>Customer promise</span><input onChange={(event) => update("promisedAt", event.target.value)} type="datetime-local" value={form.promisedAt} /></label><label><span>Location</span><select onChange={(event) => update("locationId", event.target.value)} value={form.locationId}>{options.locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label><label><span>Priority</span><select onChange={(event) => update("urgency", event.target.value)} value={form.urgency}><option value="STANDARD">Standard</option><option value="WAITING_CUSTOMER">Customer waiting</option><option value="SAFETY_CONCERN">Potential safety concern</option><option value="COMEBACK_REVIEW">Possible comeback</option></select></label></div><div className="sic-two-column sic-consent">
             <label><span>Consent status</span><select onChange={(event) => update("consentStatus", event.target.value as IntakeState["consentStatus"])} value={form.consentStatus}><option value="PENDING">Pending</option><option value="DOCUMENTED">Documented</option><option value="NOT_REQUIRED">Not required</option></select></label>
             {form.consentStatus === "DOCUMENTED" ? <><label><span>Consent reference</span><input onChange={(event) => update("consentReference", event.target.value)} placeholder="Signature, call, or document reference" value={form.consentReference} /></label><label><span>Consent recorded at</span><input onChange={(event) => update("consentedAt", event.target.value)} type="datetime-local" value={form.consentedAt} /></label></> : null}
             <label><span>Promise notes</span><input onChange={(event) => update("promiseNotes", event.target.value)} placeholder="What did we commit to communicate or complete?" value={form.promiseNotes} /></label>
@@ -933,7 +947,7 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
       </main>
 
       <aside className="sic-sidebar">
-        <section className="sic-intake-summary"><h2>Live Intake Summary</h2>{isDealershipInventory ? <article><CarFront /><div><small>Relationship</small><strong>Dealership inventory</strong><span>Customer not required</span></div></article> : <article><UserRound /><div><small>Customer</small><strong>{selectedCustomer?.displayName ?? "Select customer"}</strong><span>{selectedCustomer?.phoneNumber ?? selectedCustomer?.email ?? "Canonical customer required"}</span></div></article>}<article><CarFront /><div><small>Vehicle</small><strong>{selectedVehicle ? vehicleLabel(selectedVehicle) : "Select vehicle"}</strong><span>{selectedVehicle?.vin ?? selectedVehicle?.licensePlate ?? "Canonical vehicle required"}</span></div></article>{isDealershipInventory ? <article><ClipboardCheck /><div><small>Inventory unit</small><strong>{selectedInventoryUnit?.inventoryNumber ?? "Create or link unit"}</strong><span>{selectedInventoryUnit ? "Internal recon eligible" : "Required for internal work"}</span></div></article> : <article><CalendarClock /><div><small>Appointment</small><strong>{readiness?.appointment?.appointmentNumber ?? "No appointment matched"}</strong><span>{readiness?.appointment?.startsAt ? new Date(readiness.appointment.startsAt).toLocaleString() : "Walk-in readiness applies"}</span></div></article>}<div className="sic-summary-progress"><span>Readiness overview</span><b>{checklist.filter((item) => item.ready).length}/{checklist.length} complete</b><i><em style={{ width: `${checklist.filter((item) => item.ready).length / checklist.length * 100}%` }} /></i></div><dl><div><dt>Custody status</dt><dd>{form.keysReceivedCount > 0 ? "Accept" : "Review"}</dd></div><div><dt>{isDealershipInventory ? "Inventory owner" : "Advisor"}</dt><dd>{selectedOwner?.name ?? "Required"}</dd></div><div><dt>Location</dt><dd>{selectedLocation?.name ?? "Required"}</dd></div><div><dt>Target update</dt><dd>{form.targetAt ? new Date(form.targetAt).toLocaleString() : "Required"}</dd></div></dl><div className="sic-readiness"><h2>Check-in requirements</h2>{checklist.map((item) => <p className={item.ready ? "ready" : ""} key={item.label}><i>{item.ready ? <Check /> : null}</i><span>{item.label}</span></p>)}<strong>{checklist.filter((item) => item.ready).length} / {checklist.length}</strong></div></section>
+        <section className="sic-intake-summary"><h2>Live Intake Summary</h2>{isDealershipInventory ? <article><CarFront /><div><small>Relationship</small><strong>Dealership inventory</strong><span>Customer not required</span></div></article> : <article><UserRound /><div><small>Customer</small><strong>{selectedCustomer?.displayName ?? "Select customer"}</strong><span>{selectedCustomer?.phoneNumber ?? selectedCustomer?.email ?? "Canonical customer required"}</span></div></article>}<article><CarFront /><div><small>Vehicle</small><strong>{selectedVehicle ? vehicleLabel(selectedVehicle) : "Select vehicle"}</strong><span>{selectedVehicle?.vin ?? selectedVehicle?.licensePlate ?? "Canonical vehicle required"}</span></div></article>{isDealershipInventory ? <article><ClipboardCheck /><div><small>Inventory unit</small><strong>{selectedInventoryUnit?.inventoryNumber ?? "Create or link unit"}</strong><span>{selectedInventoryUnit ? "Internal recon eligible" : "Required for internal work"}</span></div></article> : <article><CalendarClock /><div><small>Appointment</small><strong>{readiness?.appointment?.appointmentNumber ?? "No appointment matched"}</strong><span>{readiness?.appointment?.startsAt ? new Date(readiness.appointment.startsAt).toLocaleString() : "Walk-in readiness applies"}</span></div></article>}<div className="sic-summary-progress"><span>Readiness overview</span><b>{checklist.filter((item) => item.ready).length}/{checklist.length} complete</b><i><em style={{ width: `${checklist.filter((item) => item.ready).length / checklist.length * 100}%` }} /></i></div><dl><div><dt>Custody status</dt><dd>{form.keysReceivedCount > 0 ? "Accept" : "Review"}</dd></div><div><dt>Assigned technician</dt><dd>{selectedOwner?.name ?? "Required"}</dd></div><div><dt>Location</dt><dd>{selectedLocation?.name ?? "Required"}</dd></div><div><dt>Target update</dt><dd>{form.targetAt ? new Date(form.targetAt).toLocaleString() : "Required"}</dd></div></dl><div className="sic-readiness"><h2>Check-in requirements</h2>{checklist.map((item) => <p className={item.ready ? "ready" : ""} key={item.label}><i>{item.ready ? <Check /> : null}</i><span>{item.label}</span></p>)}<strong>{checklist.filter((item) => item.ready).length} / {checklist.length}</strong></div></section>
       </aside>
     </div>
 
