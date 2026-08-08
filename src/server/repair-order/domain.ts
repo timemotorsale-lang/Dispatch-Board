@@ -4,12 +4,21 @@ export const REPAIR_ORDER_INTAKE_SOURCES = ["APPOINTMENT", "WALK_IN", "INVENTORY
 export const REPAIR_ORDER_CONSENT_STATUSES = ["DOCUMENTED", "NOT_REQUIRED", "PENDING"] as const;
 export const REPAIR_ORDER_TRANSPORT_MODES = ["CUSTOMER_WAITING", "DROP_OFF", "LOANER", "SHUTTLE", "TOW", "INTERNAL_TRANSPORT", "OTHER"] as const;
 type CoreState = (typeof REPAIR_ORDER_CORE_STATES)[number];
+const CONCERN_CONTEXT_WORDS = new Set(["a","acquired","all","an","and","are","at","auction","be","but","customer","dash","dealership","does","drive","drives","excellently","for","from","has","have","i","in","inventory","is","it","kind","kinds","my","newly","of","on","other","reports","runs","says","the","their","these","this","to","vehicle","was","with"]);
+const CONCERN_SYNONYMS: Readonly<Record<string,string>> = { illuminated:"light",indicator:"light",indicators:"light",lamp:"light",lamps:"light",warning:"light",warnings:"light" };
 function required(value: unknown, label: string, max = 500) { const result = typeof value === "string" ? value.trim() : ""; if (!result) throw new Error(`${label} is required.`); if (result.length > max) throw new Error(`${label} must be ${max} characters or fewer.`); return result; }
 function optional(value: unknown, max = 500) { const result = typeof value === "string" ? value.trim() : ""; if (result.length > max) throw new Error(`Text must be ${max} characters or fewer.`); return result || null; }
 function timestamp(value: unknown, label: string, optionalValue = false) { if (optionalValue && !value) return null; const result = new Date(required(value, label, 100)); if (Number.isNaN(result.getTime())) throw new Error(`${label} must be a valid date and time.`); return result; }
 function oneOf<T extends readonly string[]>(value: unknown, values: T, label: string): T[number] { const result = String(value ?? ""); if (!values.includes(result)) throw new Error(`${label} is invalid.`); return result as T[number]; }
 function operating(value: unknown): CoreState { return oneOf(value ?? "ACTIVE", REPAIR_ORDER_CORE_STATES, "Repair-order operating state"); }
 function stateReason(state: CoreState, value: unknown) { if (state === "ACTIVE") return null; const result = required(value, "Waiting or blocker reason", 500); if (result.length < 10) throw new Error("Waiting or blocker reason must be at least 10 characters."); return result; }
+
+export function repairOrderConcernFingerprint(value:string){
+  const tokens=value.normalize("NFKD").toLocaleLowerCase("en-US").replace(/[^a-z0-9]+/g," ").trim().split(/\s+/).filter(Boolean).map(token=>CONCERN_SYNONYMS[token]??(token.length>4&&token.endsWith("s")?token.slice(0,-1):token)).filter(token=>!CONCERN_CONTEXT_WORDS.has(token));
+  return [...new Set(tokens)].sort().join("|");
+}
+
+export function isSameRepairOrderConcern(left:string,right:string){const first=repairOrderConcernFingerprint(left),second=repairOrderConcernFingerprint(right);return Boolean(first&&second&&first===second);}
 
 export function normalizeRepairOrderCreate(value: unknown, now = new Date()) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Repair-order intake request must be an object.");
