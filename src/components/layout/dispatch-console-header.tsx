@@ -1,5 +1,6 @@
 "use client";
 
+import { Layers3 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 
@@ -9,6 +10,7 @@ import {
   resolveWorkspaceForPath,
   type WorkspaceKey
 } from "@/server/auth/navigation";
+import { isManager } from "@/server/policies/access";
 
 import { getNavigationItemsForPath } from "./navigation";
 
@@ -91,6 +93,7 @@ export function DispatchConsoleHeaderView({
   const workspace = resolveWorkspaceForPath(user, pathname, preferredWorkspace);
   const workspaceDefinition = getWorkspaceDefinition(workspace);
   const roleWorkspace = workspace !== "MANAGEMENT";
+  const canOpenManagerWorkspace = isManager(user);
   const roleCopy = workspace === "TECHNICIAN" && pathname === "/my-tasks/available"
     ? { title: "Available Work", description: "Eligible work ready for you to claim" }
     : workspace === "TECHNICIAN" && pathname.startsWith("/diagnostics")
@@ -110,7 +113,7 @@ export function DispatchConsoleHeaderView({
   };
 
   return (
-    <header className="dispatch-console-header">
+    <header className={`dispatch-console-header${canOpenManagerWorkspace ? " dispatch-console-header-with-launcher" : ""}`}>
       <div className="dispatch-console-title">
         <h1>{roleWorkspace ? roleCopy.title : copy.title}</h1>
         <p>{roleWorkspace ? roleCopy.description : copy.description}</p>
@@ -154,6 +157,12 @@ export function DispatchConsoleHeaderView({
           </nav>
         )
       )}
+      {canOpenManagerWorkspace ? (
+        <Link className="dispatch-workspace-launcher" href="/manager-workspace">
+          <Layers3 aria-hidden="true" size={16} />
+          <span><strong>Workspace Launcher</strong><small>CEO · COO · My Work</small></span>
+        </Link>
+      ) : null}
     </header>
   );
 }

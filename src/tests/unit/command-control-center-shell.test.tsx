@@ -25,6 +25,9 @@ describe("Command Control Center shell", () => {
     expect(markup).toContain("Today’s operating command");
     expect(markup).toContain('href="/command-center">CCC Home</a>');
     expect(markup).toContain('aria-current="page" class="active dispatch-console-root" href="/board">Dispatch Board');
+    expect(markup).toContain('href="/manager-workspace"');
+    expect(markup).toContain("Workspace Launcher");
+    expect(markup).toContain("CEO · COO · My Work");
     expect(markup).not.toContain('href="/my-tasks"');
     expect(markup).not.toContain('href="/tasks"');
   });
@@ -40,6 +43,23 @@ describe("Command Control Center shell", () => {
     expect(markup).toContain('class="dispatch-console-root" href="/board">Dispatch Board');
     expect(markup).toContain('aria-current="page" class="active" href="/board?view=live"');
     expect(markup).not.toContain('href="/my-tasks"');
+  });
+
+  it("offers the workspace launcher to a delegated manager", () => {
+    const delegatedManager = {
+      ...user(),
+      duties: {
+        direct: ["Delegated manager capabilities"],
+        roleDefaults: [],
+        all: ["Delegated manager capabilities"]
+      }
+    };
+    const markup = renderToStaticMarkup(
+      <DispatchConsoleHeaderView boardDate={null} live={false} pathname="/board" user={delegatedManager} />
+    );
+
+    expect(markup).toContain('href="/manager-workspace"');
+    expect(markup).toContain("Workspace Launcher");
   });
 
   it("shows only the active workspace in the Dispatch header", () => {
@@ -63,6 +83,7 @@ describe("Command Control Center shell", () => {
     expect(markup).toContain('aria-current="page" class="active" href="/my-tasks">My Work</a>');
     expect(markup).not.toContain('href="/command-center"');
     expect(markup).not.toContain('href="/board');
+    expect(markup).not.toContain("Workspace Launcher");
     expect(markup).not.toContain('href="/projects"');
     expect(markup).not.toContain('href="/appointments"');
   });
