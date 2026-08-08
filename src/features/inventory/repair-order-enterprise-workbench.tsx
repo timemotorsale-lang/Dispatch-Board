@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, AlertTriangle, CalendarClock, Check, ChevronRight, ClipboardCheck, FileText, Gauge, KeyRound, LockKeyhole, ShieldAlert, UserRound, Wrench } from "lucide-react";
+import { Activity, AlertTriangle, CalendarClock, Check, ChevronRight, ClipboardCheck, FileText, Gauge, KeyRound, LockKeyhole, Printer, ShieldAlert, UserRound, Wrench } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
@@ -96,6 +96,7 @@ export function RepairOrderEnterpriseWorkbench({ diagnostics, order, options, re
   const planningHref = `/vehicles/shop-planning?repairOrderId=${encodeURIComponent(order.id)}&returnTo=${encodeURIComponent(planningReturn)}`;
   const selectedOwner = options.users.find((user) => user.id === ownerUserId) ?? null;
   const assignmentChanged = Boolean(selectedOwner && selectedOwner.id !== currentOwner.id);
+  const diagnosticCase = diagnostics && "cases" in diagnostics ? diagnostics.cases[0] ?? null : null;
 
   async function assignOwner() {
     if (!selectedOwner || !assignmentChanged) return;
@@ -118,9 +119,19 @@ export function RepairOrderEnterpriseWorkbench({ diagnostics, order, options, re
 
   const vehicle = [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber;
   return <section className="rowb-shell" aria-label="Repair Order Workbench">
-    <header className="rowb-header"><div>{returnTo ? <Link href={returnTo}>← {returnLabel ?? "Return to source workspace"}</Link> : showAdvisorReturn ? <BackToServiceAdvisorWorkspace /> : showWorkspaceReturn ? <BackToVehicleOperationsWorkspace /> : null}<Link href="/vehicles/repair-workbench?view=all">← All Repair Orders</Link><span>Repair Order Workbench</span><h1>{order.repairOrderNumber}</h1></div><dl><div><dt>Vehicle</dt><dd>{vehicle}</dd></div><div><dt>Customer</dt><dd>{order.customer?.displayName ?? order.inventoryUnit?.inventoryNumber ?? "Internal work"}</dd></div><div><dt>Stage</dt><dd>{format(order.stage)}</dd></div><div><dt>Arrival</dt><dd>{date(order.serviceVisit.arrivedAt)}</dd></div><div><dt>Promise</dt><dd>{date(order.serviceVisit.promisedAt)}</dd></div><div><dt>Audit</dt><dd>Version {currentVersion}</dd></div></dl></header>
+    <header className="rowb-header"><div>{returnTo ? <Link href={returnTo}>← {returnLabel ?? "Return to source workspace"}</Link> : showAdvisorReturn ? <BackToServiceAdvisorWorkspace /> : showWorkspaceReturn ? <BackToVehicleOperationsWorkspace /> : null}<Link href="/vehicles/repair-workbench?view=all">← All Repair Orders</Link><span>Repair Order Workbench</span><h1>{order.repairOrderNumber}</h1><div className="rowb-document-actions"><a href="#repair-order-document"><FileText />View RO</a><button onClick={() => window.print()} type="button"><Printer />Print RO</button></div></div><dl><div><dt>Vehicle</dt><dd>{vehicle}</dd></div><div><dt>Customer</dt><dd>{order.customer?.displayName ?? order.inventoryUnit?.inventoryNumber ?? "Internal work"}</dd></div><div><dt>Stage</dt><dd>{format(order.stage)}</dd></div><div><dt>Arrival</dt><dd>{date(order.serviceVisit.arrivedAt)}</dd></div><div><dt>Promise</dt><dd>{date(order.serviceVisit.promisedAt)}</dd></div><div><dt>Audit</dt><dd>Version {currentVersion}</dd></div></dl></header>
     <nav className="rowb-lifecycle" aria-label="Repair lifecycle">{["Intake", "Diagnose", "Estimate", "Approval", "Repair", "Quality Check", "Handoff"].map((label, index) => { const reached = index === 0 || index === 1 && Boolean(order.inspectionVersions.length || diagnosis) || index === 2 && Boolean(estimate) || index === 3 && Boolean(authorization) || index === 4 && Boolean(order.repairJobs.length); return <span className={reached ? "reached" : "locked"} key={label}><i>{reached ? <Check /> : <LockKeyhole />}</i>{label}</span>; })}</nav>
     {notice ? <div className="rowb-notice" role="status">{notice}</div> : null}
+    <section className="rowb-print-document" id="repair-order-document" aria-label="Repair Order document">
+      <header><div><small>Authoritative Repair Order</small><h2>{order.repairOrderNumber}</h2><span>RO Version {currentVersion} · {format(order.stage)}</span></div><div className="rowb-print-actions"><button onClick={() => window.print()} type="button"><Printer />Print RO</button></div></header>
+      <div className="rowb-document-grid">
+        <dl><div><dt>Vehicle</dt><dd>{vehicle}</dd></div><div><dt>VIN / vehicle ID</dt><dd>{order.vehicle.vin ?? order.vehicle.vehicleNumber}</dd></div><div><dt>Customer / inventory</dt><dd>{order.customer?.displayName ?? order.inventoryUnit?.inventoryNumber ?? "Internal work"}</dd></div><div><dt>Location</dt><dd>{order.location.name}</dd></div></dl>
+        <dl><div><dt>Arrived</dt><dd>{date(order.serviceVisit.arrivedAt)}</dd></div><div><dt>Promise</dt><dd>{date(order.serviceVisit.promisedAt)}</dd></div><div><dt>Assigned technician / owner</dt><dd>{currentOwner.name}</dd></div><div><dt>Next action</dt><dd>{order.nextAction}</dd></div></dl>
+      </div>
+      <article><small>Concern reported at intake</small><p>{order.serviceVisit.concernSummary}</p></article>
+      {order.serviceVisit.intakeNotes ? <article><small>Advisor / intake notes</small><p>{order.serviceVisit.intakeNotes}</p></article> : null}
+      <footer><div><strong>Technician use</strong><span>{diagnosticCase ? `Use this RO as the governing record. Record tests, evidence, and findings in Diagnostic Record v${diagnosticCase.version}.` : `This RO Version ${currentVersion} is the technician's source for the vehicle and concern. Open technician diagnosis to record tests, evidence, and findings against this RO.`}</span></div><div><strong>Authorization boundary</strong><span>Diagnosis is permitted from this RO. No repair is authorized until the estimate and approval are recorded.</span></div></footer>
+    </section>
     <RepairOrderDiagnosticsBridge bridge={diagnostics ?? { state: "UNAVAILABLE", repairOrderId: order.id, reason: "Diagnostics bridge was not supplied." }} />
     <div className="rowb-layout">
       <aside className="rowb-context">
