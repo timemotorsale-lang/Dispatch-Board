@@ -66,7 +66,7 @@ describe("time attendance hardening and pilot readiness", () => {
     const readiness = evaluateTimeAttendanceHardeningPilotReadiness(manager);
 
     expect(readiness.gates.find((gate) => gate.id === "TA-050")?.requiredEvidence).toContain("restricted leave-data access review");
-    expect(readiness.gates.find((gate) => gate.id === "TA-052")?.blockers).toContain("TA-015 migration application, seed data, and restore drill remain pending");
+    expect(readiness.gates.find((gate) => gate.id === "TA-052")?.blockers).toContain("a real backup/restore drill and post-restore checksum reconciliation remain pending");
     expect(readiness.gates.find((gate) => gate.id === "TA-053")?.requiredEvidence).toContain("screen-reader review of employee, manager, and payroll panels");
     expect(readiness.gates.find((gate) => gate.id === "TA-054")?.blockers).toContain("parallel payroll pilot has not run");
     expect(readiness.gates.find((gate) => gate.id === "TA-055")?.requiredEvidence).toContain("rollback drill proving feature disablement without data deletion");

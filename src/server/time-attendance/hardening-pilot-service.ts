@@ -1,5 +1,6 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
-import { assertAuthenticatedUser, isManager } from "@/server/policies/access";
+import { assertAuthenticatedUser } from "@/server/policies/access";
+import { evaluateTimeAttendanceCapability } from "./capabilities";
 
 export type TimeAttendanceHardeningGateId =
   | "TA-050"
@@ -58,8 +59,8 @@ const gates: TimeAttendanceHardeningGate[] = [
       "abuse-case review for correction, attestation, lock, export, and reopen actions"
     ],
     blockers: [
-      "TA-016 capability and rollout policy is not complete",
-      "leave-admin ownership is not formally configured"
+      "external least-privilege and restricted-leave privacy review has not been accepted",
+      "real reviewer assignments and separation-of-duties evidence have not been approved"
     ]
   },
   {
@@ -81,7 +82,7 @@ const gates: TimeAttendanceHardeningGate[] = [
     ],
     blockers: [
       "no production-like load run has been recorded",
-      "runtime migration application remains pending"
+      "no production-like concurrency/load run has been recorded"
     ]
   },
   {
@@ -102,7 +103,7 @@ const gates: TimeAttendanceHardeningGate[] = [
       "checksum reconciliation report after restore"
     ],
     blockers: [
-      "TA-015 migration application, seed data, and restore drill remain pending"
+      "a real backup/restore drill and post-restore checksum reconciliation remain pending"
     ]
   },
   {
@@ -124,7 +125,7 @@ const gates: TimeAttendanceHardeningGate[] = [
     ],
     blockers: [
       "no formal accessibility audit artifact is attached",
-      "mobile/offline capture hardening remains pending"
+      "formal assistive-technology and representative device evidence remain pending"
     ]
   },
   {
@@ -179,7 +180,7 @@ export function evaluateTimeAttendanceHardeningPilotReadiness(
   now = new Date()
 ): TimeAttendanceHardeningPilotReadiness {
   const user = assertAuthenticatedUser(actor);
-  const permitted = isManager(user);
+  const permitted = evaluateTimeAttendanceCapability({ actor: user, capability: "TIME_PAYROLL_ADMIN" }).allowed;
   const visibleGates = permitted ? gates : [];
   const totals = {
     blocked: visibleGates.filter((gate) => gate.status === "BLOCKED").length,

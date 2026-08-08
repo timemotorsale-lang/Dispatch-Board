@@ -8,6 +8,8 @@ import {
   hashEnterpriseCommand
 } from "@/server/enterprise-command/domain";
 import { assertAuthenticatedUser } from "@/server/policies/access";
+import { requireTimeAttendanceCapability } from "./capabilities";
+import { notifyTimeAttendanceReviewers } from "./notification-service";
 
 export type TimeCardAttestationDecision = "ATTEST" | "DISPUTE";
 
@@ -46,7 +48,8 @@ type AttestationRecord = {
 
 type TimeCardAttestationDatabase = {
   timeCard: {
-    findFirst(input: { where: Record<string, unknown>; select: { id: true; staffUserId: true; version: true } }): Promise<{ id: string; staffUserId: string; version: number } | null>;
+    findFirst(input: { where: Record<string, unknown>; select: Record<string, boolean> }): Promise<{ id: string; staffUserId: string; version: number; sourceEventChecksum?: string; locationId?: string } | null>;
+    updateMany?(input: { where: Record<string, unknown>; data: Record<string, unknown> }): Promise<{ count: number }>;
   };
   timeCardAttestation: {
     create(input: { data: Record<string, unknown> }): Promise<AttestationRecord>;
@@ -186,10 +189,13 @@ export function createTimeCardAttestationRepository(
           staffUserId: input.staffUserId,
           version: input.timeCardVersion
         },
-        select: { id: true, staffUserId: true, version: true }
+        select: { id: true, staffUserId: true, version: true, sourceEventChecksum: true, locationId: true }
       });
       if (!card) {
         throw new Error("Time card version was not found for this employee.");
+      }
+      if (card.sourceEventChecksum && card.sourceEventChecksum !== input.cardChecksum) {
+        throw new EnterpriseCommandConflictError("Time card checksum is stale. Refresh before attesting.", "VERSION_CONFLICT");
       }
 
       const record = await database.timeCardAttestation.create({
@@ -210,6 +216,11 @@ export function createTimeCardAttestationRepository(
         }
       });
 
+      await database.timeCard.updateMany?.({
+        where: { id: card.id, version: card.version, sourceEventChecksum: input.cardChecksum },
+        data: { status: input.decision === "ATTEST" ? "MANAGER_REVIEW" : "EMPLOYEE_REVIEW", payrollReady: false }
+      });
+
       return toResult(record, false);
     }
   };
@@ -224,10 +235,28 @@ export async function submitTimeCardAttestation(
   } = {}
 ) {
   const user = assertAuthenticatedUser(actor);
+  await requireTimeAttendanceCapability({
+    actor: user,
+    capability: "TIME_SELF_SERVICE",
+    organizationId: input.organizationId ?? INITIAL_ORGANIZATION.id
+  });
   const normalized = normalizeTimeCardAttestationRequest(user, value, {
     organizationId: input.organizationId ?? INITIAL_ORGANIZATION.id
   });
   const repository = input.repository ?? createTimeCardAttestationRepository();
 
-  return repository.submit(normalized);
+  const result = await repository.submit(normalized);
+  if (!input.repository && !result.duplicate) {
+    await notifyTimeAttendanceReviewers({
+      organizationId: input.organizationId ?? INITIAL_ORGANIZATION.id,
+      notificationType: "MANAGER_APPROVAL_REQUIRED",
+      severity: normalized.decision === "DISPUTE" ? "WARNING" : "INFO",
+      title: normalized.decision === "DISPUTE" ? "Employee disputed a time card" : "Time card ready for manager review",
+      body: `Card version ${normalized.timeCardVersion} is bound to employee ${normalized.decision.toLowerCase()} evidence.`,
+      sourceType: "TimeCard",
+      sourceId: normalized.timeCardId,
+      payload: { timeCardVersion: normalized.timeCardVersion, cardChecksum: normalized.cardChecksum }
+    });
+  }
+  return result;
 }

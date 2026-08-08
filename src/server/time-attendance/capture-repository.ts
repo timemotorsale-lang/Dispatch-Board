@@ -303,6 +303,29 @@ export function createTimeAttendanceCaptureRepository(
             }
           });
         }
+        if (input.commandType === "START_PAID_REST") {
+          const openRest = await tx.timeAttendanceBreakInterval.findFirst({
+            where: { sessionId: session.id, kind: "PAID_REST", endAt: null },
+            orderBy: { startAt: "desc" }
+          });
+          if (openRest) {
+            throw new Error("A paid rest interval is already open for this attendance session.");
+          }
+          await tx.timeAttendanceBreakInterval.create({
+            data: {
+              organizationId: command.organizationId,
+              locationId: command.locationId,
+              sessionId: session.id,
+              staffUserId: input.staffUserId,
+              kind: "PAID_REST",
+              startEventId: event.id,
+              startAt: occurredAt,
+              paid: true,
+              completelyRelieved: false,
+              evidence: json({ source: "START_PAID_REST", paid: true })
+            }
+          });
+        }
         if (input.commandType === "END_MEAL") {
           const openMeal = await tx.timeAttendanceBreakInterval.findFirst({
             where: {
@@ -324,6 +347,28 @@ export function createTimeAttendanceCaptureRepository(
               evidence: json({
                 source: "END_MEAL",
                 completelyRelieved: input.completelyRelieved === true
+              })
+            }
+          });
+        }
+        if (input.commandType === "END_PAID_REST") {
+          const openRest = await tx.timeAttendanceBreakInterval.findFirst({
+            where: { sessionId: session.id, kind: "PAID_REST", endAt: null },
+            orderBy: { startAt: "desc" }
+          });
+          if (!openRest) {
+            throw new Error("No open paid rest interval was found for this attendance session.");
+          }
+          await tx.timeAttendanceBreakInterval.update({
+            where: { id: openRest.id },
+            data: {
+              completelyRelieved: input.completelyRelieved === true,
+              endAt: occurredAt,
+              endEventId: event.id,
+              evidence: json({
+                source: "END_PAID_REST",
+                completelyRelieved: input.completelyRelieved === true,
+                dutyPerformed: input.completelyRelieved !== true
               })
             }
           });

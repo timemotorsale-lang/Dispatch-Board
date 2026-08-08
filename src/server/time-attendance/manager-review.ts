@@ -1,12 +1,13 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
-import { assertAuthenticatedUser, isManager } from "@/server/policies/access";
+import { assertAuthenticatedUser } from "@/server/policies/access";
 import { prisma } from "@/server/db/client";
+import { evaluateTimeAttendanceCapability, getTimeAttendanceCapabilityGrants } from "./capabilities";
 
 export type TimeAttendanceManagerReviewItem = {
   id: string;
   ageLabel: string;
-  category: "CORRECTION_REQUEST" | "CARD_EXCEPTION" | "ATTESTATION_DISPUTE" | "TIME_OFF_REQUEST";
+  category: "CARD_APPROVAL" | "CORRECTION_REQUEST" | "CARD_EXCEPTION" | "ATTESTATION_DISPUTE" | "TIME_OFF_REQUEST";
   detail: string;
   href: string;
   occurredAt: string;
@@ -14,6 +15,8 @@ export type TimeAttendanceManagerReviewItem = {
   staffName: string;
   status: string;
   title: string;
+  cardChecksum?: string;
+  timeCardVersion?: number;
 };
 
 export type TimeAttendanceManagerReviewQueue = {
@@ -86,6 +89,22 @@ type TimeOffRecord = {
   status: string;
 };
 
+type CardRecord = {
+  id: string;
+  staffUserId: string;
+  periodEnd: Date;
+  periodStart: Date;
+  sourceEventChecksum: string;
+  status: string;
+  updatedAt: Date;
+  version: number;
+  staffUser: { name: string };
+  approvals: { decision: string; timeCardVersion: number }[];
+  attestations: { cardChecksum: string; statement: string; timeCardVersion: number }[];
+  correctionRequests: { status: string }[];
+  exceptions: { blocking: boolean; status: string }[];
+};
+
 type TimeAttendanceManagerReviewDatabase = {
   timeCardCorrectionRequest: {
     findMany(input: Record<string, unknown>): Promise<CorrectionRequestRecord[]>;
@@ -98,6 +117,9 @@ type TimeAttendanceManagerReviewDatabase = {
   };
   timeOffRequest: {
     findMany(input: Record<string, unknown>): Promise<TimeOffRecord[]>;
+  };
+  timeCard?: {
+    findMany(input: Record<string, unknown>): Promise<CardRecord[]>;
   };
 };
 
@@ -146,7 +168,7 @@ export function createTimeAttendanceManagerReviewRepository(
 ): TimeAttendanceManagerReviewRepository {
   return {
     async list(input) {
-      const [corrections, exceptions, disputes, timeOffRequests] = await Promise.all([
+      const [corrections, exceptions, disputes, timeOffRequests, cardVersions] = await Promise.all([
         database.timeCardCorrectionRequest.findMany({
           where: {
             organizationId: input.organizationId,
@@ -182,10 +204,57 @@ export function createTimeAttendanceManagerReviewRepository(
           orderBy: { startsAt: "asc" },
           take: 50,
           include: { requesterUser: { select: { name: true } } }
-        })
+        }),
+        database.timeCard ? database.timeCard.findMany({
+          where: {
+            organizationId: input.organizationId,
+            status: { in: ["EMPLOYEE_REVIEW", "ATTESTED", "MANAGER_REVIEW"] }
+          },
+          orderBy: [{ staffUserId: "asc" }, { periodStart: "desc" }, { version: "desc" }],
+          take: 150,
+          include: {
+            staffUser: { select: { name: true } },
+            approvals: true,
+            attestations: true,
+            correctionRequests: true,
+            exceptions: true
+          }
+        }) : Promise.resolve([])
       ]);
 
+      const newestCards = cardVersions.filter((card, index, all) =>
+        all.findIndex((candidate) => candidate.staffUserId === card.staffUserId && candidate.periodStart.getTime() === card.periodStart.getTime()) === index
+      );
+      const cards = newestCards.filter((card) => {
+        const attested = card.attestations.some((entry) =>
+          entry.timeCardVersion === card.version && entry.cardChecksum === card.sourceEventChecksum && !entry.statement.toLowerCase().includes("disputes")
+        );
+        const approved = card.approvals.some((entry) => entry.timeCardVersion === card.version && entry.decision === "APPROVE");
+        return attested && !approved;
+      });
+
       const items = sortItems([
+        ...cards.map((card) => {
+          const blocking = card.exceptions.filter((entry) => entry.blocking && ["OPEN", "ACKNOWLEDGED"].includes(entry.status)).length;
+          const corrections = card.correctionRequests.filter((entry) => ["SUBMITTED", "RETURNED", "APPROVED"].includes(entry.status)).length;
+          const clean = blocking === 0 && corrections === 0;
+          return {
+            id: card.id,
+            ageLabel: ageLabel(card.updatedAt, input.now),
+            category: "CARD_APPROVAL" as const,
+            cardChecksum: card.sourceEventChecksum,
+            timeCardVersion: card.version,
+            detail: clean
+              ? `Attested card v${card.version} has no blocking exceptions or open corrections.`
+              : `Card v${card.version} has ${blocking} blocking exception(s) and ${corrections} open correction request(s).`,
+            href: `/time-attendance?view=manager&card=${encodeURIComponent(card.id)}`,
+            occurredAt: card.updatedAt.toISOString(),
+            severity: clean ? "info" as const : "danger" as const,
+            staffName: card.staffUser.name,
+            status: clean ? "Eligible for approval" : "Review required",
+            title: `Pay-period card ${card.periodStart.toISOString().slice(0, 10)} – ${card.periodEnd.toISOString().slice(0, 10)}`
+          };
+        }),
         ...corrections.map((request) => ({
           id: request.id,
           ageLabel: ageLabel(request.requestedAt, input.now),
@@ -265,7 +334,11 @@ export async function getTimeAttendanceManagerReviewQueue(
 ) {
   const user = assertAuthenticatedUser(actor);
   const now = input.now ?? new Date();
-  if (!isManager(user)) {
+  const grants = await getTimeAttendanceCapabilityGrants({
+    actor: user,
+    organizationId: input.organizationId ?? INITIAL_ORGANIZATION.id
+  });
+  if (!evaluateTimeAttendanceCapability({ actor: user, capability: "TIME_ATTENDANCE_MANAGER", grants }).allowed) {
     return emptyQueue({ generatedAt: now.toISOString(), permitted: false });
   }
 
@@ -293,7 +366,7 @@ export async function getSafeTimeAttendanceManagerReviewQueue(
     const message = error instanceof Error ? error.message : "Time attendance manager review is unavailable.";
     return emptyQueue({
       generatedAt: now.toISOString(),
-      permitted: isManager(user),
+      permitted: evaluateTimeAttendanceCapability({ actor: user, capability: "TIME_ATTENDANCE_MANAGER" }).allowed,
       unavailableReason: message
     });
   }

@@ -1,11 +1,21 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/server/auth/current-user";
-import { getPayrollHandoffReadiness, runPayrollHandoffCommand } from "@/server/time-attendance";
+import { getPayrollHandoffFile, getPayrollHandoffReadiness, runPayrollHandoffCommand } from "@/server/time-attendance";
 
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
+    if (url.searchParams.get("download") === "1") {
+      const file = await getPayrollHandoffFile(await getCurrentUser(), url.searchParams.get("batchId") ?? "");
+      return new NextResponse(file.content, {
+        headers: {
+          "Content-Disposition": `attachment; filename="${file.filename}"`,
+          "Content-Type": "text/csv; charset=utf-8",
+          "X-Payroll-Handoff-Checksum": file.checksum ?? ""
+        }
+      });
+    }
     const result = await getPayrollHandoffReadiness(await getCurrentUser(), {
       periodEnd: url.searchParams.get("periodEnd") ?? undefined,
       periodStart: url.searchParams.get("periodStart") ?? undefined

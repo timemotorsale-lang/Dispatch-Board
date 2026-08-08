@@ -8,6 +8,8 @@ import {
   hashEnterpriseCommand
 } from "@/server/enterprise-command/domain";
 import { assertAuthenticatedUser } from "@/server/policies/access";
+import { requireTimeAttendanceCapability } from "./capabilities";
+import { notifyTimeAttendanceReviewers } from "./notification-service";
 
 export type StaffTimeOffRequestType = "PTO" | "ESST" | "UNPAID";
 
@@ -298,14 +300,37 @@ export async function submitStaffTimeOffRequest(
   } = {}
 ) {
   const user = assertAuthenticatedUser(actor);
+  await requireTimeAttendanceCapability({
+    actor: user,
+    capability: "TIME_SELF_SERVICE",
+    organizationId: input.organizationId ?? INITIAL_ORGANIZATION.id,
+    locationId: input.locationId ?? INITIAL_MINNEAPOLIS_LOCATION.id
+  });
   const normalized = normalizeStaffTimeOffRequest(user, value, {
     locationId: input.locationId ?? INITIAL_MINNEAPOLIS_LOCATION.id,
     organizationId: input.organizationId ?? INITIAL_ORGANIZATION.id
   });
   const repository = input.repository ?? createStaffTimeOffRequestRepository();
 
-  return repository.submit({
+  const result = await repository.submit({
     ...normalized,
     balanceSnapshot: {}
   });
+  if (!input.repository && !result.duplicate) {
+    await notifyTimeAttendanceReviewers({
+      organizationId: input.organizationId ?? INITIAL_ORGANIZATION.id,
+      locationId: normalized.locationId,
+      capability: normalized.protectedRouting ? "TIME_LEAVE_ADMIN" : "TIME_ATTENDANCE_MANAGER",
+      notificationType: "TIME_OFF_DECISION",
+      severity: normalized.protectedRouting ? "WARNING" : "INFO",
+      title: normalized.protectedRouting ? "Protected leave review required" : "Time-off coverage review required",
+      body: normalized.protectedRouting
+        ? "A protected request requires restricted Leave Administration review. Private reason is not included."
+        : `${normalized.requestType} request needs a coverage decision.`,
+      sourceType: "TimeOffRequest",
+      sourceId: result.request.id,
+      payload: { protectedDetailsIncluded: false, requestType: normalized.requestType }
+    });
+  }
+  return result;
 }

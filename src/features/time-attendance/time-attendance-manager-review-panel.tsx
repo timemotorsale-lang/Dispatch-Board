@@ -12,7 +12,7 @@ type TimeAttendanceManagerReviewPanelProps = {
   queue: TimeAttendanceManagerReviewQueue;
 };
 
-type ManagerDecision = "APPROVE" | "RETURN" | "DENY" | "APPLY";
+type ManagerDecision = "APPROVE" | "RETURN" | "DENY" | "APPLY" | "APPROVE_COVERAGE";
 
 type DecisionState = {
   busy: boolean;
@@ -57,32 +57,48 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
     }));
   }
 
-  async function submitDecision(requestId: string) {
-    const current = stateFor(requestId);
-    updateDecision(requestId, { busy: true, message: null, tone: null });
+  async function submitDecision(item: TimeAttendanceManagerReviewQueue["items"][number]) {
+    const current = stateFor(item.id);
+    updateDecision(item.id, { busy: true, message: null, tone: null });
     try {
-      const response = await fetch("/api/time-attendance/manager-corrections", {
+      const endpoint = item.category === "CARD_APPROVAL"
+        ? "/api/time-attendance/manager-cards"
+        : item.category === "TIME_OFF_REQUEST"
+          ? "/api/time-attendance/time-off-decisions"
+          : "/api/time-attendance/manager-corrections";
+      const body = item.category === "CARD_APPROVAL"
+        ? {
+            decision: current.decision === "RETURN" ? "RETURN" : "APPROVE",
+            reason: current.reason,
+            timeCardId: item.id,
+            timeCardVersion: item.timeCardVersion,
+            cardChecksum: item.cardChecksum
+          }
+        : item.category === "TIME_OFF_REQUEST"
+          ? { decision: current.decision, reason: current.reason, requestId: item.id }
+          : {
+              decision: current.decision,
+              idempotencyKey: `manager-correction-${item.id}-${current.decision}-${Date.now()}`,
+              managerReason: current.reason,
+              requestId: item.id
+            };
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          decision: current.decision,
-          idempotencyKey: `manager-correction-${requestId}-${current.decision}-${Date.now()}`,
-          managerReason: current.reason,
-          requestId
-        })
+        body: JSON.stringify(body)
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(typeof payload.error === "string" ? payload.error : "Manager decision failed.");
       }
-      updateDecision(requestId, {
+      updateDecision(item.id, {
         busy: false,
-        message: `Decision recorded: ${payload.request?.status ?? current.decision}.`,
+        message: `Decision recorded: ${payload.request?.status ?? payload.card?.status ?? current.decision}.`,
         reason: "",
         tone: "good"
       });
     } catch (error) {
-      updateDecision(requestId, {
+      updateDecision(item.id, {
         busy: false,
         message: error instanceof Error ? error.message : "Manager decision failed.",
         tone: "danger"
@@ -111,7 +127,7 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
         <div>
           <span className={styles.sectionEyebrow}>Exception-first manager console</span>
           <h2>Time cards needing review</h2>
-          <p>TA-034 adds manager correction decisions with a required reason and preserved punch trail.</p>
+          <p>Review exact card versions, correction evidence, disputes, and leave decisions with a required reason and preserved history.</p>
         </div>
         <span className={queue.totals.blocking > 0 ? styles.chipDanger : styles.chipGood}>
           {queue.totals.blocking} blocking
@@ -133,7 +149,7 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
             <p>The review queue needs the live Time & Attendance tables before it can show persisted exceptions. No review decision has been changed.</p>
           </div>
         ) : queue.items.length ? queue.items.map((item) => (
-          item.category === "CORRECTION_REQUEST" ? (
+          ["CORRECTION_REQUEST", "CARD_APPROVAL", "TIME_OFF_REQUEST"].includes(item.category) ? (
             <div className={`${styles.managerReviewItem} ${severityClass(item.severity)}`} key={`${item.category}-${item.id}`}>
               <span className={styles.managerReviewIcon}>{categoryIcon(item.category)}</span>
               <span className={styles.managerReviewContent}>
@@ -147,10 +163,20 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
                     onChange={(event) => updateDecision(item.id, { decision: event.target.value as ManagerDecision })}
                     value={stateFor(item.id).decision}
                   >
-                    <option value="APPROVE">Approve request</option>
-                    <option value="RETURN">Return for more info</option>
-                    <option value="DENY">Deny request</option>
-                    <option value="APPLY">Apply approved correction</option>
+                    {item.category === "CARD_APPROVAL" ? <>
+                      <option value="APPROVE">Approve exact card version</option>
+                      <option value="RETURN">Return to employee</option>
+                    </> : item.category === "TIME_OFF_REQUEST" ? <>
+                      <option value="APPROVE_COVERAGE">Approve coverage (ordinary request)</option>
+                      <option value="APPROVE">Final approve (leave admin)</option>
+                      <option value="RETURN">Return for review</option>
+                      <option value="DENY">Deny (leave admin)</option>
+                    </> : <>
+                      <option value="APPROVE">Approve request</option>
+                      <option value="RETURN">Return for more info</option>
+                      <option value="DENY">Deny request</option>
+                      <option value="APPLY">Apply approved correction</option>
+                    </>}
                   </select>
                   <input
                     aria-label={`Reason for ${item.title}`}
@@ -161,7 +187,7 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
                   />
                   <button
                     disabled={stateFor(item.id).busy || stateFor(item.id).reason.trim().length < 15}
-                    onClick={() => void submitDecision(item.id)}
+                    onClick={() => void submitDecision(item)}
                     type="button"
                   >
                     Record decision

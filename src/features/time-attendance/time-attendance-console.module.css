@@ -6,6 +6,18 @@
   max-width: 1440px;
 }
 
+.consoleHighVolume .panel,
+.consoleHighVolume .teamPanel,
+.consoleHighVolume .reviewRail {
+  border-radius: 10px;
+}
+
+.consoleHighVolume .managerReviewItem,
+.consoleHighVolume .teamRow,
+.consoleHighVolume .timelineItem {
+  padding-block: 0.55rem;
+}
+
 .hero {
   background:
     radial-gradient(circle at top left, rgba(37, 99, 235, 0.14), transparent 32%),

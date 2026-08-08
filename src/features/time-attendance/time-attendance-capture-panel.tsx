@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { AlertTriangle, CheckCircle2, Clock3, Coffee, LogIn, LogOut, RefreshCw } from "lucide-react";
 
 import type {
@@ -21,12 +21,15 @@ type CaptureResult = {
     occurredAt: string;
   } | null;
   version: number;
+  projection: { state: "CREATED" | "CURRENT" | "BLOCKED"; reason: string | null };
 };
 
 const actionLabels: Record<TimeAttendanceCaptureAction, string> = {
   CLOCK_IN: "Clock in",
   START_MEAL: "Start meal",
   END_MEAL: "End meal",
+  START_PAID_REST: "Start paid rest",
+  END_PAID_REST: "End paid rest",
   CLOCK_OUT: "Clock out"
 };
 
@@ -34,6 +37,8 @@ const actionReasons: Record<TimeAttendanceCaptureAction, string> = {
   CLOCK_IN: "Employee clocked in from the Time Attendance console.",
   START_MEAL: "Employee started meal break from the Time Attendance console.",
   END_MEAL: "Employee ended meal break from the Time Attendance console.",
+  START_PAID_REST: "Employee started paid rest from the Time Attendance console.",
+  END_PAID_REST: "Employee ended paid rest from the Time Attendance console.",
   CLOCK_OUT: "Employee clocked out from the Time Attendance console."
 };
 
@@ -41,6 +46,7 @@ function iconFor(action: TimeAttendanceCaptureAction) {
   if (action === "CLOCK_IN") return <LogIn size={16} aria-hidden="true" />;
   if (action === "CLOCK_OUT") return <LogOut size={16} aria-hidden="true" />;
   if (action === "START_MEAL" || action === "END_MEAL") return <Coffee size={16} aria-hidden="true" />;
+  if (action === "START_PAID_REST" || action === "END_PAID_REST") return <Clock3 size={16} aria-hidden="true" />;
   return <Clock3 size={16} aria-hidden="true" />;
 }
 
@@ -68,6 +74,13 @@ export function TimeAttendanceCapturePanel({ initialState }: CapturePanelProps) 
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!state.session) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, [state.session]);
 
   const primaryAction = useMemo(
     () => state.allowedActions.includes(state.nextPrimaryAction)
@@ -76,6 +89,7 @@ export function TimeAttendanceCapturePanel({ initialState }: CapturePanelProps) 
     [state.allowedActions, state.nextPrimaryAction]
   );
   const unavailable = Boolean(state.unavailableReason);
+  const elapsedMinutes = state.session ? Math.max(0, Math.floor((now - new Date(state.session.openedAt).getTime()) / 60_000)) : 0;
 
   async function refreshState() {
     const next = await parseJsonResponse<TimeAttendanceCaptureState>(
@@ -94,7 +108,7 @@ export function TimeAttendanceCapturePanel({ initialState }: CapturePanelProps) 
           await fetch("/api/time-attendance/capture", {
             body: JSON.stringify({
               commandType: action,
-              completelyRelieved: action === "END_MEAL" ? true : undefined,
+              completelyRelieved: action === "END_MEAL" || action === "END_PAID_REST" ? true : undefined,
               expectedVersion: state.expectedVersion,
               idempotencyKey: newIdempotencyKey(action),
               locationId: state.locationId,
@@ -108,7 +122,7 @@ export function TimeAttendanceCapturePanel({ initialState }: CapturePanelProps) 
           })
         );
         const next = await refreshState();
-        setNotice(`${actionLabels[action]} recorded${result.duplicate ? " as an existing safe retry" : ""}. Current status: ${next.statusLabel}.`);
+        setNotice(`${actionLabels[action]} recorded${result.duplicate ? " as an existing safe retry" : ""}. Current status: ${next.statusLabel}.${result.projection.state === "BLOCKED" && result.projection.reason ? ` Card update: ${result.projection.reason}` : ""}`);
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : "The time action could not be recorded.");
       }
@@ -130,12 +144,12 @@ export function TimeAttendanceCapturePanel({ initialState }: CapturePanelProps) 
 
       <div className={styles.captureStatus}>
         <div>
-          <span>Current session</span>
-          <strong>{state.session ? state.session.id : "No open session"}</strong>
+          <span>Elapsed shift</span>
+          <strong>{state.session ? `${Math.floor(elapsedMinutes / 60)}h ${elapsedMinutes % 60}m` : "No open session"}</strong>
         </div>
         <div>
-          <span>Version</span>
-          <strong>{state.expectedVersion}</strong>
+          <span>Last accepted punch</span>
+          <strong>{state.lastAcceptedPunch ? `${actionLabels[state.lastAcceptedPunch.eventType as TimeAttendanceCaptureAction]} · ${new Date(state.lastAcceptedPunch.occurredAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "None yet"}</strong>
         </div>
       </div>
 

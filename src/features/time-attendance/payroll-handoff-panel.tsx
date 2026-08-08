@@ -67,7 +67,7 @@ export function PayrollHandoffPanel({ initialReadiness }: PayrollHandoffPanelPro
         <div>
           <span className={styles.sectionEyebrow}>Payroll handoff</span>
           <h2>Close the pay period with versioned proof</h2>
-          <p>TA-G4 checks readiness, locks approved cards, previews export lines, records payroll response, and reproduces historical exports.</p>
+          <p>Checks readiness, locks exact approved card versions, creates a reproducible handoff file, and records payroll response. No payroll-provider transmission is claimed.</p>
         </div>
         <span className={readiness.ready ? styles.chipGood : styles.chipDanger}>
           {readiness.ready ? "Ready to lock" : `${readiness.totals.blockingItems} blockers`}
@@ -103,12 +103,16 @@ export function PayrollHandoffPanel({ initialReadiness }: PayrollHandoffPanelPro
       <div className={styles.payrollActions}>
         <button disabled={state.busy} onClick={() => void refresh()} type="button"><RefreshCw size={15} /> Refresh readiness</button>
         <button disabled={state.busy || !readiness.ready || reason.trim().length < 15} onClick={() => void run("LOCK")} type="button"><LockKeyhole size={15} /> Lock period</button>
-        <button disabled={state.busy} onClick={() => void run("EXPORT_PREVIEW")} type="button"><FileCheck2 size={15} /> Export preview</button>
+        <button disabled={state.busy || !batchId} onClick={() => void run("EXPORT_PREVIEW")} type="button"><FileCheck2 size={15} /> Create handoff file</button>
         <button disabled={state.busy || !batchId || reason.trim().length < 15} onClick={() => void run("ACKNOWLEDGE")} type="button">Acknowledge</button>
         <button disabled={state.busy || !batchId || reason.trim().length < 15} onClick={() => void run("REJECT")} type="button">Reject</button>
         <button disabled={state.busy || !batchId || reason.trim().length < 15} onClick={() => void run("RECONCILE")} type="button">Reconcile</button>
         <button disabled={state.busy || !batchId} onClick={() => void run("REPRODUCE")} type="button">Reproduce</button>
+        <button disabled={state.busy || !batchId || reason.trim().length < 15} onClick={() => void run("REOPEN")} type="button">Controlled reopen</button>
+        {batchId ? <a className={styles.ghostAction} href={`/api/time-attendance/payroll-handoff?download=1&batchId=${encodeURIComponent(batchId)}`}>Download handoff CSV</a> : null}
       </div>
+
+      <p className={styles.attestationStatement}>Downloaded CSV files are payroll handoff artifacts for controlled review. They are not proof of provider receipt, employee payment, or reconciliation.</p>
 
       {readiness.items.length ? (
         <div className={styles.payrollBlockers}>

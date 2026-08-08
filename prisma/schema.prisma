@@ -1515,6 +1515,8 @@ enum TimeAttendanceEventType {
   CLOCK_IN
   START_MEAL
   END_MEAL
+  START_PAID_REST
+  END_PAID_REST
   CLOCK_OUT
   MANAGER_CORRECTION
   SYSTEM_DERIVATION
@@ -1816,6 +1818,8 @@ model User {
   requestedTimeOffRequests                TimeOffRequest[]                       @relation("TimeOffRequestRequester")
   decidedTimeOffRequests                  TimeOffRequest[]                       @relation("TimeOffRequestDecisionActor")
   timeOffBalances                         TimeOffBalance[]                       @relation("TimeOffBalanceUser")
+  createdTimeAttendancePayPeriods         TimeAttendancePayPeriodDefinition[]    @relation("TimeAttendancePayPeriodCreatedBy")
+  receivedTimeAttendanceNotifications     TimeAttendanceNotification[]           @relation("TimeAttendanceNotificationRecipient")
   createdTimeAttendanceExportBatches      TimeAttendanceExportBatch[]            @relation("TimeAttendanceExportCreatedBy")
 
   @@index([isActive])
@@ -2034,6 +2038,8 @@ model Organization {
   timeOffBalances                       TimeOffBalance[]
   timeAttendanceExportBatches           TimeAttendanceExportBatch[]
   timeAttendanceExportLines             TimeAttendanceExportLine[]
+  timeAttendancePayPeriodDefinitions    TimeAttendancePayPeriodDefinition[]
+  timeAttendanceNotifications           TimeAttendanceNotification[]
   diagnosticCases                       DiagnosticCase[]
   diagnosticConcernVersions             DiagnosticConcernVersion[]
   diagnosticCaseStateEvents             DiagnosticCaseStateEvent[]
@@ -2117,6 +2123,8 @@ model Location {
   timeCardCorrectionRequests      TimeCardCorrectionRequest[]
   timeOffRequests                 TimeOffRequest[]
   timeAttendanceExportBatches     TimeAttendanceExportBatch[]
+  timeAttendancePayPeriodDefinitions TimeAttendancePayPeriodDefinition[]
+  timeAttendanceNotifications     TimeAttendanceNotification[]
   diagnosticCases                 DiagnosticCase[]
 
   @@unique([organizationId, code])
@@ -7242,6 +7250,58 @@ model TimeAttendanceExportLine {
 
   @@unique([exportBatchId, timeCardId, timeCardVersion, earningCode])
   @@index([organizationId, timeCardId])
+}
+
+model TimeAttendancePayPeriodDefinition {
+  id                String                            @id @default(cuid())
+  organizationId    String
+  locationId        String?
+  code              String
+  name              String
+  version           Int                               @default(1)
+  status            TimeAttendancePolicyProfileStatus @default(DRAFT)
+  frequency         String                            @default("WEEKLY")
+  periodLengthDays  Int                               @default(7)
+  anchorDate        DateTime                          @db.Date
+  timezone          String
+  effectiveFrom     DateTime                          @db.Date
+  effectiveTo       DateTime?                         @db.Date
+  payrollMappingVersion String
+  sourceSnapshot    Json
+  createdByUserId   String
+  createdAt         DateTime                          @default(now())
+  updatedAt         DateTime                          @updatedAt
+  organization      Organization                      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location          Location?                         @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  createdByUser     User                              @relation("TimeAttendancePayPeriodCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, locationId, code, version])
+  @@index([organizationId, locationId, status, effectiveFrom, effectiveTo])
+}
+
+model TimeAttendanceNotification {
+  id              String       @id @default(cuid())
+  organizationId  String
+  locationId      String?
+  recipientUserId String
+  notificationType String
+  severity        String       @default("INFO")
+  status          String       @default("UNREAD")
+  title           String
+  body            String
+  sourceType      String
+  sourceId        String?
+  deliveryChannel String       @default("INTERNAL_ONLY")
+  payload         Json
+  createdAt       DateTime     @default(now())
+  readAt          DateTime?
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  location        Location?    @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  recipientUser   User         @relation("TimeAttendanceNotificationRecipient", fields: [recipientUserId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, recipientUserId, status, createdAt])
+  @@index([organizationId, notificationType, createdAt])
+  @@index([sourceType, sourceId])
 }
 
 model TaskChecklistItem {

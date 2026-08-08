@@ -13,6 +13,8 @@ export type TimeAttendanceCaptureState = {
   expectedVersion: number;
   locationId: string;
   nextPrimaryAction: TimeAttendanceCaptureAction;
+  paidRestActive: boolean;
+  lastAcceptedPunch: { eventType: string; occurredAt: string } | null;
   session: {
     id: string;
     openedAt: string;
@@ -43,6 +45,12 @@ type TimeAttendanceCaptureStateTransaction = {
   timeAttendanceSession: {
     findFirst(input: { where: Record<string, unknown>; orderBy: Record<string, string>; select: Record<string, boolean> }): Promise<SessionRecord | null>;
   };
+  timeAttendanceBreakInterval?: {
+    findFirst(input: { where: Record<string, unknown>; orderBy: Record<string, string>; select: { id: true } }): Promise<{ id: string } | null>;
+  };
+  timeAttendanceEvent?: {
+    findFirst(input: Record<string, unknown>): Promise<{ eventType: string; occurredAt: Date } | null>;
+  };
 };
 
 type TimeAttendanceCaptureStateDatabase = {
@@ -58,13 +66,14 @@ export type TimeAttendanceCaptureStateRepository = {
   }): Promise<TimeAttendanceCaptureState>;
 };
 
-function allowedActionsFor(state: AttendanceSessionState): TimeAttendanceCaptureAction[] {
+function allowedActionsFor(state: AttendanceSessionState, paidRestActive = false): TimeAttendanceCaptureAction[] {
   if (state === "NONE" || state === "CLOSED") return ["CLOCK_IN"];
-  if (state === "OPEN") return ["START_MEAL", "CLOCK_OUT"];
+  if (state === "OPEN") return paidRestActive ? ["END_PAID_REST"] : ["START_MEAL", "START_PAID_REST", "CLOCK_OUT"];
   return ["END_MEAL"];
 }
 
-function primaryActionFor(state: AttendanceSessionState): TimeAttendanceCaptureAction {
+function primaryActionFor(state: AttendanceSessionState, paidRestActive = false): TimeAttendanceCaptureAction {
+  if (paidRestActive) return "END_PAID_REST";
   if (state === "OPEN") return "START_MEAL";
   if (state === "ON_MEAL") return "END_MEAL";
   return "CLOCK_IN";
@@ -88,6 +97,8 @@ export function unavailableTimeAttendanceCaptureState(input: {
     expectedVersion: 0,
     locationId: input.locationId,
     nextPrimaryAction: "CLOCK_IN",
+    paidRestActive: false,
+    lastAcceptedPunch: null,
     session: null,
     staffUserId: input.staffUserId,
     state: "NONE",
@@ -104,7 +115,7 @@ export function createTimeAttendanceCaptureStateRepository(
     getCurrentState(input) {
       return database.$transaction(async (tx) => {
         const subjectId = `attendance-session:${input.staffUserId}`;
-        const [aggregate, session] = await Promise.all([
+        const [aggregate, session, lastAcceptedPunch] = await Promise.all([
           tx.enterpriseAggregateVersion.findUnique({
             where: {
               organizationId_domain_subjectType_subjectId: {
@@ -129,15 +140,32 @@ export function createTimeAttendanceCaptureStateRepository(
               state: true,
               version: true
             }
-          })
+          }),
+          tx.timeAttendanceEvent
+            ? tx.timeAttendanceEvent.findFirst({
+                where: { organizationId: input.organizationId, staffUserId: input.staffUserId },
+                orderBy: [{ occurredAt: "desc" }, { recordedAt: "desc" }],
+                select: { eventType: true, occurredAt: true }
+              })
+            : Promise.resolve(null)
         ]);
         const state = session?.state ?? "NONE";
+        const openPaidRest = session && tx.timeAttendanceBreakInterval
+          ? await tx.timeAttendanceBreakInterval.findFirst({
+              where: { sessionId: session.id, kind: "PAID_REST", endAt: null },
+              orderBy: { startAt: "desc" },
+              select: { id: true }
+            })
+          : null;
+        const paidRestActive = Boolean(openPaidRest);
 
         return {
-          allowedActions: allowedActionsFor(state),
+          allowedActions: allowedActionsFor(state, paidRestActive),
           expectedVersion: aggregate?.version ?? 0,
           locationId: input.locationId,
-          nextPrimaryAction: primaryActionFor(state),
+          nextPrimaryAction: primaryActionFor(state, paidRestActive),
+          paidRestActive,
+          lastAcceptedPunch: lastAcceptedPunch ? { eventType: lastAcceptedPunch.eventType, occurredAt: lastAcceptedPunch.occurredAt.toISOString() } : null,
           session: session
             ? {
                 id: session.id,

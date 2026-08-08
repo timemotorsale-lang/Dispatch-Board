@@ -4,6 +4,7 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import {
   createPayrollHandoffRepository,
   getPayrollHandoffReadiness,
+  renderPayrollHandoffCsv,
   runPayrollHandoffCommand
 } from "@/server/time-attendance";
 
@@ -62,6 +63,20 @@ function db(overrides: Record<string, unknown> = {}) {
 }
 
 describe("time attendance payroll handoff", () => {
+  it("renders stable CSV bytes with quoted values", () => {
+    const preview = {
+      batchId: "batch-1",
+      checksum: "sha256:csv",
+      controlTotals: { REGULAR: 60, OVERTIME: 0, ESST: 0, PTO: 0, UNPAID: 0, HOLIDAY: 0 },
+      generatedAt: "2026-08-07T00:00:00.000Z",
+      lineCount: 1,
+      lines: [{ amountCents: null, earningCode: "REGULAR" as const, minutes: 60, staffName: "Doe, Alex", staffUserId: "staff-1", timeCardId: "card-1", timeCardVersion: 2 }],
+      payPeriod: { start: "2026-08-01", end: "2026-08-07" }
+    };
+    expect(renderPayrollHandoffCsv(preview)).toBe(renderPayrollHandoffCsv(preview));
+    expect(renderPayrollHandoffCsv(preview)).toContain('"Doe, Alex"');
+    expect(renderPayrollHandoffCsv(preview).endsWith("\r\n")).toBe(true);
+  });
   it("requires manager authority for payroll readiness", async () => {
     await expect(getPayrollHandoffReadiness(staff, {
       repository: createPayrollHandoffRepository(db())

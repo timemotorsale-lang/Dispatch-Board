@@ -72,7 +72,7 @@ describe("time attendance capture state", () => {
       staffUserId: "staff-1",
       timezone: "America/Chicago"
     })).resolves.toMatchObject({
-      allowedActions: ["START_MEAL", "CLOCK_OUT"],
+      allowedActions: ["START_MEAL", "START_PAID_REST", "CLOCK_OUT"],
       expectedVersion: 3,
       nextPrimaryAction: "START_MEAL",
       session: { id: "session-1", state: "OPEN", version: 3 },

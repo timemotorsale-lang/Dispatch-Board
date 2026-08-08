@@ -45,7 +45,7 @@ export function TimeCardAttestationPanel({ card }: TimeCardAttestationPanelProps
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const previewOnly = card.cardId.startsWith("preview-");
+  const cardUnavailable = !card.available;
   const statement = decision === "DISPUTE"
     ? "I dispute this time card and request manager review before payroll."
     : "I reviewed this time card and confirm it is accurate to the best of my knowledge. This does not waive wage, legal, correction, or payroll review rights.";
@@ -85,8 +85,8 @@ export function TimeCardAttestationPanel({ card }: TimeCardAttestationPanelProps
           <h2>Confirm or dispute this card</h2>
           <p>Attestation binds to a specific card version and checksum. Corrections after attestation reopen review.</p>
         </div>
-        <span className={previewOnly ? styles.chipWarning : styles.chipGood}>
-          {previewOnly ? "Awaiting live card" : "Versioned card"}
+        <span className={cardUnavailable ? styles.chipWarning : styles.chipGood}>
+          {cardUnavailable ? "Awaiting live card" : "Versioned card"}
         </span>
       </div>
 
@@ -99,7 +99,7 @@ export function TimeCardAttestationPanel({ card }: TimeCardAttestationPanelProps
         <label>
           <input
             checked={decision === "ATTEST"}
-            disabled={isPending || previewOnly}
+            disabled={isPending || cardUnavailable}
             name="time-card-attestation"
             onChange={() => setDecision("ATTEST")}
             type="radio"
@@ -109,7 +109,7 @@ export function TimeCardAttestationPanel({ card }: TimeCardAttestationPanelProps
         <label>
           <input
             checked={decision === "DISPUTE"}
-            disabled={isPending || previewOnly}
+            disabled={isPending || cardUnavailable}
             name="time-card-attestation"
             onChange={() => setDecision("DISPUTE")}
             type="radio"
@@ -118,7 +118,7 @@ export function TimeCardAttestationPanel({ card }: TimeCardAttestationPanelProps
         </label>
         {decision === "DISPUTE" ? (
           <textarea
-            disabled={isPending || previewOnly}
+            disabled={isPending || cardUnavailable}
             minLength={15}
             onChange={(event) => setDisputeExplanation(event.target.value)}
             placeholder="Explain what needs review before this card can be approved."
@@ -128,13 +128,13 @@ export function TimeCardAttestationPanel({ card }: TimeCardAttestationPanelProps
           />
         ) : null}
         <p className={styles.attestationStatement}>{statement}</p>
-        {previewOnly ? (
+        {cardUnavailable ? (
           <p className={styles.captureError}>
             <AlertTriangle size={16} aria-hidden="true" />
             Attestation will activate when the page is backed by a persisted time-card version.
           </p>
         ) : null}
-        <button disabled={isPending || previewOnly} type="submit">
+        <button disabled={isPending || cardUnavailable} type="submit">
           <FileCheck2 size={16} aria-hidden="true" />
           Record attestation
         </button>

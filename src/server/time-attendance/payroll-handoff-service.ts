@@ -2,14 +2,20 @@ import { INITIAL_MINNEAPOLIS_LOCATION, INITIAL_ORGANIZATION } from "@/server/app
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { prisma } from "@/server/db/client";
 import { hashTimeCardReplay } from "@/server/time-attendance/replay";
-import { assertAuthenticatedUser, isManager } from "@/server/policies/access";
+import { assertAuthenticatedUser } from "@/server/policies/access";
+import { requireTimeAttendanceCapability, type TimeAttendanceCapability } from "./capabilities";
+import { anchoredPeriodForInstant, weeklyPeriodForInstant } from "./period";
+import { recordSafeInternalTimeAttendanceNotification, notifyTimeAttendanceReviewers } from "./notification-service";
 
 export type PayrollHandoffBlockerCode =
   | "OPEN_SESSION"
   | "CARD_NOT_READY"
   | "BLOCKING_EXCEPTION"
   | "PENDING_CORRECTION"
+  | "MISSING_EMPLOYEE_ATTESTATION"
   | "MISSING_MANAGER_APPROVAL"
+  | "MISSING_ROSTER_CARD"
+  | "PAY_PERIOD_NOT_CONFIGURED"
   | "PENDING_TIME_OFF"
   | "EXISTING_LOCK_OR_EXPORT";
 
@@ -45,7 +51,7 @@ export type PayrollHandoffReadiness = {
 
 export type PayrollExportPreviewLine = {
   amountCents: number | null;
-  earningCode: "REGULAR" | "OVERTIME" | "ESST";
+  earningCode: "REGULAR" | "OVERTIME" | "ESST" | "PTO" | "UNPAID" | "HOLIDAY";
   minutes: number;
   staffName: string;
   staffUserId: string;
@@ -73,6 +79,7 @@ type TimeCardRecord = {
   status: string;
   version: number;
   approvals: { id: string; timeCardVersion: number }[];
+  attestations?: { cardChecksum: string; statement: string; timeCardVersion: number }[];
   correctionRequests: { id: string; status: string }[];
 };
 
@@ -82,6 +89,9 @@ type ExportBatchRecord = {
   exportSnapshot: unknown;
   fileChecksum: string | null;
   status: string;
+  locationId?: string | null;
+  periodEnd?: Date;
+  periodStart?: Date;
   lines?: {
     amountCents: number | null;
     earningCode: string;
@@ -93,6 +103,7 @@ type ExportBatchRecord = {
 };
 
 type PayrollHandoffDatabase = {
+  $transaction?<T>(work: (tx: PayrollHandoffDatabase) => Promise<T>, options?: Record<string, unknown>): Promise<T>;
   timeAttendanceSession: {
     findMany(input: Record<string, unknown>): Promise<{ id: string; staffUser: { name: string }; state: string }[]>;
   };
@@ -111,14 +122,17 @@ type PayrollHandoffDatabase = {
   timeOffRequest: {
     findMany(input: Record<string, unknown>): Promise<{ id: string; protectedRouting: boolean; requesterUser: { name: string }; status: string }[]>;
   };
+  user?: {
+    findMany(input: Record<string, unknown>): Promise<{ id: string; name: string }[]>;
+  };
 };
 
 function dateOnly(value: Date) {
   return value.toISOString().slice(0, 10);
 }
 
-function parseDate(value: string | undefined, fallback: string, label: string) {
-  const parsed = new Date(`${value ?? fallback}T00:00:00.000Z`);
+function parseDate(value: string, label: string) {
+  const parsed = new Date(`${value}T00:00:00.000Z`);
   if (Number.isNaN(parsed.getTime())) throw new Error(`${label} must be a YYYY-MM-DD date.`);
   return parsed;
 }
@@ -127,18 +141,37 @@ function periodEndExclusive(end: Date) {
   return new Date(end.getTime() + 24 * 60 * 60 * 1000);
 }
 
-function requireManager(actor: AuthenticatedUser | null) {
+async function requirePayrollAuthority(
+  actor: AuthenticatedUser | null,
+  capability: TimeAttendanceCapability,
+  organizationId: string = INITIAL_ORGANIZATION.id,
+  locationId: string | null = INITIAL_MINNEAPOLIS_LOCATION.id
+) {
   const user = assertAuthenticatedUser(actor);
-  if (!isManager(user)) throw new Error("Only managers can manage payroll handoff.");
+  try {
+    await requireTimeAttendanceCapability({ actor: user, capability, organizationId, locationId });
+  } catch {
+    throw new Error(`Only managers with ${capability.toLowerCase().replaceAll("_", " ")} authority can manage this payroll handoff action.`);
+  }
   return user;
 }
 
 function calculationTotals(snapshot: unknown) {
-  const value = snapshot as { totals?: Record<string, unknown> } | null;
+  const value = snapshot as {
+    totals?: Record<string, unknown>;
+    replay?: { projection?: { totals?: Record<string, unknown> } };
+    timeOffTotals?: Record<string, unknown>;
+  } | null;
+  const totals = value?.replay?.projection?.totals ?? value?.totals;
   return {
-    esst: numberValue(value?.totals?.esstNewlyAccruedMinutes),
-    overtime: numberValue(value?.totals?.overtimeMinutes),
-    regular: numberValue(value?.totals?.regularMinutes)
+    esst: value?.timeOffTotals
+      ? numberValue(value.timeOffTotals.ESST)
+      : numberValue(totals?.esstNewlyAccruedMinutes),
+    holiday: numberValue(value?.timeOffTotals?.HOLIDAY),
+    overtime: numberValue(totals?.overtimeMinutes),
+    pto: numberValue(value?.timeOffTotals?.PTO),
+    regular: numberValue(totals?.regularMinutes),
+    unpaid: numberValue(value?.timeOffTotals?.UNPAID)
   };
 }
 
@@ -169,14 +202,17 @@ function buildPreview(input: {
     return [
       { ...base, earningCode: "REGULAR" as const, minutes: totals.regular },
       { ...base, earningCode: "OVERTIME" as const, minutes: totals.overtime },
-      { ...base, earningCode: "ESST" as const, minutes: totals.esst }
+      { ...base, earningCode: "ESST" as const, minutes: totals.esst },
+      { ...base, earningCode: "PTO" as const, minutes: totals.pto },
+      { ...base, earningCode: "UNPAID" as const, minutes: totals.unpaid },
+      { ...base, earningCode: "HOLIDAY" as const, minutes: totals.holiday }
     ].filter((line) => line.minutes > 0);
   });
-  const controlTotals = {
-    ESST: lines.filter((line) => line.earningCode === "ESST").reduce((sum, line) => sum + line.minutes, 0),
-    OVERTIME: lines.filter((line) => line.earningCode === "OVERTIME").reduce((sum, line) => sum + line.minutes, 0),
-    REGULAR: lines.filter((line) => line.earningCode === "REGULAR").reduce((sum, line) => sum + line.minutes, 0)
-  };
+  const earningCodes: PayrollExportPreviewLine["earningCode"][] = ["REGULAR", "OVERTIME", "ESST", "PTO", "UNPAID", "HOLIDAY"];
+  const controlTotals = Object.fromEntries(earningCodes.map((code) => [
+    code,
+    lines.filter((line) => line.earningCode === code).reduce((sum, line) => sum + line.minutes, 0)
+  ])) as Record<PayrollExportPreviewLine["earningCode"], number>;
   const payPeriod = { start: dateOnly(input.periodStart), end: dateOnly(input.periodEnd) };
   const checksum = hashTimeCardReplay({ controlTotals, lines, payPeriod });
 
@@ -191,6 +227,22 @@ function buildPreview(input: {
   };
 }
 
+function snapshotObject(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+export function renderPayrollHandoffCsv(preview: PayrollExportPreview) {
+  const escape = (value: string | number | null) => {
+    const raw = value === null ? "" : String(value);
+    return /[",\r\n]/.test(raw) ? `"${raw.replaceAll('"', '""')}"` : raw;
+  };
+  const rows = [
+    ["staff_user_id", "staff_name", "time_card_id", "card_version", "earning_code", "minutes", "amount_cents"],
+    ...preview.lines.map((line) => [line.staffUserId, line.staffName, line.timeCardId, line.timeCardVersion, line.earningCode, line.minutes, line.amountCents])
+  ];
+  return `${rows.map((row) => row.map(escape).join(",")).join("\r\n")}\r\n`;
+}
+
 export function createPayrollHandoffRepository(database: PayrollHandoffDatabase = prisma as unknown as PayrollHandoffDatabase) {
   async function loadPeriod(input: {
     locationId: string;
@@ -199,7 +251,7 @@ export function createPayrollHandoffRepository(database: PayrollHandoffDatabase 
     periodStart: Date;
   }) {
     const endExclusive = periodEndExclusive(input.periodEnd);
-    const [cards, openSessions, timeOff, existingBatch] = await Promise.all([
+    const [cards, openSessions, timeOff, existingBatch, roster] = await Promise.all([
       database.timeCard.findMany({
         where: {
           organizationId: input.organizationId,
@@ -210,6 +262,7 @@ export function createPayrollHandoffRepository(database: PayrollHandoffDatabase 
         },
         include: {
           approvals: true,
+          attestations: true,
           correctionRequests: true,
           exceptions: true,
           staffUser: { select: { name: true } }
@@ -244,10 +297,25 @@ export function createPayrollHandoffRepository(database: PayrollHandoffDatabase 
           status: { in: ["LOCKED", "EXPORTED", "ACKNOWLEDGED", "REJECTED", "RECONCILED"] }
         },
         orderBy: { createdAt: "desc" }
-      })
+      }),
+      database.user ? database.user.findMany({
+        where: {
+          isActive: true,
+          timeAttendancePolicyAssignments: {
+            some: {
+              organizationId: input.organizationId,
+              effectiveFrom: { lte: input.periodEnd },
+              OR: [{ effectiveTo: null }, { effectiveTo: { gte: input.periodStart } }]
+            }
+          }
+        },
+        orderBy: { name: "asc" },
+        select: { id: true, name: true }
+      }) : Promise.resolve([])
     ]);
 
-    return { cards, existingBatch, openSessions, timeOff };
+    const currentCards = cards.filter((card, index, all) => all.findIndex((candidate) => candidate.staffUserId === card.staffUserId) === index);
+    return { cards: currentCards, existingBatch, openSessions, timeOff, roster };
   }
 
   return {
@@ -258,13 +326,13 @@ export function createPayrollHandoffRepository(database: PayrollHandoffDatabase 
       periodEnd: Date;
       periodStart: Date;
     }): Promise<PayrollHandoffReadiness> {
-      const { cards, existingBatch, openSessions, timeOff } = await loadPeriod(input);
+      const { cards, existingBatch, openSessions, timeOff, roster } = await loadPeriod(input);
       const items: PayrollHandoffReadinessItem[] = [];
 
       for (const session of openSessions) {
         items.push({
           code: "OPEN_SESSION",
-          detail: `Open ${session.state.toLowerCase()} session must be closed before payroll lock.`,
+          detail: `${session.state === "ON_MEAL" ? "Meal" : "Active"} session must be closed before payroll lock.`,
           severity: "blocking",
           sourceId: session.id,
           staffName: session.staffUser.name
@@ -307,6 +375,28 @@ export function createPayrollHandoffRepository(database: PayrollHandoffDatabase 
             staffName: card.staffUser.name
           });
         }
+        if (card.attestations && !card.attestations.some((attestation) =>
+          attestation.timeCardVersion === card.version &&
+          !attestation.statement.toLowerCase().includes("disputes")
+        )) {
+          items.push({
+            code: "MISSING_EMPLOYEE_ATTESTATION",
+            detail: `Card version ${card.version} has no confirming employee attestation.`,
+            severity: "blocking",
+            sourceId: card.id,
+            staffName: card.staffUser.name
+          });
+        }
+      }
+      const cardStaffIds = new Set(cards.map((card) => card.staffUserId));
+      for (const staff of roster.filter((member) => !cardStaffIds.has(member.id))) {
+        items.push({
+          code: "MISSING_ROSTER_CARD",
+          detail: "Active roster member has no card for this configured pay period.",
+          severity: "blocking",
+          sourceId: staff.id,
+          staffName: staff.name
+        });
       }
       for (const request of timeOff) {
         items.push({
@@ -355,7 +445,17 @@ export function createPayrollHandoffRepository(database: PayrollHandoffDatabase 
       periodEnd: Date;
       periodStart: Date;
       reason: string;
-    }) {
+    }): Promise<{ batchId: string; duplicate: boolean; readiness: PayrollHandoffReadiness; status: string }> {
+      if (database.$transaction) {
+        return database.$transaction(
+          (tx) => createPayrollHandoffRepository(tx).lock(input),
+          { isolationLevel: "Serializable" }
+        );
+      }
+      const loaded = await loadPeriod(input);
+      if (loaded.existingBatch) {
+        return { batchId: loaded.existingBatch.id, duplicate: true, readiness: await this.readiness({ ...input, generatedAt: new Date() }), status: loaded.existingBatch.status };
+      }
       const readiness = await this.readiness({ ...input, generatedAt: new Date() });
       if (!readiness.ready) throw new Error("Pay period is not ready to lock.");
       const { cards } = await loadPeriod(input);
@@ -391,11 +491,16 @@ export function createPayrollHandoffRepository(database: PayrollHandoffDatabase 
       batchId: string;
       reason: string;
     }) {
+      const existing = await database.timeAttendanceExportBatch.findFirst({ where: { id: input.batchId }, include: { lines: true } });
+      if (!existing) throw new Error("Payroll handoff batch was not found.");
+      if (existing.status === "VOID") return { batchId: existing.id, duplicate: true, status: existing.status };
+      if (existing.status === "RECONCILED") throw new Error("A reconciled batch requires a new governed adjustment process; it cannot be reopened directly.");
       const batch = await database.timeAttendanceExportBatch.update({
         where: { id: input.batchId },
         data: {
           status: "VOID",
           exportSnapshot: {
+            ...snapshotObject(existing.exportSnapshot),
             reopenedByUserId: input.actor.id,
             reopenedReason: input.reason,
             reopenedAt: new Date().toISOString(),
@@ -403,7 +508,13 @@ export function createPayrollHandoffRepository(database: PayrollHandoffDatabase 
           }
         }
       });
-      return { batchId: batch.id, status: batch.status };
+      await database.timeCard.updateMany({
+        where: existing.lines?.length
+          ? { id: { in: existing.lines.map((line) => line.timeCardId) }, status: { in: ["LOCKED", "EXPORTED"] } }
+          : { organizationId: INITIAL_ORGANIZATION.id, locationId: existing.locationId, periodStart: existing.periodStart, periodEnd: existing.periodEnd, status: { in: ["LOCKED", "EXPORTED"] } },
+        data: { lockedAt: null, payrollReady: false, status: "REOPENED" }
+      });
+      return { batchId: batch.id, duplicate: false, status: batch.status };
     },
     async preview(input: {
       locationId: string;
@@ -425,6 +536,14 @@ export function createPayrollHandoffRepository(database: PayrollHandoffDatabase 
       preview: PayrollExportPreview;
       organizationId: string;
     }) {
+      const existing = await database.timeAttendanceExportBatch.findFirst({ where: { id: input.batchId }, include: { lines: true } });
+      if (!existing) throw new Error("Payroll handoff batch was not found.");
+      if (["EXPORTED", "ACKNOWLEDGED", "RECONCILED"].includes(existing.status) && existing.fileChecksum === input.preview.checksum) {
+        return { batchId: existing.id, checksum: existing.fileChecksum, duplicate: true, status: existing.status };
+      }
+      if (existing.status !== "LOCKED" && existing.status !== "REJECTED") {
+        throw new Error(`A ${existing.status.toLowerCase()} batch cannot create a new handoff file.`);
+      }
       await database.timeAttendanceExportLine.createMany({
         data: input.preview.lines.map((line) => ({
           organizationId: input.organizationId,
@@ -438,6 +557,7 @@ export function createPayrollHandoffRepository(database: PayrollHandoffDatabase 
         })),
         skipDuplicates: true
       });
+      const fileContent = renderPayrollHandoffCsv(input.preview);
       const batch = await database.timeAttendanceExportBatch.update({
         where: { id: input.batchId },
         data: {
@@ -445,14 +565,19 @@ export function createPayrollHandoffRepository(database: PayrollHandoffDatabase 
           status: "EXPORTED",
           exportedAt: new Date(),
           exportSnapshot: {
+            ...snapshotObject(existing.exportSnapshot),
             checksum: input.preview.checksum,
             controlTotals: input.preview.controlTotals,
+            fileContent,
+            fileFormat: "CSV_UTF8_CRLF",
             lineCount: input.preview.lineCount,
-            source: "TA_G4_EXPORT_PREVIEW"
+            mappingVersion: "CONFIGURED_ON_PAY_PERIOD_AND_CARD",
+            providerState: "NOT_TRANSMITTED",
+            source: "TA_G4_PAYROLL_HANDOFF_FILE"
           }
         }
       });
-      return { batchId: batch.id, checksum: batch.fileChecksum, status: batch.status };
+      return { batchId: batch.id, checksum: batch.fileChecksum, duplicate: false, status: batch.status };
     },
     async status(input: {
       actor: AuthenticatedUser;
@@ -460,6 +585,15 @@ export function createPayrollHandoffRepository(database: PayrollHandoffDatabase 
       decision: "ACKNOWLEDGE" | "REJECT" | "RECONCILE";
       reason: string;
     }) {
+      const existing = await database.timeAttendanceExportBatch.findFirst({ where: { id: input.batchId } });
+      if (!existing) throw new Error("Payroll handoff batch was not found.");
+      if (existing.status === (input.decision === "ACKNOWLEDGE" ? "ACKNOWLEDGED" : input.decision === "RECONCILE" ? "RECONCILED" : "REJECTED")) {
+        return { batchId: existing.id, duplicate: true, status: existing.status };
+      }
+      const allowedPrior = input.decision === "RECONCILE" ? ["ACKNOWLEDGED", "REJECTED"] : ["EXPORTED"];
+      if (!allowedPrior.includes(existing.status)) {
+        throw new Error(`${input.decision.toLowerCase()} is not allowed while the batch is ${existing.status.toLowerCase()}.`);
+      }
       const status = input.decision === "ACKNOWLEDGE"
         ? "ACKNOWLEDGED"
         : input.decision === "RECONCILE"
@@ -471,6 +605,7 @@ export function createPayrollHandoffRepository(database: PayrollHandoffDatabase 
           acknowledgedAt: status === "ACKNOWLEDGED" ? new Date() : undefined,
           status,
           exportSnapshot: {
+            ...snapshotObject(existing.exportSnapshot),
             decision: input.decision,
             decisionAt: new Date().toISOString(),
             decisionReason: input.reason,
@@ -479,7 +614,7 @@ export function createPayrollHandoffRepository(database: PayrollHandoffDatabase 
           }
         }
       });
-      return { batchId: batch.id, status: batch.status };
+      return { batchId: batch.id, duplicate: false, status: batch.status };
     },
     async reproduce(input: { batchId: string }) {
       const batch = await database.timeAttendanceExportBatch.findFirst({
@@ -500,6 +635,40 @@ export function createPayrollHandoffRepository(database: PayrollHandoffDatabase 
   };
 }
 
+async function resolvePayrollPeriod(input: {
+  locationId: string;
+  organizationId: string;
+  periodEnd?: string;
+  periodStart?: string;
+  allowExplicitWithoutConfiguration?: boolean;
+}) {
+  if ((input.periodStart && !input.periodEnd) || (!input.periodStart && input.periodEnd)) {
+    throw new Error("Both pay-period start and end are required together.");
+  }
+  const definition = input.allowExplicitWithoutConfiguration ? null : await prisma.timeAttendancePayPeriodDefinition.findFirst({
+    where: {
+      organizationId: input.organizationId,
+      status: "ACTIVE",
+      effectiveFrom: { lte: new Date() },
+      OR: [{ locationId: input.locationId }, { locationId: null }],
+      AND: [{ OR: [{ effectiveTo: null }, { effectiveTo: { gte: new Date() } }] }]
+    },
+    orderBy: [{ locationId: "desc" }, { effectiveFrom: "desc" }, { version: "desc" }]
+  });
+  if (input.periodStart && input.periodEnd) {
+    const explicit = {
+      periodStart: parseDate(input.periodStart, "Period start"),
+      periodEnd: parseDate(input.periodEnd, "Period end")
+    };
+    if (explicit.periodEnd < explicit.periodStart) throw new Error("Pay-period end must be on or after its start.");
+    return { ...explicit, configured: Boolean(definition) || Boolean(input.allowExplicitWithoutConfiguration) };
+  }
+  const period = definition
+    ? anchoredPeriodForInstant({ anchorDate: definition.anchorDate, instant: new Date(), periodLengthDays: definition.periodLengthDays, timeZone: definition.timezone })
+    : weeklyPeriodForInstant({ instant: new Date(), timeZone: "America/Chicago", workweekStartDay: "SATURDAY" });
+  return { periodStart: period.periodStart, periodEnd: period.periodEnd, configured: Boolean(definition) || Boolean(input.allowExplicitWithoutConfiguration) };
+}
+
 export async function getPayrollHandoffReadiness(actor: AuthenticatedUser | null, input: {
   locationId?: string;
   organizationId?: string;
@@ -507,26 +676,52 @@ export async function getPayrollHandoffReadiness(actor: AuthenticatedUser | null
   periodStart?: string;
   repository?: ReturnType<typeof createPayrollHandoffRepository>;
 } = {}) {
-  requireManager(actor);
+  await requirePayrollAuthority(
+    actor,
+    "TIME_PAYROLL_ADMIN",
+    input.organizationId ?? INITIAL_ORGANIZATION.id,
+    input.locationId ?? INITIAL_MINNEAPOLIS_LOCATION.id
+  );
   const repository = input.repository ?? createPayrollHandoffRepository();
-  return repository.readiness({
+  const period = await resolvePayrollPeriod({
+    locationId: input.locationId ?? INITIAL_MINNEAPOLIS_LOCATION.id,
+    organizationId: input.organizationId ?? INITIAL_ORGANIZATION.id,
+    periodEnd: input.periodEnd,
+    periodStart: input.periodStart,
+    allowExplicitWithoutConfiguration: Boolean(input.repository)
+  });
+  const readiness = await repository.readiness({
     generatedAt: new Date(),
     locationId: input.locationId ?? INITIAL_MINNEAPOLIS_LOCATION.id,
     organizationId: input.organizationId ?? INITIAL_ORGANIZATION.id,
-    periodEnd: parseDate(input.periodEnd, "2026-07-31", "Period end"),
-    periodStart: parseDate(input.periodStart, "2026-07-25", "Period start")
+    periodEnd: period.periodEnd,
+    periodStart: period.periodStart
   });
+  if (period.configured) return readiness;
+  const blocker: PayrollHandoffReadinessItem = {
+    code: "PAY_PERIOD_NOT_CONFIGURED",
+    detail: "An active, governed pay-period definition is required before payroll lock or export.",
+    severity: "blocking",
+    sourceId: "pay-period-definition"
+  };
+  return {
+    ...readiness,
+    ready: false,
+    totals: { ...readiness.totals, blockingItems: readiness.totals.blockingItems + 1 },
+    items: [blocker, ...readiness.items]
+  };
 }
 
 export async function getSafePayrollHandoffReadiness(actor: AuthenticatedUser | null, input: Parameters<typeof getPayrollHandoffReadiness>[1] = {}) {
   try {
     return await getPayrollHandoffReadiness(actor, input);
   } catch (error) {
+    const fallback = weeklyPeriodForInstant({ instant: new Date(), timeZone: "America/Chicago", workweekStartDay: "SATURDAY" });
     return {
       generatedAt: new Date().toISOString(),
       locationId: input.locationId ?? INITIAL_MINNEAPOLIS_LOCATION.id,
       organizationId: input.organizationId ?? INITIAL_ORGANIZATION.id,
-      payPeriod: { start: input.periodStart ?? "2026-07-25", end: input.periodEnd ?? "2026-07-31" },
+      payPeriod: { start: input.periodStart ?? fallback.periodStartKey, end: input.periodEnd ?? fallback.periodEndKey },
       ready: false,
       totals: { approvedCards: 0, blockingItems: 1, cardCount: 0, lockedOrExportedBatches: 0, openSessions: 0, pendingCorrections: 0, pendingTimeOff: 0, warningItems: 0 },
       items: [{
@@ -551,23 +746,55 @@ function text(value: unknown) {
 export async function runPayrollHandoffCommand(actor: AuthenticatedUser | null, value: unknown, input: {
   repository?: ReturnType<typeof createPayrollHandoffRepository>;
 } = {}) {
-  const user = requireManager(actor);
   const raw = parseCommand(value);
   const command = text(raw.command).toUpperCase();
+  const capability: TimeAttendanceCapability = command === "LOCK" || command === "REOPEN"
+    ? "TIME_PERIOD_LOCK_REOPEN"
+    : ["ACKNOWLEDGE", "REJECT", "RECONCILE"].includes(command)
+      ? "TIME_EXPORT_RECONCILIATION"
+      : "TIME_PAYROLL_ADMIN";
+  const user = await requirePayrollAuthority(
+    actor,
+    capability,
+    INITIAL_ORGANIZATION.id,
+    text(raw.locationId) || INITIAL_MINNEAPOLIS_LOCATION.id
+  );
   const reason = text(raw.reason);
   if (["LOCK", "REOPEN", "ACKNOWLEDGE", "REJECT", "RECONCILE"].includes(command) && reason.length < 15) {
     throw new Error("Payroll handoff reason must be at least 15 characters.");
   }
   const repository = input.repository ?? createPayrollHandoffRepository();
+  const period = await resolvePayrollPeriod({
+    locationId: text(raw.locationId) || INITIAL_MINNEAPOLIS_LOCATION.id,
+    organizationId: INITIAL_ORGANIZATION.id,
+    periodEnd: text(raw.periodEnd) || undefined,
+    periodStart: text(raw.periodStart) || undefined,
+    allowExplicitWithoutConfiguration: Boolean(input.repository)
+  });
+  if (!period.configured && ["LOCK", "EXPORT_PREVIEW"].includes(command)) {
+    throw new Error("An active governed pay-period definition is required before payroll lock or export.");
+  }
   if (command === "LOCK") {
-    return repository.lock({
+    const result = await repository.lock({
       actor: user,
       locationId: text(raw.locationId) || INITIAL_MINNEAPOLIS_LOCATION.id,
       organizationId: INITIAL_ORGANIZATION.id,
-      periodEnd: parseDate(text(raw.periodEnd), "2026-07-31", "Period end"),
-      periodStart: parseDate(text(raw.periodStart), "2026-07-25", "Period start"),
+      periodEnd: period.periodEnd,
+      periodStart: period.periodStart,
       reason
     });
+    if (!input.repository) await notifyTimeAttendanceReviewers({
+      organizationId: INITIAL_ORGANIZATION.id,
+      locationId: text(raw.locationId) || INITIAL_MINNEAPOLIS_LOCATION.id,
+      capability: "TIME_PAYROLL_ADMIN",
+      notificationType: "PAYROLL_STATUS",
+      title: "Pay period locked",
+      body: `Payroll handoff ${result.batchId} is locked; no provider transmission is claimed.`,
+      sourceType: "TimeAttendanceExportBatch",
+      sourceId: result.batchId,
+      payload: { status: result.status, externalDeliveryClaimed: false }
+    });
+    return result;
   }
   if (command === "REOPEN") return repository.reopen({ actor: user, batchId: text(raw.batchId), reason });
   if (["ACKNOWLEDGE", "REJECT", "RECONCILE"].includes(command)) {
@@ -577,8 +804,8 @@ export async function runPayrollHandoffCommand(actor: AuthenticatedUser | null, 
     const preview = await repository.preview({
       locationId: text(raw.locationId) || INITIAL_MINNEAPOLIS_LOCATION.id,
       organizationId: INITIAL_ORGANIZATION.id,
-      periodEnd: parseDate(text(raw.periodEnd), "2026-07-31", "Period end"),
-      periodStart: parseDate(text(raw.periodStart), "2026-07-25", "Period start")
+      periodEnd: period.periodEnd,
+      periodStart: period.periodStart
     });
     return text(raw.batchId)
       ? repository.persistPreview({ batchId: text(raw.batchId), organizationId: INITIAL_ORGANIZATION.id, preview })
@@ -586,4 +813,34 @@ export async function runPayrollHandoffCommand(actor: AuthenticatedUser | null, 
   }
   if (command === "REPRODUCE") return repository.reproduce({ batchId: text(raw.batchId) });
   throw new Error("Payroll handoff command is invalid.");
+}
+
+export async function getPayrollHandoffFile(actor: AuthenticatedUser | null, batchId: string) {
+  const user = await requirePayrollAuthority(actor, "TIME_PAYROLL_ADMIN");
+  if (!batchId) throw new Error("Payroll batch is required.");
+  const batch = await prisma.timeAttendanceExportBatch.findFirst({
+    where: { id: batchId, organizationId: INITIAL_ORGANIZATION.id },
+    include: { lines: true }
+  });
+  if (!batch) throw new Error("Payroll handoff batch was not found.");
+  const snapshot = snapshotObject(batch.exportSnapshot);
+  const fileContent = typeof snapshot.fileContent === "string" ? snapshot.fileContent : null;
+  if (!fileContent) throw new Error("This batch does not yet have a persisted payroll handoff file.");
+  await recordSafeInternalTimeAttendanceNotification({
+    organizationId: batch.organizationId,
+    locationId: batch.locationId,
+    recipientUserId: user.id,
+    notificationType: "PAYROLL_STATUS",
+    title: "Payroll handoff file downloaded",
+    body: "The file was downloaded for controlled review. This is not proof of transmission or payment.",
+    sourceType: "TimeAttendanceExportBatch",
+    sourceId: batch.id,
+    payload: { providerState: "NOT_TRANSMITTED", checksum: batch.fileChecksum }
+  });
+  return {
+    batchNumber: batch.batchNumber,
+    checksum: batch.fileChecksum,
+    content: fileContent,
+    filename: `${batch.batchNumber}.csv`
+  };
 }

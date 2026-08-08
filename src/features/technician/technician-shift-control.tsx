@@ -28,6 +28,14 @@ const actionCopy: Record<TimeAttendanceCaptureAction, { label: string; reason: s
     label: "End Meal & Return to Work",
     reason: "Technician ended a meal break from the Technician Workspace."
   },
+  START_PAID_REST: {
+    label: "Start Paid Rest",
+    reason: "Technician started paid rest from the Technician Workspace."
+  },
+  END_PAID_REST: {
+    label: "End Paid Rest & Return to Work",
+    reason: "Technician ended paid rest from the Technician Workspace."
+  },
   CLOCK_OUT: {
     label: "Clock Out",
     reason: "Technician clocked out from the Technician Workspace."
@@ -64,7 +72,7 @@ export function TechnicianShiftControl({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const unavailable = Boolean(state.unavailableReason);
-  const gateActive = !unavailable && state.state !== "OPEN";
+  const gateActive = !unavailable && (state.state !== "OPEN" || state.paidRestActive);
 
   async function refreshState() {
     const next = await parseResponse<TimeAttendanceCaptureState>(
@@ -82,7 +90,7 @@ export function TechnicianShiftControl({
           await fetch("/api/time-attendance/capture", {
             body: JSON.stringify({
               commandType: action,
-              completelyRelieved: action === "END_MEAL" ? true : undefined,
+              completelyRelieved: action === "END_MEAL" || action === "END_PAID_REST" ? true : undefined,
               expectedVersion: state.expectedVersion,
               idempotencyKey: newIdempotencyKey(action),
               locationId: state.locationId,
@@ -119,7 +127,8 @@ export function TechnicianShiftControl({
 
   if (gateActive) {
     const onMeal = state.state === "ON_MEAL";
-    const action: TimeAttendanceCaptureAction = onMeal ? "END_MEAL" : "CLOCK_IN";
+    const onPaidRest = state.paidRestActive;
+    const action: TimeAttendanceCaptureAction = onMeal ? "END_MEAL" : onPaidRest ? "END_PAID_REST" : "CLOCK_IN";
     return (
       <main className="technician-shift-gate">
         <section aria-label="Technician shift start">
@@ -127,14 +136,14 @@ export function TechnicianShiftControl({
             {onMeal ? <Coffee aria-hidden="true" size={32} /> : <Clock3 aria-hidden="true" size={32} />}
           </div>
           <span className="eyebrow">Technician Workspace</span>
-          <h1>{onMeal ? "Meal break in progress" : "Start your shift"}</h1>
+          <h1>{onMeal ? "Meal break in progress" : onPaidRest ? "Paid rest in progress" : "Start your shift"}</h1>
           <p>
-            {onMeal
-              ? "End your meal break before returning to assigned repairs."
+            {onMeal || onPaidRest
+              ? `End your ${onMeal ? "meal break" : "paid rest"} before returning to assigned repairs.`
               : "Record your attendance once, then continue directly to My Work."}
           </p>
           <button className="pill pill-primary technician-shift-primary" disabled={isPending} onClick={() => submit(action)} type="button">
-            {onMeal ? <Coffee aria-hidden="true" size={19} /> : <LogIn aria-hidden="true" size={19} />}
+            {onMeal || onPaidRest ? <Coffee aria-hidden="true" size={19} /> : <LogIn aria-hidden="true" size={19} />}
             {isPending ? "Recording…" : actionCopy[action].label}
           </button>
           <div className="technician-shift-separation">
@@ -157,6 +166,9 @@ export function TechnicianShiftControl({
       <div className="technician-shift-status-actions">
         <button disabled={isPending} onClick={() => submit("START_MEAL")} type="button">
           <Coffee aria-hidden="true" size={16} /> Start Meal
+        </button>
+        <button disabled={isPending} onClick={() => submit("START_PAID_REST")} type="button">
+          <Clock3 aria-hidden="true" size={16} /> Start Paid Rest
         </button>
         <button
           disabled={isPending || hasRunningRepair}

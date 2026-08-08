@@ -29,6 +29,13 @@ export type TimeCardProjectionInput = {
   timeZone: string;
   workInstant: string;
   workweekStartDay?: string;
+  paidRests?: {
+    id: string;
+    startAt: string;
+    endAt: string | null;
+    paid: boolean;
+    completelyRelieved: boolean;
+  }[];
   esst?: {
     accruedMinutesInYearBefore: number;
     bankMinutesBefore: number;
@@ -45,6 +52,7 @@ export type TimeCardProjection = {
     attendance: TimeAttendanceInterval[];
     meals: TimeAttendanceInterval[];
     paidWork: TimeAttendanceInterval[];
+    paidRests: NonNullable<TimeCardProjectionInput["paidRests"]>;
   };
   totals: {
     attendanceMinutes: number;
@@ -95,14 +103,33 @@ function toBreakIntervals(input: {
 function evaluateBreaks(input: {
   attendanceIntervals: TimeAttendanceInterval[];
   mealIntervals: TimeAttendanceInterval[];
+  paidRests: NonNullable<TimeCardProjectionInput["paidRests"]>;
 }) {
   const exceptions: TimeCalculationException[] = [];
   for (const attendance of input.attendanceIntervals) {
+    const anchor = new Date(attendance.startAt).getTime();
+    const rests = input.paidRests.filter((rest) => {
+      if (!rest.endAt) return false;
+      return new Date(rest.startAt) >= new Date(attendance.startAt) && new Date(rest.endAt) <= new Date(attendance.endAt);
+    }).map((rest) => ({
+      kind: "PAID_REST" as const,
+      startMinute: intervalMinutesFrom(anchor, rest.startAt),
+      endMinute: intervalMinutesFrom(anchor, rest.endAt as string),
+      paid: rest.paid,
+      completelyRelieved: rest.completelyRelieved
+    }));
     const result = evaluateMinnesotaBreaks({
       shiftDurationMinutes: attendance.durationMinutes,
-      breaks: toBreakIntervals({ attendance, meals: input.mealIntervals })
+      breaks: [...toBreakIntervals({ attendance, meals: input.mealIntervals }), ...rests]
     });
     exceptions.push(...result.exceptions);
+  }
+  if (input.paidRests.some((rest) => rest.endAt === null)) {
+    exceptions.push({
+      code: "BREAK_EVIDENCE_CONFLICT",
+      blocking: true,
+      message: "A paid rest interval is still open and must be ended before payroll review."
+    });
   }
 
   return exceptions;
@@ -135,7 +162,8 @@ export function calculateTimeCardProjection(input: TimeCardProjectionInput): Tim
     calculationExceptions.push(...overtime.exceptions);
     calculationExceptions.push(...evaluateBreaks({
       attendanceIntervals: normalization.attendanceIntervals,
-      mealIntervals: normalization.mealIntervals
+      mealIntervals: normalization.mealIntervals,
+      paidRests: input.paidRests ?? []
     }));
 
     const esst = calculateMinnesotaEsstStandardAccrual({
@@ -168,7 +196,8 @@ export function calculateTimeCardProjection(input: TimeCardProjectionInput): Tim
     intervals: {
       attendance: normalization.attendanceIntervals,
       meals: normalization.mealIntervals,
-      paidWork: normalization.paidWorkIntervals
+      paidWork: normalization.paidWorkIntervals,
+      paidRests: input.paidRests ?? []
     },
     totals: {
       attendanceMinutes: normalization.totalAttendanceMinutes,

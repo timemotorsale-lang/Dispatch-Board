@@ -8,6 +8,8 @@ import {
   hashEnterpriseCommand
 } from "@/server/enterprise-command/domain";
 import { assertAuthenticatedUser } from "@/server/policies/access";
+import { requireTimeAttendanceCapability } from "./capabilities";
+import { notifyTimeAttendanceReviewers } from "./notification-service";
 
 export type TimeCardCorrectionChangeType =
   | "MISSING_CLOCK_IN"
@@ -263,11 +265,30 @@ export async function submitTimeCardCorrectionRequest(
   } = {}
 ) {
   const user = assertAuthenticatedUser(actor);
+  await requireTimeAttendanceCapability({
+    actor: user,
+    capability: "TIME_SELF_SERVICE",
+    organizationId: input.organizationId ?? INITIAL_ORGANIZATION.id
+  });
   const normalized = normalizeTimeCardCorrectionRequest(user, value, {
     locationId: input.locationId ?? INITIAL_MINNEAPOLIS_LOCATION.id,
     organizationId: input.organizationId ?? INITIAL_ORGANIZATION.id
   });
   const repository = input.repository ?? createTimeCardCorrectionRequestRepository();
 
-  return repository.submit(normalized);
+  const result = await repository.submit(normalized);
+  if (!input.repository && !result.duplicate) {
+    await notifyTimeAttendanceReviewers({
+      organizationId: normalized.organizationId,
+      locationId: normalized.locationId,
+      notificationType: "MISSING_PUNCH",
+      severity: "WARNING",
+      title: "Time correction review required",
+      body: `${normalized.requestedChangeType.replaceAll("_", " ").toLowerCase()} request requires an individual decision.`,
+      sourceType: "TimeCardCorrectionRequest",
+      sourceId: result.request.id,
+      payload: { staffUserId: normalized.staffUserId, bulkResolutionAllowed: false }
+    });
+  }
+  return result;
 }

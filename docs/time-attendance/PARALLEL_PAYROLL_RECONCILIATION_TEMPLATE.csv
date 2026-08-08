@@ -1,0 +1,7 @@
+pay_period_start,pay_period_end,employee_id,employee_name,earning_code,current_system_minutes,dispatch_board_minutes,variance_minutes,source_punches_verified,card_version,card_checksum,manager_approval_verified,provider_result,evidence_reference,variance_owner,resolution,status
+,,,,REGULAR,,,,FALSE,,,FALSE,,,,,OPEN
+,,,,OVERTIME,,,,FALSE,,,FALSE,,,,,OPEN
+,,,,PTO,,,,FALSE,,,FALSE,,,,,OPEN
+,,,,ESST,,,,FALSE,,,FALSE,,,,,OPEN
+,,,,UNPAID,,,,FALSE,,,FALSE,,,,,OPEN
+,,,,HOLIDAY,,,,FALSE,,,FALSE,,,,,OPEN

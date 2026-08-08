@@ -4,6 +4,8 @@ export type TimeAttendanceCommandType =
   | "CLOCK_IN"
   | "START_MEAL"
   | "END_MEAL"
+  | "START_PAID_REST"
+  | "END_PAID_REST"
   | "CLOCK_OUT"
   | "REQUEST_CORRECTION"
   | "ATTEST_CARD"
@@ -19,7 +21,7 @@ export type TimeAttendanceCaptureCommand = {
   completelyRelieved?: boolean;
   commandType: Extract<
     TimeAttendanceCommandType,
-    "CLOCK_IN" | "START_MEAL" | "END_MEAL" | "CLOCK_OUT"
+    "CLOCK_IN" | "START_MEAL" | "END_MEAL" | "START_PAID_REST" | "END_PAID_REST" | "CLOCK_OUT"
   >;
   expectedVersion: number;
   idempotencyKey: string;
@@ -42,12 +44,12 @@ const allowedTransitions: Record<
   Partial<Record<TimeAttendanceCaptureCommand["commandType"], AttendanceSessionState>>
 > = {
   NONE: { CLOCK_IN: "OPEN" },
-  OPEN: { START_MEAL: "ON_MEAL", CLOCK_OUT: "CLOSED" },
+  OPEN: { START_MEAL: "ON_MEAL", START_PAID_REST: "OPEN", END_PAID_REST: "OPEN", CLOCK_OUT: "CLOSED" },
   ON_MEAL: { END_MEAL: "OPEN" },
   CLOSED: {}
 };
 
-const captureCommandTypes = new Set(["CLOCK_IN", "START_MEAL", "END_MEAL", "CLOCK_OUT"]);
+const captureCommandTypes = new Set(["CLOCK_IN", "START_MEAL", "END_MEAL", "START_PAID_REST", "END_PAID_REST", "CLOCK_OUT"]);
 
 function requireText(value: string, label: string) {
   if (!value.trim()) {

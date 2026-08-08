@@ -9,6 +9,7 @@ export type TimeCalculationExceptionCode =
   | "MN_REST_BREAK_MISSING"
   | "MN_REST_BREAK_SHORT"
   | "MN_REST_BREAK_LATE"
+  | "MN_REST_BREAK_INTERRUPTED"
   | "MN_MEAL_MISSING"
   | "MN_MEAL_SHORT"
   | "MN_MEAL_INTERRUPTED"
@@ -185,7 +186,7 @@ export function evaluateMinnesotaBreaks(input: {
       (rest) => rest.startMinute >= block.startMinute && rest.endMinute <= block.endMinute
     );
     const qualifying = inBlock.filter(
-      (rest) => rest.paid && duration(rest) >= restMinimum
+      (rest) => rest.paid && rest.completelyRelieved && duration(rest) >= restMinimum
     );
     qualifyingRestBreaks += qualifying.length;
 
@@ -194,6 +195,13 @@ export function evaluateMinnesotaBreaks(input: {
         code: "MN_REST_BREAK_SHORT",
         blocking: true,
         message: "A recorded paid rest break was shorter than 15 minutes."
+      });
+    }
+    if (inBlock.some((rest) => !rest.completelyRelieved)) {
+      exceptions.push({
+        code: "MN_REST_BREAK_INTERRUPTED",
+        blocking: true,
+        message: "Duty was performed during a recorded paid rest opportunity and manager review is required."
       });
     }
     for (let index = 0; index < Math.min(required, qualifying.length); index += 1) {
