@@ -4,6 +4,7 @@ import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation"
 import { prisma } from "@/server/db/client";
 import { getVehicleRegistryDetail } from "@/server/vehicle-registry/service";
 import { getVehicle360 } from "@/server/vehicle-360/service";
+import { isGeneralManager } from "@/server/policies/access";
 import { buildVehicleWorkbenchOverview, withVehicleWorkbenchReturn } from "./workbench-algorithms";
 
 type Dependencies = { now?: () => Date; organizationId?: string; packetReader?: (vehicleId: string) => Promise<unknown> };
@@ -105,9 +106,20 @@ export async function getVehicleExecutionWorkbench(actor: AuthenticatedUser | nu
   const parts = { allowed: view.tabs.parts.allowed, demands, custody: view.tabs.parts.custody.map(record) };
   const evidence = { allowed: view.tabs.documents.allowed, items: documents };
   const operation = { ...view.summary, vehicle: undefined };
+  const roles = new Set(actor?.roles ?? []);
+  const roleLenses = [
+    "Overview",
+    ...(roles.has("Inventory Manager") ? ["Inventory Manager"] : []),
+    ...(roles.has("Mechanic") || roles.has("Technician") ? ["Technician"] : []),
+    ...(roles.has("Parts") || roles.has("Parts Manager") || roles.has("Parts Specialist") ? ["Parts"] : []),
+    ...(roles.has("Salesperson") || roles.has("Sales Manager") || roles.has("Marketing/Advertisement Manager") || roles.has("Marketing") || roles.has("Advertising") ? ["Sales / Marketing"] : []),
+    ...(roles.has("Service Advisor") ? ["Service Advisor"] : []),
+    ...(isGeneralManager(actor) ? ["General Manager"] : []),
+  ];
   return {
     contractVersion: "inventory-eos-workbench/v1",
     generatedAt: (input.now ?? (() => new Date()))().toISOString(),
+    roleLenses,
     identity: view.summary.vehicle,
     operation,
     overview: buildVehicleWorkbenchOverview({ activity: view.timeline, evidence, identity: view.summary.vehicle, links, operation, parts, work, workOrders }),

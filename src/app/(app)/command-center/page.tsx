@@ -1,12 +1,15 @@
 import { ArrowRight, LockKeyhole } from "lucide-react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { getNavigationGroups } from "@/components/layout/navigation";
 import { TimeMotorSalesLogo } from "@/components/brand/time-motor-sales-logo";
 import { requireCurrentUser } from "@/server/auth/current-user";
+import { getDefaultLandingRoute, getPermittedWorkspaces } from "@/server/auth/navigation";
 
 export default async function CommandCenterHomePage() {
   const user = await requireCurrentUser();
+  if (!getPermittedWorkspaces(user).some((workspace) => workspace.key === "MANAGEMENT")) redirect(getDefaultLandingRoute(user));
   const groups = getNavigationGroups(user);
 
   return (

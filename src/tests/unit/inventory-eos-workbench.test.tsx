@@ -4,9 +4,12 @@ import { VehicleExecutionWorkbench } from "@/features/inventory/vehicle-executio
 import { buildVehicleWorkbenchOverview } from "@/server/inventory-execution/workbench-algorithms";
 import type { VehicleExecutionWorkbenchProjection } from "@/server/inventory-execution/workbench-service";
 
-function projection(overrides: Partial<VehicleExecutionWorkbenchProjection["work"]> = {}) {
+function projection(
+  overrides: Partial<VehicleExecutionWorkbenchProjection["work"]> = {},
+  roleLenses: VehicleExecutionWorkbenchProjection["roleLenses"] = ["Overview", "Inventory Manager", "Technician", "Parts"]
+) {
   const base = {
-    contractVersion: "inventory-eos-workbench/v1", generatedAt: "2026-07-19T18:00:00Z",
+    contractVersion: "inventory-eos-workbench/v1", generatedAt: "2026-07-19T18:00:00Z", roleLenses,
     identity: { id: "vehicle-1", vehicleNumber: "TMS19045", vin: "4T1B11HK6KU123456", vinState: "VERIFIED", stockNumber: "TMS19045", year: 2019, make: "Toyota", model: "Camry", color: null, licensePlate: null, status: "ACTIVE", version: 2 },
     operation: { owner: null, location: { id: "loc-1", name: "Main Shop" }, stage: "RECONDITIONING", operatingState: "ACTIVE", nextAction: "Replace brake pads", targetAt: "2026-07-20T18:00:00Z", latestOdometer: null, risks: [] },
     work: { status: "CONNECTED", unavailableReason: null, current: { id: "packet-1", state: "CURRENT", stageCode: "RECONDITIONING", purpose: "Complete approved brake repair", nextAction: "Replace brake pads", definitionOfDone: "Repair verified and evidence attached", readiness: "READY", targetAt: "2026-07-20T18:00:00Z", estimatedMinutes: 45, readinessSnapshot: { items: [{ code: "PARTS", label: "Parts ready", source: "Parts ledger", satisfied: true }] }, dependencySnapshot: { items: [] }, evidenceRequirements: { items: [{ code: "PHOTO", label: "Completion photo", source: "Evidence policy", satisfied: false }] }, task: { id: "task-1", title: "Brake repair", assignedUser: { id: "tech-1", name: "Technician" } } }, staged: { id: "packet-2", state: "STAGED", readiness: "READY", targetAt: "2026-07-20T20:00:00Z", nextAction: "Perform QC", task: { id: "task-2", title: "Quality control" } }, other: [], ...overrides },
@@ -56,6 +59,16 @@ describe("official Vehicle Execution Workbench", () => {
     expect(html).toContain("1/2 reserved");
     expect(html).toContain("RO-101");
     expect(html).toContain("1 custody event(s)");
+  });
+
+  it("only offers role lenses granted by the authenticated user's actual roles", () => {
+    const html = renderToStaticMarkup(
+      <VehicleExecutionWorkbench initial={projection({}, ["Overview", "Inventory Manager"])} initialRoleLens="General Manager" />
+    );
+
+    expect(html).toContain(">Inventory Manager</button>");
+    expect(html).not.toContain(">General Manager</button>");
+    expect(html).toContain("Neutral vehicle home.");
   });
 
   it("shows a truthful unavailable state instead of inventing work", () => {

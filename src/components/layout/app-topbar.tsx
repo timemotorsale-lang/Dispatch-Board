@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 import {
+  getPermittedWorkspaces,
   getWorkspaceDefinition,
   isTechnicianOnlyUser,
   resolveWorkspaceForPath,
@@ -77,6 +78,7 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
   const dispatchView = searchParams.get("view") === "live" ? "live" : "overview";
   const technicianOnly = isTechnicianOnlyUser(user);
   const activeWorkspace = resolveWorkspaceForPath(user, pathname, preferredWorkspace);
+  const canOpenManagementWorkspace = getPermittedWorkspaces(user).some((workspace) => workspace.key === "MANAGEMENT");
   const activeWorkspaceDefinition = getWorkspaceDefinition(activeWorkspace);
   const roleWorkspace = activeWorkspace !== "MANAGEMENT";
   const operationsCoordinatorAwayFromHome = activeWorkspace === "OPERATIONS_COORDINATOR" && pathname !== "/operations-coordinator";
@@ -166,7 +168,7 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
           <House size={15} /><span>{roleWorkspace ? activeWorkspaceDefinition.label : "CCC Home"}</span>
         </Link>
       ) : null}
-      {!commandCenterHome && roleWorkspace ? (
+      {!commandCenterHome && roleWorkspace && canOpenManagementWorkspace ? (
         <>
           <Link aria-label="Open Command Control Center home" className="ccc-home-link ccc-global-exit-link" href="/command-center">
             <House size={15} /><span>CCC Home</span>
