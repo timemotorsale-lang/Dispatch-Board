@@ -163,6 +163,16 @@ export function InventoryPlanningReview({ eligibleUnit = null, initial, initialR
     return () => { active = false; };
   }, [vehicleId]);
 
+  useEffect(() => {
+    const focus = new URLSearchParams(window.location.search).get("focus");
+    if (focus !== "recon-update") return;
+    window.setTimeout(() => {
+      setView("RECEIVING");
+      setNotice("Rapid recon update is open. Document what happened now; formal workflow steps can be completed afterward.");
+      document.getElementById("rapid-recon-update")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+  }, []);
+
   function updateCheck(id: string, state: CheckState) {
     setGroups(current => current.map(group => ({ ...group, items: group.items.map(item => item.id === id ? { ...item, state } : item) })));
   }
@@ -387,7 +397,7 @@ function ReceivingReview({ activeCheckId, busy, canonicalLocation, completed, co
 
 function RapidReconUpdateCard({ blocker, busy, completedWork, nextAction, remainingWork, save, setBlocker, setCompletedWork, setNextAction, setRemainingWork, setStatus, status, updates }: { blocker: string; busy: boolean; completedWork: string; nextAction: string; remainingWork: string; save: () => Promise<void>; setBlocker: (value: string) => void; setCompletedWork: (value: string) => void; setNextAction: (value: string) => void; setRemainingWork: (value: string) => void; setStatus: (value: string) => void; status: string; updates: ReconProgressUpdate[] }) {
   const latest = updates[0];
-  return <section className={styles.card}>
+  return <section className={styles.card} id="rapid-recon-update">
     <div className={styles.cardHeader}><div><small>Rapid recon update</small><h2>Document what happened now</h2><p>Use this when the vehicle is already moving through recon. It records progress without forcing diagnosis, photos, or a new RO first.</p></div><span className={styles.locked}>Simple execution</span></div>
     <div className="inventory-planning-task-fields">
       <Field label="Current status"><select onChange={event => setStatus(event.target.value)} value={status}><option value="BODYWORK_IN_PROGRESS">Bodywork in progress</option><option value="NEEDS_MECHANICAL_REPAIR">Needs mechanical repair</option><option value="READY_FOR_QC">Ready for QC</option><option value="READY_FOR_FRONTLINE">Ready for frontline review</option><option value="ON_HOLD">On hold</option></select></Field>
