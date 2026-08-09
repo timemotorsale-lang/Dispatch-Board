@@ -32,6 +32,12 @@ describe("R5 Inventory-to-Frontline domain", () => {
     expect(result.blockers).toEqual(expect.arrayContaining(["IDENTITY_MISMATCH", "CUSTODY_NOT_ACCEPTED", "RECEIPT_EVIDENCE_MISSING"]));
   });
 
+  it("allows receipt evidence to be deferred with an accountable reason", () => {
+    const result = normalizeReceipt({ ...command, arrivedAt: now.toISOString(), conditionSummary: "Remote receiving started", custodyAccepted: true, evidenceDeferredReason: "Photos unavailable until onsite staff sees the vehicle.", evidenceObjectIds: [], identityMatch: true, keyCount: 1, mileage: 10 });
+    expect(result.blockers).not.toContain("RECEIPT_EVIDENCE_MISSING");
+    expect(result.snapshot.evidenceDeferredReason).toBe("Photos unavailable until onsite staff sees the vehicle.");
+  });
+
   it("holds inspection on critical safety or identity failures", () => {
     const result = normalizeInspection({ ...command, checklistResults: [{ code: "SAFETY", label: "Safety inspection", status: "CONCERN" }], evidenceObjectIds: ["e-1"], identityConflict: true, safetyCriticalFail: true, templateCode: "INSPECT", templateComplete: true, templateVersion: 1 });
     expect(result.blockers).toEqual(expect.arrayContaining(["SAFETY_CRITICAL_FAIL", "IDENTITY_CONFLICT"]));
@@ -39,7 +45,24 @@ describe("R5 Inventory-to-Frontline domain", () => {
 
   it("persists the complete receiving checklist and rejects pending results", () => {
     expect(normalizeInspection({ ...command, checklistResults: [{ code: "VIN", evidenceObjectIds: ["e-1"], label: "VIN identity", notes: "VIN label matched", status: "PASS" }], evidenceObjectIds: ["e-1"], templateCode: "TMS-RECEIVING-IQI", templateComplete: true, templateVersion: 1 }).snapshot.checklistResults).toEqual([{ code: "VIN", evidenceObjectIds: ["e-1"], label: "VIN identity", notes: "VIN label matched", status: "PASS" }]);
-    expect(() => normalizeInspection({ ...command, checklistResults: [{ code: "VIN", label: "VIN identity", status: "PENDING" }], evidenceObjectIds: ["e-1"], templateCode: "TMS-RECEIVING-IQI", templateComplete: true, templateVersion: 1 })).toThrow("Pass, Concern, or Not Applicable");
+    expect(() => normalizeInspection({ ...command, checklistResults: [{ code: "VIN", label: "VIN identity", status: "PENDING" }], evidenceObjectIds: ["e-1"], templateCode: "TMS-RECEIVING-IQI", templateComplete: true, templateVersion: 1 })).toThrow("Pass, Concern, Not Applicable, or Deferred");
+  });
+
+  it("allows receiving inspection evidence to be deferred without forcing diagnosis", () => {
+    const result = normalizeInspection({
+      ...command,
+      checklistResults: [{ code: "SCAN", evidenceObjectIds: [], label: "Diagnostic baseline", notes: "Bodywork only; scan deferred until vehicle is onsite.", status: "DEFERRED" }],
+      diagnosticRequired: false,
+      evidenceDeferredReason: "Bodywork only; scan deferred until vehicle is onsite.",
+      evidenceObjectIds: [],
+      templateCode: "TMS-RECEIVING-IQI",
+      templateComplete: true,
+      templateVersion: 1
+    });
+    expect(result.blockers).not.toContain("INSPECTION_EVIDENCE_MISSING");
+    expect(result.blockers).not.toContain("DIAGNOSTIC_REQUIRED");
+    expect(result.snapshot.checklistResults[0].status).toBe("DEFERRED");
+    expect(result.snapshot.evidenceDeferredReason).toBe("Bodywork only; scan deferred until vehicle is onsite.");
   });
 
   it("never averages away a failed critical quality gate", () => {
