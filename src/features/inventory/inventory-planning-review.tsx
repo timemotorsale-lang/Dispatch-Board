@@ -104,6 +104,10 @@ function deferredEvidenceReason(items: CheckItem[]) {
   return deferred.length ? deferred.map(item => `${item.label}: ${item.notes?.trim() || "follow-up required"}`).join(" | ") : null;
 }
 
+function receivingSubmissionItems(items: CheckItem[], handoffNotes: string) {
+  return items.map(item => item.id === "move" && !item.notes?.trim() && handoffNotes.trim() ? { ...item, notes: handoffNotes.trim() } : item);
+}
+
 export function InventoryPlanningReview({ eligibleUnit = null, initial, initialRepairOrderId = "", initialWorkflow = null, locations = [], users = [] }: { eligibleUnit?: EligibleUnit | null; initial: VehicleExecutionWorkbenchProjection; initialRepairOrderId?: string; initialWorkflow?: FrontlineWorkflow | null; locations?: RegistryLocation[]; users?: FrontlineUser[] }) {
   const identity = object(initial.identity), operation = object(initial.operation), location = object(operation.location), latestOdometer = object(operation.latestOdometer);
   const vehicleId = text(identity.id, text(identity.vehicleNumber, "vehicle"));
@@ -215,21 +219,24 @@ export function InventoryPlanningReview({ eligibleUnit = null, initial, initialR
   }
 
   async function startWorkflow() {
-    if (!eligibleUnit || !ownerUserId) { setNotice("An eligible InventoryUnit and accountable owner are required."); return; }
+    if (!eligibleUnit || !ownerUserId) { setNotice("An eligible InventoryUnit and accountable owner are required."); return null; }
     setBusy(true); setNotice("");
     try {
       await request("/api/frontline-workflows", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ expectedVersion: 0, idempotencyKey: crypto.randomUUID(), inventoryUnitId: eligibleUnit.id, ownerUserId, policyVersion: "INV-ITF-POLICY/1.0.0", reason: "Start governed vehicle-specific inventory lifecycle from approved intake.", targetAt: new Date(Date.now() + 10 * 86_400_000).toISOString() }) });
       const next = await refresh();
       setNotice(`Governed lifecycle started${next ? ` at ${label(next.stage)}` : ""}.`);
-    } catch (error) { setNotice(error instanceof Error ? error.message : "Lifecycle could not be started."); }
-    finally { setBusy(false); }
+      return next;
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Lifecycle could not be started.");
+      return null;
+    } finally { setBusy(false); }
   }
 
-  async function act(action: string, values: Record<string, unknown>, success: string) {
-    if (!workflow) { setNotice("Start the governed lifecycle before recording stage work."); return null; }
+  async function act(action: string, values: Record<string, unknown>, success: string, activeWorkflow = workflow) {
+    if (!activeWorkflow) { setNotice("Start the governed lifecycle before recording stage work."); return null; }
     setBusy(true); setNotice("");
     try {
-      await request(`/api/frontline-workflows/${workflow.id}/commands`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, expectedVersion: workflow.version, idempotencyKey: crypto.randomUUID(), reason: `${success} from the vehicle-specific lifecycle workspace.`, ...values }) });
+      await request(`/api/frontline-workflows/${activeWorkflow.id}/commands`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, expectedVersion: activeWorkflow.version, idempotencyKey: crypto.randomUUID(), reason: `${success} from the vehicle-specific lifecycle workspace.`, ...values }) });
       const next = await refresh();
       setNotice(`${success}${next ? ` Next: ${next.nextAction}` : ""}`);
       return next;
@@ -238,32 +245,35 @@ export function InventoryPlanningReview({ eligibleUnit = null, initial, initialR
   }
 
   async function advanceReceiving() {
-    if (!workflow) { await startWorkflow(); return; }
-    if (workflow.stage === "TRANSPORT_PLANNING") {
-      await act("PLAN_TRANSPORT", { carrierReference: null, costAuthorized: false, estimatedCostCents: 0, expectedAt: new Date(Date.now() + 24 * 60 * 60_000).toISOString(), method: "NO_TRANSPORT", releaseEvidenceReference: null, transportRequired: false }, "No-transport path recorded.");
-      return;
+    let current = workflow;
+    const submissionItems = receivingSubmissionItems(items, notes);
+    if (!current) {
+      current = await startWorkflow();
+      if (!current) return;
     }
-    if (workflow.stage === "RECEIPT_AND_CUSTODY") {
-      const arrivalTask = items.find(item => item.id === "arrival");
+    if (current.stage === "TRANSPORT_PLANNING") {
+      current = await act("PLAN_TRANSPORT", { carrierReference: null, costAuthorized: false, estimatedCostCents: 0, expectedAt: new Date(Date.now() + 24 * 60 * 60_000).toISOString(), method: "NO_TRANSPORT", releaseEvidenceReference: null, transportRequired: false }, "No-transport path recorded.", current) ?? current;
+    }
+    if (current.stage === "RECEIPT_AND_CUSTODY") {
+      const arrivalTask = submissionItems.find(item => item.id === "arrival");
       if (!arrivalTask || arrivalTask.state === "PENDING" || !taskRequirementMet(arrivalTask, evidenceIds)) { setNotice("Complete the guided arrival-and-custody task, its evidence, work details, and result before recording receipt."); return; }
       if (!notes.trim() || !mileage || !keyCount) { setNotice("Condition summary, mileage, and key count are required before receipt."); return; }
-      const deferredReason = deferredEvidenceReason(items);
+      const deferredReason = deferredEvidenceReason(submissionItems);
       if (!evidenceIds.length && !deferredReason) { setNotice("Attach receiving evidence or mark the unavailable evidence as deferred with a follow-up note."); return; }
-      await act("RECORD_RECEIPT", { arrivedAt: new Date().toISOString(), conditionSummary: notes, custodyAccepted: true, damageSummary: damageSummary || null, documentSummary: { source: "VEHICLE_SPECIFIC_RECEIVING" }, evidenceDeferredReason: deferredReason, evidenceObjectIds: evidenceIds, identityMatch: groups.flatMap(group => group.items).find(item => item.id === "vin")?.state === "PASS", keyCount: Number(keyCount), mileage: Number(mileage) }, deferredReason && !evidenceIds.length ? "Receipt and custody recorded with evidence follow-up." : "Receipt and custody recorded.");
-      return;
+      current = await act("RECORD_RECEIPT", { arrivedAt: new Date().toISOString(), conditionSummary: notes, custodyAccepted: true, damageSummary: damageSummary || null, documentSummary: { source: "VEHICLE_SPECIFIC_RECEIVING" }, evidenceDeferredReason: deferredReason, evidenceObjectIds: evidenceIds, identityMatch: submissionItems.find(item => item.id === "vin")?.state === "PASS", keyCount: Number(keyCount), mileage: Number(mileage) }, deferredReason && !evidenceIds.length ? "Receipt and custody recorded with evidence follow-up." : "Receipt and custody recorded.", current) ?? current;
     }
-    if (workflow.stage === "INSPECTION_AND_TRIAGE") {
+    if (current.stage === "INSPECTION_AND_TRIAGE") {
       if (completed !== items.length) { setNotice(`Complete all ${items.length} checklist decisions before inspection submission.`); return; }
-      const incompleteWork = items.filter(item => !["DEFERRED", "NOT_APPLICABLE"].includes(item.state) && !taskRequirementMet(item, evidenceIds));
+      const incompleteWork = submissionItems.filter(item => item.state !== "NOT_APPLICABLE" && !taskRequirementMet(item, evidenceIds));
       if (incompleteWork.length) { setNotice(`Complete the required work details and evidence for: ${incompleteWork.map(item => item.label).join(", ")}.`); return; }
-      const deferredReason = deferredEvidenceReason(items);
+      const deferredReason = deferredEvidenceReason(submissionItems);
       if (!evidenceIds.length && !deferredReason) { setNotice("Attach inspection evidence or defer unavailable evidence with a follow-up note."); return; }
-      const byId = Object.fromEntries(items.map(item => [item.id, item.state]));
-      const next = await act("RECORD_INSPECTION", { checklistResults: items.map(item => ({ code: item.id.toUpperCase(), evidenceObjectIds: item.evidenceObjectIds ?? [], label: item.label, notes: item.notes ?? null, status: item.state })), diagnosticRequired: byId.scan === "CONCERN", evidenceDeferredReason: deferredReason, evidenceObjectIds: evidenceIds, findings: items.filter(item => item.state === "CONCERN").map(item => ({ code: item.id.toUpperCase(), description: item.notes?.trim() || item.label, disposition: "REVIEW_REQUIRED", evidenceObjectIds: item.evidenceObjectIds ?? [] })), identityConflict: byId.vin === "CONCERN", safetyCriticalFail: byId.safety === "CONCERN", templateCode: "TMS-RECEIVING-IQI", templateComplete: true, templateVersion: 1, titleConcern: false }, deferredReason && !evidenceIds.length ? "Receiving inspection recorded with evidence follow-up." : "Receiving inspection recorded and baseline locked.");
+      const byId = Object.fromEntries(submissionItems.map(item => [item.id, item.state]));
+      const next = await act("RECORD_INSPECTION", { checklistResults: submissionItems.map(item => ({ code: item.id.toUpperCase(), evidenceObjectIds: item.evidenceObjectIds ?? [], label: item.label, notes: item.notes ?? null, status: item.state })), diagnosticRequired: byId.scan === "CONCERN", evidenceDeferredReason: deferredReason, evidenceObjectIds: evidenceIds, findings: submissionItems.filter(item => item.state === "CONCERN").map(item => ({ code: item.id.toUpperCase(), description: item.notes?.trim() || item.label, disposition: "REVIEW_REQUIRED", evidenceObjectIds: item.evidenceObjectIds ?? [] })), identityConflict: byId.vin === "CONCERN", safetyCriticalFail: byId.safety === "CONCERN", templateCode: "TMS-RECEIVING-IQI", templateComplete: true, templateVersion: 1, titleConcern: false }, deferredReason && !evidenceIds.length ? "Receiving inspection recorded with evidence follow-up." : "Receiving inspection recorded and baseline locked.", current);
       if (next?.stage === "RECON_PLAN_AND_APPROVAL") setView("LIFECYCLE");
       return;
     }
-    if (workflow.stage === "HOLD") { await act("REOPEN_FOR_CORRECTION", {}, "Held workflow reopened for governed correction."); return; }
+    if (current.stage === "HOLD") { await act("REOPEN_FOR_CORRECTION", {}, "Held workflow reopened for governed correction.", current); return; }
     setView("LIFECYCLE");
   }
 
@@ -323,8 +333,8 @@ function ReceivingReview({ activeCheckId, busy, canonicalLocation, completed, co
       <section className={styles.card}>
         <div className={styles.cardHeader}><div><small>Receiving review - work may continue with documented follow-up</small><h2>Receiving & Initial Quality Inspection</h2><p>Record what is known now. If photos, scans, or onsite evidence are unavailable, mark Deferred with a reason so recon can continue and QC can close the evidence later.</p></div><strong>{readiness}% reviewed</strong></div>
         <div className={styles.guidedChecklist}>{groups.map(group => <section key={group.id}><header><h3>{group.label}</h3><span>{group.items.filter(item => item.state !== "PENDING").length}/{group.items.length} complete</span></header>{group.items.map(item => {
-          const requirementMet = taskRequirementMet(item, evidenceIds), taskNumber = orderedTasks.findIndex(task => task.id === item.id) + 1;
-          return <article className={styles.guidedTask} key={item.id}><div><small>Task {taskNumber}</small><h4>{item.label}</h4><p>{item.instruction}</p><div className={styles.taskRequirements}><span><b>Evidence / follow-up</b>{item.evidenceRequirement}</span><span><b>Completion standard</b>{item.completionCriteria}</span></div></div><div><span className={styles.taskBadge}>{taskOperationalStatus(item, evidenceIds)}</span><select aria-label={`${item.label} result`} className={styles[`state${item.state}`]} onChange={event => updateCheck(item.id, event.target.value as CheckState)} value={item.state}><option value="PENDING">Not recorded</option><option disabled={!requirementMet} value="PASS">Pass</option><option disabled={!requirementMet} value="CONCERN">Concern</option><option value="DEFERRED">Deferred</option><option value="NOT_APPLICABLE">N/A</option></select><div className={styles.taskActions}><ChecklistAction initial={initial} item={item} onOpen={() => setActiveCheckId(activeCheckId === item.id ? null : item.id)} />{["arrival", "photos", "scan", "nhtsa"].includes(item.id) ? <button onClick={() => setActiveCheckId(activeCheckId === item.id ? null : item.id)} type="button">{activeCheckId === item.id ? "Close details" : "Record details"}</button> : null}</div></div>{activeCheckId === item.id && item.id !== "vin" ? <GuidedTaskDetails damageSummary={damageSummary} evidenceIds={evidenceIds} item={item} keyCount={keyCount} mileage={mileage} ownerUserId={ownerUserId} setDamageSummary={setDamageSummary} setKeyCount={setKeyCount} setMileage={setMileage} setOwnerUserId={setOwnerUserId} updateCheckDetails={updateCheckDetails} users={users} workflow={workflow} /> : null}</article>;
+          const displayItem = receivingSubmissionItems([item], notes)[0], requirementMet = taskRequirementMet(displayItem, evidenceIds), taskNumber = orderedTasks.findIndex(task => task.id === item.id) + 1;
+          return <article className={styles.guidedTask} key={item.id}><div><small>Task {taskNumber}</small><h4>{item.label}</h4><p>{item.instruction}</p><div className={styles.taskRequirements}><span><b>Evidence / follow-up</b>{item.evidenceRequirement}</span><span><b>Completion standard</b>{item.completionCriteria}</span></div></div><div><span className={styles.taskBadge}>{taskOperationalStatus(displayItem, evidenceIds)}</span><select aria-label={`${item.label} result`} className={styles[`state${item.state}`]} onChange={event => updateCheck(item.id, event.target.value as CheckState)} value={item.state}><option value="PENDING">Not recorded</option><option disabled={!requirementMet} value="PASS">Pass</option><option disabled={!requirementMet} value="CONCERN">Concern</option><option value="DEFERRED">Deferred</option><option value="NOT_APPLICABLE">N/A</option></select><div className={styles.taskActions}><ChecklistAction initial={initial} item={item} onOpen={() => setActiveCheckId(activeCheckId === item.id ? null : item.id)} />{["arrival", "photos", "scan", "nhtsa"].includes(item.id) ? <button onClick={() => setActiveCheckId(activeCheckId === item.id ? null : item.id)} type="button">{activeCheckId === item.id ? "Close details" : "Record details"}</button> : null}</div></div>{activeCheckId === item.id && item.id !== "vin" ? <GuidedTaskDetails damageSummary={damageSummary} evidenceIds={evidenceIds} item={item} keyCount={keyCount} mileage={mileage} ownerUserId={ownerUserId} setDamageSummary={setDamageSummary} setKeyCount={setKeyCount} setMileage={setMileage} setOwnerUserId={setOwnerUserId} updateCheckDetails={updateCheckDetails} users={users} workflow={workflow} /> : null}</article>;
         })}</section>)}</div>
       </section>
 
