@@ -355,7 +355,7 @@ const workspaceNavigationItems: Partial<Record<WorkspaceKey, NavigationItem[]>> 
   ],
   OPERATIONS_COORDINATOR: [
     { href: "/operations-coordinator", title: "Coordinator Home", description: "Front-door loop for arrivals, paperwork, routed work, and safe peeks.", icon: House, matchExact: true },
-    { href: "/appointments?workspace=advisor", title: "Service Advisor", description: "Coordinate arrivals, customer updates, appointments, and repair-order handoffs.", icon: ClipboardCheck },
+    { href: "/vehicles/advisor", title: "Service Advisor", description: "Coordinate arrivals, customer updates, repair orders, and service handoffs.", icon: ClipboardCheck },
     { href: "/appointments", title: "Appointment Console", description: "Today flow, calendar booking, capacity, follow-up, and appointment exceptions.", icon: CalendarDays, matchExact: true },
     { href: "/vehicles/repair-orders?intakeSource=WALK_IN", title: "Check In Vehicle", description: "Start governed service intake without duplicating customer or vehicle records.", icon: ClipboardCheck },
     { href: "/vehicles/parts-receiving", title: "Receive Parts", description: "Record arrivals, exceptions, and accountable part placement.", icon: PackageCheck },

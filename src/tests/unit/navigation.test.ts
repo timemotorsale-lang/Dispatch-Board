@@ -272,7 +272,7 @@ describe("enterprise shell navigation", () => {
       "Sales Paperwork",
       "My Work"
     ]);
-    expect(getConsoleNavigation("/operations-coordinator", user({ roles: ["Operations Coordinator"] }))?.items.find((item) => item.title === "Service Advisor")?.href).toBe("/appointments?workspace=advisor");
+    expect(getConsoleNavigation("/operations-coordinator", user({ roles: ["Operations Coordinator"] }))?.items.find((item) => item.title === "Service Advisor")?.href).toBe("/vehicles/advisor");
     expect(getConsoleNavigation("/operations-coordinator", user({ roles: ["Operations Coordinator"] }))?.items.find((item) => item.title === "Appointment Console")?.href).toBe("/appointments");
     expect(getConsoleNavigation("/operations-coordinator", user({ roles: ["Office Manager", "Marketing/Advertisement Manager"] }))?.subtitle).toBe("Operations Coordinator");
     expect(getConsoleNavigation("/tasks", user({ roles: ["Salesperson"] }))?.items.map((item) => item.title)).toEqual([
