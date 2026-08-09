@@ -86,6 +86,7 @@ type ServiceReadiness = {
 
 type VehicleIdentityPreview = {
   decode?: { decoded: VehicleDecode; provider: string; retrievedAt: string; warnings: string[] };
+  decodeUnavailable?: { message: string } | null;
   identity: null | { validationSource: string; vin: string | null; vinState: string };
   potentialDuplicate: null | (ServiceIntakeOptions["vehicles"][number] & { stockNumber?: string | null });
 };
@@ -165,7 +166,7 @@ function buildInitial(options: ServiceIntakeOptions, initialTimestamp: string, i
   };
 }
 
-export function buildServiceIntakeVehicleCommand(input: { acquisitionSource?: "AUCTION" | "CONSIGNMENT" | "DEALER_TRANSFER" | "DIRECT_PURCHASE" | "OTHER" | "TRADE"; decoded?: VehicleDecode; description?: string; idempotencyKey: string; locationId: string; make: string; model: string; odometer: string; odometerUnit: "KILOMETERS" | "MILES"; relationship?: "CUSTOMER_VEHICLE" | "DEALERSHIP_INVENTORY"; vin: string; year: string }) {
+export function buildServiceIntakeVehicleCommand(input: { acquisitionSource?: "AUCTION" | "CONSIGNMENT" | "DEALER_TRANSFER" | "DIRECT_PURCHASE" | "OTHER" | "TRADE"; decoded?: VehicleDecode; description?: string; idempotencyKey: string; locationId: string; make: string; manualDecodeAcknowledged?: boolean; model: string; odometer: string; odometerUnit: "KILOMETERS" | "MILES"; relationship?: "CUSTOMER_VEHICLE" | "DEALERSHIP_INVENTORY"; vin: string; year: string }) {
   const dealershipInventory = input.relationship === "DEALERSHIP_INVENTORY";
   return {
     acquisitionSource: dealershipInventory ? input.acquisitionSource ?? "OTHER" : undefined,
@@ -183,6 +184,7 @@ export function buildServiceIntakeVehicleCommand(input: { acquisitionSource?: "A
     idempotencyKey: input.idempotencyKey,
     locationId: input.locationId,
     make: input.make,
+    manualDecodeAcknowledged: Boolean(input.manualDecodeAcknowledged),
     model: input.model,
     nonVinAttested: false,
     odometer: input.odometer,
@@ -576,6 +578,11 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
       return;
     }
     if (arrivalQueryIsVin && !localVinMatch) {
+      setNewRepairOrderConfirmed(false);
+      setSelectedVehicleDetails(null);
+      setSafetyIntelligence(null);
+      setReadiness(null);
+      setForm((current) => current.vehicleId ? { ...current, inventoryUnitId: "", vehicleId: "" } : current);
       setVehicleAddOpen(true);
       resetVehicleIdentityPreview();
       setNotice("No local vehicle matches this VIN. Decode it below to add and select the canonical vehicle without leaving intake.");
@@ -672,7 +679,14 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
         setNotice("The VIN already belongs to an existing canonical vehicle. That vehicle was selected; no duplicate was created.");
         return;
       }
-      if (!preview.decode) throw new Error("NHTSA did not return enough information to identify this vehicle.");
+      if (!preview.decode) {
+        setVehicleIdentityPreview(preview);
+        setVehicleQuickDetails({ make: "", model: "", year: "" });
+        setVehicleIdentityConfirmed(false);
+        setVehicleAddOpen(true);
+        setNotice(preview.decodeUnavailable?.message ?? "NHTSA did not return enough information. Enter year, make, and model, then confirm the vehicle to continue.");
+        return;
+      }
       setVehicleIdentityPreview(preview);
       setVehicleQuickDetails({ make: preview.decode.decoded.make, model: preview.decode.decoded.model, year: String(preview.decode.decoded.modelYear) });
       setVehicleIdentityConfirmed(false);
@@ -698,7 +712,7 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
       const response = await fetch("/api/inventory-console/workflows/add-vehicle", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(buildServiceIntakeVehicleCommand({ acquisitionSource: inventoryUnitDraft.acquisitionSource, decoded, description: form.concernSummary, idempotencyKey: crypto.randomUUID(), locationId: form.locationId, make: vehicleQuickDetails.make, model: vehicleQuickDetails.model, odometer: vehicleOdometer, odometerUnit: vehicleOdometerUnit, relationship: isDealershipInventory ? "DEALERSHIP_INVENTORY" : "CUSTOMER_VEHICLE", vin: vehicleIdentityPreview.identity.vin, year: vehicleQuickDetails.year })),
+        body: JSON.stringify(buildServiceIntakeVehicleCommand({ acquisitionSource: inventoryUnitDraft.acquisitionSource, decoded, description: form.concernSummary, idempotencyKey: crypto.randomUUID(), locationId: form.locationId, make: vehicleQuickDetails.make, manualDecodeAcknowledged: Boolean(vehicleIdentityPreview.decodeUnavailable && vehicleIdentityConfirmed), model: vehicleQuickDetails.model, odometer: vehicleOdometer, odometerUnit: vehicleOdometerUnit, relationship: isDealershipInventory ? "DEALERSHIP_INVENTORY" : "CUSTOMER_VEHICLE", vin: vehicleIdentityPreview.identity.vin, year: vehicleQuickDetails.year })),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok || !body.result?.id) throw new Error(body.error ?? "Vehicle could not be added.");
@@ -726,7 +740,7 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
       setArrivalQuery("");
       setVehicleAddOpen(false);
       resetVehicleIdentityPreview();
-      setNotice(relationshipLinked ? "Vehicle decoded, added to the canonical registry, and selected. Continue the intake below." : "Vehicle decoded, added, and selected. Its customer relationship still requires review.");
+      setNotice(relationshipLinked ? "Vehicle added to the canonical registry and selected. Continue the intake below." : "Vehicle added and selected. Its customer relationship still requires review.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Vehicle could not be added.");
     } finally {
@@ -937,10 +951,10 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
           </div> : null}
           {(vehicleAddOpen || arrivalQueryIsVin && !localVinMatch) ? <section className="sic-inline-vehicle-add" aria-label="Add vehicle from VIN">
             {!arrivalQueryIsVin ? <div className="sic-inline-vin-prompt"><CarFront /><div><strong>Enter the vehicle&apos;s VIN above</strong><span>The dealership database is searched first. A new vehicle can be decoded only after a complete 17-character VIN is entered.</span></div></div> : !vehicleIdentityPreview ? <div className="sic-inline-vin-prompt"><CarFront /><div><strong>VIN not found in local records</strong><span>{normalizedArrivalVin} can be checked with NHTSA and added without leaving this intake.</span></div><button disabled={vehicleIdentityBusy} onClick={() => void decodeVehicleForIntake()} type="button">{vehicleIdentityBusy ? "Decoding…" : "Decode VIN"}</button></div> : <div className="sic-decoded-vehicle">
-              <header><CheckCircle2 /><div><small>Decoded by {vehicleIdentityPreview.decode?.provider ?? "NHTSA"}</small><strong>{[vehicleQuickDetails.year, vehicleQuickDetails.make, vehicleQuickDetails.model, vehicleIdentityPreview.decode?.decoded.trim].filter(Boolean).join(" ")}</strong><span>VIN {vehicleIdentityPreview.identity?.vin}</span></div><button aria-label="Cancel vehicle addition" onClick={() => { setVehicleAddOpen(false); resetVehicleIdentityPreview(); }} type="button"><X /></button></header>
+              <header><CheckCircle2 /><div><small>{vehicleIdentityPreview.decode ? `Decoded by ${vehicleIdentityPreview.decode.provider}` : "VIN validated · manual details required"}</small><strong>{[vehicleQuickDetails.year, vehicleQuickDetails.make, vehicleQuickDetails.model, vehicleIdentityPreview.decode?.decoded.trim].filter(Boolean).join(" ") || "Enter year, make, and model"}</strong><span>VIN {vehicleIdentityPreview.identity?.vin}</span></div><button aria-label="Cancel vehicle addition" onClick={() => { setVehicleAddOpen(false); resetVehicleIdentityPreview(); }} type="button"><X /></button></header>
               <div className="sic-decoded-facts"><span><b>Body</b>{vehicleIdentityPreview.decode?.decoded.bodyClass || "Not reported"}</span><span><b>Engine</b>{[vehicleIdentityPreview.decode?.decoded.engineCylinders && `${vehicleIdentityPreview.decode.decoded.engineCylinders} cyl`, vehicleIdentityPreview.decode?.decoded.displacementLiters && `${vehicleIdentityPreview.decode.decoded.displacementLiters} L`].filter(Boolean).join(" · ") || "Not reported"}</span><span><b>Drive</b>{vehicleIdentityPreview.decode?.decoded.driveType || "Not reported"}</span><span><b>Fuel</b>{vehicleIdentityPreview.decode?.decoded.fuelTypePrimary || "Not reported"}</span></div>
               <div className="sic-quick-identity-fields"><label><span>Year</span><input inputMode="numeric" onChange={(event) => setVehicleQuickDetails((value) => ({ ...value, year: event.target.value.replace(/\D/g, "") }))} value={vehicleQuickDetails.year} /></label><label><span>Make</span><input onChange={(event) => setVehicleQuickDetails((value) => ({ ...value, make: event.target.value }))} value={vehicleQuickDetails.make} /></label><label><span>Model</span><input onChange={(event) => setVehicleQuickDetails((value) => ({ ...value, model: event.target.value }))} value={vehicleQuickDetails.model} /></label><label><span>Current odometer <b>Required</b></span><input inputMode="numeric" onChange={(event) => setVehicleOdometer(event.target.value.replace(/\D/g, ""))} placeholder="Reading" value={vehicleOdometer} /></label><label><span>Unit</span><select onChange={(event) => setVehicleOdometerUnit(event.target.value as "KILOMETERS" | "MILES")} value={vehicleOdometerUnit}><option value="MILES">Miles</option><option value="KILOMETERS">Kilometers</option></select></label></div>
-              <footer><label><input checked={vehicleIdentityConfirmed} onChange={(event) => setVehicleIdentityConfirmed(event.target.checked)} type="checkbox" /><span>I confirm this is the vehicle being checked in.</span></label><button disabled={vehicleIdentityBusy || !vehicleIdentityConfirmed || !vehicleOdometer} onClick={() => void createAndSelectDecodedVehicle()} type="button">{vehicleIdentityBusy ? "Adding vehicle…" : "Confirm, Add & Select Vehicle"}</button></footer>
+              <footer><label><input checked={vehicleIdentityConfirmed} onChange={(event) => setVehicleIdentityConfirmed(event.target.checked)} type="checkbox" /><span>{vehicleIdentityPreview.decodeUnavailable ? "I entered the correct vehicle details for this VIN." : "I confirm this is the vehicle being checked in."}</span></label><button disabled={vehicleIdentityBusy || !vehicleIdentityConfirmed || !vehicleOdometer} onClick={() => void createAndSelectDecodedVehicle()} type="button">{vehicleIdentityBusy ? "Adding vehicle…" : "Confirm, Add & Select Vehicle"}</button></footer>
             </div>}
           </section> : null}
           <div className="sic-selected-arrival">

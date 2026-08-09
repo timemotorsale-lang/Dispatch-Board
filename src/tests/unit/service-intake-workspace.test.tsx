@@ -122,4 +122,10 @@ describe("enterprise service intake workspace", () => {
 
     expect(normalizeAddVehicleWorkflowInput(command)).toMatchObject({ addMode: "QUICK", description: "Customer reports an airbag warning light.", odometer: 125000, reasonCode: "SERVICE_REPAIR", relationship: "CUSTOMER_VEHICLE", vin: "1HGCM82633A004352" });
   });
+
+  it("lets intake create a VIN-validated vehicle when external decode is unavailable", () => {
+    const command = buildServiceIntakeVehicleCommand({ description: "Inventory check-in with warning lights.", idempotencyKey: "service-intake-manual-vin-1", locationId: "location-1", make: "HONDA", manualDecodeAcknowledged: true, model: "CR-V", odometer: "92000", odometerUnit: "MILES", relationship: "DEALERSHIP_INVENTORY", vin: "7FARW2H5XJE098317", year: "2018" });
+
+    expect(normalizeAddVehicleWorkflowInput(command)).toMatchObject({ manualDecodeAcknowledged: true, make: "HONDA", model: "CR-V", odometer: 92000, reasonCode: "INVENTORY_RECON", relationship: "DEALERSHIP_INVENTORY", vin: "7FARW2H5XJE098317", year: 2018 });
+  });
 });
