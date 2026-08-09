@@ -82,4 +82,22 @@ describe("application shell Sales Console return navigation", () => {
     expect(markup).toContain("Vehicle 360");
     expect(markup).toContain("Inventory Planning");
   });
+
+  it("mounts the management sidebar on every Manager Workspace mode", () => {
+    currentPathname = "/manager-workspace";
+    currentSearchParams = new URLSearchParams("mode=coo");
+
+    const markup = renderToStaticMarkup(
+      <AppShell user={testUser}>
+        <section>Manager Workspace COO landing</section>
+      </AppShell>
+    );
+
+    expect(markup).toContain('class="app-frame app-frame-console app-frame-console-sidebar"');
+    expect(markup).toContain('aria-label="Time Motor Sales Command Control Center"');
+    expect(markup).toContain('href="/manager-workspace"');
+    expect(markup).toContain("Manager Workspace");
+    expect(markup).toContain('href="/command-center"');
+    expect(markup).toContain("Command Center");
+  });
 });

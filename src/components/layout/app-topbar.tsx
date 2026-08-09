@@ -51,6 +51,7 @@ function getBreadcrumb(pathname: string, dispatchView: "overview" | "live", tech
     return ["Technician Workspace", "My Work"];
   }
   if (pathname === "/command-center") return ["Command Control Center"];
+  if (pathname === "/manager-workspace") return ["Manager Workspace"];
   if (pathname === "/board") return ["Command Control Center", "Dispatch", dispatchView === "live" ? "Live Board" : "Overview"];
   if (pathname === "/activity") return ["Command Control Center", "Dispatch", "Activity"];
   if (pathname === "/staff") return ["Command Control Center", "Dispatch", "Team"];

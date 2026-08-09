@@ -383,6 +383,27 @@ const workspaceNavigationItems: Partial<Record<WorkspaceKey, NavigationItem[]>> 
 
 export const navigationGroups: NavigationGroup[] = [
   {
+    label: "Management",
+    items: [
+      {
+        href: "/manager-workspace",
+        title: "Manager Workspace",
+        description: "Executive direction, operating intervention, and personal execution.",
+        icon: House,
+        matchExact: true,
+        isVisible: (user) => isManager(user)
+      },
+      {
+        href: "/command-center",
+        title: "Command Center",
+        description: "Company-wide operating command and cross-team visibility.",
+        icon: Landmark,
+        matchExact: true,
+        isVisible: (user) => isManager(user)
+      }
+    ]
+  },
+  {
     label: "Operations",
     items: [
       {
