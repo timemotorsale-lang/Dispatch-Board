@@ -775,6 +775,33 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
     }
   }
 
+  async function saveTechnicianToRepairOrder(repairOrderId: string) {
+    const assignmentResponse = await fetch(`/api/repair-orders/${encodeURIComponent(repairOrderId)}/technician-assignment`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        idempotencyKey: crypto.randomUUID(),
+        reason: "Carry the explicitly selected intake technician onto the matched Repair Order.",
+        technicianUserId: form.ownerUserId,
+      }),
+    });
+    const assignmentBody = await assignmentResponse.json().catch(() => ({}));
+    if (!assignmentResponse.ok) throw new Error(assignmentBody.error ?? "The Repair Order was found, but its technician assignment could not be saved.");
+  }
+
+  async function openExistingRepairOrder(repairOrderId: string) {
+    setBusy(true);
+    setNotice("");
+    try {
+      await saveTechnicianToRepairOrder(repairOrderId);
+      window.location.assign(`/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(repairOrderId)}`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "The technician assignment could not be saved.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!ready) {
@@ -839,6 +866,7 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
       if (!response.ok) throw new Error(body.error ?? "Vehicle check-in failed.");
       const result = body.result as { duplicateReason?: string; id: string; repairOrderNumber: string };
       const reused = body.duplicate === true;
+      if (reused) await saveTechnicianToRepairOrder(result.id);
       setCreated({ ...result, reused });
       window.localStorage.removeItem(serviceIntakeDraftKey);
       setNotice(reused ? `${result.repairOrderNumber} already covers this vehicle and concern. The existing RO was opened; no duplicate was created.` : `${result.repairOrderNumber} was created for this vehicle and new concern.`);
@@ -943,7 +971,7 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
           <label className="sic-concern-field"><span>{isDealershipInventory ? "What does inventory need inspected or repaired?" : "What is the customer experiencing?"} <b>Required</b></span><textarea maxLength={2000} onChange={(event) => update("concernSummary", event.target.value)} placeholder={isDealershipInventory ? "Example: Newly acquired inventory requires a complete safety inspection, front brake evaluation, warning-light diagnosis, and recon estimate." : "Example: Customer reports a grinding noise from the front passenger side when braking below 25 mph. It started three days ago and is getting louder. ABS warning light came on this morning…"} ref={concernRef} rows={5} value={form.concernSummary} /><small><MessageSquareText />Be specific about the symptom, location, conditions, timing, and what changed.</small></label>
           {selectedVehicle && selectedVehicleOrders.length ? <section className={`sic-ro-match ${sameConcernOrder ? "same-concern" : "vehicle-history"}`} ref={repairOrderDecisionRef}>
             <header><CarFront /><div><small>VIN / canonical vehicle match</small><strong>{selectedVehicle.vin ?? selectedVehicle.vehicleNumber} already exists</strong><span>This is the same canonical vehicle. The system will not create a second vehicle record.</span></div><b>{selectedVehicleOrders.length} RO{selectedVehicleOrders.length === 1 ? "" : "s"} found</b></header>
-            {sameConcernOrder ? <div className="sic-ro-decision"><div><small>Same open concern detected</small><strong>{sameConcernOrder.repairOrderNumber} · {sameConcernOrder.stage.replaceAll("_", " ")}</strong><span>{sameConcernOrder.serviceVisit.concernSummary}</span></div><nav><Link href={`/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(sameConcernOrder.id)}`}>Open matching RO</Link><em>Duplicate RO blocked</em></nav></div> : openVehicleOrders.length ? <><div className="sic-ro-list">{openVehicleOrders.map((order) => <article key={order.id}><div><strong>{order.repairOrderNumber}</strong><span>{order.serviceVisit.concernSummary}</span></div><Link href={`/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(order.id)}`}>Open existing</Link></article>)}</div><div className="sic-ro-new-choice"><div><strong>The concern appears different</strong><span>Review the open work above. Create another RO only when this is a separate problem or visit.</span></div><button className={newRepairOrderConfirmed ? "confirmed" : ""} onClick={() => setNewRepairOrderConfirmed(true)} type="button">{newRepairOrderConfirmed ? <><Check /> Separate RO confirmed</> : <><Plus /> Create separate RO for this concern</>}</button></div></> : <div className="sic-ro-decision"><div><small>Service history found</small><strong>No open repair order</strong><span>A new RO may be created for this visit while preserving the same canonical VIN record.</span></div><em>New visit allowed</em></div>}
+            {sameConcernOrder ? <div className="sic-ro-decision"><div><small>Same open concern detected</small><strong>{sameConcernOrder.repairOrderNumber} · {sameConcernOrder.stage.replaceAll("_", " ")}</strong><span>{sameConcernOrder.serviceVisit.concernSummary}</span></div><nav><button disabled={busy || !form.ownerUserId} onClick={() => void openExistingRepairOrder(sameConcernOrder.id)} type="button">Save technician &amp; open RO</button><em>Duplicate RO blocked</em></nav></div> : openVehicleOrders.length ? <><div className="sic-ro-list">{openVehicleOrders.map((order) => <article key={order.id}><div><strong>{order.repairOrderNumber}</strong><span>{order.serviceVisit.concernSummary}</span></div><button disabled={busy || !form.ownerUserId} onClick={() => void openExistingRepairOrder(order.id)} type="button">Save technician &amp; open</button></article>)}</div><div className="sic-ro-new-choice"><div><strong>The concern appears different</strong><span>Review the open work above. Create another RO only when this is a separate problem or visit.</span></div><button className={newRepairOrderConfirmed ? "confirmed" : ""} onClick={() => setNewRepairOrderConfirmed(true)} type="button">{newRepairOrderConfirmed ? <><Check /> Separate RO confirmed</> : <><Plus /> Create separate RO for this concern</>}</button></div></> : <div className="sic-ro-decision"><div><small>Service history found</small><strong>No open repair order</strong><span>A new RO may be created for this visit while preserving the same canonical VIN record.</span></div><em>New visit allowed</em></div>}
           </section> : null}
           <div className="sic-prompts"><span><Sparkles />Helpful prompts</span>{["Customer states…", "Occurs when…", "Started approximately…", "Warning light/message…", "Previous repair related to…"].map((prompt) => <button key={prompt} onClick={() => addPrompt(prompt)} type="button">+ {prompt}</button>)}</div>
           <details className="sic-more-context"><summary>Additional concern context &amp; advisor notes</summary><div className="sic-three-column"><label><span>When did it start?</span><input onChange={(event) => update("onset", event.target.value)} placeholder="Today, last week, after repair…" value={form.onset} /></label><label><span>Frequency / conditions</span><input onChange={(event) => update("frequency", event.target.value)} placeholder="Constant, cold start, highway…" value={form.frequency} /></label><label><span>Warning indicators</span><input onChange={(event) => update("warningIndicators", event.target.value)} placeholder="ABS, check engine, message…" value={form.warningIndicators} /></label></div><label className="sic-notes"><span>Advisor-only intake notes</span><textarea maxLength={2000} onChange={(event) => update("intakeNotes", event.target.value)} placeholder="Observations, prior conversations, access instructions, or context not stated by the customer." rows={3} value={form.intakeNotes} /></label></details>

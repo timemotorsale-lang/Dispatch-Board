@@ -19,6 +19,8 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("Authoritative Repair Order");
     expect(html).toContain("View RO");
     expect(html).toContain("Print RO");
+    expect(html).toContain('href="/api/repair-orders/ro-1/print"');
+    expect(html).toContain('target="_blank"');
     expect(html).toContain("RO Version 2");
     expect(html).toContain("This RO Version 2 is the technician&#x27;s source for the vehicle and concern");
     expect(html).toContain("No repair is authorized until the estimate and approval are recorded");

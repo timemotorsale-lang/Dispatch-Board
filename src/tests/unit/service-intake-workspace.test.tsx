@@ -97,7 +97,7 @@ describe("enterprise service intake workspace", () => {
     expect(html).toContain("VIN / canonical vehicle match");
     expect(html).toContain("Same open concern detected");
     expect(html).toContain("RO-EXISTING");
-    expect(html).toContain("Open matching RO");
+    expect(html).toContain("Save technician &amp; open RO");
     expect(html).toContain("Duplicate RO blocked");
     expect(html).toContain("Repair-order decision");
   });
@@ -107,7 +107,7 @@ describe("enterprise service intake workspace", () => {
     const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialConcernSummary="Customer reports vibration above highway speed." initialTimestamp="2026-08-02T07:00:00.000Z" initialVehicleId="vehicle-1" options={matchingOptions} />);
 
     expect(html).toContain("The concern appears different");
-    expect(html).toContain("Open existing");
+    expect(html).toContain("Save technician &amp; open");
     expect(html).toContain("Create separate RO for this concern");
     expect(html).toContain("Repair-order decision");
   });
