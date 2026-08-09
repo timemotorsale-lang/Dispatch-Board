@@ -42,6 +42,7 @@ type FrontlineWorkflow = {
 type FrontlineUser = { id: string; name: string };
 type RegistryLocation = { id: string; code: string; name: string };
 type EligibleUnit = { id: string; inventoryNumber: string; locationId: string; vehicle: { id: string; vehicleNumber: string; year: number | null; make: string | null; model: string | null } };
+type ReconProgressUpdate = { id: string; actorName: string; blocker: string | null; completedWork: string; createdAt: string; nextAction: string; remainingWork: string | null; status: string };
 
 const initialChecklist: CheckGroup[] = [
   { id: "identity", label: "Identity & custody", items: [
@@ -125,6 +126,12 @@ export function InventoryPlanningReview({ eligibleUnit = null, initial, initialR
   const [damageSummary, setDamageSummary] = useState("");
   const [activeCheckId, setActiveCheckId] = useState<string | null>(null);
   const [canonicalLocation, setCanonicalLocation] = useState<RegistryLocation | null>(() => typeof location.id === "string" && typeof location.name === "string" ? { id: location.id, code: text(location.code, ""), name: location.name } : null);
+  const [reconUpdates, setReconUpdates] = useState<ReconProgressUpdate[]>([]);
+  const [reconStatus, setReconStatus] = useState("NEEDS_MECHANICAL_REPAIR");
+  const [reconCompletedWork, setReconCompletedWork] = useState("Bodywork damage repaired.");
+  const [reconRemainingWork, setReconRemainingWork] = useState("Left lower control arm bolt / suspension issue remains.");
+  const [reconNextAction, setReconNextAction] = useState("Repair suspension bolt issue, then move to frontline readiness review.");
+  const [reconBlocker, setReconBlocker] = useState("Suspension issue must be corrected before frontline readiness.");
   const items = useMemo(() => groups.flatMap(group => group.items), [groups]);
   const completed = items.filter(item => item.state !== "PENDING").length;
   const concerns = items.filter(item => item.state === "CONCERN").length;
@@ -147,6 +154,14 @@ export function InventoryPlanningReview({ eligibleUnit = null, initial, initialR
     }, 0);
     return () => window.clearTimeout(restore);
   }, [draftKey]);
+
+  useEffect(() => {
+    let active = true;
+    void request(`/api/vehicles/${encodeURIComponent(vehicleId)}/recon-updates`).then((body: { items?: ReconProgressUpdate[] }) => {
+      if (active) setReconUpdates(body.items ?? []);
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [vehicleId]);
 
   function updateCheck(id: string, state: CheckState) {
     setGroups(current => current.map(group => ({ ...group, items: group.items.map(item => item.id === id ? { ...item, state } : item) })));
@@ -213,6 +228,24 @@ export function InventoryPlanningReview({ eligibleUnit = null, initial, initialR
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Current location could not be updated.");
       throw error;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveReconUpdate() {
+    if (!reconCompletedWork.trim() || !reconNextAction.trim()) { setNotice("Completed work and next action are required for a recon update."); return; }
+    setBusy(true); setNotice("");
+    try {
+      const update = await request(`/api/vehicles/${encodeURIComponent(vehicleId)}/recon-updates`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ blocker: reconBlocker, completedWork: reconCompletedWork, nextAction: reconNextAction, remainingWork: reconRemainingWork, status: reconStatus })
+      }) as ReconProgressUpdate;
+      setReconUpdates(current => [update, ...current].slice(0, 10));
+      setNotice("Recon progress saved. The vehicle history now reflects what is done, what remains, and the next action.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Recon progress could not be saved.");
     } finally {
       setBusy(false);
     }
@@ -300,7 +333,7 @@ export function InventoryPlanningReview({ eligibleUnit = null, initial, initialR
 
     <div className={styles.notice} role="status"><ShieldCheck size={17} /><span>{notice}</span></div>
 
-    {view === "RECEIVING" ? <ReceivingReview activeCheckId={activeCheckId} busy={busy} canonicalLocation={canonicalLocation} damageSummary={damageSummary} eligibleUnit={eligibleUnit} evidenceIds={evidenceIds} identity={identity} keyCount={keyCount} locations={locations} mileage={mileage} notes={notes} onRecordLocation={recordCurrentLocation} operation={operation} ownerUserId={ownerUserId} setActiveCheckId={setActiveCheckId} setDamageSummary={setDamageSummary} setKeyCount={setKeyCount} setMileage={setMileage} setNotes={setNotes} setOwnerUserId={setOwnerUserId} groups={groups} updateCheck={updateCheck} updateCheckDetails={updateCheckDetails} readiness={readiness} completed={completed} concerns={concerns} initial={initial} users={users} workflow={workflow} /> : <LifecycleReview act={act} busy={busy} completed={completed} concerns={concerns} evidenceIds={evidenceIds} identity={identity} initial={initial} initialRepairOrderId={initialRepairOrderId} onAdvanceReceiving={advanceReceiving} setView={setView} users={users} workflow={workflow} />}
+    {view === "RECEIVING" ? <ReceivingReview activeCheckId={activeCheckId} busy={busy} canonicalLocation={canonicalLocation} damageSummary={damageSummary} eligibleUnit={eligibleUnit} evidenceIds={evidenceIds} identity={identity} keyCount={keyCount} locations={locations} mileage={mileage} notes={notes} onRecordLocation={recordCurrentLocation} operation={operation} ownerUserId={ownerUserId} reconBlocker={reconBlocker} reconCompletedWork={reconCompletedWork} reconNextAction={reconNextAction} reconRemainingWork={reconRemainingWork} reconStatus={reconStatus} reconUpdates={reconUpdates} saveReconUpdate={saveReconUpdate} setActiveCheckId={setActiveCheckId} setDamageSummary={setDamageSummary} setKeyCount={setKeyCount} setMileage={setMileage} setNotes={setNotes} setOwnerUserId={setOwnerUserId} setReconBlocker={setReconBlocker} setReconCompletedWork={setReconCompletedWork} setReconNextAction={setReconNextAction} setReconRemainingWork={setReconRemainingWork} setReconStatus={setReconStatus} groups={groups} updateCheck={updateCheck} updateCheckDetails={updateCheckDetails} readiness={readiness} completed={completed} concerns={concerns} initial={initial} users={users} workflow={workflow} /> : <LifecycleReview act={act} busy={busy} completed={completed} concerns={concerns} evidenceIds={evidenceIds} identity={identity} initial={initial} initialRepairOrderId={initialRepairOrderId} onAdvanceReceiving={advanceReceiving} setView={setView} users={users} workflow={workflow} />}
 
     <footer className={styles.footer}>
       <button className={styles.textButton} onClick={resetDraft} type="button"><RotateCcw size={14} /> Reset review</button>
@@ -310,7 +343,7 @@ export function InventoryPlanningReview({ eligibleUnit = null, initial, initialR
   </section>;
 }
 
-function ReceivingReview({ activeCheckId, busy, canonicalLocation, completed, concerns, damageSummary, eligibleUnit, evidenceIds, groups, identity, initial, keyCount, locations, mileage, notes, onRecordLocation, operation, ownerUserId, readiness, setActiveCheckId, setDamageSummary, setKeyCount, setMileage, setNotes, setOwnerUserId, updateCheck, updateCheckDetails, users, workflow }: { activeCheckId: string | null; busy: boolean; canonicalLocation: RegistryLocation | null; completed: number; concerns: number; damageSummary: string; eligibleUnit: EligibleUnit | null; evidenceIds: string[]; groups: CheckGroup[]; identity: Record<string, unknown>; initial: VehicleExecutionWorkbenchProjection; keyCount: string; locations: RegistryLocation[]; mileage: string; notes: string; onRecordLocation: (input: { custodianType: string; displayName: string; locationId: string | null; positionLabel: string; reason: string; sourceCode: string }) => Promise<void>; operation: Record<string, unknown>; ownerUserId: string; readiness: number; setActiveCheckId: (value: string | null) => void; setDamageSummary: (value: string) => void; setKeyCount: (value: string) => void; setMileage: (value: string) => void; setNotes: (value: string) => void; setOwnerUserId: (value: string) => void; updateCheck: (id: string, state: CheckState) => void; updateCheckDetails: (id: string, values: Partial<Pick<CheckItem, "notes" | "evidenceObjectIds">>) => void; users: FrontlineUser[]; workflow: FrontlineWorkflow | null }) {
+function ReceivingReview({ activeCheckId, busy, canonicalLocation, completed, concerns, damageSummary, eligibleUnit, evidenceIds, groups, identity, initial, keyCount, locations, mileage, notes, onRecordLocation, operation, ownerUserId, readiness, reconBlocker, reconCompletedWork, reconNextAction, reconRemainingWork, reconStatus, reconUpdates, saveReconUpdate, setActiveCheckId, setDamageSummary, setKeyCount, setMileage, setNotes, setOwnerUserId, setReconBlocker, setReconCompletedWork, setReconNextAction, setReconRemainingWork, setReconStatus, updateCheck, updateCheckDetails, users, workflow }: { activeCheckId: string | null; busy: boolean; canonicalLocation: RegistryLocation | null; completed: number; concerns: number; damageSummary: string; eligibleUnit: EligibleUnit | null; evidenceIds: string[]; groups: CheckGroup[]; identity: Record<string, unknown>; initial: VehicleExecutionWorkbenchProjection; keyCount: string; locations: RegistryLocation[]; mileage: string; notes: string; onRecordLocation: (input: { custodianType: string; displayName: string; locationId: string | null; positionLabel: string; reason: string; sourceCode: string }) => Promise<void>; operation: Record<string, unknown>; ownerUserId: string; readiness: number; reconBlocker: string; reconCompletedWork: string; reconNextAction: string; reconRemainingWork: string; reconStatus: string; reconUpdates: ReconProgressUpdate[]; saveReconUpdate: () => Promise<void>; setActiveCheckId: (value: string | null) => void; setDamageSummary: (value: string) => void; setKeyCount: (value: string) => void; setMileage: (value: string) => void; setNotes: (value: string) => void; setOwnerUserId: (value: string) => void; setReconBlocker: (value: string) => void; setReconCompletedWork: (value: string) => void; setReconNextAction: (value: string) => void; setReconRemainingWork: (value: string) => void; setReconStatus: (value: string) => void; updateCheck: (id: string, state: CheckState) => void; updateCheckDetails: (id: string, values: Partial<Pick<CheckItem, "notes" | "evidenceObjectIds">>) => void; users: FrontlineUser[]; workflow: FrontlineWorkflow | null }) {
   const [locationEditorOpen, setLocationEditorOpen] = useState(false);
   const orderedTasks = groups.flatMap(group => group.items), currentTask = orderedTasks.find(item => item.state === "PENDING") ?? orderedTasks[orderedTasks.length - 1];
   return <main className={styles.reviewBody}>
@@ -324,6 +357,8 @@ function ReceivingReview({ activeCheckId, busy, canonicalLocation, completed, co
         {locationEditorOpen ? <VehicleLocationEditor busy={busy} current={canonicalLocation} locations={locations} onCancel={() => setLocationEditorOpen(false)} onSave={async values => { await onRecordLocation(values); setLocationEditorOpen(false); }} /> : null}
         <div className={styles.sourceRow}><FileText size={16} /><div><strong>Canonical origins preserved</strong><span>VIN identity, decoded specifications, arrival observations, evidence, and later corrections remain attributable in Vehicle 360.</span></div><Link href={withQuery(initial.links.vehicle360, { returnTo: `/vehicles/${text(identity.id, "")}/inventory-planning` })}>View full details</Link></div>
       </section>
+
+      <RapidReconUpdateCard busy={busy} blocker={reconBlocker} completedWork={reconCompletedWork} nextAction={reconNextAction} remainingWork={reconRemainingWork} save={saveReconUpdate} setBlocker={setReconBlocker} setCompletedWork={setReconCompletedWork} setNextAction={setReconNextAction} setRemainingWork={setReconRemainingWork} setStatus={setReconStatus} status={reconStatus} updates={reconUpdates} />
 
       <section className={styles.currentTask}>
         <div><small>Current required receiving task · {orderedTasks.findIndex(item => item.id === currentTask.id) + 1} of {orderedTasks.length}</small><h2>{currentTask.label}</h2><p>{currentTask.instruction}</p><dl><div><dt>Evidence</dt><dd>{currentTask.evidenceRequirement}</dd></div><div><dt>Done when</dt><dd>{currentTask.completionCriteria}</dd></div></dl></div>
@@ -348,6 +383,22 @@ function ReceivingReview({ activeCheckId, busy, canonicalLocation, completed, co
       <section className={styles.summaryCard}><h2>Existing connected records</h2><p>{initial.evidence.items.length} evidence item(s)</p><p>{initial.workOrders.items.length} repair order(s)</p><p>{initial.parts.demands.length} parts demand(s)</p></section>
     </aside>
   </main>;
+}
+
+function RapidReconUpdateCard({ blocker, busy, completedWork, nextAction, remainingWork, save, setBlocker, setCompletedWork, setNextAction, setRemainingWork, setStatus, status, updates }: { blocker: string; busy: boolean; completedWork: string; nextAction: string; remainingWork: string; save: () => Promise<void>; setBlocker: (value: string) => void; setCompletedWork: (value: string) => void; setNextAction: (value: string) => void; setRemainingWork: (value: string) => void; setStatus: (value: string) => void; status: string; updates: ReconProgressUpdate[] }) {
+  const latest = updates[0];
+  return <section className={styles.card}>
+    <div className={styles.cardHeader}><div><small>Rapid recon update</small><h2>Document what happened now</h2><p>Use this when the vehicle is already moving through recon. It records progress without forcing diagnosis, photos, or a new RO first.</p></div><span className={styles.locked}>Simple execution</span></div>
+    <div className="inventory-planning-task-fields">
+      <Field label="Current status"><select onChange={event => setStatus(event.target.value)} value={status}><option value="BODYWORK_IN_PROGRESS">Bodywork in progress</option><option value="NEEDS_MECHANICAL_REPAIR">Needs mechanical repair</option><option value="READY_FOR_QC">Ready for QC</option><option value="READY_FOR_FRONTLINE">Ready for frontline review</option><option value="ON_HOLD">On hold</option></select></Field>
+      <Field label="Completed so far"><textarea maxLength={2000} onChange={event => setCompletedWork(event.target.value)} value={completedWork} /></Field>
+      <Field label="Remaining work"><textarea maxLength={2000} onChange={event => setRemainingWork(event.target.value)} value={remainingWork} /></Field>
+      <Field label="Next action"><input maxLength={500} onChange={event => setNextAction(event.target.value)} value={nextAction} /></Field>
+      <Field label="Blocker / note"><input maxLength={500} onChange={event => setBlocker(event.target.value)} value={blocker} /></Field>
+    </div>
+    <div className={styles.inlineActions}><button className={styles.primaryButton} disabled={busy || !completedWork.trim() || !nextAction.trim()} onClick={() => void save()} type="button">{busy ? "Saving..." : "Save recon update"}</button><Link className={styles.secondaryButton} href="/vehicles/shop-recon">Open Shop Recon</Link></div>
+    {latest ? <p className={styles.good}>Latest: {latest.status.replaceAll("_", " ").toLowerCase()} by {latest.actorName} — {latest.completedWork}{latest.remainingWork ? ` Remaining: ${latest.remainingWork}` : ""}</p> : <p className={styles.warning}>No saved recon update yet for this vehicle.</p>}
+  </section>;
 }
 
 function GuidedTaskDetails({ damageSummary, evidenceIds, item, keyCount, mileage, ownerUserId, setDamageSummary, setKeyCount, setMileage, setOwnerUserId, updateCheckDetails, users, workflow }: { damageSummary: string; evidenceIds: string[]; item: CheckItem; keyCount: string; mileage: string; ownerUserId: string; setDamageSummary: (value: string) => void; setKeyCount: (value: string) => void; setMileage: (value: string) => void; setOwnerUserId: (value: string) => void; updateCheckDetails: (id: string, values: Partial<Pick<CheckItem, "notes" | "evidenceObjectIds">>) => void; users: FrontlineUser[]; workflow: FrontlineWorkflow | null }) {
