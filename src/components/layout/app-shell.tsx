@@ -14,12 +14,13 @@ import { ConsoleSidebar } from "./console-sidebar";
 import { getConsoleNavigation, isAppointmentConsolePath, isInventoryConsolePath, isOperationsCoordinatorConsolePath, isSalesConsolePath } from "./console-navigation";
 import { DispatchConsoleHeader } from "./dispatch-console-header";
 import { isDispatchConsolePath } from "./navigation";
-import { useWorkspaceMode, WorkspaceModeProvider } from "./workspace-mode";
+import { useWorkspaceMode, WorkspaceModeProvider, type WorkspaceMode } from "./workspace-mode";
 import { AppearanceProvider } from "./appearance";
 import { InventoryConsoleRouteTabs } from "./inventory-console-route-tabs";
 import { AdvisorWorkspaceTabs } from "./advisor-workspace-tabs";
 import { ManagerWorkspaceGuard } from "./manager-workspace-guard";
 import { ManagerWorkspaceSidebar } from "./manager-workspace-sidebar";
+import { TasksWorkspaceSidebar } from "./tasks-workspace-sidebar";
 import { readManagerWorkspaceContext, withManagerWorkspaceContext } from "@/lib/manager-workspace-context";
 
 type AppShellProps = {
@@ -27,6 +28,10 @@ type AppShellProps = {
   preferredWorkspace?: WorkspaceKey | null;
   user: AuthenticatedUser;
 };
+
+export function isTasksSidebarCompact(pathname: string, mode: WorkspaceMode) {
+  return pathname === "/tasks" && mode !== "standard";
+}
 
 function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) {
   const [navigationOpen, setNavigationOpen] = useState(false);
@@ -39,14 +44,15 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
   const { mode } = useWorkspaceMode();
   const commandCenterHome = pathname === "/command-center";
   const managerWorkspaceHome = pathname === "/manager-workspace";
+  const tasksConsoleHome = pathname === "/tasks";
   const salesConsole = isSalesConsolePath(pathname);
   const operationsCoordinatorConsole = isOperationsCoordinatorConsolePath(pathname);
   const dispatchConsole = isDispatchConsolePath(pathname) && !isInventoryConsolePath(pathname) && !isAppointmentConsolePath(pathname) && !isSalesConsolePath(pathname);
   const containedFocusedTool = Boolean(managerContext);
-  const consoleNavigation = salesConsole || containedFocusedTool ? null : getConsoleNavigation(pathname, user, preferredWorkspace);
-  const hasSidebar = commandCenterHome || managerWorkspaceHome || Boolean(consoleNavigation);
+  const consoleNavigation = salesConsole || containedFocusedTool || tasksConsoleHome ? null : getConsoleNavigation(pathname, user, preferredWorkspace);
+  const hasSidebar = commandCenterHome || managerWorkspaceHome || tasksConsoleHome || Boolean(consoleNavigation);
   const tasksWorkspace = pathname.startsWith("/tasks");
-  const sidebarCompact = commandCenterHome && tasksWorkspace && mode !== "standard";
+  const sidebarCompact = isTasksSidebarCompact(pathname, mode);
   const salesConsoleReturnTo = searchParams.get("returnTo");
   const showSalesConsoleReturn =
     Boolean(salesConsoleReturnTo?.startsWith("/sales")) &&
@@ -102,7 +108,7 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
       className={[
         "app-frame",
         !commandCenterHome ? "app-frame-console" : "",
-        consoleNavigation || managerWorkspaceHome ? "app-frame-console-sidebar" : "",
+        consoleNavigation || managerWorkspaceHome || tasksConsoleHome ? "app-frame-console-sidebar" : "",
         salesConsole ? "app-frame-sales-standalone" : "",
         operationsCoordinatorConsole ? "app-frame-operations-coordinator" : "",
         sidebarCompact ? "app-frame-sidebar-compact" : "",
@@ -112,6 +118,7 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
       <SessionHealthGuard />
       {commandCenterHome ? <AppSidebar compact={sidebarCompact} isOpen={navigationOpen} onClose={() => setNavigationOpen(false)} user={user} /> : null}
       {managerWorkspaceHome ? <ManagerWorkspaceSidebar isOpen={navigationOpen} onClose={() => setNavigationOpen(false)} user={user} /> : null}
+      {tasksConsoleHome ? <TasksWorkspaceSidebar compact={sidebarCompact} isOpen={navigationOpen} onClose={() => setNavigationOpen(false)} user={user} /> : null}
       {consoleNavigation ? <ConsoleSidebar console={consoleNavigation} isOpen={navigationOpen} onClose={() => setNavigationOpen(false)} user={user} /> : null}
       {hasSidebar && navigationOpen ? (
         <button className="sidebar-scrim" aria-label="Close navigation" onClick={() => setNavigationOpen(false)} />

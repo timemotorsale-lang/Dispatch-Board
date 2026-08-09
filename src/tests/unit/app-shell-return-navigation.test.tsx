@@ -12,7 +12,7 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => currentSearchParams
 }));
 
-import { AppShell } from "@/components/layout/app-shell";
+import { AppShell, isTasksSidebarCompact } from "@/components/layout/app-shell";
 
 const testUser: AuthenticatedUser = {
   id: "user-1",
@@ -83,6 +83,13 @@ describe("application shell Sales Console return navigation", () => {
     expect(markup).toContain("Inventory Planning");
   });
 
+  it("keeps distinct Standard, Compact, and Focus navigation behavior for Tasks", () => {
+    expect(isTasksSidebarCompact("/tasks", "standard")).toBe(false);
+    expect(isTasksSidebarCompact("/tasks", "compact")).toBe(true);
+    expect(isTasksSidebarCompact("/tasks", "focus")).toBe(true);
+    expect(isTasksSidebarCompact("/manager-workspace", "compact")).toBe(false);
+  });
+
   it("mounts the management sidebar on every Manager Workspace mode", () => {
     currentPathname = "/manager-workspace";
     currentSearchParams = new URLSearchParams("mode=coo");
@@ -143,5 +150,29 @@ describe("application shell Sales Console return navigation", () => {
     expect(markup).toContain("Executive Inbox");
     expect(markup).not.toContain("Intervention Queue");
     expect(markup).not.toContain("My Action Queue");
+  });
+
+  it("mounts a contextual compact navigation rail on the Tasks console", () => {
+    currentPathname = "/tasks";
+    currentSearchParams = new URLSearchParams("queue=ALL");
+
+    const markup = renderToStaticMarkup(
+      <AppShell user={testUser}>
+        <section>Tasks console</section>
+      </AppShell>
+    );
+
+    expect(markup).toContain("app-frame-console-sidebar");
+    expect(markup).toContain("app-frame-sidebar-compact");
+    expect(markup).toContain('aria-label="Time Motor Sales Tasks Workspace"');
+    expect(markup).toContain('aria-label="Task work views"');
+    expect(markup).toContain('aria-label="Task status views"');
+    expect(markup).toContain("Team Queue");
+    expect(markup).toContain("My Tasks");
+    expect(markup).toContain("Available Work");
+    expect(markup).toContain("Assignment Requests");
+    expect(markup).toContain("Ready for Review");
+    expect(markup).not.toContain('aria-label="Time Motor Sales Command Control Center"');
+    expect(markup).not.toContain('aria-label="Dispatch Board navigation"');
   });
 });
