@@ -114,11 +114,25 @@ const vehicleLabel = (vehicle: ServiceIntakeOptions["vehicles"][number]) =>
   `${[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || "Vehicle"} · ${vehicle.vehicleNumber}`;
 
 const serviceIntakeDraftKey = "service-intake-active-draft-v1";
-const technicianRoleNames = new Set(["Mechanic", "Technician"]);
+const directTechnicianRoleNames = new Set(["Mechanic", "Technician"]);
+const repairCapableRoleNames = new Set(["Mechanic", "Technician", "Vehicle Operations Lead"]);
 
 function technicianOptions(users: ServiceIntakeOptions["users"]) {
-  const technicians = users.filter((user) => user.roles?.some((role) => technicianRoleNames.has(role)));
-  return technicians.length ? technicians : users;
+  const assignmentRank = (user: ServiceIntakeOptions["users"][number]) => {
+    if (user.roles?.some((role) => directTechnicianRoleNames.has(role))) return 0;
+    if (user.roles?.some((role) => repairCapableRoleNames.has(role))) return 1;
+    return 2;
+  };
+  return [...users].sort((left, right) => assignmentRank(left) - assignmentRank(right) || left.name.localeCompare(right.name));
+}
+
+function isRepairCapable(user: ServiceIntakeOptions["users"][number]) {
+  return Boolean(user.roles?.some((role) => repairCapableRoleNames.has(role)));
+}
+
+function staffAssignmentLabel(user: ServiceIntakeOptions["users"][number]) {
+  if (isRepairCapable(user)) return `${user.name} — Repair-capable`;
+  return `${user.name} — ${user.roles?.[0] ?? "Staff"}`;
 }
 
 function buildInitial(options: ServiceIntakeOptions, initialTimestamp: string, initialConcernSummary = "", initialVehicleId = "", initialVehicleRelationship: VehicleRelationshipIntent = "CUSTOMER_VEHICLE"): IntakeState {
@@ -261,6 +275,8 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
   const selectedCustomer = customerRecords.find((customer) => customer.id === form.customerId);
   const selectedInventoryUnit = inventoryUnitRecords.find((unit) => unit.id === form.inventoryUnitId);
   const assignableTechnicians = technicianOptions(options.users);
+  const repairCapableTechnicians = assignableTechnicians.filter(isRepairCapable);
+  const otherActiveStaff = assignableTechnicians.filter((user) => !isRepairCapable(user));
   const isCustomerVehicle = form.vehicleRelationship === "CUSTOMER_VEHICLE";
   const isDealershipInventory = form.vehicleRelationship === "DEALERSHIP_INVENTORY";
   const canCompleteRelationshipIntake = isCustomerVehicle || isDealershipInventory;
@@ -978,8 +994,8 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
         </section>
 
         <section className="sic-card sic-technician-assignment" id="technician-assignment">
-          <header><span>4</span><div><h2>Assign technician</h2><p>Choose once at intake. This technician carries into the repair order and is preselected when authorized work reaches Shop Dispatch.</p></div><em>Simple handoff</em></header>
-          <div className="sic-technician-assignment-row"><label><span>Technician</span><select aria-label="Assign technician" onChange={(event) => update("ownerUserId", event.target.value)} value={form.ownerUserId}>{assignableTechnicians.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></label><div><UserRound /><span><strong>{selectedOwner?.name ?? "Select a technician"}</strong><small>Accountable from check-in · bay and schedule remain optional until dispatch</small></span></div><Link className="sic-open-dispatch" href="/vehicles/shop-dispatch">Open Shop Dispatch <ChevronRight /></Link></div>
+          <header><span>4</span><div><h2>Assign technician</h2><p>Choose any active staff member at intake. Repair-capable staff are listed first; Shop Dispatch still verifies qualification and capacity.</p></div><em>Simple handoff</em></header>
+          <div className="sic-technician-assignment-row"><label><span>Technician / accountable staff</span><select aria-label="Assign technician" onChange={(event) => update("ownerUserId", event.target.value)} value={form.ownerUserId}>{repairCapableTechnicians.length ? <optgroup label="Repair-capable staff">{repairCapableTechnicians.map((user) => <option key={user.id} value={user.id}>{staffAssignmentLabel(user)}</option>)}</optgroup> : null}{otherActiveStaff.length ? <optgroup label="Other active staff">{otherActiveStaff.map((user) => <option key={user.id} value={user.id}>{staffAssignmentLabel(user)}</option>)}</optgroup> : null}</select></label><div><UserRound /><span><strong>{selectedOwner?.name ?? "Select a technician"}</strong><small>{selectedOwner && isRepairCapable(selectedOwner) ? "Repair-capable · preassigned from check-in" : "Accountable at intake · repair eligibility verified in dispatch"}</small></span></div><Link className="sic-open-dispatch" href="/vehicles/shop-dispatch">Open Shop Dispatch <ChevronRight /></Link></div>
           <footer><ShieldCheck /><span>This assignment does not authorize repairs or bypass technician qualification, capacity, parts, or QC controls.</span></footer>
         </section>
 
