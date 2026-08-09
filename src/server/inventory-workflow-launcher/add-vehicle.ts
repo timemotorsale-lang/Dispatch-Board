@@ -28,6 +28,7 @@ type Input = {
   licensePlateState?: string;
   locationId: string;
   make: string;
+  manualDecodeAcknowledged: boolean;
   model: string;
   nonVinAttested: boolean;
   nonVinExceptionCode?: "NO_VIN_ASSIGNED";
@@ -108,7 +109,7 @@ export function normalizeAddVehicleWorkflowInput(value: unknown): Input {
     acquisitionSource, addMode, arrivalMethod: optional(raw.arrivalMethod), bodyClass: optional(raw.bodyClass), cabType: optional(raw.cabType), color: optional(raw.color), description, detailedNotes: optional(raw.detailedNotes, 1000),
     displacementLiters: optional(raw.displacementLiters), doors: optional(raw.doors), driveType: optional(raw.driveType), drivableStatus: optional(raw.drivableStatus), engineConfiguration: optional(raw.engineConfiguration), engineCylinders: optional(raw.engineCylinders), existingDamage: optional(raw.existingDamage, 1000), externalLocation, fuelTypePrimary: optional(raw.fuelTypePrimary), gvwr: optional(raw.gvwr), idempotencyKey: required(raw.idempotencyKey, "Idempotency key", 200), keyCount: optionalInteger(raw.keyCount, "Key count", 20),
     licensePlate, licensePlateState, locationId: required(raw.locationId, "Current location", 100),
-    make: required(raw.make, "Make", 100), model: required(raw.model, "Model", 100), nonVinAttested, nonVinExceptionCode, nonVinReason,
+    make: required(raw.make, "Make", 100), manualDecodeAcknowledged: raw.manualDecodeAcknowledged === true, model: required(raw.model, "Model", 100), nonVinAttested, nonVinExceptionCode, nonVinReason,
     odometer, odometerUnit: enumValue(raw.odometerUnit ?? "MILES", "Odometer unit", ["MILES", "KILOMETERS"] as const), reasonCode, relationship, runningStatus: optional(raw.runningStatus), series: optional(raw.series), transmissionStyle: optional(raw.transmissionStyle), trim: optional(raw.trim), vin, warningLights: optional(raw.warningLights, 1000), whereabouts, year
   };
 }
@@ -119,6 +120,11 @@ function nextHref(code: string, vehicleId: string, description: string) {
   if (code === "START_ACQUISITION_APPRAISAL") return `/vehicles/acquisition-appraisal?${new URLSearchParams({ vehicleId }).toString()}`;
   if (code === "REVIEW_INVENTORY_CONTROL") return `/vehicles/${encodeURIComponent(vehicleId)}/workbench`;
   return `/vehicles/360/${vehicleId}`;
+}
+
+function decoderUnavailableMessage(error: unknown) {
+  const detail = error instanceof Error && error.message && error.message !== "fetch failed" ? ` (${error.message})` : "";
+  return `NHTSA VIN decoding is temporarily unavailable${detail}. The VIN and duplicate check are complete; enter year, make, and model, then confirm the vehicle to continue.`;
 }
 
 export async function previewAddVehicleIdentity(actor: AuthenticatedUser | null, value: unknown) {
@@ -138,15 +144,27 @@ export async function previewAddVehicleIdentity(actor: AuthenticatedUser | null,
   const row = preview.rows[0];
   if (!row || row.status === "INVALID") throw new Error(row && "error" in row ? row.error : "Vehicle identity could not be validated.");
   const potentialDuplicate = "potentialDuplicate" in row ? row.potentialDuplicate : null;
-  const decode = await decodeVinWithNhtsa(vin);
-  return { decode, identity: { validationSource: decode.provider, vin: row.normalized.vin, vinState: row.normalized.vinState }, lookupType: "VIN", plateMatch: false, potentialDuplicate: potentialDuplicate ?? null };
+  try {
+    const decode = await decodeVinWithNhtsa(vin);
+    return { decode, decodeUnavailable: null, identity: { validationSource: decode.provider, vin: row.normalized.vin, vinState: row.normalized.vinState }, lookupType: "VIN", plateMatch: false, potentialDuplicate: potentialDuplicate ?? null };
+  } catch (error) {
+    return { decode: null, decodeUnavailable: { message: decoderUnavailableMessage(error) }, identity: { validationSource: row.normalized.vinValidationSource, vin: row.normalized.vin, vinState: row.normalized.vinState }, lookupType: "VIN", plateMatch: false, potentialDuplicate: potentialDuplicate ?? null };
+  }
 }
 
 export async function startAddVehicleWorkflow(actor: AuthenticatedUser | null, value: unknown) {
   const input = normalizeAddVehicleWorkflowInput(value); const recommendation = recommendAddVehicleWorkflow(input);
-  const decode: NhtsaDecodeResult | null = input.vin ? await decodeVinWithNhtsa(input.vin) : null;
+  let decode: NhtsaDecodeResult | null = null; let decodeWarning: string | null = null;
+  if (input.vin) {
+    try { decode = await decodeVinWithNhtsa(input.vin); }
+    catch (error) {
+      decodeWarning = decoderUnavailableMessage(error);
+      if (!input.manualDecodeAcknowledged) throw new Error(decodeWarning);
+    }
+  }
   const year = decode?.decoded.modelYear ?? Number(input.year); const make = decode?.decoded.make ?? input.make; const model = decode?.decoded.model ?? input.model;
   const decodedOrigin = decode ? { authority: "MANUFACTURER_SUBMITTED_VIN_DATA", confirmedAt: new Date().toISOString(), source: decode.provider, sourceReference: decode.vin } : { authority: "STAFF_CONFIRMATION", confirmedAt: new Date().toISOString(), source: "STAFF_CONFIRMED" };
+  const vinOrigin = input.vin && !decode ? { authority: "CANONICAL_VIN_VALIDATION", confirmedAt: new Date().toISOString(), source: "ISO_3779_CHECK_DIGIT_V1", sourceReference: input.vin } : decodedOrigin;
   const staffOrigin = { authority: "STAFF_OBSERVATION", confirmedAt: new Date().toISOString(), source: "STAFF_OBSERVED" };
   const specifications = { ...(decode?.decoded ?? {}), acquisitionSource: input.acquisitionSource || null, arrivalMethod: input.arrivalMethod || null, bodyClass: input.bodyClass || decode?.decoded.bodyClass || null, cabType: input.cabType || decode?.decoded.cabType || null, detailedNotes: input.detailedNotes || null, displacementLiters: input.displacementLiters || decode?.decoded.displacementLiters || null, doors: input.doors || decode?.decoded.doors || null, driveType: input.driveType || decode?.decoded.driveType || null, drivableStatus: input.drivableStatus || null, engineConfiguration: input.engineConfiguration || decode?.decoded.engineConfiguration || null, engineCylinders: input.engineCylinders || decode?.decoded.engineCylinders || null, existingDamage: input.existingDamage || null, externalLocation: input.externalLocation || null, fuelTypePrimary: input.fuelTypePrimary || decode?.decoded.fuelTypePrimary || null, gvwr: input.gvwr || decode?.decoded.gvwr || null, keyCount: input.keyCount ?? null, runningStatus: input.runningStatus || null, series: input.series || decode?.decoded.series || null, transmissionStyle: input.transmissionStyle || decode?.decoded.transmissionStyle || null, trim: input.trim || decode?.decoded.trim || null, warningLights: input.warningLights || null, whereabouts: input.whereabouts };
   const fieldOrigins = Object.fromEntries(Object.entries(specifications).filter(([, value]) => value != null && value !== "").map(([field]) => {
@@ -161,9 +179,9 @@ export async function startAddVehicleWorkflow(actor: AuthenticatedUser | null, v
     vin: input.vin || null, year,
     workflowContext: { acquisitionSource: input.acquisitionSource ?? null, addMode: input.addMode, conditionSummary: input.description, description: input.description, externalLocation: input.externalLocation || null, nonVinExceptionCode: input.nonVinExceptionCode ?? null, recommendedWorkflowCode: recommendation.code, relationship: input.relationship, reasonCode: input.reasonCode, whereabouts: input.whereabouts }
   }, {}, {
-    canonicalOrigins: { color: input.color ? staffOrigin : null, licensePlate: input.licensePlate ? staffOrigin : null, licensePlateState: input.licensePlateState ? staffOrigin : null, make: decodedOrigin, model: decodedOrigin, vin: input.vin ? decodedOrigin : { ...staffOrigin, source: "DOCUMENTED_NON_VIN_EXCEPTION" }, year: decodedOrigin },
+    canonicalOrigins: { color: input.color ? staffOrigin : null, licensePlate: input.licensePlate ? staffOrigin : null, licensePlateState: input.licensePlateState ? staffOrigin : null, make: decodedOrigin, model: decodedOrigin, vin: input.vin ? vinOrigin : { ...staffOrigin, source: "DOCUMENTED_NON_VIN_EXCEPTION" }, year: decodedOrigin },
     initialOdometer: input.odometer == null ? null : { observedAt: new Date(), reading: input.odometer, sourceCode: "ADD_VEHICLE_STAFF_OBSERVATION", unit: input.odometerUnit },
-    specificationSnapshot: { addMode: input.addMode, decodedAt: decode?.retrievedAt ?? null, fieldOrigins, mappingVersion: decode?.mappingVersion ?? 1, provider: decode?.provider ?? "STAFF_CONFIRMED", specifications, vin: input.vin || null, warnings: decode?.warnings ?? ["No VIN was assigned; vehicle details were staff-confirmed under the controlled exception."] }
+    specificationSnapshot: { addMode: input.addMode, decodedAt: decode?.retrievedAt ?? null, fieldOrigins, mappingVersion: decode?.mappingVersion ?? 1, provider: decode?.provider ?? (input.vin ? "STAFF_CONFIRMED_NHTSA_UNAVAILABLE" : "STAFF_CONFIRMED"), specifications, vin: input.vin || null, warnings: decode?.warnings ?? [decodeWarning ?? "No VIN was assigned; vehicle details were staff-confirmed under the controlled exception."] }
   });
   const created = result.result as { duplicateReviewId?: string | null; id: string; vehicleNumber: string };
   return { ...result, nextWorkflow: { ...recommendation, href: nextHref(recommendation.code, created.id, input.description) } };

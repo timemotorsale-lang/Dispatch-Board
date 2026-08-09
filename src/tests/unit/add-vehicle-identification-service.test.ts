@@ -17,6 +17,12 @@ describe("Add Vehicle canonical identification service", () => {
     expect(result).toMatchObject({ lookupType: "VIN", decode, identity: { validationSource: "NHTSA_VPIC", vin }, potentialDuplicate: null });
   });
 
+  it("preserves local VIN validation and duplicate protection when NHTSA is unavailable", async () => {
+    mocks.decodeVinWithNhtsa.mockRejectedValueOnce(new TypeError("fetch failed"));
+    const result = await previewAddVehicleIdentity(null, { lookupType: "VIN", vin });
+    expect(result).toMatchObject({ decode: null, decodeUnavailable: { message: expect.stringContaining("temporarily unavailable") }, identity: { validationSource: "ISO_3779_CHECK_DIGIT_V1", vin, vinState: "VALID" }, potentialDuplicate: null });
+  });
+
   it("uses plate and state only to search existing dealership records", async () => {
     mocks.findVehicleRegistryByPlate.mockResolvedValue({ id: "vehicle-1", vehicleNumber: "VEH-1", vin });
     const result = await previewAddVehicleIdentity(null, { lookupType: "PLATE", licensePlate: "ABC123", licensePlateState: "MN" });
@@ -41,10 +47,17 @@ describe("Add Vehicle canonical identification service", () => {
     expect(valid.nonVinReason).toContain("NO_VIN_ASSIGNED:");
   });
 
-  it("blocks VIN-backed creation when authoritative decoding fails", async () => {
+  it("requires explicit manual confirmation before VIN-backed creation when decoding fails", async () => {
     mocks.decodeVinWithNhtsa.mockRejectedValueOnce(new Error("NHTSA decoding unavailable"));
-    await expect(startAddVehicleWorkflow(null, { addMode: "QUICK", description: "Vehicle needs an initial inspection.", idempotencyKey: "add-decode-required", locationId: "loc-1", make: "Manual", model: "Entry", odometer: 20, reasonCode: "INSPECTION_DIAGNOSIS", relationship: "CUSTOMER_VEHICLE", vin, year: 2003 })).rejects.toThrow("NHTSA decoding unavailable");
+    await expect(startAddVehicleWorkflow(null, { addMode: "QUICK", description: "Vehicle needs an initial inspection.", idempotencyKey: "add-decode-required", locationId: "loc-1", make: "Manual", model: "Entry", odometer: 20, reasonCode: "INSPECTION_DIAGNOSIS", relationship: "CUSTOMER_VEHICLE", vin, year: 2003 })).rejects.toThrow("NHTSA VIN decoding is temporarily unavailable");
     expect(mocks.createRegistryVehicle).not.toHaveBeenCalled();
+  });
+
+  it("creates with staff-confirmed details after a decoder outage without weakening VIN duplicate controls", async () => {
+    mocks.decodeVinWithNhtsa.mockRejectedValueOnce(new TypeError("fetch failed"));
+    mocks.createRegistryVehicle.mockResolvedValue({ result: { id: "vehicle-1", vehicleNumber: "VEH-1" }, version: 1 });
+    await startAddVehicleWorkflow(null, { addMode: "QUICK", description: "Vehicle needs an initial inspection.", idempotencyKey: "add-manual-decode", locationId: "loc-1", make: "Honda", manualDecodeAcknowledged: true, model: "CR-V", odometer: 20, reasonCode: "INSPECTION_DIAGNOSIS", relationship: "CUSTOMER_VEHICLE", vin, year: 2018 });
+    expect(mocks.createRegistryVehicle).toHaveBeenCalledWith(null, expect.objectContaining({ make: "Honda", model: "CR-V", vin, year: 2018 }), {}, expect.objectContaining({ canonicalOrigins: expect.objectContaining({ make: expect.objectContaining({ source: "STAFF_CONFIRMED" }), vin: expect.objectContaining({ source: "ISO_3779_CHECK_DIGIT_V1" }) }), specificationSnapshot: expect.objectContaining({ provider: "STAFF_CONFIRMED_NHTSA_UNAVAILABLE", warnings: [expect.stringContaining("temporarily unavailable")] }) }));
   });
 
   it("creates one canonical record with decode origins, specifications, and initial odometer", async () => {
