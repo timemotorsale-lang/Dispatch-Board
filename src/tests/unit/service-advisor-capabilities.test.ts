@@ -13,14 +13,22 @@ const advisor: AuthenticatedUser = {
 };
 
 describe("service advisor capability defaults", () => {
-  it("can perform customer intake and repair-order coordination without admin authority", () => {
+  it("can perform recon execution with the current inventory manager capability set without admin authority", () => {
     for (const capability of [
       "VEHICLE_OPERATIONS_VIEW",
       "VEHICLE_IDENTITY_CREATE",
+      "INVENTORY_UNIT_VIEW",
+      "INVENTORY_UNIT_MANAGE",
       "REPAIR_ORDER_VIEW",
       "REPAIR_ORDER_MANAGE",
       "PARTS_VIEW",
+      "PARTS_MANAGE",
+      "VEHICLE_EVIDENCE_VIEW",
+      "VEHICLE_EVIDENCE_MANAGE",
       "VEHICLE_DISCOVERY_VIEW",
+      "WORK_KNOWLEDGE_VIEW",
+      "WORK_KNOWLEDGE_MANAGE",
+      "DIAGNOSTIC_CASE_VIEW",
       "DIAGNOSTIC_ESTIMATE_ADVISOR_REVIEW"
     ] as const) {
       expect(evaluateVehicleCapability({
@@ -30,13 +38,6 @@ describe("service advisor capability defaults", () => {
         locationId: null
       })).toMatchObject({ allowed: true, reason: "ROLE_DEFAULT" });
     }
-
-    expect(evaluateVehicleCapability({
-      actor: advisor,
-      capability: "PARTS_MANAGE",
-      grants: [],
-      locationId: null
-    })).toMatchObject({ allowed: false, reason: "CAPABILITY_REQUIRED" });
 
     expect(evaluateVehicleCapability({
       actor: advisor,

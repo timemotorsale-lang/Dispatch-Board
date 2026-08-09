@@ -10,6 +10,7 @@ const options = {
   inventoryUnits: [],
   locations: [{ code: "MPLS", id: "location-1", name: "Minneapolis" }],
   repairOrders: [],
+  repairVendors: [{ defaultLeadDays: 3, id: "vendor-1", name: "Diego Auto Body", vendorType: "BODY_SHOP" }],
   users: [{ email: "advisor@example.test", id: "advisor-1", name: "Alex Advisor", roles: ["Service Advisor"] }, { email: "brock@example.test", id: "ops-tech-1", name: "Brock Harris", roles: ["Vehicle Operations Lead", "Inventory Manager"] }, { email: "walter@example.test", id: "tech-1", name: "Walter Mechanic", roles: ["Mechanic"] }],
   vehicles: [{ id: "vehicle-1", make: "Ford", model: "F-150", vehicleNumber: "VEH-100", year: 2024 }],
 };
@@ -27,9 +28,11 @@ describe("enterprise service intake workspace", () => {
     expect(html).toContain("maxLength=\"2000\"");
     expect(html).toContain("Helpful prompts");
     expect(html).toContain("Visit &amp; Custody");
-    expect(html).toContain("Assign technician");
+    expect(html).toContain("Choose execution path");
     expect(html).toContain('aria-label="Assign technician"');
-    expect(html).toContain("Choose any active staff member at intake");
+    expect(html).toContain("Internal shop");
+    expect(html).toContain("Outside vendor");
+    expect(html).toContain("Route the vehicle to the internal shop or an outside vendor");
     expect(html).toContain("Walter Mechanic");
     expect(html).toContain("Brock Harris");
     expect(html).toContain("Alex Advisor");

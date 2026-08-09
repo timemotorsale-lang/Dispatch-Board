@@ -71,7 +71,8 @@ describe("role landing and record routing", () => {
     expect(getPermittedWorkspaces(brock).map((workspace) => workspace.key)).toEqual([
       "VEHICLE_OPERATIONS_LEAD",
       "SERVICE",
-      "INVENTORY"
+      "INVENTORY",
+      "ADVISOR"
     ]);
     expect(getWorkspaceKey(brock)).toBe("VEHICLE_OPERATIONS_LEAD");
     expect(getDefaultLandingRoute(brock)).toBe("/vehicles?workspace=vehicle-operations-lead");
@@ -79,6 +80,7 @@ describe("role landing and record routing", () => {
     expect(resolveWorkspaceForPath(brock, "/vehicles/parts-operations")).toBe("VEHICLE_OPERATIONS_LEAD");
     expect(getWorkspaceKey(brock, "INVENTORY")).toBe("INVENTORY");
     expect(getDefaultLandingRoute(brock, "INVENTORY")).toBe("/vehicles");
+    expect(resolveWorkspaceForPath(brock, "/vehicles/advisor", "INVENTORY")).toBe("ADVISOR");
   });
 
   it("gives the vehicle operations lead governed advisor and technician workspaces", () => {

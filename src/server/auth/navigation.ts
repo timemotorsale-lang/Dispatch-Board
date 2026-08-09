@@ -170,6 +170,7 @@ const ROUTE_WORKSPACES: Array<{ prefix: string; workspaces: WorkspaceKey[] }> = 
   { prefix: "/vehicles/quality-control", workspaces: ["QUALITY", "VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "MANAGEMENT"] },
   { prefix: "/vehicles/shop-recon", workspaces: ["VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "MANAGEMENT"] },
   { prefix: "/vehicles/shop-planning", workspaces: ["VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "MANAGEMENT"] },
+  { prefix: "/vehicles/outside-vendors", workspaces: ["VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "MANAGEMENT"] },
   { prefix: "/vehicles/shop-dispatch", workspaces: ["VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "MANAGEMENT"] },
   { prefix: "/vehicles/shop-production", workspaces: ["VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "MANAGEMENT"] },
   { prefix: "/vehicles/shop-metrics", workspaces: ["VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "MANAGEMENT"] },
@@ -212,6 +213,13 @@ function matchesDefinition(user: AuthenticatedUser, definition: WorkspaceDefinit
   }
   if (
     definition.key === "VEHICLE_OPERATIONS_LEAD" &&
+    user.roles.includes("Inventory Manager") &&
+    user.roles.includes("Service Department Manager")
+  ) {
+    return true;
+  }
+  if (
+    definition.key === "ADVISOR" &&
     user.roles.includes("Inventory Manager") &&
     user.roles.includes("Service Department Manager")
   ) {
@@ -281,6 +289,12 @@ export function resolveWorkspaceForPath(
   const pathname = normalizedPath(path);
   if (pathname === "/command-center" || pathname === "/board") {
     return "MANAGEMENT";
+  }
+  if (
+    pathname === "/vehicles/advisor" &&
+    permitted.some((workspace) => workspace.key === "ADVISOR")
+  ) {
+    return "ADVISOR";
   }
   const matchingContract = ROUTE_WORKSPACES.find((contract) => hasRoutePrefix(pathname, contract.prefix));
   if (preferredWorkspace &&

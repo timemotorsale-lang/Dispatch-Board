@@ -12,4 +12,12 @@ describe("AdvisorWorkspaceTabs", () => {
     expect(html).toContain('aria-current="page"');
     expect(html).not.toContain("Vehicle Workbench");
   });
+
+  it("marks the advisor delivery workspace as part of the Service Advisor shell", () => {
+    const html = renderToStaticMarkup(<AdvisorWorkspaceTabs pathname="/vehicles/advisor" searchParams={new URLSearchParams()} />);
+
+    expect(html).toContain('aria-label="Service Advisor workspace navigation"');
+    expect(html).toContain("My Workspace");
+    expect(html).not.toContain("Return to Inventory Console");
+  });
 });

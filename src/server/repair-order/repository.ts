@@ -25,7 +25,7 @@ export function createRepairOrderRepository(database: PrismaClient = prisma) { r
   async search(organizationId: string, input: { page: number; pageSize: number; query: string; state?: string; vehicleId?: string }) { const where: Prisma.RepairOrderWhereInput = { organizationId, closedAt: null, ...(input.vehicleId ? { vehicleId: input.vehicleId } : {}) }; if (input.state) where.operatingState = input.state as Prisma.EnumRepairOrderOperatingStateFilter; if (input.query.trim()) where.AND = input.query.trim().split(/\s+/).map((token) => ({ OR: [{ repairOrderNumber: { contains: token, mode: "insensitive" } }, { nextAction: { contains: token, mode: "insensitive" } }, { vehicle: { vehicleNumber: { contains: token, mode: "insensitive" } } }, { vehicle: { vin: { contains: token.toUpperCase() } } }, { customer: { displayName: { contains: token, mode: "insensitive" } } }, { inventoryUnit: { inventoryNumber: { contains: token, mode: "insensitive" } } }, { ownerUser: { name: { contains: token, mode: "insensitive" } } }] })); const [total,items]=await Promise.all([database.repairOrder.count({where}),database.repairOrder.findMany({where,orderBy:[{targetAt:"asc"},{repairOrderNumber:"asc"}],skip:(input.page-1)*input.pageSize,take:input.pageSize,include:{vehicle:{select:vehicleSelect},customer:{select:{id:true,displayName:true}},inventoryUnit:{select:{id:true,inventoryNumber:true}},ownerUser:{select:{id:true,name:true}},location:{select:{id:true,code:true,name:true}},serviceVisit:{select:{concernSummary:true,transportMode:true}},advisorUpdates:{orderBy:{version:"desc"},take:8,select:{id:true,contactChannel:true,contactDirection:true,contactOutcome:true,customerVisibleSummary:true,internalNotes:true,exceptionCodes:true,nextContactAt:true,occurredAt:true,statusCode:true,version:true,authorUser:{select:{id:true,name:true}}}},_count:{select:{stateEvents:true}}}})]); return {items,page:input.page,pageSize:input.pageSize,total,totalPages:Math.max(1,Math.ceil(total/input.pageSize))}; },
   getDetail(organizationId: string, id: string) { return database.repairOrder.findFirst({ where: { id, organizationId }, include: detailInclude }); },
   async getCreateOptions(organizationId: string) {
-    const [appointments, vehicles, customers, inventoryUnits, locations, users, repairOrders] = await Promise.all([
+    const [appointments, vehicles, customers, inventoryUnits, locations, users, repairOrders, repairVendors] = await Promise.all([
       database.appointment.findMany({
         where: { organizationId, cancelledAt: null, noShowAt: null, serviceVisit: null, vehicles: { some: { isPrimary: true } }, participants: { some: { participantType: "CUSTOMER", isPrimary: true, customerId: { not: null } } } },
         orderBy: { startsAt: "asc" }, take: 100,
@@ -41,9 +41,10 @@ export function createRepairOrderRepository(database: PrismaClient = prisma) { r
         orderBy: { updatedAt: "desc" },
         take: 200,
         select: { closedAt: true, id: true, openedAt: true, operatingState: true, repairOrderNumber: true, stage: true, customer: { select: { displayName: true } }, serviceVisit: { select: { concernSummary: true } }, vehicle: { select: vehicleSelect } },
-      })
+      }),
+      database.repairVendor.findMany({ where: { organizationId, status: "ACTIVE" }, orderBy: { name: "asc" }, select: { defaultLeadDays: true, id: true, name: true, vendorType: true } })
     ]);
-    return { appointments, vehicles, customers, inventoryUnits, locations, users: users.map(({ userRoles, ...user }) => ({ ...user, roles: userRoles.map(({ role }) => role.name) })), repairOrders };
+    return { appointments, vehicles, customers, inventoryUnits, locations, users: users.map(({ userRoles, ...user }) => ({ ...user, roles: userRoles.map(({ role }) => role.name) })), repairOrders, repairVendors };
   },
   async validateReadinessSnapshot(organizationId: string, data: Pick<RepairOrderCreateRecord, "appointmentId" | "customerId" | "locationId" | "readinessSnapshotId" | "vehicleId">, now: Date) {
     if (!data.readinessSnapshotId) return;

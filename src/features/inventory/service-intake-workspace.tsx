@@ -2,6 +2,7 @@
 
 import {
   AlertTriangle,
+  Building2,
   CalendarClock,
   CalendarDays,
   CarFront,
@@ -35,6 +36,7 @@ export type ServiceIntakeOptions = {
   inventoryUnits: Array<{ id: string; inventoryNumber: string; locationId: string; vehicle: ServiceIntakeOptions["vehicles"][number] }>;
   locations: Array<{ code?: string; id: string; name: string }>;
   repairOrders: Array<{ closedAt: string | null; customer: null | { displayName: string }; id: string; openedAt: string; operatingState: string; repairOrderNumber: string; serviceVisit: { concernSummary: string }; stage: string; vehicle: ServiceIntakeOptions["vehicles"][number] }>;
+  repairVendors: Array<{ defaultLeadDays: number; id: string; name: string; vendorType: string }>;
   users: Array<{ email?: string; id: string; name: string; roles?: string[] }>;
   vehicles: Array<{ color?: string | null; id: string; licensePlate?: string | null; make: string | null; model: string | null; registryRelationships?: Array<{ relationshipType: string }>; specificationSnapshot?: unknown; stockNumber?: string | null; vehicleNumber: string; version?: number; vin?: string | null; year: number | null }>;
 };
@@ -48,6 +50,7 @@ type IntakeState = {
   consentStatus: "DOCUMENTED" | "NOT_REQUIRED" | "PENDING";
   consentedAt: string;
   customerId: string;
+  executionPath: "INTERNAL_SHOP" | "OUTSIDE_VENDOR";
   frequency: string;
   intakeNotes: string;
   inventoryUnitId: string;
@@ -62,6 +65,11 @@ type IntakeState = {
   targetAt: string;
   transportMode: string;
   urgency: string;
+  vendorDirectFromSource: boolean;
+  vendorExpectedReturnAt: string;
+  vendorId: string;
+  vendorScope: string;
+  vendorSentFrom: string;
   vehicleRelationship: VehicleRelationshipIntent;
   vehicleId: string;
   warningIndicators: string;
@@ -146,6 +154,7 @@ function buildInitial(options: ServiceIntakeOptions, initialTimestamp: string, i
     consentStatus: "PENDING",
     consentedAt: "",
     customerId: "",
+    executionPath: "INTERNAL_SHOP",
     frequency: "",
     intakeNotes: "",
     inventoryUnitId: initialVehicleRelationship === "DEALERSHIP_INVENTORY" ? options.inventoryUnits.find((unit) => unit.vehicle.id === initialVehicleId)?.id ?? "" : "",
@@ -160,6 +169,11 @@ function buildInitial(options: ServiceIntakeOptions, initialTimestamp: string, i
     targetAt: local(new Date(now.getTime() + 2 * 60 * 60_000)),
     transportMode: "DROP_OFF",
     urgency: "STANDARD",
+    vendorDirectFromSource: false,
+    vendorExpectedReturnAt: local(new Date(now.getTime() + 3 * 24 * 60 * 60_000)),
+    vendorId: "",
+    vendorScope: initialConcernSummary,
+    vendorSentFrom: "Dealership",
     vehicleRelationship: initialVehicleRelationship,
     vehicleId: options.vehicles.some((vehicle) => vehicle.id === initialVehicleId) ? initialVehicleId : "",
     warningIndicators: "",
@@ -209,7 +223,7 @@ function mergeById<T extends { id: string }>(current: T[], saved: T[] = []) {
   return [...current, ...saved.filter((item) => !current.some((record) => record.id === item.id))];
 }
 
-export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcernSummary = "", initialTimestamp, initialVehicleId = "", initialVehicleRelationship = "CUSTOMER_VEHICLE", options, returnTo, showAdvisorReturn = false }: { initialArrivalQuery?: string; initialConcernSummary?: string; initialTimestamp: string; initialVehicleId?: string; initialVehicleRelationship?: VehicleRelationshipIntent; options: ServiceIntakeOptions; returnTo?: string; showAdvisorReturn?: boolean }) {
+export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = "", initialConcernSummary = "", initialTimestamp, initialVehicleId = "", initialVehicleRelationship = "CUSTOMER_VEHICLE", options, returnTo, showAdvisorReturn = false }: { currentUserId?: string; initialArrivalQuery?: string; initialConcernSummary?: string; initialTimestamp: string; initialVehicleId?: string; initialVehicleRelationship?: VehicleRelationshipIntent; options: ServiceIntakeOptions; returnTo?: string; showAdvisorReturn?: boolean }) {
   const concernRef = useRef<HTMLTextAreaElement>(null);
   const repairOrderDecisionRef = useRef<HTMLElement>(null);
   const arrivalSearchRef = useRef<HTMLInputElement>(null);
@@ -242,6 +256,11 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
   const [safetyIntelligenceError, setSafetyIntelligenceError] = useState("");
   const [safetyIntelligenceLoading, setSafetyIntelligenceLoading] = useState(false);
   const [inventoryUnitRecords, setInventoryUnitRecords] = useState(options.inventoryUnits);
+  const [repairVendorRecords, setRepairVendorRecords] = useState(options.repairVendors ?? []);
+  const [newRepairVendor, setNewRepairVendor] = useState({ defaultLeadDays: 3, name: "", vendorType: "BODY_SHOP" });
+  const [vendorBusy, setVendorBusy] = useState(false);
+  const [vendorCreateOpen, setVendorCreateOpen] = useState(false);
+  options.repairVendors = repairVendorRecords;
   const [inventoryUnitBusy, setInventoryUnitBusy] = useState(false);
   const [inventoryUnitDraft, setInventoryUnitDraft] = useState(() => {
     const initialDate = new Date(initialTimestamp);
@@ -284,6 +303,8 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
   const canCompleteRelationshipIntake = isCustomerVehicle || isDealershipInventory;
   const selectedLocation = options.locations.find((location) => location.id === form.locationId);
   const selectedOwner = assignableTechnicians.find((user) => user.id === form.ownerUserId);
+  const selectedVendor = repairVendorRecords.find((vendor) => vendor.id === form.vendorId);
+  const usesOutsideVendor = form.executionPath === "OUTSIDE_VENDOR";
   const checklist = [
     { label: isDealershipInventory ? "Inventory unit linked" : "Customer selected", ready: isDealershipInventory ? Boolean(form.inventoryUnitId) : isCustomerVehicle && Boolean(form.customerId) },
     { label: "Vehicle selected", ready: Boolean(form.vehicleId) },
@@ -291,7 +312,7 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
     { label: "Repair-order decision", ready: !requiresRepairOrderDecision || newRepairOrderConfirmed },
     { label: "Keys & transportation", ready: form.keysReceivedCount >= 0 && Boolean(form.transportMode) },
     { label: isDealershipInventory ? "Internal recon readiness" : "Live service readiness", ready: isDealershipInventory || Boolean(readiness) },
-    { label: "Technician & target", ready: Boolean(form.ownerUserId && form.targetAt) },
+    { label: usesOutsideVendor ? "Vendor route & target" : "Technician & target", ready: Boolean(form.ownerUserId && form.targetAt && (!usesOutsideVendor || form.vendorId && form.vendorScope.trim().length >= 10 && form.vendorExpectedReturnAt)) },
     { label: "Consent disposition", ready: form.consentStatus !== "DOCUMENTED" || Boolean(form.consentReference && form.consentedAt) },
   ];
   const ready = checklist.every((item) => item.ready);
@@ -311,8 +332,8 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
             ? "Choose Existing or New RO"
         : isCustomerVehicle && !readiness
           ? "Refresh Live Readiness"
-          : !form.ownerUserId || !form.targetAt
-            ? "Assign Technician & Target"
+          : !form.ownerUserId || !form.targetAt || usesOutsideVendor && (!form.vendorId || form.vendorScope.trim().length < 10 || !form.vendorExpectedReturnAt)
+            ? usesOutsideVendor ? "Select Vendor & Return Target" : "Assign Technician & Target"
             : form.consentStatus === "DOCUMENTED" && (!form.consentReference || !form.consentedAt)
               ? "Complete Authorization"
               : "Complete Check-In & Create Repair Order";
@@ -640,7 +661,7 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
       setNotice("Refreshing live readiness. The repair order can be created after appointment and capacity facts are available.");
       return;
     }
-    setNotice("Complete the remaining owner, target, or authorization fields before creating the repair order.");
+    setNotice(usesOutsideVendor ? "Select the outside vendor, requested work, accountable advisor, and expected return before continuing." : "Complete the remaining owner, target, or authorization fields before creating the repair order.");
   }
 
   function resetVehicleIdentityPreview() {
@@ -819,12 +840,79 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
     if (!assignmentResponse.ok) throw new Error(assignmentBody.error ?? "The Repair Order was found, but its technician assignment could not be saved.");
   }
 
+  async function createRepairVendor() {
+    if (newRepairVendor.name.trim().length < 2) {
+      setNotice("Enter the outside vendor name before saving.");
+      return;
+    }
+    setVendorBusy(true);
+    setNotice("");
+    try {
+      const response = await fetch("/api/repair-vendors", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...newRepairVendor, idempotencyKey: crypto.randomUUID(), name: newRepairVendor.name.trim(), reason: "Add a reusable outside vendor without leaving Service Advisor intake." }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || !body.result?.id) throw new Error(body.error ?? "The outside vendor could not be added.");
+      const vendor = { defaultLeadDays: newRepairVendor.defaultLeadDays, id: body.result.id as string, name: newRepairVendor.name.trim(), vendorType: newRepairVendor.vendorType };
+      setRepairVendorRecords((records) => [...records, vendor].sort((left, right) => left.name.localeCompare(right.name)));
+      update("vendorId", vendor.id);
+      setNewRepairVendor({ defaultLeadDays: 3, name: "", vendorType: "BODY_SHOP" });
+      setVendorCreateOpen(false);
+      setNotice(`${vendor.name} was added and selected for this repair order.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "The outside vendor could not be added.");
+    } finally {
+      setVendorBusy(false);
+    }
+  }
+
+  async function saveOutsideVendorToRepairOrder(repairOrderId: string) {
+    if (!selectedVendor) throw new Error("Select an active outside vendor before continuing.");
+    const response = await fetch(`/api/repair-orders/${encodeURIComponent(repairOrderId)}/vendor-work`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "CREATE",
+        approvalStatus: "NEEDS_DOCUMENTATION",
+        approvedAmountCents: null,
+        currentLocation: selectedVendor.name,
+        customerVisibleSummary: `The vehicle is with ${selectedVendor.name} for outside repair work. We are monitoring progress and the expected return.`,
+        directFromSource: form.vendorDirectFromSource,
+        estimateAmountCents: null,
+        evidence: [],
+        expectedReturnAt: new Date(form.vendorExpectedReturnAt).toISOString(),
+        idempotencyKey: crypto.randomUUID(),
+        internalNotes: `Outside vendor route selected during intake by ${selectedOwner?.name ?? "the accountable advisor"}.`,
+        keysCustodian: "Vendor",
+        lastUpdateSummary: form.vendorDirectFromSource ? `Vehicle sent directly from ${form.vendorSentFrom} to ${selectedVendor.name}.` : `Vehicle sent to ${selectedVendor.name}.`,
+        nextAction: "Confirm vendor estimate, approval documentation, and expected return.",
+        nextFollowUpAt: new Date(Math.min(new Date(form.vendorExpectedReturnAt).getTime(), Date.now() + 4 * 60 * 60_000)).toISOString(),
+        occurredAt: new Date().toISOString(),
+        reason: form.vendorDirectFromSource ? "Route dealership inventory directly from its source to the selected outside vendor." : "Route the repair order to the selected outside vendor.",
+        scope: form.vendorScope.trim(),
+        sentAt: new Date(form.arrivedAt).toISOString(),
+        sentFrom: form.vendorSentFrom.trim() || (form.vendorDirectFromSource ? "Auction/source" : "Dealership"),
+        status: "AT_VENDOR",
+        supplementalAmountCents: null,
+        transportMethod: form.transportMode === "TOW" ? "Tow / carrier" : form.transportMode.replaceAll("_", " ").toLocaleLowerCase(),
+        vendorId: selectedVendor.id,
+        vendorName: selectedVendor.name,
+        workType: selectedVendor.vendorType,
+      }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error ?? "The outside vendor route could not be saved.");
+  }
+
   async function openExistingRepairOrder(repairOrderId: string) {
     setBusy(true);
     setNotice("");
     try {
-      await saveTechnicianToRepairOrder(repairOrderId);
-      window.location.assign(`/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(repairOrderId)}`);
+      if (usesOutsideVendor) await saveOutsideVendorToRepairOrder(repairOrderId);
+      else await saveTechnicianToRepairOrder(repairOrderId);
+      window.location.assign(`/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(repairOrderId)}&tab=repair&workspace=advisor`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "The technician assignment could not be saved.");
     } finally {
@@ -896,7 +984,8 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
       if (!response.ok) throw new Error(body.error ?? "Vehicle check-in failed.");
       const result = body.result as { duplicateReason?: string; id: string; repairOrderNumber: string };
       const reused = body.duplicate === true;
-      if (reused) await saveTechnicianToRepairOrder(result.id);
+      if (usesOutsideVendor) await saveOutsideVendorToRepairOrder(result.id);
+      else if (reused) await saveTechnicianToRepairOrder(result.id);
       setCreated({ ...result, reused });
       window.localStorage.removeItem(serviceIntakeDraftKey);
       setNotice(reused ? `${result.repairOrderNumber} already covers this vehicle and concern. The existing RO was opened; no duplicate was created.` : `${result.repairOrderNumber} was created for this vehicle and new concern.`);
@@ -1001,16 +1090,18 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
           <label className="sic-concern-field"><span>{isDealershipInventory ? "What does inventory need inspected or repaired?" : "What is the customer experiencing?"} <b>Required</b></span><textarea maxLength={2000} onChange={(event) => update("concernSummary", event.target.value)} placeholder={isDealershipInventory ? "Example: Newly acquired inventory requires a complete safety inspection, front brake evaluation, warning-light diagnosis, and recon estimate." : "Example: Customer reports a grinding noise from the front passenger side when braking below 25 mph. It started three days ago and is getting louder. ABS warning light came on this morning…"} ref={concernRef} rows={5} value={form.concernSummary} /><small><MessageSquareText />Be specific about the symptom, location, conditions, timing, and what changed.</small></label>
           {selectedVehicle && selectedVehicleOrders.length ? <section className={`sic-ro-match ${sameConcernOrder ? "same-concern" : "vehicle-history"}`} ref={repairOrderDecisionRef}>
             <header><CarFront /><div><small>VIN / canonical vehicle match</small><strong>{selectedVehicle.vin ?? selectedVehicle.vehicleNumber} already exists</strong><span>This is the same canonical vehicle. The system will not create a second vehicle record.</span></div><b>{selectedVehicleOrders.length} RO{selectedVehicleOrders.length === 1 ? "" : "s"} found</b></header>
-            {sameConcernOrder ? <div className="sic-ro-decision"><div><small>Same open concern detected</small><strong>{sameConcernOrder.repairOrderNumber} · {sameConcernOrder.stage.replaceAll("_", " ")}</strong><span>{sameConcernOrder.serviceVisit.concernSummary}</span></div><nav><button disabled={busy || !form.ownerUserId} onClick={() => void openExistingRepairOrder(sameConcernOrder.id)} type="button">Save technician &amp; open RO</button><em>Duplicate RO blocked</em></nav></div> : openVehicleOrders.length ? <><div className="sic-ro-list">{openVehicleOrders.map((order) => <article key={order.id}><div><strong>{order.repairOrderNumber}</strong><span>{order.serviceVisit.concernSummary}</span></div><button disabled={busy || !form.ownerUserId} onClick={() => void openExistingRepairOrder(order.id)} type="button">Save technician &amp; open</button></article>)}</div><div className="sic-ro-new-choice"><div><strong>The concern appears different</strong><span>Review the open work above. Create another RO only when this is a separate problem or visit.</span></div><button className={newRepairOrderConfirmed ? "confirmed" : ""} onClick={() => setNewRepairOrderConfirmed(true)} type="button">{newRepairOrderConfirmed ? <><Check /> Separate RO confirmed</> : <><Plus /> Create separate RO for this concern</>}</button></div></> : <div className="sic-ro-decision"><div><small>Service history found</small><strong>No open repair order</strong><span>A new RO may be created for this visit while preserving the same canonical VIN record.</span></div><em>New visit allowed</em></div>}
+            {sameConcernOrder ? <div className="sic-ro-decision"><div><small>Same open concern detected</small><strong>{sameConcernOrder.repairOrderNumber} · {sameConcernOrder.stage.replaceAll("_", " ")}</strong><span>{sameConcernOrder.serviceVisit.concernSummary}</span></div><nav><button disabled={busy || !form.ownerUserId || usesOutsideVendor && !form.vendorId} onClick={() => void openExistingRepairOrder(sameConcernOrder.id)} type="button">{usesOutsideVendor ? "Route to vendor & open RO" : "Save technician & open RO"}</button><em>Duplicate RO blocked</em></nav></div> : openVehicleOrders.length ? <><div className="sic-ro-list">{openVehicleOrders.map((order) => <article key={order.id}><div><strong>{order.repairOrderNumber}</strong><span>{order.serviceVisit.concernSummary}</span></div><button disabled={busy || !form.ownerUserId || usesOutsideVendor && !form.vendorId} onClick={() => void openExistingRepairOrder(order.id)} type="button">{usesOutsideVendor ? "Route to vendor & open" : "Save technician & open"}</button></article>)}</div><div className="sic-ro-new-choice"><div><strong>The concern appears different</strong><span>Review the open work above. Create another RO only when this is a separate problem or visit.</span></div><button className={newRepairOrderConfirmed ? "confirmed" : ""} onClick={() => setNewRepairOrderConfirmed(true)} type="button">{newRepairOrderConfirmed ? <><Check /> Separate RO confirmed</> : <><Plus /> Create separate RO for this concern</>}</button></div></> : <div className="sic-ro-decision"><div><small>Service history found</small><strong>No open repair order</strong><span>A new RO may be created for this visit while preserving the same canonical VIN record.</span></div><em>New visit allowed</em></div>}
           </section> : null}
           <div className="sic-prompts"><span><Sparkles />Helpful prompts</span>{["Customer states…", "Occurs when…", "Started approximately…", "Warning light/message…", "Previous repair related to…"].map((prompt) => <button key={prompt} onClick={() => addPrompt(prompt)} type="button">+ {prompt}</button>)}</div>
           <details className="sic-more-context"><summary>Additional concern context &amp; advisor notes</summary><div className="sic-three-column"><label><span>When did it start?</span><input onChange={(event) => update("onset", event.target.value)} placeholder="Today, last week, after repair…" value={form.onset} /></label><label><span>Frequency / conditions</span><input onChange={(event) => update("frequency", event.target.value)} placeholder="Constant, cold start, highway…" value={form.frequency} /></label><label><span>Warning indicators</span><input onChange={(event) => update("warningIndicators", event.target.value)} placeholder="ABS, check engine, message…" value={form.warningIndicators} /></label></div><label className="sic-notes"><span>Advisor-only intake notes</span><textarea maxLength={2000} onChange={(event) => update("intakeNotes", event.target.value)} placeholder="Observations, prior conversations, access instructions, or context not stated by the customer." rows={3} value={form.intakeNotes} /></label></details>
         </section>
 
         <section className="sic-card sic-technician-assignment" id="technician-assignment">
-          <header><span>4</span><div><h2>Assign technician</h2><p>Choose any active staff member at intake. Repair-capable staff are listed first; Shop Dispatch still verifies qualification and capacity.</p></div><em>Simple handoff</em></header>
-          <div className="sic-technician-assignment-row"><label><span>Technician / accountable staff</span><select aria-label="Assign technician" onChange={(event) => update("ownerUserId", event.target.value)} value={form.ownerUserId}>{repairCapableTechnicians.length ? <optgroup label="Repair-capable staff">{repairCapableTechnicians.map((user) => <option key={user.id} value={user.id}>{staffAssignmentLabel(user)}</option>)}</optgroup> : null}{otherActiveStaff.length ? <optgroup label="Other active staff">{otherActiveStaff.map((user) => <option key={user.id} value={user.id}>{staffAssignmentLabel(user)}</option>)}</optgroup> : null}</select></label><div><UserRound /><span><strong>{selectedOwner?.name ?? "Select a technician"}</strong><small>{selectedOwner && isRepairCapable(selectedOwner) ? "Repair-capable · preassigned from check-in" : "Accountable at intake · repair eligibility verified in dispatch"}</small></span></div><Link className="sic-open-dispatch" href="/vehicles/shop-dispatch">Open Shop Dispatch <ChevronRight /></Link></div>
-          <footer><ShieldCheck /><span>This assignment does not authorize repairs or bypass technician qualification, capacity, parts, or QC controls.</span></footer>
+          <header><span>4</span><div><h2>Choose execution path</h2><p>Route the vehicle to the internal shop or an outside vendor without losing internal accountability.</p></div><em>Simple handoff</em></header>
+          <div aria-label="Repair execution path" className="sic-execution-path" role="group"><button className={!usesOutsideVendor ? "active" : ""} onClick={() => setForm((value) => ({ ...value, executionPath: "INTERNAL_SHOP" }))} type="button"><UserRound /><span><strong>Internal shop</strong><small>Assign dealership staff</small></span></button><button className={usesOutsideVendor ? "active vendor" : ""} onClick={() => setForm((value) => ({ ...value, executionPath: "OUTSIDE_VENDOR", ownerUserId: currentUserId && options.users.some((user) => user.id === currentUserId) ? currentUserId : value.ownerUserId, vendorDirectFromSource: true, vendorScope: value.vendorScope || value.concernSummary, vendorSentFrom: "Auction" }))} type="button"><Building2 /><span><strong>Outside vendor</strong><small>Direct or dealership-to-vendor</small></span></button></div>
+          {usesOutsideVendor ? <div className="sic-vendor-assignment"><label><span>Outside vendor</span><select aria-label="Assign outside vendor" onChange={(event) => update("vendorId", event.target.value)} value={form.vendorId}><option value="">Select outside vendor</option>{options.repairVendors.map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.name} — {vendor.vendorType.replaceAll("_", " ").toLocaleLowerCase()}</option>)}</select></label><label><span>Accountable advisor</span><select aria-label="Accountable advisor" onChange={(event) => update("ownerUserId", event.target.value)} value={form.ownerUserId}>{otherActiveStaff.map((user) => <option key={user.id} value={user.id}>{staffAssignmentLabel(user)}</option>)}</select></label><label className="sic-vendor-direct"><input checked={form.vendorDirectFromSource} onChange={(event) => setForm((value) => ({ ...value, vendorDirectFromSource: event.target.checked, vendorSentFrom: event.target.checked ? "Auction" : "Dealership" }))} type="checkbox" /><span><strong>Direct from auction/source</strong><small>Do not create false dealership custody.</small></span></label><label><span>Sent from</span><input onChange={(event) => update("vendorSentFrom", event.target.value)} value={form.vendorSentFrom} /></label><label className="wide"><span>Requested outside work</span><textarea onChange={(event) => update("vendorScope", event.target.value)} placeholder="Describe the body, mechanical, glass, calibration, or detail work" rows={3} value={form.vendorScope} /></label><label><span>Expected return</span><input onChange={(event) => update("vendorExpectedReturnAt", event.target.value)} type="datetime-local" value={form.vendorExpectedReturnAt} /></label>{options.repairVendors.length ? <div className="sic-vendor-selected"><Building2 /><span><strong>{selectedVendor?.name ?? "Select a vendor"}</strong><small>{selectedVendor ? `${selectedVendor.defaultLeadDays} day typical lead · advisor remains accountable` : "Choose the work destination above"}</small></span></div> : <div className="sic-vendor-selected empty"><Building2 /><span><strong>No saved outside vendors</strong><small>Add Diego Auto Body once, then return to select it.</small></span><Link href="/vehicles/outside-vendors">Add outside vendor</Link></div>}</div> : <div className="sic-technician-assignment-row"><label><span>Technician / accountable staff</span><select aria-label="Assign technician" onChange={(event) => update("ownerUserId", event.target.value)} value={form.ownerUserId}>{repairCapableTechnicians.length ? <optgroup label="Repair-capable staff">{repairCapableTechnicians.map((user) => <option key={user.id} value={user.id}>{staffAssignmentLabel(user)}</option>)}</optgroup> : null}{otherActiveStaff.length ? <optgroup label="Other active staff">{otherActiveStaff.map((user) => <option key={user.id} value={user.id}>{staffAssignmentLabel(user)}</option>)}</optgroup> : null}</select></label><div><UserRound /><span><strong>{selectedOwner?.name ?? "Select a technician"}</strong><small>{selectedOwner && isRepairCapable(selectedOwner) ? "Repair-capable · preassigned from check-in" : "Accountable at intake · repair eligibility verified in dispatch"}</small></span></div><Link className="sic-open-dispatch" href="/vehicles/shop-dispatch">Open Shop Dispatch <ChevronRight /></Link></div>}
+          {usesOutsideVendor ? <div className="sic-vendor-quick-add"><button onClick={() => setVendorCreateOpen((open) => !open)} type="button"><Plus />{vendorCreateOpen ? "Cancel new vendor" : "Add new vendor"}</button>{vendorCreateOpen ? <div><label><span>Vendor name</span><input autoFocus onChange={(event) => setNewRepairVendor((vendor) => ({ ...vendor, name: event.target.value }))} placeholder="Diego Auto Body" value={newRepairVendor.name} /></label><label><span>Work type</span><select onChange={(event) => setNewRepairVendor((vendor) => ({ ...vendor, vendorType: event.target.value }))} value={newRepairVendor.vendorType}><option value="BODY_SHOP">Body shop</option><option value="MECHANICAL_SUBLET">Mechanical sublet</option><option value="GLASS">Glass</option><option value="CALIBRATION">Calibration</option><option value="DETAIL">Detail</option><option value="TRANSPORT">Transport</option><option value="OTHER">Other</option></select></label><label><span>Normal lead time</span><input min={0} onChange={(event) => setNewRepairVendor((vendor) => ({ ...vendor, defaultLeadDays: Number(event.target.value) }))} type="number" value={newRepairVendor.defaultLeadDays} /></label><button disabled={vendorBusy || newRepairVendor.name.trim().length < 2} onClick={() => void createRepairVendor()} type="button">{vendorBusy ? "Saving…" : "Save & select vendor"}</button></div> : null}</div> : null}
+          <footer><ShieldCheck /><span>{usesOutsideVendor ? "The vendor is the work destination; the selected advisor remains the dealership's accountable owner. Approval and return QC remain required." : "This assignment does not authorize repairs or bypass technician qualification, capacity, parts, or QC controls."}</span></footer>
         </section>
 
         <section className="sic-card sic-custody-card">
@@ -1030,7 +1121,7 @@ export function ServiceIntakeWorkspace({ initialArrivalQuery = "", initialConcer
       </main>
 
       <aside className="sic-sidebar">
-        <section className="sic-intake-summary"><h2>Live Intake Summary</h2>{isDealershipInventory ? <article><CarFront /><div><small>Relationship</small><strong>Dealership inventory</strong><span>Customer not required</span></div></article> : <article><UserRound /><div><small>Customer</small><strong>{selectedCustomer?.displayName ?? "Select customer"}</strong><span>{selectedCustomer?.phoneNumber ?? selectedCustomer?.email ?? "Canonical customer required"}</span></div></article>}<article><CarFront /><div><small>Vehicle</small><strong>{selectedVehicle ? vehicleLabel(selectedVehicle) : "Select vehicle"}</strong><span>{selectedVehicle?.vin ?? selectedVehicle?.licensePlate ?? "Canonical vehicle required"}</span></div></article>{isDealershipInventory ? <article><ClipboardCheck /><div><small>Inventory unit</small><strong>{selectedInventoryUnit?.inventoryNumber ?? "Create or link unit"}</strong><span>{selectedInventoryUnit ? "Internal recon eligible" : "Required for internal work"}</span></div></article> : <article><CalendarClock /><div><small>Appointment</small><strong>{readiness?.appointment?.appointmentNumber ?? "No appointment matched"}</strong><span>{readiness?.appointment?.startsAt ? new Date(readiness.appointment.startsAt).toLocaleString() : "Walk-in readiness applies"}</span></div></article>}<div className="sic-summary-progress"><span>Readiness overview</span><b>{checklist.filter((item) => item.ready).length}/{checklist.length} complete</b><i><em style={{ width: `${checklist.filter((item) => item.ready).length / checklist.length * 100}%` }} /></i></div><dl><div><dt>Custody status</dt><dd>{form.keysReceivedCount > 0 ? "Accept" : "Review"}</dd></div><div><dt>Assigned technician</dt><dd>{selectedOwner?.name ?? "Required"}</dd></div><div><dt>Location</dt><dd>{selectedLocation?.name ?? "Required"}</dd></div><div><dt>Target update</dt><dd>{form.targetAt ? new Date(form.targetAt).toLocaleString() : "Required"}</dd></div></dl><div className="sic-readiness"><h2>Check-in requirements</h2>{checklist.map((item) => <p className={item.ready ? "ready" : ""} key={item.label}><i>{item.ready ? <Check /> : null}</i><span>{item.label}</span></p>)}<strong>{checklist.filter((item) => item.ready).length} / {checklist.length}</strong></div></section>
+        <section className="sic-intake-summary"><h2>Live Intake Summary</h2>{isDealershipInventory ? <article><CarFront /><div><small>Relationship</small><strong>Dealership inventory</strong><span>Customer not required</span></div></article> : <article><UserRound /><div><small>Customer</small><strong>{selectedCustomer?.displayName ?? "Select customer"}</strong><span>{selectedCustomer?.phoneNumber ?? selectedCustomer?.email ?? "Canonical customer required"}</span></div></article>}<article><CarFront /><div><small>Vehicle</small><strong>{selectedVehicle ? vehicleLabel(selectedVehicle) : "Select vehicle"}</strong><span>{selectedVehicle?.vin ?? selectedVehicle?.licensePlate ?? "Canonical vehicle required"}</span></div></article>{isDealershipInventory ? <article><ClipboardCheck /><div><small>Inventory unit</small><strong>{selectedInventoryUnit?.inventoryNumber ?? "Create or link unit"}</strong><span>{selectedInventoryUnit ? "Internal recon eligible" : "Required for internal work"}</span></div></article> : <article><CalendarClock /><div><small>Appointment</small><strong>{readiness?.appointment?.appointmentNumber ?? "No appointment matched"}</strong><span>{readiness?.appointment?.startsAt ? new Date(readiness.appointment.startsAt).toLocaleString() : "Walk-in readiness applies"}</span></div></article>}<div className="sic-summary-progress"><span>Readiness overview</span><b>{checklist.filter((item) => item.ready).length}/{checklist.length} complete</b><i><em style={{ width: `${checklist.filter((item) => item.ready).length / checklist.length * 100}%` }} /></i></div><dl><div><dt>Custody status</dt><dd>{form.keysReceivedCount > 0 ? "Accept" : "Review"}</dd></div><div><dt>{usesOutsideVendor ? "Accountable advisor" : "Assigned technician"}</dt><dd>{selectedOwner?.name ?? "Required"}</dd></div>{usesOutsideVendor ? <div><dt>Work destination</dt><dd>{selectedVendor?.name ?? "Required"}</dd></div> : null}<div><dt>Location</dt><dd>{selectedLocation?.name ?? "Required"}</dd></div><div><dt>Target update</dt><dd>{form.targetAt ? new Date(form.targetAt).toLocaleString() : "Required"}</dd></div></dl><div className="sic-readiness"><h2>Check-in requirements</h2>{checklist.map((item) => <p className={item.ready ? "ready" : ""} key={item.label}><i>{item.ready ? <Check /> : null}</i><span>{item.label}</span></p>)}<strong>{checklist.filter((item) => item.ready).length} / {checklist.length}</strong></div></section>
       </aside>
     </div>
 

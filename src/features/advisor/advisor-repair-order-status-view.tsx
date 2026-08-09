@@ -13,20 +13,23 @@ import {
   KeyRound,
   MessageSquareText,
   PackageCheck,
+  ShoppingCart,
   ShieldCheck,
   UserRound,
   Wrench,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { AdvisorResponsePanel } from "@/features/advisor/advisor-response-panel";
 import { BackToServiceAdvisorWorkspace } from "@/features/advisor/advisor-return-link";
+import { OutsideRepairWorkPanel } from "@/features/advisor/outside-repair-work-panel";
 import type { getShopPlanningDetail } from "@/server/shop-planning/service";
 
 type Order = Awaited<ReturnType<typeof getShopPlanningDetail>>;
 type WorkspaceTab = "COMMUNICATIONS" | "ESTIMATE" | "OVERVIEW" | "QUALITY" | "REPAIR" | "TIMELINE";
-type CommunicationAudience = "CUSTOMER" | "MANAGEMENT" | "TEAM";
+type CommunicationAudience = "CUSTOMER" | "MANAGEMENT" | "TEAM" | "VENDOR";
 type AdvisorUpdate = Order["advisorUpdates"][number];
 
 function format(value: string) {
@@ -53,6 +56,7 @@ function evidenceCount(value: unknown) {
 
 function communicationAudience(update: AdvisorUpdate): CommunicationAudience {
   const exceptionCodes = codes(update.exceptionCodes);
+  if (exceptionCodes.includes("VENDOR_COORDINATION")) return "VENDOR";
   if (exceptionCodes.includes("MANAGER_REVIEW")) return "MANAGEMENT";
   if (update.contactDirection === "INTERNAL" || update.contactChannel === "INTERNAL" || exceptionCodes.some((code) => ["TECHNICIAN_CLARIFICATION", "WAITING_PARTS"].includes(code))) return "TEAM";
   return "CUSTOMER";
@@ -107,41 +111,73 @@ const workspaceTabs: Array<{ id: WorkspaceTab; label: string }> = [
   { id: "TIMELINE", label: "Timeline" },
 ];
 
-export function AdvisorRepairOrderStatusView({ compose, order, returnTo }: { compose?: "customer" | "management" | "team"; order: Order; returnTo?: string }) {
-  const [activeTab, setActiveTab] = useState<WorkspaceTab>(compose ? "COMMUNICATIONS" : "OVERVIEW");
+export function getRepairPrimaryAction(order: Order) {
+  const diagnosis = order.diagnosisVersions[0] ?? null;
+  const estimate = order.estimateVersions[0] ?? null;
+  const latestDecision = estimate?.authorizations[0] ?? null;
+  const approvedAuthorization = latestDecision && ["ACCEPTED", "PARTIAL"].includes(latestDecision.disposition) ? latestDecision : null;
+  const isInventoryRecon = order.origin === "INVENTORY_RECON" || Boolean(order.inventoryUnit);
+  const advisorReturnPath = `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(order.id)}`;
+  const planningHref = `/vehicles/shop-planning?repairOrderId=${encodeURIComponent(order.id)}&returnTo=${encodeURIComponent(advisorReturnPath)}`;
+  if (order.repairJobs.length) return { href: `/vehicles/shop-dispatch?repairOrderId=${encodeURIComponent(order.id)}&returnTo=${encodeURIComponent(advisorReturnPath)}`, label: "Open repair jobs", mode: "link" as const };
+  if (!order.inspectionVersions.length) return { href: planningHref, label: isInventoryRecon ? "Start recon inspection" : "Start vehicle inspection", mode: "link" as const };
+  if (!diagnosis) return { href: planningHref, label: "Record diagnosis", mode: "link" as const };
+  if (!estimate) return { href: planningHref, label: "Build repair plan", mode: "link" as const };
+  if (!approvedAuthorization) return { href: planningHref, label: isInventoryRecon ? "Review internal approval" : "Review customer authorization", mode: "link" as const };
+  return { href: "", label: "Create approved repair job", mode: "create" as const };
+}
+
+export function AdvisorRepairOrderStatusView({ compose, initialTab, order, returnTo }: { compose?: "customer" | "management" | "team"; initialTab?: WorkspaceTab; order: Order; returnTo?: string }) {
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>(initialTab ?? (compose ? "COMMUNICATIONS" : "OVERVIEW"));
   const [audience, setAudience] = useState<CommunicationAudience>(compose === "management" ? "MANAGEMENT" : compose === "team" || (!compose && order.origin === "INVENTORY_RECON") ? "TEAM" : "CUSTOMER");
+  const [creatingJobs, setCreatingJobs] = useState(false);
+  const [repairActionMessage, setRepairActionMessage] = useState<{ kind: "error" | "success"; text: string } | null>(null);
   const diagnosis = order.diagnosisVersions[0] ?? null;
   const estimate = order.estimateVersions[0] ?? null;
   const authorization = estimate?.authorizations.find((item) => ["ACCEPTED", "PARTIAL"].includes(item.disposition)) ?? null;
   const waitingParts = order.partDemands.some((part) => part.quantityReserved < part.quantityRequired);
   const isInventoryRecon = order.origin === "INVENTORY_RECON" || Boolean(order.inventoryUnit);
+  const vendorWorks = order.vendorWorks ?? [];
+  const activeVendorWork = vendorWorks.find((work) => !["COMPLETED", "CANCELLED"].includes(work.status)) ?? vendorWorks[0] ?? null;
   const dependency = lifecycleDependency(order, waitingParts);
   const nextAdvisorAction = advisorActionPlan(order);
   const vehicle = vehicleLabel(order);
   const advisorReturnPath = `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(order.id)}`;
+  const partsOperationsHref = `/vehicles/service-close-parts?repairOrderId=${encodeURIComponent(order.id)}&returnTo=${encodeURIComponent(`${advisorReturnPath}&tab=repair&workspace=advisor`)}&returnLabel=${encodeURIComponent(`Return to ${order.repairOrderNumber}`)}`;
+  const repairPrimaryAction = getRepairPrimaryAction(order);
   const communicationUpdates = order.advisorUpdates.filter((update) => communicationAudience(update) === audience);
   const composeDefaults = audience === "CUSTOMER"
     ? { channel: "SMS", direction: "OUTBOUND", exceptionCodes: [] as string[], outcome: "Customer communication follow-up", statusCode: "CUSTOMER_UPDATED" }
     : audience === "MANAGEMENT"
       ? { channel: "INTERNAL", direction: "INTERNAL", exceptionCodes: ["MANAGER_REVIEW"], outcome: "Management review requested", statusCode: "IN_PROGRESS" }
-      : { channel: "INTERNAL", direction: "INTERNAL", exceptionCodes: ["TECHNICIAN_CLARIFICATION"], outcome: "Internal team response requested", statusCode: "WAITING_TECHNICIAN_CLARIFICATION" };
-  const timeline = [
-    { label: "Intake", done: true },
-    { label: "Diagnosis", done: Boolean(order.inspectionVersions.length || diagnosis) },
-    { label: "Estimate", done: Boolean(estimate) },
-    { label: "Authorization", done: Boolean(authorization) },
-    { label: "Repair", done: Boolean(order.repairJobs.length) },
-    { label: "Quality", done: order.stage === "QUALITY_CONTROL" || order.stage === "HANDOFF" },
-    { label: "Handoff", done: order.stage === "HANDOFF" },
-  ];
+      : audience === "VENDOR"
+        ? { channel: "INTERNAL", direction: "INTERNAL", exceptionCodes: ["VENDOR_COORDINATION"], outcome: activeVendorWork ? `${activeVendorWork.vendorName} progress follow-up` : "Outside vendor follow-up", statusCode: "VENDOR_WORK" }
+        : { channel: "INTERNAL", direction: "INTERNAL", exceptionCodes: ["TECHNICIAN_CLARIFICATION"], outcome: "Internal team response requested", statusCode: "WAITING_TECHNICIAN_CLARIFICATION" };
+  const currentTimelineIndex = ({
+    INTAKE: 0,
+    DIAGNOSIS: 1,
+    ESTIMATE: 2,
+    AUTHORIZATION: 3,
+    READY_FOR_REPAIR: 4,
+    REPAIR: 4,
+    QUALITY_CONTROL: 5,
+    ADVISOR_REVIEW: 5,
+    HANDOFF: 6,
+  } as Record<string, number>)[order.stage] ?? 0;
+  const timeline = ["Intake", "Diagnosis", "Estimate", "Authorization", "Repair", "Quality", "Handoff"].map((label, index) => ({
+    current: index === currentTimelineIndex,
+    done: index < currentTimelineIndex,
+    label,
+  }));
 
   return <section className="advisor-ro-status">
     <header className="advisor-ro-hero">
-      <div><BackToServiceAdvisorWorkspace href={returnTo} label={returnTo ? "Back to My Workday" : undefined} /><div className="advisor-ro-eyebrow"><p>Advisor Repair Order Status</p><b className={isInventoryRecon ? "inventory" : "customer"}>{isInventoryRecon ? "Inventory recon" : "Customer service"}</b></div><h1>{order.repairOrderNumber}</h1><span>{order.customer?.displayName ?? order.inventoryUnit?.inventoryNumber ?? "Internal vehicle"} · {vehicle}</span></div>
-      <aside><strong>{format(order.stage)}</strong><span>{format(order.operatingState)}</span><small>Promise: {date(order.serviceVisit.promisedAt ?? order.targetAt)}</small></aside>
+      <div><BackToServiceAdvisorWorkspace href={returnTo} label={returnTo ? "Back to My Workday" : undefined} /><div className="advisor-ro-eyebrow"><p>Advisor Repair Order Status</p><b className={isInventoryRecon ? "inventory" : "customer"}>{isInventoryRecon ? "Inventory recon" : "Customer service"}</b>{activeVendorWork ? <b className="vendor">Offsite · {activeVendorWork.vendorName}</b> : null}</div><h1>{order.repairOrderNumber}</h1><span>{order.customer?.displayName ?? order.inventoryUnit?.inventoryNumber ?? "Internal vehicle"} · {vehicle}</span></div>
+      <aside><strong>{format(order.stage)}</strong><span>{activeVendorWork ? `Offsite · ${format(activeVendorWork.status)}` : format(order.operatingState)}</span><small>{activeVendorWork ? `Expected return: ${date(activeVendorWork.expectedReturnAt)}` : `Promise: ${date(order.serviceVisit.promisedAt ?? order.targetAt)}`}</small></aside>
     </header>
 
-    <section className="advisor-ro-timeline" aria-label="Repair order status timeline">{timeline.map((step) => <span className={step.done ? "done" : ""} key={step.label}><i>{step.done ? <CheckCircle2 /> : null}</i>{step.label}</span>)}</section>
+    <section className="advisor-ro-timeline" aria-label="Repair order status timeline">{timeline.map((step) => <span aria-current={step.current ? "step" : undefined} className={[step.done ? "done" : "", step.current ? "current" : ""].filter(Boolean).join(" ")} key={step.label}><i>{step.done ? <CheckCircle2 /> : null}</i>{step.label}</span>)}</section>
 
     <nav className="advisor-ro-workspace-tabs" aria-label="Repair order workspace sections">
       {workspaceTabs.map((tab) => <button aria-selected={activeTab === tab.id} key={tab.id} onClick={() => setActiveTab(tab.id)} role="tab" type="button">{tab.label}{tab.id === "COMMUNICATIONS" && order.advisorUpdates.length ? <b>{order.advisorUpdates.length}</b> : null}</button>)}
@@ -174,10 +210,10 @@ export function AdvisorRepairOrderStatusView({ compose, order, returnTo }: { com
 
     {activeTab === "COMMUNICATIONS" ? <section className="advisor-ro-communications">
       <header><div><MessageSquareText /><span><strong>Repair-order communications</strong><small>Customer contact, private team collaboration, and management escalation remain separated by audience.</small></span></div><b>{order.advisorUpdates.length} recorded update(s)</b></header>
-      <nav aria-label="Communication audience">{(["CUSTOMER", "TEAM", "MANAGEMENT"] as const).map((item) => <button aria-selected={audience === item} key={item} onClick={() => setAudience(item)} role="tab" type="button">{item === "CUSTOMER" ? "Customer" : item === "TEAM" ? "Internal Team" : "Management"}<span>{order.advisorUpdates.filter((update) => communicationAudience(update) === item).length}</span></button>)}</nav>
+      <nav aria-label="Communication audience">{(["CUSTOMER", "TEAM", "MANAGEMENT", ...(vendorWorks.length ? ["VENDOR" as const] : [])] as const).map((item) => <button aria-selected={audience === item} key={item} onClick={() => setAudience(item)} role="tab" type="button">{item === "CUSTOMER" ? "Customer" : item === "TEAM" ? "Internal Team" : item === "MANAGEMENT" ? "Management" : "Vendor"}<span>{order.advisorUpdates.filter((update) => communicationAudience(update) === item).length}</span></button>)}</nav>
       <section className={`advisor-communication-boundary ${audience.toLocaleLowerCase()}`}>
-        <strong>{audience === "CUSTOMER" ? `Customer conversation · ${order.customer?.displayName ?? "No customer linked"}` : audience === "TEAM" ? "Private shop collaboration" : "Structured management escalation"}</strong>
-        <span>{audience === "CUSTOMER" ? [order.customer?.phoneNumber, order.customer?.email].filter(Boolean).join(" · ") || "No customer phone or email is recorded." : audience === "TEAM" ? `Internal notes are never included in customer-facing updates.${isInventoryRecon ? " Inventory and Shop & Recon collaborators remain responsible for their source records." : ""}` : `Document the requested decision, ${isInventoryRecon ? "inventory target" : "customer impact"}, urgency, and response deadline.`}</span>
+        <strong>{audience === "CUSTOMER" ? `Customer conversation · ${order.customer?.displayName ?? "No customer linked"}` : audience === "TEAM" ? "Private shop collaboration" : audience === "MANAGEMENT" ? "Structured management escalation" : `Vendor coordination · ${activeVendorWork?.vendorName ?? "Outside vendor"}`}</strong>
+        <span>{audience === "CUSTOMER" ? [order.customer?.phoneNumber, order.customer?.email].filter(Boolean).join(" · ") || "No customer phone or email is recorded." : audience === "TEAM" ? `Internal notes are never included in customer-facing updates.${isInventoryRecon ? " Inventory and Shop & Recon collaborators remain responsible for their source records." : ""}` : audience === "MANAGEMENT" ? `Document the requested decision, ${isInventoryRecon ? "inventory target" : "customer impact"}, urgency, and response deadline.` : "Vendor estimates, progress, supplements, pickup, and return notes stay private from customer communications."}</span>
         {audience === "CUSTOMER" ? <em>External SMS/email delivery is not connected. Contact activity is recorded, not transmitted.</em> : null}
       </section>
       <AdvisorResponsePanel key={audience} defaultContactChannel={composeDefaults.channel} defaultContactDirection={composeDefaults.direction} defaultContactOutcome={composeDefaults.outcome} defaultExceptionCodes={composeDefaults.exceptionCodes} defaultStatusCode={composeDefaults.statusCode} defaultSummary={customerSafeUpdate(order)} latestUpdates={JSON.parse(JSON.stringify(communicationUpdates))} repairOrderId={order.id} />
@@ -185,12 +221,13 @@ export function AdvisorRepairOrderStatusView({ compose, order, returnTo }: { com
 
     {activeTab === "ESTIMATE" ? <section className="advisor-ro-section-grid">
       <section className="advisor-ro-card"><header><ClipboardCheck /><div><strong>Diagnosis</strong><span>Advisor-readable findings</span></div></header><dl><div><dt>Recommendation</dt><dd>{diagnosis?.recommendation ?? "Not yet recorded"}</dd></div><div><dt>Technician</dt><dd>{diagnosis?.technicianUser.name ?? "Not assigned in diagnosis"}</dd></div><div><dt>Evidence</dt><dd>{diagnosis ? `${evidenceCount(diagnosis.evidence)} evidence item(s)` : "Awaiting diagnosis"}</dd></div></dl></section>
-      <section className="advisor-ro-card"><header><ShieldCheck /><div><strong>{isInventoryRecon ? "Estimate & internal approval" : "Estimate & authorization"}</strong><span>{isInventoryRecon ? "Exact inventory approver decision context" : "Exact customer decision context"}</span></div></header><dl><div><dt>Estimate</dt><dd>{estimate ? `$${(estimate.totalCents / 100).toFixed(2)} · ${format(estimate.status)}` : "Not yet prepared"}</dd></div><div><dt>{isInventoryRecon ? "Approval" : "Authorization"}</dt><dd>{authorization ? format(authorization.disposition) : isInventoryRecon ? "Not approved" : "Not authorized"}</dd></div><div><dt>Jobs</dt><dd>{order.repairJobs.length ? `${order.repairJobs.length} job(s) created` : "No approved repair jobs yet"}</dd></div></dl>{diagnosis ? <Link href={`/diagnostics/advisor-review?repairOrderId=${encodeURIComponent(order.id)}`}>Open estimate and approval review</Link> : null}</section>
+      <section className="advisor-ro-card"><header><ShieldCheck /><div><strong>{isInventoryRecon ? "Estimate & internal approval" : "Estimate & authorization"}</strong><span>{isInventoryRecon ? "Exact inventory approver decision context" : "Exact customer decision context"}</span></div></header><dl><div><dt>Estimate</dt><dd>{estimate ? `$${(estimate.totalCents / 100).toFixed(2)} · ${format(estimate.status)}` : "Not yet prepared"}</dd></div><div><dt>{isInventoryRecon ? "Approval" : "Authorization"}</dt><dd>{authorization ? format(authorization.disposition) : isInventoryRecon ? "Not approved" : "Not authorized"}</dd></div>{activeVendorWork ? <><div><dt>Vendor estimate</dt><dd>{activeVendorWork.estimateAmountCents == null ? "Not recorded" : `$${(activeVendorWork.estimateAmountCents / 100).toFixed(2)}`}</dd></div><div><dt>Vendor approval</dt><dd>{format(activeVendorWork.approvalStatus)}</dd></div></> : null}<div><dt>Jobs</dt><dd>{order.repairJobs.length ? `${order.repairJobs.length} job(s) created` : "No approved repair jobs yet"}</dd></div></dl>{diagnosis ? <Link href={`/diagnostics/advisor-review?repairOrderId=${encodeURIComponent(order.id)}`}>Open estimate and approval review</Link> : null}</section>
     </section> : null}
 
     {activeTab === "REPAIR" ? <section className="advisor-ro-section-grid">
-      <section className="advisor-ro-card"><header><Wrench /><div><strong>Repair jobs</strong><span>Authorized execution status</span></div></header>{order.repairJobs.length ? <dl>{order.repairJobs.map((job) => <div key={job.id}><dt>{job.jobNumber}</dt><dd>{job.description} · {format(job.status)}</dd></div>)}</dl> : <p>No repair jobs have been created.</p>}</section>
-      <section className="advisor-ro-card"><header><PackageCheck /><div><strong>Parts readiness</strong><span>Demand that may affect the customer promise</span></div></header>{order.partDemands.length ? <dl>{order.partDemands.map((demand) => <div key={demand.id}><dt>{demand.part.partNumber}</dt><dd>{demand.part.description} · {demand.quantityReserved}/{demand.quantityRequired} reserved</dd></div>)}</dl> : <p>No part demands are recorded.</p>}</section>
+      <section className="advisor-ro-card advisor-repair-job-card"><header><Wrench /><div><strong>Repair jobs</strong><span>Authorized execution status</span></div></header>{order.repairJobs.length ? <dl>{order.repairJobs.map((job) => <div key={job.id}><dt>{job.jobNumber}</dt><dd>{job.description} · {format(job.status)}</dd></div>)}</dl> : <div className="advisor-repair-empty"><p>No internal repair jobs have been created.</p><small>The next safe action is selected from this repair order&apos;s current evidence and approval status.</small></div>}{!activeVendorWork ? repairPrimaryAction.mode === "link" ? <Link className="advisor-repair-primary" href={repairPrimaryAction.href}>{repairPrimaryAction.label}</Link> : <button className="advisor-repair-primary" disabled={creatingJobs} onClick={async()=>{setCreatingJobs(true);setRepairActionMessage(null);try{const response=await fetch(`/api/repair-orders/${encodeURIComponent(order.id)}/planning`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"CREATE_APPROVED_JOBS",idempotencyKey:crypto.randomUUID(),reason:"Create repair jobs from the exact approved estimate scope."})}),body=await response.json().catch(()=>null) as {error?:string;result?:{message?:string}}|null;if(!response.ok)throw new Error(body?.error??"The approved repair job could not be created.");setRepairActionMessage({kind:"success",text:body?.result?.message??"Approved repair job created."});router.refresh();}catch(error){setRepairActionMessage({kind:"error",text:error instanceof Error?error.message:"The approved repair job could not be created."});}finally{setCreatingJobs(false);}}} type="button">{creatingJobs?"Creating approved work...":repairPrimaryAction.label}</button> : null}{!activeVendorWork ? <OutsideRepairWorkPanel repairOrderId={order.id} work={null} /> : null}{repairActionMessage?<p className={`advisor-repair-action-message ${repairActionMessage.kind}`} role="status">{repairActionMessage.text}</p>:null}</section>
+      <section className="advisor-ro-card advisor-parts-readiness-card"><header><PackageCheck /><div><strong>Parts readiness</strong><span>Demand that may affect the customer promise</span></div></header>{order.partDemands.length ? <dl>{order.partDemands.map((demand) => <div key={demand.id}><dt>{demand.part.partNumber}</dt><dd>{demand.part.description} · {demand.quantityReserved}/{demand.quantityRequired} reserved</dd></div>)}</dl> : <p>No part demands are recorded.</p>}<div className="advisor-parts-purchase"><span><ShoppingCart /><small>{order.partDemands.length ? "Source, order, receive, and track these parts." : "Add the needed parts, compare sourcing, and place a governed order."}</small></span><Link href={partsOperationsHref}>{order.partDemands.length ? "Open parts purchasing" : "Add / buy parts"}</Link></div></section>
+      {activeVendorWork ? <OutsideRepairWorkPanel repairOrderId={order.id} work={JSON.parse(JSON.stringify(activeVendorWork))} /> : null}
     </section> : null}
 
     {activeTab === "QUALITY" ? <section className="advisor-ro-section-grid">

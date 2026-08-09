@@ -1,4 +1,4 @@
-import { BadgeDollarSign, BarChart3, BriefcaseBusiness, CalendarDays, CarFront, ClipboardList, ContactRound, Gauge, HandCoins, House, MessageSquareText, Plug, RefreshCw, Settings, ShieldCheck, UserRoundCheck, Wrench } from "lucide-react";
+import { BadgeDollarSign, BarChart3, BriefcaseBusiness, Building2, CalendarDays, CarFront, ClipboardList, ContactRound, Gauge, HandCoins, House, MessageSquareText, Plug, RefreshCw, Settings, ShieldCheck, UserRoundCheck, Wrench } from "lucide-react";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 import {
@@ -104,6 +104,12 @@ const salesItems: NavigationItem[] = [
     matchExact: true
   },
   {
+    href: "/vehicles/outside-vendors",
+    title: "Outside Vendors",
+    description: "Reusable body shop, specialty, and sublet repair partners.",
+    icon: Building2
+  },
+  {
     href: "/sales#leads",
     title: "Leads",
     description: "Lead intake health, SLA risk, dedupe, and assignment.",
@@ -172,8 +178,31 @@ export function isSalesConsolePath(pathname: string) {
 export function getConsoleNavigation(
   pathname: string,
   user: AuthenticatedUser,
-  preferredWorkspace?: WorkspaceKey | null
+  preferredWorkspace?: WorkspaceKey | null,
+  contextWorkspace?: WorkspaceKey | null
 ): ConsoleNavigationDefinition | null {
+  if (contextWorkspace) {
+    const definition = getWorkspaceDefinition(contextWorkspace);
+    return {
+      badge: "Ready",
+      homeHref: definition.landingRoute,
+      items: getDispatchNavigationItems(user, contextWorkspace),
+      subtitle: definition.label,
+      title: "Time Motor Sales"
+    };
+  }
+
+  if (pathname === "/vehicles/advisor") {
+    const definition = getWorkspaceDefinition("ADVISOR");
+    return {
+      badge: "Ready",
+      homeHref: definition.landingRoute,
+      items: getDispatchNavigationItems(user, "ADVISOR"),
+      subtitle: definition.label,
+      title: "Time Motor Sales"
+    };
+  }
+
   if (isAppointmentConsolePath(pathname)) {
     return {
       badge: "Ready",

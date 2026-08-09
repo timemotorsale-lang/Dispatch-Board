@@ -11,6 +11,11 @@ const brock: AuthenticatedUser = {
   roles: ["Inventory Manager", "Service Department Manager"],
   duties: { all: [], direct: [], roleDefaults: [] }
 };
+const inventoryManager: AuthenticatedUser = {
+  ...brock,
+  id: "inventory-manager",
+  roles: ["Inventory Manager"]
+};
 
 describe("vehicle operations lead capability defaults", () => {
   it("supports Brock's current multi-hat vehicle workspace without making him a general manager", () => {
@@ -18,15 +23,23 @@ describe("vehicle operations lead capability defaults", () => {
       "VEHICLE_OPERATIONS_VIEW",
       "VEHICLE_IDENTITY_CREATE",
       "INVENTORY_UNIT_VIEW",
+      "INVENTORY_UNIT_MANAGE",
       "REPAIR_ORDER_VIEW",
-      "PARTS_VIEW"
+      "REPAIR_ORDER_MANAGE",
+      "PARTS_VIEW",
+      "PARTS_MANAGE",
+      "VEHICLE_EVIDENCE_VIEW",
+      "VEHICLE_EVIDENCE_MANAGE",
+      "VEHICLE_DISCOVERY_VIEW",
+      "WORK_KNOWLEDGE_VIEW",
+      "WORK_KNOWLEDGE_MANAGE"
     ] as const) {
       expect(evaluateVehicleCapability({
         actor: brock,
         capability,
         grants: [],
         locationId: null
-      })).toMatchObject({ allowed: true, reason: "VEHICLE_OPERATIONS_LEAD_DEFAULT" });
+      })).toMatchObject({ allowed: true, reason: "ROLE_DEFAULT" });
     }
 
     expect(evaluateVehicleCapability({
@@ -35,5 +48,20 @@ describe("vehicle operations lead capability defaults", () => {
       grants: [],
       locationId: null
     })).toMatchObject({ allowed: false, reason: "GENERAL_MANAGER_OR_GRANT_REQUIRED" });
+  });
+
+  it("gives the inventory manager hat the same recon execution capability set", () => {
+    expect(evaluateVehicleCapability({
+      actor: inventoryManager,
+      capability: "PARTS_MANAGE",
+      grants: [],
+      locationId: null
+    })).toMatchObject({ allowed: true, reason: "ROLE_DEFAULT" });
+    expect(evaluateVehicleCapability({
+      actor: inventoryManager,
+      capability: "INVENTORY_UNIT_MANAGE",
+      grants: [],
+      locationId: null
+    })).toMatchObject({ allowed: true, reason: "ROLE_DEFAULT" });
   });
 });

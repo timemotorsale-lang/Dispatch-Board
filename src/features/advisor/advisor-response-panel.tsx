@@ -12,7 +12,8 @@ const STATUS_OPTIONS = [
   "WAITING_PARTS",
   "PROMISE_RISK",
   "READY_FOR_DELIVERY",
-  "CUSTOMER_UPDATED"
+  "CUSTOMER_UPDATED",
+  "VENDOR_WORK"
 ];
 
 const CHANNEL_OPTIONS = ["PHONE", "SMS", "EMAIL", "IN_PERSON", "INTERNAL"];
@@ -22,7 +23,8 @@ const EXCEPTION_OPTIONS = [
   { code: "TECHNICIAN_CLARIFICATION", label: "Technician clarification needed" },
   { code: "PROMISE_RISK", label: "Promise risk" },
   { code: "WAITING_PARTS", label: "Waiting on parts" },
-  { code: "MANAGER_REVIEW", label: "Manager review needed" }
+  { code: "MANAGER_REVIEW", label: "Manager review needed" },
+  { code: "VENDOR_COORDINATION", label: "Outside vendor coordination" }
 ];
 
 type AdvisorUpdate = {

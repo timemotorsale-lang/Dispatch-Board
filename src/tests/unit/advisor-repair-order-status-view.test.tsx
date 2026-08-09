@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-import { AdvisorRepairOrderStatusView } from "@/features/advisor/advisor-repair-order-status-view";
+import { AdvisorRepairOrderStatusView, getRepairPrimaryAction } from "@/features/advisor/advisor-repair-order-status-view";
 import type { getShopPlanningDetail } from "@/server/shop-planning/service";
 
 type Order = Awaited<ReturnType<typeof getShopPlanningDetail>>;
@@ -42,6 +42,7 @@ function makeOrder(overrides: Partial<Order> = {}): Order {
     diagnosisVersions: [],
     estimateVersions: [],
     repairJobs: [],
+    vendorWorks: [],
     partDemands: [{ quantityReserved: 0, quantityRequired: 1 }],
     advisorUpdates: []
   } as unknown as Order;
@@ -49,6 +50,21 @@ function makeOrder(overrides: Partial<Order> = {}): Order {
 }
 
 describe("AdvisorRepairOrderStatusView", () => {
+  it("selects one governed repair action from the current repair-order facts", () => {
+    expect(getRepairPrimaryAction(makeOrder()).label).toBe("Start vehicle inspection");
+
+    const approvedOrder = makeOrder({
+      inspectionVersions: [{ id: "inspection_1" }],
+      diagnosisVersions: [{ id: "diagnosis_1" }],
+      estimateVersions: [{
+        id: "estimate_1",
+        authorizations: [{ id: "auth_1", disposition: "ACCEPTED", authorizedLineKeys: ["labor-front-brakes"] }]
+      }]
+    } as unknown as Partial<Order>);
+
+    expect(getRepairPrimaryAction(approvedOrder)).toMatchObject({ label: "Create approved repair job", mode: "create" });
+  });
+
   it("renders a customer-safe advisor status view instead of the full repair workbench", () => {
     const html = renderToStaticMarkup(<AdvisorRepairOrderStatusView order={makeOrder()} />);
 
@@ -126,5 +142,18 @@ describe("AdvisorRepairOrderStatusView", () => {
     expect(html).toContain("Ownership protection");
     expect(html).toContain("View in Inventory");
     expect(html).toContain("Open Shop &amp; Recon");
+  });
+
+  it("shows offsite vendor truth with its evidence-driven repair stage and history", () => {
+    const html = renderToStaticMarkup(<AdvisorRepairOrderStatusView initialTab="REPAIR" order={makeOrder({ partDemands: [], stage: "REPAIR", vendorWorks: [{ id: "vendor-work-1", vendorId: "vendor-1", vendorName: "Diego Auto Body", vendorContact: null, externalReference: null, workType: "BODY_SHOP", scope: "Front-end body repair", status: "AT_VENDOR", approvalStatus: "APPROVED", estimateAmountCents: 100000, approvedAmountCents: 100000, supplementalAmountCents: null, sentAt: new Date("2026-08-09T14:00:00Z"), sentFrom: "Auction", directFromSource: true, expectedReturnAt: new Date("2026-08-12T20:00:00Z"), returnedAt: null, transportMethod: "Carrier", keysCustodian: "Vendor", currentLocation: "Diego Auto Body", lastUpdateSummary: "Body repair is in progress.", nextAction: "Request progress update.", nextFollowUpAt: new Date("2026-08-10T14:00:00Z"), version: 2, createdByUserId: "user-1", createdAt: new Date(), updatedAt: new Date(), vendor: null, events: [{ actorUser: { name: "Alex Advisor" }, occurredAt: new Date("2026-08-09T16:00:00Z"), summary: "Approved body repair is underway.", toStatus: "AT_VENDOR" }] }] } as unknown as Partial<Order>)} />);
+
+    expect(html).toContain("Offsite · Diego Auto Body");
+    expect(html).toContain("Vendor progress history");
+    expect(html).toContain("Approved body repair is underway.");
+    expect(html).toContain('aria-current="step" class="current"');
+    expect(html).toContain("Add / buy parts");
+    expect(html).toContain("/vehicles/service-close-parts?repairOrderId=ro_123");
+    expect(html).toContain("Return%20to%20RO-1001");
+    expect(html).not.toContain("Handoff review complete");
   });
 });

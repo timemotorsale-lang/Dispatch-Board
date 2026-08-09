@@ -1141,6 +1141,33 @@ enum AdvisorContactDirection {
   INTERNAL
 }
 
+enum RepairVendorWorkStatus {
+  ESTIMATE_NEEDED
+  APPROVAL_NEEDED
+  SCHEDULED
+  AT_VENDOR
+  WAITING_PARTS
+  SUPPLEMENT_NEEDED
+  READY_FOR_PICKUP
+  RETURNED
+  QC_REQUIRED
+  COMPLETED
+  CANCELLED
+}
+
+enum RepairVendorApprovalStatus {
+  NEEDS_DOCUMENTATION
+  PENDING
+  APPROVED
+  DECLINED
+  NOT_REQUIRED
+}
+
+enum RepairVendorStatus {
+  ACTIVE
+  INACTIVE
+}
+
 enum DeliveryReadinessDisposition {
   READY
   BLOCKED
@@ -1768,6 +1795,9 @@ model User {
   peerQualityVerifications                RepairQualityInspection[]              @relation("QualityPeerVerifier")
   repairReleaseAuthorizations             RepairOrderReleaseAuthorization[]      @relation("RepairReleaseAuthorizer")
   authoredAdvisorUpdates                  RepairAdvisorUpdate[]                  @relation("AdvisorUpdateAuthor")
+  createdRepairVendorWorks                RepairVendorWork[]                     @relation("RepairVendorWorkCreator")
+  repairVendorWorkEvents                  RepairVendorWorkEvent[]                @relation("RepairVendorWorkEventActor")
+  createdRepairVendors                    RepairVendor[]                         @relation("RepairVendorCreator")
   deliveryReadinessEvaluations            RepairDeliveryReadinessEvaluation[]    @relation("DeliveryReadinessEvaluator")
   createdComebackCases                    RepairComebackCase[]                   @relation("ComebackCreatedBy")
   resolvedComebackCases                   RepairComebackCase[]                   @relation("ComebackResolvedBy")
@@ -1942,6 +1972,9 @@ model Organization {
   serviceVisits                         ServiceVisit[]
   serviceIntakeReadinessSnapshots       ServiceIntakeReadinessSnapshot[]
   repairOrders                          RepairOrder[]
+  repairVendorWorks                     RepairVendorWork[]
+  repairVendorWorkEvents                RepairVendorWorkEvent[]
+  repairVendors                         RepairVendor[]
   repairOrderStateEvents                RepairOrderStateEvent[]
   parts                                 Part[]
   partStockLocations                    PartStockLocation[]
@@ -3334,6 +3367,7 @@ model RepairOrder {
   qualityInspections           RepairQualityInspection[]
   releaseAuthorization         RepairOrderReleaseAuthorization?
   advisorUpdates               RepairAdvisorUpdate[]
+  vendorWorks                  RepairVendorWork[]
   deliveryReadinessEvaluations RepairDeliveryReadinessEvaluation[]
   originalComebackCases        RepairComebackCase[]                @relation("ComebackOriginalOrder")
   followUpComebackCases        RepairComebackCase[]                @relation("ComebackFollowUpOrder")
@@ -4870,6 +4904,102 @@ model RepairAdvisorUpdate {
   @@unique([repairOrderId, version])
   @@index([organizationId, statusCode, occurredAt])
   @@index([repairOrderId, occurredAt])
+}
+
+model RepairVendorWork {
+  id                   String                     @id @default(cuid())
+  organizationId       String
+  repairOrderId        String
+  vendorId             String?
+  vendorName           String
+  vendorContact        String?
+  externalReference    String?
+  workType             String
+  scope                 String
+  status                RepairVendorWorkStatus
+  approvalStatus        RepairVendorApprovalStatus
+  estimateAmountCents   Int?
+  approvedAmountCents   Int?
+  supplementalAmountCents Int?
+  sentAt                DateTime
+  sentFrom              String
+  directFromSource      Boolean                    @default(false)
+  expectedReturnAt      DateTime?
+  returnedAt            DateTime?
+  transportMethod      String?
+  keysCustodian         String
+  currentLocation      String
+  lastUpdateSummary    String
+  nextAction            String
+  nextFollowUpAt        DateTime?
+  version               Int                        @default(1)
+  createdByUserId       String
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
+  organization          Organization               @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  repairOrder           RepairOrder                @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  vendor                RepairVendor?              @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  createdByUser         User                       @relation("RepairVendorWorkCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  events                RepairVendorWorkEvent[]
+
+  @@index([organizationId, status, expectedReturnAt])
+  @@index([repairOrderId, status])
+  @@index([vendorId, status])
+}
+
+model RepairVendor {
+  id                  String              @id @default(cuid())
+  organizationId      String
+  code                String
+  name                String
+  vendorType          String
+  contactName         String?
+  phoneNumber         String?
+  email               String?
+  address             String?
+  defaultLeadDays     Int                 @default(1)
+  notes               String?
+  status              RepairVendorStatus  @default(ACTIVE)
+  createdByUserId     String
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdByUser       User                 @relation("RepairVendorCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  workAssignments     RepairVendorWork[]
+
+  @@unique([organizationId, code])
+  @@unique([organizationId, name])
+  @@index([organizationId, status, vendorType])
+}
+
+model RepairVendorWorkEvent {
+  id                     String                     @id @default(cuid())
+  organizationId         String
+  vendorWorkId           String
+  version                Int
+  fromStatus             RepairVendorWorkStatus?
+  toStatus               RepairVendorWorkStatus
+  approvalStatus         RepairVendorApprovalStatus
+  summary                String
+  customerVisibleSummary String
+  internalNotes          String?
+  estimateAmountCents    Int?
+  approvedAmountCents    Int?
+  supplementalAmountCents Int?
+  expectedReturnAt       DateTime?
+  nextFollowUpAt         DateTime?
+  evidence               Json
+  occurredAt             DateTime
+  actorUserId            String
+  reason                 String
+  createdAt              DateTime                   @default(now())
+  organization           Organization               @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  vendorWork             RepairVendorWork           @relation(fields: [vendorWorkId], references: [id], onDelete: Restrict)
+  actorUser              User                       @relation("RepairVendorWorkEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@unique([vendorWorkId, version])
+  @@index([organizationId, occurredAt])
+  @@index([vendorWorkId, occurredAt])
 }
 
 model RepairDeliveryReadinessEvaluation {

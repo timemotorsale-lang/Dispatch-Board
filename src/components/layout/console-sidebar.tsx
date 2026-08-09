@@ -7,13 +7,16 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { LogoutButton } from "@/features/auth/logout-button";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { TimeMotorSalesLogo } from "@/components/brand/time-motor-sales-logo";
+import { withManagerWorkspaceContext, type ManagerWorkspaceContext } from "@/lib/manager-workspace-context";
 
 import type { ConsoleNavigationDefinition } from "./console-navigation";
 
 type ConsoleSidebarProps = {
   console: ConsoleNavigationDefinition;
   isOpen: boolean;
+  managerContext?: ManagerWorkspaceContext | null;
   onClose(): void;
+  preserveAdvisorLaunch?: boolean;
   user: AuthenticatedUser;
 };
 
@@ -42,15 +45,20 @@ function preserveBoardDate(href: string, selectedBoardDate: string | null) {
   return hash ? `${datedDestination}#${hash}` : datedDestination;
 }
 
-export function ConsoleSidebar({ console, isOpen, onClose, user }: ConsoleSidebarProps) {
+export function ConsoleSidebar({ console, isOpen, managerContext, onClose, preserveAdvisorLaunch = false, user }: ConsoleSidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const selectedBoardDate = searchParams.get("date");
+  const containedHref = (href: string) => managerContext
+    ? withManagerWorkspaceContext(href, managerContext.mode, {
+        launch: preserveAdvisorLaunch && href.split(/[?#]/, 1)[0] === "/appointments" ? "advisor" : undefined
+      })
+    : href;
 
   return (
     <aside className={["app-sidebar", "console-sidebar", isOpen ? "app-sidebar-open" : ""].filter(Boolean).join(" ")}>
       <div className="sidebar-brand-row">
-        <Link aria-label={`${console.subtitle} home`} className="sidebar-brand" href={console.homeHref} onClick={onClose}>
+        <Link aria-label={`${console.subtitle} home`} className="sidebar-brand" href={containedHref(console.homeHref)} onClick={onClose}>
           <span className="sidebar-logo" aria-hidden="true"><TimeMotorSalesLogo decorative priority variant="mark" /></span>
           <span><strong>{console.title}</strong><small>{console.subtitle}</small></span>
         </Link>
@@ -66,7 +74,7 @@ export function ConsoleSidebar({ console, isOpen, onClose, user }: ConsoleSideba
         {console.items.map((item) => {
           const Icon = item.icon;
           const active = isActive(pathname, searchParams, item);
-          const href = preserveBoardDate(item.href, selectedBoardDate);
+          const href = containedHref(preserveBoardDate(item.href, selectedBoardDate));
 
           const className = ["sidebar-link", item.isNested ? "sidebar-link-child" : "", active ? "sidebar-link-active" : ""].filter(Boolean).join(" ");
 

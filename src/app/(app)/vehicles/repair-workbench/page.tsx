@@ -23,6 +23,7 @@ type PageProps = {
     repairOrderId?: string;
     returnLabel?: string;
     returnTo?: string;
+    tab?: string;
     vehicleId?: string;
     view?: string;
     workspace?: string;
@@ -97,6 +98,7 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
         vehicleId: order.vehicle.id,
       });
       if (params.compose === "customer" || params.compose === "management" || params.compose === "team") canonical.set("compose", params.compose);
+      if (params.tab === "repair") canonical.set("tab", "repair");
       if (params.workspace === "advisor") canonical.set("workspace", "advisor");
       if (returnTo) canonical.set("returnTo", returnTo);
       if (managerContext) preserveManagerContext(canonical, managerContext.mode);
@@ -109,7 +111,7 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
 
     if (showAdvisorReturn) {
       const compose = params.compose === "customer" || params.compose === "management" || params.compose === "team" ? params.compose : undefined;
-      return <AdvisorRepairOrderStatusView compose={compose} order={JSON.parse(JSON.stringify(order))} returnTo={returnTo} />;
+      return <AdvisorRepairOrderStatusView compose={compose} initialTab={params.tab === "repair" ? "REPAIR" : undefined} order={JSON.parse(JSON.stringify(order))} returnTo={returnTo} />;
     }
 
     return (

@@ -48,8 +48,16 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
   const salesConsole = isSalesConsolePath(pathname);
   const operationsCoordinatorConsole = isOperationsCoordinatorConsolePath(pathname);
   const dispatchConsole = isDispatchConsolePath(pathname) && !isInventoryConsolePath(pathname) && !isAppointmentConsolePath(pathname) && !isSalesConsolePath(pathname);
-  const containedFocusedTool = Boolean(managerContext);
-  const consoleNavigation = salesConsole || containedFocusedTool || tasksConsoleHome ? null : getConsoleNavigation(pathname, user, preferredWorkspace);
+  const containedConsoleWorkspace: WorkspaceKey | null = managerContext
+    ? searchParams.get("launch") === "advisor" || pathname === "/vehicles/advisor"
+      ? "ADVISOR"
+      : searchParams.get("workspace") === "inventory" || pathname === "/inventory-manager"
+        ? "INVENTORY"
+        : pathname.startsWith("/vehicles/shop-recon") || pathname.startsWith("/vehicles/shop-")
+          ? "SERVICE"
+          : null
+    : null;
+  const consoleNavigation = salesConsole || tasksConsoleHome ? null : getConsoleNavigation(pathname, user, preferredWorkspace, containedConsoleWorkspace);
   const hasSidebar = commandCenterHome || managerWorkspaceHome || tasksConsoleHome || Boolean(consoleNavigation);
   const tasksWorkspace = pathname.startsWith("/tasks");
   const sidebarCompact = isTasksSidebarCompact(pathname, mode);
@@ -60,7 +68,10 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
     !salesConsole;
   const showInventoryRouteTabs = isInventoryConsolePath(pathname) && !managerContext;
   const showFullInventoryNavigation = consoleNavigation?.title === "Inventory Console";
-  const advisorWorkspace = preferredWorkspace === "ADVISOR" && !managerContext;
+  const advisorWorkspace = !managerContext && (
+    preferredWorkspace === "ADVISOR" ||
+    pathname === "/vehicles/advisor"
+  );
 
   function preserveManagerContextOnLink(event: MouseEvent<HTMLElement>) {
     if (!managerContext || event.defaultPrevented) return;
@@ -119,7 +130,7 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
       {commandCenterHome ? <AppSidebar compact={sidebarCompact} isOpen={navigationOpen} onClose={() => setNavigationOpen(false)} user={user} /> : null}
       {managerWorkspaceHome ? <ManagerWorkspaceSidebar isOpen={navigationOpen} onClose={() => setNavigationOpen(false)} user={user} /> : null}
       {tasksConsoleHome ? <TasksWorkspaceSidebar compact={sidebarCompact} isOpen={navigationOpen} onClose={() => setNavigationOpen(false)} user={user} /> : null}
-      {consoleNavigation ? <ConsoleSidebar console={consoleNavigation} isOpen={navigationOpen} onClose={() => setNavigationOpen(false)} user={user} /> : null}
+      {consoleNavigation ? <ConsoleSidebar console={consoleNavigation} isOpen={navigationOpen} managerContext={managerContext} onClose={() => setNavigationOpen(false)} preserveAdvisorLaunch={containedConsoleWorkspace === "ADVISOR"} user={user} /> : null}
       {hasSidebar && navigationOpen ? (
         <button className="sidebar-scrim" aria-label="Close navigation" onClick={() => setNavigationOpen(false)} />
       ) : null}

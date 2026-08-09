@@ -78,7 +78,9 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
   const searchParams = useSearchParams();
   const dispatchView = searchParams.get("view") === "live" ? "live" : "overview";
   const technicianOnly = isTechnicianOnlyUser(user);
-  const activeWorkspace = resolveWorkspaceForPath(user, pathname, preferredWorkspace);
+  const activeWorkspace = pathname === "/vehicles/advisor"
+    ? "ADVISOR"
+    : resolveWorkspaceForPath(user, pathname, preferredWorkspace);
   const canOpenManagementWorkspace = getPermittedWorkspaces(user).some((workspace) => workspace.key === "MANAGEMENT");
   const activeWorkspaceDefinition = getWorkspaceDefinition(activeWorkspace);
   const roleWorkspace = activeWorkspace !== "MANAGEMENT";
@@ -205,7 +207,7 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
         ))}
       </nav>
 
-      <span className="ccc-dispatch-status"><i aria-hidden="true" />{commandCenterHome ? "CCC online" : inventoryConsole ? "Inventory live" : dispatchConsole ? "Dispatch online" : "Console active"}</span>
+      <span className="ccc-dispatch-status"><i aria-hidden="true" />{commandCenterHome ? "CCC online" : activeWorkspace === "ADVISOR" ? "Advisor ready" : inventoryConsole ? "Inventory live" : dispatchConsole ? "Dispatch online" : "Console active"}</span>
 
       <div className="topbar-actions" ref={actionsRef}>
         <div aria-label="Application appearance" className="app-appearance-switch" role="group">

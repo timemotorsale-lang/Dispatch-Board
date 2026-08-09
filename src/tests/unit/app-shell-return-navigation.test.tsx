@@ -175,4 +175,56 @@ describe("application shell Sales Console return navigation", () => {
     expect(markup).not.toContain('aria-label="Time Motor Sales Command Control Center"');
     expect(markup).not.toContain('aria-label="Dispatch Board navigation"');
   });
+
+  it("keeps the Service Advisor sidebar on a manager-contained advisor workspace", () => {
+    currentPathname = "/appointments";
+    currentSearchParams = new URLSearchParams("workspaceContext=MANAGEMENT&managerMode=WORK&launch=advisor&returnTo=%2Fmanager-workspace%3Fmode%3Dwork");
+
+    const markup = renderToStaticMarkup(
+      <AppShell user={testUser}>
+        <section>Service Advisor workspace</section>
+      </AppShell>
+    );
+
+    expect(markup).toContain("app-frame-console-sidebar");
+    expect(markup).toContain('aria-label="Advisor Workspace navigation"');
+    expect(markup).toContain("Advisor Home");
+    expect(markup).toContain("workspaceContext=MANAGEMENT");
+    expect(markup).toContain("managerMode=WORK");
+    expect(markup).toContain("launch=advisor");
+    expect(markup).not.toContain('aria-label="Scheduling &amp; Capacity navigation"');
+  });
+
+  it("keeps the Inventory sidebar on a manager-contained inventory workspace", () => {
+    currentPathname = "/vehicles";
+    currentSearchParams = new URLSearchParams("workspace=inventory&workspaceContext=MANAGEMENT&managerMode=COO&returnTo=%2Fmanager-workspace%3Fmode%3Dcoo");
+
+    const markup = renderToStaticMarkup(
+      <AppShell user={testUser}>
+        <section>Inventory Manager workspace</section>
+      </AppShell>
+    );
+
+    expect(markup).toContain("app-frame-console-sidebar");
+    expect(markup).toContain('aria-label="Inventory Operations navigation"');
+    expect(markup).toContain("Inventory Lifecycle");
+    expect(markup).toContain("managerMode=COO");
+  });
+
+  it("keeps the Service Operations sidebar throughout manager-contained Shop and Recon", () => {
+    currentPathname = "/vehicles/shop-recon/repair-order-1";
+    currentSearchParams = new URLSearchParams("workspaceContext=MANAGEMENT&managerMode=WORK&returnTo=%2Fmanager-workspace%3Fmode%3Dwork");
+
+    const markup = renderToStaticMarkup(
+      <AppShell user={testUser}>
+        <section>Shop and Recon vehicle workspace</section>
+      </AppShell>
+    );
+
+    expect(markup).toContain("app-frame-console-sidebar");
+    expect(markup).toContain('aria-label="Service Operations navigation"');
+    expect(markup).toContain("Shop &amp; Recon");
+    expect(markup).toContain("Shop Dispatch");
+    expect(markup).toContain("managerMode=WORK");
+  });
 });

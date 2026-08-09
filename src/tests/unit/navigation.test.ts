@@ -237,6 +237,20 @@ describe("enterprise shell navigation", () => {
       "Parts Readiness",
       "Reviews"
     ]);
+    expect(getConsoleNavigation("/vehicles/advisor", user({ roles: ["General Manager"] }))).toMatchObject({
+      homeHref: "/appointments",
+      subtitle: "Advisor Workspace",
+      title: "Time Motor Sales"
+    });
+    expect(getConsoleNavigation("/vehicles/advisor", user({ roles: ["General Manager"] }))?.items.map((item) => item.title)).toEqual([
+      "Advisor Home",
+      "Check In Vehicle",
+      "Appointment Board",
+      "Customers",
+      "Repair Orders",
+      "Diagnostic Review",
+      "My Work"
+    ]);
     expect(getConsoleNavigation("/appointments", user({ roles: ["Service Advisor"] }))?.items.map((item) => item.title)).toEqual([
       "Today Flow",
       "Calendar",
