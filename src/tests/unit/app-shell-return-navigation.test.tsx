@@ -94,10 +94,54 @@ describe("application shell Sales Console return navigation", () => {
     );
 
     expect(markup).toContain('class="app-frame app-frame-console app-frame-console-sidebar"');
-    expect(markup).toContain('aria-label="Time Motor Sales Command Control Center"');
-    expect(markup).toContain('href="/manager-workspace"');
-    expect(markup).toContain("Manager Workspace");
-    expect(markup).toContain('href="/command-center"');
-    expect(markup).toContain("Command Center");
+    expect(markup).toContain('aria-label="Time Motor Sales Manager Workspace"');
+    expect(markup).toContain('aria-label="Manager workspace views"');
+    expect(markup).toContain('href="/manager-workspace?mode=ceo"');
+    expect(markup).toContain('href="/manager-workspace?mode=coo"');
+    expect(markup).toContain('href="/manager-workspace?mode=work"');
+    expect(markup).toContain('aria-label="Manager page sections"');
+    expect(markup).toContain("Priority Intervention");
+    expect(markup).toContain("Operating Pulse");
+    expect(markup).toContain("Intervention Queue");
+    expect(markup).toContain("Operations Inbox");
+    expect(markup).not.toContain("Executive Decisions");
+    expect(markup).not.toContain("My Action Queue");
+    expect(markup).not.toContain('aria-label="Time Motor Sales Command Control Center"');
+  });
+
+  it("changes contextual sidebar links with each Manager Workspace mode", () => {
+    currentPathname = "/manager-workspace";
+    currentSearchParams = new URLSearchParams("mode=work");
+
+    const markup = renderToStaticMarkup(
+      <AppShell user={testUser}>
+        <section>Manager Workspace My Work landing</section>
+      </AppShell>
+    );
+
+    expect(markup).toContain("Do This Next");
+    expect(markup).toContain("My Workload");
+    expect(markup).toContain("My Action Queue");
+    expect(markup).toContain("My Inbox");
+    expect(markup).not.toContain("Priority Intervention");
+    expect(markup).not.toContain("Executive Decisions");
+  });
+
+  it("shows executive-only page links in CEO mode", () => {
+    currentPathname = "/manager-workspace";
+    currentSearchParams = new URLSearchParams("mode=ceo");
+
+    const markup = renderToStaticMarkup(
+      <AppShell user={testUser}>
+        <section>Manager Workspace CEO landing</section>
+      </AppShell>
+    );
+
+    expect(markup).toContain("Highest-Value Decision");
+    expect(markup).toContain("Business Health");
+    expect(markup).toContain("Executive Decisions");
+    expect(markup).toContain("Executive Inbox");
+    expect(markup).not.toContain("Intervention Queue");
+    expect(markup).not.toContain("My Action Queue");
   });
 });
