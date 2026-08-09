@@ -8,7 +8,7 @@ import type { VehicleExecutionWorkbenchProjection } from "@/server/inventory-exe
 
 type Tab = "overview" | "work" | "orders" | "parts" | "evidence" | "activity";
 type RoleLens = "Overview" | "Inventory Manager" | "Technician" | "Parts" | "Sales / Marketing" | "Service Advisor" | "General Manager";
-type VehiclePartsRequest = { id: string; actorName: string; createdAt: string; nextAction: string; notes: string | null; partDescription: string; quantity: number; repairOrderId: string | null; status: string; vendorOrSource: string | null };
+type VehiclePartsRequest = { id: string; actorName: string; costCents: number; createdAt: string; nextAction: string; notes: string | null; orderedAt: string | null; partDescription: string; quantity: number; repairOrderId: string | null; status: string; vendorOrSource: string | null };
 const label = (value: unknown) => String(value ?? "Unavailable").replaceAll("_", " ").toLowerCase().replace(/\b\w/g, letter => letter.toUpperCase());
 const date = (value: unknown) => {
   const parsed = typeof value === "string" || value instanceof Date ? new Date(value) : null;
@@ -27,7 +27,7 @@ export function VehicleExecutionWorkbench({ initial, initialRoleLens = "Overview
   const [partsRequests, setPartsRequests] = useState<VehiclePartsRequest[]>([]);
   const [partsRequestNotice, setPartsRequestNotice] = useState("");
   const [partsRequestBusy, setPartsRequestBusy] = useState(false);
-  const [partsRequest, setPartsRequest] = useState({ nextAction: "Order or source this part.", notes: "", partDescription: "Left lower control arm bolt", quantity: "1", status: "NEEDED", vendorOrSource: "" });
+  const [partsRequest, setPartsRequest] = useState({ costDollars: "", nextAction: "Order or source this part.", notes: "", orderedAt: "", partDescription: "Left lower control arm bolt", quantity: "1", status: "NEEDED", vendorOrSource: "" });
   const tabs: Array<{ id: Tab; label: string; count?: number }> = [{ id: "overview", label: "Overview" }, { id: "work", label: "Current Work" }, { id: "orders", label: "Work Orders", count: initial.workOrders.items.length }, { id: "parts", label: "Parts", count: initial.parts.demands.length }, { id: "evidence", label: "Photos & Documents", count: initial.evidence.items.length }, { id: "activity", label: "Activity", count: initial.activity.length }];
 
   useEffect(() => {
@@ -52,7 +52,7 @@ export function VehicleExecutionWorkbench({ initial, initialRoleLens = "Overview
       const response = await fetch(`/api/vehicles/${encodeURIComponent(vehicleId)}/parts-requests`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ...partsRequest, quantity: Number(partsRequest.quantity), repairOrderId: text(object(initial.workOrders.items[0]).id, "") || null })
+        body: JSON.stringify({ ...partsRequest, costCents: dollarsToCents(partsRequest.costDollars), quantity: Number(partsRequest.quantity), repairOrderId: text(object(initial.workOrders.items[0]).id, "") || null })
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error ?? "Parts request could not be saved.");
@@ -60,6 +60,26 @@ export function VehicleExecutionWorkbench({ initial, initialRoleLens = "Overview
       setPartsRequestNotice("Parts request saved. Parts can convert it into the official demand or purchase workflow when ready.");
     } catch (error) {
       setPartsRequestNotice(error instanceof Error ? error.message : "Parts request could not be saved.");
+    } finally {
+      setPartsRequestBusy(false);
+    }
+  }
+
+  async function removePartsRequest(requestId: string) {
+    setPartsRequestBusy(true);
+    setPartsRequestNotice("");
+    try {
+      const response = await fetch(`/api/vehicles/${encodeURIComponent(vehicleId)}/parts-requests`, {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ requestId, reason: "Remove mistaken simple vehicle parts request." })
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error ?? "Parts request could not be removed.");
+      setPartsRequests(current => current.filter(item => item.id !== requestId));
+      setPartsRequestNotice("Parts request removed from this list.");
+    } catch (error) {
+      setPartsRequestNotice(error instanceof Error ? error.message : "Parts request could not be removed.");
     } finally {
       setPartsRequestBusy(false);
     }
@@ -77,7 +97,7 @@ export function VehicleExecutionWorkbench({ initial, initialRoleLens = "Overview
       {active === "work" && current ? <TechnicianExecutionPanel packet={current} /> : null}
       {active === "work" && current && object(current.closeout).id ? <ManagerNextPlanPanel packet={current} /> : null}
       {active === "orders" ? <WorkbenchList allowed={initial.workOrders.allowed} empty="No vehicle-specific work orders are linked." items={initial.workOrders.items} kind="Work Order" render={(order) => <><h3>{text(order.repairOrderNumber, text(order.id))}</h3><p>{label(order.stage)} · {label(order.operatingState)}</p><div className="vehicle-workbench-actions"><Link className="button button-primary" href={`/vehicles/repair-orders?repairOrderId=${encodeURIComponent(text(order.id))}`}>Open Work Order</Link><Link className="button button-secondary" href={`${initial.links.parts}&repairOrderId=${encodeURIComponent(text(order.id))}`}>Order / Review Parts</Link></div></>} /> : null}
-      {active === "parts" ? <VehiclePartsPanel allowed={initial.parts.allowed} busy={partsRequestBusy} demands={initial.parts.demands} links={initial.links} notice={partsRequestNotice} onChange={updatePartsRequest} onSubmit={savePartsRequest} request={partsRequest} requests={partsRequests} /> : null}
+      {active === "parts" ? <VehiclePartsPanel allowed={initial.parts.allowed} busy={partsRequestBusy} demands={initial.parts.demands} links={initial.links} notice={partsRequestNotice} onChange={updatePartsRequest} onRemove={removePartsRequest} onSubmit={savePartsRequest} request={partsRequest} requests={partsRequests} /> : null}
       {active === "parts" && initial.parts.allowed && initial.parts.demands.length ? <section className="vehicle-workbench-panel"><header><div><small>Canonical Parts Records</small><h2>Same demand records shown in Parts Workspace</h2></div><Link className="button button-secondary" href={initial.links.parts}>Review in Parts Workspace</Link></header><div className="vehicle-workbench-list">{initial.parts.demands.map((demand, index) => <article key={`canonical-${text(demand.id, String(index))}`}><Boxes /><div><strong>{partDemandTitle(demand)}</strong><p>{label(demand.status)} / {partDemandQuantity(demand)} / Required {date(demand.requiredAt)}</p><small>{partDemandDescription(demand)} / {text(demand.repairOrderNumber, "Repair order linked")} / {partDemandCustodyCount(demand, initial.parts.custody)} custody event(s)</small></div></article>)}</div></section> : null}
       {active === "evidence" ? <section className="vehicle-workbench-panel"><header><div><small>Evidence</small><h2>Photos, documents, and work-order attachments</h2></div><Link className="button button-primary" href={initial.links.evidence}>Upload in Vehicle 360</Link></header>{!initial.evidence.allowed ? <Notice icon={AlertTriangle} title="Evidence restricted" detail="Your role does not include vehicle evidence access." /> : initial.evidence.items.length ? <div className="vehicle-workbench-list">{initial.evidence.items.map((entry, index) => { const evidence = object(entry.evidenceObject); return <article key={text(entry.id, String(index))}><FileText /><div><strong>{text(evidence.fileName)}</strong><p>{label(entry.category)} · {label(evidence.status)}</p><small>Uploaded by {text(object(evidence.uploadedByUser).name)}</small></div></article>; })}</div> : <Notice icon={Camera} title="No evidence attached" detail="Add photos or documents once; Vehicle 360 governs access, retention, integrity, and reuse." />}</section> : null}
       {active === "activity" ? <section className="vehicle-workbench-panel"><header><div><small>Attributable History</small><h2>Recent vehicle activity</h2></div></header>{initial.activity.length ? <div className="vehicle-workbench-list">{initial.activity.map(event => <article key={event.id}><Clock3 /><div><strong>{event.title}</strong><p>{date(event.occurredAt)} · {label(event.source)}</p><small>{event.detail ?? `${event.subjectType} ${event.subjectId}`}</small></div></article>)}</div> : <Notice icon={Clock3} title="No activity available" detail="No permitted vehicle activity is available in this projection." />}</section> : null}
@@ -137,7 +157,7 @@ function OverviewCard({ children, icon: Icon, title }: { children: ReactNode; ic
   return <article className="vehicle-workbench-overview-card"><header><Icon /><h2>{title}</h2></header>{children}</article>;
 }
 
-function VehiclePartsPanel({ allowed, busy, demands, links, notice, onChange, onSubmit, request, requests }: { allowed: boolean; busy: boolean; demands: Record<string, unknown>[]; links: VehicleExecutionWorkbenchProjection["links"]; notice: string; onChange: (field: "nextAction" | "notes" | "partDescription" | "quantity" | "status" | "vendorOrSource", value: string) => void; onSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>; request: { nextAction: string; notes: string; partDescription: string; quantity: string; status: string; vendorOrSource: string }; requests: VehiclePartsRequest[] }) {
+function VehiclePartsPanel({ allowed, busy, demands, links, notice, onChange, onRemove, onSubmit, request, requests }: { allowed: boolean; busy: boolean; demands: Record<string, unknown>[]; links: VehicleExecutionWorkbenchProjection["links"]; notice: string; onChange: (field: "costDollars" | "nextAction" | "notes" | "orderedAt" | "partDescription" | "quantity" | "status" | "vendorOrSource", value: string) => void; onRemove: (requestId: string) => Promise<void>; onSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>; request: { costDollars: string; nextAction: string; notes: string; orderedAt: string; partDescription: string; quantity: string; status: string; vendorOrSource: string }; requests: VehiclePartsRequest[] }) {
   return <section className="vehicle-workbench-panel">
     <header><div><small>Vehicle-specific Parts</small><h2>Request, order, and document parts without leaving this vehicle</h2></div><Link className="button button-secondary" href={links.parts}>Open Parts Operations</Link></header>
     {!allowed ? <Notice icon={AlertTriangle} title="Parts restricted" detail="Your role does not include Parts access." /> : <>
@@ -147,6 +167,8 @@ function VehiclePartsPanel({ allowed, busy, demands, links, notice, onChange, on
           <label><span>Quantity</span><input min="1" onChange={event => onChange("quantity", event.target.value)} required type="number" value={request.quantity} /></label>
           <label><span>Status</span><select onChange={event => onChange("status", event.target.value)} value={request.status}><option value="NEEDED">Needed</option><option value="ORDERED">Ordered</option><option value="WAITING_VENDOR">Waiting vendor</option><option value="RECEIVED">Received</option><option value="INSTALLED">Installed</option></select></label>
           <label><span>Vendor / source</span><input maxLength={200} onChange={event => onChange("vendorOrSource", event.target.value)} placeholder="Dealer, aftermarket, used, unknown" value={request.vendorOrSource} /></label>
+          <label><span>Ordered when</span><input onChange={event => onChange("orderedAt", event.target.value)} type="datetime-local" value={request.orderedAt} /></label>
+          <label><span>Cost</span><input min="0" onChange={event => onChange("costDollars", event.target.value)} placeholder="0.00" step="0.01" type="number" value={request.costDollars} /></label>
           <label className="span-two"><span>Next action</span><input maxLength={500} onChange={event => onChange("nextAction", event.target.value)} required value={request.nextAction} /></label>
         </div>
         <label><span>Notes</span><textarea maxLength={1000} onChange={event => onChange("notes", event.target.value)} placeholder="Add quote, ETA, part number, who called, or why this blocks frontline readiness." value={request.notes} /></label>
@@ -154,7 +176,7 @@ function VehiclePartsPanel({ allowed, busy, demands, links, notice, onChange, on
         {notice ? <p className="vehicle-workbench-form-notice" role="status">{notice}</p> : <small>This does not fake a purchase order. It records the practical need now so Parts can convert it into official demand, sourcing, PO, receiving, and custody later.</small>}
       </form>
       <div className="vehicle-workbench-list">
-        {requests.map(item => <article key={item.id}><Boxes /><div><strong>{item.quantity} × {item.partDescription}</strong><p>{label(item.status)}{item.vendorOrSource ? ` · ${item.vendorOrSource}` : ""} · {date(item.createdAt)}</p><small>{item.nextAction} · {item.actorName}{item.notes ? ` · ${item.notes}` : ""}</small></div></article>)}
+        {requests.map(item => <article key={item.id}><Boxes /><div><strong>{item.quantity} × {item.partDescription}</strong><p>{label(item.status)}{item.vendorOrSource ? ` · ${item.vendorOrSource}` : ""}{item.orderedAt ? ` · Ordered ${date(item.orderedAt)}` : ""}{item.costCents ? ` · ${money(item.costCents)}` : ""} · Saved {date(item.createdAt)}</p><small>{item.nextAction} · {item.actorName}{item.notes ? ` · ${item.notes}` : ""}</small></div><button className="button button-secondary" disabled={busy} onClick={() => void onRemove(item.id)} type="button">Remove</button></article>)}
         {demands.map((demand, index) => <article key={text(demand.id, String(index))}><Boxes /><div><strong>{text(demand.partNumber, text(demand.description, "Official part demand"))}</strong><p>{label(demand.status)} · Required {date(demand.requiredAt)}</p><small>Official demand is linked through this vehicle&apos;s authoritative Repair Order.</small></div></article>)}
         {!requests.length && !demands.length ? <article><Boxes /><div><strong>No parts recorded yet</strong><p>Use the form above to capture the need immediately.</p><small>Example: left lower control arm bolt, quantity 1, order/source next.</small></div></article> : null}
       </div>
@@ -168,6 +190,8 @@ function FactList({ items }: { items: Array<[string, string]> }) {
 
 function text(value: unknown, fallback = "Unavailable") { return typeof value === "string" && value.trim() ? value.trim() : fallback; }
 function numberText(value: unknown, fallback = "0") { return typeof value === "number" ? String(value) : fallback; }
+function dollarsToCents(value: string) { const parsed = Number(value); return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed * 100) : 0; }
+function money(cents: number) { return (cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" }); }
 function partDemandTitle(demand: Record<string, unknown>) {
   const part = object(demand.part);
   return text(part.partNumber, text(demand.partNumber, text(part.description, text(demand.description, "Part demand"))));
