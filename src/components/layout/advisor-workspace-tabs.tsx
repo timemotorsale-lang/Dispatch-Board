@@ -12,16 +12,16 @@ type AdvisorTab = {
 
 const tabs: AdvisorTab[] = [
   {
-    href: "/appointments",
+    href: "/vehicles/advisor",
     icon: House,
     label: "My Workspace",
-    active: (pathname, searchParams) => pathname === "/appointments" && !searchParams.get("view") && !searchParams.get("queue") && !searchParams.get("inbox"),
+    active: (pathname) => pathname === "/vehicles/advisor",
   },
   {
-    href: "/appointments?inbox=all",
+    href: "/vehicles/advisor?inbox=all",
     icon: MessageSquareText,
     label: "Inbox",
-    active: (pathname, searchParams) => pathname === "/appointments" && Boolean(searchParams.get("inbox")),
+    active: (pathname, searchParams) => pathname === "/vehicles/advisor" && Boolean(searchParams.get("inbox")),
   },
   {
     href: "/vehicles/repair-orders?intakeSource=WALK_IN",
@@ -42,10 +42,10 @@ const tabs: AdvisorTab[] = [
     active: (pathname) => pathname.startsWith("/vehicles/repair-workbench"),
   },
   {
-    href: "/appointments?queue=authorization",
+    href: "/vehicles/advisor?queue=authorization",
     icon: ClipboardCheck,
     label: "Approvals",
-    active: (pathname, searchParams) => pathname === "/appointments" && searchParams.get("queue") === "authorization",
+    active: (pathname, searchParams) => pathname === "/vehicles/advisor" && searchParams.get("queue") === "authorization",
   },
   {
     href: "/customers",

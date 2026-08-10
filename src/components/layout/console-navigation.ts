@@ -56,11 +56,17 @@ const inventoryItems: NavigationItem[] = [
     icon: RefreshCw
   },
   {
-    activePaths: ["/vehicles/shop-recon", "/vehicles/parts-operations", "/vehicles/parts", "/vehicles/parts-counter", "/vehicles/service-close-parts", "/vehicles/shop-planning", "/vehicles/shop-dispatch", "/vehicles/shop-production", "/vehicles/shop-metrics", "/vehicles/quality-control", "/vehicles/advisor", "/vehicles/comebacks"],
+    activePaths: ["/vehicles/shop-recon", "/vehicles/parts-operations", "/vehicles/parts", "/vehicles/parts-counter", "/vehicles/service-close-parts", "/vehicles/shop-planning", "/vehicles/shop-dispatch", "/vehicles/shop-production", "/vehicles/shop-metrics", "/vehicles/quality-control", "/vehicles/advisor", "/vehicles/recon-repair-advisor", "/vehicles/comebacks"],
     href: "/vehicles/shop-recon",
     title: "Shop & Recon",
     description: "Daily production, capacity, constraints, and parts readiness.",
     icon: Wrench
+  },
+  {
+    href: "/vehicles/recon-repair-advisor",
+    title: "Recon/Repair Advisor",
+    description: "Prototype cockpit for Rapid Recon-style vehicle execution.",
+    icon: MessageSquareText
   },
   {
     activePaths: ["/vehicles/repair-workbench", "/vehicles/repair-orders"],
@@ -192,7 +198,9 @@ export function getConsoleNavigation(
     };
   }
 
-  if (pathname === "/vehicles/advisor") {
+  const resolvedWorkspace = resolveWorkspaceForPath(user, pathname, preferredWorkspace);
+
+  if (pathname === "/vehicles/advisor" || (isAppointmentConsolePath(pathname) && resolvedWorkspace === "ADVISOR")) {
     const definition = getWorkspaceDefinition("ADVISOR");
     return {
       badge: "Ready",
@@ -237,7 +245,7 @@ export function getConsoleNavigation(
     }
   }
 
-  const workspace = resolveWorkspaceForPath(user, pathname, preferredWorkspace);
+  const workspace = resolvedWorkspace;
   const definition = getWorkspaceDefinition(workspace);
   const workspacePath =
     isInventoryConsolePath(pathname) ||

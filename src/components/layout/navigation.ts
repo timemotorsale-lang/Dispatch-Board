@@ -319,7 +319,8 @@ const workspaceNavigationItems: Partial<Record<WorkspaceKey, NavigationItem[]>> 
     { href: "/manager-review?scope=inventory", title: "Reviews", description: "Inventory work awaiting review or approval.", icon: ShieldCheck }
   ],
   ADVISOR: [
-    { href: "/appointments", title: "Advisor Home", description: "Arrivals, check-ins, repair-order handoffs, and customer follow-up.", icon: House, matchExact: true },
+    { href: "/vehicles/advisor", title: "Advisor Home", description: "Arrivals, check-ins, repair-order handoffs, and customer follow-up.", icon: House, matchExact: true },
+    { href: "/vehicles/recon-repair-advisor", title: "Recon/Repair Advisor", description: "Prototype cockpit for recon and repair execution.", icon: Stethoscope },
     { href: "/vehicles/repair-orders?intakeSource=WALK_IN", title: "Check In Vehicle", description: "Receive a vehicle and create governed shop work.", icon: ClipboardCheck },
     { href: "/appointments?view=board", title: "Appointment Board", description: "Review schedule commitments and appointment context.", icon: CalendarDays },
     { href: "/customers", title: "Customers", description: "Customer records and connected service work.", icon: ContactRound },

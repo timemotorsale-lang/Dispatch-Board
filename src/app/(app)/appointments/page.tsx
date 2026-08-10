@@ -1,11 +1,10 @@
 import { AppointmentBoardLoader } from "@/features/appointments/appointment-board-loader";
 import { AppointmentConsoleNewAppointment, AppointmentConsoleTodayFlow } from "@/features/appointments/appointment-console-refinement";
-import { ServiceAdvisorHome } from "@/features/advisor/service-advisor-home";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { getPermittedWorkspaces, getWorkspaceKey } from "@/server/auth/navigation";
 import { resolveWorkspacePreference, WORKSPACE_COOKIE_NAME } from "@/server/auth/workspace-preference";
-import { getServiceAdvisorWorkspace } from "@/server/advisor-workspace/service";
 import { getAppointmentBoardSettings } from "@/server/services/appointment-admin-settings";
 import { readManagerWorkspaceContext } from "@/lib/manager-workspace-context";
 
@@ -43,19 +42,15 @@ export default async function AppointmentsPage({ searchParams }: AppointmentsPag
         managerMode: focusParams?.managerMode ?? ""
       }))
     : null;
-  const canOpenAdvisorWorkspace = workspaceKey === "ADVISOR" || Boolean(managerContext);
-  const containedAdvisorLaunch = Boolean(managerContext) && focusParams?.launch === "advisor";
-  const advisorMode = canOpenAdvisorWorkspace &&
-    focusParams?.view !== "board" &&
-    focusParams?.workspace !== "board" &&
-    (workspaceKey === "ADVISOR" || containedAdvisorLaunch);
   const showAdvisorReturn = !managerContext && workspaceKey === "ADVISOR";
   const newAppointmentMode = focusParams?.action === "new";
   const boardMode = focusParams?.view === "board" || focusParams?.workspace === "board";
 
-  if (advisorMode) {
-    const model = await getServiceAdvisorWorkspace(user);
-    return <ServiceAdvisorHome initialFilter={focusParams?.queue === "authorization" ? "AUTHORIZATION" : "ATTENTION"} initialSection={focusParams?.inbox ? "INBOX" : "WORK"} model={JSON.parse(JSON.stringify(model))} />;
+  if (workspaceKey === "ADVISOR" && !managerContext && !newAppointmentMode && !boardMode && !focusParams?.section) {
+    const query = new URLSearchParams();
+    if (focusParams?.inbox) query.set("inbox", focusParams.inbox);
+    if (focusParams?.queue) query.set("queue", focusParams.queue);
+    redirect(`/vehicles/advisor${query.size ? `?${query.toString()}` : ""}`);
   }
   if (newAppointmentMode) {
     return <AppointmentConsoleNewAppointment />;

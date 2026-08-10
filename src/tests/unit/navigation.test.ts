@@ -201,6 +201,7 @@ describe("enterprise shell navigation", () => {
       "Home",
       "Inventory Lifecycle",
       "Shop & Recon",
+      "Recon/Repair Advisor",
       "Repair Workbench",
       "Reviews",
       "Approvals",
@@ -238,12 +239,13 @@ describe("enterprise shell navigation", () => {
       "Reviews"
     ]);
     expect(getConsoleNavigation("/vehicles/advisor", user({ roles: ["General Manager"] }))).toMatchObject({
-      homeHref: "/appointments",
+      homeHref: "/vehicles/advisor",
       subtitle: "Advisor Workspace",
       title: "Time Motor Sales"
     });
     expect(getConsoleNavigation("/vehicles/advisor", user({ roles: ["General Manager"] }))?.items.map((item) => item.title)).toEqual([
       "Advisor Home",
+      "Recon/Repair Advisor",
       "Check In Vehicle",
       "Appointment Board",
       "Customers",
@@ -252,6 +254,16 @@ describe("enterprise shell navigation", () => {
       "My Work"
     ]);
     expect(getConsoleNavigation("/appointments", user({ roles: ["Service Advisor"] }))?.items.map((item) => item.title)).toEqual([
+      "Advisor Home",
+      "Recon/Repair Advisor",
+      "Check In Vehicle",
+      "Appointment Board",
+      "Customers",
+      "Repair Orders",
+      "Diagnostic Review",
+      "My Work"
+    ]);
+    expect(getConsoleNavigation("/appointments", user({ roles: ["Operations Coordinator"] }))?.items.map((item) => item.title)).toEqual([
       "Today Flow",
       "Calendar",
       "Planning Hub",

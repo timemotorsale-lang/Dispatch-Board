@@ -70,7 +70,8 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
   const showFullInventoryNavigation = consoleNavigation?.title === "Inventory Console";
   const advisorWorkspace = !managerContext && (
     preferredWorkspace === "ADVISOR" ||
-    pathname === "/vehicles/advisor"
+    pathname === "/vehicles/advisor" ||
+    consoleNavigation?.subtitle === "Advisor Workspace"
   );
 
   function preserveManagerContextOnLink(event: MouseEvent<HTMLElement>) {

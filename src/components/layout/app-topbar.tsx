@@ -86,7 +86,7 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
   const roleWorkspace = activeWorkspace !== "MANAGEMENT";
   const operationsCoordinatorAwayFromHome = activeWorkspace === "OPERATIONS_COORDINATOR" && pathname !== "/operations-coordinator";
   const appointmentConsoleAwayFromHome =
-    !containedWorkspace && ((isAppointmentConsolePath(pathname) && (pathname !== "/appointments" || searchParams.toString() !== "")) ||
+    !containedWorkspace && activeWorkspace !== "ADVISOR" && ((isAppointmentConsolePath(pathname) && (pathname !== "/appointments" || searchParams.toString() !== "")) ||
     pathname.startsWith("/settings/appointments") ||
     (pathname.startsWith("/manager-review") && searchParams.get("scope") === "appointments"));
   const workspaceHome = activeWorkspaceDefinition.landingRoute;

@@ -67,7 +67,7 @@ export const WORKSPACE_DEFINITIONS: readonly WorkspaceDefinition[] = [
     key: "ADVISOR",
     label: "Advisor Workspace",
     description: "Appointments, check-in, customers, and repair-order coordination.",
-    landingRoute: "/appointments",
+    landingRoute: "/vehicles/advisor",
     roleNames: ["Service Advisor", "Vehicle Operations Lead"],
     dutyTerms: ["service advisor", "vehicle intake", "customer intake"]
   },
