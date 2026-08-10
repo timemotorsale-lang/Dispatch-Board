@@ -71,6 +71,7 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
   const advisorWorkspace = !managerContext && (
     preferredWorkspace === "ADVISOR" ||
     pathname === "/vehicles/advisor" ||
+    pathname === "/vehicles/recon-repair-advisor" ||
     consoleNavigation?.subtitle === "Advisor Workspace"
   );
 

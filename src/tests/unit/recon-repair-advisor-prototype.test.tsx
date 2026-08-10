@@ -42,6 +42,8 @@ const model = {
     actionLabel: "Parts / ETA check",
     actionReason: "Diego Auto Body needs bumper and airbag parts before recon can continue.",
     customerName: "Internal vehicle 333586",
+    currentLocation: "Diego Auto Body",
+    hasActiveVendorWork: true,
     id: "ro-1",
     latestAdvisorUpdate: null,
     nextAction: "Order parts for vendor recon.",
@@ -50,7 +52,9 @@ const model = {
     repairOrderNumber: "RO-DB21B235",
     stage: "REPAIR",
     targetAt: "2026-08-14T15:57:00.000Z",
+    unresolvedPartDemandCount: 2,
     vehicleLabel: "2024 Toyota RAV4",
+    vendorStatus: "WAITING_PARTS",
   }],
   appointments: [],
   repairOrders: [{
@@ -83,7 +87,7 @@ describe("ReconRepairAdvisorPrototype", () => {
     expect(html).toContain("Estimate &amp; budget discipline");
     expect(html).toContain("Cycle time control");
     expect(html).toContain("Real status");
-    expect(html).toContain("Waiting on parts");
+    expect(html).toContain("Vendor waiting on our parts");
     expect(html).toContain("Vehicle movement");
     expect(html).toContain("2024 Toyota RAV4");
     expect(html).toContain("/vehicles/service-close-parts?repairOrderId=ro-1");

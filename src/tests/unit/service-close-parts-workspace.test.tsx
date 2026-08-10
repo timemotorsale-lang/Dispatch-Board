@@ -49,6 +49,7 @@ describe("ServiceClosePartsWorkspace", () => {
     expect(html).toContain("Create and track purchases");
     expect(html).toContain("Used");
     expect(html).toContain("Returns");
-    expect(html).toContain("Request approval");
+    expect(html).toContain("Approve");
+    expect(html).not.toContain("Request approval");
   });
 });

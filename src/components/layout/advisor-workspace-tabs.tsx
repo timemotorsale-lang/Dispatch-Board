@@ -18,6 +18,12 @@ const tabs: AdvisorTab[] = [
     active: (pathname) => pathname === "/vehicles/advisor",
   },
   {
+    href: "/vehicles/recon-repair-advisor",
+    icon: ClipboardCheck,
+    label: "Recon/Repair",
+    active: (pathname) => pathname === "/vehicles/recon-repair-advisor",
+  },
+  {
     href: "/vehicles/advisor?inbox=all",
     icon: MessageSquareText,
     label: "Inbox",

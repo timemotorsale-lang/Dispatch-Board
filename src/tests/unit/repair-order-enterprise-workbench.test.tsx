@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { RepairOrderEnterpriseWorkbench } from "@/features/inventory/repair-order-enterprise-workbench";
 
 const order = {
-  id: "ro-1", repairOrderNumber: "RO-20481", stage: "INTAKE", operatingState: "ACTIVE", openedAt: "2026-07-20T15:00:00Z", targetAt: "2026-07-20T18:00:00Z", nextAction: "Release to diagnosis", stateReason: null, version: 2,
+  id: "ro-1", repairOrderNumber: "RO-20481", stage: "INTAKE", stageStartedAt: "2026-07-20T15:00:00Z", operatingState: "ACTIVE", openedAt: "2026-07-20T15:00:00Z", targetAt: "2026-07-20T18:00:00Z", nextAction: "Release to diagnosis", stateReason: null, version: 2,
   vehicle: { id: "vehicle-1", make: "Ford", model: "F-150", vehicleNumber: "VEH-1", vin: "1FTFW1E57RKE12345", year: 2024 }, customer: { displayName: "Jordan Customer" }, inventoryUnit: null, ownerUser: { id: "advisor-1", name: "Alex Advisor" }, location: { id: "location-1", name: "Minneapolis" },
   serviceVisit: { appointmentId: "appointment-1", arrivedAt: "2026-07-20T15:00:00Z", concernSummary: "Customer reports a grinding noise from the front brakes when stopping.", consentStatus: "PENDING", intakeNotes: null, keyTag: "1187", keysReceivedCount: 1, promisedAt: null, readinessSnapshotId: "snapshot-1", transportMode: "DROP_OFF" },
   inspectionVersions: [], diagnosisVersions: [], estimateVersions: [], repairJobs: [], partDemands: [],
@@ -22,7 +22,7 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain('href="/api/repair-orders/ro-1/print"');
     expect(html).toContain('target="_blank"');
     expect(html).toContain("RO Version 2");
-    expect(html).toContain("This RO Version 2 is the technician&#x27;s source for the vehicle and concern");
+    expect(html).toContain("This RO Version 2 preserves the intake concern and remains the governing record for technician evidence and findings.");
     expect(html).toContain("No repair is authorized until the estimate and approval are recorded");
     expect(html).toContain("Customer concern");
     expect(html).toContain("Reproduce symptom safely");
@@ -30,6 +30,7 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("It does not assume the cause or authorize repair work");
     expect(html).toContain("Start Diagnosis");
     expect(html).toContain("Intake Completeness");
+    expect(html).toContain("Flow Clock");
     expect(html).toContain("6/6");
     expect(html).toContain("What happens next");
     expect(html).toContain("returnTo=%2Fvehicles%2Frepair-workbench%3FrepairOrderId%3Dro-1");
@@ -102,9 +103,123 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("Diego Auto Body");
     expect(html).toContain("Home / accountable site");
     expect(html).toContain("Minneapolis");
+    expect(html).toContain("Outside repair in progress");
+    expect(html).toContain("Review diagnosis record");
+    expect(html).toContain("Diagnostic reference");
+    expect(html).toContain("source evidence from intake");
     expect(html).toContain("Confirm outside-vendor progress");
     expect(html).toContain("Return from vendor and verify quality");
     expect(html).toContain("Record vendor update");
+    expect(html).not.toContain("Ready for diagnosis");
+    expect(html).not.toContain(">Start Diagnosis<");
     expect(html).not.toContain("Diagnose the concern");
+  });
+
+  it("routes vendor waiting-parts work into parts control", () => {
+    const repairStageOrder = {
+      ...order,
+      stage: "REPAIR",
+      stageStartedAt: "2026-08-01T15:00:00Z",
+      customer: null,
+      inventoryUnit: { inventoryNumber: "333586" },
+      nextAction: "Confirm vendor estimate, approval documentation, and expected return.",
+      partDemands: [{ id: "demand-1", quantityRequired: 2, quantityReserved: 0 }],
+      vendorWorks: [
+        {
+          id: "vendor-work-1",
+          vendorName: "Diego Auto Body",
+          status: "WAITING_PARTS",
+          approvalStatus: "APPROVED",
+          currentLocation: "Diego Auto Body",
+          expectedReturnAt: "2026-08-14T15:57:00.000Z",
+          nextAction: "Vendor is waiting on the requested parts from us.",
+          lastUpdateSummary: "Vendor sent the required parts list and cannot continue until parts are delivered.",
+        },
+      ],
+      serviceVisit: {
+        ...order.serviceVisit,
+        concernSummary:
+          "We recently bought the vehicle from the auction. The vehicle had sustained front end damage.",
+      },
+    };
+    const html = renderToStaticMarkup(
+      <RepairOrderEnterpriseWorkbench
+        order={repairStageOrder}
+        options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }}
+      />,
+    );
+
+    expect(html).toContain("Vendor is waiting on the requested parts from us.");
+    expect(html).toContain("Vendor waiting on our parts");
+    expect(html).toContain("Lead with parts receiving, approval, and delivery updates.");
+    expect(html).toContain("Deliver the requested parts");
+    expect(html).toContain("Update parts and delivery");
+    expect(html).toContain("Open Parts Workspace");
+    expect(html).toContain("/vehicles/service-close-parts?repairOrderId=ro-1");
+    expect(html).not.toContain("Start Diagnosis");
+  });
+
+  it("treats offsite vendor work with unresolved parts demand as a parts action even before vendor status catches up", () => {
+    const repairStageOrder = {
+      ...order,
+      stage: "REPAIR",
+      customer: null,
+      inventoryUnit: { inventoryNumber: "333586" },
+      nextAction: "Confirm vendor estimate, approval documentation, and expected return.",
+      partDemands: [{ id: "demand-1", quantityRequired: 3, quantityReserved: 1 }],
+      vendorWorks: [
+        {
+          id: "vendor-work-1",
+          vendorName: "Diego Auto Body",
+          status: "AT_VENDOR",
+          approvalStatus: "APPROVED",
+          currentLocation: "Diego Auto Body",
+          expectedReturnAt: "2026-08-14T15:57:00.000Z",
+          nextAction: "Vendor is waiting on the remaining parts from us.",
+          lastUpdateSummary: "Vendor cannot continue until the remaining parts are delivered.",
+        },
+      ],
+      serviceVisit: {
+        ...order.serviceVisit,
+        concernSummary:
+          "We recently bought the vehicle from the auction. The vehicle had sustained front end damage.",
+      },
+    };
+    const html = renderToStaticMarkup(
+      <RepairOrderEnterpriseWorkbench
+        order={repairStageOrder}
+        options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }}
+      />,
+    );
+
+    expect(html).toContain("Parts action required");
+    expect(html).toContain("Open Parts Workspace");
+    expect(html).toContain("Vendor is waiting on the remaining parts from us.");
+    expect(html).not.toContain("Ready for diagnosis");
+    expect(html).not.toContain(">Start Diagnosis<");
+  });
+
+  it("stays available when optional timing and transport fields are missing", () => {
+    const sparseOrder = {
+      ...order,
+      stageStartedAt: null,
+      nextAction: "",
+      serviceVisit: {
+        ...order.serviceVisit,
+        concernSummary: "   ",
+        transportMode: undefined,
+      },
+    };
+    const html = renderToStaticMarkup(
+      <RepairOrderEnterpriseWorkbench
+        order={sparseOrder as typeof order}
+        options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }}
+      />,
+    );
+
+    expect(html).toContain("Concern not recorded.");
+    expect(html).toContain("Continue governed repair flow");
+    expect(html).toContain("Not started");
+    expect(html).toContain("Not recorded");
   });
 });

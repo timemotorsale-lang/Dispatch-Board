@@ -25,6 +25,13 @@ import type { ServiceAdvisorWorkspaceModel } from "@/server/advisor-workspace/se
 type Model = ServiceAdvisorWorkspaceModel;
 type Action = Model["actionQueue"][number];
 type Lane = "MOVE_NOW" | "WAITING" | "AT_RISK" | "READY";
+const RECON_REPAIR_ADVISOR_HOME = "/vehicles/recon-repair-advisor";
+
+function withReturnTo(href: string, returnTo = RECON_REPAIR_ADVISOR_HOME) {
+  const url = new URL(href, "http://advisor-workspace.local");
+  url.searchParams.set("returnTo", returnTo);
+  return `${url.pathname}${url.search}${url.hash}`;
+}
 
 const laneLabels: Record<Lane, { copy: string; label: string }> = {
   AT_RISK: { copy: "Overdue, promise risk, or aging without a clean next step.", label: "At risk" },
@@ -55,8 +62,14 @@ function workLane(item: Action) {
   return "Customer repair";
 }
 
+function vendorWaitingOnOurParts(item: Action) {
+  return item.vendorStatus === "WAITING_PARTS" || (item.hasActiveVendorWork && item.unresolvedPartDemandCount > 0);
+}
+
 function realStatus(item: Action) {
   const text = `${item.customerName} ${item.nextAction} ${item.actionReason} ${item.actionLabel}`.toLowerCase();
+  if (vendorWaitingOnOurParts(item)) return { detail: "The outside vendor is waiting on parts from us before repair work can continue.", label: "Vendor waiting on our parts", tone: "parts" };
+  if (/vendor waiting on our parts|waiting on our parts|parts needed by vendor|vendor needs .*part/.test(text)) return { detail: "The outside vendor is waiting on parts from us before repair work can continue.", label: "Vendor waiting on our parts", tone: "parts" };
   if (/part|parts|eta|bumper|airbag|seat belt|retractor/.test(text) || item.actionKind === "PARTS_DELAY") return { detail: "Needed, ordered, received, used, and returns must stay tied to this RO.", label: "Waiting on parts", tone: "parts" };
   if (/diego|body shop|vendor|offsite/.test(text)) return { detail: "Document vendor progress and expected return.", label: "Offsite vendor", tone: "vendor" };
   if (item.actionKind === "TECHNICIAN_CLARIFICATION") return { detail: "Clarification is needed before the advisor can move the vehicle.", label: "Waiting on technician", tone: "waiting" };
@@ -68,6 +81,7 @@ function realStatus(item: Action) {
 
 function bottleneck(item: Action) {
   const status = realStatus(item);
+  if (status.label === "Vendor waiting on our parts") return "Parts";
   if (status.label === "Offsite vendor") return "Vendor";
   if (status.label === "Waiting on parts") return "Parts";
   if (status.label === "Approval needed") return "Approval";
@@ -84,6 +98,7 @@ function classify(item: Action): Lane {
 }
 
 function nextActionLabel(item: Action) {
+  if (vendorWaitingOnOurParts(item)) return "Open parts desk";
   if (item.actionKind === "AUTHORIZATION") return workLane(item) === "Inventory recon" ? "Approve recon spend" : "Record customer decision";
   if (item.actionKind === "PARTS_DELAY") return "Open parts desk";
   if (item.actionKind === "TECHNICIAN_CLARIFICATION") return "Review technician note";
@@ -94,21 +109,24 @@ function nextActionLabel(item: Action) {
 
 function primaryAction(item: Action) {
   const status = realStatus(item);
-  if (status.label === "Offsite vendor") return { href: `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(item.id)}&tab=repair#vendor-update`, label: "Record vendor update" };
-  if (status.label === "Waiting on parts") return { href: `/vehicles/service-close-parts?repairOrderId=${encodeURIComponent(item.id)}&returnTo=${encodeURIComponent("/vehicles/recon-repair-advisor")}&returnLabel=${encodeURIComponent("Return to Recon/Repair Advisor")}`, label: "Buy or update parts" };
-  if (status.label === "Approval needed") return { href: `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(item.id)}&tab=estimate`, label: "Approve or decide" };
-  if (status.label === "Ready to move") return { href: `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(item.id)}&tab=quality`, label: "Move to next step" };
+  if (status.label === "Vendor waiting on our parts") return { href: `/vehicles/service-close-parts?repairOrderId=${encodeURIComponent(item.id)}&returnTo=${encodeURIComponent(RECON_REPAIR_ADVISOR_HOME)}&returnLabel=${encodeURIComponent("Return to Recon/Repair Advisor")}`, label: "Buy or update parts" };
+  if (status.label === "Offsite vendor") return { href: withReturnTo(`/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(item.id)}&tab=repair#vendor-update`), label: "Record vendor update" };
+  if (status.label === "Waiting on parts") return { href: `/vehicles/service-close-parts?repairOrderId=${encodeURIComponent(item.id)}&returnTo=${encodeURIComponent(RECON_REPAIR_ADVISOR_HOME)}&returnLabel=${encodeURIComponent("Return to Recon/Repair Advisor")}`, label: "Buy or update parts" };
+  if (status.label === "Approval needed") return { href: withReturnTo(`/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(item.id)}&tab=estimate`), label: "Approve or decide" };
+  if (status.label === "Ready to move") return { href: withReturnTo(`/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(item.id)}&tab=quality`), label: "Move to next step" };
   return { href: nextActionHref(item), label: nextActionLabel(item) };
 }
 
 function nextActionHref(item: Action) {
-  if (item.actionKind === "PARTS_DELAY") return `/vehicles/service-close-parts?repairOrderId=${encodeURIComponent(item.id)}&returnTo=${encodeURIComponent("/vehicles/recon-repair-advisor")}&returnLabel=${encodeURIComponent("Return to Recon/Repair Advisor")}`;
-  if (/vendor|diego|body/i.test(item.nextAction + item.actionReason)) return `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(item.id)}&tab=repair`;
-  return `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(item.id)}`;
+  if (vendorWaitingOnOurParts(item)) return `/vehicles/service-close-parts?repairOrderId=${encodeURIComponent(item.id)}&returnTo=${encodeURIComponent(RECON_REPAIR_ADVISOR_HOME)}&returnLabel=${encodeURIComponent("Return to Recon/Repair Advisor")}`;
+  if (item.actionKind === "PARTS_DELAY") return `/vehicles/service-close-parts?repairOrderId=${encodeURIComponent(item.id)}&returnTo=${encodeURIComponent(RECON_REPAIR_ADVISOR_HOME)}&returnLabel=${encodeURIComponent("Return to Recon/Repair Advisor")}`;
+  if (/vendor|diego|body/i.test(item.nextAction + item.actionReason)) return withReturnTo(`/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(item.id)}&tab=repair`);
+  return withReturnTo(`/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(item.id)}`);
 }
 
 function tone(item: Action) {
   if (classify(item) === "AT_RISK") return "risk";
+  if (vendorWaitingOnOurParts(item)) return "parts";
   if (item.actionKind === "PARTS_DELAY") return "parts";
   if (/vendor|diego|body/i.test(item.nextAction + item.actionReason)) return "vendor";
   if (classify(item) === "READY") return "ready";
@@ -179,7 +197,7 @@ export function ReconRepairAdvisorPrototype({ model }: { model: Model }) {
             <h2>{laneLabels[lane].label}</h2>
             <p>{laneLabels[lane].copy}</p>
           </div>
-          <Link href="/appointments">Compare current Service Advisor</Link>
+          <Link href={withReturnTo("/appointments")}>Compare current Service Advisor</Link>
         </header>
 
         <nav className="rra-lanes" aria-label="Recon repair advisor lanes">
@@ -224,7 +242,7 @@ export function ReconRepairAdvisorPrototype({ model }: { model: Model }) {
 
         <section>
           <header><MessageSquareText /><div><strong>Recon/repair inbox</strong><span>Internal and outside communication tied back to the RO.</span></div></header>
-          {needsResponse.slice(0, 4).map((item) => <Link href={`/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(item.repairOrderId)}&compose=${item.audience === "MANAGEMENT" ? "management" : item.audience === "TEAM" ? "team" : "customer"}#advisor-response`} key={item.id}>
+          {needsResponse.slice(0, 4).map((item) => <Link className="rra-inbox-link" href={withReturnTo(`/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(item.repairOrderId)}&compose=${item.audience === "MANAGEMENT" ? "management" : item.audience === "TEAM" ? "team" : "customer"}#advisor-response`)} key={item.id}>
             <small>{item.audience} · {item.repairOrderNumber}</small>
             <strong>{item.customerName}</strong>
             <span>{item.preview}</span>
@@ -234,39 +252,39 @@ export function ReconRepairAdvisorPrototype({ model }: { model: Model }) {
 
         <section>
           <header><Building2 /><div><strong>Outside vendor loop</strong><span>Assign, update, return, and keep accountability.</span></div></header>
-          <Link href="/vehicles/outside-vendors">Manage outside vendors <ArrowRight /></Link>
-          <Link href="/vehicles/repair-workbench?tab=repair">Open vendor repair work <ArrowRight /></Link>
+          <Link href={withReturnTo("/vehicles/outside-vendors")}>Manage outside vendors <ArrowRight /></Link>
+          <Link href={withReturnTo("/vehicles/repair-workbench?tab=repair")}>Open vendor repair work <ArrowRight /></Link>
         </section>
 
         <section>
           <header><PackageCheck /><div><strong>Parts execution</strong><span>Needed, ordered, received, used, and returns.</span></div></header>
-          <Link href="/vehicles/service-close-parts">Open parts desk <ArrowRight /></Link>
+          <Link href={withReturnTo("/vehicles/service-close-parts")}>Open parts desk <ArrowRight /></Link>
         </section>
 
         <section>
           <header><Gauge /><div><strong>Estimate & budget discipline</strong><span>TAI, body labor, approvals, and supplements should stay in one fast loop.</span></div></header>
-          <Link href="/vehicles/shop-planning">Open recon estimate planning <ArrowRight /></Link>
-          <Link href="/diagnostics/labor-guide">Use labor guide <ArrowRight /></Link>
-          <Link href="/approvals">Catch spend approvals <ArrowRight /></Link>
+          <Link href={withReturnTo("/vehicles/shop-planning")}>Open recon estimate planning <ArrowRight /></Link>
+          <Link href={withReturnTo("/diagnostics/labor-guide")}>Use labor guide <ArrowRight /></Link>
+          <Link href={withReturnTo("/approvals")}>Catch spend approvals <ArrowRight /></Link>
         </section>
 
         <section>
           <header><Clock3 /><div><strong>Cycle time control</strong><span>Keep aging visible by stage, not just by total days in stock.</span></div></header>
-          <Link href="/vehicles/repair-workbench?tab=timeline">Open cycle time views <ArrowRight /></Link>
-          <Link href="/vehicles/repair-workbench?tab=communications">Review promise-risk updates <ArrowRight /></Link>
+          <Link href={withReturnTo("/vehicles/repair-workbench?tab=timeline")}>Open cycle time views <ArrowRight /></Link>
+          <Link href={withReturnTo("/vehicles/repair-workbench?tab=communications")}>Review promise-risk updates <ArrowRight /></Link>
         </section>
 
         <section>
           <header><MapPin /><div><strong>Vehicle movement</strong><span>Keep location and handoff reality visible.</span></div></header>
-          <Link href="/vehicles/repair-orders?intakeSource=INVENTORY_RECON">Start inventory recon RO <ArrowRight /></Link>
-          <Link href="/vehicles/repair-workbench?tab=quality">Return / ready for QC <ArrowRight /></Link>
-          <Link href="/vehicles/inventory-to-frontline">Move to frontline <ArrowRight /></Link>
+          <Link href={withReturnTo("/vehicles/repair-orders?intakeSource=INVENTORY_RECON")}>Start inventory recon RO <ArrowRight /></Link>
+          <Link href={withReturnTo("/vehicles/repair-workbench?tab=quality")}>Return / ready for QC <ArrowRight /></Link>
+          <Link href={withReturnTo("/vehicles/inventory-to-frontline")}>Move to frontline <ArrowRight /></Link>
         </section>
 
         <section>
           <header><CarFront /><div><strong>Start or route work</strong><span>Check-in, intake, and governed RO creation.</span></div></header>
-          <Link href="/vehicles/repair-orders?intakeSource=WALK_IN">Check in vehicle <ArrowRight /></Link>
-          <Link href="/vehicles/shop-recon">Shop & recon board <ArrowRight /></Link>
+          <Link href={withReturnTo("/vehicles/repair-orders?intakeSource=WALK_IN")}>Check in vehicle <ArrowRight /></Link>
+          <Link href={withReturnTo("/vehicles/shop-recon")}>Shop & recon board <ArrowRight /></Link>
         </section>
 
         <section className="rra-principles">

@@ -7,12 +7,21 @@ function advisorExceptionCodes(value: unknown) {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
+function activeVendorWork(
+  order: Awaited<ReturnType<typeof listRepairOrders>>["items"][number]
+) {
+  const works = order.vendorWorks ?? [];
+  return works.find((work) => !["COMPLETED", "CANCELLED"].includes(work.status)) ?? works[0] ?? null;
+}
+
 function advisorActionFor(order: Awaited<ReturnType<typeof listRepairOrders>>["items"][number]) {
   const nextAction = order.nextAction.toLowerCase();
   const stage = order.stage.toString();
   const operatingState = order.operatingState.toString();
   const latestAdvisorUpdate = order.advisorUpdates[0] ?? null;
   const exceptionCodes = advisorExceptionCodes(latestAdvisorUpdate?.exceptionCodes);
+  const vendorWork = activeVendorWork(order);
+  const vendorWaitingParts = vendorWork?.status === "WAITING_PARTS";
 
   if (exceptionCodes.includes("TECHNICIAN_CLARIFICATION")) {
     return {
@@ -47,6 +56,15 @@ function advisorActionFor(order: Awaited<ReturnType<typeof listRepairOrders>>["i
       label: "Parts / ETA check",
       priority: 3,
       reason: latestAdvisorUpdate?.customerVisibleSummary ?? "Advisor recorded a parts-related blocker."
+    };
+  }
+
+  if (vendorWaitingParts) {
+    return {
+      kind: "PARTS_DELAY" as AdvisorActionKind,
+      label: "Vendor waiting on our parts",
+      priority: 3,
+      reason: vendorWork?.nextAction || vendorWork?.lastUpdateSummary || "Outside vendor is waiting on parts from the dealership before work can continue."
     };
   }
 
@@ -182,12 +200,16 @@ export async function getServiceAdvisorWorkspace(actor: AuthenticatedUser) {
       actionLabel: action.label,
       actionReason: action.reason,
       customerName: order.customer?.displayName ?? order.inventoryUnit?.inventoryNumber ?? "Internal vehicle",
+      currentLocation: activeVendorWork(order)?.currentLocation ?? order.location.name,
+      hasActiveVendorWork: Boolean(activeVendorWork(order)),
       nextAction: order.nextAction,
       operatingState: order.operatingState,
       repairOrderNumber: order.repairOrderNumber,
       stage: order.stage,
       targetAt: order.targetAt.toISOString(),
+      unresolvedPartDemandCount: order.partDemands.filter((part) => part.quantityReserved < part.quantityRequired).length,
       vehicleLabel: [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber,
+      vendorStatus: activeVendorWork(order)?.status ?? null,
       overdue: order.age.overdue,
       latestAdvisorUpdate: order.advisorUpdates[0]
         ? {

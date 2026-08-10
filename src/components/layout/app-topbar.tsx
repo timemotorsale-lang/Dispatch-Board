@@ -30,6 +30,10 @@ type AppTopbarProps = {
   user: AuthenticatedUser;
 };
 
+function safeReturnTo(value: string | null) {
+  return value?.startsWith("/") && !value.startsWith("//") ? value : null;
+}
+
 function initials(name: string) {
   return name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
 }
@@ -76,9 +80,11 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
   const { appearance, setAppearance } = useAppearance();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const sourceReturnTo = safeReturnTo(searchParams.get("returnTo"));
   const dispatchView = searchParams.get("view") === "live" ? "live" : "overview";
   const technicianOnly = isTechnicianOnlyUser(user);
   const activeWorkspace = pathname === "/vehicles/advisor"
+    || pathname === "/vehicles/recon-repair-advisor"
     ? "ADVISOR"
     : resolveWorkspaceForPath(user, pathname, preferredWorkspace);
   const canOpenManagementWorkspace = getPermittedWorkspaces(user).some((workspace) => workspace.key === "MANAGEMENT");
@@ -89,6 +95,12 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
     !containedWorkspace && activeWorkspace !== "ADVISOR" && ((isAppointmentConsolePath(pathname) && (pathname !== "/appointments" || searchParams.toString() !== "")) ||
     pathname.startsWith("/settings/appointments") ||
     (pathname.startsWith("/manager-review") && searchParams.get("scope") === "appointments"));
+  const advisorWorkspaceAwayFromHome =
+    !containedWorkspace &&
+    activeWorkspace === "ADVISOR" &&
+    pathname !== "/vehicles/advisor" &&
+    pathname !== "/vehicles/recon-repair-advisor";
+  const advisorWorkspaceReturnHref = sourceReturnTo ?? "/vehicles/advisor";
   const workspaceHome = activeWorkspaceDefinition.landingRoute;
   const inventoryConsole = isInventoryConsolePath(pathname);
   const dispatchConsole = isDispatchConsolePath(pathname) && !inventoryConsole;
@@ -189,6 +201,11 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
       {appointmentConsoleAwayFromHome ? (
         <Link aria-label="Return to Appointment Console home" className="ccc-home-link appointment-topbar-return" href="/appointments">
           <ArrowLeft size={15} /><span>Back to Appointment Home</span>
+        </Link>
+      ) : null}
+      {advisorWorkspaceAwayFromHome ? (
+        <Link aria-label="Return to Advisor workspace" className="ccc-home-link appointment-topbar-return" href={advisorWorkspaceReturnHref}>
+          <ArrowLeft size={15} /><span>Back to My Workspace</span>
         </Link>
       ) : null}
       <WorkspaceSwitcher preferredWorkspace={preferredWorkspace} user={user} />
