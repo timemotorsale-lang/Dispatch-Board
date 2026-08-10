@@ -10,7 +10,7 @@ const initial = {
   locations: [{ id: "loc-1", name: "Main Store" }],
   offers: [],
   parts: [],
-  purchaseOrders: [],
+  purchaseOrders: [{ id: "po-1", locationId: "loc-1", orderedTotalCents: 45000, purchaseOrderNumber: "PO-1001", status: "DRAFT", vendorId: "vendor-1", vendor: { name: "Diego Auto Body" } }],
   receipts: [],
   recoveries: [],
   repairOrders: [{
@@ -49,5 +49,6 @@ describe("ServiceClosePartsWorkspace", () => {
     expect(html).toContain("Create and track purchases");
     expect(html).toContain("Used");
     expect(html).toContain("Returns");
+    expect(html).toContain("Request approval");
   });
 });

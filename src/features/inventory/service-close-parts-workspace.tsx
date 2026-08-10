@@ -120,6 +120,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
   const [notice, setNotice] = useState("");
   const [orderId, setOrderId] = useState(initialOrderId);
   const [mode, setMode] = useState<DeskMode>("need");
+  const [approvalRequests, setApprovalRequests] = useState<Record<string, string>>({});
 
   const [demand, setDemand] = useState(() => ({ partId: first(initial.parts), quantityRequired: "1", requiredAt: local(new Date(Date.now() + 24 * 60 * 60 * 1000)), substitutionAllowed: true, notes: "" }));
   const [notes, setNotes] = useState<Record<DeskMode, string>>({ need: "", order: "", receive: "", return: "", source: "", use: "", vendor: "" });
@@ -133,6 +134,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
   const scopedRequisitions = model.requisitions.filter((item) => !selectedNumber || item.demand.repairOrder.repairOrderNumber === selectedNumber);
   const scopedReceipts = model.receipts.filter((item) => item.purchaseOrder?.requisition?.demand?.repairOrder?.repairOrderNumber === selectedNumber);
   const openPurchaseOrders = model.purchaseOrders.filter((item) => !["CLOSED", "CANCELLED"].includes(item.status ?? ""));
+  const purchaseOrdersNeedingApproval = openPurchaseOrders.filter((item) => item.status === "DRAFT");
   const openRecoveries = model.recoveries.filter((item) => !["CREDITED", "WRITTEN_OFF"].includes(item.status ?? ""));
   const activeInvoice = selectedOrder?.invoicePackages[0] ?? null;
   const budget = reconBudgetFor(selectedOrder);
@@ -219,10 +221,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
 
   async function ensurePurchaseOrderAcknowledged(purchaseOrder: PurchaseOrder) {
     if (purchaseOrder.status === "DRAFT") {
-      await request({ action: "TRANSITION_PURCHASE_ORDER", occurredAt: now(), reason: "Auto-approve purchase order from simple received-parts note.", subjectId: purchaseOrder.id, toStatus: "APPROVED" });
-      await request({ action: "TRANSITION_PURCHASE_ORDER", occurredAt: now(), reason: "Auto-issue purchase order from simple received-parts note.", subjectId: purchaseOrder.id, toStatus: "ISSUED" });
-      await request({ action: "TRANSITION_PURCHASE_ORDER", occurredAt: now(), reason: "Auto-acknowledge purchase order from simple received-parts note.", subjectId: purchaseOrder.id, toStatus: "ACKNOWLEDGED" });
-      return;
+      throw new Error(`Manager approval needed before receiving ${purchaseOrder.purchaseOrderNumber}. Use Request manager approval, then receive after an authorized user approves the PO.`);
     }
     if (purchaseOrder.status === "APPROVED") {
       await request({ action: "TRANSITION_PURCHASE_ORDER", occurredAt: now(), reason: "Auto-issue purchase order from simple received-parts note.", subjectId: purchaseOrder.id, toStatus: "ISSUED" });
@@ -323,7 +322,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
       : mode === "vendor"
         ? "Record parts physically delivered to Diego or another outside vendor."
         : mode === "receive"
-          ? "Record what arrived and any damaged, missing, or wrong parts."
+          ? purchaseOrdersNeedingApproval.length ? `Request manager approval for ${purchaseOrdersNeedingApproval.length} draft PO${purchaseOrdersNeedingApproval.length === 1 ? "" : "s"} before receiving parts.` : "Record what arrived and any damaged, missing, or wrong parts."
           : mode === "use"
             ? "Only mark parts used after installation is confirmed."
             : mode === "return"
@@ -410,6 +409,10 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
       setModeNote(`${current.slice(0, cursor)}${insert}${current.slice(cursor)}`, cursor + insert.length);
     }
   };
+  const requestManagerApproval = (purchaseOrder: PurchaseOrder) => {
+    setApprovalRequests((current) => ({ ...current, [purchaseOrder.id]: new Date().toISOString() }));
+    setNotice(`Manager approval requested for ${purchaseOrder.purchaseOrderNumber}. Receiving stays protected until a different authorized user approves it.`);
+  };
 
   return <section className="scp-workspace">
     <header className="scp-header">
@@ -467,6 +470,11 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
               {openNeededParts.map((item) => <article key={item.id}><strong>{item.part.description ?? item.part.partNumber}</strong><span>{item.quantityReserved}/{item.quantityRequired} reserved</span><small>{format(item.status)} · needed {safeDate(item.requiredAt)}</small></article>)}
             </div>
           ) : null}
+          {mode === "receive" && purchaseOrdersNeedingApproval.length ? (
+            <div className="scp-needed-strip scp-approval-strip">
+              {purchaseOrdersNeedingApproval.map((item) => <article key={item.id}><strong>{item.purchaseOrderNumber}</strong><span>{item.vendor?.name ?? "Vendor"} · {money(item.orderedTotalCents)}</span><small>{approvalRequests[item.id] ? `Approval requested ${safeDate(approvalRequests[item.id])}` : "Manager approval required before receiving"}</small><button disabled={busy || Boolean(approvalRequests[item.id])} onClick={() => requestManagerApproval(item)} type="button">{approvalRequests[item.id] ? "Approval requested" : "Request manager approval"}</button></article>)}
+            </div>
+          ) : null}
         </section>
         <form className="scp-comment-composer" onSubmit={(event: FormEvent) => { event.preventDefault(); void run(() => recordModeNote(mode), `${activeConfig.label} saved.`); }}>
           <header><span>{activeConfig.label}</span><h2>{activeConfig.title}</h2><small>Write the note the way you received the information. The system will structure the parts record after you save.</small></header>
@@ -496,7 +504,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
           <h3>Requisitions</h3>
           {scopedRequisitions.length ? scopedRequisitions.map((item) => <article key={item.id}><strong>{item.demand.part.partNumber}</strong><span>{item.selectedOffer?.vendor.name ?? "No vendor selected"}</span><small>{format(item.status)}</small></article>) : <p>No sourcing requisitions yet.</p>}
           <h3>Purchase orders</h3>
-          {openPurchaseOrders.length ? openPurchaseOrders.slice(0, 8).map((item) => <article key={item.id}><strong>{item.purchaseOrderNumber}</strong><span>{item.vendor?.name ?? "Vendor"} - {money(item.orderedTotalCents)}</span><small>{format(item.status)}</small><div>{item.status === "DRAFT" ? <button disabled={busy} onClick={() => void run(() => request({ action: "TRANSITION_PURCHASE_ORDER", occurredAt: now(), reason: reason("TRANSITION_PURCHASE_ORDER"), subjectId: item.id, toStatus: "APPROVED" }), "Purchase order approved.")} type="button">Approve</button> : null}{item.status === "APPROVED" ? <button disabled={busy} onClick={() => void run(() => request({ action: "TRANSITION_PURCHASE_ORDER", occurredAt: now(), reason: reason("TRANSITION_PURCHASE_ORDER"), subjectId: item.id, toStatus: "ISSUED" }), "Purchase order issued.")} type="button">Issue</button> : null}{item.status === "ISSUED" ? <button disabled={busy} onClick={() => void run(() => request({ action: "TRANSITION_PURCHASE_ORDER", occurredAt: now(), reason: reason("TRANSITION_PURCHASE_ORDER"), subjectId: item.id, toStatus: "ACKNOWLEDGED" }), "Vendor acknowledgement recorded.")} type="button">Acknowledge</button> : null}</div></article>) : <p>No open purchase orders.</p>}
+          {openPurchaseOrders.length ? openPurchaseOrders.slice(0, 8).map((item) => <article key={item.id}><strong>{item.purchaseOrderNumber}</strong><span>{item.vendor?.name ?? "Vendor"} - {money(item.orderedTotalCents)}</span><small>{approvalRequests[item.id] ? `Approval requested - ${format(item.status)}` : format(item.status)}</small><div>{item.status === "DRAFT" ? <button disabled={busy || Boolean(approvalRequests[item.id])} onClick={() => requestManagerApproval(item)} type="button">{approvalRequests[item.id] ? "Requested" : "Request approval"}</button> : null}{item.status === "APPROVED" ? <button disabled={busy} onClick={() => void run(() => request({ action: "TRANSITION_PURCHASE_ORDER", occurredAt: now(), reason: reason("TRANSITION_PURCHASE_ORDER"), subjectId: item.id, toStatus: "ISSUED" }), "Purchase order issued.")} type="button">Issue</button> : null}{item.status === "ISSUED" ? <button disabled={busy} onClick={() => void run(() => request({ action: "TRANSITION_PURCHASE_ORDER", occurredAt: now(), reason: reason("TRANSITION_PURCHASE_ORDER"), subjectId: item.id, toStatus: "ACKNOWLEDGED" }), "Vendor acknowledgement recorded.")} type="button">Acknowledge</button> : null}</div></article>) : <p>No open purchase orders.</p>}
           <h3>Received and used</h3>
           {scopedReceipts.length ? scopedReceipts.map((item) => <article key={item.id}><strong>{item.purchaseOrder?.purchaseOrderNumber ?? "Receipt"}</strong><span>{item.stockLocation?.code ?? "Stock"} - {safeDate(item.receivedAt)}</span><small>{format(item.status)}</small></article>) : <p>No receipts linked to this RO yet.</p>}
           {model.custodyEvents.slice(0, 5).map((item) => <article key={item.id}><strong>{item.partNumber ?? item.part?.partNumber ?? "Part"}</strong><span>{format(item.type)} movement</span><small>{format(item.status)}</small></article>)}

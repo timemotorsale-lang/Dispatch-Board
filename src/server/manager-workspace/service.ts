@@ -3,7 +3,7 @@ import { getServiceAdvisorWorkspace, type ServiceAdvisorWorkspaceModel } from "@
 import { getInventoryConsoleOperationalFacts } from "@/server/inventory-console-home";
 import { buildInventoryPriorityWork } from "@/server/inventory-console-home/priority-work";
 import { getInventoryControlTowerProjection } from "@/server/inventory-control-tower";
-import { getInventoryGovernanceConsole } from "@/server/inventory-governance/service";
+import { contextualDecisionHref, getInventoryGovernanceConsole } from "@/server/inventory-governance/service";
 import { assertAuthenticatedUser, isGeneralManager, isManager } from "@/server/policies/access";
 import type { BoardReadTask } from "@/server/services/board-read";
 import { getMyTasksViewModelForToday } from "@/server/services/my-tasks";
@@ -61,7 +61,7 @@ export async function getManagerWorkspace(actor: AuthenticatedUser | null): Prom
 
   const governanceActions: ManagerAction[] = [...(governance?.approvals ?? []), ...(governance?.reviews ?? [])].map(item => ({
     action: item.actionLabel, authority: item.kind === "APPROVAL" ? "CEO / authorized manager" : "COO / manager review", dueAt: item.dueAt,
-    hat: "INVENTORY", href: item.actionHref, id: `governance:${item.id}`, mode: item.kind === "APPROVAL" ? "CEO" : "COO", overdue: item.overdue,
+    hat: "INVENTORY", href: contextualDecisionHref(item), id: `governance:${item.id}`, mode: item.kind === "APPROVAL" ? "CEO" : "COO", overdue: item.overdue,
     reason: `${item.domain.replaceAll("_", " ")} · ${item.state.replaceAll("_", " ")}`, score: (item.overdue ? 1200 : 700) + (item.kind === "APPROVAL" ? 300 : 100), subject: item.subject, title: item.title
   }));
   const inventoryExceptions = inventory ? buildInventoryPriorityWork(inventory.items, user.id, "ALL", now) : [];
@@ -72,7 +72,7 @@ export async function getManagerWorkspace(actor: AuthenticatedUser | null): Prom
 
   const inbox: ManagerInboxItem[] = [
     ...(advisor?.inbox ?? []).filter(item => item.needsResponse).map(item => ({ audience: item.audience, href: `/vehicles/repair-workbench?${new URLSearchParams({ repairOrderId: item.repairOrderId, workspace: "advisor", returnTo })}`, id: `advisor-inbox:${item.id}`, needsResponse: true, preview: item.preview, subject: `${item.subject} · ${item.customerName}` })),
-    ...(governance?.approvals ?? []).slice(0, 8).map(item => ({ audience: "MANAGEMENT" as const, href: item.actionHref, id: `approval-inbox:${item.id}`, needsResponse: true, preview: `${item.owner} submitted ${item.domain.replaceAll("_", " ").toLowerCase()} for an authorized decision.`, subject: item.title })),
+    ...(governance?.approvals ?? []).slice(0, 8).map(item => ({ audience: "MANAGEMENT" as const, href: contextualDecisionHref(item), id: `approval-inbox:${item.id}`, needsResponse: true, preview: `${item.owner} submitted ${item.domain.replaceAll("_", " ").toLowerCase()} for an authorized decision.`, subject: item.title })),
     ...tasks.filter(task => Boolean(task.blockerReason)).slice(0, 8).map(task => ({ audience: "TEAM" as const, href: `/tasks/${encodeURIComponent(task.id)}?returnTo=${encodeURIComponent(returnTo)}`, id: `task-inbox:${task.id}`, needsResponse: true, preview: task.blockerReason ?? "A team blocker needs attention.", subject: task.title }))
   ].slice(0, 30);
   const hats = (["ADVISOR", "INVENTORY", "TECHNICIAN", "LOT", "PARTS", "DETAIL"] as ManagerWorkHat[]).map(id => ({ id, count: actions.filter(item => item.mode === "WORK" && item.hat === id).length }));

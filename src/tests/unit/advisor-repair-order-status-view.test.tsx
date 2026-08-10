@@ -15,6 +15,8 @@ function makeOrder(overrides: Partial<Order> = {}): Order {
     id: "ro_123",
     repairOrderNumber: "RO-1001",
     stage: "DIAGNOSIS",
+    openedAt: new Date("2026-07-20T14:00:00.000Z"),
+    stageStartedAt: new Date("2026-07-20T15:00:00.000Z"),
     operatingState: "WAITING_PARTS",
     origin: "CUSTOMER_REPAIR",
     targetAt: new Date("2026-07-20T18:00:00.000Z"),
@@ -44,6 +46,20 @@ function makeOrder(overrides: Partial<Order> = {}): Order {
     repairJobs: [],
     vendorWorks: [],
     partDemands: [{ quantityReserved: 0, quantityRequired: 1 }],
+    stateEvents: [{
+      id: "state_1",
+      version: 1,
+      fromStage: "INTAKE",
+      toStage: "DIAGNOSIS",
+      fromOperatingState: "ACTIVE",
+      toOperatingState: "WAITING_PARTS",
+      nextAction: "Confirm parts ETA.",
+      reason: "Inspection completed.",
+      occurredAt: new Date("2026-07-20T15:00:00.000Z"),
+      actorUser: { id: "user_1", name: "Alex Carter" },
+      ownerUser: { id: "user_1", name: "Alex Carter" },
+      location: { id: "loc_1", name: "Main Store" },
+    }],
     advisorUpdates: []
   } as unknown as Order;
   return { ...order, ...overrides };
@@ -77,7 +93,8 @@ describe("AdvisorRepairOrderStatusView", () => {
     expect(html).toContain("Estimate &amp; Approval");
     expect(html).toContain("Repair");
     expect(html).toContain("Quality");
-    expect(html).toContain("Timeline");
+    expect(html).toContain("Cycle Time");
+    expect(html).toContain("Current stage age");
     expect(html).toContain("Record ETA / promise update");
     expect(html).not.toContain("Open advisor review");
     expect(html).toContain("Cross-workspace dependency");

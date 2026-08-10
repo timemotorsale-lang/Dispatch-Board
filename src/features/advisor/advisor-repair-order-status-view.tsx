@@ -40,6 +40,63 @@ function date(value: string | Date | null | undefined) {
   return value ? new Date(value).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "Not recorded";
 }
 
+function timestamp(value: string | Date | null | undefined) {
+  if (!value) return null;
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? null : time;
+}
+
+function durationLabel(minutes: number) {
+  const safe = Math.max(0, Math.round(minutes));
+  const days = Math.floor(safe / 1440);
+  const hours = Math.floor((safe % 1440) / 60);
+  const mins = safe % 60;
+  if (days) return `${days}d ${hours}h`;
+  if (hours) return `${hours}h ${mins}m`;
+  return `${mins}m`;
+}
+
+const advisorStageSequence = ["Intake", "Diagnosis", "Estimate", "Authorization", "Repair", "Quality", "Handoff"] as const;
+type AdvisorStageLabel = (typeof advisorStageSequence)[number];
+
+function advisorStageLabelFor(stage: string | null | undefined): AdvisorStageLabel {
+  if (stage === "DIAGNOSIS") return "Diagnosis";
+  if (stage === "ESTIMATE") return "Estimate";
+  if (stage === "AUTHORIZATION") return "Authorization";
+  if (["READY_FOR_REPAIR", "REPAIR"].includes(stage ?? "")) return "Repair";
+  if (["QUALITY_CONTROL", "ADVISOR_REVIEW"].includes(stage ?? "")) return "Quality";
+  if (stage === "HANDOFF") return "Handoff";
+  return "Intake";
+}
+
+function cycleTimeFor(order: Order) {
+  const now = Date.now();
+  const startedAt = timestamp(order.openedAt) ?? timestamp(order.serviceVisit.arrivedAt) ?? timestamp(order.stageStartedAt) ?? timestamp(order.targetAt) ?? now;
+  const currentStartedAt = timestamp(order.stageStartedAt) ?? startedAt;
+  const rows = advisorStageSequence.map((label) => ({ active: false, label, minutes: 0, startedAt: null as number | null }));
+  const rowByLabel = new Map(rows.map((row) => [row.label, row]));
+  const events = [...(order.stateEvents ?? [])].sort((left, right) => (timestamp(left.occurredAt) ?? 0) - (timestamp(right.occurredAt) ?? 0));
+  let cursor = startedAt;
+  let stage = advisorStageLabelFor(events[0]?.fromStage ?? order.stage);
+
+  for (const event of events) {
+    const occurredAt = timestamp(event.occurredAt);
+    if (!occurredAt || occurredAt < cursor || occurredAt > now || occurredAt > currentStartedAt) continue;
+    rowByLabel.get(stage)!.minutes += Math.max(0, (occurredAt - cursor) / 60000);
+    stage = advisorStageLabelFor(event.toStage);
+    cursor = occurredAt;
+  }
+
+  const activeLabel = advisorStageLabelFor(order.stage);
+  const activeRow = rowByLabel.get(activeLabel)!;
+  activeRow.active = true;
+  activeRow.startedAt = currentStartedAt;
+  activeRow.minutes += Math.max(0, (now - currentStartedAt) / 60000);
+  const totalMinutes = Math.max(0, (now - startedAt) / 60000);
+  const longest = rows.reduce((winner, row) => row.minutes > winner.minutes ? row : winner, rows[0]);
+  return { currentStageAge: Math.max(0, (now - currentStartedAt) / 60000), longest, rows, totalMinutes };
+}
+
 function vehicleLabel(order: Order) {
   return [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber;
 }
@@ -108,7 +165,7 @@ const workspaceTabs: Array<{ id: WorkspaceTab; label: string }> = [
   { id: "ESTIMATE", label: "Estimate & Approval" },
   { id: "REPAIR", label: "Repair" },
   { id: "QUALITY", label: "Quality" },
-  { id: "TIMELINE", label: "Timeline" },
+  { id: "TIMELINE", label: "Cycle Time" },
 ];
 
 export function getRepairPrimaryAction(order: Order) {
@@ -170,6 +227,7 @@ export function AdvisorRepairOrderStatusView({ compose, initialTab, order, retur
     done: index < currentTimelineIndex,
     label,
   }));
+  const cycleTime = cycleTimeFor(order);
 
   return <section className="advisor-ro-status">
     <header className="advisor-ro-hero">
@@ -189,6 +247,7 @@ export function AdvisorRepairOrderStatusView({ compose, initialTab, order, retur
         <article><CalendarClock /><span>Promise / target</span><strong>{date(order.serviceVisit.promisedAt ?? order.targetAt)}</strong><small>{order.nextAction}</small></article>
         <article className={waitingParts ? "attention" : ""}><PackageCheck /><span>Parts readiness</span><strong>{waitingParts ? "Waiting on parts" : "No blocking demand"}</strong><small>{order.partDemands.length} demand item(s)</small></article>
         <article><ShieldCheck /><span>{isInventoryRecon ? "Internal approval" : "Authorization"}</span><strong>{authorization?.disposition ?? (isInventoryRecon ? "Not approved" : "Not authorized")}</strong><small>{estimate ? `Estimate ${format(estimate.status)}` : "Estimate not prepared"}</small></article>
+        <article><CalendarClock /><span>Cycle time</span><strong>{durationLabel(cycleTime.totalMinutes)}</strong><small>Current stage age {durationLabel(cycleTime.currentStageAge)}</small></article>
       </section>
       {dependency ? <section className={`advisor-cross-lifecycle-dependency ${dependency.source}`}><AlertTriangle /><div><small>Cross-workspace dependency</small><strong>{dependency.label}</strong><span>{dependency.detail}</span></div><Link href={dependency.href}>Review source <ExternalLink /></Link></section> : null}
       {order.inventoryUnit || order.shopReconLifecycle ? <details className="advisor-related-lifecycles">
@@ -235,6 +294,9 @@ export function AdvisorRepairOrderStatusView({ compose, initialTab, order, retur
       <section className="advisor-ro-card"><header><ShieldCheck /><div><strong>Release protection</strong><span>{isInventoryRecon ? "Repair QC does not equal frontline ready" : "No customer completion promise from stage alone"}</span></div></header><p>{isInventoryRecon ? "Confirm repair completion, independent quality evidence, parts closure, keys, and custody transfer before returning the vehicle to Inventory. Inventory retains authority over frontline readiness and disposition." : "Confirm repair completion, independent quality evidence, parts closure, keys, and release authorization before telling the customer the vehicle is ready."}</p></section>
     </section> : null}
 
-    {activeTab === "TIMELINE" ? <section className="advisor-ro-card advisor-ro-history"><header><CalendarClock /><div><strong>Advisor communication timeline</strong><span>Recorded customer contact and internal collaboration</span></div></header>{order.advisorUpdates.length ? order.advisorUpdates.map((update) => <article key={update.id}><span className={`advisor-inbox-audience ${communicationAudience(update).toLocaleLowerCase()}`}>{communicationAudience(update) === "CUSTOMER" ? "Customer" : communicationAudience(update) === "TEAM" ? "Internal team" : "Management"}</span><div><strong>{update.contactOutcome}</strong><p>{communicationAudience(update) === "CUSTOMER" ? update.customerVisibleSummary : update.internalNotes ?? update.contactOutcome}</p><small>{format(update.contactChannel)} · {format(update.contactDirection)} · {update.authorUser.name}</small></div><time>{date(update.occurredAt)}</time></article>) : <p>No advisor communication has been recorded.</p>}</section> : null}
+    {activeTab === "TIMELINE" ? <section className="advisor-cycle-layout">
+      <section className="advisor-ro-card advisor-cycle-time-card"><header><CalendarClock /><div><strong>Cycle time by stage</strong><span>How long this repair order has spent in each advisor phase</span></div></header><div className="advisor-cycle-summary"><article><span>Total cycle</span><strong>{durationLabel(cycleTime.totalMinutes)}</strong><small>Opened to now</small></article><article><span>Current stage age</span><strong>{durationLabel(cycleTime.currentStageAge)}</strong><small>{format(order.stage)}</small></article><article><span>Longest stage</span><strong>{cycleTime.longest.label}</strong><small>{durationLabel(cycleTime.longest.minutes)}</small></article></div><div className="advisor-cycle-bars">{cycleTime.rows.map((row) => <article className={row.active ? "active" : undefined} key={row.label}><div><strong>{row.label}</strong><small>{row.active ? `Active since ${date(row.startedAt ? new Date(row.startedAt) : order.stageStartedAt)}` : row.minutes ? "Completed / historical time" : "Not started"}</small></div><span><i style={{ width: `${Math.min(100, Math.max(4, cycleTime.totalMinutes ? row.minutes / cycleTime.totalMinutes * 100 : 0))}%` }} /></span><b>{row.minutes ? durationLabel(row.minutes) : "0m"}</b></article>)}</div></section>
+      <section className="advisor-ro-card advisor-ro-history"><header><CalendarClock /><div><strong>Advisor communication timeline</strong><span>Recorded customer contact and internal collaboration</span></div></header>{order.advisorUpdates.length ? order.advisorUpdates.map((update) => <article key={update.id}><span className={`advisor-inbox-audience ${communicationAudience(update).toLocaleLowerCase()}`}>{communicationAudience(update) === "CUSTOMER" ? "Customer" : communicationAudience(update) === "TEAM" ? "Internal team" : "Management"}</span><div><strong>{update.contactOutcome}</strong><p>{communicationAudience(update) === "CUSTOMER" ? update.customerVisibleSummary : update.internalNotes ?? update.contactOutcome}</p><small>{format(update.contactChannel)} · {format(update.contactDirection)} · {update.authorUser.name}</small></div><time>{date(update.occurredAt)}</time></article>) : <p>No advisor communication has been recorded.</p>}</section>
+    </section> : null}
   </section>;
 }
