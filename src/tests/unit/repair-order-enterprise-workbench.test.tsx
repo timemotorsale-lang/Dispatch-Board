@@ -59,4 +59,52 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("Inventory / Vehicle");
     expect(html).toContain("Internal recon approval is required before any repair work is performed");
   });
+
+  it("shows the lifecycle strip at repair when the order stage has advanced without earlier planning artifacts", () => {
+    const repairStageOrder = {
+      ...order,
+      stage: "REPAIR",
+      customer: null,
+      inventoryUnit: { inventoryNumber: "333586" },
+      nextAction: "Confirm vendor estimate, approval documentation, and expected return.",
+      vendorWorks: [
+        {
+          id: "vendor-work-1",
+          vendorName: "Diego Auto Body",
+          status: "AT_VENDOR",
+          approvalStatus: "APPROVED",
+          currentLocation: "Diego Auto Body",
+          expectedReturnAt: "2026-08-14T15:57:00.000Z",
+          nextAction: "Confirm vendor estimate, approval documentation, and expected return.",
+          lastUpdateSummary: "Vehicle sent directly from Auction to Diego Auto Body.",
+        },
+      ],
+      serviceVisit: {
+        ...order.serviceVisit,
+        concernSummary:
+          "We recently bought the vehicle from the auction. The vehicle had sustained front end damage.",
+      },
+    };
+    const html = renderToStaticMarkup(
+      <RepairOrderEnterpriseWorkbench
+        order={repairStageOrder}
+        options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }}
+      />,
+    );
+
+    expect(html).toContain("<dt>Stage</dt><dd>Repair</dd>");
+    expect(html).toContain("RO Version 2");
+    expect(html).toContain("· Repair</span>");
+    expect(html).toContain('class="reached"><i><svg');
+    expect(html).toContain(">Repair</span>");
+    expect(html).not.toContain('>Repair</span></span><span class="reached"');
+    expect(html).toContain("Current physical location");
+    expect(html).toContain("Diego Auto Body");
+    expect(html).toContain("Home / accountable site");
+    expect(html).toContain("Minneapolis");
+    expect(html).toContain("Confirm outside-vendor progress");
+    expect(html).toContain("Return from vendor and verify quality");
+    expect(html).toContain("Record vendor update");
+    expect(html).not.toContain("Diagnose the concern");
+  });
 });

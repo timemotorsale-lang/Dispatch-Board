@@ -56,6 +56,11 @@ export function TechnicianRepairWorkbench({ model }: { model: TechnicianRepairWo
   const canResume = model.actor.canExecute && clockState === "PAUSED";
   const completed = model.job.status === "READY_FOR_QC" || model.job.status === "QC_PASSED" || clockState === "FINISHED";
   const incomplete = outcome !== "COMPLETED";
+  const offsite = Boolean(
+    model.repairOrder.vendorName &&
+    model.repairOrder.currentLocation &&
+    model.repairOrder.currentLocation !== model.repairOrder.location
+  );
 
   function submitLabor(eventType: "START" | "PAUSE" | "RESUME" | "FINISH") {
     setError(null);
@@ -128,7 +133,7 @@ export function TechnicianRepairWorkbench({ model }: { model: TechnicianRepairWo
         <div className="technician-workbench-header-status">
           <span className="technician-state-pill">{label(model.job.status)}</span>
           <span><Clock3 size={15} /> {model.clock.accumulatedMinutes} min recorded</span>
-          <span>{model.assignment?.bay ?? model.repairOrder.location}</span>
+          <span>{model.assignment?.bay ?? model.repairOrder.currentLocation}</span>
         </div>
       </header>
 
@@ -137,7 +142,7 @@ export function TechnicianRepairWorkbench({ model }: { model: TechnicianRepairWo
         <div>
           <span>Do this now</span>
           <strong>{model.job.plannedCorrection || model.job.description}</strong>
-          <p>Complete the authorized work, document what happened, and send verified work to QC.</p>
+          <p>{model.repairOrder.vendorNextAction ?? "Complete the authorized work, document what happened, and send verified work to QC."}</p>
         </div>
         <div className="technician-clock-actions">
           {canStart ? <button disabled={pending} onClick={() => submitLabor("START")} type="button"><Play size={16} /> Start Work</button> : null}
@@ -254,7 +259,9 @@ export function TechnicianRepairWorkbench({ model }: { model: TechnicianRepairWo
             <h2>{model.repairOrder.number}</h2>
             <dl>
               <div><dt>Customer</dt><dd>{model.repairOrder.customer}</dd></div>
-              <div><dt>Location</dt><dd>{model.repairOrder.location}</dd></div>
+              <div><dt>Current physical location</dt><dd>{model.repairOrder.currentLocation}</dd></div>
+              {offsite ? <div><dt>Home / accountable site</dt><dd>{model.repairOrder.location}</dd></div> : null}
+              {offsite ? <div><dt>Vendor status</dt><dd>{`Offsite · ${model.repairOrder.vendorName}`}</dd></div> : null}
               <div><dt>Technician</dt><dd>{model.actor.name}</dd></div>
               <div><dt>Assignment</dt><dd>{model.assignment ? label(model.assignment.position) : "Read only"}</dd></div>
               <div><dt>Clock</dt><dd>{label(clockState)}</dd></div>

@@ -135,6 +135,10 @@ function directRepairScopeRecorded(order: Order) {
   return order.diagnosisVersions[0]?.cause?.includes("Direct repair scope approved without troubleshooting diagnosis.") ?? false;
 }
 
+function physicalLocation(order: Order, activeVendorWork: NonNullable<Order["vendorWorks"]>[number] | null) {
+  return activeVendorWork?.currentLocation ?? order.location.name;
+}
+
 function advisorActionPlan(order: Order) {
   const diagnosis = order.diagnosisVersions[0] ?? null;
   const estimate = order.estimateVersions[0] ?? null;
@@ -202,6 +206,7 @@ export function AdvisorRepairOrderStatusView({ compose, initialTab, order, retur
   const isInventoryRecon = order.origin === "INVENTORY_RECON" || Boolean(order.inventoryUnit);
   const vendorWorks = order.vendorWorks ?? [];
   const activeVendorWork = vendorWorks.find((work) => !["COMPLETED", "CANCELLED"].includes(work.status)) ?? vendorWorks[0] ?? null;
+  const currentPhysicalLocation = physicalLocation(order, activeVendorWork);
   const dependency = lifecycleDependency(order, waitingParts);
   const nextAdvisorAction = advisorActionPlan(order);
   const vehicle = vehicleLabel(order);
@@ -262,6 +267,10 @@ export function AdvisorRepairOrderStatusView({ compose, initialTab, order, retur
         <article><ShieldCheck /><span>{isInventoryRecon ? "Internal approval" : "Authorization"}</span><strong>{authorization?.disposition ?? (isInventoryRecon ? "Not approved" : "Not authorized")}</strong><small>{estimate ? `Estimate ${format(estimate.status)}` : "Estimate not prepared"}</small></article>
         <article><CalendarClock /><span>Cycle time</span><strong>{durationLabel(cycleTime.totalMinutes)}</strong><small>Current stage age {durationLabel(cycleTime.currentStageAge)}</small></article>
       </section>
+      <section className="advisor-ro-summary">
+        <article><ShieldCheck /><span>Current physical location</span><strong>{currentPhysicalLocation}</strong><small>{activeVendorWork ? `Offsite vendor · ${activeVendorWork.vendorName}` : "Onsite / accountable location"}</small></article>
+        <article><ShieldCheck /><span>Home / accountable site</span><strong>{order.location.name}</strong><small>{order.ownerUser.name} remains accountable here</small></article>
+      </section>
       {dependency ? <section className={`advisor-cross-lifecycle-dependency ${dependency.source}`}><AlertTriangle /><div><small>Cross-workspace dependency</small><strong>{dependency.label}</strong><span>{dependency.detail}</span></div><Link href={dependency.href}>Review source <ExternalLink /></Link></section> : null}
       {order.inventoryUnit || order.shopReconLifecycle ? <details className="advisor-related-lifecycles">
         <summary><span><strong>Related lifecycle</strong><small>Read-only context from the owning workspaces</small></span><b>{order.inventoryUnit ? `Inventory: ${format(order.inventoryUnit.lifecycleStage)}` : "No inventory unit"}{order.shopReconLifecycle ? ` · Shop: ${format(order.shopReconLifecycle.stage)}` : ""}</b><ChevronDown /></summary>
@@ -299,7 +308,7 @@ export function AdvisorRepairOrderStatusView({ compose, initialTab, order, retur
     {activeTab === "REPAIR" ? <section className="advisor-ro-section-grid">
       <section className="advisor-ro-card advisor-repair-job-card"><header><Wrench /><div><strong>Repair jobs</strong><span>Authorized execution status</span></div></header>{order.repairJobs.length ? <dl>{order.repairJobs.map((job) => <div key={job.id}><dt>{job.jobNumber}</dt><dd>{job.description} · {format(job.status)}</dd></div>)}</dl> : <div className="advisor-repair-empty"><p>No internal repair jobs have been created.</p><small>{activeVendorWork ? "This repair order is currently being advanced through the outside-vendor loop." : "The next safe action is selected from this repair order&apos;s current evidence and approval status."}</small></div>}{directBodyPath ? <p className="advisor-inline-note">Direct body/collision work stays simple here: approved scope, controlled spend, parts reality, vendor or internal execution, then QC and handoff.</p> : null}{!activeVendorWork ? repairPrimaryAction.mode === "link" ? <Link className="advisor-repair-primary" href={repairPrimaryAction.href}>{repairPrimaryAction.label}</Link> : <button className="advisor-repair-primary" disabled={creatingJobs} onClick={async()=>{setCreatingJobs(true);setRepairActionMessage(null);try{const response=await fetch(`/api/repair-orders/${encodeURIComponent(order.id)}/planning`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"CREATE_APPROVED_JOBS",idempotencyKey:crypto.randomUUID(),reason:"Create repair jobs from the exact approved estimate scope."})}),body=await response.json().catch(()=>null) as {error?:string;result?:{message?:string}}|null;if(!response.ok)throw new Error(body?.error??"The approved repair job could not be created.");setRepairActionMessage({kind:"success",text:body?.result?.message??"Approved repair job created."});router.refresh();}catch(error){setRepairActionMessage({kind:"error",text:error instanceof Error?error.message:"The approved repair job could not be created."});}finally{setCreatingJobs(false);}}} type="button">{creatingJobs?"Creating approved work...":repairPrimaryAction.label}</button> : null}{!activeVendorWork ? <OutsideRepairWorkPanel repairOrderId={order.id} work={null} /> : null}{repairActionMessage?<p className={`advisor-repair-action-message ${repairActionMessage.kind}`} role="status">{repairActionMessage.text}</p>:null}</section>
       <section className="advisor-ro-card advisor-parts-readiness-card"><header><PackageCheck /><div><strong>Parts readiness</strong><span>Demand that may affect the customer promise</span></div></header>{order.partDemands.length ? <dl>{order.partDemands.map((demand) => <div key={demand.id}><dt>{demand.part.partNumber}</dt><dd>{demand.part.description} · {demand.quantityReserved}/{demand.quantityRequired} reserved</dd></div>)}</dl> : <p>No part demands are recorded.</p>}<div className="advisor-parts-purchase"><span><ShoppingCart /><small>{order.partDemands.length ? "Source, order, receive, and track these parts." : "Add the needed parts, compare sourcing, and place a governed order."}</small></span><Link href={partsOperationsHref}>{order.partDemands.length ? "Open parts purchasing" : "Add / buy parts"}</Link></div></section>
-      {activeVendorWork ? <OutsideRepairWorkPanel repairOrderId={order.id} work={JSON.parse(JSON.stringify(activeVendorWork))} /> : null}
+      {activeVendorWork ? <OutsideRepairWorkPanel accountableLocation={order.location.name} repairOrderId={order.id} work={JSON.parse(JSON.stringify(activeVendorWork))} /> : null}
     </section> : null}
 
     {activeTab === "QUALITY" ? <section className="advisor-ro-section-grid">

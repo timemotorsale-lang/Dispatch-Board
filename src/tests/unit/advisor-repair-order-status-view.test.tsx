@@ -31,6 +31,7 @@ function makeOrder(overrides: Partial<Order> = {}): Order {
       vehicleNumber: "VEH-1001"
     },
     ownerUser: { name: "Alex Carter" },
+    location: { id: "loc_1", code: "MAIN", name: "Main Store" },
     serviceVisit: {
       appointmentId: "appt_123",
       promisedAt: new Date("2026-07-20T20:00:00.000Z"),
@@ -204,6 +205,9 @@ describe("AdvisorRepairOrderStatusView", () => {
     const html = renderToStaticMarkup(<AdvisorRepairOrderStatusView initialTab="REPAIR" order={makeOrder({ partDemands: [], stage: "REPAIR", vendorWorks: [{ id: "vendor-work-1", vendorId: "vendor-1", vendorName: "Diego Auto Body", vendorContact: null, externalReference: null, workType: "BODY_SHOP", scope: "Front-end body repair", status: "AT_VENDOR", approvalStatus: "APPROVED", estimateAmountCents: 100000, approvedAmountCents: 100000, supplementalAmountCents: null, sentAt: new Date("2026-08-09T14:00:00Z"), sentFrom: "Auction", directFromSource: true, expectedReturnAt: new Date("2026-08-12T20:00:00Z"), returnedAt: null, transportMethod: "Carrier", keysCustodian: "Vendor", currentLocation: "Diego Auto Body", lastUpdateSummary: "Body repair is in progress.", nextAction: "Request progress update.", nextFollowUpAt: new Date("2026-08-10T14:00:00Z"), version: 2, createdByUserId: "user-1", createdAt: new Date(), updatedAt: new Date(), vendor: null, events: [{ actorUser: { name: "Alex Advisor" }, occurredAt: new Date("2026-08-09T16:00:00Z"), summary: "Approved body repair is underway.", toStatus: "AT_VENDOR" }] }] } as unknown as Partial<Order>)} />);
 
     expect(html).toContain("Offsite · Diego Auto Body");
+    expect(html).toContain("Current physical location");
+    expect(html).toContain("Home / accountable site");
+    expect(html).toContain("Main Store");
     expect(html).toContain("Vendor progress history");
     expect(html).toContain("Approved body repair is underway.");
     expect(html).toContain('aria-current="step" class="current"');

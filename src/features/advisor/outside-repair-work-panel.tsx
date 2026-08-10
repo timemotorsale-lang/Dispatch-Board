@@ -55,7 +55,15 @@ function actionLabel(work: OutsideWork) {
   return "Record vendor update";
 }
 
-export function OutsideRepairWorkPanel({ repairOrderId, work }: { repairOrderId: string; work: OutsideWork | null }) {
+export function OutsideRepairWorkPanel({
+  accountableLocation,
+  repairOrderId,
+  work
+}: {
+  accountableLocation?: string;
+  repairOrderId: string;
+  work: OutsideWork | null;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -116,7 +124,7 @@ export function OutsideRepairWorkPanel({ repairOrderId, work }: { repairOrderId:
   return <section className={`advisor-vendor-work ${work ? "active" : "creating"}`}>
     {work ? <>
       <header><Building2 /><div><small>Outside repair</small><strong>{work.vendorName}</strong><span>{format(work.workType)} · {format(work.status)}</span></div><b>{work.directFromSource ? `Direct from ${work.sentFrom}` : `From ${work.sentFrom}`}</b></header>
-      <div className="advisor-vendor-facts"><span><MapPin /><small>Current location</small><strong>{work.currentLocation}</strong></span><span><small>Expected return</small><strong>{work.expectedReturnAt ? new Date(work.expectedReturnAt).toLocaleString() : "Not confirmed"}</strong></span><span><small>Approval</small><strong>{format(work.approvalStatus)}</strong></span><span><small>Approved amount</small><strong>{money(work.approvedAmountCents)}</strong></span></div>
+      <div className="advisor-vendor-facts"><span><MapPin /><small>Current physical location</small><strong>{work.currentLocation}</strong></span>{accountableLocation ? <span><small>Home / accountable site</small><strong>{accountableLocation}</strong></span> : null}<span><small>Expected return</small><strong>{work.expectedReturnAt ? new Date(work.expectedReturnAt).toLocaleString() : "Not confirmed"}</strong></span><span><small>Approval</small><strong>{format(work.approvalStatus)}</strong></span><span><small>Approved amount</small><strong>{money(work.approvedAmountCents)}</strong></span></div>
       <p>{work.lastUpdateSummary}</p><small>Next: {work.nextAction}</small>
       <button className="advisor-repair-primary" onClick={() => setOpen(true)} type="button">{actionLabel(work)} <ArrowRight /></button>
       {work.events.length ? <details className="advisor-vendor-history"><summary>Vendor progress history <span>{work.events.length}</span></summary><div>{work.events.slice(0, 8).map((event, index) => <article key={`${event.occurredAt}-${index}`}><i /><span><strong>{format(event.toStatus)}</strong><small>{event.summary}</small><em>{event.actorUser.name} · {new Date(event.occurredAt).toLocaleString()}</em></span></article>)}</div></details> : null}

@@ -20,11 +20,18 @@ function label(value: string) {
   return value.replaceAll("_", " ").toLocaleLowerCase().replace(/^./, (letter) => letter.toUpperCase());
 }
 
+function activeVendorWork(order: Awaited<ReturnType<typeof getRepairOrderDetail>>) {
+  const works = order.vendorWorks ?? [];
+  return works.find((work) => !["COMPLETED", "CANCELLED"].includes(work.status)) ?? works[0] ?? null;
+}
+
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const order = await getRepairOrderDetail(await getCurrentUser(), (await context.params).id);
     const vehicle = [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber;
     const customer = order.customer?.displayName ?? order.inventoryUnit?.inventoryNumber ?? "Internal work";
+    const offsiteWork = activeVendorWork(order);
+    const currentPhysicalLocation = offsiteWork?.currentLocation ?? order.location.name;
     const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escapeHtml(order.repairOrderNumber)} · Repair Order</title>
@@ -35,8 +42,9 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 <section class="facts">
 <div class="fact"><small>Vehicle</small><strong>${escapeHtml(vehicle)}</strong></div><div class="fact"><small>VIN / vehicle ID</small><strong>${escapeHtml(order.vehicle.vin ?? order.vehicle.vehicleNumber)}</strong></div><div class="fact"><small>Customer / inventory</small><strong>${escapeHtml(customer)}</strong></div>
 <div class="fact"><small>Arrival</small><strong>${escapeHtml(displayDate(order.serviceVisit.arrivedAt))}</strong></div><div class="fact"><small>Promise</small><strong>${escapeHtml(displayDate(order.serviceVisit.promisedAt))}</strong></div><div class="fact"><small>Assigned technician</small><strong>${escapeHtml(order.ownerUser.name)}</strong></div>
-<div class="fact"><small>Location</small><strong>${escapeHtml(order.location.name)}</strong></div><div class="fact"><small>Current stage</small><strong>${escapeHtml(label(order.stage))}</strong></div><div class="fact"><small>Next action</small><strong>${escapeHtml(order.nextAction)}</strong></div>
+<div class="fact"><small>Current physical location</small><strong>${escapeHtml(currentPhysicalLocation)}</strong></div><div class="fact"><small>Current stage</small><strong>${escapeHtml(label(order.stage))}</strong></div><div class="fact"><small>Next action</small><strong>${escapeHtml(offsiteWork?.nextAction ?? order.nextAction)}</strong></div>
 </section>
+${offsiteWork ? `<section class="block"><small>Home / accountable site</small><p>${escapeHtml(order.location.name)}</p></section>` : ""}
 <section class="block"><small>Concern reported at intake</small><p>${escapeHtml(order.serviceVisit.concernSummary)}</p></section>
 ${order.serviceVisit.intakeNotes ? `<section class="block"><small>Advisor / intake notes</small><p>${escapeHtml(order.serviceVisit.intakeNotes)}</p></section>` : ""}
 <section class="handoff"><div><strong>Technician use</strong><span>This Repair Order is the governing source for the vehicle and concern. Record tests, evidence, and findings against this RO.</span></div><div><strong>Authorization boundary</strong><span>Diagnosis is permitted from this RO. No repair is authorized until the estimate and approval are recorded.</span></div></section>

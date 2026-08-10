@@ -41,6 +41,11 @@ function vehicleLabel(order: Awaited<ReturnType<typeof listRepairOrders>>["items
   return [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber;
 }
 
+function activeVendorWork(order: Awaited<ReturnType<typeof listRepairOrders>>["items"][number]) {
+  const works = order.vendorWorks ?? [];
+  return works.find((work) => !["COMPLETED", "CANCELLED"].includes(work.status)) ?? works[0] ?? null;
+}
+
 async function diagnosticsBridge(
   user: Awaited<ReturnType<typeof requireCurrentUser>>,
   repairOrderId: string,
@@ -250,8 +255,9 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
         </div>
         {orders.items.length ? (
           <div className={styles.orderList}>
-            {orders.items.map((order) => (
-              <article className={`settings-callout-card ${styles.order}`} key={order.id}>
+            {orders.items.map((order) => {
+              const offsiteWork = activeVendorWork(order);
+              return <article className={`settings-callout-card ${styles.order}`} key={order.id}>
                 <ClipboardList aria-hidden="true" size={19} />
                 <span className={styles.orderIdentity}>
                   <strong>
@@ -259,14 +265,15 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
                   </strong>
                   <small>
                     {order.customer?.displayName ?? order.inventoryUnit?.inventoryNumber ?? "Internal vehicle"} ·{" "}
-                    {order.location.name}
+                    {offsiteWork ? `Current physical location: ${offsiteWork.currentLocation}` : order.location.name}
                   </small>
+                  {offsiteWork ? <small>Home / accountable site: {order.location.name}</small> : null}
                   <small>{order.serviceVisit.concernSummary}</small>
                 </span>
                 <span className={styles.orderMeta}>
                   <b>{order.stage.replaceAll("_", " ")}</b>
                   <small>{order.ownerUser.name}</small>
-                  <small>{order.age.overdue ? "Overdue" : order.nextAction}</small>
+                  <small>{order.age.overdue ? "Overdue" : offsiteWork?.nextAction ?? order.nextAction}</small>
                 </span>
                 <div className={styles.orderActions}>
                   <Link
@@ -288,8 +295,8 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
                     Assign Technician
                   </Link>
                 </div>
-              </article>
-            ))}
+              </article>;
+            })}
           </div>
         ) : (
           <div className="notice notice-info">

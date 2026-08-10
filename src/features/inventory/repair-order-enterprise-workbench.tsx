@@ -31,6 +31,16 @@ type RepairOrderWorkbenchOrder = {
   estimateVersions: Array<{ authorizations: Array<{ disposition: string; id: string }>; id: string; status: string; totalCents: number; version: number }>;
   repairJobs: Array<{ description: string; id: string; jobNumber: string; readinessReasonCodes: string[]; status: string }>;
   partDemands: Array<{ id: string; quantityRequired: number; quantityReserved: number }>;
+  vendorWorks?: Array<{
+    id: string;
+    vendorName: string;
+    status: string;
+    approvalStatus: string;
+    currentLocation: string;
+    expectedReturnAt: string | Date | null;
+    nextAction: string;
+    lastUpdateSummary: string;
+  }>;
 };
 
 type Options = { users: Array<{ id: string; name: string }> };
@@ -68,6 +78,75 @@ function diagnosticPlan(concern: string): PlanItem[] {
 
 const format = (value: string) => value.replaceAll("_", " ").toLocaleLowerCase().replace(/^./, (letter) => letter.toUpperCase());
 const date = (value: string | null) => value ? new Date(value).toLocaleString() : "Not recorded";
+const lifecycleLabels = ["Intake", "Diagnose", "Estimate", "Approval", "Repair", "Quality Check", "Handoff"] as const;
+const stageToLifecycleIndex: Record<string, number> = {
+  INTAKE: 0,
+  DIAGNOSIS: 1,
+  ESTIMATE: 2,
+  APPROVAL: 3,
+  REPAIR: 4,
+  QUALITY_CHECK: 5,
+  QUALITY_CONTROL: 5,
+  HANDOFF: 6,
+  COMPLETE: 6,
+  COMPLETED: 6,
+};
+function activeVendorWorkFor(order: RepairOrderWorkbenchOrder) {
+  const works = order.vendorWorks ?? [];
+  return works.find((work) => !["COMPLETED", "CANCELLED"].includes(work.status)) ?? works[0] ?? null;
+}
+
+function nextStepPlan(input: {
+  activeVendorWork: ReturnType<typeof activeVendorWorkFor>;
+  authorization: { disposition: string; id: string } | null;
+  diagnosis: RepairOrderWorkbenchOrder["diagnosisVersions"][number] | null;
+  directBodyPath: boolean;
+  estimate: RepairOrderWorkbenchOrder["estimateVersions"][number] | null;
+  hasRepairJobs: boolean;
+  orderStage: string;
+  waitingParts: boolean;
+}) {
+  if (input.activeVendorWork) return [
+    { current: true, detail: input.activeVendorWork.nextAction, title: "Confirm outside-vendor progress" },
+    { current: false, detail: "Bring the vehicle back from the vendor, complete dealership QC, and record any follow-up work before handoff.", title: "Return from vendor and verify quality" },
+    { current: false, detail: "After repair and QC are complete, return the vehicle to Inventory or release workflow with final readiness evidence.", title: "Hand off to the next owning workspace" },
+  ] as const;
+  if (!input.diagnosis) return [
+    { current: true, detail: input.directBodyPath ? "Capture visible damage, direct scope evidence, and the reason troubleshooting diagnosis is not required." : "Record inspection evidence, scan results, tests, and the supported cause.", title: input.directBodyPath ? "Record direct repair scope" : "Diagnose the concern" },
+    { current: false, detail: "Create the repair scope and price from the confirmed evidence.", title: "Prepare estimate" },
+    { current: false, detail: "Record approval, parts readiness, technician/vendor path, and dispatch plan.", title: "Authorize and release work" },
+  ] as const;
+  if (!input.estimate) return [
+    { current: true, detail: "Create the exact-version estimate from the recorded scope and current evidence.", title: "Prepare estimate" },
+    { current: false, detail: "Record the attributable approval decision for the exact estimate version.", title: "Capture approval" },
+    { current: false, detail: "Create jobs or record outside-vendor work once approval and readiness are complete.", title: "Release repair path" },
+  ] as const;
+  if (!input.authorization) return [
+    { current: true, detail: "Record the attributable approval decision for the exact estimate version.", title: "Capture approval" },
+    { current: false, detail: "After approval, create jobs or record outside-vendor work from the governed scope.", title: "Release repair path" },
+    { current: false, detail: "Move the approved work through parts, execution, quality control, and final handoff.", title: "Track execution to QC" },
+  ] as const;
+  if (!input.hasRepairJobs && input.waitingParts) return [
+    { current: true, detail: "Confirm sourcing, reservation, and ETA before moving the repair forward.", title: "Resolve parts readiness" },
+    { current: false, detail: "Once parts are ready, create the approved repair jobs or route the authorized vendor path.", title: "Create or dispatch repair work" },
+    { current: false, detail: "Move the repair through execution, quality control, and handoff.", title: "Track repair to QC" },
+  ] as const;
+  if (["QUALITY_CONTROL", "ADVISOR_REVIEW"].includes(input.orderStage)) return [
+    { current: true, detail: "Verify the completed work independently and record any rework or release blockers.", title: "Perform quality control" },
+    { current: false, detail: "Confirm keys, custody, final cost, and receiving-workspace readiness before handoff.", title: "Prepare handoff" },
+    { current: false, detail: "Return the vehicle to Inventory or release workflow with complete evidence.", title: "Close the repair phase" },
+  ] as const;
+  if (input.orderStage === "HANDOFF") return [
+    { current: true, detail: "Transfer the vehicle with final quality, cost, keys, and custody evidence recorded.", title: "Complete handoff" },
+    { current: false, detail: "Make sure the next workspace acknowledges readiness and takes control.", title: "Confirm receiving ownership" },
+    { current: false, detail: "Retain the full trace from intake through release for future review.", title: "Audit the closed loop" },
+  ] as const;
+  return [
+    { current: true, detail: "Continue the approved repair path and keep the next accountable action current on the record.", title: "Perform authorized repair" },
+    { current: false, detail: "When repair work is complete, move the vehicle into independent QC and road-test review.", title: "Verify quality readiness" },
+    { current: false, detail: "After QC passes, return the vehicle to Inventory or release workflow with full evidence.", title: "Prepare handoff" },
+  ] as const;
+}
 const inventorySafeNextAction = (nextAction: string, inventoryRecon: boolean) => {
   if (!inventoryRecon) return nextAction;
   if (/resolve advisor exceptions and update the customer/i.test(nextAction)) return "Resolve recon approval exceptions and update Inventory";
@@ -110,6 +189,37 @@ export function RepairOrderEnterpriseWorkbench({ diagnostics, order, options, re
   const commitmentFollowUp = isInventoryRecon ? "Retail appointment readiness does not apply. Diagnosis determines the repair scope." : capacityEvidence ? "Live shop capacity is recorded." : "Scheduling capacity will be checked before repair dispatch.";
   const readinessNote = isInventoryRecon ? "Retail appointment readiness does not apply. Diagnosis determines the repair scope." : capacityEvidence ? "A live shop-capacity snapshot is linked to this intake." : "You can start diagnosis now; capacity can be reviewed before scheduling repair work.";
   const displayedNextAction = inventorySafeNextAction(order.nextAction, isInventoryRecon);
+  const evidenceStageIndex = authorization ? 3 : estimate ? 2 : order.inspectionVersions.length || diagnosis ? 1 : 0;
+  const lifecycleStageIndex = Math.max(stageToLifecycleIndex[order.stage] ?? 0, evidenceStageIndex);
+  const activeVendorWork = activeVendorWorkFor(order);
+  const waitingParts = order.partDemands.some((part) => part.quantityReserved < part.quantityRequired);
+  const directBodyPath = diagnosis?.cause?.includes("Direct repair scope approved without troubleshooting diagnosis.") ?? false;
+  const currentLocationLabel = activeVendorWork ? activeVendorWork.currentLocation : order.location.name;
+  const currentLocationKind = activeVendorWork ? "Current physical location" : "Current location";
+  const nextSteps = nextStepPlan({
+    activeVendorWork,
+    authorization,
+    diagnosis,
+    directBodyPath,
+    estimate,
+    hasRepairJobs: order.repairJobs.length > 0,
+    orderStage: order.stage,
+    waitingParts,
+  });
+  const primaryActionLabel = activeVendorWork
+    ? "Record vendor update"
+    : diagnosis
+      ? "Open Estimate Planning"
+      : directBodyPath
+        ? "Record Direct Repair Scope"
+        : "Start Diagnosis";
+  const primaryActionSummary = activeVendorWork
+    ? activeVendorWork.nextAction
+    : diagnosis
+      ? "Use the recorded evidence to prepare the repair scope and estimate."
+      : directBodyPath
+        ? "Capture the visible damage scope, direct evidence, and the reason troubleshooting diagnosis is not required."
+        : "Open the guided diagnostic plan for this exact repair order and vehicle.";
 
   async function assignOwner() {
     if (!selectedOwner || !assignmentChanged) return;
@@ -133,12 +243,12 @@ export function RepairOrderEnterpriseWorkbench({ diagnostics, order, options, re
   const vehicle = [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber;
   return <section className="rowb-shell" aria-label="Repair Order Workbench">
     <header className="rowb-header"><div>{returnTo ? <Link href={returnTo}>← {returnLabel ?? "Return to source workspace"}</Link> : showAdvisorReturn ? <BackToServiceAdvisorWorkspace /> : showWorkspaceReturn ? <BackToVehicleOperationsWorkspace /> : null}<Link href="/vehicles/repair-workbench?view=all">← All Repair Orders</Link><span>Repair Order Workbench</span><h1>{order.repairOrderNumber}</h1><div className="rowb-document-actions"><a href="#repair-order-document"><FileText />View RO</a><a href={`/api/repair-orders/${encodeURIComponent(order.id)}/print`} rel="noreferrer" target="_blank"><Printer />Print RO</a></div></div><dl><div><dt>Vehicle</dt><dd>{vehicle}</dd></div><div><dt>{isInventoryRecon ? "Inventory" : "Customer"}</dt><dd>{order.customer?.displayName ?? order.inventoryUnit?.inventoryNumber ?? "Internal work"}</dd></div><div><dt>Stage</dt><dd>{format(order.stage)}</dd></div><div><dt>Arrival</dt><dd>{date(order.serviceVisit.arrivedAt)}</dd></div><div><dt>Promise</dt><dd>{date(order.serviceVisit.promisedAt)}</dd></div><div><dt>Audit</dt><dd>Version {currentVersion}</dd></div></dl></header>
-    <nav className="rowb-lifecycle" aria-label="Repair lifecycle">{["Intake", "Diagnose", "Estimate", "Approval", "Repair", "Quality Check", "Handoff"].map((label, index) => { const reached = index === 0 || index === 1 && Boolean(order.inspectionVersions.length || diagnosis) || index === 2 && Boolean(estimate) || index === 3 && Boolean(authorization) || index === 4 && Boolean(order.repairJobs.length); return <span className={reached ? "reached" : "locked"} key={label}><i>{reached ? <Check /> : <LockKeyhole />}</i>{label}</span>; })}</nav>
+    <nav className="rowb-lifecycle" aria-label="Repair lifecycle">{lifecycleLabels.map((label, index) => { const reached = index <= lifecycleStageIndex; return <span className={reached ? "reached" : "locked"} key={label}><i>{reached ? <Check /> : <LockKeyhole />}</i>{label}</span>; })}</nav>
     {notice ? <div className="rowb-notice" role="status">{notice}</div> : null}
     <section className="rowb-print-document" id="repair-order-document" aria-label="Repair Order document">
       <header><div><small>Authoritative Repair Order</small><h2>{order.repairOrderNumber}</h2><span>RO Version {currentVersion} · {format(order.stage)}</span></div><div className="rowb-print-actions"><a href={`/api/repair-orders/${encodeURIComponent(order.id)}/print`} rel="noreferrer" target="_blank"><Printer />Print RO</a></div></header>
       <div className="rowb-document-grid">
-        <dl><div><dt>Vehicle</dt><dd>{vehicle}</dd></div><div><dt>VIN / vehicle ID</dt><dd>{order.vehicle.vin ?? order.vehicle.vehicleNumber}</dd></div><div><dt>{ownerLabel}</dt><dd>{order.customer?.displayName ?? order.inventoryUnit?.inventoryNumber ?? "Internal work"}</dd></div><div><dt>Location</dt><dd>{order.location.name}</dd></div></dl>
+        <dl><div><dt>Vehicle</dt><dd>{vehicle}</dd></div><div><dt>VIN / vehicle ID</dt><dd>{order.vehicle.vin ?? order.vehicle.vehicleNumber}</dd></div><div><dt>{ownerLabel}</dt><dd>{order.customer?.displayName ?? order.inventoryUnit?.inventoryNumber ?? "Internal work"}</dd></div><div><dt>{currentLocationKind}</dt><dd>{currentLocationLabel}</dd></div></dl>
         <dl><div><dt>Arrived</dt><dd>{date(order.serviceVisit.arrivedAt)}</dd></div><div><dt>Promise</dt><dd>{date(order.serviceVisit.promisedAt)}</dd></div><div><dt>Assigned technician / owner</dt><dd>{currentOwner.name}</dd></div><div><dt>Next action</dt><dd>{displayedNextAction}</dd></div></dl>
       </div>
       <article><small>{isInventoryRecon ? "Recon concern reported at intake" : "Concern reported at intake"}</small><p>{order.serviceVisit.concernSummary}</p></article>
@@ -152,11 +262,12 @@ export function RepairOrderEnterpriseWorkbench({ diagnostics, order, options, re
         <section><h2><KeyRound />Appointment &amp; Custody</h2><dl><div><dt>Appointment</dt><dd>{order.serviceVisit.appointmentId ? "Matched" : "Walk-in"}</dd></div><div><dt>Keys</dt><dd>{order.serviceVisit.keysReceivedCount} · {order.serviceVisit.keyTag ?? "No tag"}</dd></div><div><dt>Transportation</dt><dd>{format(order.serviceVisit.transportMode)}</dd></div><div><dt>Arrived</dt><dd>{date(order.serviceVisit.arrivedAt)}</dd></div></dl></section>
         <section><h2><Gauge />Intake Completeness</h2><div className="rowb-readiness"><b>{readyCount}/{intakeChecks.length}</b><span>Required facts complete</span></div>{intakeChecks.map(([label, passed]) => <p className={passed ? "pass" : "pending"} key={label}><i>{passed ? <Check /> : "!"}</i>{label}</p>)}<div className="rowb-context-note"><strong>{isInventoryRecon ? "Inventory path" : capacityEvidence ? "Live capacity checked" : "Capacity snapshot optional"}</strong><span>{readinessNote}</span></div></section>
         <section><h2><CalendarClock />Advisor Commitment</h2><dl><div><dt>Owner</dt><dd>{currentOwner.name}</dd></div><div><dt>Target</dt><dd>{date(order.targetAt)}</dd></div><div><dt>Next action</dt><dd>{displayedNextAction}</dd></div></dl></section>
+        <section><h2><Activity />Location context</h2><dl><div><dt>{currentLocationKind}</dt><dd>{currentLocationLabel}</dd></div><div><dt>Home / accountable site</dt><dd>{order.location.name}</dd></div>{activeVendorWork ? <div><dt>Vendor status</dt><dd>{format(activeVendorWork.status)}</dd></div> : null}</dl></section>
         <section><h2><Activity />Traceability</h2><p><i>{capacityEvidence ? <Check /> : "–"}</i>{capacityEvidence ? "Capacity snapshot linked" : isInventoryRecon ? "Inventory intake path recorded" : "Capacity snapshot not required"}</p><p><i><Check /></i>Immutable intake evidence</p><p><i><Check /></i>Exact repair-order version</p></section>
       </aside>
       <main className="rowb-main">
         <nav className="rowb-tabs"><a className="active" href="#concerns">Concerns</a><a href="#inspection">Inspection</a><a href="#diagnosis">Diagnosis</a><a href="#estimate">Estimate</a><a href="#jobs">Jobs</a><a href="#quality">QC</a><a href="#timeline">Timeline</a></nav>
-        <div className="rowb-actions"><span>{order.operatingState === "ACTIVE" ? "Active work order" : format(order.operatingState)}</span><Link href={planningHref}>Review Plan</Link><Link className="primary" href={planningHref}>Start Diagnosis <ChevronRight /></Link></div>
+        <div className="rowb-actions"><span>{activeVendorWork ? `Offsite · ${format(activeVendorWork.status)}` : order.operatingState === "ACTIVE" ? "Active work order" : format(order.operatingState)}</span><Link href={planningHref}>Review Plan</Link><Link className="primary" href={planningHref}>{primaryActionLabel} <ChevronRight /></Link></div>
         <section className={`rowb-concern ${safetyReview ? "safety" : ""}`} id="concerns"><header><b>1</b><div><small>{concernLabel} · preserved from intake</small><h2>{order.serviceVisit.concernSummary}</h2></div>{safetyReview ? <em><ShieldAlert />Safety review</em> : <em>Standard triage</em>}</header>
           <div className="rowb-plan"><header><div><h3>Diagnostic Plan</h3><span>Suggested plan · awaiting technician or shop-lead confirmation</span></div><b>{diagnosis ? `Diagnosis v${diagnosis.version}` : "Not released"}</b></header>
             <div className="rowb-plan-head"><span>Step</span><span>Objective</span><span>Owner</span><span>Evidence required</span><span>Status</span></div>
@@ -171,9 +282,9 @@ export function RepairOrderEnterpriseWorkbench({ diagnostics, order, options, re
       <aside className="rowb-command">
         <section className="rowb-workflow-gate"><h2>Workflow Gate</h2><div className="rowb-gate"><b>{readyCount}/{intakeChecks.length}</b><span>{intakeReady ? "Ready for diagnosis" : "Complete intake facts"}</span></div>{safetyReview ? <p className="danger"><ShieldAlert />Begin with a safety inspection before operating or road-testing this vehicle.</p> : intakeReady ? <p className="success"><Check />Intake is complete. Diagnosis is the next step.</p> : <p className="danger"><AlertTriangle />Complete the highlighted intake facts before diagnosis.</p>}<Link className="rowb-gate-action" href={planningHref}>{safetyReview ? "Start Safety Diagnosis" : "Start Diagnosis"}<ChevronRight /></Link><small>{commitmentFollowUp}</small></section>
         <section id="assignment"><h2>Assignment &amp; Capacity</h2><label><span>Accountable owner / technician</span><select aria-label="Accountable owner or technician" disabled={busy} onChange={(event) => { setOwnerUserId(event.target.value); setNotice(""); }} value={ownerUserId}>{options.users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></label><button disabled={busy || !assignmentChanged} onClick={() => void assignOwner()} type="button">{busy ? "Saving Assignment…" : assignmentChanged ? `Assign to ${selectedOwner?.name}` : `Assigned to ${currentOwner.name}`}</button><p>{assignmentChanged ? `Save to make ${selectedOwner?.name} accountable for this repair order.` : `${currentOwner.name} is already assigned. Select a different person to change the assignment.`}</p><dl><div><dt>Current owner</dt><dd>{currentOwner.name}</dd></div><div><dt>Location</dt><dd>{order.location.name}</dd></div><div><dt>Parts demand</dt><dd>{order.partDemands.length}</dd></div></dl></section>
-        <section><h2>What happens next</h2><ol className="rowb-next-steps"><li className="current"><b>1</b><span><strong>Diagnose the concern</strong>Record inspection evidence, scan results, tests, and the supported cause.</span></li><li><b>2</b><span><strong>Prepare estimate</strong>Create the repair scope and price from the diagnosis.</span></li><li><b>3</b><span><strong>Authorize &amp; dispatch</strong>Confirm approval, parts, technician, bay, and schedule.</span></li></ol></section>
+        <section><h2>What happens next</h2><ol className="rowb-next-steps">{nextSteps.map((step, index) => <li className={step.current ? "current" : undefined} key={step.title}><b>{index + 1}</b><span><strong>{step.title}</strong>{step.detail}</span></li>)}</ol></section>
         <section><h2>SLA / Promise Risk</h2><dl><div><dt>Promise</dt><dd>{date(order.serviceVisit.promisedAt)}</dd></div><div><dt>Target</dt><dd>{date(order.targetAt)}</dd></div><div><dt>Operating state</dt><dd>{format(order.operatingState)}</dd></div></dl></section>
-        <section className="rowb-next"><h2>Do this now</h2><Wrench /><strong>{diagnosis ? "Prepare exact-version estimate" : "Start Diagnosis"}</strong><span>{diagnosis ? "Use the recorded evidence to prepare the repair scope and estimate." : "Open the guided diagnostic plan for this exact repair order and vehicle."}</span><Link href={planningHref}>{diagnosis ? "Open Estimate Planning" : "Start Diagnosis"}</Link></section>
+        <section className="rowb-next"><h2>Do this now</h2><Wrench /><strong>{primaryActionLabel}</strong><span>{primaryActionSummary}</span><Link href={planningHref}>{primaryActionLabel}</Link></section>
       </aside>
     </div>
     <footer className="rowb-footer"><span><ShieldAlert />{promiseGuardrailLabel}</span><div>{returnTo ? <Link href={returnTo}>{returnLabel ?? "Source Workspace"}</Link> : null}<Link href="/vehicles/shop-recon">Shop &amp; Recon</Link><Link href="/vehicles/repair-workbench?view=all">All Repair Orders</Link><Link className="primary" href={planningHref}>{diagnosis ? "Open Estimate Planning" : "Start Diagnosis"}</Link></div></footer>

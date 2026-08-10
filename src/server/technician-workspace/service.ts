@@ -19,6 +19,17 @@ function vehicleLabel(vehicle: {
   return [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || vehicle.vehicleNumber;
 }
 
+function activeVendorWork(
+  vendorWorks: Array<{
+    currentLocation: string | null;
+    nextAction: string | null;
+    status: string;
+    vendorName: string;
+  }> = []
+) {
+  return vendorWorks.find((work) => !["COMPLETED", "CANCELLED"].includes(work.status)) ?? vendorWorks[0] ?? null;
+}
+
 export type TechnicianRepairAssignment = {
   id: string;
   href: string;
@@ -61,7 +72,7 @@ function projectRepairAssignments(
         vehicle: vehicleLabel(job.repairOrder.vehicle),
         customer: job.repairOrder.customer?.displayName ?? "Internal vehicle",
         concern: job.repairOrder.serviceVisit.concernSummary,
-        location: job.repairOrder.location.name,
+        location: activeVendorWork(job.repairOrder.vendorWorks)?.currentLocation ?? job.repairOrder.location.name,
         position: assignment.position,
         dispatchStatus: assignment.status,
         jobStatus: job.status,
@@ -176,6 +187,10 @@ export async function getTechnicianRepairWorkbench(actor: AuthenticatedUser, rep
       concern: job.repairOrder.serviceVisit.concernSummary,
       promiseAt: job.repairOrder.serviceVisit.promisedAt?.toISOString() ?? null,
       location: job.repairOrder.location.name,
+      currentLocation: activeVendorWork(job.repairOrder.vendorWorks)?.currentLocation ?? job.repairOrder.location.name,
+      vendorStatus: activeVendorWork(job.repairOrder.vendorWorks)?.status ?? null,
+      vendorName: activeVendorWork(job.repairOrder.vendorWorks)?.vendorName ?? null,
+      vendorNextAction: activeVendorWork(job.repairOrder.vendorWorks)?.nextAction ?? null,
       vehicle: {
         id: job.repairOrder.vehicleId,
         label: vehicleLabel(job.repairOrder.vehicle),
