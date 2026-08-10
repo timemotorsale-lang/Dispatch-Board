@@ -24,14 +24,13 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("RO Version 2");
     expect(html).toContain("This RO Version 2 is the technician&#x27;s source for the vehicle and concern");
     expect(html).toContain("No repair is authorized until the estimate and approval are recorded");
-    expect(html).toContain("Customer concern · preserved from intake");
+    expect(html).toContain("Customer concern");
     expect(html).toContain("Reproduce symptom safely");
     expect(html).toContain("Measure friction material");
     expect(html).toContain("It does not assume the cause or authorize repair work");
     expect(html).toContain("Start Diagnosis");
     expect(html).toContain("Intake Completeness");
     expect(html).toContain("6/6");
-    expect(html).toContain("Start Diagnosis");
     expect(html).toContain("What happens next");
     expect(html).toContain("returnTo=%2Fvehicles%2Frepair-workbench%3FrepairOrderId%3Dro-1");
     expect(html).toContain("Customer authorization is required before any repair work is performed");
@@ -51,8 +50,13 @@ describe("enterprise repair-order workbench", () => {
     const html = renderToStaticMarkup(<RepairOrderEnterpriseWorkbench order={inventoryOrder} options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }} />);
 
     expect(html).toContain("Inventory path");
-    expect(html).toContain("Customer appointment readiness does not apply");
-    expect(html).toContain("No customer-readiness step is required for dealership inventory");
+    expect(html).toContain(
+      "Retail appointment readiness does not apply. Diagnosis determines the repair scope.",
+    );
     expect(html).toContain("Ready for diagnosis");
+    expect(html).toContain("Inventory recon concern");
+    expect(html).toContain("Inventory / work unit");
+    expect(html).toContain("Inventory / Vehicle");
+    expect(html).toContain("Internal recon approval is required before any repair work is performed");
   });
 });
