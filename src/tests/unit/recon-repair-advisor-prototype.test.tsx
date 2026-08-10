@@ -77,6 +77,12 @@ describe("ReconRepairAdvisorPrototype", () => {
     expect(html).toContain("Waiting on others");
     expect(html).toContain("At risk");
     expect(html).toContain("Ready to move");
+    expect(html).toContain("Recommended next action");
+    expect(html).toContain("Buy or update parts");
+    expect(html).toContain("Bottleneck board");
+    expect(html).toContain("Real status");
+    expect(html).toContain("Waiting on parts");
+    expect(html).toContain("Vehicle movement");
     expect(html).toContain("2024 Toyota RAV4");
     expect(html).toContain("/vehicles/service-close-parts?repairOrderId=ro-1");
     expect(html).toContain("/vehicles/outside-vendors");

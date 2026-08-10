@@ -158,10 +158,10 @@ export function normalizeDiscrepancyResolution(value: unknown) {
 
 export function normalizeCustody(value: unknown) {
   const raw = object(value), type = required(raw.type, "Custody type", 40).toUpperCase();
-  if (!["ISSUE", "INSTALL", "UNUSED_RETURN"].includes(type)) throw new Error("Direct custody type is invalid.");
+  if (!["ISSUE", "INSTALL", "UNUSED_RETURN", "VENDOR_SHIP"].includes(type)) throw new Error("Direct custody type is invalid.");
   const evidence = strings(raw.evidence ?? [], "Evidence");
   if (type === "INSTALL" && !evidence.length) throw new Error("Installation evidence is required.");
-  return { ...base(raw), evidence, occurredAt: date(raw.occurredAt, "Custody time"), partId: required(raw.partId, "Part ID", 100), quantity: integer(raw.quantity, "Quantity", 1), repairJobId: optional(raw.repairJobId, 100), reservationId: optional(raw.reservationId, 100), sourceId: required(raw.sourceId, "Source ID", 200), stockLocationId: required(raw.stockLocationId, "Stock location ID", 100), type: type as "ISSUE" | "INSTALL" | "UNUSED_RETURN", unitCostCents: integer(raw.unitCostCents ?? 0, "Unit cost") };
+  return { ...base(raw), evidence, occurredAt: date(raw.occurredAt, "Custody time"), partId: required(raw.partId, "Part ID", 100), quantity: integer(raw.quantity, "Quantity", 1), repairJobId: optional(raw.repairJobId, 100), reservationId: optional(raw.reservationId, 100), sourceId: required(raw.sourceId, "Source ID", 200), stockLocationId: required(raw.stockLocationId, "Stock location ID", 100), type: type as "ISSUE" | "INSTALL" | "UNUSED_RETURN" | "VENDOR_SHIP", unitCostCents: integer(raw.unitCostCents ?? 0, "Unit cost") };
 }
 
 export function normalizeTransfer(value: unknown) {

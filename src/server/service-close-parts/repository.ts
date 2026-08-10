@@ -166,6 +166,8 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
     createVendor(command: EnterpriseCommandCommitInput, data: { code: string; createdByUserId: string; defaultReturnTerms: string; defaultWarranty: string; name: string; paymentTerms: string; reliabilityBasisPoints: number }) {
       return executeAggregateMutation(database, command, "vehicle-operations.parts", async (tx) => {
         if (data.reliabilityBasisPoints > 10000) throw new Error("Reliability cannot exceed 10000 basis points.");
+        const existing = await tx.partVendor.findFirst({ where: { organizationId: command.organizationId, OR: [{ code: data.code }, { name: { equals: data.name, mode: "insensitive" } }] } });
+        if (existing) return { result: { code: existing.code, id: existing.id, name: existing.name, reused: true, status: existing.status } };
         const record = await tx.partVendor.create({ data: { code: data.code, createdByUserId: data.createdByUserId, defaultReturnTerms: data.defaultReturnTerms, defaultWarranty: data.defaultWarranty, id: command.subjectId, name: data.name, organizationId: command.organizationId, paymentTerms: data.paymentTerms, reliabilityBasisPoints: data.reliabilityBasisPoints } });
         return { result: { code: record.code, id: record.id, name: record.name, status: record.status } };
       });
@@ -305,13 +307,12 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
       });
     },
 
-    recordCustody(command: EnterpriseCommandCommitInput, data: { actorUserId: string; evidence: string[]; occurredAt: Date; partId: string; quantity: number; reason: string; repairJobId: string | null; reservationId: string | null; sourceId: string; stockLocationId: string; type: "ISSUE" | "INSTALL" | "UNUSED_RETURN"; unitCostCents: number }) {
+    recordCustody(command: EnterpriseCommandCommitInput, data: { actorUserId: string; evidence: string[]; occurredAt: Date; partId: string; quantity: number; reason: string; repairJobId: string | null; reservationId: string | null; sourceId: string; stockLocationId: string; type: "ISSUE" | "INSTALL" | "UNUSED_RETURN" | "VENDOR_SHIP"; unitCostCents: number }) {
       return executeAggregateMutation(database, command, "vehicle-operations.parts", async (tx) => {
         const [costBalance, costPart] = await Promise.all([tx.partStockBalance.findUnique({ where: { partId_stockLocationId: { partId: data.partId, stockLocationId: data.stockLocationId } } }), tx.part.findFirst({ where: { id: data.partId, organizationId: command.organizationId }, select: { standardCostCents: true } })]);
         if (!costPart) throw new Error("Canonical part was not found.");
         const unitCostCents = costBalance?.averageCostCents || costPart.standardCostCents;
-        if (data.type === "INSTALL") {
-          if (!data.repairJobId) throw new Error("Installation requires a repair job.");
+        if (data.type === "INSTALL" && data.repairJobId) {
           const job = await tx.repairJob.findFirst({ where: { id: data.repairJobId, organizationId: command.organizationId, status: { not: "CANCELLED" } } });
           if (!job) throw new Error("Active repair job was not found.");
         } else if (data.type === "ISSUE") {

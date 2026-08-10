@@ -34,6 +34,7 @@ describe("ServiceClosePartsWorkspace", () => {
     const html = renderToStaticMarkup(<ServiceClosePartsWorkspace initial={initial} initialRepairOrderId="ro-1" returnLabel="Return to RO-DB21B235" returnTo="/vehicles/repair-workbench?repairOrderId=ro-1" />);
 
     expect(html).toContain("Add needed parts");
+    expect(html).toContain("No needed parts are blocking this repair order.");
     expect(html).toContain("2024 Toyota RAV4");
     expect(html).toContain("Stock 333586");
     expect(html).toContain("VIN 2T3W1RFVXRW333586");
@@ -44,7 +45,8 @@ describe("ServiceClosePartsWorkspace", () => {
     expect(html).toContain("Bullet");
     expect(html).toContain("Number");
     expect(html).not.toContain("Load 2024 RAV4 collision list");
-    expect(html).toContain("Ordered");
+    expect(html).toContain("Bought / Ordered");
+    expect(html).toContain("Create and track purchases");
     expect(html).toContain("Used");
     expect(html).toContain("Returns");
   });

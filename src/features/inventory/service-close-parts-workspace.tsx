@@ -1,10 +1,10 @@
 "use client";
 
-import { ArrowRight, ClipboardCheck, PackagePlus, RotateCcw, ShoppingCart, Truck, Wrench } from "lucide-react";
+import { ArrowRight, Building2, ClipboardCheck, PackagePlus, RotateCcw, ShoppingCart, Truck, Wrench } from "lucide-react";
 import Link from "next/link";
-import { type FormEvent, type KeyboardEvent, useMemo, useRef, useState } from "react";
+import { type FormEvent, type KeyboardEvent, useRef, useState } from "react";
 
-type Named = { id: string; name?: string; code?: string; part?: { partNumber: string }; partNumber?: string; description?: string; status?: string; type?: string; locationId?: string; standardCostCents?: number };
+type Named = { id: string; name?: string; code?: string; part?: { partNumber: string }; partNumber?: string; description?: string; status?: string; type?: string; locationId?: string; standardCostCents?: number; orderedTotalCents?: number; quantity?: number; unitCostCents?: number };
 type RepairOrder = Named & { closedAt: string | null; locationId: string; repairOrderNumber: string; stage: string; vehicle: { color?: string | null; make?: string | null; model?: string | null; stockNumber?: string | null; vehicleNumber: string; vin?: string | null; year?: number | null }; customer: { displayName: string } | null; invoicePackages: Array<{ id: string; mismatchCodes: string[]; repairOrderId: string; status: string; version: number }> };
 type Demand = Named & { notes?: string | null; partId: string; quantityRequired: number; quantityReserved: number; requiredAt: string; part: { partNumber: string; description?: string }; repairOrder: { repairOrderNumber: string } };
 type Offer = Named & { partId: string; unitCostCents: number; vendorId: string; vendor: { name: string }; part: { partNumber: string; description?: string } };
@@ -16,7 +16,7 @@ type Recovery = Named & { actualCreditCents: number | null; expectedCreditCents?
 type Model = { custodyEvents: Named[]; demands: Demand[]; discrepancies: Named[]; interchanges: Named[]; locations: Named[]; offers: Offer[]; parts: Named[]; purchaseOrders: PurchaseOrder[]; receipts: Receipt[]; recoveries: Recovery[]; repairOrders: RepairOrder[]; requisitions: Requisition[]; stockLocations: Named[]; transfers: Transfer[]; vendors: Named[] };
 
 type Props = { initial: Model; initialRepairOrderId?: string; returnLabel?: string; returnTo?: string };
-type DeskMode = "need" | "source" | "order" | "receive" | "use" | "return";
+type DeskMode = "need" | "source" | "order" | "receive" | "vendor" | "use" | "return";
 
 const now = () => new Date().toISOString();
 const local = (date: Date) => new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
@@ -44,6 +44,20 @@ const vehicleMetaFor = (order?: RepairOrder | null) => {
     `Unit ${vehicle.vehicleNumber}`,
   ].filter(Boolean) as string[];
 };
+
+function reconBudgetFor(order?: RepairOrder | null) {
+  const vehicle = order?.vehicle;
+  const currentYear = new Date().getFullYear();
+  const age = vehicle?.year ? Math.max(0, currentYear - vehicle.year) : 5;
+  const premium = /toyota|honda|lexus|acura/i.test(vehicle?.make ?? "") ? 1.08 : /bmw|mercedes|audi/i.test(vehicle?.make ?? "") ? 1.18 : 1;
+  const utility = /rav4|cr-v|pilot|highlander|tacoma|truck|suv/i.test(`${vehicle?.make ?? ""} ${vehicle?.model ?? ""}`) ? 1.1 : 1;
+  const estimatedRetailCents = Math.round(Math.max(900000, (3000000 - age * 165000) * premium * utility));
+  const totalAcquisitionInvestmentCents = Math.round(estimatedRetailCents * 0.76);
+  const targetGrossCents = Math.round(Math.max(250000, estimatedRetailCents * 0.12));
+  const safetyReserveCents = Math.round(Math.max(50000, estimatedRetailCents * 0.025));
+  const maxReconBudgetCents = Math.max(0, estimatedRetailCents - totalAcquisitionInvestmentCents - targetGrossCents - safetyReserveCents);
+  return { estimatedRetailCents, maxReconBudgetCents, safetyReserveCents, targetGrossCents, totalAcquisitionInvestmentCents };
+}
 
 function cleanDescription(value: string) {
   return value.trim().replace(/^[-*]\s*/, "").replace(/\s+/g, " ");
@@ -108,27 +122,35 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
   const [mode, setMode] = useState<DeskMode>("need");
 
   const [demand, setDemand] = useState(() => ({ partId: first(initial.parts), quantityRequired: "1", requiredAt: local(new Date(Date.now() + 24 * 60 * 60 * 1000)), substitutionAllowed: true, notes: "" }));
-  const [notes, setNotes] = useState<Record<DeskMode, string>>({ need: "", order: "", receive: "", return: "", source: "", use: "" });
+  const [notes, setNotes] = useState<Record<DeskMode, string>>({ need: "", order: "", receive: "", return: "", source: "", use: "", vendor: "" });
 
   const selectedOrder = model.repairOrders.find((item) => item.id === orderId) ?? model.repairOrders[0] ?? null;
   const selectedNumber = orderNumberFor(selectedOrder);
   const selectedVehicleLabel = vehicleLabelFor(selectedOrder);
   const selectedVehicleMeta = vehicleMetaFor(selectedOrder);
   const scopedDemands = model.demands.filter((item) => !selectedNumber || item.repairOrder.repairOrderNumber === selectedNumber);
+  const openNeededParts = scopedDemands.filter((item) => !["RESERVED", "RELEASED", "CANCELLED"].includes(item.status ?? ""));
   const scopedRequisitions = model.requisitions.filter((item) => !selectedNumber || item.demand.repairOrder.repairOrderNumber === selectedNumber);
   const scopedReceipts = model.receipts.filter((item) => item.purchaseOrder?.requisition?.demand?.repairOrder?.repairOrderNumber === selectedNumber);
   const openPurchaseOrders = model.purchaseOrders.filter((item) => !["CLOSED", "CANCELLED"].includes(item.status ?? ""));
   const openRecoveries = model.recoveries.filter((item) => !["CREDITED", "WRITTEN_OFF"].includes(item.status ?? ""));
   const activeInvoice = selectedOrder?.invoicePackages[0] ?? null;
+  const budget = reconBudgetFor(selectedOrder);
+  const partsCommittedCents = openPurchaseOrders.reduce((sum, item) => sum + (item.orderedTotalCents ?? 0), 0) + model.custodyEvents.reduce((sum, item) => sum + (item.quantity ?? 0) * (item.unitCostCents ?? 0), 0);
+  const remainingReconBudgetCents = budget.maxReconBudgetCents - partsCommittedCents;
+  const budgetRatio = budget.maxReconBudgetCents ? partsCommittedCents / budget.maxReconBudgetCents : 1;
+  const budgetTone = remainingReconBudgetCents < 0 ? "danger" : budgetRatio >= 0.8 ? "warning" : "success";
+  const budgetDecision = remainingReconBudgetCents < 0 ? "Manager approval required" : budgetRatio >= 0.8 ? "Review before more spend" : "Spend room available";
 
-  const laneCounts = useMemo(() => ({
-    need: scopedDemands.filter((item) => !["RESERVED", "RELEASED", "CANCELLED"].includes(item.status ?? "")).length,
+  const laneCounts = {
+    need: openNeededParts.length,
     source: scopedRequisitions.filter((item) => !["ORDERED", "CANCELLED"].includes(item.status ?? "")).length,
     order: openPurchaseOrders.length,
     receive: model.purchaseOrders.filter((item) => ["ACKNOWLEDGED", "PARTIALLY_RECEIVED", "RECEIVED"].includes(item.status ?? "")).length + model.discrepancies.filter((item) => item.status === "OPEN").length,
+    vendor: model.custodyEvents.filter((item) => item.type === "VENDOR_SHIP").length,
     use: model.custodyEvents.length,
     return: openRecoveries.length,
-  }), [model, openPurchaseOrders.length, openRecoveries.length, scopedDemands, scopedRequisitions]);
+  };
 
   async function refresh() {
     setModel(await request());
@@ -176,8 +198,13 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
     return vendorCandidate ?? "Manual vendor note";
   }
 
+  function noteTotalCents(lines: string[]) {
+    return lines.reduce((sum, line) => sum + amountFrom(line) * quantityFrom(line), 0);
+  }
+
   async function ensurePart(description: string) {
-    const existingPart = model.parts.find((part) => part.partNumber?.toUpperCase() === description.toUpperCase() || part.description?.toUpperCase() === description.toUpperCase());
+    const generatedPartNumber = partNumberFrom(description);
+    const existingPart = model.parts.find((part) => part.partNumber?.toUpperCase() === generatedPartNumber || part.description?.toUpperCase() === description.toUpperCase());
     return existingPart?.id ?? await createPartFromDescription(description);
   }
 
@@ -188,6 +215,23 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
     const id = response.result?.id ?? response.id;
     if (!id) throw new Error(`Created ${name}, but the new vendor ID was not returned.`);
     return id as string;
+  }
+
+  async function ensurePurchaseOrderAcknowledged(purchaseOrder: PurchaseOrder) {
+    if (purchaseOrder.status === "DRAFT") {
+      await request({ action: "TRANSITION_PURCHASE_ORDER", occurredAt: now(), reason: "Auto-approve purchase order from simple received-parts note.", subjectId: purchaseOrder.id, toStatus: "APPROVED" });
+      await request({ action: "TRANSITION_PURCHASE_ORDER", occurredAt: now(), reason: "Auto-issue purchase order from simple received-parts note.", subjectId: purchaseOrder.id, toStatus: "ISSUED" });
+      await request({ action: "TRANSITION_PURCHASE_ORDER", occurredAt: now(), reason: "Auto-acknowledge purchase order from simple received-parts note.", subjectId: purchaseOrder.id, toStatus: "ACKNOWLEDGED" });
+      return;
+    }
+    if (purchaseOrder.status === "APPROVED") {
+      await request({ action: "TRANSITION_PURCHASE_ORDER", occurredAt: now(), reason: "Auto-issue purchase order from simple received-parts note.", subjectId: purchaseOrder.id, toStatus: "ISSUED" });
+      await request({ action: "TRANSITION_PURCHASE_ORDER", occurredAt: now(), reason: "Auto-acknowledge purchase order from simple received-parts note.", subjectId: purchaseOrder.id, toStatus: "ACKNOWLEDGED" });
+      return;
+    }
+    if (purchaseOrder.status === "ISSUED") {
+      await request({ action: "TRANSITION_PURCHASE_ORDER", occurredAt: now(), reason: "Auto-acknowledge purchase order from simple received-parts note.", subjectId: purchaseOrder.id, toStatus: "ACKNOWLEDGED" });
+    }
   }
 
   async function recordModeNote(target: DeskMode) {
@@ -201,16 +245,30 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
         await createDemand(selectedOrder.id, { notes: "Added from simple parts note.", partId, quantityRequired: quantityFrom(description), reason: "Record needed part from simple parts note.", requiredAt: new Date(demand.requiredAt).toISOString(), substitutionAllowed: true });
       }
     }
-    if (target === "order") {
+    if (target === "source") {
       for (const line of lines) {
+        const description = descriptionFrom(line), partId = await ensurePart(description);
+        const demandResult = await createDemand(selectedOrder.id, { notes: `Sourcing note: ${line}`, partId, quantityRequired: quantityFrom(line), reason: "Create sourcing demand from simple parts note.", requiredAt: new Date(demand.requiredAt).toISOString(), substitutionAllowed: true });
+        const demandId = demandResult.result?.id;
+        if (!demandId) throw new Error(`Sourcing demand was created for ${description}, but the demand ID was not returned.`);
+        await request({ action: "CREATE_REQUISITION", demandId, quantity: quantityFrom(line), reason: `Sourcing requisition note: ${line}`, requiredAt: new Date(demand.requiredAt).toISOString() });
+      }
+    }
+    if (target === "order") {
+      const proposedSpendCents = noteTotalCents(lines);
+      if (proposedSpendCents > 0 && partsCommittedCents + proposedSpendCents > budget.maxReconBudgetCents) {
+        throw new Error(`Recon budget guardrail: this note would move the unit over its recommended max recon budget by ${money(partsCommittedCents + proposedSpendCents - budget.maxReconBudgetCents)}. Manager approval is required before buying more parts.`);
+      }
+      for (const [index, line] of lines.entries()) {
         const description = descriptionFrom(line), partId = await ensurePart(description), vendorId = await ensureVendor(vendorFrom(line));
-        await request({ action: "CREATE_PURCHASE_ORDER", duplicateOverrideReason: null, lines: [{ partId, quantity: quantityFrom(line), unitCostCents: amountFrom(line) }], locationId: defaultLocationId, purchaseOrderNumber: `PO-${Date.now()}`, reason: `Ordered parts note: ${line}`, requisitionId: null, vendorId });
+        await request({ action: "CREATE_PURCHASE_ORDER", duplicateOverrideReason: "Simple parts note added another bought/ordered part for this repair order during advisor test-drive.", lines: [{ partId, quantity: quantityFrom(line), unitCostCents: amountFrom(line) }], locationId: defaultLocationId, purchaseOrderNumber: `PO-${Date.now()}-${index + 1}`, reason: `Ordered parts note: ${line}`, requisitionId: null, vendorId });
       }
     }
     if (target === "receive") {
       if (!model.purchaseOrders.length) throw new Error("A purchase order is required before receiving parts.");
       for (const line of lines) {
         const purchaseOrder = model.purchaseOrders.find((item) => !["CLOSED", "CANCELLED"].includes(item.status ?? "")) ?? model.purchaseOrders[0], description = descriptionFrom(line), partId = await ensurePart(description);
+        await ensurePurchaseOrderAcknowledged(purchaseOrder);
         await request({ action: "RECEIVE_PURCHASE_ORDER", invoiceReference: null, lines: [{ damagedQuantity: /damaged/i.test(line) ? quantityFrom(line) : 0, partId, quantity: quantityFrom(line), unitCostCents: amountFrom(line) }], packingSource: `NOTE-${Date.now()}`, reason: `Received parts note: ${line}`, receivedAt: now(), stockLocationId: defaultStockLocationId, subjectId: purchaseOrder.id });
       }
     }
@@ -219,6 +277,13 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
         const description = descriptionFrom(line), partId = await ensurePart(description), notUsed = /not used|unused|return/i.test(line);
         await request({ action: "RECORD_PART_CUSTODY", evidence: /photo|invoice|receipt/i.test(line) ? [line] : notUsed ? [] : [line], occurredAt: now(), partId, quantity: quantityFrom(line), reason: `Used parts note: ${line}`, repairJobId: null, reservationId: null, sourceId: `NOTE-${Date.now()}`, stockLocationId: defaultStockLocationId, type: notUsed ? "UNUSED_RETURN" : "INSTALL", unitCostCents: amountFrom(line) });
         if (notUsed) await request({ action: "CREATE_PART_RECOVERY", deadlineAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), expectedCreditCents: amountFrom(line), partId, quantity: quantityFrom(line), reason: "Automatically open return ticket because the part was marked not used.", sourceReference: line, type: "VENDOR_RETURN", vendorId: null });
+      }
+    }
+    if (target === "vendor") {
+      for (const [index, line] of lines.entries()) {
+        const description = descriptionFrom(line), partId = await ensurePart(description), vendorName = vendorFrom(line);
+        await ensureVendor(vendorName);
+        await request({ action: "RECORD_PART_CUSTODY", evidence: [line], occurredAt: now(), partId, quantity: quantityFrom(line), reason: `Delivered part to outside vendor ${vendorName}: ${line}`, repairJobId: null, reservationId: null, sourceId: `VENDOR-${Date.now()}-${index + 1}`, stockLocationId: defaultStockLocationId, type: "VENDOR_SHIP", unitCostCents: amountFrom(line) });
       }
     }
     if (target === "return") {
@@ -233,20 +298,37 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
   const lanes: Array<{ id: DeskMode; icon: React.ElementType; label: string; sub: string }> = [
     { id: "need", icon: PackagePlus, label: "Needed", sub: "List required parts" },
     { id: "source", icon: ClipboardCheck, label: "Source", sub: "Compare vendor options" },
-    { id: "order", icon: ShoppingCart, label: "Ordered", sub: "Create and track POs" },
+    { id: "order", icon: ShoppingCart, label: "Bought / Ordered", sub: "Create and track purchases" },
     { id: "receive", icon: Truck, label: "Received", sub: "Post receipts and exceptions" },
+    { id: "vendor", icon: Building2, label: "Delivered to vendor", sub: "Track outside custody" },
     { id: "use", icon: Wrench, label: "Used", sub: "Issue, install, return unused" },
     { id: "return", icon: RotateCcw, label: "Returns", sub: "Core, warranty, vendor credit" },
   ];
   const modeConfig: Record<DeskMode, { action: string; label: string; placeholder: string; title: string }> = {
     need: { action: "Save needed parts", label: "Needed parts note", placeholder: "Type needed parts here. Use the list tools or press Enter to continue a list.", title: "Add needed parts" },
     source: { action: "Save sourcing note", label: "Sourcing note", placeholder: "Add vendor quote, availability, contact, and any sourcing detail.", title: "Document sourcing" },
-    order: { action: "Record ordered parts", label: "Ordered parts note", placeholder: "Add part ordered, vendor, amount, date ordered, and any order detail.", title: "Document ordered parts" },
+    order: { action: "Record bought parts", label: "Bought / ordered parts note", placeholder: "Add part bought, vendor, amount, date bought/ordered, and any purchase detail.", title: "Document bought / ordered parts" },
     receive: { action: "Record received parts", label: "Received parts note", placeholder: "Add what arrived, condition, quantity, packing slip, and any exception.", title: "Document received parts" },
+    vendor: { action: "Record vendor delivery", label: "Vendor delivery note", placeholder: "Example: front bumper cover - Diego Auto Body - delivered Friday by Alex.", title: "Document parts delivered to vendor" },
     use: { action: "Record used or unused", label: "Used parts note", placeholder: "Add what was used. If not used, write not used or return.", title: "Document used parts" },
     return: { action: "Open return tickets", label: "Return note", placeholder: "Add part being returned, vendor, credit/core/warranty detail, and reason.", title: "Document returns" },
   };
   const activeConfig = modeConfig[mode];
+  const nextAction = mode === "need"
+    ? openNeededParts.length
+      ? `Source or buy ${openNeededParts.length} needed part${openNeededParts.length === 1 ? "" : "s"} before the vendor can continue.`
+      : "No needed parts are blocking this repair order."
+    : mode === "order"
+      ? remainingReconBudgetCents < 0 ? "Stop: manager approval is required before more buying." : "Record bought parts only after checking the recon budget."
+      : mode === "vendor"
+        ? "Record parts physically delivered to Diego or another outside vendor."
+        : mode === "receive"
+          ? "Record what arrived and any damaged, missing, or wrong parts."
+          : mode === "use"
+            ? "Only mark parts used after installation is confirmed."
+            : mode === "return"
+              ? "Open credit, warranty, core, or vendor-return tickets."
+              : "Record sourcing quotes and availability.";
   const lineBounds = (value: string, cursor: number) => {
     const start = value.lastIndexOf("\n", Math.max(0, cursor - 1)) + 1;
     const nextBreak = value.indexOf("\n", cursor);
@@ -361,12 +443,31 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
       <div><span>Returns</span><strong>{laneCounts.return}</strong></div>
     </section>
 
+    <section className={`scp-budget ${budgetTone}`} aria-label="Recon budget guardrail">
+      <div>
+        <span>TAI recon budget guardrail</span>
+        <strong>{budgetDecision}</strong>
+        <small>Estimated retail {money(budget.estimatedRetailCents)} · TAI {money(budget.totalAcquisitionInvestmentCents)} · target gross {money(budget.targetGrossCents)} · reserve {money(budget.safetyReserveCents)}</small>
+      </div>
+      <div><span>Max recon budget</span><strong>{money(budget.maxReconBudgetCents)}</strong></div>
+      <div><span>Committed parts spend</span><strong>{money(partsCommittedCents)}</strong></div>
+      <div><span>Remaining</span><strong>{money(remainingReconBudgetCents)}</strong></div>
+    </section>
+
     <nav className="scp-lanes" aria-label="Parts process">
       {lanes.map(({ id, icon: Icon, label, sub }) => <button aria-current={mode === id ? "step" : undefined} className={mode === id ? "active" : ""} key={id} onClick={() => setMode(id)} type="button"><Icon size={18} /><span>{label}<small>{sub}</small></span><b>{laneCounts[id]}</b></button>)}
     </nav>
 
     <main className="scp-grid">
       <section className="scp-panel scp-primary">
+        <section className="scp-next-action" aria-label="Selected lane next action">
+          <header><span>Next action</span><h2>{nextAction}</h2><small>{mode === "need" ? "This is the current parts blocker list for the selected repair order." : "This guidance follows the selected parts lane."}</small></header>
+          {mode === "need" && openNeededParts.length ? (
+            <div className="scp-needed-strip">
+              {openNeededParts.map((item) => <article key={item.id}><strong>{item.part.description ?? item.part.partNumber}</strong><span>{item.quantityReserved}/{item.quantityRequired} reserved</span><small>{format(item.status)} · needed {safeDate(item.requiredAt)}</small></article>)}
+            </div>
+          ) : null}
+        </section>
         <form className="scp-comment-composer" onSubmit={(event: FormEvent) => { event.preventDefault(); void run(() => recordModeNote(mode), `${activeConfig.label} saved.`); }}>
           <header><span>{activeConfig.label}</span><h2>{activeConfig.title}</h2><small>Write the note the way you received the information. The system will structure the parts record after you save.</small></header>
           <label className="scp-big-entry">
