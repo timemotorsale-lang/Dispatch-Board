@@ -30,7 +30,7 @@ describe("role landing and record routing", () => {
     expect(getDefaultLandingRoute(user(["Vehicle Operations Lead"]))).toBe("/vehicles?workspace=vehicle-operations-lead");
     expect(getDefaultLandingRoute(user(["Service Department Manager"]))).toBe("/vehicles/shop-recon");
     expect(getDefaultLandingRoute(user(["Inventory Manager"]))).toBe("/vehicles");
-    expect(getDefaultLandingRoute(user(["Service Advisor"]))).toBe("/appointments");
+    expect(getDefaultLandingRoute(user(["Service Advisor"]))).toBe("/vehicles/advisor");
     expect(getDefaultLandingRoute(user(["Mechanic"]))).toBe("/my-tasks");
     expect(getDefaultLandingRoute(user(["Parts"]))).toBe("/vehicles/parts-operations");
     expect(getDefaultLandingRoute(user(["Quality Control"]))).toBe("/vehicles/quality-control");

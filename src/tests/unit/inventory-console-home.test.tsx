@@ -99,7 +99,7 @@ describe("Vehicle Operations Lead Home", () => {
     expect(markup).toContain("Customer callback");
     expect(markup).toContain("Role protection stays active");
     expect(markup).toContain("Shop &amp; Recon");
-    expect(markup).toContain('/appointments?workspace=advisor');
+    expect(markup).toContain('/vehicles/advisor');
     expect(markup).toContain('/vehicles?workspace=inventory');
     expect(markup).toContain('/vehicles/parts-operations');
     expect(markup).not.toContain("Reports &amp; Exports");

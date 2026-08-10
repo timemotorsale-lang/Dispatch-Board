@@ -51,7 +51,7 @@ export function ConsoleSidebar({ console, isOpen, managerContext, onClose, prese
   const selectedBoardDate = searchParams.get("date");
   const containedHref = (href: string) => managerContext
     ? withManagerWorkspaceContext(href, managerContext.mode, {
-        launch: preserveAdvisorLaunch && href.split(/[?#]/, 1)[0] === "/appointments" ? "advisor" : undefined
+        launch: preserveAdvisorLaunch && href.split(/[?#]/, 1)[0] === "/vehicles/advisor" ? "advisor" : undefined
       })
     : href;
 

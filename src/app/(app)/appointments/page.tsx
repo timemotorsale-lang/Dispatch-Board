@@ -46,10 +46,14 @@ export default async function AppointmentsPage({ searchParams }: AppointmentsPag
   const newAppointmentMode = focusParams?.action === "new";
   const boardMode = focusParams?.view === "board" || focusParams?.workspace === "board";
 
-  if (workspaceKey === "ADVISOR" && !managerContext && !newAppointmentMode && !boardMode && !focusParams?.section) {
+  if ((focusParams?.launch === "advisor" || (workspaceKey === "ADVISOR" && !managerContext)) && !newAppointmentMode && !boardMode && !focusParams?.section) {
     const query = new URLSearchParams();
     if (focusParams?.inbox) query.set("inbox", focusParams.inbox);
     if (focusParams?.queue) query.set("queue", focusParams.queue);
+    if (focusParams?.workspaceContext) query.set("workspaceContext", focusParams.workspaceContext);
+    if (focusParams?.managerMode) query.set("managerMode", focusParams.managerMode);
+    if (focusParams?.returnTo) query.set("returnTo", focusParams.returnTo);
+    if (focusParams?.launch) query.set("launch", focusParams.launch);
     redirect(`/vehicles/advisor${query.size ? `?${query.toString()}` : ""}`);
   }
   if (newAppointmentMode) {
