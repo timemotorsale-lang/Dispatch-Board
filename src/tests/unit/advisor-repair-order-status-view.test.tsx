@@ -126,6 +126,9 @@ describe("AdvisorRepairOrderStatusView", () => {
       customer: null,
       origin: "INVENTORY_RECON",
       inventoryUnit: {
+        acquisitionAppraisals: [{ estimatedReconCents: 300_000, estimatedRetailCents: 2_000_000 }],
+        acquisitionCase: { appraisalSnapshot: { estimatedReconCents: 300_000, expectedRetailCents: 2_000_000 }, recommendationSnapshot: {} },
+        costEntries: [{ amountCents: 90_000, category: "RECON", currency: "USD", recoveredAt: null, status: "POSTED" }],
         id: "inv_123",
         inventoryNumber: "INV-1001",
         lifecycleStage: "RECONDITIONING",
@@ -159,6 +162,42 @@ describe("AdvisorRepairOrderStatusView", () => {
     expect(html).toContain("Ownership protection");
     expect(html).toContain("View in Inventory");
     expect(html).toContain("Open Shop &amp; Recon");
+  });
+
+  it("shows recon budget discipline inside estimate review for inventory recon", () => {
+    const html = renderToStaticMarkup(<AdvisorRepairOrderStatusView initialTab="ESTIMATE" order={makeOrder({
+      customer: null,
+      origin: "INVENTORY_RECON",
+      inventoryUnit: {
+        acquisitionAppraisals: [{ estimatedReconCents: 300_000, estimatedRetailCents: 2_000_000 }],
+        acquisitionCase: { appraisalSnapshot: { estimatedReconCents: 300_000, expectedRetailCents: 2_000_000 }, recommendationSnapshot: {} },
+        costEntries: [{ amountCents: 90_000, category: "RECON", currency: "USD", recoveredAt: null, status: "POSTED" }],
+        id: "inv_123",
+        inventoryNumber: "INV-1001",
+        lifecycleStage: "RECONDITIONING",
+        operatingState: "ACTIVE",
+        targetAt: new Date("2026-07-22T18:00:00.000Z"),
+        nextAction: "Approve recon estimate.",
+        stateReason: null,
+        version: 4,
+        ownerUser: { id: "user_inventory", name: "Morgan Inventory" }
+      },
+      diagnosisVersions: [{
+        recommendation: "Replace front-end collision parts.",
+        technicianUser: { name: "Walter Mechanic" },
+        evidence: ["auction photo"],
+        cause: "Direct repair scope approved without troubleshooting diagnosis."
+      }],
+      estimateVersions: [{
+        totalCents: 125_000,
+        status: "PRESENTED",
+        authorizations: []
+      }]
+    } as unknown as Partial<Order>)} />);
+
+    expect(html).toContain("TAI recon budget guardrail");
+    expect(html).toContain("Spend room is available for the current recon plan.");
+    expect(html).toContain("direct body/collision path");
   });
 
   it("shows offsite vendor truth with its evidence-driven repair stage and history", () => {

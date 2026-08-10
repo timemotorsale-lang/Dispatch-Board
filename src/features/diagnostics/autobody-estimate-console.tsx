@@ -49,7 +49,7 @@ export function DiagnosticAutobodyEstimateConsole() {
         </section>
 
         <section className={styles.bodyEstimatePanel}>
-          <header><ClipboardList /><div><h2>Insurance-quality draft builder</h2><p>All lines are draft-only until estimator, manager, source, and insurer workflow gates pass.</p></div></header>
+          <header><ClipboardList /><div><h2>Body / collision estimate builder</h2><p>Use body labor guide minutes, vendor quote reality, TAI recon budget discipline, and supplement control before the work is released.</p></div></header>
           <div className={styles.bodyEstimateLines}>
             {estimateLines.map(([label, detail, state]) => (
               <article key={label}>
@@ -62,12 +62,12 @@ export function DiagnosticAutobodyEstimateConsole() {
         </section>
 
         <aside className={styles.bodyRail}>
-          <section><h2><Layers3 /> Productivity logic</h2><p>Panel grouping, blend overlap, teardown dependencies, parts delay, sublet, and supplement risk will feed controlled pilot metrics.</p></section>
-          <section><h2><Paintbrush /> Refinish logic</h2><p>Paint/material visibility, blend adjacency, masking, hazardous material, and booth capacity remain estimator-review items.</p></section>
-          <section><h2><Ruler /> Structural / ADAS gate</h2><p>Frame measurements, pre/post scans, calibration, and safety-critical conditions require explicit review before estimate movement.</p></section>
+          <section><h2><Layers3 /> Productivity logic</h2><p>Panel grouping, blend overlap, teardown dependencies, parts delay, vendor sublet, supplement risk, and cycle-time pressure should all shape the next action.</p></section>
+          <section><h2><Paintbrush /> Refinish logic</h2><p>Paint/material visibility, blend adjacency, masking, hazardous material, and booth capacity remain estimator-review items, but should stay simple enough for fast recon execution.</p></section>
+          <section><h2><Ruler /> Structural / ADAS gate</h2><p>Frame measurements, pre/post scans, calibration, and safety-critical conditions require explicit review before estimate movement, while pure bodywork can skip troubleshooting diagnosis.</p></section>
           <section className={styles.bodyWarning}><AlertTriangle /><span>Not an insurer submission tool yet. Not a final estimate. Not an authorization request.</span></section>
-          <Link href="/diagnostics/labor-guide"><Gauge /> Open Labor Guide</Link>
-          <Link href="/diagnostics"><Sparkles /> Back to Command Center</Link>
+          <Link href="/diagnostics/labor-guide"><Gauge /> Open Body Labor Guide</Link>
+          <Link href="/vehicles/shop-planning"><Sparkles /> Open Recon Estimate Planning</Link>
         </aside>
       </div>
     </section>

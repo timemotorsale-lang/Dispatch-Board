@@ -244,6 +244,19 @@ export function ReconRepairAdvisorPrototype({ model }: { model: Model }) {
         </section>
 
         <section>
+          <header><Gauge /><div><strong>Estimate & budget discipline</strong><span>TAI, body labor, approvals, and supplements should stay in one fast loop.</span></div></header>
+          <Link href="/vehicles/shop-planning">Open recon estimate planning <ArrowRight /></Link>
+          <Link href="/diagnostics/labor-guide">Use labor guide <ArrowRight /></Link>
+          <Link href="/approvals">Catch spend approvals <ArrowRight /></Link>
+        </section>
+
+        <section>
+          <header><Clock3 /><div><strong>Cycle time control</strong><span>Keep aging visible by stage, not just by total days in stock.</span></div></header>
+          <Link href="/vehicles/repair-workbench?tab=timeline">Open cycle time views <ArrowRight /></Link>
+          <Link href="/vehicles/repair-workbench?tab=communications">Review promise-risk updates <ArrowRight /></Link>
+        </section>
+
+        <section>
           <header><MapPin /><div><strong>Vehicle movement</strong><span>Keep location and handoff reality visible.</span></div></header>
           <Link href="/vehicles/repair-orders?intakeSource=INVENTORY_RECON">Start inventory recon RO <ArrowRight /></Link>
           <Link href="/vehicles/repair-workbench?tab=quality">Return / ready for QC <ArrowRight /></Link>
