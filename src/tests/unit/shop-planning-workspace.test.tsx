@@ -9,6 +9,7 @@ describe("Shop Planning diagnostic release workspace", () => {
       vehicle: { id: "vehicle-1", vehicleNumber: "VEH-1", vin: "VIN123", year: 2024, make: "Toyota", model: "RAV4" },
       customer: { displayName: "Leo James" }, inventoryUnit: null,
       serviceVisit: { arrivedAt: "2026-08-01T14:00:00.000Z", concernSummary: "Customer reports grinding from the front passenger brake." },
+      advisorUpdates: [],
       inspectionVersions: [], diagnosisVersions: [], estimateVersions: [], repairJobs: [], partDemands: [],
     };
     const markup = renderToStaticMarkup(<ShopPlanningWorkspace initial={{ repairOrders: [order], users: [{ id: "tech-1", name: "Walter Mechanic" }] }} returnTo="/vehicles/repair-workbench?repairOrderId=ro-1" />);
@@ -28,6 +29,7 @@ describe("Shop Planning diagnostic release workspace", () => {
       vehicle: { id: "vehicle-2", vehicleNumber: "VEH-2", vin: "VIN456", year: 2024, make: "Toyota", model: "RAV4" },
       customer: null, inventoryUnit: { acquisitionAppraisals: [{ estimatedReconCents: 325000, estimatedRetailCents: 2100000 }], acquisitionCase: { appraisalSnapshot: { estimatedReconCents: 325000, expectedRetailCents: 2100000 }, recommendationSnapshot: {} }, costEntries: [{ amountCents: 90000, category: "RECON", currency: "USD", recoveredAt: null, status: "POSTED" }], id: "inv-1", inventoryNumber: "333586", lifecycleStage: "RECONDITIONING", nextAction: "Approve recon scope.", operatingState: "ACTIVE", ownerUser: { id: "owner-1", name: "Morgan Inventory" }, stateReason: null, targetAt: "2026-08-03T14:00:00.000Z", version: 4 },
       serviceVisit: { arrivedAt: "2026-08-01T14:00:00.000Z", concernSummary: "Auction bodywork damage to bumper and fender." },
+      advisorUpdates: [],
       inspectionVersions: [], diagnosisVersions: [], estimateVersions: [], repairJobs: [], partDemands: [],
     };
     const markup = renderToStaticMarkup(<ShopPlanningWorkspace initial={{ repairOrders: [order], users: [{ id: "tech-1", name: "Walter Mechanic" }] }} returnTo="/vehicles/repair-workbench?repairOrderId=ro-2" />);
@@ -38,5 +40,29 @@ describe("Shop Planning diagnostic release workspace", () => {
     expect(markup).toContain("Record direct repair scope");
     expect(markup).toContain("TAI recon budget guardrail");
     expect(markup).toContain("Rapid recon estimate recipe");
+  });
+
+  it("shows when an approved line already has a repair job instead of encouraging a duplicate create", () => {
+    const order = {
+      id: "ro-3", repairOrderNumber: "RO-300", version: 7, stage: "READY_FOR_REPAIR", updatedAt: "2026-08-01T15:00:00.000Z",
+      vehicle: { id: "vehicle-3", vehicleNumber: "VEH-3", vin: "VIN789", year: 2018, make: "Honda", model: "CR-V" },
+      customer: null, inventoryUnit: null,
+      serviceVisit: { arrivedAt: "2026-08-01T14:00:00.000Z", concernSummary: "Visible bodywork damage already approved." },
+      advisorUpdates: [{ id: "update-1", version: 1, statusCode: "READY_FOR_QC", promiseAt: null, contactChannel: "INTERNAL", contactDirection: "INTERNAL", contactOutcome: "Repair complete and ready for QC", customerVisibleSummary: "Repair is complete and needs a final quality check before handoff.", internalNotes: "Next action: open QC workspace.", nextContactAt: null, occurredAt: "2026-08-01T15:30:00.000Z", authorUser: { name: "Alex Carter" } }],
+      inspectionVersions: [{ id: "insp-1", version: 1, summary: "done", completedAt: "2026-08-01T14:30:00.000Z" }],
+      diagnosisVersions: [{ id: "diag-1", version: 1, cause: "Direct repair scope approved without troubleshooting diagnosis.", proposedCorrection: "Repair body damage", uncertainty: "LOW", technicianUser: { name: "Walter Mechanic" } }],
+      estimateVersions: [{ id: "est-1", version: 1, status: "PRESENTED", totalCents: 125000, expiresAt: "2026-08-02T15:00:00.000Z", lineItems: [{ key: "LINE-1", type: "LABOR", description: "Body labor", quantity: 1, unitPriceCents: 125000, taxable: false, workTypeCode: "BODY", laborGuideMinutes: 120, plannedCorrection: "Body repair" }], authorizations: [{ id: "auth-1", disposition: "ACCEPTED", authorizedLineKeys: ["LINE-1"], authorizedAmountCents: 125000, decisionActorName: "Manager" }] }],
+      repairJobs: [{ id: "job-1", jobNumber: "J001", authorizedLineKey: "LINE-1", description: "Body labor", status: "READY_FOR_REPAIR", readinessReasonCodes: ["JOB_AUTHORIZATION_VALID", "JOB_PARTS_READY"], partDemands: [] }],
+      partDemands: [],
+    };
+    const markup = renderToStaticMarkup(<ShopPlanningWorkspace initial={{ repairOrders: [order], users: [{ id: "tech-1", name: "Walter Mechanic" }] }} returnTo="/vehicles/repair-workbench?repairOrderId=ro-3" />);
+    expect(markup).toContain("Repair job already created");
+    expect(markup).toContain("Repair jobs already created");
+    expect(markup).toContain("already carrying this approved work");
+    expect(markup).toContain("J001");
+    expect(markup).toContain("Live repair progress");
+    expect(markup).toContain("Recent repair updates");
+    expect(markup).toContain("Repair is ready for QC");
+    expect(markup).toContain("Open QC workspace");
   });
 });

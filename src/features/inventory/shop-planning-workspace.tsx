@@ -7,6 +7,7 @@ import { buildReconBudgetSummary, formatMoneyCents } from "@/lib/recon-budget";
 import styles from "./shop-planning-workspace.module.css";
 
 type Line = { key: string; type: "LABOR" | "PART" | "FEE"; description: string; quantity: number; unitPriceCents: number; taxable: boolean; workTypeCode: string; laborGuideMinutes: number; plannedCorrection: string };
+type AdvisorUpdate = { id: string; version: number; statusCode: string; promiseAt: string | null; contactChannel: string; contactDirection: string; contactOutcome: string; customerVisibleSummary: string; internalNotes: string | null; nextContactAt: string | null; occurredAt: string; authorUser: { name: string } };
 type Order = {
   id: string; repairOrderNumber: string; version: number; stage: string; updatedAt: string;
   vehicle: { id: string; vehicleNumber: string; vin: string | null; year: number | null; make: string | null; model: string | null };
@@ -26,10 +27,11 @@ type Order = {
     version: number;
   } | null;
   serviceVisit: { arrivedAt: string; concernSummary: string };
+  advisorUpdates: AdvisorUpdate[];
   inspectionVersions: Array<{ id: string; version: number; summary: string; completedAt: string }>;
   diagnosisVersions: Array<{ id: string; version: number; cause: string; proposedCorrection: string; uncertainty: string; technicianUser: { name: string } }>;
   estimateVersions: Array<{ id: string; version: number; status: string; totalCents: number; expiresAt: string; lineItems: Line[]; authorizations: Array<{ id: string; disposition: string; authorizedLineKeys: string[]; authorizedAmountCents: number; decisionActorName: string }> }>;
-  repairJobs: Array<{ id: string; jobNumber: string; description: string; status: string; readinessReasonCodes: string[]; partDemands: Array<{ part: { partNumber: string }; quantityRequired: number; quantityReserved: number }> }>;
+  repairJobs: Array<{ id: string; jobNumber: string; authorizedLineKey: string; description: string; status: string; readinessReasonCodes: string[]; partDemands: Array<{ part: { partNumber: string }; quantityRequired: number; quantityReserved: number }> }>;
   partDemands: Array<{ id: string; repairJobId: string | null; quantityRequired: number; quantityReserved: number; part: { partNumber: string; description: string } }>;
 };
 type Model = { repairOrders: Order[]; users: Array<{ id: string; name: string }> };
@@ -42,6 +44,15 @@ const vehicleLabel = (order: Order) => [order.vehicle.year, order.vehicle.make, 
 const directRepairPattern = /\b(body|bodywork|collision|bumper|fender|paint|mirror|dent|hail|panel|cosmetic)\b/i;
 const directRepairRecorded = (order?: Order) => Boolean(order?.diagnosisVersions[0]?.cause?.includes("Direct repair scope approved without troubleshooting diagnosis."));
 const defaultRepairPath = (order?: Order): RepairPath => directRepairRecorded(order) || directRepairPattern.test(order?.serviceVisit.concernSummary ?? "") ? "DIRECT_BODY" : "DIAGNOSTIC";
+const progressStatuses = [
+  { value: "REPAIR_IN_PROGRESS", label: "Repair in progress" },
+  { value: "WAITING_PARTS", label: "Waiting on parts" },
+  { value: "WAITING_VENDOR", label: "Waiting on vendor" },
+  { value: "READY_FOR_QC", label: "Ready for quality check" },
+  { value: "REPAIR_BLOCKED", label: "Blocked / needs decision" },
+  { value: "REPAIR_COMPLETE", label: "Repair work complete" },
+] as const;
+const qcReadyStatuses = new Set(["READY_FOR_QC", "REPAIR_COMPLETE"]);
 
 function activeStep(order?: Order) {
   if (!order || !order.inspectionVersions.length) return 0;
@@ -74,13 +85,23 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
   const [estimate, setEstimate] = useState({ lineKey: "LINE-1", lineType: "LABOR", description: "", quantity: 1, unitPriceCents: 0, taxable: false, workTypeCode: "GENERAL_REPAIR", laborGuideMinutes: 60, plannedCorrection: "", taxCents: 0, discountCents: 0, taxBoundary: "Taxes are calculated by the configured financial system boundary.", presentationChannel: "IN_PERSON", presentedAt: defaultTime ? local(defaultTime) : "", expiresAt: "" });
   const [authorization, setAuthorization] = useState({ estimateVersionId: "", disposition: "ACCEPTED", channel: "IN_PERSON", authorizedLineKeys: "", decisionActorType: "CUSTOMER", decisionActorName: "", decisionActorReference: "", decidedAt: defaultTime ? local(defaultTime) : "" });
   const [job, setJob] = useState({ authorizationId: "", authorizedLineKey: "", diagnosisVersionId: "", workTypeCode: "GENERAL_REPAIR", description: "", plannedCorrection: "", laborGuideMinutes: 60, requiredSkills: "", requiredCertifications: "", bayRequirements: "", toolRequirements: "", priority: "NORMAL", dependencyJobIds: "", partsRequired: false, partDemandIds: [] as string[] });
+  const [repairProgress, setRepairProgress] = useState({ statusCode: "REPAIR_IN_PROGRESS", contactOutcome: "Repair progress updated", customerVisibleSummary: "", internalNotes: "", nextContactAt: defaultTime ? local(defaultTime) : "", promiseAt: "", nextAction: "Continue repair and record the next progress update." });
+
   const selected = model.repairOrders.find((item) => item.id === selectedId) ?? model.repairOrders[0];
   const safeReturnTo = returnTo?.startsWith("/") && !returnTo.startsWith("//") ? returnTo : selected ? `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(selected.id)}` : "/vehicles/repair-workbench";
   const currentStep = activeStep(selected);
   const latestEstimate = selected?.estimateVersions[0];
   const latestDiagnosis = selected?.diagnosisVersions[0];
   const accepted = selected?.estimateVersions.flatMap((item) => item.authorizations.map((auth) => ({ ...auth, estimate: item }))).find((item) => ["ACCEPTED", "PARTIAL"].includes(item.disposition));
+  const existingAuthorizedLineKeys = new Set((selected?.repairJobs ?? []).map((item) => item.authorizedLineKey));
+  const creatableAuthorizedLineKeys = accepted?.authorizedLineKeys.filter((value) => !existingAuthorizedLineKeys.has(value)) ?? [];
+  const selectedAuthorizedLineKey = job.authorizedLineKey || creatableAuthorizedLineKeys[0] || accepted?.authorizedLineKeys[0] || "";
+  const existingJobForSelectedLine = selected?.repairJobs.find((item) => item.authorizedLineKey === selectedAuthorizedLineKey) ?? null;
   const directPath = repairPath === "DIRECT_BODY";
+  const recentRepairUpdates = (selected?.advisorUpdates ?? []).slice(0, 6);
+  const latestRepairUpdate = selected?.advisorUpdates?.[0] ?? null;
+  const qcReady = Boolean(latestRepairUpdate && qcReadyStatuses.has(latestRepairUpdate.statusCode));
+  const qcHref = selected ? `/vehicles/quality-control?repairOrderId=${encodeURIComponent(selected.id)}&returnLabel=${encodeURIComponent("Return to Repair Planning")}&returnTo=${encodeURIComponent(`/vehicles/shop-planning?repairOrderId=${selected.id}&returnTo=${encodeURIComponent(safeReturnTo)}`)}` : "/vehicles/quality-control";
   const reconBudget = selected?.inventoryUnit ? buildReconBudgetSummary({
     acquisitionAppraisals: selected.inventoryUnit.acquisitionAppraisals,
     acquisitionCase: selected.inventoryUnit.acquisitionCase,
@@ -89,10 +110,52 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
     vendorWorks: []
   }) : null;
 
-  async function request(url: string, init?: RequestInit) { const response = await fetch(url, init); const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.error ?? "Shop planning request failed."); return body; }
-  async function refresh() { const next = await request("/api/shop-planning") as Model; setModel(next); }
-  async function submit(action: string, value: Record<string, unknown>, reason: string) { if (!selected) return; setBusy(true); setNotice(""); try { await request(`/api/repair-orders/${selected.id}/planning`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, ...value, idempotencyKey: crypto.randomUUID(), reason }) }); setNotice(reason); await refresh(); } catch (error) { setNotice(error instanceof Error ? error.message : "Shop planning request failed."); } finally { setBusy(false); } }
-  function choose(id: string) { setSelectedId(id); const order = model.repairOrders.find((item) => item.id === id); if (order) { const time = local(order.updatedAt); setRepairPath(defaultRepairPath(order)); setDiagnosis((value) => ({ ...value, concern: order.serviceVisit.concernSummary, diagnosedAt: time })); setDirectScope((value) => ({ ...value, concern: order.serviceVisit.concernSummary, diagnosedAt: time })); setInspection((value) => ({ ...value, startedAt: local(order.serviceVisit.arrivedAt), completedAt: time })); setEstimate((value) => ({ ...value, presentedAt: time })); setAuthorization((value) => ({ ...value, decidedAt: time })); } }
+  async function request(url: string, init?: RequestInit) {
+    const response = await fetch(url, init);
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error ?? "Shop planning request failed.");
+    return body;
+  }
+
+  async function refresh() {
+    const next = await request("/api/shop-planning") as Model;
+    setModel(next);
+  }
+
+  async function submit(action: string, value: Record<string, unknown>, reason: string) {
+    if (!selected) return;
+    setBusy(true);
+    setNotice("");
+    try {
+      const result = await request(`/api/repair-orders/${selected.id}/planning`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action, ...value, idempotencyKey: crypto.randomUUID(), reason })
+      }) as { result?: { message?: string } };
+      setNotice(result?.result?.message ?? reason);
+      await refresh();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Shop planning request failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function choose(id: string) {
+    setSelectedId(id);
+    const order = model.repairOrders.find((item) => item.id === id);
+    if (order) {
+      const time = local(order.updatedAt);
+      setRepairPath(defaultRepairPath(order));
+      setDiagnosis((value) => ({ ...value, concern: order.serviceVisit.concernSummary, diagnosedAt: time }));
+      setDirectScope((value) => ({ ...value, concern: order.serviceVisit.concernSummary, diagnosedAt: time }));
+      setInspection((value) => ({ ...value, startedAt: local(order.serviceVisit.arrivedAt), completedAt: time }));
+      setEstimate((value) => ({ ...value, presentedAt: time }));
+      setAuthorization((value) => ({ ...value, decidedAt: time }));
+      setJob((value) => ({ ...value, authorizationId: "", authorizedLineKey: "", partDemandIds: [] }));
+      setRepairProgress((value) => ({ ...value, customerVisibleSummary: "", internalNotes: "", nextContactAt: time, promiseAt: order.inventoryUnit?.targetAt ? local(order.inventoryUnit.targetAt) : "", nextAction: order.inventoryUnit?.nextAction ?? "Continue repair and record the next progress update." }));
+    }
+  }
 
   return <section className={styles.workspace}>
     <header className={styles.hero}>
@@ -106,7 +169,7 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
       <div className={styles.truthBar}><span><BadgeCheck /><b>Authoritative repair plan</b></span><span><LockKeyhole />Immutable evidence versions</span><span>Exact-version customer authorization required</span><span>Repair work remains blocked until readiness passes.</span></div>
     </header>
 
-    {notice ? <div aria-live="polite" className={`${styles.notice} ${/required|cannot|invalid|not enabled/i.test(notice) ? styles.danger : styles.success}`}><p>{notice}</p></div> : null}
+    {notice ? <div aria-live="polite" className={`${styles.notice} ${/required|cannot|invalid|not enabled|already exists/i.test(notice) ? styles.danger : styles.success}`}><p>{notice}</p></div> : null}
 
     <section className={styles.orderBar}>
       <label><span>Active repair order</span><select value={selected?.id ?? ""} onChange={(event) => choose(event.target.value)}>{model.repairOrders.map((order) => <option key={order.id} value={order.id}>{order.repairOrderNumber} · {order.vehicle.vehicleNumber} · {format(order.stage)}</option>)}</select></label>
@@ -160,16 +223,103 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
             </form>
           </WorkflowStep>
 
-          <WorkflowStep complete={selected.repairJobs.length > 0} icon={<Wrench />} number={5} open={currentStep === 4} subtitle="Promote only authorized work into a job with explicit skill, bay, tool, dependency, and parts readiness." title="Readiness-gated repair job">
-            <form onSubmit={(event: FormEvent) => { event.preventDefault(); void submit("CREATE_JOB", { ...job, authorizationId: job.authorizationId || accepted?.id, authorizedLineKey: job.authorizedLineKey || accepted?.authorizedLineKeys[0], diagnosisVersionId: job.diagnosisVersionId || latestDiagnosis?.id, requiredSkills: job.requiredSkills.split(",").map((value) => value.trim()).filter(Boolean), requiredCertifications: job.requiredCertifications.split(",").map((value) => value.trim()).filter(Boolean), bayRequirements: job.bayRequirements.split(",").map((value) => value.trim()).filter(Boolean), toolRequirements: job.toolRequirements.split(",").map((value) => value.trim()).filter(Boolean), dependencyJobIds: job.dependencyJobIds.split(",").map((value) => value.trim()).filter(Boolean) }, "Create an authorized, readiness-gated repair job."); }}>
-              <FormGrid><Field label="Authorization"><select value={job.authorizationId || accepted?.id || ""} onChange={(event) => setJob((value) => ({ ...value, authorizationId: event.target.value }))}>{selected.estimateVersions.flatMap((item) => item.authorizations).filter((item) => ["ACCEPTED", "PARTIAL"].includes(item.disposition)).map((item) => <option key={item.id} value={item.id}>{item.decisionActorName} · {item.disposition}</option>)}</select></Field><Field label="Authorized line"><select value={job.authorizedLineKey || accepted?.authorizedLineKeys[0] || ""} onChange={(event) => setJob((value) => ({ ...value, authorizedLineKey: event.target.value }))}>{accepted?.authorizedLineKeys.map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Description"><input value={job.description} onChange={(event) => setJob((value) => ({ ...value, description: event.target.value }))} /></Field><Field label="Planned correction"><input value={job.plannedCorrection} onChange={(event) => setJob((value) => ({ ...value, plannedCorrection: event.target.value }))} /></Field><Field label="Required skills"><input placeholder="Comma separated" value={job.requiredSkills} onChange={(event) => setJob((value) => ({ ...value, requiredSkills: event.target.value }))} /></Field><Field label="Certifications"><input value={job.requiredCertifications} onChange={(event) => setJob((value) => ({ ...value, requiredCertifications: event.target.value }))} /></Field><Field label="Bay requirements"><input value={job.bayRequirements} onChange={(event) => setJob((value) => ({ ...value, bayRequirements: event.target.value }))} /></Field><Field label="Tool requirements"><input value={job.toolRequirements} onChange={(event) => setJob((value) => ({ ...value, toolRequirements: event.target.value }))} /></Field><label className={styles.check}><input checked={job.partsRequired} type="checkbox" onChange={(event) => setJob((value) => ({ ...value, partsRequired: event.target.checked }))} />Parts required</label>{job.partsRequired ? <fieldset className={styles.parts}><legend>Promote existing part demand</legend>{selected.partDemands.filter((item) => !item.repairJobId).map((item) => <label key={item.id}><input checked={job.partDemandIds.includes(item.id)} type="checkbox" onChange={(event) => setJob((value) => ({ ...value, partDemandIds: event.target.checked ? [...value.partDemandIds, item.id] : value.partDemandIds.filter((id) => id !== item.id) }))} />{item.part.partNumber} · {item.quantityReserved}/{item.quantityRequired} reserved</label>)}</fieldset> : null}</FormGrid>
-              <Submit busy={busy}>Create authorized repair job</Submit>
-            </form>
+          <WorkflowStep complete={selected.repairJobs.length > 0} icon={<Wrench />} number={5} open={currentStep === 4} subtitle="Simple instructions for moving approved work forward." title="Repair release">
+            {existingJobForSelectedLine || (accepted && !creatableAuthorizedLineKeys.length) ? (
+              <section className={styles.simpleCard}>
+                <span className={styles.simpleEyebrow}>Repair job already created</span>
+                <h3>{existingJobForSelectedLine?.jobNumber ?? selected.repairJobs[0]?.jobNumber} is already carrying this approved work</h3>
+                <p>You do not need to fill out another form here. This repair job already exists, so the right move is to continue the work from its current status.</p>
+                <dl className={styles.simpleFacts}>
+                  <div><dt>Approved work</dt><dd>{existingJobForSelectedLine?.description ?? selected.repairJobs[0]?.description ?? "Approved repair work"}</dd></div>
+                  <div><dt>Current status</dt><dd>{format(existingJobForSelectedLine?.status ?? selected.repairJobs[0]?.status ?? "READY_FOR_REPAIR")}</dd></div>
+                  <div><dt>What it needs now</dt><dd>{(existingJobForSelectedLine?.status ?? selected.repairJobs[0]?.status) === "WAITING_PARTS" ? "Update parts and receiving so repair can continue." : "Continue repair readiness, dispatch, or live repair work."}</dd></div>
+                </dl>
+                <div className={styles.simpleInstructions}>
+                  <strong>Next step</strong>
+                  <p>{(existingJobForSelectedLine?.status ?? selected.repairJobs[0]?.status) === "WAITING_PARTS" ? "Open Parts & readiness, confirm what is missing, and update the parts progress for this job." : "Return to the workbench and keep the repair moving forward from the current repair stage."}</p>
+                </div>
+                <div className={styles.simpleActions}>
+                  <Link href="/vehicles/service-close-parts">Open Parts &amp; readiness</Link>
+                  <Link href={safeReturnTo}>Return to workbench</Link>
+                  <Link className={styles.primaryAction} href={`/vehicles/360/${encodeURIComponent(selected.vehicle.id)}`}>Open Vehicle 360</Link>
+                </div>
+              </section>
+            ) : (
+              <>
+                <div className={styles.simpleCard}>
+                  <span className={styles.simpleEyebrow}>Simple repair release</span>
+                  <h3>Create one repair job from the approved work</h3>
+                  <p>Use the approved line below, give it a short plain-language description, and mark whether parts are needed. Everything else can stay simple.</p>
+                </div>
+                <form onSubmit={(event: FormEvent) => { event.preventDefault(); void submit("CREATE_JOB", { ...job, authorizationId: job.authorizationId || accepted?.id, authorizedLineKey: selectedAuthorizedLineKey, diagnosisVersionId: job.diagnosisVersionId || latestDiagnosis?.id, requiredSkills: job.requiredSkills.split(",").map((value) => value.trim()).filter(Boolean), requiredCertifications: job.requiredCertifications.split(",").map((value) => value.trim()).filter(Boolean), bayRequirements: job.bayRequirements.split(",").map((value) => value.trim()).filter(Boolean), toolRequirements: job.toolRequirements.split(",").map((value) => value.trim()).filter(Boolean), dependencyJobIds: job.dependencyJobIds.split(",").map((value) => value.trim()).filter(Boolean) }, "Create an authorized, readiness-gated repair job."); }}>
+                  <FormGrid>
+                    <Field label="Approved decision"><select value={job.authorizationId || accepted?.id || ""} onChange={(event) => setJob((value) => ({ ...value, authorizationId: event.target.value }))}>{selected.estimateVersions.flatMap((item) => item.authorizations).filter((item) => ["ACCEPTED", "PARTIAL"].includes(item.disposition)).map((item) => <option key={item.id} value={item.id}>{money(item.authorizedAmountCents)} · {item.disposition}</option>)}</select></Field>
+                    <Field label="Approved work line"><select value={selectedAuthorizedLineKey} onChange={(event) => setJob((value) => ({ ...value, authorizedLineKey: event.target.value }))}>{accepted?.authorizedLineKeys.map((value) => <option key={value} value={value}>{existingAuthorizedLineKeys.has(value) ? `${value} · already created` : value}</option>)}</select></Field>
+                    <Field label="Job description"><input placeholder="Example: bodywork repair" value={job.description} onChange={(event) => setJob((value) => ({ ...value, description: event.target.value }))} /></Field>
+                    <Field label="What should be done"><input placeholder="Example: replace bumper and prep for paint" value={job.plannedCorrection} onChange={(event) => setJob((value) => ({ ...value, plannedCorrection: event.target.value }))} /></Field>
+                    <label className={styles.check}><input checked={job.partsRequired} type="checkbox" onChange={(event) => setJob((value) => ({ ...value, partsRequired: event.target.checked }))} />This job needs parts before repair can continue</label>
+                    {job.partsRequired ? <fieldset className={styles.parts}><legend>Select part records only if they already exist</legend>{selected.partDemands.filter((item) => !item.repairJobId).map((item) => <label key={item.id}><input checked={job.partDemandIds.includes(item.id)} type="checkbox" onChange={(event) => setJob((value) => ({ ...value, partDemandIds: event.target.checked ? [...value.partDemandIds, item.id] : value.partDemandIds.filter((id) => id !== item.id) }))} />{item.part.partNumber} · {item.quantityReserved}/{item.quantityRequired} reserved</label>)}</fieldset> : null}
+                  </FormGrid>
+                  <Submit busy={busy}>Create repair job</Submit>
+                </form>
+              </>
+            )}
           </WorkflowStep>
+
+          <section className={styles.progressWorkspace} id="repair-progress">
+            <header>
+              <div>
+                <span>Live repair progress</span>
+                <h2>Give staff one simple place to update the work</h2>
+                <p>Record what changed, what is next, and when we should follow up. This writes to the real repair-order timeline.</p>
+              </div>
+              <b>{recentRepairUpdates.length} update{recentRepairUpdates.length === 1 ? "" : "s"}</b>
+            </header>
+            {qcReady ? <div className={styles.qcReadyBanner}>
+              <div>
+                <strong>Repair is ready for QC</strong>
+                <p>The next guided step is quality control before final handoff. Open the QC workspace to complete the check and release decision.</p>
+              </div>
+              <Link className={styles.qcReadyAction} href={qcHref}>Open QC workspace</Link>
+            </div> : null}
+            <form onSubmit={(event: FormEvent) => { event.preventDefault(); void submit("RECORD_REPAIR_PROGRESS", { contactChannel: "INTERNAL", contactDirection: "INTERNAL", contactOutcome: repairProgress.contactOutcome, customerVisibleSummary: repairProgress.customerVisibleSummary, exceptionCodes: ["REPAIR_BLOCKED", "WAITING_PARTS", "WAITING_VENDOR"].includes(repairProgress.statusCode) ? [repairProgress.statusCode] : [], internalNotes: [repairProgress.internalNotes.trim(), `Next action: ${repairProgress.nextAction}`].filter(Boolean).join("\n"), nextContactAt: repairProgress.nextContactAt ? new Date(repairProgress.nextContactAt).toISOString() : null, occurredAt: new Date().toISOString(), promiseAt: repairProgress.promiseAt ? new Date(repairProgress.promiseAt).toISOString() : null, reason: "Record live repair progress from the repair planning workspace.", statusCode: repairProgress.statusCode }, "Repair progress update recorded."); }}>
+              <div className={styles.progressGrid}>
+                <label><span>Live status</span><select value={repairProgress.statusCode} onChange={(event) => setRepairProgress((value) => ({ ...value, statusCode: event.target.value }))}>{progressStatuses.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select></label>
+                <label><span>Short update title</span><input value={repairProgress.contactOutcome} onChange={(event) => setRepairProgress((value) => ({ ...value, contactOutcome: event.target.value }))} /></label>
+                <label><span>Next follow-up</span><input type="datetime-local" value={repairProgress.nextContactAt} onChange={(event) => setRepairProgress((value) => ({ ...value, nextContactAt: event.target.value }))} /></label>
+                <label><span>Promise / target</span><input type="datetime-local" value={repairProgress.promiseAt} onChange={(event) => setRepairProgress((value) => ({ ...value, promiseAt: event.target.value }))} /></label>
+                <label className={styles.wideField}><span>What happened</span><textarea placeholder="Example: Body tech completed teardown. Waiting on reinforcement bar, radiator, condenser, and coolant before reassembly can continue." value={repairProgress.customerVisibleSummary} onChange={(event) => setRepairProgress((value) => ({ ...value, customerVisibleSummary: event.target.value }))} /></label>
+                <label className={styles.wideField}><span>Next step</span><input placeholder="Example: Order missing parts and follow up with vendor tomorrow morning." value={repairProgress.nextAction} onChange={(event) => setRepairProgress((value) => ({ ...value, nextAction: event.target.value }))} /></label>
+                <label className={styles.wideField}><span>Private staff notes</span><textarea placeholder="Internal repair detail, handoff note, or blocker context." value={repairProgress.internalNotes} onChange={(event) => setRepairProgress((value) => ({ ...value, internalNotes: event.target.value }))} /></label>
+              </div>
+              <div className={styles.progressActions}>
+                <small>Simple rule: say what changed, what is blocking it, and what should happen next.</small>
+                <div className={styles.progressPrimaryActions}>
+                  {qcReady || qcReadyStatuses.has(repairProgress.statusCode) ? <Link className={styles.secondaryAction} href={qcHref}>Go to QC</Link> : null}
+                  <button disabled={busy} type="submit">{busy ? "Saving progress..." : "Save repair progress update"}</button>
+                </div>
+              </div>
+            </form>
+            <div className={styles.progressHistory}>
+              <strong>Recent repair updates</strong>
+              {recentRepairUpdates.length ? recentRepairUpdates.map((update) => <article key={update.id}>
+                <div>
+                  <span>{format(update.statusCode)}</span>
+                  <h3>{update.contactOutcome}</h3>
+                  <p>{update.customerVisibleSummary}</p>
+                  {update.internalNotes ? <small>{update.internalNotes}</small> : null}
+                </div>
+                <aside>
+                  <b>{update.authorUser.name}</b>
+                  <time>{new Date(update.occurredAt).toLocaleString()}</time>
+                </aside>
+              </article>) : <p>No repair progress has been recorded yet.</p>}
+            </div>
+          </section>
         </main>
 
         <aside className={styles.rail}>
-          <section><span>Release readiness</span><h2>{currentStep === 0 ? "Inspection evidence required" : currentStep === 1 ? directPath ? "Ready for direct repair scope" : "Ready for diagnosis" : currentStep === 2 ? directRepairRecorded(selected) ? "Direct repair scope established" : "Diagnosis established" : currentStep === 3 ? "Estimate awaiting decision" : "Authorized work ready"}</h2><div className={styles.progress}><i style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }} /></div><small>Stage {currentStep + 1} of {steps.length}</small></section>
+          <section><span>Release readiness</span><h2>{currentStep === 0 ? "Inspection evidence required" : currentStep === 1 ? directPath ? "Ready for direct repair scope" : "Ready for diagnosis" : currentStep === 2 ? directRepairRecorded(selected) ? "Direct repair scope established" : "Diagnosis established" : currentStep === 3 ? "Estimate awaiting decision" : selected.repairJobs.length ? "Repair jobs already created" : "Authorized work ready"}</h2><div className={styles.progress}><i style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }} /></div><small>Stage {currentStep + 1} of {steps.length}</small></section>
           <section><span>Evidence ledger</span><dl><div><dt>Inspection versions</dt><dd>{selected.inspectionVersions.length}</dd></div><div><dt>Diagnosis versions</dt><dd>{selected.diagnosisVersions.length}</dd></div><div><dt>Estimate versions</dt><dd>{selected.estimateVersions.length}</dd></div><div><dt>Repair jobs</dt><dd>{selected.repairJobs.length}</dd></div></dl></section>
           <section><span>Safety controls</span><ul><li><LockKeyhole />No estimate overwrites a prior version</li><li><ShieldCheck />Authorization is tied to exact line keys</li><li><PackageCheck />Parts readiness follows the repair job</li><li><ClipboardCheck />Repair cannot start from intake alone</li></ul></section>
           {selected.repairJobs.length ? <section><span>Job readiness</span>{selected.repairJobs.map((item) => <article key={item.id}><strong>{item.jobNumber} · {format(item.status)}</strong><p>{item.description}</p><small>{item.readinessReasonCodes.length ? item.readinessReasonCodes.map(format).join(" · ") : "No blocking reason codes"}</small></article>)}</section> : null}

@@ -281,6 +281,127 @@ function nextStepPlan(input: {
   ] as const;
 }
 
+type WorkspaceTransitionTab = {
+  detail: string;
+  href: string;
+  recommended?: boolean;
+  title: string;
+};
+
+function contextualWorkspaceTabs(input: {
+  activeVendorWork: ReturnType<typeof activeVendorWorkFor>;
+  authorization: { disposition: string; id: string } | null;
+  diagnosis: RepairOrderWorkbenchOrder["diagnosisVersions"][number] | null;
+  directBodyPath: boolean;
+  hasRepairJobs: boolean;
+  orderId: string;
+  orderStage: string;
+  partsWorkspaceHref: string;
+  planningHref: string;
+}) {
+  const qcHref = `/vehicles/quality-control?repairOrderId=${encodeURIComponent(input.orderId)}&returnLabel=${encodeURIComponent("Return to Repair Workbench")}&returnTo=${encodeURIComponent(`/vehicles/repair-workbench?repairOrderId=${input.orderId}`)}`;
+  const completionHref = `${input.planningHref}#repair-progress`;
+  const repairTabs: WorkspaceTransitionTab[] = [
+    {
+      detail: "Manage the repair path, assignment, and readiness from the governed planning workspace.",
+      href: input.planningHref,
+      title: "Repair",
+    },
+    {
+      detail: "Record what changed, what is next, and mark the work ready for quality control.",
+      href: completionHref,
+      recommended: true,
+      title: "Completion",
+    },
+    {
+      detail: "When repair is complete, move straight into independent QC and release review.",
+      href: qcHref,
+      title: "Quality control",
+    },
+  ];
+
+  if (input.activeVendorWork?.status === "WAITING_PARTS") {
+    return [
+      {
+        detail: "Approve, receive, and deliver the requested parts so the outside vendor can resume work.",
+        href: input.partsWorkspaceHref,
+        recommended: true,
+        title: "Parts & delivery",
+      },
+      repairTabs[1],
+      repairTabs[2],
+    ] satisfies WorkspaceTransitionTab[];
+  }
+
+  if (input.activeVendorWork) {
+    return [
+      {
+        detail: "Keep the vendor progress, ETA, estimate, and approval record current for this repair order.",
+        href: completionHref,
+        recommended: true,
+        title: "Vendor / repair updates",
+      },
+      repairTabs[1],
+      repairTabs[2],
+    ] satisfies WorkspaceTransitionTab[];
+  }
+
+  if (["QUALITY_CONTROL", "QUALITY_CHECK"].includes(input.orderStage)) {
+    return [
+      {
+        detail: "Review the last repair update and anything that could still block quality release.",
+        href: completionHref,
+        title: "Completion",
+      },
+      {
+        detail: "Inspect, road test if needed, and decide whether the vehicle can move to handoff.",
+        href: qcHref,
+        recommended: true,
+        title: "Quality control",
+      },
+    ] satisfies WorkspaceTransitionTab[];
+  }
+
+  if (input.orderStage === "HANDOFF") {
+    return [
+      {
+        detail: "Review the final repair and QC trace before turning the vehicle over to the next owner.",
+        href: completionHref,
+        title: "Completion",
+      },
+      {
+        detail: "Re-open QC only if a release blocker or rework question appears.",
+        href: qcHref,
+        title: "Quality control",
+      },
+    ] satisfies WorkspaceTransitionTab[];
+  }
+
+  if (input.hasRepairJobs || input.orderStage === "REPAIR" || input.authorization) return repairTabs;
+
+  if (input.diagnosis || input.directBodyPath) {
+    return [
+      {
+        detail: "Move the recorded evidence into estimate, approval, and repair release.",
+        href: input.planningHref,
+        recommended: true,
+        title: "Repair planning",
+      },
+      repairTabs[1],
+      repairTabs[2],
+    ] satisfies WorkspaceTransitionTab[];
+  }
+
+  return [
+    {
+      detail: "Start from the guided repair planning path so the record can move cleanly into estimate and approval.",
+      href: input.planningHref,
+      recommended: true,
+      title: "Repair planning",
+    },
+  ] satisfies WorkspaceTransitionTab[];
+}
+
 const inventorySafeNextAction = (nextAction: string | null | undefined, inventoryRecon: boolean) => {
   if (!nextAction) return inventoryRecon ? "Continue governed recon flow" : "Continue governed repair flow";
   if (!inventoryRecon) return nextAction;
@@ -366,12 +487,16 @@ export function RepairOrderEnterpriseWorkbench({
     ? activeVendorWork?.nextAction || activeVendorWork?.lastUpdateSummary || "Vendor is waiting on parts from the dealership before repair can continue."
     : activeVendorWork
       ? activeVendorWork.nextAction || activeVendorWork.lastUpdateSummary || "Record the latest outside-vendor progress and expected return."
+      : order.repairJobs.length > 0
+        ? nextSteps[0]?.detail || inventorySafeNextAction(order.nextAction, isInventoryRecon)
       : inventorySafeNextAction(order.nextAction, isInventoryRecon);
   const primaryActionHref = vendorWaitingParts ? partsWorkspaceHref : planningHref;
   const primaryActionLabel = vendorWaitingParts
     ? "Update parts and delivery"
     : activeVendorWork
       ? "Record vendor update"
+      : order.repairJobs.length > 0
+        ? "Manage repair readiness"
       : diagnosis
         ? "Open Estimate Planning"
         : directBodyPath
@@ -381,6 +506,8 @@ export function RepairOrderEnterpriseWorkbench({
     ? "Receive the requested parts, approve any draft purchase order, and record delivery to the outside vendor so repair can continue."
     : activeVendorWork
       ? activeVendorWork.nextAction
+      : order.repairJobs.length > 0
+        ? nextSteps[0]?.detail || "Continue the approved repair path and keep readiness, parts, and dispatch current."
       : diagnosis
         ? "Use the recorded evidence to prepare the repair scope and estimate."
         : directBodyPath
@@ -446,6 +573,17 @@ export function RepairOrderEnterpriseWorkbench({
   const referenceFooter = hasOffsiteVendorWithoutDiagnosis
     ? "This reference keeps the offsite vendor story accurate. It does not require an in-shop diagnosis while the vehicle remains with the vendor."
     : "This plan identifies what to verify. It does not assume the cause or authorize repair work.";
+  const workspaceTabs = contextualWorkspaceTabs({
+    activeVendorWork,
+    authorization,
+    diagnosis,
+    directBodyPath,
+    hasRepairJobs: order.repairJobs.length > 0,
+    orderId: order.id,
+    orderStage: order.stage,
+    partsWorkspaceHref,
+    planningHref,
+  });
 
   async function approveRelatedPurchaseOrder(purchaseOrder: RelatedPurchaseOrder) {
     setBusy(true);
@@ -668,6 +806,21 @@ export function RepairOrderEnterpriseWorkbench({
         <main className="rowb-main">
           <nav className="rowb-tabs"><a className="active" href="#concerns">Concerns</a><a href="#inspection">Inspection</a><a href="#diagnosis">Diagnosis</a><a href="#estimate">Estimate</a><a href="#jobs">Jobs</a><a href="#quality">QC</a><a href="#timeline">Timeline</a></nav>
           <div className="rowb-actions"><span>{activeVendorWork ? `Offsite · ${format(activeVendorWork.status)}` : order.operatingState === "ACTIVE" ? "Active work order" : format(order.operatingState)}</span><Link href={primaryActionHref}>{vendorWaitingParts ? "Open Parts Control" : "Review Plan"}</Link><Link className="primary" href={primaryActionHref}>{primaryActionLabel} <ChevronRight /></Link></div>
+          <section className="rowb-transition-strip" aria-label="Contextual next-step workspaces">
+            <header>
+              <strong>Next step workspaces</strong>
+              <span>Use these when the current card cannot move the work to the next stage on its own.</span>
+            </header>
+            <div className="rowb-transition-grid">
+              {workspaceTabs.map((tab) => (
+                <Link className={tab.recommended ? "recommended" : undefined} href={tab.href} key={`${tab.title}-${tab.href}`}>
+                  <small>{tab.recommended ? "Recommended next" : "Available next"}</small>
+                  <strong>{tab.title}</strong>
+                  <span>{tab.detail}</span>
+                </Link>
+              ))}
+            </div>
+          </section>
           <section className={`rowb-concern ${safetyReview ? "safety" : ""}`} id="concerns"><header><b>1</b><div><small>{concernLabel} · source evidence from intake</small><h2>{concernSummary}</h2></div>{safetyReview ? <em><ShieldAlert />Safety review</em> : <em>Standard triage</em>}</header>
             <div className="rowb-plan" id={hasOffsiteVendorWithoutDiagnosis ? "vendor-dispatch" : undefined}><header><div><h3>{referencePanelTitle}</h3><span>{referencePanelSubtitle}</span></div><b>{referencePanelBadge}</b></header>
               <div className="rowb-plan-head"><span>Step</span><span>Objective</span><span>Owner</span><span>Evidence required</span><span>Status</span></div>

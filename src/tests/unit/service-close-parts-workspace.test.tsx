@@ -17,6 +17,12 @@ const initial = {
     closedAt: null,
     customer: null,
     id: "ro-1",
+    inventoryUnit: {
+      acquisitionAppraisals: [{ estimatedReconCents: 179002, estimatedRetailCents: 1995840 }],
+      acquisitionCase: { appraisalSnapshot: { estimatedReconCents: 179002, expectedRetailCents: 1995840 } },
+      id: "inv-1",
+      inventoryNumber: "098317",
+    },
     invoicePackages: [],
     locationId: "loc-1",
     repairOrderNumber: "RO-DB21B235",
@@ -51,5 +57,25 @@ describe("ServiceClosePartsWorkspace", () => {
     expect(html).toContain("Returns");
     expect(html).toContain("Approve");
     expect(html).not.toContain("Request approval");
+  });
+
+  it("shows a manager budget-exception path when committed spend is over the recon ceiling", () => {
+    const html = renderToStaticMarkup(<ServiceClosePartsWorkspace initial={{
+      ...initial,
+      purchaseOrders: [{
+        id: "po-1",
+        locationId: "loc-1",
+        orderedTotalCents: 181700,
+        purchaseOrderNumber: "PO-2001",
+        status: "APPROVED",
+        vendorId: "vendor-1",
+        vendor: { name: "Northside Garage" }
+      }],
+    }} initialRepairOrderId="ro-1" />);
+
+    expect(html).toContain("Manager approval required");
+    expect(html).toContain("Approve and raise budget");
+    expect(html).toContain("Increase by");
+    expect(html).toContain("Reason");
   });
 });

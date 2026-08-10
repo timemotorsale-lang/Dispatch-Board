@@ -6,3 +6,49 @@
 @media(max-width:850px){.workspace{padding:13px 11px}.orderBar{grid-template-columns:auto 1fr}.orderBar>label,.orderBar dl{grid-column:1/-1}.mission{grid-template-columns:auto 1fr}.mission aside{grid-column:1/-1;justify-items:start}.rail{grid-template-columns:1fr}.rail>section:last-child{grid-column:auto}.formGrid{grid-template-columns:1fr}.formGrid .wide{grid-column:auto}.submit{display:grid}.stepRail{grid-template-columns:repeat(5,135px)}}
 @media(max-width:520px){.heroActions{display:grid}.heroActions a{justify-content:center;white-space:normal}.orderBar{grid-template-columns:1fr}.orderBar dl{grid-template-columns:1fr}.orderBar dl div{border-top:1px solid #e4eaf1;border-left:0;padding:8px 0}.step>summary{grid-template-columns:auto 1fr auto}.step>summary>b{display:none}.step>summary>svg{grid-column:3}.submit button{min-height:44px}}
 :global(html[data-app-theme="dark"]) .workspace{--ink:#edf4ff;--muted:#9baabd;--line:#293b52}:global(html[data-app-theme="dark"]) .hero,:global(html[data-app-theme="dark"]) .orderBar,:global(html[data-app-theme="dark"]) .stepRail,:global(html[data-app-theme="dark"]) .step,:global(html[data-app-theme="dark"]) .rail>section,:global(html[data-app-theme="dark"]) .empty{border-color:#293b52;background:#101f31}:global(html[data-app-theme="dark"]) .truthBar,:global(html[data-app-theme="dark"]) .formGrid input,:global(html[data-app-theme="dark"]) .formGrid select,:global(html[data-app-theme="dark"]) .formGrid textarea,:global(html[data-app-theme="dark"]) .orderBar select{border-color:#344a64;color:#edf4ff;background:#14253a}
+
+.simpleCard{display:grid;gap:10px;margin-bottom:12px;border:1px solid #d9e3ef;border-radius:10px;padding:14px;background:linear-gradient(180deg,#fff,#f8fbff)}
+.simpleEyebrow{color:#315eb5;font-size:.55rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+.simpleCard h3{margin:0;font-size:.92rem}
+.simpleCard p{margin:0;color:#5c6f86;font-size:.67rem;line-height:1.5}
+.simpleFacts{display:grid;gap:8px;margin:0}
+.simpleFacts div{display:grid;gap:3px;border:1px solid #e0e7f0;border-radius:8px;padding:10px;background:#fff}
+.simpleFacts dt{color:#66798f;font-size:.55rem;font-weight:800;text-transform:uppercase}
+.simpleFacts dd{margin:0;color:#20344f;font-size:.67rem;font-weight:700;line-height:1.45}
+.simpleInstructions{display:grid;gap:4px;border-left:4px solid #315ed0;padding-left:10px}
+.simpleInstructions strong{color:#234fae;font-size:.58rem;text-transform:uppercase}
+.simpleActions{display:flex;flex-wrap:wrap;gap:8px}
+.simpleActions a{display:inline-flex;align-items:center;justify-content:center;min-height:36px;border:1px solid #c7d3e1;border-radius:8px;padding:0 12px;color:#29415f;background:#fff;font-size:.64rem;font-weight:850}
+.simpleActions .primaryAction{border-color:var(--blue);color:#fff;background:var(--blue)}
+.progressWorkspace{display:grid;gap:12px;border:1px solid var(--line);border-radius:11px;padding:15px;background:#fff;box-shadow:0 3px 12px rgba(20,40,70,.04)}
+.progressWorkspace header{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.progressWorkspace header span{color:#4966b1;font-size:.55rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+.progressWorkspace header h2{margin:4px 0;font-size:.9rem}
+.progressWorkspace header p{margin:0;color:#65778d;font-size:.66rem;line-height:1.5}
+.progressWorkspace header b{border-radius:999px;padding:6px 9px;color:#4966b1;background:#eef3ff;font-size:.58rem}
+.progressGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.progressGrid label{display:grid;gap:4px;color:#566980;font-size:.58rem;font-weight:800}
+.progressGrid input,.progressGrid select,.progressGrid textarea{width:100%;min-height:36px;border:1px solid #c7d3e1;border-radius:6px;padding:7px 8px;color:#1f334f;background:#fff;font:inherit}
+.progressGrid textarea{min-height:74px;resize:vertical}
+.wideField{grid-column:1/-1}
+.progressActions{display:flex;justify-content:space-between;gap:14px;align-items:center;border-top:1px solid #e4eaf1;padding-top:11px}
+.progressActions small{color:#6d7d91;font-size:.57rem}
+.progressPrimaryActions{display:flex;gap:8px;align-items:center}
+.progressActions button{min-height:38px;border:1px solid var(--blue);border-radius:7px;padding:0 12px;color:#fff;background:var(--blue);font-size:.62rem;font-weight:850}
+.progressActions button:disabled{cursor:not-allowed;opacity:.55}
+.secondaryAction{display:inline-flex;align-items:center;justify-content:center;min-height:38px;border:1px solid #c7d3e1;border-radius:7px;padding:0 12px;color:#29415f;background:#fff;font-size:.62rem;font-weight:850}
+.qcReadyBanner{display:flex;justify-content:space-between;gap:12px;align-items:center;border:1px solid #d9e6c6;border-radius:10px;padding:12px 13px;background:linear-gradient(180deg,#fbfff5,#f4faec)}
+.qcReadyBanner strong{display:block;color:#1f6a3f;font-size:.68rem}
+.qcReadyBanner p{margin:4px 0 0;color:#556a60;font-size:.62rem;line-height:1.5}
+.qcReadyAction{display:inline-flex;align-items:center;justify-content:center;min-height:38px;border:1px solid #2c8a55;border-radius:8px;padding:0 12px;color:#fff;background:#2c8a55;font-size:.62rem;font-weight:850;white-space:nowrap}
+.progressHistory{display:grid;gap:8px;border-top:1px solid #e6edf4;padding-top:12px}
+.progressHistory>strong{color:#4966b1;font-size:.58rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+.progressHistory article{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;border:1px solid #e1e9f2;border-radius:9px;padding:11px;background:#fbfdff}
+.progressHistory article span{display:inline-flex;width:max-content;border-radius:999px;padding:4px 8px;color:#315eb5;background:#eef3ff;font-size:.55rem;font-weight:900}
+.progressHistory article h3{margin:6px 0 4px;font-size:.75rem}
+.progressHistory article p{margin:0;color:#51647d;font-size:.64rem;line-height:1.5}
+.progressHistory article small{display:block;margin-top:5px;color:#6f7f93;font-size:.58rem;white-space:pre-line}
+.progressHistory aside{display:grid;justify-items:end;align-content:start;gap:4px}
+.progressHistory aside b{font-size:.6rem}
+.progressHistory aside time{color:#708197;font-size:.56rem;text-align:right}
+@media(max-width:850px){.progressGrid{grid-template-columns:1fr}.wideField{grid-column:auto}.progressWorkspace header,.progressActions,.progressHistory article,.qcReadyBanner{display:grid}.progressHistory aside{justify-items:start}.progressPrimaryActions{display:grid}}

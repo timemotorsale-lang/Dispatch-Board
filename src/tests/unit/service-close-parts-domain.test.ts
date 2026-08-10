@@ -10,6 +10,7 @@ describe("service close and enterprise parts rules", () => {
     expect(() => assertIndependentPartsApproval("TRANSFER_RELEASE", "user-1", "user-1")).toThrow("different authorized user");
     expect(() => assertIndependentPartsApproval("RECOVERY_WRITE_OFF", "user-1", "user-1")).toThrow("different authorized user");
     expect(() => assertIndependentPartsApproval("PURCHASE_APPROVAL", "user-1", "user-2")).not.toThrow();
+    expect(() => assertIndependentPartsApproval("PURCHASE_APPROVAL", "user-1", "user-1", { allowFinalAuthoritySelfApproval: true })).not.toThrow();
   });
   it("requires attributable physical handoff evidence to close", () => {
     expect(() => normalizeClose({ ...base, finalOdometer: 100, handoffEvidence: [], keysVerified: true, occurredAt: "2026-07-14T12:00:00Z", recipientName: "Customer" })).toThrow("evidence");

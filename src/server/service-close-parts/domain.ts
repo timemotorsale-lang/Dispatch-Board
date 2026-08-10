@@ -200,8 +200,13 @@ export function normalizePurchaseRevision(value: unknown, currentStatus: string)
   return { ...base(raw), lines: lines(raw.lines, "Purchase order revision") };
 }
 
-export function assertIndependentPartsApproval(action: "PURCHASE_APPROVAL" | "TRANSFER_RELEASE" | "RECOVERY_WRITE_OFF", preparedByUserId: string, actorUserId: string) {
-  if (preparedByUserId !== actorUserId) return;
+export function assertIndependentPartsApproval(
+  action: "PURCHASE_APPROVAL" | "TRANSFER_RELEASE" | "RECOVERY_WRITE_OFF",
+  preparedByUserId: string,
+  actorUserId: string,
+  options: { allowFinalAuthoritySelfApproval?: boolean } = {},
+) {
+  if (preparedByUserId !== actorUserId || options.allowFinalAuthoritySelfApproval) return;
   const labels = { PURCHASE_APPROVAL: "Purchase order approval", TRANSFER_RELEASE: "Transfer release", RECOVERY_WRITE_OFF: "Recovery write-off" } as const;
   throw new Error(`${labels[action]} requires a different authorized user than the preparer.`);
 }

@@ -5,7 +5,8 @@ import { normalizeEnterpriseCommand } from "@/server/enterprise-command/domain";
 import { createEnterpriseCommandRepository, type EnterpriseCommandRepository } from "@/server/enterprise-command/repository";
 import { evaluateVehicleOperationsFeature } from "@/server/enterprise-command/service";
 import { assertVehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
-import { assertAuthenticatedUser } from "@/server/policies/access";
+import { recordAcquisitionAppraisal } from "@/server/inventory-lifecycle/acquisition";
+import { assertAuthenticatedUser, isManager } from "@/server/policies/access";
 import {
   normalizeClose,
   normalizeCustody,
@@ -66,6 +67,20 @@ function command(input: { actorUserId: string; commandType: string; domain: Doma
 
 function payload(value: unknown) {
   return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
+}
+
+function integer(value: unknown, label: string) {
+  const amount = Number(value);
+  if (!Number.isInteger(amount) || amount < 0) throw new Error(`${label} must be a non-negative whole number.`);
+  return amount;
+}
+
+function snapshot(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function centsFrom(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 export async function getServiceClosePartsWorkspace(actor: AuthenticatedUser | null, input: Dependencies = {}) {
@@ -144,11 +159,58 @@ export async function executeServiceClosePartsCommand(actor: AuthenticatedUser |
   }
   if (action === "TRANSITION_PURCHASE_ORDER") {
     const record = view.purchaseOrders.find((item) => item.id === subjectId); if (!record) throw new Error("Purchase order was not found."); const data = normalizePurchaseTransition(raw, record.status), version = await context.repository.aggregateVersion(context.organizationId, "PARTS_OPERATIONS", "PART_PURCHASE_ORDER", record.id);
-    return context.repository.transitionPurchaseOrder(command({ actorUserId: user.id, commandType: action, domain: "PARTS_OPERATIONS", expectedVersion: version, idempotencyKey: data.idempotencyKey, locationId: record.locationId, organizationId: context.organizationId, payload: payload(data), reason: data.reason, subjectId: record.id, subjectType: "PART_PURCHASE_ORDER" }), record.id, data);
+    return context.repository.transitionPurchaseOrder(command({ actorUserId: user.id, commandType: action, domain: "PARTS_OPERATIONS", expectedVersion: version, idempotencyKey: data.idempotencyKey, locationId: record.locationId, organizationId: context.organizationId, payload: payload(data), reason: data.reason, subjectId: record.id, subjectType: "PART_PURCHASE_ORDER" }), record.id, { ...data, allowFinalAuthoritySelfApproval: data.toStatus === "APPROVED" && isManager(user) });
   }
   if (action === "REVISE_PURCHASE_ORDER") {
     const record = view.purchaseOrders.find((item) => item.id === subjectId); if (!record) throw new Error("Purchase order was not found."); const data = normalizePurchaseRevision(raw, record.status), version = await context.repository.aggregateVersion(context.organizationId, "PARTS_OPERATIONS", "PART_PURCHASE_ORDER", record.id);
     return context.repository.revisePurchaseOrder(command({ actorUserId: user.id, commandType: action, domain: "PARTS_OPERATIONS", expectedVersion: version, idempotencyKey: data.idempotencyKey, locationId: record.locationId, organizationId: context.organizationId, payload: payload(data), reason: data.reason, subjectId: record.id, subjectType: "PART_PURCHASE_ORDER" }), record.id, data);
+  }
+  if (action === "APPROVE_RECON_BUDGET_EXCEPTION") {
+    const repairOrder = view.repairOrders.find((item) => item.id === subjectId);
+    if (!repairOrder) throw new Error("Repair order was not found.");
+    if (!repairOrder.inventoryUnit?.id) throw new Error("This repair order is not linked to an inventory unit, so a recon budget exception cannot be recorded here.");
+    if (!isManager(user)) throw new Error("A manager or authorized approver is required to raise the recon budget.");
+
+    const increaseByCents = integer(raw.increaseByCents, "Increase amount");
+    const currentMaxReconBudgetCents = integer(raw.currentMaxReconBudgetCents, "Current max recon budget");
+    const approvalReason = required(raw.reason, "Reason", 500);
+    const nextBudgetCents = currentMaxReconBudgetCents + increaseByCents;
+    const appraisalSnapshot = snapshot(repairOrder.inventoryUnit.acquisitionCase?.appraisalSnapshot);
+    const latestAppraisal = repairOrder.inventoryUnit.acquisitionAppraisals?.[0] ?? null;
+    const expectedRetailCents = centsFrom(appraisalSnapshot.expectedRetailCents) ?? centsFrom(latestAppraisal?.estimatedRetailCents) ?? null;
+    const estimatedFeesCents = centsFrom(appraisalSnapshot.estimatedFeesCents);
+
+    const record = await recordAcquisitionAppraisal(user, repairOrder.inventoryUnit.id, {
+      comparableSnapshot: { ...snapshot(appraisalSnapshot.comparableSnapshot), approvedFrom: "service-close-parts", repairOrderId: repairOrder.id },
+      conditionSummary: {
+        approvedAt: context.now().toISOString(),
+        approvedByUserId: user.id,
+        approvedByUserName: user.name,
+        increaseByCents,
+        previousEstimatedReconCents: currentMaxReconBudgetCents,
+        reason: approvalReason,
+        repairOrderId: repairOrder.id,
+        repairOrderNumber: repairOrder.repairOrderNumber,
+        requestType: "RECON_BUDGET_EXCEPTION",
+      },
+      confidence: "UNKNOWN",
+      decisionStatus: "APPROVED",
+      estimatedFeesCents: estimatedFeesCents ?? undefined,
+      estimatedReconCents: nextBudgetCents,
+      estimatedRetailCents: expectedRetailCents ?? undefined,
+      evidenceObjectIds: [`recon-budget-exception:${repairOrder.repairOrderNumber}`, `approved-by:${user.id}`],
+    });
+
+    return {
+      result: {
+        id: record.id,
+        increaseByCents,
+        inventoryUnitId: repairOrder.inventoryUnit.id,
+        nextBudgetCents,
+        repairOrderId: repairOrder.id,
+        repairOrderNumber: repairOrder.repairOrderNumber,
+      }
+    };
   }
   if (action === "RECEIVE_PURCHASE_ORDER") {
     const record = receivePurchaseOrder; if (!record) throw new Error("Purchase order was not found."); const data = normalizeReceipt(raw), version = await context.repository.aggregateVersion(context.organizationId, "PARTS_OPERATIONS", "PART_PURCHASE_ORDER", record.id);

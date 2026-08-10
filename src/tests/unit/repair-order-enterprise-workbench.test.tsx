@@ -33,6 +33,8 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("Flow Clock");
     expect(html).toContain("6/6");
     expect(html).toContain("What happens next");
+    expect(html).toContain("Next step workspaces");
+    expect(html).toContain("Repair planning");
     expect(html).toContain("returnTo=%2Fvehicles%2Frepair-workbench%3FrepairOrderId%3Dro-1");
     expect(html).toContain("Customer authorization is required before any repair work is performed");
     expect(html).toContain('href="#diagnosis"');
@@ -114,6 +116,9 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("Confirm outside-vendor progress");
     expect(html).toContain("Return from vendor and verify quality");
     expect(html).toContain("Record vendor update");
+    expect(html).toContain("Vendor / repair updates");
+    expect(html).toContain("Completion");
+    expect(html).toContain("Quality control");
     expect(html).toContain("Vehicle sent directly from Auction to Diego Auto Body.");
     expect(html).not.toContain("Ready for diagnosis");
     expect(html).not.toContain(">Start Diagnosis<");
@@ -217,6 +222,7 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("Lead with parts receiving, approval, and delivery updates.");
     expect(html).toContain("Deliver the requested parts");
     expect(html).toContain("Update parts and delivery");
+    expect(html).toContain("Parts &amp; delivery");
     expect(html).toContain("Open Parts Workspace");
     expect(html).toContain("/vehicles/service-close-parts?repairOrderId=ro-1");
     expect(html).not.toContain("Start Diagnosis");

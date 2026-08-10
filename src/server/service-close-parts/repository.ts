@@ -55,7 +55,33 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
 
     async overview(organizationId: string) {
       const [repairOrders, vendors, offers, interchanges, requisitions, purchaseOrders, receipts, discrepancies, custodyEvents, transfers, recoveries, parts, stockLocations, locations, demands] = await Promise.all([
-        database.repairOrder.findMany({ where: { organizationId }, orderBy: { updatedAt: "desc" }, take: 100, include: { vehicle: { select: { color: true, make: true, model: true, stockNumber: true, vehicleNumber: true, vin: true, year: true } }, customer: { select: { displayName: true } }, invoicePackages: { orderBy: { version: "desc" }, take: 3 }, closureEvents: { orderBy: { occurredAt: "desc" }, take: 3 }, deliveryReadinessEvaluations: { orderBy: { version: "desc" }, take: 1 }, releaseAuthorization: true } }),
+        database.repairOrder.findMany({
+          where: { organizationId },
+          orderBy: { updatedAt: "desc" },
+          take: 100,
+          include: {
+            vehicle: { select: { color: true, make: true, model: true, stockNumber: true, vehicleNumber: true, vin: true, year: true } },
+            customer: { select: { displayName: true } },
+            inventoryUnit: {
+              select: {
+                id: true,
+                inventoryNumber: true,
+                acquisitionAppraisals: {
+                  orderBy: { version: "desc" },
+                  take: 1,
+                  select: { estimatedReconCents: true, estimatedRetailCents: true }
+                },
+                acquisitionCase: {
+                  select: { appraisalSnapshot: true }
+                }
+              }
+            },
+            invoicePackages: { orderBy: { version: "desc" }, take: 3 },
+            closureEvents: { orderBy: { occurredAt: "desc" }, take: 3 },
+            deliveryReadinessEvaluations: { orderBy: { version: "desc" }, take: 1 },
+            releaseAuthorization: true
+          }
+        }),
         database.partVendor.findMany({ where: { organizationId }, orderBy: { name: "asc" } }),
         database.partVendorOffer.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" }, take: 200, include: { vendor: { select: { code: true, name: true } }, part: { select: { partNumber: true, description: true } } } }),
         database.partInterchange.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" }, take: 200, include: { primaryPart: { select: { partNumber: true } }, alternatePart: { select: { partNumber: true } } } }),
@@ -137,7 +163,15 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
         const mismatchCodes = [...(order.repairJobs.some((job) => job.status !== "QC_PASSED") ? ["INVOICE_JOB_QC_INCOMPLETE"] : []), ...(order.repairJobs.some((job) => job.partsRequired && !job.partCustodyEvents.length) ? ["INVOICE_INSTALL_EVIDENCE_MISSING"] : [])];
         const packageVersion = (order.invoicePackages[0]?.version ?? 0) + 1;
         const record = await tx.serviceInvoicePackage.create({ data: { authorizedTotalCents, clockedLaborMinutes: Math.max(0, clockedLaborMinutes), createdByUserId: data.createdByUserId, generatedAt: data.generatedAt, installedPartsCostCents, lineItems: toJson(lineItems), mismatchCodes: toJson(mismatchCodes), organizationId: command.organizationId, reason: data.reason, repairOrderId: order.id, sourceSnapshot: toJson({ aggregateVersion, jobIds: order.repairJobs.map((job) => job.id), generatedAt: data.generatedAt }), status: "READY", version: packageVersion } });
-        await tx.repairOrder.update({ where: { id: order.id }, data: { nextAction: mismatchCodes.length ? "Resolve invoice-ready mismatches" : "Submit invoice-ready package or complete handoff", stateReason: mismatchCodes.length ? mismatchCodes.join(", ") : null, version: aggregateVersion } });
+        await tx.repairOrder.update({
+          where: { id: order.id },
+          data: {
+            nextAction: mismatchCodes.length ? "Resolve invoice-ready mismatches" : "Submit invoice-ready package or complete handoff",
+            operatingState: mismatchCodes.length ? "BLOCKED" : "ACTIVE",
+            stateReason: mismatchCodes.length ? mismatchCodes.join(", ") : null,
+            version: aggregateVersion,
+          },
+        });
         return { previous: order, result: { authorizedTotalCents, id: record.id, mismatchCodes, repairOrderId: order.id, status: record.status, version: aggregateVersion } };
       });
     },
@@ -173,7 +207,7 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
       return executeAggregateMutation(database, command, "vehicle-operations.shop", async (tx, version) => {
         const order = await tx.repairOrder.findFirst({ where: { id: command.subjectId, organizationId: command.organizationId, stage: "CLOSED" } });
         if (!order) throw new Error("Closed repair order was not found.");
-        await tx.repairOrder.update({ where: { id: order.id }, data: { closedAt: null, nextAction: "Review reopened service close", operatingState: "ACTIVE", stage: "HANDOFF", stageStartedAt: data.occurredAt, stateReason: command.reason, version } });
+        await tx.repairOrder.update({ where: { id: order.id }, data: { closedAt: null, nextAction: "Review reopened service close", operatingState: "ACTIVE", stage: "HANDOFF", stageStartedAt: data.occurredAt, stateReason: null, version } });
         await tx.repairOrderStateEvent.create({ data: { actorUserId: command.actorUserId, correlationId: command.correlationId, fromOperatingState: "CLOSED", fromStage: "CLOSED", locationId: order.locationId, nextAction: "Review reopened service close", organizationId: command.organizationId, ownerUserId: order.ownerUserId, reason: command.reason, repairOrderId: order.id, targetAt: order.targetAt, toOperatingState: "ACTIVE", toStage: "HANDOFF", version } });
         await tx.repairOrderClosureEvent.create({ data: { actorUserId: command.actorUserId, correlationId: command.correlationId, handoffEvidence: toJson([]), keysVerified: false, occurredAt: data.occurredAt, organizationId: command.organizationId, priorStage: "CLOSED", reason: command.reason, repairOrderId: order.id, resultingStage: "HANDOFF", type: "REOPENED", version } });
         return { previous: order, result: { repairOrderId: order.id, stage: "HANDOFF", version } };
@@ -274,11 +308,11 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
       });
     },
 
-    transitionPurchaseOrder(command: EnterpriseCommandCommitInput, purchaseOrderId: string, data: { occurredAt: Date; toStatus: string }) {
+    transitionPurchaseOrder(command: EnterpriseCommandCommitInput, purchaseOrderId: string, data: { allowFinalAuthoritySelfApproval?: boolean; occurredAt: Date; toStatus: string }) {
       return executeAggregateMutation(database, command, "vehicle-operations.parts", async (tx, version) => {
         const record = await tx.partPurchaseOrder.findFirst({ where: { id: purchaseOrderId, organizationId: command.organizationId } });
         if (!record) throw new Error("Purchase order was not found.");
-        if (data.toStatus === "APPROVED") assertIndependentPartsApproval("PURCHASE_APPROVAL", record.createdByUserId, command.actorUserId);
+        if (data.toStatus === "APPROVED") assertIndependentPartsApproval("PURCHASE_APPROVAL", record.createdByUserId, command.actorUserId, { allowFinalAuthoritySelfApproval: data.allowFinalAuthoritySelfApproval === true });
         const next = await tx.partPurchaseOrder.update({ where: { id: record.id }, data: { acknowledgedAt: data.toStatus === "ACKNOWLEDGED" ? data.occurredAt : record.acknowledgedAt, closedAt: ["CLOSED", "CANCELLED"].includes(data.toStatus) ? data.occurredAt : record.closedAt, issuedAt: data.toStatus === "ISSUED" ? data.occurredAt : record.issuedAt, status: data.toStatus as never, version } });
         return { previous: record, result: { id: next.id, status: next.status, version } };
       });
