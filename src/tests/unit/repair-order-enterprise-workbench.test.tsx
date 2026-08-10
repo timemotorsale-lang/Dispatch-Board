@@ -75,9 +75,13 @@ describe("enterprise repair-order workbench", () => {
           status: "AT_VENDOR",
           approvalStatus: "APPROVED",
           currentLocation: "Diego Auto Body",
+          directFromSource: true,
           expectedReturnAt: "2026-08-14T15:57:00.000Z",
           nextAction: "Confirm vendor estimate, approval documentation, and expected return.",
           lastUpdateSummary: "Vehicle sent directly from Auction to Diego Auto Body.",
+          scope: "Front-end body repair",
+          sentFrom: "Auction",
+          transportMethod: "Tow / carrier",
         },
       ],
       serviceVisit: {
@@ -104,15 +108,59 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("Home / accountable site");
     expect(html).toContain("Minneapolis");
     expect(html).toContain("Outside repair in progress");
-    expect(html).toContain("Review diagnosis record");
-    expect(html).toContain("Diagnostic reference");
+    expect(html).toContain("Review vendor dispatch record");
+    expect(html).toContain("Vendor dispatch reference");
     expect(html).toContain("source evidence from intake");
     expect(html).toContain("Confirm outside-vendor progress");
     expect(html).toContain("Return from vendor and verify quality");
     expect(html).toContain("Record vendor update");
+    expect(html).toContain("Vehicle sent directly from Auction to Diego Auto Body.");
     expect(html).not.toContain("Ready for diagnosis");
     expect(html).not.toContain(">Start Diagnosis<");
     expect(html).not.toContain("Diagnose the concern");
+  });
+
+  it("shows dealership drop-off language and offsite vendor workflow when diagnosis is not the active path", () => {
+    const vendorOrder = {
+      ...order,
+      stage: "AUTHORIZATION",
+      customer: null,
+      inventoryUnit: { inventoryNumber: "033428" },
+      nextAction: "Confirm vendor estimate, approval documentation, and expected return.",
+      vendorWorks: [
+        {
+          id: "vendor-work-2",
+          vendorName: "Northside Garage",
+          status: "ESTIMATE_NEEDED",
+          approvalStatus: "NEEDS_DOCUMENTATION",
+          currentLocation: "Northside Garage",
+          directFromSource: false,
+          expectedReturnAt: "2026-08-14T15:57:00.000Z",
+          nextAction: "Confirm vendor estimate, approval documentation, and expected return.",
+          lastUpdateSummary: "Vehicle was driven from the dealership to Northside Garage after intake review.",
+          scope: "Mechanical diagnosis and outside repair review",
+          sentFrom: "Dealership",
+          transportMethod: "Dropped off / driven there",
+        },
+      ],
+      serviceVisit: {
+        ...order.serviceVisit,
+        concernSummary: "The vehicle drives well but has a check engine light and related warning lights.",
+      },
+    };
+    const html = renderToStaticMarkup(
+      <RepairOrderEnterpriseWorkbench
+        order={vendorOrder}
+        options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }}
+      />,
+    );
+
+    expect(html).toContain("Dropped off / driven there from Dealership");
+    expect(html).toContain("Offsite vendor path");
+    expect(html).toContain("Vendor-managed while offsite");
+    expect(html).toContain("Northside Garage");
+    expect(html).toContain("Mechanical diagnosis and outside repair review");
+    expect(html).not.toContain("Release the repair order to Planning &amp; Diagnosis");
   });
 
   it("routes vendor waiting-parts work into parts control", () => {
@@ -131,9 +179,13 @@ describe("enterprise repair-order workbench", () => {
           status: "WAITING_PARTS",
           approvalStatus: "APPROVED",
           currentLocation: "Diego Auto Body",
+          directFromSource: true,
           expectedReturnAt: "2026-08-14T15:57:00.000Z",
           nextAction: "Vendor is waiting on the requested parts from us.",
           lastUpdateSummary: "Vendor sent the required parts list and cannot continue until parts are delivered.",
+          scope: "Front-end body repair",
+          sentFrom: "Auction",
+          transportMethod: "Tow / carrier",
         },
       ],
       serviceVisit: {
@@ -185,9 +237,13 @@ describe("enterprise repair-order workbench", () => {
           status: "AT_VENDOR",
           approvalStatus: "APPROVED",
           currentLocation: "Diego Auto Body",
+          directFromSource: true,
           expectedReturnAt: "2026-08-14T15:57:00.000Z",
           nextAction: "Vendor is waiting on the remaining parts from us.",
           lastUpdateSummary: "Vendor cannot continue until the remaining parts are delivered.",
+          scope: "Front-end body repair",
+          sentFrom: "Auction",
+          transportMethod: "Tow / carrier",
         },
       ],
       serviceVisit: {

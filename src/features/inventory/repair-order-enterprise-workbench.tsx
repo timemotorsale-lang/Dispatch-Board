@@ -93,9 +93,13 @@ type RepairOrderWorkbenchOrder = {
     status: string;
     approvalStatus: string;
     currentLocation: string;
+    directFromSource: boolean;
     expectedReturnAt: string | Date | null;
     nextAction: string;
     lastUpdateSummary: string;
+    scope: string;
+    sentFrom: string;
+    transportMethod: string | null;
   }>;
 };
 
@@ -183,6 +187,12 @@ const stageToLifecycleIndex: Record<string, number> = {
 function activeVendorWorkFor(order: RepairOrderWorkbenchOrder) {
   const works = order.vendorWorks ?? [];
   return works.find((work) => !["COMPLETED", "CANCELLED"].includes(work.status)) ?? works[0] ?? null;
+}
+
+function vendorDispatchSummary(work: NonNullable<ReturnType<typeof activeVendorWorkFor>>) {
+  if (work.directFromSource) return `Vehicle sent directly from ${work.sentFrom} to ${work.vendorName}.`;
+  if (work.transportMethod?.trim()) return `Vehicle ${work.transportMethod} from ${work.sentFrom} to ${work.vendorName}.`;
+  return `Vehicle sent from ${work.sentFrom} to ${work.vendorName}.`;
 }
 
 function nextStepPlan(input: {
@@ -404,7 +414,7 @@ export function RepairOrderEnterpriseWorkbench({
   const stageSummary = vendorWaitingParts
     ? activeVendorWork?.lastUpdateSummary || activeVendorWork?.nextAction || "The outside vendor is blocked until the dealership delivers the requested parts."
     : activeVendorWork
-      ? activeVendorWork?.lastUpdateSummary || activeVendorWork?.nextAction || "The vehicle is currently with the outside vendor and needs progress tracking."
+      ? activeVendorWork?.lastUpdateSummary || vendorDispatchSummary(activeVendorWork) || activeVendorWork?.nextAction || "The vehicle is currently with the outside vendor and needs progress tracking."
       : diagnosis
         ? "Diagnosis is already on file. Use this repair order to move into estimate, approval, parts, and repair coordination."
         : "The repair order remains the source of truth and is ready for technician evidence-led diagnosis.";
@@ -417,6 +427,25 @@ export function RepairOrderEnterpriseWorkbench({
         : "Tests and findings should be recorded here before estimate and approval.";
   const relatedDraftPurchaseOrders = relatedPurchaseOrders.filter((item) => item.status === "DRAFT");
   const relatedApprovedPurchaseOrders = relatedPurchaseOrders.filter((item) => item.status && item.status !== "DRAFT");
+  const hasOffsiteVendorWithoutDiagnosis = Boolean(activeVendorWork) && !diagnosis;
+  const reviewAnchorHref = hasOffsiteVendorWithoutDiagnosis ? "#vendor-dispatch" : "#diagnosis";
+  const reviewAnchorLabel = hasOffsiteVendorWithoutDiagnosis ? "Review vendor dispatch record" : "Review diagnosis record";
+  const authorizationBoundaryText = hasOffsiteVendorWithoutDiagnosis
+    ? "Outside-vendor progress is governed from this RO. While the vehicle is offsite, keep vendor updates, estimate approval, parts coordination, and expected return current here."
+    : "Diagnosis is permitted from this RO. No repair is authorized until the estimate and approval are recorded.";
+  const referencePanelTitle = hasOffsiteVendorWithoutDiagnosis ? "Vendor dispatch reference" : "Diagnostic reference";
+  const referencePanelSubtitle = hasOffsiteVendorWithoutDiagnosis ? "Preserved outside-vendor dispatch, accountability, and return requirements for this repair order" : "Preserved technician reasoning and evidence for this repair order";
+  const referencePanelBadge = diagnosis ? `Diagnosis v${diagnosis.version}` : hasOffsiteVendorWithoutDiagnosis ? "Outside vendor active" : "No diagnosis recorded";
+  const referencePlan = hasOffsiteVendorWithoutDiagnosis
+    ? [
+      { label: "Confirm outside-vendor route", objective: vendorDispatchSummary(activeVendorWork!), evidence: "Dispatch origin, transport method, and current physical location" },
+      { label: "Track vendor estimate and approval", objective: "Keep the vendor estimate, approval status, and expected return current on the repair order.", evidence: "Vendor estimate and approval record" },
+      { label: "Coordinate return and next custody move", objective: "Manage parts, ETA, return to dealership, and post-vendor QC without forcing an in-shop diagnosis step.", evidence: "Vendor updates and return plan" }
+    ]
+    : plan;
+  const referenceFooter = hasOffsiteVendorWithoutDiagnosis
+    ? "This reference keeps the offsite vendor story accurate. It does not require an in-shop diagnosis while the vehicle remains with the vendor."
+    : "This plan identifies what to verify. It does not assume the cause or authorize repair work.";
 
   async function approveRelatedPurchaseOrder(purchaseOrder: RelatedPurchaseOrder) {
     setBusy(true);
@@ -564,7 +593,7 @@ export function RepairOrderEnterpriseWorkbench({
           </div>
           <div>
             <strong>Authorization boundary</strong>
-            <span>Diagnosis is permitted from this RO. No repair is authorized until the estimate and approval are recorded.</span>
+            <span>{authorizationBoundaryText}</span>
           </div>
         </footer>
       </section>
@@ -579,8 +608,8 @@ export function RepairOrderEnterpriseWorkbench({
             <Link className="button button-primary" href={primaryActionHref}>
               {vendorWaitingParts ? "Open Parts Workspace" : primaryActionLabel}
             </Link>
-            <Link className="button button-secondary" href="#diagnosis">
-              Review diagnosis record
+            <Link className="button button-secondary" href={reviewAnchorHref}>
+              {reviewAnchorLabel}
             </Link>
           </div>
           <p>{stageSupport}</p>
@@ -640,14 +669,14 @@ export function RepairOrderEnterpriseWorkbench({
           <nav className="rowb-tabs"><a className="active" href="#concerns">Concerns</a><a href="#inspection">Inspection</a><a href="#diagnosis">Diagnosis</a><a href="#estimate">Estimate</a><a href="#jobs">Jobs</a><a href="#quality">QC</a><a href="#timeline">Timeline</a></nav>
           <div className="rowb-actions"><span>{activeVendorWork ? `Offsite · ${format(activeVendorWork.status)}` : order.operatingState === "ACTIVE" ? "Active work order" : format(order.operatingState)}</span><Link href={primaryActionHref}>{vendorWaitingParts ? "Open Parts Control" : "Review Plan"}</Link><Link className="primary" href={primaryActionHref}>{primaryActionLabel} <ChevronRight /></Link></div>
           <section className={`rowb-concern ${safetyReview ? "safety" : ""}`} id="concerns"><header><b>1</b><div><small>{concernLabel} · source evidence from intake</small><h2>{concernSummary}</h2></div>{safetyReview ? <em><ShieldAlert />Safety review</em> : <em>Standard triage</em>}</header>
-            <div className="rowb-plan"><header><div><h3>Diagnostic reference</h3><span>Preserved technician reasoning and evidence for this repair order</span></div><b>{diagnosis ? `Diagnosis v${diagnosis.version}` : "No diagnosis recorded"}</b></header>
+            <div className="rowb-plan" id={hasOffsiteVendorWithoutDiagnosis ? "vendor-dispatch" : undefined}><header><div><h3>{referencePanelTitle}</h3><span>{referencePanelSubtitle}</span></div><b>{referencePanelBadge}</b></header>
               <div className="rowb-plan-head"><span>Step</span><span>Objective</span><span>Owner</span><span>Evidence required</span><span>Status</span></div>
-              {plan.map((item, index) => <article key={item.label}><i>{diagnosis ? <Check /> : index + 1}</i><strong>{item.label}</strong><span>{item.objective}</span><span>{diagnosis?.technicianUser.name ?? "Tech to be assigned"}</span><span>{item.evidence}</span><b>{diagnosis ? "Recorded" : "Not started"}</b></article>)}
-              <footer><AlertTriangle />This plan identifies what to verify. It does not assume the cause or authorize repair work.</footer>
+              {referencePlan.map((item, index) => <article key={item.label}><i>{diagnosis || hasOffsiteVendorWithoutDiagnosis ? <Check /> : index + 1}</i><strong>{item.label}</strong><span>{item.objective}</span><span>{diagnosis?.technicianUser.name ?? currentOwner.name}</span><span>{item.evidence}</span><b>{diagnosis ? "Recorded" : hasOffsiteVendorWithoutDiagnosis ? "Vendor managed" : "Not started"}</b></article>)}
+              <footer><AlertTriangle />{referenceFooter}</footer>
             </div>
           </section>
-          <section className="rowb-finding" id="diagnosis"><header><h2>{diagnosis ? `Current diagnosis · version ${diagnosis.version}` : "Diagnosis"}</h2><span>{diagnosis ? `${format(diagnosis.uncertainty)} uncertainty` : "Not yet recorded"}</span></header>{diagnosis ? <dl><div><dt>Confirmed cause</dt><dd>{diagnosis.cause}</dd></div><div><dt>Recommendation</dt><dd>{diagnosis.recommendation}</dd></div><div><dt>Proposed correction</dt><dd>{diagnosis.proposedCorrection}</dd></div><div><dt>Technician</dt><dd>{diagnosis.technicianUser.name}</dd></div></dl> : <p>Release the repair order to Planning &amp; Diagnosis to record evidence, tests, cause, uncertainty, recommendation, and proposed correction.</p>}</section>
-          <div className="rowb-stage-cards"><article id="inspection"><ClipboardCheck /><span>Inspection</span><strong>{order.inspectionVersions.length ? `${order.inspectionVersions.length} version(s)` : "Pending diagnosis"}</strong></article><article id="estimate"><FileText /><span>Estimate</span><strong>{estimate ? `v${estimate.version} · $${(estimate.totalCents / 100).toFixed(2)}` : "Pending diagnosis"}</strong></article><article><LockKeyhole /><span>Authorization</span><strong>{authorization?.disposition ?? "Pending estimate"}</strong></article><article id="jobs"><Wrench /><span>Repair Jobs</span><strong>{order.repairJobs.length ? `${order.repairJobs.length} job(s)` : "Pending authorization"}</strong></article><article id="quality"><ShieldAlert /><span>Quality Check</span><strong>Pending repairs</strong></article></div>
+          <section className="rowb-finding" id="diagnosis"><header><h2>{diagnosis ? `Current diagnosis · version ${diagnosis.version}` : hasOffsiteVendorWithoutDiagnosis ? "Offsite vendor path" : "Diagnosis"}</h2><span>{diagnosis ? `${format(diagnosis.uncertainty)} uncertainty` : hasOffsiteVendorWithoutDiagnosis ? "Vendor-managed while offsite" : "Not yet recorded"}</span></header>{diagnosis ? <dl><div><dt>Confirmed cause</dt><dd>{diagnosis.cause}</dd></div><div><dt>Recommendation</dt><dd>{diagnosis.recommendation}</dd></div><div><dt>Proposed correction</dt><dd>{diagnosis.proposedCorrection}</dd></div><div><dt>Technician</dt><dd>{diagnosis.technicianUser.name}</dd></div></dl> : hasOffsiteVendorWithoutDiagnosis ? <dl><div><dt>Dispatch origin</dt><dd>{activeVendorWork?.sentFrom ?? "Dealership"}</dd></div><div><dt>Transportation</dt><dd>{activeVendorWork?.transportMethod ?? "Not recorded"}</dd></div><div><dt>Outside vendor</dt><dd>{activeVendorWork?.vendorName ?? "Not recorded"}</dd></div><div><dt>Scope</dt><dd>{activeVendorWork?.scope ?? "Not recorded"}</dd></div></dl> : <p>Release the repair order to Planning &amp; Diagnosis to record evidence, tests, cause, uncertainty, recommendation, and proposed correction.</p>}</section>
+          <div className="rowb-stage-cards"><article id="inspection"><ClipboardCheck /><span>Inspection</span><strong>{order.inspectionVersions.length ? `${order.inspectionVersions.length} version(s)` : hasOffsiteVendorWithoutDiagnosis ? "Vendor-managed offsite" : "Pending diagnosis"}</strong></article><article id="estimate"><FileText /><span>Estimate</span><strong>{estimate ? `v${estimate.version} · $${(estimate.totalCents / 100).toFixed(2)}` : hasOffsiteVendorWithoutDiagnosis ? "Awaiting vendor estimate" : "Pending diagnosis"}</strong></article><article><LockKeyhole /><span>Authorization</span><strong>{authorization?.disposition ?? hasOffsiteVendorWithoutDiagnosis ? "Awaiting vendor approval" : "Pending estimate"}</strong></article><article id="jobs"><Wrench /><span>Repair Jobs</span><strong>{order.repairJobs.length ? `${order.repairJobs.length} job(s)` : hasOffsiteVendorWithoutDiagnosis ? "Waiting on vendor release" : "Pending authorization"}</strong></article><article id="quality"><ShieldAlert /><span>Quality Check</span><strong>{hasOffsiteVendorWithoutDiagnosis ? "After vendor return" : "Pending repairs"}</strong></article></div>
           <section className="rowb-finding" id="timeline"><header><h2>Repair-order timeline</h2><span>Exact version {currentVersion}</span></header><dl><div><dt>Opened</dt><dd>{date(order.openedAt)}</dd></div><div><dt>Current stage</dt><dd>{format(order.stage)}</dd></div><div><dt>Current stage clock</dt><dd>{duration(order.stageStartedAt)}</dd></div><div><dt>Target</dt><dd>{date(order.targetAt)}</dd></div><div><dt>Next accountable action</dt><dd>{displayedNextAction}</dd></div></dl></section>
         </main>
         <aside className="rowb-command">
