@@ -146,9 +146,20 @@ describe("enterprise repair-order workbench", () => {
       <RepairOrderEnterpriseWorkbench
         order={repairStageOrder}
         options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }}
+        relatedPurchaseOrders={[{
+          createdAt: "2026-08-10T12:00:00Z",
+          id: "po-1",
+          orderedTotalCents: 45000,
+          purchaseOrderNumber: "PO-1001",
+          status: "DRAFT",
+          vendor: { name: "Diego Auto Body" },
+        }]}
       />,
     );
 
+    expect(html).toContain("Approve purchase order for this vehicle");
+    expect(html).toContain("PO-1001");
+    expect(html).toContain("Approve purchase order");
     expect(html).toContain("Vendor is waiting on the requested parts from us.");
     expect(html).toContain("Vendor waiting on our parts");
     expect(html).toContain("Lead with parts receiving, approval, and delivery updates.");
@@ -197,6 +208,46 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("Vendor is waiting on the remaining parts from us.");
     expect(html).not.toContain("Ready for diagnosis");
     expect(html).not.toContain(">Start Diagnosis<");
+  });
+
+  it("shows approval-complete guidance when purchase orders are already approved", () => {
+    const repairStageOrder = {
+      ...order,
+      stage: "REPAIR",
+      customer: null,
+      inventoryUnit: { inventoryNumber: "333586" },
+      vendorWorks: [
+        {
+          id: "vendor-work-1",
+          vendorName: "Diego Auto Body",
+          status: "AT_VENDOR",
+          approvalStatus: "APPROVED",
+          currentLocation: "Diego Auto Body",
+          expectedReturnAt: "2026-08-14T15:57:00.000Z",
+          nextAction: "Record receiving detail and deliver the approved parts to the vendor.",
+          lastUpdateSummary: "Approval is already on file; the remaining blocker is operational receiving detail.",
+        },
+      ],
+    };
+    const html = renderToStaticMarkup(
+      <RepairOrderEnterpriseWorkbench
+        order={repairStageOrder}
+        options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }}
+        relatedPurchaseOrders={[{
+          createdAt: "2026-08-10T12:00:00Z",
+          id: "po-1",
+          orderedTotalCents: 45000,
+          purchaseOrderNumber: "PO-1001",
+          status: "APPROVED",
+          vendor: { name: "Diego Auto Body" },
+        }]}
+      />,
+    );
+
+    expect(html).toContain("Manager approval is already on file");
+    expect(html).toContain("Any remaining parts blocker is likely operational");
+    expect(html).toContain("Open Parts Workspace");
+    expect(html).not.toContain("Approve purchase order for this vehicle");
   });
 
   it("stays available when optional timing and transport fields are missing", () => {

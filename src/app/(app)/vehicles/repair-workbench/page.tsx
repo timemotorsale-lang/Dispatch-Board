@@ -12,6 +12,7 @@ import { getRepairOrderDiagnosticsBridge } from "@/server/diagnostics/service";
 import { getRepairOrderCreateOptions, listRepairOrders } from "@/server/repair-order/service";
 import { getShopPlanningDetail } from "@/server/shop-planning/service";
 import { readManagerWorkspaceContext } from "@/lib/manager-workspace-context";
+import { getServiceClosePartsWorkspace } from "@/server/service-close-parts/service";
 
 import styles from "./repair-workbench.module.css";
 
@@ -113,6 +114,12 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
       getRepairOrderCreateOptions(user),
       diagnosticsBridge(user, params.repairOrderId),
     ]);
+    const partsWorkspace = (activeVendorWork(order) || order.partDemands?.length)
+      ? await getServiceClosePartsWorkspace(user)
+      : null;
+    const relatedPurchaseOrders = (partsWorkspace?.purchaseOrders ?? []).filter((item) =>
+      item.requisition?.demand?.repairOrder?.id === order.id,
+    );
 
     if (showAdvisorReturn) {
       const compose = params.compose === "customer" || params.compose === "management" || params.compose === "team" ? params.compose : undefined;
@@ -124,6 +131,7 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
         diagnostics={JSON.parse(JSON.stringify(diagnostics))}
         options={{ users: JSON.parse(JSON.stringify(options.users)) }}
         order={JSON.parse(JSON.stringify(order))}
+        relatedPurchaseOrders={JSON.parse(JSON.stringify(relatedPurchaseOrders))}
         returnLabel={returnLabel}
         returnTo={returnTo}
         showAdvisorReturn={showAdvisorReturn}

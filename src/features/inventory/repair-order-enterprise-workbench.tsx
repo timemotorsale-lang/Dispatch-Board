@@ -100,6 +100,15 @@ type RepairOrderWorkbenchOrder = {
 };
 
 type Options = { users: Array<{ id: string; name: string }> };
+type RelatedPurchaseOrder = {
+  id: string;
+  createdAt?: string;
+  orderedTotalCents?: number;
+  purchaseOrderNumber: string;
+  requisition?: { demand?: { repairOrder?: { id: string; repairOrderNumber: string } | null } | null } | null;
+  status?: string;
+  vendor?: { name?: string } | null;
+};
 type DiagnosticsBridge =
   | Awaited<ReturnType<typeof getRepairOrderDiagnosticsBridge>>
   | { state: "UNAVAILABLE"; reason: string; repairOrderId: string };
@@ -274,6 +283,7 @@ export function RepairOrderEnterpriseWorkbench({
   diagnostics,
   order,
   options,
+  relatedPurchaseOrders = [],
   returnLabel,
   returnTo,
   showAdvisorReturn = false,
@@ -282,6 +292,7 @@ export function RepairOrderEnterpriseWorkbench({
   diagnostics?: DiagnosticsBridge;
   order: RepairOrderWorkbenchOrder;
   options: Options;
+  relatedPurchaseOrders?: RelatedPurchaseOrder[];
   returnLabel?: string;
   returnTo?: string;
   showAdvisorReturn?: boolean;
@@ -404,6 +415,34 @@ export function RepairOrderEnterpriseWorkbench({
       : diagnosis
         ? "Keep the recorded diagnosis available while guiding staff into the next governed step."
         : "Tests and findings should be recorded here before estimate and approval.";
+  const relatedDraftPurchaseOrders = relatedPurchaseOrders.filter((item) => item.status === "DRAFT");
+  const relatedApprovedPurchaseOrders = relatedPurchaseOrders.filter((item) => item.status && item.status !== "DRAFT");
+
+  async function approveRelatedPurchaseOrder(purchaseOrder: RelatedPurchaseOrder) {
+    setBusy(true);
+    setNotice("");
+    try {
+      const response = await fetch("/api/service-close-parts", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "TRANSITION_PURCHASE_ORDER",
+          idempotencyKey: crypto.randomUUID(),
+          occurredAt: new Date().toISOString(),
+          reason: `Approve ${purchaseOrder.purchaseOrderNumber} from the repair order workbench so receiving can continue.`,
+          subjectId: purchaseOrder.id,
+          toStatus: "APPROVED",
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error ?? "Purchase order approval could not be saved.");
+      setNotice(`${purchaseOrder.purchaseOrderNumber} approved. Receiving may still require a part number, stock location, or receipt detail in Parts Workspace.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Purchase order approval could not be saved.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function assignOwner() {
     if (!selectedOwner || !assignmentChanged) return;
@@ -545,6 +584,45 @@ export function RepairOrderEnterpriseWorkbench({
             </Link>
           </div>
           <p>{stageSupport}</p>
+        </section>
+      ) : null}
+      {relatedDraftPurchaseOrders.length ? (
+        <section className="panel-card page-stack" aria-label="Manager purchase approval">
+          <header className="page-copy">
+            <span className="eyebrow">Manager approval needed</span>
+            <h2>Approve purchase order for this vehicle</h2>
+            <p>These draft purchase orders are still waiting on manager approval before parts receiving can continue.</p>
+          </header>
+          <div className="settings-overview-grid">
+            {relatedDraftPurchaseOrders.map((item) => (
+              <article className="settings-callout-card" key={item.id}>
+                <strong>{item.purchaseOrderNumber}</strong>
+                <p>{item.vendor?.name ?? "Vendor"} · {item.orderedTotalCents != null ? `$${(item.orderedTotalCents / 100).toFixed(2)}` : "Amount pending"}</p>
+                <small>Approval age {date(item.createdAt)}</small>
+                <div className="form-actions">
+                  <button className="button button-primary" disabled={busy} onClick={() => void approveRelatedPurchaseOrder(item)} type="button">
+                    Approve purchase order
+                  </button>
+                  <Link className="button button-secondary" href={partsWorkspaceHref}>
+                    Open Parts Workspace
+                  </Link>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : relatedApprovedPurchaseOrders.length ? (
+        <section className="panel-card page-stack" aria-label="Purchase approval status">
+          <header className="page-copy">
+            <span className="eyebrow">Approval complete</span>
+            <h2>Manager approval is already on file</h2>
+            <p>Any remaining parts blocker is likely operational, such as missing part number, stock location, receiving detail, or vendor delivery evidence.</p>
+          </header>
+          <div className="form-actions">
+            <Link className="button button-primary" href={partsWorkspaceHref}>
+              Open Parts Workspace
+            </Link>
+          </div>
         </section>
       ) : null}
       <RepairOrderDiagnosticsBridge bridge={diagnostics ?? { state: "UNAVAILABLE", repairOrderId: order.id, reason: "Diagnostics bridge was not supplied." }} />
