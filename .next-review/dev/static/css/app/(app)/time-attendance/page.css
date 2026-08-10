@@ -1,0 +1,1139 @@
+/*!***********************************************************************************************************************************************************************************************************************************************************************************************************!*\
+  !*** css ./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[15].oneOf[5].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[15].oneOf[5].use[3]!./src/features/time-attendance/time-attendance-console.module.css ***!
+  \***********************************************************************************************************************************************************************************************************************************************************************************************************/
+.time-attendance-console_console__9xka_ {
+  color: var(--ink);
+  display: grid;
+  gap: 20px;
+  margin: 0 auto;
+  max-width: 1440px;
+}
+
+.time-attendance-console_consoleHighVolume__vNwgG .time-attendance-console_panel__AhRNe,
+.time-attendance-console_consoleHighVolume__vNwgG .time-attendance-console_teamPanel__TEBWm,
+.time-attendance-console_consoleHighVolume__vNwgG .time-attendance-console_reviewRail__QcGCB {
+  border-radius: 10px;
+}
+
+.time-attendance-console_consoleHighVolume__vNwgG .time-attendance-console_managerReviewItem__lt120,
+.time-attendance-console_consoleHighVolume__vNwgG .time-attendance-console_teamRow__3Bau0,
+.time-attendance-console_consoleHighVolume__vNwgG .time-attendance-console_timelineItem__hxtwZ {
+  padding-block: 0.55rem;
+}
+
+.time-attendance-console_hero__R72pQ {
+  background:
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.2), transparent 34%),
+    linear-gradient(135deg, #0f172a 0%, #10284f 52%, #1e3a8a 100%);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  color: white;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  overflow: hidden;
+  padding: 26px;
+  position: relative;
+}
+
+.time-attendance-console_eyebrow__tbTz1,
+.time-attendance-console_sectionEyebrow__Gjw1m {
+  color: #64748b;
+  display: block;
+  font-size: 0.73rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.time-attendance-console_hero__R72pQ .time-attendance-console_eyebrow__tbTz1 {
+  color: #bfdbfe;
+}
+
+.time-attendance-console_hero__R72pQ h1 {
+  font-size: clamp(2rem, 4vw, 4rem);
+  letter-spacing: -0.06em;
+  line-height: 0.95;
+  margin: 8px 0 12px;
+  max-width: 780px;
+}
+
+.time-attendance-console_hero__R72pQ p {
+  color: #dbeafe;
+  font-size: 1rem;
+  line-height: 1.7;
+  margin: 0;
+  max-width: 760px;
+}
+
+.time-attendance-console_heroActions__vgIsW,
+.time-attendance-console_tabs__vAu0i,
+.time-attendance-console_cardActions__12we7,
+.time-attendance-console_chips__QSiYH,
+.time-attendance-console_queueMeta__arAnt,
+.time-attendance-console_teamStatus___ZAJi {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.time-attendance-console_heroActions__vgIsW {
+  justify-content: flex-end;
+}
+
+.time-attendance-console_primaryAction__y44yZ,
+.time-attendance-console_secondaryAction__DlZdQ,
+.time-attendance-console_ghostAction__vbMhA {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.86rem;
+  font-weight: 800;
+  gap: 8px;
+  justify-content: center;
+  padding: 10px 14px;
+  text-decoration: none;
+}
+
+.time-attendance-console_primaryAction__y44yZ {
+  background: white;
+  color: #1d4ed8;
+}
+
+.time-attendance-console_secondaryAction__DlZdQ {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  color: white;
+}
+
+.time-attendance-console_ghostAction__vbMhA {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  color: var(--ink);
+}
+
+.time-attendance-console_heroMetrics__nVwT5,
+.time-attendance-console_metricGrid__o1zMb {
+  display: grid;
+  gap: 12px;
+}
+
+.time-attendance-console_heroMetrics__nVwT5 {
+  align-content: start;
+  min-width: 260px;
+}
+
+.time-attendance-console_heroMetric__YcJO2,
+.time-attendance-console_metric__CpxtP,
+.time-attendance-console_panel__AhRNe,
+.time-attendance-console_reviewRail__QcGCB,
+.time-attendance-console_teamPanel__TEBWm {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.time-attendance-console_heroMetric__YcJO2 {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: white;
+  min-width: 230px;
+  padding: 16px;
+}
+
+.time-attendance-console_heroMetric__YcJO2 span,
+.time-attendance-console_metric__CpxtP span {
+  color: inherit;
+  display: block;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  opacity: 0.72;
+  text-transform: uppercase;
+}
+
+.time-attendance-console_heroMetric__YcJO2 strong,
+.time-attendance-console_metric__CpxtP strong {
+  display: block;
+  font-size: 1.8rem;
+  letter-spacing: -0.04em;
+  margin-top: 6px;
+}
+
+.time-attendance-console_tabs__vAu0i {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  box-shadow: var(--shadow-md);
+  padding: 6px;
+}
+
+.time-attendance-console_tab__sSNiR,
+.time-attendance-console_tabActive__mL7dd {
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+  padding: 9px 14px;
+}
+
+.time-attendance-console_tabActive__mL7dd {
+  background: #0f172a;
+  color: white;
+}
+
+.time-attendance-console_metricGrid__o1zMb {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.time-attendance-console_metric__CpxtP {
+  padding: 16px;
+}
+
+.time-attendance-console_metric__CpxtP strong {
+  color: var(--ink);
+}
+
+.time-attendance-console_bodyGrid__00Y15 {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1.6fr) minmax(320px, 0.9fr);
+}
+
+.time-attendance-console_mainStack__gZ5e_,
+.time-attendance-console_sideStack__Nrg9H {
+  display: grid;
+  gap: 18px;
+}
+
+.time-attendance-console_panel__AhRNe,
+.time-attendance-console_reviewRail__QcGCB,
+.time-attendance-console_teamPanel__TEBWm {
+  padding: 18px;
+}
+
+.time-attendance-console_panelHeader__IVwe_,
+.time-attendance-console_teamHeader__EuWmf,
+.time-attendance-console_exceptionRow__jKZBR,
+.time-attendance-console_policyCard__IFTP8,
+.time-attendance-console_timelineItem__hxtwZ,
+.time-attendance-console_queueItem__txBod,
+.time-attendance-console_teamRow__3Bau0 {
+  align-items: flex-start;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+}
+
+.time-attendance-console_panelHeader__IVwe_,
+.time-attendance-console_teamHeader__EuWmf {
+  margin-bottom: 16px;
+}
+
+.time-attendance-console_panelHeader__IVwe_ h2,
+.time-attendance-console_teamHeader__EuWmf h2 {
+  font-size: 1.15rem;
+  letter-spacing: -0.03em;
+  margin: 3px 0;
+}
+
+.time-attendance-console_panelHeader__IVwe_ p,
+.time-attendance-console_teamHeader__EuWmf p,
+.time-attendance-console_policyCard__IFTP8 p,
+.time-attendance-console_timelineItem__hxtwZ p,
+.time-attendance-console_exceptionRow__jKZBR p,
+.time-attendance-console_queueItem__txBod p,
+.time-attendance-console_teamRow__3Bau0 small {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.5;
+  margin: 4px 0 0;
+}
+
+.time-attendance-console_chips__QSiYH {
+  margin-top: 14px;
+}
+
+.time-attendance-console_chip__s32oQ,
+.time-attendance-console_chipGood__dUT5W,
+.time-attendance-console_chipWarning__BP421,
+.time-attendance-console_chipDanger__1OjAJ,
+.time-attendance-console_chipNeutral__Yxvqj {
+  border-radius: 999px;
+  font-size: 0.77rem;
+  font-weight: 800;
+  padding: 7px 10px;
+  white-space: nowrap;
+}
+
+.time-attendance-console_chip__s32oQ {
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+.time-attendance-console_chipGood__dUT5W {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.time-attendance-console_chipWarning__BP421 {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.time-attendance-console_chipDanger__1OjAJ {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.time-attendance-console_chipNeutral__Yxvqj {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.time-attendance-console_timeSummary__VIA9M {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 16px;
+}
+
+.time-attendance-console_timeSummary__VIA9M div {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 14px;
+}
+
+.time-attendance-console_timeSummary__VIA9M span {
+  color: var(--muted);
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.time-attendance-console_timeSummary__VIA9M strong {
+  display: block;
+  font-size: 1.35rem;
+  margin-top: 5px;
+}
+
+.time-attendance-console_timeline__FAu6I,
+.time-attendance-console_exceptionList__86_p6,
+.time-attendance-console_policyList__UsjT2,
+.time-attendance-console_queueList__eqRk9,
+.time-attendance-console_teamList__WCpd3 {
+  display: grid;
+  gap: 10px;
+}
+
+.time-attendance-console_timelineItem__hxtwZ,
+.time-attendance-console_exceptionRow__jKZBR,
+.time-attendance-console_policyCard__IFTP8,
+.time-attendance-console_queueItem__txBod,
+.time-attendance-console_teamRow__3Bau0 {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 14px;
+}
+
+.time-attendance-console_timelineLeft__VJ8lh {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.time-attendance-console_dotGood__3XEzt,
+.time-attendance-console_dotWarning___mEp4,
+.time-attendance-console_dotNeutral__qjk9l {
+  border-radius: 999px;
+  flex: 0 0 12px;
+  height: 12px;
+  width: 12px;
+}
+
+.time-attendance-console_dotGood__3XEzt {
+  background: #22c55e;
+}
+
+.time-attendance-console_dotWarning___mEp4 {
+  background: #f97316;
+}
+
+.time-attendance-console_dotNeutral__qjk9l {
+  background: #64748b;
+}
+
+.time-attendance-console_timelineTime__zNpLB,
+.time-attendance-console_queueCount__IV06B {
+  color: var(--ink);
+  font-size: 0.88rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.time-attendance-console_policyCard__IFTP8 {
+  display: grid;
+  gap: 10px;
+}
+
+.time-attendance-console_policyCard__IFTP8 h3,
+.time-attendance-console_queueItem__txBod h3,
+.time-attendance-console_teamRow__3Bau0 strong {
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.time-attendance-console_queueCount__IV06B {
+  align-items: center;
+  border-radius: 16px;
+  display: inline-flex;
+  justify-content: center;
+  min-width: 42px;
+  padding: 9px;
+}
+
+.time-attendance-console_queueMeta__arAnt {
+  justify-content: flex-start;
+}
+
+.time-attendance-console_teamPanel__TEBWm {
+  overflow: hidden;
+}
+
+.time-attendance-console_teamList__WCpd3 {
+  gap: 0;
+}
+
+.time-attendance-console_teamRow__3Bau0 {
+  background: transparent;
+  border-color: transparent;
+  border-radius: 0;
+  border-top: 1px solid var(--line);
+  padding: 14px 0;
+}
+
+.time-attendance-console_teamRow__3Bau0:first-child {
+  border-top: 0;
+}
+
+.time-attendance-console_teamName__ej_P_ {
+  min-width: 190px;
+}
+
+.time-attendance-console_teamNumbers__kWblP {
+  display: grid;
+  gap: 4px;
+  min-width: 140px;
+  text-align: right;
+}
+
+.time-attendance-console_teamNumbers__kWblP span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.time-attendance-console_captureStatus___8Nbw {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 14px;
+}
+
+.time-attendance-console_captureStatus___8Nbw div {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 14px;
+}
+
+.time-attendance-console_captureStatus___8Nbw span {
+  color: var(--muted);
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.time-attendance-console_captureStatus___8Nbw strong {
+  display: block;
+  font-size: 0.98rem;
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+}
+
+.time-attendance-console_captureActions__DFOTT {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.time-attendance-console_capturePrimary__VMnV_,
+.time-attendance-console_captureSecondary__DmVFt,
+.time-attendance-console_captureRefresh__XiATn {
+  align-items: center;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 900;
+  gap: 8px;
+  justify-content: center;
+  padding: 11px 15px;
+}
+
+.time-attendance-console_capturePrimary__VMnV_ {
+  background: #0f172a;
+  color: white;
+}
+
+.time-attendance-console_captureSecondary__DmVFt,
+.time-attendance-console_captureRefresh__XiATn {
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+.time-attendance-console_captureRefresh__XiATn {
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.time-attendance-console_capturePrimary__VMnV_:disabled,
+.time-attendance-console_captureSecondary__DmVFt:disabled,
+.time-attendance-console_captureRefresh__XiATn:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.time-attendance-console_captureNotice__JZjwa,
+.time-attendance-console_captureError__lnCqK {
+  align-items: flex-start;
+  border-radius: 16px;
+  display: flex;
+  font-size: 0.88rem;
+  font-weight: 800;
+  gap: 9px;
+  line-height: 1.5;
+  margin: 14px 0 0;
+  padding: 12px;
+}
+
+.time-attendance-console_captureNotice__JZjwa {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.time-attendance-console_captureError__lnCqK {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.time-attendance-console_correctionForm__WJKLV {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.time-attendance-console_timeOffForm__2fLUR {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.time-attendance-console_timeOffForm__2fLUR label {
+  display: grid;
+  gap: 6px;
+}
+
+.time-attendance-console_timeOffForm__2fLUR label span {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.time-attendance-console_timeOffForm__2fLUR input,
+.time-attendance-console_timeOffForm__2fLUR select,
+.time-attendance-console_timeOffForm__2fLUR textarea {
+  background: #f8fafc;
+  border: 1px solid #dbe4ef;
+  border-radius: 14px;
+  color: var(--ink);
+  font: inherit;
+  padding: 11px 12px;
+}
+
+.time-attendance-console_timeOffForm__2fLUR textarea {
+  resize: vertical;
+}
+
+.time-attendance-console_correctionForm__WJKLV label {
+  display: grid;
+  gap: 6px;
+}
+
+.time-attendance-console_correctionForm__WJKLV label span {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.time-attendance-console_correctionForm__WJKLV input,
+.time-attendance-console_correctionForm__WJKLV select,
+.time-attendance-console_correctionForm__WJKLV textarea {
+  background: #f8fafc;
+  border: 1px solid #dbe4ef;
+  border-radius: 14px;
+  color: var(--ink);
+  font: inherit;
+  padding: 11px 12px;
+}
+
+.time-attendance-console_correctionForm__WJKLV textarea {
+  resize: vertical;
+}
+
+.time-attendance-console_correctionWide__90k0H,
+.time-attendance-console_correctionFooter__K2Jso {
+  grid-column: 1 / -1;
+}
+
+.time-attendance-console_correctionFooter__K2Jso {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.time-attendance-console_correctionFooter__K2Jso p {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.time-attendance-console_correctionFooter__K2Jso button {
+  align-items: center;
+  background: #0f172a;
+  border: 0;
+  border-radius: 999px;
+  color: white;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 900;
+  gap: 8px;
+  justify-content: center;
+  padding: 11px 15px;
+  white-space: nowrap;
+}
+
+.time-attendance-console_correctionFooter__K2Jso button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.time-attendance-console_attestationCardFacts__PcQz0 {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 14px;
+}
+
+.time-attendance-console_attestationCardFacts__PcQz0 div {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 14px;
+}
+
+.time-attendance-console_attestationCardFacts__PcQz0 span {
+  color: var(--muted);
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.time-attendance-console_attestationCardFacts__PcQz0 strong {
+  display: block;
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+}
+
+.time-attendance-console_attestationForm__xTpU_ {
+  display: grid;
+  gap: 12px;
+}
+
+.time-attendance-console_attestationForm__xTpU_ label {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #dbe4ef;
+  border-radius: 16px;
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+}
+
+.time-attendance-console_attestationForm__xTpU_ label span,
+.time-attendance-console_attestationForm__xTpU_ button {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+}
+
+.time-attendance-console_attestationForm__xTpU_ textarea {
+  background: #f8fafc;
+  border: 1px solid #dbe4ef;
+  border-radius: 14px;
+  color: var(--ink);
+  font: inherit;
+  padding: 11px 12px;
+  resize: vertical;
+}
+
+.time-attendance-console_attestationStatement__fa15F {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 16px;
+  color: #1e3a8a;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  margin: 0;
+  padding: 12px;
+}
+
+.time-attendance-console_attestationForm__xTpU_ button {
+  background: #0f172a;
+  border: 0;
+  border-radius: 999px;
+  color: white;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 900;
+  justify-content: center;
+  padding: 11px 15px;
+  width: fit-content;
+}
+
+.time-attendance-console_attestationForm__xTpU_ button:disabled,
+.time-attendance-console_attestationForm__xTpU_ input:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.time-attendance-console_managerReviewMetrics__DLI_V {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 14px;
+}
+
+.time-attendance-console_payrollMetrics__jhKPP {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 14px;
+}
+
+.time-attendance-console_hardeningMetrics__e62LM {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 14px;
+}
+
+.time-attendance-console_hardeningMetrics__e62LM div {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 14px;
+}
+
+.time-attendance-console_hardeningMetrics__e62LM span {
+  color: var(--muted);
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.time-attendance-console_hardeningMetrics__e62LM strong {
+  display: block;
+  font-size: 1.35rem;
+  margin-top: 5px;
+}
+
+.time-attendance-console_hardeningGateList__QdgyK {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.time-attendance-console_hardeningGate__tmWzS {
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 14px;
+}
+
+.time-attendance-console_hardeningGate__tmWzS p,
+.time-attendance-console_hardeningGate__tmWzS small {
+  color: var(--muted);
+  display: block;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  margin: 4px 0 0;
+}
+
+.time-attendance-console_payrollMetrics__jhKPP div {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 14px;
+}
+
+.time-attendance-console_payrollMetrics__jhKPP span,
+.time-attendance-console_payrollControls__UoLwL label span {
+  color: var(--muted);
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.time-attendance-console_payrollMetrics__jhKPP strong {
+  display: block;
+  font-size: 1.35rem;
+  margin-top: 5px;
+}
+
+.time-attendance-console_payrollControls__UoLwL {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.time-attendance-console_payrollControls__UoLwL label {
+  display: grid;
+  gap: 6px;
+}
+
+.time-attendance-console_payrollControls__UoLwL input {
+  background: #f8fafc;
+  border: 1px solid #dbe4ef;
+  border-radius: 14px;
+  color: var(--ink);
+  font: inherit;
+  padding: 11px 12px;
+}
+
+.time-attendance-console_payrollActions__C3A25 {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.time-attendance-console_payrollActions__C3A25 button {
+  align-items: center;
+  background: #0f172a;
+  border: 0;
+  border-radius: 999px;
+  color: white;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 900;
+  gap: 7px;
+  padding: 9px 12px;
+}
+
+.time-attendance-console_payrollActions__C3A25 button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.time-attendance-console_payrollBlockers__11wJR {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.time-attendance-console_payrollBlockers__11wJR div {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 16px;
+  padding: 12px;
+}
+
+.time-attendance-console_payrollBlockers__11wJR p {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.5;
+  margin: 4px 0 0;
+}
+
+.time-attendance-console_managerReviewMetrics__DLI_V div {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 14px;
+}
+
+.time-attendance-console_managerReviewMetrics__DLI_V span {
+  color: var(--muted);
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.time-attendance-console_managerReviewMetrics__DLI_V strong {
+  display: block;
+  font-size: 1.35rem;
+  margin-top: 5px;
+}
+
+.time-attendance-console_managerReviewList__RHoEK {
+  display: grid;
+  gap: 10px;
+}
+
+.time-attendance-console_managerReviewItem__lt120 {
+  align-items: flex-start;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  color: inherit;
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  text-decoration: none;
+}
+
+.time-attendance-console_managerReviewContent__5IY0Y {
+  display: grid;
+  flex: 1 1;
+  gap: 4px;
+}
+
+.time-attendance-console_managerReviewItem__lt120 strong,
+.time-attendance-console_managerReviewEmpty__UG3vK strong {
+  display: block;
+}
+
+.time-attendance-console_managerReviewItem__lt120 small {
+  color: var(--muted);
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 800;
+  margin-top: 3px;
+}
+
+.time-attendance-console_managerReviewItem__lt120 p,
+.time-attendance-console_managerReviewEmpty__UG3vK p {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.5;
+  margin: 5px 0 0;
+}
+
+.time-attendance-console_managerReviewIcon__d15zu {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.time-attendance-console_managerReviewDanger__FOug0 {
+  border-color: #fecaca;
+}
+
+.time-attendance-console_managerReviewDanger__FOug0 .time-attendance-console_managerReviewIcon__d15zu {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.time-attendance-console_managerReviewWarning__NUih_ {
+  border-color: #fed7aa;
+}
+
+.time-attendance-console_managerReviewWarning__NUih_ .time-attendance-console_managerReviewIcon__d15zu {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.time-attendance-console_managerReviewInfo__UfLLr .time-attendance-console_managerReviewIcon__d15zu {
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+.time-attendance-console_managerReviewEmpty__UG3vK {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  display: grid;
+  gap: 5px;
+  justify-items: center;
+  padding: 22px;
+  text-align: center;
+}
+
+.time-attendance-console_managerDecisionForm__nOfkp {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(130px, 0.7fr) minmax(160px, 1fr) auto;
+  margin-top: 10px;
+}
+
+.time-attendance-console_managerDecisionForm__nOfkp input,
+.time-attendance-console_managerDecisionForm__nOfkp select {
+  background: white;
+  border: 1px solid #dbe4ef;
+  border-radius: 12px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 9px 10px;
+}
+
+.time-attendance-console_managerDecisionForm__nOfkp button {
+  background: #0f172a;
+  border: 0;
+  border-radius: 999px;
+  color: white;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 900;
+  padding: 9px 12px;
+  white-space: nowrap;
+}
+
+.time-attendance-console_managerDecisionForm__nOfkp button:disabled,
+.time-attendance-console_managerDecisionForm__nOfkp input:disabled,
+.time-attendance-console_managerDecisionForm__nOfkp select:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.time-attendance-console_inlineSuccess__EywTT,
+.time-attendance-console_inlineError__wtmKw {
+  border-radius: 12px;
+  font-size: 0.82rem !important;
+  font-weight: 800;
+  margin-top: 8px !important;
+  padding: 9px 10px;
+}
+
+.time-attendance-console_inlineSuccess__EywTT {
+  background: var(--success-soft);
+  color: var(--success) !important;
+}
+
+.time-attendance-console_inlineError__wtmKw {
+  background: var(--danger-soft);
+  color: var(--danger) !important;
+}
+
+.time-attendance-console_mvpNote__Ibqqt {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius-lg);
+  color: #1e3a8a;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  padding: 16px;
+}
+
+@media (max-width: 1100px) {
+  .time-attendance-console_hero__R72pQ,
+  .time-attendance-console_bodyGrid__00Y15 {
+    grid-template-columns: 1fr;
+  }
+
+  .time-attendance-console_heroActions__vgIsW {
+    justify-content: flex-start;
+  }
+
+  .time-attendance-console_metricGrid__o1zMb,
+  .time-attendance-console_timeSummary__VIA9M,
+  .time-attendance-console_managerReviewMetrics__DLI_V {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .time-attendance-console_hero__R72pQ {
+    border-radius: 22px;
+    padding: 20px;
+  }
+
+  .time-attendance-console_metricGrid__o1zMb,
+  .time-attendance-console_timeSummary__VIA9M,
+    .time-attendance-console_managerReviewMetrics__DLI_V,
+    .time-attendance-console_payrollMetrics__jhKPP,
+    .time-attendance-console_payrollControls__UoLwL,
+    .time-attendance-console_hardeningMetrics__e62LM {
+    grid-template-columns: 1fr;
+  }
+
+  .time-attendance-console_hardeningGate__tmWzS {
+    display: grid;
+  }
+
+  .time-attendance-console_panelHeader__IVwe_,
+  .time-attendance-console_teamHeader__EuWmf,
+  .time-attendance-console_exceptionRow__jKZBR,
+  .time-attendance-console_timelineItem__hxtwZ,
+  .time-attendance-console_queueItem__txBod,
+  .time-attendance-console_teamRow__3Bau0,
+  .time-attendance-console_correctionFooter__K2Jso {
+    display: grid;
+  }
+
+  .time-attendance-console_correctionForm__WJKLV,
+  .time-attendance-console_timeOffForm__2fLUR {
+    grid-template-columns: 1fr;
+  }
+
+  .time-attendance-console_managerDecisionForm__nOfkp {
+    grid-template-columns: 1fr;
+  }
+
+  .time-attendance-console_teamNumbers__kWblP {
+    text-align: left;
+  }
+}
+

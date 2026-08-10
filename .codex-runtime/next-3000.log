@@ -1,0 +1,321 @@
+
+> dispatch-board@0.1.0 predev
+> prisma generate
+
+warn The configuration property `package.json#prisma` is deprecated and will be removed in Prisma 7. Please migrate to a Prisma config file (e.g., `prisma.config.ts`).
+For more information, see: https://pris.ly/prisma-config
+
+Environment variables loaded from .env
+Prisma schema loaded from prisma\schema.prisma
+
+✔ Generated Prisma Client (v6.19.3) to .\node_modules\@prisma\client in 18.23s
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+Tip: Interested in query caching in just a few lines of code? Try Accelerate today! https://pris.ly/tip-3-accelerate
+
+
+> dispatch-board@0.1.0 dev
+> next dev --webpack
+
+▲ Next.js 16.2.9 (webpack)
+- Local:         http://localhost:3000
+- Network:       http://100.80.162.95:3000
+- Environments: .env
+✓ Ready in 1052ms
+
+ GET / 200 in 1594ms (next.js: 1341ms, application-code: 253ms)
+ GET /vehicles/inventory/prototype 307 in 3.2s (next.js: 2.9s, application-code: 259ms)
+ GET /login 200 in 476ms (next.js: 391ms, application-code: 85ms)
+ GET / 200 in 159ms (next.js: 47ms, application-code: 112ms)
+ GET /board 200 in 2.6s (next.js: 2.3s, application-code: 366ms)
+ GET /api/board/today 404 in 2.3s (next.js: 2.1s, application-code: 171ms)
+ GET /api/auth/me 200 in 2.6s (next.js: 2.5s, application-code: 176ms)
+ GET /api/activity?date=2026-08-02 200 in 2.3s (next.js: 2.1s, application-code: 181ms)
+ GET /vehicles 200 in 2.9s (next.js: 2.2s, application-code: 672ms)
+ GET /vehicles/inventory 200 in 1878ms (next.js: 1597ms, application-code: 281ms)
+ GET /vehicles/inventory/prototype 200 in 1934ms (next.js: 1866ms, application-code: 68ms)
+ GET /api/auth/me 200 in 89ms (next.js: 26ms, application-code: 63ms)
+ GET /api/auth/me 200 in 52ms (next.js: 8ms, application-code: 44ms)
+ GET /api/auth/me 200 in 37ms (next.js: 4ms, application-code: 33ms)
+ GET /api/auth/me 200 in 15ms (next.js: 2ms, application-code: 13ms)
+ GET /api/auth/me 200 in 15ms (next.js: 2ms, application-code: 13ms)
+ GET /api/auth/me 200 in 14ms (next.js: 3ms, application-code: 11ms)
+ GET /api/auth/me 200 in 52ms (next.js: 2ms, application-code: 50ms)
+ GET /api/auth/me 200 in 31ms (next.js: 2ms, application-code: 29ms)
+ GET /api/auth/me 200 in 19ms (next.js: 2ms, application-code: 17ms)
+ GET /api/auth/me 200 in 25ms (next.js: 2ms, application-code: 23ms)
+ GET /api/auth/me 200 in 17ms (next.js: 2ms, application-code: 15ms)
+ GET /api/auth/me 200 in 62ms (next.js: 2ms, application-code: 60ms)
+ GET /api/auth/me 200 in 15ms (next.js: 2ms, application-code: 13ms)
+ GET /api/auth/me 200 in 13ms (next.js: 4ms, application-code: 9ms)
+ GET /api/auth/me 200 in 12ms (next.js: 2ms, application-code: 9ms)
+ GET /api/auth/me 200 in 15ms (next.js: 2ms, application-code: 13ms)
+ GET /api/auth/me 200 in 13ms (next.js: 2ms, application-code: 11ms)
+ GET /api/auth/me 200 in 58ms (next.js: 4ms, application-code: 54ms)
+ GET /vehicles/inventory/prototype 200 in 406ms (next.js: 5ms, application-code: 401ms)
+ GET /api/auth/me 200 in 35ms (next.js: 4ms, application-code: 31ms)
+ GET /api/auth/me 200 in 22ms (next.js: 5ms, application-code: 17ms)
+ GET /api/auth/me 200 in 18ms (next.js: 2ms, application-code: 15ms)
+ GET /api/auth/me 200 in 13ms (next.js: 2ms, application-code: 11ms)
+ GET /api/auth/me 200 in 21ms (next.js: 2ms, application-code: 19ms)
+ GET /api/auth/me 200 in 160ms (next.js: 3ms, application-code: 157ms)
+ GET /api/auth/me 200 in 14ms (next.js: 2ms, application-code: 11ms)
+ GET /api/auth/me 200 in 65ms (next.js: 39ms, application-code: 26ms)
+ GET /api/auth/me 200 in 42ms (next.js: 28ms, application-code: 14ms)
+ GET /api/auth/me 200 in 32ms (next.js: 4ms, application-code: 28ms)
+ GET /command-center 200 in 1597ms (next.js: 1484ms, application-code: 113ms)
+ GET /board 200 in 84ms (next.js: 20ms, application-code: 64ms)
+ GET /api/board/today 404 in 1673ms (next.js: 1617ms, application-code: 56ms)
+ GET /api/activity?date=2026-08-02 200 in 1733ms (next.js: 1634ms, application-code: 100ms)
+ GET /vehicles 200 in 465ms (next.js: 47ms, application-code: 419ms)
+ GET /vehicles/inventory 200 in 155ms (next.js: 18ms, application-code: 137ms)
+ GET /vehicles/inventory/prototype 200 in 83ms (next.js: 42ms, application-code: 41ms)
+ GET /api/auth/me 200 in 42ms (next.js: 7ms, application-code: 35ms)
+ GET /api/auth/me 200 in 35ms (next.js: 5ms, application-code: 30ms)
+ GET /api/auth/me 200 in 54ms (next.js: 32ms, application-code: 22ms)
+ GET /vehicles/inventory/prototype 200 in 160ms (next.js: 71ms, application-code: 90ms)
+ GET /api/auth/me 200 in 44ms (next.js: 11ms, application-code: 34ms)
+ GET /api/auth/me 200 in 37ms (next.js: 4ms, application-code: 33ms)
+ GET /api/auth/me 200 in 24ms (next.js: 5ms, application-code: 19ms)
+ GET /vehicles 200 in 267ms (next.js: 24ms, application-code: 244ms)
+ GET /vehicles/inventory 200 in 132ms (next.js: 17ms, application-code: 115ms)
+ GET /vehicles/inventory/prototype 200 in 89ms (next.js: 4ms, application-code: 84ms)
+ GET /api/auth/me 200 in 56ms (next.js: 2ms, application-code: 54ms)
+ GET /api/auth/me 200 in 33ms (next.js: 4ms, application-code: 29ms)
+ GET /api/auth/me 200 in 24ms (next.js: 3ms, application-code: 21ms)
+ GET /vehicles/registry 200 in 1633ms (next.js: 1508ms, application-code: 125ms)
+ GET /vehicles/436ed525-e981-485c-98e3-786b882ae0c9/workbench 200 in 2.4s (next.js: 2.2s, application-code: 232ms)
+ GET /api/auth/me 200 in 44ms (next.js: 10ms, application-code: 34ms)
+ GET /vehicles/360/436ed525-e981-485c-98e3-786b882ae0c9?returnTo=%2Fvehicles%2F436ed525-e981-485c-98e3-786b882ae0c9%2Fworkbench 200 in 2.3s (next.js: 2.1s, application-code: 188ms)
+ POST /api/service-intake/safety-intelligence 200 in 983ms (next.js: 903ms, application-code: 80ms)
+ POST /api/service-intake/safety-intelligence 200 in 96ms (next.js: 4ms, application-code: 91ms)
+ GET /api/auth/me 200 in 27ms (next.js: 10ms, application-code: 16ms)
+ GET /api/auth/me 200 in 17ms (next.js: 3ms, application-code: 14ms)
+ GET /api/auth/me 200 in 37ms (next.js: 9ms, application-code: 28ms)
+ GET /vehicles/inventory 200 in 262ms (next.js: 82ms, application-code: 180ms)
+ GET /vehicles/inventory/prototype 200 in 272ms (next.js: 41ms, application-code: 230ms)
+ GET /api/auth/me 200 in 24ms (next.js: 2ms, application-code: 22ms)
+ GET /api/auth/me 200 in 34ms (next.js: 5ms, application-code: 29ms)
+ GET /api/auth/me 200 in 15ms (next.js: 2ms, application-code: 13ms)
+ GET /api/auth/me 200 in 27ms (next.js: 3ms, application-code: 24ms)
+ GET /api/auth/me 200 in 17ms (next.js: 3ms, application-code: 15ms)
+ GET /api/auth/me 200 in 17ms (next.js: 3ms, application-code: 14ms)
+ GET /api/auth/me 200 in 65ms (next.js: 3ms, application-code: 61ms)
+ GET /api/auth/me 200 in 78ms (next.js: 9ms, application-code: 68ms)
+ GET /api/auth/me 200 in 33ms (next.js: 5ms, application-code: 28ms)
+ GET /api/auth/me 200 in 32ms (next.js: 4ms, application-code: 28ms)
+ GET /settings/vehicle-operations 200 in 1588ms (next.js: 1439ms, application-code: 149ms)
+ GET /command-center 200 in 2.1s (next.js: 1908ms, application-code: 177ms)
+ GET /board 200 in 2.4s (next.js: 2.3s, application-code: 123ms)
+○ Compiling /api/activity ...
+ GET /api/activity?date=2026-08-02 200 in 3.5s (next.js: 3.4s, application-code: 75ms)
+ GET /api/board/today 404 in 3.6s (next.js: 3.5s, application-code: 110ms)
+ GET /api/auth/me 200 in 44ms (next.js: 15ms, application-code: 28ms)
+ GET /vehicles 200 in 3.4s (next.js: 2.9s, application-code: 484ms)
+ GET /vehicles/inventory 200 in 267ms (next.js: 56ms, application-code: 211ms)
+ GET /vehicles/inventory 200 in 53ms (next.js: 16ms, application-code: 37ms)
+ GET /vehicles/inventory 200 in 243ms (next.js: 12ms, application-code: 232ms)
+ GET /api/auth/me 200 in 34ms (next.js: 13ms, application-code: 21ms)
+ GET /api/auth/me 200 in 25ms (next.js: 6ms, application-code: 19ms)
+ GET /api/auth/me 200 in 26ms (next.js: 4ms, application-code: 22ms)
+ GET /vehicles 200 in 307ms (next.js: 8ms, application-code: 299ms)
+ GET /vehicles/registry 200 in 2.3s (next.js: 2.1s, application-code: 195ms)
+ GET /vehicles/registry 200 in 98ms (next.js: 12ms, application-code: 86ms)
+ GET /api/auth/me 200 in 66ms (next.js: 24ms, application-code: 43ms)
+ GET /vehicles/436ed525-e981-485c-98e3-786b882ae0c9/workbench 200 in 1490ms (next.js: 1246ms, application-code: 244ms)
+○ Compiling /vehicles/[id]/inventory-planning ...
+ GET /vehicles/436ed525-e981-485c-98e3-786b882ae0c9/inventory-planning?returnTo=%2Fvehicles%2F436ed525-e981-485c-98e3-786b882ae0c9%2Fworkbench 200 in 6.2s (next.js: 5.8s, application-code: 368ms)
+ GET /vehicles/436ed525-e981-485c-98e3-786b882ae0c9/workbench 200 in 246ms (next.js: 72ms, application-code: 174ms)
+ GET /vehicles/436ed525-e981-485c-98e3-786b882ae0c9/inventory-planning?returnTo=%2Fvehicles%2F436ed525-e981-485c-98e3-786b882ae0c9%2Fworkbench 200 in 194ms (next.js: 28ms, application-code: 166ms)
+ GET /vehicles/436ed525-e981-485c-98e3-786b882ae0c9/workbench 200 in 180ms (next.js: 28ms, application-code: 152ms)
+ GET /api/auth/me 200 in 122ms (next.js: 33ms, application-code: 89ms)
+○ Compiling /vehicles/repair-workbench ...
+ GET /vehicles/repair-workbench?repairOrderId=db21b235-2ff8-46f3-8886-94ccbd1c940b&vehicleId=436ed525-e981-485c-98e3-786b882ae0c9&returnTo=%2Fvehicles%2F436ed525-e981-485c-98e3-786b882ae0c9%2Fworkbench 200 in 5.2s (next.js: 4.8s, application-code: 443ms)
+ GET /vehicles/inventory 200 in 247ms (next.js: 52ms, application-code: 195ms)
+ GET /vehicles/registry 200 in 125ms (next.js: 36ms, application-code: 89ms)
+ GET /vehicles/inventory 200 in 187ms (next.js: 17ms, application-code: 170ms)
+ GET /vehicles/inventory/prototype 200 in 2.5s (next.js: 2.4s, application-code: 156ms)
+ GET /api/auth/me 200 in 37ms (next.js: 12ms, application-code: 25ms)
+ GET /api/auth/me 200 in 88ms (next.js: 9ms, application-code: 79ms)
+ GET /api/auth/me 200 in 34ms (next.js: 7ms, application-code: 27ms)
+ GET /api/auth/me 200 in 37ms (next.js: 6ms, application-code: 31ms)
+ GET /api/auth/me 200 in 46ms (next.js: 7ms, application-code: 39ms)
+ GET /api/auth/me 200 in 35ms (next.js: 7ms, application-code: 28ms)
+ GET /api/auth/me 200 in 31ms (next.js: 6ms, application-code: 24ms)
+ GET /api/auth/me 200 in 33ms (next.js: 4ms, application-code: 29ms)
+ GET /api/auth/me 200 in 86ms (next.js: 4ms, application-code: 82ms)
+ GET /api/auth/me 200 in 43ms (next.js: 7ms, application-code: 36ms)
+ GET /vehicles/inventory/prototype 200 in 499ms (next.js: 11ms, application-code: 488ms)
+ GET /vehicles/inventory/prototype 200 in 484ms (next.js: 239ms, application-code: 244ms)
+ GET /api/auth/me 200 in 71ms (next.js: 25ms, application-code: 46ms)
+ GET /vehicles/inventory/prototype 200 in 321ms (next.js: 11ms, application-code: 310ms)
+ GET /vehicles/inventory/prototype 200 in 418ms (next.js: 174ms, application-code: 245ms)
+ GET /api/auth/me 200 in 38ms (next.js: 8ms, application-code: 30ms)
+[browser] Uncaught TypeError: Cannot read properties of null (reading 'removeChild')
+[browser] Uncaught TypeError: Cannot read properties of null (reading 'removeChild')
+ GET /api/auth/me 200 in 63ms (next.js: 11ms, application-code: 52ms)
+ GET /api/auth/me 200 in 48ms (next.js: 9ms, application-code: 38ms)
+ GET /vehicles/shop-recon 200 in 3.1s (next.js: 2.8s, application-code: 255ms)
+ GET /api/auth/me 200 in 51ms (next.js: 19ms, application-code: 32ms)
+ GET /api/auth/me 200 in 46ms (next.js: 7ms, application-code: 39ms)
+ GET /vehicles/inventory 200 in 2.0s (next.js: 1814ms, application-code: 203ms)
+ GET /api/auth/me 200 in 69ms (next.js: 21ms, application-code: 47ms)
+ GET /vehicles/inventory/prototype 200 in 232ms (next.js: 96ms, application-code: 136ms)
+○ Compiling /vehicles ...
+ GET /vehicles 200 in 3.8s (next.js: 3.3s, application-code: 537ms)
+ GET /api/auth/me 200 in 85ms (next.js: 26ms, application-code: 59ms)
+ GET /vehicles/inventory 200 in 289ms (next.js: 57ms, application-code: 232ms)
+ GET /vehicles/control-tower?returnTo=%2Fvehicles%2Finventory 200 in 2.3s (next.js: 1989ms, application-code: 273ms)
+ GET /vehicles/inventory 200 in 481ms (next.js: 59ms, application-code: 423ms)
+ GET /vehicles 200 in 504ms (next.js: 52ms, application-code: 452ms)
+ GET /vehicles 200 in 396ms (next.js: 9ms, application-code: 387ms)
+ GET /api/auth/me 200 in 59ms (next.js: 17ms, application-code: 42ms)
+ GET /vehicles/inventory 200 in 213ms (next.js: 9ms, application-code: 204ms)
+ GET /vehicles/inventory/prototype 200 in 306ms (next.js: 175ms, application-code: 131ms)
+ GET /api/auth/me 200 in 53ms (next.js: 8ms, application-code: 45ms)
+ GET /api/auth/me 200 in 33ms (next.js: 5ms, application-code: 27ms)
+ GET /api/auth/me 200 in 27ms (next.js: 3ms, application-code: 25ms)
+ GET /api/auth/me 200 in 17ms (next.js: 3ms, application-code: 14ms)
+ GET /api/auth/me 200 in 63ms (next.js: 4ms, application-code: 59ms)
+ GET /api/auth/me 200 in 14ms (next.js: 3ms, application-code: 11ms)
+ GET /vehicles/inventory/prototype 200 in 347ms (next.js: 91ms, application-code: 256ms)
+ GET /api/auth/me 200 in 58ms (next.js: 29ms, application-code: 29ms)
+ GET /api/auth/me 200 in 31ms (next.js: 6ms, application-code: 25ms)
+ GET /vehicles/inventory 200 in 364ms (next.js: 90ms, application-code: 274ms)
+ GET /vehicles/inventory/prototype 200 in 241ms (next.js: 106ms, application-code: 134ms)
+ GET /vehicles 200 in 404ms (next.js: 49ms, application-code: 355ms)
+ GET /vehicles/inventory 200 in 204ms (next.js: 10ms, application-code: 194ms)
+ GET /vehicles/inventory/prototype 200 in 158ms (next.js: 12ms, application-code: 145ms)
+ GET /api/auth/me 200 in 98ms (next.js: 58ms, application-code: 40ms)
+ GET /vehicles/inventory/prototype 200 in 385ms (next.js: 186ms, application-code: 200ms)
+[browser] Uncaught TypeError: Cannot read properties of null (reading 'removeChild')
+[browser] Uncaught TypeError: Cannot read properties of null (reading 'removeChild')
+ GET /api/auth/me 200 in 73ms (next.js: 17ms, application-code: 56ms)
+ GET /api/auth/me 200 in 50ms (next.js: 10ms, application-code: 39ms)
+ GET /api/auth/me 200 in 32ms (next.js: 8ms, application-code: 24ms)
+ GET /api/auth/me 200 in 33ms (next.js: 4ms, application-code: 29ms)
+ GET /api/auth/me 200 in 73ms (next.js: 3ms, application-code: 70ms)
+ GET /api/auth/me 200 in 25ms (next.js: 3ms, application-code: 22ms)
+ GET /api/auth/me 200 in 15ms (next.js: 4ms, application-code: 12ms)
+ GET /api/auth/me 200 in 30ms (next.js: 5ms, application-code: 25ms)
+ GET /api/auth/me 200 in 31ms (next.js: 3ms, application-code: 28ms)
+ GET /vehicles/inventory/prototype 200 in 417ms (next.js: 55ms, application-code: 363ms)
+ GET /vehicles/inventory/prototype 200 in 78ms (next.js: 31ms, application-code: 47ms)
+ GET /vehicles/inventory 200 in 114ms (next.js: 3ms, application-code: 111ms)
+ GET /vehicles/inventory 200 in 169ms (next.js: 29ms, application-code: 141ms)
+ GET /vehicles/inventory 200 in 142ms (next.js: 32ms, application-code: 110ms)
+ GET /api/auth/me 200 in 41ms (next.js: 8ms, application-code: 34ms)
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+ GET /vehicles/inventory 200 in 277ms (next.js: 112ms, application-code: 165ms)
+ GET /vehicles/inventory 200 in 451ms (next.js: 4ms, application-code: 448ms)
+ GET /api/auth/me 200 in 47ms (next.js: 8ms, application-code: 39ms)
+ GET /api/auth/me 200 in 109ms (next.js: 49ms, application-code: 60ms)
+⚠ ./src/features/prototype/inventory-lifecycle-prototype.tsx
+Attempted import error: 'buildPrototypeLifecycleHref' is not exported from '@/features/inventory/lifecycle/shell' (imported as 'buildPrototypeLifecycleHref').
+
+Import trace for requested module:
+./src/features/prototype/inventory-lifecycle-prototype.tsx
+
+./src/features/prototype/inventory-lifecycle-prototype.tsx
+Attempted import error: 'buildPrototypeLifecycleHref' is not exported from '@/features/inventory/lifecycle/shell' (imported as 'buildPrototypeLifecycleHref').
+
+Import trace for requested module:
+./src/features/prototype/inventory-lifecycle-prototype.tsx
+
+./src/features/inventory/inventory-control-tower.tsx
+Attempted import error: 'buildPrototypeLifecycleHref' is not exported from '@/features/inventory/lifecycle/shell' (imported as 'buildPrototypeLifecycleHref').
+
+Import trace for requested module:
+./src/features/inventory/inventory-control-tower.tsx
+./src/app/(app)/vehicles/control-tower/page.tsx
+
+./src/features/inventory/inventory-control-tower.tsx
+Attempted import error: 'buildPrototypeLifecycleHref' is not exported from '@/features/inventory/lifecycle/shell' (imported as 'buildPrototypeLifecycleHref').
+
+Import trace for requested module:
+./src/features/inventory/inventory-control-tower.tsx
+./src/app/(app)/vehicles/control-tower/page.tsx
+ GET /vehicles/inventory 200 in 327ms (next.js: 173ms, application-code: 154ms)
+⚠ ./src/features/inventory/inventory-control-tower.tsx
+Attempted import error: 'buildPrototypeLifecycleHref' is not exported from '@/features/inventory/lifecycle/shell' (imported as 'buildPrototypeLifecycleHref').
+
+Import trace for requested module:
+./src/features/inventory/inventory-control-tower.tsx
+./src/app/(app)/vehicles/control-tower/page.tsx
+
+./src/features/inventory/inventory-control-tower.tsx
+Attempted import error: 'buildPrototypeLifecycleHref' is not exported from '@/features/inventory/lifecycle/shell' (imported as 'buildPrototypeLifecycleHref').
+
+Import trace for requested module:
+./src/features/inventory/inventory-control-tower.tsx
+./src/app/(app)/vehicles/control-tower/page.tsx
+ GET /api/auth/me 200 in 58ms (next.js: 27ms, application-code: 30ms)
+ GET /vehicles/inventory 200 in 178ms (next.js: 60ms, application-code: 118ms)
+ GET /vehicles/inventory 200 in 140ms (next.js: 42ms, application-code: 98ms)
+ GET /api/auth/me 200 in 50ms (next.js: 13ms, application-code: 37ms)
+ GET /api/auth/me 200 in 95ms (next.js: 4ms, application-code: 91ms)
+[browser] ./src/features/prototype/inventory-lifecycle-prototype.tsx
+Attempted import error: 'buildPrototypeLifecycleHref' is not exported from '@/features/inventory/lifecycle/shell' (imported as 'buildPrototypeLifecycleHref').
+
+Import trace for requested module:
+./src/features/prototype/inventory-lifecycle-prototype.tsx
+ GET /api/auth/me 200 in 79ms (next.js: 7ms, application-code: 72ms)
+ GET /vehicles/inventory 200 in 29ms (next.js: 9ms, application-code: 21ms)
+ GET /api/auth/me 200 in 49ms (next.js: 6ms, application-code: 43ms)
+ GET /api/auth/me 200 in 53ms (next.js: 10ms, application-code: 43ms)
+ GET /api/auth/me 200 in 38ms (next.js: 6ms, application-code: 32ms)
+ GET /api/auth/me 200 in 35ms (next.js: 7ms, application-code: 28ms)
+ GET /api/auth/me 200 in 37ms (next.js: 6ms, application-code: 30ms)
+ GET /api/auth/me 200 in 37ms (next.js: 7ms, application-code: 31ms)
+ GET /api/auth/me 200 in 31ms (next.js: 6ms, application-code: 25ms)
+ GET /api/auth/me 200 in 17ms (next.js: 2ms, application-code: 14ms)
+ GET /api/auth/me 200 in 28ms (next.js: 3ms, application-code: 25ms)
+ GET /api/auth/me 200 in 58ms (next.js: 36ms, application-code: 22ms)
+ GET /api/auth/me 200 in 35ms (next.js: 7ms, application-code: 29ms)
+ GET /api/auth/me 200 in 39ms (next.js: 6ms, application-code: 33ms)
+○ Compiling /vehicles/workflows/add-vehicle ...
+ GET /vehicles/workflows/add-vehicle?returnTo=%2Fvehicles%2Finventory%2Fprototype 200 in 4.5s (next.js: 4.2s, application-code: 217ms)
+ GET /vehicles/inventory/prototype 200 in 98ms (next.js: 37ms, application-code: 61ms)
+ GET /vehicles/inventory 200 in 622ms (next.js: 6ms, application-code: 617ms)
+ GET /vehicles/inventory 200 in 800ms (next.js: 100ms, application-code: 700ms)
+ GET /api/auth/me 200 in 88ms (next.js: 28ms, application-code: 60ms)
+ GET /vehicles/inventory 200 in 24ms (next.js: 8ms, application-code: 16ms)
+ GET /vehicles/inventory 200 in 33ms (next.js: 9ms, application-code: 24ms)
+ GET /vehicles/inventory 200 in 26ms (next.js: 9ms, application-code: 17ms)
+ GET /vehicles/inventory 200 in 37ms (next.js: 7ms, application-code: 29ms)
+ GET /api/auth/me 200 in 34ms (next.js: 6ms, application-code: 29ms)
+ GET /vehicles/inventory 200 in 26ms (next.js: 9ms, application-code: 17ms)
+ GET /api/auth/me 200 in 24ms (next.js: 2ms, application-code: 21ms)
+ GET /api/auth/me 200 in 17ms (next.js: 2ms, application-code: 15ms)
+ GET /api/auth/me 200 in 31ms (next.js: 3ms, application-code: 28ms)
+ GET /api/auth/me 200 in 94ms (next.js: 6ms, application-code: 88ms)
+ GET /api/auth/me 200 in 30ms (next.js: 4ms, application-code: 26ms)
+ GET /api/auth/me 200 in 16ms (next.js: 3ms, application-code: 13ms)
+ GET /api/auth/me 200 in 17ms (next.js: 2ms, application-code: 15ms)
+ GET /api/auth/me 200 in 33ms (next.js: 3ms, application-code: 30ms)
+ GET /vehicles/inventory 307 in 192ms (next.js: 4ms, application-code: 188ms)
+ GET /login 200 in 1502ms (next.js: 1402ms, application-code: 100ms)
+ GET /api/auth/me 200 in 84ms (next.js: 15ms, application-code: 69ms)
+ GET /vehicles/inventory 200 in 450ms (next.js: 41ms, application-code: 409ms)
+ GET /vehicles/inventory 200 in 232ms (next.js: 4ms, application-code: 228ms)
+ GET /api/auth/me 200 in 35ms (next.js: 3ms, application-code: 32ms)
+ GET /api/auth/me 200 in 23ms (next.js: 3ms, application-code: 21ms)
+ GET /api/auth/me 200 in 17ms (next.js: 3ms, application-code: 14ms)
+ GET /api/auth/me 200 in 16ms (next.js: 3ms, application-code: 13ms)
+ GET /api/auth/me 200 in 40ms (next.js: 3ms, application-code: 37ms)
+ GET /api/auth/me 200 in 14ms (next.js: 2ms, application-code: 12ms)
+ GET /vehicles/inventory 200 in 1112ms (next.js: 187ms, application-code: 925ms)
+ GET /api/auth/me 200 in 118ms (next.js: 12ms, application-code: 106ms)
+ GET /vehicles/inventory 200 in 252ms (next.js: 5ms, application-code: 247ms)
+ GET /api/auth/me 200 in 21ms (next.js: 3ms, application-code: 18ms)
+ GET /api/auth/me 200 in 29ms (next.js: 5ms, application-code: 24ms)
+ GET /api/auth/me 200 in 22ms (next.js: 5ms, application-code: 17ms)
+ GET /api/auth/me 200 in 48ms (next.js: 12ms, application-code: 36ms)
+ GET /vehicles/inventory 200 in 54ms (next.js: 15ms, application-code: 40ms)
+ GET /vehicles/inventory 200 in 225ms (next.js: 20ms, application-code: 205ms)
+ GET /api/auth/me 200 in 44ms (next.js: 7ms, application-code: 37ms)
+ GET /api/auth/me 200 in 76ms (next.js: 4ms, application-code: 72ms)
+ GET /api/auth/me 200 in 32ms (next.js: 3ms, application-code: 29ms)
+ GET /api/auth/me 200 in 26ms (next.js: 4ms, application-code: 22ms)
+ GET /api/auth/me 200 in 27ms (next.js: 4ms, application-code: 23ms)

@@ -1,0 +1,47 @@
+▲ Next.js 16.2.9 (webpack)
+- Local:         http://localhost:3000
+- Network:       http://0.0.0.0:3000
+- Environments: .env
+✓ Ready in 7.1s
+
+  We detected TypeScript in your project and reconfigured your tsconfig.json file for you.
+  The following suggested values were added to your tsconfig.json. These values can be changed to fit your project's needs:
+
+  	- include was updated to add '.next-review/types/**/*.ts'
+  	- include was updated to add '.next-review/dev/types/**/*.ts'
+
+
+○ Compiling /time-attendance ...
+ GET /time-attendance 307 in 6.8s (next.js: 6.1s, application-code: 701ms)
+ GET /login 200 in 556ms (next.js: 466ms, application-code: 90ms)
+ GET /login 200 in 23ms (next.js: 2ms, application-code: 21ms)
+ GET /login 200 in 29ms (next.js: 3ms, application-code: 27ms)
+ POST /api/auth/login 200 in 685ms (next.js: 564ms, application-code: 122ms)
+ GET /manager-workspace 200 in 1300ms (next.js: 935ms, application-code: 365ms)
+ GET /manager-workspace 200 in 146ms (next.js: 4ms, application-code: 143ms)
+ GET /api/auth/me 200 in 289ms (next.js: 259ms, application-code: 30ms)
+ GET /time-attendance 200 in 1238ms (next.js: 969ms, application-code: 269ms)
+ GET /api/auth/me 200 in 44ms (next.js: 8ms, application-code: 36ms)
+ GET /time-attendance 200 in 330ms (next.js: 214ms, application-code: 116ms)
+ GET /time-attendance 200 in 349ms (next.js: 209ms, application-code: 140ms)
+ GET /time-attendance 200 in 377ms (next.js: 264ms, application-code: 112ms)
+ GET /time-attendance?view=policies 200 in 202ms (next.js: 2ms, application-code: 200ms)
+ GET /api/auth/me 200 in 43ms (next.js: 5ms, application-code: 38ms)
+ GET /api/time-attendance/policies 200 in 830ms (next.js: 807ms, application-code: 23ms)
+ GET /time-attendance?view=manager 200 in 234ms (next.js: 34ms, application-code: 199ms)
+ GET /api/auth/me 200 in 14ms (next.js: 3ms, application-code: 10ms)
+ GET /api/time-attendance/monitoring 200 in 417ms (next.js: 394ms, application-code: 23ms)
+ GET /time-attendance?view=manager&density=high 200 in 190ms (next.js: 27ms, application-code: 163ms)
+ GET /api/auth/me 200 in 14ms (next.js: 3ms, application-code: 11ms)
+ GET /api/time-attendance/monitoring 200 in 24ms (next.js: 1457µs, application-code: 22ms)
+ GET /time-attendance?view=payroll 200 in 126ms (next.js: 2ms, application-code: 123ms)
+ GET /api/auth/me 200 in 20ms (next.js: 1702µs, application-code: 18ms)
+ GET /api/time-attendance/monitoring 200 in 18ms (next.js: 1666µs, application-code: 16ms)
+ GET /time-attendance?view=payroll 200 in 407ms (next.js: 283ms, application-code: 124ms)
+ GET /api/auth/me 200 in 16ms (next.js: 5ms, application-code: 11ms)
+ GET /api/time-attendance/monitoring 401 in 17ms (next.js: 10ms, application-code: 8ms)
+ POST /api/time-attendance/manager-cards 401 in 487ms (next.js: 476ms, application-code: 11ms)
+ GET /api/time-attendance/payroll-handoff?download=1&batchId=test 401 in 422ms (next.js: 414ms, application-code: 8ms)
+ GET /api/time-attendance/policies 401 in 376ms (next.js: 370ms, application-code: 6ms)
+ GET /api/auth/me 200 in 18ms (next.js: 4ms, application-code: 14ms)
+[?25h

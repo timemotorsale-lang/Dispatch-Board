@@ -1,0 +1,10 @@
+{
+  "/api/auth/me/route": "app/api/auth/me/route.js",
+  "/api/time-attendance/monitoring/route": "app/api/time-attendance/monitoring/route.js",
+  "/api/time-attendance/manager-cards/route": "app/api/time-attendance/manager-cards/route.js",
+  "/api/time-attendance/payroll-handoff/route": "app/api/time-attendance/payroll-handoff/route.js",
+  "/api/time-attendance/policies/route": "app/api/time-attendance/policies/route.js",
+  "/login/page": "app/login/page.js",
+  "/(app)/manager-workspace/page": "app/(app)/manager-workspace/page.js",
+  "/(app)/time-attendance/page": "app/(app)/time-attendance/page.js"
+}

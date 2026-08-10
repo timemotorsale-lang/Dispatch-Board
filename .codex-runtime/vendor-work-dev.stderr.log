@@ -1,0 +1,287 @@
+warn The configuration property `package.json#prisma` is deprecated and will be removed in Prisma 7. Please migrate to a Prisma config file (e.g., `prisma.config.ts`).
+For more information, see: https://pris.ly/prisma-config
+
+Environment variables loaded from .env
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⨯ ReferenceError: partsOperationsHref is not defined
+    at AdvisorRepairOrderStatusView (src\features\advisor\advisor-repair-order-status-view.tsx:229:721)
+  227 | ...
+  228 | ....href}>{repairPrimaryAction.label}</Link> : <button className="advisor-repair-primary"...
+> 229 | ...governed order."}</small></span><Link href={partsOperationsHref}>{order.partDemands.le...
+      |                                               ^
+  230 | ...
+  231 | ...
+  232 | ... {
+  digest: '1453538244'
+}
+⨯ ReferenceError: partsOperationsHref is not defined
+    at AdvisorRepairOrderStatusView (src\features\advisor\advisor-repair-order-status-view.tsx:229:721)
+  227 | ...
+  228 | ....href}>{repairPrimaryAction.label}</Link> : <button className="advisor-repair-primary"...
+> 229 | ...governed order."}</small></span><Link href={partsOperationsHref}>{order.partDemands.le...
+      |                                               ^
+  230 | ...
+  231 | ...
+  232 | ... {
+  digest: '1453538244'
+}
+⨯ ReferenceError: partsOperationsHref is not defined
+    at AdvisorRepairOrderStatusView (src\features\advisor\advisor-repair-order-status-view.tsx:229:721)
+  227 | ...
+  228 | ....href}>{repairPrimaryAction.label}</Link> : <button className="advisor-repair-primary"...
+> 229 | ...governed order."}</small></span><Link href={partsOperationsHref}>{order.partDemands.le...
+      |                                               ^
+  230 | ...
+  231 | ...
+  232 | ... {
+  digest: '1453538244'
+}
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+[browser] ./src/features/inventory/service-close-parts-workspace.tsx
+Error: 
+
+Caused by:
+    0: Failed to read source code from C:\Users\timem\OneDrive\Documents\GitHub\Dispatch Board\src\features\inventory\service-close-parts-workspace.tsx
+    1: The system cannot find the file specified. (os error 2)
+
+Import trace for requested module:
+./src/features/inventory/service-close-parts-workspace.tsx
+./src/app/(app)/vehicles/service-close-parts/page.tsx 
+⨯ ./src/features/inventory/service-close-parts-workspace.tsx
+Error: 
+
+Caused by:
+    0: Failed to read source code from C:\Users\timem\OneDrive\Documents\GitHub\Dispatch Board\src\features\inventory\service-close-parts-workspace.tsx
+    1: The system cannot find the file specified. (os error 2)
+
+Import trace for requested module:
+./src/features/inventory/service-close-parts-workspace.tsx
+./src/app/(app)/vehicles/service-close-parts/page.tsx
+[browser] ./src/features/inventory/service-close-parts-workspace.tsx
+Error: 
+
+Caused by:
+    0: Failed to read source code from C:\Users\timem\OneDrive\Documents\GitHub\Dispatch Board\src\features\inventory\service-close-parts-workspace.tsx
+    1: The system cannot find the file specified. (os error 2)
+
+Import trace for requested module:
+./src/features/inventory/service-close-parts-workspace.tsx
+./src/app/(app)/vehicles/service-close-parts/page.tsx 
+[browser] ./src/features/inventory/service-close-parts-workspace.tsx
+Error: 
+
+Caused by:
+    0: Failed to read source code from C:\Users\timem\OneDrive\Documents\GitHub\Dispatch Board\src\features\inventory\service-close-parts-workspace.tsx
+    1: The system cannot find the file specified. (os error 2)
+
+Import trace for requested module:
+./src/features/inventory/service-close-parts-workspace.tsx
+./src/app/(app)/vehicles/service-close-parts/page.tsx 
+⨯ ./src/features/inventory/service-close-parts-workspace.tsx
+Error: 
+
+Caused by:
+    0: Failed to read source code from C:\Users\timem\OneDrive\Documents\GitHub\Dispatch Board\src\features\inventory\service-close-parts-workspace.tsx
+    1: The system cannot find the file specified. (os error 2)
+
+Import trace for requested module:
+./src/features/inventory/service-close-parts-workspace.tsx
+./src/app/(app)/vehicles/service-close-parts/page.tsx
+[browser] Uncaught ModuleBuildError: Module build failed (from ./node_modules/next/dist/build/webpack/loaders/next-swc-loader.js):
+Error: 
+
+Caused by:
+    0: Failed to read source code from C:\Users\timem\OneDrive\Documents\GitHub\Dispatch Board\src\features\inventory\service-close-parts-workspace.tsx
+    1: The system cannot find the file specified. (os error 2)
+[browser] Uncaught ModuleBuildError: Module build failed (from ./node_modules/next/dist/build/webpack/loaders/next-swc-loader.js):
+Error: 
+
+Caused by:
+    0: Failed to read source code from C:\Users\timem\OneDrive\Documents\GitHub\Dispatch Board\src\features\inventory\service-close-parts-workspace.tsx
+    1: The system cannot find the file specified. (os error 2)
+[browser] Uncaught ModuleBuildError: Module build failed (from ./node_modules/next/dist/build/webpack/loaders/next-swc-loader.js):
+Error: 
+
+Caused by:
+    0: Failed to read source code from C:\Users\timem\OneDrive\Documents\GitHub\Dispatch Board\src\features\inventory\service-close-parts-workspace.tsx
+    1: The system cannot find the file specified. (os error 2)
+[browser] Uncaught ModuleBuildError: Module build failed (from ./node_modules/next/dist/build/webpack/loaders/next-swc-loader.js):
+Error: 
+
+Caused by:
+    0: Failed to read source code from C:\Users\timem\OneDrive\Documents\GitHub\Dispatch Board\src\features\inventory\service-close-parts-workspace.tsx
+    1: The system cannot find the file specified. (os error 2)
+[browser] Uncaught ModuleBuildError: Module build failed (from ./node_modules/next/dist/build/webpack/loaders/next-swc-loader.js):
+Error: 
+
+Caused by:
+    0: Failed to read source code from C:\Users\timem\OneDrive\Documents\GitHub\Dispatch Board\src\features\inventory\service-close-parts-workspace.tsx
+    1: The system cannot find the file specified. (os error 2)
+[browser] ./src/features/inventory/service-close-parts-workspace.tsx
+Error: 
+
+Caused by:
+    0: Failed to read source code from C:\Users\timem\OneDrive\Documents\GitHub\Dispatch Board\src\features\inventory\service-close-parts-workspace.tsx
+    1: The system cannot find the file specified. (os error 2) 
+[browser] ./src/features/inventory/service-close-parts-workspace.tsx
+Error: 
+
+Caused by:
+    0: Failed to read source code from C:\Users\timem\OneDrive\Documents\GitHub\Dispatch Board\src\features\inventory\service-close-parts-workspace.tsx
+    1: The system cannot find the file specified. (os error 2) 
+[browser] ./src/features/inventory/service-close-parts-workspace.tsx
+Error: 
+
+Caused by:
+    0: Failed to read source code from C:\Users\timem\OneDrive\Documents\GitHub\Dispatch Board\src\features\inventory\service-close-parts-workspace.tsx
+    1: The system cannot find the file specified. (os error 2) 
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+[browser] Uncaught TypeError: Cannot read properties of null (reading 'removeChild')
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⨯ ./src/features/manager/manager-workspace.module.css
+Module not found: Can't resolve 'C:\Users\timem\OneDrive\Documents\GitHub\Dispatch Board\src\features\manager\manager-workspace.module.css'
+
+https://nextjs.org/docs/messages/module-not-found
+
+Import trace for requested module:
+./src/features/manager/manager-workspace.tsx
+[browser] ./src/features/manager/manager-workspace.module.css
+Module not found: Can't resolve 'C:\Users\timem\OneDrive\Documents\GitHub\Dispatch Board\src\features\manager\manager-workspace.module.css'
+
+https://nextjs.org/docs/messages/module-not-found
+
+Import trace for requested module:
+./src/features/manager/manager-workspace.tsx 
+[browser] ./src/features/manager/manager-workspace.module.css
+Module not found: Module not found: Can't resolve 'C:\Users\timem\OneDrive\Documents\GitHub\Dispatch Board\src\features\manager\manager-workspace.module.css'
+
+https://nextjs.org/docs/messages/module-not-found
+
+Import trace for requested module:
+./src/features/manager/manager-workspace.tsx 
+⨯ ./src/features/manager/manager-workspace.module.css
+Module not found: Can't resolve 'C:\Users\timem\OneDrive\Documents\GitHub\Dispatch Board\src\features\manager\manager-workspace.module.css'
+
+https://nextjs.org/docs/messages/module-not-found
+
+Import trace for requested module:
+./src/features/manager/manager-workspace.tsx
+[browser] ./src/features/manager/manager-workspace.module.css
+Module not found: Can't resolve 'C:\Users\timem\OneDrive\Documents\GitHub\Dispatch Board\src\features\manager\manager-workspace.module.css'
+
+https://nextjs.org/docs/messages/module-not-found
+
+Import trace for requested module:
+./src/features/manager/manager-workspace.tsx 
+[browser] ./src/features/manager/manager-workspace.module.css
+Module not found: Module not found: Can't resolve 'C:\Users\timem\OneDrive\Documents\GitHub\Dispatch Board\src\features\manager\manager-workspace.module.css'
+
+https://nextjs.org/docs/messages/module-not-found
+
+Import trace for requested module:
+./src/features/manager/manager-workspace.tsx 
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+⚠ Server is approaching the used memory threshold, restarting...
