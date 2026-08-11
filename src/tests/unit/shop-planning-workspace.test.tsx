@@ -21,6 +21,10 @@ describe("Shop Planning diagnostic release workspace", () => {
     expect(markup).toContain("Evidence ledger");
     expect(markup).toContain("Exact-version customer authorization required");
     expect(markup).toContain("Return to workbench");
+    expect(markup).toContain("Simple inspection entry");
+    expect(markup).toContain("What did you inspect?");
+    expect(markup).toContain("Proof / evidence");
+    expect(markup).toContain("Advanced details");
   });
 
   it("defaults visible bodywork to the direct repair scope path", () => {

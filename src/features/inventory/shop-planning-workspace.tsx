@@ -185,7 +185,41 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
         <main className={styles.workflow}>
           <WorkflowStep complete={selected.inspectionVersions.length > 0} icon={<FileCheck2 />} number={1} open={currentStep === 0} subtitle="Establish the physical-condition baseline and attach supporting evidence." title="Digital vehicle inspection">
             <form onSubmit={(event: FormEvent) => { event.preventDefault(); void submit("RECORD_INSPECTION", { templateCode: inspection.templateCode, templateVersion: inspection.templateVersion, templateSnapshot: { code: inspection.templateCode, version: inspection.templateVersion }, startedAt: inspection.startedAt, completedAt: inspection.completedAt, summary: inspection.summary, items: [{ key: inspection.itemKey, label: inspection.itemLabel, result: inspection.itemResult, measurement: inspection.measurement, notes: inspection.itemNotes, evidence: inspection.evidence.split(",").map((value) => value.trim()).filter(Boolean) }] }, "Record a versioned digital vehicle inspection."); }}>
-              <FormGrid><Field label="Template code"><input value={inspection.templateCode} onChange={(event) => setInspection((value) => ({ ...value, templateCode: event.target.value }))} /></Field><Field label="Inspection item"><input value={inspection.itemLabel} onChange={(event) => setInspection((value) => ({ ...value, itemLabel: event.target.value }))} /></Field><Field label="Result"><select value={inspection.itemResult} onChange={(event) => setInspection((value) => ({ ...value, itemResult: event.target.value }))}>{["PASS", "ADVISORY", "FAIL", "NOT_APPLICABLE"].map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Measurement"><input value={inspection.measurement} onChange={(event) => setInspection((value) => ({ ...value, measurement: event.target.value }))} /></Field><Field label="Notes"><input value={inspection.itemNotes} onChange={(event) => setInspection((value) => ({ ...value, itemNotes: event.target.value }))} /></Field><Field label="Evidence references"><input value={inspection.evidence} onChange={(event) => setInspection((value) => ({ ...value, evidence: event.target.value }))} /></Field><Field label="Started"><input type="datetime-local" value={inspection.startedAt} onChange={(event) => setInspection((value) => ({ ...value, startedAt: event.target.value }))} /></Field><Field label="Completed"><input type="datetime-local" value={inspection.completedAt} onChange={(event) => setInspection((value) => ({ ...value, completedAt: event.target.value }))} /></Field><Field label="Inspection summary" wide><textarea value={inspection.summary} onChange={(event) => setInspection((value) => ({ ...value, summary: event.target.value }))} /></Field></FormGrid>
+              <div className={styles.simpleCard}>
+                <span className={styles.simpleEyebrow}>Simple inspection entry</span>
+                <h3>Capture the condition in plain language</h3>
+                <p>Tell the team what you checked, whether it passed, what you found, and what proof supports it. Technical versioning stays preserved automatically.</p>
+              </div>
+              <FormGrid>
+                <Field label="What did you inspect?">
+                  <input placeholder="Example: General condition, brakes, front suspension, body damage" value={inspection.itemLabel} onChange={(event) => setInspection((value) => ({ ...value, itemLabel: event.target.value }))} />
+                </Field>
+                <Field label="Result">
+                  <select value={inspection.itemResult} onChange={(event) => setInspection((value) => ({ ...value, itemResult: event.target.value }))}>
+                    {["PASS", "ADVISORY", "FAIL", "NOT_APPLICABLE"].map((value) => <option key={value}>{value}</option>)}
+                  </select>
+                </Field>
+                <Field label="Optional measurement">
+                  <input placeholder="Example: 4 mm, 12.4V, cracked, no reading" value={inspection.measurement} onChange={(event) => setInspection((value) => ({ ...value, measurement: event.target.value }))} />
+                </Field>
+                <Field label="What did you find?" wide>
+                  <textarea placeholder="Write the finding in plain language so the next person immediately understands the condition." value={inspection.summary} onChange={(event) => setInspection((value) => ({ ...value, summary: event.target.value }))} />
+                </Field>
+                <Field label="Proof / evidence" wide>
+                  <input placeholder="Example: photos, scan results, auction notes, walkaround video" value={inspection.evidence} onChange={(event) => setInspection((value) => ({ ...value, evidence: event.target.value }))} />
+                </Field>
+                <Field label="Extra inspection notes (optional)" wide>
+                  <textarea placeholder="Anything the team should know that does not fit in the main finding." value={inspection.itemNotes} onChange={(event) => setInspection((value) => ({ ...value, itemNotes: event.target.value }))} />
+                </Field>
+              </FormGrid>
+              <details className={styles.advancedDetails}>
+                <summary>Advanced details</summary>
+                <FormGrid>
+                  <Field label="Started"><input type="datetime-local" value={inspection.startedAt} onChange={(event) => setInspection((value) => ({ ...value, startedAt: event.target.value }))} /></Field>
+                  <Field label="Completed"><input type="datetime-local" value={inspection.completedAt} onChange={(event) => setInspection((value) => ({ ...value, completedAt: event.target.value }))} /></Field>
+                  <Field label="Template code"><input value={inspection.templateCode} onChange={(event) => setInspection((value) => ({ ...value, templateCode: event.target.value }))} /></Field>
+                </FormGrid>
+              </details>
               <Submit busy={busy}>Record immutable inspection version</Submit>
             </form>
           </WorkflowStep>

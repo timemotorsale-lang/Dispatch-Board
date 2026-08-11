@@ -20,6 +20,10 @@
 .simpleActions{display:flex;flex-wrap:wrap;gap:8px}
 .simpleActions a{display:inline-flex;align-items:center;justify-content:center;min-height:36px;border:1px solid #c7d3e1;border-radius:8px;padding:0 12px;color:#29415f;background:#fff;font-size:.64rem;font-weight:850}
 .simpleActions .primaryAction{border-color:var(--blue);color:#fff;background:var(--blue)}
+.advancedDetails{display:grid;gap:10px;border:1px solid #dbe4ef;border-radius:10px;padding:0 12px 12px;background:#fbfdff}
+.advancedDetails summary{cursor:pointer;list-style:none;padding:12px 0;color:#315eb5;font-size:.6rem;font-weight:900;letter-spacing:.06em;text-transform:uppercase}
+.advancedDetails summary::-webkit-details-marker{display:none}
+.advancedDetails[open] summary{border-bottom:1px solid #e4eaf1;margin-bottom:12px}
 .progressWorkspace{display:grid;gap:12px;border:1px solid var(--line);border-radius:11px;padding:15px;background:#fff;box-shadow:0 3px 12px rgba(20,40,70,.04)}
 .progressWorkspace header{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
 .progressWorkspace header span{color:#4966b1;font-size:.55rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
