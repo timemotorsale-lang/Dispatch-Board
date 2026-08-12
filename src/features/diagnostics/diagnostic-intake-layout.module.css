@@ -39,7 +39,7 @@
 .liveDiagnosticReport header span,
 .liveReportGrid article > span {
   color: #2859d9;
-  font-size: .69rem;
+  font-size:.72rem;
   font-weight: 850;
   letter-spacing: .07em;
   text-transform: uppercase;
@@ -62,7 +62,7 @@
   border-radius: 999px;
   padding: 7px 11px;
   text-align: center;
-  font-size: .7rem;
+  font-size:.72rem;
 }
 
 .liveReportGrid {
@@ -163,7 +163,7 @@
 .handoffPreview header span,
 .concernSummary header span {
   color: #2859d9;
-  font-size: .7rem;
+  font-size:.72rem;
   font-weight: 850;
   letter-spacing: .08em;
   text-transform: uppercase;
@@ -283,7 +283,7 @@
   background: #edf2ff;
   padding: 5px 8px;
   color: #2859d9;
-  font-size: .68rem;
+  font-size:.72rem;
 }
 
 .concernSummary label {
@@ -341,7 +341,7 @@
 
 .nextActionPanel > span {
   color: #93600a;
-  font-size: .7rem;
+  font-size:.72rem;
   font-weight: 850;
   letter-spacing: .06em;
   text-transform: uppercase;

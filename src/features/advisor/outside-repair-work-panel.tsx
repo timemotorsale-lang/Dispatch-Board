@@ -4,6 +4,8 @@ import { FormEvent, useEffect, useState, useTransition } from "react";
 import { ArrowRight, Building2, MapPin, Save, Truck, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 
+import { vendorRapidReconAnswers, vendorRapidReconNextAction, vendorRapidReconTransitions } from "@/lib/vendor-rapid-recon";
+
 type Vendor = { id: string; name: string; vendorType: string; status: string };
 type VendorEvent = { actorUser: { name: string }; occurredAt: string | Date; summary: string; toStatus: string };
 export type OutsideWork = {
@@ -30,7 +32,6 @@ export type OutsideWork = {
   workType: string;
 };
 
-const statuses = ["ESTIMATE_NEEDED", "APPROVAL_NEEDED", "SCHEDULED", "AT_VENDOR", "WAITING_PARTS", "SUPPLEMENT_NEEDED", "READY_FOR_PICKUP", "RETURNED", "QC_REQUIRED", "COMPLETED", "CANCELLED"];
 const approvals = ["NEEDS_DOCUMENTATION", "PENDING", "APPROVED", "DECLINED", "NOT_REQUIRED"];
 const format = (value: string) => value.replaceAll("_", " ").toLocaleLowerCase().replace(/^./, (letter) => letter.toUpperCase());
 const money = (value: number | null) => value == null ? "Not recorded" : `$${(value / 100).toFixed(2)}`;
@@ -42,15 +43,6 @@ const dispatchBadge = (work: Pick<OutsideWork, "directFromSource" | "sentFrom" |
     : work.transportMethod?.trim()
       ? `${work.transportMethod} from ${work.sentFrom}`
       : `From ${work.sentFrom}`;
-
-function nextStatus(work: OutsideWork) {
-  if (work.status === "READY_FOR_PICKUP") return "RETURNED";
-  if (work.status === "RETURNED") return "QC_REQUIRED";
-  if (work.status === "QC_REQUIRED") return "COMPLETED";
-  if (work.status === "SUPPLEMENT_NEEDED") return "APPROVAL_NEEDED";
-  if (["ESTIMATE_NEEDED", "APPROVAL_NEEDED", "SCHEDULED", "WAITING_PARTS"].includes(work.status)) return "AT_VENDOR";
-  return work.status;
-}
 
 function actionLabel(work: OutsideWork) {
   if (work.status === "READY_FOR_PICKUP") return "Arrange pickup";
@@ -81,7 +73,7 @@ export function OutsideRepairWorkPanel({
   const [directFromSource, setDirectFromSource] = useState(work?.directFromSource ?? false);
   const [sentFrom, setSentFrom] = useState(work?.sentFrom ?? "Dealership");
   const [scope, setScope] = useState(work?.scope ?? "");
-  const [status, setStatus] = useState(work ? nextStatus(work) : "AT_VENDOR");
+  const [status, setStatus] = useState(work?.status ?? "AT_VENDOR");
   const [approvalStatus, setApprovalStatus] = useState(work?.approvalStatus ?? "NEEDS_DOCUMENTATION");
   const [estimateAmount, setEstimateAmount] = useState(work?.estimateAmountCents == null ? "" : String(work.estimateAmountCents / 100));
   const [approvedAmount, setApprovedAmount] = useState(work?.approvedAmountCents == null ? "" : String(work.approvedAmountCents / 100));
@@ -95,6 +87,8 @@ export function OutsideRepairWorkPanel({
   const [nextAction, setNextAction] = useState(work?.nextAction ?? "Confirm vendor estimate, approval, and expected return.");
   const [customerSummary, setCustomerSummary] = useState(work ? `The vehicle remains with ${work.vendorName} for outside repair work. We are monitoring progress and the expected return.` : "The vehicle is with an outside repair facility. We are monitoring the work and expected return.");
   const [internalNotes, setInternalNotes] = useState("");
+  const answers = work ? vendorRapidReconAnswers(work) : null;
+  const transitions = work ? vendorRapidReconTransitions(work.status) : [];
 
   useEffect(() => {
     if (!open) return;
@@ -219,6 +213,16 @@ export function OutsideRepairWorkPanel({
         <span><small>Approval</small><strong>{format(work.approvalStatus)}</strong></span>
         <span><small>Approved amount</small><strong>{money(work.approvedAmountCents)}</strong></span>
       </div>
+      {answers ? <div className="advisor-vendor-rapid-recon" aria-label="Rapid recon outside repair answers">
+        <header><strong>Rapid recon check</strong><span>Five gates · one next action</span></header>
+        <ol>
+          <li className={answers.received.startsWith("Yes") ? "done" : "current"}><small>1 · Receive</small><strong>Did the vendor receive it?</strong><span>{answers.received}</span></li>
+          <li className={work.scope.trim() ? "done" : "current"}><small>2 · Repair plan</small><strong>What are they fixing?</strong><span>{answers.repairPlan}</span></li>
+          <li className={work.status === "WAITING_PARTS" ? "blocked" : "done"}><small>3 · Parts</small><strong>Do they need parts?</strong><span>{answers.parts}</span></li>
+          <li className={["READY_FOR_PICKUP", "RETURNED", "QC_REQUIRED", "COMPLETED"].includes(work.status) ? "done" : "current"}><small>4 · Return</small><strong>Are repairs complete?</strong><span>{answers.repaired} · {answers.transport}</span></li>
+          <li className={work.status === "COMPLETED" ? "done" : ["RETURNED", "QC_REQUIRED"].includes(work.status) ? "current" : "upcoming"}><small>5 · QC &amp; handoff</small><strong>What happens next?</strong><span>{answers.qcAndHandoff}</span></li>
+        </ol>
+      </div> : null}
       <p>{work.lastUpdateSummary}</p>
       <small>Next: {work.nextAction}</small>
       <button className="advisor-repair-primary" onClick={() => setOpen(true)} type="button">{actionLabel(work)} <ArrowRight /></button>
@@ -244,15 +248,15 @@ export function OutsideRepairWorkPanel({
         <label><span>Keys held by</span><input onChange={(event) => setKeysCustodian(event.target.value)} value={keysCustodian} /></label>
         <label className="wide"><span>Approved/requested work</span><textarea onChange={(event) => setScope(event.target.value)} placeholder="Outside body, mechanical, glass, or sublet scope" value={scope} /></label>
       </>}
-      <label><span>Status</span><select onChange={(event) => setStatus(event.target.value)} value={status}>{statuses.map((item) => <option key={item} value={item}>{format(item)}</option>)}</select></label>
+      <label><span>{work ? "What happened?" : "Vendor receipt"}</span><select onChange={(event) => { const next = event.target.value; setStatus(next); setNextAction(vendorRapidReconNextAction(next)); }} value={status}>{work ? <option value={work.status}>Choose the next verified fact</option> : <option value="AT_VENDOR">Vendor received vehicle</option>}{transitions.map((item) => <option key={item.status} value={item.status}>{item.label}</option>)}</select></label>
       <label><span>Approval documentation</span><select onChange={(event) => setApprovalStatus(event.target.value)} value={approvalStatus}>{approvals.map((item) => <option key={item} value={item}>{format(item)}</option>)}</select></label>
       <label><span>Vendor estimate</span><input inputMode="decimal" onChange={(event) => setEstimateAmount(event.target.value)} placeholder="$0.00" value={estimateAmount} /></label>
       <label><span>Approved amount</span><input inputMode="decimal" onChange={(event) => setApprovedAmount(event.target.value)} placeholder="$0.00" value={approvedAmount} /></label>
       <label><span>Supplement</span><input inputMode="decimal" onChange={(event) => setSupplementAmount(event.target.value)} placeholder="$0.00" value={supplementAmount} /></label>
       <label><span>Expected return</span><input onChange={(event) => setExpectedReturnAt(event.target.value)} type="datetime-local" value={expectedReturnAt} /></label>
       <label><span>Next follow-up</span><input onChange={(event) => setNextFollowUpAt(event.target.value)} type="datetime-local" value={nextFollowUpAt} /></label>
-      <label className="wide"><span>Progress update</span><input onChange={(event) => setSummary(event.target.value)} required value={summary} /></label>
-      <label className="wide"><span>Next action</span><input onChange={(event) => setNextAction(event.target.value)} required value={nextAction} /></label>
+      <label className="wide"><span>Verified vendor update</span><input onChange={(event) => setSummary(event.target.value)} required value={summary} /></label>
+      <label className="wide"><span>One next action</span><input onChange={(event) => setNextAction(event.target.value)} required value={nextAction} /></label>
       <label className="wide"><span>Stakeholder-safe update</span><textarea onChange={(event) => setCustomerSummary(event.target.value)} required value={customerSummary} /></label>
       <label className="wide"><span>Private vendor/advisor notes</span><textarea onChange={(event) => setInternalNotes(event.target.value)} placeholder="Estimate reference, contact name, pickup instructions, or internal detail" value={internalNotes} /></label>
       {error ? <p className="advisor-response-error wide">{error}</p> : null}

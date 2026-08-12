@@ -120,7 +120,7 @@
 
 .contextCard small {
   color: #607396;
-  font-size: 0.7rem;
+  font-size:.72rem;
   line-height: 1.15;
   white-space: nowrap;
   overflow: hidden;
@@ -416,7 +416,7 @@
 .addVendorCard::before {
   content: "ADD VENDOR";
   color: #5d7196;
-  font-size: 0.68rem;
+  font-size:.72rem;
   font-weight: 800;
   letter-spacing: 0.08em;
 }
@@ -446,7 +446,7 @@
 
 .gridHead {
   color: #5d7196;
-  font-size: 0.68rem;
+  font-size:.72rem;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.08em;

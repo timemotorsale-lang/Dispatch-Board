@@ -20,6 +20,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       : action === "CREATE"
         ? await createRepairVendorWork(await getCurrentUser(), id, value)
         : (() => { throw new Error("Outside repair action is invalid."); })();
-    return NextResponse.json(result, { status: result.duplicate ? 200 : 201 });
+    return NextResponse.json(result, { status: "duplicate" in result && result.duplicate ? 200 : 201 });
   } catch (error) { return failure(error); }
 }

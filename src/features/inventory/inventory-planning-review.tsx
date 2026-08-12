@@ -355,7 +355,40 @@ export function InventoryPlanningReview({ eligibleUnit = null, initial, initialR
 
 function ReceivingReview({ activeCheckId, busy, canonicalLocation, completed, concerns, damageSummary, eligibleUnit, evidenceIds, groups, identity, initial, keyCount, locations, mileage, notes, onRecordLocation, operation, ownerUserId, readiness, reconBlocker, reconCompletedWork, reconNextAction, reconRemainingWork, reconStatus, reconUpdates, saveReconUpdate, setActiveCheckId, setDamageSummary, setKeyCount, setMileage, setNotes, setOwnerUserId, setReconBlocker, setReconCompletedWork, setReconNextAction, setReconRemainingWork, setReconStatus, updateCheck, updateCheckDetails, users, workflow }: { activeCheckId: string | null; busy: boolean; canonicalLocation: RegistryLocation | null; completed: number; concerns: number; damageSummary: string; eligibleUnit: EligibleUnit | null; evidenceIds: string[]; groups: CheckGroup[]; identity: Record<string, unknown>; initial: VehicleExecutionWorkbenchProjection; keyCount: string; locations: RegistryLocation[]; mileage: string; notes: string; onRecordLocation: (input: { custodianType: string; displayName: string; locationId: string | null; positionLabel: string; reason: string; sourceCode: string }) => Promise<void>; operation: Record<string, unknown>; ownerUserId: string; readiness: number; reconBlocker: string; reconCompletedWork: string; reconNextAction: string; reconRemainingWork: string; reconStatus: string; reconUpdates: ReconProgressUpdate[]; saveReconUpdate: () => Promise<void>; setActiveCheckId: (value: string | null) => void; setDamageSummary: (value: string) => void; setKeyCount: (value: string) => void; setMileage: (value: string) => void; setNotes: (value: string) => void; setOwnerUserId: (value: string) => void; setReconBlocker: (value: string) => void; setReconCompletedWork: (value: string) => void; setReconNextAction: (value: string) => void; setReconRemainingWork: (value: string) => void; setReconStatus: (value: string) => void; updateCheck: (id: string, state: CheckState) => void; updateCheckDetails: (id: string, values: Partial<Pick<CheckItem, "notes" | "evidenceObjectIds">>) => void; users: FrontlineUser[]; workflow: FrontlineWorkflow | null }) {
   const [locationEditorOpen, setLocationEditorOpen] = useState(false);
+  const [correctionOpen, setCorrectionOpen] = useState(false);
+  const [conditionCorrection, setConditionCorrection] = useState(notes);
+  const [needsCorrection, setNeedsCorrection] = useState(reconRemainingWork);
+  const [nextActionCorrection, setNextActionCorrection] = useState(reconNextAction);
   const orderedTasks = groups.flatMap(group => group.items), currentTask = orderedTasks.find(item => item.state === "PENDING") ?? orderedTasks[orderedTasks.length - 1];
+  function applyIntakeCorrection() {
+    const condition = conditionCorrection.trim();
+    const needs = needsCorrection.trim();
+    const next = nextActionCorrection.trim();
+    const summary = [
+      condition ? `Current condition at intake: ${condition}` : "",
+      damageSummary.trim() ? `Visible damage / exception: ${damageSummary.trim()}` : "",
+      needs ? `Current needs: ${needs}` : "",
+      next ? `Recommended next action: ${next}` : ""
+    ].filter(Boolean).join("\n");
+    if (summary) setNotes(summary);
+    if (condition || damageSummary.trim()) {
+      updateCheckDetails("arrival", { notes: [condition, damageSummary.trim() ? `Visible damage / exception: ${damageSummary.trim()}` : ""].filter(Boolean).join("\n") });
+      updateCheck("arrival", needs ? "CONCERN" : "PASS");
+      updateCheckDetails("condition", { notes: [condition, needs ? `Needs: ${needs}` : ""].filter(Boolean).join("\n") });
+      updateCheck("condition", needs ? "CONCERN" : "PASS");
+    }
+    if (needs || next) {
+      updateCheckDetails("move", { notes: [needs ? `Current needs: ${needs}` : "", next ? `Next action: ${next}` : ""].filter(Boolean).join("\n") });
+      updateCheck("move", needs ? "CONCERN" : "PASS");
+      setReconStatus(needs ? "NEEDS_MECHANICAL_REPAIR" : "READY_FOR_QC");
+      setReconCompletedWork(condition || "Initial intake baseline corrected.");
+      setReconRemainingWork(needs);
+      setReconNextAction(next || "Continue receiving QC and route to recon.");
+      setReconBlocker(needs ? "Corrected intake baseline identifies work still needed." : "");
+    }
+    setActiveCheckId("arrival");
+    setCorrectionOpen(false);
+  }
   return <main className={styles.reviewBody}>
     <div className={styles.mainColumn}>
       <section className={styles.card}>
@@ -366,6 +399,16 @@ function ReceivingReview({ activeCheckId, busy, canonicalLocation, completed, co
         </div>
         {locationEditorOpen ? <VehicleLocationEditor busy={busy} current={canonicalLocation} locations={locations} onCancel={() => setLocationEditorOpen(false)} onSave={async values => { await onRecordLocation(values); setLocationEditorOpen(false); }} /> : null}
         <div className={styles.sourceRow}><FileText size={16} /><div><strong>Canonical origins preserved</strong><span>VIN identity, decoded specifications, arrival observations, evidence, and later corrections remain attributable in Vehicle 360.</span></div><Link href={withQuery(initial.links.vehicle360, { returnTo: `/vehicles/${text(identity.id, "")}/inventory-planning` })}>View full details</Link></div>
+      </section>
+
+      <section className={styles.correctionCard}>
+        <header><Pencil size={17} /><div><small>Need to correct intake?</small><h2>Update current condition and vehicle needs</h2><p>Use this when the original intake note was missing, copied from another vehicle, or needs clearer receiving context. It updates this vehicle&apos;s receiving baseline draft before lifecycle submission.</p></div><button onClick={() => setCorrectionOpen(value => !value)} type="button">{correctionOpen ? "Close correction" : "Correct intake info"}</button></header>
+        {correctionOpen ? <div className={styles.correctionFields}>
+          <Field label="Current condition at intake"><textarea maxLength={1200} onChange={event => setConditionCorrection(event.target.value)} placeholder="Example: Runs and drives, check-engine light on, front bumper damage, airbag light on, no obvious fluid leak." value={conditionCorrection} /></Field>
+          <Field label="What does the car need?"><textarea maxLength={1200} onChange={event => setNeedsCorrection(event.target.value)} placeholder="Example: Diagnose warning lights, inspect suspension, verify bumper/airbag repair scope, order needed parts after inspection." value={needsCorrection} /></Field>
+          <Field label="Recommended next action"><input maxLength={500} onChange={event => setNextActionCorrection(event.target.value)} placeholder="Example: Start receiving QC, then route to diagnostics/body/vendor as needed." value={nextActionCorrection} /></Field>
+          <div className={styles.inlineActions}><button className={styles.primaryButton} onClick={applyIntakeCorrection} type="button">Apply to receiving baseline</button><button className={styles.secondaryButton} onClick={() => { setConditionCorrection(""); setNeedsCorrection(""); setNextActionCorrection(""); }} type="button">Clear correction fields</button></div>
+        </div> : null}
       </section>
 
       <RapidReconUpdateCard busy={busy} blocker={reconBlocker} completedWork={reconCompletedWork} nextAction={reconNextAction} remainingWork={reconRemainingWork} save={saveReconUpdate} setBlocker={setReconBlocker} setCompletedWork={setReconCompletedWork} setNextAction={setReconNextAction} setRemainingWork={setReconRemainingWork} setStatus={setReconStatus} status={reconStatus} updates={reconUpdates} />

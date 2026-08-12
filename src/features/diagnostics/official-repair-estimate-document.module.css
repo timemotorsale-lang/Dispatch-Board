@@ -352,7 +352,7 @@
 
   .estimateMeta span {
     color: #607396;
-    font-size: 0.63rem;
+    font-size:.72rem;
     margin-bottom: 3px;
   }
 
@@ -378,7 +378,7 @@
 
   .identityGrid span {
     margin-bottom: 3px;
-    font-size: 0.62rem;
+    font-size:.72rem;
   }
 
   .identityGrid strong {
@@ -411,7 +411,7 @@
 
   .lineHead {
     padding: 0 0 6px;
-    font-size: 0.62rem;
+    font-size:.72rem;
   }
 
   .lineList article {
@@ -425,7 +425,7 @@
 
   .lineList small {
     margin-top: 2px;
-    font-size: 0.68rem;
+    font-size:.72rem;
     line-height: 1.25;
   }
 

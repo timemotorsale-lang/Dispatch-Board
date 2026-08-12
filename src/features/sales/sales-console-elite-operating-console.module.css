@@ -48,7 +48,7 @@
 
 .brand span {
   color: #b6c3d7;
-  font-size: 11px;
+  font-size:11.5px;
 }
 
 .salesMode,
@@ -75,12 +75,12 @@
 
 .salesMode strong {
   text-transform: uppercase;
-  font-size: 10px;
+  font-size:11.5px;
   letter-spacing: 0.08em;
 }
 
 .salesMode em {
-  font-size: 10px;
+  font-size:11.5px;
   font-style: normal;
   color: #bbf7d0;
 }
@@ -125,7 +125,7 @@
 
 .actionKey h2 {
   margin: 0 0 8px;
-  font-size: 10px;
+  font-size:11.5px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #cbd5e1;
@@ -136,7 +136,7 @@
   align-items: center;
   gap: 7px;
   margin: 6px 0;
-  font-size: 11px;
+  font-size:11.5px;
 }
 
 .actionKey p span {
@@ -203,7 +203,7 @@
 .signal a,
 .leadDetail a {
   color: #1d4ed8;
-  font-size: 11px;
+  font-size:11.5px;
   font-weight: 900;
   text-decoration: none;
 }
@@ -223,12 +223,12 @@
 
 .integrationStrip strong {
   color: #0f172a;
-  font-size: 11px;
+  font-size:11.5px;
 }
 
 .integrationStrip span {
   color: #64748b;
-  font-size: 10px;
+  font-size:11.5px;
 }
 
 .search {
@@ -311,7 +311,7 @@
 .searchTray small,
 .searchTray p {
   color: #64748b;
-  font-size: 11px;
+  font-size:11.5px;
   font-style: normal;
 }
 
@@ -347,7 +347,7 @@
 .kpi span,
 .kpi em {
   display: block;
-  font-size: 11px;
+  font-size:11.5px;
   font-style: normal;
 }
 
@@ -461,7 +461,7 @@
 .sourceBackedState span,
 .sourceBackedState a {
   color: #475569;
-  font-size: 11px;
+  font-size:11.5px;
 }
 
 .sourceBackedState a {
@@ -497,7 +497,7 @@
   padding: 7px 9px;
   background: #f8fafc;
   color: #475569;
-  font-size: 11px;
+  font-size:11.5px;
 }
 
 .workspaceContract strong {
@@ -544,7 +544,7 @@
 .leadGrid span,
 .leadDetail span {
   color: #64748b;
-  font-size: 11px;
+  font-size:11.5px;
 }
 
 .leadDetail {
@@ -589,7 +589,7 @@
   background: #eef4ff;
   color: #1d4ed8;
   cursor: pointer;
-  font-size: 11px;
+  font-size:11.5px;
   font-weight: 900;
   padding: 5px 8px;
   width: fit-content;
@@ -611,7 +611,7 @@
 
 .pipelinePanel span {
   color: #64748b;
-  font-size: 11px;
+  font-size:11.5px;
 }
 
 .supportPanel {
@@ -641,7 +641,7 @@
 .supportPanel em {
   margin-top: 4px;
   color: #64748b;
-  font-size: 11px;
+  font-size:11.5px;
   font-style: normal;
 }
 
@@ -679,7 +679,7 @@
   border-radius: 8px;
   padding: 7px 9px;
   background: #fff;
-  font-size: 11px;
+  font-size:11.5px;
 }
 
 .sourceGrid strong,
@@ -725,7 +725,7 @@
   background: #f8fafc;
   color: #475569;
   padding: 7px 9px;
-  font-size: 10px;
+  font-size:11.5px;
   font-weight: 900;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -736,7 +736,7 @@
   background: #eef4ff;
   color: #1d4ed8;
   padding: 6px 9px;
-  font-size: 11px;
+  font-size:11.5px;
   font-weight: 900;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -785,7 +785,7 @@
 }
 
 .tableRow em {
-  font-size: 11px;
+  font-size:11.5px;
   font-style: normal;
 }
 
@@ -807,7 +807,7 @@
   width: fit-content;
   border-radius: 999px;
   padding: 3px 7px;
-  font-size: 11px;
+  font-size:11.5px;
   font-weight: 900;
   white-space: normal;
 }
@@ -864,7 +864,7 @@
 
 .laneCard span {
   color: #334155;
-  font-size: 11px;
+  font-size:11.5px;
 }
 
 .selectedLane {
@@ -907,7 +907,7 @@
 
 .revenueLaneDetail dt {
   color: #64748b;
-  font-size: 10px;
+  font-size:11.5px;
   font-weight: 900;
   text-transform: uppercase;
 }
@@ -915,7 +915,7 @@
 .revenueLaneDetail dd {
   margin: 2px 0 0;
   color: #0f172a;
-  font-size: 11px;
+  font-size:11.5px;
 }
 
 .revenueLaneDetail dd a {
@@ -978,7 +978,7 @@
 
 .vehicleCard p {
   margin: 4px 0 0;
-  font-size: 11px;
+  font-size:11.5px;
 }
 
 .vehicleCard a,
@@ -1002,7 +1002,7 @@
 
 .alternatives span {
   color: #64748b;
-  font-size: 11px;
+  font-size:11.5px;
 }
 
 .customerCards {
@@ -1016,7 +1016,7 @@
 }
 
 .customerCards em {
-  font-size: 11px;
+  font-size:11.5px;
   font-style: normal;
 }
 
@@ -1071,7 +1071,7 @@
   background: #ef4444;
   color: #fff;
   font-weight: 900;
-  font-size: 11px;
+  font-size:11.5px;
 }
 
 .signal p {
@@ -1081,7 +1081,7 @@
 
 .signal em {
   color: #475569;
-  font-size: 11px;
+  font-size:11.5px;
   font-style: normal;
 }
 

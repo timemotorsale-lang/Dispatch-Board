@@ -23,7 +23,8 @@ export async function createRepairOrder(actor:AuthenticatedUser|null,value:unkno
   if(normalized.appointmentId){const existing=await context.repository.findByAppointment(context.organizationId,normalized.appointmentId);if(existing)return{duplicate:true,result:existing,version:existing.version};}
   const concernCandidates=await context.repository.findOpenConcernCandidates(context.organizationId,{appointmentId:normalized.appointmentId,inventoryUnitId:normalized.inventoryUnitId,vehicleId:normalized.vehicleId});
   const sameConcern=concernCandidates.find(candidate=>isSameRepairOrderConcern(candidate.concernSummary,normalized.concernSummary));
-  if(sameConcern)return{duplicate:true,result:{id:sameConcern.id,repairOrderNumber:sameConcern.repairOrderNumber,stage:sameConcern.stage,operatingState:sameConcern.operatingState,version:sameConcern.version,duplicateReason:"OPEN_VEHICLE_CONCERN_MATCH"},version:sameConcern.version};
+  const openVehicleOrder=sameConcern??concernCandidates[0];
+  if(openVehicleOrder)return{duplicate:true,result:{id:openVehicleOrder.id,repairOrderNumber:openVehicleOrder.repairOrderNumber,stage:openVehicleOrder.stage,operatingState:openVehicleOrder.operatingState,version:openVehicleOrder.version,duplicateReason:sameConcern?"OPEN_VEHICLE_CONCERN_MATCH":"OPEN_VEHICLE_REPAIR_ORDER"},version:openVehicleOrder.version};
   await context.repository.validateReadinessSnapshot(context.organizationId,normalized,now);
   const id=randomUUID();
   const repairOrderNumber=`RO-${id.slice(0,8).toUpperCase()}`;

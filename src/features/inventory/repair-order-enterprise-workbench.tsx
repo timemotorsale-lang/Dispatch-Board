@@ -37,6 +37,14 @@ type RepairOrderWorkbenchOrder = {
   stateReason: string | null;
   version: number;
   vehicle: {
+    custodyEvents?: Array<{
+      custodian: string;
+      event: string;
+      id: string;
+      location: { name: string } | null;
+      occurredAt: string | Date;
+      positionLabel: string | null;
+    }>;
     id: string;
     make: string | null;
     model: string | null;
@@ -471,8 +479,10 @@ export function RepairOrderEnterpriseWorkbench({
   const waitingParts = order.partDemands.some((part) => part.quantityReserved < part.quantityRequired);
   const vendorWaitingParts = Boolean(activeVendorWork) && (activeVendorWork?.status === "WAITING_PARTS" || waitingParts);
   const directBodyPath = diagnosis?.cause?.includes("Direct repair scope approved without troubleshooting diagnosis.") ?? false;
-  const currentLocationLabel = activeVendorWork ? activeVendorWork.currentLocation : order.location.name;
-  const currentLocationKind = activeVendorWork ? "Current physical location" : "Current location";
+  const latestCustody = order.vehicle.custodyEvents?.[0] ?? null;
+  const custodyLocation = latestCustody?.positionLabel || latestCustody?.location?.name || null;
+  const currentLocationLabel = custodyLocation || activeVendorWork?.currentLocation || order.location.name;
+  const currentLocationKind = custodyLocation || activeVendorWork ? "Current physical location" : "Current location";
   const nextSteps = nextStepPlan({
     activeVendorWork,
     authorization,

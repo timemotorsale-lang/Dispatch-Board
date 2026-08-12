@@ -147,7 +147,7 @@
 
 .vehicleActionNow small {
   color: #9fc7f0;
-  font-size: .7rem;
+  font-size:.72rem;
   font-weight: 900;
   letter-spacing: .06em;
   text-transform: uppercase;
@@ -293,7 +293,7 @@
 .lifecycleRail small {
   margin-bottom: 3px;
   opacity: .75;
-  font-size: .66rem;
+  font-size:.72rem;
 }
 
 .lifecycleRail strong {
@@ -349,7 +349,7 @@
   padding: 6px 9px;
   color: #765000;
   background: #fff3cf;
-  font-size: .71rem;
+  font-size:.72rem;
   white-space: nowrap;
 }
 
@@ -388,7 +388,7 @@
   padding: 9px 16px;
   color: #6b7c8e;
   background: #f8fafc;
-  font-size: .68rem;
+  font-size:.72rem;
   font-weight: 800;
 }
 
@@ -443,7 +443,7 @@
   padding: 4px 7px;
   color: #5c4a17;
   background: #fff5d9;
-  font-size: .65rem;
+  font-size:.72rem;
   font-style: normal;
   text-align: center;
 }
@@ -485,7 +485,7 @@
 .stageCommand dt,
 .stageCommand ul span {
   color: #687a8e;
-  font-size: .7rem;
+  font-size:.72rem;
 }
 
 .stageCommand dd {
@@ -513,7 +513,7 @@
   display: block;
   flex-basis: 100%;
   color: #718197;
-  font-size: .66rem;
+  font-size:.72rem;
   font-weight: 650;
 }
 
@@ -552,13 +552,13 @@
 
 .lifecycleEvidencePanel ol span {
   color: #23364d;
-  font-size: .68rem;
+  font-size:.72rem;
   font-weight: 800;
 }
 
 .lifecycleEvidencePanel ol strong {
   color: #66798d;
-  font-size: .64rem;
+  font-size:.72rem;
 }
 
 .lifecycleEvidenceComplete {
@@ -606,7 +606,7 @@
   margin: 0;
   padding: 0 16px 14px;
   color: #66798d;
-  font-size: .7rem;
+  font-size:.72rem;
 }
 
 .stageCommand > p.readyNote {
@@ -628,7 +628,7 @@
   padding: 0 12px;
   color: #244d76;
   background: #fff;
-  font-size: .68rem;
+  font-size:.72rem;
   font-weight: 850;
   text-decoration: none;
 }
@@ -645,7 +645,7 @@
   color: #244d76;
   background: #fff;
   font: inherit;
-  font-size: .68rem;
+  font-size:.72rem;
   font-weight: 850;
   cursor: pointer;
 }
@@ -673,7 +673,7 @@
   align-items: center;
   gap: 6px;
   color: #8fd3ff;
-  font-size: .65rem;
+  font-size:.72rem;
   font-weight: 900;
   letter-spacing: .08em;
   text-transform: uppercase;
@@ -692,7 +692,7 @@
 .taiHeader p {
   margin-top: 2px;
   color: #c7d8e9;
-  font-size: .7rem;
+  font-size:.72rem;
 }
 
 .taiVersion {
@@ -704,7 +704,7 @@
 
 .taiVersion small {
   color: #a9c4de;
-  font-size: .62rem;
+  font-size:.72rem;
 }
 
 .taiVersion strong {
@@ -740,7 +740,7 @@
   align-items: center;
   gap: 6px;
   color: #275d91;
-  font-size: .62rem;
+  font-size:.72rem;
   font-weight: 900;
   letter-spacing: .08em;
   text-transform: uppercase;
@@ -760,7 +760,7 @@
 .opportunityBuilder p {
   margin-top: 2px;
   color: #55708b;
-  font-size: .7rem;
+  font-size:.72rem;
 }
 
 .opportunityBuilder > header > strong {
@@ -770,7 +770,7 @@
   padding: 6px 10px;
   color: #174f88;
   background: #fff;
-  font-size: .66rem;
+  font-size:.72rem;
 }
 
 .opportunityGrid {
@@ -807,7 +807,7 @@
 .opportunityForm span,
 .opportunityPacket dt {
   color: #435a73;
-  font-size: .62rem;
+  font-size:.72rem;
   font-weight: 850;
 }
 
@@ -880,7 +880,7 @@
 .opportunityPacket small {
   display: block;
   color: #66798d;
-  font-size: .62rem;
+  font-size:.72rem;
 }
 
 .opportunityPacket > header strong {
@@ -918,7 +918,7 @@
 
 .opportunityIntel strong {
   color: #082247;
-  font-size: .68rem;
+  font-size:.72rem;
   font-weight: 900;
 }
 
@@ -927,7 +927,7 @@
   align-items: center;
   gap: 6px;
   color: #38546f;
-  font-size: .66rem;
+  font-size:.72rem;
   font-weight: 750;
 }
 
@@ -956,7 +956,7 @@
 .opportunityVehicleIntel strong,
 .opportunityVehicleIntel b {
   color: #082247;
-  font-size: .68rem;
+  font-size:.72rem;
   font-weight: 900;
 }
 
@@ -966,7 +966,7 @@
   padding: 4px 7px;
   color: #8a4f00;
   background: #fff2cf;
-  font-size: .58rem;
+  font-size:.72rem;
   font-style: normal;
   font-weight: 900;
 }
@@ -974,7 +974,7 @@
 .opportunityVehicleIntel p {
   margin: 0;
   color: #4c6078;
-  font-size: .66rem;
+  font-size:.72rem;
   font-weight: 750;
 }
 
@@ -994,7 +994,7 @@
   align-items: center;
   gap: 5px;
   color: #38546f;
-  font-size: .62rem;
+  font-size:.72rem;
   font-weight: 750;
 }
 
@@ -1017,7 +1017,7 @@
   padding: 7px 8px;
   color: #9f1d28;
   background: #fff8f8;
-  font-size: .64rem;
+  font-size:.72rem;
   font-weight: 850;
 }
 
@@ -1034,7 +1034,7 @@
   border-top: 1px solid #e0e9f2;
   padding-top: 8px;
   color: #435a73;
-  font-size: .68rem;
+  font-size:.72rem;
   font-weight: 750;
 }
 
@@ -1078,7 +1078,7 @@
 
 .taiInputs header span {
   color: #75869a;
-  font-size: .62rem;
+  font-size:.72rem;
 }
 
 .taiFieldGrid {
@@ -1096,7 +1096,7 @@
 .taiFieldGrid label > span,
 .taiRatings label > span {
   color: #586d82;
-  font-size: .62rem;
+  font-size:.72rem;
   font-weight: 750;
 }
 
@@ -1115,7 +1115,7 @@
 .taiApproval label b {
   padding-left: 8px;
   color: #718297;
-  font-size: .68rem;
+  font-size:.72rem;
 }
 
 .taiFieldGrid input,
@@ -1183,7 +1183,7 @@
   gap: 6px;
   align-items: center;
   color: #3f566e;
-  font-size: .64rem;
+  font-size:.72rem;
   font-weight: 700;
 }
 
@@ -1218,7 +1218,7 @@
 
 .taiDecision > header span {
   color: #6a7c90;
-  font-size: .59rem;
+  font-size:.72rem;
 }
 
 .taiDecision > header strong {
@@ -1232,7 +1232,7 @@
   padding: 5px 7px;
   color: #1d6845;
   background: #dff3e8;
-  font-size: .68rem;
+  font-size:.72rem;
   font-style: normal;
   font-weight: 900;
 }
@@ -1260,13 +1260,13 @@
 
 .taiDecision dt {
   color: #728397;
-  font-size: .57rem;
+  font-size:.72rem;
 }
 
 .taiDecision dd {
   margin: 2px 0 0;
   color: #172f49;
-  font-size: .7rem;
+  font-size:.72rem;
   font-weight: 850;
 }
 
@@ -1279,7 +1279,7 @@
   padding: 9px 10px;
   color: #425a72;
   background: #fbfcfe;
-  font-size: .64rem;
+  font-size:.72rem;
   line-height: 1.45;
 }
 
@@ -1298,7 +1298,7 @@
 
 .taiDrivers strong {
   color: #304962;
-  font-size: .6rem;
+  font-size:.72rem;
 }
 
 .taiDrivers span {
@@ -1306,7 +1306,7 @@
   gap: 4px;
   align-items: flex-start;
   color: #64778b;
-  font-size: .57rem;
+  font-size:.72rem;
   line-height: 1.3;
 }
 
@@ -1328,7 +1328,7 @@
   border-radius: 6px;
   color: #fff;
   background: #1768c7;
-  font-size: .66rem;
+  font-size:.72rem;
   font-weight: 850;
   cursor: pointer;
 }
@@ -1363,7 +1363,7 @@
   gap: 5px;
   align-items: center;
   color: #1760a9;
-  font-size: .57rem;
+  font-size:.72rem;
   font-weight: 850;
   text-transform: uppercase;
 }
@@ -1375,13 +1375,13 @@
 
 .taiApproval strong {
   color: #203a54;
-  font-size: .68rem;
+  font-size:.72rem;
 }
 
 .taiApproval small {
   min-height: 28px;
   color: #718196;
-  font-size: .58rem;
+  font-size:.72rem;
   line-height: 1.35;
 }
 
@@ -1398,7 +1398,7 @@
   border-top: 1px solid #d8e2ec;
   color: #536a81;
   background: #eef5fc;
-  font-size: .62rem;
+  font-size:.72rem;
 }
 
 .taiNotice svg {
@@ -1418,7 +1418,7 @@
 .taiGateSummary span,
 .taiGateSummary small {
   color: #687d91;
-  font-size: .62rem;
+  font-size:.72rem;
 }
 
 .taiGateSummary strong {
@@ -1457,7 +1457,7 @@
 
 .tciHeader > div:first-child > span {
   color: #bee6c7;
-  font-size: .65rem;
+  font-size:.72rem;
 }
 
 .tciHeader h3,
@@ -1473,7 +1473,7 @@
 .tciHeader p {
   margin-top: 2px;
   color: #d0e1d5;
-  font-size: .7rem;
+  font-size:.72rem;
 }
 
 .tciVersion {
@@ -1485,7 +1485,7 @@
 
 .tciVersion small {
   color: #cee0d3;
-  font-size: .62rem;
+  font-size:.72rem;
 }
 
 .tciVersion strong {
@@ -1526,7 +1526,7 @@
 
 .tciStepCard header span {
   color: #6f8478;
-  font-size: .57rem;
+  font-size:.72rem;
 }
 
 .tciStepCard header h4,
@@ -1542,7 +1542,7 @@
   padding: 5px 7px;
   color: #8b4d1f;
   background: #fff1d4;
-  font-size: .64rem;
+  font-size:.72rem;
   font-style: normal;
   font-weight: 900;
 }
@@ -1573,7 +1573,7 @@
 .tciFieldGrid label > span,
 .tciChecks span {
   color: #586d82;
-  font-size: .62rem;
+  font-size:.72rem;
   font-weight: 750;
 }
 
@@ -1606,7 +1606,7 @@
 .tciRangeLabel b {
   padding-left: 8px;
   color: #718297;
-  font-size: .68rem;
+  font-size:.72rem;
 }
 
 .tciInputWrap input {
@@ -1662,7 +1662,7 @@
   border-radius: 6px;
   color: #fff;
   background: #2e6e58;
-  font-size: .67rem;
+  font-size:.72rem;
   font-weight: 850;
   cursor: pointer;
 }
@@ -1698,7 +1698,7 @@
 
 .tciDecision > header span {
   color: #6a7c90;
-  font-size: .59rem;
+  font-size:.72rem;
 }
 
 .tciDecision > header strong {
@@ -1725,13 +1725,13 @@
 
 .tciDecision dt {
   color: #728397;
-  font-size: .57rem;
+  font-size:.72rem;
 }
 
 .tciDecision dd {
   margin: 2px 0 0;
   color: #172f49;
-  font-size: .7rem;
+  font-size:.72rem;
   font-weight: 850;
 }
 
@@ -1740,7 +1740,7 @@
   padding: 9px 10px;
   color: #425a72;
   background: #fbfcfe;
-  font-size: .64rem;
+  font-size:.72rem;
   line-height: 1.45;
 }
 
@@ -1759,7 +1759,7 @@
 
 .tciDrivers strong {
   color: #304962;
-  font-size: .6rem;
+  font-size:.72rem;
 }
 
 .tciDrivers span {
@@ -1767,7 +1767,7 @@
   gap: 4px;
   align-items: flex-start;
   color: #64778b;
-  font-size: .57rem;
+  font-size:.72rem;
   line-height: 1.3;
 }
 
@@ -1812,13 +1812,13 @@
 
 .tciTrail strong {
   color: #203b54;
-  font-size: .62rem;
+  font-size:.72rem;
 }
 
 .tciTrail span,
 .tciTrail p {
   color: #5f7388;
-  font-size: .61rem;
+  font-size:.72rem;
 }
 
 .tciTrail p {
@@ -1832,7 +1832,7 @@
   padding: 4px 7px;
   color: #285243;
   background: #e6f2ed;
-  font-size: .58rem;
+  font-size:.72rem;
   font-style: normal;
 }
 
@@ -1840,7 +1840,7 @@
   margin: 0;
   padding: 12px 10px;
   color: #6b7d90;
-  font-size: .62rem;
+  font-size:.72rem;
 }
 
 .tciApproval {
@@ -1858,7 +1858,7 @@
 
 .tciApproval > div > span {
   color: #2e6e58;
-  font-size: .57rem;
+  font-size:.72rem;
 }
 
 .tciApproval > div > span svg {
@@ -1868,12 +1868,12 @@
 
 .tciApproval strong {
   color: #203a54;
-  font-size: .68rem;
+  font-size:.72rem;
 }
 
 .tciApproval small {
   color: #718196;
-  font-size: .58rem;
+  font-size:.72rem;
   line-height: 1.35;
 }
 
@@ -1885,7 +1885,7 @@
   border-top: 1px solid #d8e2ec;
   color: #536a81;
   background: #eef5fc;
-  font-size: .62rem;
+  font-size:.72rem;
 }
 
 .tciNotice svg {
@@ -1925,7 +1925,7 @@
 
 .rbiHeader > div:first-child > span {
   color: #f0d8bf;
-  font-size: .65rem;
+  font-size:.72rem;
 }
 
 .rbiHeader h3,
@@ -1941,7 +1941,7 @@
 .rbiHeader p {
   margin-top: 2px;
   color: #e6d8cf;
-  font-size: .7rem;
+  font-size:.72rem;
 }
 
 .rbiVersion {
@@ -1953,7 +1953,7 @@
 
 .rbiVersion small {
   color: #ecdccd;
-  font-size: .62rem;
+  font-size:.72rem;
 }
 
 .rbiVersion strong {
@@ -1994,7 +1994,7 @@
 
 .rbiStepCard header span {
   color: #7d6358;
-  font-size: .57rem;
+  font-size:.72rem;
 }
 
 .rbiStepCard header h4,
@@ -2010,7 +2010,7 @@
   padding: 5px 7px;
   color: #8b4d1f;
   background: #fff1d4;
-  font-size: .64rem;
+  font-size:.72rem;
   font-style: normal;
   font-weight: 900;
 }
@@ -2041,7 +2041,7 @@
 .rbiFieldGrid label > span,
 .rbiChecks span {
   color: #586d82;
-  font-size: .62rem;
+  font-size:.72rem;
   font-weight: 750;
 }
 
@@ -2072,7 +2072,7 @@
 .rbiInputWrap b {
   padding-left: 8px;
   color: #718297;
-  font-size: .68rem;
+  font-size:.72rem;
 }
 
 .rbiInputWrap input {
@@ -2118,7 +2118,7 @@
   border-radius: 6px;
   color: #fff;
   background: #8a5a2b;
-  font-size: .67rem;
+  font-size:.72rem;
   font-weight: 850;
   cursor: pointer;
 }
@@ -2154,7 +2154,7 @@
 
 .rbiDecision > header span {
   color: #6a7c90;
-  font-size: .59rem;
+  font-size:.72rem;
 }
 
 .rbiDecision > header strong {
@@ -2181,13 +2181,13 @@
 
 .rbiDecision dt {
   color: #728397;
-  font-size: .57rem;
+  font-size:.72rem;
 }
 
 .rbiDecision dd {
   margin: 2px 0 0;
   color: #172f49;
-  font-size: .7rem;
+  font-size:.72rem;
   font-weight: 850;
 }
 
@@ -2196,7 +2196,7 @@
   padding: 9px 10px;
   color: #425a72;
   background: #fbfcfe;
-  font-size: .64rem;
+  font-size:.72rem;
   line-height: 1.45;
 }
 
@@ -2215,7 +2215,7 @@
 
 .rbiDrivers strong {
   color: #304962;
-  font-size: .6rem;
+  font-size:.72rem;
 }
 
 .rbiDrivers span {
@@ -2223,7 +2223,7 @@
   gap: 4px;
   align-items: flex-start;
   color: #64778b;
-  font-size: .57rem;
+  font-size:.72rem;
   line-height: 1.3;
 }
 
@@ -2268,13 +2268,13 @@
 
 .rbiTrail strong {
   color: #203b54;
-  font-size: .62rem;
+  font-size:.72rem;
 }
 
 .rbiTrail span,
 .rbiTrail p {
   color: #5f7388;
-  font-size: .61rem;
+  font-size:.72rem;
 }
 
 .rbiTrail p {
@@ -2288,7 +2288,7 @@
   padding: 4px 7px;
   color: #6a451e;
   background: #f4e9dc;
-  font-size: .58rem;
+  font-size:.72rem;
   font-style: normal;
 }
 
@@ -2296,7 +2296,7 @@
   margin: 0;
   padding: 12px 10px;
   color: #6b7d90;
-  font-size: .62rem;
+  font-size:.72rem;
 }
 
 .rbiApproval {
@@ -2314,7 +2314,7 @@
 
 .rbiApproval > div > span {
   color: #8a5a2b;
-  font-size: .57rem;
+  font-size:.72rem;
 }
 
 .rbiApproval > div > span svg {
@@ -2324,12 +2324,12 @@
 
 .rbiApproval strong {
   color: #203a54;
-  font-size: .68rem;
+  font-size:.72rem;
 }
 
 .rbiApproval small {
   color: #718196;
-  font-size: .58rem;
+  font-size:.72rem;
   line-height: 1.35;
 }
 
@@ -2341,7 +2341,7 @@
   border-top: 1px solid #d8e2ec;
   color: #536a81;
   background: #eef5fc;
-  font-size: .62rem;
+  font-size:.72rem;
 }
 
 .rbiNotice svg {
@@ -2381,7 +2381,7 @@
 
 .iiiHeader > div:first-child > span {
   color: #bfe8dd;
-  font-size: .65rem;
+  font-size:.72rem;
 }
 
 .iiiHeader h3,
@@ -2397,7 +2397,7 @@
 .iiiHeader p {
   margin-top: 2px;
   color: #d6ebe7;
-  font-size: .7rem;
+  font-size:.72rem;
 }
 
 .iiiHeaderActions {
@@ -2413,7 +2413,7 @@
 
 .iiiVersion small {
   color: #d8ece7;
-  font-size: .62rem;
+  font-size:.72rem;
 }
 
 .iiiVersion strong {
@@ -2454,7 +2454,7 @@
 
 .iiiStepCard header span {
   color: #597b7c;
-  font-size: .57rem;
+  font-size:.72rem;
 }
 
 .iiiStepCard header h4,
@@ -2470,7 +2470,7 @@
   padding: 5px 7px;
   color: #8b4d1f;
   background: #fff1d4;
-  font-size: .64rem;
+  font-size:.72rem;
   font-style: normal;
   font-weight: 900;
 }
@@ -2501,7 +2501,7 @@
 .iiiFieldGrid label > span,
 .iiiChecks span {
   color: #586d82;
-  font-size: .62rem;
+  font-size:.72rem;
   font-weight: 750;
 }
 
@@ -2550,7 +2550,7 @@
   border-radius: 6px;
   color: #fff;
   background: #2f6d72;
-  font-size: .67rem;
+  font-size:.72rem;
   font-weight: 850;
   cursor: pointer;
 }
@@ -2586,7 +2586,7 @@
 
 .iiiDecision > header span {
   color: #6a7c90;
-  font-size: .59rem;
+  font-size:.72rem;
 }
 
 .iiiDecision > header strong {
@@ -2613,13 +2613,13 @@
 
 .iiiDecision dt {
   color: #728397;
-  font-size: .57rem;
+  font-size:.72rem;
 }
 
 .iiiDecision dd {
   margin: 2px 0 0;
   color: #172f49;
-  font-size: .7rem;
+  font-size:.72rem;
   font-weight: 850;
 }
 
@@ -2628,7 +2628,7 @@
   padding: 9px 10px;
   color: #425a72;
   background: #fbfcfe;
-  font-size: .64rem;
+  font-size:.72rem;
   line-height: 1.45;
 }
 
@@ -2647,7 +2647,7 @@
 
 .iiiDrivers strong {
   color: #304962;
-  font-size: .6rem;
+  font-size:.72rem;
 }
 
 .iiiDrivers span {
@@ -2655,7 +2655,7 @@
   gap: 4px;
   align-items: flex-start;
   color: #64778b;
-  font-size: .57rem;
+  font-size:.72rem;
   line-height: 1.3;
 }
 
@@ -2700,13 +2700,13 @@
 
 .iiiTrail strong {
   color: #203b54;
-  font-size: .62rem;
+  font-size:.72rem;
 }
 
 .iiiTrail span,
 .iiiTrail p {
   color: #5f7388;
-  font-size: .61rem;
+  font-size:.72rem;
 }
 
 .iiiTrail p {
@@ -2720,7 +2720,7 @@
   padding: 4px 7px;
   color: #22575b;
   background: #deeff0;
-  font-size: .58rem;
+  font-size:.72rem;
   font-style: normal;
 }
 
@@ -2728,7 +2728,7 @@
   margin: 0;
   padding: 12px 10px;
   color: #6b7d90;
-  font-size: .62rem;
+  font-size:.72rem;
 }
 
 .iiiApproval {
@@ -2746,7 +2746,7 @@
 
 .iiiApproval > div > span {
   color: #2f6d72;
-  font-size: .57rem;
+  font-size:.72rem;
 }
 
 .iiiApproval > div > span svg {
@@ -2756,12 +2756,12 @@
 
 .iiiApproval strong {
   color: #203a54;
-  font-size: .68rem;
+  font-size:.72rem;
 }
 
 .iiiApproval small {
   color: #718196;
-  font-size: .58rem;
+  font-size:.72rem;
   line-height: 1.35;
 }
 
@@ -2773,7 +2773,7 @@
   border-top: 1px solid #d8e2ec;
   color: #536a81;
   background: #eef5fc;
-  font-size: .62rem;
+  font-size:.72rem;
 }
 
 .iiiNotice svg {
@@ -2813,7 +2813,7 @@
 
 .igiHeader > div:first-child > span {
   color: #f0dcb9;
-  font-size: .65rem;
+  font-size:.72rem;
 }
 
 .igiHeader h3,
@@ -2829,7 +2829,7 @@
 .igiHeader p {
   margin-top: 2px;
   color: #eadfce;
-  font-size: .7rem;
+  font-size:.72rem;
 }
 
 .igiHeaderActions {
@@ -2849,7 +2849,7 @@
   padding: 0 12px;
   color: #4f3717;
   background: #fff7ea;
-  font-size: .68rem;
+  font-size:.72rem;
   font-weight: 850;
   text-decoration: none;
 }
@@ -2863,7 +2863,7 @@
 
 .igiVersion small {
   color: #eedfc8;
-  font-size: .62rem;
+  font-size:.72rem;
 }
 
 .igiVersion strong {
@@ -2904,7 +2904,7 @@
 
 .igiStepCard header span {
   color: #7c684d;
-  font-size: .57rem;
+  font-size:.72rem;
 }
 
 .igiStepCard header h4,
@@ -2920,7 +2920,7 @@
   padding: 5px 7px;
   color: #8b4d1f;
   background: #fff1d4;
-  font-size: .64rem;
+  font-size:.72rem;
   font-style: normal;
   font-weight: 900;
 }
@@ -2951,7 +2951,7 @@
 .igiFieldGrid label > span,
 .igiChecks span {
   color: #586d82;
-  font-size: .62rem;
+  font-size:.72rem;
   font-weight: 750;
 }
 
@@ -3004,7 +3004,7 @@
   border-radius: 6px;
   color: #fff;
   background: #8a5b21;
-  font-size: .67rem;
+  font-size:.72rem;
   font-weight: 850;
   cursor: pointer;
 }
@@ -3040,7 +3040,7 @@
 
 .igiDecision > header span {
   color: #6a7c90;
-  font-size: .59rem;
+  font-size:.72rem;
 }
 
 .igiDecision > header strong {
@@ -3067,13 +3067,13 @@
 
 .igiDecision dt {
   color: #728397;
-  font-size: .57rem;
+  font-size:.72rem;
 }
 
 .igiDecision dd {
   margin: 2px 0 0;
   color: #172f49;
-  font-size: .7rem;
+  font-size:.72rem;
   font-weight: 850;
 }
 
@@ -3082,7 +3082,7 @@
   padding: 9px 10px;
   color: #425a72;
   background: #fbfcfe;
-  font-size: .64rem;
+  font-size:.72rem;
   line-height: 1.45;
 }
 
@@ -3101,7 +3101,7 @@
 
 .igiDrivers strong {
   color: #304962;
-  font-size: .6rem;
+  font-size:.72rem;
 }
 
 .igiDrivers span {
@@ -3109,7 +3109,7 @@
   gap: 4px;
   align-items: flex-start;
   color: #64778b;
-  font-size: .57rem;
+  font-size:.72rem;
   line-height: 1.3;
 }
 
@@ -3154,13 +3154,13 @@
 
 .igiTrail strong {
   color: #203b54;
-  font-size: .62rem;
+  font-size:.72rem;
 }
 
 .igiTrail span,
 .igiTrail p {
   color: #5f7388;
-  font-size: .61rem;
+  font-size:.72rem;
 }
 
 .igiTrail p {
@@ -3174,7 +3174,7 @@
   padding: 4px 7px;
   color: #6d4a1f;
   background: #f5eadb;
-  font-size: .58rem;
+  font-size:.72rem;
   font-style: normal;
 }
 
@@ -3182,7 +3182,7 @@
   margin: 0;
   padding: 12px 10px;
   color: #6b7d90;
-  font-size: .62rem;
+  font-size:.72rem;
 }
 
 .igiApproval {
@@ -3200,7 +3200,7 @@
 
 .igiApproval > div > span {
   color: #8a5b21;
-  font-size: .57rem;
+  font-size:.72rem;
 }
 
 .igiApproval > div > span svg {
@@ -3210,12 +3210,12 @@
 
 .igiApproval strong {
   color: #203a54;
-  font-size: .68rem;
+  font-size:.72rem;
 }
 
 .igiApproval small {
   color: #718196;
-  font-size: .58rem;
+  font-size:.72rem;
   line-height: 1.35;
 }
 
@@ -3227,7 +3227,7 @@
   border-top: 1px solid #d8e2ec;
   color: #536a81;
   background: #eef5fc;
-  font-size: .62rem;
+  font-size:.72rem;
 }
 
 .igiNotice svg {
@@ -3267,7 +3267,7 @@
 
 .iqiHeader > div:first-child > span {
   color: #d6e0ee;
-  font-size: .65rem;
+  font-size:.72rem;
 }
 
 .iqiHeader h3,
@@ -3283,7 +3283,7 @@
 .iqiHeader p {
   margin-top: 2px;
   color: #e2e9f3;
-  font-size: .7rem;
+  font-size:.72rem;
 }
 
 .iqiHeaderActions {
@@ -3300,7 +3300,7 @@
   padding: 0 12px;
   color: #244d76;
   background: #fff;
-  font-size: .68rem;
+  font-size:.72rem;
   font-weight: 850;
   text-decoration: none;
 }
@@ -3314,7 +3314,7 @@
 
 .iqiVersion small {
   color: #dae3ef;
-  font-size: .62rem;
+  font-size:.72rem;
 }
 
 .iqiVersion strong {
@@ -3355,7 +3355,7 @@
 
 .iqiStepCard header span {
   color: #63758c;
-  font-size: .57rem;
+  font-size:.72rem;
 }
 
 .iqiStepCard header h4,
@@ -3371,7 +3371,7 @@
   padding: 5px 7px;
   color: #8b4d1f;
   background: #fff1d4;
-  font-size: .64rem;
+  font-size:.72rem;
   font-style: normal;
   font-weight: 900;
 }
@@ -3402,7 +3402,7 @@
 .iqiFieldGrid label > span,
 .iqiChecks span {
   color: #586d82;
-  font-size: .62rem;
+  font-size:.72rem;
   font-weight: 750;
 }
 
@@ -3455,7 +3455,7 @@
   border-radius: 6px;
   color: #fff;
   background: #47617c;
-  font-size: .67rem;
+  font-size:.72rem;
   font-weight: 850;
   cursor: pointer;
 }
@@ -3491,7 +3491,7 @@
 
 .iqiDecision > header span {
   color: #6a7c90;
-  font-size: .59rem;
+  font-size:.72rem;
 }
 
 .iqiDecision > header strong {
@@ -3518,13 +3518,13 @@
 
 .iqiDecision dt {
   color: #728397;
-  font-size: .57rem;
+  font-size:.72rem;
 }
 
 .iqiDecision dd {
   margin: 2px 0 0;
   color: #172f49;
-  font-size: .7rem;
+  font-size:.72rem;
   font-weight: 850;
 }
 
@@ -3533,7 +3533,7 @@
   padding: 9px 10px;
   color: #425a72;
   background: #fbfcfe;
-  font-size: .64rem;
+  font-size:.72rem;
   line-height: 1.45;
 }
 
@@ -3552,7 +3552,7 @@
 
 .iqiDrivers strong {
   color: #304962;
-  font-size: .6rem;
+  font-size:.72rem;
 }
 
 .iqiDrivers span {
@@ -3560,7 +3560,7 @@
   gap: 4px;
   align-items: flex-start;
   color: #64778b;
-  font-size: .57rem;
+  font-size:.72rem;
   line-height: 1.3;
 }
 
@@ -3605,13 +3605,13 @@
 
 .iqiTrail strong {
   color: #203b54;
-  font-size: .62rem;
+  font-size:.72rem;
 }
 
 .iqiTrail span,
 .iqiTrail p {
   color: #5f7388;
-  font-size: .61rem;
+  font-size:.72rem;
 }
 
 .iqiTrail p {
@@ -3625,7 +3625,7 @@
   padding: 4px 7px;
   color: #31495f;
   background: #e4ebf1;
-  font-size: .58rem;
+  font-size:.72rem;
   font-style: normal;
 }
 
@@ -3633,7 +3633,7 @@
   margin: 0;
   padding: 12px 10px;
   color: #6b7d90;
-  font-size: .62rem;
+  font-size:.72rem;
 }
 
 .iqiApproval {
@@ -3651,7 +3651,7 @@
 
 .iqiApproval > div > span {
   color: #47617c;
-  font-size: .57rem;
+  font-size:.72rem;
 }
 
 .iqiApproval > div > span svg {
@@ -3661,12 +3661,12 @@
 
 .iqiApproval strong {
   color: #203a54;
-  font-size: .68rem;
+  font-size:.72rem;
 }
 
 .iqiApproval small {
   color: #718196;
-  font-size: .58rem;
+  font-size:.72rem;
   line-height: 1.35;
 }
 
@@ -3678,7 +3678,7 @@
   border-top: 1px solid #d8e2ec;
   color: #536a81;
   background: #eef5fc;
-  font-size: .62rem;
+  font-size:.72rem;
 }
 
 .wopWorkspace {
@@ -3712,7 +3712,7 @@
 
 .wopHeader > div:first-child > span {
   color: #edd9ac;
-  font-size: .65rem;
+  font-size:.72rem;
 }
 
 .wopHeader h3,
@@ -3728,7 +3728,7 @@
 .wopHeader p {
   margin-top: 2px;
   color: #e1d7c0;
-  font-size: .7rem;
+  font-size:.72rem;
 }
 
 .wopHeaderActions {
@@ -3746,7 +3746,7 @@
   padding: 8px 11px;
   color: #27425b;
   background: #fff5de;
-  font-size: .67rem;
+  font-size:.72rem;
   font-weight: 800;
   text-decoration: none;
 }
@@ -3765,7 +3765,7 @@
 
 .wopVersion small {
   color: #e7dcc4;
-  font-size: .62rem;
+  font-size:.72rem;
 }
 
 .wopVersion strong {
@@ -3806,7 +3806,7 @@
 
 .wopStepCard header span {
   color: #8a734e;
-  font-size: .57rem;
+  font-size:.72rem;
 }
 
 .wopStepCard header h4,
@@ -3822,7 +3822,7 @@
   padding: 5px 7px;
   color: #8b4d1f;
   background: #fff1d4;
-  font-size: .64rem;
+  font-size:.72rem;
   font-style: normal;
   font-weight: 900;
 }
@@ -3853,7 +3853,7 @@
 .wopFieldGrid label > span,
 .wopChecks span {
   color: #586d82;
-  font-size: .62rem;
+  font-size:.72rem;
   font-weight: 750;
 }
 
@@ -3916,7 +3916,7 @@
   gap: 6px;
   align-items: center;
   color: #8a6a27;
-  font-size: .58rem;
+  font-size:.72rem;
   font-weight: 900;
   letter-spacing: .07em;
   text-transform: uppercase;
@@ -3934,7 +3934,7 @@
 
 .wopSubworkspaceHeader p {
   color: #607182;
-  font-size: .63rem;
+  font-size:.72rem;
   line-height: 1.4;
 }
 
@@ -3965,7 +3965,7 @@
 
 .wopIntroResponses span {
   color: #586d82;
-  font-size: .62rem;
+  font-size:.72rem;
   font-weight: 750;
   line-height: 1.45;
 }
@@ -3980,7 +3980,7 @@
   padding: 0 10px;
   color: #27425b;
   background: #fff;
-  font-size: .62rem;
+  font-size:.72rem;
   font-weight: 850;
   text-decoration: none;
 }
@@ -4004,7 +4004,7 @@
   padding: 10px 12px;
   color: #fff;
   background: #50627a;
-  font-size: .7rem;
+  font-size:.72rem;
   font-weight: 850;
   cursor: pointer;
 }
@@ -4040,7 +4040,7 @@
 
 .wopDecision > header span {
   color: #8b7a5e;
-  font-size: .6rem;
+  font-size:.72rem;
   font-weight: 850;
   text-transform: uppercase;
 }
@@ -4071,7 +4071,7 @@
 
 .wopDecision dt {
   color: #7a8797;
-  font-size: .58rem;
+  font-size:.72rem;
 }
 
 .wopDecision dd {
@@ -4085,7 +4085,7 @@
   margin: 0;
   padding: 8px 10px;
   color: #4c5c6f;
-  font-size: .64rem;
+  font-size:.72rem;
   line-height: 1.45;
 }
 
@@ -4108,7 +4108,7 @@
 
 .wopDrivers strong {
   color: #203449;
-  font-size: .65rem;
+  font-size:.72rem;
 }
 
 .wopDrivers span {
@@ -4116,7 +4116,7 @@
   gap: 6px;
   align-items: start;
   color: #617386;
-  font-size: .61rem;
+  font-size:.72rem;
   line-height: 1.45;
 }
 
@@ -4139,7 +4139,7 @@
   margin: 0;
   padding: 12px;
   color: #738396;
-  font-size: .62rem;
+  font-size:.72rem;
 }
 
 .wopTrail ul {
@@ -4161,19 +4161,19 @@
 .wopTrail strong,
 .wopTrail span {
   color: #5d6f84;
-  font-size: .58rem;
+  font-size:.72rem;
 }
 
 .wopTrail div {
   color: #203449;
-  font-size: .64rem;
+  font-size:.72rem;
   font-weight: 700;
 }
 
 .wopTrail small {
   grid-column: 3;
   color: #7b8996;
-  font-size: .58rem;
+  font-size:.72rem;
 }
 
 .wopApproval {
@@ -4194,18 +4194,18 @@
 
 .wopApproval > div > span {
   color: #7d5a1f;
-  font-size: .57rem;
+  font-size:.72rem;
 }
 
 .wopApproval strong {
   color: #203a54;
-  font-size: .68rem;
+  font-size:.72rem;
 }
 
 .wopApproval small {
   min-height: 28px;
   color: #718196;
-  font-size: .58rem;
+  font-size:.72rem;
   line-height: 1.35;
 }
 
@@ -4217,7 +4217,7 @@
   border-top: 1px solid #d8e2ec;
   color: #536a81;
   background: #eef5fc;
-  font-size: .62rem;
+  font-size:.72rem;
 }
 
 .fqcChecklistIntro {
@@ -4233,7 +4233,7 @@
 
 .fqcChecklistIntro small {
   color: #6b7d90;
-  font-size: .6rem;
+  font-size:.72rem;
   line-height: 1.4;
 }
 
@@ -4261,12 +4261,12 @@
 
 .fqcChecklistCopy strong {
   color: #1f3650;
-  font-size: .67rem;
+  font-size:.72rem;
 }
 
 .fqcChecklistCopy small {
   color: #6a7b8f;
-  font-size: .58rem;
+  font-size:.72rem;
   line-height: 1.35;
 }
 
@@ -4283,7 +4283,7 @@
   border-radius: 999px;
   color: #35516e;
   background: #fff;
-  font-size: .58rem;
+  font-size:.72rem;
   font-weight: 800;
   cursor: pointer;
 }
@@ -4300,7 +4300,7 @@
   flex-wrap: wrap;
   padding: 0 11px 10px;
   color: #61758a;
-  font-size: .59rem;
+  font-size:.72rem;
 }
 
 .fqcChecklistSummary b {
@@ -4340,7 +4340,7 @@
   gap: 6px;
   align-items: center;
   color: #55748f;
-  font-size: .58rem;
+  font-size:.72rem;
   font-weight: 850;
   letter-spacing: .06em;
   text-transform: uppercase;
@@ -4356,7 +4356,7 @@
   padding: 5px 7px;
   color: #75541d;
   background: #fff1d4;
-  font-size: .63rem;
+  font-size:.72rem;
   font-style: normal;
   font-weight: 850;
 }
@@ -4369,7 +4369,7 @@
 .vinScanCard > p {
   margin: 0;
   color: #60748b;
-  font-size: .64rem;
+  font-size:.72rem;
   line-height: 1.4;
 }
 
@@ -4384,7 +4384,7 @@
   resize: vertical;
   background: #fff;
   font: inherit;
-  font-size: .7rem;
+  font-size:.72rem;
 }
 
 .vinScanInput textarea:focus {
@@ -4408,13 +4408,13 @@
 
 .vinScanSummary span {
   color: #6d7f93;
-  font-size: .56rem;
+  font-size:.72rem;
 }
 
 .vinScanSummary strong {
   overflow: hidden;
   color: #20384f;
-  font-size: .67rem;
+  font-size:.72rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -4429,7 +4429,7 @@
   gap: 6px;
   align-items: flex-start;
   color: #52697f;
-  font-size: .61rem;
+  font-size:.72rem;
   line-height: 1.35;
 }
 
@@ -4450,7 +4450,7 @@
   border-radius: 6px;
   color: #fff;
   background: #1768c7;
-  font-size: .66rem;
+  font-size:.72rem;
   font-weight: 850;
   cursor: pointer;
 }
@@ -4476,7 +4476,7 @@
   padding: 0 12px;
   color: #244d76;
   background: #fff;
-  font-size: .66rem;
+  font-size:.72rem;
   font-weight: 850;
   text-decoration: none;
 }

@@ -152,7 +152,7 @@
 .operationResults small,
 .trayGrid small {
   color: #607086;
-  font-size: 11px;
+  font-size:11.5px;
 }
 
 .lookupResult b {
@@ -161,7 +161,7 @@
   border-radius: 999px;
   background: #eef8f1;
   color: #267a49;
-  font-size: 10px;
+  font-size:11.5px;
 }
 
 .lookupResults {
@@ -442,7 +442,7 @@
 
 .engineTools small {
   color: #607086;
-  font-size: 11px;
+  font-size:11.5px;
   line-height: 1.35;
 }
 
@@ -470,7 +470,7 @@
   border-radius: 999px;
   background: #e8f0ff;
   color: #1d5bbd;
-  font-size: 10px;
+  font-size:11.5px;
   font-weight: 800;
 }
 
@@ -520,7 +520,7 @@
   border-radius: 999px;
   background: #eaf2ff;
   color: #075fd4;
-  font-size: 9px;
+  font-size:11.5px;
 }
 
 .repairAreaIntelligence {
@@ -555,7 +555,7 @@
   border-radius: 999px;
   background: #eaf2ff;
   color: #1d5bbd;
-  font-size: 10px;
+  font-size:11.5px;
   font-weight: 800;
 }
 
@@ -575,7 +575,7 @@
 .areaRuleGrid small,
 .assemblyMap small {
   color: #5d6c80;
-  font-size: 11px;
+  font-size:11.5px;
   line-height: 1.35;
 }
 
@@ -669,7 +669,7 @@
   border-radius: 5px;
   background: #fff;
   color: #075fd4;
-  font-size: 11px;
+  font-size:11.5px;
   font-weight: 800;
   cursor: pointer;
 }
@@ -970,7 +970,7 @@
   display: grid;
   gap: 4px;
   color: #607086;
-  font-size: 11px;
+  font-size:11.5px;
   font-weight: 700;
 }
 
@@ -1013,7 +1013,7 @@
 .partsCatalogStatus {
   margin: 8px 0 0;
   color: #607086;
-  font-size: 11px;
+  font-size:11.5px;
 }
 
 .lockedPart {
@@ -1024,7 +1024,7 @@
   border-radius: 999px;
   background: #eef4ff;
   color: #2952a3;
-  font-size: 10px;
+  font-size:11.5px;
   font-weight: 800;
 }
 
@@ -1057,7 +1057,7 @@
 .estimatePolicyCard header p,
 .estimatePolicyCard > p {
   color: #5d6c80;
-  font-size: 11px;
+  font-size:11.5px;
 }
 
 .estimatePolicyCard > div {
@@ -1075,7 +1075,7 @@
   border-radius: 999px;
   background: #fff;
   color: #254b85;
-  font-size: 10px;
+  font-size:11.5px;
   font-weight: 800;
 }
 
@@ -1106,7 +1106,7 @@
   gap: 5px;
   min-width: 0;
   color: #607086;
-  font-size: 11px;
+  font-size:11.5px;
   font-weight: 700;
 }
 
@@ -1222,7 +1222,7 @@
 .suggestedAddOns p {
   margin: 3px 0 0;
   color: #607086;
-  font-size: 11px;
+  font-size:11.5px;
 }
 
 .suggestedAddOns > div {
@@ -1391,7 +1391,7 @@
 
 .assignmentCard p {
   color: #607086;
-  font-size: 11px;
+  font-size:11.5px;
   line-height: 1.4;
 }
 
@@ -1419,7 +1419,7 @@
 
 .assignmentCard dt {
   color: #607086;
-  font-size: 10px;
+  font-size:11.5px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: .05em;
@@ -1483,7 +1483,7 @@
 .partsOrderingTrail,
 .partsNeededList p {
   color: #607086;
-  font-size: 11px;
+  font-size:11.5px;
   line-height: 1.4;
 }
 
@@ -1493,7 +1493,7 @@
   border-radius: 999px;
   background: #eef4ff;
   color: #2952a3;
-  font-size: 10px;
+  font-size:11.5px;
   font-weight: 800;
 }
 
@@ -1532,7 +1532,7 @@
 
 .partsOrderingStats small {
   color: #607086;
-  font-size: 10px;
+  font-size:11.5px;
 }
 
 .partsNeededList {
@@ -1570,7 +1570,7 @@
 
 .partsNeededList em {
   color: #2952a3;
-  font-size: 11px;
+  font-size:11.5px;
   font-style: normal;
   font-weight: 800;
 }

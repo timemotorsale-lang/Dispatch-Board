@@ -22,6 +22,7 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:shop-recon-pilot": "tsx scripts/seed-shop-recon-pilot.ts",
+    "db:consolidate-open-repair-orders": "tsx scripts/consolidate-open-repair-order-duplicates.ts",
     "diagnostics:trial": "tsx scripts/configure-diagnostics-trial.ts",
     "db:validate": "prisma validate"
   },

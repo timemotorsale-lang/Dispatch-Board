@@ -210,6 +210,12 @@ describe("AdvisorRepairOrderStatusView", () => {
     expect(html).toContain("Main Store");
     expect(html).toContain("Vendor progress history");
     expect(html).toContain("Approved body repair is underway.");
+    expect(html).toContain("Rapid recon check");
+    expect(html).toContain("Did the vendor receive it?");
+    expect(html).toContain("What are they fixing?");
+    expect(html).toContain("Do they need parts?");
+    expect(html).toContain("Are repairs complete?");
+    expect(html).toContain("QC &amp; handoff");
     expect(html).toContain('aria-current="step" class="current"');
     expect(html).toContain("Add / buy parts");
     expect(html).toContain("/vehicles/service-close-parts?repairOrderId=ro_123");

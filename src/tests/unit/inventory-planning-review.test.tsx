@@ -40,6 +40,8 @@ describe("Inventory Planning review surface", () => {
     for (const text of [
       "Receiving &amp; Initial Quality Inspection",
       "Detailed intake &amp; canonical vehicle facts",
+      "Update current condition and vehicle needs",
+      "Correct intake info",
       "Canonical origins preserved",
       "Review recalls and safety intelligence",
       "Current required receiving task",
