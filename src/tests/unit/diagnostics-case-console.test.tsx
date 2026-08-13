@@ -68,8 +68,16 @@ describe("diagnostics case console", () => {
     const model = { state: "COMPLETE", generatedAt: "2026-07-20T14:00:00.000Z", viewer: { id: "tech-1", name: "Walter Mechanic" }, rollout: { executable: true, reason: "GENERAL" }, evidenceRollout: { executable: true, reason: "GENERAL" }, permissions: { canAssign: false, canTransition: true, canRecordEvidence: true, canLinkEvidence: true, canPlanTests: true, canExecuteTests: true }, assignableUsers: [], evidenceCandidates: [], evidenceReview: { state: "COMPLETE", reconstructionComplete: false, timeline: [], measurementMatrix: [], comparisons: [], conflicts: [], sources: [], lineage: [] }, qualitySafetyGates: { state: "COMPLETE", policyVersion: "DGN-019/1.0.0", evaluatedAt: "2026-07-20T14:00:00.000Z", disposition: "ABSTAIN", readyForReasoning: false, abstentionRequired: true, reasonCodes: ["REASONING_INSUFFICIENT_EVIDENCE"], counts: { currentObservations: 0, currentMeasurements: 0, invalid: 0, suspect: 0, independentGroups: 0 } }, diagnosticCase } as unknown as DiagnosticCaseWorkspaceModel;
     const html = renderToStaticMarkup(<DiagnosticCaseWorkspace model={model} />);
     for (const stage of ["Concern", "Evidence", "Test", "Cause", "Verify"]) expect(html).toContain(stage);
-    expect(html).toContain("No observations recorded.");
-    expect(html).toContain("No measurements recorded.");
+    expect(html).toContain("What to do now");
+    expect(html).toContain("Record what the vehicle actually did");
+    expect(html).toContain("Why I need this:");
+    expect(html).toContain("What did it do?");
+    expect(html).toContain("What did the scan show?");
+    expect(html).toContain("Run the instructed test");
+    expect(html).toContain("Battery loaded voltage");
+    expect(html).toContain("Record a test already performed");
+    expect(html).toContain("No symptom or scan result has been recorded.");
+    expect(html).toContain("No objective test result has been recorded.");
     expect(html).toContain("No governed reasoning evaluation is available.");
     expect(html).toContain("Diagnostic conclusion");
     expect(html).toContain("Record governed decision");
