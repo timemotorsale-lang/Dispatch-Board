@@ -95,7 +95,7 @@ function timeStamp() {
   }).format(new Date());
 }
 
-export function RbiReceivingTool({ onProgressChange }: { onProgressChange: (progress: RbiWorkflowProgress) => void }) {
+export function RbiReceivingTool({ expectedVin = "2T3W1RFVXRW333586", onProgressChange }: { expectedVin?: string; onProgressChange: (progress: RbiWorkflowProgress) => void }) {
   const [input, setInput] = useState(initialInput);
   const [completedSteps, setCompletedSteps] = useState<Record<StepKey, boolean>>({
     vin: false,
@@ -245,7 +245,7 @@ export function RbiReceivingTool({ onProgressChange }: { onProgressChange: (prog
           </header>
           <div className={styles.rbiEvidenceBlock}>
             <PrototypeVinScanCard
-              expectedVin="2T3W1RFVXRW333586"
+              expectedVin={expectedVin}
               helperText="Use normal VIN scans or paste Manheim / ADESA windshield details so receiving can match the physical unit without manual retyping."
               onEvidenceChange={applyVinEvidence}
               stageLabel="Receiving"

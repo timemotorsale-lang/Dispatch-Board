@@ -9,6 +9,7 @@ import { DiagnosticAdvisorReviewConsole } from "@/features/diagnostics/advisor-r
 import { DiagnosticAutobodyEstimateConsole } from "@/features/diagnostics/autobody-estimate-console";
 import { DiagnosticsCommandCenter } from "@/features/diagnostics/diagnostics-command-center";
 import { TroubleshootingReviewConsole } from "@/features/diagnostics/troubleshooting-review-console";
+import { MasterTechnicianPrototype } from "@/features/diagnostics/master-technician-prototype";
 import { buildTechnicianTroubleshootingConsole } from "@/server/diagnostics/technician-troubleshooting-console";
 import type { DiagnosticCaseWorkspaceModel, DiagnosticsCommandCenterModel } from "@/server/diagnostics/service";
 
@@ -40,6 +41,11 @@ describe("diagnostics case console", () => {
     } as unknown as DiagnosticsCommandCenterModel;
     const html = renderToStaticMarkup(<DiagnosticsCommandCenter model={model} />);
     expect(html).toContain("Diagnostics Command Center");
+    expect(html).toContain("Ask Master Technician");
+    expect(html).toContain("Describe the vehicle problem. We’ll build the test path.");
+    expect(html).toContain("Start troubleshooting");
+    expect(html).toContain("In-house or vendor?");
+    expect(html).toContain('href="/diagnostics/master-technician?q=');
     expect(html).toContain("New Diagnostic Case");
     expect(html).toContain('href="/diagnostics/intake"');
     expect(html).toContain("Troubleshooting Review");
@@ -74,6 +80,19 @@ describe("diagnostics case console", () => {
     expect(html).toContain("Open troubleshooting console");
     expect(html).toContain("/diagnostics/cases/dgc_case_1/troubleshooting");
     expect(html).not.toMatch(/\b\d{1,3}%\b/);
+  });
+
+  it("renders a conversational Master Technician prototype without presenting a guess as a diagnosis", () => {
+    const html = renderToStaticMarkup(<MasterTechnicianPrototype initialQuestion="2019 Honda Accord timing code and vendor recommends timing replacement" viewerName="Walter Mechanic" />);
+    expect(html).toContain("What are we troubleshooting?");
+    expect(html).toContain("A timing-component replacement is only a hypothesis right now.");
+    expect(html).toContain("Do not authorize parts yet.");
+    expect(html).toContain("Compare commanded and actual cam position");
+    expect(html).toContain("Advice, not an automatic diagnosis.");
+    expect(html).toContain("No verified measurements yet");
+    expect(html).toContain("not yet connected to a live AI model");
+    expect(html).toContain("Save as test plan");
+    expect(html).toContain("Record a result");
   });
 
   it("renders the technician troubleshooting console with the first four slices", () => {

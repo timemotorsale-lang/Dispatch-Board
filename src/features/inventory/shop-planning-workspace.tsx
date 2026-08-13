@@ -56,6 +56,7 @@ type Order = {
 };
 type Model = { repairOrders: Order[]; users: Array<{ id: string; name: string }> };
 type RepairPath = "DIAGNOSTIC" | "DIRECT_BODY" | "VENDOR";
+type LaborGuideOption = { description: string; key: string; minutes: number; plannedCorrection: string; source: string; title: string; unitPriceCents: number; workTypeCode: string };
 
 const local = (value: string) => { const date = new Date(value); return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16); };
 const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value / 100);
@@ -72,6 +73,24 @@ const vendorApprovalCaptured = (work?: RepairVendorWork | null) => Boolean(work 
 const vendorRepairReturned = (work?: RepairVendorWork | null) => Boolean(work && ["RETURNED", "QC_REQUIRED", "COMPLETED"].includes(work.status));
 const vendorRepairFailed = (work?: RepairVendorWork | null) => Boolean(work && /\b(fail|failed|incomplete|not fixed|problem still|still persists|rework|decision)\b/i.test(`${work.lastUpdateSummary} ${work.nextAction}`));
 const centsText = (value?: number | null) => value == null ? "" : String(value);
+const buildLaborGuideOptions = (order: Order | undefined, latestDiagnosis: Order["diagnosisVersions"][number] | undefined, directPath: boolean): LaborGuideOption[] => {
+  const concern = order?.serviceVisit.concernSummary || "Repair concern";
+  const correction = latestDiagnosis?.proposedCorrection || (directPath ? "Repair visible body or collision damage from the approved scope." : "Perform the verified repair from the recorded diagnosis.");
+  const diagnosisDescription = latestDiagnosis?.cause ? `${latestDiagnosis.cause} — ${correction}` : correction;
+  const base: LaborGuideOption[] = [
+    { description: diagnosisDescription, key: "diagnosis-correction", minutes: directPath ? 120 : 60, plannedCorrection: correction, source: latestDiagnosis ? "Diagnosis recommendation" : "Repair scope", title: "Use recorded correction", unitPriceCents: directPath ? 30000 : 15000, workTypeCode: directPath ? "BODY_REPAIR" : "DIAGNOSTIC_REPAIR" },
+    { description: `Inspect, verify, and prepare estimate for: ${concern}`, key: "verify-estimate", minutes: 30, plannedCorrection: "Verify the concern, confirm the repair operation, and prepare the estimate line.", source: "Labor Guide helper", title: "Verification / estimate setup", unitPriceCents: 7500, workTypeCode: "INSPECTION_ESTIMATE" },
+  ];
+  return directPath ? [
+    ...base,
+    { description: `Body / collision labor for: ${concern}`, key: "body-collision-labor", minutes: 180, plannedCorrection: correction, source: "Body Labor Guide", title: "Body / collision labor", unitPriceCents: 45000, workTypeCode: "BODY_COLLISION" },
+    { description: `Teardown and supplement check for: ${concern}`, key: "teardown-supplement", minutes: 60, plannedCorrection: "Perform teardown, document hidden damage, and create a supplement only if new evidence is found.", source: "Body Labor Guide", title: "Teardown / supplement check", unitPriceCents: 15000, workTypeCode: "TEARDOWN_SUPPLEMENT" },
+  ] : [
+    ...base,
+    { description: `Mechanical repair labor for: ${concern}`, key: "mechanical-repair", minutes: 90, plannedCorrection: correction, source: "Mechanical Labor Guide", title: "Mechanical repair labor", unitPriceCents: 22500, workTypeCode: "MECHANICAL_REPAIR" },
+    { description: `Warning-light or electrical repair labor for: ${concern}`, key: "warning-light-electrical", minutes: 60, plannedCorrection: correction, source: "Mechanical Labor Guide", title: "Warning light / electrical", unitPriceCents: 15000, workTypeCode: "ELECTRICAL_DIAG_REPAIR" },
+  ];
+};
 const seedVendorProgress = (work?: RepairVendorWork | null, order?: Order) => ({
   approvalStatus: work?.approvalStatus ?? "NEEDS_DOCUMENTATION",
   approvedAmountCents: centsText(work?.approvedAmountCents),
@@ -123,6 +142,13 @@ const steps = [
   { label: "Authorization", icon: ShieldCheck },
   { label: "Repair job", icon: Wrench },
 ] as const;
+const vendorSteps = [
+  { label: "Vendor assigned", icon: Building2 },
+  { label: "Vendor estimate", icon: Gauge },
+  { label: "Approval", icon: ShieldCheck },
+  { label: "Repair and return", icon: Truck },
+  { label: "Dealership QC", icon: ClipboardCheck },
+] as const;
 
 export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; returnTo?: string }) {
   const [model, setModel] = useState(initial);
@@ -138,6 +164,7 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
   const [vendorWork, setVendorWork] = useState({ approvalStatus: "NEEDS_DOCUMENTATION", customerVisibleSummary: "", directFromSource: false, evidence: "", expectedReturnAt: "", internalNotes: "", lastUpdateSummary: "Outside vendor route created from repair planning.", nextAction: "Confirm vendor received the vehicle, estimate or scope, parts needs, and expected return.", nextFollowUpAt: "", scope: first?.serviceVisit.concernSummary ?? "", sentAt: defaultTime ? local(defaultTime) : "", sentFrom: "Dealership", status: "AT_VENDOR", transportMethod: "Internal transport", vendorName: "", workType: "BODY_SHOP" });
   const [vendorProgress, setVendorProgress] = useState(seedVendorProgress(activeVendorWork(first), first));
   const [estimate, setEstimate] = useState({ lineKey: "LINE-1", lineType: "LABOR", description: "", quantity: 1, unitPriceCents: 0, taxable: false, workTypeCode: "GENERAL_REPAIR", laborGuideMinutes: 60, plannedCorrection: "", taxCents: 0, discountCents: 0, taxBoundary: "Taxes are calculated by the configured financial system boundary.", presentationChannel: "IN_PERSON", presentedAt: defaultTime ? local(defaultTime) : "", expiresAt: "" });
+  const [laborGuideQuery, setLaborGuideQuery] = useState("");
   const [authorization, setAuthorization] = useState({ estimateVersionId: "", disposition: "ACCEPTED", channel: "IN_PERSON", authorizedLineKeys: "", decisionActorType: "CUSTOMER", decisionActorName: "", decisionActorReference: "", decidedAt: defaultTime ? local(defaultTime) : "" });
   const [job, setJob] = useState({ authorizationId: "", authorizedLineKey: "", diagnosisVersionId: "", workTypeCode: "GENERAL_REPAIR", description: "", plannedCorrection: "", laborGuideMinutes: 60, requiredSkills: "", requiredCertifications: "", bayRequirements: "", toolRequirements: "", priority: "NORMAL", dependencyJobIds: "", partsRequired: false, partDemandIds: [] as string[] });
   const [repairProgress, setRepairProgress] = useState({ statusCode: "REPAIR_IN_PROGRESS", contactOutcome: "Repair progress updated", customerVisibleSummary: "", internalNotes: "", nextContactAt: defaultTime ? local(defaultTime) : "", promiseAt: "", nextAction: "Continue repair and record the next progress update." });
@@ -155,6 +182,18 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
   const directPath = repairPath === "DIRECT_BODY";
   const vendorPath = repairPath === "VENDOR";
   const currentVendorWork = activeVendorWork(selected);
+  const vendorCurrentStep = !currentVendorWork ? 0
+    : !vendorEstimateCaptured(currentVendorWork) ? 1
+      : !vendorApprovalCaptured(currentVendorWork) ? 2
+        : !vendorRepairReturned(currentVendorWork) ? 3
+          : 4;
+  const displaySteps = vendorPath ? vendorSteps : steps;
+  const displayCurrentStep = vendorPath ? vendorCurrentStep : currentStep;
+  const vendorReadinessTitle = !currentVendorWork ? "Vendor assignment required"
+    : !vendorEstimateCaptured(currentVendorWork) ? "Waiting for vendor estimate"
+      : !vendorApprovalCaptured(currentVendorWork) ? "Vendor estimate needs a decision"
+        : !vendorRepairReturned(currentVendorWork) ? "Vendor repair is authorized"
+          : "Return and dealership QC required";
   const stageTwoComplete = Boolean((selected?.diagnosisVersions.length ?? 0) > 0 || currentVendorWork);
   const stageTwoTitle = vendorPath ? "Outside vendor route" : directPath ? "Direct body and collision scope" : "Evidence-backed diagnosis";
   const stageTwoSubtitle = "Choose the governed path that fits this work: full diagnosis, direct body and collision scope, or outside vendor repair.";
@@ -172,6 +211,35 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
     estimateVersions: selected.estimateVersions,
     vendorWorks: selected.vendorWorks
   }) : null;
+  const laborGuideOptions = buildLaborGuideOptions(selected, latestDiagnosis, directPath);
+  const laborGuideNeedle = laborGuideQuery.trim().toLowerCase();
+  const visibleLaborGuideOptions = laborGuideNeedle ? laborGuideOptions.filter((option) => `${option.title} ${option.source} ${option.description} ${option.plannedCorrection} ${option.workTypeCode}`.toLowerCase().includes(laborGuideNeedle)) : laborGuideOptions;
+  const laborGuideHref = selected ? `/diagnostics/labor-guide?${new URLSearchParams({ query: laborGuideQuery || latestDiagnosis?.proposedCorrection || selected.serviceVisit.concernSummary, repairOrderId: selected.id, returnLabel: "Return to estimate", returnTo: `/vehicles/shop-planning?repairOrderId=${selected.id}#estimate` }).toString()}` : "/diagnostics/labor-guide";
+  const staffNext = !selected ? null : currentVendorWork
+    ? !vendorEstimateCaptured(currentVendorWork)
+      ? { action: "Open vendor estimate", detail: "Enter the vendor estimate, expected return, and next follow-up. Do not repeat inspection or diagnosis.", href: "#repair-planning-step-3", step: 3, title: "Record the vendor estimate" }
+      : !vendorApprovalCaptured(currentVendorWork)
+        ? { action: "Open vendor approval", detail: "Review the vendor amount, then choose Approved, No approval required, or Still pending.", href: "#repair-planning-step-4", step: 4, title: "Record the approval decision" }
+        : !vendorRepairReturned(currentVendorWork)
+          ? { action: "Open vendor tracking", detail: "Record whether repair is in progress, waiting on parts, ready for pickup, or returning to the dealership.", href: "#repair-planning-step-5", step: 5, title: "Track the outside repair" }
+          : { action: "Open return and QC", detail: "Confirm the vehicle returned, then send it to dealership quality control before inventory handoff.", href: "#repair-planning-step-5", step: 5, title: "Complete return and quality control" }
+    : currentStep === 0
+      ? { action: "Open inspection", detail: "Record what staff inspected, the result, the finding, and supporting proof.", href: "#repair-planning-step-1", step: 1, title: "Complete the condition inspection" }
+      : currentStep === 1
+        ? { action: "Open repair path", detail: "Choose diagnostic repair, visible body/collision scope, or an outside vendor route.", href: "#repair-planning-step-2", step: 2, title: "Choose how the work will be completed" }
+        : currentStep === 2
+          ? { action: "Open estimate", detail: "Build and save the estimate from the recorded diagnosis or direct repair scope.", href: "#repair-planning-step-3", step: 3, title: "Create the repair estimate" }
+          : currentStep === 3
+            ? { action: "Open authorization", detail: "Record who approved which estimate lines and the exact approved amount.", href: "#repair-planning-step-4", step: 4, title: "Record the authorization decision" }
+            : { action: "Open repair release", detail: "Create or open the authorized repair job and continue execution.", href: "#repair-planning-step-5", step: 5, title: "Release the approved repair" };
+  const displayNotice = notice.includes("cannot move backward") && staffNext
+    ? `This repair order is already at ${format(selected?.stage ?? "the current gate")}. Do not repeat an earlier step. ${staffNext.title}.`
+    : notice;
+
+  function applyLaborGuideOption(option: LaborGuideOption) {
+    setEstimate((value) => ({ ...value, description: option.description, laborGuideMinutes: option.minutes, lineType: "LABOR", plannedCorrection: option.plannedCorrection, unitPriceCents: option.unitPriceCents, workTypeCode: option.workTypeCode }));
+    setNotice(`${option.title} added to the estimate draft. Review the line, adjust price or minutes if needed, then present the estimate version.`);
+  }
 
   async function request(url: string, init?: RequestInit) {
     const response = await fetch(url, init);
@@ -362,7 +430,7 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
       <div className={styles.truthBar}><span><BadgeCheck /><b>Authoritative repair plan</b></span><span><LockKeyhole />Immutable evidence versions</span><span>Exact-version customer authorization required</span><span>Repair work remains blocked until readiness passes.</span></div>
     </header>
 
-    {notice ? <div aria-live="polite" className={`${styles.notice} ${/required|cannot|invalid|not enabled|already exists/i.test(notice) ? styles.danger : styles.success}`}><p>{notice}</p></div> : null}
+    {displayNotice ? <div aria-live="polite" className={`${styles.notice} ${/required|cannot|invalid|not enabled|already exists/i.test(displayNotice) ? styles.danger : styles.success}`}><p>{displayNotice}</p>{notice.includes("cannot move backward") && staffNext ? <a href={staffNext.href}>{staffNext.action}<ChevronRight /></a> : null}</div> : null}
 
     <section className={styles.orderBar}>
       <label><span>Active repair order</span><select value={selected?.id ?? ""} onChange={(event) => choose(event.target.value)}>{model.repairOrders.map((order) => <option key={order.id} value={order.id}>{order.repairOrderNumber} · {order.vehicle.vehicleNumber} · {format(order.stage)}</option>)}</select></label>
@@ -370,13 +438,14 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
     </section>
 
     {selected ? <>
-      <section className={styles.mission}>{vendorPath ? <Building2 /> : <Stethoscope />}<div><span>{missionLabel}</span><h2>{missionTitle}</h2><p>{selected.serviceVisit.concernSummary}</p></div><aside><strong>{currentStep + 1} of {steps.length}</strong><span>governed stages</span></aside></section>
+      {staffNext ? <section className={styles.staffNow} aria-label="What staff should do now"><div><span>What staff should do now</span><h2>{staffNext.title}</h2><p>{staffNext.detail}</p></div><a href={staffNext.href}>{staffNext.action}<ChevronRight /></a></section> : null}
+      <section className={styles.mission}>{vendorPath ? <Building2 /> : <Stethoscope />}<div><span>{missionLabel}</span><h2>{missionTitle}</h2><p>{selected.serviceVisit.concernSummary}</p></div><aside><strong>{displayCurrentStep + 1} of {displaySteps.length}</strong><span>{vendorPath ? "vendor steps" : "repair stages"}</span></aside></section>
 
-      <section className={styles.stepRail} aria-label="Diagnostic release stages">{steps.map((step, index) => { const Icon = step.icon; const state = index < currentStep ? styles.complete : index === currentStep ? styles.active : ""; return <div className={state} key={step.label}><span>{index < currentStep ? <Check /> : <Icon />}</span><small>Stage {index + 1}</small><strong>{step.label}</strong></div>; })}</section>
+      <section className={styles.stepRail} aria-label={vendorPath ? "Outside vendor progress" : "Repair planning stages"}>{displaySteps.map((step, index) => { const Icon = step.icon; const state = index < displayCurrentStep ? styles.complete : index === displayCurrentStep ? styles.active : ""; return <div className={state} key={step.label}><span>{index < displayCurrentStep ? <Check /> : <Icon />}</span><small>Step {index + 1}</small><strong>{step.label}</strong></div>; })}</section>
 
       <div className={styles.commandGrid}>
         <main className={styles.workflow}>
-          <WorkflowStep complete={selected.inspectionVersions.length > 0} icon={<FileCheck2 />} number={1} open={currentStep === 0} subtitle="Establish the physical-condition baseline and attach supporting evidence." title="Digital vehicle inspection">
+          <WorkflowStep complete={selected.inspectionVersions.length > 0} icon={<FileCheck2 />} number={1} open={currentStep === 0 || staffNext?.step === 1} subtitle="Establish the physical-condition baseline and attach supporting evidence." title="Digital vehicle inspection">
             <form onSubmit={(event: FormEvent) => { event.preventDefault(); void submit("RECORD_INSPECTION", { templateCode: inspection.templateCode, templateVersion: inspection.templateVersion, templateSnapshot: { code: inspection.templateCode, version: inspection.templateVersion }, startedAt: inspection.startedAt, completedAt: inspection.completedAt, summary: inspection.summary, items: [{ key: inspection.itemKey, label: inspection.itemLabel, result: inspection.itemResult, measurement: inspection.measurement, notes: inspection.itemNotes, evidence: inspection.evidence.split(",").map((value) => value.trim()).filter(Boolean) }] }, "Record a versioned digital vehicle inspection."); }}>
               <div className={styles.simpleCard}>
                 <span className={styles.simpleEyebrow}>Simple inspection entry</span>
@@ -417,7 +486,7 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
             </form>
           </WorkflowStep>
 
-          <WorkflowStep complete={stageTwoComplete} icon={vendorPath ? <Building2 /> : <Stethoscope />} number={2} open={currentStep === 1} subtitle={stageTwoSubtitle} title={stageTwoTitle}>
+          <WorkflowStep complete={stageTwoComplete} icon={vendorPath ? <Building2 /> : <Stethoscope />} number={2} open={currentStep === 1 || staffNext?.step === 2} subtitle={stageTwoSubtitle} title={stageTwoTitle}>
             <div className={styles.pathPicker} role="tablist" aria-label="Repair path">
               <button aria-pressed={!directPath && !vendorPath} className={!directPath && !vendorPath ? styles.pathActive : ""} onClick={() => setRepairPath("DIAGNOSTIC")} type="button">Diagnostic repair</button>
               <button aria-pressed={directPath} className={directPath ? styles.pathActive : ""} onClick={() => setRepairPath("DIRECT_BODY")} type="button">Body / collision scope</button>
@@ -476,17 +545,18 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
             </form>}
           </WorkflowStep>
 
-          <WorkflowStep complete={vendorPath ? vendorEstimateCaptured(currentVendorWork) : selected.estimateVersions.length > 0} icon={<Gauge />} number={3} open={currentStep === 2} subtitle={vendorPath ? "Vendor estimate and approval are tracked from staff-entered vendor updates while the work stays offsite." : directPath ? "Create the governed body, collision, vendor, or teardown estimate from the approved direct scope." : "Create an immutable, expiring estimate from the verified diagnostic correction."} title={vendorPath ? "Vendor estimate update" : directPath ? "Direct repair estimate" : "Exact-version estimate"}>
+          <WorkflowStep complete={vendorPath ? vendorEstimateCaptured(currentVendorWork) : selected.estimateVersions.length > 0} icon={<Gauge />} number={3} open={currentStep === 2 || staffNext?.step === 3} subtitle={vendorPath ? "Vendor estimate and approval are tracked from staff-entered vendor updates while the work stays offsite." : directPath ? "Create the governed body, collision, vendor, or teardown estimate from the approved direct scope." : "Create an immutable, expiring estimate from the verified diagnostic correction."} title={vendorPath ? "Vendor estimate update" : directPath ? "Direct repair estimate" : "Exact-version estimate"}>
             <form onSubmit={(event: FormEvent) => { event.preventDefault(); void submit("PRESENT_ESTIMATE", { lineItems: [{ key: estimate.lineKey, type: estimate.lineType, description: estimate.description, quantity: estimate.quantity, unitPriceCents: estimate.unitPriceCents, taxable: estimate.taxable, workTypeCode: estimate.workTypeCode, laborGuideMinutes: estimate.laborGuideMinutes, plannedCorrection: estimate.plannedCorrection }], taxCents: estimate.taxCents, discountCents: estimate.discountCents, taxBoundary: estimate.taxBoundary, presentationChannel: estimate.presentationChannel, presentedAt: estimate.presentedAt, expiresAt: estimate.expiresAt }, "Present an immutable estimate version from diagnostic evidence."); }}>
               {vendorPath ? <div className={styles.pathInfo}><strong>Vendor estimating discipline</strong><p>Keep vendor estimate, approval documentation, parts responsibility, and expected return current on the outside vendor workflow. Do not duplicate internal diagnosis just to move the record.</p></div> : directPath ? <div className={styles.pathInfo}><strong>Body and collision estimating discipline</strong><p>Follow the same fast sequence every time: visible scope, labor guide or vendor quote, parts list, internal spend decision, then repair release. This keeps bodywork moving without pretending a troubleshooting diagnosis happened when it did not.</p></div> : null}
               {reconBudget ? <div className={styles.concern}><span>{reconBudget.source === "TAI" ? "TAI recon budget guardrail" : "Recon budget guardrail"}</span><p>{reconBudget.status === "OVER_BUDGET" ? "This estimate is already beyond the current recon spend target. Review the scope, labor source, and approval path before releasing more work." : reconBudget.status === "CAUTION" ? "This vehicle is getting close to its current recon budget. Tighten the estimate and confirm the next approval before moving forward." : "There is still recon spend room available for this vehicle. Keep the estimate anchored to real labor, parts, and vendor work."}</p><p>Budget {formatMoneyCents(reconBudget.estimatedReconBudgetCents)} · committed {formatMoneyCents(reconBudget.committedSpendCents)} · remaining {formatMoneyCents(reconBudget.remainingBudgetCents)}</p></div> : null}
               {directPath ? <div className={styles.pathInfo}><strong>Rapid recon estimate recipe</strong><p>1) use body labor guide or vendor quote, 2) separate labor, parts, and sublet cleanly, 3) preserve teardown supplements as new exact versions, and 4) never promise completion until parts and vendor timing are real.</p></div> : null}
+              {!vendorPath ? <section className={styles.laborGuideHelper} aria-label="Labor Guide estimate helper"><header><div><span>Labor Guide helper workspace</span><h3>Build the estimate line without leaving this stage</h3><p>Pick a guided labor source. It fills the official estimate draft below; staff still reviews the line before presenting the immutable estimate version.</p></div><Link href={laborGuideHref}>Open full Labor Guide <ChevronRight /></Link></header><label><span>Search concern, correction, or labor operation</span><input placeholder="Example: warning light, bumper, teardown, sensor" value={laborGuideQuery} onChange={(event) => setLaborGuideQuery(event.target.value)} /></label><div className={styles.laborGuideCards}>{visibleLaborGuideOptions.length ? visibleLaborGuideOptions.map((option) => <article key={option.key}><small>{option.source}</small><strong>{option.title}</strong><p>{option.description}</p><dl><div><dt>Guide time</dt><dd>{option.minutes} min</dd></div><div><dt>Draft price</dt><dd>{money(option.unitPriceCents)}</dd></div><div><dt>Type</dt><dd>{format(option.workTypeCode)}</dd></div></dl><button disabled={busy} onClick={() => applyLaborGuideOption(option)} type="button">Use this estimate line</button></article>) : <div className={styles.laborGuideEmpty}>No helper operation matched. Open the full Labor Guide or clear the search.</div>}</div></section> : null}
               <FormGrid><Field label="Line key"><input value={estimate.lineKey} onChange={(event) => setEstimate((value) => ({ ...value, lineKey: event.target.value }))} /></Field><Field label="Type"><select value={estimate.lineType} onChange={(event) => setEstimate((value) => ({ ...value, lineType: event.target.value }))}>{["LABOR", "PART", "FEE"].map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Description"><input value={estimate.description} onChange={(event) => setEstimate((value) => ({ ...value, description: event.target.value }))} /></Field><Field label="Unit price (cents)"><input min="0" type="number" value={estimate.unitPriceCents} onChange={(event) => setEstimate((value) => ({ ...value, unitPriceCents: Number(event.target.value) }))} /></Field><Field label="Labor guide minutes"><input min="0" type="number" value={estimate.laborGuideMinutes} onChange={(event) => setEstimate((value) => ({ ...value, laborGuideMinutes: Number(event.target.value) }))} /></Field><Field label="Planned correction"><input value={estimate.plannedCorrection} onChange={(event) => setEstimate((value) => ({ ...value, plannedCorrection: event.target.value }))} /></Field><Field label="Tax (cents)"><input min="0" type="number" value={estimate.taxCents} onChange={(event) => setEstimate((value) => ({ ...value, taxCents: Number(event.target.value) }))} /></Field><Field label="Discount (cents)"><input min="0" type="number" value={estimate.discountCents} onChange={(event) => setEstimate((value) => ({ ...value, discountCents: Number(event.target.value) }))} /></Field><Field label="Presented"><input type="datetime-local" value={estimate.presentedAt} onChange={(event) => setEstimate((value) => ({ ...value, presentedAt: event.target.value }))} /></Field><Field label="Expires"><input type="datetime-local" value={estimate.expiresAt} onChange={(event) => setEstimate((value) => ({ ...value, expiresAt: event.target.value }))} /></Field></FormGrid>
               <Submit busy={busy}>Present estimate version</Submit>
             </form>
           </WorkflowStep>
 
-          <WorkflowStep complete={vendorPath ? vendorApprovalCaptured(currentVendorWork) : Boolean(accepted)} icon={<ShieldCheck />} number={4} open={currentStep === 3} subtitle={vendorPath ? "Record the outside-vendor approval decision and release the vendor repair lifecycle." : "Record who decided, through which channel, and exactly which estimate lines were accepted."} title={vendorPath ? "Vendor approval decision" : "Attributable authorization"}>
+          <WorkflowStep complete={vendorPath ? vendorApprovalCaptured(currentVendorWork) : Boolean(accepted)} icon={<ShieldCheck />} number={4} open={currentStep === 3 || staffNext?.step === 4} subtitle={vendorPath ? "Record the outside-vendor approval decision and release the vendor repair lifecycle." : "Record who decided, through which channel, and exactly which estimate lines were accepted."} title={vendorPath ? "Vendor approval decision" : "Attributable authorization"}>
             {vendorPath && currentVendorWork ? <form className={styles.vendorProgressForm} onSubmit={(event: FormEvent) => { event.preventDefault(); void submitVendorProgress(vendorProgress.status, vendorProgress.lastUpdateSummary || "Vendor approval updated.", vendorProgress.nextAction || "Continue vendor repair and monitor parts or return timing."); }}>
               <div className={styles.pathInfo}><strong>Staff-entered vendor approval</strong><p>Record the approval your team received or decided from the vendor quote. Once approved, the outside-vendor record projects the repair order out of authorization waiting and into vendor repair.</p></div>
               <FormGrid>
@@ -509,7 +579,7 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
             </form>}
           </WorkflowStep>
 
-          <WorkflowStep complete={vendorPath ? vendorRepairReturned(currentVendorWork) : selected.repairJobs.length > 0} icon={<Wrench />} number={5} open={currentStep === 4} subtitle={vendorPath ? "Confirm vendor repair completion, plan return transportation, then move to dealership QC and inventory handoff." : "Simple instructions for moving approved work forward."} title={vendorPath ? "Vendor repair, return, and QC handoff" : "Repair release"}>
+          <WorkflowStep complete={vendorPath ? vendorRepairReturned(currentVendorWork) : selected.repairJobs.length > 0} icon={<Wrench />} number={5} open={currentStep === 4 || staffNext?.step === 5} subtitle={vendorPath ? "Confirm vendor repair completion, plan return transportation, then move to dealership QC and inventory handoff." : "Simple instructions for moving approved work forward."} title={vendorPath ? "Vendor repair, return, and QC handoff" : "Repair release"}>
             {vendorPath && currentVendorWork ? <section className={`${styles.vendorRouteActive} ${vendorRepairFailed(currentVendorWork) ? styles.vendorRouteFailed : ""}`}>
               <header><Truck /><div><span>Vendor repair lifecycle</span><h3>{currentVendorWork.vendorName}</h3><p>{currentVendorWork.nextAction}</p></div><b>{format(currentVendorWork.status)}</b></header>
               <div className={styles.vendorAlgorithmGrid}>
@@ -639,9 +709,9 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
         </main>
 
         <aside className={styles.rail}>
-          <section><span>Release readiness</span><h2>{currentStep === 0 ? "Inspection evidence required" : currentStep === 1 ? directPath ? "Ready for direct repair scope" : "Ready for diagnosis" : currentStep === 2 ? directRepairRecorded(selected) ? "Direct repair scope established" : "Diagnosis established" : currentStep === 3 ? "Estimate awaiting decision" : selected.repairJobs.length ? "Repair jobs already created" : "Authorized work ready"}</h2><div className={styles.progress}><i style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }} /></div><small>Stage {currentStep + 1} of {steps.length}</small></section>
-          <section><span>Evidence ledger</span><dl><div><dt>Inspection versions</dt><dd>{selected.inspectionVersions.length}</dd></div><div><dt>Diagnosis versions</dt><dd>{selected.diagnosisVersions.length}</dd></div><div><dt>Estimate versions</dt><dd>{selected.estimateVersions.length}</dd></div><div><dt>Repair jobs</dt><dd>{selected.repairJobs.length}</dd></div></dl></section>
-          <section><span>Safety controls</span><ul><li><LockKeyhole />No estimate overwrites a prior version</li><li><ShieldCheck />Authorization is tied to exact line keys</li><li><PackageCheck />Parts readiness follows the repair job</li><li><ClipboardCheck />Repair cannot start from intake alone</li></ul></section>
+          <section><span>{vendorPath ? "Vendor progress" : "Release readiness"}</span><h2>{vendorPath ? vendorReadinessTitle : currentStep === 0 ? "Inspection evidence required" : currentStep === 1 ? directPath ? "Ready for direct repair scope" : "Ready for diagnosis" : currentStep === 2 ? directRepairRecorded(selected) ? "Direct repair scope established" : "Diagnosis established" : currentStep === 3 ? "Estimate awaiting decision" : selected.repairJobs.length ? "Repair jobs already created" : "Authorized work ready"}</h2><div className={styles.progress}><i style={{ width: `${((displayCurrentStep + 1) / displaySteps.length) * 100}%` }} /></div><small>Step {displayCurrentStep + 1} of {displaySteps.length}</small></section>
+          {vendorPath && currentVendorWork ? <section><span>Vendor record</span><dl><div><dt>Vendor assigned</dt><dd>Yes</dd></div><div><dt>Estimate received</dt><dd>{vendorEstimateCaptured(currentVendorWork) ? "Yes" : "No"}</dd></div><div><dt>Approved to repair</dt><dd>{vendorApprovalCaptured(currentVendorWork) ? "Yes" : "No"}</dd></div><div><dt>Returned for QC</dt><dd>{vendorRepairReturned(currentVendorWork) ? "Yes" : "No"}</dd></div></dl></section> : <section><span>Evidence ledger</span><dl><div><dt>Inspection versions</dt><dd>{selected.inspectionVersions.length}</dd></div><div><dt>Diagnosis versions</dt><dd>{selected.diagnosisVersions.length}</dd></div><div><dt>Estimate versions</dt><dd>{selected.estimateVersions.length}</dd></div><div><dt>Repair jobs</dt><dd>{selected.repairJobs.length}</dd></div></dl></section>}
+          <section><span>{vendorPath ? "Simple vendor controls" : "Safety controls"}</span>{vendorPath ? <ul><li><Building2 />Vendor and repair scope are recorded</li><li><ShieldCheck />Approval is recorded before work continues</li><li><Truck />Staff track progress and expected return</li><li><ClipboardCheck />Dealership QC happens after return</li></ul> : <ul><li><LockKeyhole />No estimate overwrites a prior version</li><li><ShieldCheck />Authorization is tied to exact line keys</li><li><PackageCheck />Parts readiness follows the repair job</li><li><ClipboardCheck />Repair cannot start from intake alone</li></ul>}</section>
           {!currentVendorWork ? <details className={styles.vendorRecovery}>
             <summary><Truck /><span><strong>Send to outside vendor</strong><small>Use when recon is stuck at any stage and the work should move offsite.</small></span><ChevronRight /></summary>
             {vendorWorkflowForm}
@@ -656,7 +726,7 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
 }
 
 function WorkflowStep({ children, complete, icon, number, open, subtitle, title }: { children: ReactNode; complete: boolean; icon: ReactNode; number: number; open: boolean; subtitle: string; title: string }) {
-  return <details className={styles.step} open={open}><summary><span className={complete ? styles.done : ""}>{complete ? <Check /> : icon}</span><div><small>Stage {number}</small><h2>{title}</h2><p>{subtitle}</p></div><b>{complete ? "Complete" : open ? "Current" : "Pending"}</b><ChevronRight /></summary><div className={styles.stepBody}>{children}</div></details>;
+  return <details className={styles.step} id={`repair-planning-step-${number}`} open={open}><summary><span className={complete ? styles.done : ""}>{complete ? <Check /> : icon}</span><div><small>Stage {number}</small><h2>{title}</h2><p>{subtitle}</p></div><b>{complete ? "Complete" : open ? "Current" : "Pending"}</b><ChevronRight /></summary><div className={styles.stepBody}>{children}</div></details>;
 }
 function FormGrid({ children }: { children: ReactNode }) { return <div className={styles.formGrid}>{children}</div>; }
 function Field({ children, label, wide = false }: { children: ReactNode; label: string; wide?: boolean }) { return <label className={wide ? styles.wide : ""}><span>{label}</span>{children}</label>; }

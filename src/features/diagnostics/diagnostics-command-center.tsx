@@ -12,7 +12,9 @@ import {
   Search,
   ShieldAlert,
   Stethoscope,
-  BarChart3
+  BarChart3,
+  Bot,
+  ArrowUp
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -106,6 +108,7 @@ export function DiagnosticsCommandCenter({ model }: { model: DiagnosticsCommandC
   const [bulkOpen, setBulkOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [masterQuestion, setMasterQuestion] = useState("");
 
   const items = useMemo(() => model.items.filter((item) => {
     const haystack = `${item.vehicle.label} ${item.vehicle.vin ?? ""} ${item.repairOrder.repairOrderNumber} ${item.concern} ${item.assignedUser?.name ?? ""}`.toLocaleLowerCase();
@@ -178,6 +181,15 @@ export function DiagnosticsCommandCenter({ model }: { model: DiagnosticsCommandC
 
     {!commandsEnabled ? <div className={styles.rolloutNotice} role="status"><ShieldAlert /><span><strong>Live review is available.</strong> Mutations remain controlled by the Diagnostics rollout policy ({label(model.rollout.reason)}). Target: {rolloutDate(model.rollout.targetAt)}.</span><Link href="/settings/vehicle-operations">Review rollout</Link></div> : <div className={styles.actionNotice} role="status"><CheckCircle2 /><span><strong>Diagnostic case creation is enabled.</strong> Rollout target: {rolloutDate(model.rollout.targetAt)}. Evidence, reasoning, publishing, and AI remain separately controlled.</span><Link href="/settings/vehicle-operations">Rollout controls</Link></div>}
     {notice ? <div className={styles.actionNotice} role="status"><span>{notice}</span><button onClick={() => setNotice(null)} type="button">Dismiss</button></div> : null}
+
+    <section className={styles.masterStart} aria-label="Ask Master Technician">
+      <div className={styles.masterIntro}><span><Bot /></span><div><small>MASTER TECHNICIAN HELP</small><h2>Describe the vehicle problem. We’ll build the test path.</h2><p>Ask in plain language. The assistant will separate facts from hypotheses, request missing evidence, and recommend the next best test.</p></div></div>
+      <form onSubmit={(event) => { event.preventDefault(); const question = masterQuestion.trim(); router.push(question ? `/diagnostics/master-technician?q=${encodeURIComponent(question)}` : "/diagnostics/master-technician"); }}>
+        <textarea aria-label="Ask Master Technician" onChange={(event) => setMasterQuestion(event.target.value)} placeholder="Example: 2019 Honda Accord has timing-related codes. A vendor recommends timing replacement. Help us verify it in-house." rows={3} value={masterQuestion} />
+        <button type="submit">Start troubleshooting <ArrowUp /></button>
+      </form>
+      <div className={styles.masterShortcuts}><span>Or start with:</span><Link href="/diagnostics/master-technician?q=Help%20me%20decide%20whether%20this%20vehicle%20can%20be%20diagnosed%20in-house.">In-house or vendor?</Link><Link href="/diagnostics/master-technician?q=Review%20a%20vendor%20diagnosis%20and%20tell%20me%20what%20evidence%20is%20missing.">Review vendor diagnosis</Link><Link href="/diagnostics/intake">Create a formal case</Link></div>
+    </section>
 
     <section className={styles.commandMetrics} aria-label="Diagnostic case summary">
       <button onClick={() => { setView("ALL"); setQuickFilter("ACTIVE"); }} type="button"><Stethoscope /><span>Active Cases</span><strong>{model.summary.active}</strong><small>{model.summary.mine} assigned to me</small></button>

@@ -1342,6 +1342,184 @@
   width: 14px;
 }
 
+.quickAcquisition {
+  display: grid;
+  gap: 12px;
+  margin: 12px;
+  border: 2px solid #2f73d2;
+  border-radius: 10px;
+  padding: 14px;
+  background: #f4f8ff;
+  box-shadow: 0 8px 22px rgb(30 91 171 / 10%);
+}
+
+.quickAcquisition > header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.quickAcquisition > header span {
+  color: #1768c7;
+  font-size: .7rem;
+  font-weight: 900;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.quickAcquisition h4,
+.quickAcquisition p {
+  margin: 0;
+}
+
+.quickAcquisition h4 {
+  margin-top: 2px;
+  color: #173857;
+  font-size: 1.05rem;
+}
+
+.quickAcquisition p,
+.quickAcquisitionHelp {
+  color: #60758c;
+  font-size: .74rem;
+}
+
+.quickAcquisition > header > strong {
+  border-radius: 999px;
+  padding: 5px 9px;
+  color: #1768c7;
+  background: #fff;
+  font-size: .7rem;
+  white-space: nowrap;
+}
+
+.quickAcquisitionFields {
+  display: grid;
+  grid-template-columns: minmax(160px, .7fr) minmax(180px, .7fr) minmax(260px, 1.4fr);
+  gap: 9px;
+}
+
+.quickAcquisitionFields > label {
+  display: grid;
+  gap: 5px;
+  color: #40566e;
+  font-size: .72rem;
+  font-weight: 800;
+}
+
+.quickAcquisitionFields select,
+.quickAcquisitionFields label > div {
+  min-height: 40px;
+  border: 1px solid #b9cadc;
+  border-radius: 7px;
+  color: #173857;
+  background: #fff;
+}
+
+.quickAcquisitionFields select {
+  width: 100%;
+  padding: 0 9px;
+  font: inherit;
+}
+
+.quickAcquisitionFields label > div {
+  display: flex;
+  align-items: center;
+}
+
+.quickAcquisitionFields label > div b {
+  padding-left: 10px;
+}
+
+.quickAcquisitionFields label > div input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  padding: 0 9px;
+  background: transparent;
+  font: inherit;
+  outline: 0;
+}
+
+.quickAcquisitionConfirm {
+  display: flex !important;
+  align-items: center;
+  gap: 9px !important;
+  border: 1px solid #b9cadc;
+  border-radius: 7px;
+  padding: 8px 10px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.quickAcquisitionConfirm input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+.quickAcquisitionConfirm span {
+  display: grid;
+  gap: 2px;
+}
+
+.quickAcquisitionConfirm small {
+  color: #687d91;
+  font-size: .68rem;
+  line-height: 1.35;
+}
+
+.quickAcquisition > button {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 8px;
+  color: #fff;
+  background: #1768c7;
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.quickAcquisition > button:disabled {
+  cursor: not-allowed;
+  opacity: .45;
+}
+
+.quickAcquisitionHelp {
+  text-align: center;
+}
+
+.taiAdvanced {
+  margin: 0 12px 12px;
+  border: 1px solid #d5e0eb;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.taiAdvanced > summary {
+  padding: 11px 12px;
+  color: #315675;
+  font-size: .74rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.taiAdvanced > div {
+  border-top: 1px solid #e2e9f0;
+}
+
+@media (max-width: 900px) {
+  .quickAcquisitionFields {
+    grid-template-columns: 1fr;
+  }
+}
+
 .taiApproval {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1426,6 +1604,74 @@
   font-size: .73rem;
 }
 
+.acquisitionGateChecklist {
+  display: grid;
+  gap: 8px;
+  border-bottom: 1px solid #e0e8ef;
+  padding: 12px 16px;
+  background: #fffaf0;
+}
+
+.acquisitionGateChecklist > strong {
+  color: #203a54;
+  font-size: .76rem;
+}
+
+.acquisitionGateChecklist ol {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.acquisitionGateChecklist li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid #efcf91;
+  border-radius: 6px;
+  padding: 7px 8px;
+  color: #8a570c;
+  background: #fff;
+  font-size: .72rem;
+  font-weight: 800;
+}
+
+.acquisitionGateChecklist li span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: inherit;
+}
+
+.acquisitionGateChecklist li a {
+  color: #1768c7;
+  font-size: .7rem;
+  text-decoration: none;
+}
+
+.acquisitionGateChecklist li.acquisitionRequirementComplete {
+  border-color: #c9e8d6;
+  color: #237349;
+  background: #f1fbf5;
+}
+
+.acquisitionNextAction {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 6px;
+  padding: 0 10px;
+  color: #fff;
+  background: #1768c7;
+  font-size: .72rem;
+  font-weight: 850;
+  text-decoration: none;
+}
+
 .tciWorkspace {
   display: grid;
   gap: 0;
@@ -1492,11 +1738,119 @@
   font-size: .72rem;
 }
 
+.tciModeChooser {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(180px, .7fr) minmax(180px, .7fr);
+  gap: 10px;
+  align-items: stretch;
+  border-bottom: 1px solid #d6e2eb;
+  padding: 12px;
+  background: #eef5ff;
+}
+
+.tciModeChooser > div {
+  display: grid;
+  align-content: center;
+}
+
+.tciModeChooser span {
+  color: #1768c7;
+  font-size: .68rem;
+  font-weight: 900;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.tciModeChooser h4,
+.tciModeChooser p {
+  margin: 0;
+}
+
+.tciModeChooser h4 {
+  margin-top: 2px;
+  color: #173857;
+  font-size: 1rem;
+}
+
+.tciModeChooser p {
+  margin-top: 3px;
+  color: #667b91;
+  font-size: .72rem;
+}
+
+.tciModeChooser button {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: 2px 8px;
+  align-items: center;
+  border: 1px solid #b9cada;
+  border-radius: 8px;
+  padding: 10px;
+  color: #274760;
+  background: #fff;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tciModeChooser button[aria-pressed="true"] {
+  border: 2px solid #1768c7;
+  color: #145ba9;
+  background: #f8fbff;
+  box-shadow: 0 4px 12px rgb(23 104 199 / 12%);
+}
+
+.tciModeChooser button svg {
+  grid-row: 1 / 3;
+}
+
+.tciModeChooser button strong {
+  font-size: .76rem;
+}
+
+.tciModeChooser button small {
+  color: #6b7f92;
+  font-size: .66rem;
+  line-height: 1.3;
+}
+
+.tciChoosePrompt {
+  display: grid;
+  min-height: 120px;
+  place-items: center;
+  align-content: center;
+  gap: 5px;
+  border: 1px dashed #b9cada;
+  border-radius: 8px;
+  color: #5f7488;
+  background: #fff;
+  text-align: center;
+}
+
+.tciChoosePrompt svg {
+  color: #1768c7;
+}
+
+.tciChoosePrompt strong {
+  color: #274760;
+  font-size: .76rem;
+}
+
+.tciChoosePrompt span {
+  font-size: .7rem;
+}
+
 .tciBody {
   display: grid;
   grid-template-columns: minmax(0, 1.38fr) minmax(290px, .72fr);
   gap: 12px;
   padding: 12px;
+}
+
+@media (max-width: 850px) {
+  .tciModeChooser {
+    grid-template-columns: 1fr;
+  }
 }
 
 .tciSteps {

@@ -93,6 +93,15 @@ export function InventoryLifecyclePrototype({
     [completed, selectedStage, stage.tasks],
   );
   const ready = completedCount === stage.tasks.length;
+  const acquisitionRequirements = [
+    { complete: taiProgress.identityComplete, label: "Vehicle, source, and seller identity", href: "#tai-identity-source" },
+    { complete: taiProgress.appraisalComplete, label: "Condition and market appraisal", href: "#tai-evidence-review" },
+    { complete: taiProgress.economicsComplete, label: "TAI economics evaluation", href: "#tai-evaluation" },
+    { complete: taiProgress.titleComplete, label: "Title and ownership review", href: "#tai-evidence-review" },
+    { complete: taiProgress.authorityComplete, label: "Manager purchase approval", href: "#tai-approval" },
+    { complete: taiProgress.commitmentComplete, label: "Accepted purchase recorded", href: "#tai-purchase" },
+  ];
+  const nextAcquisitionRequirement = acquisitionRequirements.find((item) => !item.complete);
 
   const syncTaiProgress = useCallback((progress: TaiWorkflowProgress) => {
     setTaiProgress(progress);
@@ -107,6 +116,13 @@ export function InventoryLifecyclePrototype({
       return next;
     });
   }, []);
+
+  const completeQuickAcquisition = useCallback(() => {
+    const completeProgress: TaiWorkflowProgress = { appraisalComplete: true, authorityComplete: true, commitmentComplete: true, economicsComplete: true, identityComplete: true, titleComplete: true };
+    syncTaiProgress(completeProgress);
+    setSelectedStage(1);
+    setNotice(`Acquisition completed for ${currentUnit.vehicleLabel}. Transportation is now open.`);
+  }, [currentUnit.vehicleLabel, syncTaiProgress]);
 
   const syncTciProgress = useCallback((progress: TciWorkflowProgress) => {
     setTciProgress(progress);
@@ -689,10 +705,10 @@ export function InventoryLifecyclePrototype({
           {selectedStage === 5 ? <IqiQualityTool key={`iqi-${workspaceVersion}`} onProgressChange={syncIqiProgress} /> : null}
           {selectedStage === 4 ? <IgiInspectionTool key={`igi-${workspaceVersion}`} onOpenInitialQc={() => { setSelectedStage(5); setNotice("Opening Initial QC."); }} onProgressChange={syncIgiProgress} /> : null}
           {selectedStage === 3 ? <IiiIntakeTool key={`iii-${workspaceVersion}`} onProgressChange={syncIiiProgress} /> : null}
-          {selectedStage === 2 ? <RbiReceivingTool key={`rbi-${workspaceVersion}`} onProgressChange={syncRbiProgress} /> : null}
-          {selectedStage === 0 ? <TaiAcquisitionTool key={`tai-${workspaceVersion}`} onProgressChange={syncTaiProgress} /> : null}
+          {selectedStage === 2 ? <RbiReceivingTool expectedVin={currentUnit.vin} key={`rbi-${currentUnit.inventoryUnitId}-${workspaceVersion}`} onProgressChange={syncRbiProgress} /> : null}
+          {selectedStage === 0 ? <TaiAcquisitionTool key={`tai-${currentUnit.inventoryUnitId}-${workspaceVersion}`} onProgressChange={syncTaiProgress} onQuickComplete={completeQuickAcquisition} selectedVehicle={{ label: currentUnit.vehicleLabel, vin: currentUnit.vin }} /> : null}
           {selectedStage === 1 ? <div className={styles.stageQuickLinkWrap}><a className={styles.stageQuickLink} href="#transportation-custody-builder">Open Transportation Custody Builder</a></div> : null}
-          {selectedStage === 1 ? <TciTransportTool key={`tci-${workspaceVersion}`} onProgressChange={syncTciProgress} /> : null}
+          {selectedStage === 1 ? <TciTransportTool key={`tci-${currentUnit.inventoryUnitId}-${workspaceVersion}`} onProgressChange={syncTciProgress} owner={currentUnit.accountableOwner} vehicleLabel={currentUnit.vehicleLabel} /> : null}
           <div className={styles.progressRow}>
             <strong>{completedCount} of {stage.tasks.length} required actions complete</strong>
             <div className={styles.progressTrack} aria-label={`${completedCount} of ${stage.tasks.length} actions complete`} role="progressbar" aria-valuemin={0} aria-valuemax={stage.tasks.length} aria-valuenow={completedCount}><i style={{ width: `${completedCount / stage.tasks.length * 100}%` }} /></div>
@@ -736,8 +752,8 @@ export function InventoryLifecyclePrototype({
               ))}
             </ol>
           </section>
-          {selectedStage === 0 ? <div className={styles.taiGateSummary}><span>TAI acquisition gate</span><strong>{taiProgress.commitmentComplete ? "Purchase recorded" : taiProgress.authorityComplete ? "Approved / awaiting purchase" : taiProgress.economicsComplete ? "Evaluated / approval required" : "Evaluation required"}</strong><small>Checklist evidence is driven by the buyer workspace.</small></div> : null}
-          {selectedStage === 0 ? <div className={styles.stageQuickLinkWrap}><a className={styles.stageQuickLink} href="#opportunity-builder">Open Opportunity Builder</a></div> : null}
+          {selectedStage === 0 ? <div className={styles.taiGateSummary}><span>TAI acquisition gate</span><strong>{taiProgress.commitmentComplete ? "Purchase recorded" : taiProgress.authorityComplete ? "Approved / awaiting purchase" : taiProgress.economicsComplete ? "Evaluated / acquisition still incomplete" : "Evaluation required"}</strong><small>{nextAcquisitionRequirement ? `Next: ${nextAcquisitionRequirement.label}` : "All acquisition requirements are complete."}</small></div> : null}
+          {selectedStage === 0 ? <section className={styles.acquisitionGateChecklist} aria-label="Acquisition release requirements"><strong>Required before Transportation</strong><ol>{acquisitionRequirements.map((item) => <li className={item.complete ? styles.acquisitionRequirementComplete : ""} key={item.label}><span>{item.complete ? <Check size={13} /> : <CircleAlert size={13} />}{item.label}</span><a href={item.href}>{item.complete ? "Review" : "Complete"}</a></li>)}</ol>{nextAcquisitionRequirement ? <a className={styles.acquisitionNextAction} href={nextAcquisitionRequirement.href}>Continue: {nextAcquisitionRequirement.label}<ArrowRight size={14} /></a> : null}</section> : null}
           {selectedStage === 1 ? <div className={styles.taiGateSummary}><span>TCI custody gate</span><strong>{tciProgress.deliveryComplete ? "Receiving accepted" : `${tciProgress.recommendation} / ${tciProgress.trailCount} trail entries`}</strong><small>Checklist evidence is driven by the transportation workspace.</small></div> : null}
           {selectedStage === 2 ? <div className={styles.taiGateSummary}><span>RBI receiving gate</span><strong>{rbiProgress.custodyAccepted ? "Ready for intake" : `${rbiProgress.recommendation} / ${rbiProgress.trailCount} trail entries`}</strong><small>Checklist evidence is driven by the receiving workspace.</small></div> : null}
           {selectedStage === 3 ? <div className={styles.taiGateSummary}><span>III intake gate</span><strong>{iiiProgress.readinessGateComplete ? "Ready for inspection" : `${iiiProgress.recommendation} / ${iiiProgress.trailCount} trail entries`}</strong><small>Checklist evidence is driven by the intake workspace.</small></div> : null}
@@ -774,7 +790,7 @@ export function InventoryLifecyclePrototype({
           </ul>
           <div className={styles.stageQuickLinkWrap}><Link className={styles.stageQuickLink} href={lifecycleReturnHref}>Open exact lifecycle link</Link></div>
           <button disabled={!ready} onClick={completeHandoff} type="button">{stage.actionLabel}<ArrowRight /></button>
-          <p className={ready ? styles.readyNote : ""}>{ready ? selectedStage === lifecycleStages.length - 1 ? "All lifecycle controls passed. Lifecycle closure is ready for review." : `All ${stage.label} controls passed. Vehicle is ready for ${buildHandoffLabel(selectedStage)}.` : "Complete every required action before handoff becomes available."}</p>
+          <p className={ready ? styles.readyNote : ""}>{ready ? selectedStage === lifecycleStages.length - 1 ? "All lifecycle controls passed. Lifecycle closure is ready for review." : `All ${stage.label} controls passed. Vehicle is ready for ${buildHandoffLabel(selectedStage)}.` : selectedStage === 0 && nextAcquisitionRequirement ? `${stage.tasks.length - completedCount} acquisition requirement${stage.tasks.length - completedCount === 1 ? "" : "s"} remain. Next: ${nextAcquisitionRequirement.label}.` : "Complete every required action before handoff becomes available."}</p>
           <header><CircleAlert /><h2>Vehicle lifecycle history</h2></header>
           <ul>
             {lifecycleHistory.length ? lifecycleHistory.slice(0, 6).map((entry) => <li key={`${entry.stageIndex}-${entry.status}-${entry.trailCount}`}><span>{String(entry.stageIndex + 1).padStart(2, "0")} · {entry.stageLabel}</span><strong>{entry.description}</strong>{entry.evidenceLabels.length ? <small>{entry.evidenceLabels.join(" · ")}</small> : null}</li>) : <li><span>No lifecycle history yet</span><strong>Stage work trail will appear here as teams document actions.</strong></li>}

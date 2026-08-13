@@ -31,6 +31,7 @@ export type TciWorkflowProgress = {
 };
 
 type BuilderStep = "source" | "release" | "driver" | "safety";
+type TransportMode = "DRIVER" | "TOW";
 
 type TrailEntry = {
   actor: string;
@@ -46,6 +47,7 @@ const initialInput: TciTransportInput = {
   conditionVariance: "Pending review",
   currentLocation: "Manheim Minneapolis ready line",
   destinationConfirmed: true,
+  destinationLocation: "Time Motor Sales receiving",
   documentsConfirmed: true,
   driverAssigned: true,
   driverPlan: "Internal driver",
@@ -98,8 +100,9 @@ function timeStamp() {
   }).format(new Date());
 }
 
-export function TciTransportTool({ onProgressChange }: { onProgressChange: (progress: TciWorkflowProgress) => void }) {
-  const [input, setInput] = useState(initialInput);
+export function TciTransportTool({ initialTransportMode = null, onProgressChange, owner = "Alex Carter", vehicleLabel = "2024 Toyota RAV4" }: { initialTransportMode?: TransportMode | null; onProgressChange: (progress: TciWorkflowProgress) => void; owner?: string; vehicleLabel?: string }) {
+  const [transportMode, setTransportMode] = useState<TransportMode | null>(initialTransportMode);
+  const [input, setInput] = useState<TciTransportInput>(() => initialTransportMode === "TOW" ? { ...initialInput, driverAssigned: false, driverPlan: "Tow vendor", mobilityDecision: "Tow to dealership", towVendorConfirmed: false } : initialInput);
   const [completedSteps, setCompletedSteps] = useState<Record<BuilderStep, boolean>>({
     driver: false,
     release: false,
@@ -148,6 +151,35 @@ export function TciTransportTool({ onProgressChange }: { onProgressChange: (prog
   function update<K extends keyof TciTransportInput>(field: K, value: TciTransportInput[K], step: BuilderStep) {
     setInput((current) => ({ ...current, [field]: value }));
     reopen(step);
+  }
+
+  function chooseTransportMode(mode: TransportMode) {
+    setTransportMode(mode);
+    setInput((current) => ({
+      ...current,
+      driverAssigned: mode === "DRIVER" ? current.driverAssigned : false,
+      driverPlan: mode === "DRIVER" ? "Internal driver" : "Tow vendor",
+      jumperReminderConfirmed: false,
+      mobilityDecision: mode === "DRIVER" ? "Drive to dealership" : "Tow to dealership",
+      oilChecked: false,
+      plateReminderConfirmed: false,
+      towVendorConfirmed: false,
+      uberNeeded: false,
+      uberPlanned: false,
+      coolantChecked: false,
+    }));
+    setCompletedSteps((current) => ({ ...current, driver: false, safety: false }));
+    setNotice(mode === "TOW" ? "Tow / carrier selected. Driver, Uber, fluid-check, plate, and jumper questions were removed." : "Dealership driver selected. Complete driver coordination and the short pre-trip safety check.");
+  }
+
+  function updateTowPlan(plan: "Tow vendor" | "Carrier") {
+    setInput((current) => ({ ...current, driverPlan: plan, mobilityDecision: plan === "Carrier" ? "Carrier to dealership" : "Tow to dealership" }));
+    reopen("driver");
+  }
+
+  function updateTowAssigned(checked: boolean) {
+    setInput((current) => ({ ...current, driverAssigned: checked, towVendorConfirmed: checked }));
+    reopen("driver");
   }
 
   function confirmSource() {
@@ -202,6 +234,12 @@ export function TciTransportTool({ onProgressChange }: { onProgressChange: (prog
       </div>
     </header>
 
+    <section className={styles.tciModeChooser} aria-label="Choose transportation method">
+      <div><span>First question</span><h4>How will this vehicle move?</h4><p>Your choice controls which questions appear.</p></div>
+      <button aria-pressed={transportMode === "DRIVER"} onClick={() => chooseTransportMode("DRIVER")} type="button"><Route size={20} /><strong>Dealership driver</strong><small>Show driver, Uber, and pre-trip safety questions</small></button>
+      <button aria-pressed={transportMode === "TOW"} onClick={() => chooseTransportMode("TOW")} type="button"><Truck size={20} /><strong>Tow or carrier</strong><small>Hide all driver-only and vehicle-fluid questions</small></button>
+    </section>
+
     <div className={styles.tciBody}>
       <div className={styles.tciSteps}>
         <section className={styles.tciStepCard}>
@@ -232,44 +270,40 @@ export function TciTransportTool({ onProgressChange }: { onProgressChange: (prog
           <button className={styles.tciAction} disabled={!result.releaseComplete || !input.keysConfirmed || completedSteps.release} onClick={confirmRelease} type="button">Confirm release readiness</button>
         </section>
 
-        <section className={styles.tciStepCard}>
+        {transportMode ? <section className={styles.tciStepCard}>
           <header>
-            <div><span>3</span><h4>Driver / carrier coordination</h4></div>
+            <div><span>3</span><h4>{transportMode === "TOW" ? "Tow / carrier coordination" : "Driver coordination"}</h4></div>
             <em className={completedSteps.driver ? styles.tciComplete : ""}>{completedSteps.driver ? "Recorded" : "Required"}</em>
           </header>
           <div className={styles.tciFieldGrid}>
-            <label><span>Movement method</span><select aria-label="Movement method" onChange={(event) => update("driverPlan", event.target.value as TciDriverPlan, "driver")} value={input.driverPlan}>{planOptions.map((item) => <option key={item}>{item}</option>)}</select></label>
+            {transportMode === "TOW" ? <label><span>Tow type</span><select aria-label="Tow type" onChange={(event) => updateTowPlan(event.target.value as "Tow vendor" | "Carrier")} value={input.driverPlan === "Carrier" ? "Carrier" : "Tow vendor"}><option>Tow vendor</option><option>Carrier</option></select></label> : <label><span>Driver plan</span><select aria-label="Driver plan" onChange={(event) => update("driverPlan", event.target.value as TciDriverPlan, "driver")} value={input.driverPlan}>{planOptions.filter((item) => item === "Internal driver" || item === "Driver with Uber support" || item === "Pending dispatch").map((item) => <option key={item}>{item}</option>)}</select></label>}
             <label><span>Pickup window / ETA hours</span><input aria-label="Pickup window ETA hours" min="0" onChange={(event) => update("etaHours", Number(event.target.value), "driver")} type="number" value={input.etaHours} /></label>
             <label><span>Estimated cost</span><input aria-label="Estimated cost" min="0" onChange={(event) => update("transportCost", Number(event.target.value), "driver")} type="number" value={input.transportCost} /></label>
+            <label><span>Destination</span><input aria-label="Transportation destination" onChange={(event) => update("destinationLocation", event.target.value, "driver")} placeholder="Enter receiving location" value={input.destinationLocation ?? ""} /></label>
           </div>
           <div className={styles.tciChecks}>
-            <label><input checked={input.driverAssigned} onChange={(event) => update("driverAssigned", event.target.checked, "driver")} type="checkbox" /><span>Driver/vendor assigned</span></label>
+            {transportMode === "TOW" ? <label><input checked={input.towVendorConfirmed && input.driverAssigned} onChange={(event) => updateTowAssigned(event.target.checked)} type="checkbox" /><span>Tow / carrier assigned</span></label> : <label><input checked={input.driverAssigned} onChange={(event) => update("driverAssigned", event.target.checked, "driver")} type="checkbox" /><span>Driver assigned</span></label>}
             <label><input checked={input.destinationConfirmed} onChange={(event) => update("destinationConfirmed", event.target.checked, "driver")} type="checkbox" /><span>Destination confirmed</span></label>
-            <label><input checked={input.uberNeeded} onChange={(event) => update("uberNeeded", event.target.checked, "driver")} type="checkbox" /><span>Uber needed</span></label>
-            <label><input checked={input.uberPlanned} disabled={!input.uberNeeded} onChange={(event) => update("uberPlanned", event.target.checked, "driver")} type="checkbox" /><span>Uber planned</span></label>
+            {transportMode === "DRIVER" ? <><label><input checked={input.uberNeeded} onChange={(event) => update("uberNeeded", event.target.checked, "driver")} type="checkbox" /><span>Uber needed</span></label><label><input checked={input.uberPlanned} disabled={!input.uberNeeded} onChange={(event) => update("uberPlanned", event.target.checked, "driver")} type="checkbox" /><span>Uber planned</span></label></> : null}
           </div>
-          <button className={styles.tciAction} disabled={!result.planComplete || completedSteps.driver} onClick={confirmDriver} type="button">Record driver coordination</button>
-        </section>
+          <button className={styles.tciAction} disabled={!result.planComplete || completedSteps.driver} onClick={confirmDriver} type="button">Record {transportMode === "TOW" ? "tow / carrier" : "driver"} coordination</button>
+        </section> : <section className={styles.tciChoosePrompt}><Truck /><strong>Choose dealership driver or tow / carrier above</strong><span>The form will show only the questions that apply.</span></section>}
 
-        <section className={styles.tciStepCard}>
+        {transportMode ? <section className={styles.tciStepCard}>
           <header>
-            <div><span>4</span><h4>Movement safety</h4></div>
+            <div><span>4</span><h4>{transportMode === "TOW" ? "Tow movement" : "Driver pre-trip safety"}</h4></div>
             <em className={completedSteps.safety ? styles.tciComplete : ""}>{completedSteps.safety ? "Recorded" : "Required"}</em>
           </header>
           <div className={styles.tciFieldGrid}>
-            <label><span>Starts / runs</span><select aria-label="Starts runs"><option>Yes</option><option>No</option><option>Unknown</option></select></label>
-            <label><span>Drive / tow decision</span><select aria-label="Drive tow decision" onChange={(event) => update("mobilityDecision", event.target.value as TciMobilityDecision, "safety")} value={input.mobilityDecision}>{movementOptions.map((item) => <option key={item}>{item}</option>)}</select></label>
+            {transportMode === "DRIVER" ? <><label><span>Starts / runs</span><select aria-label="Starts runs"><option>Yes</option><option>No</option><option>Unknown</option></select></label><label><span>Drive decision</span><select aria-label="Drive decision" onChange={(event) => update("mobilityDecision", event.target.value as TciMobilityDecision, "safety")} value={input.mobilityDecision}>{movementOptions.filter((item) => item === "Drive to dealership" || item === "Assessment required").map((item) => <option key={item}>{item}</option>)}</select></label></> : <label><span>Movement method</span><input aria-label="Tow movement method" readOnly value={input.mobilityDecision === "Carrier to dealership" ? "Carrier to dealership" : "Tow to dealership"} /></label>}
             <label><span>Exception needed</span><select aria-label="Exception needed" onChange={(event) => update("exceptionType", event.target.value as TciExceptionType, "safety")} value={input.exceptionType}>{exceptionOptions.map((item) => <option key={item}>{item}</option>)}</select></label>
           </div>
           <div className={styles.tciChecks}>
-            <label><input checked={input.oilChecked} disabled={input.mobilityDecision !== "Drive to dealership"} onChange={(event) => update("oilChecked", event.target.checked, "safety")} type="checkbox" /><span>Oil checked before drive</span></label>
-            <label><input checked={input.coolantChecked} disabled={input.mobilityDecision !== "Drive to dealership"} onChange={(event) => update("coolantChecked", event.target.checked, "safety")} type="checkbox" /><span>Coolant checked before drive</span></label>
-            <label><input checked={input.plateReminderConfirmed} onChange={(event) => update("plateReminderConfirmed", event.target.checked, "safety")} type="checkbox" /><span>Dealer plate reminder confirmed</span></label>
-            <label><input checked={input.jumperReminderConfirmed} onChange={(event) => update("jumperReminderConfirmed", event.target.checked, "safety")} type="checkbox" /><span>Jumper reminder confirmed</span></label>
+            {transportMode === "DRIVER" ? <><label><input checked={input.oilChecked} onChange={(event) => update("oilChecked", event.target.checked, "safety")} type="checkbox" /><span>Oil checked before drive</span></label><label><input checked={input.coolantChecked} onChange={(event) => update("coolantChecked", event.target.checked, "safety")} type="checkbox" /><span>Coolant checked before drive</span></label><label><input checked={input.plateReminderConfirmed} onChange={(event) => update("plateReminderConfirmed", event.target.checked, "safety")} type="checkbox" /><span>Dealer plate reminder confirmed</span></label><label><input checked={input.jumperReminderConfirmed} onChange={(event) => update("jumperReminderConfirmed", event.target.checked, "safety")} type="checkbox" /><span>Jumper reminder confirmed</span></label></> : null}
             <label><input checked={input.exceptionResolved} disabled={input.exceptionType === "None"} onChange={(event) => update("exceptionResolved", event.target.checked, "safety")} type="checkbox" /><span>Open blocker resolved or assigned</span></label>
           </div>
-          <button className={styles.tciAction} disabled={!result.movementComplete || !blockersReady || completedSteps.safety} onClick={confirmSafety} type="button">Record movement decision</button>
-        </section>
+          <button className={styles.tciAction} disabled={!result.movementComplete || !blockersReady || completedSteps.safety} onClick={confirmSafety} type="button">Record {transportMode === "TOW" ? "tow" : "driver safety"} decision</button>
+        </section> : null}
       </div>
 
       <aside className={styles.tciDecision}>
@@ -281,10 +315,10 @@ export function TciTransportTool({ onProgressChange }: { onProgressChange: (prog
         <dl>
           <div><dt>Controls complete</dt><dd>{controlsComplete}/8</dd></div>
           <div><dt>Open blockers</dt><dd>{result.blockers.length}</dd></div>
-          <div><dt>Vehicle</dt><dd>2024 Toyota RAV4</dd></div>
-          <div><dt>Owner</dt><dd>Alex Carter</dd></div>
+          <div><dt>Vehicle</dt><dd>{vehicleLabel}</dd></div>
+          <div><dt>Owner</dt><dd>{owner}</dd></div>
           <div><dt>Current location</dt><dd>{input.currentLocation}</dd></div>
-          <div><dt>Handoff target</dt><dd>Receiving</dd></div>
+          <div><dt>Destination</dt><dd>{input.destinationLocation || "Not entered"}</dd></div>
         </dl>
         <p className={styles.tciExplanation}>{result.explanation}</p>
         <div className={styles.tciDrivers}>
@@ -301,7 +335,7 @@ export function TciTransportTool({ onProgressChange }: { onProgressChange: (prog
     <section className={styles.tciApproval}>
       <div><span><ShieldCheck />Checklist progress</span><strong>{controlsComplete}/8 checklist lines cleared</strong><small>The tool records evidence that checks the stage lines below.</small></div>
       <div><span><BadgeCheck />Readiness</span><strong>{controlsComplete === 8 ? "Ready for Receiving" : "Not ready for Receiving"}</strong><small>Receiving stays locked until every transportation control is cleared.</small></div>
-      <div><span><Truck />Completion path</span><strong>Source → Release → Driver → Safety</strong><small>Staff should work the builder from top to bottom.</small></div>
+      <div><span><Truck />Completion path</span><strong>{transportMode === "TOW" ? "Source → Release → Tow → Dispatch" : transportMode === "DRIVER" ? "Source → Release → Driver → Safety" : "Choose movement method first"}</strong><small>Only applicable questions are required.</small></div>
     </section>
 
     <footer className={styles.tciNotice} aria-live="polite"><CircleAlert />{notice}</footer>

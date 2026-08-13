@@ -22,6 +22,10 @@ describe("Shop Planning diagnostic release workspace", () => {
     expect(markup).toContain("Outside vendor");
     expect(markup).toContain("Send to outside vendor");
     expect(markup).toContain("Deploy vendor workflow");
+    expect(markup).toContain("Labor Guide helper workspace");
+    expect(markup).toContain("Build the estimate line without leaving this stage");
+    expect(markup).toContain("Use this estimate line");
+    expect(markup).toContain("Open full Labor Guide");
     expect(markup).toContain("Evidence ledger");
     expect(markup).toContain("Exact-version customer authorization required");
     expect(markup).toContain("Return to workbench");
@@ -49,6 +53,9 @@ describe("Shop Planning diagnostic release workspace", () => {
     expect(markup).toContain("Record direct repair scope");
     expect(markup).toContain("TAI recon budget guardrail");
     expect(markup).toContain("Rapid recon estimate recipe");
+    expect(markup).toContain("Body Labor Guide");
+    expect(markup).toContain("Body / collision labor");
+    expect(markup).toContain("Teardown / supplement check");
   });
 
   it("shows when an approved line already has a repair job instead of encouraging a duplicate create", () => {
@@ -99,7 +106,18 @@ describe("Shop Planning diagnostic release workspace", () => {
     };
     const markup = renderToStaticMarkup(<ShopPlanningWorkspace initial={{ repairOrders: [order], users: [{ id: "tech-1", name: "Walter Mechanic" }] }} returnTo="/vehicles/repair-workbench?repairOrderId=ro-4" />);
     expect(markup).toContain("Outside vendor mission");
+    expect(markup).toContain("Outside vendor progress");
+    expect(markup).toContain("Waiting for vendor estimate");
+    expect(markup).toContain("Vendor record");
+    expect(markup).toContain("Dealership QC happens after return");
+    expect(markup).not.toContain("Inspection evidence required");
+    expect(markup).not.toContain("Repair cannot start from intake alone");
     expect(markup).toContain("Vehicle ready for outside vendor route");
+    expect(markup).toContain("What staff should do now");
+    expect(markup).toContain("Record the vendor estimate");
+    expect(markup).toContain("Open vendor estimate");
+    expect(markup).toContain('href="#repair-planning-step-3"');
+    expect(markup).toContain('id="repair-planning-step-3" open=""');
     expect(markup).toContain("Vendor workflow active");
     expect(markup).toContain("Northside Garage");
     expect(markup).toContain("Did the vendor receive it?");

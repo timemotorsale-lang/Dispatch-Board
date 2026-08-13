@@ -77,6 +77,7 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
               }
             },
             invoicePackages: { orderBy: { version: "desc" }, take: 3 },
+            repairJobs: { where: { status: { not: "CANCELLED" } }, orderBy: { createdAt: "desc" }, select: { id: true, jobNumber: true } },
             closureEvents: { orderBy: { occurredAt: "desc" }, take: 3 },
             deliveryReadinessEvaluations: { orderBy: { version: "desc" }, take: 1 },
             releaseAuthorization: true
@@ -139,8 +140,8 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
             stockLocation: { select: { code: true, name: true, type: true } },
           },
         }),
-        database.partReceivingDiscrepancy.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" }, take: 200, include: { receipt: { select: { purchaseOrder: { select: { locationId: true } } } } } }),
-        database.partCustodyEvent.findMany({ where: { organizationId }, orderBy: { occurredAt: "desc" }, take: 250, include: { part: { select: { partNumber: true } }, repairJob: { select: { jobNumber: true } } } }),
+        database.partReceivingDiscrepancy.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" }, take: 200, include: { receipt: { select: { purchaseOrder: { select: { locationId: true, requisition: { select: { demand: { select: { repairOrder: { select: { id: true, repairOrderNumber: true } } } } } } } } } } } }),
+        database.partCustodyEvent.findMany({ where: { organizationId }, orderBy: { occurredAt: "desc" }, take: 250, include: { part: { select: { partNumber: true } }, repairJob: { select: { jobNumber: true, repairOrder: { select: { id: true, repairOrderNumber: true } } } } } }),
         database.partTransfer.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" }, take: 200 }),
         database.partRecoveryCase.findMany({ where: { organizationId }, orderBy: { deadlineAt: "asc" }, take: 200, include: { part: { select: { partNumber: true } }, vendor: { select: { name: true } } } }),
         database.part.findMany({ where: { organizationId, status: "ACTIVE" }, orderBy: { partNumber: "asc" }, select: { id: true, partNumber: true, description: true, standardCostCents: true } }),

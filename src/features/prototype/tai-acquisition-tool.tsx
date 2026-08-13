@@ -1,6 +1,6 @@
 "use client";
 
-import { BadgeCheck, Calculator, CarFront, Check, CircleAlert, FileText, Gauge, Link as LinkIcon, LockKeyhole, Search, ShieldCheck, TrendingUp } from "lucide-react";
+import { ArrowRight, BadgeCheck, Calculator, CarFront, Check, CircleAlert, FileText, Gauge, Link as LinkIcon, LockKeyhole, Search, ShieldCheck, TrendingUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import styles from "./inventory-lifecycle-prototype.module.css";
@@ -39,7 +39,7 @@ type OpportunityDraft = {
   retailRangeLow: number;
   vehicleIntelligence: VehicleIntelligenceProfile;
   seller: string;
-  source: "Auction" | "Trade" | "Marketplace" | "Customer Offer" | "Dealer Wholesale";
+  source: "Unknown" | "Auction" | "Trade" | "Marketplace" | "Customer Offer" | "Dealer Wholesale";
   sourceLink: string;
   sourceReference: string;
   status: "Draft" | "Researching" | "Ready for TAI" | "Buy candidate" | "Pass candidate";
@@ -123,7 +123,7 @@ const initialOpportunity: OpportunityDraft = {
 
 const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);
 const ratingLabels = ["", "Weak", "Limited", "Balanced", "Strong", "Excellent"];
-const expectedVin = "2T3W1RFVXRW333586";
+const defaultExpectedVin = "2T3W1RFVXRW333586";
 const vinPattern = /^[A-HJ-NPR-Z0-9]{17}$/;
 const askingPriceStatuses: OpportunityDraft["askingPriceStatus"][] = ["Provided", "Seller refused", "Staff must make first offer", "Trade appraisal needed", "Unknown"];
 const marketValueSources: OpportunityDraft["marketValueSource"][] = ["Manheim MMR", "KBB", "CarGurus", "AutoTrader", "Dealer estimate", "Manual manager entry", "Unknown"];
@@ -291,31 +291,96 @@ function cleanOpportunityEconomics(current: TaiAcquisitionInput): TaiAcquisition
   };
 }
 
-export function TaiAcquisitionTool({ onProgressChange }: { onProgressChange: (progress: TaiWorkflowProgress) => void }) {
-  const [input, setInput] = useState(initialInput);
-  const [opportunity, setOpportunity] = useState<OpportunityDraft>(initialOpportunity);
+function buildSelectedVehicleOpportunity(vehicle: { label: string; vin: string }): OpportunityDraft {
+  return {
+    ...initialOpportunity,
+    askingPrice: 0,
+    askingPriceStatus: "Unknown",
+    decodedBody: "Run Decode + Value",
+    decodedEngine: "Run Decode + Value",
+    decodedLabel: vehicle.label,
+    decodedTrim: "Not decoded",
+    duplicateStatus: "Unchecked",
+    intelligenceNotes: [],
+    localMarketRetail: 0,
+    marketValue: 0,
+    marketValueDate: "",
+    marketValueSource: "Unknown",
+    marketDaysSupply: 0,
+    missingItems: ["Run Decode + Value for the selected vehicle"],
+    nationalMarketRetail: 0,
+    odometer: "",
+    retailAdjustment: 0,
+    retailConfidence: "Low",
+    retailRangeHigh: 0,
+    retailRangeLow: 0,
+    seller: "",
+    source: "Unknown",
+    sourceLink: "",
+    sourceReference: "",
+    status: "Draft",
+    systemRetail: 0,
+    vehicleIntelligence: buildVehicleIntelligence({ body: "Unknown", engine: "Unknown", label: vehicle.label, trim: "Not decoded" }),
+    vin: vehicle.vin,
+  };
+}
+
+function buildSelectedVehicleInput(): TaiAcquisitionInput {
+  return {
+    ...cleanOpportunityEconomics(initialInput),
+    comparablesReviewed: false,
+    conditionInspected: false,
+    conditionRisk: 3,
+    demandStrength: 3,
+    inventoryNeed: 3,
+    marketPosition: 3,
+    sellerAuthorityVerified: false,
+    titleReviewed: false,
+  };
+}
+
+export function TaiAcquisitionTool({ onProgressChange, onQuickComplete, selectedVehicle }: { onProgressChange: (progress: TaiWorkflowProgress) => void; onQuickComplete?: () => void; selectedVehicle?: { label: string; vin: string } }) {
+  const [input, setInput] = useState(() => selectedVehicle ? buildSelectedVehicleInput() : initialInput);
+  const [opportunity, setOpportunity] = useState<OpportunityDraft>(() => selectedVehicle ? buildSelectedVehicleOpportunity(selectedVehicle) : initialOpportunity);
   const [evaluationVersion, setEvaluationVersion] = useState(0);
   const [approval, setApproval] = useState<"DRAFT" | "REQUESTED" | "APPROVED">("DRAFT");
-  const [finalPrice, setFinalPrice] = useState(24300);
+  const [finalPrice, setFinalPrice] = useState(selectedVehicle ? 0 : 24300);
   const [committed, setCommitted] = useState(false);
   const [vinEvidence, setVinEvidence] = useState<PrototypeVinScanEvidence | null>(null);
-  const [notice, setNotice] = useState("Review the sample opportunity and run the first TAI evaluation.");
+  const [quickSource, setQuickSource] = useState("");
+  const [quickPurchasePrice, setQuickPurchasePrice] = useState("");
+  const [quickConfirmed, setQuickConfirmed] = useState(false);
+  const [quickCompleted, setQuickCompleted] = useState(false);
+  const [notice, setNotice] = useState(selectedVehicle ? `Review ${selectedVehicle.label} and run Decode + Value before evaluation.` : "Review the sample opportunity and run the first TAI evaluation.");
   const result = useMemo(() => evaluateTaiAcquisition(input), [input]);
   const evaluated = evaluationVersion > 0;
   const eligibleForApproval = evaluated && result.blockers.length === 0 && !["Pass", "Watch", "Hold"].includes(result.recommendation);
   const finalPriceEligible = finalPrice > 0 && finalPrice <= result.purchaseCeiling;
   const opportunityReady = opportunity.status === "Ready for TAI" || opportunity.status === "Buy candidate" || opportunity.status === "Pass candidate";
+  const quickReady = Boolean(quickSource && Number(quickPurchasePrice) > 0 && quickConfirmed);
 
   useEffect(() => {
+    if (quickCompleted) {
+      onProgressChange({ appraisalComplete: true, authorityComplete: true, commitmentComplete: true, economicsComplete: true, identityComplete: true, titleComplete: true });
+      return;
+    }
     onProgressChange({
       appraisalComplete: evaluated && input.conditionInspected && input.comparablesReviewed,
       authorityComplete: approval === "APPROVED",
       commitmentComplete: committed,
       economicsComplete: evaluated,
-      identityComplete: input.identityVerified && input.sellerAuthorityVerified,
+      identityComplete: input.identityVerified && input.sellerAuthorityVerified && Boolean(opportunity.seller.trim() && opportunity.sourceReference.trim()),
       titleComplete: input.titleReviewed,
     });
-  }, [approval, committed, evaluated, input.comparablesReviewed, input.conditionInspected, input.identityVerified, input.sellerAuthorityVerified, input.titleReviewed, onProgressChange]);
+  }, [approval, committed, evaluated, input.comparablesReviewed, input.conditionInspected, input.identityVerified, input.sellerAuthorityVerified, input.titleReviewed, onProgressChange, opportunity.seller, opportunity.sourceReference, quickCompleted]);
+
+  function completeQuickAcquisition() {
+    if (!quickReady) return;
+    setQuickCompleted(true);
+    onProgressChange({ appraisalComplete: true, authorityComplete: true, commitmentComplete: true, economicsComplete: true, identityComplete: true, titleComplete: true });
+    setNotice(`Acquisition completed for ${selectedVehicle?.label ?? "the selected vehicle"} at ${money(Number(quickPurchasePrice))}. Opening Transportation.`);
+    onQuickComplete?.();
+  }
 
   function updateNumber(field: keyof TaiAcquisitionInput, value: string) {
     setInput((current) => ({ ...current, [field]: Number(value) || 0 }));
@@ -485,15 +550,30 @@ export function TaiAcquisitionTool({ onProgressChange }: { onProgressChange: (pr
       <div className={styles.taiVersion}><small>Evaluation</small><strong>{evaluated ? `v${evaluationVersion} · ${approval.toLowerCase()}` : "Draft · not evaluated"}</strong></div>
     </header>
 
+    {selectedVehicle ? <section className={styles.quickAcquisition} aria-label="Quick acquisition">
+      <header><div><span>Recommended fast path</span><h4>Complete Acquisition</h4><p>Three items, one confirmation, then Transportation opens automatically.</p></div><strong>{quickCompleted ? "Complete" : "About 30 seconds"}</strong></header>
+      <div className={styles.quickAcquisitionFields}>
+        <label><span>How was it acquired?</span><select onChange={(event) => setQuickSource(event.target.value)} value={quickSource}><option value="">Choose source</option><option>Auction</option><option>Trade</option><option>Customer purchase</option><option>Dealer wholesale</option><option>Other</option></select></label>
+        <label><span>Final purchase / trade value</span><div><b>$</b><input inputMode="numeric" min="1" onChange={(event) => setQuickPurchasePrice(event.target.value)} placeholder="Enter amount" type="number" value={quickPurchasePrice} /></div></label>
+        <label className={styles.quickAcquisitionConfirm}><input checked={quickConfirmed} onChange={(event) => setQuickConfirmed(event.target.checked)} type="checkbox" /><span><strong>Ready to move forward</strong><small>I confirm identity and ownership, condition/value review, and purchase authority are documented.</small></span></label>
+      </div>
+      <button disabled={!quickReady || quickCompleted} onClick={completeQuickAcquisition} type="button"><Check size={16} />{quickCompleted ? "Acquisition complete" : "Complete Acquisition & Open Transportation"}<ArrowRight size={16} /></button>
+      {!quickReady && !quickCompleted ? <small className={styles.quickAcquisitionHelp}>Choose a source, enter the final amount, and check the confirmation. That is all you need for the fast path.</small> : null}
+    </section> : null}
+
+    <details className={styles.taiAdvanced} open={!selectedVehicle}>
+      <summary>{selectedVehicle ? "Advanced acquisition tools (optional)" : "Acquisition tools"}</summary>
+      <div>
+
     <section className={styles.opportunityBuilder} aria-label="Acquisition Opportunity Builder">
       <header>
         <div><span><Search size={14} />Pre-acquisition tool</span><h4>Opportunity Builder</h4><p>Research a vehicle before it becomes inventory. Only an approved opportunity should create the governed InventoryUnit.</p></div>
         <strong>{opportunity.status}</strong>
       </header>
       <div className={styles.opportunityGrid}>
-        <section className={styles.opportunityForm}>
+        <section className={styles.opportunityForm} id="tai-identity-source">
           <label><span>VIN / scan text</span><input autoCapitalize="characters" maxLength={24} onChange={(event) => updateOpportunity("vin", event.target.value.toUpperCase())} value={opportunity.vin} /></label>
-          <label><span>Source</span><select onChange={(event) => updateOpportunity("source", event.target.value as OpportunityDraft["source"])} value={opportunity.source}>{(["Auction", "Trade", "Marketplace", "Customer Offer", "Dealer Wholesale"] as const).map((source) => <option key={source}>{source}</option>)}</select></label>
+          <label><span>Source</span><select onChange={(event) => updateOpportunity("source", event.target.value as OpportunityDraft["source"])} value={opportunity.source}>{(["Unknown", "Auction", "Trade", "Marketplace", "Customer Offer", "Dealer Wholesale"] as const).map((source) => <option key={source}>{source}</option>)}</select></label>
           <label><span>Seller / source name</span><input onChange={(event) => updateOpportunity("seller", event.target.value)} value={opportunity.seller} /></label>
           <label><span>Source reference</span><input onChange={(event) => updateOpportunity("sourceReference", event.target.value)} value={opportunity.sourceReference} /></label>
           <label><span>Listing / auction link</span><input onChange={(event) => updateOpportunity("sourceLink", event.target.value)} value={opportunity.sourceLink} /></label>
@@ -568,11 +648,11 @@ export function TaiAcquisitionTool({ onProgressChange }: { onProgressChange: (pr
           </div>
         </section>
 
-        <section>
+        <section id="tai-evidence-review">
           <header><h4>Fit, market, and evidence</h4><span>Buyer-reviewed inputs</span></header>
           <div className={styles.taiEvidenceBlock}>
             <PrototypeVinScanCard
-              expectedVin={expectedVin}
+              expectedVin={selectedVehicle?.vin || defaultExpectedVin}
               helperText="Use direct VIN scan text or paste Manheim / ADESA windshield details so acquisition identity evidence is captured before approval."
               onEvidenceChange={applyVinEvidence}
               stageLabel="Acquisition"
@@ -598,7 +678,7 @@ export function TaiAcquisitionTool({ onProgressChange }: { onProgressChange: (pr
         </section>
       </div>
 
-      <aside className={styles.taiDecision}>
+      <aside className={styles.taiDecision} id="tai-evaluation">
         <header><Gauge /><div><span>TAI recommendation</span><strong>{evaluated ? result.recommendation : "Run evaluation"}</strong></div><em className={result.blockers.length ? styles.taiHold : ""}>{result.acquisitionScore}/100</em></header>
         <dl>
           <div><dt>Purchase ceiling</dt><dd>{money(result.purchaseCeiling)}</dd></div>
@@ -617,11 +697,13 @@ export function TaiAcquisitionTool({ onProgressChange }: { onProgressChange: (pr
       </aside>
     </div>
 
-    <section className={styles.taiApproval}>
+    <section className={styles.taiApproval} id="tai-approval">
       <div><span><LockKeyhole />Step 1</span><strong>Request exact-ceiling authority</strong><small>{eligibleForApproval ? `Evaluation v${evaluationVersion} is eligible for manager review.` : "Run an eligible evaluation with no blockers."}</small><button disabled={!eligibleForApproval || approval !== "DRAFT"} onClick={requestApproval} type="button">Submit for approval</button></div>
       <div><span><ShieldCheck />Step 2</span><strong>Independent manager decision</strong><small>{approval === "REQUESTED" ? `Review ceiling of ${money(result.purchaseCeiling)}.` : approval === "APPROVED" ? "Approved for this exact evaluation." : "Waiting for buyer submission."}</small><button disabled={approval !== "REQUESTED"} onClick={approve} type="button">Approve ceiling</button></div>
-      <div><span><BadgeCheck />Step 3</span><strong>Record accepted purchase</strong><small>{approval === "APPROVED" ? `Must be at or below ${money(result.purchaseCeiling)}.` : "Manager authority is required first."}</small><label><span className="sr-only">Final purchase price</span><b>$</b><input aria-label="Final purchase price" min="0" onChange={(event) => { setFinalPrice(Number(event.target.value) || 0); setCommitted(false); }} type="number" value={finalPrice} /></label><button disabled={approval !== "APPROVED" || !finalPriceEligible || committed} onClick={recordPurchase} type="button">{committed ? "Purchase recorded" : "Record purchase"}</button></div>
+      <div id="tai-purchase"><span><BadgeCheck />Step 3</span><strong>Record accepted purchase</strong><small>{approval === "APPROVED" ? `Must be at or below ${money(result.purchaseCeiling)}.` : "Manager authority is required first."}</small><label><span className="sr-only">Final purchase price</span><b>$</b><input aria-label="Final purchase price" min="0" onChange={(event) => { setFinalPrice(Number(event.target.value) || 0); setCommitted(false); }} type="number" value={finalPrice} /></label><button disabled={approval !== "APPROVED" || !finalPriceEligible || committed} onClick={recordPurchase} type="button">{committed ? "Purchase recorded" : "Record purchase"}</button></div>
     </section>
+      </div>
+    </details>
 
     <footer className={styles.taiNotice} aria-live="polite"><CircleAlert />{notice}</footer>
   </section>;

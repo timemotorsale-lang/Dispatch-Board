@@ -13,6 +13,7 @@ export type TciTransportInput = {
   conditionVariance: TciConditionVariance;
   currentLocation: string;
   destinationConfirmed: boolean;
+  destinationLocation: string;
   documentsConfirmed: boolean;
   driverAssigned: boolean;
   driverPlan: TciDriverPlan;
@@ -73,6 +74,7 @@ export function evaluateTciTransport(raw: TciTransportInput): TciTransportResult
   const input = {
     ...raw,
     arrivalOdometer: whole(raw.arrivalOdometer),
+    destinationLocation: typeof raw.destinationLocation === "string" ? raw.destinationLocation : "",
     etaHours: whole(raw.etaHours),
     keysReceivedCount: whole(raw.keysReceivedCount),
     keysTransferredCount: whole(raw.keysTransferredCount),
@@ -83,17 +85,19 @@ export function evaluateTciTransport(raw: TciTransportInput): TciTransportResult
 
   const sourceComplete = input.sourceLocation.length > 0 && input.vehicleLocatedAtSource && input.currentLocation.trim().length > 0;
   const releaseComplete = input.gatePassReady && input.gateReleaseConfirmed && input.documentsConfirmed;
+  const towOrCarrier = input.driverPlan === "Tow vendor" || input.driverPlan === "Carrier";
+  const coordinationLabel = towOrCarrier ? "Tow / carrier coordination" : "Driver coordination";
   const planComplete = input.driverPlan !== "Pending dispatch"
     && input.driverAssigned
     && input.destinationConfirmed
+    && input.destinationLocation.trim().length > 0
     && input.etaHours > 0
     && input.transportCost >= 0
     && (!input.uberNeeded || input.uberPlanned)
     && (input.driverPlan !== "Tow vendor" && input.driverPlan !== "Carrier" || input.towVendorConfirmed);
+  const directDrive = input.mobilityDecision === "Drive to dealership";
   const movementComplete = input.mobilityDecision !== "Assessment required"
-    && (input.mobilityDecision !== "Drive to dealership" || (input.oilChecked && input.coolantChecked))
-    && input.jumperReminderConfirmed
-    && input.plateReminderConfirmed;
+    && (!directDrive || (input.oilChecked && input.coolantChecked && input.jumperReminderConfirmed && input.plateReminderConfirmed));
   const pickupComplete = input.pickupPerson.trim().length > 0
     && input.pickupOdometer > 0
     && input.pickupSignatureCaptured
@@ -111,11 +115,9 @@ export function evaluateTciTransport(raw: TciTransportInput): TciTransportResult
   const blockers = [
     ...(!sourceComplete ? ["Source location and exact unit position are not confirmed"] : []),
     ...(!releaseComplete ? ["Gate pass or source release is incomplete"] : []),
-    ...(!planComplete ? ["Driver coordination or movement plan is incomplete"] : []),
+    ...(!planComplete ? [`${coordinationLabel} or destination is incomplete`] : []),
     ...(!movementComplete ? ["Drive-or-tow readiness is incomplete"] : []),
-    ...(!pickupComplete ? ["Pickup custody proof is incomplete"] : []),
     ...(!trackingComplete ? ["Location tracking or exception control is incomplete"] : []),
-    ...(!deliveryComplete ? ["Receiving acceptance is incomplete"] : []),
     ...(input.exceptionType !== "None" && !input.exceptionResolved ? [`Open transportation exception: ${input.exceptionType.toLowerCase()}`] : []),
   ];
 
@@ -161,8 +163,7 @@ export function evaluateTciTransport(raw: TciTransportInput): TciTransportResult
   const negativeDrivers = [
     ...(input.driverPlan === "Pending dispatch" ? ["Driver coordination is still pending"] : []),
     ...(input.mobilityDecision === "Drive to dealership" && (!input.oilChecked || !input.coolantChecked) ? ["Driver pre-trip fluid checks are still missing"] : []),
-    ...(!input.jumperReminderConfirmed || !input.plateReminderConfirmed ? ["Driver reminders for jumper or dealer plate are incomplete"] : []),
-    ...(pickupPhotosRecommended && !input.pickupPhotosCaptured ? ["Pickup photos are recommended for TMS staff on direct-drive moves"] : []),
+    ...(directDrive && (!input.jumperReminderConfirmed || !input.plateReminderConfirmed) ? ["Driver reminders for jumper or dealer plate are incomplete"] : []),
     ...(input.exceptionType !== "None" && !input.exceptionResolved ? [`${input.exceptionType} remains open and assigned`] : []),
     ...(input.routeRisk >= 4 ? ["Route risk is elevated and needs close supervision"] : []),
     ...blockers,
@@ -177,7 +178,7 @@ export function evaluateTciTransport(raw: TciTransportInput): TciTransportResult
         : recommendation === "Ready to move"
           ? "Source, release, driver coordination, and movement safety checks are complete. The unit is ready to leave the auction."
           : recommendation === "Ready to dispatch"
-            ? "Source and release are confirmed. Finish driver coordination and movement safety before pickup."
+          ? `Source and release are confirmed. Finish ${coordinationLabel.toLowerCase()}, destination, and movement readiness before pickup.`
             : recommendation === "Ready for release"
               ? "The unit is located. Finish gate pass and release controls next."
               : "Transportation cannot advance until the missing auction-release and movement controls are completed.";

@@ -10,7 +10,7 @@ export default async function InventoryLifecyclePage({ searchParams }: PageProps
   const user = await requireCurrentUser();
   const projection = await getInventoryControlTowerProjection(user, { inventoryUnitId: query.inventoryUnitId, locationId: query.locationId, stage: query.stage });
   const activeWorkView = query.view === "TEAM" || query.view === "EXCEPTIONS" ? query.view : "MY";
-  const selected = projection.selectedAsset;
+  const selected = query.inventoryUnitId ? projection.items.find((item) => item.id === query.inventoryUnitId) ?? null : null;
   const guidedLifecycleStage = Number.isFinite(Number(query.guidedStage)) ? Number(query.guidedStage) : 0;
   const guidedLifecycleUnitContext = buildLifecycleUnitContext(selected ? {
     accountableOwner: selected.ownerUser.name,

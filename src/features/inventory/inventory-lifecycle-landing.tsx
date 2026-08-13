@@ -18,6 +18,7 @@ const lifecycleGroups = [
 
 export function InventoryLifecycleLanding({ projection, controlTowerHref, currentUserId = "", activeWorkView = "MY", guidedLifecycleStage = 0, guidedLifecycleUnitContext = null }: { projection: InventoryControlTowerProjection | InventoryControlTowerBaseProjection; controlTowerHref: string; currentUserId?: string; activeWorkView?: "MY" | "TEAM" | "EXCEPTIONS"; guidedLifecycleStage?: number; guidedLifecycleUnitContext?: InventoryLifecycleUnitContext | null }) {
   const connected = "decisions" in projection ? projection : null;
+  const selectedLifecycleAsset = projection.filters.inventoryUnitId ? projection.items.find((item) => item.id === projection.filters.inventoryUnitId) ?? null : null;
   const grouped = lifecycleGroups.map((group) => {
     const stages = projection.byStage.filter((stage) => (group.stages as readonly string[]).includes(stage.stage));
     const count = stages.reduce((sum, stage) => sum + stage.count, 0);
@@ -64,9 +65,23 @@ export function InventoryLifecycleLanding({ projection, controlTowerHref, curren
 
     {!projection.totals.units ? <section className="vehicle-map-empty lifecycle-map" aria-label="Vehicle map guidance"><h2>No inventory lifecycle units are visible yet</h2><p>A vehicle may still exist in the canonical registry even when it has not become an InventoryUnit. Staff should search the vehicle first, open its Vehicle Workbench, and only start acquisition or lifecycle work when that is the right business step.</p><div className="form-actions"><Link className="button button-primary" href="/vehicles/registry">Find Vehicle / Open Workbench</Link><Link className="button button-secondary" href="/vehicles/workflows/add-vehicle">Add / Find Vehicle</Link><Link className="button button-secondary" href="/vehicles/acquisition-appraisal">Start Acquisition</Link></div></section> : null}
 
-    <section id="integrated-lifecycle" aria-label="Integrated guided inventory lifecycle">
+    {projection.totals.units ? <section className="lifecycle-vehicle-picker" aria-label="Choose a vehicle to open">
+      <div><Search size={18} /><span><strong>Choose the car you want to open</strong><small>Select any vehicle in your permitted inventory, then load its guided lifecycle or open its full workbench.</small></span></div>
+      <form action="/vehicles/inventory">
+        {projection.filters.locationId ? <input name="locationId" type="hidden" value={projection.filters.locationId} /> : null}
+        {projection.filters.stage ? <input name="stage" type="hidden" value={projection.filters.stage} /> : null}
+        <label><span>Vehicle</span><select defaultValue={selectedLifecycleAsset?.id ?? ""} name="inventoryUnitId" required>
+          <option disabled value="">Select a vehicle</option>
+          {projection.items.map((item) => <option key={item.id} value={item.id}>{[item.vehicle.year, item.vehicle.make, item.vehicle.model].filter(Boolean).join(" ") || item.vehicle.vehicleNumber} · Stock {item.vehicle.stockNumber ?? item.inventoryNumber} · VIN {item.vehicle.vin?.slice(-6) ?? "not recorded"}</option>)}
+        </select></label>
+        <button type="submit">Load selected vehicle</button>
+      </form>
+      {selectedLifecycleAsset ? <Link href={`/vehicles/${encodeURIComponent(selectedLifecycleAsset.vehicle.id)}/workbench`}><CarFront size={16} />Open selected vehicle workbench</Link> : null}
+    </section> : null}
+
+    {selectedLifecycleAsset ? <section id="integrated-lifecycle" aria-label="Integrated guided inventory lifecycle">
       <InventoryLifecyclePrototype embedded initialStage={guidedLifecycleStage} initialUnitContext={guidedLifecycleUnitContext} />
-    </section>
+    </section> : projection.totals.units ? <section className="lifecycle-no-selection" aria-label="No vehicle selected"><CarFront /><div><h2>No vehicle selected</h2><p>Choose a vehicle above to open its lifecycle. Nothing is loaded until you make a selection.</p></div></section> : null}
 
     <section aria-label="Inventory lifecycle KPIs" className="vcp-kpis">
       {[

@@ -25,6 +25,11 @@ describe("InventoryLifecyclePrototype", () => {
     expect(markup).toContain("Run TAI evaluation");
     expect(markup).toContain("Submit for approval");
     expect(markup).toContain("Record accepted purchase");
+    expect(markup).toContain("Required before Transportation");
+    expect(markup).toContain("Vehicle, source, and seller identity");
+    expect(markup).toContain("Condition and market appraisal");
+    expect(markup).toContain("Manager purchase approval");
+    expect(markup).toContain("Continue: Vehicle, source, and seller identity");
     expect(markup).toContain("Refresh Inventory Console");
   });
 
@@ -32,7 +37,7 @@ describe("InventoryLifecyclePrototype", () => {
     const markup = renderToStaticMarkup(<InventoryLifecyclePrototype />);
 
     expect(markup).toContain("0 of 6 required actions complete");
-    expect(markup).toContain("Complete every required action before handoff becomes available.");
+    expect(markup).toContain("6 acquisition requirements remain. Next: Vehicle, source, and seller identity.");
     expect(markup).toMatch(/<button[^>]*disabled=""[^>]*>Release to Transportation/);
   });
 
@@ -40,6 +45,14 @@ describe("InventoryLifecyclePrototype", () => {
     const markup = renderToStaticMarkup(<InventoryLifecyclePrototype />);
 
     expect(markup).toContain("Open Vehicle Intake form");
+  });
+
+  it("uses transport-neutral assignment language in Transportation", () => {
+    const markup = renderToStaticMarkup(<InventoryLifecyclePrototype initialStage={1} />);
+
+    expect(markup).toContain("Transport provider assigned");
+    expect(markup).toContain("Transport assignment");
+    expect(markup).not.toContain("Driver assignment");
   });
 
   it("renders return-to-lifecycle controls in the later lifecycle workspaces", () => {

@@ -32,4 +32,18 @@ describe("TaiAcquisitionTool", () => {
     expect(markup).toContain("Submit for approval");
     expect(markup).toContain("Record purchase");
   });
+
+  it("uses the selected lifecycle vehicle instead of the sample opportunity", () => {
+    const markup = renderToStaticMarkup(<TaiAcquisitionTool onProgressChange={() => undefined} selectedVehicle={{ label: "2017 Acura MDX", vin: "5J8YD4H39HL001234" }} />);
+
+    expect(markup).toContain("2017 Acura MDX");
+    expect(markup).toContain("5J8YD4H39HL001234");
+    expect(markup).toContain("Run Decode + Value for the selected vehicle");
+    expect(markup).toContain("Recommended fast path");
+    expect(markup).toContain("Complete Acquisition &amp; Open Transportation");
+    expect(markup).toContain("Advanced acquisition tools (optional)");
+    expect(markup).toContain("That is all you need for the fast path.");
+    expect(markup).not.toContain("2024 Toyota RAV4");
+    expect(markup).not.toContain("2T3W1RFVXRW333586");
+  });
 });
