@@ -86,15 +86,16 @@ describe("diagnostics case console", () => {
 
   it("renders a conversational Master Technician prototype without presenting a guess as a diagnosis", () => {
     const html = renderToStaticMarkup(<MasterTechnicianPrototype initialQuestion="2019 Honda Accord timing code and vendor recommends timing replacement" viewerName="Walter Mechanic" />);
-    expect(html).toContain("What are we troubleshooting?");
-    expect(html).toContain("A timing-component replacement is only a hypothesis right now.");
-    expect(html).toContain("Do not authorize parts yet.");
-    expect(html).toContain("Compare commanded and actual cam position");
+    expect(html).toContain("What is the vehicle doing?");
+    expect(html).toContain("Do not authorize timing parts yet.");
+    expect(html).toContain("compare commanded versus actual cam position");
     expect(html).toContain("Advice, not an automatic diagnosis.");
-    expect(html).toContain("No verified measurements yet");
-    expect(html).toContain("not yet connected to a live AI model");
-    expect(html).toContain("Save as test plan");
-    expect(html).toContain("Record a result");
+    expect(html).toContain("Choose a vehicle");
+    expect(html).toContain("Live AI and OEM sources are not connected yet");
+    expect(html).toContain("Use this next test");
+    expect(html).toContain("Record result");
+    expect(html).toContain("Add codes or evidence");
+    expect(html).toContain("Review the cause");
   });
 
   it("renders the technician troubleshooting console with the first four slices", () => {
