@@ -42,8 +42,10 @@ describe("diagnostics case console", () => {
     const html = renderToStaticMarkup(<DiagnosticsCommandCenter model={model} />);
     expect(html).toContain("Diagnostics Command Center");
     expect(html).toContain("Ask Master Technician");
-    expect(html).toContain("Describe the vehicle problem. We’ll build the test path.");
-    expect(html).toContain("Start troubleshooting");
+    expect(html).toContain("What is the vehicle doing?");
+    expect(html).toContain("Get the next test");
+    expect(html).toContain("More tools");
+    expect(html).toContain("Systems operational");
     expect(html).toContain("In-house or vendor?");
     expect(html).toContain('href="/diagnostics/master-technician?q=');
     expect(html).toContain("New Diagnostic Case");
@@ -163,7 +165,7 @@ describe("diagnostics case console", () => {
     const html = renderToStaticMarkup(<DiagnosticAutobodyEstimateConsole />);
     expect(html).toContain("Autobody Estimate Console");
     expect(html).toContain("Photo intake");
-    expect(html).toContain("Insurance-quality draft builder");
+    expect(html).toContain("Body / collision estimate builder");
     expect(html).toContain("ADAS");
     expect(html).toContain("Not an insurer submission tool yet");
   });

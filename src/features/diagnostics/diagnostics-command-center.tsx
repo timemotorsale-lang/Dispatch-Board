@@ -104,7 +104,7 @@ export function DiagnosticsCommandCenter({ model }: { model: DiagnosticsCommandC
   const [quickFilter, setQuickFilter] = useState<QuickFilter>("ALL");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
-  const [readinessOpen, setReadinessOpen] = useState(true);
+  const [readinessOpen, setReadinessOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -164,32 +164,28 @@ export function DiagnosticsCommandCenter({ model }: { model: DiagnosticsCommandC
   }
 
   return <section className={styles.commandCenter} aria-label="Diagnostics Command Center">
-    <header className={styles.commandHeader}>
-      <div className={styles.commandTitle}>
-        <h1>Diagnostics Command Center</h1>
-        <p>Prioritize, prove, and complete every diagnostic case.</p>
-      </div>
-      <div className={styles.commandActions}>
-        <Link className={styles.primaryCommand} href="/diagnostics/intake" title={!commandsEnabled ? `Intake review is available; creation remains controlled by rollout: ${label(model.rollout.reason)}` : "Start a governed diagnostic intake"}><Plus />New Diagnostic Case</Link>
-        <Link className={styles.secondaryCommand} href="/diagnostics/troubleshooting-console"><Stethoscope />Trial Console</Link>
-        <Link className={styles.secondaryCommand} href="/diagnostics/pilot-readiness"><BarChart3 />Pilot Readiness</Link>
-        <Link className={styles.secondaryCommand} href="/diagnostics/troubleshooting-review"><Stethoscope />Troubleshooting Review</Link>
-        <Link className={styles.secondaryCommand} href="/vehicles/discovery?intent=diagnostics"><ScanLine />Scan VIN</Link>
-        <button className={styles.systemStatus} onClick={() => setReadinessOpen((current) => !current)} type="button"><span />Systems Operational<ChevronDown className={readinessOpen ? styles.chevronOpen : ""} /></button>
-      </div>
+    <header className={styles.simpleHeader}>
+      <div><span>DIAGNOSTIC WORKSPACE</span><h1>Diagnose a vehicle</h1><p>Start with the problem. The system will guide the next test.</p></div>
+      <nav className={styles.simpleActions} aria-label="Diagnostic actions">
+        <Link href="/vehicles/discovery?intent=diagnostics"><ScanLine />Scan VIN</Link>
+        <Link className={styles.simplePrimary} href="/diagnostics/intake" title={!commandsEnabled ? `Intake review is available; creation remains controlled by rollout: ${label(model.rollout.reason)}` : "Start a governed diagnostic intake"}><Plus />New Diagnostic Case</Link>
+        <details className={styles.moreTools}><summary>More tools<ChevronDown /></summary><div><Link href="/diagnostics/troubleshooting-console"><Stethoscope />Trial Console</Link><Link href="/diagnostics/troubleshooting-review"><Stethoscope />Troubleshooting Review</Link><Link href="/diagnostics/pilot-readiness"><BarChart3 />Pilot Readiness</Link><Link href="/settings/vehicle-operations"><CircleGauge />Rollout controls</Link></div></details>
+      </nav>
     </header>
 
-    {!commandsEnabled ? <div className={styles.rolloutNotice} role="status"><ShieldAlert /><span><strong>Live review is available.</strong> Mutations remain controlled by the Diagnostics rollout policy ({label(model.rollout.reason)}). Target: {rolloutDate(model.rollout.targetAt)}.</span><Link href="/settings/vehicle-operations">Review rollout</Link></div> : <div className={styles.actionNotice} role="status"><CheckCircle2 /><span><strong>Diagnostic case creation is enabled.</strong> Rollout target: {rolloutDate(model.rollout.targetAt)}. Evidence, reasoning, publishing, and AI remain separately controlled.</span><Link href="/settings/vehicle-operations">Rollout controls</Link></div>}
+    {!commandsEnabled ? <div className={styles.rolloutNotice} role="status"><ShieldAlert /><span><strong>Live review is available.</strong> Case creation is controlled by rollout policy ({label(model.rollout.reason)}).</span><Link href="/settings/vehicle-operations">Review rollout</Link></div> : null}
     {notice ? <div className={styles.actionNotice} role="status"><span>{notice}</span><button onClick={() => setNotice(null)} type="button">Dismiss</button></div> : null}
 
     <section className={styles.masterStart} aria-label="Ask Master Technician">
-      <div className={styles.masterIntro}><span><Bot /></span><div><small>MASTER TECHNICIAN HELP</small><h2>Describe the vehicle problem. We’ll build the test path.</h2><p>Ask in plain language. The assistant will separate facts from hypotheses, request missing evidence, and recommend the next best test.</p></div></div>
+      <div className={styles.masterIntro}><span><Bot /></span><div><small>ASK MASTER TECHNICIAN</small><h2>What is the vehicle doing?</h2><p>Include the vehicle, symptoms, codes, and anything already tested.</p></div></div>
       <form onSubmit={(event) => { event.preventDefault(); const question = masterQuestion.trim(); router.push(question ? `/diagnostics/master-technician?q=${encodeURIComponent(question)}` : "/diagnostics/master-technician"); }}>
-        <textarea aria-label="Ask Master Technician" onChange={(event) => setMasterQuestion(event.target.value)} placeholder="Example: 2019 Honda Accord has timing-related codes. A vendor recommends timing replacement. Help us verify it in-house." rows={3} value={masterQuestion} />
-        <button type="submit">Start troubleshooting <ArrowUp /></button>
+        <textarea aria-label="Ask Master Technician" onChange={(event) => setMasterQuestion(event.target.value)} placeholder="Example: 2019 Honda Accord has timing-related codes and rattles when cold. A vendor recommends timing replacement." rows={3} value={masterQuestion} />
+        <button type="submit">Get the next test <ArrowUp /></button>
       </form>
-      <div className={styles.masterShortcuts}><span>Or start with:</span><Link href="/diagnostics/master-technician?q=Help%20me%20decide%20whether%20this%20vehicle%20can%20be%20diagnosed%20in-house.">In-house or vendor?</Link><Link href="/diagnostics/master-technician?q=Review%20a%20vendor%20diagnosis%20and%20tell%20me%20what%20evidence%20is%20missing.">Review vendor diagnosis</Link><Link href="/diagnostics/intake">Create a formal case</Link></div>
+      <div className={styles.masterShortcuts}><span>Quick start:</span><Link href="/diagnostics/master-technician?q=Help%20me%20decide%20whether%20this%20vehicle%20can%20be%20diagnosed%20in-house.">In-house or vendor?</Link><Link href="/diagnostics/master-technician?q=Review%20a%20vendor%20diagnosis%20and%20tell%20me%20what%20evidence%20is%20missing.">Review vendor diagnosis</Link></div>
     </section>
+
+    <details className={styles.systemSummary}><summary><span><i />Systems operational</span><small>Evidence, reasoning, labor, and audit tools available</small><ChevronDown /></summary><div><p><strong>Diagnostic case creation is enabled.</strong> Rollout target: {rolloutDate(model.rollout.targetAt)}. Evidence, reasoning, publishing, and AI remain separately controlled.</p><Link href="/settings/vehicle-operations">View system controls</Link></div></details>
 
     <section className={styles.commandMetrics} aria-label="Diagnostic case summary">
       <button onClick={() => { setView("ALL"); setQuickFilter("ACTIVE"); }} type="button"><Stethoscope /><span>Active Cases</span><strong>{model.summary.active}</strong><small>{model.summary.mine} assigned to me</small></button>
@@ -209,15 +205,17 @@ export function DiagnosticsCommandCenter({ model }: { model: DiagnosticsCommandC
         <button aria-expanded={readinessOpen} className={styles.readinessToggle} onClick={() => setReadinessOpen((current) => !current)} type="button"><CircleGauge />Operational Readiness<ChevronDown className={readinessOpen ? styles.chevronOpen : ""} /></button>
       </header>
 
-      {readinessOpen ? <div className={styles.readinessStrip} aria-label="Operational readiness">
-        {[
-          ["VIN & OEM Data", model.operationalReadiness.vinAndOemData],
-          ["Evidence Ledger", model.operationalReadiness.evidenceLedger],
-          ["Labor Intelligence", model.operationalReadiness.laborIntelligence],
-          ["Audit Trail", model.operationalReadiness.auditTrail]
-        ].map(([name, readiness]) => <span key={String(name)}><i className={styles[`readiness${(readiness as { state: string }).state}`]} /><b>{String(name)}</b><small>{(readiness as { label: string }).label}</small></span>)}
-      </div> : null}
-      {readinessOpen && model.learningAiScaleReadiness ? <LearningAiScaleReadinessPanel readiness={model.learningAiScaleReadiness} /> : null}
+      <div hidden={!readinessOpen}>
+        <div className={styles.readinessStrip} aria-label="Operational readiness">
+          {[
+            ["VIN & OEM Data", model.operationalReadiness.vinAndOemData],
+            ["Evidence Ledger", model.operationalReadiness.evidenceLedger],
+            ["Labor Intelligence", model.operationalReadiness.laborIntelligence],
+            ["Audit Trail", model.operationalReadiness.auditTrail]
+          ].map(([name, readiness]) => <span key={String(name)}><i className={styles[`readiness${(readiness as { state: string }).state}`]} /><b>{String(name)}</b><small>{(readiness as { label: string }).label}</small></span>)}
+        </div>
+        {model.learningAiScaleReadiness ? <LearningAiScaleReadinessPanel readiness={model.learningAiScaleReadiness} /> : null}
+      </div>
 
       <div className={styles.queueToolbar}>
         <div className={styles.queueChips}>
