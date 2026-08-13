@@ -224,8 +224,45 @@ function vehicleWorkbenchHref(vehicleId: string) {
   return `/vehicles/${encodeURIComponent(vehicleId)}/workbench`;
 }
 
+function vehicle360Href(vehicleId: string) {
+  return `/vehicles/360/${encodeURIComponent(vehicleId)}`;
+}
+
+function vehicleInventoryPlanningHref(vehicleId: string) {
+  return `/vehicles/${encodeURIComponent(vehicleId)}/inventory-planning`;
+}
+
+function vehicleRepairWorkbenchHref(vehicleId: string) {
+  return `/vehicles/repair-workbench?vehicleId=${encodeURIComponent(vehicleId)}&returnTo=${encodeURIComponent("/vehicles/registry")}`;
+}
+
+function vehiclePartsHref(vehicleId: string) {
+  return `/vehicles/parts-operations?vehicleId=${encodeURIComponent(vehicleId)}&returnTo=${encodeURIComponent("/vehicles/registry")}`;
+}
+
 function isMutationDisabled(message: string) {
   return message.includes("not enabled") || message.includes("MASTER_DISABLED");
+}
+
+function selectedVehicleReadiness(vehicle: Detail, duplicateCaseCount: number) {
+  const latestCustody = vehicle.custodyEvents[0];
+  const latestOdometer = vehicle.odometerObservations[0];
+  const missing: string[] = [];
+  const warnings: string[] = [];
+  if (!vehicle.vin && !vehicle.nonVinReason) missing.push("VIN or non-VIN reason");
+  if (vehicle.vinState !== "VERIFIED" && vehicle.vinState !== "VALID") warnings.push("VIN verification");
+  if (!vehicle.stockNumber) warnings.push("stock number");
+  if (!latestCustody) missing.push("current location / custody");
+  if (!latestOdometer) warnings.push("current mileage");
+  if (duplicateCaseCount) warnings.push("duplicate review");
+  const nextAction = duplicateCaseCount
+    ? "Resolve duplicate review before staff make operating decisions."
+    : missing.length
+      ? `Complete ${missing[0]} before opening new work.`
+      : warnings.length
+        ? `Verify ${warnings[0]}, then continue work.`
+        : "Open the workbench or continue inventory lifecycle.";
+  return { latestCustody, latestOdometer, missing, nextAction, ready: !missing.length && !duplicateCaseCount, warnings };
 }
 
 export function VehicleRegistryWorkspace({
@@ -470,6 +507,7 @@ export function VehicleRegistryWorkspace({
 
   const duplicateCases = selected ? [...selected.duplicateCasesAsPrimary, ...selected.duplicateCasesAsCandidate].filter((item) => item.status === "OPEN") : [];
   const mutationNotice = registryLocked || isMutationDisabled(notice);
+  const selectedReadiness = selected ? selectedVehicleReadiness(selected, duplicateCases.length) : null;
 
   return (
     <section className="page-stack">
@@ -541,6 +579,27 @@ export function VehicleRegistryWorkspace({
                 <h2>{selected.vehicleNumber}</h2>
                 <p>{[selected.year, selected.make, selected.model, selected.color].filter(Boolean).join(" · ")}</p>
               </div>
+              {selectedReadiness ? <section className="vehicle-command-center" aria-label="Vehicle next action command center">
+                <div>
+                  <span className={selectedReadiness.ready ? "ready" : "attention"}>{selectedReadiness.ready ? "Ready to work" : "Needs attention"}</span>
+                  <h3>{selectedReadiness.nextAction}</h3>
+                  <p>{selectedReadiness.ready ? "Identity, custody, and duplicate guard are clear enough to move to the next workspace." : "Fix only the blocker that matters, then continue from the same canonical vehicle card."}</p>
+                </div>
+                <dl>
+                  <div><dt>Location</dt><dd>{selectedReadiness.latestCustody?.location?.name ?? selectedReadiness.latestCustody?.positionLabel ?? "Needs custody update"}</dd></div>
+                  <div><dt>Mileage</dt><dd>{selectedReadiness.latestOdometer ? `${selectedReadiness.latestOdometer.reading.toLocaleString()} ${selectedReadiness.latestOdometer.unit}` : "Needs odometer"}</dd></div>
+                  <div><dt>Duplicate guard</dt><dd>{duplicateCases.length ? `${duplicateCases.length} open review` : "Clear"}</dd></div>
+                  <div><dt>Identity</dt><dd>{selected.vinState === "VERIFIED" || selected.vinState === "VALID" ? selected.vinState : "Verify VIN"}</dd></div>
+                </dl>
+              </section> : null}
+              <section className="vehicle-command-actions" aria-label="Connected vehicle workspaces">
+                <Link className="primary" href={vehicleWorkbenchHref(selected.id)}><strong>Open Vehicle Workbench</strong><span>Best next stop for active tasks, current status, custody, RO, QC, and handoff.</span></Link>
+                <Link href={vehicleInventoryPlanningHref(selected.id)}><strong>Inventory Planning</strong><span>Correct intake condition/needs, start lifecycle, receiving QC, recon, frontline release.</span></Link>
+                <Link href={vehicle360Href(selected.id)}><strong>Vehicle 360</strong><span>Canonical identity, evidence, photos, documents, history, and safety intelligence.</span></Link>
+                <Link href={vehicleRepairWorkbenchHref(selected.id)}><strong>Shop &amp; Recon</strong><span>Open or continue repair order work, diagnostics, estimates, vendor path, repair, QC.</span></Link>
+                <Link href={vehiclePartsHref(selected.id)}><strong>Parts</strong><span>Review demand, ordering, availability, blockers, and parts readiness for this vehicle.</span></Link>
+                <Link href={`/vehicles/quality-control?vehicleId=${encodeURIComponent(selected.id)}&returnTo=${encodeURIComponent("/vehicles/registry")}`}><strong>Quality Control</strong><span>Verify completed work, failed repairs, rework decisions, and release readiness.</span></Link>
+              </section>
               <dl className="etw-facts compact">
                 <div><dt>VIN</dt><dd>{selected.vin ?? selected.vinRaw ?? selected.nonVinReason ?? "Not recorded"}</dd></div>
                 <div><dt>Stock</dt><dd>{selected.stockNumber ?? (deriveStockNumberFromVin(selected.vin) ? `${deriveStockNumberFromVin(selected.vin)} · derived from VIN` : "Not recorded")}</dd></div>

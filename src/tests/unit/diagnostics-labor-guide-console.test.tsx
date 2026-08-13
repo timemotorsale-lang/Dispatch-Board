@@ -7,7 +7,7 @@ import { flattenLaborOperationTaxonomy, LABOR_OPERATION_ADD_ONS, LABOR_OPERATION
 
 describe("enterprise labor guide console", () => {
   it("renders the approved dual-mode labor guide and a live repair-order workbench link", () => {
-    const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole activeRepairOrder={{ concern: "Clunking noise in front end and rear feels bouncy over bumps", customer: "Jordan Ellis", id: "ro-id-3411", openedAt: "2026-07-21T14:00:00.000Z", repairOrderNumber: "RO-3411", vehicle: { id: "veh-id-1", label: "2018 Ford F-150", vin: "1FTFW1E84KFC12345" } }} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={[{ id: "ro-id-3411", label: "RO-3411 - 2018 Ford F-150" }]} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />);
+    const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole activeRepairOrder={{ concern: "Clunking noise in front end and rear feels bouncy over bumps", customer: "Jordan Ellis", id: "ro-id-3411", openedAt: "2026-07-21T14:00:00.000Z", repairOrderNumber: "RO-3411", vehicle: { id: "veh-id-1", label: "2018 Ford F-150", vin: "1FTFW1E84KFC12345" } }} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} initialSelectedWork="starter" laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={[{ id: "ro-id-3411", label: "RO-3411 - 2018 Ford F-150" }]} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />);
 
     expect(markup).toContain("RO Creation Workspace");
     expect(markup).toContain("Search customer, phone, VIN, plate, vehicle, or RO number");
@@ -51,6 +51,10 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("Repair history");
     expect(markup).toContain("/vehicles/repair-workbench?repairOrderId=ro-id-3411");
     expect(markup).toContain("Create Estimate");
+    expect(markup).toContain("Create Estimate &amp; Continue Recon");
+    expect(markup).toContain("Create the estimate version on this repair order");
+    expect(markup).toContain("return to recon and record approval/authorization");
+    expect(markup).toContain("Staff should not search for the RO again");
     expect(markup).toContain("Parts needed for this repair");
     expect(markup).toContain("Open Parts Ordering Workflow");
     expect(markup).toContain("Sync parts demand to RO");
@@ -83,6 +87,14 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("returnTo=%2Fdiagnostics%2Flabor-guide");
   });
 
+  it("opens with a blank estimate by default so staff do not clear another vehicle first", () => {
+    const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole activeRepairOrder={null} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={[]} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />);
+
+    expect(markup).toContain("Selected Work 0");
+    expect(markup).toContain("Parts 0");
+    expect(markup).not.toContain("Front brake pad set");
+  });
+
   it("renders a working labor intelligence description input", () => {
     const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole activeRepairOrder={null} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} initialMode="engine" laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={[]} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />);
 
@@ -107,6 +119,12 @@ describe("enterprise labor guide console", () => {
 
     expect(markup).toContain("Remove and install transmission assembly");
     expect(markup).toContain("Transmission assembly - VIN fitment and supplier price required");
+    expect(markup).toContain("Required items not yet on the estimate");
+    expect(markup).toContain("Enter real required-part cost");
+    expect(markup).toContain("Real unit cost");
+    expect(markup).toContain("Add to estimate");
+    expect(markup).toContain("Add editable line");
+    expect(markup).toContain("supplier quote needed");
     expect(markup).toContain("Automatic transmission fluid - fill and level set allowance");
     expect(markup).toContain("Transmission filter and pan gasket kit");
     expect(markup).toContain("Axle/output shaft seal set");
@@ -117,6 +135,7 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("Program/configure TCM when required.");
     expect(markup).toContain("MN taxable parts");
     expect(markup).toContain("separately stated repair labor is not taxed");
+    expect(markup).toContain("<dt>Parts</dt><dd>$0.00</dd>");
   });
 
   it("renders bodywork repair-area intelligence for door estimates", () => {

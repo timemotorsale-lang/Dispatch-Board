@@ -18,7 +18,8 @@ type RepairOrderSummary = {
   assignedTechnician: User | null;
   ownerUser: User;
   location: { id: string; name: string };
-  vehicle: { vehicleNumber: string; year: number | null; make: string | null; model: string | null };
+  inventoryUnit?: { inventoryNumber: string } | null;
+  vehicle: { id?: string; vehicleNumber: string; vin?: string | null; year: number | null; make: string | null; model: string | null };
   serviceVisit: { concernSummary: string; promisedAt: string | null };
 };
 type Job = {
@@ -36,7 +37,8 @@ type Job = {
     location: { id: string; name: string };
     ownerUser: User;
     assignedTechnician?: User | null;
-    vehicle: { vehicleNumber: string; year: number | null; make: string | null; model: string | null };
+    inventoryUnit: { inventoryNumber: string } | null;
+    vehicle: { id?: string; vehicleNumber: string; vin?: string | null; year: number | null; make: string | null; model: string | null };
     customer: { displayName: string } | null;
     inventoryUnit: { inventoryNumber: string } | null;
     serviceVisit: { promisedAt: string | null; concernSummary: string };
@@ -48,9 +50,26 @@ type Model = {
   users: User[];
   resources: Resource[];
 };
+type SourceVehicle = { id: string; vehicleNumber: string; vin: string | null; stockNumber: string | null; year: number | null; make: string | null; model: string | null };
 
 const local = (value: Date) => new Date(value.getTime() - value.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 const executableJob = (job: Job) => ["READY_FOR_REPAIR", "DISPATCHED", "IN_PROGRESS", "PAUSED", "READY_FOR_QC"].includes(job.status);
+const vehicleName = (vehicle: { year: number | null; make: string | null; model: string | null }) => [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || "Vehicle";
+const shortConcern = (value: string, length = 70) => value.length > length ? `${value.slice(0, length - 1)}…` : value;
+const stageLabel = (value: string) => value.replaceAll("_", " ").toLowerCase();
+const searchableOrderText = (order: RepairOrderSummary) => [
+  vehicleName(order.vehicle),
+  order.vehicle.vehicleNumber,
+  order.vehicle.vin,
+  order.inventoryUnit?.inventoryNumber,
+  order.repairOrderNumber,
+  order.stage,
+  order.location.name,
+  order.ownerUser.name,
+  order.assignedTechnician?.name,
+  order.serviceVisit.concernSummary,
+  order.nextAction,
+].filter(Boolean).join(" ").toLowerCase();
 
 function derivedRepairOrders(model: Model): RepairOrderSummary[] {
   if (model.repairOrders) return model.repairOrders;
@@ -65,14 +84,17 @@ function derivedRepairOrders(model: Model): RepairOrderSummary[] {
     assignedTechnician: job.repairOrder.assignedTechnician ?? null,
     ownerUser: job.repairOrder.ownerUser,
     location: job.repairOrder.location,
+    inventoryUnit: job.repairOrder.inventoryUnit,
     vehicle: job.repairOrder.vehicle,
     serviceVisit: job.repairOrder.serviceVisit,
   })).filter((order, index, orders) => order.id && orders.findIndex((item) => item.id === order.id) === index);
 }
 
-export function ShopExecutionWorkspace({ initial, initialRepairOrderId }: { initial: Model; initialRepairOrderId?: string }) {
+export function ShopExecutionWorkspace({ initial, initialRepairOrderId, initialVehicleId, sourceVehicle }: { initial: Model; initialRepairOrderId?: string; initialVehicleId?: string; sourceVehicle?: SourceVehicle | null }) {
   const initialOrders = derivedRepairOrders(initial);
-  const firstOrderId = initialRepairOrderId ?? initial.jobs.find((job) => job.status === "READY_FOR_REPAIR")?.repairOrder.id ?? initialOrders[0]?.id ?? "";
+  const initialOrderExists = initialRepairOrderId ? initialOrders.some((order) => order.id === initialRepairOrderId) : false;
+  const initialVehicleOrder = initialVehicleId ? initialOrders.find((order) => order.vehicle.id === initialVehicleId) : null;
+  const firstOrderId = initialRepairOrderId ? initialOrderExists ? initialRepairOrderId : initialVehicleOrder?.id ?? "" : initialVehicleId ? initialVehicleOrder?.id ?? "" : initial.jobs.find((job) => job.status === "READY_FOR_REPAIR")?.repairOrder.id ?? initialOrders[0]?.id ?? "";
   const firstJob = initial.jobs.find((job) => job.repairOrder.id === firstOrderId && executableJob(job)) ?? initial.jobs.find((job) => job.repairOrder.id === firstOrderId);
   const firstOrder = initialOrders.find((order) => order.id === firstOrderId);
   const firstTechnicianId = firstJob?.dispatches.find((item) => ["ACTIVE", "STAGED"].includes(item.status))?.technicianUserId ?? firstOrder?.assignedTechnicianUserId ?? firstOrder?.ownerUser.id ?? initial.resources.find((resource) => resource.resourceType.kind === "STAFF" && resource.userId)?.userId ?? "";
@@ -84,6 +106,7 @@ export function ShopExecutionWorkspace({ initial, initialRepairOrderId }: { init
   const [jobId, setJobId] = useState(firstJob?.id ?? "");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [vehicleQuery, setVehicleQuery] = useState("");
   const [assignment, setAssignment] = useState({
     technicianUserId: firstTechnicianId,
     bayResourceId: "",
@@ -95,9 +118,14 @@ export function ShopExecutionWorkspace({ initial, initialRepairOrderId }: { init
   });
 
   const repairOrders = derivedRepairOrders(model);
+  const normalizedVehicleQuery = vehicleQuery.trim().toLowerCase();
+  const visibleRepairOrders = normalizedVehicleQuery ? repairOrders.filter((order) => searchableOrderText(order).includes(normalizedVehicleQuery)) : repairOrders;
   const selectedOrder = repairOrders.find((order) => order.id === repairOrderId);
   const orderJobs = model.jobs.filter((job) => job.repairOrder.id === repairOrderId);
   const selectedJob = orderJobs.find((job) => job.id === jobId);
+  const matchingVehicleOrder = initialVehicleId ? repairOrders.find((order) => order.vehicle.id === initialVehicleId) : null;
+  const incomingRepairOrderMissing = Boolean(initialRepairOrderId && !repairOrders.some((order) => order.id === initialRepairOrderId));
+  const sourceVehicleWithoutRepairOrder = Boolean(initialVehicleId && sourceVehicle && !matchingVehicleOrder);
   const technicians = useMemo(() => {
     const staff = model.resources.filter((resource) => resource.resourceType.kind === "STAFF" && resource.userId).map((resource) => model.users.find((user) => user.id === resource.userId)).filter((user): user is User => Boolean(user));
     const repairTechnicians = staff.filter((user) => user.roles?.some((role) => ["Mechanic", "Technician"].includes(role)));
@@ -149,6 +177,8 @@ export function ShopExecutionWorkspace({ initial, initialRepairOrderId }: { init
       <div className="form-actions"><Link className="pill pill-secondary" href="/vehicles/shop-planning">Planning &amp; approvals</Link><Link className="pill pill-secondary" href="/vehicles/parts">Parts readiness</Link><Link className="pill pill-secondary" href="/vehicles/quality-control">Quality control</Link></div>
     </header>
 
+    {incomingRepairOrderMissing && !sourceVehicleWithoutRepairOrder ? <div className="notice notice-danger"><p>The repair order you came from was not found in this dispatch list. Select the vehicle below before assigning a technician.</p></div> : null}
+    {sourceVehicleWithoutRepairOrder ? <div className="notice notice-danger"><p>{vehicleName(sourceVehicle)} is the vehicle you came from, but it does not have an open dispatch repair order/job yet. Start or prepare the repair order first; then Shop Dispatch can assign the technician.</p></div> : null}
     {notice ? <div className={/required|must|conflict|not |already|only/i.test(notice) ? "notice notice-danger" : "notice notice-success"}><p>{notice}</p></div> : null}
 
     <section className="shop-dispatch-metrics">
@@ -161,13 +191,33 @@ export function ShopExecutionWorkspace({ initial, initialRepairOrderId }: { init
     <section className="panel-card page-stack shop-dispatch-desk">
       <header><div><span className="eyebrow">One-step assignment</span><h2>Repair job assignment</h2></div><span className={selectedJob && executableJob(selectedJob) ? "shop-dispatch-ready" : "shop-dispatch-waiting"}>{selectedJob && executableJob(selectedJob) ? "Ready to book" : "Planning assignment"}</span></header>
 
+      <section className="shop-dispatch-picker" aria-label="Choose vehicle for dispatch">
+        <header><strong>Choose the vehicle first</strong><span>Pick by vehicle, stock/inventory, concern, and current stage — not by internal RO codes.</span></header>
+        <label className="shop-dispatch-search"><span>Search vehicle, RO, concern, stage, location, or technician</span><input aria-label="Search dispatch vehicles" onChange={(event) => setVehicleQuery(event.target.value)} placeholder="Example: Corolla, 137543, check engine, Walter, intake" value={vehicleQuery} /></label>
+        <div>
+          {sourceVehicleWithoutRepairOrder ? <article className="shop-dispatch-source-vehicle">
+            <small>Vehicle from your workbench</small>
+            <strong>{vehicleName(sourceVehicle)}</strong>
+            <span>{sourceVehicle.vehicleNumber} · Stock {sourceVehicle.stockNumber ?? "not recorded"} · VIN {sourceVehicle.vin ?? "not recorded"}</span>
+            <p>No dispatchable RO/job exists yet. Create or prepare the repair order before assigning shop labor.</p>
+            <Link href={`/vehicles/repair-workbench?vehicleId=${encodeURIComponent(sourceVehicle.id)}&returnTo=${encodeURIComponent("/vehicles/shop-dispatch")}`}>Start repair order</Link>
+          </article> : null}
+          {visibleRepairOrders.map((order) => <button className={order.id === repairOrderId ? "selected" : ""} key={order.id} onClick={() => chooseRepairOrder(order.id)} type="button">
+            <strong>{vehicleName(order.vehicle)}</strong>
+            <span>{order.vehicle.vehicleNumber} · {order.inventoryUnit?.inventoryNumber ? `Stock ${order.inventoryUnit.inventoryNumber} · ` : ""}{order.repairOrderNumber} · {stageLabel(order.stage)}</span>
+            <small>{shortConcern(order.serviceVisit.concernSummary)}</small>
+          </button>)}
+          {visibleRepairOrders.length ? null : <p className="shop-dispatch-no-results">No dispatch vehicles match “{vehicleQuery}”. Clear the search or check the originating workbench.</p>}
+        </div>
+      </section>
+
       <div className="shop-dispatch-context-grid">
-        <label className="form-field"><span>Vehicle / repair order</span><select aria-label="Vehicle and repair order" value={repairOrderId} onChange={(event) => chooseRepairOrder(event.target.value)}><option value="">Select a repair order</option>{repairOrders.map((order) => <option key={order.id} value={order.id}>{order.vehicle.vehicleNumber} · {order.repairOrderNumber} · {order.stage}</option>)}</select></label>
-        <label className="form-field"><span>Repair job</span><select aria-label="Repair job" disabled={!orderJobs.length} value={jobId} onChange={(event) => chooseJob(event.target.value)}><option value="">{orderJobs.length ? "Select a repair job" : "No repair job created yet"}</option>{orderJobs.map((job) => <option key={job.id} value={job.id}>{job.jobNumber} · {job.description} · {job.status}</option>)}</select></label>
+        <label className="form-field"><span>Vehicle / repair order</span><select aria-label="Vehicle and repair order" value={repairOrderId} onChange={(event) => chooseRepairOrder(event.target.value)}><option value="">Select vehicle to assign</option>{repairOrders.map((order) => <option key={order.id} value={order.id}>{vehicleName(order.vehicle)} · {order.inventoryUnit?.inventoryNumber ? `Stock ${order.inventoryUnit.inventoryNumber} · ` : ""}{order.vehicle.vehicleNumber} · {shortConcern(order.serviceVisit.concernSummary, 42)} · {stageLabel(order.stage)}</option>)}</select></label>
+        <label className="form-field"><span>Repair job</span><select aria-label="Repair job" disabled={!orderJobs.length} value={jobId} onChange={(event) => chooseJob(event.target.value)}><option value="">{orderJobs.length ? "Select repair job for this vehicle" : "No repair job created yet"}</option>{orderJobs.map((job) => <option key={job.id} value={job.id}>{job.description} · {stageLabel(job.status)}</option>)}</select></label>
       </div>
 
       {selectedOrder ? <>
-        <section className="shop-dispatch-vehicle-summary"><div><small>Selected vehicle</small><strong>{selectedOrder.vehicle.vehicleNumber} · {[selectedOrder.vehicle.year, selectedOrder.vehicle.make, selectedOrder.vehicle.model].filter(Boolean).join(" ")}</strong><span>{selectedOrder.repairOrderNumber} · {selectedOrder.location.name}</span></div><div><small>Concern</small><strong>{selectedOrder.serviceVisit.concernSummary}</strong><span>Next: {selectedOrder.nextAction || "Complete repair planning"}</span></div></section>
+        <section className="shop-dispatch-vehicle-summary"><div><small>Selected vehicle</small><strong>{vehicleName(selectedOrder.vehicle)}</strong><span>{selectedOrder.vehicle.vehicleNumber} · {selectedOrder.inventoryUnit?.inventoryNumber ? `Stock ${selectedOrder.inventoryUnit.inventoryNumber} · ` : ""}{selectedOrder.repairOrderNumber} · {selectedOrder.location.name}</span></div><div><small>Concern</small><strong>{selectedOrder.serviceVisit.concernSummary}</strong><span>Next: {selectedOrder.nextAction || "Complete repair planning"}</span></div></section>
 
         <form className="shop-dispatch-preassign" onSubmit={(event: FormEvent) => { event.preventDefault(); submit(`/api/repair-orders/${selectedOrder.id}/technician-assignment`, { technicianUserId: assignment.technicianUserId, reason: "Preassign the accountable technician from the Shop Dispatch assignment desk." }, "Technician assignment saved."); }}>
           <label className="form-field"><span>Technician</span><select aria-label="Technician" value={assignment.technicianUserId} onChange={(event) => setAssignment((current) => ({ ...current, technicianUserId: event.target.value }))}>{technicians.map((technician) => <option key={technician.id} value={technician.id}>{technician.name}</option>)}</select></label>

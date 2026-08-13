@@ -65,4 +65,41 @@ describe("vehicle registry workspace", () => {
     expect(html).toContain("/vehicles/veh-1/workbench");
     expect(html).toContain("Preview here");
   });
+
+  it("turns a selected vehicle into a next-action command center", () => {
+    const selected = {
+      id: "veh-1",
+      vehicleNumber: "VEH-100",
+      vin: "1HGCM82633A004352",
+      vinRaw: "1HGCM82633A004352",
+      vinState: "VERIFIED",
+      stockNumber: "STK-100",
+      year: 2026,
+      make: "Honda",
+      model: "Accord",
+      color: "Blue",
+      licensePlate: "ABC123",
+      status: "ACTIVE",
+      version: 3,
+      updatedAt: "2026-07-24T10:00:00.000Z",
+      nonVinReason: null,
+      registryRelationships: [],
+      externalIdentities: [],
+      odometerObservations: [{ exceptionReason: null, id: "odo-1", observedAt: "2026-07-24T10:00:00.000Z", reading: 42000, status: "VALID", unit: "MILES" }],
+      custodyEvents: [{ custodianType: "DEALERSHIP", eventType: "CHECK_IN", id: "custody-1", location: { name: "Time Motor Sales — Minneapolis" }, occurredAt: "2026-07-24T10:00:00.000Z", positionLabel: "Front line" }],
+      duplicateCasesAsPrimary: [],
+      duplicateCasesAsCandidate: [],
+      _count: { duplicateCasesAsCandidate: 0, duplicateCasesAsPrimary: 0 },
+    };
+    const html = renderToStaticMarkup(<VehicleRegistryWorkspace initial={{ items: [selected], page: 1, pageSize: 25, total: 1, totalPages: 1 }} initialSelected={selected} />);
+    expect(html).toContain("Vehicle next action command center");
+    expect(html).toContain("Ready to work");
+    expect(html).toContain("Open the workbench or continue inventory lifecycle.");
+    expect(html).toContain("Inventory Planning");
+    expect(html).toContain("Correct intake condition/needs");
+    expect(html).toContain("Shop &amp; Recon");
+    expect(html).toContain("Quality Control");
+    expect(html).toContain("/vehicles/veh-1/inventory-planning");
+    expect(html).toContain("vehicleId=veh-1");
+  });
 });

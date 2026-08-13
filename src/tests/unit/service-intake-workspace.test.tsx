@@ -40,8 +40,9 @@ describe("enterprise service intake workspace", () => {
     expect(html).toContain("Other active staff");
     expect(html).toContain("Brock Harris — Repair-capable");
     expect(html).toContain("Assigned technician");
-    expect(html).toContain('href="/vehicles/shop-dispatch"');
-    expect(html).toContain("Open Shop Dispatch");
+    expect(html).toContain("Dispatch opens after RO");
+    expect(html).toContain("Finish check-in first");
+    expect(html).not.toContain('href="/vehicles/shop-dispatch"');
     expect(html).toContain("Technician &amp; target");
     expect(html).not.toContain("Advisor / owner");
     expect(html).toContain("Check-in requirements");
@@ -96,6 +97,17 @@ describe("enterprise service intake workspace", () => {
     expect(html).toContain("Internal recon readiness");
     expect(html).toContain("Inventory concern &amp; recon request");
     expect(html).not.toContain("Next: Add / Select Customer");
+  });
+
+  it("lets staff create the recon inventory unit without a separate ownership-authority stop", () => {
+    const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialConcernSummary="Complete inventory safety inspection and recon estimate." initialTimestamp="2026-08-02T07:00:00.000Z" initialVehicleId="vehicle-1" initialVehicleRelationship="DEALERSHIP_INVENTORY" options={options} />);
+
+    expect(html).toContain("Create or link the inventory unit");
+    expect(html).toContain("Acquisition source");
+    expect(html).toContain("Create &amp; Link Inventory Unit");
+    expect(html).toContain("Staff can create the recon inventory unit here.");
+    expect(html).not.toContain("Ownership authority required before inventory can be created");
+    expect(html).not.toContain("Authorized inventory staff only");
   });
 
   it("offers the matching open RO when VIN and concern are the same", () => {

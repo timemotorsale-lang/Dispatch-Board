@@ -179,7 +179,7 @@ function matchesRepairText(operation: LaborRepairOperation, searchText: string) 
   return matchedWords.length >= Math.min(2, words.length);
 }
 
-export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "manual", initialQuery = "", initialSelectedWork = "starter", initialWorkTab = "selected", repairTaxonomy, returnLabel, returnTo }: { activeRepairOrder: ActiveRepairOrder | null; catalog: unknown[]; initialMode?: "manual" | "engine"; initialQuery?: string; initialSelectedWork?: "empty" | "starter" | "transmission"; initialWorkTab?: WorkTab; laborAddOns: unknown[]; repairOrders?: { id: string; label: string }[]; repairTaxonomy: LaborOperationSystem[]; returnLabel?: string; returnTo?: string }) {
+export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "manual", initialQuery = "", initialSelectedWork = "empty", initialWorkTab = "selected", repairTaxonomy, returnLabel, returnTo }: { activeRepairOrder: ActiveRepairOrder | null; catalog: unknown[]; initialMode?: "manual" | "engine"; initialQuery?: string; initialSelectedWork?: "empty" | "starter" | "transmission"; initialWorkTab?: WorkTab; laborAddOns: unknown[]; repairOrders?: { id: string; label: string }[]; repairTaxonomy: LaborOperationSystem[]; returnLabel?: string; returnTo?: string }) {
   const allOperations = useMemo(() => repairTaxonomy.flatMap((system) => system.groups.flatMap((group) => group.operations)), [repairTaxonomy]);
   const brakeStarter = allOperations.filter((operation) => ["front-brake-pads-rotors", "brake-caliper-front"].includes(operation.id));
   const transmissionStarter = allOperations.filter((operation) => operation.id === "transmission-remove-install");
@@ -193,6 +193,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   const [workTab, setWorkTab] = useState<WorkTab>(initialWorkTab);
   const [selectedLabor, setSelectedLabor] = useState<SelectedLabor[]>(initialSelectedWork === "empty" ? [] : (initialSelectedWork === "transmission" ? transmissionStarter : brakeStarter).map((operation) => ({ ...operation, rowId: operation.id })));
   const [selectedParts, setSelectedParts] = useState<SelectedPart[]>(initialSelectedWork === "starter" ? defaultParts : []);
+  const [requiredPartCosts, setRequiredPartCosts] = useState<Record<string, string>>({});
   const [evidenceDrafts, setEvidenceDrafts] = useState<EvidenceDraft[]>([]);
   const [evidenceNote, setEvidenceNote] = useState("");
   const [evidenceCategory, setEvidenceCategory] = useState<EvidenceDraft["category"]>("DIAGNOSTIC_PHOTO");
@@ -207,6 +208,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   const [selectedRepairOrder, setSelectedRepairOrder] = useState<ActiveRepairOrder | null>(activeRepairOrder);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
+  const [estimateHandoff, setEstimateHandoff] = useState<{ estimateVersion?: number; totalCents?: number } | null>(null);
   const [partsCatalogBusy, setPartsCatalogBusy] = useState(false);
 
   const activeSystem = repairTaxonomy.find((system) => system.id === activeSystemId) ?? repairTaxonomy[0];
@@ -255,16 +257,15 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   ], [allOperations, estimatePolicy.requiredAddOnIds, selectedLabor]);
   const totalHours = estimateLabor.reduce((sum, item) => sum + item.hours, 0);
   const laborTotal = totalHours * laborRate;
-  const estimateParts = useMemo(() => [
-    ...selectedParts,
-    ...estimatePolicy.missingRequiredParts.map(requiredPartToSelectedPart)
-  ], [estimatePolicy.missingRequiredParts, selectedParts]);
+  const estimateParts = selectedParts;
   const partsTotal = estimateParts.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
   const subtotal = laborTotal + partsTotal;
   const taxAndSupplies = estimatePolicy.tax.taxCents / 100;
   const total = subtotal + taxAndSupplies;
   const activeRoHref = selectedRepairOrder ? `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(selectedRepairOrder.id)}` : "/vehicles/repair-workbench?view=all";
   const laborGuideReturnTo = selectedRepairOrder ? `/diagnostics/labor-guide?repairOrderId=${encodeURIComponent(selectedRepairOrder.id)}` : "/diagnostics/labor-guide";
+  const repairPlanningHref = selectedRepairOrder ? `/vehicles/shop-planning?repairOrderId=${encodeURIComponent(selectedRepairOrder.id)}&returnTo=${encodeURIComponent(activeRoHref)}#authorization` : "/vehicles/shop-planning";
+  const sourceReturnHref = returnTo || repairPlanningHref;
   const assignTechnicianHref = selectedRepairOrder
     ? `/vehicles/repair-workbench?${new URLSearchParams({
       repairOrderId: selectedRepairOrder.id,
@@ -428,6 +429,22 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
       }];
     });
     setWorkTab("parts");
+  }
+
+  function addRequiredPart(part: EstimateRequiredPart) {
+    const enteredCost = Number(requiredPartCosts[part.key]);
+    const selectedPart = {
+      ...requiredPartToSelectedPart(part),
+      pricingStatus: Number.isFinite(enteredCost) && enteredCost > 0 ? "ESTIMATED" as const : part.pricingStatus,
+      unitPrice: Number.isFinite(enteredCost) && enteredCost >= 0 ? enteredCost : part.unitPriceCents / 100
+    };
+    setSelectedParts((current) => current.some((item) => item.id === selectedPart.id || (item.laborRowId === selectedPart.laborRowId && item.number === selectedPart.number)) ? current : [...current, selectedPart]);
+    setWorkTab("parts");
+    setNotice(part.pricingStatus === "PRICE_PENDING" ? `${part.description} added. Enter the supplier quote before presenting the final estimate.` : `${part.description} added to the editable estimate parts.`);
+  }
+
+  function updatePart(id: string, patch: Partial<Pick<SelectedPart, "name" | "number" | "pricingStatus" | "quantity" | "source" | "taxable" | "unitPrice">>) {
+    setSelectedParts((current) => current.map((part) => part.id === id ? { ...part, ...patch } : part));
   }
 
   function editPart(id: string) {
@@ -599,7 +616,8 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
           taxCents,
         }),
       });
-      setNotice(`Estimate presented${result.result?.estimateVersion ? ` as version ${result.result.estimateVersion}` : ""}.`);
+      setEstimateHandoff({ estimateVersion: result.result?.estimateVersion, totalCents: result.result?.totalCents });
+      setNotice(`Estimate created${result.result?.estimateVersion ? ` as version ${result.result.estimateVersion}` : ""}. Next: continue to authorization in recon.`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Unable to present estimate.");
     } finally {
@@ -878,6 +896,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
               </section>
               <section>
                 <header><h3>Parts</h3><button onClick={addManualPart} type="button"><Plus />Add manual part</button></header>
+                {estimateParts.length ? <div className={styles.partPricingWorksheet} aria-label="Editable parts pricing worksheet">{estimateParts.map((part) => <article key={`edit-${part.id}`}><label><span>Part</span><input value={part.name} onChange={(event) => updatePart(part.id, { name: event.target.value })} /></label><label><span>Part #</span><input value={part.number} onChange={(event) => updatePart(part.id, { number: event.target.value })} /></label><label><span>Qty</span><input min="0" type="number" value={part.quantity} onChange={(event) => updatePart(part.id, { quantity: Math.max(0, Number(event.target.value) || 0) })} /></label><label><span>Unit price</span><input min="0" step="0.01" type="number" value={part.unitPrice} onChange={(event) => updatePart(part.id, { pricingStatus: "ESTIMATED", unitPrice: Math.max(0, Number(event.target.value) || 0) })} /></label><label><span>Price status</span><select value={part.pricingStatus ?? "ESTIMATED"} onChange={(event) => updatePart(part.id, { pricingStatus: event.target.value as SelectedPart["pricingStatus"] })}><option value="ESTIMATED">Estimated / quoted</option><option value="PRICE_PENDING">Price pending</option></select></label><label className={styles.inlineCheck}><input checked={part.taxable !== false} type="checkbox" onChange={(event) => updatePart(part.id, { taxable: event.target.checked })} />Taxable</label><strong>{part.pricingStatus === "PRICE_PENDING" && part.unitPrice === 0 ? "Quote needed" : money(part.quantity * part.unitPrice)}</strong></article>)}</div> : null}
                 <table><tbody>{estimateParts.map((part) => <tr key={part.id}><td>{part.name}<small>{part.number} · {partSourceLabel(part)}</small></td><td>{part.quantity}</td><td>{part.pricingStatus === "PRICE_PENDING" ? "Pending" : money(part.unitPrice)}</td><td>{money(part.quantity * part.unitPrice)}</td><td>{part.source === "POLICY_REQUIRED" ? <span className={styles.lockedPart}>Required</span> : <><button onClick={() => editPart(part.id)} type="button"><Edit3 /></button><button onClick={() => deletePart(part.id)} type="button"><Trash2 /></button></>}</td></tr>)}</tbody></table>
                 {partsCatalogBusy ? <p className={styles.partsCatalogStatus}>Matching labor to parts catalog...</p> : null}
               </section>
@@ -889,6 +908,18 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
                   {estimatePolicy.readinessCodes.map((code) => <span key={code}>{displayLabel(code)}</span>)}
                 </div>
                 <p>{estimatePolicy.tax.taxSummary}</p>
+              </section>
+            ) : null}
+            {estimatePolicy.missingRequiredParts.length ? (
+              <section className={styles.requiredPartCostEntry} aria-label="Quick add required part costs">
+                <header><div><h3>Enter real required-part cost</h3><p>Type the supplier price here, then add the part to the estimate. Required does not mean locked.</p></div><span>{estimatePolicy.missingRequiredParts.length} open</span></header>
+                <div>{estimatePolicy.missingRequiredParts.map((part) => <article key={`cost-${part.key}`}><span><b>{displayLabel(part.category)}</b><strong>{part.description}</strong><small>{part.partNumber} · Qty {part.quantity}</small></span><label><small>Real unit cost</small><input min="0" placeholder="0.00" step="0.01" type="number" value={requiredPartCosts[part.key] ?? ""} onChange={(event) => setRequiredPartCosts((current) => ({ ...current, [part.key]: event.target.value }))} /></label><button onClick={() => addRequiredPart(part)} type="button"><Plus />Add to estimate</button></article>)}</div>
+              </section>
+            ) : null}
+            {estimatePolicy.missingRequiredParts.length ? (
+              <section className={styles.requiredPartsCard} aria-label="Required estimate items">
+                <header><div><h3>Required items not yet on the estimate</h3><p>Required means needed for a complete repair plan. It does not lock price. Add the item, then edit quantity and supplier price in the parts table.</p></div><span>{estimatePolicy.missingRequiredParts.length} needed</span></header>
+                <div>{estimatePolicy.missingRequiredParts.map((part) => <article key={part.key}><span><b>{displayLabel(part.category)}</b><strong>{part.description}</strong><small>{part.partNumber} · Qty {part.quantity} · {part.pricingStatus === "PRICE_PENDING" ? "supplier quote needed" : money(part.unitPriceCents / 100)}</small></span><button onClick={() => addRequiredPart(part)} type="button"><Plus />Add editable line</button></article>)}</div>
               </section>
             ) : null}
             <section className={styles.suggestedAddOns} aria-label="Automatic suggested add-ons">
@@ -918,7 +949,13 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
                 <div className={styles.total}><dt>Total</dt><dd>{money(total)}</dd></div>
                 <div><dt>Gross profit</dt><dd className={styles.good}>31.8%</dd></div>
               </dl>
-              <button className={styles.createRo} disabled={busy} onClick={() => void presentEstimate()} type="button">{busy ? "Creating estimate..." : "Create Estimate"}</button>
+              <section className={styles.nextStepCard} aria-label="Estimate next step guidance">
+                <span>{estimateHandoff ? "Estimate created" : "Next step"}</span>
+                <h3>{estimateHandoff ? `Estimate version ${estimateHandoff.estimateVersion ?? ""} is attached to the repair order` : "Create the estimate version on this repair order"}</h3>
+                <p>{estimateHandoff ? "Continue to authorization in the recon workflow. Approval must be recorded before repair job release, parts readiness, dispatch, repair, and QC." : "This saves the labor and parts package as the official estimate version. After it is created, return to recon and record approval/authorization."}</p>
+                {estimateHandoff ? <div><Link href={repairPlanningHref}>Continue to authorization / recon</Link><Link href={sourceReturnHref}>Return to source workspace</Link><Link href={activeRoHref}>Open repair workbench</Link></div> : <small>Staff should not search for the RO again; use the buttons here after the estimate is created.</small>}
+              </section>
+              <button className={styles.createRo} disabled={busy} onClick={() => void presentEstimate()} type="button">{busy ? "Creating estimate..." : "Create Estimate & Continue Recon"}</button>
               <section className={styles.assignmentCard} aria-label="Technician assignment handoff">
                 <header>
                   <div>
@@ -937,7 +974,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
                 <header>
                   <div>
                     <h3>Parts needed for this repair</h3>
-                    <p>Open the Parts Ordering Workspace to order and document the actual vendor, source, and cost.</p>
+                    <p>Enter estimate costs here. Use Parts Ordering later to document the actual vendor, order, and receiving trail.</p>
                   </div>
                   <span>{partsNeedCount} item{partsNeedCount === 1 ? "" : "s"}</span>
                 </header>
@@ -947,6 +984,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
                   <article><ScanBarcode /><span><strong>{pendingPricingCount}</strong><small>pricing / sourcing pending</small></span></article>
                 </div>
                 <div className={styles.partsNeededList}>
+                  {estimateParts.length ? <div className={styles.partsNeededCostList}>{estimateParts.slice(0, 5).map((part) => <article key={`cost-review-${part.id}`}><span><strong>{part.name}</strong><small>{part.number} · Qty {part.quantity}</small></span><label><small>Unit cost</small><input min="0" step="0.01" type="number" value={part.unitPrice} onChange={(event) => updatePart(part.id, { pricingStatus: "ESTIMATED", unitPrice: Math.max(0, Number(event.target.value) || 0) })} /></label><em>{part.pricingStatus === "PRICE_PENDING" && part.unitPrice === 0 ? "Quote needed" : money(part.quantity * part.unitPrice)}</em></article>)}</div> : null}
                   {estimateParts.length ? estimateParts.slice(0, 5).map((part) => <article key={`review-${part.id}`}><span><strong>{part.name}</strong><small>{part.number} · Qty {part.quantity} · {partSourceLabel(part)}</small></span><em>{part.pricingStatus === "PRICE_PENDING" ? "Quote needed" : money(part.quantity * part.unitPrice)}</em></article>) : <p>No parts have been added yet. Select labor or add manual parts to create demand.</p>}
                 </div>
                 <div className={styles.partsOrderingActions}>

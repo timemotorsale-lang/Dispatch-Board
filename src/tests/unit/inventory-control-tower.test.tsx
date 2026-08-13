@@ -10,12 +10,12 @@ const units: InventoryControlTowerSourceUnit[] = [
   {
     id: "unit-blocked", inventoryNumber: "INV-100", lifecycleStage: "RECONDITIONING", operatingState: "BLOCKED",
     targetAt: new Date("2026-07-17T15:00:00.000Z"), stageStartedAt: new Date("2026-07-15T15:00:00.000Z"), financialAcquiredAt: new Date("2026-06-28T15:00:00.000Z"), nextAction: "Resolve brake-parts constraint", stateReason: "Awaiting verified ETA", locationId: "loc-a",
-    location: { code: "NORTH", name: "North Store" }, vehicle: { vehicleNumber: "V-100", stockNumber: "S100", year: 2021, make: "Toyota", model: "Camry", vin: "VIN100" }, ownerUser: { id: "user-a", name: "Avery" }, costEntries: [{ amountCents: 1_250_000, currency: "USD", status: "POSTED" }, { amountCents: 50_000, currency: "USD", status: "VOID" }]
+    location: { code: "NORTH", name: "North Store" }, vehicle: { id: "vehicle-100", vehicleNumber: "V-100", stockNumber: "S100", year: 2021, make: "Toyota", model: "Camry", vin: "VIN100" }, ownerUser: { id: "user-a", name: "Avery" }, costEntries: [{ amountCents: 1_250_000, currency: "USD", status: "POSTED" }, { amountCents: 50_000, currency: "USD", status: "VOID" }]
   },
   {
     id: "unit-ready", inventoryNumber: "INV-200", lifecycleStage: "FRONTLINE_READY", operatingState: "ACTIVE",
     targetAt: new Date("2026-07-20T15:00:00.000Z"), stageStartedAt: new Date("2026-07-17T15:00:00.000Z"), financialAcquiredAt: new Date("2026-07-13T15:00:00.000Z"), nextAction: "Verify frontline merchandising", stateReason: null, locationId: "loc-b",
-    location: { code: "SOUTH", name: "South Store" }, vehicle: { vehicleNumber: "V-200", stockNumber: "S200", year: 2022, make: "Honda", model: "Accord", vin: "VIN200" }, ownerUser: { id: "user-b", name: "Blair" }, costEntries: [{ amountCents: 1_500_000, currency: "USD", status: "POSTED" }]
+    location: { code: "SOUTH", name: "South Store" }, vehicle: { id: "vehicle-200", vehicleNumber: "V-200", stockNumber: "S200", year: 2022, make: "Honda", model: "Accord", vin: "VIN200" }, ownerUser: { id: "user-b", name: "Blair" }, costEntries: [{ amountCents: 1_500_000, currency: "USD", status: "POSTED" }]
   }
 ];
 
@@ -56,10 +56,24 @@ describe("R3 Inventory Lifecycle UI", () => {
     expect(markup).toContain("Enterprise inventory health and movement");
     expect(markup).toContain("Open Control Tower");
     expect(markup).toContain("Open Disposition &amp; Wholesale");
+    expect(markup).toContain("Choose the car you want to open");
+    expect(markup).toContain("Load selected vehicle");
+    expect(markup).toContain("No vehicle selected");
+    expect(markup).toContain("Nothing is loaded until you make a selection.");
+    expect(markup).not.toContain("Open selected vehicle workbench");
     expect(markup).toContain("Lifecycle Pipeline");
     expect(markup).toContain("Lifecycle Velocity");
     expect(markup).toContain("Stage Bottlenecks");
     expect(markup).toContain("Inventory Aging");
+  });
+
+  it("shows vehicle details and the direct workbench action only after selection", () => {
+    const projection = buildInventoryControlTowerProjection(units, now, { inventoryUnitId: "unit-ready" });
+    const markup = renderToStaticMarkup(<InventoryLifecycleLanding projection={projection} controlTowerHref="/vehicles/control-tower" />);
+    expect(markup).toContain("2022 Honda Accord");
+    expect(markup).toContain("Open selected vehicle workbench");
+    expect(markup).toContain("/vehicles/vehicle-200/workbench");
+    expect(markup).not.toContain("Nothing is loaded until you make a selection.");
   });
 
   it("renders live control-tower facts and connected downstream workspaces", () => {

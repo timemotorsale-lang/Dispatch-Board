@@ -11,3 +11,14 @@
 @media(max-width:900px){.workspace{padding:14px 12px}.hero{grid-template-columns:1fr}.heroActions{grid-row:2}.vehicleContext{grid-template-columns:auto 1fr}.vehicleContext dl{grid-column:1/-1}.commandGrid{grid-template-columns:1fr}.rail{grid-column:auto;grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}.facts{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:580px){.heroActions,.registration footer{display:grid}.heroActions a{white-space:normal}.vehicleContext{grid-template-columns:1fr}.vehicleContext dl,.formGrid,.actionForm,.kpis,.facts{grid-template-columns:1fr}.vehicleContext dl div,.facts>div{border-left:0;border-right:0;border-top:1px solid #e3e9f0;padding:9px 0}.gates{grid-template-columns:repeat(7,125px)}.registration footer button{min-height:44px}}
 :global(html[data-app-theme="dark"]) .workspace{--ink:#edf4ff;--muted:#9baabd;--line:#293b52}.workspace :global(html[data-app-theme="dark"]){color:inherit}:global(html[data-app-theme="dark"]) .hero,:global(html[data-app-theme="dark"]) .vehicleContext,:global(html[data-app-theme="dark"]) .gates,:global(html[data-app-theme="dark"]) .kpis article,:global(html[data-app-theme="dark"]) .queue,:global(html[data-app-theme="dark"]) .decisionPanel,:global(html[data-app-theme="dark"]) .rail>section,:global(html[data-app-theme="dark"]) .registration{border-color:#293b52;background:#101f31}:global(html[data-app-theme="dark"]) .truthBar,:global(html[data-app-theme="dark"]) .caseList button,:global(html[data-app-theme="dark"]) .actionForm input,:global(html[data-app-theme="dark"]) .actionForm select,:global(html[data-app-theme="dark"]) .formGrid input,:global(html[data-app-theme="dark"]) .formGrid select{color:#edf4ff;background:#14253a;border-color:#344a64}
+ .guidanceBox{grid-column:1/-1;display:grid;gap:6px;border:1px solid #c9d8ee;border-left:4px solid var(--blue);border-radius:8px;padding:11px 12px;background:#f7fbff}
+ .guidanceBox strong{color:#14345f;font-size:.78rem}
+ .guidanceBox p{margin:0;color:#52677f;font-size:.72rem;line-height:1.45}
+ .guidanceBox ul{display:grid;gap:4px;margin:2px 0 0 16px;padding:0;color:#60748b;font-size:.72rem}
+ .actionForm label small{color:#6f7f93;font-size:.72rem;font-weight:650;line-height:1.35}
+ .doNextStrip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;border-top:1px solid #e3e9f0;padding:12px 16px;background:#fbfcff}
+ .doNextStrip div{display:grid;gap:3px;border:1px solid #dbe5f2;border-radius:8px;padding:10px;background:#fff}
+ .doNextStrip span{color:#4665b7;font-size:.72rem;font-weight:900;letter-spacing:.06em;text-transform:uppercase}
+ .doNextStrip strong{color:#1d314d;font-size:.72rem;line-height:1.45}
+ @media(max-width:1100px){.doNextStrip{grid-template-columns:repeat(2,minmax(0,1fr))}}
+ @media(max-width:580px){.doNextStrip{grid-template-columns:1fr}}
