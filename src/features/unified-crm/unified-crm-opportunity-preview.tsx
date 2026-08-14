@@ -44,15 +44,15 @@ const previewModel: UnifiedCrmOpportunityPreviewModel = {
       label: "Intake review",
       itemCountLabel: "2 scenarios",
       valueLabel: "No governed stage yet",
-      items: [
-        {
-          id: "review01",
-          customerLabel: "Customer appears after approved create path",
-          detailHref: "/crm/opportunities/review01?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
-          nextActionLabel: "Review create contract",
-          ownerLabel: "Team-owned preview",
-          reason: "First secure create path will surface here after lifecycle approval."
-        }
+        items: [
+          {
+            id: "review01",
+            customerLabel: "Customer appears after approved create path",
+            detailHref: "/crm/opportunities/new?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
+            nextActionLabel: "Review create contract",
+            ownerLabel: "Team-owned preview",
+            reason: "First secure create path will surface here after lifecycle approval."
+          }
       ]
     }
   ],
