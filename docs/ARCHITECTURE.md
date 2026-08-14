@@ -2,8 +2,8 @@
 
 **Document:** Architecture  
 **Version:** v0.2.0 living baseline
-**Last updated:** 2026-07-27
-**Status:** Dispatch Board implemented; Enterprise Appointment E1 in progress; Enterprise Tasks, Customers, Sales, and Diagnostics Console directions refined
+**Last updated:** 2026-08-14
+**Status:** Dispatch Board implemented; Enterprise Appointment E1 in progress; Enterprise Tasks, Customers, Sales, Diagnostics, and Unified CRM Console directions refined
 **Source documents:** `docs/PRODUCT_SPEC.md`, `docs/MVP_SCOPE.md`, `docs/CURRENT_IMPLEMENTATION_STATUS.md`, `docs/ENTERPRISE_TASKS_MODULE.md`, `docs/SCHEDULER_VERIFICATION_CONTRACT.md`, `docs/appointments/`, `docs/customers/`, `docs/sales-console/`, `docs/The Guide To Vibe Coding.md`
 
 **Tasks Console UI source of truth:** [`docs/TASKS_CONSOLE_UI_SOURCE_OF_TRUTH.md`](TASKS_CONSOLE_UI_SOURCE_OF_TRUTH.md)
@@ -29,6 +29,8 @@
 > **Customers Console planning package:** The customer-domain boundary, architecture decisions, rollout roadmap, and milestone IDs live in [`docs/customers/README.md`](customers/README.md). That package defines Customers as the customer intelligence and customer operations layer inside the Dispatch Board, not a separate CRM deployment or a copy of another product.
 
 > **Enterprise Sales Console planning package:** The sales-domain boundary, dealership selling operating model, lead-to-delivery workflows, deterministic decision algorithms, phased roadmap, implementation milestones, and traceability matrix live in [`docs/sales-console/README.md`](sales-console/README.md). Sales is the commercial decision and execution layer over authoritative Customers, Inventory, Appointments, Tasks, and Documents records. This package is documentation only and does not authorize production code, customer communication, pricing, finance decisions, or rollout.
+
+> **Unified CRM Console foundation:** The governing product charter, current evidence baseline, architecture, security/privacy model, roadmap, vertical milestones, multi-agent operating model, testing strategy, decision register, and traceability matrix live in [`docs/unified-crm/README.md`](unified-crm/README.md). Unified CRM is an independent `/crm` console inside the shared Dispatch Board modular monolith. It must reuse authoritative Customers, Inventory, Appointments, Tasks, Repair/Jobs, Documents, Activity, and identity foundations rather than creating competing records. This package is planning authority only; implementation and rollout require their named evidence gates.
 
 > **Manager Review Command Center planning package:** The approved UI/UX source of truth, review-domain boundary, deterministic Manager Attention Engine, rollout roadmap, and implementation milestone IDs live in [`docs/manager-review/README.md`](manager-review/README.md). That package defines Manager Review as the decision, quality-control, and intervention layer inside the Dispatch Board, not a separate task system or employee performance-review product.
 
