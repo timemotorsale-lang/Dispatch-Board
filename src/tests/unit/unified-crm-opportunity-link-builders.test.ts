@@ -63,7 +63,12 @@ describe("Unified CRM opportunity link builders", () => {
       intent: "LINK_REPAIR_ORDER",
       opportunityId: "opp_123456" as never,
       purpose: "Link existing repair work.",
-      source
+      source,
+      target: {
+        expectedTargetVersion: 3,
+        repairOrderId: "repair-order-1",
+        targetKind: "REPAIR_ORDER"
+      }
     })).toMatchObject({
       targetType: "DISPATCH",
       intent: "LINK_REPAIR_ORDER"
@@ -94,14 +99,16 @@ describe("Unified CRM opportunity link builders", () => {
       intent: "LINK_EXISTING_APPOINTMENT",
       opportunityId: "opp_123456" as never,
       purpose: "Link an existing appointment.",
-      source
+      source,
+      target: {
+        appointmentId: "appointment-1",
+        expectedTargetVersion: 2
+      }
     });
-    expect(buildUnifiedCrmOpportunityAppointmentBridgeReceipt(appointmentRequest, "PENDING", {
-      appointmentId: "appt-1",
-      appointmentNumber: "APT-1001",
-      domain: "APPOINTMENTS",
-      href: "/appointments?view=board&appointment=APT-1001"
-    })).toMatchObject({ state: "PENDING", target: { appointmentNumber: "APT-1001" } });
+    expect(buildUnifiedCrmOpportunityAppointmentBridgeReceipt(appointmentRequest, {
+      state: "PENDING",
+      target: null
+    })).toMatchObject({ correlationId: "corr-2", failure: null, state: "PENDING", target: null });
 
     const dispatchRequest = buildUnifiedCrmOpportunityDispatchBridgeRequest(access, {
       correlationId: "corr-3",
@@ -112,13 +119,15 @@ describe("Unified CRM opportunity link builders", () => {
       purpose: "Open existing dispatch flow.",
       source
     });
-    expect(buildUnifiedCrmOpportunityDispatchBridgeReceipt(dispatchRequest, "FAILED", {
-      domain: "DISPATCH",
-      href: "/vehicles/repair-workbench?repairOrderId=ro-1",
-      repairJobId: null,
-      repairJobNumber: null,
-      repairOrderId: "ro-1",
-      repairOrderNumber: "RO-1001"
-    })).toMatchObject({ state: "FAILED", target: { repairOrderNumber: "RO-1001" } });
+    expect(buildUnifiedCrmOpportunityDispatchBridgeReceipt(dispatchRequest, {
+      failure: { code: "OWNER_COMMAND_UNAVAILABLE", retryable: true },
+      state: "FAILED",
+      target: null
+    })).toMatchObject({
+      correlationId: "corr-3",
+      failure: { code: "OWNER_COMMAND_UNAVAILABLE", retryable: true },
+      state: "FAILED",
+      target: null
+    });
   });
 });

@@ -7,19 +7,26 @@ import type {
   UnifiedCrmOpportunitySourceReference
 } from "@/server/unified-crm/opportunity-contract";
 import type {
-  UnifiedCrmOpportunityAppointmentBridgeIntent,
   UnifiedCrmOpportunityAppointmentBridgeReceipt,
   UnifiedCrmOpportunityAppointmentBridgeRequest,
+  UnifiedCrmOpportunityAppointmentBridgeTarget,
   UnifiedCrmOpportunityAppointmentReference,
-  UnifiedCrmOpportunityDispatchBridgeIntent,
   UnifiedCrmOpportunityDispatchBridgeReceipt,
   UnifiedCrmOpportunityDispatchBridgeRequest,
+  UnifiedCrmOpportunityDispatchBridgeTarget,
   UnifiedCrmOpportunityDispatchReference,
+  UnifiedCrmOpportunityStageNeutralBridgeOutcome,
   UnifiedCrmOpportunityTaskBridgeIntent,
   UnifiedCrmOpportunityTaskBridgeReceipt,
   UnifiedCrmOpportunityTaskBridgeRequest,
   UnifiedCrmOpportunityTaskReference
 } from "@/server/unified-crm/opportunity-link-contract";
+import {
+  normalizeUnifiedCrmOpportunityAppointmentBridgeReceipt,
+  normalizeUnifiedCrmOpportunityAppointmentBridgeRequest,
+  normalizeUnifiedCrmOpportunityDispatchBridgeReceipt,
+  normalizeUnifiedCrmOpportunityDispatchBridgeRequest
+} from "@/server/validation/unified-crm-opportunity-link";
 
 type BaseRequestInput = {
   correlationId: string;
@@ -75,24 +82,33 @@ export function buildUnifiedCrmOpportunityTaskBridgeRequest(
 
 export function buildUnifiedCrmOpportunityAppointmentBridgeRequest(
   access: UnifiedCrmOpportunityAccessContext,
-  input: BaseRequestInput & { intent: UnifiedCrmOpportunityAppointmentBridgeIntent }
+  input: BaseRequestInput & (
+    | { intent: "CREATE_DRAFT_APPOINTMENT"; target?: null }
+    | { intent: "LINK_EXISTING_APPOINTMENT"; target: UnifiedCrmOpportunityAppointmentBridgeTarget }
+  )
 ): UnifiedCrmOpportunityAppointmentBridgeRequest {
-  return {
+  return normalizeUnifiedCrmOpportunityAppointmentBridgeRequest({
     ...baseRequest(access, input),
     intent: input.intent,
+    target: input.target ?? null,
     targetType: "APPOINTMENT"
-  };
+  });
 }
 
 export function buildUnifiedCrmOpportunityDispatchBridgeRequest(
   access: UnifiedCrmOpportunityAccessContext,
-  input: BaseRequestInput & { intent: UnifiedCrmOpportunityDispatchBridgeIntent }
+  input: BaseRequestInput & (
+    | { intent: "OPEN_AUTHORITATIVE_DISPATCH"; target?: null }
+    | { intent: "LINK_REPAIR_ORDER"; target: Extract<UnifiedCrmOpportunityDispatchBridgeTarget, { targetKind: "REPAIR_ORDER" }> }
+    | { intent: "LINK_REPAIR_JOB"; target: Extract<UnifiedCrmOpportunityDispatchBridgeTarget, { targetKind: "REPAIR_JOB" }> }
+  )
 ): UnifiedCrmOpportunityDispatchBridgeRequest {
-  return {
+  return normalizeUnifiedCrmOpportunityDispatchBridgeRequest({
     ...baseRequest(access, input),
     intent: input.intent,
+    target: input.target ?? null,
     targetType: "DISPATCH"
-  };
+  });
 }
 
 export function buildUnifiedCrmOpportunityTaskBridgeReceipt(
@@ -105,16 +121,32 @@ export function buildUnifiedCrmOpportunityTaskBridgeReceipt(
 
 export function buildUnifiedCrmOpportunityAppointmentBridgeReceipt(
   request: UnifiedCrmOpportunityAppointmentBridgeRequest,
-  state: UnifiedCrmOpportunityBridgeState,
-  target: UnifiedCrmOpportunityAppointmentReference | null
+  outcome: UnifiedCrmOpportunityStageNeutralBridgeOutcome<UnifiedCrmOpportunityAppointmentReference>
 ): UnifiedCrmOpportunityAppointmentBridgeReceipt {
-  return baseReceipt(request, state, target);
+  return normalizeUnifiedCrmOpportunityAppointmentBridgeReceipt({
+    contractVersion: "ucrm.opportunity/v1",
+    correlationId: request.correlationId,
+    idempotencyKey: request.idempotencyKey,
+    opportunityId: request.opportunityId,
+    organizationId: request.organizationId,
+    failure: outcome.failure ?? null,
+    state: outcome.state,
+    target: outcome.target ?? null
+  });
 }
 
 export function buildUnifiedCrmOpportunityDispatchBridgeReceipt(
   request: UnifiedCrmOpportunityDispatchBridgeRequest,
-  state: UnifiedCrmOpportunityBridgeState,
-  target: UnifiedCrmOpportunityDispatchReference | null
+  outcome: UnifiedCrmOpportunityStageNeutralBridgeOutcome<UnifiedCrmOpportunityDispatchReference>
 ): UnifiedCrmOpportunityDispatchBridgeReceipt {
-  return baseReceipt(request, state, target);
+  return normalizeUnifiedCrmOpportunityDispatchBridgeReceipt({
+    contractVersion: "ucrm.opportunity/v1",
+    correlationId: request.correlationId,
+    idempotencyKey: request.idempotencyKey,
+    opportunityId: request.opportunityId,
+    organizationId: request.organizationId,
+    failure: outcome.failure ?? null,
+    state: outcome.state,
+    target: outcome.target ?? null
+  });
 }

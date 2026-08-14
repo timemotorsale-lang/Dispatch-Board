@@ -24,12 +24,16 @@ describe("Unified CRM opportunity link validation", () => {
       appointmentId: "appt-1",
       appointmentNumber: "APT-1001",
       domain: "APPOINTMENTS",
-      href: "/appointments?view=board&appointment=APT-1001"
+      href: "/appointments?view=board&appointment=APT-1001",
+      organizationId: "org-a",
+      version: 2
     })).toEqual({
       appointmentId: "appt-1",
       appointmentNumber: "APT-1001",
       domain: "APPOINTMENTS",
-      href: "/appointments?view=board&appointment=APT-1001"
+      href: "/appointments?view=board&appointment=APT-1001",
+      organizationId: "org-a",
+      version: 2
     });
 
     expect(normalizeUnifiedCrmOpportunityDispatchReference({
@@ -38,14 +42,18 @@ describe("Unified CRM opportunity link validation", () => {
       repairJobId: null,
       repairJobNumber: null,
       repairOrderId: "ro-1",
-      repairOrderNumber: "RO-1001"
+      repairOrderNumber: "RO-1001",
+      organizationId: "org-a",
+      version: 3
     })).toEqual({
       domain: "DISPATCH",
       href: "/vehicles/repair-workbench?repairOrderId=ro-1",
       repairJobId: null,
       repairJobNumber: null,
       repairOrderId: "ro-1",
-      repairOrderNumber: "RO-1001"
+      repairOrderNumber: "RO-1001",
+      organizationId: "org-a",
+      version: 3
     });
   });
 
@@ -59,13 +67,17 @@ describe("Unified CRM opportunity link validation", () => {
       appointmentId: "appt-1",
       appointmentNumber: "APT-1001",
       domain: "APPOINTMENTS",
-      href: "/tasks/task-1"
+      href: "/tasks/task-1",
+      organizationId: "org-a",
+      version: 2
     })).toThrow("Href is invalid.");
     expect(() => normalizeUnifiedCrmOpportunityDispatchReference({
       domain: "DISPATCH",
       href: "/appointments",
       repairOrderId: "ro-1",
-      repairOrderNumber: "RO-1001"
+      repairOrderNumber: "RO-1001",
+      organizationId: "org-a",
+      version: 3
     })).toThrow("Href is invalid.");
   });
 });
