@@ -1,10 +1,12 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, ArrowRight, CalendarDays, CarFront, ExternalLink, RefreshCw, ShieldCheck, UserRound, UsersRound } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, CalendarDays, CarFront, ExternalLink, History, RefreshCw, ShieldCheck, UserRound, UsersRound } from "lucide-react";
 import Link from "next/link";
 
 import type { UnifiedCrmCustomer360ReadModel } from "@/server/unified-crm/customer-360-contract";
 
+import { UnifiedCrmCustomerInteractionForm } from "./unified-crm-customer-interaction-form";
+import { UnifiedCrmCustomerNoteForm } from "./unified-crm-customer-note-form";
 import styles from "./unified-crm-customer-360.module.css";
 
 type FailureKind = "error" | "not-available" | "restricted" | "unavailable";
@@ -88,6 +90,54 @@ function SourceLenses({ model }: { model: UnifiedCrmCustomer360ReadModel }) {
   );
 }
 
+function TimelineSection({ model }: { model: UnifiedCrmCustomer360ReadModel }) {
+  return (
+    <section aria-labelledby="timeline-heading" className={styles.sectionCard}>
+      <header>
+        <div><span className={styles.eyebrow}>Unified activity</span><h2 id="timeline-heading">Relationship timeline</h2></div>
+        <small>{model.timeline.itemCount} latest permitted events</small>
+      </header>
+      <div className={styles.timelineList}>
+        {model.timeline.items.length ? model.timeline.items.map((item) => (
+          <article key={item.id} className={styles.timelineItem}>
+            <span className={styles.timelineDot} aria-hidden="true" />
+            <div className={styles.timelineBody}>
+              <strong>{item.title}</strong>
+              <p>{item.detail}</p>
+              <small>{item.actorName ? `${item.actorName} · ` : ""}{item.sourceLabel}</small>
+            </div>
+            <time>{formatDate(item.occurredAt, "Time unavailable")}</time>
+            <Link href={item.sourceHref}>Open source<ExternalLink aria-hidden="true" size={13} /></Link>
+          </article>
+        )) : <p className={styles.timelineEmpty}><History aria-hidden="true" size={16} />No permitted relationship history has been recorded yet.</p>}
+      </div>
+    </section>
+  );
+}
+
+function NotesSection({ model }: { model: UnifiedCrmCustomer360ReadModel }) {
+  return (
+    <section aria-labelledby="customer-notes-heading" className={styles.sectionCard}>
+      <header>
+        <div><span className={styles.eyebrow}>Relationship notes</span><h2 id="customer-notes-heading">Team context</h2></div>
+        <small>{model.notes.length ? `${model.notes.length} visible notes` : "Read only list"}</small>
+      </header>
+      <div className={styles.notesList}>
+        {model.notes.length ? model.notes.map((note) => (
+          <article className={styles.noteItem} key={note.id}>
+            <div className={styles.noteMeta}>
+              <strong>{note.authorName}</strong>
+              <span>{note.visibility === "RESTRICTED" ? "Restricted" : "Internal"}</span>
+              <time>{formatDate(note.createdAt, "Time unavailable")}</time>
+            </div>
+            <p>{note.body}</p>
+          </article>
+        )) : <p className={styles.timelineEmpty}><History aria-hidden="true" size={16} />No permitted customer notes have been recorded yet.</p>}
+      </div>
+    </section>
+  );
+}
+
 export function UnifiedCrmCustomer360({ errorMessage, failureKind = "error", model, returnHref }: Customer360Props) {
   if (!model) return <StatePanel kind={failureKind} message={errorMessage} returnHref={returnHref} />;
   const primaryContact = model.contacts.find((item) => item.isPrimary) ?? model.contacts[0];
@@ -104,10 +154,14 @@ export function UnifiedCrmCustomer360({ errorMessage, failureKind = "error", mod
         <article className={styles.nextAction}><span className={styles.eyebrow}>Next relationship action</span><h2>{model.relationship.nextActionAt ? formatDate(model.relationship.nextActionAt, "Not scheduled") : "No next action scheduled"}</h2><p>Last interaction: {formatDate(model.relationship.lastInteractionAt, "No interaction recorded")}</p><small>This overview is read only. Continue in the appropriate source workflow to make a change.</small></article>
         <article className={styles.contactCard}><span className={styles.eyebrow}>Masked contact</span><h2>{primaryContact?.maskedValue ?? "No contact recorded"}</h2>{otherContacts.map((item) => <p key={`${item.type}-${item.maskedValue}`}>{label(item.type)} · {item.maskedValue}</p>)}<dl><div><dt>Preferred method</dt><dd>{model.preferences.preferredContactMethod ? label(model.preferences.preferredContactMethod) : "Not recorded"}</dd></div><div><dt>Preferred time</dt><dd>{model.preferences.preferredContactTime ?? "Not recorded"}</dd></div><div><dt>Language</dt><dd>{model.preferences.languageCode ?? "Not recorded"}</dd></div></dl></article>
       </section>
+      <UnifiedCrmCustomerInteractionForm customerId={model.identity.id} />
+      <UnifiedCrmCustomerNoteForm allowRestricted={model.permissions.canCreateRestrictedNote} customerId={model.identity.id} />
       <RelationshipSummary model={model} />
+      <NotesSection model={model} />
+      <TimelineSection model={model} />
       <WorkContext model={model} />
       <SourceLenses model={model} />
-      <footer className={styles.footer}>Source record observed {formatDate(model.freshness.observedAt, "time unavailable")} · source record updated {formatDate(model.freshness.sourceRecordUpdatedAt, "time unavailable")} · no CRM write controls are present.</footer>
+      <footer className={styles.footer}>Source record observed {formatDate(model.freshness.observedAt, "time unavailable")} · source record updated {formatDate(model.freshness.sourceRecordUpdatedAt, "time unavailable")} · manual contact outcomes are recorded here; source-owned workflows remain authoritative.</footer>
     </main>
   );
 }

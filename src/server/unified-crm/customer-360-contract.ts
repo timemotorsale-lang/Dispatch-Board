@@ -56,6 +56,25 @@ export type UnifiedCrmCustomer360CaseLens = {
   sourceHref: string;
 };
 
+export type UnifiedCrmCustomer360TimelineItem = {
+  id: string;
+  kind: "interaction" | "task-event" | "appointment-event" | "lead-event" | "case-event" | "promise-event";
+  title: string;
+  detail: string;
+  occurredAt: string;
+  actorName: string | null;
+  sourceLabel: string;
+  sourceHref: string;
+};
+
+export type UnifiedCrmCustomer360Note = {
+  id: string;
+  body: string;
+  authorName: string;
+  createdAt: string;
+  visibility: "INTERNAL" | "RESTRICTED";
+};
+
 export type UnifiedCrmCustomer360ReadModel = {
   contractVersion: typeof UNIFIED_CRM_CUSTOMER_360_CONTRACT_VERSION;
   state: "READY";
@@ -87,12 +106,20 @@ export type UnifiedCrmCustomer360ReadModel = {
     preferredContactTime: string | null;
     languageCode: string | null;
   };
+  permissions: {
+    canCreateRestrictedNote: boolean;
+  };
   relationship: {
     lastInteractionAt: string | null;
     nextActionAt: string | null;
   };
   vehicles: UnifiedCrmCustomer360Vehicle[];
   appointments: UnifiedCrmCustomer360Appointment[];
+  notes: UnifiedCrmCustomer360Note[];
+  timeline: {
+    itemCount: number;
+    items: UnifiedCrmCustomer360TimelineItem[];
+  };
   sourceLenses: {
     leads: UnifiedCrmCustomer360LeadLens[];
     cases: UnifiedCrmCustomer360CaseLens[];

@@ -27,6 +27,17 @@ function customer360Select(
       select: { type: true, value: true, isPrimary: true },
       orderBy: [{ isPrimary: "desc" as const }, { updatedAt: "desc" as const }, { id: "asc" as const }]
     },
+    notes: {
+      take: 10,
+      orderBy: [{ createdAt: "desc" as const }, { id: "desc" as const }],
+      select: {
+        id: true,
+        body: true,
+        createdAt: true,
+        visibility: true,
+        authorUser: { select: { name: true } }
+      }
+    },
     vehicleRelationships: {
       where: { vehicle: { organizationId } },
       take: 12,

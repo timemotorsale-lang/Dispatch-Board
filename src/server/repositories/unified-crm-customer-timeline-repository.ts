@@ -1,0 +1,241 @@
+import { Prisma, type PrismaClient } from "@prisma/client";
+
+import { prisma } from "@/server/db/client";
+import type { UnifiedCrmCustomerRecordScope } from "@/server/policies/unified-crm-customer-read";
+
+const interactionSelect = {
+  id: true,
+  channel: true,
+  direction: true,
+  summary: true,
+  outcome: true,
+  nextStep: true,
+  occurredAt: true,
+  actorUser: { select: { id: true, name: true } }
+} satisfies Prisma.CustomerInteractionSelect;
+
+const activityEventSelect = {
+  id: true,
+  eventType: true,
+  message: true,
+  createdAt: true,
+  actorUser: { select: { id: true, name: true } },
+  task: {
+    select: {
+      id: true,
+      title: true,
+      status: true,
+      assignedUserId: true
+    }
+  },
+  concernCase: {
+    select: {
+      id: true,
+      concernNumber: true,
+      title: true,
+      status: true,
+      assignedOwnerId: true
+    }
+  }
+} satisfies Prisma.ActivityEventSelect;
+
+const appointmentHistoryEventSelect = {
+  id: true,
+  eventType: true,
+  message: true,
+  occurredAt: true,
+  actorUser: { select: { id: true, name: true } },
+  appointment: {
+    select: {
+      id: true,
+      appointmentNumber: true,
+      title: true,
+      ownerUserId: true
+    }
+  }
+} satisfies Prisma.AppointmentHistoryEventSelect;
+
+const leadEventSelect = {
+  id: true,
+  leadNumber: true,
+  stage: true,
+  vehicleInterest: true,
+  createdAt: true,
+  ownerUserId: true,
+  ownerUser: { select: { id: true, name: true } }
+} satisfies Prisma.CustomerLeadSelect;
+
+const caseEventSelect = {
+  id: true,
+  concernNumber: true,
+  title: true,
+  priority: true,
+  status: true,
+  createdAt: true,
+  assignedOwnerId: true,
+  assignedOwner: { select: { id: true, name: true } }
+} satisfies Prisma.ConcernCaseSelect;
+
+const promiseEventSelect = {
+  id: true,
+  promiseType: true,
+  promisedAt: true,
+  dueAt: true,
+  status: true,
+  fulfilledAt: true,
+  ownerUserId: true,
+  ownerUser: { select: { id: true, name: true } },
+  fulfilledByUser: { select: { id: true, name: true } },
+  concernCase: {
+    select: {
+      id: true,
+      concernNumber: true,
+      customerId: true,
+      organizationId: true,
+      assignedOwnerId: true
+    }
+  }
+} satisfies Prisma.CustomerPromiseSelect;
+
+export type UnifiedCrmCustomerInteractionRecord = Prisma.CustomerInteractionGetPayload<{
+  select: typeof interactionSelect;
+}>;
+
+export type UnifiedCrmCustomerActivityEventRecord = Prisma.ActivityEventGetPayload<{
+  select: typeof activityEventSelect;
+}>;
+
+export type UnifiedCrmCustomerAppointmentHistoryRecord = Prisma.AppointmentHistoryEventGetPayload<{
+  select: typeof appointmentHistoryEventSelect;
+}>;
+
+export type UnifiedCrmCustomerLeadEventRecord = Prisma.CustomerLeadGetPayload<{
+  select: typeof leadEventSelect;
+}>;
+
+export type UnifiedCrmCustomerCaseEventRecord = Prisma.ConcernCaseGetPayload<{
+  select: typeof caseEventSelect;
+}>;
+
+export type UnifiedCrmCustomerPromiseEventRecord = Prisma.CustomerPromiseGetPayload<{
+  select: typeof promiseEventSelect;
+}>;
+
+export type UnifiedCrmCustomerTimelineRepositoryInput = {
+  customerId: string;
+  organizationId: string;
+  limit: number;
+  recordScope: UnifiedCrmCustomerRecordScope;
+};
+
+export type UnifiedCrmCustomerTimelineRecord = {
+  interactions: UnifiedCrmCustomerInteractionRecord[];
+  activityEvents: UnifiedCrmCustomerActivityEventRecord[];
+  appointmentHistoryEvents: UnifiedCrmCustomerAppointmentHistoryRecord[];
+  leadEvents: UnifiedCrmCustomerLeadEventRecord[];
+  caseEvents: UnifiedCrmCustomerCaseEventRecord[];
+  promiseEvents: UnifiedCrmCustomerPromiseEventRecord[];
+};
+
+export type UnifiedCrmCustomerTimelineRepository = {
+  listTimeline(input: UnifiedCrmCustomerTimelineRepositoryInput): Promise<UnifiedCrmCustomerTimelineRecord>;
+};
+
+type UnifiedCrmCustomerTimelineDatabase = Pick<
+  PrismaClient,
+  "activityEvent" | "appointmentHistoryEvent" | "concernCase" | "customerInteraction" | "customerLead" | "customerPromise"
+>;
+
+export function createUnifiedCrmCustomerTimelineRepository(
+  database: UnifiedCrmCustomerTimelineDatabase = prisma
+): UnifiedCrmCustomerTimelineRepository {
+  return {
+    async listTimeline(input) {
+      const ownerUserId = input.recordScope.kind === "OWNER" ? input.recordScope.ownerUserId : undefined;
+      const [interactions, activityEvents, appointmentHistoryEvents, leadEvents, caseEvents, promiseEvents] = await Promise.all([
+        database.customerInteraction.findMany({
+          where: { customerId: input.customerId },
+          select: interactionSelect,
+          orderBy: [{ occurredAt: "desc" }, { id: "desc" }],
+          take: input.limit
+        }),
+        database.activityEvent.findMany({
+          where: {
+            OR: [
+              {
+                task: {
+                  customerId: input.customerId,
+                  ...(ownerUserId ? { assignedUserId: ownerUserId } : {})
+                }
+              },
+              {
+                concernCase: {
+                  customerId: input.customerId,
+                  organizationId: input.organizationId,
+                  ...(ownerUserId ? { assignedOwnerId: ownerUserId } : {})
+                }
+              }
+            ]
+          },
+          select: activityEventSelect,
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          take: input.limit
+        }),
+        database.appointmentHistoryEvent.findMany({
+          where: {
+            appointment: {
+              organizationId: input.organizationId,
+              participants: { some: { customerId: input.customerId } },
+              ...(ownerUserId ? { ownerUserId } : {})
+            }
+          },
+          select: appointmentHistoryEventSelect,
+          orderBy: [{ occurredAt: "desc" }, { id: "desc" }],
+          take: input.limit
+        }),
+        database.customerLead.findMany({
+          where: {
+            customerId: input.customerId,
+            organizationId: input.organizationId,
+            ...(ownerUserId ? { ownerUserId } : {})
+          },
+          select: leadEventSelect,
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          take: input.limit
+        }),
+        database.concernCase.findMany({
+          where: {
+            customerId: input.customerId,
+            organizationId: input.organizationId,
+            ...(ownerUserId ? { assignedOwnerId: ownerUserId } : {})
+          },
+          select: caseEventSelect,
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          take: input.limit
+        }),
+        database.customerPromise.findMany({
+          where: {
+            concernCase: {
+              customerId: input.customerId,
+              organizationId: input.organizationId,
+              ...(ownerUserId ? { assignedOwnerId: ownerUserId } : {})
+            },
+            ...(ownerUserId ? { ownerUserId } : {})
+          },
+          select: promiseEventSelect,
+          orderBy: [{ promisedAt: "desc" }, { id: "desc" }],
+          take: input.limit
+        })
+      ]);
+
+      return {
+        interactions,
+        activityEvents,
+        appointmentHistoryEvents,
+        leadEvents,
+        caseEvents,
+        promiseEvents
+      };
+    }
+  };
+}

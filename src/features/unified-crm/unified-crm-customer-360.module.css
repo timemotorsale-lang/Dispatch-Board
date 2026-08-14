@@ -29,6 +29,25 @@
 .nextAction h2,.contactCard h2 { margin-top: 5px; font-size: 17px; }
 .nextAction p,.contactCard p { margin-top: 5px; color: var(--crm360-muted); font-size: 11px; }
 .nextAction > small { display: block; margin-top: 16px; color: var(--crm360-muted); font-size: 10px; }
+.interactionCard { max-width: 1480px; margin: 9px auto 0; border: 1px solid var(--crm360-border); border-radius: 9px; background: var(--crm360-surface); box-shadow: 0 2px 8px rgb(22 42 68 / 4%); }
+.interactionHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 14px; }
+.interactionHeader h2,.interactionHeader p { margin: 0; }
+.interactionHeader h2 { margin-top: 4px; font-size: 14px; }
+.interactionHeader p { margin-top: 4px; color: var(--crm360-muted); font-size: 10.5px; line-height: 1.45; }
+.interactionToggle,.interactionActions button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; border: 1px solid var(--crm360-blue); border-radius: 7px; padding: 0 12px; color: #fff; background: var(--crm360-blue); font: inherit; font-size: 10.5px; font-weight: 850; cursor: pointer; }
+.interactionToggle:focus-visible,.interactionActions button:focus-visible { outline: 3px solid rgb(23 98 207 / 20%); outline-offset: 2px; }
+.interactionActions button:disabled { opacity: .6; cursor: wait; }
+.interactionForm { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; padding: 0 14px 14px; }
+.interactionForm label { display: grid; gap: 5px; min-width: 0; }
+.interactionForm label span { color: var(--crm360-muted); font-size: 9.5px; font-weight: 800; }
+.interactionForm input,.interactionForm select,.interactionForm textarea { width: 100%; min-width: 0; border: 1px solid var(--crm360-border); border-radius: 7px; padding: 9px 10px; color: var(--crm360-text); background: var(--crm360-surface); font: inherit; font-size: 11px; }
+.interactionForm textarea { resize: vertical; }
+.interactionForm input:focus-visible,.interactionForm select:focus-visible,.interactionForm textarea:focus-visible { outline: 3px solid rgb(23 98 207 / 15%); border-color: var(--crm360-blue); }
+.interactionWide { grid-column: 1 / -1; }
+.interactionActions { display: flex; align-items: end; }
+.formError,.formSuccess { margin: 0; padding: 0 14px 12px; font-size: 10.5px; line-height: 1.45; }
+.formError { color: #b42318; }
+.formSuccess { color: var(--crm360-green); }
 .contactCard dl { display: grid; grid-template-columns: repeat(3,1fr); gap: 7px; margin: 13px 0 0; }
 .contactCard dl div { display: grid; gap: 3px; border-left: 1px solid var(--crm360-border); padding-left: 8px; }
 .contactCard dl div:first-child { border-left: 0; padding-left: 0; }
@@ -62,6 +81,21 @@
 .lensGrid article { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 10px; min-height: 70px; border-top: 1px solid var(--crm360-border); padding: 8px 0; }
 .lensGrid article div { display: grid; gap: 3px; min-width: 0; }.lensGrid article strong,.lensGrid article span,.lensGrid article small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.lensGrid article strong { font-size: 10.5px; }.lensGrid article span,.lensGrid article small { color: var(--crm360-muted); font-size: 9.5px; }
 .lensGrid article a { display: inline-flex; align-items: center; gap: 5px; min-height: 38px; color: var(--crm360-blue); font-size: 9.5px; font-weight: 850; }
+.timelineList { display: grid; }
+.timelineItem { display: grid; grid-template-columns: 12px minmax(0,1fr) auto auto; align-items: center; gap: 10px; min-height: 72px; padding: 10px 12px; border-top: 1px solid var(--crm360-border); }
+.timelineItem:first-child { border-top: 0; }
+.timelineDot { width: 8px; height: 8px; border-radius: 50%; background: var(--crm360-blue); }
+.timelineBody { display: grid; gap: 3px; min-width: 0; }
+.timelineBody strong,.timelineBody p,.timelineBody small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0; }
+.timelineBody strong { font-size: 10.5px; }
+.timelineBody p,.timelineBody small,.timelineItem time { color: var(--crm360-muted); font-size: 9.5px; }
+.timelineItem a { display: inline-flex; align-items: center; gap: 5px; min-height: 38px; color: var(--crm360-blue); font-size: 9.5px; font-weight: 850; }
+.timelineEmpty { display: flex; align-items: center; gap: 8px; margin: 0; padding: 12px; color: var(--crm360-muted); font-size: 10.5px; }
+.notesList { display: grid; gap: 8px; padding: 11px; }
+.noteItem { display: grid; gap: 6px; border: 1px solid var(--crm360-border); border-radius: 8px; padding: 10px 11px; background: var(--crm360-soft); }
+.noteItem p { margin: 0; color: var(--crm360-text); font-size: 12px; line-height: 1.5; white-space: pre-wrap; }
+.noteMeta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; color: var(--crm360-muted); font-size: 10px; }
+.noteMeta strong { color: var(--crm360-text); }
 .footer { max-width: 1480px; margin: 10px auto 0; color: var(--crm360-muted); text-align: center; font-size: 9.5px; line-height: 1.5; }
 .statePanel { display: grid; min-height: 380px; align-content: center; justify-items: center; padding: 30px; text-align: center; }.statePanel > svg { color: var(--crm360-blue); }.statePanel h1 { margin: 8px 0 0; font-size: 21px; }.statePanel p { max-width: 570px; margin: 6px 0 15px; color: var(--crm360-muted); font-size: 11.5px; line-height: 1.5; }.stateActions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }.stateActions a,.stateActions button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; border: 1px solid var(--crm360-blue); border-radius: 7px; padding: 0 12px; color: var(--crm360-blue); background: var(--crm360-surface); font: inherit; font-size: 10.5px; font-weight: 850; cursor: pointer; }.stateActions button { color: #fff; background: var(--crm360-blue); }
 .loading { padding: 18px; }.loading h1 { margin: 5px 0 0; font-size: 22px; }.loading p { margin: 5px 0 15px; color: var(--crm360-muted); font-size: 11.5px; }.loading > div { display: grid; gap: 8px; }.loading > div span { height: 58px; border-radius: 7px; background: linear-gradient(90deg,var(--crm360-surface) 20%,var(--crm360-soft) 45%,var(--crm360-surface) 70%); background-size: 220% 100%; animation: crm360-loading 1.2s ease-in-out infinite; }@keyframes crm360-loading { to { background-position: -220% 0; } }
@@ -71,10 +105,10 @@
 .trustBar a { min-height: 40px; }
 .eyebrow,.status,.identityCard p,.identityMeta small,.summaryCard header span,.sectionCard header small,.summaryCard article small,.contactCard dt,.footer { font-size: 12px; }
 .identityMeta strong,.nextAction p,.contactCard p,.contactCard dd,.contextColumns h3,.lensGrid h3,.contextColumns p,.lensGrid p,.statePanel p,.loading p { font-size: 13px; }
-.contextColumns a strong,.contextColumns a small,.contextColumns time,.lensGrid article strong,.lensGrid article span,.lensGrid article small,.lensGrid article a,.stateActions a,.stateActions button { font-size: 12px; }
+.contextColumns a strong,.contextColumns a small,.contextColumns time,.lensGrid article strong,.lensGrid article span,.lensGrid article small,.lensGrid article a,.timelineBody strong,.timelineBody p,.timelineBody small,.timelineItem time,.timelineItem a,.stateActions a,.stateActions button,.interactionHeader p,.interactionForm input,.interactionForm select,.interactionForm textarea,.interactionToggle,.interactionActions button,.formError,.formSuccess { font-size: 12px; }
 .lensGrid article a { min-height: 44px; }
 :global(html[data-app-theme="dark"]) .page { --crm360-bg:#0d1724;--crm360-surface:#121f2e;--crm360-soft:#172638;--crm360-border:#293b50;--crm360-text:#e5edf7;--crm360-muted:#9eacc0;--crm360-blue:#65a4ff;--crm360-blue-soft:#193352;--crm360-green:#65d393; }
 :global(html[data-app-theme="dark"]) .statusActive { background:#173627; }
-@media(max-width:900px){.page{min-height:calc(100vh - 64px);padding:12px 11px 24px}.priorityGrid{grid-template-columns:1fr}.contextColumns{grid-template-columns:1fr}.contextColumns>div{border-top:1px solid var(--crm360-border);border-left:0}.contextColumns>div:first-child{border-top:0}.lensGrid{grid-template-columns:1fr}.lensGrid>section+section{border-top:1px solid var(--crm360-border);border-left:0}}
-@media(max-width:640px){.identityCard{align-items:flex-start;flex-direction:column}.identityMeta{width:100%;justify-content:space-between}.trustBar{align-items:flex-start;flex-direction:column}.summaryCard>div{grid-template-columns:1fr}.summaryCard article{border-top:1px solid var(--crm360-border);border-left:0}.summaryCard article:first-child{border-top:0}.contactCard dl{grid-template-columns:1fr}.contactCard dl div{border-top:1px solid var(--crm360-border);border-left:0;padding:7px 0 0}.contactCard dl div:first-child{border-top:0}.contextColumns a{grid-template-columns:minmax(0,1fr) 14px}.contextColumns time{grid-column:1}.contextColumns a>svg{grid-column:2;grid-row:1}.lensGrid article{grid-template-columns:1fr}.lensGrid article a{min-height:44px}.stateActions{width:100%}.stateActions a,.stateActions button{width:100%;min-height:44px}}
+@media(max-width:900px){.page{min-height:calc(100vh - 64px);padding:12px 11px 24px}.priorityGrid,.interactionForm{grid-template-columns:1fr}.contextColumns{grid-template-columns:1fr}.contextColumns>div{border-top:1px solid var(--crm360-border);border-left:0}.contextColumns>div:first-child{border-top:0}.lensGrid{grid-template-columns:1fr}.lensGrid>section+section{border-top:1px solid var(--crm360-border);border-left:0}}
+@media(max-width:640px){.identityCard{align-items:flex-start;flex-direction:column}.identityMeta{width:100%;justify-content:space-between}.trustBar,.interactionHeader{align-items:flex-start;flex-direction:column}.summaryCard>div{grid-template-columns:1fr}.summaryCard article{border-top:1px solid var(--crm360-border);border-left:0}.summaryCard article:first-child{border-top:0}.contactCard dl{grid-template-columns:1fr}.contactCard dl div{border-top:1px solid var(--crm360-border);border-left:0;padding:7px 0 0}.contactCard dl div:first-child{border-top:0}.contextColumns a{grid-template-columns:minmax(0,1fr) 14px}.contextColumns time{grid-column:1}.contextColumns a>svg{grid-column:2;grid-row:1}.lensGrid article,.timelineItem{grid-template-columns:1fr}.lensGrid article a,.timelineItem a,.interactionToggle,.interactionActions button{min-height:44px}.timelineItem time{order:4}.stateActions{width:100%}.stateActions a,.stateActions button,.interactionToggle,.interactionActions button{width:100%}}
 @media(prefers-reduced-motion:reduce){.loading>div span{animation:none}}

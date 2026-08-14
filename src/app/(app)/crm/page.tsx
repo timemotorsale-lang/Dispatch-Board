@@ -2,6 +2,7 @@ import { UnifiedCrmShell, UnifiedCrmUnavailable } from "@/features/unified-crm/u
 import { parseUnifiedCrmView } from "@/features/unified-crm/unified-crm-shell-review-model";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { getUnifiedCrmCustomerList } from "@/server/services/unified-crm-customer-read-service";
+import { getUnifiedCrmWorkQueue } from "@/server/services/unified-crm-work-queue-service";
 import { resolveUnifiedCrmShellAccess } from "@/server/unified-crm/shell-access";
 
 type CrmPageProps = {
@@ -40,9 +41,30 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
   }
 
   const activeView = parseUnifiedCrmView(parameters.view);
+  let workQueue;
+  let workQueueError: string | undefined;
+  let workQueueFailureKind: "error" | "restricted" | "unavailable" | undefined;
   let customerList;
   let customerListError: string | undefined;
   let customerListFailureKind: "error" | "restricted" | "unavailable" | undefined;
+
+  if (activeView === "home" || activeView === "work") {
+    try {
+      workQueue = await getUnifiedCrmWorkQueue(user);
+    } catch (error) {
+      const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
+      if (["AUTHENTICATION_REQUIRED", "CRM_WORK_NOT_AUTHORIZED", "ORGANIZATION_SCOPE_UNAVAILABLE"].includes(code)) {
+        workQueueFailureKind = "restricted";
+        workQueueError = "Your current access does not include CRM work records.";
+      } else if (["CRM_WORK_OFF", "CRM_WORK_SOURCE_UNAVAILABLE", "ORGANIZATION_SCOPE_AMBIGUOUS"].includes(code)) {
+        workQueueFailureKind = "unavailable";
+        workQueueError = "The CRM work queue is temporarily unavailable. No work records were displayed.";
+      } else {
+        workQueueFailureKind = "error";
+        workQueueError = "The CRM work queue could not be loaded safely. No work records were displayed.";
+      }
+    }
+  }
 
   if (activeView === "customers") {
     try {
@@ -75,6 +97,9 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
       customerListError={customerListError}
       customerListFailureKind={customerListFailureKind}
       initialSelectedId={Array.isArray(parameters.selected) ? parameters.selected[0] : parameters.selected}
+      workQueue={workQueue}
+      workQueueError={workQueueError}
+      workQueueFailureKind={workQueueFailureKind}
       userName={user.name}
     />
   );
