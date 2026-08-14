@@ -1,7 +1,7 @@
 # Time Motor Sales Dispatch Board Roadmap
 
-**Last updated:** 2026-07-10
-**Roadmap status:** Dispatch Board foundation implemented; Enterprise Appointment E1 in progress; Enterprise Tasks and Customers Module directions refined
+**Last updated:** 2026-08-14
+**Roadmap status:** Dispatch Board foundation implemented; Enterprise Appointment E1 in progress; Enterprise Tasks, Customers, and Unified CRM directions refined
 **Primary goal:** Preserve and harden the working Dispatch Board while delivering approved Appointment, Tasks, and Customers module paths through reviewable vertical slices.
 
 > **Enterprise optimization program:** The cross-console governing rules and adoption sequence live in [`docs/enterprise-optimization/README.md`](enterprise-optimization/README.md) and its [`implementation roadmap`](enterprise-optimization/IMPLEMENTATION_ROADMAP.md). This program begins with shared vocabulary, evidence, deterministic recommendations, simulation, and shadow-mode validation. It does not authorize universal scoring weights or autonomous decisions; those require separate policy approval and measured validation.
@@ -13,6 +13,8 @@
 > **Enterprise Tasks Module planning package:** The integrated Tasks-module boundary, tier strategy, and milestone plan now live in [`docs/ENTERPRISE_TASKS_MODULE.md`](ENTERPRISE_TASKS_MODULE.md). Use that document when planning `/tasks`, task-console, queue, review, and commercial-readiness work so Tasks stays inside the parent Dispatch Board architecture.
 
 > **Customers Console planning package:** The Customers architecture, MVP rollout roadmap, and Codex-sized milestones now live in [`docs/customers/README.md`](customers/README.md). Use that package for `/customers`, Customer 360, customer memory, lead follow-up, case/SLA, relationship bridges, manager intelligence, governance, and rollout work.
+
+> **Unified CRM Console foundation:** The documentation-first program for the independent `/crm` console lives in [`docs/unified-crm/README.md`](unified-crm/README.md). Its foundation gate, `UCRM-###` vertical milestones, multi-agent coordination rules, security/privacy controls, testing evidence, and rollback requirements govern new Unified CRM work. Existing Customers and Sales surfaces remain available until the CRM parity, pilot, and rollback gates approve migration.
 
 > **Staff Execution and Handoff planning package:** DB-ACCOUNTABILITY-059 architecture and its six feature-flagged implementation milestones live in [`docs/STAFF_EXECUTION_HANDOFF_ENGINE.md`](STAFF_EXECUTION_HANDOFF_ENGINE.md) and [`docs/STAFF_EXECUTION_HANDOFF_ROADMAP.md`](STAFF_EXECUTION_HANDOFF_ROADMAP.md). Use these documents for daily role checklists, Start Day, completion evidence, available-work matching, end-of-day handoff, carryover, and Team Execution Health.
 

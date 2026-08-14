@@ -40,6 +40,8 @@ Read these too when they exist:
 - `docs/ROADMAP.md`
 - `docs/SETUP.md`
 
+For Unified CRM work, also read the complete governing package beginning at `docs/unified-crm/README.md`. Its current evidence baseline, architecture, security/privacy rules, `UCRM-###` milestones, agent operating model, testing strategy, decision register, and traceability matrix are mandatory. Do not start a downstream CRM slice when its foundation decision or dependency is unresolved.
+
 ## Product And Architecture Rules
 
 These are durable project constraints taken from the architecture and vibe-coding guide.

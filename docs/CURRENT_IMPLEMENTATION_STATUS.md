@@ -1,5 +1,13 @@
 # Current Implementation Status
 
+## 2026-08-14 — Unified CRM Console foundation package drafted
+
+The documentation-first foundation for the independent Unified CRM Console is established under [`docs/unified-crm/README.md`](unified-crm/README.md). The package defines the product charter, evidence baseline, modular-monolith architecture, source-authority boundaries, security/privacy model, 8–10 week internal-MVP roadmap, `UCRM-###` vertical milestones, multi-agent operating model, testing and release gates, decision register, risk register, and requirement traceability.
+
+The target console is `/crm`, sharing Dispatch Board authentication and platform infrastructure while preserving Customers, Inventory/Vehicles, Appointments, Tasks, Repair/Jobs, Documents, Activity, and other owning domains as authoritative. Existing `/customers` and `/sales` surfaces remain available until separately approved parity, pilot, rollback, and navigation-migration gates pass.
+
+This checkpoint adds planning and governance only. It does not add the `/crm` route, schema, migration, API, workflow, UI, integration, permission, AI behavior, production rollout, or retirement of an existing console. Foundation decisions remain proposed until the `UCRM-000` through `UCRM-009` acceptance gate is recorded.
+
 ## 2026-08-03 - Shop and Recon deterministic sixteen-stage workflow implemented
 
 The Shop and Recon controlled foundation package is established under [`docs/shop-repair-optimization/foundation-implementation/README.md`](shop-repair-optimization/foundation-implementation/README.md), with its read-only code contract in `src/server/shop-recon/foundation.ts`. It publishes the exact sixteen-stage vehicle-flow lifecycle from physical shop entry through accepted exit, twelve logical shop/custody zones, Monday-Friday 9:00 AM-6:00 PM Central hours, the confirmed two-bay shared-space constraint, Walter Hernandez as primary technician, Brock/Eli operating authority, stage and aggregate timing baselines, WIP limits, a stable twenty-five-code blocker taxonomy, and versioned Inventory-to-Shop inbound/outbound envelope validators.
