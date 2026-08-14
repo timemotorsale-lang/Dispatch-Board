@@ -2,6 +2,7 @@ import { UnifiedCrmShell, UnifiedCrmUnavailable } from "@/features/unified-crm/u
 import { parseUnifiedCrmView } from "@/features/unified-crm/unified-crm-shell-review-model";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { getUnifiedCrmCustomerList } from "@/server/services/unified-crm-customer-read-service";
+import { getUnifiedCrmOpportunityPipelinePreview } from "@/server/services/unified-crm-opportunity-read-service";
 import { getUnifiedCrmWorkQueue } from "@/server/services/unified-crm-work-queue-service";
 import { resolveUnifiedCrmShellAccess } from "@/server/unified-crm/shell-access";
 
@@ -47,6 +48,9 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
   let customerList;
   let customerListError: string | undefined;
   let customerListFailureKind: "error" | "restricted" | "unavailable" | undefined;
+  let opportunityPreview;
+  let opportunityPreviewError: string | undefined;
+  let opportunityPreviewFailureKind: "error" | "restricted" | "unavailable" | undefined;
 
   if (activeView === "home" || activeView === "work") {
     try {
@@ -89,6 +93,24 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
     }
   }
 
+  if (activeView === "pipeline") {
+    try {
+      opportunityPreview = await getUnifiedCrmOpportunityPipelinePreview(user);
+    } catch (error) {
+      const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
+      if (["AUTHENTICATION_REQUIRED", "OPPORTUNITY_NOT_AUTHORIZED", "ORGANIZATION_SCOPE_UNAVAILABLE"].includes(code)) {
+        opportunityPreviewFailureKind = "restricted";
+        opportunityPreviewError = "Your current access does not include CRM opportunity review.";
+      } else if (["OPPORTUNITY_OFF", "ORGANIZATION_SCOPE_AMBIGUOUS"].includes(code)) {
+        opportunityPreviewFailureKind = "unavailable";
+        opportunityPreviewError = "The opportunity review is temporarily unavailable. No opportunity review data was displayed.";
+      } else {
+        opportunityPreviewFailureKind = "error";
+        opportunityPreviewError = "The opportunity review could not be loaded safely. No opportunity review data was displayed.";
+      }
+    }
+  }
+
   return (
     <UnifiedCrmShell
       activeView={activeView}
@@ -97,6 +119,9 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
       customerListError={customerListError}
       customerListFailureKind={customerListFailureKind}
       initialSelectedId={Array.isArray(parameters.selected) ? parameters.selected[0] : parameters.selected}
+      opportunityPreview={opportunityPreview}
+      opportunityPreviewError={opportunityPreviewError}
+      opportunityPreviewFailureKind={opportunityPreviewFailureKind}
       workQueue={workQueue}
       workQueueError={workQueueError}
       workQueueFailureKind={workQueueFailureKind}

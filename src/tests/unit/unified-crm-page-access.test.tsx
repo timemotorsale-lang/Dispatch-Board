@@ -5,6 +5,7 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 
 const mocks = vi.hoisted(() => ({
   getUnifiedCrmCustomerList: vi.fn(),
+  getUnifiedCrmOpportunityPipelinePreview: vi.fn(),
   getUnifiedCrmWorkQueue: vi.fn(),
   requireCurrentUser: vi.fn()
 }));
@@ -15,6 +16,10 @@ vi.mock("@/server/auth/current-user", () => ({
 
 vi.mock("@/server/services/unified-crm-customer-read-service", () => ({
   getUnifiedCrmCustomerList: mocks.getUnifiedCrmCustomerList
+}));
+
+vi.mock("@/server/services/unified-crm-opportunity-read-service", () => ({
+  getUnifiedCrmOpportunityPipelinePreview: mocks.getUnifiedCrmOpportunityPipelinePreview
 }));
 
 vi.mock("@/server/services/unified-crm-work-queue-service", () => ({
@@ -69,6 +74,33 @@ describe("Unified CRM page access and fallback", () => {
       items: [{ id: "task-1", kind: "task", title: "Call promised buyer", customerLabel: "Real Customer · CUS-1", ownerName: "CRM Page User", sourceLabel: "Tasks", sourceHref: "/tasks/task-1", primaryActionLabel: "Open task", dueAt: "2026-08-14T14:00:00.000Z", dueLabel: "Overdue", dueState: "overdue", stageLabel: "In Progress", reason: "This assigned task is past due.", history: ["Status: In Progress"], updatedAt: "2026-08-14T14:45:00.000Z" }],
       today: []
     });
+    mocks.getUnifiedCrmOpportunityPipelinePreview.mockResolvedValue({
+      contractVersion: "ucrm.opportunity-read/v1",
+      generatedAt: "2026-08-14T15:00:00.000Z",
+      state: "PREVIEW",
+      visibility: "organization",
+      cards: [{ id: "foundation", label: "Foundation", value: "Ready", detail: "Detail", tone: "ready" }],
+      columns: [{
+        id: "intake",
+        label: "Intake review",
+        itemCountLabel: "2 scenarios",
+        valueLabel: "No governed stage yet",
+        items: [{
+          id: "review01",
+          customerLabel: "Preview customer",
+          detailHref: "/crm/opportunities/review01?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
+          nextActionLabel: "Review create contract",
+          ownerLabel: "Team-owned preview",
+          reason: "Preview reason"
+        }]
+      }],
+      constraints: ["No opportunity record is created in this preview."],
+      listPreview: {
+        heading: "What the first live list will surface",
+        emptyMessage: "No live opportunities are shown while lifecycle rules are held.",
+        items: [{ id: "row1", title: "Customer and owner at a glance", ownerLabel: "Organization visibility", reason: "Preview row reason" }]
+      }
+    });
   });
 
   afterEach(() => {
@@ -87,6 +119,7 @@ describe("Unified CRM page access and fallback", () => {
     expect(markup).not.toContain("Do this next");
     expect(markup).not.toContain("synthetic scenarios");
     expect(mocks.getUnifiedCrmWorkQueue).not.toHaveBeenCalled();
+    expect(mocks.getUnifiedCrmOpportunityPipelinePreview).not.toHaveBeenCalled();
   });
 
   it("fails explicit feature-off closed with the existing manager workspace fallback", async () => {
@@ -97,9 +130,10 @@ describe("Unified CRM page access and fallback", () => {
 
     expect(markup).toContain("Unified CRM is turned off");
     expect(markup).toContain('href="/manager-workspace"');
-    expect(markup).not.toContain("Synthetic pipeline review");
+    expect(markup).not.toContain("How the first opportunity board will feel");
     expect(markup).not.toContain("Do this next");
     expect(mocks.getUnifiedCrmWorkQueue).not.toHaveBeenCalled();
+    expect(mocks.getUnifiedCrmOpportunityPipelinePreview).not.toHaveBeenCalled();
   });
 
   it("uses the unchanged Sales landing when a seller is outside the active shell", async () => {
@@ -138,6 +172,7 @@ describe("Unified CRM page access and fallback", () => {
 
     expect(mocks.getUnifiedCrmWorkQueue).toHaveBeenCalled();
     expect(mocks.getUnifiedCrmCustomerList).not.toHaveBeenCalled();
+    expect(mocks.getUnifiedCrmOpportunityPipelinePreview).not.toHaveBeenCalled();
     expect(markup).toContain("Live read-only CRM work queue");
     expect(markup).toContain("Call promised buyer");
     expect(markup).not.toContain("Search review scenarios");
@@ -157,6 +192,18 @@ describe("Unified CRM page access and fallback", () => {
     expect(markup).not.toContain("MUST NOT BE SERIALIZED");
     expect(markup).not.toContain("••••9999");
     expect(markup).not.toContain("Search customers");
+  });
+
+  it("loads the held opportunity review only for the Pipeline view", async () => {
+    mocks.requireCurrentUser.mockResolvedValue(user(["General Manager"]));
+
+    const markup = await renderPage("pipeline");
+
+    expect(mocks.getUnifiedCrmOpportunityPipelinePreview).toHaveBeenCalled();
+    expect(mocks.getUnifiedCrmWorkQueue).not.toHaveBeenCalled();
+    expect(mocks.getUnifiedCrmCustomerList).not.toHaveBeenCalled();
+    expect(markup).toContain("How the first opportunity board will feel");
+    expect(markup).toContain("Review create contract");
   });
 
   it("loads the real customer list only for the Customers view and forwards safe list query fields", async () => {

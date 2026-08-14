@@ -19,12 +19,13 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { UnifiedCrmCustomerListReadModel } from "@/server/unified-crm/customer-read-contract";
+import type { UnifiedCrmOpportunityPreviewModel } from "@/server/unified-crm/opportunity-read-contract";
 
 import { UnifiedCrmCustomerList } from "./unified-crm-customer-list";
+import { UnifiedCrmOpportunityPipelinePreview, UnifiedCrmOpportunityPreview } from "./unified-crm-opportunity-preview";
 import {
   reviewAppointments,
   reviewConversations,
-  reviewPipeline,
   reviewQueueItems,
   reviewSourceActions,
   UNIFIED_CRM_REVIEW_NOTICE,
@@ -41,6 +42,9 @@ type UnifiedCrmShellProps = {
   customerListError?: string;
   customerListFailureKind?: "error" | "restricted" | "unavailable";
   initialSelectedId?: string;
+  opportunityPreview?: UnifiedCrmOpportunityPreviewModel;
+  opportunityPreviewError?: string;
+  opportunityPreviewFailureKind?: "error" | "restricted" | "unavailable";
   workQueue?: UnifiedCrmWorkQueueReadModel;
   workQueueError?: string;
   workQueueFailureKind?: "error" | "restricted" | "unavailable";
@@ -422,8 +426,43 @@ function LiveWorkView({
   return <div className={styles.twoColumn}><section className={styles.queuePanel}><div className={styles.queueList}>{model.items.map((item) => <LiveQueueRow active={selected?.id === item.id} item={item} key={item.id} onSelect={onSelect} />)}</div></section>{selected ? <LiveContextPanel item={selected} /> : <WorkState detail="No live CRM work item is available to review right now." />}</div>;
 }
 
-function PipelineView() {
-  return <section className={styles.pipeline} aria-label="Synthetic pipeline review">{reviewPipeline.map((stage) => <article key={stage.label}><header><strong>{stage.label}</strong><span>{stage.count}</span></header><div><b>{stage.value}</b><small>Review amount</small></div><p>No stage changes are available in this experience review.</p></article>)}</section>;
+function PipelineState({
+  detail,
+  failureKind
+}: {
+  detail: string;
+  failureKind?: "error" | "restricted" | "unavailable";
+}) {
+  const title = failureKind === "restricted"
+    ? "Opportunity review is restricted"
+    : failureKind === "unavailable"
+      ? "Opportunity review is unavailable"
+      : "Opportunity review could not be loaded";
+  return (
+    <section className={styles.stateCard} aria-live="polite">
+      <strong>{title}</strong>
+      <p>{detail}</p>
+      <div className={styles.stateActions}>
+        <Link href="/crm?view=work">Open CRM work</Link>
+        <Link href="/customers">Open existing Customers</Link>
+      </div>
+    </section>
+  );
+}
+
+function PipelineView({
+  failureKind,
+  model
+}: {
+  failureKind?: "error" | "restricted" | "unavailable";
+  model?: UnifiedCrmOpportunityPreviewModel;
+}) {
+  if (!model) {
+    return failureKind
+      ? <PipelineState detail="No opportunity review data was displayed." failureKind={failureKind} />
+      : <UnifiedCrmOpportunityPreview />;
+  }
+  return <UnifiedCrmOpportunityPipelinePreview model={model} />;
 }
 
 function ConversationsView() {
@@ -453,6 +492,9 @@ export function UnifiedCrmShell({
   customerListError,
   customerListFailureKind,
   initialSelectedId,
+  opportunityPreview,
+  opportunityPreviewError,
+  opportunityPreviewFailureKind,
   userName,
   workQueue,
   workQueueError,
@@ -527,7 +569,11 @@ export function UnifiedCrmShell({
           : <WorkView onSelect={setSelected} selected={selected} />
         : null}
       {activeView === "customers" ? <UnifiedCrmCustomerList errorMessage={customerListError} failureKind={customerListFailureKind} model={customerList} /> : null}
-      {activeView === "pipeline" ? <PipelineView /> : null}
+      {activeView === "pipeline"
+        ? opportunityPreview || opportunityPreviewError
+          ? <PipelineView failureKind={opportunityPreviewFailureKind} model={opportunityPreview} />
+          : <PipelineView model={undefined} />
+        : null}
       {activeView === "conversations" ? <ConversationsView /> : null}
       {activeView === "insights" ? <InsightsView /> : null}
       {activeView === "more" ? <MoreView /> : null}
