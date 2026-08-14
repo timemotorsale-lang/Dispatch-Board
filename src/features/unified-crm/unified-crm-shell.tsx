@@ -12,13 +12,15 @@ import {
   Plus,
   Search,
   ShieldCheck,
-  UserRound,
   UsersRound,
   X
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import type { UnifiedCrmCustomerListReadModel } from "@/server/unified-crm/customer-read-contract";
+
+import { UnifiedCrmCustomerList } from "./unified-crm-customer-list";
 import {
   reviewAppointments,
   reviewConversations,
@@ -34,6 +36,9 @@ import styles from "./unified-crm-shell.module.css";
 type UnifiedCrmShellProps = {
   activeView: UnifiedCrmView;
   capabilities?: Readonly<Record<string, boolean>>;
+  customerList?: UnifiedCrmCustomerListReadModel;
+  customerListError?: string;
+  customerListFailureKind?: "error" | "restricted" | "unavailable";
   initialSelectedId?: string;
   userName: string;
 };
@@ -46,8 +51,8 @@ const viewCopy: Record<Exclude<UnifiedCrmView, "home">, { eyebrow: string; title
   },
   customers: {
     eyebrow: "Customers",
-    title: "Relationship context without losing the next step",
-    description: "Customer identity remains source-owned. This review shows how CRM will surface permitted context and freshness."
+    title: "Find the right customer quickly",
+    description: "Search permitted customer identity with masked contact hints, visible source freshness, and a safe path into the governed Customers record."
   },
   pipeline: {
     eyebrow: "Pipeline",
@@ -75,11 +80,11 @@ function firstName(name: string) {
   return name.trim().split(/\s+/, 1)[0] || "there";
 }
 
-function ReviewNotice() {
+function ReviewNotice({ realCustomerRead = false }: { realCustomerRead?: boolean }) {
   return (
     <div className={styles.reviewNotice} role="status">
       <ShieldCheck aria-hidden="true" size={16} />
-      <span><strong>Experience review</strong>{UNIFIED_CRM_REVIEW_NOTICE.replace("Experience review — ", "")}</span>
+      <span><strong>{realCustomerRead ? "Live read-only customer list" : "Experience review"}</strong>{" "}{realCustomerRead ? "Contact hints are masked. No customer record is changed." : UNIFIED_CRM_REVIEW_NOTICE.replace("Experience review — ", "")}</span>
     </div>
   );
 }
@@ -222,10 +227,6 @@ function WorkView({ selected, onSelect }: { selected: ReviewQueueItem; onSelect(
   return <div className={styles.twoColumn}><section className={styles.queuePanel}><div className={styles.queueList}>{reviewQueueItems.map((item) => <QueueRow active={selected.id === item.id} item={item} key={item.id} onSelect={onSelect} />)}</div></section><ContextPanel item={selected} /></div>;
 }
 
-function CustomersView({ onSelect }: { onSelect(item: ReviewQueueItem): void }) {
-  return <section className={styles.cardGrid} aria-label="Synthetic customer review cards">{reviewQueueItems.slice(0, 3).map((item) => <button className={styles.customerCard} key={item.id} onClick={() => onSelect(item)} type="button"><span className={styles.avatar}><UserRound aria-hidden="true" size={18} /></span><span><strong>{item.customer}</strong><small>{item.account}</small><em>{item.reason}</em></span><ArrowRight aria-hidden="true" size={16} /></button>)}</section>;
-}
-
 function PipelineView() {
   return <section className={styles.pipeline} aria-label="Synthetic pipeline review">{reviewPipeline.map((stage) => <article key={stage.label}><header><strong>{stage.label}</strong><span>{stage.count}</span></header><div><b>{stage.value}</b><small>Review amount</small></div><p>No stage changes are available in this experience review.</p></article>)}</section>;
 }
@@ -250,7 +251,7 @@ function MoreView() {
   ].map(({ icon: Icon, title, detail }) => <article key={title}><Icon aria-hidden="true" size={19} /><div><strong>{title}</strong><p>{detail}</p></div></article>)}</section>;
 }
 
-export function UnifiedCrmShell({ activeView, capabilities = {}, initialSelectedId, userName }: UnifiedCrmShellProps) {
+export function UnifiedCrmShell({ activeView, capabilities = {}, customerList, customerListError, customerListFailureKind, initialSelectedId, userName }: UnifiedCrmShellProps) {
   const [selected, setSelected] = useState(
     reviewQueueItems.find((item) => item.id === initialSelectedId) ?? reviewQueueItems[0]
   );
@@ -270,25 +271,25 @@ export function UnifiedCrmShell({ activeView, capabilities = {}, initialSelected
 
   return (
     <main className={styles.shell} data-review-capabilities={Object.entries(capabilities).filter(([, enabled]) => enabled).map(([capability]) => capability).join(",")}>
-      <ReviewNotice />
+      <ReviewNotice realCustomerRead={activeView === "customers"} />
       <header className={styles.hero}>
         <div>
           <span className={styles.eyebrow}>{activeCopy?.eyebrow ?? "Unified CRM"}</span>
           <h1>{activeCopy?.title ?? `Here’s what needs attention, ${firstName(userName)}`}</h1>
           <p>{activeCopy?.description ?? "Review the next action, understand why it matters, and continue in the governed source workflow."}</p>
         </div>
-        <div className={styles.heroActions}>
+        {activeView === "customers" ? null : <div className={styles.heroActions}>
           <SearchReview key={activeView} onSelect={selectAndReturnHome} />
           <div className={styles.newMenuWrap}>
             <button aria-controls="crm-review-new-menu" aria-expanded={newMenuOpen} className={styles.newButton} onClick={() => setNewMenuOpen((current) => !current)} ref={newButtonRef} type="button"><Plus aria-hidden="true" size={16} />New<ChevronDown aria-hidden="true" size={14} /></button>
             <SourceActionMenu onClose={closeNewMenu} open={newMenuOpen} />
           </div>
-        </div>
+        </div>}
       </header>
 
       {activeView === "home" ? <HomeView onSelect={setSelected} selected={selected} /> : null}
       {activeView === "work" ? <WorkView onSelect={setSelected} selected={selected} /> : null}
-      {activeView === "customers" ? <CustomersView onSelect={selectAndReturnHome} /> : null}
+      {activeView === "customers" ? <UnifiedCrmCustomerList errorMessage={customerListError} failureKind={customerListFailureKind} model={customerList} /> : null}
       {activeView === "pipeline" ? <PipelineView /> : null}
       {activeView === "conversations" ? <ConversationsView /> : null}
       {activeView === "insights" ? <InsightsView /> : null}

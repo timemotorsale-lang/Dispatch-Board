@@ -1,10 +1,11 @@
 import { UnifiedCrmShell, UnifiedCrmUnavailable } from "@/features/unified-crm/unified-crm-shell";
 import { parseUnifiedCrmView } from "@/features/unified-crm/unified-crm-shell-review-model";
 import { requireCurrentUser } from "@/server/auth/current-user";
+import { getUnifiedCrmCustomerList } from "@/server/services/unified-crm-customer-read-service";
 import { resolveUnifiedCrmShellAccess } from "@/server/unified-crm/shell-access";
 
 type CrmPageProps = {
-  searchParams: Promise<{ selected?: string | string[]; view?: string | string[] }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 function safeFallback(value: string | undefined) {
@@ -38,10 +39,41 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
     );
   }
 
+  const activeView = parseUnifiedCrmView(parameters.view);
+  let customerList;
+  let customerListError: string | undefined;
+  let customerListFailureKind: "error" | "restricted" | "unavailable" | undefined;
+
+  if (activeView === "customers") {
+    try {
+      customerList = await getUnifiedCrmCustomerList(user, {
+        cursor: parameters.cursor,
+        owner: access.workspace === "SALES" ? "mine" : parameters.owner,
+        q: parameters.q,
+        status: parameters.status
+      });
+    } catch (error) {
+      const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
+      if (["AUTHENTICATION_REQUIRED", "CUSTOMER_READ_NOT_AUTHORIZED", "ORGANIZATION_SCOPE_UNAVAILABLE"].includes(code)) {
+        customerListFailureKind = "restricted";
+        customerListError = "Your current access does not include CRM customer records.";
+      } else if (["CUSTOMER_READ_OFF", "CUSTOMER_SOURCE_UNAVAILABLE", "ORGANIZATION_SCOPE_AMBIGUOUS"].includes(code)) {
+        customerListFailureKind = "unavailable";
+        customerListError = "The customer source is temporarily unavailable. No customer data was displayed.";
+      } else {
+        customerListFailureKind = "error";
+        customerListError = "The customer list could not be loaded safely. No customer data was displayed.";
+      }
+    }
+  }
+
   return (
     <UnifiedCrmShell
-      activeView={parseUnifiedCrmView(parameters.view)}
+      activeView={activeView}
       capabilities={access.capabilities}
+      customerList={customerList}
+      customerListError={customerListError}
+      customerListFailureKind={customerListFailureKind}
       initialSelectedId={Array.isArray(parameters.selected) ? parameters.selected[0] : parameters.selected}
       userName={user.name}
     />
