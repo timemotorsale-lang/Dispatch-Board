@@ -22,13 +22,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   reviewAppointments,
   reviewConversations,
-  reviewPipeline,
   reviewQueueItems,
   reviewSourceActions,
   UNIFIED_CRM_REVIEW_NOTICE,
   type ReviewQueueItem,
   type UnifiedCrmView
 } from "./unified-crm-shell-review-model";
+import { UnifiedCrmOpportunityPreview } from "./unified-crm-opportunity-preview";
 import styles from "./unified-crm-shell.module.css";
 
 type UnifiedCrmShellProps = {
@@ -227,7 +227,7 @@ function CustomersView({ onSelect }: { onSelect(item: ReviewQueueItem): void }) 
 }
 
 function PipelineView() {
-  return <section className={styles.pipeline} aria-label="Synthetic pipeline review">{reviewPipeline.map((stage) => <article key={stage.label}><header><strong>{stage.label}</strong><span>{stage.count}</span></header><div><b>{stage.value}</b><small>Review amount</small></div><p>No stage changes are available in this experience review.</p></article>)}</section>;
+  return <UnifiedCrmOpportunityPreview />;
 }
 
 function ConversationsView() {

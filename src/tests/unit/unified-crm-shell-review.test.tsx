@@ -23,7 +23,8 @@ describe("Unified CRM UX review shell", () => {
     const pipeline = renderToStaticMarkup(<UnifiedCrmShell activeView="pipeline" userName="Alex Operator" />);
 
     expect(conversations).toContain("No external messages are sent or synchronized");
-    expect(pipeline).toContain("No stage changes are available in this experience review");
+    expect(pipeline).toContain("Lifecycle rules are intentionally held");
+    expect(pipeline).toContain("No opportunity record is created in this preview");
   });
 
   it("falls back safely for unknown views and renders an honest unavailable state", () => {
