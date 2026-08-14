@@ -8,6 +8,8 @@ The experience provides explicit-submit search, status/owner filtering, stable p
 
 Focused and affected tests passed as recorded in [`docs/unified-crm/UCRM_012_013_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_012_013_IMPLEMENTATION_EVIDENCE.md). UCRM-012 and UCRM-013 remain `IMPLEMENTED_UNVERIFIED`: the opt-in two-organization test still needs an isolated migrated PostgreSQL database, and Product Owner UCRM-UXR-1 review still needs a data-bearing list plus final denied/read-off browser proof. This branch is not merged, piloted, production-enabled, or authorized for customer writes. The unrelated service-close typecheck defect remains unchanged.
 
+UCRM-014 is now `IMPLEMENTED_UNVERIFIED` on the stacked Customer 360 branch. The read-only detail route, masked contact and source boundaries, owner-scoped lead/case lenses, deep-route rollback controls, and denied-persona mobile evidence are recorded in [`docs/unified-crm/UCRM_014_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_014_IMPLEMENTATION_EVIDENCE.md). A permitted data-bearing Product Owner walkthrough and isolated PostgreSQL proof remain required before verification or merge.
+
 ## 2026-08-14 — Unified CRM UCRM-010/011 UX review checkpoint implemented
 
 The isolated `codex/unified-crm-console` branch now contains an authenticated `/crm` route, Management/Sales route discovery, a deny-by-default CRM capability baseline, production-off review control, role-safe unavailable/fallback behavior, independent CRM navigation, and the first interactive UCRM-UXR-0 experience. The review shell prioritizes one next-action queue, one search, in-place context, and Today/Attention work; every displayed scenario is explicitly synthetic and non-writing.
