@@ -165,6 +165,59 @@ const salesItems: NavigationItem[] = [
   }
 ];
 
+export const unifiedCrmItems: NavigationItem[] = [
+  {
+    href: "/crm",
+    title: "Home",
+    description: "Priorities, changes, and the next customer actions that need attention.",
+    icon: House,
+    matchExact: true,
+    activeQuery: { view: null }
+  },
+  {
+    href: "/crm?view=work",
+    title: "Work",
+    description: "Owned, due, overdue, and assigned relationship work.",
+    icon: BriefcaseBusiness,
+    activeQuery: { view: "work" }
+  },
+  {
+    href: "/crm?view=customers",
+    title: "Customers",
+    description: "Permitted customer identity and relationship context.",
+    icon: ContactRound,
+    activeQuery: { view: "customers" }
+  },
+  {
+    href: "/crm?view=pipeline",
+    title: "Pipeline",
+    description: "Evidence-backed opportunity stages, ownership, and next actions.",
+    icon: BarChart3,
+    activeQuery: { view: "pipeline" }
+  },
+  {
+    href: "/crm?view=conversations",
+    title: "Conversations",
+    description: "Permitted interaction history and customer follow-up context.",
+    icon: MessageSquareText,
+    activeQuery: { view: "conversations" }
+  },
+  {
+    href: "/crm?view=insights",
+    title: "Insights",
+    description: "Reconciled CRM measures with source-record drill-through.",
+    icon: Gauge,
+    activeQuery: { view: "insights" }
+  },
+  {
+    href: "/crm?view=more",
+    title: "More",
+    description: "Additional permitted CRM tools and configuration entry points.",
+    icon: Settings,
+    activeQuery: { view: "more" }
+  }
+];
+
 export function isInventoryConsolePath(pathname: string) {
   return pathname === "/inventory-manager" || pathname === "/vehicles" || pathname.startsWith("/vehicles/");
 }
@@ -179,6 +232,10 @@ export function isAppointmentConsolePath(pathname: string) {
 
 export function isSalesConsolePath(pathname: string) {
   return pathname === "/sales" || pathname.startsWith("/sales/");
+}
+
+export function isUnifiedCrmConsolePath(pathname: string) {
+  return pathname === "/crm" || pathname.startsWith("/crm/");
 }
 
 export function getConsoleNavigation(
@@ -199,6 +256,21 @@ export function getConsoleNavigation(
   }
 
   const resolvedWorkspace = resolveWorkspaceForPath(user, pathname, preferredWorkspace);
+
+  if (isUnifiedCrmConsolePath(pathname)) {
+    const canDiscoverUnifiedCrm = getPermittedWorkspaces(user).some(
+      (workspace) => workspace.key === "MANAGEMENT" || workspace.key === "SALES"
+    );
+    if (!canDiscoverUnifiedCrm) return null;
+
+    return {
+      badge: "Controlled",
+      homeHref: "/crm",
+      items: unifiedCrmItems,
+      subtitle: "Customer Operations",
+      title: "Unified CRM"
+    };
+  }
 
   if (pathname === "/vehicles/advisor" || (isAppointmentConsolePath(pathname) && resolvedWorkspace === "ADVISOR")) {
     const definition = getWorkspaceDefinition("ADVISOR");

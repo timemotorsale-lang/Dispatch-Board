@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-08-14 — Unified CRM UCRM-010/011 UX review checkpoint implemented
+
+The isolated `codex/unified-crm-console` branch now contains an authenticated `/crm` route, Management/Sales route discovery, a deny-by-default CRM capability baseline, production-off review control, role-safe unavailable/fallback behavior, independent CRM navigation, and the first interactive UCRM-UXR-0 experience. The review shell prioritizes one next-action queue, one search, in-place context, and Today/Attention work; every displayed scenario is explicitly synthetic and non-writing.
+
+Focused tests, lint, desktop/tablet/mobile browser checks, light/dark appearance, search, navigation, Escape behavior, focus return, and overflow checks passed as recorded in [`docs/unified-crm/UCRM_010_011_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_010_011_IMPLEMENTATION_EVIDENCE.md). Product Owner UX review and remaining browser-role/feature-off evidence are pending, so the slice is `IMPLEMENTED_UNVERIFIED` and is not approved for merge, pilot, production enablement, real customer data, or CRM writes. The known unrelated service-close typecheck failure remains unchanged.
+
 ## 2026-08-14 — Unified CRM foundation gate accepted
 
 The Product Owner accepted the bounded business decisions for `UCRM-000` through `UCRM-009`: product identity and `/crm` boundary, internal-MVP scope and deferrals, initial access and sensitive-field defaults, canonical/commercial/data authority, service-quality targets, agent governance, and rollout/rollback authority. The accepted operating model makes UX visible early through interactive browser checkpoints while retaining complete vertical-slice, server-policy, accessibility, evidence, and rollback requirements.

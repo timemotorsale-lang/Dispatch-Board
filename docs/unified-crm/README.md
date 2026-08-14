@@ -33,6 +33,10 @@ Read these documents in this order before planning or implementing Unified CRM w
 10. [`RISK_REGISTER.md`](RISK_REGISTER.md) — program risks, treatment, triggers, owners, and blocking gates.
 11. [`TRACEABILITY_MATRIX.md`](TRACEABILITY_MATRIX.md) — product outcomes mapped to architecture, milestones, security, and proof.
 
+Current implementation-review evidence:
+
+- [`UCRM_010_011_IMPLEMENTATION_EVIDENCE.md`](UCRM_010_011_IMPLEMENTATION_EVIDENCE.md) — secure shell and UCRM-UXR-0 browser checkpoint; Product Owner review pending.
+
 Repository-wide instructions in [`../AGENTS.md`](../AGENTS.md), [`../ARCHITECTURE.md`](../ARCHITECTURE.md), and [`../CURRENT_IMPLEMENTATION_STATUS.md`](../CURRENT_IMPLEMENTATION_STATUS.md) remain applicable. If a Unified CRM document conflicts with a repository-wide safety invariant, the stronger safety, authorization, evidence, or audit rule wins until the conflict is explicitly resolved in the decision register.
 
 ## Status language

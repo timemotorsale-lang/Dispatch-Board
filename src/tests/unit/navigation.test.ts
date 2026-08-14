@@ -91,6 +91,7 @@ describe("enterprise shell navigation", () => {
       "Advisor Review",
       "Autobody Estimate",
       "Customers",
+      "CRM",
       "Sales",
       "Marketing",
       "Advertising",
@@ -117,6 +118,7 @@ describe("enterprise shell navigation", () => {
       "Advisor Review",
       "Autobody Estimate",
       "Customers",
+      "CRM",
       "Sales",
       "Marketing",
       "Advertising",
@@ -174,6 +176,7 @@ describe("enterprise shell navigation", () => {
     expect(isDispatchConsolePath("/board")).toBe(true);
     expect(isDispatchConsolePath("/tasks/task-1")).toBe(true);
     expect(isDispatchConsolePath("/vehicles/360/unit-1")).toBe(true);
+    expect(isDispatchConsolePath("/crm")).toBe(false);
     expect(isDispatchConsolePath("/command-center")).toBe(false);
     expect(isDispatchConsolePath("/administration")).toBe(false);
   });
@@ -211,6 +214,21 @@ describe("enterprise shell navigation", () => {
     expect(inventoryConsole?.items.find((item) => item.title === "Shop & Recon")?.href).toBe("/vehicles/shop-recon");
     expect(inventoryConsole?.items.find((item) => item.title === "Repair Workbench")?.href).toBe("/vehicles/repair-workbench");
     expect(getConsoleNavigation("/command-center", manager)).toBeNull();
+    expect(getConsoleNavigation("/crm", manager)).toMatchObject({
+      badge: "Controlled",
+      homeHref: "/crm",
+      subtitle: "Customer Operations",
+      title: "Unified CRM"
+    });
+    expect(getConsoleNavigation("/crm", manager)?.items.map((item) => [item.title, item.href])).toEqual([
+      ["Home", "/crm"],
+      ["Work", "/crm?view=work"],
+      ["Customers", "/crm?view=customers"],
+      ["Pipeline", "/crm?view=pipeline"],
+      ["Conversations", "/crm?view=conversations"],
+      ["Insights", "/crm?view=insights"],
+      ["More", "/crm?view=more"]
+    ]);
   });
 
   it("gives each operating role a focused navigation shell", () => {
@@ -302,6 +320,7 @@ describe("enterprise shell navigation", () => {
     expect(getConsoleNavigation("/operations-coordinator", user({ roles: ["Operations Coordinator"] }))?.items.find((item) => item.title === "Appointment Console")?.href).toBe("/appointments");
     expect(getConsoleNavigation("/operations-coordinator", user({ roles: ["Office Manager", "Marketing/Advertisement Manager"] }))?.subtitle).toBe("Operations Coordinator");
     expect(getConsoleNavigation("/tasks", user({ roles: ["Salesperson"] }))?.items.map((item) => item.title)).toEqual([
+      "CRM",
       "My Work",
       "Sales Tasks",
       "Appointments",

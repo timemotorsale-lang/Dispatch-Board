@@ -181,6 +181,7 @@ const ROUTE_WORKSPACES: Array<{ prefix: string; workspaces: WorkspaceKey[] }> = 
   { prefix: "/vehicles/360", workspaces: ["VEHICLE_OPERATIONS_LEAD", "INVENTORY", "SERVICE", "ADVISOR", "TECHNICIAN", "PARTS", "QUALITY", "SALES", "MARKETING", "MANAGEMENT"] },
   { prefix: "/vehicles", workspaces: ["VEHICLE_OPERATIONS_LEAD", "INVENTORY", "SERVICE", "ADVISOR", "PARTS", "QUALITY", "SALES", "MARKETING", "OPERATIONS_COORDINATOR", "MANAGEMENT"] },
   { prefix: "/operations-coordinator", workspaces: ["OPERATIONS_COORDINATOR", "MANAGEMENT"] },
+  { prefix: "/crm", workspaces: ["MANAGEMENT", "SALES"] },
   { prefix: "/sales", workspaces: ["SALES", "MANAGEMENT"] },
   { prefix: "/appointments", workspaces: ["ADVISOR", "SERVICE", "SALES", "OPERATIONS_COORDINATOR", "OFFICE", "MANAGEMENT"] },
   { prefix: "/customers", workspaces: ["ADVISOR", "SALES", "OPERATIONS_COORDINATOR", "OFFICE", "COLLECTIONS", "MANAGEMENT"] },

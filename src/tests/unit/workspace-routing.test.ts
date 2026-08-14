@@ -108,15 +108,23 @@ describe("role landing and record routing", () => {
     const salesperson = user(["Salesperson"]);
     expect(resolvePostLoginRoute(salesperson, "/administration")).toBe("/tasks?department=SALES");
     expect(resolvePostLoginRoute(salesperson, "/appointments")).toBe("/appointments");
+    expect(resolvePostLoginRoute(salesperson, "/crm")).toBe("/crm");
+
+    const manager = user(["General Manager"]);
+    expect(isRoutePermittedForUser(manager, "/crm")).toBe(true);
+    expect(getDefaultLandingRoute(manager)).toBe("/manager-workspace");
 
     const parts = user(["Parts"]);
     expect(isRoutePermittedForUser(parts, "/vehicles/parts-counter")).toBe(true);
     expect(isRoutePermittedForUser(parts, "/customers")).toBe(false);
+    expect(isRoutePermittedForUser(parts, "/crm")).toBe(false);
+    expect(resolvePostLoginRoute(parts, "/crm")).toBe("/vehicles/parts-operations");
 
     const coordinator = user(["Operations Coordinator"]);
     expect(isRoutePermittedForUser(coordinator, "/operations-coordinator")).toBe(true);
     expect(isRoutePermittedForUser(coordinator, "/customers")).toBe(true);
     expect(isRoutePermittedForUser(coordinator, "/administration")).toBe(false);
+    expect(isRoutePermittedForUser(coordinator, "/crm")).toBe(false);
 
     const inventoryOnly = user(["Inventory Manager"]);
     expect(isRoutePermittedForUser(inventoryOnly, "/vehicles/shop-recon")).toBe(true);

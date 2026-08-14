@@ -63,6 +63,7 @@ function getBreadcrumb(pathname: string, dispatchView: "overview" | "live", tech
   if (pathname.startsWith("/tasks")) return ["Command Control Center", "Dispatch", "Tasks"];
   if (pathname.startsWith("/projects")) return ["Command Control Center", "Dispatch", "Projects"];
   if (pathname.startsWith("/appointments")) return ["Command Control Center", "Dispatch", "Appointments"];
+  if (pathname.startsWith("/crm")) return ["Unified CRM"];
   if (pathname === "/vehicles") return ["Command Control Center", "Inventory Console", "Home"];
   if (pathname.startsWith("/vehicles/control-tower")) return ["Command Control Center", "Inventory Console", "Inventory Lifecycle", "Control Tower"];
   if (pathname.startsWith("/vehicles/disposition-wholesale")) return ["Command Control Center", "Inventory Console", "Inventory Lifecycle", "Disposition & Wholesale"];

@@ -31,6 +31,7 @@ import {
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 import {
+  getPermittedWorkspaces,
   getWorkspaceKey,
   resolveWorkspaceForPath,
   type WorkspaceKey
@@ -220,6 +221,17 @@ export const dispatchNavigationItems: NavigationItem[] = [
     parentHref: "/board"
   },
   {
+    href: "/crm",
+    title: "CRM",
+    description: "Unified customer relationships, work, pipeline, conversations, and insight.",
+    icon: ContactRound,
+    parentHref: "/board",
+    activePaths: ["/crm"],
+    isVisible: (user) => getPermittedWorkspaces(user).some(
+      (workspace) => workspace.key === "MANAGEMENT" || workspace.key === "SALES"
+    )
+  },
+  {
     href: "/sales",
     title: "Sales",
     description: "Enterprise sales console for leads, deal desk, inventory intelligence, and manager command.",
@@ -342,6 +354,7 @@ const workspaceNavigationItems: Partial<Record<WorkspaceKey, NavigationItem[]>> 
     { href: "/vehicles/repair-workbench", title: "Repair Orders", description: "Read repair scope and completion evidence.", icon: ClipboardCheck }
   ],
   SALES: [
+    { href: "/crm", title: "CRM", description: "Unified customer relationships, work, pipeline, conversations, and insight.", icon: ContactRound, activePaths: ["/crm"] },
     { href: "/my-tasks", title: "My Work", description: "Assigned follow-up and delivery actions.", icon: UserRoundCheck },
     { href: "/tasks?department=SALES", title: "Sales Tasks", description: "Task-level lead, negotiation, and delivery work.", icon: BadgeDollarSign, activeQuery: { department: "SALES" } },
     { href: "/appointments", title: "Appointments", description: "Customer appointments and commitments.", icon: CalendarDays },
@@ -520,6 +533,7 @@ export function getNavigationItemsForPath(
 }
 
 export function isDispatchConsolePath(pathname: string) {
+  if (pathname === "/crm" || pathname.startsWith("/crm/")) return false;
   return dispatchNavigationItems.some((item) => {
     const baseHref = item.href.split(/[?#]/, 1)[0];
     return pathname === baseHref || pathname.startsWith(`${baseHref}/`);

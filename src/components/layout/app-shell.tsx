@@ -1,7 +1,7 @@
 "use client";
 
 import type { FormEvent, MouseEvent, ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
@@ -74,6 +74,21 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
     pathname === "/vehicles/recon-repair-advisor" ||
     consoleNavigation?.subtitle === "Advisor Workspace"
   );
+
+  useEffect(() => {
+    if (!navigationOpen) return;
+
+    function closeNavigationOnEscape(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      setNavigationOpen(false);
+      requestAnimationFrame(() => {
+        document.querySelector<HTMLButtonElement>('button[aria-label="Open navigation"]')?.focus();
+      });
+    }
+
+    document.addEventListener("keydown", closeNavigationOnEscape);
+    return () => document.removeEventListener("keydown", closeNavigationOnEscape);
+  }, [navigationOpen]);
 
   function preserveManagerContextOnLink(event: MouseEvent<HTMLElement>) {
     if (!managerContext || event.defaultPrevented) return;
