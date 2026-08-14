@@ -59,6 +59,7 @@
 | `UCRM-DEC-013` | Confirm exact pricing, discount, amount, and cumulative approval thresholds | No numeric threshold is implied by the accepted baseline; dependent quote-presentation/approval activation remains held | Product Owner / Sales Domain Owner | DEFERRED |
 | `UCRM-DEC-014` | Confirm exact retention periods, disposition schedule, and export volume thresholds | No duration or volume is implied; real-data disposition and broad/restricted export remain held | Product Owner / Security and Privacy Owner / Data Owner | DEFERRED |
 | `UCRM-DEC-015` | Confirm named pilot users and exact rollout cohort | Role categories are accepted; no person is enrolled or granted access by this document | Product Owner / Operations Owner | DEFERRED |
+| `UCRM-DEC-016` | Confirm UCRM-UXR-0 experience direction | Accept the shared-shell CRM experience direction: “Here’s what needs attention,” one review search, a safe New menu that opens only existing source workflows, a dominant next-action queue with in-place context, Today/Attention support, progressive disclosure, and Home/Work/Customers/Pipeline/Conversations/Insights/More navigation | Product Owner | ACCEPTED |
 
 ### 3.1 Accepted data-authority interpretation
 

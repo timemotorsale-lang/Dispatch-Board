@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-14
 **Branch:** `codex/unified-crm-console`
-**Status:** `IMPLEMENTED_UNVERIFIED` pending Product Owner UX acceptance and remaining browser-role/fallback evidence
+**Status:** UCRM-010 `VERIFIED`; UCRM-011 `IMPLEMENTED_UNVERIFIED`; Product Owner accepted UCRM-UXR-0 direction and integration review is pending
 
 ## Delivered boundary
 
@@ -17,17 +17,38 @@
 
 ## Verification completed
 
-- 57 focused CRM, navigation, workspace, topbar, and return-navigation tests passed.
+- 61 focused CRM, page-boundary, navigation, workspace, topbar, and return-navigation tests passed.
 - 4 existing CRM rollout tests passed when supplied the configured test database environment.
 - Focused ESLint passed with zero warnings.
 - `git diff --check` passed.
 - Interactive browser review passed at 1440×900, 768×1024, and 390×844 with no horizontal page overflow.
 - Light and dark appearances rendered; search, queue selection, query-addressed views, New-menu Escape close, mobile navigation, mobile Escape close, and focus return were exercised.
 - Existing `/customers` and `/sales` links remain available and no default landing route changed.
+- Authorized Sales browser proof rendered the review shell with the Sales workspace fallback preserved.
+- Denied Technician browser proof rendered only the unavailable state and `/my-tasks` fallback; no synthetic CRM queue or record context was exposed.
+- Explicit `OFF` browser proof rendered only the unavailable state and the Sales fallback. Returning the same local baseline to `REVIEW` restored the shell without data migration, deletion, or changes to existing console routes.
+- Page-boundary tests cover denied role, Manager flag-off, Sales fallback, and `REVIEW` to `OFF` rollback behavior.
 
-## Known baseline and remaining evidence
+## Product Owner UCRM-UXR-0 disposition
+
+**Disposition:** Experience direction accepted on 2026-08-14.
+
+The accepted direction is:
+
+- retain the shared Dispatch Board application shell and independent CRM navigation;
+- lead Home with “Here’s what needs attention” instead of a KPI wall;
+- keep one review search and one New menu, with New linking only to real governed source workflows;
+- make the prioritized next-action queue dominant and reveal selected context in place;
+- keep Today and Attention as supporting context;
+- use progressive disclosure and accessible responsive behavior across Home, Work, Customers, Pipeline, Conversations, Insights, and More;
+- keep every current scenario visibly synthetic, non-writing, and free of fake success states.
+
+This disposition approves the UX direction for continued UCRM work. It does **not** approve merge, enroll a pilot cohort, enable production, authorize real customer data, or authorize CRM writes, communications, stage changes, or downstream UCRM-012+ behavior.
+
+## Verification disposition and known baseline
 
 - Full repository typecheck still stops at the pre-existing `src/app/api/service-close-parts/route.ts` union-property error recorded in `CURRENT_EVIDENCE_BASELINE.md`; no new CRM type error was reported.
-- Product Owner UCRM-UXR-0 acceptance or requested refinements are pending.
-- Authorized Sales, denied non-CRM persona, explicit feature-off, and rollback browser journeys remain required before UCRM-010/011 can be `VERIFIED`.
+- UCRM-010 is `VERIFIED` for its route-shell boundary on implementation baseline `5c47e3f1`: authenticated entry, role-safe navigation and fallback, responsive/accessibility behavior, authorized and denied role proof, explicit flag-off proof, and reversible restoration are evidenced.
+- UCRM-011 remains `IMPLEMENTED_UNVERIFIED`: its deny-by-default capability policy and page boundary are proven, but cross-organization record isolation cannot be tested until UCRM-012+ introduces organization-scoped CRM persistence/read contracts. This is not represented as passed or applicable data-layer evidence.
+- Product Owner accepted the UCRM-UXR-0 experience direction; integration disposition remains pending.
 - This checkpoint is not approved for merge, pilot, production enablement, real customer data, or CRM writes.

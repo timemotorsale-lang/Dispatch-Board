@@ -79,9 +79,9 @@ Unless a row or acceptance ledger below says otherwise, slices begin as `PLANNED
 | UCRM-008 | Feature-control and rollback contract — `CONTRACTED` | Accepted 5–8 person/five-business-day pilot, separate access/read/write/risky-command controls, 30-day fallback, disable/re-enable authority, data-preserving rollback, and mandatory hold triggers are recorded; implementation and rehearsal remain later evidence. |
 | UCRM-009 | Foundation traceability gate — `CONTRACTED` | Requirements-to-milestone map, ADR register, risk register, evidence index, and current-status update distinguish plans from implementation. |
 
-**First implementation UX checkpoint:** UCRM-UXR-0 is a live, interactive owner review of console navigation, role entry, Home hierarchy, global actions, responsive behavior, and representative states before UCRM-010 is finalized. A labeled synthetic preview is allowed for this direction decision, but is not implementation evidence.
+**First implementation UX checkpoint:** UCRM-UXR-0 experience direction was accepted by the Product Owner on 2026-08-14. The accepted direction covers console navigation, role entry, “Here’s what needs attention” Home hierarchy, one review search, safe source-only New actions, a dominant next-action queue with in-place context, Today/Attention support, progressive disclosure, and accessible responsive behavior. This direction decision is recorded in `UCRM_010_011_IMPLEMENTATION_EVIDENCE.md`; it is not implementation verification.
 
-**Exit gate:** UCRM-000–009 are `CONTRACTED` on the accepted foundation baseline. Exact stages, monetary thresholds, retention/export thresholds, named pilot users, and provider decisions remain deferred and hold only their dependent milestones. UCRM-UXR-0 is the first implementation-direction checkpoint and cannot be used as implementation evidence.
+**Exit gate:** UCRM-000–009 are `CONTRACTED` on the accepted foundation baseline. Exact stages, monetary thresholds, retention/export thresholds, named pilot users, and provider decisions remain deferred and hold only their dependent milestones. UCRM-UXR-0 direction is accepted, but cannot be used as implementation evidence or as merge, pilot, production, real-data, or write approval.
 
 ## 4. Milestone UCRM-1 — Independent Console and Customer Truth
 
@@ -90,8 +90,8 @@ Unless a row or acceptance ledger below says otherwise, slices begin as `PLANNED
 
 | ID | Agent-sized vertical slice | Acceptance evidence |
 | --- | --- | --- |
-| UCRM-010 | CRM console entry and route shell | Authenticated `/crm` entry, role-safe navigation, unavailable/flag-off fallback, responsive shell, focused route tests, browser entry proof, and rollback to existing consoles. |
-| UCRM-011 | CRM capability policy baseline | Server capabilities for CRM access, customer view, sensitive-field view, mutation, export, and administration pass role and cross-organization denial tests. |
+| UCRM-010 | CRM console entry and route shell — `VERIFIED` | Authenticated `/crm` entry, role-safe navigation, unavailable/flag-off fallback, responsive shell, focused route tests, browser entry proof, and rollback to existing consoles are recorded in `UCRM_010_011_IMPLEMENTATION_EVIDENCE.md`; integration remains pending. |
+| UCRM-011 | CRM capability policy baseline — `IMPLEMENTED_UNVERIFIED` | Server capabilities for CRM access, customer view, sensitive-field view, mutation, export, and administration pass current role/page denial tests. Cross-organization denial evidence remains pending until UCRM-012+ introduces organization-scoped CRM data contracts. |
 | UCRM-012 | Canonical customer/contact adapter | Repository/read service uses approved shared customer/contact authority, masks fields by policy, exposes freshness/source, and adds no duplicate truth. |
 | UCRM-013 | Customer list read model and UI | Paginated/filterable list covers loading, empty, error, stale, restricted, desktop/mobile, keyboard, tests, browser proof, and docs. |
 | UCRM-014 | Customer 360 overview and source lenses | Routed CRM customer view shows permitted identity, contacts, owner, relationships, freshness, safe not-found/merged/archived outcomes, and permission-filtered read-only lenses over existing source-owned leads and cases; it exposes no CRM mutation for those source lifecycles. |
