@@ -27,7 +27,8 @@ describe("Unified CRM real customer list", () => {
     expect(markup).toContain("Alex Morgan");
     expect(markup).toContain("••••1234");
     expect(markup).toContain("a•••@e•••.com");
-    expect(markup).toContain('href="/customers/customer-1"');
+    expect(markup).toContain('href="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers"');
+    expect(markup).not.toContain("?returnTo=");
     expect(markup).toContain("Canonical customer identity · read only");
     expect(markup).toContain("Next page");
     expect(markup).not.toContain("target=");
@@ -91,7 +92,7 @@ describe("Unified CRM real customer list", () => {
     expect(markup).toContain('scope="col"');
     expect(markup).toContain('aria-live="polite"');
     expect(markup).toContain('aria-label="Customer result pages"');
-    expect(markup).toContain('aria-label="Open Alex Morgan in Customers"');
+    expect(markup).toContain('aria-label="Open Alex Morgan in CRM"');
     expect(markup).toContain("Current · observed");
     expect(markup).toContain("Newest record update in this page");
   });

@@ -23,6 +23,10 @@ function customerListHref(model: UnifiedCrmCustomerListReadModel, cursor?: strin
   return `/crm?${parameters.toString()}`;
 }
 
+function crmCustomerHref(model: UnifiedCrmCustomerListReadModel, customerId: string) {
+  return `/crm/customers/${encodeURIComponent(customerId)}?crmReturnTo=${encodeURIComponent(customerListHref(model))}`;
+}
+
 function formatDate(value: string | null, fallback: string) {
   if (!value) return fallback;
   return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Chicago" }).format(new Date(value));
@@ -89,7 +93,7 @@ function CustomerRows({ model }: { model: UnifiedCrmCustomerListReadModel }) {
               <td><CustomerStatus status={customer.status} /></td>
               <td><span className={styles.timing}><span>{formatDate(customer.lastInteractionAt, "No interaction recorded")}</span><small>Updated {formatDate(customer.updatedAt, "time unavailable")}</small></span></td>
               <td>{formatDate(customer.nextActionAt, "No next action scheduled")}</td>
-              <td><Link aria-label={`Open ${customer.displayName} in Customers`} className={styles.openLink} href={customer.sourceHref}>Open<ArrowRight aria-hidden="true" size={14} /></Link></td>
+              <td><Link aria-label={`Open ${customer.displayName} in CRM`} className={styles.openLink} href={crmCustomerHref(model, customer.id)}>Open<ArrowRight aria-hidden="true" size={14} /></Link></td>
             </tr>
           ))}</tbody>
         </table>
@@ -104,7 +108,7 @@ function CustomerRows({ model }: { model: UnifiedCrmCustomerListReadModel }) {
               <div><dt>Last interaction</dt><dd>{formatDate(customer.lastInteractionAt, "Not recorded")}</dd></div>
               <div><dt>Next action</dt><dd>{formatDate(customer.nextActionAt, "Not scheduled")}</dd></div>
             </dl>
-            <Link aria-label={`Open ${customer.displayName} in Customers`} className={styles.openLink} href={customer.sourceHref}>Open customer<ArrowRight aria-hidden="true" size={14} /></Link>
+            <Link aria-label={`Open ${customer.displayName} in CRM`} className={styles.openLink} href={crmCustomerHref(model, customer.id)}>Open customer<ArrowRight aria-hidden="true" size={14} /></Link>
           </article>
         ))}
       </section>
