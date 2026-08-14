@@ -1,8 +1,8 @@
 # Unified CRM Foundation Traceability Matrix
 
 **Document ID:** `UCRM-TRACE-001`
-**Version:** 1.0 planning baseline
-**Status:** Foundation traceability; implementation evidence remains empty until verified work lands
+**Version:** 1.1 accepted foundation baseline
+**Status:** `UCRM-009` accepted traceability gate; implementation evidence remains empty until verified work lands
 **Date:** 2026-08-14
 
 ## 1. Purpose
@@ -30,6 +30,7 @@ This matrix prevents requirements from disappearing between product discussion, 
 | `UCRM-REQ-015` | AI remains optional, grounded, permission-safe, evaluated, and controlled | Charter §5.5, §8; Architecture/Security/Testing | UCRM-106 | AI evaluation suite, source citations, prompt-injection tests, kill switch | RSK-017 |
 | `UCRM-REQ-016` | Feature-flagged rollout with Customers/Sales fallback and evidence-preserving rollback | Charter §11; Roadmap | UCRM-008, 067, 069–074 | UCRM-TST-009; flag/rollback rehearsal; post-release verification | RSK-018 |
 | `UCRM-REQ-017` | Many agents collaborate without contract, file, status, or evidence drift | Agent Operating Model | UCRM-007, 009 and every packet | Lease registry, handoffs, independent reviews, evidence ledger, drift audit | RSK-004, 020 |
+| `UCRM-REQ-018` | User-facing slices are reviewed interactively on real routes with policy, durable behavior, and safe fallback before milestone acceptance | Charter §9–10; Agent Operating Model; Testing | Every user-facing packet and milestone | Product Owner UX checkpoint record; route/policy/fallback proof; representative journey timing and disposition | RSK-005, 011, 018, 020 |
 
 ## 3. Initial critical journey coverage
 
@@ -44,6 +45,8 @@ This matrix prevents requirements from disappearing between product discussion, 
 | `UCRM-TST-007` | Provider timeout/replay does not duplicate a side effect | REQ-004, 012 | UCRM-081 or later | Not yet created |
 | `UCRM-TST-008` | Keyboard/mobile user completes the daily work loop | REQ-002, 014 | UCRM-063 | Not yet created |
 | `UCRM-TST-009` | Disable CRM writes and fall back without evidence loss | REQ-012, 016 | UCRM-067 | Not yet created |
+
+Each user-facing test journey also supplies the interactive evidence required by `UCRM-REQ-018`; a mock, screenshot, component-only render, or local-state-only prototype cannot populate its evidence field.
 
 ## 4. Evidence completion rules
 
@@ -61,13 +64,13 @@ For a requirement to be `VERIFIED`:
 
 | Foundation item | Required document/evidence | Current state |
 | --- | --- | --- |
-| UCRM-000 Product boundary | Product charter and approval record | Documented; approval pending |
-| UCRM-001 Current state/source ownership | Evidence baseline plus fresh capability census | Baseline documented; capability census pending implementation start |
-| UCRM-002 Domain/data contract | Architecture canonical model and accepted lifecycle decisions | Draft pending foundation approval |
-| UCRM-003 Application architecture | Architecture document and ADR acceptance | Draft pending foundation approval |
-| UCRM-004 Security/privacy | Security document, threat model, owners, open decisions | Draft pending foundation approval |
-| UCRM-005 Testing/evidence | Testing strategy and baseline defect registry | Documented; baseline defect ID/owner pending |
-| UCRM-006 SLO/success criteria | Approved values and owners | Provisional values only; approval pending |
-| UCRM-007 Agent execution | Agent operating model and coordinator/lease registry | Documented; named assignments pending |
-| UCRM-008 Feature/rollback | Architecture/roadmap contract and authority | Documented; owner/flag implementation pending |
-| UCRM-009 Traceability gate | This matrix, decision register, risk register, index | Documented; cross-document acceptance pending |
+| UCRM-000 Product boundary | Product charter and approval record | `CONTRACTED`; Product Owner approval recorded |
+| UCRM-001 Current state/source ownership | Evidence baseline plus fresh capability census | `CONTRACTED`; baseline and authority map accepted; fresh census required before source-adapter work |
+| UCRM-002 Domain/data contract | Architecture canonical model and accepted lifecycle decisions | `CONTRACTED`; accepted contract, no implementation claim |
+| UCRM-003 Application architecture | Architecture document and ADR acceptance | `CONTRACTED`; ADR-001–020 accepted, no runtime claim |
+| UCRM-004 Security/privacy | Security document, threat model, owners, open decisions | `CONTRACTED`; approved policy defaults, no implemented-control claim |
+| UCRM-005 Testing/evidence | Testing strategy and baseline defect registry | `CONTRACTED`; known baseline defect blocks clean RC, not reversible groundwork |
+| UCRM-006 SLO/success criteria | Approved values and owners | `CONTRACTED`; UX, pilot completion, opportunity completeness, integrity, availability, RTO/RPO and performance targets recorded |
+| UCRM-007 Agent execution | Agent operating model and coordinator/lease registry | `CONTRACTED`; user is Product Owner/business escalation, `/root` coordinates, independent Security/Quality/Release agents rotate per packet |
+| UCRM-008 Feature/rollback | Architecture/roadmap contract and authority | `CONTRACTED`; authority and triggers accepted, implementation and rehearsal pending |
+| UCRM-009 Traceability gate | This matrix, decision register, risk register, index | `CONTRACTED`; future implementation evidence remains empty until verified work lands |

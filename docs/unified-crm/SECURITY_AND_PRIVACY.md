@@ -1,9 +1,9 @@
 # Unified CRM Security and Privacy Architecture
 
 **Document ID:** `UCRM-SEC-001`
-**Version:** 1.0 planning baseline
+**Version:** 1.1 accepted policy baseline
 **Date:** 2026-08-14
-**Status:** Target controls; documentation only; not evidence of implementation, certification, or compliance
+**Status:** Accepted target policy; documentation only; not evidence of implementation, certification, compliance, or release
 **Applies to:** Unified CRM Console at `/crm`, CRM APIs, jobs, projections, integrations, exports, configuration, and AI assistance
 
 ---
@@ -27,6 +27,12 @@ This is reusable foundation, not proof that `/crm` has complete authorization, i
 ### 2.2 Target controls
 
 All `UCRM-SEC-*` requirements below remain targets until the applicable acceptance gates have executable evidence in representative environments. No claim of SOC 2, ISO 27001, PCI DSS, GLBA, HIPAA, GDPR, CCPA, or other certification/compliance is made. Applicable legal and contractual obligations require qualified review before production rollout.
+
+### 2.3 Approved policy and role authority
+
+The user approved the foundation security/privacy policy as Product Owner and business-escalation authority. Architecture Owner, Security and Privacy Owner, Data/Domain Owner, Operations/Release Owner, and Quality Owner are responsibility roles, not inferred human identities.
+
+The approval accepts deny-by-default organization isolation, the role/record/field defaults in this document, no self-approval, synthetic-data-first migration, consent enforcement, evidence-preserving rollback, and the retention/export safe baseline. It does not assert implementation or approve exact stage names, monetary thresholds, retention periods, export-volume thresholds, pilot users, or a production cohort. Capabilities depending on those exact values remain held.
 
 ## 3. Security objectives
 
@@ -159,6 +165,20 @@ Capabilities use stable names and are narrower than job titles:
 
 Roles map to capabilities through versioned policy. A role name alone is not sufficient evidence in a service or repository.
 
+### 7.2.1 Accepted initial role-scope baseline
+
+| Role category | Default record scope | Default exclusions |
+| --- | --- | --- |
+| Seller | Assigned/owned customer and opportunity work required for the selling purpose | Team-wide records, restricted finance, gross/margin, restricted notes, audit/security, integration payloads |
+| Lead coordinator | Assigned lead queue and customer context required for intake/qualification | Commercial exception approval, restricted finance, gross/margin, restricted notes, audit/security |
+| Sales manager | Authorized team records and exact approval subjects within later approved authority | No automatic restricted finance, security/audit, integration-secret, or cross-organization access; no self-approval |
+| Service/customer care | Assigned relationship, appointment, service, promise, and customer-care context | Gross/margin, commercial exception authority, restricted finance, unrelated opportunity records |
+| Office/finance liaison | Assigned handoff/readiness records and explicitly permitted finance fields | General pipeline, unrelated customer records, price/discount approval unless separately granted |
+| Administrator | CRM configuration and rollout controls explicitly granted | No implicit customer, contact, conversation, opportunity, quote, finance, gross, or audit content access |
+| Executive/owner view | Approved read-only insights and specifically authorized drill-through | No mutation, unrestricted export, or restricted-field access by title alone |
+
+Named users and the exact pilot cohort remain deferred. A person receives no access because their title appears in this table; grants must be explicit, current, organization/location scoped, tested, and rollout-enabled.
+
 ### 7.3 Record security
 
 Record scope can depend on organization, authorized location, ownership, team, assignment, collaborator relationship, pipeline, purpose, and record state. Managers do not automatically receive unrestricted confidential or restricted fields merely because they can view a team pipeline.
@@ -182,6 +202,17 @@ Field groups are classified and projected server-side. Examples:
 
 List, board, search, notification, export, print, API, audit viewer, AI retrieval, and analytics each require purpose-specific projections. Masking a field in a component while returning it in JSON is a security failure.
 
+### 7.4.1 Accepted sensitive-field defaults
+
+- Customer contact values are masked in list, board, search, autocomplete, notification, and aggregate insight surfaces. Detail reveal requires record access, an assigned business purpose, and the applicable field capability.
+- Conversation content and internal notes are confidential and limited to authorized relationship participants. Restricted notes require a separate explicit capability and never appear in general search or AI retrieval by default.
+- Gross, margin, manager-only commercial analysis, and exception rationale are restricted to explicitly authorized sales leadership; ordinary quote visibility does not grant them.
+- Finance documents and finance-provider data are restricted to an assigned finance/handoff purpose and explicit capability. Finance intent may be projected only at the minimum classification needed for the workflow.
+- Consent and suppression state may be shown to users who must avoid prohibited contact; underlying evidence and administrative changes require narrower authority.
+- Integration payloads, credentials, audit/security evidence, incident data, and AI prompt/trace material require dedicated capabilities and are absent from ordinary CRM responses.
+- Configuration administration never grants customer-record or sensitive-field visibility by implication.
+- Broad/restricted export remains disabled until exact export policy and thresholds are approved.
+
 ### 7.5 Separation of duties
 
 - A requester cannot approve their own exception where policy requires independent approval.
@@ -189,6 +220,15 @@ List, board, search, notification, export, print, API, audit viewer, AI retrieva
 - Integration credential administrators cannot silently grant themselves customer-record access.
 - Support impersonation, if later approved, requires reason, time limit, visible banner, no credential access, and immutable audit.
 - Break-glass access is time-bound, reasoned, alerted, reviewed, and cannot disable its own audit.
+
+### 7.6 Accepted approval-authority baseline
+
+- The requester cannot approve their own commercial, data, privacy, export, merge, access, or configuration exception when separation of duties applies.
+- Every approval binds to an exact subject, version, purpose, organization/location scope, effective policy, actor, decision, and reason.
+- CRM may create commercial drafts. Until exact monetary/discount/cumulative thresholds are approved, only explicitly authorized sales management may approve presentation or a commercial exception; the system must not infer a numeric limit.
+- Customer merge remains a Customer-domain command requiring data-steward authority and independent authorized approval.
+- Material privacy disposition and broad/restricted export require explicit authorized approval under the later exact policy.
+- Approval expiry periods and monetary thresholds are deferred; dependent execution remains disabled rather than using invented values.
 
 ## 8. Organization and tenant isolation
 
@@ -279,6 +319,14 @@ Retention is policy-driven by record class, purpose, jurisdiction, contract, and
 
 No agent may implement hard-delete cascades for customer history as a convenience. Merge, correction, archive, anonymization, and erasure have different semantics.
 
+#### Accepted safe baseline pending exact schedules
+
+- Existing approved source-domain retention state and legal holds remain authoritative.
+- No CRM-specific retention duration is inferred, and no automated CRM disposition job may delete or anonymize real customer data until exact data-class schedules are approved.
+- Legal hold always blocks disposition. A convenience archive, merge, import correction, or route rollback cannot bypass a hold.
+- Synthetic fixtures are the default until a bounded real-data pilot dataset is separately approved by the Data Owner.
+- The Product Owner, Security and Privacy Owner, and Data Owner must approve exact retention/disposition policy before affected real-data automation is enabled.
+
 ### 11.3 Data-subject and customer requests
 
 If legally or contractually required, access, correction, restriction, portability, and deletion requests use an identity-verified, case-based workflow with scope review, exclusions/holds, dual control for high-risk disclosure, secure delivery, deadlines, and audit. The CRM UI must not imply that a staff-level delete button satisfies a formal privacy request.
@@ -328,6 +376,8 @@ Imports require file quarantine/scanning, organization binding, mapping preview,
 ### Exports
 
 Exports are purpose- and field-aware commands, not unrestricted database downloads. They require explicit filters, row/field preview, volume limits, step-up or approval for broad/restricted sets, asynchronous secure generation, short-lived single-purpose downloads, audit, retention/expiry, and revocation. Exports never include secrets, hidden fields, or another organization's data.
+
+Broad export and every export containing restricted fields remain disabled until exact field, role, purpose, row/volume, approval, expiry, and monitoring thresholds are approved. No unrestricted-export permission is implied by manager, administrator, executive, Product Owner, or technical-owner status.
 
 ### Search and analytics
 
@@ -389,6 +439,16 @@ Incident recovery never uses unaudited direct production edits when a governed c
 - Restore rehearsals use an isolated environment and verify organization isolation, record counts, command/audit/event/outbox correlation, attachments, configuration versions, search/projection rebuild, and revoked credentials.
 - Restored integrations and communications remain disabled until credentials, cursors, duplicate-delivery risk, consent state, and reconciliation are reviewed.
 - Disaster recovery does not weaken authorization, retention holds, or audit integrity.
+
+## 19.1 Accepted rollout, pause, and rollback authority
+
+- Unified CRM capabilities remain off by default until the Product Owner approves a named cohort and Operations/Release executes the enablement.
+- The Security and Privacy Owner may immediately disable an affected capability for suspected or confirmed exposure, authorization bypass, consent failure, secret compromise, or unsafe external/AI action. Containment does not wait for a business release meeting.
+- The Operations/Release Owner may pause or roll back for integrity, availability, migration/reconciliation, duplicate-side-effect, projection-drift, or recovery failure.
+- Product Owner approval is required to broaden the cohort, cut navigation over from existing consoles, or retire an existing console. Route retirement is a separate decision after parity, pilot acceptance, and rollback rehearsal.
+- Rollback disables routes, commands, integrations, automation, or cohorts through governed controls and restores the last safe application/configuration state where appropriate. It does not delete accepted CRM facts, audit, events, outbox/reconciliation evidence, or source-domain records.
+- Any authorized emergency disablement is audited, alerted, reviewed, and followed by an explicit resume decision.
+- Named pilot users, exact cohort, quantitative rollback triggers, and service targets remain deferred; no person or production cohort is enabled by this document.
 
 ## 20. Secure SDLC and agent rules
 

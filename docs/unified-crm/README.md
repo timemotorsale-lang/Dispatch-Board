@@ -1,9 +1,9 @@
 # Dispatch Board Unified CRM Console
 
 **Program ID:** `UCRM`
-**Version:** 1.0 planning baseline
+**Version:** 1.1 accepted foundation baseline
 **Date:** 2026-08-14
-**Status:** Foundation documentation in progress; no Unified CRM implementation is authorized by this package alone
+**Status:** Foundation gate accepted for UCRM-010/011 implementation; no Unified CRM capability is yet implemented or released
 **Target route:** `/crm`
 **Parent product:** Time Motor Sales Dispatch Board
 
@@ -65,10 +65,13 @@ Documents, mockups, types, sample arrays, tests of pure helpers, and disabled co
 8. No production-facing screen may present sample data as live data.
 9. No agent may silently revise a shared domain contract while another slice depends on it.
 10. A milestone is complete only when its named evidence exists on one commit baseline.
+11. User experience leads each slice through an interactive browser checkpoint, but visual approval never substitutes for real routes, server policy, error/fallback behavior, accessibility, tests, or rollback proof.
 
 ## Foundation gate
 
-No Unified CRM feature implementation should begin until `UCRM-000` through `UCRM-009` in [`MILESTONES.md`](MILESTONES.md) are accepted. The foundation gate requires:
+`UCRM-000` through `UCRM-009` in [`MILESTONES.md`](MILESTONES.md) were accepted by the Product Owner on 2026-08-14 for the bounded UCRM-010/011 implementation. Exact opportunity stages, commercial thresholds, retention durations, named pilot users, and external providers remain deferred; their dependent milestones stay `HELD` until separately approved.
+
+The accepted foundation gate requires:
 
 - product charter approval;
 - current-state evidence acceptance;
@@ -80,6 +83,18 @@ No Unified CRM feature implementation should begin until `UCRM-000` through `UCR
 - roadmap and milestone acceptance;
 - decision-register owners assigned;
 - the first vertical slice selected with explicit acceptance criteria.
+
+## UX review cadence
+
+Each user-facing vertical slice follows this review loop:
+
+1. agree on the user job, simplest path, information priority, and execution target;
+2. expose the smallest real route backed by actual authentication, policy, loading, empty, error, unavailable, and feature-off behavior;
+3. inspect and interact with it in the in-app browser across representative roles and responsive sizes;
+4. record Product Owner feedback as acceptance criteria or a governed change, not as an untraceable visual tweak;
+5. complete accessibility, server-policy, regression, and rollback evidence before marking the slice `VERIFIED`.
+
+UX checkpoints are deliberately frequent. They approve direction and usability as work proceeds; they do not authorize sample data to appear live or permit a frontend-only milestone to pass.
 
 ## Initial release boundary
 

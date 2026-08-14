@@ -1,8 +1,8 @@
 # Unified CRM Product Charter
 
 **Document ID:** `UCRM-CHARTER-001`
-**Version:** 1.0 planning baseline
-**Status:** Proposed for foundation-gate approval
+**Version:** 1.1 accepted product baseline
+**Status:** Accepted for `UCRM-000`; this acceptance does not claim implementation or release
 **Date:** 2026-08-14
 
 ## 1. Product identity
@@ -13,6 +13,8 @@
 **Target route:** `/crm`
 
 Unified CRM is the customer-relationship and revenue workspace inside Dispatch Board. It gives frontline staff and managers a simple system of action over shared customer, sales, service, vehicle, appointment, task, quote, and operational context.
+
+The business owner accepted the official name, short name, navigation label, `/crm` route, independent-console/shared-platform boundary, user-first operating model, and internal MVP scope on 2026-08-14.
 
 ## 2. Product promise
 
@@ -78,7 +80,7 @@ Unified CRM is not:
 | User | Primary jobs | Default landing |
 | --- | --- | --- |
 | Salesperson | Work priorities, contact customers, advance opportunities, prepare appointments, create quote requests, record outcomes | My Work |
-| Lead coordinator / BDC | Capture, deduplicate, route, acknowledge, qualify, schedule, and recover leads | Lead Operations |
+| Lead coordinator / BDC | Review source-owned lead intake, recover neglected work, and bridge qualified interest into the governed CRM opportunity flow | Lead Operations |
 | Sales manager | Review pipeline, forecast, approvals, stalled work, SLA risk, coaching needs, and revenue exceptions | Manager Command |
 | Service advisor / customer care | Understand relationship history, manage concerns and promises, coordinate appointments and jobs | Customer Work |
 | Office / finance liaison | Review document and handoff readiness without making unauthorized finance decisions | Handoffs |
@@ -117,6 +119,12 @@ Mobile prioritizes agenda, search, call/message/navigation actions, notes, outco
 
 The target baseline is WCAG 2.2 AA, including keyboard operation, clear focus, screen-reader semantics, non-color status communication, accessible charts, reduced motion, and locale/time-zone clarity.
 
+### 5.8 Experience is reviewed live, early, and repeatedly
+
+Before agents deepen a workspace, the business owner reviews its proposed workflow as a live, interactive browser experience at representative desktop and mobile sizes. The review covers navigation, language, information priority, progressive disclosure, primary actions, keyboard behavior, loading/empty/error/denied states, and recovery. Feedback becomes a recorded acceptance decision before dependent UI expands.
+
+An experience preview may use clearly labeled synthetic fixtures to test interaction and composition. It is not implementation evidence. The same workflow must be reviewed again against permission-filtered read models and real server-authoritative commands before a slice can be `VERIFIED`, `PILOT`, or `RELEASED`.
+
 ## 6. Initial information architecture
 
 Permanent navigation is intentionally small:
@@ -124,8 +132,8 @@ Permanent navigation is intentionally small:
 - **Home** — priorities, agenda, changes, alerts, next actions;
 - **Work** — role-aware queues, tasks, promises, and approvals;
 - **Customers** — search, lists, relationships, and Customer 360;
-- **Pipeline** — leads, opportunities, board/table/forecast views;
-- **Conversations** — approved communication history and work queues;
+- **Pipeline** — source-lead bridge, opportunities, board/table/forecast views;
+- **Conversations** — approved manual communication history, drafts, templates, and work queues;
 - **Insights** — actionable dashboards and traceable reporting;
 - **More** — quotes, handoffs, configuration, and less-frequent modules.
 
@@ -144,15 +152,15 @@ Global capabilities:
 The first controlled release includes:
 
 1. Customer identity, contact points, ownership, status, communication preferences, archive state, and duplicate candidates.
-2. Customer 360 with relationship summary, unified timeline, leads/opportunities, tasks, appointments, cases, documents, vehicles, jobs/repairs, and notes.
-3. Lead intake, assignment, acknowledgement, qualification, next action, stage history, closure reason, and task/appointment handoff.
+2. Customer 360 with relationship summary, unified timeline, opportunities, tasks, appointments, documents, vehicles, jobs/repairs, and notes, plus permission-filtered read-only lenses over existing source-owned leads and cases.
+3. A safe read/bridge over existing lead intake that can carry approved source context into a governed opportunity without creating a second CRM-owned lead lifecycle.
 4. Opportunity pipeline with evidence-based stages, aging, owner, next action, due time, value, expected close, risk, and history.
-5. Activity timeline for calls, messages, meetings, notes, system events, outcomes, and promises.
+5. Activity timeline for manually recorded calls, messages, meetings, notes, system events, outcomes, and promises; communication drafts/templates may be prepared, but the CRM does not send or synchronize external communications in the MVP.
 6. Task, appointment, vehicle, repair/job, document, and dispatch linkage through native domain bridges.
 7. Quote drafts and governed presentation/approval boundaries with immutable presented versions.
 8. Role-aware Home, manager queues, pipeline reporting, and record-level drill-through.
 9. Server-enforced capabilities, record/field filtering, activity evidence, and sensitive-action audit.
-10. Data import preview, validation, deduplication, provenance, bounded commit, and rollback evidence.
+10. A bounded, administrator-assisted pilot data load and rehearsal with validation, deduplication, provenance, reconciliation, and recovery evidence; this is an operational migration activity, not a day-one self-service import product.
 
 ## 8. Deferred capabilities
 
@@ -160,7 +168,11 @@ Unless promoted by an approved decision:
 
 - production Gmail/Outlook synchronization;
 - SMS, WhatsApp, telephony, recording, and transcription;
+- external communication sending or inbox/calendar synchronization from the CRM;
 - DMS/DealerCenter or external CRM synchronization;
+- a new CRM-owned lead intake/lifecycle engine beyond the accepted source read/bridge;
+- a new CRM-owned case workflow beyond the accepted read-only source lens;
+- reusable or self-service customer/contact import;
 - automated marketing journeys;
 - unrestricted custom objects, scripts, and workflow execution;
 - customer/partner portals;
@@ -219,3 +231,5 @@ Before pilot approval, representative users must answer yes to these questions:
 ## 11. Release posture
 
 The target is a production-ready internal CRM, not immediate parity with every top-ten CRM suite. Enterprise foundations are built early where retrofitting would be dangerous—identity, authorization, audit, events, data authority, versioning, integration resilience, accessibility, and rollback. Broad suites, external adapters, and advanced customization arrive only after the core workflow demonstrates adoption and trusted data.
+
+The accepted delivery posture is eight weeks for foundation-through-controlled-pilot work, with Weeks 9–10 reserved for evidence-driven correction and release contingency rather than added scope. Existing Customers and Sales consoles remain available through pilot and the accepted fallback period; their retirement is a separate decision.

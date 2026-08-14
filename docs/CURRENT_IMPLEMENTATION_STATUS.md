@@ -1,12 +1,18 @@
 # Current Implementation Status
 
+## 2026-08-14 — Unified CRM foundation gate accepted
+
+The Product Owner accepted the bounded business decisions for `UCRM-000` through `UCRM-009`: product identity and `/crm` boundary, internal-MVP scope and deferrals, initial access and sensitive-field defaults, canonical/commercial/data authority, service-quality targets, agent governance, and rollout/rollback authority. The accepted operating model makes UX visible early through interactive browser checkpoints while retaining complete vertical-slice, server-policy, accessibility, evidence, and rollback requirements.
+
+This acceptance authorizes implementation of `UCRM-010` and `UCRM-011` only: the authenticated CRM route shell and capability-policy baseline. It does not claim that the route, UI, authorization, feature controls, tests, pilot, or release already exist. Exact opportunity stages, commercial thresholds, retention periods, named pilot users, external providers, and the milestones that depend on them remain deferred or held for later approval.
+
 ## 2026-08-14 — Unified CRM Console foundation package drafted
 
 The documentation-first foundation for the independent Unified CRM Console is established under [`docs/unified-crm/README.md`](unified-crm/README.md). The package defines the product charter, evidence baseline, modular-monolith architecture, source-authority boundaries, security/privacy model, 8–10 week internal-MVP roadmap, `UCRM-###` vertical milestones, multi-agent operating model, testing and release gates, decision register, risk register, and requirement traceability.
 
 The target console is `/crm`, sharing Dispatch Board authentication and platform infrastructure while preserving Customers, Inventory/Vehicles, Appointments, Tasks, Repair/Jobs, Documents, Activity, and other owning domains as authoritative. Existing `/customers` and `/sales` surfaces remain available until separately approved parity, pilot, rollback, and navigation-migration gates pass.
 
-This checkpoint adds planning and governance only. It does not add the `/crm` route, schema, migration, API, workflow, UI, integration, permission, AI behavior, production rollout, or retirement of an existing console. Foundation decisions remain proposed until the `UCRM-000` through `UCRM-009` acceptance gate is recorded.
+This checkpoint added planning and governance only. It did not add the `/crm` route, schema, migration, API, workflow, UI, integration, permission, AI behavior, production rollout, or retirement of an existing console. The later acceptance entry above records the bounded foundation decision.
 
 ## 2026-08-03 - Shop and Recon deterministic sixteen-stage workflow implemented
 

@@ -2,7 +2,7 @@
 
 **Program:** Dispatch Board Unified CRM Console
 **Document ID:** `UCRM-GOV-002`
-**Status:** Proposed for foundation-gate approval; no CRM implementation is claimed
+**Status:** `UCRM-007` accepted operating contract; no CRM implementation is claimed
 **Applies to:** All human and AI contributors working on Unified CRM (`UCRM`)
 **Initial product boundary:** Independent `/crm` console using shared Dispatch Board identity and authoritative operational records
 
@@ -60,6 +60,14 @@ Code, tests, commits, and evidence reference the relevant identifiers. If an ite
 
 One person or agent may fill several roles on a small packet, except that the author may not be the sole approver for a high-risk change.
 
+### Accepted program authority
+
+- The repository owner/user is the Product Owner and final business-escalation authority. Product scope, workflow meaning, commercial authority, pilot acceptance, and residual business-risk decisions return to the user when the governing documents do not already decide them.
+- The root coordinating agent (`/root`) is the Program Coordinator for active multi-agent execution. It owns packet assignment, dependency order, file leases, status truth, integration sequencing, and escalation routing; it does not replace the user's business authority.
+- Security, Quality, and Release review are filled by rotating independent agents named in each work packet. A rotating reviewer may not approve their own implementation and must re-evaluate evidence on the packet's exact commit.
+- Domain, Architecture, Data, Integration, and UX responsibilities may be assigned per packet by the Program Coordinator. Every assignment must still name one accountable owner and required independent reviewers.
+- This allocation remains binding until the user records a replacement through change control.
+
 | Role | Accountable for | Must not do alone |
 | --- | --- | --- |
 | Program Coordinator | Packet registry, sequencing, owners, dependency graph, integration order, status truth, escalation | Approve their own high-risk implementation |
@@ -82,6 +90,8 @@ One person or agent may fill several roles on a small packet, except that the au
 `UCRM-RSK-CLASS-B` changes require affected Domain and Quality approval. These include ordinary workflows, read models, search, reporting, and non-destructive integrations.
 
 `UCRM-RSK-CLASS-C` changes require one independent reviewer. These include documentation, copy, isolated visual polish, and tests that do not alter contracts.
+
+The work-packet registry is the assignment and lease record. The Program Coordinator reviews active leases and dependencies at every agent dispatch/handoff and conducts a cross-packet integration and drift review at least once per active build day and at every milestone gate.
 
 ## 5. Ownership boundaries
 
@@ -112,6 +122,7 @@ Authoritative records and allowed mutation boundaries
 Inputs/outputs, API/event/schema contracts and version
 Server-side policies and audit events
 UX states: loading, empty, error, stale, forbidden, success, recovery
+Interactive UX checkpoint: route, representative persona/data, actions to review, policy proof, fallback/flag-off behavior, Product Owner disposition
 Accessibility and performance budgets
 Test cases and required evidence
 Owned files/directories and shared files requested
@@ -144,6 +155,10 @@ The coordinator enforces this sequence:
 8. Implementation proceeds behind a safe boundary or feature flag when required.
 9. Independent review verifies behavior against the contract and repository patterns.
 10. Quality steward closes evidence gaps; coordinator alone advances packet status.
+
+For every user-facing slice, an interactive UX checkpoint occurs as soon as a thin end-to-end path is safe to run and again before milestone acceptance. The Product Owner must be able to open the real application route and exercise representative behavior. The checkpoint must use the real read/command boundary, server policy, durable or intentionally seeded repository data, loading/error/forbidden states, and feature-off/fallback behavior. A static mockup may support discussion, but a mock-only, component-only, or local-state-only demonstration cannot complete a milestone.
+
+The coordinator records checkpoint feedback as accepted, revision required, or explicitly deferred, links it to the packet, and routes material workflow changes back through contracts before further parallel implementation.
 
 Consumers may build against a contracted versioned interface, not an unreviewed draft. Breaking changes create a new contract version and a consumer migration plan.
 
@@ -203,6 +218,7 @@ An implementation handoff must contain:
 - open defects, risks, assumptions, and known baseline failures;
 - security/privacy consequences;
 - manual verification steps and screenshots only when free of sensitive data;
+- interactive UX checkpoint route, persona, Product Owner disposition, and resulting decisions;
 - next consumer and any required sequencing.
 
 The receiving reviewer reproduces risk-proportionate evidence rather than accepting the summary. A rejected handoff returns to `IN_PROGRESS` with actionable findings.
@@ -258,6 +274,7 @@ A packet may become `VERIFIED` only when all applicable statements are true:
 - Server validation, authorization, tenant scope, audit and idempotency are enforced where relevant.
 - Loading, empty, error, stale, forbidden, success and recovery experiences exist.
 - Accessibility, responsiveness and performance budgets pass for the changed surface.
+- Every user-facing slice has passed its required interactive UX checkpoint on a real route with server policy and safe fallback; mock-only evidence is insufficient.
 - Migrations apply on fresh and representative upgrade data and have a proven recovery path.
 - Observability identifies failures without logging secrets or unnecessary personal data.
 - No visible action misrepresents its availability or authority.
@@ -289,4 +306,4 @@ Program Coordinator
 `-- Release + Operations
 ```
 
-Parallel agents operate beneath this contract. The coordinator controls integration order; stewards control domain decisions; Quality controls evidence sufficiency; Release controls enablement. No role may convert incomplete work into a completion claim by changing documentation alone.
+Parallel agents operate beneath this contract. The user is Product Owner and business escalation authority; the root agent coordinates integration; rotating independent Security, Quality, and Release agents are assigned per packet. Stewards control domain decisions, Quality controls evidence sufficiency, and Release controls enablement. No role may convert incomplete work into a completion claim by changing documentation alone.

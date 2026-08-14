@@ -3,7 +3,7 @@
 **Document:** Unified CRM Console Implementation Roadmap
 **Program:** Dispatch Board Unified CRM Console
 **Primary route:** `/crm`
-**Status:** Planning baseline; no CRM implementation or release is claimed
+**Status:** Accepted implementation roadmap; no CRM implementation or release is claimed
 **Target:** Production-ready internal MVP in 8–10 weeks after the foundation gate is accepted
 
 ---
@@ -26,6 +26,17 @@ The internal MVP is a coherent operational B2B CRM:
 - server-enforced permissions and immutable audit evidence.
 
 The MVP does **not** require production email/calendar synchronization, SMS delivery, telephony, external DMS/CRM synchronization, autonomous AI actions, a general workflow builder, or full Salesforce-equivalent breadth.
+
+### 1.1 Accepted business defaults
+
+The business owner accepted these program controls on 2026-08-14:
+
+- product identity and route: Dispatch Board Unified CRM Console, Unified CRM, navigation label CRM, `/crm`;
+- one independent console experience on the shared Dispatch Board platform and authoritative source domains;
+- a scope-locked 8-week foundation-through-pilot plan with Weeks 9–10 used only for correction and release contingency;
+- existing lead records exposed through a safe read/bridge only, existing cases exposed read-only, administrator-assisted pilot data loading instead of self-service import, and manual communication history/drafts without external delivery or synchronization;
+- quote governance remains in the internal MVP; external providers and enterprise customization remain post-MVP;
+- the UCRM-006 service/usability targets and UCRM-008 rollout/rollback defaults recorded below.
 
 ## 2. Evidence-Based Starting Point
 
@@ -51,6 +62,8 @@ The existing Customers area includes meaningful durable capability, while the cu
 8. Optional AI may summarize or recommend, but core workflows must remain deterministic and usable without it.
 9. New behavior starts behind a server-enforced feature flag or cohort control until its release gate passes.
 10. Merge only evidence-complete slices. Do not stack unrelated work on an unaccepted dependency.
+11. Run a live, interactive UX contract review before deep implementation of each major workspace, then repeat the review against real read models and commands before verification.
+12. UX approval controls composition and behavior; it never substitutes for the required migration-to-browser-proof vertical slice.
 
 ## 4. Status Legend
 
@@ -98,7 +111,7 @@ No downstream UI may bypass an incomplete authority, policy, migration, or data 
 | Phase | Target window | Milestone range | Outcome | Entry gate | Exit gate |
 | --- | --- | --- | --- | --- | --- |
 | 0. Foundation | Days 1–3 | UCRM-000–009 | Accepted product boundary, architecture, security, testing, agent operating model, data ownership, flags, and evidence registry | Clean baseline and foundation branch | All foundation decisions linked; unresolved authority is explicitly held |
-| 1. Console and customer truth | Week 1 | UCRM-010–019 | Independent `/crm` shell, role entry, customer/contact authority, safe import foundation, policy-safe list and Customer 360 | Phase 0 accepted | Authorized users can enter CRM, find a durable customer, and see source-owned context without sample data |
+| 1. Console and customer truth | Week 1 | UCRM-010–019 | Independent `/crm` shell, role entry, customer/contact authority, policy-safe list and Customer 360 | Phase 0 accepted | Authorized users can enter CRM, find a durable customer, and see source-owned context without sample data |
 | 2. Memory and execution | Week 2 | UCRM-020–029 | Timeline, notes, contact outcomes, commitments, and linked tasks | Phase 1 accepted | A user can record an outcome and owned next action; refresh preserves timeline and audit evidence |
 | 3. Opportunities and pipeline | Weeks 3–4 | UCRM-030–039 | Durable opportunities, governed stage transitions, visual pipeline, work queue, and job/dispatch linkage | Phase 2 accepted | End-to-end customer-to-opportunity-to-dispatch slice passes policy, audit, retry, and browser proof |
 | 4. Quotes and commercial control | Week 5 | UCRM-040–049 | Versioned quotes, line items, approvals, commercial history, and safe conversion boundaries | Phase 3 accepted | Quote presentation is immutable/versioned; approval and denial paths are auditable |
@@ -110,6 +123,20 @@ No downstream UI may bypass an incomplete authority, policy, migration, or data 
 
 Weeks 9–10 are contingency and release proof, not permission to add scope. If Weeks 1–8 gates fail, the release is held or reduced by feature flag rather than rushed.
 
+### 6.1 Live interactive UX checkpoints
+
+| Checkpoint | Timing | Live review focus | Required record |
+| --- | --- | --- | --- |
+| UCRM-UXR-0 | Before UCRM-010 implementation expands | Console navigation, role entry, Home hierarchy, global actions, desktop/mobile shell | Owner-accepted experience contract or named corrections |
+| UCRM-UXR-1 | During Week 1 | Customer search/list, Customer 360, source/freshness, restricted and recovery states | Interactive review of the proposed flow, followed by operational browser proof before milestone exit |
+| UCRM-UXR-2 | During Week 2 | My Work, manual outcome capture, timeline, note, commitment, and Task handoff | Time/click friction observations and accepted primary-action flow |
+| UCRM-UXR-3 | During Weeks 3–4 | Opportunity detail, accessible pipeline board/table, transitions, and dispatch handoff | Seller/manager walkthrough and recorded corrections |
+| UCRM-UXR-4 | During Week 5 | Quote drafting, version visibility, approval boundaries, and error recovery | Seller/manager interactive acceptance record |
+| UCRM-UXR-5 | During Week 6 | Global search, dashboards, drill-through, forecast, and exception queues | Manager interactive acceptance record with metric reconciliation |
+| UCRM-UXR-6 | Weeks 7–8 | Integrated desktop/mobile manager and staff journeys | Pilot usability evidence on the same candidate used for technical gates |
+
+The first pass may be an explicitly labeled interactive experience preview using synthetic data. Milestone exit always requires a second pass over the implemented, permission-filtered workflow. A screenshot, static mockup, local-only state change, or clickable control without a real contract cannot close a checkpoint.
+
 ## 7. Internal MVP Release Boundary
 
 Included:
@@ -117,12 +144,14 @@ Included:
 - authenticated, role-aware independent CRM console;
 - durable customer/contact views based on authoritative shared records;
 - Customer 360 and unified permitted activity history;
+- read-only source lenses for existing leads and cases, with a safe lead-to-opportunity bridge;
 - opportunity ownership, stages, next actions, pipeline, and work queue;
-- manual communication logging and draft/template preparation;
+- manual communication logging and draft/template preparation without external sending or synchronization;
 - tasks, appointments, jobs, and dispatch links;
 - versioned quotes and controlled approvals;
 - global CRM search and manager dashboards;
 - permissions, audit, feature flags, recovery, monitoring, accessibility, and responsive proof.
+- bounded administrator-assisted pilot data loading and reconciliation as an operational readiness activity.
 
 Deferred:
 
@@ -132,6 +161,8 @@ Deferred:
 - external DMS, accounting, lender, or CRM synchronization;
 - e-signature activation;
 - unrestricted custom objects/workflow designer;
+- a new CRM-owned lead or case lifecycle;
+- reusable/self-service imports;
 - advanced territory planning, incentive compensation, and marketing automation;
 - autonomous outbound communication, pricing, merging, or stage changes;
 - multi-tenant subscription and white-label administration.
@@ -149,6 +180,14 @@ Manual logging, drafts, templates, preferences, and consent enforcement may ship
 - Every slice records how to disable it, what data remains after disablement, and how operators recover partial work.
 - A rollback must not delete CRM evidence. Prefer disable, route fallback, compensating command, or prior application release.
 - External side effects require idempotency, delivery state, retry policy, reconciliation, and kill switch before activation.
+
+Accepted UCRM-008 defaults:
+
+- pilot with 5–8 named users covering salesperson, lead coordinator, sales manager, service/customer care, and administrator for at least five business days;
+- separate server controls for console access, reads, writes, and risky commands;
+- keep existing Customers and Sales consoles available through pilot and for 30 days after broad internal release;
+- Product authorizes enablement; Operations, Security, or Engineering may independently disable; re-enable requires Product plus technical/security review;
+- immediately hold or roll back for cross-organization/field disclosure, lost or duplicated authoritative writes, a material audit gap, migration reconciliation mismatch, or any Severity 0/1 defect.
 
 ## 9. Evidence Required at Every Gate
 
@@ -175,6 +214,8 @@ Evidence must describe the tested environment and commit. Planned tests or scree
 - Product language, canonical records, IDs, statuses, roles, permissions, event ownership, and integration boundaries are approved.
 - Security threat model, testing strategy, agent responsibilities, dependency rules, and conflict ownership are documented.
 - The current baseline distinguishes reusable implementation from prototypes and plans.
+- UCRM-000, UCRM-006, and UCRM-008 business decisions are accepted; their implementation/rehearsal evidence remains required by the later slice and release gates.
+- UCRM-UXR-0 has a live interactive owner review record.
 
 ### Vertical-slice gate
 
@@ -211,6 +252,22 @@ The internal pilot should measure, without opaque employee scoring:
 - user-reported friction, correction frequency, and support volume.
 
 Targets are approved during UCRM-006; they are not invented during implementation.
+
+Accepted UCRM-006 targets:
+
+| Measure | Accepted target |
+| --- | --- |
+| New-user Home comprehension | Under one minute in representative review |
+| Find and understand an authorized customer | Under 10 seconds at the approved target volume |
+| Record a manual outcome and dated next action | Under 15 seconds |
+| Representative pilot journey completion | At least 90% without assistance |
+| Active opportunity core integrity | 100% have owner, stage, next action, and due time |
+| Consequential integrity/security | Zero unauthorized disclosure, lost/duplicate authoritative writes, or missing material audit evidence |
+| Release defect bar | No open Severity 0/1 |
+| Availability | 99.5% during approved operating hours in pilot; 99.9% after internal release |
+| Recovery objectives | RTO 2 hours; RPO 15 minutes |
+
+The operating calendar and named metric owners must be configured before pilot execution. Agents choose and tune technical query budgets, indexes, caching, monitoring, and implementation mechanisms within these accepted outcomes.
 
 ## 12. Change Control
 

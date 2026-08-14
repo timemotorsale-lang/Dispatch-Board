@@ -2,7 +2,7 @@
 
 **Program:** Dispatch Board Unified CRM Console
 **Document ID:** `UCRM-QA-001`
-**Status:** Proposed for foundation-gate approval; tests named here are requirements unless linked evidence says implemented
+**Status:** `UCRM-005` accepted quality contract; tests named here are requirements unless linked evidence says implemented
 **Companion:** `UCRM-GOV-002` (`AGENT_OPERATING_MODEL.md`)
 
 ## 1. Quality objective
@@ -23,6 +23,7 @@ The strategy extends the repository's existing Vitest, Playwright, Prisma, lint,
 8. Every implemented workspace has loading, empty, error, stale, forbidden, success and recovery coverage.
 9. Optional AI is evaluated separately and cannot make the deterministic workflow unavailable.
 10. Evidence is bound to a commit, environment, schema and fixture version.
+11. Every user-facing milestone includes a Product Owner interactive checkpoint on a real route backed by server policy, representative repository data, and safe feature-off/fallback behavior; mock-only review cannot close the milestone.
 
 ## 3. Test pyramid and suites
 
@@ -87,11 +88,29 @@ Target WCAG 2.2 AA. Automated checks supplement, not replace, manual review.
 
 Any inaccessible critical workflow is release blocking.
 
+### Interactive UX and usability acceptance
+
+Interactive review is part of executable quality evidence, not a design presentation. Each user-facing packet identifies the earliest safe thin slice and provides the Product Owner a real route with a representative authorized persona and data set. The review exercises the actual read/command boundary, server policy, durable refresh behavior, loading/empty/error/forbidden states, and feature-off or existing-console fallback.
+
+The evidence record captures route, commit, environment, persona, scenario, observed timing/click path, Product Owner disposition, and resulting decisions or defects. Mockups may precede the checkpoint, but screenshots, static prototypes, component-only stories, and local state without backend authority do not satisfy it.
+
+The accepted user-experience and pilot targets are:
+
+| Measure | Accepted target |
+| --- | ---: |
+| New user understands CRM Home | Under 1 minute |
+| Authorized user finds a customer and understands the relationship | Under 10 seconds at representative target volume |
+| User records a call outcome and dated next step | Under 15 seconds |
+| Representative pilot journeys completed without assistance | At least 90% |
+| Active opportunities with owner, stage, next action, and due time | 100% |
+
+Timing begins from a ready interactive state and includes the complete user outcome, not merely a button acknowledgement. Representative journey definitions, personas, and operating context are versioned with the release evidence.
+
 ### Performance and scale
 
-Each workspace packet declares budgets and representative volumes. Until production baselines are approved, use these planned provisional budgets:
+Each workspace packet declares budgets and representative volumes. The following are the accepted initial performance budgets and remain release targets until superseded by an approved evidence-based decision:
 
-| Measure | Planned provisional budget |
+| Measure | Accepted initial budget |
 | --- | ---: |
 | Server response p95 for common CRM reads | <= 500 ms at approved representative volume |
 | Server command p95 excluding external provider latency | <= 750 ms |
@@ -101,7 +120,20 @@ Each workspace packet declares budgets and representative volumes. Until product
 | Global search first useful result p95 | <= 1.0 s |
 | Primary table/board action acknowledgement | <= 200 ms, with durable result or progress state |
 
-Tests cover realistic customer/contact/activity/opportunity volumes, pagination, query counts/plans, bulk limits, concurrent users, hot records, export sizes and degraded dependencies. Budgets must be measured and replaced with approved production SLOs; they are not current performance claims.
+Tests cover realistic customer/contact/activity/opportunity volumes, pagination, query counts/plans, bulk limits, concurrent users, hot records, export sizes and degraded dependencies. These are approved targets, not claims about current implementation performance.
+
+The accepted service and recovery objectives are:
+
+| Objective | Accepted target |
+| --- | ---: |
+| Pilot availability | At least 99.5% during the configured dealership operating schedule |
+| Post-internal-release availability | At least 99.9% during the configured dealership operating schedule |
+| Recovery time objective (RTO) | 2 hours |
+| Recovery point objective (RPO) | 15 minutes |
+
+Operating hours come from approved dealership configuration and are never hard-coded into tests or application rules. Availability exclusions, measurement source, observation window, and incident accounting must be stated in release evidence.
+
+At pilot and release, the accepted integrity/safety targets are zero unauthorized disclosure, zero lost or duplicate consequential write, zero missing material audit evidence, and no open Severity 0 or Severity 1 defect.
 
 ### Security and privacy
 
@@ -210,6 +242,7 @@ Before `VERIFIED`:
 - security, tenant, accessibility, performance and migration checks pass where applicable;
 - lint, typecheck and relevant Vitest/Playwright suites pass;
 - implementation, docs, observability and rollback expectations agree;
+- each user-facing packet has a recorded interactive UX checkpoint disposition from the Product Owner using its real route/policy/fallback path;
 - no new Severity 0/1 defect and no unexplained baseline regression;
 - required review and evidence ledger entries are complete.
 
@@ -220,6 +253,7 @@ Before `VERIFIED`:
 - representative multi-role journey and direct API authorization matrix pass;
 - schema migration/reconciliation and feature-disable path are rehearsed;
 - aggregate accessibility and performance budgets pass;
+- representative users can interact with the integrated live route, and no mock-only or local-state-only surface is counted as milestone completion;
 - contract/drift review shows no duplicate authority or status inflation.
 
 ### Release candidate gate (`UCRM-QG-3`)
@@ -240,6 +274,7 @@ Additionally:
 - migrations apply to fresh and representative upgrade databases;
 - risk-class-A adversarial security and tenant suites pass;
 - critical accessibility/manual browser matrix passes;
+- accepted usability, journey-completion, opportunity-completeness, integrity, availability, RTO and RPO evidence meets the candidate's gate;
 - load, resilience, backup/restore or forward-recovery evidence meets scope;
 - dependency/configuration/secrets review passes;
 - release manifest links commit, schema, flags, evidence, known defects and rollback plan.
@@ -251,6 +286,7 @@ Additionally:
 - canary/feature flags limit blast radius and have been exercised;
 - rollback/disable decision thresholds and operator are named;
 - no open Severity 0/1 and accepted lower defects fit the cohort;
+- at least 90% of representative pilot journeys complete without assistance and Product Owner interactive review is accepted;
 - first-live validation checklist and post-release observation window are scheduled.
 
 ## 8. Defect severity and disposition
@@ -266,7 +302,7 @@ Security severity may be raised after impact analysis. Reclassification and acce
 
 ## 9. Known baseline handling
 
-The repository may have failures unrelated to a Unified CRM packet. They do not authorize adding more failures or calling a red build green.
+The repository may have failures unrelated to a Unified CRM packet. They do not authorize adding more failures or calling a red build green. The recorded `service-close-parts` typecheck defect blocks a clean release candidate; it does not block documentation, contract work, fixtures, read-only analysis, or other reversible groundwork that proves it does not worsen the baseline.
 
 Before the first implementation packet, record a baseline with date, commit, environment, exact commands, results, and existing defect IDs. For each proposed change:
 
@@ -276,7 +312,7 @@ Before the first implementation packet, record a baseline with date, commit, env
 4. Link a named owner and target resolution; do not use “pre-existing” without evidence.
 5. Run focused CRM checks that pass fully.
 
-A new, expanded, intermittent, or differently located failure is a regression until proven otherwise. `UCRM-QG-3` normally requires a clean full suite; an exception requires Release, Quality and affected owner approval, an expiring waiver, containment, and explicit release notes. No waiver is permitted for S0/S1 or tenant/security gates.
+A new, expanded, intermittent, or differently located failure is a regression until proven otherwise. `UCRM-QG-3` requires the recorded baseline defect to be repaired and the applicable full suite to be clean. No waiver may convert that known red baseline into a clean Unified CRM release candidate. Reversible groundwork may proceed with before/after evidence. No waiver is permitted for S0/S1 or tenant/security gates.
 
 ## 10. Release, rollout and rollback
 
