@@ -3,6 +3,7 @@ import { requireUnifiedCrmCustomerReadPolicy } from "@/server/policies/unified-c
 import {
   createUnifiedCrmWorkQueueRepository,
   type UnifiedCrmWorkAppointmentRecord,
+  type UnifiedCrmWorkCustomerRecord,
   type UnifiedCrmWorkConcernCaseRecord,
   type UnifiedCrmWorkLeadRecord,
   type UnifiedCrmWorkQueueRepository,
@@ -233,6 +234,39 @@ function caseCandidate(customerCase: UnifiedCrmWorkConcernCaseRecord, now: Date)
   };
 }
 
+function customerCandidate(customer: UnifiedCrmWorkCustomerRecord, now: Date): QueueCandidate {
+  const due = customer.nextActionAt;
+  const state = dueState(due, now);
+  return {
+    id: customer.id,
+    kind: "customer",
+    title: `Follow up with ${customer.displayName}`,
+    customerLabel: `${customer.displayName} · ${customer.customerNumber}`,
+    ownerName: customer.ownerUser?.name ?? "Unassigned",
+    sourceLabel: "Unified CRM",
+    sourceHref: `/crm/customers/${encodeURIComponent(customer.id)}?crmReturnTo=${encodeURIComponent("/crm?view=work")}`,
+    primaryActionLabel: "Open customer",
+    dueAt: due?.toISOString() ?? null,
+    dueLabel: dueLabel(due, state),
+    dueState: state,
+    stageLabel: label(customer.status),
+    reason: state === "overdue"
+      ? "This CRM follow-up is overdue."
+      : state === "today"
+        ? "This CRM follow-up is due today."
+        : "This customer has a scheduled CRM follow-up.",
+    history: [
+      `Status: ${label(customer.status)}`,
+      `Owner: ${customer.ownerUser?.name ?? "Unassigned"}`,
+      "Source: Unified CRM"
+    ],
+    updatedAt: customer.updatedAt.toISOString(),
+    dueAtDate: due,
+    updatedAtDate: customer.updatedAt,
+    rank: rankState(state)
+  };
+}
+
 function sortCandidates(left: QueueCandidate, right: QueueCandidate) {
   if (left.rank !== right.rank) return left.rank - right.rank;
   const leftDue = left.dueAtDate?.getTime() ?? Number.MAX_SAFE_INTEGER;
@@ -296,18 +330,20 @@ export async function getUnifiedCrmWorkQueue(
     }
 
     const organizationId = organizationIds[0];
-    const [tasks, appointments, leads, concernCases] = await Promise.all([
+    const [tasks, appointments, leads, concernCases, customers] = await Promise.all([
       repository.listTasks(actor!.id, SOURCE_LIMIT),
       repository.listAppointments({ organizationId, recordScope, viewerUserId: actor!.id, limit: SOURCE_LIMIT }),
       repository.listLeads({ organizationId, recordScope, limit: SOURCE_LIMIT }),
-      repository.listConcernCases({ organizationId, recordScope, limit: SOURCE_LIMIT })
+      repository.listConcernCases({ organizationId, recordScope, limit: SOURCE_LIMIT }),
+      repository.listCustomersWithNextAction({ organizationId, recordScope, limit: SOURCE_LIMIT })
     ]);
 
     const items = [
       ...tasks.map((task) => taskCandidate(task, now)),
       ...appointments.map((appointment) => appointmentCandidate(appointment, now)),
       ...leads.map((lead) => leadCandidate(lead, now)),
-      ...concernCases.map((customerCase) => caseCandidate(customerCase, now))
+      ...concernCases.map((customerCase) => caseCandidate(customerCase, now)),
+      ...customers.map((customer) => customerCandidate(customer, now))
     ].sort(sortCandidates);
 
     const observedAt = now.toISOString();

@@ -9,6 +9,9 @@ vi.mock("@/server/auth/current-user", () => ({ requireCurrentUser: mocks.require
 vi.mock("@/server/services/unified-crm-customer-360-service", () => ({ getUnifiedCrmCustomer360: mocks.getUnifiedCrmCustomer360 }));
 vi.mock("@/server/unified-crm/customer-360-access", () => ({ requireUnifiedCrmCustomer360Access: mocks.requireUnifiedCrmCustomer360Access }));
 vi.mock("@/server/unified-crm/shell-access", () => ({ resolveUnifiedCrmShellAccess: mocks.resolveUnifiedCrmShellAccess }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh() {} })
+}));
 
 import CustomerPage, { safeCrmCustomerReturn } from "@/app/(app)/crm/customers/[customerId]/page";
 

@@ -29,6 +29,9 @@ function repository(overrides: Partial<UnifiedCrmWorkQueueRepository> = {}): Uni
     async listLeads() {
       return [];
     },
+    async listCustomersWithNextAction() {
+      return [];
+    },
     async listConcernCases() {
       return [];
     },

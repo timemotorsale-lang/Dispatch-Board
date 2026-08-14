@@ -181,7 +181,34 @@ function timelineItems(input: {
       actorName: promise.fulfilledByUser?.name ?? promise.ownerUser.name,
       sourceLabel: "Customer resolutions",
       sourceHref: `/customers/resolutions?caseId=${encodeURIComponent(promise.concernCase.concernNumber)}`
-    }))
+    })),
+    ...(input.model.crmDomainEvents ?? []).map((event) => {
+      const payload = event.payload as {
+        dueAt?: string | null;
+        note?: string | null;
+        operation?: "SET" | "COMPLETE";
+        previousNextActionAt?: string | null;
+      };
+      const title = event.eventType === "CRM_CUSTOMER_NEXT_ACTION_COMPLETED"
+        ? "Next action completed"
+        : event.eventType === "CRM_CUSTOMER_NEXT_ACTION_RESCHEDULED"
+          ? "Next action rescheduled"
+          : "Next action set";
+      const detail = [
+        payload.note,
+        payload.dueAt ? `Due ${payload.dueAt}` : payload.operation === "COMPLETE" ? "No next action remains scheduled." : null
+      ].filter(Boolean).join(" · ");
+      return {
+        id: `crm-event:${event.id}`,
+        kind: "commitment-event" as const,
+        title,
+        detail: detail || "CRM customer follow-up was updated.",
+        occurredAt: event.occurredAt.toISOString(),
+        actorName: null,
+        sourceLabel: "Unified CRM",
+        sourceHref: "/crm?view=work"
+      };
+    })
   ];
 
   return items

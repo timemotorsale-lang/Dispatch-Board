@@ -97,6 +97,18 @@ const promiseEventSelect = {
   }
 } satisfies Prisma.CustomerPromiseSelect;
 
+const crmDomainEventSelect = {
+  id: true,
+  eventType: true,
+  occurredAt: true,
+  payload: true,
+  command: {
+    select: {
+      actorUserId: true
+    }
+  }
+} satisfies Prisma.EnterpriseDomainEventSelect;
+
 export type UnifiedCrmCustomerInteractionRecord = Prisma.CustomerInteractionGetPayload<{
   select: typeof interactionSelect;
 }>;
@@ -121,6 +133,10 @@ export type UnifiedCrmCustomerPromiseEventRecord = Prisma.CustomerPromiseGetPayl
   select: typeof promiseEventSelect;
 }>;
 
+export type UnifiedCrmCustomerDomainEventRecord = Prisma.EnterpriseDomainEventGetPayload<{
+  select: typeof crmDomainEventSelect;
+}>;
+
 export type UnifiedCrmCustomerTimelineRepositoryInput = {
   customerId: string;
   organizationId: string;
@@ -135,6 +151,7 @@ export type UnifiedCrmCustomerTimelineRecord = {
   leadEvents: UnifiedCrmCustomerLeadEventRecord[];
   caseEvents: UnifiedCrmCustomerCaseEventRecord[];
   promiseEvents: UnifiedCrmCustomerPromiseEventRecord[];
+  crmDomainEvents: UnifiedCrmCustomerDomainEventRecord[];
 };
 
 export type UnifiedCrmCustomerTimelineRepository = {
@@ -143,7 +160,7 @@ export type UnifiedCrmCustomerTimelineRepository = {
 
 type UnifiedCrmCustomerTimelineDatabase = Pick<
   PrismaClient,
-  "activityEvent" | "appointmentHistoryEvent" | "concernCase" | "customerInteraction" | "customerLead" | "customerPromise"
+  "activityEvent" | "appointmentHistoryEvent" | "concernCase" | "customerInteraction" | "customerLead" | "customerPromise" | "enterpriseDomainEvent"
 >;
 
 export function createUnifiedCrmCustomerTimelineRepository(
@@ -152,7 +169,7 @@ export function createUnifiedCrmCustomerTimelineRepository(
   return {
     async listTimeline(input) {
       const ownerUserId = input.recordScope.kind === "OWNER" ? input.recordScope.ownerUserId : undefined;
-      const [interactions, activityEvents, appointmentHistoryEvents, leadEvents, caseEvents, promiseEvents] = await Promise.all([
+      const [interactions, activityEvents, appointmentHistoryEvents, leadEvents, caseEvents, promiseEvents, crmDomainEvents] = await Promise.all([
         database.customerInteraction.findMany({
           where: { customerId: input.customerId },
           select: interactionSelect,
@@ -225,6 +242,24 @@ export function createUnifiedCrmCustomerTimelineRepository(
           select: promiseEventSelect,
           orderBy: [{ promisedAt: "desc" }, { id: "desc" }],
           take: input.limit
+        }),
+        database.enterpriseDomainEvent.findMany({
+          where: {
+            organizationId: input.organizationId,
+            domain: "UNIFIED_CRM",
+            aggregateType: "CUSTOMER",
+            aggregateId: input.customerId,
+            eventType: {
+              in: [
+                "CRM_CUSTOMER_NEXT_ACTION_SET",
+                "CRM_CUSTOMER_NEXT_ACTION_RESCHEDULED",
+                "CRM_CUSTOMER_NEXT_ACTION_COMPLETED"
+              ]
+            }
+          },
+          select: crmDomainEventSelect,
+          orderBy: [{ occurredAt: "desc" }, { id: "desc" }],
+          take: input.limit
         })
       ]);
 
@@ -234,7 +269,8 @@ export function createUnifiedCrmCustomerTimelineRepository(
         appointmentHistoryEvents,
         leadEvents,
         caseEvents,
-        promiseEvents
+        promiseEvents,
+        crmDomainEvents
       };
     }
   };

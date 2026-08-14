@@ -66,10 +66,21 @@ const concernCaseSelect = {
   customer: { select: { displayName: true, customerNumber: true } }
 } satisfies Prisma.ConcernCaseSelect;
 
+const customerNextActionSelect = {
+  id: true,
+  customerNumber: true,
+  displayName: true,
+  status: true,
+  nextActionAt: true,
+  updatedAt: true,
+  ownerUser: { select: { id: true, name: true } }
+} satisfies Prisma.CustomerSelect;
+
 export type UnifiedCrmWorkTaskRecord = Prisma.TaskGetPayload<{ select: typeof taskSelect }>;
 export type UnifiedCrmWorkAppointmentRecord = Prisma.AppointmentGetPayload<{ select: typeof appointmentSelect }>;
 export type UnifiedCrmWorkLeadRecord = Prisma.CustomerLeadGetPayload<{ select: typeof leadSelect }>;
 export type UnifiedCrmWorkConcernCaseRecord = Prisma.ConcernCaseGetPayload<{ select: typeof concernCaseSelect }>;
+export type UnifiedCrmWorkCustomerRecord = Prisma.CustomerGetPayload<{ select: typeof customerNextActionSelect }>;
 
 export type UnifiedCrmWorkQueueRepository = {
   listActiveOrganizationIds(userId: string, at: Date): Promise<string[]>;
@@ -90,11 +101,16 @@ export type UnifiedCrmWorkQueueRepository = {
     recordScope: UnifiedCrmCustomerRecordScope;
     limit: number;
   }): Promise<UnifiedCrmWorkConcernCaseRecord[]>;
+  listCustomersWithNextAction(input: {
+    organizationId: string;
+    recordScope: UnifiedCrmCustomerRecordScope;
+    limit: number;
+  }): Promise<UnifiedCrmWorkCustomerRecord[]>;
 };
 
 type UnifiedCrmWorkQueueDatabase = Pick<
   PrismaClient,
-  "appointment" | "concernCase" | "customerLead" | "task" | "userLocationAccess"
+  "appointment" | "concernCase" | "customer" | "customerLead" | "task" | "userLocationAccess"
 >;
 
 export function createUnifiedCrmWorkQueueRepository(
@@ -156,6 +172,21 @@ export function createUnifiedCrmWorkQueueRepository(
         },
         select: concernCaseSelect,
         orderBy: [{ dueAt: "asc" }, { updatedAt: "desc" }, { id: "asc" }],
+        take: input.limit
+      });
+    },
+    listCustomersWithNextAction(input) {
+      return database.customer.findMany({
+        where: {
+          organizationId: input.organizationId,
+          archivedAt: null,
+          mergedIntoCustomerId: null,
+          nextActionAt: { not: null },
+          status: { in: ["ACTIVE", "INACTIVE", "RETIRED"] },
+          ...(input.recordScope.kind === "OWNER" ? { ownerUserId: input.recordScope.ownerUserId } : {})
+        },
+        select: customerNextActionSelect,
+        orderBy: [{ nextActionAt: "asc" }, { updatedAt: "desc" }, { id: "asc" }],
         take: input.limit
       });
     }

@@ -58,7 +58,7 @@ export type UnifiedCrmCustomer360CaseLens = {
 
 export type UnifiedCrmCustomer360TimelineItem = {
   id: string;
-  kind: "interaction" | "task-event" | "appointment-event" | "lead-event" | "case-event" | "promise-event";
+  kind: "interaction" | "task-event" | "appointment-event" | "lead-event" | "case-event" | "promise-event" | "commitment-event";
   title: string;
   detail: string;
   occurredAt: string;

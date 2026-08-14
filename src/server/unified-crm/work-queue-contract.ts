@@ -3,7 +3,7 @@ export const UNIFIED_CRM_WORK_QUEUE_ERROR_CONTRACT_VERSION = "ucrm.work-queue-er
 
 export type UnifiedCrmWorkQueueVisibility = "organization" | "owned";
 export type UnifiedCrmWorkQueueDueState = "overdue" | "today" | "upcoming" | "waiting";
-export type UnifiedCrmWorkQueueItemKind = "task" | "appointment" | "lead" | "case";
+export type UnifiedCrmWorkQueueItemKind = "task" | "appointment" | "lead" | "case" | "customer";
 export type UnifiedCrmWorkReadMode = "OFF" | "REVIEW";
 
 export type UnifiedCrmWorkQueueItem = {

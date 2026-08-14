@@ -3,9 +3,11 @@
 import { AlertTriangle, ArrowLeft, ArrowRight, CalendarDays, CarFront, ExternalLink, History, RefreshCw, ShieldCheck, UserRound, UsersRound } from "lucide-react";
 import Link from "next/link";
 
+import { buildUnifiedCrmTaskIntakeHref } from "@/lib/unified-crm-task-intake-handoff";
 import type { UnifiedCrmCustomer360ReadModel } from "@/server/unified-crm/customer-360-contract";
 
 import { UnifiedCrmCustomerInteractionForm } from "./unified-crm-customer-interaction-form";
+import { UnifiedCrmCustomerNextActionForm } from "./unified-crm-customer-next-action-form";
 import { UnifiedCrmCustomerNoteForm } from "./unified-crm-customer-note-form";
 import styles from "./unified-crm-customer-360.module.css";
 
@@ -140,6 +142,12 @@ function NotesSection({ model }: { model: UnifiedCrmCustomer360ReadModel }) {
 
 export function UnifiedCrmCustomer360({ errorMessage, failureKind = "error", model, returnHref }: Customer360Props) {
   if (!model) return <StatePanel kind={failureKind} message={errorMessage} returnHref={returnHref} />;
+  const taskBridgeHref = buildUnifiedCrmTaskIntakeHref({
+    customerDisplayName: model.identity.displayName,
+    customerId: model.identity.id,
+    customerNumber: model.identity.customerNumber,
+    dueAt: model.relationship.nextActionAt
+  });
   const primaryContact = model.contacts.find((item) => item.isPrimary) ?? model.contacts[0];
   const otherContacts = model.contacts.filter((item) => item !== primaryContact).slice(0, 2);
   return (
@@ -151,9 +159,10 @@ export function UnifiedCrmCustomer360({ errorMessage, failureKind = "error", mod
       </section>
       <section className={styles.trustBar} aria-label="Customer source and freshness"><span><ShieldCheck aria-hidden="true" size={15} /><strong>{model.source.label}</strong> · canonical identity</span><span><ShieldCheck aria-hidden="true" size={14} />Current · observed {formatDate(model.freshness.observedAt, "time unavailable")}</span><Link href={model.source.href}>Open existing customer record<ExternalLink aria-hidden="true" size={13} /></Link></section>
       <section className={styles.priorityGrid}>
-        <article className={styles.nextAction}><span className={styles.eyebrow}>Next relationship action</span><h2>{model.relationship.nextActionAt ? formatDate(model.relationship.nextActionAt, "Not scheduled") : "No next action scheduled"}</h2><p>Last interaction: {formatDate(model.relationship.lastInteractionAt, "No interaction recorded")}</p><small>This overview is read only. Continue in the appropriate source workflow to make a change.</small></article>
+        <article className={styles.nextAction}><span className={styles.eyebrow}>Next relationship action</span><h2>{model.relationship.nextActionAt ? formatDate(model.relationship.nextActionAt, "Not scheduled") : "No next action scheduled"}</h2><p>Last interaction: {formatDate(model.relationship.lastInteractionAt, "No interaction recorded")}</p><small>This overview is read only. Continue in the appropriate source workflow to make a change.</small><Link className={styles.secondaryActionLink} href={taskBridgeHref}>Create governed task<ExternalLink aria-hidden="true" size={13} /></Link></article>
         <article className={styles.contactCard}><span className={styles.eyebrow}>Masked contact</span><h2>{primaryContact?.maskedValue ?? "No contact recorded"}</h2>{otherContacts.map((item) => <p key={`${item.type}-${item.maskedValue}`}>{label(item.type)} · {item.maskedValue}</p>)}<dl><div><dt>Preferred method</dt><dd>{model.preferences.preferredContactMethod ? label(model.preferences.preferredContactMethod) : "Not recorded"}</dd></div><div><dt>Preferred time</dt><dd>{model.preferences.preferredContactTime ?? "Not recorded"}</dd></div><div><dt>Language</dt><dd>{model.preferences.languageCode ?? "Not recorded"}</dd></div></dl></article>
       </section>
+      <UnifiedCrmCustomerNextActionForm currentNextActionAt={model.relationship.nextActionAt} customerId={model.identity.id} />
       <UnifiedCrmCustomerInteractionForm customerId={model.identity.id} />
       <UnifiedCrmCustomerNoteForm allowRestricted={model.permissions.canCreateRestrictedNote} customerId={model.identity.id} />
       <RelationshipSummary model={model} />

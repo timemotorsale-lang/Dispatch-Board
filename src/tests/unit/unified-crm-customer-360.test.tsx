@@ -19,7 +19,7 @@ describe("Unified CRM Customer 360", () => {
     expect(markup).toContain("Team context"); expect(markup).toContain("Customer prefers texts after lunch.");
     expect(markup).toContain("Relationship timeline"); expect(markup).toContain("Phone Outbound"); expect(markup).toContain("Appointment confirmation was recorded.");
     expect(markup).toContain("LEAD-101"); expect(markup).toContain("CASE-202"); expect(markup).toContain("changes stay in their source");
-    expect(markup).toContain("manual contact outcomes are recorded here"); expect(markup).not.toContain("Edit customer"); expect(markup).not.toContain("New task");
+    expect(markup).toContain("manual contact outcomes are recorded here"); expect(markup).toContain("Create governed task"); expect(markup).not.toContain("Edit customer"); expect(markup).not.toContain("New task");
   });
 
   it("renders one non-enumerating not-available state and safe recovery", () => {

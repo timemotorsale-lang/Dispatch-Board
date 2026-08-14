@@ -163,6 +163,13 @@ function timelineRepository(): UnifiedCrmCustomerTimelineRepository {
           ownerUser: { id: manager.id, name: manager.name },
           fulfilledByUser: null,
           concernCase: { id: "case-a", concernNumber: "CASE-A", customerId: "customer-a", organizationId: "org-a", assignedOwnerId: null }
+        }],
+        crmDomainEvents: [{
+          id: "crm-event-a",
+          eventType: "CRM_CUSTOMER_NEXT_ACTION_SET",
+          occurredAt: new Date("2026-08-14T14:00:00.000Z"),
+          payload: { dueAt: "2026-08-15T15:00:00.000Z", note: "Customer requested a Friday check-in.", operation: "SET" },
+          command: { actorUserId: manager.id }
         }]
       };
     }
@@ -218,7 +225,7 @@ describe("Unified CRM Customer 360 service", () => {
       permissions: { canCreateRestrictedNote: false },
       vehicles: [{ id: "vehicle-a", sourceHref: "/vehicles/360/vehicle-a" }],
       appointments: [{ id: "appointment-a", sourceHref: "/appointments" }],
-      timeline: { itemCount: 6 },
+      timeline: { itemCount: 7 },
       sourceLenses: { leads: [{ id: "lead-a" }], cases: [{ id: "case-a" }] }
     });
     const serialized = JSON.stringify(model);
@@ -230,6 +237,10 @@ describe("Unified CRM Customer 360 service", () => {
     expect(serialized).not.toContain("Restricted note should not appear.");
     expect(model).not.toHaveProperty("tasks");
     expect(model.timeline.items[0]).toMatchObject({
+      kind: "commitment-event",
+      title: "Next action set"
+    });
+    expect(model.timeline.items[1]).toMatchObject({
       kind: "interaction",
       title: "Phone Outbound"
     });
