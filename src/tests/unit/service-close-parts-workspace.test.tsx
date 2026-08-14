@@ -28,6 +28,7 @@ const initial = {
     repairOrderNumber: "RO-DB21B235",
     stage: "REPAIR",
     repairJobs: [{ id: "job-1", jobNumber: "J-1" }],
+    vendorWorks: [{ approvalStatus: "APPROVED", approvedAmountCents: 45000, currentLocation: "Gil Tires", directFromSource: true, estimateAmountCents: 45000, expectedReturnAt: null, id: "vw-1", keysCustodian: "Gil Tires", nextFollowUpAt: null, scope: "Install used engine", sentFrom: "Auction", status: "AT_VENDOR", supplementalAmountCents: null, transportMethod: "Tow", vendorName: "Gil Tires" }],
     vehicle: { color: "White", make: "Toyota", model: "RAV4", stockNumber: "333586", vehicleNumber: "VEH-436ED525", vin: "2T3W1RFVXRW333586", year: 2024 },
   }],
   requisitions: [],
@@ -58,6 +59,12 @@ describe("ServiceClosePartsWorkspace", () => {
     expect(html).not.toContain("GM approve / deny");
     expect(html).toContain("Saved for this repair order");
     expect(html).toContain("Only records linked to RO-DB21B235 are shown.");
+    expect(html).toContain("Enter at least one part before saving.");
+    expect(html).toContain("disabled=\"\"");
+    expect(html).toContain("What happens next");
+    expect(html).toContain("Return to RO-DB21B235");
+    expect(html).toContain("Coordinate delivery to Gil Tires");
+    expect(html).toContain("Plan pickup &amp; delivery");
     expect(html).toContain("Used");
     expect(html).toContain("Returns");
     expect(html).toContain("Approve");
@@ -82,6 +89,7 @@ describe("ServiceClosePartsWorkspace", () => {
     expect(html).toContain("Manager approval required");
     expect(html).toContain("This vehicle needs approval for $26.98 before another purchase.");
     expect(html).toContain("Review this overage");
+    expect(html).toContain("Return to previous work");
   });
 
   it("does not carry purchase, receipt, or budget data from another repair order", () => {

@@ -17,14 +17,17 @@ describe("Shop Planning diagnostic release workspace", () => {
     expect(markup).toContain("Repair Planning Command Center");
     expect(markup).toContain("Vehicle released for diagnosis");
     expect(markup).toContain("Diagnostic mission");
-    expect(markup).toContain("Diagnostic repair");
-    expect(markup).toContain("Body / collision scope");
+    expect(markup).toContain("Diagnostic / mechanical");
+    expect(markup).toContain("Select the repair type now");
+    expect(markup).toContain("Bodywork repair");
     expect(markup).toContain("Outside vendor");
     expect(markup).toContain("Send to outside vendor");
     expect(markup).toContain("Deploy vendor workflow");
     expect(markup).toContain("Labor Guide helper workspace");
     expect(markup).toContain("Build the estimate line without leaving this stage");
     expect(markup).toContain("Use this estimate line");
+    expect(markup).toContain("Description (required)");
+    expect(markup).toContain("Expires (required)");
     expect(markup).toContain("Open full Labor Guide");
     expect(markup).toContain("Evidence ledger");
     expect(markup).toContain("Exact-version customer authorization required");
@@ -33,6 +36,9 @@ describe("Shop Planning diagnostic release workspace", () => {
     expect(markup).toContain("What did you inspect?");
     expect(markup).toContain("Proof / evidence");
     expect(markup).toContain("Advanced details");
+    expect(markup).toContain("Repair complete — send to QC");
+    expect(markup).toContain("What happened? (required)");
+    expect(markup).toContain("Save update");
   });
 
   it("defaults visible bodywork to the direct repair scope path", () => {
@@ -46,11 +52,14 @@ describe("Shop Planning diagnostic release workspace", () => {
       inspectionVersions: [], diagnosisVersions: [], estimateVersions: [], repairJobs: [], partDemands: [],
     };
     const markup = renderToStaticMarkup(<ShopPlanningWorkspace initial={{ repairOrders: [order], users: [{ id: "tech-1", name: "Walter Mechanic" }] }} returnTo="/vehicles/repair-workbench?repairOrderId=ro-2" />);
-    expect(markup).toContain("Direct repair mission");
-    expect(markup).toContain("Vehicle ready for direct repair scope");
-    expect(markup).toContain("No-diagnosis path");
+    expect(markup).toContain("Bodywork repair mission");
+    expect(markup).toContain("Vehicle selected for bodywork repair");
+    expect(markup).toContain("Bodywork repair path");
     expect(markup).toContain("Why diagnosis is not required");
-    expect(markup).toContain("Record direct repair scope");
+    expect(markup).toContain("Save bodywork repair scope");
+    expect(markup).toContain("Direct repair summary (required)");
+    expect(markup).toContain("Prepare a bodywork repair estimate from the documented visible damage.");
+    expect(markup).toContain("Repair the documented bodywork damage, then verify panel fit, finish, and repair quality.");
     expect(markup).toContain("TAI recon budget guardrail");
     expect(markup).toContain("Rapid recon estimate recipe");
     expect(markup).toContain("Body Labor Guide");
@@ -78,6 +87,8 @@ describe("Shop Planning diagnostic release workspace", () => {
     expect(markup).toContain("already carrying this approved work");
     expect(markup).toContain("J001");
     expect(markup).toContain("Live repair progress");
+    expect(markup).toContain("What happened? (required)");
+    expect(markup).toContain("Save update");
     expect(markup).toContain("Recent repair updates");
     expect(markup).toContain("Repair is ready for QC");
     expect(markup).toContain("Open QC workspace");

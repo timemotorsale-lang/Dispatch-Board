@@ -16,7 +16,7 @@ import {
   Wrench
 } from "lucide-react";
 import Link from "next/link";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 
 type User = { id: string; name: string };
 type Inspection = {
@@ -73,13 +73,51 @@ type Order = {
   repairJobs: Job[];
 };
 type Model = { repairOrders: Order[]; users: User[] };
+type FrontlineResult = "FAIL" | "REVIEW" | "PASS";
+type FrontlineQcItem = { code: string; label: string; hint: string };
+type FrontlineQcSection = { title: string; items: FrontlineQcItem[] };
+
+const frontlineQcSections: FrontlineQcSection[] = [
+  { title: "Exterior & Body", items: [
+    { code: "REPAIR_AREA_ALIGNMENT", label: "Repair area / panel alignment", hint: "Panels even and gaps consistent" },
+    { code: "PAINT_FINISH", label: "Paint and finish", hint: "Color match and surface quality" },
+    { code: "BUMPER_TRIM", label: "Bumpers, trim and moldings", hint: "Secure and undamaged" },
+    { code: "BODY_OPENINGS", label: "Doors, hood and liftgate", hint: "Open, close and latch properly" },
+    { code: "GLASS_MIRRORS_WIPERS", label: "Glass, mirrors and wipers", hint: "Clear, secure and operating" }
+  ] },
+  { title: "Tires, Wheels & Brakes", items: [
+    { code: "TIRES", label: "Tire condition and tread", hint: "Adequate tread and even wear" },
+    { code: "WHEELS_LUGS", label: "Wheel condition and lug security", hint: "No damage and lugs secured" },
+    { code: "BRAKES", label: "Brake operation / warning lights", hint: "Firm pedal and no warning lights" }
+  ] },
+  { title: "Lights & Safety", items: [
+    { code: "HEADLIGHTS_SIGNALS", label: "Headlights and signals", hint: "All exterior lights function" },
+    { code: "BRAKE_REVERSE_LIGHTS", label: "Brake and reverse lights", hint: "All operate correctly" },
+    { code: "SAFETY_EQUIPMENT", label: "Seat belts, horn and safety equipment", hint: "Present and functional" }
+  ] },
+  { title: "Interior & Controls", items: [
+    { code: "DASH_WARNINGS", label: "Dash warning lights", hint: "No warning lights illuminated" },
+    { code: "HVAC_ACCESSORIES", label: "HVAC and accessories", hint: "Heat, A/C, radio, windows and locks" },
+    { code: "INTERIOR_CONDITION", label: "Seats, trim and cleanliness", hint: "Clean with no damage or stains" }
+  ] },
+  { title: "Mechanical & Road Check", items: [
+    { code: "UNDERHOOD_LEAKS", label: "Fluid leaks / underhood check", hint: "No leaks and levels within range" },
+    { code: "STEERING_SUSPENSION", label: "Steering and suspension", hint: "No noises; stable and centered" },
+    { code: "ROAD_TEST", label: "Road-test operation", hint: "Shifts, brakes and acceleration operate properly" }
+  ] },
+  { title: "Frontline Presentation", items: [
+    { code: "DETAIL_QUALITY", label: "Detail quality", hint: "Clean inside and out" },
+    { code: "KEYS_DOCUMENTS", label: "Keys, manuals and documents", hint: "All keys, books and records accounted for" }
+  ] }
+];
+const frontlineQcItems = frontlineQcSections.flatMap((section) => section.items);
 
 const list = (value: string) => value.split(",").map((item) => item.trim()).filter(Boolean);
 const isFailed = (job: Job) => job.qualityInspections[0]?.disposition === "FAILED" || job.readinessReasonCodes.some((code) => code.includes("REWORK"));
 const vehicleName = (order: Order) => [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber;
 const dateTime = (value?: string | null) => value ? new Date(value).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "Not set";
 const workbenchHref = (order: Order) => `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(order.id)}`;
-const jobHref = (job: Job) => `/vehicles/repair-jobs/${encodeURIComponent(job.id)}/workbench`;
+const manageRepairHref = (order: Order) => `/vehicles/shop-planning?${new URLSearchParams({ repairOrderId: order.id, returnTo: `/vehicles/quality-control?repairOrderId=${order.id}` })}`;
 const code = (value: string) => value.replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "").toUpperCase().slice(0, 80) || "QC_CHECK";
 const hasOpenLabor = (job: Job) => job.laborClocks.some((clock) => clock.state === "RUNNING" || clock.state === "PAUSED");
 const hasPartsBlock = (job: Job) => (job.partDemands ?? []).some((demand) => demand.quantityReserved < demand.quantityRequired || ["OPEN", "PARTIALLY_RESERVED", "REQUESTED"].includes(demand.status));
@@ -165,6 +203,11 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
   const [jobId, setJobId] = useState(initialOrder?.repairJobs.find((job) => job.status === "READY_FOR_QC")?.id ?? initialOrder?.repairJobs[0]?.id ?? "");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [frontlineResults, setFrontlineResults] = useState<Record<string, FrontlineResult>>({});
+  const [frontlineNotes, setFrontlineNotes] = useState<Record<string, string>>({});
+  const [quickChecks, setQuickChecks] = useState({ repair: false, finish: false, safety: false });
+  const [quickNote, setQuickNote] = useState("");
   const [qc, setQc] = useState({
     templateCode: "FINAL_QC",
     templateVersion: 1,
@@ -201,6 +244,36 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
   const technicianScorecard = scorecardRows(jobs);
   const safetyEscalation = Boolean(order && job && isSafetyCritical(job, order));
   const comebackCount = job?.comebackCases?.filter((item) => item.status !== "CLOSED").length ?? 0;
+  const frontlineCounts = frontlineQcItems.reduce<Record<FrontlineResult, number>>((counts, item) => {
+    const result = frontlineResults[item.code];
+    if (result) counts[result] += 1;
+    return counts;
+  }, { FAIL: 0, REVIEW: 0, PASS: 0 });
+  const frontlineInspected = frontlineCounts.FAIL + frontlineCounts.REVIEW + frontlineCounts.PASS;
+  const frontlineRemaining = frontlineQcItems.length - frontlineInspected;
+  const frontlineReady = allPassed && frontlineRemaining === 0 && frontlineCounts.FAIL === 0 && frontlineCounts.REVIEW === 0;
+  const showFrontlineQc = Boolean(order && job && !order.releaseAuthorization && allPassed);
+
+  useEffect(() => {
+    if (!orderId) return;
+    const timer = window.setTimeout(() => {
+      try {
+        const saved = window.localStorage.getItem(`frontline-qc:${orderId}`);
+        if (!saved) {
+          setFrontlineResults({});
+          setFrontlineNotes({});
+          return;
+        }
+        const draft = JSON.parse(saved) as { results?: Record<string, FrontlineResult>; notes?: Record<string, string> };
+        setFrontlineResults(draft.results ?? {});
+        setFrontlineNotes(draft.notes ?? {});
+      } catch {
+        setFrontlineResults({});
+        setFrontlineNotes({});
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [orderId]);
 
   async function request(url: string, init?: RequestInit) {
     const response = await fetch(url, init);
@@ -221,8 +294,10 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
       await request(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...value, idempotencyKey: crypto.randomUUID() }) });
       setNotice(success);
       await refresh();
+      return true;
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Quality-control request failed.");
+      return false;
     } finally {
       setBusy(false);
     }
@@ -235,6 +310,77 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
 
   function resultFor(label: string) {
     return checkResults[label] ?? "PASS";
+  }
+
+  async function recordQuickQc(result: "PASS" | "FAIL") {
+    if (!order || !job) return;
+    const evidence = quickNote.trim() || `Final QC ${result === "PASS" ? "completed" : "failed"} for ${job.description}.`;
+    if (result === "FAIL" && quickNote.trim().length < 10) {
+      setNotice("Briefly explain what failed so the repair can be corrected.");
+      return;
+    }
+    const passed = result === "PASS";
+    const saved = await submit(`/api/repair-jobs/${job.id}/quality-inspection`, {
+      templateCode: "QUICK_REPAIR_QC",
+      templateVersion: 1,
+      checks: [
+        { category: "COMPLETION", code: "REPAIR_COMPLETE", label: "Repair matches approved work", result, evidence: [evidence] },
+        { category: "SAFETY", code: "FINAL_SAFETY_CHECK", label: "Visible safety and function check", result: passed ? "PASS" : "FAIL", evidence: [evidence] },
+        { category: "OTHER", code: "FIT_FINISH", label: "Fit and finish acceptable", result: passed ? "PASS" : "FAIL", evidence: [evidence] }
+      ],
+      completionEvidence: [evidence],
+      roadTestRequired: false,
+      roadTestOutcome: "NOT_REQUIRED",
+      roadTestEvidence: [],
+      peerVerificationPassed: false,
+      peerVerifierUserId: null,
+      reworkInstructions: passed ? null : `Return for correction: ${quickNote.trim()}`,
+      inspectedAt: new Date().toISOString(),
+      reason: passed ? "Record quick repair QC pass and open Final Frontline QC." : "Record quick repair QC failure and return for correction."
+    }, passed ? "Repair QC passed. Complete Final Frontline QC to clear the vehicle for frontline readiness." : "Repair QC failed. The repair was returned for correction.");
+    if (saved) {
+      setQuickChecks({ repair: false, finish: false, safety: false });
+      setQuickNote("");
+    }
+  }
+
+  function saveFrontlineDraft(showConfirmation = true) {
+    if (!order) return;
+    window.localStorage.setItem(`frontline-qc:${order.id}`, JSON.stringify({ results: frontlineResults, notes: frontlineNotes }));
+    if (showConfirmation) setNotice("Final Frontline QC draft saved. You can finish it later on this vehicle.");
+  }
+
+  function setFrontlineResult(codeValue: string, result: FrontlineResult) {
+    const next = { ...frontlineResults, [codeValue]: result };
+    setFrontlineResults(next);
+    if (order) window.localStorage.setItem(`frontline-qc:${order.id}`, JSON.stringify({ results: next, notes: frontlineNotes }));
+  }
+
+  function setFrontlineNote(codeValue: string, note: string) {
+    const next = { ...frontlineNotes, [codeValue]: note };
+    setFrontlineNotes(next);
+    if (order) window.localStorage.setItem(`frontline-qc:${order.id}`, JSON.stringify({ results: frontlineResults, notes: next }));
+  }
+
+  async function completeFrontlineQc() {
+    if (!order || !frontlineReady) {
+      setNotice("Resolve every failed or review item and complete all checks before marking the vehicle Frontline Ready.");
+      return;
+    }
+    const evidence = frontlineQcSections.flatMap((section) => section.items.map((item) => {
+      const note = frontlineNotes[item.code]?.trim();
+      return `${section.title} — ${item.label}: PASS${note ? ` — ${note}` : ""}`;
+    }));
+    const saved = await submit(`/api/repair-orders/${order.id}/release-authorization`, {
+      keysVerified: frontlineResults.KEYS_DOCUMENTS === "PASS",
+      releaseEvidence: evidence,
+      openExceptions: [],
+      authorizedAt: new Date().toISOString(),
+      reason: "Final Frontline QC completed with every vehicle check passed and no unresolved exceptions."
+    }, "Final Frontline QC passed. The vehicle is cleared for the next frontline-readiness handoff.");
+    if (saved) {
+      window.localStorage.removeItem(`frontline-qc:${order.id}`);
+    }
   }
 
   return (
@@ -260,6 +406,96 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
         </div>
       ) : null}
 
+      {order && job && !showFrontlineQc && !order.releaseAuthorization ? (
+        <section className="qc-quick" aria-label="Quick Repair QC">
+          <header>
+            <div>
+              <span>Quick Repair QC</span>
+              <h2>{vehicleName(order)} · {order.repairOrderNumber}</h2>
+              <p>{job.description} — confirm three items, then pass or return the repair.</p>
+            </div>
+            <strong>{job.status.replaceAll("_", " ")}</strong>
+          </header>
+          <div className="qc-quick-checks">
+            <label><input checked={quickChecks.repair} onChange={(event) => setQuickChecks((value) => ({ ...value, repair: event.target.checked }))} type="checkbox" /><span><b>Repair completed</b><small>Matches the approved work.</small></span></label>
+            <label><input checked={quickChecks.finish} onChange={(event) => setQuickChecks((value) => ({ ...value, finish: event.target.checked }))} type="checkbox" /><span><b>Fit and finish acceptable</b><small>No visible defect or loose item.</small></span></label>
+            <label><input checked={quickChecks.safety} onChange={(event) => setQuickChecks((value) => ({ ...value, safety: event.target.checked }))} type="checkbox" /><span><b>Safety/function check passed</b><small>No warning or functional concern.</small></span></label>
+          </div>
+          <label className="qc-quick-note"><span>Note <small>(optional for pass; required for failure)</small></span><textarea placeholder="Example: Fender alignment, attachment, and finish verified." value={quickNote} onChange={(event) => setQuickNote(event.target.value)} /></label>
+          <footer>
+            <button className="qc-quick-fail" disabled={busy || job.status !== "READY_FOR_QC"} onClick={() => void recordQuickQc("FAIL")} type="button">QC failed — return for correction</button>
+            <button className="qc-quick-pass" disabled={busy || job.status !== "READY_FOR_QC" || !quickChecks.repair || !quickChecks.finish || !quickChecks.safety} onClick={() => void recordQuickQc("PASS")} type="button">Pass Repair QC</button>
+          </footer>
+          <button className="qc-advanced-toggle" onClick={() => setShowAdvanced((value) => !value)} type="button">{showAdvanced ? "Hide detailed QC tools" : "Show queue and detailed QC tools"}</button>
+        </section>
+      ) : null}
+
+      {order && job && showFrontlineQc ? (
+        <section className="frontline-final-qc" aria-label="Final Frontline QC">
+          <header className="frontline-final-header">
+            <div>
+              <p className="frontline-breadcrumb">Repair QC <span>/</span> Final Frontline QC</p>
+              <p className="frontline-repair-passed"><CheckCircle2 /> Repair QC passed — {job.description}</p>
+              <h2>Final Frontline QC</h2>
+              <span>Inspect the whole vehicle before marking it Frontline Ready.</span>
+              <strong>{vehicleName(order)} · {order.repairOrderNumber} · {order.inventoryUnit?.inventoryNumber ?? order.vehicle.vehicleNumber}</strong>
+            </div>
+            <Link className="frontline-return" href={manageRepairHref(order)}>← Return to repair</Link>
+          </header>
+
+          <div className="frontline-progress-row">
+            <div>
+              <strong>{frontlineInspected} of {frontlineQcItems.length} inspected</strong>
+              <span><i style={{ width: `${Math.round((frontlineInspected / frontlineQcItems.length) * 100)}%` }} /></span>
+            </div>
+            <div className="frontline-legend" aria-label="Inspection result legend"><b className="fail">● Fail</b><b className="review">● Review</b><b className="pass">● Pass</b></div>
+          </div>
+
+          <div className="frontline-summary" aria-label="Final Frontline QC summary">
+            <article className="fail"><AlertTriangle /><strong>{frontlineCounts.FAIL}</strong><span>Failed</span></article>
+            <article className="review"><RotateCcw /><strong>{frontlineCounts.REVIEW}</strong><span>Needs Review</span></article>
+            <article className="pass"><CheckCircle2 /><strong>{frontlineCounts.PASS}</strong><span>Passed</span></article>
+            <article><Gauge /><strong>{frontlineRemaining}</strong><span>Remaining</span></article>
+          </div>
+
+          <div className="frontline-checklist-columns">
+            {frontlineQcSections.map((section, sectionIndex) => (
+              <section className="frontline-checklist-section" key={section.title}>
+                <h3>{sectionIndex + 1}. {section.title}</h3>
+                <div>
+                  {section.items.map((item, itemIndex) => {
+                    const result = frontlineResults[item.code];
+                    const exception = result === "FAIL" || result === "REVIEW";
+                    return (
+                      <article className={exception ? `has-${result.toLowerCase()}` : ""} key={item.code}>
+                        <div className="frontline-item-copy"><b>{sectionIndex + 1}.{itemIndex + 1}</b><span><strong>{item.label}</strong><small>{item.hint}</small></span></div>
+                        <div className="frontline-result-options" role="group" aria-label={`${item.label} result`}>
+                          {(["FAIL", "REVIEW", "PASS"] as FrontlineResult[]).map((choice) => (
+                            <button aria-pressed={result === choice} className={choice.toLowerCase()} key={choice} onClick={() => setFrontlineResult(item.code, choice)} type="button">{choice === "FAIL" ? "×" : choice === "REVIEW" ? "!" : "✓"} {choice[0]}{choice.slice(1).toLowerCase()}</button>
+                          ))}
+                        </div>
+                        {exception ? <label className="frontline-exception-note"><span>{result === "FAIL" ? "Failure" : "Review"} note</span><input onChange={(event) => setFrontlineNote(item.code, event.target.value)} placeholder="Describe what needs attention" value={frontlineNotes[item.code] ?? ""} /></label> : null}
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
+          </div>
+
+          <footer className="frontline-final-actions">
+            <p><AlertTriangle /> {frontlineReady ? "Every check passed. This vehicle can be cleared for frontline readiness." : "Resolve failed and review items, then complete all checks."}</p>
+            <button className="secondary" disabled={busy} onClick={() => saveFrontlineDraft()} type="button">Save &amp; finish later</button>
+            <button className="primary" disabled={busy || !frontlineReady} onClick={() => void completeFrontlineQc()} type="button">Mark Frontline Ready</button>
+          </footer>
+        </section>
+      ) : null}
+
+      {order?.releaseAuthorization ? (
+        <section className="frontline-qc-complete"><CheckCircle2 /><div><strong>Final Frontline QC complete</strong><span>This repair order is cleared for its next frontline-readiness handoff.</span></div></section>
+      ) : null}
+
+      <div className="qc-advanced-workspace" hidden={!showAdvanced && Boolean(order && job)}>
       <section className="qc-kpis" aria-label="Quality control snapshot">
         <article><ClipboardCheck /><span>Ready for QC</span><strong>{readyJobs.length}</strong><small>Awaiting inspection</small></article>
         <article><RotateCcw /><span>Recheck / Rework</span><strong>{failedJobs.length}</strong><small>Failed or returned</small></article>
@@ -351,16 +587,16 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
           <section className="qc-panel">
             <header>
               <div>
-                <strong>Technician handoff evidence</strong>
-                <span>QC starts from what the technician completed and documented.</span>
+                <strong>Repair handoff evidence</strong>
+                <span>QC starts from the completed repair result and supporting notes.</span>
               </div>
-              <Link href={jobHref(job)}>Open technician workbench</Link>
+              <Link href={manageRepairHref(order)}>Manage repair</Link>
             </header>
             <div className="qc-evidence-grid">
               <article>
                 <span>Procedure</span>
                 <strong>{job.procedureVersion ? `${job.procedureVersion.title} · v${job.procedureVersion.version}` : "No procedure attached"}</strong>
-                <small>{job.procedureVersion?.qcRules.join(" · ") || "QC will block if the backend requires a procedure."}</small>
+                <small>{job.procedureVersion?.qcRules.join(" · ") || "Use the generated Final QC checklist below."}</small>
               </article>
               <article>
                 <span>Completion evidence</span>
@@ -563,6 +799,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
           </section>
         </div>
       ) : null}
+      </div>
     </section>
   );
 }

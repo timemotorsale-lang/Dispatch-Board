@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { TechnicianRepairWorkbench } from "@/features/technician/technician-repair-workbench";
 import { requireCurrentUser } from "@/server/auth/current-user";
+import { isTechnicianOnlyUser } from "@/server/auth/navigation";
 import { getTechnicianRepairWorkbench } from "@/server/technician-workspace/service";
 
 export default async function TechnicianRepairWorkbenchPage({
@@ -12,24 +13,23 @@ export default async function TechnicianRepairWorkbenchPage({
   const user = await requireCurrentUser();
   const { repairJobId } = await params;
   let model: Awaited<ReturnType<typeof getTechnicianRepairWorkbench>> | null = null;
-  let loadError: unknown = null;
 
   try {
     model = await getTechnicianRepairWorkbench(user, repairJobId);
-  } catch (error) {
-    loadError = error;
-  }
+  } catch {}
 
   if (!model) {
-    const message = loadError instanceof Error ? loadError.message : "The repair workbench is unavailable.";
+    const technicianOnly = isTechnicianOnlyUser(user);
     return (
       <section className="technician-workbench-unavailable">
         <span>Repair Workbench unavailable</span>
-        <h1>This repair could not be opened</h1>
-        <p>{message.includes("not found") ? "The repair does not exist or is not assigned to you." : "The repair data could not be loaded. Your saved work has not been changed."}</p>
+        <h1>{technicianOnly ? "This repair is not assigned to you" : "Open this repair from the shared workspace"}</h1>
+        <p>{technicianOnly
+          ? "Only repairs assigned to you can open in the technician workbench."
+          : "This technician-only link requires an assignment. Your repair is still available in Manage Repair and Final QC."}</p>
         <div>
-          <Link className="pill pill-primary" href="/my-tasks">Return to My Work</Link>
-          <Link className="pill pill-secondary" href="/my-tasks/available">Available Work</Link>
+          <Link className="pill pill-primary" href={technicianOnly ? "/my-tasks" : "/vehicles/repair-workbench?view=all"}>{technicianOnly ? "Return to My Work" : "Open Repair Orders"}</Link>
+          <Link className="pill pill-secondary" href={technicianOnly ? "/my-tasks/available" : "/vehicles/quality-control"}>{technicianOnly ? "Available Work" : "Open Final QC"}</Link>
         </div>
       </section>
     );

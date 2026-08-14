@@ -1,4 +1,4 @@
-import { ClipboardList, Search, Wrench } from "lucide-react";
+import { Search, Wrench } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -42,7 +42,9 @@ function vehicleLabel(order: Awaited<ReturnType<typeof listRepairOrders>>["items
   return [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber;
 }
 
-function activeVendorWork(order: Awaited<ReturnType<typeof listRepairOrders>>["items"][number]) {
+function activeVendorWork(order: {
+  vendorWorks?: Array<{ status: string; currentLocation: string; nextAction: string }> | null;
+}) {
   const works = order.vendorWorks ?? [];
   return works.find((work) => !["COMPLETED", "CANCELLED"].includes(work.status)) ?? works[0] ?? null;
 }
@@ -263,47 +265,39 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
         </div>
         {orders.items.length ? (
           <div className={styles.orderList}>
+            <div aria-hidden="true" className={styles.orderListHeader}>
+              <span>RO / vehicle</span><span>Stage / owner</span><span>Concern / location</span><span>Action</span>
+            </div>
             {orders.items.map((order) => {
               const offsiteWork = activeVendorWork(order);
-              return <article className={`settings-callout-card ${styles.order}`} key={order.id}>
-                <ClipboardList aria-hidden="true" size={19} />
+              const orderHref = `/vehicles/repair-workbench?${new URLSearchParams({
+                repairOrderId: order.id,
+                vehicleId: order.vehicle.id,
+                ...(returnTo ? { returnTo } : {}),
+              })}`;
+              return <Link aria-label={`Open ${order.repairOrderNumber} for ${vehicleLabel(order)}`} className={`settings-callout-card ${styles.order}`} href={orderHref} key={order.id}>
                 <span className={styles.orderIdentity}>
                   <strong>
                     {order.repairOrderNumber} · {vehicleLabel(order)}
                   </strong>
                   <small>
-                    {order.customer?.displayName ?? order.inventoryUnit?.inventoryNumber ?? "Internal vehicle"} ·{" "}
-                    {offsiteWork ? `Current physical location: ${offsiteWork.currentLocation}` : order.location.name}
+                    {order.customer?.displayName ?? order.inventoryUnit?.inventoryNumber ?? "Internal vehicle"}
                   </small>
-                  {offsiteWork ? <small>Home / accountable site: {order.location.name}</small> : null}
-                  <small>{order.serviceVisit.concernSummary}</small>
                 </span>
                 <span className={styles.orderMeta}>
                   <b>{order.stage.replaceAll("_", " ")}</b>
                   <small>{order.ownerUser.name}</small>
-                  <small>{order.age.overdue ? "Overdue" : offsiteWork?.nextAction ?? order.nextAction}</small>
+                </span>
+                <span className={styles.orderConcern}>
+                  <b title={order.serviceVisit.concernSummary}>{order.serviceVisit.concernSummary}</b>
+                  <small>{offsiteWork ? offsiteWork.currentLocation : order.location.name}{order.age.overdue ? " · Overdue" : ""}</small>
                 </span>
                 <div className={styles.orderActions}>
-                  <Link
-                    href={`/vehicles/repair-workbench?${new URLSearchParams({
-                      repairOrderId: order.id,
-                      vehicleId: order.vehicle.id,
-                      ...(returnTo ? { returnTo } : {}),
-                    })}`}
-                  >
-                    <Wrench aria-hidden="true" size={15} /> Open Workbench
-                  </Link>
-                  <Link
-                    href={`/vehicles/repair-workbench?${new URLSearchParams({
-                      repairOrderId: order.id,
-                      vehicleId: order.vehicle.id,
-                      ...(returnTo ? { returnTo } : {}),
-                    }).toString()}#assignment`}
-                  >
-                    Assign Technician
-                  </Link>
+                  <span>
+                    <Wrench aria-hidden="true" size={15} /> Open
+                  </span>
                 </div>
-              </article>;
+              </Link>;
             })}
           </div>
         ) : (

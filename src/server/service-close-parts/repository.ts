@@ -78,6 +78,7 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
             },
             invoicePackages: { orderBy: { version: "desc" }, take: 3 },
             repairJobs: { where: { status: { not: "CANCELLED" } }, orderBy: { createdAt: "desc" }, select: { id: true, jobNumber: true } },
+            vendorWorks: { where: { status: { notIn: ["COMPLETED", "CANCELLED"] } }, orderBy: { updatedAt: "desc" }, take: 3 },
             closureEvents: { orderBy: { occurredAt: "desc" }, take: 3 },
             deliveryReadinessEvaluations: { orderBy: { version: "desc" }, take: 1 },
             releaseAuthorization: true
@@ -256,10 +257,17 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
 
     selectOffer(command: EnterpriseCommandCommitInput, requisitionId: string, data: { offerId: string }) {
       return executeAggregateMutation(database, command, "vehicle-operations.parts", async (tx, version) => {
-        const requisition = await tx.partRequisition.findFirst({ where: { id: requisitionId, organizationId: command.organizationId, status: "SOURCING" }, include: { demand: true } });
-        if (!requisition) throw new Error("Sourcing requisition was not found.");
+        const requisition = await tx.partRequisition.findFirst({ where: { id: requisitionId, organizationId: command.organizationId }, include: { demand: true, selectedOffer: true } });
+        if (!requisition) throw new Error("Parts requisition was not found.");
         const offer = await tx.partVendorOffer.findFirst({ where: { id: data.offerId, organizationId: command.organizationId, partId: requisition.demand.partId, vendor: { status: "ACTIVE" } } });
         if (!offer) throw new Error("Eligible vendor offer was not found.");
+        // Retrying a multi-step purchase is safe when the requisition was already
+        // selected for this same vendor. This prevents a partial prior save from
+        // surfacing as a false missing-requisition error.
+        if (requisition.status === "SELECTED" && requisition.selectedOffer?.vendorId === offer.vendorId) {
+          return { previous: requisition, result: { id: requisition.id, selectedOfferId: requisition.selectedOfferId, status: requisition.status, version: requisition.version } };
+        }
+        if (requisition.status !== "SOURCING") throw new Error("This parts requisition has already advanced. Refresh the parts board before continuing.");
         const next = await tx.partRequisition.update({ where: { id: requisition.id }, data: { selectedOfferId: offer.id, status: "SELECTED", version } });
         return { previous: requisition, result: { id: next.id, selectedOfferId: offer.id, status: next.status, version } };
       });

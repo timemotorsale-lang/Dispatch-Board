@@ -2,7 +2,7 @@
 
 import { ArrowLeft, BadgeCheck, Building2, CarFront, Check, ChevronRight, ClipboardCheck, FileCheck2, Gauge, LockKeyhole, PackageCheck, ShieldCheck, Stethoscope, Truck, Wrench } from "lucide-react";
 import Link from "next/link";
-import { FormEvent, ReactNode, useState } from "react";
+import { FormEvent, ReactNode, useRef, useState } from "react";
 import { buildReconBudgetSummary, formatMoneyCents } from "@/lib/recon-budget";
 import styles from "./shop-planning-workspace.module.css";
 
@@ -59,10 +59,16 @@ type RepairPath = "DIAGNOSTIC" | "DIRECT_BODY" | "VENDOR";
 type LaborGuideOption = { description: string; key: string; minutes: number; plannedCorrection: string; source: string; title: string; unitPriceCents: number; workTypeCode: string };
 
 const local = (value: string) => { const date = new Date(value); return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16); };
+const daysAfter = (value: string | Date, days: number) => local(new Date(new Date(value).getTime() + days * 86_400_000).toISOString());
 const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value / 100);
 const format = (value: string) => value.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
 const vehicleLabel = (order: Order) => [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber;
 const directRepairPattern = /\b(body|bodywork|collision|bumper|fender|paint|mirror|dent|hail|panel|cosmetic)\b/i;
+const bodyworkRepairDefaults = (concern = "Visible bodywork damage") => ({
+  proposedCorrection: "Repair the documented bodywork damage, then verify panel fit, finish, and repair quality.",
+  recommendation: "Prepare a bodywork repair estimate from the documented visible damage.",
+  scopeSummary: concern,
+});
 const directRepairRecorded = (order?: Order) => Boolean(order?.diagnosisVersions[0]?.cause?.includes("Direct repair scope approved without troubleshooting diagnosis."));
 const activeVendorWork = (order?: Order) => order?.vendorWorks.find((work) => !["COMPLETED", "CANCELLED"].includes(work.status)) ?? null;
 const defaultRepairPath = (order?: Order): RepairPath => activeVendorWork(order) ? "VENDOR" : directRepairRecorded(order) || directRepairPattern.test(order?.serviceVisit.concernSummary ?? "") ? "DIRECT_BODY" : "DIAGNOSTIC";
@@ -155,19 +161,22 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
   const [selectedId, setSelectedId] = useState(initial.repairOrders[0]?.id ?? "");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const submitInFlight = useRef(false);
   const first = initial.repairOrders[0];
   const defaultTime = first?.updatedAt ?? first?.serviceVisit.arrivedAt ?? "";
   const [repairPath, setRepairPath] = useState<RepairPath>(defaultRepairPath(first));
   const [inspection, setInspection] = useState({ templateCode: "GENERAL_DVI", templateVersion: 1, startedAt: defaultTime ? local(defaultTime) : "", completedAt: defaultTime ? local(defaultTime) : "", summary: "", itemKey: "GENERAL_CONDITION", itemLabel: "General condition", itemResult: "PASS", measurement: "", itemNotes: "", evidence: "" });
   const [diagnosis, setDiagnosis] = useState({ concern: first?.serviceVisit.concernSummary ?? "", symptoms: "", testName: "", testResult: "", evidence: "", cause: "", uncertainty: "MEDIUM", recommendation: "", proposedCorrection: "", technicianUserId: initial.users[0]?.id ?? "", diagnosedAt: defaultTime ? local(defaultTime) : "" });
-  const [directScope, setDirectScope] = useState({ concern: first?.serviceVisit.concernSummary ?? "", diagnosedAt: defaultTime ? local(defaultTime) : "", evidence: "", proposedCorrection: "", recommendation: "", scopeSummary: "", scopeType: "BODYWORK", technicianUserId: initial.users[0]?.id ?? "", uncertainty: "LOW", whyNoDiagnosis: "Visible body or collision damage can move directly to scope, estimate, parts, and repair without troubleshooting diagnostics." });
+  const [directScope, setDirectScope] = useState({ concern: first?.serviceVisit.concernSummary ?? "", diagnosedAt: defaultTime ? local(defaultTime) : "", evidence: "", ...bodyworkRepairDefaults(first?.serviceVisit.concernSummary), scopeType: "BODYWORK", technicianUserId: initial.users[0]?.id ?? "", uncertainty: "LOW", whyNoDiagnosis: "Visible body or collision damage can move directly to scope, estimate, parts, and repair without troubleshooting diagnostics." });
   const [vendorWork, setVendorWork] = useState({ approvalStatus: "NEEDS_DOCUMENTATION", customerVisibleSummary: "", directFromSource: false, evidence: "", expectedReturnAt: "", internalNotes: "", lastUpdateSummary: "Outside vendor route created from repair planning.", nextAction: "Confirm vendor received the vehicle, estimate or scope, parts needs, and expected return.", nextFollowUpAt: "", scope: first?.serviceVisit.concernSummary ?? "", sentAt: defaultTime ? local(defaultTime) : "", sentFrom: "Dealership", status: "AT_VENDOR", transportMethod: "Internal transport", vendorName: "", workType: "BODY_SHOP" });
   const [vendorProgress, setVendorProgress] = useState(seedVendorProgress(activeVendorWork(first), first));
-  const [estimate, setEstimate] = useState({ lineKey: "LINE-1", lineType: "LABOR", description: "", quantity: 1, unitPriceCents: 0, taxable: false, workTypeCode: "GENERAL_REPAIR", laborGuideMinutes: 60, plannedCorrection: "", taxCents: 0, discountCents: 0, taxBoundary: "Taxes are calculated by the configured financial system boundary.", presentationChannel: "IN_PERSON", presentedAt: defaultTime ? local(defaultTime) : "", expiresAt: "" });
+  const [estimate, setEstimate] = useState({ lineKey: "LINE-1", lineType: "LABOR", description: "", quantity: 1, unitPriceCents: 0, taxable: false, workTypeCode: "GENERAL_REPAIR", laborGuideMinutes: 60, plannedCorrection: "", taxCents: 0, discountCents: 0, taxBoundary: "Taxes are calculated by the configured financial system boundary.", presentationChannel: "IN_PERSON", presentedAt: defaultTime ? local(defaultTime) : "", expiresAt: defaultTime ? daysAfter(defaultTime, 7) : "" });
   const [laborGuideQuery, setLaborGuideQuery] = useState("");
   const [authorization, setAuthorization] = useState({ estimateVersionId: "", disposition: "ACCEPTED", channel: "IN_PERSON", authorizedLineKeys: "", decisionActorType: "CUSTOMER", decisionActorName: "", decisionActorReference: "", decidedAt: defaultTime ? local(defaultTime) : "" });
   const [job, setJob] = useState({ authorizationId: "", authorizedLineKey: "", diagnosisVersionId: "", workTypeCode: "GENERAL_REPAIR", description: "", plannedCorrection: "", laborGuideMinutes: 60, requiredSkills: "", requiredCertifications: "", bayRequirements: "", toolRequirements: "", priority: "NORMAL", dependencyJobIds: "", partsRequired: false, partDemandIds: [] as string[] });
   const [repairProgress, setRepairProgress] = useState({ statusCode: "REPAIR_IN_PROGRESS", contactOutcome: "Repair progress updated", customerVisibleSummary: "", internalNotes: "", nextContactAt: defaultTime ? local(defaultTime) : "", promiseAt: "", nextAction: "Continue repair and record the next progress update." });
+  const [repairOutcome, setRepairOutcome] = useState<"SUCCESS" | "FAILED">("SUCCESS");
+  const [completedByUserId, setCompletedByUserId] = useState(initial.users[0]?.id ?? "");
 
   const selected = model.repairOrders.find((item) => item.id === selectedId) ?? model.repairOrders[0];
   const safeReturnTo = returnTo?.startsWith("/") && !returnTo.startsWith("//") ? returnTo : selected ? `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(selected.id)}` : "/vehicles/repair-workbench";
@@ -195,11 +204,11 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
         : !vendorRepairReturned(currentVendorWork) ? "Vendor repair is authorized"
           : "Return and dealership QC required";
   const stageTwoComplete = Boolean((selected?.diagnosisVersions.length ?? 0) > 0 || currentVendorWork);
-  const stageTwoTitle = vendorPath ? "Outside vendor route" : directPath ? "Direct body and collision scope" : "Evidence-backed diagnosis";
+  const stageTwoTitle = vendorPath ? "Outside vendor route" : directPath ? "Bodywork repair scope" : "Evidence-backed diagnosis";
   const stageTwoSubtitle = "Choose the governed path that fits this work: full diagnosis, direct body and collision scope, or outside vendor repair.";
-  const missionLabel = vendorPath ? "Outside vendor mission" : directPath ? "Direct repair mission" : "Diagnostic mission";
-  const missionTitle = vendorPath ? "Dispatch the vehicle to the vendor workflow and track the rapid recon answers" : directPath ? "Capture visible damage scope and move directly to estimate" : "Verify the reported concern and identify the root cause";
-  const orderPathLabel = vendorPath ? "Vehicle ready for outside vendor route" : directPath ? "Vehicle ready for direct repair scope" : "Vehicle released for diagnosis";
+  const missionLabel = vendorPath ? "Outside vendor mission" : directPath ? "Bodywork repair mission" : "Diagnostic mission";
+  const missionTitle = vendorPath ? "Dispatch the vehicle to the vendor workflow and track the rapid recon answers" : directPath ? "Document the bodywork scope and move directly to estimate" : "Verify the reported concern and identify the root cause";
+  const orderPathLabel = vendorPath ? "Vehicle ready for outside vendor route" : directPath ? "Vehicle selected for bodywork repair" : "Vehicle released for diagnosis";
   const recentRepairUpdates = (selected?.advisorUpdates ?? []).slice(0, 6);
   const latestRepairUpdate = selected?.advisorUpdates?.[0] ?? null;
   const qcReady = Boolean(latestRepairUpdate && qcReadyStatuses.has(latestRepairUpdate.statusCode));
@@ -237,8 +246,42 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
     : notice;
 
   function applyLaborGuideOption(option: LaborGuideOption) {
-    setEstimate((value) => ({ ...value, description: option.description, laborGuideMinutes: option.minutes, lineType: "LABOR", plannedCorrection: option.plannedCorrection, unitPriceCents: option.unitPriceCents, workTypeCode: option.workTypeCode }));
+    const presentedAt = local(new Date().toISOString());
+    setEstimate((value) => ({ ...value, description: option.description, expiresAt: daysAfter(new Date(), 7), laborGuideMinutes: option.minutes, lineType: "LABOR", plannedCorrection: option.plannedCorrection, presentedAt, unitPriceCents: option.unitPriceCents, workTypeCode: option.workTypeCode }));
     setNotice(`${option.title} added to the estimate draft. Review the line, adjust price or minutes if needed, then present the estimate version.`);
+  }
+
+  function submitEstimate() {
+    const now = new Date();
+    const presentedAt = new Date(estimate.presentedAt);
+    const expiresAt = new Date(estimate.expiresAt);
+    if (Number.isNaN(presentedAt.getTime()) || Number.isNaN(expiresAt.getTime())) {
+      setNotice("Presented and Expires must contain valid dates and times.");
+      return;
+    }
+    if (expiresAt <= presentedAt || expiresAt <= now) {
+      setEstimate((value) => ({ ...value, presentedAt: local(now.toISOString()), expiresAt: daysAfter(now, 7) }));
+      setNotice("The estimate expiration had already passed. Presented and Expires were updated to a seven-day window. Review them, then select Present estimate version again.");
+      return;
+    }
+    void submit("PRESENT_ESTIMATE", { lineItems: [{ key: estimate.lineKey, type: estimate.lineType, description: estimate.description, quantity: estimate.quantity, unitPriceCents: estimate.unitPriceCents, taxable: estimate.taxable, workTypeCode: estimate.workTypeCode, laborGuideMinutes: estimate.laborGuideMinutes, plannedCorrection: estimate.plannedCorrection }], taxCents: estimate.taxCents, discountCents: estimate.discountCents, taxBoundary: estimate.taxBoundary, presentationChannel: estimate.presentationChannel, presentedAt: estimate.presentedAt, expiresAt: estimate.expiresAt }, "Present an immutable estimate version from diagnostic evidence.");
+  }
+
+  function chooseRepairPath(path: RepairPath) {
+    setRepairPath(path);
+    if (path === "DIRECT_BODY") {
+      const defaults = bodyworkRepairDefaults(selected?.serviceVisit.concernSummary);
+      setDirectScope((value) => ({
+        ...value,
+        concern: selected?.serviceVisit.concernSummary ?? value.concern,
+        proposedCorrection: value.proposedCorrection.trim() || defaults.proposedCorrection,
+        recommendation: value.recommendation.trim() || defaults.recommendation,
+        scopeSummary: value.scopeSummary.trim() || defaults.scopeSummary,
+        scopeType: "BODYWORK",
+      }));
+      setInspection((value) => ({ ...value, itemLabel: value.itemLabel === "General condition" ? "Bodywork / exterior damage" : value.itemLabel }));
+    }
+    if (path === "VENDOR") setVendorWork((value) => ({ ...value, workType: value.workType || "BODY_SHOP" }));
   }
 
   async function request(url: string, init?: RequestInit) {
@@ -260,7 +303,8 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
   }
 
   async function submit(action: string, value: Record<string, unknown>, reason: string) {
-    if (!selected) return;
+    if (!selected || submitInFlight.current) return false;
+    submitInFlight.current = true;
     setBusy(true);
     setNotice("");
     try {
@@ -271,11 +315,48 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
       }) as { result?: { message?: string } };
       setNotice(result?.result?.message ?? reason);
       await refresh();
+      return true;
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Shop planning request failed.");
+      return false;
     } finally {
+      submitInFlight.current = false;
       setBusy(false);
     }
+  }
+
+  function chooseProgressStatus(statusCode: string) {
+    const readyForQc = qcReadyStatuses.has(statusCode);
+    setRepairProgress((value) => ({
+      ...value,
+      contactOutcome: readyForQc ? "Repair complete and ready for QC" : statusCode === "WAITING_PARTS" ? "Repair waiting on parts" : statusCode === "WAITING_VENDOR" ? "Repair waiting on vendor" : statusCode === "REPAIR_BLOCKED" ? "Repair needs a decision" : "Repair progress updated",
+      nextAction: readyForQc ? "Complete final quality control, then hand off the vehicle." : statusCode === "WAITING_PARTS" ? "Confirm parts availability and resume repair when ready." : statusCode === "WAITING_VENDOR" ? "Follow up with the vendor and confirm the next committed date." : statusCode === "REPAIR_BLOCKED" ? "Resolve the blocker and record the repair decision." : "Continue repair and record the next meaningful update.",
+      statusCode,
+    }));
+  }
+
+  async function submitRepairProgress(statusOverride?: string, openQc = false, outcomeOverride?: "SUCCESS" | "FAILED") {
+    const statusCode = statusOverride ?? repairProgress.statusCode;
+    const customerVisibleSummary = repairProgress.customerVisibleSummary.trim();
+    const readyForQc = qcReadyStatuses.has(statusCode);
+    if (!customerVisibleSummary) {
+      setNotice("Tell us what happened before saving this update.");
+      return;
+    }
+    const failedRepair = outcomeOverride === "FAILED";
+    const completedBy = model.users.find((user) => user.id === completedByUserId)?.name ?? "Staff member";
+    const contactOutcome = failedRepair ? "Repair failed — QC decision required" : readyForQc ? "Repair complete and ready for QC" : repairProgress.contactOutcome.trim() || "Repair progress updated";
+    const nextAction = readyForQc ? "Complete final quality control, then hand off or return the vehicle for rework." : repairProgress.nextAction.trim() || "Continue repair and record the next meaningful update.";
+    if (latestRepairUpdate?.statusCode === statusCode && latestRepairUpdate.customerVisibleSummary.trim() === customerVisibleSummary) {
+      setNotice(readyForQc ? "This completion update is already saved. Open QC to continue." : "This exact repair update is already saved; no duplicate was created.");
+      return;
+    }
+    const saved = await submit("RECORD_REPAIR_PROGRESS", { contactChannel: "INTERNAL", contactDirection: "INTERNAL", contactOutcome, customerVisibleSummary, exceptionCodes: ["REPAIR_BLOCKED", "WAITING_PARTS", "WAITING_VENDOR"].includes(statusCode) ? [statusCode] : [], internalNotes: [outcomeOverride ? `Repair outcome: ${outcomeOverride}. Work performed by: ${completedBy}.` : "", repairProgress.internalNotes.trim(), `Next action: ${nextAction}`].filter(Boolean).join("\n"), nextContactAt: readyForQc ? null : repairProgress.nextContactAt ? new Date(repairProgress.nextContactAt).toISOString() : null, occurredAt: new Date().toISOString(), promiseAt: repairProgress.promiseAt ? new Date(repairProgress.promiseAt).toISOString() : null, reason: "Record live repair progress from the repair planning workspace.", statusCode }, readyForQc ? "Repair result saved. Opening Final QC." : "Repair progress update recorded.");
+    if (saved && openQc) {
+      window.location.assign(qcHref);
+      return;
+    }
+    if (saved) setRepairProgress((value) => ({ ...value, contactOutcome: "Repair progress updated", customerVisibleSummary: "", internalNotes: "", nextAction: "Continue repair and record the next meaningful update.", statusCode: "REPAIR_IN_PROGRESS" }));
   }
 
   async function submitVendorWork() {
@@ -377,7 +458,7 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
       const time = local(order.updatedAt);
       setRepairPath(defaultRepairPath(order));
       setDiagnosis((value) => ({ ...value, concern: order.serviceVisit.concernSummary, diagnosedAt: time }));
-      setDirectScope((value) => ({ ...value, concern: order.serviceVisit.concernSummary, diagnosedAt: time }));
+      setDirectScope((value) => ({ ...value, concern: order.serviceVisit.concernSummary, diagnosedAt: time, ...bodyworkRepairDefaults(order.serviceVisit.concernSummary) }));
       const vendor = activeVendorWork(order);
       setVendorWork((value) => ({ ...value, expectedReturnAt: "", nextFollowUpAt: "", scope: order.serviceVisit.concernSummary, sentAt: time, vendorName: vendor?.vendorName ?? "" }));
       setVendorProgress(seedVendorProgress(vendor, order));
@@ -438,8 +519,9 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
     </section>
 
     {selected ? <>
+      {!stageTwoComplete ? <section className={styles.repairTypePicker} aria-label="Select repair type"><header><span>Repair type</span><h2>Select the repair type now</h2><p>This choice prepares the correct inspection and planning form. It becomes authoritative after the inspection and repair scope are recorded.</p></header><div className={styles.pathPicker} role="radiogroup" aria-label="Repair type"><button aria-checked={!directPath && !vendorPath} className={!directPath && !vendorPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("DIAGNOSTIC")} role="radio" type="button"><Stethoscope /> Diagnostic / mechanical</button><button aria-checked={directPath} className={directPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("DIRECT_BODY")} role="radio" type="button"><Wrench /> Bodywork repair</button><button aria-checked={vendorPath} className={vendorPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("VENDOR")} role="radio" type="button"><Building2 /> Outside vendor</button></div></section> : null}
       {staffNext ? <section className={styles.staffNow} aria-label="What staff should do now"><div><span>What staff should do now</span><h2>{staffNext.title}</h2><p>{staffNext.detail}</p></div><a href={staffNext.href}>{staffNext.action}<ChevronRight /></a></section> : null}
-      <section className={styles.mission}>{vendorPath ? <Building2 /> : <Stethoscope />}<div><span>{missionLabel}</span><h2>{missionTitle}</h2><p>{selected.serviceVisit.concernSummary}</p></div><aside><strong>{displayCurrentStep + 1} of {displaySteps.length}</strong><span>{vendorPath ? "vendor steps" : "repair stages"}</span></aside></section>
+      <section className={styles.mission}>{vendorPath ? <Building2 /> : directPath ? <Wrench /> : <Stethoscope />}<div><span>{missionLabel}</span><h2>{missionTitle}</h2><p>{selected.serviceVisit.concernSummary}</p></div><aside><strong>{displayCurrentStep + 1} of {displaySteps.length}</strong><span>{vendorPath ? "vendor steps" : "repair stages"}</span></aside></section>
 
       <section className={styles.stepRail} aria-label={vendorPath ? "Outside vendor progress" : "Repair planning stages"}>{displaySteps.map((step, index) => { const Icon = step.icon; const state = index < displayCurrentStep ? styles.complete : index === displayCurrentStep ? styles.active : ""; return <div className={state} key={step.label}><span>{index < displayCurrentStep ? <Check /> : <Icon />}</span><small>Step {index + 1}</small><strong>{step.label}</strong></div>; })}</section>
 
@@ -488,9 +570,9 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
 
           <WorkflowStep complete={stageTwoComplete} icon={vendorPath ? <Building2 /> : <Stethoscope />} number={2} open={currentStep === 1 || staffNext?.step === 2} subtitle={stageTwoSubtitle} title={stageTwoTitle}>
             <div className={styles.pathPicker} role="tablist" aria-label="Repair path">
-              <button aria-pressed={!directPath && !vendorPath} className={!directPath && !vendorPath ? styles.pathActive : ""} onClick={() => setRepairPath("DIAGNOSTIC")} type="button">Diagnostic repair</button>
-              <button aria-pressed={directPath} className={directPath ? styles.pathActive : ""} onClick={() => setRepairPath("DIRECT_BODY")} type="button">Body / collision scope</button>
-              <button aria-pressed={vendorPath} className={vendorPath ? styles.pathActive : ""} onClick={() => setRepairPath("VENDOR")} type="button"><Building2 /> Outside vendor</button>
+              <button aria-pressed={!directPath && !vendorPath} className={!directPath && !vendorPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("DIAGNOSTIC")} type="button">Diagnostic / mechanical</button>
+              <button aria-pressed={directPath} className={directPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("DIRECT_BODY")} type="button">Bodywork repair</button>
+              <button aria-pressed={vendorPath} className={vendorPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("VENDOR")} type="button"><Building2 /> Outside vendor</button>
             </div>
             <div className={styles.concern}><span>Carried forward from intake</span><p>{selected.serviceVisit.concernSummary}</p></div>
             {vendorPath ? currentVendorWork ? <section className={styles.vendorRouteActive}>
@@ -536,9 +618,10 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
                 <Submit busy={busy}>Save vendor update</Submit>
               </form>
             </section> : vendorWorkflowForm : directPath ? <form onSubmit={(event: FormEvent) => { event.preventDefault(); void submit("RECORD_DIRECT_REPAIR_SCOPE", { ...directScope, evidence: directScope.evidence.split(",").map((value) => value.trim()).filter(Boolean) }, "Record a governed direct repair scope without troubleshooting diagnosis."); }}>
-              <div className={styles.pathInfo}><strong>No-diagnosis path</strong><p>Use this when the work is visible body, collision, cosmetic, teardown, or direct vendor repair and the team does not need troubleshooting diagnostics to define the next action.</p></div>
-              <FormGrid><Field label="Direct repair summary" wide><textarea value={directScope.scopeSummary} onChange={(event) => setDirectScope((value) => ({ ...value, scopeSummary: event.target.value }))} /></Field><Field label="Why diagnosis is not required" wide><textarea value={directScope.whyNoDiagnosis} onChange={(event) => setDirectScope((value) => ({ ...value, whyNoDiagnosis: event.target.value }))} /></Field><Field label="Scope type"><select value={directScope.scopeType} onChange={(event) => setDirectScope((value) => ({ ...value, scopeType: event.target.value }))}><option value="BODYWORK">Bodywork</option><option value="COLLISION">Collision</option><option value="OUTSIDE_VENDOR">Outside vendor</option><option value="COSMETIC">Cosmetic</option></select></Field><Field label="Evidence references"><input placeholder="photos, auction notes, vendor teardown" value={directScope.evidence} onChange={(event) => setDirectScope((value) => ({ ...value, evidence: event.target.value }))} /></Field><Field label="Scope uncertainty"><select value={directScope.uncertainty} onChange={(event) => setDirectScope((value) => ({ ...value, uncertainty: event.target.value }))}>{["LOW", "MEDIUM", "HIGH"].map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Responsible reviewer"><select value={directScope.technicianUserId} onChange={(event) => setDirectScope((value) => ({ ...value, technicianUserId: event.target.value }))}>{model.users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></Field><Field label="Recommendation"><textarea value={directScope.recommendation} onChange={(event) => setDirectScope((value) => ({ ...value, recommendation: event.target.value }))} /></Field><Field label="Proposed correction"><textarea value={directScope.proposedCorrection} onChange={(event) => setDirectScope((value) => ({ ...value, proposedCorrection: event.target.value }))} /></Field></FormGrid>
-              <Submit busy={busy}>Record direct repair scope</Submit>
+              <div className={styles.pathInfo}><strong>Bodywork repair path</strong><p>Use this for visible body, collision, paint, dent, cosmetic, or teardown work when troubleshooting diagnostics are not needed to define the repair.</p></div>
+              <FormGrid><Field label="Direct repair summary (required)" wide><textarea required value={directScope.scopeSummary} onChange={(event) => setDirectScope((value) => ({ ...value, scopeSummary: event.target.value }))} /></Field><Field label="Why diagnosis is not required (required)" wide><textarea required value={directScope.whyNoDiagnosis} onChange={(event) => setDirectScope((value) => ({ ...value, whyNoDiagnosis: event.target.value }))} /></Field><Field label="Scope type"><select value={directScope.scopeType} onChange={(event) => setDirectScope((value) => ({ ...value, scopeType: event.target.value }))}><option value="BODYWORK">Bodywork</option><option value="COLLISION">Collision</option><option value="OUTSIDE_VENDOR">Outside vendor</option><option value="COSMETIC">Cosmetic</option></select></Field><Field label="Evidence references (optional)"><input placeholder="photos, auction notes, vendor teardown" value={directScope.evidence} onChange={(event) => setDirectScope((value) => ({ ...value, evidence: event.target.value }))} /></Field><Field label="Scope uncertainty"><select value={directScope.uncertainty} onChange={(event) => setDirectScope((value) => ({ ...value, uncertainty: event.target.value }))}>{["LOW", "MEDIUM", "HIGH"].map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Responsible reviewer"><select required value={directScope.technicianUserId} onChange={(event) => setDirectScope((value) => ({ ...value, technicianUserId: event.target.value }))}>{model.users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></Field><Field label="Recommendation (required)"><textarea required value={directScope.recommendation} onChange={(event) => setDirectScope((value) => ({ ...value, recommendation: event.target.value }))} /></Field><Field label="Proposed correction (required)"><textarea required value={directScope.proposedCorrection} onChange={(event) => setDirectScope((value) => ({ ...value, proposedCorrection: event.target.value }))} /></Field></FormGrid>
+              {displayNotice ? <div aria-live="polite" className={`${styles.notice} ${/required|cannot|invalid|not enabled|already exists/i.test(displayNotice) ? styles.danger : ""}`}><p>{displayNotice}</p></div> : null}
+              <Submit busy={busy}>Save bodywork repair scope</Submit>
             </form> : <form onSubmit={(event: FormEvent) => { event.preventDefault(); void submit("RECORD_DIAGNOSIS", { ...diagnosis, symptoms: diagnosis.symptoms.split(",").map((value) => value.trim()).filter(Boolean), tests: [{ name: diagnosis.testName, result: diagnosis.testResult }], evidence: diagnosis.evidence.split(",").map((value) => value.trim()).filter(Boolean) }, "Record evidence-backed concern, cause, and proposed correction."); }}>
               <FormGrid><Field label="Symptoms"><input placeholder="Comma separated" value={diagnosis.symptoms} onChange={(event) => setDiagnosis((value) => ({ ...value, symptoms: event.target.value }))} /></Field><Field label="Diagnostic test"><input value={diagnosis.testName} onChange={(event) => setDiagnosis((value) => ({ ...value, testName: event.target.value }))} /></Field><Field label="Test result"><input value={diagnosis.testResult} onChange={(event) => setDiagnosis((value) => ({ ...value, testResult: event.target.value }))} /></Field><Field label="Evidence references"><input value={diagnosis.evidence} onChange={(event) => setDiagnosis((value) => ({ ...value, evidence: event.target.value }))} /></Field><Field label="Root cause" wide><textarea value={diagnosis.cause} onChange={(event) => setDiagnosis((value) => ({ ...value, cause: event.target.value }))} /></Field><Field label="Diagnostic uncertainty"><select value={diagnosis.uncertainty} onChange={(event) => setDiagnosis((value) => ({ ...value, uncertainty: event.target.value }))}>{["LOW", "MEDIUM", "HIGH"].map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Technician"><select value={diagnosis.technicianUserId} onChange={(event) => setDiagnosis((value) => ({ ...value, technicianUserId: event.target.value }))}>{model.users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></Field><Field label="Recommendation"><textarea value={diagnosis.recommendation} onChange={(event) => setDiagnosis((value) => ({ ...value, recommendation: event.target.value }))} /></Field><Field label="Proposed correction"><textarea value={diagnosis.proposedCorrection} onChange={(event) => setDiagnosis((value) => ({ ...value, proposedCorrection: event.target.value }))} /></Field></FormGrid>
               <Submit busy={busy}>Record diagnosis version</Submit>
@@ -546,12 +629,13 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
           </WorkflowStep>
 
           <WorkflowStep complete={vendorPath ? vendorEstimateCaptured(currentVendorWork) : selected.estimateVersions.length > 0} icon={<Gauge />} number={3} open={currentStep === 2 || staffNext?.step === 3} subtitle={vendorPath ? "Vendor estimate and approval are tracked from staff-entered vendor updates while the work stays offsite." : directPath ? "Create the governed body, collision, vendor, or teardown estimate from the approved direct scope." : "Create an immutable, expiring estimate from the verified diagnostic correction."} title={vendorPath ? "Vendor estimate update" : directPath ? "Direct repair estimate" : "Exact-version estimate"}>
-            <form onSubmit={(event: FormEvent) => { event.preventDefault(); void submit("PRESENT_ESTIMATE", { lineItems: [{ key: estimate.lineKey, type: estimate.lineType, description: estimate.description, quantity: estimate.quantity, unitPriceCents: estimate.unitPriceCents, taxable: estimate.taxable, workTypeCode: estimate.workTypeCode, laborGuideMinutes: estimate.laborGuideMinutes, plannedCorrection: estimate.plannedCorrection }], taxCents: estimate.taxCents, discountCents: estimate.discountCents, taxBoundary: estimate.taxBoundary, presentationChannel: estimate.presentationChannel, presentedAt: estimate.presentedAt, expiresAt: estimate.expiresAt }, "Present an immutable estimate version from diagnostic evidence."); }}>
+            <form onSubmit={(event: FormEvent) => { event.preventDefault(); submitEstimate(); }}>
               {vendorPath ? <div className={styles.pathInfo}><strong>Vendor estimating discipline</strong><p>Keep vendor estimate, approval documentation, parts responsibility, and expected return current on the outside vendor workflow. Do not duplicate internal diagnosis just to move the record.</p></div> : directPath ? <div className={styles.pathInfo}><strong>Body and collision estimating discipline</strong><p>Follow the same fast sequence every time: visible scope, labor guide or vendor quote, parts list, internal spend decision, then repair release. This keeps bodywork moving without pretending a troubleshooting diagnosis happened when it did not.</p></div> : null}
               {reconBudget ? <div className={styles.concern}><span>{reconBudget.source === "TAI" ? "TAI recon budget guardrail" : "Recon budget guardrail"}</span><p>{reconBudget.status === "OVER_BUDGET" ? "This estimate is already beyond the current recon spend target. Review the scope, labor source, and approval path before releasing more work." : reconBudget.status === "CAUTION" ? "This vehicle is getting close to its current recon budget. Tighten the estimate and confirm the next approval before moving forward." : "There is still recon spend room available for this vehicle. Keep the estimate anchored to real labor, parts, and vendor work."}</p><p>Budget {formatMoneyCents(reconBudget.estimatedReconBudgetCents)} · committed {formatMoneyCents(reconBudget.committedSpendCents)} · remaining {formatMoneyCents(reconBudget.remainingBudgetCents)}</p></div> : null}
               {directPath ? <div className={styles.pathInfo}><strong>Rapid recon estimate recipe</strong><p>1) use body labor guide or vendor quote, 2) separate labor, parts, and sublet cleanly, 3) preserve teardown supplements as new exact versions, and 4) never promise completion until parts and vendor timing are real.</p></div> : null}
               {!vendorPath ? <section className={styles.laborGuideHelper} aria-label="Labor Guide estimate helper"><header><div><span>Labor Guide helper workspace</span><h3>Build the estimate line without leaving this stage</h3><p>Pick a guided labor source. It fills the official estimate draft below; staff still reviews the line before presenting the immutable estimate version.</p></div><Link href={laborGuideHref}>Open full Labor Guide <ChevronRight /></Link></header><label><span>Search concern, correction, or labor operation</span><input placeholder="Example: warning light, bumper, teardown, sensor" value={laborGuideQuery} onChange={(event) => setLaborGuideQuery(event.target.value)} /></label><div className={styles.laborGuideCards}>{visibleLaborGuideOptions.length ? visibleLaborGuideOptions.map((option) => <article key={option.key}><small>{option.source}</small><strong>{option.title}</strong><p>{option.description}</p><dl><div><dt>Guide time</dt><dd>{option.minutes} min</dd></div><div><dt>Draft price</dt><dd>{money(option.unitPriceCents)}</dd></div><div><dt>Type</dt><dd>{format(option.workTypeCode)}</dd></div></dl><button disabled={busy} onClick={() => applyLaborGuideOption(option)} type="button">Use this estimate line</button></article>) : <div className={styles.laborGuideEmpty}>No helper operation matched. Open the full Labor Guide or clear the search.</div>}</div></section> : null}
-              <FormGrid><Field label="Line key"><input value={estimate.lineKey} onChange={(event) => setEstimate((value) => ({ ...value, lineKey: event.target.value }))} /></Field><Field label="Type"><select value={estimate.lineType} onChange={(event) => setEstimate((value) => ({ ...value, lineType: event.target.value }))}>{["LABOR", "PART", "FEE"].map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Description"><input value={estimate.description} onChange={(event) => setEstimate((value) => ({ ...value, description: event.target.value }))} /></Field><Field label="Unit price (cents)"><input min="0" type="number" value={estimate.unitPriceCents} onChange={(event) => setEstimate((value) => ({ ...value, unitPriceCents: Number(event.target.value) }))} /></Field><Field label="Labor guide minutes"><input min="0" type="number" value={estimate.laborGuideMinutes} onChange={(event) => setEstimate((value) => ({ ...value, laborGuideMinutes: Number(event.target.value) }))} /></Field><Field label="Planned correction"><input value={estimate.plannedCorrection} onChange={(event) => setEstimate((value) => ({ ...value, plannedCorrection: event.target.value }))} /></Field><Field label="Tax (cents)"><input min="0" type="number" value={estimate.taxCents} onChange={(event) => setEstimate((value) => ({ ...value, taxCents: Number(event.target.value) }))} /></Field><Field label="Discount (cents)"><input min="0" type="number" value={estimate.discountCents} onChange={(event) => setEstimate((value) => ({ ...value, discountCents: Number(event.target.value) }))} /></Field><Field label="Presented"><input type="datetime-local" value={estimate.presentedAt} onChange={(event) => setEstimate((value) => ({ ...value, presentedAt: event.target.value }))} /></Field><Field label="Expires"><input type="datetime-local" value={estimate.expiresAt} onChange={(event) => setEstimate((value) => ({ ...value, expiresAt: event.target.value }))} /></Field></FormGrid>
+              <FormGrid><Field label="Line key (required)"><input required value={estimate.lineKey} onChange={(event) => setEstimate((value) => ({ ...value, lineKey: event.target.value }))} /></Field><Field label="Type"><select value={estimate.lineType} onChange={(event) => setEstimate((value) => ({ ...value, lineType: event.target.value }))}>{["LABOR", "PART", "FEE"].map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Description (required)"><input required value={estimate.description} onChange={(event) => setEstimate((value) => ({ ...value, description: event.target.value }))} /></Field><Field label="Unit price (cents)"><input min="0" type="number" value={estimate.unitPriceCents} onChange={(event) => setEstimate((value) => ({ ...value, unitPriceCents: Number(event.target.value) }))} /></Field><Field label="Labor guide minutes"><input min="0" type="number" value={estimate.laborGuideMinutes} onChange={(event) => setEstimate((value) => ({ ...value, laborGuideMinutes: Number(event.target.value) }))} /></Field><Field label="Planned correction (required)"><input required value={estimate.plannedCorrection} onChange={(event) => setEstimate((value) => ({ ...value, plannedCorrection: event.target.value }))} /></Field><Field label="Tax (cents)"><input min="0" type="number" value={estimate.taxCents} onChange={(event) => setEstimate((value) => ({ ...value, taxCents: Number(event.target.value) }))} /></Field><Field label="Discount (cents)"><input min="0" type="number" value={estimate.discountCents} onChange={(event) => setEstimate((value) => ({ ...value, discountCents: Number(event.target.value) }))} /></Field><Field label="Presented (required)"><input required type="datetime-local" value={estimate.presentedAt} onChange={(event) => setEstimate((value) => ({ ...value, presentedAt: event.target.value }))} /></Field><Field label="Expires (required)"><input min={estimate.presentedAt} required type="datetime-local" value={estimate.expiresAt} onChange={(event) => setEstimate((value) => ({ ...value, expiresAt: event.target.value }))} /></Field></FormGrid>
+              {displayNotice ? <div aria-live="polite" className={`${styles.notice} ${/required|cannot|invalid|not enabled|already exists|expiration|valid date/i.test(displayNotice) ? styles.danger : ""}`}><p>{displayNotice}</p></div> : null}
               <Submit busy={busy}>Present estimate version</Submit>
             </form>
           </WorkflowStep>
@@ -656,6 +740,33 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
             )}
           </WorkflowStep>
 
+          <section className={styles.repairResult} id="repair-result">
+            <header>
+              <span>Manage repair</span>
+              <h2>Record the repair result</h2>
+              <p>Choose the outcome, say what happened, and send the vehicle straight to Final QC.</p>
+            </header>
+            <div className={styles.outcomeChoices} role="group" aria-label="Repair outcome">
+              <button aria-pressed={repairOutcome === "SUCCESS"} onClick={() => setRepairOutcome("SUCCESS")} type="button">
+                <Check aria-hidden="true" />
+                <span><strong>Completed successfully</strong><small>The repair is finished and ready for inspection.</small></span>
+              </button>
+              <button aria-pressed={repairOutcome === "FAILED"} onClick={() => setRepairOutcome("FAILED")} type="button">
+                <Wrench aria-hidden="true" />
+                <span><strong>Repair failed</strong><small>Send it to QC for a rework decision.</small></span>
+              </button>
+            </div>
+            <div className={styles.repairResultFields}>
+              <label><span>Who performed the work?</span><select value={completedByUserId} onChange={(event) => setCompletedByUserId(event.target.value)}>{model.users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></label>
+              <label><span>What happened?</span><textarea required placeholder="Example: Left fender from Metro Auto Salvage was received and installed today. Panel fit and attachment are complete." value={repairProgress.customerVisibleSummary} onChange={(event) => setRepairProgress((value) => ({ ...value, customerVisibleSummary: event.target.value }))} /></label>
+            </div>
+            <button className={styles.sendToQcAction} disabled={busy || !repairProgress.customerVisibleSummary.trim() || !completedByUserId} onClick={() => void submitRepairProgress("READY_FOR_QC", true, repairOutcome)} type="button">
+              {busy ? "Saving..." : "Save result and open Final QC"}
+            </button>
+          </section>
+
+          <details className={styles.moreRepairUpdates}>
+            <summary>More repair update options and history</summary>
           <section className={styles.progressWorkspace} id="repair-progress">
             <header>
               <div>
@@ -672,21 +783,23 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
               </div>
               <Link className={styles.qcReadyAction} href={qcHref}>Open QC workspace</Link>
             </div> : null}
-            <form onSubmit={(event: FormEvent) => { event.preventDefault(); void submit("RECORD_REPAIR_PROGRESS", { contactChannel: "INTERNAL", contactDirection: "INTERNAL", contactOutcome: repairProgress.contactOutcome, customerVisibleSummary: repairProgress.customerVisibleSummary, exceptionCodes: ["REPAIR_BLOCKED", "WAITING_PARTS", "WAITING_VENDOR"].includes(repairProgress.statusCode) ? [repairProgress.statusCode] : [], internalNotes: [repairProgress.internalNotes.trim(), `Next action: ${repairProgress.nextAction}`].filter(Boolean).join("\n"), nextContactAt: repairProgress.nextContactAt ? new Date(repairProgress.nextContactAt).toISOString() : null, occurredAt: new Date().toISOString(), promiseAt: repairProgress.promiseAt ? new Date(repairProgress.promiseAt).toISOString() : null, reason: "Record live repair progress from the repair planning workspace.", statusCode: repairProgress.statusCode }, "Repair progress update recorded."); }}>
+            <form onSubmit={(event: FormEvent) => { event.preventDefault(); void submitRepairProgress(); }}>
               <div className={styles.progressGrid}>
-                <label><span>Live status</span><select value={repairProgress.statusCode} onChange={(event) => setRepairProgress((value) => ({ ...value, statusCode: event.target.value }))}>{progressStatuses.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select></label>
-                <label><span>Short update title</span><input value={repairProgress.contactOutcome} onChange={(event) => setRepairProgress((value) => ({ ...value, contactOutcome: event.target.value }))} /></label>
-                <label><span>Next follow-up</span><input type="datetime-local" value={repairProgress.nextContactAt} onChange={(event) => setRepairProgress((value) => ({ ...value, nextContactAt: event.target.value }))} /></label>
-                <label><span>Promise / target</span><input type="datetime-local" value={repairProgress.promiseAt} onChange={(event) => setRepairProgress((value) => ({ ...value, promiseAt: event.target.value }))} /></label>
-                <label className={styles.wideField}><span>What happened</span><textarea placeholder="Example: Body tech completed teardown. Waiting on reinforcement bar, radiator, condenser, and coolant before reassembly can continue." value={repairProgress.customerVisibleSummary} onChange={(event) => setRepairProgress((value) => ({ ...value, customerVisibleSummary: event.target.value }))} /></label>
+                <label><span>What is the status?</span><select value={repairProgress.statusCode} onChange={(event) => chooseProgressStatus(event.target.value)}>{progressStatuses.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select></label>
+                <label><span>Update title</span><input value={repairProgress.contactOutcome} onChange={(event) => setRepairProgress((value) => ({ ...value, contactOutcome: event.target.value }))} /></label>
+                <label><span>Follow up (optional)</span><input type="datetime-local" value={repairProgress.nextContactAt} onChange={(event) => setRepairProgress((value) => ({ ...value, nextContactAt: event.target.value }))} /></label>
+                <label><span>Target date (optional)</span><input type="datetime-local" value={repairProgress.promiseAt} onChange={(event) => setRepairProgress((value) => ({ ...value, promiseAt: event.target.value }))} /></label>
+                <label className={styles.wideField}><span>What happened? (required)</span><textarea required placeholder="Example: Fender replaced and repair is ready for final QC." value={repairProgress.customerVisibleSummary} onChange={(event) => setRepairProgress((value) => ({ ...value, customerVisibleSummary: event.target.value }))} /></label>
                 <label className={styles.wideField}><span>Next step</span><input placeholder="Example: Order missing parts and follow up with vendor tomorrow morning." value={repairProgress.nextAction} onChange={(event) => setRepairProgress((value) => ({ ...value, nextAction: event.target.value }))} /></label>
-                <label className={styles.wideField}><span>Private staff notes</span><textarea placeholder="Internal repair detail, handoff note, or blocker context." value={repairProgress.internalNotes} onChange={(event) => setRepairProgress((value) => ({ ...value, internalNotes: event.target.value }))} /></label>
+                <label className={styles.wideField}><span>Private notes (optional)</span><textarea placeholder="Internal repair detail, handoff note, or blocker context." value={repairProgress.internalNotes} onChange={(event) => setRepairProgress((value) => ({ ...value, internalNotes: event.target.value }))} /></label>
               </div>
+              {displayNotice ? <div aria-live="polite" className={`${styles.notice} ${/required|cannot|invalid|failed|error/i.test(displayNotice) ? styles.danger : ""}`}><p>{displayNotice}</p></div> : null}
               <div className={styles.progressActions}>
-                <small>Simple rule: say what changed, what is blocking it, and what should happen next.</small>
+                <small>Enter what happened, then choose one clear action.</small>
                 <div className={styles.progressPrimaryActions}>
                   {qcReady || qcReadyStatuses.has(repairProgress.statusCode) ? <Link className={styles.secondaryAction} href={qcHref}>Go to QC</Link> : null}
-                  <button disabled={busy} type="submit">{busy ? "Saving progress..." : "Save repair progress update"}</button>
+                  {!qcReady ? <button className={styles.completeQcAction} disabled={busy || !repairProgress.customerVisibleSummary.trim()} onClick={() => void submitRepairProgress("READY_FOR_QC")} type="button">{busy ? "Saving..." : "Repair complete — send to QC"}</button> : null}
+                  <button disabled={busy || !repairProgress.customerVisibleSummary.trim()} type="submit">{busy ? "Saving..." : "Save update"}</button>
                 </div>
               </div>
             </form>
@@ -706,6 +819,7 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
               </article>) : <p>No repair progress has been recorded yet.</p>}
             </div>
           </section>
+          </details>
         </main>
 
         <aside className={styles.rail}>

@@ -50,10 +50,17 @@ describe("QualityControlWorkspace", () => {
 
     expect(html).toContain("Quality Control Workspace");
     expect(html).toContain("Verify completed repairs before they leave the shop.");
+    expect(html).toContain("Quick Repair QC");
+    expect(html).toContain("Repair completed");
+    expect(html).toContain("Fit and finish acceptable");
+    expect(html).toContain("Safety/function check passed");
+    expect(html).toContain("QC failed — return for correction");
+    expect(html).toContain("Pass Repair QC");
+    expect(html).toContain("Show queue and detailed QC tools");
     expect(html).toContain("Ready for QC");
     expect(html).toContain("Inspector queue");
     expect(html).toContain("Selected repair");
-    expect(html).toContain("Technician handoff evidence");
+    expect(html).toContain("Repair handoff evidence");
     expect(html).toContain("Enterprise release gates");
     expect(html).toContain("Generated QC checklist");
     expect(html).toContain("Brake road test and wheel torque verified");
@@ -73,6 +80,43 @@ describe("QualityControlWorkspace", () => {
     expect(html).toContain("NOT_APPLICABLE");
     expect(html).toContain("Final release authorization");
     expect(html).toContain("/vehicles/repair-workbench?repairOrderId=ro_1");
-    expect(html).toContain("/vehicles/repair-jobs/job_1/workbench");
+    expect(html).toContain("/vehicles/shop-planning?repairOrderId=ro_1");
+    expect(html).toContain("Manage repair");
+  });
+
+  it("opens the approved whole-vehicle checklist after repair QC passes", () => {
+    const passedModel = JSON.parse(JSON.stringify(model));
+    passedModel.repairOrders[0].repairJobs[0].status = "QC_PASSED";
+    passedModel.repairOrders[0].repairJobs[0].qualityInspections = [{
+      id: "inspection-1",
+      version: 1,
+      disposition: "PASSED",
+      inspectedAt: "2026-07-20T19:00:00.000Z",
+      safetyChecksPassed: true,
+      peerVerificationRequired: false,
+      peerVerificationPassed: false,
+      roadTestRequired: false,
+      roadTestOutcome: "NOT_REQUIRED",
+      failureReasonCodes: [],
+      reworkInstructions: null,
+      inspectorUser: { name: "Quincy QC" },
+      peerVerifierUser: null
+    }];
+
+    const html = renderToStaticMarkup(<QualityControlWorkspace initial={passedModel} />);
+
+    expect(html).toContain("Repair QC passed");
+    expect(html).toContain("Final Frontline QC");
+    expect(html).toContain("Inspect the whole vehicle before marking it Frontline Ready.");
+    expect(html).toContain("Exterior &amp; Body");
+    expect(html).toContain("Tires, Wheels &amp; Brakes");
+    expect(html).toContain("Lights &amp; Safety");
+    expect(html).toContain("Interior &amp; Controls");
+    expect(html).toContain("Mechanical &amp; Road Check");
+    expect(html).toContain("Frontline Presentation");
+    expect(html).toContain("Paint and finish");
+    expect(html).toContain("Dash warning lights");
+    expect(html).toContain("Save &amp; finish later");
+    expect(html).toContain("Mark Frontline Ready");
   });
 });

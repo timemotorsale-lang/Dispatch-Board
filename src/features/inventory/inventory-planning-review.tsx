@@ -25,7 +25,8 @@ const styles: Record<string, string> = {
   stageForm: "inventory-planning-stage-form",
   taskActions: "inventory-planning-task-actions",
   taskBadge: "inventory-planning-task-badge",
-  taskRequirements: "inventory-planning-task-requirements"
+  taskRequirements: "inventory-planning-task-requirements",
+  resultHelp: "inventory-planning-result-help"
 };
 
 type View = "RECEIVING" | "LIFECYCLE";
@@ -91,8 +92,9 @@ function taskRequirementMet(item: CheckItem, evidenceIds: string[]) {
   return (!item.requiresEvidence || evidenceIds.length > 0 || Boolean(item.evidenceObjectIds?.length)) && (!item.requiresNotes || Boolean(item.notes?.trim()));
 }
 function taskOperationalStatus(item: CheckItem, evidenceIds: string[]) {
-  if (item.state === "PASS") return "Complete - Pass";
-  if (item.state === "CONCERN") return "Complete - Concern";
+  const requirementMet = taskRequirementMet(item, evidenceIds);
+  if (item.state === "PASS") return requirementMet ? "Complete - Pass" : "Pass selected - add supporting details";
+  if (item.state === "CONCERN") return requirementMet ? "Complete - Concern" : "Needs attention - describe the concern";
   if (item.state === "DEFERRED") return item.notes?.trim() ? "Deferred - Follow-up recorded" : "Deferred reason required";
   if (item.state === "NOT_APPLICABLE") return "Complete - N/A";
   if (item.requiresEvidence && !evidenceIds.length && !item.evidenceObjectIds?.length) return "Evidence required";
@@ -133,11 +135,11 @@ export function InventoryPlanningReview({ eligibleUnit = null, initial, initialR
   const [reconNextAction, setReconNextAction] = useState("Repair suspension bolt issue, then move to frontline readiness review.");
   const [reconBlocker, setReconBlocker] = useState("Suspension issue must be corrected before frontline readiness.");
   const items = useMemo(() => groups.flatMap(group => group.items), [groups]);
-  const completed = items.filter(item => item.state !== "PENDING").length;
+  const evidenceIds = useMemo(() => initial.evidence.items.map(item => { const link = object(item); return text(object(link.evidenceObject).id, text(link.id, "")); }).filter(Boolean), [initial.evidence.items]);
+  const completed = items.filter(item => item.state === "NOT_APPLICABLE" || (item.state !== "PENDING" && taskRequirementMet(item, evidenceIds))).length;
   const concerns = items.filter(item => item.state === "CONCERN").length;
   const readiness = Math.round(completed / items.length * 100);
   const vehicleName = [identity.year, identity.make, identity.model].map(identityPart).filter(Boolean).join(" ") || text(identity.vehicleNumber, "Vehicle");
-  const evidenceIds = useMemo(() => initial.evidence.items.map(item => { const link = object(item); return text(object(link.evidenceObject).id, text(link.id, "")); }).filter(Boolean), [initial.evidence.items]);
 
   useEffect(() => {
     const restore = window.setTimeout(() => {
@@ -359,7 +361,12 @@ function ReceivingReview({ activeCheckId, busy, canonicalLocation, completed, co
   const [conditionCorrection, setConditionCorrection] = useState(notes);
   const [needsCorrection, setNeedsCorrection] = useState(reconRemainingWork);
   const [nextActionCorrection, setNextActionCorrection] = useState(reconNextAction);
-  const orderedTasks = groups.flatMap(group => group.items), currentTask = orderedTasks.find(item => item.state === "PENDING") ?? orderedTasks[orderedTasks.length - 1];
+  const orderedTasks = groups.flatMap(group => group.items), currentTask = orderedTasks.find(item => item.state === "PENDING" || (item.state !== "NOT_APPLICABLE" && !taskRequirementMet(receivingSubmissionItems([item], notes)[0], evidenceIds))) ?? orderedTasks[orderedTasks.length - 1];
+  function chooseResult(item: CheckItem, state: CheckState) {
+    updateCheck(item.id, state);
+    const next = { ...receivingSubmissionItems([item], notes)[0], state };
+    if (state !== "PENDING" && state !== "NOT_APPLICABLE" && !taskRequirementMet(next, evidenceIds)) setActiveCheckId(item.id);
+  }
   function applyIntakeCorrection() {
     const condition = conditionCorrection.trim();
     const needs = needsCorrection.trim();
@@ -422,7 +429,7 @@ function ReceivingReview({ activeCheckId, busy, canonicalLocation, completed, co
         <div className={styles.cardHeader}><div><small>Receiving review - work may continue with documented follow-up</small><h2>Receiving & Initial Quality Inspection</h2><p>Record what is known now. If photos, scans, or onsite evidence are unavailable, mark Deferred with a reason so recon can continue and QC can close the evidence later.</p></div><strong>{readiness}% reviewed</strong></div>
         <div className={styles.guidedChecklist}>{groups.map(group => <section key={group.id}><header><h3>{group.label}</h3><span>{group.items.filter(item => item.state !== "PENDING").length}/{group.items.length} complete</span></header>{group.items.map(item => {
           const displayItem = receivingSubmissionItems([item], notes)[0], requirementMet = taskRequirementMet(displayItem, evidenceIds), taskNumber = orderedTasks.findIndex(task => task.id === item.id) + 1;
-          return <article className={styles.guidedTask} key={item.id}><div><small>Task {taskNumber}</small><h4>{item.label}</h4><p>{item.instruction}</p><div className={styles.taskRequirements}><span><b>Evidence / follow-up</b>{item.evidenceRequirement}</span><span><b>Completion standard</b>{item.completionCriteria}</span></div></div><div><span className={styles.taskBadge}>{taskOperationalStatus(displayItem, evidenceIds)}</span><select aria-label={`${item.label} result`} className={styles[`state${item.state}`]} onChange={event => updateCheck(item.id, event.target.value as CheckState)} value={item.state}><option value="PENDING">Not recorded</option><option disabled={!requirementMet} value="PASS">Pass</option><option disabled={!requirementMet} value="CONCERN">Concern</option><option value="DEFERRED">Deferred</option><option value="NOT_APPLICABLE">N/A</option></select><div className={styles.taskActions}><ChecklistAction initial={initial} item={item} onOpen={() => setActiveCheckId(activeCheckId === item.id ? null : item.id)} />{["arrival", "photos", "scan", "nhtsa"].includes(item.id) ? <button onClick={() => setActiveCheckId(activeCheckId === item.id ? null : item.id)} type="button">{activeCheckId === item.id ? "Close details" : "Record details"}</button> : null}</div></div>{activeCheckId === item.id && item.id !== "vin" ? <GuidedTaskDetails damageSummary={damageSummary} evidenceIds={evidenceIds} item={item} keyCount={keyCount} mileage={mileage} ownerUserId={ownerUserId} setDamageSummary={setDamageSummary} setKeyCount={setKeyCount} setMileage={setMileage} setOwnerUserId={setOwnerUserId} updateCheckDetails={updateCheckDetails} users={users} workflow={workflow} /> : null}</article>;
+          return <article className={styles.guidedTask} key={item.id}><div><small>Task {taskNumber}</small><h4>{item.label}</h4><p>{item.instruction}</p><div className={styles.taskRequirements}><span><b>Evidence / follow-up</b>{item.evidenceRequirement}</span><span><b>Completion standard</b>{item.completionCriteria}</span></div></div><div><span className={styles.taskBadge}>{taskOperationalStatus(displayItem, evidenceIds)}</span><select aria-label={`${item.label} result`} className={styles[`state${item.state}`]} onChange={event => chooseResult(item, event.target.value as CheckState)} value={item.state}><option value="PENDING">Not recorded</option><option value="PASS">Pass</option><option value="CONCERN">Needs attention</option><option value="DEFERRED">Deferred</option><option value="NOT_APPLICABLE">N/A</option></select>{!requirementMet && item.state !== "PENDING" && item.state !== "NOT_APPLICABLE" ? <small className={styles.resultHelp}>Result selected. Add the supporting details below to complete this task.</small> : null}<div className={styles.taskActions}><ChecklistAction initial={initial} item={item} onOpen={() => setActiveCheckId(activeCheckId === item.id ? null : item.id)} />{["arrival", "photos", "scan", "nhtsa"].includes(item.id) ? <button onClick={() => setActiveCheckId(activeCheckId === item.id ? null : item.id)} type="button">{activeCheckId === item.id ? "Close details" : "Record details"}</button> : null}</div></div>{activeCheckId === item.id && item.id !== "vin" ? <GuidedTaskDetails damageSummary={damageSummary} evidenceIds={evidenceIds} item={item} keyCount={keyCount} mileage={mileage} ownerUserId={ownerUserId} setDamageSummary={setDamageSummary} setKeyCount={setKeyCount} setMileage={setMileage} setOwnerUserId={setOwnerUserId} updateCheckDetails={updateCheckDetails} users={users} workflow={workflow} /> : null}</article>;
         })}</section>)}</div>
       </section>
 

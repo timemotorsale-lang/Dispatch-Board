@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { InventoryFrontlineWorkspace } from "@/features/inventory/inventory-frontline-workspace";
 import { evaluateFrontlineRelease, normalizeDelivery, normalizeFrontlineStart, normalizeInspection, normalizeMerchandising, normalizeQuality, normalizeReceipt, normalizeTitle, normalizeTransport } from "@/server/inventory-frontline/domain";
+import { legacyAcquisitionCaseId } from "@/server/acquisition-appraisal/service";
 import { frontlineWorkflowId } from "@/server/inventory-frontline/service";
 
 const now = new Date("2026-07-18T15:00:00.000Z");
@@ -30,6 +31,11 @@ describe("R5 Inventory-to-Frontline domain", () => {
   it("holds receipt on identity, custody, or evidence failures", () => {
     const result = normalizeReceipt({ ...command, arrivedAt: now.toISOString(), conditionSummary: "Observed", custodyAccepted: false, evidenceObjectIds: [], identityMatch: false, keyCount: 1, mileage: 10 });
     expect(result.blockers).toEqual(expect.arrayContaining(["IDENTITY_MISMATCH", "CUSTODY_NOT_ACCEPTED", "RECEIPT_EVIDENCE_MISSING"]));
+  });
+
+  it("derives one stable controlled acquisition-provenance identity for legacy inventory", () => {
+    expect(legacyAcquisitionCaseId("org-1", "unit-1")).toBe(legacyAcquisitionCaseId("org-1", "unit-1"));
+    expect(legacyAcquisitionCaseId("org-1", "unit-1")).not.toBe(legacyAcquisitionCaseId("org-1", "unit-2"));
   });
 
   it("allows receipt evidence to be deferred with an accountable reason", () => {

@@ -58,6 +58,9 @@ describe("Inventory Planning review surface", () => {
       "Start governed lifecycle",
       "No workflow mutation yet"
     ]) expect(html).toContain(text);
+    expect(html).toContain('<option value="PASS">Pass</option>');
+    expect(html).toContain('<option value="CONCERN">Needs attention</option>');
+    expect(html).not.toContain('disabled="" value="PASS"');
     expect(html).toContain("Edit current vehicle location");
     expect(html).toContain("Edit / verify");
     expect(html).toContain("2T3W1RFV4PW278629");
