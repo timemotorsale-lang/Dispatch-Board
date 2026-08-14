@@ -1,9 +1,10 @@
 "use client";
 
-import { Activity, AlertTriangle, BarChart3, Binary, CheckCircle2, ChevronRight, CirclePause, CirclePlay, FileClock, Gauge, GitBranch, History, ListChecks, RadioTower, RotateCcw, Search, ShieldAlert, SlidersHorizontal, Stethoscope, TableProperties, TimerReset, Wrench, Zap } from "lucide-react";
+import { Activity, AlertTriangle, BarChart3, Binary, CheckCircle2, ChevronRight, CirclePause, CirclePlay, FileClock, Gauge, GitBranch, History, Layers3, ListChecks, RadioTower, RotateCcw, Search, ShieldAlert, SlidersHorizontal, Stethoscope, TableProperties, TimerReset, Wrench, Zap } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import type { DiagnosticCaseWorkspaceModel } from "@/server/diagnostics/service";
+import { ADVANCED_DIAGNOSTIC_FAMILIES_VERSION, ADVANCED_DIAGNOSTIC_FAMILY_LIST, type AdvancedDiagnosticFamilyKey } from "@/server/diagnostics/advanced-diagnostic-families";
 import styles from "./diagnostics.module.css";
 
 const label = (value: string) => value.replaceAll("_", " ").toLocaleLowerCase().replace(/^./, (letter) => letter.toUpperCase());
@@ -11,6 +12,7 @@ const labs = [
   { id: "SYSTEMS", name: "Systems", icon: GitBranch }, { id: "SCAN", name: "Scan", icon: RadioTower }, { id: "LIVE_DATA", name: "Live data", icon: Gauge },
   { id: "ELECTRICAL", name: "Electrical", icon: Zap }, { id: "WAVEFORM", name: "Waveform", icon: Activity }, { id: "MECHANICAL", name: "Mechanical", icon: Wrench },
   { id: "HYPOTHESIS", name: "Hypothesis", icon: Stethoscope }, { id: "TEST_NAVIGATOR", name: "Tests", icon: ListChecks }, { id: "INTERMITTENT", name: "Intermittent", icon: TimerReset },
+  { id: "ADVANCED", name: "Advanced", icon: Layers3 },
   { id: "VERIFICATION", name: "Verification", icon: CheckCircle2 }
 ] as const;
 type LabId = (typeof labs)[number]["id"];
@@ -87,10 +89,12 @@ function LabPanel({ activeLab, item, measurements }: { activeLab: Exclude<LabId,
     MECHANICAL: { title: "Mechanical lab", description: "Review pressure, speed, temperature, and flow measurements without converting them into a diagnosis." },
     HYPOTHESIS: { title: "Hypothesis lab", description: "Review the latest governed candidates, causal state, contradictions, and reasoning rank before making a human conclusion." },
     INTERMITTENT: { title: "Intermittent lab", description: "Reconstruct time-ordered observations, tests, and repeat lineage. Automated trigger capture is not connected." },
+    ADVANCED: { title: "Advanced diagnostics", description: "Use specialty-specific stages for transmission, ADAS, networks, diesel, hybrid/EV, and intermittent concerns without replacing the governed test plan." },
     VERIFICATION: { title: "Verification lab", description: "Use the closed-loop verification panel above to plan proof checks, record pass/fail evidence, escalate unsafe results, and close only after the repair is verified." }
   };
   const definition = definitions[activeLab];
   const vehicleSystemFacts = item.observations.filter((entry) => entry.source === "VEHICLE_SYSTEM" || entry.source === "IMPORTED_RECORD");
+  if (activeLab === "ADVANCED") return <AdvancedDiagnosticsLab caseReference={`${item.id.slice(-8)} · v${item.version}`} />;
   return <><header><div><span className={styles.eyebrow}>Focused laboratory</span><h3>{definition.title}</h3><p>{definition.description}</p></div><span>{item.id.slice(-8)} · v{item.version}</span></header>
     {activeLab === "SYSTEMS" ? <div className={styles.systemMap}><article><strong>Customer concern</strong><span>{item.concern}</span></article><ChevronRight /><article><strong>Evidence</strong><span>{item.observations.length + item.measurements.length} structured facts</span></article><ChevronRight /><article><strong>Tests</strong><span>{item.testPlans[0]?.nodes.length ?? 0} planned nodes</span></article><ChevronRight /><article><strong>Cause</strong><span>{item.conclusionVersions?.[0]?.causeStatement ?? "Not established"}</span></article></div> : null}
     {activeLab === "SCAN" ? <EvidenceList title="Vehicle-system facts" empty="No scan or network facts have been imported." items={vehicleSystemFacts.map((entry) => ({ id: entry.id, title: entry.statement, detail: `${label(entry.source)} · ${label(entry.qualityStatus)}` }))} /> : null}
@@ -100,6 +104,39 @@ function LabPanel({ activeLab, item, measurements }: { activeLab: Exclude<LabId,
     {activeLab === "HYPOTHESIS" ? <EvidenceList title="Current reasoning candidates" empty="No reasoning evaluation is available for this case." items={(item.reasoningEvaluations?.[0]?.hypotheses ?? []).map((entry) => ({ id: entry.id, title: `${entry.hypothesisKey} · ${label(entry.status)}`, detail: `${label(entry.causalState)} · rank ${entry.rank} · ${(entry.supportingEvidenceKeys as string[]).length} supporting / ${(entry.contradictingEvidenceKeys as string[]).length} contradicting evidence links` }))} /> : null}
     {activeLab === "VERIFICATION" ? <div className={styles.labEmpty}><AlertTriangle /><strong>Verification governed above</strong><p>{definition.description}</p></div> : null}
   </>;
+}
+
+export function AdvancedDiagnosticsLab({ caseReference = "Case context locked" }: { caseReference?: string }) {
+  const [familyKey, setFamilyKey] = useState<AdvancedDiagnosticFamilyKey>("TRANSMISSION");
+  const [stageIndex, setStageIndex] = useState(0);
+  const family = ADVANCED_DIAGNOSTIC_FAMILY_LIST.find((entry) => entry.key === familyKey) ?? ADVANCED_DIAGNOSTIC_FAMILY_LIST[0];
+  const activeStage = family.stages[stageIndex] ?? family.stages[0];
+
+  function selectFamily(nextFamily: AdvancedDiagnosticFamilyKey) {
+    setFamilyKey(nextFamily);
+    setStageIndex(0);
+  }
+
+  return <section className={styles.advancedFamilyLab} aria-labelledby="advanced-diagnostics-heading">
+    <header><div><span className={styles.eyebrow}>Specialty diagnostic guide · {ADVANCED_DIAGNOSTIC_FAMILIES_VERSION}</span><h3 id="advanced-diagnostics-heading">Advanced diagnostics</h3><p>Select the vehicle system, then work through its six evidence-gated stages. This guide strengthens the existing test plan; it does not bypass it.</p></div><span>{caseReference}</span></header>
+    <nav className={styles.advancedFamilyTabs} aria-label="Advanced diagnostic specialties">{ADVANCED_DIAGNOSTIC_FAMILY_LIST.map((entry) => <button aria-current={entry.key === family.key ? "page" : undefined} key={entry.key} onClick={() => selectFamily(entry.key)} type="button"><strong>{entry.title}</strong><small>{entry.description}</small></button>)}</nav>
+    <div className={styles.advancedFamilyHeader}><div><span>Selected specialty</span><h4>{family.title}</h4><p>{family.description}</p></div><dl><div><dt>Qualification</dt><dd>{family.qualification}</dd></div><div><dt>Procedure boundary</dt><dd>{family.sourceBoundary}</dd></div></dl></div>
+    <nav className={styles.advancedStageNav} aria-label={`${family.title} stages`}>{family.stages.map((stage, index) => <button aria-current={index === stageIndex ? "step" : undefined} key={stage.key} onClick={() => setStageIndex(index)} type="button"><i>{index + 1}</i><span><small>Stage {index + 1}</small><strong>{stage.title}</strong></span></button>)}</nav>
+    <article className={styles.advancedStageDetail}>
+      <header><div><span>Stage {stageIndex + 1} of {family.stages.length}</span><h4>{activeStage.title}</h4><p>{activeStage.objective}</p></div><b>Review guide</b></header>
+      <div className={styles.advancedStageColumns}>
+        <AdvancedStageList title="What to check" items={activeStage.checks} />
+        <AdvancedStageList title="Required evidence" items={activeStage.requiredEvidence} />
+        <AdvancedStageList title="Exit criteria" items={activeStage.exitCriteria} />
+        <AdvancedStageList danger title="Stop & escalate" items={activeStage.stopConditions} />
+      </div>
+    </article>
+    <footer className={styles.advancedBoundary}><ShieldAlert /><p><strong>Exact procedure required.</strong> Apply VIN- and equipment-specific service information, thresholds, safety controls, and technician qualifications. Reviewing a stage here does not authorize a hazardous test or advance the case record.</p></footer>
+  </section>;
+}
+
+function AdvancedStageList({ title, items, danger = false }: { title: string; items: string[]; danger?: boolean }) {
+  return <section data-danger={danger || undefined}><h5>{title}</h5><ul>{items.map((item) => <li key={item}>{item}</li>)}</ul></section>;
 }
 
 function EvidenceList({ title, empty, items }: { title: string; empty: string; items: Array<{ id: string; title: string; detail: string }> }) {

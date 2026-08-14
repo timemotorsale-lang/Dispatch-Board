@@ -179,7 +179,7 @@ function matchesRepairText(operation: LaborRepairOperation, searchText: string) 
   return matchedWords.length >= Math.min(2, words.length);
 }
 
-export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "manual", initialQuery = "", initialSelectedWork = "starter", initialWorkTab = "selected", repairTaxonomy, returnLabel, returnTo }: { activeRepairOrder: ActiveRepairOrder | null; catalog: unknown[]; initialMode?: "manual" | "engine"; initialQuery?: string; initialSelectedWork?: "empty" | "starter" | "transmission"; initialWorkTab?: WorkTab; laborAddOns: unknown[]; repairOrders?: { id: string; label: string }[]; repairTaxonomy: LaborOperationSystem[]; returnLabel?: string; returnTo?: string }) {
+export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "manual", initialQuery = "", initialSelectedWork = "empty", initialWorkTab = "selected", repairTaxonomy, returnLabel, returnTo }: { activeRepairOrder: ActiveRepairOrder | null; catalog: unknown[]; initialMode?: "manual" | "engine"; initialQuery?: string; initialSelectedWork?: "empty" | "starter" | "transmission"; initialWorkTab?: WorkTab; laborAddOns: unknown[]; repairOrders?: { id: string; label: string }[]; repairTaxonomy: LaborOperationSystem[]; returnLabel?: string; returnTo?: string }) {
   const allOperations = useMemo(() => repairTaxonomy.flatMap((system) => system.groups.flatMap((group) => group.operations)), [repairTaxonomy]);
   const brakeStarter = allOperations.filter((operation) => ["front-brake-pads-rotors", "brake-caliper-front"].includes(operation.id));
   const transmissionStarter = allOperations.filter((operation) => operation.id === "transmission-remove-install");
@@ -465,7 +465,24 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
     setAcceptedAddOnIds((current) => current.includes(id) ? current : [...current, id]);
   }
 
+  function clearEstimateWorkspace() {
+    setQuery("");
+    setEnginePrompt("");
+    setAnalyzedEnginePrompt("");
+    setOpenGroupId("");
+    setWorkTab("selected");
+    setSelectedLabor([]);
+    setSelectedParts([]);
+    setEvidenceDrafts([]);
+    setEvidenceNote("");
+    setEvidenceAttachedTo("RO");
+    setEditingLaborRowId("");
+    setLaborDraft({ hours: "", included: "", title: "" });
+    setAcceptedAddOnIds([]);
+  }
+
   function selectRepairOrder(order: RepairOrderLookup) {
+    clearEstimateWorkspace();
     setSelectedRepairOrder({
       concern: order.serviceVisit.concernSummary,
       customer: order.customer?.displayName ?? "Internal vehicle",
@@ -674,24 +691,24 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
         </label>
         <div className={styles.lookupResult}>
           <UserRound />
-          <span><strong>{selectedRepairOrder?.customer ?? "Leo James"}</strong><small>(555) 212-5555</small><b>Repeat customer</b></span>
+          <span><strong>{selectedRepairOrder?.customer ?? "No customer selected"}</strong><small>{selectedRepairOrder ? selectedRepairOrder.repairOrderNumber : "Search for an RO to begin"}</small></span>
         </div>
         <div className={styles.lookupResult}>
           <CarFront />
-          <span><strong>{selectedRepairOrder?.vehicle.label ?? "2010 Mazda 3"}</strong><small>VIN {selectedRepairOrder?.vehicle.vin ?? "JM1BL1SF3A1257561"}</small><small>Plate ABC1234</small></span>
+          <span><strong>{selectedRepairOrder?.vehicle.label ?? "No vehicle selected"}</strong><small>{selectedRepairOrder ? `VIN ${selectedRepairOrder.vehicle.vin}` : "The estimate is blank"}</small></span>
         </div>
-        <button type="button"><Check />Use selected</button>
+        <button disabled={!selectedRepairOrder} type="button"><Check />Use selected</button>
         <Link href="/vehicles/repair-orders?intakeSource=WALK_IN&returnTo=%2Fdiagnostics%2Flabor-guide"><Plus />Check in vehicle</Link>
       </section>
       {lookupResults.length ? <section className={styles.lookupResults} aria-label="Repair order lookup results">{lookupResults.map((order) => <button key={order.id} onClick={() => selectRepairOrder(order)} type="button"><strong>{order.repairOrderNumber}</strong><span>{order.customer?.displayName ?? "Internal"} · {[order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber}</span><small>{order.serviceVisit.concernSummary}</small></button>)}</section> : null}
       {notice ? <div className={notice.includes("Unable") || notice.includes("required") || notice.includes("not") ? styles.noticeDanger : styles.notice} role="status">{notice}</div> : null}
 
       <section className={styles.compactContext} aria-label="Selected RO context">
-        <div><ClipboardList /><span>Active RO <Link href={activeRoHref}>#{selectedRepairOrder?.repairOrderNumber.replace(/^RO-?/i, "") ?? "0691C247"}</Link></span></div>
-        <div><span>Customer</span><strong>{selectedRepairOrder?.customer ?? "Leo James"}</strong></div>
-        <div><span>Vehicle</span><strong>{selectedRepairOrder?.vehicle.label ?? "2010 Mazda 3"}</strong></div>
-        <div><span>VIN</span><strong>{selectedRepairOrder?.vehicle.vin ?? "JM1BL1SF3A1257561"}</strong></div>
-        <div><span>Concern</span><strong>{selectedRepairOrder?.concern ?? "grinding noise from front passenger brakes"}</strong></div>
+        <div><ClipboardList /><span>Active RO {selectedRepairOrder ? <Link href={activeRoHref}>#{selectedRepairOrder.repairOrderNumber.replace(/^RO-?/i, "")}</Link> : <strong>Not selected</strong>}</span></div>
+        <div><span>Customer</span><strong>{selectedRepairOrder?.customer ?? "—"}</strong></div>
+        <div><span>Vehicle</span><strong>{selectedRepairOrder?.vehicle.label ?? "—"}</strong></div>
+        <div><span>VIN</span><strong>{selectedRepairOrder?.vehicle.vin ?? "—"}</strong></div>
+        <div><span>Concern</span><strong>{selectedRepairOrder?.concern ?? "—"}</strong></div>
         <button type="button"><History />Repair history</button>
       </section>
 
@@ -916,9 +933,9 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
                 <div><dt>MN taxable parts</dt><dd>{money(estimatePolicy.tax.taxablePartsCents / 100)}</dd></div>
                 <div><dt>Tax</dt><dd>{money(taxAndSupplies)}</dd></div>
                 <div className={styles.total}><dt>Total</dt><dd>{money(total)}</dd></div>
-                <div><dt>Gross profit</dt><dd className={styles.good}>31.8%</dd></div>
+                <div><dt>Gross profit</dt><dd className={styles.good}>{estimateLabor.length || estimateParts.length ? "31.8%" : "—"}</dd></div>
               </dl>
-              <button className={styles.createRo} disabled={busy} onClick={() => void presentEstimate()} type="button">{busy ? "Creating estimate..." : "Create Estimate"}</button>
+              <button className={styles.createRo} disabled={busy || !selectedRepairOrder || (!selectedLabor.length && !selectedParts.length)} onClick={() => void presentEstimate()} type="button">{busy ? "Creating estimate..." : "Create Estimate"}</button>
               <section className={styles.assignmentCard} aria-label="Technician assignment handoff">
                 <header>
                   <div>
@@ -963,10 +980,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
               <Link className={styles.secondaryReview} href={`/diagnostics/advisor-review${selectedRepairOrder ? `?repairOrderId=${encodeURIComponent(selectedRepairOrder.id)}` : ""}`}>Advisor review</Link>
               <section className={styles.historyCard}>
                 <h3>Customer / Vehicle Context</h3>
-                <p><strong>Previous RO</strong><Link href={activeRoHref}>#0678C112</Link></p>
-                <p><strong>Last mileage</strong><span>82,945 mi</span></p>
-                <p><strong>Prior brake service</strong><span>Front pads and rotors @ 69,230 mi</span></p>
-                <p><strong>Declined work</strong><span>Brake fluid exchange</span></p>
+                <p><span>{selectedRepairOrder ? "This is a new blank estimate. Prior estimate lines are not carried into this RO." : "Select a repair order to begin. No previous estimate is loaded."}</span></p>
               </section>
             </>
           ) : null}

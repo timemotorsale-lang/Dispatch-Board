@@ -18,7 +18,7 @@ export default async function DiagnosticsLaborGuidePage({ searchParams }: PagePr
   const returnTo = safeReturnTo(first(params.returnTo));
   const returnLabel = first(params.returnLabel)?.slice(0, 120);
   const orders = await listRepairOrders(user, { page: 1, pageSize: 10, state: "ACTIVE" }).catch(() => ({ items: [] }));
-  const active = orders.items.find((order) => order.id === requestedRepairOrderId) ?? orders.items[0];
+  const active = requestedRepairOrderId ? orders.items.find((order) => order.id === requestedRepairOrderId) : undefined;
   const activeRepairOrder = active ? {
     id: active.id,
     repairOrderNumber: active.repairOrderNumber,
@@ -37,6 +37,6 @@ export default async function DiagnosticsLaborGuidePage({ searchParams }: PagePr
     label: `${order.repairOrderNumber} - ${[order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber}`,
   }));
 
-  return <EnterpriseLaborGuideConsole activeRepairOrder={activeRepairOrder} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} initialMode={requestedMode === "engine" ? "engine" : "manual"} laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={repairOrders} repairTaxonomy={LABOR_OPERATION_TAXONOMY} returnLabel={returnLabel} returnTo={returnTo} />;
+  return <EnterpriseLaborGuideConsole activeRepairOrder={activeRepairOrder} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} initialMode={requestedMode === "engine" ? "engine" : "manual"} key={activeRepairOrder?.id ?? "blank-estimate"} laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={repairOrders} repairTaxonomy={LABOR_OPERATION_TAXONOMY} returnLabel={returnLabel} returnTo={returnTo} />;
 }
 

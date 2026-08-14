@@ -7,11 +7,11 @@ import { flattenLaborOperationTaxonomy, LABOR_OPERATION_ADD_ONS, LABOR_OPERATION
 
 describe("enterprise labor guide console", () => {
   it("renders the approved dual-mode labor guide and a live repair-order workbench link", () => {
-    const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole activeRepairOrder={{ concern: "Clunking noise in front end and rear feels bouncy over bumps", customer: "Jordan Ellis", id: "ro-id-3411", openedAt: "2026-07-21T14:00:00.000Z", repairOrderNumber: "RO-3411", vehicle: { id: "veh-id-1", label: "2018 Ford F-150", vin: "1FTFW1E84KFC12345" } }} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={[{ id: "ro-id-3411", label: "RO-3411 - 2018 Ford F-150" }]} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />);
+    const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole activeRepairOrder={{ concern: "Clunking noise in front end and rear feels bouncy over bumps", customer: "Jordan Ellis", id: "ro-id-3411", openedAt: "2026-07-21T14:00:00.000Z", repairOrderNumber: "RO-3411", vehicle: { id: "veh-id-1", label: "2018 Ford F-150", vin: "1FTFW1E84KFC12345" } }} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} initialSelectedWork="starter" laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={[{ id: "ro-id-3411", label: "RO-3411 - 2018 Ford F-150" }]} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />);
 
     expect(markup).toContain("RO Creation Workspace");
     expect(markup).toContain("Search customer, phone, VIN, plate, vehicle, or RO number");
-    expect(markup).toContain("Repeat customer");
+    expect(markup).toContain("RO-3411");
     expect(markup).toContain("Check in vehicle");
     expect(markup).toContain("Manual Labor Guide");
     expect(markup).toContain("Labor Intelligence Engine");
@@ -62,14 +62,21 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("repairOrderNumber=RO-3411");
     expect(markup).toContain("returnTo=%2Fdiagnostics%2Flabor-guide%3FrepairOrderId%3Dro-id-3411");
     expect(markup).toContain("Advisor review");
-    expect(markup).toContain("Previous RO");
+    expect(markup).toContain("Prior estimate lines are not carried into this RO");
   });
 
   it("routes missing vehicle and repair-order context to intake before estimate creation", () => {
     const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole activeRepairOrder={null} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={[]} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />);
 
-    expect(markup).toContain("2010 Mazda 3");
-    expect(markup).toContain("Leo James");
+    expect(markup).toContain("No vehicle selected");
+    expect(markup).toContain("No customer selected");
+    expect(markup).toContain("Selected Work 0");
+    expect(markup).toContain("Parts 0");
+    expect(markup).toContain("<dt>Total</dt><dd>$0.00</dd>");
+    expect(markup).toContain("No previous estimate is loaded");
+    expect(markup).not.toContain("2010 Mazda 3");
+    expect(markup).not.toContain("Leo James");
+    expect(markup).not.toContain("#0678C112");
     expect(markup).toContain("/vehicles/repair-orders?intakeSource=WALK_IN&amp;returnTo=%2Fdiagnostics%2Flabor-guide");
     expect(markup).toContain("Check in vehicle");
     expect(markup).not.toContain("/vehicles/workflows/add-vehicle");
@@ -100,6 +107,17 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("Parts 0");
     expect(markup).toContain("<dt>Tax</dt><dd>$0.00</dd>");
     expect(markup).toContain("<dt>Total</dt><dd>$0.00</dd>");
+  });
+
+  it("starts every repair order with a blank estimate", () => {
+    const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole activeRepairOrder={{ concern: "New concern", customer: "New Customer", id: "ro-new", openedAt: "2026-08-13T12:00:00.000Z", repairOrderNumber: "RO-NEW", vehicle: { id: "veh-new", label: "2022 Honda Civic", vin: "VIN-NEW" } }} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={[]} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />);
+
+    expect(markup).toContain("Selected Work 0");
+    expect(markup).toContain("Parts 0");
+    expect(markup).toContain("<dt>Labor</dt><dd>0.0 hrs</dd>");
+    expect(markup).toContain("<dt>Total</dt><dd>$0.00</dd>");
+    expect(markup).toContain("Prior estimate lines are not carried into this RO");
+    expect(markup).not.toContain("Replace front brake pads and rotors");
   });
 
   it("shows transmission replacement required parts, accessories, programming, and MN tax policy", () => {
