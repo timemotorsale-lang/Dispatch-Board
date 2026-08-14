@@ -12,13 +12,15 @@ import {
   Plus,
   Search,
   ShieldCheck,
-  UserRound,
   UsersRound,
   X
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import type { UnifiedCrmCustomerListReadModel } from "@/server/unified-crm/customer-read-contract";
+
+import { UnifiedCrmCustomerList } from "./unified-crm-customer-list";
 import {
   reviewAppointments,
   reviewConversations,
@@ -30,11 +32,18 @@ import {
   type UnifiedCrmView
 } from "./unified-crm-shell-review-model";
 import styles from "./unified-crm-shell.module.css";
+import type { UnifiedCrmWorkQueueItem, UnifiedCrmWorkQueueReadModel } from "@/server/unified-crm/work-queue-contract";
 
 type UnifiedCrmShellProps = {
   activeView: UnifiedCrmView;
   capabilities?: Readonly<Record<string, boolean>>;
+  customerList?: UnifiedCrmCustomerListReadModel;
+  customerListError?: string;
+  customerListFailureKind?: "error" | "restricted" | "unavailable";
   initialSelectedId?: string;
+  workQueue?: UnifiedCrmWorkQueueReadModel;
+  workQueueError?: string;
+  workQueueFailureKind?: "error" | "restricted" | "unavailable";
   userName: string;
 };
 
@@ -46,8 +55,8 @@ const viewCopy: Record<Exclude<UnifiedCrmView, "home">, { eyebrow: string; title
   },
   customers: {
     eyebrow: "Customers",
-    title: "Relationship context without losing the next step",
-    description: "Customer identity remains source-owned. This review shows how CRM will surface permitted context and freshness."
+    title: "Find the right customer quickly",
+    description: "Search permitted customer identity with masked contact hints, visible source freshness, and a safe path into the governed Customers record."
   },
   pipeline: {
     eyebrow: "Pipeline",
@@ -75,11 +84,43 @@ function firstName(name: string) {
   return name.trim().split(/\s+/, 1)[0] || "there";
 }
 
-function ReviewNotice() {
+function formatDateTime(value: string | null, fallback: string) {
+  if (!value) return fallback;
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(new Date(value));
+}
+
+function formatTime(value: string | null, fallback: string) {
+  if (!value) return fallback;
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(new Date(value));
+}
+
+function ReviewNotice({ mode }: { mode: "review" | "live-customers" | "live-work" }) {
+  const copy = mode === "live-customers"
+    ? {
+        title: "Live read-only customer list",
+        detail: "Contact hints are masked. No customer record is changed."
+      }
+    : mode === "live-work"
+      ? {
+          title: "Live read-only CRM work queue",
+          detail: "Owned work is ranked from live source records. No work record is changed."
+        }
+      : {
+          title: "Experience review",
+          detail: UNIFIED_CRM_REVIEW_NOTICE.replace("Experience review — ", "")
+        };
   return (
     <div className={styles.reviewNotice} role="status">
       <ShieldCheck aria-hidden="true" size={16} />
-      <span><strong>Experience review</strong>{UNIFIED_CRM_REVIEW_NOTICE.replace("Experience review — ", "")}</span>
+      <span><strong>{copy.title}</strong> {copy.detail}</span>
     </div>
   );
 }
@@ -133,6 +174,31 @@ function QueueRow({ active, item, onSelect }: { active: boolean; item: ReviewQue
   );
 }
 
+function LiveQueueRow({
+  active,
+  item,
+  onSelect
+}: {
+  active: boolean;
+  item: UnifiedCrmWorkQueueItem;
+  onSelect(item: UnifiedCrmWorkQueueItem): void;
+}) {
+  return (
+    <button
+      aria-pressed={active}
+      className={`${styles.queueRow} ${active ? styles.queueRowActive : ""}`}
+      onClick={() => onSelect(item)}
+      type="button"
+    >
+      <span className={`${styles.dueMark} ${styles[item.dueState]}`} aria-hidden="true" />
+      <span className={styles.queueIdentity}><strong>{item.title}</strong><small>{item.customerLabel}</small></span>
+      <span className={styles.queueReason}>{item.reason}</span>
+      <span className={styles.queueMeta}><strong>{item.dueLabel}</strong><small>{item.stageLabel}</small></span>
+      <ArrowRight aria-hidden="true" size={16} />
+    </button>
+  );
+}
+
 function ContextPanel({ item }: { item: ReviewQueueItem }) {
   return (
     <aside className={styles.contextPanel} aria-label={`Review context for ${item.customer}`}>
@@ -162,6 +228,35 @@ function ContextPanel({ item }: { item: ReviewQueueItem }) {
   );
 }
 
+function LiveContextPanel({ item }: { item: UnifiedCrmWorkQueueItem }) {
+  return (
+    <aside className={styles.contextPanel} aria-label={`CRM work context for ${item.title}`}>
+      <header>
+        <div><span>Selected work item</span><h2>{item.title}</h2><p>{item.customerLabel}</p></div>
+        <span className={`${styles.duePill} ${styles[item.dueState]}`}>{item.dueLabel}</span>
+      </header>
+      <section>
+        <span className={styles.sectionLabel}>Why now</span>
+        <p className={styles.contextReason}>{item.reason}</p>
+      </section>
+      <dl className={styles.contextFacts}>
+        <div><dt>Owner</dt><dd>{item.ownerName}</dd></div>
+        <div><dt>Source</dt><dd>{item.sourceLabel}</dd></div>
+        <div><dt>Due</dt><dd>{formatDateTime(item.dueAt, "Waiting on source")}</dd></div>
+      </dl>
+      <section>
+        <span className={styles.sectionLabel}>Recent context</span>
+        <ol className={styles.history}>{item.history.map((entry) => <li key={entry}>{entry}</li>)}</ol>
+      </section>
+      <small className={styles.freshness}>Last source update: {formatDateTime(item.updatedAt, "Unknown")}</small>
+      <Link className={styles.primaryAction} href={item.sourceHref}>
+        {item.primaryActionLabel}<ExternalLink aria-hidden="true" size={15} />
+      </Link>
+      <p className={styles.sourceBoundary}>This opens the existing governed source. The CRM queue itself is read only.</p>
+    </aside>
+  );
+}
+
 function SearchReview({ onSelect }: { onSelect(item: ReviewQueueItem): void }) {
   const [query, setQuery] = useState("");
   const normalized = query.trim().toLowerCase();
@@ -187,6 +282,30 @@ function SearchReview({ onSelect }: { onSelect(item: ReviewQueueItem): void }) {
           ))}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function WorkQueueSearch({
+  onChange,
+  value
+}: {
+  onChange(value: string): void;
+  value: string;
+}) {
+  return (
+    <div className={styles.searchWrap}>
+      <label className={styles.searchField}>
+        <Search aria-hidden="true" size={18} />
+        <span className={styles.srOnly}>Filter CRM work</span>
+        <input
+          onChange={(event) => onChange(event.target.value)}
+          placeholder="Filter owned work, customers, or source…"
+          type="search"
+          value={value}
+        />
+        <kbd>Filter</kbd>
+      </label>
     </div>
   );
 }
@@ -222,8 +341,85 @@ function WorkView({ selected, onSelect }: { selected: ReviewQueueItem; onSelect(
   return <div className={styles.twoColumn}><section className={styles.queuePanel}><div className={styles.queueList}>{reviewQueueItems.map((item) => <QueueRow active={selected.id === item.id} item={item} key={item.id} onSelect={onSelect} />)}</div></section><ContextPanel item={selected} /></div>;
 }
 
-function CustomersView({ onSelect }: { onSelect(item: ReviewQueueItem): void }) {
-  return <section className={styles.cardGrid} aria-label="Synthetic customer review cards">{reviewQueueItems.slice(0, 3).map((item) => <button className={styles.customerCard} key={item.id} onClick={() => onSelect(item)} type="button"><span className={styles.avatar}><UserRound aria-hidden="true" size={18} /></span><span><strong>{item.customer}</strong><small>{item.account}</small><em>{item.reason}</em></span><ArrowRight aria-hidden="true" size={16} /></button>)}</section>;
+function WorkState({
+  detail,
+  failureKind
+}: {
+  detail: string;
+  failureKind?: "error" | "restricted" | "unavailable";
+}) {
+  const title = failureKind === "restricted"
+    ? "CRM work is restricted"
+    : failureKind === "unavailable"
+      ? "CRM work is unavailable"
+      : "CRM work could not be loaded";
+  return (
+    <section className={styles.stateCard} aria-live="polite">
+      <strong>{title}</strong>
+      <p>{detail}</p>
+      <div className={styles.stateActions}>
+        <Link href="/my-tasks">Open existing task queue</Link>
+        <Link href="/appointments">Open appointments</Link>
+      </div>
+    </section>
+  );
+}
+
+function LiveHomeView({
+  model,
+  selected,
+  onSelect
+}: {
+  model: UnifiedCrmWorkQueueReadModel;
+  selected: UnifiedCrmWorkQueueItem | null;
+  onSelect(item: UnifiedCrmWorkQueueItem): void;
+}) {
+  const overdue = model.items.filter((item) => item.dueState === "overdue");
+  const today = model.items.filter((item) => item.dueState === "today");
+  return (
+    <div className={styles.homeGrid}>
+      <section className={styles.queuePanel} aria-labelledby="crm-next-heading">
+        <header className={styles.panelHeading}>
+          <div><span>{model.visibility === "owned" ? "Owned live work" : "Live team work"}</span><h2 id="crm-next-heading">Do this next</h2></div>
+          <small>{model.summary.totalCount} items</small>
+        </header>
+        {model.items.length ? <div className={styles.queueList}>{model.items.map((item) => <LiveQueueRow active={selected?.id === item.id} item={item} key={item.id} onSelect={onSelect} />)}</div> : <WorkState detail="No owned work needs attention right now." />}
+      </section>
+      {selected ? <LiveContextPanel item={selected} /> : <WorkState detail="No live work item is available to review right now." />}
+      <aside className={styles.todayRail} aria-label="Today live work">
+        <section className={styles.todayCard}>
+          <header><span><CalendarDays aria-hidden="true" size={16} />Today</span><small>Live</small></header>
+          {model.today.length ? model.today.map((appointment) => <article key={appointment.id}><time>{formatTime(appointment.startsAt, "TBD")}</time><span><strong>{appointment.customerLabel}</strong><small>{appointment.detail}</small></span></article>) : <p className={styles.railEmpty}>No permitted appointments are scheduled today.</p>}
+          <Link href="/appointments">Open source appointment board<ExternalLink aria-hidden="true" size={13} /></Link>
+        </section>
+        <section className={styles.attentionCard}>
+          <header><span><Clock3 aria-hidden="true" size={16} />Attention</span></header>
+          <button onClick={() => overdue[0] && onSelect(overdue[0])} type="button"><strong>{model.summary.overdueCount} overdue</strong><span>Past-due work rises to the top first</span></button>
+          <button onClick={() => today[0] && onSelect(today[0])} type="button"><strong>{model.summary.todayCount} due today</strong><span>Use this to stay ahead of the next promised action</span></button>
+        </section>
+      </aside>
+    </div>
+  );
+}
+
+function LiveWorkView({
+  failureKind,
+  model,
+  onSelect,
+  selected
+}: {
+  failureKind?: "error" | "restricted" | "unavailable";
+  model?: UnifiedCrmWorkQueueReadModel;
+  onSelect(item: UnifiedCrmWorkQueueItem): void;
+  selected: UnifiedCrmWorkQueueItem | null;
+}) {
+  if (!model) {
+    return <WorkState detail="No live CRM work records were displayed." failureKind={failureKind} />;
+  }
+  if (model.state === "EMPTY") {
+    return <WorkState detail="No owned work needs attention right now." />;
+  }
+  return <div className={styles.twoColumn}><section className={styles.queuePanel}><div className={styles.queueList}>{model.items.map((item) => <LiveQueueRow active={selected?.id === item.id} item={item} key={item.id} onSelect={onSelect} />)}</div></section>{selected ? <LiveContextPanel item={selected} /> : <WorkState detail="No live CRM work item is available to review right now." />}</div>;
 }
 
 function PipelineView() {
@@ -250,13 +446,35 @@ function MoreView() {
   ].map(({ icon: Icon, title, detail }) => <article key={title}><Icon aria-hidden="true" size={19} /><div><strong>{title}</strong><p>{detail}</p></div></article>)}</section>;
 }
 
-export function UnifiedCrmShell({ activeView, capabilities = {}, initialSelectedId, userName }: UnifiedCrmShellProps) {
+export function UnifiedCrmShell({
+  activeView,
+  capabilities = {},
+  customerList,
+  customerListError,
+  customerListFailureKind,
+  initialSelectedId,
+  userName,
+  workQueue,
+  workQueueError,
+  workQueueFailureKind
+}: UnifiedCrmShellProps) {
   const [selected, setSelected] = useState(
     reviewQueueItems.find((item) => item.id === initialSelectedId) ?? reviewQueueItems[0]
   );
+  const [selectedWorkId, setSelectedWorkId] = useState(initialSelectedId ?? workQueue?.items[0]?.id ?? "");
+  const [workQuery, setWorkQuery] = useState("");
   const [newMenuOpen, setNewMenuOpen] = useState(false);
   const newButtonRef = useRef<HTMLButtonElement | null>(null);
   const activeCopy = activeView === "home" ? null : viewCopy[activeView];
+  const filteredWorkItems = useMemo(() => {
+    if (!workQueue) return [];
+    const query = workQuery.trim().toLowerCase();
+    if (!query) return workQueue.items;
+    return workQueue.items.filter((item) =>
+      [item.title, item.customerLabel, item.reason, item.sourceLabel, item.stageLabel].join(" ").toLowerCase().includes(query)
+    );
+  }, [workQuery, workQueue]);
+  const selectedWork = filteredWorkItems.find((item) => item.id === selectedWorkId) ?? filteredWorkItems[0] ?? null;
 
   function closeNewMenu() {
     setNewMenuOpen(false);
@@ -268,27 +486,47 @@ export function UnifiedCrmShell({ activeView, capabilities = {}, initialSelected
     if (activeView !== "home" && activeView !== "work") window.location.assign(`/crm?selected=${encodeURIComponent(item.id)}`);
   }
 
+  const noticeMode = activeView === "customers"
+    ? "live-customers"
+    : activeView === "home" || activeView === "work"
+      ? workQueue || workQueueError
+        ? "live-work"
+        : "review"
+      : "review";
+
   return (
     <main className={styles.shell} data-review-capabilities={Object.entries(capabilities).filter(([, enabled]) => enabled).map(([capability]) => capability).join(",")}>
-      <ReviewNotice />
+      <ReviewNotice mode={noticeMode} />
       <header className={styles.hero}>
         <div>
           <span className={styles.eyebrow}>{activeCopy?.eyebrow ?? "Unified CRM"}</span>
           <h1>{activeCopy?.title ?? `Here’s what needs attention, ${firstName(userName)}`}</h1>
           <p>{activeCopy?.description ?? "Review the next action, understand why it matters, and continue in the governed source workflow."}</p>
         </div>
-        <div className={styles.heroActions}>
-          <SearchReview key={activeView} onSelect={selectAndReturnHome} />
+        {activeView === "customers" ? null : <div className={styles.heroActions}>
+          {(activeView === "home" || activeView === "work") && (workQueue || workQueueError)
+            ? <WorkQueueSearch onChange={setWorkQuery} value={workQuery} />
+            : <SearchReview key={activeView} onSelect={selectAndReturnHome} />}
           <div className={styles.newMenuWrap}>
             <button aria-controls="crm-review-new-menu" aria-expanded={newMenuOpen} className={styles.newButton} onClick={() => setNewMenuOpen((current) => !current)} ref={newButtonRef} type="button"><Plus aria-hidden="true" size={16} />New<ChevronDown aria-hidden="true" size={14} /></button>
             <SourceActionMenu onClose={closeNewMenu} open={newMenuOpen} />
           </div>
-        </div>
+        </div>}
       </header>
 
-      {activeView === "home" ? <HomeView onSelect={setSelected} selected={selected} /> : null}
-      {activeView === "work" ? <WorkView onSelect={setSelected} selected={selected} /> : null}
-      {activeView === "customers" ? <CustomersView onSelect={selectAndReturnHome} /> : null}
+      {activeView === "home"
+        ? workQueue || workQueueError
+          ? workQueue
+            ? <LiveHomeView model={{ ...workQueue, items: filteredWorkItems }} onSelect={(item) => setSelectedWorkId(item.id)} selected={selectedWork} />
+            : <WorkState detail={workQueueError ?? "No live CRM work records were displayed."} failureKind={workQueueFailureKind} />
+          : <HomeView onSelect={setSelected} selected={selected} />
+        : null}
+      {activeView === "work"
+        ? workQueue || workQueueError
+          ? <LiveWorkView failureKind={workQueueFailureKind} model={workQueue ? { ...workQueue, items: filteredWorkItems } : undefined} onSelect={(item) => setSelectedWorkId(item.id)} selected={selectedWork} />
+          : <WorkView onSelect={setSelected} selected={selected} />
+        : null}
+      {activeView === "customers" ? <UnifiedCrmCustomerList errorMessage={customerListError} failureKind={customerListFailureKind} model={customerList} /> : null}
       {activeView === "pipeline" ? <PipelineView /> : null}
       {activeView === "conversations" ? <ConversationsView /> : null}
       {activeView === "insights" ? <InsightsView /> : null}
