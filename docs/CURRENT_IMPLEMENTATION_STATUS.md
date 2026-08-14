@@ -1,5 +1,13 @@
 # Current Implementation Status
 
+## 2026-08-14 — Unified CRM UCRM-012/013 customer truth checkpoint implemented
+
+The isolated `codex/unified-crm-customer-truth` branch now contains the first real-data Unified CRM slice: a read-only Customers list backed by the existing canonical Customer and CustomerContactPoint records. Organization scope is derived on the server from active location grants, Sales remains owner-only, list contacts are always masked, production customer reads default off independently of the CRM shell, and the existing `/customers` console remains the safe fallback.
+
+The experience provides explicit-submit search, status/owner filtering, stable pagination, honest read freshness, reachable loading, empty, filtered-empty, restricted, unavailable, error, and recovery states, semantic desktop and mobile layouts, and same-tab source-record links. Initial authenticated browser checks passed at 1440×900 and 390×844 without horizontal overflow or browser-console errors. The available Sales account exercised real empty and filtered-empty states.
+
+Focused and affected tests passed as recorded in [`docs/unified-crm/UCRM_012_013_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_012_013_IMPLEMENTATION_EVIDENCE.md). UCRM-012 and UCRM-013 remain `IMPLEMENTED_UNVERIFIED`: the opt-in two-organization test still needs an isolated migrated PostgreSQL database, and Product Owner UCRM-UXR-1 review still needs a data-bearing list plus final denied/read-off browser proof. This branch is not merged, piloted, production-enabled, or authorized for customer writes. The unrelated service-close typecheck defect remains unchanged.
+
 ## 2026-08-14 — Unified CRM UCRM-010/011 UX review checkpoint implemented
 
 The isolated `codex/unified-crm-console` branch now contains an authenticated `/crm` route, Management/Sales route discovery, a deny-by-default CRM capability baseline, production-off review control, role-safe unavailable/fallback behavior, independent CRM navigation, and the first interactive UCRM-UXR-0 experience. The review shell prioritizes one next-action queue, one search, in-place context, and Today/Attention work; every displayed scenario is explicitly synthetic and non-writing.

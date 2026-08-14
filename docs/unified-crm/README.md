@@ -3,7 +3,7 @@
 **Program ID:** `UCRM`
 **Version:** 1.1 accepted foundation baseline
 **Date:** 2026-08-14
-**Status:** Foundation accepted; UCRM-010 route shell verified, UCRM-011 policy baseline implemented with data-isolation proof pending; nothing merged, piloted, or released
+**Status:** Foundation accepted; UCRM-010 verified; UCRM-011–013 implemented with final data-isolation and UX acceptance proof pending; nothing in the customer-truth branch merged, piloted, or released
 **Target route:** `/crm`
 **Parent product:** Time Motor Sales Dispatch Board
 
@@ -36,6 +36,7 @@ Read these documents in this order before planning or implementing Unified CRM w
 Current implementation-review evidence:
 
 - [`UCRM_010_011_IMPLEMENTATION_EVIDENCE.md`](UCRM_010_011_IMPLEMENTATION_EVIDENCE.md) — secure shell and UCRM-UXR-0 browser checkpoint; Product Owner accepted the experience direction, UCRM-010 route-shell evidence is verified, and UCRM-011 data-isolation evidence remains pending before integration disposition.
+- [`UCRM_012_013_IMPLEMENTATION_EVIDENCE.md`](UCRM_012_013_IMPLEMENTATION_EVIDENCE.md) — canonical customer read boundary and real read-only Customers list; implementation and initial browser evidence exist, while isolated PostgreSQL proof and UCRM-UXR-1 Product Owner disposition remain pending.
 
 Repository-wide instructions in [`../AGENTS.md`](../AGENTS.md), [`../ARCHITECTURE.md`](../ARCHITECTURE.md), and [`../CURRENT_IMPLEMENTATION_STATUS.md`](../CURRENT_IMPLEMENTATION_STATUS.md) remain applicable. If a Unified CRM document conflicts with a repository-wide safety invariant, the stronger safety, authorization, evidence, or audit rule wins until the conflict is explicitly resolved in the decision register.
 

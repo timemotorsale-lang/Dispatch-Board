@@ -1,8 +1,10 @@
 # UCRM-012/013 Customer Truth Work Packet
 
-**Date:** 2026-08-14  
-**Branch:** `codex/unified-crm-customer-truth`  
-**Status:** IN PROGRESS — isolated implementation; not approved for merge, pilot, production, or writes
+**Date:** 2026-08-14
+
+**Branch:** `codex/unified-crm-customer-truth`
+
+**Status:** IMPLEMENTED_UNVERIFIED — isolated implementation; not approved for merge, pilot, production, or writes
 
 ## Outcome
 
