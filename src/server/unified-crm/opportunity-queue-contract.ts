@@ -27,6 +27,13 @@ export type UnifiedCrmOpportunityQueueReviewModel = {
     detail: string;
     title: string;
   };
+  liveReadObservation?: {
+    detail: string;
+    freshnessLabel: string;
+    newestVisibleRecordUpdatedAt: string | null;
+    state: "EMPTY" | "READY";
+    visibleRecordCount: number;
+  };
   items: readonly UnifiedCrmOpportunityQueueReviewItem[];
   nextUnlocks: readonly string[];
   segments: readonly UnifiedCrmOpportunityQueueReviewSegment[];

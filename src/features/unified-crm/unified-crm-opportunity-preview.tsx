@@ -97,6 +97,12 @@ function previewItemStateLabel(state?: "HELD_REVIEW" | "LIVE_READ_ONLY") {
   return state === "LIVE_READ_ONLY" ? "Live read-only" : "Held review";
 }
 
+function listPreviewCollection(model: UnifiedCrmOpportunityPreviewModel) {
+  const persistedReadOnly = model.listPreview.items.filter((item) => item.state === "LIVE_READ_ONLY" && item.href);
+  const heldRows = model.listPreview.items.filter((item) => item.state !== "LIVE_READ_ONLY");
+  return { heldRows, persistedReadOnly };
+}
+
 export function UnifiedCrmOpportunityPreview() {
   return <UnifiedCrmOpportunityPipelinePreview model={previewModel} />;
 }
@@ -104,6 +110,7 @@ export function UnifiedCrmOpportunityPreview() {
 export function UnifiedCrmOpportunityPipelinePreview({ model }: { model: UnifiedCrmOpportunityPreviewModel }) {
   const hasLiveReadOnlyTargets = model.columns.some((column) => column.items.some((item) => item.state === "LIVE_READ_ONLY"))
     || model.listPreview.items.some((item) => item.state === "LIVE_READ_ONLY");
+  const { heldRows, persistedReadOnly } = listPreviewCollection(model);
 
   return (
     <section className={styles.opportunityPreview} aria-label="Opportunity foundation preview">
@@ -178,11 +185,11 @@ export function UnifiedCrmOpportunityPipelinePreview({ model }: { model: Unified
             <span className={styles.eyebrow}>List review</span>
             <h3 id="pipeline-list-preview-heading">{model.listPreview.heading}</h3>
           </div>
-          <span>{model.listPreview.items.length} review rows</span>
+          <span>{heldRows.length} held review row{heldRows.length === 1 ? "" : "s"}</span>
         </header>
-        {model.listPreview.items.length ? (
+        {heldRows.length ? (
           <div className={styles.pipelineListItems}>
-            {model.listPreview.items.map((item) => (
+            {heldRows.map((item) => (
               item.href ? (
                 <Link className={styles.pipelineListItem} href={item.href} key={item.id}>
                   <div className={styles.previewItemHeader}>
@@ -204,6 +211,42 @@ export function UnifiedCrmOpportunityPipelinePreview({ model }: { model: Unified
                   <p>{item.reason}</p>
                 </article>
               )
+            ))}
+          </div>
+        ) : <p>{model.listPreview.emptyMessage}</p>}
+      </section>
+
+      <section className={styles.pipelineListPreview} aria-labelledby="pipeline-live-collection-heading">
+        <header>
+          <div>
+            <span className={styles.eyebrow}>Visible collection</span>
+            <h3 id="pipeline-live-collection-heading">Same-scope persisted read-only opportunities</h3>
+          </div>
+          <span>{persistedReadOnly.length ? `${persistedReadOnly.length} visible read-only record${persistedReadOnly.length === 1 ? "" : "s"}` : "Read-only visibility pending"}</span>
+        </header>
+        {model.listPreview.observation ? (
+          <>
+            <p className={styles.sectionDetail}>{model.listPreview.observation.detail}</p>
+            <p className={styles.sectionDetail}>{model.listPreview.observation.freshnessLabel}</p>
+          </>
+        ) : null}
+        <p className={styles.sectionDetail}>
+          {persistedReadOnly.length
+            ? "These links open permitted persisted opportunity records in read-only mode. Lifecycle movement and operational writes remain intentionally off."
+            : "No same-scope persisted read-only opportunity is visible in this preview snapshot yet. Keep using held review surfaces until one is available."}
+        </p>
+        {persistedReadOnly.length ? (
+          <div className={styles.pipelineListItems}>
+            {persistedReadOnly.map((item) => (
+              <Link className={styles.pipelineListItem} href={item.href!} key={item.id}>
+                <div className={styles.previewItemHeader}>
+                  <strong>{item.title}</strong>
+                  <span className={styles.statePill}>{previewItemStateLabel(item.state)}</span>
+                </div>
+                <span>{item.ownerLabel}</span>
+                {item.customerLabel ? <small>{item.customerLabel}</small> : null}
+                <p>{item.reason}</p>
+              </Link>
             ))}
           </div>
         ) : <p>{model.listPreview.emptyMessage}</p>}

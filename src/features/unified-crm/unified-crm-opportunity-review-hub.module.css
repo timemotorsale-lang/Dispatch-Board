@@ -15,6 +15,7 @@
 }
 
 .hero,
+.observationPanel,
 .section,
 .statePanel,
 .loading {
@@ -37,6 +38,11 @@
 .hero {
   display: grid;
   gap: 0.9rem;
+}
+
+.observationPanel {
+  display: grid;
+  gap: 0.85rem;
 }
 
 .hero h1,
@@ -228,6 +234,7 @@
   }
 
   .hero,
+  .observationPanel,
   .section,
   .statePanel,
   .loading {

@@ -207,6 +207,7 @@ describe("Unified CRM UX review shell", () => {
     expect(markup).toContain("Open Customer 360");
     expect(markup).toContain('href="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dwork"');
     expect(markup).toContain("Open appointment");
+    expect(markup).toContain("Appointments · Alex Morgan · CUS-18");
     expect(markup).toContain("Items are ordered overdue first, then due today, upcoming, and waiting.");
     expect(markup).toContain("Ties break by due time, source class, latest update, and record id.");
     expect(markup).toContain("Freshness observed 2026-08-15T03:00:00.000Z from live read-only source records. Latest visible source update: 2026-08-15T02:45:00.000Z.");
@@ -229,6 +230,7 @@ describe("Unified CRM UX review shell", () => {
     expect(markup).not.toContain("Open Customer 360");
     expect(markup).toContain('href="/appointments?view=board&amp;appointment=APT-1"');
     expect(markup).toContain("Open appointment");
+    expect(markup).toContain("Customer 360 is not shown for this row because no safe linked customer route is available.");
   });
 
   it("shows a Today rail Customer 360 link only when the appointment includes a safe customer route", () => {
@@ -298,7 +300,7 @@ describe("Unified CRM UX review shell", () => {
       ...liveWorkQueue,
       coverage: {
         ...liveWorkQueue.coverage,
-        isPartial: false,
+        isPartial: true,
         cappedSources: [],
         unavailableSources: ["leads", "cases"],
         sourceLimit: 8,
@@ -313,6 +315,31 @@ describe("Unified CRM UX review shell", () => {
 
     expect(presentation.explanation).toContain("Some source work is omitted");
     expect(presentation.explanation).toContain("leads and cases are not available in this workspace");
+  });
+
+  it("does not overstate truncation when source lanes are unavailable but the visible result count is exact", () => {
+    const presentation = describeLiveWorkPresentation({
+      ...liveWorkQueue,
+      summary: { ...liveWorkQueue.summary, totalCount: 0, overdueCount: 0, todayCount: 0 },
+      items: [],
+      coverage: {
+        ...liveWorkQueue.coverage,
+        isPartial: true,
+        cappedSources: [],
+        unavailableSources: ["leads"],
+        sourceStates: [
+          { source: "appointments", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+          { source: "leads", status: "unavailable", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+          { source: "cases", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+          { source: "customers", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null }
+        ]
+      }
+    }, "");
+
+    expect(presentation.countLabel).toBe("0 items");
+    expect(presentation.emptyDetail).toContain("Some source lanes are unavailable");
+    expect(presentation.explanation).toContain("leads are not available in this workspace");
+    expect(presentation.explanation).not.toContain("more permitted work may exist");
   });
 
   it("renders live lane coverage with ready, capped, and unavailable states", () => {
@@ -344,6 +371,7 @@ describe("Unified CRM UX review shell", () => {
     expect(markup).toContain("Capped");
     expect(markup).toContain("Leads");
     expect(markup).toContain("Unavailable");
+    expect(markup).toContain("Leads are omitted in this workspace.");
     expect(markup).toContain("Cases");
     expect(markup).toContain("Ready");
     expect(markup).toContain("No visible records in this lane.");

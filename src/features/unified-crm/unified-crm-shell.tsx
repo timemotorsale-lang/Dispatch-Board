@@ -138,12 +138,16 @@ function sourceListLabel(sources: UnifiedCrmWorkQueueSourceKind[]) {
   return `${labels.slice(0, -1).join(", ")}, and ${labels.at(-1)}`;
 }
 
+function sourceAvailabilityVerb(label: string) {
+  return label.endsWith("s") ? "are" : "is";
+}
+
 function SourceCoveragePanel({ model }: { model: UnifiedCrmWorkQueueReadModel }) {
   return (
     <section className={styles.sourceCoverage} aria-label="Live work lane coverage">
       <header>
         <strong>Live lane coverage</strong>
-        <span>Read-only source observation</span>
+        <span>Read-only source observation only</span>
       </header>
       <div className={styles.sourceCoverageGrid}>
         {model.coverage.sourceStates.map((lane) => {
@@ -152,8 +156,9 @@ function SourceCoveragePanel({ model }: { model: UnifiedCrmWorkQueueReadModel })
             : lane.capped
               ? "Capped"
               : "Ready";
+          const laneLabel = sourceLaneLabel(lane.source);
           const detail = lane.status === "unavailable"
-            ? `${sourceLaneLabel(lane.source)} is not available in this workspace.`
+            ? `${laneLabel} ${sourceAvailabilityVerb(laneLabel)} omitted in this workspace.`
             : lane.capped
               ? `${lane.visibleCount}+ visible record${lane.visibleCount === 1 ? "" : "s"} shown.`
               : `${lane.visibleCount} visible record${lane.visibleCount === 1 ? "" : "s"}.`;
@@ -180,8 +185,9 @@ function workQueueExplanation(model: UnifiedCrmWorkQueueReadModel, options?: { v
   const partialMessage = model.coverage.cappedSources.length
     ? ` Showing the current top ranked work only; ${sourceListLabel(model.coverage.cappedSources)} ${model.coverage.cappedSources.length === 1 ? "is" : "are"} capped at ${model.coverage.sourceLimit} visible records, so more permitted work may exist.`
     : "";
+  const unavailableLabel = sourceListLabel(model.coverage.unavailableSources);
   const unavailableMessage = model.coverage.unavailableSources.length
-    ? ` Some source work is omitted because ${sourceListLabel(model.coverage.unavailableSources)} ${model.coverage.unavailableSources.length === 1 ? "is" : "are"} not available in this workspace.`
+    ? ` Some source work is omitted because ${unavailableLabel} ${sourceAvailabilityVerb(unavailableLabel)} not available in this workspace.`
     : "";
   const filterMessage = filterQuery
     ? ` Showing ${visibleCount} matching item${visibleCount === 1 ? "" : "s"} for “${filterQuery}”.`
@@ -189,18 +195,23 @@ function workQueueExplanation(model: UnifiedCrmWorkQueueReadModel, options?: { v
   return `${model.explanation.ordering} ${model.explanation.freshness}${partialMessage}${unavailableMessage}${filterMessage}`;
 }
 
+function queueRowContext(item: UnifiedCrmWorkQueueItem) {
+  return `${item.sourceLabel} · ${item.customerLabel}`;
+}
+
 export function describeLiveWorkPresentation(model: UnifiedCrmWorkQueueReadModel, filterQuery: string) {
   const trimmedQuery = filterQuery.trim();
   const hasActiveFilter = trimmedQuery.length > 0;
   const overdueCount = model.items.filter((item) => item.dueState === "overdue").length;
   const todayCount = model.items.filter((item) => item.dueState === "today").length;
+  const countLabel = model.coverage.cappedSources.length > 0
+    ? `${model.summary.totalCount}+ items shown`
+    : model.items.length === model.summary.totalCount
+      ? `${model.summary.totalCount} items`
+      : `${model.items.length} of ${model.summary.totalCount} items`;
 
   return {
-    countLabel: model.coverage.isPartial
-      ? `${model.summary.totalCount}+ items shown`
-      : model.items.length === model.summary.totalCount
-        ? `${model.summary.totalCount} items`
-        : `${model.items.length} of ${model.summary.totalCount} items`,
+    countLabel,
     emptyDetail: hasActiveFilter
       ? `No live CRM work matches “${trimmedQuery}”. Clear or change the filter to review other ranked work.`
       : model.coverage.unavailableSources.length
@@ -297,12 +308,13 @@ function LiveQueueRow({
   return (
     <button
       aria-pressed={active}
+      aria-label={`${item.title}. ${queueRowContext(item)}. ${item.dueLabel}. ${item.reason}`}
       className={`${styles.queueRow} ${active ? styles.queueRowActive : ""}`}
       onClick={() => onSelect(item)}
       type="button"
     >
       <span className={`${styles.dueMark} ${styles[item.dueState]}`} aria-hidden="true" />
-      <span className={styles.queueIdentity}><strong>{item.title}</strong><small>{item.customerLabel}</small></span>
+      <span className={styles.queueIdentity}><strong>{item.title}</strong><small>{queueRowContext(item)}</small></span>
       <span className={styles.queueReason}>{item.reason}</span>
       <span className={styles.queueMeta}><strong>{item.dueLabel}</strong><small>{item.stageLabel}</small></span>
       <ArrowRight aria-hidden="true" size={16} />
@@ -368,9 +380,9 @@ function LiveContextPanel({ item }: { item: UnifiedCrmWorkQueueItem }) {
           <Link aria-label={`Open Customer 360 for ${item.customerLabel}`} className={styles.secondaryAction} href={item.customerHref}>
             Open Customer 360<ArrowRight aria-hidden="true" size={15} />
           </Link>
-        ) : null}
+        ) : <p className={styles.contextHint}>Customer 360 is not shown for this row because no safe linked customer route is available.</p>}
       </div>
-      <p className={styles.sourceBoundary}>This opens the existing governed source. The CRM queue itself is read only.</p>
+      <p className={styles.sourceBoundary}>This opens the existing governed source. The CRM queue itself is read only, and source ownership stays with the originating workflow.</p>
     </aside>
   );
 }
@@ -551,7 +563,7 @@ function LiveHomeView({
                 ) : null}
               </span>
             </article>
-          )) : <p className={styles.railEmpty}>No permitted appointments are scheduled today.</p>}
+          )) : <p className={styles.railEmpty}>No permitted appointments are scheduled today. Other source-owned work may still appear in the ranked queue.</p>}
           <Link href="/appointments">Open source appointment board<ExternalLink aria-hidden="true" size={13} /></Link>
         </section>
         <section className={styles.attentionCard}>

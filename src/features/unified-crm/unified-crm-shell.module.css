@@ -144,6 +144,7 @@
 .freshness { color: var(--crm-muted); font-size: 9.5px; }
 .contextActions { display: grid; gap: 8px; }
 .contextPanel .primaryAction { width: 100%; }
+.contextHint { margin: 0; color: var(--crm-muted); font-size: 10px; line-height: 1.45; }
 .secondaryAction { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 38px; border: 1px solid var(--crm-border); border-radius: 7px; padding: 0 12px; color: var(--crm-text); background: var(--crm-surface); font-size: 11.5px; font-weight: 800; text-align: center; white-space: nowrap; }
 .secondaryAction:hover,.secondaryAction:focus-visible { border-color: var(--crm-blue); outline: 3px solid rgb(23 98 207 / 12%); outline-offset: 1px; color: var(--crm-blue-dark); background: var(--crm-blue-soft); }
 .sourceBoundary { color: var(--crm-muted); text-align: center; font-size: 9.5px; line-height: 1.35; }

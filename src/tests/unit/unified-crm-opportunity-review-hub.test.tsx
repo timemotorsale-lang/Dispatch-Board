@@ -12,6 +12,8 @@ function hubFixture() {
       detail: "This hub keeps pipeline, queue, create, detail, and transition review one click away."
     },
     liveReadObservation: {
+      detail: "Only same-scope persisted opportunities are listed here for organization review. Lifecycle movement remains off.",
+      freshnessLabel: "Newest visible persisted update observed at 2026-08-15T00:10:00.000Z.",
       newestVisibleRecordUpdatedAt: "2026-08-15T00:10:00.000Z",
       state: "READY" as const,
       visibleRecordCount: 1
@@ -86,6 +88,8 @@ describe("Unified CRM opportunity review hub", () => {
     expect(markup).toContain("You are in the workspace map");
     expect(markup).toContain('aria-label="Opportunity workspace orientation"');
     expect(markup).toContain("1 visible read-only record");
+    expect(markup).toContain("Only same-scope persisted opportunities are listed here for organization review. Lifecycle movement remains off.");
+    expect(markup).toContain("Newest visible persisted update observed at 2026-08-15T00:10:00.000Z.");
   });
 
   it("rewrites in-surface review links to preserve a safe customer-detail return chain", () => {
@@ -138,6 +142,8 @@ describe("Unified CRM opportunity review hub", () => {
           ...hubFixture(),
           visibility: "owned",
           liveReadObservation: {
+            detail: "No same-scope persisted read-only opportunity is visible right now for owned review. Continue with held review surfaces until one is available.",
+            freshnessLabel: "No visible persisted opportunity update is available yet.",
             newestVisibleRecordUpdatedAt: null,
             state: "EMPTY",
             visibleRecordCount: 0
@@ -185,6 +191,8 @@ describe("Unified CRM opportunity review hub", () => {
     expect(markup).toContain("Owned review");
     expect(markup).toContain("No permitted persisted read-only opportunity is visible yet.");
     expect(markup).toContain("No same-scope persisted read-only record is available from this workspace yet.");
+    expect(markup).toContain("No same-scope persisted read-only opportunity is visible right now for owned review. Continue with held review surfaces until one is available.");
+    expect(markup).toContain("No visible persisted opportunity update is available yet.");
     expect(markup).toContain("Held review");
     expect(markup).not.toContain("Live read-only");
     expect(markup).toContain("Back to Customer 360");
@@ -230,6 +238,8 @@ describe("Unified CRM opportunity review hub", () => {
         model={{
           ...hubFixture(),
           liveReadObservation: {
+            detail: "No same-scope persisted read-only opportunity is visible right now for organization review. Continue with held review surfaces until one is available.",
+            freshnessLabel: "No visible persisted opportunity update is available yet.",
             newestVisibleRecordUpdatedAt: null,
             state: "EMPTY",
             visibleRecordCount: 0
@@ -250,5 +260,6 @@ describe("Unified CRM opportunity review hub", () => {
 
     expect(markup).toContain("No permitted persisted read-only opportunity is visible yet.");
     expect(markup).toContain("No same-scope persisted read-only record is available from this workspace yet.");
+    expect(markup).toContain("No visible persisted opportunity update is available yet.");
   });
 });

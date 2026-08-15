@@ -95,6 +95,17 @@ export function UnifiedCrmOpportunityQueueReview({ errorMessage, failureKind = "
 
       <section className={styles.section}>
         <span className={styles.eyebrow}>Queue review items</span>
+        {model.liveReadObservation ? (
+          <div className={styles.sectionHeader}>
+            <strong>
+              {model.liveReadObservation.state === "READY"
+                ? "Visible persisted read-only queue entries"
+                : "Persisted read-only queue visibility pending"}
+            </strong>
+            <p>{model.liveReadObservation.detail}</p>
+            <small>{model.liveReadObservation.freshnessLabel}</small>
+          </div>
+        ) : null}
         <div className={styles.queueGrid}>
           {model.items.map((item) => (
             <Link className={styles.queueItem} href={withUnifiedCrmOpportunityReturn(item.detailHref, returnHref)} key={item.id}>

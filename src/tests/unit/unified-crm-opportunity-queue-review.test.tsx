@@ -18,6 +18,13 @@ function fixture(): UnifiedCrmOpportunityQueueReviewModel {
       title: "Review the first opportunity queue before it goes live",
       detail: "Held queue review detail."
     },
+    liveReadObservation: {
+      detail: "Only same-scope persisted opportunities are shown in this queue for team and manager review. Lifecycle movement remains off.",
+      freshnessLabel: "Newest visible persisted update observed at 2026-08-14T20:00:00.000Z.",
+      newestVisibleRecordUpdatedAt: "2026-08-14T20:00:00.000Z",
+      state: "READY",
+      visibleRecordCount: 1
+    },
     items: [
       {
         detailHref: "/crm/opportunities/review01?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
@@ -67,6 +74,9 @@ describe("Unified CRM opportunity queue review", () => {
     expect(markup).toContain("Owned next actions");
     expect(markup).toContain("Overdue work");
     expect(markup).toContain("Keep intake follow-up obvious");
+    expect(markup).toContain("Visible persisted read-only queue entries");
+    expect(markup).toContain("Only same-scope persisted opportunities are shown in this queue for team and manager review. Lifecycle movement remains off.");
+    expect(markup).toContain("Newest visible persisted update observed at 2026-08-14T20:00:00.000Z.");
     expect(markup).toContain("Move through the opportunity flow without leaving the queue");
     expect(markup).toContain("/crm/opportunities/new?crmReturnTo=%2Fcrm%3Fview%3Dpipeline");
     expect(markup).not.toContain("Auto-assign");
@@ -141,5 +151,27 @@ describe("Unified CRM opportunity queue review", () => {
     expect(markup).toContain("Back to Customer 360");
     expect(markup).toContain("Customer 360 return preserved");
     expect(markup).toContain("Return to customer");
+  });
+
+  it("keeps the queue honest when no persisted read-only queue entry is visible", () => {
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmOpportunityQueueReview
+        model={{
+          ...fixture(),
+          liveReadObservation: {
+            detail: "No same-scope persisted read-only opportunity is visible in this queue right now for team and manager review. Continue with held queue review until one is available.",
+            freshnessLabel: "No visible persisted opportunity update is available yet.",
+            newestVisibleRecordUpdatedAt: null,
+            state: "EMPTY",
+            visibleRecordCount: 0
+          }
+        }}
+        returnHref="/crm?view=pipeline"
+      />
+    );
+
+    expect(markup).toContain("Persisted read-only queue visibility pending");
+    expect(markup).toContain("No same-scope persisted read-only opportunity is visible in this queue right now for team and manager review. Continue with held queue review until one is available.");
+    expect(markup).toContain("No visible persisted opportunity update is available yet.");
   });
 });

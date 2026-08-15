@@ -35,6 +35,8 @@ function hubFixture() {
       detail: "Held hub detail"
     },
     liveReadObservation: {
+      detail: "No same-scope persisted read-only opportunity is visible right now for organization review. Continue with held review surfaces until one is available.",
+      freshnessLabel: "No visible persisted opportunity update is available yet.",
       newestVisibleRecordUpdatedAt: null,
       state: "EMPTY",
       visibleRecordCount: 0

@@ -227,6 +227,19 @@ describe("Unified CRM page access and fallback", () => {
     expect(isRoutePermittedForUser(manager, "/sales")).toBe(true);
   });
 
+  it("fails the live work shell closed when the dedicated work mode is off and does not serialize queue rows", async () => {
+    mocks.requireCurrentUser.mockResolvedValue(user(["General Manager"]));
+    mocks.getUnifiedCrmWorkQueue.mockRejectedValue(Object.assign(new Error("work mode off"), { code: "CRM_WORK_OFF" }));
+
+    const markup = await renderPage("work");
+
+    expect(mocks.getUnifiedCrmWorkQueue).toHaveBeenCalled();
+    expect(markup).toContain("CRM work is unavailable");
+    expect(markup).toContain("No live CRM work records were displayed.");
+    expect(markup).not.toContain("Call promised buyer");
+    expect(markup).not.toContain("Real Customer");
+  });
+
   it("loads the real work queue for Home and does not serialize customer list data there", async () => {
     mocks.requireCurrentUser.mockResolvedValue(user(["General Manager"]));
 

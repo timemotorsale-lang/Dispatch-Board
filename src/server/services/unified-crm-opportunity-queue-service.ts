@@ -1,5 +1,5 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
-import type { UnifiedCrmOpportunityAccessContext } from "@/server/unified-crm/opportunity-contract";
+import { UnifiedCrmOpportunityError, type UnifiedCrmOpportunityAccessContext } from "@/server/unified-crm/opportunity-contract";
 import { requireUnifiedCrmOpportunityDetailAccess } from "@/server/unified-crm/opportunity-detail-access";
 import {
   createUnifiedCrmOpportunityPreviewRepository,
@@ -65,6 +65,20 @@ function toVisibleLiveQueueItem(
   };
 }
 
+function liveCollectionDetail(visiblePersistedRecordCount: number, visibility: "organization" | "owned") {
+  const visibilityLabel = visibility === "organization" ? "team and manager review" : "owned review";
+  if (visiblePersistedRecordCount > 0) {
+    return `Only same-scope persisted opportunities are shown in this queue for ${visibilityLabel}. Lifecycle movement remains off.`;
+  }
+  return `No same-scope persisted read-only opportunity is visible in this queue right now for ${visibilityLabel}. Continue with held queue review until one is available.`;
+}
+
+function liveCollectionFreshnessLabel(newestVisibleRecordUpdatedAt: string | null) {
+  return newestVisibleRecordUpdatedAt
+    ? `Newest visible persisted update observed at ${newestVisibleRecordUpdatedAt}.`
+    : "No visible persisted opportunity update is available yet.";
+}
+
 export async function getUnifiedCrmOpportunityQueueReview(
   actor: AuthenticatedUser | null,
   dependencies: Dependencies = {}
@@ -74,14 +88,30 @@ export async function getUnifiedCrmOpportunityQueueReview(
   const visibility = access.recordScope.kind === "ORGANIZATION" ? "organization" : "owned";
   const visibilityLabel = visibility === "organization" ? "team and manager review" : "owned review";
   const repository = dependencies.repository ?? createUnifiedCrmOpportunityPreviewRepository();
-  const persistedRecords = await repository.listOpportunityPreviews({
-    limit: 5,
-    organizationId: access.organizationId,
-    recordScope: access.recordScope
-  });
+  let persistedRecords: UnifiedCrmOpportunityPreviewRecord[];
+  try {
+    persistedRecords = await repository.listOpportunityPreviews({
+      limit: 5,
+      organizationId: access.organizationId,
+      recordScope: access.recordScope
+    });
+  } catch (error) {
+    throw new UnifiedCrmOpportunityError(
+      "OPPORTUNITY_OFF",
+      "Opportunity queue review is temporarily unavailable.",
+      { cause: error }
+    );
+  }
   const liveItems = persistedRecords
     .map((record) => toVisibleLiveQueueItem(record, access, visibility))
     .filter((item): item is NonNullable<typeof item> => Boolean(item));
+  const visiblePersistedRecords = persistedRecords.filter((record) => (
+    Boolean(safePersistedOpportunityId(record.opportunityNumber)) &&
+    isPreviewRecordVisible(record, access)
+  ));
+  const newestVisibleRecordUpdatedAt = visiblePersistedRecords.length
+    ? new Date(Math.max(...visiblePersistedRecords.map((record) => record.updatedAt.getTime()))).toISOString()
+    : null;
   const items = [
     ...liveItems,
     {
@@ -127,6 +157,13 @@ export async function getUnifiedCrmOpportunityQueueReview(
     headline: {
       title: "Review the first opportunity queue before it goes live",
       detail: "This shows how owned, overdue, waiting, and at-risk opportunity work can stay clear and easy to act on without hiding the source of truth."
+    },
+    liveReadObservation: {
+      detail: liveCollectionDetail(visiblePersistedRecords.length, visibility),
+      freshnessLabel: liveCollectionFreshnessLabel(newestVisibleRecordUpdatedAt),
+      newestVisibleRecordUpdatedAt,
+      state: visiblePersistedRecords.length ? "READY" : "EMPTY",
+      visibleRecordCount: visiblePersistedRecords.length
     },
     items,
     nextUnlocks: [

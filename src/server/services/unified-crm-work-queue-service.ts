@@ -21,7 +21,7 @@ import {
 import { buildUnifiedCrmCustomerReturn } from "@/server/unified-crm/opportunity-review-return";
 
 type UnifiedCrmWorkQueueDependencies = {
-  canOpenSourceRoute?: ((actor: AuthenticatedUser, route: "/customers/resolutions" | "/sales") => boolean) | undefined;
+  canOpenSourceRoute?: ((actor: AuthenticatedUser, route: "/appointments" | "/customers/resolutions" | "/sales") => boolean) | undefined;
   now?: () => Date;
   nodeEnv?: string | undefined;
   readMode?: string | undefined;
@@ -38,6 +38,7 @@ type QueueCandidate = UnifiedCrmWorkQueueItem & {
 
 const SOURCE_LIMIT = 8;
 const WORK_QUEUE_TIME_ZONE = "America/Chicago" as const;
+const APPOINTMENT_SOURCE_ROUTE = "/appointments" as const;
 const LEAD_SOURCE_ROUTE = "/sales" as const;
 const CASE_SOURCE_ROUTE = "/customers/resolutions" as const;
 const SOURCE_LABELS: Record<UnifiedCrmWorkQueueSourceKind, string> = {
@@ -376,8 +377,8 @@ function todayItems(
 
 function canOpenWorkSource(
   actor: AuthenticatedUser,
-  route: "/customers/resolutions" | "/sales",
-  evaluator?: (actor: AuthenticatedUser, route: "/customers/resolutions" | "/sales") => boolean
+  route: "/appointments" | "/customers/resolutions" | "/sales",
+  evaluator?: (actor: AuthenticatedUser, route: "/appointments" | "/customers/resolutions" | "/sales") => boolean
 ) {
   return evaluator ? evaluator(actor, route) : isRoutePermittedForUser(actor, route);
 }
@@ -414,26 +415,57 @@ export async function getUnifiedCrmWorkQueue(
 
     const organizationId = organizationIds[0];
     const queueScope = { organizationId, recordScope: access.recordScope };
+    const unavailableSourceSet = new Set<UnifiedCrmWorkQueueSourceKind>();
+    const appointmentRouteAvailable = canOpenWorkSource(actor!, APPOINTMENT_SOURCE_ROUTE, dependencies.canOpenSourceRoute);
     const leadSourceAvailable = canOpenWorkSource(actor!, LEAD_SOURCE_ROUTE, dependencies.canOpenSourceRoute);
     const caseSourceAvailable = canOpenWorkSource(actor!, CASE_SOURCE_ROUTE, dependencies.canOpenSourceRoute);
-    const [scheduleViewableOrganizationIds, leads, concernCases, customers] = await Promise.all([
-      repository.listScheduleViewableOrganizationIds(actor!.id, now),
+    if (!appointmentRouteAvailable) unavailableSourceSet.add("appointments");
+    if (!leadSourceAvailable) unavailableSourceSet.add("leads");
+    if (!caseSourceAvailable) unavailableSourceSet.add("cases");
+
+    const customers = await repository.listCustomersWithNextAction({
+      organizationId,
+      recordScope: access.recordScope,
+      limit: SOURCE_LIMIT
+    });
+
+    let scheduleViewableOrganizationIds: string[] = [];
+    if (appointmentRouteAvailable) {
+      try {
+        scheduleViewableOrganizationIds = await repository.listScheduleViewableOrganizationIds(actor!.id, now);
+      } catch {
+        unavailableSourceSet.add("appointments");
+      }
+    }
+    const appointmentSourceAvailable = appointmentRouteAvailable &&
+      scheduleViewableOrganizationIds.includes(organizationId) &&
+      !unavailableSourceSet.has("appointments");
+    if (appointmentRouteAvailable && !appointmentSourceAvailable) unavailableSourceSet.add("appointments");
+
+    const [appointments, leads, concernCases] = await Promise.all([
+      appointmentSourceAvailable
+        ? repository.listAppointments({ organizationId, recordScope: access.recordScope, viewerUserId: actor!.id, limit: SOURCE_LIMIT })
+          .catch(() => {
+            unavailableSourceSet.add("appointments");
+            return [] satisfies UnifiedCrmWorkAppointmentRecord[];
+          })
+        : Promise.resolve([] satisfies UnifiedCrmWorkAppointmentRecord[]),
       leadSourceAvailable
         ? repository.listLeads({ organizationId, recordScope: access.recordScope, limit: SOURCE_LIMIT })
-        : Promise.resolve([]),
+          .catch(() => {
+            unavailableSourceSet.add("leads");
+            return [] satisfies UnifiedCrmWorkLeadRecord[];
+          })
+        : Promise.resolve([] satisfies UnifiedCrmWorkLeadRecord[]),
       caseSourceAvailable
         ? repository.listConcernCases({ organizationId, recordScope: access.recordScope, limit: SOURCE_LIMIT })
-        : Promise.resolve([]),
-      repository.listCustomersWithNextAction({ organizationId, recordScope: access.recordScope, limit: SOURCE_LIMIT })
+          .catch(() => {
+            unavailableSourceSet.add("cases");
+            return [] satisfies UnifiedCrmWorkConcernCaseRecord[];
+          })
+        : Promise.resolve([] satisfies UnifiedCrmWorkConcernCaseRecord[])
     ]);
-    const appointments = scheduleViewableOrganizationIds.includes(organizationId)
-      ? await repository.listAppointments({ organizationId, recordScope: access.recordScope, viewerUserId: actor!.id, limit: SOURCE_LIMIT })
-      : [];
-    const unavailableSources = [
-      ...(scheduleViewableOrganizationIds.includes(organizationId) ? [] : ["appointments" as const]),
-      ...(leadSourceAvailable ? [] : ["leads" as const]),
-      ...(caseSourceAvailable ? [] : ["cases" as const])
-    ];
+    const unavailableSources = [...unavailableSourceSet];
     const visibleLeads = leadSourceAvailable ? leads : [];
     const visibleConcernCases = caseSourceAvailable
       ? concernCases.filter((customerCase) => (
@@ -449,7 +481,7 @@ export async function getUnifiedCrmWorkQueue(
     const sourceStates = [
       {
         source: "appointments" as const,
-        status: scheduleViewableOrganizationIds.includes(organizationId) ? "available" as const : "unavailable" as const,
+        status: unavailableSourceSet.has("appointments") ? "unavailable" as const : "available" as const,
         visibleCount: appointments.length,
         capped: appointments.length >= SOURCE_LIMIT,
         newestRecordUpdatedAt: appointments.length
@@ -458,7 +490,7 @@ export async function getUnifiedCrmWorkQueue(
       },
       {
         source: "leads" as const,
-        status: leadSourceAvailable ? "available" as const : "unavailable" as const,
+        status: unavailableSourceSet.has("leads") ? "unavailable" as const : "available" as const,
         visibleCount: visibleLeads.length,
         capped: visibleLeads.length >= SOURCE_LIMIT,
         newestRecordUpdatedAt: visibleLeads.length
@@ -467,7 +499,7 @@ export async function getUnifiedCrmWorkQueue(
       },
       {
         source: "cases" as const,
-        status: caseSourceAvailable ? "available" as const : "unavailable" as const,
+        status: unavailableSourceSet.has("cases") ? "unavailable" as const : "available" as const,
         visibleCount: visibleConcernCases.length,
         capped: visibleConcernCases.length >= SOURCE_LIMIT,
         newestRecordUpdatedAt: visibleConcernCases.length
@@ -514,7 +546,7 @@ export async function getUnifiedCrmWorkQueue(
       explanation: {
         ordering: "Items are ordered overdue first, then due today, upcoming, and waiting. Ties break by due time, source class, latest update, and record id.",
         freshness: `Freshness observed ${observedAt} from live read-only source records.${freshnessSuffix}${cappedSourceDetail}${unavailableSourceDetail}`,
-        drillThrough: `Open the governed source record first. Lead and case rows appear only when that source workspace is permitted. Open Customer 360 only when a safe linked customer route exists. Today uses ${WORK_QUEUE_TIME_ZONE}.`
+        drillThrough: `Open the governed source record first. Appointment, lead, and case rows appear only when that source workspace authority is currently provable. Open Customer 360 only when a safe linked customer route exists. Today uses ${WORK_QUEUE_TIME_ZONE}.`
       },
       source: {
         authority: "AGGREGATED_CRM_WORK",

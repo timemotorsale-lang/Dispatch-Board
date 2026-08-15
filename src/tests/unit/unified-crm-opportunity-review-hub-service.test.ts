@@ -61,6 +61,8 @@ describe("Unified CRM opportunity review hub service", () => {
       contractVersion: "ucrm.opportunity-review-hub/v1",
       generatedAt: "2026-08-14T21:00:00.000Z",
       liveReadObservation: {
+        detail: expect.stringContaining("No same-scope persisted read-only opportunity is visible right now"),
+        freshnessLabel: "No visible persisted opportunity update is available yet.",
         newestVisibleRecordUpdatedAt: null,
         state: "EMPTY",
         visibleRecordCount: 0
@@ -132,6 +134,8 @@ describe("Unified CRM opportunity review hub service", () => {
     });
     expect(liveRecordsSection?.links).toHaveLength(2);
     expect(model.liveReadObservation).toMatchObject({
+      detail: expect.stringContaining("Only same-scope persisted opportunities are listed here"),
+      freshnessLabel: "Newest visible persisted update observed at 2026-08-14T20:55:00.000Z.",
       newestVisibleRecordUpdatedAt: "2026-08-14T20:55:00.000Z",
       state: "READY",
       visibleRecordCount: 2
@@ -169,6 +173,8 @@ describe("Unified CRM opportunity review hub service", () => {
       state: "HELD_REVIEW"
     });
     expect(model.liveReadObservation).toMatchObject({
+      detail: expect.stringContaining("No same-scope persisted read-only opportunity is visible right now"),
+      freshnessLabel: "No visible persisted opportunity update is available yet.",
       newestVisibleRecordUpdatedAt: null,
       state: "EMPTY",
       visibleRecordCount: 0
@@ -210,5 +216,19 @@ describe("Unified CRM opportunity review hub service", () => {
       scopeRepository: { listActiveOrganizationIds }
     })).rejects.toMatchObject({ code: "OPPORTUNITY_OFF" });
     expect(listActiveOrganizationIds).not.toHaveBeenCalled();
+  });
+
+  it("wraps unexpected persisted-review-hub failures without exposing backend detail", async () => {
+    await expect(getUnifiedCrmOpportunityReviewHub(manager, {
+      accessContext: accessContext("organization"),
+      repository: repository({
+        async listOpportunityPreviews() {
+          throw new Error("secret opportunity hub backend detail");
+        }
+      })
+    })).rejects.toMatchObject({
+      code: "OPPORTUNITY_OFF",
+      message: "Opportunity review hub is temporarily unavailable."
+    });
   });
 });

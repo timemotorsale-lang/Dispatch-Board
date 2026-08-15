@@ -107,6 +107,13 @@ describe("Unified CRM opportunity read service", () => {
     });
 
     expect(model.listPreview.heading).toContain("Visible read-only opportunities");
+    expect(model.listPreview.observation).toMatchObject({
+      detail: "Only same-scope persisted opportunities are listed here for organization review. Lifecycle movement remains off.",
+      freshnessLabel: "Newest visible persisted update observed at 2026-08-14T18:30:00.000Z.",
+      newestVisibleRecordUpdatedAt: "2026-08-14T18:30:00.000Z",
+      state: "READY",
+      visibleRecordCount: 2
+    });
     expect(model.listPreview.items[0]).toMatchObject({
       id: "live-opp_123456",
       title: "Alex Morgan renewal review",
@@ -157,6 +164,11 @@ describe("Unified CRM opportunity read service", () => {
     });
 
     expect(model.listPreview.items.some((item) => item.state === "LIVE_READ_ONLY")).toBe(false);
+    expect(model.listPreview.observation).toMatchObject({
+      state: "EMPTY",
+      visibleRecordCount: 0,
+      newestVisibleRecordUpdatedAt: null
+    });
   });
 
   it("does not advertise an invalid persisted opportunity identifier as a live target", async () => {
@@ -187,6 +199,33 @@ describe("Unified CRM opportunity read service", () => {
 
     expect(model.listPreview.items.some((item) => item.state === "LIVE_READ_ONLY")).toBe(false);
     expect(JSON.stringify(model)).not.toContain("evil.example");
+    expect(model.listPreview.observation).toMatchObject({
+      state: "EMPTY",
+      visibleRecordCount: 0,
+      freshnessLabel: "No visible persisted opportunity update is available yet."
+    });
+  });
+
+  it("wraps repository preview failures in a safe pipeline-preview unavailable error", async () => {
+    await expect(getUnifiedCrmOpportunityPipelinePreview(manager, {
+      accessContext: {
+        actorUserId: "manager-a",
+        capabilities: { read: true, create: false, transition: false, linkTask: false, linkAppointment: false, linkDispatch: false },
+        fallbackHref: "/crm?view=work",
+        mode: "REVIEW",
+        organizationId: "org-a",
+        recordScope: { kind: "ORGANIZATION" },
+        workspace: "MANAGEMENT"
+      },
+      repository: repository({
+        async listOpportunityPreviews() {
+          throw new Error("private opportunity preview row");
+        }
+      })
+    })).rejects.toMatchObject({
+      code: "OPPORTUNITY_OFF",
+      message: "Opportunity pipeline preview is temporarily unavailable."
+    });
   });
 
   it("fails closed before organization lookup when the shell defaults off in production", async () => {

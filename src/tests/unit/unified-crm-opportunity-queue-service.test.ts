@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("@/server/db/client", () => ({ prisma: {} }));
+
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { getUnifiedCrmOpportunityQueueReview } from "@/server/services/unified-crm-opportunity-queue-service";
 
@@ -61,6 +63,13 @@ describe("getUnifiedCrmOpportunityQueueReview", () => {
     expect(model.governance[0]).toContain("does not reorder, assign, or transition");
     expect(model.generatedAt).toBe("2026-08-14T20:00:00.000Z");
     expect(model.source.observedAt).toBe(model.generatedAt);
+    expect(model.liveReadObservation).toMatchObject({
+      detail: "No same-scope persisted read-only opportunity is visible in this queue right now for team and manager review. Continue with held queue review until one is available.",
+      freshnessLabel: "No visible persisted opportunity update is available yet.",
+      newestVisibleRecordUpdatedAt: null,
+      state: "EMPTY",
+      visibleRecordCount: 0
+    });
     expect(new Set(model.items.map((item) => item.id)).size).toBe(model.items.length);
     expect(model.items.every((item) => item.state === "HELD_REVIEW")).toBe(true);
     expect(model.items.every((item) => /^\/crm\/opportunities\//.test(item.detailHref))).toBe(true);
@@ -107,6 +116,13 @@ describe("getUnifiedCrmOpportunityQueueReview", () => {
 
     expect(model.items[0]).toMatchObject({ id: "opp_123456", state: "LIVE_READ_ONLY" });
     expect(model.items[1]).toMatchObject({ id: "opp_123457", state: "LIVE_READ_ONLY" });
+    expect(model.liveReadObservation).toMatchObject({
+      detail: "Only same-scope persisted opportunities are shown in this queue for team and manager review. Lifecycle movement remains off.",
+      freshnessLabel: "Newest visible persisted update observed at 2026-08-14T19:10:00.000Z.",
+      newestVisibleRecordUpdatedAt: "2026-08-14T19:10:00.000Z",
+      state: "READY",
+      visibleRecordCount: 2
+    });
     expect(model.items.length).toBeGreaterThan(3);
   });
 
@@ -131,6 +147,11 @@ describe("getUnifiedCrmOpportunityQueueReview", () => {
     });
 
     expect(model.items.every((item) => item.state === "HELD_REVIEW")).toBe(true);
+    expect(model.liveReadObservation).toMatchObject({
+      state: "EMPTY",
+      visibleRecordCount: 0,
+      newestVisibleRecordUpdatedAt: null
+    });
     expect(JSON.stringify(model)).not.toContain("Private opportunity");
     expect(JSON.stringify(model)).not.toContain("Private backend summary");
     expect(JSON.stringify(model)).not.toContain("//invalid");
@@ -146,5 +167,19 @@ describe("getUnifiedCrmOpportunityQueueReview", () => {
       scopeRepository: { listActiveOrganizationIds }
     })).rejects.toMatchObject({ code: "OPPORTUNITY_OFF" });
     expect(listActiveOrganizationIds).not.toHaveBeenCalled();
+  });
+
+  it("wraps repository preview failures in a safe queue-review unavailable error", async () => {
+    await expect(getUnifiedCrmOpportunityQueueReview(null, {
+      accessContext: accessContext("organization"),
+      repository: repository({
+        async listOpportunityPreviews() {
+          throw new Error("private opportunity queue row");
+        }
+      })
+    })).rejects.toMatchObject({
+      code: "OPPORTUNITY_OFF",
+      message: "Opportunity queue review is temporarily unavailable."
+    });
   });
 });

@@ -38,6 +38,12 @@ function liveObservationLabel(model: UnifiedCrmOpportunityReviewHubModel) {
   return `${countLabel} · ${freshnessLabel}`;
 }
 
+function liveObservationStateLabel(model: UnifiedCrmOpportunityReviewHubModel) {
+  return model.liveReadObservation.state === "READY"
+    ? "Persisted read-only visibility"
+    : "Persisted read-only visibility pending";
+}
+
 function linkStateLabel(state: "HELD_REVIEW" | "LIVE_READ_ONLY") {
   return state === "LIVE_READ_ONLY" ? "Live read-only" : "Held review";
 }
@@ -97,6 +103,18 @@ export function UnifiedCrmOpportunityReviewHub({
         current="hub"
         visibilityLabel={model.visibility === "owned" ? "Owned review" : "Organization review"}
       />
+
+      <section className={styles.observationPanel} aria-labelledby="opportunity-review-hub-observation-heading">
+        <div className={styles.sectionHeader}>
+          <span className={styles.eyebrow}>Persisted read-only visibility</span>
+          <strong id="opportunity-review-hub-observation-heading">{liveObservationStateLabel(model)}</strong>
+          <p>{model.liveReadObservation.detail}</p>
+        </div>
+        <div className={styles.heroMeta}>
+          <span>{model.liveReadObservation.freshnessLabel}</span>
+          <span>{liveObservationLabel(model)}</span>
+        </div>
+      </section>
 
       {model.sections.map((section) => (
         <section className={styles.section} key={section.id}>

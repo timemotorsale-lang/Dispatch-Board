@@ -45,6 +45,13 @@ export type UnifiedCrmOpportunityPreviewModel = {
   constraints: string[];
   generatedAt: string;
   listPreview: {
+    observation?: {
+      detail: string;
+      freshnessLabel: string;
+      newestVisibleRecordUpdatedAt: string | null;
+      state: "EMPTY" | "READY";
+      visibleRecordCount: number;
+    };
     emptyMessage: string;
     heading: string;
     items: {

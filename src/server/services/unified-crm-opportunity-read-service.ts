@@ -4,7 +4,7 @@ import {
   type UnifiedCrmOpportunityPreviewRecord,
   type UnifiedCrmOpportunityPreviewRepository
 } from "@/server/repositories/unified-crm-opportunity-preview-repository";
-import type { UnifiedCrmOpportunityAccessContext } from "@/server/unified-crm/opportunity-contract";
+import { UnifiedCrmOpportunityError, type UnifiedCrmOpportunityAccessContext } from "@/server/unified-crm/opportunity-contract";
 import { requireUnifiedCrmOpportunityDetailAccess } from "@/server/unified-crm/opportunity-detail-access";
 import {
   UNIFIED_CRM_OPPORTUNITY_READ_CONTRACT_VERSION,
@@ -70,6 +70,20 @@ function toVisibleLiveReadItem(
   };
 }
 
+function liveCollectionDetail(visiblePersistedRecordCount: number, visibility: "organization" | "owned") {
+  const visibilityLabel = visibility === "organization" ? "organization review" : "owned review";
+  if (visiblePersistedRecordCount > 0) {
+    return `Only same-scope persisted opportunities are listed here for ${visibilityLabel}. Lifecycle movement remains off.`;
+  }
+  return `No same-scope persisted read-only opportunity is visible right now for ${visibilityLabel}. Continue with held pipeline review until one is available.`;
+}
+
+function liveCollectionFreshnessLabel(newestVisibleRecordUpdatedAt: string | null) {
+  return newestVisibleRecordUpdatedAt
+    ? `Newest visible persisted update observed at ${newestVisibleRecordUpdatedAt}.`
+    : "No visible persisted opportunity update is available yet.";
+}
+
 export async function getUnifiedCrmOpportunityPipelinePreview(
   actor: AuthenticatedUser | null,
   dependencies: Dependencies = {}
@@ -82,14 +96,30 @@ export async function getUnifiedCrmOpportunityPipelinePreview(
   });
   const visibility = orientation.visibility;
   const repository = dependencies.repository ?? createUnifiedCrmOpportunityPreviewRepository();
-  const persistedRecords = await repository.listOpportunityPreviews({
-    limit: 5,
-    organizationId: access.organizationId,
-    recordScope: access.recordScope
-  });
+  let persistedRecords: UnifiedCrmOpportunityPreviewRecord[];
+  try {
+    persistedRecords = await repository.listOpportunityPreviews({
+      limit: 5,
+      organizationId: access.organizationId,
+      recordScope: access.recordScope
+    });
+  } catch (error) {
+    throw new UnifiedCrmOpportunityError(
+      "OPPORTUNITY_OFF",
+      "Opportunity pipeline preview is temporarily unavailable.",
+      { cause: error }
+    );
+  }
   const liveReadItems = persistedRecords
     .map((record) => toVisibleLiveReadItem(record, access))
     .filter((item): item is NonNullable<typeof item> => Boolean(item));
+  const visiblePersistedRecords = persistedRecords.filter((record) => (
+    Boolean(safePersistedOpportunityId(record.opportunityNumber)) &&
+    isPreviewRecordVisible(record, access)
+  ));
+  const newestVisibleRecordUpdatedAt = visiblePersistedRecords.length
+    ? new Date(Math.max(...visiblePersistedRecords.map((record) => record.updatedAt.getTime()))).toISOString()
+    : null;
 
   return {
     contractVersion: UNIFIED_CRM_OPPORTUNITY_READ_CONTRACT_VERSION,
@@ -196,6 +226,13 @@ export async function getUnifiedCrmOpportunityPipelinePreview(
       "Task, Appointment, and Dispatch remain authoritative in their own consoles."
     ],
     listPreview: {
+      observation: {
+        detail: liveCollectionDetail(visiblePersistedRecords.length, visibility),
+        freshnessLabel: liveCollectionFreshnessLabel(newestVisibleRecordUpdatedAt),
+        newestVisibleRecordUpdatedAt,
+        state: visiblePersistedRecords.length ? "READY" : "EMPTY",
+        visibleRecordCount: visiblePersistedRecords.length
+      },
       heading: liveReadItems.length
         ? visibility === "organization"
           ? "Visible read-only opportunities"
@@ -205,7 +242,7 @@ export async function getUnifiedCrmOpportunityPipelinePreview(
           : "What your owned opportunity list will surface",
       emptyMessage: liveReadItems.length
         ? "Additional persisted opportunities will appear here when they are safe to show in read-only mode."
-        : "No live opportunities are shown while lifecycle rules are held.",
+        : "No same-scope persisted read-only opportunity is visible while lifecycle rules remain held.",
       items: [
         ...liveReadItems,
         {
