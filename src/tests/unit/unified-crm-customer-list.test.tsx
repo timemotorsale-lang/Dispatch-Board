@@ -96,12 +96,13 @@ describe("Unified CRM real customer list", () => {
     expect(markup).toContain("Alex Morgan");
     expect(markup).toContain("••••1234");
     expect(markup).toContain("a•••@e•••.com");
+    expect(markup).toContain('href="/customers?returnTo=%2Fcrm%3Fview%3Dcustomers"');
     expect(markup).toContain('href="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers"');
     expect(markup).toContain('href="/crm/opportunities?crmReturnTo=%2Fcrm%3Fview%3Dcustomers"');
     expect(markup).toContain('href="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers#customer-opportunity-discovery-heading"');
     expect(markup).toContain("Open opportunity review");
     expect(markup).toContain("Opportunity review");
-    expect(markup).not.toContain("?returnTo=");
+    expect(markup).not.toMatch(/returnTo=[^"&]+&amp;returnTo=/);
     expect(markup).toContain("Canonical customer identity · read only");
     expect(markup).toContain("Next page");
     expect(markup).not.toContain("target=");
@@ -173,6 +174,7 @@ describe("Unified CRM real customer list", () => {
 
     expect(emptyMarkup).toContain("No customers match these filters");
     expect(emptyMarkup).toContain('href="/crm?view=customers"');
+    expect(emptyMarkup).toContain('href="/customers?returnTo=%2Fcrm%3Fview%3Dcustomers%26q%3Dnobody%26owner%3Dmine"');
     expect(ownedMarkup).toContain('type="hidden" name="owner" value="mine"');
     expect(ownedMarkup).not.toContain("All owners");
     expect(ownedMarkup).not.toContain("Unassigned</option>");
@@ -214,8 +216,10 @@ describe("Unified CRM real customer list", () => {
     expect(unavailable).toContain("Retry");
     expect(error).toContain("Customers couldn’t be loaded");
     expect(error).toContain('role="alert"');
+    expect(empty).toContain('href="/customers?returnTo=%2Fcrm%3Fview%3Dcustomers"');
+    expect(unavailable).toContain('href="/customers"');
+    expect(error).toContain('href="/customers"');
     for (const markup of [empty, unavailable, error]) {
-      expect(markup).toContain('href="/customers"');
       expect(markup).not.toContain("Alex Morgan");
       expect(markup).not.toContain("••••1234");
     }

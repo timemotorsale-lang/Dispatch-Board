@@ -478,6 +478,7 @@ export function UnifiedCrmCustomer360({ errorMessage, failureKind = "error", mod
     customerContextReturn: returnHref,
     dueAt: model.relationship.nextActionAt
   });
+  const customerSourceHref = withCustomerSourceReturn(model.source.href, model.identity.id, returnHref);
   const primaryContact = model.contacts.find((item) => item.isPrimary) ?? model.contacts[0];
   const otherContacts = model.contacts.filter((item) => item !== primaryContact).slice(0, 2);
   const opportunityNudges = opportunityDiscovery ? OpportunityDiscoveryNudges({ model: opportunityDiscovery }) : null;
@@ -488,9 +489,9 @@ export function UnifiedCrmCustomer360({ errorMessage, failureKind = "error", mod
         <div className={styles.identityMain}><span className={styles.avatar}><UserRound aria-hidden="true" size={22} /></span><div><span className={styles.eyebrow}>Customer relationship · read only</span><h1 id="customer-name-heading">{model.identity.displayName}</h1><p>{model.identity.customerNumber} · Customer since {formatDateOnly(model.identity.customerSince)}</p></div></div>
         <div className={styles.identityMeta}><Status value={model.identity.status} /><span><small>Owner</small><strong>{model.owner?.name ?? "Unassigned"}</strong></span></div>
       </section>
-      <section className={styles.trustBar} aria-label="Customer source and freshness"><span><ShieldCheck aria-hidden="true" size={15} /><strong>{model.source.label}</strong> · canonical identity</span><span><ShieldCheck aria-hidden="true" size={14} />Current · observed {formatDate(model.freshness.observedAt, "time unavailable")}</span><span><ShieldCheck aria-hidden="true" size={14} />{returnContext.continuityLabel}</span><Link href={model.source.href}>Open existing customer record<ExternalLink aria-hidden="true" size={13} /></Link></section>
+      <section className={styles.trustBar} aria-label="Customer source and freshness"><span><ShieldCheck aria-hidden="true" size={15} /><strong>{model.source.label}</strong> · canonical identity</span><span><ShieldCheck aria-hidden="true" size={14} />Current · observed {formatDate(model.freshness.observedAt, "time unavailable")}</span><span><ShieldCheck aria-hidden="true" size={14} />{returnContext.continuityLabel}</span><Link href={customerSourceHref}>Open existing customer record<ExternalLink aria-hidden="true" size={13} /></Link></section>
       <QuickActions
-        customerSourceHref={model.source.href}
+        customerSourceHref={customerSourceHref}
         nextActionAvailable={model.permissions.canManageNextAction}
         opportunityDiscovery={opportunityDiscovery}
         taskBridgeAvailable={model.permissions.canCreateGovernedTask}

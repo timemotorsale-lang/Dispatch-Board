@@ -32,6 +32,16 @@ function crmCustomerHref(model: UnifiedCrmCustomerListReadModel, customerId: str
   return `/crm/customers/${encodeURIComponent(customerId)}?crmReturnTo=${encodeURIComponent(customerListHref(model))}`;
 }
 
+function customerSourceHref(model: UnifiedCrmCustomerListReadModel) {
+  try {
+    const url = new URL(model.source.href, "https://crm.local");
+    url.searchParams.set("returnTo", customerListHref(model));
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return model.source.href;
+  }
+}
+
 function opportunityBranchHref(opportunityDiscovery: UnifiedCrmCustomerListOpportunityDiscoveryModel | undefined) {
   return opportunityDiscovery?.actions.find((action) => action.id === "hub")?.href
     ?? opportunityDiscovery?.actions[0]?.href
@@ -67,7 +77,7 @@ function SourceBar({ model }: { model: UnifiedCrmCustomerListReadModel }) {
           <ShieldCheck aria-hidden="true" size={14} />
           {model.freshness.status === "CURRENT" ? "Current" : model.freshness.status} · observed {formatDate(model.freshness.observedAt, "time unavailable")}
         </span>
-        <Link className={styles.sourceLink} href={model.source.href}>Open existing Customers<ExternalLink aria-hidden="true" size={13} /></Link>
+        <Link className={styles.sourceLink} href={customerSourceHref(model)}>Open existing Customers<ExternalLink aria-hidden="true" size={13} /></Link>
       </section>
       {model.freshness.newestRecordUpdatedAt ? <div className={styles.summary}><span>Newest record update in this page: {formatDate(model.freshness.newestRecordUpdatedAt, "time unavailable")}</span></div> : null}
     </>
@@ -148,7 +158,17 @@ function CustomerRows({
   );
 }
 
-function StatePanel({ filtered, kind, message }: { filtered?: boolean; kind: "empty" | "error" | "restricted" | "unavailable"; message?: string }) {
+function StatePanel({
+  filtered,
+  kind,
+  message,
+  sourceHref = "/customers"
+}: {
+  filtered?: boolean;
+  kind: "empty" | "error" | "restricted" | "unavailable";
+  message?: string;
+  sourceHref?: string;
+}) {
   const title = kind === "restricted" ? "Customer records aren’t available to you" : kind === "unavailable" ? "Customers are temporarily unavailable" : kind === "error" ? "Customers couldn’t be loaded" : filtered ? "No customers match these filters" : "No active customers yet";
   const detail = message ?? (kind === "restricted" ? "Your current access does not include the CRM customer list." : kind === "unavailable" ? "The customer source is not available right now. Retry or continue in the existing Customers console." : kind === "error" ? "The source could not provide a safe customer list. Try again or continue in the existing Customers console." : filtered ? "Clear the search and filters to return to active customers." : "The Customers source has no active records available in this view.");
   return (
@@ -158,7 +178,7 @@ function StatePanel({ filtered, kind, message }: { filtered?: boolean; kind: "em
       <div className={styles.stateActions}>
         {kind === "error" || kind === "unavailable" ? <button className={styles.retryButton} onClick={() => window.location.reload()} type="button"><RefreshCw aria-hidden="true" size={14} />Retry</button> : null}
         {kind === "empty" && filtered ? <Link className={styles.clearLink} href="/crm?view=customers">Clear filters</Link> : null}
-        <Link className={styles.clearLink} href="/customers">Open existing Customers<ExternalLink aria-hidden="true" size={13} /></Link>
+        <Link className={styles.clearLink} href={sourceHref}>Open existing Customers<ExternalLink aria-hidden="true" size={13} /></Link>
       </div>
     </section>
   );
@@ -172,11 +192,12 @@ export function UnifiedCrmCustomerList({ errorMessage, failureKind = "error", mo
 
   const filtered = Boolean(model.query.q || model.query.status !== "active" || (model.visibility === "organization" && model.query.owner !== "all"));
   const listDiscovery = firstOpportunityDiscovery(opportunityDiscovery);
+  const sourceHref = customerSourceHref(model);
   return (
     <div className={styles.workspace}>
       <SourceBar model={model} />
       <CustomerFilters model={model} />
-      {model.items.length === 0 ? <StatePanel filtered={filtered} kind="empty" /> : (
+      {model.items.length === 0 ? <StatePanel filtered={filtered} kind="empty" sourceHref={sourceHref} /> : (
         <>
           <div aria-live="polite" className={styles.summary}><span><strong>{resultLabel(model)}</strong>{filtered ? " for the current search and filters" : ""}</span><span>Contact hints are masked · recent activity first</span></div>
           {listDiscovery && opportunityBranchHref(listDiscovery) ? <section aria-label="Opportunity review discovery" className={styles.discoveryPanel}>

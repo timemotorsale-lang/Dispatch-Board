@@ -107,7 +107,7 @@ describe("Unified CRM Customer 360", () => {
     expect(markup).toContain('href="#interaction-form-heading"');
     expect(markup).toContain('href="#next-action-form-heading"');
     expect(markup).toContain('href="#note-form-heading"');
-    expect(markup).toContain('href="/customers/customer-1"');
+    expect(markup).toContain('href="/customers/customer-1?returnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dcustomers%2526q%253DAlex"');
     expect(markup).toContain("Next relationship action · due today");
     expect(markup).toContain("This follow-up is due today. Keep the due time current if the customer plan changes.");
     expect(markup).toContain("Move today’s next action");
@@ -380,7 +380,7 @@ describe("Unified CRM Customer 360", () => {
     expect(markup).not.toMatch(/crmReturnTo=[^"&]+&amp;crmReturnTo=/);
   });
 
-  it("preserves customer continuity for source-owned appointments, vehicles, leads, and cases", () => {
+  it("preserves customer continuity for primary customer exits and source-owned appointments, vehicles, leads, and cases", () => {
     const markup = renderToStaticMarkup(
       <UnifiedCrmCustomer360
         model={customer360Fixture()}
@@ -389,6 +389,9 @@ describe("Unified CRM Customer 360", () => {
       />
     );
 
+    expect(markup).toContain(
+      'href="/customers/customer-1?returnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dwork"'
+    );
     expect(markup).toContain(
       'href="/appointments?returnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dwork"'
     );
