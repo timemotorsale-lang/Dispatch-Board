@@ -2,10 +2,13 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh() {} })
+  usePathname: () => "/crm/customers/customer-1",
+  useRouter: () => ({ refresh() {} }),
+  useSearchParams: () => new URLSearchParams("crmReturnTo=%2Fcrm%3Fview%3Dwork")
 }));
 
 import { UnifiedCrmCustomerInteractionForm } from "@/features/unified-crm/unified-crm-customer-interaction-form";
+import { currentCustomerPageHref } from "@/features/unified-crm/unified-crm-customer-page-context";
 
 describe("Unified CRM customer interaction form", () => {
   it("renders honest non-sending language and accessible disclosure controls", () => {
@@ -33,5 +36,12 @@ describe("Unified CRM customer interaction form", () => {
     expect(markup).toContain("Saved here only. No message will be sent.");
     expect(markup).toContain('aria-expanded="true"');
     expect(markup).toContain("Close");
+  });
+
+  it("builds a safe customer timeline return only from a real customer page", () => {
+    expect(currentCustomerPageHref("/crm/customers/customer-1", "crmReturnTo=%2Fcrm%3Fview%3Dwork", "timeline-heading")).toBe(
+      "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dwork#timeline-heading"
+    );
+    expect(currentCustomerPageHref("/crm?view=work", "", "timeline-heading")).toBeNull();
   });
 });

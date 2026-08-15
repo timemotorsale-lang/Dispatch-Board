@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 import { buildUnifiedCrmTaskIntakeHref } from "@/lib/unified-crm-task-intake-handoff";
 import type { UnifiedCrmCustomer360ReadModel } from "@/server/unified-crm/customer-360-contract";
 import type { UnifiedCrmCustomerOpportunityDiscoveryModel } from "@/server/unified-crm/customer-opportunity-discovery-contract";
-import { withUnifiedCrmOpportunityReturn } from "@/server/unified-crm/opportunity-review-return";
+import { buildUnifiedCrmCustomerReturn, withUnifiedCrmOpportunityReturn } from "@/server/unified-crm/opportunity-review-return";
 
 import { UnifiedCrmCustomerInteractionForm } from "./unified-crm-customer-interaction-form";
 import { UnifiedCrmCustomerNextActionForm } from "./unified-crm-customer-next-action-form";
@@ -39,6 +39,17 @@ function customerReturnContext(returnHref: string) {
     returnLabel: "Return to customer list",
     continuityLabel: "Customer list return preserved"
   };
+}
+
+function withCustomerSourceReturn(href: string, customerId: string, returnHref: string) {
+  if (!href.startsWith("/") || href.startsWith("//") || href.startsWith("/crm")) return href;
+  try {
+    const url = new URL(href, "https://crm.local");
+    url.searchParams.set("returnTo", buildUnifiedCrmCustomerReturn(customerId, returnHref));
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return href;
+  }
 }
 
 function formatDate(value: string | null, fallback: string) {
@@ -338,10 +349,12 @@ function OpportunityDiscoveryNudges({ model }: { model: UnifiedCrmCustomerOpport
 
 function WorkContext({
   model,
-  opportunityPrompt
+  opportunityPrompt,
+  returnHref
 }: {
   model: UnifiedCrmCustomer360ReadModel;
   opportunityPrompt?: ReactNode;
+  returnHref: string;
 }) {
   const upcoming = model.appointments.slice(0, 3);
   const vehicles = model.vehicles.slice(0, 3);
@@ -349,8 +362,8 @@ function WorkContext({
     <section aria-labelledby="relationship-work-heading" className={styles.sectionCard}>
       <header><div><span className={styles.eyebrow}>Connected work</span><h2 id="relationship-work-heading">Relationship context</h2></div><small>Source-owned summaries</small></header>
       <div className={styles.contextColumns}>
-        <div><h3><CalendarDays aria-hidden="true" size={15} />Appointments</h3>{upcoming.length ? upcoming.map((item) => <Link href={item.sourceHref} key={item.id}><span><strong>{item.title}</strong><small>{label(item.bookingStatus)} · {label(item.confirmationStatus)}</small></span><time>{formatDate(item.startsAt, "Not scheduled")}</time><ArrowRight aria-hidden="true" size={14} /></Link>) : <p>No permitted appointments are linked.</p>}</div>
-        <div><h3><CarFront aria-hidden="true" size={15} />Vehicles</h3>{vehicles.length ? vehicles.map((item) => <Link href={item.sourceHref} key={item.id}><span><strong>{item.label}</strong><small>{label(item.relationshipType)} · {label(item.status)}</small></span><time>{formatDate(item.effectiveFrom, "Date unavailable")}</time><ArrowRight aria-hidden="true" size={14} /></Link>) : <p>No permitted vehicles are linked.</p>}</div>
+        <div><h3><CalendarDays aria-hidden="true" size={15} />Appointments</h3>{upcoming.length ? upcoming.map((item) => <Link href={withCustomerSourceReturn(item.sourceHref, model.identity.id, returnHref)} key={item.id}><span><strong>{item.title}</strong><small>{label(item.bookingStatus)} · {label(item.confirmationStatus)}</small></span><time>{formatDate(item.startsAt, "Not scheduled")}</time><ArrowRight aria-hidden="true" size={14} /></Link>) : <p>No permitted appointments are linked.</p>}</div>
+        <div><h3><CarFront aria-hidden="true" size={15} />Vehicles</h3>{vehicles.length ? vehicles.map((item) => <Link href={withCustomerSourceReturn(item.sourceHref, model.identity.id, returnHref)} key={item.id}><span><strong>{item.label}</strong><small>{label(item.relationshipType)} · {label(item.status)}</small></span><time>{formatDate(item.effectiveFrom, "Date unavailable")}</time><ArrowRight aria-hidden="true" size={14} /></Link>) : <p>No permitted vehicles are linked.</p>}</div>
       </div>
       {opportunityPrompt ? <div className={styles.discoveryPromptRow}>{opportunityPrompt}</div> : null}
     </section>
@@ -359,17 +372,19 @@ function WorkContext({
 
 function SourceLenses({
   model,
-  opportunityPrompt
+  opportunityPrompt,
+  returnHref
 }: {
   model: UnifiedCrmCustomer360ReadModel;
   opportunityPrompt?: ReactNode;
+  returnHref: string;
 }) {
   return (
     <section aria-labelledby="source-lenses-heading" className={styles.sectionCard}>
       <header><div><span className={styles.eyebrow}>Existing source workflows</span><h2 id="source-lenses-heading">Lead and case context</h2></div><small>Read only · changes stay in their source</small></header>
       <div className={styles.lensGrid}>
-        <section aria-labelledby="lead-lens-heading"><h3 id="lead-lens-heading">Leads</h3>{model.sourceLenses.leads.length ? model.sourceLenses.leads.map((item) => <article key={item.id}><div><strong>{item.leadNumber} · {item.vehicleInterest ?? "General interest"}</strong><span>{label(item.stage)} · {item.ownerName}</span><small>Next: {label(item.nextActionCode)} · {formatDate(item.nextActionAt, "Not scheduled")}</small></div><Link aria-label={`Open lead ${item.leadNumber} in Customers`} href={item.sourceHref}>Open source<ExternalLink aria-hidden="true" size={13} /></Link></article>) : <p>No permitted source leads are linked.</p>}</section>
-        <section aria-labelledby="case-lens-heading"><h3 id="case-lens-heading">Cases</h3>{model.sourceLenses.cases.length ? model.sourceLenses.cases.map((item) => <article key={item.id}><div><strong>{item.caseNumber} · {item.title}</strong><span>{label(item.status)} · {item.ownerName}</span><small>{label(item.priority)} priority · SLA {label(item.slaStage)} · due {formatDate(item.resolutionDueAt ?? item.dueAt, "Not scheduled")}</small></div><Link aria-label={`Open case ${item.caseNumber} in Customers`} href={item.sourceHref}>Open source<ExternalLink aria-hidden="true" size={13} /></Link></article>) : <p>No permitted source cases are linked.</p>}</section>
+        <section aria-labelledby="lead-lens-heading"><h3 id="lead-lens-heading">Leads</h3>{model.sourceLenses.leads.length ? model.sourceLenses.leads.map((item) => <article key={item.id}><div><strong>{item.leadNumber} · {item.vehicleInterest ?? "General interest"}</strong><span>{label(item.stage)} · {item.ownerName}</span><small>Next: {label(item.nextActionCode)} · {formatDate(item.nextActionAt, "Not scheduled")}</small></div><Link aria-label={`Open lead ${item.leadNumber} in Customers`} href={withCustomerSourceReturn(item.sourceHref, model.identity.id, returnHref)}>Open source<ExternalLink aria-hidden="true" size={13} /></Link></article>) : <p>No permitted source leads are linked.</p>}</section>
+        <section aria-labelledby="case-lens-heading"><h3 id="case-lens-heading">Cases</h3>{model.sourceLenses.cases.length ? model.sourceLenses.cases.map((item) => <article key={item.id}><div><strong>{item.caseNumber} · {item.title}</strong><span>{label(item.status)} · {item.ownerName}</span><small>{label(item.priority)} priority · SLA {label(item.slaStage)} · due {formatDate(item.resolutionDueAt ?? item.dueAt, "Not scheduled")}</small></div><Link aria-label={`Open case ${item.caseNumber} in Customers`} href={withCustomerSourceReturn(item.sourceHref, model.identity.id, returnHref)}>Open source<ExternalLink aria-hidden="true" size={13} /></Link></article>) : <p>No permitted source cases are linked.</p>}</section>
       </div>
       {opportunityPrompt ? <div className={styles.discoveryPromptRow}>{opportunityPrompt}</div> : null}
     </section>
@@ -378,10 +393,12 @@ function SourceLenses({
 
 function TimelineSection({
   model,
-  opportunityPrompt
+  opportunityPrompt,
+  returnHref
 }: {
   model: UnifiedCrmCustomer360ReadModel;
   opportunityPrompt?: ReactNode;
+  returnHref: string;
 }) {
   const hasTimelineItems = model.timeline.items.length > 0;
 
@@ -408,7 +425,12 @@ function TimelineSection({
                 <small>{item.actorName ? `${item.actorName} · ` : ""}{item.sourceLabel}</small>
               </div>
               <time dateTime={item.occurredAt}>{formatDate(item.occurredAt, "Time unavailable")}</time>
-              <Link aria-label={`Open ${item.sourceLabel} source for ${item.title}`} href={item.sourceHref}>Open source<ExternalLink aria-hidden="true" size={13} /></Link>
+              <Link
+                aria-label={`Open ${item.sourceLabel} source for ${item.title}`}
+                href={withCustomerSourceReturn(item.sourceHref, model.identity.id, returnHref)}
+              >
+                Open source<ExternalLink aria-hidden="true" size={13} />
+              </Link>
             </li>
           ))}
         </ol>
@@ -504,9 +526,9 @@ export function UnifiedCrmCustomer360({ errorMessage, failureKind = "error", mod
       {opportunityDiscovery ? <OpportunityDiscoverySection model={opportunityDiscovery} /> : null}
       <OpportunityLensSection model={model} returnHref={`/crm/customers/${encodeURIComponent(model.identity.id)}?crmReturnTo=${encodeURIComponent(returnHref)}`} />
       <NotesSection model={model} />
-      <TimelineSection model={model} opportunityPrompt={opportunityNudges?.timeline} />
-      <WorkContext model={model} opportunityPrompt={opportunityNudges?.connectedWork} />
-      <SourceLenses model={model} opportunityPrompt={opportunityNudges?.sourceLenses} />
+      <TimelineSection model={model} opportunityPrompt={opportunityNudges?.timeline} returnHref={returnHref} />
+      <WorkContext model={model} opportunityPrompt={opportunityNudges?.connectedWork} returnHref={returnHref} />
+      <SourceLenses model={model} opportunityPrompt={opportunityNudges?.sourceLenses} returnHref={returnHref} />
       <footer className={styles.footer}>Source record observed {formatDate(model.freshness.observedAt, "time unavailable")} · source record updated {formatDate(model.freshness.sourceRecordUpdatedAt, "time unavailable")} · manual contact outcomes are recorded here; source-owned workflows remain authoritative.</footer>
     </main>
   );

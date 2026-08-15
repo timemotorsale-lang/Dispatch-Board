@@ -1,9 +1,11 @@
 "use client";
 
 import { startTransition, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import styles from "./unified-crm-customer-360.module.css";
+import { currentCustomerPageHref } from "./unified-crm-customer-page-context";
 
 type Props = {
   allowRestricted: boolean;
@@ -15,19 +17,24 @@ function createIdempotencyKey(customerId: string) {
 }
 
 export function UnifiedCrmCustomerNoteForm({ allowRestricted, customerId }: Props) {
+  const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [messageHref, setMessageHref] = useState<string | null>(null);
   const [tone, setTone] = useState<"idle" | "error" | "success">("idle");
   const [body, setBody] = useState("");
   const [visibility, setVisibility] = useState<"INTERNAL" | "RESTRICTED">("INTERNAL");
   const [idempotencyKey, setIdempotencyKey] = useState(() => createIdempotencyKey(customerId));
+  const notesHref = currentCustomerPageHref(pathname, searchParams.toString(), "customer-notes-heading");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPending(true);
     setMessage(null);
+    setMessageHref(null);
     setTone("idle");
 
     try {
@@ -42,6 +49,7 @@ export function UnifiedCrmCustomerNoteForm({ allowRestricted, customerId }: Prop
       }
       setTone("success");
       setMessage(payload?.duplicate ? "This note was already recorded. The notes list has been refreshed." : "Note recorded. Refreshing customer notes…");
+      setMessageHref(notesHref);
       setBody("");
       setVisibility("INTERNAL");
       setIdempotencyKey(createIdempotencyKey(customerId));
@@ -49,6 +57,7 @@ export function UnifiedCrmCustomerNoteForm({ allowRestricted, customerId }: Prop
       startTransition(() => router.refresh());
     } catch (error) {
       setTone("error");
+      setMessageHref(null);
       setMessage(error instanceof Error ? error.message : "Customer note could not be recorded right now.");
     } finally {
       setPending(false);
@@ -74,7 +83,7 @@ export function UnifiedCrmCustomerNoteForm({ allowRestricted, customerId }: Prop
           {open ? "Close" : "Add note"}
         </button>
       </header>
-      {message ? <p className={tone === "error" ? styles.formError : styles.formSuccess} role={tone === "error" ? "alert" : "status"}>{message}</p> : null}
+      {message ? <p className={tone === "error" ? styles.formError : styles.formSuccess} role={tone === "error" ? "alert" : "status"}>{message} {messageHref ? <Link href={messageHref}>Review notes</Link> : null}</p> : null}
       {open ? (
         <form
           aria-describedby="customer-note-form-helper customer-note-form-status"

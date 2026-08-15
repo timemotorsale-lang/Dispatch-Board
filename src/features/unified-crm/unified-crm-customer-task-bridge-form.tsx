@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { startTransition, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import styles from "./unified-crm-customer-360.module.css";
 
@@ -35,6 +35,22 @@ function createIdempotencyKey(customerId: string) {
   return globalThis.crypto?.randomUUID?.() ?? `crm-task-${customerId}-${Date.now()}`;
 }
 
+export function currentCustomerContextReturn(pathname: string, search: string) {
+  if (!pathname.startsWith("/crm/customers/") || pathname.startsWith("//")) return null;
+  return search ? `${pathname}?${search}` : pathname;
+}
+
+export function withTaskReturn(href: string | null | undefined, returnTo: string | null) {
+  if (!href || !href.startsWith("/tasks/") || href.startsWith("//") || !returnTo) return href ?? null;
+  try {
+    const url = new URL(href, "https://crm.local");
+    url.searchParams.set("returnTo", returnTo);
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return href;
+  }
+}
+
 export function UnifiedCrmCustomerTaskBridgeForm({
   available = true,
   customerDisplayName,
@@ -43,6 +59,8 @@ export function UnifiedCrmCustomerTaskBridgeForm({
   fallbackHref = "/my-tasks"
 }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -52,6 +70,7 @@ export function UnifiedCrmCustomerTaskBridgeForm({
   const [brief, setBrief] = useState("Document the customer follow-up, outcome, and next operational step.");
   const [dueAt, setDueAt] = useState(() => defaultDueValue(defaultDueAt));
   const [idempotencyKey, setIdempotencyKey] = useState(() => createIdempotencyKey(customerId));
+  const taskReturnTo = currentCustomerContextReturn(pathname, searchParams?.toString() ?? "");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -80,7 +99,7 @@ export function UnifiedCrmCustomerTaskBridgeForm({
         throw new Error(payload?.error ?? "CRM task handoff could not be completed safely.");
       }
       setTone("success");
-      setMessageHref(payload?.task?.href ?? null);
+      setMessageHref(withTaskReturn(payload?.task?.href, taskReturnTo));
       setMessage(
         payload?.duplicate
           ? "This governed task handoff was already recorded. The existing task is ready to open."

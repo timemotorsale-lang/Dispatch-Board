@@ -1,9 +1,11 @@
 "use client";
 
 import { startTransition, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import styles from "./unified-crm-customer-360.module.css";
+import { currentCustomerPageHref } from "./unified-crm-customer-page-context";
 
 type Props = {
   currentNextActionAt: string | null;
@@ -29,17 +31,22 @@ function defaultDueValue(currentNextActionAt: string | null) {
 }
 
 export function UnifiedCrmCustomerNextActionForm({ currentNextActionAt, currentNextActionState, customerId }: Props) {
+  const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [messageHref, setMessageHref] = useState<string | null>(null);
   const [tone, setTone] = useState<"idle" | "error" | "success">("idle");
   const [dueAt, setDueAt] = useState(() => defaultDueValue(currentNextActionAt));
   const [note, setNote] = useState("");
   const [idempotencyKey, setIdempotencyKey] = useState(() => createIdempotencyKey(customerId));
+  const timelineHref = currentCustomerPageHref(pathname, searchParams.toString(), "timeline-heading");
 
   async function submit(operation: "SET" | "COMPLETE") {
     setPending(true);
     setMessage(null);
+    setMessageHref(null);
     setTone("idle");
 
     try {
@@ -66,11 +73,13 @@ export function UnifiedCrmCustomerNextActionForm({ currentNextActionAt, currentN
             ? "Next action completed. Refreshing customer context…"
             : "Next action updated. Refreshing customer context…"
       );
+      setMessageHref(timelineHref);
       setIdempotencyKey(createIdempotencyKey(customerId));
       setNote("");
       startTransition(() => router.refresh());
     } catch (error) {
       setTone("error");
+      setMessageHref(null);
       setMessage(error instanceof Error ? error.message : "Customer next action could not be updated right now.");
     } finally {
       setPending(false);
@@ -95,7 +104,7 @@ export function UnifiedCrmCustomerNextActionForm({ currentNextActionAt, currentN
               : "Set, renew, or complete the dated CRM follow-up without leaving Customer 360."}</p>
         </div>
       </header>
-      {message ? <p className={tone === "error" ? styles.formError : styles.formSuccess} role="status">{message}</p> : null}
+      {message ? <p className={tone === "error" ? styles.formError : styles.formSuccess} role="status">{message} {messageHref ? <Link href={messageHref}>Review timeline</Link> : null}</p> : null}
       <form className={styles.interactionForm} onSubmit={onSet}>
         <label>
           <span>Due time</span>

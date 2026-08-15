@@ -4,7 +4,10 @@ import { describe, expect, it } from "vitest";
 import { vi } from "vitest";
 
 vi.mock("next/navigation", () => ({
+  usePathname: () => "/crm/customers/customer-1",
   useRouter: () => ({ refresh() {} })
+  ,
+  useSearchParams: () => new URLSearchParams("crmReturnTo=%2Fcrm%3Fview%3Dcustomers")
 }));
 
 import CustomerLoading from "@/app/(app)/crm/customers/[customerId]/loading";
@@ -295,6 +298,41 @@ describe("Unified CRM Customer 360", () => {
     expect(markup).not.toContain('aria-label="Permitted customer relationship activity"');
   });
 
+  it("preserves customer continuity when a timeline event opens an existing task", () => {
+    const fixture = customer360Fixture();
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmCustomer360
+        model={{
+          ...fixture,
+          timeline: {
+            ...fixture.timeline,
+            items: [
+              {
+                id: "task-evt-1",
+                correlationKey: "task:task-1",
+                sourceRecordId: "task-1",
+                kind: "task-event",
+                title: "Task follow-up prepared",
+                detail: "Governed internal follow-up is now tracked in Tasks.",
+                occurredAt: "2026-08-14T12:00:00.000Z",
+                actorName: "Taylor B.",
+                sourceLabel: "Tasks",
+                sourceHref: "/tasks/task-1"
+              }
+            ],
+            itemCount: 1
+          }
+        }}
+        returnHref="/crm?view=work"
+      />
+    );
+
+    expect(markup).toContain(
+      'href="/tasks/task-1?returnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dwork"'
+    );
+    expect(markup).toContain('aria-label="Open Tasks source for Task follow-up prepared"');
+  });
+
   it("keeps the opportunity lens honest when no persisted opportunity is visible", () => {
     const fixture = customer360Fixture();
     const markup = renderToStaticMarkup(
@@ -340,5 +378,28 @@ describe("Unified CRM Customer 360", () => {
     expect(markup).toContain('href="/crm/opportunities/guided?crmReturnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dwork"');
     expect(markup).not.toMatch(/href="(?:https?:)?\/\//);
     expect(markup).not.toMatch(/crmReturnTo=[^"&]+&amp;crmReturnTo=/);
+  });
+
+  it("preserves customer continuity for source-owned appointments, vehicles, leads, and cases", () => {
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmCustomer360
+        model={customer360Fixture()}
+        opportunityDiscovery={opportunityDiscovery}
+        returnHref="/crm?view=work"
+      />
+    );
+
+    expect(markup).toContain(
+      'href="/appointments?returnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dwork"'
+    );
+    expect(markup).toContain(
+      'href="/vehicles/360/vehicle-1?returnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dwork"'
+    );
+    expect(markup).toContain(
+      'href="/sales?returnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dwork"'
+    );
+    expect(markup).toContain(
+      'href="/customers/resolutions?caseId=CASE-202&amp;returnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dwork"'
+    );
   });
 });

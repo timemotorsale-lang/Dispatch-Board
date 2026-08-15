@@ -1,9 +1,11 @@
 "use client";
 
 import { startTransition, useId, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import styles from "./unified-crm-customer-360.module.css";
+import { currentCustomerPageHref } from "./unified-crm-customer-page-context";
 
 type Props = {
   customerId: string;
@@ -24,13 +26,16 @@ function createIdempotencyKey(customerId: string) {
 }
 
 export function UnifiedCrmCustomerInteractionForm({ customerId, defaultOpen = false }: Props) {
+  const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const formId = useId();
   const helperId = useId();
   const statusId = useId();
   const [open, setOpen] = useState(defaultOpen);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [messageHref, setMessageHref] = useState<string | null>(null);
   const [tone, setTone] = useState<"idle" | "error" | "success">("idle");
   const [channel, setChannel] = useState("PHONE");
   const [direction, setDirection] = useState("OUTBOUND");
@@ -41,11 +46,13 @@ export function UnifiedCrmCustomerInteractionForm({ customerId, defaultOpen = fa
   const [occurredAt, setOccurredAt] = useState(localDateTimeValue(new Date()));
   const [nextActionAt, setNextActionAt] = useState("");
   const [idempotencyKey, setIdempotencyKey] = useState(() => createIdempotencyKey(customerId));
+  const timelineHref = currentCustomerPageHref(pathname, searchParams.toString(), "timeline-heading");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPending(true);
     setMessage(null);
+    setMessageHref(null);
     setTone("idle");
 
     try {
@@ -74,6 +81,7 @@ export function UnifiedCrmCustomerInteractionForm({ customerId, defaultOpen = fa
           ? "This manual contact outcome was already recorded. The customer timeline has been refreshed. No message was sent."
           : "Manual contact outcome recorded. Refreshing customer history… No message was sent."
       );
+      setMessageHref(timelineHref);
       setIdempotencyKey(createIdempotencyKey(customerId));
       setSummary("");
       setOutcome("");
@@ -83,6 +91,7 @@ export function UnifiedCrmCustomerInteractionForm({ customerId, defaultOpen = fa
       startTransition(() => router.refresh());
     } catch (error) {
       setTone("error");
+      setMessageHref(null);
       setMessage(error instanceof Error ? error.message : "Customer interaction could not be recorded right now. No message was sent.");
     } finally {
       setPending(false);
@@ -114,7 +123,7 @@ export function UnifiedCrmCustomerInteractionForm({ customerId, defaultOpen = fa
           id={statusId}
           role={tone === "error" ? "alert" : "status"}
         >
-          {message}
+          {message} {messageHref ? <Link href={messageHref}>Review timeline</Link> : null}
         </p>
       ) : null}
       {open ? (

@@ -11,7 +11,9 @@ vi.mock("@/server/services/unified-crm-customer-opportunity-discovery-service", 
 vi.mock("@/server/unified-crm/customer-360-access", () => ({ requireUnifiedCrmCustomer360Access: mocks.requireUnifiedCrmCustomer360Access }));
 vi.mock("@/server/unified-crm/shell-access", () => ({ resolveUnifiedCrmShellAccess: mocks.resolveUnifiedCrmShellAccess }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh() {} })
+  usePathname: () => "/crm/customers/customer-1",
+  useRouter: () => ({ refresh() {} }),
+  useSearchParams: () => new URLSearchParams("crmReturnTo=%2Fcrm%3Fview%3Dcustomers")
 }));
 
 import CustomerPage from "@/app/(app)/crm/customers/[customerId]/page";
