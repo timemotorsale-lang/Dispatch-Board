@@ -53,6 +53,27 @@ function label(value: string) {
   return value.replaceAll("_", " ").toLowerCase().replace(/(^|\s)\S/g, (letter) => letter.toUpperCase());
 }
 
+function timelineKindLabel(value: UnifiedCrmCustomer360ReadModel["timeline"]["items"][number]["kind"]) {
+  switch (value) {
+    case "interaction":
+      return "Relationship touchpoint";
+    case "task-event":
+      return "Task event";
+    case "appointment-event":
+      return "Appointment event";
+    case "lead-event":
+      return "Lead event";
+    case "case-event":
+      return "Case event";
+    case "promise-event":
+      return "Promise event";
+    case "commitment-event":
+      return "Commitment event";
+    default:
+      return "Timeline event";
+  }
+}
+
 function Status({ value }: { value: string }) {
   return <span className={`${styles.status} ${value.toLowerCase() === "active" ? styles.statusActive : ""}`}>{label(value)}</span>;
 }
@@ -281,26 +302,41 @@ function TimelineSection({
   model: UnifiedCrmCustomer360ReadModel;
   opportunityPrompt?: ReactNode;
 }) {
+  const hasTimelineItems = model.timeline.items.length > 0;
+
   return (
     <section aria-labelledby="timeline-heading" className={styles.sectionCard}>
       <header>
         <div><span className={styles.eyebrow}>Unified activity</span><h2 id="timeline-heading">Relationship timeline</h2></div>
         <small>{model.timeline.itemCount} latest permitted events</small>
       </header>
-      <div className={styles.timelineList}>
-        {model.timeline.items.length ? model.timeline.items.map((item) => (
-          <article key={item.id} className={styles.timelineItem}>
-            <span className={styles.timelineDot} aria-hidden="true" />
-            <div className={styles.timelineBody}>
-              <strong>{item.title}</strong>
-              <p>{item.detail}</p>
-              <small>{item.actorName ? `${item.actorName} · ` : ""}{item.sourceLabel}</small>
-            </div>
-            <time>{formatDate(item.occurredAt, "Time unavailable")}</time>
-            <Link href={item.sourceHref}>Open source<ExternalLink aria-hidden="true" size={13} /></Link>
-          </article>
-        )) : <p className={styles.timelineEmpty}><History aria-hidden="true" size={16} />No permitted relationship history has been recorded yet.</p>}
-      </div>
+      <p className={styles.timelineDetail}>
+        This read-only timeline combines the latest permitted customer activity across connected source workflows. Source systems remain authoritative, and this view was observed {formatDate(model.freshness.observedAt, "time unavailable")}.
+      </p>
+      {hasTimelineItems ? (
+        <ol className={styles.timelineList} aria-label="Permitted customer relationship activity">
+          {model.timeline.items.map((item) => (
+            <li key={item.id} className={styles.timelineItem}>
+              <span className={styles.timelineDot} aria-hidden="true" />
+              <div className={styles.timelineBody}>
+                <div className={styles.timelineHeader}>
+                  <strong>{item.title}</strong>
+                  <span className={styles.timelineKind}>{timelineKindLabel(item.kind)}</span>
+                </div>
+                <p>{item.detail}</p>
+                <small>{item.actorName ? `${item.actorName} · ` : ""}{item.sourceLabel}</small>
+              </div>
+              <time dateTime={item.occurredAt}>{formatDate(item.occurredAt, "Time unavailable")}</time>
+              <Link aria-label={`Open ${item.sourceLabel} source for ${item.title}`} href={item.sourceHref}>Open source<ExternalLink aria-hidden="true" size={13} /></Link>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className={styles.timelineEmpty}>
+          <History aria-hidden="true" size={16} />
+          No permitted relationship history has been recorded yet. New source-owned events will appear here when they enter your allowed customer scope.
+        </p>
+      )}
       {opportunityPrompt ? <div className={styles.discoveryPromptRow}>{opportunityPrompt}</div> : null}
     </section>
   );

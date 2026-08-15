@@ -37,6 +37,8 @@ type UnifiedCrmCustomer360Dependencies = UnifiedCrmCustomer360AccessOptions & {
   timelineRepository?: UnifiedCrmCustomerTimelineRepository;
 };
 
+const CUSTOMER_TIMELINE_LIMIT = 20;
+
 function normalizeCustomerId(value: unknown) {
   if (typeof value !== "string") {
     throw new UnifiedCrmCustomer360Error("INVALID_CUSTOMER_ID", "Customer identifier is invalid.");
@@ -144,56 +146,67 @@ function timelineItems(input: {
   const items: UnifiedCrmCustomer360TimelineItem[] = [
     ...input.model.interactions.map((interaction) => ({
       id: `interaction:${interaction.id}`,
+      correlationKey: `interaction:${interaction.id}`,
       kind: "interaction" as const,
       title: `${label(interaction.channel)} ${label(interaction.direction)}`,
       detail: [interaction.summary, interaction.outcome, interaction.nextStep ? `Next: ${interaction.nextStep}` : null].filter(Boolean).join(" · "),
       occurredAt: interaction.occurredAt.toISOString(),
       actorName: interaction.actorUser?.name ?? null,
       sourceLabel: "Customer interactions",
-      sourceHref: "/customers"
+      sourceHref: "/customers",
+      sourceRecordId: interaction.id
     })),
     ...input.model.activityEvents.map((event) => ({
       id: `activity:${event.id}`,
+      correlationKey: event.task ? `task:${event.task.id}` : event.concernCase ? `case:${event.concernCase.id}` : `activity:${event.id}`,
       kind: "task-event" as const,
       title: event.task ? `${label(event.eventType)} · ${event.task.title}` : event.concernCase ? `${label(event.eventType)} · ${event.concernCase.concernNumber}` : label(event.eventType),
       detail: event.message,
       occurredAt: event.createdAt.toISOString(),
       actorName: event.actorUser?.name ?? null,
       sourceLabel: event.task ? "Tasks" : "Customer resolutions",
-      sourceHref: event.task ? `/tasks/${encodeURIComponent(event.task.id)}` : `/customers/resolutions?caseId=${encodeURIComponent(event.concernCase?.concernNumber ?? "")}`
+      sourceHref: event.task ? `/tasks/${encodeURIComponent(event.task.id)}` : `/customers/resolutions?caseId=${encodeURIComponent(event.concernCase?.concernNumber ?? "")}`,
+      sourceRecordId: event.task?.id ?? event.concernCase?.id ?? event.id
     })),
     ...input.model.appointmentHistoryEvents.map((event) => ({
       id: `appointment:${event.id}`,
+      correlationKey: `appointment:${event.appointment.id}`,
       kind: "appointment-event" as const,
       title: `${label(event.eventType)} · ${event.appointment.title}`,
       detail: event.message,
       occurredAt: event.occurredAt.toISOString(),
       actorName: event.actorUser?.name ?? null,
       sourceLabel: "Appointments",
-      sourceHref: `/appointments?view=board&appointment=${encodeURIComponent(event.appointment.appointmentNumber)}`
+      sourceHref: `/appointments?view=board&appointment=${encodeURIComponent(event.appointment.appointmentNumber)}`,
+      sourceRecordId: event.appointment.id
     })),
     ...input.model.leadEvents.map((lead) => ({
       id: `lead:${lead.id}`,
+      correlationKey: `lead:${lead.id}`,
       kind: "lead-event" as const,
       title: `Lead ${lead.leadNumber} created`,
       detail: [label(lead.stage), lead.vehicleInterest ?? "General interest", lead.ownerUser.name].join(" · "),
       occurredAt: lead.createdAt.toISOString(),
       actorName: lead.ownerUser.name,
       sourceLabel: "Sales",
-      sourceHref: "/sales"
+      sourceHref: "/sales",
+      sourceRecordId: lead.id
     })),
     ...input.model.caseEvents.map((customerCase) => ({
       id: `case:${customerCase.id}`,
+      correlationKey: `case:${customerCase.id}`,
       kind: "case-event" as const,
       title: `${customerCase.concernNumber} opened`,
       detail: [customerCase.title, label(customerCase.status), label(customerCase.priority)].join(" · "),
       occurredAt: customerCase.createdAt.toISOString(),
       actorName: customerCase.assignedOwner?.name ?? null,
       sourceLabel: "Customer resolutions",
-      sourceHref: `/customers/resolutions?caseId=${encodeURIComponent(customerCase.concernNumber)}`
+      sourceHref: `/customers/resolutions?caseId=${encodeURIComponent(customerCase.concernNumber)}`,
+      sourceRecordId: customerCase.id
     })),
     ...input.model.promiseEvents.map((promise) => ({
       id: `promise:${promise.id}`,
+      correlationKey: `promise:${promise.id}`,
       kind: "promise-event" as const,
       title: `Promise ${label(promise.status)}`,
       detail: [
@@ -204,7 +217,8 @@ function timelineItems(input: {
       occurredAt: (promise.fulfilledAt ?? promise.promisedAt).toISOString(),
       actorName: promise.fulfilledByUser?.name ?? promise.ownerUser.name,
       sourceLabel: "Customer resolutions",
-      sourceHref: `/customers/resolutions?caseId=${encodeURIComponent(promise.concernCase.concernNumber)}`
+      sourceHref: `/customers/resolutions?caseId=${encodeURIComponent(promise.concernCase.concernNumber)}`,
+      sourceRecordId: promise.id
     })),
     ...(input.model.crmDomainEvents ?? []).map((event) => {
       const payload = event.payload as {
@@ -224,13 +238,15 @@ function timelineItems(input: {
       ].filter(Boolean).join(" · ");
       return {
         id: `crm-event:${event.id}`,
+        correlationKey: `crm-event:${event.id}`,
         kind: "commitment-event" as const,
         title,
         detail: detail || "CRM customer follow-up was updated.",
         occurredAt: event.occurredAt.toISOString(),
         actorName: null,
         sourceLabel: "Unified CRM",
-        sourceHref: "/crm?view=work"
+        sourceHref: "/crm?view=work",
+        sourceRecordId: event.id
       };
     })
   ];
@@ -240,7 +256,7 @@ function timelineItems(input: {
       const byDate = new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime();
       return byDate !== 0 ? byDate : right.id.localeCompare(left.id);
     })
-    .slice(0, 20);
+    .slice(0, input.model.page.limit);
 }
 
 export async function getUnifiedCrmCustomer360(
@@ -271,10 +287,7 @@ export async function getUnifiedCrmCustomer360(
         "Select one authorized organization before opening customer details."
       );
     }
-    [record, timeline] = await Promise.all([
-      repository.findCustomer({ customerId, organizationId: organizationIds[0], recordScope }),
-      timelineRepository.listTimeline({ customerId, organizationId: organizationIds[0], limit: 20, recordScope })
-    ]);
+    record = await repository.findCustomer({ customerId, organizationId: organizationIds[0], recordScope });
   } catch (error) {
     if (error instanceof UnifiedCrmCustomer360Error) throw error;
     throw new UnifiedCrmCustomer360Error(
@@ -287,8 +300,26 @@ export async function getUnifiedCrmCustomer360(
     throw new UnifiedCrmCustomer360Error("CUSTOMER_NOT_AVAILABLE", "Customer details are not available.");
   }
 
+  try {
+    timeline = await timelineRepository.listTimeline({
+      customerId,
+      organizationId: organizationIds[0],
+      limit: CUSTOMER_TIMELINE_LIMIT,
+      recordScope
+    });
+  } catch (error) {
+    throw new UnifiedCrmCustomer360Error(
+      "CUSTOMER_SOURCE_UNAVAILABLE",
+      "Customer details are temporarily unavailable.",
+      { cause: error }
+    );
+  }
+
   const observedAt = now.toISOString();
   const canViewRestricted = evaluateUnifiedCrmCapability(actor, "crm.sensitive.view").allowed;
+  const timelineView = timelineItems({ model: timeline });
+  const newestTimelineItem = timelineView[0]?.occurredAt ?? null;
+
   return {
     contractVersion: UNIFIED_CRM_CUSTOMER_360_CONTRACT_VERSION,
     state: "READY",
@@ -335,8 +366,18 @@ export async function getUnifiedCrmCustomer360(
     appointments: appointments(record),
     notes: notes(record, canViewRestricted),
     timeline: {
-      itemCount: timelineItems({ model: timeline }).length,
-      items: timelineItems({ model: timeline })
+      state: timelineView.length ? "READY" : "EMPTY",
+      itemCount: timelineView.length,
+      emptyMessage: "No permitted customer activity has been recorded in this timeline yet.",
+      freshness: {
+        observedAt,
+        newestOccurredAt: newestTimelineItem
+      },
+      items: timelineView,
+      page: {
+        limit: timeline.page.limit,
+        hasMore: timeline.page.hasMore
+      }
     },
     sourceLenses: {
       leads: record.leads.filter((lead) =>

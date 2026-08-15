@@ -15,11 +15,21 @@ export function customer360Fixture(): UnifiedCrmCustomer360ReadModel {
     appointments: [{ id: "appointment-1", title: "Sales follow-up", startsAt: "2026-08-16T16:00:00.000Z", bookingStatus: "CONFIRMED", confirmationStatus: "CONFIRMED", attendanceStatus: "EXPECTED", sourceHref: "/appointments" }],
     notes: [{ id: "note-1", authorName: "Taylor B.", body: "Customer prefers texts after lunch.", createdAt: "2026-08-14T13:45:00.000Z", visibility: "INTERNAL" }],
     timeline: {
+      state: "READY",
       itemCount: 3,
+      emptyMessage: "No permitted customer activity has been recorded in this timeline yet.",
+      freshness: {
+        observedAt: "2026-08-14T15:00:00.000Z",
+        newestOccurredAt: "2026-08-14T14:30:00.000Z"
+      },
+      page: {
+        limit: 20,
+        hasMore: false
+      },
       items: [
-        { id: "interaction-1", kind: "interaction", title: "Phone Outbound", detail: "Confirmed Saturday visit · Outcome: Reached customer", occurredAt: "2026-08-14T14:30:00.000Z", actorName: "Taylor B.", sourceLabel: "Customer interactions", sourceHref: "/customers" },
-        { id: "appointment-evt-1", kind: "appointment-event", title: "Confirmed · Sales follow-up", detail: "Appointment confirmation was recorded.", occurredAt: "2026-08-14T13:15:00.000Z", actorName: "Taylor B.", sourceLabel: "Appointments", sourceHref: "/appointments?view=board&appointment=APT-200" },
-        { id: "case-evt-1", kind: "case-event", title: "CASE-202 opened", detail: "Document follow-up · Open · Medium", occurredAt: "2026-08-13T18:00:00.000Z", actorName: "Customer Care", sourceLabel: "Customer resolutions", sourceHref: "/customers/resolutions?caseId=CASE-202" }
+        { id: "interaction-1", correlationKey: "interaction:interaction-1", sourceRecordId: "interaction-1", kind: "interaction", title: "Phone Outbound", detail: "Confirmed Saturday visit · Outcome: Reached customer", occurredAt: "2026-08-14T14:30:00.000Z", actorName: "Taylor B.", sourceLabel: "Customer interactions", sourceHref: "/customers" },
+        { id: "appointment-evt-1", correlationKey: "appointment:appointment-1", sourceRecordId: "appointment-1", kind: "appointment-event", title: "Confirmed · Sales follow-up", detail: "Appointment confirmation was recorded.", occurredAt: "2026-08-14T13:15:00.000Z", actorName: "Taylor B.", sourceLabel: "Appointments", sourceHref: "/appointments?view=board&appointment=APT-200" },
+        { id: "case-evt-1", correlationKey: "case:case-1", sourceRecordId: "case-1", kind: "case-event", title: "CASE-202 opened", detail: "Document follow-up · Open · Medium", occurredAt: "2026-08-13T18:00:00.000Z", actorName: "Customer Care", sourceLabel: "Customer resolutions", sourceHref: "/customers/resolutions?caseId=CASE-202" }
       ]
     },
     sourceLenses: {

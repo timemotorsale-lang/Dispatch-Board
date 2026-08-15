@@ -152,6 +152,10 @@ export type UnifiedCrmCustomerTimelineRecord = {
   caseEvents: UnifiedCrmCustomerCaseEventRecord[];
   promiseEvents: UnifiedCrmCustomerPromiseEventRecord[];
   crmDomainEvents: UnifiedCrmCustomerDomainEventRecord[];
+  page: {
+    limit: number;
+    hasMore: boolean;
+  };
 };
 
 export type UnifiedCrmCustomerTimelineRepository = {
@@ -169,12 +173,18 @@ export function createUnifiedCrmCustomerTimelineRepository(
   return {
     async listTimeline(input) {
       const ownerUserId = input.recordScope.kind === "OWNER" ? input.recordScope.ownerUserId : undefined;
+      const fetchLimit = input.limit + 1;
       const [interactions, activityEvents, appointmentHistoryEvents, leadEvents, caseEvents, promiseEvents, crmDomainEvents] = await Promise.all([
         database.customerInteraction.findMany({
-          where: { customerId: input.customerId },
+          where: {
+            customerId: input.customerId,
+            customer: {
+              organizationId: input.organizationId
+            }
+          },
           select: interactionSelect,
           orderBy: [{ occurredAt: "desc" }, { id: "desc" }],
-          take: input.limit
+          take: fetchLimit
         }),
         database.activityEvent.findMany({
           where: {
@@ -182,6 +192,9 @@ export function createUnifiedCrmCustomerTimelineRepository(
               {
                 task: {
                   customerId: input.customerId,
+                  customer: {
+                    organizationId: input.organizationId
+                  },
                   ...(ownerUserId ? { assignedUserId: ownerUserId } : {})
                 }
               },
@@ -196,7 +209,7 @@ export function createUnifiedCrmCustomerTimelineRepository(
           },
           select: activityEventSelect,
           orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-          take: input.limit
+          take: fetchLimit
         }),
         database.appointmentHistoryEvent.findMany({
           where: {
@@ -208,7 +221,7 @@ export function createUnifiedCrmCustomerTimelineRepository(
           },
           select: appointmentHistoryEventSelect,
           orderBy: [{ occurredAt: "desc" }, { id: "desc" }],
-          take: input.limit
+          take: fetchLimit
         }),
         database.customerLead.findMany({
           where: {
@@ -218,7 +231,7 @@ export function createUnifiedCrmCustomerTimelineRepository(
           },
           select: leadEventSelect,
           orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-          take: input.limit
+          take: fetchLimit
         }),
         database.concernCase.findMany({
           where: {
@@ -228,7 +241,7 @@ export function createUnifiedCrmCustomerTimelineRepository(
           },
           select: caseEventSelect,
           orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-          take: input.limit
+          take: fetchLimit
         }),
         database.customerPromise.findMany({
           where: {
@@ -241,7 +254,7 @@ export function createUnifiedCrmCustomerTimelineRepository(
           },
           select: promiseEventSelect,
           orderBy: [{ promisedAt: "desc" }, { id: "desc" }],
-          take: input.limit
+          take: fetchLimit
         }),
         database.enterpriseDomainEvent.findMany({
           where: {
@@ -259,11 +272,11 @@ export function createUnifiedCrmCustomerTimelineRepository(
           },
           select: crmDomainEventSelect,
           orderBy: [{ occurredAt: "desc" }, { id: "desc" }],
-          take: input.limit
+          take: fetchLimit
         })
       ]);
 
-      return {
+      const sourceBuckets = [
         interactions,
         activityEvents,
         appointmentHistoryEvents,
@@ -271,6 +284,22 @@ export function createUnifiedCrmCustomerTimelineRepository(
         caseEvents,
         promiseEvents,
         crmDomainEvents
+      ];
+      const boundedCounts = sourceBuckets.reduce((total, records) => total + Math.min(records.length, input.limit), 0);
+      const hasMore = sourceBuckets.some((records) => records.length > input.limit) || boundedCounts > input.limit;
+
+      return {
+        interactions: interactions.slice(0, input.limit),
+        activityEvents: activityEvents.slice(0, input.limit),
+        appointmentHistoryEvents: appointmentHistoryEvents.slice(0, input.limit),
+        leadEvents: leadEvents.slice(0, input.limit),
+        caseEvents: caseEvents.slice(0, input.limit),
+        promiseEvents: promiseEvents.slice(0, input.limit),
+        crmDomainEvents: crmDomainEvents.slice(0, input.limit),
+        page: {
+          limit: input.limit,
+          hasMore
+        }
       };
     }
   };

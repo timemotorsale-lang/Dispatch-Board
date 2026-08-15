@@ -116,6 +116,13 @@ describe("Unified CRM Customer 360", () => {
     expect(markup).toContain("Read-only opportunity summaries"); expect(markup).toContain("Alex Morgan renewal review");
     expect(markup).toContain('href="/crm/opportunities/opp_1001?crmReturnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dcustomers%2526q%253DAlex"');
     expect(markup).toContain("Relationship timeline"); expect(markup).toContain("Phone Outbound"); expect(markup).toContain("Appointment confirmation was recorded.");
+    expect(markup).toContain("Manual contact outcome"); expect(markup).toContain("Record a relationship touchpoint");
+    expect(markup).toContain("This read-only timeline combines the latest permitted customer activity");
+    expect(markup).toContain('aria-label="Permitted customer relationship activity"');
+    expect(markup).toContain("Relationship touchpoint");
+    expect(markup).toContain("Appointment event");
+    expect(markup).toContain('dateTime="2026-08-14T14:30:00.000Z"');
+    expect(markup).toContain('aria-label="Open Customer interactions source for Phone Outbound"');
     expect(markup).toContain("LEAD-101"); expect(markup).toContain("CASE-202"); expect(markup).toContain("changes stay in their source");
     expect(markup).toContain("manual contact outcomes are recorded here"); expect(markup).toContain("Create governed task"); expect(markup).not.toContain("Edit customer"); expect(markup).not.toContain("New task");
   });
@@ -124,6 +131,7 @@ describe("Unified CRM Customer 360", () => {
     const markup = renderToStaticMarkup(<UnifiedCrmCustomer360 failureKind="not-available" returnHref="/crm?view=customers" />);
     expect(markup).toContain("Customer isn’t available"); expect(markup).toContain("may not exist, may have changed, or may be outside");
     expect(markup).not.toContain("merged"); expect(markup).not.toContain("archived"); expect(markup).not.toContain("Alex Morgan");
+    expect(markup).not.toContain("Manual contact outcome"); expect(markup).not.toContain("Log outcome");
     expect(markup).toContain('href="/crm?view=customers"'); expect(markup).toContain('href="/customers"');
   });
 
@@ -131,6 +139,29 @@ describe("Unified CRM Customer 360", () => {
     const markup = renderToStaticMarkup(<CustomerLoading />);
     expect(markup).toContain('aria-busy="true"'); expect(markup).toContain("Loading permitted customer context");
     expect(markup).toContain("No action has been completed"); expect(markup).not.toContain("Alex Morgan");
+  });
+
+  it("renders an honest empty timeline without implying missing hidden activity", () => {
+    const model = customer360Fixture();
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmCustomer360
+        model={{
+          ...model,
+          timeline: {
+            ...model.timeline,
+            state: "EMPTY",
+            itemCount: 0,
+            items: [],
+            freshness: { ...model.timeline.freshness, newestOccurredAt: null }
+          }
+        }}
+        returnHref="/crm?view=customers"
+      />
+    );
+
+    expect(markup).toContain("No permitted relationship history has been recorded yet.");
+    expect(markup).toContain("New source-owned events will appear here when they enter your allowed customer scope.");
+    expect(markup).not.toContain('aria-label="Permitted customer relationship activity"');
   });
 
   it("keeps CRM Work continuity when customer detail started from Work", () => {

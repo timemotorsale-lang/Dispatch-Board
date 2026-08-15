@@ -42,10 +42,20 @@ describe("Unified CRM Customer 360 repository", () => {
     expect(select.leads.where).toEqual({ organizationId: "org-a" });
     expect(select.concernCases.where).toEqual({ organizationId: "org-a" });
     expect(select).not.toHaveProperty("tasks");
-    expect(select).not.toHaveProperty("notes");
     expect(select).not.toHaveProperty("address");
     expect(select).not.toHaveProperty("documentRequirements");
     expect(select).not.toHaveProperty("mergedIntoCustomerId");
+    expect(select.notes.select).toEqual({
+      id: true,
+      body: true,
+      createdAt: true,
+      visibility: true,
+      authorUser: {
+        select: {
+          name: true
+        }
+      }
+    });
     expect(select.contactPoints.select).not.toHaveProperty("normalizedValue");
     expect(select.contactPoints.select).not.toHaveProperty("consentStatus");
   });

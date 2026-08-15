@@ -8,6 +8,7 @@ import {
   type UnifiedCrmCustomer360Record,
   type UnifiedCrmCustomer360Repository
 } from "@/server/repositories/unified-crm-customer-360-repository";
+import type { UnifiedCrmCustomerTimelineRepository } from "@/server/repositories/unified-crm-customer-timeline-repository";
 import { getUnifiedCrmCustomer360 } from "@/server/services/unified-crm-customer-360-service";
 
 const manager: AuthenticatedUser = {
@@ -56,6 +57,7 @@ function record(overrides: Record<string, unknown> = {}): UnifiedCrmCustomer360R
     appointmentParticipants: [{ appointment: { id: "appointment-a", title: "Customer visit", startsAt: new Date("2026-08-16T15:00:00.000Z"), bookingStatus: "BOOKED", confirmationStatus: "CONFIRMED", attendanceStatus: "EXPECTED" } }],
     leads: [{ id: "lead-a", leadNumber: "LEAD-1", stage: "ENGAGED", sourceCode: "WEBSITE", vehicleInterest: "Toyota Camry", nextActionCode: "FOLLOW_UP", nextActionAt: new Date("2026-08-15T12:00:00.000Z"), ownerUser: { id: "seller-a", name: "Seller A" } }],
     concernCases: [{ id: "case-a", concernNumber: "CASE-1", title: "Title follow-up", category: "CUSTOMER_CARE", priority: "MEDIUM", status: "OPEN", dueAt: new Date("2026-08-16T12:00:00.000Z"), resolutionDueAt: null, slaStage: "HEALTHY", assignedOwner: { id: "manager-a", name: "CRM Manager" } }],
+    unifiedCrmOpportunities: [],
     organizationId: "org-a-secret",
     address: rawAddress,
     notes: [{ body: rawNote, visibility: "RESTRICTED" }],
@@ -71,6 +73,26 @@ function scopeRepository(organizationIds = ["org-a"]) {
 
 function repository(result: UnifiedCrmCustomer360Record | null = record()) {
   return { findCustomer: vi.fn().mockResolvedValue(result) } satisfies UnifiedCrmCustomer360Repository;
+}
+
+function timelineRepository(): UnifiedCrmCustomerTimelineRepository {
+  return {
+    async listTimeline() {
+      return {
+        interactions: [],
+        activityEvents: [],
+        appointmentHistoryEvents: [],
+        leadEvents: [],
+        caseEvents: [],
+        promiseEvents: [],
+        crmDomainEvents: [],
+        page: {
+          limit: 20,
+          hasMore: false
+        }
+      };
+    }
+  };
 }
 
 function safeErrorBytes(error: unknown) {
@@ -100,7 +122,8 @@ describe("Unified CRM Customer 360 adversarial boundary", () => {
         await getUnifiedCrmCustomer360(manager, customerId, {
           readMode: "REVIEW",
           repository: repository(null),
-          scopeRepository: scopeRepository()
+          scopeRepository: scopeRepository(),
+          timelineRepository: timelineRepository()
         });
         throw new Error("Expected the customer lookup to fail closed.");
       } catch (error) {
@@ -126,7 +149,8 @@ describe("Unified CRM Customer 360 adversarial boundary", () => {
     const result = await getUnifiedCrmCustomer360(seller, "customer-a", {
       readMode: "REVIEW",
       repository: source,
-      scopeRepository: scopeRepository()
+      scopeRepository: scopeRepository(),
+      timelineRepository: timelineRepository()
     });
 
     expect(source.findCustomer).toHaveBeenCalledWith({
@@ -142,7 +166,8 @@ describe("Unified CRM Customer 360 adversarial boundary", () => {
       now: () => new Date("2026-08-14T13:00:00.000Z"),
       readMode: "REVIEW",
       repository: repository(),
-      scopeRepository: scopeRepository()
+      scopeRepository: scopeRepository(),
+      timelineRepository: timelineRepository()
     });
     const serialized = JSON.stringify(result);
 
@@ -161,7 +186,6 @@ describe("Unified CRM Customer 360 adversarial boundary", () => {
       "2099-01-01",
       "normalizedValue",
       "consentStatus",
-      "notes",
       "address",
       "retentionUntil",
       "duplicateKey",
@@ -205,9 +229,20 @@ describe("Unified CRM Customer 360 adversarial boundary", () => {
     expect(query.select.appointmentParticipants.where).toEqual({ appointment: { organizationId: "org-a" } });
     expect(query.select.leads.where).toEqual({ organizationId: "org-a", ownerUserId: "seller-a" });
     expect(query.select.concernCases.where).toEqual({ organizationId: "org-a", assignedOwnerId: "seller-a" });
-    for (const forbiddenField of ["address", "notes", "retentionUntil", "duplicateKey", "mergedIntoCustomerId", "organizationId"]) {
+    for (const forbiddenField of ["address", "retentionUntil", "duplicateKey", "mergedIntoCustomerId", "organizationId"]) {
       expect(query.select).not.toHaveProperty(forbiddenField);
     }
+    expect(query.select.notes.select).toEqual({
+      id: true,
+      body: true,
+      createdAt: true,
+      visibility: true,
+      authorUser: {
+        select: {
+          name: true
+        }
+      }
+    });
     expect(query.select.contactPoints.select).not.toHaveProperty("normalizedValue");
     expect(query.select.contactPoints.select).not.toHaveProperty("consentStatus");
   });

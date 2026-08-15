@@ -65,42 +65,32 @@ function json(value: unknown) {
   return value as Prisma.InputJsonValue;
 }
 
+function canonicalContactType(channel: string) {
+  if (channel === "PHONE" || channel === "TEXT") return "PHONE";
+  if (channel === "EMAIL") return "EMAIL";
+  return null;
+}
+
+function hasConfirmedCanonicalConsent(customer: UnifiedCrmCustomerInteractionSubject, channel: string) {
+  const contactType = canonicalContactType(channel);
+  if (!contactType) return true;
+  const statuses = customer.contactPoints
+    .filter((point) => point.type.trim().toUpperCase() === contactType)
+    .map((point) => point.consentStatus.trim().toUpperCase());
+  if (statuses.length === 0) return false;
+  return statuses.some((status) =>
+    status === "GRANTED" ||
+    status === "CONFIRMED" ||
+    status === "OPTED_IN"
+  );
+}
+
 export function createUnifiedCrmCustomerInteractionRepository(
   database: InteractionDatabase = prisma
 ): UnifiedCrmCustomerInteractionRepository {
   return {
     createInteraction(input) {
       return database.$transaction(async (tx) => {
-        const existing = await tx.enterpriseCommandLedger.findUnique({
-          where: {
-            organizationId_domain_commandType_idempotencyKey: {
-              organizationId: input.command.organizationId,
-              domain: input.command.domain,
-              commandType: input.command.commandType,
-              idempotencyKey: input.command.idempotencyKey
-            }
-          }
-        });
-        if (existing) {
-          if (existing.requestHash !== input.command.requestHash) {
-            throw new EnterpriseCommandConflictError("Idempotency key was already used with a different request.", "IDEMPOTENCY_KEY_REUSED");
-          }
-          const snapshot = existing.resultSnapshot as {
-            customerId: string;
-            interactionId: string;
-            nextActionAt: string | null;
-            occurredAt: string;
-          };
-          return {
-            customerId: snapshot.customerId,
-            duplicate: true,
-            interactionId: snapshot.interactionId,
-            nextActionAt: snapshot.nextActionAt ? new Date(snapshot.nextActionAt) : null,
-            occurredAt: new Date(snapshot.occurredAt),
-            version: existing.resultingVersion ?? 0
-          };
-        }
-
         const customer = await tx.customer.findFirst({
           where: {
             id: input.command.customerId,
@@ -113,6 +103,50 @@ export function createUnifiedCrmCustomerInteractionRepository(
         });
         if (!customer) {
           throw new Error("Customer not available.");
+        }
+        if (input.command.direction === "OUTBOUND" && !hasConfirmedCanonicalConsent(customer, input.command.channel)) {
+          throw new Error("Outbound canonical consent is required.");
+        }
+
+        const existing = await tx.enterpriseCommandLedger.findUnique({
+          where: {
+            organizationId_domain_commandType_idempotencyKey: {
+              organizationId: input.command.organizationId,
+              domain: input.command.domain,
+              commandType: input.command.commandType,
+              idempotencyKey: input.command.idempotencyKey
+            }
+          }
+        });
+        if (existing) {
+          if (existing.subjectType !== "CUSTOMER" || existing.subjectId !== customer.id) {
+            throw new Error("Interaction idempotency scope is unavailable.");
+          }
+          if (existing.requestHash !== input.command.requestHash) {
+            throw new EnterpriseCommandConflictError("Idempotency key was already used with a different request.", "IDEMPOTENCY_KEY_REUSED");
+          }
+          const snapshot = existing.resultSnapshot as {
+            customerId: string;
+            interactionId: string;
+            nextActionAt: string | null;
+            occurredAt: string;
+          };
+          if (
+            snapshot.customerId !== customer.id ||
+            typeof snapshot.interactionId !== "string" ||
+            typeof snapshot.occurredAt !== "string" ||
+            (snapshot.nextActionAt !== null && typeof snapshot.nextActionAt !== "string")
+          ) {
+            throw new Error("Stored interaction replay is invalid.");
+          }
+          return {
+            customerId: snapshot.customerId,
+            duplicate: true,
+            interactionId: snapshot.interactionId,
+            nextActionAt: snapshot.nextActionAt ? new Date(snapshot.nextActionAt) : null,
+            occurredAt: new Date(snapshot.occurredAt),
+            version: existing.resultingVersion ?? 0
+          };
         }
 
         const interaction = await tx.customerInteraction.create({

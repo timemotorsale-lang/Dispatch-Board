@@ -34,6 +34,14 @@ const CHANNELS = ["PHONE", "TEXT", "EMAIL", "MEETING", "VISIT"] as const;
 const DIRECTIONS = ["INBOUND", "OUTBOUND"] as const;
 const CONSENT_STATES = ["NOT_REQUIRED", "CONFIRMED", "UNKNOWN"] as const;
 
+function normalizeCustomerId(value: unknown) {
+  const result = typeof value === "string" ? value.trim() : "";
+  if (!result || result.length > 200) {
+    throw new UnifiedCrmCustomerInteractionError("INVALID_INTERACTION_COMMAND", "Customer identifier is invalid.");
+  }
+  return result;
+}
+
 function text(value: unknown, field: string, max: number, required = true) {
   const result = typeof value === "string" ? value.trim() : "";
   if (!result) {
@@ -103,6 +111,7 @@ export async function logUnifiedCrmCustomerInteraction(
 ): Promise<UnifiedCrmCustomerInteractionCommandResult> {
   const access = requireUnifiedCrmCustomer360Access(actor, dependencies);
   const now = dependencies.now?.() ?? new Date();
+  const normalizedCustomerId = normalizeCustomerId(customerId);
   const command = normalizeCommand(value, now);
   const scopeRepository = dependencies.scopeRepository ?? createUnifiedCrmCustomerReadRepository();
   const repository = dependencies.repository ?? createUnifiedCrmCustomerInteractionRepository();
@@ -135,7 +144,7 @@ export async function logUnifiedCrmCustomerInteraction(
         summary: command.summary
       },
       reason: `Record customer interaction: ${command.summary}`,
-      subjectId: customerId.trim(),
+      subjectId: normalizedCustomerId,
       subjectType: "CUSTOMER"
     });
 
@@ -146,7 +155,7 @@ export async function logUnifiedCrmCustomerInteraction(
         commandType: normalized.commandType,
         consentState: command.consentState,
         correlationId: normalized.correlationId,
-        customerId: customerId.trim(),
+        customerId: normalizedCustomerId,
         direction: command.direction,
         domain: normalized.domain,
         idempotencyKey: normalized.idempotencyKey,
@@ -175,6 +184,9 @@ export async function logUnifiedCrmCustomerInteraction(
     if (error instanceof UnifiedCrmCustomerInteractionError) throw error;
     if (error instanceof Error && error.message === "Customer not available.") {
       throw new UnifiedCrmCustomerInteractionError("CUSTOMER_NOT_AVAILABLE", "Customer details are not available.");
+    }
+    if (error instanceof Error && error.message === "Outbound canonical consent is required.") {
+      throw new UnifiedCrmCustomerInteractionError("OUTBOUND_CONSENT_REQUIRED", "Outbound contact requires a confirmed consent state.");
     }
     if (error instanceof Error && "code" in error && String((error as { code?: string }).code) === "IDEMPOTENCY_KEY_REUSED") {
       throw new UnifiedCrmCustomerInteractionError("IDEMPOTENCY_KEY_REUSED", "Idempotency key was already used with a different customer interaction.");

@@ -70,6 +70,7 @@ export type UnifiedCrmCustomer360OpportunityLens = {
 
 export type UnifiedCrmCustomer360TimelineItem = {
   id: string;
+  correlationKey: string;
   kind: "interaction" | "task-event" | "appointment-event" | "lead-event" | "case-event" | "promise-event" | "commitment-event";
   title: string;
   detail: string;
@@ -77,6 +78,7 @@ export type UnifiedCrmCustomer360TimelineItem = {
   actorName: string | null;
   sourceLabel: string;
   sourceHref: string;
+  sourceRecordId: string;
 };
 
 export type UnifiedCrmCustomer360Note = {
@@ -129,8 +131,18 @@ export type UnifiedCrmCustomer360ReadModel = {
   appointments: UnifiedCrmCustomer360Appointment[];
   notes: UnifiedCrmCustomer360Note[];
   timeline: {
+    state: "READY" | "EMPTY";
     itemCount: number;
+    emptyMessage: string;
+    freshness: {
+      observedAt: string;
+      newestOccurredAt: string | null;
+    };
     items: UnifiedCrmCustomer360TimelineItem[];
+    page: {
+      limit: number;
+      hasMore: boolean;
+    };
   };
   sourceLenses: {
     leads: UnifiedCrmCustomer360LeadLens[];

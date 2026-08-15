@@ -57,6 +57,22 @@ describe("Unified CRM customer note command", () => {
     });
   });
 
+  it("rejects an invalid customer identifier before any repository work", async () => {
+    const source = repository();
+
+    await expect(logUnifiedCrmCustomerNote(manager, " ", {
+      body: "Customer prefers afternoon pickup.",
+      idempotencyKey: "note-1",
+      visibility: "internal"
+    }, {
+      readMode: "REVIEW",
+      repository: source.repo,
+      scopeRepository: { async listActiveOrganizationIds() { throw new Error("must not execute"); } }
+    })).rejects.toMatchObject({ code: "INVALID_NOTE_COMMAND" });
+
+    expect(source.received).toHaveLength(0);
+  });
+
   it("rejects restricted notes without explicit sensitive access", async () => {
     await expect(logUnifiedCrmCustomerNote(manager, "customer-1", {
       body: "Restricted callback detail.",
@@ -67,5 +83,17 @@ describe("Unified CRM customer note command", () => {
       repository: repository().repo,
       scopeRepository: { async listActiveOrganizationIds() { return ["org-a"]; } }
     })).rejects.toMatchObject({ code: "RESTRICTED_NOTE_NOT_AUTHORIZED" });
+  });
+
+  it("treats a missing active organization scope as not authorized", async () => {
+    await expect(logUnifiedCrmCustomerNote(manager, "customer-1", {
+      body: "Customer prefers afternoon pickup.",
+      idempotencyKey: "note-3",
+      visibility: "internal"
+    }, {
+      readMode: "REVIEW",
+      repository: repository().repo,
+      scopeRepository: { async listActiveOrganizationIds() { return []; } }
+    })).rejects.toMatchObject({ code: "CUSTOMER_360_NOT_AUTHORIZED" });
   });
 });

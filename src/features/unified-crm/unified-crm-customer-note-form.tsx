@@ -61,29 +61,49 @@ export function UnifiedCrmCustomerNoteForm({ allowRestricted, customerId }: Prop
         <div>
           <span className={styles.eyebrow}>Relationship notes</span>
           <h2 id="note-form-heading">Add an internal customer note</h2>
-          <p>This records team context only. It does not notify the customer or change source-owned workflows.</p>
+          <p>This records team context only. It does not notify the customer, share outside the permitted team, or change source-owned workflows.</p>
         </div>
-        <button className={styles.interactionToggle} onClick={() => setOpen((value) => !value)} type="button">
+        <button
+          aria-controls="customer-note-form-panel"
+          aria-expanded={open}
+          className={styles.interactionToggle}
+          disabled={pending}
+          onClick={() => setOpen((value) => !value)}
+          type="button"
+        >
           {open ? "Close" : "Add note"}
         </button>
       </header>
-      {message ? <p className={tone === "error" ? styles.formError : styles.formSuccess} role="status">{message}</p> : null}
+      {message ? <p className={tone === "error" ? styles.formError : styles.formSuccess} role={tone === "error" ? "alert" : "status"}>{message}</p> : null}
       {open ? (
-        <form className={styles.interactionForm} onSubmit={(event) => void submit(event)}>
-          <label className={styles.interactionWide}>
-            <span>Note</span>
-            <textarea onChange={(event) => setBody(event.target.value)} required rows={4} value={body} />
-          </label>
-          <label>
-            <span>Visibility</span>
-            <select onChange={(event) => setVisibility(event.target.value as "INTERNAL" | "RESTRICTED")} value={visibility}>
-              <option value="INTERNAL">Internal</option>
-              {allowRestricted ? <option value="RESTRICTED">Restricted</option> : null}
-            </select>
-          </label>
-          <div className={styles.interactionActions}>
-            <button disabled={pending || !body.trim()} type="submit">{pending ? "Recording…" : "Save note"}</button>
-          </div>
+        <form
+          aria-describedby="customer-note-form-helper customer-note-form-status"
+          className={styles.interactionForm}
+          id="customer-note-form-panel"
+          onSubmit={(event) => void submit(event)}
+        >
+          <p className={styles.interactionHelper} id="customer-note-form-helper">
+            Keep the note factual and useful for the next teammate. Restricted notes stay limited to viewers with the right CRM access.
+          </p>
+          <fieldset className={styles.interactionFieldset} disabled={pending}>
+            <label className={styles.interactionWide}>
+              <span>Note</span>
+              <textarea onChange={(event) => setBody(event.target.value)} required rows={4} value={body} />
+            </label>
+            <label>
+              <span>Visibility</span>
+              <select onChange={(event) => setVisibility(event.target.value as "INTERNAL" | "RESTRICTED")} value={visibility}>
+                <option value="INTERNAL">Internal</option>
+                {allowRestricted ? <option value="RESTRICTED">Restricted</option> : null}
+              </select>
+            </label>
+            <div className={styles.interactionActions}>
+              <button disabled={pending || !body.trim()} type="submit">{pending ? "Saving note…" : "Save note"}</button>
+              <span className={styles.interactionActionNote} id="customer-note-form-status">
+                This saves team context only. No customer message is sent.
+              </span>
+            </div>
+          </fieldset>
         </form>
       ) : null}
     </section>

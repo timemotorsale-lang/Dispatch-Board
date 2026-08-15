@@ -178,7 +178,11 @@ function timelineRepository(): UnifiedCrmCustomerTimelineRepository {
           occurredAt: new Date("2026-08-14T14:00:00.000Z"),
           payload: { dueAt: "2026-08-15T15:00:00.000Z", note: "Customer requested a Friday check-in.", operation: "SET" },
           command: { actorUserId: manager.id }
-        }]
+        }],
+        page: {
+          limit: 20,
+          hasMore: false
+        }
       };
     }
   };
@@ -233,7 +237,19 @@ describe("Unified CRM Customer 360 service", () => {
       permissions: { canCreateRestrictedNote: false },
       vehicles: [{ id: "vehicle-a", sourceHref: "/vehicles/360/vehicle-a" }],
       appointments: [{ id: "appointment-a", sourceHref: "/appointments" }],
-      timeline: { itemCount: 7 },
+      timeline: {
+        state: "READY",
+        itemCount: 7,
+        emptyMessage: "No permitted customer activity has been recorded in this timeline yet.",
+        freshness: {
+          observedAt: now.toISOString(),
+          newestOccurredAt: "2026-08-14T14:00:00.000Z"
+        },
+        page: {
+          limit: 20,
+          hasMore: false
+        }
+      },
       sourceLenses: { leads: [{ id: "lead-a" }], cases: [{ id: "case-a" }] },
       opportunityLenses: [{ id: "opp_123456", opportunityNumber: "opp_123456", state: "LIVE_READ_ONLY" }]
     });
@@ -246,11 +262,15 @@ describe("Unified CRM Customer 360 service", () => {
     expect(serialized).not.toContain("Restricted note should not appear.");
     expect(model).not.toHaveProperty("tasks");
     expect(model.timeline.items[0]).toMatchObject({
+      correlationKey: "crm-event:crm-event-a",
       kind: "commitment-event",
+      sourceRecordId: "crm-event-a",
       title: "Next action set"
     });
     expect(model.timeline.items[1]).toMatchObject({
+      correlationKey: "interaction:interaction-a",
       kind: "interaction",
+      sourceRecordId: "interaction-a",
       title: "Phone Outbound"
     });
   });
@@ -305,6 +325,111 @@ describe("Unified CRM Customer 360 service", () => {
     expect(model.timeline.itemCount).toBeGreaterThan(0);
   });
 
+  it("returns an explicit empty timeline state and has-more metadata when no permitted activity exists", async () => {
+    const setup = dependencies(record());
+    setup.deps.timelineRepository = {
+      async listTimeline() {
+        return {
+          interactions: [],
+          activityEvents: [],
+          appointmentHistoryEvents: [],
+          leadEvents: [],
+          caseEvents: [],
+          promiseEvents: [],
+          crmDomainEvents: [],
+          page: {
+            limit: 20,
+            hasMore: true
+          }
+        };
+      }
+    };
+
+    const model = await getUnifiedCrmCustomer360(manager, "customer-a", setup.deps);
+    expect(model.timeline).toMatchObject({
+      state: "EMPTY",
+      itemCount: 0,
+      emptyMessage: "No permitted customer activity has been recorded in this timeline yet.",
+      freshness: {
+        observedAt: now.toISOString(),
+        newestOccurredAt: null
+      },
+      page: {
+        limit: 20,
+        hasMore: true
+      }
+    });
+    expect(model.timeline.items).toEqual([]);
+  });
+
+  it("preserves merged timeline hasMore when multiple bounded sources exceed the visible global limit", async () => {
+    const setup = dependencies(record());
+    setup.deps.timelineRepository = {
+      async listTimeline() {
+        return {
+          interactions: [
+            {
+              id: "interaction-a",
+              channel: "PHONE",
+              direction: "OUTBOUND",
+              summary: "Called customer",
+              outcome: null,
+              nextStep: null,
+              occurredAt: new Date("2026-08-14T15:00:00.000Z"),
+              actorUser: null
+            },
+            {
+              id: "interaction-b",
+              channel: "EMAIL",
+              direction: "OUTBOUND",
+              summary: "Sent follow-up",
+              outcome: null,
+              nextStep: null,
+              occurredAt: new Date("2026-08-14T14:00:00.000Z"),
+              actorUser: null
+            }
+          ],
+          activityEvents: [
+            {
+              id: "activity-a",
+              eventType: "task.updated",
+              message: "Task advanced.",
+              createdAt: new Date("2026-08-14T13:00:00.000Z"),
+              actorUser: null,
+              task: { id: "task-a", title: "Call customer", status: "IN_PROGRESS", assignedUserId: manager.id },
+              concernCase: null
+            },
+            {
+              id: "activity-b",
+              eventType: "task.updated",
+              message: "Task reviewed.",
+              createdAt: new Date("2026-08-14T12:00:00.000Z"),
+              actorUser: null,
+              task: { id: "task-b", title: "Send email", status: "READY_FOR_REVIEW", assignedUserId: manager.id },
+              concernCase: null
+            }
+          ],
+          appointmentHistoryEvents: [],
+          leadEvents: [],
+          caseEvents: [],
+          promiseEvents: [],
+          crmDomainEvents: [],
+          page: {
+            limit: 3,
+            hasMore: true
+          }
+        };
+      }
+    };
+
+    const model = await getUnifiedCrmCustomer360(manager, "customer-a", setup.deps);
+    expect(model.timeline.page).toMatchObject({
+      limit: 3,
+      hasMore: true
+    });
+    expect(model.timeline.items).toHaveLength(3);
+  });
+
   it.each([
     ["missing", null],
     ["other organization", null],
@@ -317,6 +442,76 @@ describe("Unified CRM Customer 360 service", () => {
       httpStatus: 404,
       message: "Customer details are not available."
     });
+  });
+
+  it("does not query timeline sources until the canonical customer is confirmed in scope", async () => {
+    const setup = dependencies(null);
+    const listTimeline = vi.fn();
+    setup.deps.timelineRepository = { listTimeline };
+
+    await expect(getUnifiedCrmCustomer360(manager, "other-org-customer", setup.deps)).rejects.toMatchObject({
+      code: "CUSTOMER_NOT_AVAILABLE",
+      message: "Customer details are not available."
+    });
+
+    expect(listTimeline).not.toHaveBeenCalled();
+  });
+
+  it("orders correlated activity deterministically and omits uncontracted source fields", async () => {
+    const setup = dependencies(record());
+    const source = await timelineRepository().listTimeline({} as never);
+    setup.deps.timelineRepository = {
+      async listTimeline() {
+        return {
+          ...source,
+          interactions: [
+            {
+              id: "a",
+              channel: "PHONE",
+              direction: "OUTBOUND",
+              summary: "First same-time event",
+              outcome: null,
+              nextStep: null,
+              occurredAt: new Date("2026-08-14T15:00:00.000Z"),
+              actorUser: null,
+              rawPhone: "+16125550000"
+            },
+            {
+              id: "b",
+              channel: "EMAIL",
+              direction: "OUTBOUND",
+              summary: "Second same-time event",
+              outcome: null,
+              nextStep: null,
+              occurredAt: new Date("2026-08-14T15:00:00.000Z"),
+              actorUser: null,
+              secretToken: "timeline-secret"
+            }
+          ] as never,
+          activityEvents: [{
+            id: "task-event",
+            eventType: "task.updated",
+            message: "Task updated.",
+            createdAt: new Date("2026-08-14T14:00:00.000Z"),
+            actorUser: null,
+            task: { id: "task-a", title: "Call customer", status: "IN_PROGRESS", assignedUserId: manager.id },
+            concernCase: null
+          }],
+          appointmentHistoryEvents: [],
+          leadEvents: [],
+          caseEvents: [],
+          promiseEvents: [],
+          crmDomainEvents: [],
+          page: { limit: 20, hasMore: false }
+        };
+      }
+    };
+
+    const model = await getUnifiedCrmCustomer360(manager, "customer-a", setup.deps);
+    expect(model.timeline.items.map((item) => item.id)).toEqual(["interaction:b", "interaction:a", "activity:task-event"]);
+    expect(model.timeline.items[2]).toMatchObject({ correlationKey: "task:task-a", sourceRecordId: "task-a" });
+    expect(JSON.stringify(model.timeline)).not.toContain("+16125550000");
+    expect(JSON.stringify(model.timeline)).not.toContain("timeline-secret");
   });
 
   it.each([
@@ -338,6 +533,19 @@ describe("Unified CRM Customer 360 service", () => {
   it("maps repository failures to a safe typed source error", async () => {
     const setup = dependencies(record());
     setup.deps.repository.findCustomer = async () => { throw new Error("database secret"); };
+    await expect(getUnifiedCrmCustomer360(manager, "customer-a", setup.deps)).rejects.toMatchObject({
+      code: "CUSTOMER_SOURCE_UNAVAILABLE",
+      message: "Customer details are temporarily unavailable."
+    });
+  });
+
+  it("maps timeline source failures without leaking backend text", async () => {
+    const setup = dependencies(record());
+    setup.deps.timelineRepository = {
+      async listTimeline() {
+        throw new Error("private activity database detail");
+      }
+    };
     await expect(getUnifiedCrmCustomer360(manager, "customer-a", setup.deps)).rejects.toMatchObject({
       code: "CUSTOMER_SOURCE_UNAVAILABLE",
       message: "Customer details are temporarily unavailable."

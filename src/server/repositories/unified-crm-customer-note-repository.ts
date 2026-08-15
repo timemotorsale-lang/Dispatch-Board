@@ -40,40 +40,30 @@ function json(value: unknown) {
   return value as Prisma.InputJsonValue;
 }
 
+function noteSnapshot(value: unknown) {
+  if (!value || typeof value !== "object") return null;
+  const snapshot = value as { customerId?: unknown; noteId?: unknown; visibility?: unknown };
+  const visibility = typeof snapshot.visibility === "string" ? snapshot.visibility.trim().toUpperCase() : "";
+  if (
+    typeof snapshot.customerId !== "string" ||
+    typeof snapshot.noteId !== "string" ||
+    (visibility !== "INTERNAL" && visibility !== "RESTRICTED")
+  ) {
+    return null;
+  }
+  return {
+    customerId: snapshot.customerId,
+    noteId: snapshot.noteId,
+    visibility
+  };
+}
+
 export function createUnifiedCrmCustomerNoteRepository(
   database: NoteDatabase = prisma
 ): UnifiedCrmCustomerNoteRepository {
   return {
     createNote(input) {
       return database.$transaction(async (tx) => {
-        const existing = await tx.enterpriseCommandLedger.findUnique({
-          where: {
-            organizationId_domain_commandType_idempotencyKey: {
-              organizationId: input.command.organizationId,
-              domain: input.command.domain,
-              commandType: input.command.commandType,
-              idempotencyKey: input.command.idempotencyKey
-            }
-          }
-        });
-        if (existing) {
-          if (existing.requestHash !== input.command.requestHash) {
-            throw new EnterpriseCommandConflictError("Idempotency key was already used with a different request.", "IDEMPOTENCY_KEY_REUSED");
-          }
-          const snapshot = existing.resultSnapshot as {
-            customerId: string;
-            noteId: string;
-            visibility: string;
-          };
-          return {
-            customerId: snapshot.customerId,
-            duplicate: true,
-            noteId: snapshot.noteId,
-            version: existing.resultingVersion ?? 0,
-            visibility: snapshot.visibility
-          };
-        }
-
         const customer = await tx.customer.findFirst({
           where: {
             id: input.command.customerId,
@@ -89,6 +79,36 @@ export function createUnifiedCrmCustomerNoteRepository(
         });
         if (!customer) {
           throw new Error("Customer not available.");
+        }
+
+        const existing = await tx.enterpriseCommandLedger.findUnique({
+          where: {
+            organizationId_domain_commandType_idempotencyKey: {
+              organizationId: input.command.organizationId,
+              domain: input.command.domain,
+              commandType: input.command.commandType,
+              idempotencyKey: input.command.idempotencyKey
+            }
+          }
+        });
+        if (existing) {
+          if (existing.subjectType !== "CUSTOMER" || existing.subjectId !== customer.id) {
+            throw new Error("Customer note idempotency scope is unavailable.");
+          }
+          if (existing.requestHash !== input.command.requestHash) {
+            throw new EnterpriseCommandConflictError("Idempotency key was already used with a different request.", "IDEMPOTENCY_KEY_REUSED");
+          }
+          const snapshot = noteSnapshot(existing.resultSnapshot);
+          if (!snapshot || snapshot.customerId !== customer.id) {
+            throw new Error("Stored customer note replay is invalid.");
+          }
+          return {
+            customerId: snapshot.customerId,
+            duplicate: true,
+            noteId: snapshot.noteId,
+            version: existing.resultingVersion ?? 0,
+            visibility: snapshot.visibility
+          };
         }
 
         const note = await tx.customerNote.create({

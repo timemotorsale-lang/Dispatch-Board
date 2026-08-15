@@ -31,6 +31,14 @@ type Dependencies = UnifiedCrmCustomer360AccessOptions & {
 
 const VISIBILITIES = ["INTERNAL", "RESTRICTED"] as const;
 
+function normalizeCustomerId(value: unknown) {
+  const result = typeof value === "string" ? value.trim() : "";
+  if (!result || result.length > 200) {
+    throw new UnifiedCrmCustomerNoteError("INVALID_NOTE_COMMAND", "Customer identifier is invalid.");
+  }
+  return result;
+}
+
 function text(value: unknown, field: string, max: number) {
   const result = typeof value === "string" ? value.trim() : "";
   if (!result) {
@@ -66,6 +74,7 @@ export async function logUnifiedCrmCustomerNote(
 ): Promise<UnifiedCrmCustomerNoteCommandResult> {
   const access = requireUnifiedCrmCustomer360Access(actor, dependencies);
   const now = dependencies.now?.() ?? new Date();
+  const normalizedCustomerId = normalizeCustomerId(customerId);
   const normalizedCommand = normalizeCommand(value);
   const scopeRepository = dependencies.scopeRepository ?? createUnifiedCrmCustomerReadRepository();
   const repository = dependencies.repository ?? createUnifiedCrmCustomerNoteRepository();
@@ -76,7 +85,10 @@ export async function logUnifiedCrmCustomerNote(
 
   try {
     const organizationIds = await scopeRepository.listActiveOrganizationIds(actor!.id, now);
-    if (organizationIds.length !== 1) {
+    if (organizationIds.length === 0) {
+      throw new UnifiedCrmCustomerNoteError("CUSTOMER_360_NOT_AUTHORIZED", "Customer note is not available for this viewer.");
+    }
+    if (organizationIds.length > 1) {
       throw new UnifiedCrmCustomerNoteError("CUSTOMER_SOURCE_UNAVAILABLE", "Customer note requires one active organization scope.");
     }
     const organizationId = organizationIds[0];
@@ -93,7 +105,7 @@ export async function logUnifiedCrmCustomerNote(
         visibility: normalizedCommand.visibility
       },
       reason: `Record customer note: ${normalizedCommand.body.slice(0, 80)}`,
-      subjectId: customerId.trim(),
+      subjectId: normalizedCustomerId,
       subjectType: "CUSTOMER"
     });
 
@@ -103,7 +115,7 @@ export async function logUnifiedCrmCustomerNote(
         body: normalizedCommand.body,
         commandType: command.commandType,
         correlationId: command.correlationId,
-        customerId: customerId.trim(),
+        customerId: normalizedCustomerId,
         domain: command.domain,
         idempotencyKey: command.idempotencyKey,
         organizationId,
