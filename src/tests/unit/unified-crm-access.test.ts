@@ -83,13 +83,13 @@ describe("Unified CRM foundation capability policy", () => {
     });
   });
 
-  it("does not grant sensitive, mutation, export, or administration capabilities by role", () => {
+  it("grants customer mutation while keeping sensitive, export, and administration capabilities denied by role", () => {
     for (const actor of [user(["General Manager"]), user(["Sales Manager"]), user(["Salesperson"])]) {
       expect(getUnifiedCrmCapabilityMap(actor)).toEqual({
         "crm.console.access": true,
         "crm.customer.view": true,
         "crm.sensitive.view": false,
-        "crm.mutate": false,
+        "crm.mutate": true,
         "crm.export": false,
         "crm.admin": false
       });

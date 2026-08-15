@@ -30,6 +30,8 @@ This checkpoint did not enable live opportunity creation, stage entry, transitio
 
 The newest read-only opportunity packet extends that honesty inside the review surfaces themselves. Opportunity detail now explicitly says whether a persisted source record is visible yet and, when one is visible, shows the latest visible source update time. Opportunity review hub now always shows the live-record lane, including the honest empty state when no same-scope persisted read-only opportunity is visible, instead of silently hiding that condition.
 
+The latest read-only continuity packet makes persisted opportunity detail more useful without crossing the held lifecycle boundary. When a permitted customer is attached, detail now links safely back into Customer 360; it also exposes additional same-customer persisted read-only opportunities, filtered to the same organization and owner scope, so a reviewer can move between related records without implying live stage movement or write access.
+
 Focused verification passed on 2026-08-15 as recorded in [`docs/unified-crm/UCRM_030_FOUNDATION_EVIDENCE.md`](unified-crm/UCRM_030_FOUNDATION_EVIDENCE.md). `UCRM-030` remains `HELD`: `UCRM-DEC-003` is still deferred, so the opportunity milestone is not complete and no live create path is authorized from this checkpoint.
 
 ## 2026-08-15 — Unified CRM UCRM-023 commitment and next action implemented
@@ -37,6 +39,8 @@ Focused verification passed on 2026-08-15 as recorded in [`docs/unified-crm/UCRM
 The current Unified CRM baseline now contains a hardened CRM customer next-action slice inside Customer 360. Staff can set, renew, reschedule, or complete a dated customer follow-up through the protected next-action route without sending an external communication or changing any source-owned operational workflow.
 
 This checkpoint tightened both correctness and the day-to-day user experience. Exact customer authorization now precedes idempotency replay in the next-action repository, replay is bound to the same authorized customer subject, invalid stored replays fail closed, and stale or owner-missing updates remain typed conflicts instead of generic failures. Customer 360 now also carries a server-authored next-action state so the experience can explain whether the current follow-up is overdue, due today, scheduled, or absent, and the next-action form uses matching renewal language.
+
+The newest authority pass aligns that command boundary with the actual CRM capability model. The next-action route now requires the dedicated CRM mutation capability in addition to shell review, customer-read review, and next-action command review; Customer 360 only advertises the live next-action form when that exact combined command authority is available; and the route now returns the typed next-action error envelope with a safe generic `500` fallback instead of treating unknown failures like validation errors.
 
 Focused verification passed on 2026-08-15 as recorded in [`docs/unified-crm/UCRM_023_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_023_IMPLEMENTATION_EVIDENCE.md). UCRM-023 remains `IMPLEMENTED_UNVERIFIED`: authenticated browser proof and isolated PostgreSQL proof are still required. No external delivery, broader source mutation, or stage-dependent opportunity behavior was enabled by this checkpoint.
 

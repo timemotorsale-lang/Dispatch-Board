@@ -32,6 +32,14 @@ function repository(result = {
   return { received, repo };
 }
 
+function accessModes() {
+  return {
+    commandMode: "REVIEW" as const,
+    readMode: "REVIEW" as const,
+    shellMode: "REVIEW" as const
+  };
+}
+
 describe("Unified CRM customer next action command", () => {
   it("records a next action with organization scope and returns the normalized result", async () => {
     const source = repository();
@@ -44,8 +52,8 @@ describe("Unified CRM customer next action command", () => {
       note: "Customer requested a Friday check-in.",
       operation: "set"
     }, {
+      ...accessModes(),
       now: () => now,
-      readMode: "REVIEW",
       repository: source.repo,
       scopeRepository: { async listActiveOrganizationIds() { return ["org-a"]; } }
     });
@@ -82,8 +90,8 @@ describe("Unified CRM customer next action command", () => {
       idempotencyKey: "next-action-2",
       operation: "complete"
     }, {
+      ...accessModes(),
       now: () => new Date("2026-08-14T15:00:00.000Z"),
-      readMode: "REVIEW",
       repository: source.repo,
       scopeRepository: { async listActiveOrganizationIds() { return ["org-a"]; } }
     });
@@ -108,8 +116,8 @@ describe("Unified CRM customer next action command", () => {
       idempotencyKey: "next-action-3",
       operation: "SET"
     }, {
+      ...accessModes(),
       now: () => new Date("2026-08-14T15:00:00.000Z"),
-      readMode: "REVIEW",
       repository: repository().repo,
       scopeRepository: { async listActiveOrganizationIds() { return ["org-a"]; } }
     })).rejects.toMatchObject({ code: "INVALID_NEXT_ACTION_COMMAND" });
@@ -120,8 +128,8 @@ describe("Unified CRM customer next action command", () => {
       idempotencyKey: "next-action-4",
       operation: "SET"
     }, {
+      ...accessModes(),
       now: () => new Date("2026-08-14T15:00:00.000Z"),
-      readMode: "REVIEW",
       repository: repository().repo,
       scopeRepository: { async listActiveOrganizationIds() { return ["org-a", "org-b"]; } }
     })).rejects.toMatchObject({ code: "CUSTOMER_SOURCE_UNAVAILABLE" });
@@ -133,8 +141,8 @@ describe("Unified CRM customer next action command", () => {
       idempotencyKey: "next-action-missing-current",
       operation: "SET"
     }, {
+      ...accessModes(),
       now: () => new Date("2026-08-14T15:00:00.000Z"),
-      readMode: "REVIEW",
       repository: repository().repo,
       scopeRepository: { async listActiveOrganizationIds() { return ["org-a"]; } }
     })).rejects.toMatchObject({ code: "INVALID_NEXT_ACTION_COMMAND" });
@@ -144,8 +152,8 @@ describe("Unified CRM customer next action command", () => {
       idempotencyKey: "next-action-complete-missing-active",
       operation: "COMPLETE"
     }, {
+      ...accessModes(),
       now: () => new Date("2026-08-14T15:00:00.000Z"),
-      readMode: "REVIEW",
       repository: repository({
         customerId: "customer-1",
         duplicate: false,
@@ -166,8 +174,8 @@ describe("Unified CRM customer next action command", () => {
       idempotencyKey: "trimmed-customer-id",
       operation: "SET"
     }, {
+      ...accessModes(),
       now: () => new Date("2026-08-14T15:00:00.000Z"),
-      readMode: "REVIEW",
       repository: source.repo,
       scopeRepository: { async listActiveOrganizationIds() { return ["org-a"]; } }
     })).resolves.toMatchObject({ customerId: "customer-1" });
@@ -182,8 +190,8 @@ describe("Unified CRM customer next action command", () => {
       dueAt: "2026-08-15T15:00:00.000Z",
       operation: "SET"
     }, {
+      ...accessModes(),
       now: () => new Date("2026-08-14T15:00:00.000Z"),
-      readMode: "REVIEW",
       repository: repository().repo,
       scopeRepository: { async listActiveOrganizationIds() { return ["org-a"]; } }
     })).rejects.toMatchObject({ code: "INVALID_NEXT_ACTION_COMMAND" });
@@ -193,8 +201,8 @@ describe("Unified CRM customer next action command", () => {
       idempotencyKey: "complete-without-op",
       operation: "COMPLETE"
     }, {
+      ...accessModes(),
       now: () => new Date("2026-08-14T15:00:00.000Z"),
-      readMode: "REVIEW",
       repository: {
         async commitNextAction() {
           throw new Error("No next action available.");
@@ -213,8 +221,10 @@ describe("Unified CRM customer next action command", () => {
     }, {
       commandMode: "OFF",
       now: () => new Date("2026-08-14T15:00:00.000Z"),
+      readMode: "REVIEW",
       repository: repository().repo,
-      scopeRepository: { async listActiveOrganizationIds() { return ["org-a"]; } }
+      scopeRepository: { async listActiveOrganizationIds() { return ["org-a"]; } },
+      shellMode: "REVIEW"
     })).rejects.toMatchObject({ code: "CUSTOMER_360_OFF" });
   });
 
@@ -225,8 +235,8 @@ describe("Unified CRM customer next action command", () => {
       idempotencyKey: "next-action-5",
       operation: "SET"
     }, {
+      ...accessModes(),
       now: () => new Date("2026-08-14T15:00:00.000Z"),
-      readMode: "REVIEW",
       repository: {
         async commitNextAction() {
           throw new Error("Customer owner required.");
@@ -241,8 +251,8 @@ describe("Unified CRM customer next action command", () => {
       idempotencyKey: "next-action-6",
       operation: "SET"
     }, {
+      ...accessModes(),
       now: () => new Date("2026-08-14T15:00:00.000Z"),
-      readMode: "REVIEW",
       repository: {
         async commitNextAction() {
           throw new Error("Stale next action.");
@@ -257,8 +267,8 @@ describe("Unified CRM customer next action command", () => {
       operation: "SET",
       expectedCurrentNextActionAt: null
     }, {
+      ...accessModes(),
       now: () => new Date("2026-08-14T15:00:00.000Z"),
-      readMode: "REVIEW",
       repository: {
         async commitNextAction() {
           throw Object.assign(new Error("Already used."), { code: "IDEMPOTENCY_KEY_REUSED" });
@@ -272,8 +282,8 @@ describe("Unified CRM customer next action command", () => {
       idempotencyKey: "next-action-8",
       operation: "COMPLETE"
     }, {
+      ...accessModes(),
       now: () => new Date("2026-08-14T15:00:00.000Z"),
-      readMode: "REVIEW",
       repository: {
         async commitNextAction() {
           throw new Error("No next action available.");
@@ -290,8 +300,8 @@ describe("Unified CRM customer next action command", () => {
       operation: "SET",
       expectedCurrentNextActionAt: "2026-08-14T12:00:00.000Z"
     }, {
+      ...accessModes(),
       now: () => new Date("2026-08-14T15:00:00.000Z"),
-      readMode: "REVIEW",
       repository: {
         async commitNextAction() {
           throw new Error("Customer not available.");
@@ -306,8 +316,8 @@ describe("Unified CRM customer next action command", () => {
       operation: "SET",
       expectedCurrentNextActionAt: "2026-08-14T12:00:00.000Z"
     }, {
+      ...accessModes(),
       now: () => new Date("2026-08-14T15:00:00.000Z"),
-      readMode: "REVIEW",
       repository: repository().repo,
       scopeRepository: { async listActiveOrganizationIds() { return ["org-a"]; } }
     })).rejects.toMatchObject({ code: "AUTHENTICATION_REQUIRED" });
@@ -318,8 +328,8 @@ describe("Unified CRM customer next action command", () => {
       operation: "SET",
       expectedCurrentNextActionAt: "2026-08-14T12:00:00.000Z"
     }, {
+      ...accessModes(),
       now: () => new Date("2026-08-14T15:00:00.000Z"),
-      readMode: "REVIEW",
       repository: {
         async commitNextAction() {
           throw new Error("private source failure");

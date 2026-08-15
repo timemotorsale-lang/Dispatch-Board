@@ -17,7 +17,9 @@ import {
   requireUnifiedCrmCustomer360Access,
   type UnifiedCrmCustomer360AccessOptions
 } from "@/server/unified-crm/customer-360-access";
-import { resolveUnifiedCrmCustomerNextActionMode } from "@/server/unified-crm/customer-next-action-access";
+import {
+  canManageUnifiedCrmCustomerNextAction
+} from "@/server/unified-crm/customer-next-action-access";
 import { resolveUnifiedCrmCustomerTaskBridgeMode } from "@/server/unified-crm/customer-task-bridge-access";
 import {
   UNIFIED_CRM_CUSTOMER_360_CONTRACT_VERSION,
@@ -358,10 +360,12 @@ export async function getUnifiedCrmCustomer360(
     bridgeMode: process.env.UNIFIED_CRM_CUSTOMER_TASK_BRIDGE_MODE,
     nodeEnv: dependencies.nodeEnv ?? process.env.NODE_ENV
   }) === "REVIEW";
-  const canManageNextAction = resolveUnifiedCrmCustomerNextActionMode({
+  const canManageNextAction = canManageUnifiedCrmCustomerNextAction(actor, record.ownerUser?.id ?? null, {
     commandMode: dependencies.commandMode ?? process.env.UNIFIED_CRM_CUSTOMER_NEXT_ACTION_MODE,
-    nodeEnv: dependencies.nodeEnv ?? process.env.NODE_ENV
-  }) === "REVIEW" && Boolean(record.ownerUser?.id);
+    nodeEnv: dependencies.nodeEnv ?? process.env.NODE_ENV,
+    readMode: dependencies.readMode ?? process.env.UNIFIED_CRM_CUSTOMER_READ_MODE,
+    shellMode: dependencies.shellMode ?? process.env.UNIFIED_CRM_SHELL_MODE
+  });
   const timelineView = timelineItems({ model: timeline });
   const newestTimelineItem = timelineView[0]?.occurredAt ?? null;
   const visibility = recordScope.kind === "ORGANIZATION" ? "organization" : "owned";

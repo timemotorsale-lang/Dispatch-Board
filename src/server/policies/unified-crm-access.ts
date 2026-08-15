@@ -29,7 +29,8 @@ export type UnifiedCrmCapabilityDecision = {
 
 const FOUNDATION_ALLOWED_CAPABILITIES = new Set<UnifiedCrmCapability>([
   "crm.console.access",
-  "crm.customer.view"
+  "crm.customer.view",
+  "crm.mutate"
 ]);
 
 export function resolveUnifiedCrmWorkspace(
