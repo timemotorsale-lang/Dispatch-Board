@@ -118,6 +118,12 @@ export function UnifiedCrmOpportunityDetail({ errorMessage, failureKind = "error
           title="Keep the opportunity flow one click away"
           actions={[
             {
+              label: "Review queue flow",
+              description: "Inspect the first opportunity queue so owned and at-risk work stays clear before live prioritization exists.",
+              href: `/crm/opportunities/queue?crmReturnTo=${encodeURIComponent(returnHref)}`,
+              state: "REVIEW"
+            },
+            {
               label: "Review create flow",
               description: "Validate the first governed create experience before live opportunity writes are enabled.",
               href: `/crm/opportunities/new?crmReturnTo=${encodeURIComponent(returnHref)}`,

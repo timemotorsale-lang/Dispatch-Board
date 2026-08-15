@@ -1,0 +1,251 @@
+.page {
+  min-height: calc(100vh - 58px);
+  padding: 14px 16px 24px;
+  color: #13233a;
+  background: #f4f7fb;
+}
+
+.backLink,
+.sourceLink,
+.stateActions a,
+.primaryAction {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #1762cf;
+  text-decoration: none;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.backLink { margin: 0 auto 12px; max-width: 1320px; }
+
+.identityCard,
+.trustBar,
+.summaryGrid article,
+.bridgeCard,
+.unlockCard,
+.statePanel {
+  border: 1px solid #dce4ee;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgb(22 42 68 / 4%);
+}
+
+.identityCard,
+.trustBar,
+.summaryGrid,
+.bridgeGrid,
+.unlockGrid,
+.statePanel {
+  max-width: 1320px;
+  margin: 0 auto;
+}
+
+.identityCard {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+}
+
+.identityMain {
+  display: grid;
+  gap: 8px;
+}
+
+.eyebrow {
+  color: #1762cf;
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.identityMain h1,
+.identityMain p,
+.bridgeCard p,
+.unlockCard p,
+.summaryGrid p,
+.statePanel p {
+  margin: 0;
+}
+
+.identityMain h1 { font-size: 27px; letter-spacing: -.02em; }
+.identityMain p,
+.summaryGrid p,
+.bridgeCard p,
+.unlockCard p,
+.statePanel p { color: #64748b; font-size: 11px; line-height: 1.5; }
+
+.statusMeta {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  border-radius: 999px;
+  padding: 0 10px;
+  color: #b86105;
+  background: #fff2dc;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.statusMeta small { color: #64748b; font-size: 10px; }
+.statusMeta strong { font-size: 11px; }
+
+.trustBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 10px 14px;
+  font-size: 10.5px;
+}
+
+.trustBar span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.summaryGrid,
+.bridgeGrid,
+.unlockGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.summaryGrid article,
+.bridgeCard,
+.unlockCard {
+  display: grid;
+  gap: 8px;
+  min-height: 138px;
+  padding: 14px;
+}
+
+.summaryGrid strong,
+.bridgeCard strong,
+.unlockCard strong { font-size: 11.5px; }
+
+.bridgeCard header,
+.unlockCard header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.heldTag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  border-radius: 999px;
+  padding: 0 8px;
+  color: #b86105;
+  background: #fff2dc;
+  font-size: 9.5px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.statePanel {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 32px 18px;
+  text-align: center;
+}
+
+.stateActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.stateActions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  border: 1px solid #1762cf;
+  border-radius: 7px;
+  padding: 0 12px;
+  color: #fff;
+  background: #1762cf;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.actionLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.loading {
+  max-width: 1320px;
+  margin: 0 auto;
+  border: 1px solid #dce4ee;
+  border-radius: 8px;
+  padding: 18px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgb(22 42 68 / 4%);
+}
+
+.loading h1,
+.loading p {
+  margin: 0;
+}
+
+.loading h1 { margin-top: 6px; font-size: 23px; }
+.loading p { margin-top: 6px; color: #64748b; font-size: 11px; }
+
+.skeletons {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.skeletons span {
+  min-height: 92px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #edf2f7 0%, #f8fafc 50%, #edf2f7 100%);
+}
+
+@media (max-width: 900px) {
+  .identityCard,
+  .trustBar { flex-direction: column; }
+  .statusMeta { justify-items: start; }
+  .summaryGrid,
+  .bridgeGrid,
+  .unlockGrid,
+  .skeletons { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+  .page { padding: 11px; }
+  .backLink,
+  .stateActions,
+  .trustBar { align-items: flex-start; }
+  .stateActions { flex-direction: column; }
+  .actionLinks { flex-direction: column; }
+}

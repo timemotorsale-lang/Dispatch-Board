@@ -61,16 +61,23 @@ describe("Unified CRM opportunity detail", () => {
     expect(markup).toContain("Dispatch and jobs");
     expect(markup).toContain("Approve stage definitions, transition evidence, and close or loss rules before enabling create or movement.");
     expect(markup).toContain("Review create flow");
+    expect(markup).toContain("Review queue flow");
     expect(markup).toContain("Review transition flow");
     expect(markup).toContain("Keep the opportunity flow one click away");
     expect(markup).toContain("Return to pipeline");
     expect(markup).not.toContain("Move to proposal");
+    expect(markup).toContain("<main");
+    expect(markup).toContain('aria-label="Opportunity summary"');
+    expect(markup).not.toContain("<form");
+    expect(markup).not.toContain("<button");
   });
 
   it("renders safe failure and loading states", () => {
     const unavailable = renderToStaticMarkup(<UnifiedCrmOpportunityDetail failureKind="unavailable" returnHref="/crm?view=pipeline" />);
     const loading = renderToStaticMarkup(<UnifiedCrmOpportunityDetailLoading />);
     expect(unavailable).toContain("Opportunity detail is temporarily unavailable");
+    expect(unavailable).toContain('role="alert"');
     expect(loading).toContain("Loading permitted opportunity detail");
+    expect(loading).toContain('aria-busy="true"');
   });
 });
