@@ -174,6 +174,23 @@ describe("Unified CRM work queue service", () => {
       now: () => now,
       readMode: "REVIEW",
       repository: repository({
+        async listTasks() {
+          return [{
+            id: "task-invalid-customer",
+            title: "Do not guess a customer route",
+            status: "IN_PROGRESS",
+            priority: "NORMAL",
+            dueAt: new Date("2026-08-14T15:00:00.000Z"),
+            workflowArea: "SALES",
+            blockerReason: null,
+            requiresManagerApproval: false,
+            customerReference: "Snapshot only",
+            vehicleReference: null,
+            updatedAt: new Date("2026-08-14T12:00:00.000Z"),
+            customer: { id: "x".repeat(129), displayName: "Unsafe identity", customerNumber: "CUS-X" },
+            assignedUser: { id: "manager-1", name: "CRM Manager" }
+          }];
+        },
         async listAppointments() {
           return [{
             id: "appt-1",
@@ -187,6 +204,47 @@ describe("Unified CRM work queue service", () => {
             updatedAt: new Date("2026-08-14T10:00:00.000Z"),
             ownerUser: { id: "manager-1", name: "CRM Manager" },
             participants: [{ displayNameSnapshot: "Unknown customer", customer: null }]
+          }];
+        }
+      })
+    });
+
+    expect(result.items.find((item) => item.id === "appt-1")).toMatchObject({
+      kind: "appointment",
+      customerHref: undefined
+    });
+    expect(result.today[0]).toMatchObject({
+      id: "appt-1",
+      customerHref: undefined
+    });
+    expect(result.items.find((item) => item.id === "task-invalid-customer")?.customerHref).toBeUndefined();
+  });
+
+  it("fails closed when a linked customer id is invalid or overlength", async () => {
+    const result = await getUnifiedCrmWorkQueue(manager, {
+      now: () => now,
+      readMode: "REVIEW",
+      repository: repository({
+        async listAppointments() {
+          return [{
+            id: "appt-1",
+            appointmentNumber: "APT-1",
+            title: "Delivery follow-up",
+            startsAt: new Date("2026-08-14T16:00:00.000Z"),
+            bookingStatus: "SCHEDULED",
+            confirmationStatus: "PENDING",
+            attendanceStatus: "EXPECTED",
+            executionStatus: "NOT_STARTED",
+            updatedAt: new Date("2026-08-14T10:00:00.000Z"),
+            ownerUser: { id: "manager-1", name: "CRM Manager" },
+            participants: [{
+              displayNameSnapshot: "Alex Morgan",
+              customer: {
+                id: "x".repeat(129),
+                displayName: "Alex Morgan",
+                customerNumber: "CUS-18"
+              }
+            }]
           }];
         }
       })

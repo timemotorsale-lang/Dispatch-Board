@@ -114,4 +114,44 @@ describe("Unified CRM opportunity detail page", () => {
     expect(markup).not.toContain("private-review-id");
     expect(markup).not.toContain(`backend ${code}`);
   });
+
+  it.each([
+    ["OPPORTUNITY_DETAIL_NOT_FOUND", "Opportunity detail isn’t available"],
+    ["OPPORTUNITY_DETAIL_SOURCE_UNAVAILABLE", "Opportunity detail is temporarily unavailable"]
+  ])("maps persisted-read %s without enumerating the record or leaking backend text", async (code, expectedTitle) => {
+    mocks.getUnifiedCrmOpportunityDetail.mockRejectedValue(
+      Object.assign(new Error(`postgres secret for private-opportunity`), { code })
+    );
+
+    const markup = renderToStaticMarkup(await OpportunityPage({
+      params: Promise.resolve({ opportunityId: "private-opportunity" }),
+      searchParams: Promise.resolve({ crmReturnTo: "/crm?view=pipeline" })
+    }));
+
+    expect(markup).toContain(expectedTitle);
+    expect(mocks.getUnifiedCrmOpportunityDetail).toHaveBeenCalledOnce();
+    expect(markup).not.toContain("private-opportunity");
+    expect(markup).not.toContain("postgres secret");
+  });
+
+  it("renders byte-equivalent not-available output for invalid and missing persisted opportunity ids", async () => {
+    mocks.getUnifiedCrmOpportunityDetail.mockRejectedValueOnce(
+      Object.assign(new Error("invalid private id"), { code: "INVALID_OPPORTUNITY_ID" })
+    );
+    const invalidMarkup = renderToStaticMarkup(await OpportunityPage({
+      params: Promise.resolve({ opportunityId: "invalid-private-id" }),
+      searchParams: Promise.resolve({ crmReturnTo: "/crm?view=pipeline" })
+    }));
+
+    mocks.getUnifiedCrmOpportunityDetail.mockRejectedValueOnce(
+      Object.assign(new Error("missing private id"), { code: "OPPORTUNITY_DETAIL_NOT_FOUND" })
+    );
+    const missingMarkup = renderToStaticMarkup(await OpportunityPage({
+      params: Promise.resolve({ opportunityId: "missing-private-id" }),
+      searchParams: Promise.resolve({ crmReturnTo: "/crm?view=pipeline" })
+    }));
+
+    expect(missingMarkup).toBe(invalidMarkup);
+    expect(missingMarkup).not.toContain("private-id");
+  });
 });

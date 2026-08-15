@@ -99,8 +99,10 @@ function customerLabel(value: { displayName: string; customerNumber: string } | 
 }
 
 function customerHref(value: { id: string } | null | undefined) {
-  if (!value?.id?.trim()) return undefined;
-  return buildUnifiedCrmCustomerReturn(value.id, "/crm?view=work");
+  const normalizedId = value?.id?.trim();
+  if (!normalizedId || normalizedId.length > 128) return undefined;
+  const href = buildUnifiedCrmCustomerReturn(normalizedId, "/crm?view=work");
+  return href.startsWith("/crm/customers/") ? href : undefined;
 }
 
 function rankSource(kind: QueueCandidate["kind"]) {

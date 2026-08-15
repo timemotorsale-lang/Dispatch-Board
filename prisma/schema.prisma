@@ -1727,6 +1727,7 @@ model User {
   crmDecisionOverrides                    CrmDecisionRecord[]                    @relation("CrmDecisionOverrideUser")
   ownedCustomerLeads                      CustomerLead[]                         @relation("CustomerLeadOwner")
   createdCustomerLeads                    CustomerLead[]                         @relation("CustomerLeadCreatedBy")
+  ownedUnifiedCrmOpportunities            UnifiedCrmOpportunityRecord[]          @relation("UnifiedCrmOpportunityOwner")
   vehicleCapabilityGrants                 VehicleCapabilityGrant[]
   enterpriseCommandLedgerEntries          EnterpriseCommandLedger[]              @relation("EnterpriseCommandActor")
   enterpriseAuditEvents                   EnterpriseAuditEvent[]                 @relation("EnterpriseAuditActor")
@@ -2031,6 +2032,7 @@ model Organization {
   appointmentAutomationExecutionEvents  AppointmentAutomationExecutionEvent[]
   crmDecisionRecords                    CrmDecisionRecord[]
   customerLeads                         CustomerLead[]
+  unifiedCrmOpportunities               UnifiedCrmOpportunityRecord[]
   concernCases                          ConcernCase[]
   customerSlaPolicies                   CustomerSlaPolicy[]
   crmFeatureFlags                       CustomerCrmFeatureFlag[]
@@ -2484,6 +2486,7 @@ model Customer {
   serviceVisits                   ServiceVisit[]
   serviceIntakeReadinessSnapshots ServiceIntakeReadinessSnapshot[]
   repairOrders                    RepairOrder[]
+  unifiedCrmOpportunities         UnifiedCrmOpportunityRecord[]          @relation("UnifiedCrmOpportunityCustomer")
 
   @@unique([organizationId, customerNumber])
   @@unique([id, organizationId])
@@ -2633,6 +2636,7 @@ model CustomerLead {
   customer              Customer               @relation(fields: [customerId], references: [id], onDelete: Restrict)
   ownerUser             User                   @relation("CustomerLeadOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
   createdByUser         User                   @relation("CustomerLeadCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  unifiedCrmOpportunities UnifiedCrmOpportunityRecord[]  @relation("UnifiedCrmOpportunitySourceLead")
   taskLinks             CustomerLeadTaskLink[]
 
   @@unique([organizationId, leadNumber])
@@ -2654,6 +2658,29 @@ model CustomerLeadTaskLink {
 
   @@unique([leadId, actionCode, decisionId])
   @@index([leadId, createdAt])
+}
+
+model UnifiedCrmOpportunityRecord {
+  id                String        @id @default(cuid())
+  organizationId    String
+  opportunityNumber String
+  title             String
+  summary           String?
+  customerId        String?
+  ownerUserId       String?
+  sourceLeadId      String?
+  archivedAt        DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  organization      Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  customer          Customer?     @relation("UnifiedCrmOpportunityCustomer", fields: [customerId], references: [id], onDelete: SetNull)
+  ownerUser         User?         @relation("UnifiedCrmOpportunityOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  sourceLead        CustomerLead? @relation("UnifiedCrmOpportunitySourceLead", fields: [sourceLeadId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, opportunityNumber])
+  @@index([organizationId, ownerUserId, updatedAt])
+  @@index([customerId, updatedAt])
+  @@index([sourceLeadId])
 }
 
 model Vehicle {

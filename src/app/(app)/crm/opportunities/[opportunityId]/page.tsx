@@ -42,11 +42,11 @@ export default async function UnifiedCrmOpportunityPage({ params, searchParams }
     model = await getUnifiedCrmOpportunityDetail(user, route.opportunityId, { accessContext: access });
   } catch (error) {
     const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
-    if (["INVALID_OPPORTUNITY_ID"].includes(code)) {
+    if (["INVALID_OPPORTUNITY_ID", "OPPORTUNITY_DETAIL_NOT_FOUND"].includes(code)) {
       failure = { kind: "not-available" };
     } else if (["AUTHENTICATION_REQUIRED", "OPPORTUNITY_NOT_AUTHORIZED", "ORGANIZATION_SCOPE_UNAVAILABLE"].includes(code)) {
       failure = { kind: "restricted", message: "Your current CRM access does not include this opportunity detail." };
-    } else if (["OPPORTUNITY_OFF", "ORGANIZATION_SCOPE_AMBIGUOUS"].includes(code)) {
+    } else if (["OPPORTUNITY_OFF", "ORGANIZATION_SCOPE_AMBIGUOUS", "OPPORTUNITY_DETAIL_SOURCE_UNAVAILABLE"].includes(code)) {
       failure = { kind: "unavailable", message: "Opportunity detail is temporarily unavailable. No opportunity detail was displayed." };
     } else {
       failure = { kind: "error", message: "Opportunity detail could not be loaded safely. No opportunity detail was displayed." };

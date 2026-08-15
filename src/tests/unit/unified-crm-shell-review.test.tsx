@@ -213,13 +213,14 @@ describe("Unified CRM UX review shell", () => {
   it("shows a Today rail Customer 360 link only when the appointment includes a safe customer route", () => {
     const markup = renderToStaticMarkup(
       <UnifiedCrmShell
-        activeView="work"
+        activeView="home"
         opportunityDiscovery={opportunityDiscovery}
         userName="Alex Operator"
         workQueue={liveWorkQueue}
       />
     );
 
+    expect(markup).toContain("Confirmed appointment");
     expect(markup).toContain('href="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dwork"');
     expect(markup).toContain("Open Customer 360");
     expect(markup).toContain('href="/appointments"');
@@ -228,13 +229,13 @@ describe("Unified CRM UX review shell", () => {
   it("does not render a Today rail Customer 360 link when the appointment lacks a safe customer route", () => {
     const markup = renderToStaticMarkup(
       <UnifiedCrmShell
-        activeView="work"
+        activeView="home"
         opportunityDiscovery={opportunityDiscovery}
         userName="Alex Operator"
         workQueue={{ ...liveWorkQueue, today: [{ ...liveWorkQueue.today[0], customerHref: undefined }] }}
       />
     );
 
-    expect(markup.match(/Open Customer 360/g)?.length ?? 0).toBe(1);
+    expect(markup.match(/href="\/crm\/customers\/customer-1\?crmReturnTo=%2Fcrm%3Fview%3Dwork"/g)?.length ?? 0).toBe(1);
   });
 });

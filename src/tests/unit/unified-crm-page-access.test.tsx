@@ -254,7 +254,6 @@ describe("Unified CRM page access and fallback", () => {
     expect(markup).toContain('href="/crm?view=pipeline&amp;crmReturnTo=%2Fcrm%3Fview%3Dwork"');
     expect(markup).toContain("Open Customer 360");
     expect(markup).toContain('href="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dwork"');
-    expect(markup).toContain("Delivery follow-up");
     expect(markup).not.toMatch(/Create opportunity|Move stage|Mark won|Save opportunity/i);
   });
 

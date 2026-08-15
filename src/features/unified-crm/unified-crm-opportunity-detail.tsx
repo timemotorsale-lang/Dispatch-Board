@@ -27,6 +27,10 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
+function readModeLabel(value: UnifiedCrmOpportunityDetailReadModel["source"]["readMode"]) {
+  return value === "HELD_REVIEW" ? "held review only" : "read only";
+}
+
 function StatePanel({ kind, message, returnHref }: { kind: FailureKind; message?: string; returnHref: string }) {
   const returnContext = getUnifiedCrmOpportunityReturnContext(returnHref);
   const title = kind === "not-available"
@@ -82,17 +86,17 @@ export function UnifiedCrmOpportunityDetail({ errorMessage, failureKind = "error
       </section>
 
       <section aria-label="Opportunity source and freshness" className={styles.trustBar}>
-        <span><ShieldCheck aria-hidden="true" size={14} /><strong>{model.source.label}</strong> · held review only</span>
+        <span><ShieldCheck aria-hidden="true" size={14} /><strong>{model.source.label}</strong> · {readModeLabel(model.source.readMode)}</span>
         <span><ShieldCheck aria-hidden="true" size={14} />Current · observed {formatDate(model.freshness.observedAt)}</span>
         <span><ShieldCheck aria-hidden="true" size={14} />{returnContext.returnContextLabel}</span>
         <Link className={styles.sourceLink} href={withUnifiedCrmOpportunityReturn(model.source.href, returnHref)}>Open pipeline source review<ExternalLink aria-hidden="true" size={13} /></Link>
       </section>
 
       <section className={styles.summaryGrid} aria-label="Opportunity summary">
-        <article><span className={styles.eyebrow}>Customer</span><strong>{model.summary.customer}</strong><p>No customer record is attached here yet because operational opportunity creation is still held.</p></article>
-        <article><span className={styles.eyebrow}>Owner</span><strong>{model.summary.owner}</strong><p>Assignment rules will stay governed and auditable when live opportunity writes are approved.</p></article>
-        <article><span className={styles.eyebrow}>Next action</span><strong>{model.summary.nextAction}</strong><p>Source workflows stay authoritative until the first secure CRM command is enabled.</p></article>
-        <article><span className={styles.eyebrow}>Due state</span><strong>{model.summary.dueState}</strong><p>No stage math or risk scoring is presented while lifecycle rules are intentionally held.</p></article>
+        <article><span className={styles.eyebrow}>Customer</span><strong>{model.summary.customer}</strong><p>Customer context is shown exactly as the current permitted read-only opportunity view supplies it.</p></article>
+        <article><span className={styles.eyebrow}>Owner</span><strong>{model.summary.owner}</strong><p>Ownership stays visible here without enabling reassignment or any write action from this surface.</p></article>
+        <article><span className={styles.eyebrow}>Next action</span><strong>{model.summary.nextAction}</strong><p>Next-step context stays readable here while authoritative source workflows remain in control.</p></article>
+        <article><span className={styles.eyebrow}>Due state</span><strong>{model.summary.dueState}</strong><p>Timing and due-state context is displayed exactly as the current permitted read-only model provides it.</p></article>
       </section>
 
       <section className={styles.bridgeGrid} aria-label="Opportunity bridge review">

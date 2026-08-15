@@ -97,7 +97,7 @@ export function UnifiedCrmOpportunityReviewHub({
                   <span>{link.state}</span>
                 </header>
                 <p>{link.description}</p>
-                <small>Open review surface <ExternalLink aria-hidden="true" size={13} /></small>
+                <small>Open read-only review surface <ExternalLink aria-hidden="true" size={13} /></small>
               </Link>
             ))}
           </div>
@@ -117,7 +117,7 @@ export function UnifiedCrmOpportunityReviewHub({
               <span>HELD_REVIEW</span>
             </header>
             <p>Walk through entry, queue, detail, transition, and create review in one safe sequence.</p>
-            <small>Open review surface <ExternalLink aria-hidden="true" size={13} /></small>
+            <small>Open read-only review surface <ExternalLink aria-hidden="true" size={13} /></small>
           </Link>
         </div>
       </section>
