@@ -114,15 +114,15 @@ export function createUnifiedCrmCustomerNextActionRepository(
           }
         });
         if (existing) {
-          if (existing.subjectType !== "CUSTOMER" || existing.subjectId !== customer.id) {
-            throw new Error("Customer next action idempotency scope is unavailable.");
-          }
           if (existing.requestHash !== input.command.requestHash) {
+            throw new EnterpriseCommandConflictError("Idempotency key was already used with a different request.", "IDEMPOTENCY_KEY_REUSED");
+          }
+          if (existing.subjectType !== "CUSTOMER" || existing.subjectId !== customer.id) {
             throw new EnterpriseCommandConflictError("Idempotency key was already used with a different request.", "IDEMPOTENCY_KEY_REUSED");
           }
           const snapshot = nextActionSnapshot(existing.resultSnapshot);
           if (!snapshot || snapshot.customerId !== customer.id) {
-            throw new Error("Stored customer next action replay is invalid.");
+            throw new EnterpriseCommandConflictError("Idempotency key was already used with a different request.", "IDEMPOTENCY_KEY_REUSED");
           }
           return {
             customerId: snapshot.customerId,
@@ -142,12 +142,22 @@ export function createUnifiedCrmCustomerNextActionRepository(
           throw new Error("Stale next action.");
         }
 
-        await tx.customer.update({
-          where: { id: customer.id },
+        const update = await tx.customer.updateMany({
+          where: {
+            id: customer.id,
+            organizationId: input.command.organizationId,
+            ownerUserId: customer.ownerUserId,
+            archivedAt: null,
+            mergedIntoCustomerId: null,
+            nextActionAt: customer.nextActionAt
+          },
           data: {
             nextActionAt: input.command.operation === "COMPLETE" ? null : input.command.dueAt
           }
         });
+        if (update.count !== 1) {
+          throw new Error(input.command.operation === "COMPLETE" ? "No next action available." : "Stale next action.");
+        }
 
         const aggregateKey = {
           organizationId_domain_subjectType_subjectId: {

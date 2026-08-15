@@ -20,6 +20,9 @@ function repository(overrides: Partial<UnifiedCrmWorkQueueRepository> = {}): Uni
     async listActiveOrganizationIds() {
       return ["org-a"];
     },
+    async listScheduleViewableOrganizationIds() {
+      return ["org-a"];
+    },
     async listAppointments() {
       return [];
     },
@@ -48,12 +51,12 @@ describe("Unified CRM work queue service", () => {
 
   it("returns owned visibility for Sales and ranks overdue work first", async () => {
     const seller = { ...manager, id: "seller-1", roles: ["Salesperson"] };
-    const listTasks = vi.fn(async () => []);
+    const listScheduleViewableOrganizationIds = vi.fn(async () => ["org-a"]);
     const result = await getUnifiedCrmWorkQueue(seller, {
       now: () => now,
       readMode: "REVIEW",
       repository: repository({
-        listTasks,
+        listScheduleViewableOrganizationIds,
         async listAppointments(input) {
           expect(input.recordScope).toEqual({ kind: "OWNER", ownerUserId: "seller-1" });
           return [{
@@ -91,7 +94,7 @@ describe("Unified CRM work queue service", () => {
       freshness: expect.stringContaining(now.toISOString()),
       drillThrough: expect.stringContaining("Open the governed source record first")
     });
-    expect(listTasks).not.toHaveBeenCalled();
+    expect(listScheduleViewableOrganizationIds).toHaveBeenCalledWith("seller-1", now);
     expect(result.items[0]).toMatchObject({
       customerHref: "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dwork",
       kind: "appointment",
@@ -104,6 +107,18 @@ describe("Unified CRM work queue service", () => {
     expect(result.summary).toMatchObject({
       todayCount: 1,
       appointmentCount: 1
+    });
+    expect(result.coverage).toEqual({
+      isPartial: false,
+      cappedSources: [],
+      unavailableSources: [],
+      sourceLimit: 8,
+      sourceStates: [
+        { source: "appointments", status: "available", visibleCount: 1, capped: false, newestRecordUpdatedAt: "2026-08-14T10:00:00.000Z" },
+        { source: "leads", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+        { source: "cases", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+        { source: "customers", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null }
+      ]
     });
   });
 
@@ -126,6 +141,18 @@ describe("Unified CRM work queue service", () => {
         status: "CURRENT",
         observedAt: now.toISOString(),
         newestRecordUpdatedAt: null
+      },
+      coverage: {
+        isPartial: false,
+        cappedSources: [],
+        unavailableSources: [],
+        sourceLimit: 8,
+        sourceStates: [
+          { source: "appointments", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+          { source: "leads", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+          { source: "cases", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+          { source: "customers", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null }
+        ]
       }
     });
   });
@@ -188,6 +215,7 @@ describe("Unified CRM work queue service", () => {
             title: "Hidden case title",
             priority: "HIGH",
             status: "OPEN",
+            managerVisible: true,
             dueAt: new Date("2026-08-15T11:00:00.000Z"),
             resolutionDueAt: null,
             slaStage: "HEALTHY",
@@ -311,6 +339,326 @@ describe("Unified CRM work queue service", () => {
       id: "appt-1",
       customerHref: undefined
     });
+  });
+
+  it("omits appointments when the viewer lacks active schedule access for the organization", async () => {
+    const listAppointments = vi.fn(async () => [{
+      id: "appt-1",
+      appointmentNumber: "APT-1",
+      title: "Should not render",
+      startsAt: new Date("2026-08-14T16:00:00.000Z"),
+      bookingStatus: "SCHEDULED",
+      confirmationStatus: "PENDING",
+      attendanceStatus: "EXPECTED",
+      executionStatus: "NOT_STARTED",
+      updatedAt: new Date("2026-08-14T10:00:00.000Z"),
+      ownerUser: { id: "manager-1", name: "CRM Manager" },
+      participants: []
+    }]);
+
+    const result = await getUnifiedCrmWorkQueue(manager, {
+      now: () => now,
+      readMode: "REVIEW",
+      repository: repository({
+        async listScheduleViewableOrganizationIds() {
+          return [];
+        },
+        listAppointments,
+        async listCustomersWithNextAction() {
+          return [{
+            id: "customer-1",
+            customerNumber: "CUS-18",
+            displayName: "Alex Morgan",
+            status: "ACTIVE",
+            nextActionAt: new Date("2026-08-14T16:00:00.000Z"),
+            updatedAt: new Date("2026-08-14T12:15:00.000Z"),
+            ownerUser: { id: "manager-1", name: "CRM Manager" }
+          }];
+        }
+      })
+    });
+
+    expect(listAppointments).not.toHaveBeenCalled();
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toMatchObject({
+      kind: "customer",
+      customerLabel: "Alex Morgan · CUS-18"
+    });
+    expect(result.summary).toMatchObject({
+      appointmentCount: 0,
+      todayCount: 1
+    });
+    expect(result.today).toEqual([]);
+  });
+
+  it("uses America/Chicago day boundaries for today classification and Today rail membership", async () => {
+    const result = await getUnifiedCrmWorkQueue(manager, {
+      now: () => new Date("2026-08-15T04:30:00.000Z"),
+      readMode: "REVIEW",
+      repository: repository({
+        async listAppointments() {
+          return [
+            {
+              id: "appt-today",
+              appointmentNumber: "APT-TODAY",
+              title: "Late night local Friday appointment",
+              startsAt: new Date("2026-08-15T03:45:00.000Z"),
+              bookingStatus: "SCHEDULED",
+              confirmationStatus: "CONFIRMED",
+              attendanceStatus: "EXPECTED",
+              executionStatus: "NOT_STARTED",
+              updatedAt: new Date("2026-08-15T01:00:00.000Z"),
+              ownerUser: { id: "manager-1", name: "CRM Manager" },
+              participants: []
+            },
+            {
+              id: "appt-upcoming",
+              appointmentNumber: "APT-UPCOMING",
+              title: "Early morning local Saturday appointment",
+              startsAt: new Date("2026-08-15T05:30:00.000Z"),
+              bookingStatus: "SCHEDULED",
+              confirmationStatus: "CONFIRMED",
+              attendanceStatus: "EXPECTED",
+              executionStatus: "NOT_STARTED",
+              updatedAt: new Date("2026-08-15T01:30:00.000Z"),
+              ownerUser: { id: "manager-1", name: "CRM Manager" },
+              participants: []
+            }
+          ];
+        }
+      })
+    });
+
+    expect(result.items.find((item) => item.id === "appt-today")).toMatchObject({
+      dueState: "overdue"
+    });
+    expect(result.items.find((item) => item.id === "appt-upcoming")).toMatchObject({
+      dueState: "upcoming"
+    });
+    expect(result.today.map((item) => item.id)).toEqual(["appt-today"]);
+    expect(result.explanation.drillThrough).toContain("America/Chicago");
+  });
+
+  it("marks the queue as partial when a live source reaches the per-source cap", async () => {
+    const result = await getUnifiedCrmWorkQueue(manager, {
+      now: () => now,
+      readMode: "REVIEW",
+      repository: repository({
+        async listAppointments() {
+          return Array.from({ length: 8 }, (_, index) => ({
+            id: `appt-${index + 1}`,
+            appointmentNumber: `APT-${index + 1}`,
+            title: `Appointment ${index + 1}`,
+            startsAt: new Date(`2026-08-14T${String(index + 10).padStart(2, "0")}:00:00.000Z`),
+            bookingStatus: "SCHEDULED",
+            confirmationStatus: "CONFIRMED",
+            attendanceStatus: "EXPECTED",
+            executionStatus: "NOT_STARTED",
+            updatedAt: new Date(`2026-08-14T${String(index + 10).padStart(2, "0")}:30:00.000Z`),
+            ownerUser: { id: "manager-1", name: "CRM Manager" },
+            participants: []
+          }));
+        }
+      })
+    });
+
+    expect(result.summary.totalCount).toBe(8);
+    expect(result.coverage).toEqual({
+      isPartial: true,
+      cappedSources: ["appointments"],
+      unavailableSources: [],
+      sourceLimit: 8,
+      sourceStates: [
+        { source: "appointments", status: "available", visibleCount: 8, capped: true, newestRecordUpdatedAt: "2026-08-14T17:30:00.000Z" },
+        { source: "leads", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+        { source: "cases", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+        { source: "customers", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null }
+      ]
+    });
+  });
+
+  it("omits lead rows when the sales source workspace is not permitted even if customer scope is allowed", async () => {
+    const listLeads = vi.fn(async () => [{
+      id: "lead-1",
+      leadNumber: "LD-1",
+      stage: "OPEN",
+      nextActionCode: "CALL",
+      nextActionAt: new Date("2026-08-15T11:00:00.000Z"),
+      updatedAt: new Date("2026-08-15T12:00:00.000Z"),
+      ownerUser: { id: "manager-1", name: "CRM Manager" },
+      customer: {
+        archivedAt: null,
+        customerNumber: "CUS-2",
+        displayName: "Bravo",
+        id: "customer-2",
+        mergedIntoCustomerId: null,
+        organizationId: "org-a",
+        ownerUserId: "manager-1"
+      }
+    }]);
+    const result = await getUnifiedCrmWorkQueue(manager, {
+      now: () => now,
+      readMode: "REVIEW",
+      canOpenSourceRoute(_actor, route) {
+        return route !== "/sales";
+      },
+      repository: repository({
+        listLeads,
+        async listCustomersWithNextAction() {
+          return [{
+            id: "customer-1",
+            customerNumber: "CUS-18",
+            displayName: "Alex Morgan",
+            status: "ACTIVE",
+            nextActionAt: new Date("2026-08-14T16:00:00.000Z"),
+            updatedAt: new Date("2026-08-14T12:15:00.000Z"),
+            ownerUser: { id: "manager-1", name: "CRM Manager" }
+          }];
+        }
+      })
+    });
+
+    expect(result.items.map((item) => item.kind)).toEqual(["customer"]);
+    expect(result.items[0]).toMatchObject({
+      customerLabel: "Alex Morgan · CUS-18",
+      kind: "customer"
+    });
+    expect(listLeads).not.toHaveBeenCalled();
+    expect(result.explanation.drillThrough).toContain("Lead and case rows appear only when that source workspace is permitted.");
+    expect(result.coverage.isPartial).toBe(true);
+    expect(result.coverage.unavailableSources).toEqual(["leads"]);
+    expect(result.coverage.sourceStates).toEqual([
+      { source: "appointments", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+      { source: "leads", status: "unavailable", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+      { source: "cases", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+      { source: "customers", status: "available", visibleCount: 1, capped: false, newestRecordUpdatedAt: "2026-08-14T12:15:00.000Z" }
+    ]);
+  });
+
+  it("omits case rows when the customer resolutions workspace is not permitted even if customer scope is allowed", async () => {
+    const listConcernCases = vi.fn(async () => [{
+      id: "case-1",
+      concernNumber: "CASE-1",
+      title: "Missing title packet",
+      managerVisible: true,
+      priority: "HIGH",
+      status: "OPEN",
+      dueAt: new Date("2026-08-15T11:00:00.000Z"),
+      resolutionDueAt: null,
+      slaStage: "AT_RISK",
+      updatedAt: new Date("2026-08-15T12:00:00.000Z"),
+      assignedOwner: { id: "manager-1", name: "CRM Manager" },
+      customer: {
+        archivedAt: null,
+        customerNumber: "CUS-1",
+        displayName: "Alpha",
+        id: "customer-1",
+        mergedIntoCustomerId: null,
+        organizationId: "org-a",
+        ownerUserId: "manager-1"
+      }
+    }]);
+    const result = await getUnifiedCrmWorkQueue(manager, {
+      now: () => now,
+      readMode: "REVIEW",
+      canOpenSourceRoute(_actor, route) {
+        return route !== "/customers/resolutions";
+      },
+      repository: repository({
+        listConcernCases,
+        async listCustomersWithNextAction() {
+          return [{
+            id: "customer-1",
+            customerNumber: "CUS-18",
+            displayName: "Alex Morgan",
+            status: "ACTIVE",
+            nextActionAt: new Date("2026-08-14T16:00:00.000Z"),
+            updatedAt: new Date("2026-08-14T12:15:00.000Z"),
+            ownerUser: { id: "manager-1", name: "CRM Manager" }
+          }];
+        }
+      })
+    });
+
+    expect(result.items.map((item) => item.kind)).toEqual(["customer"]);
+    expect(result.items[0]).toMatchObject({
+      customerLabel: "Alex Morgan · CUS-18",
+      kind: "customer"
+    });
+    expect(listConcernCases).not.toHaveBeenCalled();
+    expect(result.items.some((item) => item.kind === "case")).toBe(false);
+    expect(result.coverage.isPartial).toBe(true);
+    expect(result.coverage.unavailableSources).toEqual(["cases"]);
+    expect(result.coverage.sourceStates).toEqual([
+      { source: "appointments", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+      { source: "leads", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+      { source: "cases", status: "unavailable", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+      { source: "customers", status: "available", visibleCount: 1, capped: false, newestRecordUpdatedAt: "2026-08-14T12:15:00.000Z" }
+    ]);
+  });
+
+  it("omits non-manager-visible cases from organization-wide CRM work review", async () => {
+    const result = await getUnifiedCrmWorkQueue(manager, {
+      now: () => now,
+      readMode: "REVIEW",
+      repository: repository({
+        async listConcernCases() {
+          return [
+            {
+              id: "case-hidden",
+              concernNumber: "CASE-HIDDEN",
+              title: "Hidden case",
+              managerVisible: false,
+              priority: "HIGH",
+              status: "OPEN",
+              dueAt: new Date("2026-08-15T11:00:00.000Z"),
+              resolutionDueAt: null,
+              slaStage: "HEALTHY",
+              updatedAt: new Date("2026-08-15T12:00:00.000Z"),
+              assignedOwner: { id: "manager-1", name: "CRM Manager" },
+              customer: {
+                archivedAt: null,
+                customerNumber: "CUS-1",
+                displayName: "Alpha",
+                id: "customer-1",
+                mergedIntoCustomerId: null,
+                organizationId: "org-a",
+                ownerUserId: "manager-1"
+              }
+            },
+            {
+              id: "case-visible",
+              concernNumber: "CASE-VISIBLE",
+              title: "Visible case",
+              managerVisible: true,
+              priority: "MEDIUM",
+              status: "OPEN",
+              dueAt: new Date("2026-08-15T10:00:00.000Z"),
+              resolutionDueAt: null,
+              slaStage: "HEALTHY",
+              updatedAt: new Date("2026-08-15T12:30:00.000Z"),
+              assignedOwner: { id: "manager-1", name: "CRM Manager" },
+              customer: {
+                archivedAt: null,
+                customerNumber: "CUS-2",
+                displayName: "Bravo",
+                id: "customer-2",
+                mergedIntoCustomerId: null,
+                organizationId: "org-a",
+                ownerUserId: "manager-1"
+              }
+            }
+          ];
+        }
+      })
+    });
+
+    expect(result.items.map((item) => item.id)).toEqual(["case-visible"]);
+    expect(result.items[0]).toMatchObject({
+      kind: "case",
+      title: "Case CASE-VISIBLE"
+    });
+    expect(result.summary.totalCount).toBe(1);
   });
 
   it.each([

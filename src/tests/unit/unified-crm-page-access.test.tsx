@@ -80,12 +80,24 @@ describe("Unified CRM page access and fallback", () => {
       generatedAt: "2026-08-14T15:00:00.000Z",
       explanation: {
         ordering: "Items are ordered overdue first, then due today, upcoming, and waiting. Ties break by due time, source class, latest update, and record id.",
-        freshness: "Freshness observed 2026-08-14T15:00:00.000Z from live read-only source records.",
+        freshness: "Freshness observed 2026-08-14T15:00:00.000Z from live read-only source records. Latest visible source update: 2026-08-14T14:45:00.000Z.",
         drillThrough: "Open the governed source record first. Open Customer 360 only when a safe linked customer route exists."
       },
       source: { authority: "AGGREGATED_CRM_WORK", label: "CRM Work projection", href: "/crm?view=work", readMode: "LIVE_AGGREGATED", observedAt: "2026-08-14T15:00:00.000Z" },
       freshness: { status: "CURRENT", observedAt: "2026-08-14T15:00:00.000Z", newestRecordUpdatedAt: "2026-08-14T14:45:00.000Z" },
       summary: { totalCount: 1, overdueCount: 1, todayCount: 1, waitingCount: 0, appointmentCount: 1 },
+      coverage: {
+        isPartial: false,
+        cappedSources: [],
+        unavailableSources: [],
+        sourceLimit: 8,
+        sourceStates: [
+          { source: "appointments", status: "available", visibleCount: 1, capped: false, newestRecordUpdatedAt: "2026-08-14T14:45:00.000Z" },
+          { source: "leads", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+          { source: "cases", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+          { source: "customers", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null }
+        ]
+      },
       items: [{ id: "appt-1", kind: "appointment", title: "Call promised buyer", customerLabel: "Real Customer · CUS-1", customerHref: "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dwork", ownerName: "CRM Page User", sourceLabel: "Appointments", sourceHref: "/appointments?view=board&appointment=APT-1", primaryActionLabel: "Open appointment", dueAt: "2026-08-14T14:00:00.000Z", dueLabel: "Overdue", dueState: "overdue", stageLabel: "Scheduled", reason: "This appointment start time has already passed.", history: ["Confirmation: Pending"], updatedAt: "2026-08-14T14:45:00.000Z" }],
       today: [{ id: "appt-1", title: "Delivery follow-up", customerLabel: "Real Customer · CUS-1", customerHref: "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dwork", detail: "Confirmed appointment", startsAt: "2026-08-14T16:00:00.000Z", sourceHref: "/appointments?view=board&appointment=APT-1" }]
     });

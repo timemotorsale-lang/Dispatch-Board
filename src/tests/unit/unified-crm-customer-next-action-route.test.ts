@@ -102,4 +102,33 @@ describe("Unified CRM customer next action route", () => {
     );
     expect(invalid.status).toBe(400);
   });
+
+  it("maps unauthenticated and not-available results without leaking route detail", async () => {
+    mocks.updateUnifiedCrmCustomerNextAction.mockRejectedValueOnce(
+      Object.assign(new Error("Authentication required."), { code: "AUTHENTICATION_REQUIRED" })
+    );
+    const unauthenticated = await POST(
+      new Request("http://crm.local", { method: "POST", body: JSON.stringify({ operation: "SET" }) }),
+      { params: Promise.resolve({ customerId: "customer-1" }) }
+    );
+    expect(unauthenticated.status).toBe(401);
+
+    mocks.updateUnifiedCrmCustomerNextAction.mockRejectedValueOnce(
+      Object.assign(new Error("Customer details are not available."), { code: "CUSTOMER_NOT_AVAILABLE" })
+    );
+    const notAvailable = await POST(
+      new Request("http://crm.local", { method: "POST", body: JSON.stringify({ operation: "SET" }) }),
+      { params: Promise.resolve({ customerId: "customer-1" }) }
+    );
+    expect(notAvailable.status).toBe(404);
+
+    mocks.updateUnifiedCrmCustomerNextAction.mockRejectedValueOnce(
+      new Error("unexpected route failure")
+    );
+    const fallback = await POST(
+      new Request("http://crm.local", { method: "POST", body: JSON.stringify({ operation: "SET" }) }),
+      { params: Promise.resolve({ customerId: "customer-1" }) }
+    );
+    expect(fallback.status).toBe(400);
+  });
 });

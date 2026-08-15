@@ -1,4 +1,5 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
+import { isRoutePermittedForUser } from "@/server/auth/navigation";
 import {
   createUnifiedCrmWorkQueueRepository,
   type UnifiedCrmWorkAppointmentRecord,
@@ -14,11 +15,13 @@ import {
   type UnifiedCrmWorkQueueDueState,
   type UnifiedCrmWorkQueueItem,
   type UnifiedCrmWorkQueueReadModel,
+  type UnifiedCrmWorkQueueSourceKind,
   type UnifiedCrmWorkTodayItem
 } from "@/server/unified-crm/work-queue-contract";
 import { buildUnifiedCrmCustomerReturn } from "@/server/unified-crm/opportunity-review-return";
 
 type UnifiedCrmWorkQueueDependencies = {
+  canOpenSourceRoute?: ((actor: AuthenticatedUser, route: "/customers/resolutions" | "/sales") => boolean) | undefined;
   now?: () => Date;
   nodeEnv?: string | undefined;
   readMode?: string | undefined;
@@ -34,15 +37,33 @@ type QueueCandidate = UnifiedCrmWorkQueueItem & {
 };
 
 const SOURCE_LIMIT = 8;
+const WORK_QUEUE_TIME_ZONE = "America/Chicago" as const;
+const LEAD_SOURCE_ROUTE = "/sales" as const;
+const CASE_SOURCE_ROUTE = "/customers/resolutions" as const;
+const SOURCE_LABELS: Record<UnifiedCrmWorkQueueSourceKind, string> = {
+  appointments: "Appointments",
+  leads: "Sales leads",
+  cases: "Customer resolution cases",
+  customers: "CRM customer follow-ups"
+};
+
+const dateKeyFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: WORK_QUEUE_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit"
+});
 
 function label(value: string | null | undefined) {
   return (value ?? "Unknown").toLowerCase().split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
 }
 
+function dateKey(value: Date) {
+  return dateKeyFormatter.format(value);
+}
+
 function sameDay(left: Date, right: Date) {
-  return left.getUTCFullYear() === right.getUTCFullYear() &&
-    left.getUTCMonth() === right.getUTCMonth() &&
-    left.getUTCDate() === right.getUTCDate();
+  return dateKey(left) === dateKey(right);
 }
 
 function dueState(date: Date | null, now: Date): UnifiedCrmWorkQueueDueState {
@@ -148,11 +169,10 @@ function linkedCustomerHref(
 }
 
 function rankSource(kind: QueueCandidate["kind"]) {
-  if (kind === "task") return 0;
-  if (kind === "case") return 1;
-  if (kind === "lead") return 2;
-  if (kind === "appointment") return 3;
-  return 4;
+  if (kind === "case") return 0;
+  if (kind === "lead") return 1;
+  if (kind === "appointment") return 2;
+  return 3;
 }
 
 function rankState(state: UnifiedCrmWorkQueueDueState) {
@@ -354,6 +374,22 @@ function todayItems(
     }));
 }
 
+function canOpenWorkSource(
+  actor: AuthenticatedUser,
+  route: "/customers/resolutions" | "/sales",
+  evaluator?: (actor: AuthenticatedUser, route: "/customers/resolutions" | "/sales") => boolean
+) {
+  return evaluator ? evaluator(actor, route) : isRoutePermittedForUser(actor, route);
+}
+
+function sourceListLabel(sources: UnifiedCrmWorkQueueSourceKind[]) {
+  if (sources.length === 0) return "";
+  const labels = sources.map((source) => SOURCE_LABELS[source]);
+  if (labels.length === 1) return labels[0];
+  if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
+  return `${labels.slice(0, -1).join(", ")}, and ${labels.at(-1)}`;
+}
+
 export async function getUnifiedCrmWorkQueue(
   actor: AuthenticatedUser | null,
   dependencies: UnifiedCrmWorkQueueDependencies = {}
@@ -378,17 +414,81 @@ export async function getUnifiedCrmWorkQueue(
 
     const organizationId = organizationIds[0];
     const queueScope = { organizationId, recordScope: access.recordScope };
-    const [appointments, leads, concernCases, customers] = await Promise.all([
-      repository.listAppointments({ organizationId, recordScope: access.recordScope, viewerUserId: actor!.id, limit: SOURCE_LIMIT }),
-      repository.listLeads({ organizationId, recordScope: access.recordScope, limit: SOURCE_LIMIT }),
-      repository.listConcernCases({ organizationId, recordScope: access.recordScope, limit: SOURCE_LIMIT }),
+    const leadSourceAvailable = canOpenWorkSource(actor!, LEAD_SOURCE_ROUTE, dependencies.canOpenSourceRoute);
+    const caseSourceAvailable = canOpenWorkSource(actor!, CASE_SOURCE_ROUTE, dependencies.canOpenSourceRoute);
+    const [scheduleViewableOrganizationIds, leads, concernCases, customers] = await Promise.all([
+      repository.listScheduleViewableOrganizationIds(actor!.id, now),
+      leadSourceAvailable
+        ? repository.listLeads({ organizationId, recordScope: access.recordScope, limit: SOURCE_LIMIT })
+        : Promise.resolve([]),
+      caseSourceAvailable
+        ? repository.listConcernCases({ organizationId, recordScope: access.recordScope, limit: SOURCE_LIMIT })
+        : Promise.resolve([]),
       repository.listCustomersWithNextAction({ organizationId, recordScope: access.recordScope, limit: SOURCE_LIMIT })
     ]);
+    const appointments = scheduleViewableOrganizationIds.includes(organizationId)
+      ? await repository.listAppointments({ organizationId, recordScope: access.recordScope, viewerUserId: actor!.id, limit: SOURCE_LIMIT })
+      : [];
+    const unavailableSources = [
+      ...(scheduleViewableOrganizationIds.includes(organizationId) ? [] : ["appointments" as const]),
+      ...(leadSourceAvailable ? [] : ["leads" as const]),
+      ...(caseSourceAvailable ? [] : ["cases" as const])
+    ];
+    const visibleLeads = leadSourceAvailable ? leads : [];
+    const visibleConcernCases = caseSourceAvailable
+      ? concernCases.filter((customerCase) => (
+          access.recordScope.kind === "OWNER" || customerCase.managerVisible
+        ))
+      : [];
+    const cappedSources = [
+      ...(appointments.length >= SOURCE_LIMIT ? ["appointments" as const] : []),
+      ...(visibleLeads.length >= SOURCE_LIMIT ? ["leads" as const] : []),
+      ...(visibleConcernCases.length >= SOURCE_LIMIT ? ["cases" as const] : []),
+      ...(customers.length >= SOURCE_LIMIT ? ["customers" as const] : [])
+    ];
+    const sourceStates = [
+      {
+        source: "appointments" as const,
+        status: scheduleViewableOrganizationIds.includes(organizationId) ? "available" as const : "unavailable" as const,
+        visibleCount: appointments.length,
+        capped: appointments.length >= SOURCE_LIMIT,
+        newestRecordUpdatedAt: appointments.length
+          ? new Date(Math.max(...appointments.map((appointment) => appointment.updatedAt.getTime()))).toISOString()
+          : null
+      },
+      {
+        source: "leads" as const,
+        status: leadSourceAvailable ? "available" as const : "unavailable" as const,
+        visibleCount: visibleLeads.length,
+        capped: visibleLeads.length >= SOURCE_LIMIT,
+        newestRecordUpdatedAt: visibleLeads.length
+          ? new Date(Math.max(...visibleLeads.map((lead) => lead.updatedAt.getTime()))).toISOString()
+          : null
+      },
+      {
+        source: "cases" as const,
+        status: caseSourceAvailable ? "available" as const : "unavailable" as const,
+        visibleCount: visibleConcernCases.length,
+        capped: visibleConcernCases.length >= SOURCE_LIMIT,
+        newestRecordUpdatedAt: visibleConcernCases.length
+          ? new Date(Math.max(...visibleConcernCases.map((customerCase) => customerCase.updatedAt.getTime()))).toISOString()
+          : null
+      },
+      {
+        source: "customers" as const,
+        status: "available" as const,
+        visibleCount: customers.length,
+        capped: customers.length >= SOURCE_LIMIT,
+        newestRecordUpdatedAt: customers.length
+          ? new Date(Math.max(...customers.map((customer) => customer.updatedAt.getTime()))).toISOString()
+          : null
+      }
+    ];
 
     const items = [
       ...appointments.map((appointment) => appointmentCandidate(appointment, now, queueScope)),
-      ...leads.map((lead) => leadCandidate(lead, now, queueScope)),
-      ...concernCases.map((customerCase) => caseCandidate(customerCase, now, queueScope)),
+      ...visibleLeads.map((lead) => leadCandidate(lead, now, queueScope)),
+      ...visibleConcernCases.map((customerCase) => caseCandidate(customerCase, now, queueScope)),
       ...customers.map((customer) => customerCandidate(customer, now))
     ].sort(sortCandidates);
 
@@ -396,6 +496,15 @@ export async function getUnifiedCrmWorkQueue(
     const newestRecordUpdatedAt = items.length
       ? new Date(Math.max(...items.map((item) => item.updatedAtDate.getTime()))).toISOString()
       : null;
+    const freshnessSuffix = newestRecordUpdatedAt
+      ? ` Latest visible source update: ${newestRecordUpdatedAt}.`
+      : " No permitted source records are currently visible.";
+    const cappedSourceDetail = cappedSources.length
+      ? ` Visible reads are currently capped for ${sourceListLabel(cappedSources)}.`
+      : "";
+    const unavailableSourceDetail = unavailableSources.length
+      ? ` ${sourceListLabel(unavailableSources)} ${unavailableSources.length === 1 ? "is" : "are"} unavailable in this workspace.`
+      : "";
 
     return {
       contractVersion: UNIFIED_CRM_WORK_QUEUE_CONTRACT_VERSION,
@@ -404,8 +513,8 @@ export async function getUnifiedCrmWorkQueue(
       generatedAt: observedAt,
       explanation: {
         ordering: "Items are ordered overdue first, then due today, upcoming, and waiting. Ties break by due time, source class, latest update, and record id.",
-        freshness: `Freshness observed ${observedAt} from live read-only source records.`,
-        drillThrough: "Open the governed source record first. Open Customer 360 only when a safe linked customer route exists."
+        freshness: `Freshness observed ${observedAt} from live read-only source records.${freshnessSuffix}${cappedSourceDetail}${unavailableSourceDetail}`,
+        drillThrough: `Open the governed source record first. Lead and case rows appear only when that source workspace is permitted. Open Customer 360 only when a safe linked customer route exists. Today uses ${WORK_QUEUE_TIME_ZONE}.`
       },
       source: {
         authority: "AGGREGATED_CRM_WORK",
@@ -425,6 +534,13 @@ export async function getUnifiedCrmWorkQueue(
         todayCount: items.filter((item) => item.dueState === "today").length,
         waitingCount: items.filter((item) => item.dueState === "waiting").length,
         appointmentCount: appointments.length
+      },
+      coverage: {
+        isPartial: cappedSources.length > 0 || unavailableSources.length > 0,
+        cappedSources,
+        unavailableSources,
+        sourceLimit: SOURCE_LIMIT,
+        sourceStates
       },
       items: items.map((item) => ({
         id: item.id,

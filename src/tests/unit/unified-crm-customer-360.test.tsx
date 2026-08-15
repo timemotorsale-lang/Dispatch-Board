@@ -218,6 +218,36 @@ describe("Unified CRM Customer 360", () => {
     expect(markup).not.toContain("Update next action");
   });
 
+  it("keeps the rest of Customer 360 usable when next-action updates are fail-closed", () => {
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmCustomer360
+        model={{
+          ...customer360Fixture(),
+          permissions: {
+            ...customer360Fixture().permissions,
+            canManageNextAction: false
+          },
+          relationship: {
+            ...customer360Fixture().relationship,
+            nextActionAt: "2026-08-15T10:00:00.000Z",
+            nextActionState: "OVERDUE"
+          }
+        }}
+        opportunityDiscovery={opportunityDiscovery}
+        returnHref="/crm?view=work"
+      />
+    );
+
+    expect(markup).toContain("CRM next-action updates are unavailable in this environment or for this customer record right now.");
+    expect(markup).toContain("Relationship timeline");
+    expect(markup).toContain("Log manual outcome");
+    expect(markup).toContain("Create governed task");
+    expect(markup).toContain("Back to CRM Work");
+    expect(markup).not.toContain("Renew overdue next action");
+    expect(markup).not.toContain("Move today’s next action");
+    expect(markup).toContain("Keep the customer follow-up current");
+  });
+
   it("renders one non-enumerating not-available state and safe recovery", () => {
     const markup = renderToStaticMarkup(<UnifiedCrmCustomer360 failureKind="not-available" returnHref="/crm?view=customers" />);
     expect(markup).toContain("Customer isn’t available"); expect(markup).toContain("may not exist, may have changed, or may be outside");

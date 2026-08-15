@@ -14,6 +14,12 @@ The current Unified CRM baseline now contains a real, persisted, read-only CRM H
 
 This checkpoint tightened day-to-day trust in the queue experience. Live work now fails closed unless shell mode, CRM customer read mode, and the dedicated CRM work mode are all in review; linked Customer 360 routes are omitted when a nested customer is absent, invalid, archived, merged, cross-organization, or outside owner scope; Today now shows same-day appointments instead of a simple first-few appointment list; and filter behavior stays honest by showing filtered counts and a no-match state instead of implying that no work exists. The overdue visual state also remains aligned with the live data contract so urgent work reads consistently on screen.
 
+The current hardening packet goes a bit further. Appointment rows now require active schedule-view access for the resolved organization, Today classification uses `America/Chicago` instead of raw UTC day boundaries, and CRM Work now explains when visible results are partial because a live source hit its per-source cap. That keeps the queue honest about what it is showing and what it may still not have loaded.
+
+The latest authority-hardening pass extends that honesty to source-owned records. Lead rows are now omitted when the Sales workspace is not permitted, Customer Resolution Case rows are omitted when the Customer Resolutions workspace is not permitted, and the live queue explanation now says when source-owned work is unavailable in the current workspace instead of implying that nothing exists there.
+
+The newest queue-trust packet now adds lane-level source coverage visibility inside CRM Home and Work. Operators can see whether Appointments, Leads, Cases, and CRM follow-ups are available, capped, empty, or unavailable in the current workspace, plus the newest visible update time for each lane, before trusting the visible queue.
+
 Focused verification passed on 2026-08-15 as recorded in [`docs/unified-crm/UCRM_025_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_025_IMPLEMENTATION_EVIDENCE.md). UCRM-025 remains `IMPLEMENTED_UNVERIFIED`: authenticated browser proof and isolated PostgreSQL reconciliation proof are still required before verification or merge. No write, task mutation, appointment mutation, or opportunity-stage behavior was enabled by this checkpoint.
 
 ## 2026-08-15 — Unified CRM UCRM-030 foundation access hardening implemented
@@ -21,6 +27,8 @@ Focused verification passed on 2026-08-15 as recorded in [`docs/unified-crm/UCRM
 The current Unified CRM baseline now contains a tighter read-only opportunity foundation boundary. Opportunity create review and pipeline preview use the same shell-level fail-closed access path as opportunity detail, hub, and queue, so shell-off behavior is now consistent even when those services are invoked outside their page wrappers.
 
 This checkpoint did not enable live opportunity creation, stage entry, transitions, source-lead mutation, or operational linkage. It only hardened the held and read-only foundation surfaces so that shell-off access is rejected before organization scope lookup in the affected services.
+
+The newest read-only opportunity packet extends that honesty inside the review surfaces themselves. Opportunity detail now explicitly says whether a persisted source record is visible yet and, when one is visible, shows the latest visible source update time. Opportunity review hub now always shows the live-record lane, including the honest empty state when no same-scope persisted read-only opportunity is visible, instead of silently hiding that condition.
 
 Focused verification passed on 2026-08-15 as recorded in [`docs/unified-crm/UCRM_030_FOUNDATION_EVIDENCE.md`](unified-crm/UCRM_030_FOUNDATION_EVIDENCE.md). `UCRM-030` remains `HELD`: `UCRM-DEC-003` is still deferred, so the opportunity milestone is not complete and no live create path is authorized from this checkpoint.
 

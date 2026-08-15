@@ -1,33 +1,7 @@
-import { Prisma, type PrismaClient, TaskStatus } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 
 import { prisma } from "@/server/db/client";
 import type { UnifiedCrmCustomerRecordScope } from "@/server/policies/unified-crm-customer-read";
-
-const taskSelect = {
-  id: true,
-  title: true,
-  status: true,
-  priority: true,
-  dueAt: true,
-  workflowArea: true,
-  blockerReason: true,
-  requiresManagerApproval: true,
-  customerReference: true,
-  vehicleReference: true,
-  updatedAt: true,
-  customer: {
-    select: {
-      archivedAt: true,
-      customerNumber: true,
-      displayName: true,
-      id: true,
-      mergedIntoCustomerId: true,
-      organizationId: true,
-      ownerUserId: true
-    }
-  },
-  assignedUser: { select: { id: true, name: true } }
-} satisfies Prisma.TaskSelect;
 
 const linkedCustomerSelect = {
   id: true,
@@ -78,6 +52,7 @@ const concernCaseSelect = {
   title: true,
   priority: true,
   status: true,
+  managerVisible: true,
   dueAt: true,
   resolutionDueAt: true,
   slaStage: true,
@@ -96,7 +71,6 @@ const customerNextActionSelect = {
   ownerUser: { select: { id: true, name: true } }
 } satisfies Prisma.CustomerSelect;
 
-export type UnifiedCrmWorkTaskRecord = Prisma.TaskGetPayload<{ select: typeof taskSelect }>;
 export type UnifiedCrmWorkAppointmentRecord = Prisma.AppointmentGetPayload<{ select: typeof appointmentSelect }>;
 export type UnifiedCrmWorkLeadRecord = Prisma.CustomerLeadGetPayload<{ select: typeof leadSelect }>;
 export type UnifiedCrmWorkConcernCaseRecord = Prisma.ConcernCaseGetPayload<{ select: typeof concernCaseSelect }>;
@@ -104,7 +78,7 @@ export type UnifiedCrmWorkCustomerRecord = Prisma.CustomerGetPayload<{ select: t
 
 export type UnifiedCrmWorkQueueRepository = {
   listActiveOrganizationIds(userId: string, at: Date): Promise<string[]>;
-  listTasks(viewerUserId: string, limit: number): Promise<UnifiedCrmWorkTaskRecord[]>;
+  listScheduleViewableOrganizationIds(userId: string, at: Date): Promise<string[]>;
   listAppointments(input: {
     organizationId: string;
     recordScope: UnifiedCrmCustomerRecordScope;
@@ -130,7 +104,7 @@ export type UnifiedCrmWorkQueueRepository = {
 
 type UnifiedCrmWorkQueueDatabase = Pick<
   PrismaClient,
-  "appointment" | "concernCase" | "customer" | "customerLead" | "task" | "userLocationAccess"
+  "appointment" | "concernCase" | "customer" | "customerLead" | "userLocationAccess"
 >;
 
 export function createUnifiedCrmWorkQueueRepository(
@@ -148,16 +122,17 @@ export function createUnifiedCrmWorkQueueRepository(
       });
       return [...new Set(grants.map((grant) => grant.location.organizationId))].sort();
     },
-    listTasks(viewerUserId, limit) {
-      return database.task.findMany({
+    async listScheduleViewableOrganizationIds(userId, at) {
+      const grants = await database.userLocationAccess.findMany({
         where: {
-          assignedUserId: viewerUserId,
-          status: { not: TaskStatus.COMPLETED }
+          userId,
+          canViewSchedule: true,
+          validFrom: { lte: at },
+          OR: [{ validTo: null }, { validTo: { gte: at } }]
         },
-        select: taskSelect,
-        orderBy: [{ dueAt: "asc" }, { updatedAt: "desc" }, { id: "asc" }],
-        take: limit
+        select: { location: { select: { organizationId: true } } }
       });
+      return [...new Set(grants.map((grant) => grant.location.organizationId))].sort();
     },
     listAppointments(input) {
       return database.appointment.findMany({

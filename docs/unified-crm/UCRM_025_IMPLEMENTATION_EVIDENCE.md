@@ -20,6 +20,8 @@
 - The queue fails closed unless shell mode, CRM customer read mode, and the dedicated CRM work mode are all `REVIEW`.
 - Viewer authorization is derived from the existing CRM customer read policy, including owner-only restrictions for Sales.
 - Organization scope is resolved from active location grants and rejects zero-scope or multi-organization ambiguity.
+- Appointment rows are shown only when the viewer has active schedule-view access for the resolved organization.
+- Lead rows are omitted when the Sales workspace is not permitted, and Customer Resolution Case rows are omitted when the Customer Resolutions workspace is not permitted.
 - Linked Customer 360 routes are omitted when the linked customer identity is absent, invalid, archived, merged, cross-organization, or outside owner scope.
 
 ## Quality and correctness improvements
@@ -27,9 +29,12 @@
 - Queue ranking remains deterministic: overdue first, then today, upcoming, and waiting, with stable due-time, source-kind, freshness, and id ordering.
 - CRM Home and Work explain queue freshness from the live aggregated read model instead of implying operational completion.
 - Live filtering now stays honest when no items match: the UI shows filtered counts and a no-match state rather than falsely suggesting that no work exists.
-- The Today rail now shows only same-day appointments instead of simply taking the first few future appointments.
+- The Today rail now shows only same-day appointments instead of simply taking the first few future appointments, and same-day classification uses `America/Chicago` instead of UTC calendar boundaries.
 - The overdue visual state is now aligned with the live `overdue` contract so urgent work renders consistently.
 - Attention actions now disable when no matching overdue or due-today item is available.
+- Queue explanation and count labels now admit when the visible list is partial because a live source reached the per-source cap, rather than implying that the visible queue is complete.
+- Queue explanation now also admits when source-owned work is omitted because a required source workspace is unavailable, instead of pretending those records do not exist.
+- CRM Home and Work now expose per-lane read-only coverage cards for Appointments, Leads, Cases, and Customers so the operator can see which lanes are available, capped, empty, or unavailable before trusting the visible queue.
 
 ## Automated evidence
 
@@ -41,10 +46,16 @@
   - preserves honest filtered counts,
   - shows a no-match message instead of an empty-work claim,
   - and keeps the queue boundary read-only.
+- Focused verification now also proves:
+  - appointment visibility is suppressed when active schedule-view access is absent,
+  - Today rail membership follows `America/Chicago`,
+  - capped live-source reads surface an honest partial-queue explanation,
+  - lead/case rows are omitted when their source workspace is unavailable while the remaining queue stays usable,
+  - and lane-level coverage cards describe available, capped, and unavailable source states with newest visible update timing.
 
 ## Remaining gates
 
-- Source-specific location-grant proof, timezone-correct Today behavior, and reconciled truncation metadata still need follow-up before UCRM-025 can move beyond `IMPLEMENTED_UNVERIFIED`.
+- Deeper source-native read-authorization proof for Leads and Customer Resolution Cases still needs follow-up before UCRM-025 can move beyond `IMPLEMENTED_UNVERIFIED`; this checkpoint only enforces the strongest currently available route-backed workspace boundary inside CRM Work.
 - Authenticated browser proof is still required across desktop/mobile for live work, filter behavior, Today rail continuity, denied/off fallback, and keyboard interaction.
 - Isolated PostgreSQL proof is still required to verify real multi-source reconciliation against migrated data.
 - UCRM-025 is not yet `VERIFIED`, merged as a dedicated review packet, piloted, or production-enabled from this checkpoint.

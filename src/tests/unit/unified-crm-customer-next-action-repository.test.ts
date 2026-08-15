@@ -35,7 +35,7 @@ function transaction(overrides: Record<string, unknown> = {}) {
         ownerUserId: "seller-a",
         nextActionAt: new Date("2026-08-15T15:00:00.000Z")
       }),
-      update: vi.fn()
+      updateMany: vi.fn().mockResolvedValue({ count: 1 })
     },
     enterpriseAggregateVersion: { create: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
     enterpriseAuditEvent: { create: vi.fn() },
@@ -67,7 +67,7 @@ describe("Unified CRM customer next action repository", () => {
       })
     }));
     expect(tx.enterpriseCommandLedger.findUnique).not.toHaveBeenCalled();
-    expect(tx.customer.update).not.toHaveBeenCalled();
+    expect(tx.customer.updateMany).not.toHaveBeenCalled();
   });
 
   it("reuses an authorized matching receipt without issuing a consequential write", async () => {
@@ -97,14 +97,14 @@ describe("Unified CRM customer next action repository", () => {
       operation: "SET",
       version: 7
     });
-    expect(tx.customer.update).not.toHaveBeenCalled();
+    expect(tx.customer.updateMany).not.toHaveBeenCalled();
     expect(tx.enterpriseCommandLedger.create).not.toHaveBeenCalled();
     expect(tx.enterpriseDomainEvent.create).not.toHaveBeenCalled();
     expect(tx.enterpriseAuditEvent.create).not.toHaveBeenCalled();
     expect(tx.enterpriseOutboxMessage.create).not.toHaveBeenCalled();
   });
 
-  it("does not replay a matching key that is bound to another customer", async () => {
+  it("treats a matching key on another customer as a generic idempotency conflict", async () => {
     const tx = transaction();
     tx.enterpriseCommandLedger.findUnique.mockResolvedValue({
       subjectType: "CUSTOMER",
@@ -122,7 +122,60 @@ describe("Unified CRM customer next action repository", () => {
     await expect(repository.commitNextAction({
       command,
       recordScope: { kind: "ORGANIZATION" }
-    })).rejects.toThrow("Customer next action idempotency scope is unavailable.");
-    expect(tx.customer.update).not.toHaveBeenCalled();
+    })).rejects.toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
+    expect(tx.customer.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("only commits when the row still matches the expected next-action state", async () => {
+    const tx = transaction();
+    tx.customer.updateMany.mockResolvedValue({ count: 0 });
+    const repository = createUnifiedCrmCustomerNextActionRepository(database(tx));
+
+    await expect(repository.commitNextAction({
+      command,
+      recordScope: { kind: "ORGANIZATION" }
+    })).rejects.toThrow("Stale next action.");
+  });
+
+  it("rejects stored replay snapshots that are missing or bound to another subject", async () => {
+    const invalidSnapshot = transaction();
+    invalidSnapshot.enterpriseCommandLedger.findUnique.mockResolvedValue({
+      subjectType: "CUSTOMER",
+      subjectId: "customer-a",
+      requestHash: "request-hash-1",
+      resultingVersion: 5,
+      resultSnapshot: {
+        customerId: "customer-a",
+        nextActionAt: 123,
+        operation: "SET"
+      }
+    });
+    const invalidSnapshotRepository = createUnifiedCrmCustomerNextActionRepository(database(invalidSnapshot));
+
+    await expect(invalidSnapshotRepository.commitNextAction({
+      command,
+      recordScope: { kind: "ORGANIZATION" }
+    })).rejects.toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
+    expect(invalidSnapshot.customer.updateMany).not.toHaveBeenCalled();
+
+    const wrongCustomerSnapshot = transaction();
+    wrongCustomerSnapshot.enterpriseCommandLedger.findUnique.mockResolvedValue({
+      subjectType: "CUSTOMER",
+      subjectId: "customer-a",
+      requestHash: "request-hash-1",
+      resultingVersion: 6,
+      resultSnapshot: {
+        customerId: "customer-b",
+        nextActionAt: "2026-08-18T15:00:00.000Z",
+        operation: "SET"
+      }
+    });
+    const wrongCustomerRepository = createUnifiedCrmCustomerNextActionRepository(database(wrongCustomerSnapshot));
+
+    await expect(wrongCustomerRepository.commitNextAction({
+      command,
+      recordScope: { kind: "ORGANIZATION" }
+    })).rejects.toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
+    expect(wrongCustomerSnapshot.customer.updateMany).not.toHaveBeenCalled();
   });
 });

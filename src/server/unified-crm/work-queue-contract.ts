@@ -3,8 +3,9 @@ export const UNIFIED_CRM_WORK_QUEUE_ERROR_CONTRACT_VERSION = "ucrm.work-queue-er
 
 export type UnifiedCrmWorkQueueVisibility = "organization" | "owned";
 export type UnifiedCrmWorkQueueDueState = "overdue" | "today" | "upcoming" | "waiting";
-export type UnifiedCrmWorkQueueItemKind = "task" | "appointment" | "lead" | "case" | "customer";
+export type UnifiedCrmWorkQueueItemKind = "appointment" | "lead" | "case" | "customer";
 export type UnifiedCrmWorkReadMode = "OFF" | "REVIEW";
+export type UnifiedCrmWorkQueueSourceKind = "appointments" | "leads" | "cases" | "customers";
 
 export type UnifiedCrmWorkQueueItem = {
   id: string;
@@ -63,6 +64,19 @@ export type UnifiedCrmWorkQueueReadModel = {
     todayCount: number;
     waitingCount: number;
     appointmentCount: number;
+  };
+  coverage: {
+    isPartial: boolean;
+    cappedSources: UnifiedCrmWorkQueueSourceKind[];
+    unavailableSources: UnifiedCrmWorkQueueSourceKind[];
+    sourceLimit: number;
+    sourceStates: Array<{
+      source: UnifiedCrmWorkQueueSourceKind;
+      status: "available" | "unavailable";
+      visibleCount: number;
+      capped: boolean;
+      newestRecordUpdatedAt: string | null;
+    }>;
   };
   items: UnifiedCrmWorkQueueItem[];
   today: UnifiedCrmWorkTodayItem[];

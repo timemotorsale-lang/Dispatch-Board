@@ -1,7 +1,6 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
-import {
-  requireUnifiedCrmCustomer360Policy
-} from "@/server/policies/unified-crm-customer-360";
+import type { UnifiedCrmCustomerRecordScope } from "@/server/policies/unified-crm-customer-read";
+import { resolveUnifiedCrmWorkspace } from "@/server/policies/unified-crm-access";
 import { resolveUnifiedCrmCustomerReadMode } from "@/server/services/unified-crm-customer-read-service";
 import { UnifiedCrmCustomerNextActionError } from "@/server/unified-crm/customer-next-action-command";
 import { resolveUnifiedCrmShellAccess } from "@/server/unified-crm/shell-access";
@@ -24,11 +23,37 @@ export function resolveUnifiedCrmCustomerNextActionMode(
   return options.nodeEnv === "production" ? "OFF" : "REVIEW";
 }
 
+export function requireUnifiedCrmCustomerNextActionPolicy(
+  actor: AuthenticatedUser | null
+): UnifiedCrmCustomerRecordScope {
+  if (!actor) {
+    throw new UnifiedCrmCustomerNextActionError(
+      "AUTHENTICATION_REQUIRED",
+      "Customer next action is temporarily unavailable."
+    );
+  }
+  if (!actor.isActive) {
+    throw new UnifiedCrmCustomerNextActionError(
+      "CUSTOMER_360_NOT_AUTHORIZED",
+      "Customer next action is temporarily unavailable."
+    );
+  }
+
+  const workspace = resolveUnifiedCrmWorkspace(actor);
+  if (workspace === "MANAGEMENT") return { kind: "ORGANIZATION" };
+  if (workspace === "SALES") return { kind: "OWNER", ownerUserId: actor.id };
+
+  throw new UnifiedCrmCustomerNextActionError(
+    "CUSTOMER_360_NOT_AUTHORIZED",
+    "Customer next action is temporarily unavailable."
+  );
+}
+
 export function requireUnifiedCrmCustomerNextActionAccess(
   actor: AuthenticatedUser | null,
   options: UnifiedCrmCustomerNextActionAccessOptions = {}
 ) {
-  const recordScope = requireUnifiedCrmCustomer360Policy(actor);
+  const recordScope = requireUnifiedCrmCustomerNextActionPolicy(actor);
   const shellAccess = resolveUnifiedCrmShellAccess(actor, {
     nodeEnv: options.nodeEnv,
     shellMode: options.shellMode

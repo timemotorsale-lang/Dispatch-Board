@@ -71,7 +71,7 @@ const liveWorkQueue: UnifiedCrmWorkQueueReadModel = {
   generatedAt: "2026-08-15T03:00:00.000Z",
   explanation: {
     ordering: "Items are ordered overdue first, then due today, upcoming, and waiting. Ties break by due time, source class, latest update, and record id.",
-    freshness: "Freshness observed 2026-08-15T03:00:00.000Z from live read-only source records.",
+    freshness: "Freshness observed 2026-08-15T03:00:00.000Z from live read-only source records. Latest visible source update: 2026-08-15T02:45:00.000Z.",
     drillThrough: "Open the governed source record first. Open Customer 360 only when a safe linked customer route exists."
   },
   source: {
@@ -92,6 +92,18 @@ const liveWorkQueue: UnifiedCrmWorkQueueReadModel = {
     todayCount: 1,
     waitingCount: 0,
     appointmentCount: 1
+  },
+  coverage: {
+    isPartial: false,
+    cappedSources: [],
+    unavailableSources: [],
+    sourceLimit: 8,
+    sourceStates: [
+      { source: "appointments", status: "available", visibleCount: 1, capped: false, newestRecordUpdatedAt: "2026-08-15T02:45:00.000Z" },
+      { source: "leads", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+      { source: "cases", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+      { source: "customers", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null }
+    ]
   },
   items: [{
     id: "appt-priority-1",
@@ -197,7 +209,7 @@ describe("Unified CRM UX review shell", () => {
     expect(markup).toContain("Open appointment");
     expect(markup).toContain("Items are ordered overdue first, then due today, upcoming, and waiting.");
     expect(markup).toContain("Ties break by due time, source class, latest update, and record id.");
-    expect(markup).toContain("Freshness observed 2026-08-15T03:00:00.000Z from live read-only source records.");
+    expect(markup).toContain("Freshness observed 2026-08-15T03:00:00.000Z from live read-only source records. Latest visible source update: 2026-08-15T02:45:00.000Z.");
     expect(markup.indexOf('href="/appointments?view=board&amp;appointment=APT-1"')).toBeLessThan(
       markup.indexOf('href="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dwork"')
     );
@@ -255,5 +267,85 @@ describe("Unified CRM UX review shell", () => {
     expect(presentation.emptyDetail).toContain("No live CRM work matches “no-match”.");
     expect(presentation.explanation).toContain("Showing 0 matching items for “no-match”.");
     expect(presentation.countLabel).toBe("0 of 1 items");
+  });
+
+  it("explains when the live work queue is capped and may not be complete", () => {
+    const presentation = describeLiveWorkPresentation({
+      ...liveWorkQueue,
+      summary: { ...liveWorkQueue.summary, totalCount: 8 },
+      coverage: {
+        ...liveWorkQueue.coverage,
+        isPartial: true,
+        cappedSources: ["appointments"],
+        unavailableSources: [],
+        sourceLimit: 8,
+        sourceStates: [
+          { source: "appointments", status: "available", visibleCount: 8, capped: true, newestRecordUpdatedAt: "2026-08-15T02:45:00.000Z" },
+          { source: "leads", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+          { source: "cases", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+          { source: "customers", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null }
+        ]
+      }
+    }, "");
+
+    expect(presentation.countLabel).toBe("8+ items shown");
+    expect(presentation.explanation).toContain("appointments is capped at 8 visible records");
+    expect(presentation.explanation).toContain("more permitted work may exist");
+  });
+
+  it("explains when source-owned work is omitted in the current workspace", () => {
+    const presentation = describeLiveWorkPresentation({
+      ...liveWorkQueue,
+      coverage: {
+        ...liveWorkQueue.coverage,
+        isPartial: false,
+        cappedSources: [],
+        unavailableSources: ["leads", "cases"],
+        sourceLimit: 8,
+        sourceStates: [
+          { source: "appointments", status: "available", visibleCount: 1, capped: false, newestRecordUpdatedAt: "2026-08-15T02:45:00.000Z" },
+          { source: "leads", status: "unavailable", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+          { source: "cases", status: "unavailable", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+          { source: "customers", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null }
+        ]
+      }
+    }, "");
+
+    expect(presentation.explanation).toContain("Some source work is omitted");
+    expect(presentation.explanation).toContain("leads and cases are not available in this workspace");
+  });
+
+  it("renders live lane coverage with ready, capped, and unavailable states", () => {
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmShell
+        activeView="work"
+        opportunityDiscovery={opportunityDiscovery}
+        userName="Alex Operator"
+        workQueue={{
+          ...liveWorkQueue,
+          coverage: {
+            isPartial: true,
+            cappedSources: ["appointments"],
+            unavailableSources: ["leads"],
+            sourceLimit: 8,
+            sourceStates: [
+              { source: "appointments", status: "available", visibleCount: 8, capped: true, newestRecordUpdatedAt: "2026-08-15T02:45:00.000Z" },
+              { source: "leads", status: "unavailable", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+              { source: "cases", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+              { source: "customers", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null }
+            ]
+          }
+        }}
+      />
+    );
+
+    expect(markup).toContain("Live lane coverage");
+    expect(markup).toContain("Appointments");
+    expect(markup).toContain("Capped");
+    expect(markup).toContain("Leads");
+    expect(markup).toContain("Unavailable");
+    expect(markup).toContain("Cases");
+    expect(markup).toContain("Ready");
+    expect(markup).toContain("No visible records in this lane.");
   });
 });

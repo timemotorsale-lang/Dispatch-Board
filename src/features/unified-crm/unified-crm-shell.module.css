@@ -245,6 +245,19 @@
 .listCard article strong { font-size: 11.5px; }
 .listCard article small,.listCard time { color: var(--crm-muted); font-size: 10.5px; }
 .sectionDetail { margin: 0; padding: 10px 11px 0; color: var(--crm-muted); font-size: 10.5px; line-height: 1.45; }
+.sourceCoverage { display: grid; gap: 8px; padding: 10px 11px 0; }
+.sourceCoverage > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sourceCoverage > header strong { font-size: 10.5px; }
+.sourceCoverage > header span { color: var(--crm-muted); font-size: 9.5px; }
+.sourceCoverageGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.sourceCoverageCard { display: grid; gap: 4px; border: 1px solid var(--crm-border); border-radius: 8px; padding: 9px; background: var(--crm-surface-soft); }
+.sourceCoverageCard[data-lane-status="ready"] { border-color: #cfe3d3; background: #f8fcf8; }
+.sourceCoverageCard[data-lane-status="capped"] { border-color: #ead9b8; background: #fffaf0; }
+.sourceCoverageCard[data-lane-status="unavailable"] { border-color: #e8d0d3; background: #fff8f8; }
+.sourceCoverageHeader { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sourceCoverageHeader span { color: var(--crm-muted); font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
+.sourceCoverageHeader strong { font-size: 10.5px; }
+.sourceCoverageCard p,.sourceCoverageCard small { margin: 0; color: var(--crm-muted); font-size: 10px; line-height: 1.45; }
 .discoveryGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 10px 11px 11px; }
 .discoveryCard { display: grid; gap: 5px; border: 1px solid var(--crm-border); border-radius: 8px; padding: 11px; color: var(--crm-text); background: var(--crm-surface-soft); }
 .discoveryCard:hover,.discoveryCard:focus-visible { border-color: #9cbce3; outline: 3px solid rgb(23 98 207 / 10%); }
@@ -338,6 +351,7 @@
   .homeGrid,.twoColumn { grid-template-columns: 1fr; }
   .todayRail { grid-column: auto; }
   .cardGrid,.pipeline,.insights,.moreGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sourceCoverageGrid { grid-template-columns: 1fr; }
   .discoveryGrid { grid-template-columns: 1fr; }
   .opportunityPreviewGrid,.opportunityNextSteps { grid-template-columns: 1fr; }
   .opportunityPreviewHeader { flex-direction: column; }

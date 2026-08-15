@@ -36,7 +36,7 @@ import {
   type UnifiedCrmView
 } from "./unified-crm-shell-review-model";
 import styles from "./unified-crm-shell.module.css";
-import type { UnifiedCrmWorkQueueItem, UnifiedCrmWorkQueueReadModel } from "@/server/unified-crm/work-queue-contract";
+import type { UnifiedCrmWorkQueueItem, UnifiedCrmWorkQueueReadModel, UnifiedCrmWorkQueueSourceKind } from "@/server/unified-crm/work-queue-contract";
 
 type UnifiedCrmShellProps = {
   activeView: UnifiedCrmView;
@@ -111,13 +111,82 @@ function formatTime(value: string | null, fallback: string) {
   }).format(new Date(value));
 }
 
+function formatSourceObservedAt(value: string | null) {
+  if (!value) return "No visible records in this lane.";
+  return `Newest visible source update: ${formatDateTime(value, "Unknown")}`;
+}
+
+function sourceLaneLabel(source: UnifiedCrmWorkQueueSourceKind) {
+  switch (source) {
+    case "appointments":
+      return "Appointments";
+    case "leads":
+      return "Leads";
+    case "cases":
+      return "Cases";
+    case "customers":
+      return "Customers";
+    default:
+      return source;
+  }
+}
+
+function sourceListLabel(sources: UnifiedCrmWorkQueueSourceKind[]) {
+  const labels = sources.map((source) => sourceLaneLabel(source).toLowerCase());
+  if (labels.length <= 1) return labels[0] ?? "";
+  if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
+  return `${labels.slice(0, -1).join(", ")}, and ${labels.at(-1)}`;
+}
+
+function SourceCoveragePanel({ model }: { model: UnifiedCrmWorkQueueReadModel }) {
+  return (
+    <section className={styles.sourceCoverage} aria-label="Live work lane coverage">
+      <header>
+        <strong>Live lane coverage</strong>
+        <span>Read-only source observation</span>
+      </header>
+      <div className={styles.sourceCoverageGrid}>
+        {model.coverage.sourceStates.map((lane) => {
+          const statusLabel = lane.status === "unavailable"
+            ? "Unavailable"
+            : lane.capped
+              ? "Capped"
+              : "Ready";
+          const detail = lane.status === "unavailable"
+            ? `${sourceLaneLabel(lane.source)} is not available in this workspace.`
+            : lane.capped
+              ? `${lane.visibleCount}+ visible record${lane.visibleCount === 1 ? "" : "s"} shown.`
+              : `${lane.visibleCount} visible record${lane.visibleCount === 1 ? "" : "s"}.`;
+
+          return (
+            <article className={styles.sourceCoverageCard} data-lane-status={lane.status === "unavailable" ? "unavailable" : lane.capped ? "capped" : "ready"} key={lane.source}>
+              <div className={styles.sourceCoverageHeader}>
+                <span>{sourceLaneLabel(lane.source)}</span>
+                <strong>{statusLabel}</strong>
+              </div>
+              <p>{detail}</p>
+              <small>{formatSourceObservedAt(lane.newestRecordUpdatedAt)}</small>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function workQueueExplanation(model: UnifiedCrmWorkQueueReadModel, options?: { visibleCount?: number; filterQuery?: string }) {
   const visibleCount = options?.visibleCount ?? model.items.length;
   const filterQuery = options?.filterQuery?.trim();
+  const partialMessage = model.coverage.cappedSources.length
+    ? ` Showing the current top ranked work only; ${sourceListLabel(model.coverage.cappedSources)} ${model.coverage.cappedSources.length === 1 ? "is" : "are"} capped at ${model.coverage.sourceLimit} visible records, so more permitted work may exist.`
+    : "";
+  const unavailableMessage = model.coverage.unavailableSources.length
+    ? ` Some source work is omitted because ${sourceListLabel(model.coverage.unavailableSources)} ${model.coverage.unavailableSources.length === 1 ? "is" : "are"} not available in this workspace.`
+    : "";
   const filterMessage = filterQuery
     ? ` Showing ${visibleCount} matching item${visibleCount === 1 ? "" : "s"} for “${filterQuery}”.`
     : "";
-  return `${model.explanation.ordering} ${model.explanation.freshness}${filterMessage}`;
+  return `${model.explanation.ordering} ${model.explanation.freshness}${partialMessage}${unavailableMessage}${filterMessage}`;
 }
 
 export function describeLiveWorkPresentation(model: UnifiedCrmWorkQueueReadModel, filterQuery: string) {
@@ -127,12 +196,16 @@ export function describeLiveWorkPresentation(model: UnifiedCrmWorkQueueReadModel
   const todayCount = model.items.filter((item) => item.dueState === "today").length;
 
   return {
-    countLabel: model.items.length === model.summary.totalCount
-      ? `${model.summary.totalCount} items`
-      : `${model.items.length} of ${model.summary.totalCount} items`,
+    countLabel: model.coverage.isPartial
+      ? `${model.summary.totalCount}+ items shown`
+      : model.items.length === model.summary.totalCount
+        ? `${model.summary.totalCount} items`
+        : `${model.items.length} of ${model.summary.totalCount} items`,
     emptyDetail: hasActiveFilter
       ? `No live CRM work matches “${trimmedQuery}”. Clear or change the filter to review other ranked work.`
-      : "No owned work needs attention right now.",
+      : model.coverage.unavailableSources.length
+        ? "No permitted live CRM work is visible right now. Some source lanes are unavailable in this workspace."
+        : "No owned work needs attention right now.",
     emptyTitle: hasActiveFilter ? "No work matches this filter" : undefined,
     explanation: workQueueExplanation(model, { filterQuery, visibleCount: model.items.length }),
     overdueCount,
@@ -453,6 +526,7 @@ function LiveHomeView({
           <small>{presentation.countLabel}</small>
         </header>
         <p className={styles.sectionDetail}>{presentation.explanation}</p>
+        <SourceCoveragePanel model={model} />
         {model.items.length
           ? <div className={styles.queueList}>{model.items.map((item) => <LiveQueueRow active={selected?.id === item.id} item={item} key={item.id} onSelect={onSelect} />)}</div>
           : <WorkState
@@ -513,7 +587,7 @@ function LiveWorkView({
     return <div className={styles.discoveryStack}><WorkState detail="No owned work needs attention right now." />{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} returnHref="/crm?view=work" /> : null}</div>;
   }
   const presentation = describeLiveWorkPresentation(model, filterQuery);
-  return <div className={styles.discoveryStack}><div className={styles.twoColumn}><section className={styles.queuePanel}><header className={styles.panelHeading}><div><span>{model.visibility === "owned" ? "Owned live work" : "Live team work"}</span><h2>Do this next</h2></div><small>{presentation.countLabel}</small></header><p className={styles.sectionDetail}>{presentation.explanation}</p>{model.items.length ? <div className={styles.queueList}>{model.items.map((item) => <LiveQueueRow active={selected?.id === item.id} item={item} key={item.id} onSelect={onSelect} />)}</div> : <WorkState detail={presentation.emptyDetail} title={presentation.emptyTitle} />}</section>{selected ? <LiveContextPanel item={selected} /> : <WorkState detail="No live CRM work item is available to review right now." />}</div>{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} returnHref="/crm?view=work" /> : null}</div>;
+  return <div className={styles.discoveryStack}><div className={styles.twoColumn}><section className={styles.queuePanel}><header className={styles.panelHeading}><div><span>{model.visibility === "owned" ? "Owned live work" : "Live team work"}</span><h2>Do this next</h2></div><small>{presentation.countLabel}</small></header><p className={styles.sectionDetail}>{presentation.explanation}</p><SourceCoveragePanel model={model} />{model.items.length ? <div className={styles.queueList}>{model.items.map((item) => <LiveQueueRow active={selected?.id === item.id} item={item} key={item.id} onSelect={onSelect} />)}</div> : <WorkState detail={presentation.emptyDetail} title={presentation.emptyTitle} />}</section>{selected ? <LiveContextPanel item={selected} /> : <WorkState detail="No live CRM work item is available to review right now." />}</div>{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} returnHref="/crm?view=work" /> : null}</div>;
 }
 
 function PipelineState({

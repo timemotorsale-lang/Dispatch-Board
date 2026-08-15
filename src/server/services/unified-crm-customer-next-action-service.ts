@@ -28,6 +28,10 @@ type Dependencies = UnifiedCrmCustomerNextActionAccessOptions & {
   scopeRepository?: Pick<UnifiedCrmCustomerReadRepository, "listActiveOrganizationIds">;
 };
 
+function hasOwn(value: object, key: string) {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
 function text(value: unknown, field: string, max: number, required = true) {
   const result = typeof value === "string" ? value.trim() : "";
   if (!result) {
@@ -62,13 +66,26 @@ function timestamp(value: unknown, field: string, required = true) {
 
 function normalizeCommand(value: UnifiedCrmCustomerNextActionCommandInput, now: Date): UnifiedCrmCustomerNextActionCommand {
   const nextOperation = operation(value.operation);
+  if (!hasOwn(value, "expectedCurrentNextActionAt")) {
+    throw new UnifiedCrmCustomerNextActionError(
+      "INVALID_NEXT_ACTION_COMMAND",
+      "Current next action time is required."
+    );
+  }
+  const expectedCurrentNextActionAt = timestamp(value.expectedCurrentNextActionAt, "Current next action time", false);
+  if (nextOperation === "COMPLETE" && !expectedCurrentNextActionAt) {
+    throw new UnifiedCrmCustomerNextActionError(
+      "INVALID_NEXT_ACTION_COMMAND",
+      "A current next action time is required before completing it."
+    );
+  }
   const dueAt = nextOperation === "SET" ? timestamp(value.dueAt, "Due time") : null;
   if (dueAt && dueAt.getTime() < now.getTime() - 60_000) {
     throw new UnifiedCrmCustomerNextActionError("INVALID_NEXT_ACTION_COMMAND", "Due time must be current or future.");
   }
   return {
     dueAt,
-    expectedCurrentNextActionAt: timestamp(value.expectedCurrentNextActionAt, "Current next action time", false),
+    expectedCurrentNextActionAt,
     idempotencyKey: text(value.idempotencyKey, "Idempotency key", 200)!,
     note: text(value.note, "Note", 240, false),
     operation: nextOperation
