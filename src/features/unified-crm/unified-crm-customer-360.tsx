@@ -52,6 +52,17 @@ function withCustomerSourceReturn(href: string, customerId: string, returnHref: 
   }
 }
 
+function withCustomerListReturn(href: string, returnHref: string) {
+  if (!href.startsWith("/") || href.startsWith("//") || href.startsWith("/crm")) return href;
+  try {
+    const url = new URL(href, "https://crm.local");
+    url.searchParams.set("returnTo", returnHref);
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return href;
+  }
+}
+
 function formatDate(value: string | null, fallback: string) {
   if (!value) return fallback;
   return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Chicago" }).format(new Date(value));
@@ -124,7 +135,7 @@ function StatePanel({ kind, message, returnHref }: { kind: FailureKind; message?
         <div className={styles.stateActions}>
           {retryable ? <button onClick={() => window.location.reload()} type="button"><RefreshCw aria-hidden="true" size={14} />Retry</button> : null}
           <Link href={returnHref}>{returnContext.returnLabel}</Link>
-          <Link href="/customers">Open existing Customers<ExternalLink aria-hidden="true" size={13} /></Link>
+          <Link href={withCustomerListReturn("/customers", returnHref)}>Open existing Customers<ExternalLink aria-hidden="true" size={13} /></Link>
         </div>
       </section>
     </main>

@@ -155,6 +155,13 @@ describe("Unified CRM UX review shell", () => {
     expect(markup).not.toContain("Save opportunity");
   });
 
+  it("preserves the active CRM view when synthetic Work review opens a governed source", () => {
+    const markup = renderToStaticMarkup(<UnifiedCrmShell activeView="work" userName="Alex Operator" />);
+
+    expect(markup).toContain('/customers?returnTo=%2Fcrm%3Fview%3Dwork');
+    expect(markup).not.toContain('/customers?returnTo=%2Fcrm"');
+  });
+
   it("keeps manual conversations and pipeline movement visibly non-operational", () => {
     const conversations = renderToStaticMarkup(<UnifiedCrmShell activeView="conversations" userName="Alex Operator" />);
     const pipeline = renderToStaticMarkup(<UnifiedCrmShell activeView="pipeline" userName="Alex Operator" />);

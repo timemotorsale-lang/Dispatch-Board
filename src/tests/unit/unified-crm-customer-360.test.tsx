@@ -266,7 +266,14 @@ describe("Unified CRM Customer 360", () => {
     expect(markup).toContain("Customer isn’t available"); expect(markup).toContain("may not exist, may have changed, or may be outside");
     expect(markup).not.toContain("merged"); expect(markup).not.toContain("archived"); expect(markup).not.toContain("Alex Morgan");
     expect(markup).not.toContain("Manual contact outcome"); expect(markup).not.toContain("Log outcome");
-    expect(markup).toContain('href="/crm?view=customers"'); expect(markup).toContain('href="/customers"');
+    expect(markup).toContain('href="/crm?view=customers"'); expect(markup).toContain('href="/customers?returnTo=%2Fcrm%3Fview%3Dcustomers"');
+  });
+
+  it("preserves CRM Work continuity in the recovery exit when customer detail is unavailable", () => {
+    const markup = renderToStaticMarkup(<UnifiedCrmCustomer360 failureKind="unavailable" returnHref="/crm?view=work" />);
+
+    expect(markup).toContain("Back to CRM Work");
+    expect(markup).toContain('href="/customers?returnTo=%2Fcrm%3Fview%3Dwork"');
   });
 
   it("provides an honest reachable loading state", () => {

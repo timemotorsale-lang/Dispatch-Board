@@ -116,6 +116,17 @@ function formatSourceObservedAt(value: string | null) {
   return `Newest visible source update: ${formatDateTime(value, "Unknown")}`;
 }
 
+function withShellSourceReturn(href: string, returnHref: string) {
+  if (!href.startsWith("/") || href.startsWith("//") || href.startsWith("/crm")) return href;
+  try {
+    const url = new URL(href, "https://crm.local");
+    url.searchParams.set("returnTo", returnHref);
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return href;
+  }
+}
+
 function sourceLaneLabel(source: UnifiedCrmWorkQueueSourceKind) {
   switch (source) {
     case "appointments":
@@ -247,7 +258,7 @@ function ReviewNotice({ mode }: { mode: "review" | "live-customers" | "live-work
   );
 }
 
-function SourceActionMenu({ open, onClose }: { open: boolean; onClose(): void }) {
+function SourceActionMenu({ open, onClose, returnHref }: { open: boolean; onClose(): void; returnHref: string }) {
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -270,7 +281,7 @@ function SourceActionMenu({ open, onClose }: { open: boolean; onClose(): void })
         <button aria-label="Close New menu" onClick={onClose} type="button"><X size={16} /></button>
       </header>
       {reviewSourceActions.map((action) => (
-        <Link href={action.href} key={action.label} onClick={onClose} role="menuitem">
+        <Link href={withShellSourceReturn(action.href, returnHref)} key={action.label} onClick={onClose} role="menuitem">
           <span><strong>{action.label}</strong><small>{action.description}</small></span>
           <ExternalLink aria-hidden="true" size={15} />
         </Link>
@@ -322,7 +333,7 @@ function LiveQueueRow({
   );
 }
 
-function ContextPanel({ item }: { item: ReviewQueueItem }) {
+function ContextPanel({ item, returnHref }: { item: ReviewQueueItem; returnHref: string }) {
   return (
     <aside className={styles.contextPanel} aria-label={`Review context for ${item.customer}`}>
       <header>
@@ -343,7 +354,7 @@ function ContextPanel({ item }: { item: ReviewQueueItem }) {
         <ol className={styles.history}>{item.history.map((entry) => <li key={entry}>{entry}</li>)}</ol>
       </section>
       <small className={styles.freshness}>{item.sourceFreshness}</small>
-      <Link className={styles.primaryAction} href={item.sourceHref}>
+      <Link className={styles.primaryAction} href={withShellSourceReturn(item.sourceHref, returnHref)}>
         {item.nextAction}<ExternalLink aria-hidden="true" size={15} />
       </Link>
       <p className={styles.sourceBoundary}>This opens the existing governed source. The CRM review does not write or send anything.</p>
@@ -442,10 +453,12 @@ function WorkQueueSearch({
 
 function HomeView({
   opportunityDiscovery,
+  returnHref,
   selected,
   onSelect
 }: {
   opportunityDiscovery?: UnifiedCrmOpportunityDiscoveryModel;
+  returnHref: string;
   selected: ReviewQueueItem;
   onSelect(item: ReviewQueueItem): void;
 }) {
@@ -458,12 +471,12 @@ function HomeView({
         </header>
         <div className={styles.queueList}>{reviewQueueItems.map((item) => <QueueRow active={selected.id === item.id} item={item} key={item.id} onSelect={onSelect} />)}</div>
       </section>
-      <ContextPanel item={selected} />
+      <ContextPanel item={selected} returnHref={returnHref} />
       <aside className={styles.todayRail} aria-label="Today review">
         <section className={styles.todayCard}>
           <header><span><CalendarDays aria-hidden="true" size={16} />Today</span><small>Review</small></header>
           {reviewAppointments.map((appointment) => <article key={`${appointment.time}-${appointment.customer}`}><time>{appointment.time}</time><span><strong>{appointment.customer}</strong><small>{appointment.detail}</small></span></article>)}
-          <Link href="/appointments?returnTo=%2Fcrm%3Fview%3Dwork">Open source appointment board<ExternalLink aria-hidden="true" size={13} /></Link>
+          <Link href={withShellSourceReturn("/appointments", returnHref)}>Open source appointment board<ExternalLink aria-hidden="true" size={13} /></Link>
         </section>
         <section className={styles.attentionCard}>
           <header><span><Clock3 aria-hidden="true" size={16} />Attention</span></header>
@@ -471,31 +484,35 @@ function HomeView({
           <button onClick={() => onSelect(reviewQueueItems[3])} type="button"><strong>1 source-owned case</strong><span>Context only in CRM</span></button>
         </section>
       </aside>
-      {opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} returnHref="/crm" /> : null}
+      {opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} returnHref={returnHref} /> : null}
     </div>
   );
 }
 
 function WorkView({
   opportunityDiscovery,
+  returnHref,
   selected,
   onSelect
 }: {
   opportunityDiscovery?: UnifiedCrmOpportunityDiscoveryModel;
+  returnHref: string;
   selected: ReviewQueueItem;
   onSelect(item: ReviewQueueItem): void;
 }) {
-  return <div className={styles.discoveryStack}><div className={styles.twoColumn}><section className={styles.queuePanel}><div className={styles.queueList}>{reviewQueueItems.map((item) => <QueueRow active={selected.id === item.id} item={item} key={item.id} onSelect={onSelect} />)}</div></section><ContextPanel item={selected} /></div>{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} returnHref="/crm?view=work" /> : null}</div>;
+  return <div className={styles.discoveryStack}><div className={styles.twoColumn}><section className={styles.queuePanel}><div className={styles.queueList}>{reviewQueueItems.map((item) => <QueueRow active={selected.id === item.id} item={item} key={item.id} onSelect={onSelect} />)}</div></section><ContextPanel item={selected} returnHref={returnHref} /></div>{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} returnHref={returnHref} /> : null}</div>;
 }
 
 function WorkState({
   detail,
   title,
-  failureKind
+  failureKind,
+  returnHref = "/crm?view=work"
 }: {
   detail: string;
   title?: string;
   failureKind?: "error" | "restricted" | "unavailable";
+  returnHref?: string;
 }) {
   const resolvedTitle = title ?? (failureKind === "restricted"
     ? "CRM work is restricted"
@@ -507,8 +524,8 @@ function WorkState({
       <strong>{resolvedTitle}</strong>
       <p>{detail}</p>
       <div className={styles.stateActions}>
-        <Link href="/my-tasks?returnTo=%2Fcrm%3Fview%3Dwork">Open existing task queue</Link>
-        <Link href="/appointments?returnTo=%2Fcrm%3Fview%3Dwork">Open appointments</Link>
+        <Link href={withShellSourceReturn("/my-tasks", returnHref)}>Open existing task queue</Link>
+        <Link href={withShellSourceReturn("/appointments", returnHref)}>Open appointments</Link>
       </div>
     </section>
   );
@@ -544,9 +561,10 @@ function LiveHomeView({
           : <WorkState
               detail={presentation.emptyDetail}
               title={presentation.emptyTitle}
+              returnHref="/crm?view=work"
             />}
       </section>
-      {selected ? <LiveContextPanel item={selected} /> : <WorkState detail="No live work item is available to review right now." />}
+      {selected ? <LiveContextPanel item={selected} /> : <WorkState detail="No live work item is available to review right now." returnHref="/crm?view=work" />}
       <aside className={styles.todayRail} aria-label="Today live work">
         <section className={styles.todayCard}>
           <header><span><CalendarDays aria-hidden="true" size={16} />Today</span><small>Live</small></header>
@@ -564,7 +582,7 @@ function LiveHomeView({
               </span>
             </article>
           )) : <p className={styles.railEmpty}>No permitted appointments are scheduled today. Other source-owned work may still appear in the ranked queue.</p>}
-          <Link href="/appointments?returnTo=%2Fcrm%3Fview%3Dwork">Open source appointment board<ExternalLink aria-hidden="true" size={13} /></Link>
+          <Link href={withShellSourceReturn("/appointments", "/crm?view=work")}>Open source appointment board<ExternalLink aria-hidden="true" size={13} /></Link>
         </section>
         <section className={styles.attentionCard}>
           <header><span><Clock3 aria-hidden="true" size={16} />Attention</span></header>
@@ -593,21 +611,23 @@ function LiveWorkView({
   selected: UnifiedCrmWorkQueueItem | null;
 }) {
   if (!model) {
-    return <div className={styles.discoveryStack}><WorkState detail="No live CRM work records were displayed." failureKind={failureKind} />{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} returnHref="/crm?view=work" /> : null}</div>;
+    return <div className={styles.discoveryStack}><WorkState detail="No live CRM work records were displayed." failureKind={failureKind} returnHref="/crm?view=work" />{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} returnHref="/crm?view=work" /> : null}</div>;
   }
   if (model.state === "EMPTY") {
-    return <div className={styles.discoveryStack}><WorkState detail="No owned work needs attention right now." />{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} returnHref="/crm?view=work" /> : null}</div>;
+    return <div className={styles.discoveryStack}><WorkState detail="No owned work needs attention right now." returnHref="/crm?view=work" />{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} returnHref="/crm?view=work" /> : null}</div>;
   }
   const presentation = describeLiveWorkPresentation(model, filterQuery);
-  return <div className={styles.discoveryStack}><div className={styles.twoColumn}><section className={styles.queuePanel}><header className={styles.panelHeading}><div><span>{model.visibility === "owned" ? "Owned live work" : "Live team work"}</span><h2>Do this next</h2></div><small>{presentation.countLabel}</small></header><p className={styles.sectionDetail}>{presentation.explanation}</p><SourceCoveragePanel model={model} />{model.items.length ? <div className={styles.queueList}>{model.items.map((item) => <LiveQueueRow active={selected?.id === item.id} item={item} key={item.id} onSelect={onSelect} />)}</div> : <WorkState detail={presentation.emptyDetail} title={presentation.emptyTitle} />}</section>{selected ? <LiveContextPanel item={selected} /> : <WorkState detail="No live CRM work item is available to review right now." />}</div>{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} returnHref="/crm?view=work" /> : null}</div>;
+  return <div className={styles.discoveryStack}><div className={styles.twoColumn}><section className={styles.queuePanel}><header className={styles.panelHeading}><div><span>{model.visibility === "owned" ? "Owned live work" : "Live team work"}</span><h2>Do this next</h2></div><small>{presentation.countLabel}</small></header><p className={styles.sectionDetail}>{presentation.explanation}</p><SourceCoveragePanel model={model} />{model.items.length ? <div className={styles.queueList}>{model.items.map((item) => <LiveQueueRow active={selected?.id === item.id} item={item} key={item.id} onSelect={onSelect} />)}</div> : <WorkState detail={presentation.emptyDetail} title={presentation.emptyTitle} returnHref="/crm?view=work" />}</section>{selected ? <LiveContextPanel item={selected} /> : <WorkState detail="No live CRM work item is available to review right now." returnHref="/crm?view=work" />}</div>{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} returnHref="/crm?view=work" /> : null}</div>;
 }
 
 function PipelineState({
   detail,
-  failureKind
+  failureKind,
+  returnHref = "/crm?view=pipeline"
 }: {
   detail: string;
   failureKind?: "error" | "restricted" | "unavailable";
+  returnHref?: string;
 }) {
   const title = failureKind === "restricted"
     ? "Opportunity review is restricted"
@@ -620,7 +640,7 @@ function PipelineState({
       <p>{detail}</p>
       <div className={styles.stateActions}>
         <Link href="/crm?view=work">Open CRM work</Link>
-        <Link href="/customers">Open existing Customers</Link>
+        <Link href={withShellSourceReturn("/customers", returnHref)}>Open existing Customers</Link>
       </div>
     </section>
   );
@@ -678,7 +698,7 @@ function PipelineView({
 }) {
   if (!model) {
     return failureKind
-      ? <PipelineState detail="No opportunity review data was displayed." failureKind={failureKind} />
+      ? <PipelineState detail="No opportunity review data was displayed." failureKind={failureKind} returnHref="/crm?view=pipeline" />
       : <UnifiedCrmOpportunityPreview />;
   }
   return <UnifiedCrmOpportunityPipelinePreview model={model} />;
@@ -772,7 +792,7 @@ export function UnifiedCrmShell({
             : <SearchReview key={activeView} onSelect={selectAndReturnHome} />}
           <div className={styles.newMenuWrap}>
             <button aria-controls="crm-review-new-menu" aria-expanded={newMenuOpen} className={styles.newButton} onClick={() => setNewMenuOpen((current) => !current)} ref={newButtonRef} type="button"><Plus aria-hidden="true" size={16} />New<ChevronDown aria-hidden="true" size={14} /></button>
-            <SourceActionMenu onClose={closeNewMenu} open={newMenuOpen} />
+            <SourceActionMenu onClose={closeNewMenu} open={newMenuOpen} returnHref={activeView === "work" ? "/crm?view=work" : "/crm"} />
           </div>
         </div>}
       </header>
@@ -781,13 +801,13 @@ export function UnifiedCrmShell({
         ? workQueue || workQueueError
           ? workQueue
             ? <LiveHomeView filterQuery={workQuery} model={{ ...workQueue, items: filteredWorkItems }} opportunityDiscovery={opportunityDiscovery} onSelect={(item) => setSelectedWorkId(item.id)} selected={selectedWork} />
-            : <div className={styles.discoveryStack}><WorkState detail={workQueueError ?? "No live CRM work records were displayed."} failureKind={workQueueFailureKind} />{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} returnHref="/crm" /> : null}</div>
-          : <HomeView opportunityDiscovery={opportunityDiscovery} onSelect={setSelected} selected={selected} />
+            : <div className={styles.discoveryStack}><WorkState detail={workQueueError ?? "No live CRM work records were displayed."} failureKind={workQueueFailureKind} returnHref="/crm" />{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} returnHref="/crm" /> : null}</div>
+          : <HomeView opportunityDiscovery={opportunityDiscovery} onSelect={setSelected} returnHref="/crm" selected={selected} />
         : null}
       {activeView === "work"
         ? workQueue || workQueueError
           ? <LiveWorkView failureKind={workQueueFailureKind} filterQuery={workQuery} model={workQueue ? { ...workQueue, items: filteredWorkItems } : undefined} opportunityDiscovery={opportunityDiscovery} onSelect={(item) => setSelectedWorkId(item.id)} selected={selectedWork} />
-          : <WorkView opportunityDiscovery={opportunityDiscovery} onSelect={setSelected} selected={selected} />
+          : <WorkView opportunityDiscovery={opportunityDiscovery} onSelect={setSelected} returnHref="/crm?view=work" selected={selected} />
         : null}
       {activeView === "customers" ? <UnifiedCrmCustomerList errorMessage={customerListError} failureKind={customerListFailureKind} model={customerList} opportunityDiscovery={customerListOpportunityDiscovery} /> : null}
       {activeView === "pipeline"
