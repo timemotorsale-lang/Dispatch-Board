@@ -86,6 +86,44 @@ describe("Unified CRM customer task bridge service", () => {
     })).rejects.toMatchObject({ code: "CUSTOMER_TASK_BRIDGE_OFF" });
   });
 
+  it("fails closed for invalid customer identity and organization scope boundaries", async () => {
+    await expect(createUnifiedCrmCustomerTaskBridge(manager, "   ", {
+      brief: "Document the customer follow-up and the next operational step.",
+      dueAt: "2026-08-15T15:00:00.000Z",
+      idempotencyKey: "crm-task-invalid-customer",
+      title: "Follow up with Alex Morgan"
+    }, {
+      now: () => new Date("2026-08-15T10:00:00.000Z"),
+      readMode: "REVIEW",
+      repository: repository().repo,
+      scopeRepository: { async listActiveOrganizationIds() { return ["org-a"]; } }
+    })).rejects.toMatchObject({ code: "CUSTOMER_NOT_AVAILABLE" });
+
+    await expect(createUnifiedCrmCustomerTaskBridge(manager, "customer-1", {
+      brief: "Document the customer follow-up and the next operational step.",
+      dueAt: "2026-08-15T15:00:00.000Z",
+      idempotencyKey: "crm-task-no-org",
+      title: "Follow up with Alex Morgan"
+    }, {
+      now: () => new Date("2026-08-15T10:00:00.000Z"),
+      readMode: "REVIEW",
+      repository: repository().repo,
+      scopeRepository: { async listActiveOrganizationIds() { return []; } }
+    })).rejects.toMatchObject({ code: "ORGANIZATION_SCOPE_UNAVAILABLE" });
+
+    await expect(createUnifiedCrmCustomerTaskBridge(manager, "customer-1", {
+      brief: "Document the customer follow-up and the next operational step.",
+      dueAt: "2026-08-15T15:00:00.000Z",
+      idempotencyKey: "crm-task-ambiguous-org",
+      title: "Follow up with Alex Morgan"
+    }, {
+      now: () => new Date("2026-08-15T10:00:00.000Z"),
+      readMode: "REVIEW",
+      repository: repository().repo,
+      scopeRepository: { async listActiveOrganizationIds() { return ["org-a", "org-b"]; } }
+    })).rejects.toMatchObject({ code: "ORGANIZATION_SCOPE_AMBIGUOUS" });
+  });
+
   it("maps invalid payloads and idempotency reuse safely", async () => {
     await expect(createUnifiedCrmCustomerTaskBridge(manager, "customer-1", {
       brief: "too short",
@@ -114,5 +152,83 @@ describe("Unified CRM customer task bridge service", () => {
       },
       scopeRepository: { async listActiveOrganizationIds() { return ["org-a"]; } }
     })).rejects.toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
+
+    await expect(createUnifiedCrmCustomerTaskBridge(manager, "customer-1", {
+      brief: "Document the customer follow-up and the next operational step.",
+      dueAt: "2026-08-15T15:00:00.000Z",
+      idempotencyKey: "crm-task-scope-replay",
+      title: "Follow up with Alex Morgan"
+    }, {
+      now: () => new Date("2026-08-15T10:00:00.000Z"),
+      readMode: "REVIEW",
+      repository: {
+        async commitTaskBridge() {
+          throw new Error("Customer task bridge idempotency scope is unavailable.");
+        }
+      },
+      scopeRepository: { async listActiveOrganizationIds() { return ["org-a"]; } }
+    })).rejects.toMatchObject({ code: "TASK_SOURCE_UNAVAILABLE" });
+
+    await expect(createUnifiedCrmCustomerTaskBridge(manager, "customer-1", {
+      brief: "Document the customer follow-up and the next operational step.",
+      dueAt: "2026-08-15T15:00:00.000Z",
+      idempotencyKey: "crm-task-invalid-replay",
+      title: "Follow up with Alex Morgan"
+    }, {
+      now: () => new Date("2026-08-15T10:00:00.000Z"),
+      readMode: "REVIEW",
+      repository: {
+        async commitTaskBridge() {
+          throw new Error("Stored customer task bridge replay is invalid.");
+        }
+      },
+      scopeRepository: { async listActiveOrganizationIds() { return ["org-a"]; } }
+    })).rejects.toMatchObject({ code: "TASK_SOURCE_UNAVAILABLE" });
+  });
+
+  it("maps missing customer, unauthenticated access, and unexpected source failures safely", async () => {
+    await expect(createUnifiedCrmCustomerTaskBridge(manager, "customer-1", {
+      brief: "Document the customer follow-up and the next operational step.",
+      dueAt: "2026-08-15T15:00:00.000Z",
+      idempotencyKey: "crm-task-not-found",
+      title: "Follow up with Alex Morgan"
+    }, {
+      now: () => new Date("2026-08-15T10:00:00.000Z"),
+      readMode: "REVIEW",
+      repository: {
+        async commitTaskBridge() {
+          throw new Error("Customer not available.");
+        }
+      },
+      scopeRepository: { async listActiveOrganizationIds() { return ["org-a"]; } }
+    })).rejects.toMatchObject({ code: "CUSTOMER_NOT_AVAILABLE" });
+
+    await expect(createUnifiedCrmCustomerTaskBridge(null, "customer-1", {
+      brief: "Document the customer follow-up and the next operational step.",
+      dueAt: "2026-08-15T15:00:00.000Z",
+      idempotencyKey: "crm-task-auth",
+      title: "Follow up with Alex Morgan"
+    }, {
+      now: () => new Date("2026-08-15T10:00:00.000Z"),
+      readMode: "REVIEW",
+      repository: repository().repo,
+      scopeRepository: { async listActiveOrganizationIds() { return ["org-a"]; } }
+    })).rejects.toMatchObject({ code: "AUTHENTICATION_REQUIRED" });
+
+    await expect(createUnifiedCrmCustomerTaskBridge(manager, "customer-1", {
+      brief: "Document the customer follow-up and the next operational step.",
+      dueAt: "2026-08-15T15:00:00.000Z",
+      idempotencyKey: "crm-task-unexpected",
+      title: "Follow up with Alex Morgan"
+    }, {
+      now: () => new Date("2026-08-15T10:00:00.000Z"),
+      readMode: "REVIEW",
+      repository: {
+        async commitTaskBridge() {
+          throw new Error("private source failure");
+        }
+      },
+      scopeRepository: { async listActiveOrganizationIds() { return ["org-a"]; } }
+    })).rejects.toMatchObject({ code: "TASK_SOURCE_UNAVAILABLE" });
   });
 });

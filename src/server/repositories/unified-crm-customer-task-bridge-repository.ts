@@ -132,15 +132,15 @@ export function createUnifiedCrmCustomerTaskBridgeRepository(
         });
 
         if (existing) {
-          if (existing.subjectType !== "CUSTOMER" || existing.subjectId !== customer.id) {
-            throw new Error("Customer task bridge idempotency scope is unavailable.");
-          }
           if (existing.requestHash !== input.command.requestHash) {
+            throw new EnterpriseCommandConflictError("Idempotency key was already used with a different CRM task handoff.", "IDEMPOTENCY_KEY_REUSED");
+          }
+          if (existing.subjectType !== "CUSTOMER" || existing.subjectId !== customer.id) {
             throw new EnterpriseCommandConflictError("Idempotency key was already used with a different CRM task handoff.", "IDEMPOTENCY_KEY_REUSED");
           }
           const snapshot = resultSnapshot(existing.resultSnapshot);
           if (!snapshot || snapshot.customerId !== customer.id) {
-            throw new Error("Stored customer task bridge replay is invalid.");
+            throw new EnterpriseCommandConflictError("Idempotency key was already used with a different CRM task handoff.", "IDEMPOTENCY_KEY_REUSED");
           }
           return {
             customerId: snapshot.customerId,

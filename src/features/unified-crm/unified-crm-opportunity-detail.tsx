@@ -31,6 +31,12 @@ function readModeLabel(value: UnifiedCrmOpportunityDetailReadModel["source"]["re
   return value === "HELD_REVIEW" ? "held review only" : "read only";
 }
 
+function sourceRecordFreshnessLabel(model: UnifiedCrmOpportunityDetailReadModel) {
+  return model.freshness.sourceRecordUpdatedAt
+    ? `Latest visible source update ${formatDate(model.freshness.sourceRecordUpdatedAt)}`
+    : "No persisted source record is visible yet.";
+}
+
 function StatePanel({ kind, message, returnHref }: { kind: FailureKind; message?: string; returnHref: string }) {
   const returnContext = getUnifiedCrmOpportunityReturnContext(returnHref);
   const title = kind === "not-available"
@@ -88,6 +94,7 @@ export function UnifiedCrmOpportunityDetail({ errorMessage, failureKind = "error
       <section aria-label="Opportunity source and freshness" className={styles.trustBar}>
         <span><ShieldCheck aria-hidden="true" size={14} /><strong>{model.source.label}</strong> · {readModeLabel(model.source.readMode)}</span>
         <span><ShieldCheck aria-hidden="true" size={14} />Current · observed {formatDate(model.freshness.observedAt)}</span>
+        <span><ShieldCheck aria-hidden="true" size={14} />{sourceRecordFreshnessLabel(model)}</span>
         <span><ShieldCheck aria-hidden="true" size={14} />{returnContext.returnContextLabel}</span>
         <Link className={styles.sourceLink} href={withUnifiedCrmOpportunityReturn(model.source.href, returnHref)}>Open pipeline source review<ExternalLink aria-hidden="true" size={13} /></Link>
       </section>

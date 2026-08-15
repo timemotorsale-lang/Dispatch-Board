@@ -157,12 +157,6 @@ export async function createUnifiedCrmCustomerTaskBridge(
     if (error instanceof Error && error.message === "Customer not available.") {
       throw new UnifiedCrmCustomerTaskBridgeError("CUSTOMER_NOT_AVAILABLE", "Customer is not available.");
     }
-    if (error instanceof Error && error.message === "Customer task bridge idempotency scope is unavailable.") {
-      throw new UnifiedCrmCustomerTaskBridgeError("CUSTOMER_SOURCE_UNAVAILABLE", "CRM task handoff could not be completed safely.");
-    }
-    if (error instanceof Error && error.message === "Stored customer task bridge replay is invalid.") {
-      throw new UnifiedCrmCustomerTaskBridgeError("CUSTOMER_SOURCE_UNAVAILABLE", "CRM task handoff could not be completed safely.");
-    }
     if (error instanceof Error && "code" in error && String((error as { code?: string }).code) === "IDEMPOTENCY_KEY_REUSED") {
       throw new UnifiedCrmCustomerTaskBridgeError("IDEMPOTENCY_KEY_REUSED", "Idempotency key was already used with a different CRM task handoff.");
     }

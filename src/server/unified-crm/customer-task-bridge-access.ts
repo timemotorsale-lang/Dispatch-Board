@@ -1,5 +1,6 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
-import { requireUnifiedCrmCustomer360Policy } from "@/server/policies/unified-crm-customer-360";
+import type { UnifiedCrmCustomerRecordScope } from "@/server/policies/unified-crm-customer-read";
+import { resolveUnifiedCrmWorkspace } from "@/server/policies/unified-crm-access";
 import { resolveUnifiedCrmCustomerReadMode } from "@/server/services/unified-crm-customer-read-service";
 import { UnifiedCrmCustomerTaskBridgeError } from "@/server/unified-crm/customer-task-bridge-command";
 import { resolveUnifiedCrmShellAccess } from "@/server/unified-crm/shell-access";
@@ -22,11 +23,37 @@ export function resolveUnifiedCrmCustomerTaskBridgeMode(
   return options.nodeEnv === "production" ? "OFF" : "REVIEW";
 }
 
+export function requireUnifiedCrmCustomerTaskBridgePolicy(
+  actor: AuthenticatedUser | null
+): UnifiedCrmCustomerRecordScope {
+  if (!actor) {
+    throw new UnifiedCrmCustomerTaskBridgeError(
+      "AUTHENTICATION_REQUIRED",
+      "CRM task handoff is temporarily unavailable."
+    );
+  }
+  if (!actor.isActive) {
+    throw new UnifiedCrmCustomerTaskBridgeError(
+      "CUSTOMER_TASK_BRIDGE_NOT_AUTHORIZED",
+      "CRM task handoff is temporarily unavailable."
+    );
+  }
+
+  const workspace = resolveUnifiedCrmWorkspace(actor);
+  if (workspace === "MANAGEMENT") return { kind: "ORGANIZATION" };
+  if (workspace === "SALES") return { kind: "OWNER", ownerUserId: actor.id };
+
+  throw new UnifiedCrmCustomerTaskBridgeError(
+    "CUSTOMER_TASK_BRIDGE_NOT_AUTHORIZED",
+    "CRM task handoff is temporarily unavailable."
+  );
+}
+
 export function requireUnifiedCrmCustomerTaskBridgeAccess(
   actor: AuthenticatedUser | null,
   options: UnifiedCrmCustomerTaskBridgeAccessOptions = {}
 ) {
-  const recordScope = requireUnifiedCrmCustomer360Policy(actor);
+  const recordScope = requireUnifiedCrmCustomerTaskBridgePolicy(actor);
   const shellAccess = resolveUnifiedCrmShellAccess(actor, {
     nodeEnv: options.nodeEnv,
     shellMode: options.shellMode

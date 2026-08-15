@@ -19,6 +19,8 @@
 - Opportunity create review now resolves through `requireUnifiedCrmOpportunityDetailAccess(...)` instead of a looser direct access path.
 - Opportunity pipeline preview now resolves through the same shared shell and opportunity read guard.
 - Production-default shell-off behavior now fails closed before any organization lookup on both surfaces.
+- Opportunity review hub now always declares whether any same-scope persisted read-only opportunity is visible, instead of silently omitting that lane when none is available.
+- Opportunity detail now explicitly says whether a persisted source record is visible yet and, when one is visible, shows the latest visible source update time from the current permitted read-only record.
 
 ## Automated evidence
 
@@ -28,7 +30,10 @@
   - `src/tests/unit/unified-crm-opportunity-detail-service.test.ts`
   - `src/tests/unit/unified-crm-opportunity-review-hub-service.test.ts`
   - `src/tests/unit/unified-crm-opportunity-queue-service.test.ts`
-- Result at the focused rerun for this checkpoint: 5 files, 30 tests passed on the working baseline.
+  - `src/tests/unit/unified-crm-opportunity-detail.test.tsx`
+  - `src/tests/unit/unified-crm-opportunity-review-hub.test.tsx`
+  - `src/tests/unit/unified-crm-opportunity-review-hub-page.test.tsx`
+- Result at the focused rerun for this checkpoint: 8 files, 37 tests passed on the working baseline.
 
 ## Remaining gates
 

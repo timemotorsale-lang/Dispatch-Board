@@ -24,6 +24,13 @@ export type UnifiedCrmOpportunityReviewHubModel = {
     detail: string;
     title: string;
   };
+  liveReadObservation: {
+    detail: string;
+    freshnessLabel: string;
+    newestVisibleRecordUpdatedAt: string | null;
+    state: "EMPTY" | "READY";
+    visibleRecordCount: number;
+  };
   nextUnlocks: readonly string[];
   sections: readonly UnifiedCrmOpportunityReviewHubSection[];
   source: {

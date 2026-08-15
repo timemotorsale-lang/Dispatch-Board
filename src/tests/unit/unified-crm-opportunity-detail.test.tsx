@@ -56,6 +56,7 @@ describe("Unified CRM opportunity detail", () => {
     const markup = renderToStaticMarkup(<UnifiedCrmOpportunityDetail model={fixture()} returnHref="/crm?view=pipeline" />);
     expect(markup).toContain("Opportunity detail review");
     expect(markup).toContain("Requested review id review01");
+    expect(markup).toContain("No persisted source record is visible yet.");
     expect(markup).toContain("Lead bridge");
     expect(markup).toContain("Appointments");
     expect(markup).toContain("Dispatch and jobs");
@@ -74,9 +75,13 @@ describe("Unified CRM opportunity detail", () => {
 
   it("renders safe failure and loading states", () => {
     const unavailable = renderToStaticMarkup(<UnifiedCrmOpportunityDetail failureKind="unavailable" returnHref="/crm?view=pipeline" />);
+    const missing = renderToStaticMarkup(<UnifiedCrmOpportunityDetail failureKind="not-available" returnHref="/crm?view=pipeline" />);
     const loading = renderToStaticMarkup(<UnifiedCrmOpportunityDetailLoading />);
     expect(unavailable).toContain("Opportunity detail is temporarily unavailable");
     expect(unavailable).toContain('role="alert"');
+    expect(missing).toContain("Opportunity detail isn’t available");
+    expect(missing).toContain("may not exist, may be held, or may be outside your permitted opportunity scope.");
+    expect(missing).not.toContain("review01");
     expect(loading).toContain("Loading permitted opportunity detail");
     expect(loading).toContain('aria-busy="true"');
   });
@@ -92,5 +97,83 @@ describe("Unified CRM opportunity detail", () => {
     expect(markup).toContain("Back to Customer 360");
     expect(markup).toContain("Customer 360 return preserved");
     expect(markup).toContain("Return to customer");
+  });
+
+  it("shows the newest visible source update for a persisted read-only record", () => {
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmOpportunityDetail
+        model={{
+          ...fixture(),
+          state: "READY",
+          source: {
+            ...fixture().source,
+            label: "Unified CRM opportunity record",
+            readMode: "LIVE_READ_ONLY"
+          },
+          freshness: {
+            ...fixture().freshness,
+            sourceRecordUpdatedAt: "2026-08-14T17:30:00.000Z"
+          },
+          identity: {
+            ...fixture().identity,
+            lifecycleStatus: "READ_ONLY",
+            title: "Alex Morgan renewal review"
+          }
+        }}
+        returnHref="/crm?view=pipeline"
+      />
+    );
+
+    expect(markup).toContain("Latest visible source update");
+    expect(markup).toContain("Aug");
+  });
+
+  it("keeps owned live-read-only detail honest without introducing write language", () => {
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmOpportunityDetail
+        model={{
+          ...fixture(),
+          state: "READY",
+          visibility: "owned",
+          source: {
+            ...fixture().source,
+            label: "Unified CRM opportunity record",
+            readMode: "LIVE_READ_ONLY"
+          },
+          identity: {
+            lifecycleStatus: "READ_ONLY",
+            ownerScopeLabel: "Owned review scope",
+            title: "Alex Morgan renewal review"
+          },
+          summary: {
+            customer: "Alex Morgan · CUS-18",
+            dueState: "Due today",
+            nextAction: "Confirm Saturday appointment",
+            owner: "Taylor B."
+          },
+          sourceBridge: {
+            label: "Source bridge",
+            state: "CONNECTED",
+            detail: "Customer and lead context are correlated here while the source workflow stays authoritative."
+          },
+          workBridges: [
+            { domain: "TASKS", label: "Governed tasks", state: "HELD", detail: "Task linkage remains review only from this surface." },
+            { domain: "APPOINTMENTS", label: "Appointments", state: "HELD", detail: "Appointment linkage remains read-only." },
+            { domain: "DISPATCH", label: "Dispatch and jobs", state: "HELD", detail: "Dispatch authority remains outside CRM." }
+          ],
+          nextUnlocks: ["Verify read-only detail before any operational command is enabled."]
+        }}
+        returnHref="/crm?view=pipeline"
+      />
+    );
+
+    expect(markup).toContain("Owned only");
+    expect(markup).toContain("Unified CRM opportunity record");
+    expect(markup).toContain("read only");
+    expect(markup).toContain("Alex Morgan · CUS-18");
+    expect(markup).toContain("Source bridge");
+    expect(markup).not.toContain("Move to proposal");
+    expect(markup).not.toContain("Save opportunity");
+    expect(markup).not.toContain("<form");
   });
 });

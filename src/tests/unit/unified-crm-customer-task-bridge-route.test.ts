@@ -88,4 +88,42 @@ describe("Unified CRM customer task bridge route", () => {
     );
     expect(unavailable.status).toBe(503);
   });
+
+  it("maps authentication, subject hiding, organization ambiguity, and unknown failures fail-closed", async () => {
+    mocks.createUnifiedCrmCustomerTaskBridge.mockRejectedValueOnce(
+      Object.assign(new Error("Authentication required."), { code: "AUTHENTICATION_REQUIRED" })
+    );
+    const unauthenticated = await POST(
+      new Request("http://crm.local", { method: "POST", body: JSON.stringify({ title: "x" }) }),
+      { params: Promise.resolve({ customerId: "customer-1" }) }
+    );
+    expect(unauthenticated.status).toBe(401);
+
+    mocks.createUnifiedCrmCustomerTaskBridge.mockRejectedValueOnce(
+      Object.assign(new Error("Customer is not available."), { code: "CUSTOMER_NOT_AVAILABLE" })
+    );
+    const notAvailable = await POST(
+      new Request("http://crm.local", { method: "POST", body: JSON.stringify({ title: "x" }) }),
+      { params: Promise.resolve({ customerId: "customer-1" }) }
+    );
+    expect(notAvailable.status).toBe(404);
+
+    mocks.createUnifiedCrmCustomerTaskBridge.mockRejectedValueOnce(
+      Object.assign(new Error("Select one authorized organization before creating a CRM task."), { code: "ORGANIZATION_SCOPE_AMBIGUOUS" })
+    );
+    const ambiguous = await POST(
+      new Request("http://crm.local", { method: "POST", body: JSON.stringify({ title: "x" }) }),
+      { params: Promise.resolve({ customerId: "customer-1" }) }
+    );
+    expect(ambiguous.status).toBe(409);
+
+    mocks.createUnifiedCrmCustomerTaskBridge.mockRejectedValueOnce(
+      new Error("unexpected route failure")
+    );
+    const fallback = await POST(
+      new Request("http://crm.local", { method: "POST", body: JSON.stringify({ title: "x" }) }),
+      { params: Promise.resolve({ customerId: "customer-1" }) }
+    );
+    expect(fallback.status).toBe(500);
+  });
 });

@@ -270,7 +270,7 @@ function QuickActions({
         </Link>
         <Link className={styles.quickActionLink} href={taskBridgeAvailable ? "#task-bridge-heading" : taskBridgeHref}>
           <strong>Create governed task</strong>
-          <small>{taskBridgeAvailable ? "Open the protected CRM task handoff form on this page." : "Continue into the existing task intake workflow."}</small>
+          <small>{taskBridgeAvailable ? "Open the protected CRM task handoff form on this page." : "CRM handoff is unavailable here, so continue into the existing task intake workflow."}</small>
         </Link>
         {primaryOpportunityAction ? (
           <Link className={styles.quickActionLink} href={withUnifiedCrmOpportunityReturn(primaryOpportunityAction.link.href, opportunityDiscovery.customer.href)}>
@@ -486,13 +486,13 @@ export function UnifiedCrmCustomer360({ errorMessage, failureKind = "error", mod
           </header>
         </section>
       )}
-      {model.permissions.canCreateGovernedTask ? (
-        <UnifiedCrmCustomerTaskBridgeForm
-          customerDisplayName={model.identity.displayName}
-          customerId={model.identity.id}
-          defaultDueAt={model.relationship.nextActionAt}
-        />
-      ) : null}
+      <UnifiedCrmCustomerTaskBridgeForm
+        available={model.permissions.canCreateGovernedTask}
+        customerDisplayName={model.identity.displayName}
+        customerId={model.identity.id}
+        defaultDueAt={model.relationship.nextActionAt}
+        fallbackHref={taskBridgeHref}
+      />
       <UnifiedCrmCustomerInteractionForm customerId={model.identity.id} />
       <UnifiedCrmCustomerNoteForm allowRestricted={model.permissions.canCreateRestrictedNote} customerId={model.identity.id} />
       <RelationshipSummary model={model} />

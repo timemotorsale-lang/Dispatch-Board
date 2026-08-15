@@ -107,6 +107,13 @@
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
+.emptyState {
+  border: 1px dashed var(--color-border);
+  border-radius: 0.9rem;
+  padding: 1rem;
+  background: color-mix(in srgb, var(--card-bg, var(--color-surface)) 96%, var(--color-primary-500) 4%);
+}
+
 .linkCard {
   display: grid;
   gap: 0.7rem;

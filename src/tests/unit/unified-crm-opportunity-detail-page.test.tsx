@@ -63,6 +63,38 @@ describe("Unified CRM opportunity detail page", () => {
     expect(markup).toContain("Customer 360 return preserved");
   });
 
+  it("preserves one safe customer return when persisted read-only detail is loaded", async () => {
+    mocks.getUnifiedCrmOpportunityDetail.mockResolvedValue({
+      ...detailFixture(),
+      state: "READY",
+      requestedOpportunityId: "opp_123456",
+      source: {
+        ...detailFixture().source,
+        label: "Unified CRM opportunity record",
+        readMode: "LIVE_READ_ONLY"
+      },
+      identity: {
+        ...detailFixture().identity,
+        lifecycleStatus: "READ_ONLY",
+        title: "Alex Morgan renewal review"
+      },
+      freshness: {
+        ...detailFixture().freshness,
+        sourceRecordUpdatedAt: "2026-08-14T17:30:00.000Z"
+      }
+    });
+
+    const markup = renderToStaticMarkup(await OpportunityPage({
+      params: Promise.resolve({ opportunityId: "opp_123456" }),
+      searchParams: Promise.resolve({ crmReturnTo: "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26q%3DAlex" })
+    }));
+
+    expect(markup).toContain("Unified CRM opportunity record");
+    expect(markup).toContain("Latest visible source update");
+    expect(markup).toContain('href="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26q%3DAlex"');
+    expect(markup).not.toMatch(/crmReturnTo=[^"&]+&amp;crmReturnTo=/);
+  });
+
   it("rejects external, protocol-relative, wrong-view, and unknown return parameters", () => {
     for (const value of ["https://evil.example", "//evil.example", "/crm?view=customers", "/crm?view=pipeline&redirect=https://evil.example"]) {
       expect(safeCrmOpportunityReturn(value)).toBe("/crm?view=pipeline");

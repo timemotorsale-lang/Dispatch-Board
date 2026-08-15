@@ -99,6 +99,7 @@ describe("Unified CRM Customer 360", () => {
     expect(markup).toContain("Create governed task");
     expect(markup).toContain("Create a protected follow-up task");
     expect(markup).toContain("This creates a real task in the existing task workflow with CRM customer context.");
+    expect(markup).toContain("task ownership stays with the task workspace after handoff");
     expect(markup).toContain('href="#task-bridge-heading"');
     expect(markup).toContain('href="#interaction-form-heading"');
     expect(markup).toContain('href="#next-action-form-heading"');
@@ -204,6 +205,7 @@ describe("Unified CRM Customer 360", () => {
           ...customer360Fixture(),
           permissions: {
             ...customer360Fixture().permissions,
+            canCreateGovernedTask: false,
             canManageNextAction: false
           }
         }}
@@ -216,6 +218,9 @@ describe("Unified CRM Customer 360", () => {
     expect(markup).not.toContain("Renew overdue next action");
     expect(markup).toContain("Create governed task");
     expect(markup).not.toContain("Update next action");
+    expect(markup).toContain("CRM task handoff is fail-closed for this customer or environment right now.");
+    expect(markup).toContain("Open existing task intake");
+    expect(markup).toContain("Customer 360 does not become the task source of truth.");
   });
 
   it("keeps the rest of Customer 360 usable when next-action updates are fail-closed", () => {
@@ -225,6 +230,7 @@ describe("Unified CRM Customer 360", () => {
           ...customer360Fixture(),
           permissions: {
             ...customer360Fixture().permissions,
+            canCreateGovernedTask: false,
             canManageNextAction: false
           },
           relationship: {
@@ -246,6 +252,8 @@ describe("Unified CRM Customer 360", () => {
     expect(markup).not.toContain("Renew overdue next action");
     expect(markup).not.toContain("Move today’s next action");
     expect(markup).toContain("Keep the customer follow-up current");
+    expect(markup).toContain("CRM handoff is unavailable here, so continue into the existing task intake workflow.");
+    expect(markup).toContain("No customer message is sent here");
   });
 
   it("renders one non-enumerating not-available state and safe recovery", () => {

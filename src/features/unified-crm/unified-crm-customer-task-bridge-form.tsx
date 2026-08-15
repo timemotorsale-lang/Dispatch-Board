@@ -7,9 +7,11 @@ import { useRouter } from "next/navigation";
 import styles from "./unified-crm-customer-360.module.css";
 
 type Props = {
+  available?: boolean;
   customerDisplayName: string;
   customerId: string;
   defaultDueAt: string | null;
+  fallbackHref?: string;
 };
 
 function localDateTimeValue(date: Date) {
@@ -33,7 +35,13 @@ function createIdempotencyKey(customerId: string) {
   return globalThis.crypto?.randomUUID?.() ?? `crm-task-${customerId}-${Date.now()}`;
 }
 
-export function UnifiedCrmCustomerTaskBridgeForm({ customerDisplayName, customerId, defaultDueAt }: Props) {
+export function UnifiedCrmCustomerTaskBridgeForm({
+  available = true,
+  customerDisplayName,
+  customerId,
+  defaultDueAt,
+  fallbackHref = "/my-tasks"
+}: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
@@ -95,28 +103,40 @@ export function UnifiedCrmCustomerTaskBridgeForm({ customerDisplayName, customer
         <div>
           <span className={styles.eyebrow}>Governed task handoff</span>
           <h2 id="task-bridge-heading">Create a protected follow-up task</h2>
-          <p>This creates a real task in the existing task workflow with CRM customer context. It does not send a message or replace the source workflow.</p>
+          <p>This creates a real task in the existing task workflow with CRM customer context. It does not send a message, and task ownership stays with the task workspace after handoff.</p>
         </div>
-        <button
-          aria-controls="customer-task-bridge-panel"
-          aria-expanded={open}
-          className={styles.interactionToggle}
-          disabled={pending}
-          onClick={() => setOpen((value) => !value)}
-          type="button"
-        >
-          {open ? "Close" : "Create governed task"}
-        </button>
+        {available ? (
+          <button
+            aria-controls="customer-task-bridge-panel"
+            aria-expanded={open}
+            className={styles.interactionToggle}
+            disabled={pending}
+            onClick={() => setOpen((value) => !value)}
+            type="button"
+          >
+            {open ? "Close" : "Create governed task"}
+          </button>
+        ) : null}
       </header>
       {message ? (
         <p className={tone === "error" ? styles.formError : styles.formSuccess} role={tone === "error" ? "alert" : "status"}>
           {message} {messageHref ? <Link href={messageHref}>Open task</Link> : null}
         </p>
       ) : null}
-      {open ? (
+      {!available ? (
+        <div id="customer-task-bridge-panel">
+          <p className={styles.interactionHelper}>
+            CRM task handoff is fail-closed for this customer or environment right now. Continue in the existing task intake workflow to create tracked internal work without changing customer messaging or source-owned records.
+          </p>
+          <div className={styles.interactionActions}>
+            <Link className={styles.secondaryActionLink} href={fallbackHref}>Open existing task intake</Link>
+            <span className={styles.interactionActionNote}>No customer message is sent here, and Customer 360 does not become the task source of truth.</span>
+          </div>
+        </div>
+      ) : open ? (
         <form className={styles.interactionForm} id="customer-task-bridge-panel" onSubmit={(event) => void submit(event)}>
           <p className={styles.interactionHelper}>
-            Use this when the customer follow-up should become tracked work. The task stays governed by the task workspace after creation.
+            Use this when the customer follow-up should become tracked work. The task stays governed by the task workspace after creation, and Customer 360 remains a safe handoff surface only.
           </p>
           <label className={styles.interactionWide}>
             <span>Task title</span>

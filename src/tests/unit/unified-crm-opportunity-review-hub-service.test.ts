@@ -60,6 +60,11 @@ describe("Unified CRM opportunity review hub service", () => {
     expect(model).toMatchObject({
       contractVersion: "ucrm.opportunity-review-hub/v1",
       generatedAt: "2026-08-14T21:00:00.000Z",
+      liveReadObservation: {
+        newestVisibleRecordUpdatedAt: null,
+        state: "EMPTY",
+        visibleRecordCount: 0
+      },
       state: "HELD_REVIEW",
       visibility: "organization",
       source: {
@@ -67,7 +72,8 @@ describe("Unified CRM opportunity review hub service", () => {
         observedAt: "2026-08-14T21:00:00.000Z"
       }
     });
-    expect(model.sections.map((section) => section.id)).toEqual(["overview", "governance"]);
+    expect(model.sections.map((section) => section.id)).toEqual(["overview", "live-records", "governance"]);
+    expect(model.sections.find((section) => section.id === "live-records")?.links).toEqual([]);
     expect(new Set(model.sections[0]?.links.map((link) => link.id))).toEqual(
       new Set(["pipeline", "queue", "create", "detail", "transition"])
     );
@@ -125,6 +131,11 @@ describe("Unified CRM opportunity review hub service", () => {
       state: "LIVE_READ_ONLY"
     });
     expect(liveRecordsSection?.links).toHaveLength(2);
+    expect(model.liveReadObservation).toMatchObject({
+      newestVisibleRecordUpdatedAt: "2026-08-14T20:55:00.000Z",
+      state: "READY",
+      visibleRecordCount: 2
+    });
     expect(liveRecordsSection?.links[1]).toMatchObject({
       id: "live-opp_123457",
       href: "/crm/opportunities/opp_123457?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
@@ -156,6 +167,11 @@ describe("Unified CRM opportunity review hub service", () => {
     expect(detailLink).toMatchObject({
       href: "/crm/opportunities/review01?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
       state: "HELD_REVIEW"
+    });
+    expect(model.liveReadObservation).toMatchObject({
+      newestVisibleRecordUpdatedAt: null,
+      state: "EMPTY",
+      visibleRecordCount: 0
     });
   });
 

@@ -4,7 +4,7 @@ import {
   type UnifiedCrmOpportunityPreviewRecord,
   type UnifiedCrmOpportunityPreviewRepository
 } from "@/server/repositories/unified-crm-opportunity-preview-repository";
-import type { UnifiedCrmOpportunityAccessContext } from "@/server/unified-crm/opportunity-contract";
+import { UnifiedCrmOpportunityError, type UnifiedCrmOpportunityAccessContext } from "@/server/unified-crm/opportunity-contract";
 import { requireUnifiedCrmOpportunityDetailAccess } from "@/server/unified-crm/opportunity-detail-access";
 import {
   UNIFIED_CRM_OPPORTUNITY_REVIEW_HUB_CONTRACT_VERSION,
@@ -109,6 +109,22 @@ function createLinks(
   ];
 }
 
+function liveObservationDetail(
+  visiblePersistedRecordCount: number,
+  visibilityLabel: string
+) {
+  if (visiblePersistedRecordCount > 0) {
+    return `Only same-scope persisted opportunities are listed here for ${visibilityLabel.toLowerCase()}. Lifecycle movement remains off.`;
+  }
+  return `No same-scope persisted read-only opportunity is visible right now for ${visibilityLabel.toLowerCase()}. Continue with held review surfaces until one is available.`;
+}
+
+function liveObservationFreshnessLabel(newestVisibleRecordUpdatedAt: string | null) {
+  return newestVisibleRecordUpdatedAt
+    ? `Newest visible persisted update observed at ${newestVisibleRecordUpdatedAt}.`
+    : "No visible persisted opportunity update is available yet.";
+}
+
 export async function getUnifiedCrmOpportunityReviewHub(
   actor: AuthenticatedUser | null,
   dependencies: Dependencies = {}
@@ -120,14 +136,24 @@ export async function getUnifiedCrmOpportunityReviewHub(
     sourceLabel: "Unified CRM opportunity review hub"
   });
   const repository = dependencies.repository ?? createUnifiedCrmOpportunityPreviewRepository();
-  const persistedRecords = await repository.listOpportunityPreviews({
-    limit: 5,
-    organizationId: access.organizationId,
-    recordScope: access.recordScope
-  });
+  let persistedRecords: UnifiedCrmOpportunityPreviewRecord[];
+  try {
+    persistedRecords = await repository.listOpportunityPreviews({
+      limit: 5,
+      organizationId: access.organizationId,
+      recordScope: access.recordScope
+    });
+  } catch (error) {
+    throw new UnifiedCrmOpportunityError(
+      "OPPORTUNITY_OFF",
+      "Opportunity review hub is temporarily unavailable.",
+      { cause: error }
+    );
+  }
   const liveRecordLinks = persistedRecords
     .map((record) => toVisibleLiveLink(record, access))
     .filter((link): link is UnifiedCrmOpportunityReviewHubLink => Boolean(link));
+  const visiblePersistedRecords = persistedRecords.filter((record) => isPreviewRecordVisible(record, access) && Boolean(safePersistedOpportunityId(record.opportunityNumber)));
   const primaryLiveLink = liveRecordLinks[0] ?? null;
   const visiblePersistedRecord = primaryLiveLink
     ? persistedRecords.find((record) => `live-${safePersistedOpportunityId(record.opportunityNumber)}` === primaryLiveLink.id) ?? null
@@ -146,6 +172,19 @@ export async function getUnifiedCrmOpportunityReviewHub(
         ? `This hub keeps pipeline, queue, create, a real read-only detail record, and transition review one click away while opportunity lifecycle rules remain intentionally held for ${orientation.visibilityLabel}.`
         : `This hub keeps pipeline, queue, create, detail, and transition review one click away while opportunity lifecycle rules remain intentionally held for ${orientation.visibilityLabel}.`
     },
+      liveReadObservation: {
+      detail: liveObservationDetail(visiblePersistedRecords.length, orientation.visibilityLabel),
+      freshnessLabel: liveObservationFreshnessLabel(
+        visiblePersistedRecords.length
+          ? new Date(Math.max(...visiblePersistedRecords.map((record) => record.updatedAt.getTime()))).toISOString()
+          : null
+      ),
+      newestVisibleRecordUpdatedAt: visiblePersistedRecords.length
+        ? new Date(Math.max(...visiblePersistedRecords.map((record) => record.updatedAt.getTime()))).toISOString()
+        : null,
+      state: visiblePersistedRecords.length ? "READY" : "EMPTY",
+      visibleRecordCount: visiblePersistedRecords.length
+    },
     nextUnlocks: [
       "Approve stage names, order, and evidence rules before turning any opportunity write path on.",
       "Verify one end-to-end review journey with permissions, fallback, and rollback evidence before enabling live opportunity commands."
@@ -157,14 +196,14 @@ export async function getUnifiedCrmOpportunityReviewHub(
         detail: "These links summarize the opportunity experience without showing live counts, forecasts, or operational stage movement.",
         links
       },
-      ...(liveRecordLinks.length
-        ? [{
-            id: "live-records" as const,
-            label: "Visible read-only opportunities",
-            detail: "These persisted opportunity records are safe to open in read-only mode and still keep live lifecycle movement turned off.",
-            links: liveRecordLinks
-          }]
-        : []),
+      {
+        id: "live-records" as const,
+        label: "Visible read-only opportunities",
+        detail: liveRecordLinks.length
+          ? "These persisted opportunity records are safe to open in read-only mode and still keep live lifecycle movement turned off."
+          : "No permitted persisted opportunity record is visible right now. Keep using held review surfaces until a same-scope read-only record is available.",
+        links: liveRecordLinks
+      },
       {
         id: "governance",
         label: "Governed activation path",

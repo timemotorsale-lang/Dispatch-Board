@@ -11,6 +11,11 @@ function hubFixture() {
       title: "Review the full opportunity experience from one safe hub",
       detail: "This hub keeps pipeline, queue, create, detail, and transition review one click away."
     },
+    liveReadObservation: {
+      newestVisibleRecordUpdatedAt: "2026-08-15T00:10:00.000Z",
+      state: "READY" as const,
+      visibleRecordCount: 1
+    },
     nextUnlocks: [
       "Approve stage names, order, and evidence rules before turning any opportunity write path on."
     ],
@@ -80,6 +85,7 @@ describe("Unified CRM opportunity review hub", () => {
     expect(markup).toContain("/crm/opportunities/guided?crmReturnTo=%2Fcrm%3Fview%3Dpipeline");
     expect(markup).toContain("You are in the workspace map");
     expect(markup).toContain('aria-label="Opportunity workspace orientation"');
+    expect(markup).toContain("1 visible read-only record");
   });
 
   it("rewrites in-surface review links to preserve a safe customer-detail return chain", () => {
@@ -125,6 +131,65 @@ describe("Unified CRM opportunity review hub", () => {
     }
   });
 
+  it("keeps held-only presentation honest when no live-read-only record is visible from owned scope", () => {
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmOpportunityReviewHub
+        model={{
+          ...hubFixture(),
+          visibility: "owned",
+          liveReadObservation: {
+            newestVisibleRecordUpdatedAt: null,
+            state: "EMPTY",
+            visibleRecordCount: 0
+          },
+          sections: [
+            {
+              id: "overview" as const,
+              label: "Core review surfaces",
+              detail: "Review-only links.",
+              links: [
+                {
+                  id: "pipeline" as const,
+                  label: "Review pipeline",
+                  description: "Pipeline review",
+                  href: "/crm?view=pipeline",
+                  state: "HELD_REVIEW" as const
+                },
+                {
+                  id: "detail" as const,
+                  label: "Review detail",
+                  description: "Held detail review",
+                  href: "/crm/opportunities/review01?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
+                  state: "HELD_REVIEW" as const
+                }
+              ]
+            },
+            {
+              id: "live-records" as const,
+              label: "Visible read-only opportunities",
+              detail: "No permitted persisted opportunity record is visible right now.",
+              links: []
+            },
+            {
+              id: "governance" as const,
+              label: "Governance",
+              detail: "Approval gates remain in review.",
+              links: []
+            }
+          ]
+        }}
+        returnHref="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers"
+      />
+    );
+
+    expect(markup).toContain("Owned review");
+    expect(markup).toContain("No permitted persisted read-only opportunity is visible yet.");
+    expect(markup).toContain("No same-scope persisted read-only record is available from this workspace yet.");
+    expect(markup).toContain("Held review");
+    expect(markup).not.toContain("Live read-only");
+    expect(markup).toContain("Back to Customer 360");
+  });
+
   it("keeps customer return language when the review started from Customer 360", () => {
     const markup = renderToStaticMarkup(
       <UnifiedCrmOpportunityReviewHub
@@ -157,5 +222,33 @@ describe("Unified CRM opportunity review hub", () => {
     expect(markup).toContain("Opportunity review hub is temporarily unavailable");
     expect(markup).toContain('role="alert"');
     expect(markup).toContain("Retry");
+  });
+
+  it("renders an honest empty live-record state when no persisted record is visible", () => {
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmOpportunityReviewHub
+        model={{
+          ...hubFixture(),
+          liveReadObservation: {
+            newestVisibleRecordUpdatedAt: null,
+            state: "EMPTY",
+            visibleRecordCount: 0
+          },
+          sections: [
+            ...hubFixture().sections,
+            {
+              id: "live-records" as const,
+              label: "Visible read-only opportunities",
+              detail: "No permitted persisted opportunity record is visible right now.",
+              links: []
+            }
+          ]
+        }}
+        returnHref="/crm?view=pipeline"
+      />
+    );
+
+    expect(markup).toContain("No permitted persisted read-only opportunity is visible yet.");
+    expect(markup).toContain("No same-scope persisted read-only record is available from this workspace yet.");
   });
 });

@@ -27,6 +27,17 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
+function liveObservationLabel(model: UnifiedCrmOpportunityReviewHubModel) {
+  if (model.liveReadObservation.state === "EMPTY") {
+    return "No permitted persisted read-only opportunity is visible yet.";
+  }
+  const countLabel = `${model.liveReadObservation.visibleRecordCount} visible read-only record${model.liveReadObservation.visibleRecordCount === 1 ? "" : "s"}`;
+  const freshnessLabel = model.liveReadObservation.newestVisibleRecordUpdatedAt
+    ? `Newest visible update ${formatDate(model.liveReadObservation.newestVisibleRecordUpdatedAt)}`
+    : "Newest visible update unavailable";
+  return `${countLabel} · ${freshnessLabel}`;
+}
+
 function linkStateLabel(state: "HELD_REVIEW" | "LIVE_READ_ONLY") {
   return state === "LIVE_READ_ONLY" ? "Live read-only" : "Held review";
 }
@@ -76,6 +87,7 @@ export function UnifiedCrmOpportunityReviewHub({
         <div className={styles.heroMeta}>
           <span className={styles.reviewTag}>Observed {formatDate(model.source.observedAt)}</span>
           <span>{model.visibility === "organization" ? "Organization review" : "Owned review"}</span>
+          <span>{liveObservationLabel(model)}</span>
           <span>{returnContext.returnContextLabel}</span>
           <span className={styles.heldTag}>{model.state}</span>
         </div>
@@ -95,18 +107,22 @@ export function UnifiedCrmOpportunityReviewHub({
             <strong>{section.label}</strong>
             <p>{section.detail}</p>
           </div>
-          <div className={styles.linkGrid}>
-            {section.links.map((link) => (
-              <Link className={styles.linkCard} href={withUnifiedCrmOpportunityReturn(link.href, returnHref)} key={link.id}>
-                <header>
-                  <strong>{link.label}</strong>
-                  <span>{linkStateLabel(link.state)}</span>
-                </header>
-                <p>{link.description}</p>
-                <small>{link.state === "LIVE_READ_ONLY" ? "Open persisted read-only detail" : "Open held review surface"} <ExternalLink aria-hidden="true" size={13} /></small>
-              </Link>
-            ))}
-          </div>
+          {section.links.length ? (
+            <div className={styles.linkGrid}>
+              {section.links.map((link) => (
+                <Link className={styles.linkCard} href={withUnifiedCrmOpportunityReturn(link.href, returnHref)} key={link.id}>
+                  <header>
+                    <strong>{link.label}</strong>
+                    <span>{linkStateLabel(link.state)}</span>
+                  </header>
+                  <p>{link.description}</p>
+                  <small>{link.state === "LIVE_READ_ONLY" ? "Open persisted read-only detail" : "Open held review surface"} <ExternalLink aria-hidden="true" size={13} /></small>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <p className={styles.emptyState}>No same-scope persisted read-only record is available from this workspace yet.</p>
+          )}
         </section>
       ))}
 

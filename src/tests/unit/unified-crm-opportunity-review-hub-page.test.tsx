@@ -34,6 +34,11 @@ function hubFixture() {
       title: "Review the full opportunity experience from one safe hub",
       detail: "Held hub detail"
     },
+    liveReadObservation: {
+      newestVisibleRecordUpdatedAt: null,
+      state: "EMPTY",
+      visibleRecordCount: 0
+    },
     nextUnlocks: [],
     sections: [],
     source: {
