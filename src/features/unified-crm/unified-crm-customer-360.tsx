@@ -2,9 +2,11 @@
 
 import { AlertTriangle, ArrowLeft, ArrowRight, CalendarDays, CarFront, ExternalLink, History, RefreshCw, ShieldCheck, UserRound, UsersRound } from "lucide-react";
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 import { buildUnifiedCrmTaskIntakeHref } from "@/lib/unified-crm-task-intake-handoff";
 import type { UnifiedCrmCustomer360ReadModel } from "@/server/unified-crm/customer-360-contract";
+import type { UnifiedCrmCustomerOpportunityDiscoveryModel } from "@/server/unified-crm/customer-opportunity-discovery-contract";
 
 import { UnifiedCrmCustomerInteractionForm } from "./unified-crm-customer-interaction-form";
 import { UnifiedCrmCustomerNextActionForm } from "./unified-crm-customer-next-action-form";
@@ -17,6 +19,7 @@ type Customer360Props = {
   errorMessage?: string;
   failureKind?: FailureKind;
   model?: UnifiedCrmCustomer360ReadModel;
+  opportunityDiscovery?: UnifiedCrmCustomerOpportunityDiscoveryModel;
   returnHref: string;
 };
 
@@ -66,7 +69,116 @@ function RelationshipSummary({ model }: { model: UnifiedCrmCustomer360ReadModel 
   return <section aria-labelledby="relationship-summary-heading" className={styles.summaryCard}><header><h2 id="relationship-summary-heading">Relationship summary</h2><span>Read only</span></header><div>{summary.map(({ icon: Icon, label: itemLabel, value }) => <article key={itemLabel}><Icon aria-hidden="true" size={16} /><span><strong>{value}</strong><small>{itemLabel}</small></span></article>)}</div></section>;
 }
 
-function WorkContext({ model }: { model: UnifiedCrmCustomer360ReadModel }) {
+function OpportunityDiscoverySection({ model }: { model: UnifiedCrmCustomerOpportunityDiscoveryModel }) {
+  function withCustomerReturn(href: string) {
+    try {
+      const url = new URL(href, "http://crm.local");
+      url.searchParams.set("crmReturnTo", model.customer.href);
+      return `${url.pathname}${url.search}`;
+    } catch {
+      return href;
+    }
+  }
+
+  return (
+    <section aria-labelledby="customer-opportunity-discovery-heading" className={styles.sectionCard}>
+      <header>
+        <div><span className={styles.eyebrow}>Opportunity workspace</span><h2 id="customer-opportunity-discovery-heading">Review opportunity flow from this customer</h2></div>
+        <small>{model.opportunityDiscovery.visibility === "owned" ? "Owned review" : "Organization review"} · held only</small>
+      </header>
+      <p className={styles.discoveryDetail}>
+        {model.opportunityDiscovery.headline.detail} This keeps the customer record read only while you review how opportunity work should feel for {model.customer.displayName}.
+      </p>
+      <div className={styles.discoveryGrid}>
+        {model.opportunityDiscovery.panels.map((panel) => (
+          <Link className={styles.discoveryCard} href={withCustomerReturn(panel.link.href)} key={panel.id}>
+            <span className={styles.discoveryEyebrow}>{panel.label}</span>
+            <strong>{panel.link.label}</strong>
+            <p>{panel.detail}</p>
+            <small>{panel.link.description}</small>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function OpportunityDiscoveryPrompt({
+  detail,
+  href,
+  label,
+  title
+}: {
+  detail: string;
+  href: string;
+  label: string;
+  title: string;
+}) {
+  return (
+    <Link aria-label={title} className={styles.discoveryPrompt} href={href}>
+      <span className={styles.discoveryPromptEyebrow}>{label}</span>
+      <strong>{title}</strong>
+      <small>{detail}</small>
+    </Link>
+  );
+}
+
+function OpportunityDiscoveryNudges({ model }: { model: UnifiedCrmCustomerOpportunityDiscoveryModel }) {
+  function withCustomerReturn(href: string) {
+    try {
+      const url = new URL(href, "http://crm.local");
+      url.searchParams.set("crmReturnTo", model.customer.href);
+      return `${url.pathname}${url.search}`;
+    } catch {
+      return href;
+    }
+  }
+
+  const pipeline = model.opportunityDiscovery.panels.find((panel) => panel.link.id === "pipeline");
+  const hub = model.opportunityDiscovery.panels.find((panel) => panel.link.id === "hub");
+  const guided = model.opportunityDiscovery.panels.find((panel) => panel.link.id === "guided");
+
+  return {
+    connectedWork: pipeline
+      ? (
+        <OpportunityDiscoveryPrompt
+          detail="Use the held pipeline review when connected appointments or vehicles make you want to check the next commercial follow-up."
+          href={withCustomerReturn(pipeline.link.href)}
+          label="Commercial next step"
+          title={pipeline.link.label}
+        />
+      )
+      : null,
+    sourceLenses: hub
+      ? (
+        <OpportunityDiscoveryPrompt
+          detail="Use the review hub when lead or case context makes you want to compare the held, read-only opportunity review surfaces from one place."
+          href={withCustomerReturn(hub.link.href)}
+          label="From source context"
+          title={hub.link.label}
+        />
+      )
+      : null,
+    timeline: guided
+      ? (
+        <OpportunityDiscoveryPrompt
+          detail="Use the guided journey when recent history makes you want to walk the full held opportunity review path in order."
+          href={withCustomerReturn(guided.link.href)}
+          label="Follow-up journey"
+          title={guided.link.label}
+        />
+      )
+      : null
+  };
+}
+
+function WorkContext({
+  model,
+  opportunityPrompt
+}: {
+  model: UnifiedCrmCustomer360ReadModel;
+  opportunityPrompt?: ReactNode;
+}) {
   const upcoming = model.appointments.slice(0, 3);
   const vehicles = model.vehicles.slice(0, 3);
   return (
@@ -76,11 +188,18 @@ function WorkContext({ model }: { model: UnifiedCrmCustomer360ReadModel }) {
         <div><h3><CalendarDays aria-hidden="true" size={15} />Appointments</h3>{upcoming.length ? upcoming.map((item) => <Link href={item.sourceHref} key={item.id}><span><strong>{item.title}</strong><small>{label(item.bookingStatus)} · {label(item.confirmationStatus)}</small></span><time>{formatDate(item.startsAt, "Not scheduled")}</time><ArrowRight aria-hidden="true" size={14} /></Link>) : <p>No permitted appointments are linked.</p>}</div>
         <div><h3><CarFront aria-hidden="true" size={15} />Vehicles</h3>{vehicles.length ? vehicles.map((item) => <Link href={item.sourceHref} key={item.id}><span><strong>{item.label}</strong><small>{label(item.relationshipType)} · {label(item.status)}</small></span><time>{formatDate(item.effectiveFrom, "Date unavailable")}</time><ArrowRight aria-hidden="true" size={14} /></Link>) : <p>No permitted vehicles are linked.</p>}</div>
       </div>
+      {opportunityPrompt ? <div className={styles.discoveryPromptRow}>{opportunityPrompt}</div> : null}
     </section>
   );
 }
 
-function SourceLenses({ model }: { model: UnifiedCrmCustomer360ReadModel }) {
+function SourceLenses({
+  model,
+  opportunityPrompt
+}: {
+  model: UnifiedCrmCustomer360ReadModel;
+  opportunityPrompt?: ReactNode;
+}) {
   return (
     <section aria-labelledby="source-lenses-heading" className={styles.sectionCard}>
       <header><div><span className={styles.eyebrow}>Existing source workflows</span><h2 id="source-lenses-heading">Lead and case context</h2></div><small>Read only · changes stay in their source</small></header>
@@ -88,11 +207,18 @@ function SourceLenses({ model }: { model: UnifiedCrmCustomer360ReadModel }) {
         <section aria-labelledby="lead-lens-heading"><h3 id="lead-lens-heading">Leads</h3>{model.sourceLenses.leads.length ? model.sourceLenses.leads.map((item) => <article key={item.id}><div><strong>{item.leadNumber} · {item.vehicleInterest ?? "General interest"}</strong><span>{label(item.stage)} · {item.ownerName}</span><small>Next: {label(item.nextActionCode)} · {formatDate(item.nextActionAt, "Not scheduled")}</small></div><Link aria-label={`Open lead ${item.leadNumber} in Customers`} href={item.sourceHref}>Open source<ExternalLink aria-hidden="true" size={13} /></Link></article>) : <p>No permitted source leads are linked.</p>}</section>
         <section aria-labelledby="case-lens-heading"><h3 id="case-lens-heading">Cases</h3>{model.sourceLenses.cases.length ? model.sourceLenses.cases.map((item) => <article key={item.id}><div><strong>{item.caseNumber} · {item.title}</strong><span>{label(item.status)} · {item.ownerName}</span><small>{label(item.priority)} priority · SLA {label(item.slaStage)} · due {formatDate(item.resolutionDueAt ?? item.dueAt, "Not scheduled")}</small></div><Link aria-label={`Open case ${item.caseNumber} in Customers`} href={item.sourceHref}>Open source<ExternalLink aria-hidden="true" size={13} /></Link></article>) : <p>No permitted source cases are linked.</p>}</section>
       </div>
+      {opportunityPrompt ? <div className={styles.discoveryPromptRow}>{opportunityPrompt}</div> : null}
     </section>
   );
 }
 
-function TimelineSection({ model }: { model: UnifiedCrmCustomer360ReadModel }) {
+function TimelineSection({
+  model,
+  opportunityPrompt
+}: {
+  model: UnifiedCrmCustomer360ReadModel;
+  opportunityPrompt?: ReactNode;
+}) {
   return (
     <section aria-labelledby="timeline-heading" className={styles.sectionCard}>
       <header>
@@ -113,6 +239,7 @@ function TimelineSection({ model }: { model: UnifiedCrmCustomer360ReadModel }) {
           </article>
         )) : <p className={styles.timelineEmpty}><History aria-hidden="true" size={16} />No permitted relationship history has been recorded yet.</p>}
       </div>
+      {opportunityPrompt ? <div className={styles.discoveryPromptRow}>{opportunityPrompt}</div> : null}
     </section>
   );
 }
@@ -140,7 +267,7 @@ function NotesSection({ model }: { model: UnifiedCrmCustomer360ReadModel }) {
   );
 }
 
-export function UnifiedCrmCustomer360({ errorMessage, failureKind = "error", model, returnHref }: Customer360Props) {
+export function UnifiedCrmCustomer360({ errorMessage, failureKind = "error", model, opportunityDiscovery, returnHref }: Customer360Props) {
   if (!model) return <StatePanel kind={failureKind} message={errorMessage} returnHref={returnHref} />;
   const taskBridgeHref = buildUnifiedCrmTaskIntakeHref({
     customerDisplayName: model.identity.displayName,
@@ -150,6 +277,7 @@ export function UnifiedCrmCustomer360({ errorMessage, failureKind = "error", mod
   });
   const primaryContact = model.contacts.find((item) => item.isPrimary) ?? model.contacts[0];
   const otherContacts = model.contacts.filter((item) => item !== primaryContact).slice(0, 2);
+  const opportunityNudges = opportunityDiscovery ? OpportunityDiscoveryNudges({ model: opportunityDiscovery }) : null;
   return (
     <main className={styles.page}>
       <Link className={styles.backLink} href={returnHref}><ArrowLeft aria-hidden="true" size={15} />Back to CRM Customers</Link>
@@ -166,10 +294,11 @@ export function UnifiedCrmCustomer360({ errorMessage, failureKind = "error", mod
       <UnifiedCrmCustomerInteractionForm customerId={model.identity.id} />
       <UnifiedCrmCustomerNoteForm allowRestricted={model.permissions.canCreateRestrictedNote} customerId={model.identity.id} />
       <RelationshipSummary model={model} />
+      {opportunityDiscovery ? <OpportunityDiscoverySection model={opportunityDiscovery} /> : null}
       <NotesSection model={model} />
-      <TimelineSection model={model} />
-      <WorkContext model={model} />
-      <SourceLenses model={model} />
+      <TimelineSection model={model} opportunityPrompt={opportunityNudges?.timeline} />
+      <WorkContext model={model} opportunityPrompt={opportunityNudges?.connectedWork} />
+      <SourceLenses model={model} opportunityPrompt={opportunityNudges?.sourceLenses} />
       <footer className={styles.footer}>Source record observed {formatDate(model.freshness.observedAt, "time unavailable")} · source record updated {formatDate(model.freshness.sourceRecordUpdatedAt, "time unavailable")} · manual contact outcomes are recorded here; source-owned workflows remain authoritative.</footer>
     </main>
   );

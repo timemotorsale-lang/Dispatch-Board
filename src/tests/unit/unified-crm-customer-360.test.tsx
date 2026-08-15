@@ -9,13 +9,107 @@ vi.mock("next/navigation", () => ({
 
 import CustomerLoading from "@/app/(app)/crm/customers/[customerId]/loading";
 import { UnifiedCrmCustomer360 } from "@/features/unified-crm/unified-crm-customer-360";
+import type { UnifiedCrmCustomerOpportunityDiscoveryModel } from "@/server/unified-crm/customer-opportunity-discovery-contract";
 import { customer360Fixture } from "@/tests/unit/unified-crm-customer-360-fixture";
+
+const opportunityDiscovery: UnifiedCrmCustomerOpportunityDiscoveryModel = {
+  contractVersion: "ucrm.customer-opportunity-discovery/v1",
+  customer: {
+    displayName: "Alex Morgan",
+    href: "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers",
+    id: "customer-1",
+    listHref: "/crm?view=customers"
+  },
+  generatedAt: "2026-08-15T03:00:00.000Z",
+  opportunityDiscovery: {
+    contractVersion: "ucrm.opportunity-discovery/v1",
+    generatedAt: "2026-08-15T03:00:00.000Z",
+    headline: {
+      title: "Opportunity workspace is ready to review, not yet to operate",
+      detail: "Home and Work can safely point here without fake counts or operational commands."
+    },
+    nextUnlocks: [],
+    panels: [
+      {
+        id: "workspace-entry",
+        label: "Start in the opportunity workspace",
+        detail: "Use the held pipeline review.",
+        emphasis: "ENTRY",
+        link: {
+          id: "pipeline",
+          label: "Open pipeline review",
+          description: "Review without live stages, forecasts, or writes.",
+          href: "/crm?view=pipeline",
+          state: "HELD_REVIEW"
+        }
+      },
+      {
+        id: "workspace-map",
+        label: "Choose the exact review surface",
+        detail: "Use the held review hub.",
+        emphasis: "MAP",
+        link: {
+          id: "hub",
+          label: "Open review hub",
+          description: "Review held surfaces.",
+          href: "/crm/opportunities?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
+          state: "HELD_REVIEW"
+        }
+      },
+      {
+        id: "guided-path",
+        label: "Follow the intended path",
+        detail: "Use the held guided journey.",
+        emphasis: "GUIDED",
+        link: {
+          id: "guided",
+          label: "Open guided journey",
+          description: "Review a read-only sequence.",
+          href: "/crm/opportunities/guided?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
+          state: "HELD_REVIEW"
+        }
+      }
+    ],
+    source: {
+      href: "/crm?view=pipeline",
+      label: "Unified CRM opportunity workspace discovery",
+      observedAt: "2026-08-15T03:00:00.000Z"
+    },
+    state: "HELD_REVIEW",
+    visibility: "organization"
+  },
+  source: {
+    authority: "CUSTOMERS",
+    href: "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers",
+    label: "Customer 360 opportunity discovery",
+    observedAt: "2026-08-15T03:00:00.000Z"
+  },
+  state: "HELD_REVIEW"
+};
 
 describe("Unified CRM Customer 360", () => {
   it("prioritizes read-only identity, next action, masked contact, provenance, and source lenses", () => {
-    const markup = renderToStaticMarkup(<UnifiedCrmCustomer360 model={customer360Fixture()} returnHref="/crm?view=customers&amp;q=Alex" />);
+    const markup = renderToStaticMarkup(<UnifiedCrmCustomer360 model={customer360Fixture()} opportunityDiscovery={opportunityDiscovery} returnHref="/crm?view=customers&amp;q=Alex" />);
     expect(markup).toContain("Alex Morgan"); expect(markup).toContain("Taylor B."); expect(markup).toContain("Next relationship action");
     expect(markup).toContain("••••1234"); expect(markup).toContain("a•••@e•••.com"); expect(markup).toContain("Current · observed");
+    expect(markup).toContain("Review opportunity flow from this customer"); expect(markup).toContain("Open pipeline review");
+    expect(markup).toContain('aria-labelledby="customer-opportunity-discovery-heading"'); expect(markup).toContain("Organization review"); expect(markup).toContain("held only");
+    expect(markup).toContain('href="/crm?view=pipeline&amp;crmReturnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dcustomers"'); expect(markup).not.toMatch(/href="(?:https?:)?\/\//);
+    expect(markup).toContain('href="/crm/opportunities?crmReturnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dcustomers"');
+    expect(markup).toContain('href="/crm/opportunities/guided?crmReturnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dcustomers"');
+    expect(markup).not.toMatch(/crmReturnTo=[^"&]+&amp;crmReturnTo=/);
+    expect(markup).toContain("Follow-up journey"); expect(markup).toContain("Commercial next step"); expect(markup).toContain("From source context");
+    expect(markup.match(/href="\/crm\?view=pipeline&amp;crmReturnTo=/g)).toHaveLength(2);
+    expect(markup.match(/href="\/crm\/opportunities\?crmReturnTo=/g)).toHaveLength(2);
+    expect(markup.match(/href="\/crm\/opportunities\/guided\?crmReturnTo=/g)).toHaveLength(2);
+    expect(markup.indexOf("Follow-up journey")).toBeGreaterThan(markup.indexOf("Relationship timeline"));
+    expect(markup.indexOf("Commercial next step")).toBeGreaterThan(markup.indexOf("Relationship context"));
+    expect(markup.indexOf("From source context")).toBeGreaterThan(markup.indexOf("Lead and case context"));
+    for (const title of ["Open pipeline review", "Open review hub", "Open guided journey"]) {
+      const prompt = markup.match(new RegExp(`<a aria-label="${title}"[\\s\\S]*?<\\/a>`))?.[0];
+      expect(prompt).toMatch(/held|read.only/i);
+    }
+    expect(markup).not.toMatch(/Create opportunity|Move stage|Mark won|Save opportunity|live forecast/i);
     expect(markup).toContain("Team context"); expect(markup).toContain("Customer prefers texts after lunch.");
     expect(markup).toContain("Relationship timeline"); expect(markup).toContain("Phone Outbound"); expect(markup).toContain("Appointment confirmation was recorded.");
     expect(markup).toContain("LEAD-101"); expect(markup).toContain("CASE-202"); expect(markup).toContain("changes stay in their source");

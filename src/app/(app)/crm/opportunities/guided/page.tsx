@@ -4,13 +4,12 @@ import { requireCurrentUser } from "@/server/auth/current-user";
 import { getUnifiedCrmOpportunityGuidedJourney } from "@/server/services/unified-crm-opportunity-guided-journey-service";
 import type { UnifiedCrmOpportunityGuidedJourneyModel } from "@/server/unified-crm/opportunity-guided-journey-contract";
 import { requireUnifiedCrmOpportunityDetailAccess } from "@/server/unified-crm/opportunity-detail-access";
+import { safeUnifiedCrmOpportunityReturn } from "@/server/unified-crm/opportunity-review-return";
 import { resolveUnifiedCrmShellAccess } from "@/server/unified-crm/shell-access";
 
 type Props = {
   searchParams: Promise<{ crmReturnTo?: string | string[] }>;
 };
-
-const DEFAULT_RETURN = "/crm?view=pipeline";
 
 function safeFallback(value: string | undefined) {
   return value?.startsWith("/") && !value.startsWith("//") ? value : "/my-tasks";
@@ -23,17 +22,7 @@ function unavailableMessage(reason: string) {
   return "Unified CRM is temporarily unavailable. Your existing workspace remains available.";
 }
 
-export function safeCrmOpportunityGuidedJourneyReturn(value: string | string[] | undefined) {
-  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) return DEFAULT_RETURN;
-  try {
-    const url = new URL(value, "http://crm.local");
-    if (url.pathname !== "/crm" || url.searchParams.get("view") !== "pipeline") return DEFAULT_RETURN;
-    if ([...url.searchParams.keys()].some((key) => key !== "view")) return DEFAULT_RETURN;
-    return DEFAULT_RETURN;
-  } catch {
-    return DEFAULT_RETURN;
-  }
-}
+export const safeCrmOpportunityGuidedJourneyReturn = safeUnifiedCrmOpportunityReturn;
 
 export default async function UnifiedCrmOpportunityGuidedJourneyPage({ searchParams }: Props) {
   const user = await requireCurrentUser();

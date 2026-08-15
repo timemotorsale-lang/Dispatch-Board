@@ -61,6 +61,12 @@ describe("Unified CRM opportunity review hub page", () => {
     expect(markup).toContain('href="/crm?view=pipeline"');
   });
 
+  it("accepts a safe CRM customer return path", () => {
+    expect(safeCrmOpportunityHubReturn("/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26q%3DAlex")).toBe(
+      "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26q%3DAlex"
+    );
+  });
+
   it("rejects unsafe return parameters", () => {
     for (const value of ["https://evil.example", "//evil.example", "/crm?view=customers", "/crm?view=pipeline&redirect=https://evil.example"]) {
       expect(safeCrmOpportunityHubReturn(value)).toBe("/crm?view=pipeline");

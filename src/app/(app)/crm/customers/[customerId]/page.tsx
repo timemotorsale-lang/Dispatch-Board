@@ -2,7 +2,9 @@ import { UnifiedCrmCustomer360 } from "@/features/unified-crm/unified-crm-custom
 import { UnifiedCrmUnavailable } from "@/features/unified-crm/unified-crm-shell";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { getUnifiedCrmCustomer360 } from "@/server/services/unified-crm-customer-360-service";
+import { getUnifiedCrmCustomerOpportunityDiscovery } from "@/server/services/unified-crm-customer-opportunity-discovery-service";
 import type { UnifiedCrmCustomer360ReadModel } from "@/server/unified-crm/customer-360-contract";
+import type { UnifiedCrmCustomerOpportunityDiscoveryModel } from "@/server/unified-crm/customer-opportunity-discovery-contract";
 import { requireUnifiedCrmCustomer360Access } from "@/server/unified-crm/customer-360-access";
 import { resolveUnifiedCrmShellAccess } from "@/server/unified-crm/shell-access";
 
@@ -55,10 +57,16 @@ export default async function UnifiedCrmCustomerPage({ params, searchParams }: C
   const [route, query] = await Promise.all([params, searchParams]);
   const returnHref = safeCrmCustomerReturn(query.crmReturnTo);
   let model: UnifiedCrmCustomer360ReadModel | undefined;
+  let opportunityDiscovery: UnifiedCrmCustomerOpportunityDiscoveryModel | undefined;
   let failure: { kind: "error" | "not-available" | "restricted" | "unavailable"; message?: string } | undefined;
   try {
     requireUnifiedCrmCustomer360Access(user);
     model = await getUnifiedCrmCustomer360(user, route.customerId);
+    try {
+      opportunityDiscovery = await getUnifiedCrmCustomerOpportunityDiscovery(user, route.customerId, { customer360: model });
+    } catch {
+      opportunityDiscovery = undefined;
+    }
   } catch (error) {
     const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
     if (["CUSTOMER_NOT_AVAILABLE", "INVALID_CUSTOMER_ID"].includes(code)) {
@@ -71,5 +79,5 @@ export default async function UnifiedCrmCustomerPage({ params, searchParams }: C
       failure = { kind: "error", message: "Customer details could not be loaded safely. No customer details were displayed." };
     }
   }
-  return <UnifiedCrmCustomer360 errorMessage={failure?.message} failureKind={failure?.kind} model={model} returnHref={returnHref} />;
+  return <UnifiedCrmCustomer360 errorMessage={failure?.message} failureKind={failure?.kind} model={model} opportunityDiscovery={opportunityDiscovery} returnHref={returnHref} />;
 }

@@ -52,6 +52,12 @@ describe("Unified CRM opportunity queue page", () => {
     expect(markup).toContain('href="/crm?view=pipeline"');
   });
 
+  it("accepts a safe CRM customer return path", () => {
+    expect(safeCrmOpportunityQueueReturn("/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26owner%3Dmine")).toBe(
+      "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26owner%3Dmine"
+    );
+  });
+
   it("rejects unsafe return parameters", () => {
     for (const value of ["https://evil.example", "//evil.example", "/crm?view=customers", "/crm?view=pipeline&redirect=https://evil.example"]) {
       expect(safeCrmOpportunityQueueReturn(value)).toBe("/crm?view=pipeline");
