@@ -130,4 +130,26 @@ describe("Unified CRM Customer 360", () => {
     expect(markup).toContain('aria-busy="true"'); expect(markup).toContain("Loading permitted customer context");
     expect(markup).toContain("No action has been completed"); expect(markup).not.toContain("Alex Morgan");
   });
+
+  it("keeps CRM Work continuity when customer detail started from Work", () => {
+    const workOpportunityDiscovery: UnifiedCrmCustomerOpportunityDiscoveryModel = {
+      ...opportunityDiscovery,
+      customer: {
+        ...opportunityDiscovery.customer,
+        href: "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dwork"
+      },
+      source: {
+        ...opportunityDiscovery.source,
+        href: "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dwork"
+      }
+    };
+    const markup = renderToStaticMarkup(<UnifiedCrmCustomer360 model={customer360Fixture()} opportunityDiscovery={workOpportunityDiscovery} returnHref="/crm?view=work" />);
+    expect(markup).toContain("Back to CRM Work");
+    expect(markup).toContain("CRM Work return preserved");
+    expect(markup).toContain('href="/crm?view=pipeline&amp;crmReturnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dwork"');
+    expect(markup).toContain('href="/crm/opportunities?crmReturnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dwork"');
+    expect(markup).toContain('href="/crm/opportunities/guided?crmReturnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dwork"');
+    expect(markup).not.toMatch(/href="(?:https?:)?\/\//);
+    expect(markup).not.toMatch(/crmReturnTo=[^"&]+&amp;crmReturnTo=/);
+  });
 });

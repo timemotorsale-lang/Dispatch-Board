@@ -11,6 +11,7 @@ export type UnifiedCrmWorkQueueItem = {
   kind: UnifiedCrmWorkQueueItemKind;
   title: string;
   customerLabel: string;
+  customerHref?: string;
   ownerName: string;
   sourceLabel: string;
   sourceHref: string;
@@ -28,6 +29,7 @@ export type UnifiedCrmWorkTodayItem = {
   id: string;
   title: string;
   customerLabel: string;
+  customerHref?: string;
   detail: string;
   startsAt: string | null;
   sourceHref: string;

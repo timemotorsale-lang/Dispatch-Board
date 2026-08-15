@@ -80,9 +80,9 @@ describe("Unified CRM page access and fallback", () => {
       generatedAt: "2026-08-14T15:00:00.000Z",
       source: { authority: "UNIFIED_CRM", label: "CRM Work", href: "/crm?view=work", readMode: "LIVE_AGGREGATED", observedAt: "2026-08-14T15:00:00.000Z" },
       freshness: { status: "CURRENT", observedAt: "2026-08-14T15:00:00.000Z", newestRecordUpdatedAt: "2026-08-14T14:45:00.000Z" },
-      summary: { totalCount: 1, overdueCount: 1, todayCount: 0, waitingCount: 0, appointmentCount: 0 },
-      items: [{ id: "task-1", kind: "task", title: "Call promised buyer", customerLabel: "Real Customer · CUS-1", ownerName: "CRM Page User", sourceLabel: "Tasks", sourceHref: "/tasks/task-1", primaryActionLabel: "Open task", dueAt: "2026-08-14T14:00:00.000Z", dueLabel: "Overdue", dueState: "overdue", stageLabel: "In Progress", reason: "This assigned task is past due.", history: ["Status: In Progress"], updatedAt: "2026-08-14T14:45:00.000Z" }],
-      today: []
+      summary: { totalCount: 1, overdueCount: 1, todayCount: 1, waitingCount: 0, appointmentCount: 1 },
+      items: [{ id: "task-1", kind: "task", title: "Call promised buyer", customerLabel: "Real Customer · CUS-1", customerHref: "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dwork", ownerName: "CRM Page User", sourceLabel: "Tasks", sourceHref: "/tasks/task-1", primaryActionLabel: "Open task", dueAt: "2026-08-14T14:00:00.000Z", dueLabel: "Overdue", dueState: "overdue", stageLabel: "In Progress", reason: "This assigned task is past due.", history: ["Status: In Progress"], updatedAt: "2026-08-14T14:45:00.000Z" }],
+      today: [{ id: "appt-1", title: "Delivery follow-up", customerLabel: "Real Customer · CUS-1", customerHref: "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dwork", detail: "Confirmed appointment", startsAt: "2026-08-14T16:00:00.000Z", sourceHref: "/appointments?view=board&appointment=APT-1" }]
     });
     const customerDiscovery = {
       actions: [{ id: "hub", label: "Open workspace map", detail: "Held review.", href: "/crm/opportunities?crmReturnTo=%2Fcrm%3Fview%3Dcustomers", state: "HELD_REVIEW" }],
@@ -251,7 +251,10 @@ describe("Unified CRM page access and fallback", () => {
     expect(mocks.getUnifiedCrmOpportunityDiscovery).toHaveBeenCalled();
     expect(mocks.getUnifiedCrmOpportunityPipelinePreview).not.toHaveBeenCalled();
     expect(markup).toContain("Opportunity workspace is ready to review, not yet to operate");
-    expect(markup).toContain('href="/crm?view=pipeline"');
+    expect(markup).toContain('href="/crm?view=pipeline&amp;crmReturnTo=%2Fcrm%3Fview%3Dwork"');
+    expect(markup).toContain("Open Customer 360");
+    expect(markup).toContain('href="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dwork"');
+    expect(markup).toContain("Delivery follow-up");
     expect(markup).not.toMatch(/Create opportunity|Move stage|Mark won|Save opportunity/i);
   });
 

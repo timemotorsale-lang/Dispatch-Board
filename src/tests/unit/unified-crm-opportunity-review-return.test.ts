@@ -4,6 +4,8 @@ import {
   buildUnifiedCrmCustomerReturn,
   DEFAULT_UNIFIED_CRM_CUSTOMER_LIST_RETURN,
   DEFAULT_UNIFIED_CRM_OPPORTUNITY_RETURN,
+  DEFAULT_UNIFIED_CRM_WORK_RETURN,
+  safeUnifiedCrmCustomerContextReturn,
   safeUnifiedCrmCustomerListReturn,
   safeUnifiedCrmOpportunityReturn,
   withUnifiedCrmOpportunityReturn
@@ -23,7 +25,16 @@ describe("unified CRM opportunity return helpers", () => {
     expect(buildUnifiedCrmCustomerReturn("customer-1", "/crm?view=customers&status=active")).toBe(
       "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26status%3Dactive"
     );
+    expect(buildUnifiedCrmCustomerReturn("customer-1", "/crm?view=work")).toBe(
+      "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dwork"
+    );
     expect(buildUnifiedCrmCustomerReturn("   ")).toBe(DEFAULT_UNIFIED_CRM_OPPORTUNITY_RETURN);
+  });
+
+  it("accepts only sanctioned customer context returns", () => {
+    expect(safeUnifiedCrmCustomerContextReturn("/crm?view=work")).toBe(DEFAULT_UNIFIED_CRM_WORK_RETURN);
+    expect(safeUnifiedCrmCustomerContextReturn("/crm?view=work&owner=mine")).toBe(DEFAULT_UNIFIED_CRM_CUSTOMER_LIST_RETURN);
+    expect(safeUnifiedCrmCustomerContextReturn("/crm?view=customers&owner=mine")).toBe("/crm?view=customers&owner=mine");
   });
 
   it("adds crmReturnTo to an opportunity review href without changing the route", () => {
@@ -39,6 +50,9 @@ describe("unified CRM opportunity return helpers", () => {
     expect(safeUnifiedCrmOpportunityReturn("/crm?view=pipeline")).toBe(DEFAULT_UNIFIED_CRM_OPPORTUNITY_RETURN);
     expect(safeUnifiedCrmOpportunityReturn("/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26q%3DAlex")).toBe(
       "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26q%3DAlex"
+    );
+    expect(safeUnifiedCrmOpportunityReturn("/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dwork")).toBe(
+      "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dwork"
     );
     expect(safeUnifiedCrmOpportunityReturn("/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dpipeline")).toBe(
       "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers"

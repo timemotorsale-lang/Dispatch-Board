@@ -23,6 +23,22 @@ type Customer360Props = {
   returnHref: string;
 };
 
+function customerReturnContext(returnHref: string) {
+  if (returnHref === "/crm?view=work") {
+    return {
+      backLabel: "Back to CRM Work",
+      returnLabel: "Return to CRM Work",
+      continuityLabel: "CRM Work return preserved"
+    };
+  }
+
+  return {
+    backLabel: "Back to CRM Customers",
+    returnLabel: "Return to customer list",
+    continuityLabel: "Customer list return preserved"
+  };
+}
+
 function formatDate(value: string | null, fallback: string) {
   if (!value) return fallback;
   return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Chicago" }).format(new Date(value));
@@ -41,18 +57,19 @@ function Status({ value }: { value: string }) {
 }
 
 function StatePanel({ kind, message, returnHref }: { kind: FailureKind; message?: string; returnHref: string }) {
+  const returnContext = customerReturnContext(returnHref);
   const title = kind === "not-available" ? "Customer isn’t available" : kind === "restricted" ? "Customer details aren’t available to you" : kind === "unavailable" ? "Customer details are temporarily unavailable" : "Customer details couldn’t be loaded";
   const detail = message ?? (kind === "not-available" ? "This record may not exist, may have changed, or may be outside your permitted customer scope." : kind === "restricted" ? "Your current CRM access does not include this customer record." : "No customer details were displayed. Retry or return to the customer list.");
   const retryable = kind === "error" || kind === "unavailable";
   return (
     <main className={styles.page}>
-      <Link className={styles.backLink} href={returnHref}><ArrowLeft aria-hidden="true" size={15} />Back to CRM Customers</Link>
+      <Link className={styles.backLink} href={returnHref}><ArrowLeft aria-hidden="true" size={15} />{returnContext.backLabel}</Link>
       <section className={styles.statePanel} role={retryable ? "alert" : "status"}>
         {retryable ? <AlertTriangle aria-hidden="true" size={28} /> : <ShieldCheck aria-hidden="true" size={28} />}
         <h1>{title}</h1><p>{detail}</p>
         <div className={styles.stateActions}>
           {retryable ? <button onClick={() => window.location.reload()} type="button"><RefreshCw aria-hidden="true" size={14} />Retry</button> : null}
-          <Link href={returnHref}>Return to customer list</Link>
+          <Link href={returnHref}>{returnContext.returnLabel}</Link>
           <Link href="/customers">Open existing Customers<ExternalLink aria-hidden="true" size={13} /></Link>
         </div>
       </section>
@@ -273,6 +290,7 @@ function NotesSection({ model }: { model: UnifiedCrmCustomer360ReadModel }) {
 
 export function UnifiedCrmCustomer360({ errorMessage, failureKind = "error", model, opportunityDiscovery, returnHref }: Customer360Props) {
   if (!model) return <StatePanel kind={failureKind} message={errorMessage} returnHref={returnHref} />;
+  const returnContext = customerReturnContext(returnHref);
   const taskBridgeHref = buildUnifiedCrmTaskIntakeHref({
     customerDisplayName: model.identity.displayName,
     customerId: model.identity.id,
@@ -284,12 +302,12 @@ export function UnifiedCrmCustomer360({ errorMessage, failureKind = "error", mod
   const opportunityNudges = opportunityDiscovery ? OpportunityDiscoveryNudges({ model: opportunityDiscovery }) : null;
   return (
     <main className={styles.page}>
-      <Link className={styles.backLink} href={returnHref}><ArrowLeft aria-hidden="true" size={15} />Back to CRM Customers</Link>
+      <Link className={styles.backLink} href={returnHref}><ArrowLeft aria-hidden="true" size={15} />{returnContext.backLabel}</Link>
       <section className={styles.identityCard} aria-labelledby="customer-name-heading">
         <div className={styles.identityMain}><span className={styles.avatar}><UserRound aria-hidden="true" size={22} /></span><div><span className={styles.eyebrow}>Customer relationship · read only</span><h1 id="customer-name-heading">{model.identity.displayName}</h1><p>{model.identity.customerNumber} · Customer since {formatDateOnly(model.identity.customerSince)}</p></div></div>
         <div className={styles.identityMeta}><Status value={model.identity.status} /><span><small>Owner</small><strong>{model.owner?.name ?? "Unassigned"}</strong></span></div>
       </section>
-      <section className={styles.trustBar} aria-label="Customer source and freshness"><span><ShieldCheck aria-hidden="true" size={15} /><strong>{model.source.label}</strong> · canonical identity</span><span><ShieldCheck aria-hidden="true" size={14} />Current · observed {formatDate(model.freshness.observedAt, "time unavailable")}</span><Link href={model.source.href}>Open existing customer record<ExternalLink aria-hidden="true" size={13} /></Link></section>
+      <section className={styles.trustBar} aria-label="Customer source and freshness"><span><ShieldCheck aria-hidden="true" size={15} /><strong>{model.source.label}</strong> · canonical identity</span><span><ShieldCheck aria-hidden="true" size={14} />Current · observed {formatDate(model.freshness.observedAt, "time unavailable")}</span><span><ShieldCheck aria-hidden="true" size={14} />{returnContext.continuityLabel}</span><Link href={model.source.href}>Open existing customer record<ExternalLink aria-hidden="true" size={13} /></Link></section>
       <section className={styles.priorityGrid}>
         <article className={styles.nextAction}><span className={styles.eyebrow}>Next relationship action</span><h2>{model.relationship.nextActionAt ? formatDate(model.relationship.nextActionAt, "Not scheduled") : "No next action scheduled"}</h2><p>Last interaction: {formatDate(model.relationship.lastInteractionAt, "No interaction recorded")}</p><small>This overview is read only. Continue in the appropriate source workflow to make a change.</small><Link className={styles.secondaryActionLink} href={taskBridgeHref}>Create governed task<ExternalLink aria-hidden="true" size={13} /></Link></article>
         <article className={styles.contactCard}><span className={styles.eyebrow}>Masked contact</span><h2>{primaryContact?.maskedValue ?? "No contact recorded"}</h2>{otherContacts.map((item) => <p key={`${item.type}-${item.maskedValue}`}>{label(item.type)} · {item.maskedValue}</p>)}<dl><div><dt>Preferred method</dt><dd>{model.preferences.preferredContactMethod ? label(model.preferences.preferredContactMethod) : "Not recorded"}</dd></div><div><dt>Preferred time</dt><dd>{model.preferences.preferredContactTime ?? "Not recorded"}</dd></div><div><dt>Language</dt><dd>{model.preferences.languageCode ?? "Not recorded"}</dd></div></dl></article>

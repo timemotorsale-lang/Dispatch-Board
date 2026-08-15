@@ -1,5 +1,6 @@
 export const DEFAULT_UNIFIED_CRM_OPPORTUNITY_RETURN = "/crm?view=pipeline" as const;
 export const DEFAULT_UNIFIED_CRM_CUSTOMER_LIST_RETURN = "/crm?view=customers" as const;
+export const DEFAULT_UNIFIED_CRM_WORK_RETURN = "/crm?view=work" as const;
 
 export function safeUnifiedCrmCustomerListReturn(value: string | null | undefined) {
   if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) return DEFAULT_UNIFIED_CRM_CUSTOMER_LIST_RETURN;
@@ -22,15 +23,31 @@ export function safeUnifiedCrmCustomerListReturn(value: string | null | undefine
   }
 }
 
+export function safeUnifiedCrmCustomerContextReturn(value: string | null | undefined) {
+  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) {
+    return DEFAULT_UNIFIED_CRM_CUSTOMER_LIST_RETURN;
+  }
+  try {
+    const url = new URL(value, "http://crm.local");
+    if (url.pathname === "/crm" && url.searchParams.get("view") === "work") {
+      if ([...url.searchParams.keys()].some((key) => key !== "view")) return DEFAULT_UNIFIED_CRM_CUSTOMER_LIST_RETURN;
+      return DEFAULT_UNIFIED_CRM_WORK_RETURN;
+    }
+  } catch {
+    return DEFAULT_UNIFIED_CRM_CUSTOMER_LIST_RETURN;
+  }
+  return safeUnifiedCrmCustomerListReturn(value);
+}
+
 export function buildUnifiedCrmCustomerReturn(
   customerId: string,
-  customerListReturn: string | null | undefined = DEFAULT_UNIFIED_CRM_CUSTOMER_LIST_RETURN
+  customerContextReturn: string | null | undefined = DEFAULT_UNIFIED_CRM_CUSTOMER_LIST_RETURN
 ) {
   const normalizedCustomerId = customerId.trim();
   if (!normalizedCustomerId || normalizedCustomerId.length > 128) {
     return DEFAULT_UNIFIED_CRM_OPPORTUNITY_RETURN;
   }
-  const nestedReturn = safeUnifiedCrmCustomerListReturn(customerListReturn);
+  const nestedReturn = safeUnifiedCrmCustomerContextReturn(customerContextReturn);
   return `/crm/customers/${encodeURIComponent(normalizedCustomerId)}?crmReturnTo=${encodeURIComponent(nestedReturn)}`;
 }
 

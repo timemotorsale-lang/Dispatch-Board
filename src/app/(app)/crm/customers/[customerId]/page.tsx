@@ -6,14 +6,13 @@ import { getUnifiedCrmCustomerOpportunityDiscovery } from "@/server/services/uni
 import type { UnifiedCrmCustomer360ReadModel } from "@/server/unified-crm/customer-360-contract";
 import type { UnifiedCrmCustomerOpportunityDiscoveryModel } from "@/server/unified-crm/customer-opportunity-discovery-contract";
 import { requireUnifiedCrmCustomer360Access } from "@/server/unified-crm/customer-360-access";
+import { safeUnifiedCrmCustomerContextReturn } from "@/server/unified-crm/opportunity-review-return";
 import { resolveUnifiedCrmShellAccess } from "@/server/unified-crm/shell-access";
 
 type CustomerPageProps = {
   params: Promise<{ customerId: string }>;
   searchParams: Promise<{ crmReturnTo?: string | string[] }>;
 };
-
-const DEFAULT_RETURN = "/crm?view=customers";
 
 function safeFallback(value: string | undefined) {
   return value?.startsWith("/") && !value.startsWith("//") ? value : "/my-tasks";
@@ -27,24 +26,7 @@ function unavailableMessage(reason: string) {
 }
 
 export function safeCrmCustomerReturn(value: string | string[] | undefined) {
-  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) return DEFAULT_RETURN;
-  try {
-    const url = new URL(value, "http://crm.local");
-    if (url.pathname !== "/crm" || url.searchParams.get("view") !== "customers") return DEFAULT_RETURN;
-    if ([...url.searchParams.keys()].some((key) => !["view", "q", "status", "owner", "cursor"].includes(key))) return DEFAULT_RETURN;
-    const next = new URLSearchParams({ view: "customers" });
-    const q = url.searchParams.get("q")?.trim();
-    const status = url.searchParams.get("status");
-    const owner = url.searchParams.get("owner");
-    const cursor = url.searchParams.get("cursor");
-    if (q && q.length <= 100) next.set("q", q);
-    if (status && ["active", "inactive", "all"].includes(status)) next.set("status", status);
-    if (owner && ["all", "mine", "unassigned"].includes(owner)) next.set("owner", owner);
-    if (cursor && cursor.length <= 1024) next.set("cursor", cursor);
-    return `/crm?${next.toString()}`;
-  } catch {
-    return DEFAULT_RETURN;
-  }
+  return safeUnifiedCrmCustomerContextReturn(typeof value === "string" ? value : undefined);
 }
 
 export default async function UnifiedCrmCustomerPage({ params, searchParams }: CustomerPageProps) {

@@ -19,6 +19,7 @@ import {
   type UnifiedCrmWorkReadMode,
   type UnifiedCrmWorkTodayItem
 } from "@/server/unified-crm/work-queue-contract";
+import { buildUnifiedCrmCustomerReturn } from "@/server/unified-crm/opportunity-review-return";
 
 type UnifiedCrmWorkQueueDependencies = {
   now?: () => Date;
@@ -97,6 +98,11 @@ function customerLabel(value: { displayName: string; customerNumber: string } | 
   return fallback?.trim() || "Customer context not recorded";
 }
 
+function customerHref(value: { id: string } | null | undefined) {
+  if (!value?.id?.trim()) return undefined;
+  return buildUnifiedCrmCustomerReturn(value.id, "/crm?view=work");
+}
+
 function rankSource(kind: QueueCandidate["kind"]) {
   if (kind === "task") return 0;
   if (kind === "case") return 1;
@@ -119,6 +125,7 @@ function taskCandidate(task: UnifiedCrmWorkTaskRecord, now: Date): QueueCandidat
     kind: "task",
     title: task.title,
     customerLabel: customerLabel(task.customer, task.customerReference),
+    customerHref: customerHref(task.customer),
     ownerName: task.assignedUser.name,
     sourceLabel: "Tasks",
     sourceHref: `/tasks/${encodeURIComponent(task.id)}`,
@@ -155,6 +162,7 @@ function appointmentCandidate(appointment: UnifiedCrmWorkAppointmentRecord, now:
     kind: "appointment",
     title: appointment.title,
     customerLabel: appointmentCustomer(appointment),
+    customerHref: customerHref(appointment.participants[0]?.customer),
     ownerName: appointment.ownerUser?.name ?? "Unassigned",
     sourceLabel: "Appointments",
     sourceHref: `/appointments?view=board&appointment=${encodeURIComponent(appointment.appointmentNumber)}`,
@@ -184,6 +192,7 @@ function leadCandidate(lead: UnifiedCrmWorkLeadRecord, now: Date): QueueCandidat
     kind: "lead",
     title: `Lead ${lead.leadNumber}`,
     customerLabel: customerLabel(lead.customer, null),
+    customerHref: customerHref(lead.customer),
     ownerName: lead.ownerUser.name,
     sourceLabel: "Sales",
     sourceHref: "/sales",
@@ -213,6 +222,7 @@ function caseCandidate(customerCase: UnifiedCrmWorkConcernCaseRecord, now: Date)
     kind: "case",
     title: `${customerCase.concernNumber} · ${customerCase.title}`,
     customerLabel: customerLabel(customerCase.customer, null),
+    customerHref: customerHref(customerCase.customer),
     ownerName: customerCase.assignedOwner?.name ?? "Unassigned",
     sourceLabel: "Customer resolutions",
     sourceHref: `/customers/resolutions?caseId=${encodeURIComponent(customerCase.concernNumber)}`,
@@ -242,9 +252,10 @@ function customerCandidate(customer: UnifiedCrmWorkCustomerRecord, now: Date): Q
     kind: "customer",
     title: `Follow up with ${customer.displayName}`,
     customerLabel: `${customer.displayName} · ${customer.customerNumber}`,
+    customerHref: buildUnifiedCrmCustomerReturn(customer.id, "/crm?view=work"),
     ownerName: customer.ownerUser?.name ?? "Unassigned",
     sourceLabel: "Unified CRM",
-    sourceHref: `/crm/customers/${encodeURIComponent(customer.id)}?crmReturnTo=${encodeURIComponent("/crm?view=work")}`,
+    sourceHref: buildUnifiedCrmCustomerReturn(customer.id, "/crm?view=work"),
     primaryActionLabel: "Open customer",
     dueAt: due?.toISOString() ?? null,
     dueLabel: dueLabel(due, state),
@@ -285,6 +296,7 @@ function todayItems(appointments: UnifiedCrmWorkAppointmentRecord[]): UnifiedCrm
     id: appointment.id,
     title: appointment.title,
     customerLabel: appointmentCustomer(appointment),
+    customerHref: customerHref(appointment.participants[0]?.customer),
     detail: `${label(appointment.bookingStatus)} · ${label(appointment.confirmationStatus)}`,
     startsAt: appointment.startsAt?.toISOString() ?? null,
     sourceHref: `/appointments?view=board&appointment=${encodeURIComponent(appointment.appointmentNumber)}`
@@ -380,6 +392,7 @@ export async function getUnifiedCrmWorkQueue(
         kind: item.kind,
         title: item.title,
         customerLabel: item.customerLabel,
+        customerHref: item.customerHref,
         ownerName: item.ownerName,
         sourceLabel: item.sourceLabel,
         sourceHref: item.sourceHref,

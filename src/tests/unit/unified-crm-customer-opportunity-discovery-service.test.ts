@@ -109,4 +109,29 @@ describe("getUnifiedCrmCustomerOpportunityDiscovery", () => {
       expect(url.searchParams.getAll("crmReturnTo")).toEqual([customerHref]);
     }
   });
+
+  it("preserves one exact CRM Work origin across every held opportunity entry", async () => {
+    const customerListHref = "/crm?view=work";
+    const customerHref = `/crm/customers/customer-1?crmReturnTo=${encodeURIComponent(customerListHref)}`;
+    const model = await getUnifiedCrmCustomerOpportunityDiscovery(null, "customer-1", {
+      customer360: customer360Fixture(),
+      customerHref,
+      customerListHref,
+      opportunityAccessContext: opportunityAccess("organization")
+    });
+
+    expect(model.customer).toMatchObject({ href: customerHref, listHref: customerListHref });
+    const heldHrefs = model.contextPrompts.map((prompt) => prompt.href);
+    expect(heldHrefs.length).toBeGreaterThan(0);
+    for (const href of heldHrefs) {
+      const url = new URL(href, "http://crm.local");
+      expect(url.origin).toBe("http://crm.local");
+      expect(url.searchParams.getAll("crmReturnTo")).toEqual([customerHref]);
+    }
+    expect(model.opportunityDiscovery.panels.every((panel) =>
+      panel.link.href.startsWith("/") && !panel.link.href.startsWith("//") && panel.link.state === "HELD_REVIEW"
+    )).toBe(true);
+    expect(JSON.stringify(model)).not.toContain("••••1234");
+    expect(JSON.stringify(model)).not.toContain("Customer prefers texts after lunch.");
+  });
 });

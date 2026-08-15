@@ -18,6 +18,7 @@ import {
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { withUnifiedCrmOpportunityReturn } from "@/server/unified-crm/opportunity-review-return";
 import type { UnifiedCrmCustomerListReadModel } from "@/server/unified-crm/customer-read-contract";
 import type { UnifiedCrmCustomerListOpportunityDiscoveryCollectionModel } from "@/server/unified-crm/customer-list-opportunity-discovery-contract";
 import type { UnifiedCrmOpportunityDiscoveryModel } from "@/server/unified-crm/opportunity-discovery-contract";
@@ -257,9 +258,16 @@ function LiveContextPanel({ item }: { item: UnifiedCrmWorkQueueItem }) {
         <ol className={styles.history}>{item.history.map((entry) => <li key={entry}>{entry}</li>)}</ol>
       </section>
       <small className={styles.freshness}>Last source update: {formatDateTime(item.updatedAt, "Unknown")}</small>
-      <Link className={styles.primaryAction} href={item.sourceHref}>
-        {item.primaryActionLabel}<ExternalLink aria-hidden="true" size={15} />
-      </Link>
+      <div className={styles.contextActions}>
+        <Link className={styles.primaryAction} href={item.sourceHref}>
+          {item.primaryActionLabel}<ExternalLink aria-hidden="true" size={15} />
+        </Link>
+        {item.customerHref ? (
+          <Link aria-label={`Open Customer 360 for ${item.customerLabel}`} className={styles.secondaryAction} href={item.customerHref}>
+            Open Customer 360<ArrowRight aria-hidden="true" size={15} />
+          </Link>
+        ) : null}
+      </div>
       <p className={styles.sourceBoundary}>This opens the existing governed source. The CRM queue itself is read only.</p>
     </aside>
   );
@@ -349,7 +357,7 @@ function HomeView({
           <button onClick={() => onSelect(reviewQueueItems[3])} type="button"><strong>1 source-owned case</strong><span>Context only in CRM</span></button>
         </section>
       </aside>
-      {opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} /> : null}
+      {opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} returnHref="/crm" /> : null}
     </div>
   );
 }
@@ -363,7 +371,7 @@ function WorkView({
   selected: ReviewQueueItem;
   onSelect(item: ReviewQueueItem): void;
 }) {
-  return <div className={styles.discoveryStack}><div className={styles.twoColumn}><section className={styles.queuePanel}><div className={styles.queueList}>{reviewQueueItems.map((item) => <QueueRow active={selected.id === item.id} item={item} key={item.id} onSelect={onSelect} />)}</div></section><ContextPanel item={selected} /></div>{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} /> : null}</div>;
+  return <div className={styles.discoveryStack}><div className={styles.twoColumn}><section className={styles.queuePanel}><div className={styles.queueList}>{reviewQueueItems.map((item) => <QueueRow active={selected.id === item.id} item={item} key={item.id} onSelect={onSelect} />)}</div></section><ContextPanel item={selected} /></div>{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} returnHref="/crm?view=work" /> : null}</div>;
 }
 
 function WorkState({
@@ -416,7 +424,20 @@ function LiveHomeView({
       <aside className={styles.todayRail} aria-label="Today live work">
         <section className={styles.todayCard}>
           <header><span><CalendarDays aria-hidden="true" size={16} />Today</span><small>Live</small></header>
-          {model.today.length ? model.today.map((appointment) => <article key={appointment.id}><time>{formatTime(appointment.startsAt, "TBD")}</time><span><strong>{appointment.customerLabel}</strong><small>{appointment.detail}</small></span></article>) : <p className={styles.railEmpty}>No permitted appointments are scheduled today.</p>}
+          {model.today.length ? model.today.map((appointment) => (
+            <article key={appointment.id}>
+              <time>{formatTime(appointment.startsAt, "TBD")}</time>
+              <span>
+                <strong>{appointment.customerLabel}</strong>
+                <small>{appointment.detail}</small>
+                {appointment.customerHref ? (
+                  <Link aria-label={`Open Customer 360 for ${appointment.customerLabel}`} className={styles.todaySecondaryAction} href={appointment.customerHref}>
+                    Open Customer 360<ArrowRight aria-hidden="true" size={14} />
+                  </Link>
+                ) : null}
+              </span>
+            </article>
+          )) : <p className={styles.railEmpty}>No permitted appointments are scheduled today.</p>}
           <Link href="/appointments">Open source appointment board<ExternalLink aria-hidden="true" size={13} /></Link>
         </section>
         <section className={styles.attentionCard}>
@@ -425,7 +446,7 @@ function LiveHomeView({
           <button onClick={() => today[0] && onSelect(today[0])} type="button"><strong>{model.summary.todayCount} due today</strong><span>Use this to stay ahead of the next promised action</span></button>
         </section>
       </aside>
-      {opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} /> : null}
+      {opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} returnHref="/crm" /> : null}
     </div>
   );
 }
@@ -444,12 +465,12 @@ function LiveWorkView({
   selected: UnifiedCrmWorkQueueItem | null;
 }) {
   if (!model) {
-    return <div className={styles.discoveryStack}><WorkState detail="No live CRM work records were displayed." failureKind={failureKind} />{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} /> : null}</div>;
+    return <div className={styles.discoveryStack}><WorkState detail="No live CRM work records were displayed." failureKind={failureKind} />{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} returnHref="/crm?view=work" /> : null}</div>;
   }
   if (model.state === "EMPTY") {
-    return <div className={styles.discoveryStack}><WorkState detail="No owned work needs attention right now." />{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} /> : null}</div>;
+    return <div className={styles.discoveryStack}><WorkState detail="No owned work needs attention right now." />{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} returnHref="/crm?view=work" /> : null}</div>;
   }
-  return <div className={styles.discoveryStack}><div className={styles.twoColumn}><section className={styles.queuePanel}><div className={styles.queueList}>{model.items.map((item) => <LiveQueueRow active={selected?.id === item.id} item={item} key={item.id} onSelect={onSelect} />)}</div></section>{selected ? <LiveContextPanel item={selected} /> : <WorkState detail="No live CRM work item is available to review right now." />}</div>{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} /> : null}</div>;
+  return <div className={styles.discoveryStack}><div className={styles.twoColumn}><section className={styles.queuePanel}><div className={styles.queueList}>{model.items.map((item) => <LiveQueueRow active={selected?.id === item.id} item={item} key={item.id} onSelect={onSelect} />)}</div></section>{selected ? <LiveContextPanel item={selected} /> : <WorkState detail="No live CRM work item is available to review right now." />}</div>{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} returnHref="/crm?view=work" /> : null}</div>;
 }
 
 function PipelineState({
@@ -476,7 +497,7 @@ function PipelineState({
   );
 }
 
-function OpportunityDiscoveryPanel({ model }: { model: UnifiedCrmOpportunityDiscoveryModel }) {
+function OpportunityDiscoveryPanel({ model, returnHref }: { model: UnifiedCrmOpportunityDiscoveryModel; returnHref: string }) {
   return (
     <section className={styles.listCard} aria-label="Opportunity workspace discovery">
       <header>
@@ -489,7 +510,7 @@ function OpportunityDiscoveryPanel({ model }: { model: UnifiedCrmOpportunityDisc
       <p className={styles.sectionDetail}>{model.headline.detail}</p>
       <div className={styles.discoveryGrid}>
         {model.panels.map((panel) => (
-          <Link className={styles.discoveryCard} href={panel.link.href} key={panel.id}>
+          <Link className={styles.discoveryCard} href={withUnifiedCrmOpportunityReturn(panel.link.href, returnHref)} key={panel.id}>
             <span className={styles.discoveryEyebrow}>{panel.label}</span>
             <strong>{panel.link.label}</strong>
             <p>{panel.detail}</p>
@@ -613,7 +634,7 @@ export function UnifiedCrmShell({
         ? workQueue || workQueueError
           ? workQueue
             ? <LiveHomeView model={{ ...workQueue, items: filteredWorkItems }} opportunityDiscovery={opportunityDiscovery} onSelect={(item) => setSelectedWorkId(item.id)} selected={selectedWork} />
-            : <div className={styles.discoveryStack}><WorkState detail={workQueueError ?? "No live CRM work records were displayed."} failureKind={workQueueFailureKind} />{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} /> : null}</div>
+            : <div className={styles.discoveryStack}><WorkState detail={workQueueError ?? "No live CRM work records were displayed."} failureKind={workQueueFailureKind} />{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} returnHref="/crm" /> : null}</div>
           : <HomeView opportunityDiscovery={opportunityDiscovery} onSelect={setSelected} selected={selected} />
         : null}
       {activeView === "work"

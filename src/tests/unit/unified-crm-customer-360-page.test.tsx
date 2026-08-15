@@ -33,8 +33,37 @@ describe("Unified CRM customer detail page", () => {
     expect(markup).toContain("Review opportunity flow from this customer");
   });
 
+  it("preserves a safe CRM Work return across customer detail and opportunity discovery links", async () => {
+    const markup = renderToStaticMarkup(await CustomerPage({ params: Promise.resolve({ customerId: "customer-1" }), searchParams: Promise.resolve({ crmReturnTo: "/crm?view=work" }) }));
+    expect(mocks.getUnifiedCrmCustomerOpportunityDiscovery).toHaveBeenCalledWith(actor, "customer-1", {
+      customer360: expect.objectContaining({ identity: expect.objectContaining({ id: "customer-1" }) }),
+      customerHref: "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dwork",
+      customerListHref: "/crm?view=work"
+    });
+    expect(markup).toContain('href="/crm?view=work"');
+  });
+
   it("rejects external, protocol-relative, wrong-view, and unknown return parameters", () => {
     for (const value of ["https://evil.example", "//evil.example", "/crm?view=pipeline", "/crm?view=customers&redirect=https://evil.example"]) expect(safeCrmCustomerReturn(value)).toBe("/crm?view=customers");
+  });
+
+  it("accepts CRM Work as a safe customer return", () => {
+    expect(safeCrmCustomerReturn("/crm?view=work")).toBe("/crm?view=work");
+  });
+
+  it("preserves CRM Work when customer detail is opened from Work", async () => {
+    const markup = renderToStaticMarkup(await CustomerPage({ params: Promise.resolve({ customerId: "customer-1" }), searchParams: Promise.resolve({ crmReturnTo: "/crm?view=work" }) }));
+    expect(mocks.getUnifiedCrmCustomerOpportunityDiscovery).toHaveBeenCalledWith(actor, "customer-1", expect.objectContaining({
+      customerHref: "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dwork",
+      customerListHref: "/crm?view=work"
+    }));
+    expect(markup).toContain('href="/crm?view=work"');
+    expect(markup).toContain("Back to CRM Work");
+  });
+
+  it("accepts the safe CRM Work return and rejects extra parameters on it", () => {
+    expect(safeCrmCustomerReturn("/crm?view=work")).toBe("/crm?view=work");
+    expect(safeCrmCustomerReturn("/crm?view=work&cursor=unsafe")).toBe("/crm?view=customers");
   });
 
   it("maps missing, merged, archived, and out-of-scope records to one safe state without leaking the id", async () => {
