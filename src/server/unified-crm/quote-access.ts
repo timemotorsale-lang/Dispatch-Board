@@ -33,7 +33,7 @@ export async function requireUnifiedCrmQuoteAccess(
     fallbackHref: decision.fallbackHref,
     mode: decision.mode,
     organizationId: uniqueOrganizationIds[0],
-    recordScope: decision.recordScope,
-    workspace: decision.workspace
+    recordScope: decision.recordScope!,
+    workspace: decision.workspace!
   };
 }

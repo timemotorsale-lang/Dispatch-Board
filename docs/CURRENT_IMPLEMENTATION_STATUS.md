@@ -1,5 +1,15 @@
 # Current Implementation Status
 
+## 2026-08-15 — Unified CRM UCRM-041 implemented and UCRM-042 advanced to a held immutable-review boundary
+
+The current Unified CRM baseline now contains a real quote draft workspace inside `/crm/quotes`. Authorized CRM users can create or revise a visible quote draft through server-owned draft routes, the quote workspace now distinguishes live draft authority from held presentation authority, and quote saves remain typed, idempotent, audited, and version-aware.
+
+The same packet also advances `UCRM-042` safely without overstating activation. Quote version history now opens on a real authenticated `/crm/quotes/[quoteId]/versions` route, presented evidence is shown as immutable history, and the present route fails closed with a typed held response instead of pretending that commercial presentation is active.
+
+This checkpoint stays deliberately honest about the remaining gate. Exact pricing, discount, amount, and cumulative approval thresholds are still deferred in `UCRM-DEC-013`, so customer-facing quote presentation activation remains held even though the immutable review surface and fail-closed present boundary are now in source.
+
+Focused verification passed on 2026-08-15 as recorded in [`docs/unified-crm/UCRM_041_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_041_IMPLEMENTATION_EVIDENCE.md) and [`docs/unified-crm/UCRM_042_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_042_IMPLEMENTATION_EVIDENCE.md). `UCRM-041` is `IMPLEMENTED_UNVERIFIED`; `UCRM-042` remains `HELD` until the deferred commercial authority decision and later live presentation gate are completed.
+
 ## 2026-08-15 — Unified CRM UCRM-040 quote foundation implemented
 
 The current Unified CRM baseline now contains the first durable quote-foundation slice. Versioned quote storage is present in source through additive quote and quote-version models, and the CRM More area now opens a governed `/crm/quotes` review surface that exposes the new storage boundary without claiming draft, presentation, approval, or operational conversion authority.

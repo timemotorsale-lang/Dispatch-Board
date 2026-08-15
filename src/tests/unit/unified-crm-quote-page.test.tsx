@@ -3,6 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/crm/quotes",
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+  useSearchParams: () => new URLSearchParams("crmReturnTo=%2Fcrm%3Fview%3Dmore")
+}));
+
 const mocks = vi.hoisted(() => ({
   getUnifiedCrmQuoteFoundation: vi.fn(),
   requireCurrentUser: vi.fn(),
@@ -29,6 +35,28 @@ const actor: AuthenticatedUser = {
 function fixture() {
   return {
     contractVersion: "ucrm.quote-foundation/v1",
+    commands: {
+      draft: { available: true, detail: "Draft detail", state: "READY" as const },
+      present: { available: false, detail: "Present detail", state: "HELD" as const }
+    },
+    draftWorkspace: {
+      currency: "USD",
+      customerId: null,
+      customerLabel: "Optional customer link",
+      detail: "Start with one factual line item and clear terms. Saving a draft does not present it to the customer.",
+      expectedVersionNumber: 0,
+      lineItems: [{ description: "", id: "line-1", lineTotalCents: 0, quantity: 1, unitPriceCents: 0 }],
+      mode: "CREATE" as const,
+      opportunityId: null,
+      opportunityLabel: "Optional opportunity link",
+      priceSource: "",
+      quoteId: null,
+      quoteNumber: null,
+      state: "READY" as const,
+      subtotalCents: 0,
+      termsSummary: "",
+      versions: []
+    },
     generatedAt: "2026-08-15T16:15:00.000Z",
     headline: { title: "Review the quote foundation before commercial commands go live", detail: "Held detail" },
     readiness: [],
@@ -61,6 +89,11 @@ describe("Unified CRM quote foundation page", () => {
     const markup = renderToStaticMarkup(await QuotePage({ searchParams: Promise.resolve({ crmReturnTo: "/crm?view=more" }) }));
     expect(mocks.getUnifiedCrmQuoteFoundation).toHaveBeenCalledWith(actor, expect.objectContaining({ accessContext: expect.any(Object) }));
     expect(markup).toContain('href="/crm?view=more"');
+  });
+
+  it("passes through only a safe selected quote id", async () => {
+    await QuotePage({ searchParams: Promise.resolve({ crmReturnTo: "/crm?view=more", quoteId: "quote-1" }) });
+    expect(mocks.getUnifiedCrmQuoteFoundation).toHaveBeenCalledWith(actor, expect.objectContaining({ selectedQuoteId: "quote-1" }));
   });
 
   it("accepts only safe quote return paths", () => {

@@ -28,7 +28,7 @@ export type UnifiedCrmQuotePolicyDecision = {
 function capabilities(readAllowed: boolean): UnifiedCrmQuoteCapabilityMap {
   return {
     read: readAllowed,
-    draft: false,
+    draft: readAllowed,
     present: false,
     approve: false
   };
@@ -68,7 +68,12 @@ export function evaluateUnifiedCrmQuotePolicy(
   const recordScope: UnifiedCrmQuoteRecordScope = base.workspace === "MANAGEMENT"
     ? { kind: "ORGANIZATION" }
     : { kind: "OWNER", ownerUserId: actor.id };
-  const resultCapabilities = capabilities(true);
+  const resultCapabilities: UnifiedCrmQuoteCapabilityMap = {
+    read: true,
+    draft: true,
+    present: false,
+    approve: false
+  };
 
   if (mode !== "REVIEW") {
     return {
@@ -82,7 +87,19 @@ export function evaluateUnifiedCrmQuotePolicy(
     };
   }
 
-  if (options.action && options.action !== "read") {
+  if (options.action === "draft" && resultCapabilities.draft) {
+    return {
+      allowed: true,
+      fallbackHref: base.fallbackHref,
+      mode,
+      reason: "ALLOWED",
+      recordScope,
+      capabilities: resultCapabilities,
+      workspace: base.workspace
+    };
+  }
+
+  if (options.action && options.action !== "read" && options.action !== "draft") {
     return {
       allowed: false,
       fallbackHref: base.fallbackHref,

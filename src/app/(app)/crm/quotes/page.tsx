@@ -7,7 +7,7 @@ import { requireUnifiedCrmQuoteAccess } from "@/server/unified-crm/quote-access"
 import { resolveUnifiedCrmShellAccess } from "@/server/unified-crm/shell-access";
 
 type Props = {
-  searchParams: Promise<{ crmReturnTo?: string | string[] }>;
+  searchParams: Promise<{ crmReturnTo?: string | string[]; quoteId?: string | string[] }>;
 };
 
 function safeFallback(value: string | undefined) {
@@ -27,6 +27,13 @@ export function safeCrmQuoteReturn(value: string | string[] | undefined) {
   return "/crm?view=more";
 }
 
+function safeQuoteId(value: string | string[] | undefined) {
+  if (Array.isArray(value)) return null;
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
 export default async function UnifiedCrmQuotePage({ searchParams }: Props) {
   const user = await requireCurrentUser();
   const shellAccess = resolveUnifiedCrmShellAccess(user);
@@ -36,12 +43,13 @@ export default async function UnifiedCrmQuotePage({ searchParams }: Props) {
 
   const query = await searchParams;
   const returnHref = safeCrmQuoteReturn(query.crmReturnTo);
+  const selectedQuoteId = safeQuoteId(query.quoteId);
   let model: UnifiedCrmQuoteFoundationModel | undefined;
   let failure: { kind: "error" | "restricted" | "unavailable"; message?: string } | undefined;
 
   try {
     const access = await requireUnifiedCrmQuoteAccess(user);
-    model = await getUnifiedCrmQuoteFoundation(user, { accessContext: access });
+    model = await getUnifiedCrmQuoteFoundation(user, { accessContext: access, selectedQuoteId });
   } catch (error) {
     const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
     if (["AUTHENTICATION_REQUIRED", "QUOTE_NOT_AUTHORIZED", "ORGANIZATION_SCOPE_UNAVAILABLE"].includes(code)) {

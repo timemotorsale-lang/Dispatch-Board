@@ -13,6 +13,25 @@
 .readinessCard header,.quoteCard header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .readinessCard strong,.quoteCard strong { font-size: 14px; }
 .quoteCard small,.observationPanel small { color: var(--crm-muted); }
+.commandPanel { display: grid; gap: 16px; border: 1px solid var(--crm-border); border-radius: 12px; background: var(--crm-surface-soft); padding: 16px; }
+.commandHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.commandHeader h2 { margin: 0; font-size: 20px; }
+.commandHeader small { color: var(--crm-muted); }
+.commandMeta { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.commandFallback,.quoteDraftForm,.lineItemList { display: grid; gap: 12px; }
+.fieldGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.fieldGrid label,.wideField,.lineItemRow label { display: grid; gap: 6px; font-size: 13px; }
+.fieldGrid input,.wideField textarea,.lineItemRow input { min-height: 42px; border: 1px solid var(--crm-border); border-radius: 10px; background: white; color: var(--crm-text); padding: 10px 12px; }
+.wideField textarea { min-height: 96px; resize: vertical; }
+.lineItemRow { display: grid; grid-template-columns: minmax(0, 1.7fr) 120px 160px; gap: 12px; align-items: end; }
+.lineItemDescription { min-width: 0; }
+.draftActions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.draftActions button,.quoteLink { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; border-radius: 999px; border: 1px solid var(--crm-border); padding: 0 14px; background: white; color: var(--crm-link); font-weight: 700; text-decoration: none; }
+.quoteLink { width: fit-content; }
+.interactionActionNote { color: var(--crm-muted); font-size: 12px; line-height: 1.5; }
+.formError,.formSuccess { margin: 0; border-radius: 10px; padding: 10px 12px; }
+.formError { background: rgb(185 28 28 / 10%); color: rgb(127 29 29); }
+.formSuccess { background: rgb(22 163 74 / 10%); color: rgb(21 128 61); }
 .observationPanel { display: grid; gap: 8px; border: 1px solid var(--crm-border); border-radius: 10px; background: var(--crm-surface-soft); padding: 14px; }
 .list { margin: 0; padding-left: 18px; color: var(--crm-muted); display: grid; gap: 8px; }
 .emptyState { color: var(--crm-muted); }
@@ -21,5 +40,7 @@
 .skeletons { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .skeletons span { display: block; min-height: 100px; border-radius: 10px; background: linear-gradient(90deg, rgb(23 98 207 / 6%), rgb(23 98 207 / 12%), rgb(23 98 207 / 6%)); }
 @media (max-width: 900px) {
-  .readinessGrid,.quoteGrid,.skeletons { grid-template-columns: 1fr; }
+  .readinessGrid,.quoteGrid,.skeletons,.fieldGrid,.lineItemRow { grid-template-columns: 1fr; }
+  .commandHeader,.draftActions { align-items: stretch; }
+  .commandMeta { justify-content: flex-start; }
 }

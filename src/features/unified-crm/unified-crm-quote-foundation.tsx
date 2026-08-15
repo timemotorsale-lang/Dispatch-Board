@@ -4,6 +4,7 @@ import { AlertTriangle, ArrowLeft, ExternalLink, RefreshCw, ShieldCheck } from "
 import Link from "next/link";
 
 import type { UnifiedCrmQuoteFoundationModel } from "@/server/unified-crm/quote-foundation-contract";
+import { UnifiedCrmQuoteDraftForm } from "@/features/unified-crm/unified-crm-quote-draft-form";
 
 import styles from "./unified-crm-quote-foundation.module.css";
 
@@ -81,6 +82,33 @@ export function UnifiedCrmQuoteFoundation({ errorMessage, failureKind = "error",
       </section>
 
       <section className={styles.section}>
+        <span className={styles.eyebrow}>Live commands</span>
+        <div className={styles.readinessGrid}>
+          <article className={styles.readinessCard}>
+            <header>
+              <strong>Draft quote</strong>
+              <span className={model.commands.draft.state === "READY" ? styles.stateTag : styles.heldTag}>{model.commands.draft.state}</span>
+            </header>
+            <p>{model.commands.draft.detail}</p>
+          </article>
+          <article className={styles.readinessCard}>
+            <header>
+              <strong>Present quote</strong>
+              <span className={styles.heldTag}>{model.commands.present.state}</span>
+            </header>
+            <p>{model.commands.present.detail}</p>
+          </article>
+        </div>
+      </section>
+
+      <UnifiedCrmQuoteDraftForm
+        available={model.commands.draft.available}
+        presentDetail={model.commands.present.detail}
+        returnHref={returnHref}
+        workspace={model.draftWorkspace}
+      />
+
+      <section className={styles.section}>
         <span className={styles.eyebrow}>Visible persisted quotes</span>
         <div className={styles.observationPanel}>
           <strong>{model.liveObservation.detail}</strong>
@@ -101,6 +129,12 @@ export function UnifiedCrmQuoteFoundation({ errorMessage, failureKind = "error",
                 <small>{item.customerLabel}</small>
                 <small>{item.opportunityLabel}</small>
                 <small>Updated {formatDate(item.updatedAt)}</small>
+                <Link className={styles.quoteLink} href={`/crm/quotes?crmReturnTo=${encodeURIComponent(returnHref)}&quoteId=${encodeURIComponent(item.recordId)}`}>
+                  Continue in draft workspace
+                </Link>
+                <Link className={styles.quoteLink} href={`/crm/quotes/${encodeURIComponent(item.recordId)}/versions?crmReturnTo=${encodeURIComponent("/crm/quotes")}`}>
+                  Review immutable version history
+                </Link>
               </article>
             ))}
           </div>
