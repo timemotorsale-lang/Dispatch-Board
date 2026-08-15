@@ -8,6 +8,7 @@ import type {
   UnifiedCrmOpportunityPreviewModel
 } from "@/server/unified-crm/opportunity-read-contract";
 
+import { UnifiedCrmOpportunityActions } from "./unified-crm-opportunity-actions";
 import styles from "./unified-crm-shell.module.css";
 
 const previewModel: UnifiedCrmOpportunityPreviewModel = {
@@ -170,6 +171,32 @@ export function UnifiedCrmOpportunityPipelinePreview({ model }: { model: Unified
             ))}
           </div>
         ) : <p>{model.listPreview.emptyMessage}</p>}
+      </section>
+
+      <section className={styles.pipelineActionPanel}>
+        <UnifiedCrmOpportunityActions
+          title="Review the core opportunity flow"
+          actions={[
+            {
+              label: "Review create flow",
+              description: "See the first governed opportunity create experience before any live record can be written.",
+              href: "/crm/opportunities/new?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
+              state: "REVIEW"
+            },
+            {
+              label: "Review detail flow",
+              description: "Open the held opportunity detail surface and inspect what the first live record page will show.",
+              href: "/crm/opportunities/review01?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
+              state: "REVIEW"
+            },
+            {
+              label: "Review transition flow",
+              description: "Inspect the governed stage-movement checks before any transition can run live.",
+              href: "/crm/opportunities/review01/transition?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
+              state: "REVIEW"
+            }
+          ]}
+        />
       </section>
 
       <section className={styles.opportunityConstraints}>

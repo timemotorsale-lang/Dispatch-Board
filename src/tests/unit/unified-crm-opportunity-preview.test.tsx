@@ -67,6 +67,8 @@ describe("Unified CRM opportunity preview", () => {
     expect(markup).toContain("Review create contract");
     expect(markup).toContain("What the first live list will surface");
     expect(markup).toContain("Customer and owner at a glance");
-    expect(markup).toContain("/crm/opportunities/review01?crmReturnTo=%2Fcrm%3Fview%3Dpipeline");
+    expect(markup).toContain("/crm/opportunities/new?crmReturnTo=%2Fcrm%3Fview%3Dpipeline");
+    expect(markup).toContain("Review the core opportunity flow");
+    expect(markup).toContain("/crm/opportunities/review01/transition?crmReturnTo=%2Fcrm%3Fview%3Dpipeline");
   });
 });
