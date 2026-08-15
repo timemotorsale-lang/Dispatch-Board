@@ -20,9 +20,6 @@ function repository(overrides: Partial<UnifiedCrmWorkQueueRepository> = {}): Uni
     async listActiveOrganizationIds() {
       return ["org-a"];
     },
-    async listTasks() {
-      return [];
-    },
     async listAppointments() {
       return [];
     },
@@ -51,36 +48,12 @@ describe("Unified CRM work queue service", () => {
 
   it("returns owned visibility for Sales and ranks overdue work first", async () => {
     const seller = { ...manager, id: "seller-1", roles: ["Salesperson"] };
+    const listTasks = vi.fn(async () => []);
     const result = await getUnifiedCrmWorkQueue(seller, {
       now: () => now,
       readMode: "REVIEW",
       repository: repository({
-        async listTasks(viewerUserId) {
-          expect(viewerUserId).toBe("seller-1");
-          return [{
-            id: "task-1",
-            title: "Call promised buyer",
-            status: "IN_PROGRESS",
-            priority: "HIGH",
-            dueAt: new Date("2026-08-14T11:30:00.000Z"),
-            workflowArea: "SALES",
-            blockerReason: null,
-            requiresManagerApproval: false,
-            customerReference: "CUS-18",
-            vehicleReference: null,
-            updatedAt: new Date("2026-08-14T12:15:00.000Z"),
-            customer: {
-              archivedAt: null,
-              customerNumber: "CUS-18",
-              displayName: "Alex Morgan",
-              id: "customer-1",
-              mergedIntoCustomerId: null,
-              organizationId: "org-a",
-              ownerUserId: "seller-1"
-            },
-            assignedUser: { id: "seller-1", name: "Sales Seller" }
-          }];
-        },
+        listTasks,
         async listAppointments(input) {
           expect(input.recordScope).toEqual({ kind: "OWNER", ownerUserId: "seller-1" });
           return [{
@@ -118,13 +91,8 @@ describe("Unified CRM work queue service", () => {
       freshness: expect.stringContaining(now.toISOString()),
       drillThrough: expect.stringContaining("Open the governed source record first")
     });
+    expect(listTasks).not.toHaveBeenCalled();
     expect(result.items[0]).toMatchObject({
-      customerHref: "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dwork",
-      dueState: "overdue",
-      kind: "task",
-      title: "Call promised buyer"
-    });
-    expect(result.items[1]).toMatchObject({
       customerHref: "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dwork",
       kind: "appointment",
       dueState: "today"
@@ -134,7 +102,6 @@ describe("Unified CRM work queue service", () => {
       customerHref: "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dwork"
     });
     expect(result.summary).toMatchObject({
-      overdueCount: 1,
       todayCount: 1,
       appointmentCount: 1
     });
@@ -274,31 +241,6 @@ describe("Unified CRM work queue service", () => {
       now: () => now,
       readMode: "REVIEW",
       repository: repository({
-        async listTasks() {
-          return [{
-            id: "task-invalid-customer",
-            title: "Do not guess a customer route",
-            status: "IN_PROGRESS",
-            priority: "NORMAL",
-            dueAt: new Date("2026-08-14T15:00:00.000Z"),
-            workflowArea: "SALES",
-            blockerReason: null,
-            requiresManagerApproval: false,
-            customerReference: "Snapshot only",
-            vehicleReference: null,
-            updatedAt: new Date("2026-08-14T12:00:00.000Z"),
-            customer: {
-              archivedAt: null,
-              customerNumber: "CUS-X",
-              displayName: "Unsafe identity",
-              id: "x".repeat(129),
-              mergedIntoCustomerId: null,
-              organizationId: "org-a",
-              ownerUserId: "manager-1"
-            },
-            assignedUser: { id: "manager-1", name: "CRM Manager" }
-          }];
-        },
         async listAppointments() {
           return [{
             id: "appt-1",
@@ -325,7 +267,6 @@ describe("Unified CRM work queue service", () => {
       id: "appt-1",
       customerHref: undefined
     });
-    expect(result.items.find((item) => item.id === "task-invalid-customer")?.customerHref).toBeUndefined();
   });
 
   it("fails closed when a linked customer id is invalid or overlength", async () => {

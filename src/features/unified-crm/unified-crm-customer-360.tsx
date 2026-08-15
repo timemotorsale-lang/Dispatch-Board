@@ -12,6 +12,7 @@ import { withUnifiedCrmOpportunityReturn } from "@/server/unified-crm/opportunit
 import { UnifiedCrmCustomerInteractionForm } from "./unified-crm-customer-interaction-form";
 import { UnifiedCrmCustomerNextActionForm } from "./unified-crm-customer-next-action-form";
 import { UnifiedCrmCustomerNoteForm } from "./unified-crm-customer-note-form";
+import { UnifiedCrmCustomerTaskBridgeForm } from "./unified-crm-customer-task-bridge-form";
 import styles from "./unified-crm-customer-360.module.css";
 
 type FailureKind = "error" | "not-available" | "restricted" | "unavailable";
@@ -230,11 +231,13 @@ function QuickActions({
   customerSourceHref,
   nextActionAvailable,
   opportunityDiscovery,
+  taskBridgeAvailable,
   taskBridgeHref
 }: {
   customerSourceHref: string;
   nextActionAvailable: boolean;
   opportunityDiscovery?: UnifiedCrmCustomerOpportunityDiscoveryModel;
+  taskBridgeAvailable: boolean;
   taskBridgeHref: string;
 }) {
   const primaryOpportunityAction = opportunityDiscovery?.opportunityDiscovery.panels[0];
@@ -265,9 +268,9 @@ function QuickActions({
           <strong>Add internal note</strong>
           <small>Jump to the live team-note form on this page.</small>
         </Link>
-        <Link className={styles.quickActionLink} href={taskBridgeHref}>
+        <Link className={styles.quickActionLink} href={taskBridgeAvailable ? "#task-bridge-heading" : taskBridgeHref}>
           <strong>Create governed task</strong>
-          <small>Hand off the follow-up into the existing task workflow.</small>
+          <small>{taskBridgeAvailable ? "Open the protected CRM task handoff form on this page." : "Continue into the existing task intake workflow."}</small>
         </Link>
         {primaryOpportunityAction ? (
           <Link className={styles.quickActionLink} href={withUnifiedCrmOpportunityReturn(primaryOpportunityAction.link.href, opportunityDiscovery.customer.href)}>
@@ -463,10 +466,11 @@ export function UnifiedCrmCustomer360({ errorMessage, failureKind = "error", mod
         customerSourceHref={model.source.href}
         nextActionAvailable={model.permissions.canManageNextAction}
         opportunityDiscovery={opportunityDiscovery}
+        taskBridgeAvailable={model.permissions.canCreateGovernedTask}
         taskBridgeHref={taskBridgeHref}
       />
       <section className={styles.priorityGrid}>
-        <article className={styles.nextAction}><span className={styles.eyebrow}>{nextActionEyebrow(model.relationship.nextActionState)}</span><h2>{model.relationship.nextActionAt ? formatDate(model.relationship.nextActionAt, "Not scheduled") : "No next action scheduled"}</h2><p>Last interaction: {formatDate(model.relationship.lastInteractionAt, "No interaction recorded")}</p><p>{nextActionGuidance(model)}</p><small>This overview is read only. Continue in the appropriate source workflow to make a change.</small><Link className={styles.secondaryActionLink} href={taskBridgeHref}>Create governed task<ExternalLink aria-hidden="true" size={13} /></Link></article>
+        <article className={styles.nextAction}><span className={styles.eyebrow}>{nextActionEyebrow(model.relationship.nextActionState)}</span><h2>{model.relationship.nextActionAt ? formatDate(model.relationship.nextActionAt, "Not scheduled") : "No next action scheduled"}</h2><p>Last interaction: {formatDate(model.relationship.lastInteractionAt, "No interaction recorded")}</p><p>{nextActionGuidance(model)}</p><small>This overview is read only. Continue in the appropriate source workflow to make a change.</small><Link className={styles.secondaryActionLink} href={model.permissions.canCreateGovernedTask ? "#task-bridge-heading" : taskBridgeHref}>Create governed task<ExternalLink aria-hidden="true" size={13} /></Link></article>
         <article className={styles.contactCard}><span className={styles.eyebrow}>Masked contact</span><h2>{primaryContact?.maskedValue ?? "No contact recorded"}</h2>{otherContacts.map((item) => <p key={`${item.type}-${item.maskedValue}`}>{label(item.type)} · {item.maskedValue}</p>)}<dl><div><dt>Preferred method</dt><dd>{model.preferences.preferredContactMethod ? label(model.preferences.preferredContactMethod) : "Not recorded"}</dd></div><div><dt>Preferred time</dt><dd>{model.preferences.preferredContactTime ?? "Not recorded"}</dd></div><div><dt>Language</dt><dd>{model.preferences.languageCode ?? "Not recorded"}</dd></div></dl></article>
       </section>
       {model.permissions.canManageNextAction ? (
@@ -482,6 +486,13 @@ export function UnifiedCrmCustomer360({ errorMessage, failureKind = "error", mod
           </header>
         </section>
       )}
+      {model.permissions.canCreateGovernedTask ? (
+        <UnifiedCrmCustomerTaskBridgeForm
+          customerDisplayName={model.identity.displayName}
+          customerId={model.identity.id}
+          defaultDueAt={model.relationship.nextActionAt}
+        />
+      ) : null}
       <UnifiedCrmCustomerInteractionForm customerId={model.identity.id} />
       <UnifiedCrmCustomerNoteForm allowRestricted={model.permissions.canCreateRestrictedNote} customerId={model.identity.id} />
       <RelationshipSummary model={model} />

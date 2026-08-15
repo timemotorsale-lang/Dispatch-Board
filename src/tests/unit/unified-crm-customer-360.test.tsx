@@ -97,6 +97,9 @@ describe("Unified CRM Customer 360", () => {
     expect(markup).toContain("Update next action");
     expect(markup).toContain("Add internal note");
     expect(markup).toContain("Create governed task");
+    expect(markup).toContain("Create a protected follow-up task");
+    expect(markup).toContain("This creates a real task in the existing task workflow with CRM customer context.");
+    expect(markup).toContain('href="#task-bridge-heading"');
     expect(markup).toContain('href="#interaction-form-heading"');
     expect(markup).toContain('href="#next-action-form-heading"');
     expect(markup).toContain('href="#note-form-heading"');

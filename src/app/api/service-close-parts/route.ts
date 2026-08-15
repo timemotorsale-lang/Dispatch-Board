@@ -17,6 +17,6 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const result = await executeServiceClosePartsCommand(await getCurrentUser(), await request.json().catch(() => null), { enforceRollout: false });
-    return NextResponse.json(result, { status: result.duplicate ? 200 : 201 });
+    return NextResponse.json(result, { status: "duplicate" in result && result.duplicate ? 200 : 201 });
   } catch (error) { return failure(error); }
 }

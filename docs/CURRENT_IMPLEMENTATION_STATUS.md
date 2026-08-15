@@ -1,5 +1,13 @@
 # Current Implementation Status
 
+## 2026-08-15 — Unified CRM UCRM-024 task bridge implemented
+
+The current Unified CRM baseline now contains a governed CRM-to-Task bridge inside Customer 360. Staff can create a real protected follow-up task from the permitted customer record while keeping the existing Task workflow as the write authority and source of truth.
+
+This checkpoint moves the earlier handoff-only pattern into a real command boundary. Customer authorization, shell access, CRM customer read mode, and a dedicated CRM task-bridge mode must all be open before a task can be created; idempotent replay now returns the same committed task instead of duplicating follow-up work; and Customer 360 only shows the protected task surface when that bridge is actually available. When it is not available, the existing task-intake handoff remains the honest fallback.
+
+Focused verification passed on 2026-08-15 as recorded in [`docs/unified-crm/UCRM_024_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_024_IMPLEMENTATION_EVIDENCE.md). UCRM-024 remains `IMPLEMENTED_UNVERIFIED`: authenticated browser proof and isolated PostgreSQL proof are still required before verification or merge. No external delivery, broader operational mutation, or source-of-truth transfer away from Tasks was enabled by this checkpoint.
+
 ## 2026-08-15 — Unified CRM UCRM-025 CRM Home “My Work” v1 authority hardening implemented
 
 The current Unified CRM baseline now contains a real, persisted, read-only CRM Home and My Work queue that ranks owned or permitted work from existing Appointments, Leads, Cases, and CRM next-action customer follow-up records. Task rows are intentionally withheld from the live CRM queue in this checkpoint because tenant-safe Task organization authority is not yet proven without inference. Users can drill from the queue into the governed source workflow or, when a separately safe customer route exists, continue into Customer 360 without creating a second source of truth.

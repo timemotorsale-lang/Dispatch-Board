@@ -9,7 +9,7 @@ export function customer360Fixture(): UnifiedCrmCustomer360ReadModel {
     owner: { id: "owner-1", name: "Taylor B." },
     contacts: [{ type: "PHONE", maskedValue: "••••1234", isPrimary: true, source: "CONTACT_POINT" }, { type: "EMAIL", maskedValue: "a•••@e•••.com", isPrimary: false, source: "CONTACT_POINT" }],
     preferences: { preferredContactMethod: "PHONE", preferredContactTime: "Afternoons", languageCode: "en" },
-    permissions: { canManageNextAction: true, canCreateRestrictedNote: false },
+    permissions: { canCreateGovernedTask: true, canManageNextAction: true, canCreateRestrictedNote: false },
     relationship: { lastInteractionAt: "2026-08-13T14:00:00.000Z", nextActionAt: "2026-08-15T16:00:00.000Z", nextActionState: "DUE_TODAY" },
     vehicles: [{ id: "vehicle-1", label: "2022 Toyota RAV4", status: "ACTIVE", relationshipType: "OWNER", effectiveFrom: "2025-01-10T12:00:00.000Z", effectiveTo: null, sourceHref: "/vehicles/360/vehicle-1" }],
     appointments: [{ id: "appointment-1", title: "Sales follow-up", startsAt: "2026-08-16T16:00:00.000Z", bookingStatus: "CONFIRMED", confirmationStatus: "CONFIRMED", attendanceStatus: "EXPECTED", sourceHref: "/appointments" }],

@@ -5,7 +5,6 @@ import {
   type UnifiedCrmWorkCustomerRecord,
   type UnifiedCrmWorkConcernCaseRecord,
   type UnifiedCrmWorkLeadRecord,
-  type UnifiedCrmWorkTaskRecord,
   type UnifiedCrmWorkQueueRepository
 } from "@/server/repositories/unified-crm-work-queue-repository";
 import { requireUnifiedCrmWorkAccess } from "@/server/unified-crm/work-queue-access";
@@ -58,16 +57,6 @@ function dueLabel(date: Date | null, state: UnifiedCrmWorkQueueDueState) {
   if (state === "overdue") return "Overdue";
   if (state === "today") return "Today";
   return "Upcoming";
-}
-
-function reasonForTask(task: UnifiedCrmWorkTaskRecord, state: UnifiedCrmWorkQueueDueState) {
-  if (task.blockerReason) return task.blockerReason;
-  if (task.status === "READY_FOR_REVIEW") return "Needs manager review before it can be closed.";
-  if (task.status === "WAITING_ON_APPROVAL") return "Waiting on an approval before work can continue.";
-  if (task.status === "WAITING_ON_PARTS") return "Waiting on parts before the next step can happen.";
-  if (state === "overdue") return "This assigned task is past due.";
-  if (state === "today") return "This assigned task is due today.";
-  return "This assigned task is the next governed step.";
 }
 
 function reasonForAppointment(appointment: UnifiedCrmWorkAppointmentRecord, state: UnifiedCrmWorkQueueDueState) {
@@ -183,43 +172,6 @@ function appointmentCustomer(
   const participant = appointment.participants[0];
   if (!participant) return "Customer not linked";
   return linkedCustomerLabel(participant.customer, participant.displayNameSnapshot, input);
-}
-
-function taskCandidate(
-  task: UnifiedCrmWorkTaskRecord,
-  now: Date,
-  input: {
-    organizationId: string;
-    recordScope: { kind: "ORGANIZATION" } | { kind: "OWNER"; ownerUserId: string };
-  }
-): QueueCandidate {
-  const due = task.dueAt;
-  const state = dueState(due, now);
-  return {
-    id: task.id,
-    kind: "task",
-    title: task.title,
-    customerLabel: linkedCustomerLabel(task.customer, task.customerReference, input),
-    customerHref: linkedCustomerHref(task.customer, input),
-    ownerName: task.assignedUser.name,
-    sourceLabel: "Tasks",
-    sourceHref: `/tasks/${encodeURIComponent(task.id)}`,
-    primaryActionLabel: task.status === "READY_FOR_REVIEW" ? "Review task" : "Open task",
-    dueAt: due?.toISOString() ?? null,
-    dueLabel: dueLabel(due, state),
-    dueState: state,
-    stageLabel: label(task.status),
-    reason: reasonForTask(task, state),
-    history: [
-      `Status: ${label(task.status)}`,
-      `Area: ${label(task.workflowArea)}`,
-      task.vehicleReference ? `Vehicle: ${task.vehicleReference}` : `Priority: ${label(task.priority)}`
-    ],
-    updatedAt: task.updatedAt.toISOString(),
-    dueAtDate: due,
-    updatedAtDate: task.updatedAt,
-    rank: rankState(state)
-  };
 }
 
 function appointmentCandidate(
@@ -426,8 +378,7 @@ export async function getUnifiedCrmWorkQueue(
 
     const organizationId = organizationIds[0];
     const queueScope = { organizationId, recordScope: access.recordScope };
-    const [tasks, appointments, leads, concernCases, customers] = await Promise.all([
-      repository.listTasks(actor!.id, SOURCE_LIMIT),
+    const [appointments, leads, concernCases, customers] = await Promise.all([
       repository.listAppointments({ organizationId, recordScope: access.recordScope, viewerUserId: actor!.id, limit: SOURCE_LIMIT }),
       repository.listLeads({ organizationId, recordScope: access.recordScope, limit: SOURCE_LIMIT }),
       repository.listConcernCases({ organizationId, recordScope: access.recordScope, limit: SOURCE_LIMIT }),
@@ -435,7 +386,6 @@ export async function getUnifiedCrmWorkQueue(
     ]);
 
     const items = [
-      ...tasks.map((task) => taskCandidate(task, now, queueScope)),
       ...appointments.map((appointment) => appointmentCandidate(appointment, now, queueScope)),
       ...leads.map((lead) => leadCandidate(lead, now, queueScope)),
       ...concernCases.map((customerCase) => caseCandidate(customerCase, now, queueScope)),

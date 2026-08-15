@@ -105,7 +105,10 @@ export async function getUnifiedCrmOpportunityGuidedJourney(
         steps: steps.filter((step) => step.id === "return")
       }
     ],
-    source: orientation.source,
+    source: {
+      ...orientation.source,
+      label: "Unified CRM guided opportunity journey" as const
+    },
     state: "HELD_REVIEW",
     visibility: orientation.visibility
   };

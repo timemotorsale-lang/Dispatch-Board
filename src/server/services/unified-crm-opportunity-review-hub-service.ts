@@ -172,7 +172,10 @@ export async function getUnifiedCrmOpportunityReviewHub(
         links: links.filter((link) => link.id === "create" || link.id === "transition" || link.id === "queue")
       }
     ],
-    source: orientation.source,
+    source: {
+      ...orientation.source,
+      label: "Unified CRM opportunity review hub" as const
+    },
     state: "HELD_REVIEW",
     visibility: orientation.visibility
   };

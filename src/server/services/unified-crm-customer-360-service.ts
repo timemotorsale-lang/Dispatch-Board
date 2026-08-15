@@ -18,6 +18,7 @@ import {
   type UnifiedCrmCustomer360AccessOptions
 } from "@/server/unified-crm/customer-360-access";
 import { resolveUnifiedCrmCustomerNextActionMode } from "@/server/unified-crm/customer-next-action-access";
+import { resolveUnifiedCrmCustomerTaskBridgeMode } from "@/server/unified-crm/customer-task-bridge-access";
 import {
   UNIFIED_CRM_CUSTOMER_360_CONTRACT_VERSION,
   UnifiedCrmCustomer360Error,
@@ -331,6 +332,10 @@ export async function getUnifiedCrmCustomer360(
 
   const observedAt = now.toISOString();
   const canViewRestricted = evaluateUnifiedCrmCapability(actor, "crm.sensitive.view").allowed;
+  const canCreateGovernedTask = resolveUnifiedCrmCustomerTaskBridgeMode({
+    bridgeMode: process.env.UNIFIED_CRM_CUSTOMER_TASK_BRIDGE_MODE,
+    nodeEnv: dependencies.nodeEnv ?? process.env.NODE_ENV
+  }) === "REVIEW";
   const canManageNextAction = resolveUnifiedCrmCustomerNextActionMode({
     commandMode: dependencies.commandMode ?? process.env.UNIFIED_CRM_CUSTOMER_NEXT_ACTION_MODE,
     nodeEnv: dependencies.nodeEnv ?? process.env.NODE_ENV
@@ -366,6 +371,7 @@ export async function getUnifiedCrmCustomer360(
       languageCode: record.languageCode
     },
     permissions: {
+      canCreateGovernedTask,
       canManageNextAction,
       canCreateRestrictedNote: canViewRestricted
     },

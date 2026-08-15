@@ -121,6 +121,7 @@ export type UnifiedCrmCustomer360ReadModel = {
     languageCode: string | null;
   };
   permissions: {
+    canCreateGovernedTask: boolean;
     canManageNextAction: boolean;
     canCreateRestrictedNote: boolean;
   };
