@@ -22,6 +22,7 @@
 - Organization scope is resolved from active location grants and rejects zero-scope or multi-organization ambiguity.
 - Appointment rows are shown only when the viewer has active schedule-view access for the resolved organization.
 - Lead rows are omitted when the Sales workspace is not permitted, and Customer Resolution Case rows are omitted when the Customer Resolutions workspace is not permitted.
+- Lane coverage now distinguishes whether a source is unavailable because the workspace route is denied, the active organization schedule scope is unavailable, or the live read itself failed.
 - Linked Customer 360 routes are omitted when the linked customer identity is absent, invalid, archived, merged, cross-organization, or outside owner scope.
 
 ## Quality and correctness improvements
@@ -35,6 +36,7 @@
 - Queue explanation and count labels now admit when the visible list is partial because a live source reached the per-source cap, rather than implying that the visible queue is complete.
 - Queue explanation now also admits when source-owned work is omitted because a required source workspace is unavailable, instead of pretending those records do not exist.
 - CRM Home and Work now expose per-lane read-only coverage cards for Appointments, Leads, Cases, and Customers so the operator can see which lanes are available, capped, empty, or unavailable before trusting the visible queue.
+- Customer follow-up rows now also fail closed when the direct customer id is invalid, so CRM Work never substitutes a misleading Customer 360 destination when the record identifier itself is unsafe.
 
 ## Automated evidence
 
@@ -51,7 +53,9 @@
   - Today rail membership follows `America/Chicago`,
   - capped live-source reads surface an honest partial-queue explanation,
   - lead/case rows are omitted when their source workspace is unavailable while the remaining queue stays usable,
-  - and lane-level coverage cards describe available, capped, and unavailable source states with newest visible update timing.
+  - lane-level coverage cards describe available, capped, and unavailable source states with newest visible update timing,
+  - unavailable lanes now carry a specific authority reason instead of one generic unavailable label,
+  - and invalid customer ids on customer follow-up rows fail closed instead of producing a misleading Customer 360 route.
 
 ## Remaining gates
 

@@ -6,6 +6,11 @@ export type UnifiedCrmWorkQueueDueState = "overdue" | "today" | "upcoming" | "wa
 export type UnifiedCrmWorkQueueItemKind = "appointment" | "lead" | "case" | "customer";
 export type UnifiedCrmWorkReadMode = "OFF" | "REVIEW";
 export type UnifiedCrmWorkQueueSourceKind = "appointments" | "leads" | "cases" | "customers";
+export type UnifiedCrmWorkQueueSourceAuthority =
+  | "granted"
+  | "workspace_route_denied"
+  | "organization_scope_unavailable"
+  | "source_read_failed";
 
 export type UnifiedCrmWorkQueueItem = {
   id: string;
@@ -73,6 +78,8 @@ export type UnifiedCrmWorkQueueReadModel = {
     sourceStates: Array<{
       source: UnifiedCrmWorkQueueSourceKind;
       status: "available" | "unavailable";
+      authority: UnifiedCrmWorkQueueSourceAuthority;
+      detail: string;
       visibleCount: number;
       capped: boolean;
       newestRecordUpdatedAt: string | null;

@@ -106,10 +106,10 @@ const liveWorkQueue: UnifiedCrmWorkQueueReadModel = {
     unavailableSources: [],
     sourceLimit: 8,
     sourceStates: [
-      { source: "appointments", status: "available", visibleCount: 1, capped: false, newestRecordUpdatedAt: "2026-08-15T02:45:00.000Z" },
-      { source: "leads", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
-      { source: "cases", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
-      { source: "customers", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null }
+      { source: "appointments", status: "available", authority: "granted", detail: "Appointments is available in this workspace.", visibleCount: 1, capped: false, newestRecordUpdatedAt: "2026-08-15T02:45:00.000Z" },
+      { source: "leads", status: "available", authority: "granted", detail: "Sales leads is available in this workspace.", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+      { source: "cases", status: "available", authority: "granted", detail: "Customer resolution cases is available in this workspace.", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+      { source: "customers", status: "available", authority: "granted", detail: "CRM customer follow-ups is available in this workspace.", visibleCount: 0, capped: false, newestRecordUpdatedAt: null }
     ]
   },
   items: [{
@@ -165,11 +165,14 @@ describe("Unified CRM UX review shell", () => {
   it("keeps manual conversations and pipeline movement visibly non-operational", () => {
     const conversations = renderToStaticMarkup(<UnifiedCrmShell activeView="conversations" userName="Alex Operator" />);
     const pipeline = renderToStaticMarkup(<UnifiedCrmShell activeView="pipeline" userName="Alex Operator" />);
+    const more = renderToStaticMarkup(<UnifiedCrmShell activeView="more" userName="Alex Operator" />);
 
     expect(conversations).toContain("No external messages are sent or synchronized");
     expect(pipeline).toContain("Lifecycle rules are intentionally held");
     expect(pipeline).toContain("No opportunity record is created in this preview");
     expect(pipeline).toContain("How the first opportunity board will feel");
+    expect(more).toContain('/crm/quotes?crmReturnTo=%2Fcrm%3Fview%3Dmore');
+    expect(more).toContain("Versioned storage is ready");
   });
 
   it.each([
@@ -299,10 +302,10 @@ describe("Unified CRM UX review shell", () => {
         unavailableSources: [],
         sourceLimit: 8,
         sourceStates: [
-          { source: "appointments", status: "available", visibleCount: 8, capped: true, newestRecordUpdatedAt: "2026-08-15T02:45:00.000Z" },
-          { source: "leads", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
-          { source: "cases", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
-          { source: "customers", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null }
+          { source: "appointments", status: "available", authority: "granted", detail: "Appointments is available in this workspace.", visibleCount: 8, capped: true, newestRecordUpdatedAt: "2026-08-15T02:45:00.000Z" },
+          { source: "leads", status: "available", authority: "granted", detail: "Sales leads is available in this workspace.", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+          { source: "cases", status: "available", authority: "granted", detail: "Customer resolution cases is available in this workspace.", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+          { source: "customers", status: "available", authority: "granted", detail: "CRM customer follow-ups is available in this workspace.", visibleCount: 0, capped: false, newestRecordUpdatedAt: null }
         ]
       }
     }, "");
@@ -322,10 +325,10 @@ describe("Unified CRM UX review shell", () => {
         unavailableSources: ["leads", "cases"],
         sourceLimit: 8,
         sourceStates: [
-          { source: "appointments", status: "available", visibleCount: 1, capped: false, newestRecordUpdatedAt: "2026-08-15T02:45:00.000Z" },
-          { source: "leads", status: "unavailable", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
-          { source: "cases", status: "unavailable", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
-          { source: "customers", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null }
+          { source: "appointments", status: "available", authority: "granted", detail: "Appointments is available in this workspace.", visibleCount: 1, capped: false, newestRecordUpdatedAt: "2026-08-15T02:45:00.000Z" },
+          { source: "leads", status: "unavailable", authority: "workspace_route_denied", detail: "Sales leads is omitted because this workspace cannot prove source access for the current viewer.", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+          { source: "cases", status: "unavailable", authority: "workspace_route_denied", detail: "Customer resolution cases is omitted because this workspace cannot prove source access for the current viewer.", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+          { source: "customers", status: "available", authority: "granted", detail: "CRM customer follow-ups is available in this workspace.", visibleCount: 0, capped: false, newestRecordUpdatedAt: null }
         ]
       }
     }, "");
@@ -345,10 +348,10 @@ describe("Unified CRM UX review shell", () => {
         cappedSources: [],
         unavailableSources: ["leads"],
         sourceStates: [
-          { source: "appointments", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
-          { source: "leads", status: "unavailable", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
-          { source: "cases", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
-          { source: "customers", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null }
+          { source: "appointments", status: "available", authority: "granted", detail: "Appointments is available in this workspace.", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+          { source: "leads", status: "unavailable", authority: "workspace_route_denied", detail: "Sales leads is omitted because this workspace cannot prove source access for the current viewer.", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+          { source: "cases", status: "available", authority: "granted", detail: "Customer resolution cases is available in this workspace.", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+          { source: "customers", status: "available", authority: "granted", detail: "CRM customer follow-ups is available in this workspace.", visibleCount: 0, capped: false, newestRecordUpdatedAt: null }
         ]
       }
     }, "");
@@ -373,10 +376,10 @@ describe("Unified CRM UX review shell", () => {
             unavailableSources: ["leads"],
             sourceLimit: 8,
             sourceStates: [
-              { source: "appointments", status: "available", visibleCount: 8, capped: true, newestRecordUpdatedAt: "2026-08-15T02:45:00.000Z" },
-              { source: "leads", status: "unavailable", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
-              { source: "cases", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
-              { source: "customers", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null }
+              { source: "appointments", status: "available", authority: "granted", detail: "Appointments is available in this workspace.", visibleCount: 8, capped: true, newestRecordUpdatedAt: "2026-08-15T02:45:00.000Z" },
+              { source: "leads", status: "unavailable", authority: "workspace_route_denied", detail: "Sales leads is omitted because this workspace cannot prove source access for the current viewer.", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+              { source: "cases", status: "available", authority: "granted", detail: "Customer resolution cases is available in this workspace.", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+              { source: "customers", status: "available", authority: "granted", detail: "CRM customer follow-ups is available in this workspace.", visibleCount: 0, capped: false, newestRecordUpdatedAt: null }
             ]
           }
         }}
@@ -388,9 +391,9 @@ describe("Unified CRM UX review shell", () => {
     expect(markup).toContain("Capped");
     expect(markup).toContain("Leads");
     expect(markup).toContain("Unavailable");
-    expect(markup).toContain("Leads are omitted in this workspace.");
+    expect(markup).toContain("Sales leads is omitted because this workspace cannot prove source access for the current viewer.");
     expect(markup).toContain("Cases");
     expect(markup).toContain("Ready");
-    expect(markup).toContain("No visible records in this lane.");
+    expect(markup).toContain("0 visible records. Customer resolution cases is available in this workspace.");
   });
 });

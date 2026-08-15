@@ -167,12 +167,11 @@ function SourceCoveragePanel({ model }: { model: UnifiedCrmWorkQueueReadModel })
             : lane.capped
               ? "Capped"
               : "Ready";
-          const laneLabel = sourceLaneLabel(lane.source);
           const detail = lane.status === "unavailable"
-            ? `${laneLabel} ${sourceAvailabilityVerb(laneLabel)} omitted in this workspace.`
+            ? lane.detail
             : lane.capped
-              ? `${lane.visibleCount}+ visible record${lane.visibleCount === 1 ? "" : "s"} shown.`
-              : `${lane.visibleCount} visible record${lane.visibleCount === 1 ? "" : "s"}.`;
+              ? `${lane.visibleCount}+ visible record${lane.visibleCount === 1 ? "" : "s"} shown. ${lane.detail}`
+              : `${lane.visibleCount} visible record${lane.visibleCount === 1 ? "" : "s"}. ${lane.detail}`;
 
           return (
             <article className={styles.sourceCoverageCard} data-lane-status={lane.status === "unavailable" ? "unavailable" : lane.capped ? "capped" : "ready"} key={lane.source}>
@@ -213,13 +212,16 @@ function queueRowContext(item: UnifiedCrmWorkQueueItem) {
 export function describeLiveWorkPresentation(model: UnifiedCrmWorkQueueReadModel, filterQuery: string) {
   const trimmedQuery = filterQuery.trim();
   const hasActiveFilter = trimmedQuery.length > 0;
+  const visibleCount = model.items.length;
   const overdueCount = model.items.filter((item) => item.dueState === "overdue").length;
   const todayCount = model.items.filter((item) => item.dueState === "today").length;
-  const countLabel = model.coverage.cappedSources.length > 0
-    ? `${model.summary.totalCount}+ items shown`
-    : model.items.length === model.summary.totalCount
+  const countLabel = hasActiveFilter
+    ? `${visibleCount} of ${model.summary.totalCount} items`
+    : model.coverage.cappedSources.length > 0
+      ? `${model.summary.totalCount}+ items shown`
+      : visibleCount === model.summary.totalCount
       ? `${model.summary.totalCount} items`
-      : `${model.items.length} of ${model.summary.totalCount} items`;
+      : `${visibleCount} of ${model.summary.totalCount} items`;
 
   return {
     countLabel,
@@ -229,7 +231,7 @@ export function describeLiveWorkPresentation(model: UnifiedCrmWorkQueueReadModel
         ? "No permitted live CRM work is visible right now. Some source lanes are unavailable in this workspace."
         : "No owned work needs attention right now.",
     emptyTitle: hasActiveFilter ? "No work matches this filter" : undefined,
-    explanation: workQueueExplanation(model, { filterQuery, visibleCount: model.items.length }),
+    explanation: workQueueExplanation(model, { filterQuery, visibleCount }),
     overdueCount,
     todayCount
   };
@@ -718,10 +720,12 @@ function InsightsView() {
 
 function MoreView() {
   return <section className={styles.moreGrid}>{[
-    { icon: FileText, title: "Quotes & approvals", detail: "Planned governed commercial workspace. No quote is created in review." },
+    { icon: FileText, title: "Quotes & approvals", detail: "Open the governed commercial foundation. Versioned storage is ready; draft, presentation, and approvals remain held.", href: "/crm/quotes?crmReturnTo=%2Fcrm%3Fview%3Dmore" },
     { icon: CheckCircle2, title: "Handoffs", detail: "Review how accepted work will connect to Dispatch without duplicating authority." },
     { icon: UsersRound, title: "Source consoles", detail: "Open existing Customers, Tasks, and Appointments while CRM is under review." }
-  ].map(({ icon: Icon, title, detail }) => <article key={title}><Icon aria-hidden="true" size={19} /><div><strong>{title}</strong><p>{detail}</p></div></article>)}</section>;
+  ].map(({ icon: Icon, title, detail, href }) => href
+    ? <Link className={styles.customerCard} href={href} key={title}><Icon aria-hidden="true" size={19} /><div><strong>{title}</strong><p>{detail}</p></div></Link>
+    : <article key={title}><Icon aria-hidden="true" size={19} /><div><strong>{title}</strong><p>{detail}</p></div></article>)}</section>;
 }
 
 export function UnifiedCrmShell({

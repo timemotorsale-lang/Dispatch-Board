@@ -92,10 +92,10 @@ describe("Unified CRM page access and fallback", () => {
         unavailableSources: [],
         sourceLimit: 8,
         sourceStates: [
-          { source: "appointments", status: "available", visibleCount: 1, capped: false, newestRecordUpdatedAt: "2026-08-14T14:45:00.000Z" },
-          { source: "leads", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
-          { source: "cases", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
-          { source: "customers", status: "available", visibleCount: 0, capped: false, newestRecordUpdatedAt: null }
+          { source: "appointments", status: "available", authority: "granted", detail: "Appointments is available in this workspace.", visibleCount: 1, capped: false, newestRecordUpdatedAt: "2026-08-14T14:45:00.000Z" },
+          { source: "leads", status: "available", authority: "granted", detail: "Sales leads is available in this workspace.", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+          { source: "cases", status: "available", authority: "granted", detail: "Customer resolution cases is available in this workspace.", visibleCount: 0, capped: false, newestRecordUpdatedAt: null },
+          { source: "customers", status: "available", authority: "granted", detail: "CRM customer follow-ups is available in this workspace.", visibleCount: 0, capped: false, newestRecordUpdatedAt: null }
         ]
       },
       items: [{ id: "appt-1", kind: "appointment", title: "Call promised buyer", customerLabel: "Real Customer · CUS-1", customerHref: "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dwork", ownerName: "CRM Page User", sourceLabel: "Appointments", sourceHref: "/appointments?view=board&appointment=APT-1&returnTo=%2Fcrm%3Fview%3Dwork", primaryActionLabel: "Open appointment", dueAt: "2026-08-14T14:00:00.000Z", dueLabel: "Overdue", dueState: "overdue", stageLabel: "Scheduled", reason: "This appointment start time has already passed.", history: ["Confirmation: Pending"], updatedAt: "2026-08-14T14:45:00.000Z" }],

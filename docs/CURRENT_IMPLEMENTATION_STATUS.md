@@ -1,5 +1,13 @@
 # Current Implementation Status
 
+## 2026-08-15 — Unified CRM UCRM-040 quote foundation implemented
+
+The current Unified CRM baseline now contains the first durable quote-foundation slice. Versioned quote storage is present in source through additive quote and quote-version models, and the CRM More area now opens a governed `/crm/quotes` review surface that exposes the new storage boundary without claiming draft, presentation, approval, or operational conversion authority.
+
+This checkpoint stays deliberately honest about what is and is not active. Quote review uses its own fail-closed CRM access path, organization scope must resolve exactly once before any quote review model loads, seller access remains owner-scoped, and every non-read quote action remains held. The quote review page can show same-scope persisted quote records when they exist, but it does not create drafts, present commercial terms, request approvals, or infer any deferred monetary thresholds.
+
+Focused verification passed on 2026-08-15 as recorded in [`docs/unified-crm/UCRM_040_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_040_IMPLEMENTATION_EVIDENCE.md). `UCRM-040` is `IMPLEMENTED_UNVERIFIED`: migrated runtime proof, authenticated browser proof, and the downstream governed draft/presentation slices are still required before verification or merge. `UCRM-041` and `UCRM-042` remain pending.
+
 ## 2026-08-15 — Unified CRM UCRM-024 task bridge implemented
 
 The current Unified CRM baseline now contains a governed CRM-to-Task bridge inside Customer 360. Staff can create a real protected follow-up task from the permitted customer record while keeping the existing Task workflow as the write authority and source of truth.
@@ -21,6 +29,8 @@ The current hardening packet goes a bit further. Appointment rows now require ac
 The latest authority-hardening pass extends that honesty to source-owned records. Lead rows are now omitted when the Sales workspace is not permitted, Customer Resolution Case rows are omitted when the Customer Resolutions workspace is not permitted, and the live queue explanation now says when source-owned work is unavailable in the current workspace instead of implying that nothing exists there.
 
 The newest queue-trust packet now adds lane-level source coverage visibility inside CRM Home and Work. Operators can see whether Appointments, Leads, Cases, and CRM follow-ups are available, capped, empty, or unavailable in the current workspace, plus the newest visible update time for each lane, before trusting the visible queue.
+
+The latest work-queue authority packet sharpens that explanation one step further. Unavailable lanes now say whether the block came from missing workspace route authority, missing active organization schedule scope, or a live source-read failure, and customer follow-up rows now fail closed when the direct customer id is invalid instead of pointing to a misleading Customer 360 route.
 
 Focused verification passed on 2026-08-15 as recorded in [`docs/unified-crm/UCRM_025_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_025_IMPLEMENTATION_EVIDENCE.md). UCRM-025 remains `IMPLEMENTED_UNVERIFIED`: authenticated browser proof and isolated PostgreSQL reconciliation proof are still required before verification or merge. No write, task mutation, appointment mutation, or opportunity-stage behavior was enabled by this checkpoint.
 
