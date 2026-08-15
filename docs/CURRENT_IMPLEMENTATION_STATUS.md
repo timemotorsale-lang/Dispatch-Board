@@ -1,5 +1,39 @@
 # Current Implementation Status
 
+## 2026-08-15 — Unified CRM UCRM-020 unified permitted activity timeline implemented
+
+The isolated `codex/unified-crm-console` branch now contains a stronger read-only Unified CRM customer timeline inside Customer 360. The timeline merges permitted customer interactions, task and resolution activity events, appointment history, lead and case creation context, promise events, and CRM next-action domain events without creating a second source of truth for those workflows.
+
+This checkpoint tightened the security boundary as well as the experience. Customer 360 now resolves canonical permitted customer access before requesting timeline data, customer interactions and task-linked activity are organization-qualified, merged timeline pagination reports `hasMore` honestly across multiple source streams, and timeline items now carry stable correlation and source-record identity. The UI uses an ordered activity feed, clearer event-kind labels, honest empty-state language, and explicit source-authority messaging.
+
+Focused integrated verification passed as recorded in [`docs/unified-crm/UCRM_020_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_020_IMPLEMENTATION_EVIDENCE.md). UCRM-020 remains `IMPLEMENTED_UNVERIFIED`: authenticated browser proof and isolated PostgreSQL proof are still required before verification or merge. No write or operational side effect was enabled by this checkpoint.
+
+## 2026-08-15 — Unified CRM UCRM-021 manual contact outcome implemented
+
+The isolated `codex/unified-crm-console` branch now contains a hardened manual contact outcome command path in Customer 360. Staff can record a manual relationship touchpoint through the existing CRM interaction form and protected CRM interaction route without sending an external message or changing source-owned communication systems.
+
+This checkpoint tightened the command boundary substantially. Canonical customer authorization now precedes idempotency replay, outbound phone/text/email outcomes require positive canonical contact-point consent instead of trusting the submitted form state, replay is bound to the same authorized customer subject, invalid interaction commands return honest 400 responses, and unknown backend failures are masked by the route. The interaction form now also uses clearer non-sending language and stronger accessible submit-state behavior.
+
+Focused integrated verification passed as recorded in [`docs/unified-crm/UCRM_021_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_021_IMPLEMENTATION_EVIDENCE.md). UCRM-021 remains `IMPLEMENTED_UNVERIFIED`: authenticated browser proof and isolated PostgreSQL proof are still required before verification or merge. No external communication delivery or broader operational write path was enabled by this checkpoint.
+
+## 2026-08-15 — Unified CRM UCRM-022 notes and visibility implemented
+
+The isolated `codex/unified-crm-console` branch now contains a hardened customer-note command path in Customer 360. Staff can record internal or, when authorized, restricted CRM notes through the protected note route and note form without sending a customer notification or changing source-owned workflows.
+
+This checkpoint tightened the note boundary in the same fail-closed pattern as the interaction slice. Exact customer authorization now precedes idempotency replay, restricted-note creation remains gated behind sensitive-view capability, zero and multiple organization scopes are handled explicitly, route validation errors return honest typed statuses, and unknown backend failures are masked. The note form also now uses clearer internal-only language and stronger accessible pending/disclosure behavior.
+
+Focused integrated verification passed as recorded in [`docs/unified-crm/UCRM_022_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_022_IMPLEMENTATION_EVIDENCE.md). UCRM-022 remains `IMPLEMENTED_UNVERIFIED`: authenticated browser proof and isolated PostgreSQL proof are still required before verification or merge. No external delivery or broader operational note-sharing path was enabled by this checkpoint.
+
+## 2026-08-14 — Unified CRM UCRM-012/013 customer truth checkpoint implemented
+
+The isolated `codex/unified-crm-customer-truth` branch now contains the first real-data Unified CRM slice: a read-only Customers list backed by the existing canonical Customer and CustomerContactPoint records. Organization scope is derived on the server from active location grants, Sales remains owner-only, list contacts are always masked, production customer reads default off independently of the CRM shell, and the existing `/customers` console remains the safe fallback.
+
+The experience provides explicit-submit search, status/owner filtering, stable pagination, honest read freshness, reachable loading, empty, filtered-empty, restricted, unavailable, error, and recovery states, semantic desktop and mobile layouts, and same-tab source-record links. Initial authenticated browser checks passed at 1440×900 and 390×844 without horizontal overflow or browser-console errors. The available Sales account exercised real empty and filtered-empty states.
+
+Focused and affected tests passed as recorded in [`docs/unified-crm/UCRM_012_013_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_012_013_IMPLEMENTATION_EVIDENCE.md). UCRM-012 and UCRM-013 remain `IMPLEMENTED_UNVERIFIED`: the opt-in two-organization test still needs an isolated migrated PostgreSQL database, and Product Owner UCRM-UXR-1 review still needs a data-bearing list plus final denied/read-off browser proof. This branch is not merged, piloted, production-enabled, or authorized for customer writes. The unrelated service-close typecheck defect remains unchanged.
+
+UCRM-014 is now `IMPLEMENTED_UNVERIFIED` on the stacked Customer 360 branch. The read-only detail route, masked contact and source boundaries, owner-scoped lead/case lenses, deep-route rollback controls, and denied-persona mobile evidence are recorded in [`docs/unified-crm/UCRM_014_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_014_IMPLEMENTATION_EVIDENCE.md). A permitted data-bearing Product Owner walkthrough and isolated PostgreSQL proof remain required before verification or merge.
+
 ## 2026-08-14 — Unified CRM UCRM-010/011 UX review checkpoint implemented
 
 The isolated `codex/unified-crm-console` branch now contains an authenticated `/crm` route, Management/Sales route discovery, a deny-by-default CRM capability baseline, production-off review control, role-safe unavailable/fallback behavior, independent CRM navigation, and the first interactive UCRM-UXR-0 experience. The review shell prioritizes one next-action queue, one search, in-place context, and Today/Attention work; every displayed scenario is explicitly synthetic and non-writing.

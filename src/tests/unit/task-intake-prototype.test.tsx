@@ -28,4 +28,22 @@ describe("EnterpriseTaskIntakePrototype", () => {
     expect(markup).toContain('href="/customers/resolutions"');
     expect(markup).toContain("Return to source console");
   });
+
+  it("accepts a safe prefilled CRM task handoff draft", () => {
+    const markup = renderToStaticMarkup(
+      <EnterpriseTaskIntakePrototype
+        initialDraft={{
+          brief: "Document the customer follow-up, outcome, and next operational step.",
+          customerReference: "Alex Morgan · CUS-001",
+          expectedOutcome: "The customer follow-up is completed and the resulting next step is recorded in the Dispatch Board.",
+          title: "Follow up with Alex Morgan",
+          workflowArea: "SALES"
+        }}
+      />
+    );
+
+    expect(markup).toContain("Follow up with Alex Morgan");
+    expect(markup).toContain("Alex Morgan · CUS-001");
+    expect(markup).toContain("Document the customer follow-up, outcome, and next operational step.");
+  });
 });

@@ -124,13 +124,14 @@ type TaskIntakeProps = {
   canAssignOthers?: boolean;
   currentUserId?: string;
   defaultDueDate?: string;
+  initialDraft?: Partial<IntakeDraft>;
   returnTo?: string;
   staff?: ActiveUserSummary[];
 };
 
 const draftStorageKey = "dispatch-board.task-intake-draft.v1";
 
-export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, currentUserId = "", defaultDueDate, returnTo = "/tasks", staff = [] }: TaskIntakeProps) {
+export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, currentUserId = "", defaultDueDate, initialDraft, returnTo = "/tasks", staff = [] }: TaskIntakeProps) {
   const collaboratorOptions = staff.length ? staff.map((user) => ({
     id: user.id,
     initials: user.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase(),
@@ -139,7 +140,10 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
   })) : fallbackCollaboratorOptions;
   const [mode, setMode] = useState<IntakeMode>("guided");
   const [activeStage, setActiveStage] = useState<IntakeStage>("Capture");
-  const [draft, setDraft] = useState<IntakeDraft>(() => createEmptyDraft(currentUserId, defaultDueDate));
+  const [draft, setDraft] = useState<IntakeDraft>(() => ({
+    ...createEmptyDraft(currentUserId, defaultDueDate),
+    ...initialDraft
+  }));
   const [collaboratorCandidate, setCollaboratorCandidate] = useState("");
   const [draftMessage, setDraftMessage] = useState("");
   const [submitError, setSubmitError] = useState("");

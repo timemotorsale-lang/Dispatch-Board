@@ -1,10 +1,9 @@
 export const UNIFIED_CRM_OPPORTUNITY_READ_CONTRACT_VERSION = "ucrm.opportunity-read/v1" as const;
 
 export type UnifiedCrmOpportunityStageReference = {
-  definitionId: string | null;
-  label: string;
-  orderHint: number | null;
-  lifecycleHeld: true;
+  definitionId: string;
+  label: string | null;
+  order: number | null;
 };
 
 export type UnifiedCrmOpportunityDetailState =
@@ -14,17 +13,58 @@ export type UnifiedCrmOpportunityDetailState =
   | "SOURCE_UNAVAILABLE";
 
 export type UnifiedCrmOpportunityPreviewCard = {
-  title: string;
+  id: string;
+  label: string;
+  value: string;
   detail: string;
-  tone: "positive" | "warning" | "neutral";
+  tone: "neutral" | "ready" | "held";
+};
+
+export type UnifiedCrmOpportunityPipelinePreviewItem = {
+  id: string;
+  customerLabel: string;
+  detailHref: string;
+  nextActionLabel: string;
+  ownerLabel: string;
+  reason: string;
+  state?: "HELD_REVIEW" | "LIVE_READ_ONLY";
+};
+
+export type UnifiedCrmOpportunityPipelinePreviewColumn = {
+  id: string;
+  itemCountLabel: string;
+  items: UnifiedCrmOpportunityPipelinePreviewItem[];
+  label: string;
+  valueLabel: string;
 };
 
 export type UnifiedCrmOpportunityPreviewModel = {
   contractVersion: typeof UNIFIED_CRM_OPPORTUNITY_READ_CONTRACT_VERSION;
-  state: "HELD";
-  stagePolicy: UnifiedCrmOpportunityStageReference;
-  cards: readonly UnifiedCrmOpportunityPreviewCard[];
-  nextSteps: readonly string[];
+  cards: UnifiedCrmOpportunityPreviewCard[];
+  columns: UnifiedCrmOpportunityPipelinePreviewColumn[];
+  constraints: string[];
+  generatedAt: string;
+  listPreview: {
+    emptyMessage: string;
+    heading: string;
+    items: {
+      id: string;
+      customerLabel?: string;
+      href?: string;
+      ownerLabel: string;
+      reason: string;
+      state?: "HELD_REVIEW" | "LIVE_READ_ONLY";
+      title: string;
+    }[];
+  };
+  state: "PREVIEW";
+  visibility: "organization" | "owned";
 };
 
-export type UnifiedCrmOpportunityHeldReadModel = UnifiedCrmOpportunityPreviewModel;
+export type UnifiedCrmOpportunityHeldReadModel = {
+  contractVersion: typeof UNIFIED_CRM_OPPORTUNITY_READ_CONTRACT_VERSION;
+  detail: string;
+  generatedAt: string;
+  nextStep: string;
+  state: UnifiedCrmOpportunityDetailState;
+};
