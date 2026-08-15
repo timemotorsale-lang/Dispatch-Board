@@ -1,4 +1,5 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
+import { UnifiedCrmOpportunityError } from "@/server/unified-crm/opportunity-contract";
 import type { UnifiedCrmOpportunityAccessContext } from "@/server/unified-crm/opportunity-contract";
 import { requireUnifiedCrmOpportunityDetailAccess } from "@/server/unified-crm/opportunity-detail-access";
 import {
@@ -87,6 +88,20 @@ function createPanels(primaryRecord?: UnifiedCrmOpportunityPreviewRecord | null)
   ];
 }
 
+function liveCollectionDetail(visiblePersistedRecordCount: number, visibility: "organization" | "owned") {
+  const visibilityLabel = visibility === "organization" ? "organization review" : "owned review";
+  if (visiblePersistedRecordCount > 0) {
+    return `Only same-scope persisted opportunities are available from this workspace entry for ${visibilityLabel}. Lifecycle movement remains off.`;
+  }
+  return `No same-scope persisted read-only opportunity is visible from this workspace entry right now for ${visibilityLabel}. Continue with held review surfaces until one is available.`;
+}
+
+function liveCollectionFreshnessLabel(newestVisibleRecordUpdatedAt: string | null) {
+  return newestVisibleRecordUpdatedAt
+    ? `Newest visible persisted update observed at ${newestVisibleRecordUpdatedAt}.`
+    : "No visible persisted opportunity update is available yet.";
+}
+
 export async function getUnifiedCrmOpportunityDiscovery(
   actor: AuthenticatedUser | null,
   dependencies: Dependencies = {}
@@ -98,15 +113,34 @@ export async function getUnifiedCrmOpportunityDiscovery(
     sourceLabel: "Unified CRM opportunity workspace discovery"
   });
   const repository = dependencies.repository ?? createUnifiedCrmOpportunityPreviewRepository();
-  const persistedRecord = await repository.findPrimaryOpportunityPreview({
-    organizationId: access.organizationId,
-    recordScope: access.recordScope
-  });
-  const visiblePersistedRecord = persistedRecord && isPreviewRecordVisible(persistedRecord, access)
-    ? persistedRecord
+  let persistedRecords: UnifiedCrmOpportunityPreviewRecord[];
+  try {
+    persistedRecords = await repository.listOpportunityPreviews({
+      limit: 5,
+      organizationId: access.organizationId,
+      recordScope: access.recordScope
+    });
+  } catch (error) {
+    throw new UnifiedCrmOpportunityError(
+      "OPPORTUNITY_OFF",
+      "Opportunity workspace discovery is temporarily unavailable.",
+      { cause: error }
+    );
+  }
+  const visiblePersistedRecords = persistedRecords.filter((record) => isPreviewRecordVisible(record, access));
+  const visiblePersistedRecord = visiblePersistedRecords[0] ?? null;
+  const newestVisibleRecordUpdatedAt = visiblePersistedRecords.length
+    ? new Date(Math.max(...visiblePersistedRecords.map((record) => record.updatedAt.getTime()))).toISOString()
     : null;
 
   return {
+    collectionObservation: {
+      detail: liveCollectionDetail(visiblePersistedRecords.length, orientation.visibility),
+      freshnessLabel: liveCollectionFreshnessLabel(newestVisibleRecordUpdatedAt),
+      newestVisibleRecordUpdatedAt,
+      state: visiblePersistedRecords.length ? "READY" : "EMPTY",
+      visibleRecordCount: visiblePersistedRecords.length
+    },
     contractVersion: UNIFIED_CRM_OPPORTUNITY_DISCOVERY_CONTRACT_VERSION,
     generatedAt,
     headline: {

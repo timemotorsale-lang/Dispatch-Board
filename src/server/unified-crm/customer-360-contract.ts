@@ -151,6 +151,13 @@ export type UnifiedCrmCustomer360ReadModel = {
     leads: UnifiedCrmCustomer360LeadLens[];
     cases: UnifiedCrmCustomer360CaseLens[];
   };
+  opportunityLensObservation: {
+    detail: string;
+    freshnessLabel: string;
+    newestVisibleRecordUpdatedAt: string | null;
+    state: "EMPTY" | "READY";
+    visibleRecordCount: number;
+  };
   opportunityLenses: UnifiedCrmCustomer360OpportunityLens[];
 };
 

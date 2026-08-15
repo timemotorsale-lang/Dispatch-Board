@@ -44,6 +44,11 @@ describe("getUnifiedCrmOpportunityDiscovery", () => {
     expect(model.contractVersion).toBe("ucrm.opportunity-discovery/v1");
     expect(model.state).toBe("HELD_REVIEW");
     expect(model.visibility).toBe(scope);
+    expect(model.collectionObservation).toMatchObject({
+      state: "EMPTY",
+      visibleRecordCount: 0,
+      freshnessLabel: "No visible persisted opportunity update is available yet."
+    });
     expect(model.panels).toHaveLength(3);
     expect(model.panels.every((panel) => panel.link.state === "HELD_REVIEW")).toBe(true);
     expect(model.panels.every((panel) => panel.link.href.startsWith("/") && !panel.link.href.startsWith("//"))).toBe(true);
@@ -103,7 +108,59 @@ describe("getUnifiedCrmOpportunityDiscovery", () => {
     });
 
     expect(model.panels.every((panel) => panel.link.state === "HELD_REVIEW")).toBe(true);
+    expect(model.collectionObservation).toMatchObject({
+      state: "EMPTY",
+      visibleRecordCount: 0
+    });
     expect(JSON.stringify(model)).not.toContain("Private opportunity");
-    expect(JSON.stringify(model)).not.toContain("persisted read-only opportunity");
+    expect(model.panels.some((panel) => panel.link.state === "LIVE_READ_ONLY")).toBe(false);
+  });
+
+  it("returns persisted collection observation when same-scope records are visible", async () => {
+    const model = await getUnifiedCrmOpportunityDiscovery(null, {
+      accessContext: accessContext("organization"),
+      repository: {
+        async findPrimaryOpportunityPreview() {
+          return null;
+        },
+        async listOpportunityPreviews() {
+          return [{
+            opportunityNumber: "opp_123456",
+            title: "Visible opportunity",
+            summary: "Visible backend summary",
+            organizationId: "org-1",
+            ownerUser: { id: "manager-1", name: "CRM Manager" },
+            customer: null,
+            updatedAt: new Date("2026-08-15T02:00:00.000Z")
+          }];
+        }
+      }
+    });
+
+    expect(model.collectionObservation).toMatchObject({
+      detail: "Only same-scope persisted opportunities are available from this workspace entry for organization review. Lifecycle movement remains off.",
+      freshnessLabel: "Newest visible persisted update observed at 2026-08-15T02:00:00.000Z.",
+      newestVisibleRecordUpdatedAt: "2026-08-15T02:00:00.000Z",
+      state: "READY",
+      visibleRecordCount: 1
+    });
+    expect(model.panels.some((panel) => panel.link.state === "LIVE_READ_ONLY")).toBe(true);
+  });
+
+  it("wraps repository failures in a safe discovery unavailable error", async () => {
+    await expect(getUnifiedCrmOpportunityDiscovery(null, {
+      accessContext: accessContext("organization"),
+      repository: {
+        async findPrimaryOpportunityPreview() {
+          return null;
+        },
+        async listOpportunityPreviews() {
+          throw new Error("private discovery backend detail");
+        }
+      }
+    })).rejects.toMatchObject({
+      code: "OPPORTUNITY_OFF",
+      message: "Opportunity workspace discovery is temporarily unavailable."
+    });
   });
 });

@@ -256,6 +256,13 @@ describe("Unified CRM Customer 360 service", () => {
         }
       },
       sourceLenses: { leads: [{ id: "lead-a" }], cases: [{ id: "case-a" }] },
+      opportunityLensObservation: {
+        detail: "Only same-scope persisted opportunities linked to this customer are shown for organization review. Lifecycle movement remains off.",
+        freshnessLabel: "Newest visible persisted opportunity update observed at 2026-08-14T11:00:00.000Z.",
+        newestVisibleRecordUpdatedAt: "2026-08-14T11:00:00.000Z",
+        state: "READY",
+        visibleRecordCount: 1
+      },
       opportunityLenses: [{ id: "opp_123456", opportunityNumber: "opp_123456", state: "LIVE_READ_ONLY" }]
     });
     const serialized = JSON.stringify(model);
@@ -367,7 +374,34 @@ describe("Unified CRM Customer 360 service", () => {
     expect(setup.received[0]).toMatchObject({ recordScope: { kind: "OWNER", ownerUserId: "seller-a" } });
     expect(model.sourceLenses.leads.map((lead) => lead.id)).toEqual(["lead-owned"]);
     expect(model.sourceLenses.cases.map((customerCase) => customerCase.id)).toEqual(["case-owned"]);
+    expect(model.opportunityLensObservation).toMatchObject({
+      state: "READY",
+      visibleRecordCount: 1
+    });
     expect(model.timeline.itemCount).toBeGreaterThan(0);
+  });
+
+  it("returns an explicit empty opportunity-lens observation when no persisted opportunity is visible", async () => {
+    const setup = dependencies(record({
+      unifiedCrmOpportunities: [{
+        opportunityNumber: "//invalid",
+        title: "Invalid target",
+        summary: "Should not appear.",
+        organizationId: "org-a",
+        updatedAt: now,
+        ownerUser: { id: "manager-1", name: "CRM Manager" }
+      }]
+    }));
+
+    const model = await getUnifiedCrmCustomer360(manager, "customer-a", setup.deps);
+    expect(model.opportunityLenses).toEqual([]);
+    expect(model.opportunityLensObservation).toMatchObject({
+      detail: "No same-scope persisted read-only opportunity linked to this customer is visible right now for organization review. Continue with held opportunity review surfaces until one is available.",
+      freshnessLabel: "No visible persisted opportunity update is available yet.",
+      newestVisibleRecordUpdatedAt: null,
+      state: "EMPTY",
+      visibleRecordCount: 0
+    });
   });
 
   it("returns an explicit empty timeline state and has-more metadata when no permitted activity exists", async () => {

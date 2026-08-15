@@ -36,6 +36,13 @@ export function customer360Fixture(): UnifiedCrmCustomer360ReadModel {
       leads: [{ id: "lead-1", leadNumber: "LEAD-101", stage: "QUALIFIED", sourceCode: "WEBSITE", ownerName: "Taylor B.", vehicleInterest: "Toyota RAV4", nextActionCode: "FOLLOW_UP", nextActionAt: "2026-08-15T16:00:00.000Z", sourceHref: "/sales" }],
       cases: [{ id: "case-1", caseNumber: "CASE-202", title: "Document follow-up", category: "DOCUMENT", priority: "MEDIUM", status: "OPEN", ownerName: "Customer Care", dueAt: "2026-08-16T16:00:00.000Z", resolutionDueAt: null, slaStage: "HEALTHY", sourceHref: "/customers/resolutions?caseId=CASE-202" }]
     },
+    opportunityLensObservation: {
+      detail: "Only same-scope persisted opportunities linked to this customer are shown for organization review. Lifecycle movement remains off.",
+      freshnessLabel: "Newest visible persisted opportunity update observed at 2026-08-15T13:00:00.000Z.",
+      newestVisibleRecordUpdatedAt: "2026-08-15T13:00:00.000Z",
+      state: "READY",
+      visibleRecordCount: 1
+    },
     opportunityLenses: [{
       id: "opp_1001",
       opportunityNumber: "opp_1001",

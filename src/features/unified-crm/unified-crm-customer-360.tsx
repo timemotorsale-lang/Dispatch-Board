@@ -182,6 +182,8 @@ function OpportunityLensSection({
           <div><span className={styles.eyebrow}>Linked opportunities</span><h2 id="customer-opportunity-lenses-heading">Read-only opportunity summaries</h2></div>
           <small>No persisted opportunity is linked yet</small>
         </header>
+        <p className={styles.discoveryDetail}>{model.opportunityLensObservation.detail}</p>
+        <small className={styles.timelineEmpty}>{model.opportunityLensObservation.freshnessLabel}</small>
         <p className={styles.timelineEmpty}>No permitted persisted opportunities are linked to this customer yet.</p>
       </section>
     );
@@ -193,6 +195,8 @@ function OpportunityLensSection({
         <div><span className={styles.eyebrow}>Linked opportunities</span><h2 id="customer-opportunity-lenses-heading">Read-only opportunity summaries</h2></div>
         <small>{model.opportunityLenses.length} visible record{model.opportunityLenses.length === 1 ? "" : "s"}</small>
       </header>
+      <p className={styles.discoveryDetail}>{model.opportunityLensObservation.detail}</p>
+      <small className={styles.timelineEmpty}>{model.opportunityLensObservation.freshnessLabel}</small>
       <div className={styles.discoveryGrid}>
         {model.opportunityLenses.map((item) => (
           <Link className={styles.discoveryCard} href={withUnifiedCrmOpportunityReturn(item.href, returnHref)} key={item.id}>
@@ -449,6 +453,7 @@ export function UnifiedCrmCustomer360({ errorMessage, failureKind = "error", mod
     customerDisplayName: model.identity.displayName,
     customerId: model.identity.id,
     customerNumber: model.identity.customerNumber,
+    customerContextReturn: returnHref,
     dueAt: model.relationship.nextActionAt
   });
   const primaryContact = model.contacts.find((item) => item.isPrimary) ?? model.contacts[0];

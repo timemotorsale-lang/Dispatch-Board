@@ -463,7 +463,7 @@ function HomeView({
         <section className={styles.todayCard}>
           <header><span><CalendarDays aria-hidden="true" size={16} />Today</span><small>Review</small></header>
           {reviewAppointments.map((appointment) => <article key={`${appointment.time}-${appointment.customer}`}><time>{appointment.time}</time><span><strong>{appointment.customer}</strong><small>{appointment.detail}</small></span></article>)}
-          <Link href="/appointments?returnTo=%2Fcrm">Open source appointment board<ExternalLink aria-hidden="true" size={13} /></Link>
+          <Link href="/appointments?returnTo=%2Fcrm%3Fview%3Dwork">Open source appointment board<ExternalLink aria-hidden="true" size={13} /></Link>
         </section>
         <section className={styles.attentionCard}>
           <header><span><Clock3 aria-hidden="true" size={16} />Attention</span></header>
@@ -507,8 +507,8 @@ function WorkState({
       <strong>{resolvedTitle}</strong>
       <p>{detail}</p>
       <div className={styles.stateActions}>
-        <Link href="/my-tasks">Open existing task queue</Link>
-        <Link href="/appointments">Open appointments</Link>
+        <Link href="/my-tasks?returnTo=%2Fcrm%3Fview%3Dwork">Open existing task queue</Link>
+        <Link href="/appointments?returnTo=%2Fcrm%3Fview%3Dwork">Open appointments</Link>
       </div>
     </section>
   );
@@ -564,7 +564,7 @@ function LiveHomeView({
               </span>
             </article>
           )) : <p className={styles.railEmpty}>No permitted appointments are scheduled today. Other source-owned work may still appear in the ranked queue.</p>}
-          <Link href="/appointments">Open source appointment board<ExternalLink aria-hidden="true" size={13} /></Link>
+          <Link href="/appointments?returnTo=%2Fcrm%3Fview%3Dwork">Open source appointment board<ExternalLink aria-hidden="true" size={13} /></Link>
         </section>
         <section className={styles.attentionCard}>
           <header><span><Clock3 aria-hidden="true" size={16} />Attention</span></header>
@@ -638,6 +638,20 @@ function OpportunityDiscoveryPanel({ model, returnHref }: { model: UnifiedCrmOpp
         </div>
       </header>
       <p className={styles.sectionDetail}>{model.headline.detail}</p>
+      {model.collectionObservation ? (
+        <div className={styles.sourceCoverage} aria-label="Opportunity discovery persisted visibility">
+          <header>
+            <strong>
+              {model.collectionObservation.state === "READY"
+                ? "Persisted read-only entry visibility"
+                : "Persisted read-only entry visibility pending"}
+            </strong>
+            <span>{model.collectionObservation.visibleRecordCount} visible same-scope record{model.collectionObservation.visibleRecordCount === 1 ? "" : "s"}</span>
+          </header>
+          <p className={styles.sectionDetail}>{model.collectionObservation.detail}</p>
+          <p className={styles.sectionDetail}>{model.collectionObservation.freshnessLabel}</p>
+        </div>
+      ) : null}
       <div className={styles.discoveryGrid}>
         {model.panels.map((panel) => (
           <Link className={styles.discoveryCard} href={withUnifiedCrmOpportunityReturn(panel.link.href, returnHref)} key={panel.id}>

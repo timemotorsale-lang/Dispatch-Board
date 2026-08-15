@@ -21,6 +21,20 @@ describe("Unified CRM task intake handoff", () => {
     expect(href).toContain("returnTo=%2Fcrm%2Fcustomers%2Fcustomer-1");
   });
 
+  it("preserves a safe CRM Work return when task intake starts from CRM Work customer context", () => {
+    const href = buildUnifiedCrmTaskIntakeHref({
+      customerDisplayName: "Alex Morgan",
+      customerId: "customer-1",
+      customerNumber: "CUS-001",
+      customerContextReturn: "/crm?view=work",
+      dueAt: "2026-08-15T15:00:00.000Z"
+    });
+
+    expect(href).toContain(
+      "returnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dwork"
+    );
+  });
+
   it("normalizes only allowlisted CRM handoff defaults", () => {
     expect(normalizeUnifiedCrmTaskIntakeDefaults({
       brief: "  Carry this into intake.  ",

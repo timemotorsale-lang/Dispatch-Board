@@ -131,6 +131,8 @@ describe("Unified CRM Customer 360", () => {
     expect(markup).not.toMatch(/Create opportunity|Move stage|Mark won|Save opportunity|live forecast/i);
     expect(markup).toContain("Team context"); expect(markup).toContain("Customer prefers texts after lunch.");
     expect(markup).toContain("Read-only opportunity summaries"); expect(markup).toContain("Alex Morgan renewal review");
+    expect(markup).toContain("Only same-scope persisted opportunities linked to this customer are shown for organization review. Lifecycle movement remains off.");
+    expect(markup).toContain("Newest visible persisted opportunity update observed at 2026-08-15T13:00:00.000Z.");
     expect(markup).toContain('href="/crm/opportunities/opp_1001?crmReturnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dcustomers%2526q%253DAlex"');
     expect(markup).toContain("Relationship timeline"); expect(markup).toContain("Phone Outbound"); expect(markup).toContain("Appointment confirmation was recorded.");
     expect(markup).toContain("Manual contact outcome"); expect(markup).toContain("Record a relationship touchpoint");
@@ -291,6 +293,31 @@ describe("Unified CRM Customer 360", () => {
     expect(markup).toContain("No permitted relationship history has been recorded yet.");
     expect(markup).toContain("New source-owned events will appear here when they enter your allowed customer scope.");
     expect(markup).not.toContain('aria-label="Permitted customer relationship activity"');
+  });
+
+  it("keeps the opportunity lens honest when no persisted opportunity is visible", () => {
+    const fixture = customer360Fixture();
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmCustomer360
+        model={{
+          ...fixture,
+          opportunityLensObservation: {
+            detail: "No same-scope persisted read-only opportunity linked to this customer is visible right now for organization review. Continue with held opportunity review surfaces until one is available.",
+            freshnessLabel: "No visible persisted opportunity update is available yet.",
+            newestVisibleRecordUpdatedAt: null,
+            state: "EMPTY",
+            visibleRecordCount: 0
+          },
+          opportunityLenses: []
+        }}
+        opportunityDiscovery={opportunityDiscovery}
+        returnHref="/crm?view=customers"
+      />
+    );
+
+    expect(markup).toContain("No persisted opportunity is linked yet");
+    expect(markup).toContain("No same-scope persisted read-only opportunity linked to this customer is visible right now for organization review. Continue with held opportunity review surfaces until one is available.");
+    expect(markup).toContain("No visible persisted opportunity update is available yet.");
   });
 
   it("keeps CRM Work continuity when customer detail started from Work", () => {

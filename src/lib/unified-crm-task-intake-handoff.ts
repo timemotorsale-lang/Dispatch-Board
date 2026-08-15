@@ -61,9 +61,13 @@ export function buildUnifiedCrmTaskIntakeHref(input: {
   customerDisplayName: string;
   customerId: string;
   customerNumber: string;
+  customerContextReturn?: string;
   dueAt?: string | null;
 }) {
-  const returnTo = `/crm/customers/${encodeURIComponent(input.customerId)}?crmReturnTo=${encodeURIComponent("/crm?view=customers")}`;
+  const returnTo = buildUnifiedCrmCustomerReturn(
+    input.customerId,
+    safeUnifiedCrmCustomerContextReturn(input.customerContextReturn)
+  );
   const params = new URLSearchParams({
     brief: "Document the customer follow-up, outcome, and next operational step.",
     customerReference: `${input.customerDisplayName} · ${input.customerNumber}`,
@@ -100,3 +104,4 @@ export function normalizeUnifiedCrmTaskIntakeDefaults(input: Record<string, stri
     workflowArea: workflowArea && TASK_WORKFLOW_AREA_SET.has(workflowArea) ? workflowArea as UnifiedCrmTaskWorkflowArea : undefined
   };
 }
+import { buildUnifiedCrmCustomerReturn, safeUnifiedCrmCustomerContextReturn } from "@/server/unified-crm/opportunity-review-return";

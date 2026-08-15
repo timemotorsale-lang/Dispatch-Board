@@ -19,6 +19,13 @@ export type UnifiedCrmOpportunityDiscoveryPanel = {
 };
 
 export type UnifiedCrmOpportunityDiscoveryModel = {
+  collectionObservation?: {
+    detail: string;
+    freshnessLabel: string;
+    newestVisibleRecordUpdatedAt: string | null;
+    state: "EMPTY" | "READY";
+    visibleRecordCount: number;
+  };
   contractVersion: typeof UNIFIED_CRM_OPPORTUNITY_DISCOVERY_CONTRACT_VERSION;
   generatedAt: string;
   headline: {

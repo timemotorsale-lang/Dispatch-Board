@@ -38,6 +38,7 @@ type QueueCandidate = UnifiedCrmWorkQueueItem & {
 
 const SOURCE_LIMIT = 8;
 const WORK_QUEUE_TIME_ZONE = "America/Chicago" as const;
+const CRM_WORK_RETURN_HREF = "/crm?view=work" as const;
 const APPOINTMENT_SOURCE_ROUTE = "/appointments" as const;
 const LEAD_SOURCE_ROUTE = "/sales" as const;
 const CASE_SOURCE_ROUTE = "/customers/resolutions" as const;
@@ -109,6 +110,13 @@ function customerHref(value: { id: string } | null | undefined) {
   if (!normalizedId || normalizedId.length > 128) return undefined;
   const href = buildUnifiedCrmCustomerReturn(normalizedId, "/crm?view=work");
   return href.startsWith("/crm/customers/") ? href : undefined;
+}
+
+function withWorkReturn(href: string) {
+  if (!href.startsWith("/")) return href;
+  const url = new URL(href, "https://crm.local");
+  url.searchParams.set("returnTo", CRM_WORK_RETURN_HREF);
+  return `${url.pathname}${url.search}${url.hash}`;
 }
 
 function canExposeLinkedCustomer(
@@ -213,7 +221,7 @@ function appointmentCandidate(
     customerHref: linkedCustomerHref(appointment.participants[0]?.customer, input),
     ownerName: appointment.ownerUser?.name ?? "Unassigned",
     sourceLabel: "Appointments",
-    sourceHref: `/appointments?view=board&appointment=${encodeURIComponent(appointment.appointmentNumber)}`,
+    sourceHref: withWorkReturn(`/appointments?view=board&appointment=${encodeURIComponent(appointment.appointmentNumber)}`),
     primaryActionLabel: appointment.confirmationStatus === "CONFIRMED" ? "Open appointment" : "Review appointment",
     dueAt: due?.toISOString() ?? null,
     dueLabel: dueLabel(due, state),
@@ -250,7 +258,7 @@ function leadCandidate(
     customerHref: linkedCustomerHref(lead.customer, input),
     ownerName: lead.ownerUser.name,
     sourceLabel: "Sales",
-    sourceHref: "/sales",
+    sourceHref: withWorkReturn("/sales"),
     primaryActionLabel: "Open lead queue",
     dueAt: due.toISOString(),
     dueLabel: dueLabel(due, state),
@@ -287,7 +295,7 @@ function caseCandidate(
     customerHref: linkedCustomerHref(customerCase.customer, input),
     ownerName: customerCase.assignedOwner?.name ?? "Unassigned",
     sourceLabel: "Customer resolutions",
-    sourceHref: `/customers/resolutions?caseId=${encodeURIComponent(customerCase.concernNumber)}`,
+    sourceHref: withWorkReturn(`/customers/resolutions?caseId=${encodeURIComponent(customerCase.concernNumber)}`),
     primaryActionLabel: "Open case",
     dueAt: due.toISOString(),
     dueLabel: dueLabel(due, state),
@@ -316,9 +324,9 @@ function customerCandidate(customer: UnifiedCrmWorkCustomerRecord, now: Date): Q
     customerLabel: `${customer.displayName} · ${customer.customerNumber}`,
     customerHref: buildUnifiedCrmCustomerReturn(customer.id, "/crm?view=work"),
     ownerName: customer.ownerUser?.name ?? "Unassigned",
-    sourceLabel: "Unified CRM",
-    sourceHref: buildUnifiedCrmCustomerReturn(customer.id, "/crm?view=work"),
-    primaryActionLabel: "Open customer",
+    sourceLabel: "Customers",
+    sourceHref: withWorkReturn(`/customers/${encodeURIComponent(customer.id)}`),
+    primaryActionLabel: "Open customer in Customers",
     dueAt: due?.toISOString() ?? null,
     dueLabel: dueLabel(due, state),
     dueState: state,
@@ -331,7 +339,7 @@ function customerCandidate(customer: UnifiedCrmWorkCustomerRecord, now: Date): Q
     history: [
       `Status: ${label(customer.status)}`,
       `Owner: ${customer.ownerUser?.name ?? "Unassigned"}`,
-      "Source: Unified CRM"
+      "Source: Customers"
     ],
     updatedAt: customer.updatedAt.toISOString(),
     dueAtDate: due,
@@ -371,7 +379,7 @@ function todayItems(
       customerHref: linkedCustomerHref(appointment.participants[0]?.customer, input),
       detail: `${label(appointment.bookingStatus)} · ${label(appointment.confirmationStatus)}`,
       startsAt: appointment.startsAt?.toISOString() ?? null,
-      sourceHref: `/appointments?view=board&appointment=${encodeURIComponent(appointment.appointmentNumber)}`
+      sourceHref: withWorkReturn(`/appointments?view=board&appointment=${encodeURIComponent(appointment.appointmentNumber)}`)
     }));
 }
 

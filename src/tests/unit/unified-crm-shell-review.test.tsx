@@ -7,6 +7,13 @@ import type { UnifiedCrmOpportunityDiscoveryModel } from "@/server/unified-crm/o
 import type { UnifiedCrmWorkQueueReadModel } from "@/server/unified-crm/work-queue-contract";
 
 const opportunityDiscovery: UnifiedCrmOpportunityDiscoveryModel = {
+  collectionObservation: {
+    detail: "Only same-scope persisted opportunities are available from this workspace entry for organization review. Lifecycle movement remains off.",
+    freshnessLabel: "Newest visible persisted update observed at 2026-08-15T03:00:00.000Z.",
+    newestVisibleRecordUpdatedAt: "2026-08-15T03:00:00.000Z",
+    state: "READY",
+    visibleRecordCount: 1
+  },
   contractVersion: "ucrm.opportunity-discovery/v1",
   generatedAt: "2026-08-15T03:00:00.000Z",
   headline: {
@@ -113,7 +120,7 @@ const liveWorkQueue: UnifiedCrmWorkQueueReadModel = {
     customerHref: "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dwork",
     ownerName: "Alex Operator",
     sourceLabel: "Appointments",
-    sourceHref: "/appointments?view=board&appointment=APT-1",
+    sourceHref: "/appointments?view=board&appointment=APT-1&returnTo=%2Fcrm%3Fview%3Dwork",
     primaryActionLabel: "Open appointment",
     dueAt: "2026-08-15T02:00:00.000Z",
     dueLabel: "Overdue",
@@ -130,7 +137,7 @@ const liveWorkQueue: UnifiedCrmWorkQueueReadModel = {
     customerHref: "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dwork",
     detail: "Confirmed appointment",
     startsAt: "2026-08-15T16:00:00.000Z",
-    sourceHref: "/appointments?view=board&appointment=APT-1"
+    sourceHref: "/appointments?view=board&appointment=APT-1&returnTo=%2Fcrm%3Fview%3Dwork"
   }]
 };
 
@@ -176,6 +183,9 @@ describe("Unified CRM UX review shell", () => {
     expect(markup).toContain('aria-label="Opportunity workspace discovery"');
     expect(markup).toContain("Opportunity workspace is ready to review, not yet to operate");
     expect(markup).toContain("held workspace with live read-only detail");
+    expect(markup).toContain("Persisted read-only entry visibility");
+    expect(markup).toContain("Only same-scope persisted opportunities are available from this workspace entry for organization review. Lifecycle movement remains off.");
+    expect(markup).toContain("Newest visible persisted update observed at 2026-08-15T03:00:00.000Z.");
     expect(markup).toContain("Live read-only");
     expect(markup).toContain(`crmReturnTo=${encodeURIComponent(expectedReturnHref)}`);
     expect(markup).not.toMatch(/href="(?:https?:)?\/\//);
@@ -211,7 +221,7 @@ describe("Unified CRM UX review shell", () => {
     expect(markup).toContain("Items are ordered overdue first, then due today, upcoming, and waiting.");
     expect(markup).toContain("Ties break by due time, source class, latest update, and record id.");
     expect(markup).toContain("Freshness observed 2026-08-15T03:00:00.000Z from live read-only source records. Latest visible source update: 2026-08-15T02:45:00.000Z.");
-    expect(markup.indexOf('href="/appointments?view=board&amp;appointment=APT-1"')).toBeLessThan(
+    expect(markup.indexOf('href="/appointments?view=board&amp;appointment=APT-1&amp;returnTo=%2Fcrm%3Fview%3Dwork"')).toBeLessThan(
       markup.indexOf('href="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dwork"')
     );
     expect(markup.match(/crmReturnTo=/g)).toHaveLength(4);
@@ -228,7 +238,7 @@ describe("Unified CRM UX review shell", () => {
     );
 
     expect(markup).not.toContain("Open Customer 360");
-    expect(markup).toContain('href="/appointments?view=board&amp;appointment=APT-1"');
+    expect(markup).toContain('href="/appointments?view=board&amp;appointment=APT-1&amp;returnTo=%2Fcrm%3Fview%3Dwork"');
     expect(markup).toContain("Open appointment");
     expect(markup).toContain("Customer 360 is not shown for this row because no safe linked customer route is available.");
   });
@@ -246,7 +256,7 @@ describe("Unified CRM UX review shell", () => {
     expect(markup).toContain("Confirmed appointment");
     expect(markup).toContain('href="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dwork"');
     expect(markup).toContain("Open Customer 360");
-    expect(markup).toContain('href="/appointments"');
+    expect(markup).toContain('href="/appointments?returnTo=%2Fcrm%3Fview%3Dwork"');
   });
 
   it("does not render a Today rail Customer 360 link when the appointment lacks a safe customer route", () => {

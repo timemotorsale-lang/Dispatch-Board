@@ -1,4 +1,5 @@
 import { UnifiedCrmCustomer360 } from "@/features/unified-crm/unified-crm-customer-360";
+import { safeCrmCustomerReturn } from "@/features/unified-crm/unified-crm-customer-return";
 import { UnifiedCrmUnavailable } from "@/features/unified-crm/unified-crm-shell";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { getUnifiedCrmCustomer360 } from "@/server/services/unified-crm-customer-360-service";
@@ -6,7 +7,6 @@ import { getUnifiedCrmCustomerOpportunityDiscovery } from "@/server/services/uni
 import type { UnifiedCrmCustomer360ReadModel } from "@/server/unified-crm/customer-360-contract";
 import type { UnifiedCrmCustomerOpportunityDiscoveryModel } from "@/server/unified-crm/customer-opportunity-discovery-contract";
 import { requireUnifiedCrmCustomer360Access } from "@/server/unified-crm/customer-360-access";
-import { safeUnifiedCrmCustomerContextReturn } from "@/server/unified-crm/opportunity-review-return";
 import { resolveUnifiedCrmShellAccess } from "@/server/unified-crm/shell-access";
 
 type CustomerPageProps = {
@@ -23,10 +23,6 @@ function unavailableMessage(reason: string) {
   if (reason === "WORKSPACE_NOT_ELIGIBLE" || reason === "CAPABILITY_NOT_GRANTED") return "This CRM experience is not enabled for your current workspace.";
   if (reason === "INACTIVE_USER" || reason === "AUTHENTICATION_REQUIRED") return "Your current session cannot open this CRM experience.";
   return "Unified CRM is temporarily unavailable. Your existing workspace remains available.";
-}
-
-export function safeCrmCustomerReturn(value: string | string[] | undefined) {
-  return safeUnifiedCrmCustomerContextReturn(typeof value === "string" ? value : undefined);
 }
 
 export default async function UnifiedCrmCustomerPage({ params, searchParams }: CustomerPageProps) {

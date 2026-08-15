@@ -107,11 +107,13 @@ describe("Unified CRM work queue service", () => {
     expect(result.items[0]).toMatchObject({
       customerHref: "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dwork",
       kind: "appointment",
+      sourceHref: "/appointments?view=board&appointment=APT-1&returnTo=%2Fcrm%3Fview%3Dwork",
       dueState: "today"
     });
     expect(result.today[0]).toMatchObject({
       id: "appt-1",
-      customerHref: "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dwork"
+      customerHref: "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dwork",
+      sourceHref: "/appointments?view=board&appointment=APT-1&returnTo=%2Fcrm%3Fview%3Dwork"
     });
     expect(result.summary).toMatchObject({
       todayCount: 1,
@@ -188,7 +190,10 @@ describe("Unified CRM work queue service", () => {
     expect(result.items[0]).toMatchObject({
       kind: "customer",
       customerHref: "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dwork",
-      sourceHref: "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dwork"
+      sourceHref: "/customers/customer-1?returnTo=%2Fcrm%3Fview%3Dwork",
+      sourceLabel: "Customers",
+      primaryActionLabel: "Open customer in Customers",
+      history: ["Status: Active", "Owner: CRM Manager", "Source: Customers"]
     });
   });
 

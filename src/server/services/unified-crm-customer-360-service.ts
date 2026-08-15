@@ -155,6 +155,28 @@ function opportunityLenses(record: UnifiedCrmCustomer360Record): UnifiedCrmCusto
   });
 }
 
+function opportunityLensObservation(
+  lenses: UnifiedCrmCustomer360OpportunityLens[],
+  visibility: "organization" | "owned"
+) {
+  const visibilityLabel = visibility === "organization" ? "organization review" : "owned review";
+  const newestVisibleRecordUpdatedAt = lenses.length
+    ? new Date(Math.max(...lenses.map((lens) => new Date(lens.updatedAt).getTime()))).toISOString()
+    : null;
+
+  return {
+    detail: lenses.length
+      ? `Only same-scope persisted opportunities linked to this customer are shown for ${visibilityLabel}. Lifecycle movement remains off.`
+      : `No same-scope persisted read-only opportunity linked to this customer is visible right now for ${visibilityLabel}. Continue with held opportunity review surfaces until one is available.`,
+    freshnessLabel: newestVisibleRecordUpdatedAt
+      ? `Newest visible persisted opportunity update observed at ${newestVisibleRecordUpdatedAt}.`
+      : "No visible persisted opportunity update is available yet.",
+    newestVisibleRecordUpdatedAt,
+    state: lenses.length ? "READY" as const : "EMPTY" as const,
+    visibleRecordCount: lenses.length
+  };
+}
+
 function timelineItems(input: {
   model: Awaited<ReturnType<UnifiedCrmCustomerTimelineRepository["listTimeline"]>>;
 }): UnifiedCrmCustomer360TimelineItem[] {
@@ -342,11 +364,13 @@ export async function getUnifiedCrmCustomer360(
   }) === "REVIEW" && Boolean(record.ownerUser?.id);
   const timelineView = timelineItems({ model: timeline });
   const newestTimelineItem = timelineView[0]?.occurredAt ?? null;
+  const visibility = recordScope.kind === "ORGANIZATION" ? "organization" : "owned";
+  const persistedOpportunityLenses = opportunityLenses(record);
 
   return {
     contractVersion: UNIFIED_CRM_CUSTOMER_360_CONTRACT_VERSION,
     state: "READY",
-    visibility: recordScope.kind === "ORGANIZATION" ? "organization" : "owned",
+    visibility,
     generatedAt: observedAt,
     source: {
       authority: "CUSTOMERS",
@@ -435,6 +459,7 @@ export async function getUnifiedCrmCustomer360(
         sourceHref: `/customers/resolutions?caseId=${encodeURIComponent(customerCase.concernNumber)}`
       }))
     },
-    opportunityLenses: opportunityLenses(record)
+    opportunityLensObservation: opportunityLensObservation(persistedOpportunityLenses, visibility),
+    opportunityLenses: persistedOpportunityLenses
   };
 }

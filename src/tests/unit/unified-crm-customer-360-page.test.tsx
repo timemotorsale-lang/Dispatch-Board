@@ -14,7 +14,8 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh() {} })
 }));
 
-import CustomerPage, { safeCrmCustomerReturn } from "@/app/(app)/crm/customers/[customerId]/page";
+import CustomerPage from "@/app/(app)/crm/customers/[customerId]/page";
+import { safeCrmCustomerReturn } from "@/features/unified-crm/unified-crm-customer-return";
 
 const actor: AuthenticatedUser = { id: "manager-1", name: "Manager", email: "manager@example.test", isActive: true, roles: ["General Manager"], duties: { direct: [], roleDefaults: [], all: [] } };
 
