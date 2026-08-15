@@ -35,10 +35,10 @@ const opportunityDiscovery: UnifiedCrmOpportunityDiscoveryModel = {
       emphasis: "MAP",
       link: {
         id: "hub",
-        label: "Open review hub",
-        description: "Review the safe workspace map.",
+        label: "Open review hub with live detail",
+        description: "Review the safe workspace map and one persisted read-only detail.",
         href: "/crm/opportunities?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
-        state: "HELD_REVIEW"
+        state: "LIVE_READ_ONLY"
       }
     },
     {
@@ -158,7 +158,8 @@ describe("Unified CRM UX review shell", () => {
     expect(markup).toContain('<main');
     expect(markup).toContain('aria-label="Opportunity workspace discovery"');
     expect(markup).toContain("Opportunity workspace is ready to review, not yet to operate");
-    expect(markup).toContain("held only");
+    expect(markup).toContain("held workspace with live read-only detail");
+    expect(markup).toContain("Live read-only");
     expect(markup).toContain(`crmReturnTo=${encodeURIComponent(expectedReturnHref)}`);
     expect(markup).not.toMatch(/href="(?:https?:)?\/\//);
     expect(markup).not.toMatch(/Create opportunity|Move stage|Mark won|Save opportunity|live forecast/i);

@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import { buildUnifiedCrmTaskIntakeHref } from "@/lib/unified-crm-task-intake-handoff";
 import type { UnifiedCrmCustomer360ReadModel } from "@/server/unified-crm/customer-360-contract";
 import type { UnifiedCrmCustomerOpportunityDiscoveryModel } from "@/server/unified-crm/customer-opportunity-discovery-contract";
+import { withUnifiedCrmOpportunityReturn } from "@/server/unified-crm/opportunity-review-return";
 
 import { UnifiedCrmCustomerInteractionForm } from "./unified-crm-customer-interaction-form";
 import { UnifiedCrmCustomerNextActionForm } from "./unified-crm-customer-next-action-form";
@@ -81,7 +82,8 @@ function RelationshipSummary({ model }: { model: UnifiedCrmCustomer360ReadModel 
   const summary = [
     { icon: CarFront, label: "Vehicles", value: model.vehicles.length },
     { icon: CalendarDays, label: "Appointments", value: model.appointments.length },
-    { icon: UsersRound, label: "Source leads & cases", value: model.sourceLenses.leads.length + model.sourceLenses.cases.length }
+    { icon: UsersRound, label: "Source leads & cases", value: model.sourceLenses.leads.length + model.sourceLenses.cases.length },
+    { icon: ArrowRight, label: "Read-only opportunities", value: model.opportunityLenses.length }
   ];
   return <section aria-labelledby="relationship-summary-heading" className={styles.summaryCard}><header><h2 id="relationship-summary-heading">Relationship summary</h2><span>Read only</span></header><div>{summary.map(({ icon: Icon, label: itemLabel, value }) => <article key={itemLabel}><Icon aria-hidden="true" size={16} /><span><strong>{value}</strong><small>{itemLabel}</small></span></article>)}</div></section>;
 }
@@ -101,7 +103,7 @@ function OpportunityDiscoverySection({ model }: { model: UnifiedCrmCustomerOppor
     <section aria-labelledby="customer-opportunity-discovery-heading" className={styles.sectionCard}>
       <header>
         <div><span className={styles.eyebrow}>Opportunity workspace</span><h2 id="customer-opportunity-discovery-heading">Review opportunity flow from this customer</h2></div>
-        <small>{model.opportunityDiscovery.visibility === "owned" ? "Owned review" : "Organization review"} · held only</small>
+        <small>{model.opportunityDiscovery.visibility === "owned" ? "Owned review" : "Organization review"} · workspace review</small>
       </header>
       <p className={styles.discoveryDetail}>
         {model.opportunityDiscovery.headline.detail} This keeps the customer record read only while you review how opportunity work should feel for {model.customer.displayName}.
@@ -119,6 +121,45 @@ function OpportunityDiscoverySection({ model }: { model: UnifiedCrmCustomerOppor
       <div className={styles.discoveryContinuity}>
         <strong>Start with the pipeline review if you want the quickest path.</strong>
         <small>Every opportunity review link keeps this customer as the safe return point, so you can review and come back here without losing context.</small>
+      </div>
+    </section>
+  );
+}
+
+function OpportunityLensSection({
+  model,
+  returnHref
+}: {
+  model: UnifiedCrmCustomer360ReadModel;
+  returnHref: string;
+}) {
+  if (!model.opportunityLenses.length) {
+    return (
+      <section aria-labelledby="customer-opportunity-lenses-heading" className={styles.sectionCard}>
+        <header>
+          <div><span className={styles.eyebrow}>Linked opportunities</span><h2 id="customer-opportunity-lenses-heading">Read-only opportunity summaries</h2></div>
+          <small>No persisted opportunity is linked yet</small>
+        </header>
+        <p className={styles.timelineEmpty}>No permitted persisted opportunities are linked to this customer yet.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section aria-labelledby="customer-opportunity-lenses-heading" className={styles.sectionCard}>
+      <header>
+        <div><span className={styles.eyebrow}>Linked opportunities</span><h2 id="customer-opportunity-lenses-heading">Read-only opportunity summaries</h2></div>
+        <small>{model.opportunityLenses.length} visible record{model.opportunityLenses.length === 1 ? "" : "s"}</small>
+      </header>
+      <div className={styles.discoveryGrid}>
+        {model.opportunityLenses.map((item) => (
+          <Link className={styles.discoveryCard} href={withUnifiedCrmOpportunityReturn(item.href, returnHref)} key={item.id}>
+            <span className={styles.discoveryEyebrow}>{item.opportunityNumber}</span>
+            <strong>{item.title}</strong>
+            <p>{item.summary}</p>
+            <small>{item.ownerName} · {item.customerLabel} · updated {formatDate(item.updatedAt, "Time unavailable")}</small>
+          </Link>
+        ))}
       </div>
     </section>
   );
@@ -317,6 +358,7 @@ export function UnifiedCrmCustomer360({ errorMessage, failureKind = "error", mod
       <UnifiedCrmCustomerNoteForm allowRestricted={model.permissions.canCreateRestrictedNote} customerId={model.identity.id} />
       <RelationshipSummary model={model} />
       {opportunityDiscovery ? <OpportunityDiscoverySection model={opportunityDiscovery} /> : null}
+      <OpportunityLensSection model={model} returnHref={`/crm/customers/${encodeURIComponent(model.identity.id)}?crmReturnTo=${encodeURIComponent(returnHref)}`} />
       <NotesSection model={model} />
       <TimelineSection model={model} opportunityPrompt={opportunityNudges?.timeline} />
       <WorkContext model={model} opportunityPrompt={opportunityNudges?.connectedWork} />

@@ -2,6 +2,11 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import type { UnifiedCrmOpportunityAccessContext } from "@/server/unified-crm/opportunity-contract";
 import { requireUnifiedCrmOpportunityDetailAccess } from "@/server/unified-crm/opportunity-detail-access";
 import {
+  createUnifiedCrmOpportunityPreviewRepository,
+  type UnifiedCrmOpportunityPreviewRecord,
+  type UnifiedCrmOpportunityPreviewRepository
+} from "@/server/repositories/unified-crm-opportunity-preview-repository";
+import {
   UNIFIED_CRM_OPPORTUNITY_DISCOVERY_CONTRACT_VERSION,
   type UnifiedCrmOpportunityDiscoveryModel,
   type UnifiedCrmOpportunityDiscoveryPanel
@@ -16,13 +21,25 @@ type Dependencies = {
   mode?: unknown;
   nodeEnv?: string;
   now?: () => Date;
+  repository?: UnifiedCrmOpportunityPreviewRepository;
   scopeRepository?: {
     listActiveOrganizationIds(userId: string, now: Date): Promise<string[]>;
   };
   shellMode?: unknown;
 };
 
-function createPanels(): readonly UnifiedCrmOpportunityDiscoveryPanel[] {
+function isPreviewRecordVisible(
+  record: UnifiedCrmOpportunityPreviewRecord,
+  access: UnifiedCrmOpportunityAccessContext
+) {
+  if (record.organizationId !== access.organizationId) return false;
+  if (access.recordScope.kind === "OWNER") {
+    return record.ownerUser?.id === access.recordScope.ownerUserId;
+  }
+  return true;
+}
+
+function createPanels(primaryRecord?: UnifiedCrmOpportunityPreviewRecord | null): readonly UnifiedCrmOpportunityDiscoveryPanel[] {
   return [
     {
       id: "workspace-entry",
@@ -40,14 +57,18 @@ function createPanels(): readonly UnifiedCrmOpportunityDiscoveryPanel[] {
     {
       id: "workspace-map",
       label: "Choose the exact review surface",
-      detail: "Use the review hub when you want to compare pipeline, queue, detail, transition, and create surfaces from one safe map.",
+      detail: primaryRecord
+        ? "Use the review hub when you want one safe map that includes a same-scope persisted read-only opportunity detail alongside the held review surfaces."
+        : "Use the review hub when you want to compare pipeline, queue, detail, transition, and create surfaces from one safe map.",
       emphasis: "MAP",
       link: {
         id: "hub",
-        label: "Open review hub",
-        description: "Jump to any opportunity review surface without leaving the held workspace.",
+        label: primaryRecord ? "Open review hub with live detail" : "Open review hub",
+        description: primaryRecord
+          ? "Jump to the opportunity review hub and open the first same-scope persisted detail record in read-only mode."
+          : "Jump to any opportunity review surface without leaving the held workspace.",
         href: "/crm/opportunities?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
-        state: "HELD_REVIEW"
+        state: primaryRecord ? "LIVE_READ_ONLY" : "HELD_REVIEW"
       }
     },
     {
@@ -76,19 +97,29 @@ export async function getUnifiedCrmOpportunityDiscovery(
     generatedAt,
     sourceLabel: "Unified CRM opportunity workspace discovery"
   });
+  const repository = dependencies.repository ?? createUnifiedCrmOpportunityPreviewRepository();
+  const persistedRecord = await repository.findPrimaryOpportunityPreview({
+    organizationId: access.organizationId,
+    recordScope: access.recordScope
+  });
+  const visiblePersistedRecord = persistedRecord && isPreviewRecordVisible(persistedRecord, access)
+    ? persistedRecord
+    : null;
 
   return {
     contractVersion: UNIFIED_CRM_OPPORTUNITY_DISCOVERY_CONTRACT_VERSION,
     generatedAt,
     headline: {
       title: "Opportunity workspace is ready to review, not yet to operate",
-      detail: `Home and Work can safely point here so users can enter the opportunity workspace in ${orientation.visibilityLabel} without seeing fake counts, live stage movement, or operational commands.`
+      detail: visiblePersistedRecord
+        ? `Home and Work can safely point here so users can enter the opportunity workspace in ${orientation.visibilityLabel}, open one persisted read-only opportunity, and still avoid fake counts, live stage movement, or operational commands.`
+        : `Home and Work can safely point here so users can enter the opportunity workspace in ${orientation.visibilityLabel} without seeing fake counts, live stage movement, or operational commands.`
     },
     nextUnlocks: [
       "Approve lifecycle stages and evidence rules before turning the workspace entry into a live operational destination.",
       "Verify the shell entry, fallback, and role-safe review path before surfacing live opportunity actions from Home or Work."
     ],
-    panels: createPanels(),
+    panels: createPanels(visiblePersistedRecord),
     source: {
       href: orientation.source.href,
       label: "Unified CRM opportunity workspace discovery",

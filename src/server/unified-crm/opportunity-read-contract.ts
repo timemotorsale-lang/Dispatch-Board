@@ -27,6 +27,7 @@ export type UnifiedCrmOpportunityPipelinePreviewItem = {
   nextActionLabel: string;
   ownerLabel: string;
   reason: string;
+  state?: "HELD_REVIEW" | "LIVE_READ_ONLY";
 };
 
 export type UnifiedCrmOpportunityPipelinePreviewColumn = {
@@ -48,8 +49,11 @@ export type UnifiedCrmOpportunityPreviewModel = {
     heading: string;
     items: {
       id: string;
+      customerLabel?: string;
+      href?: string;
       ownerLabel: string;
       reason: string;
+      state?: "HELD_REVIEW" | "LIVE_READ_ONLY";
       title: string;
     }[];
   };

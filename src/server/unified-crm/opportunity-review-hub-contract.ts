@@ -5,14 +5,14 @@ export type UnifiedCrmOpportunityReviewHubVisibility = "organization" | "owned";
 export type UnifiedCrmOpportunityReviewHubLink = {
   description: string;
   href: string;
-  id: "pipeline" | "queue" | "create" | "detail" | "transition";
+  id: string;
   label: string;
-  state: "HELD_REVIEW";
+  state: "HELD_REVIEW" | "LIVE_READ_ONLY";
 };
 
 export type UnifiedCrmOpportunityReviewHubSection = {
   detail: string;
-  id: "overview" | "governance";
+  id: "overview" | "governance" | "live-records";
   label: string;
   links: readonly UnifiedCrmOpportunityReviewHubLink[];
 };

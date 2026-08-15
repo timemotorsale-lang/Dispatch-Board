@@ -15,7 +15,7 @@ export type UnifiedCrmOpportunityQueueReviewItem = {
   ownerLabel: string;
   reason: string;
   riskLabel: string;
-  state: "HELD_REVIEW";
+  state: "HELD_REVIEW" | "LIVE_READ_ONLY";
   title: string;
 };
 

@@ -23,9 +23,12 @@ import {
   type UnifiedCrmCustomer360Appointment,
   type UnifiedCrmCustomer360Contact,
   type UnifiedCrmCustomer360Note,
+  type UnifiedCrmCustomer360OpportunityLens,
   type UnifiedCrmCustomer360ReadModel,
   type UnifiedCrmCustomer360TimelineItem
 } from "@/server/unified-crm/customer-360-contract";
+import { buildUnifiedCrmOpportunityReviewHref } from "@/server/unified-crm/opportunity-workspace-orientation";
+import { normalizeUnifiedCrmOpportunityId } from "@/server/validation/unified-crm-opportunity";
 
 type UnifiedCrmCustomer360Dependencies = UnifiedCrmCustomer360AccessOptions & {
   now?: () => Date;
@@ -112,6 +115,27 @@ function notes(record: UnifiedCrmCustomer360Record, canViewRestricted: boolean):
 
 function label(value: string) {
   return value.replaceAll("_", " ").toLowerCase().replace(/(^|\s)\S/g, (letter) => letter.toUpperCase());
+}
+
+function opportunityLenses(record: UnifiedCrmCustomer360Record): UnifiedCrmCustomer360OpportunityLens[] {
+  return record.unifiedCrmOpportunities.flatMap((opportunity) => {
+    try {
+      const opportunityId = normalizeUnifiedCrmOpportunityId(opportunity.opportunityNumber);
+      return [{
+        id: opportunityId,
+        opportunityNumber: opportunityId,
+        title: opportunity.title,
+        ownerName: opportunity.ownerUser?.name ?? "Unassigned",
+        customerLabel: `${record.displayName} · ${record.customerNumber}`,
+        summary: opportunity.summary?.trim() || "This persisted opportunity is available in read-only mode.",
+        updatedAt: opportunity.updatedAt.toISOString(),
+        href: buildUnifiedCrmOpportunityReviewHref("detail", opportunityId),
+        state: "LIVE_READ_ONLY" as const
+      }];
+    } catch {
+      return [];
+    }
+  });
 }
 
 function timelineItems(input: {
@@ -343,6 +367,7 @@ export async function getUnifiedCrmCustomer360(
         slaStage: customerCase.slaStage,
         sourceHref: `/customers/resolutions?caseId=${encodeURIComponent(customerCase.concernNumber)}`
       }))
-    }
+    },
+    opportunityLenses: opportunityLenses(record)
   };
 }

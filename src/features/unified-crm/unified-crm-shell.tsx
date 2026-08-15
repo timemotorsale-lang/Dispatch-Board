@@ -498,13 +498,14 @@ function PipelineState({
 }
 
 function OpportunityDiscoveryPanel({ model, returnHref }: { model: UnifiedCrmOpportunityDiscoveryModel; returnHref: string }) {
+  const hasLiveRead = model.panels.some((panel) => panel.link.state === "LIVE_READ_ONLY");
   return (
     <section className={styles.listCard} aria-label="Opportunity workspace discovery">
       <header>
         <ShieldCheck aria-hidden="true" size={17} />
         <div>
           <strong>{model.headline.title}</strong>
-          <span>{model.visibility === "owned" ? "Owned review" : "Organization review"} · held only</span>
+          <span>{model.visibility === "owned" ? "Owned review" : "Organization review"} · {hasLiveRead ? "held workspace with live read-only detail" : "held only"}</span>
         </div>
       </header>
       <p className={styles.sectionDetail}>{model.headline.detail}</p>
@@ -512,9 +513,12 @@ function OpportunityDiscoveryPanel({ model, returnHref }: { model: UnifiedCrmOpp
         {model.panels.map((panel) => (
           <Link className={styles.discoveryCard} href={withUnifiedCrmOpportunityReturn(panel.link.href, returnHref)} key={panel.id}>
             <span className={styles.discoveryEyebrow}>{panel.label}</span>
-            <strong>{panel.link.label}</strong>
+            <div className={styles.previewItemHeader}>
+              <strong>{panel.link.label}</strong>
+              <span className={styles.statePill}>{panel.link.state === "LIVE_READ_ONLY" ? "Live read-only" : "Held review"}</span>
+            </div>
             <p>{panel.detail}</p>
-            <small>{panel.link.description}</small>
+            <small>{panel.link.description} {panel.link.state === "LIVE_READ_ONLY" ? "Opens a persisted read-only opportunity path." : "Held review only."}</small>
           </Link>
         ))}
       </div>

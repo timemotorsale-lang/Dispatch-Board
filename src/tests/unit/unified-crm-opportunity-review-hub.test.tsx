@@ -28,6 +28,13 @@ function hubFixture() {
             state: "HELD_REVIEW" as const
           },
           {
+            id: "detail" as const,
+            label: "Open persisted detail",
+            description: "Persisted detail review",
+            href: "/crm/opportunities/OPP-1001?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
+            state: "LIVE_READ_ONLY" as const
+          },
+          {
             id: "queue" as const,
             label: "Review queue",
             description: "Queue review",
@@ -58,7 +65,10 @@ describe("Unified CRM opportunity review hub", () => {
     expect(markup).toContain("You are in the workspace map");
     expect(markup).toContain("/crm?view=pipeline");
     expect(markup).toContain("/crm/opportunities/queue?crmReturnTo=%2Fcrm%3Fview%3Dpipeline");
-    expect(markup).toContain("HELD_REVIEW");
+    expect(markup).toContain("/crm/opportunities/OPP-1001?crmReturnTo=%2Fcrm%3Fview%3Dpipeline");
+    expect(markup).toContain("Held review");
+    expect(markup).toContain("Live read-only");
+    expect(markup).toContain("Open persisted read-only detail");
     expect(markup).not.toContain("forecast");
     expect(markup).not.toContain("Won");
     expect(markup).toContain("<main");

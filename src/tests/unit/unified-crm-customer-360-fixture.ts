@@ -25,6 +25,17 @@ export function customer360Fixture(): UnifiedCrmCustomer360ReadModel {
     sourceLenses: {
       leads: [{ id: "lead-1", leadNumber: "LEAD-101", stage: "QUALIFIED", sourceCode: "WEBSITE", ownerName: "Taylor B.", vehicleInterest: "Toyota RAV4", nextActionCode: "FOLLOW_UP", nextActionAt: "2026-08-15T16:00:00.000Z", sourceHref: "/sales" }],
       cases: [{ id: "case-1", caseNumber: "CASE-202", title: "Document follow-up", category: "DOCUMENT", priority: "MEDIUM", status: "OPEN", ownerName: "Customer Care", dueAt: "2026-08-16T16:00:00.000Z", resolutionDueAt: null, slaStage: "HEALTHY", sourceHref: "/customers/resolutions?caseId=CASE-202" }]
-    }
+    },
+    opportunityLenses: [{
+      id: "opp_1001",
+      opportunityNumber: "opp_1001",
+      title: "Alex Morgan renewal review",
+      ownerName: "Taylor B.",
+      customerLabel: "Alex Morgan · CUS-1001",
+      summary: "Review the persisted opportunity in read-only mode.",
+      updatedAt: "2026-08-15T13:00:00.000Z",
+      href: "/crm/opportunities/opp_1001?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
+      state: "LIVE_READ_ONLY"
+    }]
   };
 }

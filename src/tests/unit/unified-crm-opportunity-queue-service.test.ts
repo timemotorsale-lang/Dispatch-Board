@@ -33,10 +33,23 @@ function accessContext(scope: "organization" | "owned") {
   };
 }
 
+function repository(overrides: Record<string, unknown> = {}) {
+  return {
+    async findPrimaryOpportunityPreview() {
+      return null;
+    },
+    async listOpportunityPreviews() {
+      return [];
+    },
+    ...overrides
+  };
+}
+
 describe("getUnifiedCrmOpportunityQueueReview", () => {
   it("returns an honest held queue review for organization scope", async () => {
     const model = await getUnifiedCrmOpportunityQueueReview(null, {
       accessContext: accessContext("organization"),
+      repository: repository(),
       now: () => new Date("2026-08-14T20:00:00.000Z")
     });
 
@@ -57,6 +70,7 @@ describe("getUnifiedCrmOpportunityQueueReview", () => {
   it("switches copy for owned-only scope", async () => {
     const model = await getUnifiedCrmOpportunityQueueReview(null, {
       accessContext: accessContext("owned"),
+      repository: repository(),
       now: () => new Date("2026-08-14T20:00:00.000Z")
     });
 
@@ -65,12 +79,70 @@ describe("getUnifiedCrmOpportunityQueueReview", () => {
     expect(model.items[0]?.ownerLabel).toContain("Owned by you");
   });
 
+  it("expands beyond the primary persisted record when several visible opportunities exist", async () => {
+    const model = await getUnifiedCrmOpportunityQueueReview(null, {
+      accessContext: accessContext("organization"),
+      repository: repository({
+        async listOpportunityPreviews() {
+          return [{
+            opportunityNumber: "opp_123456",
+            title: "Alex Morgan renewal review",
+            summary: "First persisted queue item.",
+            organizationId: "org-1",
+            ownerUser: { id: "manager-1", name: "CRM Manager" },
+            customer: null,
+            updatedAt: new Date("2026-08-14T19:10:00.000Z")
+          }, {
+            opportunityNumber: "opp_123457",
+            title: "Jamie Rivera retention review",
+            summary: "Second persisted queue item.",
+            organizationId: "org-1",
+            ownerUser: { id: "manager-1", name: "CRM Manager" },
+            customer: null,
+            updatedAt: new Date("2026-08-14T19:00:00.000Z")
+          }];
+        }
+      })
+    });
+
+    expect(model.items[0]).toMatchObject({ id: "opp_123456", state: "LIVE_READ_ONLY" });
+    expect(model.items[1]).toMatchObject({ id: "opp_123457", state: "LIVE_READ_ONLY" });
+    expect(model.items.length).toBeGreaterThan(3);
+  });
+
+  it.each([
+    ["another organization", { organizationId: "org-b", ownerUser: { id: "seller-1", name: "Seller" }, opportunityNumber: "opp_123456" }],
+    ["another owner", { organizationId: "org-1", ownerUser: { id: "seller-2", name: "Other seller" }, opportunityNumber: "opp_123456" }],
+    ["an invalid identifier", { organizationId: "org-1", ownerUser: { id: "seller-1", name: "Seller" }, opportunityNumber: "//invalid" }]
+  ])("does not expose a persisted queue target from %s", async (_scenario, record) => {
+    const model = await getUnifiedCrmOpportunityQueueReview(null, {
+      accessContext: accessContext("owned"),
+      repository: repository({
+        async listOpportunityPreviews() {
+          return [{
+            ...record,
+            title: "Private opportunity",
+            summary: "Private backend summary",
+            customer: null,
+            updatedAt: new Date("2026-08-14T19:00:00.000Z")
+          }];
+        }
+      })
+    });
+
+    expect(model.items.every((item) => item.state === "HELD_REVIEW")).toBe(true);
+    expect(JSON.stringify(model)).not.toContain("Private opportunity");
+    expect(JSON.stringify(model)).not.toContain("Private backend summary");
+    expect(JSON.stringify(model)).not.toContain("//invalid");
+  });
+
   it("does not bypass the shell-off default when queue review mode is requested", async () => {
     const listActiveOrganizationIds = vi.fn();
 
     await expect(getUnifiedCrmOpportunityQueueReview(manager, {
       mode: "REVIEW",
       nodeEnv: "production",
+      repository: repository(),
       scopeRepository: { listActiveOrganizationIds }
     })).rejects.toMatchObject({ code: "OPPORTUNITY_OFF" });
     expect(listActiveOrganizationIds).not.toHaveBeenCalled();

@@ -26,7 +26,8 @@ function previewFixture(): UnifiedCrmOpportunityPreviewModel {
         detailHref: "/crm/opportunities/review01?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
         nextActionLabel: "Review create contract",
         ownerLabel: "Team-owned preview",
-        reason: "First secure create path will surface here after lifecycle approval."
+        reason: "First secure create path will surface here after lifecycle approval.",
+        state: "HELD_REVIEW"
       }]
     }],
     constraints: [
@@ -36,12 +37,24 @@ function previewFixture(): UnifiedCrmOpportunityPreviewModel {
     listPreview: {
       heading: "What the first live list will surface",
       emptyMessage: "No live opportunities are shown while lifecycle rules are held.",
-      items: [{
-        id: "row01",
-        title: "Customer and owner at a glance",
-        ownerLabel: "Organization visibility",
-        reason: "Every live record row will show the next action, owner, and due state before any deeper details."
-      }]
+      items: [
+        {
+          id: "live-opp-1",
+          title: "ACME refresh project",
+          customerLabel: "ACME Industries · CUS-44",
+          href: "/crm/opportunities/OPP-1001?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
+          ownerLabel: "Jordan Smith",
+          reason: "Open this persisted opportunity in read-only mode.",
+          state: "LIVE_READ_ONLY"
+        },
+        {
+          id: "row01",
+          title: "Customer and owner at a glance",
+          ownerLabel: "Organization visibility",
+          reason: "Every live record row will show the next action, owner, and due state before any deeper details.",
+          state: "HELD_REVIEW"
+        }
+      ]
     }
   };
 }
@@ -65,7 +78,11 @@ describe("Unified CRM opportunity preview", () => {
     expect(markup).toContain("How the first opportunity board will feel");
     expect(markup).toContain("Intake review");
     expect(markup).toContain("Review create contract");
+    expect(markup).toContain("Held review");
     expect(markup).toContain("What the first live list will surface");
+    expect(markup).toContain("ACME refresh project");
+    expect(markup).toContain("Live read-only");
+    expect(markup).toContain("/crm/opportunities/OPP-1001?crmReturnTo=%2Fcrm%3Fview%3Dpipeline");
     expect(markup).toContain("Customer and owner at a glance");
     expect(markup).toContain("/crm/opportunities/queue?crmReturnTo=%2Fcrm%3Fview%3Dpipeline");
     expect(markup).toContain("/crm/opportunities?crmReturnTo=%2Fcrm%3Fview%3Dpipeline");
@@ -78,5 +95,6 @@ describe("Unified CRM opportunity preview", () => {
     expect(markup).toContain('aria-label="Opportunity workspace orientation"');
     expect(markup).toContain("You are at the workspace entry point");
     expect(markup).toContain("/crm/opportunities/review01/transition?crmReturnTo=%2Fcrm%3Fview%3Dpipeline");
+    expect(markup).toContain("Read-only detail available; writes still off");
   });
 });

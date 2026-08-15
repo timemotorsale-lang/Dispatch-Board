@@ -56,6 +56,18 @@ export type UnifiedCrmCustomer360CaseLens = {
   sourceHref: string;
 };
 
+export type UnifiedCrmCustomer360OpportunityLens = {
+  id: string;
+  opportunityNumber: string;
+  title: string;
+  ownerName: string;
+  customerLabel: string;
+  summary: string;
+  updatedAt: string;
+  href: string;
+  state: "LIVE_READ_ONLY";
+};
+
 export type UnifiedCrmCustomer360TimelineItem = {
   id: string;
   kind: "interaction" | "task-event" | "appointment-event" | "lead-event" | "case-event" | "promise-event" | "commitment-event";
@@ -124,6 +136,7 @@ export type UnifiedCrmCustomer360ReadModel = {
     leads: UnifiedCrmCustomer360LeadLens[];
     cases: UnifiedCrmCustomer360CaseLens[];
   };
+  opportunityLenses: UnifiedCrmCustomer360OpportunityLens[];
 };
 
 export type UnifiedCrmCustomer360FailureCode =

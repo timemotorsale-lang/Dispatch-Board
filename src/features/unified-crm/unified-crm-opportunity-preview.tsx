@@ -53,7 +53,8 @@ const previewModel: UnifiedCrmOpportunityPreviewModel = {
             detailHref: "/crm/opportunities/new?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
             nextActionLabel: "Review create contract",
             ownerLabel: "Team-owned preview",
-            reason: "First secure create path will surface here after lifecycle approval."
+            reason: "First secure create path will surface here after lifecycle approval.",
+            state: "HELD_REVIEW"
           }
       ]
     }
@@ -71,7 +72,8 @@ const previewModel: UnifiedCrmOpportunityPreviewModel = {
         id: "list-review01",
         title: "Customer and owner at a glance",
         ownerLabel: "Organization visibility",
-        reason: "Every live record row will show the next action, owner, and due state before any deeper details."
+        reason: "Every live record row will show the next action, owner, and due state before any deeper details.",
+        state: "HELD_REVIEW"
       }
     ]
   }
@@ -91,22 +93,31 @@ function toneClass(tone: UnifiedCrmOpportunityPreviewModel["cards"][number]["ton
   return styles.insightNeutral;
 }
 
+function previewItemStateLabel(state?: "HELD_REVIEW" | "LIVE_READ_ONLY") {
+  return state === "LIVE_READ_ONLY" ? "Live read-only" : "Held review";
+}
+
 export function UnifiedCrmOpportunityPreview() {
   return <UnifiedCrmOpportunityPipelinePreview model={previewModel} />;
 }
 
 export function UnifiedCrmOpportunityPipelinePreview({ model }: { model: UnifiedCrmOpportunityPreviewModel }) {
+  const hasLiveReadOnlyTargets = model.columns.some((column) => column.items.some((item) => item.state === "LIVE_READ_ONLY"))
+    || model.listPreview.items.some((item) => item.state === "LIVE_READ_ONLY");
+
   return (
     <section className={styles.opportunityPreview} aria-label="Opportunity foundation preview">
       <div className={styles.opportunityPreviewHeader}>
         <div>
           <span className={styles.eyebrow}>Opportunity workspace</span>
           <h2>Foundation is ready. Lifecycle rules are intentionally held.</h2>
-          <p>{heldModel.detail}</p>
+          <p>{hasLiveReadOnlyTargets
+            ? "Lifecycle commands remain intentionally held, but the workspace can now point to a same-scope persisted opportunity in read-only mode when one is available."
+            : heldModel.detail}</p>
         </div>
         <div className={styles.reviewBadge}>
           <ShieldCheck aria-hidden="true" size={16} />
-          <span>Feature off for operational use</span>
+          <span>{hasLiveReadOnlyTargets ? "Read-only detail available; writes still off" : "Feature off for operational use"}</span>
         </div>
       </div>
 
@@ -146,7 +157,10 @@ export function UnifiedCrmOpportunityPipelinePreview({ model }: { model: Unified
               <div className={styles.pipelinePreviewItems}>
                 {column.items.map((item) => (
                   <Link className={styles.pipelinePreviewItem} href={item.detailHref} key={item.id}>
-                    <strong>{item.nextActionLabel}</strong>
+                    <div className={styles.previewItemHeader}>
+                      <strong>{item.nextActionLabel}</strong>
+                      <span className={styles.statePill}>{previewItemStateLabel(item.state)}</span>
+                    </div>
                     <span>{item.customerLabel}</span>
                     <small>{item.ownerLabel}</small>
                     <p>{item.reason}</p>
@@ -169,11 +183,27 @@ export function UnifiedCrmOpportunityPipelinePreview({ model }: { model: Unified
         {model.listPreview.items.length ? (
           <div className={styles.pipelineListItems}>
             {model.listPreview.items.map((item) => (
-              <article className={styles.pipelineListItem} key={item.id}>
-                <strong>{item.title}</strong>
-                <span>{item.ownerLabel}</span>
-                <p>{item.reason}</p>
-              </article>
+              item.href ? (
+                <Link className={styles.pipelineListItem} href={item.href} key={item.id}>
+                  <div className={styles.previewItemHeader}>
+                    <strong>{item.title}</strong>
+                    <span className={styles.statePill}>{previewItemStateLabel(item.state)}</span>
+                  </div>
+                  <span>{item.ownerLabel}</span>
+                  {item.customerLabel ? <small>{item.customerLabel}</small> : null}
+                  <p>{item.reason}</p>
+                </Link>
+              ) : (
+                <article className={styles.pipelineListItem} key={item.id}>
+                  <div className={styles.previewItemHeader}>
+                    <strong>{item.title}</strong>
+                    <span className={styles.statePill}>{previewItemStateLabel(item.state)}</span>
+                  </div>
+                  <span>{item.ownerLabel}</span>
+                  {item.customerLabel ? <small>{item.customerLabel}</small> : null}
+                  <p>{item.reason}</p>
+                </article>
+              )
             ))}
           </div>
         ) : <p>{model.listPreview.emptyMessage}</p>}

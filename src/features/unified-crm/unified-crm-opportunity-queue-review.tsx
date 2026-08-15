@@ -27,6 +27,10 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
+function queueItemStateLabel(state: "HELD_REVIEW" | "LIVE_READ_ONLY") {
+  return state === "LIVE_READ_ONLY" ? "Read-only live detail" : "Held review only";
+}
+
 function StatePanel({ kind, message, returnHref }: { kind: FailureKind; message?: string; returnHref: string }) {
   const returnContext = getUnifiedCrmOpportunityReturnContext(returnHref);
   const title = kind === "restricted"
@@ -99,7 +103,7 @@ export function UnifiedCrmOpportunityQueueReview({ errorMessage, failureKind = "
                   <strong>{item.title}</strong>
                   <small>{item.ownerLabel}</small>
                 </div>
-                <span>{item.state}</span>
+                <span>{queueItemStateLabel(item.state)}</span>
               </header>
               <p>{item.reason}</p>
               <small>{item.dueLabel} · {item.riskLabel}</small>

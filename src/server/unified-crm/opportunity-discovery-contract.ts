@@ -7,7 +7,7 @@ export type UnifiedCrmOpportunityDiscoveryLink = {
   href: string;
   id: "pipeline" | "hub" | "guided";
   label: string;
-  state: "HELD_REVIEW";
+  state: "HELD_REVIEW" | "LIVE_READ_ONLY";
 };
 
 export type UnifiedCrmOpportunityDiscoveryPanel = {

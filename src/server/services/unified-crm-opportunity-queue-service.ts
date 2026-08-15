@@ -2,20 +2,68 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import type { UnifiedCrmOpportunityAccessContext } from "@/server/unified-crm/opportunity-contract";
 import { requireUnifiedCrmOpportunityDetailAccess } from "@/server/unified-crm/opportunity-detail-access";
 import {
+  createUnifiedCrmOpportunityPreviewRepository,
+  type UnifiedCrmOpportunityPreviewRecord,
+  type UnifiedCrmOpportunityPreviewRepository
+} from "@/server/repositories/unified-crm-opportunity-preview-repository";
+import {
   UNIFIED_CRM_OPPORTUNITY_QUEUE_CONTRACT_VERSION,
   type UnifiedCrmOpportunityQueueReviewModel
 } from "@/server/unified-crm/opportunity-queue-contract";
+import { buildUnifiedCrmOpportunityReviewHref } from "@/server/unified-crm/opportunity-workspace-orientation";
+import { normalizeUnifiedCrmOpportunityId } from "@/server/validation/unified-crm-opportunity";
 
 type Dependencies = {
   accessContext?: UnifiedCrmOpportunityAccessContext;
   mode?: unknown;
   nodeEnv?: string;
   now?: () => Date;
+  repository?: UnifiedCrmOpportunityPreviewRepository;
   scopeRepository?: {
     listActiveOrganizationIds(userId: string, now: Date): Promise<string[]>;
   };
   shellMode?: unknown;
 };
+
+function isPreviewRecordVisible(
+  record: UnifiedCrmOpportunityPreviewRecord,
+  access: UnifiedCrmOpportunityAccessContext
+) {
+  if (record.organizationId !== access.organizationId) return false;
+  if (access.recordScope.kind === "OWNER") {
+    return record.ownerUser?.id === access.recordScope.ownerUserId;
+  }
+  return true;
+}
+
+function safePersistedOpportunityId(value: string) {
+  try {
+    return normalizeUnifiedCrmOpportunityId(value);
+  } catch {
+    return null;
+  }
+}
+
+function toVisibleLiveQueueItem(
+  record: UnifiedCrmOpportunityPreviewRecord,
+  access: UnifiedCrmOpportunityAccessContext,
+  visibility: "organization" | "owned"
+) {
+  const opportunityId = safePersistedOpportunityId(record.opportunityNumber);
+  if (!opportunityId || !isPreviewRecordVisible(record, access)) return null;
+  return {
+    detailHref: buildUnifiedCrmOpportunityReviewHref("detail", opportunityId),
+    dueLabel: "Read only",
+    id: opportunityId,
+    ownerLabel: record.ownerUser?.name
+      ?? (visibility === "organization" ? "Organization visible" : "Owned by you"),
+    reason: record.summary?.trim()
+      || "This persisted opportunity is available for read-only review while lifecycle movement stays held.",
+    riskLabel: "Live detail",
+    state: "LIVE_READ_ONLY" as const,
+    title: record.title
+  };
+}
 
 export async function getUnifiedCrmOpportunityQueueReview(
   actor: AuthenticatedUser | null,
@@ -25,6 +73,48 @@ export async function getUnifiedCrmOpportunityQueueReview(
   const generatedAt = (dependencies.now?.() ?? new Date()).toISOString();
   const visibility = access.recordScope.kind === "ORGANIZATION" ? "organization" : "owned";
   const visibilityLabel = visibility === "organization" ? "team and manager review" : "owned review";
+  const repository = dependencies.repository ?? createUnifiedCrmOpportunityPreviewRepository();
+  const persistedRecords = await repository.listOpportunityPreviews({
+    limit: 5,
+    organizationId: access.organizationId,
+    recordScope: access.recordScope
+  });
+  const liveItems = persistedRecords
+    .map((record) => toVisibleLiveQueueItem(record, access, visibility))
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+  const items = [
+    ...liveItems,
+    {
+      detailHref: "/crm/opportunities/review01?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
+      dueLabel: "Due next",
+      id: "review01",
+      ownerLabel: visibility === "organization" ? "Seller-owned review" : "Owned by you",
+      reason: "The next action stays visible so no opportunity advances without a clear owner and due commitment.",
+      riskLabel: "Stage held",
+      state: "HELD_REVIEW" as const,
+      title: "Keep intake follow-up obvious"
+    },
+    {
+      detailHref: "/crm/opportunities/review01/transition?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
+      dueLabel: "Needs approval",
+      id: "review02",
+      ownerLabel: visibility === "organization" ? "Manager review" : "Approval review",
+      reason: "Transition evidence and rollback expectations stay visible before any stage movement can go live.",
+      riskLabel: "Governance review",
+      state: "HELD_REVIEW" as const,
+      title: "Make risk and movement easy to understand"
+    },
+    {
+      detailHref: "/crm/opportunities/new?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
+      dueLabel: "Create review",
+      id: "review03",
+      ownerLabel: visibilityLabel,
+      reason: "The first create path stays one click away so the team can review clarity before live writes exist.",
+      riskLabel: "Create held",
+      state: "HELD_REVIEW" as const,
+      title: "Review the governed create path"
+    }
+  ];
 
   return {
     contractVersion: UNIFIED_CRM_OPPORTUNITY_QUEUE_CONTRACT_VERSION,
@@ -38,38 +128,7 @@ export async function getUnifiedCrmOpportunityQueueReview(
       title: "Review the first opportunity queue before it goes live",
       detail: "This shows how owned, overdue, waiting, and at-risk opportunity work can stay clear and easy to act on without hiding the source of truth."
     },
-    items: [
-      {
-        detailHref: "/crm/opportunities/review01?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
-        dueLabel: "Due next",
-        id: "review01",
-        ownerLabel: visibility === "organization" ? "Seller-owned review" : "Owned by you",
-        reason: "The next action stays visible so no opportunity advances without a clear owner and due commitment.",
-        riskLabel: "Stage held",
-        state: "HELD_REVIEW",
-        title: "Keep intake follow-up obvious"
-      },
-      {
-        detailHref: "/crm/opportunities/review01/transition?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
-        dueLabel: "Needs approval",
-        id: "review02",
-        ownerLabel: visibility === "organization" ? "Manager review" : "Approval review",
-        reason: "Transition evidence and rollback expectations stay visible before any stage movement can go live.",
-        riskLabel: "Governance review",
-        state: "HELD_REVIEW",
-        title: "Make risk and movement easy to understand"
-      },
-      {
-        detailHref: "/crm/opportunities/new?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
-        dueLabel: "Create review",
-        id: "review03",
-        ownerLabel: visibilityLabel,
-        reason: "The first create path stays one click away so the team can review clarity before live writes exist.",
-        riskLabel: "Create held",
-        state: "HELD_REVIEW",
-        title: "Review the governed create path"
-      }
-    ],
+    items,
     nextUnlocks: [
       "Approve stage names, order, and evidence rules so queue membership can be tied to real lifecycle states.",
       "Prove one live owned queue flow with audit history, rollback, and permissions before enabling write actions."

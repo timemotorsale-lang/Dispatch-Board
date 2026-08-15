@@ -98,6 +98,14 @@ function record(overrides: Record<string, unknown> = {}) {
       slaStage: "WATCH",
       assignedOwner: null
     }],
+    unifiedCrmOpportunities: [{
+      opportunityNumber: "opp_123456",
+      title: "Maria Santos renewal review",
+      summary: "Read-only opportunity summary.",
+      organizationId: "org-a",
+      updatedAt: new Date("2026-08-14T11:00:00.000Z"),
+      ownerUser: { id: manager.id, name: manager.name }
+    }],
     ...overrides
   } as unknown as UnifiedCrmCustomer360Record;
 }
@@ -226,7 +234,8 @@ describe("Unified CRM Customer 360 service", () => {
       vehicles: [{ id: "vehicle-a", sourceHref: "/vehicles/360/vehicle-a" }],
       appointments: [{ id: "appointment-a", sourceHref: "/appointments" }],
       timeline: { itemCount: 7 },
-      sourceLenses: { leads: [{ id: "lead-a" }], cases: [{ id: "case-a" }] }
+      sourceLenses: { leads: [{ id: "lead-a" }], cases: [{ id: "case-a" }] },
+      opportunityLenses: [{ id: "opp_123456", opportunityNumber: "opp_123456", state: "LIVE_READ_ONLY" }]
     });
     const serialized = JSON.stringify(model);
     for (const restricted of ["+16125551234", "maria@example.com", "legacy@example.test", "consentStatus", "address", "retentionUntil", "duplicateKey"]) {

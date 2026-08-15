@@ -106,6 +106,23 @@ function customer360Select(
         slaStage: true,
         assignedOwner: { select: { id: true, name: true } }
       }
+    },
+    unifiedCrmOpportunities: {
+      where: {
+        organizationId,
+        archivedAt: null,
+        ...(ownerUserId ? { ownerUserId } : {})
+      },
+      take: 5,
+      orderBy: [{ updatedAt: "desc" as const }, { opportunityNumber: "asc" as const }],
+      select: {
+        opportunityNumber: true,
+        title: true,
+        summary: true,
+        organizationId: true,
+        updatedAt: true,
+        ownerUser: { select: { id: true, name: true } }
+      }
     }
   } satisfies Prisma.CustomerSelect;
 }

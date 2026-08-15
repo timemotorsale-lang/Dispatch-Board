@@ -30,6 +30,14 @@ describe("getUnifiedCrmOpportunityDiscovery", () => {
   it.each(["organization", "owned"] as const)("returns held-only internal discovery for %s scope", async (scope) => {
     const model = await getUnifiedCrmOpportunityDiscovery(null, {
       accessContext: accessContext(scope),
+      repository: {
+        async findPrimaryOpportunityPreview() {
+          return null;
+        },
+        async listOpportunityPreviews() {
+          return [];
+        }
+      },
       now: () => new Date("2026-08-15T03:00:00.000Z")
     });
 
@@ -60,8 +68,42 @@ describe("getUnifiedCrmOpportunityDiscovery", () => {
     await expect(getUnifiedCrmOpportunityDiscovery(manager, {
       mode: "REVIEW",
       nodeEnv: "production",
+      repository: {
+        async findPrimaryOpportunityPreview() {
+          return null;
+        },
+        async listOpportunityPreviews() {
+          return [];
+        }
+      },
       scopeRepository: { listActiveOrganizationIds }
     })).rejects.toMatchObject({ code: "OPPORTUNITY_OFF" });
     expect(listActiveOrganizationIds).not.toHaveBeenCalled();
+  });
+
+  it("does not disclose persisted-target availability for an out-of-owner-scope record", async () => {
+    const model = await getUnifiedCrmOpportunityDiscovery(null, {
+      accessContext: accessContext("owned"),
+      repository: {
+        async findPrimaryOpportunityPreview() {
+          return null;
+        },
+        async listOpportunityPreviews() {
+          return [{
+            opportunityNumber: "opp_123456",
+            title: "Private opportunity",
+            summary: "Private backend summary",
+            organizationId: "org-1",
+            ownerUser: { id: "seller-2", name: "Other seller" },
+            customer: null,
+            updatedAt: new Date("2026-08-15T02:00:00.000Z")
+          }];
+        }
+      }
+    });
+
+    expect(model.panels.every((panel) => panel.link.state === "HELD_REVIEW")).toBe(true);
+    expect(JSON.stringify(model)).not.toContain("Private opportunity");
+    expect(JSON.stringify(model)).not.toContain("persisted read-only opportunity");
   });
 });

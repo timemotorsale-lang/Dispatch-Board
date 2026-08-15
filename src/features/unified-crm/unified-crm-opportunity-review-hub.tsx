@@ -27,6 +27,10 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
+function linkStateLabel(state: "HELD_REVIEW" | "LIVE_READ_ONLY") {
+  return state === "LIVE_READ_ONLY" ? "Live read-only" : "Held review";
+}
+
 function StatePanel({ kind, message, returnHref }: { kind: FailureKind; message?: string; returnHref: string }) {
   const returnContext = getUnifiedCrmOpportunityReturnContext(returnHref);
   const title = kind === "restricted"
@@ -85,7 +89,9 @@ export function UnifiedCrmOpportunityReviewHub({
       {model.sections.map((section) => (
         <section className={styles.section} key={section.id}>
           <div className={styles.sectionHeader}>
-            <span className={styles.eyebrow}>{section.id === "overview" ? "Core path" : "Governance"}</span>
+            <span className={styles.eyebrow}>
+              {section.id === "overview" ? "Core path" : section.id === "live-records" ? "Visible records" : "Governance"}
+            </span>
             <strong>{section.label}</strong>
             <p>{section.detail}</p>
           </div>
@@ -94,10 +100,10 @@ export function UnifiedCrmOpportunityReviewHub({
               <Link className={styles.linkCard} href={withUnifiedCrmOpportunityReturn(link.href, returnHref)} key={link.id}>
                 <header>
                   <strong>{link.label}</strong>
-                  <span>{link.state}</span>
+                  <span>{linkStateLabel(link.state)}</span>
                 </header>
                 <p>{link.description}</p>
-                <small>Open read-only review surface <ExternalLink aria-hidden="true" size={13} /></small>
+                <small>{link.state === "LIVE_READ_ONLY" ? "Open persisted read-only detail" : "Open held review surface"} <ExternalLink aria-hidden="true" size={13} /></small>
               </Link>
             ))}
           </div>
@@ -114,7 +120,7 @@ export function UnifiedCrmOpportunityReviewHub({
           <Link className={styles.linkCard} href={`/crm/opportunities/guided?crmReturnTo=${encodeURIComponent(returnHref)}`}>
             <header>
               <strong>Open guided journey</strong>
-              <span>HELD_REVIEW</span>
+              <span>Held review</span>
             </header>
             <p>Walk through entry, queue, detail, transition, and create review in one safe sequence.</p>
             <small>Open read-only review surface <ExternalLink aria-hidden="true" size={13} /></small>
