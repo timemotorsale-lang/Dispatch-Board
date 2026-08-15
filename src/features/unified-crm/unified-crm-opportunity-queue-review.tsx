@@ -3,8 +3,10 @@
 import { AlertTriangle, ArrowLeft, ExternalLink, RefreshCw, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 
+import { withUnifiedCrmOpportunityReturn } from "@/server/unified-crm/opportunity-review-return";
 import { UnifiedCrmOpportunityActions } from "./unified-crm-opportunity-actions";
 import styles from "./unified-crm-opportunity-queue-review.module.css";
+import { getUnifiedCrmOpportunityReturnContext } from "./unified-crm-opportunity-return-context";
 
 import type { UnifiedCrmOpportunityQueueReviewModel } from "@/server/unified-crm/opportunity-queue-contract";
 
@@ -26,6 +28,7 @@ function formatDate(value: string) {
 }
 
 function StatePanel({ kind, message, returnHref }: { kind: FailureKind; message?: string; returnHref: string }) {
+  const returnContext = getUnifiedCrmOpportunityReturnContext(returnHref);
   const title = kind === "restricted"
     ? "Opportunity queue review isn’t available to you"
     : kind === "unavailable"
@@ -35,14 +38,14 @@ function StatePanel({ kind, message, returnHref }: { kind: FailureKind; message?
   const retryable = kind !== "restricted";
   return (
     <main className={styles.page}>
-      <Link className={styles.backLink} href={returnHref}><ArrowLeft aria-hidden="true" size={15} />Back to CRM Pipeline</Link>
+      <Link className={styles.backLink} href={returnHref}><ArrowLeft aria-hidden="true" size={15} />{returnContext.backLabel}</Link>
       <section className={styles.statePanel} role={retryable ? "alert" : "status"}>
         {retryable ? <AlertTriangle aria-hidden="true" size={28} /> : <ShieldCheck aria-hidden="true" size={28} />}
         <h1>{title}</h1>
         <p>{detail}</p>
         <div className={styles.stateActions}>
           {retryable ? <button onClick={() => window.location.reload()} type="button"><RefreshCw aria-hidden="true" size={14} />Retry</button> : null}
-          <Link href={returnHref}>Return to Pipeline review</Link>
+          <Link href={returnHref}>{returnContext.returnLabel}</Link>
         </div>
       </section>
     </main>
@@ -51,10 +54,11 @@ function StatePanel({ kind, message, returnHref }: { kind: FailureKind; message?
 
 export function UnifiedCrmOpportunityQueueReview({ errorMessage, failureKind = "error", model, returnHref }: Props) {
   if (!model) return <StatePanel kind={failureKind} message={errorMessage} returnHref={returnHref} />;
+  const returnContext = getUnifiedCrmOpportunityReturnContext(returnHref);
 
   return (
     <main className={styles.page}>
-      <Link className={styles.backLink} href={returnHref}><ArrowLeft aria-hidden="true" size={15} />Back to CRM Pipeline</Link>
+      <Link className={styles.backLink} href={returnHref}><ArrowLeft aria-hidden="true" size={15} />{returnContext.backLabel}</Link>
 
       <section className={styles.hero}>
         <span className={styles.eyebrow}>Opportunity queue · review only</span>
@@ -63,6 +67,7 @@ export function UnifiedCrmOpportunityQueueReview({ errorMessage, failureKind = "
         <div className={styles.heroMeta}>
           <span className={styles.reviewTag}>Observed {formatDate(model.source.observedAt)}</span>
           <span>{model.visibility === "organization" ? "Organization review" : "Owned review"}</span>
+          <span>{returnContext.returnContextLabel}</span>
         </div>
       </section>
 
@@ -88,7 +93,7 @@ export function UnifiedCrmOpportunityQueueReview({ errorMessage, failureKind = "
         <span className={styles.eyebrow}>Queue review items</span>
         <div className={styles.queueGrid}>
           {model.items.map((item) => (
-            <Link className={styles.queueItem} href={item.detailHref} key={item.id}>
+            <Link className={styles.queueItem} href={withUnifiedCrmOpportunityReturn(item.detailHref, returnHref)} key={item.id}>
               <header>
                 <div>
                   <strong>{item.title}</strong>
@@ -109,8 +114,8 @@ export function UnifiedCrmOpportunityQueueReview({ errorMessage, failureKind = "
           title="Move through the opportunity flow without leaving the queue"
           actions={[
             {
-              label: "Review pipeline",
-              description: "Return to the board and list review to compare how queue work connects to the wider pipeline.",
+              label: returnContext.returnShortLabel,
+              description: "Return to the originating CRM review context to compare how queue work connects to the wider opportunity flow.",
               href: returnHref,
               state: "REVIEW"
             },
@@ -143,7 +148,10 @@ export function UnifiedCrmOpportunityQueueReview({ errorMessage, failureKind = "
           {model.nextUnlocks.map((item) => <li key={item}>{item}</li>)}
         </ul>
         <div className={styles.actionLinks}>
-          <Link className={styles.primaryLink} href={model.source.href}>Return to Pipeline review<ExternalLink aria-hidden="true" size={13} /></Link>
+          <Link className={styles.primaryLink} href={returnHref}>{returnContext.returnLabel}<ExternalLink aria-hidden="true" size={13} /></Link>
+          {returnHref !== model.source.href ? (
+            <Link className={styles.primaryLink} href={withUnifiedCrmOpportunityReturn(model.source.href, returnHref)}>Open pipeline source review<ExternalLink aria-hidden="true" size={13} /></Link>
+          ) : null}
           <Link className={styles.primaryLink} href={`/crm/opportunities/review01?crmReturnTo=${encodeURIComponent(returnHref)}`}>Open detail review<ExternalLink aria-hidden="true" size={13} /></Link>
         </div>
       </section>

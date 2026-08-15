@@ -49,10 +49,27 @@ describe("Unified CRM opportunity create page", () => {
     expect(markup).toContain('href="/crm?view=pipeline"');
   });
 
+  it("preserves a safe CRM customer-detail return when create review is opened from customer context", async () => {
+    const markup = renderToStaticMarkup(await OpportunityCreatePage({
+      searchParams: Promise.resolve({ crmReturnTo: "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26owner%3Dmine" })
+    }));
+
+    expect(markup).toContain('href="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26owner%3Dmine"');
+  });
+
   it("rejects unsafe return parameters", () => {
     for (const value of ["https://evil.example", "//evil.example", "/crm?view=customers", "/crm?view=pipeline&redirect=https://evil.example"]) {
       expect(safeCrmOpportunityCreateReturn(value)).toBe("/crm?view=pipeline");
     }
+  });
+
+  it("accepts only safe CRM customer-detail return parameters", () => {
+    expect(safeCrmOpportunityCreateReturn("/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26owner%3Dmine")).toBe(
+      "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26owner%3Dmine"
+    );
+    expect(safeCrmOpportunityCreateReturn("/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dpipeline")).toBe(
+      "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers"
+    );
   });
 
   it("does not read create review when the shell is off", async () => {

@@ -19,6 +19,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { UnifiedCrmCustomerListReadModel } from "@/server/unified-crm/customer-read-contract";
+import type { UnifiedCrmCustomerListOpportunityDiscoveryCollectionModel } from "@/server/unified-crm/customer-list-opportunity-discovery-contract";
 import type { UnifiedCrmOpportunityDiscoveryModel } from "@/server/unified-crm/opportunity-discovery-contract";
 import type { UnifiedCrmOpportunityPreviewModel } from "@/server/unified-crm/opportunity-read-contract";
 
@@ -42,6 +43,7 @@ type UnifiedCrmShellProps = {
   customerList?: UnifiedCrmCustomerListReadModel;
   customerListError?: string;
   customerListFailureKind?: "error" | "restricted" | "unavailable";
+  customerListOpportunityDiscovery?: UnifiedCrmCustomerListOpportunityDiscoveryCollectionModel;
   initialSelectedId?: string;
   opportunityDiscovery?: UnifiedCrmOpportunityDiscoveryModel;
   opportunityPreview?: UnifiedCrmOpportunityPreviewModel;
@@ -540,6 +542,7 @@ export function UnifiedCrmShell({
   customerList,
   customerListError,
   customerListFailureKind,
+  customerListOpportunityDiscovery,
   initialSelectedId,
   opportunityDiscovery,
   opportunityPreview,
@@ -618,7 +621,7 @@ export function UnifiedCrmShell({
           ? <LiveWorkView failureKind={workQueueFailureKind} model={workQueue ? { ...workQueue, items: filteredWorkItems } : undefined} opportunityDiscovery={opportunityDiscovery} onSelect={(item) => setSelectedWorkId(item.id)} selected={selectedWork} />
           : <WorkView opportunityDiscovery={opportunityDiscovery} onSelect={setSelected} selected={selected} />
         : null}
-      {activeView === "customers" ? <UnifiedCrmCustomerList errorMessage={customerListError} failureKind={customerListFailureKind} model={customerList} /> : null}
+      {activeView === "customers" ? <UnifiedCrmCustomerList errorMessage={customerListError} failureKind={customerListFailureKind} model={customerList} opportunityDiscovery={customerListOpportunityDiscovery} /> : null}
       {activeView === "pipeline"
         ? opportunityPreview || opportunityPreviewError
           ? <PipelineView failureKind={opportunityPreviewFailureKind} model={opportunityPreview} />

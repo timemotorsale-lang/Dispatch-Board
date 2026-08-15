@@ -5,6 +5,10 @@ import Link from "next/link";
 import { useState } from "react";
 
 import type { UnifiedCrmCustomerListReadModel } from "@/server/unified-crm/customer-read-contract";
+import type {
+  UnifiedCrmCustomerListOpportunityDiscoveryCollectionModel,
+  UnifiedCrmCustomerListOpportunityDiscoveryModel
+} from "@/server/unified-crm/customer-list-opportunity-discovery-contract";
 
 import styles from "./unified-crm-customer-list.module.css";
 
@@ -12,6 +16,7 @@ type CustomerListProps = {
   errorMessage?: string;
   failureKind?: "error" | "restricted" | "unavailable";
   model?: UnifiedCrmCustomerListReadModel;
+  opportunityDiscovery?: UnifiedCrmCustomerListOpportunityDiscoveryCollectionModel;
 };
 
 function customerListHref(model: UnifiedCrmCustomerListReadModel, cursor?: string | null) {
@@ -25,6 +30,19 @@ function customerListHref(model: UnifiedCrmCustomerListReadModel, cursor?: strin
 
 function crmCustomerHref(model: UnifiedCrmCustomerListReadModel, customerId: string) {
   return `/crm/customers/${encodeURIComponent(customerId)}?crmReturnTo=${encodeURIComponent(customerListHref(model))}`;
+}
+
+function opportunityBranchHref(opportunityDiscovery: UnifiedCrmCustomerListOpportunityDiscoveryModel | undefined) {
+  return opportunityDiscovery?.actions.find((action) => action.id === "hub")?.href
+    ?? opportunityDiscovery?.actions[0]?.href
+    ?? null;
+}
+
+function firstOpportunityDiscovery(
+  opportunityDiscovery: UnifiedCrmCustomerListOpportunityDiscoveryCollectionModel | undefined
+) {
+  if (!opportunityDiscovery) return undefined;
+  return Object.values(opportunityDiscovery.byCustomerId)[0];
 }
 
 function formatDate(value: string | null, fallback: string) {
@@ -78,14 +96,24 @@ function CustomerStatus({ status }: { status: string }) {
   return <span className={`${styles.status} ${inactive ? styles.statusInactive : ""}`}>{status.toLowerCase().replace(/(^|\s)\S/g, (letter) => letter.toUpperCase())}</span>;
 }
 
-function CustomerRows({ model }: { model: UnifiedCrmCustomerListReadModel }) {
+function CustomerRows({
+  model,
+  opportunityDiscovery
+}: {
+  model: UnifiedCrmCustomerListReadModel;
+  opportunityDiscovery?: UnifiedCrmCustomerListOpportunityDiscoveryCollectionModel;
+}) {
   return (
     <>
       <section className={styles.tablePanel} aria-label="Customer results">
         <table className={styles.table}>
           <caption>{resultLabel(model)}. Contact details are masked in this list.</caption>
-          <thead><tr><th scope="col">Customer</th><th scope="col">Contact</th><th scope="col">Owner</th><th scope="col">Status</th><th scope="col">Last interaction</th><th scope="col">Next action</th><th scope="col"><span className="sr-only">Open</span></th></tr></thead>
-          <tbody>{model.items.map((customer) => (
+          <thead><tr><th scope="col">Customer</th><th scope="col">Contact</th><th scope="col">Owner</th><th scope="col">Status</th><th scope="col">Last interaction</th><th scope="col">Next action</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
+          <tbody>{model.items.map((customer) => {
+            const customerOpportunityDiscovery = opportunityDiscovery?.byCustomerId[customer.id];
+            const opportunityHref = opportunityBranchHref(customerOpportunityDiscovery);
+            const customerOpportunityHref = `${customerOpportunityDiscovery?.customer.href ?? crmCustomerHref(model, customer.id)}#customer-opportunity-discovery-heading`;
+            return (
             <tr key={customer.id}>
               <td><span className={styles.identity}><strong>{customer.displayName}</strong><small>{customer.customerNumber}</small></span></td>
               <td><span className={styles.contact}><span>{customer.maskedPhone}</span><small>{customer.maskedEmail}</small></span></td>
@@ -93,13 +121,17 @@ function CustomerRows({ model }: { model: UnifiedCrmCustomerListReadModel }) {
               <td><CustomerStatus status={customer.status} /></td>
               <td><span className={styles.timing}><span>{formatDate(customer.lastInteractionAt, "No interaction recorded")}</span><small>Updated {formatDate(customer.updatedAt, "time unavailable")}</small></span></td>
               <td>{formatDate(customer.nextActionAt, "No next action scheduled")}</td>
-              <td><Link aria-label={`Open ${customer.displayName} in CRM`} className={styles.openLink} href={crmCustomerHref(model, customer.id)}>Open<ArrowRight aria-hidden="true" size={14} /></Link></td>
+              <td><div className={styles.rowActions}><Link aria-label={`Open ${customer.displayName} in CRM`} className={styles.openLink} href={customerOpportunityDiscovery?.customer.href ?? crmCustomerHref(model, customer.id)}>Open<ArrowRight aria-hidden="true" size={14} /></Link>{opportunityHref ? <Link aria-label={`Review opportunity workspace from ${customer.displayName}`} className={styles.branchLink} href={customerOpportunityHref}>Opportunity review</Link> : null}</div></td>
             </tr>
-          ))}</tbody>
+          )})}</tbody>
         </table>
       </section>
       <section className={styles.mobileList} aria-label="Customer results">
-        {model.items.map((customer) => (
+        {model.items.map((customer) => {
+          const customerOpportunityDiscovery = opportunityDiscovery?.byCustomerId[customer.id];
+          const opportunityHref = opportunityBranchHref(customerOpportunityDiscovery);
+          const customerOpportunityHref = `${customerOpportunityDiscovery?.customer.href ?? crmCustomerHref(model, customer.id)}#customer-opportunity-discovery-heading`;
+          return (
           <article className={styles.customerCard} key={customer.id}>
             <div className={styles.cardTop}><span className={styles.identity}><strong>{customer.displayName}</strong><small>{customer.customerNumber}</small></span><CustomerStatus status={customer.status} /></div>
             <dl className={styles.cardFacts}>
@@ -108,9 +140,9 @@ function CustomerRows({ model }: { model: UnifiedCrmCustomerListReadModel }) {
               <div><dt>Last interaction</dt><dd>{formatDate(customer.lastInteractionAt, "Not recorded")}</dd></div>
               <div><dt>Next action</dt><dd>{formatDate(customer.nextActionAt, "Not scheduled")}</dd></div>
             </dl>
-            <Link aria-label={`Open ${customer.displayName} in CRM`} className={styles.openLink} href={crmCustomerHref(model, customer.id)}>Open customer<ArrowRight aria-hidden="true" size={14} /></Link>
+            <div className={styles.cardActions}><Link aria-label={`Open ${customer.displayName} in CRM`} className={styles.openLink} href={customerOpportunityDiscovery?.customer.href ?? crmCustomerHref(model, customer.id)}>Open customer<ArrowRight aria-hidden="true" size={14} /></Link>{opportunityHref ? <Link aria-label={`Review opportunity workspace from ${customer.displayName}`} className={styles.branchLink} href={customerOpportunityHref}>Opportunity review</Link> : null}</div>
           </article>
-        ))}
+        )})}
       </section>
     </>
   );
@@ -132,13 +164,14 @@ function StatePanel({ filtered, kind, message }: { filtered?: boolean; kind: "em
   );
 }
 
-export function UnifiedCrmCustomerList({ errorMessage, failureKind = "error", model }: CustomerListProps) {
+export function UnifiedCrmCustomerList({ errorMessage, failureKind = "error", model, opportunityDiscovery }: CustomerListProps) {
   if (!model) {
     if (errorMessage) return <div className={styles.workspace}><StatePanel kind={failureKind} message={errorMessage} /></div>;
     return <div aria-busy="true" aria-label="Loading customers" className={`${styles.tablePanel} ${styles.skeleton}`}>{Array.from({ length: 5 }, (_, index) => <div className={styles.skeletonRow} key={index} />)}</div>;
   }
 
   const filtered = Boolean(model.query.q || model.query.status !== "active" || (model.visibility === "organization" && model.query.owner !== "all"));
+  const listDiscovery = firstOpportunityDiscovery(opportunityDiscovery);
   return (
     <div className={styles.workspace}>
       <SourceBar model={model} />
@@ -146,7 +179,11 @@ export function UnifiedCrmCustomerList({ errorMessage, failureKind = "error", mo
       {model.items.length === 0 ? <StatePanel filtered={filtered} kind="empty" /> : (
         <>
           <div aria-live="polite" className={styles.summary}><span><strong>{resultLabel(model)}</strong>{filtered ? " for the current search and filters" : ""}</span><span>Contact hints are masked · recent activity first</span></div>
-          <CustomerRows model={model} />
+          {listDiscovery && opportunityBranchHref(listDiscovery) ? <section aria-label="Opportunity review discovery" className={styles.discoveryPanel}>
+            <div><strong>Need to review the commercial follow-up before opening a full customer?</strong><small>Use the held opportunity review workspace from the customer list. It stays read only and returns you safely to this list.</small></div>
+            <Link className={styles.branchLink} href={opportunityBranchHref(listDiscovery) ?? listDiscovery.customer.href}>Open opportunity review</Link>
+          </section> : null}
+          <CustomerRows model={model} opportunityDiscovery={opportunityDiscovery} />
           {model.page.nextCursor ? <nav aria-label="Customer result pages" className={styles.pagination}><Link href={customerListHref(model, model.page.nextCursor)}>Next page<ArrowRight aria-hidden="true" size={14} /></Link></nav> : null}
         </>
       )}

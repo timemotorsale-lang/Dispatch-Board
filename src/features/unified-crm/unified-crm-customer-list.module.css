@@ -30,6 +30,7 @@
 .freshness,
 .sourceLink,
 .openLink,
+.branchLink,
 .pagination a,
 .retryButton,
 .clearLink {
@@ -112,6 +113,10 @@
 
 .summary { display: flex; justify-content: space-between; gap: 10px; min-height: 20px; color: var(--crm-muted); font-size: 10.5px; }
 .summary strong { color: var(--crm-text); }
+.discoveryPanel { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px dashed var(--crm-border-strong); border-radius: 8px; padding: 10px 11px; color: var(--crm-text); background: var(--crm-surface-soft); }
+.discoveryPanel > div { display: grid; gap: 3px; min-width: 0; }
+.discoveryPanel strong { font-size: 11px; }
+.discoveryPanel small { color: var(--crm-muted); font-size: 10.5px; line-height: 1.45; }
 
 .tablePanel { overflow: hidden; }
 .table { width: 100%; border-collapse: collapse; font-size: 11px; }
@@ -128,6 +133,8 @@
 .status { display: inline-flex; width: max-content; border-radius: 999px; padding: 4px 7px; color: var(--crm-green); background: #e9f7ef; font-size: 9.5px; font-weight: 850; }
 .statusInactive { color: var(--crm-muted); background: var(--crm-surface-soft); }
 .openLink { min-height: 36px; justify-content: flex-end; color: var(--crm-blue); font-size: 10.5px; font-weight: 850; white-space: nowrap; }
+.branchLink { justify-content: center; min-height: 36px; border: 1px solid var(--crm-border-strong); border-radius: 7px; padding: 0 10px; color: var(--crm-blue); background: var(--crm-surface); font-size: 10.5px; font-weight: 850; white-space: nowrap; }
+.rowActions { display: grid; justify-items: end; gap: 6px; }
 
 .mobileList { display: none; gap: 8px; }
 .customerCard { display: grid; gap: 10px; padding: 12px; }
@@ -136,7 +143,9 @@
 .cardFacts div { display: grid; gap: 3px; }
 .cardFacts dt { color: var(--crm-muted); font-size: 9.5px; }
 .cardFacts dd { margin: 0; font-size: 10.5px; }
+.cardActions { display: grid; gap: 8px; }
 .customerCard .openLink { min-height: 44px; justify-content: center; border: 1px solid var(--crm-border-strong); border-radius: 7px; background: var(--crm-blue-soft); }
+.customerCard .branchLink { min-height: 44px; }
 
 .statePanel { display: grid; justify-items: center; min-height: 250px; align-content: center; padding: 28px; text-align: center; }
 .statePanel > svg { margin-bottom: 8px; color: var(--crm-blue); }
@@ -197,6 +206,7 @@
   .sourceLink { min-height: 36px; }
   .filters { grid-template-columns: 1fr 1fr; }
   .filtersOwned { grid-template-columns: 1fr 1fr; }
+  .discoveryPanel { align-items: flex-start; flex-direction: column; }
   .searchLabel { grid-column: 1 / -1; }
   .submitButton { min-height: 44px; }
   .tablePanel { display: none; }

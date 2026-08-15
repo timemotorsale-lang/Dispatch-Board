@@ -65,6 +65,19 @@ describe("Unified CRM opportunity guided journey", () => {
     expect(markup).not.toContain("probability");
   });
 
+  it("rewrites guided review steps to preserve a safe customer-detail return chain", () => {
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmOpportunityGuidedJourney
+        model={guidedFixture()}
+        returnHref="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26status%3Dactive"
+      />
+    );
+
+    expect(markup).toContain("/crm?view=pipeline&amp;crmReturnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dcustomers%2526status%253Dactive");
+    expect(markup).toContain("/crm/opportunities/queue?crmReturnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dcustomers%2526status%253Dactive");
+    expect(markup).not.toMatch(/crmReturnTo=[^"&]+&amp;crmReturnTo=/);
+  });
+
   it("renders a safe unavailable state", () => {
     const markup = renderToStaticMarkup(
       <UnifiedCrmOpportunityGuidedJourney
@@ -78,11 +91,37 @@ describe("Unified CRM opportunity guided journey", () => {
     expect(markup).toContain("Retry");
   });
 
+  it("preserves one customer-detail origin on every guided review step", () => {
+    const customerReturn = "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26owner%3Dmine";
+    const markup = renderToStaticMarkup(<UnifiedCrmOpportunityGuidedJourney model={guidedFixture()} returnHref={customerReturn} />);
+    const hrefs = [...markup.matchAll(/href="([^"]+)"/g)].map((match) => match[1]!.replaceAll("&amp;", "&"));
+    const reviewLinks = hrefs.filter((href) => href.startsWith("/crm/opportunities/") || href.startsWith("/crm?view=pipeline"));
+
+    expect(markup).toContain(`href="${customerReturn}">Return to Customer 360`);
+    expect(reviewLinks.length).toBeGreaterThan(0);
+    for (const href of reviewLinks) {
+      expect(new URL(href, "http://crm.local").searchParams.getAll("crmReturnTo")).toEqual([customerReturn]);
+    }
+  });
+
   it("renders an honest loading state", () => {
     const markup = renderToStaticMarkup(<UnifiedCrmOpportunityGuidedJourneyLoading />);
 
     expect(markup).toContain("Loading guided opportunity review");
     expect(markup).toContain("No opportunity action has been executed.");
     expect(markup).toContain("aria-busy=\"true\"");
+  });
+
+  it("keeps customer return continuity in the guided review", () => {
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmOpportunityGuidedJourney
+        model={guidedFixture()}
+        returnHref="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers"
+      />
+    );
+
+    expect(markup).toContain("Back to Customer 360");
+    expect(markup).toContain("Customer 360 return preserved");
+    expect(markup).toContain("Return to Customer 360");
   });
 });

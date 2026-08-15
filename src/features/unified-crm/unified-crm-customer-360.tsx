@@ -90,14 +90,18 @@ function OpportunityDiscoverySection({ model }: { model: UnifiedCrmCustomerOppor
         {model.opportunityDiscovery.headline.detail} This keeps the customer record read only while you review how opportunity work should feel for {model.customer.displayName}.
       </p>
       <div className={styles.discoveryGrid}>
-        {model.opportunityDiscovery.panels.map((panel) => (
-          <Link className={styles.discoveryCard} href={withCustomerReturn(panel.link.href)} key={panel.id}>
+        {model.opportunityDiscovery.panels.map((panel, index) => (
+          <Link className={`${styles.discoveryCard} ${index === 0 ? styles.discoveryCardPrimary : ""}`} href={withCustomerReturn(panel.link.href)} key={panel.id}>
             <span className={styles.discoveryEyebrow}>{panel.label}</span>
             <strong>{panel.link.label}</strong>
             <p>{panel.detail}</p>
             <small>{panel.link.description}</small>
           </Link>
         ))}
+      </div>
+      <div className={styles.discoveryContinuity}>
+        <strong>Start with the pipeline review if you want the quickest path.</strong>
+        <small>Every opportunity review link keeps this customer as the safe return point, so you can review and come back here without losing context.</small>
       </div>
     </section>
   );

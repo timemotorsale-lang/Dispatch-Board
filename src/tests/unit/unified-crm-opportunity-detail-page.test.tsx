@@ -51,10 +51,31 @@ describe("Unified CRM opportunity detail page", () => {
     expect(markup).toContain('href="/crm?view=pipeline"');
   });
 
+  it("preserves a safe CRM customer-detail return when detail review is opened from customer context", async () => {
+    const markup = renderToStaticMarkup(await OpportunityPage({
+      params: Promise.resolve({ opportunityId: "review01" }),
+      searchParams: Promise.resolve({ crmReturnTo: "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26q%3DAlex" })
+    }));
+
+    expect(markup).toContain('href="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26q%3DAlex"');
+    expect(markup).toContain('href="/crm?view=pipeline&amp;crmReturnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dcustomers%2526q%253DAlex">Open pipeline source review');
+    expect(markup).toContain("Back to Customer 360");
+    expect(markup).toContain("Customer 360 return preserved");
+  });
+
   it("rejects external, protocol-relative, wrong-view, and unknown return parameters", () => {
     for (const value of ["https://evil.example", "//evil.example", "/crm?view=customers", "/crm?view=pipeline&redirect=https://evil.example"]) {
       expect(safeCrmOpportunityReturn(value)).toBe("/crm?view=pipeline");
     }
+  });
+
+  it("accepts only safe CRM customer-detail return parameters", () => {
+    expect(safeCrmOpportunityReturn("/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26q%3DAlex")).toBe(
+      "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26q%3DAlex"
+    );
+    expect(safeCrmOpportunityReturn("/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dpipeline")).toBe(
+      "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers"
+    );
   });
 
   it("does not read or serialize detail when the CRM shell is off", async () => {

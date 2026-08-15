@@ -11,9 +11,15 @@ import {
 import type { UnifiedCrmOpportunityAccessContext } from "@/server/unified-crm/opportunity-contract";
 import type { UnifiedCrmOpportunityDiscoveryModel } from "@/server/unified-crm/opportunity-discovery-contract";
 import { requireUnifiedCrmOpportunityDetailAccess } from "@/server/unified-crm/opportunity-detail-access";
+import {
+  buildUnifiedCrmCustomerReturn,
+  withUnifiedCrmOpportunityReturn
+} from "@/server/unified-crm/opportunity-review-return";
 
 type Dependencies = UnifiedCrmCustomer360AccessOptions & {
   customer360?: UnifiedCrmCustomer360ReadModel;
+  customerHref?: string;
+  customerListHref?: string;
   now?: () => Date;
   opportunityAccessContext?: UnifiedCrmOpportunityAccessContext;
   scopeRepository?: {
@@ -24,13 +30,7 @@ type Dependencies = UnifiedCrmCustomer360AccessOptions & {
 const CUSTOMER_LIST_HREF = "/crm?view=customers" as const;
 
 function withCustomerReturn(href: string, customerHref: string) {
-  try {
-    const url = new URL(href, "http://crm.local");
-    url.searchParams.set("crmReturnTo", customerHref);
-    return `${url.pathname}${url.search}`;
-  } catch {
-    return href;
-  }
+  return withUnifiedCrmOpportunityReturn(href, customerHref);
 }
 
 function createContextPrompts(
@@ -102,7 +102,9 @@ export async function getUnifiedCrmCustomerOpportunityDiscovery(
     shellMode: dependencies.shellMode
   });
 
-  const customerHref = `/crm/customers/${encodeURIComponent(customer360.identity.id)}?crmReturnTo=${encodeURIComponent(CUSTOMER_LIST_HREF)}`;
+  const customerListHref = dependencies.customerListHref ?? CUSTOMER_LIST_HREF;
+  const customerHref = dependencies.customerHref
+    ?? buildUnifiedCrmCustomerReturn(customer360.identity.id, customerListHref);
 
   return {
     contractVersion: UNIFIED_CRM_CUSTOMER_OPPORTUNITY_DISCOVERY_CONTRACT_VERSION,
@@ -111,7 +113,7 @@ export async function getUnifiedCrmCustomerOpportunityDiscovery(
       displayName: customer360.identity.displayName,
       href: customerHref,
       id: customer360.identity.id,
-      listHref: CUSTOMER_LIST_HREF
+      listHref: customerListHref
     },
     generatedAt,
     opportunityDiscovery,

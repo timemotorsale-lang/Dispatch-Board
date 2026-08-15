@@ -4,9 +4,11 @@ import { AlertTriangle, ArrowLeft, ExternalLink, RefreshCw, ShieldCheck } from "
 import Link from "next/link";
 
 import type { UnifiedCrmOpportunityDetailReadModel } from "@/server/unified-crm/opportunity-detail-contract";
+import { withUnifiedCrmOpportunityReturn } from "@/server/unified-crm/opportunity-review-return";
 
 import { UnifiedCrmOpportunityActions } from "./unified-crm-opportunity-actions";
 import styles from "./unified-crm-opportunity-detail.module.css";
+import { getUnifiedCrmOpportunityReturnContext } from "./unified-crm-opportunity-return-context";
 
 type FailureKind = "error" | "not-available" | "restricted" | "unavailable";
 
@@ -26,6 +28,7 @@ function formatDate(value: string) {
 }
 
 function StatePanel({ kind, message, returnHref }: { kind: FailureKind; message?: string; returnHref: string }) {
+  const returnContext = getUnifiedCrmOpportunityReturnContext(returnHref);
   const title = kind === "not-available"
     ? "Opportunity detail isn’t available"
     : kind === "restricted"
@@ -41,14 +44,14 @@ function StatePanel({ kind, message, returnHref }: { kind: FailureKind; message?
   const retryable = kind === "error" || kind === "unavailable";
   return (
     <main className={styles.page}>
-      <Link className={styles.backLink} href={returnHref}><ArrowLeft aria-hidden="true" size={15} />Back to CRM Pipeline</Link>
+      <Link className={styles.backLink} href={returnHref}><ArrowLeft aria-hidden="true" size={15} />{returnContext.backLabel}</Link>
       <section className={styles.statePanel} role={retryable ? "alert" : "status"}>
         {retryable ? <AlertTriangle aria-hidden="true" size={28} /> : <ShieldCheck aria-hidden="true" size={28} />}
         <h1>{title}</h1>
         <p>{detail}</p>
         <div className={styles.stateActions}>
           {retryable ? <button onClick={() => window.location.reload()} type="button"><RefreshCw aria-hidden="true" size={14} />Retry</button> : null}
-          <Link href={returnHref}>Return to Pipeline review</Link>
+          <Link href={returnHref}>{returnContext.returnLabel}</Link>
           <Link href="/crm?view=pipeline">Open CRM Pipeline<ExternalLink aria-hidden="true" size={13} /></Link>
         </div>
       </section>
@@ -60,10 +63,11 @@ export function UnifiedCrmOpportunityDetail({ errorMessage, failureKind = "error
   if (!model) {
     return <StatePanel kind={failureKind} message={errorMessage} returnHref={returnHref} />;
   }
+  const returnContext = getUnifiedCrmOpportunityReturnContext(returnHref);
 
   return (
     <main className={styles.page}>
-      <Link className={styles.backLink} href={returnHref}><ArrowLeft aria-hidden="true" size={15} />Back to CRM Pipeline</Link>
+      <Link className={styles.backLink} href={returnHref}><ArrowLeft aria-hidden="true" size={15} />{returnContext.backLabel}</Link>
 
       <section aria-labelledby="opportunity-detail-heading" className={styles.identityCard}>
         <div className={styles.identityMain}>
@@ -80,7 +84,8 @@ export function UnifiedCrmOpportunityDetail({ errorMessage, failureKind = "error
       <section aria-label="Opportunity source and freshness" className={styles.trustBar}>
         <span><ShieldCheck aria-hidden="true" size={14} /><strong>{model.source.label}</strong> · held review only</span>
         <span><ShieldCheck aria-hidden="true" size={14} />Current · observed {formatDate(model.freshness.observedAt)}</span>
-        <Link className={styles.sourceLink} href={model.source.href}>Return to Pipeline review<ExternalLink aria-hidden="true" size={13} /></Link>
+        <span><ShieldCheck aria-hidden="true" size={14} />{returnContext.returnContextLabel}</span>
+        <Link className={styles.sourceLink} href={withUnifiedCrmOpportunityReturn(model.source.href, returnHref)}>Open pipeline source review<ExternalLink aria-hidden="true" size={13} /></Link>
       </section>
 
       <section className={styles.summaryGrid} aria-label="Opportunity summary">
@@ -136,8 +141,8 @@ export function UnifiedCrmOpportunityDetail({ errorMessage, failureKind = "error
               state: "REVIEW"
             },
             {
-              label: "Return to pipeline",
-              description: "Go back to the held board and list review for the broader opportunity workflow.",
+              label: returnContext.returnShortLabel,
+              description: "Go back to the originating held CRM review context for the broader opportunity workflow.",
               href: returnHref,
               state: "REVIEW"
             }

@@ -3,9 +3,11 @@
 import { AlertTriangle, ArrowLeft, ExternalLink, RefreshCw, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 
+import { withUnifiedCrmOpportunityReturn } from "@/server/unified-crm/opportunity-review-return";
 import type { UnifiedCrmOpportunityReviewHubModel } from "@/server/unified-crm/opportunity-review-hub-contract";
 
 import styles from "./unified-crm-opportunity-review-hub.module.css";
+import { getUnifiedCrmOpportunityReturnContext } from "./unified-crm-opportunity-return-context";
 import { UnifiedCrmOpportunityWorkspaceOrientation } from "./unified-crm-opportunity-workspace-orientation";
 
 type FailureKind = "error" | "restricted" | "unavailable";
@@ -26,6 +28,7 @@ function formatDate(value: string) {
 }
 
 function StatePanel({ kind, message, returnHref }: { kind: FailureKind; message?: string; returnHref: string }) {
+  const returnContext = getUnifiedCrmOpportunityReturnContext(returnHref);
   const title = kind === "restricted"
     ? "Opportunity review hub isn’t available to you"
     : kind === "unavailable"
@@ -35,14 +38,14 @@ function StatePanel({ kind, message, returnHref }: { kind: FailureKind; message?
   const retryable = kind !== "restricted";
   return (
     <main className={styles.page}>
-      <Link className={styles.backLink} href={returnHref}><ArrowLeft aria-hidden="true" size={15} />Back to CRM Pipeline</Link>
+      <Link className={styles.backLink} href={returnHref}><ArrowLeft aria-hidden="true" size={15} />{returnContext.backLabel}</Link>
       <section className={styles.statePanel} role={retryable ? "alert" : "status"}>
         {retryable ? <AlertTriangle aria-hidden="true" size={28} /> : <ShieldCheck aria-hidden="true" size={28} />}
         <h1>{title}</h1>
         <p>{detail}</p>
         <div className={styles.stateActions}>
           {retryable ? <button onClick={() => window.location.reload()} type="button"><RefreshCw aria-hidden="true" size={14} />Retry</button> : null}
-          <Link href={returnHref}>Return to Pipeline review</Link>
+          <Link href={returnHref}>{returnContext.returnLabel}</Link>
         </div>
       </section>
     </main>
@@ -56,10 +59,11 @@ export function UnifiedCrmOpportunityReviewHub({
   returnHref
 }: Props) {
   if (!model) return <StatePanel kind={failureKind} message={errorMessage} returnHref={returnHref} />;
+  const returnContext = getUnifiedCrmOpportunityReturnContext(returnHref);
 
   return (
     <main className={styles.page}>
-      <Link className={styles.backLink} href={returnHref}><ArrowLeft aria-hidden="true" size={15} />Back to CRM Pipeline</Link>
+      <Link className={styles.backLink} href={returnHref}><ArrowLeft aria-hidden="true" size={15} />{returnContext.backLabel}</Link>
 
       <section className={styles.hero}>
         <span className={styles.eyebrow}>Opportunity review hub · review only</span>
@@ -68,6 +72,7 @@ export function UnifiedCrmOpportunityReviewHub({
         <div className={styles.heroMeta}>
           <span className={styles.reviewTag}>Observed {formatDate(model.source.observedAt)}</span>
           <span>{model.visibility === "organization" ? "Organization review" : "Owned review"}</span>
+          <span>{returnContext.returnContextLabel}</span>
           <span className={styles.heldTag}>{model.state}</span>
         </div>
       </section>
@@ -86,7 +91,7 @@ export function UnifiedCrmOpportunityReviewHub({
           </div>
           <div className={styles.linkGrid}>
             {section.links.map((link) => (
-              <Link className={styles.linkCard} href={link.href} key={link.id}>
+              <Link className={styles.linkCard} href={withUnifiedCrmOpportunityReturn(link.href, returnHref)} key={link.id}>
                 <header>
                   <strong>{link.label}</strong>
                   <span>{link.state}</span>
@@ -122,7 +127,13 @@ export function UnifiedCrmOpportunityReviewHub({
         <ul className={styles.list}>
           {model.nextUnlocks.map((item) => <li key={item}>{item}</li>)}
         </ul>
-        <Link className={styles.primaryLink} href={model.source.href}>Return to Pipeline review<ExternalLink aria-hidden="true" size={13} /></Link>
+        <div className={styles.heroMeta}>
+          <span>{returnContext.returnContextLabel}</span>
+        </div>
+        <Link className={styles.primaryLink} href={returnHref}>{returnContext.returnLabel}<ExternalLink aria-hidden="true" size={13} /></Link>
+        {returnHref !== model.source.href ? (
+          <Link className={styles.primaryLink} href={withUnifiedCrmOpportunityReturn(model.source.href, returnHref)}>Open pipeline source review<ExternalLink aria-hidden="true" size={13} /></Link>
+        ) : null}
       </section>
     </main>
   );

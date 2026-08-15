@@ -72,6 +72,19 @@ describe("Unified CRM opportunity review hub", () => {
     expect(markup).toContain('aria-label="Opportunity workspace orientation"');
   });
 
+  it("rewrites in-surface review links to preserve a safe customer-detail return chain", () => {
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmOpportunityReviewHub
+        model={hubFixture()}
+        returnHref="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26q%3DAlex"
+      />
+    );
+
+    expect(markup).toContain("/crm/opportunities/queue?crmReturnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dcustomers%2526q%253DAlex");
+    expect(markup).toContain("/crm/opportunities/guided?crmReturnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dcustomers%2526q%253DAlex");
+    expect(markup).not.toMatch(/crmReturnTo=[^"&]+&amp;crmReturnTo=/);
+  });
+
   it("renders a safe restricted state without a retry button", () => {
     const markup = renderToStaticMarkup(
       <UnifiedCrmOpportunityReviewHub
@@ -85,6 +98,34 @@ describe("Unified CRM opportunity review hub", () => {
     expect(markup).toContain("Return to Pipeline review");
     expect(markup).toContain('role="status"');
     expect(markup).not.toContain("Retry");
+  });
+
+  it("preserves one customer-detail origin on every model-provided review link", () => {
+    const customerReturn = "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26q%3DAlex";
+    const markup = renderToStaticMarkup(<UnifiedCrmOpportunityReviewHub model={hubFixture()} returnHref={customerReturn} />);
+    const hrefs = [...markup.matchAll(/href="([^"]+)"/g)].map((match) => match[1]!.replaceAll("&amp;", "&"));
+    const reviewLinks = hrefs.filter((href) => href.startsWith("/crm/opportunities/") || href.startsWith("/crm?view=pipeline"));
+
+    expect(markup).toContain(`href="${customerReturn}">Return to Customer 360`);
+    expect(reviewLinks.length).toBeGreaterThan(0);
+    for (const href of reviewLinks) {
+      const url = new URL(href, "http://crm.local");
+      expect(url.origin).toBe("http://crm.local");
+      expect(url.searchParams.getAll("crmReturnTo")).toEqual([customerReturn]);
+    }
+  });
+
+  it("keeps customer return language when the review started from Customer 360", () => {
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmOpportunityReviewHub
+        model={hubFixture()}
+        returnHref="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers"
+      />
+    );
+
+    expect(markup).toContain("Back to Customer 360");
+    expect(markup).toContain("Customer 360 return preserved");
+    expect(markup).toContain("Return to Customer 360");
   });
 
   it("renders an honest loading state", () => {

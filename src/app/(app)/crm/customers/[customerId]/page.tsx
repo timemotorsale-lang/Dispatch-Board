@@ -63,7 +63,11 @@ export default async function UnifiedCrmCustomerPage({ params, searchParams }: C
     requireUnifiedCrmCustomer360Access(user);
     model = await getUnifiedCrmCustomer360(user, route.customerId);
     try {
-      opportunityDiscovery = await getUnifiedCrmCustomerOpportunityDiscovery(user, route.customerId, { customer360: model });
+      opportunityDiscovery = await getUnifiedCrmCustomerOpportunityDiscovery(user, route.customerId, {
+        customer360: model,
+        customerHref: `/crm/customers/${encodeURIComponent(model.identity.id)}?crmReturnTo=${encodeURIComponent(returnHref)}`,
+        customerListHref: returnHref
+      });
     } catch {
       opportunityDiscovery = undefined;
     }

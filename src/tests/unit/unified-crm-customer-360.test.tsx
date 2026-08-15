@@ -94,6 +94,8 @@ describe("Unified CRM Customer 360", () => {
     expect(markup).toContain("••••1234"); expect(markup).toContain("a•••@e•••.com"); expect(markup).toContain("Current · observed");
     expect(markup).toContain("Review opportunity flow from this customer"); expect(markup).toContain("Open pipeline review");
     expect(markup).toContain('aria-labelledby="customer-opportunity-discovery-heading"'); expect(markup).toContain("Organization review"); expect(markup).toContain("held only");
+    expect(markup).toContain("Start with the pipeline review if you want the quickest path.");
+    expect(markup).toContain("Every opportunity review link keeps this customer as the safe return point");
     expect(markup).toContain('href="/crm?view=pipeline&amp;crmReturnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dcustomers"'); expect(markup).not.toMatch(/href="(?:https?:)?\/\//);
     expect(markup).toContain('href="/crm/opportunities?crmReturnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dcustomers"');
     expect(markup).toContain('href="/crm/opportunities/guided?crmReturnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dcustomers"');

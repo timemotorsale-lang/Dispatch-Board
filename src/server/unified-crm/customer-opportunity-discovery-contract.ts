@@ -18,7 +18,7 @@ export type UnifiedCrmCustomerOpportunityDiscoveryModel = {
     displayName: string;
     href: string;
     id: string;
-    listHref: "/crm?view=customers";
+    listHref: string;
   };
   generatedAt: string;
   opportunityDiscovery: UnifiedCrmOpportunityDiscoveryModel;

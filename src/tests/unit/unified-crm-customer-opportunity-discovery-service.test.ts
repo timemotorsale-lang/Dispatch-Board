@@ -32,6 +32,8 @@ describe("getUnifiedCrmCustomerOpportunityDiscovery", () => {
     const customer360 = customer360Fixture();
     const model = await getUnifiedCrmCustomerOpportunityDiscovery(null, "customer-1", {
       customer360,
+      customerHref: "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26q%3DAlex",
+      customerListHref: "/crm?view=customers&q=Alex",
       opportunityAccessContext: opportunityAccess(scope),
       now: () => new Date("2026-08-15T04:00:00.000Z")
     });
@@ -39,7 +41,12 @@ describe("getUnifiedCrmCustomerOpportunityDiscovery", () => {
     expect(model).toMatchObject({
       contractVersion: "ucrm.customer-opportunity-discovery/v1",
       state: "HELD_REVIEW",
-      customer: { id: customer360.identity.id, displayName: customer360.identity.displayName, listHref: "/crm?view=customers" }
+      customer: {
+        id: customer360.identity.id,
+        displayName: customer360.identity.displayName,
+        href: "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26q%3DAlex",
+        listHref: "/crm?view=customers&q=Alex"
+      }
     });
     expect(model.opportunityDiscovery.state).toBe("HELD_REVIEW");
     expect(model.opportunityDiscovery.visibility).toBe(scope);
@@ -51,7 +58,7 @@ describe("getUnifiedCrmCustomerOpportunityDiscovery", () => {
     ]);
     expect(model.contextPrompts.every((prompt) => prompt.state === "HELD_REVIEW")).toBe(true);
     expect(model.contextPrompts.every((prompt) => prompt.href.startsWith("/") && !prompt.href.startsWith("//"))).toBe(true);
-    expect(model.contextPrompts.every((prompt) => prompt.href.includes("crmReturnTo=%2Fcrm%2Fcustomers%2Fcustomer-1"))).toBe(true);
+    expect(model.contextPrompts.every((prompt) => prompt.href.includes("crmReturnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dcustomers%2526q%253DAlex"))).toBe(true);
     expect(model.opportunityDiscovery.panels.every((panel) =>
       panel.link.state === "HELD_REVIEW" && panel.link.href.startsWith("/") && !panel.link.href.startsWith("//")
     )).toBe(true);
@@ -70,5 +77,36 @@ describe("getUnifiedCrmCustomerOpportunityDiscovery", () => {
       scopeRepository: { listActiveOrganizationIds }
     })).rejects.toMatchObject({ code: "OPPORTUNITY_OFF" });
     expect(listActiveOrganizationIds).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the default customers return when custom continuity is not supplied", async () => {
+    const customer360 = customer360Fixture();
+    const model = await getUnifiedCrmCustomerOpportunityDiscovery(null, "customer-1", {
+      customer360,
+      opportunityAccessContext: opportunityAccess("organization"),
+      now: () => new Date("2026-08-15T04:00:00.000Z")
+    });
+
+    expect(model.customer.href).toBe("/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers");
+    expect(model.customer.listHref).toBe("/crm?view=customers");
+  });
+
+  it("preserves one exact filtered-list customer return across pipeline, hub, and guided prompts", async () => {
+    const customerListHref = "/crm?view=customers&q=Alex&status=all&owner=mine&cursor=safe";
+    const customerHref = `/crm/customers/customer-1?crmReturnTo=${encodeURIComponent(customerListHref)}`;
+    const model = await getUnifiedCrmCustomerOpportunityDiscovery(null, "customer-1", {
+      customer360: customer360Fixture(),
+      customerHref,
+      customerListHref,
+      opportunityAccessContext: opportunityAccess("organization")
+    });
+
+    expect(model.customer).toMatchObject({ href: customerHref, listHref: customerListHref });
+    expect(model.contextPrompts).toHaveLength(3);
+    for (const prompt of model.contextPrompts) {
+      const url = new URL(prompt.href, "http://crm.local");
+      expect(url.origin).toBe("http://crm.local");
+      expect(url.searchParams.getAll("crmReturnTo")).toEqual([customerHref]);
+    }
   });
 });

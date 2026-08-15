@@ -24,7 +24,11 @@ describe("Unified CRM customer detail page", () => {
   it("loads an exact customer and preserves only a safe CRM Customers return", async () => {
     const markup = renderToStaticMarkup(await CustomerPage({ params: Promise.resolve({ customerId: "customer-1" }), searchParams: Promise.resolve({ crmReturnTo: "/crm?view=customers&q=Alex&status=active&owner=all&cursor=safe" }) }));
     expect(mocks.getUnifiedCrmCustomer360).toHaveBeenCalledWith(actor, "customer-1");
-    expect(mocks.getUnifiedCrmCustomerOpportunityDiscovery).toHaveBeenCalledWith(actor, "customer-1", { customer360: expect.objectContaining({ identity: expect.objectContaining({ id: "customer-1" }) }) });
+    expect(mocks.getUnifiedCrmCustomerOpportunityDiscovery).toHaveBeenCalledWith(actor, "customer-1", {
+      customer360: expect.objectContaining({ identity: expect.objectContaining({ id: "customer-1" }) }),
+      customerHref: "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26q%3DAlex%26status%3Dactive%26owner%3Dall%26cursor%3Dsafe",
+      customerListHref: "/crm?view=customers&q=Alex&status=active&owner=all&cursor=safe"
+    });
     expect(markup).toContain('href="/crm?view=customers&amp;q=Alex&amp;status=active&amp;owner=all&amp;cursor=safe"');
     expect(markup).toContain("Review opportunity flow from this customer");
   });

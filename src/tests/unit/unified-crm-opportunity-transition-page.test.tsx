@@ -51,10 +51,29 @@ describe("Unified CRM opportunity transition page", () => {
     expect(markup).toContain('href="/crm?view=pipeline"');
   });
 
+  it("preserves a safe CRM customer-detail return when transition review is opened from customer context", async () => {
+    const markup = renderToStaticMarkup(await OpportunityTransitionPage({
+      params: Promise.resolve({ opportunityId: "review01" }),
+      searchParams: Promise.resolve({ crmReturnTo: "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26status%3Dactive" })
+    }));
+
+    expect(markup).toContain('href="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26status%3Dactive"');
+    expect(markup).toContain('href="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26status%3Dactive">Return to Customer 360');
+  });
+
   it("rejects unsafe return parameters", () => {
     for (const value of ["https://evil.example", "//evil.example", "/crm?view=customers", "/crm?view=pipeline&redirect=https://evil.example"]) {
       expect(safeCrmOpportunityTransitionReturn(value)).toBe("/crm?view=pipeline");
     }
+  });
+
+  it("accepts only safe CRM customer-detail return parameters", () => {
+    expect(safeCrmOpportunityTransitionReturn("/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26status%3Dactive")).toBe(
+      "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26status%3Dactive"
+    );
+    expect(safeCrmOpportunityTransitionReturn("/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dpipeline")).toBe(
+      "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers"
+    );
   });
 
   it("does not read transition review when the shell is off", async () => {

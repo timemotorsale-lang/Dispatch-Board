@@ -79,6 +79,20 @@ describe("Unified CRM opportunity queue review", () => {
     expect(markup).not.toContain("probability");
   });
 
+  it("rewrites queue item detail links to preserve a safe customer-detail return chain", () => {
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmOpportunityQueueReview
+        model={fixture()}
+        returnHref="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26owner%3Dmine"
+      />
+    );
+
+    expect(markup).toContain("/crm/opportunities/review01?crmReturnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dcustomers%2526owner%253Dmine");
+    expect(markup).toContain("/crm/opportunities/new?crmReturnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dcustomers%2526owner%253Dmine");
+    expect(markup).toContain("/crm/opportunities/review01/transition?crmReturnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dcustomers%2526owner%253Dmine");
+    expect(markup).not.toMatch(/crmReturnTo=[^"&]+&amp;crmReturnTo=/);
+  });
+
   it("renders safe unavailable and loading states", () => {
     const unavailable = renderToStaticMarkup(<UnifiedCrmOpportunityQueueReview failureKind="unavailable" returnHref="/crm?view=pipeline" />);
     const loading = renderToStaticMarkup(<UnifiedCrmOpportunityQueueReviewLoading />);
@@ -88,6 +102,19 @@ describe("Unified CRM opportunity queue review", () => {
     expect(unavailable).toContain("Retry");
     expect(loading).toContain("Loading opportunity queue review");
     expect(loading).toContain('aria-busy="true"');
+  });
+
+  it("preserves one customer-detail origin on every queue-to-review link", () => {
+    const customerReturn = "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26status%3Dactive";
+    const markup = renderToStaticMarkup(<UnifiedCrmOpportunityQueueReview model={fixture()} returnHref={customerReturn} />);
+    const hrefs = [...markup.matchAll(/href="([^"]+)"/g)].map((match) => match[1]!.replaceAll("&amp;", "&"));
+    const reviewLinks = hrefs.filter((href) => href.startsWith("/crm/opportunities/"));
+
+    expect(markup).toContain(`href="${customerReturn}">Return to Customer 360`);
+    expect(reviewLinks.length).toBeGreaterThan(0);
+    for (const href of reviewLinks) {
+      expect(new URL(href, "http://crm.local").searchParams.getAll("crmReturnTo")).toEqual([customerReturn]);
+    }
   });
 
   it("renders a non-retryable restricted state without a mutation control", () => {
@@ -101,5 +128,18 @@ describe("Unified CRM opportunity queue review", () => {
     expect(restricted).toContain("Opportunity queue review isn’t available to you");
     expect(restricted).toContain('role="status"');
     expect(restricted).not.toContain("<button");
+  });
+
+  it("keeps customer return continuity in queue review actions", () => {
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmOpportunityQueueReview
+        model={fixture()}
+        returnHref="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers"
+      />
+    );
+
+    expect(markup).toContain("Back to Customer 360");
+    expect(markup).toContain("Customer 360 return preserved");
+    expect(markup).toContain("Return to customer");
   });
 });

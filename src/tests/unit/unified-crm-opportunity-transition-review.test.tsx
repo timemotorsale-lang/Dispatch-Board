@@ -44,4 +44,17 @@ describe("Unified CRM opportunity transition review", () => {
     expect(loading).toContain("Loading opportunity transition review");
     expect(loading).toContain('aria-busy="true"');
   });
+
+  it("keeps customer return continuity in transition review", () => {
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmOpportunityTransitionReview
+        model={fixture()}
+        returnHref="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers"
+      />
+    );
+
+    expect(markup).toContain("Back to Customer 360");
+    expect(markup).toContain("Customer 360 return preserved");
+    expect(markup).toContain("Return to Customer 360");
+  });
 });

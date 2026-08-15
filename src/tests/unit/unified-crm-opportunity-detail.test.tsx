@@ -80,4 +80,17 @@ describe("Unified CRM opportunity detail", () => {
     expect(loading).toContain("Loading permitted opportunity detail");
     expect(loading).toContain('aria-busy="true"');
   });
+
+  it("keeps customer return continuity in detail review", () => {
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmOpportunityDetail
+        model={fixture()}
+        returnHref="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers"
+      />
+    );
+
+    expect(markup).toContain("Back to Customer 360");
+    expect(markup).toContain("Customer 360 return preserved");
+    expect(markup).toContain("Return to customer");
+  });
 });
