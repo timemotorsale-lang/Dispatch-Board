@@ -19,6 +19,7 @@ describe("Unified CRM opportunity create review service", () => {
     const model = await getUnifiedCrmOpportunityCreateReview(manager, {
       now: () => new Date("2026-08-14T19:15:00.000Z"),
       mode: "REVIEW",
+      shellMode: "REVIEW",
       scopeRepository: { async listActiveOrganizationIds() { return ["org-a"]; } }
     });
 
@@ -28,5 +29,17 @@ describe("Unified CRM opportunity create review service", () => {
       createAction: { state: "HELD" }
     });
     expect(model.requiredInputs).toHaveLength(4);
+  });
+
+  it("fails closed when the CRM shell is off even if opportunity review mode is requested", async () => {
+    const listActiveOrganizationIds = vi.fn();
+
+    await expect(getUnifiedCrmOpportunityCreateReview(manager, {
+      mode: "REVIEW",
+      nodeEnv: "production",
+      scopeRepository: { listActiveOrganizationIds }
+    })).rejects.toMatchObject({ code: "OPPORTUNITY_OFF" });
+
+    expect(listActiveOrganizationIds).not.toHaveBeenCalled();
   });
 });

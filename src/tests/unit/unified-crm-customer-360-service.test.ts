@@ -234,7 +234,12 @@ describe("Unified CRM Customer 360 service", () => {
         { type: "EMAIL", maskedValue: "m•••@e•••.com", source: "CONTACT_POINT" }
       ],
       notes: [{ id: "note-internal", body: "Customer prefers evening calls.", visibility: "INTERNAL", authorName: "CRM Manager", createdAt: "2026-08-14T10:00:00.000Z" }],
-      permissions: { canCreateRestrictedNote: false },
+      permissions: { canManageNextAction: true, canCreateRestrictedNote: false },
+      relationship: {
+        lastInteractionAt: "2026-08-13T12:00:00.000Z",
+        nextActionAt: "2026-08-15T12:00:00.000Z",
+        nextActionState: "SCHEDULED"
+      },
       vehicles: [{ id: "vehicle-a", sourceHref: "/vehicles/360/vehicle-a" }],
       appointments: [{ id: "appointment-a", sourceHref: "/appointments" }],
       timeline: {
@@ -281,6 +286,46 @@ describe("Unified CRM Customer 360 service", () => {
       { type: "PHONE", maskedValue: "••••0000", isPrimary: true, source: "CUSTOMER_LEGACY" },
       { type: "EMAIL", maskedValue: "l•••@e•••.test", isPrimary: true, source: "CUSTOMER_LEGACY" }
     ]);
+  });
+
+  it("classifies next action timing as overdue or due today from the observed customer context", async () => {
+    const overdue = await getUnifiedCrmCustomer360(manager, "customer-a", dependencies(record({
+      nextActionAt: new Date("2026-08-14T10:00:00.000Z")
+    })).deps);
+    expect(overdue.relationship).toMatchObject({
+      nextActionAt: "2026-08-14T10:00:00.000Z",
+      nextActionState: "OVERDUE"
+    });
+
+    const dueToday = await getUnifiedCrmCustomer360(manager, "customer-a", dependencies(record({
+      nextActionAt: new Date("2026-08-14T18:00:00.000Z")
+    })).deps);
+    expect(dueToday.relationship).toMatchObject({
+      nextActionAt: "2026-08-14T18:00:00.000Z",
+      nextActionState: "DUE_TODAY"
+    });
+
+    const none = await getUnifiedCrmCustomer360(manager, "customer-a", dependencies(record({
+      nextActionAt: null
+    })).deps);
+    expect(none.relationship).toMatchObject({
+      nextActionAt: null,
+      nextActionState: "NONE"
+    });
+  });
+
+  it("turns next-action updates off in the read model when the command mode is off or no owner exists", async () => {
+    const commandOff = await getUnifiedCrmCustomer360(manager, "customer-a", {
+      ...dependencies(record()).deps,
+      commandMode: "OFF"
+    });
+    expect(commandOff.permissions.canManageNextAction).toBe(false);
+
+    const noOwner = await getUnifiedCrmCustomer360(manager, "customer-a", dependencies(record({
+      ownerUserId: null,
+      ownerUser: null
+    })).deps);
+    expect(noOwner.permissions.canManageNextAction).toBe(false);
   });
 
   it("passes owner scope for Sales", async () => {

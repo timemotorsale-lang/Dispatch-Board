@@ -1,22 +1,20 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
-import { requireUnifiedCrmCustomerReadPolicy } from "@/server/policies/unified-crm-customer-read";
 import {
   createUnifiedCrmWorkQueueRepository,
   type UnifiedCrmWorkAppointmentRecord,
   type UnifiedCrmWorkCustomerRecord,
   type UnifiedCrmWorkConcernCaseRecord,
   type UnifiedCrmWorkLeadRecord,
-  type UnifiedCrmWorkQueueRepository,
-  type UnifiedCrmWorkTaskRecord
+  type UnifiedCrmWorkTaskRecord,
+  type UnifiedCrmWorkQueueRepository
 } from "@/server/repositories/unified-crm-work-queue-repository";
-import { resolveUnifiedCrmCustomerReadMode } from "@/server/services/unified-crm-customer-read-service";
+import { requireUnifiedCrmWorkAccess } from "@/server/unified-crm/work-queue-access";
 import {
   UNIFIED_CRM_WORK_QUEUE_CONTRACT_VERSION,
   UnifiedCrmWorkReadError,
   type UnifiedCrmWorkQueueDueState,
   type UnifiedCrmWorkQueueItem,
   type UnifiedCrmWorkQueueReadModel,
-  type UnifiedCrmWorkReadMode,
   type UnifiedCrmWorkTodayItem
 } from "@/server/unified-crm/work-queue-contract";
 import { buildUnifiedCrmCustomerReturn } from "@/server/unified-crm/opportunity-review-return";
@@ -26,6 +24,8 @@ type UnifiedCrmWorkQueueDependencies = {
   nodeEnv?: string | undefined;
   readMode?: string | undefined;
   repository?: UnifiedCrmWorkQueueRepository;
+  shellMode?: string | undefined;
+  workMode?: string | undefined;
 };
 
 type QueueCandidate = UnifiedCrmWorkQueueItem & {
@@ -93,11 +93,6 @@ function reasonForCase(customerCase: UnifiedCrmWorkConcernCaseRecord, state: Uni
   return "This case still needs follow-through.";
 }
 
-function customerLabel(value: { displayName: string; customerNumber: string } | null | undefined, fallback: string | null | undefined) {
-  if (value) return `${value.displayName} · ${value.customerNumber}`;
-  return fallback?.trim() || "Customer context not recorded";
-}
-
 function customerHref(value: { id: string } | null | undefined) {
   const normalizedId = value?.id?.trim();
   if (!normalizedId || normalizedId.length > 128) return undefined;
@@ -105,11 +100,70 @@ function customerHref(value: { id: string } | null | undefined) {
   return href.startsWith("/crm/customers/") ? href : undefined;
 }
 
+function canExposeLinkedCustomer(
+  value: {
+    archivedAt: Date | null;
+    id: string;
+    mergedIntoCustomerId: string | null;
+    organizationId: string;
+    ownerUserId: string | null;
+  } | null | undefined,
+  input: {
+    organizationId: string;
+    recordScope: { kind: "ORGANIZATION" } | { kind: "OWNER"; ownerUserId: string };
+  }
+) {
+  if (!value) return false;
+  if (value.archivedAt || value.mergedIntoCustomerId) return false;
+  if (value.organizationId !== input.organizationId) return false;
+  if (input.recordScope.kind === "OWNER" && value.ownerUserId !== input.recordScope.ownerUserId) return false;
+  return true;
+}
+
+function linkedCustomerLabel(
+  value: {
+    archivedAt: Date | null;
+    customerNumber: string;
+    displayName: string;
+    id: string;
+    mergedIntoCustomerId: string | null;
+    organizationId: string;
+    ownerUserId: string | null;
+  } | null | undefined,
+  fallback: string | null | undefined,
+  input: {
+    organizationId: string;
+    recordScope: { kind: "ORGANIZATION" } | { kind: "OWNER"; ownerUserId: string };
+  }
+) {
+  if (canExposeLinkedCustomer(value, input)) {
+    return `${value!.displayName} · ${value!.customerNumber}`;
+  }
+  return fallback?.trim() || "Customer context not recorded";
+}
+
+function linkedCustomerHref(
+  value: {
+    archivedAt: Date | null;
+    id: string;
+    mergedIntoCustomerId: string | null;
+    organizationId: string;
+    ownerUserId: string | null;
+  } | null | undefined,
+  input: {
+    organizationId: string;
+    recordScope: { kind: "ORGANIZATION" } | { kind: "OWNER"; ownerUserId: string };
+  }
+) {
+  return canExposeLinkedCustomer(value, input) ? customerHref(value) : undefined;
+}
+
 function rankSource(kind: QueueCandidate["kind"]) {
   if (kind === "task") return 0;
   if (kind === "case") return 1;
   if (kind === "lead") return 2;
-  return 3;
+  if (kind === "appointment") return 3;
+  return 4;
 }
 
 function rankState(state: UnifiedCrmWorkQueueDueState) {
@@ -119,20 +173,39 @@ function rankState(state: UnifiedCrmWorkQueueDueState) {
   return 3;
 }
 
-function taskCandidate(task: UnifiedCrmWorkTaskRecord, now: Date): QueueCandidate {
+function appointmentCustomer(
+  appointment: UnifiedCrmWorkAppointmentRecord,
+  input: {
+    organizationId: string;
+    recordScope: { kind: "ORGANIZATION" } | { kind: "OWNER"; ownerUserId: string };
+  }
+) {
+  const participant = appointment.participants[0];
+  if (!participant) return "Customer not linked";
+  return linkedCustomerLabel(participant.customer, participant.displayNameSnapshot, input);
+}
+
+function taskCandidate(
+  task: UnifiedCrmWorkTaskRecord,
+  now: Date,
+  input: {
+    organizationId: string;
+    recordScope: { kind: "ORGANIZATION" } | { kind: "OWNER"; ownerUserId: string };
+  }
+): QueueCandidate {
   const due = task.dueAt;
   const state = dueState(due, now);
   return {
     id: task.id,
     kind: "task",
     title: task.title,
-    customerLabel: customerLabel(task.customer, task.customerReference),
-    customerHref: customerHref(task.customer),
+    customerLabel: linkedCustomerLabel(task.customer, task.customerReference, input),
+    customerHref: linkedCustomerHref(task.customer, input),
     ownerName: task.assignedUser.name,
     sourceLabel: "Tasks",
     sourceHref: `/tasks/${encodeURIComponent(task.id)}`,
     primaryActionLabel: task.status === "READY_FOR_REVIEW" ? "Review task" : "Open task",
-    dueAt: due.toISOString(),
+    dueAt: due?.toISOString() ?? null,
     dueLabel: dueLabel(due, state),
     dueState: state,
     stageLabel: label(task.status),
@@ -149,22 +222,22 @@ function taskCandidate(task: UnifiedCrmWorkTaskRecord, now: Date): QueueCandidat
   };
 }
 
-function appointmentCustomer(appointment: UnifiedCrmWorkAppointmentRecord) {
-  const participant = appointment.participants[0];
-  if (!participant) return "Customer not linked";
-  if (participant.customer) return `${participant.customer.displayName} · ${participant.customer.customerNumber}`;
-  return participant.displayNameSnapshot;
-}
-
-function appointmentCandidate(appointment: UnifiedCrmWorkAppointmentRecord, now: Date): QueueCandidate {
+function appointmentCandidate(
+  appointment: UnifiedCrmWorkAppointmentRecord,
+  now: Date,
+  input: {
+    organizationId: string;
+    recordScope: { kind: "ORGANIZATION" } | { kind: "OWNER"; ownerUserId: string };
+  }
+): QueueCandidate {
   const due = appointment.startsAt;
   const state = dueState(due, now);
   return {
     id: appointment.id,
     kind: "appointment",
     title: appointment.title,
-    customerLabel: appointmentCustomer(appointment),
-    customerHref: customerHref(appointment.participants[0]?.customer),
+    customerLabel: appointmentCustomer(appointment, input),
+    customerHref: linkedCustomerHref(appointment.participants[0]?.customer, input),
     ownerName: appointment.ownerUser?.name ?? "Unassigned",
     sourceLabel: "Appointments",
     sourceHref: `/appointments?view=board&appointment=${encodeURIComponent(appointment.appointmentNumber)}`,
@@ -186,15 +259,22 @@ function appointmentCandidate(appointment: UnifiedCrmWorkAppointmentRecord, now:
   };
 }
 
-function leadCandidate(lead: UnifiedCrmWorkLeadRecord, now: Date): QueueCandidate {
+function leadCandidate(
+  lead: UnifiedCrmWorkLeadRecord,
+  now: Date,
+  input: {
+    organizationId: string;
+    recordScope: { kind: "ORGANIZATION" } | { kind: "OWNER"; ownerUserId: string };
+  }
+): QueueCandidate {
   const due = lead.nextActionAt;
   const state = dueState(due, now);
   return {
     id: lead.id,
     kind: "lead",
     title: `Lead ${lead.leadNumber}`,
-    customerLabel: customerLabel(lead.customer, null),
-    customerHref: customerHref(lead.customer),
+    customerLabel: linkedCustomerLabel(lead.customer, null, input),
+    customerHref: linkedCustomerHref(lead.customer, input),
     ownerName: lead.ownerUser.name,
     sourceLabel: "Sales",
     sourceHref: "/sales",
@@ -216,15 +296,22 @@ function leadCandidate(lead: UnifiedCrmWorkLeadRecord, now: Date): QueueCandidat
   };
 }
 
-function caseCandidate(customerCase: UnifiedCrmWorkConcernCaseRecord, now: Date): QueueCandidate {
+function caseCandidate(
+  customerCase: UnifiedCrmWorkConcernCaseRecord,
+  now: Date,
+  input: {
+    organizationId: string;
+    recordScope: { kind: "ORGANIZATION" } | { kind: "OWNER"; ownerUserId: string };
+  }
+): QueueCandidate {
   const due = customerCase.resolutionDueAt ?? customerCase.dueAt;
   const state = dueState(due, now);
   return {
     id: customerCase.id,
     kind: "case",
-    title: `${customerCase.concernNumber} · ${customerCase.title}`,
-    customerLabel: customerLabel(customerCase.customer, null),
-    customerHref: customerHref(customerCase.customer),
+    title: `Case ${customerCase.concernNumber}`,
+    customerLabel: linkedCustomerLabel(customerCase.customer, null, input),
+    customerHref: linkedCustomerHref(customerCase.customer, input),
     ownerName: customerCase.assignedOwner?.name ?? "Unassigned",
     sourceLabel: "Customer resolutions",
     sourceHref: `/customers/resolutions?caseId=${encodeURIComponent(customerCase.concernNumber)}`,
@@ -293,44 +380,38 @@ function sortCandidates(left: QueueCandidate, right: QueueCandidate) {
   return left.id.localeCompare(right.id);
 }
 
-function todayItems(appointments: UnifiedCrmWorkAppointmentRecord[]): UnifiedCrmWorkTodayItem[] {
-  return appointments.slice(0, 4).map((appointment) => ({
-    id: appointment.id,
-    title: appointment.title,
-    customerLabel: appointmentCustomer(appointment),
-    customerHref: customerHref(appointment.participants[0]?.customer),
-    detail: `${label(appointment.bookingStatus)} · ${label(appointment.confirmationStatus)}`,
-    startsAt: appointment.startsAt?.toISOString() ?? null,
-    sourceHref: `/appointments?view=board&appointment=${encodeURIComponent(appointment.appointmentNumber)}`
-  }));
+function todayItems(
+  appointments: UnifiedCrmWorkAppointmentRecord[],
+  now: Date,
+  input: {
+    organizationId: string;
+    recordScope: { kind: "ORGANIZATION" } | { kind: "OWNER"; ownerUserId: string };
+  }
+): UnifiedCrmWorkTodayItem[] {
+  return appointments
+    .filter((appointment) => appointment.startsAt && sameDay(appointment.startsAt, now))
+    .slice(0, 4)
+    .map((appointment) => ({
+      id: appointment.id,
+      title: appointment.title,
+      customerLabel: appointmentCustomer(appointment, input),
+      customerHref: linkedCustomerHref(appointment.participants[0]?.customer, input),
+      detail: `${label(appointment.bookingStatus)} · ${label(appointment.confirmationStatus)}`,
+      startsAt: appointment.startsAt?.toISOString() ?? null,
+      sourceHref: `/appointments?view=board&appointment=${encodeURIComponent(appointment.appointmentNumber)}`
+    }));
 }
 
 export async function getUnifiedCrmWorkQueue(
   actor: AuthenticatedUser | null,
   dependencies: UnifiedCrmWorkQueueDependencies = {}
 ): Promise<UnifiedCrmWorkQueueReadModel> {
-  const readMode = resolveUnifiedCrmCustomerReadMode({
+  const access = requireUnifiedCrmWorkAccess(actor, {
     nodeEnv: dependencies.nodeEnv ?? process.env.NODE_ENV,
-    readMode: dependencies.readMode ?? process.env.UNIFIED_CRM_READ_MODE
-  }) as UnifiedCrmWorkReadMode;
-
-  if (readMode !== "REVIEW") {
-    throw new UnifiedCrmWorkReadError("CRM_WORK_OFF", "CRM work is not available.");
-  }
-
-  const recordScope = (() => {
-    try {
-      return requireUnifiedCrmCustomerReadPolicy(actor);
-    } catch (error) {
-      if (error instanceof Error && "code" in error) {
-        const code = String((error as { code?: string }).code);
-        if (code === "AUTHENTICATION_REQUIRED") {
-          throw new UnifiedCrmWorkReadError("AUTHENTICATION_REQUIRED", "CRM work is not available for this viewer.");
-        }
-      }
-      throw new UnifiedCrmWorkReadError("CRM_WORK_NOT_AUTHORIZED", "CRM work is not available for this viewer.");
-    }
-  })();
+    readMode: dependencies.readMode ?? process.env.UNIFIED_CRM_READ_MODE,
+    shellMode: dependencies.shellMode ?? process.env.UNIFIED_CRM_SHELL_MODE,
+    workMode: dependencies.workMode ?? process.env.UNIFIED_CRM_WORK_MODE
+  });
 
   const now = dependencies.now?.() ?? new Date();
   const repository = dependencies.repository ?? createUnifiedCrmWorkQueueRepository();
@@ -344,19 +425,20 @@ export async function getUnifiedCrmWorkQueue(
     }
 
     const organizationId = organizationIds[0];
+    const queueScope = { organizationId, recordScope: access.recordScope };
     const [tasks, appointments, leads, concernCases, customers] = await Promise.all([
       repository.listTasks(actor!.id, SOURCE_LIMIT),
-      repository.listAppointments({ organizationId, recordScope, viewerUserId: actor!.id, limit: SOURCE_LIMIT }),
-      repository.listLeads({ organizationId, recordScope, limit: SOURCE_LIMIT }),
-      repository.listConcernCases({ organizationId, recordScope, limit: SOURCE_LIMIT }),
-      repository.listCustomersWithNextAction({ organizationId, recordScope, limit: SOURCE_LIMIT })
+      repository.listAppointments({ organizationId, recordScope: access.recordScope, viewerUserId: actor!.id, limit: SOURCE_LIMIT }),
+      repository.listLeads({ organizationId, recordScope: access.recordScope, limit: SOURCE_LIMIT }),
+      repository.listConcernCases({ organizationId, recordScope: access.recordScope, limit: SOURCE_LIMIT }),
+      repository.listCustomersWithNextAction({ organizationId, recordScope: access.recordScope, limit: SOURCE_LIMIT })
     ]);
 
     const items = [
-      ...tasks.map((task) => taskCandidate(task, now)),
-      ...appointments.map((appointment) => appointmentCandidate(appointment, now)),
-      ...leads.map((lead) => leadCandidate(lead, now)),
-      ...concernCases.map((customerCase) => caseCandidate(customerCase, now)),
+      ...tasks.map((task) => taskCandidate(task, now, queueScope)),
+      ...appointments.map((appointment) => appointmentCandidate(appointment, now, queueScope)),
+      ...leads.map((lead) => leadCandidate(lead, now, queueScope)),
+      ...concernCases.map((customerCase) => caseCandidate(customerCase, now, queueScope)),
       ...customers.map((customer) => customerCandidate(customer, now))
     ].sort(sortCandidates);
 
@@ -368,11 +450,16 @@ export async function getUnifiedCrmWorkQueue(
     return {
       contractVersion: UNIFIED_CRM_WORK_QUEUE_CONTRACT_VERSION,
       state: items.length ? "READY" : "EMPTY",
-      visibility: recordScope.kind === "ORGANIZATION" ? "organization" : "owned",
+      visibility: access.recordScope.kind === "ORGANIZATION" ? "organization" : "owned",
       generatedAt: observedAt,
+      explanation: {
+        ordering: "Items are ordered overdue first, then due today, upcoming, and waiting. Ties break by due time, source class, latest update, and record id.",
+        freshness: `Freshness observed ${observedAt} from live read-only source records.`,
+        drillThrough: "Open the governed source record first. Open Customer 360 only when a safe linked customer route exists."
+      },
       source: {
-        authority: "UNIFIED_CRM",
-        label: "CRM Work",
+        authority: "AGGREGATED_CRM_WORK",
+        label: "CRM Work projection",
         href: "/crm?view=work",
         readMode: "LIVE_AGGREGATED",
         observedAt
@@ -411,6 +498,9 @@ export async function getUnifiedCrmWorkQueue(
         appointments
           .filter((appointment) => appointment.startsAt)
           .sort((left, right) => (left.startsAt?.getTime() ?? 0) - (right.startsAt?.getTime() ?? 0))
+        ,
+        now,
+        queueScope
       )
     };
   } catch (error) {

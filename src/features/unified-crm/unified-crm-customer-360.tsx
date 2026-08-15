@@ -53,6 +53,26 @@ function label(value: string) {
   return value.replaceAll("_", " ").toLowerCase().replace(/(^|\s)\S/g, (letter) => letter.toUpperCase());
 }
 
+function nextActionEyebrow(state: UnifiedCrmCustomer360ReadModel["relationship"]["nextActionState"]) {
+  if (state === "OVERDUE") return "Next relationship action · overdue";
+  if (state === "DUE_TODAY") return "Next relationship action · due today";
+  if (state === "SCHEDULED") return "Next relationship action · scheduled";
+  return "Next relationship action";
+}
+
+function nextActionGuidance(model: UnifiedCrmCustomer360ReadModel) {
+  if (model.relationship.nextActionState === "OVERDUE") {
+    return "This follow-up is overdue. Renew it with a new due time or complete it if the work is already done.";
+  }
+  if (model.relationship.nextActionState === "DUE_TODAY") {
+    return "This follow-up is due today. Keep the due time current if the customer plan changes.";
+  }
+  if (model.relationship.nextActionState === "SCHEDULED") {
+    return "This dated follow-up is on track. Reschedule it only when the customer plan truly changes.";
+  }
+  return "No next action is scheduled. Set a dated follow-up to renew customer continuity without leaving Customer 360.";
+}
+
 function timelineKindLabel(value: UnifiedCrmCustomer360ReadModel["timeline"]["items"][number]["kind"]) {
   switch (value) {
     case "interaction":
@@ -203,6 +223,60 @@ function OpportunityDiscoveryPrompt({
       <strong>{title}</strong>
       <small>{detail}</small>
     </Link>
+  );
+}
+
+function QuickActions({
+  customerSourceHref,
+  nextActionAvailable,
+  opportunityDiscovery,
+  taskBridgeHref
+}: {
+  customerSourceHref: string;
+  nextActionAvailable: boolean;
+  opportunityDiscovery?: UnifiedCrmCustomerOpportunityDiscoveryModel;
+  taskBridgeHref: string;
+}) {
+  const primaryOpportunityAction = opportunityDiscovery?.opportunityDiscovery.panels[0];
+
+  return (
+    <section aria-labelledby="customer-quick-actions-heading" className={styles.quickActionsCard}>
+      <header>
+        <div>
+          <span className={styles.eyebrow}>Ready actions</span>
+          <h2 id="customer-quick-actions-heading">Do the next safe thing in one click</h2>
+        </div>
+        <small>Live links only · held actions stay labeled</small>
+      </header>
+      <div className={styles.quickActionsGrid}>
+        <Link className={`${styles.quickActionLink} ${styles.quickActionPrimary}`} href={customerSourceHref}>
+          <strong>Open existing customer record</strong>
+          <small>Go straight to the governed source-of-truth record.</small>
+        </Link>
+        <Link className={styles.quickActionLink} href="#interaction-form-heading">
+          <strong>Log manual outcome</strong>
+          <small>Jump to the live touchpoint form on this page.</small>
+        </Link>
+        <Link className={styles.quickActionLink} href={nextActionAvailable ? "#next-action-form-heading" : taskBridgeHref}>
+          <strong>{nextActionAvailable ? "Update next action" : "Create governed task"}</strong>
+          <small>{nextActionAvailable ? "Jump to the live follow-up form without leaving Customer 360." : "Next-action changes are unavailable here, so continue in the governed task workflow."}</small>
+        </Link>
+        <Link className={styles.quickActionLink} href="#note-form-heading">
+          <strong>Add internal note</strong>
+          <small>Jump to the live team-note form on this page.</small>
+        </Link>
+        <Link className={styles.quickActionLink} href={taskBridgeHref}>
+          <strong>Create governed task</strong>
+          <small>Hand off the follow-up into the existing task workflow.</small>
+        </Link>
+        {primaryOpportunityAction ? (
+          <Link className={styles.quickActionLink} href={withUnifiedCrmOpportunityReturn(primaryOpportunityAction.link.href, opportunityDiscovery.customer.href)}>
+            <strong>{primaryOpportunityAction.link.label}</strong>
+            <small>{primaryOpportunityAction.link.description} Held review only.</small>
+          </Link>
+        ) : null}
+      </div>
+    </section>
   );
 }
 
@@ -385,11 +459,29 @@ export function UnifiedCrmCustomer360({ errorMessage, failureKind = "error", mod
         <div className={styles.identityMeta}><Status value={model.identity.status} /><span><small>Owner</small><strong>{model.owner?.name ?? "Unassigned"}</strong></span></div>
       </section>
       <section className={styles.trustBar} aria-label="Customer source and freshness"><span><ShieldCheck aria-hidden="true" size={15} /><strong>{model.source.label}</strong> · canonical identity</span><span><ShieldCheck aria-hidden="true" size={14} />Current · observed {formatDate(model.freshness.observedAt, "time unavailable")}</span><span><ShieldCheck aria-hidden="true" size={14} />{returnContext.continuityLabel}</span><Link href={model.source.href}>Open existing customer record<ExternalLink aria-hidden="true" size={13} /></Link></section>
+      <QuickActions
+        customerSourceHref={model.source.href}
+        nextActionAvailable={model.permissions.canManageNextAction}
+        opportunityDiscovery={opportunityDiscovery}
+        taskBridgeHref={taskBridgeHref}
+      />
       <section className={styles.priorityGrid}>
-        <article className={styles.nextAction}><span className={styles.eyebrow}>Next relationship action</span><h2>{model.relationship.nextActionAt ? formatDate(model.relationship.nextActionAt, "Not scheduled") : "No next action scheduled"}</h2><p>Last interaction: {formatDate(model.relationship.lastInteractionAt, "No interaction recorded")}</p><small>This overview is read only. Continue in the appropriate source workflow to make a change.</small><Link className={styles.secondaryActionLink} href={taskBridgeHref}>Create governed task<ExternalLink aria-hidden="true" size={13} /></Link></article>
+        <article className={styles.nextAction}><span className={styles.eyebrow}>{nextActionEyebrow(model.relationship.nextActionState)}</span><h2>{model.relationship.nextActionAt ? formatDate(model.relationship.nextActionAt, "Not scheduled") : "No next action scheduled"}</h2><p>Last interaction: {formatDate(model.relationship.lastInteractionAt, "No interaction recorded")}</p><p>{nextActionGuidance(model)}</p><small>This overview is read only. Continue in the appropriate source workflow to make a change.</small><Link className={styles.secondaryActionLink} href={taskBridgeHref}>Create governed task<ExternalLink aria-hidden="true" size={13} /></Link></article>
         <article className={styles.contactCard}><span className={styles.eyebrow}>Masked contact</span><h2>{primaryContact?.maskedValue ?? "No contact recorded"}</h2>{otherContacts.map((item) => <p key={`${item.type}-${item.maskedValue}`}>{label(item.type)} · {item.maskedValue}</p>)}<dl><div><dt>Preferred method</dt><dd>{model.preferences.preferredContactMethod ? label(model.preferences.preferredContactMethod) : "Not recorded"}</dd></div><div><dt>Preferred time</dt><dd>{model.preferences.preferredContactTime ?? "Not recorded"}</dd></div><div><dt>Language</dt><dd>{model.preferences.languageCode ?? "Not recorded"}</dd></div></dl></article>
       </section>
-      <UnifiedCrmCustomerNextActionForm currentNextActionAt={model.relationship.nextActionAt} customerId={model.identity.id} />
+      {model.permissions.canManageNextAction ? (
+        <UnifiedCrmCustomerNextActionForm currentNextActionAt={model.relationship.nextActionAt} currentNextActionState={model.relationship.nextActionState} customerId={model.identity.id} />
+      ) : (
+        <section className={styles.interactionCard} aria-labelledby="next-action-form-heading">
+          <header className={styles.interactionHeader}>
+            <div>
+              <span className={styles.eyebrow}>Next action</span>
+              <h2 id="next-action-form-heading">Keep the customer follow-up current</h2>
+              <p>CRM next-action updates are unavailable in this environment or for this customer record right now.</p>
+            </div>
+          </header>
+        </section>
+      )}
       <UnifiedCrmCustomerInteractionForm customerId={model.identity.id} />
       <UnifiedCrmCustomerNoteForm allowRestricted={model.permissions.canCreateRestrictedNote} customerId={model.identity.id} />
       <RelationshipSummary model={model} />

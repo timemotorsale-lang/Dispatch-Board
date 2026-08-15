@@ -17,6 +17,7 @@ import {
   requireUnifiedCrmCustomer360Access,
   type UnifiedCrmCustomer360AccessOptions
 } from "@/server/unified-crm/customer-360-access";
+import { resolveUnifiedCrmCustomerNextActionMode } from "@/server/unified-crm/customer-next-action-access";
 import {
   UNIFIED_CRM_CUSTOMER_360_CONTRACT_VERSION,
   UnifiedCrmCustomer360Error,
@@ -31,6 +32,7 @@ import { buildUnifiedCrmOpportunityReviewHref } from "@/server/unified-crm/oppor
 import { normalizeUnifiedCrmOpportunityId } from "@/server/validation/unified-crm-opportunity";
 
 type UnifiedCrmCustomer360Dependencies = UnifiedCrmCustomer360AccessOptions & {
+  commandMode?: unknown;
   now?: () => Date;
   repository?: UnifiedCrmCustomer360Repository;
   scopeRepository?: Pick<UnifiedCrmCustomerReadRepository, "listActiveOrganizationIds">;
@@ -117,6 +119,18 @@ function notes(record: UnifiedCrmCustomer360Record, canViewRestricted: boolean):
 
 function label(value: string) {
   return value.replaceAll("_", " ").toLowerCase().replace(/(^|\s)\S/g, (letter) => letter.toUpperCase());
+}
+
+function nextActionState(nextActionAt: Date | null, now: Date): UnifiedCrmCustomer360ReadModel["relationship"]["nextActionState"] {
+  if (!nextActionAt) return "NONE";
+  if (nextActionAt.getTime() < now.getTime()) return "OVERDUE";
+
+  const sameCalendarDay =
+    nextActionAt.getUTCFullYear() === now.getUTCFullYear() &&
+    nextActionAt.getUTCMonth() === now.getUTCMonth() &&
+    nextActionAt.getUTCDate() === now.getUTCDate();
+
+  return sameCalendarDay ? "DUE_TODAY" : "SCHEDULED";
 }
 
 function opportunityLenses(record: UnifiedCrmCustomer360Record): UnifiedCrmCustomer360OpportunityLens[] {
@@ -317,6 +331,10 @@ export async function getUnifiedCrmCustomer360(
 
   const observedAt = now.toISOString();
   const canViewRestricted = evaluateUnifiedCrmCapability(actor, "crm.sensitive.view").allowed;
+  const canManageNextAction = resolveUnifiedCrmCustomerNextActionMode({
+    commandMode: dependencies.commandMode ?? process.env.UNIFIED_CRM_CUSTOMER_NEXT_ACTION_MODE,
+    nodeEnv: dependencies.nodeEnv ?? process.env.NODE_ENV
+  }) === "REVIEW" && Boolean(record.ownerUser?.id);
   const timelineView = timelineItems({ model: timeline });
   const newestTimelineItem = timelineView[0]?.occurredAt ?? null;
 
@@ -348,11 +366,13 @@ export async function getUnifiedCrmCustomer360(
       languageCode: record.languageCode
     },
     permissions: {
+      canManageNextAction,
       canCreateRestrictedNote: canViewRestricted
     },
     relationship: {
       lastInteractionAt: record.lastInteractionAt?.toISOString() ?? null,
-      nextActionAt: record.nextActionAt?.toISOString() ?? null
+      nextActionAt: record.nextActionAt?.toISOString() ?? null,
+      nextActionState: nextActionState(record.nextActionAt, now)
     },
     vehicles: record.vehicleRelationships.map(({ vehicle, ...relationship }) => ({
       id: vehicle.id,

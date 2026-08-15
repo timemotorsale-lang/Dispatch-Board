@@ -91,6 +91,19 @@ describe("Unified CRM Customer 360", () => {
   it("prioritizes read-only identity, next action, masked contact, provenance, and source lenses", () => {
     const markup = renderToStaticMarkup(<UnifiedCrmCustomer360 model={customer360Fixture()} opportunityDiscovery={opportunityDiscovery} returnHref="/crm?view=customers&amp;q=Alex" />);
     expect(markup).toContain("Alex Morgan"); expect(markup).toContain("Taylor B."); expect(markup).toContain("Next relationship action");
+    expect(markup).toContain("Do the next safe thing in one click");
+    expect(markup).toContain("Live links only · held actions stay labeled");
+    expect(markup).toContain("Log manual outcome");
+    expect(markup).toContain("Update next action");
+    expect(markup).toContain("Add internal note");
+    expect(markup).toContain("Create governed task");
+    expect(markup).toContain('href="#interaction-form-heading"');
+    expect(markup).toContain('href="#next-action-form-heading"');
+    expect(markup).toContain('href="#note-form-heading"');
+    expect(markup).toContain('href="/customers/customer-1"');
+    expect(markup).toContain("Next relationship action · due today");
+    expect(markup).toContain("This follow-up is due today. Keep the due time current if the customer plan changes.");
+    expect(markup).toContain("Move today’s next action");
     expect(markup).toContain("••••1234"); expect(markup).toContain("a•••@e•••.com"); expect(markup).toContain("Current · observed");
     expect(markup).toContain("Review opportunity flow from this customer"); expect(markup).toContain("Open pipeline review");
     expect(markup).toContain('aria-labelledby="customer-opportunity-discovery-heading"'); expect(markup).toContain("Organization review"); expect(markup).toContain("workspace review");
@@ -101,7 +114,7 @@ describe("Unified CRM Customer 360", () => {
     expect(markup).toContain('href="/crm/opportunities/guided?crmReturnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dcustomers"');
     expect(markup).not.toMatch(/crmReturnTo=[^"&]+&amp;crmReturnTo=/);
     expect(markup).toContain("Follow-up journey"); expect(markup).toContain("Commercial next step"); expect(markup).toContain("From source context");
-    expect(markup.match(/href="\/crm\?view=pipeline&amp;crmReturnTo=/g)).toHaveLength(2);
+    expect(markup.match(/href="\/crm\?view=pipeline&amp;crmReturnTo=/g)).toHaveLength(3);
     expect(markup.match(/href="\/crm\/opportunities\?crmReturnTo=/g)).toHaveLength(2);
     expect(markup.match(/href="\/crm\/opportunities\/guided\?crmReturnTo=/g)).toHaveLength(2);
     expect(markup.indexOf("Follow-up journey")).toBeGreaterThan(markup.indexOf("Relationship timeline"));
@@ -125,6 +138,81 @@ describe("Unified CRM Customer 360", () => {
     expect(markup).toContain('aria-label="Open Customer interactions source for Phone Outbound"');
     expect(markup).toContain("LEAD-101"); expect(markup).toContain("CASE-202"); expect(markup).toContain("changes stay in their source");
     expect(markup).toContain("manual contact outcomes are recorded here"); expect(markup).toContain("Create governed task"); expect(markup).not.toContain("Edit customer"); expect(markup).not.toContain("New task");
+  });
+
+  it("surfaces overdue renewal language when the next action has passed", () => {
+    const model = customer360Fixture();
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmCustomer360
+        model={{
+          ...model,
+          relationship: {
+            ...model.relationship,
+            nextActionAt: "2026-08-15T10:00:00.000Z",
+            nextActionState: "OVERDUE"
+          }
+        }}
+        returnHref="/crm?view=customers"
+      />
+    );
+
+    expect(markup).toContain("This follow-up is overdue. Renew it with a new due time or complete it if the work is already done.");
+    expect(markup).toContain("This follow-up is overdue. Renew it with a new due time or complete it from Customer 360.");
+    expect(markup).toContain("Renew overdue next action");
+  });
+
+  it("renders overdue and renewal guidance from the server-authored relationship state", () => {
+    const overdueMarkup = renderToStaticMarkup(
+      <UnifiedCrmCustomer360
+        model={{
+          ...customer360Fixture(),
+          relationship: {
+            ...customer360Fixture().relationship,
+            nextActionAt: "2026-08-14T16:00:00.000Z",
+            nextActionState: "OVERDUE"
+          }
+        }}
+        returnHref="/crm?view=customers"
+      />
+    );
+    expect(overdueMarkup).toContain("Next relationship action · overdue");
+    expect(overdueMarkup).toContain("Renew it with a new due time or complete it");
+
+    const noneMarkup = renderToStaticMarkup(
+      <UnifiedCrmCustomer360
+        model={{
+          ...customer360Fixture(),
+          relationship: {
+            ...customer360Fixture().relationship,
+            nextActionAt: null,
+            nextActionState: "NONE"
+          }
+        }}
+        returnHref="/crm?view=customers"
+      />
+    );
+    expect(noneMarkup).toContain("No next action is scheduled. Set a dated follow-up to renew customer continuity");
+  });
+
+  it("hides the next-action form when the server marks next-action updates unavailable", () => {
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmCustomer360
+        model={{
+          ...customer360Fixture(),
+          permissions: {
+            ...customer360Fixture().permissions,
+            canManageNextAction: false
+          }
+        }}
+        returnHref="/crm?view=customers"
+      />
+    );
+
+    expect(markup).toContain("CRM next-action updates are unavailable in this environment or for this customer record right now.");
+    expect(markup).not.toContain("Move today’s next action");
+    expect(markup).not.toContain("Renew overdue next action");
+    expect(markup).toContain("Create governed task");
+    expect(markup).not.toContain("Update next action");
   });
 
   it("renders one non-enumerating not-available state and safe recovery", () => {

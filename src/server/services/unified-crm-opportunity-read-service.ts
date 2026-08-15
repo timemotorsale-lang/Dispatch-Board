@@ -4,8 +4,8 @@ import {
   type UnifiedCrmOpportunityPreviewRecord,
   type UnifiedCrmOpportunityPreviewRepository
 } from "@/server/repositories/unified-crm-opportunity-preview-repository";
-import { getUnifiedCrmOpportunityAccessContext } from "@/server/unified-crm/opportunity-access";
 import type { UnifiedCrmOpportunityAccessContext } from "@/server/unified-crm/opportunity-contract";
+import { requireUnifiedCrmOpportunityDetailAccess } from "@/server/unified-crm/opportunity-detail-access";
 import {
   UNIFIED_CRM_OPPORTUNITY_READ_CONTRACT_VERSION,
   type UnifiedCrmOpportunityPreviewModel
@@ -22,6 +22,7 @@ type Dependencies = {
   nodeEnv?: string;
   now?: () => Date;
   repository?: UnifiedCrmOpportunityPreviewRepository;
+  shellMode?: unknown;
   scopeRepository?: {
     listActiveOrganizationIds(userId: string, now: Date): Promise<string[]>;
   };
@@ -73,7 +74,7 @@ export async function getUnifiedCrmOpportunityPipelinePreview(
   actor: AuthenticatedUser | null,
   dependencies: Dependencies = {}
 ): Promise<UnifiedCrmOpportunityPreviewModel> {
-  const access = dependencies.accessContext ?? await getUnifiedCrmOpportunityAccessContext(actor, "read", dependencies);
+  const access = dependencies.accessContext ?? await requireUnifiedCrmOpportunityDetailAccess(actor, dependencies);
   const generatedAt = (dependencies.now?.() ?? new Date()).toISOString();
   const orientation = createUnifiedCrmOpportunityWorkspaceOrientation(access, {
     generatedAt,

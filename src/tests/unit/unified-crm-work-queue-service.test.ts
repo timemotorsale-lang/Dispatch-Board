@@ -69,7 +69,15 @@ describe("Unified CRM work queue service", () => {
             customerReference: "CUS-18",
             vehicleReference: null,
             updatedAt: new Date("2026-08-14T12:15:00.000Z"),
-            customer: { id: "customer-1", displayName: "Alex Morgan", customerNumber: "CUS-18" },
+            customer: {
+              archivedAt: null,
+              customerNumber: "CUS-18",
+              displayName: "Alex Morgan",
+              id: "customer-1",
+              mergedIntoCustomerId: null,
+              organizationId: "org-a",
+              ownerUserId: "seller-1"
+            },
             assignedUser: { id: "seller-1", name: "Sales Seller" }
           }];
         },
@@ -88,25 +96,32 @@ describe("Unified CRM work queue service", () => {
             ownerUser: { id: "seller-1", name: "Sales Seller" },
             participants: [{
               displayNameSnapshot: "Alex Morgan",
-              customer: { id: "customer-1", displayName: "Alex Morgan", customerNumber: "CUS-18" }
+              customer: {
+                archivedAt: null,
+                customerNumber: "CUS-18",
+                displayName: "Alex Morgan",
+                id: "customer-1",
+                mergedIntoCustomerId: null,
+                organizationId: "org-a",
+                ownerUserId: "seller-1"
+              }
             }]
           }];
-        },
-        async listLeads() {
-          return [];
-        },
-        async listConcernCases() {
-          return [];
         }
       })
     });
 
     expect(result.visibility).toBe("owned");
     expect(result.state).toBe("READY");
+    expect(result.explanation).toMatchObject({
+      ordering: expect.stringContaining("overdue first"),
+      freshness: expect.stringContaining(now.toISOString()),
+      drillThrough: expect.stringContaining("Open the governed source record first")
+    });
     expect(result.items[0]).toMatchObject({
-      kind: "task",
       customerHref: "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dwork",
       dueState: "overdue",
+      kind: "task",
       title: "Call promised buyer"
     });
     expect(result.items[1]).toMatchObject({
@@ -135,6 +150,11 @@ describe("Unified CRM work queue service", () => {
     expect(result).toMatchObject({
       state: "EMPTY",
       visibility: "organization",
+      explanation: {
+        ordering: expect.stringContaining("overdue first"),
+        freshness: expect.stringContaining(now.toISOString()),
+        drillThrough: expect.stringContaining("Customer 360")
+      },
       freshness: {
         status: "CURRENT",
         observedAt: now.toISOString(),
@@ -169,6 +189,86 @@ describe("Unified CRM work queue service", () => {
     });
   });
 
+  it("reconciles tie ordering deterministically across due time, source class, recency, and record id", async () => {
+    const result = await getUnifiedCrmWorkQueue(manager, {
+      now: () => now,
+      readMode: "REVIEW",
+      repository: repository({
+        async listLeads() {
+          return [{
+            id: "lead-1",
+            leadNumber: "LD-1",
+            stage: "OPEN",
+            nextActionCode: "CALL",
+            nextActionAt: new Date("2026-08-15T11:00:00.000Z"),
+            updatedAt: new Date("2026-08-15T12:00:00.000Z"),
+            ownerUser: { id: "manager-1", name: "CRM Manager" },
+            customer: {
+              archivedAt: null,
+              customerNumber: "CUS-2",
+              displayName: "Bravo",
+              id: "customer-2",
+              mergedIntoCustomerId: null,
+              organizationId: "org-a",
+              ownerUserId: "manager-1"
+            }
+          }];
+        },
+        async listConcernCases() {
+          return [{
+            id: "case-1",
+            concernNumber: "CASE-1",
+            title: "Hidden case title",
+            priority: "HIGH",
+            status: "OPEN",
+            dueAt: new Date("2026-08-15T11:00:00.000Z"),
+            resolutionDueAt: null,
+            slaStage: "HEALTHY",
+            updatedAt: new Date("2026-08-15T12:00:00.000Z"),
+            assignedOwner: { id: "manager-1", name: "CRM Manager" },
+            customer: {
+              archivedAt: null,
+              customerNumber: "CUS-1",
+              displayName: "Alpha",
+              id: "customer-1",
+              mergedIntoCustomerId: null,
+              organizationId: "org-a",
+              ownerUserId: "manager-1"
+            }
+          }];
+        },
+        async listAppointments() {
+          return [{
+            id: "appt-1",
+            appointmentNumber: "APT-1",
+            title: "Appointment after leads and cases",
+            startsAt: new Date("2026-08-15T11:00:00.000Z"),
+            bookingStatus: "SCHEDULED",
+            confirmationStatus: "PENDING",
+            attendanceStatus: "EXPECTED",
+            executionStatus: "NOT_STARTED",
+            updatedAt: new Date("2026-08-15T12:30:00.000Z"),
+            ownerUser: { id: "manager-1", name: "CRM Manager" },
+            participants: [{
+              displayNameSnapshot: "Charlie",
+              customer: {
+                archivedAt: null,
+                customerNumber: "CUS-3",
+                displayName: "Charlie",
+                id: "customer-3",
+                mergedIntoCustomerId: null,
+                organizationId: "org-a",
+                ownerUserId: "manager-1"
+              }
+            }]
+          }];
+        }
+      })
+    });
+
+    expect(result.items.map((item) => item.id)).toEqual(["case-1", "lead-1", "appt-1"]);
+  });
+
   it("does not expose customerHref when linked customer identity is absent", async () => {
     const result = await getUnifiedCrmWorkQueue(manager, {
       now: () => now,
@@ -187,7 +287,15 @@ describe("Unified CRM work queue service", () => {
             customerReference: "Snapshot only",
             vehicleReference: null,
             updatedAt: new Date("2026-08-14T12:00:00.000Z"),
-            customer: { id: "x".repeat(129), displayName: "Unsafe identity", customerNumber: "CUS-X" },
+            customer: {
+              archivedAt: null,
+              customerNumber: "CUS-X",
+              displayName: "Unsafe identity",
+              id: "x".repeat(129),
+              mergedIntoCustomerId: null,
+              organizationId: "org-a",
+              ownerUserId: "manager-1"
+            },
             assignedUser: { id: "manager-1", name: "CRM Manager" }
           }];
         },
@@ -240,9 +348,13 @@ describe("Unified CRM work queue service", () => {
             participants: [{
               displayNameSnapshot: "Alex Morgan",
               customer: {
-                id: "x".repeat(129),
+                archivedAt: null,
+                customerNumber: "CUS-18",
                 displayName: "Alex Morgan",
-                customerNumber: "CUS-18"
+                id: "x".repeat(129),
+                mergedIntoCustomerId: null,
+                organizationId: "org-a",
+                ownerUserId: "manager-1"
               }
             }]
           }];
@@ -277,8 +389,9 @@ describe("Unified CRM work queue service", () => {
   it("wraps unknown repository failures without exposing their text", async () => {
     await expect(getUnifiedCrmWorkQueue(manager, {
       readMode: "REVIEW",
+      workMode: "REVIEW",
       repository: repository({
-        async listTasks() {
+        async listAppointments() {
           throw new Error("postgres secret connection string");
         }
       })

@@ -9,9 +9,9 @@ import {
   type UnifiedCrmCustomerNextActionRepository
 } from "@/server/repositories/unified-crm-customer-next-action-repository";
 import {
-  requireUnifiedCrmCustomer360Access,
-  type UnifiedCrmCustomer360AccessOptions
-} from "@/server/unified-crm/customer-360-access";
+  requireUnifiedCrmCustomerNextActionAccess,
+  type UnifiedCrmCustomerNextActionAccessOptions
+} from "@/server/unified-crm/customer-next-action-access";
 import {
   UNIFIED_CRM_CUSTOMER_NEXT_ACTION_COMMAND,
   UNIFIED_CRM_CUSTOMER_NEXT_ACTION_CONTRACT_VERSION,
@@ -22,7 +22,7 @@ import {
   type UnifiedCrmCustomerNextActionOperation
 } from "@/server/unified-crm/customer-next-action-command";
 
-type Dependencies = UnifiedCrmCustomer360AccessOptions & {
+type Dependencies = UnifiedCrmCustomerNextActionAccessOptions & {
   now?: () => Date;
   repository?: UnifiedCrmCustomerNextActionRepository;
   scopeRepository?: Pick<UnifiedCrmCustomerReadRepository, "listActiveOrganizationIds">;
@@ -81,7 +81,7 @@ export async function updateUnifiedCrmCustomerNextAction(
   value: UnifiedCrmCustomerNextActionCommandInput,
   dependencies: Dependencies = {}
 ): Promise<UnifiedCrmCustomerNextActionCommandResult> {
-  const access = requireUnifiedCrmCustomer360Access(actor, dependencies);
+  const access = requireUnifiedCrmCustomerNextActionAccess(actor, dependencies);
   const now = dependencies.now?.() ?? new Date();
   const normalizedCommand = normalizeCommand(value, now);
   const scopeRepository = dependencies.scopeRepository ?? createUnifiedCrmCustomerReadRepository();
@@ -109,7 +109,7 @@ export async function updateUnifiedCrmCustomerNextAction(
       },
       reason: normalizedCommand.operation === "COMPLETE"
         ? "Complete CRM customer next action."
-        : `Set CRM customer next action${normalizedCommand.note ? `: ${normalizedCommand.note}` : "."}`,
+        : "Set CRM customer next action.",
       subjectId: customerId.trim(),
       subjectType: "CUSTOMER"
     });
@@ -151,6 +151,9 @@ export async function updateUnifiedCrmCustomerNextAction(
     }
     if (error instanceof Error && error.message === "Stale next action.") {
       throw new UnifiedCrmCustomerNextActionError("STALE_NEXT_ACTION", "The customer next action changed before your update could be applied.");
+    }
+    if (error instanceof Error && error.message === "No next action available.") {
+      throw new UnifiedCrmCustomerNextActionError("NO_ACTIVE_NEXT_ACTION", "There is no active next action to complete.");
     }
     if (error instanceof Error && "code" in error && String((error as { code?: string }).code) === "IDEMPOTENCY_KEY_REUSED") {
       throw new UnifiedCrmCustomerNextActionError("IDEMPOTENCY_KEY_REUSED", "Idempotency key was already used with a different next action update.");

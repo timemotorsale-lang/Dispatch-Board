@@ -8,7 +8,7 @@ function statusForCode(code: string | undefined) {
   if (code === "CUSTOMER_360_NOT_AUTHORIZED") return 403;
   if (code === "CUSTOMER_NOT_AVAILABLE") return 404;
   if (code === "CUSTOMER_360_OFF" || code === "CUSTOMER_SOURCE_UNAVAILABLE") return 503;
-  if (code === "STALE_NEXT_ACTION" || code === "CUSTOMER_OWNER_REQUIRED" || code === "IDEMPOTENCY_KEY_REUSED") return 409;
+  if (code === "STALE_NEXT_ACTION" || code === "CUSTOMER_OWNER_REQUIRED" || code === "NO_ACTIVE_NEXT_ACTION" || code === "IDEMPOTENCY_KEY_REUSED") return 409;
   return 400;
 }
 

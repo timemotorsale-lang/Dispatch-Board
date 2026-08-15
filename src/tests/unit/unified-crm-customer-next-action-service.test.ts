@@ -125,6 +125,19 @@ describe("Unified CRM customer next action command", () => {
     })).rejects.toMatchObject({ code: "CUSTOMER_SOURCE_UNAVAILABLE" });
   });
 
+  it("fails closed when the next-action command mode is OFF", async () => {
+    await expect(updateUnifiedCrmCustomerNextAction(manager, "customer-1", {
+      dueAt: "2026-08-15T15:00:00.000Z",
+      idempotencyKey: "next-action-off",
+      operation: "SET"
+    }, {
+      commandMode: "OFF",
+      now: () => new Date("2026-08-14T15:00:00.000Z"),
+      repository: repository().repo,
+      scopeRepository: { async listActiveOrganizationIds() { return ["org-a"]; } }
+    })).rejects.toMatchObject({ code: "CUSTOMER_360_OFF" });
+  });
+
   it("maps owner, stale, and idempotency conflicts to typed CRM errors", async () => {
     await expect(updateUnifiedCrmCustomerNextAction(manager, "customer-1", {
       dueAt: "2026-08-15T15:00:00.000Z",
@@ -170,5 +183,20 @@ describe("Unified CRM customer next action command", () => {
       },
       scopeRepository: { async listActiveOrganizationIds() { return ["org-a"]; } }
     })).rejects.toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
+
+    await expect(updateUnifiedCrmCustomerNextAction(manager, "customer-1", {
+      expectedCurrentNextActionAt: null,
+      idempotencyKey: "next-action-8",
+      operation: "COMPLETE"
+    }, {
+      now: () => new Date("2026-08-14T15:00:00.000Z"),
+      readMode: "REVIEW",
+      repository: {
+        async commitNextAction() {
+          throw new Error("No next action available.");
+        }
+      },
+      scopeRepository: { async listActiveOrganizationIds() { return ["org-a"]; } }
+    })).rejects.toMatchObject({ code: "NO_ACTIVE_NEXT_ACTION" });
   });
 });

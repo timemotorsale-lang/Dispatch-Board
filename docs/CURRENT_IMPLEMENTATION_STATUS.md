@@ -1,5 +1,29 @@
 # Current Implementation Status
 
+## 2026-08-15 — Unified CRM UCRM-025 CRM Home “My Work” v1 authority hardening implemented
+
+The current Unified CRM baseline now contains a real, persisted, read-only CRM Home and My Work queue that ranks owned or permitted work from existing Appointments, Leads, Cases, and CRM next-action customer follow-up records. Task rows are intentionally withheld from the live CRM queue in this checkpoint because tenant-safe Task organization authority is not yet proven without inference. Users can drill from the queue into the governed source workflow or, when a separately safe customer route exists, continue into Customer 360 without creating a second source of truth.
+
+This checkpoint tightened day-to-day trust in the queue experience. Live work now fails closed unless shell mode, CRM customer read mode, and the dedicated CRM work mode are all in review; linked Customer 360 routes are omitted when a nested customer is absent, invalid, archived, merged, cross-organization, or outside owner scope; Today now shows same-day appointments instead of a simple first-few appointment list; and filter behavior stays honest by showing filtered counts and a no-match state instead of implying that no work exists. The overdue visual state also remains aligned with the live data contract so urgent work reads consistently on screen.
+
+Focused verification passed on 2026-08-15 as recorded in [`docs/unified-crm/UCRM_025_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_025_IMPLEMENTATION_EVIDENCE.md). UCRM-025 remains `IMPLEMENTED_UNVERIFIED`: authenticated browser proof and isolated PostgreSQL reconciliation proof are still required before verification or merge. No write, task mutation, appointment mutation, or opportunity-stage behavior was enabled by this checkpoint.
+
+## 2026-08-15 — Unified CRM UCRM-030 foundation access hardening implemented
+
+The current Unified CRM baseline now contains a tighter read-only opportunity foundation boundary. Opportunity create review and pipeline preview use the same shell-level fail-closed access path as opportunity detail, hub, and queue, so shell-off behavior is now consistent even when those services are invoked outside their page wrappers.
+
+This checkpoint did not enable live opportunity creation, stage entry, transitions, source-lead mutation, or operational linkage. It only hardened the held and read-only foundation surfaces so that shell-off access is rejected before organization scope lookup in the affected services.
+
+Focused verification passed on 2026-08-15 as recorded in [`docs/unified-crm/UCRM_030_FOUNDATION_EVIDENCE.md`](unified-crm/UCRM_030_FOUNDATION_EVIDENCE.md). `UCRM-030` remains `HELD`: `UCRM-DEC-003` is still deferred, so the opportunity milestone is not complete and no live create path is authorized from this checkpoint.
+
+## 2026-08-15 — Unified CRM UCRM-023 commitment and next action implemented
+
+The current Unified CRM baseline now contains a hardened CRM customer next-action slice inside Customer 360. Staff can set, renew, reschedule, or complete a dated customer follow-up through the protected next-action route without sending an external communication or changing any source-owned operational workflow.
+
+This checkpoint tightened both correctness and the day-to-day user experience. Exact customer authorization now precedes idempotency replay in the next-action repository, replay is bound to the same authorized customer subject, invalid stored replays fail closed, and stale or owner-missing updates remain typed conflicts instead of generic failures. Customer 360 now also carries a server-authored next-action state so the experience can explain whether the current follow-up is overdue, due today, scheduled, or absent, and the next-action form uses matching renewal language.
+
+Focused verification passed on 2026-08-15 as recorded in [`docs/unified-crm/UCRM_023_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_023_IMPLEMENTATION_EVIDENCE.md). UCRM-023 remains `IMPLEMENTED_UNVERIFIED`: authenticated browser proof and isolated PostgreSQL proof are still required. No external delivery, broader source mutation, or stage-dependent opportunity behavior was enabled by this checkpoint.
+
 ## 2026-08-15 — Unified CRM UCRM-020 unified permitted activity timeline implemented
 
 The isolated `codex/unified-crm-console` branch now contains a stronger read-only Unified CRM customer timeline inside Customer 360. The timeline merges permitted customer interactions, task and resolution activity events, appointment history, lead and case creation context, promise events, and CRM next-action domain events without creating a second source of truth for those workflows.

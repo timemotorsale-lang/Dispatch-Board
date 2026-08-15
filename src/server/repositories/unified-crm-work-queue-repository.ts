@@ -15,9 +15,29 @@ const taskSelect = {
   customerReference: true,
   vehicleReference: true,
   updatedAt: true,
-  customer: { select: { id: true, displayName: true, customerNumber: true } },
+  customer: {
+    select: {
+      archivedAt: true,
+      customerNumber: true,
+      displayName: true,
+      id: true,
+      mergedIntoCustomerId: true,
+      organizationId: true,
+      ownerUserId: true
+    }
+  },
   assignedUser: { select: { id: true, name: true } }
 } satisfies Prisma.TaskSelect;
+
+const linkedCustomerSelect = {
+  id: true,
+  displayName: true,
+  customerNumber: true,
+  organizationId: true,
+  ownerUserId: true,
+  archivedAt: true,
+  mergedIntoCustomerId: true
+} satisfies Prisma.CustomerSelect;
 
 const appointmentSelect = {
   id: true,
@@ -36,7 +56,7 @@ const appointmentSelect = {
     take: 1,
     select: {
       displayNameSnapshot: true,
-      customer: { select: { id: true, displayName: true, customerNumber: true } }
+      customer: { select: linkedCustomerSelect }
     }
   }
 } satisfies Prisma.AppointmentSelect;
@@ -49,7 +69,7 @@ const leadSelect = {
   nextActionAt: true,
   updatedAt: true,
   ownerUser: { select: { id: true, name: true } },
-  customer: { select: { id: true, displayName: true, customerNumber: true } }
+  customer: { select: linkedCustomerSelect }
 } satisfies Prisma.CustomerLeadSelect;
 
 const concernCaseSelect = {
@@ -63,7 +83,7 @@ const concernCaseSelect = {
   slaStage: true,
   updatedAt: true,
   assignedOwner: { select: { id: true, name: true } },
-  customer: { select: { id: true, displayName: true, customerNumber: true } }
+  customer: { select: linkedCustomerSelect }
 } satisfies Prisma.ConcernCaseSelect;
 
 const customerNextActionSelect = {

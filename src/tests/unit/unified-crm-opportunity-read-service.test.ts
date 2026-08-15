@@ -39,6 +39,7 @@ describe("Unified CRM opportunity read service", () => {
       now: () => new Date("2026-08-14T18:45:00.000Z"),
       mode: "REVIEW",
       repository: repository(),
+      shellMode: "REVIEW",
       scopeRepository: { async listActiveOrganizationIds() { return ["org-a"]; } }
     });
 
@@ -56,6 +57,7 @@ describe("Unified CRM opportunity read service", () => {
       now: () => new Date("2026-08-14T18:45:00.000Z"),
       mode: "REVIEW",
       repository: repository(),
+      shellMode: "REVIEW",
       scopeRepository: { async listActiveOrganizationIds() { return ["org-a"]; } }
     });
 
@@ -185,5 +187,17 @@ describe("Unified CRM opportunity read service", () => {
 
     expect(model.listPreview.items.some((item) => item.state === "LIVE_READ_ONLY")).toBe(false);
     expect(JSON.stringify(model)).not.toContain("evil.example");
+  });
+
+  it("fails closed before organization lookup when the shell defaults off in production", async () => {
+    const listActiveOrganizationIds = vi.fn();
+
+    await expect(getUnifiedCrmOpportunityPipelinePreview(manager, {
+      mode: "REVIEW",
+      nodeEnv: "production",
+      scopeRepository: { listActiveOrganizationIds }
+    })).rejects.toMatchObject({ code: "OPPORTUNITY_OFF" });
+
+    expect(listActiveOrganizationIds).not.toHaveBeenCalled();
   });
 });

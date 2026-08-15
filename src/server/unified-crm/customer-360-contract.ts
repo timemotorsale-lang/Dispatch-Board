@@ -121,11 +121,13 @@ export type UnifiedCrmCustomer360ReadModel = {
     languageCode: string | null;
   };
   permissions: {
+    canManageNextAction: boolean;
     canCreateRestrictedNote: boolean;
   };
   relationship: {
     lastInteractionAt: string | null;
     nextActionAt: string | null;
+    nextActionState: "NONE" | "SCHEDULED" | "DUE_TODAY" | "OVERDUE";
   };
   vehicles: UnifiedCrmCustomer360Vehicle[];
   appointments: UnifiedCrmCustomer360Appointment[];

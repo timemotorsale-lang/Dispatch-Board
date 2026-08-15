@@ -38,6 +38,7 @@ export type UnifiedCrmCustomerNextActionFailureCode =
   | "CUSTOMER_OWNER_REQUIRED"
   | "IDEMPOTENCY_KEY_REUSED"
   | "INVALID_NEXT_ACTION_COMMAND"
+  | "NO_ACTIVE_NEXT_ACTION"
   | "STALE_NEXT_ACTION";
 
 const FAILURE_STATUS: Record<UnifiedCrmCustomerNextActionFailureCode, number> = {
@@ -49,6 +50,7 @@ const FAILURE_STATUS: Record<UnifiedCrmCustomerNextActionFailureCode, number> = 
   CUSTOMER_OWNER_REQUIRED: 409,
   IDEMPOTENCY_KEY_REUSED: 409,
   INVALID_NEXT_ACTION_COMMAND: 400,
+  NO_ACTIVE_NEXT_ACTION: 409,
   STALE_NEXT_ACTION: 409
 };
 

@@ -6,7 +6,7 @@
 .page a { text-decoration: none; }
 .backLink { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; margin: 0 0 8px; color: var(--crm360-blue); font-size: 11.5px; font-weight: 850; }
 .backLink:focus-visible,.trustBar a:focus-visible,.contextColumns a:focus-visible,.lensGrid a:focus-visible,.stateActions a:focus-visible,.stateActions button:focus-visible { outline: 3px solid rgb(23 98 207 / 20%); outline-offset: 2px; }
-.identityCard,.trustBar,.nextAction,.contactCard,.summaryCard,.sectionCard,.statePanel,.loading { max-width: 1480px; margin-inline: auto; border: 1px solid var(--crm360-border); border-radius: 9px; background: var(--crm360-surface); box-shadow: 0 2px 8px rgb(22 42 68 / 4%); }
+.identityCard,.trustBar,.quickActionsCard,.nextAction,.contactCard,.summaryCard,.sectionCard,.statePanel,.loading { max-width: 1480px; margin-inline: auto; border: 1px solid var(--crm360-border); border-radius: 9px; background: var(--crm360-surface); box-shadow: 0 2px 8px rgb(22 42 68 / 4%); }
 .identityCard { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 14px; }
 .identityMain { display: flex; align-items: center; gap: 11px; min-width: 0; }
 .avatar { display: grid; flex: 0 0 auto; width: 44px; height: 44px; place-items: center; border-radius: 50%; color: var(--crm360-blue); background: var(--crm360-blue-soft); }
@@ -24,6 +24,16 @@
 .trustBar > span,.trustBar a { display: inline-flex; align-items: center; gap: 5px; }
 .trustBar svg { color: var(--crm360-blue); }
 .trustBar a { color: var(--crm360-blue); font-weight: 850; }
+.quickActionsCard { margin-top: 9px; overflow: hidden; }
+.quickActionsCard > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; padding: 10px 12px; border-bottom: 1px solid var(--crm360-border); }
+.quickActionsCard h2 { margin: 2px 0 0; font-size: 14px; }
+.quickActionsCard header small { color: var(--crm360-muted); font-size: 9.5px; }
+.quickActionsGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 11px 12px 12px; }
+.quickActionLink { display: grid; gap: 6px; min-height: 92px; border: 1px solid var(--crm360-border); border-radius: 8px; padding: 12px; color: var(--crm360-text); background: var(--crm360-soft); }
+.quickActionLink strong { font-size: 12px; }
+.quickActionLink small { color: var(--crm360-muted); font-size: 11px; line-height: 1.45; }
+.quickActionLink:hover,.quickActionLink:focus-visible { outline: 3px solid rgb(23 98 207 / 20%); outline-offset: 2px; }
+.quickActionPrimary { border-color: color-mix(in srgb, var(--crm360-blue) 38%, var(--crm360-border)); background: color-mix(in srgb, var(--crm360-soft) 80%, var(--crm360-blue-soft) 20%); }
 .priorityGrid { display: grid; grid-template-columns: minmax(0,1.25fr) minmax(300px,.75fr); gap: 9px; max-width: 1480px; margin: 9px auto; }
 .nextAction,.contactCard { margin: 0; padding: 14px; }
 .nextAction h2,.contactCard h2 { margin-top: 5px; font-size: 17px; }
@@ -137,6 +147,6 @@
 :global(html[data-app-theme="dark"]) .page { --crm360-bg:#0d1724;--crm360-surface:#121f2e;--crm360-soft:#172638;--crm360-border:#293b50;--crm360-text:#e5edf7;--crm360-muted:#9eacc0;--crm360-blue:#65a4ff;--crm360-blue-soft:#193352;--crm360-green:#65d393; }
 :global(html[data-app-theme="dark"]) .statusActive { background:#173627; }
 @media(max-width:900px){.page{min-height:calc(100vh - 64px);padding:12px 11px 24px}.priorityGrid,.interactionForm{grid-template-columns:1fr}.contextColumns{grid-template-columns:1fr}.contextColumns>div{border-top:1px solid var(--crm360-border);border-left:0}.contextColumns>div:first-child{border-top:0}.lensGrid{grid-template-columns:1fr}.lensGrid>section+section{border-top:1px solid var(--crm360-border);border-left:0}}
-@media(max-width:900px){.discoveryGrid{grid-template-columns:1fr}}
+@media(max-width:900px){.discoveryGrid,.quickActionsGrid{grid-template-columns:1fr}}
 @media(max-width:640px){.identityCard{align-items:flex-start;flex-direction:column}.identityMeta{width:100%;justify-content:space-between}.trustBar,.interactionHeader{align-items:flex-start;flex-direction:column}.summaryCard>div{grid-template-columns:1fr}.summaryCard article{border-top:1px solid var(--crm360-border);border-left:0}.summaryCard article:first-child{border-top:0}.contactCard dl{grid-template-columns:1fr}.contactCard dl div{border-top:1px solid var(--crm360-border);border-left:0;padding:7px 0 0}.contactCard dl div:first-child{border-top:0}.contextColumns a{grid-template-columns:minmax(0,1fr) 14px}.contextColumns time{grid-column:1}.contextColumns a>svg{grid-column:2;grid-row:1}.lensGrid article,.timelineItem{grid-template-columns:1fr}.lensGrid article a,.timelineItem a,.interactionToggle,.interactionActions button{min-height:44px}.timelineHeader{flex-direction:column}.timelineKind{justify-self:flex-start}.timelineItem time{order:4;text-align:left}.stateActions{width:100%}.stateActions a,.stateActions button,.interactionToggle,.interactionActions button{width:100%}}
 @media(prefers-reduced-motion:reduce){.loading>div span{animation:none}}

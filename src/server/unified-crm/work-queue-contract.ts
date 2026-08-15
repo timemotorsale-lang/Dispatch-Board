@@ -40,9 +40,14 @@ export type UnifiedCrmWorkQueueReadModel = {
   state: "READY" | "EMPTY";
   visibility: UnifiedCrmWorkQueueVisibility;
   generatedAt: string;
+  explanation: {
+    ordering: string;
+    freshness: string;
+    drillThrough: string;
+  };
   source: {
-    authority: "UNIFIED_CRM";
-    label: "CRM Work";
+    authority: "AGGREGATED_CRM_WORK";
+    label: "CRM Work projection";
     href: "/crm?view=work";
     readMode: "LIVE_AGGREGATED";
     observedAt: string;

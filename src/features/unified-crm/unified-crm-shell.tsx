@@ -111,6 +111,35 @@ function formatTime(value: string | null, fallback: string) {
   }).format(new Date(value));
 }
 
+function workQueueExplanation(model: UnifiedCrmWorkQueueReadModel, options?: { visibleCount?: number; filterQuery?: string }) {
+  const visibleCount = options?.visibleCount ?? model.items.length;
+  const filterQuery = options?.filterQuery?.trim();
+  const filterMessage = filterQuery
+    ? ` Showing ${visibleCount} matching item${visibleCount === 1 ? "" : "s"} for “${filterQuery}”.`
+    : "";
+  return `${model.explanation.ordering} ${model.explanation.freshness}${filterMessage}`;
+}
+
+export function describeLiveWorkPresentation(model: UnifiedCrmWorkQueueReadModel, filterQuery: string) {
+  const trimmedQuery = filterQuery.trim();
+  const hasActiveFilter = trimmedQuery.length > 0;
+  const overdueCount = model.items.filter((item) => item.dueState === "overdue").length;
+  const todayCount = model.items.filter((item) => item.dueState === "today").length;
+
+  return {
+    countLabel: model.items.length === model.summary.totalCount
+      ? `${model.summary.totalCount} items`
+      : `${model.items.length} of ${model.summary.totalCount} items`,
+    emptyDetail: hasActiveFilter
+      ? `No live CRM work matches “${trimmedQuery}”. Clear or change the filter to review other ranked work.`
+      : "No owned work needs attention right now.",
+    emptyTitle: hasActiveFilter ? "No work matches this filter" : undefined,
+    explanation: workQueueExplanation(model, { filterQuery, visibleCount: model.items.length }),
+    overdueCount,
+    todayCount
+  };
+}
+
 function ReviewNotice({ mode }: { mode: "review" | "live-customers" | "live-work" }) {
   const copy = mode === "live-customers"
     ? {
@@ -376,19 +405,21 @@ function WorkView({
 
 function WorkState({
   detail,
+  title,
   failureKind
 }: {
   detail: string;
+  title?: string;
   failureKind?: "error" | "restricted" | "unavailable";
 }) {
-  const title = failureKind === "restricted"
+  const resolvedTitle = title ?? (failureKind === "restricted"
     ? "CRM work is restricted"
     : failureKind === "unavailable"
       ? "CRM work is unavailable"
-      : "CRM work could not be loaded";
+      : "CRM work could not be loaded");
   return (
     <section className={styles.stateCard} aria-live="polite">
-      <strong>{title}</strong>
+      <strong>{resolvedTitle}</strong>
       <p>{detail}</p>
       <div className={styles.stateActions}>
         <Link href="/my-tasks">Open existing task queue</Link>
@@ -399,11 +430,13 @@ function WorkState({
 }
 
 function LiveHomeView({
+  filterQuery,
   model,
   opportunityDiscovery,
   selected,
   onSelect
 }: {
+  filterQuery: string;
   model: UnifiedCrmWorkQueueReadModel;
   opportunityDiscovery?: UnifiedCrmOpportunityDiscoveryModel;
   selected: UnifiedCrmWorkQueueItem | null;
@@ -411,14 +444,21 @@ function LiveHomeView({
 }) {
   const overdue = model.items.filter((item) => item.dueState === "overdue");
   const today = model.items.filter((item) => item.dueState === "today");
+  const presentation = describeLiveWorkPresentation(model, filterQuery);
   return (
     <div className={styles.homeGrid}>
       <section className={styles.queuePanel} aria-labelledby="crm-next-heading">
         <header className={styles.panelHeading}>
           <div><span>{model.visibility === "owned" ? "Owned live work" : "Live team work"}</span><h2 id="crm-next-heading">Do this next</h2></div>
-          <small>{model.summary.totalCount} items</small>
+          <small>{presentation.countLabel}</small>
         </header>
-        {model.items.length ? <div className={styles.queueList}>{model.items.map((item) => <LiveQueueRow active={selected?.id === item.id} item={item} key={item.id} onSelect={onSelect} />)}</div> : <WorkState detail="No owned work needs attention right now." />}
+        <p className={styles.sectionDetail}>{presentation.explanation}</p>
+        {model.items.length
+          ? <div className={styles.queueList}>{model.items.map((item) => <LiveQueueRow active={selected?.id === item.id} item={item} key={item.id} onSelect={onSelect} />)}</div>
+          : <WorkState
+              detail={presentation.emptyDetail}
+              title={presentation.emptyTitle}
+            />}
       </section>
       {selected ? <LiveContextPanel item={selected} /> : <WorkState detail="No live work item is available to review right now." />}
       <aside className={styles.todayRail} aria-label="Today live work">
@@ -442,8 +482,8 @@ function LiveHomeView({
         </section>
         <section className={styles.attentionCard}>
           <header><span><Clock3 aria-hidden="true" size={16} />Attention</span></header>
-          <button onClick={() => overdue[0] && onSelect(overdue[0])} type="button"><strong>{model.summary.overdueCount} overdue</strong><span>Past-due work rises to the top first</span></button>
-          <button onClick={() => today[0] && onSelect(today[0])} type="button"><strong>{model.summary.todayCount} due today</strong><span>Use this to stay ahead of the next promised action</span></button>
+          <button disabled={!overdue[0]} onClick={() => overdue[0] && onSelect(overdue[0])} type="button"><strong>{presentation.overdueCount} overdue</strong><span>Past-due work rises to the top first</span></button>
+          <button disabled={!today[0]} onClick={() => today[0] && onSelect(today[0])} type="button"><strong>{presentation.todayCount} due today</strong><span>Use this to stay ahead of the next promised action</span></button>
         </section>
       </aside>
       {opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} returnHref="/crm" /> : null}
@@ -453,12 +493,14 @@ function LiveHomeView({
 
 function LiveWorkView({
   failureKind,
+  filterQuery,
   model,
   opportunityDiscovery,
   onSelect,
   selected
 }: {
   failureKind?: "error" | "restricted" | "unavailable";
+  filterQuery: string;
   model?: UnifiedCrmWorkQueueReadModel;
   opportunityDiscovery?: UnifiedCrmOpportunityDiscoveryModel;
   onSelect(item: UnifiedCrmWorkQueueItem): void;
@@ -470,7 +512,8 @@ function LiveWorkView({
   if (model.state === "EMPTY") {
     return <div className={styles.discoveryStack}><WorkState detail="No owned work needs attention right now." />{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} returnHref="/crm?view=work" /> : null}</div>;
   }
-  return <div className={styles.discoveryStack}><div className={styles.twoColumn}><section className={styles.queuePanel}><div className={styles.queueList}>{model.items.map((item) => <LiveQueueRow active={selected?.id === item.id} item={item} key={item.id} onSelect={onSelect} />)}</div></section>{selected ? <LiveContextPanel item={selected} /> : <WorkState detail="No live CRM work item is available to review right now." />}</div>{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} returnHref="/crm?view=work" /> : null}</div>;
+  const presentation = describeLiveWorkPresentation(model, filterQuery);
+  return <div className={styles.discoveryStack}><div className={styles.twoColumn}><section className={styles.queuePanel}><header className={styles.panelHeading}><div><span>{model.visibility === "owned" ? "Owned live work" : "Live team work"}</span><h2>Do this next</h2></div><small>{presentation.countLabel}</small></header><p className={styles.sectionDetail}>{presentation.explanation}</p>{model.items.length ? <div className={styles.queueList}>{model.items.map((item) => <LiveQueueRow active={selected?.id === item.id} item={item} key={item.id} onSelect={onSelect} />)}</div> : <WorkState detail={presentation.emptyDetail} title={presentation.emptyTitle} />}</section>{selected ? <LiveContextPanel item={selected} /> : <WorkState detail="No live CRM work item is available to review right now." />}</div>{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} returnHref="/crm?view=work" /> : null}</div>;
 }
 
 function PipelineState({
@@ -637,13 +680,13 @@ export function UnifiedCrmShell({
       {activeView === "home"
         ? workQueue || workQueueError
           ? workQueue
-            ? <LiveHomeView model={{ ...workQueue, items: filteredWorkItems }} opportunityDiscovery={opportunityDiscovery} onSelect={(item) => setSelectedWorkId(item.id)} selected={selectedWork} />
+            ? <LiveHomeView filterQuery={workQuery} model={{ ...workQueue, items: filteredWorkItems }} opportunityDiscovery={opportunityDiscovery} onSelect={(item) => setSelectedWorkId(item.id)} selected={selectedWork} />
             : <div className={styles.discoveryStack}><WorkState detail={workQueueError ?? "No live CRM work records were displayed."} failureKind={workQueueFailureKind} />{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} returnHref="/crm" /> : null}</div>
           : <HomeView opportunityDiscovery={opportunityDiscovery} onSelect={setSelected} selected={selected} />
         : null}
       {activeView === "work"
         ? workQueue || workQueueError
-          ? <LiveWorkView failureKind={workQueueFailureKind} model={workQueue ? { ...workQueue, items: filteredWorkItems } : undefined} opportunityDiscovery={opportunityDiscovery} onSelect={(item) => setSelectedWorkId(item.id)} selected={selectedWork} />
+          ? <LiveWorkView failureKind={workQueueFailureKind} filterQuery={workQuery} model={workQueue ? { ...workQueue, items: filteredWorkItems } : undefined} opportunityDiscovery={opportunityDiscovery} onSelect={(item) => setSelectedWorkId(item.id)} selected={selectedWork} />
           : <WorkView opportunityDiscovery={opportunityDiscovery} onSelect={setSelected} selected={selected} />
         : null}
       {activeView === "customers" ? <UnifiedCrmCustomerList errorMessage={customerListError} failureKind={customerListFailureKind} model={customerList} opportunityDiscovery={customerListOpportunityDiscovery} /> : null}

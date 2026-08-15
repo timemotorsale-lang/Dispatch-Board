@@ -1,16 +1,17 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
-import { getUnifiedCrmOpportunityAccessContext } from "@/server/unified-crm/opportunity-access";
 import type { UnifiedCrmOpportunityAccessContext } from "@/server/unified-crm/opportunity-contract";
 import {
   UNIFIED_CRM_OPPORTUNITY_CREATE_CONTRACT_VERSION,
   type UnifiedCrmOpportunityCreateReviewModel
 } from "@/server/unified-crm/opportunity-create-contract";
+import { requireUnifiedCrmOpportunityDetailAccess } from "@/server/unified-crm/opportunity-detail-access";
 
 type Dependencies = {
   accessContext?: UnifiedCrmOpportunityAccessContext;
   mode?: unknown;
   nodeEnv?: string;
   now?: () => Date;
+  shellMode?: unknown;
   scopeRepository?: {
     listActiveOrganizationIds(userId: string, now: Date): Promise<string[]>;
   };
@@ -20,7 +21,7 @@ export async function getUnifiedCrmOpportunityCreateReview(
   actor: AuthenticatedUser | null,
   dependencies: Dependencies = {}
 ): Promise<UnifiedCrmOpportunityCreateReviewModel> {
-  const access = dependencies.accessContext ?? await getUnifiedCrmOpportunityAccessContext(actor, "read", dependencies);
+  const access = dependencies.accessContext ?? await requireUnifiedCrmOpportunityDetailAccess(actor, dependencies);
   const generatedAt = (dependencies.now?.() ?? new Date()).toISOString();
   const visibility = access.recordScope.kind === "ORGANIZATION" ? "organization" : "owned";
 

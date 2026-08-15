@@ -27,6 +27,28 @@ type SubjectRecord = {
   ownerUserId: string | null;
 };
 
+function nextActionSnapshot(value: unknown) {
+  if (!value || typeof value !== "object") return null;
+  const snapshot = value as {
+    customerId?: unknown;
+    nextActionAt?: unknown;
+    operation?: unknown;
+  };
+  const operation = typeof snapshot.operation === "string" ? snapshot.operation.trim().toUpperCase() : "";
+  if (
+    typeof snapshot.customerId !== "string" ||
+    (snapshot.nextActionAt !== null && snapshot.nextActionAt !== undefined && typeof snapshot.nextActionAt !== "string") ||
+    (operation !== "SET" && operation !== "COMPLETE")
+  ) {
+    return null;
+  }
+  return {
+    customerId: snapshot.customerId,
+    nextActionAt: typeof snapshot.nextActionAt === "string" ? snapshot.nextActionAt : null,
+    operation: operation as "SET" | "COMPLETE"
+  };
+}
+
 export type UnifiedCrmCustomerNextActionRepository = {
   commitNextAction(input: {
     command: NextActionCommandInput;
@@ -61,34 +83,6 @@ export function createUnifiedCrmCustomerNextActionRepository(
   return {
     commitNextAction(input) {
       return database.$transaction(async (tx) => {
-        const existing = await tx.enterpriseCommandLedger.findUnique({
-          where: {
-            organizationId_domain_commandType_idempotencyKey: {
-              organizationId: input.command.organizationId,
-              domain: input.command.domain,
-              commandType: input.command.commandType,
-              idempotencyKey: input.command.idempotencyKey
-            }
-          }
-        });
-        if (existing) {
-          if (existing.requestHash !== input.command.requestHash) {
-            throw new EnterpriseCommandConflictError("Idempotency key was already used with a different request.", "IDEMPOTENCY_KEY_REUSED");
-          }
-          const snapshot = existing.resultSnapshot as {
-            customerId: string;
-            nextActionAt: string | null;
-            operation: "SET" | "COMPLETE";
-          };
-          return {
-            customerId: snapshot.customerId,
-            duplicate: true,
-            nextActionAt: snapshot.nextActionAt ? new Date(snapshot.nextActionAt) : null,
-            operation: snapshot.operation,
-            version: existing.resultingVersion ?? 0
-          };
-        }
-
         const customer = await tx.customer.findFirst({
           where: {
             id: input.command.customerId,
@@ -108,8 +102,41 @@ export function createUnifiedCrmCustomerNextActionRepository(
         if (!customer) {
           throw new Error("Customer not available.");
         }
+
+        const existing = await tx.enterpriseCommandLedger.findUnique({
+          where: {
+            organizationId_domain_commandType_idempotencyKey: {
+              organizationId: input.command.organizationId,
+              domain: input.command.domain,
+              commandType: input.command.commandType,
+              idempotencyKey: input.command.idempotencyKey
+            }
+          }
+        });
+        if (existing) {
+          if (existing.subjectType !== "CUSTOMER" || existing.subjectId !== customer.id) {
+            throw new Error("Customer next action idempotency scope is unavailable.");
+          }
+          if (existing.requestHash !== input.command.requestHash) {
+            throw new EnterpriseCommandConflictError("Idempotency key was already used with a different request.", "IDEMPOTENCY_KEY_REUSED");
+          }
+          const snapshot = nextActionSnapshot(existing.resultSnapshot);
+          if (!snapshot || snapshot.customerId !== customer.id) {
+            throw new Error("Stored customer next action replay is invalid.");
+          }
+          return {
+            customerId: snapshot.customerId,
+            duplicate: true,
+            nextActionAt: snapshot.nextActionAt ? new Date(snapshot.nextActionAt) : null,
+            operation: snapshot.operation,
+            version: existing.resultingVersion ?? 0
+          };
+        }
         if (!customer.ownerUserId) {
           throw new Error("Customer owner required.");
+        }
+        if (input.command.operation === "COMPLETE" && !customer.nextActionAt) {
+          throw new Error("No next action available.");
         }
         if (!sameTimestamp(customer.nextActionAt, input.command.expectedCurrentNextActionAt)) {
           throw new Error("Stale next action.");

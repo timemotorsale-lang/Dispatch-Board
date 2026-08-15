@@ -7,6 +7,7 @@ import styles from "./unified-crm-customer-360.module.css";
 
 type Props = {
   currentNextActionAt: string | null;
+  currentNextActionState: "NONE" | "SCHEDULED" | "DUE_TODAY" | "OVERDUE";
   customerId: string;
 };
 
@@ -27,7 +28,7 @@ function defaultDueValue(currentNextActionAt: string | null) {
   return currentNextActionAt ? localDateTimeValue(new Date(currentNextActionAt)) : localDateTimeValue(new Date(Date.now() + 60 * 60 * 1000));
 }
 
-export function UnifiedCrmCustomerNextActionForm({ currentNextActionAt, customerId }: Props) {
+export function UnifiedCrmCustomerNextActionForm({ currentNextActionAt, currentNextActionState, customerId }: Props) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -87,7 +88,11 @@ export function UnifiedCrmCustomerNextActionForm({ currentNextActionAt, customer
         <div>
           <span className={styles.eyebrow}>Next action</span>
           <h2 id="next-action-form-heading">Keep the customer follow-up current</h2>
-          <p>Set, renew, or complete the dated CRM follow-up without leaving Customer 360.</p>
+          <p>{currentNextActionState === "OVERDUE"
+            ? "This follow-up is overdue. Renew it with a new due time or complete it from Customer 360."
+            : currentNextActionState === "DUE_TODAY"
+              ? "This follow-up is due today. Complete it or move it forward from Customer 360."
+              : "Set, renew, or complete the dated CRM follow-up without leaving Customer 360."}</p>
         </div>
       </header>
       {message ? <p className={tone === "error" ? styles.formError : styles.formSuccess} role="status">{message}</p> : null}
@@ -101,7 +106,7 @@ export function UnifiedCrmCustomerNextActionForm({ currentNextActionAt, customer
           <input onChange={(event) => setNote(event.target.value)} placeholder="Example: Customer asked for a call before lunch." value={note} />
         </label>
         <div className={styles.interactionActions}>
-          <button disabled={pending} type="submit">{pending ? "Saving…" : currentNextActionAt ? "Reschedule next action" : "Set next action"}</button>
+          <button disabled={pending} type="submit">{pending ? "Saving…" : currentNextActionState === "OVERDUE" ? "Renew overdue next action" : currentNextActionState === "DUE_TODAY" ? "Move today’s next action" : currentNextActionAt ? "Reschedule next action" : "Set next action"}</button>
           {currentNextActionAt ? <button className={styles.secondaryAction} disabled={pending} onClick={() => void submit("COMPLETE")} type="button">Complete next action</button> : null}
         </div>
       </form>

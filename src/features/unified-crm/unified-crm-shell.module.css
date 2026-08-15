@@ -109,11 +109,11 @@
 .queueRowActive { background: var(--crm-blue-soft); box-shadow: inset 3px 0 var(--crm-blue); }
 .queueRowActive:hover,.queueRowActive:focus-visible { background: var(--crm-blue-soft); }
 .dueMark { width: 7px; height: 7px; border-radius: 50%; }
-.now { color: var(--crm-red); background: #fdebec; }
+.now,.overdue { color: var(--crm-red); background: #fdebec; }
 .today { color: var(--crm-amber); background: #fff2dc; }
 .upcoming { color: var(--crm-blue); background: #e8f1ff; }
 .waiting { color: var(--crm-muted); background: #edf1f5; }
-.dueMark.now { background: var(--crm-red); }
+.dueMark.now,.dueMark.overdue { background: var(--crm-red); }
 .dueMark.today { background: var(--crm-amber); }
 .dueMark.upcoming { background: var(--crm-blue); }
 .dueMark.waiting { background: #7a8799; }
@@ -165,6 +165,8 @@
 .attentionCard button { display: grid; gap: 3px; width: 100%; min-height: 52px; border: 0; border-bottom: 1px solid var(--crm-border); padding: 8px 10px; color: var(--crm-text); text-align: left; background: transparent; cursor: pointer; }
 .attentionCard button:last-child { border-bottom: 0; }
 .attentionCard button:hover,.attentionCard button:focus-visible { outline: none; background: var(--crm-blue-soft); }
+.attentionCard button:disabled { color: var(--crm-muted); background: transparent; cursor: not-allowed; }
+.attentionCard button:disabled span,.attentionCard button:disabled strong { color: inherit; }
 .attentionCard button strong { font-size: 10.5px; }
 .attentionCard button span { color: var(--crm-muted); font-size: 9.5px; }
 .cardGrid,.pipeline,.insights,.moreGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; max-width: 1320px; margin: 0 auto; }
@@ -266,17 +268,17 @@
 .stateActions a { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; border: 1px solid var(--crm-border-strong); border-radius: 7px; padding: 0 12px; color: var(--crm-blue); background: var(--crm-surface-soft); font-size: 11px; font-weight: 800; }
 .stateActions a:hover,.stateActions a:focus-visible { outline: 3px solid rgb(23 98 207 / 12%); background: var(--crm-blue-soft); }
 
-:global(.ucrm-opportunity-actions) { display: grid; gap: 10px; }
-:global(.ucrm-opportunity-actions__header) { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-:global(.ucrm-opportunity-actions__eyebrow) { color: var(--crm-blue); font-size: 10.5px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
-:global(.ucrm-opportunity-actions__header h3) { margin: 4px 0 0; font-size: 16px; }
-:global(.ucrm-opportunity-actions__badge) { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; border-radius: 999px; padding: 0 10px; color: var(--crm-blue); background: var(--crm-blue-soft); font-size: 10px; font-weight: 900; text-transform: uppercase; }
-:global(.ucrm-opportunity-actions__grid) { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-:global(.ucrm-opportunity-actions__item) { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; border: 1px solid var(--crm-border); border-radius: 8px; padding: 12px; color: var(--crm-text); background: var(--crm-surface-soft); }
-:global(.ucrm-opportunity-actions__item:hover),:global(.ucrm-opportunity-actions__item:focus-visible) { border-color: #9cbce3; outline: 3px solid rgb(23 98 207 / 10%); }
-:global(.ucrm-opportunity-actions__item strong) { font-size: 11px; }
-:global(.ucrm-opportunity-actions__item p) { margin: 4px 0 0; color: var(--crm-muted); font-size: 10px; line-height: 1.45; }
-:global(.ucrm-opportunity-actions__item span) { display: inline-flex; align-items: center; gap: 4px; color: var(--crm-blue); font-size: 9.5px; font-weight: 900; text-transform: uppercase; }
+.shell :global(.ucrm-opportunity-actions) { display: grid; gap: 10px; }
+.shell :global(.ucrm-opportunity-actions__header) { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.shell :global(.ucrm-opportunity-actions__eyebrow) { color: var(--crm-blue); font-size: 10.5px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.shell :global(.ucrm-opportunity-actions__header h3) { margin: 4px 0 0; font-size: 16px; }
+.shell :global(.ucrm-opportunity-actions__badge) { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; border-radius: 999px; padding: 0 10px; color: var(--crm-blue); background: var(--crm-blue-soft); font-size: 10px; font-weight: 900; text-transform: uppercase; }
+.shell :global(.ucrm-opportunity-actions__grid) { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.shell :global(.ucrm-opportunity-actions__item) { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; border: 1px solid var(--crm-border); border-radius: 8px; padding: 12px; color: var(--crm-text); background: var(--crm-surface-soft); }
+.shell :global(.ucrm-opportunity-actions__item:hover),.shell :global(.ucrm-opportunity-actions__item:focus-visible) { border-color: #9cbce3; outline: 3px solid rgb(23 98 207 / 10%); }
+.shell :global(.ucrm-opportunity-actions__item strong) { font-size: 11px; }
+.shell :global(.ucrm-opportunity-actions__item p) { margin: 4px 0 0; color: var(--crm-muted); font-size: 10px; line-height: 1.45; }
+.shell :global(.ucrm-opportunity-actions__item span) { display: inline-flex; align-items: center; gap: 4px; color: var(--crm-blue); font-size: 9.5px; font-weight: 900; text-transform: uppercase; }
 
 .unavailable { display: grid; align-content: center; justify-items: center; min-height: calc(100vh - 58px); text-align: center; }
 .unavailable > svg { margin-bottom: 10px; color: var(--crm-blue); }
@@ -317,7 +319,9 @@
 :global(html[data-app-theme="dark"]) .upcoming,
 :global(html[data-app-theme="dark"]) .duePill.upcoming { background: #1b3555; }
 :global(html[data-app-theme="dark"]) .now,
-:global(html[data-app-theme="dark"]) .duePill.now { background: #4a2229; }
+:global(html[data-app-theme="dark"]) .overdue,
+:global(html[data-app-theme="dark"]) .duePill.now,
+:global(html[data-app-theme="dark"]) .duePill.overdue { background: #4a2229; }
 :global(html[data-app-theme="dark"]) .waiting,
 :global(html[data-app-theme="dark"]) .duePill.waiting { background: #273547; }
 
@@ -339,7 +343,7 @@
   .opportunityPreviewHeader { flex-direction: column; }
   .pipelinePreviewColumns { grid-template-columns: 1fr; }
   .pipelinePreviewHeader,.pipelineListPreview > header { flex-direction: column; align-items: flex-start; }
-  :global(.ucrm-opportunity-actions__grid) { grid-template-columns: 1fr; }
+  .shell :global(.ucrm-opportunity-actions__grid) { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 640px) {

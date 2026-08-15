@@ -72,6 +72,15 @@ describe("Unified CRM customer next action route", () => {
       { params: Promise.resolve({ customerId: "customer-1" }) }
     );
     expect(owner.status).toBe(409);
+
+    mocks.updateUnifiedCrmCustomerNextAction.mockRejectedValueOnce(
+      Object.assign(new Error("There is no active next action to complete."), { code: "NO_ACTIVE_NEXT_ACTION" })
+    );
+    const none = await POST(
+      new Request("http://crm.local", { method: "POST", body: JSON.stringify({ operation: "COMPLETE" }) }),
+      { params: Promise.resolve({ customerId: "customer-1" }) }
+    );
+    expect(none.status).toBe(409);
   });
 
   it("maps unavailable and invalid payloads to safe statuses", async () => {
