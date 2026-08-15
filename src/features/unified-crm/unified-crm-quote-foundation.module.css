@@ -1,0 +1,25 @@
+.page { display: grid; gap: 16px; max-width: 1120px; margin: 0 auto; padding: 28px 20px 40px; color: var(--crm-text); }
+.backLink { display: inline-flex; align-items: center; gap: 8px; color: var(--crm-link); font-weight: 700; text-decoration: none; }
+.hero,.section,.statePanel,.loading { display: grid; gap: 12px; border: 1px solid var(--crm-border); border-radius: 12px; background: var(--crm-surface); box-shadow: 0 2px 8px rgb(22 42 68 / 4%); padding: 18px; }
+.eyebrow { color: var(--crm-blue); font-size: 11px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.hero h1,.statePanel h1,.loading h1 { margin: 0; font-size: clamp(28px, 4vw, 40px); line-height: 1.05; }
+.hero p,.statePanel p,.loading p,.section p { margin: 0; color: var(--crm-muted); line-height: 1.6; }
+.heroMeta,.stateActions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.stateTag,.heldTag,.buttonHeld { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 6px 10px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+.stateTag { background: rgb(23 98 207 / 10%); color: var(--crm-blue); }
+.heldTag,.buttonHeld { background: rgb(164 88 8 / 10%); color: #8a5a12; }
+.readinessGrid,.quoteGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.readinessCard,.quoteCard { display: grid; gap: 8px; border: 1px solid var(--crm-border); border-radius: 10px; background: var(--crm-surface-soft); padding: 14px; }
+.readinessCard header,.quoteCard header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.readinessCard strong,.quoteCard strong { font-size: 14px; }
+.quoteCard small,.observationPanel small { color: var(--crm-muted); }
+.observationPanel { display: grid; gap: 8px; border: 1px solid var(--crm-border); border-radius: 10px; background: var(--crm-surface-soft); padding: 14px; }
+.list { margin: 0; padding-left: 18px; color: var(--crm-muted); display: grid; gap: 8px; }
+.emptyState { color: var(--crm-muted); }
+.stateActions a,.stateActions button,.primaryLink { display: inline-flex; align-items: center; gap: 8px; border-radius: 999px; border: 1px solid var(--crm-border); padding: 10px 14px; color: var(--crm-link); background: var(--crm-surface); font-weight: 700; text-decoration: none; }
+.stateActions button { cursor: pointer; }
+.skeletons { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.skeletons span { display: block; min-height: 100px; border-radius: 10px; background: linear-gradient(90deg, rgb(23 98 207 / 6%), rgb(23 98 207 / 12%), rgb(23 98 207 / 6%)); }
+@media (max-width: 900px) {
+  .readinessGrid,.quoteGrid,.skeletons { grid-template-columns: 1fr; }
+}

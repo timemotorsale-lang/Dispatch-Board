@@ -1728,6 +1728,8 @@ model User {
   ownedCustomerLeads                      CustomerLead[]                         @relation("CustomerLeadOwner")
   createdCustomerLeads                    CustomerLead[]                         @relation("CustomerLeadCreatedBy")
   ownedUnifiedCrmOpportunities            UnifiedCrmOpportunityRecord[]          @relation("UnifiedCrmOpportunityOwner")
+  createdUnifiedCrmQuotes                 UnifiedCrmQuoteRecord[]                @relation("UnifiedCrmQuoteCreatedBy")
+  createdUnifiedCrmQuoteVersions          UnifiedCrmQuoteVersion[]               @relation("UnifiedCrmQuoteVersionCreatedBy")
   vehicleCapabilityGrants                 VehicleCapabilityGrant[]
   enterpriseCommandLedgerEntries          EnterpriseCommandLedger[]              @relation("EnterpriseCommandActor")
   enterpriseAuditEvents                   EnterpriseAuditEvent[]                 @relation("EnterpriseAuditActor")
@@ -2033,6 +2035,8 @@ model Organization {
   crmDecisionRecords                    CrmDecisionRecord[]
   customerLeads                         CustomerLead[]
   unifiedCrmOpportunities               UnifiedCrmOpportunityRecord[]
+  unifiedCrmQuotes                      UnifiedCrmQuoteRecord[]
+  unifiedCrmQuoteVersions               UnifiedCrmQuoteVersion[]
   concernCases                          ConcernCase[]
   customerSlaPolicies                   CustomerSlaPolicy[]
   crmFeatureFlags                       CustomerCrmFeatureFlag[]
@@ -2487,6 +2491,7 @@ model Customer {
   serviceIntakeReadinessSnapshots ServiceIntakeReadinessSnapshot[]
   repairOrders                    RepairOrder[]
   unifiedCrmOpportunities         UnifiedCrmOpportunityRecord[]          @relation("UnifiedCrmOpportunityCustomer")
+  unifiedCrmQuotes                UnifiedCrmQuoteRecord[]                @relation("UnifiedCrmQuoteCustomer")
 
   @@unique([organizationId, customerNumber])
   @@unique([id, organizationId])
@@ -2676,11 +2681,77 @@ model UnifiedCrmOpportunityRecord {
   customer          Customer?     @relation("UnifiedCrmOpportunityCustomer", fields: [customerId], references: [id], onDelete: SetNull)
   ownerUser         User?         @relation("UnifiedCrmOpportunityOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
   sourceLead        CustomerLead? @relation("UnifiedCrmOpportunitySourceLead", fields: [sourceLeadId], references: [id], onDelete: SetNull)
+  quotes            UnifiedCrmQuoteRecord[]
 
   @@unique([organizationId, opportunityNumber])
   @@index([organizationId, ownerUserId, updatedAt])
   @@index([customerId, updatedAt])
   @@index([sourceLeadId])
+}
+
+enum UnifiedCrmQuoteState {
+  DRAFT
+  PRESENTED
+  ARCHIVED
+}
+
+enum UnifiedCrmQuoteVersionState {
+  DRAFT
+  PRESENTED
+  SUPERSEDED
+}
+
+model UnifiedCrmQuoteRecord {
+  id                  String                    @id @default(cuid())
+  organizationId      String
+  quoteNumber         String
+  opportunityId       String?
+  customerId          String?
+  createdByUserId     String
+  latestVersionNumber Int                       @default(0)
+  state               UnifiedCrmQuoteState     @default(DRAFT)
+  currency            String                    @default("USD")
+  priceSource         String
+  termsSnapshot       Json
+  latestDraftSnapshot Json
+  presentedVersionId  String?                   @unique
+  archivedAt          DateTime?
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+  organization        Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  opportunity         UnifiedCrmOpportunityRecord? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  customer            Customer?                @relation("UnifiedCrmQuoteCustomer", fields: [customerId], references: [id], onDelete: SetNull)
+  createdByUser       User                     @relation("UnifiedCrmQuoteCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  presentedVersion    UnifiedCrmQuoteVersion?  @relation("UnifiedCrmQuotePresentedVersion", fields: [presentedVersionId], references: [id], onDelete: SetNull)
+  versions            UnifiedCrmQuoteVersion[]
+
+  @@unique([organizationId, quoteNumber])
+  @@index([organizationId, state, updatedAt])
+  @@index([organizationId, opportunityId, updatedAt])
+  @@index([customerId, updatedAt])
+}
+
+model UnifiedCrmQuoteVersion {
+  id               String                       @id @default(cuid())
+  quoteId          String
+  organizationId   String
+  versionNumber    Int
+  state            UnifiedCrmQuoteVersionState @default(DRAFT)
+  currency         String
+  priceSource      String
+  termsSnapshot    Json
+  totalsSnapshot   Json
+  lineItemsSnapshot Json
+  createdByUserId  String
+  presentedAt      DateTime?
+  createdAt        DateTime                     @default(now())
+  quote            UnifiedCrmQuoteRecord        @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  organization     Organization                 @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdByUser    User                         @relation("UnifiedCrmQuoteVersionCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  presentedByQuote UnifiedCrmQuoteRecord?       @relation("UnifiedCrmQuotePresentedVersion")
+
+  @@unique([quoteId, versionNumber])
+  @@index([organizationId, state, createdAt])
 }
 
 model Vehicle {

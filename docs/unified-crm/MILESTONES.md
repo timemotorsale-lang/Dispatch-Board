@@ -150,7 +150,7 @@ Unless a row or acceptance ledger below says otherwise, slices begin as `PLANNED
 
 | ID | Agent-sized vertical slice | Acceptance evidence |
 | --- | --- | --- |
-| UCRM-040 | Quote and line-item persistence | Additive versioned models preserve currency, price source, terms, creator, opportunity/customer correlation, draft/presented state, and migration rollback compatibility. |
+| UCRM-040 | Quote and line-item persistence — `IMPLEMENTED_UNVERIFIED` | Additive versioned models now preserve currency, price source, terms, creator, opportunity/customer correlation, draft/presented state, and migration rollback compatibility behind a held review surface. Focused service verification passed; migrated runtime proof, authenticated browser proof, and downstream governed draft/presentation proof remain pending. |
 | UCRM-041 | Draft quote workflow | Create/update draft service enforces policy, validation, optimistic concurrency, calculations, idempotency, audit, focused tests, UI states, and browser proof. |
 | UCRM-042 | Quote presentation/version lock | Present command creates an immutable version/snapshot; later edits create a new version, never rewrite presented evidence; tests and audit prove history. |
 | UCRM-043 | Commercial approval request | Threshold/policy-controlled request, approve, return, and deny commands require authority and reason; notification is internal, decisions are audited, and retry is safe. |

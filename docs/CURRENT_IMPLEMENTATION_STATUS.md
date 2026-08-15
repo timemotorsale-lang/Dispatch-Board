@@ -6,7 +6,7 @@ The current Unified CRM baseline now contains the first durable quote-foundation
 
 This checkpoint stays deliberately honest about what is and is not active. Quote review uses its own fail-closed CRM access path, organization scope must resolve exactly once before any quote review model loads, seller access remains owner-scoped, and every non-read quote action remains held. The quote review page can show same-scope persisted quote records when they exist, but it does not create drafts, present commercial terms, request approvals, or infer any deferred monetary thresholds.
 
-Focused verification passed on 2026-08-15 as recorded in [`docs/unified-crm/UCRM_040_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_040_IMPLEMENTATION_EVIDENCE.md). `UCRM-040` is `IMPLEMENTED_UNVERIFIED`: migrated runtime proof, authenticated browser proof, and the downstream governed draft/presentation slices are still required before verification or merge. `UCRM-041` and `UCRM-042` remain pending.
+Focused service verification passed on 2026-08-15 as recorded in [`docs/unified-crm/UCRM_040_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_040_IMPLEMENTATION_EVIDENCE.md). `UCRM-040` is `IMPLEMENTED_UNVERIFIED`: migrated runtime proof, authenticated browser proof, full page/component regression proof, and the downstream governed draft/presentation slices are still required before verification or merge. `UCRM-041` and `UCRM-042` remain pending.
 
 ## 2026-08-15 — Unified CRM UCRM-024 task bridge implemented
 
