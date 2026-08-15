@@ -94,6 +94,7 @@
 .newMenu > a svg { flex: 0 0 auto; color: var(--crm-blue); }
 
 .homeGrid { display: grid; grid-template-columns: minmax(480px, 1.35fr) minmax(280px, .62fr) minmax(230px, .42fr); align-items: start; gap: 9px; max-width: 1480px; margin: 0 auto; }
+.discoveryStack { display: grid; gap: 10px; max-width: 1320px; margin: 0 auto; }
 .twoColumn { display: grid; grid-template-columns: minmax(500px, 1fr) minmax(290px, 360px); align-items: start; gap: 10px; max-width: 1320px; margin: 0 auto; }
 .queuePanel,.contextPanel,.todayCard,.attentionCard,.listCard { min-width: 0; border: 1px solid var(--crm-border); border-radius: 8px; background: var(--crm-surface); box-shadow: 0 2px 8px rgb(22 42 68 / 4%); }
 .panelHeading { display: flex; align-items: center; justify-content: space-between; min-height: 58px; padding: 9px 11px; border-bottom: 1px solid var(--crm-border); }
@@ -161,7 +162,6 @@
 .attentionCard button:hover,.attentionCard button:focus-visible { outline: none; background: var(--crm-blue-soft); }
 .attentionCard button strong { font-size: 10.5px; }
 .attentionCard button span { color: var(--crm-muted); font-size: 9.5px; }
-
 .cardGrid,.pipeline,.insights,.moreGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; max-width: 1320px; margin: 0 auto; }
 .customerCard,.pipeline article,.insights article,.moreGrid article { border: 1px solid var(--crm-border); border-radius: 8px; color: var(--crm-text); background: var(--crm-surface); box-shadow: 0 2px 8px rgb(22 42 68 / 4%); }
 .opportunityPreview { display: grid; gap: 10px; max-width: 1320px; margin: 0 auto; }
@@ -235,6 +235,13 @@
 .listCard article span { display: grid; gap: 3px; }
 .listCard article strong { font-size: 11.5px; }
 .listCard article small,.listCard time { color: var(--crm-muted); font-size: 10.5px; }
+.sectionDetail { margin: 0; padding: 10px 11px 0; color: var(--crm-muted); font-size: 10.5px; line-height: 1.45; }
+.discoveryGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 10px 11px 11px; }
+.discoveryCard { display: grid; gap: 5px; border: 1px solid var(--crm-border); border-radius: 8px; padding: 11px; color: var(--crm-text); background: var(--crm-surface-soft); }
+.discoveryCard:hover,.discoveryCard:focus-visible { border-color: #9cbce3; outline: 3px solid rgb(23 98 207 / 10%); }
+.discoveryEyebrow { color: var(--crm-blue); font-size: 10px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.discoveryCard strong { font-size: 11.5px; }
+.discoveryCard p,.discoveryCard small { margin: 0; color: var(--crm-muted); font-size: 10.5px; line-height: 1.45; }
 .insights article { min-height: 180px; padding: 13px; }
 .insights article > span { color: var(--crm-muted); font-size: 10.5px; font-weight: 800; }
 .insights article > strong { display: block; margin-top: 9px; font-size: 26px; }
@@ -316,6 +323,7 @@
   .homeGrid,.twoColumn { grid-template-columns: 1fr; }
   .todayRail { grid-column: auto; }
   .cardGrid,.pipeline,.insights,.moreGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .discoveryGrid { grid-template-columns: 1fr; }
   .opportunityPreviewGrid,.opportunityNextSteps { grid-template-columns: 1fr; }
   .opportunityPreviewHeader { flex-direction: column; }
   .pipelinePreviewColumns { grid-template-columns: 1fr; }

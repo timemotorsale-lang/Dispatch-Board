@@ -2,6 +2,7 @@ import { UnifiedCrmShell, UnifiedCrmUnavailable } from "@/features/unified-crm/u
 import { parseUnifiedCrmView } from "@/features/unified-crm/unified-crm-shell-review-model";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { getUnifiedCrmCustomerList } from "@/server/services/unified-crm-customer-read-service";
+import { getUnifiedCrmOpportunityDiscovery } from "@/server/services/unified-crm-opportunity-discovery-service";
 import { getUnifiedCrmOpportunityPipelinePreview } from "@/server/services/unified-crm-opportunity-read-service";
 import { getUnifiedCrmWorkQueue } from "@/server/services/unified-crm-work-queue-service";
 import { resolveUnifiedCrmShellAccess } from "@/server/unified-crm/shell-access";
@@ -45,6 +46,7 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
   let workQueue;
   let workQueueError: string | undefined;
   let workQueueFailureKind: "error" | "restricted" | "unavailable" | undefined;
+  let opportunityDiscovery;
   let customerList;
   let customerListError: string | undefined;
   let customerListFailureKind: "error" | "restricted" | "unavailable" | undefined;
@@ -67,6 +69,12 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
         workQueueFailureKind = "error";
         workQueueError = "The CRM work queue could not be loaded safely. No work records were displayed.";
       }
+    }
+
+    try {
+      opportunityDiscovery = await getUnifiedCrmOpportunityDiscovery(user);
+    } catch {
+      opportunityDiscovery = undefined;
     }
   }
 
@@ -119,6 +127,7 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
       customerListError={customerListError}
       customerListFailureKind={customerListFailureKind}
       initialSelectedId={Array.isArray(parameters.selected) ? parameters.selected[0] : parameters.selected}
+      opportunityDiscovery={opportunityDiscovery}
       opportunityPreview={opportunityPreview}
       opportunityPreviewError={opportunityPreviewError}
       opportunityPreviewFailureKind={opportunityPreviewFailureKind}

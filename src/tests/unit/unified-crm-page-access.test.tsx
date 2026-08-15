@@ -5,6 +5,7 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 
 const mocks = vi.hoisted(() => ({
   getUnifiedCrmCustomerList: vi.fn(),
+  getUnifiedCrmOpportunityDiscovery: vi.fn(),
   getUnifiedCrmOpportunityPipelinePreview: vi.fn(),
   getUnifiedCrmWorkQueue: vi.fn(),
   requireCurrentUser: vi.fn()
@@ -16,6 +17,10 @@ vi.mock("@/server/auth/current-user", () => ({
 
 vi.mock("@/server/services/unified-crm-customer-read-service", () => ({
   getUnifiedCrmCustomerList: mocks.getUnifiedCrmCustomerList
+}));
+
+vi.mock("@/server/services/unified-crm-opportunity-discovery-service", () => ({
+  getUnifiedCrmOpportunityDiscovery: mocks.getUnifiedCrmOpportunityDiscovery
 }));
 
 vi.mock("@/server/services/unified-crm-opportunity-read-service", () => ({
@@ -101,6 +106,22 @@ describe("Unified CRM page access and fallback", () => {
         items: [{ id: "row1", title: "Customer and owner at a glance", ownerLabel: "Organization visibility", reason: "Preview row reason" }]
       }
     });
+    mocks.getUnifiedCrmOpportunityDiscovery.mockResolvedValue({
+      contractVersion: "ucrm.opportunity-discovery/v1",
+      generatedAt: "2026-08-14T15:00:00.000Z",
+      headline: { title: "Opportunity workspace is ready to review, not yet to operate", detail: "Held review only." },
+      nextUnlocks: [],
+      panels: [{
+        id: "workspace-entry",
+        label: "Start in the opportunity workspace",
+        detail: "Use the held pipeline review.",
+        emphasis: "ENTRY",
+        link: { id: "pipeline", label: "Open pipeline review", description: "Held only.", href: "/crm?view=pipeline", state: "HELD_REVIEW" }
+      }],
+      source: { href: "/crm?view=pipeline", label: "Unified CRM opportunity workspace discovery", observedAt: "2026-08-14T15:00:00.000Z" },
+      state: "HELD_REVIEW",
+      visibility: "organization"
+    });
   });
 
   afterEach(() => {
@@ -120,6 +141,7 @@ describe("Unified CRM page access and fallback", () => {
     expect(markup).not.toContain("synthetic scenarios");
     expect(mocks.getUnifiedCrmWorkQueue).not.toHaveBeenCalled();
     expect(mocks.getUnifiedCrmOpportunityPipelinePreview).not.toHaveBeenCalled();
+    expect(mocks.getUnifiedCrmOpportunityDiscovery).not.toHaveBeenCalled();
   });
 
   it("fails explicit feature-off closed with the existing manager workspace fallback", async () => {
@@ -134,6 +156,7 @@ describe("Unified CRM page access and fallback", () => {
     expect(markup).not.toContain("Do this next");
     expect(mocks.getUnifiedCrmWorkQueue).not.toHaveBeenCalled();
     expect(mocks.getUnifiedCrmOpportunityPipelinePreview).not.toHaveBeenCalled();
+    expect(mocks.getUnifiedCrmOpportunityDiscovery).not.toHaveBeenCalled();
   });
 
   it("uses the unchanged Sales landing when a seller is outside the active shell", async () => {
@@ -173,8 +196,10 @@ describe("Unified CRM page access and fallback", () => {
     expect(mocks.getUnifiedCrmWorkQueue).toHaveBeenCalled();
     expect(mocks.getUnifiedCrmCustomerList).not.toHaveBeenCalled();
     expect(mocks.getUnifiedCrmOpportunityPipelinePreview).not.toHaveBeenCalled();
+    expect(mocks.getUnifiedCrmOpportunityDiscovery).toHaveBeenCalled();
     expect(markup).toContain("Live read-only CRM work queue");
     expect(markup).toContain("Call promised buyer");
+    expect(markup).toContain("Opportunity workspace is ready to review, not yet to operate");
     expect(markup).not.toContain("Search review scenarios");
   });
 
@@ -192,6 +217,19 @@ describe("Unified CRM page access and fallback", () => {
     expect(markup).not.toContain("MUST NOT BE SERIALIZED");
     expect(markup).not.toContain("••••9999");
     expect(markup).not.toContain("Search customers");
+  });
+
+  it("discovers the held opportunity workspace from Work without loading pipeline records", async () => {
+    mocks.requireCurrentUser.mockResolvedValue(user(["General Manager"]));
+
+    const markup = await renderPage("work");
+
+    expect(mocks.getUnifiedCrmWorkQueue).toHaveBeenCalled();
+    expect(mocks.getUnifiedCrmOpportunityDiscovery).toHaveBeenCalled();
+    expect(mocks.getUnifiedCrmOpportunityPipelinePreview).not.toHaveBeenCalled();
+    expect(markup).toContain("Opportunity workspace is ready to review, not yet to operate");
+    expect(markup).toContain('href="/crm?view=pipeline"');
+    expect(markup).not.toMatch(/Create opportunity|Move stage|Mark won|Save opportunity/i);
   });
 
   it("loads the held opportunity review only for the Pipeline view", async () => {

@@ -19,6 +19,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { UnifiedCrmCustomerListReadModel } from "@/server/unified-crm/customer-read-contract";
+import type { UnifiedCrmOpportunityDiscoveryModel } from "@/server/unified-crm/opportunity-discovery-contract";
 import type { UnifiedCrmOpportunityPreviewModel } from "@/server/unified-crm/opportunity-read-contract";
 
 import { UnifiedCrmCustomerList } from "./unified-crm-customer-list";
@@ -42,6 +43,7 @@ type UnifiedCrmShellProps = {
   customerListError?: string;
   customerListFailureKind?: "error" | "restricted" | "unavailable";
   initialSelectedId?: string;
+  opportunityDiscovery?: UnifiedCrmOpportunityDiscoveryModel;
   opportunityPreview?: UnifiedCrmOpportunityPreviewModel;
   opportunityPreviewError?: string;
   opportunityPreviewFailureKind?: "error" | "restricted" | "unavailable";
@@ -314,7 +316,15 @@ function WorkQueueSearch({
   );
 }
 
-function HomeView({ selected, onSelect }: { selected: ReviewQueueItem; onSelect(item: ReviewQueueItem): void }) {
+function HomeView({
+  opportunityDiscovery,
+  selected,
+  onSelect
+}: {
+  opportunityDiscovery?: UnifiedCrmOpportunityDiscoveryModel;
+  selected: ReviewQueueItem;
+  onSelect(item: ReviewQueueItem): void;
+}) {
   return (
     <div className={styles.homeGrid}>
       <section className={styles.queuePanel} aria-labelledby="crm-next-heading">
@@ -337,12 +347,21 @@ function HomeView({ selected, onSelect }: { selected: ReviewQueueItem; onSelect(
           <button onClick={() => onSelect(reviewQueueItems[3])} type="button"><strong>1 source-owned case</strong><span>Context only in CRM</span></button>
         </section>
       </aside>
+      {opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} /> : null}
     </div>
   );
 }
 
-function WorkView({ selected, onSelect }: { selected: ReviewQueueItem; onSelect(item: ReviewQueueItem): void }) {
-  return <div className={styles.twoColumn}><section className={styles.queuePanel}><div className={styles.queueList}>{reviewQueueItems.map((item) => <QueueRow active={selected.id === item.id} item={item} key={item.id} onSelect={onSelect} />)}</div></section><ContextPanel item={selected} /></div>;
+function WorkView({
+  opportunityDiscovery,
+  selected,
+  onSelect
+}: {
+  opportunityDiscovery?: UnifiedCrmOpportunityDiscoveryModel;
+  selected: ReviewQueueItem;
+  onSelect(item: ReviewQueueItem): void;
+}) {
+  return <div className={styles.discoveryStack}><div className={styles.twoColumn}><section className={styles.queuePanel}><div className={styles.queueList}>{reviewQueueItems.map((item) => <QueueRow active={selected.id === item.id} item={item} key={item.id} onSelect={onSelect} />)}</div></section><ContextPanel item={selected} /></div>{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} /> : null}</div>;
 }
 
 function WorkState({
@@ -371,10 +390,12 @@ function WorkState({
 
 function LiveHomeView({
   model,
+  opportunityDiscovery,
   selected,
   onSelect
 }: {
   model: UnifiedCrmWorkQueueReadModel;
+  opportunityDiscovery?: UnifiedCrmOpportunityDiscoveryModel;
   selected: UnifiedCrmWorkQueueItem | null;
   onSelect(item: UnifiedCrmWorkQueueItem): void;
 }) {
@@ -402,6 +423,7 @@ function LiveHomeView({
           <button onClick={() => today[0] && onSelect(today[0])} type="button"><strong>{model.summary.todayCount} due today</strong><span>Use this to stay ahead of the next promised action</span></button>
         </section>
       </aside>
+      {opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} /> : null}
     </div>
   );
 }
@@ -409,21 +431,23 @@ function LiveHomeView({
 function LiveWorkView({
   failureKind,
   model,
+  opportunityDiscovery,
   onSelect,
   selected
 }: {
   failureKind?: "error" | "restricted" | "unavailable";
   model?: UnifiedCrmWorkQueueReadModel;
+  opportunityDiscovery?: UnifiedCrmOpportunityDiscoveryModel;
   onSelect(item: UnifiedCrmWorkQueueItem): void;
   selected: UnifiedCrmWorkQueueItem | null;
 }) {
   if (!model) {
-    return <WorkState detail="No live CRM work records were displayed." failureKind={failureKind} />;
+    return <div className={styles.discoveryStack}><WorkState detail="No live CRM work records were displayed." failureKind={failureKind} />{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} /> : null}</div>;
   }
   if (model.state === "EMPTY") {
-    return <WorkState detail="No owned work needs attention right now." />;
+    return <div className={styles.discoveryStack}><WorkState detail="No owned work needs attention right now." />{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} /> : null}</div>;
   }
-  return <div className={styles.twoColumn}><section className={styles.queuePanel}><div className={styles.queueList}>{model.items.map((item) => <LiveQueueRow active={selected?.id === item.id} item={item} key={item.id} onSelect={onSelect} />)}</div></section>{selected ? <LiveContextPanel item={selected} /> : <WorkState detail="No live CRM work item is available to review right now." />}</div>;
+  return <div className={styles.discoveryStack}><div className={styles.twoColumn}><section className={styles.queuePanel}><div className={styles.queueList}>{model.items.map((item) => <LiveQueueRow active={selected?.id === item.id} item={item} key={item.id} onSelect={onSelect} />)}</div></section>{selected ? <LiveContextPanel item={selected} /> : <WorkState detail="No live CRM work item is available to review right now." />}</div>{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} /> : null}</div>;
 }
 
 function PipelineState({
@@ -445,6 +469,31 @@ function PipelineState({
       <div className={styles.stateActions}>
         <Link href="/crm?view=work">Open CRM work</Link>
         <Link href="/customers">Open existing Customers</Link>
+      </div>
+    </section>
+  );
+}
+
+function OpportunityDiscoveryPanel({ model }: { model: UnifiedCrmOpportunityDiscoveryModel }) {
+  return (
+    <section className={styles.listCard} aria-label="Opportunity workspace discovery">
+      <header>
+        <ShieldCheck aria-hidden="true" size={17} />
+        <div>
+          <strong>{model.headline.title}</strong>
+          <span>{model.visibility === "owned" ? "Owned review" : "Organization review"} · held only</span>
+        </div>
+      </header>
+      <p className={styles.sectionDetail}>{model.headline.detail}</p>
+      <div className={styles.discoveryGrid}>
+        {model.panels.map((panel) => (
+          <Link className={styles.discoveryCard} href={panel.link.href} key={panel.id}>
+            <span className={styles.discoveryEyebrow}>{panel.label}</span>
+            <strong>{panel.link.label}</strong>
+            <p>{panel.detail}</p>
+            <small>{panel.link.description}</small>
+          </Link>
+        ))}
       </div>
     </section>
   );
@@ -492,6 +541,7 @@ export function UnifiedCrmShell({
   customerListError,
   customerListFailureKind,
   initialSelectedId,
+  opportunityDiscovery,
   opportunityPreview,
   opportunityPreviewError,
   opportunityPreviewFailureKind,
@@ -559,14 +609,14 @@ export function UnifiedCrmShell({
       {activeView === "home"
         ? workQueue || workQueueError
           ? workQueue
-            ? <LiveHomeView model={{ ...workQueue, items: filteredWorkItems }} onSelect={(item) => setSelectedWorkId(item.id)} selected={selectedWork} />
-            : <WorkState detail={workQueueError ?? "No live CRM work records were displayed."} failureKind={workQueueFailureKind} />
-          : <HomeView onSelect={setSelected} selected={selected} />
+            ? <LiveHomeView model={{ ...workQueue, items: filteredWorkItems }} opportunityDiscovery={opportunityDiscovery} onSelect={(item) => setSelectedWorkId(item.id)} selected={selectedWork} />
+            : <div className={styles.discoveryStack}><WorkState detail={workQueueError ?? "No live CRM work records were displayed."} failureKind={workQueueFailureKind} />{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} /> : null}</div>
+          : <HomeView opportunityDiscovery={opportunityDiscovery} onSelect={setSelected} selected={selected} />
         : null}
       {activeView === "work"
         ? workQueue || workQueueError
-          ? <LiveWorkView failureKind={workQueueFailureKind} model={workQueue ? { ...workQueue, items: filteredWorkItems } : undefined} onSelect={(item) => setSelectedWorkId(item.id)} selected={selectedWork} />
-          : <WorkView onSelect={setSelected} selected={selected} />
+          ? <LiveWorkView failureKind={workQueueFailureKind} model={workQueue ? { ...workQueue, items: filteredWorkItems } : undefined} opportunityDiscovery={opportunityDiscovery} onSelect={(item) => setSelectedWorkId(item.id)} selected={selectedWork} />
+          : <WorkView opportunityDiscovery={opportunityDiscovery} onSelect={setSelected} selected={selected} />
         : null}
       {activeView === "customers" ? <UnifiedCrmCustomerList errorMessage={customerListError} failureKind={customerListFailureKind} model={customerList} /> : null}
       {activeView === "pipeline"

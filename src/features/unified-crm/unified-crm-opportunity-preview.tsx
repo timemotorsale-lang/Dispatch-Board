@@ -9,6 +9,7 @@ import type {
 } from "@/server/unified-crm/opportunity-read-contract";
 
 import { UnifiedCrmOpportunityActions } from "./unified-crm-opportunity-actions";
+import { UnifiedCrmOpportunityWorkspaceOrientation } from "./unified-crm-opportunity-workspace-orientation";
 import styles from "./unified-crm-shell.module.css";
 
 const previewModel: UnifiedCrmOpportunityPreviewModel = {
@@ -121,6 +122,11 @@ export function UnifiedCrmOpportunityPipelinePreview({ model }: { model: Unified
         ))}
       </div>
 
+      <UnifiedCrmOpportunityWorkspaceOrientation
+        current="pipeline"
+        visibilityLabel={model.visibility === "owned" ? "Owned review" : "Organization review"}
+      />
+
       <section className={styles.pipelinePreviewBoard} aria-labelledby="pipeline-preview-heading">
         <header className={styles.pipelinePreviewHeader}>
           <div>
@@ -177,6 +183,24 @@ export function UnifiedCrmOpportunityPipelinePreview({ model }: { model: Unified
         <UnifiedCrmOpportunityActions
           title="Review the core opportunity flow"
           actions={[
+            {
+              label: "Open guided journey",
+              description: "Start with the intended review sequence if you want one simple path through the full opportunity experience.",
+              href: "/crm/opportunities/guided?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
+              state: "REVIEW"
+            },
+            {
+              label: "Open opportunity hub",
+              description: "Review pipeline, queue, create, detail, and transition from one held page before any live opportunity action exists.",
+              href: "/crm/opportunities?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
+              state: "REVIEW"
+            },
+            {
+              label: "Review queue flow",
+              description: "See how owned, overdue, waiting, and at-risk work should stay understandable before live prioritization exists.",
+              href: "/crm/opportunities/queue?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
+              state: "REVIEW"
+            },
             {
               label: "Review create flow",
               description: "See the first governed opportunity create experience before any live record can be written.",

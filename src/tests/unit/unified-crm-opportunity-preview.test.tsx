@@ -67,8 +67,16 @@ describe("Unified CRM opportunity preview", () => {
     expect(markup).toContain("Review create contract");
     expect(markup).toContain("What the first live list will surface");
     expect(markup).toContain("Customer and owner at a glance");
+    expect(markup).toContain("/crm/opportunities/queue?crmReturnTo=%2Fcrm%3Fview%3Dpipeline");
+    expect(markup).toContain("/crm/opportunities?crmReturnTo=%2Fcrm%3Fview%3Dpipeline");
+    expect(markup).toContain("Open opportunity hub");
+    expect(markup).toContain("Open guided journey");
+    expect(markup).toContain("/crm/opportunities/guided?crmReturnTo=%2Fcrm%3Fview%3Dpipeline");
     expect(markup).toContain("/crm/opportunities/new?crmReturnTo=%2Fcrm%3Fview%3Dpipeline");
     expect(markup).toContain("Review the core opportunity flow");
+    expect(markup).toContain("You are at the workspace entry point");
+    expect(markup).toContain('aria-label="Opportunity workspace orientation"');
+    expect(markup).toContain("You are at the workspace entry point");
     expect(markup).toContain("/crm/opportunities/review01/transition?crmReturnTo=%2Fcrm%3Fview%3Dpipeline");
   });
 });

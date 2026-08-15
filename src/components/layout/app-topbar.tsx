@@ -16,6 +16,7 @@ import {
 import { isManager } from "@/server/policies/access";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 import { TimeMotorSalesLogo } from "@/components/brand/time-motor-sales-logo";
+import { getAppBreadcrumb } from "./app-topbar-breadcrumbs";
 
 import { getNavigationGroups, getNavigationItemsForPath, isDispatchConsolePath } from "./navigation";
 import { isAppointmentConsolePath, isInventoryConsolePath } from "./console-navigation";
@@ -46,43 +47,25 @@ function formatBusinessDate() {
   }).format(new Date());
 }
 
-function getBreadcrumb(pathname: string, dispatchView: "overview" | "live", technicianOnly: boolean) {
-  if (technicianOnly) {
-    if (pathname.startsWith("/my-tasks/available")) return ["Technician Workspace", "Available Work"];
-    if (pathname.startsWith("/vehicles/repair-jobs/")) return ["Technician Workspace", "My Work", "Repair Workbench"];
-    if (pathname.startsWith("/diagnostics/")) return ["Technician Workspace", "Diagnostics & Tools", "Case"];
-    if (pathname === "/diagnostics") return ["Technician Workspace", "Diagnostics & Tools"];
-    return ["Technician Workspace", "My Work"];
-  }
-  if (pathname === "/command-center") return ["Command Control Center"];
-  if (pathname === "/manager-workspace") return ["Manager Workspace"];
-  if (pathname === "/board") return ["Command Control Center", "Dispatch", dispatchView === "live" ? "Live Board" : "Overview"];
-  if (pathname === "/activity") return ["Command Control Center", "Dispatch", "Activity"];
-  if (pathname === "/staff") return ["Command Control Center", "Dispatch", "Team"];
-  if (pathname === "/my-tasks") return ["Command Control Center", "Dispatch", "My Tasks"];
-  if (pathname.startsWith("/tasks")) return ["Command Control Center", "Dispatch", "Tasks"];
-  if (pathname.startsWith("/projects")) return ["Command Control Center", "Dispatch", "Projects"];
-  if (pathname.startsWith("/appointments")) return ["Command Control Center", "Dispatch", "Appointments"];
-  if (pathname.startsWith("/crm")) return ["Unified CRM"];
-  if (pathname === "/vehicles") return ["Command Control Center", "Inventory Console", "Home"];
-  if (pathname.startsWith("/vehicles/control-tower")) return ["Command Control Center", "Inventory Console", "Inventory Lifecycle", "Control Tower"];
-  if (pathname.startsWith("/vehicles/disposition-wholesale")) return ["Command Control Center", "Inventory Console", "Inventory Lifecycle", "Disposition & Wholesale"];
-  if (pathname.startsWith("/vehicles/workflow-operations")) return ["Command Control Center", "Inventory Console", "Workflow Operations"];
-  if (pathname.startsWith("/vehicles/workflows")) return ["Command Control Center", "Inventory Console", "Start Workflow"];
-  if (pathname.startsWith("/vehicles")) return ["Command Control Center", "Inventory Console", pathname.startsWith("/vehicles/parts-operations") ? "Parts Operations" : "Vehicles"];
-  if (pathname.startsWith("/customers")) return ["Command Control Center", "Dispatch", "Customers"];
-  if (pathname.startsWith("/manager-review")) return ["Command Control Center", "Dispatch", "Manager Review"];
-  if (pathname.startsWith("/administration")) return ["Command Control Center", "Administration"];
-  if (pathname.startsWith("/settings")) return ["Command Control Center", "Settings"];
-  return ["Command Control Center", "Dispatch", "Workspace"];
-}
-
 export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMenuOpen, preferredWorkspace, showNavigationMenu, user }: AppTopbarProps) {
   const { appearance, setAppearance } = useAppearance();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const sourceReturnTo = safeReturnTo(searchParams.get("returnTo"));
   const dispatchView = searchParams.get("view") === "live" ? "live" : "overview";
+  const crmView = searchParams.get("view") === "work"
+    ? "work"
+    : searchParams.get("view") === "customers"
+      ? "customers"
+      : searchParams.get("view") === "pipeline"
+        ? "pipeline"
+        : searchParams.get("view") === "conversations"
+          ? "conversations"
+          : searchParams.get("view") === "insights"
+            ? "insights"
+            : searchParams.get("view") === "more"
+              ? "more"
+              : "home";
   const technicianOnly = isTechnicianOnlyUser(user);
   const activeWorkspace = pathname === "/vehicles/advisor"
     || pathname === "/vehicles/recon-repair-advisor"
@@ -118,7 +101,7 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
   });
   const breadcrumb = roleWorkspace && !technicianOnly
     ? [activeWorkspaceDefinition.label, activeNavigationItem?.title ?? "Workspace"]
-    : getBreadcrumb(pathname, dispatchView, technicianOnly);
+    : getAppBreadcrumb(pathname, dispatchView, technicianOnly, crmView);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
@@ -218,14 +201,14 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
 
       <nav aria-label="Workspace breadcrumb" className="ccc-breadcrumb">
         {breadcrumb.map((part, index) => (
-          <span className={index === breadcrumb.length - 1 ? "ccc-breadcrumb-current" : ""} key={part}>
-            {index === 0 && breadcrumb.length > 1 ? <Link href={roleWorkspace ? workspaceHome : "/command-center"}>{part}</Link> : part}
+          <span className={index === breadcrumb.length - 1 ? "ccc-breadcrumb-current" : ""} key={part.label}>
+            {part.href && index < breadcrumb.length ? <Link href={part.href}>{part.label}</Link> : part.label}
             {index < breadcrumb.length - 1 ? <i aria-hidden="true">/</i> : null}
           </span>
         ))}
       </nav>
 
-      <span className="ccc-dispatch-status"><i aria-hidden="true" />{commandCenterHome ? "CCC online" : activeWorkspace === "ADVISOR" ? "Advisor ready" : inventoryConsole ? "Inventory live" : dispatchConsole ? "Dispatch online" : "Console active"}</span>
+      <span className="ccc-dispatch-status"><i aria-hidden="true" />{commandCenterHome ? "CCC online" : pathname.startsWith("/crm/opportunities") ? "Opportunity review active" : pathname === "/crm" && crmView === "pipeline" ? "Opportunity workspace active" : activeWorkspace === "ADVISOR" ? "Advisor ready" : inventoryConsole ? "Inventory live" : dispatchConsole ? "Dispatch online" : "Console active"}</span>
 
       <div className="topbar-actions" ref={actionsRef}>
         <div aria-label="Application appearance" className="app-appearance-switch" role="group">

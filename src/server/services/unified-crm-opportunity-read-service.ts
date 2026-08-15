@@ -5,6 +5,10 @@ import {
   UNIFIED_CRM_OPPORTUNITY_READ_CONTRACT_VERSION,
   type UnifiedCrmOpportunityPreviewModel
 } from "@/server/unified-crm/opportunity-read-contract";
+import {
+  buildUnifiedCrmOpportunityReviewHref,
+  createUnifiedCrmOpportunityWorkspaceOrientation
+} from "@/server/unified-crm/opportunity-workspace-orientation";
 
 type Dependencies = {
   accessContext?: UnifiedCrmOpportunityAccessContext;
@@ -22,7 +26,11 @@ export async function getUnifiedCrmOpportunityPipelinePreview(
 ): Promise<UnifiedCrmOpportunityPreviewModel> {
   const access = dependencies.accessContext ?? await getUnifiedCrmOpportunityAccessContext(actor, "read", dependencies);
   const generatedAt = (dependencies.now?.() ?? new Date()).toISOString();
-  const visibility = access.recordScope.kind === "ORGANIZATION" ? "organization" : "owned";
+  const orientation = createUnifiedCrmOpportunityWorkspaceOrientation(access, {
+    generatedAt,
+    sourceLabel: "Unified CRM opportunity pipeline review"
+  });
+  const visibility = orientation.visibility;
 
   return {
     contractVersion: UNIFIED_CRM_OPPORTUNITY_READ_CONTRACT_VERSION,
@@ -62,7 +70,7 @@ export async function getUnifiedCrmOpportunityPipelinePreview(
           {
             id: "review01",
             customerLabel: "Customer appears after approved create path",
-            detailHref: "/crm/opportunities/review01?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
+            detailHref: buildUnifiedCrmOpportunityReviewHref("detail", "review01"),
             nextActionLabel: "Review create contract",
             ownerLabel: visibility === "organization" ? "Team-owned preview" : "Owned preview",
             reason: "First secure create path will surface here after lifecycle approval."
@@ -70,7 +78,7 @@ export async function getUnifiedCrmOpportunityPipelinePreview(
           {
             id: "review02",
             customerLabel: "Source lead remains authoritative",
-            detailHref: "/crm/opportunities/review02?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
+            detailHref: buildUnifiedCrmOpportunityReviewHref("detail", "review02"),
             nextActionLabel: "Review lead bridge",
             ownerLabel: visibility === "organization" ? "Team-owned preview" : "Owned preview",
             reason: "Lead correlation is prepared without rewriting source lead stages or scores."
@@ -86,7 +94,7 @@ export async function getUnifiedCrmOpportunityPipelinePreview(
           {
             id: "review03",
             customerLabel: "No forecast math is shown",
-            detailHref: "/crm/opportunities/review03?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
+            detailHref: buildUnifiedCrmOpportunityReviewHref("detail", "review03"),
             nextActionLabel: "Review detail state",
             ownerLabel: visibility === "organization" ? "Team-owned preview" : "Owned preview",
             reason: "Amounts, probability, and stage movement stay off until approved."
@@ -94,7 +102,7 @@ export async function getUnifiedCrmOpportunityPipelinePreview(
           {
             id: "review04",
             customerLabel: "Appointments stay source-owned",
-            detailHref: "/crm/opportunities/review04?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
+            detailHref: buildUnifiedCrmOpportunityReviewHref("detail", "review04"),
             nextActionLabel: "Review appointment bridge",
             ownerLabel: visibility === "organization" ? "Team-owned preview" : "Owned preview",
             reason: "Appointment linkage is contract-ready but no live handoff is enabled here yet."
@@ -110,7 +118,7 @@ export async function getUnifiedCrmOpportunityPipelinePreview(
           {
             id: "review05",
             customerLabel: "Dispatch remains authoritative",
-            detailHref: "/crm/opportunities/review05?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
+            detailHref: buildUnifiedCrmOpportunityReviewHref("detail", "review05"),
             nextActionLabel: "Review dispatch bridge",
             ownerLabel: visibility === "organization" ? "Team-owned preview" : "Owned preview",
             reason: "CRM will link or hand off work without taking over the dispatch lifecycle."
