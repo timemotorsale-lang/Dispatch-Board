@@ -21,6 +21,7 @@
 - Production-default shell-off behavior now fails closed before any organization lookup on both surfaces.
 - Opportunity review hub now always declares whether any same-scope persisted read-only opportunity is visible, instead of silently omitting that lane when none is available.
 - Opportunity detail now explicitly says whether a persisted source record is visible yet and, when one is visible, shows the latest visible source update time from the current permitted read-only record.
+- Persisted opportunity detail now links back into Customer 360 when the current record has a permitted customer and shows additional same-customer persisted read-only opportunities without exposing writes, hidden records, or invalid identifiers.
 
 ## Automated evidence
 
@@ -33,6 +34,9 @@
   - `src/tests/unit/unified-crm-opportunity-detail.test.tsx`
   - `src/tests/unit/unified-crm-opportunity-review-hub.test.tsx`
   - `src/tests/unit/unified-crm-opportunity-review-hub-page.test.tsx`
+  - focused rerun after same-customer continuity expansion:
+    - `src/tests/unit/unified-crm-opportunity-detail-service.test.ts`
+    - `src/tests/unit/unified-crm-opportunity-detail.test.tsx`
 - Result at the focused rerun for this checkpoint: 8 files, 37 tests passed on the working baseline.
 
 ## Remaining gates

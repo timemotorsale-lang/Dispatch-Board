@@ -34,11 +34,20 @@ function fixture(): UnifiedCrmOpportunityDetailReadModel {
       nextAction: "Next actions stay source-owned until operational opportunity commands are approved.",
       owner: "Assigned by CRM policy when operational create is enabled."
     },
+    customerContext: null,
     sourceBridge: {
       label: "Lead bridge",
       state: "HELD",
       detail: "Customer leads remain source-owned. CRM will correlate them without rewriting source stages or scores."
     },
+    relatedRecordsObservation: {
+      detail: "No additional same-customer persisted read-only opportunity is visible right now for organization review. Continue with held review surfaces until one is available.",
+      freshnessLabel: "No additional visible persisted opportunity update is available yet.",
+      newestVisibleRecordUpdatedAt: null,
+      state: "EMPTY",
+      visibleRecordCount: 0
+    },
+    relatedRecords: [],
     workBridges: [
       { domain: "TASKS", label: "Governed tasks", state: "HELD", detail: "Task linkage is held until the first durable opportunity record exists and tenant-safe correlation is proven." },
       { domain: "APPOINTMENTS", label: "Appointments", state: "HELD", detail: "Appointment handoff contracts are ready, but no appointment draft or existing-link action is enabled from this detail yet." },
@@ -57,6 +66,7 @@ describe("Unified CRM opportunity detail", () => {
     expect(markup).toContain("Opportunity detail review");
     expect(markup).toContain("Requested review id review01");
     expect(markup).toContain("No persisted source record is visible yet.");
+    expect(markup).toContain("Same-customer read-only opportunities");
     expect(markup).toContain("Lead bridge");
     expect(markup).toContain("Appointments");
     expect(markup).toContain("Dispatch and jobs");
@@ -151,11 +161,30 @@ describe("Unified CRM opportunity detail", () => {
             nextAction: "Confirm Saturday appointment",
             owner: "Taylor B."
           },
+          customerContext: {
+            customerId: "customer-1"
+          },
           sourceBridge: {
             label: "Source bridge",
             state: "CONNECTED",
             detail: "Customer and lead context are correlated here while the source workflow stays authoritative."
           },
+          relatedRecordsObservation: {
+            detail: "Only same-customer persisted read-only opportunities are shown here for owned review. Lifecycle movement remains off.",
+            freshnessLabel: "Newest additional visible persisted update observed at 2026-08-14T16:30:00.000Z.",
+            newestVisibleRecordUpdatedAt: "2026-08-14T16:30:00.000Z",
+            state: "READY",
+            visibleRecordCount: 1
+          },
+          relatedRecords: [{
+            href: "/crm/opportunities/opp_123457",
+            id: "opp_123457",
+            ownerLabel: "Taylor B.",
+            state: "LIVE_READ_ONLY",
+            summary: "Open this same-customer persisted opportunity in read-only mode.",
+            title: "Warranty retention follow-up",
+            updatedAt: "2026-08-14T16:30:00.000Z"
+          }],
           workBridges: [
             { domain: "TASKS", label: "Governed tasks", state: "HELD", detail: "Task linkage remains review only from this surface." },
             { domain: "APPOINTMENTS", label: "Appointments", state: "HELD", detail: "Appointment linkage remains read-only." },
@@ -171,9 +200,30 @@ describe("Unified CRM opportunity detail", () => {
     expect(markup).toContain("Unified CRM opportunity record");
     expect(markup).toContain("read only");
     expect(markup).toContain("Alex Morgan · CUS-18");
+    expect(markup).toContain("Open Customer 360");
+    expect(markup).toContain('href="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers"');
+    expect(markup).toContain("Warranty retention follow-up");
+    expect(markup).toContain('href="/crm/opportunities/opp_123457?crmReturnTo=%2Fcrm%3Fview%3Dpipeline"');
     expect(markup).toContain("Source bridge");
     expect(markup).not.toContain("Move to proposal");
     expect(markup).not.toContain("Save opportunity");
     expect(markup).not.toContain("<form");
+  });
+
+  it("reuses the existing customer return when detail is opened from Customer 360", () => {
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmOpportunityDetail
+        model={{
+          ...fixture(),
+          state: "READY",
+          customerContext: {
+            customerId: "customer-1"
+          }
+        }}
+        returnHref="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers"
+      />
+    );
+
+    expect(markup).toContain('href="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers"');
   });
 });

@@ -4,6 +4,7 @@ vi.mock("@/server/db/client", () => ({ prisma: {} }));
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 import type { UnifiedCrmOpportunityDetailRepository } from "@/server/repositories/unified-crm-opportunity-detail-repository";
+import type { UnifiedCrmOpportunityPreviewRepository } from "@/server/repositories/unified-crm-opportunity-preview-repository";
 import { getUnifiedCrmOpportunityDetail } from "@/server/services/unified-crm-opportunity-detail-service";
 
 const manager: AuthenticatedUser = {
@@ -28,6 +29,18 @@ function repository(overrides: Partial<UnifiedCrmOpportunityDetailRepository> = 
   return {
     async findOpportunityDetail() {
       return null;
+    },
+    ...overrides
+  };
+}
+
+function previewRepository(overrides: Partial<UnifiedCrmOpportunityPreviewRepository> = {}): UnifiedCrmOpportunityPreviewRepository {
+  return {
+    async findPrimaryOpportunityPreview() {
+      return null;
+    },
+    async listOpportunityPreviews() {
+      return [];
     },
     ...overrides
   };
@@ -77,7 +90,13 @@ describe("Unified CRM opportunity detail service", () => {
       identity: {
         lifecycleStatus: "HELD",
         title: "Opportunity detail review"
-      }
+      },
+      customerContext: null,
+      relatedRecordsObservation: {
+        state: "EMPTY",
+        visibleRecordCount: 0
+      },
+      relatedRecords: []
     });
 
     const serialized = JSON.stringify(model);
@@ -160,6 +179,32 @@ describe("Unified CRM opportunity detail service", () => {
             updatedAt: new Date("2026-08-14T17:30:00.000Z")
           };
         }
+      }),
+      previewRepository: previewRepository({
+        async listOpportunityPreviews(input) {
+          expect(input).toMatchObject({
+            customerId: "customer-1",
+            organizationId: "org-a",
+            recordScope: { kind: "ORGANIZATION" }
+          });
+          return [{
+            opportunityNumber: "opp_123456",
+            title: "Alex Morgan renewal review",
+            summary: "Current record should not duplicate in related list.",
+            organizationId: "org-a",
+            ownerUser: { id: "manager-a", name: "CRM Manager" },
+            customer: { id: "customer-1", displayName: "Alex Morgan", customerNumber: "CUS-18" },
+            updatedAt: new Date("2026-08-14T17:30:00.000Z")
+          }, {
+            opportunityNumber: "opp_123457",
+            title: "Warranty retention follow-up",
+            summary: "Open the related persisted opportunity in read-only mode.",
+            organizationId: "org-a",
+            ownerUser: { id: "manager-a", name: "CRM Manager" },
+            customer: { id: "customer-1", displayName: "Alex Morgan", customerNumber: "CUS-18" },
+            updatedAt: new Date("2026-08-14T17:20:00.000Z")
+          }];
+        }
       })
     });
 
@@ -183,12 +228,88 @@ describe("Unified CRM opportunity detail service", () => {
         customer: "Alex Morgan · CUS-18",
         owner: "CRM Manager"
       },
+      customerContext: {
+        customerId: "customer-1"
+      },
+      relatedRecordsObservation: {
+        state: "READY",
+        visibleRecordCount: 1,
+        newestVisibleRecordUpdatedAt: "2026-08-14T17:20:00.000Z"
+      },
       sourceBridge: {
         label: "Lead bridge",
         state: "CONNECTED"
       }
     });
+    expect(model.relatedRecords).toMatchObject([{
+      id: "opp_123457",
+      href: "/crm/opportunities/opp_123457",
+      ownerLabel: "CRM Manager",
+      state: "LIVE_READ_ONLY",
+      title: "Warranty retention follow-up"
+    }]);
     expect(JSON.stringify(model)).not.toMatch(/valueCents|probability|stageId|closeDate/);
+  });
+
+  it("fails closed when same-customer preview output is invalid or out of scope", async () => {
+    const model = await getUnifiedCrmOpportunityDetail(seller, "opp_123456", {
+      accessContext: {
+        actorUserId: "seller-a",
+        capabilities: {
+          read: true,
+          create: false,
+          transition: false,
+          linkTask: false,
+          linkAppointment: false,
+          linkDispatch: false
+        },
+        fallbackHref: "/crm?view=work",
+        mode: "REVIEW",
+        organizationId: "org-a",
+        recordScope: { kind: "OWNER", ownerUserId: "seller-a" },
+        workspace: "SALES"
+      },
+      repository: repository({
+        async findOpportunityDetail() {
+          return persistedRecord({
+            customer: {
+              id: "customer-1",
+              displayName: "Alex Morgan",
+              customerNumber: "CUS-18"
+            }
+          });
+        }
+      }),
+      previewRepository: previewRepository({
+        async listOpportunityPreviews() {
+          return [{
+            opportunityNumber: "//evil.example",
+            title: "Invalid",
+            summary: "Should not appear.",
+            organizationId: "org-a",
+            ownerUser: { id: "seller-a", name: "Seller A" },
+            customer: { id: "customer-1", displayName: "Alex Morgan", customerNumber: "CUS-18" },
+            updatedAt: new Date("2026-08-14T17:20:00.000Z")
+          }, {
+            opportunityNumber: "opp_999999",
+            title: "Wrong owner",
+            summary: "Should not appear.",
+            organizationId: "org-a",
+            ownerUser: { id: "seller-b", name: "Seller B" },
+            customer: { id: "customer-1", displayName: "Alex Morgan", customerNumber: "CUS-18" },
+            updatedAt: new Date("2026-08-14T17:10:00.000Z")
+          }];
+        }
+      })
+    });
+
+    expect(model.relatedRecords).toEqual([]);
+    expect(model.relatedRecordsObservation).toMatchObject({
+      state: "EMPTY",
+      visibleRecordCount: 0,
+      newestVisibleRecordUpdatedAt: null
+    });
+    expect(JSON.stringify(model)).not.toContain("evil.example");
   });
 
   it("fails closed with a typed not-found error when a persisted opportunity is missing or out of scope", async () => {

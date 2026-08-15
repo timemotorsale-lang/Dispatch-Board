@@ -3,6 +3,11 @@ import {
   createUnifiedCrmOpportunityDetailRepository,
   type UnifiedCrmOpportunityDetailRepository
 } from "@/server/repositories/unified-crm-opportunity-detail-repository";
+import {
+  createUnifiedCrmOpportunityPreviewRepository,
+  type UnifiedCrmOpportunityPreviewRecord,
+  type UnifiedCrmOpportunityPreviewRepository
+} from "@/server/repositories/unified-crm-opportunity-preview-repository";
 import { type UnifiedCrmOpportunityAccessContext } from "@/server/unified-crm/opportunity-contract";
 import { normalizeUnifiedCrmOpportunityId } from "@/server/validation/unified-crm-opportunity";
 import {
@@ -17,6 +22,7 @@ type Dependencies = {
   mode?: unknown;
   nodeEnv?: string;
   now?: () => Date;
+  previewRepository?: UnifiedCrmOpportunityPreviewRepository;
   repository?: UnifiedCrmOpportunityDetailRepository;
   scopeRepository?: {
     listActiveOrganizationIds(userId: string, now: Date): Promise<string[]>;
@@ -37,6 +43,53 @@ function isRecordVisibleToAccess(
     return record.ownerUser?.id === access.recordScope.ownerUserId;
   }
   return true;
+}
+
+function safePersistedOpportunityId(value: string) {
+  try {
+    return normalizeUnifiedCrmOpportunityId(value);
+  } catch {
+    return null;
+  }
+}
+
+function relatedRecordsObservation(
+  visibleRecordCount: number,
+  newestVisibleRecordUpdatedAt: string | null,
+  visibility: UnifiedCrmOpportunityDetailReadModel["visibility"]
+) {
+  const visibilityLabel = visibility === "organization" ? "organization review" : "owned review";
+  return {
+    detail: visibleRecordCount
+      ? `Only same-customer persisted read-only opportunities are shown here for ${visibilityLabel}. Lifecycle movement remains off.`
+      : `No additional same-customer persisted read-only opportunity is visible right now for ${visibilityLabel}. Continue with held review surfaces until one is available.`,
+    freshnessLabel: newestVisibleRecordUpdatedAt
+      ? `Newest additional visible persisted update observed at ${newestVisibleRecordUpdatedAt}.`
+      : "No additional visible persisted opportunity update is available yet.",
+    newestVisibleRecordUpdatedAt,
+    state: visibleRecordCount ? "READY" as const : "EMPTY" as const,
+    visibleRecordCount
+  };
+}
+
+function toRelatedRecord(
+  record: UnifiedCrmOpportunityPreviewRecord,
+  access: UnifiedCrmOpportunityAccessContext,
+  currentOpportunityId: string
+) {
+  const opportunityId = safePersistedOpportunityId(record.opportunityNumber);
+  if (!opportunityId || opportunityId === currentOpportunityId || !isRecordVisibleToAccess(record, access)) {
+    return null;
+  }
+  return {
+    href: `/crm/opportunities/${encodeURIComponent(opportunityId)}`,
+    id: opportunityId,
+    ownerLabel: record.ownerUser?.name ?? "Unassigned",
+    state: "LIVE_READ_ONLY" as const,
+    summary: record.summary?.trim() || "Open this same-customer persisted opportunity in read-only mode.",
+    title: record.title,
+    updatedAt: record.updatedAt.toISOString()
+  };
 }
 
 function heldModel(
@@ -73,11 +126,14 @@ function heldModel(
       nextAction: "Next actions stay source-owned until operational opportunity commands are approved.",
       owner: visibility === "organization" ? "Assigned by CRM policy when operational create is enabled." : "Your owned opportunities will appear here after lifecycle approval."
     },
+    customerContext: null,
     sourceBridge: {
       label: "Lead bridge",
       state: "HELD",
       detail: "Customer leads remain source-owned. CRM will correlate them without rewriting source stages or scores."
     },
+    relatedRecordsObservation: relatedRecordsObservation(0, null, visibility),
+    relatedRecords: [],
     workBridges: [
       {
         domain: "TASKS",
@@ -120,6 +176,7 @@ export async function getUnifiedCrmOpportunityDetail(
   }
 
   const repository = dependencies.repository ?? createUnifiedCrmOpportunityDetailRepository();
+  const previewRepository = dependencies.previewRepository ?? createUnifiedCrmOpportunityPreviewRepository();
   try {
     const record = await repository.findOpportunityDetail({
       opportunityId: normalizedOpportunityId,
@@ -138,6 +195,21 @@ export async function getUnifiedCrmOpportunityDetail(
         "Opportunity detail is not available."
       );
     }
+
+    const relatedPreviewRecords = record.customer?.id
+      ? await previewRepository.listOpportunityPreviews({
+          customerId: record.customer.id,
+          limit: 4,
+          organizationId: access.organizationId,
+          recordScope: access.recordScope
+        })
+      : [];
+    const relatedRecords = relatedPreviewRecords
+      .map((preview) => toRelatedRecord(preview, access, normalizedOpportunityId))
+      .filter((preview): preview is NonNullable<typeof preview> => Boolean(preview));
+    const newestVisibleRelatedRecordUpdatedAt = relatedRecords.length
+      ? new Date(Math.max(...relatedRecords.map((preview) => new Date(preview.updatedAt).getTime()))).toISOString()
+      : null;
 
     return {
       contractVersion: UNIFIED_CRM_OPPORTUNITY_DETAIL_CONTRACT_VERSION,
@@ -170,6 +242,7 @@ export async function getUnifiedCrmOpportunityDetail(
         nextAction: record.summary?.trim() || "No governed next action has been recorded yet.",
         owner: record.ownerUser?.name ?? "Unassigned"
       },
+      customerContext: record.customer ? { customerId: record.customer.id } : null,
       sourceBridge: {
         label: record.sourceLead ? "Lead bridge" : "Source bridge",
         state: record.sourceLead ? "CONNECTED" : "HELD",
@@ -177,6 +250,12 @@ export async function getUnifiedCrmOpportunityDetail(
           ? `Connected to lead ${record.sourceLead.leadNumber}. Lead stage remains source-owned at ${record.sourceLead.stage.replaceAll("_", " ").toLowerCase()}.`
           : "No source bridge has been attached to this opportunity record yet."
       },
+      relatedRecordsObservation: relatedRecordsObservation(
+        relatedRecords.length,
+        newestVisibleRelatedRecordUpdatedAt,
+        visibility
+      ),
+      relatedRecords,
       workBridges: [
         {
           domain: "TASKS",

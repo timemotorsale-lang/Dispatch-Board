@@ -35,11 +35,30 @@ export type UnifiedCrmOpportunityDetailReadModel = {
     nextAction: string;
     owner: string;
   };
+  customerContext: {
+    customerId: string;
+  } | null;
   sourceBridge: {
     detail: string;
     label: "Lead bridge" | "Source bridge";
     state: UnifiedCrmOpportunityDetailBridgeState;
   };
+  relatedRecordsObservation: {
+    detail: string;
+    freshnessLabel: string;
+    newestVisibleRecordUpdatedAt: string | null;
+    state: "EMPTY" | "READY";
+    visibleRecordCount: number;
+  };
+  relatedRecords: readonly {
+    href: string;
+    id: string;
+    ownerLabel: string;
+    state: "LIVE_READ_ONLY";
+    summary: string;
+    title: string;
+    updatedAt: string;
+  }[];
   workBridges: readonly {
     detail: string;
     domain: "TASKS" | "APPOINTMENTS" | "DISPATCH";

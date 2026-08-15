@@ -4,7 +4,10 @@ import { AlertTriangle, ArrowLeft, ExternalLink, RefreshCw, ShieldCheck } from "
 import Link from "next/link";
 
 import type { UnifiedCrmOpportunityDetailReadModel } from "@/server/unified-crm/opportunity-detail-contract";
-import { withUnifiedCrmOpportunityReturn } from "@/server/unified-crm/opportunity-review-return";
+import {
+  buildUnifiedCrmCustomerReturn,
+  withUnifiedCrmOpportunityReturn
+} from "@/server/unified-crm/opportunity-review-return";
 
 import { UnifiedCrmOpportunityActions } from "./unified-crm-opportunity-actions";
 import styles from "./unified-crm-opportunity-detail.module.css";
@@ -35,6 +38,22 @@ function sourceRecordFreshnessLabel(model: UnifiedCrmOpportunityDetailReadModel)
   return model.freshness.sourceRecordUpdatedAt
     ? `Latest visible source update ${formatDate(model.freshness.sourceRecordUpdatedAt)}`
     : "No persisted source record is visible yet.";
+}
+
+function customerContextHref(model: UnifiedCrmOpportunityDetailReadModel, returnHref: string) {
+  if (!model.customerContext) return null;
+
+  try {
+    const url = new URL(returnHref, "http://crm.local");
+    const match = url.pathname.match(/^\/crm\/customers\/([^/]+)$/);
+    if (match && decodeURIComponent(match[1] ?? "").trim() === model.customerContext.customerId) {
+      return `${url.pathname}${url.search}`;
+    }
+  } catch {
+    return buildUnifiedCrmCustomerReturn(model.customerContext.customerId, returnHref);
+  }
+
+  return buildUnifiedCrmCustomerReturn(model.customerContext.customerId, returnHref);
 }
 
 function StatePanel({ kind, message, returnHref }: { kind: FailureKind; message?: string; returnHref: string }) {
@@ -74,6 +93,7 @@ export function UnifiedCrmOpportunityDetail({ errorMessage, failureKind = "error
     return <StatePanel kind={failureKind} message={errorMessage} returnHref={returnHref} />;
   }
   const returnContext = getUnifiedCrmOpportunityReturnContext(returnHref);
+  const customerHref = customerContextHref(model, returnHref);
 
   return (
     <main className={styles.page}>
@@ -100,10 +120,36 @@ export function UnifiedCrmOpportunityDetail({ errorMessage, failureKind = "error
       </section>
 
       <section className={styles.summaryGrid} aria-label="Opportunity summary">
-        <article><span className={styles.eyebrow}>Customer</span><strong>{model.summary.customer}</strong><p>Customer context is shown exactly as the current permitted read-only opportunity view supplies it.</p></article>
+        <article>
+          <span className={styles.eyebrow}>Customer</span>
+          <strong>{model.summary.customer}</strong>
+          <p>Customer context is shown exactly as the current permitted read-only opportunity view supplies it.</p>
+          {customerHref ? <Link className={styles.sourceLink} href={customerHref}>Open Customer 360<ExternalLink aria-hidden="true" size={13} /></Link> : null}
+        </article>
         <article><span className={styles.eyebrow}>Owner</span><strong>{model.summary.owner}</strong><p>Ownership stays visible here without enabling reassignment or any write action from this surface.</p></article>
         <article><span className={styles.eyebrow}>Next action</span><strong>{model.summary.nextAction}</strong><p>Next-step context stays readable here while authoritative source workflows remain in control.</p></article>
         <article><span className={styles.eyebrow}>Due state</span><strong>{model.summary.dueState}</strong><p>Timing and due-state context is displayed exactly as the current permitted read-only model provides it.</p></article>
+      </section>
+
+      <section className={styles.bridgeGrid} aria-label="Same-customer read-only opportunities">
+        <article className={styles.bridgeCard}>
+          <header>
+            <strong>Same-customer read-only opportunities</strong>
+            <span className={styles.heldTag}>{model.relatedRecordsObservation.state === "READY" ? `${model.relatedRecordsObservation.visibleRecordCount} visible` : "Pending"}</span>
+          </header>
+          <p>{model.relatedRecordsObservation.detail}</p>
+          <small>{model.relatedRecordsObservation.freshnessLabel}</small>
+        </article>
+        {model.relatedRecords.map((item) => (
+          <Link className={styles.bridgeCard} href={withUnifiedCrmOpportunityReturn(item.href, returnHref)} key={item.id}>
+            <header>
+              <strong>{item.title}</strong>
+              <span className={styles.heldTag}>Read only</span>
+            </header>
+            <p>{item.summary}</p>
+            <small>{item.ownerLabel} · updated {formatDate(item.updatedAt)}</small>
+          </Link>
+        ))}
       </section>
 
       <section className={styles.bridgeGrid} aria-label="Opportunity bridge review">
