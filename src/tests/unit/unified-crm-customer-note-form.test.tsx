@@ -24,10 +24,38 @@ describe("Unified CRM customer note form", () => {
     expect(markup).not.toContain("Save note");
   });
 
+  it("shows restricted visibility only when that capability is available", () => {
+    const deniedMarkup = renderToStaticMarkup(<UnifiedCrmCustomerNoteForm allowRestricted={false} customerId="customer-1" />);
+    const allowedMarkup = renderToStaticMarkup(<UnifiedCrmCustomerNoteForm allowRestricted={true} customerId="customer-1" defaultOpen={true} />);
+
+    expect(deniedMarkup).not.toContain(">Restricted<");
+    expect(allowedMarkup).toContain("<form");
+    expect(allowedMarkup).toContain(">Restricted<");
+  });
+
   it("builds a safe customer notes return only for real CRM customer pages", () => {
     expect(currentCustomerPageHref("/crm/customers/customer-1", "crmReturnTo=%2Fcrm%3Fview%3Dcustomers", "customer-notes-heading")).toBe(
       "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers#customer-notes-heading"
     );
     expect(currentCustomerPageHref("/customers/customer-1", "", "customer-notes-heading")).toBeNull();
+  });
+
+  it("renders a fail-closed review-only state when note commands are unavailable", () => {
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmCustomerNoteForm
+        allowRestricted={false}
+        available={false}
+        customerId="customer-1"
+        fallbackHref="/customers/customer-1"
+      />
+    );
+
+    expect(markup).toContain("Customer note entry is review only from Customer 360 right now.");
+    expect(markup).toContain("Customer 360 is fail-closed for note commands right now.");
+    expect(markup).toContain("Review visible notes");
+    expect(markup).toContain("Open governed source workflow");
+    expect(markup).toContain("No note is recorded from this surface while command entry is unavailable.");
+    expect(markup).not.toContain("Add note");
+    expect(markup).not.toContain("Save note");
   });
 });

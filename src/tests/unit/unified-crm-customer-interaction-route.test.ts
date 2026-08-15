@@ -45,8 +45,48 @@ describe("Unified CRM customer interaction route", () => {
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
       code: "INVALID_INTERACTION_COMMAND",
-      error: "Summary is required."
+      contractVersion: "ucrm.customer-interaction-error/v1",
+      error: "Summary is required.",
+      retryable: false
     });
+  });
+
+  it("maps authentication, authorization, hidden-subject, and feature-off states fail-closed", async () => {
+    mocks.logUnifiedCrmCustomerInteraction.mockRejectedValueOnce(
+      Object.assign(new Error("Authentication required."), { code: "AUTHENTICATION_REQUIRED" })
+    );
+    const unauthenticated = await POST(
+      new Request("http://crm.local", { method: "POST", body: JSON.stringify({ summary: "Confirmed." }) }),
+      { params: Promise.resolve({ customerId: "customer-1" }) }
+    );
+    expect(unauthenticated.status).toBe(401);
+
+    mocks.logUnifiedCrmCustomerInteraction.mockRejectedValueOnce(
+      Object.assign(new Error("Customer 360 is not authorized for this viewer."), { code: "CUSTOMER_360_NOT_AUTHORIZED" })
+    );
+    const forbidden = await POST(
+      new Request("http://crm.local", { method: "POST", body: JSON.stringify({ summary: "Confirmed." }) }),
+      { params: Promise.resolve({ customerId: "customer-1" }) }
+    );
+    expect(forbidden.status).toBe(403);
+
+    mocks.logUnifiedCrmCustomerInteraction.mockRejectedValueOnce(
+      Object.assign(new Error("Customer is not available."), { code: "CUSTOMER_NOT_AVAILABLE" })
+    );
+    const hidden = await POST(
+      new Request("http://crm.local", { method: "POST", body: JSON.stringify({ summary: "Confirmed." }) }),
+      { params: Promise.resolve({ customerId: "customer-1" }) }
+    );
+    expect(hidden.status).toBe(404);
+
+    mocks.logUnifiedCrmCustomerInteraction.mockRejectedValueOnce(
+      Object.assign(new Error("CRM customer interaction is unavailable right now."), { code: "CUSTOMER_SOURCE_UNAVAILABLE" })
+    );
+    const unavailable = await POST(
+      new Request("http://crm.local", { method: "POST", body: JSON.stringify({ summary: "Confirmed." }) }),
+      { params: Promise.resolve({ customerId: "customer-1" }) }
+    );
+    expect(unavailable.status).toBe(503);
   });
 
   it("returns 200 for an idempotent replay", async () => {
@@ -71,7 +111,11 @@ describe("Unified CRM customer interaction route", () => {
 
     expect(response.status).toBe(500);
     expect(JSON.stringify(payload)).not.toContain("private database connection detail");
-    expect(payload).toMatchObject({ error: "Unable to record the customer interaction right now." });
+    expect(payload).toMatchObject({
+      contractVersion: "ucrm.customer-interaction-error/v1",
+      error: "Unable to record the customer interaction right now.",
+      retryable: false
+    });
     expect(payload.code).toBeUndefined();
   });
 });

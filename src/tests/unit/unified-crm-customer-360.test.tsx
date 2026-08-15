@@ -210,6 +210,8 @@ describe("Unified CRM Customer 360", () => {
           ...customer360Fixture(),
           permissions: {
             ...customer360Fixture().permissions,
+            canLogInteraction: false,
+            canCreateNote: false,
             canCreateGovernedTask: false,
             canManageNextAction: false
           }
@@ -223,6 +225,8 @@ describe("Unified CRM Customer 360", () => {
     expect(markup).not.toContain("Renew overdue next action");
     expect(markup).toContain("Create governed task");
     expect(markup).not.toContain("Update next action");
+    expect(markup).toContain("Manual outcome recording is review only from Customer 360 right now.");
+    expect(markup).toContain("Customer note entry is review only from Customer 360 right now.");
     expect(markup).toContain("CRM task handoff is fail-closed for this customer or environment right now.");
     expect(markup).toContain("Open existing task intake");
     expect(markup).toContain("Customer 360 does not become the task source of truth.");
@@ -235,6 +239,8 @@ describe("Unified CRM Customer 360", () => {
           ...customer360Fixture(),
           permissions: {
             ...customer360Fixture().permissions,
+            canLogInteraction: false,
+            canCreateNote: false,
             canCreateGovernedTask: false,
             canManageNextAction: false
           },
@@ -251,7 +257,6 @@ describe("Unified CRM Customer 360", () => {
 
     expect(markup).toContain("CRM next-action updates are unavailable in this environment or for this customer record right now.");
     expect(markup).toContain("Relationship timeline");
-    expect(markup).toContain("Log manual outcome");
     expect(markup).toContain("Create governed task");
     expect(markup).toContain("Back to CRM Work");
     expect(markup).not.toContain("Renew overdue next action");
@@ -259,6 +264,8 @@ describe("Unified CRM Customer 360", () => {
     expect(markup).toContain("Keep the customer follow-up current");
     expect(markup).toContain("CRM handoff is unavailable here, so continue into the existing task intake workflow.");
     expect(markup).toContain("No customer message is sent here");
+    expect(markup).toContain("Manual outcome recording is review only from Customer 360 right now.");
+    expect(markup).toContain("Customer note entry is review only from Customer 360 right now.");
   });
 
   it("renders one non-enumerating not-available state and safe recovery", () => {

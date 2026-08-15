@@ -1,5 +1,6 @@
 export const UNIFIED_CRM_CUSTOMER_INTERACTION_COMMAND = "LOG_CUSTOMER_INTERACTION" as const;
 export const UNIFIED_CRM_CUSTOMER_INTERACTION_CONTRACT_VERSION = "ucrm.customer-interaction/v1" as const;
+export const UNIFIED_CRM_CUSTOMER_INTERACTION_ERROR_CONTRACT_VERSION = "ucrm.customer-interaction-error/v1" as const;
 
 export type UnifiedCrmCustomerInteractionChannel = "PHONE" | "TEXT" | "EMAIL" | "MEETING" | "VISIT";
 export type UnifiedCrmCustomerInteractionDirection = "INBOUND" | "OUTBOUND";
@@ -62,13 +63,15 @@ const FAILURE_STATUS: Record<UnifiedCrmCustomerInteractionFailureCode, number> =
 
 export class UnifiedCrmCustomerInteractionError extends Error {
   readonly code: UnifiedCrmCustomerInteractionFailureCode;
-  readonly contractVersion = UNIFIED_CRM_CUSTOMER_INTERACTION_CONTRACT_VERSION;
+  readonly contractVersion = UNIFIED_CRM_CUSTOMER_INTERACTION_ERROR_CONTRACT_VERSION;
   readonly httpStatus: number;
+  readonly retryable: boolean;
 
   constructor(code: UnifiedCrmCustomerInteractionFailureCode, message: string, options: { cause?: unknown } = {}) {
     super(message, options);
     this.name = "UnifiedCrmCustomerInteractionError";
     this.code = code;
     this.httpStatus = FAILURE_STATUS[code];
+    this.retryable = code === "CUSTOMER_SOURCE_UNAVAILABLE";
   }
 }

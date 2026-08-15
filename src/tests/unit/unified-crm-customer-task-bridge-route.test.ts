@@ -89,6 +89,26 @@ describe("Unified CRM customer task bridge route", () => {
     expect(unavailable.status).toBe(503);
   });
 
+  it("maps route-level authorization boundaries to 403", async () => {
+    mocks.createUnifiedCrmCustomerTaskBridge.mockRejectedValueOnce(
+      Object.assign(new Error("CRM task bridge is not authorized for this viewer."), { code: "CUSTOMER_TASK_BRIDGE_NOT_AUTHORIZED" })
+    );
+    const forbidden = await POST(
+      new Request("http://crm.local", { method: "POST", body: JSON.stringify({ title: "x" }) }),
+      { params: Promise.resolve({ customerId: "customer-1" }) }
+    );
+    expect(forbidden.status).toBe(403);
+
+    mocks.createUnifiedCrmCustomerTaskBridge.mockRejectedValueOnce(
+      Object.assign(new Error("No authorized organization is available for this CRM task."), { code: "ORGANIZATION_SCOPE_UNAVAILABLE" })
+    );
+    const noScope = await POST(
+      new Request("http://crm.local", { method: "POST", body: JSON.stringify({ title: "x" }) }),
+      { params: Promise.resolve({ customerId: "customer-1" }) }
+    );
+    expect(noScope.status).toBe(403);
+  });
+
   it("maps authentication, subject hiding, organization ambiguity, and unknown failures fail-closed", async () => {
     mocks.createUnifiedCrmCustomerTaskBridge.mockRejectedValueOnce(
       Object.assign(new Error("Authentication required."), { code: "AUTHENTICATION_REQUIRED" })
@@ -125,5 +145,21 @@ describe("Unified CRM customer task bridge route", () => {
       { params: Promise.resolve({ customerId: "customer-1" }) }
     );
     expect(fallback.status).toBe(500);
+  });
+
+  it("does not expose unexpected internal task bridge failure details", async () => {
+    mocks.createUnifiedCrmCustomerTaskBridge.mockRejectedValue(
+      new Error("private task source connection detail")
+    );
+    const response = await POST(
+      new Request("http://crm.local", { method: "POST", body: JSON.stringify({ title: "x" }) }),
+      { params: Promise.resolve({ customerId: "customer-1" }) }
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(JSON.stringify(payload)).not.toContain("private task source connection detail");
+    expect(payload).toMatchObject({ error: "CRM task handoff could not be completed safely." });
+    expect(payload.code).toBeUndefined();
   });
 });

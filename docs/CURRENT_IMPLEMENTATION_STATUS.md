@@ -6,6 +6,8 @@ The current Unified CRM baseline now contains a governed CRM-to-Task bridge insi
 
 This checkpoint moves the earlier handoff-only pattern into a real command boundary. Customer authorization, shell access, CRM customer read mode, and a dedicated CRM task-bridge mode must all be open before a task can be created; idempotent replay now returns the same committed task instead of duplicating follow-up work; and Customer 360 only shows the protected task surface when that bridge is actually available. When it is not available, the existing task-intake handoff remains the honest fallback.
 
+The newest command-authority pass tightens that bridge further. The task bridge now explicitly requires the CRM mutation capability, its route returns the typed task-bridge error envelope with a safe generic `500` fallback, and Customer 360 keeps the task handoff surface honest by advertising it only when the full command authority is truly available.
+
 Focused verification passed on 2026-08-15 as recorded in [`docs/unified-crm/UCRM_024_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_024_IMPLEMENTATION_EVIDENCE.md). UCRM-024 remains `IMPLEMENTED_UNVERIFIED`: authenticated browser proof and isolated PostgreSQL proof are still required before verification or merge. No external delivery, broader operational mutation, or source-of-truth transfer away from Tasks was enabled by this checkpoint.
 
 ## 2026-08-15 — Unified CRM UCRM-025 CRM Home “My Work” v1 authority hardening implemented
@@ -58,6 +60,8 @@ The isolated `codex/unified-crm-console` branch now contains a hardened manual c
 
 This checkpoint tightened the command boundary substantially. Canonical customer authorization now precedes idempotency replay, outbound phone/text/email outcomes require positive canonical contact-point consent instead of trusting the submitted form state, replay is bound to the same authorized customer subject, invalid interaction commands return honest 400 responses, and unknown backend failures are masked by the route. The interaction form now also uses clearer non-sending language and stronger accessible submit-state behavior.
 
+The newest command-authority pass makes that write boundary explicit and visible. Manual outcomes now require the dedicated CRM mutation capability in addition to shell review, customer-read review, and interaction-command review; Customer 360 only advertises the live interaction form when that exact combined command authority is available; and the surface now falls back to an honest review-only state with safe continuity links when the command is unavailable.
+
 Focused integrated verification passed as recorded in [`docs/unified-crm/UCRM_021_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_021_IMPLEMENTATION_EVIDENCE.md). UCRM-021 remains `IMPLEMENTED_UNVERIFIED`: authenticated browser proof and isolated PostgreSQL proof are still required before verification or merge. No external communication delivery or broader operational write path was enabled by this checkpoint.
 
 ## 2026-08-15 — Unified CRM UCRM-022 notes and visibility implemented
@@ -65,6 +69,8 @@ Focused integrated verification passed as recorded in [`docs/unified-crm/UCRM_02
 The isolated `codex/unified-crm-console` branch now contains a hardened customer-note command path in Customer 360. Staff can record internal or, when authorized, restricted CRM notes through the protected note route and note form without sending a customer notification or changing source-owned workflows.
 
 This checkpoint tightened the note boundary in the same fail-closed pattern as the interaction slice. Exact customer authorization now precedes idempotency replay, restricted-note creation remains gated behind sensitive-view capability, zero and multiple organization scopes are handled explicitly, route validation errors return honest typed statuses, and unknown backend failures are masked. The note form also now uses clearer internal-only language and stronger accessible pending/disclosure behavior.
+
+The newest command-authority pass makes note entry follow the same explicit write model. Customer notes now require the dedicated CRM mutation capability in addition to shell review, customer-read review, and note-command review; Customer 360 only advertises live note entry when that exact combined command authority is available; and the note surface now fails closed with an honest review-only fallback when note entry is unavailable.
 
 Focused integrated verification passed as recorded in [`docs/unified-crm/UCRM_022_IMPLEMENTATION_EVIDENCE.md`](unified-crm/UCRM_022_IMPLEMENTATION_EVIDENCE.md). UCRM-022 remains `IMPLEMENTED_UNVERIFIED`: authenticated browser proof and isolated PostgreSQL proof are still required before verification or merge. No external delivery or broader operational note-sharing path was enabled by this checkpoint.
 

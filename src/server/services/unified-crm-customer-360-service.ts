@@ -18,9 +18,15 @@ import {
   type UnifiedCrmCustomer360AccessOptions
 } from "@/server/unified-crm/customer-360-access";
 import {
+  canLogUnifiedCrmCustomerInteraction
+} from "@/server/unified-crm/customer-interaction-access";
+import {
+  canCreateUnifiedCrmCustomerNote
+} from "@/server/unified-crm/customer-note-access";
+import {
   canManageUnifiedCrmCustomerNextAction
 } from "@/server/unified-crm/customer-next-action-access";
-import { resolveUnifiedCrmCustomerTaskBridgeMode } from "@/server/unified-crm/customer-task-bridge-access";
+import { canCreateUnifiedCrmCustomerTaskBridge } from "@/server/unified-crm/customer-task-bridge-access";
 import {
   UNIFIED_CRM_CUSTOMER_360_CONTRACT_VERSION,
   UnifiedCrmCustomer360Error,
@@ -35,7 +41,10 @@ import { buildUnifiedCrmOpportunityReviewHref } from "@/server/unified-crm/oppor
 import { normalizeUnifiedCrmOpportunityId } from "@/server/validation/unified-crm-opportunity";
 
 type UnifiedCrmCustomer360Dependencies = UnifiedCrmCustomer360AccessOptions & {
+  bridgeMode?: unknown;
   commandMode?: unknown;
+  interactionCommandMode?: unknown;
+  noteCommandMode?: unknown;
   now?: () => Date;
   repository?: UnifiedCrmCustomer360Repository;
   scopeRepository?: Pick<UnifiedCrmCustomerReadRepository, "listActiveOrganizationIds">;
@@ -356,10 +365,24 @@ export async function getUnifiedCrmCustomer360(
 
   const observedAt = now.toISOString();
   const canViewRestricted = evaluateUnifiedCrmCapability(actor, "crm.sensitive.view").allowed;
-  const canCreateGovernedTask = resolveUnifiedCrmCustomerTaskBridgeMode({
-    bridgeMode: process.env.UNIFIED_CRM_CUSTOMER_TASK_BRIDGE_MODE,
-    nodeEnv: dependencies.nodeEnv ?? process.env.NODE_ENV
-  }) === "REVIEW";
+  const canCreateGovernedTask = canCreateUnifiedCrmCustomerTaskBridge(actor, {
+    bridgeMode: dependencies.bridgeMode ?? process.env.UNIFIED_CRM_CUSTOMER_TASK_BRIDGE_MODE,
+    nodeEnv: dependencies.nodeEnv ?? process.env.NODE_ENV,
+    readMode: dependencies.readMode ?? process.env.UNIFIED_CRM_CUSTOMER_READ_MODE,
+    shellMode: dependencies.shellMode ?? process.env.UNIFIED_CRM_SHELL_MODE
+  });
+  const canLogInteraction = canLogUnifiedCrmCustomerInteraction(actor, {
+    commandMode: dependencies.interactionCommandMode ?? process.env.UNIFIED_CRM_CUSTOMER_INTERACTION_MODE,
+    nodeEnv: dependencies.nodeEnv ?? process.env.NODE_ENV,
+    readMode: dependencies.readMode ?? process.env.UNIFIED_CRM_CUSTOMER_READ_MODE,
+    shellMode: dependencies.shellMode ?? process.env.UNIFIED_CRM_SHELL_MODE
+  });
+  const canCreateNote = canCreateUnifiedCrmCustomerNote(actor, {
+    commandMode: dependencies.noteCommandMode ?? process.env.UNIFIED_CRM_CUSTOMER_NOTE_MODE,
+    nodeEnv: dependencies.nodeEnv ?? process.env.NODE_ENV,
+    readMode: dependencies.readMode ?? process.env.UNIFIED_CRM_CUSTOMER_READ_MODE,
+    shellMode: dependencies.shellMode ?? process.env.UNIFIED_CRM_SHELL_MODE
+  });
   const canManageNextAction = canManageUnifiedCrmCustomerNextAction(actor, record.ownerUser?.id ?? null, {
     commandMode: dependencies.commandMode ?? process.env.UNIFIED_CRM_CUSTOMER_NEXT_ACTION_MODE,
     nodeEnv: dependencies.nodeEnv ?? process.env.NODE_ENV,
@@ -399,6 +422,8 @@ export async function getUnifiedCrmCustomer360(
       languageCode: record.languageCode
     },
     permissions: {
+      canLogInteraction,
+      canCreateNote,
       canCreateGovernedTask,
       canManageNextAction,
       canCreateRestrictedNote: canViewRestricted

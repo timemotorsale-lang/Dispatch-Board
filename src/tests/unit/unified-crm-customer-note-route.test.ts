@@ -48,6 +48,62 @@ describe("Unified CRM customer note route", () => {
     });
   });
 
+  it("returns 200 for an idempotent note replay", async () => {
+    mocks.logUnifiedCrmCustomerNote.mockResolvedValue({
+      contractVersion: "ucrm.customer-note/v1",
+      customerId: "customer-1",
+      duplicate: true,
+      noteId: "note-1",
+      version: 1,
+      visibility: "INTERNAL"
+    });
+    const response = await POST(
+      new Request("http://crm.local", { method: "POST", body: JSON.stringify({ body: "Saved." }) }),
+      { params: Promise.resolve({ customerId: "customer-1" }) }
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ duplicate: true, noteId: "note-1" });
+  });
+
+  it("maps authentication, customer hiding, idempotency conflict, and feature-off states safely", async () => {
+    mocks.logUnifiedCrmCustomerNote.mockRejectedValueOnce(
+      Object.assign(new Error("Authentication required."), { code: "AUTHENTICATION_REQUIRED" })
+    );
+    const unauthenticated = await POST(
+      new Request("http://crm.local", { method: "POST", body: JSON.stringify({ body: "Saved." }) }),
+      { params: Promise.resolve({ customerId: "customer-1" }) }
+    );
+    expect(unauthenticated.status).toBe(401);
+
+    mocks.logUnifiedCrmCustomerNote.mockRejectedValueOnce(
+      Object.assign(new Error("Customer is not available."), { code: "CUSTOMER_NOT_AVAILABLE" })
+    );
+    const hidden = await POST(
+      new Request("http://crm.local", { method: "POST", body: JSON.stringify({ body: "Saved." }) }),
+      { params: Promise.resolve({ customerId: "customer-1" }) }
+    );
+    expect(hidden.status).toBe(404);
+
+    mocks.logUnifiedCrmCustomerNote.mockRejectedValueOnce(
+      Object.assign(new Error("Idempotency key was already used."), { code: "IDEMPOTENCY_KEY_REUSED" })
+    );
+    const conflict = await POST(
+      new Request("http://crm.local", { method: "POST", body: JSON.stringify({ body: "Saved." }) }),
+      { params: Promise.resolve({ customerId: "customer-1" }) }
+    );
+    expect(conflict.status).toBe(409);
+
+    mocks.logUnifiedCrmCustomerNote.mockRejectedValueOnce(
+      Object.assign(new Error("CRM customer note capture is unavailable right now."), { code: "CUSTOMER_SOURCE_UNAVAILABLE" })
+    );
+    const unavailable = await POST(
+      new Request("http://crm.local", { method: "POST", body: JSON.stringify({ body: "Saved." }) }),
+      { params: Promise.resolve({ customerId: "customer-1" }) }
+    );
+    expect(unavailable.status).toBe(503);
+  });
+
   it("does not expose unexpected internal error details", async () => {
     mocks.logUnifiedCrmCustomerNote.mockRejectedValue(new Error("private database detail"));
     const response = await POST(new Request("http://crm.local", { method: "POST", body: JSON.stringify({ body: "Saved." }) }), { params: Promise.resolve({ customerId: "customer-1" }) });

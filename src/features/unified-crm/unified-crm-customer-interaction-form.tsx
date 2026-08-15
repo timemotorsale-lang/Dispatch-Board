@@ -8,8 +8,11 @@ import styles from "./unified-crm-customer-360.module.css";
 import { currentCustomerPageHref } from "./unified-crm-customer-page-context";
 
 type Props = {
+  available?: boolean;
   customerId: string;
   defaultOpen?: boolean;
+  fallbackHref?: string | null;
+  unavailableReason?: string;
 };
 
 function localDateTimeValue(date: Date) {
@@ -25,7 +28,13 @@ function createIdempotencyKey(customerId: string) {
   return globalThis.crypto?.randomUUID?.() ?? `crm-${customerId}-${localDateTimeValue(new Date())}`;
 }
 
-export function UnifiedCrmCustomerInteractionForm({ customerId, defaultOpen = false }: Props) {
+export function UnifiedCrmCustomerInteractionForm({
+  available = true,
+  customerId,
+  defaultOpen = false,
+  fallbackHref = null,
+  unavailableReason
+}: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -104,18 +113,24 @@ export function UnifiedCrmCustomerInteractionForm({ customerId, defaultOpen = fa
         <div>
           <span className={styles.eyebrow}>Manual contact outcome</span>
           <h2 id="interaction-form-heading">Record a relationship touchpoint</h2>
-          <p>This records a manual outcome only. It does not send email, text, or other messages, and source-owned workflows remain authoritative.</p>
+          <p>
+            {available
+              ? "This records a manual outcome only. It does not send email, text, or other messages, and source-owned workflows remain authoritative."
+              : "Manual outcome recording is review only from Customer 360 right now. No message is sent here, and source-owned workflows remain authoritative."}
+          </p>
         </div>
-        <button
-          aria-controls={formId}
-          aria-expanded={open}
-          className={styles.interactionToggle}
-          disabled={pending}
-          onClick={() => setOpen((value) => !value)}
-          type="button"
-        >
-          {open ? "Close" : "Log outcome"}
-        </button>
+        {available ? (
+          <button
+            aria-controls={formId}
+            aria-expanded={open}
+            className={styles.interactionToggle}
+            disabled={pending}
+            onClick={() => setOpen((value) => !value)}
+            type="button"
+          >
+            {open ? "Close" : "Log outcome"}
+          </button>
+        ) : null}
       </header>
       {message ? (
         <p
@@ -126,7 +141,19 @@ export function UnifiedCrmCustomerInteractionForm({ customerId, defaultOpen = fa
           {message} {messageHref ? <Link href={messageHref}>Review timeline</Link> : null}
         </p>
       ) : null}
-      {open ? (
+      {!available ? (
+        <div id={formId}>
+          <p className={styles.interactionHelper} id={helperId}>
+            {unavailableReason
+              ?? "Customer 360 is fail-closed for manual interaction commands right now. Review the existing relationship timeline or continue in the governed source workflow to record follow-up safely."}
+          </p>
+          <div className={styles.interactionActions}>
+            {timelineHref ? <Link className={styles.secondaryActionLink} href={timelineHref}>Review timeline</Link> : null}
+            {fallbackHref ? <Link className={styles.secondaryActionLink} href={fallbackHref}>Open governed source workflow</Link> : null}
+            <span className={styles.interactionActionNote}>No customer message is sent here, and no manual outcome is recorded from this surface while the command is unavailable.</span>
+          </div>
+        </div>
+      ) : open ? (
         <form
           aria-describedby={`${helperId}${message ? ` ${statusId}` : ""}`}
           className={styles.interactionForm}

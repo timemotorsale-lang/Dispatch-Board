@@ -234,7 +234,13 @@ describe("Unified CRM Customer 360 service", () => {
         { type: "EMAIL", maskedValue: "m•••@e•••.com", source: "CONTACT_POINT" }
       ],
       notes: [{ id: "note-internal", body: "Customer prefers evening calls.", visibility: "INTERNAL", authorName: "CRM Manager", createdAt: "2026-08-14T10:00:00.000Z" }],
-      permissions: { canManageNextAction: true, canCreateRestrictedNote: false },
+      permissions: {
+        canLogInteraction: true,
+        canCreateNote: true,
+        canCreateGovernedTask: true,
+        canManageNextAction: true,
+        canCreateRestrictedNote: false
+      },
       relationship: {
         lastInteractionAt: "2026-08-13T12:00:00.000Z",
         nextActionAt: "2026-08-15T12:00:00.000Z",
@@ -327,6 +333,9 @@ describe("Unified CRM Customer 360 service", () => {
       commandMode: "OFF"
     });
     expect(commandOff.permissions.canManageNextAction).toBe(false);
+    expect(commandOff.permissions.canLogInteraction).toBe(true);
+    expect(commandOff.permissions.canCreateNote).toBe(true);
+    expect(commandOff.permissions.canCreateGovernedTask).toBe(true);
 
     const noOwner = await getUnifiedCrmCustomer360(manager, "customer-a", dependencies(record({
       ownerUserId: null,

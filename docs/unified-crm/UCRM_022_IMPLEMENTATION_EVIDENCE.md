@@ -24,11 +24,14 @@
 - Zero organization scope returns `CUSTOMER_360_NOT_AUTHORIZED`; multiple active scopes return `CUSTOMER_SOURCE_UNAVAILABLE`.
 - Replay is now bound to the same authorized customer subject and defensively validated before reuse.
 - The route now maps typed note validation errors to the correct status codes and masks unknown failures behind a generic 500 response.
+- The note command now uses a dedicated CRM mutation access boundary instead of riding on Customer 360 read access alone.
+- Customer 360 only advertises live note entry when shell review, customer-read review, note-command review, and the CRM mutation capability all allow it together.
 
 ## Quality and correctness improvements
 
 - The note form now uses stronger honest language around internal-only team context and non-sharing behavior.
 - The note form adds accessible disclosure semantics, disabled pending state, helper guidance, and clearer action-copy/status behavior.
+- When note entry is unavailable, Customer 360 now renders a fail-closed review-only note state with safe fallback links and explicit “no note was recorded” messaging.
 
 ## Automated evidence
 
@@ -37,7 +40,9 @@
   - `src/tests/unit/unified-crm-customer-note-route.test.ts`
   - `src/tests/unit/unified-crm-customer-note-repository.test.ts`
   - `src/tests/unit/unified-crm-customer-note-form.test.tsx`
-- Result: 4 files, 12 tests passed on the working baseline.
+- `src/tests/unit/unified-crm-customer-360-service.test.ts`
+- `src/tests/unit/unified-crm-customer-360.test.tsx`
+- Result: 6 files, 80 focused packet tests passed on the working baseline together with the adjacent interaction and task-bridge command surfaces.
 - Focused ESLint passed on the changed TypeScript and TSX files.
 
 ## Remaining gates

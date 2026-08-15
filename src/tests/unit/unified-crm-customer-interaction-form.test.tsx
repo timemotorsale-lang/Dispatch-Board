@@ -44,4 +44,22 @@ describe("Unified CRM customer interaction form", () => {
     );
     expect(currentCustomerPageHref("/crm?view=work", "", "timeline-heading")).toBeNull();
   });
+
+  it("renders a fail-closed review-only state when interaction commands are unavailable", () => {
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmCustomerInteractionForm
+        available={false}
+        customerId="customer-1"
+        fallbackHref="/customers/customer-1"
+      />
+    );
+
+    expect(markup).toContain("Manual outcome recording is review only from Customer 360 right now.");
+    expect(markup).toContain("Customer 360 is fail-closed for manual interaction commands right now.");
+    expect(markup).toContain("Review timeline");
+    expect(markup).toContain("Open governed source workflow");
+    expect(markup).toContain("No customer message is sent here, and no manual outcome is recorded from this surface while the command is unavailable.");
+    expect(markup).not.toContain("Log outcome");
+    expect(markup).not.toContain("<form");
+  });
 });

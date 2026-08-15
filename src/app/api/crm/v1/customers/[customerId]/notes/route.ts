@@ -2,6 +2,22 @@ import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/server/auth/current-user";
 import { logUnifiedCrmCustomerNote } from "@/server/services/unified-crm-customer-note-service";
+import {
+  UNIFIED_CRM_CUSTOMER_NOTE_ERROR_CONTRACT_VERSION,
+  UnifiedCrmCustomerNoteError,
+  type UnifiedCrmCustomerNoteFailureCode
+} from "@/server/unified-crm/customer-note-command";
+
+const TYPED_CODES = new Set<UnifiedCrmCustomerNoteFailureCode>([
+  "AUTHENTICATION_REQUIRED",
+  "CUSTOMER_360_NOT_AUTHORIZED",
+  "CUSTOMER_360_OFF",
+  "CUSTOMER_NOT_AVAILABLE",
+  "CUSTOMER_SOURCE_UNAVAILABLE",
+  "IDEMPOTENCY_KEY_REUSED",
+  "INVALID_NOTE_COMMAND",
+  "RESTRICTED_NOTE_NOT_AUTHORIZED"
+]);
 
 function statusForCode(code: string | undefined) {
   if (code === "AUTHENTICATION_REQUIRED") return 401;
@@ -23,19 +39,17 @@ export async function POST(request: Request, context: { params: Promise<{ custom
     return NextResponse.json(result, { status: result.duplicate ? 200 : 201 });
   } catch (error) {
     const code = error instanceof Error && "code" in error ? String((error as { code?: string }).code) : undefined;
-    const isTyped = typeof code === "string" && [
-      "AUTHENTICATION_REQUIRED",
-      "CUSTOMER_360_NOT_AUTHORIZED",
-      "CUSTOMER_360_OFF",
-      "CUSTOMER_NOT_AVAILABLE",
-      "CUSTOMER_SOURCE_UNAVAILABLE",
-      "IDEMPOTENCY_KEY_REUSED",
-      "INVALID_NOTE_COMMAND",
-      "RESTRICTED_NOTE_NOT_AUTHORIZED"
-    ].includes(code);
+    const isTyped = typeof code === "string" && TYPED_CODES.has(code as UnifiedCrmCustomerNoteFailureCode);
     const message = isTyped && error instanceof Error
       ? error.message
       : "Customer note could not be recorded right now.";
-    return NextResponse.json({ error: message, code }, { status: statusForCode(code) });
+    return NextResponse.json({
+      code: isTyped ? code : undefined,
+      contractVersion: UNIFIED_CRM_CUSTOMER_NOTE_ERROR_CONTRACT_VERSION,
+      error: message,
+      retryable: error instanceof UnifiedCrmCustomerNoteError
+        ? error.retryable
+        : code === "CUSTOMER_SOURCE_UNAVAILABLE"
+    }, { status: statusForCode(code) });
   }
 }

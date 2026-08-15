@@ -8,19 +8,30 @@ import styles from "./unified-crm-customer-360.module.css";
 import { currentCustomerPageHref } from "./unified-crm-customer-page-context";
 
 type Props = {
+  available?: boolean;
   allowRestricted: boolean;
   customerId: string;
+  defaultOpen?: boolean;
+  fallbackHref?: string | null;
+  unavailableReason?: string;
 };
 
 function createIdempotencyKey(customerId: string) {
   return globalThis.crypto?.randomUUID?.() ?? `crm-note-${customerId}-${Date.now()}`;
 }
 
-export function UnifiedCrmCustomerNoteForm({ allowRestricted, customerId }: Props) {
+export function UnifiedCrmCustomerNoteForm({
+  available = true,
+  allowRestricted,
+  customerId,
+  defaultOpen = false,
+  fallbackHref = null,
+  unavailableReason
+}: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [messageHref, setMessageHref] = useState<string | null>(null);
@@ -70,21 +81,39 @@ export function UnifiedCrmCustomerNoteForm({ allowRestricted, customerId }: Prop
         <div>
           <span className={styles.eyebrow}>Relationship notes</span>
           <h2 id="note-form-heading">Add an internal customer note</h2>
-          <p>This records team context only. It does not notify the customer, share outside the permitted team, or change source-owned workflows.</p>
+          <p>
+            {available
+              ? "This records team context only. It does not notify the customer, share outside the permitted team, or change source-owned workflows."
+              : "Customer note entry is review only from Customer 360 right now. No customer message is sent here, and source-owned workflows do not change."}
+          </p>
         </div>
-        <button
-          aria-controls="customer-note-form-panel"
-          aria-expanded={open}
-          className={styles.interactionToggle}
-          disabled={pending}
-          onClick={() => setOpen((value) => !value)}
-          type="button"
-        >
-          {open ? "Close" : "Add note"}
-        </button>
+        {available ? (
+          <button
+            aria-controls="customer-note-form-panel"
+            aria-expanded={open}
+            className={styles.interactionToggle}
+            disabled={pending}
+            onClick={() => setOpen((value) => !value)}
+            type="button"
+          >
+            {open ? "Close" : "Add note"}
+          </button>
+        ) : null}
       </header>
       {message ? <p className={tone === "error" ? styles.formError : styles.formSuccess} role={tone === "error" ? "alert" : "status"}>{message} {messageHref ? <Link href={messageHref}>Review notes</Link> : null}</p> : null}
-      {open ? (
+      {!available ? (
+        <div id="customer-note-form-panel">
+          <p className={styles.interactionHelper} id="customer-note-form-helper">
+            {unavailableReason
+              ?? "Customer 360 is fail-closed for note commands right now. Review the visible team context here or continue in the governed source workflow when note entry becomes available."}
+          </p>
+          <div className={styles.interactionActions}>
+            {notesHref ? <Link className={styles.secondaryActionLink} href={notesHref}>Review visible notes</Link> : null}
+            {fallbackHref ? <Link className={styles.secondaryActionLink} href={fallbackHref}>Open governed source workflow</Link> : null}
+            <span className={styles.interactionActionNote}>No note is recorded from this surface while command entry is unavailable.</span>
+          </div>
+        </div>
+      ) : open ? (
         <form
           aria-describedby="customer-note-form-helper customer-note-form-status"
           className={styles.interactionForm}

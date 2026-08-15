@@ -9,9 +9,9 @@ import {
   type UnifiedCrmCustomerInteractionRepository
 } from "@/server/repositories/unified-crm-customer-interaction-repository";
 import {
-  requireUnifiedCrmCustomer360Access,
-  type UnifiedCrmCustomer360AccessOptions
-} from "@/server/unified-crm/customer-360-access";
+  requireUnifiedCrmCustomerInteractionAccess,
+  type UnifiedCrmCustomerInteractionAccessOptions
+} from "@/server/unified-crm/customer-interaction-access";
 import {
   UNIFIED_CRM_CUSTOMER_INTERACTION_COMMAND,
   UNIFIED_CRM_CUSTOMER_INTERACTION_CONTRACT_VERSION,
@@ -24,7 +24,7 @@ import {
   type UnifiedCrmCustomerInteractionDirection
 } from "@/server/unified-crm/customer-interaction-command";
 
-type Dependencies = UnifiedCrmCustomer360AccessOptions & {
+type Dependencies = UnifiedCrmCustomerInteractionAccessOptions & {
   now?: () => Date;
   repository?: UnifiedCrmCustomerInteractionRepository;
   scopeRepository?: Pick<UnifiedCrmCustomerReadRepository, "listActiveOrganizationIds">;
@@ -109,7 +109,7 @@ export async function logUnifiedCrmCustomerInteraction(
   value: UnifiedCrmCustomerInteractionCommandInput,
   dependencies: Dependencies = {}
 ): Promise<UnifiedCrmCustomerInteractionCommandResult> {
-  const access = requireUnifiedCrmCustomer360Access(actor, dependencies);
+  const access = requireUnifiedCrmCustomerInteractionAccess(actor, dependencies);
   const now = dependencies.now?.() ?? new Date();
   const normalizedCustomerId = normalizeCustomerId(customerId);
   const command = normalizeCommand(value, now);

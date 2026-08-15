@@ -532,8 +532,17 @@ export function UnifiedCrmCustomer360({ errorMessage, failureKind = "error", mod
         defaultDueAt={model.relationship.nextActionAt}
         fallbackHref={taskBridgeHref}
       />
-      <UnifiedCrmCustomerInteractionForm customerId={model.identity.id} />
-      <UnifiedCrmCustomerNoteForm allowRestricted={model.permissions.canCreateRestrictedNote} customerId={model.identity.id} />
+      <UnifiedCrmCustomerInteractionForm
+        available={model.permissions.canLogInteraction}
+        customerId={model.identity.id}
+        fallbackHref={customerSourceHref}
+      />
+      <UnifiedCrmCustomerNoteForm
+        allowRestricted={model.permissions.canCreateRestrictedNote}
+        available={model.permissions.canCreateNote}
+        customerId={model.identity.id}
+        fallbackHref={customerSourceHref}
+      />
       <RelationshipSummary model={model} />
       {opportunityDiscovery ? <OpportunityDiscoverySection model={opportunityDiscovery} /> : null}
       <OpportunityLensSection model={model} returnHref={`/crm/customers/${encodeURIComponent(model.identity.id)}?crmReturnTo=${encodeURIComponent(returnHref)}`} />

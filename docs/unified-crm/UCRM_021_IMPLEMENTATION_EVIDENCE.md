@@ -30,12 +30,15 @@
 - Outbound `PHONE`, `TEXT`, and `EMAIL` outcomes now require positive canonical consent from the customer’s authoritative contact-point data; the client-provided consent claim is no longer sufficient by itself.
 - Replay is bound to the same authorized customer subject and fails closed if a key belongs to another customer.
 - Unknown backend failures are masked by the route, while typed interaction errors retain their approved status mappings.
+- The interaction command now uses a dedicated CRM mutation access boundary instead of relying on the broader Customer 360 read guard.
+- Customer 360 only advertises the live manual-outcome surface when shell review, customer-read review, interaction-command review, and the CRM mutation capability all allow it together.
 
 ## Quality and correctness improvements
 
 - Duplicate replay remains supported, but its snapshot is now defensively validated before reuse.
 - Route validation errors now map to HTTP 400 rather than being treated like unknown 500 failures.
 - The UI now uses clearer non-sending language, better disclosure semantics, disabled form state during submit, and distinct success/error status roles.
+- When the command is unavailable, the Customer 360 interaction surface now fails closed with honest review-only copy, safe fallback links, and explicit “nothing was recorded” messaging.
 
 ## Automated evidence
 
@@ -44,7 +47,9 @@
   - `src/tests/unit/unified-crm-customer-interaction-repository.test.ts`
   - `src/tests/unit/unified-crm-customer-interaction-route.test.ts`
   - `src/tests/unit/unified-crm-customer-interaction-form.test.tsx`
-- Result: 4 files, 18 tests passed on the working baseline.
+- `src/tests/unit/unified-crm-customer-360-service.test.ts`
+- `src/tests/unit/unified-crm-customer-360.test.tsx`
+- Result: 6 files, 80 focused packet tests passed on the working baseline together with the adjacent note and task-bridge command surfaces.
 - Focused ESLint passed on the changed TypeScript and TSX files.
 
 ## Remaining gates

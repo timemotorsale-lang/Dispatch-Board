@@ -10,9 +10,9 @@ import {
   type UnifiedCrmCustomerNoteRepository
 } from "@/server/repositories/unified-crm-customer-note-repository";
 import {
-  requireUnifiedCrmCustomer360Access,
-  type UnifiedCrmCustomer360AccessOptions
-} from "@/server/unified-crm/customer-360-access";
+  requireUnifiedCrmCustomerNoteAccess,
+  type UnifiedCrmCustomerNoteAccessOptions
+} from "@/server/unified-crm/customer-note-access";
 import {
   UNIFIED_CRM_CUSTOMER_NOTE_COMMAND,
   UNIFIED_CRM_CUSTOMER_NOTE_CONTRACT_VERSION,
@@ -23,7 +23,7 @@ import {
   type UnifiedCrmCustomerNoteVisibility
 } from "@/server/unified-crm/customer-note-command";
 
-type Dependencies = UnifiedCrmCustomer360AccessOptions & {
+type Dependencies = UnifiedCrmCustomerNoteAccessOptions & {
   now?: () => Date;
   repository?: UnifiedCrmCustomerNoteRepository;
   scopeRepository?: Pick<UnifiedCrmCustomerReadRepository, "listActiveOrganizationIds">;
@@ -72,7 +72,7 @@ export async function logUnifiedCrmCustomerNote(
   value: UnifiedCrmCustomerNoteCommandInput,
   dependencies: Dependencies = {}
 ): Promise<UnifiedCrmCustomerNoteCommandResult> {
-  const access = requireUnifiedCrmCustomer360Access(actor, dependencies);
+  const access = requireUnifiedCrmCustomerNoteAccess(actor, dependencies);
   const now = dependencies.now?.() ?? new Date();
   const normalizedCustomerId = normalizeCustomerId(customerId);
   const normalizedCommand = normalizeCommand(value);
