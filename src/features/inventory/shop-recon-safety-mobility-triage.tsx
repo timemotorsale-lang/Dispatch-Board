@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 
 import type { ShopReconLifecycleWorkspaceModel, ShopReconVehicleCardModel } from "@/features/inventory/shop-recon-vehicle-card";
+import { getNextShopReconStageHref } from "@/features/inventory/shop-recon-navigation";
 import { SHOP_RECON_STAGES } from "@/server/shop-recon/foundation";
 
 type TriageForm = Record<string, unknown>;
@@ -100,8 +101,8 @@ export function ShopReconSafetyMobilityTriage({ item, lifecycleWorkspace, return
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error ?? "Safety & Mobility Triage could not be saved.");
-      setNotice(complete ? "Safety & Mobility Triage completed. Returning to the vehicle card for Stage 5 review." : "Safety & Mobility Triage draft saved.");
-      if (complete) window.setTimeout(() => window.location.assign(returnTo), 650);
+      setNotice(complete ? "Safety & Mobility Triage completed. Opening the same vehicle in the next stage." : "Safety & Mobility Triage draft saved.");
+      if (complete) window.setTimeout(() => window.location.assign(getNextShopReconStageHref(item.id, "SAFETY_MOBILITY_TRIAGE")), 650);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Safety & Mobility Triage could not be saved.");
     } finally {

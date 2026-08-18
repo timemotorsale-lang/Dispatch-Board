@@ -26,6 +26,7 @@ Example:
 ```env
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/dispatch_board?schema=public"
 CRON_SECRET="replace-with-a-long-random-secret"
+NEXT_DIST_DIR=".next-local"
 ```
 
 ### Required variables
@@ -34,6 +35,8 @@ CRON_SECRET="replace-with-a-long-random-secret"
   Points Prisma and the app at your PostgreSQL database.
 - `CRON_SECRET`
   Protects the scheduled generation endpoint at `/api/cron/generate-board`.
+- `NEXT_DIST_DIR`
+  Optional override for the Next.js build cache directory. The local default in this repo is `.next-local` to reduce Windows and OneDrive file-lock issues.
 
 ### Optional local test variables
 
@@ -273,7 +276,7 @@ Run:
 npm run db:generate
 ```
 
-If the app still shows an older Prisma runtime error after regeneration, fully stop the dev server, remove `.next`, and start the app again.
+If the app still shows an older Prisma runtime error after regeneration, fully stop the dev server, remove the active Next cache directory (`.next-local` by default in local development), and start the app again.
 
 ### Port 3000 is already in use
 
@@ -321,7 +324,7 @@ taskkill /F /IM node.exe
 ```
 
 ```bash
-Remove-Item -Recurse -Force .next
+Remove-Item -Recurse -Force .next-local
 ```
 
 ```bash

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 
 import type { ShopReconLifecycleWorkspaceModel, ShopReconVehicleCardModel } from "@/features/inventory/shop-recon-vehicle-card";
+import { getNextShopReconStageHref } from "@/features/inventory/shop-recon-navigation";
 import { SHOP_RECON_STAGES } from "@/server/shop-recon/foundation";
 
 type InspectionForm = Record<string, unknown>;
@@ -95,8 +96,8 @@ export function ShopReconInspectionConcernVerification({ item, lifecycleWorkspac
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error ?? "Inspection & Concern Verification could not be saved.");
-      setNotice(complete ? "Inspection & Concern Verification completed. Returning to the vehicle card for Stage 6 review." : "Inspection & Concern Verification draft saved.");
-      if (complete) window.setTimeout(() => window.location.assign(returnTo), 650);
+      setNotice(complete ? "Inspection & Concern Verification completed. Opening the same vehicle in the next stage." : "Inspection & Concern Verification draft saved.");
+      if (complete) window.setTimeout(() => window.location.assign(getNextShopReconStageHref(item.id, "INSPECTION_CONCERN_VERIFICATION")), 650);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Inspection & Concern Verification could not be saved.");
     } finally {

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 
 import type { ShopReconLifecycleWorkspaceModel, ShopReconVehicleCardModel } from "@/features/inventory/shop-recon-vehicle-card";
+import { getNextShopReconStageHref } from "@/features/inventory/shop-recon-navigation";
 import { SHOP_RECON_STAGES } from "@/server/shop-recon/foundation";
 
 type IntakeForm = Record<string, unknown>;
@@ -83,8 +84,8 @@ export function ShopReconVehicleIntakeCustody({ item, lifecycleWorkspace, return
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error ?? "Vehicle Intake & Custody could not be saved.");
-      setNotice(complete ? "Vehicle Intake & Custody completed. Returning to the vehicle card for Stage 4 review." : "Vehicle Intake & Custody draft saved.");
-      if (complete) window.setTimeout(() => window.location.assign(returnTo), 650);
+      setNotice(complete ? "Vehicle Intake & Custody completed. Opening the same vehicle in the next stage." : "Vehicle Intake & Custody draft saved.");
+      if (complete) window.setTimeout(() => window.location.assign(getNextShopReconStageHref(item.id, "VEHICLE_INTAKE_CUSTODY")), 650);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Vehicle Intake & Custody could not be saved.");
     } finally {

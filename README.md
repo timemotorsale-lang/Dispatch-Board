@@ -58,6 +58,8 @@ npm install
 copy .env.example .env
 ```
 
+The example environment defaults `NEXT_DIST_DIR` to `.next-local` so local development avoids common Windows and OneDrive file-lock issues in the standard `.next` folder.
+
 3. Create your local PostgreSQL database and apply migrations:
 
 ```bash
@@ -77,7 +79,7 @@ npm run db:seed
 npm run dev
 ```
 
-If Prisma has just been regenerated after a schema change and the dev app still shows an older Prisma runtime error, stop the dev server, delete `.next`, and restart. See [docs/SETUP.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/SETUP.md) for the Windows-specific recovery note.
+If Prisma has just been regenerated after a schema change and the dev app still shows an older Prisma runtime error, stop the dev server, delete the active Next cache directory (`.next-local` by default in local development), and restart. See [docs/SETUP.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/SETUP.md) for the Windows-specific recovery note.
 
 If Prisma regeneration fails on Windows with an `EPERM` rename error around `query_engine-windows.dll.node`, stop the local dev server before retrying generation.
 

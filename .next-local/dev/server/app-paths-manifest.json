@@ -1,0 +1,13 @@
+{
+  "/api/auth/me/route": "app/api/auth/me/route.js",
+  "/api/service-intake/safety-intelligence/route": "app/api/service-intake/safety-intelligence/route.js",
+  "/api/vehicles/[id]/parts-requests/route": "app/api/vehicles/[id]/parts-requests/route.js",
+  "/(app)/vehicles/repair-orders/page": "app/(app)/vehicles/repair-orders/page.js",
+  "/(app)/vehicles/registry/page": "app/(app)/vehicles/registry/page.js",
+  "/(app)/diagnostics/cases/[caseId]/page": "app/(app)/diagnostics/cases/[caseId]/page.js",
+  "/(app)/manager-workspace/page": "app/(app)/manager-workspace/page.js",
+  "/(app)/vehicles/advisor/page": "app/(app)/vehicles/advisor/page.js",
+  "/(app)/vehicles/control-tower/page": "app/(app)/vehicles/control-tower/page.js",
+  "/(app)/vehicles/[id]/workbench/page": "app/(app)/vehicles/[id]/workbench/page.js",
+  "/(app)/vehicles/repair-workbench/page": "app/(app)/vehicles/repair-workbench/page.js"
+}

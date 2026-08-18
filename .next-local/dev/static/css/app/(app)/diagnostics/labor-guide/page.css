@@ -1,0 +1,1692 @@
+/*!**************************************************************************************************************************************************************************************************************************************************************************************************************!*\
+  !*** css ./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[15].oneOf[5].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[15].oneOf[5].use[3]!./src/features/diagnostics/enterprise-labor-guide-console.module.css ***!
+  \**************************************************************************************************************************************************************************************************************************************************************************************************************/
+.enterprise-labor-guide-console_console__7cmKC {
+  min-height: 100%;
+  padding: 16px 18px 20px;
+  background: #f5f7fa;
+  color: #162033;
+  font-size: 13px;
+}
+
+.enterprise-labor-guide-console_console__7cmKC *,
+.enterprise-labor-guide-console_console__7cmKC *::before,
+.enterprise-labor-guide-console_console__7cmKC *::after {
+  box-sizing: border-box;
+}
+
+.enterprise-labor-guide-console_console__7cmKC a {
+  color: #075fd4;
+  text-decoration: none;
+}
+
+.enterprise-labor-guide-console_console__7cmKC button,
+.enterprise-labor-guide-console_console__7cmKC input,
+.enterprise-labor-guide-console_console__7cmKC select {
+  font: inherit;
+}
+
+.enterprise-labor-guide-console_pageHeader__RCYbP {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.enterprise-labor-guide-console_returnLink__GnZn4 {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  margin-bottom: 8px;
+  padding: 8px 11px;
+  border: 1px solid #bfd0e7;
+  border-radius: 8px;
+  background: #fff;
+  color: #123461 !important;
+  font-weight: 800;
+}
+
+.enterprise-labor-guide-console_pageHeader__RCYbP h1 {
+  margin: 0;
+  color: #07142b;
+  font-size: 24px;
+  letter-spacing: 0;
+}
+
+.enterprise-labor-guide-console_pageHeader__RCYbP p {
+  margin: 6px 0 0;
+  color: #526176;
+  font-size: 12px;
+}
+
+.enterprise-labor-guide-console_lookupBand__YtltB,
+.enterprise-labor-guide-console_compactContext__hcVrm,
+.enterprise-labor-guide-console_catalogWorkspace__Nn4nk,
+.enterprise-labor-guide-console_reviewPanel__b4hL0 {
+  border: 1px solid #d5dde8;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 2px 8px #1322380a;
+}
+
+.enterprise-labor-guide-console_lookupBand__YtltB {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.25fr) minmax(170px, .58fr) minmax(210px, .7fr) minmax(120px, .32fr) minmax(142px, .36fr);
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+
+.enterprise-labor-guide-console_lookupSearch__JZXQ3,
+.enterprise-labor-guide-console_catalogTools__j84iW label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid #cfd9e6;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.enterprise-labor-guide-console_lookupSearch__JZXQ3 input::placeholder,
+.enterprise-labor-guide-console_catalogTools__j84iW input::placeholder {
+  text-overflow: ellipsis;
+}
+
+.enterprise-labor-guide-console_lookupSearch__JZXQ3 svg,
+.enterprise-labor-guide-console_catalogTools__j84iW label svg {
+  width: 18px;
+  color: #526176;
+}
+
+.enterprise-labor-guide-console_lookupSearch__JZXQ3 input,
+.enterprise-labor-guide-console_catalogTools__j84iW input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  outline: 0;
+  color: #172033;
+}
+
+.enterprise-labor-guide-console_lookupResult__LrZee {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  min-width: 0;
+  padding: 7px 9px;
+  border: 1px solid #d7e0eb;
+  border-radius: 6px;
+  background: #fbfcfe;
+}
+
+.enterprise-labor-guide-console_lookupResult__LrZee svg {
+  width: 21px;
+  color: #53647a;
+}
+
+.enterprise-labor-guide-console_lookupResult__LrZee span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.enterprise-labor-guide-console_lookupResult__LrZee strong,
+.enterprise-labor-guide-console_compactContext__hcVrm strong {
+  color: #0f1a2f;
+  font-weight: 700;
+}
+
+.enterprise-labor-guide-console_lookupResult__LrZee strong,
+.enterprise-labor-guide-console_lookupResult__LrZee small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.enterprise-labor-guide-console_lookupResult__LrZee small,
+.enterprise-labor-guide-console_compactContext__hcVrm span,
+.enterprise-labor-guide-console_catalogHeader__CaDVs p,
+.enterprise-labor-guide-console_operationResults__sMU03 small,
+.enterprise-labor-guide-console_trayGrid__jS1Uh small {
+  color: #607086;
+  font-size:11.5px;
+}
+
+.enterprise-labor-guide-console_lookupResult__LrZee b {
+  width: max-content;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #eef8f1;
+  color: #267a49;
+  font-size:11.5px;
+}
+
+.enterprise-labor-guide-console_lookupResults__Au_j7 {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.enterprise-labor-guide-console_notice__qGEVq,
+.enterprise-labor-guide-console_noticeDanger__1b61n {
+  display: flex;
+  align-items: center;
+  min-height: 38px;
+  margin: -2px 0 10px;
+  padding: 8px 12px;
+  border: 1px solid #c7d7f7;
+  border-radius: 7px;
+  background: #f4f7ff;
+  color: #27426f;
+  font-weight: 700;
+}
+
+.enterprise-labor-guide-console_noticeDanger__1b61n {
+  border-color: #ffd0a8;
+  background: #fff7ed;
+  color: #8a3b0b;
+}
+
+.enterprise-labor-guide-console_lookupBand__YtltB > button,
+.enterprise-labor-guide-console_lookupBand__YtltB > a,
+.enterprise-labor-guide-console_compactContext__hcVrm button,
+.enterprise-labor-guide-console_catalogHeader__CaDVs button,
+.enterprise-labor-guide-console_catalogTools__j84iW select,
+.enterprise-labor-guide-console_rowActions__2Kca5 button,
+.enterprise-labor-guide-console_workTray__HMLRV button,
+.enterprise-labor-guide-console_trayGrid__jS1Uh button,
+.enterprise-labor-guide-console_collapseReview__OPsJE,
+.enterprise-labor-guide-console_secondaryReview__ESex7 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid #c4d7f7;
+  border-radius: 5px;
+  background: #fff;
+  color: #075fd4;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.enterprise-labor-guide-console_lookupBand__YtltB > button,
+.enterprise-labor-guide-console_lookupBand__YtltB > a {
+  min-height: 42px;
+  min-width: 0;
+  padding: 0 9px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.enterprise-labor-guide-console_lookupBand__YtltB > button {
+  border-color: #075fd4;
+  background: #075fd4;
+  color: #fff;
+}
+
+.enterprise-labor-guide-console_lookupBand__YtltB svg,
+.enterprise-labor-guide-console_compactContext__hcVrm svg,
+.enterprise-labor-guide-console_catalogHeader__CaDVs svg,
+.enterprise-labor-guide-console_rowActions__2Kca5 svg,
+.enterprise-labor-guide-console_workTray__HMLRV svg,
+.enterprise-labor-guide-console_trayGrid__jS1Uh svg,
+.enterprise-labor-guide-console_collapseReview__OPsJE svg {
+  width: 16px;
+}
+
+.enterprise-labor-guide-console_compactContext__hcVrm {
+  display: grid;
+  grid-template-columns: 1fr .72fr .86fr 1fr minmax(240px, 1.5fr) auto;
+  gap: 0;
+  align-items: center;
+  min-height: 56px;
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+
+.enterprise-labor-guide-console_compactContext__hcVrm > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  padding: 0 18px;
+  border-right: 1px solid #e1e7ef;
+}
+
+.enterprise-labor-guide-console_compactContext__hcVrm > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.enterprise-labor-guide-console_compactContext__hcVrm strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.enterprise-labor-guide-console_compactContext__hcVrm button {
+  margin-right: 12px;
+}
+
+.enterprise-labor-guide-console_modeTabs__z79ye {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0;
+  border: 1px solid #d5dde8;
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  background: #fff;
+}
+
+.enterprise-labor-guide-console_modeTabs__z79ye button {
+  min-width: 220px;
+  min-height: 45px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-right: 1px solid #dce4ed;
+  background: transparent;
+  color: #526176;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.enterprise-labor-guide-console_modeTabs__z79ye button[aria-selected="true"] {
+  color: #075fd4;
+  box-shadow: inset 0 -3px 0 #075fd4;
+}
+
+.enterprise-labor-guide-console_modeTabs__z79ye svg {
+  width: 18px;
+}
+
+.enterprise-labor-guide-console_workspaceShell__EPzHt {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 292px;
+  gap: 12px;
+  align-items: start;
+}
+
+.enterprise-labor-guide-console_workspaceShell__EPzHt.enterprise-labor-guide-console_reviewCollapsed__EkaNh {
+  grid-template-columns: minmax(0, 1fr) 58px;
+}
+
+.enterprise-labor-guide-console_catalogWorkspace__Nn4nk {
+  min-width: 0;
+  border-top-left-radius: 0;
+  padding: 16px 14px 12px;
+}
+
+.enterprise-labor-guide-console_catalogHeader__CaDVs {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.enterprise-labor-guide-console_catalogHeader__CaDVs h2,
+.enterprise-labor-guide-console_reviewPanel__b4hL0 h2,
+.enterprise-labor-guide-console_historyCard__qqrJY h3,
+.enterprise-labor-guide-console_trayGrid__jS1Uh h3 {
+  margin: 0;
+  color: #07142b;
+}
+
+.enterprise-labor-guide-console_catalogHeader__CaDVs h2 {
+  font-size: 21px;
+}
+
+.enterprise-labor-guide-console_catalogHeader__CaDVs p {
+  margin: 4px 0 0;
+}
+
+.enterprise-labor-guide-console_viewToggle__wzGE_ {
+  display: flex;
+  align-items: center;
+  border: 1px solid #cdd8e6;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.enterprise-labor-guide-console_viewToggle__wzGE_ button {
+  min-width: 86px;
+  border: 0;
+  border-right: 1px solid #d8e0ea;
+  border-radius: 0;
+}
+
+.enterprise-labor-guide-console_viewToggle__wzGE_ button:last-child {
+  border-right: 0;
+}
+
+.enterprise-labor-guide-console_viewToggle__wzGE_ button[aria-pressed="true"] {
+  background: #eef5ff;
+  color: #075fd4;
+  box-shadow: inset 0 0 0 1px #075fd4;
+}
+
+.enterprise-labor-guide-console_catalogTools__j84iW {
+  display: grid;
+  grid-template-columns: minmax(210px, 1fr) minmax(160px, .42fr) minmax(122px, .28fr) minmax(118px, .26fr);
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.enterprise-labor-guide-console_catalogTools__j84iW select {
+  justify-content: space-between;
+  border-color: #cfd9e6;
+  color: #2d3b50;
+  font-weight: 500;
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
+  padding-inline: 9px 24px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.enterprise-labor-guide-console_engineTools__9uSfD {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 132px;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 12px;
+}
+
+.enterprise-labor-guide-console_engineTools__9uSfD label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  color: #526176;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.enterprise-labor-guide-console_engineTools__9uSfD textarea {
+  width: 100%;
+  min-height: 74px;
+  padding: 10px 12px;
+  border: 1px solid #cfd9e6;
+  border-radius: 6px;
+  color: #172033;
+  font: inherit;
+  resize: vertical;
+  outline: 0;
+}
+
+.enterprise-labor-guide-console_engineTools__9uSfD button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 42px;
+  border: 1px solid #075fd4;
+  border-radius: 5px;
+  background: #075fd4;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.enterprise-labor-guide-console_engineTools__9uSfD small {
+  color: #607086;
+  font-size:11.5px;
+  line-height: 1.35;
+}
+
+.enterprise-labor-guide-console_languageAnalysis__5Jf4H {
+  display: grid;
+  gap: 8px;
+  margin: -2px 0 12px;
+  padding: 11px 13px;
+  border: 1px solid #c9d8ef;
+  border-radius: 7px;
+  background: #f7faff;
+}
+
+.enterprise-labor-guide-console_languageAnalysis__5Jf4H header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.enterprise-labor-guide-console_languageAnalysis__5Jf4H header span,
+.enterprise-labor-guide-console_languageAnalysis__5Jf4H header b,
+.enterprise-labor-guide-console_languageAnalysis__5Jf4H header small,
+.enterprise-labor-guide-console_languageAnalysis__5Jf4H div span {
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #e8f0ff;
+  color: #1d5bbd;
+  font-size:11.5px;
+  font-weight: 800;
+}
+
+.enterprise-labor-guide-console_languageAnalysis__5Jf4H header b[data-confidence="LOW"],
+.enterprise-labor-guide-console_languageAnalysis__5Jf4H header b[data-confidence="ABSTAIN"] {
+  background: #fff3d7;
+  color: #8b5b08;
+}
+
+.enterprise-labor-guide-console_languageAnalysis__5Jf4H header small {
+  margin-left: auto;
+  background: transparent;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.enterprise-labor-guide-console_languageAnalysis__5Jf4H p,
+.enterprise-labor-guide-console_languageAnalysis__5Jf4H strong {
+  margin: 0;
+  color: #334155;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.enterprise-labor-guide-console_languageAnalysis__5Jf4H strong {
+  color: #6f4b0a;
+}
+
+.enterprise-labor-guide-console_languageAnalysis__5Jf4H div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.enterprise-labor-guide-console_matchExplanation__gj9C1 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+  color: #435d7c !important;
+  line-height: 1.35;
+}
+
+.enterprise-labor-guide-console_matchExplanation__gj9C1 b {
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: #eaf2ff;
+  color: #075fd4;
+  font-size:11.5px;
+}
+
+.enterprise-labor-guide-console_repairAreaIntelligence__Ic_Y1 {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 12px;
+  border: 1px solid #cbd8e8;
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.enterprise-labor-guide-console_repairAreaIntelligence__Ic_Y1 header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.enterprise-labor-guide-console_repairAreaIntelligence__Ic_Y1 header div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.enterprise-labor-guide-console_repairAreaIntelligence__Ic_Y1 header span,
+.enterprise-labor-guide-console_repairAreaIntelligence__Ic_Y1 header small,
+.enterprise-labor-guide-console_areaRuleGrid__ZwCGS b,
+.enterprise-labor-guide-console_areaChecks__XMGue span {
+  width: max-content;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #eaf2ff;
+  color: #1d5bbd;
+  font-size:11.5px;
+  font-weight: 800;
+}
+
+.enterprise-labor-guide-console_repairAreaIntelligence__Ic_Y1 h3,
+.enterprise-labor-guide-console_repairAreaIntelligence__Ic_Y1 h4,
+.enterprise-labor-guide-console_repairAreaIntelligence__Ic_Y1 p {
+  margin: 0;
+}
+
+.enterprise-labor-guide-console_repairAreaIntelligence__Ic_Y1 h3 {
+  color: #0f1a2f;
+  font-size: 16px;
+}
+
+.enterprise-labor-guide-console_repairAreaIntelligence__Ic_Y1 header p,
+.enterprise-labor-guide-console_repairAreaIntelligence__Ic_Y1 header small,
+.enterprise-labor-guide-console_areaRuleGrid__ZwCGS small,
+.enterprise-labor-guide-console_assemblyMap__JmSdK small {
+  color: #5d6c80;
+  font-size:11.5px;
+  line-height: 1.35;
+}
+
+.enterprise-labor-guide-console_assemblyMap__JmSdK {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  gap: 7px;
+}
+
+.enterprise-labor-guide-console_assemblyMap__JmSdK article {
+  display: grid;
+  gap: 4px;
+  min-height: 78px;
+  padding: 9px;
+  border: 1px solid #d7e1ee;
+  border-left: 4px solid #58749c;
+  border-radius: 7px;
+  background: #fff;
+}
+
+.enterprise-labor-guide-console_assemblyMap__JmSdK article[data-zone="finish"],
+.enterprise-labor-guide-console_assemblyMap__JmSdK article[data-zone="outer"] {
+  border-left-color: #b36b2c;
+}
+
+.enterprise-labor-guide-console_assemblyMap__JmSdK article[data-zone="electrical"],
+.enterprise-labor-guide-console_assemblyMap__JmSdK article[data-zone="safety"] {
+  border-left-color: #6d55b3;
+}
+
+.enterprise-labor-guide-console_assemblyMap__JmSdK article[data-zone="hydraulic"],
+.enterprise-labor-guide-console_assemblyMap__JmSdK article[data-zone="drivetrain"],
+.enterprise-labor-guide-console_assemblyMap__JmSdK article[data-zone="brake"] {
+  border-left-color: #1f7a5c;
+}
+
+.enterprise-labor-guide-console_assemblyMap__JmSdK strong,
+.enterprise-labor-guide-console_areaRuleGrid__ZwCGS span {
+  color: #15243a;
+  font-weight: 800;
+}
+
+.enterprise-labor-guide-console_areaRuleGrid__ZwCGS {
+  display: grid;
+  grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+  gap: 10px;
+}
+
+.enterprise-labor-guide-console_areaRuleGrid__ZwCGS section {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #d7e1ee;
+  border-radius: 7px;
+  background: #fff;
+}
+
+.enterprise-labor-guide-console_areaRuleGrid__ZwCGS h4 {
+  color: #25344a;
+  font-size: 12px;
+}
+
+.enterprise-labor-guide-console_areaRuleGrid__ZwCGS p {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 6px 8px;
+  align-items: center;
+  padding-top: 7px;
+  border-top: 1px solid #edf1f5;
+}
+
+.enterprise-labor-guide-console_areaRuleGrid__ZwCGS p:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.enterprise-labor-guide-console_areaRuleGrid__ZwCGS small {
+  grid-column: 2 / -1;
+}
+
+.enterprise-labor-guide-console_areaRuleGrid__ZwCGS button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 27px;
+  padding: 0 8px;
+  border: 1px solid #c4d7f7;
+  border-radius: 5px;
+  background: #fff;
+  color: #075fd4;
+  font-size:11.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.enterprise-labor-guide-console_areaRuleGrid__ZwCGS button svg {
+  width: 13px;
+}
+
+.enterprise-labor-guide-console_areaChecks__XMGue {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.enterprise-labor-guide-console_areaChecks__XMGue span {
+  width: auto;
+  max-width: 100%;
+  background: #f4f7fb;
+  color: #43546b;
+  line-height: 1.35;
+}
+
+.enterprise-labor-guide-console_categoryLinks__D0DA_ {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 2px;
+  overflow-x: auto;
+}
+
+.enterprise-labor-guide-console_categoryLinks__D0DA_ button {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 0 11px;
+  border: 1px solid #cdd8e6;
+  border-radius: 999px;
+  background: #fff;
+  color: #344359;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.enterprise-labor-guide-console_categoryLinks__D0DA_ button[aria-current="true"] {
+  border-color: #075fd4;
+  background: #eef5ff;
+  color: #075fd4;
+}
+
+.enterprise-labor-guide-console_catalogList__66hbX,
+.enterprise-labor-guide-console_catalogBoard__3mRUS {
+  min-height: 230px;
+}
+
+.enterprise-labor-guide-console_operationGroups__GrqCO {
+  display: grid;
+  gap: 10px;
+}
+
+.enterprise-labor-guide-console_emptyCatalogResult__qrX0e {
+  display: grid;
+  gap: 4px;
+  padding: 16px;
+  border: 1px dashed #bfd0e5;
+  border-radius: 7px;
+  background: #fbfcfe;
+  color: #344359;
+}
+
+.enterprise-labor-guide-console_emptyCatalogResult__qrX0e strong {
+  color: #0f1a2f;
+}
+
+.enterprise-labor-guide-console_emptyCatalogResult__qrX0e span {
+  color: #607086;
+  font-size: 12px;
+}
+
+.enterprise-labor-guide-console_catalogBoard__3mRUS .enterprise-labor-guide-console_operationGroups__GrqCO {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.enterprise-labor-guide-console_catalogBoard__3mRUS .enterprise-labor-guide-console_operationGroup__iwZ6S {
+  border: 1px solid #d8e1eb;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.enterprise-labor-guide-console_operationResults__sMU03,
+.enterprise-labor-guide-console_operationGroup__iwZ6S,
+.enterprise-labor-guide-console_workTray__HMLRV {
+  border: 1px solid #d8e1eb;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.enterprise-labor-guide-console_operationResults__sMU03 article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px;
+  gap: 12px;
+  align-items: center;
+  padding: 9px 12px;
+}
+
+.enterprise-labor-guide-console_operationGroup__iwZ6S {
+  display: grid;
+}
+
+.enterprise-labor-guide-console_operationGroupButton__wcq5O {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 58px;
+  padding: 10px 13px;
+  border: 0;
+  background: #fff;
+  color: #172033;
+  text-align: left;
+  cursor: pointer;
+}
+
+.enterprise-labor-guide-console_operationGroupButton__wcq5O:hover,
+.enterprise-labor-guide-console_operationGroupButton__wcq5O[aria-expanded="true"] {
+  background: #f3f7ff;
+}
+
+.enterprise-labor-guide-console_operationGroupButton__wcq5O span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.enterprise-labor-guide-console_operationGroupButton__wcq5O strong,
+.enterprise-labor-guide-console_operationGroupButton__wcq5O small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.enterprise-labor-guide-console_operationGroupButton__wcq5O b {
+  min-width: 58px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #eef2f8;
+  color: #075fd4;
+  text-align: center;
+}
+
+.enterprise-labor-guide-console_operationGroup__iwZ6S + .enterprise-labor-guide-console_operationGroup__iwZ6S {
+  border-top: 0;
+}
+
+.enterprise-labor-guide-console_operationResults__sMU03 article {
+  border-bottom: 1px solid #edf1f5;
+  border-top: 1px solid #edf1f5;
+}
+
+.enterprise-labor-guide-console_operationResults__sMU03 article:last-child {
+  border-bottom: 0;
+}
+
+.enterprise-labor-guide-console_catalogBoard__3mRUS .enterprise-labor-guide-console_operationGroup__iwZ6S + .enterprise-labor-guide-console_operationGroup__iwZ6S {
+  border-top: 1px solid #d8e1eb;
+}
+
+.enterprise-labor-guide-console_catalogBoard__3mRUS .enterprise-labor-guide-console_operationGroup__iwZ6S article {
+  grid-template-columns: minmax(0, 1fr) 82px;
+}
+
+.enterprise-labor-guide-console_operationChoice__izYns {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.enterprise-labor-guide-console_operationChoice__izYns:hover strong,
+.enterprise-labor-guide-console_operationChoice__izYns:focus-visible strong {
+  color: #075fd4;
+}
+
+.enterprise-labor-guide-console_operationChoice__izYns strong {
+  color: #172033;
+}
+
+.enterprise-labor-guide-console_rowActions__2Kca5 {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.enterprise-labor-guide-console_rowActions__2Kca5 button {
+  min-width: 34px;
+  padding: 0 8px;
+}
+
+.enterprise-labor-guide-console_rowActions__2Kca5 button:first-child {
+  min-width: 82px;
+}
+
+.enterprise-labor-guide-console_workTray__HMLRV {
+  margin-top: 12px;
+}
+
+.enterprise-labor-guide-console_workTray__HMLRV nav {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid #d8e1eb;
+}
+
+.enterprise-labor-guide-console_workTray__HMLRV nav button {
+  min-width: 116px;
+  border: 0;
+  border-right: 1px solid #d8e1eb;
+  border-radius: 0;
+  color: #344359;
+}
+
+.enterprise-labor-guide-console_workTray__HMLRV nav button[aria-current="true"] {
+  color: #075fd4;
+  box-shadow: inset 0 -3px 0 #075fd4;
+}
+
+.enterprise-labor-guide-console_trayGrid__jS1Uh {
+  display: grid;
+  grid-template-columns: 1fr 1.08fr;
+  gap: 14px;
+  padding: 12px;
+}
+
+.enterprise-labor-guide-console_trayGrid__jS1Uh section {
+  min-width: 0;
+}
+
+.enterprise-labor-guide-console_trayGrid__jS1Uh header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.enterprise-labor-guide-console_trayGrid__jS1Uh h3 {
+  font-size: 14px;
+}
+
+.enterprise-labor-guide-console_trayGrid__jS1Uh table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.enterprise-labor-guide-console_trayGrid__jS1Uh td {
+  padding: 8px 7px;
+  border-top: 1px solid #edf1f5;
+  vertical-align: middle;
+}
+
+.enterprise-labor-guide-console_trayGrid__jS1Uh td:first-child {
+  color: #526176;
+}
+
+.enterprise-labor-guide-console_trayGrid__jS1Uh td:nth-child(2) {
+  color: #172033;
+}
+
+.enterprise-labor-guide-console_trayGrid__jS1Uh td:last-child {
+  width: 72px;
+  text-align: right;
+}
+
+.enterprise-labor-guide-console_trayGrid__jS1Uh td:last-child button {
+  width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+}
+
+.enterprise-labor-guide-console_trayGrid__jS1Uh small {
+  display: block;
+  margin-top: 2px;
+}
+
+.enterprise-labor-guide-console_editingLaborRow__QmXs6 {
+  background: #f8fbff;
+}
+
+.enterprise-labor-guide-console_editingLaborRow__QmXs6 label {
+  display: grid;
+  gap: 4px;
+  color: #607086;
+  font-size:11.5px;
+  font-weight: 700;
+}
+
+.enterprise-labor-guide-console_editingLaborRow__QmXs6 input,
+.enterprise-labor-guide-console_editingLaborRow__QmXs6 textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #cfd9e6;
+  border-radius: 5px;
+  color: #172033;
+  font: inherit;
+  font-weight: 500;
+  outline: 0;
+}
+
+.enterprise-labor-guide-console_editingLaborRow__QmXs6 input {
+  min-height: 32px;
+  padding: 0 8px;
+}
+
+.enterprise-labor-guide-console_editingLaborRow__QmXs6 textarea {
+  min-height: 54px;
+  margin-top: 6px;
+  padding: 7px 8px;
+  resize: vertical;
+}
+
+.enterprise-labor-guide-console_editingLaborRow__QmXs6 td:last-child {
+  width: 108px;
+}
+
+.enterprise-labor-guide-console_editingLaborRow__QmXs6 td:last-child button {
+  width: 100%;
+  min-height: 30px;
+  margin-bottom: 6px;
+  border: 1px solid #c4d7f7;
+  border-radius: 5px;
+}
+
+.enterprise-labor-guide-console_partsCatalogStatus__MlDBk {
+  margin: 8px 0 0;
+  color: #607086;
+  font-size:11.5px;
+}
+
+.enterprise-labor-guide-console_lockedPart__2yUea {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #2952a3;
+  font-size:11.5px;
+  font-weight: 800;
+}
+
+.enterprise-labor-guide-console_estimatePolicyCard__kFYqe {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid #c8d8ef;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.enterprise-labor-guide-console_estimatePolicyCard__kFYqe header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.enterprise-labor-guide-console_estimatePolicyCard__kFYqe h3,
+.enterprise-labor-guide-console_estimatePolicyCard__kFYqe p {
+  margin: 0;
+}
+
+.enterprise-labor-guide-console_estimatePolicyCard__kFYqe h3 {
+  color: #15243a;
+  font-size: 13px;
+}
+
+.enterprise-labor-guide-console_estimatePolicyCard__kFYqe header p,
+.enterprise-labor-guide-console_estimatePolicyCard__kFYqe > p {
+  color: #5d6c80;
+  font-size:11.5px;
+}
+
+.enterprise-labor-guide-console_estimatePolicyCard__kFYqe > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.enterprise-labor-guide-console_estimatePolicyCard__kFYqe span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid #bfd3f1;
+  border-radius: 999px;
+  background: #fff;
+  color: #254b85;
+  font-size:11.5px;
+  font-weight: 800;
+}
+
+.enterprise-labor-guide-console_evidencePanel__3IBT6 {
+  display: grid;
+  grid-template-columns: minmax(280px, .95fr) minmax(320px, 1.05fr);
+  gap: 12px;
+  padding: 12px;
+}
+
+.enterprise-labor-guide-console_evidenceUploader__lVhie,
+.enterprise-labor-guide-console_evidenceList__taNwK {
+  min-width: 0;
+  border: 1px solid #d8e1eb;
+  border-radius: 6px;
+  background: #fbfcfe;
+  padding: 12px;
+}
+
+.enterprise-labor-guide-console_evidenceUploader__lVhie {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.enterprise-labor-guide-console_evidenceUploader__lVhie label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  color: #607086;
+  font-size:11.5px;
+  font-weight: 700;
+}
+
+.enterprise-labor-guide-console_evidenceUploader__lVhie select,
+.enterprise-labor-guide-console_evidenceUploader__lVhie textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #cfd9e6;
+  border-radius: 5px;
+  color: #172033;
+  font: inherit;
+  outline: 0;
+}
+
+.enterprise-labor-guide-console_evidenceUploader__lVhie select {
+  min-height: 34px;
+  padding: 0 8px;
+}
+
+.enterprise-labor-guide-console_evidenceUploader__lVhie textarea {
+  min-height: 62px;
+  padding: 8px;
+  resize: vertical;
+}
+
+.enterprise-labor-guide-console_evidenceNote__rWAjq,
+.enterprise-labor-guide-console_fileDrop__uVjdw {
+  grid-column: 1 / -1;
+}
+
+.enterprise-labor-guide-console_fileDrop__uVjdw {
+  position: relative;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 54px;
+  border: 1px dashed #aebfd6;
+  border-radius: 6px;
+  background: #fff;
+  color: #075fd4 !important;
+  cursor: pointer;
+}
+
+.enterprise-labor-guide-console_fileDrop__uVjdw input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.enterprise-labor-guide-console_evidenceList__taNwK {
+  display: grid;
+  gap: 8px;
+}
+
+.enterprise-labor-guide-console_evidenceList__taNwK header {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 2px;
+}
+
+.enterprise-labor-guide-console_evidenceList__taNwK article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.enterprise-labor-guide-console_evidenceList__taNwK article span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.enterprise-labor-guide-console_evidenceList__taNwK article strong,
+.enterprise-labor-guide-console_evidenceList__taNwK article small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.enterprise-labor-guide-console_evidenceList__taNwK p,
+.enterprise-labor-guide-console_evidenceList__taNwK small {
+  color: #607086;
+}
+
+.enterprise-labor-guide-console_suggestedAddOns__rb28y {
+  display: grid;
+  gap: 10px;
+  padding: 0 12px 12px;
+}
+
+.enterprise-labor-guide-console_suggestedAddOns__rb28y header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #edf1f5;
+}
+
+.enterprise-labor-guide-console_suggestedAddOns__rb28y h3 {
+  margin: 0;
+  color: #07142b;
+  font-size: 14px;
+}
+
+.enterprise-labor-guide-console_suggestedAddOns__rb28y p {
+  margin: 3px 0 0;
+  color: #607086;
+  font-size:11.5px;
+}
+
+.enterprise-labor-guide-console_suggestedAddOns__rb28y > div {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.enterprise-labor-guide-console_suggestedAddOns__rb28y article {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 10px;
+  border: 1px solid #d8e1eb;
+  border-radius: 6px;
+  background: #fbfcfe;
+}
+
+.enterprise-labor-guide-console_suggestedAddOns__rb28y article span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.enterprise-labor-guide-console_suggestedAddOns__rb28y article strong {
+  overflow: hidden;
+  color: #172033;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.enterprise-labor-guide-console_suggestedAddOns__rb28y article small {
+  color: #607086;
+}
+
+.enterprise-labor-guide-console_suggestedAddOns__rb28y article button {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  border: 1px solid #c4d7f7;
+  border-radius: 5px;
+  background: #fff;
+  color: #075fd4;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.enterprise-labor-guide-console_emptySuggestion__zdMwM {
+  grid-column: 1 / -1;
+}
+
+.enterprise-labor-guide-console_reviewPanel__b4hL0 {
+  position: sticky;
+  top: 10px;
+  min-height: 620px;
+  padding: 16px;
+}
+
+.enterprise-labor-guide-console_collapseReview__OPsJE {
+  width: 100%;
+  margin-bottom: 14px;
+}
+
+.enterprise-labor-guide-console_reviewCollapsed__EkaNh .enterprise-labor-guide-console_reviewPanel__b4hL0 {
+  min-height: 620px;
+  padding: 10px;
+}
+
+.enterprise-labor-guide-console_reviewCollapsed__EkaNh .enterprise-labor-guide-console_collapseReview__OPsJE {
+  writing-mode: vertical-rl;
+  min-height: 180px;
+}
+
+.enterprise-labor-guide-console_reviewPanel__b4hL0 h2 {
+  margin-bottom: 18px;
+  font-size: 18px;
+}
+
+.enterprise-labor-guide-console_reviewPanel__b4hL0 dl {
+  display: grid;
+  gap: 14px;
+  margin: 0 0 14px;
+}
+
+.enterprise-labor-guide-console_reviewPanel__b4hL0 dl > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e2e8ef;
+}
+
+.enterprise-labor-guide-console_reviewPanel__b4hL0 dt {
+  color: #334257;
+}
+
+.enterprise-labor-guide-console_reviewPanel__b4hL0 dd {
+  margin: 0;
+  color: #101b31;
+  font-weight: 700;
+}
+
+.enterprise-labor-guide-console_reviewPanel__b4hL0 .enterprise-labor-guide-console_total__H0MG_ dd {
+  color: #075fd4;
+  font-size: 21px;
+}
+
+.enterprise-labor-guide-console_good__8Do1Q {
+  color: #238047 !important;
+}
+
+.enterprise-labor-guide-console_createRo__erSs7,
+.enterprise-labor-guide-console_secondaryReview__ESex7 {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 10px;
+  border-radius: 5px;
+  font-weight: 800;
+}
+
+.enterprise-labor-guide-console_createRo__erSs7 {
+  background: #075fd4;
+  color: #fff !important;
+}
+
+.enterprise-labor-guide-console_assignmentCard__goRCF {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 12px;
+  border: 1px solid #d8e1eb;
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.enterprise-labor-guide-console_assignmentCard__goRCF header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.enterprise-labor-guide-console_assignmentCard__goRCF header div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.enterprise-labor-guide-console_assignmentCard__goRCF h3,
+.enterprise-labor-guide-console_assignmentCard__goRCF p {
+  margin: 0;
+}
+
+.enterprise-labor-guide-console_assignmentCard__goRCF h3 {
+  color: #07142b;
+  font-size: 14px;
+}
+
+.enterprise-labor-guide-console_assignmentCard__goRCF p {
+  color: #607086;
+  font-size:11.5px;
+  line-height: 1.4;
+}
+
+.enterprise-labor-guide-console_assignmentCard__goRCF header svg {
+  width: 17px;
+  color: #075fd4;
+  flex: 0 0 auto;
+}
+
+.enterprise-labor-guide-console_assignmentCard__goRCF dl {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.enterprise-labor-guide-console_assignmentCard__goRCF dl > div {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.enterprise-labor-guide-console_assignmentCard__goRCF dt {
+  color: #607086;
+  font-size:11.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+.enterprise-labor-guide-console_assignmentCard__goRCF dd {
+  margin: 0;
+  color: #172033;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.enterprise-labor-guide-console_assignTechnicianLink___1Zkt {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #075fd4;
+  border-radius: 5px;
+  background: #ffffff;
+  color: #075fd4 !important;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.enterprise-labor-guide-console_partsOrderingCard__siP_E {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 12px;
+  border: 1px solid #d8e1eb;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.enterprise-labor-guide-console_partsOrderingCard__siP_E header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.enterprise-labor-guide-console_partsOrderingCard__siP_E header div {
+  display: grid;
+  gap: 3px;
+}
+
+.enterprise-labor-guide-console_partsOrderingCard__siP_E h3,
+.enterprise-labor-guide-console_partsOrderingCard__siP_E p {
+  margin: 0;
+}
+
+.enterprise-labor-guide-console_partsOrderingCard__siP_E h3 {
+  color: #07142b;
+  font-size: 14px;
+}
+
+.enterprise-labor-guide-console_partsOrderingCard__siP_E p,
+.enterprise-labor-guide-console_partsOrderingTrail__kq3qA,
+.enterprise-labor-guide-console_partsNeededList__YBrqZ p {
+  color: #607086;
+  font-size:11.5px;
+  line-height: 1.4;
+}
+
+.enterprise-labor-guide-console_partsOrderingCard__siP_E header > span {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #2952a3;
+  font-size:11.5px;
+  font-weight: 800;
+}
+
+.enterprise-labor-guide-console_partsOrderingStats__2UonV {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.enterprise-labor-guide-console_partsOrderingStats__2UonV article {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid #d8e1eb;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.enterprise-labor-guide-console_partsOrderingStats__2UonV svg {
+  width: 16px;
+  color: #075fd4;
+}
+
+.enterprise-labor-guide-console_partsOrderingStats__2UonV span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.enterprise-labor-guide-console_partsOrderingStats__2UonV strong {
+  color: #172033;
+  font-size: 14px;
+}
+
+.enterprise-labor-guide-console_partsOrderingStats__2UonV small {
+  color: #607086;
+  font-size:11.5px;
+}
+
+.enterprise-labor-guide-console_partsNeededList__YBrqZ {
+  display: grid;
+  gap: 7px;
+}
+
+.enterprise-labor-guide-console_partsNeededList__YBrqZ article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.enterprise-labor-guide-console_partsNeededList__YBrqZ span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.enterprise-labor-guide-console_partsNeededList__YBrqZ strong,
+.enterprise-labor-guide-console_partsNeededList__YBrqZ small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.enterprise-labor-guide-console_partsNeededList__YBrqZ strong {
+  color: #172033;
+}
+
+.enterprise-labor-guide-console_partsNeededList__YBrqZ em {
+  color: #2952a3;
+  font-size:11.5px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.enterprise-labor-guide-console_partsOrderingActions__uwbUV {
+  display: grid;
+  gap: 8px;
+}
+
+.enterprise-labor-guide-console_primaryPartsLink__Vk5_V {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #075fd4;
+  border-radius: 5px;
+  background: #075fd4;
+  color: #fff !important;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.enterprise-labor-guide-console_partsOrderingTrail__kq3qA {
+  margin: 0;
+  padding: 0 0 0 16px;
+}
+
+.enterprise-labor-guide-console_partsOrderingTrail__kq3qA li + li {
+  margin-top: 4px;
+}
+
+.enterprise-labor-guide-console_historyCard__qqrJY {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid #d8e1eb;
+  border-radius: 6px;
+  background: #fbfcfe;
+}
+
+.enterprise-labor-guide-console_historyCard__qqrJY h3 {
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+.enterprise-labor-guide-console_historyCard__qqrJY p {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  margin: 0;
+  padding: 8px 0;
+  border-top: 1px solid #e6ebf1;
+  color: #526176;
+  font-size: 12px;
+}
+
+.enterprise-labor-guide-console_historyCard__qqrJY strong {
+  color: #172033;
+}
+
+@media (max-width: 1380px) {
+  .enterprise-labor-guide-console_catalogTools__j84iW {
+    grid-template-columns: minmax(240px, 1fr) minmax(180px, .7fr);
+  }
+}
+
+@media (max-width: 1180px) {
+  .enterprise-labor-guide-console_lookupBand__YtltB,
+  .enterprise-labor-guide-console_compactContext__hcVrm {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .enterprise-labor-guide-console_lookupBand__YtltB > button,
+  .enterprise-labor-guide-console_lookupBand__YtltB > a {
+    justify-self: stretch;
+  }
+
+  .enterprise-labor-guide-console_workspaceShell__EPzHt,
+  .enterprise-labor-guide-console_workspaceShell__EPzHt.enterprise-labor-guide-console_reviewCollapsed__EkaNh {
+    grid-template-columns: 1fr;
+  }
+
+  .enterprise-labor-guide-console_reviewPanel__b4hL0 {
+    position: static;
+    min-height: 0;
+  }
+}
+
+@media (max-width: 820px) {
+  .enterprise-labor-guide-console_lookupBand__YtltB,
+  .enterprise-labor-guide-console_compactContext__hcVrm,
+  .enterprise-labor-guide-console_catalogTools__j84iW,
+  .enterprise-labor-guide-console_engineTools__9uSfD,
+  .enterprise-labor-guide-console_catalogList__66hbX,
+  .enterprise-labor-guide-console_catalogBoard__3mRUS,
+  .enterprise-labor-guide-console_trayGrid__jS1Uh,
+  .enterprise-labor-guide-console_evidencePanel__3IBT6,
+  .enterprise-labor-guide-console_suggestedAddOns__rb28y > div {
+    grid-template-columns: 1fr;
+  }
+
+  .enterprise-labor-guide-console_modeTabs__z79ye,
+  .enterprise-labor-guide-console_workTray__HMLRV nav {
+    overflow-x: auto;
+  }
+
+  .enterprise-labor-guide-console_operationResults__sMU03 header,
+  .enterprise-labor-guide-console_operationResults__sMU03 article {
+    grid-template-columns: 1fr;
+  }
+
+  .enterprise-labor-guide-console_partsOrderingStats__2UonV {
+    grid-template-columns: 1fr;
+  }
+}
+

@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 
 import type { ShopReconLifecycleWorkspaceModel, ShopReconVehicleCardModel } from "@/features/inventory/shop-recon-vehicle-card";
+import { getNextShopReconStageHref } from "@/features/inventory/shop-recon-navigation";
 import { SHOP_RECON_STAGES } from "@/server/shop-recon/foundation";
 
 type ScopeForm = Record<string, unknown>;
@@ -99,8 +100,8 @@ export function ShopReconScopeBuilder({ item, lifecycleWorkspace, returnTo }: { 
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error ?? "Scope Builder could not be saved.");
-      setNotice(complete ? "Scope Builder completed. Returning to the vehicle card so Stage 2 can be reviewed and advanced." : "Scope Builder draft saved.");
-      if (complete) window.setTimeout(() => window.location.assign(returnTo), 650);
+      setNotice(complete ? "Scope Builder completed. Opening the same vehicle in the next stage." : "Scope Builder draft saved.");
+      if (complete) window.setTimeout(() => window.location.assign(getNextShopReconStageHref(item.id, "JOB_SCOPE_DEFINITION")), 650);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Scope Builder could not be saved.");
     } finally {
