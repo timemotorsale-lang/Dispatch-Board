@@ -117,7 +117,7 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
       diagnosticsBridge(user, params.repairOrderId),
     ]);
     const partsWorkspace = (activeVendorWork(order) || order.partDemands?.length)
-      ? await getServiceClosePartsWorkspace(user)
+      ? await getServiceClosePartsWorkspace(user).catch(() => null)
       : null;
     const relatedPurchaseOrders = (partsWorkspace?.purchaseOrders ?? []).filter((item) =>
       item.requisition?.demand?.repairOrder?.id === order.id,

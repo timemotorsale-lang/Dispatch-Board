@@ -33,4 +33,17 @@ describe("outside vendor rapid recon workflow", () => {
     expect(answers.qcAndHandoff).toContain("repair decision");
     expect(vendorRapidReconTransitions("QC_REQUIRED").map((item) => item.status)).toContain("AT_VENDOR");
   });
+
+  it("treats diagnosis-only vendor returns as a new repair decision", () => {
+    const answers = vendorRapidReconAnswers({
+      lastUpdateSummary: "Northside Garage diagnosed the timing chain concern but could not repair it.",
+      nextAction: "Approve the next vendor and send the vehicle for repair.",
+      scope: "Timing chain replacement recommended.",
+      status: "RETURNED"
+    });
+
+    expect(answers.repaired).toContain("No");
+    expect(answers.qcAndHandoff).toContain("decision");
+    expect(vendorRapidReconTransitions("AT_VENDOR").map((item) => item.label)).toContain("Diagnosed only / could not repair — bring back");
+  });
 });

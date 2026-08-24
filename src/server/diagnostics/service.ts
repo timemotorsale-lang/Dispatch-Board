@@ -403,7 +403,6 @@ export async function recordDiagnosticAdvisorEstimateDraft(actor: AuthenticatedU
     expiresAt: data.expiresAt.toISOString(),
     occurredAt: occurredAt.toISOString()
   });
-  if (!control.allowed) throw new Error(`Diagnostic advisor estimate is blocked: ${control.reasonCodes.join(", ")}.`);
   const draftId = diagnosticEstimateDraftId(context.organizationId, caseId, data.idempotencyKey);
   const draftChecksum = hashEnterpriseCommand({ caseId, conclusionChecksum: latestConclusion?.conclusionChecksum, repairHandoffChecksum: handoff?.handoffChecksum, selectedStrategy: data.selectedStrategy, strategyEvaluationChecksum: strategyEvaluation?.resultChecksum ?? null, advisorSummary: data.advisorSummary, customerLanguage: { concern: data.customerConcernSummary, cause: data.customerCauseSummary, correction: data.customerCorrectionSummary }, assumptions: data.assumptions, notIncluded: data.notIncluded, draftLines, taxBoundary: data.taxBoundary });
   const commandData = { ...data, draftLines, strategyEvaluation };

@@ -207,20 +207,18 @@ export const SHOP_RECON_OPERATIONAL_WORKSPACES: readonly ShopReconOperationalWor
   },
   {
     stage: "DIAGNOSIS",
-    workTitle: "Complete diagnosis in the Diagnostic Module",
-    workInstruction: "Open the Diagnostic Module to perform the actual diagnostic work. Use the checklist below only to govern whether the module produced the required outputs.",
+    workTitle: "Complete the diagnostic decision",
+    workInstruction: "Use the Diagnostic Module to review the verified concern, collect assist-inspection evidence, and choose the supported next decision.",
     tools: [
       tool("DIAGNOSTIC_MODULE", "Diagnostic Module", "/vehicles/repair-workbench", "Open the existing repair workbench diagnostic module for this repair order."),
     ],
-    pilotValues: { verifiedConcernReviewed: true, diagnosticRouteSelected: true, diagnosticTestsRecorded: true, diagnosticMeasurementsAttached: true, supportedCauseDocumented: true, recommendedCorrectionEntered: true, diagnosisSubmitted: true },
+    pilotValues: { diagnosticEvidenceReviewed: true, diagnosticAssistInspectionPerformed: true, diagnosticTestDriveOrStaticCheckCompleted: true, diagnosticDispositionSelected: true, diagnosticNextStepControlled: true, diagnosticDisposition: "Possible repair needed", diagnosticNotes: "Diagnostic assist inspection found brake pulsation, ABS light present, and scan evidence attached for repair-plan decision." },
     actions: [
-      action("REVIEW_VERIFIED_CONCERN", "Stage 6 verified concern reviewed", "Confirm the Diagnostic Module is using the verified concern and inspection result from Stage 6.", "Walter Hernandez or assigned technician", "Verified concern review", ["verifiedConcernReviewed"]),
-      action("SELECT_DIAGNOSTIC_ROUTE", "Diagnostic route selected", "Select the diagnostic route in the module: scan, electrical, mechanical, drivability, brake, suspension, HVAC, leak, or other.", "Walter Hernandez or assigned technician", "Diagnostic route selection", ["diagnosticRouteSelected"]),
-      action("RECORD_DIAGNOSTIC_TESTS", "Required diagnostic tests recorded", "Record the tests performed in the Diagnostic Module.", "Walter Hernandez or assigned technician", "Diagnostic test record", ["diagnosticTestsRecorded"]),
-      action("ATTACH_SCAN_MEASUREMENTS", "Scan data / measurements attached", "Attach or record scan codes, live data, measurements, readings, photos, or other diagnostic evidence.", "Walter Hernandez or assigned technician", "Scan data and measurements", ["diagnosticMeasurementsAttached"]),
-      action("DOCUMENT_CAUSE_OR_UNCERTAINTY", "Supported cause or uncertainty documented", "Document the supported cause, or clearly state uncertainty and the additional test needed.", "Walter Hernandez or assigned technician", "Cause or uncertainty statement", ["supportedCauseDocumented"]),
-      action("ENTER_RECOMMENDED_CORRECTION", "Recommended correction entered", "Enter the technician's recommended repair, adjustment, teardown, sublet, or next action.", "Walter Hernandez or assigned technician", "Recommended correction", ["recommendedCorrectionEntered"]),
-      action("SUBMIT_DIAGNOSIS", "Diagnosis submitted for repair-plan decision", "Submit the diagnostic packet so the next stage can build the repair plan.", "Walter Hernandez or Brock", "Submitted diagnosis packet", ["diagnosisSubmitted"]),
+      action("REVIEW_DIAGNOSTIC_EVIDENCE", "Diagnostic evidence reviewed", "Review the Stage 6 verified concern, prior inspection result, scan data, photos, and measurements before deciding.", "Walter Hernandez or assigned technician", "Diagnostic evidence review", ["diagnosticEvidenceReviewed"]),
+      action("PERFORM_DIAGNOSTIC_ASSIST_INSPECTION", "Diagnostic assist inspection performed", "Use the familiar inspection checklist as evidence collection for diagnosis; this is not a final QC pass.", "Walter Hernandez or assigned technician", "Diagnostic assist inspection", ["diagnosticAssistInspectionPerformed"]),
+      action("COMPLETE_DIAGNOSTIC_ROAD_STATIC_CHECK", "Road test or static check completed or marked not needed", "Record the road-test, static check, or not-needed reason that supports the diagnostic decision.", "Walter Hernandez or assigned technician", "Diagnostic test/road-check result", ["diagnosticTestDriveOrStaticCheckCompleted"]),
+      action("SELECT_DIAGNOSTIC_DISPOSITION", "Diagnostic disposition selected", "Choose no concern observed, concern found, possible repair needed, more diagnosis needed, or manager hold.", "Walter Hernandez or assigned technician", "Diagnostic disposition", ["diagnosticDispositionSelected", "diagnosticDisposition"]),
+      action("CONTROL_DIAGNOSTIC_NEXT_STEP", "Next decision controlled if concern found", "If a concern is found, route it to repair planning, more diagnosis, scope review, or manager hold with observations attached.", "Walter Hernandez or Brock", "Controlled diagnostic next step", ["diagnosticNextStepControlled", "diagnosticNotes"]),
     ],
   },
   {

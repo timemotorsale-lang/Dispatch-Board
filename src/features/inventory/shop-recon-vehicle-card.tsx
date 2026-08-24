@@ -166,13 +166,11 @@ export function ShopReconVehicleCard({ initialStage, item, lifecycleWorkspace, r
     item_7: fieldHasValue(formData.nextDecision) && formData.inspectionPacketComplete === true,
   } : {};
   const diagnosisChecklist: Record<string, boolean> = selectedStage === "DIAGNOSIS" ? {
-    item_1: formData.verifiedConcernReviewed === true,
-    item_2: formData.diagnosticRouteSelected === true,
-    item_3: formData.diagnosticTestsRecorded === true,
-    item_4: formData.diagnosticMeasurementsAttached === true,
-    item_5: formData.supportedCauseDocumented === true,
-    item_6: formData.recommendedCorrectionEntered === true,
-    item_7: formData.diagnosisSubmitted === true,
+    item_1: formData.diagnosticEvidenceReviewed === true || formData.verifiedConcernReviewed === true,
+    item_2: formData.diagnosticAssistInspectionPerformed === true || formData.diagnosticRouteSelected === true,
+    item_3: formData.diagnosticTestDriveOrStaticCheckCompleted === true || formData.diagnosticTestsRecorded === true || formData.diagnosticMeasurementsAttached === true,
+    item_4: formData.diagnosticDispositionSelected === true || formData.supportedCauseDocumented === true,
+    item_5: formData.diagnosticNextStepControlled === true || formData.recommendedCorrectionEntered === true || formData.diagnosisSubmitted === true,
   } : {};
   const findingsRepairPlanChecklist: Record<string, boolean> = selectedStage === "FINDINGS_REPAIR_PLAN" ? {
     item_1: formData.findingsReviewed === true,
@@ -643,13 +641,11 @@ function InspectionVerificationCommandWorkspace({ checklist, item, returnTo, too
 
 function DiagnosisCommandWorkspace({ busy, checklist, isCurrent, item, onChange, returnTo, setChecklist, setFormData, tools }: { busy: boolean; checklist: Record<string, boolean>; isCurrent: boolean; item: ShopReconVehicleCardModel; onChange: () => void; returnTo: string; setChecklist: Dispatch<SetStateAction<Record<string, boolean>>>; setFormData: Dispatch<SetStateAction<Record<string, unknown>>>; tools: readonly ShopReconOperationalTool[] }) {
   const gates = [
-    ["Stage 6 verified concern reviewed", "verifiedConcernReviewed", checklist.item_1, "The Diagnostic Module is using the verified Stage 6 concern and inspection result."],
-    ["Diagnostic route selected", "diagnosticRouteSelected", checklist.item_2, "The technician selected the diagnostic path inside the module."],
-    ["Required diagnostic tests recorded", "diagnosticTestsRecorded", checklist.item_3, "The module contains the required tests performed."],
-    ["Scan data / measurements attached", "diagnosticMeasurementsAttached", checklist.item_4, "Codes, live data, measurements, readings, photos, or evidence are attached."],
-    ["Supported cause or uncertainty documented", "supportedCauseDocumented", checklist.item_5, "The module identifies the supported cause or explains the remaining uncertainty."],
-    ["Recommended correction entered", "recommendedCorrectionEntered", checklist.item_6, "The technician entered the recommended repair, adjustment, teardown, sublet, or next action."],
-    ["Diagnosis submitted for repair-plan decision", "diagnosisSubmitted", checklist.item_7, "The diagnostic packet is submitted for Findings & Repair Plan."],
+    ["Diagnostic evidence reviewed", "diagnosticEvidenceReviewed", checklist.item_1, "Verified concern, prior inspection, scan data, photos, and measurements are reviewed."],
+    ["Diagnostic assist inspection performed", "diagnosticAssistInspectionPerformed", checklist.item_2, "The familiar inspection checklist is used to collect evidence for diagnosis, not to pass final QC."],
+    ["Road test or static check completed or marked not needed", "diagnosticTestDriveOrStaticCheckCompleted", checklist.item_3, "Road-test, static check, or not-needed reason is recorded."],
+    ["Diagnostic disposition selected", "diagnosticDispositionSelected", checklist.item_4, "No concern observed, concern found, possible repair needed, more diagnosis needed, or manager hold is selected."],
+    ["Next decision controlled if concern found", "diagnosticNextStepControlled", checklist.item_5, "Concern found routes to repair planning, more diagnosis, scope review, or manager hold with observations attached."],
   ] as const;
   const completed = gates.filter(([, , checked]) => checked).length;
   function toggle(index: number, fieldKey: string, current: boolean) {
@@ -660,7 +656,7 @@ function DiagnosisCommandWorkspace({ busy, checklist, isCurrent, item, onChange,
     onChange();
   }
   return <section className="srv-scope-command lifecycle-style" aria-label="Diagnosis Checklist">
-    <header><ClipboardCheck /><div><small>Official Stage 7 Tool</small><h3>Diagnostic Module</h3><p>Use the existing Diagnostic Module for the actual diagnosis. This checklist only governs whether the required diagnostic outputs are complete enough to advance.</p></div><span>{completed}/7 checked</span></header>
+    <header><ClipboardCheck /><div><small>Official Stage 7 Tool</small><h3>Diagnostic Module + Assist Inspection</h3><p>Use the Diagnostic Module for the decision. The assist inspection borrows the final-QC checklist pattern only to collect evidence for diagnosis.</p></div><span>{completed}/5 checked</span></header>
     <section className="srv-scope-tool-tray single" aria-label="Diagnostic Module tool link">{tools.map(tool => <Link href={resolveStageToolHref(tool, item, returnTo)} key={tool.key}><FileText /><span><b>Open {tool.label}</b>{tool.description}</span></Link>)}</section>
     <section className="srv-scope-action-checklist official" aria-label="Checklist required to unlock Stage 7">{gates.map(([label, fieldKey, checked, note], index) => <button className={checked ? "checked" : ""} disabled={!isCurrent || busy} key={fieldKey} onClick={() => toggle(index, fieldKey, checked)} type="button"><i>{checked ? <Check /> : index + 1}</i><div><strong>{label}</strong><span>{note}</span></div><b>{checked ? "Checked" : "Check when done"}</b></button>)}</section>
   </section>;

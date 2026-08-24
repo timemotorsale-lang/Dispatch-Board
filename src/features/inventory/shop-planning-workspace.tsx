@@ -57,6 +57,33 @@ type Order = {
 type Model = { repairOrders: Order[]; users: Array<{ id: string; name: string }> };
 type RepairPath = "DIAGNOSTIC" | "DIRECT_BODY" | "VENDOR";
 type LaborGuideOption = { description: string; key: string; minutes: number; plannedCorrection: string; source: string; title: string; unitPriceCents: number; workTypeCode: string };
+type ReleaseJobDraft = {
+  authorizationId: string;
+  authorizedLineKey: string;
+  description: string;
+  laborGuideMinutes: number;
+  partDemandIds: string[];
+  partsRequired: boolean;
+  plannedCorrection: string;
+  workTypeCode: string;
+};
+type EstimateDraft = {
+  lineKey: string;
+  lineType: "LABOR" | "PART" | "FEE";
+  description: string;
+  quantity: number;
+  unitPriceCents: number;
+  taxable: boolean;
+  workTypeCode: string;
+  laborGuideMinutes: number;
+  plannedCorrection: string;
+  taxCents: number;
+  discountCents: number;
+  taxBoundary: string;
+  presentationChannel: string;
+  presentedAt: string;
+  expiresAt: string;
+};
 
 const local = (value: string) => { const date = new Date(value); return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16); };
 const daysAfter = (value: string | Date, days: number) => local(new Date(new Date(value).getTime() + days * 86_400_000).toISOString());
@@ -79,6 +106,23 @@ const vendorApprovalCaptured = (work?: RepairVendorWork | null) => Boolean(work 
 const vendorRepairReturned = (work?: RepairVendorWork | null) => Boolean(work && ["RETURNED", "QC_REQUIRED", "COMPLETED"].includes(work.status));
 const vendorRepairFailed = (work?: RepairVendorWork | null) => Boolean(work && /\b(fail|failed|incomplete|not fixed|problem still|still persists|rework|decision)\b/i.test(`${work.lastUpdateSummary} ${work.nextAction}`));
 const centsText = (value?: number | null) => value == null ? "" : String(value);
+const createEstimateDraft = (presentedAt: string, expiresAt: string, lineKey = "LINE-1"): EstimateDraft => ({
+  lineKey,
+  lineType: "LABOR",
+  description: "",
+  quantity: 1,
+  unitPriceCents: 0,
+  taxable: false,
+  workTypeCode: "GENERAL_REPAIR",
+  laborGuideMinutes: 60,
+  plannedCorrection: "",
+  taxCents: 0,
+  discountCents: 0,
+  taxBoundary: "Taxes are calculated by the configured financial system boundary.",
+  presentationChannel: "IN_PERSON",
+  presentedAt,
+  expiresAt,
+});
 const buildLaborGuideOptions = (order: Order | undefined, latestDiagnosis: Order["diagnosisVersions"][number] | undefined, directPath: boolean): LaborGuideOption[] => {
   const concern = order?.serviceVisit.concernSummary || "Repair concern";
   const correction = latestDiagnosis?.proposedCorrection || (directPath ? "Repair visible body or collision damage from the approved scope." : "Perform the verified repair from the recorded diagnosis.");
@@ -128,13 +172,17 @@ const progressStatuses = [
 const qcReadyStatuses = new Set(["READY_FOR_QC", "REPAIR_COMPLETE"]);
 
 function activeStep(order?: Order) {
-  if (!order || !order.inspectionVersions.length) return 0;
+  if (!order) return 0;
   if (activeVendorWork(order)) {
     if (["ESTIMATE", "AUTHORIZATION"].includes(order.stage)) return 3;
     if (["READY_FOR_REPAIR", "REPAIR", "QUALITY_CONTROL", "ADVISOR_REVIEW", "HANDOFF"].includes(order.stage)) return 4;
     return 1;
   }
-  if (!order.diagnosisVersions.length) return 1;
+  const inspectionComplete = order.inspectionVersions.length > 0;
+  const diagnosisComplete = order.diagnosisVersions.length > 0;
+  const directBodyPath = defaultRepairPath(order) === "DIRECT_BODY";
+  if (!inspectionComplete && !diagnosisComplete && !directBodyPath) return 0;
+  if (!diagnosisComplete && !directBodyPath) return 1;
   if (!order.estimateVersions.length) return 2;
   const accepted = order.estimateVersions.some((estimate) => estimate.authorizations.some((authorization) => ["ACCEPTED", "PARTIAL"].includes(authorization.disposition)));
   if (!accepted) return 3;
@@ -164,16 +212,25 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
   const submitInFlight = useRef(false);
   const first = initial.repairOrders[0];
   const defaultTime = first?.updatedAt ?? first?.serviceVisit.arrivedAt ?? "";
+  const firstEstimate = first?.estimateVersions[0];
+  const firstAccepted = firstEstimate?.authorizations.find((item) => ["ACCEPTED", "PARTIAL"].includes(item.disposition));
+  const firstExistingKeys = new Set((first?.repairJobs ?? []).map((item) => item.authorizedLineKey));
+  const firstAuthorizedLaborLines = (firstEstimate?.lineItems ?? []).filter((line) => line.type === "LABOR" && Boolean(firstAccepted?.authorizedLineKeys.includes(line.key)));
+  const firstReleaseLine = firstAuthorizedLaborLines.find((line) => !firstExistingKeys.has(line.key)) ?? firstAuthorizedLaborLines[0];
   const [repairPath, setRepairPath] = useState<RepairPath>(defaultRepairPath(first));
   const [inspection, setInspection] = useState({ templateCode: "GENERAL_DVI", templateVersion: 1, startedAt: defaultTime ? local(defaultTime) : "", completedAt: defaultTime ? local(defaultTime) : "", summary: "", itemKey: "GENERAL_CONDITION", itemLabel: "General condition", itemResult: "PASS", measurement: "", itemNotes: "", evidence: "" });
   const [diagnosis, setDiagnosis] = useState({ concern: first?.serviceVisit.concernSummary ?? "", symptoms: "", testName: "", testResult: "", evidence: "", cause: "", uncertainty: "MEDIUM", recommendation: "", proposedCorrection: "", technicianUserId: initial.users[0]?.id ?? "", diagnosedAt: defaultTime ? local(defaultTime) : "" });
   const [directScope, setDirectScope] = useState({ concern: first?.serviceVisit.concernSummary ?? "", diagnosedAt: defaultTime ? local(defaultTime) : "", evidence: "", ...bodyworkRepairDefaults(first?.serviceVisit.concernSummary), scopeType: "BODYWORK", technicianUserId: initial.users[0]?.id ?? "", uncertainty: "LOW", whyNoDiagnosis: "Visible body or collision damage can move directly to scope, estimate, parts, and repair without troubleshooting diagnostics." });
   const [vendorWork, setVendorWork] = useState({ approvalStatus: "NEEDS_DOCUMENTATION", customerVisibleSummary: "", directFromSource: false, evidence: "", expectedReturnAt: "", internalNotes: "", lastUpdateSummary: "Outside vendor route created from repair planning.", nextAction: "Confirm vendor received the vehicle, estimate or scope, parts needs, and expected return.", nextFollowUpAt: "", scope: first?.serviceVisit.concernSummary ?? "", sentAt: defaultTime ? local(defaultTime) : "", sentFrom: "Dealership", status: "AT_VENDOR", transportMethod: "Internal transport", vendorName: "", workType: "BODY_SHOP" });
   const [vendorProgress, setVendorProgress] = useState(seedVendorProgress(activeVendorWork(first), first));
-  const [estimate, setEstimate] = useState({ lineKey: "LINE-1", lineType: "LABOR", description: "", quantity: 1, unitPriceCents: 0, taxable: false, workTypeCode: "GENERAL_REPAIR", laborGuideMinutes: 60, plannedCorrection: "", taxCents: 0, discountCents: 0, taxBoundary: "Taxes are calculated by the configured financial system boundary.", presentationChannel: "IN_PERSON", presentedAt: defaultTime ? local(defaultTime) : "", expiresAt: defaultTime ? daysAfter(defaultTime, 7) : "" });
+  const defaultPresentedAt = defaultTime ? local(defaultTime) : "";
+  const defaultExpiresAt = defaultTime ? daysAfter(defaultTime, 7) : "";
+  const [estimate, setEstimate] = useState<EstimateDraft>(createEstimateDraft(defaultPresentedAt, defaultExpiresAt));
+  const [estimateLines, setEstimateLines] = useState<Line[]>([]);
   const [laborGuideQuery, setLaborGuideQuery] = useState("");
   const [authorization, setAuthorization] = useState({ estimateVersionId: "", disposition: "ACCEPTED", channel: "IN_PERSON", authorizedLineKeys: "", decisionActorType: "CUSTOMER", decisionActorName: "", decisionActorReference: "", decidedAt: defaultTime ? local(defaultTime) : "" });
-  const [job, setJob] = useState({ authorizationId: "", authorizedLineKey: "", diagnosisVersionId: "", workTypeCode: "GENERAL_REPAIR", description: "", plannedCorrection: "", laborGuideMinutes: 60, requiredSkills: "", requiredCertifications: "", bayRequirements: "", toolRequirements: "", priority: "NORMAL", dependencyJobIds: "", partsRequired: false, partDemandIds: [] as string[] });
+  const [job, setJob] = useState({ authorizationId: firstAccepted?.id ?? "", authorizedLineKey: firstReleaseLine?.key ?? "", diagnosisVersionId: first?.diagnosisVersions[0]?.id ?? "", workTypeCode: firstReleaseLine?.workTypeCode ?? "GENERAL_REPAIR", description: firstReleaseLine?.description ?? "", plannedCorrection: firstReleaseLine?.plannedCorrection ?? "", laborGuideMinutes: firstReleaseLine?.laborGuideMinutes ?? 60, requiredSkills: "", requiredCertifications: "", bayRequirements: "", toolRequirements: "", priority: "NORMAL", dependencyJobIds: "", partsRequired: false, partDemandIds: [] as string[] });
+  const [releaseJobs, setReleaseJobs] = useState<ReleaseJobDraft[]>([]);
   const [repairProgress, setRepairProgress] = useState({ statusCode: "REPAIR_IN_PROGRESS", contactOutcome: "Repair progress updated", customerVisibleSummary: "", internalNotes: "", nextContactAt: defaultTime ? local(defaultTime) : "", promiseAt: "", nextAction: "Continue repair and record the next progress update." });
   const [repairOutcome, setRepairOutcome] = useState<"SUCCESS" | "FAILED">("SUCCESS");
   const [completedByUserId, setCompletedByUserId] = useState(initial.users[0]?.id ?? "");
@@ -184,10 +241,13 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
   const latestEstimate = selected?.estimateVersions[0];
   const latestDiagnosis = selected?.diagnosisVersions[0];
   const accepted = selected?.estimateVersions.flatMap((item) => item.authorizations.map((auth) => ({ ...auth, estimate: item }))).find((item) => ["ACCEPTED", "PARTIAL"].includes(item.disposition));
+  const authorizedLaborLines = (latestEstimate?.lineItems ?? []).filter((line) => line.type === "LABOR" && Boolean(accepted?.authorizedLineKeys.includes(line.key)));
   const existingAuthorizedLineKeys = new Set((selected?.repairJobs ?? []).map((item) => item.authorizedLineKey));
-  const creatableAuthorizedLineKeys = accepted?.authorizedLineKeys.filter((value) => !existingAuthorizedLineKeys.has(value)) ?? [];
-  const selectedAuthorizedLineKey = job.authorizedLineKey || creatableAuthorizedLineKeys[0] || accepted?.authorizedLineKeys[0] || "";
+  const creatableAuthorizedLineKeys = authorizedLaborLines.filter((line) => !existingAuthorizedLineKeys.has(line.key)).map((line) => line.key);
+  const selectedAuthorizedLineKey = job.authorizedLineKey || creatableAuthorizedLineKeys[0] || authorizedLaborLines[0]?.key || "";
+  const selectedReleaseLine = authorizedLaborLines.find((line) => line.key === selectedAuthorizedLineKey) ?? null;
   const existingJobForSelectedLine = selected?.repairJobs.find((item) => item.authorizedLineKey === selectedAuthorizedLineKey) ?? null;
+  const hasRepairJob = (selected?.repairJobs.length ?? 0) > 0;
   const directPath = repairPath === "DIRECT_BODY";
   const vendorPath = repairPath === "VENDOR";
   const currentVendorWork = activeVendorWork(selected);
@@ -213,6 +273,10 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
   const latestRepairUpdate = selected?.advisorUpdates?.[0] ?? null;
   const qcReady = Boolean(latestRepairUpdate && qcReadyStatuses.has(latestRepairUpdate.statusCode));
   const qcHref = selected ? `/vehicles/quality-control?repairOrderId=${encodeURIComponent(selected.id)}&returnLabel=${encodeURIComponent("Return to Repair Planning")}&returnTo=${encodeURIComponent(`/vehicles/shop-planning?repairOrderId=${selected.id}&returnTo=${encodeURIComponent(safeReturnTo)}`)}` : "/vehicles/quality-control";
+  const dispatchHref = selected ? `/vehicles/shop-dispatch?repairOrderId=${encodeURIComponent(selected.id)}&returnTo=${encodeURIComponent(`/vehicles/shop-planning?repairOrderId=${selected.id}&returnTo=${encodeURIComponent(safeReturnTo)}`)}` : "/vehicles/shop-dispatch";
+  const partsHref = selected ? `/vehicles/service-close-parts?repairOrderId=${encodeURIComponent(selected.id)}&returnTo=${encodeURIComponent(`/vehicles/shop-planning?repairOrderId=${selected.id}&returnTo=${encodeURIComponent(safeReturnTo)}`)}&returnLabel=${encodeURIComponent("Return to Repair Planning")}` : "/vehicles/service-close-parts";
+  const repairJobWorkbenchHref = selected?.repairJobs[0] ? `/vehicles/repair-jobs/${encodeURIComponent(selected.repairJobs[0].id)}/workbench` : dispatchHref;
+  const repairReleaseHref = !hasRepairJob ? "#repair-planning-step-5-create-job" : qcReady ? qcHref : "#repair-result";
   const reconBudget = selected?.inventoryUnit ? buildReconBudgetSummary({
     acquisitionAppraisals: selected.inventoryUnit.acquisitionAppraisals,
     acquisitionCase: selected.inventoryUnit.acquisitionCase,
@@ -224,6 +288,7 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
   const laborGuideNeedle = laborGuideQuery.trim().toLowerCase();
   const visibleLaborGuideOptions = laborGuideNeedle ? laborGuideOptions.filter((option) => `${option.title} ${option.source} ${option.description} ${option.plannedCorrection} ${option.workTypeCode}`.toLowerCase().includes(laborGuideNeedle)) : laborGuideOptions;
   const laborGuideHref = selected ? `/diagnostics/labor-guide?${new URLSearchParams({ query: laborGuideQuery || latestDiagnosis?.proposedCorrection || selected.serviceVisit.concernSummary, repairOrderId: selected.id, returnLabel: "Return to estimate", returnTo: `/vehicles/shop-planning?repairOrderId=${selected.id}#estimate` }).toString()}` : "/diagnostics/labor-guide";
+  const quickEstimateOptions = visibleLaborGuideOptions.slice(0, 4);
   const staffNext = !selected ? null : currentVendorWork
     ? !vendorEstimateCaptured(currentVendorWork)
       ? { action: "Open vendor estimate", detail: "Enter the vendor estimate, expected return, and next follow-up. Do not repeat inspection or diagnosis.", href: "#repair-planning-step-3", step: 3, title: "Record the vendor estimate" }
@@ -240,15 +305,251 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
           ? { action: "Open estimate", detail: "Build and save the estimate from the recorded diagnosis or direct repair scope.", href: "#repair-planning-step-3", step: 3, title: "Create the repair estimate" }
           : currentStep === 3
             ? { action: "Open authorization", detail: "Record who approved which estimate lines and the exact approved amount.", href: "#repair-planning-step-4", step: 4, title: "Record the authorization decision" }
-            : { action: "Open repair release", detail: "Create or open the authorized repair job and continue execution.", href: "#repair-planning-step-5", step: 5, title: "Release the approved repair" };
+            : !hasRepairJob
+              ? { action: "Open repair release", detail: "Create the repair job first. After that, staff can record the result and move straight to Final QC.", href: repairReleaseHref, step: 5, title: "Release the approved repair" }
+              : qcReady
+                ? { action: "Open Final QC", detail: "The repair result is already recorded. Continue in Final QC to inspect and release the vehicle.", href: repairReleaseHref, step: 5, title: "Complete final quality control" }
+                : { action: "Open repair result", detail: "Record what was completed, then send the vehicle directly to Final QC.", href: repairReleaseHref, step: 5, title: "Record the repair result" };
   const displayNotice = notice.includes("cannot move backward") && staffNext
     ? `This repair order is already at ${format(selected?.stage ?? "the current gate")}. Do not repeat an earlier step. ${staffNext.title}.`
     : notice;
 
+  function navigateToInternalTarget(hash: string) {
+    if (!hash.startsWith("#")) return;
+    const id = hash.slice(1);
+    const target = document.getElementById(id);
+    if (!target) return;
+    const container = target.closest("details");
+    if (container && !container.open) container.open = true;
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (target instanceof HTMLElement) target.focus({ preventScroll: true });
+    target.classList.remove(styles.jumpTargetActive);
+    window.setTimeout(() => target.classList.add(styles.jumpTargetActive), 0);
+    window.setTimeout(() => target.classList.remove(styles.jumpTargetActive), 1800);
+  }
+
+  function releaseLineByKey(lineKey: string) {
+    return authorizedLaborLines.find((line) => line.key === lineKey);
+  }
+
+  function nextReleaseLineKey(usedKeys: string[] = []) {
+    return creatableAuthorizedLineKeys.find((key) => !usedKeys.includes(key)) ?? creatableAuthorizedLineKeys[0] ?? "";
+  }
+
+  function applyReleaseLineDefaults(lineKey: string) {
+    const line = releaseLineByKey(lineKey);
+    setJob((value) => ({
+      ...value,
+      authorizationId: accepted?.id ?? value.authorizationId,
+      authorizedLineKey: lineKey,
+      description: line?.description ?? "",
+      diagnosisVersionId: latestDiagnosis?.id ?? value.diagnosisVersionId,
+      laborGuideMinutes: line?.laborGuideMinutes ?? 60,
+      partDemandIds: [],
+      partsRequired: false,
+      plannedCorrection: line?.plannedCorrection ?? "",
+      workTypeCode: line?.workTypeCode ?? "GENERAL_REPAIR",
+    }));
+  }
+
+  function resetReleaseBuilder(order = selected) {
+    const orderEstimate = order?.estimateVersions[0];
+    const orderAccepted = orderEstimate?.authorizations.find((item) => ["ACCEPTED", "PARTIAL"].includes(item.disposition));
+    const orderExistingKeys = new Set((order?.repairJobs ?? []).map((item) => item.authorizedLineKey));
+    const orderAuthorizedLaborLines = (orderEstimate?.lineItems ?? []).filter((line) => line.type === "LABOR" && Boolean(orderAccepted?.authorizedLineKeys.includes(line.key)));
+    const nextLine = orderAuthorizedLaborLines.find((line) => !orderExistingKeys.has(line.key)) ?? orderAuthorizedLaborLines[0];
+    setReleaseJobs([]);
+    setJob((value) => ({
+      ...value,
+      authorizationId: orderAccepted?.id ?? "",
+      authorizedLineKey: nextLine?.key ?? "",
+      description: nextLine?.description ?? "",
+      diagnosisVersionId: order?.diagnosisVersions[0]?.id ?? "",
+      laborGuideMinutes: nextLine?.laborGuideMinutes ?? 60,
+      partDemandIds: [],
+      partsRequired: false,
+      plannedCorrection: nextLine?.plannedCorrection ?? "",
+      workTypeCode: nextLine?.workTypeCode ?? "GENERAL_REPAIR",
+    }));
+  }
+
+  function nextEstimateLineKey(lines = estimateLines) {
+    let index = 1;
+    while (lines.some((line) => line.key === `LINE-${index}`)) index += 1;
+    return `LINE-${index}`;
+  }
+
+  function resetEstimateDraft(lineKey = nextEstimateLineKey()) {
+    setEstimate((value) => ({
+      ...createEstimateDraft(value.presentedAt, value.expiresAt, lineKey),
+      presentationChannel: value.presentationChannel,
+      taxBoundary: value.taxBoundary,
+      taxCents: value.taxCents,
+      discountCents: value.discountCents,
+    }));
+  }
+
+  function saveEstimateLine() {
+    const description = estimate.description.trim();
+    const plannedCorrection = estimate.plannedCorrection.trim();
+    if (!description || !plannedCorrection) {
+      setNotice("Add a short description and what should be done before saving the estimate line.");
+      return;
+    }
+    if (estimate.quantity <= 0) {
+      setNotice("Quantity must be greater than zero.");
+      return;
+    }
+    const nextLine: Line = {
+      key: estimate.lineKey.trim() || nextEstimateLineKey(),
+      type: estimate.lineType,
+      description,
+      quantity: estimate.quantity,
+      unitPriceCents: estimate.unitPriceCents,
+      taxable: estimate.taxable,
+      workTypeCode: estimate.workTypeCode,
+      laborGuideMinutes: estimate.laborGuideMinutes,
+      plannedCorrection,
+    };
+    setEstimateLines((value) => {
+      const existingIndex = value.findIndex((line) => line.key === nextLine.key);
+      if (existingIndex >= 0) {
+        const copy = [...value];
+        copy[existingIndex] = nextLine;
+        return copy;
+      }
+      return [...value, nextLine];
+    });
+    setNotice(`${nextLine.key} is ready in the estimate draft. Add another line or present the estimate when you are ready.`);
+    resetEstimateDraft(nextEstimateLineKey(estimateLines.some((line) => line.key === nextLine.key) ? estimateLines : [...estimateLines, nextLine]));
+  }
+
+  function editEstimateLine(line: Line) {
+    setEstimate((value) => ({
+      ...value,
+      lineKey: line.key,
+      lineType: line.type,
+      description: line.description,
+      quantity: line.quantity,
+      unitPriceCents: line.unitPriceCents,
+      taxable: line.taxable,
+      workTypeCode: line.workTypeCode,
+      laborGuideMinutes: line.laborGuideMinutes,
+      plannedCorrection: line.plannedCorrection,
+    }));
+    setNotice(`Editing ${line.key}. Update the fields below, then save the line again.`);
+  }
+
+  function removeEstimateLine(lineKey: string) {
+    setEstimateLines((value) => value.filter((line) => line.key !== lineKey));
+    if (estimate.lineKey === lineKey) resetEstimateDraft(lineKey);
+    setNotice(`${lineKey} was removed from the estimate draft.`);
+  }
+
+  function saveReleaseJobDraft() {
+    const lineKey = job.authorizedLineKey.trim();
+    if (!lineKey) {
+      setNotice("Choose an approved work line before adding it to the repair release.");
+      return;
+    }
+    if (!job.description.trim() || !job.plannedCorrection.trim()) {
+      setNotice("Add a job description and what should be done before saving this repair line.");
+      return;
+    }
+    const duplicate = releaseJobs.find((item) => item.authorizedLineKey === lineKey);
+    const draft: ReleaseJobDraft = {
+      authorizationId: job.authorizationId || accepted?.id || "",
+      authorizedLineKey: lineKey,
+      description: job.description.trim(),
+      laborGuideMinutes: job.laborGuideMinutes,
+      partDemandIds: job.partDemandIds,
+      partsRequired: job.partsRequired,
+      plannedCorrection: job.plannedCorrection.trim(),
+      workTypeCode: job.workTypeCode.trim() || "GENERAL_REPAIR",
+    };
+    setReleaseJobs((value) => duplicate ? value.map((item) => item.authorizedLineKey === lineKey ? draft : item) : [...value, draft]);
+    const nextKey = nextReleaseLineKey((duplicate ? releaseJobs : [...releaseJobs, draft]).map((item) => item.authorizedLineKey));
+    if (nextKey && nextKey !== lineKey) {
+      applyReleaseLineDefaults(nextKey);
+      setJob((value) => ({ ...value, partDemandIds: [], partsRequired: false }));
+    }
+    setNotice(`${lineKey} is ready for repair release. Add another line or create the listed repair jobs.`);
+  }
+
+  function editReleaseJobDraft(draft: ReleaseJobDraft) {
+    setJob((value) => ({
+      ...value,
+      authorizationId: draft.authorizationId,
+      authorizedLineKey: draft.authorizedLineKey,
+      description: draft.description,
+      laborGuideMinutes: draft.laborGuideMinutes,
+      partDemandIds: draft.partDemandIds,
+      partsRequired: draft.partsRequired,
+      plannedCorrection: draft.plannedCorrection,
+      workTypeCode: draft.workTypeCode,
+    }));
+    setNotice(`Editing ${draft.authorizedLineKey}. Update it and save the line again.`);
+  }
+
+  function removeReleaseJobDraft(lineKey: string) {
+    setReleaseJobs((value) => value.filter((item) => item.authorizedLineKey !== lineKey));
+    if (job.authorizedLineKey === lineKey) applyReleaseLineDefaults(nextReleaseLineKey(releaseJobs.filter((item) => item.authorizedLineKey !== lineKey).map((item) => item.authorizedLineKey)));
+    setNotice(`${lineKey} was removed from the repair release list.`);
+  }
+
+  function buildCurrentReleaseDraft() {
+    const lineKey = job.authorizedLineKey.trim();
+    if (!lineKey || !selectedReleaseLine) return null;
+    return {
+      authorizationId: job.authorizationId || accepted?.id || "",
+      authorizedLineKey: lineKey,
+      description: job.description.trim() || selectedReleaseLine.description,
+      laborGuideMinutes: job.laborGuideMinutes || selectedReleaseLine.laborGuideMinutes,
+      partDemandIds: job.partDemandIds,
+      partsRequired: job.partsRequired,
+      plannedCorrection: job.plannedCorrection.trim() || selectedReleaseLine.plannedCorrection,
+      workTypeCode: job.workTypeCode.trim() || selectedReleaseLine.workTypeCode || "GENERAL_REPAIR",
+    };
+  }
+
+  async function createReleaseJobs() {
+    const currentDraft = buildCurrentReleaseDraft();
+    const drafts = releaseJobs.length ? releaseJobs : currentDraft ? [currentDraft] : [];
+    if (!drafts.length) {
+      setNotice("Choose an approved repair line, then create the repair job to continue to assignment, parts, repair completion, and Final QC.");
+      navigateToInternalTarget("#repair-planning-step-5-create-job");
+      return;
+    }
+    for (const draft of drafts) {
+      const created = await submit("CREATE_JOB", {
+        authorizationId: draft.authorizationId || accepted?.id,
+        authorizedLineKey: draft.authorizedLineKey,
+        diagnosisVersionId: latestDiagnosis?.id,
+        laborGuideMinutes: draft.laborGuideMinutes,
+        partDemandIds: draft.partDemandIds,
+        partsRequired: draft.partsRequired,
+        plannedCorrection: draft.plannedCorrection,
+        priority: "NORMAL",
+        reason: "Create an authorized, readiness-gated repair job.",
+        requiredCertifications: [],
+        requiredSkills: [],
+        bayRequirements: [],
+        dependencyJobIds: [],
+        description: draft.description,
+        toolRequirements: [],
+        workTypeCode: draft.workTypeCode,
+      }, "Create an authorized, readiness-gated repair job.");
+      if (!created) return;
+    }
+    setReleaseJobs([]);
+    setNotice("Repair job created. Next: assign the work, buy or update parts if needed, complete the repair, then hand off to Final QC.");
+    window.setTimeout(() => navigateToInternalTarget("#repair-next-actions"), 120);
+  }
+
   function applyLaborGuideOption(option: LaborGuideOption) {
     const presentedAt = local(new Date().toISOString());
     setEstimate((value) => ({ ...value, description: option.description, expiresAt: daysAfter(new Date(), 7), laborGuideMinutes: option.minutes, lineType: "LABOR", plannedCorrection: option.plannedCorrection, presentedAt, unitPriceCents: option.unitPriceCents, workTypeCode: option.workTypeCode }));
-    setNotice(`${option.title} added to the estimate draft. Review the line, adjust price or minutes if needed, then present the estimate version.`);
+    setNotice(`${option.title} loaded into the estimate line. Review it, edit anything needed, then save the line.`);
   }
 
   function submitEstimate() {
@@ -264,7 +565,27 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
       setNotice("The estimate expiration had already passed. Presented and Expires were updated to a seven-day window. Review them, then select Present estimate version again.");
       return;
     }
-    void submit("PRESENT_ESTIMATE", { lineItems: [{ key: estimate.lineKey, type: estimate.lineType, description: estimate.description, quantity: estimate.quantity, unitPriceCents: estimate.unitPriceCents, taxable: estimate.taxable, workTypeCode: estimate.workTypeCode, laborGuideMinutes: estimate.laborGuideMinutes, plannedCorrection: estimate.plannedCorrection }], taxCents: estimate.taxCents, discountCents: estimate.discountCents, taxBoundary: estimate.taxBoundary, presentationChannel: estimate.presentationChannel, presentedAt: estimate.presentedAt, expiresAt: estimate.expiresAt }, "Present an immutable estimate version from diagnostic evidence.");
+    const currentDraftReady = estimate.description.trim() && estimate.plannedCorrection.trim();
+    const lineItems = estimateLines.length
+      ? estimateLines
+      : currentDraftReady
+        ? [{
+          key: estimate.lineKey.trim() || "LINE-1",
+          type: estimate.lineType,
+          description: estimate.description.trim(),
+          quantity: estimate.quantity,
+          unitPriceCents: estimate.unitPriceCents,
+          taxable: estimate.taxable,
+          workTypeCode: estimate.workTypeCode,
+          laborGuideMinutes: estimate.laborGuideMinutes,
+          plannedCorrection: estimate.plannedCorrection.trim()
+        }]
+        : [];
+    if (!lineItems.length) {
+      setNotice("Add at least one estimate line before presenting the estimate.");
+      return;
+    }
+    void submit("PRESENT_ESTIMATE", { lineItems, taxCents: estimate.taxCents, discountCents: estimate.discountCents, taxBoundary: estimate.taxBoundary, presentationChannel: estimate.presentationChannel, presentedAt: estimate.presentedAt, expiresAt: estimate.expiresAt }, "Present an immutable estimate version from diagnostic evidence.");
   }
 
   function chooseRepairPath(path: RepairPath) {
@@ -295,6 +616,7 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
     const next = await request("/api/shop-planning") as Model;
     setModel(next);
     const nextOrder = next.repairOrders.find((item) => item.id === selectedId) ?? next.repairOrders[0];
+    resetReleaseBuilder(nextOrder);
     const vendor = activeVendorWork(nextOrder);
     if (nextOrder && vendor) {
       setRepairPath("VENDOR");
@@ -348,6 +670,10 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
     const contactOutcome = failedRepair ? "Repair failed — QC decision required" : readyForQc ? "Repair complete and ready for QC" : repairProgress.contactOutcome.trim() || "Repair progress updated";
     const nextAction = readyForQc ? "Complete final quality control, then hand off or return the vehicle for rework." : repairProgress.nextAction.trim() || "Continue repair and record the next meaningful update.";
     if (latestRepairUpdate?.statusCode === statusCode && latestRepairUpdate.customerVisibleSummary.trim() === customerVisibleSummary) {
+      if (readyForQc && openQc) {
+        window.location.assign(qcHref);
+        return;
+      }
       setNotice(readyForQc ? "This completion update is already saved. Open QC to continue." : "This exact repair update is already saved; no duplicate was created.");
       return;
     }
@@ -456,6 +782,7 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
     const order = model.repairOrders.find((item) => item.id === id);
     if (order) {
       const time = local(order.updatedAt);
+      resetReleaseBuilder(order);
       setRepairPath(defaultRepairPath(order));
       setDiagnosis((value) => ({ ...value, concern: order.serviceVisit.concernSummary, diagnosedAt: time }));
       setDirectScope((value) => ({ ...value, concern: order.serviceVisit.concernSummary, diagnosedAt: time, ...bodyworkRepairDefaults(order.serviceVisit.concernSummary) }));
@@ -465,7 +792,6 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
       setInspection((value) => ({ ...value, startedAt: local(order.serviceVisit.arrivedAt), completedAt: time }));
       setEstimate((value) => ({ ...value, presentedAt: time }));
       setAuthorization((value) => ({ ...value, decidedAt: time }));
-      setJob((value) => ({ ...value, authorizationId: "", authorizedLineKey: "", partDemandIds: [] }));
       setRepairProgress((value) => ({ ...value, customerVisibleSummary: "", internalNotes: "", nextContactAt: time, promiseAt: order.inventoryUnit?.targetAt ? local(order.inventoryUnit.targetAt) : "", nextAction: order.inventoryUnit?.nextAction ?? "Continue repair and record the next progress update." }));
     }
   }
@@ -511,7 +837,7 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
       <div className={styles.truthBar}><span><BadgeCheck /><b>Authoritative repair plan</b></span><span><LockKeyhole />Immutable evidence versions</span><span>Exact-version customer authorization required</span><span>Repair work remains blocked until readiness passes.</span></div>
     </header>
 
-    {displayNotice ? <div aria-live="polite" className={`${styles.notice} ${/required|cannot|invalid|not enabled|already exists/i.test(displayNotice) ? styles.danger : styles.success}`}><p>{displayNotice}</p>{notice.includes("cannot move backward") && staffNext ? <a href={staffNext.href}>{staffNext.action}<ChevronRight /></a> : null}</div> : null}
+    {displayNotice ? <div aria-live="polite" className={`${styles.notice} ${/required|cannot|invalid|not enabled|already exists/i.test(displayNotice) ? styles.danger : styles.success}`}><p>{displayNotice}</p>{notice.includes("cannot move backward") && staffNext ? staffNext.href.startsWith("/") ? <Link href={staffNext.href}>{staffNext.action}<ChevronRight /></Link> : <button className={styles.inlineNavAction} onClick={() => navigateToInternalTarget(staffNext.href)} type="button">{staffNext.action}<ChevronRight /></button> : null}</div> : null}
 
     <section className={styles.orderBar}>
       <label><span>Active repair order</span><select value={selected?.id ?? ""} onChange={(event) => choose(event.target.value)}>{model.repairOrders.map((order) => <option key={order.id} value={order.id}>{order.repairOrderNumber} · {order.vehicle.vehicleNumber} · {format(order.stage)}</option>)}</select></label>
@@ -520,7 +846,7 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
 
     {selected ? <>
       {!stageTwoComplete ? <section className={styles.repairTypePicker} aria-label="Select repair type"><header><span>Repair type</span><h2>Select the repair type now</h2><p>This choice prepares the correct inspection and planning form. It becomes authoritative after the inspection and repair scope are recorded.</p></header><div className={styles.pathPicker} role="radiogroup" aria-label="Repair type"><button aria-checked={!directPath && !vendorPath} className={!directPath && !vendorPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("DIAGNOSTIC")} role="radio" type="button"><Stethoscope /> Diagnostic / mechanical</button><button aria-checked={directPath} className={directPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("DIRECT_BODY")} role="radio" type="button"><Wrench /> Bodywork repair</button><button aria-checked={vendorPath} className={vendorPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("VENDOR")} role="radio" type="button"><Building2 /> Outside vendor</button></div></section> : null}
-      {staffNext ? <section className={styles.staffNow} aria-label="What staff should do now"><div><span>What staff should do now</span><h2>{staffNext.title}</h2><p>{staffNext.detail}</p></div><a href={staffNext.href}>{staffNext.action}<ChevronRight /></a></section> : null}
+      {staffNext ? <section className={styles.staffNow} aria-label="What staff should do now"><div><span>What staff should do now</span><h2>{staffNext.title}</h2><p>{staffNext.detail}</p></div>{staffNext.href.startsWith("/") ? <Link href={staffNext.href}>{staffNext.action}<ChevronRight /></Link> : <button className={styles.primaryJumpAction} onClick={() => navigateToInternalTarget(staffNext.href)} type="button">{staffNext.action}<ChevronRight /></button>}</section> : null}
       <section className={styles.mission}>{vendorPath ? <Building2 /> : directPath ? <Wrench /> : <Stethoscope />}<div><span>{missionLabel}</span><h2>{missionTitle}</h2><p>{selected.serviceVisit.concernSummary}</p></div><aside><strong>{displayCurrentStep + 1} of {displaySteps.length}</strong><span>{vendorPath ? "vendor steps" : "repair stages"}</span></aside></section>
 
       <section className={styles.stepRail} aria-label={vendorPath ? "Outside vendor progress" : "Repair planning stages"}>{displaySteps.map((step, index) => { const Icon = step.icon; const state = index < displayCurrentStep ? styles.complete : index === displayCurrentStep ? styles.active : ""; return <div className={state} key={step.label}><span>{index < displayCurrentStep ? <Check /> : <Icon />}</span><small>Step {index + 1}</small><strong>{step.label}</strong></div>; })}</section>
@@ -633,8 +959,10 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
               {vendorPath ? <div className={styles.pathInfo}><strong>Vendor estimating discipline</strong><p>Keep vendor estimate, approval documentation, parts responsibility, and expected return current on the outside vendor workflow. Do not duplicate internal diagnosis just to move the record.</p></div> : directPath ? <div className={styles.pathInfo}><strong>Body and collision estimating discipline</strong><p>Follow the same fast sequence every time: visible scope, labor guide or vendor quote, parts list, internal spend decision, then repair release. This keeps bodywork moving without pretending a troubleshooting diagnosis happened when it did not.</p></div> : null}
               {reconBudget ? <div className={styles.concern}><span>{reconBudget.source === "TAI" ? "TAI recon budget guardrail" : "Recon budget guardrail"}</span><p>{reconBudget.status === "OVER_BUDGET" ? "This estimate is already beyond the current recon spend target. Review the scope, labor source, and approval path before releasing more work." : reconBudget.status === "CAUTION" ? "This vehicle is getting close to its current recon budget. Tighten the estimate and confirm the next approval before moving forward." : "There is still recon spend room available for this vehicle. Keep the estimate anchored to real labor, parts, and vendor work."}</p><p>Budget {formatMoneyCents(reconBudget.estimatedReconBudgetCents)} · committed {formatMoneyCents(reconBudget.committedSpendCents)} · remaining {formatMoneyCents(reconBudget.remainingBudgetCents)}</p></div> : null}
               {directPath ? <div className={styles.pathInfo}><strong>Rapid recon estimate recipe</strong><p>1) use body labor guide or vendor quote, 2) separate labor, parts, and sublet cleanly, 3) preserve teardown supplements as new exact versions, and 4) never promise completion until parts and vendor timing are real.</p></div> : null}
-              {!vendorPath ? <section className={styles.laborGuideHelper} aria-label="Labor Guide estimate helper"><header><div><span>Labor Guide helper workspace</span><h3>Build the estimate line without leaving this stage</h3><p>Pick a guided labor source. It fills the official estimate draft below; staff still reviews the line before presenting the immutable estimate version.</p></div><Link href={laborGuideHref}>Open full Labor Guide <ChevronRight /></Link></header><label><span>Search concern, correction, or labor operation</span><input placeholder="Example: warning light, bumper, teardown, sensor" value={laborGuideQuery} onChange={(event) => setLaborGuideQuery(event.target.value)} /></label><div className={styles.laborGuideCards}>{visibleLaborGuideOptions.length ? visibleLaborGuideOptions.map((option) => <article key={option.key}><small>{option.source}</small><strong>{option.title}</strong><p>{option.description}</p><dl><div><dt>Guide time</dt><dd>{option.minutes} min</dd></div><div><dt>Draft price</dt><dd>{money(option.unitPriceCents)}</dd></div><div><dt>Type</dt><dd>{format(option.workTypeCode)}</dd></div></dl><button disabled={busy} onClick={() => applyLaborGuideOption(option)} type="button">Use this estimate line</button></article>) : <div className={styles.laborGuideEmpty}>No helper operation matched. Open the full Labor Guide or clear the search.</div>}</div></section> : null}
-              <FormGrid><Field label="Line key (required)"><input required value={estimate.lineKey} onChange={(event) => setEstimate((value) => ({ ...value, lineKey: event.target.value }))} /></Field><Field label="Type"><select value={estimate.lineType} onChange={(event) => setEstimate((value) => ({ ...value, lineType: event.target.value }))}>{["LABOR", "PART", "FEE"].map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Description (required)"><input required value={estimate.description} onChange={(event) => setEstimate((value) => ({ ...value, description: event.target.value }))} /></Field><Field label="Unit price (cents)"><input min="0" type="number" value={estimate.unitPriceCents} onChange={(event) => setEstimate((value) => ({ ...value, unitPriceCents: Number(event.target.value) }))} /></Field><Field label="Labor guide minutes"><input min="0" type="number" value={estimate.laborGuideMinutes} onChange={(event) => setEstimate((value) => ({ ...value, laborGuideMinutes: Number(event.target.value) }))} /></Field><Field label="Planned correction (required)"><input required value={estimate.plannedCorrection} onChange={(event) => setEstimate((value) => ({ ...value, plannedCorrection: event.target.value }))} /></Field><Field label="Tax (cents)"><input min="0" type="number" value={estimate.taxCents} onChange={(event) => setEstimate((value) => ({ ...value, taxCents: Number(event.target.value) }))} /></Field><Field label="Discount (cents)"><input min="0" type="number" value={estimate.discountCents} onChange={(event) => setEstimate((value) => ({ ...value, discountCents: Number(event.target.value) }))} /></Field><Field label="Presented (required)"><input required type="datetime-local" value={estimate.presentedAt} onChange={(event) => setEstimate((value) => ({ ...value, presentedAt: event.target.value }))} /></Field><Field label="Expires (required)"><input min={estimate.presentedAt} required type="datetime-local" value={estimate.expiresAt} onChange={(event) => setEstimate((value) => ({ ...value, expiresAt: event.target.value }))} /></Field></FormGrid>
+              {!vendorPath ? <section className={styles.simpleCard} aria-label="Simple estimate builder"><span className={styles.simpleEyebrow}>Simple estimate lines</span><h3>Add the repair lines, edit them if needed, then present the estimate</h3><p>Keep this stage simple. Add plain estimate lines like R &amp; R brake vacuum pump, repair and paint front bumper cover, sublet alignment, or teardown. The full labor guide is still available when staff needs deeper research.</p><div className={styles.simpleActions}><Link className={styles.primaryAction} href={laborGuideHref}>Open full Labor Guide</Link></div><label className={styles.laborGuideHelper}><span>Quick search for a common repair area</span><input placeholder="Example: brake vacuum pump, bumper, paint, teardown" value={laborGuideQuery} onChange={(event) => setLaborGuideQuery(event.target.value)} /></label>{quickEstimateOptions.length ? <div className={styles.estimateQuickPicks}>{quickEstimateOptions.map((option) => <button disabled={busy} key={option.key} onClick={() => applyLaborGuideOption(option)} type="button">{option.title}</button>)}</div> : null}</section> : null}
+              <FormGrid><Field label="Line key (required)"><input required value={estimate.lineKey} onChange={(event) => setEstimate((value) => ({ ...value, lineKey: event.target.value }))} /></Field><Field label="Type"><select value={estimate.lineType} onChange={(event) => setEstimate((value) => ({ ...value, lineType: event.target.value as EstimateDraft["lineType"] }))}>{["LABOR", "PART", "FEE"].map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Quantity"><input min="1" type="number" value={estimate.quantity} onChange={(event) => setEstimate((value) => ({ ...value, quantity: Number(event.target.value) || 1 }))} /></Field><Field label="Description (required)"><input placeholder="Example: R & R brake vacuum pump" required value={estimate.description} onChange={(event) => setEstimate((value) => ({ ...value, description: event.target.value }))} /></Field><Field label="Unit price (cents)"><input min="0" type="number" value={estimate.unitPriceCents} onChange={(event) => setEstimate((value) => ({ ...value, unitPriceCents: Number(event.target.value) }))} /></Field><Field label="Labor guide minutes"><input min="0" type="number" value={estimate.laborGuideMinutes} onChange={(event) => setEstimate((value) => ({ ...value, laborGuideMinutes: Number(event.target.value) }))} /></Field><Field label="What should be done (required)" wide><input placeholder="Example: Remove and replace failed brake vacuum pump, verify brake assist, and road test" required value={estimate.plannedCorrection} onChange={(event) => setEstimate((value) => ({ ...value, plannedCorrection: event.target.value }))} /></Field><Field label="Work type code"><input value={estimate.workTypeCode} onChange={(event) => setEstimate((value) => ({ ...value, workTypeCode: event.target.value }))} /></Field><Field label="Tax (cents)"><input min="0" type="number" value={estimate.taxCents} onChange={(event) => setEstimate((value) => ({ ...value, taxCents: Number(event.target.value) }))} /></Field><Field label="Discount (cents)"><input min="0" type="number" value={estimate.discountCents} onChange={(event) => setEstimate((value) => ({ ...value, discountCents: Number(event.target.value) }))} /></Field><Field label="Presented (required)"><input required type="datetime-local" value={estimate.presentedAt} onChange={(event) => setEstimate((value) => ({ ...value, presentedAt: event.target.value }))} /></Field><Field label="Expires (required)"><input min={estimate.presentedAt} required type="datetime-local" value={estimate.expiresAt} onChange={(event) => setEstimate((value) => ({ ...value, expiresAt: event.target.value }))} /></Field></FormGrid>
+              {!vendorPath ? <div className={styles.estimateLineActions}><button disabled={busy} onClick={saveEstimateLine} type="button">{estimateLines.some((line) => line.key === estimate.lineKey) ? "Update line" : "Add line to estimate"}</button><button disabled={busy} onClick={() => resetEstimateDraft()} type="button">Start a new line</button></div> : null}
+              {!vendorPath && estimateLines.length ? <section className={styles.estimateLineList} aria-label="Estimate draft lines"><header><div><span>Estimate draft</span><h3>{estimateLines.length} line{estimateLines.length === 1 ? "" : "s"} ready for approval</h3></div></header>{estimateLines.map((line) => <article key={line.key}><div><strong>{line.key} · {line.description}</strong><p>{line.plannedCorrection}</p><small>{line.quantity} x {money(line.unitPriceCents)} · {format(line.workTypeCode)}</small></div><div className={styles.estimateLineActions}><button disabled={busy} onClick={() => editEstimateLine(line)} type="button">Edit</button><button disabled={busy} onClick={() => removeEstimateLine(line.key)} type="button">Remove</button></div></article>)}</section> : null}
               {displayNotice ? <div aria-live="polite" className={`${styles.notice} ${/required|cannot|invalid|not enabled|already exists|expiration|valid date/i.test(displayNotice) ? styles.danger : ""}`}><p>{displayNotice}</p></div> : null}
               <Submit busy={busy}>Present estimate version</Submit>
             </form>
@@ -699,10 +1027,10 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
                 <Submit busy={busy}>Save vendor repair update</Submit>
               </form>
             </section> : existingJobForSelectedLine || (accepted && !creatableAuthorizedLineKeys.length) ? (
-              <section className={styles.simpleCard}>
+              <section className={styles.simpleCard} id="repair-next-actions" tabIndex={-1}>
                 <span className={styles.simpleEyebrow}>Repair job already created</span>
                 <h3>{existingJobForSelectedLine?.jobNumber ?? selected.repairJobs[0]?.jobNumber} is already carrying this approved work</h3>
-                <p>You do not need to fill out another form here. This repair job already exists, so the right move is to continue the work from its current status.</p>
+                <p>You do not need to fill out another form here. The next move is to assign the repair work, buy or update any needed parts, complete the repair, and then hand the vehicle to Final QC.</p>
                 <dl className={styles.simpleFacts}>
                   <div><dt>Approved work</dt><dd>{existingJobForSelectedLine?.description ?? selected.repairJobs[0]?.description ?? "Approved repair work"}</dd></div>
                   <div><dt>Current status</dt><dd>{format(existingJobForSelectedLine?.status ?? selected.repairJobs[0]?.status ?? "READY_FOR_REPAIR")}</dd></div>
@@ -710,37 +1038,46 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
                 </dl>
                 <div className={styles.simpleInstructions}>
                   <strong>Next step</strong>
-                  <p>{(existingJobForSelectedLine?.status ?? selected.repairJobs[0]?.status) === "WAITING_PARTS" ? "Open Parts & readiness, confirm what is missing, and update the parts progress for this job." : "Return to the workbench and keep the repair moving forward from the current repair stage."}</p>
+                  <p>{(existingJobForSelectedLine?.status ?? selected.repairJobs[0]?.status) === "WAITING_PARTS" ? "Open Parts & readiness first, then return to dispatch or repair execution once the required parts are ready." : qcReady ? "The repair result is already saved. Go straight to Final QC." : "Open dispatch or the repair work order, complete the work, and then record the repair result for Final QC."}</p>
                 </div>
                 <div className={styles.simpleActions}>
-                  <Link href="/vehicles/service-close-parts">Open Parts &amp; readiness</Link>
-                  <Link href={safeReturnTo}>Return to workbench</Link>
-                  <Link className={styles.primaryAction} href={`/vehicles/360/${encodeURIComponent(selected.vehicle.id)}`}>Open Vehicle 360</Link>
+                  <Link href={dispatchHref}>Open repair assignment</Link>
+                  <Link href={repairJobWorkbenchHref}>Open repair work order</Link>
+                  <Link href={partsHref}>Open parts purchases</Link>
+                  {qcReady ? <Link className={styles.primaryAction} href={qcHref}>Open Final QC</Link> : <a className={styles.primaryAction} href="#repair-result">Record repair result</a>}
                 </div>
               </section>
             ) : (
               <>
-                <div className={styles.simpleCard}>
-                  <span className={styles.simpleEyebrow}>Simple repair release</span>
-                  <h3>Create one repair job from the approved work</h3>
-                  <p>Use the approved line below, give it a short plain-language description, and mark whether parts are needed. Everything else can stay simple.</p>
+                <div className={styles.simpleCard} id="repair-planning-step-5-create-job" tabIndex={-1}>
+                  <span className={styles.simpleEyebrow}>Flexible repair release</span>
+                  <h3>Add as many approved repair lines as needed</h3>
+                  <p>Build the release list one line at a time. Staff can edit any line before creating the repair jobs. This stage should move the work forward into job creation, assignment, parts, repair completion, and Final QC.</p>
                 </div>
-                <form onSubmit={(event: FormEvent) => { event.preventDefault(); void submit("CREATE_JOB", { ...job, authorizationId: job.authorizationId || accepted?.id, authorizedLineKey: selectedAuthorizedLineKey, diagnosisVersionId: job.diagnosisVersionId || latestDiagnosis?.id, requiredSkills: job.requiredSkills.split(",").map((value) => value.trim()).filter(Boolean), requiredCertifications: job.requiredCertifications.split(",").map((value) => value.trim()).filter(Boolean), bayRequirements: job.bayRequirements.split(",").map((value) => value.trim()).filter(Boolean), toolRequirements: job.toolRequirements.split(",").map((value) => value.trim()).filter(Boolean), dependencyJobIds: job.dependencyJobIds.split(",").map((value) => value.trim()).filter(Boolean) }, "Create an authorized, readiness-gated repair job."); }}>
+                <form onSubmit={(event: FormEvent) => { event.preventDefault(); void createReleaseJobs(); }}>
                   <FormGrid>
-                    <Field label="Approved decision"><select value={job.authorizationId || accepted?.id || ""} onChange={(event) => setJob((value) => ({ ...value, authorizationId: event.target.value }))}>{selected.estimateVersions.flatMap((item) => item.authorizations).filter((item) => ["ACCEPTED", "PARTIAL"].includes(item.disposition)).map((item) => <option key={item.id} value={item.id}>{money(item.authorizedAmountCents)} · {item.disposition}</option>)}</select></Field>
-                    <Field label="Approved work line"><select value={selectedAuthorizedLineKey} onChange={(event) => setJob((value) => ({ ...value, authorizedLineKey: event.target.value }))}>{accepted?.authorizedLineKeys.map((value) => <option key={value} value={value}>{existingAuthorizedLineKeys.has(value) ? `${value} · already created` : value}</option>)}</select></Field>
-                    <Field label="Job description"><input placeholder="Example: bodywork repair" value={job.description} onChange={(event) => setJob((value) => ({ ...value, description: event.target.value }))} /></Field>
-                    <Field label="What should be done"><input placeholder="Example: replace bumper and prep for paint" value={job.plannedCorrection} onChange={(event) => setJob((value) => ({ ...value, plannedCorrection: event.target.value }))} /></Field>
+                    <Field label="Approved decision"><select value={job.authorizationId || accepted?.id || ""} onChange={(event) => setJob((value) => ({ ...value, authorizationId: event.target.value }))}>{selected.estimateVersions.flatMap((item) => item.authorizations).filter((item) => ["ACCEPTED", "PARTIAL"].includes(item.disposition)).map((item) => <option key={item.id} value={item.id}>{format(item.disposition)} · {item.decisionActorName || "Approved decision"}</option>)}</select></Field>
+                    <Field label="Approved repair line"><select value={selectedAuthorizedLineKey} onChange={(event) => applyReleaseLineDefaults(event.target.value)}>{creatableAuthorizedLineKeys.map((value) => { const line = releaseLineByKey(value); return <option key={value} value={value}>{value} · {line?.description ?? "Approved labor line"} · {line ? money(line.quantity * line.unitPriceCents) : ""}</option>; })}</select></Field>
+                    <Field label="Job description"><input placeholder="Example: Bodywork repair and paint front bumper cover" value={job.description} onChange={(event) => setJob((value) => ({ ...value, description: event.target.value }))} /></Field>
+                    <Field label="What should be done"><input placeholder="Example: Repair and paint front bumper cover" value={job.plannedCorrection} onChange={(event) => setJob((value) => ({ ...value, plannedCorrection: event.target.value }))} /></Field>
+                    <Field label="Work type code"><input value={job.workTypeCode} onChange={(event) => setJob((value) => ({ ...value, workTypeCode: event.target.value }))} /></Field>
+                    <Field label="Labor guide minutes"><input min="0" type="number" value={job.laborGuideMinutes} onChange={(event) => setJob((value) => ({ ...value, laborGuideMinutes: Number(event.target.value) }))} /></Field>
                     <label className={styles.check}><input checked={job.partsRequired} type="checkbox" onChange={(event) => setJob((value) => ({ ...value, partsRequired: event.target.checked }))} />This job needs parts before repair can continue</label>
                     {job.partsRequired ? <fieldset className={styles.parts}><legend>Select part records only if they already exist</legend>{selected.partDemands.filter((item) => !item.repairJobId).map((item) => <label key={item.id}><input checked={job.partDemandIds.includes(item.id)} type="checkbox" onChange={(event) => setJob((value) => ({ ...value, partDemandIds: event.target.checked ? [...value.partDemandIds, item.id] : value.partDemandIds.filter((id) => id !== item.id) }))} />{item.part.partNumber} · {item.quantityReserved}/{item.quantityRequired} reserved</label>)}</fieldset> : null}
                   </FormGrid>
-                  <Submit busy={busy}>Create repair job</Submit>
+                  {selectedReleaseLine ? <div className={styles.pathInfo}><strong>Approved line amount</strong><p>{selectedReleaseLine.description} is currently approved at {money(selectedReleaseLine.quantity * selectedReleaseLine.unitPriceCents)} on this release line. If that amount is wrong, update the estimate line first, then return here to continue the repair workflow.</p></div> : null}
+                  <div className={styles.estimateLineActions}>
+                    <button disabled={busy || !creatableAuthorizedLineKeys.length} onClick={saveReleaseJobDraft} type="button">{releaseJobs.some((item) => item.authorizedLineKey === selectedAuthorizedLineKey) ? "Update release line" : "Add line to release"}</button>
+                    <button disabled={busy || !creatableAuthorizedLineKeys.length} onClick={() => applyReleaseLineDefaults(nextReleaseLineKey(releaseJobs.map((item) => item.authorizedLineKey)))} type="button">Start another line</button>
+                  </div>
+                  {releaseJobs.length ? <section className={styles.estimateLineList} aria-label="Repair release lines"><header><div><span>Repair release list</span><h3>{releaseJobs.length} line{releaseJobs.length === 1 ? "" : "s"} ready to create</h3></div></header>{releaseJobs.map((draft) => { const line = releaseLineByKey(draft.authorizedLineKey); return <article key={draft.authorizedLineKey}><div><strong>{draft.authorizedLineKey} · {draft.description}</strong><p>{draft.plannedCorrection}</p><small>{line ? money(line.quantity * line.unitPriceCents) : ""} · {draft.workTypeCode}</small></div><div className={styles.estimateLineActions}><button disabled={busy} onClick={() => editReleaseJobDraft(draft)} type="button">Edit</button><button disabled={busy} onClick={() => removeReleaseJobDraft(draft.authorizedLineKey)} type="button">Remove</button></div></article>; })}</section> : null}
+                  <Submit busy={busy}>{releaseJobs.length > 1 ? "Create repair jobs" : "Create repair job"}</Submit>
                 </form>
               </>
             )}
           </WorkflowStep>
 
-          <section className={styles.repairResult} id="repair-result">
+          {hasRepairJob ? <section className={styles.repairResult} id="repair-result" tabIndex={-1}>
             <header>
               <span>Manage repair</span>
               <h2>Record the repair result</h2>
@@ -763,9 +1100,9 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
             <button className={styles.sendToQcAction} disabled={busy || !repairProgress.customerVisibleSummary.trim() || !completedByUserId} onClick={() => void submitRepairProgress("READY_FOR_QC", true, repairOutcome)} type="button">
               {busy ? "Saving..." : "Save result and open Final QC"}
             </button>
-          </section>
+          </section> : null}
 
-          <details className={styles.moreRepairUpdates}>
+          {hasRepairJob ? <details className={styles.moreRepairUpdates}>
             <summary>More repair update options and history</summary>
           <section className={styles.progressWorkspace} id="repair-progress">
             <header>
@@ -819,7 +1156,7 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
               </article>) : <p>No repair progress has been recorded yet.</p>}
             </div>
           </section>
-          </details>
+          </details> : null}
         </main>
 
         <aside className={styles.rail}>

@@ -125,6 +125,7 @@ const hasPartsActivity = (job: Job) => Boolean(job.partDemands?.length);
 const needsRoadTest = (job: Job, order: Order) => /brake|noise|steer|suspension|drive|vibration|alignment|engine|transmission/i.test(`${job.description} ${job.plannedCorrection} ${order.serviceVisit.concernSummary}`);
 const needsPeer = (job: Job) => job.lane === "DIAGNOSTIC_HEAVY" || /airbag|brake|steer|safety|engine|transmission|electrical/i.test(`${job.description} ${job.plannedCorrection}`);
 const isSafetyCritical = (job: Job, order: Order) => /airbag|srs|brake|steer|suspension|wheel|tire|seatbelt|safety|engine|transmission|abs/i.test(`${job.description} ${job.plannedCorrection} ${order.serviceVisit.concernSummary}`);
+const isFrontlineCleared = (order: Order) => Boolean(order.releaseAuthorization);
 
 function generatedChecklist(order: Order, job: Job) {
   const text = `${job.description} ${job.plannedCorrection} ${order.serviceVisit.concernSummary}`;
@@ -377,7 +378,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
       openExceptions: [],
       authorizedAt: new Date().toISOString(),
       reason: "Final Frontline QC completed with every vehicle check passed and no unresolved exceptions."
-    }, "Final Frontline QC passed. The vehicle is cleared for the next frontline-readiness handoff.");
+    }, "Final Frontline QC passed. The vehicle now shows green in the QC list and is cleared for photos, merchandising, and the next frontline-readiness handoff.");
     if (saved) {
       window.localStorage.removeItem(`frontline-qc:${order.id}`);
     }
@@ -492,7 +493,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
       ) : null}
 
       {order?.releaseAuthorization ? (
-        <section className="frontline-qc-complete"><CheckCircle2 /><div><strong>Final Frontline QC complete</strong><span>This repair order is cleared for its next frontline-readiness handoff.</span></div></section>
+        <section className="frontline-qc-complete"><CheckCircle2 /><div><strong>Final Frontline QC complete</strong><span>This repair order is cleared for photos, merchandising, and its next frontline-readiness handoff.</span></div></section>
       ) : null}
 
       <div className="qc-advanced-workspace" hidden={!showAdvanced && Boolean(order && job)}>
@@ -516,16 +517,17 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
           </header>
           <div>
             {jobs.length ? jobs.map(({ order: queueOrder, job: queueJob }) => {
-              const statusClass = queueJob.status === "READY_FOR_QC" ? "ready" : isFailed(queueJob) ? "danger" : queueJob.status === "QC_PASSED" ? "passed" : "neutral";
+              const cleared = isFrontlineCleared(queueOrder);
+              const statusClass = cleared ? "cleared" : queueJob.status === "READY_FOR_QC" ? "ready" : isFailed(queueJob) ? "danger" : queueJob.status === "QC_PASSED" ? "review" : "neutral";
               return (
                 <button aria-pressed={orderId === queueOrder.id && jobId === queueJob.id} className={`qc-row ${statusClass}`} key={queueJob.id} onClick={() => chooseJob(queueOrder, queueJob)} type="button">
                   <span>
                     <strong>{queueOrder.repairOrderNumber} · {queueJob.jobNumber}</strong>
-                    <small>{vehicleName(queueOrder)} · {queueOrder.customer?.displayName ?? queueOrder.inventoryUnit?.inventoryNumber ?? queueOrder.origin}</small>
+                    <small className="qc-row-vehicle"><Car className={cleared ? "is-cleared" : undefined} /><span>{vehicleName(queueOrder)} · {queueOrder.customer?.displayName ?? queueOrder.inventoryUnit?.inventoryNumber ?? queueOrder.origin}</span></small>
                   </span>
                   <span>
-                    <b>{queueJob.status.replaceAll("_", " ")}</b>
-                    <small>{queueJob.dispatches[0]?.technicianUser.name ?? "Technician not recorded"}</small>
+                    <b>{cleared ? "QC CLEARED" : queueJob.status === "QC_PASSED" ? "REPAIR QC PASSED" : queueJob.status.replaceAll("_", " ")}</b>
+                    <small>{cleared ? "Green vehicle · ready for photos and frontline merchandising" : queueJob.dispatches[0]?.technicianUser.name ?? "Technician not recorded"}</small>
                   </span>
                   <ArrowRight />
                 </button>
@@ -551,7 +553,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
           </header>
           {order && job ? (
             <div className="qc-selected-body">
-              <p><Car /><span><strong>{vehicleName(order)}</strong><small>{order.vehicle.vehicleNumber} · {order.location.name}</small></span></p>
+              <p className={order.releaseAuthorization ? "is-cleared" : undefined}><Car /><span><strong>{vehicleName(order)}</strong><small>{order.releaseAuthorization ? `${order.vehicle.vehicleNumber} · ${order.location.name} · Green in QC list / ready for photos` : `${order.vehicle.vehicleNumber} · ${order.location.name}`}</small></span></p>
               <p><FileText /><span><strong>{order.repairOrderNumber}</strong><small>{order.serviceVisit.concernSummary || "No concern summary"}</small></span></p>
               <p><Wrench /><span><strong>{job.description}</strong><small>{job.plannedCorrection || "No planned correction"}</small></span></p>
               <p><ShieldCheck /><span><strong>{latestInspection?.disposition ?? "No QC result yet"}</strong><small>Promise: {dateTime(order.serviceVisit.promisedAt ?? order.targetAt)}</small></span></p>

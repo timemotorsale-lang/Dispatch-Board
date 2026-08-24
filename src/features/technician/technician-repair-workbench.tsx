@@ -37,12 +37,41 @@ function formatTime(value: string | null) {
   }).format(new Date(value));
 }
 
+type RepairOutcome = "COMPLETED" | "PARTIALLY_COMPLETED" | "UNABLE_TO_COMPLETE" | "FURTHER_DIAGNOSIS";
+
+const outcomeNextSteps: Record<RepairOutcome, { title: string; detail: string; action: string; href: (model: TechnicianRepairWorkbenchModel) => string }> = {
+  COMPLETED: {
+    title: "Send verified work to QC",
+    detail: "Finish the repair update, attach verification notes, and route the job to Quality Control.",
+    action: "Complete Work & Send to QC",
+    href: () => "/vehicles/quality-control"
+  },
+  PARTIALLY_COMPLETED: {
+    title: "Request manager direction",
+    detail: "Submit what was completed, explain the remaining work, and ask management to choose the next controlled action.",
+    action: "Submit Update & Request Next Action",
+    href: (model) => model.repairOrder.href
+  },
+  UNABLE_TO_COMPLETE: {
+    title: "Stop and resolve blocker",
+    detail: "Explain why the job cannot continue so the shop can resolve parts, authorization, safety, procedure, or dispatch blockers.",
+    action: "Submit Blocker & Request Next Action",
+    href: (model) => model.repairOrder.href
+  },
+  FURTHER_DIAGNOSIS: {
+    title: "Send to Diagnostic Assist",
+    detail: "Submit the observation, verification performed, and recommended next diagnostic step so the issue can move into diagnosis instead of staying static.",
+    action: "Submit Update & Open Diagnostics",
+    href: (model) => `/diagnostics/intake?repairOrderId=${encodeURIComponent(model.repairOrder.id)}`
+  }
+};
+
 export function TechnicianRepairWorkbench({ model }: { model: TechnicianRepairWorkbenchModel }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [outcome, setOutcome] = useState("COMPLETED");
+  const [outcome, setOutcome] = useState<RepairOutcome>("COMPLETED");
   const [workPerformed, setWorkPerformed] = useState("");
   const [additionalFinding, setAdditionalFinding] = useState("");
   const [blockerReason, setBlockerReason] = useState(model.job.executionBlockerReason ?? "");
@@ -56,11 +85,26 @@ export function TechnicianRepairWorkbench({ model }: { model: TechnicianRepairWo
   const canResume = model.actor.canExecute && clockState === "PAUSED";
   const completed = model.job.status === "READY_FOR_QC" || model.job.status === "QC_PASSED" || clockState === "FINISHED";
   const incomplete = outcome !== "COMPLETED";
+  const nextStep = completed
+    ? { ...outcomeNextSteps.COMPLETED, title: model.job.status === "QC_PASSED" ? "QC passed" : "Submitted to QC", detail: model.job.status === "QC_PASSED" ? "This repair has passed QC. The next staff action is release readiness or shop exit from Shop & Recon." : "This repair is waiting for Quality Control. No more technician update is needed unless QC sends it back.", action: model.job.status === "QC_PASSED" ? "Open Shop & Recon" : "Open Quality Control", href: () => model.job.status === "QC_PASSED" ? "/vehicles/shop-recon" : "/vehicles/quality-control" }
+    : outcomeNextSteps[outcome];
+  const incompleteReady = !incomplete || (workPerformed.trim().length > 0 && blockerReason.trim().length >= 10 && recommendedNextStep.trim().length > 0);
+  const completeReady = workPerformed.trim().length > 0 && verification.trim().length > 0 && qcNotes.trim().length > 0;
   const offsite = Boolean(
     model.repairOrder.vendorName &&
     model.repairOrder.currentLocation &&
     model.repairOrder.currentLocation !== model.repairOrder.location
   );
+
+  function chooseOutcome(value: RepairOutcome) {
+    setOutcome(value);
+    setError(null);
+    setMessage(null);
+    if (value === "COMPLETED") return;
+    if (!recommendedNextStep.trim()) {
+      setRecommendedNextStep(outcomeNextSteps[value].detail);
+    }
+  }
 
   function submitLabor(eventType: "START" | "PAUSE" | "RESUME" | "FINISH") {
     setError(null);
@@ -116,7 +160,7 @@ export function TechnicianRepairWorkbench({ model }: { model: TechnicianRepairWo
         setError(result?.error ?? "The repair update could not be recorded.");
         return;
       }
-      setMessage(eventType === "FINISH" ? "Repair accepted and routed to Quality Control." : "Repair status updated.");
+      setMessage(eventType === "FINISH" ? "Repair accepted and routed to Quality Control." : "Next action request submitted. The job is paused with the blocker and recommendation recorded.");
       router.refresh();
     });
   }
@@ -150,6 +194,15 @@ export function TechnicianRepairWorkbench({ model }: { model: TechnicianRepairWo
           {canResume ? <button disabled={pending} onClick={() => submitLabor("RESUME")} type="button"><RotateCcw size={16} /> Resume Work</button> : null}
           {completed ? <span className="technician-complete-indicator"><CheckCircle2 size={18} /> Submitted</span> : null}
         </div>
+      </section>
+
+      <section className={`technician-next-step ${completed ? "complete" : incomplete ? "attention" : ""}`} aria-label="Recommended next step">
+        <div>
+          <span>Recommended next step</span>
+          <strong>{nextStep.title}</strong>
+          <p>{nextStep.detail}</p>
+        </div>
+        <Link href={nextStep.href(model)}>{nextStep.action}</Link>
       </section>
 
       <nav className="technician-linked-work" aria-label="Linked work">
@@ -192,15 +245,24 @@ export function TechnicianRepairWorkbench({ model }: { model: TechnicianRepairWo
             <header><div><span>Technician work update</span><h2>Document the repair once</h2></div><Wrench size={20} /></header>
 
             <div className="technician-outcome-row" role="group" aria-label="Repair outcome">
-              {[
+              {[ 
                 ["COMPLETED", "Completed"],
                 ["PARTIALLY_COMPLETED", "Partially Completed"],
                 ["UNABLE_TO_COMPLETE", "Unable to Complete"],
                 ["FURTHER_DIAGNOSIS", "Further Diagnosis"]
               ].map(([value, text]) => (
-                <button aria-pressed={outcome === value} className={outcome === value ? "active" : ""} key={value} onClick={() => setOutcome(value)} type="button">{text}</button>
+                <button aria-pressed={outcome === value} className={outcome === value ? "active" : ""} key={value} onClick={() => chooseOutcome(value as RepairOutcome)} type="button">{text}</button>
               ))}
             </div>
+
+            <section className={`technician-inline-next-step ${incomplete ? "attention" : ""}`} aria-label="Outcome next step">
+              <div>
+                <span>Next step after this update</span>
+                <strong>{nextStep.title}</strong>
+                <p>{nextStep.detail}</p>
+              </div>
+              <Link href={nextStep.href(model)}>{nextStep.action}</Link>
+            </section>
 
             <label>
               <span>Work performed</span>
@@ -241,11 +303,11 @@ export function TechnicianRepairWorkbench({ model }: { model: TechnicianRepairWo
             <footer>
               <span><ShieldCheck size={15} /> Updates are linked to {model.repairOrder.number} and {model.job.jobNumber}.</span>
               {incomplete ? (
-                <button className="technician-submit-exception" disabled={pending || !model.actor.canExecute || !canPause} onClick={() => submitLabor("PAUSE")} type="button">
+                <button className="technician-submit-exception" disabled={pending || !model.actor.canExecute || completed || !incompleteReady} onClick={() => submitLabor("PAUSE")} type="button">
                   <AlertTriangle size={17} /> Submit Update &amp; Request Next Action
                 </button>
               ) : (
-                <button className="technician-submit-complete" disabled={pending || !model.actor.canExecute || completed || !["RUNNING", "PAUSED"].includes(clockState)} onClick={() => submitLabor("FINISH")} type="button">
+                <button className="technician-submit-complete" disabled={pending || !model.actor.canExecute || completed || !["RUNNING", "PAUSED"].includes(clockState) || !completeReady} onClick={() => submitLabor("FINISH")} type="button">
                   <CheckCircle2 size={17} /> Complete Work &amp; Send to QC
                 </button>
               )}

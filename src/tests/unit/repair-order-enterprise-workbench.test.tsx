@@ -28,6 +28,14 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("Reproduce symptom safely");
     expect(html).toContain("Measure friction material");
     expect(html).toContain("It does not assume the cause or authorize repair work");
+    expect(html).toContain("Initial recon inspection");
+    expect(html).toContain("Capture evidence before estimate and approval");
+    expect(html).toContain("Diagnostic codes");
+    expect(html).toContain("Body and exterior");
+    expect(html).toContain("Mechanical findings");
+    expect(html).toContain("Photos and evidence");
+    expect(html).toContain("Review only");
+    expect(html).toContain("Review Work Plan Draft");
     expect(html).toContain("Start Diagnosis");
     expect(html).toContain("Intake Completeness");
     expect(html).toContain("Flow Clock");
@@ -46,6 +54,29 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("Assigned to Alex Advisor");
     expect(html).toContain("Alex Advisor is already assigned. Select a different person to change the assignment.");
     expect(html).toContain("Walter Mechanic");
+  });
+
+  it("suggests structured evidence for dash codes, brake vibration, and body damage", () => {
+    const reconOrder = {
+      ...order,
+      customer: null,
+      inventoryUnit: { inventoryNumber: "049649" },
+      serviceVisit: {
+        ...order.serviceVisit,
+        concernSummary:
+          "All kinds of lights on the dash. Brakes vibrate when the brake pedal is pressed. Rear bumper cover is cracked and needs replacement.",
+      },
+    };
+    const html = renderToStaticMarkup(<RepairOrderEnterpriseWorkbench order={reconOrder} options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }} />);
+
+    expect(html).toContain("Dash or module code evidence recorded");
+    expect(html).toContain("Attach scan result, active/history status, and warning-light photo.");
+    expect(html).toContain("Brake vibration or braking concern");
+    expect(html).toContain("Record road-test result, pad/rotor measurements, and repair recommendation.");
+    expect(html).toContain("Visible exterior damage");
+    expect(html).toContain("Capture panel location, repair vs replacement decision, and before photos.");
+    expect(html).toContain("Do not move to approval until safety evidence is reviewed.");
+    expect(html).toContain("Photo upload will be wired after this review surface is approved.");
   });
 
   it("uses the simple inventory path without requesting customer readiness", () => {

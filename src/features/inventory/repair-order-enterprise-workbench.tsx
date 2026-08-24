@@ -4,6 +4,8 @@ import {
   Activity,
   AlertTriangle,
   CalendarClock,
+  Camera,
+  CarFront,
   Check,
   ChevronRight,
   ClipboardCheck,
@@ -12,6 +14,7 @@ import {
   KeyRound,
   LockKeyhole,
   Printer,
+  ScanLine,
   ShieldAlert,
   UserRound,
   Wrench,
@@ -126,6 +129,7 @@ type DiagnosticsBridge =
   | { state: "UNAVAILABLE"; reason: string; repairOrderId: string };
 
 type PlanItem = { evidence: string; label: string; objective: string };
+type EvidenceSuggestion = { category: string; finding: string; requirement: string; severity: "Critical" | "Repair required" | "Needs review" };
 
 function diagnosticPlan(concern: string): PlanItem[] {
   if (/brake|grind|squeal|rotor|caliper/i.test(concern))
@@ -155,6 +159,43 @@ function diagnosticPlan(concern: string): PlanItem[] {
     { label: "Document confirmed cause", objective: "Separate facts, uncertainty, and recommendation", evidence: "Diagnosis version" },
     { label: "Define proposed correction and verification", objective: "Prepare authorized scope and final validation criteria", evidence: "Correction plan" },
   ];
+}
+
+function suggestedInspectionFindings(concern: string): EvidenceSuggestion[] {
+  const suggestions: EvidenceSuggestion[] = [];
+  if (/code|codes|dash|warning light|check engine|abs|airbag|tpms|light/i.test(concern)) {
+    suggestions.push({
+      category: "Diagnostic codes",
+      finding: "Dash or module code evidence recorded",
+      requirement: "Attach scan result, active/history status, and warning-light photo.",
+      severity: /airbag|abs|brake/i.test(concern) ? "Critical" : "Repair required",
+    });
+  }
+  if (/brake|rotor|vibrat|grind|squeal|caliper/i.test(concern)) {
+    suggestions.push({
+      category: "Mechanical finding",
+      finding: "Brake vibration or braking concern",
+      requirement: "Record road-test result, pad/rotor measurements, and repair recommendation.",
+      severity: "Critical",
+    });
+  }
+  if (/body|bumper|crack|broken|damage|dent|paint|panel|cover/i.test(concern)) {
+    suggestions.push({
+      category: "Body damage",
+      finding: "Visible exterior damage",
+      requirement: "Capture panel location, repair vs replacement decision, and before photos.",
+      severity: "Repair required",
+    });
+  }
+  if (!suggestions.length) {
+    suggestions.push({
+      category: "Inspection finding",
+      finding: "Concern requires technician verification",
+      requirement: "Capture condition, evidence, severity, and next repair recommendation.",
+      severity: "Needs review",
+    });
+  }
+  return suggestions;
 }
 
 const format = (value: string | null | undefined) =>
@@ -442,9 +483,11 @@ export function RepairOrderEnterpriseWorkbench({
   const [ownerUserId, setOwnerUserId] = useState(order.ownerUser.id);
   const [currentOwner, setCurrentOwner] = useState(order.ownerUser);
   const [currentVersion, setCurrentVersion] = useState(order.version);
+  const [evidencePreviewOpen, setEvidencePreviewOpen] = useState(false);
   const concernSummary = order.serviceVisit?.concernSummary?.trim() || "Concern not recorded.";
   const intakeNotes = order.serviceVisit?.intakeNotes?.trim() || null;
   const plan = useMemo(() => diagnosticPlan(concernSummary), [concernSummary]);
+  const evidenceSuggestions = useMemo(() => suggestedInspectionFindings(concernSummary), [concernSummary]);
   const diagnosis = order.diagnosisVersions[0] ?? null;
   const estimate = order.estimateVersions[0] ?? null;
   const authorization = estimate?.authorizations.find((item) => ["ACCEPTED", "PARTIAL"].includes(item.disposition)) ?? null;
@@ -463,6 +506,7 @@ export function RepairOrderEnterpriseWorkbench({
   const safetyReview = /brake|steer|airbag|fire|smoke|fuel|overheat|safety|not operable/i.test(concernSummary);
   const planningReturn = `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(order.id)}`;
   const planningHref = `/vehicles/shop-planning?repairOrderId=${encodeURIComponent(order.id)}&returnTo=${encodeURIComponent(planningReturn)}`;
+  const estimatePlanningHref = `${planningHref}#repair-planning-step-3`;
   const partsWorkspaceHref = `/vehicles/service-close-parts?repairOrderId=${encodeURIComponent(order.id)}&returnTo=${encodeURIComponent(planningReturn)}&returnLabel=${encodeURIComponent(order.repairOrderNumber)}`;
   const selectedOwner = options.users.find((user) => user.id === ownerUserId) ?? null;
   const assignmentChanged = Boolean(selectedOwner && selectedOwner.id !== currentOwner.id);
@@ -500,7 +544,11 @@ export function RepairOrderEnterpriseWorkbench({
       : order.repairJobs.length > 0
         ? nextSteps[0]?.detail || inventorySafeNextAction(order.nextAction, isInventoryRecon)
       : inventorySafeNextAction(order.nextAction, isInventoryRecon);
-  const primaryActionHref = vendorWaitingParts ? partsWorkspaceHref : planningHref;
+  const primaryActionHref = vendorWaitingParts
+    ? partsWorkspaceHref
+    : diagnosis || directBodyPath
+      ? estimatePlanningHref
+      : planningHref;
   const primaryActionLabel = vendorWaitingParts
     ? "Update parts and delivery"
     : activeVendorWork
@@ -592,7 +640,7 @@ export function RepairOrderEnterpriseWorkbench({
     orderId: order.id,
     orderStage: order.stage,
     partsWorkspaceHref,
-    planningHref,
+    planningHref: diagnosis || directBodyPath ? estimatePlanningHref : planningHref,
   });
 
   async function approveRelatedPurchaseOrder(purchaseOrder: RelatedPurchaseOrder) {
@@ -838,8 +886,69 @@ export function RepairOrderEnterpriseWorkbench({
               <footer><AlertTriangle />{referenceFooter}</footer>
             </div>
           </section>
+          <section className="rowb-evidence-review" id="inspection" aria-label="Initial Recon Evidence Form">
+            <header>
+              <div>
+                <small>Initial recon inspection · review form</small>
+                <h2>Capture evidence before estimate and approval</h2>
+                <p>Same evidence pattern as Final QC, but focused on what is wrong before repair starts.</p>
+              </div>
+              <b>Review only</b>
+            </header>
+            <div className="rowb-evidence-grid">
+              <fieldset>
+                <legend><ScanLine /> Diagnostic codes</legend>
+                <label><span>Code / module</span><input placeholder="Example: P0301, ABS C0035, SRS B1234" /></label>
+                <label><span>Status</span><select defaultValue="ACTIVE"><option>ACTIVE</option><option>HISTORY</option><option>PENDING</option><option>NOT PRESENT AFTER CLEAR</option></select></label>
+                <label><span>Required action</span><textarea placeholder="Record scan result, warning light, freeze-frame note, and next test." rows={3} /></label>
+              </fieldset>
+              <fieldset>
+                <legend><CarFront /> Body and exterior</legend>
+                <label><span>Area</span><select defaultValue="Rear bumper"><option>Front bumper</option><option>Rear bumper</option><option>Hood</option><option>Left side</option><option>Right side</option><option>Glass / lights</option><option>Wheels / tires</option></select></label>
+                <label><span>Condition</span><select defaultValue="Broken / cracked"><option>OK</option><option>Scratched</option><option>Dented</option><option>Broken / cracked</option><option>Missing</option><option>Needs paint</option><option>Needs replacement</option></select></label>
+                <label><span>Evidence note</span><textarea placeholder="Example: rear bumper cover cracked; replacement likely required." rows={3} /></label>
+              </fieldset>
+              <fieldset>
+                <legend><Wrench /> Mechanical findings</legend>
+                <label><span>System</span><select defaultValue={safetyReview ? "Brakes / safety" : "General inspection"}><option>Brakes / safety</option><option>Engine</option><option>Transmission</option><option>Suspension / steering</option><option>Electrical</option><option>Interior / comfort</option><option>General inspection</option></select></label>
+                <label><span>Severity</span><select defaultValue={safetyReview ? "Critical" : "Repair required"}><option>Critical</option><option>Repair required</option><option>Monitor</option><option>Cosmetic</option></select></label>
+                <label><span>Finding</span><textarea placeholder="Record symptom, measurement, road-test result, and recommended correction." rows={3} /></label>
+              </fieldset>
+              <fieldset>
+                <legend><Camera /> Photos and evidence</legend>
+                <div className="rowb-evidence-checks">
+                  {["VIN / odometer", "Dash warning lights", "Exterior damage", "Brake / wheel evidence", "Before repair overview", "Scan report"].map((item) => <label key={item}><input type="checkbox" /> <span>{item}</span></label>)}
+                </div>
+                <p>Photo upload will be wired after this review surface is approved. For now, this defines the required evidence groups.</p>
+              </fieldset>
+            </div>
+            <div className="rowb-evidence-suggestions">
+              <header><strong>Auto work-plan starter</strong><span>Generated from the intake concern for review before approval.</span></header>
+              {evidenceSuggestions.map((item) => (
+                <article key={`${item.category}-${item.finding}`}>
+                  <b>{item.severity}</b>
+                  <span><strong>{item.category}</strong>{item.finding}</span>
+                  <p>{item.requirement}</p>
+                </article>
+              ))}
+            </div>
+            <footer>
+              <div>
+                <strong>Sellability gate</strong>
+                <span>{safetyReview ? "Do not move to approval until safety evidence is reviewed." : "Move forward only after required evidence is captured."}</span>
+              </div>
+              <button type="button" onClick={() => setEvidencePreviewOpen((open) => !open)}>{evidencePreviewOpen ? "Hide Work Plan Draft" : "Review Work Plan Draft"}</button>
+            </footer>
+            {evidencePreviewOpen ? (
+              <aside className="rowb-evidence-preview" aria-live="polite">
+                <strong>Draft only · not saved</strong>
+                <p>{evidenceSuggestions.map((item) => `${item.category}: ${item.finding}`).join(" · ")}</p>
+                <span>This draft becomes the estimate starter after you approve the evidence form design.</span>
+              </aside>
+            ) : null}
+          </section>
           <section className="rowb-finding" id="diagnosis"><header><h2>{diagnosis ? `Current diagnosis · version ${diagnosis.version}` : hasOffsiteVendorWithoutDiagnosis ? "Offsite vendor path" : "Diagnosis"}</h2><span>{diagnosis ? `${format(diagnosis.uncertainty)} uncertainty` : hasOffsiteVendorWithoutDiagnosis ? "Vendor-managed while offsite" : "Not yet recorded"}</span></header>{diagnosis ? <dl><div><dt>Confirmed cause</dt><dd>{diagnosis.cause}</dd></div><div><dt>Recommendation</dt><dd>{diagnosis.recommendation}</dd></div><div><dt>Proposed correction</dt><dd>{diagnosis.proposedCorrection}</dd></div><div><dt>Technician</dt><dd>{diagnosis.technicianUser.name}</dd></div></dl> : hasOffsiteVendorWithoutDiagnosis ? <dl><div><dt>Dispatch origin</dt><dd>{activeVendorWork?.sentFrom ?? "Dealership"}</dd></div><div><dt>Transportation</dt><dd>{activeVendorWork?.transportMethod ?? "Not recorded"}</dd></div><div><dt>Outside vendor</dt><dd>{activeVendorWork?.vendorName ?? "Not recorded"}</dd></div><div><dt>Scope</dt><dd>{activeVendorWork?.scope ?? "Not recorded"}</dd></div></dl> : <p>Release the repair order to Planning &amp; Diagnosis to record evidence, tests, cause, uncertainty, recommendation, and proposed correction.</p>}</section>
-          <div className="rowb-stage-cards"><article id="inspection"><ClipboardCheck /><span>Inspection</span><strong>{order.inspectionVersions.length ? `${order.inspectionVersions.length} version(s)` : hasOffsiteVendorWithoutDiagnosis ? "Vendor-managed offsite" : "Pending diagnosis"}</strong></article><article id="estimate"><FileText /><span>Estimate</span><strong>{estimate ? `v${estimate.version} · $${(estimate.totalCents / 100).toFixed(2)}` : hasOffsiteVendorWithoutDiagnosis ? "Awaiting vendor estimate" : "Pending diagnosis"}</strong></article><article><LockKeyhole /><span>Authorization</span><strong>{authorization?.disposition ?? hasOffsiteVendorWithoutDiagnosis ? "Awaiting vendor approval" : "Pending estimate"}</strong></article><article id="jobs"><Wrench /><span>Repair Jobs</span><strong>{order.repairJobs.length ? `${order.repairJobs.length} job(s)` : hasOffsiteVendorWithoutDiagnosis ? "Waiting on vendor release" : "Pending authorization"}</strong></article><article id="quality"><ShieldAlert /><span>Quality Check</span><strong>{hasOffsiteVendorWithoutDiagnosis ? "After vendor return" : "Pending repairs"}</strong></article></div>
+          <div className="rowb-stage-cards"><article><ClipboardCheck /><span>Inspection</span><strong>{order.inspectionVersions.length ? `${order.inspectionVersions.length} version(s)` : hasOffsiteVendorWithoutDiagnosis ? "Vendor-managed offsite" : "Review form ready"}</strong></article><article id="estimate"><FileText /><span>Estimate</span><strong>{estimate ? `v${estimate.version} · $${(estimate.totalCents / 100).toFixed(2)}` : hasOffsiteVendorWithoutDiagnosis ? "Awaiting vendor estimate" : "Pending evidence"}</strong></article><article><LockKeyhole /><span>Authorization</span><strong>{authorization?.disposition ?? hasOffsiteVendorWithoutDiagnosis ? "Awaiting vendor approval" : "Pending estimate"}</strong></article><article id="jobs"><Wrench /><span>Repair Jobs</span><strong>{order.repairJobs.length ? `${order.repairJobs.length} job(s)` : hasOffsiteVendorWithoutDiagnosis ? "Waiting on vendor release" : "Pending authorization"}</strong></article><article id="quality"><ShieldAlert /><span>Quality Check</span><strong>{hasOffsiteVendorWithoutDiagnosis ? "After vendor return" : "Pending repairs"}</strong></article></div>
           <section className="rowb-finding" id="timeline"><header><h2>Repair-order timeline</h2><span>Exact version {currentVersion}</span></header><dl><div><dt>Opened</dt><dd>{date(order.openedAt)}</dd></div><div><dt>Current stage</dt><dd>{format(order.stage)}</dd></div><div><dt>Current stage clock</dt><dd>{duration(order.stageStartedAt)}</dd></div><div><dt>Target</dt><dd>{date(order.targetAt)}</dd></div><div><dt>Next accountable action</dt><dd>{displayedNextAction}</dd></div></dl></section>
         </main>
         <aside className="rowb-command">

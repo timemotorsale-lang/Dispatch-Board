@@ -8,6 +8,9 @@ import { vendorRapidReconAnswers, vendorRapidReconNextAction, vendorRapidReconTr
 
 type Vendor = { id: string; name: string; vendorType: string; status: string };
 type VendorEvent = { actorUser: { name: string }; occurredAt: string | Date; summary: string; toStatus: string };
+type OutsideWorkDraft = Partial<Pick<OutsideWork, "approvalStatus" | "currentLocation" | "lastUpdateSummary" | "nextAction" | "scope" | "status" | "vendorName" | "workType">> & {
+  customerVisibleSummary?: string;
+};
 export type OutsideWork = {
   approvalStatus: string;
   approvedAmountCents: number | null;
@@ -33,6 +36,14 @@ export type OutsideWork = {
 };
 
 const approvals = ["NEEDS_DOCUMENTATION", "PENDING", "APPROVED", "DECLINED", "NOT_REQUIRED"];
+const workTypes = [
+  { label: "Body shop", value: "BODY_SHOP" },
+  { label: "Mechanical sublet", value: "MECHANICAL_SUBLET" },
+  { label: "Glass", value: "GLASS" },
+  { label: "Calibration", value: "CALIBRATION" },
+  { label: "Detail", value: "DETAIL" },
+  { label: "Other", value: "OTHER" }
+];
 const format = (value: string) => value.replaceAll("_", " ").toLocaleLowerCase().replace(/^./, (letter) => letter.toUpperCase());
 const money = (value: number | null) => value == null ? "Not recorded" : `$${(value / 100).toFixed(2)}`;
 const local = (value?: string | Date | null) => { const date = value ? new Date(value) : new Date(); date.setMinutes(date.getMinutes() - date.getTimezoneOffset()); return date.toISOString().slice(0, 16); };
@@ -55,26 +66,31 @@ function actionLabel(work: OutsideWork) {
 
 export function OutsideRepairWorkPanel({
   accountableLocation,
+  defaultOpen,
+  draft,
   repairOrderId,
   work
 }: {
   accountableLocation?: string;
+  defaultOpen?: boolean;
+  draft?: OutsideWorkDraft;
   repairOrderId: string;
   work: OutsideWork | null;
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen ?? Boolean(draft));
   const [pending, startTransition] = useTransition();
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [vendorId, setVendorId] = useState(work?.vendorId ?? "");
-  const [vendorName, setVendorName] = useState(work?.vendorName ?? "");
+  const [vendorName, setVendorName] = useState(work?.vendorName ?? draft?.vendorName ?? "");
+  const [workType, setWorkType] = useState(work?.workType ?? draft?.workType ?? "MECHANICAL_SUBLET");
   const [directFromSource, setDirectFromSource] = useState(work?.directFromSource ?? false);
   const [sentFrom, setSentFrom] = useState(work?.sentFrom ?? "Dealership");
-  const [scope, setScope] = useState(work?.scope ?? "");
-  const [status, setStatus] = useState(work?.status ?? "AT_VENDOR");
-  const [approvalStatus, setApprovalStatus] = useState(work?.approvalStatus ?? "NEEDS_DOCUMENTATION");
+  const [scope, setScope] = useState(work?.scope ?? draft?.scope ?? "");
+  const [status, setStatus] = useState(work?.status ?? draft?.status ?? "AT_VENDOR");
+  const [approvalStatus, setApprovalStatus] = useState(work?.approvalStatus ?? draft?.approvalStatus ?? "NEEDS_DOCUMENTATION");
   const [estimateAmount, setEstimateAmount] = useState(work?.estimateAmountCents == null ? "" : String(work.estimateAmountCents / 100));
   const [approvedAmount, setApprovedAmount] = useState(work?.approvedAmountCents == null ? "" : String(work.approvedAmountCents / 100));
   const [supplementAmount, setSupplementAmount] = useState(work?.supplementalAmountCents == null ? "" : String(work.supplementalAmountCents / 100));
@@ -83,12 +99,22 @@ export function OutsideRepairWorkPanel({
   const [nextFollowUpAt, setNextFollowUpAt] = useState(() => local(work?.nextFollowUpAt ?? new Date(Date.now() + 4 * 3600000)));
   const [transportMethod, setTransportMethod] = useState(work?.transportMethod ?? "Tow / carrier");
   const [keysCustodian, setKeysCustodian] = useState(work?.keysCustodian ?? "Vendor");
-  const [summary, setSummary] = useState(work?.lastUpdateSummary ?? "Vehicle sent for outside repair work.");
-  const [nextAction, setNextAction] = useState(work?.nextAction ?? "Confirm vendor estimate, approval, and expected return.");
-  const [customerSummary, setCustomerSummary] = useState(work ? `The vehicle remains with ${work.vendorName} for outside repair work. We are monitoring progress and the expected return.` : "The vehicle is with an outside repair facility. We are monitoring the work and expected return.");
+  const [summary, setSummary] = useState(work?.lastUpdateSummary ?? draft?.lastUpdateSummary ?? "Vehicle sent for outside repair work.");
+  const [nextAction, setNextAction] = useState(work?.nextAction ?? draft?.nextAction ?? "Confirm vendor estimate, approval, and expected return.");
+  const [customerSummary, setCustomerSummary] = useState(work ? `The vehicle remains with ${work.vendorName} for outside repair work. We are monitoring progress and the expected return.` : draft?.customerVisibleSummary ?? "The vehicle is with an outside repair facility. We are monitoring the work and expected return.");
   const [internalNotes, setInternalNotes] = useState("");
   const answers = work ? vendorRapidReconAnswers(work) : null;
   const transitions = work ? vendorRapidReconTransitions(work.status) : [];
+  const canRecordDiagnosisOnly = work && !["RETURNED", "QC_REQUIRED", "COMPLETED", "CANCELLED"].includes(work.status);
+  const nextStep = !work
+    ? draft
+      ? { action: "Choose the approved follow-up vendor, confirm the repair scope, then save this outside repair record.", title: "Document the next vendor repair" }
+      : { action: "Select the vendor, record where the vehicle was sent from, and save the outside repair record.", title: "Record outside vendor work" }
+    : canRecordDiagnosisOnly
+      ? { action: "Record the verified vendor update. If the vendor diagnosed the issue but cannot complete repair, use the diagnosis-only action below.", title: "Update the initial vendor outcome" }
+      : ["RETURNED", "QC_REQUIRED"].includes(work.status)
+        ? { action: "Review the returned vehicle, preserve the vendor recommendation, then record the next approved repair path.", title: "Review returned vendor work" }
+        : { action: "Record the latest vendor fact, keep the next action current, and save the update.", title: "Update vendor progress" };
 
   useEffect(() => {
     if (!open) return;
@@ -114,7 +140,7 @@ export function OutsideRepairWorkPanel({
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
               name: selectedVendorName,
-              vendorType: "BODY_SHOP",
+              vendorType: workType,
               defaultLeadDays: 1,
               idempotencyKey: crypto.randomUUID(),
               reason: "Add outside repair vendor from the advisor recovery workflow."
@@ -152,7 +178,7 @@ export function OutsideRepairWorkPanel({
           action: "CREATE",
           vendorId: selectedVendorId,
           vendorName: selectedVendorName,
-          workType: "BODY_SHOP",
+          workType,
           scope,
           status,
           approvalStatus,
@@ -192,9 +218,24 @@ export function OutsideRepairWorkPanel({
     });
   }
 
-  if (!work && !open) return <button className="advisor-vendor-recovery" onClick={() => setOpen(true)} type="button"><Truck /> Vehicle already outside—or still at auction? <strong>Record outside work</strong></button>;
+  if (!work && !open) return <section className="advisor-vendor-work advisor-vendor-work-closed">
+    <header>
+      <Truck />
+      <div>
+        <small>Outside vendor next step</small>
+        <strong>{nextStep.title}</strong>
+        <span>{nextStep.action}</span>
+      </div>
+    </header>
+    <button className="advisor-repair-primary" onClick={() => setOpen(true)} type="button">Open vendor documentation form <ArrowRight /></button>
+  </section>;
 
   return <section className={`advisor-vendor-work ${work ? "active" : "creating"}`}>
+    <div className="advisor-vendor-next-step">
+      <span>Staff next step</span>
+      <strong>{nextStep.title}</strong>
+      <p>{nextStep.action}</p>
+    </div>
     {work ? <>
       <header>
         <Building2 />
@@ -225,15 +266,15 @@ export function OutsideRepairWorkPanel({
       </div> : null}
       <p>{work.lastUpdateSummary}</p>
       <small>Next: {work.nextAction}</small>
-      <button className="advisor-repair-primary" onClick={() => setOpen(true)} type="button">{actionLabel(work)} <ArrowRight /></button>
+      {!open ? <button className="advisor-repair-primary" onClick={() => setOpen(true)} type="button">{actionLabel(work)} <ArrowRight /></button> : null}
       {work.events.length ? <details className="advisor-vendor-history"><summary>Vendor progress history <span>{work.events.length}</span></summary><div>{work.events.slice(0, 8).map((event, index) => <article key={`${event.occurredAt}-${index}`}><i /><span><strong>{format(event.toStatus)}</strong><small>{event.summary}</small><em>{event.actorUser.name} · {new Date(event.occurredAt).toLocaleString()}</em></span></article>)}</div></details> : null}
     </> : null}
     {open ? <form onSubmit={submit}>
       <header><div><strong>{work ? actionLabel(work) : "Send or record outside work"}</strong><small>{work ? "Update the vendor fact once; the RO, inbox, custody, and timeline stay synchronized." : "Use this for dealership-to-vendor or auction/source-to-vendor work."}</small></div><button aria-label="Close outside work form" onClick={() => setOpen(false)} type="button"><X /></button></header>
       {!work ? <>
         <label className="wide"><span>Saved outside vendor</span><select value={vendorId} onChange={(event) => { setVendorId(event.target.value); const vendor = vendors.find((item) => item.id === event.target.value); if (vendor) setVendorName(vendor.name); }}><option value="">Add a new vendor below</option>{vendors.filter((vendor) => vendor.status === "ACTIVE").map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.name} · {format(vendor.vendorType)}</option>)}</select></label>
-        {!vendorId ? <label><span>New vendor name</span><input onChange={(event) => setVendorName(event.target.value)} placeholder="Northside Garage" required value={vendorName} /></label> : null}
-        <label><span>Work type</span><select><option>Body shop</option><option>Mechanical sublet</option><option>Glass</option><option>Calibration</option><option>Detail</option><option>Other</option></select></label>
+        {!vendorId ? <label><span>New vendor name</span><input onChange={(event) => setVendorName(event.target.value)} placeholder="Approved outside vendor" required value={vendorName} /></label> : null}
+        <label><span>Work type</span><select onChange={(event) => setWorkType(event.target.value)} value={workType}>{workTypes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
         <label className="wide direct-source"><input checked={directFromSource} onChange={(event) => { setDirectFromSource(event.target.checked); if (event.target.checked) setSentFrom("Auction"); }} type="checkbox" /><span><strong>Send directly from auction/source</strong><small>Do not falsely check the vehicle into dealership custody first.</small></span></label>
         <label><span>Sent from</span><input onChange={(event) => setSentFrom(event.target.value)} placeholder="Auction, transporter, dealership" value={sentFrom} /></label>
         <label><span>Dispatch time</span><input onChange={(event) => setSentAt(event.target.value)} type="datetime-local" value={sentAt} /></label>
@@ -244,7 +285,7 @@ export function OutsideRepairWorkPanel({
         <label className="wide direct-source"><input checked={directFromSource} onChange={(event) => { setDirectFromSource(event.target.checked); if (event.target.checked) setSentFrom("Auction"); }} type="checkbox" /><span><strong>Sent directly from auction/source</strong><small>Turn this off when the vehicle first came through the dealership before vendor dispatch.</small></span></label>
         <label><span>Sent from</span><input onChange={(event) => setSentFrom(event.target.value)} placeholder="Dealership, auction, transporter" value={sentFrom} /></label>
         <label><span>Transportation</span><input onChange={(event) => setTransportMethod(event.target.value)} placeholder="Dropped off / driven there" value={transportMethod} /></label>
-        <label><span>Current location</span><input onChange={(event) => setVendorName(event.target.value)} placeholder="Northside Garage" value={vendorName} /></label>
+        <label><span>Current location</span><input onChange={(event) => setVendorName(event.target.value)} placeholder="Vendor or dealership" value={vendorName} /></label>
         <label><span>Keys held by</span><input onChange={(event) => setKeysCustodian(event.target.value)} value={keysCustodian} /></label>
         <label className="wide"><span>Approved/requested work</span><textarea onChange={(event) => setScope(event.target.value)} placeholder="Outside body, mechanical, glass, or sublet scope" value={scope} /></label>
       </>}
@@ -259,6 +300,14 @@ export function OutsideRepairWorkPanel({
       <label className="wide"><span>One next action</span><input onChange={(event) => setNextAction(event.target.value)} required value={nextAction} /></label>
       <label className="wide"><span>Stakeholder-safe update</span><textarea onChange={(event) => setCustomerSummary(event.target.value)} required value={customerSummary} /></label>
       <label className="wide"><span>Private vendor/advisor notes</span><textarea onChange={(event) => setInternalNotes(event.target.value)} placeholder="Estimate reference, contact name, pickup instructions, or internal detail" value={internalNotes} /></label>
+      {canRecordDiagnosisOnly ? <button className="advisor-vendor-secondary" disabled={pending} onClick={() => {
+        setStatus("RETURNED");
+        setSummary(`${work.vendorName} diagnosed the concern but could not complete the repair.`);
+        setScope("Timing chain replacement recommended from outside vendor diagnosis.");
+        setNextAction("Review the vendor diagnostic recommendation, approve the next repair path, and dispatch to the selected follow-up vendor.");
+        setCustomerSummary(`The vehicle returned from ${work.vendorName}. The vendor diagnosed the concern and recommended timing chain replacement, but they could not complete the repair.`);
+        setInternalNotes("Use the next outside-vendor record to document the approved vendor who completes the timing chain replacement.");
+      }} type="button"><ArrowRight /> Diagnosed only — needs another vendor</button> : null}
       {error ? <p className="advisor-response-error wide">{error}</p> : null}
       {message ? <p className="advisor-response-success wide">{message}</p> : null}
       <button className="advisor-repair-primary" disabled={pending} type="submit"><Save /> {pending ? "Saving..." : work ? "Save vendor update" : directFromSource ? "Send directly to vendor" : "Record outside work"}</button>

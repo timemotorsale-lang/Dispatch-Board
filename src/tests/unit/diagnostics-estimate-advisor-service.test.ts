@@ -24,7 +24,10 @@ describe("DGN-035-037 advisor estimate service boundary", () => {
     expect(persist.mock.calls[0][1].control).toMatchObject({ allowed: true, status: "READY_FOR_ADVISOR_REVIEW", laborSubtotalCents: 33000 });
   });
 
-  it("fails closed without a published repair diagnosis handoff", async () => {
-    await expect(recordDiagnosticAdvisorEstimateDraft(technician, "case-1", request, { foundationRepository: foundation(), organizationId: "org-1", repository: repository(vi.fn(), false), now: () => new Date("2026-07-21T23:00:00Z") })).rejects.toThrow("ADVISOR_ESTIMATE_PUBLISHED_REPAIR_HANDOFF_REQUIRED");
+  it("records a blocked draft without presenting it when the published repair diagnosis handoff is missing", async () => {
+    const persist = vi.fn(async () => ({ duplicate: false, result: { id: "draft-1" }, version: 12 }));
+    await recordDiagnosticAdvisorEstimateDraft(technician, "case-1", { ...request, draftLines: [{ key: "line-1", type: "LABOR", description: "Inspect brake vibration.", quantity: 1, unitPriceCents: 16500, taxable: false, workTypeCode: "GENERAL_REPAIR", laborGuideMinutes: 0, plannedCorrection: "Inspect brake vibration.", advisorNote: "Draft line only." }] }, { foundationRepository: foundation(), organizationId: "org-1", repository: repository(persist, false), now: () => new Date("2026-07-21T23:00:00Z") });
+    expect(persist.mock.calls[0][1].control).toMatchObject({ allowed: false, status: "BLOCKED" });
+    expect(persist.mock.calls[0][1].control.reasonCodes).toContain("ADVISOR_ESTIMATE_PUBLISHED_REPAIR_HANDOFF_REQUIRED");
   });
 });

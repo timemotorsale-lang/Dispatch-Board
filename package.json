@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "prebuild": "prisma generate",
-    "predev": "prisma generate",
+    "predev": "node scripts/prepare-dev-runtime.mjs",
     "dev": "node scripts/run-dev.mjs",
     "build": "next build",
     "start": "next start",

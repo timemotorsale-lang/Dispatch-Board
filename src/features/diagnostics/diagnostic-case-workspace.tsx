@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, AlertTriangle, ArrowLeft, Check, ClipboardList, Eye, Gauge, Link2, PackageCheck, Plus, RefreshCw, Ruler, ShieldAlert, Stethoscope, UserRound, Wrench } from "lucide-react";
+import { Activity, AlertTriangle, ArrowLeft, Camera, CarFront, Check, ClipboardList, Eye, Gauge, Link2, PackageCheck, Plus, RefreshCw, Ruler, ScanLine, ShieldAlert, Stethoscope, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -11,7 +11,82 @@ import styles from "./diagnostics.module.css";
 
 const label = (value: string) => value.replaceAll("_", " ").toLocaleLowerCase().replace(/^./, (letter) => letter.toUpperCase());
 const stages = ["CONCERN", "EVIDENCE", "TEST", "CAUSE", "VERIFY"] as const;
-const defaultRapidReconRecommendation = "Proceed to the estimate step with the current technician update so the next repair decision can continue.";
+type DiagnosticCaptureMode = "NONE" | "INSPECTION" | "OBSERVATION" | "SCAN" | "TEST" | "PRIOR_MEASUREMENT" | "LINK";
+type SimpleEstimateLine = { id: string; description: string; labor: string; parts: string; other: string };
+const inspectionPhotoEvidenceOptions = ["Dash / warning lights", "Exterior damage", "Mechanical condition", "Mileage / cluster", "Underbody or leak"] as const;
+const initialInspectionChecklist = [
+  { key: "DASH_CODES", label: "Dash lights / diagnostic codes", help: "Warning lights, stored codes, scan-needed condition" },
+  { key: "BODY_DAMAGE", label: "Body / exterior damage", help: "Broken panels, cracked bumper, glass, trim, paint concern" },
+  { key: "BRAKES_SAFETY", label: "Brakes / safety", help: "Brake vibration, low pedal, warning light, unsafe stop" },
+  { key: "TIRES_WHEELS", label: "Tires / wheels", help: "Low tread, damage, wheel concern, vibration clue" },
+  { key: "DRIVABILITY", label: "Drivability / running", help: "No start, misfire, overheating, transmission behavior" },
+  { key: "UNDERHOOD_FLUIDS", label: "Underhood / fluids", help: "Oil, coolant, belts, battery, obvious underhood issue" },
+  { key: "LEAKS_UNDERBODY", label: "Leaks / underbody", help: "Fluid leak, impact damage, loose shield, exhaust concern" },
+  { key: "INTERIOR_ELECTRICAL", label: "Interior / electrical", help: "Controls, windows, infotainment, seat, SRS, cluster" },
+] as const;
+type InitialInspectionKey = typeof initialInspectionChecklist[number]["key"];
+type InitialInspectionStatus = "GREEN" | "YELLOW" | "RED";
+const initialInspectionStatusCopy: Record<InitialInspectionStatus, { label: string; meaning: string }> = {
+  GREEN: { label: "Green", meaning: "OK / no issue seen" },
+  YELLOW: { label: "Yellow", meaning: "Needs review" },
+  RED: { label: "Red", meaning: "Repair or safety issue" },
+};
+const emptyEstimateLine = (id = "LINE-1", description = ""): SimpleEstimateLine => ({ id, description, labor: "", parts: "", other: "" });
+
+function greenInspectionChecklist() {
+  return Object.fromEntries(initialInspectionChecklist.map((item) => [item.key, "GREEN"])) as Record<InitialInspectionKey, InitialInspectionStatus>;
+}
+
+function emptyInspectionNotes() {
+  return Object.fromEntries(initialInspectionChecklist.map((item) => [item.key, ""])) as Record<InitialInspectionKey, string>;
+}
+
+function buildInitialInspectionSeed(concern: string) {
+  const checklist = greenInspectionChecklist();
+  const notes = emptyInspectionNotes();
+  const photoGroups = new Set<string>(["Mileage / cluster"]);
+  const normalized = concern.toLocaleLowerCase();
+  const intakeNote = concern.length > 180 ? `${concern.slice(0, 177)}…` : concern;
+
+  function flag(key: InitialInspectionKey, status: InitialInspectionStatus, note: string, photoGroup?: string) {
+    checklist[key] = status;
+    notes[key] = note;
+    if (photoGroup) photoGroups.add(photoGroup);
+  }
+
+  if (/(abs|code|dtc|check engine|warning|dash|light|srs|airbag|tpms)/i.test(normalized)) {
+    flag("DASH_CODES", "RED", `Intake concern already mentions warning lights, dash indicators, or codes: ${intakeNote}`, "Dash / warning lights");
+  }
+  if (/(body|bumper|broken|crack|damage|dent|glass|paint|panel|cover)/i.test(normalized)) {
+    flag("BODY_DAMAGE", "RED", `Intake concern already mentions visible body or exterior damage: ${intakeNote}`, "Exterior damage");
+  }
+  if (/(brake|rotor|pad|pulsat|vibrat|stop|pedal)/i.test(normalized)) {
+    flag("BRAKES_SAFETY", "RED", `Intake concern already mentions brake or stopping behavior: ${intakeNote}`, "Mechanical condition");
+  }
+  if (/(tire|wheel|rim|tread|flat|alignment|balance|vibrat)/i.test(normalized)) {
+    flag("TIRES_WHEELS", "YELLOW", `Intake concern already mentions a tire, wheel, or vibration clue: ${intakeNote}`, "Mechanical condition");
+  }
+  if (/(no[- ]?start|misfire|overheat|transmission|engine|stall|rough|driv)/i.test(normalized)) {
+    flag("DRIVABILITY", "YELLOW", `Intake concern already mentions drivability behavior: ${intakeNote}`, "Mechanical condition");
+  }
+  if (/(battery|coolant|belt|hose|underhood|oil|fluid|charging|alternator|starter)/i.test(normalized)) {
+    flag("UNDERHOOD_FLUIDS", "YELLOW", `Intake concern already mentions underhood, fluid, battery, or charging behavior: ${intakeNote}`, "Mechanical condition");
+  }
+  if (/(leak|underbody|fluid|oil|coolant|exhaust)/i.test(normalized)) {
+    flag("LEAKS_UNDERBODY", "YELLOW", `Intake concern already mentions leak, underbody, fluid, or exhaust concern: ${intakeNote}`, "Underbody or leak");
+  }
+  if (/(window|seat|cluster|interior|radio|screen|infotainment|electrical)/i.test(normalized)) {
+    flag("INTERIOR_ELECTRICAL", "YELLOW", `Intake concern already mentions interior or electrical behavior: ${intakeNote}`, "Dash / warning lights");
+  }
+
+  const highestSeverity: InitialInspectionStatus = Object.values(checklist).includes("RED") ? "RED" : Object.values(checklist).includes("YELLOW") ? "YELLOW" : "GREEN";
+  return {
+    checklist,
+    notes,
+    photoGroups: Array.from(photoGroups),
+    sellabilityGate: highestSeverity === "RED" ? "REPAIR_REQUIRED_BEFORE_READY" : highestSeverity === "YELLOW" ? "DIAGNOSIS_REQUIRED" : "READY_WITH_DISCLOSURE",
+  };
+}
 
 function operatingConditionSummary(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return [];
@@ -23,29 +98,39 @@ function operatingConditionSummary(value: unknown) {
     return [`${title}: ${String(condition).replaceAll("_", " ").toLocaleLowerCase()}`];
   });
 }
-const measurementUnits: Record<string, string[]> = { VOLTAGE: ["V", "mV"], CURRENT: ["A", "mA"], RESISTANCE: ["ohm", "kohm", "Mohm"], PRESSURE: ["kPa", "psi", "bar"], TEMPERATURE: ["°C", "°F"], ROTATIONAL_SPEED: ["rpm"], TIME: ["s", "ms"], FREQUENCY: ["Hz", "kHz"], PERCENT: ["%"], DISTANCE: ["mm", "in"], MASS_FLOW: ["g/s"] };
-
-function primaryTransition(model: DiagnosticCaseWorkspaceModel) {
-  const item = model.diagnosticCase;
-  if (item.status === "DRAFT") return { targetStatus: "TRIAGE", reasonCode: "CASE_TRIAGE_STARTED", title: "Begin triage", reason: "Technician began safety and operability triage." };
-  if (item.status === "REOPENED") return { targetStatus: "TRIAGE", reasonCode: "CASE_REOPEN_TRIAGE_STARTED", title: "Return to triage", reason: "Reopened concern returned to technician triage." };
-  if (item.status === "ESCALATED" && item.resumeStatus) return { targetStatus: item.resumeStatus, reasonCode: "CASE_ESCALATION_RESOLVED", title: "Resume case", reason: "Escalation review completed and diagnostic work resumed." };
-  if (item.status.startsWith("WAITING_FOR_") && item.resumeStatus) return { targetStatus: item.resumeStatus, reasonCode: "CASE_WAITING_RESOLVED", title: "Resume case", reason: "Recorded diagnostic blocker was resolved and work resumed." };
-  if (["INCONCLUSIVE", "NO_FAULT_FOUND", "ABANDONED", "VERIFIED_CLOSED"].includes(item.status)) return { targetStatus: "REOPENED", reasonCode: "CASE_REOPENED_RECURRENCE", title: "Reopen concern", reason: "Concern recurred or new evidence requires governed review." };
-  return null;
+function dollarsToCents(value: string) {
+  const normalized = value.replace(/[$,\s]/g, "");
+  if (!normalized) return 0;
+  const amount = Number(normalized);
+  return Number.isFinite(amount) && amount >= 0 ? Math.round(amount * 100) : 0;
 }
+function centsFromLine(line: SimpleEstimateLine) {
+  return dollarsToCents(line.labor) + dollarsToCents(line.parts) + dollarsToCents(line.other);
+}
+function moneyFromCents(cents: number) {
+  return `$${(cents / 100).toFixed(2)}`;
+}
+const measurementUnits: Record<string, string[]> = { VOLTAGE: ["V", "mV"], CURRENT: ["A", "mA"], RESISTANCE: ["ohm", "kohm", "Mohm"], PRESSURE: ["kPa", "psi", "bar"], TEMPERATURE: ["°C", "°F"], ROTATIONAL_SPEED: ["rpm"], TIME: ["s", "ms"], FREQUENCY: ["Hz", "kHz"], PERCENT: ["%"], DISTANCE: ["mm", "in"], MASS_FLOW: ["g/s"] };
 
 export function DiagnosticCaseWorkspace({ model }: { model: DiagnosticCaseWorkspaceModel }) {
   const router = useRouter();
+  const initialInspectionSeed = useMemo(() => buildInitialInspectionSeed(model.diagnosticCase.concern), [model.diagnosticCase.concern]);
   const [owner, setOwner] = useState(model.diagnosticCase.assignedUser?.id ?? "");
   const [busy, setBusy] = useState(false);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [optimisticObservations, setOptimisticObservations] = useState<Array<DiagnosticCaseWorkspaceModel["diagnosticCase"]["observations"][number]>>([]);
-  const [captureMode, setCaptureMode] = useState<"NONE" | "OBSERVATION" | "SCAN" | "TEST" | "PRIOR_MEASUREMENT" | "LINK">(model.diagnosticCase.observations.length ? "NONE" : "OBSERVATION");
+  const [captureMode, setCaptureMode] = useState<DiagnosticCaptureMode>("INSPECTION");
   const [observationStatement, setObservationStatement] = useState("");
   const [observationConditions, setObservationConditions] = useState("");
   const [reproductionStatus, setReproductionStatus] = useState("REPRODUCED");
+  const [inspectionPrimaryObservation, setInspectionPrimaryObservation] = useState(model.diagnosticCase.concern);
+  const [inspectionCode, setInspectionCode] = useState("");
+  const [inspectionChecklist, setInspectionChecklist] = useState<Record<InitialInspectionKey, InitialInspectionStatus>>(() => initialInspectionSeed.checklist);
+  const [inspectionNotes, setInspectionNotes] = useState<Record<InitialInspectionKey, string>>(() => initialInspectionSeed.notes);
+  const [inspectionPartsNeeded, setInspectionPartsNeeded] = useState("");
+  const [inspectionSellabilityGate, setInspectionSellabilityGate] = useState(initialInspectionSeed.sellabilityGate);
+  const [inspectionPhotoGroups, setInspectionPhotoGroups] = useState<string[]>(() => initialInspectionSeed.photoGroups);
   const [scanModule, setScanModule] = useState("All modules");
   const [scanCodes, setScanCodes] = useState("");
   const [freezeFrame, setFreezeFrame] = useState("");
@@ -68,17 +153,10 @@ export function DiagnosticCaseWorkspace({ model }: { model: DiagnosticCaseWorksp
   const [estimateLaborRate, setEstimateLaborRate] = useState("16500");
   const [estimateAdvisorSummary, setEstimateAdvisorSummary] = useState("");
   const [estimateAssumptions, setEstimateAssumptions] = useState("Advisor must review labor guide, part pricing, taxes, and customer authorization before presentation.");
+  const [simpleEstimateLines, setSimpleEstimateLines] = useState<SimpleEstimateLine[]>(() => [emptyEstimateLine()]);
   const [verificationAction, setVerificationAction] = useState<"PLAN" | "PASS" | "FAIL" | "INCONCLUSIVE" | "UNSAFE">("PLAN");
   const [verificationRepairSummary, setVerificationRepairSummary] = useState("");
   const [verificationNotes, setVerificationNotes] = useState("");
-  const [rapidOutcome, setRapidOutcome] = useState<"SUPPORTED_CAUSE" | "CONTROLLED_NEXT_STEP">("SUPPORTED_CAUSE");
-  const [rapidSymptom, setRapidSymptom] = useState("");
-  const [rapidUpdate, setRapidUpdate] = useState("");
-  const [rapidEvidence, setRapidEvidence] = useState("");
-  const [rapidNextStep, setRapidNextStep] = useState("");
-  const [rapidUncertainty, setRapidUncertainty] = useState<"LOW" | "MEDIUM" | "HIGH">("MEDIUM");
-  const [showRapidNextActions, setShowRapidNextActions] = useState(false);
-  const action = useMemo(() => primaryTransition(model), [model]);
   const item = model.diagnosticCase;
   const latestReasoning = item.reasoningEvaluations?.[0] ?? null;
   const latestAdaptiveTests = item.adaptiveTestEvaluations?.[0] ?? null;
@@ -98,7 +176,6 @@ export function DiagnosticCaseWorkspace({ model }: { model: DiagnosticCaseWorksp
   const requestedMeasurement = requiredTestEvidence.find((entry) => String(entry.type ?? "").toUpperCase() === "MEASUREMENT" && typeof entry.quantity === "string") ?? null;
   const requestedQuantity = requestedMeasurement ? String(requestedMeasurement.quantity).toUpperCase() : null;
   const requestedUnit = requestedMeasurement && typeof requestedMeasurement.normalizedUnit === "string" ? requestedMeasurement.normalizedUnit : requestedQuantity ? measurementUnits[requestedQuantity]?.[0] ?? null : null;
-  const assignedTechnicianId = item.assignedUser?.id ?? owner ?? model.viewer.id;
   const repairWorkbenchHref = `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(item.repairOrder.id)}`;
   const estimateWorkbenchHref = `${repairWorkbenchHref}#estimate`;
   const troubleshootingHref = `/diagnostics/cases/${encodeURIComponent(item.id)}/troubleshooting`;
@@ -111,9 +188,13 @@ export function DiagnosticCaseWorkspace({ model }: { model: DiagnosticCaseWorksp
         ? { mode: "TEST" as const, step: "Step 3", title: `Run: ${nextTestNode.title}`, instruction: nextTestNode.definition.purpose, why: "This test was selected because its result should separate the remaining possibilities. Follow the approved procedure and record exactly what happened.", action: "Review test instructions" }
         : { mode: "TEST" as const, step: "Step 3", title: "Select the next test before measuring", instruction: "The Master Technician needs an approved test plan before asking you to measure anything.", why: "A measurement is useful only when it answers a specific diagnostic question and can be compared with a known expectation.", action: "Open test planning" };
 
-  function focusEvidence(mode: typeof evidenceGuidance.mode | "PRIOR_MEASUREMENT" | "LINK") {
+  function focusEvidence(mode: DiagnosticCaptureMode) {
     setCaptureMode(mode);
     requestAnimationFrame(() => document.getElementById("master-technician-evidence")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+
+  function openInitialInspectionForm() {
+    focusEvidence("INSPECTION");
   }
 
   async function execute(url: string, body: Record<string, unknown>, options?: { action?: string; onSuccess?: () => void; successMessage?: string }) {
@@ -133,18 +214,66 @@ export function DiagnosticCaseWorkspace({ model }: { model: DiagnosticCaseWorksp
     return value.split(/\n+/).map((entry) => entry.trim()).filter(Boolean);
   }
 
-  function resetRapidReconUpdate() {
-    setRapidSymptom("");
-    setRapidUpdate("");
-    setRapidEvidence("");
-    setRapidNextStep("");
-    setRapidUncertainty("MEDIUM");
-    setRapidOutcome("SUPPORTED_CAUSE");
+  function toggleInspectionPhotoGroup(option: string) {
+    setInspectionPhotoGroups((current) => current.includes(option) ? current.filter((entry) => entry !== option) : [...current, option]);
   }
+
+  function setInspectionItemStatus(key: InitialInspectionKey, status: InitialInspectionStatus) {
+    setInspectionChecklist((current) => ({ ...current, [key]: status }));
+  }
+
+  function setInspectionItemNote(key: InitialInspectionKey, note: string) {
+    setInspectionNotes((current) => ({ ...current, [key]: note }));
+  }
+
+  function updateEstimateLine(id: string, patch: Partial<SimpleEstimateLine>) {
+    setSimpleEstimateLines((current) => current.map((line) => line.id === id ? { ...line, ...patch } : line));
+  }
+
+  function addEstimateLine(description = "") {
+    setSimpleEstimateLines((current) => [...current, emptyEstimateLine(`LINE-${current.length + 1}`, description)]);
+  }
+
+  const usableEstimateLines = simpleEstimateLines.filter((line) => line.description.trim() && centsFromLine(line) > 0);
+  const simpleEstimateTotalCents = usableEstimateLines.reduce((sum, line) => sum + centsFromLine(line), 0);
+  const estimateDraftExpiresAt = new Date(new Date(model.generatedAt).getTime() + 7 * 86_400_000).toISOString();
+  const simpleEstimateSummary = usableEstimateLines.length
+    ? usableEstimateLines.map((line) => `${line.description.trim()} (${moneyFromCents(centsFromLine(line))})`).join("; ")
+    : "Advisor should price the needed repair lines before presentation.";
+  const simpleEstimateDraftLines = usableEstimateLines.flatMap((line) => {
+    const description = line.description.trim();
+    return [
+      { type: "LABOR", amount: dollarsToCents(line.labor), label: "Labor" },
+      { type: "PART", amount: dollarsToCents(line.parts), label: "Parts" },
+      { type: "FEE", amount: dollarsToCents(line.other), label: "Other" },
+    ].filter((entry) => entry.amount > 0).map((entry) => ({
+      key: `${line.id}_${entry.type}`,
+      type: entry.type,
+      description: `${description} — ${entry.label}`,
+      quantity: 1,
+      unitPriceCents: entry.amount,
+      taxable: entry.type !== "LABOR",
+      workTypeCode: entry.type === "LABOR" ? "GENERAL_REPAIR" : entry.type,
+      laborGuideMinutes: 0,
+      plannedCorrection: description,
+      sourceOperationKey: null,
+      advisorNote: "Simple draft line entered from the advisor estimate screen; review labor guide, parts fitment, tax, and approval before presentation.",
+    }));
+  });
 
   return <section className={styles.workspace} aria-label="Diagnostic case workspace">
     <header className={styles.caseHeader}>
-      <div><Link href="/diagnostics"><ArrowLeft size={15} /> Case queue</Link><span className={styles.eyebrow}>Technician diagnostic workspace</span><h1>{item.vehicle.label}</h1><p>{item.repairOrder.repairOrderNumber} · Case {item.id.slice(-8)} · Concern v{item.concernVersion}</p><Link className={styles.troubleshootingLink} href={`/diagnostics/cases/${encodeURIComponent(item.id)}/troubleshooting`}>Open troubleshooting console</Link></div>
+      <div>
+        <Link href="/diagnostics"><ArrowLeft size={15} /> Case queue</Link>
+        <span className={styles.eyebrow}>Technician diagnostic workspace</span>
+        <h1>{item.vehicle.label}</h1>
+        <p>{item.repairOrder.repairOrderNumber} · Case {item.id.slice(-8)} · Concern v{item.concernVersion}</p>
+        <nav className={styles.headerTaskLinks} aria-label="Diagnostic task shortcuts">
+          <a aria-disabled={!model.permissions.canRecordEvidence} href="#master-technician-evidence" onClick={(event) => { if (!model.permissions.canRecordEvidence) { event.preventDefault(); return; } openInitialInspectionForm(); }}>Inspection checklist</a>
+          <Link href={repairWorkbenchHref}>Workbench</Link>
+          <Link href={estimateWorkbenchHref}>Estimate</Link>
+        </nav>
+      </div>
       <dl><div><dt>Status</dt><dd>{label(item.status)}</dd></div><div><dt>Risk</dt><dd>{item.riskTier}</dd></div><div><dt>Owner</dt><dd>{item.assignedUser?.name ?? "Unassigned"}</dd></div><div><dt>Record</dt><dd>Version {item.version}</dd></div></dl>
     </header>
 
@@ -156,147 +285,95 @@ export function DiagnosticCaseWorkspace({ model }: { model: DiagnosticCaseWorksp
       <main className={styles.caseMain}>
         <section className={styles.concernCard}><header><span><ClipboardList /> Authoritative concern</span><b>{label(item.concernSource)}</b></header><h2>{item.concern}</h2><dl><div><dt>Reproduction</dt><dd>Not yet recorded</dd></div><div><dt>Operating conditions</dt><dd>{operatingConditionSummary(item.operatingConditions).length ? <ul className={styles.conditionSummary}>{operatingConditionSummary(item.operatingConditions).map((condition) => <li key={condition}>{condition}</li>)}</ul> : "No conditions recorded"}</dd></div><div><dt>Confidence</dt><dd>Not assessed</dd></div></dl></section>
 
-        <section className={styles.primaryAction}><div><span className={styles.eyebrow}>Next required step</span><h2>{item.nextAction}</h2><p>{item.blocker ? `Blocked: ${item.blocker}` : "Complete this step, then follow the Master Technician guidance below."}</p></div>{action ? <button disabled={busy || !commandEnabled || !model.permissions.canTransition} onClick={() => void execute(`/api/diagnostics/cases/${encodeURIComponent(item.id)}/transition`, action)} type="button">{busy ? "Recording…" : action.title}</button> : <span className={styles.readOnlyAction}>Continue with the guidance below</span>}</section>
-
-        <section className={styles.handoffPanel}>
-          <header>
-            <div>
-              <span className={styles.eyebrow}>Diagnosis options at this stage</span>
-              <h2>Quick diagnostic update</h2>
-              <p>Staff can use the simple Rapid Recon update below to keep the repair moving, or go deeper in the troubleshooting console when a more detailed diagnostic workflow is needed.</p>
-            </div>
-            <span>Simple or detailed</span>
-          </header>
-          <div className={styles.reasoningList}>
-            <article>
-              <div>
-                <strong>Option 1: Quick update and continue</strong>
-                <small>Fastest path for Rapid Recon execution</small>
-              </div>
-              <span>Record the issue, evidence, and next estimate-ready repair step without opening the deeper console.</span>
-            </article>
-            <article>
-              <div>
-                <strong>Option 2: Detailed troubleshooting</strong>
-                <small>Use when the technician needs guided deeper diagnostics</small>
-              </div>
-              <span>Open the troubleshooting console for structured test planning, measurements, and more detailed diagnostic evidence.</span>
-            </article>
-          </div>
-          <div className={styles.evidenceActions}>
-            <button onClick={() => requestAnimationFrame(() => document.getElementById("rapid-recon-update-form")?.scrollIntoView({ behavior: "smooth", block: "start" }))} type="button">
-              <Wrench />
-              <span>
-                <strong>Use quick update</strong>
-                <small>Simple Rapid Recon path</small>
-              </span>
-            </button>
-            <Link className={styles.troubleshootingLink} href={troubleshootingHref}>
-              Open detailed troubleshooting
-            </Link>
-          </div>
-          {showRapidNextActions ? <section className={styles.handoffRecord} id="rapid-recon-next-step">
-            <PackageCheck />
-            <div>
-              <strong>Quick update saved. Estimate is the next released step.</strong>
-              <p>The vehicle is ready to continue into the estimate step now, or reopen the detailed diagnostic path if the technician needs deeper guided troubleshooting first.</p>
-              <small>This simple update is one valid option at this diagnosis stage, and it now releases the estimate step as the next action.</small>
-            </div>
-            <div className={styles.documentActions}>
-              <Link href={estimateWorkbenchHref}>Open estimate step</Link>
-              <Link href={troubleshootingHref}>Continue detailed diagnosis</Link>
-            </div>
-          </section> : null}
-          <form className={styles.handoffForm} id="rapid-recon-update-form" onSubmit={(event) => {
-            event.preventDefault();
-            const symptomLines = splitLines(rapidSymptom);
-            const evidenceLines = splitLines(rapidEvidence);
-            const nextStep = rapidNextStep.trim();
-            const update = rapidUpdate.trim();
-            const supportedCause = rapidOutcome === "SUPPORTED_CAUSE"
-              ? update
-              : `Controlled next step required before a fully confirmed cause: ${update}`;
-            const recommendation = rapidOutcome === "SUPPORTED_CAUSE"
-              ? `Proceed to the estimate step. ${nextStep}`
-              : `Proceed with a controlled next diagnostic or teardown step. ${nextStep || defaultRapidReconRecommendation}`;
-            void execute(
-              `/api/repair-orders/${encodeURIComponent(item.repairOrder.id)}/planning`,
-              {
-                action: "RECORD_DIAGNOSIS",
-                cause: supportedCause,
-                concern: item.concern,
-                diagnosedAt: new Date().toISOString(),
-                evidence: evidenceLines.length ? evidenceLines : [update],
-                proposedCorrection: nextStep,
-                reason: "Recorded a simplified Rapid Recon diagnostic update so the vehicle can continue to the next step without waiting on the full troubleshooting console.",
-                recommendation,
-                symptoms: symptomLines.length ? symptomLines : [item.concern],
-                technicianUserId: assignedTechnicianId,
-                tests: [{ name: "Rapid Recon diagnostic update", result: update }],
-                uncertainty: rapidUncertainty,
-              },
-              {
-                action: "RAPID_RECON_DIAGNOSIS",
-                onSuccess: () => {
-                  setRepairRecommendation(recommendation);
-                  setProposedCorrection(nextStep);
-                  setShowRapidNextActions(true);
-                  resetRapidReconUpdate();
-                  requestAnimationFrame(() => document.getElementById("rapid-recon-next-step")?.scrollIntoView({ behavior: "smooth", block: "start" }));
-                },
-                successMessage: "Rapid Recon diagnostic update saved. The diagnosis record is now ready for the estimate step.",
-              },
-            );
-          }}>
-            <label>
-              <span>Update type</span>
-              <select onChange={(event) => setRapidOutcome(event.target.value as typeof rapidOutcome)} value={rapidOutcome}>
-                <option value="SUPPORTED_CAUSE">Supported cause found</option>
-                <option value="CONTROLLED_NEXT_STEP">Not fully confirmed, but enough to continue</option>
-              </select>
-            </label>
-            <label className={styles.wideField}>
-              <span>What symptom or complaint are you carrying forward?</span>
-              <textarea onChange={(event) => setRapidSymptom(event.target.value)} placeholder="Example: No brakes on initial lot move; ABS light on; front brake pulsation." required rows={2} value={rapidSymptom} />
-            </label>
-            <label className={styles.wideField}>
-              <span>Technician update</span>
-              <textarea onChange={(event) => setRapidUpdate(event.target.value)} placeholder="State what you found or what the next controlled diagnostic step needs to be." required rows={3} value={rapidUpdate} />
-            </label>
-            <label className={styles.wideField}>
-              <span>Evidence or test result</span>
-              <textarea onChange={(event) => setRapidEvidence(event.target.value)} placeholder="Examples: ABS codes stored; front pads at 3mm; rotor pulsation verified; leak not observed during inspection." required rows={2} value={rapidEvidence} />
-            </label>
-            <label className={styles.wideField}>
-              <span>Recommended next step</span>
-              <textarea onChange={(event) => setRapidNextStep(event.target.value)} placeholder="Example: Open estimate and build front brake, rotor, and ABS diagnosis follow-up." required rows={2} value={rapidNextStep} />
-            </label>
-            <label>
-              <span>Confidence</span>
-              <select onChange={(event) => setRapidUncertainty(event.target.value as typeof rapidUncertainty)} value={rapidUncertainty}>
-                <option value="LOW">Low</option>
-                <option value="MEDIUM">Medium</option>
-                <option value="HIGH">High</option>
-              </select>
-            </label>
-            <button disabled={busy || !commandEnabled || rapidSymptom.trim().length < 5 || rapidUpdate.trim().length < 8 || rapidEvidence.trim().length < 5 || rapidNextStep.trim().length < 8} type="submit">
-              <Wrench /> Save quick update and release estimate
-            </button>
-          </form>
-        </section>
-
         <section className={styles.evidenceFoundation} id="master-technician-evidence">
-          <header><div><span className={styles.eyebrow}>Master Technician guidance</span><h2>Tell me what the vehicle proves</h2><p>Enter facts, not a suspected repair. I will use each fact to narrow the next best test.</p></div><span>{observations.length + item.measurements.length} facts · {item.evidenceLinks.length} attachments</span></header>
+          <header><div><span className={styles.eyebrow}>Smart initial inspection</span><h2>One quick form feeds the diagnostic intelligence</h2><p>Mark green, yellow, or red. Add notes only where something is wrong. Codes, visible damage, observations, and estimate hints are saved together as one diagnostic evidence package.</p></div><span>{observations.length + item.measurements.length} saved fact(s)</span></header>
           {!model.evidenceRollout.executable ? <div className={styles.hold}><ShieldAlert size={17} /><span><strong>Evidence commands are held.</strong> Existing facts remain reviewable ({label(model.evidenceRollout.reason)}).</span></div> : null}
-          <section className={styles.masterTechPrompt}>
-            <div><span>{evidenceGuidance.step}</span><h3>{evidenceGuidance.title}</h3><p>{evidenceGuidance.instruction}</p><small><strong>Why I need this:</strong> {evidenceGuidance.why}</small></div>
-            <button disabled={!model.permissions.canRecordEvidence} onClick={() => focusEvidence(evidenceGuidance.mode)} type="button">{evidenceGuidance.action}</button>
+          <section className={styles.diagnosticIntelligenceCard}>
+            <ScanLine />
+            <div>
+              <strong>This one form teaches the diagnostic tool what matters first.</strong>
+              <p>It captures the primary concern, codes, stoplight inspection areas, obvious parts, and photo needs in one saved observation so the next diagnostic guidance can focus on the real issue.</p>
+            </div>
           </section>
-          <div className={styles.evidenceActions}>
-            <button aria-pressed={captureMode === "OBSERVATION"} disabled={!model.permissions.canRecordEvidence} onClick={() => setCaptureMode(captureMode === "OBSERVATION" ? "NONE" : "OBSERVATION")} type="button"><Eye /><span><strong>What did it do?</strong><small>What you saw, heard, felt, or reproduced</small></span></button>
-            <button aria-pressed={captureMode === "SCAN"} disabled={!model.permissions.canRecordEvidence} onClick={() => setCaptureMode(captureMode === "SCAN" ? "NONE" : "SCAN")} type="button"><Gauge /><span><strong>What did the scan show?</strong><small>Codes, modules, and freeze-frame data</small></span></button>
-            <button aria-pressed={captureMode === "TEST"} disabled={!model.permissions.canRecordEvidence} onClick={() => setCaptureMode(captureMode === "TEST" ? "NONE" : "TEST")} type="button"><Ruler /><span><strong>{nextTestNode ? "Run the instructed test" : "Choose the next test"}</strong><small>{nextTestNode ? nextTestNode.title : "Open Master Technician test planning"}</small></span></button>
-          </div>
+          {captureMode === "INSPECTION" ? <form className={`${styles.captureForm} ${styles.initialInspectionForm}`} aria-label="Initial Recon Inspection Checklist" onSubmit={(event) => {
+            event.preventDefault();
+            const checklistResults = initialInspectionChecklist.map((entry) => ({ ...entry, status: inspectionChecklist[entry.key], note: inspectionNotes[entry.key].trim() || null }));
+            const flaggedResults = checklistResults.filter((entry) => entry.status !== "GREEN" || entry.note);
+            const highestSeverity = checklistResults.some((entry) => entry.status === "RED") ? "RED" : checklistResults.some((entry) => entry.status === "YELLOW") ? "YELLOW" : "GREEN";
+            const partsNeeded = splitLines(inspectionPartsNeeded);
+            const primaryObservation = inspectionPrimaryObservation.trim() || item.concern;
+            const statement = `Initial recon checklist ${label(highestSeverity)}. Primary observation: ${primaryObservation}. Diagnostic codes: ${inspectionCode.trim() || "not recorded"}. ${flaggedResults.length ? flaggedResults.map((entry) => `${entry.label}: ${initialInspectionStatusCopy[entry.status].meaning}${entry.note ? ` (${entry.note})` : ""}`).join(" · ") : "All checklist areas marked green with no issue observed."} Obvious parts / estimate hints: ${partsNeeded.length ? partsNeeded.join("; ") : "not recorded"}. Sellability gate: ${label(inspectionSellabilityGate)}. Photo evidence groups: ${inspectionPhotoGroups.length ? inspectionPhotoGroups.join(", ") : "not selected"}.`;
+            void execute(`/api/diagnostics/cases/${encodeURIComponent(item.id)}/observations`, {
+              factClass: "OBSERVED",
+              independenceGroup: "TECHNICIAN_DIRECT",
+              operatingConditions: item.operatingConditions,
+              qualityReasonCode: "DATA_VALID",
+              qualityStatus: "VALID",
+              rawSource: { kind: "INITIAL_RECON_INSPECTION_FORM" },
+              reason: "Recorded initial recon inspection observation in the diagnostic case.",
+              reliability: "UNASSESSED",
+              source: "TECHNICIAN",
+              statement,
+              structuredValue: {
+                evidenceType: "INITIAL_RECON_INSPECTION_CHECKLIST",
+                primaryObservation,
+                diagnosticCodes: inspectionCode.trim() || null,
+                checklistResults,
+                highestSeverity,
+                obviousPartsNeeded: partsNeeded,
+                sellabilityGate: inspectionSellabilityGate,
+                photoEvidenceGroups: inspectionPhotoGroups,
+              },
+            }, {
+              action: "INITIAL_RECON_INSPECTION",
+              onSuccess: () => {
+                setInspectionPrimaryObservation(item.concern);
+                setInspectionCode("");
+                setInspectionChecklist(initialInspectionSeed.checklist);
+                setInspectionNotes(initialInspectionSeed.notes);
+                setInspectionPartsNeeded("");
+                setInspectionSellabilityGate(initialInspectionSeed.sellabilityGate);
+                setInspectionPhotoGroups(initialInspectionSeed.photoGroups);
+                setCaptureMode("INSPECTION");
+              },
+              successMessage: "Initial inspection checklist saved to the diagnostic case.",
+            });
+          }}>
+            <div className={styles.formIntroduction}><strong>Initial QC inspection checklist</strong><p>One short inspection package: confirm the concern, mark the vehicle areas, add codes or obvious estimate hints only when they help, then save.</p></div>
+            <label className={styles.wideField}><span>Primary concern / observation</span><textarea maxLength={700} onChange={(event) => setInspectionPrimaryObservation(event.target.value)} placeholder="What did staff actually see, hear, feel, smell, or confirm?" required rows={3} value={inspectionPrimaryObservation} /><small>This is the concern the diagnostic intelligence should focus on first.</small></label>
+            <label className={styles.wideField}><span>Diagnostic code / module notes</span><input maxLength={220} onChange={(event) => setInspectionCode(event.target.value)} placeholder="Example: ABS C0035 current; PCM P0300 history; or no codes checked yet" value={inspectionCode} /><small>Optional. Leave blank if codes were not checked yet.</small></label>
+            <section className={styles.inspectionChecklistGrid} aria-label="Initial inspection checklist">
+              {initialInspectionChecklist.map((entry) => <article className={styles.inspectionChecklistItem} data-status={inspectionChecklist[entry.key].toLocaleLowerCase()} key={entry.key}>
+                <header>
+                  <div><strong>{entry.label}</strong><small>{entry.help}</small></div>
+                  <span>{initialInspectionStatusCopy[inspectionChecklist[entry.key]].label}</span>
+                </header>
+                <fieldset className={styles.stoplightGroup}>
+                  <legend>{entry.label} status</legend>
+                  {(Object.keys(initialInspectionStatusCopy) as InitialInspectionStatus[]).map((status) => <label data-status={status.toLocaleLowerCase()} key={status}>
+                    <input checked={inspectionChecklist[entry.key] === status} name={`inspection-${entry.key}`} onChange={() => setInspectionItemStatus(entry.key, status)} type="radio" value={status} />
+                    <span>{initialInspectionStatusCopy[status].label}</span>
+                  </label>)}
+                </fieldset>
+                {inspectionChecklist[entry.key] === "GREEN" && !inspectionNotes[entry.key] ? <small className={styles.greenNoteHint}>No note needed when green.</small> : <label className={styles.quickNote}><span>Quick note</span><input maxLength={220} onChange={(event) => setInspectionItemNote(entry.key, event.target.value)} placeholder="What did staff observe?" value={inspectionNotes[entry.key]} /></label>}
+              </article>)}
+            </section>
+            <fieldset className={styles.inspectionPhotoChecklist}>
+              <legend><Camera /> Photo evidence groups</legend>
+              {inspectionPhotoEvidenceOptions.map((option) => <label key={option}><input checked={inspectionPhotoGroups.includes(option)} onChange={() => toggleInspectionPhotoGroup(option)} type="checkbox" /> {option}</label>)}
+              <small>Photo upload is still a separate evidence step; this records which photo groups staff should attach or verify.</small>
+            </fieldset>
+            <label className={styles.wideField}><span>Obvious parts needed / estimate hints</span><textarea maxLength={700} onChange={(event) => setInspectionPartsNeeded(event.target.value)} placeholder="Example: Rear bumper cover; front brake pads/rotors; ABS sensor diagnosis needed. This does not order parts." rows={3} value={inspectionPartsNeeded} /><small>Use this for visible or obvious estimate hints only. Parts ordering and approval still happen later.</small></label>
+            <label><span>Sellability / readiness gate</span><select onChange={(event) => setInspectionSellabilityGate(event.target.value)} value={inspectionSellabilityGate}><option value="REPAIR_REQUIRED_BEFORE_READY">Repair required before ready</option><option value="DIAGNOSIS_REQUIRED">Diagnosis required before estimate</option><option value="COSMETIC_REVIEW">Cosmetic review only</option><option value="READY_WITH_DISCLOSURE">Ready with disclosure</option></select></label>
+            <div className={styles.inspectionSummary}><ScanLine /><span><strong>Saved as diagnostic evidence</strong><small>This creates a technician observation tied to this case, keeping intake facts, diagnosis, estimate, repair, and final QC connected.</small></span></div>
+            <button disabled={busy || !model.evidenceRollout.executable} type="submit"><CarFront /> Save checklist observation</button>
+            <nav className={styles.inspectionNextSteps} aria-label="After inspection">
+              <Link href="/diagnostics">Back to intake / case queue</Link>
+              <Link href={estimateWorkbenchHref}>Continue to estimate</Link>
+              <Link href={repairWorkbenchHref}>Open workbench</Link>
+              <Link href={troubleshootingHref}>Deep troubleshooting</Link>
+            </nav>
+          </form> : null}
           {captureMode === "OBSERVATION" ? <form className={`${styles.captureForm} ${styles.observationForm}`} onSubmit={(event) => { event.preventDefault(); void execute(`/api/diagnostics/cases/${encodeURIComponent(item.id)}/observations`, { factClass: "OBSERVED", independenceGroup: "TECHNICIAN_DIRECT", operatingConditions: item.operatingConditions, qualityReasonCode: "DATA_VALID", qualityStatus: "VALID", rawSource: { kind: "MANUAL_ENTRY" }, reason: "Recorded direct technician observation in the diagnostic case.", reliability: "UNASSESSED", source: "TECHNICIAN", statement: `${observationStatement} Conditions: ${observationConditions}. Reproduction: ${label(reproductionStatus)}.`, structuredValue: { evidenceType: "DIRECT_OBSERVATION", symptom: observationStatement, conditions: observationConditions, reproductionStatus } }); }}>
             <div className={styles.formIntroduction}><strong>Record the symptom</strong><p>Example: “The engine rattles for two seconds during the first cold start, then runs normally.”</p></div>
             <label className={styles.wideField}><span>What did you directly observe?</span><textarea maxLength={1400} onChange={(event) => setObservationStatement(event.target.value)} placeholder="Describe the sound, warning light, behavior, smell, leak, or symptom—without guessing the cause." required rows={7} value={observationStatement} /><small>This becomes the symptom we are trying to reproduce and explain.</small></label>
@@ -366,14 +443,29 @@ export function DiagnosticCaseWorkspace({ model }: { model: DiagnosticCaseWorksp
           </form>
         </section>
 
-        <section className={styles.estimatePanel}><header><div><span className={styles.eyebrow}>DGN-035-037 · Advisor estimate foundation</span><h2>Advisor repair estimate draft</h2><p>Create a controlled draft package from the confirmed diagnosis. This does not present a customer estimate, authorize work, order parts, or dispatch a technician.</p></div><span>{latestEstimateDraft ? label(latestEstimateDraft.status) : "No draft"}</span></header>
+        <section className={styles.estimatePanel}><header><div><span className={styles.eyebrow}>Estimate draft</span><h2>What needs to be fixed, and what will it cost?</h2><p>Build simple repair lines first. The full Labor Guide stays available when staff need deeper research.</p></div><span>{latestEstimateDraft ? label(latestEstimateDraft.status) : "No draft"}</span></header>
           {latestEstimateDraft ? <article className={styles.handoffRecord}><ClipboardList /><div><strong>{label(latestEstimateDraft.selectedStrategy)}</strong><p>{latestEstimateDraft.advisorSummary}</p><small>Draft v{latestEstimateDraft.version} · repair diagnosis v{latestEstimateDraft.repairDiagnosisVersion} · checksum {latestEstimateDraft.draftChecksum.slice(0, 12)}…</small></div></article> : null}
-          <form className={styles.handoffForm} onSubmit={(event) => { event.preventDefault(); const expiry = new Date(Date.now() + 7 * 86_400_000).toISOString(); void execute(`/api/diagnostics/cases/${encodeURIComponent(item.id)}/advisor-estimate`, { repairHandoffId: publishedDiagnosis?.id ?? null, selectedStrategy: estimateStrategy, advisorSummary: estimateAdvisorSummary, customerConcernSummary: item.concern, customerCauseSummary: latestConclusion?.causeStatement ?? "Confirmed diagnostic cause requires advisor review before customer presentation.", customerCorrectionSummary: publishedDiagnosis?.proposedCorrection ?? proposedCorrection, assumptions: estimateAssumptions.split(/\n+/).map((entry) => entry.trim()).filter(Boolean), notIncluded: ["Final taxes, fees, discounts, parts availability, customer authorization, job creation, and dispatch remain owned by their existing authorities."], laborRateCents: Number(estimateLaborRate), partPlaceholderUnitCents: 0, taxBoundary: "Existing Repair Estimate authority must calculate final taxes before customer presentation.", expiresAt: expiry, supersedesId: latestEstimateDraft?.id ?? null, reason: "Create advisor-review diagnostic estimate draft from the published diagnosis handoff." }); }}>
-            <label><span>Estimate model</span><select onChange={(event) => setEstimateStrategy(event.target.value as typeof estimateStrategy)} value={estimateStrategy}><option value="STANDARD_SHOP_MODEL">DispatchBoard standard</option><option value="THREE_TIER_LABOR_GUIDE_MODEL">Three-tier labor guide</option><option value="ELITE_ENTERPRISE_MODEL">Elite enterprise</option></select></label>
-            <label><span>Draft labor rate / hr</span><input inputMode="numeric" onChange={(event) => setEstimateLaborRate(event.target.value)} value={estimateLaborRate} /></label>
-            <label className={styles.wideField}><span>Advisor summary</span><textarea onChange={(event) => setEstimateAdvisorSummary(event.target.value)} placeholder="Explain what the advisor should review before creating the official customer estimate." required rows={2} value={estimateAdvisorSummary} /></label>
-            <label className={styles.wideField}><span>Assumptions and boundaries</span><textarea onChange={(event) => setEstimateAssumptions(event.target.value)} rows={2} value={estimateAssumptions} /></label>
-            <button disabled={busy || !model.publishingRollout?.executable || !model.permissions.canAdvisorEstimate || !publishedDiagnosis || latestConclusion?.status !== "CONFIRMED" || estimateAdvisorSummary.trim().length < 10 || !Number.isInteger(Number(estimateLaborRate)) || Number(estimateLaborRate) < 1} type="submit">Create advisor draft</button>
+          <form className={styles.simpleEstimateForm} onSubmit={(event) => { event.preventDefault(); void execute(`/api/diagnostics/cases/${encodeURIComponent(item.id)}/advisor-estimate`, { repairHandoffId: publishedDiagnosis?.id ?? null, selectedStrategy: estimateStrategy, advisorSummary: estimateAdvisorSummary.trim() || `Draft estimate lines: ${simpleEstimateSummary}`, customerConcernSummary: item.concern, customerCauseSummary: latestConclusion?.causeStatement ?? "Diagnosis is not fully confirmed yet; this estimate remains a draft and cannot be presented.", customerCorrectionSummary: publishedDiagnosis?.proposedCorrection ?? simpleEstimateSummary, assumptions: estimateAssumptions.split(/\n+/).map((entry) => entry.trim()).filter(Boolean), notIncluded: ["Final taxes, fees, discounts, parts availability, customer authorization, job creation, and dispatch remain owned by their existing authorities."], draftLines: simpleEstimateDraftLines, laborRateCents: Number(estimateLaborRate), partPlaceholderUnitCents: 0, taxBoundary: "Existing Repair Estimate authority must calculate final tax before presentation.", expiresAt: estimateDraftExpiresAt, supersedesId: latestEstimateDraft?.id ?? null, reason: "Create a simple advisor repair-line estimate draft. Presentation remains gated by diagnosis, approval, tax, and estimate authority." }); }}>
+            <div className={styles.simpleEstimateToolbar}>
+              <Link href="/diagnostics/labor-guide">Open full Labor Guide</Link>
+              <button onClick={() => addEstimateLine(inspectionPartsNeeded.split(/\n+/).map((entry) => entry.trim()).filter(Boolean)[0] ?? publishedDiagnosis?.proposedCorrection ?? "")} type="button">Use inspection findings</button>
+              <button onClick={() => addEstimateLine()} type="button">Add repair line</button>
+            </div>
+            <div className={styles.simpleEstimateLines} aria-label="Simple estimate lines">
+              {simpleEstimateLines.map((line, index) => <article key={line.id}>
+                <b>{index + 1}</b>
+                <label className={styles.simpleEstimateDescription}><span>What needs to be fixed?</span><input onChange={(event) => updateEstimateLine(line.id, { description: event.target.value })} placeholder="Example: Replace front bumper cover" value={line.description} /></label>
+                <label><span>Labor $</span><input inputMode="decimal" onChange={(event) => updateEstimateLine(line.id, { labor: event.target.value })} placeholder="0.00" value={line.labor} /></label>
+                <label><span>Parts $</span><input inputMode="decimal" onChange={(event) => updateEstimateLine(line.id, { parts: event.target.value })} placeholder="0.00" value={line.parts} /></label>
+                <label><span>Other $</span><input inputMode="decimal" onChange={(event) => updateEstimateLine(line.id, { other: event.target.value })} placeholder="0.00" value={line.other} /></label>
+                <strong>{moneyFromCents(centsFromLine(line))}</strong>
+              </article>)}
+            </div>
+            <section className={styles.simpleEstimateTotal}><span>Draft total</span><strong>{moneyFromCents(simpleEstimateTotalCents)}</strong><small>You can save this draft now. Presenting/sending still requires the evidence-backed diagnosis and approval gate.</small></section>
+            <label className={styles.wideField}><span>Advisor note</span><textarea onChange={(event) => setEstimateAdvisorSummary(event.target.value)} placeholder="Optional note for the advisor or manager before presentation." rows={2} value={estimateAdvisorSummary} /></label>
+            <details className={styles.estimateAdvancedDetails}><summary>Advanced / Labor Guide details</summary><div><label><span>Estimate model</span><select onChange={(event) => setEstimateStrategy(event.target.value as typeof estimateStrategy)} value={estimateStrategy}><option value="STANDARD_SHOP_MODEL">DispatchBoard standard</option><option value="THREE_TIER_LABOR_GUIDE_MODEL">Three-tier labor guide</option><option value="ELITE_ENTERPRISE_MODEL">Elite enterprise</option></select></label><label><span>Draft labor rate / hr in cents</span><input inputMode="numeric" onChange={(event) => setEstimateLaborRate(event.target.value)} value={estimateLaborRate} /></label><label className={styles.wideField}><span>Assumptions and boundaries</span><textarea onChange={(event) => setEstimateAssumptions(event.target.value)} rows={2} value={estimateAssumptions} /></label></div></details>
+            {!publishedDiagnosis || latestConclusion?.status !== "CONFIRMED" ? <p className={styles.estimatePresentationGate}>Draft can be saved, but an evidence-backed confirmed diagnosis is required before this estimate can be presented.</p> : null}
+            <button disabled={busy || !model.publishingRollout?.executable || !model.permissions.canAdvisorEstimate || !usableEstimateLines.length} type="submit">Save draft estimate lines</button>
           </form>
         </section>
 

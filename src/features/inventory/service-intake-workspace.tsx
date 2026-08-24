@@ -219,6 +219,15 @@ function appendRepairOrderContext(href: string, repairOrderId: string) {
   return `${href}${separator}repairOrderId=${encodeURIComponent(repairOrderId)}`;
 }
 
+export function buildServiceIntakeCompletionLinks(repairOrderId: string, returnTo?: string) {
+  const repairWorkbenchHref = `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(repairOrderId)}`;
+  return {
+    repairWorkbenchHref,
+    returnHref: returnTo ? appendRepairOrderContext(returnTo, repairOrderId) : "/vehicles/shop-recon",
+    shopDispatchHref: `/vehicles/shop-dispatch?repairOrderId=${encodeURIComponent(repairOrderId)}`,
+  };
+}
+
 function mergeById<T extends { id: string }>(current: T[], saved: T[] = []) {
   return [...current, ...saved.filter((item) => !current.some((record) => record.id === item.id))];
 }
@@ -1012,7 +1021,6 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       setCreated({ ...result, reused });
       window.localStorage.removeItem(serviceIntakeDraftKey);
       setNotice(reused ? `${result.repairOrderNumber} is the active synchronized card for this vehicle. It was opened and no duplicate was created.` : `${result.repairOrderNumber} was created as this vehicle's active repair card.`);
-      if (returnTo) window.location.assign(appendRepairOrderContext(returnTo, result.id));
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Vehicle check-in failed.");
     } finally {
@@ -1021,14 +1029,14 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
   }
 
   if (created) {
-    const returnHref = returnTo ? appendRepairOrderContext(returnTo, created.id) : "/vehicles/shop-recon";
+    const completionLinks = buildServiceIntakeCompletionLinks(created.id, returnTo);
     return <section className="service-intake-shell service-intake-complete">
       <div className="sic-success-icon"><CheckCircle2 /></div>
       <p>{created.reused ? "Existing repair order found" : "Check-in complete"}</p>
       <h1>{created.repairOrderNumber}</h1>
       <span>{isDealershipInventory ? selectedInventoryUnit?.inventoryNumber ?? "Dealership inventory" : selectedCustomer?.displayName} · {selectedVehicle ? vehicleLabel(selectedVehicle) : "Vehicle"}</span>
       <div className="sic-success-summary"><strong>{created.reused ? "One synchronized vehicle card" : "Ready for intake review"}</strong><span>{created.reused ? "This VIN already had an open repair card, so all location, vendor, repair, QC, and handoff work stays on that record." : "The governed repair order, customer concern, custody details, owner, target, and audit evidence are now available to Shop & Recon."}</span></div>
-      <div className="sic-success-actions"><Link className="primary" href={returnTo ? returnHref : `/vehicles/repair-workbench?repairOrderId=${created.id}`}>{returnTo ? "Return to Labor Guide" : "Open repair workbench"} <ChevronRight /></Link><Link href={`/vehicles/shop-dispatch?repairOrderId=${created.id}`}>Open Shop Dispatch</Link><Link href={`/vehicles/repair-workbench?repairOrderId=${created.id}`}>Open repair workbench</Link><Link href="/vehicles/shop-recon">Return to Shop &amp; Recon</Link></div>
+      <div className="sic-success-actions"><Link className="primary" href={completionLinks.repairWorkbenchHref}>Continue working this RO <ChevronRight /></Link><Link href={completionLinks.shopDispatchHref}>Open Shop Dispatch</Link>{returnTo ? <Link href={completionLinks.returnHref}>Return to source workspace</Link> : null}<Link href="/vehicles/shop-recon">Return to Shop &amp; Recon</Link></div>
     </section>;
   }
 

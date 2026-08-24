@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { buildServiceIntakeVehicleCommand, ServiceIntakeWorkspace } from "@/features/inventory/service-intake-workspace";
+import { buildServiceIntakeCompletionLinks, buildServiceIntakeVehicleCommand, ServiceIntakeWorkspace } from "@/features/inventory/service-intake-workspace";
 import { normalizeAddVehicleWorkflowInput } from "@/server/inventory-workflow-launcher/add-vehicle";
 
 const options = {
@@ -72,6 +72,14 @@ describe("enterprise service intake workspace", () => {
 
     expect(html).toContain("Back to Labor Guide");
     expect(html).toContain("href=\"/diagnostics/labor-guide\"");
+  });
+
+  it("keeps the created repair order available before returning to the source workspace", () => {
+    expect(buildServiceIntakeCompletionLinks("ro-123", "/diagnostics/labor-guide")).toEqual({
+      repairWorkbenchHref: "/vehicles/repair-workbench?repairOrderId=ro-123",
+      returnHref: "/diagnostics/labor-guide?repairOrderId=ro-123",
+      shopDispatchHref: "/vehicles/shop-dispatch?repairOrderId=ro-123",
+    });
   });
 
   it("restores a selected canonical vehicle into the persistent intake form", () => {

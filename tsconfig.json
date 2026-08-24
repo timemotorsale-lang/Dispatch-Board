@@ -37,7 +37,17 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     ".next-local/types/**/*.ts",
-    ".next-local/dev/types/**/*.ts"
+    ".next-local/dev/types/**/*.ts",
+    ".next-runtime/types/**/*.ts",
+    ".next-runtime/dev/types/**/*.ts",
+    "../../../../AppData/Local/Temp/dispatch-board-next/*/types/**/*.ts",
+    "../../../../AppData/Local/Temp/dispatch-board-next/*/dev/types/**/*.ts",
+    "../../../../AppData/Local/Temp/dispatch-board-next/3c06b2a0105f/types/**/*.ts",
+    "../../../../AppData/Local/Temp/dispatch-board-next/3c06b2a0105f/dev/types/**/*.ts",
+    "../../../../AppData/Local/Temp/dispatch-board-next/49c74905cdd8/types/**/*.ts",
+    "../../../../AppData/Local/Temp/dispatch-board-next/49c74905cdd8/dev/types/**/*.ts",
+    "../../../../AppData/Local/Temp/dispatch-board-next/2b0eebf96bae/types/**/*.ts",
+    "../../../../AppData/Local/Temp/dispatch-board-next/2b0eebf96bae/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

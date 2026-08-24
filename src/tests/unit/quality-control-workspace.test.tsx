@@ -119,4 +119,37 @@ describe("QualityControlWorkspace", () => {
     expect(html).toContain("Save &amp; finish later");
     expect(html).toContain("Mark Frontline Ready");
   });
+
+  it("shows a green cleared vehicle state after final frontline QC is complete", () => {
+    const clearedModel = JSON.parse(JSON.stringify(model));
+    clearedModel.repairOrders[0].releaseAuthorization = {
+      id: "release-1",
+      destination: "FRONTLINE_READY",
+      authorizedAt: "2026-07-20T20:30:00.000Z"
+    };
+    clearedModel.repairOrders[0].repairJobs[0].status = "QC_PASSED";
+    clearedModel.repairOrders[0].repairJobs[0].qualityInspections = [{
+      id: "inspection-1",
+      version: 1,
+      disposition: "PASSED",
+      inspectedAt: "2026-07-20T19:00:00.000Z",
+      safetyChecksPassed: true,
+      peerVerificationRequired: false,
+      peerVerificationPassed: false,
+      roadTestRequired: false,
+      roadTestOutcome: "NOT_REQUIRED",
+      failureReasonCodes: [],
+      reworkInstructions: null,
+      inspectorUser: { name: "Quincy QC" },
+      peerVerifierUser: null
+    }];
+
+    const html = renderToStaticMarkup(<QualityControlWorkspace initial={clearedModel} />);
+
+    expect(html).toContain("Final Frontline QC complete");
+    expect(html).toContain("cleared for photos, merchandising, and its next frontline-readiness handoff");
+    expect(html).toContain("QC CLEARED");
+    expect(html).toContain("Green vehicle · ready for photos and frontline merchandising");
+    expect(html).toContain("Green in QC list / ready for photos");
+  });
 });

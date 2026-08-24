@@ -222,4 +222,47 @@ describe("AdvisorRepairOrderStatusView", () => {
     expect(html).toContain("Return%20to%20RO-1001");
     expect(html).not.toContain("Handoff review complete");
   });
+
+  it("shows a review and follow-up vendor path after a vendor diagnoses but cannot repair", () => {
+    const html = renderToStaticMarkup(<AdvisorRepairOrderStatusView initialTab="REPAIR" order={makeOrder({ partDemands: [], stage: "QUALITY_CONTROL", vendorWorks: [{
+      id: "vendor-work-1",
+      vendorId: "vendor-1",
+      vendorName: "Northside Garage",
+      vendorContact: null,
+      externalReference: null,
+      workType: "MECHANICAL_SUBLET",
+      scope: "Timing chain replacement recommended from outside vendor diagnosis.",
+      status: "RETURNED",
+      approvalStatus: "PENDING",
+      estimateAmountCents: null,
+      approvedAmountCents: null,
+      supplementalAmountCents: null,
+      sentAt: new Date("2026-08-09T14:00:00Z"),
+      sentFrom: "Dealership",
+      directFromSource: false,
+      expectedReturnAt: null,
+      returnedAt: new Date("2026-08-10T18:00:00Z"),
+      transportMethod: "Driven back",
+      keysCustodian: "Time Motor Sales",
+      currentLocation: "Dealership",
+      lastUpdateSummary: "Northside Garage diagnosed the timing chain issue but could not repair it.",
+      nextAction: "Review recommendation, approve next repair path, and send to the selected follow-up vendor.",
+      nextFollowUpAt: null,
+      version: 2,
+      createdByUserId: "user-1",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      vendor: null,
+      events: []
+    }] } as unknown as Partial<Order>)} />);
+
+    expect(html).toContain("Vendor diagnosis needs approval");
+    expect(html).toContain("Northside Garage returned the vehicle without completing the repair.");
+    expect(html).toContain("Timing chain replacement recommended");
+    expect(html).toContain("Staff next step");
+    expect(html).toContain("Document the next vendor repair");
+    expect(html).toContain("Choose the approved follow-up vendor");
+    expect(html).toContain("Saved outside vendor");
+    expect(html).toContain("Complete the repair recommended by the prior outside vendor diagnosis.");
+  });
 });

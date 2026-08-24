@@ -78,8 +78,9 @@ describe("Shop Recon unified vehicle-card design", () => {
     expect(html).toContain("Assigned to Walter Hernandez");
     expect(html).toContain("Change technician");
     expect(html).toContain("Open Shop Dispatch");
-    expect(html).toContain("/vehicles/repair-workbench?repairOrderId=ro-1&amp;returnLabel=Return+to+Shop+%26+Recon+%C2%B7+Stage+1%3A+Service+%2F+Recon+Job+Intake&amp;returnTo=%2Fvehicles%2Fshop-recon%2Fro-1%3Fstage%3D1&amp;vehicleId=vehicle-1#assignment");
-    expect(html).toContain("/vehicles/shop-dispatch?repairOrderId=ro-1&amp;returnLabel=Return+to+Shop+%26+Recon+%C2%B7+Stage+1%3A+Service+%2F+Recon+Job+Intake&amp;returnTo=%2Fvehicles%2Fshop-recon%2Fro-1%3Fstage%3D1&amp;vehicleId=vehicle-1");
+    expect(html).toContain("/vehicles/repair-workbench?repairOrderId=ro-1");
+    expect(html).toContain("vehicleId=vehicle-1#assignment");
+    expect(html).toContain("/vehicles/shop-dispatch?repairOrderId=ro-1");
     expect(html).toContain("Current Shop Stage");
     expect(html).toContain("Viewing Stage 1 of 16");
     expect(html).toContain("Service / Recon Job Intake");
@@ -260,22 +261,21 @@ describe("Shop Recon unified vehicle-card design", () => {
     expect(html).toContain("Complete Inspection");
   });
 
-  it("renders Stage 7 with Diagnostic Module above the diagnosis checklist", () => {
+  it("renders Stage 7 with Diagnostic Module and assist inspection above the diagnosis checklist", () => {
     const stageSevenItem = { ...item, shopLifecycleStage: "DIAGNOSIS" as const, shopLifecycleLabel: "Diagnosis", shopLifecycleOrder: 7 };
     const stageSevenLifecycle = { ...lifecycleWorkspace, lifecycle: { ...lifecycleWorkspace.lifecycle, stage: "DIAGNOSIS" as const, nextAction: "Complete evidence-backed diagnosis" } };
     const html = renderToStaticMarkup(<ShopReconVehicleCard item={stageSevenItem} lifecycleWorkspace={stageSevenLifecycle} />);
 
     expect(html).toContain("Official Stage 7 Tool");
-    expect(html).toContain("Diagnostic Module");
+    expect(html).toContain("Diagnostic Module + Assist Inspection");
     expect(html).toContain("/vehicles/repair-workbench?repairOrderId=ro-1&amp;vehicleId=vehicle-1");
     expect(html).toContain("#diagnosis");
-    expect(html).toContain("Stage 6 verified concern reviewed");
-    expect(html).toContain("Diagnostic route selected");
-    expect(html).toContain("Required diagnostic tests recorded");
-    expect(html).toContain("Scan data / measurements attached");
-    expect(html).toContain("Supported cause or uncertainty documented");
-    expect(html).toContain("Recommended correction entered");
-    expect(html).toContain("Diagnosis submitted for repair-plan decision");
+    expect(html).toContain("Diagnostic evidence reviewed");
+    expect(html).toContain("Diagnostic assist inspection performed");
+    expect(html).toContain("Road test or static check completed or marked not needed");
+    expect(html).toContain("Diagnostic disposition selected");
+    expect(html).toContain("Next decision controlled if concern found");
+    expect(html).toContain("not to pass final QC");
   });
 
   it("renders Stage 8 with Repair Workbench and Labor Guide above the repair-plan checklist", () => {

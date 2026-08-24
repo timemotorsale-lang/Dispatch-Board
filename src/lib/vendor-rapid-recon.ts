@@ -25,7 +25,7 @@ type RapidReconWork = {
 
 const receivedStatuses = new Set(["AT_VENDOR", "WAITING_PARTS", "SUPPLEMENT_NEEDED", "READY_FOR_PICKUP", "RETURN_TRANSPORT", "RETURNED", "QC_REQUIRED", "COMPLETED"]);
 const repairCompleteStatuses = new Set(["READY_FOR_PICKUP", "RETURN_TRANSPORT", "RETURNED", "QC_REQUIRED", "COMPLETED"]);
-const failedPattern = /\b(fail|failed|incomplete|not fixed|problem still|still persists|rework|decision)\b/i;
+const failedPattern = /\b(fail|failed|incomplete|not fixed|problem still|still persists|rework|decision|could not repair|unable to repair|diagnosed only)\b/i;
 
 export function vendorRapidReconAnswers(work: RapidReconWork) {
   const received = receivedStatuses.has(work.status);
@@ -58,8 +58,8 @@ export function vendorRapidReconTransitions(status: string): Array<{ label: stri
     ESTIMATE_NEEDED: [{ label: "Estimate received — get approval", status: "APPROVAL_NEEDED" }, { label: "Vendor confirmed receipt", status: "AT_VENDOR" }],
     APPROVAL_NEEDED: [{ label: "Approved — vendor can repair", status: "AT_VENDOR" }, { label: "Schedule approved work", status: "SCHEDULED" }],
     SCHEDULED: [{ label: "Vendor confirmed receipt", status: "AT_VENDOR" }],
-    AT_VENDOR: [{ label: "Parts are needed", status: "WAITING_PARTS" }, { label: "Supplement needs approval", status: "SUPPLEMENT_NEEDED" }, { label: "Repairs complete — plan return", status: "READY_FOR_PICKUP" }, { label: "Vendor failed — bring back", status: "RETURNED" }],
-    WAITING_PARTS: [{ label: "Parts received — resume repair", status: "AT_VENDOR" }, { label: "Repairs complete — plan return", status: "READY_FOR_PICKUP" }, { label: "Vendor failed — bring back", status: "RETURNED" }],
+    AT_VENDOR: [{ label: "Parts are needed", status: "WAITING_PARTS" }, { label: "Supplement needs approval", status: "SUPPLEMENT_NEEDED" }, { label: "Repairs complete — plan return", status: "READY_FOR_PICKUP" }, { label: "Diagnosed only / could not repair — bring back", status: "RETURNED" }],
+    WAITING_PARTS: [{ label: "Parts received — resume repair", status: "AT_VENDOR" }, { label: "Repairs complete — plan return", status: "READY_FOR_PICKUP" }, { label: "Diagnosed only / could not repair — bring back", status: "RETURNED" }],
     SUPPLEMENT_NEEDED: [{ label: "Send supplement for approval", status: "APPROVAL_NEEDED" }, { label: "Approved — resume repair", status: "AT_VENDOR" }],
     READY_FOR_PICKUP: [{ label: "Pickup / transport started", status: "RETURN_TRANSPORT" }, { label: "Vehicle returned", status: "RETURNED" }],
     RETURN_TRANSPORT: [{ label: "Vehicle returned", status: "RETURNED" }],
@@ -81,7 +81,7 @@ export function vendorRapidReconNextAction(status: string) {
     SUPPLEMENT_NEEDED: "Review the changed scope and approve the supplement.",
     READY_FOR_PICKUP: "Assign return transportation and pickup time now.",
     RETURN_TRANSPORT: "Track pickup/transport ETA and confirm dealership receipt.",
-    RETURNED: "Move the vehicle into dealership quality control.",
+    RETURNED: "Review the returned vehicle and decide the next approved repair path.",
     QC_REQUIRED: "Complete QC; failed work returns to the vendor.",
     COMPLETED: "Continue to advisor review and inventory handoff.",
     CANCELLED: "Choose a new repair path if work is still required."
