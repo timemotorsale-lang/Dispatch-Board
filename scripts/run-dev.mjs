@@ -10,12 +10,14 @@ const nodeModulesPath = path.join(root, "node_modules");
 const defaultNextDistDir = ".next-local";
 const explicitNextDistDir = process.env.NEXT_DIST_DIR?.trim();
 let nextDistDir = explicitNextDistDir || defaultNextDistDir;
+const runtimeCacheBase = process.env.NEXT_DEV_CACHE_ROOT?.trim()
+  || path.join(process.env.LOCALAPPDATA || os.tmpdir(), "DispatchBoard", "next");
 
 function tempBackedDistRoot(distDirName) {
-  const cacheKey = process.env.NEXT_DEV_CACHE_KEY?.trim() || "default";
+  // A fixed cache name lets overlapping dev servers rewrite each other's manifests on Windows.
+  const cacheKey = process.env.NEXT_DEV_CACHE_KEY?.trim() || `session-${process.pid}`;
   return path.join(
-    os.tmpdir(),
-    "dispatch-board-next",
+    runtimeCacheBase,
     createHash("sha1").update(`${root}:${distDirName}:${cacheKey}`).digest("hex").slice(0, 12)
   );
 }
@@ -58,8 +60,9 @@ async function ensureTempBackedDistDir(distDirName) {
   await fs.mkdir(tempDistRoot, { recursive: true });
   await ensureModuleResolution(tempNodeModulesPath, projectNodeModulesPath);
   await ensureWorkspaceAlias(distDirName, tempDistRoot);
-  console.log(`Using temp-backed Next cache at '${tempDistRoot}'.`);
-  return path.relative(root, tempDistRoot) || ".";
+  console.log(`Using isolated Next cache at '${tempDistRoot}'.`);
+  // Keep Next's distDir inside the project; the junction above redirects the actual writes.
+  return distDirName;
 }
 
 async function ensureModuleResolution(tempNodeModulesPath, projectNodeModulesPath) {
@@ -106,7 +109,7 @@ async function prepareManagedWindowsDistDir() {
 
 await prepareManagedWindowsDistDir();
 
-const child = spawn(process.execPath, [nextCli, "dev", "--webpack"], {
+const child = spawn(process.execPath, [nextCli, "dev", "--turbopack"], {
   cwd: root,
   stdio: "inherit",
   env: {

@@ -34,6 +34,8 @@ describe("enterprise labor guide console", () => {
     expect(markup).not.toContain("Choose what needs to be fixed");
     expect(markup).not.toContain("Select</button>");
     expect(markup).toContain("Add manual part");
+    expect(markup).toContain("Retail");
+    expect(markup).toContain("Edit Front brake pad set price and quantity");
     expect(markup).toContain("Auto from parts catalog");
     expect(markup).toContain("Automatic Suggested Add-Ons");
     expect(markup).toContain("Road test and repair verification");
@@ -50,7 +52,8 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("#3411");
     expect(markup).toContain("Repair history");
     expect(markup).toContain("/vehicles/repair-workbench?repairOrderId=ro-id-3411");
-    expect(markup).toContain("Create Estimate");
+    expect(markup).toContain("Create &amp; Open Official Estimate");
+    expect(markup).toContain("Creates the official estimate document and opens print and repair-workbench actions.");
     expect(markup).toContain("Parts needed for this repair");
     expect(markup).toContain("Open Parts Ordering Workflow");
     expect(markup).toContain("Sync parts demand to RO");
@@ -80,7 +83,8 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("/vehicles/repair-orders?intakeSource=WALK_IN&amp;returnTo=%2Fdiagnostics%2Flabor-guide");
     expect(markup).toContain("Check in vehicle");
     expect(markup).not.toContain("/vehicles/workflows/add-vehicle");
-    expect(markup).toContain("Create Estimate");
+    expect(markup).toContain("Repair order required");
+    expect(markup).toContain("Select the repair order shown in the customer and vehicle lookup before creating this estimate.");
     expect(markup).toContain("Selected Work");
     expect(markup).toContain("Parts");
     expect(markup).toContain("Open Parts Ordering Workflow");

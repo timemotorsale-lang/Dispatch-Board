@@ -37,6 +37,7 @@ type SelectedPart = {
   taxable?: boolean;
   unitPrice: number;
 };
+type PartDraft = { name: string; number: string; quantity: string; unitPrice: string };
 
 type WorkTab = "selected" | "labor" | "parts" | "evidence" | "customer" | "notes" | "history";
 type EvidenceDraft = {
@@ -92,7 +93,7 @@ function normalizePartsSyncMessage(error: unknown) {
 
 function partSourceLabel(part: SelectedPart) {
   if (part.source === "POLICY_REQUIRED") return part.pricingStatus === "PRICE_PENDING" ? "Required - price pending" : "Required by repair policy";
-  if (part.source === "AUTO_CATALOG") return "Auto from parts catalog";
+  if (part.source === "AUTO_CATALOG") return part.pricingStatus === "PRICE_PENDING" ? "Labor guide match - price pending" : "Auto from parts catalog";
   return "Manual";
 }
 
@@ -200,6 +201,8 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   const [evidenceAttachedTo, setEvidenceAttachedTo] = useState("RO");
   const [editingLaborRowId, setEditingLaborRowId] = useState("");
   const [laborDraft, setLaborDraft] = useState<LaborDraft>({ hours: "", included: "", title: "" });
+  const [editingPartId, setEditingPartId] = useState("");
+  const [partDraft, setPartDraft] = useState<PartDraft>({ name: "", number: "", quantity: "", unitPrice: "" });
   const [acceptedAddOnIds, setAcceptedAddOnIds] = useState<string[]>([]);
   const [reviewOpen, setReviewOpen] = useState(true);
   const [lookupQuery, setLookupQuery] = useState("");
@@ -299,6 +302,12 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   const partsNeedCount = estimateParts.reduce((sum, item) => sum + item.quantity, 0);
   const pendingPricingCount = estimateParts.filter((item) => item.pricingStatus === "PRICE_PENDING" || item.unitPrice === 0).length;
   const policyRequiredCount = estimateParts.filter((item) => item.source === "POLICY_REQUIRED").length;
+  const canCreateEstimate = Boolean(selectedRepairOrder) && Boolean(selectedLabor.length || selectedParts.length);
+  const createEstimateReason = !selectedRepairOrder
+    ? "Select the repair order shown in the customer and vehicle lookup before creating this estimate."
+    : !selectedLabor.length && !selectedParts.length
+      ? "Add at least one labor or part line before creating this estimate."
+      : "Creates the official estimate document and opens print and repair-workbench actions.";
   const suggestedAddOns = useMemo(() => {
     return commonSuggestedAddOns.filter((item, index, items) => items.findIndex((candidate) => candidate.id === item.id) === index && !acceptedAddOnIds.includes(item.id) && !estimatePolicy.requiredAddOnIds.includes(item.id)).slice(0, 4);
   }, [acceptedAddOnIds, estimatePolicy.requiredAddOnIds]);
@@ -324,6 +333,11 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
       window.clearTimeout(timer);
     };
   }, [lookupQuery]);
+
+  useEffect(() => {
+    if (!editingPartId) return;
+    document.querySelector<HTMLElement>("[data-part-editor]")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [editingPartId]);
 
   function addLabor(operation: LaborRepairOperation) {
     setSelectedLabor((current) => current.some((item) => item.id === operation.id) ? current : [...current, { ...operation, rowId: operation.id }]);
@@ -407,7 +421,10 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   }
 
   function addManualPart() {
-    setSelectedParts((current) => [...current, { id: `manual-part-${current.length + 1}`, laborRowId: selectedLabor[0]?.rowId ?? "manual", name: "Manual part", number: "Enter part #", quantity: 1, source: "MANUAL", unitPrice: 0 }]);
+    const id = `manual-part-${crypto.randomUUID()}`;
+    setSelectedParts((current) => [...current, { id, laborRowId: selectedLabor[0]?.rowId ?? "manual", name: "Manual part", number: "Enter part #", pricingStatus: "PRICE_PENDING", quantity: 1, source: "MANUAL", unitPrice: 0 }]);
+    setEditingPartId(id);
+    setPartDraft({ name: "Manual part", number: "", quantity: "1", unitPrice: "" });
     setWorkTab("parts");
   }
 
@@ -430,8 +447,29 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
     setWorkTab("parts");
   }
 
-  function editPart(id: string) {
-    setSelectedParts((current) => current.map((part) => part.id === id ? { ...part, quantity: part.quantity + 1 } : part));
+  function startPartEdit(part: SelectedPart) {
+    setEditingPartId(part.id);
+    setPartDraft({ name: part.name, number: part.number, quantity: String(part.quantity), unitPrice: part.unitPrice ? part.unitPrice.toFixed(2) : "" });
+  }
+
+  function savePartEdit(id: string) {
+    const quantity = Number(partDraft.quantity);
+    const unitPrice = Number(partDraft.unitPrice);
+    setSelectedParts((current) => current.map((part) => part.id === id ? {
+      ...part,
+      name: partDraft.name.trim() || part.name,
+      number: partDraft.number.trim() || part.number,
+      pricingStatus: Number.isFinite(unitPrice) && unitPrice >= 0 && partDraft.unitPrice.trim() ? "ESTIMATED" : "PRICE_PENDING",
+      quantity: Number.isFinite(quantity) && quantity > 0 ? Math.round(quantity) : part.quantity,
+      unitPrice: Number.isFinite(unitPrice) && unitPrice >= 0 ? Number(unitPrice.toFixed(2)) : part.unitPrice,
+    } : part));
+    setEditingPartId("");
+    setPartDraft({ name: "", number: "", quantity: "", unitPrice: "" });
+  }
+
+  function cancelPartEdit() {
+    setEditingPartId("");
+    setPartDraft({ name: "", number: "", quantity: "", unitPrice: "" });
   }
 
   function deletePart(id: string) {
@@ -478,6 +516,8 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
     setEvidenceAttachedTo("RO");
     setEditingLaborRowId("");
     setLaborDraft({ hours: "", included: "", title: "" });
+    setEditingPartId("");
+    setPartDraft({ name: "", number: "", quantity: "", unitPrice: "" });
     setAcceptedAddOnIds([]);
   }
 
@@ -514,21 +554,42 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
           if (!alreadyMatched) matches.push(part);
         }
       }
-      const additions = matches.slice(0, 3).map((part) => ({
+      const additions = matches.slice(0, 3).map((part) => {
+        const unitPrice = Number((((part.standardCostCents ?? 0) / 100) * partsMarkup).toFixed(2));
+        return {
         catalogPartId: part.id,
         id: `${operation.id}-${part.id}`,
         laborRowId: operation.id,
         name: part.description,
         number: part.partNumber,
+        pricingStatus: unitPrice > 0 ? "ESTIMATED" as const : "PRICE_PENDING" as const,
         quantity: quantityForPart(operation, part),
         source: "AUTO_CATALOG" as const,
-        unitPrice: Number((((part.standardCostCents ?? 0) / 100) * partsMarkup).toFixed(2)),
-      }));
-      if (!additions.length) return;
+        unitPrice,
+      };
+      });
+      // A labor operation always creates an estimate-ready parts plan, even when the live catalog has no priced match yet.
+      const fallbackParts = evaluateRepairAreaIntelligence({ operations: [operation], query: operation.title }).activeRulePack?.partRules.map((part) => ({
+        id: `${operation.id}-guide-${part.oemPartNumber}`,
+        laborRowId: operation.id,
+        name: part.description,
+        number: part.oemPartNumber,
+        pricingStatus: "PRICE_PENDING" as const,
+        quantity: part.quantity,
+        source: "AUTO_CATALOG" as const,
+        taxable: true,
+        unitPrice: 0,
+      })) ?? [];
+      const plannedParts: SelectedPart[] = additions.length ? additions : fallbackParts;
+      if (!plannedParts.length) {
+        setNotice(`Added ${operation.title}. No parts rule is available yet; add a part manually if one is required.`);
+        return;
+      }
       setSelectedParts((current) => {
         const existing = new Set(current.map((part) => `${part.laborRowId}:${part.catalogPartId ?? part.number}`));
-        return [...current, ...additions.filter((part) => !existing.has(`${part.laborRowId}:${part.catalogPartId ?? part.number}`))];
+        return [...current, ...plannedParts.filter((part) => !existing.has(`${part.laborRowId}:${part.catalogPartId ?? part.number}`))];
       });
+      setNotice(`${operation.title}: added ${plannedParts.length} linked part${plannedParts.length === 1 ? "" : "s"}${additions.length ? " with catalog pricing." : "; enter retail pricing after VIN and fitment review."}`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Unable to load matching parts from the catalog.");
     } finally {
@@ -616,7 +677,8 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
           taxCents,
         }),
       });
-      setNotice(`Estimate presented${result.result?.estimateVersion ? ` as version ${result.result.estimateVersion}` : ""}.`);
+      setNotice(`Estimate presented${result.result?.estimateVersion ? ` as version ${result.result.estimateVersion}` : ""}. Opening the official estimate document.`);
+      window.location.assign(officialEstimateHref);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Unable to present estimate.");
     } finally {
@@ -717,7 +779,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
         <button aria-selected={mode === "engine"} onClick={() => setMode("engine")} role="tab" type="button"><Brain />Labor Intelligence Engine</button>
       </div>
 
-      <div className={`${styles.workspaceShell} ${reviewOpen ? "" : styles.reviewCollapsed}`}>
+      <div className={`${styles.workspaceShell} ${reviewOpen ? "" : styles.reviewCollapsed} ${editingPartId ? styles.editingWorkspace : ""}`}>
         <main className={styles.catalogWorkspace}>
           <div className={styles.catalogHeader}>
             <div>
@@ -895,7 +957,22 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
               </section>
               <section>
                 <header><h3>Parts</h3><button onClick={addManualPart} type="button"><Plus />Add manual part</button></header>
-                <table><tbody>{estimateParts.map((part) => <tr key={part.id}><td>{part.name}<small>{part.number} · {partSourceLabel(part)}</small></td><td>{part.quantity}</td><td>{part.pricingStatus === "PRICE_PENDING" ? "Pending" : money(part.unitPrice)}</td><td>{money(part.quantity * part.unitPrice)}</td><td>{part.source === "POLICY_REQUIRED" ? <span className={styles.lockedPart}>Required</span> : <><button onClick={() => editPart(part.id)} type="button"><Edit3 /></button><button onClick={() => deletePart(part.id)} type="button"><Trash2 /></button></>}</td></tr>)}</tbody></table>
+                <table><thead><tr><th>Part</th><th>Qty</th><th>Retail</th><th>Total</th><th>Actions</th></tr></thead><tbody>{estimateParts.map((part) => editingPartId === part.id ? (
+                  <tr className={styles.editingPartRow} key={part.id}>
+                    <td colSpan={5}>
+                      <section className={styles.partEditor} data-part-editor>
+                        <header><div><h4>Edit estimate part</h4><p>Update the retail charge and quantity before this line is sent to the estimate or parts workflow.</p></div><span>{partSourceLabel(part)}</span></header>
+                        <div className={styles.partEditorFields}>
+                          <label>Description<input aria-label={`Part description for ${part.name}`} onChange={(event) => setPartDraft((current) => ({ ...current, name: event.target.value }))} value={partDraft.name} /></label>
+                          <label>Part #<input aria-label={`Part number for ${part.name}`} onChange={(event) => setPartDraft((current) => ({ ...current, number: event.target.value }))} value={partDraft.number} /></label>
+                          <label>Quantity<input aria-label={`Quantity for ${part.name}`} inputMode="numeric" min="1" onChange={(event) => setPartDraft((current) => ({ ...current, quantity: event.target.value }))} type="number" value={partDraft.quantity} /></label>
+                          <label>Retail unit price<input aria-label={`Retail unit price for ${part.name}`} inputMode="decimal" min="0" onChange={(event) => setPartDraft((current) => ({ ...current, unitPrice: event.target.value }))} placeholder="Enter retail price" step="0.01" type="number" value={partDraft.unitPrice} /></label>
+                        </div>
+                        <footer><strong>Estimate line total: {partDraft.unitPrice && Number.isFinite(Number(partDraft.unitPrice)) ? money((Number(partDraft.quantity) || 0) * Number(partDraft.unitPrice)) : "Quote needed"}</strong><div><button onClick={() => savePartEdit(part.id)} type="button"><Check />Save changes</button><button onClick={cancelPartEdit} type="button"><X />Cancel</button></div></footer>
+                      </section>
+                    </td>
+                  </tr>
+                ) : <tr key={part.id}><td>{part.name}<small>{part.number} · {partSourceLabel(part)}</small></td><td>{part.quantity}</td><td>{part.pricingStatus === "PRICE_PENDING" ? "Quote needed" : money(part.unitPrice)}</td><td>{part.pricingStatus === "PRICE_PENDING" ? "Quote needed" : money(part.quantity * part.unitPrice)}</td><td><button aria-label={`Edit ${part.name} price and quantity`} onClick={() => startPartEdit(part)} type="button"><Edit3 /></button>{part.source === "POLICY_REQUIRED" ? <span className={styles.lockedPart}>Required</span> : <button aria-label={`Delete ${part.name}`} onClick={() => deletePart(part.id)} type="button"><Trash2 /></button>}</td></tr>)}</tbody></table>
                 {partsCatalogBusy ? <p className={styles.partsCatalogStatus}>Matching labor to parts catalog...</p> : null}
               </section>
             </div>
@@ -935,7 +1012,8 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
                 <div className={styles.total}><dt>Total</dt><dd>{money(total)}</dd></div>
                 <div><dt>Gross profit</dt><dd className={styles.good}>{estimateLabor.length || estimateParts.length ? "31.8%" : "—"}</dd></div>
               </dl>
-              <button className={styles.createRo} disabled={busy || !selectedRepairOrder || (!selectedLabor.length && !selectedParts.length)} onClick={() => void presentEstimate()} type="button">{busy ? "Creating estimate..." : "Create Estimate"}</button>
+              <button aria-describedby="create-estimate-help" className={styles.createRo} disabled={busy || !canCreateEstimate} onClick={() => void presentEstimate()} type="button">{busy ? "Creating estimate..." : canCreateEstimate ? "Create & Open Official Estimate" : "Repair order required"}</button>
+              <p className={styles.createEstimateHint} id="create-estimate-help">{createEstimateReason}</p>
               <section className={styles.assignmentCard} aria-label="Technician assignment handoff">
                 <header>
                   <div>

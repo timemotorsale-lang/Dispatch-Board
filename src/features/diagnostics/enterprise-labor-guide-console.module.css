@@ -321,6 +321,18 @@
   grid-template-columns: minmax(0, 1fr) 58px;
 }
 
+.editingWorkspace {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.editingWorkspace .reviewPanel {
+  display: none;
+}
+
+.editingWorkspace .trayGrid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .catalogWorkspace {
   min-width: 0;
   border-top-left-radius: 0;
@@ -1010,6 +1022,115 @@
   border-radius: 5px;
 }
 
+.editingPartRow td,
+.editingPartRow td:last-child {
+  width: auto;
+  padding: 0;
+  text-align: left;
+}
+
+.partEditor {
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+  border: 1px solid #9dbbe9;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #f8fbff, #ffffff);
+}
+
+.partEditor header,
+.partEditor footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.partEditor h4,
+.partEditor p {
+  margin: 0;
+}
+
+.partEditor h4 {
+  color: #10213b;
+  font-size: 18px;
+}
+
+.partEditor p {
+  margin-top: 4px;
+  color: #607086;
+  font-size: 13px;
+}
+
+.partEditor header > span {
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #eaf2ff;
+  color: #245cb7;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.partEditorFields {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.5fr) minmax(190px, 1.2fr) minmax(130px, .55fr) minmax(190px, .8fr);
+  gap: 14px;
+}
+
+.partEditor label {
+  display: grid;
+  gap: 6px;
+  color: #42536a;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.partEditor input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 11px;
+  border: 1px solid #b9c8da;
+  border-radius: 6px;
+  color: #10213b;
+  font: inherit;
+  font-size: 14px;
+  outline: 0;
+}
+
+.partEditor input:focus {
+  border-color: #075fd4;
+  box-shadow: 0 0 0 3px #075fd420;
+}
+
+.partEditor footer {
+  padding-top: 16px;
+  border-top: 1px solid #dbe5f0;
+  color: #10213b;
+}
+
+.partEditor footer > div {
+  display: flex;
+  gap: 8px;
+}
+
+.partEditor footer button,
+.trayGrid .partEditor footer button {
+  width: auto;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid #a9bee1;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.partEditor footer button:first-child,
+.trayGrid .partEditor footer button:first-child {
+  border-color: #075fd4;
+  background: #075fd4;
+  color: #fff;
+}
+
 .partsCatalogStatus {
   margin: 8px 0 0;
   color: #607086;
@@ -1356,6 +1477,18 @@
   color: #fff !important;
 }
 
+.createRo:disabled {
+  cursor: not-allowed;
+  opacity: .58;
+}
+
+.createEstimateHint {
+  margin: -3px 0 12px;
+  color: #607086;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .assignmentCard {
   display: grid;
   gap: 10px;
@@ -1675,6 +1808,16 @@
   .modeTabs,
   .workTray nav {
     overflow-x: auto;
+  }
+
+  .partEditor header,
+  .partEditor footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .partEditorFields {
+    grid-template-columns: 1fr;
   }
 
   .operationResults header,

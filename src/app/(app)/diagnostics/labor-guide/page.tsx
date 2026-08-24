@@ -2,7 +2,7 @@ import { EnterpriseLaborGuideConsole } from "@/features/diagnostics/enterprise-l
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { LABOR_GUIDE_DIAGNOSTIC_NAVIGATION } from "@/server/diagnostics/labor-guide-navigation";
 import { LABOR_OPERATION_ADD_ONS, LABOR_OPERATION_TAXONOMY } from "@/server/diagnostics/labor-operation-taxonomy";
-import { listRepairOrders } from "@/server/repair-order/service";
+import { getRepairOrderDetail, listRepairOrders } from "@/server/repair-order/service";
 
 type PageProps = { searchParams?: Promise<{ mode?: string | string[]; repairOrderId?: string | string[]; returnLabel?: string | string[]; returnTo?: string | string[] }> };
 const first = (value: string | string[] | undefined) => Array.isArray(value) ? value[0] : value;
@@ -17,8 +17,10 @@ export default async function DiagnosticsLaborGuidePage({ searchParams }: PagePr
   const requestedRepairOrderId = first(params.repairOrderId);
   const returnTo = safeReturnTo(first(params.returnTo));
   const returnLabel = first(params.returnLabel)?.slice(0, 120);
-  const orders = await listRepairOrders(user, { page: 1, pageSize: 10, state: "ACTIVE" }).catch(() => ({ items: [] }));
-  const active = requestedRepairOrderId ? orders.items.find((order) => order.id === requestedRepairOrderId) : undefined;
+  const [orders, active] = await Promise.all([
+    listRepairOrders(user, { page: 1, pageSize: 10, state: "ACTIVE" }).catch(() => ({ items: [] })),
+    requestedRepairOrderId ? getRepairOrderDetail(user, requestedRepairOrderId).catch(() => null) : Promise.resolve(null),
+  ]);
   const activeRepairOrder = active ? {
     id: active.id,
     repairOrderNumber: active.repairOrderNumber,
