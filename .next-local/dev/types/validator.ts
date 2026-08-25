@@ -668,6 +668,15 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
   type __Unused = __Check
 }
 
+// Validate ../../../src/app/(app)/vehicles/coo-workbook/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/vehicles/coo-workbook">> = Specific
+  const handler = {} as typeof import("../../../src/app/(app)/vehicles/coo-workbook/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
 // Validate ../../../src/app/(app)/vehicles/customer-lifecycle/page.tsx
 {
   type __IsExpected<Specific extends AppPageConfig<"/vehicles/customer-lifecycle">> = Specific
@@ -2787,6 +2796,15 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
 {
   type __IsExpected<Specific extends RouteHandlerConfig<"/api/shop-recon/[repairOrderId]/parallel-title-preparation">> = Specific
   const handler = {} as typeof import("../../../src/app/api/shop-recon/[repairOrderId]/parallel-title-preparation/route.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../../src/app/api/shop-recon/[repairOrderId]/parts-readiness/route.ts
+{
+  type __IsExpected<Specific extends RouteHandlerConfig<"/api/shop-recon/[repairOrderId]/parts-readiness">> = Specific
+  const handler = {} as typeof import("../../../src/app/api/shop-recon/[repairOrderId]/parts-readiness/route.js")
   type __Check = __IsExpected<typeof handler>
   // @ts-ignore
   type __Unused = __Check

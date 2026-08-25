@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState, useTransition } from "react";
-import { ArrowRight, Building2, MapPin, Save, Truck, X } from "lucide-react";
+import { ArrowRight, Building2, MapPin, Save, Truck, Wrench, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { vendorRapidReconAnswers, vendorRapidReconNextAction, vendorRapidReconTransitions } from "@/lib/vendor-rapid-recon";
@@ -68,12 +68,16 @@ export function OutsideRepairWorkPanel({
   accountableLocation,
   defaultOpen,
   draft,
+  internalReconHref,
+  onUseInternalRecon,
   repairOrderId,
   work
 }: {
   accountableLocation?: string;
   defaultOpen?: boolean;
   draft?: OutsideWorkDraft;
+  internalReconHref?: string;
+  onUseInternalRecon?: () => void;
   repairOrderId: string;
   work: OutsideWork | null;
 }) {
@@ -106,6 +110,7 @@ export function OutsideRepairWorkPanel({
   const answers = work ? vendorRapidReconAnswers(work) : null;
   const transitions = work ? vendorRapidReconTransitions(work.status) : [];
   const canRecordDiagnosisOnly = work && !["RETURNED", "QC_REQUIRED", "COMPLETED", "CANCELLED"].includes(work.status);
+  const canSwitchToInternalRecon = !work || !["RETURNED", "QC_REQUIRED", "COMPLETED", "CANCELLED"].includes(work.status);
   const nextStep = !work
     ? draft
       ? { action: "Choose the approved follow-up vendor, confirm the repair scope, then save this outside repair record.", title: "Document the next vendor repair" }
@@ -218,6 +223,62 @@ export function OutsideRepairWorkPanel({
     });
   }
 
+  function switchToInternalRecon() {
+    setError(null);
+    setMessage(null);
+    if (!work) {
+      setOpen(false);
+      setMessage("Outside vendor workflow closed. Continue this repair as internal recon.");
+      onUseInternalRecon?.();
+      return;
+    }
+    if (!canSwitchToInternalRecon) {
+      setError("This outside repair record has already moved into return, QC, or completion. Use the current repair workbench stage to finish the handoff.");
+      return;
+    }
+    startTransition(async () => {
+      try {
+        const response = await fetch(`/api/repair-orders/${encodeURIComponent(repairOrderId)}/vendor-work`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            action: "UPDATE",
+            approvalStatus: work.approvalStatus,
+            approvedAmountCents: work.approvedAmountCents,
+            currentLocation: accountableLocation?.trim() || "Dealership",
+            customerVisibleSummary: "The vehicle is being repaired internally at the dealership.",
+            directFromSource: false,
+            estimateAmountCents: work.estimateAmountCents,
+            evidence: [],
+            expectedReturnAt: null,
+            idempotencyKey: crypto.randomUUID(),
+            internalNotes: "Corrected workflow: this vehicle is not at an outside vendor and repair will continue as internal recon.",
+            keysCustodian: work.keysCustodian || "Dealership",
+            lastUpdateSummary: "Corrected to internal recon.",
+            nextAction: "Continue internal recon repair progress, track any pending parts, then move to Final QC when the work is complete.",
+            nextFollowUpAt: null,
+            occurredAt: new Date().toISOString(),
+            reason: "Correct repair workflow from outside vendor to internal recon.",
+            scope: work.scope,
+            sentFrom: accountableLocation?.trim() || "Dealership",
+            status: "CANCELLED",
+            supplementalAmountCents: work.supplementalAmountCents,
+            transportMethod: work.transportMethod,
+            vendorWorkId: work.id,
+          })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error ?? "Internal recon correction could not be saved.");
+        setMessage("Outside vendor workflow cleared. This repair is now tracked as internal recon.");
+        setOpen(false);
+        onUseInternalRecon?.();
+        router.refresh();
+      } catch (failure) {
+        setError(failure instanceof Error ? failure.message : "Internal recon correction could not be saved.");
+      }
+    });
+  }
+
   if (!work && !open) return <section className="advisor-vendor-work advisor-vendor-work-closed">
     <header>
       <Truck />
@@ -227,7 +288,11 @@ export function OutsideRepairWorkPanel({
         <span>{nextStep.action}</span>
       </div>
     </header>
-    <button className="advisor-repair-primary" onClick={() => setOpen(true)} type="button">Open vendor documentation form <ArrowRight /></button>
+    {message ? <p className="advisor-response-success">{message}</p> : null}
+    <div className="advisor-vendor-choice-actions">
+      <button className="advisor-repair-primary" onClick={() => setOpen(true)} type="button">Open vendor documentation form <ArrowRight /></button>
+      {internalReconHref ? <a className="advisor-vendor-internal-link" href={internalReconHref}><Wrench /> Continue internal recon</a> : null}
+    </div>
   </section>;
 
   return <section className={`advisor-vendor-work ${work ? "active" : "creating"}`}>
@@ -236,6 +301,16 @@ export function OutsideRepairWorkPanel({
       <strong>{nextStep.title}</strong>
       <p>{nextStep.action}</p>
     </div>
+    {canSwitchToInternalRecon ? <div className="advisor-vendor-internal-switch">
+      <Wrench />
+      <div>
+        <strong>This repair is internal recon?</strong>
+        <span>Use this when the vehicle is staying with our team. It clears the outside-vendor path and keeps staff moving through internal repair, parts, completion, and Final QC.</span>
+      </div>
+      <button disabled={pending} onClick={switchToInternalRecon} type="button">
+        {pending ? "Saving..." : "Switch to internal recon"}
+      </button>
+    </div> : null}
     {work ? <>
       <header>
         <Building2 />

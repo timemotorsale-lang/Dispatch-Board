@@ -6,8 +6,8 @@ import Link from "next/link";
 import { type FormEvent, type KeyboardEvent, useRef, useState } from "react";
 
 type Named = { id: string; name?: string; code?: string; part?: { partNumber: string }; partNumber?: string; description?: string; status?: string; type?: string; locationId?: string; standardCostCents?: number; orderedTotalCents?: number; quantity?: number; unitCostCents?: number };
-type VendorWork = { approvalStatus: string; approvedAmountCents: number | null; currentLocation: string; directFromSource: boolean; estimateAmountCents: number | null; expectedReturnAt: string | null; id: string; keysCustodian: string; nextFollowUpAt: string | null; scope: string; sentFrom: string; status: string; supplementalAmountCents: number | null; transportMethod: string | null; vendorName: string };
-type RepairOrder = Named & { closedAt: string | null; inventoryUnit?: { acquisitionAppraisals?: Array<{ estimatedReconCents?: number | null; estimatedRetailCents?: number | null }>; acquisitionCase?: { appraisalSnapshot?: unknown } | null; id: string; inventoryNumber?: string | null } | null; locationId: string; repairOrderNumber: string; stage: string; vehicle: { color?: string | null; make?: string | null; model?: string | null; stockNumber?: string | null; vehicleNumber: string; vin?: string | null; year?: number | null }; customer: { displayName: string } | null; invoicePackages: Array<{ id: string; mismatchCodes: string[]; repairOrderId: string; status: string; version: number }>; repairJobs?: Array<{ id: string; jobNumber: string }>; vendorWorks?: VendorWork[] };
+type VendorWork = { approvalStatus: string; approvedAmountCents: number | null; currentLocation: string; directFromSource: boolean; estimateAmountCents: number | null; expectedReturnAt: string | null; id: string; keysCustodian: string; lastUpdateSummary?: string | null; nextAction?: string | null; nextFollowUpAt: string | null; scope: string; sentFrom: string; status: string; supplementalAmountCents: number | null; transportMethod: string | null; vendorName: string };
+type RepairOrder = Named & { closedAt: string | null; inventoryUnit?: { acquisitionAppraisals?: Array<{ estimatedReconCents?: number | null; estimatedRetailCents?: number | null }>; acquisitionCase?: { appraisalSnapshot?: unknown } | null; id: string; inventoryNumber?: string | null } | null; locationId: string; nextAction?: string | null; repairOrderNumber: string; stage: string; vehicle: { color?: string | null; make?: string | null; model?: string | null; stockNumber?: string | null; vehicleNumber: string; vin?: string | null; year?: number | null }; customer: { displayName: string } | null; invoicePackages: Array<{ id: string; mismatchCodes: string[]; repairOrderId: string; status: string; version: number }>; repairJobs?: Array<{ id: string; jobNumber: string }>; vendorWorks?: VendorWork[] };
 type Demand = Named & { notes?: string | null; partId: string; quantityRequired: number; quantityReserved: number; requiredAt: string; part: { partNumber: string; description?: string }; repairOrder: { repairOrderNumber: string } };
 type Offer = Named & { partId: string; unitCostCents: number; vendorId: string; vendor: { name: string }; part: { partNumber: string; description?: string } };
 type Requisition = Named & { requiredAt?: string; selectedOfferId: string | null; demand: { part: { partNumber: string; description?: string }; repairOrder: { repairOrderNumber: string } }; selectedOffer?: { vendor: { name: string } } | null };
@@ -21,7 +21,7 @@ type Recovery = Named & { actualCreditCents: number | null; expectedCreditCents?
 type Model = { custodyEvents: CustodyEvent[]; demands: Demand[]; discrepancies: Discrepancy[]; interchanges: Named[]; locations: Named[]; offers: Offer[]; parts: Named[]; purchaseOrders: PurchaseOrder[]; receipts: Receipt[]; recoveries: Recovery[]; repairOrders: RepairOrder[]; requisitions: Requisition[]; stockLocations: Named[]; transfers: Transfer[]; vendors: Named[] };
 
 type Props = { initial: Model; initialRepairOrderId?: string; returnLabel?: string; returnTo?: string };
-type DeskMode = "need" | "source" | "order" | "budget" | "receive" | "vendor" | "use" | "return";
+type DeskMode = "need" | "source" | "order" | "budget" | "receive" | "vendor" | "progress" | "use" | "return";
 type BudgetRequestStatus = "DRAFT" | "REQUESTED" | "APPROVED" | "DENIED";
 
 const now = () => new Date().toISOString();
@@ -68,6 +68,15 @@ function reconBudgetFor(order?: RepairOrder | null) {
   const safetyReserveCents = Math.round(Math.max(50000, estimatedRetailCents * 0.025));
   const maxReconBudgetCents = Math.max(0, estimatedRetailCents - totalAcquisitionInvestmentCents - targetGrossCents - safetyReserveCents);
   return { estimatedRetailCents, maxReconBudgetCents, safetyReserveCents, targetGrossCents, totalAcquisitionInvestmentCents };
+}
+
+function initialRepairProgressState() {
+  return {
+    nextCheckAt: local(new Date(Date.now() + 4 * 60 * 60 * 1000)),
+    note: "",
+    nextAction: "Continue the repair work that can be completed now, then install pending parts when they arrive.",
+    status: "CONTINUING_WITH_PENDING_PARTS",
+  };
 }
 
 function cleanDescription(value: string) {
@@ -138,12 +147,14 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
   const [editingPurchaseOrderId, setEditingPurchaseOrderId] = useState("");
   const [purchaseOrderDraft, setPurchaseOrderDraft] = useState("");
   const [pickupPlan, setPickupPlan] = useState({ assignedTo: "", deliveryAt: "", method: "Dealership driver", pickupAt: "" });
+  const [repairProgress, setRepairProgress] = useState(initialRepairProgressState);
 
   const [demand, setDemand] = useState(() => ({ partId: first(initial.parts), quantityRequired: "1", requiredAt: local(new Date(Date.now() + 24 * 60 * 60 * 1000)), substitutionAllowed: true, notes: "" }));
-  const [notes, setNotes] = useState<Record<DeskMode, string>>({ budget: "", need: "", order: "", receive: "", return: "", source: "", use: "", vendor: "" });
+  const [notes, setNotes] = useState<Record<DeskMode, string>>({ budget: "", need: "", order: "", progress: "", receive: "", return: "", source: "", use: "", vendor: "" });
 
   const selectedOrder = model.repairOrders.find((item) => item.id === orderId) ?? model.repairOrders[0] ?? null;
   const activeVendorWork = selectedOrder?.vendorWorks?.[0] ?? null;
+  const canCorrectOutsideRepair = Boolean(activeVendorWork && !["RETURNED", "QC_REQUIRED", "COMPLETED", "CANCELLED"].includes(activeVendorWork.status));
   const selectedNumber = orderNumberFor(selectedOrder);
   const selectedVehicleLabel = vehicleLabelFor(selectedOrder);
   const selectedVehicleMeta = vehicleMetaFor(selectedOrder);
@@ -178,7 +189,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
     setOrderId(nextOrderId);
     setMode("need");
     setNotice("");
-    setNotes({ budget: "", need: "", order: "", receive: "", return: "", source: "", use: "", vendor: "" });
+    setNotes({ budget: "", need: "", order: "", progress: "", receive: "", return: "", source: "", use: "", vendor: "" });
     setDemand({ partId: first(model.parts), quantityRequired: "1", requiredAt: local(new Date(Date.now() + 24 * 60 * 60 * 1000)), substitutionAllowed: true, notes: "" });
     setBudgetIncreaseDollars("");
     setBudgetReason("");
@@ -187,6 +198,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
     setEditingPurchaseOrderId("");
     setPurchaseOrderDraft("");
     setPickupPlan({ assignedTo: "", deliveryAt: "", method: "Dealership driver", pickupAt: "" });
+    setRepairProgress(initialRepairProgressState());
   }
 
   function openBudgetApproval() {
@@ -201,6 +213,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
     source: scopedRequisitions.filter((item) => !["ORDERED", "CANCELLED"].includes(item.status ?? "")).length,
     order: openPurchaseOrders.length,
     budget: remainingReconBudgetCents < 0 || budgetRequestStatus !== "DRAFT" ? 1 : 0,
+    progress: selectedOrder ? 1 : 0,
     receive: openPurchaseOrders.filter((item) => ["ACKNOWLEDGED", "PARTIALLY_RECEIVED", "RECEIVED"].includes(item.status ?? "")).length + scopedDiscrepancies.filter((item) => item.status === "OPEN").length,
     vendor: scopedCustodyEvents.filter((item) => item.type === "VENDOR_SHIP").length,
     use: scopedCustodyEvents.length,
@@ -469,6 +482,120 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
     if (!response.ok) throw new Error(result.error ?? "Pickup and delivery plan could not be saved.");
   }
 
+  async function saveRepairProgress() {
+    if (!selectedOrder) throw new Error("Repair order is required.");
+    const progressNote = repairProgress.note.trim();
+    const nextAction = repairProgress.nextAction.trim();
+    if (progressNote.length < 10) throw new Error("Add a short repair progress note before saving.");
+    if (!nextAction) throw new Error("Add the next action so the handoff is clear.");
+    const followUpAt = repairProgress.nextCheckAt ? new Date(repairProgress.nextCheckAt).toISOString() : null;
+    const statusLabel = repairProgress.status === "CONTINUING_WITH_PENDING_PARTS"
+      ? "Repair continuing while parts are pending"
+      : repairProgress.status === "PARTIAL_REPAIR_DONE"
+        ? "Partial repair completed while waiting on parts"
+        : "Repair paused pending parts";
+
+    await fetch(`/api/repair-orders/${encodeURIComponent(selectedOrder.id)}/planning`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "RECORD_REPAIR_PROGRESS",
+        contactChannel: "INTERNAL",
+        contactDirection: "INTERNAL",
+        contactOutcome: statusLabel,
+        customerVisibleSummary: progressNote,
+        exceptionCodes: repairProgress.status === "PAUSED_PENDING_PARTS" ? ["PARTS_DELAY"] : ["PARTS_PENDING_REPAIR_CONTINUES"],
+        idempotencyKey: crypto.randomUUID(),
+        internalNotes: `Parts are still pending. Repair progress update: ${progressNote}`,
+        nextContactAt: followUpAt,
+        occurredAt: now(),
+        promiseAt: selectedOrder.vendorWorks?.[0]?.expectedReturnAt ?? null,
+        reason: "Record urgent repair progress while ordered parts are still pending.",
+        statusCode: repairProgress.status,
+      }),
+    }).then(async (response) => {
+      const result = await response.json().catch(() => null) as { error?: string } | null;
+      if (!response.ok) throw new Error(result?.error ?? "Repair progress could not be saved.");
+    });
+
+    if (activeVendorWork && !["READY_FOR_PICKUP", "RETURN_TRANSPORT", "RETURNED", "QC_REQUIRED", "COMPLETED", "CANCELLED"].includes(activeVendorWork.status)) {
+      const nextVendorStatus = repairProgress.status === "PAUSED_PENDING_PARTS"
+        ? "WAITING_PARTS"
+        : activeVendorWork.status === "WAITING_PARTS"
+          ? "AT_VENDOR"
+          : activeVendorWork.status;
+      const response = await fetch(`/api/repair-orders/${encodeURIComponent(selectedOrder.id)}/vendor-work`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "UPDATE",
+          approvalStatus: activeVendorWork.approvalStatus,
+          approvedAmountCents: activeVendorWork.approvedAmountCents,
+          currentLocation: activeVendorWork.currentLocation,
+          customerVisibleSummary: progressNote,
+          directFromSource: activeVendorWork.directFromSource,
+          estimateAmountCents: activeVendorWork.estimateAmountCents,
+          evidence: [],
+          expectedReturnAt: activeVendorWork.expectedReturnAt,
+          idempotencyKey: crypto.randomUUID(),
+          internalNotes: `Urgent repair progress while ordered parts are pending: ${progressNote}`,
+          keysCustodian: activeVendorWork.keysCustodian,
+          lastUpdateSummary: statusLabel,
+          nextAction,
+          nextFollowUpAt: followUpAt,
+          occurredAt: now(),
+          reason: "Record repair progress while ordered parts are still pending.",
+          scope: activeVendorWork.scope,
+          sentFrom: activeVendorWork.sentFrom,
+          status: nextVendorStatus,
+          supplementalAmountCents: activeVendorWork.supplementalAmountCents,
+          transportMethod: activeVendorWork.transportMethod,
+          vendorWorkId: activeVendorWork.id,
+        }),
+      });
+      const result = await response.json().catch(() => null) as { error?: string } | null;
+      if (!response.ok) throw new Error(result?.error ?? "Outside repair progress could not be saved.");
+    }
+
+    setRepairProgress(initialRepairProgressState());
+  }
+
+  async function correctOutsideRepairToInternal() {
+    if (!selectedOrder || !activeVendorWork) throw new Error("An outside repair record is required before it can be corrected.");
+    if (!canCorrectOutsideRepair) throw new Error("This outside repair record has already moved into return or QC. Use the repair workbench to correct the final handoff.");
+    const response = await fetch(`/api/repair-orders/${encodeURIComponent(selectedOrder.id)}/vendor-work`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "UPDATE",
+        approvalStatus: activeVendorWork.approvalStatus,
+        approvedAmountCents: activeVendorWork.approvedAmountCents,
+        currentLocation: "Dealership",
+        customerVisibleSummary: "The vehicle is being repaired internally at the dealership.",
+        directFromSource: false,
+        estimateAmountCents: activeVendorWork.estimateAmountCents,
+        evidence: [],
+        expectedReturnAt: null,
+        idempotencyKey: crypto.randomUUID(),
+        internalNotes: "Corrected outside-vendor status: this vehicle is being repaired internally, not by an outside vendor.",
+        keysCustodian: activeVendorWork.keysCustodian,
+        lastUpdateSummary: "Corrected to internal dealership repair.",
+        nextAction: "Continue internal repair progress, track pending parts, then move to Final QC when work is complete.",
+        nextFollowUpAt: null,
+        occurredAt: now(),
+        reason: "Correct misinformation that this repair order is assigned to an outside vendor.",
+        scope: activeVendorWork.scope,
+        sentFrom: "Dealership",
+        status: "CANCELLED",
+        supplementalAmountCents: activeVendorWork.supplementalAmountCents,
+        transportMethod: activeVendorWork.transportMethod,
+        vendorWorkId: activeVendorWork.id,
+      }),
+    });
+    const result = await response.json().catch(() => null) as { error?: string } | null;
+    if (!response.ok) throw new Error(result?.error ?? "Outside repair correction could not be saved.");
+  }
+
   async function approveBudgetException() {
     if (!selectedOrder) throw new Error("Repair order is required.");
     if (!selectedOrder.inventoryUnit?.id) throw new Error("This repair order is not linked to an inventory unit, so the recon budget cannot be raised here.");
@@ -523,6 +650,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
   const lanes: Array<{ id: DeskMode; icon: React.ElementType; label: string; sub: string }> = [
     { id: "need", icon: PackagePlus, label: "Needed", sub: "List required parts" },
     { id: "order", icon: ShoppingCart, label: "Bought / Ordered", sub: "Create and track purchases" },
+    { id: "progress", icon: ListChecks, label: "Repair progress", sub: "Continue while parts wait" },
     { id: "receive", icon: Truck, label: "Received", sub: "Post receipts and exceptions" },
     { id: "use", icon: Wrench, label: "Finished", sub: "Used, installed, or unused" },
   ];
@@ -536,6 +664,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
     source: { action: "Save sourcing note", label: "Sourcing note", placeholder: "Add vendor quote, availability, contact, and any sourcing detail.", title: "Document sourcing" },
     order: { action: "Record bought parts", label: "Bought / ordered parts note", placeholder: "Add part bought, vendor, amount, date bought/ordered, and any purchase detail.", title: "Document bought / ordered parts" },
     budget: { action: "Request approval", label: "Budget approval request", placeholder: "Explain the overage, why it is needed, and what happens if it is denied.", title: "Request manager approval" },
+    progress: { action: "Save repair progress", label: "Repair progress update", placeholder: "Record what repair work is moving forward while ordered parts are still pending.", title: "Update repair progress" },
     receive: { action: "Record received parts", label: "Received parts note", placeholder: "Add what arrived, condition, quantity, packing slip, and any exception.", title: "Document received parts" },
     vendor: { action: "Save pickup plan", label: "Pickup and delivery", placeholder: "", title: "Coordinate pickup and delivery" },
     use: { action: "Record used or unused", label: "Used parts note", placeholder: "Add what was used. If not used, write not used or return.", title: "Document used parts" },
@@ -556,6 +685,10 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
           : budgetRatio >= 0.8
             ? "Staff may request General Manager review before the next purchase pushes this unit over budget."
             : "Budget is currently inside the guardrail; no exception is required."
+        : mode === "progress"
+          ? openPurchaseOrders.length
+            ? "Record the repair work that is continuing while ordered parts are still pending."
+            : "Record the current repair progress and the next handoff action."
         : mode === "vendor"
           ? `Plan pickup from ${pickupSupplierName} and delivery to ${activeVendorWork?.vendorName ?? "the assigned repair vendor"}.`
           : mode === "receive"
@@ -570,7 +703,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
     : nextPurchaseOrder
       ? activeVendorWork
         ? { detail: `Arrange movement from ${pickupSupplierName} to ${activeVendorWork.vendorName} so repairs can continue.`, label: "Plan pickup & delivery", mode: "vendor", title: `Coordinate delivery to ${activeVendorWork.vendorName}` }
-        : { detail: "Assign the outside repair destination before arranging movement of the bought part.", label: "Return to repair workflow", mode: "order", title: "Confirm the repair destination" }
+        : { detail: "Parts are ordered. Record what repair work is continuing now and what remains for the pending parts.", label: "Record repair progress", mode: "progress", title: "Continue repair while parts are pending" }
       : openNeededParts.length
             ? { detail: `${openNeededParts.length} needed part${openNeededParts.length === 1 ? " is" : "s are"} still open for this repair order.`, label: "Open buying step", mode: "order", title: "Source or buy the needed parts" }
             : { detail: "Parts work is complete. Return to the repair workflow and continue the vehicle.", label: "Review completed parts", mode: "use", title: "Continue the repair workflow" };
@@ -707,6 +840,23 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
 
     <Notice value={notice} />
 
+    {activeVendorWork ? (
+      <section className="scp-internal-repair-correction" aria-label="Correct outside repair status">
+        <div>
+          <span>Repair location correction</span>
+          <strong>Currently marked as outside repair at {activeVendorWork.vendorName}</strong>
+          <small>If this vehicle is actually being repaired internally, clear the outside-vendor record and keep moving from the internal repair progress step.</small>
+        </div>
+        <button
+          disabled={busy || !canCorrectOutsideRepair}
+          onClick={() => void run(correctOutsideRepairToInternal, "Corrected: this vehicle is now tracked as an internal dealership repair. Use Repair progress to update what is happening while parts are pending.")}
+          type="button"
+        >
+          Mark repair as internal
+        </button>
+      </section>
+    ) : null}
+
     <section className="scp-workflow-handoff" aria-label="Continue your workflow">
       <div className="scp-workflow-copy">
         <ListChecks aria-hidden="true" size={24} />
@@ -786,6 +936,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
                 {editingPurchaseOrderId === item.id ? <div className="scp-inline-edit"><textarea aria-label={`Edit ${item.purchaseOrderNumber} lines`} onChange={(event) => setPurchaseOrderDraft(event.target.value)} value={purchaseOrderDraft} /><small>Use one line per part: PART-NUMBER | qty 1 | $64.50. If this PO is completely wrong, remove it instead of saving an empty correction.</small><div><button disabled={busy} onClick={() => revisePurchaseOrder(item)} type="button">Save correction</button><button className="danger" disabled={busy} onClick={() => cancelMistakenPurchaseOrder(item)} type="button">Remove mistaken PO</button><button disabled={busy} onClick={() => setEditingPurchaseOrderId("")} type="button">Cancel</button></div></div> : <div className="scp-record-actions">{editable ? <button disabled={busy} onClick={() => beginPurchaseOrderEdit(item)} type="button">Edit before issue</button> : <small>Locked after issue. Use receiving exception, return, or manager correction.</small>}</div>}
               </article>;
             }) : <p>No open purchase orders.</p>}</div> : null}
+            {mode === "progress" ? <div className="scp-audit-list"><article><div><strong>{selectedOrder?.repairOrderNumber ?? "Repair order"}</strong><span>{openPurchaseOrders.length ? `${openPurchaseOrders.length} ordered part${openPurchaseOrders.length === 1 ? "" : "s"} still pending or open.` : "No open purchase orders are linked to this repair order."}</span></div><small>{selectedOrder?.stage ? `${format(selectedOrder.stage)} · ${selectedOrder.nextAction ?? "Continue repair progress"}` : "Select a repair order to update progress."}</small></article>{activeVendorWork ? <article><div><strong>Outside-vendor flag is still active</strong><span>{activeVendorWork.vendorName} · {format(activeVendorWork.status)}</span></div><small>Use Mark repair as internal above if this is misinformation.</small></article> : null}</div> : null}
             {mode === "receive" ? <div className="scp-audit-list">{scopedReceipts.length ? scopedReceipts.map((item) => <article key={item.id}><div><strong>{item.purchaseOrder?.purchaseOrderNumber ?? "Receipt"}</strong><span>{item.stockLocation?.code ?? "Stock"} · {safeDate(item.receivedAt)}</span></div>{cleanPartLines(item.lines).length ? <ul>{cleanPartLines(item.lines).map((line, index) => <li key={`${item.id}-${index}`}><span>{partLabel(line.partId)}</span><b>Qty {line.quantity ?? 1} · damaged {line.damagedQuantity ?? 0}</b></li>)}</ul> : <small>No receipt line detail captured.</small>}</article>) : <p>No receipts linked to this repair order yet.</p>}{scopedDiscrepancies.filter((item) => item.status === "OPEN").map((item) => <article key={item.id}><div><strong>Receiving issue</strong><span>{item.description ?? item.code ?? "Exception"}</span></div><small>{format(item.status)}</small></article>)}</div> : null}
             {mode === "vendor" ? <div className="scp-audit-list">{scopedCustodyEvents.filter((item) => item.type === "VENDOR_SHIP").length ? scopedCustodyEvents.filter((item) => item.type === "VENDOR_SHIP").map((item) => <article key={item.id}><div><strong>{item.partNumber ?? item.part?.partNumber ?? "Part delivered"}</strong><span>Qty {item.quantity ?? 1} · {money(item.unitCostCents ?? 0)}</span></div><small>{format(item.status)} · vendor custody</small></article>) : <p>No parts have been marked delivered to vendor.</p>}</div> : null}
             {mode === "use" ? <div className="scp-audit-list">{scopedCustodyEvents.length ? scopedCustodyEvents.map((item) => <article key={item.id}><div><strong>{item.partNumber ?? item.part?.partNumber ?? "Part movement"}</strong><span>{format(item.type)} · Qty {item.quantity ?? 1} · {money(item.unitCostCents ?? 0)}</span></div><small>{format(item.status)}</small></article>) : <p>No used, installed, or unused-return part movements recorded.</p>}</div> : null}
@@ -826,7 +977,31 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
               </section>
             </div>
           </section>
-        ) : mode === "vendor" ? <form aria-busy={busy} className="scp-pickup-plan" onSubmit={(event: FormEvent) => { event.preventDefault(); void run(savePickupPlan, `Pickup and delivery to ${activeVendorWork?.vendorName ?? "the repair vendor"} scheduled.`); }}>
+        ) : mode === "progress" ? <form aria-busy={busy} className="scp-progress-update" onSubmit={(event: FormEvent) => { event.preventDefault(); void run(saveRepairProgress, "Repair progress saved. Parts remain ordered, and the repair order timeline now shows work is continuing while parts are pending."); }}>
+          <header><span>Urgent repair progress</span><h2>Continue repair while parts are pending</h2><small>Use this when the vehicle can keep moving without waiting for every ordered part to arrive.</small></header>
+          <div className="scp-progress-status">
+            <button className={repairProgress.status === "CONTINUING_WITH_PENDING_PARTS" ? "active" : ""} onClick={() => setRepairProgress((value) => ({ ...value, status: "CONTINUING_WITH_PENDING_PARTS" }))} type="button"><ListChecks size={17} />Continuing now</button>
+            <button className={repairProgress.status === "PARTIAL_REPAIR_DONE" ? "active" : ""} onClick={() => setRepairProgress((value) => ({ ...value, status: "PARTIAL_REPAIR_DONE" }))} type="button"><Wrench size={17} />Partial repair done</button>
+            <button className={repairProgress.status === "PAUSED_PENDING_PARTS" ? "active" : ""} onClick={() => setRepairProgress((value) => ({ ...value, status: "PAUSED_PENDING_PARTS" }))} type="button"><Truck size={17} />Paused for parts</button>
+          </div>
+          <label className="scp-field scp-textarea-field">
+            <span>What work is happening now?</span>
+            <textarea onChange={(event) => setRepairProgress((value) => ({ ...value, note: event.target.value }))} placeholder="Example: Started body repair and prep work. Brake vacuum pump is ordered; vehicle will be finished after the part arrives." value={repairProgress.note} />
+          </label>
+          <div className="scp-form-grid">
+            <Field label="Next action">
+              <input onChange={(event) => setRepairProgress((value) => ({ ...value, nextAction: event.target.value }))} value={repairProgress.nextAction} />
+            </Field>
+            <Field label="Next check">
+              <input onChange={(event) => setRepairProgress((value) => ({ ...value, nextCheckAt: event.target.value }))} type="datetime-local" value={repairProgress.nextCheckAt} />
+            </Field>
+          </div>
+          <div className="scp-progress-context">
+            <strong>{openPurchaseOrders.length ? `${openPurchaseOrders.length} open purchase order${openPurchaseOrders.length === 1 ? "" : "s"} stay active.` : "No ordered parts are linked to this repair order."}</strong>
+            <span>This update does not receive, install, or close parts. It only records that repair work is continuing or paused while parts are pending.</span>
+          </div>
+          <div className="scp-save-row"><button className="scp-primary-button" disabled={busy || !selectedOrder || repairProgress.note.trim().length < 10} type="submit">{busy ? "Saving progress..." : "Save repair progress"}<ArrowRight size={16} /></button><span className="scp-save-help">The next person will see this on the repair order timeline.</span></div>
+        </form> : mode === "vendor" ? <form aria-busy={busy} className="scp-pickup-plan" onSubmit={(event: FormEvent) => { event.preventDefault(); void run(savePickupPlan, `Pickup and delivery to ${activeVendorWork?.vendorName ?? "the repair vendor"} scheduled.`); }}>
           <header><span>Repair-advancing action</span><h2>Coordinate pickup and delivery</h2><small>Move the bought part from its supplier to the shop that already has the vehicle.</small></header>
           <div className="scp-route-summary"><article><span>Pick up from</span><strong>{nextPurchaseOrder ? pickupSupplierName : "No bought-part supplier"}</strong></article><ArrowRight /><article><span>Deliver to</span><strong>{activeVendorWork?.vendorName ?? "No outside repair vendor assigned"}</strong></article></div>
           <div className="scp-form-grid">

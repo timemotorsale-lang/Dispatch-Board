@@ -246,7 +246,7 @@ const stageToLifecycleIndex: Record<string, number> = {
 
 function activeVendorWorkFor(order: RepairOrderWorkbenchOrder) {
   const works = order.vendorWorks ?? [];
-  return works.find((work) => !["COMPLETED", "CANCELLED"].includes(work.status)) ?? works[0] ?? null;
+  return works.find((work) => !["COMPLETED", "CANCELLED"].includes(work.status)) ?? null;
 }
 
 function vendorQcNeedsInternalCompletion(work: ReturnType<typeof activeVendorWorkFor>) {
@@ -544,6 +544,7 @@ export function RepairOrderEnterpriseWorkbench({
   const [currentOwner, setCurrentOwner] = useState(order.ownerUser);
   const [currentVersion, setCurrentVersion] = useState(order.version);
   const [evidencePreviewOpen, setEvidencePreviewOpen] = useState(false);
+  const [useInternalRecon, setUseInternalRecon] = useState(false);
   const concernSummary = order.serviceVisit?.concernSummary?.trim() || "Concern not recorded.";
   const intakeNotes = order.serviceVisit?.intakeNotes?.trim() || null;
   const plan = useMemo(() => diagnosticPlan(concernSummary), [concernSummary]);
@@ -581,6 +582,7 @@ export function RepairOrderEnterpriseWorkbench({
   const evidenceStageIndex = authorization ? 3 : estimate ? 2 : order.inspectionVersions.length || diagnosis ? 1 : 0;
   const lifecycleStageIndex = Math.max(stageToLifecycleIndex[order.stage] ?? 0, evidenceStageIndex);
   const activeVendorWork = activeVendorWorkFor(order);
+  const showingInternalRecon = useInternalRecon || !activeVendorWork;
   const vendorNeedsInternalCompletion = vendorQcNeedsInternalCompletion(activeVendorWork);
   const waitingParts = order.partDemands.some((part) => part.quantityReserved < part.quantityRequired);
   const vendorWaitingParts = Boolean(activeVendorWork) && (activeVendorWork?.status === "WAITING_PARTS" || waitingParts);
@@ -868,15 +870,28 @@ export function RepairOrderEnterpriseWorkbench({
             <MapPin />
             <div>
               <small>Location / workflow correction</small>
-              <strong>{activeVendorWork ? "Outside vendor workflow is active" : "Need to assign this vehicle to an outside vendor?"}</strong>
-              <span>{activeVendorWork ? "Update the vendor, current physical location, status, ETA, and next action from this repair order." : "Use this when the vehicle physically belongs at an outside vendor even if the RO summary currently shows the dealership location."}</span>
+              <strong>{activeVendorWork && !useInternalRecon ? "Outside vendor workflow is active" : "Internal recon workflow"}</strong>
+              <span>{activeVendorWork && !useInternalRecon ? "If this is wrong, switch it back to internal recon below. Otherwise update vendor status, ETA, and next action from this repair order." : "Use this when our staff are repairing the vehicle internally. Keep parts, job creation, repair progress, and Final QC on this same RO."}</span>
             </div>
           </header>
+          {showingInternalRecon ? (
+            <div className="rowb-internal-recon-path">
+              <Wrench />
+              <div>
+                <strong>Vehicle is being repaired internally</strong>
+                <span>Continue with the internal chain: create or update the repair job, track parts, record repair progress, then open Final QC.</span>
+              </div>
+              <Link href={partsWorkspaceHref}>Open internal repair and parts <ChevronRight /></Link>
+            </div>
+          ) : null}
           <OutsideRepairWorkPanel
             accountableLocation={order.location.name}
+            defaultOpen={false}
             draft={vendorCorrectionDraft}
+            internalReconHref={partsWorkspaceHref}
+            onUseInternalRecon={() => setUseInternalRecon(true)}
             repairOrderId={order.id}
-            work={activeVendorWork ? vendorWorkForEditor(activeVendorWork) : null}
+            work={activeVendorWork && !useInternalRecon ? vendorWorkForEditor(activeVendorWork) : null}
           />
         </section>
           <article>
