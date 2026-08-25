@@ -13,6 +13,7 @@ import {
   Gauge,
   KeyRound,
   LockKeyhole,
+  MapPin,
   Printer,
   ScanLine,
   ShieldAlert,
@@ -23,6 +24,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { BackToServiceAdvisorWorkspace } from "@/features/advisor/advisor-return-link";
+import { OutsideRepairWorkPanel, type OutsideWork } from "@/features/advisor/outside-repair-work-panel";
 import { RepairOrderDiagnosticsBridge } from "@/features/diagnostics/repair-order-diagnostics-bridge";
 import type { getRepairOrderDiagnosticsBridge } from "@/server/diagnostics/service";
 
@@ -99,18 +101,27 @@ type RepairOrderWorkbenchOrder = {
   }>;
   partDemands: Array<{ id: string; quantityRequired: number; quantityReserved: number }>;
   vendorWorks?: Array<{
-    id: string;
-    vendorName: string;
-    status: string;
     approvalStatus: string;
+    approvedAmountCents: number | null;
     currentLocation: string;
     directFromSource: boolean;
+    estimateAmountCents: number | null;
+    events: Array<{ actorUser: { name: string }; occurredAt: string | Date; summary: string; toStatus: string }>;
     expectedReturnAt: string | Date | null;
-    nextAction: string;
+    id: string;
+    keysCustodian: string;
     lastUpdateSummary: string;
+    nextAction: string;
+    nextFollowUpAt: string | Date | null;
     scope: string;
+    sentAt: string | Date;
     sentFrom: string;
+    status: string;
+    supplementalAmountCents: number | null;
     transportMethod: string | null;
+    vendorId: string | null;
+    vendorName: string;
+    workType: string;
   }>;
 };
 
@@ -238,6 +249,38 @@ function activeVendorWorkFor(order: RepairOrderWorkbenchOrder) {
   return works.find((work) => !["COMPLETED", "CANCELLED"].includes(work.status)) ?? works[0] ?? null;
 }
 
+function vendorQcNeedsInternalCompletion(work: ReturnType<typeof activeVendorWorkFor>) {
+  if (!work || work.status !== "QC_REQUIRED") return false;
+  return /\b(fail|failed|incomplete|not complete|not completed|not fixed|did not complete|follow-up|completion|decision|required)\b/i.test(`${work.lastUpdateSummary} ${work.nextAction}`);
+}
+
+function vendorWorkForEditor(work: NonNullable<ReturnType<typeof activeVendorWorkFor>>): OutsideWork {
+  const copy = JSON.parse(JSON.stringify(work)) as Partial<OutsideWork>;
+  return {
+    approvalStatus: copy.approvalStatus ?? "NEEDS_DOCUMENTATION",
+    approvedAmountCents: copy.approvedAmountCents ?? null,
+    currentLocation: copy.currentLocation ?? copy.vendorName ?? "Outside vendor",
+    directFromSource: copy.directFromSource ?? false,
+    estimateAmountCents: copy.estimateAmountCents ?? null,
+    events: copy.events ?? [],
+    expectedReturnAt: copy.expectedReturnAt ?? null,
+    id: copy.id ?? "",
+    keysCustodian: copy.keysCustodian ?? "Vendor",
+    lastUpdateSummary: copy.lastUpdateSummary ?? "Outside vendor work is active.",
+    nextAction: copy.nextAction ?? "Record the latest outside-vendor update.",
+    nextFollowUpAt: copy.nextFollowUpAt ?? null,
+    scope: copy.scope ?? "Outside vendor repair work.",
+    sentAt: copy.sentAt ?? new Date().toISOString(),
+    sentFrom: copy.sentFrom ?? "Dealership",
+    status: copy.status ?? "AT_VENDOR",
+    supplementalAmountCents: copy.supplementalAmountCents ?? null,
+    transportMethod: copy.transportMethod ?? null,
+    vendorId: copy.vendorId ?? null,
+    vendorName: copy.vendorName ?? "Outside vendor",
+    workType: copy.workType ?? "OTHER",
+  };
+}
+
 function vendorDispatchSummary(work: NonNullable<ReturnType<typeof activeVendorWorkFor>>) {
   if (work.directFromSource) return `Vehicle sent directly from ${work.sentFrom} to ${work.vendorName}.`;
   if (work.transportMethod?.trim()) return `Vehicle ${work.transportMethod} from ${work.sentFrom} to ${work.vendorName}.`;
@@ -347,6 +390,7 @@ function contextualWorkspaceTabs(input: {
   orderStage: string;
   partsWorkspaceHref: string;
   planningHref: string;
+  vendorNeedsInternalCompletion: boolean;
 }) {
   const qcHref = `/vehicles/quality-control?repairOrderId=${encodeURIComponent(input.orderId)}&returnLabel=${encodeURIComponent("Return to Repair Workbench")}&returnTo=${encodeURIComponent(`/vehicles/repair-workbench?repairOrderId=${input.orderId}`)}`;
   const completionHref = `${input.planningHref}#repair-progress`;
@@ -379,6 +423,22 @@ function contextualWorkspaceTabs(input: {
       },
       repairTabs[1],
       repairTabs[2],
+    ] satisfies WorkspaceTransitionTab[];
+  }
+
+  if (input.vendorNeedsInternalCompletion) {
+    return [
+      {
+        detail: "Create an internal completion scope/job on this same RO for the items the outside vendor did not finish.",
+        href: `${input.planningHref}#repair-planning-step-2`,
+        recommended: true,
+        title: "Follow-up repair scope",
+      },
+      {
+        detail: "Review the failed vendor-return decision and keep the QC evidence attached to the same repair order.",
+        href: qcHref,
+        title: "Vendor QC record",
+      },
     ] satisfies WorkspaceTransitionTab[];
   }
 
@@ -506,6 +566,7 @@ export function RepairOrderEnterpriseWorkbench({
   const safetyReview = /brake|steer|airbag|fire|smoke|fuel|overheat|safety|not operable/i.test(concernSummary);
   const planningReturn = `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(order.id)}`;
   const planningHref = `/vehicles/shop-planning?repairOrderId=${encodeURIComponent(order.id)}&returnTo=${encodeURIComponent(planningReturn)}`;
+  const vendorFollowUpPlanningHref = `${planningHref}&vendorFollowUp=1`;
   const estimatePlanningHref = `${planningHref}#repair-planning-step-3`;
   const partsWorkspaceHref = `/vehicles/service-close-parts?repairOrderId=${encodeURIComponent(order.id)}&returnTo=${encodeURIComponent(planningReturn)}&returnLabel=${encodeURIComponent(order.repairOrderNumber)}`;
   const selectedOwner = options.users.find((user) => user.id === ownerUserId) ?? null;
@@ -520,13 +581,26 @@ export function RepairOrderEnterpriseWorkbench({
   const evidenceStageIndex = authorization ? 3 : estimate ? 2 : order.inspectionVersions.length || diagnosis ? 1 : 0;
   const lifecycleStageIndex = Math.max(stageToLifecycleIndex[order.stage] ?? 0, evidenceStageIndex);
   const activeVendorWork = activeVendorWorkFor(order);
+  const vendorNeedsInternalCompletion = vendorQcNeedsInternalCompletion(activeVendorWork);
   const waitingParts = order.partDemands.some((part) => part.quantityReserved < part.quantityRequired);
   const vendorWaitingParts = Boolean(activeVendorWork) && (activeVendorWork?.status === "WAITING_PARTS" || waitingParts);
   const directBodyPath = diagnosis?.cause?.includes("Direct repair scope approved without troubleshooting diagnosis.") ?? false;
   const latestCustody = order.vehicle.custodyEvents?.[0] ?? null;
   const custodyLocation = latestCustody?.positionLabel || latestCustody?.location?.name || null;
-  const currentLocationLabel = custodyLocation || activeVendorWork?.currentLocation || order.location.name;
-  const currentLocationKind = custodyLocation || activeVendorWork ? "Current physical location" : "Current location";
+  const currentLocationLabel = activeVendorWork?.currentLocation || custodyLocation || order.location.name;
+  const currentLocationKind = activeVendorWork || custodyLocation ? "Current physical location" : "Current location";
+  const vendorCorrectionDraft = activeVendorWork
+    ? undefined
+    : {
+        approvalStatus: "NEEDS_DOCUMENTATION",
+        currentLocation: "",
+        customerVisibleSummary: "The vehicle is with an outside repair facility. We are monitoring the work and expected return.",
+        lastUpdateSummary: "Vehicle assigned back to outside vendor.",
+        nextAction: "Confirm vendor receipt, scope, estimate, approval status, and expected return.",
+        scope: concernSummary,
+        status: "AT_VENDOR",
+        workType: "BODY_SHOP",
+      };
   const nextSteps = nextStepPlan({
     activeVendorWork,
     authorization,
@@ -546,11 +620,15 @@ export function RepairOrderEnterpriseWorkbench({
       : inventorySafeNextAction(order.nextAction, isInventoryRecon);
   const primaryActionHref = vendorWaitingParts
     ? partsWorkspaceHref
-    : diagnosis || directBodyPath
+    : vendorNeedsInternalCompletion
+      ? `${vendorFollowUpPlanningHref}#repair-planning-step-2`
+      : diagnosis || directBodyPath
       ? estimatePlanningHref
       : planningHref;
   const primaryActionLabel = vendorWaitingParts
     ? "Update parts and delivery"
+    : vendorNeedsInternalCompletion
+      ? "Create follow-up repair scope"
     : activeVendorWork
       ? "Record vendor update"
       : order.repairJobs.length > 0
@@ -562,6 +640,8 @@ export function RepairOrderEnterpriseWorkbench({
           : "Start Diagnosis";
   const primaryActionSummary = vendorWaitingParts
     ? "Receive the requested parts, approve any draft purchase order, and record delivery to the outside vendor so repair can continue."
+    : vendorNeedsInternalCompletion
+      ? "Keep this same RO open and add the internal completion work for the items the outside vendor did not finish."
     : activeVendorWork
       ? activeVendorWork.nextAction
       : order.repairJobs.length > 0
@@ -573,6 +653,8 @@ export function RepairOrderEnterpriseWorkbench({
           : "Open the guided diagnostic plan for this exact repair order and vehicle.";
   const workflowGateLabel = vendorWaitingParts
     ? "Parts action required"
+    : vendorNeedsInternalCompletion
+      ? "Vendor QC failed"
     : activeVendorWork
       ? "Outside repair in progress"
       : diagnosis
@@ -582,6 +664,8 @@ export function RepairOrderEnterpriseWorkbench({
           : "Complete intake facts";
   const workflowGateActionLabel = vendorWaitingParts
     ? "Open Parts Workspace"
+    : vendorNeedsInternalCompletion
+      ? "Create follow-up repair scope"
     : activeVendorWork
       ? "Record vendor update"
       : safetyReview
@@ -591,6 +675,8 @@ export function RepairOrderEnterpriseWorkbench({
           : "Start Diagnosis";
   const stageHeadline = vendorWaitingParts
     ? "Vendor waiting on our parts"
+    : vendorNeedsInternalCompletion
+      ? "Vendor QC failed - create internal completion work"
     : activeVendorWork
       ? "Outside repair in progress"
       : diagnosis
@@ -598,6 +684,8 @@ export function RepairOrderEnterpriseWorkbench({
         : "Technician diagnosis is next";
   const stageSummary = vendorWaitingParts
     ? activeVendorWork?.lastUpdateSummary || activeVendorWork?.nextAction || "The outside vendor is blocked until the dealership delivers the requested parts."
+    : vendorNeedsInternalCompletion
+      ? activeVendorWork?.lastUpdateSummary || "Dealership QC found the vendor return was incomplete and needs a follow-up internal repair scope."
     : activeVendorWork
       ? activeVendorWork?.lastUpdateSummary || vendorDispatchSummary(activeVendorWork) || activeVendorWork?.nextAction || "The vehicle is currently with the outside vendor and needs progress tracking."
       : diagnosis
@@ -605,6 +693,8 @@ export function RepairOrderEnterpriseWorkbench({
         : "The repair order remains the source of truth and is ready for technician evidence-led diagnosis.";
   const stageSupport = vendorWaitingParts
     ? "Lead with parts receiving, approval, and delivery updates. Keep the diagnosis record visible as supporting evidence only."
+    : vendorNeedsInternalCompletion
+      ? "Do not open a detached RO. Keep the original RO as the parent record, switch Repair Planning to Bodywork or Diagnostic as needed, and create the follow-up job from the missing work."
     : activeVendorWork
       ? "Lead with vendor progress, ETA, and return requirements. Keep the diagnosis record available underneath as supporting context."
       : diagnosis
@@ -640,7 +730,8 @@ export function RepairOrderEnterpriseWorkbench({
     orderId: order.id,
     orderStage: order.stage,
     partsWorkspaceHref,
-    planningHref: diagnosis || directBodyPath ? estimatePlanningHref : planningHref,
+    planningHref: vendorNeedsInternalCompletion ? vendorFollowUpPlanningHref : diagnosis || directBodyPath ? estimatePlanningHref : planningHref,
+    vendorNeedsInternalCompletion,
   });
 
   async function approveRelatedPurchaseOrder(purchaseOrder: RelatedPurchaseOrder) {
@@ -772,6 +863,22 @@ export function RepairOrderEnterpriseWorkbench({
             <div><dt>Next action</dt><dd>{displayedNextAction}</dd></div>
           </dl>
         </div>
+        <section className="rowb-location-workflow" aria-label="Location and workflow correction">
+          <header>
+            <MapPin />
+            <div>
+              <small>Location / workflow correction</small>
+              <strong>{activeVendorWork ? "Outside vendor workflow is active" : "Need to assign this vehicle to an outside vendor?"}</strong>
+              <span>{activeVendorWork ? "Update the vendor, current physical location, status, ETA, and next action from this repair order." : "Use this when the vehicle physically belongs at an outside vendor even if the RO summary currently shows the dealership location."}</span>
+            </div>
+          </header>
+          <OutsideRepairWorkPanel
+            accountableLocation={order.location.name}
+            draft={vendorCorrectionDraft}
+            repairOrderId={order.id}
+            work={activeVendorWork ? vendorWorkForEditor(activeVendorWork) : null}
+          />
+        </section>
           <article>
             <small>{isInventoryRecon ? "Recon concern captured at intake" : "Concern captured at intake"}</small>
             <p>{concernSummary}</p>
@@ -952,7 +1059,7 @@ export function RepairOrderEnterpriseWorkbench({
           <section className="rowb-finding" id="timeline"><header><h2>Repair-order timeline</h2><span>Exact version {currentVersion}</span></header><dl><div><dt>Opened</dt><dd>{date(order.openedAt)}</dd></div><div><dt>Current stage</dt><dd>{format(order.stage)}</dd></div><div><dt>Current stage clock</dt><dd>{duration(order.stageStartedAt)}</dd></div><div><dt>Target</dt><dd>{date(order.targetAt)}</dd></div><div><dt>Next accountable action</dt><dd>{displayedNextAction}</dd></div></dl></section>
         </main>
         <aside className="rowb-command">
-          <section className="rowb-workflow-gate"><h2>Workflow Gate</h2><div className="rowb-gate"><b>{readyCount}/{intakeChecks.length}</b><span>{workflowGateLabel}</span></div>{vendorWaitingParts ? <p className="danger"><AlertTriangle />Outside repair is paused because the vendor is waiting on dealership-supplied parts.</p> : activeVendorWork ? <p className="success"><Check />The vehicle is already in outside repair. Keep the vendor status, ETA, and return requirements current.</p> : safetyReview ? <p className="danger"><ShieldAlert />Begin with a safety inspection before operating or road-testing this vehicle.</p> : diagnosis ? <p className="success"><Check />Diagnosis has been recorded. The next step is to continue estimate, approval, and repair coordination.</p> : intakeReady ? <p className="success"><Check />Intake is complete. Diagnosis is the next step.</p> : <p className="danger"><AlertTriangle />Complete the highlighted intake facts before diagnosis.</p>}<Link className="rowb-gate-action" href={primaryActionHref}>{workflowGateActionLabel}<ChevronRight /></Link><small>{vendorWaitingParts ? "Use the parts workspace to approve, receive, and record delivery of vendor-requested parts." : activeVendorWork ? "Use this workbench to record vendor progress, confirm expected return, and shift to parts control whenever the vendor is waiting on dealership-supplied parts." : diagnosis ? "Diagnosis is already on file, so the work should move through estimate, approval, parts, and repair governance." : commitmentFollowUp}</small></section>
+          <section className="rowb-workflow-gate"><h2>Workflow Gate</h2><div className="rowb-gate"><b>{readyCount}/{intakeChecks.length}</b><span>{workflowGateLabel}</span></div>{vendorWaitingParts ? <p className="danger"><AlertTriangle />Outside repair is paused because the vendor is waiting on dealership-supplied parts.</p> : vendorNeedsInternalCompletion ? <p className="danger"><AlertTriangle />Dealership QC failed the outside-vendor return. Create the missing completion work on this same RO.</p> : activeVendorWork ? <p className="success"><Check />The vehicle is already in outside repair. Keep the vendor status, ETA, and return requirements current.</p> : safetyReview ? <p className="danger"><ShieldAlert />Begin with a safety inspection before operating or road-testing this vehicle.</p> : diagnosis ? <p className="success"><Check />Diagnosis has been recorded. The next step is to continue estimate, approval, and repair coordination.</p> : intakeReady ? <p className="success"><Check />Intake is complete. Diagnosis is the next step.</p> : <p className="danger"><AlertTriangle />Complete the highlighted intake facts before diagnosis.</p>}<Link className="rowb-gate-action" href={primaryActionHref}>{workflowGateActionLabel}<ChevronRight /></Link><small>{vendorWaitingParts ? "Use the parts workspace to approve, receive, and record delivery of vendor-requested parts." : vendorNeedsInternalCompletion ? "Open Repair Planning, choose the internal path that fits the missing work, then create the follow-up job under this RO." : activeVendorWork ? "Use this workbench to record vendor progress, confirm expected return, and shift to parts control whenever the vendor is waiting on dealership-supplied parts." : diagnosis ? "Diagnosis is already on file, so the work should move through estimate, approval, parts, and repair governance." : commitmentFollowUp}</small></section>
           <section id="assignment"><h2>Assignment &amp; Capacity</h2><label><span>Accountable owner / technician</span><select aria-label="Accountable owner or technician" disabled={busy} onChange={(event) => { setOwnerUserId(event.target.value); setNotice(""); }} value={ownerUserId}>{options.users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></label><button disabled={busy || !assignmentChanged} onClick={() => void assignOwner()} type="button">{busy ? "Saving Assignment…" : assignmentChanged ? `Assign to ${selectedOwner?.name}` : `Assigned to ${currentOwner.name}`}</button><p>{assignmentChanged ? `Save to make ${selectedOwner?.name} accountable for this repair order.` : `${currentOwner.name} is already assigned. Select a different person to change the assignment.`}</p><dl><div><dt>Current owner</dt><dd>{currentOwner.name}</dd></div><div><dt>Location</dt><dd>{order.location.name}</dd></div><div><dt>Parts demand</dt><dd>{order.partDemands.length}</dd></div></dl></section>
           <section><h2>What happens next</h2><ol className="rowb-next-steps">{nextSteps.map((step, index) => <li className={step.current ? "current" : undefined} key={step.title}><b>{index + 1}</b><span><strong>{step.title}</strong>{step.detail}</span></li>)}</ol></section>
           <section><h2>SLA / Promise Risk</h2><dl><div><dt>Promise</dt><dd>{date(order.serviceVisit.promisedAt)}</dd></div><div><dt>Target</dt><dd>{date(order.targetAt)}</dd></div><div><dt>Operating state</dt><dd>{format(order.operatingState)}</dd></div><div><dt>Stage clock</dt><dd>{duration(order.stageStartedAt)}</dd></div></dl></section>

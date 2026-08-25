@@ -10,7 +10,29 @@ export type RepairOrderCreateRecord = { actorUserId: string; appointmentId: stri
 export type RepairOrderConcernCandidate = { id:string;repairOrderNumber:string;stage:string;operatingState:string;version:number;concernSummary:string };
 export type RepairOrderControlRecord = Pick<RepairOrderCreateRecord,"actorUserId"|"locationId"|"nextAction"|"operatingState"|"ownerUserId"|"stateReason"|"targetAt">;
 const vehicleSelect = { id: true, vehicleNumber: true, vin: true, stockNumber: true, year: true, make: true, model: true, color: true, licensePlate: true, specificationSnapshot: true, version: true, registryRelationships: { where: { effectiveTo: null }, select: { relationshipType: true } } };
-const vendorWorkSelect = { id: true, vendorName: true, status: true, approvalStatus: true, currentLocation: true, expectedReturnAt: true, nextAction: true, lastUpdateSummary: true, directFromSource: true, sentFrom: true, transportMethod: true, scope: true };
+const vendorWorkSelect = {
+  approvalStatus: true,
+  approvedAmountCents: true,
+  currentLocation: true,
+  directFromSource: true,
+  estimateAmountCents: true,
+  events: { orderBy: { occurredAt: "desc" as const }, take: 20, include: { actorUser: { select: { name: true } } } },
+  expectedReturnAt: true,
+  id: true,
+  keysCustodian: true,
+  lastUpdateSummary: true,
+  nextAction: true,
+  nextFollowUpAt: true,
+  scope: true,
+  sentAt: true,
+  sentFrom: true,
+  status: true,
+  supplementalAmountCents: true,
+  transportMethod: true,
+  vendorId: true,
+  vendorName: true,
+  workType: true,
+};
 const detailInclude = { vehicle: { select: vehicleSelect }, customer: { select: { id: true, customerNumber: true, displayName: true, phoneNumber: true, email: true } }, inventoryUnit: { select: { id: true, inventoryNumber: true } }, ownerUser: { select: { id: true, name: true, email: true } }, location: { select: { id: true, code: true, name: true } }, serviceVisit: { include: { appointment: { select: { id: true, appointmentNumber: true, title: true, startsAt: true } }, createdByUser: { select: { id: true, name: true } } } }, vendorWorks: { orderBy: { updatedAt: "desc" as const }, select: vendorWorkSelect }, stateEvents: { orderBy: { version: "desc" as const }, take: 100, include: { actorUser: { select: { id: true, name: true } }, ownerUser: { select: { id: true, name: true } }, location: { select: { id: true, code: true, name: true } } } } };
 
 export function createRepairOrderRepository(database: PrismaClient = prisma) { return {

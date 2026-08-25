@@ -18,6 +18,7 @@ const model = {
     location: { name: "Time Motor Sales - Minneapolis" },
     serviceVisit: { concernSummary: "Grinding noise from front passenger brakes.", promisedAt: "2026-07-20T21:00:00.000Z" },
     releaseAuthorization: null,
+    vendorWorks: [],
     repairJobs: [{
       id: "job_1",
       jobNumber: "J-1",
@@ -151,5 +152,42 @@ describe("QualityControlWorkspace", () => {
     expect(html).toContain("QC CLEARED");
     expect(html).toContain("Green vehicle · ready for photos and frontline merchandising");
     expect(html).toContain("Green in QC list / ready for photos");
+  });
+
+  it("opens a vendor-return QC decision when outside vendor work comes back for inspection", () => {
+    const vendorModel = {
+      ...model,
+      repairOrders: [{
+        ...model.repairOrders[0],
+        id: "ro-vendor",
+        repairOrderNumber: "RO-VENDOR",
+        stage: "QUALITY_CONTROL",
+        repairJobs: [],
+        vendorWorks: [{
+          id: "vendor-work-1",
+          approvalStatus: "APPROVED",
+          currentLocation: "Time Motor Sales - Minneapolis",
+          expectedReturnAt: "2026-08-25T12:00:00.000Z",
+          lastUpdateSummary: "Vehicle returned from Simba Collision; vendor work needs dealership QC.",
+          nextAction: "Inspect vendor return and create follow-up scope if incomplete.",
+          scope: "Replace outer door handle and upper/lower steering column covers.",
+          sentFrom: "Dealership",
+          status: "QC_REQUIRED",
+          transportMethod: "Tow",
+          vendorName: "Simba Collision"
+        }]
+      }]
+    };
+
+    const html = renderToStaticMarkup(<QualityControlWorkspace initial={vendorModel} initialRepairOrderId="ro-vendor" />);
+
+    expect(html).toContain("Vendor Return QC");
+    expect(html).toContain("Pass if Simba Collision completed the approved scope");
+    expect(html).toContain("Fail vendor repair");
+    expect(html).toContain("Pass vendor repair");
+    expect(html).toContain("Create follow-up repair scope");
+    expect(html).toContain("vendorFollowUp=1");
+    expect(html).toContain("outer door handle and upper/lower steering column covers");
+    expect(html).toContain("Vendor-return decision");
   });
 });

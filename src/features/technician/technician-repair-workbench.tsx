@@ -66,6 +66,16 @@ const outcomeNextSteps: Record<RepairOutcome, { title: string; detail: string; a
   }
 };
 
+export function incompleteRepairUpdateIssue(input: { blockerReason: string; recommendedNextStep: string }) {
+  if (input.blockerReason.trim().length < 10) {
+    return "Add a short explanation of why the repair is incomplete before requesting the next action.";
+  }
+  if (!input.recommendedNextStep.trim()) {
+    return "Add the recommended next step so management can decide how to finish this repair.";
+  }
+  return null;
+}
+
 export function TechnicianRepairWorkbench({ model }: { model: TechnicianRepairWorkbenchModel }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -88,7 +98,7 @@ export function TechnicianRepairWorkbench({ model }: { model: TechnicianRepairWo
   const nextStep = completed
     ? { ...outcomeNextSteps.COMPLETED, title: model.job.status === "QC_PASSED" ? "QC passed" : "Submitted to QC", detail: model.job.status === "QC_PASSED" ? "This repair has passed QC. The next staff action is release readiness or shop exit from Shop & Recon." : "This repair is waiting for Quality Control. No more technician update is needed unless QC sends it back.", action: model.job.status === "QC_PASSED" ? "Open Shop & Recon" : "Open Quality Control", href: () => model.job.status === "QC_PASSED" ? "/vehicles/shop-recon" : "/vehicles/quality-control" }
     : outcomeNextSteps[outcome];
-  const incompleteReady = !incomplete || (workPerformed.trim().length > 0 && blockerReason.trim().length >= 10 && recommendedNextStep.trim().length > 0);
+  const incompleteIssue = incomplete ? incompleteRepairUpdateIssue({ blockerReason, recommendedNextStep }) : null;
   const completeReady = workPerformed.trim().length > 0 && verification.trim().length > 0 && qcNotes.trim().length > 0;
   const offsite = Boolean(
     model.repairOrder.vendorName &&
@@ -114,12 +124,8 @@ export function TechnicianRepairWorkbench({ model }: { model: TechnicianRepairWo
       setError("Work performed, verification, and QC handoff notes are required before sending the repair to QC.");
       return;
     }
-    if (eventType === "PAUSE" && blockerReason.trim().length < 10) {
-      setError("Explain the blocker or incomplete repair in at least 10 characters.");
-      return;
-    }
-    if (incomplete && eventType === "PAUSE" && !recommendedNextStep.trim()) {
-      setError("Add a recommended next step so management can decide what happens next.");
+    if (incomplete && eventType === "PAUSE" && incompleteIssue) {
+      setError(incompleteIssue);
       return;
     }
 
@@ -299,12 +305,17 @@ export function TechnicianRepairWorkbench({ model }: { model: TechnicianRepairWo
 
             {error ? <div className="notice notice-danger" role="alert"><p>{error}</p></div> : null}
             {message ? <div className="notice notice-success" role="status"><p>{message}</p></div> : null}
+            {incomplete && incompleteIssue && !error ? (
+              <div className="notice notice-warning" role="status">
+                <p>{incompleteIssue} The request button is active, so staff can click it anytime to see what is still needed.</p>
+              </div>
+            ) : null}
 
             <footer>
               <span><ShieldCheck size={15} /> Updates are linked to {model.repairOrder.number} and {model.job.jobNumber}.</span>
               {incomplete ? (
-                <button className="technician-submit-exception" disabled={pending || !model.actor.canExecute || completed || !incompleteReady} onClick={() => submitLabor("PAUSE")} type="button">
-                  <AlertTriangle size={17} /> Submit Update &amp; Request Next Action
+                <button className="technician-submit-exception" disabled={pending || !model.actor.canExecute || completed} onClick={() => submitLabor("PAUSE")} type="button">
+                  <AlertTriangle size={17} /> {pending ? "Submitting..." : "Submit Update & Request Next Action"}
                 </button>
               ) : (
                 <button className="technician-submit-complete" disabled={pending || !model.actor.canExecute || completed || !["RUNNING", "PAUSED"].includes(clockState) || !completeReady} onClick={() => submitLabor("FINISH")} type="button">

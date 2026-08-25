@@ -394,6 +394,9 @@ describe("Shop Recon unified vehicle-card design", () => {
     expect(html).toContain("Parts/materials consumed recorded");
     expect(html).toContain("Repair evidence / measurements attached");
     expect(html).toContain("Changed scope stopped or no-change confirmed");
+    expect(html).toContain("Parts missing or not purchased?");
+    expect(html).toContain("Pause repair &amp; order parts");
+    expect(html).toContain("return to Dispatch &amp; Work Staging to assign the technician again");
   });
 
   it("renders Stage 13 with technician completion tools above the sign-off checklist", () => {

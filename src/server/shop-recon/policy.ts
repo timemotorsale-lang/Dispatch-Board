@@ -85,6 +85,15 @@ export function normalizeShopReconTransition(value: unknown) {
   };
 }
 
+export function normalizeShopReconPartsReadinessReturn(value: unknown) {
+  const raw = record(value, "Parts-readiness return");
+  return {
+    expectedVersion: Number(raw.expectedVersion),
+    idempotencyKey: requiredText(raw.idempotencyKey, "Idempotency key", 1, 200),
+    reason: requiredText(raw.reason, "Parts-readiness reason", 10, 500),
+  };
+}
+
 export function normalizePublishShopReconEvidence(value: unknown) {
   const raw = record(value, "Operational evidence");
   return { expectedVersion: Number(raw.expectedVersion), idempotencyKey: requiredText(raw.idempotencyKey, "Idempotency key", 1, 200), reason: requiredText(raw.reason, "Publication reason", 10, 500) };

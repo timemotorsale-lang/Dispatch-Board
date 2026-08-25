@@ -50,3 +50,32 @@ export async function createApprovedRepairJobs(actor:AuthenticatedUser|null,repa
   }
   return{duplicate:false,result:{createdJobs,message:`${createdJobs.length} approved repair job${createdJobs.length===1?"":"s"} created.`},version:order.version+createdJobs.length};
 }
+
+export async function createCompletionRepairJob(actor:AuthenticatedUser|null,repairOrderId:string,value:unknown,input:Dependencies={}){
+  if(!value||typeof value!=="object"||Array.isArray(value))throw new Error("Completion repair-job request must be an object.");
+  const raw=value as Record<string,unknown>,idempotencyKey=typeof raw.idempotencyKey==="string"?raw.idempotencyKey.trim():"",reason=typeof raw.reason==="string"?raw.reason.trim():"Create and open the completion repair job.";
+  if(!idempotencyKey)throw new Error("Idempotency key is required.");
+  const order=await getShopPlanningDetail(actor,repairOrderId,input),lineKey=typeof raw.lineKey==="string"&&raw.lineKey.trim()?raw.lineKey.trim():"LINE-1";
+  const description=typeof raw.description==="string"&&raw.description.trim()?raw.description.trim():order.vendorWorks[0]?.scope||order.serviceVisit.concernSummary||"Completion repair work";
+  const plannedCorrection=typeof raw.plannedCorrection==="string"&&raw.plannedCorrection.trim()?raw.plannedCorrection.trim():description;
+  const now=input.now?.()??new Date(),presentedAt=typeof raw.presentedAt==="string"&&raw.presentedAt.trim()?raw.presentedAt:now.toISOString(),expiresAt=typeof raw.expiresAt==="string"&&raw.expiresAt.trim()?raw.expiresAt:new Date(now.getTime()+7*86_400_000).toISOString();
+  const activeVendor=order.vendorWorks.find(work=>!["COMPLETED","CANCELLED"].includes(work.status));
+  const diagnosisVersionId=order.diagnosisVersions[0]?.id??null;
+  if(!diagnosisVersionId&&!activeVendor)throw new Error("Create or review the repair scope before opening a completion job.");
+  const rawUnitPriceCents=Number(raw.unitPriceCents??0),unitPriceCents=Number.isInteger(rawUnitPriceCents)&&rawUnitPriceCents>0?rawUnitPriceCents:1,laborGuideMinutes=Number(raw.laborGuideMinutes??60),workTypeCode=typeof raw.workTypeCode==="string"&&raw.workTypeCode.trim()?raw.workTypeCode.trim():"GENERAL_REPAIR";
+  const existingEstimate=order.estimateVersions.find(estimate=>estimate.authorizations.some(auth=>["ACCEPTED","PARTIAL"].includes(auth.disposition)));
+  const existingAuthorization=existingEstimate?.authorizations.find(auth=>["ACCEPTED","PARTIAL"].includes(auth.disposition));
+  const existingAuthorizedKeys=Array.isArray(existingAuthorization?.authorizedLineKeys)?existingAuthorization.authorizedLineKeys.filter((item):item is string=>typeof item==="string"):[];
+  const existingLine=(existingEstimate?.lineItems as Array<{description:string;key:string;laborGuideMinutes:number;plannedCorrection:string;type:string;workTypeCode:string}>|undefined)?.find(line=>line.type==="LABOR"&&existingAuthorizedKeys.includes(line.key));
+  if(existingEstimate&&existingAuthorization&&existingLine){
+    const existingJob=order.repairJobs.find(job=>job.authorizationId===existingAuthorization.id&&job.authorizedLineKey===existingLine.key);
+    if(existingJob)return{duplicate:true,result:{authorizationId:existingAuthorization.id,estimateVersionId:existingEstimate.id,job:existingJob,message:`Completion repair job ${existingJob.jobNumber} already exists.`},version:order.version};
+    const job=await createAuthorizedRepairJob(actor,repairOrderId,{authorizationId:existingAuthorization.id,authorizedLineKey:existingLine.key,bayRequirements:[],dependencyJobIds:[],description:existingLine.description,diagnosisVersionId,idempotencyKey:`${idempotencyKey}:job-existing-authorization`,laborGuideMinutes:existingLine.laborGuideMinutes,partDemandIds:Array.isArray(raw.partDemandIds)?raw.partDemandIds:[],partsRequired:raw.partsRequired===true,plannedCorrection:existingLine.plannedCorrection,priority:"NORMAL",reason,requiredCertifications:[],requiredSkills:[],toolRequirements:[],workTypeCode:existingLine.workTypeCode},input);
+    return{duplicate:false,result:{authorizationId:existingAuthorization.id,estimateVersionId:existingEstimate.id,job:job.result,message:`Completion repair job ${job.result.jobNumber??""} created.`.trim()},version:job.result.repairOrderVersion};
+  }
+  const estimate=await presentRepairEstimate(actor,repairOrderId,{discountCents:Number(raw.discountCents??0),expiresAt,idempotencyKey:`${idempotencyKey}:estimate`,lineItems:[{description,key:lineKey,laborGuideMinutes,plannedCorrection,quantity:1,taxable:false,type:"LABOR",unitPriceCents,workTypeCode}],presentationChannel:"INTERNAL",presentedAt,reason:`${reason} Estimate created automatically for completion work.`,taxBoundary:"Taxes are calculated by the configured financial system boundary.",taxCents:Number(raw.taxCents??0)},input);
+  const estimateVersionId=estimate.result.id;
+  const authorization=await decideRepairAuthorization(actor,repairOrderId,{authorizedLineKeys:[lineKey],channel:"INTERNAL",decidedAt:now.toISOString(),decisionActorName:"Internal approval",decisionActorReference:"Completion repair job shortcut",decisionActorType:"INTERNAL",disposition:"ACCEPTED",estimateVersionId,idempotencyKey:`${idempotencyKey}:authorization`,reason:`${reason} Approval recorded automatically for completion work.`},input);
+  const job=await createAuthorizedRepairJob(actor,repairOrderId,{authorizationId:authorization.result.id,authorizedLineKey:lineKey,bayRequirements:[],dependencyJobIds:[],description,diagnosisVersionId,idempotencyKey:`${idempotencyKey}:job`,laborGuideMinutes,partDemandIds:Array.isArray(raw.partDemandIds)?raw.partDemandIds:[],partsRequired:raw.partsRequired===true,plannedCorrection,priority:"NORMAL",reason,requiredCertifications:[],requiredSkills:[],toolRequirements:[],workTypeCode},input);
+  return{duplicate:false,result:{authorizationId:authorization.result.id,estimateVersionId,job:job.result,message:`Completion repair job ${job.result.jobNumber??""} created.`.trim()},version:job.result.repairOrderVersion};
+}

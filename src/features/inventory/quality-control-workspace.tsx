@@ -57,6 +57,19 @@ type Job = {
     part: { partNumber: string; description: string };
   }>;
 };
+type VendorWork = {
+  id: string;
+  approvalStatus: string;
+  currentLocation: string | null;
+  expectedReturnAt: string | null;
+  lastUpdateSummary: string;
+  nextAction: string;
+  scope: string | null;
+  sentFrom: string | null;
+  status: string;
+  transportMethod: string | null;
+  vendorName: string;
+};
 type Order = {
   id: string;
   repairOrderNumber: string;
@@ -70,6 +83,7 @@ type Order = {
   location: { name: string };
   serviceVisit: { concernSummary: string; promisedAt: string | null };
   releaseAuthorization: { id: string; destination: string; authorizedAt: string } | null;
+  vendorWorks: VendorWork[];
   repairJobs: Job[];
 };
 type Model = { repairOrders: Order[]; users: User[] };
@@ -118,6 +132,7 @@ const vehicleName = (order: Order) => [order.vehicle.year, order.vehicle.make, o
 const dateTime = (value?: string | null) => value ? new Date(value).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "Not set";
 const workbenchHref = (order: Order) => `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(order.id)}`;
 const manageRepairHref = (order: Order) => `/vehicles/shop-planning?${new URLSearchParams({ repairOrderId: order.id, returnTo: `/vehicles/quality-control?repairOrderId=${order.id}` })}`;
+const vendorFollowUpHref = (order: Order) => `/vehicles/shop-planning?${new URLSearchParams({ repairOrderId: order.id, returnTo: `/vehicles/quality-control?repairOrderId=${order.id}`, vendorFollowUp: "1" })}#repair-planning-step-2`;
 const code = (value: string) => value.replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "").toUpperCase().slice(0, 80) || "QC_CHECK";
 const hasOpenLabor = (job: Job) => job.laborClocks.some((clock) => clock.state === "RUNNING" || clock.state === "PAUSED");
 const hasPartsBlock = (job: Job) => (job.partDemands ?? []).some((demand) => demand.quantityReserved < demand.quantityRequired || ["OPEN", "PARTIALLY_RESERVED", "REQUESTED"].includes(demand.status));
@@ -126,6 +141,8 @@ const needsRoadTest = (job: Job, order: Order) => /brake|noise|steer|suspension|
 const needsPeer = (job: Job) => job.lane === "DIAGNOSTIC_HEAVY" || /airbag|brake|steer|safety|engine|transmission|electrical/i.test(`${job.description} ${job.plannedCorrection}`);
 const isSafetyCritical = (job: Job, order: Order) => /airbag|srs|brake|steer|suspension|wheel|tire|seatbelt|safety|engine|transmission|abs/i.test(`${job.description} ${job.plannedCorrection} ${order.serviceVisit.concernSummary}`);
 const isFrontlineCleared = (order: Order) => Boolean(order.releaseAuthorization);
+const vendorQcStatuses = new Set(["RETURNED", "QC_REQUIRED"]);
+const activeVendorQcWork = (order?: Order | null) => order?.vendorWorks.find((work) => vendorQcStatuses.has(work.status)) ?? null;
 
 function generatedChecklist(order: Order, job: Job) {
   const text = `${job.description} ${job.plannedCorrection} ${order.serviceVisit.concernSummary}`;
@@ -209,6 +226,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
   const [frontlineNotes, setFrontlineNotes] = useState<Record<string, string>>({});
   const [quickChecks, setQuickChecks] = useState({ repair: false, finish: false, safety: false });
   const [quickNote, setQuickNote] = useState("");
+  const [vendorQcNote, setVendorQcNote] = useState("");
   const [qc, setQc] = useState({
     templateCode: "FINAL_QC",
     templateVersion: 1,
@@ -227,6 +245,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
   const [checkResults, setCheckResults] = useState<Record<string, "PASS" | "FAIL" | "NOT_APPLICABLE">>({});
 
   const jobs = useMemo(() => model.repairOrders.flatMap((order) => order.repairJobs.map((job) => ({ order, job }))), [model]);
+  const vendorQcRows = model.repairOrders.map((queueOrder) => ({ order: queueOrder, work: activeVendorQcWork(queueOrder) })).filter((row): row is { order: Order; work: VendorWork } => Boolean(row.work));
   const readyJobs = jobs.filter(({ job }) => job.status === "READY_FOR_QC");
   const failedJobs = jobs.filter(({ job }) => isFailed(job));
   const passedOrders = model.repairOrders.filter((order) => order.repairJobs.length && order.repairJobs.every((job) => job.status === "QC_PASSED"));
@@ -237,6 +256,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
   const firstPassRate = inspectedJobs.length ? Math.round((inspectedJobs.filter(({ job }) => job.qualityInspections.at(-1)?.disposition === "PASSED").length / inspectedJobs.length) * 100) : 0;
   const order = model.repairOrders.find((item) => item.id === orderId) ?? model.repairOrders[0];
   const job = order?.repairJobs.find((item) => item.id === jobId) ?? order?.repairJobs[0];
+  const vendorQcWork = activeVendorQcWork(order);
   const allPassed = Boolean(order?.repairJobs.length) && order.repairJobs.every((item) => item.status === "QC_PASSED" && item.qualityInspections[0]?.disposition === "PASSED");
   const latestInspection = job?.qualityInspections[0];
   const checklist = order && job ? generatedChecklist(order, job) : [];
@@ -253,7 +273,8 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
   const frontlineInspected = frontlineCounts.FAIL + frontlineCounts.REVIEW + frontlineCounts.PASS;
   const frontlineRemaining = frontlineQcItems.length - frontlineInspected;
   const frontlineReady = allPassed && frontlineRemaining === 0 && frontlineCounts.FAIL === 0 && frontlineCounts.REVIEW === 0;
-  const showFrontlineQc = Boolean(order && job && !order.releaseAuthorization && allPassed);
+  const showVendorReturnQc = Boolean(order && vendorQcWork && !order.releaseAuthorization && (!job || order.stage === "QUALITY_CONTROL"));
+  const showFrontlineQc = Boolean(order && job && !showVendorReturnQc && !order.releaseAuthorization && allPassed);
 
   useEffect(() => {
     if (!orderId) return;
@@ -309,6 +330,11 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
     setJobId(nextJob.id);
   }
 
+  function chooseVendorReturn(nextOrder: Order) {
+    setOrderId(nextOrder.id);
+    setJobId("");
+  }
+
   function resultFor(label: string) {
     return checkResults[label] ?? "PASS";
   }
@@ -342,6 +368,60 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
     if (saved) {
       setQuickChecks({ repair: false, finish: false, safety: false });
       setQuickNote("");
+    }
+  }
+
+  async function recordVendorQc(result: "PASS" | "FAIL") {
+    if (!order || !vendorQcWork) return;
+    const note = vendorQcNote.trim();
+    if (result === "FAIL" && note.length < 10) {
+      setNotice("Briefly describe what the vendor did not complete so the follow-up repair can be created.");
+      return;
+    }
+    const passed = result === "PASS";
+    setBusy(true);
+    setNotice("");
+    try {
+      const postVendorStatus = (status: string, summary: string, nextAction: string, reason: string) => request(`/api/repair-orders/${order.id}/vendor-work`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "UPDATE",
+          vendorWorkId: vendorQcWork.id,
+          approvalStatus: vendorQcWork.approvalStatus,
+          currentLocation: order.location.name,
+          customerVisibleSummary: passed
+            ? `The returned outside-vendor repair from ${vendorQcWork.vendorName} passed dealership QC.`
+            : `The returned outside-vendor repair from ${vendorQcWork.vendorName} needs follow-up correction before handoff.`,
+          evidence: [note || "Dealership QC passed the returned outside-vendor repair."],
+          idempotencyKey: crypto.randomUUID(),
+          internalNotes: passed ? null : `Incomplete vendor scope: ${note}`,
+          lastUpdateSummary: summary,
+          nextAction,
+          occurredAt: new Date().toISOString(),
+          reason,
+          scope: vendorQcWork.scope,
+          sentFrom: vendorQcWork.sentFrom,
+          status,
+          transportMethod: vendorQcWork.transportMethod
+        })
+      });
+      if (passed && vendorQcWork.status === "RETURNED") {
+        await postVendorStatus("QC_REQUIRED", "Dealership QC started for the returned outside-vendor repair.", "Complete dealership QC pass/fail decision.", "Open dealership QC review for returned outside-vendor repair.");
+      }
+      await postVendorStatus(
+        passed ? "COMPLETED" : "QC_REQUIRED",
+        passed ? "Dealership QC passed the returned outside-vendor repair." : `Dealership QC failed the returned outside-vendor repair: ${note}`,
+        passed ? "Continue inventory/customer handoff after vendor repair QC." : "Create a follow-up repair scope for the incomplete vendor work.",
+        passed ? "Pass returned outside-vendor repair through dealership QC." : "Fail returned outside-vendor repair and route missing work to follow-up repair planning."
+      );
+      setNotice(passed ? "Vendor repair passed dealership QC. Continue handoff/frontline readiness." : "Vendor repair failed dealership QC. Open repair planning to create the follow-up repair scope.");
+      setVendorQcNote("");
+      await refresh();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Vendor QC decision could not be saved.");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -407,7 +487,32 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
         </div>
       ) : null}
 
-      {order && job && !showFrontlineQc && !order.releaseAuthorization ? (
+      {order && vendorQcWork && showVendorReturnQc ? (
+        <section className="qc-quick vendor-return-qc" aria-label="Vendor Return QC">
+          <header>
+            <div>
+              <span>Vendor Return QC</span>
+              <h2>{vehicleName(order)} · {order.repairOrderNumber}</h2>
+              <p>Pass if {vendorQcWork.vendorName} completed the approved scope. Fail if any item is incomplete, then create the follow-up repair scope.</p>
+            </div>
+            <strong>{vendorQcWork.status.replaceAll("_", " ")}</strong>
+          </header>
+          <div className="vendor-qc-facts">
+            <article><span>Vendor</span><strong>{vendorQcWork.vendorName}</strong><small>{vendorQcWork.currentLocation ?? order.location.name}</small></article>
+            <article><span>Approved scope</span><strong>{vendorQcWork.scope || order.serviceVisit.concernSummary || "Vendor scope not recorded"}</strong><small>{vendorQcWork.lastUpdateSummary}</small></article>
+            <article><span>Next action</span><strong>{vendorQcWork.nextAction}</strong><small>Returned: {dateTime(vendorQcWork.expectedReturnAt)}</small></article>
+          </div>
+          <label className="qc-quick-note"><span>QC note <small>(required when failing vendor work)</small></span><textarea placeholder="Example: Simba did not replace the outer door handle or upper/lower steering column covers." value={vendorQcNote} onChange={(event) => setVendorQcNote(event.target.value)} /></label>
+          <footer>
+            <Link className="qc-quick-link" href={vendorFollowUpHref(order)}>Create follow-up repair scope</Link>
+            <button className="qc-quick-fail" disabled={busy} onClick={() => void recordVendorQc("FAIL")} type="button">Fail vendor repair</button>
+            <button className="qc-quick-pass" disabled={busy} onClick={() => void recordVendorQc("PASS")} type="button">Pass vendor repair</button>
+          </footer>
+          <button className="qc-advanced-toggle" onClick={() => setShowAdvanced((value) => !value)} type="button">{showAdvanced ? "Hide detailed QC tools" : "Show queue and detailed QC tools"}</button>
+        </section>
+      ) : null}
+
+      {order && job && !showVendorReturnQc && !showFrontlineQc && !order.releaseAuthorization ? (
         <section className="qc-quick" aria-label="Quick Repair QC">
           <header>
             <div>
@@ -496,9 +601,9 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
         <section className="frontline-qc-complete"><CheckCircle2 /><div><strong>Final Frontline QC complete</strong><span>This repair order is cleared for photos, merchandising, and its next frontline-readiness handoff.</span></div></section>
       ) : null}
 
-      <div className="qc-advanced-workspace" hidden={!showAdvanced && Boolean(order && job)}>
+      <div className="qc-advanced-workspace" hidden={!showAdvanced && Boolean((order && job) || showVendorReturnQc)}>
       <section className="qc-kpis" aria-label="Quality control snapshot">
-        <article><ClipboardCheck /><span>Ready for QC</span><strong>{readyJobs.length}</strong><small>Awaiting inspection</small></article>
+        <article><ClipboardCheck /><span>Ready for QC</span><strong>{readyJobs.length + vendorQcRows.length}</strong><small>Awaiting inspection</small></article>
         <article><RotateCcw /><span>Recheck / Rework</span><strong>{failedJobs.length}</strong><small>Failed or returned</small></article>
         <article><AlertTriangle /><span>Evidence Gaps</span><strong>{evidenceBlocked.length}</strong><small>Missing proof or notes</small></article>
         <article><PackageCheck /><span>Parts Blocks</span><strong>{partsBlocked.length}</strong><small>Custody/readiness</small></article>
@@ -516,6 +621,19 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
             <Link href="/vehicles/shop-recon">Shop picture</Link>
           </header>
           <div>
+            {vendorQcRows.map(({ order: queueOrder, work }) => (
+              <button aria-pressed={orderId === queueOrder.id && !jobId} className="qc-row ready vendor" key={work.id} onClick={() => chooseVendorReturn(queueOrder)} type="button">
+                <span>
+                  <strong>{queueOrder.repairOrderNumber} · Vendor return</strong>
+                  <small className="qc-row-vehicle"><Car /><span>{vehicleName(queueOrder)} · {queueOrder.customer?.displayName ?? queueOrder.inventoryUnit?.inventoryNumber ?? queueOrder.origin}</span></small>
+                </span>
+                <span>
+                  <b>DEALERSHIP QC</b>
+                  <small>{work.vendorName} · {work.status.replaceAll("_", " ")}</small>
+                </span>
+                <ArrowRight />
+              </button>
+            ))}
             {jobs.length ? jobs.map(({ order: queueOrder, job: queueJob }) => {
               const cleared = isFrontlineCleared(queueOrder);
               const statusClass = cleared ? "cleared" : queueJob.status === "READY_FOR_QC" ? "ready" : isFailed(queueJob) ? "danger" : queueJob.status === "QC_PASSED" ? "review" : "neutral";
@@ -532,7 +650,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
                   <ArrowRight />
                 </button>
               );
-            }) : (
+            }) : vendorQcRows.length ? null : (
               <div className="qc-empty-state">
                 <CheckCircle2 />
                 <strong>No vehicles ready for QC right now.</strong>
@@ -551,7 +669,15 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
             </div>
             {order ? <Link href={workbenchHref(order)}>Open RO</Link> : null}
           </header>
-          {order && job ? (
+          {order && vendorQcWork && !job ? (
+            <div className="qc-selected-body">
+              <p><Car /><span><strong>{vehicleName(order)}</strong><small>{order.vehicle.vehicleNumber} · {order.location.name}</small></span></p>
+              <p><FileText /><span><strong>{order.repairOrderNumber}</strong><small>{order.serviceVisit.concernSummary || "No concern summary"}</small></span></p>
+              <p><Wrench /><span><strong>{vendorQcWork.vendorName}</strong><small>{vendorQcWork.scope || "Vendor scope not recorded"}</small></span></p>
+              <p><ShieldCheck /><span><strong>{vendorQcWork.status.replaceAll("_", " ")}</strong><small>{vendorQcWork.nextAction}</small></span></p>
+              <p><BadgeCheck /><span><strong>Vendor-return decision</strong><small>Pass to continue handoff, or fail and create follow-up repair scope.</small></span></p>
+            </div>
+          ) : order && job ? (
             <div className="qc-selected-body">
               <p className={order.releaseAuthorization ? "is-cleared" : undefined}><Car /><span><strong>{vehicleName(order)}</strong><small>{order.releaseAuthorization ? `${order.vehicle.vehicleNumber} · ${order.location.name} · Green in QC list / ready for photos` : `${order.vehicle.vehicleNumber} · ${order.location.name}`}</small></span></p>
               <p><FileText /><span><strong>{order.repairOrderNumber}</strong><small>{order.serviceVisit.concernSummary || "No concern summary"}</small></span></p>

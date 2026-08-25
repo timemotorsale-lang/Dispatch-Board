@@ -104,7 +104,7 @@ const vendorApprovalStatuses = ["NEEDS_DOCUMENTATION", "PENDING", "APPROVED", "D
 const vendorEstimateCaptured = (work?: RepairVendorWork | null) => Boolean(work && (work.estimateAmountCents != null || ["APPROVAL_NEEDED", "SUPPLEMENT_NEEDED", "WAITING_PARTS", "READY_FOR_PICKUP", "RETURN_TRANSPORT", "RETURNED", "QC_REQUIRED", "COMPLETED"].includes(work.status)));
 const vendorApprovalCaptured = (work?: RepairVendorWork | null) => Boolean(work && ["APPROVED", "NOT_REQUIRED"].includes(work.approvalStatus));
 const vendorRepairReturned = (work?: RepairVendorWork | null) => Boolean(work && ["RETURNED", "QC_REQUIRED", "COMPLETED"].includes(work.status));
-const vendorRepairFailed = (work?: RepairVendorWork | null) => Boolean(work && /\b(fail|failed|incomplete|not fixed|problem still|still persists|rework|decision)\b/i.test(`${work.lastUpdateSummary} ${work.nextAction}`));
+const vendorRepairFailed = (work?: RepairVendorWork | null) => Boolean(work && /\b(fail|failed|incomplete|not complete|not completed|not fixed|did not complete|problem still|still persists|rework|follow-up|decision)\b/i.test(`${work.lastUpdateSummary} ${work.nextAction}`));
 const centsText = (value?: number | null) => value == null ? "" : String(value);
 const createEstimateDraft = (presentedAt: string, expiresAt: string, lineKey = "LINE-1"): EstimateDraft => ({
   lineKey,
@@ -204,7 +204,7 @@ const vendorSteps = [
   { label: "Dealership QC", icon: ClipboardCheck },
 ] as const;
 
-export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; returnTo?: string }) {
+export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = false }: { initial: Model; returnTo?: string; vendorFollowUp?: boolean }) {
   const [model, setModel] = useState(initial);
   const [selectedId, setSelectedId] = useState(initial.repairOrders[0]?.id ?? "");
   const [notice, setNotice] = useState("");
@@ -217,7 +217,7 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
   const firstExistingKeys = new Set((first?.repairJobs ?? []).map((item) => item.authorizedLineKey));
   const firstAuthorizedLaborLines = (firstEstimate?.lineItems ?? []).filter((line) => line.type === "LABOR" && Boolean(firstAccepted?.authorizedLineKeys.includes(line.key)));
   const firstReleaseLine = firstAuthorizedLaborLines.find((line) => !firstExistingKeys.has(line.key)) ?? firstAuthorizedLaborLines[0];
-  const [repairPath, setRepairPath] = useState<RepairPath>(defaultRepairPath(first));
+  const [repairPath, setRepairPath] = useState<RepairPath>(vendorFollowUp && activeVendorWork(first) ? "DIRECT_BODY" : defaultRepairPath(first));
   const [inspection, setInspection] = useState({ templateCode: "GENERAL_DVI", templateVersion: 1, startedAt: defaultTime ? local(defaultTime) : "", completedAt: defaultTime ? local(defaultTime) : "", summary: "", itemKey: "GENERAL_CONDITION", itemLabel: "General condition", itemResult: "PASS", measurement: "", itemNotes: "", evidence: "" });
   const [diagnosis, setDiagnosis] = useState({ concern: first?.serviceVisit.concernSummary ?? "", symptoms: "", testName: "", testResult: "", evidence: "", cause: "", uncertainty: "MEDIUM", recommendation: "", proposedCorrection: "", technicianUserId: initial.users[0]?.id ?? "", diagnosedAt: defaultTime ? local(defaultTime) : "" });
   const [directScope, setDirectScope] = useState({ concern: first?.serviceVisit.concernSummary ?? "", diagnosedAt: defaultTime ? local(defaultTime) : "", evidence: "", ...bodyworkRepairDefaults(first?.serviceVisit.concernSummary), scopeType: "BODYWORK", technicianUserId: initial.users[0]?.id ?? "", uncertainty: "LOW", whyNoDiagnosis: "Visible body or collision damage can move directly to scope, estimate, parts, and repair without troubleshooting diagnostics." });
@@ -251,6 +251,11 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
   const directPath = repairPath === "DIRECT_BODY";
   const vendorPath = repairPath === "VENDOR";
   const currentVendorWork = activeVendorWork(selected);
+  const vendorNeedsInternalCompletion = Boolean(currentVendorWork && currentVendorWork.status === "QC_REQUIRED" && (vendorFollowUp || vendorRepairFailed(currentVendorWork)));
+  const followUpScopeReady = Boolean(vendorNeedsInternalCompletion && (latestDiagnosis || directRepairRecorded(selected)));
+  const followUpEstimateReady = Boolean(vendorNeedsInternalCompletion && latestEstimate);
+  const followUpAuthorizationReady = Boolean(vendorNeedsInternalCompletion && accepted);
+  const releasePrerequisiteBlocked = Boolean(!accepted || !creatableAuthorizedLineKeys.length);
   const vendorCurrentStep = !currentVendorWork ? 0
     : !vendorEstimateCaptured(currentVendorWork) ? 1
       : !vendorApprovalCaptured(currentVendorWork) ? 2
@@ -290,13 +295,21 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
   const laborGuideHref = selected ? `/diagnostics/labor-guide?${new URLSearchParams({ query: laborGuideQuery || latestDiagnosis?.proposedCorrection || selected.serviceVisit.concernSummary, repairOrderId: selected.id, returnLabel: "Return to estimate", returnTo: `/vehicles/shop-planning?repairOrderId=${selected.id}#estimate` }).toString()}` : "/diagnostics/labor-guide";
   const quickEstimateOptions = visibleLaborGuideOptions.slice(0, 4);
   const staffNext = !selected ? null : currentVendorWork
-    ? !vendorEstimateCaptured(currentVendorWork)
+    ? vendorNeedsInternalCompletion
+      ? !followUpScopeReady
+        ? { action: "Create internal follow-up scope", detail: "Keep this same RO open and create the internal completion work for the items the outside vendor did not finish.", href: "#repair-planning-step-2", step: 2, title: "Create same-RO completion work" }
+        : !followUpEstimateReady
+          ? { action: "Create completion estimate", detail: "Price the unfinished vendor-return work first. After that, record the approval and release the internal completion job.", href: "#repair-planning-step-3", step: 3, title: "Create approved completion line" }
+          : !followUpAuthorizationReady
+            ? { action: "Record completion approval", detail: "Approve the exact completion estimate line before creating the internal repair job.", href: "#repair-planning-step-4", step: 4, title: "Approve completion work" }
+            : { action: "Create completion repair job", detail: "The completion work is approved. Create the internal repair job on this same RO.", href: "#repair-planning-step-5-create-job", step: 5, title: "Create internal completion job" }
+      : !vendorEstimateCaptured(currentVendorWork)
       ? { action: "Open vendor estimate", detail: "Enter the vendor estimate, expected return, and next follow-up. Do not repeat inspection or diagnosis.", href: "#repair-planning-step-3", step: 3, title: "Record the vendor estimate" }
       : !vendorApprovalCaptured(currentVendorWork)
         ? { action: "Open vendor approval", detail: "Review the vendor amount, then choose Approved, No approval required, or Still pending.", href: "#repair-planning-step-4", step: 4, title: "Record the approval decision" }
         : !vendorRepairReturned(currentVendorWork)
           ? { action: "Open vendor tracking", detail: "Record whether repair is in progress, waiting on parts, ready for pickup, or returning to the dealership.", href: "#repair-planning-step-5", step: 5, title: "Track the outside repair" }
-          : { action: "Open return and QC", detail: "Confirm the vehicle returned, then send it to dealership quality control before inventory handoff.", href: "#repair-planning-step-5", step: 5, title: "Complete return and quality control" }
+          : { action: "Open dealership QC", detail: "Pass the returned vendor repair or fail it and create the follow-up repair scope before inventory handoff.", href: qcHref, step: 5, title: "Inspect vendor return" }
     : currentStep === 0
       ? { action: "Open inspection", detail: "Record what staff inspected, the result, the finding, and supporting proof.", href: "#repair-planning-step-1", step: 1, title: "Complete the condition inspection" }
       : currentStep === 1
@@ -306,7 +319,11 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
           : currentStep === 3
             ? { action: "Open authorization", detail: "Record who approved which estimate lines and the exact approved amount.", href: "#repair-planning-step-4", step: 4, title: "Record the authorization decision" }
             : !hasRepairJob
-              ? { action: "Open repair release", detail: "Create the repair job first. After that, staff can record the result and move straight to Final QC.", href: repairReleaseHref, step: 5, title: "Release the approved repair" }
+              ? releasePrerequisiteBlocked
+                ? !latestEstimate
+                  ? { action: "Create estimate first", detail: "There is no approved repair line to release yet. Create the estimate, record approval, then create the repair job.", href: "#repair-planning-step-3", step: 3, title: "Create an approved repair line" }
+                  : { action: "Record approval first", detail: "There is an estimate, but no accepted decision for the repair line yet. Record the approval before creating the repair job.", href: "#repair-planning-step-4", step: 4, title: "Approve repair work before release" }
+                : { action: "Open repair release", detail: "Create the repair job first. After that, staff can record the result and move straight to Final QC.", href: repairReleaseHref, step: 5, title: "Release the approved repair" }
               : qcReady
                 ? { action: "Open Final QC", detail: "The repair result is already recorded. Continue in Final QC to inspect and release the vehicle.", href: repairReleaseHref, step: 5, title: "Complete final quality control" }
                 : { action: "Open repair result", detail: "Record what was completed, then send the vehicle directly to Final QC.", href: repairReleaseHref, step: 5, title: "Record the repair result" };
@@ -585,7 +602,67 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
       setNotice("Add at least one estimate line before presenting the estimate.");
       return;
     }
-    void submit("PRESENT_ESTIMATE", { lineItems, taxCents: estimate.taxCents, discountCents: estimate.discountCents, taxBoundary: estimate.taxBoundary, presentationChannel: estimate.presentationChannel, presentedAt: estimate.presentedAt, expiresAt: estimate.expiresAt }, "Present an immutable estimate version from diagnostic evidence.");
+    void submit("PRESENT_ESTIMATE", { lineItems, taxCents: estimate.taxCents, discountCents: estimate.discountCents, taxBoundary: estimate.taxBoundary, presentationChannel: estimate.presentationChannel, presentedAt: estimate.presentedAt, expiresAt: estimate.expiresAt }, vendorPath ? "Present an immutable estimate version from the approved outside-vendor scope." : "Present an immutable estimate version from diagnostic evidence.");
+  }
+
+  async function createFastApprovedRepairJob() {
+    if (!selected || submitInFlight.current) return;
+    const now = new Date();
+    const presentedAt = Number.isNaN(new Date(estimate.presentedAt).getTime()) ? local(now.toISOString()) : estimate.presentedAt;
+    const expiresAtValue = new Date(estimate.expiresAt);
+    const expiresAt = Number.isNaN(expiresAtValue.getTime()) || expiresAtValue <= now ? daysAfter(now, 7) : estimate.expiresAt;
+    const description = estimate.description.trim() || directScope.scopeSummary.trim() || latestDiagnosis?.proposedCorrection || currentVendorWork?.scope || selected.serviceVisit.concernSummary || "Approved repair work";
+    const plannedCorrection = estimate.plannedCorrection.trim() || directScope.proposedCorrection.trim() || latestDiagnosis?.proposedCorrection || description;
+    const lineKey = estimate.lineKey.trim() || "LINE-1";
+    const lineItem = {
+      key: lineKey,
+      type: estimate.lineType,
+      description,
+      quantity: estimate.quantity || 1,
+      unitPriceCents: estimate.unitPriceCents,
+      taxable: estimate.taxable,
+      workTypeCode: estimate.workTypeCode.trim() || "GENERAL_REPAIR",
+      laborGuideMinutes: estimate.laborGuideMinutes || 60,
+      plannedCorrection,
+    };
+    submitInFlight.current = true;
+    setBusy(true);
+    setNotice("");
+    try {
+      const response = await request(`/api/repair-orders/${selected.id}/planning`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "CREATE_COMPLETION_JOB",
+          description,
+          discountCents: estimate.discountCents,
+          expiresAt,
+          idempotencyKey: crypto.randomUUID(),
+          lineKey,
+          laborGuideMinutes: lineItem.laborGuideMinutes,
+          partDemandIds: job.partDemandIds,
+          partsRequired: job.partsRequired,
+          plannedCorrection,
+          presentedAt,
+          reason: "Create and open the approved completion repair job after failed vendor QC.",
+          taxCents: estimate.taxCents,
+          unitPriceCents: lineItem.unitPriceCents,
+          workTypeCode: lineItem.workTypeCode,
+        }),
+      }) as { result?: { job?: { id?: string; jobNumber?: string } } };
+      setEstimateLines([]);
+      setReleaseJobs([]);
+      const jobId = response.result?.job?.id;
+      setNotice(`Completion job ${response.result?.job?.jobNumber ?? ""} created. Opening the repair work order.`.trim());
+      await refresh();
+      if (jobId) window.location.assign(`/vehicles/repair-jobs/${encodeURIComponent(jobId)}/workbench`);
+      else window.setTimeout(() => navigateToInternalTarget("#repair-next-actions"), 120);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Completion job creation failed.");
+    } finally {
+      submitInFlight.current = false;
+      setBusy(false);
+    }
   }
 
   function chooseRepairPath(path: RepairPath) {
@@ -901,6 +978,21 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
               <button aria-pressed={vendorPath} className={vendorPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("VENDOR")} type="button"><Building2 /> Outside vendor</button>
             </div>
             <div className={styles.concern}><span>Carried forward from intake</span><p>{selected.serviceVisit.concernSummary}</p></div>
+            {vendorNeedsInternalCompletion ? (
+              <div className={styles.simpleCard}>
+                <span className={styles.simpleEyebrow}>Same-RO completion work</span>
+                <h3>Create the internal follow-up job here, not a separate unrelated RO</h3>
+                <p>Dealership QC failed the outside-vendor return. Keep {selected.repairOrderNumber} as the parent record, choose the internal path that fits the missing work, then create the estimate and repair job for the unfinished items.</p>
+                <div className={styles.simpleInstructions}>
+                  <strong>Recommended for this case</strong>
+                  <p>Use the missing vendor scope as the new internal completion scope, for example: complete the outer door handle and replace the upper/lower steering column covers.</p>
+                </div>
+                <div className={styles.simpleActions}>
+                  <button type="button" onClick={() => setRepairPath("DIRECT_BODY")}>Create internal completion scope</button>
+                  <button type="button" onClick={() => setRepairPath("DIAGNOSTIC")}>Use diagnostic path instead</button>
+                </div>
+              </div>
+            ) : null}
             {vendorPath ? currentVendorWork ? <section className={styles.vendorRouteActive}>
               <header><Building2 /><div><span>Vendor workflow active</span><h3>{currentVendorWork.vendorName}</h3><p>{currentVendorWork.scope}</p></div><b>{format(currentVendorWork.status)}</b></header>
               <div className={styles.vendorAlgorithmGrid}>
@@ -956,10 +1048,22 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
 
           <WorkflowStep complete={vendorPath ? vendorEstimateCaptured(currentVendorWork) : selected.estimateVersions.length > 0} icon={<Gauge />} number={3} open={currentStep === 2 || staffNext?.step === 3} subtitle={vendorPath ? "Vendor estimate and approval are tracked from staff-entered vendor updates while the work stays offsite." : directPath ? "Create the governed body, collision, vendor, or teardown estimate from the approved direct scope." : "Create an immutable, expiring estimate from the verified diagnostic correction."} title={vendorPath ? "Vendor estimate update" : directPath ? "Direct repair estimate" : "Exact-version estimate"}>
             <form onSubmit={(event: FormEvent) => { event.preventDefault(); submitEstimate(); }}>
-              {vendorPath ? <div className={styles.pathInfo}><strong>Vendor estimating discipline</strong><p>Keep vendor estimate, approval documentation, parts responsibility, and expected return current on the outside vendor workflow. Do not duplicate internal diagnosis just to move the record.</p></div> : directPath ? <div className={styles.pathInfo}><strong>Body and collision estimating discipline</strong><p>Follow the same fast sequence every time: visible scope, labor guide or vendor quote, parts list, internal spend decision, then repair release. This keeps bodywork moving without pretending a troubleshooting diagnosis happened when it did not.</p></div> : null}
+              {vendorPath ? <div className={styles.pathInfo}><strong>Simple vendor estimate path</strong><p>If the outside vendor is already approved to do the job, the saved vendor record is the evidence: vendor name, repair scope, current location/status, and approval. You do not need to create an internal diagnosis just to present this estimate.</p></div> : directPath ? <div className={styles.pathInfo}><strong>Body and collision estimating discipline</strong><p>Follow the same fast sequence every time: visible scope, labor guide or vendor quote, parts list, internal spend decision, then repair release. This keeps bodywork moving without pretending a troubleshooting diagnosis happened when it did not.</p></div> : null}
+              {vendorNeedsInternalCompletion && !vendorPath ? <div className={styles.simpleCard} id="repair-planning-step-3-completion-estimate" tabIndex={-1}>
+                <span className={styles.simpleEyebrow}>Completion estimate</span>
+                <h3>Turn the failed vendor QC items into an approved line</h3>
+                <p>Enter the unfinished work from dealership QC here, present the completion estimate, then approve that exact line in Stage 4 before creating the internal repair job.</p>
+                <div className={styles.simpleInstructions}>
+                  <strong>Recommended for this case</strong>
+                  <p>Use the missing vendor scope as the estimate line, such as completing the outer door handle and replacing the upper/lower steering column covers.</p>
+                </div>
+                <div className={styles.simpleActions}>
+                  <button className={styles.primaryAction} disabled={busy} onClick={() => void createFastApprovedRepairJob()} type="button">{busy ? "Creating completion job..." : "Create/open completion job"}</button>
+                </div>
+              </div> : null}
               {reconBudget ? <div className={styles.concern}><span>{reconBudget.source === "TAI" ? "TAI recon budget guardrail" : "Recon budget guardrail"}</span><p>{reconBudget.status === "OVER_BUDGET" ? "This estimate is already beyond the current recon spend target. Review the scope, labor source, and approval path before releasing more work." : reconBudget.status === "CAUTION" ? "This vehicle is getting close to its current recon budget. Tighten the estimate and confirm the next approval before moving forward." : "There is still recon spend room available for this vehicle. Keep the estimate anchored to real labor, parts, and vendor work."}</p><p>Budget {formatMoneyCents(reconBudget.estimatedReconBudgetCents)} · committed {formatMoneyCents(reconBudget.committedSpendCents)} · remaining {formatMoneyCents(reconBudget.remainingBudgetCents)}</p></div> : null}
               {directPath ? <div className={styles.pathInfo}><strong>Rapid recon estimate recipe</strong><p>1) use body labor guide or vendor quote, 2) separate labor, parts, and sublet cleanly, 3) preserve teardown supplements as new exact versions, and 4) never promise completion until parts and vendor timing are real.</p></div> : null}
-              {!vendorPath ? <section className={styles.simpleCard} aria-label="Simple estimate builder"><span className={styles.simpleEyebrow}>Simple estimate lines</span><h3>Add the repair lines, edit them if needed, then present the estimate</h3><p>Keep this stage simple. Add plain estimate lines like R &amp; R brake vacuum pump, repair and paint front bumper cover, sublet alignment, or teardown. The full labor guide is still available when staff needs deeper research.</p><div className={styles.simpleActions}><Link className={styles.primaryAction} href={laborGuideHref}>Open full Labor Guide</Link></div><label className={styles.laborGuideHelper}><span>Quick search for a common repair area</span><input placeholder="Example: brake vacuum pump, bumper, paint, teardown" value={laborGuideQuery} onChange={(event) => setLaborGuideQuery(event.target.value)} /></label>{quickEstimateOptions.length ? <div className={styles.estimateQuickPicks}>{quickEstimateOptions.map((option) => <button disabled={busy} key={option.key} onClick={() => applyLaborGuideOption(option)} type="button">{option.title}</button>)}</div> : null}</section> : null}
+              {!vendorPath ? <section className={styles.simpleCard} aria-label="Simple estimate builder"><span className={styles.simpleEyebrow}>Simple estimate lines</span><h3>Add the repair lines, edit them if needed, then present the estimate</h3><p>Keep this stage simple. Add plain estimate lines like R &amp; R brake vacuum pump, repair and paint front bumper cover, sublet alignment, or teardown. The full labor guide is still available when staff needs deeper research.</p><div className={styles.simpleActions}>{directPath || vendorNeedsInternalCompletion ? <button className={styles.primaryAction} disabled={busy} onClick={() => void createFastApprovedRepairJob()} type="button">{busy ? "Creating completion job..." : vendorNeedsInternalCompletion ? "Create/open completion job" : "Create/open repair job"}</button> : null}<Link className={styles.primaryAction} href={laborGuideHref}>Open full Labor Guide</Link></div><label className={styles.laborGuideHelper}><span>Quick search for a common repair area</span><input placeholder="Example: brake vacuum pump, bumper, paint, teardown" value={laborGuideQuery} onChange={(event) => setLaborGuideQuery(event.target.value)} /></label>{quickEstimateOptions.length ? <div className={styles.estimateQuickPicks}>{quickEstimateOptions.map((option) => <button disabled={busy} key={option.key} onClick={() => applyLaborGuideOption(option)} type="button">{option.title}</button>)}</div> : null}</section> : null}
               <FormGrid><Field label="Line key (required)"><input required value={estimate.lineKey} onChange={(event) => setEstimate((value) => ({ ...value, lineKey: event.target.value }))} /></Field><Field label="Type"><select value={estimate.lineType} onChange={(event) => setEstimate((value) => ({ ...value, lineType: event.target.value as EstimateDraft["lineType"] }))}>{["LABOR", "PART", "FEE"].map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Quantity"><input min="1" type="number" value={estimate.quantity} onChange={(event) => setEstimate((value) => ({ ...value, quantity: Number(event.target.value) || 1 }))} /></Field><Field label="Description (required)"><input placeholder="Example: R & R brake vacuum pump" required value={estimate.description} onChange={(event) => setEstimate((value) => ({ ...value, description: event.target.value }))} /></Field><Field label="Unit price (cents)"><input min="0" type="number" value={estimate.unitPriceCents} onChange={(event) => setEstimate((value) => ({ ...value, unitPriceCents: Number(event.target.value) }))} /></Field><Field label="Labor guide minutes"><input min="0" type="number" value={estimate.laborGuideMinutes} onChange={(event) => setEstimate((value) => ({ ...value, laborGuideMinutes: Number(event.target.value) }))} /></Field><Field label="What should be done (required)" wide><input placeholder="Example: Remove and replace failed brake vacuum pump, verify brake assist, and road test" required value={estimate.plannedCorrection} onChange={(event) => setEstimate((value) => ({ ...value, plannedCorrection: event.target.value }))} /></Field><Field label="Work type code"><input value={estimate.workTypeCode} onChange={(event) => setEstimate((value) => ({ ...value, workTypeCode: event.target.value }))} /></Field><Field label="Tax (cents)"><input min="0" type="number" value={estimate.taxCents} onChange={(event) => setEstimate((value) => ({ ...value, taxCents: Number(event.target.value) }))} /></Field><Field label="Discount (cents)"><input min="0" type="number" value={estimate.discountCents} onChange={(event) => setEstimate((value) => ({ ...value, discountCents: Number(event.target.value) }))} /></Field><Field label="Presented (required)"><input required type="datetime-local" value={estimate.presentedAt} onChange={(event) => setEstimate((value) => ({ ...value, presentedAt: event.target.value }))} /></Field><Field label="Expires (required)"><input min={estimate.presentedAt} required type="datetime-local" value={estimate.expiresAt} onChange={(event) => setEstimate((value) => ({ ...value, expiresAt: event.target.value }))} /></Field></FormGrid>
               {!vendorPath ? <div className={styles.estimateLineActions}><button disabled={busy} onClick={saveEstimateLine} type="button">{estimateLines.some((line) => line.key === estimate.lineKey) ? "Update line" : "Add line to estimate"}</button><button disabled={busy} onClick={() => resetEstimateDraft()} type="button">Start a new line</button></div> : null}
               {!vendorPath && estimateLines.length ? <section className={styles.estimateLineList} aria-label="Estimate draft lines"><header><div><span>Estimate draft</span><h3>{estimateLines.length} line{estimateLines.length === 1 ? "" : "s"} ready for approval</h3></div></header>{estimateLines.map((line) => <article key={line.key}><div><strong>{line.key} · {line.description}</strong><p>{line.plannedCorrection}</p><small>{line.quantity} x {money(line.unitPriceCents)} · {format(line.workTypeCode)}</small></div><div className={styles.estimateLineActions}><button disabled={busy} onClick={() => editEstimateLine(line)} type="button">Edit</button><button disabled={busy} onClick={() => removeEstimateLine(line.key)} type="button">Remove</button></div></article>)}</section> : null}
@@ -994,6 +1098,21 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
           <WorkflowStep complete={vendorPath ? vendorRepairReturned(currentVendorWork) : selected.repairJobs.length > 0} icon={<Wrench />} number={5} open={currentStep === 4 || staffNext?.step === 5} subtitle={vendorPath ? "Confirm vendor repair completion, plan return transportation, then move to dealership QC and inventory handoff." : "Simple instructions for moving approved work forward."} title={vendorPath ? "Vendor repair, return, and QC handoff" : "Repair release"}>
             {vendorPath && currentVendorWork ? <section className={`${styles.vendorRouteActive} ${vendorRepairFailed(currentVendorWork) ? styles.vendorRouteFailed : ""}`}>
               <header><Truck /><div><span>Vendor repair lifecycle</span><h3>{currentVendorWork.vendorName}</h3><p>{currentVendorWork.nextAction}</p></div><b>{format(currentVendorWork.status)}</b></header>
+              {vendorNeedsInternalCompletion ? (
+                <div className={styles.simpleCard}>
+                  <span className={styles.simpleEyebrow}>Same-RO completion work</span>
+                  <h3>Create the internal follow-up job here, not a separate unrelated RO</h3>
+                  <p>Dealership QC failed the outside-vendor return. Keep {selected.repairOrderNumber} as the parent record, switch to Bodywork repair or Diagnostic / mechanical, then create the estimate and repair job for the unfinished items.</p>
+                  <div className={styles.simpleInstructions}>
+                    <strong>Recommended for this case</strong>
+                    <p>Use the missing vendor scope as the new internal completion scope, for example: complete the outer door handle and replace the upper/lower steering column covers.</p>
+                  </div>
+                  <div className={styles.simpleActions}>
+                    <button type="button" onClick={() => { setRepairPath("DIRECT_BODY"); window.setTimeout(() => navigateToInternalTarget("#repair-planning-step-2"), 0); }}>Create internal completion scope</button>
+                    <button type="button" onClick={() => { setRepairPath("DIAGNOSTIC"); window.setTimeout(() => navigateToInternalTarget("#repair-planning-step-2"), 0); }}>Use diagnostic path instead</button>
+                  </div>
+                </div>
+              ) : null}
               <div className={styles.vendorAlgorithmGrid}>
                 <span><strong>Was the vehicle repaired?</strong>{vendorRepairFailed(currentVendorWork) ? "No — vendor repair failed or remains incomplete" : ["READY_FOR_PICKUP", "RETURN_TRANSPORT", "RETURNED", "QC_REQUIRED", "COMPLETED"].includes(currentVendorWork.status) ? "Vendor repair reported complete" : "Not confirmed yet"}</span>
                 <span><strong>Repairs completed?</strong>{vendorRepairFailed(currentVendorWork) ? "Not completed — QC/decision required" : currentVendorWork.status === "COMPLETED" ? "Completed after dealership QC" : ["READY_FOR_PICKUP", "RETURN_TRANSPORT", "RETURNED", "QC_REQUIRED"].includes(currentVendorWork.status) ? "Vendor portion complete; dealership QC remains" : "Waiting on vendor repair update"}</span>
@@ -1045,6 +1164,21 @@ export function ShopPlanningWorkspace({ initial, returnTo }: { initial: Model; r
                   <Link href={repairJobWorkbenchHref}>Open repair work order</Link>
                   <Link href={partsHref}>Open parts purchases</Link>
                   {qcReady ? <Link className={styles.primaryAction} href={qcHref}>Open Final QC</Link> : <a className={styles.primaryAction} href="#repair-result">Record repair result</a>}
+                </div>
+              </section>
+            ) : releasePrerequisiteBlocked ? (
+              <section className={styles.simpleCard} id="repair-planning-step-5-create-job" tabIndex={-1}>
+                <span className={styles.simpleEyebrow}>Approval needed before repair job</span>
+                <h3>No approved repair line is available to release yet</h3>
+                <p>The approved decision and approved repair line dropdowns are hidden because there is no accepted estimate line ready for job creation.</p>
+                <div className={styles.simpleInstructions}>
+                  <strong>What staff should do</strong>
+                  <p>{latestEstimate ? "Record the approval decision for the estimate lines, then return here to release the approved repair job." : "Create and present the repair estimate first, record the approval decision, then return here to release the approved repair job."}</p>
+                </div>
+                <div className={styles.simpleActions}>
+                  <button className={styles.primaryAction} disabled={busy} onClick={() => void createFastApprovedRepairJob()} type="button">{busy ? "Creating completion job..." : vendorNeedsInternalCompletion ? "Create/open completion job" : "Create/open repair job"}</button>
+                  <button type="button" onClick={() => navigateToInternalTarget(latestEstimate ? "#repair-planning-step-4" : "#repair-planning-step-3")}>{latestEstimate ? "Record approval first" : vendorNeedsInternalCompletion ? "Create completion estimate first" : "Create estimate first"}</button>
+                  <button type="button" onClick={() => navigateToInternalTarget("#repair-planning-step-2")}>{vendorNeedsInternalCompletion ? "Review completion scope" : "Review repair scope"}</button>
                 </div>
               </section>
             ) : (

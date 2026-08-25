@@ -8,7 +8,33 @@ import { evaluateInspection,type QualityCheck } from "./domain";
 export function createQualityControlRepository(database:PrismaClient=prisma){return{
   async aggregateVersion(organizationId:string,subjectType:string,subjectId:string){const row=await database.enterpriseAggregateVersion.findUnique({where:{organizationId_domain_subjectType_subjectId:{organizationId,domain:"SHOP_OPERATIONS",subjectType,subjectId}},select:{version:true}});return row?.version??0;},
   async synchronizeLifecycleAfterInspection(organizationId:string,jobId:string){return database.$transaction(async tx=>{const job=await tx.repairJob.findFirst({where:{id:jobId,organizationId},include:{repairOrder:true,qualityInspections:{orderBy:{version:"desc"},take:1}}}),inspection=job?.qualityInspections[0];if(!job||!inspection)return null;const lifecycle=await tx.shopReconLifecycle.findUnique({where:{repairOrderId:job.repairOrderId}});if(!lifecycle)return null;const correlationId=`shop-qc:${inspection.id}`,existing=await tx.shopReconLifecycleEvent.findFirst({where:{lifecycleId:lifecycle.id,correlationId}});if(existing)return existing;const aggregateKey={organizationId_domain_subjectType_subjectId:{organizationId,domain:"SHOP_RECON",subjectType:"SHOP_RECON_LIFECYCLE",subjectId:job.repairOrderId}},aggregate=await tx.enterpriseAggregateVersion.findUnique({where:aggregateKey}),version=(aggregate?.version??lifecycle.version)+1,passed=inspection.disposition==="PASSED",stage=passed?"QUALITY_CONTROL_ROAD_TEST":"REPAIR_EXECUTION",state=passed?"ACTIVE":"REWORK",blockers=passed?[]:["BLK-QC-FAILED",...((inspection.failureReasonCodes as string[]|null)??[])];if(aggregate)await tx.enterpriseAggregateVersion.update({where:{id:aggregate.id},data:{version}});else await tx.enterpriseAggregateVersion.create({data:{organizationId,locationId:job.repairOrder.locationId,domain:"SHOP_RECON",subjectType:"SHOP_RECON_LIFECYCLE",subjectId:job.repairOrderId,version}});await tx.shopReconLifecycle.update({where:{id:lifecycle.id},data:{stage,operatingState:state,stageStartedAt:inspection.inspectedAt,zoneCode:passed?"Z10_QC":"Z08_REPAIR_BAY",nextAction:passed?"Confirm release readiness and receiving-owner acceptance.":`Rework the failed QC findings and submit a fresh inspection: ${inspection.reworkInstructions??"See failed checks."}`,blockerCodes:toJson(blockers),version}});return tx.shopReconLifecycleEvent.create({data:{organizationId,lifecycleId:lifecycle.id,repairOrderId:job.repairOrderId,sequence:version,eventType:passed?"QC_PASSED":"QC_FAILED_REWORK",fromStage:lifecycle.stage,toStage:stage,fromOperatingState:lifecycle.operatingState,toOperatingState:state,scopeVersion:lifecycle.scopeVersion,actorUserId:inspection.inspectorUserId,reason:passed?"Fresh QC inspection passed.":inspection.reworkInstructions??"QC inspection failed and requires rework.",payload:toJson({inspectionId:inspection.id,repairJobId:job.id,failureReasonCodes:inspection.failureReasonCodes,roadTestOutcome:inspection.roadTestOutcome}),correlationId,occurredAt:inspection.inspectedAt}});});},
-  async overview(organizationId:string){const[repairOrders,users]=await Promise.all([database.repairOrder.findMany({where:{organizationId,closedAt:null,repairJobs:{some:{status:{in:["READY_FOR_QC","QC_PASSED","READY_FOR_REPAIR"]}}}},orderBy:{targetAt:"asc"},include:{vehicle:{select:{vehicleNumber:true,year:true,make:true,model:true}},customer:{select:{displayName:true}},inventoryUnit:{select:{inventoryNumber:true}},location:{select:{id:true,name:true}},serviceVisit:{select:{concernSummary:true,promisedAt:true}},releaseAuthorization:true,repairJobs:{where:{status:{not:"CANCELLED"}},orderBy:{createdAt:"asc"},include:{procedureVersion:true,comebackCases:{orderBy:{reportedAt:"desc"},take:3,select:{id:true,status:true,reasonCategory:true,reportedConcern:true}},partDemands:{include:{part:{select:{partNumber:true,description:true}}}},dispatches:{orderBy:{createdAt:"desc"},take:5,include:{technicianUser:{select:{id:true,name:true}}}},laborClocks:true,qualityInspections:{orderBy:{version:"desc"},include:{inspectorUser:{select:{id:true,name:true}},peerVerifierUser:{select:{id:true,name:true}}}}}}}}),database.user.findMany({where:{isActive:true},orderBy:{name:"asc"},select:{id:true,name:true}})]);return{repairOrders,users};},
+  async overview(organizationId:string){
+    const[repairOrders,users]=await Promise.all([
+      database.repairOrder.findMany({
+        where:{
+          organizationId,
+          closedAt:null,
+          OR:[
+            {repairJobs:{some:{status:{in:["READY_FOR_QC","QC_PASSED","READY_FOR_REPAIR"]}}}},
+            {vendorWorks:{some:{status:{in:["RETURNED","QC_REQUIRED"]}}}}
+          ]
+        },
+        orderBy:{targetAt:"asc"},
+        include:{
+          vehicle:{select:{vehicleNumber:true,year:true,make:true,model:true}},
+          customer:{select:{displayName:true}},
+          inventoryUnit:{select:{inventoryNumber:true}},
+          location:{select:{id:true,name:true}},
+          serviceVisit:{select:{concernSummary:true,promisedAt:true}},
+          releaseAuthorization:true,
+          vendorWorks:{orderBy:{updatedAt:"desc"},take:5,select:{id:true,approvalStatus:true,currentLocation:true,expectedReturnAt:true,lastUpdateSummary:true,nextAction:true,scope:true,sentFrom:true,status:true,transportMethod:true,vendorName:true}},
+          repairJobs:{where:{status:{not:"CANCELLED"}},orderBy:{createdAt:"asc"},include:{procedureVersion:true,comebackCases:{orderBy:{reportedAt:"desc"},take:3,select:{id:true,status:true,reasonCategory:true,reportedConcern:true}},partDemands:{include:{part:{select:{partNumber:true,description:true}}}},dispatches:{orderBy:{createdAt:"desc"},take:5,include:{technicianUser:{select:{id:true,name:true}}}},laborClocks:true,qualityInspections:{orderBy:{version:"desc"},include:{inspectorUser:{select:{id:true,name:true}},peerVerifierUser:{select:{id:true,name:true}}}}}}
+        }
+      }),
+      database.user.findMany({where:{isActive:true},orderBy:{name:"asc"},select:{id:true,name:true}})
+    ]);
+    return{repairOrders,users};
+  },
   inspect(command:EnterpriseCommandCommitInput,data:{checks:QualityCheck[];completionEvidence:string[];inspectedAt:Date;inspectorUserId:string;peerVerificationPassed:boolean;peerVerifierUserId:string|null;reason:string;reworkInstructions:string|null;roadTestEvidence:string[];roadTestOutcome:"NOT_REQUIRED"|"PASSED"|"FAILED";roadTestRequired:boolean;templateCode:string;templateVersion:number}){return executeAggregateMutation(database,command,"vehicle-operations.shop",async tx=>{
     const job=await tx.repairJob.findFirst({where:{id:command.subjectId,organizationId:command.organizationId,status:"READY_FOR_QC"},include:{repairOrder:true,procedureVersion:true,dispatches:{where:{status:"COMPLETED"},orderBy:{createdAt:"desc"},take:1},qualityInspections:{orderBy:{version:"desc"},take:1}}});
     if(!job)throw new Error("Only a repair job ready for QC can be inspected.");

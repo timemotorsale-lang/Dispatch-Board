@@ -282,6 +282,31 @@ export function createShopReconLifecycleRepository(database: PrismaClient = pris
         return { previous: lifecycle, result: { lifecycleVersion: version, fromStage: lifecycle.stage, toStage: next.stage, operatingState: next.operatingState, targetAt: next.targetAt.toISOString() } };
       });
     },
+    returnToPartsReadiness(command: EnterpriseCommandCommitInput, actor: AuthenticatedUser, data: { reason: string }, now: Date) {
+      return executeAggregateMutation(database, command, "vehicle-operations.shop-recon", async (tx, version) => {
+        const order = await tx.repairOrder.findFirst({ where: { id: command.subjectId, organizationId: command.organizationId, closedAt: null }, include: orderInclude() });
+        const lifecycle = order?.shopReconLifecycle;
+        if (!order || !lifecycle) throw new Error("Shop & Recon lifecycle was not found.");
+        if (!(["DISPATCH_WORK_STAGING", "REPAIR_EXECUTION"] as ShopReconStageCode[]).includes(lifecycle.stage)) throw new Error("Parts readiness can only be reopened from Dispatch & Work Staging or Repair Execution.");
+
+        const affectedJobs = order.repairJobs.filter(job => ["READY_FOR_REPAIR", "DISPATCHED", "IN_PROGRESS", "PAUSED"].includes(job.status));
+        const affectedJobIds = affectedJobs.map(job => job.id);
+        const runningClocks = affectedJobs.flatMap(job => job.laborClocks.filter(clock => clock.state === "RUNNING" && clock.lastResumedAt).map(clock => ({ ...clock, repairJobId: job.id })));
+        const openDispatchIds = affectedJobs.flatMap(job => job.dispatches.filter(dispatch => ["STAGED", "ACTIVE"].includes(dispatch.status)).map(dispatch => dispatch.id));
+
+        for (const clock of runningClocks) {
+          const accruedMinutes = Math.max(0, Math.round((now.getTime() - clock.lastResumedAt!.getTime()) / 60_000));
+          await tx.repairJobLaborClock.update({ where: { id: clock.id }, data: { state: "PAUSED", lastResumedAt: null, accumulatedMinutes: clock.accumulatedMinutes + accruedMinutes, version: { increment: 1 } } });
+          await tx.repairJobLaborEvent.create({ data: { organizationId: command.organizationId, repairJobId: clock.repairJobId, technicianUserId: clock.technicianUserId, eventType: "PAUSE", occurredAt: now, reason: data.reason, correctionMinutes: null, approvedNonProductiveCode: null, actorUserId: actor.id, correlationId: command.correlationId } });
+        }
+        if (openDispatchIds.length) await tx.repairJobDispatch.updateMany({ where: { id: { in: openDispatchIds } }, data: { status: "CANCELLED", version: { increment: 1 } } });
+        if (affectedJobIds.length) await tx.repairJob.updateMany({ where: { id: { in: affectedJobIds }, repairOrderId: order.id }, data: { status: "WAITING_PARTS", executionBlockerReason: data.reason, readinessReasonCodes: toJson(["JOB_AUTHORIZATION_VALID", "JOB_PARTS_NOT_READY", "PARTS_READINESS_RETURN"]), version: { increment: 1 } } });
+
+        const next = await tx.shopReconLifecycle.update({ where: { id: lifecycle.id }, data: { stage: "PARTS_RESOURCE_READINESS", operatingState: "WAITING", stageStartedAt: now, zoneCode: SHOP_RECON_ZONE_BY_STAGE.PARTS_RESOURCE_READINESS, targetAt: targetAt("PARTS_RESOURCE_READINESS", now, order.targetAt), nextAction: "Order or reserve the missing parts, confirm availability, then return to Dispatch & Work Staging to assign the technician.", blockerCodes: toJson(["BLK-WAITING_PARTS"]), version } });
+        await tx.shopReconLifecycleEvent.create({ data: { organizationId: command.organizationId, lifecycleId: lifecycle.id, repairOrderId: order.id, sequence: version, eventType: "STAGE_MOVED", fromStage: lifecycle.stage, toStage: "PARTS_RESOURCE_READINESS", fromOperatingState: lifecycle.operatingState, toOperatingState: "WAITING", scopeVersion: lifecycle.scopeVersion, actorUserId: actor.id, reason: data.reason, payload: toJson({ affectedRepairJobIds: affectedJobIds, cancelledDispatchIds: openDispatchIds, pausedLaborClockIds: runningClocks.map(clock => clock.id), returnReason: "PARTS_NOT_READY" }), correlationId: command.correlationId, occurredAt: now } });
+        return { previous: lifecycle, result: { lifecycleVersion: version, stage: next.stage, operatingState: next.operatingState, affectedRepairJobIds: affectedJobIds, cancelledDispatchIds: openDispatchIds, pausedLaborClockIds: runningClocks.map(clock => clock.id) } };
+      });
+    },
     grantOverride(command: EnterpriseCommandCommitInput, actor: AuthenticatedUser, data: { kind: string; reason: string; boundaries: string[]; expiresAt: Date | null; followUpAt: Date | null }, now: Date) {
       return executeAggregateMutation(database, command, "vehicle-operations.shop-recon", async (tx, version) => {
         const order = await tx.repairOrder.findFirst({ where: { id: command.subjectId, organizationId: command.organizationId, closedAt: null }, include: orderInclude() }), lifecycle = order?.shopReconLifecycle;

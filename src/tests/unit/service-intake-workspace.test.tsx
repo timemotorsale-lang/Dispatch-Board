@@ -106,6 +106,14 @@ describe("enterprise service intake workspace", () => {
     expect(html).not.toContain("Next: Add / Select Customer");
   });
 
+  it("keeps the final check-in action app-controlled instead of relying on native form validation", () => {
+    const inventoryOptions = { ...options, inventoryUnits: [{ id: "inventory-1", inventoryNumber: "INV-100", locationId: "location-1", vehicle: options.vehicles[0] }] };
+    const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialConcernSummary="Complete inventory safety inspection and recon estimate." initialTimestamp="2026-08-02T07:00:00.000Z" initialVehicleId="vehicle-1" initialVehicleRelationship="DEALERSHIP_INVENTORY" options={inventoryOptions} />);
+
+    expect(html).toContain('noValidate=""');
+    expect(html).toContain('type="button">Complete Check-In &amp; Create Repair Order');
+  });
+
   it("offers the matching open RO when VIN and concern are the same", () => {
     const matchingOptions = { ...options, repairOrders: [{ closedAt: null, customer: { displayName: "Jordan Customer" }, id: "ro-existing", openedAt: "2026-08-01T10:00:00.000Z", operatingState: "ACTIVE", repairOrderNumber: "RO-EXISTING", serviceVisit: { concernSummary: "Check engine light is on" }, stage: "INTAKE", vehicle: options.vehicles[0] }] };
     const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialConcernSummary="Customer reports a check engine warning lamp." initialTimestamp="2026-08-02T07:00:00.000Z" initialVehicleId="vehicle-1" options={matchingOptions} />);
@@ -116,6 +124,14 @@ describe("enterprise service intake workspace", () => {
     expect(html).toContain("Save technician &amp; open RO");
     expect(html).toContain("Duplicate RO blocked");
     expect(html).toContain("Repair-order decision");
+  });
+
+  it("surfaces the existing-RO footer action when duplicate repair work is detected", () => {
+    const matchingOptions = { ...options, repairOrders: [{ closedAt: null, customer: { displayName: "Jordan Customer" }, id: "ro-existing", openedAt: "2026-08-01T10:00:00.000Z", operatingState: "ACTIVE", repairOrderNumber: "RO-EXISTING", serviceVisit: { concernSummary: "Check engine light is on" }, stage: "INTAKE", vehicle: options.vehicles[0] }] };
+    const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialConcernSummary="Customer reports a check engine warning lamp." initialTimestamp="2026-08-02T07:00:00.000Z" initialVehicleId="vehicle-1" options={matchingOptions} />);
+
+    expect(html).toContain("Next: Use Existing Repair Order");
+    expect(html).toContain('type="button">Use Existing Repair Order');
   });
 
   it("requires a deliberate new-RO choice for a different concern on the same VIN", () => {

@@ -7,7 +7,7 @@ import { getShopPlanningWorkspace } from "@/server/shop-planning/service";
 export default async function ShopPlanningPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ repairOrderId?: string; returnTo?: string }>;
+  searchParams?: Promise<{ repairOrderId?: string; returnTo?: string; vendorFollowUp?: string }>;
 }) {
   const user = await requireCurrentUser();
   const params = searchParams ? await searchParams : {};
@@ -56,6 +56,7 @@ export default async function ShopPlanningPage({
     <ShopPlanningWorkspace
       initial={JSON.parse(JSON.stringify(initial))}
       returnTo={params.returnTo}
+      vendorFollowUp={params.vendorFollowUp === "1" || params.vendorFollowUp === "true"}
     />
   );
 }

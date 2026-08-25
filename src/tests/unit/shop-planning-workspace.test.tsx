@@ -23,9 +23,9 @@ describe("Shop Planning diagnostic release workspace", () => {
     expect(markup).toContain("Outside vendor");
     expect(markup).toContain("Send to outside vendor");
     expect(markup).toContain("Deploy vendor workflow");
-    expect(markup).toContain("Labor Guide helper workspace");
-    expect(markup).toContain("Build the estimate line without leaving this stage");
-    expect(markup).toContain("Use this estimate line");
+    expect(markup).toContain("Simple estimate lines");
+    expect(markup).toContain("Quick search for a common repair area");
+    expect(markup).toContain("Use recorded correction");
     expect(markup).toContain("Description (required)");
     expect(markup).toContain("Expires (required)");
     expect(markup).toContain("Open full Labor Guide");
@@ -36,9 +36,9 @@ describe("Shop Planning diagnostic release workspace", () => {
     expect(markup).toContain("What did you inspect?");
     expect(markup).toContain("Proof / evidence");
     expect(markup).toContain("Advanced details");
-    expect(markup).toContain("Repair complete — send to QC");
-    expect(markup).toContain("What happened? (required)");
-    expect(markup).toContain("Save update");
+    expect(markup).toContain("No approved repair line is available to release yet");
+    expect(markup).toContain("Create estimate first");
+    expect(markup).not.toContain("Add line to release");
   });
 
   it("defaults visible bodywork to the direct repair scope path", () => {
@@ -62,7 +62,7 @@ describe("Shop Planning diagnostic release workspace", () => {
     expect(markup).toContain("Repair the documented bodywork damage, then verify panel fit, finish, and repair quality.");
     expect(markup).toContain("TAI recon budget guardrail");
     expect(markup).toContain("Rapid recon estimate recipe");
-    expect(markup).toContain("Body Labor Guide");
+    expect(markup).toContain("Create/open repair job");
     expect(markup).toContain("Body / collision labor");
     expect(markup).toContain("Teardown / supplement check");
   });
@@ -127,7 +127,9 @@ describe("Shop Planning diagnostic release workspace", () => {
     expect(markup).toContain("What staff should do now");
     expect(markup).toContain("Record the vendor estimate");
     expect(markup).toContain("Open vendor estimate");
-    expect(markup).toContain('href="#repair-planning-step-3"');
+    expect(markup).toContain("Simple vendor estimate path");
+    expect(markup).toContain("the saved vendor record is the evidence");
+    expect(markup).toContain("You do not need to create an internal diagnosis");
     expect(markup).toContain('id="repair-planning-step-3" open=""');
     expect(markup).toContain("Vendor workflow active");
     expect(markup).toContain("Northside Garage");
@@ -155,5 +157,71 @@ describe("Shop Planning diagnostic release workspace", () => {
     expect(markup).toContain("Needs repair decision");
     expect(markup).toContain("QC failed — return to vendor");
     expect(markup).toContain("Complete after QC");
+  });
+
+  it("routes returned vendor work directly into dealership QC for pass or fail", () => {
+    const order = {
+      id: "ro-vendor-qc", repairOrderNumber: "RO-500", version: 9, stage: "QUALITY_CONTROL", updatedAt: "2026-08-25T12:00:00.000Z",
+      vehicle: { id: "vehicle-5", vehicleNumber: "VEH-5", vin: "VIN500", year: 2019, make: "Hyundai", model: "Elantra" },
+      customer: { displayName: "Nimo Ibrahim" }, inventoryUnit: null,
+      serviceVisit: { arrivedAt: "2026-08-24T21:06:00.000Z", concernSummary: "Outer door handle and steering column covers need completion after vendor return." },
+      advisorUpdates: [],
+      vendorWorks: [{
+        approvalStatus: "APPROVED",
+        currentLocation: "Time Motor Sales - Minneapolis",
+        expectedReturnAt: "2026-08-25T12:00:00.000Z",
+        id: "vendor-qc-1",
+        lastUpdateSummary: "Returned from Simba Collision for dealership QC.",
+        nextAction: "Inspect returned work and decide pass or follow-up repair.",
+        scope: "Replace outer door handle and upper/lower steering column covers.",
+        status: "QC_REQUIRED",
+        vendorName: "Simba Collision",
+      }],
+      inspectionVersions: [{ id: "insp-5", version: 1, summary: "sent out", completedAt: "2026-08-24T21:30:00.000Z" }],
+      diagnosisVersions: [], estimateVersions: [], repairJobs: [], partDemands: [],
+    };
+
+    const markup = renderToStaticMarkup(<ShopPlanningWorkspace initial={{ repairOrders: [order], users: [{ id: "tech-1", name: "Walter Mechanic" }] }} returnTo="/vehicles/repair-workbench?repairOrderId=ro-vendor-qc" vendorFollowUp />);
+
+    expect(markup).toContain("Create same-RO completion work");
+    expect(markup).toContain("Create internal follow-up scope");
+    expect(markup).toContain("Same-RO completion work");
+    expect(markup).toContain("Create the internal follow-up job here, not a separate unrelated RO");
+    expect(markup).toContain("Create internal completion scope");
+    expect(markup).toContain("Use diagnostic path instead");
+    expect(markup).toContain("Completion estimate");
+    expect(markup).toContain("Turn the failed vendor QC items into an approved line");
+    expect(markup).toContain("Create/open completion job");
+    expect(markup).toContain("Approval needed before repair job");
+    expect(markup).toContain("The approved decision and approved repair line dropdowns are hidden");
+    expect(markup).toContain("Create completion estimate first");
+    expect(markup).not.toContain("Add line to release");
+    expect(markup).not.toContain("Open return and QC");
+  });
+
+  it("does not show the repair release controls when no approved line exists", () => {
+    const order = {
+      id: "ro-no-approval", repairOrderNumber: "RO-600", version: 5, stage: "READY_FOR_REPAIR", updatedAt: "2026-08-25T12:00:00.000Z",
+      vehicle: { id: "vehicle-6", vehicleNumber: "VEH-6", vin: "VIN600", year: 2019, make: "Hyundai", model: "Elantra" },
+      customer: null, inventoryUnit: null,
+      serviceVisit: { arrivedAt: "2026-08-24T21:06:00.000Z", concernSummary: "Repair outer door handle and steering column covers." },
+      advisorUpdates: [],
+      vendorWorks: [],
+      inspectionVersions: [{ id: "insp-6", version: 1, summary: "inspected", completedAt: "2026-08-24T21:30:00.000Z" }],
+      diagnosisVersions: [{ id: "diag-6", version: 1, cause: "Direct repair scope approved without troubleshooting diagnosis.", proposedCorrection: "Repair outer door handle and steering column covers.", uncertainty: "LOW", technicianUser: { name: "Walter Mechanic" } }],
+      estimateVersions: [], repairJobs: [], partDemands: [],
+    };
+
+    const markup = renderToStaticMarkup(<ShopPlanningWorkspace initial={{ repairOrders: [order], users: [{ id: "tech-1", name: "Walter Mechanic" }] }} returnTo="/vehicles/repair-workbench?repairOrderId=ro-no-approval" />);
+
+    expect(markup).toContain("Create the repair estimate");
+    expect(markup).toContain("No approved repair line is available to release yet");
+    expect(markup).toContain("The approved decision and approved repair line dropdowns are hidden");
+    expect(markup).toContain("Create/open repair job");
+    expect(markup).toContain("Create estimate first");
+    expect(markup).not.toContain("Flexible repair release");
+    expect(markup).not.toContain("Approved decision");
+    expect(markup).not.toContain("Approved repair line");
+    expect(markup).not.toContain("Add line to release");
   });
 });

@@ -233,6 +233,7 @@ function mergeById<T extends { id: string }>(current: T[], saved: T[] = []) {
 }
 
 export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = "", initialConcernSummary = "", initialTimestamp, initialVehicleId = "", initialVehicleRelationship = "CUSTOMER_VEHICLE", options, returnTo, showAdvisorReturn = false }: { currentUserId?: string; initialArrivalQuery?: string; initialConcernSummary?: string; initialTimestamp: string; initialVehicleId?: string; initialVehicleRelationship?: VehicleRelationshipIntent; options: ServiceIntakeOptions; returnTo?: string; showAdvisorReturn?: boolean }) {
+  const formRef = useRef<HTMLFormElement>(null);
   const concernRef = useRef<HTMLTextAreaElement>(null);
   const repairOrderDecisionRef = useRef<HTMLElement>(null);
   const arrivalSearchRef = useRef<HTMLInputElement>(null);
@@ -327,16 +328,16 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
   const ready = checklist.every((item) => item.ready);
   const nextActionLabel = !canCompleteRelationshipIntake
     ? form.vehicleRelationship === "TRADE_ACQUISITION" ? "Continue to Acquisition Review" : "Document Ownership / Custody"
-    : isCustomerVehicle && !form.customerId
+    : isCustomerVehicle && !form.customerId && !sameConcernOrder
     ? "Add / Select Customer"
     : !form.vehicleId
       ? "Add / Select Vehicle"
-      : isDealershipInventory && !form.inventoryUnitId
-        ? "Create / Link Inventory Unit"
       : form.concernSummary.trim().length < 10
         ? isDealershipInventory ? "Capture Inventory Concern" : "Capture Customer Concern"
         : sameConcernOrder
           ? "Use Existing Repair Order"
+          : isDealershipInventory && !form.inventoryUnitId
+              ? "Create / Link Inventory Unit"
           : requiresRepairOrderDecision && !newRepairOrderConfirmed
             ? "Choose Existing or New RO"
         : isCustomerVehicle && !readiness
@@ -696,6 +697,18 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
     setNotice(usesOutsideVendor ? "Select the outside vendor, requested work, accountable advisor, and expected return before continuing." : "Complete the remaining owner, target, or authorization fields before creating the repair order.");
   }
 
+  function runFooterAction() {
+    if (sameConcernOrder && form.ownerUserId && (!usesOutsideVendor || form.vendorId)) {
+      void openExistingRepairOrder(sameConcernOrder.id);
+      return;
+    }
+    if (!ready) {
+      runNextRequiredAction();
+      return;
+    }
+    formRef.current?.requestSubmit();
+  }
+
   function resetVehicleIdentityPreview() {
     setVehicleIdentityPreview(null);
     setVehicleIdentityConfirmed(false);
@@ -1040,7 +1053,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
     </section>;
   }
 
-  return <form className="service-intake-shell sic-reference-v2" onSubmit={submit}>
+  return <form className="service-intake-shell sic-reference-v2" noValidate onSubmit={submit} ref={formRef}>
     <header className="sic-header">
       <div>{showAdvisorReturn ? <BackToServiceAdvisorWorkspace className="advisor-return-link sic-advisor-return" /> : <Link className="sic-back-to-shop" href={returnTo ?? "/vehicles/shop-recon"}>{returnTo ? "← Back to Labor Guide" : "← Back to Shop & Recon"}</Link>}<span className="sic-advisor-label">Advisor Workspace</span><i /><h1>Check In Vehicle</h1><span className="sic-governed"><ShieldCheck />Governed intake</span></div>
       <div className="sic-header-state"><ShieldCheck /><span><strong>Governed intake</strong>Canonical records, policy gates, and audit history are enforced.</span></div>
@@ -1168,6 +1181,6 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       <footer><button onClick={() => setDrawer(null)} type="button">Cancel</button><button className="primary" disabled={busy || !newCustomer.displayName || !newCustomer.phoneNumber && !newCustomer.email} onClick={() => void createCustomer()} type="button">{busy ? "Saving…" : "Create & Select Customer"}</button></footer>
     </section></div> : null}
 
-    <footer className="sic-footer"><div><Link href={returnTo ?? "/vehicles/shop-recon"}>Cancel</Link><span><ShieldCheck />No repair authorization or estimate approval is implied by check-in.</span><span>Next: {nextActionLabel}</span></div><button disabled={busy || (!ready && readinessLoading)} onClick={ready ? undefined : runNextRequiredAction} type={ready ? "submit" : "button"}>{busy ? "Creating repair order…" : nextActionLabel}<ChevronRight /></button></footer>
+    <footer className="sic-footer"><div><Link href={returnTo ?? "/vehicles/shop-recon"}>Cancel</Link><span><ShieldCheck />No repair authorization or estimate approval is implied by check-in.</span><span>Next: {nextActionLabel}</span></div><button disabled={busy || (!ready && readinessLoading)} onClick={runFooterAction} type="button">{busy ? sameConcernOrder ? "Opening existing repair order…" : "Creating repair order…" : nextActionLabel}<ChevronRight /></button></footer>
   </form>;
 }

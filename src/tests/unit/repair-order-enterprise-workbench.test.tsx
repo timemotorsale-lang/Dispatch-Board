@@ -1,7 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { RepairOrderEnterpriseWorkbench } from "@/features/inventory/repair-order-enterprise-workbench";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
 
 const order = {
   id: "ro-1", repairOrderNumber: "RO-20481", stage: "INTAKE", stageStartedAt: "2026-07-20T15:00:00Z", operatingState: "ACTIVE", openedAt: "2026-07-20T15:00:00Z", targetAt: "2026-07-20T18:00:00Z", nextAction: "Release to diagnosis", stateReason: null, version: 2,
@@ -17,6 +21,9 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("Repair Order Workbench");
     expect(html).toContain("RO-20481");
     expect(html).toContain("Authoritative Repair Order");
+    expect(html).toContain("Location / workflow correction");
+    expect(html).toContain("Need to assign this vehicle to an outside vendor?");
+    expect(html).toContain("Record outside work");
     expect(html).toContain("View RO");
     expect(html).toContain("Print RO");
     expect(html).toContain('href="/api/repair-orders/ro-1/print"');
@@ -108,6 +115,40 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("Northside Garage");
     expect(html).toContain("Home / accountable site");
     expect(html).toContain("Minneapolis");
+  });
+
+  it("keeps the active outside-vendor location ahead of a later generic custody snapshot", () => {
+    const vendorLocatedOrder = {
+      ...order,
+      stage: "REPAIR",
+      nextAction: "Confirm vendor estimate, approval documentation, and expected return.",
+      vehicle: {
+        ...order.vehicle,
+        custodyEvents: [{ custodianType: "LOCATION", eventType: "STATUS_CHANGE", occurredAt: "2026-08-25T11:30:00Z", positionLabel: "Time Motor Sales — Minneapolis", location: null }]
+      },
+      vendorWorks: [
+        {
+          id: "vendor-work-simba",
+          vendorName: "Simba Collision",
+          status: "AT_VENDOR",
+          approvalStatus: "NEEDS_DOCUMENTATION",
+          currentLocation: "Simba Collision",
+          directFromSource: false,
+          expectedReturnAt: "2026-08-27T15:00:00.000Z",
+          nextAction: "Confirm Simba Collision receipt and estimate timing.",
+          lastUpdateSummary: "Vehicle assigned back to outside vendor.",
+          scope: "Body and steering-column break-in repair.",
+          sentFrom: "Dealership",
+          transportMethod: "Tow / carrier",
+        },
+      ],
+    };
+    const html = renderToStaticMarkup(<RepairOrderEnterpriseWorkbench order={vendorLocatedOrder} options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }} />);
+
+    expect(html).toContain("Current physical location");
+    expect(html).toContain("Simba Collision");
+    expect(html).toContain("Outside vendor workflow is active");
+    expect(html).not.toContain("Time Motor Sales — Minneapolis");
   });
 
   it("shows the lifecycle strip at repair when the order stage has advanced without earlier planning artifacts", () => {
@@ -381,5 +422,50 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("Continue governed repair flow");
     expect(html).toContain("Not started");
     expect(html).toContain("Not recorded");
+  });
+
+  it("shows a same-RO follow-up repair path after outside-vendor QC fails", () => {
+    const vendorFailedOrder = {
+      ...order,
+      stage: "QUALITY_CONTROL",
+      version: 10,
+      nextAction: "Review the returned vehicle and decide the next approved repair path.",
+      serviceVisit: {
+        ...order.serviceVisit,
+        concernSummary: "Outer door handle and upper/lower steering column covers were not completed by outside vendor.",
+      },
+      vendorWorks: [{
+        id: "vendor-work-qc",
+        vendorName: "Simba Collision",
+        status: "QC_REQUIRED",
+        approvalStatus: "APPROVED",
+        currentLocation: "Dealership",
+        directFromSource: false,
+        expectedReturnAt: "2026-08-25T12:00:00.000Z",
+        nextAction: "Create a follow-up repair scope for the incomplete vendor work.",
+        lastUpdateSummary: "Dealership QC failed the returned outside-vendor repair: outer door handle and steering column covers were not completed.",
+        scope: "Replace outer door handle and upper/lower steering column covers.",
+        sentAt: "2026-08-24T21:30:00.000Z",
+        sentFrom: "Dealership",
+        transportMethod: "Tow",
+      }],
+    };
+
+    const html = renderToStaticMarkup(
+      <RepairOrderEnterpriseWorkbench
+        order={vendorFailedOrder}
+        options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }}
+      />,
+    );
+
+    expect(html).toContain("Vendor QC failed");
+    expect(html).toContain("Vendor QC failed - create internal completion work");
+    expect(html).toContain("Create follow-up repair scope");
+    expect(html).toContain("Create the missing completion work on this same RO");
+    expect(html).toContain("Do not open a detached RO");
+    expect(html).toContain("Follow-up repair scope");
+    expect(html).toContain("/vehicles/shop-planning?repairOrderId=ro-1");
+    expect(html).toContain("vendorFollowUp=1");
+    expect(html).toContain("repair-planning-step-2");
   });
 });
