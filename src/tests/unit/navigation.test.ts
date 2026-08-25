@@ -86,6 +86,7 @@ describe("enterprise shell navigation", () => {
       "Projects",
       "Appointments",
       "Vehicles",
+      "COO Workbook",
       "Diagnostics",
       "Labor Guide",
       "Advisor Review",
@@ -113,6 +114,7 @@ describe("enterprise shell navigation", () => {
       "Projects",
       "Appointments",
       "Vehicles",
+      "COO Workbook",
       "Diagnostics",
       "Labor Guide",
       "Advisor Review",
@@ -203,6 +205,7 @@ describe("enterprise shell navigation", () => {
     expect(inventoryConsole?.items.map((item) => item.title)).toEqual([
       "Home",
       "Inventory Lifecycle",
+      "COO Workbook",
       "Shop & Recon",
       "Recon/Repair Advisor",
       "Repair Workbench",
@@ -213,6 +216,12 @@ describe("enterprise shell navigation", () => {
     ]);
     expect(inventoryConsole?.items.find((item) => item.title === "Shop & Recon")?.href).toBe("/vehicles/shop-recon");
     expect(inventoryConsole?.items.find((item) => item.title === "Repair Workbench")?.href).toBe("/vehicles/repair-workbench");
+    expect(getConsoleNavigation("/vehicles/coo-workbook", manager)).toMatchObject({
+      badge: "Review",
+      homeHref: "/vehicles/coo-workbook",
+      subtitle: "COO Daily Workbook",
+      title: "Time Motor Sales"
+    });
     expect(getConsoleNavigation("/command-center", manager)).toBeNull();
     expect(getConsoleNavigation("/crm", manager)).toMatchObject({
       badge: "Controlled",
@@ -234,6 +243,7 @@ describe("enterprise shell navigation", () => {
   it("gives each operating role a focused navigation shell", () => {
     expect(getConsoleNavigation("/vehicles", user({ roles: ["Vehicle Operations Lead"] }))?.items.map((item) => item.title)).toEqual([
       "Operations Home",
+      "COO Workbook",
       "My Vehicle Work",
       "Inventory Flow",
       "Shop & Recon",
@@ -242,6 +252,7 @@ describe("enterprise shell navigation", () => {
       "Exceptions"
     ]);
     expect(getConsoleNavigation("/vehicles/shop-recon", user({ roles: ["Service Department Manager"] }))?.items.map((item) => item.title)).toEqual([
+      "COO Workbook",
       "Shop & Recon",
       "Repair Orders",
       "Shop Dispatch",
@@ -251,6 +262,7 @@ describe("enterprise shell navigation", () => {
     ]);
     expect(getConsoleNavigation("/vehicles", user({ roles: ["Inventory Manager"] }))?.items.map((item) => item.title)).toEqual([
       "Inventory Home",
+      "COO Workbook",
       "Inventory Lifecycle",
       "Shop & Recon",
       "Parts Readiness",
@@ -263,6 +275,7 @@ describe("enterprise shell navigation", () => {
     });
     expect(getConsoleNavigation("/vehicles/advisor", user({ roles: ["General Manager"] }))?.items.map((item) => item.title)).toEqual([
       "Advisor Home",
+      "COO Workbook",
       "Recon/Repair Advisor",
       "Check In Vehicle",
       "Appointment Board",
@@ -273,6 +286,7 @@ describe("enterprise shell navigation", () => {
     ]);
     expect(getConsoleNavigation("/appointments", user({ roles: ["Service Advisor"] }))?.items.map((item) => item.title)).toEqual([
       "Advisor Home",
+      "COO Workbook",
       "Recon/Repair Advisor",
       "Check In Vehicle",
       "Appointment Board",

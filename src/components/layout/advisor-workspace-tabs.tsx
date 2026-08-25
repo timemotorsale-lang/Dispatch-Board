@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, ClipboardCheck, House, MessageSquareText, Search, UserRound } from "lucide-react";
+import { CalendarClock, ClipboardCheck, ClipboardList, House, MessageSquareText, Search, UserRound } from "lucide-react";
 import Link from "next/link";
 
 type AdvisorTab = {
@@ -22,6 +22,12 @@ const tabs: AdvisorTab[] = [
     icon: ClipboardCheck,
     label: "Recon/Repair",
     active: (pathname) => pathname === "/vehicles/recon-repair-advisor",
+  },
+  {
+    href: "/vehicles/coo-workbook",
+    icon: ClipboardList,
+    label: "COO Workbook",
+    active: (pathname) => pathname === "/vehicles/coo-workbook",
   },
   {
     href: "/vehicles/advisor?inbox=all",

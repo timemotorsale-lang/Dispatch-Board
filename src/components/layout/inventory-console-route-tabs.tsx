@@ -21,6 +21,7 @@ const globalTabs: Tab[] = [
   { href: "/vehicles/inventory", label: "Inventory Lifecycle", icon: RefreshCw, activePaths: ["/vehicles/control-tower", "/vehicles/acquisition-appraisal", "/vehicles/inventory-to-frontline", "/vehicles/disposition-wholesale", "/vehicles/retail-completion", "/vehicles/workflow-operations"] },
   { href: "/vehicles/registry", label: "Find Vehicle", icon: Search },
   { href: "/vehicles/workflows/add-vehicle", label: "Add Vehicle", icon: Plus },
+  { href: "/vehicles/coo-workbook", label: "COO Workbook", icon: ClipboardList },
   { href: "/vehicles/shop-recon", label: "Shop & Recon", icon: Wrench },
   { href: "/vehicles/repair-workbench", label: "Repair Workbench", icon: ClipboardList, activePaths: ["/vehicles/repair-orders"] },
   { href: "/vehicles/parts-operations", label: "Parts", icon: PackageOpen, activePaths: ["/vehicles/parts", "/vehicles/parts-counter", "/vehicles/parts-receiving"] },

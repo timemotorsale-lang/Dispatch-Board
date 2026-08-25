@@ -68,8 +68,9 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
     !salesConsole;
   const showInventoryRouteTabs = isInventoryConsolePath(pathname) && !managerContext;
   const showFullInventoryNavigation = consoleNavigation?.title === "Inventory Console";
+  const cooWorkbook = pathname === "/vehicles/coo-workbook";
   const advisorWorkspace = !managerContext && (
-    preferredWorkspace === "ADVISOR" ||
+    !cooWorkbook && preferredWorkspace === "ADVISOR" ||
     pathname === "/vehicles/advisor" ||
     pathname === "/vehicles/recon-repair-advisor" ||
     consoleNavigation?.subtitle === "Advisor Workspace"

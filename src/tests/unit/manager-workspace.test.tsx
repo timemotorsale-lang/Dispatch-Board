@@ -25,6 +25,10 @@ describe("Manager Workspace", () => {
     expect(html).toContain("CEO");
     expect(html).toContain("COO");
     expect(html).toContain("My Work");
+    expect(html).toContain("Fast routes");
+    expect(html).toContain("COO Workbook");
+    expect(html).toContain("Daily checklist, action plan, and report draft");
+    expect(html).toContain("/vehicles/coo-workbook");
     expect(html).toContain("Decisions that need your authority");
     expect(html).toContain("Mode changes perspective—not authority");
   });

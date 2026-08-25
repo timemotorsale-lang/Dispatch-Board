@@ -56,6 +56,12 @@ const inventoryItems: NavigationItem[] = [
     icon: RefreshCw
   },
   {
+    href: "/vehicles/coo-workbook",
+    title: "COO Workbook",
+    description: "Daily operating checklist, review-before-approval context, and report draft workspace.",
+    icon: ClipboardList
+  },
+  {
     activePaths: ["/vehicles/shop-recon", "/vehicles/parts-operations", "/vehicles/parts", "/vehicles/parts-counter", "/vehicles/service-close-parts", "/vehicles/shop-planning", "/vehicles/shop-dispatch", "/vehicles/shop-production", "/vehicles/shop-metrics", "/vehicles/quality-control", "/vehicles/advisor", "/vehicles/recon-repair-advisor", "/vehicles/comebacks"],
     href: "/vehicles/shop-recon",
     title: "Shop & Recon",
@@ -269,6 +275,16 @@ export function getConsoleNavigation(
       items: unifiedCrmItems,
       subtitle: "Customer Operations",
       title: "Unified CRM"
+    };
+  }
+
+  if (pathname === "/vehicles/coo-workbook") {
+    return {
+      badge: "Review",
+      homeHref: "/vehicles/coo-workbook",
+      items: getDispatchNavigationItems(user),
+      subtitle: "COO Daily Workbook",
+      title: "Time Motor Sales"
     };
   }
 

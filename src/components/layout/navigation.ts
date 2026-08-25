@@ -9,6 +9,7 @@ import {
   CarFront,
   Clock3,
   ClipboardCheck,
+  ClipboardList,
   FileText,
   ContactRound,
   FolderKanban,
@@ -181,6 +182,13 @@ export const dispatchNavigationItems: NavigationItem[] = [
     parentHref: "/board"
   },
   {
+    href: "/vehicles/coo-workbook",
+    title: "COO Workbook",
+    description: "Daily operating checklist, review-before-approval context, and report draft workspace.",
+    icon: ClipboardList,
+    parentHref: "/board"
+  },
+  {
     href: "/diagnostics",
     title: "Diagnostics",
     description: "Technician case queue, concern triage, and diagnostic execution.",
@@ -308,6 +316,7 @@ const technicianNavigationItems: NavigationItem[] = [
 const workspaceNavigationItems: Partial<Record<WorkspaceKey, NavigationItem[]>> = {
   VEHICLE_OPERATIONS_LEAD: [
     { href: "/vehicles?workspace=vehicle-operations-lead", title: "Operations Home", description: "Inventory, shop, parts, and lot priorities in one vehicle-operations view.", icon: House, matchExact: true },
+    { href: "/vehicles/coo-workbook", title: "COO Workbook", description: "Daily operating checklist, review-before-approval context, and report draft workspace.", icon: ClipboardList },
     { href: "/my-tasks?workspace=vehicle-operations-lead", title: "My Vehicle Work", description: "Assigned vehicle operations work and next actions.", icon: UserRoundCheck },
     { href: "/vehicles/inventory", title: "Inventory Flow", description: "Move units through acquisition, recon, merchandising, and readiness.", icon: RefreshCw },
     { href: "/vehicles/shop-recon", title: "Shop & Recon", description: "Production, bottlenecks, repair status, and QC readiness.", icon: Wrench },
@@ -316,6 +325,7 @@ const workspaceNavigationItems: Partial<Record<WorkspaceKey, NavigationItem[]>> 
     { href: "/manager-review?scope=inventory", title: "Exceptions", description: "Inventory and shop exceptions requiring lead review.", icon: ShieldCheck }
   ],
   SERVICE: [
+    { href: "/vehicles/coo-workbook", title: "COO Workbook", description: "Daily operating checklist and review-before-approval context.", icon: ClipboardList },
     { href: "/vehicles/shop-recon", title: "Shop & Recon", description: "Production, capacity, constraints, and completion risk.", icon: Wrench },
     { href: "/vehicles/repair-workbench", title: "Repair Orders", description: "Open and coordinate governed repair orders.", icon: ClipboardCheck },
     { href: "/vehicles/shop-dispatch", title: "Shop Dispatch", description: "Assign authorized repair work and manage bays.", icon: ListChecks },
@@ -325,6 +335,7 @@ const workspaceNavigationItems: Partial<Record<WorkspaceKey, NavigationItem[]>> 
   ],
   INVENTORY: [
     { href: "/vehicles", title: "Inventory Home", description: "Inventory operating picture and priority work.", icon: House, matchExact: true },
+    { href: "/vehicles/coo-workbook", title: "COO Workbook", description: "Daily operating checklist and cross-workspace report draft.", icon: ClipboardList },
     { href: "/vehicles/inventory", title: "Inventory Lifecycle", description: "Acquisition through sale, transfer, or disposition.", icon: RefreshCw },
     { href: "/vehicles/shop-recon", title: "Shop & Recon", description: "Inventory recon status and readiness constraints.", icon: Wrench },
     { href: "/vehicles/parts-operations", title: "Parts Readiness", description: "Parts demand affecting inventory completion.", icon: BriefcaseBusiness },
@@ -332,6 +343,7 @@ const workspaceNavigationItems: Partial<Record<WorkspaceKey, NavigationItem[]>> 
   ],
   ADVISOR: [
     { href: "/vehicles/advisor", title: "Advisor Home", description: "Arrivals, check-ins, repair-order handoffs, and customer follow-up.", icon: House, matchExact: true },
+    { href: "/vehicles/coo-workbook", title: "COO Workbook", description: "Daily operating checklist, accountability review, and report draft.", icon: ClipboardList },
     { href: "/vehicles/recon-repair-advisor", title: "Recon/Repair Advisor", description: "Prototype cockpit for recon and repair execution.", icon: Stethoscope },
     { href: "/vehicles/repair-orders?intakeSource=WALK_IN", title: "Check In Vehicle", description: "Receive a vehicle and create governed shop work.", icon: ClipboardCheck },
     { href: "/appointments?view=board", title: "Appointment Board", description: "Review schedule commitments and appointment context.", icon: CalendarDays },

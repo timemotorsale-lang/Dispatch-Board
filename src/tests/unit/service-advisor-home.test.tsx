@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { ServiceAdvisorHome } from "@/features/advisor/service-advisor-home";
+import { CooDailyWorkbook, ServiceAdvisorHome } from "@/features/advisor/service-advisor-home";
 import type { ServiceAdvisorWorkspaceModel } from "@/server/advisor-workspace/service";
 
 const model = {
@@ -108,5 +108,27 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("external delivery not verified");
     expect(html).toContain("Respond to customer");
     expect(html).toContain("compose=customer");
+  });
+
+  it("renders the COO daily workbook as a separate review-before-approval space", () => {
+    const html = renderToStaticMarkup(<CooDailyWorkbook model={model} />);
+
+    expect(html).toContain("COO Daily Workbook");
+    expect(html).toContain("Review before approval");
+    expect(html).toContain("Approval readiness");
+    expect(html).toContain("Daily action plan");
+    expect(html).toContain("Create Daily Action Plan");
+    expect(html).toContain("Add To-Do");
+    expect(html).toContain("Start today");
+    expect(html).toContain("Carryover watch");
+    expect(html).toContain("Daily report draft");
+    expect(html).toContain("End-of-day report builder preview");
+    expect(html).toContain("Approval stays governed");
+    expect(html).toContain("/vehicles/advisor?queue=authorization");
+    expect(html).toContain("/tasks/intake?");
+    expect(html).toContain("Create+COO+daily+action+plan");
+    expect(html).toContain("COO+follow-up%3A+RO-1001");
+    expect(html).toContain("returnTo=%2Fvehicles%2Fcoo-workbook");
+    expect(html).toContain("workflowArea=GENERAL_MANAGER");
   });
 });

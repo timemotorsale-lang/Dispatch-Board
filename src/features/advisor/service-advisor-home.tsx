@@ -4,12 +4,15 @@ import {
   AlertTriangle,
   CalendarClock,
   CheckCircle2,
+  ClipboardList,
   ClipboardCheck,
   Clock3,
+  FileText,
   MessageSquareText,
   PackageCheck,
   Search,
   Send,
+  ShieldCheck,
   UsersRound,
 } from "lucide-react";
 import Link from "next/link";
@@ -21,7 +24,7 @@ type Action = ServiceAdvisorWorkspaceModel["actionQueue"][number];
 type InboxItem = ServiceAdvisorWorkspaceModel["inbox"][number];
 export type AdvisorQueueFilter = "ATTENTION" | "ALL" | Action["actionKind"] | "WAITING";
 type AdvisorViewMode = "CALM" | "HIGH_VOLUME";
-type AdvisorWorkspaceSection = "INBOX" | "WORK";
+type AdvisorWorkspaceSection = "COO_WORKBOOK" | "INBOX" | "WORK";
 type InboxFilter = "ALL" | InboxItem["audience"] | "NEEDS_RESPONSE";
 
 function timeLabel(value: string | null) {
@@ -96,6 +99,175 @@ function inboxActionLabel(item: InboxItem) {
 function inboxComposeHref(item: InboxItem) {
   const compose = item.audience === "MANAGEMENT" ? "management" : item.audience === "TEAM" ? "team" : "customer";
   return `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(item.repairOrderId)}&compose=${compose}#advisor-response`;
+}
+
+function actionCount(model: ServiceAdvisorWorkspaceModel, kind: Action["actionKind"]) {
+  return model.actionQueue.filter((item) => item.actionKind === kind).length;
+}
+
+function taskDateParts(value?: string) {
+  const due = value ? new Date(value) : new Date();
+  const safeDue = Number.isNaN(due.getTime()) ? new Date() : due;
+  const pad = (part: number) => part.toString().padStart(2, "0");
+  return {
+    date: `${safeDue.getFullYear()}-${pad(safeDue.getMonth() + 1)}-${pad(safeDue.getDate())}`,
+    time: `${pad(safeDue.getHours())}:${pad(safeDue.getMinutes())}`
+  };
+}
+
+function cooTaskIntakeHref(input: { brief: string; dueAt?: string; expectedOutcome: string; title: string; vehicleReference?: string }) {
+  const due = taskDateParts(input.dueAt);
+  const params = new URLSearchParams({
+    brief: input.brief,
+    dueDate: due.date,
+    dueTime: due.time,
+    expectedOutcome: input.expectedOutcome,
+    intakeType: "Manager Decision",
+    returnTo: "/vehicles/coo-workbook",
+    title: input.title,
+    workflowArea: "GENERAL_MANAGER"
+  });
+  if (input.vehicleReference) params.set("vehicleReference", input.vehicleReference);
+  return `/tasks/intake?${params.toString()}`;
+}
+
+export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean; model: ServiceAdvisorWorkspaceModel }) {
+  const [planCreatedAt, setPlanCreatedAt] = useState<string | null>(null);
+  const approvalCount = actionCount(model, "AUTHORIZATION");
+  const promiseRiskCount = actionCount(model, "PROMISE_RISK");
+  const partsDelayCount = actionCount(model, "PARTS_DELAY");
+  const techClarificationCount = actionCount(model, "TECHNICIAN_CLARIFICATION");
+  const handoffCount = actionCount(model, "HANDOFF");
+  const reportExceptions = model.counts.needsAttention + model.counts.waitingOnOthers;
+  const actionPlan = [
+    {
+      empty: "No urgent operating actions are waiting.",
+      items: model.actionQueue.filter((item) => ["AUTHORIZATION", "PROMISE_RISK", "HANDOFF", "CUSTOMER_UPDATE"].includes(item.actionKind)).slice(0, 3),
+      label: "Start today"
+    },
+    {
+      empty: "No approval-sensitive items need review.",
+      items: model.actionQueue.filter((item) => item.actionKind === "AUTHORIZATION").slice(0, 3),
+      label: "Review before approval"
+    },
+    {
+      empty: "No carryover blockers are waiting.",
+      items: model.actionQueue.filter((item) => ["PARTS_DELAY", "TECHNICIAN_CLARIFICATION", "FOLLOW_UP_SCHEDULED"].includes(item.actionKind)).slice(0, 3),
+      label: "Carryover watch"
+    }
+  ];
+  const lanes = [
+    {
+      href: "/vehicles/advisor#arrival-queue",
+      label: "Morning control check",
+      metric: model.counts.todaysArrivals,
+      note: model.counts.todaysArrivals ? "Confirm arrivals, carryovers, and first customer commitments." : "Arrivals are clear in this view.",
+      state: model.counts.todaysArrivals ? "Action needed" : "Clear"
+    },
+    {
+      href: "/vehicles/repair-workbench?view=all",
+      label: "Production flow review",
+      metric: model.counts.activeRepairOrders,
+      note: `${model.counts.needsAttention} customer-facing item(s) need COO visibility before the day moves on.`,
+      state: model.counts.needsAttention ? "Review" : "Clear"
+    },
+    {
+      href: "/vehicles/advisor?queue=authorization",
+      label: "Approval readiness",
+      metric: approvalCount,
+      note: approvalCount ? "Review authorization language and ownership before approval is recorded." : "No approval review items are waiting.",
+      state: approvalCount ? "Before approval" : "Clear"
+    },
+    {
+      href: "/vehicles/advisor?queue=PARTS_DELAY",
+      label: "Parts, vendor, and technician blockers",
+      metric: partsDelayCount + techClarificationCount,
+      note: `${partsDelayCount} parts/vendor delay(s), ${techClarificationCount} technician clarification(s).`,
+      state: partsDelayCount + techClarificationCount ? "Escalate" : "Clear"
+    },
+    {
+      href: "/vehicles/advisor?queue=HANDOFF",
+      label: "Release and handoff control",
+      metric: handoffCount,
+      note: handoffCount ? "Validate release readiness before a customer-facing completion promise." : "No handoff items need COO review.",
+      state: handoffCount ? "Review" : "Clear"
+    },
+    {
+      href: "/vehicles/coo-workbook",
+      label: "Daily report draft",
+      metric: reportExceptions,
+      note: reportExceptions ? "Use unresolved actions, blockers, and decisions as the first daily report draft." : "Daily report can start from a clean operating note.",
+      state: "Draft"
+    }
+  ];
+  const flattenedPlanItems = actionPlan.flatMap((group) => group.items.map((item) => ({ group: group.label, item })));
+  const planTaskHref = cooTaskIntakeHref({
+    brief: `Create the COO daily action plan from ${model.counts.activeRepairOrders} active repair order(s), ${approvalCount} approval review item(s), and ${reportExceptions} unresolved risk/carryover item(s).`,
+    dueAt: model.generatedAt,
+    expectedOutcome: "The COO daily action plan is reviewed, prioritized, assigned, and ready to support the end-of-day operations report.",
+    title: "Create COO daily action plan"
+  });
+
+  return <section className={`advisor-panel advisor-coo-workbook ${compact ? "compact" : "full"}`} id="coo-daily-workbook">
+    <header>
+      <div>
+        <strong>COO Daily Workbook</strong>
+        <span>Separate operating workspace for accountability, daily execution, review before approval, and the future daily report.</span>
+      </div>
+      <div className="advisor-coo-header-actions">
+        {!compact ? <button onClick={() => setPlanCreatedAt(new Date().toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }))} type="button"><ClipboardCheck /> Create Daily Action Plan</button> : null}
+        <Link href={compact ? "/vehicles/coo-workbook" : planTaskHref}><ClipboardList /> {compact ? "Open review" : "Add To-Do"}</Link>
+      </div>
+    </header>
+    <div className="advisor-coo-summary" aria-label="COO daily review summary">
+      <article><ShieldCheck /><span>Review before approval</span><strong>{approvalCount}</strong><small>Approval-sensitive item(s)</small></article>
+      <article><AlertTriangle /><span>Operating risk</span><strong>{promiseRiskCount + reportExceptions}</strong><small>Promises, blockers, and follow-up</small></article>
+      <article><FileText /><span>Report seed</span><strong>{reportExceptions}</strong><small>Carryover candidates</small></article>
+    </div>
+    <div className="advisor-coo-lanes">
+      {lanes.map((lane) => <Link href={lane.href} key={lane.label}>
+        <span><strong>{lane.label}</strong><small>{lane.note}</small></span>
+        <b>{lane.metric}</b>
+        <em>{lane.state}</em>
+      </Link>)}
+    </div>
+    {!compact ? <section className="advisor-coo-action-plan" aria-label="COO daily action plan">
+      <header><strong>Daily action plan</strong><small>{planCreatedAt ? `Created ${planCreatedAt}. Use Add To-Do to turn any plan line into a task.` : "Built from today’s review lanes. Create the plan, then turn action lines into to-dos as needed."}</small></header>
+      {planCreatedAt ? <div className="advisor-coo-created-plan">
+        <CheckCircle2 />
+        <span><strong>Today’s action plan is ready for review.</strong><small>{flattenedPlanItems.length ? `${flattenedPlanItems.length} live operating item(s) are available to convert into to-dos.` : "No live operating exceptions are waiting; create a general COO follow-up if needed."}</small></span>
+        <Link href={planTaskHref}>Create plan task</Link>
+      </div> : null}
+      <div>
+        {actionPlan.map((group) => <article key={group.label}>
+          <h2>{group.label}</h2>
+          {group.items.length ? group.items.map((item) => <div className="advisor-coo-plan-item" key={`${group.label}-${item.id}`}>
+            <Link href={`/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(item.id)}`}>
+              <span><strong>{item.repairOrderNumber}</strong><small>{item.customerName} · {item.vehicleLabel}</small></span>
+              <em>{item.actionLabel}</em>
+            </Link>
+            <Link href={cooTaskIntakeHref({
+              brief: `${group.label}: ${item.actionReason} Next step: ${item.nextAction}`,
+              dueAt: item.targetAt,
+              expectedOutcome: "The COO follow-up is completed, the accountable owner is clear, and the result is ready for the daily operations report.",
+              title: `COO follow-up: ${item.repairOrderNumber}`,
+              vehicleReference: `${item.vehicleLabel} · ${item.repairOrderNumber}`
+            })}>Add To-Do</Link>
+          </div>) : <p><CheckCircle2 /> {group.empty}</p>}
+        </article>)}
+      </div>
+    </section> : null}
+    {!compact ? <section className="advisor-coo-report-draft" aria-label="Daily operations report draft inputs">
+      <header><strong>End-of-day report builder preview</strong><small>This review produces the report later: completed priorities, blockers, approvals reviewed, escalations, and tomorrow carryovers.</small></header>
+      <dl>
+        <div><dt>Customer commitments</dt><dd>{model.counts.needsAttention} need COO visibility</dd></div>
+        <div><dt>Waiting on others</dt><dd>{model.counts.waitingOnOthers} item(s)</dd></div>
+        <div><dt>Approval review</dt><dd>{approvalCount} before approval</dd></div>
+        <div><dt>Release control</dt><dd>{handoffCount} handoff item(s)</dd></div>
+      </dl>
+      <p>Approval stays governed in the repair order and manager review tools. The workbook collects the COO review, decision context, and carryover shape before anything is marked approved.</p>
+    </section> : null}
+  </section>;
 }
 
 function AdvisorInbox({ compact = false, highVolume, items }: { compact?: boolean; highVolume: boolean; items: InboxItem[] }) {
