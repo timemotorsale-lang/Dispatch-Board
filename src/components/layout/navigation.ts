@@ -5,6 +5,7 @@ import {
   BarChart3,
   BookOpen,
   BriefcaseBusiness,
+  Building2,
   CalendarDays,
   CarFront,
   Clock3,
@@ -320,6 +321,7 @@ const workspaceNavigationItems: Partial<Record<WorkspaceKey, NavigationItem[]>> 
     { href: "/my-tasks?workspace=vehicle-operations-lead", title: "My Vehicle Work", description: "Assigned vehicle operations work and next actions.", icon: UserRoundCheck },
     { href: "/vehicles/inventory", title: "Inventory Flow", description: "Move units through acquisition, recon, merchandising, and readiness.", icon: RefreshCw },
     { href: "/vehicles/shop-recon", title: "Shop & Recon", description: "Production, bottlenecks, repair status, and QC readiness.", icon: Wrench },
+    { href: "/vehicles/outside-vendors", title: "Outside Vendors", description: "Vendor profiles, offsite work, billing readiness, and QC accountability.", icon: Building2 },
     { href: "/vehicles/parts-operations", title: "Parts Runner", description: "Parts demand, pickup, receiving, returns, and constrained work.", icon: BriefcaseBusiness },
     { href: "/vehicles/workflows/add-vehicle", title: "Receive Vehicle", description: "Start vehicle intake, custody, keys, photos, and lot placement.", icon: CarFront },
     { href: "/manager-review?scope=inventory", title: "Exceptions", description: "Inventory and shop exceptions requiring lead review.", icon: ShieldCheck }
@@ -327,6 +329,7 @@ const workspaceNavigationItems: Partial<Record<WorkspaceKey, NavigationItem[]>> 
   SERVICE: [
     { href: "/vehicles/coo-workbook", title: "COO Workbook", description: "Daily operating checklist and review-before-approval context.", icon: ClipboardList },
     { href: "/vehicles/shop-recon", title: "Shop & Recon", description: "Production, capacity, constraints, and completion risk.", icon: Wrench },
+    { href: "/vehicles/outside-vendors", title: "Outside Vendors", description: "Vendor jobs, estimates, invoice follow-up, and return/QC status.", icon: Building2 },
     { href: "/vehicles/repair-workbench", title: "Repair Orders", description: "Open and coordinate governed repair orders.", icon: ClipboardCheck },
     { href: "/vehicles/shop-dispatch", title: "Shop Dispatch", description: "Assign authorized repair work and manage bays.", icon: ListChecks },
     { href: "/vehicles/parts-operations", title: "Parts Operations", description: "Review parts readiness and constrained work.", icon: BriefcaseBusiness },
@@ -338,6 +341,7 @@ const workspaceNavigationItems: Partial<Record<WorkspaceKey, NavigationItem[]>> 
     { href: "/vehicles/coo-workbook", title: "COO Workbook", description: "Daily operating checklist and cross-workspace report draft.", icon: ClipboardList },
     { href: "/vehicles/inventory", title: "Inventory Lifecycle", description: "Acquisition through sale, transfer, or disposition.", icon: RefreshCw },
     { href: "/vehicles/shop-recon", title: "Shop & Recon", description: "Inventory recon status and readiness constraints.", icon: Wrench },
+    { href: "/vehicles/outside-vendors", title: "Outside Vendors", description: "Offsite partner work, billing readiness, and vendor performance.", icon: Building2 },
     { href: "/vehicles/parts-operations", title: "Parts Readiness", description: "Parts demand affecting inventory completion.", icon: BriefcaseBusiness },
     { href: "/manager-review?scope=inventory", title: "Reviews", description: "Inventory work awaiting review or approval.", icon: ShieldCheck }
   ],
