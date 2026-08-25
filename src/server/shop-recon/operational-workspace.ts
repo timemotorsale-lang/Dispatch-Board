@@ -211,6 +211,7 @@ export const SHOP_RECON_OPERATIONAL_WORKSPACES: readonly ShopReconOperationalWor
     workInstruction: "Use the Diagnostic Module to review the verified concern, collect assist-inspection evidence, and choose the supported next decision.",
     tools: [
       tool("DIAGNOSTIC_MODULE", "Diagnostic Module", "/vehicles/repair-workbench", "Open the existing repair workbench diagnostic module for this repair order."),
+      tool("DIAGNOSTIC_ASSIST_INSPECTION", "Diagnostic Assist Inspection", "/vehicles/repair-workbench", "Open the concern-seeded inspection checklist and save its findings as diagnostic evidence. This does not pass Final QC."),
     ],
     pilotValues: { diagnosticEvidenceReviewed: true, diagnosticAssistInspectionPerformed: true, diagnosticTestDriveOrStaticCheckCompleted: true, diagnosticDispositionSelected: true, diagnosticNextStepControlled: true, diagnosticDisposition: "Possible repair needed", diagnosticNotes: "Diagnostic assist inspection found brake pulsation, ABS light present, and scan evidence attached for repair-plan decision." },
     actions: [

@@ -463,6 +463,10 @@ function resolveStageToolHref(tool: ShopReconOperationalTool, item: ShopReconVeh
     const params = new URLSearchParams({ repairOrderId: item.id, ...(item.vehicleId ? { vehicleId: item.vehicleId } : {}), ...returnContext });
     return `/vehicles/repair-workbench?${params.toString()}#diagnosis`;
   }
+  if (tool.key === "DIAGNOSTIC_ASSIST_INSPECTION") {
+    const params = new URLSearchParams({ repairOrderId: item.id, ...(item.vehicleId ? { vehicleId: item.vehicleId } : {}), ...returnContext });
+    return `/vehicles/repair-workbench?${params.toString()}#enterprise-diagnostics`;
+  }
   if (tool.key === "REPAIR_WORKBENCH") {
     const params = new URLSearchParams({ repairOrderId: item.id, ...(item.vehicleId ? { vehicleId: item.vehicleId } : {}), ...returnContext });
     return `/vehicles/repair-workbench?${params.toString()}#estimate`;

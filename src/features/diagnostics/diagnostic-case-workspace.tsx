@@ -295,7 +295,7 @@ export function DiagnosticCaseWorkspace({ model }: { model: DiagnosticCaseWorksp
               <p>It captures the primary concern, codes, stoplight inspection areas, obvious parts, and photo needs in one saved observation so the next diagnostic guidance can focus on the real issue.</p>
             </div>
           </section>
-          {captureMode === "INSPECTION" ? <form className={`${styles.captureForm} ${styles.initialInspectionForm}`} aria-label="Initial Recon Inspection Checklist" onSubmit={(event) => {
+          {captureMode === "INSPECTION" ? <form className={`${styles.captureForm} ${styles.initialInspectionForm}`} aria-label="Diagnostic Assist Inspection" onSubmit={(event) => {
             event.preventDefault();
             const checklistResults = initialInspectionChecklist.map((entry) => ({ ...entry, status: inspectionChecklist[entry.key], note: inspectionNotes[entry.key].trim() || null }));
             const flaggedResults = checklistResults.filter((entry) => entry.status !== "GREEN" || entry.note);
@@ -339,7 +339,7 @@ export function DiagnosticCaseWorkspace({ model }: { model: DiagnosticCaseWorksp
               successMessage: "Initial inspection checklist saved to the diagnostic case.",
             });
           }}>
-            <div className={styles.formIntroduction}><strong>Initial QC inspection checklist</strong><p>One short inspection package: confirm the concern, mark the vehicle areas, add codes or obvious estimate hints only when they help, then save.</p></div>
+            <div className={styles.formIntroduction}><strong>Diagnostic Assist Inspection</strong><p>Start from the reported concern, mark the vehicle areas, and save only evidence that helps the diagnostic decision. This is not a Final QC pass.</p></div>
             <label className={styles.wideField}><span>Primary concern / observation</span><textarea maxLength={700} onChange={(event) => setInspectionPrimaryObservation(event.target.value)} placeholder="What did staff actually see, hear, feel, smell, or confirm?" required rows={3} value={inspectionPrimaryObservation} /><small>This is the concern the diagnostic intelligence should focus on first.</small></label>
             <label className={styles.wideField}><span>Diagnostic code / module notes</span><input maxLength={220} onChange={(event) => setInspectionCode(event.target.value)} placeholder="Example: ABS C0035 current; PCM P0300 history; or no codes checked yet" value={inspectionCode} /><small>Optional. Leave blank if codes were not checked yet.</small></label>
             <section className={styles.inspectionChecklistGrid} aria-label="Initial inspection checklist">

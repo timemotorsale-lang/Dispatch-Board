@@ -58,7 +58,7 @@ describe("Shop Recon unified vehicle-card design", () => {
     expect(getShopReconOperationalWorkspace("VEHICLE_INTAKE_CUSTODY", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Vehicle Intake & Custody"]);
     expect(getShopReconOperationalWorkspace("SAFETY_MOBILITY_TRIAGE", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Safety & Mobility Triage"]);
     expect(getShopReconOperationalWorkspace("INSPECTION_CONCERN_VERIFICATION", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Inspection / Concern Verification"]);
-    expect(getShopReconOperationalWorkspace("DIAGNOSIS", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Diagnostic Module"]);
+    expect(getShopReconOperationalWorkspace("DIAGNOSIS", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Diagnostic Module", "Diagnostic Assist Inspection"]);
     expect(getShopReconOperationalWorkspace("FINDINGS_REPAIR_PLAN", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Repair Workbench", "Labor Guide"]);
     expect(getShopReconOperationalWorkspace("AUTHORIZATION", "CUSTOMER_REPAIR")?.tools?.map(tool => tool.label)).toEqual(["Repair Workbench / Authorization", "Service Advisor / Approval Desk"]);
     expect(getShopReconOperationalWorkspace("AUTHORIZATION", "INVENTORY_RECON")?.tools?.map(tool => tool.label)).toEqual(["Repair Workbench / Authorization", "Inventory Lifecycle Authorization"]);
@@ -270,6 +270,8 @@ describe("Shop Recon unified vehicle-card design", () => {
     expect(html).toContain("Diagnostic Module + Assist Inspection");
     expect(html).toContain("/vehicles/repair-workbench?repairOrderId=ro-1&amp;vehicleId=vehicle-1");
     expect(html).toContain("#diagnosis");
+    expect(html).toContain("Diagnostic Assist Inspection");
+    expect(html).toContain("#enterprise-diagnostics");
     expect(html).toContain("Diagnostic evidence reviewed");
     expect(html).toContain("Diagnostic assist inspection performed");
     expect(html).toContain("Road test or static check completed or marked not needed");

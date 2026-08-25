@@ -85,7 +85,8 @@ describe("diagnostics case console", () => {
     expect(html).toContain("This is the concern the diagnostic intelligence should focus on first.");
     expect(html).not.toContain("Option 1: Quick update and continue");
     expect(html).not.toContain("Option 2: Detailed troubleshooting");
-    expect(html).toContain("Initial QC inspection checklist");
+    expect(html).toContain("Diagnostic Assist Inspection");
+    expect(html).toContain("This is not a Final QC pass.");
     expect(html).toContain("Diagnostic code / module notes");
     expect(html).toContain("Dash lights / diagnostic codes");
     expect(html).toContain("Body / exterior damage");
@@ -101,7 +102,7 @@ describe("diagnostics case console", () => {
     expect(html).toContain("This does not order parts.");
     expect(html).toContain("Sellability / readiness gate");
     expect(html).toContain("Save checklist observation");
-    expect(html).toContain("One short inspection package: confirm the concern, mark the vehicle areas, add codes or obvious estimate hints only when they help, then save.");
+    expect(html).toContain("Start from the reported concern, mark the vehicle areas, and save only evidence that helps the diagnostic decision.");
     expect(html).toContain("Battery loaded voltage");
     expect(html).toContain("Record a test already performed");
     expect(html).toContain("No symptom or scan result has been recorded.");
