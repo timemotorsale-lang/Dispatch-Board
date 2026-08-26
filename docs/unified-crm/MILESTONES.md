@@ -209,7 +209,7 @@ Unless a row or acceptance ledger below says otherwise, slices begin as `PLANNED
 
 | ID | Agent-sized deliverable | Acceptance evidence |
 | --- | --- | --- |
-| UCRM-070 | Pilot finding closure | Every pilot finding is fixed with regression proof, accepted with owner/date, or removed from enabled scope. |
+| UCRM-070 | Pilot finding closure — `IMPLEMENTED_UNVERIFIED` | A manager-only closure API now tracks pilot findings by owner, status, release impact, and evidence path, holding release-candidate validation until every finding is fixed with regression proof, accepted with owner/date, or removed from enabled scope. |
 | UCRM-071 | Release-candidate validation | Full UCRM-060–067 evidence is rerun or confirmed valid against the exact release candidate and production configuration. |
 | UCRM-072 | Operational handoff | Owners confirm monitoring, support, permissions, flag changes, incident response, data recovery, training, and rollback authority. |
 | UCRM-073 | Internal release decision | Signed go/no-go records enabled cohorts/capabilities, known limitations, evidence commit, migration version, and rollback trigger. |
