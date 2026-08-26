@@ -3,10 +3,12 @@ import { parseUnifiedCrmView } from "@/features/unified-crm/unified-crm-shell-re
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { getUnifiedCrmCustomerList } from "@/server/services/unified-crm-customer-read-service";
 import { getUnifiedCrmCustomerListOpportunityDiscoveries } from "@/server/services/unified-crm-customer-list-opportunity-discovery-service";
+import { getUnifiedCrmHomeDashboard } from "@/server/services/unified-crm-home-dashboard-service";
 import { getUnifiedCrmOpportunityDiscovery } from "@/server/services/unified-crm-opportunity-discovery-service";
 import { getUnifiedCrmOpportunityPipelinePreview } from "@/server/services/unified-crm-opportunity-read-service";
 import { getUnifiedCrmWorkQueue } from "@/server/services/unified-crm-work-queue-service";
 import type { UnifiedCrmCustomerListOpportunityDiscoveryCollectionModel } from "@/server/unified-crm/customer-list-opportunity-discovery-contract";
+import type { UnifiedCrmHomeDashboardReadModel } from "@/server/unified-crm/home-dashboard-contract";
 import { resolveUnifiedCrmShellAccess } from "@/server/unified-crm/shell-access";
 
 type CrmPageProps = {
@@ -65,6 +67,7 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
   let workQueue;
   let workQueueError: string | undefined;
   let workQueueFailureKind: "error" | "restricted" | "unavailable" | undefined;
+  let homeDashboard: UnifiedCrmHomeDashboardReadModel | undefined;
   let opportunityDiscovery;
   let customerList;
   let customerListError: string | undefined;
@@ -75,6 +78,14 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
   let opportunityPreviewFailureKind: "error" | "restricted" | "unavailable" | undefined;
 
   if (activeView === "home" || activeView === "work") {
+    if (activeView === "home") {
+      try {
+        homeDashboard = await getUnifiedCrmHomeDashboard(user);
+      } catch {
+        homeDashboard = undefined;
+      }
+    }
+
     try {
       workQueue = await getUnifiedCrmWorkQueue(user);
     } catch (error) {
@@ -162,6 +173,7 @@ export default async function CrmPage({ searchParams }: CrmPageProps) {
       customerListError={customerListError}
       customerListFailureKind={customerListFailureKind}
       customerListOpportunityDiscovery={customerListOpportunityDiscovery}
+      homeDashboard={homeDashboard}
       initialSelectedId={Array.isArray(parameters.selected) ? parameters.selected[0] : parameters.selected}
       opportunityDiscovery={opportunityDiscovery}
       opportunityPreview={opportunityPreview}

@@ -3,8 +3,28 @@ import { describe, expect, it } from "vitest";
 
 import { describeLiveWorkPresentation, UnifiedCrmShell, UnifiedCrmUnavailable } from "@/features/unified-crm/unified-crm-shell";
 import { parseUnifiedCrmView, UNIFIED_CRM_REVIEW_NOTICE } from "@/features/unified-crm/unified-crm-shell-review-model";
+import type { UnifiedCrmHomeDashboardReadModel } from "@/server/unified-crm/home-dashboard-contract";
 import type { UnifiedCrmOpportunityDiscoveryModel } from "@/server/unified-crm/opportunity-discovery-contract";
 import type { UnifiedCrmWorkQueueReadModel } from "@/server/unified-crm/work-queue-contract";
+
+const homeDashboard: UnifiedCrmHomeDashboardReadModel = {
+  contractVersion: "ucrm.home-dashboard/v1",
+  freshness: {
+    newestRecordUpdatedAt: "2026-08-15T02:45:00.000Z",
+    observedAt: "2026-08-15T03:00:00.000Z",
+    status: "CURRENT"
+  },
+  generatedAt: "2026-08-15T03:00:00.000Z",
+  metrics: [
+    { detail: "Open work.", href: "/crm?view=work", id: "ownedWork", label: "Owned work", state: "READY", value: 4 },
+    { detail: "Past due.", href: "/crm/opportunities/queue?crmReturnTo=%2Fcrm", id: "overdueFollowUp", label: "Overdue follow-up", state: "READY", value: 1 },
+    { detail: "Active opportunities.", href: "/crm?view=pipeline", id: "pipeline", label: "Pipeline", state: "READY", value: 4 },
+    { detail: "Visible quotes.", href: "/crm/quotes?crmReturnTo=%2Fcrm", id: "quotes", label: "Quotes", state: "READY", value: 2 },
+    { detail: "Dispatch links.", href: "/crm/opportunities?crmReturnTo=%2Fcrm", id: "dispatchHandoffs", label: "Dispatch handoffs", state: "READY", value: 1 }
+  ],
+  state: "READY",
+  visibility: "owned"
+};
 
 const opportunityDiscovery: UnifiedCrmOpportunityDiscoveryModel = {
   collectionObservation: {
@@ -143,9 +163,13 @@ const liveWorkQueue: UnifiedCrmWorkQueueReadModel = {
 
 describe("Unified CRM UX review shell", () => {
   it("leads with prioritized work and labels every scenario as synthetic review", () => {
-    const markup = renderToStaticMarkup(<UnifiedCrmShell activeView="home" userName="Alex Operator" />);
+    const markup = renderToStaticMarkup(<UnifiedCrmShell activeView="home" homeDashboard={homeDashboard} userName="Alex Operator" />);
 
     expect(markup).toContain("Here’s what needs attention, Alex");
+    expect(markup).toContain("Operational dashboard");
+    expect(markup).toContain("Your CRM pulse");
+    expect(markup).toContain("Overdue follow-up");
+    expect(markup).toContain('/crm/quotes?crmReturnTo=%2Fcrm');
     expect(markup).toContain("Do this next");
     expect(markup).toContain("synthetic scenarios only");
     expect(markup).toContain(UNIFIED_CRM_REVIEW_NOTICE.replace("Experience review — ", ""));

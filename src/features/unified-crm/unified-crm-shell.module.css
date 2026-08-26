@@ -251,6 +251,18 @@
 .listCard article span { display: grid; gap: 3px; }
 .listCard article strong { font-size: 11.5px; }
 .listCard article small,.listCard time { color: var(--crm-muted); font-size: 10.5px; }
+.dashboardStrip { grid-column: 1 / -1; display: grid; gap: 10px; border: 1px solid #bfd4ee; border-radius: 10px; padding: 12px; background: linear-gradient(135deg, #f8fbff 0%, #eef6ff 48%, #fffaf0 100%); box-shadow: 0 10px 24px rgb(26 60 103 / 8%); }
+.dashboardStrip > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.dashboardStrip > header div { display: grid; gap: 3px; }
+.dashboardStrip > header strong { font-size: 15px; }
+.dashboardStrip > header small { color: var(--crm-muted); font-size: 10.5px; }
+.dashboardMetrics { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.dashboardMetric { display: grid; gap: 5px; min-height: 104px; border: 1px solid rgb(23 98 207 / 14%); border-radius: 9px; padding: 10px; color: var(--crm-text); background: rgb(255 255 255 / 82%); }
+.dashboardMetric:hover,.dashboardMetric:focus-visible { border-color: #86acd9; outline: 3px solid rgb(23 98 207 / 12%); transform: translateY(-1px); }
+.dashboardMetric span { color: var(--crm-muted); font-size: 10px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
+.dashboardMetric strong { font-size: 25px; line-height: 1; }
+.dashboardMetric small { color: var(--crm-muted); font-size: 10.5px; line-height: 1.35; }
+.dashboardMetric[data-state="empty"] { opacity: .78; }
 .sectionDetail { margin: 0; padding: 10px 11px 0; color: var(--crm-muted); font-size: 10.5px; line-height: 1.45; }
 .sourceCoverage { display: grid; gap: 8px; padding: 10px 11px 0; }
 .sourceCoverage > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -358,6 +370,7 @@
   .homeGrid,.twoColumn { grid-template-columns: 1fr; }
   .todayRail { grid-column: auto; }
   .cardGrid,.pipeline,.insights,.moreGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboardMetrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .sourceCoverageGrid { grid-template-columns: 1fr; }
   .discoveryGrid { grid-template-columns: 1fr; }
   .opportunityPreviewGrid,.opportunityNextSteps { grid-template-columns: 1fr; }
@@ -379,6 +392,7 @@
   .newButton { min-width: 76px; min-height: 44px; }
   .newMenu { position: fixed; right: 8px; bottom: 8px; left: 8px; top: auto; width: auto; max-height: calc(100vh - 80px); overflow-y: auto; }
   .newMenu > a { min-height: 58px; }
+  .dashboardMetrics { grid-template-columns: 1fr; }
   .todayRail,.cardGrid,.pipeline,.insights,.moreGrid { grid-template-columns: 1fr; }
   .reviewBadge { width: 100%; justify-content: center; }
   .queueRow { grid-template-columns: 8px minmax(0, 1fr) auto; min-height: 74px; padding-block: 9px; }

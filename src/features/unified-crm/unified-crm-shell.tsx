@@ -22,6 +22,7 @@ import { withUnifiedCrmOpportunityReturn } from "@/server/unified-crm/opportunit
 import type { UnifiedCrmCustomerListReadModel } from "@/server/unified-crm/customer-read-contract";
 import type { UnifiedCrmCustomerListOpportunityDiscoveryCollectionModel } from "@/server/unified-crm/customer-list-opportunity-discovery-contract";
 import type { UnifiedCrmGlobalSearchReadModel, UnifiedCrmGlobalSearchResult } from "@/server/unified-crm/global-search-contract";
+import type { UnifiedCrmHomeDashboardReadModel } from "@/server/unified-crm/home-dashboard-contract";
 import type { UnifiedCrmOpportunityDiscoveryModel } from "@/server/unified-crm/opportunity-discovery-contract";
 import type { UnifiedCrmOpportunityPreviewModel } from "@/server/unified-crm/opportunity-read-contract";
 
@@ -46,6 +47,7 @@ type UnifiedCrmShellProps = {
   customerListError?: string;
   customerListFailureKind?: "error" | "restricted" | "unavailable";
   customerListOpportunityDiscovery?: UnifiedCrmCustomerListOpportunityDiscoveryCollectionModel;
+  homeDashboard?: UnifiedCrmHomeDashboardReadModel;
   initialSelectedId?: string;
   opportunityDiscovery?: UnifiedCrmOpportunityDiscoveryModel;
   opportunityPreview?: UnifiedCrmOpportunityPreviewModel;
@@ -454,12 +456,38 @@ function WorkQueueSearch({
   );
 }
 
+function HomeDashboard({ model }: { model?: UnifiedCrmHomeDashboardReadModel }) {
+  if (!model) return null;
+  return (
+    <section className={styles.dashboardStrip} aria-label="CRM Home operational dashboard">
+      <header>
+        <div>
+          <span className={styles.sectionLabel}>Operational dashboard</span>
+          <strong>{model.visibility === "owned" ? "Your CRM pulse" : "Team CRM pulse"}</strong>
+        </div>
+        <small>Fresh as of {formatTime(model.freshness.observedAt, "Unknown")}</small>
+      </header>
+      <div className={styles.dashboardMetrics}>
+        {model.metrics.map((metric) => (
+          <Link className={styles.dashboardMetric} data-state={metric.state.toLowerCase()} href={metric.href} key={metric.id}>
+            <span>{metric.label}</span>
+            <strong>{metric.value}</strong>
+            <small>{metric.detail}</small>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function HomeView({
+  homeDashboard,
   opportunityDiscovery,
   returnHref,
   selected,
   onSelect
 }: {
+  homeDashboard?: UnifiedCrmHomeDashboardReadModel;
   opportunityDiscovery?: UnifiedCrmOpportunityDiscoveryModel;
   returnHref: string;
   selected: ReviewQueueItem;
@@ -467,6 +495,7 @@ function HomeView({
 }) {
   return (
     <div className={styles.homeGrid}>
+      <HomeDashboard model={homeDashboard} />
       <section className={styles.queuePanel} aria-labelledby="crm-next-heading">
         <header className={styles.panelHeading}>
           <div><span>Prioritized review queue</span><h2 id="crm-next-heading">Do this next</h2></div>
@@ -683,12 +712,14 @@ function WorkState({
 
 function LiveHomeView({
   filterQuery,
+  homeDashboard,
   model,
   opportunityDiscovery,
   selected,
   onSelect
 }: {
   filterQuery: string;
+  homeDashboard?: UnifiedCrmHomeDashboardReadModel;
   model: UnifiedCrmWorkQueueReadModel;
   opportunityDiscovery?: UnifiedCrmOpportunityDiscoveryModel;
   selected: UnifiedCrmWorkQueueItem | null;
@@ -699,6 +730,7 @@ function LiveHomeView({
   const presentation = describeLiveWorkPresentation(model, filterQuery);
   return (
     <div className={styles.homeGrid}>
+      <HomeDashboard model={homeDashboard} />
       <section className={styles.queuePanel} aria-labelledby="crm-next-heading">
         <header className={styles.panelHeading}>
           <div><span>{model.visibility === "owned" ? "Owned live work" : "Live team work"}</span><h2 id="crm-next-heading">Do this next</h2></div>
@@ -883,6 +915,7 @@ export function UnifiedCrmShell({
   customerListError,
   customerListFailureKind,
   customerListOpportunityDiscovery,
+  homeDashboard,
   initialSelectedId,
   opportunityDiscovery,
   opportunityPreview,
@@ -954,9 +987,9 @@ export function UnifiedCrmShell({
       {activeView === "home"
         ? workQueue || workQueueError
           ? workQueue
-            ? <LiveHomeView filterQuery={workQuery} model={{ ...workQueue, items: filteredWorkItems }} opportunityDiscovery={opportunityDiscovery} onSelect={(item) => setSelectedWorkId(item.id)} selected={selectedWork} />
-            : <div className={styles.discoveryStack}><WorkState detail={workQueueError ?? "No live CRM work records were displayed."} failureKind={workQueueFailureKind} returnHref="/crm" />{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} returnHref="/crm" /> : null}</div>
-          : <HomeView opportunityDiscovery={opportunityDiscovery} onSelect={setSelected} returnHref="/crm" selected={selected} />
+            ? <LiveHomeView filterQuery={workQuery} homeDashboard={homeDashboard} model={{ ...workQueue, items: filteredWorkItems }} opportunityDiscovery={opportunityDiscovery} onSelect={(item) => setSelectedWorkId(item.id)} selected={selectedWork} />
+            : <div className={styles.discoveryStack}><HomeDashboard model={homeDashboard} /><WorkState detail={workQueueError ?? "No live CRM work records were displayed."} failureKind={workQueueFailureKind} returnHref="/crm" />{opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} returnHref="/crm" /> : null}</div>
+          : <HomeView homeDashboard={homeDashboard} opportunityDiscovery={opportunityDiscovery} onSelect={setSelected} returnHref="/crm" selected={selected} />
         : null}
       {activeView === "work"
         ? workQueue || workQueueError
