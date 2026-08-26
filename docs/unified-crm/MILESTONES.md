@@ -211,7 +211,7 @@ Unless a row or acceptance ledger below says otherwise, slices begin as `PLANNED
 | --- | --- | --- |
 | UCRM-070 | Pilot finding closure — `IMPLEMENTED_UNVERIFIED` | A manager-only closure API now tracks pilot findings by owner, status, release impact, and evidence path, holding release-candidate validation until every finding is fixed with regression proof, accepted with owner/date, or removed from enabled scope. |
 | UCRM-071 | Release-candidate validation — `IMPLEMENTED_UNVERIFIED` | A manager-only validation API now requires UCRM-060 through UCRM-067 evidence to be rerun or confirmed current against the exact release-candidate commit and production configuration before validation can pass. |
-| UCRM-072 | Operational handoff | Owners confirm monitoring, support, permissions, flag changes, incident response, data recovery, training, and rollback authority. |
+| UCRM-072 | Operational handoff — `IMPLEMENTED_UNVERIFIED` | A manager-only handoff API now tracks owner confirmation for monitoring, support, permissions, flag changes, incident response, data recovery, training, and rollback authority before internal release decision. |
 | UCRM-073 | Internal release decision | Signed go/no-go records enabled cohorts/capabilities, known limitations, evidence commit, migration version, and rollback trigger. |
 | UCRM-074 | Post-release verification | Smoke workflows, reconciliation, alerts, error/latency/freshness, audit delivery, and support intake are checked after controlled enablement. |
 
