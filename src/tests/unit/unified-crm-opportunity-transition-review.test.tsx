@@ -6,34 +6,43 @@ import { UnifiedCrmOpportunityTransitionReview, UnifiedCrmOpportunityTransitionR
 function fixture() {
   return {
     contractVersion: "ucrm.opportunity-transition/v1",
-    state: "HELD_REVIEW",
+    state: "LIVE_TRANSITION",
     generatedAt: "2026-08-14T19:30:00.000Z",
     requestedOpportunityId: "review01",
     visibility: "organization",
     source: { href: "/crm?view=pipeline", label: "Unified CRM opportunity transition review", observedAt: "2026-08-14T19:30:00.000Z" },
-    headline: { title: "Review the first governed opportunity transition flow", detail: "Held transition detail" },
-    currentState: { label: "Current lifecycle state", detail: "Held current state", status: "HELD" as const },
+    headline: { title: "Move opportunity to the next governed stage", detail: "Live transition detail" },
+    currentState: {
+      allowedNextStages: ["QUALIFIED", "LOST"],
+      label: "Current lifecycle state",
+      detail: "Current state",
+      nextActionDueAt: "2026-08-15T18:30:00.000Z",
+      nextActionLabel: "Call customer",
+      stage: "NEW_INQUIRY",
+      status: "READY" as const,
+      version: 2
+    },
     transitionChecks: [
-      { id: "allowed-edge", label: "Allowed stage change", detail: "detail", state: "HELD" as const },
+      { id: "allowed-edge", label: "Allowed stage change", detail: "detail", state: "REQUIRED" as const },
       { id: "next-action", label: "Next action stays clear", detail: "detail", state: "REQUIRED" as const }
     ],
-    governance: ["No live stage transition is available from this review surface."],
-    nextUnlocks: ["Approve the lifecycle graph, transition authority, and evidence requirements for each stage change."],
-    transitionAction: { label: "Move to next stage", state: "HELD" as const }
+    governance: ["Every live stage move uses the CRM opportunity transition command."],
+    nextUnlocks: ["Use this same command from the visual pipeline board in UCRM-033."],
+    transitionAction: { label: "Move to next stage", state: "READY" as const }
   };
 }
 
 describe("Unified CRM opportunity transition review", () => {
-  it("renders an honest transition review", () => {
+  it("renders a governed transition form", () => {
     const markup = renderToStaticMarkup(<UnifiedCrmOpportunityTransitionReview model={fixture()} returnHref="/crm?view=pipeline" />);
-    expect(markup).toContain("Review the first governed opportunity transition flow");
+    expect(markup).toContain("Move opportunity to the next governed stage");
     expect(markup).toContain("Allowed stage change");
     expect(markup).toContain("Move to next stage");
     expect(markup).toContain("Review create flow");
     expect(markup).toContain("<main");
     expect(markup).toContain("<h1>");
-    expect(markup).not.toContain("<form");
-    expect(markup).not.toContain("<button");
+    expect(markup).toContain("<form");
+    expect(markup).toContain("Current version 2");
   });
 
   it("renders failure and loading states", () => {

@@ -24,11 +24,11 @@ export type UnifiedCrmOpportunityPolicyDecision = {
   workspace: "MANAGEMENT" | "SALES" | null;
 };
 
-function capabilities(readAllowed: boolean, createAllowed = false): UnifiedCrmOpportunityCapabilityMap {
+function capabilities(readAllowed: boolean, mutateAllowed = false): UnifiedCrmOpportunityCapabilityMap {
   return {
     read: readAllowed,
-    create: createAllowed,
-    transition: false,
+    create: mutateAllowed,
+    transition: mutateAllowed,
     linkTask: false,
     linkAppointment: false,
     linkDispatch: false
@@ -83,7 +83,7 @@ export function evaluateUnifiedCrmOpportunityPolicy(
     };
   }
 
-  if (options.action === "create" && base.mutateAllowed) {
+  if ((options.action === "create" || options.action === "transition") && base.mutateAllowed) {
     return {
       allowed: true,
       fallbackHref: base.fallbackHref,

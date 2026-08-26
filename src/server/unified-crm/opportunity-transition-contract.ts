@@ -1,8 +1,10 @@
+import type { UnifiedCrmOpportunityStage } from "@/server/unified-crm/opportunity-lifecycle";
+
 export const UNIFIED_CRM_OPPORTUNITY_TRANSITION_CONTRACT_VERSION = "ucrm.opportunity-transition/v1" as const;
 
 export type UnifiedCrmOpportunityTransitionReviewModel = {
   contractVersion: typeof UNIFIED_CRM_OPPORTUNITY_TRANSITION_CONTRACT_VERSION;
-  state: "HELD_REVIEW";
+  state: "LIVE_TRANSITION";
   generatedAt: string;
   requestedOpportunityId: string;
   visibility: "organization" | "owned";
@@ -16,9 +18,14 @@ export type UnifiedCrmOpportunityTransitionReviewModel = {
     detail: string;
   };
   currentState: {
+    allowedNextStages: readonly UnifiedCrmOpportunityStage[];
     label: string;
     detail: string;
-    status: "HELD";
+    nextActionDueAt: string | null;
+    nextActionLabel: string | null;
+    stage: UnifiedCrmOpportunityStage;
+    status: "READY";
+    version: number;
   };
   transitionChecks: readonly {
     id: string;
@@ -30,6 +37,6 @@ export type UnifiedCrmOpportunityTransitionReviewModel = {
   nextUnlocks: readonly string[];
   transitionAction: {
     label: string;
-    state: "HELD";
+    state: "READY";
   };
 };

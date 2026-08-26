@@ -131,6 +131,101 @@
   font-weight: 800;
 }
 
+.transitionForm {
+  display: grid;
+  gap: 12px;
+  border: 1px solid #cfe0f5;
+  border-radius: 10px;
+  padding: 14px;
+  background: #f8fbff;
+}
+
+.transitionForm label {
+  display: grid;
+  gap: 6px;
+  color: #435875;
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+}
+
+.transitionForm input,
+.transitionForm select,
+.transitionForm textarea {
+  width: 100%;
+  border: 1px solid #c8d6e6;
+  border-radius: 8px;
+  padding: 10px 11px;
+  color: #13233a;
+  background: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.transitionForm textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.formFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid #dce4ee;
+  padding-top: 12px;
+}
+
+.formFooter span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.formFooter button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 16px;
+  color: #fff;
+  background: #1762cf;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.formFooter button:disabled {
+  cursor: not-allowed;
+  opacity: .65;
+}
+
+.successNotice,
+.errorNotice {
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-weight: 800;
+}
+
+.successNotice {
+  color: #14532d !important;
+  background: #dcfce7;
+}
+
+.errorNotice {
+  color: #8a2424 !important;
+  background: #fff1f2;
+}
+
 .actionLinks {
   display: flex;
   flex-wrap: wrap;
@@ -192,10 +287,10 @@
 
 @media (max-width: 900px) {
   .heroMeta,.ctaRow { flex-direction: column; align-items: flex-start; }
-  .checkGrid,.skeletons { grid-template-columns: 1fr; }
+  .checkGrid,.formGrid,.skeletons { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 640px) {
   .page { padding: 11px; }
-  .stateActions,.actionLinks { flex-direction: column; }
+  .formFooter,.stateActions,.actionLinks { flex-direction: column; align-items: stretch; }
 }

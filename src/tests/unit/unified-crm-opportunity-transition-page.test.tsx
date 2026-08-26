@@ -22,17 +22,26 @@ const actor: AuthenticatedUser = { id: "manager-1", name: "Manager", email: "man
 function transitionFixture() {
   return {
     contractVersion: "ucrm.opportunity-transition/v1",
-    state: "HELD_REVIEW",
+    state: "LIVE_TRANSITION",
     generatedAt: "2026-08-14T19:30:00.000Z",
     requestedOpportunityId: "review01",
     visibility: "organization",
     source: { href: "/crm?view=pipeline", label: "Unified CRM opportunity transition review", observedAt: "2026-08-14T19:30:00.000Z" },
-    headline: { title: "Review the first governed opportunity transition flow", detail: "Held transition detail" },
-    currentState: { label: "Current lifecycle state", detail: "Held current state", status: "HELD" },
+    headline: { title: "Move opportunity to the next governed stage", detail: "Live transition detail" },
+    currentState: {
+      allowedNextStages: ["QUALIFIED", "LOST"],
+      label: "Current lifecycle state",
+      detail: "Current state",
+      nextActionDueAt: "2026-08-15T18:30:00.000Z",
+      nextActionLabel: "Call customer",
+      stage: "NEW_INQUIRY",
+      status: "READY",
+      version: 2
+    },
     transitionChecks: [],
     governance: [],
     nextUnlocks: [],
-    transitionAction: { label: "Move to next stage", state: "HELD" }
+    transitionAction: { label: "Move to next stage", state: "READY" }
   };
 }
 

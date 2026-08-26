@@ -2,6 +2,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 
 import { prisma } from "@/server/db/client";
 import type { UnifiedCrmOpportunityRecordScope } from "@/server/unified-crm/opportunity-contract";
+import type { UnifiedCrmOpportunityStage } from "@/server/unified-crm/opportunity-lifecycle";
 
 export type UnifiedCrmOpportunityDetailRecord = {
   id: string;
@@ -18,6 +19,10 @@ export type UnifiedCrmOpportunityDetailRecord = {
     id: string;
     name: string;
   } | null;
+  stage: UnifiedCrmOpportunityStage;
+  nextActionLabel: string | null;
+  nextActionDueAt: Date | null;
+  version: number;
   sourceLead: {
     id: string;
     leadNumber: string;
@@ -51,6 +56,10 @@ type OpportunityRow = {
   sourceLeadId: string | null;
   sourceLeadNumber: string | null;
   sourceLeadStage: string | null;
+  stage: UnifiedCrmOpportunityStage;
+  nextActionLabel: string | null;
+  nextActionDueAt: Date | null;
+  version: number;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -75,6 +84,10 @@ function mapRow(row: OpportunityRow): UnifiedCrmOpportunityDetailRecord {
           name: row.ownerUserName
         }
       : null,
+    stage: row.stage,
+    nextActionLabel: row.nextActionLabel,
+    nextActionDueAt: row.nextActionDueAt,
+    version: row.version,
     sourceLead: row.sourceLeadId && row.sourceLeadNumber && row.sourceLeadStage
       ? {
           id: row.sourceLeadId,
@@ -103,6 +116,10 @@ export function createUnifiedCrmOpportunityDetailRepository(
           record."opportunityNumber",
           record."title",
           record."summary",
+          record."stage"::text AS "stage",
+          record."nextActionLabel",
+          record."nextActionDueAt",
+          record."version",
           customer."id" AS "customerId",
           customer."displayName" AS "customerDisplayName",
           customer."customerNumber" AS "customerNumber",

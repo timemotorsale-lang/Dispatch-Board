@@ -2,6 +2,7 @@
 
 import { AlertTriangle, ArrowLeft, ExternalLink, RefreshCw, ShieldCheck } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 
 import type { UnifiedCrmOpportunityTransitionReviewModel } from "@/server/unified-crm/opportunity-transition-contract";
 import { withUnifiedCrmOpportunityReturn } from "@/server/unified-crm/opportunity-review-return";
@@ -51,6 +52,124 @@ function StatePanel({ kind, message, returnHref }: { kind: FailureKind; message?
   );
 }
 
+function stageLabel(value: string) {
+  return value.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function transitionHelp(stage: string) {
+  if (stage === "WON") return "Record acceptance evidence and the handoff target. Won opportunities do not keep an active next action.";
+  if (stage === "LOST") return "Record why the opportunity was lost. Lost opportunities do not keep an active next action.";
+  return "Record the next owner-visible action and due time before moving this active opportunity forward.";
+}
+
+function TransitionForm({ model, returnHref }: { model: UnifiedCrmOpportunityTransitionReviewModel; returnHref: string }) {
+  const [toStage, setToStage] = useState<string>(model.currentState.allowedNextStages[0] ?? "");
+  const [status, setStatus] = useState<{ kind: "error" | "success"; message: string } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const terminal = toStage === "WON" || toStage === "LOST";
+  const [todayLocal] = useState(() => new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 16));
+
+  async function submit(formData: FormData) {
+    setSubmitting(true);
+    setStatus(null);
+    const payload = {
+      expectedVersion: model.currentState.version,
+      handoffTarget: formData.get("handoffTarget"),
+      idempotencyKey: globalThis.crypto?.randomUUID?.() ?? `${model.requestedOpportunityId}-${Date.now()}`,
+      lostReason: formData.get("lostReason"),
+      nextActionDueAt: terminal ? null : formData.get("nextActionDueAt"),
+      nextActionLabel: terminal ? null : formData.get("nextActionLabel"),
+      reason: formData.get("reason"),
+      toStage,
+      wonEvidence: formData.get("wonEvidence")
+    };
+    try {
+      const response = await fetch(`/api/crm/v1/opportunities/${encodeURIComponent(model.requestedOpportunityId)}/transition`, {
+        body: JSON.stringify(payload),
+        headers: { "Content-Type": "application/json" },
+        method: "POST"
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(typeof body.error === "string" ? body.error : "Opportunity transition could not be completed.");
+      }
+      setStatus({ kind: "success", message: `Moved to ${stageLabel(body.opportunity.stage)}. Version ${body.opportunity.version} is now current.` });
+    } catch (error) {
+      setStatus({ kind: "error", message: error instanceof Error ? error.message : "Opportunity transition could not be completed." });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (!model.currentState.allowedNextStages.length) {
+    return (
+      <section className={styles.section}>
+        <div className={styles.ctaRow}>
+          <div>
+            <strong>Terminal opportunity</strong>
+            <p>This opportunity is in {stageLabel(model.currentState.stage)}. Reopen controls remain reserved for a manager review milestone.</p>
+          </div>
+          <Link className={styles.primaryLink} href={returnHref}>Return to CRM<ExternalLink aria-hidden="true" size={13} /></Link>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className={styles.section}>
+      <span className={styles.eyebrow}>Move opportunity</span>
+      <form action={submit} className={styles.transitionForm}>
+        <label>
+          Next stage
+          <select name="toStage" onChange={(event) => setToStage(event.target.value)} required value={toStage}>
+            {model.currentState.allowedNextStages.map((stage) => <option key={stage} value={stage}>{stageLabel(stage)}</option>)}
+          </select>
+        </label>
+        <p>{transitionHelp(toStage)}</p>
+        {!terminal ? (
+          <div className={styles.formGrid}>
+            <label>
+              Next action
+              <input defaultValue={model.currentState.nextActionLabel ?? ""} maxLength={240} name="nextActionLabel" required />
+            </label>
+            <label>
+              Due
+              <input defaultValue={model.currentState.nextActionDueAt?.slice(0, 16) ?? todayLocal} name="nextActionDueAt" required type="datetime-local" />
+            </label>
+          </div>
+        ) : null}
+        {toStage === "WON" ? (
+          <div className={styles.formGrid}>
+            <label>
+              Acceptance evidence
+              <textarea maxLength={1000} name="wonEvidence" required />
+            </label>
+            <label>
+              Handoff target
+              <input maxLength={240} name="handoffTarget" placeholder="Final QC, sales handoff, delivery prep..." required />
+            </label>
+          </div>
+        ) : null}
+        {toStage === "LOST" ? (
+          <label>
+            Lost reason
+            <textarea maxLength={1000} name="lostReason" required />
+          </label>
+        ) : null}
+        <label>
+          Transition reason
+          <textarea maxLength={1000} name="reason" placeholder="What changed, who approved it, and what should happen next." required />
+        </label>
+        <div className={styles.formFooter}>
+          <span>Current version {model.currentState.version}</span>
+          <button disabled={submitting} type="submit">{submitting ? "Moving opportunity..." : model.transitionAction.label}</button>
+        </div>
+        {status ? <p className={status.kind === "success" ? styles.successNotice : styles.errorNotice}>{status.message}</p> : null}
+      </form>
+    </section>
+  );
+}
+
 export function UnifiedCrmOpportunityTransitionReview({ errorMessage, failureKind = "error", model, returnHref }: Props) {
   if (!model) return <StatePanel kind={failureKind} message={errorMessage} returnHref={returnHref} />;
   const returnContext = getUnifiedCrmOpportunityReturnContext(returnHref);
@@ -60,11 +179,11 @@ export function UnifiedCrmOpportunityTransitionReview({ errorMessage, failureKin
       <Link className={styles.backLink} href={returnHref}><ArrowLeft aria-hidden="true" size={15} />{returnContext.backLabel}</Link>
 
       <section className={styles.hero}>
-        <span className={styles.eyebrow}>Opportunity transition · review only</span>
+        <span className={styles.eyebrow}>Opportunity transition · governed</span>
         <h1>{model.headline.title}</h1>
         <p>{model.headline.detail}</p>
         <div className={styles.heroMeta}>
-          <span className={styles.heldTag}>{model.transitionAction.state}</span>
+          <span className={styles.requiredTag}>{model.transitionAction.state}</span>
           <span>Observed {formatDate(model.source.observedAt)} · {model.visibility === "organization" ? "Organization review" : "Owned review"}</span>
           <span>{returnContext.returnContextLabel}</span>
         </div>
@@ -77,7 +196,7 @@ export function UnifiedCrmOpportunityTransitionReview({ errorMessage, failureKin
             <strong>{model.currentState.label}</strong>
             <p>{model.currentState.detail}</p>
           </div>
-          <span className={styles.heldTag}>{model.currentState.status}</span>
+          <span className={styles.requiredTag}>{stageLabel(model.currentState.stage)} · v{model.currentState.version}</span>
         </div>
       </section>
 
@@ -88,7 +207,7 @@ export function UnifiedCrmOpportunityTransitionReview({ errorMessage, failureKin
             <article className={styles.checkCard} key={item.id}>
               <header>
                 <strong>{item.label}</strong>
-                <span className={item.state === "REQUIRED" ? styles.requiredTag : styles.heldTag}>{item.state === "REQUIRED" ? "Required" : "Held"}</span>
+          <span className={item.state === "REQUIRED" ? styles.requiredTag : styles.heldTag}>{item.state === "REQUIRED" ? "Required" : "Held"}</span>
               </header>
               <p>{item.detail}</p>
             </article>
@@ -103,15 +222,7 @@ export function UnifiedCrmOpportunityTransitionReview({ errorMessage, failureKin
         </ul>
       </section>
 
-      <section className={styles.section}>
-        <div className={styles.ctaRow}>
-          <div>
-            <strong>{model.transitionAction.label}</strong>
-            <p>This action remains held until the lifecycle graph and evidence checks are approved.</p>
-          </div>
-          <span className={styles.buttonHeld}>{model.transitionAction.state}</span>
-        </div>
-      </section>
+      <TransitionForm model={model} returnHref={returnHref} />
 
       <section className={styles.section}>
         <span className={styles.eyebrow}>Next unlocks</span>
