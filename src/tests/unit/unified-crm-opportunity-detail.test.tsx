@@ -35,6 +35,16 @@ function fixture(): UnifiedCrmOpportunityDetailReadModel {
       owner: "Assigned by CRM policy when operational create is enabled."
     },
     customerContext: null,
+    lifecycle: {
+      allowedNextStages: [],
+      nextActionDueAt: null,
+      nextActionLabel: null,
+      stage: "HELD",
+      terminal: false,
+      transitionHref: null,
+      version: null
+    },
+    stageHistory: [],
     sourceBridge: {
       label: "Lead bridge",
       state: "HELD",
@@ -66,6 +76,8 @@ describe("Unified CRM opportunity detail", () => {
     expect(markup).toContain("Opportunity detail review");
     expect(markup).toContain("Requested review id review01");
     expect(markup).toContain("No persisted source record is visible yet.");
+    expect(markup).toContain("Stage history");
+    expect(markup).toContain("Current stage is Held");
     expect(markup).toContain("Same-customer read-only opportunities");
     expect(markup).toContain("Lead bridge");
     expect(markup).toContain("Appointments");
@@ -128,13 +140,31 @@ describe("Unified CRM opportunity detail", () => {
             ...fixture().identity,
             lifecycleStatus: "READ_ONLY",
             title: "Alex Morgan renewal review"
-          }
+          },
+          lifecycle: {
+            allowedNextStages: ["QUALIFIED", "LOST"],
+            nextActionDueAt: "2026-08-15T18:30:00.000Z",
+            nextActionLabel: "Call customer",
+            stage: "NEW_INQUIRY",
+            terminal: false,
+            transitionHref: "/crm/opportunities/review01/transition",
+            version: 2
+          },
+          stageHistory: [{
+            actorLabel: "CRM Manager",
+            fromStage: null,
+            occurredAt: "2026-08-14T17:30:00.000Z",
+            reason: "Create CRM opportunity.",
+            toStage: "NEW_INQUIRY"
+          }]
         }}
         returnHref="/crm?view=pipeline"
       />
     );
 
     expect(markup).toContain("Latest visible source update");
+    expect(markup).toContain("Allowed next moves");
+    expect(markup).toContain("Move opportunity stage");
     expect(markup).toContain("Aug");
   });
 
@@ -164,6 +194,22 @@ describe("Unified CRM opportunity detail", () => {
           customerContext: {
             customerId: "customer-1"
           },
+          lifecycle: {
+            allowedNextStages: ["QUOTE_PRESENTED", "WON", "LOST"],
+            nextActionDueAt: "2026-08-15T18:30:00.000Z",
+            nextActionLabel: "Confirm Saturday appointment",
+            stage: "CUSTOMER_DECIDING",
+            terminal: false,
+            transitionHref: "/crm/opportunities/opp_123456/transition",
+            version: 5
+          },
+          stageHistory: [{
+            actorLabel: "Taylor B.",
+            fromStage: "QUOTE_PRESENTED",
+            occurredAt: "2026-08-14T16:45:00.000Z",
+            reason: "Customer is deciding after quote.",
+            toStage: "CUSTOMER_DECIDING"
+          }],
           sourceBridge: {
             label: "Source bridge",
             state: "CONNECTED",
@@ -199,6 +245,8 @@ describe("Unified CRM opportunity detail", () => {
     expect(markup).toContain("Owned only");
     expect(markup).toContain("Unified CRM opportunity record");
     expect(markup).toContain("read only");
+    expect(markup).toContain("Customer Deciding");
+    expect(markup).toContain("Quote Presented -&gt; Customer Deciding");
     expect(markup).toContain("Alex Morgan · CUS-18");
     expect(markup).toContain("Open Customer 360");
     expect(markup).toContain('href="/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers"');

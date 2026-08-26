@@ -28,6 +28,13 @@ export type UnifiedCrmOpportunityDetailRecord = {
     leadNumber: string;
     stage: string;
   } | null;
+  stageHistory: readonly {
+    actorLabel: string;
+    fromStage: UnifiedCrmOpportunityStage | null;
+    occurredAt: Date;
+    reason: string;
+    toStage: UnifiedCrmOpportunityStage;
+  }[];
   createdAt: Date;
   updatedAt: Date;
 };
@@ -64,6 +71,14 @@ type OpportunityRow = {
   updatedAt: Date;
 };
 
+type StageHistoryRow = {
+  actorLabel: string | null;
+  fromStage: UnifiedCrmOpportunityStage | null;
+  occurredAt: Date;
+  reason: string;
+  toStage: UnifiedCrmOpportunityStage;
+};
+
 function mapRow(row: OpportunityRow): UnifiedCrmOpportunityDetailRecord {
   return {
     id: row.id,
@@ -95,6 +110,7 @@ function mapRow(row: OpportunityRow): UnifiedCrmOpportunityDetailRecord {
           stage: row.sourceLeadStage
         }
       : null,
+    stageHistory: [],
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
   };
@@ -147,7 +163,34 @@ export function createUnifiedCrmOpportunityDetailRepository(
       `);
 
       const row = rows[0];
-      return row ? mapRow(row) : null;
+      if (!row) return null;
+
+      const history = await database.$queryRaw<StageHistoryRow[]>(Prisma.sql`
+        SELECT
+          event."fromStage"::text AS "fromStage",
+          event."toStage"::text AS "toStage",
+          event."reason",
+          event."occurredAt",
+          COALESCE(actor."name", actor."email", 'Unknown user') AS "actorLabel"
+        FROM "UnifiedCrmOpportunityStageEvent" AS event
+        LEFT JOIN "User" AS actor
+          ON actor."id" = event."actorUserId"
+        WHERE event."organizationId" = ${input.organizationId}
+          AND event."opportunityId" = ${row.id}
+        ORDER BY event."occurredAt" DESC
+        LIMIT 12
+      `);
+
+      return {
+        ...mapRow(row),
+        stageHistory: history.map((event) => ({
+          actorLabel: event.actorLabel ?? "Unknown user",
+          fromStage: event.fromStage,
+          occurredAt: event.occurredAt,
+          reason: event.reason,
+          toStage: event.toStage
+        }))
+      };
     }
   };
 }

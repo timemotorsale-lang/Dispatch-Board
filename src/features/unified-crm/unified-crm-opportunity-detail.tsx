@@ -34,6 +34,10 @@ function readModeLabel(value: UnifiedCrmOpportunityDetailReadModel["source"]["re
   return value === "HELD_REVIEW" ? "held review only" : "read only";
 }
 
+function stageLabel(value: string) {
+  return value.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 function sourceRecordFreshnessLabel(model: UnifiedCrmOpportunityDetailReadModel) {
   return model.freshness.sourceRecordUpdatedAt
     ? `Latest visible source update ${formatDate(model.freshness.sourceRecordUpdatedAt)}`
@@ -107,6 +111,8 @@ export function UnifiedCrmOpportunityDetail({ errorMessage, failureKind = "error
         </div>
         <div className={styles.statusMeta}>
           <span className={styles.statusPill}>{model.identity.lifecycleStatus}</span>
+          <span><small>Stage</small><strong>{stageLabel(model.lifecycle.stage)}</strong></span>
+          <span><small>Version</small><strong>{model.lifecycle.version ?? "Held"}</strong></span>
           <span><small>Visibility</small><strong>{model.visibility === "organization" ? "Organization" : "Owned only"}</strong></span>
         </div>
       </section>
@@ -129,6 +135,39 @@ export function UnifiedCrmOpportunityDetail({ errorMessage, failureKind = "error
         <article><span className={styles.eyebrow}>Owner</span><strong>{model.summary.owner}</strong><p>Ownership stays visible here without enabling reassignment or any write action from this surface.</p></article>
         <article><span className={styles.eyebrow}>Next action</span><strong>{model.summary.nextAction}</strong><p>Next-step context stays readable here while authoritative source workflows remain in control.</p></article>
         <article><span className={styles.eyebrow}>Due state</span><strong>{model.summary.dueState}</strong><p>Timing and due-state context is displayed exactly as the current permitted read-only model provides it.</p></article>
+      </section>
+
+      <section className={styles.lifecycleGrid} aria-label="Opportunity lifecycle">
+        <article className={styles.bridgeCard}>
+          <header>
+            <strong>Lifecycle</strong>
+            <span className={styles.heldTag}>{model.lifecycle.terminal ? "Terminal" : "Active"}</span>
+          </header>
+          <p>Current stage is {stageLabel(model.lifecycle.stage)} at version {model.lifecycle.version ?? "held"}.</p>
+          {model.lifecycle.allowedNextStages.length ? (
+            <small>Allowed next moves: {model.lifecycle.allowedNextStages.map(stageLabel).join(", ")}</small>
+          ) : <small>No approved next move is available from this stage.</small>}
+          {model.lifecycle.transitionHref ? (
+            <Link className={styles.sourceLink} href={withUnifiedCrmOpportunityReturn(model.lifecycle.transitionHref, returnHref)}>Move opportunity stage<ExternalLink aria-hidden="true" size={13} /></Link>
+          ) : null}
+        </article>
+        <article className={styles.bridgeCard}>
+          <header>
+            <strong>Stage history</strong>
+            <span className={styles.heldTag}>{model.stageHistory.length ? `${model.stageHistory.length} event(s)` : "Empty"}</span>
+          </header>
+          {model.stageHistory.length ? (
+            <ol className={styles.historyList}>
+              {model.stageHistory.map((event) => (
+                <li key={`${event.occurredAt}-${event.toStage}`}>
+                  <strong>{event.fromStage ? `${stageLabel(event.fromStage)} -> ${stageLabel(event.toStage)}` : stageLabel(event.toStage)}</strong>
+                  <span>{formatDate(event.occurredAt)} by {event.actorLabel}</span>
+                  <p>{event.reason}</p>
+                </li>
+              ))}
+            </ol>
+          ) : <p>No stage history has been recorded for this opportunity yet.</p>}
+        </article>
       </section>
 
       <section className={styles.bridgeGrid} aria-label="Same-customer read-only opportunities">

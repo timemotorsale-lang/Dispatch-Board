@@ -30,7 +30,12 @@ function detailFixture() {
     freshness: { status: "CURRENT", observedAt: "2026-08-14T18:00:00.000Z", sourceRecordUpdatedAt: null },
     identity: { lifecycleStatus: "HELD", ownerScopeLabel: "Organization review scope", title: "Opportunity detail review" },
     summary: { customer: "Held", dueState: "Held", nextAction: "Held", owner: "Held" },
+    customerContext: null,
+    lifecycle: { allowedNextStages: [], nextActionDueAt: null, nextActionLabel: null, stage: "HELD", terminal: false, transitionHref: null, version: null },
+    stageHistory: [],
     sourceBridge: { label: "Lead bridge", state: "HELD", detail: "Held" },
+    relatedRecordsObservation: { detail: "Held", freshnessLabel: "Held", newestVisibleRecordUpdatedAt: null, state: "EMPTY", visibleRecordCount: 0 },
+    relatedRecords: [],
     workBridges: [],
     nextUnlocks: ["Unlock"]
   };

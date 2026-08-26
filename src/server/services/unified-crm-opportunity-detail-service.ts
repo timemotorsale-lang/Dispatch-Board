@@ -9,6 +9,10 @@ import {
   type UnifiedCrmOpportunityPreviewRepository
 } from "@/server/repositories/unified-crm-opportunity-preview-repository";
 import { type UnifiedCrmOpportunityAccessContext } from "@/server/unified-crm/opportunity-contract";
+import {
+  isTerminalUnifiedCrmOpportunityStage,
+  listAllowedUnifiedCrmOpportunityTransitions
+} from "@/server/unified-crm/opportunity-lifecycle";
 import { normalizeUnifiedCrmOpportunityId } from "@/server/validation/unified-crm-opportunity";
 import {
   UNIFIED_CRM_OPPORTUNITY_DETAIL_CONTRACT_VERSION,
@@ -72,6 +76,14 @@ function relatedRecordsObservation(
   };
 }
 
+function dueState(nextActionDueAt: Date | null, now: Date) {
+  if (!nextActionDueAt) return "No dated next action is active.";
+  const delta = nextActionDueAt.getTime() - now.getTime();
+  if (delta < -60_000) return `Overdue since ${nextActionDueAt.toISOString()}.`;
+  if (delta <= 24 * 60 * 60 * 1000) return `Due within 24 hours at ${nextActionDueAt.toISOString()}.`;
+  return `Due at ${nextActionDueAt.toISOString()}.`;
+}
+
 function toRelatedRecord(
   record: UnifiedCrmOpportunityPreviewRecord,
   access: UnifiedCrmOpportunityAccessContext,
@@ -127,6 +139,16 @@ function heldModel(
       owner: visibility === "organization" ? "Assigned by CRM policy when operational create is enabled." : "Your owned opportunities will appear here after lifecycle approval."
     },
     customerContext: null,
+    lifecycle: {
+      allowedNextStages: [],
+      nextActionDueAt: null,
+      nextActionLabel: null,
+      stage: "HELD",
+      terminal: false,
+      transitionHref: null,
+      version: null
+    },
+    stageHistory: [],
     sourceBridge: {
       label: "Lead bridge",
       state: "HELD",
@@ -168,7 +190,8 @@ export async function getUnifiedCrmOpportunityDetail(
 ): Promise<UnifiedCrmOpportunityDetailReadModel> {
   const access = dependencies.accessContext ?? await requireUnifiedCrmOpportunityDetailAccess(actor, dependencies);
   const normalizedOpportunityId = normalizeUnifiedCrmOpportunityId(opportunityId);
-  const generatedAt = (dependencies.now?.() ?? new Date()).toISOString();
+  const now = dependencies.now?.() ?? new Date();
+  const generatedAt = now.toISOString();
   const visibility = access.recordScope.kind === "ORGANIZATION" ? "organization" : "owned";
 
   if (isHeldReviewOpportunityId(normalizedOpportunityId)) {
@@ -210,6 +233,8 @@ export async function getUnifiedCrmOpportunityDetail(
     const newestVisibleRelatedRecordUpdatedAt = relatedRecords.length
       ? new Date(Math.max(...relatedRecords.map((preview) => new Date(preview.updatedAt).getTime()))).toISOString()
       : null;
+    const allowedNextStages = listAllowedUnifiedCrmOpportunityTransitions(record.stage);
+    const terminal = isTerminalUnifiedCrmOpportunityStage(record.stage);
 
     return {
       contractVersion: UNIFIED_CRM_OPPORTUNITY_DETAIL_CONTRACT_VERSION,
@@ -238,11 +263,29 @@ export async function getUnifiedCrmOpportunityDetail(
         customer: record.customer
           ? `${record.customer.displayName} · ${record.customer.customerNumber}`
           : "Customer link not yet attached.",
-        dueState: "No governed due state is active for this read-only record yet.",
-        nextAction: record.summary?.trim() || "No governed next action has been recorded yet.",
+        dueState: dueState(record.nextActionDueAt, now),
+        nextAction: record.nextActionLabel?.trim() || record.summary?.trim() || "No governed next action has been recorded yet.",
         owner: record.ownerUser?.name ?? "Unassigned"
       },
       customerContext: record.customer ? { customerId: record.customer.id } : null,
+      lifecycle: {
+        allowedNextStages,
+        nextActionDueAt: record.nextActionDueAt?.toISOString() ?? null,
+        nextActionLabel: record.nextActionLabel,
+        stage: record.stage,
+        terminal,
+        transitionHref: allowedNextStages.length
+          ? `/crm/opportunities/${encodeURIComponent(normalizedOpportunityId)}/transition`
+          : null,
+        version: record.version
+      },
+      stageHistory: record.stageHistory.map((event) => ({
+        actorLabel: event.actorLabel,
+        fromStage: event.fromStage,
+        occurredAt: event.occurredAt.toISOString(),
+        reason: event.reason,
+        toStage: event.toStage
+      })),
       sourceBridge: {
         label: record.sourceLead ? "Lead bridge" : "Source bridge",
         state: record.sourceLead ? "CONNECTED" : "HELD",
@@ -277,8 +320,10 @@ export async function getUnifiedCrmOpportunityDetail(
         }
       ],
       nextUnlocks: [
-        "Approve lifecycle stage names, evidence rules, and transition controls before enabling any live opportunity movement.",
-        "Verify audit history, rollback, and source-bridge behavior against this persisted record before enabling operational commands."
+        terminal
+          ? "Terminal opportunities remain closed until a manager reopen control is approved."
+          : "Use the governed transition flow when the next action evidence is ready.",
+        "Verify source-bridge behavior and downstream task/appointment/dispatch links before enabling operational bridge commands."
       ]
     };
   } catch (error) {

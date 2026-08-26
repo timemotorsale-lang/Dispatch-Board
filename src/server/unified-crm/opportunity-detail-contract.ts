@@ -1,3 +1,5 @@
+import type { UnifiedCrmOpportunityStage } from "@/server/unified-crm/opportunity-lifecycle";
+
 export const UNIFIED_CRM_OPPORTUNITY_DETAIL_CONTRACT_VERSION = "ucrm.opportunity-detail/v1" as const;
 export const UNIFIED_CRM_OPPORTUNITY_DETAIL_ERROR_CONTRACT_VERSION = "ucrm.opportunity-detail-error/v1" as const;
 
@@ -38,6 +40,22 @@ export type UnifiedCrmOpportunityDetailReadModel = {
   customerContext: {
     customerId: string;
   } | null;
+  lifecycle: {
+    allowedNextStages: readonly UnifiedCrmOpportunityStage[];
+    nextActionDueAt: string | null;
+    nextActionLabel: string | null;
+    stage: UnifiedCrmOpportunityStage | "HELD";
+    terminal: boolean;
+    transitionHref: string | null;
+    version: number | null;
+  };
+  stageHistory: readonly {
+    actorLabel: string;
+    fromStage: UnifiedCrmOpportunityStage | null;
+    occurredAt: string;
+    reason: string;
+    toStage: UnifiedCrmOpportunityStage;
+  }[];
   sourceBridge: {
     detail: string;
     label: "Lead bridge" | "Source bridge";

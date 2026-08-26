@@ -55,9 +55,14 @@ function persistedRecord(overrides: Record<string, unknown> = {}) {
     summary: "Read-only summary",
     customer: null,
     ownerUser: { id: "seller-a", name: "Seller A" },
+    stage: "NEW_INQUIRY",
+    nextActionLabel: "Call customer",
+    nextActionDueAt: new Date("2026-08-15T18:30:00.000Z"),
     sourceLead: null,
+    stageHistory: [],
     createdAt: new Date("2026-08-14T16:00:00.000Z"),
     updatedAt: new Date("2026-08-14T17:30:00.000Z"),
+    version: 1,
     ...overrides
   };
 }
@@ -170,13 +175,24 @@ describe("Unified CRM opportunity detail service", () => {
               id: "manager-a",
               name: "CRM Manager"
             },
+            stage: "NEW_INQUIRY",
+            nextActionLabel: "Call customer with Accord options",
+            nextActionDueAt: new Date("2026-08-15T18:30:00.000Z"),
             sourceLead: {
               id: "lead-1",
               leadNumber: "LEAD-42",
               stage: "QUALIFIED"
             },
+            stageHistory: [{
+              actorLabel: "CRM Manager",
+              fromStage: null,
+              occurredAt: new Date("2026-08-14T17:30:00.000Z"),
+              reason: "Create CRM opportunity.",
+              toStage: "NEW_INQUIRY"
+            }],
             createdAt: new Date("2026-08-14T16:00:00.000Z"),
-            updatedAt: new Date("2026-08-14T17:30:00.000Z")
+            updatedAt: new Date("2026-08-14T17:30:00.000Z"),
+            version: 2
           };
         }
       }),
@@ -226,11 +242,28 @@ describe("Unified CRM opportunity detail service", () => {
       },
       summary: {
         customer: "Alex Morgan · CUS-18",
+        nextAction: "Call customer with Accord options",
         owner: "CRM Manager"
       },
       customerContext: {
         customerId: "customer-1"
       },
+      lifecycle: {
+        allowedNextStages: ["QUALIFIED", "LOST"],
+        nextActionDueAt: "2026-08-15T18:30:00.000Z",
+        nextActionLabel: "Call customer with Accord options",
+        stage: "NEW_INQUIRY",
+        terminal: false,
+        transitionHref: "/crm/opportunities/opp_123456/transition",
+        version: 2
+      },
+      stageHistory: [{
+        actorLabel: "CRM Manager",
+        fromStage: null,
+        occurredAt: "2026-08-14T17:30:00.000Z",
+        reason: "Create CRM opportunity.",
+        toStage: "NEW_INQUIRY"
+      }],
       relatedRecordsObservation: {
         state: "READY",
         visibleRecordCount: 1,
