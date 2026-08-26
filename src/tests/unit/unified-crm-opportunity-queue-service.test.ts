@@ -58,7 +58,7 @@ describe("getUnifiedCrmOpportunityQueueReview", () => {
     expect(model.contractVersion).toBe("ucrm.opportunity-queue/v1");
     expect(model.visibility).toBe("organization");
     expect(model.state).toBe("HELD_REVIEW");
-    expect(model.segments.map((segment) => segment.id)).toEqual(["owned", "overdue", "waiting", "at-risk"]);
+    expect(model.segments.map((segment) => segment.id)).toEqual(["owned", "unassigned", "overdue", "stalled", "waiting", "at-risk"]);
     expect(model.items[0]?.detailHref).toContain("/crm/opportunities/review01");
     expect(model.governance[0]).toContain("does not reorder, assign, or transition");
     expect(model.generatedAt).toBe("2026-08-14T20:00:00.000Z");
@@ -84,7 +84,7 @@ describe("getUnifiedCrmOpportunityQueueReview", () => {
     });
 
     expect(model.visibility).toBe("owned");
-    expect(model.segments[0]?.countLabel).toContain("Owned by you");
+    expect(model.segments[0]?.countLabel).toContain("item(s)");
     expect(model.items[0]?.ownerLabel).toContain("Owned by you");
   });
 
@@ -98,6 +98,10 @@ describe("getUnifiedCrmOpportunityQueueReview", () => {
             title: "Alex Morgan renewal review",
             summary: "First persisted queue item.",
             organizationId: "org-1",
+            stage: "NEW_INQUIRY",
+            nextActionLabel: "Call customer",
+            nextActionDueAt: new Date("2026-08-14T19:10:00.000Z"),
+            version: 2,
             ownerUser: { id: "manager-1", name: "CRM Manager" },
             customer: null,
             updatedAt: new Date("2026-08-14T19:10:00.000Z")
@@ -106,6 +110,10 @@ describe("getUnifiedCrmOpportunityQueueReview", () => {
             title: "Jamie Rivera retention review",
             summary: "Second persisted queue item.",
             organizationId: "org-1",
+            stage: "CUSTOMER_DECIDING",
+            nextActionLabel: null,
+            nextActionDueAt: null,
+            version: 3,
             ownerUser: { id: "manager-1", name: "CRM Manager" },
             customer: null,
             updatedAt: new Date("2026-08-14T19:00:00.000Z")
@@ -115,14 +123,16 @@ describe("getUnifiedCrmOpportunityQueueReview", () => {
     });
 
     expect(model.items[0]).toMatchObject({ id: "opp_123456", state: "LIVE_READ_ONLY" });
-    expect(model.items[1]).toMatchObject({ id: "opp_123457", state: "LIVE_READ_ONLY" });
+    expect(model.items[1]).toMatchObject({ id: "opp_123457", riskLabel: "Stalled", segmentIds: ["owned", "stalled", "waiting", "at-risk"], state: "LIVE_READ_ONLY" });
     expect(model.liveReadObservation).toMatchObject({
-      detail: "Only same-scope persisted opportunities are shown in this queue for team and manager review. Lifecycle movement remains off.",
+      detail: "Only same-scope persisted opportunities are shown in this queue for team and manager review. Lifecycle movement opens through the governed transition command.",
       freshnessLabel: "Newest visible persisted update observed at 2026-08-14T19:10:00.000Z.",
       newestVisibleRecordUpdatedAt: "2026-08-14T19:10:00.000Z",
       state: "READY",
       visibleRecordCount: 2
     });
+    expect(model.segments.find((segment) => segment.id === "overdue")).toMatchObject({ countLabel: "1 item(s)", state: "REVIEW" });
+    expect(model.segments.find((segment) => segment.id === "stalled")).toMatchObject({ countLabel: "1 item(s)", state: "REVIEW" });
     expect(model.items.length).toBeGreaterThan(3);
   });
 
@@ -139,6 +149,10 @@ describe("getUnifiedCrmOpportunityQueueReview", () => {
             ...record,
             title: "Private opportunity",
             summary: "Private backend summary",
+            stage: "NEW_INQUIRY",
+            nextActionLabel: "Call customer",
+            nextActionDueAt: new Date("2026-08-14T19:10:00.000Z"),
+            version: 1,
             customer: null,
             updatedAt: new Date("2026-08-14T19:00:00.000Z")
           }];

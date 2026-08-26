@@ -93,6 +93,16 @@
 .segmentCard p,.queueItem p,.list li { color: #64748b; font-size: 11px; line-height: 1.5; }
 .segmentCard small,.queueItem small,.queueItem span { color: #64748b; font-size: 10px; }
 .queueItem span { font-weight: 800; }
+.queueItem .segmentTags,.queueItem .commandTag {
+  width: fit-content;
+  border-radius: 999px;
+  padding: 5px 8px;
+  background: #f1f5f9;
+}
+.queueItem .commandTag {
+  color: #1762cf;
+  background: #edf5ff;
+}
 
 .list {
   margin: 0;

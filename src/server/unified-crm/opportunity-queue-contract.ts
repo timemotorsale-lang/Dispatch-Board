@@ -3,7 +3,7 @@ export const UNIFIED_CRM_OPPORTUNITY_QUEUE_CONTRACT_VERSION = "ucrm.opportunity-
 export type UnifiedCrmOpportunityQueueReviewSegment = {
   countLabel: string;
   detail: string;
-  id: "owned" | "overdue" | "waiting" | "at-risk";
+  id: "owned" | "unassigned" | "overdue" | "stalled" | "waiting" | "at-risk";
   label: string;
   state: "HELD" | "REVIEW";
 };
@@ -15,8 +15,10 @@ export type UnifiedCrmOpportunityQueueReviewItem = {
   ownerLabel: string;
   reason: string;
   riskLabel: string;
+  segmentIds: readonly UnifiedCrmOpportunityQueueReviewSegment["id"][];
   state: "HELD_REVIEW" | "LIVE_READ_ONLY";
   title: string;
+  transitionHref?: string;
 };
 
 export type UnifiedCrmOpportunityQueueReviewModel = {

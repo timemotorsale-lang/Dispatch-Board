@@ -12,14 +12,14 @@ function fixture(): UnifiedCrmOpportunityQueueReviewModel {
     contractVersion: "ucrm.opportunity-queue/v1",
     generatedAt: "2026-08-14T20:00:00.000Z",
     governance: [
-      "This queue is review only and does not reorder, assign, or transition any opportunity."
+      "This queue does not reorder, assign, or transition any opportunity directly."
     ],
     headline: {
       title: "Review the first opportunity queue before it goes live",
       detail: "Held queue review detail."
     },
     liveReadObservation: {
-      detail: "Only same-scope persisted opportunities are shown in this queue for team and manager review. Lifecycle movement remains off.",
+      detail: "Only same-scope persisted opportunities are shown in this queue for team and manager review. Lifecycle movement opens through the governed transition command.",
       freshnessLabel: "Newest visible persisted update observed at 2026-08-14T20:00:00.000Z.",
       newestVisibleRecordUpdatedAt: "2026-08-14T20:00:00.000Z",
       state: "READY",
@@ -33,8 +33,10 @@ function fixture(): UnifiedCrmOpportunityQueueReviewModel {
         ownerLabel: "Seller-owned review",
         reason: "Queue reason",
         riskLabel: "Stage held",
+        segmentIds: ["owned", "waiting"],
         state: "HELD_REVIEW",
-        title: "Keep intake follow-up obvious"
+        title: "Keep intake follow-up obvious",
+        transitionHref: "/crm/opportunities/review01/transition?crmReturnTo=%2Fcrm%3Fview%3Dpipeline"
       }
     ],
     nextUnlocks: [
@@ -49,11 +51,18 @@ function fixture(): UnifiedCrmOpportunityQueueReviewModel {
         state: "REVIEW"
       },
       {
-        countLabel: "No live overdue math",
+        countLabel: "0 item(s)",
+        detail: "Unassigned detail",
+        id: "unassigned",
+        label: "Unassigned work",
+        state: "REVIEW"
+      },
+      {
+        countLabel: "0 item(s)",
         detail: "Overdue detail",
         id: "overdue",
         label: "Overdue work",
-        state: "HELD"
+        state: "REVIEW"
       }
     ],
     source: {
@@ -75,7 +84,9 @@ describe("Unified CRM opportunity queue review", () => {
     expect(markup).toContain("Overdue work");
     expect(markup).toContain("Keep intake follow-up obvious");
     expect(markup).toContain("Visible persisted read-only queue entries");
-    expect(markup).toContain("Only same-scope persisted opportunities are shown in this queue for team and manager review. Lifecycle movement remains off.");
+    expect(markup).toContain("Only same-scope persisted opportunities are shown in this queue for team and manager review. Lifecycle movement opens through the governed transition command.");
+    expect(markup).toContain("Owned · Waiting");
+    expect(markup).toContain("Move stage with command");
     expect(markup).toContain("Newest visible persisted update observed at 2026-08-14T20:00:00.000Z.");
     expect(markup).toContain("Move through the opportunity flow without leaving the queue");
     expect(markup).toContain("/crm/opportunities/new?crmReturnTo=%2Fcrm%3Fview%3Dpipeline");

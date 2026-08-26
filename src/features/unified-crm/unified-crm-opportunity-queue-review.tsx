@@ -31,6 +31,10 @@ function queueItemStateLabel(state: "HELD_REVIEW" | "LIVE_READ_ONLY") {
   return state === "LIVE_READ_ONLY" ? "Read-only live detail" : "Held review only";
 }
 
+function segmentLabel(value: string) {
+  return value.replaceAll("-", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 function StatePanel({ kind, message, returnHref }: { kind: FailureKind; message?: string; returnHref: string }) {
   const returnContext = getUnifiedCrmOpportunityReturnContext(returnHref);
   const title = kind === "restricted"
@@ -118,6 +122,8 @@ export function UnifiedCrmOpportunityQueueReview({ errorMessage, failureKind = "
               </header>
               <p>{item.reason}</p>
               <small>{item.dueLabel} · {item.riskLabel}</small>
+              <span className={styles.segmentTags}>{item.segmentIds.map(segmentLabel).join(" · ")}</span>
+              {item.transitionHref ? <span className={styles.commandTag}>Move stage with command</span> : null}
             </Link>
           ))}
         </div>

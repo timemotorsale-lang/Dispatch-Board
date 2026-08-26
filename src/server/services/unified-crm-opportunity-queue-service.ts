@@ -8,8 +8,10 @@ import {
 } from "@/server/repositories/unified-crm-opportunity-preview-repository";
 import {
   UNIFIED_CRM_OPPORTUNITY_QUEUE_CONTRACT_VERSION,
+  type UnifiedCrmOpportunityQueueReviewSegment,
   type UnifiedCrmOpportunityQueueReviewModel
 } from "@/server/unified-crm/opportunity-queue-contract";
+import { isTerminalUnifiedCrmOpportunityStage } from "@/server/unified-crm/opportunity-lifecycle";
 import { buildUnifiedCrmOpportunityReviewHref } from "@/server/unified-crm/opportunity-workspace-orientation";
 import { normalizeUnifiedCrmOpportunityId } from "@/server/validation/unified-crm-opportunity";
 
@@ -44,31 +46,65 @@ function safePersistedOpportunityId(value: string) {
   }
 }
 
+function dueLabel(value: Date | null, now: Date) {
+  if (!value) return "No due time";
+  const delta = value.getTime() - now.getTime();
+  if (delta < -60_000) return "Overdue";
+  if (delta <= 24 * 60 * 60 * 1000) return "Due soon";
+  return "Scheduled";
+}
+
+function opportunitySegments(
+  record: UnifiedCrmOpportunityPreviewRecord,
+  now: Date
+): UnifiedCrmOpportunityQueueReviewSegment["id"][] {
+  const segments: UnifiedCrmOpportunityQueueReviewSegment["id"][] = [];
+  if (record.ownerUser) segments.push("owned");
+  if (!record.ownerUser) segments.push("unassigned");
+  if (record.nextActionDueAt && record.nextActionDueAt.getTime() < now.getTime() - 60_000) segments.push("overdue");
+  if (!record.nextActionDueAt && !isTerminalUnifiedCrmOpportunityStage(record.stage)) segments.push("stalled");
+  if (record.stage === "CUSTOMER_DECIDING" || record.stage === "QUOTE_PRESENTED") segments.push("waiting");
+  if (segments.includes("overdue") || segments.includes("stalled") || !record.ownerUser) segments.push("at-risk");
+  return segments.length ? segments : ["waiting"];
+}
+
+function riskLabel(segmentIds: readonly UnifiedCrmOpportunityQueueReviewSegment["id"][]) {
+  if (segmentIds.includes("overdue")) return "Overdue";
+  if (segmentIds.includes("stalled")) return "Stalled";
+  if (segmentIds.includes("unassigned")) return "Unassigned";
+  if (segmentIds.includes("at-risk")) return "At risk";
+  return "On track";
+}
+
 function toVisibleLiveQueueItem(
   record: UnifiedCrmOpportunityPreviewRecord,
   access: UnifiedCrmOpportunityAccessContext,
-  visibility: "organization" | "owned"
+  visibility: "organization" | "owned",
+  now: Date
 ) {
   const opportunityId = safePersistedOpportunityId(record.opportunityNumber);
   if (!opportunityId || !isPreviewRecordVisible(record, access)) return null;
+  const segmentIds = opportunitySegments(record, now);
   return {
     detailHref: buildUnifiedCrmOpportunityReviewHref("detail", opportunityId),
-    dueLabel: "Read only",
+    dueLabel: dueLabel(record.nextActionDueAt, now),
     id: opportunityId,
     ownerLabel: record.ownerUser?.name
       ?? (visibility === "organization" ? "Organization visible" : "Owned by you"),
     reason: record.summary?.trim()
-      || "This persisted opportunity is available for read-only review while lifecycle movement stays held.",
-    riskLabel: "Live detail",
+      || "This persisted opportunity is available for review with explainable queue membership.",
+    riskLabel: riskLabel(segmentIds),
+    segmentIds,
     state: "LIVE_READ_ONLY" as const,
-    title: record.title
+    title: record.title,
+    transitionHref: isTerminalUnifiedCrmOpportunityStage(record.stage) ? undefined : buildUnifiedCrmOpportunityReviewHref("transition", opportunityId)
   };
 }
 
 function liveCollectionDetail(visiblePersistedRecordCount: number, visibility: "organization" | "owned") {
   const visibilityLabel = visibility === "organization" ? "team and manager review" : "owned review";
   if (visiblePersistedRecordCount > 0) {
-    return `Only same-scope persisted opportunities are shown in this queue for ${visibilityLabel}. Lifecycle movement remains off.`;
+    return `Only same-scope persisted opportunities are shown in this queue for ${visibilityLabel}. Lifecycle movement opens through the governed transition command.`;
   }
   return `No same-scope persisted read-only opportunity is visible in this queue right now for ${visibilityLabel}. Continue with held queue review until one is available.`;
 }
@@ -84,7 +120,8 @@ export async function getUnifiedCrmOpportunityQueueReview(
   dependencies: Dependencies = {}
 ): Promise<UnifiedCrmOpportunityQueueReviewModel> {
   const access = dependencies.accessContext ?? await requireUnifiedCrmOpportunityDetailAccess(actor, dependencies);
-  const generatedAt = (dependencies.now?.() ?? new Date()).toISOString();
+  const now = dependencies.now?.() ?? new Date();
+  const generatedAt = now.toISOString();
   const visibility = access.recordScope.kind === "ORGANIZATION" ? "organization" : "owned";
   const visibilityLabel = visibility === "organization" ? "team and manager review" : "owned review";
   const repository = dependencies.repository ?? createUnifiedCrmOpportunityPreviewRepository();
@@ -103,7 +140,7 @@ export async function getUnifiedCrmOpportunityQueueReview(
     );
   }
   const liveItems = persistedRecords
-    .map((record) => toVisibleLiveQueueItem(record, access, visibility))
+    .map((record) => toVisibleLiveQueueItem(record, access, visibility, now))
     .filter((item): item is NonNullable<typeof item> => Boolean(item));
   const visiblePersistedRecords = persistedRecords.filter((record) => (
     Boolean(safePersistedOpportunityId(record.opportunityNumber)) &&
@@ -112,7 +149,7 @@ export async function getUnifiedCrmOpportunityQueueReview(
   const newestVisibleRecordUpdatedAt = visiblePersistedRecords.length
     ? new Date(Math.max(...visiblePersistedRecords.map((record) => record.updatedAt.getTime()))).toISOString()
     : null;
-  const items = [
+  const items: UnifiedCrmOpportunityQueueReviewModel["items"] = [
     ...liveItems,
     {
       detailHref: "/crm/opportunities/review01?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
@@ -121,6 +158,7 @@ export async function getUnifiedCrmOpportunityQueueReview(
       ownerLabel: visibility === "organization" ? "Seller-owned review" : "Owned by you",
       reason: "The next action stays visible so no opportunity advances without a clear owner and due commitment.",
       riskLabel: "Stage held",
+      segmentIds: ["owned"] as const,
       state: "HELD_REVIEW" as const,
       title: "Keep intake follow-up obvious"
     },
@@ -131,6 +169,7 @@ export async function getUnifiedCrmOpportunityQueueReview(
       ownerLabel: visibility === "organization" ? "Manager review" : "Approval review",
       reason: "Transition evidence and rollback expectations stay visible before any stage movement can go live.",
       riskLabel: "Governance review",
+      segmentIds: ["waiting", "at-risk"] as const,
       state: "HELD_REVIEW" as const,
       title: "Make risk and movement easy to understand"
     },
@@ -141,6 +180,7 @@ export async function getUnifiedCrmOpportunityQueueReview(
       ownerLabel: visibilityLabel,
       reason: "The first create path stays one click away so the team can review clarity before live writes exist.",
       riskLabel: "Create held",
+      segmentIds: ["unassigned"] as const,
       state: "HELD_REVIEW" as const,
       title: "Review the governed create path"
     }
@@ -150,8 +190,8 @@ export async function getUnifiedCrmOpportunityQueueReview(
     contractVersion: UNIFIED_CRM_OPPORTUNITY_QUEUE_CONTRACT_VERSION,
     generatedAt,
     governance: [
-      "This queue is review only and does not reorder, assign, or transition any opportunity.",
-      "Membership stays explainable before live prioritization or risk scoring is enabled.",
+      "This queue does not reorder, assign, or transition any opportunity directly.",
+      "Membership stays explainable before automated priority or risk scoring is enabled.",
       "Source tasks, appointments, and dispatch records keep authority until the governed opportunity lifecycle is approved."
     ],
     headline: {
@@ -167,37 +207,51 @@ export async function getUnifiedCrmOpportunityQueueReview(
     },
     items,
     nextUnlocks: [
-      "Approve stage names, order, and evidence rules so queue membership can be tied to real lifecycle states.",
-      "Prove one live owned queue flow with audit history, rollback, and permissions before enabling write actions."
+      "Use the governed transition flow for any live stage movement from queue entries.",
+      "Prove browser behavior for owned, unassigned, overdue, stalled, waiting, and at-risk filters before enabling automated prioritization."
     ],
     segments: [
       {
-        countLabel: visibility === "organization" ? "Seller-owned review" : "Owned by you",
-        detail: "Everything shown here should feel easy to scan and easy to act on before live records are enabled.",
+        countLabel: `${items.filter((item) => item.segmentIds.includes("owned")).length} item(s)`,
+        detail: "Owned opportunities keep the next action, owner, and due commitment visible.",
         id: "owned",
         label: "Owned next actions",
         state: "REVIEW"
       },
       {
-        countLabel: "No live overdue math",
-        detail: "Overdue membership is intentionally held until the lifecycle graph and due-state rules are approved together.",
-        id: "overdue",
-        label: "Overdue work",
-        state: "HELD"
+        countLabel: `${items.filter((item) => item.segmentIds.includes("unassigned")).length} item(s)`,
+        detail: "Unassigned opportunities are visible for management review before ownership is corrected.",
+        id: "unassigned",
+        label: "Unassigned work",
+        state: "REVIEW"
       },
       {
-        countLabel: "Waiting on source",
-        detail: "Queue entries can point back to source systems without pretending CRM owns the underlying task or dispatch step.",
+        countLabel: `${items.filter((item) => item.segmentIds.includes("overdue")).length} item(s)`,
+        detail: "Overdue opportunities are derived from the current next-action due time.",
+        id: "overdue",
+        label: "Overdue work",
+        state: "REVIEW"
+      },
+      {
+        countLabel: `${items.filter((item) => item.segmentIds.includes("stalled")).length} item(s)`,
+        detail: "Stalled opportunities are active records without a dated next action.",
+        id: "stalled",
+        label: "Stalled work",
+        state: "REVIEW"
+      },
+      {
+        countLabel: `${items.filter((item) => item.segmentIds.includes("waiting")).length} item(s)`,
+        detail: "Waiting opportunities are customer-decision or quote-follow-up records that need human follow-through.",
         id: "waiting",
         label: "Waiting and source-controlled",
         state: "REVIEW"
       },
       {
-        countLabel: "No live scoring yet",
-        detail: "At-risk membership remains explainable and reviewable before any automated risk score is introduced.",
+        countLabel: `${items.filter((item) => item.segmentIds.includes("at-risk")).length} item(s)`,
+        detail: "At-risk membership is explainable from overdue, stalled, or unassigned conditions.",
         id: "at-risk",
         label: "At-risk review",
-        state: "HELD"
+        state: "REVIEW"
       }
     ],
     source: {
