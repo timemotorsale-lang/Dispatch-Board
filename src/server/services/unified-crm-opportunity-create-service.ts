@@ -27,7 +27,7 @@ export async function getUnifiedCrmOpportunityCreateReview(
 
   return {
     contractVersion: UNIFIED_CRM_OPPORTUNITY_CREATE_CONTRACT_VERSION,
-    state: "HELD_REVIEW",
+    state: "LIVE_CREATE",
     generatedAt,
     visibility,
     source: {
@@ -55,8 +55,8 @@ export async function getUnifiedCrmOpportunityCreateReview(
       {
         id: "stage",
         label: "Initial lifecycle state",
-        detail: "The initial stage stays held until the approved stage list, order, and evidence rules are finalized.",
-        state: "HELD"
+        detail: "New opportunities start at NEW_INQUIRY. Later movement uses the governed stage-transition command.",
+        state: "REQUIRED"
       },
       {
         id: "next-action",
@@ -66,17 +66,17 @@ export async function getUnifiedCrmOpportunityCreateReview(
       }
     ],
     governance: [
-      "No live opportunity is created from this review surface.",
-      "The create command remains off until permissions, audit, rollback, and lifecycle entry rules are proven together.",
+      "Create starts at NEW_INQUIRY and requires owner, customer or source-lead context, next action, and due time.",
+      "Stage movement, quote presentation, appointment handoff, and dispatch handoff remain off until their own milestones pass.",
       "Source systems keep ownership of customer, lead, appointment, task, and dispatch records."
     ],
     nextUnlocks: [
-      "Approve the initial stage and entry evidence so the first create command has a governed landing state.",
-      "Verify one end-to-end create rehearsal before enabling any live write path."
+      "Verify one end-to-end create rehearsal with a permitted customer or source lead.",
+      "Implement UCRM-031 so stage changes use the same command from buttons, forms, and pipeline movement."
     ],
     createAction: {
       label: "Create opportunity",
-      state: "HELD"
+      state: "READY"
     }
   };
 }

@@ -1728,6 +1728,8 @@ model User {
   ownedCustomerLeads                      CustomerLead[]                         @relation("CustomerLeadOwner")
   createdCustomerLeads                    CustomerLead[]                         @relation("CustomerLeadCreatedBy")
   ownedUnifiedCrmOpportunities            UnifiedCrmOpportunityRecord[]          @relation("UnifiedCrmOpportunityOwner")
+  createdUnifiedCrmOpportunities          UnifiedCrmOpportunityRecord[]          @relation("UnifiedCrmOpportunityCreatedBy")
+  unifiedCrmOpportunityStageEvents         UnifiedCrmOpportunityStageEvent[]      @relation("UnifiedCrmOpportunityStageEventActor")
   createdUnifiedCrmQuotes                 UnifiedCrmQuoteRecord[]                @relation("UnifiedCrmQuoteCreatedBy")
   createdUnifiedCrmQuoteVersions          UnifiedCrmQuoteVersion[]               @relation("UnifiedCrmQuoteVersionCreatedBy")
   vehicleCapabilityGrants                 VehicleCapabilityGrant[]
@@ -2035,6 +2037,7 @@ model Organization {
   crmDecisionRecords                    CrmDecisionRecord[]
   customerLeads                         CustomerLead[]
   unifiedCrmOpportunities               UnifiedCrmOpportunityRecord[]
+  unifiedCrmOpportunityStageEvents      UnifiedCrmOpportunityStageEvent[]
   unifiedCrmQuotes                      UnifiedCrmQuoteRecord[]
   unifiedCrmQuoteVersions               UnifiedCrmQuoteVersion[]
   concernCases                          ConcernCase[]
@@ -2671,6 +2674,17 @@ model UnifiedCrmOpportunityRecord {
   opportunityNumber String
   title             String
   summary           String?
+  stage             UnifiedCrmOpportunityStage @default(NEW_INQUIRY)
+  nextActionLabel   String?
+  nextActionDueAt   DateTime?
+  estimatedValueCents Int?
+  expectedCloseAt   DateTime?
+  createdByUserId   String?
+  createdReason     String?
+  wonEvidence       String?
+  lostReason        String?
+  handoffTarget     String?
+  version           Int           @default(0)
   customerId        String?
   ownerUserId       String?
   sourceLeadId      String?
@@ -2680,13 +2694,48 @@ model UnifiedCrmOpportunityRecord {
   organization      Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   customer          Customer?     @relation("UnifiedCrmOpportunityCustomer", fields: [customerId], references: [id], onDelete: SetNull)
   ownerUser         User?         @relation("UnifiedCrmOpportunityOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  createdByUser     User?         @relation("UnifiedCrmOpportunityCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   sourceLead        CustomerLead? @relation("UnifiedCrmOpportunitySourceLead", fields: [sourceLeadId], references: [id], onDelete: SetNull)
+  stageEvents       UnifiedCrmOpportunityStageEvent[]
   quotes            UnifiedCrmQuoteRecord[]
 
   @@unique([organizationId, opportunityNumber])
+  @@index([organizationId, stage, nextActionDueAt])
   @@index([organizationId, ownerUserId, updatedAt])
   @@index([customerId, updatedAt])
   @@index([sourceLeadId])
+}
+
+enum UnifiedCrmOpportunityStage {
+  NEW_INQUIRY
+  QUALIFIED
+  APPOINTMENT_SET
+  WORKING_DEAL
+  QUOTE_PRESENTED
+  CUSTOMER_DECIDING
+  WON
+  LOST
+}
+
+model UnifiedCrmOpportunityStageEvent {
+  id              String                    @id @default(cuid())
+  opportunityId   String
+  organizationId  String
+  actorUserId     String
+  fromStage       UnifiedCrmOpportunityStage?
+  toStage         UnifiedCrmOpportunityStage
+  reason          String
+  evidence        Json
+  commandId       String?
+  occurredAt      DateTime                  @default(now())
+  createdAt       DateTime                  @default(now())
+  opportunity     UnifiedCrmOpportunityRecord @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  organization    Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  actorUser       User                      @relation("UnifiedCrmOpportunityStageEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([opportunityId, occurredAt])
+  @@index([organizationId, toStage, occurredAt])
+  @@index([actorUserId, occurredAt])
 }
 
 enum UnifiedCrmQuoteState {

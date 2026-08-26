@@ -25,10 +25,11 @@ describe("Unified CRM opportunity create review service", () => {
 
     expect(model).toMatchObject({
       contractVersion: "ucrm.opportunity-create/v1",
-      state: "HELD_REVIEW",
-      createAction: { state: "HELD" }
+      state: "LIVE_CREATE",
+      createAction: { state: "READY" }
     });
     expect(model.requiredInputs).toHaveLength(4);
+    expect(model.requiredInputs.find((input) => input.id === "stage")).toMatchObject({ state: "REQUIRED" });
   });
 
   it("fails closed when the CRM shell is off even if opportunity review mode is requested", async () => {

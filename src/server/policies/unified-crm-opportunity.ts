@@ -24,10 +24,10 @@ export type UnifiedCrmOpportunityPolicyDecision = {
   workspace: "MANAGEMENT" | "SALES" | null;
 };
 
-function capabilities(readAllowed: boolean): UnifiedCrmOpportunityCapabilityMap {
+function capabilities(readAllowed: boolean, createAllowed = false): UnifiedCrmOpportunityCapabilityMap {
   return {
     read: readAllowed,
-    create: false,
+    create: createAllowed,
     transition: false,
     linkTask: false,
     linkAppointment: false,
@@ -69,7 +69,7 @@ export function evaluateUnifiedCrmOpportunityPolicy(
   const recordScope: UnifiedCrmOpportunityRecordScope = base.workspace === "MANAGEMENT"
     ? { kind: "ORGANIZATION" }
     : { kind: "OWNER", ownerUserId: actor.id };
-  const resultCapabilities = capabilities(true);
+  const resultCapabilities = capabilities(true, base.mutateAllowed);
 
   if (mode !== "REVIEW") {
     return {
@@ -77,6 +77,18 @@ export function evaluateUnifiedCrmOpportunityPolicy(
       fallbackHref: base.fallbackHref,
       mode,
       reason: "OPPORTUNITY_OFF",
+      recordScope,
+      capabilities: resultCapabilities,
+      workspace: base.workspace
+    };
+  }
+
+  if (options.action === "create" && base.mutateAllowed) {
+    return {
+      allowed: true,
+      fallbackHref: base.fallbackHref,
+      mode,
+      reason: "ALLOWED",
       recordScope,
       capabilities: resultCapabilities,
       workspace: base.workspace

@@ -128,7 +128,7 @@ Unless a row or acceptance ledger below says otherwise, slices begin as `PLANNED
 
 | ID | Agent-sized vertical slice | Acceptance evidence |
 | --- | --- | --- |
-| UCRM-030 | Opportunity persistence, create, and source-lead bridge — `HELD` | The full milestone remains held by `UCRM-DEC-003`. Current foundation work hardens held create review and pipeline preview behind shared shell-off access, but no additive create migration, durable live create command, or active source-lead bridge is authorized yet. |
+| UCRM-030 | Opportunity persistence, create, and source-lead bridge — `IMPLEMENTED_UNVERIFIED` | Approved lifecycle, additive persistence, durable `NEW_INQUIRY` create command, customer/source-lead validation, idempotent command ledger, stage history, domain event, audit, outbox, focused tests, and isolated PostgreSQL proof exist. Authenticated browser proof and final Product Owner UXR-3 review remain pending. |
 | UCRM-031 | Governed stage transition | Explicit transition command enforces stage evidence, required fields, lost reason, optimistic concurrency, idempotency, authority, activity/audit, negative tests, and UI proof. |
 | UCRM-032 | Opportunity detail read model | Permission-filtered detail includes customer context, stage history, next action, activities, related work, source/freshness, safe missing/restricted states, tests, and browser proof. |
 | UCRM-033 | Visual pipeline board | Reconciled read model and accessible board/table views support filters and drill-through; drag/drop invokes UCRM-031 and has keyboard/non-drag equivalent plus failure recovery. |

@@ -2,6 +2,7 @@
 
 import { AlertTriangle, ArrowLeft, ExternalLink, RefreshCw, ShieldCheck } from "lucide-react";
 import Link from "next/link";
+import { useState, type FormEvent } from "react";
 
 import type { UnifiedCrmOpportunityCreateReviewModel } from "@/server/unified-crm/opportunity-create-contract";
 import { withUnifiedCrmOpportunityReturn } from "@/server/unified-crm/opportunity-review-return";
@@ -24,6 +25,78 @@ function formatDate(value: string) {
     timeStyle: "short",
     timeZone: "America/Chicago"
   }).format(new Date(value));
+}
+
+function localDateTimeValue() {
+  const value = new Date(Date.now() + 60 * 60 * 1000);
+  value.setSeconds(0, 0);
+  return value.toISOString().slice(0, 16);
+}
+
+function createIdempotencyKey() {
+  return `ucrm-opportunity-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function OpportunityCreateForm() {
+  const [message, setMessage] = useState<string | null>(null);
+  const [messageHref, setMessageHref] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPending(true);
+    setMessage(null);
+    setMessageHref(null);
+    const form = new FormData(event.currentTarget);
+    const payload = {
+      customerId: form.get("customerId"),
+      estimatedValueCents: form.get("estimatedValueCents"),
+      expectedCloseAt: form.get("expectedCloseAt"),
+      idempotencyKey: createIdempotencyKey(),
+      nextActionDueAt: form.get("nextActionDueAt"),
+      nextActionLabel: form.get("nextActionLabel"),
+      ownerUserId: form.get("ownerUserId"),
+      sourceLeadId: form.get("sourceLeadId"),
+      summary: form.get("summary"),
+      title: form.get("title")
+    };
+    try {
+      const response = await fetch("/api/crm/v1/opportunities", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body?.error ?? "Opportunity could not be created.");
+      setMessage(`Opportunity ${body.opportunity.opportunityNumber} created at NEW_INQUIRY.`);
+      setMessageHref(body.opportunity.href);
+      event.currentTarget.reset();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Opportunity could not be created.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <form className={styles.createForm} onSubmit={submit}>
+      <p className={styles.formIntro}>Create a governed opportunity at NEW_INQUIRY. Stage changes happen later through the UCRM-031 transition command.</p>
+      {message ? <p className={messageHref ? styles.formSuccess : styles.formError} role={messageHref ? "status" : "alert"}>{message} {messageHref ? <Link href={messageHref}>Open opportunity</Link> : null}</p> : null}
+      <label><span>Title</span><input name="title" placeholder="Example: 2019 Honda Accord buyer follow-up" required maxLength={160} /></label>
+      <label><span>Customer ID</span><input name="customerId" placeholder="Existing customer record id" maxLength={200} /></label>
+      <label><span>Source lead ID</span><input name="sourceLeadId" placeholder="Optional source lead id" maxLength={200} /></label>
+      <label><span>Owner user ID</span><input name="ownerUserId" placeholder="Assigned CRM owner user id" required maxLength={200} /></label>
+      <label><span>Next action</span><input name="nextActionLabel" placeholder="Call customer with vehicle options" required maxLength={240} /></label>
+      <label><span>Next action due</span><input name="nextActionDueAt" type="datetime-local" required defaultValue={localDateTimeValue()} /></label>
+      <label><span>Estimated value in cents</span><input min={0} name="estimatedValueCents" placeholder="Example: 1850000" type="number" /></label>
+      <label><span>Expected close</span><input name="expectedCloseAt" type="datetime-local" /></label>
+      <label className={styles.formWide}><span>Summary</span><textarea name="summary" placeholder="Record the customer need, source context, and first follow-up plan." maxLength={1000} /></label>
+      <div className={styles.formActions}>
+        <button disabled={pending} type="submit">{pending ? "Creating opportunity..." : "Create opportunity"}</button>
+        <small>No quote, appointment, dispatch job, or external message is created from this action.</small>
+      </div>
+    </form>
+  );
 }
 
 function StatePanel({ kind, message, returnHref }: { kind: FailureKind; message?: string; returnHref: string }) {
@@ -64,7 +137,7 @@ export function UnifiedCrmOpportunityCreateReview({ errorMessage, failureKind = 
         <h1>{model.headline.title}</h1>
         <p>{model.headline.detail}</p>
         <div className={styles.heroMeta}>
-          <span className={styles.heldTag}>{model.createAction.state}</span>
+          <span className={styles.requiredTag}>{model.createAction.state}</span>
           <span>Observed {formatDate(model.source.observedAt)} · {model.visibility === "organization" ? "Organization review" : "Owned review"}</span>
         </div>
       </section>
@@ -95,10 +168,11 @@ export function UnifiedCrmOpportunityCreateReview({ errorMessage, failureKind = 
         <div className={styles.ctaRow}>
           <div>
             <strong>{model.createAction.label}</strong>
-            <p>This action remains held until the initial stage and entry evidence are approved.</p>
-          </div>
-          <span className={styles.buttonHeld}>{model.createAction.state}</span>
+          <p>This creates a durable opportunity at NEW_INQUIRY with a required owner and next action.</p>
         </div>
+          <span className={styles.buttonReady}>{model.createAction.state}</span>
+        </div>
+        <OpportunityCreateForm />
       </section>
 
       <section className={styles.section}>

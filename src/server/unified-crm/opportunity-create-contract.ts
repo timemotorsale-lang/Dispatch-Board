@@ -2,7 +2,7 @@ export const UNIFIED_CRM_OPPORTUNITY_CREATE_CONTRACT_VERSION = "ucrm.opportunity
 
 export type UnifiedCrmOpportunityCreateReviewModel = {
   contractVersion: typeof UNIFIED_CRM_OPPORTUNITY_CREATE_CONTRACT_VERSION;
-  state: "HELD_REVIEW";
+  state: "LIVE_CREATE";
   generatedAt: string;
   visibility: "organization" | "owned";
   source: {
@@ -24,6 +24,6 @@ export type UnifiedCrmOpportunityCreateReviewModel = {
   nextUnlocks: readonly string[];
   createAction: {
     label: string;
-    state: "HELD";
+    state: "READY";
   };
 };

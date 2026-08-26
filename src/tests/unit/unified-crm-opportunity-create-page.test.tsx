@@ -22,7 +22,7 @@ const actor: AuthenticatedUser = { id: "manager-1", name: "Manager", email: "man
 function createFixture() {
   return {
     contractVersion: "ucrm.opportunity-create/v1",
-    state: "HELD_REVIEW",
+    state: "LIVE_CREATE",
     generatedAt: "2026-08-14T19:15:00.000Z",
     visibility: "organization",
     source: { href: "/crm?view=pipeline", label: "Unified CRM opportunity create review", observedAt: "2026-08-14T19:15:00.000Z" },
@@ -30,7 +30,7 @@ function createFixture() {
     requiredInputs: [],
     governance: [],
     nextUnlocks: [],
-    createAction: { label: "Create opportunity", state: "HELD" }
+    createAction: { label: "Create opportunity", state: "READY" }
   };
 }
 
@@ -47,6 +47,7 @@ describe("Unified CRM opportunity create page", () => {
     const markup = renderToStaticMarkup(await OpportunityCreatePage({ searchParams: Promise.resolve({ crmReturnTo: "/crm?view=pipeline" }) }));
     expect(mocks.getUnifiedCrmOpportunityCreateReview).toHaveBeenCalled();
     expect(markup).toContain('href="/crm?view=pipeline"');
+    expect(markup).toContain("Create a governed opportunity at NEW_INQUIRY");
   });
 
   it("preserves a safe CRM customer-detail return when create review is opened from customer context", async () => {

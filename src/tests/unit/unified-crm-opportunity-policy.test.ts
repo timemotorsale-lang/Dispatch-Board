@@ -15,17 +15,24 @@ function actor(roles: string[], id = "user-1"): AuthenticatedUser {
 }
 
 describe("Unified CRM opportunity policy", () => {
-  it("allows read-only REVIEW access for management and keeps mutations held", () => {
+  it("allows review create for management and keeps later mutations held", () => {
     const read = evaluateUnifiedCrmOpportunityPolicy(actor(["General Manager"]), { action: "read", mode: "REVIEW" });
     expect(read).toMatchObject({
       allowed: true,
       reason: "ALLOWED",
       recordScope: { kind: "ORGANIZATION" },
-      capabilities: { read: true, create: false, transition: false, linkTask: false, linkAppointment: false, linkDispatch: false }
+      capabilities: { read: true, create: true, transition: false, linkTask: false, linkAppointment: false, linkDispatch: false }
     });
 
     const create = evaluateUnifiedCrmOpportunityPolicy(actor(["General Manager"]), { action: "create", mode: "REVIEW" });
     expect(create).toMatchObject({
+      allowed: true,
+      reason: "ALLOWED",
+      capabilities: { create: true }
+    });
+
+    const transition = evaluateUnifiedCrmOpportunityPolicy(actor(["General Manager"]), { action: "transition", mode: "REVIEW" });
+    expect(transition).toMatchObject({
       allowed: false,
       reason: "OPPORTUNITY_MUTATION_HELD"
     });

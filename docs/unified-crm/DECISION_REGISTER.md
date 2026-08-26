@@ -46,7 +46,7 @@
 | --- | --- | --- | --- | --- |
 | `UCRM-DEC-001` | Confirm product name, route, and navigation label | Dispatch Board Unified CRM Console; `/crm`; CRM | Product Owner | ACCEPTED |
 | `UCRM-DEC-002` | Confirm initial role categories and record scope | Seller: assigned/own; lead coordinator: assigned lead queue; manager: team; customer care: assigned relationship/service without financial fields; finance liaison: assigned handoffs; administrator: configuration without implicit record access; executive: approved read-only insights | Product Owner / Operations Owner | ACCEPTED |
-| `UCRM-DEC-003` | Confirm exact opportunity stages and evidence requirements | Use a short evidence-based lead-to-won/lost lifecycle; exact names and evidence remain gated before `UCRM-030–033` | Sales Domain Owner | DEFERRED |
+| `UCRM-DEC-003` | Confirm exact opportunity stages and evidence requirements | Approved lifecycle: `NEW_INQUIRY`, `QUALIFIED`, `APPOINTMENT_SET`, `WORKING_DEAL`, `QUOTE_PRESENTED`, `CUSTOMER_DECIDING`, `WON`, and `LOST`. Active stages require owner, stage, next action, and due time. `WON` requires acceptance evidence and a handoff target. `LOST` requires a lost reason. Terminal stages require manager reason to reopen. | Product Owner / Sales Domain Owner | ACCEPTED |
 | `UCRM-DEC-004` | Confirm quote/pricing/discount authority baseline | CRM may draft; until exact thresholds are approved, only authorized sales management may approve presentation or commercial exceptions; no self-approval | Product Owner / Sales Domain Owner | ACCEPTED |
 | `UCRM-DEC-005` | Confirm customer contact and consent policy | Server-enforced purpose, channel, consent, suppression, opt-out, and audit immediately before any production send | Product Owner / Security and Privacy Owner | ACCEPTED |
 | `UCRM-DEC-006` | Confirm data migration source and pilot dataset policy | Synthetic fixtures first; each bounded real-data pilot dataset requires separate Data Owner approval | Data Owner | ACCEPTED |
@@ -81,7 +81,6 @@
 
 The accepted foundation authorizes contract and reversible implementation work. It does not release or configure operational values. The following remain held:
 
-- stage-dependent opportunity persistence, transition, and pipeline activation under `UCRM-030–033` that requires exact stage names or exit evidence;
 - commercial presentation/approval activation under `UCRM-042–045` that requires exact monetary, discount, amount, or cumulative thresholds;
 - real-data automated disposition and broad/restricted export activation, including affected portions of `UCRM-061` and `UCRM-104`, requiring exact durations and volume thresholds;
 - pilot enablement, user grants, or cohort rollout under `UCRM-068–069` requiring named people and an approved cohort;

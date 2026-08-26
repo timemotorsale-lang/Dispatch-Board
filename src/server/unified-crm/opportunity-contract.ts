@@ -128,13 +128,16 @@ export function baseUnifiedCrmOpportunityCapabilityMap(
   actor: AuthenticatedUser | null
 ): {
   fallbackHref: string;
+  mutateAllowed: boolean;
   readAllowed: boolean;
   workspace: "MANAGEMENT" | "SALES" | null;
 } {
   const consoleAccess = evaluateUnifiedCrmCapability(actor, "crm.console.access");
   const customerView = evaluateUnifiedCrmCapability(actor, "crm.customer.view");
+  const mutate = evaluateUnifiedCrmCapability(actor, "crm.mutate");
   return {
     fallbackHref: consoleAccess.fallbackHref,
+    mutateAllowed: consoleAccess.allowed && mutate.allowed && Boolean(consoleAccess.workspace),
     readAllowed: consoleAccess.allowed && customerView.allowed && Boolean(consoleAccess.workspace),
     workspace: consoleAccess.workspace
   };
