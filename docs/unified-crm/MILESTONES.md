@@ -196,7 +196,7 @@ Unless a row or acceptance ledger below says otherwise, slices begin as `PLANNED
 | UCRM-066 | Pilot operations package — `IMPLEMENTED_UNVERIFIED` | A manager-only pilot operations API and runbook now cover cohort, flags, training, support owner, known limits, monitoring, incident/escalation, privacy, backup, and rollback. Formal owner acceptance remains pending. |
 | UCRM-067 | Rollback rehearsal — `IMPLEMENTED_UNVERIFIED` | A manager-only rollback rehearsal API and runbook now cover kill switches, prior-release recovery, in-flight write handling, retained evidence, existing Customers/Sales fallback, restore timing, and decision logging. Release-candidate rehearsal remains pending. |
 | UCRM-068 | Pilot execution — `IMPLEMENTED_UNVERIFIED` | A manager-only pilot execution API now defines representative internal manager/staff workflows, reporting requirements, measures, and internal-pilot-only scope. Actual participant outcomes remain pending. |
-| UCRM-069 | Pilot go/no-go | Product, operations, security, and engineering record Approved, Held, or reduced-scope continuation with exact flags and blockers. |
+| UCRM-069 | Pilot go/no-go — `IMPLEMENTED_UNVERIFIED` | A manager-only pilot go/no-go API now records product, operations, security, and engineering decisions as `HELD` with exact blockers and no enabled scope. Final owner decisions remain pending. |
 
 **UX checkpoint UCRM-UXR-6:** The named pilot cohort completes the integrated manager/staff journeys live on the same release candidate used for security, reliability, accessibility, performance, and rollback gates. Findings are recorded in UCRM-068/069.
 
