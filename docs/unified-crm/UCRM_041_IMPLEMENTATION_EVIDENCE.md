@@ -32,6 +32,7 @@ This checkpoint does **not** enable quote presentation, quote approval, or opera
 - `src/features/unified-crm/unified-crm-quote-foundation.module.css`
 - `src/features/unified-crm/unified-crm-quote-draft-form.tsx`
 - `src/features/unified-crm/unified-crm-quote-return.ts`
+- `src/tests/integration/unified-crm-quote-draft-workflow.test.ts`
 - `src/tests/unit/unified-crm-quote-draft-service.test.ts`
 - `src/tests/unit/unified-crm-quote-draft-route.test.ts`
 - `src/tests/unit/unified-crm-quote-foundation-service.test.ts`
@@ -52,8 +53,14 @@ Focused packet command:
 
 - `npm test -- --run src/tests/unit/unified-crm-quote-draft-service.test.ts src/tests/unit/unified-crm-quote-draft-route.test.ts src/tests/unit/unified-crm-quote-present-route.test.ts src/tests/unit/unified-crm-quote-foundation-service.test.ts src/tests/unit/unified-crm-quote-foundation.test.tsx src/tests/unit/unified-crm-quote-page.test.tsx src/tests/unit/unified-crm-quote-version-review-service.test.ts src/tests/unit/unified-crm-quote-version-review.test.tsx src/tests/unit/unified-crm-quote-version-review-page.test.tsx`
 
+Migrated runtime proof passed on 2026-08-26 for:
+
+- `RUN_DATABASE_INTEGRATION=1 npx vitest run src/tests/integration/unified-crm-quote-draft-workflow.test.ts`
+
+The runtime proof creates a governed quote draft through the real service and migrated PostgreSQL schema, replays the same idempotency key safely, revises the draft with optimistic version control, rejects a stale revision, and verifies quote record, quote version, command ledger, audit, domain event, aggregate version, and outbox rows. It also verifies the foundation workspace reads the revised terms from the persisted `termsSummary` snapshot while presentation remains held.
+
 ## Status
 
 - `UCRM-041`: `IMPLEMENTED_UNVERIFIED`
 
-Authenticated browser proof, migrated runtime proof, and integrated Product Owner UX checkpoint remain required before `UCRM-041` can move beyond `IMPLEMENTED_UNVERIFIED`.
+Authenticated browser proof, broader regression proof, and integrated Product Owner UX checkpoint remain required before `UCRM-041` can move beyond `IMPLEMENTED_UNVERIFIED`.

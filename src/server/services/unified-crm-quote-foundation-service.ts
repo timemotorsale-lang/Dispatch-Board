@@ -138,7 +138,11 @@ function buildDraftWorkspace(
     quoteNumber: selected.quoteNumber,
     state: canDraft ? "READY" : "REVIEW_ONLY",
     subtotalCents: numberValue(totals.subtotalCents, lineItems.reduce((sum, item) => sum + item.lineTotalCents, 0)),
-    termsSummary: stringValue(objectValue(selected.termsSnapshot).termsText ?? objectValue(selected.termsSnapshot).summary),
+    termsSummary: stringValue(
+      objectValue(selected.termsSnapshot).termsSummary
+        ?? objectValue(selected.termsSnapshot).termsText
+        ?? objectValue(selected.termsSnapshot).summary
+    ),
     versions
   };
 }

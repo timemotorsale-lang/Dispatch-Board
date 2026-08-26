@@ -93,7 +93,7 @@ describe("Unified CRM quote foundation service", () => {
             opportunityId: "opportunity-1",
             customerDisplayName: "Alex Morgan",
             customerNumber: "CUS-18",
-            termsSnapshot: { summary: "Valid for 7 days." },
+            termsSnapshot: { termsSummary: "Valid for 7 days." },
             currency: "USD",
             updatedAt: new Date("2026-08-15T15:55:00.000Z")
           }, {
@@ -132,7 +132,7 @@ describe("Unified CRM quote foundation service", () => {
             priceSource: "Internal estimate",
             quoteNumber: "Q-1001",
             state: "DRAFT",
-            termsSnapshot: { summary: "Valid for 7 days." },
+            termsSnapshot: { termsSummary: "Valid for 7 days." },
             updatedAt: new Date("2026-08-15T15:55:00.000Z"),
             versions: []
           };
