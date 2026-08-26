@@ -35,7 +35,7 @@ export type ServiceIntakeOptions = {
   customers: Array<{ customerNumber?: string; displayName: string; email?: string | null; id: string; phoneNumber?: string | null }>;
   inventoryUnits: Array<{ id: string; inventoryNumber: string; locationId: string; vehicle: ServiceIntakeOptions["vehicles"][number] }>;
   locations: Array<{ code?: string; id: string; name: string }>;
-  repairOrders: Array<{ closedAt: string | null; customer: null | { displayName: string }; id: string; openedAt: string; operatingState: string; repairOrderNumber: string; serviceVisit: { concernSummary: string }; stage: string; vehicle: ServiceIntakeOptions["vehicles"][number] }>;
+  repairOrders: Array<{ closedAt: string | null; customer: null | { displayName: string }; id: string; openedAt: string; operatingState: string; repairOrderNumber: string; serviceVisit: { concernSummary: string }; stage: string; vehicle: ServiceIntakeOptions["vehicles"][number]; version: number }>;
   repairVendors: Array<{ defaultLeadDays: number; id: string; name: string; vendorType: string }>;
   users: Array<{ email?: string; id: string; name: string; roles?: string[] }>;
   vehicles: Array<{ color?: string | null; id: string; licensePlate?: string | null; make: string | null; model: string | null; registryRelationships?: Array<{ relationshipType: string }>; specificationSnapshot?: unknown; stockNumber?: string | null; vehicleNumber: string; version?: number; vin?: string | null; year: number | null }>;
