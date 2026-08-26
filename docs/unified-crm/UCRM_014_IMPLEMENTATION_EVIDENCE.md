@@ -6,7 +6,7 @@
 
 **Branch:** `codex/unified-crm-customer-360`
 
-**Status:** `IMPLEMENTED_UNVERIFIED`; Product Owner UCRM-UXR-1, permitted data-bearing browser review, and isolated-database proof remain pending
+**Status:** `IMPLEMENTED_UNVERIFIED`; isolated PostgreSQL proof is complete, while Product Owner UCRM-UXR-1 and permitted data-bearing browser review remain pending
 
 ## Delivered boundary
 
@@ -33,7 +33,8 @@
 - Independent affected verification passed 65 tests across access, policy, repository, service, adversarial, page, component, list, shell, and rollback boundaries.
 - Focused ESLint and `git diff --check` passed.
 - The full typecheck reaches only the documented pre-existing `src/app/api/service-close-parts/route.ts:20` union-property defect; no UCRM-014 type error was reported.
-- An opt-in PostgreSQL isolation test exists with exact-ID fixtures and cleanup. It remains hermetically skipped because no isolated migrated test database was available.
+- 2026-08-26 refresh: opt-in PostgreSQL isolation proof passed against the migrated local PostgreSQL database. The test covers permitted same-organization access, cross-organization denial, owner-only Sales scoping, raw contact masking, permission-filtered nested lenses, and archived/merged non-enumeration.
+- 2026-08-26 refresh command: `RUN_DATABASE_INTEGRATION=1 npx vitest run src/tests/integration/unified-crm-customer-isolation.test.ts src/tests/integration/unified-crm-customer-360-isolation.test.ts` completed with 2 files and 2 tests passing.
 
 ## Interactive evidence
 
@@ -44,7 +45,6 @@
 
 ## Remaining gates
 
-- Run the opt-in isolation test against an isolated, migrated PostgreSQL database.
 - Complete Product Owner UCRM-UXR-1 review at desktop and mobile sizes using a permitted customer with representative relationships.
 - Verify keyboard order, 200% reflow, dark mode, list-to-detail-to-list state restoration, source-link behavior, and explicit shell/read OFF rollback on the final commit.
 - Do not mark UCRM-014 `VERIFIED`, merge, pilot, or enable production from this checkpoint.

@@ -6,7 +6,7 @@
 
 **Branch:** `codex/unified-crm-customer-truth`
 
-**Status:** UCRM-012 and UCRM-013 `IMPLEMENTED_UNVERIFIED`; UCRM-UXR-1 Product Owner disposition and isolated-database proof pending
+**Status:** UCRM-012 and UCRM-013 `IMPLEMENTED_UNVERIFIED`; isolated PostgreSQL proof is complete, while UCRM-UXR-1 Product Owner disposition and final browser acceptance remain pending
 
 ## Delivered boundary
 
@@ -22,7 +22,8 @@
 ## Automated evidence
 
 - 123 focused and affected tests passed across customer validation, policy, repository predicates, service shaping/masking, page access, component states, shell access, navigation, rollback, existing Customer reads, service intake, and CRM rollout.
-- One opt-in PostgreSQL isolation test is present and safely skipped in the hermetic run. It creates two exact-ID organizations with colliding customer identity/contact values and performs exact-ID cleanup. It has not been executed because no isolated migrated test database was authorized for this checkpoint.
+- 2026-08-26 refresh: opt-in PostgreSQL isolation proof passed against the migrated local PostgreSQL database. The test creates two exact-ID organizations with colliding customer identity/contact values, proves organization and owner scoping, proves raw contact values stay out of the read model, and performs exact-ID cleanup.
+- 2026-08-26 refresh command: `RUN_DATABASE_INTEGRATION=1 npx vitest run src/tests/integration/unified-crm-customer-isolation.test.ts src/tests/integration/unified-crm-customer-360-isolation.test.ts` completed with 2 files and 2 tests passing.
 - Independent Quality review added seven adversarial tests for two-organization query isolation through a fake Prisma boundary, cursor scoping, every Sales owner-filter intersection, raw-field absence, shell-off no-serialization, loading semantics, list states, and semantic landmarks.
 - Focused ESLint passed with zero warnings.
 - Prisma schema validation passed.
@@ -48,8 +49,7 @@
 
 ## Remaining gates
 
-- Run the opt-in isolation test against an isolated, migrated PostgreSQL test database; do not use the shared development database.
 - Complete Product Owner UCRM-UXR-1 review, including a data-bearing permitted list at desktop/mobile and requested refinements.
 - Capture a denied persona and explicit customer-read-OFF browser walkthrough on the final commit baseline.
-- Do not mark UCRM-011 cross-organization controls, UCRM-012, or UCRM-013 `VERIFIED` until the named evidence is complete.
+- Do not mark UCRM-012 or UCRM-013 `VERIFIED` until the named Product Owner and final browser evidence is complete.
 - Do not merge, pilot, or enable production from this checkpoint without Product Owner review.

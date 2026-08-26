@@ -3,7 +3,7 @@
 **Program ID:** `UCRM`
 **Version:** 1.1 accepted foundation baseline
 **Date:** 2026-08-14
-**Status:** Foundation accepted; UCRM-010 verified; UCRM-011–013 implemented with final data-isolation and UX acceptance proof pending; nothing in the customer-truth branch merged, piloted, or released
+**Status:** Foundation accepted; UCRM-010 and UCRM-011 verified; UCRM-012–014 implemented with isolated PostgreSQL proof complete and UX/browser acceptance proof pending; nothing in the customer-truth branch merged, piloted, or released
 **Target route:** `/crm`
 **Parent product:** Time Motor Sales Dispatch Board
 
@@ -35,9 +35,9 @@ Read these documents in this order before planning or implementing Unified CRM w
 
 Current implementation-review evidence:
 
-- [`UCRM_010_011_IMPLEMENTATION_EVIDENCE.md`](UCRM_010_011_IMPLEMENTATION_EVIDENCE.md) — secure shell and UCRM-UXR-0 browser checkpoint; Product Owner accepted the experience direction, UCRM-010 route-shell evidence is verified, and UCRM-011 data-isolation evidence remains pending before integration disposition.
-- [`UCRM_012_013_IMPLEMENTATION_EVIDENCE.md`](UCRM_012_013_IMPLEMENTATION_EVIDENCE.md) — canonical customer read boundary and real read-only Customers list; implementation and initial browser evidence exist, while isolated PostgreSQL proof and UCRM-UXR-1 Product Owner disposition remain pending.
-- [`UCRM_014_IMPLEMENTATION_EVIDENCE.md`](UCRM_014_IMPLEMENTATION_EVIDENCE.md) — secure read-only Customer 360 and source lenses; implementation and denied-persona evidence exist, while permitted data-bearing UX and isolated PostgreSQL proof remain pending.
+- [`UCRM_010_011_IMPLEMENTATION_EVIDENCE.md`](UCRM_010_011_IMPLEMENTATION_EVIDENCE.md) — secure shell and UCRM-UXR-0 browser checkpoint; Product Owner accepted the experience direction, UCRM-010 route-shell evidence is verified, and 2026-08-26 isolation proof verifies the UCRM-011 customer-read policy baseline.
+- [`UCRM_012_013_IMPLEMENTATION_EVIDENCE.md`](UCRM_012_013_IMPLEMENTATION_EVIDENCE.md) — canonical customer read boundary and real read-only Customers list; implementation, initial browser evidence, and isolated PostgreSQL proof exist, while UCRM-UXR-1 Product Owner disposition and final browser acceptance remain pending.
+- [`UCRM_014_IMPLEMENTATION_EVIDENCE.md`](UCRM_014_IMPLEMENTATION_EVIDENCE.md) — secure read-only Customer 360 and source lenses; implementation, denied-persona evidence, and isolated PostgreSQL proof exist, while permitted data-bearing UX/browser acceptance remains pending.
 - [`UCRM_020_IMPLEMENTATION_EVIDENCE.md`](UCRM_020_IMPLEMENTATION_EVIDENCE.md) — unified permitted activity timeline inside Customer 360; implementation and focused adversarial coverage exist, while authenticated browser proof and isolated PostgreSQL proof remain pending.
 - [`UCRM_021_IMPLEMENTATION_EVIDENCE.md`](UCRM_021_IMPLEMENTATION_EVIDENCE.md) — manual contact outcome command path inside Customer 360; implementation and focused security/regression coverage exist, while authenticated browser proof and isolated PostgreSQL proof remain pending.
 - [`UCRM_022_IMPLEMENTATION_EVIDENCE.md`](UCRM_022_IMPLEMENTATION_EVIDENCE.md) — customer notes and visibility inside Customer 360; implementation and focused security/regression coverage exist, while authenticated browser proof and isolated PostgreSQL proof remain pending.

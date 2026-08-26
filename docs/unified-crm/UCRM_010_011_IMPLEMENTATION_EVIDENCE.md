@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-14
 **Branch:** `codex/unified-crm-console`
-**Status:** UCRM-010 `VERIFIED`; UCRM-011 `IMPLEMENTED_UNVERIFIED`; Product Owner accepted UCRM-UXR-0 direction and integration review is pending
+**Status:** UCRM-010 `VERIFIED`; UCRM-011 `VERIFIED` for the CRM capability policy and customer-read isolation baseline; Product Owner accepted UCRM-UXR-0 direction
 
 ## Delivered boundary
 
@@ -28,6 +28,8 @@
 - Denied Technician browser proof rendered only the unavailable state and `/my-tasks` fallback; no synthetic CRM queue or record context was exposed.
 - Explicit `OFF` browser proof rendered only the unavailable state and the Sales fallback. Returning the same local baseline to `REVIEW` restored the shell without data migration, deletion, or changes to existing console routes.
 - Page-boundary tests cover denied role, Manager flag-off, Sales fallback, and `REVIEW` to `OFF` rollback behavior.
+- 2026-08-26 refresh: opt-in PostgreSQL isolation proof passed for customer list and Customer 360 reads using two-organization fixtures, colliding customer/contact identities, owner-scope intersections, masked contact assertions, nested relationship scoping, and archived/merged non-enumeration checks.
+- 2026-08-26 refresh command: `RUN_DATABASE_INTEGRATION=1 npx vitest run src/tests/integration/unified-crm-customer-isolation.test.ts src/tests/integration/unified-crm-customer-360-isolation.test.ts` completed with 2 files and 2 tests passing.
 
 ## Product Owner UCRM-UXR-0 disposition
 
@@ -49,6 +51,6 @@ This disposition approves the UX direction for continued UCRM work. It does **no
 
 - Full repository typecheck still stops at the pre-existing `src/app/api/service-close-parts/route.ts` union-property error recorded in `CURRENT_EVIDENCE_BASELINE.md`; no new CRM type error was reported.
 - UCRM-010 is `VERIFIED` for its route-shell boundary on implementation baseline `5c47e3f1`: authenticated entry, role-safe navigation and fallback, responsive/accessibility behavior, authorized and denied role proof, explicit flag-off proof, and reversible restoration are evidenced.
-- UCRM-011 remains `IMPLEMENTED_UNVERIFIED`: its deny-by-default capability policy and page boundary are proven, but cross-organization record isolation cannot be tested until UCRM-012+ introduces organization-scoped CRM persistence/read contracts. This is not represented as passed or applicable data-layer evidence.
+- UCRM-011 is now `VERIFIED` for its deny-by-default capability policy, page boundary, and customer-read cross-organization isolation baseline. The later customer-list and Customer 360 UX slices still retain their own Product Owner and browser acceptance gates.
 - Product Owner accepted the UCRM-UXR-0 experience direction; integration disposition remains pending.
 - This checkpoint is not approved for merge, pilot, production enablement, real customer data, or CRM writes.

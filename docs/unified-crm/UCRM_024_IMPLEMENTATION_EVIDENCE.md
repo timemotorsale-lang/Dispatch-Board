@@ -33,6 +33,8 @@
 
 ## Automated evidence
 
+- 2026-08-26 refresh: the focused CRM-2 verification batch passed for timeline, manual interaction, notes, next action, task bridge, task handoff, and My Work queue coverage.
+- 2026-08-26 refresh command: `npx vitest run src/tests/unit/unified-crm-customer-timeline-repository.test.ts src/tests/unit/unified-crm-customer-interaction-service.test.ts src/tests/unit/unified-crm-customer-interaction-route.test.ts src/tests/unit/unified-crm-customer-interaction-repository.test.ts src/tests/unit/unified-crm-customer-interaction-form.test.tsx src/tests/unit/unified-crm-customer-note-service.test.ts src/tests/unit/unified-crm-customer-note-route.test.ts src/tests/unit/unified-crm-customer-note-repository.test.ts src/tests/unit/unified-crm-customer-note-form.test.tsx src/tests/unit/unified-crm-customer-next-action-access.test.ts src/tests/unit/unified-crm-customer-next-action-service.test.ts src/tests/unit/unified-crm-customer-next-action-route.test.ts src/tests/unit/unified-crm-customer-next-action-repository.test.ts src/tests/unit/unified-crm-customer-next-action-form.test.tsx src/tests/unit/unified-crm-customer-task-bridge-service.test.ts src/tests/unit/unified-crm-customer-task-bridge-route.test.ts src/tests/unit/unified-crm-customer-task-bridge-repository.test.ts src/tests/unit/unified-crm-customer-task-bridge-form.test.tsx src/tests/unit/unified-crm-task-intake-handoff.test.ts src/tests/unit/unified-crm-work-queue-service.test.ts` completed with 20 files and 112 tests passing.
 - Focused verification passed on 2026-08-15 for:
   - `src/tests/unit/unified-crm-customer-task-bridge-service.test.ts`
   - `src/tests/unit/unified-crm-customer-task-bridge-route.test.ts`
@@ -45,5 +47,5 @@
 ## Remaining gates
 
 - Authenticated browser proof is still required for keyboard/mobile review of the Customer 360 task bridge, fallback continuity, duplicate replay messaging, denied/off states, and authoritative task-route handoff.
-- Isolated PostgreSQL proof is still required before this slice can move beyond `IMPLEMENTED_UNVERIFIED`.
+- Isolated PostgreSQL proof remains required for migrated task-bridge persistence/replay before this slice can move beyond `IMPLEMENTED_UNVERIFIED`.
 - UCRM-024 is not yet `VERIFIED`, piloted, broadly enabled, or merged as a reviewed production packet from this checkpoint.

@@ -72,7 +72,7 @@ describe.skipIf(!databaseIntegrationEnabled)("Unified CRM Customer 360 PostgreSQ
         { id: customerIds.otherOwner, organizationId: organizationIds[0], customerNumber: "CUS-OTHER-OWNER", displayName: `${prefix} Other Owner`, ownerUserId: userIds[0], sourceCode: "UCRM_INTEGRATION_TEST" },
         { id: customerIds.archived, organizationId: organizationIds[0], customerNumber: "CUS-ARCHIVED", displayName: `${prefix} Archived`, ownerUserId: userIds[1], archivedAt: new Date("2026-08-01T00:00:00.000Z"), sourceCode: "UCRM_INTEGRATION_TEST" }
       ] });
-      await prisma.customer.create({ data: { id: customerIds.merged, organizationId: organizationIds[0], customerNumber: "CUS-MERGED", displayName: `${prefix} Merged`, ownerUserId: userIds[1], mergedIntoCustomerId: customerIds.allowed, sourceCode: "UCRM_INTEGRATION_TEST" } });
+      await prisma.customer.create({ data: { id: customerIds.merged, organizationId: organizationIds[0], customerNumber: "CUS-MERGED", displayName: `${prefix} Merged`, ownerUserId: userIds[1], status: "MERGED", mergedIntoCustomerId: customerIds.allowed, sourceCode: "UCRM_INTEGRATION_TEST" } });
       await prisma.customerContactPoint.createMany({ data: [
         { id: contactPointIds[0], customerId: customerIds.allowed, type: "PHONE", value: rawPhone, normalizedValue: rawPhone, isPrimary: true, consentStatus: "OPTED_IN" },
         { id: contactPointIds[1], customerId: customerIds.allowed, type: "EMAIL", value: rawEmail, normalizedValue: rawEmail, isPrimary: false, consentStatus: "OPTED_IN" }
