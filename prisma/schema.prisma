@@ -2857,6 +2857,20 @@ enum UnifiedCrmCommercialApprovalDecisionType {
   DENIED
 }
 
+enum UnifiedCrmForecastSource {
+  BASELINE
+  SELLER_JUDGMENT
+  MANAGER_JUDGMENT
+}
+
+enum UnifiedCrmForecastCategory {
+  WATCH
+  PIPELINE
+  BEST_CASE
+  COMMIT
+  CLOSED
+}
+
 model UnifiedCrmQuoteRecord {
   id                  String                    @id @default(cuid())
   organizationId      String
@@ -2957,6 +2971,24 @@ model UnifiedCrmCommercialApprovalDecision {
   @@index([organizationId, decision, createdAt])
   @@index([requestId, createdAt])
   @@index([decidedByUserId, createdAt])
+}
+
+model UnifiedCrmForecastSnapshot {
+  id                  String                     @id @default(cuid())
+  organizationId      String
+  opportunityId       String
+  source              UnifiedCrmForecastSource
+  category            UnifiedCrmForecastCategory
+  amountCents         Int
+  probabilityBasisPts Int
+  reason              String
+  inputSnapshot       Json
+  createdByUserId     String
+  createdAt           DateTime                   @default(now())
+
+  @@index([organizationId, opportunityId, createdAt])
+  @@index([organizationId, source, createdAt])
+  @@index([createdByUserId, createdAt])
 }
 
 model Vehicle {
