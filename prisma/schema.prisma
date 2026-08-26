@@ -1735,6 +1735,8 @@ model User {
   createdUnifiedCrmOpportunityDispatchLinks UnifiedCrmOpportunityDispatchLink[]   @relation("UnifiedCrmOpportunityDispatchLinkCreatedBy")
   createdUnifiedCrmQuotes                 UnifiedCrmQuoteRecord[]                @relation("UnifiedCrmQuoteCreatedBy")
   createdUnifiedCrmQuoteVersions          UnifiedCrmQuoteVersion[]               @relation("UnifiedCrmQuoteVersionCreatedBy")
+  requestedUnifiedCrmCommercialApprovals  UnifiedCrmCommercialApprovalRequest[]  @relation("UnifiedCrmCommercialApprovalRequester")
+  decidedUnifiedCrmCommercialApprovals    UnifiedCrmCommercialApprovalDecision[] @relation("UnifiedCrmCommercialApprovalDecider")
   vehicleCapabilityGrants                 VehicleCapabilityGrant[]
   enterpriseCommandLedgerEntries          EnterpriseCommandLedger[]              @relation("EnterpriseCommandActor")
   enterpriseAuditEvents                   EnterpriseAuditEvent[]                 @relation("EnterpriseAuditActor")
@@ -2046,6 +2048,8 @@ model Organization {
   unifiedCrmOpportunityDispatchLinks    UnifiedCrmOpportunityDispatchLink[]
   unifiedCrmQuotes                      UnifiedCrmQuoteRecord[]
   unifiedCrmQuoteVersions               UnifiedCrmQuoteVersion[]
+  unifiedCrmCommercialApprovalRequests  UnifiedCrmCommercialApprovalRequest[]
+  unifiedCrmCommercialApprovalDecisions UnifiedCrmCommercialApprovalDecision[]
   concernCases                          ConcernCase[]
   customerSlaPolicies                   CustomerSlaPolicy[]
   crmFeatureFlags                       CustomerCrmFeatureFlag[]
@@ -2840,6 +2844,19 @@ enum UnifiedCrmQuoteVersionState {
   SUPERSEDED
 }
 
+enum UnifiedCrmCommercialApprovalStatus {
+  PENDING
+  APPROVED
+  RETURNED
+  DENIED
+}
+
+enum UnifiedCrmCommercialApprovalDecisionType {
+  APPROVED
+  RETURNED
+  DENIED
+}
+
 model UnifiedCrmQuoteRecord {
   id                  String                    @id @default(cuid())
   organizationId      String
@@ -2863,6 +2880,7 @@ model UnifiedCrmQuoteRecord {
   createdByUser       User                     @relation("UnifiedCrmQuoteCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
   presentedVersion    UnifiedCrmQuoteVersion?  @relation("UnifiedCrmQuotePresentedVersion", fields: [presentedVersionId], references: [id], onDelete: SetNull)
   versions            UnifiedCrmQuoteVersion[]
+  commercialApprovalRequests UnifiedCrmCommercialApprovalRequest[]
 
   @@unique([organizationId, quoteNumber])
   @@index([organizationId, state, updatedAt])
@@ -2891,6 +2909,54 @@ model UnifiedCrmQuoteVersion {
 
   @@unique([quoteId, versionNumber])
   @@index([organizationId, state, createdAt])
+}
+
+model UnifiedCrmCommercialApprovalRequest {
+  id                 String                              @id @default(cuid())
+  organizationId     String
+  quoteId            String
+  quoteVersionNumber Int
+  requestedByUserId  String
+  status             UnifiedCrmCommercialApprovalStatus @default(PENDING)
+  purpose            String
+  amountCents        Int
+  discountCents      Int                                @default(0)
+  reason             String
+  policySnapshot     Json
+  requestSnapshot    Json
+  latestDecisionId   String?                            @unique
+  version            Int                                @default(1)
+  closedAt           DateTime?
+  createdAt          DateTime                           @default(now())
+  updatedAt          DateTime                           @updatedAt
+  organization       Organization                       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  quote              UnifiedCrmQuoteRecord              @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  requestedByUser    User                               @relation("UnifiedCrmCommercialApprovalRequester", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  latestDecision     UnifiedCrmCommercialApprovalDecision? @relation("UnifiedCrmCommercialApprovalLatestDecision", fields: [latestDecisionId], references: [id], onDelete: SetNull)
+  decisions          UnifiedCrmCommercialApprovalDecision[]
+
+  @@index([organizationId, status, updatedAt])
+  @@index([quoteId, quoteVersionNumber])
+  @@index([requestedByUserId, status, updatedAt])
+}
+
+model UnifiedCrmCommercialApprovalDecision {
+  id                 String                                   @id @default(cuid())
+  organizationId     String
+  requestId          String
+  decision           UnifiedCrmCommercialApprovalDecisionType
+  decidedByUserId    String
+  reason             String
+  decisionSnapshot   Json
+  createdAt          DateTime                                @default(now())
+  organization       Organization                            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  request            UnifiedCrmCommercialApprovalRequest      @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  decidedByUser      User                                    @relation("UnifiedCrmCommercialApprovalDecider", fields: [decidedByUserId], references: [id], onDelete: Restrict)
+  latestForRequest   UnifiedCrmCommercialApprovalRequest?     @relation("UnifiedCrmCommercialApprovalLatestDecision")
+
+  @@index([organizationId, decision, createdAt])
+  @@index([requestId, createdAt])
+  @@index([decidedByUserId, createdAt])
 }
 
 model Vehicle {
