@@ -16,11 +16,12 @@ import {
   X
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 
 import { withUnifiedCrmOpportunityReturn } from "@/server/unified-crm/opportunity-review-return";
 import type { UnifiedCrmCustomerListReadModel } from "@/server/unified-crm/customer-read-contract";
 import type { UnifiedCrmCustomerListOpportunityDiscoveryCollectionModel } from "@/server/unified-crm/customer-list-opportunity-discovery-contract";
+import type { UnifiedCrmGlobalSearchReadModel, UnifiedCrmGlobalSearchResult } from "@/server/unified-crm/global-search-contract";
 import type { UnifiedCrmOpportunityDiscoveryModel } from "@/server/unified-crm/opportunity-discovery-contract";
 import type { UnifiedCrmOpportunityPreviewModel } from "@/server/unified-crm/opportunity-read-contract";
 
@@ -491,6 +492,153 @@ function HomeView({
   );
 }
 
+function flattenGlobalSearchResults(model: UnifiedCrmGlobalSearchReadModel | null) {
+  return model?.groups.flatMap((group) => group.results) ?? [];
+}
+
+function CrmGlobalSearch() {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [error, setError] = useState("");
+  const [model, setModel] = useState<UnifiedCrmGlobalSearchReadModel | null>(null);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState<"idle" | "loading" | "ready" | "empty" | "error">("idle");
+  const deferredQuery = useDeferredValue(query.trim());
+  const results = flattenGlobalSearchResults(model);
+
+  useEffect(() => {
+    if (deferredQuery.length < 2) {
+      return;
+    }
+
+    const controller = new AbortController();
+    fetch(`/api/crm/v1/search?q=${encodeURIComponent(deferredQuery)}&limit=12`, {
+      signal: controller.signal
+    })
+      .then(async (response) => {
+        const body = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(body?.error ?? "CRM search is temporarily unavailable.");
+        return body as UnifiedCrmGlobalSearchReadModel;
+      })
+      .then((nextModel) => {
+        setModel(nextModel);
+        setError("");
+        setStatus(nextModel.resultCount ? "ready" : "empty");
+        setActiveIndex(0);
+      })
+      .catch((caught) => {
+        if (controller.signal.aborted) return;
+        setModel(null);
+        setError(caught instanceof Error ? caught.message : "CRM search is temporarily unavailable.");
+        setStatus("error");
+      });
+
+    return () => controller.abort();
+  }, [deferredQuery]);
+
+  function selectResult(result: UnifiedCrmGlobalSearchResult | undefined) {
+    if (!result) return;
+    window.location.assign(result.href);
+  }
+
+  function onQueryChange(value: string) {
+    setQuery(value);
+    if (value.trim().length < 2) {
+      setModel(null);
+      setError("");
+      setStatus("idle");
+      setOpen(false);
+      setActiveIndex(0);
+    } else {
+      setStatus("loading");
+      setOpen(true);
+    }
+  }
+
+  function onSearchKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
+    if (!open) return;
+    if (event.key === "Escape") {
+      setOpen(false);
+      return;
+    }
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActiveIndex((current) => Math.min(current + 1, Math.max(results.length - 1, 0)));
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActiveIndex((current) => Math.max(current - 1, 0));
+      return;
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      selectResult(results[activeIndex]);
+    }
+  }
+
+  return (
+    <div className={styles.searchWrap}>
+      <label className={styles.searchField}>
+        <Search aria-hidden="true" size={18} />
+        <span className={styles.srOnly}>Search permitted CRM records</span>
+        <input
+          aria-controls="crm-global-search-results"
+          aria-expanded={open}
+          autoComplete="off"
+          onChange={(event) => onQueryChange(event.target.value)}
+          onFocus={() => { if (query.trim().length >= 2) setOpen(true); }}
+          onKeyDown={onSearchKeyDown}
+          placeholder="Search customers, quotes, tasks…"
+          role="combobox"
+          type="search"
+          value={query}
+        />
+        <kbd>CRM</kbd>
+      </label>
+      {open ? (
+        <div className={styles.searchResults} id="crm-global-search-results" aria-label="CRM global search results" role="listbox">
+          <header>
+            <strong>
+              {status === "loading"
+                ? "Searching CRM..."
+                : status === "error"
+                  ? "Search unavailable"
+                  : status === "empty"
+                    ? "No permitted records found"
+                    : `${model?.resultCount ?? 0} CRM result${model?.resultCount === 1 ? "" : "s"}`}
+            </strong>
+            <span>{model?.visibility === "owned" ? "Owned scope" : "Authorized scope"}</span>
+          </header>
+          {status === "error" ? <p className={styles.searchMessage}>{error}</p> : null}
+          {status === "empty" ? <p className={styles.searchMessage}>Try a customer name, quote number, stock number, task, appointment, or RO reference.</p> : null}
+          {model?.groups.map((group) => (
+            <section className={styles.searchGroup} key={group.entity}>
+              <div className={styles.searchGroupLabel}>{group.label}</div>
+              {group.results.map((result) => {
+                const globalIndex = results.findIndex((item) => item.id === result.id && item.entity === result.entity);
+                return (
+                  <Link
+                    aria-selected={globalIndex === activeIndex}
+                    className={globalIndex === activeIndex ? styles.searchActive : undefined}
+                    href={result.href}
+                    key={`${result.entity}-${result.id}`}
+                    onMouseEnter={() => setActiveIndex(globalIndex)}
+                    role="option"
+                  >
+                    <span><strong>{result.label}</strong><small>{result.secondary}</small></span>
+                    <span className={styles.searchMeta}>{result.matchedOn}</span>
+                  </Link>
+                );
+              })}
+            </section>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function WorkView({
   opportunityDiscovery,
   returnHref,
@@ -793,7 +941,9 @@ export function UnifiedCrmShell({
         {activeView === "customers" ? null : <div className={styles.heroActions}>
           {(activeView === "home" || activeView === "work") && (workQueue || workQueueError)
             ? <WorkQueueSearch onChange={setWorkQuery} value={workQuery} />
-            : <SearchReview key={activeView} onSelect={selectAndReturnHome} />}
+            : activeView === "home"
+              ? <SearchReview key={activeView} onSelect={selectAndReturnHome} />
+              : <CrmGlobalSearch />}
           <div className={styles.newMenuWrap}>
             <button aria-controls="crm-review-new-menu" aria-expanded={newMenuOpen} className={styles.newButton} onClick={() => setNewMenuOpen((current) => !current)} ref={newButtonRef} type="button"><Plus aria-hidden="true" size={16} />New<ChevronDown aria-hidden="true" size={14} /></button>
             <SourceActionMenu onClose={closeNewMenu} open={newMenuOpen} returnHref={activeView === "work" ? "/crm?view=work" : "/crm"} />

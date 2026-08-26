@@ -175,6 +175,19 @@ describe("Unified CRM UX review shell", () => {
     expect(more).toContain("Versioned storage is ready");
   });
 
+  it("adds the live global CRM search interaction without replacing the live work filter", () => {
+    const pipeline = renderToStaticMarkup(<UnifiedCrmShell activeView="pipeline" userName="Alex Operator" />);
+    const work = renderToStaticMarkup(
+      <UnifiedCrmShell activeView="work" userName="Alex Operator" workQueue={liveWorkQueue} />
+    );
+
+    expect(pipeline).toContain("Search permitted CRM records");
+    expect(pipeline).toContain("Search customers, quotes, tasks");
+    expect(pipeline).toContain("CRM");
+    expect(work).toContain("Filter CRM work");
+    expect(work).toContain("Filter owned work, customers, or source");
+  });
+
   it.each([
     ["home", "/crm"],
     ["work", "/crm?view=work"]

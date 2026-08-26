@@ -72,10 +72,15 @@
 .searchResults { position: absolute; top: calc(100% + 6px); right: 0; left: 0; z-index: 25; display: grid; gap: 3px; border: 1px solid var(--crm-border-strong); border-radius: 8px; padding: 6px; background: var(--crm-surface); box-shadow: 0 16px 34px rgb(21 43 72 / 16%); }
 .searchResults header { display: flex; justify-content: space-between; gap: 10px; padding: 6px 7px; color: var(--crm-muted); font-size: 10.5px; }
 .searchResults header strong { color: var(--crm-text); }
-.searchResults button { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 48px; border: 1px solid transparent; border-radius: 6px; padding: 7px 8px; text-align: left; color: var(--crm-text); background: transparent; cursor: pointer; }
-.searchResults button:hover,.searchResults button:focus-visible { border-color: #bdd2ee; outline: none; background: var(--crm-blue-soft); }
-.searchResults button span { display: grid; gap: 3px; min-width: 0; }
-.searchResults button small { overflow: hidden; color: var(--crm-muted); font-size: 10.5px; text-overflow: ellipsis; white-space: nowrap; }
+.searchResults button,.searchResults a { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 48px; border: 1px solid transparent; border-radius: 6px; padding: 7px 8px; text-align: left; color: var(--crm-text); background: transparent; cursor: pointer; }
+.searchResults button:hover,.searchResults button:focus-visible,.searchResults a:hover,.searchResults a:focus-visible,.searchResults .searchActive { border-color: #bdd2ee; outline: none; background: var(--crm-blue-soft); }
+.searchResults button span,.searchResults a span { display: grid; gap: 3px; min-width: 0; }
+.searchResults button small,.searchResults a small { overflow: hidden; color: var(--crm-muted); font-size: 10.5px; text-overflow: ellipsis; white-space: nowrap; }
+.searchGroup { display: grid; gap: 2px; padding-top: 4px; border-top: 1px solid var(--crm-border); }
+.searchGroup:first-of-type { border-top: 0; }
+.searchGroupLabel { padding: 4px 7px 1px; color: var(--crm-muted); font-size: 9.5px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.searchMeta { flex: 0 0 auto; color: var(--crm-blue) !important; font-size: 9.5px !important; font-weight: 900; text-align: right; text-transform: uppercase; }
+.searchMessage { margin: 0; padding: 6px 7px 8px; color: var(--crm-muted); font-size: 10.5px; line-height: 1.45; }
 
 .newMenuWrap { position: relative; }
 .newButton,.primaryAction { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 38px; border: 1px solid var(--crm-blue); border-radius: 7px; padding: 0 12px; color: #fff; background: var(--crm-blue); font-size: 11.5px; font-weight: 850; cursor: pointer; white-space: nowrap; }
