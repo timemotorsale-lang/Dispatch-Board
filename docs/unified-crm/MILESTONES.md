@@ -188,7 +188,7 @@ Unless a row or acceptance ledger below says otherwise, slices begin as `PLANNED
 | ID | Agent-sized deliverable | Acceptance evidence |
 | --- | --- | --- |
 | UCRM-060 | Migration and administrator-assisted pilot data load rehearsal — `IMPLEMENTED_UNVERIFIED` | A dry-run administrator rehearsal API now handles bounded pilot rows with validation, mapping, duplicate review, provenance, checksums/counts, per-record outcomes, backup/restore timing estimates, and no live CRM writes. Approved source-file rehearsal and browser proof remain pending. |
-| UCRM-061 | Security verification | Organization isolation, RBAC/capabilities, field masking, IDOR, injection/input, CSRF/session, export, logs, secrets, dependency scan, and abuse/rate-limit evidence pass or have named holds. |
+| UCRM-061 | Security verification — `IMPLEMENTED_UNVERIFIED` | A manager-only security verification API now records pass evidence for isolation/RBAC/masking/IDOR/input controls and named holds for CSRF/session, export, logs/secrets, dependency scan, and abuse/rate-limit proof. Release-candidate security evidence remains pending. |
 | UCRM-062 | Reliability and concurrency | Stale writes, idempotency reuse, transaction failure, retries, projection lag, unavailable dependencies, job leases, and recovery behavior pass fault-focused tests. |
 | UCRM-063 | Accessibility and responsive gate | WCAG 2.2 AA target checks, keyboard/screen-reader workflows, focus/error behavior, contrast, zoom, desktop/mobile, and light/dark proof are recorded. |
 | UCRM-064 | Performance and observability | Agreed SLOs, representative data volumes, query budgets, page/search latency, freshness/lag dashboards, structured logs, alerts, and correlation are proven. |
