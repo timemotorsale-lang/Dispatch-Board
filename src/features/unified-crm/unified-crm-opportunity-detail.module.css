@@ -25,6 +25,7 @@
 .summaryGrid article,
 .bridgeCard,
 .unlockCard,
+.taskActivityPanel,
 .statePanel {
   border: 1px solid #dce4ee;
   border-radius: 8px;
@@ -37,6 +38,7 @@
 .summaryGrid,
 .bridgeGrid,
 .unlockGrid,
+.taskActivityPanel,
 .statePanel {
   max-width: 1320px;
   margin: 0 auto;
@@ -165,6 +167,119 @@
 .bridgeCard strong,
 .unlockCard strong { font-size: 11.5px; }
 
+.taskActivityPanel {
+  display: grid;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 14px;
+}
+
+.taskActivityHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.taskActivityHeader h2,
+.taskActivityHeader p,
+.formHelper {
+  margin: 0;
+}
+
+.taskActivityHeader h2 {
+  margin-top: 4px;
+  font-size: 15px;
+}
+
+.taskActivityHeader p,
+.formHelper,
+.formActions span {
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.primaryButton,
+.formActions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  border: 1px solid #1762cf;
+  border-radius: 7px;
+  padding: 0 12px;
+  color: #fff;
+  background: #1762cf;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.primaryButton:disabled,
+.formActions button:disabled {
+  cursor: not-allowed;
+  opacity: .6;
+}
+
+.taskForm {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.taskForm label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.taskForm label span {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.taskForm input,
+.taskForm textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #dce4ee;
+  border-radius: 7px;
+  padding: 9px 10px;
+  color: #13233a;
+  background: #fff;
+  font: inherit;
+  font-size: 11px;
+}
+
+.taskForm textarea {
+  resize: vertical;
+}
+
+.formWide,
+.formActions,
+.formHelper {
+  grid-column: 1 / -1;
+}
+
+.formActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.formError,
+.formSuccess {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.formError { color: #9f1239; }
+.formSuccess { color: #166534; }
+
 .bridgeCard header,
 .unlockCard header {
   display: flex;
@@ -262,14 +377,18 @@
   .lifecycleGrid,
   .bridgeGrid,
   .unlockGrid,
+  .taskForm,
   .skeletons { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 640px) {
   .page { padding: 11px; }
   .backLink,
+  .taskActivityHeader,
   .stateActions,
   .trustBar { align-items: flex-start; }
+  .taskActivityHeader,
+  .formActions { flex-direction: column; }
   .stateActions { flex-direction: column; }
   .actionLinks { flex-direction: column; }
 }

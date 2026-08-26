@@ -56,6 +56,22 @@ export type UnifiedCrmOpportunityDetailReadModel = {
     reason: string;
     toStage: UnifiedCrmOpportunityStage;
   }[];
+  taskActivity: {
+    createTaskHref: string | null;
+    links: readonly {
+      actorLabel: string;
+      brief: string;
+      createdAt: string;
+      dueAt: string;
+      href: string;
+      relationship: string;
+      state: "ACTIVE" | "ARCHIVED";
+      taskId: string;
+      title: string;
+    }[];
+    state: "HELD" | "READY";
+    summary: string;
+  };
   sourceBridge: {
     detail: string;
     label: "Lead bridge" | "Source bridge";
@@ -78,10 +94,11 @@ export type UnifiedCrmOpportunityDetailReadModel = {
     updatedAt: string;
   }[];
   workBridges: readonly {
+    actionHref?: string | null;
     detail: string;
     domain: "TASKS" | "APPOINTMENTS" | "DISPATCH";
     label: string;
-    state: "HELD";
+    state: "HELD" | "READY";
   }[];
   nextUnlocks: readonly string[];
 };

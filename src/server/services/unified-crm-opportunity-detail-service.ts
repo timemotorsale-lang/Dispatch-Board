@@ -149,6 +149,12 @@ function heldModel(
       version: null
     },
     stageHistory: [],
+    taskActivity: {
+      createTaskHref: null,
+      links: [],
+      state: "HELD",
+      summary: "Task activity is held until the first durable opportunity record exists and task linkage is approved."
+    },
     sourceBridge: {
       label: "Lead bridge",
       state: "HELD",
@@ -286,6 +292,26 @@ export async function getUnifiedCrmOpportunityDetail(
         reason: event.reason,
         toStage: event.toStage
       })),
+      taskActivity: {
+        createTaskHref: terminal
+          ? null
+          : `/api/crm/v1/opportunities/${encodeURIComponent(normalizedOpportunityId)}/tasks`,
+        links: record.taskLinks.map((link) => ({
+          actorLabel: link.actorLabel,
+          brief: link.brief,
+          createdAt: link.createdAt.toISOString(),
+          dueAt: link.dueAt.toISOString(),
+          href: `/tasks/${encodeURIComponent(link.taskId)}`,
+          relationship: link.relationship,
+          state: link.archivedAt ? "ARCHIVED" : "ACTIVE",
+          taskId: link.taskId,
+          title: link.title
+        })),
+        state: "READY",
+        summary: record.taskLinks.length
+          ? `${record.taskLinks.length} governed task link(s) are attached to this opportunity.`
+          : "No governed task link has been attached yet. Create one here when the next action needs tracked work."
+      },
       sourceBridge: {
         label: record.sourceLead ? "Lead bridge" : "Source bridge",
         state: record.sourceLead ? "CONNECTED" : "HELD",
@@ -303,8 +329,11 @@ export async function getUnifiedCrmOpportunityDetail(
         {
           domain: "TASKS",
           label: "Governed tasks",
-          state: "HELD",
-          detail: "Task linkage remains held until live opportunity lifecycle commands are approved."
+          state: terminal ? "HELD" : "READY",
+          actionHref: terminal ? null : `/api/crm/v1/opportunities/${encodeURIComponent(normalizedOpportunityId)}/tasks`,
+          detail: terminal
+            ? "Terminal opportunities do not accept new task links until a manager reopen control is approved."
+            : "Create a governed Dispatch task from this opportunity while preserving CRM opportunity correlation and audit history."
         },
         {
           domain: "APPOINTMENTS",

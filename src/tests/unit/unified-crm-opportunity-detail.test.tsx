@@ -1,5 +1,9 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh() {} })
+}));
 
 import { UnifiedCrmOpportunityDetail, UnifiedCrmOpportunityDetailLoading } from "@/features/unified-crm/unified-crm-opportunity-detail";
 import type { UnifiedCrmOpportunityDetailReadModel } from "@/server/unified-crm/opportunity-detail-contract";
@@ -45,6 +49,12 @@ function fixture(): UnifiedCrmOpportunityDetailReadModel {
       version: null
     },
     stageHistory: [],
+    taskActivity: {
+      createTaskHref: null,
+      links: [],
+      state: "HELD",
+      summary: "Task activity is held until the first durable opportunity record exists and task linkage is approved."
+    },
     sourceBridge: {
       label: "Lead bridge",
       state: "HELD",
@@ -80,6 +90,8 @@ describe("Unified CRM opportunity detail", () => {
     expect(markup).toContain("Current stage is Held");
     expect(markup).toContain("Same-customer read-only opportunities");
     expect(markup).toContain("Lead bridge");
+    expect(markup).toContain("Opportunity activity");
+    expect(markup).toContain("No linked opportunity tasks have been recorded yet.");
     expect(markup).toContain("Appointments");
     expect(markup).toContain("Dispatch and jobs");
     expect(markup).toContain("Approve stage definitions, transition evidence, and close or loss rules before enabling create or movement.");
@@ -156,7 +168,13 @@ describe("Unified CRM opportunity detail", () => {
             occurredAt: "2026-08-14T17:30:00.000Z",
             reason: "Create CRM opportunity.",
             toStage: "NEW_INQUIRY"
-          }]
+          }],
+          taskActivity: {
+            createTaskHref: "/api/crm/v1/opportunities/review01/tasks",
+            links: [],
+            state: "READY",
+            summary: "No governed task link has been attached yet. Create one here when the next action needs tracked work."
+          }
         }}
         returnHref="/crm?view=pipeline"
       />
@@ -165,6 +183,7 @@ describe("Unified CRM opportunity detail", () => {
     expect(markup).toContain("Latest visible source update");
     expect(markup).toContain("Allowed next moves");
     expect(markup).toContain("Move opportunity stage");
+    expect(markup).toContain("Create linked task");
     expect(markup).toContain("Aug");
   });
 
@@ -256,6 +275,61 @@ describe("Unified CRM opportunity detail", () => {
     expect(markup).not.toContain("Move to proposal");
     expect(markup).not.toContain("Save opportunity");
     expect(markup).not.toContain("<form");
+  });
+
+  it("renders linked opportunity task activity with safe task return links", () => {
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmOpportunityDetail
+        model={{
+          ...fixture(),
+          requestedOpportunityId: "opp_123456",
+          state: "READY",
+          identity: {
+            ...fixture().identity,
+            lifecycleStatus: "READ_ONLY",
+            title: "Alex Morgan renewal review"
+          },
+          lifecycle: {
+            allowedNextStages: ["QUALIFIED", "LOST"],
+            nextActionDueAt: "2026-08-15T18:30:00.000Z",
+            nextActionLabel: "Call customer",
+            stage: "NEW_INQUIRY",
+            terminal: false,
+            transitionHref: "/crm/opportunities/opp_123456/transition",
+            version: 3
+          },
+          taskActivity: {
+            createTaskHref: "/api/crm/v1/opportunities/opp_123456/tasks",
+            links: [{
+              actorLabel: "CRM Manager",
+              brief: "Document the opportunity follow-up and next operational step.",
+              createdAt: "2026-08-14T17:35:00.000Z",
+              dueAt: "2026-08-15T19:00:00.000Z",
+              href: "/tasks/task-1",
+              relationship: "FOLLOW_UP",
+              state: "ACTIVE",
+              taskId: "task-1",
+              title: "Follow up with Alex Morgan"
+            }],
+            state: "READY",
+            summary: "1 governed task link is attached to this opportunity."
+          },
+          workBridges: [
+            { actionHref: "/api/crm/v1/opportunities/opp_123456/tasks", domain: "TASKS", label: "Governed tasks", state: "READY", detail: "Create a governed Dispatch task from this opportunity while preserving CRM opportunity correlation and audit history." },
+            { domain: "APPOINTMENTS", label: "Appointments", state: "HELD", detail: "Appointment linkage remains read-only." },
+            { domain: "DISPATCH", label: "Dispatch and jobs", state: "HELD", detail: "Dispatch authority remains outside CRM." }
+          ]
+        }}
+        returnHref="/crm?view=pipeline"
+      />
+    );
+
+    expect(markup).toContain("Create a linked follow-up task");
+    expect(markup).toContain("Follow up with Alex Morgan");
+    expect(markup).toContain("Document the opportunity follow-up and next operational step.");
+    expect(markup).toContain("Open task");
+    expect(markup).toContain("returnTo=%2Fcrm%2Fopportunities%2Fopp_123456%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dpipeline");
+    expect(markup).toContain("Use the Opportunity activity panel above to create this governed task link.");
   });
 
   it("reuses the existing customer return when detail is opened from Customer 360", () => {

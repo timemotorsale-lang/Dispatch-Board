@@ -1730,6 +1730,7 @@ model User {
   ownedUnifiedCrmOpportunities            UnifiedCrmOpportunityRecord[]          @relation("UnifiedCrmOpportunityOwner")
   createdUnifiedCrmOpportunities          UnifiedCrmOpportunityRecord[]          @relation("UnifiedCrmOpportunityCreatedBy")
   unifiedCrmOpportunityStageEvents         UnifiedCrmOpportunityStageEvent[]      @relation("UnifiedCrmOpportunityStageEventActor")
+  createdUnifiedCrmOpportunityTaskLinks    UnifiedCrmOpportunityTaskLink[]        @relation("UnifiedCrmOpportunityTaskLinkCreatedBy")
   createdUnifiedCrmQuotes                 UnifiedCrmQuoteRecord[]                @relation("UnifiedCrmQuoteCreatedBy")
   createdUnifiedCrmQuoteVersions          UnifiedCrmQuoteVersion[]               @relation("UnifiedCrmQuoteVersionCreatedBy")
   vehicleCapabilityGrants                 VehicleCapabilityGrant[]
@@ -2038,6 +2039,7 @@ model Organization {
   customerLeads                         CustomerLead[]
   unifiedCrmOpportunities               UnifiedCrmOpportunityRecord[]
   unifiedCrmOpportunityStageEvents      UnifiedCrmOpportunityStageEvent[]
+  unifiedCrmOpportunityTaskLinks        UnifiedCrmOpportunityTaskLink[]
   unifiedCrmQuotes                      UnifiedCrmQuoteRecord[]
   unifiedCrmQuoteVersions               UnifiedCrmQuoteVersion[]
   concernCases                          ConcernCase[]
@@ -2697,6 +2699,7 @@ model UnifiedCrmOpportunityRecord {
   createdByUser     User?         @relation("UnifiedCrmOpportunityCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   sourceLead        CustomerLead? @relation("UnifiedCrmOpportunitySourceLead", fields: [sourceLeadId], references: [id], onDelete: SetNull)
   stageEvents       UnifiedCrmOpportunityStageEvent[]
+  taskLinks         UnifiedCrmOpportunityTaskLink[]
   quotes            UnifiedCrmQuoteRecord[]
 
   @@unique([organizationId, opportunityNumber])
@@ -2704,6 +2707,31 @@ model UnifiedCrmOpportunityRecord {
   @@index([organizationId, ownerUserId, updatedAt])
   @@index([customerId, updatedAt])
   @@index([sourceLeadId])
+}
+
+model UnifiedCrmOpportunityTaskLink {
+  id              String                    @id @default(cuid())
+  opportunityId   String
+  organizationId  String
+  taskId          String
+  relationship    String
+  titleSnapshot   String
+  briefSnapshot   String
+  dueAtSnapshot   DateTime
+  createdByUserId String
+  commandId       String?
+  archivedAt      DateTime?
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+  opportunity     UnifiedCrmOpportunityRecord @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  organization    Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  task            Task                      @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  createdByUser   User                      @relation("UnifiedCrmOpportunityTaskLinkCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([opportunityId, taskId])
+  @@index([organizationId, createdAt])
+  @@index([taskId])
+  @@index([createdByUserId, createdAt])
 }
 
 enum UnifiedCrmOpportunityStage {
@@ -6885,6 +6913,7 @@ model Task {
   assignmentRequests         TaskAssignmentRequest[]
   collaborators              TaskCollaborator[]
   customerLeadLink           CustomerLeadTaskLink?
+  unifiedCrmOpportunityLinks UnifiedCrmOpportunityTaskLink[]
   customer                   Customer?                 @relation(fields: [customerId], references: [id], onDelete: SetNull)
   inventoryWorkPacket        InventoryWorkPacket?
 

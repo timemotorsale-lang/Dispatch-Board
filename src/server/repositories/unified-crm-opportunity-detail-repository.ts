@@ -35,6 +35,16 @@ export type UnifiedCrmOpportunityDetailRecord = {
     reason: string;
     toStage: UnifiedCrmOpportunityStage;
   }[];
+  taskLinks: readonly {
+    actorLabel: string;
+    archivedAt: Date | null;
+    brief: string;
+    createdAt: Date;
+    dueAt: Date;
+    relationship: string;
+    taskId: string;
+    title: string;
+  }[];
   createdAt: Date;
   updatedAt: Date;
 };
@@ -79,6 +89,17 @@ type StageHistoryRow = {
   toStage: UnifiedCrmOpportunityStage;
 };
 
+type TaskLinkRow = {
+  actorLabel: string | null;
+  archivedAt: Date | null;
+  brief: string;
+  createdAt: Date;
+  dueAt: Date;
+  relationship: string;
+  taskId: string;
+  title: string;
+};
+
 function mapRow(row: OpportunityRow): UnifiedCrmOpportunityDetailRecord {
   return {
     id: row.id,
@@ -111,6 +132,7 @@ function mapRow(row: OpportunityRow): UnifiedCrmOpportunityDetailRecord {
         }
       : null,
     stageHistory: [],
+    taskLinks: [],
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
   };
@@ -180,6 +202,24 @@ export function createUnifiedCrmOpportunityDetailRepository(
         ORDER BY event."occurredAt" DESC
         LIMIT 12
       `);
+      const taskLinks = await database.$queryRaw<TaskLinkRow[]>(Prisma.sql`
+        SELECT
+          link."taskId",
+          link."relationship",
+          link."titleSnapshot" AS "title",
+          link."briefSnapshot" AS "brief",
+          link."dueAtSnapshot" AS "dueAt",
+          link."archivedAt",
+          link."createdAt",
+          COALESCE(actor."name", actor."email", 'Unknown user') AS "actorLabel"
+        FROM "UnifiedCrmOpportunityTaskLink" AS link
+        LEFT JOIN "User" AS actor
+          ON actor."id" = link."createdByUserId"
+        WHERE link."organizationId" = ${input.organizationId}
+          AND link."opportunityId" = ${row.id}
+        ORDER BY link."createdAt" DESC
+        LIMIT 12
+      `);
 
       return {
         ...mapRow(row),
@@ -189,6 +229,16 @@ export function createUnifiedCrmOpportunityDetailRepository(
           occurredAt: event.occurredAt,
           reason: event.reason,
           toStage: event.toStage
+        })),
+        taskLinks: taskLinks.map((link) => ({
+          actorLabel: link.actorLabel ?? "Unknown user",
+          archivedAt: link.archivedAt,
+          brief: link.brief,
+          createdAt: link.createdAt,
+          dueAt: link.dueAt,
+          relationship: link.relationship,
+          taskId: link.taskId,
+          title: link.title
         }))
       };
     }

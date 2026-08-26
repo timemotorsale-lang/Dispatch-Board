@@ -60,6 +60,7 @@ function persistedRecord(overrides: Record<string, unknown> = {}) {
     nextActionDueAt: new Date("2026-08-15T18:30:00.000Z"),
     sourceLead: null,
     stageHistory: [],
+    taskLinks: [],
     createdAt: new Date("2026-08-14T16:00:00.000Z"),
     updatedAt: new Date("2026-08-14T17:30:00.000Z"),
     version: 1,
@@ -190,6 +191,16 @@ describe("Unified CRM opportunity detail service", () => {
               reason: "Create CRM opportunity.",
               toStage: "NEW_INQUIRY"
             }],
+            taskLinks: [{
+              actorLabel: "CRM Manager",
+              archivedAt: null,
+              brief: "Document the opportunity follow-up and next operational step.",
+              createdAt: new Date("2026-08-14T17:35:00.000Z"),
+              dueAt: new Date("2026-08-15T19:00:00.000Z"),
+              relationship: "FOLLOW_UP",
+              taskId: "task-1",
+              title: "Follow up with Alex Morgan"
+            }],
             createdAt: new Date("2026-08-14T16:00:00.000Z"),
             updatedAt: new Date("2026-08-14T17:30:00.000Z"),
             version: 2
@@ -264,6 +275,19 @@ describe("Unified CRM opportunity detail service", () => {
         reason: "Create CRM opportunity.",
         toStage: "NEW_INQUIRY"
       }],
+      taskActivity: {
+        createTaskHref: "/api/crm/v1/opportunities/opp_123456/tasks",
+        state: "READY",
+        links: [{
+          actorLabel: "CRM Manager",
+          dueAt: "2026-08-15T19:00:00.000Z",
+          href: "/tasks/task-1",
+          relationship: "FOLLOW_UP",
+          state: "ACTIVE",
+          taskId: "task-1",
+          title: "Follow up with Alex Morgan"
+        }]
+      },
       relatedRecordsObservation: {
         state: "READY",
         visibleRecordCount: 1,

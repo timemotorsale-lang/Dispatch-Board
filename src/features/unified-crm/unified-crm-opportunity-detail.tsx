@@ -2,6 +2,8 @@
 
 import { AlertTriangle, ArrowLeft, ExternalLink, RefreshCw, ShieldCheck } from "lucide-react";
 import Link from "next/link";
+import { startTransition, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 
 import type { UnifiedCrmOpportunityDetailReadModel } from "@/server/unified-crm/opportunity-detail-contract";
 import {
@@ -42,6 +44,39 @@ function sourceRecordFreshnessLabel(model: UnifiedCrmOpportunityDetailReadModel)
   return model.freshness.sourceRecordUpdatedAt
     ? `Latest visible source update ${formatDate(model.freshness.sourceRecordUpdatedAt)}`
     : "No persisted source record is visible yet.";
+}
+
+function localDateTimeValue(date: Date) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  const hour = `${date.getHours()}`.padStart(2, "0");
+  const minute = `${date.getMinutes()}`.padStart(2, "0");
+  return `${year}-${month}-${day}T${hour}:${minute}`;
+}
+
+function defaultTaskDueValue(value: string | null) {
+  if (value) {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return localDateTimeValue(parsed);
+  }
+  return localDateTimeValue(new Date(Date.now() + 60 * 60 * 1000));
+}
+
+function createIdempotencyKey(opportunityId: string) {
+  return globalThis.crypto?.randomUUID?.() ?? `crm-opportunity-task-${opportunityId}-${Date.now()}`;
+}
+
+function withOpportunityTaskReturn(href: string | null | undefined, opportunityId: string, returnHref: string) {
+  if (!href || !href.startsWith("/tasks/") || href.startsWith("//")) return href ?? null;
+  const opportunityReturn = `/crm/opportunities/${encodeURIComponent(opportunityId)}?crmReturnTo=${encodeURIComponent(returnHref)}`;
+  try {
+    const url = new URL(href, "https://crm.local");
+    url.searchParams.set("returnTo", opportunityReturn);
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return href;
+  }
 }
 
 function customerContextHref(model: UnifiedCrmOpportunityDetailReadModel, returnHref: string) {
@@ -89,6 +124,132 @@ function StatePanel({ kind, message, returnHref }: { kind: FailureKind; message?
         </div>
       </section>
     </main>
+  );
+}
+
+function OpportunityTaskBridgeForm({ model, returnHref }: { model: UnifiedCrmOpportunityDetailReadModel; returnHref: string }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [messageHref, setMessageHref] = useState<string | null>(null);
+  const [tone, setTone] = useState<"idle" | "error" | "success">("idle");
+  const [title, setTitle] = useState(`Follow up: ${model.identity.title}`);
+  const [brief, setBrief] = useState("Document the opportunity follow-up, customer commitment, and next operational step.");
+  const [dueAt, setDueAt] = useState(() => defaultTaskDueValue(model.lifecycle.nextActionDueAt));
+  const [idempotencyKey, setIdempotencyKey] = useState(() => createIdempotencyKey(model.requestedOpportunityId));
+  const available = Boolean(model.taskActivity.createTaskHref && model.lifecycle.version !== null);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!model.taskActivity.createTaskHref || model.lifecycle.version === null) return;
+    setPending(true);
+    setMessage(null);
+    setMessageHref(null);
+    setTone("idle");
+
+    try {
+      const response = await fetch(model.taskActivity.createTaskHref, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          brief,
+          dueAt: new Date(dueAt).toISOString(),
+          expectedVersion: model.lifecycle.version,
+          idempotencyKey,
+          title
+        })
+      });
+      const payload = await response.json().catch(() => null) as {
+        duplicate?: boolean;
+        error?: string;
+        task?: { href?: string; title?: string };
+      } | null;
+      if (!response.ok) {
+        throw new Error(payload?.error ?? "CRM opportunity task handoff could not be completed safely.");
+      }
+      setTone("success");
+      setMessageHref(withOpportunityTaskReturn(payload?.task?.href, model.requestedOpportunityId, returnHref));
+      setMessage(
+        payload?.duplicate
+          ? "This governed opportunity task was already recorded. The existing task is ready to open."
+          : "Governed opportunity task created. The opportunity activity list is refreshing with the protected link."
+      );
+      setIdempotencyKey(createIdempotencyKey(model.requestedOpportunityId));
+      setOpen(false);
+      startTransition(() => router.refresh());
+    } catch (error) {
+      setTone("error");
+      setMessage(error instanceof Error ? error.message : "CRM opportunity task handoff could not be completed safely.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <section className={styles.taskActivityPanel} aria-labelledby="opportunity-task-activity-heading">
+      <header className={styles.taskActivityHeader}>
+        <div>
+          <span className={styles.eyebrow}>Opportunity activity</span>
+          <h2 id="opportunity-task-activity-heading">Create a linked follow-up task</h2>
+          <p>{model.taskActivity.summary}</p>
+        </div>
+        {available ? (
+          <button
+            aria-controls="opportunity-task-bridge-panel"
+            aria-expanded={open}
+            className={styles.primaryButton}
+            disabled={pending}
+            onClick={() => setOpen((value) => !value)}
+            type="button"
+          >
+            {open ? "Close" : "Create linked task"}
+          </button>
+        ) : null}
+      </header>
+      {message ? (
+        <p className={tone === "error" ? styles.formError : styles.formSuccess} role={tone === "error" ? "alert" : "status"}>
+          {message} {messageHref ? <Link href={messageHref}>Open task</Link> : null}
+        </p>
+      ) : null}
+      {open && available ? (
+        <form className={styles.taskForm} id="opportunity-task-bridge-panel" onSubmit={(event) => void submit(event)}>
+          <p className={styles.formHelper}>
+            This creates tracked internal work in Tasks and keeps this opportunity as the correlated CRM source. No appointment or dispatch link is created here.
+          </p>
+          <label className={styles.formWide}>
+            <span>Task title</span>
+            <input onChange={(event) => setTitle(event.target.value)} required value={title} />
+          </label>
+          <label className={styles.formWide}>
+            <span>Brief</span>
+            <textarea onChange={(event) => setBrief(event.target.value)} required rows={3} value={brief} />
+          </label>
+          <label>
+            <span>Due time</span>
+            <input onChange={(event) => setDueAt(event.target.value)} required type="datetime-local" value={dueAt} />
+          </label>
+          <div className={styles.formActions}>
+            <button disabled={pending || title.trim().length < 8 || brief.trim().length < 16} type="submit">
+              {pending ? "Creating linked task..." : "Create linked task"}
+            </button>
+            <span>Uses opportunity version {model.lifecycle.version}; refresh if the record changed.</span>
+          </div>
+        </form>
+      ) : null}
+      {model.taskActivity.links.length ? (
+        <ol className={styles.historyList}>
+          {model.taskActivity.links.map((link) => (
+            <li key={`${link.taskId}-${link.createdAt}`}>
+              <strong>{link.title}</strong>
+              <span>{link.state} · due {formatDate(link.dueAt)} · created {formatDate(link.createdAt)} by {link.actorLabel}</span>
+              <p>{link.brief}</p>
+              <Link className={styles.sourceLink} href={withOpportunityTaskReturn(link.href, model.requestedOpportunityId, returnHref) ?? link.href}>Open task<ExternalLink aria-hidden="true" size={13} /></Link>
+            </li>
+          ))}
+        </ol>
+      ) : <p className={styles.formHelper}>No linked opportunity tasks have been recorded yet.</p>}
+    </section>
   );
 }
 
@@ -191,6 +352,8 @@ export function UnifiedCrmOpportunityDetail({ errorMessage, failureKind = "error
         ))}
       </section>
 
+      <OpportunityTaskBridgeForm model={model} returnHref={returnHref} />
+
       <section className={styles.bridgeGrid} aria-label="Opportunity bridge review">
         <article className={styles.bridgeCard}>
           <header><strong>{model.sourceBridge.label}</strong><span className={styles.heldTag}>{model.sourceBridge.state}</span></header>
@@ -200,6 +363,9 @@ export function UnifiedCrmOpportunityDetail({ errorMessage, failureKind = "error
           <article className={styles.bridgeCard} key={bridge.domain}>
             <header><strong>{bridge.label}</strong><span className={styles.heldTag}>{bridge.state}</span></header>
             <p>{bridge.detail}</p>
+            {bridge.actionHref && bridge.domain === "TASKS" ? (
+              <small>Use the Opportunity activity panel above to create this governed task link.</small>
+            ) : null}
           </article>
         ))}
       </section>

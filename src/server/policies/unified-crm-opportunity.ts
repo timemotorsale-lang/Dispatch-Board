@@ -29,7 +29,7 @@ function capabilities(readAllowed: boolean, mutateAllowed = false): UnifiedCrmOp
     read: readAllowed,
     create: mutateAllowed,
     transition: mutateAllowed,
-    linkTask: false,
+    linkTask: mutateAllowed,
     linkAppointment: false,
     linkDispatch: false
   };
@@ -83,7 +83,7 @@ export function evaluateUnifiedCrmOpportunityPolicy(
     };
   }
 
-  if ((options.action === "create" || options.action === "transition") && base.mutateAllowed) {
+  if ((options.action === "create" || options.action === "transition" || options.action === "link-task") && base.mutateAllowed) {
     return {
       allowed: true,
       fallbackHref: base.fallbackHref,
