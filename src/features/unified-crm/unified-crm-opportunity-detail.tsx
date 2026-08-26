@@ -32,6 +32,11 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
+function formatMoneyCents(value: number | null) {
+  if (value === null) return "Not requested";
+  return new Intl.NumberFormat("en-US", { currency: "USD", style: "currency" }).format(value / 100);
+}
+
 function readModeLabel(value: UnifiedCrmOpportunityDetailReadModel["source"]["readMode"]) {
   return value === "HELD_REVIEW" ? "held review only" : "read only";
 }
@@ -670,6 +675,30 @@ export function UnifiedCrmOpportunityDetail({ errorMessage, failureKind = "error
           </Link>
         ))}
       </section>
+
+      {model.quoteActivity ? (
+        <section className={styles.bridgeGrid} aria-label="Opportunity quote history">
+          <article className={styles.bridgeCard}>
+            <header>
+              <strong>Quote history</strong>
+              <span className={styles.heldTag}>{model.quoteActivity.links.length ? `${model.quoteActivity.links.length} quote(s)` : "Empty"}</span>
+            </header>
+            <p>{model.quoteActivity.summary}</p>
+            <small>No margin, gross, customer presentation, or operational conversion is enabled from this lens.</small>
+          </article>
+          {model.quoteActivity.links.map((quote) => (
+            <article className={styles.bridgeCard} key={quote.quoteId}>
+              <header>
+                <strong>{quote.quoteNumber}</strong>
+                <span className={styles.heldTag}>{quote.approvalStatus}</span>
+              </header>
+              <p>{quote.state} · v{quote.latestVersionNumber} · updated {formatDate(quote.updatedAt)}</p>
+              <small>Requested amount {formatMoneyCents(quote.approvalAmountCents)} · discount {formatMoneyCents(quote.approvalDiscountCents)}</small>
+              <Link className={styles.sourceLink} href={withUnifiedCrmOpportunityReturn(quote.href, returnHref)}>Review quote versions<ExternalLink aria-hidden="true" size={13} /></Link>
+            </article>
+          ))}
+        </section>
+      ) : null}
 
       <OpportunityTaskBridgeForm model={model} returnHref={returnHref} />
       <OpportunityAppointmentBridgeForm model={model} returnHref={returnHref} />

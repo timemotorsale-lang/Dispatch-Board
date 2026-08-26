@@ -68,6 +68,18 @@ export type UnifiedCrmOpportunityDetailRecord = {
     title: string;
     version: number;
   }[];
+  quoteLinks: readonly {
+    approvalAmountCents: number | null;
+    approvalDiscountCents: number | null;
+    approvalRequestId: string | null;
+    approvalStatus: "PENDING" | "APPROVED" | "RETURNED" | "DENIED" | null;
+    approvalVersion: number | null;
+    latestVersionNumber: number;
+    quoteId: string;
+    quoteNumber: string;
+    state: "DRAFT" | "PRESENTED";
+    updatedAt: Date;
+  }[];
   createdAt: Date;
   updatedAt: Date;
 };
@@ -148,6 +160,19 @@ type DispatchLinkRow = {
   version: number;
 };
 
+type QuoteLinkRow = {
+  approvalAmountCents: number | null;
+  approvalDiscountCents: number | null;
+  approvalRequestId: string | null;
+  approvalStatus: "PENDING" | "APPROVED" | "RETURNED" | "DENIED" | null;
+  approvalVersion: number | null;
+  latestVersionNumber: number;
+  quoteId: string;
+  quoteNumber: string;
+  state: "DRAFT" | "PRESENTED";
+  updatedAt: Date;
+};
+
 function mapRow(row: OpportunityRow): UnifiedCrmOpportunityDetailRecord {
   return {
     id: row.id,
@@ -183,6 +208,7 @@ function mapRow(row: OpportunityRow): UnifiedCrmOpportunityDetailRecord {
     taskLinks: [],
     appointmentLinks: [],
     dispatchLinks: [],
+    quoteLinks: [],
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
   };
@@ -312,6 +338,33 @@ export function createUnifiedCrmOpportunityDetailRepository(
         ORDER BY link."createdAt" DESC
         LIMIT 12
       `);
+      const quoteLinks = await database.$queryRaw<QuoteLinkRow[]>(Prisma.sql`
+        SELECT
+          quote."id" AS "quoteId",
+          quote."quoteNumber",
+          quote."state"::text AS "state",
+          quote."latestVersionNumber",
+          quote."updatedAt",
+          approval."id" AS "approvalRequestId",
+          approval."status"::text AS "approvalStatus",
+          approval."amountCents" AS "approvalAmountCents",
+          approval."discountCents" AS "approvalDiscountCents",
+          approval."version" AS "approvalVersion"
+        FROM "UnifiedCrmQuoteRecord" AS quote
+        LEFT JOIN LATERAL (
+          SELECT request."id", request."status", request."amountCents", request."discountCents", request."version"
+          FROM "UnifiedCrmCommercialApprovalRequest" AS request
+          WHERE request."organizationId" = quote."organizationId"
+            AND request."quoteId" = quote."id"
+          ORDER BY request."updatedAt" DESC, request."id" DESC
+          LIMIT 1
+        ) AS approval ON TRUE
+        WHERE quote."organizationId" = ${input.organizationId}
+          AND quote."opportunityId" = ${row.id}
+          AND quote."archivedAt" IS NULL
+        ORDER BY quote."updatedAt" DESC, quote."quoteNumber" ASC
+        LIMIT 12
+      `);
 
       return {
         ...mapRow(row),
@@ -354,6 +407,18 @@ export function createUnifiedCrmOpportunityDetailRepository(
           targetKind: link.targetKind,
           title: link.title,
           version: link.version
+        })),
+        quoteLinks: quoteLinks.map((link) => ({
+          approvalAmountCents: link.approvalAmountCents,
+          approvalDiscountCents: link.approvalDiscountCents,
+          approvalRequestId: link.approvalRequestId,
+          approvalStatus: link.approvalStatus,
+          approvalVersion: link.approvalVersion,
+          latestVersionNumber: link.latestVersionNumber,
+          quoteId: link.quoteId,
+          quoteNumber: link.quoteNumber,
+          state: link.state,
+          updatedAt: link.updatedAt
         }))
       };
     }

@@ -167,6 +167,11 @@ function heldModel(
       state: "HELD",
       summary: "Dispatch bridge activity is held until a durable opportunity record and dispatch authority are available."
     },
+    quoteActivity: {
+      links: [],
+      state: "READY",
+      summary: "Quote history appears here after governed quote drafts are linked to a durable opportunity."
+    },
     sourceBridge: {
       label: "Lead bridge",
       state: "HELD",
@@ -369,6 +374,28 @@ export async function getUnifiedCrmOpportunityDetail(
         summary: record.dispatchLinks.length
           ? `${record.dispatchLinks.length} governed dispatch link(s) are attached to this opportunity.`
           : "No governed dispatch link has been attached yet. Link existing repair work when the opportunity is ready for operational handoff."
+      },
+      quoteActivity: {
+        links: (record.quoteLinks ?? []).map((link) => ({
+          approvalAmountCents: link.approvalAmountCents,
+          approvalDiscountCents: link.approvalDiscountCents,
+          approvalRequestId: link.approvalRequestId,
+          approvalStatus: link.approvalStatus ?? "NONE",
+          approvalVersion: link.approvalVersion,
+          href: `/crm/quotes/${encodeURIComponent(link.quoteId)}/versions`,
+          latestVersionNumber: link.latestVersionNumber,
+          quoteId: link.quoteId,
+          quoteNumber: link.quoteNumber,
+          requestApprovalHref: terminal || link.approvalStatus === "APPROVED"
+            ? null
+            : `/api/crm/v1/quotes/${encodeURIComponent(link.quoteId)}/commercial-approvals`,
+          state: link.state,
+          updatedAt: link.updatedAt.toISOString()
+        })),
+        state: "READY",
+        summary: (record.quoteLinks ?? []).length
+          ? `${(record.quoteLinks ?? []).length} governed quote record(s) are attached to this opportunity. Approval state is internal and presentation remains separately held.`
+          : "No governed quote record has been attached yet. Draft quote history appears here after it is saved from the quote workspace."
       },
       sourceBridge: {
         label: record.sourceLead ? "Lead bridge" : "Source bridge",

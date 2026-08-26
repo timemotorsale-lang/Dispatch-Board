@@ -150,9 +150,21 @@ export type UnifiedCrmCustomer360OpportunityDispatchLinkRecord = {
   titleSnapshot: string;
 };
 
+export type UnifiedCrmCustomer360OpportunityQuoteLinkRecord = {
+  approvalAmountCents: number | null;
+  approvalDiscountCents: number | null;
+  approvalStatus: "PENDING" | "APPROVED" | "RETURNED" | "DENIED" | null;
+  latestVersionNumber: number;
+  opportunityNumber: string;
+  quoteId: string;
+  quoteNumber: string;
+  state: "DRAFT" | "PRESENTED";
+};
+
 export type UnifiedCrmCustomer360Repository = {
   findCustomer(input: UnifiedCrmCustomer360RepositoryInput): Promise<UnifiedCrmCustomer360Record | null>;
   listOpportunityDispatchLinks(input: UnifiedCrmCustomer360RepositoryInput): Promise<UnifiedCrmCustomer360OpportunityDispatchLinkRecord[]>;
+  listOpportunityQuoteLinks(input: UnifiedCrmCustomer360RepositoryInput): Promise<UnifiedCrmCustomer360OpportunityQuoteLinkRecord[]>;
 };
 
 export function createUnifiedCrmCustomer360Repository(
@@ -198,6 +210,41 @@ export function createUnifiedCrmCustomer360Repository(
           AND opportunity."archivedAt" IS NULL
           ${ownerFilter}
         ORDER BY link."createdAt" DESC, link."id" DESC
+        LIMIT 40
+      `);
+    },
+    listOpportunityQuoteLinks(input) {
+      const ownerFilter = input.recordScope.kind === "OWNER"
+        ? Prisma.sql`AND opportunity."ownerUserId" = ${input.recordScope.ownerUserId}`
+        : Prisma.empty;
+      return database.$queryRaw<UnifiedCrmCustomer360OpportunityQuoteLinkRecord[]>(Prisma.sql`
+        SELECT
+          opportunity."opportunityNumber",
+          quote."id" AS "quoteId",
+          quote."quoteNumber",
+          quote."state"::text AS "state",
+          quote."latestVersionNumber",
+          approval."status"::text AS "approvalStatus",
+          approval."amountCents" AS "approvalAmountCents",
+          approval."discountCents" AS "approvalDiscountCents"
+        FROM "UnifiedCrmQuoteRecord" AS quote
+        INNER JOIN "UnifiedCrmOpportunityRecord" AS opportunity
+          ON opportunity."id" = quote."opportunityId"
+         AND opportunity."organizationId" = quote."organizationId"
+        LEFT JOIN LATERAL (
+          SELECT request."status", request."amountCents", request."discountCents"
+          FROM "UnifiedCrmCommercialApprovalRequest" AS request
+          WHERE request."organizationId" = quote."organizationId"
+            AND request."quoteId" = quote."id"
+          ORDER BY request."updatedAt" DESC, request."id" DESC
+          LIMIT 1
+        ) AS approval ON TRUE
+        WHERE opportunity."organizationId" = ${input.organizationId}
+          AND opportunity."customerId" = ${input.customerId}
+          AND opportunity."archivedAt" IS NULL
+          AND quote."archivedAt" IS NULL
+          ${ownerFilter}
+        ORDER BY quote."updatedAt" DESC, quote."quoteNumber" ASC
         LIMIT 40
       `);
     }

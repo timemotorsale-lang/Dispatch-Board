@@ -68,6 +68,11 @@ function formatDate(value: string | null, fallback: string) {
   return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Chicago" }).format(new Date(value));
 }
 
+function formatMoneyCents(value: number | null) {
+  if (value === null) return "not requested";
+  return new Intl.NumberFormat("en-US", { currency: "USD", style: "currency" }).format(value / 100);
+}
+
 function formatDateOnly(value: string) {
   return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "America/Chicago" }).format(new Date(value));
 }
@@ -229,6 +234,11 @@ function OpportunityLensSection({
             <strong>{item.title}</strong>
             <p>{item.summary}</p>
             <small>{item.ownerName} · {item.customerLabel} · {item.dispatchLinkCount} dispatch link{item.dispatchLinkCount === 1 ? "" : "s"} · updated {formatDate(item.updatedAt, "Time unavailable")}</small>
+            {item.quoteLinks?.length ? (
+              <span className={styles.timelineEmpty}>
+                Quotes: {item.quoteLinks.map((quote) => `${quote.quoteNumber} ${quote.approvalStatus} ${formatMoneyCents(quote.approvalAmountCents)}`).join(", ")}
+              </span>
+            ) : null}
             {item.dispatchLinks.length ? (
               <span className={styles.timelineEmpty}>
                 {item.dispatchLinks.map((link) => `${link.repairOrderNumber}${link.repairJobNumber ? ` / ${link.repairJobNumber}` : ""}`).join(", ")}

@@ -108,6 +108,24 @@ export type UnifiedCrmOpportunityDetailReadModel = {
     state: "HELD" | "READY";
     summary: string;
   };
+  quoteActivity?: {
+    links: readonly {
+      approvalAmountCents: number | null;
+      approvalDiscountCents: number | null;
+      approvalRequestId: string | null;
+      approvalStatus: "NONE" | "PENDING" | "APPROVED" | "RETURNED" | "DENIED";
+      approvalVersion: number | null;
+      href: string;
+      latestVersionNumber: number;
+      quoteId: string;
+      quoteNumber: string;
+      requestApprovalHref: string | null;
+      state: "DRAFT" | "PRESENTED";
+      updatedAt: string;
+    }[];
+    state: "READY";
+    summary: string;
+  };
   sourceBridge: {
     detail: string;
     label: "Lead bridge" | "Source bridge";

@@ -69,6 +69,17 @@ export type UnifiedCrmCustomer360OpportunityLens = {
     title: string;
     version: number;
   }[];
+  quoteCount?: number;
+  quoteLinks?: {
+    approvalAmountCents: number | null;
+    approvalDiscountCents: number | null;
+    approvalStatus: "NONE" | "PENDING" | "APPROVED" | "RETURNED" | "DENIED";
+    href: string;
+    latestVersionNumber: number;
+    quoteId: string;
+    quoteNumber: string;
+    state: "DRAFT" | "PRESENTED";
+  }[];
   id: string;
   opportunityNumber: string;
   stage: string;
@@ -169,6 +180,7 @@ export type UnifiedCrmCustomer360ReadModel = {
   opportunityLensObservation: {
     detail: string;
     dispatchLinkCount: number;
+    quoteLinkCount?: number;
     freshnessLabel: string;
     newestVisibleRecordUpdatedAt: string | null;
     state: "EMPTY" | "READY";
