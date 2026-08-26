@@ -1509,6 +1509,11 @@ enum InventoryConsoleSavedViewVisibility {
   TEAM
 }
 
+enum UnifiedCrmSavedViewVisibility {
+  PERSONAL
+  TEAM
+}
+
 enum EnterpriseIntegrationConflictKind {
   MISSING
   DUPLICATE
@@ -7010,6 +7015,25 @@ model InventoryConsoleSavedView {
   updatedAt       DateTime                            @updatedAt
   organization    Organization                        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdByUser   User                                @relation("InventoryConsoleSavedViewCreatedByUser", fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, createdByUserId, name])
+  @@index([organizationId, visibility, updatedAt])
+  @@index([createdByUserId, updatedAt])
+}
+
+/// Durable Unified CRM filters. Saved views store navigation preferences only;
+/// applying one never grants access beyond the active CRM read policy.
+model UnifiedCrmSavedView {
+  id                  String                        @id @default(cuid())
+  organizationId      String
+  createdByUserId     String
+  name                String
+  visibility          UnifiedCrmSavedViewVisibility @default(PERSONAL)
+  config              Json
+  configSchemaVersion Int                           @default(1)
+  version             Int                           @default(1)
+  createdAt           DateTime                      @default(now())
+  updatedAt           DateTime                      @updatedAt
 
   @@unique([organizationId, createdByUserId, name])
   @@index([organizationId, visibility, updatedAt])
