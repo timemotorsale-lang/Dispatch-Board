@@ -71,6 +71,10 @@ function createAppointmentIdempotencyKey(opportunityId: string) {
   return globalThis.crypto?.randomUUID?.() ?? `crm-opportunity-appointment-${opportunityId}-${Date.now()}`;
 }
 
+function createDispatchIdempotencyKey(opportunityId: string) {
+  return globalThis.crypto?.randomUUID?.() ?? `crm-opportunity-dispatch-${opportunityId}-${Date.now()}`;
+}
+
 function defaultAppointmentNumber(opportunityId: string) {
   return `CRM-${opportunityId}-${Date.now().toString(36).toUpperCase()}`.slice(0, 120);
 }
@@ -89,6 +93,18 @@ function withOpportunityTaskReturn(href: string | null | undefined, opportunityI
 
 function withOpportunityAppointmentReturn(href: string | null | undefined, opportunityId: string, returnHref: string) {
   if (!href || !href.startsWith("/appointments") || href.startsWith("//")) return href ?? null;
+  const opportunityReturn = `/crm/opportunities/${encodeURIComponent(opportunityId)}?crmReturnTo=${encodeURIComponent(returnHref)}`;
+  try {
+    const url = new URL(href, "https://crm.local");
+    url.searchParams.set("returnTo", opportunityReturn);
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return href;
+  }
+}
+
+function withOpportunityDispatchReturn(href: string | null | undefined, opportunityId: string, returnHref: string) {
+  if (!href || (!href.startsWith("/vehicles/repair-workbench") && !href.startsWith("/vehicles/shop-dispatch")) || href.startsWith("//")) return href ?? null;
   const opportunityReturn = `/crm/opportunities/${encodeURIComponent(opportunityId)}?crmReturnTo=${encodeURIComponent(returnHref)}`;
   try {
     const url = new URL(href, "https://crm.local");
@@ -418,6 +434,144 @@ function OpportunityAppointmentBridgeForm({ model, returnHref }: { model: Unifie
   );
 }
 
+function OpportunityDispatchBridgeForm({ model, returnHref }: { model: UnifiedCrmOpportunityDetailReadModel; returnHref: string }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [messageHref, setMessageHref] = useState<string | null>(null);
+  const [tone, setTone] = useState<"idle" | "error" | "success">("idle");
+  const [targetKind, setTargetKind] = useState<"REPAIR_ORDER" | "REPAIR_JOB">("REPAIR_ORDER");
+  const [targetId, setTargetId] = useState("");
+  const [expectedTargetVersion, setExpectedTargetVersion] = useState("1");
+  const [idempotencyKey, setIdempotencyKey] = useState(() => createDispatchIdempotencyKey(model.requestedOpportunityId));
+  const available = Boolean(model.dispatchActivity.createDispatchHref && model.lifecycle.version !== null);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!model.dispatchActivity.createDispatchHref || model.lifecycle.version === null) return;
+    const parsedTargetVersion = Number(expectedTargetVersion);
+    if (!Number.isInteger(parsedTargetVersion) || parsedTargetVersion < 0) {
+      setTone("error");
+      setMessage("Target version must be a whole number.");
+      return;
+    }
+
+    setPending(true);
+    setMessage(null);
+    setMessageHref(null);
+    setTone("idle");
+
+    try {
+      const response = await fetch(model.dispatchActivity.createDispatchHref, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          expectedTargetVersion: parsedTargetVersion,
+          expectedVersion: model.lifecycle.version,
+          idempotencyKey,
+          ...(targetKind === "REPAIR_ORDER"
+            ? { repairOrderId: targetId.trim(), targetKind }
+            : { repairJobId: targetId.trim(), targetKind })
+        })
+      });
+      const payload = await response.json().catch(() => null) as {
+        duplicate?: boolean;
+        error?: string;
+        target?: { href?: string; title?: string };
+      } | null;
+      if (!response.ok) {
+        throw new Error(payload?.error ?? "CRM opportunity dispatch bridge could not be completed safely.");
+      }
+      setTone("success");
+      setMessageHref(withOpportunityDispatchReturn(payload?.target?.href, model.requestedOpportunityId, returnHref));
+      setMessage(
+        payload?.duplicate
+          ? "This governed dispatch bridge was already recorded. The existing work is ready to open."
+          : "Governed dispatch link recorded. The opportunity dispatch activity list is refreshing."
+      );
+      setTargetId("");
+      setIdempotencyKey(createDispatchIdempotencyKey(model.requestedOpportunityId));
+      setOpen(false);
+      startTransition(() => router.refresh());
+    } catch (error) {
+      setTone("error");
+      setMessage(error instanceof Error ? error.message : "CRM opportunity dispatch bridge could not be completed safely.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <section className={styles.taskActivityPanel} aria-labelledby="opportunity-dispatch-activity-heading">
+      <header className={styles.taskActivityHeader}>
+        <div>
+          <span className={styles.eyebrow}>Dispatch bridge</span>
+          <h2 id="opportunity-dispatch-activity-heading">Link existing repair work</h2>
+          <p>{model.dispatchActivity.summary}</p>
+        </div>
+        {available ? (
+          <button
+            aria-controls="opportunity-dispatch-bridge-panel"
+            aria-expanded={open}
+            className={styles.primaryButton}
+            disabled={pending}
+            onClick={() => setOpen((value) => !value)}
+            type="button"
+          >
+            {open ? "Close" : "Link dispatch work"}
+          </button>
+        ) : null}
+      </header>
+      {message ? (
+        <p className={tone === "error" ? styles.formError : styles.formSuccess} role={tone === "error" ? "alert" : "status"}>
+          {message} {messageHref ? <Link href={messageHref}>Open dispatch work</Link> : null}
+        </p>
+      ) : null}
+      {open && available ? (
+        <form className={styles.taskForm} id="opportunity-dispatch-bridge-panel" onSubmit={(event) => void submit(event)}>
+          <p className={styles.formHelper}>
+            Link an existing repair order or repair job. Dispatch remains the source of truth; CRM records the relationship, version, and audit trail.
+          </p>
+          <label>
+            <span>Target type</span>
+            <select onChange={(event) => setTargetKind(event.target.value as "REPAIR_ORDER" | "REPAIR_JOB")} value={targetKind}>
+              <option value="REPAIR_ORDER">Repair order</option>
+              <option value="REPAIR_JOB">Repair job</option>
+            </select>
+          </label>
+          <label>
+            <span>{targetKind === "REPAIR_ORDER" ? "Repair order ID" : "Repair job ID"}</span>
+            <input onChange={(event) => setTargetId(event.target.value)} required value={targetId} />
+          </label>
+          <label>
+            <span>Target version</span>
+            <input min="0" onChange={(event) => setExpectedTargetVersion(event.target.value)} required type="number" value={expectedTargetVersion} />
+          </label>
+          <div className={styles.formActions}>
+            <button disabled={pending || targetId.trim().length < 3} type="submit">
+              {pending ? "Linking dispatch work..." : "Link dispatch work"}
+            </button>
+            <span>Uses opportunity version {model.lifecycle.version}; refresh if either record changed.</span>
+          </div>
+        </form>
+      ) : null}
+      {model.dispatchActivity.links.length ? (
+        <ol className={styles.historyList}>
+          {model.dispatchActivity.links.map((link) => (
+            <li key={`${link.targetKind}-${link.repairOrderId}-${link.repairJobId ?? "order"}-${link.createdAt}`}>
+              <strong>{link.title}</strong>
+              <span>{link.state} · {link.relationship} · RO {link.repairOrderNumber}{link.repairJobNumber ? ` · job ${link.repairJobNumber}` : ""} · version {link.version}</span>
+              <p>Linked {formatDate(link.createdAt)} by {link.actorLabel}.</p>
+              <Link className={styles.sourceLink} href={withOpportunityDispatchReturn(link.href, model.requestedOpportunityId, returnHref) ?? link.href}>Open dispatch work<ExternalLink aria-hidden="true" size={13} /></Link>
+            </li>
+          ))}
+        </ol>
+      ) : <p className={styles.formHelper}>No linked repair order or job has been recorded yet.</p>}
+    </section>
+  );
+}
+
 export function UnifiedCrmOpportunityDetail({ errorMessage, failureKind = "error", model, returnHref }: OpportunityDetailProps) {
   if (!model) {
     return <StatePanel kind={failureKind} message={errorMessage} returnHref={returnHref} />;
@@ -519,6 +673,7 @@ export function UnifiedCrmOpportunityDetail({ errorMessage, failureKind = "error
 
       <OpportunityTaskBridgeForm model={model} returnHref={returnHref} />
       <OpportunityAppointmentBridgeForm model={model} returnHref={returnHref} />
+      <OpportunityDispatchBridgeForm model={model} returnHref={returnHref} />
 
       <section className={styles.bridgeGrid} aria-label="Opportunity bridge review">
         <article className={styles.bridgeCard}>
@@ -534,6 +689,9 @@ export function UnifiedCrmOpportunityDetail({ errorMessage, failureKind = "error
             ) : null}
             {bridge.actionHref && bridge.domain === "APPOINTMENTS" ? (
               <small>Use the Appointment bridge panel above to create this governed draft appointment.</small>
+            ) : null}
+            {bridge.actionHref && bridge.domain === "DISPATCH" ? (
+              <small>Use the Dispatch bridge panel above to link existing repair work.</small>
             ) : null}
           </article>
         ))}

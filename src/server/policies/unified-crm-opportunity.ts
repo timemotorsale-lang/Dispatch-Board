@@ -31,7 +31,7 @@ function capabilities(readAllowed: boolean, mutateAllowed = false): UnifiedCrmOp
     transition: mutateAllowed,
     linkTask: mutateAllowed,
     linkAppointment: mutateAllowed,
-    linkDispatch: false
+    linkDispatch: mutateAllowed
   };
 }
 
@@ -87,7 +87,8 @@ export function evaluateUnifiedCrmOpportunityPolicy(
     (options.action === "create" ||
       options.action === "transition" ||
       options.action === "link-task" ||
-      options.action === "link-appointment") &&
+      options.action === "link-appointment" ||
+      options.action === "link-dispatch") &&
     base.mutateAllowed
   ) {
     return {

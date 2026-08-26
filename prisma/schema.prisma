@@ -1732,6 +1732,7 @@ model User {
   unifiedCrmOpportunityStageEvents         UnifiedCrmOpportunityStageEvent[]      @relation("UnifiedCrmOpportunityStageEventActor")
   createdUnifiedCrmOpportunityTaskLinks    UnifiedCrmOpportunityTaskLink[]        @relation("UnifiedCrmOpportunityTaskLinkCreatedBy")
   createdUnifiedCrmOpportunityAppointmentLinks UnifiedCrmOpportunityAppointmentLink[] @relation("UnifiedCrmOpportunityAppointmentLinkCreatedBy")
+  createdUnifiedCrmOpportunityDispatchLinks UnifiedCrmOpportunityDispatchLink[]   @relation("UnifiedCrmOpportunityDispatchLinkCreatedBy")
   createdUnifiedCrmQuotes                 UnifiedCrmQuoteRecord[]                @relation("UnifiedCrmQuoteCreatedBy")
   createdUnifiedCrmQuoteVersions          UnifiedCrmQuoteVersion[]               @relation("UnifiedCrmQuoteVersionCreatedBy")
   vehicleCapabilityGrants                 VehicleCapabilityGrant[]
@@ -2042,6 +2043,7 @@ model Organization {
   unifiedCrmOpportunityStageEvents      UnifiedCrmOpportunityStageEvent[]
   unifiedCrmOpportunityTaskLinks        UnifiedCrmOpportunityTaskLink[]
   unifiedCrmOpportunityAppointmentLinks UnifiedCrmOpportunityAppointmentLink[]
+  unifiedCrmOpportunityDispatchLinks    UnifiedCrmOpportunityDispatchLink[]
   unifiedCrmQuotes                      UnifiedCrmQuoteRecord[]
   unifiedCrmQuoteVersions               UnifiedCrmQuoteVersion[]
   concernCases                          ConcernCase[]
@@ -2704,6 +2706,7 @@ model UnifiedCrmOpportunityRecord {
   stageEvents       UnifiedCrmOpportunityStageEvent[]
   taskLinks         UnifiedCrmOpportunityTaskLink[]
   appointmentLinks  UnifiedCrmOpportunityAppointmentLink[]
+  dispatchLinks     UnifiedCrmOpportunityDispatchLink[]
   quotes            UnifiedCrmQuoteRecord[]
 
   @@unique([organizationId, opportunityNumber])
@@ -2760,6 +2763,36 @@ model UnifiedCrmOpportunityAppointmentLink {
   @@unique([opportunityId, appointmentId])
   @@index([organizationId, createdAt])
   @@index([appointmentId])
+  @@index([createdByUserId, createdAt])
+}
+
+model UnifiedCrmOpportunityDispatchLink {
+  id                          String                    @id @default(cuid())
+  opportunityId               String
+  organizationId              String
+  targetKind                  String
+  repairOrderId               String?
+  repairJobId                 String?
+  repairOrderNumberSnapshot   String?
+  repairJobNumberSnapshot     String?
+  titleSnapshot               String
+  targetVersionSnapshot       Int
+  createdByUserId             String
+  commandId                   String?
+  archivedAt                  DateTime?
+  createdAt                   DateTime                  @default(now())
+  updatedAt                   DateTime                  @updatedAt
+  opportunity                 UnifiedCrmOpportunityRecord @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  organization                Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  repairOrder                 RepairOrder?              @relation(fields: [repairOrderId], references: [id], onDelete: Restrict)
+  repairJob                   RepairJob?                @relation(fields: [repairJobId], references: [id], onDelete: Restrict)
+  createdByUser               User                      @relation("UnifiedCrmOpportunityDispatchLinkCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([opportunityId, repairOrderId])
+  @@unique([opportunityId, repairJobId])
+  @@index([organizationId, createdAt])
+  @@index([repairOrderId])
+  @@index([repairJobId])
   @@index([createdByUserId, createdAt])
 }
 
@@ -3582,6 +3615,7 @@ model RepairOrder {
   diagnosticCases              DiagnosticCase[]
   diagnosticRepairHandoffs     DiagnosticRepairHandoffVersion[]
   diagnosticEstimateDrafts     DiagnosticEstimateDraftVersion[]
+  unifiedCrmOpportunityLinks   UnifiedCrmOpportunityDispatchLink[]
   diagnosticVerifications      DiagnosticVerificationVersion[]
   shopReconLifecycle           ShopReconLifecycle?
 
@@ -4832,6 +4866,7 @@ model RepairJob {
   qualityInspections     RepairQualityInspection[]
   comebackCases          RepairComebackCase[]
   partCustodyEvents      PartCustodyEvent[]
+  unifiedCrmOpportunityLinks UnifiedCrmOpportunityDispatchLink[]
 
   @@unique([repairOrderId, jobNumber])
   @@unique([repairOrderId, authorizedLineKey, authorizationId])

@@ -76,6 +76,18 @@ describe("Unified CRM opportunity detail repository", () => {
         startsAt: null,
         title: "Appointment with Alex Morgan",
         version: 1
+      }])
+      .mockResolvedValueOnce([{
+        actorLabel: "CRM Manager",
+        archivedAt: null,
+        createdAt: new Date("2026-08-15T02:25:00.000Z"),
+        repairJobId: "job-1",
+        repairJobNumber: "JOB-01",
+        repairOrderId: "ro-1",
+        repairOrderNumber: "RO-1001",
+        targetKind: "REPAIR_JOB",
+        title: "Diagnose Accord lighting concern",
+        version: 2
       }]);
     const repository = createUnifiedCrmOpportunityDetailRepository({
       $queryRaw: queryRaw
@@ -112,8 +124,18 @@ describe("Unified CRM opportunity detail repository", () => {
         relationship: "DRAFT_APPOINTMENT",
         title: "Appointment with Alex Morgan",
         version: 1
+      }],
+      dispatchLinks: [{
+        actorLabel: "CRM Manager",
+        repairJobId: "job-1",
+        repairJobNumber: "JOB-01",
+        repairOrderId: "ro-1",
+        repairOrderNumber: "RO-1001",
+        targetKind: "REPAIR_JOB",
+        title: "Diagnose Accord lighting concern",
+        version: 2
       }]
     });
-    expect(queryRaw).toHaveBeenCalledTimes(4);
+    expect(queryRaw).toHaveBeenCalledTimes(5);
   });
 });

@@ -161,6 +161,12 @@ function heldModel(
       state: "HELD",
       summary: "Appointment bridge activity is held until a durable opportunity record and appointment authority are available."
     },
+    dispatchActivity: {
+      createDispatchHref: null,
+      links: [],
+      state: "HELD",
+      summary: "Dispatch bridge activity is held until a durable opportunity record and dispatch authority are available."
+    },
     sourceBridge: {
       label: "Lead bridge",
       state: "HELD",
@@ -339,6 +345,31 @@ export async function getUnifiedCrmOpportunityDetail(
           ? `${record.appointmentLinks.length} governed appointment link(s) are attached to this opportunity.`
           : "No governed appointment link has been attached yet. Create a draft when the opportunity is ready for scheduling."
       },
+      dispatchActivity: {
+        createDispatchHref: terminal
+          ? null
+          : `/api/crm/v1/opportunities/${encodeURIComponent(normalizedOpportunityId)}/dispatch`,
+        links: record.dispatchLinks.map((link) => ({
+          actorLabel: link.actorLabel,
+          createdAt: link.createdAt.toISOString(),
+          href: link.targetKind === "REPAIR_JOB" && link.repairJobId
+            ? `/vehicles/shop-dispatch?repairJobId=${encodeURIComponent(link.repairJobId)}`
+            : `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(link.repairOrderId)}`,
+          relationship: link.targetKind === "REPAIR_JOB" ? "Repair job" : "Repair order",
+          repairJobId: link.repairJobId,
+          repairJobNumber: link.repairJobNumber,
+          repairOrderId: link.repairOrderId,
+          repairOrderNumber: link.repairOrderNumber,
+          state: link.archivedAt ? "ARCHIVED" : "ACTIVE",
+          targetKind: link.targetKind,
+          title: link.title,
+          version: link.version
+        })),
+        state: "READY",
+        summary: record.dispatchLinks.length
+          ? `${record.dispatchLinks.length} governed dispatch link(s) are attached to this opportunity.`
+          : "No governed dispatch link has been attached yet. Link existing repair work when the opportunity is ready for operational handoff."
+      },
       sourceBridge: {
         label: record.sourceLead ? "Lead bridge" : "Source bridge",
         state: record.sourceLead ? "CONNECTED" : "HELD",
@@ -374,8 +405,11 @@ export async function getUnifiedCrmOpportunityDetail(
         {
           domain: "DISPATCH",
           label: "Dispatch and jobs",
-          state: "HELD",
-          detail: "Dispatch remains authoritative until an approved opportunity lifecycle can hand work off safely."
+          state: terminal ? "HELD" : "READY",
+          actionHref: terminal ? null : `/api/crm/v1/opportunities/${encodeURIComponent(normalizedOpportunityId)}/dispatch`,
+          detail: terminal
+            ? "Terminal opportunities do not accept new dispatch links until a manager reopen control is approved."
+            : "Link existing repair orders or jobs from Dispatch while Dispatch remains the operational authority."
         }
       ],
       nextUnlocks: [

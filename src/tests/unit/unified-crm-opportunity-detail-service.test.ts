@@ -62,6 +62,7 @@ function persistedRecord(overrides: Record<string, unknown> = {}) {
     stageHistory: [],
     taskLinks: [],
     appointmentLinks: [],
+    dispatchLinks: [],
     createdAt: new Date("2026-08-14T16:00:00.000Z"),
     updatedAt: new Date("2026-08-14T17:30:00.000Z"),
     version: 1,
@@ -213,6 +214,18 @@ describe("Unified CRM opportunity detail service", () => {
               title: "Appointment with Alex Morgan",
               version: 1
             }],
+            dispatchLinks: [{
+              actorLabel: "CRM Manager",
+              archivedAt: null,
+              createdAt: new Date("2026-08-14T17:45:00.000Z"),
+              repairJobId: "job-1",
+              repairJobNumber: "JOB-01",
+              repairOrderId: "ro-1",
+              repairOrderNumber: "RO-1001",
+              targetKind: "REPAIR_JOB",
+              title: "Diagnose Accord lighting concern",
+              version: 2
+            }],
             createdAt: new Date("2026-08-14T16:00:00.000Z"),
             updatedAt: new Date("2026-08-14T17:30:00.000Z"),
             version: 2
@@ -311,6 +324,23 @@ describe("Unified CRM opportunity detail service", () => {
           state: "ACTIVE",
           title: "Appointment with Alex Morgan",
           version: 1
+        }]
+      },
+      dispatchActivity: {
+        createDispatchHref: "/api/crm/v1/opportunities/opp_123456/dispatch",
+        state: "READY",
+        links: [{
+          actorLabel: "CRM Manager",
+          href: "/vehicles/shop-dispatch?repairJobId=job-1",
+          relationship: "Repair job",
+          repairJobId: "job-1",
+          repairJobNumber: "JOB-01",
+          repairOrderId: "ro-1",
+          repairOrderNumber: "RO-1001",
+          state: "ACTIVE",
+          targetKind: "REPAIR_JOB",
+          title: "Diagnose Accord lighting concern",
+          version: 2
         }]
       },
       relatedRecordsObservation: {

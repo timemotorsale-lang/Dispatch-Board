@@ -89,6 +89,25 @@ export type UnifiedCrmOpportunityDetailReadModel = {
     state: "HELD" | "READY";
     summary: string;
   };
+  dispatchActivity: {
+    createDispatchHref: string | null;
+    links: readonly {
+      actorLabel: string;
+      createdAt: string;
+      href: string;
+      relationship: string;
+      repairJobId: string | null;
+      repairJobNumber: string | null;
+      repairOrderId: string;
+      repairOrderNumber: string;
+      state: "ACTIVE" | "ARCHIVED";
+      targetKind: "REPAIR_ORDER" | "REPAIR_JOB";
+      title: string;
+      version: number;
+    }[];
+    state: "HELD" | "READY";
+    summary: string;
+  };
   sourceBridge: {
     detail: string;
     label: "Lead bridge" | "Source bridge";

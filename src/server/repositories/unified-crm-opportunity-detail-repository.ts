@@ -56,6 +56,18 @@ export type UnifiedCrmOpportunityDetailRecord = {
     title: string;
     version: number;
   }[];
+  dispatchLinks: readonly {
+    actorLabel: string;
+    archivedAt: Date | null;
+    createdAt: Date;
+    repairJobId: string | null;
+    repairJobNumber: string | null;
+    repairOrderId: string;
+    repairOrderNumber: string;
+    targetKind: "REPAIR_ORDER" | "REPAIR_JOB";
+    title: string;
+    version: number;
+  }[];
   createdAt: Date;
   updatedAt: Date;
 };
@@ -123,6 +135,19 @@ type AppointmentLinkRow = {
   version: number;
 };
 
+type DispatchLinkRow = {
+  actorLabel: string | null;
+  archivedAt: Date | null;
+  createdAt: Date;
+  repairJobId: string | null;
+  repairJobNumber: string | null;
+  repairOrderId: string;
+  repairOrderNumber: string;
+  targetKind: "REPAIR_ORDER" | "REPAIR_JOB";
+  title: string;
+  version: number;
+};
+
 function mapRow(row: OpportunityRow): UnifiedCrmOpportunityDetailRecord {
   return {
     id: row.id,
@@ -157,6 +182,7 @@ function mapRow(row: OpportunityRow): UnifiedCrmOpportunityDetailRecord {
     stageHistory: [],
     taskLinks: [],
     appointmentLinks: [],
+    dispatchLinks: [],
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
   };
@@ -266,6 +292,26 @@ export function createUnifiedCrmOpportunityDetailRepository(
         ORDER BY link."createdAt" DESC
         LIMIT 12
       `);
+      const dispatchLinks = await database.$queryRaw<DispatchLinkRow[]>(Prisma.sql`
+        SELECT
+          link."targetKind" AS "targetKind",
+          link."repairOrderId",
+          link."repairJobId",
+          link."repairOrderNumberSnapshot" AS "repairOrderNumber",
+          link."repairJobNumberSnapshot" AS "repairJobNumber",
+          link."titleSnapshot" AS "title",
+          link."targetVersionSnapshot" AS "version",
+          link."archivedAt",
+          link."createdAt",
+          COALESCE(actor."name", actor."email", 'Unknown user') AS "actorLabel"
+        FROM "UnifiedCrmOpportunityDispatchLink" AS link
+        LEFT JOIN "User" AS actor
+          ON actor."id" = link."createdByUserId"
+        WHERE link."organizationId" = ${input.organizationId}
+          AND link."opportunityId" = ${row.id}
+        ORDER BY link."createdAt" DESC
+        LIMIT 12
+      `);
 
       return {
         ...mapRow(row),
@@ -294,6 +340,18 @@ export function createUnifiedCrmOpportunityDetailRepository(
           endsAt: link.endsAt,
           relationship: link.relationship,
           startsAt: link.startsAt,
+          title: link.title,
+          version: link.version
+        })),
+        dispatchLinks: dispatchLinks.map((link) => ({
+          actorLabel: link.actorLabel ?? "Unknown user",
+          archivedAt: link.archivedAt,
+          createdAt: link.createdAt,
+          repairJobId: link.repairJobId,
+          repairJobNumber: link.repairJobNumber,
+          repairOrderId: link.repairOrderId,
+          repairOrderNumber: link.repairOrderNumber,
+          targetKind: link.targetKind,
           title: link.title,
           version: link.version
         }))

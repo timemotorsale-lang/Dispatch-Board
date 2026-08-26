@@ -61,6 +61,12 @@ function fixture(): UnifiedCrmOpportunityDetailReadModel {
       state: "HELD",
       summary: "Appointment bridge activity is held until a durable opportunity record and appointment authority are available."
     },
+    dispatchActivity: {
+      createDispatchHref: null,
+      links: [],
+      state: "HELD",
+      summary: "Dispatch bridge activity is held until a durable opportunity record and dispatch authority are available."
+    },
     sourceBridge: {
       label: "Lead bridge",
       state: "HELD",
@@ -100,6 +106,8 @@ describe("Unified CRM opportunity detail", () => {
     expect(markup).toContain("No linked opportunity tasks have been recorded yet.");
     expect(markup).toContain("Appointment bridge");
     expect(markup).toContain("No linked opportunity appointments have been recorded yet.");
+    expect(markup).toContain("Dispatch bridge");
+    expect(markup).toContain("No linked repair order or job has been recorded yet.");
     expect(markup).toContain("Appointments");
     expect(markup).toContain("Dispatch and jobs");
     expect(markup).toContain("Approve stage definitions, transition evidence, and close or loss rules before enabling create or movement.");
@@ -182,6 +190,12 @@ describe("Unified CRM opportunity detail", () => {
             links: [],
             state: "READY",
             summary: "No governed task link has been attached yet. Create one here when the next action needs tracked work."
+          },
+          dispatchActivity: {
+            createDispatchHref: "/api/crm/v1/opportunities/review01/dispatch",
+            links: [],
+            state: "READY",
+            summary: "No governed dispatch link has been attached yet. Link existing repair work when the opportunity is ready for operational handoff."
           }
         }}
         returnHref="/crm?view=pipeline"
@@ -192,6 +206,7 @@ describe("Unified CRM opportunity detail", () => {
     expect(markup).toContain("Allowed next moves");
     expect(markup).toContain("Move opportunity stage");
     expect(markup).toContain("Create linked task");
+    expect(markup).toContain("Link dispatch work");
     expect(markup).toContain("Aug");
   });
 
@@ -338,6 +353,65 @@ describe("Unified CRM opportunity detail", () => {
     expect(markup).toContain("Open task");
     expect(markup).toContain("returnTo=%2Fcrm%2Fopportunities%2Fopp_123456%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dpipeline");
     expect(markup).toContain("Use the Opportunity activity panel above to create this governed task link.");
+  });
+
+  it("renders linked dispatch activity with safe repair return links", () => {
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmOpportunityDetail
+        model={{
+          ...fixture(),
+          requestedOpportunityId: "opp_123456",
+          state: "READY",
+          identity: {
+            ...fixture().identity,
+            lifecycleStatus: "READ_ONLY",
+            title: "Alex Morgan renewal review"
+          },
+          lifecycle: {
+            allowedNextStages: ["QUALIFIED", "LOST"],
+            nextActionDueAt: "2026-08-15T18:30:00.000Z",
+            nextActionLabel: "Call customer",
+            stage: "NEW_INQUIRY",
+            terminal: false,
+            transitionHref: "/crm/opportunities/opp_123456/transition",
+            version: 3
+          },
+          dispatchActivity: {
+            createDispatchHref: "/api/crm/v1/opportunities/opp_123456/dispatch",
+            links: [{
+              actorLabel: "CRM Manager",
+              createdAt: "2026-08-14T17:45:00.000Z",
+              href: "/vehicles/shop-dispatch?repairJobId=job-1",
+              relationship: "Repair job",
+              repairJobId: "job-1",
+              repairJobNumber: "JOB-01",
+              repairOrderId: "ro-1",
+              repairOrderNumber: "RO-1001",
+              state: "ACTIVE",
+              targetKind: "REPAIR_JOB",
+              title: "Diagnose Accord lighting concern",
+              version: 2
+            }],
+            state: "READY",
+            summary: "1 governed dispatch link is attached to this opportunity."
+          },
+          workBridges: [
+            { domain: "TASKS", label: "Governed tasks", state: "HELD", detail: "Task linkage remains review only from this surface." },
+            { domain: "APPOINTMENTS", label: "Appointments", state: "HELD", detail: "Appointment linkage remains read-only." },
+            { actionHref: "/api/crm/v1/opportunities/opp_123456/dispatch", domain: "DISPATCH", label: "Dispatch and jobs", state: "READY", detail: "Link existing repair orders or jobs from Dispatch while Dispatch remains the operational authority." }
+          ]
+        }}
+        returnHref="/crm?view=pipeline"
+      />
+    );
+
+    expect(markup).toContain("Link existing repair work");
+    expect(markup).toContain("Diagnose Accord lighting concern");
+    expect(markup).toContain("RO RO-1001");
+    expect(markup).toContain("job JOB-01");
+    expect(markup).toContain("Open dispatch work");
+    expect(markup).toContain("returnTo=%2Fcrm%2Fopportunities%2Fopp_123456%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dpipeline");
+    expect(markup).toContain("Use the Dispatch bridge panel above to link existing repair work.");
   });
 
   it("reuses the existing customer return when detail is opened from Customer 360", () => {
