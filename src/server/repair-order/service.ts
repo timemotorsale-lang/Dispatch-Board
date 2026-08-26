@@ -6,7 +6,7 @@ import { createEnterpriseCommandRepository, type EnterpriseCommandRepository } f
 import { evaluateVehicleOperationsFeature } from "@/server/enterprise-command/service";
 import { assertVehicleCapability, type VehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
 import { assertAuthenticatedUser } from "@/server/policies/access";
-import { isSameRepairOrderConcern, normalizeRepairOrderControlUpdate, normalizeRepairOrderCreate, repairOrderAge } from "./domain";
+import { isSameRepairOrderConcern, normalizeRepairOrderControlUpdate, normalizeRepairOrderCreate, normalizeRepairOrderDuplicateClose, repairOrderAge } from "./domain";
 import { createRepairOrderRepository, type RepairOrderRepository } from "./repository";
 type Dependencies = { enforceRollout?: boolean; foundationRepository?: EnterpriseCommandRepository; now?: () => Date; organizationId?: string; repository?: RepairOrderRepository };
 function deps(input: Dependencies) { return { enforceRollout: input.enforceRollout ?? true, foundationRepository: input.foundationRepository ?? createEnterpriseCommandRepository(), now: input.now ?? (() => new Date()), organizationId: input.organizationId ?? INITIAL_ORGANIZATION.id, repository: input.repository ?? createRepairOrderRepository() }; }
@@ -33,3 +33,24 @@ export async function createRepairOrder(actor:AuthenticatedUser|null,value:unkno
   return result;
 }
 export async function updateRepairOrderControl(actor:AuthenticatedUser|null,id:string,value:unknown,input:Dependencies={}){const context=deps(input);const normalized=normalizeRepairOrderControlUpdate(value);const user=await authorize(actor,"REPAIR_ORDER_MANAGE",normalized.locationId,context,true);const payload={locationId:normalized.locationId,nextAction:normalized.nextAction,operatingState:normalized.operatingState,ownerUserId:normalized.ownerUserId,stateReason:normalized.stateReason,targetAt:normalized.targetAt.toISOString()};return context.repository.updateControl(command({actorUserId:user.id,commandType:"UPDATE_REPAIR_ORDER_CONTROL",expectedVersion:normalized.expectedVersion,idempotencyKey:normalized.idempotencyKey,locationId:normalized.locationId,organizationId:context.organizationId,payload,reason:normalized.reason,subjectId:id}),{...normalized,actorUserId:user.id});}
+
+export async function closeDuplicateRepairOrder(actor:AuthenticatedUser|null,id:string,value:unknown,input:Dependencies={}) {
+  const context = deps(input);
+  const normalized = normalizeRepairOrderDuplicateClose(value);
+  const closeContext = await context.repository.getCloseContext(context.organizationId, id);
+  if (!closeContext) throw new Error("Repair order was not found.");
+  if (closeContext.closedAt) throw new Error("Repair order is already closed.");
+  const user = await authorize(actor, "REPAIR_ORDER_MANAGE", closeContext.locationId, context, true);
+  const occurredAt = context.now();
+  return context.repository.closeDuplicate(command({
+    actorUserId: user.id,
+    commandType: "CLOSE_DUPLICATE_REPAIR_ORDER",
+    expectedVersion: normalized.expectedVersion,
+    idempotencyKey: normalized.idempotencyKey,
+    locationId: closeContext.locationId,
+    organizationId: context.organizationId,
+    payload: { duplicateOfRepairOrderId: normalized.duplicateOfRepairOrderId, occurredAt: occurredAt.toISOString() },
+    reason: normalized.reason,
+    subjectId: id,
+  }), { actorUserId: user.id, duplicateOfRepairOrderId: normalized.duplicateOfRepairOrderId, occurredAt, reason: normalized.reason });
+}

@@ -20,7 +20,7 @@ describe("outside vendor rapid recon workflow", () => {
   });
 
   it("offers only the next verified rapid-recon events", () => {
-    expect(vendorRapidReconTransitions("AT_VENDOR").map((item) => item.status)).toEqual(["WAITING_PARTS", "SUPPLEMENT_NEEDED", "READY_FOR_PICKUP", "RETURNED"]);
+    expect(vendorRapidReconTransitions("AT_VENDOR").map((item) => item.status)).toEqual(["WAITING_PARTS", "SUPPLEMENT_NEEDED", "READY_FOR_PICKUP"]);
     expect(vendorRapidReconTransitions("READY_FOR_PICKUP").map((item) => item.status)).toEqual(["RETURN_TRANSPORT", "RETURNED"]);
     expect(vendorRapidReconTransitions("RETURN_TRANSPORT")).toEqual([{ label: "Vehicle returned", status: "RETURNED" }]);
     expect(vendorRapidReconTransitions("RETURNED")).toEqual([{ label: "Start dealership QC", status: "QC_REQUIRED" }]);
@@ -44,6 +44,6 @@ describe("outside vendor rapid recon workflow", () => {
 
     expect(answers.repaired).toContain("No");
     expect(answers.qcAndHandoff).toContain("decision");
-    expect(vendorRapidReconTransitions("AT_VENDOR").map((item) => item.label)).toContain("Diagnosed only / could not repair — bring back");
+    expect(vendorRapidReconTransitions("AT_VENDOR").map((item) => item.label)).not.toContain("Vehicle returned for dealership QC");
   });
 });

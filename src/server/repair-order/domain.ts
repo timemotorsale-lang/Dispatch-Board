@@ -30,4 +30,17 @@ export function normalizeRepairOrderCreate(value: unknown, now = new Date()) {
 
 export function normalizeRepairOrderControlUpdate(value: unknown) { if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Repair-order update request must be an object."); const raw = value as Record<string, unknown>; const operatingState = operating(raw.operatingState); const expectedVersion = Number(raw.expectedVersion); if (!Number.isInteger(expectedVersion) || expectedVersion < 1) throw new Error("Expected repair-order version must be a positive whole number."); return { expectedVersion, idempotencyKey: required(raw.idempotencyKey, "Idempotency key", 200), locationId: required(raw.locationId, "Location ID", 100), nextAction: required(raw.nextAction, "Next action", 500), operatingState, ownerUserId: required(raw.ownerUserId, "Owner user ID", 100), reason: required(raw.reason, "Business reason", 500), stateReason: stateReason(operatingState, raw.stateReason), targetAt: timestamp(raw.targetAt, "Intake target")! }; }
 
+export function normalizeRepairOrderDuplicateClose(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Duplicate repair-order close request must be an object.");
+  const raw = value as Record<string, unknown>;
+  const expectedVersion = Number(raw.expectedVersion);
+  if (!Number.isInteger(expectedVersion) || expectedVersion < 1) throw new Error("Expected repair-order version must be a positive whole number.");
+  return {
+    duplicateOfRepairOrderId: optional(raw.duplicateOfRepairOrderId, 100),
+    expectedVersion,
+    idempotencyKey: required(raw.idempotencyKey, "Idempotency key", 200),
+    reason: required(raw.reason, "Business reason", 500),
+  };
+}
+
 export function repairOrderAge(input: { now: Date; openedAt: Date; stageStartedAt: Date; targetAt: Date }) { const hours = (a: Date, b: Date) => Math.max(0, (b.getTime() - a.getTime()) / 3_600_000); return { openAgeHours: hours(input.openedAt, input.now), overdue: input.now > input.targetAt, stageAgeHours: hours(input.stageStartedAt, input.now), targetVarianceHours: (input.now.getTime() - input.targetAt.getTime()) / 3_600_000 }; }

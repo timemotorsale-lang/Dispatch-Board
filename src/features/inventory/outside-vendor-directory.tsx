@@ -42,6 +42,7 @@ type VendorWork = {
   sentAt: string;
   status: string;
   supplementalAmountCents: number | null;
+  vendorId: string | null;
   vendorName: string;
   workType: string;
 };
@@ -72,7 +73,7 @@ const vehicleLabel = (work: VendorWork) => [work.repairOrder.vehicle.year, work.
 const finalEstimateCents = (work: VendorWork) => (work.approvedAmountCents ?? work.estimateAmountCents ?? 0) + (work.supplementalAmountCents ?? 0);
 
 function vendorStats(vendor: OutsideVendorRecord) {
-  const works = vendor.workAssignments ?? [];
+  const works = (vendor.workAssignments ?? []).filter((work) => work.status !== "CANCELLED");
   const active = works.filter((work) => activeStatuses.has(work.status));
   const completed = works.filter((work) => work.status === "COMPLETED");
   const billingReady = works.filter((work) => billingReadyStatuses.has(work.status));
@@ -90,6 +91,7 @@ export function OutsideVendorDirectory({ vendors }: { vendors: OutsideVendorReco
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [correctionVendorByWorkId, setCorrectionVendorByWorkId] = useState<Record<string, string>>({});
   const selectedVendor = vendors.find((vendor) => vendor.id === selectedVendorId) ?? vendors[0] ?? null;
   const selectedStats = selectedVendor ? vendorStats(selectedVendor) : null;
   const workspaceStats = useMemo(() => vendors.reduce((result, vendor) => {
@@ -112,6 +114,32 @@ export function OutsideVendorDirectory({ vendors }: { vendors: OutsideVendorReco
       if (!response.ok) { setError(payload.error ?? "Outside vendor could not be added."); return; }
       setMessage("Outside vendor added and available to Service Advisors.");
       setOpen(false);
+      router.refresh();
+    });
+  }
+
+  function correctVendorAssignment(work: VendorWork) {
+    const newVendorId = correctionVendorByWorkId[work.id];
+    if (!newVendorId) return;
+    setError(null);
+    setMessage(null);
+    startTransition(async () => {
+      const response = await fetch(`/api/repair-orders/${encodeURIComponent(work.repairOrder.id)}/vendor-work`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "REASSIGN_VENDOR",
+          vendorWorkId: work.id,
+          newVendorId,
+          occurredAt: new Date().toISOString(),
+          idempotencyKey: crypto.randomUUID(),
+          reason: `Correct outside vendor ledger assignment for ${work.repairOrder.repairOrderNumber}.`,
+        })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) { setError(payload.error ?? "Vendor ledger assignment could not be corrected."); return; }
+      setCorrectionVendorByWorkId((current) => ({ ...current, [work.id]: "" }));
+      setMessage("Vendor ledger assignment corrected. The repair order history keeps an audit event.");
       router.refresh();
     });
   }
@@ -140,7 +168,7 @@ export function OutsideVendorDirectory({ vendors }: { vendors: OutsideVendorReco
         {vendors.length ? vendors.map((vendor) => {
           const stats = vendorStats(vendor);
           return <button aria-pressed={selectedVendor?.id === vendor.id} key={vendor.id} onClick={() => setSelectedVendorId(vendor.id)} type="button">
-            <Building2 /><span><strong>{vendor.name}</strong><small>{vendor.code} · {format(vendor.vendorType)}</small></span><b>{stats.active.length}</b>
+            <Building2 /><span><strong>{vendor.name}</strong><small>{vendor.code} · {format(vendor.vendorType)}</small></span><b>{stats.works.length}</b>
           </button>;
         }) : <div className="outside-vendor-empty"><Building2 /><strong>No outside vendors added yet</strong><span>Add Simba Collision or another partner once, then select it from any repair order.</span></div>}
       </aside>
@@ -162,13 +190,23 @@ export function OutsideVendorDirectory({ vendors }: { vendors: OutsideVendorReco
 
           <section className="outside-vendor-work-ledger">
             <header><strong>Vendor work ledger</strong><span>{selectedStats.works.length} repair-order record(s)</span></header>
+            <div className="outside-vendor-ledger-guidance">
+              <strong>Need to fix a missing vendor record?</strong>
+              <span>Move a misassigned work record to the correct vendor below. If two facilities each performed payable work, open the RO and add an additional vendor instead of replacing the first one.</span>
+            </div>
             {selectedStats.works.length ? selectedStats.works.map((work) => {
               const latestEvent = work.events?.[0];
+              const correctionOptions = vendors.filter((vendor) => vendor.status === "ACTIVE" && vendor.id !== work.vendorId);
               return <article className={activeStatuses.has(work.status) ? "active" : ""} key={work.id}>
                 <div><span>{format(work.status)} · {format(work.approvalStatus)}</span><strong>{vehicleLabel(work)}</strong><small>{work.repairOrder.repairOrderNumber} · {work.repairOrder.customer?.displayName ?? work.repairOrder.inventoryUnit?.inventoryNumber ?? "Inventory unit"}</small></div>
                 <p>{work.scope}</p>
                 <dl><div><dt>Estimate</dt><dd>{money(work.estimateAmountCents)}</dd></div><div><dt>Approved</dt><dd>{money(work.approvedAmountCents)}</dd></div><div><dt>Supplement</dt><dd>{money(work.supplementalAmountCents)}</dd></div><div><dt>Expected return</dt><dd>{date(work.expectedReturnAt)}</dd></div></dl>
                 <section><Clock3 /><span><strong>{work.nextAction}</strong><small>{latestEvent ? `${latestEvent.summary} · ${date(latestEvent.occurredAt)}${latestEvent.actorUser?.name ? ` · ${latestEvent.actorUser.name}` : ""}` : work.lastUpdateSummary}</small></span></section>
+                {correctionOptions.length ? <section className="outside-vendor-correction">
+                  <label><span>Correct ledger vendor</span><select value={correctionVendorByWorkId[work.id] ?? ""} onChange={(event) => setCorrectionVendorByWorkId((current) => ({ ...current, [work.id]: event.target.value }))}><option value="">Choose correct vendor</option>{correctionOptions.map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.name} · {format(vendor.vendorType)}</option>)}</select></label>
+                  <button disabled={pending || !correctionVendorByWorkId[work.id]} onClick={() => correctVendorAssignment(work)} type="button">Move work to selected vendor</button>
+                  <small>This fixes a mistaken ledger assignment. It does not erase the audit history.</small>
+                </section> : null}
                 <footer><span>{qcIssueStatuses.has(work.status) ? "QC / completion decision needed" : activeStatuses.has(work.status) ? "Active vendor coordination" : "Closed vendor record"}</span><Link href={`/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(work.repairOrder.id)}&tab=repair`}>Open RO <ArrowRight /></Link></footer>
               </article>;
             }) : <div className="outside-vendor-empty"><CheckCircle2 /><strong>No work assigned yet</strong><span>Assign this vendor from a repair order when a vehicle leaves the dealership workflow.</span></div>}

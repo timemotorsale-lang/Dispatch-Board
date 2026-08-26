@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+import { OutsideRepairWorkPanel } from "@/features/advisor/outside-repair-work-panel";
 import { RepairOrderEnterpriseWorkbench } from "@/features/inventory/repair-order-enterprise-workbench";
 
 vi.mock("next/navigation", () => ({
@@ -22,8 +23,9 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("RO-20481");
     expect(html).toContain("Authoritative Repair Order");
     expect(html).toContain("Location / workflow correction");
-    expect(html).toContain("Need to assign this vehicle to an outside vendor?");
-    expect(html).toContain("Record outside work");
+    expect(html).toContain("Outside vendor next step");
+    expect(html).toContain("Document the next vendor repair");
+    expect(html).toContain("Open vendor documentation form");
     expect(html).toContain("View RO");
     expect(html).toContain("Print RO");
     expect(html).toContain('href="/api/repair-orders/ro-1/print"');
@@ -203,14 +205,143 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("source evidence from intake");
     expect(html).toContain("Confirm outside-vendor progress");
     expect(html).toContain("Return from vendor and verify quality");
-    expect(html).toContain("Record vendor update");
-    expect(html).toContain("Vendor / repair updates");
+    expect(html).toContain("Document vendor repair progress");
+    expect(html).toContain("Vendor repair progress");
     expect(html).toContain("Completion");
     expect(html).toContain("Quality control");
     expect(html).toContain("Vehicle sent directly from Auction to Diego Auto Body.");
     expect(html).not.toContain("Ready for diagnosis");
     expect(html).not.toContain(">Start Diagnosis<");
     expect(html).not.toContain("Diagnose the concern");
+  });
+
+  it("routes the active second vendor to repair-progress documentation instead of diagnosis", () => {
+    const secondVendorOrder = {
+      ...order,
+      stage: "REPAIR",
+      customer: null,
+      inventoryUnit: { inventoryNumber: "033428" },
+      vendorWorks: [
+        {
+          id: "vendor-work-1",
+          vendorName: "Northside Garage",
+          status: "RETURNED",
+          approvalStatus: "PENDING",
+          currentLocation: "Dealership",
+          nextAction: "Document the follow-up vendor repair path.",
+          lastUpdateSummary: "Northside Garage returned the vehicle unfinished.",
+          scope: "Timing chain replacement",
+          sentFrom: "Dealership",
+        },
+        {
+          id: "vendor-work-2",
+          vendorName: "Capable Auto Repair",
+          status: "AT_VENDOR",
+          approvalStatus: "APPROVED",
+          currentLocation: "Capable Auto Repair",
+          nextAction: "Confirm repair progress and expected return.",
+          lastUpdateSummary: "The follow-up vendor has custody and is repairing the timing chain.",
+          scope: "Timing chain replacement",
+          sentFrom: "Dealership",
+        },
+      ],
+    };
+    const html = renderToStaticMarkup(<RepairOrderEnterpriseWorkbench order={secondVendorOrder} options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }} />);
+
+    expect(html).toContain("Capable Auto Repair");
+    expect(html).toContain("Document vendor repair progress");
+    expect(html).toContain("Vendor repair progress");
+    expect(html).toContain('href="#vendor-repair-progress"');
+    expect(html).toContain('id="vendor-repair-progress"');
+    expect(html).toContain("Document repair progress and move to the next stage");
+    expect(html).not.toContain(">Start Diagnosis<");
+  });
+
+  it("opens a simple vendor-complete path for arranging return before QC", () => {
+    const html = renderToStaticMarkup(
+      <OutsideRepairWorkPanel
+        accountableLocation="Minneapolis"
+        defaultOpen={true}
+        repairOrderId="ro-1"
+        work={{
+          id: "vendor-work-2",
+          vendorId: "vendor-2",
+          vendorName: "Capable Auto Repair",
+          workType: "MECHANICAL_SUBLET",
+          status: "AT_VENDOR",
+          approvalStatus: "APPROVED",
+          approvedAmountCents: null,
+          currentLocation: "Capable Auto Repair",
+          directFromSource: false,
+          estimateAmountCents: null,
+          events: [],
+          expectedReturnAt: null,
+          keysCustodian: "Vendor",
+          lastUpdateSummary: "The follow-up vendor has custody and is repairing the timing chain.",
+          nextAction: "Confirm repair progress and expected return.",
+          nextFollowUpAt: null,
+          scope: "Timing chain replacement",
+          sentAt: "2026-08-24T21:30:00.000Z",
+          sentFrom: "Dealership",
+          supplementalAmountCents: null,
+          transportMethod: "Internal transport",
+        }}
+      />,
+    );
+
+    expect(html).toContain("Repair outcome and vehicle return");
+    expect(html).toContain("Vendor fixed car - arrange return");
+    expect(html).toContain("Once the vehicle is received, release it to QC for pass/fail.");
+    expect(html).toContain("What was repaired");
+    expect(html).toContain("Repair outcome");
+    expect(html).toContain("Final / approved cost");
+    expect(html).toContain("Approved by");
+    expect(html).toContain("Next step / action");
+    expect(html).toContain("Move repair to next stage");
+    expect(html).toContain("Capable Auto Repair");
+  });
+
+  it("keeps vendor return documentation connected to a Final QC link", () => {
+    const returnReadyOrder = {
+      ...order,
+      stage: "REPAIR",
+      operatingState: "WAITING",
+      nextAction: "Arrange vehicle return from Northside Garage to Time Motor Sales - Minneapolis. After receipt, release to dealership QC for pass/fail.",
+      vendorWorks: [{
+        id: "vendor-work-return-ready",
+        vendorName: "Northside Garage",
+        status: "READY_FOR_PICKUP",
+        approvalStatus: "APPROVED",
+        approvedAmountCents: 95000,
+        currentLocation: "Northside Garage",
+        directFromSource: false,
+        events: [],
+        expectedReturnAt: null,
+        keysCustodian: "Vendor",
+        lastUpdateSummary: "Northside Garage completed the approved repair. Arrange return transportation before dealership QC.",
+        nextAction: "Arrange vehicle return from Northside Garage to Time Motor Sales - Minneapolis. After receipt, release to dealership QC for pass/fail.",
+        nextFollowUpAt: null,
+        scope: "Timing chain repair completed.",
+        sentAt: "2026-08-24T21:30:00.000Z",
+        sentFrom: "Dealership",
+        supplementalAmountCents: null,
+        transportMethod: "Return transport to schedule",
+        vendorId: "vendor-1",
+        workType: "MECHANICAL_SUBLET",
+      }],
+    };
+
+    const html = renderToStaticMarkup(
+      <RepairOrderEnterpriseWorkbench
+        order={returnReadyOrder}
+        options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }}
+      />,
+    );
+
+    expect(html).toContain("Document vendor repair progress");
+    expect(html).toContain("Open Final QC");
+    expect(html).toContain("/vehicles/quality-control?repairOrderId=ro-1");
+    expect(html).toContain("After receipt, release to dealership QC for pass/fail.");
   });
 
   it("shows dealership drop-off language and offsite vendor workflow when diagnosis is not the active path", () => {
@@ -467,5 +598,96 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("/vehicles/shop-planning?repairOrderId=ro-1");
     expect(html).toContain("vendorFollowUp=1");
     expect(html).toContain("repair-planning-step-2");
+  });
+
+  it("releases a completed returned vendor repair to Final QC", () => {
+    const returnedCompleteOrder = {
+      ...order,
+      stage: "QUALITY_CONTROL",
+      version: 11,
+      nextAction: "Release the returned vehicle to dealership QC for pass/fail.",
+      serviceVisit: {
+        ...order.serviceVisit,
+        concernSummary: "Second vendor completed the timing chain repair and returned the vehicle.",
+      },
+      vendorWorks: [{
+        id: "vendor-work-complete",
+        vendorName: "Capable Auto Repair",
+        status: "RETURNED",
+        approvalStatus: "APPROVED",
+        approvedAmountCents: 165000,
+        currentLocation: "Dealership",
+        directFromSource: false,
+        events: [],
+        expectedReturnAt: "2026-08-25T12:00:00.000Z",
+        keysCustodian: "Dealership",
+        lastUpdateSummary: "Capable Auto Repair completed the approved repair and returned the vehicle.",
+        nextAction: "Release the returned vehicle to dealership QC for pass/fail.",
+        nextFollowUpAt: null,
+        scope: "Timing chain replacement completed.",
+        sentAt: "2026-08-24T21:30:00.000Z",
+        sentFrom: "Dealership",
+        supplementalAmountCents: null,
+        transportMethod: "Tow",
+        vendorId: "vendor-2",
+        workType: "MECHANICAL_SUBLET",
+      }],
+    };
+
+    const html = renderToStaticMarkup(
+      <RepairOrderEnterpriseWorkbench
+        order={returnedCompleteOrder}
+        options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }}
+      />,
+    );
+
+    expect(html).toContain("Ready for Final QC");
+    expect(html).toContain("Release to Final QC");
+    expect(html).toContain("Open Final QC");
+    expect(html).toContain("Record the Final QC pass/fail decision so recon can complete and handoff can proceed.");
+    expect(html).toContain("/vehicles/quality-control?repairOrderId=ro-1");
+    expect(html).toContain("Capable Auto Repair completed the approved repair and returned the vehicle.");
+  });
+
+  it("adds a follow-up vendor link when the original outside vendor returns the vehicle unfinished", () => {
+    const returnedVendorOrder = {
+      ...order,
+      stage: "QUALITY_CONTROL",
+      nextAction: "Review the recommendation and send the vehicle to a capable follow-up vendor.",
+      serviceVisit: {
+        ...order.serviceVisit,
+        concernSummary: "Northside Garage returned the vehicle unfinished and another vendor needs to complete the timing chain repair.",
+      },
+      vendorWorks: [{
+        id: "vendor-work-returned",
+        vendorName: "Northside Garage",
+        status: "RETURNED",
+        approvalStatus: "PENDING",
+        currentLocation: "Dealership",
+        directFromSource: false,
+        expectedReturnAt: null,
+        nextAction: "Choose the approved follow-up vendor and document the new outside repair path.",
+        lastUpdateSummary: "Northside Garage returned the vehicle unfinished and could not repair the timing chain issue.",
+        scope: "Timing chain replacement",
+        sentAt: "2026-08-24T21:30:00.000Z",
+        sentFrom: "Dealership",
+        transportMethod: "Driven back",
+        workType: "MECHANICAL_SUBLET",
+      }],
+    };
+
+    const html = renderToStaticMarkup(
+      <RepairOrderEnterpriseWorkbench
+        order={returnedVendorOrder}
+        options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }}
+      />,
+    );
+
+    expect(html).toContain("Northside Garage returned the vehicle unfinished");
+    expect(html).toContain("Add follow-up vendor");
+    expect(html).toContain('href="#follow-up-vendor-documentation"');
+    expect(html).toContain('id="follow-up-vendor-documentation"');
+    expect(html).toContain("Document the next vendor repair");
+    expect(html).toContain("Choose the approved follow-up vendor, confirm the repair scope, then save this outside repair record.");
   });
 });

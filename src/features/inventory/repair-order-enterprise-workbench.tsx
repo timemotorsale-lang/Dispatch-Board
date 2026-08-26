@@ -3,6 +3,7 @@
 import {
   Activity,
   AlertTriangle,
+  Building2,
   CalendarClock,
   Camera,
   CarFront,
@@ -246,12 +247,22 @@ const stageToLifecycleIndex: Record<string, number> = {
 
 function activeVendorWorkFor(order: RepairOrderWorkbenchOrder) {
   const works = order.vendorWorks ?? [];
-  return works.find((work) => !["COMPLETED", "CANCELLED"].includes(work.status)) ?? null;
+  // A returned first vendor must not hide a later vendor that currently has the vehicle.
+  return works.find((work) => ["ESTIMATE_NEEDED", "APPROVAL_NEEDED", "SCHEDULED", "AT_VENDOR", "WAITING_PARTS", "SUPPLEMENT_NEEDED", "READY_FOR_PICKUP", "RETURN_TRANSPORT"].includes(work.status))
+    ?? works.find((work) => !["COMPLETED", "CANCELLED"].includes(work.status))
+    ?? null;
 }
 
 function vendorQcNeedsInternalCompletion(work: ReturnType<typeof activeVendorWorkFor>) {
   if (!work || work.status !== "QC_REQUIRED") return false;
   return /\b(fail|failed|incomplete|not complete|not completed|not fixed|did not complete|follow-up|completion|decision|required)\b/i.test(`${work.lastUpdateSummary} ${work.nextAction}`);
+}
+
+function vendorNeedsFollowUpVendor(work: ReturnType<typeof activeVendorWorkFor>) {
+  if (!work || !["RETURNED", "QC_REQUIRED"].includes(work.status)) return false;
+  return /\b(could not repair|unable to repair|diagnosed only|unfinished|not complete|not completed|did not complete|another vendor|follow-up vendor|selected follow-up vendor|next repair path)\b/i.test(
+    `${work.scope} ${work.lastUpdateSummary} ${work.nextAction}`,
+  );
 }
 
 function vendorWorkForEditor(work: NonNullable<ReturnType<typeof activeVendorWorkFor>>): OutsideWork {
@@ -317,6 +328,12 @@ function nextStepPlan(input: {
         detail: "After the vendor resumes work, track repair completion, dealership QC, and final handoff.",
         title: "Resume repair to quality control",
       },
+    ] as const;
+  if (input.activeVendorWork && ["RETURNED", "QC_REQUIRED"].includes(input.activeVendorWork.status))
+    return [
+      { current: true, detail: "Open Final QC to record the pass/fail decision for the returned vendor repair.", title: "Release to Final QC" },
+      { current: false, detail: "If QC passes, recon can complete. If QC fails, route the failed item back through the approved repair path.", title: "Record QC outcome" },
+      { current: false, detail: "After QC passes, return the vehicle to Inventory or the next owning workspace with final readiness evidence.", title: "Complete recon handoff" },
     ] as const;
   if (input.activeVendorWork)
     return [
@@ -390,7 +407,9 @@ function contextualWorkspaceTabs(input: {
   orderStage: string;
   partsWorkspaceHref: string;
   planningHref: string;
+  vendorProgressHref: string;
   vendorNeedsInternalCompletion: boolean;
+  vendorReadyForFinalQc: boolean;
 }) {
   const qcHref = `/vehicles/quality-control?repairOrderId=${encodeURIComponent(input.orderId)}&returnLabel=${encodeURIComponent("Return to Repair Workbench")}&returnTo=${encodeURIComponent(`/vehicles/repair-workbench?repairOrderId=${input.orderId}`)}`;
   const completionHref = `${input.planningHref}#repair-progress`;
@@ -442,13 +461,29 @@ function contextualWorkspaceTabs(input: {
     ] satisfies WorkspaceTransitionTab[];
   }
 
+  if (input.vendorReadyForFinalQc) {
+    return [
+      {
+        detail: "The vehicle has returned from the outside vendor. Open Final QC to record pass/fail and complete recon handoff.",
+        href: qcHref,
+        recommended: true,
+        title: "Final QC",
+      },
+      {
+        detail: "Review the vendor completion notes, approved cost, and return evidence before completing handoff.",
+        href: input.vendorProgressHref,
+        title: "Vendor repair record",
+      },
+    ] satisfies WorkspaceTransitionTab[];
+  }
+
   if (input.activeVendorWork) {
     return [
       {
-        detail: "Keep the vendor progress, ETA, estimate, and approval record current for this repair order.",
-        href: completionHref,
+        detail: "Record the vendor's repair progress, ETA, estimate, and approval status, then select the verified next stage for this repair order.",
+        href: input.vendorProgressHref,
         recommended: true,
-        title: "Vendor / repair updates",
+        title: "Vendor repair progress",
       },
       repairTabs[1],
       repairTabs[2],
@@ -568,8 +603,10 @@ export function RepairOrderEnterpriseWorkbench({
   const planningReturn = `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(order.id)}`;
   const planningHref = `/vehicles/shop-planning?repairOrderId=${encodeURIComponent(order.id)}&returnTo=${encodeURIComponent(planningReturn)}`;
   const vendorFollowUpPlanningHref = `${planningHref}&vendorFollowUp=1`;
+  const vendorProgressHref = "#vendor-repair-progress";
   const estimatePlanningHref = `${planningHref}#repair-planning-step-3`;
   const partsWorkspaceHref = `/vehicles/service-close-parts?repairOrderId=${encodeURIComponent(order.id)}&returnTo=${encodeURIComponent(planningReturn)}&returnLabel=${encodeURIComponent(order.repairOrderNumber)}`;
+  const finalQcHref = `/vehicles/quality-control?repairOrderId=${encodeURIComponent(order.id)}&returnLabel=${encodeURIComponent("Return to Repair Workbench")}&returnTo=${encodeURIComponent(planningReturn)}`;
   const selectedOwner = options.users.find((user) => user.id === ownerUserId) ?? null;
   const assignmentChanged = Boolean(selectedOwner && selectedOwner.id !== currentOwner.id);
   const diagnosticCase = diagnostics && "cases" in diagnostics ? diagnostics.cases[0] ?? null : null;
@@ -584,6 +621,9 @@ export function RepairOrderEnterpriseWorkbench({
   const activeVendorWork = activeVendorWorkFor(order);
   const showingInternalRecon = useInternalRecon || !activeVendorWork;
   const vendorNeedsInternalCompletion = vendorQcNeedsInternalCompletion(activeVendorWork);
+  const needsFollowUpVendor = vendorNeedsFollowUpVendor(activeVendorWork);
+  const vendorReadyForFinalQc = Boolean(activeVendorWork && ["RETURNED", "QC_REQUIRED"].includes(activeVendorWork.status) && !vendorNeedsInternalCompletion && !needsFollowUpVendor);
+  const vendorCanOpenFinalQc = Boolean(activeVendorWork && ["READY_FOR_PICKUP", "RETURN_TRANSPORT", "RETURNED", "QC_REQUIRED"].includes(activeVendorWork.status) && !vendorNeedsInternalCompletion && !needsFollowUpVendor);
   const waitingParts = order.partDemands.some((part) => part.quantityReserved < part.quantityRequired);
   const vendorWaitingParts = Boolean(activeVendorWork) && (activeVendorWork?.status === "WAITING_PARTS" || waitingParts);
   const directBodyPath = diagnosis?.cause?.includes("Direct repair scope approved without troubleshooting diagnosis.") ?? false;
@@ -603,6 +643,33 @@ export function RepairOrderEnterpriseWorkbench({
         status: "AT_VENDOR",
         workType: "BODY_SHOP",
       };
+  const followUpVendorDraft = needsFollowUpVendor && activeVendorWork
+    ? {
+        approvalStatus: "PENDING",
+        currentLocation: "",
+        customerVisibleSummary: `The vehicle is being sent to another approved outside vendor after ${activeVendorWork.vendorName} returned it unfinished.`,
+        lastUpdateSummary: `Vehicle sent to the selected follow-up vendor after ${activeVendorWork.vendorName} returned it unfinished.`,
+        nextAction: "Confirm the selected follow-up vendor received the vehicle, can complete the repair, and provided an expected return.",
+        scope: activeVendorWork.scope || concernSummary,
+        status: "AT_VENDOR",
+        workType: activeVendorWork.workType || "MECHANICAL_SUBLET",
+        vendorName: "",
+      }
+    : undefined;
+  const additionalVendorDraft = activeVendorWork && !needsFollowUpVendor
+    ? {
+        allowParallelVendorWork: true,
+        approvalStatus: "PENDING",
+        currentLocation: "",
+        customerVisibleSummary: "A second outside repair facility is performing an approved portion of this repair.",
+        lastUpdateSummary: "Additional outside repair facility added for a separate payable portion of the RO.",
+        nextAction: "Confirm the additional vendor's scope, approved amount, approver, and expected return.",
+        scope: "",
+        status: "AT_VENDOR",
+        workType: activeVendorWork.workType || "MECHANICAL_SUBLET",
+        vendorName: "",
+      }
+    : undefined;
   const nextSteps = nextStepPlan({
     activeVendorWork,
     authorization,
@@ -615,6 +682,8 @@ export function RepairOrderEnterpriseWorkbench({
   });
   const displayedNextAction = vendorWaitingParts
     ? activeVendorWork?.nextAction || activeVendorWork?.lastUpdateSummary || "Vendor is waiting on parts from the dealership before repair can continue."
+    : vendorReadyForFinalQc
+      ? "Open Final QC to record pass/fail, complete recon, and hand off the vehicle."
     : activeVendorWork
       ? activeVendorWork.nextAction || activeVendorWork.lastUpdateSummary || "Record the latest outside-vendor progress and expected return."
       : order.repairJobs.length > 0
@@ -624,15 +693,21 @@ export function RepairOrderEnterpriseWorkbench({
     ? partsWorkspaceHref
     : vendorNeedsInternalCompletion
       ? `${vendorFollowUpPlanningHref}#repair-planning-step-2`
-      : diagnosis || directBodyPath
-      ? estimatePlanningHref
-      : planningHref;
+      : vendorReadyForFinalQc
+        ? finalQcHref
+      : activeVendorWork
+        ? vendorProgressHref
+        : diagnosis || directBodyPath
+          ? estimatePlanningHref
+          : planningHref;
   const primaryActionLabel = vendorWaitingParts
     ? "Update parts and delivery"
     : vendorNeedsInternalCompletion
       ? "Create follow-up repair scope"
+    : vendorReadyForFinalQc
+      ? "Open Final QC"
     : activeVendorWork
-      ? "Record vendor update"
+      ? "Document vendor repair progress"
       : order.repairJobs.length > 0
         ? "Manage repair readiness"
       : diagnosis
@@ -644,6 +719,8 @@ export function RepairOrderEnterpriseWorkbench({
     ? "Receive the requested parts, approve any draft purchase order, and record delivery to the outside vendor so repair can continue."
     : vendorNeedsInternalCompletion
       ? "Keep this same RO open and add the internal completion work for the items the outside vendor did not finish."
+    : vendorReadyForFinalQc
+      ? "The vendor repair is back with the dealership. Record the Final QC pass/fail decision so recon can complete and handoff can proceed."
     : activeVendorWork
       ? activeVendorWork.nextAction
       : order.repairJobs.length > 0
@@ -657,6 +734,8 @@ export function RepairOrderEnterpriseWorkbench({
     ? "Parts action required"
     : vendorNeedsInternalCompletion
       ? "Vendor QC failed"
+    : vendorReadyForFinalQc
+      ? "Ready for Final QC"
     : activeVendorWork
       ? "Outside repair in progress"
       : diagnosis
@@ -668,6 +747,8 @@ export function RepairOrderEnterpriseWorkbench({
     ? "Open Parts Workspace"
     : vendorNeedsInternalCompletion
       ? "Create follow-up repair scope"
+    : vendorReadyForFinalQc
+      ? "Open Final QC"
     : activeVendorWork
       ? "Record vendor update"
       : safetyReview
@@ -679,6 +760,8 @@ export function RepairOrderEnterpriseWorkbench({
     ? "Vendor waiting on our parts"
     : vendorNeedsInternalCompletion
       ? "Vendor QC failed - create internal completion work"
+    : vendorReadyForFinalQc
+      ? "Ready for Final QC"
     : activeVendorWork
       ? "Outside repair in progress"
       : diagnosis
@@ -688,6 +771,8 @@ export function RepairOrderEnterpriseWorkbench({
     ? activeVendorWork?.lastUpdateSummary || activeVendorWork?.nextAction || "The outside vendor is blocked until the dealership delivers the requested parts."
     : vendorNeedsInternalCompletion
       ? activeVendorWork?.lastUpdateSummary || "Dealership QC found the vendor return was incomplete and needs a follow-up internal repair scope."
+    : vendorReadyForFinalQc
+      ? activeVendorWork?.lastUpdateSummary || "The outside vendor repair has returned and is ready for Final QC."
     : activeVendorWork
       ? activeVendorWork?.lastUpdateSummary || vendorDispatchSummary(activeVendorWork) || activeVendorWork?.nextAction || "The vehicle is currently with the outside vendor and needs progress tracking."
       : diagnosis
@@ -697,6 +782,8 @@ export function RepairOrderEnterpriseWorkbench({
     ? "Lead with parts receiving, approval, and delivery updates. Keep the diagnosis record visible as supporting evidence only."
     : vendorNeedsInternalCompletion
       ? "Do not open a detached RO. Keep the original RO as the parent record, switch Repair Planning to Bodywork or Diagnostic as needed, and create the follow-up job from the missing work."
+    : vendorReadyForFinalQc
+      ? "Lead with Final QC. If QC passes, recon can complete and handoff can proceed; if QC fails, route the failed work back through the approved repair path."
     : activeVendorWork
       ? "Lead with vendor progress, ETA, and return requirements. Keep the diagnosis record available underneath as supporting context."
       : diagnosis
@@ -733,8 +820,15 @@ export function RepairOrderEnterpriseWorkbench({
     orderStage: order.stage,
     partsWorkspaceHref,
     planningHref: vendorNeedsInternalCompletion ? vendorFollowUpPlanningHref : diagnosis || directBodyPath ? estimatePlanningHref : planningHref,
+    vendorProgressHref,
     vendorNeedsInternalCompletion,
+    vendorReadyForFinalQc,
   });
+
+  function openVendorProgress() {
+    if (!activeVendorWork || vendorWaitingParts || vendorNeedsInternalCompletion || vendorReadyForFinalQc) return;
+    window.dispatchEvent(new Event("repair-vendor-progress:open"));
+  }
 
   async function approveRelatedPurchaseOrder(purchaseOrder: RelatedPurchaseOrder) {
     setBusy(true);
@@ -884,15 +978,58 @@ export function RepairOrderEnterpriseWorkbench({
               <Link href={partsWorkspaceHref}>Open internal repair and parts <ChevronRight /></Link>
             </div>
           ) : null}
-          <OutsideRepairWorkPanel
-            accountableLocation={order.location.name}
-            defaultOpen={false}
-            draft={vendorCorrectionDraft}
-            internalReconHref={partsWorkspaceHref}
-            onUseInternalRecon={() => setUseInternalRecon(true)}
-            repairOrderId={order.id}
-            work={activeVendorWork && !useInternalRecon ? vendorWorkForEditor(activeVendorWork) : null}
-          />
+          {needsFollowUpVendor && activeVendorWork ? (
+            <div className="rowb-follow-up-vendor-path">
+              <Wrench />
+              <div>
+                <strong>{activeVendorWork.vendorName} returned the vehicle unfinished</strong>
+                <span>Use a new outside-vendor record for the follow-up shop so the original vendor history stays intact and the next repair path is documented on this same RO.</span>
+              </div>
+              <Link href="#follow-up-vendor-documentation">Add follow-up vendor <ChevronRight /></Link>
+            </div>
+          ) : null}
+          {additionalVendorDraft ? (
+            <div className="rowb-follow-up-vendor-path">
+              <Building2 />
+              <div>
+                <strong>Another facility also worked on this RO?</strong>
+                <span>Add a separate outside-vendor record so each shop appears in its own ledger and can be paid for its portion of the repair.</span>
+              </div>
+              <Link href="#additional-vendor-documentation">Add additional vendor <ChevronRight /></Link>
+            </div>
+          ) : null}
+          <div id="vendor-repair-progress">
+            <OutsideRepairWorkPanel
+              accountableLocation={order.location.name}
+              defaultOpen={false}
+              draft={vendorCorrectionDraft}
+              internalReconHref={partsWorkspaceHref}
+              openOnHash="vendor-repair-progress"
+              onUseInternalRecon={() => setUseInternalRecon(true)}
+              repairOrderId={order.id}
+              work={activeVendorWork && !useInternalRecon ? vendorWorkForEditor(activeVendorWork) : null}
+            />
+          </div>
+          {followUpVendorDraft ? (
+            <div id="follow-up-vendor-documentation">
+              <OutsideRepairWorkPanel
+                defaultOpen={false}
+                draft={followUpVendorDraft}
+                repairOrderId={order.id}
+                work={null}
+              />
+            </div>
+          ) : null}
+          {additionalVendorDraft ? (
+            <div id="additional-vendor-documentation">
+              <OutsideRepairWorkPanel
+                defaultOpen={false}
+                draft={additionalVendorDraft}
+                repairOrderId={order.id}
+                work={null}
+              />
+            </div>
+          ) : null}
         </section>
           <article>
             <small>{isInventoryRecon ? "Recon concern captured at intake" : "Concern captured at intake"}</small>
@@ -985,7 +1122,7 @@ export function RepairOrderEnterpriseWorkbench({
         </aside>
         <main className="rowb-main">
           <nav className="rowb-tabs"><a className="active" href="#concerns">Concerns</a><a href="#inspection">Inspection</a><a href="#diagnosis">Diagnosis</a><a href="#estimate">Estimate</a><a href="#jobs">Jobs</a><a href="#quality">QC</a><a href="#timeline">Timeline</a></nav>
-          <div className="rowb-actions"><span>{activeVendorWork ? `Offsite · ${format(activeVendorWork.status)}` : order.operatingState === "ACTIVE" ? "Active work order" : format(order.operatingState)}</span><Link href={primaryActionHref}>{vendorWaitingParts ? "Open Parts Control" : "Review Plan"}</Link><Link className="primary" href={primaryActionHref}>{primaryActionLabel} <ChevronRight /></Link></div>
+          <div className="rowb-actions"><span>{activeVendorWork ? `Offsite · ${format(activeVendorWork.status)}` : order.operatingState === "ACTIVE" ? "Active work order" : format(order.operatingState)}</span><Link href={primaryActionHref} onClick={primaryActionHref === vendorProgressHref ? openVendorProgress : undefined}>{vendorWaitingParts ? "Open Parts Control" : "Review Plan"}</Link><Link className="primary" href={primaryActionHref} onClick={primaryActionHref === vendorProgressHref ? openVendorProgress : undefined}>{primaryActionLabel} <ChevronRight /></Link></div>
           <section className="rowb-transition-strip" aria-label="Contextual next-step workspaces">
             <header>
               <strong>Next step workspaces</strong>
@@ -993,7 +1130,7 @@ export function RepairOrderEnterpriseWorkbench({
             </header>
             <div className="rowb-transition-grid">
               {workspaceTabs.map((tab) => (
-                <Link className={tab.recommended ? "recommended" : undefined} href={tab.href} key={`${tab.title}-${tab.href}`}>
+                <Link className={tab.recommended ? "recommended" : undefined} href={tab.href} key={`${tab.title}-${tab.href}`} onClick={tab.href === vendorProgressHref ? openVendorProgress : undefined}>
                   <small>{tab.recommended ? "Recommended next" : "Available next"}</small>
                   <strong>{tab.title}</strong>
                   <span>{tab.detail}</span>
@@ -1074,14 +1211,14 @@ export function RepairOrderEnterpriseWorkbench({
           <section className="rowb-finding" id="timeline"><header><h2>Repair-order timeline</h2><span>Exact version {currentVersion}</span></header><dl><div><dt>Opened</dt><dd>{date(order.openedAt)}</dd></div><div><dt>Current stage</dt><dd>{format(order.stage)}</dd></div><div><dt>Current stage clock</dt><dd>{duration(order.stageStartedAt)}</dd></div><div><dt>Target</dt><dd>{date(order.targetAt)}</dd></div><div><dt>Next accountable action</dt><dd>{displayedNextAction}</dd></div></dl></section>
         </main>
         <aside className="rowb-command">
-          <section className="rowb-workflow-gate"><h2>Workflow Gate</h2><div className="rowb-gate"><b>{readyCount}/{intakeChecks.length}</b><span>{workflowGateLabel}</span></div>{vendorWaitingParts ? <p className="danger"><AlertTriangle />Outside repair is paused because the vendor is waiting on dealership-supplied parts.</p> : vendorNeedsInternalCompletion ? <p className="danger"><AlertTriangle />Dealership QC failed the outside-vendor return. Create the missing completion work on this same RO.</p> : activeVendorWork ? <p className="success"><Check />The vehicle is already in outside repair. Keep the vendor status, ETA, and return requirements current.</p> : safetyReview ? <p className="danger"><ShieldAlert />Begin with a safety inspection before operating or road-testing this vehicle.</p> : diagnosis ? <p className="success"><Check />Diagnosis has been recorded. The next step is to continue estimate, approval, and repair coordination.</p> : intakeReady ? <p className="success"><Check />Intake is complete. Diagnosis is the next step.</p> : <p className="danger"><AlertTriangle />Complete the highlighted intake facts before diagnosis.</p>}<Link className="rowb-gate-action" href={primaryActionHref}>{workflowGateActionLabel}<ChevronRight /></Link><small>{vendorWaitingParts ? "Use the parts workspace to approve, receive, and record delivery of vendor-requested parts." : vendorNeedsInternalCompletion ? "Open Repair Planning, choose the internal path that fits the missing work, then create the follow-up job under this RO." : activeVendorWork ? "Use this workbench to record vendor progress, confirm expected return, and shift to parts control whenever the vendor is waiting on dealership-supplied parts." : diagnosis ? "Diagnosis is already on file, so the work should move through estimate, approval, parts, and repair governance." : commitmentFollowUp}</small></section>
+          <section className="rowb-workflow-gate"><h2>Workflow Gate</h2><div className="rowb-gate"><b>{readyCount}/{intakeChecks.length}</b><span>{workflowGateLabel}</span></div>{vendorWaitingParts ? <p className="danger"><AlertTriangle />Outside repair is paused because the vendor is waiting on dealership-supplied parts.</p> : vendorNeedsInternalCompletion ? <p className="danger"><AlertTriangle />Dealership QC failed the outside-vendor return. Create the missing completion work on this same RO.</p> : vendorReadyForFinalQc ? <p className="success"><Check />The vehicle has returned from the outside vendor and is ready for Final QC.</p> : activeVendorWork ? <p className="success"><Check />The vehicle is already in outside repair. Keep the vendor status, ETA, and return requirements current.</p> : safetyReview ? <p className="danger"><ShieldAlert />Begin with a safety inspection before operating or road-testing this vehicle.</p> : diagnosis ? <p className="success"><Check />Diagnosis has been recorded. The next step is to continue estimate, approval, and repair coordination.</p> : intakeReady ? <p className="success"><Check />Intake is complete. Diagnosis is the next step.</p> : <p className="danger"><AlertTriangle />Complete the highlighted intake facts before diagnosis.</p>}<Link className="rowb-gate-action" href={primaryActionHref} onClick={primaryActionHref === vendorProgressHref ? openVendorProgress : undefined}>{workflowGateActionLabel}<ChevronRight /></Link><small>{vendorWaitingParts ? "Use the parts workspace to approve, receive, and record delivery of vendor-requested parts." : vendorNeedsInternalCompletion ? "Open Repair Planning, choose the internal path that fits the missing work, then create the follow-up job under this RO." : vendorReadyForFinalQc ? "Open Final QC to pass/fail the returned vendor repair, complete recon, and hand off the vehicle." : activeVendorWork ? "Use this workbench to record vendor progress, confirm expected return, and shift to parts control whenever the vendor is waiting on dealership-supplied parts." : diagnosis ? "Diagnosis is already on file, so the work should move through estimate, approval, parts, and repair governance." : commitmentFollowUp}</small></section>
           <section id="assignment"><h2>Assignment &amp; Capacity</h2><label><span>Accountable owner / technician</span><select aria-label="Accountable owner or technician" disabled={busy} onChange={(event) => { setOwnerUserId(event.target.value); setNotice(""); }} value={ownerUserId}>{options.users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></label><button disabled={busy || !assignmentChanged} onClick={() => void assignOwner()} type="button">{busy ? "Saving Assignment…" : assignmentChanged ? `Assign to ${selectedOwner?.name}` : `Assigned to ${currentOwner.name}`}</button><p>{assignmentChanged ? `Save to make ${selectedOwner?.name} accountable for this repair order.` : `${currentOwner.name} is already assigned. Select a different person to change the assignment.`}</p><dl><div><dt>Current owner</dt><dd>{currentOwner.name}</dd></div><div><dt>Location</dt><dd>{order.location.name}</dd></div><div><dt>Parts demand</dt><dd>{order.partDemands.length}</dd></div></dl></section>
           <section><h2>What happens next</h2><ol className="rowb-next-steps">{nextSteps.map((step, index) => <li className={step.current ? "current" : undefined} key={step.title}><b>{index + 1}</b><span><strong>{step.title}</strong>{step.detail}</span></li>)}</ol></section>
           <section><h2>SLA / Promise Risk</h2><dl><div><dt>Promise</dt><dd>{date(order.serviceVisit.promisedAt)}</dd></div><div><dt>Target</dt><dd>{date(order.targetAt)}</dd></div><div><dt>Operating state</dt><dd>{format(order.operatingState)}</dd></div><div><dt>Stage clock</dt><dd>{duration(order.stageStartedAt)}</dd></div></dl></section>
-          <section className="rowb-next"><h2>Do this now</h2><Wrench /><strong>{primaryActionLabel}</strong><span>{primaryActionSummary}</span><Link href={primaryActionHref}>{primaryActionLabel}</Link></section>
+          <section className="rowb-next"><h2>Do this now</h2><Wrench /><strong>{primaryActionLabel}</strong><span>{primaryActionSummary}</span><Link href={primaryActionHref} onClick={primaryActionHref === vendorProgressHref ? openVendorProgress : undefined}>{primaryActionLabel}</Link>{vendorCanOpenFinalQc && primaryActionHref !== finalQcHref ? <Link className="secondary" href={finalQcHref}>Open Final QC</Link> : null}</section>
         </aside>
       </div>
-      <footer className="rowb-footer"><span><ShieldAlert />{promiseGuardrailLabel}</span><div>{returnTo ? <Link href={returnTo}>{returnLabel ?? "Source Workspace"}</Link> : null}<Link href="/vehicles/shop-recon">Shop &amp; Recon</Link><Link href="/vehicles/repair-workbench?view=all">All Repair Orders</Link><Link className="primary" href={primaryActionHref}>{vendorWaitingParts ? "Open Parts Workspace" : primaryActionLabel}</Link></div></footer>
+      <footer className="rowb-footer"><span><ShieldAlert />{promiseGuardrailLabel}</span><div>{returnTo ? <Link href={returnTo}>{returnLabel ?? "Source Workspace"}</Link> : null}<Link href="/vehicles/shop-recon">Shop &amp; Recon</Link><Link href="/vehicles/repair-workbench?view=all">All Repair Orders</Link>{vendorCanOpenFinalQc && primaryActionHref !== finalQcHref ? <Link href={finalQcHref}>Open Final QC</Link> : null}<Link className="primary" href={primaryActionHref} onClick={primaryActionHref === vendorProgressHref ? openVendorProgress : undefined}>{vendorWaitingParts ? "Open Parts Workspace" : primaryActionLabel}</Link></div></footer>
     </section>
   );
 }

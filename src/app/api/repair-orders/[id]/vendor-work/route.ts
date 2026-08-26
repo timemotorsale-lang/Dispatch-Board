@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/server/auth/current-user";
-import { createRepairVendorWork, updateRepairVendorWork } from "@/server/shop-completion/service";
+import { createRepairVendorWork, reassignRepairVendorWork, updateRepairVendorWork } from "@/server/shop-completion/service";
 
 function failure(error: unknown) {
   const message = error instanceof Error ? error.message : "Outside repair request failed.";
@@ -17,6 +17,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { action, vendorWorkId, ...value } = body as Record<string, unknown>;
     const result = action === "UPDATE"
       ? await updateRepairVendorWork(await getCurrentUser(), id, String(vendorWorkId ?? ""), value)
+      : action === "REASSIGN_VENDOR"
+        ? await reassignRepairVendorWork(await getCurrentUser(), id, String(vendorWorkId ?? ""), value)
       : action === "CREATE"
         ? await createRepairVendorWork(await getCurrentUser(), id, value)
         : (() => { throw new Error("Outside repair action is invalid."); })();
