@@ -117,6 +117,7 @@ function customer360Select(
       orderBy: [{ updatedAt: "desc" as const }, { opportunityNumber: "asc" as const }],
       select: {
         opportunityNumber: true,
+        stage: true,
         title: true,
         summary: true,
         organizationId: true,
@@ -137,12 +138,25 @@ export type UnifiedCrmCustomer360RepositoryInput = {
   recordScope: UnifiedCrmCustomerRecordScope;
 };
 
+export type UnifiedCrmCustomer360OpportunityDispatchLinkRecord = {
+  archivedAt: Date | null;
+  opportunityNumber: string;
+  repairJobId: string | null;
+  repairJobNumberSnapshot: string | null;
+  repairOrderId: string | null;
+  repairOrderNumberSnapshot: string | null;
+  targetKind: string;
+  targetVersionSnapshot: number;
+  titleSnapshot: string;
+};
+
 export type UnifiedCrmCustomer360Repository = {
   findCustomer(input: UnifiedCrmCustomer360RepositoryInput): Promise<UnifiedCrmCustomer360Record | null>;
+  listOpportunityDispatchLinks(input: UnifiedCrmCustomer360RepositoryInput): Promise<UnifiedCrmCustomer360OpportunityDispatchLinkRecord[]>;
 };
 
 export function createUnifiedCrmCustomer360Repository(
-  database: Pick<PrismaClient, "customer"> = prisma
+  database: Pick<PrismaClient, "$queryRaw" | "customer"> = prisma
 ): UnifiedCrmCustomer360Repository {
   return {
     findCustomer(input) {
@@ -159,6 +173,33 @@ export function createUnifiedCrmCustomer360Repository(
         },
         select: customer360Select(input.organizationId, input.recordScope)
       });
+    },
+    listOpportunityDispatchLinks(input) {
+      const ownerFilter = input.recordScope.kind === "OWNER"
+        ? Prisma.sql`AND opportunity."ownerUserId" = ${input.recordScope.ownerUserId}`
+        : Prisma.empty;
+      return database.$queryRaw<UnifiedCrmCustomer360OpportunityDispatchLinkRecord[]>(Prisma.sql`
+        SELECT
+          opportunity."opportunityNumber",
+          link."targetKind",
+          link."repairOrderId",
+          link."repairJobId",
+          link."repairOrderNumberSnapshot",
+          link."repairJobNumberSnapshot",
+          link."titleSnapshot",
+          link."targetVersionSnapshot",
+          link."archivedAt"
+        FROM "UnifiedCrmOpportunityDispatchLink" AS link
+        INNER JOIN "UnifiedCrmOpportunityRecord" AS opportunity
+          ON opportunity."id" = link."opportunityId"
+         AND opportunity."organizationId" = link."organizationId"
+        WHERE opportunity."organizationId" = ${input.organizationId}
+          AND opportunity."customerId" = ${input.customerId}
+          AND opportunity."archivedAt" IS NULL
+          ${ownerFilter}
+        ORDER BY link."createdAt" DESC, link."id" DESC
+        LIMIT 40
+      `);
     }
   };
 }

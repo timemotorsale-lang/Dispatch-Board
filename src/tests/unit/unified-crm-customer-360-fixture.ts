@@ -43,15 +43,29 @@ export function customer360Fixture(): UnifiedCrmCustomer360ReadModel {
       cases: [{ id: "case-1", caseNumber: "CASE-202", title: "Document follow-up", category: "DOCUMENT", priority: "MEDIUM", status: "OPEN", ownerName: "Customer Care", dueAt: "2026-08-16T16:00:00.000Z", resolutionDueAt: null, slaStage: "HEALTHY", sourceHref: "/customers/resolutions?caseId=CASE-202" }]
     },
     opportunityLensObservation: {
-      detail: "Only same-scope persisted opportunities linked to this customer are shown for organization review. Lifecycle movement remains off.",
+      detail: "Only same-scope persisted opportunities linked to this customer are shown for organization review. 1 linked Dispatch record(s) are reconciled from opportunity bridge records. Lifecycle movement remains off.",
+      dispatchLinkCount: 1,
       freshnessLabel: "Newest visible persisted opportunity update observed at 2026-08-15T13:00:00.000Z.",
       newestVisibleRecordUpdatedAt: "2026-08-15T13:00:00.000Z",
       state: "READY",
       visibleRecordCount: 1
     },
     opportunityLenses: [{
+      dispatchLinkCount: 1,
+      dispatchLinks: [{
+        href: "/vehicles/repair-workbench?repairOrderId=ro-1001",
+        repairJobId: null,
+        repairJobNumber: null,
+        repairOrderId: "ro-1001",
+        repairOrderNumber: "RO-1001",
+        state: "ACTIVE",
+        targetKind: "REPAIR_ORDER",
+        title: "Repair order RO-1001",
+        version: 2
+      }],
       id: "opp_1001",
       opportunityNumber: "opp_1001",
+      stage: "QUALIFIED",
       title: "Alex Morgan renewal review",
       ownerName: "Taylor B.",
       customerLabel: "Alex Morgan · CUS-1001",

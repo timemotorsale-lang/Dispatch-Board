@@ -7,7 +7,7 @@ import { createUnifiedCrmCustomer360Repository } from "@/server/repositories/uni
 describe("Unified CRM Customer 360 repository", () => {
   it("applies organization, record, archive, and merge scope in the record query", async () => {
     const findFirst = vi.fn().mockResolvedValue(null);
-    const repository = createUnifiedCrmCustomer360Repository({ customer: { findFirst } } as never);
+    const repository = createUnifiedCrmCustomer360Repository({ $queryRaw: vi.fn(), customer: { findFirst } } as never);
     await repository.findCustomer({
       customerId: "customer-a",
       organizationId: "org-a",
@@ -29,7 +29,7 @@ describe("Unified CRM Customer 360 repository", () => {
 
   it("independently scopes every exposed nested source by organization", async () => {
     const findFirst = vi.fn().mockResolvedValue(null);
-    const repository = createUnifiedCrmCustomer360Repository({ customer: { findFirst } } as never);
+    const repository = createUnifiedCrmCustomer360Repository({ $queryRaw: vi.fn(), customer: { findFirst } } as never);
     await repository.findCustomer({
       customerId: "customer-a",
       organizationId: "org-a",
@@ -41,6 +41,7 @@ describe("Unified CRM Customer 360 repository", () => {
     expect(select.appointmentParticipants.where).toEqual({ appointment: { organizationId: "org-a" } });
     expect(select.leads.where).toEqual({ organizationId: "org-a" });
     expect(select.concernCases.where).toEqual({ organizationId: "org-a" });
+    expect(select.unifiedCrmOpportunities.select).toMatchObject({ opportunityNumber: true, stage: true });
     expect(select).not.toHaveProperty("tasks");
     expect(select).not.toHaveProperty("address");
     expect(select).not.toHaveProperty("documentRequirements");
@@ -58,5 +59,22 @@ describe("Unified CRM Customer 360 repository", () => {
     });
     expect(select.contactPoints.select).not.toHaveProperty("normalizedValue");
     expect(select.contactPoints.select).not.toHaveProperty("consentStatus");
+  });
+
+  it("scopes opportunity dispatch link reads by organization, customer, and owner", async () => {
+    const queryRaw = vi.fn().mockResolvedValue([]);
+    const repository = createUnifiedCrmCustomer360Repository({ $queryRaw: queryRaw, customer: { findFirst: vi.fn() } } as never);
+    await repository.listOpportunityDispatchLinks({
+      customerId: "customer-a",
+      organizationId: "org-a",
+      recordScope: { kind: "OWNER", ownerUserId: "seller-a" }
+    });
+
+    const query = queryRaw.mock.calls[0][0] as { strings?: string[]; values?: unknown[] };
+    const sql = (query.strings ?? []).join(" ");
+    expect(sql).toContain('opportunity."customerId" =');
+    expect(sql).toContain('opportunity."organizationId" =');
+    expect(sql).toContain('opportunity."ownerUserId" =');
+    expect(sql).toContain('"UnifiedCrmOpportunityDispatchLink"');
   });
 });

@@ -134,7 +134,10 @@ describe("Unified CRM Customer 360", () => {
     expect(markup).not.toMatch(/Create opportunity|Move stage|Mark won|Save opportunity|live forecast/i);
     expect(markup).toContain("Team context"); expect(markup).toContain("Customer prefers texts after lunch.");
     expect(markup).toContain("Read-only opportunity summaries"); expect(markup).toContain("Alex Morgan renewal review");
-    expect(markup).toContain("Only same-scope persisted opportunities linked to this customer are shown for organization review. Lifecycle movement remains off.");
+    expect(markup).toContain("Only same-scope persisted opportunities linked to this customer are shown for organization review. 1 linked Dispatch record(s) are reconciled from opportunity bridge records. Lifecycle movement remains off.");
+    expect(markup).toContain("1 dispatch link");
+    expect(markup).toContain("opp_1001 · Qualified");
+    expect(markup).toContain("RO-1001");
     expect(markup).toContain("Newest visible persisted opportunity update observed at 2026-08-15T13:00:00.000Z.");
     expect(markup).toContain('href="/crm/opportunities/opp_1001?crmReturnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dcustomers%2526q%253DAlex"');
     expect(markup).toContain("Relationship timeline"); expect(markup).toContain("Phone Outbound"); expect(markup).toContain("Appointment confirmation was recorded.");
@@ -355,6 +358,7 @@ describe("Unified CRM Customer 360", () => {
           ...fixture,
           opportunityLensObservation: {
             detail: "No same-scope persisted read-only opportunity linked to this customer is visible right now for organization review. Continue with held opportunity review surfaces until one is available.",
+            dispatchLinkCount: 0,
             freshnessLabel: "No visible persisted opportunity update is available yet.",
             newestVisibleRecordUpdatedAt: null,
             state: "EMPTY",

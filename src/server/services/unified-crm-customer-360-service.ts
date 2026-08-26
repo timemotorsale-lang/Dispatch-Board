@@ -2,6 +2,7 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { evaluateUnifiedCrmCapability } from "@/server/policies/unified-crm-access";
 import {
   createUnifiedCrmCustomer360Repository,
+  type UnifiedCrmCustomer360OpportunityDispatchLinkRecord,
   type UnifiedCrmCustomer360Record,
   type UnifiedCrmCustomer360Repository
 } from "@/server/repositories/unified-crm-customer-360-repository";
@@ -145,13 +146,36 @@ function nextActionState(nextActionAt: Date | null, now: Date): UnifiedCrmCustom
   return sameCalendarDay ? "DUE_TODAY" : "SCHEDULED";
 }
 
-function opportunityLenses(record: UnifiedCrmCustomer360Record): UnifiedCrmCustomer360OpportunityLens[] {
+function opportunityLenses(
+  record: UnifiedCrmCustomer360Record,
+  dispatchLinksByOpportunity: Map<string, UnifiedCrmCustomer360OpportunityDispatchLinkRecord[]>
+): UnifiedCrmCustomer360OpportunityLens[] {
   return record.unifiedCrmOpportunities.flatMap((opportunity) => {
     try {
       const opportunityId = normalizeUnifiedCrmOpportunityId(opportunity.opportunityNumber);
+      const dispatchLinks = (dispatchLinksByOpportunity.get(opportunity.opportunityNumber) ?? [])
+        .flatMap((link) => {
+          if (!link.repairOrderId || !link.repairOrderNumberSnapshot) return [];
+          return [{
+            href: link.targetKind === "REPAIR_JOB" && link.repairJobId
+              ? `/vehicles/shop-dispatch?repairJobId=${encodeURIComponent(link.repairJobId)}`
+              : `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(link.repairOrderId)}`,
+            repairJobId: link.repairJobId,
+            repairJobNumber: link.repairJobNumberSnapshot,
+            repairOrderId: link.repairOrderId,
+            repairOrderNumber: link.repairOrderNumberSnapshot,
+            state: link.archivedAt ? "ARCHIVED" as const : "ACTIVE" as const,
+            targetKind: link.targetKind === "REPAIR_JOB" ? "REPAIR_JOB" as const : "REPAIR_ORDER" as const,
+            title: link.titleSnapshot,
+            version: link.targetVersionSnapshot
+          }];
+        });
       return [{
+        dispatchLinkCount: dispatchLinks.length,
+        dispatchLinks,
         id: opportunityId,
         opportunityNumber: opportunityId,
+        stage: opportunity.stage,
         title: opportunity.title,
         ownerName: opportunity.ownerUser?.name ?? "Unassigned",
         customerLabel: `${record.displayName} · ${record.customerNumber}`,
@@ -171,14 +195,16 @@ function opportunityLensObservation(
   visibility: "organization" | "owned"
 ) {
   const visibilityLabel = visibility === "organization" ? "organization review" : "owned review";
+  const dispatchLinkCount = lenses.reduce((total, lens) => total + lens.dispatchLinkCount, 0);
   const newestVisibleRecordUpdatedAt = lenses.length
     ? new Date(Math.max(...lenses.map((lens) => new Date(lens.updatedAt).getTime()))).toISOString()
     : null;
 
   return {
     detail: lenses.length
-      ? `Only same-scope persisted opportunities linked to this customer are shown for ${visibilityLabel}. Lifecycle movement remains off.`
+      ? `Only same-scope persisted opportunities linked to this customer are shown for ${visibilityLabel}. ${dispatchLinkCount} linked Dispatch record(s) are reconciled from opportunity bridge records. Lifecycle movement remains off.`
       : `No same-scope persisted read-only opportunity linked to this customer is visible right now for ${visibilityLabel}. Continue with held opportunity review surfaces until one is available.`,
+    dispatchLinkCount,
     freshnessLabel: newestVisibleRecordUpdatedAt
       ? `Newest visible persisted opportunity update observed at ${newestVisibleRecordUpdatedAt}.`
       : "No visible persisted opportunity update is available yet.",
@@ -320,6 +346,7 @@ export async function getUnifiedCrmCustomer360(
   const timelineRepository = dependencies.timelineRepository ?? createUnifiedCrmCustomerTimelineRepository();
   let organizationIds: string[];
   let record: UnifiedCrmCustomer360Record | null;
+  let opportunityDispatchLinks: UnifiedCrmCustomer360OpportunityDispatchLinkRecord[] = [];
   let timeline;
   try {
     organizationIds = await scopeRepository.listActiveOrganizationIds(actor!.id, now);
@@ -336,6 +363,9 @@ export async function getUnifiedCrmCustomer360(
       );
     }
     record = await repository.findCustomer({ customerId, organizationId: organizationIds[0], recordScope });
+    if (record) {
+      opportunityDispatchLinks = await repository.listOpportunityDispatchLinks({ customerId, organizationId: organizationIds[0], recordScope });
+    }
   } catch (error) {
     if (error instanceof UnifiedCrmCustomer360Error) throw error;
     throw new UnifiedCrmCustomer360Error(
@@ -392,7 +422,13 @@ export async function getUnifiedCrmCustomer360(
   const timelineView = timelineItems({ model: timeline });
   const newestTimelineItem = timelineView[0]?.occurredAt ?? null;
   const visibility = recordScope.kind === "ORGANIZATION" ? "organization" : "owned";
-  const persistedOpportunityLenses = opportunityLenses(record);
+  const dispatchLinksByOpportunity = new Map<string, UnifiedCrmCustomer360OpportunityDispatchLinkRecord[]>();
+  for (const link of opportunityDispatchLinks) {
+    const existing = dispatchLinksByOpportunity.get(link.opportunityNumber) ?? [];
+    existing.push(link);
+    dispatchLinksByOpportunity.set(link.opportunityNumber, existing);
+  }
+  const persistedOpportunityLenses = opportunityLenses(record, dispatchLinksByOpportunity);
 
   return {
     contractVersion: UNIFIED_CRM_CUSTOMER_360_CONTRACT_VERSION,

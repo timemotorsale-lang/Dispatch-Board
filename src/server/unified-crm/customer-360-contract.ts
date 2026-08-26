@@ -57,8 +57,21 @@ export type UnifiedCrmCustomer360CaseLens = {
 };
 
 export type UnifiedCrmCustomer360OpportunityLens = {
+  dispatchLinkCount: number;
+  dispatchLinks: {
+    href: string;
+    repairJobId: string | null;
+    repairJobNumber: string | null;
+    repairOrderId: string;
+    repairOrderNumber: string;
+    state: "ACTIVE" | "ARCHIVED";
+    targetKind: "REPAIR_ORDER" | "REPAIR_JOB";
+    title: string;
+    version: number;
+  }[];
   id: string;
   opportunityNumber: string;
+  stage: string;
   title: string;
   ownerName: string;
   customerLabel: string;
@@ -155,6 +168,7 @@ export type UnifiedCrmCustomer360ReadModel = {
   };
   opportunityLensObservation: {
     detail: string;
+    dispatchLinkCount: number;
     freshnessLabel: string;
     newestVisibleRecordUpdatedAt: string | null;
     state: "EMPTY" | "READY";

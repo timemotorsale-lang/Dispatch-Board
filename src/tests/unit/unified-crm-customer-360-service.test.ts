@@ -99,7 +99,18 @@ function record(overrides: Record<string, unknown> = {}) {
       assignedOwner: null
     }],
     unifiedCrmOpportunities: [{
+      dispatchLinks: [{
+        archivedAt: null,
+        repairJobId: "job-1",
+        repairJobNumberSnapshot: "JOB-01",
+        repairOrderId: "ro-1",
+        repairOrderNumberSnapshot: "RO-1001",
+        targetKind: "REPAIR_JOB",
+        targetVersionSnapshot: 2,
+        titleSnapshot: "Diagnose Maria Santos repair request"
+      }],
       opportunityNumber: "opp_123456",
+      stage: "QUALIFIED",
       title: "Maria Santos renewal review",
       summary: "Read-only opportunity summary.",
       organizationId: "org-a",
@@ -194,6 +205,22 @@ function dependencies(value: UnifiedCrmCustomer360Record | null, organizations =
     async findCustomer(input) {
       received.push(input);
       return value;
+    },
+    async listOpportunityDispatchLinks(input) {
+      received.push({ dispatchLinksFor: input });
+      return value
+        ? [{
+            archivedAt: null,
+            opportunityNumber: "opp_123456",
+            repairJobId: "job-1",
+            repairJobNumberSnapshot: "JOB-01",
+            repairOrderId: "ro-1",
+            repairOrderNumberSnapshot: "RO-1001",
+            targetKind: "REPAIR_JOB",
+            targetVersionSnapshot: 2,
+            titleSnapshot: "Diagnose Maria Santos repair request"
+          }]
+        : [];
     }
   };
   return {
@@ -263,13 +290,31 @@ describe("Unified CRM Customer 360 service", () => {
       },
       sourceLenses: { leads: [{ id: "lead-a" }], cases: [{ id: "case-a" }] },
       opportunityLensObservation: {
-        detail: "Only same-scope persisted opportunities linked to this customer are shown for organization review. Lifecycle movement remains off.",
+        detail: "Only same-scope persisted opportunities linked to this customer are shown for organization review. 1 linked Dispatch record(s) are reconciled from opportunity bridge records. Lifecycle movement remains off.",
+        dispatchLinkCount: 1,
         freshnessLabel: "Newest visible persisted opportunity update observed at 2026-08-14T11:00:00.000Z.",
         newestVisibleRecordUpdatedAt: "2026-08-14T11:00:00.000Z",
         state: "READY",
         visibleRecordCount: 1
       },
-      opportunityLenses: [{ id: "opp_123456", opportunityNumber: "opp_123456", state: "LIVE_READ_ONLY" }]
+      opportunityLenses: [{
+        dispatchLinkCount: 1,
+        dispatchLinks: [{
+          href: "/vehicles/shop-dispatch?repairJobId=job-1",
+          repairJobId: "job-1",
+          repairJobNumber: "JOB-01",
+          repairOrderId: "ro-1",
+          repairOrderNumber: "RO-1001",
+          state: "ACTIVE",
+          targetKind: "REPAIR_JOB",
+          title: "Diagnose Maria Santos repair request",
+          version: 2
+        }],
+        id: "opp_123456",
+        opportunityNumber: "opp_123456",
+        stage: "QUALIFIED",
+        state: "LIVE_READ_ONLY"
+      }]
     });
     const serialized = JSON.stringify(model);
     for (const restricted of ["+16125551234", "maria@example.com", "legacy@example.test", "consentStatus", "address", "retentionUntil", "duplicateKey"]) {
@@ -393,7 +438,9 @@ describe("Unified CRM Customer 360 service", () => {
   it("returns an explicit empty opportunity-lens observation when no persisted opportunity is visible", async () => {
     const setup = dependencies(record({
       unifiedCrmOpportunities: [{
+        dispatchLinks: [],
         opportunityNumber: "//invalid",
+        stage: "NEW_INQUIRY",
         title: "Invalid target",
         summary: "Should not appear.",
         organizationId: "org-a",
@@ -406,6 +453,7 @@ describe("Unified CRM Customer 360 service", () => {
     expect(model.opportunityLenses).toEqual([]);
     expect(model.opportunityLensObservation).toMatchObject({
       detail: "No same-scope persisted read-only opportunity linked to this customer is visible right now for organization review. Continue with held opportunity review surfaces until one is available.",
+      dispatchLinkCount: 0,
       freshnessLabel: "No visible persisted opportunity update is available yet.",
       newestVisibleRecordUpdatedAt: null,
       state: "EMPTY",

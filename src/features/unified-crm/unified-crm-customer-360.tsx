@@ -215,17 +215,25 @@ function OpportunityLensSection({
     <section aria-labelledby="customer-opportunity-lenses-heading" className={styles.sectionCard}>
       <header>
         <div><span className={styles.eyebrow}>Linked opportunities</span><h2 id="customer-opportunity-lenses-heading">Read-only opportunity summaries</h2></div>
-        <small>{model.opportunityLenses.length} visible record{model.opportunityLenses.length === 1 ? "" : "s"}</small>
+        <small>
+          {model.opportunityLenses.length} visible record{model.opportunityLenses.length === 1 ? "" : "s"}
+          {" "}· {model.opportunityLensObservation.dispatchLinkCount} dispatch link{model.opportunityLensObservation.dispatchLinkCount === 1 ? "" : "s"}
+        </small>
       </header>
       <p className={styles.discoveryDetail}>{model.opportunityLensObservation.detail}</p>
       <small className={styles.timelineEmpty}>{model.opportunityLensObservation.freshnessLabel}</small>
       <div className={styles.discoveryGrid}>
         {model.opportunityLenses.map((item) => (
           <Link className={styles.discoveryCard} href={withUnifiedCrmOpportunityReturn(item.href, returnHref)} key={item.id}>
-            <span className={styles.discoveryEyebrow}>{item.opportunityNumber}</span>
+            <span className={styles.discoveryEyebrow}>{item.opportunityNumber} · {label(item.stage)}</span>
             <strong>{item.title}</strong>
             <p>{item.summary}</p>
-            <small>{item.ownerName} · {item.customerLabel} · updated {formatDate(item.updatedAt, "Time unavailable")}</small>
+            <small>{item.ownerName} · {item.customerLabel} · {item.dispatchLinkCount} dispatch link{item.dispatchLinkCount === 1 ? "" : "s"} · updated {formatDate(item.updatedAt, "Time unavailable")}</small>
+            {item.dispatchLinks.length ? (
+              <span className={styles.timelineEmpty}>
+                {item.dispatchLinks.map((link) => `${link.repairOrderNumber}${link.repairJobNumber ? ` / ${link.repairJobNumber}` : ""}`).join(", ")}
+              </span>
+            ) : null}
           </Link>
         ))}
       </div>
