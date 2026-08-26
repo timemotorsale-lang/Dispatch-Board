@@ -27,6 +27,7 @@ This checkpoint does **not** enable quote drafting, quote presentation, approval
 - `src/features/unified-crm/unified-crm-quote-foundation.tsx`
 - `src/features/unified-crm/unified-crm-quote-foundation.module.css`
 - `src/features/unified-crm/unified-crm-shell.tsx`
+- `src/tests/integration/unified-crm-quote-foundation.test.ts`
 - `src/tests/unit/unified-crm-quote-foundation-service.test.ts`
 - `src/tests/unit/unified-crm-quote-foundation.test.tsx`
 - `src/tests/unit/unified-crm-quote-page.test.tsx`
@@ -40,10 +41,16 @@ Focused service verification passed on 2026-08-15 for:
 
 The quote-foundation service now lazy-loads its default repository so focused service proof can run when a test injects its own repository, instead of forcing database runtime modules during read-only foundation verification.
 
-Component, page, shell, browser, and migrated database proof remain pending for this checkpoint and must be completed before `UCRM-040` can move beyond `IMPLEMENTED_UNVERIFIED`.
+Migrated runtime proof passed on 2026-08-26 for:
+
+- `RUN_DATABASE_INTEGRATION=1 npx vitest run src/tests/integration/unified-crm-quote-foundation.test.ts`
+
+The runtime proof seeds manager, seller, other-seller, customer, opportunity, quote record, and immutable quote-version rows in the migrated PostgreSQL schema. It verifies organization-scoped quote visibility, owner-scoped filtering, draft workspace readback, and the fail-closed quote-off boundary without enabling presentation or approval.
+
+Component, page, shell, browser, and broader downstream draft/presentation proof remain pending for this checkpoint and must be completed before `UCRM-040` can move beyond `IMPLEMENTED_UNVERIFIED`.
 
 ## Status
 
 - `UCRM-040`: `IMPLEMENTED_UNVERIFIED`
 
-Browser proof, migrated database proof, and integrated draft/presentation follow-through remain required before verification. `UCRM-041` and `UCRM-042` are still pending.
+Browser proof and integrated draft/presentation follow-through remain required before verification. `UCRM-041` remains implemented but unverified, and `UCRM-042` remains held pending authority thresholds.
