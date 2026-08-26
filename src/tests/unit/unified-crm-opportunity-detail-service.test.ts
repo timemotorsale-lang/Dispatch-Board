@@ -61,6 +61,7 @@ function persistedRecord(overrides: Record<string, unknown> = {}) {
     sourceLead: null,
     stageHistory: [],
     taskLinks: [],
+    appointmentLinks: [],
     createdAt: new Date("2026-08-14T16:00:00.000Z"),
     updatedAt: new Date("2026-08-14T17:30:00.000Z"),
     version: 1,
@@ -201,6 +202,17 @@ describe("Unified CRM opportunity detail service", () => {
               taskId: "task-1",
               title: "Follow up with Alex Morgan"
             }],
+            appointmentLinks: [{
+              actorLabel: "CRM Manager",
+              appointmentNumber: "APT-1001",
+              archivedAt: null,
+              createdAt: new Date("2026-08-14T17:40:00.000Z"),
+              endsAt: null,
+              relationship: "DRAFT_APPOINTMENT",
+              startsAt: null,
+              title: "Appointment with Alex Morgan",
+              version: 1
+            }],
             createdAt: new Date("2026-08-14T16:00:00.000Z"),
             updatedAt: new Date("2026-08-14T17:30:00.000Z"),
             version: 2
@@ -286,6 +298,19 @@ describe("Unified CRM opportunity detail service", () => {
           state: "ACTIVE",
           taskId: "task-1",
           title: "Follow up with Alex Morgan"
+        }]
+      },
+      appointmentActivity: {
+        createAppointmentHref: "/api/crm/v1/opportunities/opp_123456/appointments",
+        state: "READY",
+        links: [{
+          actorLabel: "CRM Manager",
+          appointmentNumber: "APT-1001",
+          href: "/appointments?appointment=APT-1001",
+          relationship: "DRAFT_APPOINTMENT",
+          state: "ACTIVE",
+          title: "Appointment with Alex Morgan",
+          version: 1
         }]
       },
       relatedRecordsObservation: {

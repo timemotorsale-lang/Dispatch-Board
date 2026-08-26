@@ -15,13 +15,13 @@ function actor(roles: string[], id = "user-1"): AuthenticatedUser {
 }
 
 describe("Unified CRM opportunity policy", () => {
-  it("allows review create, stage transition, and task linkage for management while later bridges stay held", () => {
+  it("allows review create, stage transition, task linkage, and appointment linkage for management while later bridges stay held", () => {
     const read = evaluateUnifiedCrmOpportunityPolicy(actor(["General Manager"]), { action: "read", mode: "REVIEW" });
     expect(read).toMatchObject({
       allowed: true,
       reason: "ALLOWED",
       recordScope: { kind: "ORGANIZATION" },
-      capabilities: { read: true, create: true, transition: true, linkTask: true, linkAppointment: false, linkDispatch: false }
+      capabilities: { read: true, create: true, transition: true, linkTask: true, linkAppointment: true, linkDispatch: false }
     });
 
     const create = evaluateUnifiedCrmOpportunityPolicy(actor(["General Manager"]), { action: "create", mode: "REVIEW" });
@@ -43,6 +43,13 @@ describe("Unified CRM opportunity policy", () => {
       allowed: true,
       reason: "ALLOWED",
       capabilities: { linkTask: true }
+    });
+
+    const appointmentBridge = evaluateUnifiedCrmOpportunityPolicy(actor(["General Manager"]), { action: "link-appointment", mode: "REVIEW" });
+    expect(appointmentBridge).toMatchObject({
+      allowed: true,
+      reason: "ALLOWED",
+      capabilities: { linkAppointment: true }
     });
 
     const dispatchBridge = evaluateUnifiedCrmOpportunityPolicy(actor(["General Manager"]), { action: "link-dispatch", mode: "REVIEW" });

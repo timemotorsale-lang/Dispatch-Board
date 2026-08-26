@@ -67,8 +67,28 @@ function createIdempotencyKey(opportunityId: string) {
   return globalThis.crypto?.randomUUID?.() ?? `crm-opportunity-task-${opportunityId}-${Date.now()}`;
 }
 
+function createAppointmentIdempotencyKey(opportunityId: string) {
+  return globalThis.crypto?.randomUUID?.() ?? `crm-opportunity-appointment-${opportunityId}-${Date.now()}`;
+}
+
+function defaultAppointmentNumber(opportunityId: string) {
+  return `CRM-${opportunityId}-${Date.now().toString(36).toUpperCase()}`.slice(0, 120);
+}
+
 function withOpportunityTaskReturn(href: string | null | undefined, opportunityId: string, returnHref: string) {
   if (!href || !href.startsWith("/tasks/") || href.startsWith("//")) return href ?? null;
+  const opportunityReturn = `/crm/opportunities/${encodeURIComponent(opportunityId)}?crmReturnTo=${encodeURIComponent(returnHref)}`;
+  try {
+    const url = new URL(href, "https://crm.local");
+    url.searchParams.set("returnTo", opportunityReturn);
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return href;
+  }
+}
+
+function withOpportunityAppointmentReturn(href: string | null | undefined, opportunityId: string, returnHref: string) {
+  if (!href || !href.startsWith("/appointments") || href.startsWith("//")) return href ?? null;
   const opportunityReturn = `/crm/opportunities/${encodeURIComponent(opportunityId)}?crmReturnTo=${encodeURIComponent(returnHref)}`;
   try {
     const url = new URL(href, "https://crm.local");
@@ -253,6 +273,151 @@ function OpportunityTaskBridgeForm({ model, returnHref }: { model: UnifiedCrmOpp
   );
 }
 
+function OpportunityAppointmentBridgeForm({ model, returnHref }: { model: UnifiedCrmOpportunityDetailReadModel; returnHref: string }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [messageHref, setMessageHref] = useState<string | null>(null);
+  const [tone, setTone] = useState<"idle" | "error" | "success">("idle");
+  const [appointmentNumber, setAppointmentNumber] = useState(() => defaultAppointmentNumber(model.requestedOpportunityId));
+  const [locationId, setLocationId] = useState("");
+  const [title, setTitle] = useState(`Appointment: ${model.identity.title}`);
+  const [schedulingTimezone, setSchedulingTimezone] = useState("America/Chicago");
+  const [startsAt, setStartsAt] = useState("");
+  const [endsAt, setEndsAt] = useState("");
+  const [idempotencyKey, setIdempotencyKey] = useState(() => createAppointmentIdempotencyKey(model.requestedOpportunityId));
+  const available = Boolean(model.appointmentActivity.createAppointmentHref && model.lifecycle.version !== null);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!model.appointmentActivity.createAppointmentHref || model.lifecycle.version === null) return;
+    setPending(true);
+    setMessage(null);
+    setMessageHref(null);
+    setTone("idle");
+
+    try {
+      const response = await fetch(model.appointmentActivity.createAppointmentHref, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          appointmentNumber,
+          endsAt: endsAt ? new Date(endsAt).toISOString() : null,
+          expectedVersion: model.lifecycle.version,
+          idempotencyKey,
+          locationId,
+          schedulingTimezone,
+          startsAt: startsAt ? new Date(startsAt).toISOString() : null,
+          title
+        })
+      });
+      const payload = await response.json().catch(() => null) as {
+        appointment?: { href?: string };
+        duplicate?: boolean;
+        error?: string;
+      } | null;
+      if (!response.ok) {
+        throw new Error(payload?.error ?? "CRM opportunity appointment bridge could not be completed safely.");
+      }
+      setTone("success");
+      setMessageHref(withOpportunityAppointmentReturn(payload?.appointment?.href, model.requestedOpportunityId, returnHref));
+      setMessage(
+        payload?.duplicate
+          ? "This governed appointment bridge was already recorded. The existing appointment is ready to open."
+          : "Governed draft appointment created. The opportunity appointment activity list is refreshing."
+      );
+      setAppointmentNumber(defaultAppointmentNumber(model.requestedOpportunityId));
+      setIdempotencyKey(createAppointmentIdempotencyKey(model.requestedOpportunityId));
+      setOpen(false);
+      startTransition(() => router.refresh());
+    } catch (error) {
+      setTone("error");
+      setMessage(error instanceof Error ? error.message : "CRM opportunity appointment bridge could not be completed safely.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <section className={styles.taskActivityPanel} aria-labelledby="opportunity-appointment-activity-heading">
+      <header className={styles.taskActivityHeader}>
+        <div>
+          <span className={styles.eyebrow}>Appointment bridge</span>
+          <h2 id="opportunity-appointment-activity-heading">Create a linked draft appointment</h2>
+          <p>{model.appointmentActivity.summary}</p>
+        </div>
+        {available ? (
+          <button
+            aria-controls="opportunity-appointment-bridge-panel"
+            aria-expanded={open}
+            className={styles.primaryButton}
+            disabled={pending}
+            onClick={() => setOpen((value) => !value)}
+            type="button"
+          >
+            {open ? "Close" : "Create draft appointment"}
+          </button>
+        ) : null}
+      </header>
+      {message ? (
+        <p className={tone === "error" ? styles.formError : styles.formSuccess} role={tone === "error" ? "alert" : "status"}>
+          {message} {messageHref ? <Link href={messageHref}>Open appointment</Link> : null}
+        </p>
+      ) : null}
+      {open && available ? (
+        <form className={styles.taskForm} id="opportunity-appointment-bridge-panel" onSubmit={(event) => void submit(event)}>
+          <p className={styles.formHelper}>
+            This creates a draft in the appointment workspace and keeps appointment scheduling authoritative. Provide start/end only when the time is already known.
+          </p>
+          <label>
+            <span>Appointment number</span>
+            <input onChange={(event) => setAppointmentNumber(event.target.value)} required value={appointmentNumber} />
+          </label>
+          <label>
+            <span>Location ID</span>
+            <input onChange={(event) => setLocationId(event.target.value)} required value={locationId} />
+          </label>
+          <label>
+            <span>Timezone</span>
+            <input onChange={(event) => setSchedulingTimezone(event.target.value)} required value={schedulingTimezone} />
+          </label>
+          <label className={styles.formWide}>
+            <span>Appointment title</span>
+            <input onChange={(event) => setTitle(event.target.value)} required value={title} />
+          </label>
+          <label>
+            <span>Start</span>
+            <input onChange={(event) => setStartsAt(event.target.value)} type="datetime-local" value={startsAt} />
+          </label>
+          <label>
+            <span>End</span>
+            <input onChange={(event) => setEndsAt(event.target.value)} type="datetime-local" value={endsAt} />
+          </label>
+          <div className={styles.formActions}>
+            <button disabled={pending || title.trim().length < 8 || locationId.trim().length < 3 || appointmentNumber.trim().length < 6} type="submit">
+              {pending ? "Creating draft appointment..." : "Create draft appointment"}
+            </button>
+            <span>Uses opportunity version {model.lifecycle.version}; appointment approval and scheduling still happen in Appointments.</span>
+          </div>
+        </form>
+      ) : null}
+      {model.appointmentActivity.links.length ? (
+        <ol className={styles.historyList}>
+          {model.appointmentActivity.links.map((link) => (
+            <li key={`${link.appointmentNumber}-${link.createdAt}`}>
+              <strong>{link.title}</strong>
+              <span>{link.state} · {link.appointmentNumber} · version {link.version} · created {formatDate(link.createdAt)} by {link.actorLabel}</span>
+              <p>{link.startsAt && link.endsAt ? `${formatDate(link.startsAt)} to ${formatDate(link.endsAt)}` : "Draft appointment is not scheduled yet."}</p>
+              <Link className={styles.sourceLink} href={withOpportunityAppointmentReturn(link.href, model.requestedOpportunityId, returnHref) ?? link.href}>Open appointment<ExternalLink aria-hidden="true" size={13} /></Link>
+            </li>
+          ))}
+        </ol>
+      ) : <p className={styles.formHelper}>No linked opportunity appointments have been recorded yet.</p>}
+    </section>
+  );
+}
+
 export function UnifiedCrmOpportunityDetail({ errorMessage, failureKind = "error", model, returnHref }: OpportunityDetailProps) {
   if (!model) {
     return <StatePanel kind={failureKind} message={errorMessage} returnHref={returnHref} />;
@@ -353,6 +518,7 @@ export function UnifiedCrmOpportunityDetail({ errorMessage, failureKind = "error
       </section>
 
       <OpportunityTaskBridgeForm model={model} returnHref={returnHref} />
+      <OpportunityAppointmentBridgeForm model={model} returnHref={returnHref} />
 
       <section className={styles.bridgeGrid} aria-label="Opportunity bridge review">
         <article className={styles.bridgeCard}>
@@ -365,6 +531,9 @@ export function UnifiedCrmOpportunityDetail({ errorMessage, failureKind = "error
             <p>{bridge.detail}</p>
             {bridge.actionHref && bridge.domain === "TASKS" ? (
               <small>Use the Opportunity activity panel above to create this governed task link.</small>
+            ) : null}
+            {bridge.actionHref && bridge.domain === "APPOINTMENTS" ? (
+              <small>Use the Appointment bridge panel above to create this governed draft appointment.</small>
             ) : null}
           </article>
         ))}

@@ -55,6 +55,12 @@ function fixture(): UnifiedCrmOpportunityDetailReadModel {
       state: "HELD",
       summary: "Task activity is held until the first durable opportunity record exists and task linkage is approved."
     },
+    appointmentActivity: {
+      createAppointmentHref: null,
+      links: [],
+      state: "HELD",
+      summary: "Appointment bridge activity is held until a durable opportunity record and appointment authority are available."
+    },
     sourceBridge: {
       label: "Lead bridge",
       state: "HELD",
@@ -92,6 +98,8 @@ describe("Unified CRM opportunity detail", () => {
     expect(markup).toContain("Lead bridge");
     expect(markup).toContain("Opportunity activity");
     expect(markup).toContain("No linked opportunity tasks have been recorded yet.");
+    expect(markup).toContain("Appointment bridge");
+    expect(markup).toContain("No linked opportunity appointments have been recorded yet.");
     expect(markup).toContain("Appointments");
     expect(markup).toContain("Dispatch and jobs");
     expect(markup).toContain("Approve stage definitions, transition evidence, and close or loss rules before enabling create or movement.");

@@ -30,7 +30,7 @@ function capabilities(readAllowed: boolean, mutateAllowed = false): UnifiedCrmOp
     create: mutateAllowed,
     transition: mutateAllowed,
     linkTask: mutateAllowed,
-    linkAppointment: false,
+    linkAppointment: mutateAllowed,
     linkDispatch: false
   };
 }
@@ -83,7 +83,13 @@ export function evaluateUnifiedCrmOpportunityPolicy(
     };
   }
 
-  if ((options.action === "create" || options.action === "transition" || options.action === "link-task") && base.mutateAllowed) {
+  if (
+    (options.action === "create" ||
+      options.action === "transition" ||
+      options.action === "link-task" ||
+      options.action === "link-appointment") &&
+    base.mutateAllowed
+  ) {
     return {
       allowed: true,
       fallbackHref: base.fallbackHref,

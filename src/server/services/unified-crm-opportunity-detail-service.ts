@@ -155,6 +155,12 @@ function heldModel(
       state: "HELD",
       summary: "Task activity is held until the first durable opportunity record exists and task linkage is approved."
     },
+    appointmentActivity: {
+      createAppointmentHref: null,
+      links: [],
+      state: "HELD",
+      summary: "Appointment bridge activity is held until a durable opportunity record and appointment authority are available."
+    },
     sourceBridge: {
       label: "Lead bridge",
       state: "HELD",
@@ -312,6 +318,27 @@ export async function getUnifiedCrmOpportunityDetail(
           ? `${record.taskLinks.length} governed task link(s) are attached to this opportunity.`
           : "No governed task link has been attached yet. Create one here when the next action needs tracked work."
       },
+      appointmentActivity: {
+        createAppointmentHref: terminal
+          ? null
+          : `/api/crm/v1/opportunities/${encodeURIComponent(normalizedOpportunityId)}/appointments`,
+        links: record.appointmentLinks.map((link) => ({
+          actorLabel: link.actorLabel,
+          appointmentNumber: link.appointmentNumber,
+          createdAt: link.createdAt.toISOString(),
+          endsAt: link.endsAt?.toISOString() ?? null,
+          href: `/appointments?appointment=${encodeURIComponent(link.appointmentNumber)}`,
+          relationship: link.relationship,
+          startsAt: link.startsAt?.toISOString() ?? null,
+          state: link.archivedAt ? "ARCHIVED" : "ACTIVE",
+          title: link.title,
+          version: link.version
+        })),
+        state: "READY",
+        summary: record.appointmentLinks.length
+          ? `${record.appointmentLinks.length} governed appointment link(s) are attached to this opportunity.`
+          : "No governed appointment link has been attached yet. Create a draft when the opportunity is ready for scheduling."
+      },
       sourceBridge: {
         label: record.sourceLead ? "Lead bridge" : "Source bridge",
         state: record.sourceLead ? "CONNECTED" : "HELD",
@@ -338,8 +365,11 @@ export async function getUnifiedCrmOpportunityDetail(
         {
           domain: "APPOINTMENTS",
           label: "Appointments",
-          state: "HELD",
-          detail: "Appointment linkage stays source-owned while this record remains read-only."
+          state: terminal ? "HELD" : "READY",
+          actionHref: terminal ? null : `/api/crm/v1/opportunities/${encodeURIComponent(normalizedOpportunityId)}/appointments`,
+          detail: terminal
+            ? "Terminal opportunities do not accept new appointment links until a manager reopen control is approved."
+            : "Create a governed draft appointment from this opportunity while appointment scheduling remains the authoritative system."
         },
         {
           domain: "DISPATCH",

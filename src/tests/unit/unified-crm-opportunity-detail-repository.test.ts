@@ -65,6 +65,17 @@ describe("Unified CRM opportunity detail repository", () => {
         relationship: "FOLLOW_UP",
         taskId: "task-1",
         title: "Follow up with Alex Morgan"
+      }])
+      .mockResolvedValueOnce([{
+        actorLabel: "CRM Manager",
+        appointmentNumber: "APT-1001",
+        archivedAt: null,
+        createdAt: new Date("2026-08-15T02:20:00.000Z"),
+        endsAt: null,
+        relationship: "DRAFT_APPOINTMENT",
+        startsAt: null,
+        title: "Appointment with Alex Morgan",
+        version: 1
       }]);
     const repository = createUnifiedCrmOpportunityDetailRepository({
       $queryRaw: queryRaw
@@ -94,8 +105,15 @@ describe("Unified CRM opportunity detail repository", () => {
         relationship: "FOLLOW_UP",
         taskId: "task-1",
         title: "Follow up with Alex Morgan"
+      }],
+      appointmentLinks: [{
+        actorLabel: "CRM Manager",
+        appointmentNumber: "APT-1001",
+        relationship: "DRAFT_APPOINTMENT",
+        title: "Appointment with Alex Morgan",
+        version: 1
       }]
     });
-    expect(queryRaw).toHaveBeenCalledTimes(3);
+    expect(queryRaw).toHaveBeenCalledTimes(4);
   });
 });

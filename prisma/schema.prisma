@@ -1731,6 +1731,7 @@ model User {
   createdUnifiedCrmOpportunities          UnifiedCrmOpportunityRecord[]          @relation("UnifiedCrmOpportunityCreatedBy")
   unifiedCrmOpportunityStageEvents         UnifiedCrmOpportunityStageEvent[]      @relation("UnifiedCrmOpportunityStageEventActor")
   createdUnifiedCrmOpportunityTaskLinks    UnifiedCrmOpportunityTaskLink[]        @relation("UnifiedCrmOpportunityTaskLinkCreatedBy")
+  createdUnifiedCrmOpportunityAppointmentLinks UnifiedCrmOpportunityAppointmentLink[] @relation("UnifiedCrmOpportunityAppointmentLinkCreatedBy")
   createdUnifiedCrmQuotes                 UnifiedCrmQuoteRecord[]                @relation("UnifiedCrmQuoteCreatedBy")
   createdUnifiedCrmQuoteVersions          UnifiedCrmQuoteVersion[]               @relation("UnifiedCrmQuoteVersionCreatedBy")
   vehicleCapabilityGrants                 VehicleCapabilityGrant[]
@@ -2040,6 +2041,7 @@ model Organization {
   unifiedCrmOpportunities               UnifiedCrmOpportunityRecord[]
   unifiedCrmOpportunityStageEvents      UnifiedCrmOpportunityStageEvent[]
   unifiedCrmOpportunityTaskLinks        UnifiedCrmOpportunityTaskLink[]
+  unifiedCrmOpportunityAppointmentLinks UnifiedCrmOpportunityAppointmentLink[]
   unifiedCrmQuotes                      UnifiedCrmQuoteRecord[]
   unifiedCrmQuoteVersions               UnifiedCrmQuoteVersion[]
   concernCases                          ConcernCase[]
@@ -2421,6 +2423,7 @@ model Appointment {
   taskLinks                       AppointmentTaskLink[]
   historyEvents                   AppointmentHistoryEvent[]
   commandLedgerEntries            AppointmentCommandLedger[]
+  unifiedCrmOpportunityLinks       UnifiedCrmOpportunityAppointmentLink[]
   resourceRequirements            AppointmentResourceRequirement[]
   resourceReservations            AppointmentResourceReservation[]
   serviceVisit                    ServiceVisit?
@@ -2700,6 +2703,7 @@ model UnifiedCrmOpportunityRecord {
   sourceLead        CustomerLead? @relation("UnifiedCrmOpportunitySourceLead", fields: [sourceLeadId], references: [id], onDelete: SetNull)
   stageEvents       UnifiedCrmOpportunityStageEvent[]
   taskLinks         UnifiedCrmOpportunityTaskLink[]
+  appointmentLinks  UnifiedCrmOpportunityAppointmentLink[]
   quotes            UnifiedCrmQuoteRecord[]
 
   @@unique([organizationId, opportunityNumber])
@@ -2731,6 +2735,31 @@ model UnifiedCrmOpportunityTaskLink {
   @@unique([opportunityId, taskId])
   @@index([organizationId, createdAt])
   @@index([taskId])
+  @@index([createdByUserId, createdAt])
+}
+
+model UnifiedCrmOpportunityAppointmentLink {
+  id                String                    @id @default(cuid())
+  opportunityId     String
+  organizationId    String
+  appointmentId     String
+  relationship      String
+  titleSnapshot     String
+  startsAtSnapshot  DateTime?
+  endsAtSnapshot    DateTime?
+  createdByUserId   String
+  commandId         String?
+  archivedAt        DateTime?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  opportunity       UnifiedCrmOpportunityRecord @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  organization      Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  appointment       Appointment               @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  createdByUser     User                      @relation("UnifiedCrmOpportunityAppointmentLinkCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([opportunityId, appointmentId])
+  @@index([organizationId, createdAt])
+  @@index([appointmentId])
   @@index([createdByUserId, createdAt])
 }
 

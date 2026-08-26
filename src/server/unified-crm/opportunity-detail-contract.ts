@@ -72,6 +72,23 @@ export type UnifiedCrmOpportunityDetailReadModel = {
     state: "HELD" | "READY";
     summary: string;
   };
+  appointmentActivity: {
+    createAppointmentHref: string | null;
+    links: readonly {
+      actorLabel: string;
+      appointmentNumber: string;
+      createdAt: string;
+      endsAt: string | null;
+      href: string;
+      relationship: string;
+      startsAt: string | null;
+      state: "ACTIVE" | "ARCHIVED";
+      title: string;
+      version: number;
+    }[];
+    state: "HELD" | "READY";
+    summary: string;
+  };
   sourceBridge: {
     detail: string;
     label: "Lead bridge" | "Source bridge";

@@ -45,6 +45,17 @@ export type UnifiedCrmOpportunityDetailRecord = {
     taskId: string;
     title: string;
   }[];
+  appointmentLinks: readonly {
+    actorLabel: string;
+    appointmentNumber: string;
+    archivedAt: Date | null;
+    createdAt: Date;
+    endsAt: Date | null;
+    relationship: string;
+    startsAt: Date | null;
+    title: string;
+    version: number;
+  }[];
   createdAt: Date;
   updatedAt: Date;
 };
@@ -100,6 +111,18 @@ type TaskLinkRow = {
   title: string;
 };
 
+type AppointmentLinkRow = {
+  actorLabel: string | null;
+  appointmentNumber: string;
+  archivedAt: Date | null;
+  createdAt: Date;
+  endsAt: Date | null;
+  relationship: string;
+  startsAt: Date | null;
+  title: string;
+  version: number;
+};
+
 function mapRow(row: OpportunityRow): UnifiedCrmOpportunityDetailRecord {
   return {
     id: row.id,
@@ -133,6 +156,7 @@ function mapRow(row: OpportunityRow): UnifiedCrmOpportunityDetailRecord {
       : null,
     stageHistory: [],
     taskLinks: [],
+    appointmentLinks: [],
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
   };
@@ -220,6 +244,28 @@ export function createUnifiedCrmOpportunityDetailRepository(
         ORDER BY link."createdAt" DESC
         LIMIT 12
       `);
+      const appointmentLinks = await database.$queryRaw<AppointmentLinkRow[]>(Prisma.sql`
+        SELECT
+          appointment."appointmentNumber",
+          appointment."version",
+          link."relationship",
+          link."titleSnapshot" AS "title",
+          link."startsAtSnapshot" AS "startsAt",
+          link."endsAtSnapshot" AS "endsAt",
+          link."archivedAt",
+          link."createdAt",
+          COALESCE(actor."name", actor."email", 'Unknown user') AS "actorLabel"
+        FROM "UnifiedCrmOpportunityAppointmentLink" AS link
+        INNER JOIN "Appointment" AS appointment
+          ON appointment."id" = link."appointmentId"
+         AND appointment."organizationId" = link."organizationId"
+        LEFT JOIN "User" AS actor
+          ON actor."id" = link."createdByUserId"
+        WHERE link."organizationId" = ${input.organizationId}
+          AND link."opportunityId" = ${row.id}
+        ORDER BY link."createdAt" DESC
+        LIMIT 12
+      `);
 
       return {
         ...mapRow(row),
@@ -239,6 +285,17 @@ export function createUnifiedCrmOpportunityDetailRepository(
           relationship: link.relationship,
           taskId: link.taskId,
           title: link.title
+        })),
+        appointmentLinks: appointmentLinks.map((link) => ({
+          actorLabel: link.actorLabel ?? "Unknown user",
+          appointmentNumber: link.appointmentNumber,
+          archivedAt: link.archivedAt,
+          createdAt: link.createdAt,
+          endsAt: link.endsAt,
+          relationship: link.relationship,
+          startsAt: link.startsAt,
+          title: link.title,
+          version: link.version
         }))
       };
     }
