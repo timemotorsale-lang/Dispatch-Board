@@ -1,3 +1,5 @@
+import type { UnifiedCrmOpportunityStage } from "@/server/unified-crm/opportunity-lifecycle";
+
 export const UNIFIED_CRM_OPPORTUNITY_READ_CONTRACT_VERSION = "ucrm.opportunity-read/v1" as const;
 
 export type UnifiedCrmOpportunityStageReference = {
@@ -24,10 +26,14 @@ export type UnifiedCrmOpportunityPipelinePreviewItem = {
   id: string;
   customerLabel: string;
   detailHref: string;
+  dueLabel?: string;
+  moveHref?: string;
   nextActionLabel: string;
   ownerLabel: string;
   reason: string;
+  stage?: UnifiedCrmOpportunityStage;
   state?: "HELD_REVIEW" | "LIVE_READ_ONLY";
+  version?: number;
 };
 
 export type UnifiedCrmOpportunityPipelinePreviewColumn = {

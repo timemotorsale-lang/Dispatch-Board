@@ -2,12 +2,17 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 
 import { prisma } from "@/server/db/client";
 import type { UnifiedCrmOpportunityRecordScope } from "@/server/unified-crm/opportunity-contract";
+import type { UnifiedCrmOpportunityStage } from "@/server/unified-crm/opportunity-lifecycle";
 
 export type UnifiedCrmOpportunityPreviewRecord = {
   opportunityNumber: string;
   title: string;
   summary: string | null;
   organizationId: string;
+  stage: UnifiedCrmOpportunityStage;
+  nextActionLabel: string | null;
+  nextActionDueAt: Date | null;
+  version: number;
   ownerUser: { id: string; name: string } | null;
   customer: { id: string; displayName: string; customerNumber: string } | null;
   updatedAt: Date;
@@ -33,6 +38,10 @@ type OpportunityPreviewRow = {
   title: string;
   summary: string | null;
   organizationId: string;
+  stage: UnifiedCrmOpportunityStage;
+  nextActionLabel: string | null;
+  nextActionDueAt: Date | null;
+  version: number;
   ownerUserId: string | null;
   ownerUserName: string | null;
   customerId: string | null;
@@ -47,6 +56,10 @@ function mapRow(row: OpportunityPreviewRow): UnifiedCrmOpportunityPreviewRecord 
     title: row.title,
     summary: row.summary,
     organizationId: row.organizationId,
+    stage: row.stage,
+    nextActionLabel: row.nextActionLabel,
+    nextActionDueAt: row.nextActionDueAt,
+    version: row.version,
     ownerUser: row.ownerUserId && row.ownerUserName
       ? { id: row.ownerUserId, name: row.ownerUserName }
       : null,
@@ -80,6 +93,10 @@ function buildPreviewQuery(input: {
       record."title",
       record."summary",
       record."organizationId",
+      record."stage"::text AS "stage",
+      record."nextActionLabel",
+      record."nextActionDueAt",
+      record."version",
       owner_user."id" AS "ownerUserId",
       owner_user."name" AS "ownerUserName",
       customer."id" AS "customerId",

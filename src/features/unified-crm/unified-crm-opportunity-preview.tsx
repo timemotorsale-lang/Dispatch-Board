@@ -97,6 +97,11 @@ function previewItemStateLabel(state?: "HELD_REVIEW" | "LIVE_READ_ONLY") {
   return state === "LIVE_READ_ONLY" ? "Live read-only" : "Held review";
 }
 
+function stageLabel(value?: string) {
+  if (!value) return null;
+  return value.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 function listPreviewCollection(model: UnifiedCrmOpportunityPreviewModel) {
   const persistedReadOnly = model.listPreview.items.filter((item) => item.state === "LIVE_READ_ONLY" && item.href);
   const heldRows = model.listPreview.items.filter((item) => item.state !== "LIVE_READ_ONLY");
@@ -169,8 +174,10 @@ export function UnifiedCrmOpportunityPipelinePreview({ model }: { model: Unified
                       <span className={styles.statePill}>{previewItemStateLabel(item.state)}</span>
                     </div>
                     <span>{item.customerLabel}</span>
-                    <small>{item.ownerLabel}</small>
+                    <small>{item.ownerLabel}{item.dueLabel ? ` · ${item.dueLabel}` : ""}{item.version ? ` · v${item.version}` : ""}</small>
+                    {item.stage ? <small>Stage: {stageLabel(item.stage)}</small> : null}
                     <p>{item.reason}</p>
+                    {item.moveHref ? <span className={styles.inlineAction}>Move stage with command</span> : null}
                   </Link>
                 ))}
               </div>

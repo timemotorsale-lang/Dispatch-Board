@@ -7,6 +7,11 @@ import {
 import { UnifiedCrmOpportunityError, type UnifiedCrmOpportunityAccessContext } from "@/server/unified-crm/opportunity-contract";
 import { requireUnifiedCrmOpportunityDetailAccess } from "@/server/unified-crm/opportunity-detail-access";
 import {
+  isTerminalUnifiedCrmOpportunityStage,
+  UNIFIED_CRM_OPPORTUNITY_STAGES,
+  type UnifiedCrmOpportunityStage
+} from "@/server/unified-crm/opportunity-lifecycle";
+import {
   UNIFIED_CRM_OPPORTUNITY_READ_CONTRACT_VERSION,
   type UnifiedCrmOpportunityPreviewModel
 } from "@/server/unified-crm/opportunity-read-contract";
@@ -45,6 +50,18 @@ function customerLabel(record: UnifiedCrmOpportunityPreviewRecord) {
     : "Customer link not yet attached";
 }
 
+function stageLabel(stage: UnifiedCrmOpportunityStage) {
+  return stage.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function dueLabel(value: Date | null, now: Date) {
+  if (!value) return "No due time";
+  const delta = value.getTime() - now.getTime();
+  if (delta < -60_000) return "Overdue";
+  if (delta <= 24 * 60 * 60 * 1000) return "Due soon";
+  return "Scheduled";
+}
+
 function safePersistedOpportunityId(value: string) {
   try {
     return normalizeUnifiedCrmOpportunityId(value);
@@ -55,25 +72,32 @@ function safePersistedOpportunityId(value: string) {
 
 function toVisibleLiveReadItem(
   record: UnifiedCrmOpportunityPreviewRecord,
-  access: UnifiedCrmOpportunityAccessContext
+  access: UnifiedCrmOpportunityAccessContext,
+  now: Date
 ) {
   const opportunityId = safePersistedOpportunityId(record.opportunityNumber);
   if (!opportunityId || !isPreviewRecordVisible(record, access)) return null;
   return {
-    id: `live-${opportunityId}`,
-    title: record.title,
-    ownerLabel: record.ownerUser?.name ?? "Unassigned",
     customerLabel: customerLabel(record),
+    detailHref: buildUnifiedCrmOpportunityReviewHref("detail", opportunityId),
+    dueLabel: dueLabel(record.nextActionDueAt, now),
     href: buildUnifiedCrmOpportunityReviewHref("detail", opportunityId),
+    id: `live-${opportunityId}`,
+    moveHref: isTerminalUnifiedCrmOpportunityStage(record.stage) ? undefined : buildUnifiedCrmOpportunityReviewHref("transition", opportunityId),
+    nextActionLabel: record.nextActionLabel?.trim() || "Open opportunity detail",
+    ownerLabel: record.ownerUser?.name ?? "Unassigned",
+    reason: record.summary?.trim() || `${stageLabel(record.stage)} opportunity at version ${record.version}.`,
+    stage: record.stage,
     state: "LIVE_READ_ONLY" as const,
-    reason: record.summary?.trim() || "Open this persisted opportunity in read-only mode."
+    title: record.title,
+    version: record.version
   };
 }
 
 function liveCollectionDetail(visiblePersistedRecordCount: number, visibility: "organization" | "owned") {
   const visibilityLabel = visibility === "organization" ? "organization review" : "owned review";
   if (visiblePersistedRecordCount > 0) {
-    return `Only same-scope persisted opportunities are listed here for ${visibilityLabel}. Lifecycle movement remains off.`;
+    return `Only same-scope persisted opportunities are listed here for ${visibilityLabel}. Lifecycle movement opens through the governed transition command.`;
   }
   return `No same-scope persisted read-only opportunity is visible right now for ${visibilityLabel}. Continue with held pipeline review until one is available.`;
 }
@@ -89,7 +113,8 @@ export async function getUnifiedCrmOpportunityPipelinePreview(
   dependencies: Dependencies = {}
 ): Promise<UnifiedCrmOpportunityPreviewModel> {
   const access = dependencies.accessContext ?? await requireUnifiedCrmOpportunityDetailAccess(actor, dependencies);
-  const generatedAt = (dependencies.now?.() ?? new Date()).toISOString();
+  const now = dependencies.now?.() ?? new Date();
+  const generatedAt = now.toISOString();
   const orientation = createUnifiedCrmOpportunityWorkspaceOrientation(access, {
     generatedAt,
     sourceLabel: "Unified CRM opportunity pipeline review"
@@ -111,7 +136,7 @@ export async function getUnifiedCrmOpportunityPipelinePreview(
     );
   }
   const liveReadItems = persistedRecords
-    .map((record) => toVisibleLiveReadItem(record, access))
+    .map((record) => toVisibleLiveReadItem(record, access, now))
     .filter((item): item is NonNullable<typeof item> => Boolean(item));
   const visiblePersistedRecords = persistedRecords.filter((record) => (
     Boolean(safePersistedOpportunityId(record.opportunityNumber)) &&
@@ -120,6 +145,18 @@ export async function getUnifiedCrmOpportunityPipelinePreview(
   const newestVisibleRecordUpdatedAt = visiblePersistedRecords.length
     ? new Date(Math.max(...visiblePersistedRecords.map((record) => record.updatedAt.getTime()))).toISOString()
     : null;
+  const liveColumns = UNIFIED_CRM_OPPORTUNITY_STAGES
+    .map((stage) => {
+      const items = liveReadItems.filter((item) => item.stage === stage);
+      return {
+        id: `stage-${stage.toLowerCase()}`,
+        label: stageLabel(stage),
+        itemCountLabel: `${items.length} live record${items.length === 1 ? "" : "s"}`,
+        valueLabel: isTerminalUnifiedCrmOpportunityStage(stage) ? "Terminal" : "Governed movement",
+        items
+      };
+    })
+    .filter((column) => column.items.length > 0);
 
   return {
     contractVersion: UNIFIED_CRM_OPPORTUNITY_READ_CONTRACT_VERSION,
@@ -137,9 +174,9 @@ export async function getUnifiedCrmOpportunityPipelinePreview(
       {
         id: "stage-policy",
         label: "Stage policy",
-        value: "Held",
-        detail: "Exact stage names, order, and evidence rules are still awaiting business approval.",
-        tone: "held"
+        value: "Approved",
+        detail: "Approved lifecycle columns are available; movement uses the governed transition command.",
+        tone: "ready"
       },
       {
         id: "bridges",
@@ -149,7 +186,7 @@ export async function getUnifiedCrmOpportunityPipelinePreview(
         tone: "neutral"
       }
     ],
-    columns: [
+    columns: liveColumns.length ? liveColumns : [
       {
         id: "intake",
         label: "Intake review",
@@ -222,7 +259,7 @@ export async function getUnifiedCrmOpportunityPipelinePreview(
     ],
     constraints: [
       "No opportunity record is created from this preview.",
-      "No stage transition is available before approval.",
+      "Stage movement must use the governed transition command; board cards link into that command instead of mutating directly.",
       "Task, Appointment, and Dispatch remain authoritative in their own consoles."
     ],
     listPreview: {

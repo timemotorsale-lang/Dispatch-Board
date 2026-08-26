@@ -28,15 +28,27 @@ function previewFixture(): UnifiedCrmOpportunityPreviewModel {
         ownerLabel: "Team-owned preview",
         reason: "First secure create path will surface here after lifecycle approval.",
         state: "HELD_REVIEW"
+      }, {
+        id: "live-opp-1",
+        customerLabel: "ACME Industries · CUS-44",
+        detailHref: "/crm/opportunities/OPP-1001?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
+        dueLabel: "Due soon",
+        moveHref: "/crm/opportunities/OPP-1001/transition?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
+        nextActionLabel: "Call customer",
+        ownerLabel: "Jordan Smith",
+        reason: "Open this persisted opportunity in read-only mode.",
+        stage: "NEW_INQUIRY",
+        state: "LIVE_READ_ONLY",
+        version: 2
       }]
     }],
     constraints: [
       "No opportunity record is created in this preview.",
-      "No stage transition is available before approval."
+      "Stage movement must use the governed transition command; board cards link into that command instead of mutating directly."
     ],
     listPreview: {
       observation: {
-        detail: "Only same-scope persisted opportunities are listed here for organization review. Lifecycle movement remains off.",
+        detail: "Only same-scope persisted opportunities are listed here for organization review. Lifecycle movement opens through the governed transition command.",
         freshnessLabel: "Newest visible persisted update observed at 2026-08-14T00:00:00.000Z.",
         newestVisibleRecordUpdatedAt: "2026-08-14T00:00:00.000Z",
         state: "READY",
@@ -50,8 +62,13 @@ function previewFixture(): UnifiedCrmOpportunityPreviewModel {
           title: "ACME refresh project",
           customerLabel: "ACME Industries · CUS-44",
           href: "/crm/opportunities/OPP-1001?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
+          detailHref: "/crm/opportunities/OPP-1001?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
+          dueLabel: "Due soon",
+          moveHref: "/crm/opportunities/OPP-1001/transition?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
+          nextActionLabel: "Call customer",
           ownerLabel: "Jordan Smith",
           reason: "Open this persisted opportunity in read-only mode.",
+          stage: "NEW_INQUIRY",
           state: "LIVE_READ_ONLY"
         },
         {
@@ -90,8 +107,11 @@ describe("Unified CRM opportunity preview", () => {
     expect(markup).toContain("Same-scope persisted read-only opportunities");
     expect(markup).toContain("ACME refresh project");
     expect(markup).toContain("Live read-only");
+    expect(markup).toContain("Move stage with command");
+    expect(markup).toContain("Due soon");
+    expect(markup).toContain("v2");
     expect(markup).toContain("These links open permitted persisted opportunity records in read-only mode.");
-    expect(markup).toContain("Only same-scope persisted opportunities are listed here for organization review. Lifecycle movement remains off.");
+    expect(markup).toContain("Only same-scope persisted opportunities are listed here for organization review. Lifecycle movement opens through the governed transition command.");
     expect(markup).toContain("Newest visible persisted update observed at 2026-08-14T00:00:00.000Z.");
     expect(markup).toContain("/crm/opportunities/OPP-1001?crmReturnTo=%2Fcrm%3Fview%3Dpipeline");
     expect(markup).toContain("Customer and owner at a glance");

@@ -83,6 +83,7 @@ describe("Unified CRM opportunity read service", () => {
         recordScope: { kind: "ORGANIZATION" },
         workspace: "MANAGEMENT"
       },
+      now: () => new Date("2026-08-14T18:45:00.000Z"),
       repository: repository({
         async listOpportunityPreviews() {
           return [{
@@ -90,6 +91,10 @@ describe("Unified CRM opportunity read service", () => {
             title: "Alex Morgan renewal review",
             summary: "Open the persisted read-only opportunity detail.",
             organizationId: "org-a",
+            stage: "NEW_INQUIRY",
+            nextActionLabel: "Call customer",
+            nextActionDueAt: new Date("2026-08-14T20:00:00.000Z"),
+            version: 2,
             ownerUser: { id: "manager-a", name: "CRM Manager" },
             customer: { id: "customer-1", displayName: "Alex Morgan", customerNumber: "CUS-18" },
             updatedAt: new Date("2026-08-14T18:30:00.000Z")
@@ -98,6 +103,10 @@ describe("Unified CRM opportunity read service", () => {
             title: "Warranty retention follow-up",
             summary: "Second persisted opportunity.",
             organizationId: "org-a",
+            stage: "QUALIFIED",
+            nextActionLabel: "Confirm appointment",
+            nextActionDueAt: new Date("2026-08-16T18:00:00.000Z"),
+            version: 4,
             ownerUser: { id: "manager-a", name: "CRM Manager" },
             customer: { id: "customer-2", displayName: "Jamie Rivera", customerNumber: "CUS-19" },
             updatedAt: new Date("2026-08-14T18:20:00.000Z")
@@ -108,7 +117,7 @@ describe("Unified CRM opportunity read service", () => {
 
     expect(model.listPreview.heading).toContain("Visible read-only opportunities");
     expect(model.listPreview.observation).toMatchObject({
-      detail: "Only same-scope persisted opportunities are listed here for organization review. Lifecycle movement remains off.",
+      detail: "Only same-scope persisted opportunities are listed here for organization review. Lifecycle movement opens through the governed transition command.",
       freshnessLabel: "Newest visible persisted update observed at 2026-08-14T18:30:00.000Z.",
       newestVisibleRecordUpdatedAt: "2026-08-14T18:30:00.000Z",
       state: "READY",
@@ -120,7 +129,17 @@ describe("Unified CRM opportunity read service", () => {
       customerLabel: "Alex Morgan · CUS-18",
       ownerLabel: "CRM Manager",
       href: "/crm/opportunities/opp_123456?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
+      detailHref: "/crm/opportunities/opp_123456?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
+      moveHref: "/crm/opportunities/opp_123456/transition?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
+      nextActionLabel: "Call customer",
+      stage: "NEW_INQUIRY",
       state: "LIVE_READ_ONLY"
+    });
+    expect(model.columns.map((column) => column.label)).toEqual(["New Inquiry", "Qualified"]);
+    expect(model.columns[0].items[0]).toMatchObject({
+      dueLabel: "Due soon",
+      nextActionLabel: "Call customer",
+      version: 2
     });
     expect(model.listPreview.items[1]).toMatchObject({
       id: "live-opp_123457",
@@ -155,6 +174,10 @@ describe("Unified CRM opportunity read service", () => {
             title: "Wrong record",
             summary: "Should not appear.",
             organizationId: "org-b",
+            stage: "NEW_INQUIRY",
+            nextActionLabel: "Call customer",
+            nextActionDueAt: new Date("2026-08-14T20:00:00.000Z"),
+            version: 1,
             ownerUser: { id: "seller-b", name: "Seller B" },
             customer: null,
             updatedAt: new Date("2026-08-14T18:30:00.000Z")
@@ -189,6 +212,10 @@ describe("Unified CRM opportunity read service", () => {
             title: "Invalid target",
             summary: "Must not be exposed as live.",
             organizationId: "org-a",
+            stage: "NEW_INQUIRY",
+            nextActionLabel: "Call customer",
+            nextActionDueAt: new Date("2026-08-14T20:00:00.000Z"),
+            version: 1,
             ownerUser: { id: "manager-a", name: "CRM Manager" },
             customer: null,
             updatedAt: new Date("2026-08-14T18:30:00.000Z")
@@ -217,6 +244,7 @@ describe("Unified CRM opportunity read service", () => {
         recordScope: { kind: "ORGANIZATION" },
         workspace: "MANAGEMENT"
       },
+      now: () => new Date("2026-08-14T18:45:00.000Z"),
       repository: repository({
         async listOpportunityPreviews() {
           throw new Error("private opportunity preview row");
