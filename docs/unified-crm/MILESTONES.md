@@ -168,7 +168,7 @@ Unless a row or acceptance ledger below says otherwise, slices begin as `PLANNED
 
 | ID | Agent-sized vertical slice | Acceptance evidence |
 | --- | --- | --- |
-| UCRM-050 | Global CRM search | Policy-filtered search covers approved customer, contact, opportunity, quote, task, appointment, vehicle, and dispatch identifiers; relevance is deterministic and no restricted existence leaks. |
+| UCRM-050 | Global CRM search — `IMPLEMENTED_UNVERIFIED` | Policy-filtered global search now covers customer, contact, opportunity, quote, task, appointment, vehicle, and dispatch identifiers behind a read-only scoped API with deterministic grouping and no restricted owner-scope existence leaks. Focused unit, route, runtime, lint, and type-filter proof are being collected; browser and broader regression proof remain pending. |
 | UCRM-051 | Search interaction UI | Keyboard-accessible command/results experience supports grouped results, recent permitted items, loading/empty/error/stale states, record opening, latency evidence, and browser proof. |
 | UCRM-052 | CRM Home operational dashboard | Metrics for owned work, overdue follow-up, pipeline, quotes, and dispatch handoffs reconcile to drill-through records and expose freshness/unavailable states. |
 | UCRM-053 | Manager exception queues | Unassigned, stalled, overdue, approval, and dispatch-handoff exceptions have explainable membership, authorized actions, pagination, tests, and browser proof. |
