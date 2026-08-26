@@ -213,7 +213,7 @@ Unless a row or acceptance ledger below says otherwise, slices begin as `PLANNED
 | UCRM-071 | Release-candidate validation — `IMPLEMENTED_UNVERIFIED` | A manager-only validation API now requires UCRM-060 through UCRM-067 evidence to be rerun or confirmed current against the exact release-candidate commit and production configuration before validation can pass. |
 | UCRM-072 | Operational handoff — `IMPLEMENTED_UNVERIFIED` | A manager-only handoff API now tracks owner confirmation for monitoring, support, permissions, flag changes, incident response, data recovery, training, and rollback authority before internal release decision. |
 | UCRM-073 | Internal release decision — `IMPLEMENTED_UNVERIFIED` | A manager-only release decision API now records approved cohorts/capabilities, known limitations, evidence commit, migration version, and rollback trigger, while holding release until all prior gates are approved. |
-| UCRM-074 | Post-release verification | Smoke workflows, reconciliation, alerts, error/latency/freshness, audit delivery, and support intake are checked after controlled enablement. |
+| UCRM-074 | Post-release verification — `IMPLEMENTED_UNVERIFIED` | A manager-only post-release verification API now tracks smoke workflows, reconciliation, alerts, error/latency/freshness, audit delivery, and support intake after controlled enablement, with rollback-required checks identified. |
 
 **Exit gate:** Only UCRM-073 may declare the internal MVP released. UCRM-074 must confirm the release remains healthy or activate rollback/hold criteria.
 
