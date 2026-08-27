@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-112 email draft surface implemented
+
+The current CRM implementation branch now contains a review-only email draft readiness surface. It can represent safe draft copy and no-send language without mailbox sync or provider delivery.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_112_EMAIL_DRAFT_SURFACE_EVIDENCE.md`](unified-crm/UCRM_112_EMAIL_DRAFT_SURFACE_EVIDENCE.md). `UCRM-112` is `IMPLEMENTED_UNVERIFIED`; provider send and mailbox sync remain disabled.
+
 ## 2026-08-27 — Unified CRM UCRM-111 conversation envelope boundary implemented
 
 The current CRM implementation branch now contains a conversation-envelope boundary around existing manual customer interaction storage. Manual outcomes can be treated as conversation envelope items without adding external provider side effects.
