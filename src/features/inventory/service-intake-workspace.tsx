@@ -144,12 +144,12 @@ function staffAssignmentLabel(user: ServiceIntakeOptions["users"][number]) {
   return `${user.name} — ${user.roles?.[0] ?? "Staff"}`;
 }
 
-function buildInitial(options: ServiceIntakeOptions, initialTimestamp: string, initialConcernSummary = "", initialVehicleId = "", initialVehicleRelationship: VehicleRelationshipIntent = "CUSTOMER_VEHICLE"): IntakeState {
+function buildInitial(options: ServiceIntakeOptions, initialTimestamp: string, initialVehicleId = "", initialVehicleRelationship: VehicleRelationshipIntent = "CUSTOMER_VEHICLE"): IntakeState {
   const now = new Date(initialTimestamp);
   const initialTechnician = technicianOptions(options.users)[0];
   return {
     arrivedAt: local(now),
-    concernSummary: initialConcernSummary,
+    concernSummary: "",
     consentReference: "",
     consentStatus: "PENDING",
     consentedAt: "",
@@ -172,7 +172,7 @@ function buildInitial(options: ServiceIntakeOptions, initialTimestamp: string, i
     vendorDirectFromSource: false,
     vendorExpectedReturnAt: local(new Date(now.getTime() + 3 * 24 * 60 * 60_000)),
     vendorId: "",
-    vendorScope: initialConcernSummary,
+    vendorScope: "",
     vendorSentFrom: "Dealership",
     vehicleRelationship: initialVehicleRelationship,
     vehicleId: options.vehicles.some((vehicle) => vehicle.id === initialVehicleId) ? initialVehicleId : "",
@@ -232,13 +232,13 @@ function mergeById<T extends { id: string }>(current: T[], saved: T[] = []) {
   return [...current, ...saved.filter((item) => !current.some((record) => record.id === item.id))];
 }
 
-export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = "", initialConcernSummary = "", initialTimestamp, initialVehicleId = "", initialVehicleRelationship = "CUSTOMER_VEHICLE", options, returnTo, showAdvisorReturn = false }: { currentUserId?: string; initialArrivalQuery?: string; initialConcernSummary?: string; initialTimestamp: string; initialVehicleId?: string; initialVehicleRelationship?: VehicleRelationshipIntent; options: ServiceIntakeOptions; returnTo?: string; showAdvisorReturn?: boolean }) {
+export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = "", initialTimestamp, initialVehicleId = "", initialVehicleRelationship = "CUSTOMER_VEHICLE", options, returnTo, showAdvisorReturn = false }: { currentUserId?: string; initialArrivalQuery?: string; initialConcernSummary?: string; initialTimestamp: string; initialVehicleId?: string; initialVehicleRelationship?: VehicleRelationshipIntent; options: ServiceIntakeOptions; returnTo?: string; showAdvisorReturn?: boolean }) {
   const formRef = useRef<HTMLFormElement>(null);
   const concernRef = useRef<HTMLTextAreaElement>(null);
   const repairOrderDecisionRef = useRef<HTMLElement>(null);
   const arrivalSearchRef = useRef<HTMLInputElement>(null);
   const inventoryUnitSectionRef = useRef<HTMLElement>(null);
-  const [form, setForm] = useState<IntakeState>(() => buildInitial(options, initialTimestamp, initialConcernSummary, initialVehicleId, initialVehicleRelationship));
+  const [form, setForm] = useState<IntakeState>(() => buildInitial(options, initialTimestamp, initialVehicleId, initialVehicleRelationship));
   const [arrivalQuery, setArrivalQuery] = useState(initialArrivalQuery);
   const [arrivalMode, setArrivalMode] = useState<"recent" | "search" | "today">("search");
   const [customerRecords, setCustomerRecords] = useState(options.customers);
@@ -439,10 +439,11 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
             return {
               ...current,
               ...draftForm,
-              concernSummary: initialConcernSummary || draftForm.concernSummary || current.concernSummary,
+              concernSummary: current.concernSummary,
               inventoryUnitId,
               locationId: options.locations.some((location) => location.id === draftForm.locationId) ? draftForm.locationId : current.locationId,
               ownerUserId: technicianOptions(options.users).some((user) => user.id === draftForm.ownerUserId) ? draftForm.ownerUserId : current.ownerUserId,
+              vendorScope: current.vendorScope,
               vehicleId,
               vehicleRelationship,
             };
@@ -454,7 +455,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       }
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [initialConcernSummary, initialVehicleId, initialVehicleRelationship, options.inventoryUnits, options.locations, options.users, options.vehicles]);
+  }, [initialVehicleId, initialVehicleRelationship, options.inventoryUnits, options.locations, options.users, options.vehicles]);
 
   useEffect(() => {
     if (form.vehicleRelationship !== "DEALERSHIP_INVENTORY" || !form.vehicleId || form.inventoryUnitId) return;

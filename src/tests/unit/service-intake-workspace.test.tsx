@@ -82,11 +82,12 @@ describe("enterprise service intake workspace", () => {
     });
   });
 
-  it("restores a selected canonical vehicle into the persistent intake form", () => {
+  it("restores a selected canonical vehicle without pre-filling the concern", () => {
     const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialConcernSummary="Customer reports brake vibration." initialTimestamp="2026-08-02T07:00:00.000Z" initialVehicleId="vehicle-1" options={options} />);
 
     expect(html).toContain("2024 Ford F-150");
-    expect(html).toContain("Customer reports brake vibration.");
+    expect(html).not.toContain("Customer reports brake vibration.");
+    expect(html).toContain("0 / 2,000");
     expect(html).toContain("Decoded vehicle information");
     expect(html).toContain("Canonical vehicle selected");
     expect(html).toContain("Vehicle 360");
@@ -111,27 +112,30 @@ describe("enterprise service intake workspace", () => {
     const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialConcernSummary="Complete inventory safety inspection and recon estimate." initialTimestamp="2026-08-02T07:00:00.000Z" initialVehicleId="vehicle-1" initialVehicleRelationship="DEALERSHIP_INVENTORY" options={inventoryOptions} />);
 
     expect(html).toContain('noValidate=""');
-    expect(html).toContain('type="button">Complete Check-In &amp; Create Repair Order');
+    expect(html).toContain('type="button">Capture Inventory Concern');
   });
 
-  it("offers the matching open RO when VIN and concern are the same", () => {
+  it("shows open RO history without auto-matching a stale incoming concern", () => {
     const matchingOptions = { ...options, repairOrders: [{ closedAt: null, customer: { displayName: "Jordan Customer" }, id: "ro-existing", openedAt: "2026-08-01T10:00:00.000Z", operatingState: "ACTIVE", repairOrderNumber: "RO-EXISTING", serviceVisit: { concernSummary: "Check engine light is on" }, stage: "INTAKE", vehicle: options.vehicles[0] }] };
     const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialConcernSummary="Customer reports a check engine warning lamp." initialTimestamp="2026-08-02T07:00:00.000Z" initialVehicleId="vehicle-1" options={matchingOptions} />);
 
     expect(html).toContain("VIN / canonical vehicle match");
-    expect(html).toContain("Same open concern detected");
+    expect(html).not.toContain("Customer reports a check engine warning lamp.");
+    expect(html).not.toContain("Same open concern detected");
     expect(html).toContain("RO-EXISTING");
-    expect(html).toContain("Save technician &amp; open RO");
-    expect(html).toContain("Duplicate RO blocked");
+    expect(html).toContain("Save technician &amp; open");
+    expect(html).toContain("The concern appears different");
+    expect(html).not.toContain("Duplicate RO blocked");
     expect(html).toContain("Repair-order decision");
   });
 
-  it("surfaces the existing-RO footer action when duplicate repair work is detected", () => {
+  it("keeps the footer on the first missing requirement before stale repair work can be matched", () => {
     const matchingOptions = { ...options, repairOrders: [{ closedAt: null, customer: { displayName: "Jordan Customer" }, id: "ro-existing", openedAt: "2026-08-01T10:00:00.000Z", operatingState: "ACTIVE", repairOrderNumber: "RO-EXISTING", serviceVisit: { concernSummary: "Check engine light is on" }, stage: "INTAKE", vehicle: options.vehicles[0] }] };
     const html = renderToStaticMarkup(<ServiceIntakeWorkspace initialConcernSummary="Customer reports a check engine warning lamp." initialTimestamp="2026-08-02T07:00:00.000Z" initialVehicleId="vehicle-1" options={matchingOptions} />);
 
-    expect(html).toContain("Next: Use Existing Repair Order");
-    expect(html).toContain('type="button">Use Existing Repair Order');
+    expect(html).not.toContain("Customer reports a check engine warning lamp.");
+    expect(html).toContain("Next: Add / Select Customer");
+    expect(html).toContain('type="button">Add / Select Customer');
   });
 
   it("requires a deliberate new-RO choice for a different concern on the same VIN", () => {
