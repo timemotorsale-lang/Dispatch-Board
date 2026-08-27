@@ -214,7 +214,7 @@ export async function executeServiceClosePartsCommand(actor: AuthenticatedUser |
   }
   if (action === "RECEIVE_PURCHASE_ORDER") {
     const record = receivePurchaseOrder; if (!record) throw new Error("Purchase order was not found."); const data = normalizeReceipt(raw), version = await context.repository.aggregateVersion(context.organizationId, "PARTS_OPERATIONS", "PART_PURCHASE_ORDER", record.id);
-    return context.repository.receivePurchaseOrder(command({ actorUserId: user.id, commandType: action, domain: "PARTS_OPERATIONS", expectedVersion: version, idempotencyKey: data.idempotencyKey, locationId: record.locationId, organizationId: context.organizationId, payload: payload(data), reason: data.reason, subjectId: record.id, subjectType: "PART_PURCHASE_ORDER" }), record.id, { ...data, receivedByUserId: user.id });
+    return context.repository.receivePurchaseOrder(command({ actorUserId: user.id, commandType: action, domain: "PARTS_OPERATIONS", expectedVersion: version, idempotencyKey: data.idempotencyKey, locationId: record.locationId, organizationId: context.organizationId, payload: payload(data), reason: data.reason, subjectId: record.id, subjectType: "PART_PURCHASE_ORDER" }), record.id, { ...data, receiptId: id, receivedByUserId: user.id });
   }
   if (action === "RESOLVE_RECEIVING_DISCREPANCY") {
     const record = view.discrepancies.find((item) => item.id === subjectId); if (!record) throw new Error("Receiving discrepancy was not found."); const data = normalizeDiscrepancyResolution(raw), version = await context.repository.aggregateVersion(context.organizationId, "PARTS_OPERATIONS", "PART_RECEIVING_DISCREPANCY", record.id);

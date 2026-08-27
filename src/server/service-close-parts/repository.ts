@@ -336,14 +336,14 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
       });
     },
 
-    receivePurchaseOrder(command: EnterpriseCommandCommitInput, purchaseOrderId: string, data: { invoiceReference: string | null; lines: ReceiptLine[]; packingSource: string; reason: string; receivedAt: Date; receivedByUserId: string; stockLocationId: string }) {
+    receivePurchaseOrder(command: EnterpriseCommandCommitInput, purchaseOrderId: string, data: { invoiceReference: string | null; lines: ReceiptLine[]; packingSource: string; reason: string; receiptId: string; receivedAt: Date; receivedByUserId: string; stockLocationId: string }) {
       return executeAggregateMutation(database, command, "vehicle-operations.parts", async (tx, version) => {
         const order = await tx.partPurchaseOrder.findFirst({ where: { id: purchaseOrderId, organizationId: command.organizationId, status: { in: ["ACKNOWLEDGED", "PARTIALLY_RECEIVED"] } }, include: { receipts: true } });
         if (!order) throw new Error("Acknowledged purchase order was not found.");
         const stockLocation = await tx.partStockLocation.findFirst({ where: { id: data.stockLocationId, organizationId: command.organizationId, locationId: order.locationId, isActive: true } });
         if (!stockLocation) throw new Error("Receipt stock location must be active at the purchase-order location.");
         const ordered = order.lines as PurchaseLine[], priorLines = order.receipts.flatMap((item) => item.lines as ReceiptLine[]);
-        const receipt = await tx.partReceipt.create({ data: { id: command.subjectId, invoiceReference: data.invoiceReference, lines: toJson(data.lines), organizationId: command.organizationId, packingSource: data.packingSource, purchaseOrderId: order.id, reason: data.reason, receivedAt: data.receivedAt, receivedByUserId: data.receivedByUserId, stockLocationId: data.stockLocationId } });
+        const receipt = await tx.partReceipt.create({ data: { id: data.receiptId, invoiceReference: data.invoiceReference, lines: toJson(data.lines), organizationId: command.organizationId, packingSource: data.packingSource, purchaseOrderId: order.id, reason: data.reason, receivedAt: data.receivedAt, receivedByUserId: data.receivedByUserId, stockLocationId: data.stockLocationId } });
         for (const [index, line] of data.lines.entries()) {
           await moveStock(tx, command, { actorUserId: data.receivedByUserId, movementType: "RECEIPT", occurredAt: data.receivedAt, partId: line.partId, quantityDelta: line.quantity - line.damagedQuantity, reason: data.reason, sourceId: `${receipt.id}:${index}`, sourceType: "PART_RECEIPT_LINE", stockLocationId: data.stockLocationId, unitCostCents: line.unitCostCents });
           const expected = ordered.find((item) => item.partId === line.partId), previouslyReceived = priorLines.filter((item) => item.partId === line.partId).reduce((sum, item) => sum + item.quantity, 0), expectedRemaining = Math.max(0, (expected?.quantity ?? 0) - previouslyReceived);
