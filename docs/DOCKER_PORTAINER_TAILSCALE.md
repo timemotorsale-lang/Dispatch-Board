@@ -46,6 +46,8 @@ deploy/docker/portainer-stack.tailscale.yaml
 
 The Portainer stack file is stored under `deploy/docker`, so its build context points two folders back to the repository root. Keep the Compose path above exactly as written; do not move the stack file into Portainer manually unless you also adjust the relative paths.
 
+Keep `next-env.d.ts` environment-neutral. It should not import generated route files from `.next-local`, because Portainer builds in a fresh Linux workspace where local Windows dev cache folders do not exist.
+
 4. Add environment variables from `deploy/docker/.env.example`.
 5. Replace the placeholder secrets before deploying.
 
