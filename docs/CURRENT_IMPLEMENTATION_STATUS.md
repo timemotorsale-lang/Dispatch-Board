@@ -1,5 +1,13 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-101 governed custom fields readiness held
+
+The current CRM implementation branch now contains a safe governed custom fields and layouts readiness boundary. Management can inspect namespace, type, versioning, validation, indexing, permission, reporting-impact, limit, admin-preview, and rollback gates before any custom metadata is treated as live.
+
+This checkpoint does not publish custom fields, alter live layouts, or enable runtime metadata mutation. Standard CRM fields and layouts remain the fallback.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_101_GOVERNED_CUSTOM_FIELDS_EVIDENCE.md`](unified-crm/UCRM_101_GOVERNED_CUSTOM_FIELDS_EVIDENCE.md). `UCRM-101` is `HELD`: the readiness boundary is in source, but activation is blocked by missing type, limit, indexing, validation, reporting, admin-preview, browser, and rollback decisions.
+
 ## 2026-08-27 — Unified CRM UCRM-100 enterprise sharing readiness held
 
 The current CRM implementation branch now contains a safe enterprise field, record, and territory sharing readiness boundary. Management can inspect the formal access model, field classification, record-scope, territory-rule, policy-proof, admin-preview, audit, migration, scale-test, and rollback gates before any enterprise access override is treated as live.
