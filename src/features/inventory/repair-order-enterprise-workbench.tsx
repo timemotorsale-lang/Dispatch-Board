@@ -61,7 +61,7 @@ type RepairOrderWorkbenchOrder = {
     year: number | null;
   };
   customer: { displayName: string } | null;
-  inventoryUnit: { inventoryNumber: string } | null;
+  inventoryUnit: { id?: string; inventoryNumber: string } | null;
   ownerUser: { id: string; name: string };
   location: { id: string; name: string };
   serviceVisit: {
@@ -1070,6 +1070,9 @@ export function RepairOrderEnterpriseWorkbench({
     ...(returnTo ? { returnTo } : {}),
     ...(returnLabel ? { returnLabel } : {}),
   })}`;
+  const workbenchReturnRoute = fullDetailMode ? detailRoute : summaryRoute;
+  const inventoryLifecycleHref = `/vehicles/${encodeURIComponent(order.vehicle.id)}/inventory-planning?${new URLSearchParams({ repairOrderId: order.id })}`;
+  const shopReconHref = `/vehicles/shop-recon?${new URLSearchParams({ returnTo: workbenchReturnRoute })}`;
   const summaryPrimaryHref = !vendorReadyForFinalQc && primaryActionHref.startsWith("#")
     ? `${detailRoute}${primaryActionHref}`
     : primaryActionHref;
@@ -1078,6 +1081,12 @@ export function RepairOrderEnterpriseWorkbench({
     : primaryActionHref;
   const footerPrimaryClick = fullDetailMode && primaryActionHref === vendorProgressHref ? openVendorProgress : undefined;
   const toggleReconReport = () => setReconReportOpen((open) => !open);
+  const vehicleToolLinks = () => order.inventoryUnit ? (
+    <div className="rowb-vehicle-tool-links" aria-label="Vehicle inventory shortcuts">
+      <Link href={inventoryLifecycleHref}><ClipboardCheck /> Inventory Lifecycle</Link>
+      <Link href={shopReconHref}><Wrench /> Shop &amp; Recon</Link>
+    </div>
+  ) : null;
 
   return (
     <section className={`rowb-shell${fullDetailMode ? " rowb-full-detail-mode" : ""}`} aria-label="Repair Order Workbench">
@@ -1161,6 +1170,7 @@ export function RepairOrderEnterpriseWorkbench({
               <small>{order.inventoryUnit ? "Inventory recon" : "Repair order"}</small>
               <h2>{vehicle}</h2>
               <p>{[order.repairOrderNumber, order.inventoryUnit?.inventoryNumber ?? order.vehicle.vehicleNumber, vehicleColor || "Color not recorded"].filter(Boolean).join(" · ")}</p>
+              {vehicleToolLinks()}
               {vehicleColorEditor}
             </div>
           </div>
@@ -1221,6 +1231,7 @@ export function RepairOrderEnterpriseWorkbench({
                 <div><dt>Inventory / vehicle</dt><dd>{order.inventoryUnit?.inventoryNumber ?? order.vehicle.vehicleNumber}</dd></div>
                 <div><dt>In-service date</dt><dd>{date(order.openedAt)}</dd></div>
               </dl>
+              {vehicleToolLinks()}
               {vehicleColorEditor}
             </article>
             <article>
@@ -1298,6 +1309,7 @@ export function RepairOrderEnterpriseWorkbench({
             <div><dt>Next action</dt><dd>{displayedNextAction}</dd></div>
           </dl>
         </div>
+        {vehicleToolLinks()}
         {vehicleColorEditor}
         <section className="rowb-location-workflow" aria-label="Location and workflow correction">
           <header>

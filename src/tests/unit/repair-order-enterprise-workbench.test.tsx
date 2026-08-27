@@ -37,6 +37,7 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("Repair outcome");
     expect(html).toContain("Recon Report");
     expect(html).toContain('aria-expanded="false"');
+    expect(html).not.toContain("Inventory Lifecycle");
     expect(html).not.toContain("Vehicle recon progress report");
     expect(html).not.toContain("Stall / blocker");
     expect(html).not.toContain("Next move");
@@ -70,6 +71,10 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("Estimate</span>");
     expect(html).toContain('<span class="current"><i>5</i>Repair</span>');
     expect(html).toContain('<span class="next"><i>6</i>Quality Check</span>');
+    expect(html).toContain("Inventory Lifecycle");
+    expect(html).toContain("Shop &amp; Recon");
+    expect(html).toContain("/vehicles/vehicle-1/inventory-planning?repairOrderId=ro-1");
+    expect(html).toContain("/vehicles/shop-recon?returnTo=");
     expect(html).not.toContain("Final QC</span>");
   });
 
@@ -171,6 +176,9 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("Inventory / work unit");
     expect(html).toContain("Inventory / Vehicle");
     expect(html).toContain("Internal recon approval is required before any repair work is performed");
+    expect(html).toContain("Inventory Lifecycle");
+    expect(html).toContain("Shop &amp; Recon");
+    expect(html).toContain("/vehicles/vehicle-1/inventory-planning?repairOrderId=ro-1");
   });
 
   it("uses vehicle custody as the synchronized physical location even when this RO has no vendor row", () => {
