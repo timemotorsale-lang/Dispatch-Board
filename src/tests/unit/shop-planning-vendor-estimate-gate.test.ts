@@ -34,21 +34,23 @@ const estimateData = {
   totalCents: 32000,
 };
 
-function database(vendorBasis: unknown, stage = "AUTHORIZATION") {
+function database(vendorBasis: unknown, stage = "AUTHORIZATION", aggregateVersion = 4, repairOrderVersion = aggregateVersion) {
   const tx = {
-    enterpriseAggregateVersion: { create: vi.fn(), findUnique: vi.fn().mockResolvedValue({ id: "aggregate-1", version: 4 }), update: vi.fn() },
+    enterpriseAggregateVersion: { create: vi.fn(), findUnique: vi.fn().mockResolvedValue({ id: "aggregate-1", version: aggregateVersion }), update: vi.fn() },
     enterpriseAuditEvent: { create: vi.fn() },
     enterpriseCommandLedger: { create: vi.fn().mockResolvedValue({ id: "command-1" }), findUnique: vi.fn().mockResolvedValue(null) },
     enterpriseDomainEvent: { create: vi.fn().mockResolvedValue({ id: "event-1" }) },
     enterpriseOutboxMessage: { create: vi.fn() },
-    repairDiagnosisVersion: { findFirst: vi.fn().mockResolvedValue(null) },
+    repairDiagnosisVersion: { create: vi.fn().mockResolvedValue({ id: "diagnosis-version-1", version: 1 }), findFirst: vi.fn().mockResolvedValue(null) },
     repairEstimateVersion: { create: vi.fn().mockResolvedValue({ id: "estimate-version-1", version: 1, totalCents: 32000 }), findFirst: vi.fn().mockResolvedValue(null) },
     repairOrder: {
+      findFirst: vi.fn().mockResolvedValue({ version: repairOrderVersion }),
       findFirstOrThrow: vi.fn().mockResolvedValue({ closedAt: null, id: "ro-1", locationId: "location-1", nextAction: "Present estimate.", operatingState: "ACTIVE", organizationId: "org-1", ownerUserId: "manager-1", stage, stageStartedAt: new Date("2026-08-25T11:00:00Z"), targetAt: null }),
-      update: vi.fn().mockResolvedValue({ id: "ro-1", locationId: "location-1", nextAction: "Capture decision.", operatingState: "ACTIVE", ownerUserId: "manager-1", stage: "ESTIMATE", targetAt: null, version: 5 }),
+      update: vi.fn().mockResolvedValue({ id: "ro-1", locationId: "location-1", nextAction: "Capture decision.", operatingState: "ACTIVE", ownerUserId: "manager-1", stage: "ESTIMATE", targetAt: null, version: repairOrderVersion + 1 }),
     },
     repairOrderStateEvent: { create: vi.fn() },
     repairVendorWork: { findFirst: vi.fn().mockResolvedValue(vendorBasis) },
+    user: { findFirst: vi.fn().mockResolvedValue({ id: "manager-1" }) },
   };
   return { db: { $transaction: (callback: (value: typeof tx) => unknown) => callback(tx) }, tx };
 }
@@ -64,6 +66,31 @@ describe("shop planning vendor estimate gate", () => {
       where: expect.objectContaining({ approvalStatus: { in: ["APPROVED", "NOT_REQUIRED"] }, repairOrderId: "ro-1" }),
     }));
     expect(result.result).toMatchObject({ basis: "APPROVED_OUTSIDE_VENDOR", repairOrderVersion: 5, stage: "ESTIMATE" });
+  });
+
+  it("lets direct repair scope continue when the command ledger is one version behind the repair order", async () => {
+    const staleCommand = { ...command, commandType: "RECORD_DIRECT_REPAIR_SCOPE", expectedVersion: 3, idempotencyKey: "scope-1" };
+    const { db, tx } = database(null, "INTAKE", 2, 3);
+    tx.repairOrder.update.mockResolvedValueOnce({ id: "ro-1", locationId: "location-1", nextAction: "Prepare estimate.", operatingState: "ACTIVE", ownerUserId: "manager-1", stage: "DIAGNOSIS", targetAt: null, version: 4 });
+    const repository = createShopPlanningRepository(db as never);
+
+    const result = await repository.directRepairScope(staleCommand, {
+      concern: "Visible body damage",
+      diagnosedAt: new Date("2026-08-25T12:00:00Z"),
+      evidence: ["broken side mirror"],
+      proposedCorrection: "Replace mirror and verify fit.",
+      recommendation: "Prepare bodywork estimate.",
+      scopeSummary: "Right side mirror broken",
+      scopeType: "BODYWORK",
+      technicianUserId: "manager-1",
+      uncertainty: "LOW",
+      whyNoDiagnosis: "Visible body damage does not require troubleshooting diagnostics.",
+    });
+
+    expect(tx.enterpriseAggregateVersion.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ version: 4 }),
+    }));
+    expect(result.result).toMatchObject({ path: "DIRECT_REPAIR_SCOPE", repairOrderVersion: 4, stage: "DIAGNOSIS" });
   });
 
   it("still blocks estimates when neither diagnosis nor approved vendor workflow exists", async () => {
