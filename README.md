@@ -106,6 +106,7 @@ npm run build
 - Current implementation status: [docs/CURRENT_IMPLEMENTATION_STATUS.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/CURRENT_IMPLEMENTATION_STATUS.md)
 - Enterprise data movement program: [docs/data-movement/README.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/data-movement/README.md)
 - Setup: [docs/SETUP.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/SETUP.md)
+- Docker, Portainer, and Tailscale deployment: [docs/DOCKER_PORTAINER_TAILSCALE.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/DOCKER_PORTAINER_TAILSCALE.md)
 - Architecture: [docs/ARCHITECTURE.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/ARCHITECTURE.md)
 - Roadmap: [docs/ROADMAP.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/ROADMAP.md)
 - Projects module guide: [docs/projects/PROJECTS_MODULE_GUIDE.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/projects/PROJECTS_MODULE_GUIDE.md)

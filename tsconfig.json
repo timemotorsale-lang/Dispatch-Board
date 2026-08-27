@@ -39,9 +39,7 @@
     ".next-local/types/**/*.ts",
     ".next-local/dev/types/**/*.ts",
     ".next-runtime/types/**/*.ts",
-    ".next-runtime/dev/types/**/*.ts",
-    "../../../../AppData/Local/DispatchBoard/next/*/types/**/*.ts",
-    "../../../../AppData/Local/DispatchBoard/next/*/dev/types/**/*.ts"
+    ".next-runtime/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

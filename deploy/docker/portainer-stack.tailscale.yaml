@@ -1,7 +1,7 @@
 # Portainer Git-stack definition for a private Tailscale deployment.
 #
 # Select this file as the Compose path in Portainer, set the variables listed in
-# deploy/portainer/.env.example in the stack's environment-variable UI, and run
+# deploy/docker/.env.example in the stack's environment-variable UI, and run
 # Tailscale Serve on the Docker host (not in this stack). The only host port is
 # loopback-only so the app cannot be reached from the LAN or public Internet.
 name: dispatch-board
