@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM release program stages 1–4 implemented as held review package
+
+Stages 1 through 4 of the current CRM release-readiness program are now represented in source evidence. The current envelope UCRM-122 through UCRM-127 is implemented and checkpointed; focused tests and typecheck passed for the envelope; held business decisions and pilot release gates are explicitly listed without enabling release, pilot cohort access, providers, production promotion, or risky operational behavior.
+
+Evidence is recorded in [`docs/unified-crm/UCRM_RELEASE_PROGRAM_STAGE_1_4_EVIDENCE.md`](unified-crm/UCRM_RELEASE_PROGRAM_STAGE_1_4_EVIDENCE.md). The release state remains held: implemented milestones are still `IMPLEMENTED_UNVERIFIED` until browser/UX proof, broader regression, production build proof, owner approvals, and pilot go/no-go are complete.
+
 ## 2026-08-27 — Unified CRM UCRM-127 release-readiness cleanup implemented
 
 The current CRM implementation branch now contains a manager-only release-readiness cleanup model for the communication/admin envelope. It records focused-test/typecheck progress, preserved fallbacks, and exact release blockers for authenticated browser proof, accessibility proof, rollback rehearsal, business decisions, and pilot go/no-go.
