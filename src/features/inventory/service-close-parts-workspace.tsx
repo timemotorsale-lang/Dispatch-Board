@@ -524,12 +524,19 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
     }
     if (target === "receive") {
       if (!openPurchaseOrders.length) throw new Error("This repair order has no open purchase order to receive.");
-      let stockLocationId = "";
+      const receiptsByPurchaseOrder = new Map<string, { lines: PartLine[]; notes: string[]; purchaseOrder: PurchaseOrder }>();
       for (const line of lines) {
-        const purchaseOrder = openPurchaseOrders[0], description = descriptionFrom(line), partId = await ensurePart(description);
-        await ensurePurchaseOrderAcknowledged(purchaseOrder);
-        stockLocationId ||= await ensureStockLocationFor(purchaseOrder.locationId);
-        await request({ action: "RECEIVE_PURCHASE_ORDER", invoiceReference: null, lines: [{ damagedQuantity: /damaged/i.test(line) ? quantityFrom(line) : 0, partId, quantity: quantityFrom(line), unitCostCents: amountFrom(line) }], packingSource: `NOTE-${crypto.randomUUID()}`, reason: `Received parts note: ${line}`, receivedAt: now(), stockLocationId, subjectId: purchaseOrder.id });
+        const description = descriptionFrom(line), partId = await ensurePart(description);
+        const purchaseOrder = openPurchaseOrders.find((item) => cleanPartLines(item.lines).some((purchaseLine) => purchaseLine.partId === partId)) ?? openPurchaseOrders[0];
+        const draft = receiptsByPurchaseOrder.get(purchaseOrder.id) ?? { lines: [], notes: [], purchaseOrder };
+        draft.lines.push({ damagedQuantity: /damaged/i.test(line) ? quantityFrom(line) : 0, partId, quantity: quantityFrom(line), unitCostCents: amountFrom(line) });
+        draft.notes.push(line);
+        receiptsByPurchaseOrder.set(purchaseOrder.id, draft);
+      }
+      for (const draft of receiptsByPurchaseOrder.values()) {
+        await ensurePurchaseOrderAcknowledged(draft.purchaseOrder);
+        const stockLocationId = await ensureStockLocationFor(draft.purchaseOrder.locationId);
+        await request({ action: "RECEIVE_PURCHASE_ORDER", invoiceReference: null, lines: draft.lines, packingSource: `NOTE-${crypto.randomUUID()}`, reason: `Received parts note: ${draft.notes.join("; ")}`, receivedAt: now(), stockLocationId, subjectId: draft.purchaseOrder.id });
       }
     }
     if (target === "use") {
