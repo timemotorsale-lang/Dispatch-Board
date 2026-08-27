@@ -1,5 +1,13 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-082 email/calendar provider B readiness held
+
+The current CRM implementation branch now contains a second-provider readiness boundary for future email/calendar integration. Provider B is explicitly independent from Provider A, so a first provider approval cannot silently authorize, configure, or prove a second provider.
+
+This checkpoint does not select a second provider, connect OAuth, sync messages, write calendar events, or send email. Provider B has separate held gates for credentials, least-privilege scopes, conflict handling, dedupe isolation, security/privacy, browser proof, and rollback.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_082_EMAIL_CALENDAR_PROVIDER_B_EVIDENCE.md`](unified-crm/UCRM_082_EMAIL_CALENDAR_PROVIDER_B_EVIDENCE.md). `UCRM-082` is `HELD`: the readiness boundary is in source, but live Provider B activation is blocked by missing provider-specific decisions and evidence.
+
 ## 2026-08-27 — Unified CRM UCRM-081 email/calendar provider A readiness held
 
 The current CRM implementation branch now contains a safe provider A readiness boundary for future email/calendar integration. Management can inspect which gates must be satisfied before email, calendar sync, or calendar writes are allowed.
