@@ -9,10 +9,24 @@ export type UnifiedCrmConfigurationPromotionCheck = {
   status: UnifiedCrmConfigurationPromotionStatus;
 };
 
+export type UnifiedCrmConfigurationPromotionDiffItem = {
+  id: string;
+  area: "FIELDS" | "LAYOUTS" | "WORKFLOWS" | "PERMISSIONS" | "ROLLBACK";
+  changeType: "ADD" | "CHANGE" | "REVIEW";
+  title: string;
+  impact: string;
+  productionApplyEnabled: false;
+};
+
 export type UnifiedCrmConfigurationPromotionReadModel = {
   activation: { productionPromotionEnabled: false; sandboxConfigEnabled: false; state: "HELD" };
   checks: UnifiedCrmConfigurationPromotionCheck[];
   contractVersion: typeof UNIFIED_CRM_CONFIGURATION_PROMOTION_CONTRACT_VERSION;
+  diffReview: {
+    state: "READY_REVIEW";
+    productionApplyEnabled: false;
+    items: UnifiedCrmConfigurationPromotionDiffItem[];
+  };
   generatedAt: string;
   rollback: { fallback: "manual-reviewed-configuration-change"; featureControl: "crm.enterprise.configurationPromotion.enabled"; posture: "fail-closed" };
   state: "HELD";

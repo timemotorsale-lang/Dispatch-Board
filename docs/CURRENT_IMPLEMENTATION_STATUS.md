@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-126 sandbox promotion diff review implemented
+
+The current CRM implementation branch now extends the configuration-promotion readiness boundary with a manager-only diff review model covering fields, layouts, workflows, permissions, and rollback impact. Production apply remains disabled.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_126_CONFIGURATION_PROMOTION_DIFF_EVIDENCE.md`](unified-crm/UCRM_126_CONFIGURATION_PROMOTION_DIFF_EVIDENCE.md). `UCRM-126` is `IMPLEMENTED_UNVERIFIED`; no sandbox publish or production promotion was enabled.
+
 ## 2026-08-27 — Unified CRM UCRM-125 workflow simulation preview implemented
 
 The current CRM implementation branch now extends the workflow/approval designer readiness boundary with deterministic simulation previews for quote discount review, overdue customer follow-up, and unassigned opportunity handling. It keeps publishing and live workflow execution disabled.

@@ -13,6 +13,9 @@ describe("Unified CRM configuration promotion readiness", () => {
     expect(result.activation.productionPromotionEnabled).toBe(false);
     expect(result.checks.find((check) => check.category === "diffReview")).toMatchObject({ status: "PASS" });
     expect(result.checks.find((check) => check.category === "maskedData")).toMatchObject({ status: "HOLD" });
+    expect(result.diffReview).toMatchObject({ state: "READY_REVIEW", productionApplyEnabled: false });
+    expect(result.diffReview.items.map((item) => item.area)).toEqual(["FIELDS", "LAYOUTS", "WORKFLOWS", "PERMISSIONS", "ROLLBACK"]);
+    expect(result.diffReview.items.every((item) => item.productionApplyEnabled === false)).toBe(true);
   });
   it("denies non-manager workspaces", async () => {
     await expect(getUnifiedCrmConfigurationPromotion(seller)).rejects.toMatchObject({ code: "CONFIGURATION_PROMOTION_NOT_AUTHORIZED" });
