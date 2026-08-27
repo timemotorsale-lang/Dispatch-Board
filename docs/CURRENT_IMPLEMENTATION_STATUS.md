@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM remaining pilot-release proof gates run
+
+The remaining local CRM pilot-release proof gates were run. Typecheck passed; the focused release/readiness/accessibility route suite passed with 9 files and 18 tests; the impacted Dispatch/repair workflow smoke suite passed with 10 files and 92 tests; direct production package proof passed with `npx next build`; and an authenticated local browser walkthrough loaded the supported CRM views and review routes without 404s, console errors, or responsive overflow at desktop and mobile breakpoints.
+
+Evidence is recorded in [`docs/unified-crm/UCRM_RELEASE_CANDIDATE_LOCAL_VERIFICATION_EVIDENCE.md`](unified-crm/UCRM_RELEASE_CANDIDATE_LOCAL_VERIFICATION_EVIDENCE.md). The release candidate remains `IMPLEMENTED_UNVERIFIED`, not releasable, because the scripted `npm run build` path is still blocked by a local locked Prisma Windows DLL, keyboard traversal needs a real/manual or reliable harness proof, and named pilot cohort, owner approvals, rollback approver, provider approvals, and pilot go/no-go remain unapproved. No release enablement, provider traffic, pilot cohort activation, production promotion, or write-capable CRM behavior outside approved governed surfaces was enabled.
+
 ## 2026-08-27 — Unified CRM release-candidate local verification checkpoint recorded
 
 The current CRM release-readiness package now has a stronger local verification checkpoint. Focused release/pilot gate tests passed, verification-gate route tests passed, TypeScript typecheck passed, and the full unit-test folder suite now passes after release-cleanup repair: 722 files and 3,315 tests. The cleanup also tightened delegated vehicle capability grants so scoped grant limits fail with `GRANT_CONSTRAINTS_NOT_MET` instead of falling through to broad role defaults.
