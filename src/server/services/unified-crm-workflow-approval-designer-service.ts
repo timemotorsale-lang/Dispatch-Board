@@ -4,7 +4,8 @@ import {
   UNIFIED_CRM_WORKFLOW_APPROVAL_DESIGNER_CONTRACT_VERSION,
   UnifiedCrmWorkflowApprovalDesignerError,
   type UnifiedCrmWorkflowApprovalDesignerCheck,
-  type UnifiedCrmWorkflowApprovalDesignerReadModel
+  type UnifiedCrmWorkflowApprovalDesignerReadModel,
+  type UnifiedCrmWorkflowSimulationPreview
 } from "@/server/unified-crm/workflow-approval-designer-contract";
 
 type Dependencies = { now?: () => Date };
@@ -20,6 +21,36 @@ const CHECKS: UnifiedCrmWorkflowApprovalDesignerCheck[] = [
   { category: "sandboxPublish", evidence: "Publishing requires sandbox proof, diff review, authorization, browser proof, and rollback rehearsal.", holdOwner: "product-owner", status: "HOLD" }
 ];
 
+const SIMULATION_PREVIEWS: UnifiedCrmWorkflowSimulationPreview[] = [
+  {
+    id: "quote-discount-manager-review",
+    name: "Quote discount manager review",
+    trigger: "QUOTE_DISCOUNT_REQUESTED",
+    simulatedOutcome: "ROUTE_TO_MANAGER",
+    liveExecutionEnabled: false,
+    steps: ["Validate quote version", "Check commercial authority", "Route to manager review"],
+    blockedActions: ["No quote presentation", "No approval decision", "No customer communication"]
+  },
+  {
+    id: "overdue-followup-review-task",
+    name: "Overdue customer follow-up review task",
+    trigger: "OVERDUE_CUSTOMER_FOLLOWUP",
+    simulatedOutcome: "CREATE_REVIEW_TASK",
+    liveExecutionEnabled: false,
+    steps: ["Read Customer 360 next action", "Classify overdue state", "Preview governed task handoff"],
+    blockedActions: ["No task creation", "No SMS reminder", "No email send"]
+  },
+  {
+    id: "unassigned-opportunity-held",
+    name: "Unassigned opportunity held review",
+    trigger: "UNASSIGNED_OPPORTUNITY",
+    simulatedOutcome: "NO_ACTION_HELD",
+    liveExecutionEnabled: false,
+    steps: ["Detect unassigned opportunity", "Preview owner requirement", "Surface manager queue item"],
+    blockedActions: ["No owner assignment", "No stage move", "No notification"]
+  }
+];
+
 export async function getUnifiedCrmWorkflowApprovalDesigner(
   actor: AuthenticatedUser | null,
   dependencies: Dependencies = {}
@@ -32,6 +63,16 @@ export async function getUnifiedCrmWorkflowApprovalDesigner(
     activation: { liveWorkflowExecutionEnabled: false, publishEnabled: false, simulationEnabled: true, state: "HELD" },
     checks: CHECKS.map((check) => ({ ...check })),
     contractVersion: UNIFIED_CRM_WORKFLOW_APPROVAL_DESIGNER_CONTRACT_VERSION,
+    simulationPreview: {
+      state: "READY_REVIEW",
+      liveExecutionEnabled: false,
+      publishEnabled: false,
+      previews: SIMULATION_PREVIEWS.map((preview) => ({
+        ...preview,
+        steps: [...preview.steps],
+        blockedActions: [...preview.blockedActions]
+      }))
+    },
     generatedAt: (dependencies.now?.() ?? new Date()).toISOString(),
     rollback: { fallback: "manual-approval-and-existing-source-workflows", featureControl: "crm.enterprise.workflowDesigner.enabled", posture: "fail-closed" },
     state: "HELD",

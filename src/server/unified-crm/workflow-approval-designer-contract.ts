@@ -10,6 +10,16 @@ export type UnifiedCrmWorkflowApprovalDesignerCheck = {
   status: UnifiedCrmWorkflowApprovalDesignerStatus;
 };
 
+export type UnifiedCrmWorkflowSimulationPreview = {
+  id: string;
+  name: string;
+  trigger: "QUOTE_DISCOUNT_REQUESTED" | "OVERDUE_CUSTOMER_FOLLOWUP" | "UNASSIGNED_OPPORTUNITY";
+  simulatedOutcome: "ROUTE_TO_MANAGER" | "CREATE_REVIEW_TASK" | "NO_ACTION_HELD";
+  liveExecutionEnabled: false;
+  steps: string[];
+  blockedActions: string[];
+};
+
 export type UnifiedCrmWorkflowApprovalDesignerReadModel = {
   activation: {
     liveWorkflowExecutionEnabled: false;
@@ -19,6 +29,12 @@ export type UnifiedCrmWorkflowApprovalDesignerReadModel = {
   };
   checks: UnifiedCrmWorkflowApprovalDesignerCheck[];
   contractVersion: typeof UNIFIED_CRM_WORKFLOW_APPROVAL_DESIGNER_CONTRACT_VERSION;
+  simulationPreview: {
+    state: "READY_REVIEW";
+    liveExecutionEnabled: false;
+    publishEnabled: false;
+    previews: UnifiedCrmWorkflowSimulationPreview[];
+  };
   generatedAt: string;
   rollback: { fallback: "manual-approval-and-existing-source-workflows"; featureControl: "crm.enterprise.workflowDesigner.enabled"; posture: "fail-closed" };
   state: "HELD";

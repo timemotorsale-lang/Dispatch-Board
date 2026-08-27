@@ -274,7 +274,7 @@ No adapter is complete at “API connected.” Each is a full vertical slice wit
 | UCRM-122 | E-signature/document readiness surface — `IMPLEMENTED_UNVERIFIED` | Management can review document/signature readiness gates without sending envelopes. |
 | UCRM-123 | Accounting/DMS mapping preview — `IMPLEMENTED_UNVERIFIED` | Management can preview mappings/conflicts for one future system without sync or writes. |
 | UCRM-124 | Custom field/layout admin preview — `IMPLEMENTED_UNVERIFIED` | Admins can preview effective custom layouts without publishing. |
-| UCRM-125 | Workflow simulation preview | Admins can simulate workflow rules without live execution. |
+| UCRM-125 | Workflow simulation preview — `IMPLEMENTED_UNVERIFIED` | Admins can simulate workflow rules without live execution. |
 | UCRM-126 | Sandbox promotion diff/review screen | Admins can review config promotion diffs without production promotion. |
 | UCRM-127 | CRM release-readiness cleanup and regression stabilization | The communication/admin envelope receives regression, accessibility, fallback, rollback, and evidence cleanup before merge review. |
 

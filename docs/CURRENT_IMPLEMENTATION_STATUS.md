@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-125 workflow simulation preview implemented
+
+The current CRM implementation branch now extends the workflow/approval designer readiness boundary with deterministic simulation previews for quote discount review, overdue customer follow-up, and unassigned opportunity handling. It keeps publishing and live workflow execution disabled.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_125_WORKFLOW_SIMULATION_PREVIEW_EVIDENCE.md`](unified-crm/UCRM_125_WORKFLOW_SIMULATION_PREVIEW_EVIDENCE.md). `UCRM-125` is `IMPLEMENTED_UNVERIFIED`; no workflow, task, notification, quote, or source-domain mutation was executed.
+
 ## 2026-08-27 — Unified CRM UCRM-124 custom field/layout admin preview implemented
 
 The current CRM implementation branch now extends the governed custom-fields readiness boundary with an admin layout preview for Customer 360, Opportunity Detail, and Quote Review surfaces. It shows future field labels, types, classifications, and target surfaces while keeping publishing and runtime mutation disabled.

@@ -14,6 +14,10 @@ describe("Unified CRM workflow approval designer readiness", () => {
     expect(result.activation).toEqual({ liveWorkflowExecutionEnabled: false, publishEnabled: false, simulationEnabled: true, state: "HELD" });
     expect(result.checks.find((check) => check.category === "simulation")).toMatchObject({ status: "PASS" });
     expect(result.checks.find((check) => check.category === "loopProtection")).toMatchObject({ status: "HOLD" });
+    expect(result.simulationPreview).toMatchObject({ state: "READY_REVIEW", liveExecutionEnabled: false, publishEnabled: false });
+    expect(result.simulationPreview.previews).toHaveLength(3);
+    expect(result.simulationPreview.previews.map((preview) => preview.liveExecutionEnabled)).toEqual([false, false, false]);
+    expect(result.simulationPreview.previews[0]?.blockedActions).toContain("No customer communication");
   });
 
   it("denies non-manager workspaces", async () => {
