@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-127 release-readiness cleanup implemented
+
+The current CRM implementation branch now contains a manager-only release-readiness cleanup model for the communication/admin envelope. It records focused-test/typecheck progress, preserved fallbacks, and exact release blockers for authenticated browser proof, accessibility proof, rollback rehearsal, business decisions, and pilot go/no-go.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_127_RELEASE_READINESS_CLEANUP_EVIDENCE.md`](unified-crm/UCRM_127_RELEASE_READINESS_CLEANUP_EVIDENCE.md). `UCRM-127` is `IMPLEMENTED_UNVERIFIED`; release remains held, merge review is not declared ready, and existing Dispatch/Customers/Sales fallbacks remain required.
+
 ## 2026-08-27 — Unified CRM UCRM-126 sandbox promotion diff review implemented
 
 The current CRM implementation branch now extends the configuration-promotion readiness boundary with a manager-only diff review model covering fields, layouts, workflows, permissions, and rollback impact. Production apply remains disabled.
