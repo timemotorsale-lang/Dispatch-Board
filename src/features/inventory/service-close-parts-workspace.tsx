@@ -195,6 +195,27 @@ async function createPartFromDescription(description: string) {
   return id as string;
 }
 
+async function createTemporaryStockLocation(locationId: string) {
+  const code = `TMP-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+  const response = await fetch("/api/parts/locations", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      code,
+      idempotencyKey: crypto.randomUUID(),
+      locationId,
+      name: "Temporary receiving bin",
+      reason: "Create temporary testing stock location so parts receiving can continue.",
+      type: "STAGING",
+    }),
+  });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error ?? "Temporary stock location could not be created.");
+  const id = result.result?.id ?? result.id;
+  if (!id) throw new Error("Temporary stock location was created, but its record ID was not returned.");
+  return id as string;
+}
+
 function Field({ children, label }: { children: React.ReactNode; label: string }) {
   return <label className="scp-field"><span>{label}</span>{children}</label>;
 }
@@ -331,7 +352,6 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
 
   const reason = (action: string) => `Record ${action.toLowerCase().replaceAll("_", " ")} from the enterprise parts workspace.`;
   const defaultLocationId = selectedOrder?.locationId ?? first(model.locations);
-  const defaultStockLocationId = first(model.stockLocations);
 
   function noteLines(value: string) {
     return value.split(/\r?\n/).map((line) => cleanDescription(line.replace(/^\d+[.)]\s*/, ""))).filter(Boolean);
@@ -416,6 +436,12 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
     return id as string;
   }
 
+  async function ensureStockLocationFor(locationId: string) {
+    if (!locationId) throw new Error("Business location is required before parts can be received.");
+    const existingLocation = model.stockLocations.find((stockLocation) => stockLocation.locationId === locationId);
+    return existingLocation?.id ?? await createTemporaryStockLocation(locationId);
+  }
+
   async function createAndSelectManualOffer(requisitionId: string, partId: string, vendorId: string, line: string) {
     const offerResult = await request({
       action: "CREATE_VENDOR_OFFER",
@@ -498,24 +524,28 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
     }
     if (target === "receive") {
       if (!openPurchaseOrders.length) throw new Error("This repair order has no open purchase order to receive.");
+      let stockLocationId = "";
       for (const line of lines) {
         const purchaseOrder = openPurchaseOrders[0], description = descriptionFrom(line), partId = await ensurePart(description);
         await ensurePurchaseOrderAcknowledged(purchaseOrder);
-        await request({ action: "RECEIVE_PURCHASE_ORDER", invoiceReference: null, lines: [{ damagedQuantity: /damaged/i.test(line) ? quantityFrom(line) : 0, partId, quantity: quantityFrom(line), unitCostCents: amountFrom(line) }], packingSource: `NOTE-${crypto.randomUUID()}`, reason: `Received parts note: ${line}`, receivedAt: now(), stockLocationId: defaultStockLocationId, subjectId: purchaseOrder.id });
+        stockLocationId ||= await ensureStockLocationFor(purchaseOrder.locationId);
+        await request({ action: "RECEIVE_PURCHASE_ORDER", invoiceReference: null, lines: [{ damagedQuantity: /damaged/i.test(line) ? quantityFrom(line) : 0, partId, quantity: quantityFrom(line), unitCostCents: amountFrom(line) }], packingSource: `NOTE-${crypto.randomUUID()}`, reason: `Received parts note: ${line}`, receivedAt: now(), stockLocationId, subjectId: purchaseOrder.id });
       }
     }
     if (target === "use") {
+      const stockLocationId = await ensureStockLocationFor(defaultLocationId);
       for (const line of lines) {
         const description = descriptionFrom(line), partId = await ensurePart(description), notUsed = /not used|unused|return/i.test(line);
-        await request({ action: "RECORD_PART_CUSTODY", evidence: /photo|invoice|receipt/i.test(line) ? [line] : notUsed ? [] : [line], occurredAt: now(), partId, quantity: quantityFrom(line), reason: `Used parts note: ${line}`, repairJobId: selectedOrder.repairJobs?.[0]?.id ?? null, reservationId: null, sourceId: `RO:${selectedOrder.id}|NOTE-${crypto.randomUUID()}`, stockLocationId: defaultStockLocationId, type: notUsed ? "UNUSED_RETURN" : "INSTALL", unitCostCents: amountFrom(line) });
+        await request({ action: "RECORD_PART_CUSTODY", evidence: /photo|invoice|receipt/i.test(line) ? [line] : notUsed ? [] : [line], occurredAt: now(), partId, quantity: quantityFrom(line), reason: `Used parts note: ${line}`, repairJobId: selectedOrder.repairJobs?.[0]?.id ?? null, reservationId: null, sourceId: `RO:${selectedOrder.id}|NOTE-${crypto.randomUUID()}`, stockLocationId, type: notUsed ? "UNUSED_RETURN" : "INSTALL", unitCostCents: amountFrom(line) });
         if (notUsed) await request({ action: "CREATE_PART_RECOVERY", deadlineAt: future(7), expectedCreditCents: amountFrom(line), partId, quantity: quantityFrom(line), reason: "Automatically open return ticket because the part was marked not used.", sourceReference: `RO:${selectedOrder.id}|${line}`, type: "VENDOR_RETURN", vendorId: null });
       }
     }
     if (target === "vendor") {
+      const stockLocationId = await ensureStockLocationFor(defaultLocationId);
       for (const [index, line] of lines.entries()) {
         const description = descriptionFrom(line), partId = await ensurePart(description), vendorName = vendorFrom(line);
         await ensureVendor(vendorName);
-        await request({ action: "RECORD_PART_CUSTODY", evidence: [line], occurredAt: now(), partId, quantity: quantityFrom(line), reason: `Delivered part to outside vendor ${vendorName}: ${line}`, repairJobId: selectedOrder.repairJobs?.[0]?.id ?? null, reservationId: null, sourceId: `RO:${selectedOrder.id}|VENDOR-${crypto.randomUUID()}-${index + 1}`, stockLocationId: defaultStockLocationId, type: "VENDOR_SHIP", unitCostCents: amountFrom(line) });
+        await request({ action: "RECORD_PART_CUSTODY", evidence: [line], occurredAt: now(), partId, quantity: quantityFrom(line), reason: `Delivered part to outside vendor ${vendorName}: ${line}`, repairJobId: selectedOrder.repairJobs?.[0]?.id ?? null, reservationId: null, sourceId: `RO:${selectedOrder.id}|VENDOR-${crypto.randomUUID()}-${index + 1}`, stockLocationId, type: "VENDOR_SHIP", unitCostCents: amountFrom(line) });
       }
     }
     if (target === "return") {
