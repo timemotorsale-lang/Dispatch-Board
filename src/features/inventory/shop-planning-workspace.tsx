@@ -236,7 +236,10 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
   const [completedByUserId, setCompletedByUserId] = useState(initial.users[0]?.id ?? "");
 
   const selected = model.repairOrders.find((item) => item.id === selectedId) ?? model.repairOrders[0];
-  const safeReturnTo = returnTo?.startsWith("/") && !returnTo.startsWith("//") ? returnTo : selected ? `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(selected.id)}` : "/vehicles/repair-workbench";
+  const summaryCardHref = selected
+    ? `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(selected.id)}&vehicleId=${encodeURIComponent(selected.vehicle.id)}`
+    : "/vehicles/repair-workbench";
+  const safeReturnTo = returnTo?.startsWith("/") && !returnTo.startsWith("//") ? returnTo : summaryCardHref;
   const currentStep = activeStep(selected);
   const latestEstimate = selected?.estimateVersions[0];
   const latestDiagnosis = selected?.diagnosisVersions[0];
@@ -910,7 +913,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
         <h1>Repair Planning Command Center</h1>
         <p>Turn intake into the right governed path: full diagnosis when troubleshooting is needed, direct repair scope when damage is visible, or outside vendor repair when the work should move offsite.</p>
       </div>
-      <div className={styles.heroActions}><Link href={safeReturnTo}><ArrowLeft />Return to workbench</Link>{selected ? <Link className={styles.primary} href={`/vehicles/360/${encodeURIComponent(selected.vehicle.id)}?returnTo=${encodeURIComponent(`/vehicles/shop-planning?repairOrderId=${selected.id}&returnTo=${encodeURIComponent(safeReturnTo)}`)}`}>Open Vehicle 360</Link> : null}</div>
+      <div className={styles.heroActions}><Link href={summaryCardHref}><ArrowLeft />Return to summary card</Link>{safeReturnTo !== summaryCardHref ? <Link href={safeReturnTo}>Return to source workbench</Link> : null}{selected ? <Link className={styles.primary} href={`/vehicles/360/${encodeURIComponent(selected.vehicle.id)}?returnTo=${encodeURIComponent(`/vehicles/shop-planning?repairOrderId=${selected.id}&returnTo=${encodeURIComponent(summaryCardHref)}`)}`}>Open Vehicle 360</Link> : null}</div>
       <div className={styles.truthBar}><span><BadgeCheck /><b>Authoritative repair plan</b></span><span><LockKeyhole />Immutable evidence versions</span><span>Exact-version customer authorization required</span><span>Repair work remains blocked until readiness passes.</span></div>
     </header>
 

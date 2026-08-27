@@ -31,7 +31,9 @@ describe("Shop Planning diagnostic release workspace", () => {
     expect(markup).toContain("Open full Labor Guide");
     expect(markup).toContain("Evidence ledger");
     expect(markup).toContain("Exact-version customer authorization required");
-    expect(markup).toContain("Return to workbench");
+    expect(markup).toContain("Return to summary card");
+    expect(markup).toContain('href="/vehicles/repair-workbench?repairOrderId=ro-1&amp;vehicleId=vehicle-1"');
+    expect(markup).toContain("Return to source workbench");
     expect(markup).toContain("Simple inspection entry");
     expect(markup).toContain("What did you inspect?");
     expect(markup).toContain("Proof / evidence");
