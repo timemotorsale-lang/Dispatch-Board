@@ -1,5 +1,13 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-086 accounting/DMS connector readiness held
+
+The current CRM implementation branch now contains a safe accounting/DMS connector readiness boundary. Management can inspect the field ownership, mapping, conflict, backfill, incremental sync, reconciliation, sensitive data, failure recovery, and disablement gates before any accounting or DMS integration is treated as live.
+
+This checkpoint does not select an external system, run sync, perform backfill, or write accounting/DMS records. All connector behavior remains disabled until one named system, field ownership map, mapping rules, conflict behavior, dry-run proof, reconciliation proof, browser proof, and rollback evidence are approved.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_086_ACCOUNTING_DMS_CONNECTOR_EVIDENCE.md`](unified-crm/UCRM_086_ACCOUNTING_DMS_CONNECTOR_EVIDENCE.md). `UCRM-086` is `HELD`: the readiness boundary is in source, but live accounting/DMS activation is blocked by missing system, ownership, mapping, reconciliation, browser, and rollback decisions.
+
 ## 2026-08-27 — Unified CRM UCRM-085 e-signature readiness held
 
 The current CRM implementation branch now contains a safe e-signature readiness boundary. Management can inspect the document authority, signer identity, immutable envelope evidence, webhook reconciliation, expiry/cancel, permission, template, audit, and rollback gates before any signature capability is treated as live.
