@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-120 AI receptionist requirements implemented
+
+The current CRM implementation branch now contains a manager-only AI receptionist requirements and safety contract. It captures consent, human handoff, bounded retrieval, no-action defaults, audit, and cost controls while keeping live calls, live texts, and autonomous actions disabled.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_120_AI_RECEPTIONIST_REQUIREMENTS_EVIDENCE.md`](unified-crm/UCRM_120_AI_RECEPTIONIST_REQUIREMENTS_EVIDENCE.md). `UCRM-120` is `IMPLEMENTED_UNVERIFIED`; simulation is allowed as the next safe step, but live AI receptionist behavior remains held.
+
 ## 2026-08-27 — Unified CRM UCRM-119 communication guardrails implemented
 
 The current CRM implementation branch now contains a manager-only communication guardrails model for quiet hours, rate limits, cost controls, consent checks, and global kill-switch readiness. It is preview-only, fail-closed, and keeps automated sending/provider traffic disabled.
