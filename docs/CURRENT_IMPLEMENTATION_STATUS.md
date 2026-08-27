@@ -1,5 +1,13 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-109 provider decision intake held
+
+The current CRM implementation branch now contains a provider decision intake readiness boundary for email/calendar, SMS, and telephony providers. It lists the business, security/privacy, architecture, operations, and data decisions needed before customer communications can be activated.
+
+This checkpoint does not select providers, accept credentials, provision numbers, connect OAuth, or enable production communications.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_109_PROVIDER_DECISION_INTAKE_EVIDENCE.md`](unified-crm/UCRM_109_PROVIDER_DECISION_INTAKE_EVIDENCE.md). `UCRM-109` is `HELD`.
+
 ## 2026-08-27 — Unified CRM UCRM-108 admin readiness hub implemented
 
 The current CRM implementation branch now contains a manager-only admin readiness hub that summarizes integration readiness, enterprise controls, and the next planned communication/AI build items in one read-only model.
