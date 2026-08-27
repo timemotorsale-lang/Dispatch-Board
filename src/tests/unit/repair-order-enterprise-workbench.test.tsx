@@ -16,7 +16,7 @@ const order = {
 };
 
 describe("enterprise repair-order workbench", () => {
-  it("renders the official summary card with always-visible detail panels and a legacy full-detail link", () => {
+  it("renders the simplified vehicle summary card with always-visible detail panels and a full-detail link", () => {
     const html = renderToStaticMarkup(
       <RepairOrderEnterpriseWorkbench
         order={order}
@@ -25,7 +25,7 @@ describe("enterprise repair-order workbench", () => {
     );
 
     expect(html).toContain("Repair Order Workbench");
-    expect(html).toContain("Official vehicle summary card");
+    expect(html).toContain("Vehicle summary card");
     expect(html).toContain("Recon progress");
     expect(html).toContain("Full repair order details");
     expect(html).toContain("Vehicle information");
@@ -34,6 +34,8 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("Repair outcome");
     expect(html).toContain("View full details");
     expect(html).toContain("fullDetails=1");
+    expect(html).not.toContain("summaryCardPreview");
+    expect(html).not.toContain("Live summary-card preview");
     expect(html).not.toContain("Authoritative Repair Order");
     expect(html).not.toContain("Location / workflow correction");
   });
@@ -44,7 +46,7 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("Repair Order Workbench");
     expect(html).toContain("RO-20481");
     expect(html).toContain("Authoritative Repair Order");
-    expect(html).not.toContain("Official vehicle summary card");
+    expect(html).not.toContain("Vehicle summary card");
     expect(html).toContain("Location / workflow correction");
     expect(html).toContain("Back to summary card");
     expect(html).toContain('href="/vehicles/repair-workbench?repairOrderId=ro-1&amp;vehicleId=vehicle-1"');

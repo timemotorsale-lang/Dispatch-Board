@@ -563,7 +563,6 @@ export function RepairOrderEnterpriseWorkbench({
   relatedPurchaseOrders = [],
   returnLabel,
   returnTo,
-  summaryCardPreview = false,
   showAdvisorReturn = false,
   showWorkspaceReturn = false,
 }: {
@@ -574,7 +573,6 @@ export function RepairOrderEnterpriseWorkbench({
   relatedPurchaseOrders?: RelatedPurchaseOrder[];
   returnLabel?: string;
   returnTo?: string;
-  summaryCardPreview?: boolean;
   showAdvisorReturn?: boolean;
   showWorkspaceReturn?: boolean;
 }) {
@@ -941,7 +939,7 @@ export function RepairOrderEnterpriseWorkbench({
   const footerPrimaryClick = fullDetailMode && primaryActionHref === vendorProgressHref ? openVendorProgress : undefined;
 
   return (
-    <section className={`rowb-shell${summaryCardPreview ? " rowb-summary-preview-mode" : ""}${fullDetailMode ? " rowb-full-detail-mode" : ""}`} aria-label="Repair Order Workbench">
+    <section className={`rowb-shell${fullDetailMode ? " rowb-full-detail-mode" : ""}`} aria-label="Repair Order Workbench">
       {fullDetailMode ? (
         <>
           <header className="rowb-header">
@@ -991,15 +989,8 @@ export function RepairOrderEnterpriseWorkbench({
         </>
       ) : null}
       {notice ? <div className="rowb-notice" role="status">{notice}</div> : null}
-      {!fullDetailMode && summaryCardPreview ? (
-        <section className="rowb-summary-preview-note" aria-label="Summary card review mode">
-          <span>Live summary-card preview</span>
-          <strong>This is the same repair-order data without the dense workbench around it.</strong>
-          <p>Use the drawer below to see how staff can open the detail only when they need it.</p>
-        </section>
-      ) : null}
       {!fullDetailMode ? (
-      <section className="rowb-summary-card" aria-label="Official vehicle summary card">
+      <section className="rowb-summary-card" aria-label="Vehicle summary card">
         <nav className="rowb-summary-nav" aria-label="Repair order navigation">
           <div>
             {returnTo ? (
