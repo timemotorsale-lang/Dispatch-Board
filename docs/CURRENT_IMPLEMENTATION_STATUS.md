@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-105 advanced forecasting readiness held
+
+The current CRM implementation branch now contains a safe advanced forecasting and attribution readiness boundary. Predictive forecasting and attribution remain disabled while explainability, freshness, historical evaluation, override separation, bias/error review, browser proof, approval, and rollback gates remain pending.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_105_ADVANCED_FORECASTING_EVIDENCE.md`](unified-crm/UCRM_105_ADVANCED_FORECASTING_EVIDENCE.md). `UCRM-105` is `HELD`; the deterministic forecast baseline remains the fallback.
+
 ## 2026-08-27 — Unified CRM UCRM-104 retention, legal hold, and export readiness held
 
 The current CRM implementation branch now contains a safe retention, legal hold, and export readiness boundary. It records the approved-policy, field-classification, legal-hold, immutable-evidence, job-simulation, export-threshold, recovery, and legal/security gates without enabling disposition or exports.

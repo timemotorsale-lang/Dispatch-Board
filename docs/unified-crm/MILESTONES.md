@@ -246,7 +246,7 @@ No adapter is complete at “API connected.” Each is a full vertical slice wit
 | UCRM-102 | Workflow and approval designer — `HELD` | Versioning, simulation, authority, limits, loop protection, observability, rollback, and sandbox/publish gates. |
 | UCRM-103 | Sandbox and configuration promotion — `HELD` | Isolation, masked data, diff/review, promotion, validation, audit, and rollback. |
 | UCRM-104 | Advanced retention, legal hold, and export — `HELD` | Approved policy, field classification, immutable evidence, job simulation, recovery, and legal/security signoff. |
-| UCRM-105 | Advanced forecasting and attribution | Explainability, source freshness, historical evaluation, override separation, bias/error review, and deterministic fallback. |
+| UCRM-105 | Advanced forecasting and attribution — `HELD` | Explainability, source freshness, historical evaluation, override separation, bias/error review, and deterministic fallback. |
 | UCRM-106 | Governed AI assistance | Permission-aware retrieval, citations/provenance, evaluation set, prompt-injection defense, human approval, cost/latency, logging, opt-out, and kill switch. |
 | UCRM-107 | Broader lifecycle modules | Renewal, account health, service/case, marketing, or commercial expansion receives its own domain, security, test, pilot, and release milestones. |
 
