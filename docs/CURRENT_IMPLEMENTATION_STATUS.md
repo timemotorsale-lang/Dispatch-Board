@@ -1,5 +1,13 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-081 email/calendar provider A readiness held
+
+The current CRM implementation branch now contains a safe provider A readiness boundary for future email/calendar integration. Management can inspect which gates must be satisfied before email, calendar sync, or calendar writes are allowed.
+
+This checkpoint does not select a provider or connect OAuth. External sending, calendar writes, and inbound sync all remain disabled. The fallback remains manual CRM contact outcomes plus the source calendar workflow until a named provider, OAuth scopes, sync direction, backfill, conflict behavior, security handling, browser proof, and rollback rehearsal are approved.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_081_EMAIL_CALENDAR_PROVIDER_A_EVIDENCE.md`](unified-crm/UCRM_081_EMAIL_CALENDAR_PROVIDER_A_EVIDENCE.md). `UCRM-081` is `HELD`: the readiness boundary is in source, but live provider activation is blocked by missing provider-specific decisions.
+
 ## 2026-08-27 — Unified CRM UCRM-080 integration platform contract implemented
 
 The current CRM implementation branch now contains the provider-neutral integration platform readiness boundary for the next large external communications and integrations envelope. CRM can now expose a manager-only readiness model for future email/calendar, SMS, telephony/transcription, e-signature, and accounting/DMS connectors without connecting any vendor or allowing external side effects.
