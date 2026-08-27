@@ -1096,12 +1096,12 @@ export function RepairOrderEnterpriseWorkbench({
     : primaryActionHref;
   const footerPrimaryClick = fullDetailMode && primaryActionHref === vendorProgressHref ? openVendorProgress : undefined;
   const toggleReconReport = () => setReconReportOpen((open) => !open);
-  const vehicleToolLinks = () => order.inventoryUnit ? (
+  const vehicleToolLinks = () => (
     <div className="rowb-vehicle-tool-links" aria-label="Vehicle inventory shortcuts">
       <Link href={inventoryLifecycleHref}><ClipboardCheck /><span><strong>Inventory Lifecycle</strong><small>Acquisition and inventory tools</small></span></Link>
       <Link href={shopReconHref}><Wrench /><span><strong>Shop &amp; Recon</strong><small>{shopReconStageLabel} · {shopReconWhereLabel}</small></span></Link>
     </div>
-  ) : null;
+  );
 
   return (
     <section className={`rowb-shell${fullDetailMode ? " rowb-full-detail-mode" : ""}`} aria-label="Repair Order Workbench">
