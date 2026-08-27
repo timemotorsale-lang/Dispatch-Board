@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-106 governed AI assistance readiness held
+
+The current CRM implementation branch now contains a safe governed AI assistance readiness boundary for future CRM help and AI receptionist support. AI drafts, autonomous actions, and receptionist behavior remain disabled while citations, evaluations, prompt-injection defense, human approval, cost/latency, logging, opt-out, browser proof, and rollback gates remain pending.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_106_GOVERNED_AI_ASSISTANCE_EVIDENCE.md`](unified-crm/UCRM_106_GOVERNED_AI_ASSISTANCE_EVIDENCE.md). `UCRM-106` is `HELD`; deterministic CRM workflows remain the fallback.
+
 ## 2026-08-27 — Unified CRM UCRM-105 advanced forecasting readiness held
 
 The current CRM implementation branch now contains a safe advanced forecasting and attribution readiness boundary. Predictive forecasting and attribution remain disabled while explainability, freshness, historical evaluation, override separation, bias/error review, browser proof, approval, and rollback gates remain pending.
