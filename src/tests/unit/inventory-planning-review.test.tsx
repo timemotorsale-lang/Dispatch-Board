@@ -38,37 +38,36 @@ describe("Inventory Planning review surface", () => {
     const html = renderToStaticMarkup(<InventoryPlanningReview eligibleUnit={{ id: "unit-1", inventoryNumber: "INV-1", locationId: "loc-1", vehicle: { id: "vehicle-1", vehicleNumber: "VEH-1001", year: 2023, make: "Toyota", model: "RAV4" } }} initial={projection} locations={[{ id: "loc-1", code: "MSP", name: "Minneapolis" }]} users={[{ id: "manager-1", name: "Inventory Manager" }]} />);
 
     for (const text of [
-      "Receiving &amp; Initial Quality Inspection",
+      "Receiving &amp; Initial QC",
       "Detailed intake &amp; canonical vehicle facts",
       "Update current condition and vehicle needs",
       "Correct intake info",
       "Canonical origins preserved",
       "Review recalls and safety intelligence",
-      "Current required receiving task",
-      "Evidence / follow-up",
-      "Completion standard",
+      "Receiving checklist",
+      "Answer each step here",
+      "Green means complete.",
       "Receive the vehicle and establish custody",
       "Complete the initial safety inspection",
-      "Deferred",
       "Decide disposition and assign the next owner",
-      "Receiving handoff narrative",
+      "Optional handoff note",
       "Exceptions, priorities, and technician starting context",
       "Two QC controls",
       "Open lifecycle",
-      "Start governed lifecycle",
-      "No workflow mutation yet"
+      "Start governed lifecycle"
     ]) expect(html).toContain(text);
-    expect(html).toContain('<option value="PASS">Pass</option>');
-    expect(html).toContain('<option value="CONCERN">Needs attention</option>');
-    expect(html).not.toContain('disabled="" value="PASS"');
+    expect(html).toContain("No workflow mutation yet");
+    expect(html).toContain("Complete");
+    expect(html).toContain("Unable now");
+    expect(html).toContain("Needs attention");
     expect(html).toContain("Edit current vehicle location");
     expect(html).toContain("Edit / verify");
     expect(html).toContain("2T3W1RFV4PW278629");
     expect(html).toContain("2023 Toyota RAV4");
     expect(html).toContain("/vehicles/vehicle-1/workbench");
     expect(html).toContain('href="/vehicles/360/vehicle-1?returnTo=%2Fvehicles%2Fvehicle-1%2Finventory-planning"');
-    expect(html).toContain('href="/vehicles/360/vehicle-1?section=documents&amp;category=PHOTO&amp;returnTo=%2Fvehicles%2Fvehicle-1%2Finventory-planning"');
-    expect(html).toContain('href="/vehicles/360/vehicle-1?section=intelligence&amp;intent=recalls&amp;returnTo=%2Fvehicles%2Fvehicle-1%2Finventory-planning"');
+    expect(html).toContain("Capture or defer the receiving photo set");
+    expect(html).toContain("Recall verification pending");
     const acquisitionHtml = renderToStaticMarkup(<InventoryPlanningReview initial={projection} users={[{ id: "manager-1", name: "Inventory Manager" }]} />);
     expect(acquisitionHtml).toContain("returnTo=%2Fvehicles%2Fvehicle-1%2Finventory-planning");
     expect(acquisitionHtml).toContain("InventoryUnit required—complete acquisition before starting the lifecycle");

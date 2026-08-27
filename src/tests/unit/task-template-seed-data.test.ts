@@ -149,7 +149,7 @@ describe("task template seed definitions", () => {
       expect.arrayContaining([
         "Eli Manager",
         "Brock Inventory",
-        "Walter Mechanic",
+        "Walter Hernandez",
         "Baraka Sales",
         "Ancilla Ops",
         "Eva Collections"

@@ -474,11 +474,16 @@ export async function getUnifiedCrmCustomer360(
     }
     record = await repository.findCustomer({ customerId, organizationId: organizationIds[0], recordScope });
     if (record) {
-      const quoteRepository = repository as Partial<Pick<UnifiedCrmCustomer360Repository, "listOpportunityQuoteLinks">>;
+      const linkRepository = repository as Partial<Pick<
+        UnifiedCrmCustomer360Repository,
+        "listOpportunityDispatchLinks" | "listOpportunityQuoteLinks"
+      >>;
       [opportunityDispatchLinks, opportunityQuoteLinks] = await Promise.all([
-        repository.listOpportunityDispatchLinks({ customerId, organizationId: organizationIds[0], recordScope }),
-        quoteRepository.listOpportunityQuoteLinks
-          ? quoteRepository.listOpportunityQuoteLinks({ customerId, organizationId: organizationIds[0], recordScope })
+        linkRepository.listOpportunityDispatchLinks
+          ? linkRepository.listOpportunityDispatchLinks({ customerId, organizationId: organizationIds[0], recordScope })
+          : Promise.resolve([]),
+        linkRepository.listOpportunityQuoteLinks
+          ? linkRepository.listOpportunityQuoteLinks({ customerId, organizationId: organizationIds[0], recordScope })
           : Promise.resolve([])
       ]);
     }

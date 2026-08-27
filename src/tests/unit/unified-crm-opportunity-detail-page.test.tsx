@@ -14,6 +14,7 @@ vi.mock("@/server/auth/current-user", () => ({ requireCurrentUser: mocks.require
 vi.mock("@/server/services/unified-crm-opportunity-detail-service", () => ({ getUnifiedCrmOpportunityDetail: mocks.getUnifiedCrmOpportunityDetail }));
 vi.mock("@/server/unified-crm/opportunity-detail-access", () => ({ requireUnifiedCrmOpportunityDetailAccess: mocks.requireUnifiedCrmOpportunityDetailAccess }));
 vi.mock("@/server/unified-crm/shell-access", () => ({ resolveUnifiedCrmShellAccess: mocks.resolveUnifiedCrmShellAccess }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 import OpportunityPage, { safeCrmOpportunityReturn } from "@/app/(app)/crm/opportunities/[opportunityId]/page";
 
@@ -33,6 +34,24 @@ function detailFixture() {
     customerContext: null,
     lifecycle: { allowedNextStages: [], nextActionDueAt: null, nextActionLabel: null, stage: "HELD", terminal: false, transitionHref: null, version: null },
     stageHistory: [],
+    taskActivity: {
+      createTaskHref: null,
+      links: [],
+      state: "HELD",
+      summary: "Task creation is held for this fixture."
+    },
+    appointmentActivity: {
+      createAppointmentHref: null,
+      links: [],
+      state: "HELD",
+      summary: "Appointment creation is held for this fixture."
+    },
+    dispatchActivity: {
+      createDispatchHref: null,
+      links: [],
+      state: "HELD",
+      summary: "Dispatch linking is held for this fixture."
+    },
     sourceBridge: { label: "Lead bridge", state: "HELD", detail: "Held" },
     relatedRecordsObservation: { detail: "Held", freshnessLabel: "Held", newestVisibleRecordUpdatedAt: null, state: "EMPTY", visibleRecordCount: 0 },
     relatedRecords: [],

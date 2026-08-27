@@ -88,7 +88,8 @@ describe("Unified CRM opportunity detail repository", () => {
         targetKind: "REPAIR_JOB",
         title: "Diagnose Accord lighting concern",
         version: 2
-      }]);
+      }])
+      .mockResolvedValueOnce([]);
     const repository = createUnifiedCrmOpportunityDetailRepository({
       $queryRaw: queryRaw
     } as never);
@@ -134,8 +135,9 @@ describe("Unified CRM opportunity detail repository", () => {
         targetKind: "REPAIR_JOB",
         title: "Diagnose Accord lighting concern",
         version: 2
-      }]
+      }],
+      quoteLinks: []
     });
-    expect(queryRaw).toHaveBeenCalledTimes(5);
+    expect(queryRaw).toHaveBeenCalledTimes(6);
   });
 });

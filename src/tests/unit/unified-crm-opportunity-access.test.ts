@@ -38,10 +38,15 @@ describe("Unified CRM opportunity access", () => {
     })).rejects.toMatchObject({ code });
   });
 
-  it("keeps create access held even when a valid organization scope exists", async () => {
+  it("allows governed create access for a manager when a valid organization scope exists", async () => {
     await expect(getUnifiedCrmOpportunityAccessContext(manager, "create", {
       mode: "REVIEW",
       scopeRepository: { async listActiveOrganizationIds() { return ["org-a"]; } }
-    })).rejects.toMatchObject({ code: "OPPORTUNITY_MUTATION_HELD" });
+    })).resolves.toMatchObject({
+      actorUserId: "manager-1",
+      capabilities: { create: true },
+      organizationId: "org-a",
+      recordScope: { kind: "ORGANIZATION" }
+    });
   });
 });

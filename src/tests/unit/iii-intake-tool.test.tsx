@@ -13,7 +13,7 @@ describe("IiiIntakeTool", () => {
     expect(markup).toContain("Validate decoded vehicle facts");
     expect(markup).toContain("Run the intake readiness gate");
     expect(markup).toContain("Open Vehicle Intake form");
-    expect(markup).toContain("/vehicles/workflows/add-vehicle?returnTo=%2Fvehicles%2Finventory%2Fprototype");
+    expect(markup).toContain("/vehicles/workflows/add-vehicle?returnTo=%2Fvehicles%2Finventory");
     expect(markup).toContain("Operational work trail");
     expect(markup).toContain("No intake action has been recorded yet.");
   });

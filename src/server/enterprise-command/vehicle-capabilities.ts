@@ -122,8 +122,13 @@ export function evaluateVehicleCapability(input: {
 }) {
   if (!input.actor?.isActive) return { allowed: false, reason: "AUTHENTICATION_REQUIRED" } as const;
   const now = input.now ?? new Date();
-  const matching = (input.grants ?? []).filter((grant) => {
-    if (grant.capability !== input.capability || (grant.locationId && grant.locationId !== input.locationId) || grant.validFrom > now || (grant.validTo && grant.validTo < now)) return false;
+  const scopedGrants = (input.grants ?? []).filter((grant) => {
+    return grant.capability === input.capability &&
+      !(grant.locationId && grant.locationId !== input.locationId) &&
+      grant.validFrom <= now &&
+      !(grant.validTo && grant.validTo < now);
+  });
+  const matching = scopedGrants.filter((grant) => {
     const constraints = grant.constraints && typeof grant.constraints === "object" && !Array.isArray(grant.constraints) ? grant.constraints as Record<string, unknown> : {};
     if (constraints.ownResourcesOnly === true && input.resourceOwnerUserId !== input.actor?.id) return false;
     if (typeof constraints.maxAmountCents === "number" && typeof input.amountCents === "number" && input.amountCents > constraints.maxAmountCents) return false;
@@ -134,6 +139,9 @@ export function evaluateVehicleCapability(input: {
     return true;
   });
   if (matching.some((grant) => grant.effect === "DENY")) return { allowed: false, reason: "EXPLICIT_DENY" } as const;
+  if (scopedGrants.some((grant) => grant.effect === "ALLOW") && !matching.some((grant) => grant.effect === "ALLOW")) {
+    return { allowed: false, reason: "GRANT_CONSTRAINTS_NOT_MET" } as const;
+  }
   if (["DIAGNOSTIC_CONCLUSION_CONFIRM", "DIAGNOSTIC_HIGH_RISK_CONFIRM", "DIAGNOSTIC_CONCLUSION_REVIEW"].includes(input.capability)) return matching.some((grant) => grant.effect === "ALLOW") ? { allowed: true, reason: "EXPLICIT_GRANT" } as const : { allowed: false, reason: "EXPLICIT_TECHNICAL_GRANT_REQUIRED" } as const;
   if (isGeneralManager(input.actor)) return { allowed: true, reason: "GENERAL_MANAGER" } as const;
   if (input.capability === "VEHICLE_ROLLOUT_MANAGE" || input.capability === "VEHICLE_CAPABILITY_MANAGE" || input.capability === "VEHICLE_DUPLICATE_RESOLVE" || input.capability === "VEHICLE_EVIDENCE_RESTRICTED_VIEW" || input.capability === "VEHICLE_OUTPUT_RESTRICTED" || input.capability === "VEHICLE_PORTAL_MANAGE" || input.capability === "VEHICLE_POLICY_APPROVE") {

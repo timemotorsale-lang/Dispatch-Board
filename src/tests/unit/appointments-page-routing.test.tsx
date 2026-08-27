@@ -4,6 +4,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import AppointmentsPage from "@/app/(app)/appointments/page";
 import type { AuthenticatedUser } from "@/server/auth/store";
 
+const navigation = vi.hoisted(() => ({
+  redirect: vi.fn((href: string) => {
+    throw Object.assign(new Error("NEXT_REDIRECT"), { digest: `NEXT_REDIRECT;replace;${href};307;` });
+  })
+}));
+
 const coordinator: AuthenticatedUser = {
   id: "ancilla",
   name: "Ancilla Ops",
@@ -19,6 +25,14 @@ vi.mock("@/server/auth/current-user", () => ({
 
 vi.mock("@/server/services/appointment-admin-settings", () => ({
   getAppointmentBoardSettings: vi.fn(async () => null)
+}));
+
+vi.mock("next/headers", () => ({
+  cookies: vi.fn(async () => ({ get: vi.fn(() => undefined) }))
+}));
+
+vi.mock("next/navigation", () => ({
+  redirect: navigation.redirect
 }));
 
 vi.mock("@/server/advisor-workspace/service", () => ({
@@ -49,13 +63,12 @@ describe("appointments page routing", () => {
     vi.clearAllMocks();
   });
 
-  it("opens the service advisor workspace for operations coordinator advisor mode", async () => {
-    const html = renderToStaticMarkup(await AppointmentsPage({
-      searchParams: Promise.resolve({ workspace: "advisor" })
-    }));
+  it("redirects to the service advisor workspace for operations coordinator advisor launch", async () => {
+    await expect(AppointmentsPage({
+      searchParams: Promise.resolve({ launch: "advisor" })
+    })).rejects.toThrow("NEXT_REDIRECT");
 
-    expect(html).toContain("Service Advisor Home");
-    expect(html).not.toContain("Appointment Board");
+    expect(navigation.redirect).toHaveBeenCalledWith("/vehicles/advisor?launch=advisor");
   });
 
   it("opens the appointment board for operations coordinator board mode", async () => {

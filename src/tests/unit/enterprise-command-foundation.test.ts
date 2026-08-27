@@ -47,8 +47,8 @@ describe("enterprise command foundation", () => {
   it("enforces delegated ownership and amount constraints", () => {
     const grant = { capability: "VEHICLE_COMMAND_EXECUTE", constraints: { maxAmountCents: 50_000, ownResourcesOnly: true }, effect: "ALLOW" as const, locationId: "loc-1", validFrom: new Date("2026-01-01"), validTo: null };
     expect(evaluateVehicleCapability({ actor: staff, amountCents: 49_000, capability: "VEHICLE_COMMAND_EXECUTE", grants: [grant], locationId: "loc-1", now: new Date("2026-07-14"), resourceOwnerUserId: staff.id }).allowed).toBe(true);
-    expect(evaluateVehicleCapability({ actor: staff, amountCents: 51_000, capability: "VEHICLE_COMMAND_EXECUTE", grants: [grant], locationId: "loc-1", now: new Date("2026-07-14"), resourceOwnerUserId: staff.id }).reason).toBe("CAPABILITY_REQUIRED");
-    expect(evaluateVehicleCapability({ actor: staff, amountCents: 49_000, capability: "VEHICLE_COMMAND_EXECUTE", grants: [grant], locationId: "loc-1", now: new Date("2026-07-14"), resourceOwnerUserId: "someone-else" }).reason).toBe("CAPABILITY_REQUIRED");
+    expect(evaluateVehicleCapability({ actor: staff, amountCents: 51_000, capability: "VEHICLE_COMMAND_EXECUTE", grants: [grant], locationId: "loc-1", now: new Date("2026-07-14"), resourceOwnerUserId: staff.id }).reason).toBe("GRANT_CONSTRAINTS_NOT_MET");
+    expect(evaluateVehicleCapability({ actor: staff, amountCents: 49_000, capability: "VEHICLE_COMMAND_EXECUTE", grants: [grant], locationId: "loc-1", now: new Date("2026-07-14"), resourceOwnerUserId: "someone-else" }).reason).toBe("GRANT_CONSTRAINTS_NOT_MET");
   });
 
   it("executes a normalized authorized command", async () => {

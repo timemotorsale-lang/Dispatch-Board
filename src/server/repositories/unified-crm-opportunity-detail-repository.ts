@@ -338,7 +338,7 @@ export function createUnifiedCrmOpportunityDetailRepository(
         ORDER BY link."createdAt" DESC
         LIMIT 12
       `);
-      const quoteLinks = await database.$queryRaw<QuoteLinkRow[]>(Prisma.sql`
+      const quoteLinks = (await database.$queryRaw<QuoteLinkRow[]>(Prisma.sql`
         SELECT
           quote."id" AS "quoteId",
           quote."quoteNumber",
@@ -364,7 +364,7 @@ export function createUnifiedCrmOpportunityDetailRepository(
           AND quote."archivedAt" IS NULL
         ORDER BY quote."updatedAt" DESC, quote."quoteNumber" ASC
         LIMIT 12
-      `);
+      `)) ?? [];
 
       return {
         ...mapRow(row),

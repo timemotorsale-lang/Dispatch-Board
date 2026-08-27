@@ -78,7 +78,7 @@ export function evaluateUnifiedCrmOpportunityPolicy(
       mode,
       reason: "OPPORTUNITY_OFF",
       recordScope,
-      capabilities: resultCapabilities,
+      capabilities: capabilities(false),
       workspace: base.workspace
     };
   }

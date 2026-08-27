@@ -2,9 +2,9 @@
 
 ## 2026-08-27 — Unified CRM release-candidate local verification checkpoint recorded
 
-The current CRM release-readiness package now has a stronger local verification checkpoint. Focused release/pilot gate tests passed, verification-gate route tests passed, and TypeScript typecheck passed. A broader unit-test folder run is still red with 29 failing tests across 17 files, so the release candidate remains `HELD` and not ready for pilot or production release.
+The current CRM release-readiness package now has a stronger local verification checkpoint. Focused release/pilot gate tests passed, verification-gate route tests passed, TypeScript typecheck passed, and the full unit-test folder suite now passes after release-cleanup repair: 722 files and 3,315 tests. The cleanup also tightened delegated vehicle capability grants so scoped grant limits fail with `GRANT_CONSTRAINTS_NOT_MET` instead of falling through to broad role defaults.
 
-Evidence is recorded in [`docs/unified-crm/UCRM_RELEASE_CANDIDATE_LOCAL_VERIFICATION_EVIDENCE.md`](unified-crm/UCRM_RELEASE_CANDIDATE_LOCAL_VERIFICATION_EVIDENCE.md). No release enablement, provider traffic, pilot cohort activation, production promotion, or write-capable CRM behavior was enabled.
+Evidence is recorded in [`docs/unified-crm/UCRM_RELEASE_CANDIDATE_LOCAL_VERIFICATION_EVIDENCE.md`](unified-crm/UCRM_RELEASE_CANDIDATE_LOCAL_VERIFICATION_EVIDENCE.md). The release candidate remains `IMPLEMENTED_UNVERIFIED`, not releasable, until authenticated browser/UX proof, impacted Dispatch Board smoke proof, accessibility/responsive proof, production build proof, owner approvals, and pilot go/no-go are complete. No release enablement, provider traffic, pilot cohort activation, production promotion, or write-capable CRM behavior outside the approved governed surfaces was enabled.
 
 ## 2026-08-27 — Unified CRM release program stages 1–4 implemented as held review package
 
