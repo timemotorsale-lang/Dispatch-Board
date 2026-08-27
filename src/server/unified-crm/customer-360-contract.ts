@@ -105,6 +105,24 @@ export type UnifiedCrmCustomer360TimelineItem = {
   sourceRecordId: string;
 };
 
+export type UnifiedCrmCustomer360CommunicationTimelineLens = {
+  state: "READY" | "EMPTY";
+  posture: "READ_ONLY";
+  detail: string;
+  visibleOutcomeCount: number;
+  latestOutcomeAt: string | null;
+  channels: {
+    label: "Phone" | "Email" | "Sms" | "Other";
+    count: number;
+    latestOutcomeAt: string | null;
+  }[];
+  fallback: {
+    label: "Manual timeline review";
+    href: string;
+    reason: string;
+  };
+};
+
 export type UnifiedCrmCustomer360Note = {
   id: string;
   body: string;
@@ -173,6 +191,7 @@ export type UnifiedCrmCustomer360ReadModel = {
       hasMore: boolean;
     };
   };
+  communicationTimelineLens: UnifiedCrmCustomer360CommunicationTimelineLens;
   sourceLenses: {
     leads: UnifiedCrmCustomer360LeadLens[];
     cases: UnifiedCrmCustomer360CaseLens[];

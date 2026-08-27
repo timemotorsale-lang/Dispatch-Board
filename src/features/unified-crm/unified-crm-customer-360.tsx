@@ -474,6 +474,51 @@ function TimelineSection({
   );
 }
 
+function CommunicationTimelineLens({ model }: { model: UnifiedCrmCustomer360ReadModel }) {
+  const lens = model.communicationTimelineLens ?? {
+    state: "EMPTY" as const,
+    posture: "READ_ONLY" as const,
+    detail: "No permitted manual communication outcome is visible for this customer yet. Use the governed manual outcome form or source workflow when a staff touchpoint occurs.",
+    visibleOutcomeCount: 0,
+    latestOutcomeAt: null,
+    channels: [],
+    fallback: {
+      label: "Manual timeline review" as const,
+      href: "#timeline-heading",
+      reason: "Review the relationship timeline when communication outcomes need context; no external communication is sent from this lens."
+    }
+  };
+  return (
+    <section aria-labelledby="communication-timeline-lens-heading" className={styles.sectionCard}>
+      <header>
+        <div><span className={styles.eyebrow}>Communications</span><h2 id="communication-timeline-lens-heading">Safe touchpoint history</h2></div>
+        <small>{lens.visibleOutcomeCount} permitted outcome{lens.visibleOutcomeCount === 1 ? "" : "s"} · read only</small>
+      </header>
+      <p className={styles.timelineDetail}>{lens.detail}</p>
+      {lens.channels.length ? (
+        <div className={styles.lensGrid} aria-label="Permitted communication outcome channels">
+          {lens.channels.map((channel) => (
+            <article key={channel.label}>
+              <div>
+                <strong>{channel.label}</strong>
+                <span>{channel.count} visible outcome{channel.count === 1 ? "" : "s"}</span>
+                <small>Latest: {formatDate(channel.latestOutcomeAt, "No visible outcome time")}</small>
+              </div>
+              <Link aria-label={`Review ${channel.label} outcomes in timeline`} href={lens.fallback.href}>Review timeline<ExternalLink aria-hidden="true" size={13} /></Link>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p className={styles.timelineEmpty}>
+          <History aria-hidden="true" size={16} />
+          No permitted phone, email, or text outcome is visible yet.
+        </p>
+      )}
+      <p className={styles.timelineDetail}>{lens.fallback.reason}</p>
+    </section>
+  );
+}
+
 function NotesSection({ model }: { model: UnifiedCrmCustomer360ReadModel }) {
   return (
     <section aria-labelledby="customer-notes-heading" className={styles.sectionCard}>
@@ -564,6 +609,7 @@ export function UnifiedCrmCustomer360({ errorMessage, failureKind = "error", mod
       <RelationshipSummary model={model} />
       {opportunityDiscovery ? <OpportunityDiscoverySection model={opportunityDiscovery} /> : null}
       <OpportunityLensSection model={model} returnHref={`/crm/customers/${encodeURIComponent(model.identity.id)}?crmReturnTo=${encodeURIComponent(returnHref)}`} />
+      <CommunicationTimelineLens model={model} />
       <NotesSection model={model} />
       <TimelineSection model={model} opportunityPrompt={opportunityNudges?.timeline} returnHref={returnHref} />
       <WorkContext model={model} opportunityPrompt={opportunityNudges?.connectedWork} returnHref={returnHref} />

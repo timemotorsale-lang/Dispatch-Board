@@ -34,6 +34,7 @@ import {
   UnifiedCrmCustomer360Error,
   type UnifiedCrmCustomer360Appointment,
   type UnifiedCrmCustomer360Contact,
+  type UnifiedCrmCustomer360CommunicationTimelineLens,
   type UnifiedCrmCustomer360Note,
   type UnifiedCrmCustomer360OpportunityLens,
   type UnifiedCrmCustomer360ReadModel,
@@ -349,6 +350,43 @@ function timelineItems(input: {
     .slice(0, input.model.page.limit);
 }
 
+function communicationTimelineLens(items: UnifiedCrmCustomer360TimelineItem[]): UnifiedCrmCustomer360CommunicationTimelineLens {
+  const communicationItems = items.filter((item) => item.kind === "interaction");
+  const buckets = new Map<UnifiedCrmCustomer360CommunicationTimelineLens["channels"][number]["label"], UnifiedCrmCustomer360TimelineItem[]>();
+  for (const item of communicationItems) {
+    const title = item.title.toLowerCase();
+    const channel = title.includes("phone")
+      ? "Phone"
+      : title.includes("email")
+        ? "Email"
+        : title.includes("sms") || title.includes("text")
+          ? "Sms"
+          : "Other";
+    buckets.set(channel, [...(buckets.get(channel) ?? []), item]);
+  }
+  const channels = Array.from(buckets.entries()).map(([channelLabel, channelItems]) => ({
+    label: channelLabel,
+    count: channelItems.length,
+    latestOutcomeAt: channelItems[0]?.occurredAt ?? null
+  }));
+  const latestOutcomeAt = communicationItems[0]?.occurredAt ?? null;
+  return {
+    state: communicationItems.length ? "READY" : "EMPTY",
+    posture: "READ_ONLY",
+    detail: communicationItems.length
+      ? "Permitted manual communication outcomes are visible here for context only. Raw phone numbers, raw email values, message bodies, and provider payloads are not exposed."
+      : "No permitted manual communication outcome is visible for this customer yet. Use the governed manual outcome form or source workflow when a staff touchpoint occurs.",
+    visibleOutcomeCount: communicationItems.length,
+    latestOutcomeAt,
+    channels,
+    fallback: {
+      label: "Manual timeline review",
+      href: "#timeline-heading",
+      reason: "Review the relationship timeline when communication outcomes need context; no external communication is sent from this lens."
+    }
+  };
+}
+
 export async function getUnifiedCrmCustomer360(
   actor: AuthenticatedUser | null,
   customerIdValue: unknown,
@@ -523,6 +561,7 @@ export async function getUnifiedCrmCustomer360(
         hasMore: timeline.page.hasMore
       }
     },
+    communicationTimelineLens: communicationTimelineLens(timelineView),
     sourceLenses: {
       leads: record.leads.filter((lead) =>
         recordScope.kind === "ORGANIZATION" || lead.ownerUser.id === recordScope.ownerUserId

@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-115 Customer 360 communication timeline lens implemented
+
+The current CRM implementation branch now contains a read-only Customer 360 communication timeline lens. It summarizes permitted manual phone/email/SMS-style outcomes already visible in the governed customer timeline, keeps source systems authoritative, masks raw contact values and provider payloads, and falls back to manual timeline review when no permitted outcomes are visible.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_115_CUSTOMER_360_COMMUNICATION_TIMELINE_LENS_EVIDENCE.md`](unified-crm/UCRM_115_CUSTOMER_360_COMMUNICATION_TIMELINE_LENS_EVIDENCE.md). `UCRM-115` is `IMPLEMENTED_UNVERIFIED`; no email, SMS, phone, VoIP, transcription, or provider sending behavior was enabled.
+
 ## 2026-08-27 — Unified CRM UCRM-114 manual call disposition implemented
 
 The current CRM implementation branch now contains a manual phone-call disposition readiness boundary. It prepares simple call outcomes without enabling VoIP, call recording, or transcription.

@@ -141,6 +141,8 @@ describe("Unified CRM Customer 360", () => {
     expect(markup).toContain("Newest visible persisted opportunity update observed at 2026-08-15T13:00:00.000Z.");
     expect(markup).toContain('href="/crm/opportunities/opp_1001?crmReturnTo=%2Fcrm%2Fcustomers%2Fcustomer-1%3FcrmReturnTo%3D%252Fcrm%253Fview%253Dcustomers%2526q%253DAlex"');
     expect(markup).toContain("Relationship timeline"); expect(markup).toContain("Phone Outbound"); expect(markup).toContain("Appointment confirmation was recorded.");
+    expect(markup).toContain("Safe touchpoint history");
+    expect(markup).toContain("Raw phone numbers, raw email values, message bodies, and provider payloads are not exposed.");
     expect(markup).toContain("Manual contact outcome"); expect(markup).toContain("Record a relationship touchpoint");
     expect(markup).toContain("This read-only timeline combines the latest permitted customer activity");
     expect(markup).toContain('aria-label="Permitted customer relationship activity"');

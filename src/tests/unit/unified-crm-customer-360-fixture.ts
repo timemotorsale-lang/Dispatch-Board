@@ -38,6 +38,19 @@ export function customer360Fixture(): UnifiedCrmCustomer360ReadModel {
         { id: "case-evt-1", correlationKey: "case:case-1", sourceRecordId: "case-1", kind: "case-event", title: "CASE-202 opened", detail: "Document follow-up · Open · Medium", occurredAt: "2026-08-13T18:00:00.000Z", actorName: "Customer Care", sourceLabel: "Customer resolutions", sourceHref: "/customers/resolutions?caseId=CASE-202" }
       ]
     },
+    communicationTimelineLens: {
+      state: "READY",
+      posture: "READ_ONLY",
+      detail: "Permitted manual communication outcomes are visible here for context only. Raw phone numbers, raw email values, message bodies, and provider payloads are not exposed.",
+      visibleOutcomeCount: 1,
+      latestOutcomeAt: "2026-08-14T14:30:00.000Z",
+      channels: [{ label: "Phone", count: 1, latestOutcomeAt: "2026-08-14T14:30:00.000Z" }],
+      fallback: {
+        label: "Manual timeline review",
+        href: "#timeline-heading",
+        reason: "Review the relationship timeline when communication outcomes need context; no external communication is sent from this lens."
+      }
+    },
     sourceLenses: {
       leads: [{ id: "lead-1", leadNumber: "LEAD-101", stage: "QUALIFIED", sourceCode: "WEBSITE", ownerName: "Taylor B.", vehicleInterest: "Toyota RAV4", nextActionCode: "FOLLOW_UP", nextActionAt: "2026-08-15T16:00:00.000Z", sourceHref: "/sales" }],
       cases: [{ id: "case-1", caseNumber: "CASE-202", title: "Document follow-up", category: "DOCUMENT", priority: "MEDIUM", status: "OPEN", ownerName: "Customer Care", dueAt: "2026-08-16T16:00:00.000Z", resolutionDueAt: null, slaStage: "HEALTHY", sourceHref: "/customers/resolutions?caseId=CASE-202" }]

@@ -288,6 +288,17 @@ describe("Unified CRM Customer 360 service", () => {
           hasMore: false
         }
       },
+      communicationTimelineLens: {
+        state: "READY",
+        posture: "READ_ONLY",
+        visibleOutcomeCount: 1,
+        latestOutcomeAt: "2026-08-14T13:00:00.000Z",
+        channels: [{ label: "Phone", count: 1, latestOutcomeAt: "2026-08-14T13:00:00.000Z" }],
+        fallback: {
+          label: "Manual timeline review",
+          href: "#timeline-heading"
+        }
+      },
       sourceLenses: { leads: [{ id: "lead-a" }], cases: [{ id: "case-a" }] },
       opportunityLensObservation: {
         detail: "Only same-scope persisted opportunities linked to this customer are shown for organization review. 1 linked Dispatch record(s) are reconciled from opportunity bridge records. Lifecycle movement remains off.",
@@ -324,6 +335,7 @@ describe("Unified CRM Customer 360 service", () => {
     expect(serialized).not.toContain("do-not-reveal");
     expect(serialized).not.toContain("Restricted note should not appear.");
     expect(model).not.toHaveProperty("tasks");
+    expect(model.communicationTimelineLens.detail).toContain("Raw phone numbers, raw email values, message bodies, and provider payloads are not exposed.");
     expect(model.timeline.items[0]).toMatchObject({
       correlationKey: "crm-event:crm-event-a",
       kind: "commitment-event",
@@ -496,6 +508,13 @@ describe("Unified CRM Customer 360 service", () => {
       }
     });
     expect(model.timeline.items).toEqual([]);
+    expect(model.communicationTimelineLens).toMatchObject({
+      state: "EMPTY",
+      posture: "READ_ONLY",
+      visibleOutcomeCount: 0,
+      latestOutcomeAt: null,
+      channels: []
+    });
   });
 
   it("preserves merged timeline hasMore when multiple bounded sources exceed the visible global limit", async () => {
