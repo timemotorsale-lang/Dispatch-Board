@@ -28,6 +28,7 @@ import { BackToServiceAdvisorWorkspace } from "@/features/advisor/advisor-return
 import { OutsideRepairWorkPanel, type OutsideWork } from "@/features/advisor/outside-repair-work-panel";
 import { RepairOrderDiagnosticsBridge } from "@/features/diagnostics/repair-order-diagnostics-bridge";
 import type { getRepairOrderDiagnosticsBridge } from "@/server/diagnostics/service";
+import { SHOP_RECON_STAGES } from "@/server/shop-recon/foundation";
 
 import { BackToVehicleOperationsWorkspace } from "./workspace-return-link";
 
@@ -62,6 +63,15 @@ type RepairOrderWorkbenchOrder = {
   };
   customer: { displayName: string } | null;
   inventoryUnit: { id?: string; inventoryNumber: string } | null;
+  shopReconLifecycle?: {
+    id?: string;
+    nextAction: string;
+    operatingState: string;
+    stage: string;
+    targetAt: string | Date | null;
+    version: number;
+    zoneCode: string | null;
+  } | null;
   ownerUser: { id: string; name: string };
   location: { id: string; name: string };
   serviceVisit: {
@@ -1072,7 +1082,12 @@ export function RepairOrderEnterpriseWorkbench({
   })}`;
   const workbenchReturnRoute = fullDetailMode ? detailRoute : summaryRoute;
   const inventoryLifecycleHref = `/vehicles/${encodeURIComponent(order.vehicle.id)}/inventory-planning?${new URLSearchParams({ repairOrderId: order.id })}`;
-  const shopReconHref = `/vehicles/shop-recon?${new URLSearchParams({ returnTo: workbenchReturnRoute })}`;
+  const shopReconHref = `/vehicles/shop-recon/${encodeURIComponent(order.id)}?${new URLSearchParams({ returnTo: workbenchReturnRoute })}`;
+  const shopReconStageDefinition = SHOP_RECON_STAGES.find((stage) => stage.code === order.shopReconLifecycle?.stage);
+  const shopReconStageLabel = shopReconStageDefinition
+    ? `${shopReconStageDefinition.order}. ${shopReconStageDefinition.label}`
+    : format(order.shopReconLifecycle?.stage ?? order.stage);
+  const shopReconWhereLabel = order.shopReconLifecycle?.zoneCode || currentLocationLabel;
   const summaryPrimaryHref = !vendorReadyForFinalQc && primaryActionHref.startsWith("#")
     ? `${detailRoute}${primaryActionHref}`
     : primaryActionHref;
@@ -1083,8 +1098,8 @@ export function RepairOrderEnterpriseWorkbench({
   const toggleReconReport = () => setReconReportOpen((open) => !open);
   const vehicleToolLinks = () => order.inventoryUnit ? (
     <div className="rowb-vehicle-tool-links" aria-label="Vehicle inventory shortcuts">
-      <Link href={inventoryLifecycleHref}><ClipboardCheck /> Inventory Lifecycle</Link>
-      <Link href={shopReconHref}><Wrench /> Shop &amp; Recon</Link>
+      <Link href={inventoryLifecycleHref}><ClipboardCheck /><span><strong>Inventory Lifecycle</strong><small>Acquisition and inventory tools</small></span></Link>
+      <Link href={shopReconHref}><Wrench /><span><strong>Shop &amp; Recon</strong><small>{shopReconStageLabel} · {shopReconWhereLabel}</small></span></Link>
     </div>
   ) : null;
 

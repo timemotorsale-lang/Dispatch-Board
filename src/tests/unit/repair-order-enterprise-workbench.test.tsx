@@ -57,6 +57,7 @@ describe("enterprise repair-order workbench", () => {
       stage: "READY_FOR_REPAIR",
       nextAction: "Manage repair readiness",
       inventoryUnit: { inventoryNumber: "B10592" },
+      shopReconLifecycle: { id: "shop-life-1", nextAction: "Complete repair execution.", operatingState: "ACTIVE", stage: "REPAIR_EXECUTION", targetAt: "2026-07-21T18:00:00Z", version: 5, zoneCode: "Z08_REPAIR_BAY" },
       customer: null,
     };
 
@@ -73,8 +74,11 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain('<span class="next"><i>6</i>Quality Check</span>');
     expect(html).toContain("Inventory Lifecycle");
     expect(html).toContain("Shop &amp; Recon");
+    expect(html).toContain("12. Repair Execution");
+    expect(html).toContain("Z08_REPAIR_BAY");
     expect(html).toContain("/vehicles/vehicle-1/inventory-planning?repairOrderId=ro-1");
-    expect(html).toContain("/vehicles/shop-recon?returnTo=");
+    expect(html).toContain("/vehicles/shop-recon/ro-1?returnTo=");
+    expect(html).not.toContain("/vehicles/shop-recon?returnTo=");
     expect(html).not.toContain("Final QC</span>");
   });
 
@@ -164,7 +168,13 @@ describe("enterprise repair-order workbench", () => {
   });
 
   it("uses the simple inventory path without requesting customer readiness", () => {
-    const inventoryOrder = { ...order, customer: null, inventoryUnit: { inventoryNumber: "033428" }, serviceVisit: { ...order.serviceVisit, readinessSnapshotId: null } };
+    const inventoryOrder = {
+      ...order,
+      customer: null,
+      inventoryUnit: { inventoryNumber: "033428" },
+      shopReconLifecycle: { id: "shop-life-2", nextAction: "Verify the vehicle intake.", operatingState: "ACTIVE", stage: "VEHICLE_INTAKE_CUSTODY", targetAt: "2026-07-21T18:00:00Z", version: 3, zoneCode: "Z02_CHECK_IN" },
+      serviceVisit: { ...order.serviceVisit, readinessSnapshotId: null },
+    };
     const html = renderToStaticMarkup(<RepairOrderEnterpriseWorkbench fullDetailMode order={inventoryOrder} options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }} />);
 
     expect(html).toContain("Inventory path");
@@ -178,7 +188,10 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("Internal recon approval is required before any repair work is performed");
     expect(html).toContain("Inventory Lifecycle");
     expect(html).toContain("Shop &amp; Recon");
+    expect(html).toContain("4. Vehicle Intake &amp; Custody");
+    expect(html).toContain("Z02_CHECK_IN");
     expect(html).toContain("/vehicles/vehicle-1/inventory-planning?repairOrderId=ro-1");
+    expect(html).toContain("/vehicles/shop-recon/ro-1?returnTo=");
   });
 
   it("uses vehicle custody as the synchronized physical location even when this RO has no vendor row", () => {
