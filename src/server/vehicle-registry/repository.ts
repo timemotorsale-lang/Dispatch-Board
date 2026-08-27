@@ -23,8 +23,9 @@ async function executeRegistryMutation(database: PrismaClient, input: Enterprise
     const key = { organizationId_domain_subjectType_subjectId: { organizationId: input.organizationId, domain: input.domain, subjectType: input.subjectType, subjectId: input.subjectId } };
     const aggregate = await tx.enterpriseAggregateVersion.findUnique({ where: key });
     const currentVersion = aggregate?.version ?? 0;
-    if (currentVersion !== input.expectedVersion) throw new EnterpriseCommandConflictError(`Expected version ${input.expectedVersion}, but current version is ${currentVersion}.`, "VERSION_CONFLICT");
-    const version = currentVersion + 1;
+    const colorCorrectionCanUseLatest = input.commandType === "CORRECT_VEHICLE_COLOR" && currentVersion > input.expectedVersion;
+    if (currentVersion !== input.expectedVersion && !colorCorrectionCanUseLatest) throw new EnterpriseCommandConflictError(`Expected version ${input.expectedVersion}, but current version is ${currentVersion}.`, "VERSION_CONFLICT");
+    const version = (colorCorrectionCanUseLatest ? currentVersion : input.expectedVersion) + 1;
     const mutation = await mutate(tx, version);
     if (aggregate) await tx.enterpriseAggregateVersion.update({ where: { id: aggregate.id }, data: { version, locationId: input.locationId } });
     else await tx.enterpriseAggregateVersion.create({ data: { organizationId: input.organizationId, locationId: input.locationId, domain: input.domain, subjectType: input.subjectType, subjectId: input.subjectId, version } });
