@@ -31,7 +31,7 @@ services:
   migrate:
     image: dispatch-board-tooling:${APP_VERSION:-local}
     build:
-      context: .
+      context: ../..
       dockerfile: deploy/docker/Dockerfile
       target: tooling
     environment:
@@ -49,7 +49,7 @@ services:
   app:
     image: dispatch-board-app:${APP_VERSION:-local}
     build:
-      context: .
+      context: ../..
       dockerfile: deploy/docker/Dockerfile
       target: runner
     restart: unless-stopped
@@ -113,7 +113,7 @@ services:
       TZ: ${APP_TIMEZONE:-America/Chicago}
     command: ["/bin/sh", "/opt/dispatch/backup-postgres.sh"]
     volumes:
-      - ./deploy/docker/scripts/backup-postgres.sh:/opt/dispatch/backup-postgres.sh:ro
+      - ./scripts/backup-postgres.sh:/opt/dispatch/backup-postgres.sh:ro
       - postgres_backups:/backups
     depends_on:
       db:
@@ -127,7 +127,7 @@ services:
     profiles: ["tools"]
     image: dispatch-board-tooling:${APP_VERSION:-local}
     build:
-      context: .
+      context: ../..
       dockerfile: deploy/docker/Dockerfile
       target: tooling
     environment:
