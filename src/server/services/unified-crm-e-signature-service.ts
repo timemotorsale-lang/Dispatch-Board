@@ -4,6 +4,7 @@ import {
   UNIFIED_CRM_E_SIGNATURE_CONTRACT_VERSION,
   UnifiedCrmESignatureError,
   type UnifiedCrmESignatureCheck,
+  type UnifiedCrmESignatureDocumentReadinessItem,
   type UnifiedCrmESignatureReadModel
 } from "@/server/unified-crm/e-signature-contract";
 
@@ -74,6 +75,36 @@ const CHECKS: UnifiedCrmESignatureCheck[] = [
   }
 ];
 
+const DOCUMENT_READINESS_ITEMS: UnifiedCrmESignatureDocumentReadinessItem[] = [
+  {
+    id: "quote-approval-document",
+    label: "Quote approval document",
+    sourceAuthority: "QUOTE",
+    readiness: "REVIEW_READY",
+    envelopeSendEnabled: false,
+    requiredBeforeSend: ["Approved signer identity", "Commercial authority", "Provider selection", "Immutable quote version"],
+    fallback: "Print or manually send the approved quote from the existing quote workflow."
+  },
+  {
+    id: "customer-authorization",
+    label: "Customer authorization form",
+    sourceAuthority: "CUSTOMER",
+    readiness: "HELD",
+    envelopeSendEnabled: false,
+    requiredBeforeSend: ["Customer consent wording", "Delegated signer rules", "Retention policy"],
+    fallback: "Use existing manual customer authorization handling."
+  },
+  {
+    id: "repair-handoff-document",
+    label: "Repair / dispatch handoff document",
+    sourceAuthority: "DISPATCH",
+    readiness: "HELD",
+    envelopeSendEnabled: false,
+    requiredBeforeSend: ["Dispatch source authority", "Repair order version binding", "Webhook reconciliation"],
+    fallback: "Continue using the Dispatch Board repair-order workflow."
+  }
+];
+
 export async function getUnifiedCrmESignature(
   actor: AuthenticatedUser | null,
   dependencies: Dependencies = {}
@@ -97,6 +128,15 @@ export async function getUnifiedCrmESignature(
     },
     checks: CHECKS.map((check) => ({ ...check })),
     contractVersion: UNIFIED_CRM_E_SIGNATURE_CONTRACT_VERSION,
+    documentReadinessSurface: {
+      state: "READY_REVIEW",
+      items: DOCUMENT_READINESS_ITEMS.map((item) => ({
+        ...item,
+        requiredBeforeSend: [...item.requiredBeforeSend]
+      })),
+      safeActionLabel: "Review document readiness",
+      sendActionEnabled: false
+    },
     generatedAt: (dependencies.now?.() ?? new Date()).toISOString(),
     rollback: {
       fallback: "manual-document-review-and-existing-approval-workflow",

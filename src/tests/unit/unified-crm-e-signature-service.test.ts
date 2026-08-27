@@ -30,6 +30,14 @@ describe("Unified CRM e-signature readiness", () => {
     });
     expect(result.checks.find((check) => check.category === "documentAuthority")).toMatchObject({ status: "HOLD" });
     expect(result.checks.find((check) => check.category === "envelopeEvidence")).toMatchObject({ status: "PASS" });
+    expect(result.documentReadinessSurface).toMatchObject({
+      state: "READY_REVIEW",
+      safeActionLabel: "Review document readiness",
+      sendActionEnabled: false
+    });
+    expect(result.documentReadinessSurface.items.map((item) => item.envelopeSendEnabled)).toEqual([false, false, false]);
+    expect(result.documentReadinessSurface.items.map((item) => item.sourceAuthority)).toEqual(["QUOTE", "CUSTOMER", "DISPATCH"]);
+    expect(JSON.stringify(result)).not.toContain("providerSecret");
   });
 
   it("denies non-manager workspaces", async () => {

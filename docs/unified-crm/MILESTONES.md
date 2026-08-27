@@ -271,7 +271,7 @@ No adapter is complete at “API connected.” Each is a full vertical slice wit
 | UCRM-119 | Quiet hours, rate limits, and cost controls — `IMPLEMENTED_UNVERIFIED` | Communication guardrails are modeled, reviewable, and fail closed. |
 | UCRM-120 | AI receptionist requirements and safety contract — `IMPLEMENTED_UNVERIFIED` | AI receptionist behavior is specified with consent, retrieval, escalation, human approval, and no-action defaults. |
 | UCRM-121 | AI receptionist simulator — `IMPLEMENTED_UNVERIFIED` | Staff can simulate intake/receptionist scenarios without live calls or texts. |
-| UCRM-122 | E-signature/document readiness surface | Management can review document/signature readiness gates without sending envelopes. |
+| UCRM-122 | E-signature/document readiness surface — `IMPLEMENTED_UNVERIFIED` | Management can review document/signature readiness gates without sending envelopes. |
 | UCRM-123 | Accounting/DMS mapping preview | Management can preview mappings/conflicts for one future system without sync or writes. |
 | UCRM-124 | Custom field/layout admin preview | Admins can preview effective custom layouts without publishing. |
 | UCRM-125 | Workflow simulation preview | Admins can simulate workflow rules without live execution. |

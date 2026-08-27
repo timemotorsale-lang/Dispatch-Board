@@ -20,6 +20,16 @@ export type UnifiedCrmESignatureCheck = {
   status: UnifiedCrmESignatureStatus;
 };
 
+export type UnifiedCrmESignatureDocumentReadinessItem = {
+  id: string;
+  label: string;
+  sourceAuthority: "QUOTE" | "CUSTOMER" | "DISPATCH" | "MANUAL_DOCUMENT";
+  readiness: "REVIEW_READY" | "HELD";
+  envelopeSendEnabled: false;
+  requiredBeforeSend: string[];
+  fallback: string;
+};
+
 export type UnifiedCrmESignatureReadModel = {
   activation: {
     envelopeCreateEnabled: false;
@@ -29,6 +39,12 @@ export type UnifiedCrmESignatureReadModel = {
   };
   checks: UnifiedCrmESignatureCheck[];
   contractVersion: typeof UNIFIED_CRM_E_SIGNATURE_CONTRACT_VERSION;
+  documentReadinessSurface: {
+    state: "READY_REVIEW";
+    items: UnifiedCrmESignatureDocumentReadinessItem[];
+    safeActionLabel: "Review document readiness";
+    sendActionEnabled: false;
+  };
   generatedAt: string;
   rollback: {
     fallback: "manual-document-review-and-existing-approval-workflow";

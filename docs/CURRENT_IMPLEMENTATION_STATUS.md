@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-122 e-signature document readiness implemented
+
+The current CRM implementation branch now extends the e-signature readiness boundary with a manager-only document readiness surface for quote approval documents, customer authorization forms, and repair/dispatch handoff documents. It keeps envelope sending and provider status import disabled.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_122_ESIGNATURE_DOCUMENT_READINESS_EVIDENCE.md`](unified-crm/UCRM_122_ESIGNATURE_DOCUMENT_READINESS_EVIDENCE.md). `UCRM-122` is `IMPLEMENTED_UNVERIFIED`; no signature envelope is created or sent.
+
 ## 2026-08-27 — Unified CRM UCRM-121 AI receptionist simulator implemented
 
 The current CRM implementation branch now contains a manager-only deterministic AI receptionist simulator model. It provides phone and SMS scenarios with allowed context, blocked actions, expected dispositions, and safe sample responses while keeping live provider traffic and autonomous behavior disabled.
