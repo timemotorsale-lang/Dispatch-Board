@@ -299,6 +299,19 @@ describe("Unified CRM Customer 360 service", () => {
           href: "#timeline-heading"
         }
       },
+      communicationActionReadiness: {
+        state: "READY",
+        posture: "MANUAL_ONLY",
+        channels: [
+          { id: "phone", label: "Call", state: "READY_MANUAL", primaryActionLabel: "Log call outcome", href: "#interaction-form-heading" },
+          { id: "email", label: "Email", state: "PROVIDER_HELD", primaryActionLabel: "Draft only", href: "/api/crm/v1/communications/email-drafts" },
+          { id: "sms", label: "Text", state: "PROVIDER_HELD", primaryActionLabel: "Review text templates", href: "/api/crm/v1/communications/sms-templates" }
+        ],
+        fallback: {
+          label: "Log manual outcome",
+          href: "#interaction-form-heading"
+        }
+      },
       sourceLenses: { leads: [{ id: "lead-a" }], cases: [{ id: "case-a" }] },
       opportunityLensObservation: {
         detail: "Only same-scope persisted opportunities linked to this customer are shown for organization review. 1 linked Dispatch record(s) are reconciled from opportunity bridge records. Lifecycle movement remains off.",
@@ -336,6 +349,8 @@ describe("Unified CRM Customer 360 service", () => {
     expect(serialized).not.toContain("Restricted note should not appear.");
     expect(model).not.toHaveProperty("tasks");
     expect(model.communicationTimelineLens.detail).toContain("Raw phone numbers, raw email values, message bodies, and provider payloads are not exposed.");
+    expect(model.communicationActionReadiness.channels.map((channel) => channel.state)).toEqual(["READY_MANUAL", "PROVIDER_HELD", "PROVIDER_HELD"]);
+    expect(JSON.stringify(model.communicationActionReadiness)).not.toContain("+16125551234");
     expect(model.timeline.items[0]).toMatchObject({
       correlationKey: "crm-event:crm-event-a",
       kind: "commitment-event",
@@ -356,6 +371,30 @@ describe("Unified CRM Customer 360 service", () => {
       { type: "PHONE", maskedValue: "••••0000", isPrimary: true, source: "CUSTOMER_LEGACY" },
       { type: "EMAIL", maskedValue: "l•••@e•••.test", isPrimary: true, source: "CUSTOMER_LEGACY" }
     ]);
+    expect(model.communicationActionReadiness.state).toBe("READY");
+    expect(model.communicationActionReadiness.channels.find((channel) => channel.id === "phone")).toMatchObject({
+      state: "READY_MANUAL",
+      primaryActionLabel: "Log call outcome"
+    });
+  });
+
+  it("shows no-contact communication readiness without exposing missing contact values", async () => {
+    const model = await getUnifiedCrmCustomer360(manager, "customer-a", dependencies(record({
+      contactPoints: [],
+      phoneNumber: null,
+      email: null
+    })).deps);
+
+    expect(model.contacts).toEqual([]);
+    expect(model.communicationActionReadiness).toMatchObject({
+      state: "UNAVAILABLE",
+      posture: "NO_CONTACT",
+      channels: [
+        { id: "phone", state: "NO_CONTACT", primaryActionLabel: "Review customer source" },
+        { id: "email", state: "NO_CONTACT", primaryActionLabel: "Review customer source" },
+        { id: "sms", state: "NO_CONTACT", primaryActionLabel: "Review customer source" }
+      ]
+    });
   });
 
   it("classifies next action timing as overdue or due today from the observed customer context", async () => {

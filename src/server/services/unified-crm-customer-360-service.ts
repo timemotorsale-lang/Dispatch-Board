@@ -33,6 +33,7 @@ import {
   UNIFIED_CRM_CUSTOMER_360_CONTRACT_VERSION,
   UnifiedCrmCustomer360Error,
   type UnifiedCrmCustomer360Appointment,
+  type UnifiedCrmCustomer360CommunicationActionReadiness,
   type UnifiedCrmCustomer360Contact,
   type UnifiedCrmCustomer360CommunicationTimelineLens,
   type UnifiedCrmCustomer360Note,
@@ -387,6 +388,60 @@ function communicationTimelineLens(items: UnifiedCrmCustomer360TimelineItem[]): 
   };
 }
 
+function communicationActionReadiness(input: {
+  contacts: UnifiedCrmCustomer360Contact[];
+  canLogInteraction: boolean;
+}): UnifiedCrmCustomer360CommunicationActionReadiness {
+  const hasPhone = input.contacts.some((contact) => contact.type === "PHONE");
+  const hasEmail = input.contacts.some((contact) => contact.type === "EMAIL");
+  const manualState = input.canLogInteraction ? "READY_MANUAL" : "NOT_AUTHORIZED";
+  const manualDetail = input.canLogInteraction
+    ? "Record the outcome after staff contact. No provider call, email, or text is sent from Customer 360."
+    : "Your role or this environment cannot record manual contact outcomes from Customer 360.";
+  const channels: UnifiedCrmCustomer360CommunicationActionReadiness["channels"] = [
+    {
+      id: "phone",
+      label: "Call",
+      state: hasPhone ? manualState : "NO_CONTACT",
+      primaryActionLabel: hasPhone && input.canLogInteraction ? "Log call outcome" : "Review customer source",
+      href: hasPhone && input.canLogInteraction ? "#interaction-form-heading" : "#communication-timeline-lens-heading",
+      detail: hasPhone ? manualDetail : "No permitted phone contact is visible here. Review the source record before calling."
+    },
+    {
+      id: "email",
+      label: "Email",
+      state: hasEmail ? "PROVIDER_HELD" : "NO_CONTACT",
+      primaryActionLabel: hasEmail ? "Draft only" : "Review customer source",
+      href: hasEmail ? "/api/crm/v1/communications/email-drafts" : "#communication-timeline-lens-heading",
+      detail: hasEmail
+        ? "Email provider sending is held. Staff can prepare review-only drafts, then use the approved manual channel outside CRM."
+        : "No permitted email contact is visible here. Review the source record before emailing."
+    },
+    {
+      id: "sms",
+      label: "Text",
+      state: hasPhone ? "PROVIDER_HELD" : "NO_CONTACT",
+      primaryActionLabel: hasPhone ? "Review text templates" : "Review customer source",
+      href: hasPhone ? "/api/crm/v1/communications/sms-templates" : "#communication-timeline-lens-heading",
+      detail: hasPhone
+        ? "SMS delivery is held until provider, consent, quiet-hours, and cost controls are approved."
+        : "No permitted phone contact is visible here, so SMS readiness is unavailable."
+    }
+  ];
+  const actionable = channels.some((channel) => channel.state === "READY_MANUAL");
+  const providerHeld = channels.some((channel) => channel.state === "PROVIDER_HELD");
+  return {
+    state: actionable ? "READY" : providerHeld ? "HELD" : "UNAVAILABLE",
+    posture: actionable ? "MANUAL_ONLY" : providerHeld ? "PROVIDER_HELD" : "NO_CONTACT",
+    channels,
+    fallback: {
+      label: "Log manual outcome",
+      href: "#interaction-form-heading",
+      reason: "When provider actions are held, keep continuity by recording the human touchpoint after it happens."
+    }
+  };
+}
+
 export async function getUnifiedCrmCustomer360(
   actor: AuthenticatedUser | null,
   customerIdValue: unknown,
@@ -456,6 +511,7 @@ export async function getUnifiedCrmCustomer360(
 
   const observedAt = now.toISOString();
   const canViewRestricted = evaluateUnifiedCrmCapability(actor, "crm.sensitive.view").allowed;
+  const visibleContacts = contacts(record);
   const canCreateGovernedTask = canCreateUnifiedCrmCustomerTaskBridge(actor, {
     bridgeMode: dependencies.bridgeMode ?? process.env.UNIFIED_CRM_CUSTOMER_TASK_BRIDGE_MODE,
     nodeEnv: dependencies.nodeEnv ?? process.env.NODE_ENV,
@@ -518,7 +574,7 @@ export async function getUnifiedCrmCustomer360(
       customerSince: record.createdAt.toISOString()
     },
     owner: record.ownerUser,
-    contacts: contacts(record),
+    contacts: visibleContacts,
     preferences: {
       preferredContactMethod: record.preferredContactMethod,
       preferredContactTime: record.preferredContactTime,
@@ -562,6 +618,7 @@ export async function getUnifiedCrmCustomer360(
       }
     },
     communicationTimelineLens: communicationTimelineLens(timelineView),
+    communicationActionReadiness: communicationActionReadiness({ contacts: visibleContacts, canLogInteraction }),
     sourceLenses: {
       leads: record.leads.filter((lead) =>
         recordScope.kind === "ORGANIZATION" || lead.ownerUser.id === recordScope.ownerUserId

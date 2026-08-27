@@ -519,6 +519,40 @@ function CommunicationTimelineLens({ model }: { model: UnifiedCrmCustomer360Read
   );
 }
 
+function CommunicationActionReadiness({ model }: { model: UnifiedCrmCustomer360ReadModel }) {
+  const readiness = model.communicationActionReadiness ?? {
+    state: "UNAVAILABLE" as const,
+    posture: "NO_CONTACT" as const,
+    channels: [],
+    fallback: {
+      label: "Log manual outcome" as const,
+      href: "#interaction-form-heading",
+      reason: "When provider actions are held, keep continuity by recording the human touchpoint after it happens."
+    }
+  };
+  return (
+    <section aria-labelledby="communication-action-readiness-heading" className={styles.sectionCard}>
+      <header>
+        <div><span className={styles.eyebrow}>Communication actions</span><h2 id="communication-action-readiness-heading">What can I safely do now?</h2></div>
+        <small>{label(readiness.state)} · {label(readiness.posture)}</small>
+      </header>
+      <div className={styles.lensGrid} aria-label="Customer communication action readiness">
+        {readiness.channels.map((channel) => (
+          <article key={channel.id}>
+            <div>
+              <strong>{channel.label}</strong>
+              <span>{label(channel.state)}</span>
+              <small>{channel.detail}</small>
+            </div>
+            <Link aria-label={`${channel.primaryActionLabel} for ${channel.label}`} href={channel.href}>{channel.primaryActionLabel}<ExternalLink aria-hidden="true" size={13} /></Link>
+          </article>
+        ))}
+      </div>
+      <p className={styles.timelineDetail}>{readiness.fallback.reason}</p>
+    </section>
+  );
+}
+
 function NotesSection({ model }: { model: UnifiedCrmCustomer360ReadModel }) {
   return (
     <section aria-labelledby="customer-notes-heading" className={styles.sectionCard}>
@@ -609,6 +643,7 @@ export function UnifiedCrmCustomer360({ errorMessage, failureKind = "error", mod
       <RelationshipSummary model={model} />
       {opportunityDiscovery ? <OpportunityDiscoverySection model={opportunityDiscovery} /> : null}
       <OpportunityLensSection model={model} returnHref={`/crm/customers/${encodeURIComponent(model.identity.id)}?crmReturnTo=${encodeURIComponent(returnHref)}`} />
+      <CommunicationActionReadiness model={model} />
       <CommunicationTimelineLens model={model} />
       <NotesSection model={model} />
       <TimelineSection model={model} opportunityPrompt={opportunityNudges?.timeline} returnHref={returnHref} />

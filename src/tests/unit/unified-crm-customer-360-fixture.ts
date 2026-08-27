@@ -51,6 +51,41 @@ export function customer360Fixture(): UnifiedCrmCustomer360ReadModel {
         reason: "Review the relationship timeline when communication outcomes need context; no external communication is sent from this lens."
       }
     },
+    communicationActionReadiness: {
+      state: "READY",
+      posture: "MANUAL_ONLY",
+      channels: [
+        {
+          id: "phone",
+          label: "Call",
+          state: "READY_MANUAL",
+          primaryActionLabel: "Log call outcome",
+          href: "#interaction-form-heading",
+          detail: "Record the outcome after staff contact. No provider call, email, or text is sent from Customer 360."
+        },
+        {
+          id: "email",
+          label: "Email",
+          state: "PROVIDER_HELD",
+          primaryActionLabel: "Draft only",
+          href: "/api/crm/v1/communications/email-drafts",
+          detail: "Email provider sending is held. Staff can prepare review-only drafts, then use the approved manual channel outside CRM."
+        },
+        {
+          id: "sms",
+          label: "Text",
+          state: "PROVIDER_HELD",
+          primaryActionLabel: "Review text templates",
+          href: "/api/crm/v1/communications/sms-templates",
+          detail: "SMS delivery is held until provider, consent, quiet-hours, and cost controls are approved."
+        }
+      ],
+      fallback: {
+        label: "Log manual outcome",
+        href: "#interaction-form-heading",
+        reason: "When provider actions are held, keep continuity by recording the human touchpoint after it happens."
+      }
+    },
     sourceLenses: {
       leads: [{ id: "lead-1", leadNumber: "LEAD-101", stage: "QUALIFIED", sourceCode: "WEBSITE", ownerName: "Taylor B.", vehicleInterest: "Toyota RAV4", nextActionCode: "FOLLOW_UP", nextActionAt: "2026-08-15T16:00:00.000Z", sourceHref: "/sales" }],
       cases: [{ id: "case-1", caseNumber: "CASE-202", title: "Document follow-up", category: "DOCUMENT", priority: "MEDIUM", status: "OPEN", ownerName: "Customer Care", dueAt: "2026-08-16T16:00:00.000Z", resolutionDueAt: null, slaStage: "HEALTHY", sourceHref: "/customers/resolutions?caseId=CASE-202" }]

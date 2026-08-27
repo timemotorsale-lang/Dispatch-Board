@@ -143,6 +143,11 @@ describe("Unified CRM Customer 360", () => {
     expect(markup).toContain("Relationship timeline"); expect(markup).toContain("Phone Outbound"); expect(markup).toContain("Appointment confirmation was recorded.");
     expect(markup).toContain("Safe touchpoint history");
     expect(markup).toContain("Raw phone numbers, raw email values, message bodies, and provider payloads are not exposed.");
+    expect(markup).toContain("What can I safely do now?");
+    expect(markup).toContain("Log call outcome");
+    expect(markup).toContain("Draft only");
+    expect(markup).toContain("Review text templates");
+    expect(markup).toContain("No provider call, email, or text is sent from Customer 360.");
     expect(markup).toContain("Manual contact outcome"); expect(markup).toContain("Record a relationship touchpoint");
     expect(markup).toContain("This read-only timeline combines the latest permitted customer activity");
     expect(markup).toContain('aria-label="Permitted customer relationship activity"');

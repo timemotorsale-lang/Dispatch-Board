@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-116 Customer 360 communication action readiness implemented
+
+The current CRM implementation branch now contains a Customer 360 communication action-readiness card. It shows call, email, and text readiness with honest manual-only/provider-held/no-contact states, links staff to the safe manual outcome flow where allowed, and avoids implying that live providers are connected.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_116_CUSTOMER_360_COMMUNICATION_ACTION_READINESS_EVIDENCE.md`](unified-crm/UCRM_116_CUSTOMER_360_COMMUNICATION_ACTION_READINESS_EVIDENCE.md). `UCRM-116` is `IMPLEMENTED_UNVERIFIED`; provider sending, click-to-call, SMS delivery, and mailbox sync remain disabled.
+
 ## 2026-08-27 — Unified CRM UCRM-115 Customer 360 communication timeline lens implemented
 
 The current CRM implementation branch now contains a read-only Customer 360 communication timeline lens. It summarizes permitted manual phone/email/SMS-style outcomes already visible in the governed customer timeline, keeps source systems authoritative, masks raw contact values and provider payloads, and falls back to manual timeline review when no permitted outcomes are visible.

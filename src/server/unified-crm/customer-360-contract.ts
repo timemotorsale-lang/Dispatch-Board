@@ -123,6 +123,24 @@ export type UnifiedCrmCustomer360CommunicationTimelineLens = {
   };
 };
 
+export type UnifiedCrmCustomer360CommunicationActionReadiness = {
+  state: "READY" | "HELD" | "UNAVAILABLE";
+  posture: "MANUAL_ONLY" | "PROVIDER_HELD" | "NO_CONTACT";
+  channels: {
+    id: "phone" | "email" | "sms";
+    label: "Call" | "Email" | "Text";
+    state: "READY_MANUAL" | "PROVIDER_HELD" | "NO_CONTACT" | "NOT_AUTHORIZED";
+    primaryActionLabel: string;
+    href: string;
+    detail: string;
+  }[];
+  fallback: {
+    label: "Log manual outcome";
+    href: string;
+    reason: string;
+  };
+};
+
 export type UnifiedCrmCustomer360Note = {
   id: string;
   body: string;
@@ -192,6 +210,7 @@ export type UnifiedCrmCustomer360ReadModel = {
     };
   };
   communicationTimelineLens: UnifiedCrmCustomer360CommunicationTimelineLens;
+  communicationActionReadiness: UnifiedCrmCustomer360CommunicationActionReadiness;
   sourceLenses: {
     leads: UnifiedCrmCustomer360LeadLens[];
     cases: UnifiedCrmCustomer360CaseLens[];
