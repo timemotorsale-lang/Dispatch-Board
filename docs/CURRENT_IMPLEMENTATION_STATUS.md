@@ -1,5 +1,13 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-111 conversation envelope boundary implemented
+
+The current CRM implementation branch now contains a conversation-envelope boundary around existing manual customer interaction storage. Manual outcomes can be treated as conversation envelope items without adding external provider side effects.
+
+This checkpoint does not import provider events, send messages, record calls, transcribe calls, or add a provider-message table. Existing `CustomerInteraction` remains the source for manual outcomes; provider events remain held.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_111_CONVERSATION_ENVELOPE_EVIDENCE.md`](unified-crm/UCRM_111_CONVERSATION_ENVELOPE_EVIDENCE.md). `UCRM-111` is `IMPLEMENTED_UNVERIFIED`.
+
 ## 2026-08-27 — Unified CRM UCRM-110 communication consent foundation held
 
 The current CRM implementation branch now contains a communication consent foundation for email, SMS, and phone readiness. It exposes channel readiness, consent/purpose, suppression, opt-out, quiet-hours, contact-point authority, audit, and fallback gates before live communication buttons can be enabled.

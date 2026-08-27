@@ -260,7 +260,7 @@ No adapter is complete at “API connected.” Each is a full vertical slice wit
 | UCRM-108 | CRM enterprise/admin readiness hub — `IMPLEMENTED_UNVERIFIED` | A manager-readable hub summarizes available, held, and planned CRM integration/admin gates without enabling held capabilities. |
 | UCRM-109 | Provider decision intake — `HELD` | Email, SMS, and phone provider choices are captured with owner, scope, credential, cost, consent, rollback, and evidence requirements. |
 | UCRM-110 | Customer communication consent foundation — `HELD` | Consent, suppression, opt-out, quiet hours, purpose, and channel readiness are visible before any send/call action. |
-| UCRM-111 | CRM conversation envelope storage | Durable conversation envelopes safely link manual outcomes and future provider events without external sending. |
+| UCRM-111 | CRM conversation envelope storage — `IMPLEMENTED_UNVERIFIED` | Durable conversation envelopes safely link manual outcomes and future provider events without external sending. |
 | UCRM-112 | Email draft surface | Staff can draft review-only customer email content without provider sending or mailbox sync. |
 | UCRM-113 | SMS template catalog | Approved text-message templates can be prepared and reviewed without outbound SMS delivery. |
 | UCRM-114 | Manual phone-call disposition capture | Staff can log call attempts/outcomes without VoIP or recording activation. |
