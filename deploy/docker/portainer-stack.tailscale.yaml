@@ -124,7 +124,6 @@ services:
       - no-new-privileges:true
 
   seed:
-    profiles: ["tools"]
     image: dispatch-board-tooling:${APP_VERSION:-local}
     build:
       context: ../..
@@ -132,7 +131,13 @@ services:
       target: tooling
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:?POSTGRES_USER is required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/${POSTGRES_DB:?POSTGRES_DB is required}?schema=public
-    command: ["npm", "run", "db:seed"]
+      SEED_ON_DEPLOY: ${SEED_ON_DEPLOY:-false}
+    command:
+      [
+        "sh",
+        "-c",
+        "if [ \"$${SEED_ON_DEPLOY}\" = \"true\" ]; then npm run db:seed; else echo 'Seed skipped. Set SEED_ON_DEPLOY=true for one deploy to seed the database.'; fi"
+      ]
     depends_on:
       db:
         condition: service_healthy

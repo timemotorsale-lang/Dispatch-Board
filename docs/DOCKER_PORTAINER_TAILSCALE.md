@@ -119,15 +119,33 @@ The scheduler sends `Authorization: Bearer <CRON_SECRET>` automatically inside t
 
 ## Seeding Data
 
-The seed service is included under the `tools` profile so it does not run on every deploy.
+The Portainer stack includes a `seed` service that runs during normal stack deployment and exits. By default it only prints a skip message.
 
-To seed from the Ubuntu server with Compose:
+To seed from Portainer when you cannot manually start one-off services:
+
+1. Set this stack environment variable:
+
+```env
+SEED_ON_DEPLOY=true
+```
+
+2. Redeploy the stack.
+3. Watch the `seed` service logs until it prints that the development seed completed.
+4. Set the variable back to:
+
+```env
+SEED_ON_DEPLOY=false
+```
+
+5. Redeploy once more so future app updates do not rerun the seed.
+
+The seed script is designed to be repeatable for foundation data, but do not leave seeding enabled during normal production updates.
+
+If you have direct Docker Compose access on the Ubuntu server, you can also run the profile-based seed service from `deploy/docker/compose.yaml`:
 
 ```bash
 docker compose -f deploy/docker/compose.yaml --profile tools run --rm seed
 ```
-
-If you prefer to seed through Portainer, duplicate the stack temporarily with the `tools` profile enabled or run a one-off console command against the tooling image.
 
 ## Backups
 
