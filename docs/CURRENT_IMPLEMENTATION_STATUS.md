@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-114 manual call disposition implemented
+
+The current CRM implementation branch now contains a manual phone-call disposition readiness boundary. It prepares simple call outcomes without enabling VoIP, call recording, or transcription.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_114_MANUAL_CALL_DISPOSITION_EVIDENCE.md`](unified-crm/UCRM_114_MANUAL_CALL_DISPOSITION_EVIDENCE.md). `UCRM-114` is `IMPLEMENTED_UNVERIFIED`.
+
 ## 2026-08-27 — Unified CRM UCRM-113 SMS template catalog implemented
 
 The current CRM implementation branch now contains a review-only SMS template catalog. It gives managers draft customer text patterns with purpose labels, opt-in reminders, segment awareness, and explicit no-send posture.

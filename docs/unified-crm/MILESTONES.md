@@ -263,7 +263,7 @@ No adapter is complete at “API connected.” Each is a full vertical slice wit
 | UCRM-111 | CRM conversation envelope storage — `IMPLEMENTED_UNVERIFIED` | Durable conversation envelopes safely link manual outcomes and future provider events without external sending. |
 | UCRM-112 | Email draft surface — `IMPLEMENTED_UNVERIFIED` | Staff can draft review-only customer email content without provider sending or mailbox sync. |
 | UCRM-113 | SMS template catalog — `IMPLEMENTED_UNVERIFIED` | Approved text-message templates can be prepared and reviewed without outbound SMS delivery. |
-| UCRM-114 | Manual phone-call disposition capture | Staff can log call attempts/outcomes without VoIP or recording activation. |
+| UCRM-114 | Manual phone-call disposition capture — `IMPLEMENTED_UNVERIFIED` | Staff can log call attempts/outcomes without VoIP or recording activation. |
 | UCRM-115 | Customer 360 communication timeline lens | Customer 360 can show permitted communication envelopes and manual outcomes without leaking restricted fields. |
 | UCRM-116 | Customer 360 communication action readiness | Customer 360 shows honest email/text/call readiness states and fallback actions. |
 | UCRM-117 | Provider health and disabled-state dashboard | Management can inspect provider disabled/held/degraded state, health, and kill-switch posture. |
