@@ -589,6 +589,7 @@ export function RepairOrderEnterpriseWorkbench({
   const [currentVersion, setCurrentVersion] = useState(order.version);
   const [evidencePreviewOpen, setEvidencePreviewOpen] = useState(false);
   const [useInternalRecon, setUseInternalRecon] = useState(false);
+  const [reconReportOpen, setReconReportOpen] = useState(false);
   const concernSummary = order.serviceVisit?.concernSummary?.trim() || "Concern not recorded.";
   const intakeNotes = order.serviceVisit?.intakeNotes?.trim() || null;
   const plan = useMemo(() => diagnosticPlan(concernSummary), [concernSummary]);
@@ -1020,6 +1021,7 @@ export function RepairOrderEnterpriseWorkbench({
     ? `${detailRoute}${primaryActionHref}`
     : primaryActionHref;
   const footerPrimaryClick = fullDetailMode && primaryActionHref === vendorProgressHref ? openVendorProgress : undefined;
+  const toggleReconReport = () => setReconReportOpen((open) => !open);
 
   return (
     <section className={`rowb-shell${fullDetailMode ? " rowb-full-detail-mode" : ""}`} aria-label="Repair Order Workbench">
@@ -1039,10 +1041,10 @@ export function RepairOrderEnterpriseWorkbench({
               <span>Repair Order Workbench</span>
               <h1>{order.repairOrderNumber}</h1>
               <div className="rowb-document-actions">
-                <a href="#recon-report">
+                <button aria-expanded={reconReportOpen} aria-controls="recon-report" onClick={toggleReconReport} type="button">
                   <Activity />
                   Recon Report
-                </a>
+                </button>
                 <a href="#repair-order-document">
                   <FileText />
                   View RO
@@ -1090,7 +1092,7 @@ export function RepairOrderEnterpriseWorkbench({
             <Link href="/vehicles/repair-workbench?view=all">← All Repair Orders</Link>
           </div>
           <div>
-            <a href="#recon-report"><Activity /> Recon Report</a>
+            <button aria-expanded={reconReportOpen} aria-controls="recon-report" onClick={toggleReconReport} type="button"><Activity /> Recon Report</button>
             <Link href={`${detailRoute}#repair-order-document`}><FileText /> View RO</Link>
             <a href={`/api/repair-orders/${encodeURIComponent(order.id)}/print`} rel="noreferrer" target="_blank"><Printer /> Print RO</a>
           </div>
@@ -1124,12 +1126,13 @@ export function RepairOrderEnterpriseWorkbench({
               View full details
               <ChevronRight />
             </Link>
-            <a href="#recon-report">
+            <button aria-expanded={reconReportOpen} aria-controls="recon-report" onClick={toggleReconReport} type="button">
               <Activity />
               Recon Report
-            </a>
+            </button>
           </div>
         </div>
+        {reconReportOpen ? reconReportPanel : null}
         <dl className="rowb-summary-facts">
           <div><dt>Custody / location</dt><dd>{currentLocationLabel}</dd></div>
           <div><dt>Owner</dt><dd>{currentOwner.name}</dd></div>
@@ -1201,7 +1204,6 @@ export function RepairOrderEnterpriseWorkbench({
             </article>
           </div>
         </details>
-        {reconReportPanel}
       </section>
       ) : null}
       {fullDetailMode ? (
@@ -1398,8 +1400,8 @@ export function RepairOrderEnterpriseWorkbench({
         </aside>
         <main className="rowb-main">
           <nav className="rowb-tabs"><a className="active" href="#concerns">Concerns</a><a href="#inspection">Inspection</a><a href="#diagnosis">Diagnosis</a><a href="#estimate">Estimate</a><a href="#jobs">Jobs</a><a href="#quality">QC</a><a href="#timeline">Timeline</a></nav>
-          <div className="rowb-actions"><span>{activeVendorWork ? `Offsite · ${format(activeVendorWork.status)}` : order.operatingState === "ACTIVE" ? "Active work order" : format(order.operatingState)}</span><a href="#recon-report"><Activity /> Recon Report</a><Link href={primaryActionHref} onClick={primaryActionHref === vendorProgressHref ? openVendorProgress : undefined}>{vendorWaitingParts ? "Open Parts Control" : "Review Plan"}</Link><Link className="primary" href={primaryActionHref} onClick={primaryActionHref === vendorProgressHref ? openVendorProgress : undefined}>{primaryActionLabel} <ChevronRight /></Link></div>
-          {reconReportPanel}
+          <div className="rowb-actions"><span>{activeVendorWork ? `Offsite · ${format(activeVendorWork.status)}` : order.operatingState === "ACTIVE" ? "Active work order" : format(order.operatingState)}</span><button aria-expanded={reconReportOpen} aria-controls="recon-report" onClick={toggleReconReport} type="button"><Activity /> Recon Report</button><Link href={primaryActionHref} onClick={primaryActionHref === vendorProgressHref ? openVendorProgress : undefined}>{vendorWaitingParts ? "Open Parts Control" : "Review Plan"}</Link><Link className="primary" href={primaryActionHref} onClick={primaryActionHref === vendorProgressHref ? openVendorProgress : undefined}>{primaryActionLabel} <ChevronRight /></Link></div>
+          {reconReportOpen ? reconReportPanel : null}
           <section className="rowb-transition-strip" aria-label="Contextual next-step workspaces">
             <header>
               <strong>Next step workspaces</strong>
