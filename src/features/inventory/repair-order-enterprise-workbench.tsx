@@ -917,6 +917,89 @@ export function RepairOrderEnterpriseWorkbench({
     ? date(vendorApprovalEvent?.occurredAt ?? activeVendorWork.sentAt)
     : "Not recorded";
   const vendorStatusDone = Boolean(activeVendorWork && ["RETURNED", "QC_REQUIRED", "COMPLETED"].includes(activeVendorWork.status));
+  const reportRisk = vendorWaitingParts || vendorNeedsInternalCompletion
+    ? "Stalled"
+    : vendorReadyForFinalQc || ["QUALITY_CONTROL", "QUALITY_CHECK", "HANDOFF", "COMPLETE", "COMPLETED"].includes(order.stage)
+      ? "Review"
+      : "On track";
+  const reportBlocker = vendorWaitingParts
+    ? "Vendor is waiting on dealership-supplied parts."
+    : vendorNeedsInternalCompletion
+      ? "Dealership QC found incomplete vendor work."
+      : !intakeReady
+        ? "Intake facts are incomplete."
+        : !diagnosis
+          ? "Diagnosis or direct repair scope has not been recorded."
+          : !estimate
+            ? "Estimate has not been prepared."
+            : !authorization
+              ? "Approval has not been captured."
+              : waitingParts
+                ? "Parts are not fully reserved."
+                : vendorReadyForFinalQc
+                  ? "Final QC pass/fail is ready to record."
+                  : "No active blocker recorded.";
+  const reportMilestones = [
+    { label: "Intake", result: intakeReady ? "Done" : "Needs facts", detail: concernSummary },
+    { label: "Diagnosis", result: diagnosis || directBodyPath || hasOffsiteVendorWithoutDiagnosis ? "Done" : "Pending", detail: diagnosis?.cause ?? (hasOffsiteVendorWithoutDiagnosis ? "Outside-vendor path is documented." : "Technician evidence is still needed.") },
+    { label: "Estimate", result: estimate ? `Version ${estimate.version}` : "Pending", detail: estimate ? money(estimate.totalCents) : "No estimate on file." },
+    { label: "Approval", result: authorization ? format(authorization.disposition) : "Pending", detail: authorization ? "Approval is attached to the current estimate." : "Approval decision still needs to be recorded." },
+    { label: "Parts", result: waitingParts ? "Stalled" : order.partDemands.length ? "Ready" : "No demand", detail: order.partDemands.length ? `${order.partDemands.reduce((sum, part) => sum + Math.max(0, part.quantityRequired - part.quantityReserved), 0)} still needed` : "No parts demand recorded." },
+    { label: "Repair", result: activeVendorWork ? format(activeVendorWork.status) : order.repairJobs.length ? `${order.repairJobs.length} job(s)` : "Pending", detail: activeVendorWork?.lastUpdateSummary ?? primaryActionSummary },
+    { label: "QC", result: vendorReadyForFinalQc ? "Ready for pass/fail" : ["QUALITY_CONTROL", "QUALITY_CHECK"].includes(order.stage) ? "In review" : "Pending", detail: vendorReadyForFinalQc ? "Record pass/fail, then handoff." : "QC opens after repair completion." },
+    { label: "Handoff", result: ["HANDOFF", "COMPLETE", "COMPLETED"].includes(order.stage) ? "Ready" : "Pending", detail: "After QC passes, return the vehicle to the next owning workspace." },
+  ];
+  const reportEvents = [
+    activeVendorEvents[0]
+      ? { label: "Last vendor update", detail: activeVendorEvents[0].summary, when: date(activeVendorEvents[0].occurredAt) }
+      : null,
+    activeVendorWork
+      ? { label: "Vendor status", detail: `${activeVendorWork.vendorName} - ${format(activeVendorWork.status)}`, when: date(activeVendorWork.sentAt) }
+      : null,
+    diagnosis
+      ? { label: "Diagnosis recorded", detail: diagnosis.recommendation, when: date(diagnosis.diagnosedAt) }
+      : null,
+    estimate
+      ? { label: "Estimate prepared", detail: `${money(estimate.totalCents)} - ${format(estimate.status)}`, when: `Version ${estimate.version}` }
+      : null,
+  ].filter(Boolean) as Array<{ detail: string; label: string; when: string }>;
+  const reconReportPanel = (
+    <section className="rowb-recon-report" id="recon-report" aria-label="Vehicle recon progress report">
+      <header>
+        <div>
+          <small>Recon Report</small>
+          <h3>{vehicle}</h3>
+          <p>{order.repairOrderNumber} - {workflowGateLabel} - {currentLocationLabel}</p>
+        </div>
+        <strong>{reportRisk}</strong>
+      </header>
+      <div className="rowb-report-kpis">
+        <div><span>Current stage</span><b>{format(order.stage)}</b></div>
+        <div><span>Days in recon</span><b>{duration(order.openedAt)}</b></div>
+        <div><span>Stage clock</span><b>{duration(order.stageStartedAt)}</b></div>
+        <div><span>Owner</span><b>{currentOwner.name}</b></div>
+      </div>
+      <div className="rowb-report-focus">
+        <article><small>Stall / blocker</small><strong>{reportBlocker}</strong></article>
+        <article><small>Next move</small><strong>{displayedNextAction}</strong></article>
+      </div>
+      <div className="rowb-report-stages">
+        {reportMilestones.map((stage) => (
+          <article key={stage.label}>
+            <span>{stage.label}</span>
+            <b>{stage.result}</b>
+            <p>{stage.detail}</p>
+          </article>
+        ))}
+      </div>
+      <div className="rowb-report-events">
+        <strong>Recent progress</strong>
+        {reportEvents.length ? reportEvents.map((event) => (
+          <p key={`${event.label}-${event.when}`}><span>{event.label}</span><b>{event.when}</b>{event.detail}</p>
+        )) : <p><span>Current record</span><b>Now</b>{stageSummary}</p>}
+      </div>
+    </section>
+  );
   const detailRoute = `/vehicles/repair-workbench?${new URLSearchParams({
     repairOrderId: order.id,
     vehicleId: order.vehicle.id,
@@ -956,6 +1039,10 @@ export function RepairOrderEnterpriseWorkbench({
               <span>Repair Order Workbench</span>
               <h1>{order.repairOrderNumber}</h1>
               <div className="rowb-document-actions">
+                <a href="#recon-report">
+                  <Activity />
+                  Recon Report
+                </a>
                 <a href="#repair-order-document">
                   <FileText />
                   View RO
@@ -1003,6 +1090,7 @@ export function RepairOrderEnterpriseWorkbench({
             <Link href="/vehicles/repair-workbench?view=all">← All Repair Orders</Link>
           </div>
           <div>
+            <a href="#recon-report"><Activity /> Recon Report</a>
             <Link href={`${detailRoute}#repair-order-document`}><FileText /> View RO</Link>
             <a href={`/api/repair-orders/${encodeURIComponent(order.id)}/print`} rel="noreferrer" target="_blank"><Printer /> Print RO</a>
           </div>
@@ -1036,6 +1124,10 @@ export function RepairOrderEnterpriseWorkbench({
               View full details
               <ChevronRight />
             </Link>
+            <a href="#recon-report">
+              <Activity />
+              Recon Report
+            </a>
           </div>
         </div>
         <dl className="rowb-summary-facts">
@@ -1109,6 +1201,7 @@ export function RepairOrderEnterpriseWorkbench({
             </article>
           </div>
         </details>
+        {reconReportPanel}
       </section>
       ) : null}
       {fullDetailMode ? (
@@ -1305,7 +1398,8 @@ export function RepairOrderEnterpriseWorkbench({
         </aside>
         <main className="rowb-main">
           <nav className="rowb-tabs"><a className="active" href="#concerns">Concerns</a><a href="#inspection">Inspection</a><a href="#diagnosis">Diagnosis</a><a href="#estimate">Estimate</a><a href="#jobs">Jobs</a><a href="#quality">QC</a><a href="#timeline">Timeline</a></nav>
-          <div className="rowb-actions"><span>{activeVendorWork ? `Offsite · ${format(activeVendorWork.status)}` : order.operatingState === "ACTIVE" ? "Active work order" : format(order.operatingState)}</span><Link href={primaryActionHref} onClick={primaryActionHref === vendorProgressHref ? openVendorProgress : undefined}>{vendorWaitingParts ? "Open Parts Control" : "Review Plan"}</Link><Link className="primary" href={primaryActionHref} onClick={primaryActionHref === vendorProgressHref ? openVendorProgress : undefined}>{primaryActionLabel} <ChevronRight /></Link></div>
+          <div className="rowb-actions"><span>{activeVendorWork ? `Offsite · ${format(activeVendorWork.status)}` : order.operatingState === "ACTIVE" ? "Active work order" : format(order.operatingState)}</span><a href="#recon-report"><Activity /> Recon Report</a><Link href={primaryActionHref} onClick={primaryActionHref === vendorProgressHref ? openVendorProgress : undefined}>{vendorWaitingParts ? "Open Parts Control" : "Review Plan"}</Link><Link className="primary" href={primaryActionHref} onClick={primaryActionHref === vendorProgressHref ? openVendorProgress : undefined}>{primaryActionLabel} <ChevronRight /></Link></div>
+          {reconReportPanel}
           <section className="rowb-transition-strip" aria-label="Contextual next-step workspaces">
             <header>
               <strong>Next step workspaces</strong>

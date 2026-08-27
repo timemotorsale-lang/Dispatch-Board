@@ -32,6 +32,12 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("Vendor progress");
     expect(html).toContain("Approved work");
     expect(html).toContain("Repair outcome");
+    expect(html).toContain("Recon Report");
+    expect(html).toContain("Vehicle recon progress report");
+    expect(html).toContain("Stall / blocker");
+    expect(html).toContain("Next move");
+    expect(html).toContain("Stage clock");
+    expect(html).toContain("Recent progress");
     expect(html).toContain("View full details");
     expect(html).toContain("fullDetails=1");
     expect(html).not.toContain("summaryCardPreview");
@@ -78,6 +84,12 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("Open vendor documentation form");
     expect(html).toContain("View RO");
     expect(html).toContain("Print RO");
+    expect(html).toContain("Recon Report");
+    expect(html).toContain('href="#recon-report"');
+    expect(html).toContain("Vehicle recon progress report");
+    expect(html).toContain("Stall / blocker");
+    expect(html).toContain("Next move");
+    expect(html).toContain("Recent progress");
     expect(html).toContain('href="/api/repair-orders/ro-1/print"');
     expect(html).toContain('target="_blank"');
     expect(html).toContain("RO Version 2");
