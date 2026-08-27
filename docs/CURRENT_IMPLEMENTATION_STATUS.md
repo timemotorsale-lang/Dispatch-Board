@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-118 integration recovery review implemented
+
+The current CRM implementation branch now contains a manager-only integration recovery review model. It shows retry, reconciliation, and dead-letter items with external replay disabled, manual next steps, customer-impact labels, source links, and read-only rollback posture.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_118_INTEGRATION_RECOVERY_REVIEW_EVIDENCE.md`](unified-crm/UCRM_118_INTEGRATION_RECOVERY_REVIEW_EVIDENCE.md). `UCRM-118` is `IMPLEMENTED_UNVERIFIED`; no provider retry, replay, sync, send, webhook, or external side effect was enabled.
+
 ## 2026-08-27 — Unified CRM UCRM-117 provider health dashboard implemented
 
 The current CRM implementation branch now contains a manager-only provider health/disabled-state dashboard model. It shows email/calendar, SMS, telephony, e-signature, and accounting/DMS channels as held or disabled with live traffic off, explicit disabled reasons, feature controls, and rollback fallbacks.
