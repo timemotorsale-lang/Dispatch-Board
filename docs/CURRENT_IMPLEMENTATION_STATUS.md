@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM scripted build preflight hardened
+
+The scripted CRM release build path is now hardened for the known Windows Prisma engine file-lock case. `npm run build` now validates `prisma/schema.prisma`, retries Prisma generation, continues only when the failure is the known locked `query_engine-windows.dll.node` rename and an existing generated client is usable, then completes the Next.js production build. The scripted build passed locally after this change.
+
+Evidence is recorded in [`docs/unified-crm/UCRM_RELEASE_CANDIDATE_LOCAL_VERIFICATION_EVIDENCE.md`](unified-crm/UCRM_RELEASE_CANDIDATE_LOCAL_VERIFICATION_EVIDENCE.md). The release candidate remains `IMPLEMENTED_UNVERIFIED`, not releasable, because a clean Prisma generation still needs to be rerun after the local dev server releases the Windows query-engine DLL or in the target release environment, and named pilot cohort, owner approvals, rollback approver, provider approvals, and pilot go/no-go remain unapproved. No release enablement, provider traffic, pilot cohort activation, production promotion, or write-capable CRM behavior outside approved governed surfaces was enabled.
+
 ## 2026-08-27 — Unified CRM pilot keyboard proof harness implemented
 
 The CRM release-readiness package now includes a repeatable Playwright pilot proof harness for the supported CRM review routes. The new browser test verifies supported CRM route loading, desktop/mobile overflow, absence of browser console errors, and real keyboard Tab traversal through the CRM shell navigation and work controls. The proof passed locally with 2 browser tests, and TypeScript typecheck passed afterward.

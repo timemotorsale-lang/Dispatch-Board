@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "prebuild": "prisma generate",
+    "prebuild": "node scripts/prepare-prisma-client.mjs",
     "predev": "node scripts/prepare-dev-runtime.mjs",
     "dev": "node scripts/run-dev.mjs",
     "build": "next build",
