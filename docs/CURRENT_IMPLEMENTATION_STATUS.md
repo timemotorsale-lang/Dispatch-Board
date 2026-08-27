@@ -1,5 +1,13 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-110 communication consent foundation held
+
+The current CRM implementation branch now contains a communication consent foundation for email, SMS, and phone readiness. It exposes channel readiness, consent/purpose, suppression, opt-out, quiet-hours, contact-point authority, audit, and fallback gates before live communication buttons can be enabled.
+
+This checkpoint does not send messages, place calls, update consent, or activate provider behavior.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_110_COMMUNICATION_CONSENT_FOUNDATION_EVIDENCE.md`](unified-crm/UCRM_110_COMMUNICATION_CONSENT_FOUNDATION_EVIDENCE.md). `UCRM-110` is `HELD`.
+
 ## 2026-08-27 — Unified CRM UCRM-109 provider decision intake held
 
 The current CRM implementation branch now contains a provider decision intake readiness boundary for email/calendar, SMS, and telephony providers. It lists the business, security/privacy, architecture, operations, and data decisions needed before customer communications can be activated.
