@@ -224,6 +224,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [frontlineResults, setFrontlineResults] = useState<Record<string, FrontlineResult>>({});
   const [frontlineNotes, setFrontlineNotes] = useState<Record<string, string>>({});
+  const [frontlineDraftSavedAt, setFrontlineDraftSavedAt] = useState("");
   const [quickChecks, setQuickChecks] = useState({ repair: false, finish: false, safety: false });
   const [quickNote, setQuickNote] = useState("");
   const [vendorQcNote, setVendorQcNote] = useState("");
@@ -284,14 +285,17 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
         if (!saved) {
           setFrontlineResults({});
           setFrontlineNotes({});
+          setFrontlineDraftSavedAt("");
           return;
         }
-        const draft = JSON.parse(saved) as { results?: Record<string, FrontlineResult>; notes?: Record<string, string> };
+        const draft = JSON.parse(saved) as { results?: Record<string, FrontlineResult>; notes?: Record<string, string>; savedAt?: string };
         setFrontlineResults(draft.results ?? {});
         setFrontlineNotes(draft.notes ?? {});
+        setFrontlineDraftSavedAt(draft.savedAt ? dateTime(draft.savedAt) : "");
       } catch {
         setFrontlineResults({});
         setFrontlineNotes({});
+        setFrontlineDraftSavedAt("");
       }
     }, 0);
     return () => window.clearTimeout(timer);
@@ -427,20 +431,43 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
 
   function saveFrontlineDraft(showConfirmation = true) {
     if (!order) return;
-    window.localStorage.setItem(`frontline-qc:${order.id}`, JSON.stringify({ results: frontlineResults, notes: frontlineNotes }));
-    if (showConfirmation) setNotice("Final Frontline QC draft saved. You can finish it later on this vehicle.");
+    const savedAt = new Date().toISOString();
+    try {
+      window.localStorage.setItem(`frontline-qc:${order.id}`, JSON.stringify({ results: frontlineResults, notes: frontlineNotes, savedAt }));
+      const savedLabel = dateTime(savedAt);
+      setFrontlineDraftSavedAt(savedLabel);
+      if (showConfirmation) setNotice(`Final Frontline QC draft saved at ${savedLabel}. You can finish it later on this vehicle.`);
+    } catch {
+      setNotice("Final Frontline QC draft could not be saved on this browser. Keep this page open and try again.");
+    }
   }
 
   function setFrontlineResult(codeValue: string, result: FrontlineResult) {
     const next = { ...frontlineResults, [codeValue]: result };
     setFrontlineResults(next);
-    if (order) window.localStorage.setItem(`frontline-qc:${order.id}`, JSON.stringify({ results: next, notes: frontlineNotes }));
+    if (order) {
+      const savedAt = new Date().toISOString();
+      try {
+        window.localStorage.setItem(`frontline-qc:${order.id}`, JSON.stringify({ results: next, notes: frontlineNotes, savedAt }));
+        setFrontlineDraftSavedAt(dateTime(savedAt));
+      } catch {
+        setNotice("Final Frontline QC draft could not be saved on this browser. Keep this page open and try again.");
+      }
+    }
   }
 
   function setFrontlineNote(codeValue: string, note: string) {
     const next = { ...frontlineNotes, [codeValue]: note };
     setFrontlineNotes(next);
-    if (order) window.localStorage.setItem(`frontline-qc:${order.id}`, JSON.stringify({ results: frontlineResults, notes: next }));
+    if (order) {
+      const savedAt = new Date().toISOString();
+      try {
+        window.localStorage.setItem(`frontline-qc:${order.id}`, JSON.stringify({ results: frontlineResults, notes: next, savedAt }));
+        setFrontlineDraftSavedAt(dateTime(savedAt));
+      } catch {
+        setNotice("Final Frontline QC draft could not be saved on this browser. Keep this page open and try again.");
+      }
+    }
   }
 
   async function completeFrontlineQc() {
@@ -591,7 +618,8 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
 
           <footer className="frontline-final-actions">
             <p><AlertTriangle /> {frontlineReady ? "Every check passed. This vehicle can be cleared for frontline readiness." : "Resolve failed and review items, then complete all checks."}</p>
-            <button className="secondary" disabled={busy} onClick={() => saveFrontlineDraft()} type="button">Save &amp; finish later</button>
+            <span aria-live="polite" className="frontline-draft-status">{frontlineDraftSavedAt ? `Draft saved ${frontlineDraftSavedAt}` : "Draft not saved yet"}</span>
+            <button className="secondary" disabled={busy} onClick={() => saveFrontlineDraft()} type="button">{frontlineDraftSavedAt ? "Saved" : "Save & finish later"}</button>
             <button className="primary" disabled={busy || !frontlineReady} onClick={() => void completeFrontlineQc()} type="button">Mark Frontline Ready</button>
           </footer>
         </section>

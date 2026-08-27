@@ -118,6 +118,7 @@ describe("QualityControlWorkspace", () => {
     expect(html).toContain("Paint and finish");
     expect(html).toContain("Dash warning lights");
     expect(html).toContain("Save &amp; finish later");
+    expect(html).toContain("Draft not saved yet");
     expect(html).toContain("Mark Frontline Ready");
   });
 
