@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-124 custom field/layout admin preview implemented
+
+The current CRM implementation branch now extends the governed custom-fields readiness boundary with an admin layout preview for Customer 360, Opportunity Detail, and Quote Review surfaces. It shows future field labels, types, classifications, and target surfaces while keeping publishing and runtime mutation disabled.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_124_CUSTOM_LAYOUT_PREVIEW_EVIDENCE.md`](unified-crm/UCRM_124_CUSTOM_LAYOUT_PREVIEW_EVIDENCE.md). `UCRM-124` is `IMPLEMENTED_UNVERIFIED`; no custom field publishing or layout publishing was enabled.
+
 ## 2026-08-27 — Unified CRM UCRM-123 accounting/DMS mapping preview implemented
 
 The current CRM implementation branch now extends the accounting/DMS connector readiness boundary with a manager-only mapping preview. It shows customer, quote, dispatch, and accounting/DMS source-authority rows, conflict risk, and decisions needed while keeping sync, backfill, and writeback disabled.

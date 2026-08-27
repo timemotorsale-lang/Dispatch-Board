@@ -16,6 +16,10 @@ describe("Unified CRM governed custom fields readiness", () => {
     expect(result.activation).toEqual({ customFieldPublishEnabled: false, layoutPublishEnabled: false, runtimeMutationEnabled: false, state: "HELD" });
     expect(result.checks.find((check) => check.category === "namespace")).toMatchObject({ status: "PASS" });
     expect(result.checks.find((check) => check.category === "limits")).toMatchObject({ status: "HOLD" });
+    expect(result.layoutPreview).toMatchObject({ state: "READY_REVIEW", publishEnabled: false });
+    expect(result.layoutPreview.sections.map((section) => section.targetSurface)).toEqual(["CUSTOMER_360", "OPPORTUNITY_DETAIL", "QUOTE_REVIEW"]);
+    expect(result.layoutPreview.sections.flatMap((section) => section.fields).every((field) => field.publishEnabled === false)).toBe(true);
+    expect(result.layoutPreview.sections.flatMap((section) => section.fields).map((field) => field.classification)).toEqual(expect.arrayContaining(["STANDARD", "INTERNAL", "RESTRICTED"]));
   });
 
   it("denies non-manager workspaces", async () => {

@@ -20,6 +20,19 @@ export type UnifiedCrmGovernedCustomFieldsCheck = {
   status: UnifiedCrmGovernedCustomFieldsStatus;
 };
 
+export type UnifiedCrmCustomLayoutPreviewSection = {
+  id: string;
+  label: string;
+  targetSurface: "CUSTOMER_360" | "OPPORTUNITY_DETAIL" | "QUOTE_REVIEW";
+  fields: {
+    id: string;
+    label: string;
+    type: "TEXT" | "NUMBER" | "DATE" | "SELECT" | "BOOLEAN";
+    classification: "STANDARD" | "INTERNAL" | "RESTRICTED";
+    publishEnabled: false;
+  }[];
+};
+
 export type UnifiedCrmGovernedCustomFieldsReadModel = {
   activation: {
     customFieldPublishEnabled: false;
@@ -29,6 +42,11 @@ export type UnifiedCrmGovernedCustomFieldsReadModel = {
   };
   checks: UnifiedCrmGovernedCustomFieldsCheck[];
   contractVersion: typeof UNIFIED_CRM_GOVERNED_CUSTOM_FIELDS_CONTRACT_VERSION;
+  layoutPreview: {
+    state: "READY_REVIEW";
+    publishEnabled: false;
+    sections: UnifiedCrmCustomLayoutPreviewSection[];
+  };
   generatedAt: string;
   rollback: {
     fallback: "standard-crm-fields-and-layouts";
