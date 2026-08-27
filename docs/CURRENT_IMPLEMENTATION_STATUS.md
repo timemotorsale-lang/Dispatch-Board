@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-121 AI receptionist simulator implemented
+
+The current CRM implementation branch now contains a manager-only deterministic AI receptionist simulator model. It provides phone and SMS scenarios with allowed context, blocked actions, expected dispositions, and safe sample responses while keeping live provider traffic and autonomous behavior disabled.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_121_AI_RECEPTIONIST_SIMULATOR_EVIDENCE.md`](unified-crm/UCRM_121_AI_RECEPTIONIST_SIMULATOR_EVIDENCE.md). `UCRM-121` is `IMPLEMENTED_UNVERIFIED`; this is simulation-only and does not answer calls, send texts, schedule appointments, approve quotes, or mutate source workflows.
+
 ## 2026-08-27 — Unified CRM UCRM-120 AI receptionist requirements implemented
 
 The current CRM implementation branch now contains a manager-only AI receptionist requirements and safety contract. It captures consent, human handoff, bounded retrieval, no-action defaults, audit, and cost controls while keeping live calls, live texts, and autonomous actions disabled.
