@@ -40,6 +40,29 @@ describe("enterprise repair-order workbench", () => {
     expect(html).not.toContain("Location / workflow correction");
   });
 
+  it("keeps the summary lifecycle aligned with the detailed lifecycle stage aliases", () => {
+    const readyForRepairOrder = {
+      ...order,
+      stage: "READY_FOR_REPAIR",
+      nextAction: "Manage repair readiness",
+      inventoryUnit: { inventoryNumber: "B10592" },
+      customer: null,
+    };
+
+    const html = renderToStaticMarkup(
+      <RepairOrderEnterpriseWorkbench
+        order={readyForRepairOrder}
+        options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }}
+      />,
+    );
+
+    expect(html).toContain('<span class="done"><i>');
+    expect(html).toContain("Estimate</span>");
+    expect(html).toContain('<span class="current"><i>5</i>Repair</span>');
+    expect(html).toContain('<span class="next"><i>6</i>Quality Check</span>');
+    expect(html).not.toContain("Final QC</span>");
+  });
+
   it("renders concern-centered diagnostic planning and governed downstream gates", () => {
     const html = renderToStaticMarkup(<RepairOrderEnterpriseWorkbench fullDetailMode order={order} options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }, { id: "tech-1", name: "Walter Mechanic" }] }} />);
 

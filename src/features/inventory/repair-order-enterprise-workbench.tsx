@@ -237,11 +237,17 @@ const stageToLifecycleIndex: Record<string, number> = {
   INTAKE: 0,
   DIAGNOSIS: 1,
   ESTIMATE: 2,
+  AUTHORIZATION: 3,
   APPROVAL: 3,
+  PARTS_ORDERING: 4,
+  READY_FOR_REPAIR: 4,
   REPAIR: 4,
+  REPAIRS: 4,
   QUALITY_CHECK: 5,
   QUALITY_CONTROL: 5,
+  ADVISOR_REVIEW: 5,
   HANDOFF: 6,
+  DELIVERY_OR_INVENTORY_HANDOFF: 6,
   COMPLETE: 6,
   COMPLETED: 6,
 };
@@ -619,14 +625,20 @@ export function RepairOrderEnterpriseWorkbench({
   const promiseGuardrailLabel = isInventoryRecon ? "Internal recon approval is required before any repair work is performed." : "Customer authorization is required before any repair work is performed.";
   const commitmentFollowUp = isInventoryRecon ? "Retail appointment readiness does not apply. Diagnosis determines the repair scope." : capacityEvidence ? "Live shop capacity is recorded." : "Scheduling capacity will be checked before repair dispatch.";
   const readinessNote = isInventoryRecon ? "Retail appointment readiness does not apply. Diagnosis determines the repair scope." : capacityEvidence ? "A live shop-capacity snapshot is linked to this intake." : "You can start diagnosis now; capacity can be reviewed before scheduling repair work.";
-  const evidenceStageIndex = authorization ? 3 : estimate ? 2 : order.inspectionVersions.length || diagnosis ? 1 : 0;
-  const lifecycleStageIndex = Math.max(stageToLifecycleIndex[order.stage] ?? 0, evidenceStageIndex);
   const activeVendorWork = activeVendorWorkFor(order);
   const showingInternalRecon = useInternalRecon || !activeVendorWork;
   const vendorNeedsInternalCompletion = vendorQcNeedsInternalCompletion(activeVendorWork);
   const needsFollowUpVendor = vendorNeedsFollowUpVendor(activeVendorWork);
   const vendorReadyForFinalQc = Boolean(activeVendorWork && ["RETURNED", "QC_REQUIRED"].includes(activeVendorWork.status) && !vendorNeedsInternalCompletion && !needsFollowUpVendor);
   const vendorCanOpenFinalQc = Boolean(activeVendorWork && ["READY_FOR_PICKUP", "RETURN_TRANSPORT", "RETURNED", "QC_REQUIRED"].includes(activeVendorWork.status) && !vendorNeedsInternalCompletion && !needsFollowUpVendor);
+  const evidenceStageIndex = authorization ? 3 : estimate ? 2 : order.inspectionVersions.length || diagnosis ? 1 : 0;
+  const lifecycleStageIndex = Math.max(
+    stageToLifecycleIndex[order.stage] ?? 0,
+    evidenceStageIndex,
+    order.repairJobs.length > 0 ? 4 : 0,
+    activeVendorWork ? 4 : 0,
+    vendorReadyForFinalQc ? 5 : 0,
+  );
   const waitingParts = order.partDemands.some((part) => part.quantityReserved < part.quantityRequired);
   const vendorWaitingParts = Boolean(activeVendorWork) && (activeVendorWork?.status === "WAITING_PARTS" || waitingParts);
   const directBodyPath = diagnosis?.cause?.includes("Direct repair scope approved without troubleshooting diagnosis.") ?? false;
@@ -887,20 +899,8 @@ export function RepairOrderEnterpriseWorkbench({
   }
 
   const vehicle = [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber;
-  const summaryStages = [
-    { key: "intake", label: "Intake" },
-    { key: "diagnose", label: "Diagnose" },
-    { key: "estimate", label: "Estimate" },
-    { key: "approval", label: "Approval" },
-    { key: "vendorRepair", label: activeVendorWork ? "Vendor Repair" : "Repair" },
-    { key: "finalQc", label: "Final QC" },
-    { key: "handoff", label: "Handoff" },
-  ];
-  const activeSummaryIndex = vendorReadyForFinalQc
-    ? 5
-    : activeVendorWork
-      ? 4
-      : Math.min(stageToLifecycleIndex[order.stage] ?? 0, 4);
+  const summaryStages = lifecycleLabels.map((label) => ({ key: label, label }));
+  const activeSummaryIndex = lifecycleStageIndex;
   const summaryStageState = (index: number) => {
     if (index < activeSummaryIndex) return "done";
     if (index === activeSummaryIndex) return "current";
