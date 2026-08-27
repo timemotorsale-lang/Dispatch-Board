@@ -28,27 +28,29 @@ function foundation(): EnterpriseCommandRepository {
 }
 
 describe("service close parts service", () => {
+  const overview = {
+    custodyEvents: [],
+    demands: [],
+    discrepancies: [],
+    interchanges: [],
+    locations: [],
+    offers: [],
+    parts: [],
+    purchaseOrders: [{ id: "po-1", locationId: "loc-1", status: "ACKNOWLEDGED" }],
+    receipts: [],
+    recoveries: [],
+    repairOrders: [],
+    requisitions: [],
+    stockLocations: [],
+    transfers: [],
+    vendors: [],
+  };
+
   it("creates a fresh receipt id while keeping purchase-order aggregate versioning", async () => {
     const receivePurchaseOrder = vi.fn().mockResolvedValue({ result: { id: "receipt-1" } });
     const repository = {
       aggregateVersion: vi.fn().mockResolvedValue(3),
-      overview: vi.fn().mockResolvedValue({
-        custodyEvents: [],
-        demands: [],
-        discrepancies: [],
-        interchanges: [],
-        locations: [],
-        offers: [],
-        parts: [],
-        purchaseOrders: [{ id: "po-1", locationId: "loc-1", status: "ACKNOWLEDGED" }],
-        receipts: [],
-        recoveries: [],
-        repairOrders: [],
-        requisitions: [],
-        stockLocations: [],
-        transfers: [],
-        vendors: [],
-      }),
+      overview: vi.fn().mockResolvedValue(overview),
       receivePurchaseOrder,
     } as unknown as ServiceClosePartsRepository;
 
@@ -72,5 +74,31 @@ describe("service close parts service", () => {
     expect(receivePurchaseOrder.mock.calls[0][2].receiptId).not.toBe("po-1");
     expect(receivePurchaseOrder.mock.calls[1][2].receiptId).not.toBe("po-1");
     expect(receivePurchaseOrder.mock.calls[1][2].receiptId).not.toBe(receivePurchaseOrder.mock.calls[0][2].receiptId);
+  });
+
+  it("allows a partially received purchase order correction to reach the repository", async () => {
+    const revisePurchaseOrder = vi.fn().mockResolvedValue({ result: { id: "po-1", status: "PARTIALLY_RECEIVED" } });
+    const repository = {
+      aggregateVersion: vi.fn().mockResolvedValue(5),
+      overview: vi.fn().mockResolvedValue({
+        ...overview,
+        purchaseOrders: [{ id: "po-1", locationId: "loc-1", status: "PARTIALLY_RECEIVED" }],
+      }),
+      revisePurchaseOrder,
+    } as unknown as ServiceClosePartsRepository;
+
+    await executeServiceClosePartsCommand(manager, {
+      action: "REVISE_PURCHASE_ORDER",
+      idempotencyKey: "revise-partial-1",
+      lines: [{ partId: "part-1", quantity: 1, unitCostCents: 12500 }],
+      reason: "Correct a partially received PO line.",
+      subjectId: "po-1",
+    }, { enforceRollout: false, foundationRepository: foundation(), repository });
+
+    expect(revisePurchaseOrder).toHaveBeenCalledWith(
+      expect.objectContaining({ expectedVersion: 5, subjectId: "po-1", subjectType: "PART_PURCHASE_ORDER" }),
+      "po-1",
+      expect.objectContaining({ lines: [{ partId: "part-1", quantity: 1, unitCostCents: 12500 }] }),
+    );
   });
 });

@@ -22,9 +22,13 @@ describe("service close and enterprise parts rules", () => {
     expect(() => normalizePurchaseTransition({ ...base, occurredAt: "2026-07-14T12:00:00Z", toStatus: "CLOSED" }, "DRAFT")).toThrow("cannot transition");
   });
 
-  it("allows controlled pre-issue revision and rejects post-issue change", () => {
-    expect(normalizePurchaseRevision({ ...base, lines: [{ partId: "part", quantity: 2, unitCostCents: 125 }] }, "APPROVED")).toMatchObject({ lines: [{ quantity: 2, unitCostCents: 125 }] });
-    expect(() => normalizePurchaseRevision({ ...base, lines: [{ partId: "part", quantity: 2, unitCostCents: 125 }] }, "ISSUED")).toThrow("cannot be revised");
+  it("allows open purchase-order corrections and rejects closed records", () => {
+    const revision = { ...base, lines: [{ partId: "part", quantity: 2, unitCostCents: 125 }] };
+    expect(normalizePurchaseRevision(revision, "APPROVED")).toMatchObject({ lines: [{ quantity: 2, unitCostCents: 125 }] });
+    expect(normalizePurchaseRevision(revision, "ISSUED")).toMatchObject({ lines: [{ quantity: 2, unitCostCents: 125 }] });
+    expect(normalizePurchaseRevision(revision, "PARTIALLY_RECEIVED")).toMatchObject({ lines: [{ quantity: 2, unitCostCents: 125 }] });
+    expect(() => normalizePurchaseRevision(revision, "CLOSED")).toThrow("cannot be revised");
+    expect(() => normalizePurchaseRevision(revision, "CANCELLED")).toThrow("cannot be revised");
   });
 
   it("rejects damaged receipt quantity above receipt quantity", () => {

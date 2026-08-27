@@ -195,7 +195,7 @@ export function normalizeRecoveryTransition(value: unknown, currentStatus: strin
 }
 
 export function normalizePurchaseRevision(value: unknown, currentStatus: string) {
-  if (!["DRAFT", "APPROVED"].includes(currentStatus)) throw new Error(`Purchase order cannot be revised from ${currentStatus}.`);
+  if (["CLOSED", "CANCELLED"].includes(currentStatus)) throw new Error(`Purchase order cannot be revised from ${currentStatus}.`);
   const raw = object(value);
   return { ...base(raw), lines: lines(raw.lines, "Purchase order revision") };
 }

@@ -329,9 +329,10 @@ export function createServiceClosePartsRepository(database: PrismaClient = prism
 
     revisePurchaseOrder(command: EnterpriseCommandCommitInput, purchaseOrderId: string, data: { lines: PurchaseLine[]; reason: string }) {
       return executeAggregateMutation(database, command, "vehicle-operations.parts", async (tx, version) => {
-        const record = await tx.partPurchaseOrder.findFirst({ where: { id: purchaseOrderId, organizationId: command.organizationId, status: { in: ["DRAFT", "APPROVED"] } } });
-        if (!record) throw new Error("Only a draft or approved purchase order may be revised.");
-        const next = await tx.partPurchaseOrder.update({ where: { id: record.id }, data: { lines: toJson(data.lines), orderedTotalCents: total(data.lines), status: "DRAFT", version } });
+        const record = await tx.partPurchaseOrder.findFirst({ where: { id: purchaseOrderId, organizationId: command.organizationId, status: { notIn: ["CLOSED", "CANCELLED"] } } });
+        if (!record) throw new Error("Only an open purchase order may be corrected.");
+        const status = ["DRAFT", "APPROVED"].includes(record.status) ? "DRAFT" : record.status;
+        const next = await tx.partPurchaseOrder.update({ where: { id: record.id }, data: { lines: toJson(data.lines), orderedTotalCents: total(data.lines), status, version } });
         return { previous: record, result: { approvalInvalidated: record.status === "APPROVED", id: next.id, orderedTotalCents: next.orderedTotalCents, status: next.status, version } };
       });
     },
