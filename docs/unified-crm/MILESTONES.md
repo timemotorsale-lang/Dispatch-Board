@@ -250,7 +250,35 @@ No adapter is complete at “API connected.” Each is a full vertical slice wit
 | UCRM-106 | Governed AI assistance — `HELD` | Permission-aware retrieval, citations/provenance, evaluation set, prompt-injection defense, human approval, cost/latency, logging, opt-out, and kill switch. |
 | UCRM-107 | Broader lifecycle modules — `HELD` | Renewal, account health, service/case, marketing, or commercial expansion receives its own domain, security, test, pilot, and release milestones. |
 
-## 13. Slice Definition of Done
+## 13. Milestone UCRM-10 — Communication, AI, and Admin Execution Layer
+
+**Status:** Planned; implement sequentially after enterprise readiness gates
+**Depends on:** UCRM-080 through UCRM-107 readiness boundaries and Product Owner review
+
+| ID | Capability package | Required gate |
+| --- | --- | --- |
+| UCRM-108 | CRM enterprise/admin readiness hub — `IMPLEMENTED_UNVERIFIED` | A manager-readable hub summarizes available, held, and planned CRM integration/admin gates without enabling held capabilities. |
+| UCRM-109 | Provider decision intake | Email, SMS, and phone provider choices are captured with owner, scope, credential, cost, consent, rollback, and evidence requirements. |
+| UCRM-110 | Customer communication consent foundation | Consent, suppression, opt-out, quiet hours, purpose, and channel readiness are visible before any send/call action. |
+| UCRM-111 | CRM conversation envelope storage | Durable conversation envelopes safely link manual outcomes and future provider events without external sending. |
+| UCRM-112 | Email draft surface | Staff can draft review-only customer email content without provider sending or mailbox sync. |
+| UCRM-113 | SMS template catalog | Approved text-message templates can be prepared and reviewed without outbound SMS delivery. |
+| UCRM-114 | Manual phone-call disposition capture | Staff can log call attempts/outcomes without VoIP or recording activation. |
+| UCRM-115 | Customer 360 communication timeline lens | Customer 360 can show permitted communication envelopes and manual outcomes without leaking restricted fields. |
+| UCRM-116 | Customer 360 communication action readiness | Customer 360 shows honest email/text/call readiness states and fallback actions. |
+| UCRM-117 | Provider health and disabled-state dashboard | Management can inspect provider disabled/held/degraded state, health, and kill-switch posture. |
+| UCRM-118 | Integration retry and reconciliation review surface | Management can inspect retry/reconciliation queues without replaying external side effects. |
+| UCRM-119 | Quiet hours, rate limits, and cost controls | Communication guardrails are modeled, reviewable, and fail closed. |
+| UCRM-120 | AI receptionist requirements and safety contract | AI receptionist behavior is specified with consent, retrieval, escalation, human approval, and no-action defaults. |
+| UCRM-121 | AI receptionist simulator | Staff can simulate intake/receptionist scenarios without live calls or texts. |
+| UCRM-122 | E-signature/document readiness surface | Management can review document/signature readiness gates without sending envelopes. |
+| UCRM-123 | Accounting/DMS mapping preview | Management can preview mappings/conflicts for one future system without sync or writes. |
+| UCRM-124 | Custom field/layout admin preview | Admins can preview effective custom layouts without publishing. |
+| UCRM-125 | Workflow simulation preview | Admins can simulate workflow rules without live execution. |
+| UCRM-126 | Sandbox promotion diff/review screen | Admins can review config promotion diffs without production promotion. |
+| UCRM-127 | CRM release-readiness cleanup and regression stabilization | The communication/admin envelope receives regression, accessibility, fallback, rollback, and evidence cleanup before merge review. |
+
+## 14. Slice Definition of Done
 
 A `UCRM-###` slice is `VERIFIED` only when all applicable statements are true:
 

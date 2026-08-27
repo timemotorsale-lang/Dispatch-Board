@@ -1,5 +1,13 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-108 admin readiness hub implemented
+
+The current CRM implementation branch now contains a manager-only admin readiness hub that summarizes integration readiness, enterprise controls, and the next planned communication/AI build items in one read-only model.
+
+This checkpoint does not activate any held feature. It only makes the current readiness posture easier to inspect: available foundations, held gates, planned work, next decisions, feature controls, and read-only fallback.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_108_ADMIN_READINESS_HUB_EVIDENCE.md`](unified-crm/UCRM_108_ADMIN_READINESS_HUB_EVIDENCE.md). `UCRM-108` is `IMPLEMENTED_UNVERIFIED`: backend readiness exists; browser-visible management UI proof remains pending.
+
 ## 2026-08-27 — Unified CRM UCRM-107 broader lifecycle module readiness held
 
 The current CRM implementation branch now contains a safe broader lifecycle module readiness boundary. Renewal, account health, service/case expansion, marketing expansion, and broader commercial lifecycle work are all held until each receives its own domain, security, test, pilot, release, and rollback gates.
