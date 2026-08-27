@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-104 retention, legal hold, and export readiness held
+
+The current CRM implementation branch now contains a safe retention, legal hold, and export readiness boundary. It records the approved-policy, field-classification, legal-hold, immutable-evidence, job-simulation, export-threshold, recovery, and legal/security gates without enabling disposition or exports.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_104_RETENTION_EXPORT_EVIDENCE.md`](unified-crm/UCRM_104_RETENTION_EXPORT_EVIDENCE.md). `UCRM-104` is `HELD` under deferred `UCRM-DEC-014`.
+
 ## 2026-08-27 — Unified CRM UCRM-103 sandbox and configuration promotion readiness held
 
 The current CRM implementation branch now contains a safe sandbox and configuration promotion readiness boundary. It defines isolation, masked-data, diff/review, promotion, validation, audit, and rollback gates without enabling production promotion.
