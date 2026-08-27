@@ -52,9 +52,11 @@ type RepairOrderWorkbenchOrder = {
       positionLabel: string | null;
     }>;
     id: string;
+    color?: string | null;
     make: string | null;
     model: string | null;
     vehicleNumber: string;
+    version?: number | null;
     vin: string | null;
     year: number | null;
   };
@@ -590,6 +592,10 @@ export function RepairOrderEnterpriseWorkbench({
   const [evidencePreviewOpen, setEvidencePreviewOpen] = useState(false);
   const [useInternalRecon, setUseInternalRecon] = useState(false);
   const [reconReportOpen, setReconReportOpen] = useState(false);
+  const [vehicleColor, setVehicleColor] = useState(order.vehicle.color ?? "");
+  const [vehicleColorDraft, setVehicleColorDraft] = useState(order.vehicle.color ?? "");
+  const [vehicleColorBusy, setVehicleColorBusy] = useState(false);
+  const [vehicleVersion, setVehicleVersion] = useState(order.vehicle.version ?? 0);
   const concernSummary = order.serviceVisit?.concernSummary?.trim() || "Concern not recorded.";
   const intakeNotes = order.serviceVisit?.intakeNotes?.trim() || null;
   const plan = useMemo(() => diagnosticPlan(concernSummary), [concernSummary]);
@@ -899,7 +905,57 @@ export function RepairOrderEnterpriseWorkbench({
     }
   }
 
+  async function saveVehicleColor() {
+    const color = vehicleColorDraft.trim();
+    if (!color) {
+      setNotice("Enter the vehicle color before saving.");
+      return;
+    }
+    if (color.toLocaleLowerCase() === vehicleColor.trim().toLocaleLowerCase()) {
+      setNotice("Vehicle color is already current.");
+      return;
+    }
+    setVehicleColorBusy(true);
+    setNotice("");
+    try {
+      const response = await fetch(`/api/vehicles/${encodeURIComponent(order.vehicle.id)}/commands`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "CORRECT_COLOR",
+          color,
+          expectedVersion: vehicleVersion,
+          idempotencyKey: crypto.randomUUID(),
+          locationId: order.location.id,
+          reason: vehicleColor ? "Correct vehicle color from the repair order vehicle card." : "Record missing vehicle color from the repair order vehicle card.",
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error ?? "Vehicle color could not be saved.");
+      const savedVersion = Number(body.version ?? body.result?.version);
+      setVehicleColor(color);
+      setVehicleColorDraft(color);
+      if (Number.isInteger(savedVersion) && savedVersion > vehicleVersion) setVehicleVersion(savedVersion);
+      setNotice(`Vehicle color saved as ${color}.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Vehicle color could not be saved.");
+    } finally {
+      setVehicleColorBusy(false);
+    }
+  }
+
   const vehicle = [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber;
+  const vehicleColorEditor = (
+    <section className="rowb-vehicle-color-editor" aria-label="Vehicle color">
+      <label>
+        <span>Vehicle color</span>
+        <input onChange={(event) => setVehicleColorDraft(event.target.value)} placeholder="Example: White" value={vehicleColorDraft} />
+      </label>
+      <button disabled={vehicleColorBusy || !vehicleColorDraft.trim() || vehicleColorDraft.trim().toLocaleLowerCase() === vehicleColor.trim().toLocaleLowerCase()} onClick={() => void saveVehicleColor()} type="button">
+        {vehicleColorBusy ? "Saving color..." : vehicleColor ? "Update color" : "Save color"}
+      </button>
+    </section>
+  );
   const summaryStages = lifecycleLabels.map((label) => ({ key: label, label }));
   const activeSummaryIndex = lifecycleStageIndex;
   const summaryStageState = (index: number) => {
@@ -1104,7 +1160,8 @@ export function RepairOrderEnterpriseWorkbench({
             <div>
               <small>{order.inventoryUnit ? "Inventory recon" : "Repair order"}</small>
               <h2>{vehicle}</h2>
-              <p>{order.repairOrderNumber} · {order.inventoryUnit?.inventoryNumber ?? order.vehicle.vehicleNumber}</p>
+              <p>{[order.repairOrderNumber, order.inventoryUnit?.inventoryNumber ?? order.vehicle.vehicleNumber, vehicleColor || "Color not recorded"].filter(Boolean).join(" · ")}</p>
+              {vehicleColorEditor}
             </div>
           </div>
           <div className="rowb-summary-status">
@@ -1159,10 +1216,12 @@ export function RepairOrderEnterpriseWorkbench({
               <strong>{vehicle}</strong>
               <dl>
                 <div><dt>Year / Make / Model</dt><dd>{vehicle}</dd></div>
+                <div><dt>Color</dt><dd>{vehicleColor || "Not recorded"}</dd></div>
                 <div><dt>VIN</dt><dd>{order.vehicle.vin ?? "Not recorded"}</dd></div>
                 <div><dt>Inventory / vehicle</dt><dd>{order.inventoryUnit?.inventoryNumber ?? order.vehicle.vehicleNumber}</dd></div>
                 <div><dt>In-service date</dt><dd>{date(order.openedAt)}</dd></div>
               </dl>
+              {vehicleColorEditor}
             </article>
             <article>
               <small><Wrench /> Vendor progress</small>
@@ -1227,6 +1286,7 @@ export function RepairOrderEnterpriseWorkbench({
         <div className="rowb-document-grid">
           <dl>
             <div><dt>Vehicle</dt><dd>{vehicle}</dd></div>
+            <div><dt>Color</dt><dd>{vehicleColor || "Not recorded"}</dd></div>
             <div><dt>VIN / vehicle ID</dt><dd>{order.vehicle.vin ?? order.vehicle.vehicleNumber}</dd></div>
             <div><dt>{ownerLabel}</dt><dd>{order.customer?.displayName ?? order.inventoryUnit?.inventoryNumber ?? "Internal work"}</dd></div>
             <div><dt>{currentLocationKind}</dt><dd>{currentLocationLabel}</dd></div>
@@ -1238,6 +1298,7 @@ export function RepairOrderEnterpriseWorkbench({
             <div><dt>Next action</dt><dd>{displayedNextAction}</dd></div>
           </dl>
         </div>
+        {vehicleColorEditor}
         <section className="rowb-location-workflow" aria-label="Location and workflow correction">
           <header>
             <MapPin />

@@ -77,6 +77,14 @@ export async function correctRegistryVehicle(actor: AuthenticatedUser | null, ve
   return context.repository.correctIdentity(command({ actorUserId: user.id, commandType: "CORRECT_VEHICLE_IDENTITY", expectedVersion: expected(raw.expectedVersion), idempotencyKey, locationId, organizationId: context.organizationId, payload: identity, reason, subjectId: required(vehicleId, "Vehicle ID") }), identity);
 }
 
+export async function correctRegistryVehicleColor(actor: AuthenticatedUser | null, vehicleId: string, value: unknown, input: Dependencies = {}) {
+  const context = deps(input); const raw = record(value, "Vehicle color correction request"); const locationId = typeof raw.locationId === "string" ? raw.locationId : null;
+  const color = required(raw.color, "Vehicle color", 100);
+  const reason = typeof raw.reason === "string" && raw.reason.trim() ? raw.reason.trim() : "Record vehicle color from staff observation.";
+  const user = await authorize(actor, "VEHICLE_COMMAND_EXECUTE", locationId, context, true);
+  return context.repository.correctColor(command({ actorUserId: user.id, commandType: "CORRECT_VEHICLE_COLOR", expectedVersion: expected(raw.expectedVersion), idempotencyKey: required(raw.idempotencyKey, "Idempotency key"), locationId, organizationId: context.organizationId, payload: { color }, reason, subjectId: required(vehicleId, "Vehicle ID") }), color);
+}
+
 export async function addVehicleRelationship(actor: AuthenticatedUser | null, vehicleId: string, value: unknown, input: Dependencies = {}) {
   const context = deps(input); const raw = record(value); const locationId = typeof raw.locationId === "string" ? raw.locationId : null;
   const user = await authorize(actor, "VEHICLE_COMMAND_EXECUTE", locationId, context, true); const reason = required(raw.reason, "Business reason");

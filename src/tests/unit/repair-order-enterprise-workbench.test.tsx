@@ -10,7 +10,7 @@ vi.mock("next/navigation", () => ({
 
 const order = {
   id: "ro-1", repairOrderNumber: "RO-20481", stage: "INTAKE", stageStartedAt: "2026-07-20T15:00:00Z", operatingState: "ACTIVE", openedAt: "2026-07-20T15:00:00Z", targetAt: "2026-07-20T18:00:00Z", nextAction: "Release to diagnosis", stateReason: null, version: 2,
-  vehicle: { id: "vehicle-1", make: "Ford", model: "F-150", vehicleNumber: "VEH-1", vin: "1FTFW1E57RKE12345", year: 2024, custodyEvents: [] }, customer: { displayName: "Jordan Customer" }, inventoryUnit: null, ownerUser: { id: "advisor-1", name: "Alex Advisor" }, location: { id: "location-1", name: "Minneapolis" },
+  vehicle: { id: "vehicle-1", color: null, make: "Ford", model: "F-150", vehicleNumber: "VEH-1", version: 4, vin: "1FTFW1E57RKE12345", year: 2024, custodyEvents: [] }, customer: { displayName: "Jordan Customer" }, inventoryUnit: null, ownerUser: { id: "advisor-1", name: "Alex Advisor" }, location: { id: "location-1", name: "Minneapolis" },
   serviceVisit: { appointmentId: "appointment-1", arrivedAt: "2026-07-20T15:00:00Z", concernSummary: "Customer reports a grinding noise from the front brakes when stopping.", consentStatus: "PENDING", intakeNotes: null, keyTag: "1187", keysReceivedCount: 1, promisedAt: null, readinessSnapshotId: "snapshot-1", transportMode: "DROP_OFF" },
   inspectionVersions: [], diagnosisVersions: [], estimateVersions: [], repairJobs: [], partDemands: [],
 };
@@ -29,6 +29,9 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("Recon progress");
     expect(html).toContain("Full repair order details");
     expect(html).toContain("Vehicle information");
+    expect(html).toContain("Color not recorded");
+    expect(html).toContain("Vehicle color");
+    expect(html).toContain("Save color");
     expect(html).toContain("Vendor progress");
     expect(html).toContain("Approved work");
     expect(html).toContain("Repair outcome");
@@ -95,6 +98,9 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain('href="/api/repair-orders/ro-1/print"');
     expect(html).toContain('target="_blank"');
     expect(html).toContain("RO Version 2");
+    expect(html).toContain("Vehicle color");
+    expect(html).toContain("Save color");
+    expect(html).toContain("<dt>Color</dt><dd>Not recorded</dd>");
     expect(html).toContain("This RO Version 2 preserves the intake concern and remains the governing record for technician evidence and findings.");
     expect(html).toContain("No repair is authorized until the estimate and approval are recorded");
     expect(html).toContain("Customer concern");

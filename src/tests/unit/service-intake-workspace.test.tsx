@@ -90,6 +90,8 @@ describe("enterprise service intake workspace", () => {
     expect(html).toContain("0 / 2,000");
     expect(html).toContain("Decoded vehicle information");
     expect(html).toContain("Canonical vehicle selected");
+    expect(html).toContain("Vehicle color");
+    expect(html).toContain("Save color");
     expect(html).toContain("Vehicle 360");
     expect(html).toContain("Next: Add / Select Customer");
   });
@@ -149,9 +151,9 @@ describe("enterprise service intake workspace", () => {
   });
 
   it("builds a governed canonical-vehicle command for an unmatched decoded VIN", () => {
-    const command = buildServiceIntakeVehicleCommand({ description: "Customer reports an airbag warning light.", idempotencyKey: "service-intake-vin-1", locationId: "location-1", make: "HONDA", model: "Accord", odometer: "125000", odometerUnit: "MILES", vin: "1HGCM82633A004352", year: "2003" });
+    const command = buildServiceIntakeVehicleCommand({ color: "White", description: "Customer reports an airbag warning light.", idempotencyKey: "service-intake-vin-1", locationId: "location-1", make: "HONDA", model: "Accord", odometer: "125000", odometerUnit: "MILES", vin: "1HGCM82633A004352", year: "2003" });
 
-    expect(normalizeAddVehicleWorkflowInput(command)).toMatchObject({ addMode: "QUICK", description: "Customer reports an airbag warning light.", odometer: 125000, reasonCode: "SERVICE_REPAIR", relationship: "CUSTOMER_VEHICLE", vin: "1HGCM82633A004352" });
+    expect(normalizeAddVehicleWorkflowInput(command)).toMatchObject({ addMode: "QUICK", color: "White", description: "Customer reports an airbag warning light.", odometer: 125000, reasonCode: "SERVICE_REPAIR", relationship: "CUSTOMER_VEHICLE", vin: "1HGCM82633A004352" });
   });
 
   it("lets intake create a VIN-validated vehicle when external decode is unavailable", () => {

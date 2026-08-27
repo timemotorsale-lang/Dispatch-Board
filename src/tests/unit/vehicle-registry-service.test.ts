@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import type { EnterpriseCommandRepository } from "@/server/enterprise-command/repository";
 import type { VehicleRegistryRepository } from "@/server/vehicle-registry/repository";
-import { createRegistryVehicle, getVehicleRegistryCreateOptions, listVehicleRegistry } from "@/server/vehicle-registry/service";
+import { correctRegistryVehicleColor, createRegistryVehicle, getVehicleRegistryCreateOptions, listVehicleRegistry } from "@/server/vehicle-registry/service";
 
 const manager: AuthenticatedUser = { id: "manager-1", name: "Manager", email: "manager@example.com", isActive: true, roles: ["General Manager"], duties: { all: [], direct: [], roleDefaults: [] } };
 function foundation(): EnterpriseCommandRepository { return { listCapabilityGrants: vi.fn().mockResolvedValue([]), listFeatureFlags: vi.fn().mockResolvedValue([]) } as unknown as EnterpriseCommandRepository; }
@@ -36,6 +36,13 @@ describe("vehicle registry service", () => {
     expect(identity).not.toHaveProperty("locationId");
     expect(identity).not.toHaveProperty("reason");
     expect(command.payload.workflowContext).toEqual({ relationship: "CUSTOMER_VEHICLE" });
+  });
+
+  it("records a governed vehicle color correction", async () => {
+    const correctColor = vi.fn().mockResolvedValue({ duplicate: false, result: { color: "White", id: "vehicle-1" }, version: 3 });
+    const result = await correctRegistryVehicleColor(manager, "vehicle-1", { color: " White ", expectedVersion: 2, idempotencyKey: "color-1", locationId: "loc-1", reason: "Record missing vehicle color during intake." }, { organizationId: "org-1", repository: { correctColor } as unknown as VehicleRegistryRepository, foundationRepository: foundation(), enforceRollout: false });
+    expect(correctColor).toHaveBeenCalledWith(expect.objectContaining({ commandType: "CORRECT_VEHICLE_COLOR", expectedVersion: 2, subjectId: "vehicle-1" }), "White");
+    expect(result.version).toBe(3);
   });
 
   it("blocks mutations while the registry rollout is off", async () => {

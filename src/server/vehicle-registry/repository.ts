@@ -123,6 +123,13 @@ export function createVehicleRegistryRepository(database: PrismaClient = prisma)
         return { previous, result: { id: vehicle.id, identityChanged: true, version } };
       });
     },
+    correctColor(command: EnterpriseCommandCommitInput, color: string) {
+      return executeRegistryMutation(database, command, async (tx, version) => {
+        const previous = await tx.vehicle.findFirstOrThrow({ where: { id: command.subjectId, organizationId: command.organizationId }, select: { color: true, id: true } });
+        const vehicle = await tx.vehicle.update({ where: { id: command.subjectId }, data: { color, version } });
+        return { previous, result: { color: vehicle.color, id: vehicle.id, version } };
+      });
+    },
     addRelationship(command: EnterpriseCommandCommitInput, data: Prisma.VehicleRelationshipUncheckedCreateInput) {
       return executeRegistryMutation(database, command, async (tx, version) => {
         const relationship = await tx.vehicleRelationship.create({ data });

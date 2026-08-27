@@ -180,13 +180,14 @@ function buildInitial(options: ServiceIntakeOptions, initialTimestamp: string, i
   };
 }
 
-export function buildServiceIntakeVehicleCommand(input: { acquisitionSource?: "AUCTION" | "CONSIGNMENT" | "DEALER_TRANSFER" | "DIRECT_PURCHASE" | "OTHER" | "TRADE"; decoded?: VehicleDecode; description?: string; idempotencyKey: string; locationId: string; make: string; manualDecodeAcknowledged?: boolean; model: string; odometer: string; odometerUnit: "KILOMETERS" | "MILES"; relationship?: "CUSTOMER_VEHICLE" | "DEALERSHIP_INVENTORY"; vin: string; year: string }) {
+export function buildServiceIntakeVehicleCommand(input: { acquisitionSource?: "AUCTION" | "CONSIGNMENT" | "DEALER_TRANSFER" | "DIRECT_PURCHASE" | "OTHER" | "TRADE"; color?: string; decoded?: VehicleDecode; description?: string; idempotencyKey: string; locationId: string; make: string; manualDecodeAcknowledged?: boolean; model: string; odometer: string; odometerUnit: "KILOMETERS" | "MILES"; relationship?: "CUSTOMER_VEHICLE" | "DEALERSHIP_INVENTORY"; vin: string; year: string }) {
   const dealershipInventory = input.relationship === "DEALERSHIP_INVENTORY";
   return {
     acquisitionSource: dealershipInventory ? input.acquisitionSource ?? "OTHER" : undefined,
     addMode: "QUICK",
     bodyClass: input.decoded?.bodyClass ?? "",
     cabType: input.decoded?.cabType ?? "",
+    color: input.color?.trim() ?? "",
     description: input.description?.trim().length && input.description.trim().length >= 10 ? input.description.trim().slice(0, 240) : "Vehicle presented for customer service intake.",
     displacementLiters: input.decoded?.displacementLiters ?? "",
     doors: input.decoded?.doors ?? "",
@@ -258,7 +259,9 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
   const [vehicleIdentityConfirmed, setVehicleIdentityConfirmed] = useState(false);
   const [vehicleOdometer, setVehicleOdometer] = useState("");
   const [vehicleOdometerUnit, setVehicleOdometerUnit] = useState<"KILOMETERS" | "MILES">("MILES");
-  const [vehicleQuickDetails, setVehicleQuickDetails] = useState({ make: "", model: "", year: "" });
+  const [vehicleQuickDetails, setVehicleQuickDetails] = useState({ color: "", make: "", model: "", year: "" });
+  const [vehicleColorDraft, setVehicleColorDraft] = useState("");
+  const [vehicleColorBusy, setVehicleColorBusy] = useState(false);
   const [vehicleIdentityBusy, setVehicleIdentityBusy] = useState(false);
   const [selectedVehicleDetails, setSelectedVehicleDetails] = useState<SelectedVehicleDetails | null>(null);
   const [selectedVehicleDetailsError, setSelectedVehicleDetailsError] = useState("");
@@ -309,6 +312,10 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
   const requiresRepairOrderDecision = form.concernSummary.trim().length >= 10 && openVehicleOrders.length > 0 && !sameConcernOrder;
   const selectedCustomer = customerRecords.find((customer) => customer.id === form.customerId);
   const selectedInventoryUnit = inventoryUnitRecords.find((unit) => unit.id === form.inventoryUnitId);
+
+  useEffect(() => {
+    setVehicleColorDraft(selectedVehicle?.color ?? "");
+  }, [selectedVehicle?.color, selectedVehicle?.id]);
   const assignableTechnicians = technicianOptions(options.users);
   const repairCapableTechnicians = assignableTechnicians.filter(isRepairCapable);
   const otherActiveStaff = assignableTechnicians.filter((user) => !isRepairCapable(user));
@@ -497,10 +504,51 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
 
   function chooseVehicle(vehicleId: string) {
     const inventoryUnitId = form.vehicleRelationship === "DEALERSHIP_INVENTORY" ? inventoryUnitRecords.find((unit) => unit.vehicle.id === vehicleId)?.id ?? "" : "";
+    const vehicle = vehicleRecords.find((record) => record.id === vehicleId);
     setNewRepairOrderConfirmed(false);
+    setVehicleColorDraft(vehicle?.color ?? "");
     setForm((current) => ({ ...current, inventoryUnitId, vehicleId }));
     setArrivalQuery("");
     setNotice(form.vehicleRelationship === "DEALERSHIP_INVENTORY" ? inventoryUnitId ? "Dealership vehicle and its active inventory unit were selected." : "Dealership vehicle selected. Create its governed inventory unit to continue internal recon." : form.customerId ? "Vehicle selected. Capture the concern, then refresh live readiness." : "Vehicle selected. Add or select the customer next.");
+  }
+
+  async function saveSelectedVehicleColor() {
+    if (!selectedVehicle) return;
+    const color = vehicleColorDraft.trim();
+    if (!color) {
+      setNotice("Enter the vehicle color before saving.");
+      return;
+    }
+    if (color.toLocaleLowerCase() === String(selectedVehicle.color ?? "").trim().toLocaleLowerCase()) {
+      setNotice("Vehicle color is already current.");
+      return;
+    }
+    setVehicleColorBusy(true);
+    setNotice("");
+    try {
+      const response = await fetch(`/api/vehicles/${encodeURIComponent(selectedVehicle.id)}/commands`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "CORRECT_COLOR",
+          color,
+          expectedVersion: selectedVehicle.version ?? 0,
+          idempotencyKey: crypto.randomUUID(),
+          locationId: form.locationId,
+          reason: selectedVehicle.color ? "Correct vehicle color during intake." : "Record missing vehicle color during intake.",
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error ?? "Vehicle color could not be saved.");
+      const version = Number(body.version ?? body.result?.version ?? (selectedVehicle.version ?? 0) + 1);
+      setVehicleRecords((records) => records.map((vehicle) => vehicle.id === selectedVehicle.id ? { ...vehicle, color, version } : vehicle));
+      setInventoryUnitRecords((records) => records.map((unit) => unit.vehicle.id === selectedVehicle.id ? { ...unit, vehicle: { ...unit.vehicle, color, version } } : unit));
+      setNotice(`Vehicle color saved as ${color}.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Vehicle color could not be saved.");
+    } finally {
+      setVehicleColorBusy(false);
+    }
   }
 
   function chooseVehicleRelationship(vehicleRelationship: VehicleRelationshipIntent) {
@@ -720,7 +768,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
     setVehicleIdentityPreview(null);
     setVehicleIdentityConfirmed(false);
     setVehicleOdometer("");
-    setVehicleQuickDetails({ make: "", model: "", year: "" });
+    setVehicleQuickDetails({ color: "", make: "", model: "", year: "" });
   }
 
   async function decodeVehicleForIntake() {
@@ -754,14 +802,14 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       }
       if (!preview.decode) {
         setVehicleIdentityPreview(preview);
-        setVehicleQuickDetails({ make: "", model: "", year: "" });
+        setVehicleQuickDetails({ color: "", make: "", model: "", year: "" });
         setVehicleIdentityConfirmed(false);
         setVehicleAddOpen(true);
         setNotice(preview.decodeUnavailable?.message ?? "NHTSA did not return enough information. Enter year, make, and model, then confirm the vehicle to continue.");
         return;
       }
       setVehicleIdentityPreview(preview);
-      setVehicleQuickDetails({ make: preview.decode.decoded.make, model: preview.decode.decoded.model, year: String(preview.decode.decoded.modelYear) });
+      setVehicleQuickDetails({ color: "", make: preview.decode.decoded.make, model: preview.decode.decoded.model, year: String(preview.decode.decoded.modelYear) });
       setVehicleIdentityConfirmed(false);
       setVehicleAddOpen(true);
       setNotice("VIN decoded. Confirm the vehicle and odometer to add it to the canonical registry and continue this intake.");
@@ -785,7 +833,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       const response = await fetch("/api/inventory-console/workflows/add-vehicle", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(buildServiceIntakeVehicleCommand({ acquisitionSource: inventoryUnitDraft.acquisitionSource, decoded, description: form.concernSummary, idempotencyKey: crypto.randomUUID(), locationId: form.locationId, make: vehicleQuickDetails.make, manualDecodeAcknowledged: Boolean(vehicleIdentityPreview.decodeUnavailable && vehicleIdentityConfirmed), model: vehicleQuickDetails.model, odometer: vehicleOdometer, odometerUnit: vehicleOdometerUnit, relationship: isDealershipInventory ? "DEALERSHIP_INVENTORY" : "CUSTOMER_VEHICLE", vin: vehicleIdentityPreview.identity.vin, year: vehicleQuickDetails.year })),
+        body: JSON.stringify(buildServiceIntakeVehicleCommand({ acquisitionSource: inventoryUnitDraft.acquisitionSource, color: vehicleQuickDetails.color, decoded, description: form.concernSummary, idempotencyKey: crypto.randomUUID(), locationId: form.locationId, make: vehicleQuickDetails.make, manualDecodeAcknowledged: Boolean(vehicleIdentityPreview.decodeUnavailable && vehicleIdentityConfirmed), model: vehicleQuickDetails.model, odometer: vehicleOdometer, odometerUnit: vehicleOdometerUnit, relationship: isDealershipInventory ? "DEALERSHIP_INVENTORY" : "CUSTOMER_VEHICLE", vin: vehicleIdentityPreview.identity.vin, year: vehicleQuickDetails.year })),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok || !body.result?.id) throw new Error(body.error ?? "Vehicle could not be added.");
@@ -795,6 +843,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
       }
       const vehicle = {
         id: String(body.result.id),
+        color: vehicleQuickDetails.color.trim() || null,
         make: vehicleQuickDetails.make,
         model: vehicleQuickDetails.model,
         specificationSnapshot: decoded ? { decodedAt: vehicleIdentityPreview.decode?.retrievedAt ?? new Date().toISOString(), provider: vehicleIdentityPreview.decode?.provider ?? "NHTSA_VPIC", specifications: decoded, warnings: vehicleIdentityPreview.decode?.warnings ?? [] } : null,
@@ -1126,15 +1175,19 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
             {!arrivalQueryIsVin ? <div className="sic-inline-vin-prompt"><CarFront /><div><strong>Enter the vehicle&apos;s VIN above</strong><span>The dealership database is searched first. A new vehicle can be decoded only after a complete 17-character VIN is entered.</span></div></div> : !vehicleIdentityPreview ? <div className="sic-inline-vin-prompt"><CarFront /><div><strong>VIN not found in local records</strong><span>{normalizedArrivalVin} can be checked with NHTSA and added without leaving this intake.</span></div><button disabled={vehicleIdentityBusy} onClick={() => void decodeVehicleForIntake()} type="button">{vehicleIdentityBusy ? "Decoding…" : "Decode VIN"}</button></div> : <div className="sic-decoded-vehicle">
               <header><CheckCircle2 /><div><small>{vehicleIdentityPreview.decode ? `Decoded by ${vehicleIdentityPreview.decode.provider}` : "VIN validated · manual details required"}</small><strong>{[vehicleQuickDetails.year, vehicleQuickDetails.make, vehicleQuickDetails.model, vehicleIdentityPreview.decode?.decoded.trim].filter(Boolean).join(" ") || "Enter year, make, and model"}</strong><span>VIN {vehicleIdentityPreview.identity?.vin}</span></div><button aria-label="Cancel vehicle addition" onClick={() => { setVehicleAddOpen(false); resetVehicleIdentityPreview(); }} type="button"><X /></button></header>
               <div className="sic-decoded-facts"><span><b>Body</b>{vehicleIdentityPreview.decode?.decoded.bodyClass || "Not reported"}</span><span><b>Engine</b>{[vehicleIdentityPreview.decode?.decoded.engineCylinders && `${vehicleIdentityPreview.decode.decoded.engineCylinders} cyl`, vehicleIdentityPreview.decode?.decoded.displacementLiters && `${vehicleIdentityPreview.decode.decoded.displacementLiters} L`].filter(Boolean).join(" · ") || "Not reported"}</span><span><b>Drive</b>{vehicleIdentityPreview.decode?.decoded.driveType || "Not reported"}</span><span><b>Fuel</b>{vehicleIdentityPreview.decode?.decoded.fuelTypePrimary || "Not reported"}</span></div>
-              <div className="sic-quick-identity-fields"><label><span>Year</span><input inputMode="numeric" onChange={(event) => setVehicleQuickDetails((value) => ({ ...value, year: event.target.value.replace(/\D/g, "") }))} value={vehicleQuickDetails.year} /></label><label><span>Make</span><input onChange={(event) => setVehicleQuickDetails((value) => ({ ...value, make: event.target.value }))} value={vehicleQuickDetails.make} /></label><label><span>Model</span><input onChange={(event) => setVehicleQuickDetails((value) => ({ ...value, model: event.target.value }))} value={vehicleQuickDetails.model} /></label><label><span>Current odometer <b>Required</b></span><input inputMode="numeric" onChange={(event) => setVehicleOdometer(event.target.value.replace(/\D/g, ""))} placeholder="Reading" value={vehicleOdometer} /></label><label><span>Unit</span><select onChange={(event) => setVehicleOdometerUnit(event.target.value as "KILOMETERS" | "MILES")} value={vehicleOdometerUnit}><option value="MILES">Miles</option><option value="KILOMETERS">Kilometers</option></select></label></div>
+              <div className="sic-quick-identity-fields"><label><span>Year</span><input inputMode="numeric" onChange={(event) => setVehicleQuickDetails((value) => ({ ...value, year: event.target.value.replace(/\D/g, "") }))} value={vehicleQuickDetails.year} /></label><label><span>Make</span><input onChange={(event) => setVehicleQuickDetails((value) => ({ ...value, make: event.target.value }))} value={vehicleQuickDetails.make} /></label><label><span>Model</span><input onChange={(event) => setVehicleQuickDetails((value) => ({ ...value, model: event.target.value }))} value={vehicleQuickDetails.model} /></label><label><span>Color</span><input onChange={(event) => setVehicleQuickDetails((value) => ({ ...value, color: event.target.value }))} placeholder="Example: White" value={vehicleQuickDetails.color} /></label><label><span>Current odometer <b>Required</b></span><input inputMode="numeric" onChange={(event) => setVehicleOdometer(event.target.value.replace(/\D/g, ""))} placeholder="Reading" value={vehicleOdometer} /></label><label><span>Unit</span><select onChange={(event) => setVehicleOdometerUnit(event.target.value as "KILOMETERS" | "MILES")} value={vehicleOdometerUnit}><option value="MILES">Miles</option><option value="KILOMETERS">Kilometers</option></select></label></div>
               <footer><label><input checked={vehicleIdentityConfirmed} onChange={(event) => setVehicleIdentityConfirmed(event.target.checked)} type="checkbox" /><span>{vehicleIdentityPreview.decodeUnavailable ? "I entered the correct vehicle details for this VIN." : "I confirm this is the vehicle being checked in."}</span></label><button disabled={vehicleIdentityBusy || !vehicleIdentityConfirmed || !vehicleOdometer} onClick={() => void createAndSelectDecodedVehicle()} type="button">{vehicleIdentityBusy ? "Adding vehicle…" : "Confirm, Add & Select Vehicle"}</button></footer>
             </div>}
           </section> : null}
           <div className="sic-selected-arrival">
             {isCustomerVehicle ? <article className={selectedCustomer ? "selected" : ""}><UserRound /><div><small>Customer</small><strong>{selectedCustomer?.displayName ?? "Select customer"}</strong><span>{selectedCustomer?.phoneNumber ?? selectedCustomer?.email ?? "Search or add a canonical customer"}</span></div>{selectedCustomer ? <button onClick={() => update("customerId", "")} type="button">Change</button> : null}</article> : <article className="selected inventory"><CarFront /><div><small>Relationship</small><strong>Dealership inventory</strong><span>Internal work · customer not required</span></div></article>}
-            <article className={selectedVehicle ? "selected" : ""}><CarFront /><div><small>Vehicle</small><strong>{selectedVehicle ? vehicleLabel(selectedVehicle) : "Select vehicle"}</strong><span>{selectedVehicle?.vin ?? selectedVehicle?.licensePlate ?? "Search or add a canonical vehicle"}</span></div>{selectedVehicle ? <button onClick={() => update("vehicleId", "")} type="button">Change</button> : null}</article>
+            <article className={selectedVehicle ? "selected" : ""}><CarFront /><div><small>Vehicle</small><strong>{selectedVehicle ? vehicleLabel(selectedVehicle) : "Select vehicle"}</strong><span>{selectedVehicle ? [selectedVehicle.color, selectedVehicle.vin ?? selectedVehicle.licensePlate].filter(Boolean).join(" · ") || "Search or add a canonical vehicle" : "Search or add a canonical vehicle"}</span></div>{selectedVehicle ? <button onClick={() => update("vehicleId", "")} type="button">Change</button> : null}</article>
             {isDealershipInventory ? <article className={selectedInventoryUnit ? "selected inventory" : ""}><ClipboardCheck /><div><small>Inventory unit</small><strong>{selectedInventoryUnit?.inventoryNumber ?? "Create or link unit"}</strong><span>{selectedInventoryUnit ? "Active dealership inventory" : "Required before internal recon"}</span></div></article> : <article className={readiness?.appointment ? "selected appointment" : ""}><CalendarClock /><div><small>Appointment</small><strong>{readiness?.appointment?.appointmentNumber ?? "No appointment matched"}</strong><span>{readiness?.appointment?.startsAt ? new Date(readiness.appointment.startsAt).toLocaleString() : "Walk-in readiness will apply"}</span></div></article>}
           </div>
+          {selectedVehicle ? <section className="sic-vehicle-color-editor" aria-label="Vehicle color">
+            <label><span>Vehicle color</span><input onChange={(event) => setVehicleColorDraft(event.target.value)} placeholder="Example: White" value={vehicleColorDraft} /></label>
+            <button disabled={vehicleColorBusy || !vehicleColorDraft.trim() || vehicleColorDraft.trim().toLocaleLowerCase() === String(selectedVehicle.color ?? "").trim().toLocaleLowerCase()} onClick={() => void saveSelectedVehicleColor()} type="button">{vehicleColorBusy ? "Saving color…" : selectedVehicle.color ? "Update color" : "Save color"}</button>
+          </section> : null}
           {selectedVehicle ? <section className="sic-selected-vehicle-profile" aria-label="Decoded vehicle information">
             <header><div><small>Decoded vehicle information</small><strong>{[selectedVehicle.year, selectedVehicle.make, selectedVehicle.model, selectedVehicleDetails?.decoded.trim].filter(Boolean).join(" ") || selectedVehicle.vehicleNumber}</strong><span>{selectedVehicleDetails ? `${selectedVehicleDetails.provider} · ${selectedVehicleDetails.source === "STORED_SNAPSHOT" ? "saved canonical snapshot" : "refreshed for this intake"}${selectedVehicleDetails.retrievedAt ? ` · ${new Date(selectedVehicleDetails.retrievedAt).toLocaleDateString()}` : ""}` : "Checking available canonical specifications…"}</span></div><Link href={`/vehicles/360/${selectedVehicle.id}`}>Vehicle 360</Link></header>
             {selectedVehicleDetails ? <div className="sic-selected-vehicle-facts"><span><b>Series / trim</b>{[selectedVehicleDetails.decoded.series, selectedVehicleDetails.decoded.trim].filter(Boolean).join(" · ") || "Not reported"}</span><span><b>Body</b>{[selectedVehicleDetails.decoded.bodyClass, selectedVehicleDetails.decoded.cabType].filter(Boolean).join(" · ") || "Not reported"}</span><span><b>Engine</b>{[selectedVehicleDetails.decoded.engineCylinders && `${selectedVehicleDetails.decoded.engineCylinders} cylinder`, selectedVehicleDetails.decoded.displacementLiters && `${selectedVehicleDetails.decoded.displacementLiters} L`, selectedVehicleDetails.decoded.engineConfiguration].filter(Boolean).join(" · ") || "Not reported"}</span><span><b>Transmission</b>{selectedVehicleDetails.decoded.transmissionStyle || "Not reported"}</span><span><b>Drivetrain</b>{selectedVehicleDetails.decoded.driveType || "Not reported"}</span><span><b>Fuel</b>{selectedVehicleDetails.decoded.fuelTypePrimary || "Not reported"}</span></div> : <div className={selectedVehicleDetailsError ? "sic-vehicle-profile-status error" : "sic-vehicle-profile-status"}>{selectedVehicleDetailsLoading ? "Retrieving decoded vehicle information…" : selectedVehicleDetailsError || "No decoded specification snapshot is available for this vehicle."}</div>}

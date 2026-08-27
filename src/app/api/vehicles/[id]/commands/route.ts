@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { EnterpriseCommandConflictError } from "@/server/enterprise-command/domain";
-import { addVehicleCustodyEvent, addVehicleExternalIdentity, addVehicleOdometerObservation, addVehicleRelationship, resolveVehicleDuplicate } from "@/server/vehicle-registry/service";
-const handlers = { ADD_RELATIONSHIP: addVehicleRelationship, ADD_EXTERNAL_IDENTITY: addVehicleExternalIdentity, RECORD_ODOMETER: addVehicleOdometerObservation, RECORD_CUSTODY: addVehicleCustodyEvent, RESOLVE_DUPLICATE: resolveVehicleDuplicate } as const;
+import { addVehicleCustodyEvent, addVehicleExternalIdentity, addVehicleOdometerObservation, addVehicleRelationship, correctRegistryVehicleColor, resolveVehicleDuplicate } from "@/server/vehicle-registry/service";
+const handlers = { ADD_RELATIONSHIP: addVehicleRelationship, ADD_EXTERNAL_IDENTITY: addVehicleExternalIdentity, RECORD_ODOMETER: addVehicleOdometerObservation, RECORD_CUSTODY: addVehicleCustodyEvent, CORRECT_COLOR: correctRegistryVehicleColor, RESOLVE_DUPLICATE: resolveVehicleDuplicate } as const;
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const body = await request.json().catch(() => null); if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("Vehicle command must be an object.");
