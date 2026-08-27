@@ -16,13 +16,38 @@ const order = {
 };
 
 describe("enterprise repair-order workbench", () => {
+  it("renders the official summary card with always-visible detail panels and a legacy full-detail link", () => {
+    const html = renderToStaticMarkup(
+      <RepairOrderEnterpriseWorkbench
+        order={order}
+        options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }, { id: "tech-1", name: "Walter Mechanic" }] }}
+      />,
+    );
+
+    expect(html).toContain("Repair Order Workbench");
+    expect(html).toContain("Official vehicle summary card");
+    expect(html).toContain("Recon progress");
+    expect(html).toContain("Full repair order details");
+    expect(html).toContain("Vehicle information");
+    expect(html).toContain("Vendor progress");
+    expect(html).toContain("Approved work");
+    expect(html).toContain("Repair outcome");
+    expect(html).toContain("View full details");
+    expect(html).toContain("fullDetails=1");
+    expect(html).not.toContain("Authoritative Repair Order");
+    expect(html).not.toContain("Location / workflow correction");
+  });
+
   it("renders concern-centered diagnostic planning and governed downstream gates", () => {
-    const html = renderToStaticMarkup(<RepairOrderEnterpriseWorkbench order={order} options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }, { id: "tech-1", name: "Walter Mechanic" }] }} />);
+    const html = renderToStaticMarkup(<RepairOrderEnterpriseWorkbench fullDetailMode order={order} options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }, { id: "tech-1", name: "Walter Mechanic" }] }} />);
 
     expect(html).toContain("Repair Order Workbench");
     expect(html).toContain("RO-20481");
     expect(html).toContain("Authoritative Repair Order");
+    expect(html).not.toContain("Official vehicle summary card");
     expect(html).toContain("Location / workflow correction");
+    expect(html).toContain("Back to summary card");
+    expect(html).toContain('href="/vehicles/repair-workbench?repairOrderId=ro-1&amp;vehicleId=vehicle-1"');
     expect(html).toContain("Outside vendor next step");
     expect(html).toContain("Document the next vendor repair");
     expect(html).toContain("Open vendor documentation form");
@@ -76,7 +101,7 @@ describe("enterprise repair-order workbench", () => {
           "All kinds of lights on the dash. Brakes vibrate when the brake pedal is pressed. Rear bumper cover is cracked and needs replacement.",
       },
     };
-    const html = renderToStaticMarkup(<RepairOrderEnterpriseWorkbench order={reconOrder} options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }} />);
+    const html = renderToStaticMarkup(<RepairOrderEnterpriseWorkbench fullDetailMode order={reconOrder} options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }} />);
 
     expect(html).toContain("Dash or module code evidence recorded");
     expect(html).toContain("Attach scan result, active/history status, and warning-light photo.");
@@ -90,7 +115,7 @@ describe("enterprise repair-order workbench", () => {
 
   it("uses the simple inventory path without requesting customer readiness", () => {
     const inventoryOrder = { ...order, customer: null, inventoryUnit: { inventoryNumber: "033428" }, serviceVisit: { ...order.serviceVisit, readinessSnapshotId: null } };
-    const html = renderToStaticMarkup(<RepairOrderEnterpriseWorkbench order={inventoryOrder} options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }} />);
+    const html = renderToStaticMarkup(<RepairOrderEnterpriseWorkbench fullDetailMode order={inventoryOrder} options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }} />);
 
     expect(html).toContain("Inventory path");
     expect(html).toContain(
@@ -111,7 +136,7 @@ describe("enterprise repair-order workbench", () => {
         custodyEvents: [{ custodianType: "VENDOR", eventType: "TRANSPORT_DELIVERY", occurredAt: "2026-08-09T03:19:00Z", positionLabel: "Northside Garage", location: null }]
       }
     };
-    const html = renderToStaticMarkup(<RepairOrderEnterpriseWorkbench order={custodyOrder} options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }} />);
+    const html = renderToStaticMarkup(<RepairOrderEnterpriseWorkbench fullDetailMode order={custodyOrder} options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }} />);
 
     expect(html).toContain("Current physical location");
     expect(html).toContain("Northside Garage");
@@ -145,7 +170,7 @@ describe("enterprise repair-order workbench", () => {
         },
       ],
     };
-    const html = renderToStaticMarkup(<RepairOrderEnterpriseWorkbench order={vendorLocatedOrder} options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }} />);
+    const html = renderToStaticMarkup(<RepairOrderEnterpriseWorkbench fullDetailMode order={vendorLocatedOrder} options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }} />);
 
     expect(html).toContain("Current physical location");
     expect(html).toContain("Simba Collision");
@@ -184,17 +209,15 @@ describe("enterprise repair-order workbench", () => {
     };
     const html = renderToStaticMarkup(
       <RepairOrderEnterpriseWorkbench
+        fullDetailMode
         order={repairStageOrder}
         options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }}
       />,
     );
 
-    expect(html).toContain("<dt>Stage</dt><dd>Repair</dd>");
     expect(html).toContain("RO Version 2");
     expect(html).toContain("· Repair</span>");
-    expect(html).toContain('class="reached"><i><svg');
-    expect(html).toContain(">Repair</span>");
-    expect(html).not.toContain('>Repair</span></span><span class="reached"');
+    expect(html).toContain("Quality Check");
     expect(html).toContain("Current physical location");
     expect(html).toContain("Diego Auto Body");
     expect(html).toContain("Home / accountable site");
@@ -246,7 +269,7 @@ describe("enterprise repair-order workbench", () => {
         },
       ],
     };
-    const html = renderToStaticMarkup(<RepairOrderEnterpriseWorkbench order={secondVendorOrder} options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }} />);
+    const html = renderToStaticMarkup(<RepairOrderEnterpriseWorkbench fullDetailMode order={secondVendorOrder} options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }} />);
 
     expect(html).toContain("Capable Auto Repair");
     expect(html).toContain("Document vendor repair progress");
@@ -333,6 +356,7 @@ describe("enterprise repair-order workbench", () => {
 
     const html = renderToStaticMarkup(
       <RepairOrderEnterpriseWorkbench
+        fullDetailMode
         order={returnReadyOrder}
         options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }}
       />,
@@ -374,6 +398,7 @@ describe("enterprise repair-order workbench", () => {
     };
     const html = renderToStaticMarkup(
       <RepairOrderEnterpriseWorkbench
+        fullDetailMode
         order={vendorOrder}
         options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }}
       />,
@@ -420,6 +445,7 @@ describe("enterprise repair-order workbench", () => {
     };
     const html = renderToStaticMarkup(
       <RepairOrderEnterpriseWorkbench
+        fullDetailMode
         order={repairStageOrder}
         options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }}
         relatedPurchaseOrders={[{
@@ -479,6 +505,7 @@ describe("enterprise repair-order workbench", () => {
     };
     const html = renderToStaticMarkup(
       <RepairOrderEnterpriseWorkbench
+        fullDetailMode
         order={repairStageOrder}
         options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }}
       />,
@@ -512,6 +539,7 @@ describe("enterprise repair-order workbench", () => {
     };
     const html = renderToStaticMarkup(
       <RepairOrderEnterpriseWorkbench
+        fullDetailMode
         order={repairStageOrder}
         options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }}
         relatedPurchaseOrders={[{
@@ -544,6 +572,7 @@ describe("enterprise repair-order workbench", () => {
     };
     const html = renderToStaticMarkup(
       <RepairOrderEnterpriseWorkbench
+        fullDetailMode
         order={sparseOrder as typeof order}
         options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }}
       />,
@@ -584,6 +613,7 @@ describe("enterprise repair-order workbench", () => {
 
     const html = renderToStaticMarkup(
       <RepairOrderEnterpriseWorkbench
+        fullDetailMode
         order={vendorFailedOrder}
         options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }}
       />,
@@ -636,6 +666,7 @@ describe("enterprise repair-order workbench", () => {
 
     const html = renderToStaticMarkup(
       <RepairOrderEnterpriseWorkbench
+        fullDetailMode
         order={returnedCompleteOrder}
         options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }}
       />,
@@ -678,6 +709,7 @@ describe("enterprise repair-order workbench", () => {
 
     const html = renderToStaticMarkup(
       <RepairOrderEnterpriseWorkbench
+        fullDetailMode
         order={returnedVendorOrder}
         options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }}
       />,

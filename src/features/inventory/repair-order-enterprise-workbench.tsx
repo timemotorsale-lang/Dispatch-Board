@@ -219,6 +219,7 @@ const date = (value: string | Date | null | undefined) => {
   const stamp = value instanceof Date ? value : new Date(value);
   return Number.isNaN(stamp.getTime()) ? "Not recorded" : stamp.toLocaleString();
 };
+const money = (value: number | null | undefined) => (value == null ? "Not recorded" : `$${(value / 100).toFixed(2)}`);
 const duration = (value: string | Date | null | undefined) => {
   if (!value) return "Not started";
   const started = value instanceof Date ? value : new Date(value);
@@ -556,20 +557,24 @@ const inventorySafeNextAction = (nextAction: string | null | undefined, inventor
 
 export function RepairOrderEnterpriseWorkbench({
   diagnostics,
+  fullDetailMode = false,
   order,
   options,
   relatedPurchaseOrders = [],
   returnLabel,
   returnTo,
+  summaryCardPreview = false,
   showAdvisorReturn = false,
   showWorkspaceReturn = false,
 }: {
   diagnostics?: DiagnosticsBridge;
+  fullDetailMode?: boolean;
   order: RepairOrderWorkbenchOrder;
   options: Options;
   relatedPurchaseOrders?: RelatedPurchaseOrder[];
   returnLabel?: string;
   returnTo?: string;
+  summaryCardPreview?: boolean;
   showAdvisorReturn?: boolean;
   showWorkspaceReturn?: boolean;
 }) {
@@ -600,7 +605,7 @@ export function RepairOrderEnterpriseWorkbench({
   const isInventoryRecon = Boolean(order.inventoryUnit);
   const capacityEvidence = Boolean(order.serviceVisit.readinessSnapshotId);
   const safetyReview = /brake|steer|airbag|fire|smoke|fuel|overheat|safety|not operable/i.test(concernSummary);
-  const planningReturn = `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(order.id)}`;
+  const planningReturn = `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(order.id)}&vehicleId=${encodeURIComponent(order.vehicle.id)}`;
   const planningHref = `/vehicles/shop-planning?repairOrderId=${encodeURIComponent(order.id)}&returnTo=${encodeURIComponent(planningReturn)}`;
   const vendorFollowUpPlanningHref = `${planningHref}&vendorFollowUp=1`;
   const vendorProgressHref = "#vendor-repair-progress";
@@ -884,53 +889,240 @@ export function RepairOrderEnterpriseWorkbench({
   }
 
   const vehicle = [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber;
+  const summaryStages = [
+    { key: "intake", label: "Intake" },
+    { key: "diagnose", label: "Diagnose" },
+    { key: "estimate", label: "Estimate" },
+    { key: "approval", label: "Approval" },
+    { key: "vendorRepair", label: activeVendorWork ? "Vendor Repair" : "Repair" },
+    { key: "finalQc", label: "Final QC" },
+    { key: "handoff", label: "Handoff" },
+  ];
+  const activeSummaryIndex = vendorReadyForFinalQc
+    ? 5
+    : activeVendorWork
+      ? 4
+      : Math.min(stageToLifecycleIndex[order.stage] ?? 0, 4);
+  const summaryStageState = (index: number) => {
+    if (index < activeSummaryIndex) return "done";
+    if (index === activeSummaryIndex) return "current";
+    if (index === activeSummaryIndex + 1) return "next";
+    return "upcoming";
+  };
+  const summaryActionLabel = vendorReadyForFinalQc ? "Continue to Final QC" : primaryActionLabel;
+  const summaryBadge = vendorReadyForFinalQc ? "Ready for Final QC" : workflowGateLabel;
+  const vendorAmountLabel = money(activeVendorWork?.approvedAmountCents ?? activeVendorWork?.estimateAmountCents ?? null);
+  const activeVendorEvents = activeVendorWork?.events ?? [];
+  const vendorApprovalEvent = activeVendorEvents.find((event) => /approv/i.test(event.summary));
+  const vendorApprovalActor = vendorApprovalEvent?.actorUser.name;
+  const vendorApprovedOn = activeVendorWork?.approvalStatus === "APPROVED"
+    ? date(vendorApprovalEvent?.occurredAt ?? activeVendorWork.sentAt)
+    : "Not recorded";
+  const vendorStatusDone = Boolean(activeVendorWork && ["RETURNED", "QC_REQUIRED", "COMPLETED"].includes(activeVendorWork.status));
+  const detailRoute = `/vehicles/repair-workbench?${new URLSearchParams({
+    repairOrderId: order.id,
+    vehicleId: order.vehicle.id,
+    fullDetails: "1",
+    ...(returnTo ? { returnTo } : {}),
+    ...(returnLabel ? { returnLabel } : {}),
+  })}`;
+  const summaryRoute = `/vehicles/repair-workbench?${new URLSearchParams({
+    repairOrderId: order.id,
+    vehicleId: order.vehicle.id,
+    ...(returnTo ? { returnTo } : {}),
+    ...(returnLabel ? { returnLabel } : {}),
+  })}`;
+  const summaryPrimaryHref = !vendorReadyForFinalQc && primaryActionHref.startsWith("#")
+    ? `${detailRoute}${primaryActionHref}`
+    : primaryActionHref;
+  const footerPrimaryHref = !fullDetailMode && !vendorReadyForFinalQc && primaryActionHref.startsWith("#")
+    ? `${detailRoute}${primaryActionHref}`
+    : primaryActionHref;
+  const footerPrimaryClick = fullDetailMode && primaryActionHref === vendorProgressHref ? openVendorProgress : undefined;
 
   return (
-    <section className="rowb-shell" aria-label="Repair Order Workbench">
-      <header className="rowb-header">
-        <div>
-          {returnTo ? (
-            <Link href={returnTo}>← {returnLabel ?? "Return to source workspace"}</Link>
-          ) : showAdvisorReturn ? (
-            <BackToServiceAdvisorWorkspace />
-          ) : showWorkspaceReturn ? (
-            <BackToVehicleOperationsWorkspace />
-          ) : null}
-          <Link href="/vehicles/repair-workbench?view=all">← All Repair Orders</Link>
-          <span>Repair Order Workbench</span>
-          <h1>{order.repairOrderNumber}</h1>
-          <div className="rowb-document-actions">
-            <a href="#repair-order-document">
-              <FileText />
-              View RO
-            </a>
-            <a href={`/api/repair-orders/${encodeURIComponent(order.id)}/print`} rel="noreferrer" target="_blank">
-              <Printer />
-              Print RO
-            </a>
+    <section className={`rowb-shell${summaryCardPreview ? " rowb-summary-preview-mode" : ""}${fullDetailMode ? " rowb-full-detail-mode" : ""}`} aria-label="Repair Order Workbench">
+      {fullDetailMode ? (
+        <>
+          <header className="rowb-header">
+            <div>
+              {returnTo ? (
+                <Link href={returnTo}>← {returnLabel ?? "Return to source workspace"}</Link>
+              ) : showAdvisorReturn ? (
+                <BackToServiceAdvisorWorkspace />
+              ) : showWorkspaceReturn ? (
+                <BackToVehicleOperationsWorkspace />
+              ) : null}
+              <Link href="/vehicles/repair-workbench?view=all">← All Repair Orders</Link>
+              <Link href={summaryRoute}>← Back to summary card</Link>
+              <span>Repair Order Workbench</span>
+              <h1>{order.repairOrderNumber}</h1>
+              <div className="rowb-document-actions">
+                <a href="#repair-order-document">
+                  <FileText />
+                  View RO
+                </a>
+                <a href={`/api/repair-orders/${encodeURIComponent(order.id)}/print`} rel="noreferrer" target="_blank">
+                  <Printer />
+                  Print RO
+                </a>
+              </div>
+            </div>
+            <dl>
+              <div><dt>Vehicle</dt><dd>{vehicle}</dd></div>
+              <div><dt>{isInventoryRecon ? "Inventory" : "Customer"}</dt><dd>{order.customer?.displayName ?? order.inventoryUnit?.inventoryNumber ?? "Internal work"}</dd></div>
+              <div><dt>Stage</dt><dd>{format(order.stage)}</dd></div>
+              <div><dt>Arrival</dt><dd>{date(order.serviceVisit.arrivedAt)}</dd></div>
+              <div><dt>Promise</dt><dd>{date(order.serviceVisit.promisedAt)}</dd></div>
+              <div><dt>Audit</dt><dd>Version {currentVersion}</dd></div>
+            </dl>
+          </header>
+          <nav className="rowb-lifecycle" aria-label="Repair lifecycle">
+            {lifecycleLabels.map((label, index) => {
+              const reached = index <= lifecycleStageIndex;
+              return (
+                <span className={reached ? "reached" : "locked"} key={label}>
+                  <i>{reached ? <Check /> : <LockKeyhole />}</i>
+                  {label}
+                </span>
+              );
+            })}
+          </nav>
+        </>
+      ) : null}
+      {notice ? <div className="rowb-notice" role="status">{notice}</div> : null}
+      {!fullDetailMode && summaryCardPreview ? (
+        <section className="rowb-summary-preview-note" aria-label="Summary card review mode">
+          <span>Live summary-card preview</span>
+          <strong>This is the same repair-order data without the dense workbench around it.</strong>
+          <p>Use the drawer below to see how staff can open the detail only when they need it.</p>
+        </section>
+      ) : null}
+      {!fullDetailMode ? (
+      <section className="rowb-summary-card" aria-label="Official vehicle summary card">
+        <nav className="rowb-summary-nav" aria-label="Repair order navigation">
+          <div>
+            {returnTo ? (
+              <Link href={returnTo}>← {returnLabel ?? "Return to source workspace"}</Link>
+            ) : showAdvisorReturn ? (
+              <BackToServiceAdvisorWorkspace />
+            ) : showWorkspaceReturn ? (
+              <BackToVehicleOperationsWorkspace />
+            ) : null}
+            <Link href="/vehicles/repair-workbench?view=all">← All Repair Orders</Link>
+          </div>
+          <div>
+            <Link href={`${detailRoute}#repair-order-document`}><FileText /> View RO</Link>
+            <a href={`/api/repair-orders/${encodeURIComponent(order.id)}/print`} rel="noreferrer" target="_blank"><Printer /> Print RO</a>
+          </div>
+        </nav>
+        <div className="rowb-summary-top">
+          <div className="rowb-summary-vehicle">
+            <span className="rowb-summary-icon"><CarFront /></span>
+            <div>
+              <small>{order.inventoryUnit ? "Inventory recon" : "Repair order"}</small>
+              <h2>{vehicle}</h2>
+              <p>{order.repairOrderNumber} · {order.inventoryUnit?.inventoryNumber ?? order.vehicle.vehicleNumber}</p>
+            </div>
+          </div>
+          <div className="rowb-summary-status">
+            <span>{summaryBadge}</span>
+            <strong>{stageHeadline}</strong>
+            <p>{displayedNextAction}</p>
+          </div>
+          <div className="rowb-summary-actions">
+            <Link
+              className="primary"
+              href={vendorReadyForFinalQc ? finalQcHref : summaryPrimaryHref}
+              onClick={() => {
+                if (!vendorReadyForFinalQc && primaryActionHref === vendorProgressHref && fullDetailMode) openVendorProgress();
+              }}
+            >
+              {summaryActionLabel}
+              <ChevronRight />
+            </Link>
+            <Link href={detailRoute}>
+              View full details
+              <ChevronRight />
+            </Link>
           </div>
         </div>
-        <dl>
-          <div><dt>Vehicle</dt><dd>{vehicle}</dd></div>
-          <div><dt>{isInventoryRecon ? "Inventory" : "Customer"}</dt><dd>{order.customer?.displayName ?? order.inventoryUnit?.inventoryNumber ?? "Internal work"}</dd></div>
-          <div><dt>Stage</dt><dd>{format(order.stage)}</dd></div>
-          <div><dt>Arrival</dt><dd>{date(order.serviceVisit.arrivedAt)}</dd></div>
-          <div><dt>Promise</dt><dd>{date(order.serviceVisit.promisedAt)}</dd></div>
-          <div><dt>Audit</dt><dd>Version {currentVersion}</dd></div>
+        <dl className="rowb-summary-facts">
+          <div><dt>Custody / location</dt><dd>{currentLocationLabel}</dd></div>
+          <div><dt>Owner</dt><dd>{currentOwner.name}</dd></div>
+          <div><dt>Target</dt><dd>{date(order.targetAt)}</dd></div>
+          <div><dt>Vendor amount</dt><dd>{vendorAmountLabel}</dd></div>
         </dl>
-      </header>
-      <nav className="rowb-lifecycle" aria-label="Repair lifecycle">
-        {lifecycleLabels.map((label, index) => {
-          const reached = index <= lifecycleStageIndex;
-          return (
-            <span className={reached ? "reached" : "locked"} key={label}>
-              <i>{reached ? <Check /> : <LockKeyhole />}</i>
-              {label}
+        <div className="rowb-summary-rail" aria-label="Recon progress">
+          {summaryStages.map((stage, index) => (
+            <span className={summaryStageState(index)} key={stage.key}>
+              <i>{summaryStageState(index) === "done" ? <Check /> : index + 1}</i>
+              {stage.label}
             </span>
-          );
-        })}
-      </nav>
-      {notice ? <div className="rowb-notice" role="status">{notice}</div> : null}
+          ))}
+        </div>
+        <details className="rowb-summary-details" id="repair-order-details" open>
+          <summary>
+            <span>Full repair order details</span>
+            <strong>Open the deeper record when staff need vendor notes, approvals, amounts, and QC context.</strong>
+          </summary>
+          <div>
+            <article>
+              <small><CarFront /> Vehicle information</small>
+              <strong>{vehicle}</strong>
+              <dl>
+                <div><dt>Year / Make / Model</dt><dd>{vehicle}</dd></div>
+                <div><dt>VIN</dt><dd>{order.vehicle.vin ?? "Not recorded"}</dd></div>
+                <div><dt>Inventory / vehicle</dt><dd>{order.inventoryUnit?.inventoryNumber ?? order.vehicle.vehicleNumber}</dd></div>
+                <div><dt>In-service date</dt><dd>{date(order.openedAt)}</dd></div>
+              </dl>
+            </article>
+            <article>
+              <small><Wrench /> Vendor progress</small>
+              <strong>{activeVendorWork?.vendorName ?? "No active outside vendor"}</strong>
+              <dl>
+                <div><dt>Vendor</dt><dd>{activeVendorWork?.vendorName ?? "Not recorded"}</dd></div>
+                <div><dt>Date received</dt><dd>{date(activeVendorWork?.sentAt)}</dd></div>
+                <div><dt>Target completion</dt><dd>{date(activeVendorWork?.expectedReturnAt)}</dd></div>
+                <div><dt>Days in stage</dt><dd>{duration(activeVendorWork?.sentAt)}</dd></div>
+                <div><dt>Last update</dt><dd>{date(activeVendorEvents[0]?.occurredAt ?? activeVendorWork?.sentAt)}</dd></div>
+                <div><dt>Status</dt><dd><em>{format(activeVendorWork?.status)}</em></dd></div>
+              </dl>
+            </article>
+            <article>
+              <small><ClipboardCheck /> Approved work</small>
+              <strong>{format(activeVendorWork?.approvalStatus)}</strong>
+              <dl>
+                <div><dt>Amount</dt><dd className="money">{vendorAmountLabel}</dd></div>
+                <div><dt>Approved by</dt><dd>{vendorApprovalActor ?? "Not recorded"}</dd></div>
+                <div><dt>Approved on</dt><dd>{vendorApprovedOn}</dd></div>
+                <div><dt>Revision</dt><dd>RO v{currentVersion}</dd></div>
+              </dl>
+            </article>
+            <article>
+              <small><ShieldAlert /> Repair outcome</small>
+              <strong>{vendorReadyForFinalQc ? "Vendor repaired and returned" : primaryActionLabel}</strong>
+              <dl>
+                <div><dt>Repairs completed</dt><dd>{vendorStatusDone ? "Yes" : "Pending"}</dd></div>
+                <div><dt>Quality check</dt><dd>{vendorReadyForFinalQc ? "Ready for pass/fail" : "Pending"}</dd></div>
+                <div><dt>Notes</dt><dd>{activeVendorWork?.lastUpdateSummary ?? primaryActionSummary}</dd></div>
+              </dl>
+              <Link
+                href={vendorReadyForFinalQc ? finalQcHref : summaryPrimaryHref}
+                onClick={() => {
+                  if (!vendorReadyForFinalQc && primaryActionHref === vendorProgressHref && fullDetailMode) openVendorProgress();
+                }}
+              >
+                {summaryActionLabel}
+              </Link>
+            </article>
+          </div>
+        </details>
+      </section>
+      ) : null}
+      {fullDetailMode ? (
+      <div className="rowb-legacy-detail-page" id="legacy-vehicle-card">
+        <div className="rowb-official-detail-stack">
       <section className="rowb-print-document" id="repair-order-document" aria-label="Repair Order document">
         <header>
           <div>
@@ -1218,7 +1410,10 @@ export function RepairOrderEnterpriseWorkbench({
           <section className="rowb-next"><h2>Do this now</h2><Wrench /><strong>{primaryActionLabel}</strong><span>{primaryActionSummary}</span><Link href={primaryActionHref} onClick={primaryActionHref === vendorProgressHref ? openVendorProgress : undefined}>{primaryActionLabel}</Link>{vendorCanOpenFinalQc && primaryActionHref !== finalQcHref ? <Link className="secondary" href={finalQcHref}>Open Final QC</Link> : null}</section>
         </aside>
       </div>
-      <footer className="rowb-footer"><span><ShieldAlert />{promiseGuardrailLabel}</span><div>{returnTo ? <Link href={returnTo}>{returnLabel ?? "Source Workspace"}</Link> : null}<Link href="/vehicles/shop-recon">Shop &amp; Recon</Link><Link href="/vehicles/repair-workbench?view=all">All Repair Orders</Link>{vendorCanOpenFinalQc && primaryActionHref !== finalQcHref ? <Link href={finalQcHref}>Open Final QC</Link> : null}<Link className="primary" href={primaryActionHref} onClick={primaryActionHref === vendorProgressHref ? openVendorProgress : undefined}>{vendorWaitingParts ? "Open Parts Workspace" : primaryActionLabel}</Link></div></footer>
+        </div>
+      </div>
+      ) : null}
+      <footer className="rowb-footer"><span><ShieldAlert />{promiseGuardrailLabel}</span><div>{returnTo ? <Link href={returnTo}>{returnLabel ?? "Source Workspace"}</Link> : null}<Link href="/vehicles/shop-recon">Shop &amp; Recon</Link><Link href="/vehicles/repair-workbench?view=all">All Repair Orders</Link>{vendorCanOpenFinalQc && primaryActionHref !== finalQcHref ? <Link href={finalQcHref}>Open Final QC</Link> : null}<Link className="primary" href={footerPrimaryHref} onClick={footerPrimaryClick}>{vendorWaitingParts ? "Open Parts Workspace" : primaryActionLabel}</Link></div></footer>
     </section>
   );
 }

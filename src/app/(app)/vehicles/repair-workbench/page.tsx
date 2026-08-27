@@ -24,6 +24,8 @@ type PageProps = {
     repairOrderId?: string;
     returnLabel?: string;
     returnTo?: string;
+    fullDetails?: string;
+    summaryCardPreview?: string;
     tab?: string;
     vehicleId?: string;
     view?: string;
@@ -106,7 +108,9 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
         vehicleId: order.vehicle.id,
       });
       if (params.compose === "customer" || params.compose === "management" || params.compose === "team") canonical.set("compose", params.compose);
+      if (params.fullDetails === "1") canonical.set("fullDetails", "1");
       if (params.tab === "repair") canonical.set("tab", "repair");
+      if (params.summaryCardPreview === "1") canonical.set("summaryCardPreview", "1");
       if (params.workspace === "advisor") canonical.set("workspace", "advisor");
       if (returnTo) canonical.set("returnTo", returnTo);
       if (managerContext) preserveManagerContext(canonical, managerContext.mode);
@@ -134,8 +138,10 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
         options={{ users: JSON.parse(JSON.stringify(options.users)) }}
         order={JSON.parse(JSON.stringify(order))}
         relatedPurchaseOrders={JSON.parse(JSON.stringify(relatedPurchaseOrders))}
+        fullDetailMode={params.fullDetails === "1"}
         returnLabel={returnLabel}
         returnTo={returnTo}
+        summaryCardPreview={params.summaryCardPreview === "1"}
         showAdvisorReturn={showAdvisorReturn}
         showWorkspaceReturn={showWorkspaceReturn}
       />
