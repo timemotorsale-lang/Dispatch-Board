@@ -31,6 +31,17 @@ describe("Unified CRM accounting/DMS connector readiness", () => {
     });
     expect(result.checks.find((check) => check.category === "fieldOwnership")).toMatchObject({ status: "HOLD" });
     expect(result.checks.find((check) => check.category === "reconciliation")).toMatchObject({ status: "PASS" });
+    expect(result.mappingPreview).toMatchObject({
+      state: "READY_REVIEW",
+      selectedSystemName: null,
+      syncEnabled: false
+    });
+    expect(result.mappingPreview.rows.map((row) => row.direction)).toEqual(["READ_ONLY_PREVIEW", "READ_ONLY_PREVIEW", "READ_ONLY_PREVIEW", "HELD_WRITEBACK"]);
+    expect(result.mappingPreview.rows.find((row) => row.id === "quote-approved-total")).toMatchObject({
+      sourceAuthority: "QUOTES",
+      conflictRisk: "HIGH"
+    });
+    expect(JSON.stringify(result)).not.toContain("externalCredential");
     expect(result.rollback.featureControl).toBe("crm.integrations.accountingDms.enabled");
   });
 

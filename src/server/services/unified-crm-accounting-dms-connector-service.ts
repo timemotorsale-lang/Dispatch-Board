@@ -4,7 +4,8 @@ import {
   UNIFIED_CRM_ACCOUNTING_DMS_CONNECTOR_CONTRACT_VERSION,
   UnifiedCrmAccountingDmsConnectorError,
   type UnifiedCrmAccountingDmsConnectorCheck,
-  type UnifiedCrmAccountingDmsConnectorReadModel
+  type UnifiedCrmAccountingDmsConnectorReadModel,
+  type UnifiedCrmAccountingDmsMappingPreviewRow
 } from "@/server/unified-crm/accounting-dms-connector-contract";
 
 type Dependencies = {
@@ -74,6 +75,45 @@ const CHECKS: UnifiedCrmAccountingDmsConnectorCheck[] = [
   }
 ];
 
+const MAPPING_PREVIEW_ROWS: UnifiedCrmAccountingDmsMappingPreviewRow[] = [
+  {
+    id: "customer-display-name",
+    crmField: "Customer display name",
+    externalField: "DMS customer name",
+    sourceAuthority: "CUSTOMERS",
+    direction: "READ_ONLY_PREVIEW",
+    conflictRisk: "MEDIUM",
+    decisionNeeded: "Approve whether DMS or Customers wins when names differ."
+  },
+  {
+    id: "quote-approved-total",
+    crmField: "Approved quote total",
+    externalField: "Accounting invoice estimate",
+    sourceAuthority: "QUOTES",
+    direction: "READ_ONLY_PREVIEW",
+    conflictRisk: "HIGH",
+    decisionNeeded: "Approve accounting posting authority and tax/discount mapping."
+  },
+  {
+    id: "repair-order-number",
+    crmField: "Repair order number",
+    externalField: "DMS repair order reference",
+    sourceAuthority: "DISPATCH",
+    direction: "READ_ONLY_PREVIEW",
+    conflictRisk: "LOW",
+    decisionNeeded: null
+  },
+  {
+    id: "payment-status",
+    crmField: "Payment status",
+    externalField: "Accounting receivable status",
+    sourceAuthority: "ACCOUNTING_DMS",
+    direction: "HELD_WRITEBACK",
+    conflictRisk: "HIGH",
+    decisionNeeded: "Approve whether CRM may display, cache, or act on accounting payment status."
+  }
+];
+
 export async function getUnifiedCrmAccountingDmsConnector(
   actor: AuthenticatedUser | null,
   dependencies: Dependencies = {}
@@ -98,6 +138,12 @@ export async function getUnifiedCrmAccountingDmsConnector(
     },
     checks: CHECKS.map((check) => ({ ...check })),
     contractVersion: UNIFIED_CRM_ACCOUNTING_DMS_CONNECTOR_CONTRACT_VERSION,
+    mappingPreview: {
+      state: "READY_REVIEW",
+      selectedSystemName: null,
+      syncEnabled: false,
+      rows: MAPPING_PREVIEW_ROWS.map((row) => ({ ...row }))
+    },
     generatedAt: (dependencies.now?.() ?? new Date()).toISOString(),
     rollback: {
       fallback: "manual-accounting-dms-entry-and-reconciliation",

@@ -20,6 +20,16 @@ export type UnifiedCrmAccountingDmsConnectorCheck = {
   status: UnifiedCrmAccountingDmsConnectorStatus;
 };
 
+export type UnifiedCrmAccountingDmsMappingPreviewRow = {
+  id: string;
+  crmField: string;
+  externalField: string;
+  sourceAuthority: "CRM" | "CUSTOMERS" | "QUOTES" | "DISPATCH" | "ACCOUNTING_DMS";
+  direction: "READ_ONLY_PREVIEW" | "HELD_WRITEBACK";
+  conflictRisk: "LOW" | "MEDIUM" | "HIGH";
+  decisionNeeded: string | null;
+};
+
 export type UnifiedCrmAccountingDmsConnectorReadModel = {
   activation: {
     backfillEnabled: false;
@@ -30,6 +40,12 @@ export type UnifiedCrmAccountingDmsConnectorReadModel = {
   };
   checks: UnifiedCrmAccountingDmsConnectorCheck[];
   contractVersion: typeof UNIFIED_CRM_ACCOUNTING_DMS_CONNECTOR_CONTRACT_VERSION;
+  mappingPreview: {
+    state: "READY_REVIEW";
+    selectedSystemName: null;
+    syncEnabled: false;
+    rows: UnifiedCrmAccountingDmsMappingPreviewRow[];
+  };
   generatedAt: string;
   rollback: {
     fallback: "manual-accounting-dms-entry-and-reconciliation";

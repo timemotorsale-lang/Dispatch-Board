@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-123 accounting/DMS mapping preview implemented
+
+The current CRM implementation branch now extends the accounting/DMS connector readiness boundary with a manager-only mapping preview. It shows customer, quote, dispatch, and accounting/DMS source-authority rows, conflict risk, and decisions needed while keeping sync, backfill, and writeback disabled.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_123_ACCOUNTING_DMS_MAPPING_PREVIEW_EVIDENCE.md`](unified-crm/UCRM_123_ACCOUNTING_DMS_MAPPING_PREVIEW_EVIDENCE.md). `UCRM-123` is `IMPLEMENTED_UNVERIFIED`; no external accounting/DMS connection, export, sync, or writeback was enabled.
+
 ## 2026-08-27 — Unified CRM UCRM-122 e-signature document readiness implemented
 
 The current CRM implementation branch now extends the e-signature readiness boundary with a manager-only document readiness surface for quote approval documents, customer authorization forms, and repair/dispatch handoff documents. It keeps envelope sending and provider status import disabled.
