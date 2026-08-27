@@ -4,6 +4,12 @@ FROM node:24-bookworm-slim AS dependencies
 
 WORKDIR /app
 
+ENV NEXT_TELEMETRY_DISABLED=1
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl \
+  && rm -rf /var/lib/apt/lists/*
+
 COPY package.json package-lock.json ./
 RUN npm ci
 
@@ -15,6 +21,7 @@ COPY . .
 # build must not depend on a reachable production database.
 ARG BUILD_DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build?schema=public
 ENV DATABASE_URL=${BUILD_DATABASE_URL}
+ENV NODE_OPTIONS=--max-old-space-size=4096
 
 RUN node -e "const fs=require('fs');const p='next-env.d.ts';if(fs.existsSync(p)){const s=fs.readFileSync(p,'utf8');fs.writeFileSync(p,s.split(/\\r?\\n/).filter((line)=>!line.includes('routes.d.ts')).join('\\n'));}"
 RUN npm run build
