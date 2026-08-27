@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-117 provider health dashboard implemented
+
+The current CRM implementation branch now contains a manager-only provider health/disabled-state dashboard model. It shows email/calendar, SMS, telephony, e-signature, and accounting/DMS channels as held or disabled with live traffic off, explicit disabled reasons, feature controls, and rollback fallbacks.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_117_PROVIDER_HEALTH_DASHBOARD_EVIDENCE.md`](unified-crm/UCRM_117_PROVIDER_HEALTH_DASHBOARD_EVIDENCE.md). `UCRM-117` is `IMPLEMENTED_UNVERIFIED`; the dashboard does not contact external providers or expose credentials.
+
 ## 2026-08-27 — Unified CRM UCRM-116 Customer 360 communication action readiness implemented
 
 The current CRM implementation branch now contains a Customer 360 communication action-readiness card. It shows call, email, and text readiness with honest manual-only/provider-held/no-contact states, links staff to the safe manual outcome flow where allowed, and avoids implying that live providers are connected.

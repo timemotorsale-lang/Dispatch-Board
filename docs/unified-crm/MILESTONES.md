@@ -266,7 +266,7 @@ No adapter is complete at “API connected.” Each is a full vertical slice wit
 | UCRM-114 | Manual phone-call disposition capture — `IMPLEMENTED_UNVERIFIED` | Staff can log call attempts/outcomes without VoIP or recording activation. |
 | UCRM-115 | Customer 360 communication timeline lens — `IMPLEMENTED_UNVERIFIED` | Customer 360 can show permitted communication envelopes and manual outcomes without leaking restricted fields. |
 | UCRM-116 | Customer 360 communication action readiness — `IMPLEMENTED_UNVERIFIED` | Customer 360 shows honest email/text/call readiness states and fallback actions. |
-| UCRM-117 | Provider health and disabled-state dashboard | Management can inspect provider disabled/held/degraded state, health, and kill-switch posture. |
+| UCRM-117 | Provider health and disabled-state dashboard — `IMPLEMENTED_UNVERIFIED` | Management can inspect provider disabled/held/degraded state, health, and kill-switch posture. |
 | UCRM-118 | Integration retry and reconciliation review surface | Management can inspect retry/reconciliation queues without replaying external side effects. |
 | UCRM-119 | Quiet hours, rate limits, and cost controls | Communication guardrails are modeled, reviewable, and fail closed. |
 | UCRM-120 | AI receptionist requirements and safety contract | AI receptionist behavior is specified with consent, retrieval, escalation, human approval, and no-action defaults. |
