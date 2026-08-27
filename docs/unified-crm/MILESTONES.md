@@ -268,7 +268,7 @@ No adapter is complete at “API connected.” Each is a full vertical slice wit
 | UCRM-116 | Customer 360 communication action readiness — `IMPLEMENTED_UNVERIFIED` | Customer 360 shows honest email/text/call readiness states and fallback actions. |
 | UCRM-117 | Provider health and disabled-state dashboard — `IMPLEMENTED_UNVERIFIED` | Management can inspect provider disabled/held/degraded state, health, and kill-switch posture. |
 | UCRM-118 | Integration retry and reconciliation review surface — `IMPLEMENTED_UNVERIFIED` | Management can inspect retry/reconciliation queues without replaying external side effects. |
-| UCRM-119 | Quiet hours, rate limits, and cost controls | Communication guardrails are modeled, reviewable, and fail closed. |
+| UCRM-119 | Quiet hours, rate limits, and cost controls — `IMPLEMENTED_UNVERIFIED` | Communication guardrails are modeled, reviewable, and fail closed. |
 | UCRM-120 | AI receptionist requirements and safety contract | AI receptionist behavior is specified with consent, retrieval, escalation, human approval, and no-action defaults. |
 | UCRM-121 | AI receptionist simulator | Staff can simulate intake/receptionist scenarios without live calls or texts. |
 | UCRM-122 | E-signature/document readiness surface | Management can review document/signature readiness gates without sending envelopes. |

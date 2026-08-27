@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-119 communication guardrails implemented
+
+The current CRM implementation branch now contains a manager-only communication guardrails model for quiet hours, rate limits, cost controls, consent checks, and global kill-switch readiness. It is preview-only, fail-closed, and keeps automated sending/provider traffic disabled.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_119_COMMUNICATION_GUARDRAILS_EVIDENCE.md`](unified-crm/UCRM_119_COMMUNICATION_GUARDRAILS_EVIDENCE.md). `UCRM-119` is `IMPLEMENTED_UNVERIFIED`; final business decisions are still required before enforcement or communication automation can be activated.
+
 ## 2026-08-27 — Unified CRM UCRM-118 integration recovery review implemented
 
 The current CRM implementation branch now contains a manager-only integration recovery review model. It shows retry, reconciliation, and dead-letter items with external replay disabled, manual next steps, customer-impact labels, source links, and read-only rollback posture.
