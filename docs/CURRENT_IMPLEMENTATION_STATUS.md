@@ -1,5 +1,13 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-084 telephony and transcription readiness held
+
+The current CRM implementation branch now contains a safe telephony/transcription readiness boundary for future click-to-call, inbound call routing, call recording, transcripts, and AI receptionist support.
+
+This checkpoint does not enable phone service. Calling, recording, transcription, inbound routing, and AI receptionist behavior remain disabled while provider selection, recording consent, retention, restricted access, legal approval, operations routing, browser proof, and rollback proof remain unresolved.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_084_TELEPHONY_TRANSCRIPTION_EVIDENCE.md`](unified-crm/UCRM_084_TELEPHONY_TRANSCRIPTION_EVIDENCE.md). `UCRM-084` is `HELD`: the readiness boundary is in source, but live telephony/transcription activation is blocked by missing provider, legal, retention, security, browser, and rollback decisions.
+
 ## 2026-08-27 — Unified CRM UCRM-083 SMS delivery readiness held
 
 The current CRM implementation branch now contains a safe SMS delivery readiness boundary. Management can inspect the SMS activation gates before any texting capability appears as live.
