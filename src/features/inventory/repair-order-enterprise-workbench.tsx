@@ -1075,6 +1075,7 @@ export function RepairOrderEnterpriseWorkbench({
               );
             })}
           </nav>
+          {reconReportOpen ? reconReportPanel : null}
         </>
       ) : null}
       {notice ? <div className="rowb-notice" role="status">{notice}</div> : null}
@@ -1401,7 +1402,6 @@ export function RepairOrderEnterpriseWorkbench({
         <main className="rowb-main">
           <nav className="rowb-tabs"><a className="active" href="#concerns">Concerns</a><a href="#inspection">Inspection</a><a href="#diagnosis">Diagnosis</a><a href="#estimate">Estimate</a><a href="#jobs">Jobs</a><a href="#quality">QC</a><a href="#timeline">Timeline</a></nav>
           <div className="rowb-actions"><span>{activeVendorWork ? `Offsite · ${format(activeVendorWork.status)}` : order.operatingState === "ACTIVE" ? "Active work order" : format(order.operatingState)}</span><button aria-expanded={reconReportOpen} aria-controls="recon-report" onClick={toggleReconReport} type="button"><Activity /> Recon Report</button><Link href={primaryActionHref} onClick={primaryActionHref === vendorProgressHref ? openVendorProgress : undefined}>{vendorWaitingParts ? "Open Parts Control" : "Review Plan"}</Link><Link className="primary" href={primaryActionHref} onClick={primaryActionHref === vendorProgressHref ? openVendorProgress : undefined}>{primaryActionLabel} <ChevronRight /></Link></div>
-          {reconReportOpen ? reconReportPanel : null}
           <section className="rowb-transition-strip" aria-label="Contextual next-step workspaces">
             <header>
               <strong>Next step workspaces</strong>
