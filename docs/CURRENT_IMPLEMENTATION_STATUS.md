@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-102 workflow and approval designer readiness held
+
+The current CRM implementation branch now contains a safe workflow and approval designer readiness boundary. Simulation can be represented without enabling live workflow execution, source-domain mutation, customer communication, or approval automation.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_102_WORKFLOW_APPROVAL_DESIGNER_EVIDENCE.md`](unified-crm/UCRM_102_WORKFLOW_APPROVAL_DESIGNER_EVIDENCE.md). `UCRM-102` is `HELD`: publishing and live execution are blocked by missing authority, limits, loop-protection, observability, sandbox, browser, and rollback evidence.
+
 ## 2026-08-27 — Unified CRM UCRM-101 governed custom fields readiness held
 
 The current CRM implementation branch now contains a safe governed custom fields and layouts readiness boundary. Management can inspect namespace, type, versioning, validation, indexing, permission, reporting-impact, limit, admin-preview, and rollback gates before any custom metadata is treated as live.

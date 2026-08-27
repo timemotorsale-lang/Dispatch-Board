@@ -243,7 +243,7 @@ No adapter is complete at “API connected.” Each is a full vertical slice wit
 | --- | --- | --- |
 | UCRM-100 | Fine-grained field/record/territory sharing — `HELD` | Formal access model, scale tests, policy proof, admin UX, audit, recovery, and migration evidence. |
 | UCRM-101 | Governed custom fields and layouts — `HELD` | Namespace/type/version rules, validation, indexing, permissions, reporting impact, limits, rollback, and admin preview. |
-| UCRM-102 | Workflow and approval designer | Versioning, simulation, authority, limits, loop protection, observability, rollback, and sandbox/publish gates. |
+| UCRM-102 | Workflow and approval designer — `HELD` | Versioning, simulation, authority, limits, loop protection, observability, rollback, and sandbox/publish gates. |
 | UCRM-103 | Sandbox and configuration promotion | Isolation, masked data, diff/review, promotion, validation, audit, and rollback. |
 | UCRM-104 | Advanced retention, legal hold, and export | Approved policy, field classification, immutable evidence, job simulation, recovery, and legal/security signoff. |
 | UCRM-105 | Advanced forecasting and attribution | Explainability, source freshness, historical evaluation, override separation, bias/error review, and deterministic fallback. |
