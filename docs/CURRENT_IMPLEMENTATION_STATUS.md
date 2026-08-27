@@ -1,5 +1,13 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-085 e-signature readiness held
+
+The current CRM implementation branch now contains a safe e-signature readiness boundary. Management can inspect the document authority, signer identity, immutable envelope evidence, webhook reconciliation, expiry/cancel, permission, template, audit, and rollback gates before any signature capability is treated as live.
+
+This checkpoint does not create signature envelopes or import provider signature status. Envelope creation and signature-status import remain disabled until a provider, document authority model, signer identity policy, webhook proof, browser proof, and rollback rehearsal are approved.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_085_E_SIGNATURE_EVIDENCE.md`](unified-crm/UCRM_085_E_SIGNATURE_EVIDENCE.md). `UCRM-085` is `HELD`: the readiness boundary is in source, but live e-signature activation is blocked by missing provider, authority, identity, webhook, browser, and rollback decisions.
+
 ## 2026-08-27 — Unified CRM UCRM-084 telephony and transcription readiness held
 
 The current CRM implementation branch now contains a safe telephony/transcription readiness boundary for future click-to-call, inbound call routing, call recording, transcripts, and AI receptionist support.

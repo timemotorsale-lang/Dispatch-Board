@@ -229,7 +229,7 @@ Unless a row or acceptance ledger below says otherwise, slices begin as `PLANNED
 | UCRM-082 | Email/calendar provider B — `HELD` | Second provider repeats the full gate; it does not inherit approval from UCRM-081. |
 | UCRM-083 | SMS delivery — `HELD` | Approved vendor, consent/opt-out, templates, delivery states, quiet hours, inbound correlation, failure/retry, audit, cost/rate controls, and kill switch pass. |
 | UCRM-084 | Telephony/transcription — `HELD` | Calling, recording consent, retention, restricted access, transcription provenance, provider failure, audit, and legal approval pass before activation. |
-| UCRM-085 | E-signature | Document authority, signer identity, immutable envelope evidence, webhook reconciliation, expiry/cancel, permissions, and provider rollback pass. |
+| UCRM-085 | E-signature — `HELD` | Document authority, signer identity, immutable envelope evidence, webhook reconciliation, expiry/cancel, permissions, and provider rollback pass. |
 | UCRM-086 | Accounting/DMS connector | Field ownership, mapping, conflict rules, backfill, incremental sync, reconciliation, sensitive data, failure recovery, and disablement are proven for one named system. |
 
 No adapter is complete at “API connected.” Each is a full vertical slice with external-side-effect proof.
