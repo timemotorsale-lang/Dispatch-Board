@@ -38,20 +38,12 @@ const initial = {
 };
 
 describe("ServiceClosePartsWorkspace", () => {
-  it("renders a simple bulk needed-parts entry and explicit ordering/use controls", () => {
+  it("opens active outside-vendor parts work directly into delivery and repair-progress controls", () => {
     const html = renderToStaticMarkup(<ServiceClosePartsWorkspace initial={initial} initialRepairOrderId="ro-1" returnLabel="Return to RO-DB21B235" returnTo="/vehicles/repair-workbench?repairOrderId=ro-1" />);
 
-    expect(html).toContain("Add needed parts");
-    expect(html).toContain("No needed parts are blocking this repair order.");
     expect(html).toContain("2024 Toyota RAV4");
     expect(html).toContain("Stock 333586");
     expect(html).toContain("VIN 2T3W1RFVXRW333586");
-    expect(html).toContain("Write the note the way you received the information.");
-    expect(html).toContain("aria-label=\"Bold\"");
-    expect(html).toContain("aria-label=\"Italic\"");
-    expect(html).toContain("aria-label=\"Underline\"");
-    expect(html).toContain("Bullet");
-    expect(html).toContain("Number");
     expect(html).not.toContain("Load 2024 RAV4 collision list");
     expect(html).toContain("Bought / Ordered");
     expect(html).toContain("Create and track purchases");
@@ -59,16 +51,67 @@ describe("ServiceClosePartsWorkspace", () => {
     expect(html).not.toContain("GM approve / deny");
     expect(html).toContain("Saved for this repair order");
     expect(html).toContain("Only records linked to RO-DB21B235 are shown.");
-    expect(html).toContain("Enter at least one part before saving.");
     expect(html).toContain("disabled=\"\"");
     expect(html).toContain("What happens next");
     expect(html).toContain("Return to RO-DB21B235");
     expect(html).toContain("Coordinate delivery to Gil Tires");
     expect(html).toContain("Plan pickup &amp; delivery");
+    expect(html).toContain("Next move");
+    expect(html).toContain("Document repair progress");
+    expect(html).toContain("Next simple step");
+    expect(html).toContain("Repair complete");
+    expect(html).toContain("Save next move");
     expect(html).toContain("Used");
     expect(html).toContain("Returns");
     expect(html).toContain("Approve");
     expect(html).not.toContain("Request approval");
+  });
+
+  it("turns a vendor-ready repair into a simple return-to-dealership step", () => {
+    const html = renderToStaticMarkup(<ServiceClosePartsWorkspace initial={{
+      ...initial,
+      repairOrders: [{
+        ...initial.repairOrders[0],
+        vendorWorks: [{ ...initial.repairOrders[0].vendorWorks[0], status: "READY_FOR_PICKUP" }],
+      }],
+    }} initialRepairOrderId="ro-1" />);
+
+    expect(html).toContain("Repair complete. Bring it back.");
+    expect(html).toContain("Repair is complete at the vendor. Bring the vehicle back to the dealership for QC.");
+    expect(html).toContain("Start pickup back");
+    expect(html).toContain("Back: start QC");
+    expect(html).not.toContain("Repairing at vendor");
+  });
+
+  it("offers QC as the next move once return transport is underway", () => {
+    const html = renderToStaticMarkup(<ServiceClosePartsWorkspace initial={{
+      ...initial,
+      repairOrders: [{
+        ...initial.repairOrders[0],
+        vendorWorks: [{ ...initial.repairOrders[0].vendorWorks[0], status: "RETURN_TRANSPORT" }],
+      }],
+    }} initialRepairOrderId="ro-1" />);
+
+    expect(html).toContain("Back from vendor? Start QC.");
+    expect(html).toContain("Pickup is already moving. When it arrives, send it straight to dealership QC.");
+    expect(html).toContain("Back: start QC");
+    expect(html).not.toContain("Coordinate pickup and delivery");
+  });
+
+  it("shows simple QC pass, fail, and handoff choices at the QC stage", () => {
+    const html = renderToStaticMarkup(<ServiceClosePartsWorkspace initial={{
+      ...initial,
+      repairOrders: [{
+        ...initial.repairOrders[0],
+        vendorWorks: [{ ...initial.repairOrders[0].vendorWorks[0], status: "QC_REQUIRED" }],
+      }],
+    }} initialRepairOrderId="ro-1" />);
+
+    expect(html).toContain("QC decision: pass or fail.");
+    expect(html).toContain("Record the QC result. Pass moves to handoff. Fail sends it back to a repair decision.");
+    expect(html).toContain("QC passed: handoff");
+    expect(html).toContain("QC failed");
+    expect(html).not.toContain("Coordinate pickup and delivery");
   });
 
   it("shows a manager budget-exception path when committed spend is over the recon ceiling", () => {

@@ -56,6 +56,18 @@ const vehicleMetaFor = (order?: RepairOrder | null) => {
   ].filter(Boolean) as string[];
 };
 
+function initialDeskMode(model: Model, repairOrderId: string): DeskMode {
+  const order = model.repairOrders.find((item) => item.id === repairOrderId) ?? model.repairOrders[0] ?? null;
+  if (!order) return "need";
+  const hasActiveVendor = Boolean(order.vendorWorks?.some((work) => !["COMPLETED", "CANCELLED"].includes(work.status)));
+  const hasReturnOrQcVendor = Boolean(order.vendorWorks?.some((work) => ["READY_FOR_PICKUP", "RETURN_TRANSPORT", "RETURNED", "QC_REQUIRED"].includes(work.status)));
+  const hasOpenPurchaseOrder = model.purchaseOrders.some((item) =>
+    item.requisition?.demand?.repairOrder?.repairOrderNumber === order.repairOrderNumber &&
+    !["CLOSED", "CANCELLED"].includes(item.status ?? "")
+  );
+  return hasActiveVendor && (hasOpenPurchaseOrder || hasReturnOrQcVendor) ? "vendor" : "need";
+}
+
 function reconBudgetFor(order?: RepairOrder | null) {
   const vehicle = order?.vehicle;
   const currentYear = new Date().getFullYear();
@@ -77,6 +89,67 @@ function initialRepairProgressState() {
     nextAction: "Continue the repair work that can be completed now, then install pending parts when they arrive.",
     status: "CONTINUING_WITH_PENDING_PARTS",
   };
+}
+
+function initialVendorDeliveryProgressState() {
+  return {
+    deliveredAt: local(new Date()),
+    nextAction: "Vendor has the needed part. Continue repair and report the next ETA or blocker.",
+    note: "",
+    receivedBy: "",
+    status: "AT_VENDOR",
+  };
+}
+
+function vendorProgressOptions(status?: string | null) {
+  if (status === "READY_FOR_PICKUP") {
+    return [
+      { label: "Start pickup back", nextAction: "Pick up the vehicle from the vendor and deliver it back to the dealership.", value: "RETURN_TRANSPORT" },
+      { label: "Back: start QC", nextAction: "Start dealership QC and record pass or fail.", value: "QC_REQUIRED" },
+    ];
+  }
+  if (status === "RETURN_TRANSPORT") {
+    return [
+      { label: "Back: start QC", nextAction: "Start dealership QC and record pass or fail.", value: "QC_REQUIRED" },
+    ];
+  }
+  if (status === "RETURNED") {
+    return [
+      { label: "Ready for QC", nextAction: "Complete dealership QC and record pass or fail.", value: "QC_REQUIRED" },
+    ];
+  }
+  if (status === "QC_REQUIRED") {
+    return [
+      { label: "QC passed: handoff", nextAction: "Continue inventory lifecycle handoff after QC.", value: "COMPLETED" },
+      { label: "QC failed", nextAction: "Decide whether to return to vendor, repair internally, approve supplement, or stop work.", value: "AT_VENDOR" },
+    ];
+  }
+  return [
+    { label: "Still repairing", nextAction: "Vendor has the needed part. Continue repair and report the next ETA or blocker.", value: "AT_VENDOR" },
+    { label: "Still waiting", nextAction: "Resolve the remaining parts blocker so the vendor can continue.", value: "WAITING_PARTS" },
+    { label: "Needs supplement", nextAction: "Review the vendor supplement before more work continues.", value: "SUPPLEMENT_NEEDED" },
+    { label: "Repair complete", nextAction: "Pick up the vehicle from the vendor and deliver it back to the dealership.", value: "READY_FOR_PICKUP" },
+  ];
+}
+
+function defaultVendorProgressStatus(status?: string | null) {
+  return vendorProgressOptions(status)[0]?.value ?? "AT_VENDOR";
+}
+
+function vendorProgressHeading(status?: string | null) {
+  if (status === "READY_FOR_PICKUP") return "Repair complete. Bring it back.";
+  if (status === "RETURN_TRANSPORT") return "Back from vendor? Start QC.";
+  if (status === "RETURNED") return "Back at dealership. Start QC.";
+  if (status === "QC_REQUIRED") return "QC decision: pass or fail.";
+  return "Document repair progress";
+}
+
+function vendorProgressContext(status?: string | null) {
+  if (status === "READY_FOR_PICKUP") return "Repair is complete at the vendor. Bring the vehicle back to the dealership for QC.";
+  if (status === "RETURN_TRANSPORT") return "Pickup is already moving. When it arrives, send it straight to dealership QC.";
+  if (status === "RETURNED") return "The vehicle is back. Start QC and record pass or fail.";
+  if (status === "QC_REQUIRED") return "Record the QC result. Pass moves to handoff. Fail sends it back to a repair decision.";
+  return "Record progress only when work is still happening. When repairs are complete, choose Repair complete.";
 }
 
 function cleanDescription(value: string) {
@@ -139,7 +212,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [orderId, setOrderId] = useState(initialOrderId);
-  const [mode, setMode] = useState<DeskMode>("need");
+  const [mode, setMode] = useState<DeskMode>(() => initialDeskMode(initial, initialOrderId));
   const [budgetIncreaseDollars, setBudgetIncreaseDollars] = useState("");
   const [budgetReason, setBudgetReason] = useState("");
   const [budgetRequestStatus, setBudgetRequestStatus] = useState<BudgetRequestStatus>("DRAFT");
@@ -148,12 +221,22 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
   const [purchaseOrderDraft, setPurchaseOrderDraft] = useState("");
   const [pickupPlan, setPickupPlan] = useState({ assignedTo: "", deliveryAt: "", method: "Dealership driver", pickupAt: "" });
   const [repairProgress, setRepairProgress] = useState(initialRepairProgressState);
+  const [vendorDeliveryProgress, setVendorDeliveryProgress] = useState(initialVendorDeliveryProgressState);
 
   const [demand, setDemand] = useState(() => ({ partId: first(initial.parts), quantityRequired: "1", requiredAt: local(new Date(Date.now() + 24 * 60 * 60 * 1000)), substitutionAllowed: true, notes: "" }));
   const [notes, setNotes] = useState<Record<DeskMode, string>>({ budget: "", need: "", order: "", progress: "", receive: "", return: "", source: "", use: "", vendor: "" });
 
   const selectedOrder = model.repairOrders.find((item) => item.id === orderId) ?? model.repairOrders[0] ?? null;
   const activeVendorWork = selectedOrder?.vendorWorks?.[0] ?? null;
+  const availableVendorProgressOptions = vendorProgressOptions(activeVendorWork?.status);
+  const selectedVendorProgressStatus = availableVendorProgressOptions.some((option) => option.value === vendorDeliveryProgress.status)
+    ? vendorDeliveryProgress.status
+    : defaultVendorProgressStatus(activeVendorWork?.status);
+  const selectedVendorProgressOption = availableVendorProgressOptions.find((option) => option.value === selectedVendorProgressStatus);
+  const vendorNextActionValue = vendorDeliveryProgress.status === selectedVendorProgressStatus
+    ? vendorDeliveryProgress.nextAction
+    : selectedVendorProgressOption?.nextAction ?? vendorDeliveryProgress.nextAction;
+  const showPickupPlanner = !["RETURN_TRANSPORT", "RETURNED", "QC_REQUIRED", "COMPLETED"].includes(activeVendorWork?.status ?? "");
   const canCorrectOutsideRepair = Boolean(activeVendorWork && !["RETURNED", "QC_REQUIRED", "COMPLETED", "CANCELLED"].includes(activeVendorWork.status));
   const selectedNumber = orderNumberFor(selectedOrder);
   const selectedVehicleLabel = vehicleLabelFor(selectedOrder);
@@ -199,6 +282,7 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
     setPurchaseOrderDraft("");
     setPickupPlan({ assignedTo: "", deliveryAt: "", method: "Dealership driver", pickupAt: "" });
     setRepairProgress(initialRepairProgressState());
+    setVendorDeliveryProgress(initialVendorDeliveryProgressState());
   }
 
   function openBudgetApproval() {
@@ -480,6 +564,52 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error ?? "Pickup and delivery plan could not be saved.");
+  }
+
+  async function saveVendorDeliveryProgress() {
+    if (!selectedOrder || !activeVendorWork) throw new Error("An assigned outside repair vendor is required before saving the next repair step.");
+    const deliveredAt = vendorDeliveryProgress.deliveredAt ? new Date(vendorDeliveryProgress.deliveredAt) : null;
+    if (!deliveredAt || Number.isNaN(deliveredAt.getTime())) throw new Error("Enter when the part reached the repair vendor.");
+    const note = vendorDeliveryProgress.note.trim();
+    const receivedBy = vendorDeliveryProgress.receivedBy.trim();
+    const nextAction = vendorNextActionValue.trim();
+    if (note.length < 10) throw new Error("Add the vendor repair progress or handoff note before saving.");
+    if (!nextAction) throw new Error("Add the vendor's next action before saving.");
+    const supplier = (nextPurchaseOrder?.vendor?.name ?? "the parts handoff").split(/\s+(?:request[\s_-]*quote|quote|phone|contact)\b/i)[0].trim();
+    const destination = activeVendorWork.vendorName;
+    const deliveredLine = `Part from ${supplier} delivered to ${destination}${receivedBy ? ` and received by ${receivedBy}` : ""} at ${deliveredAt.toLocaleString()}.`;
+    const response = await fetch(`/api/repair-orders/${encodeURIComponent(selectedOrder.id)}/vendor-work`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "UPDATE",
+        approvalStatus: activeVendorWork.approvalStatus,
+        approvedAmountCents: activeVendorWork.approvedAmountCents,
+        currentLocation: activeVendorWork.currentLocation || destination,
+        customerVisibleSummary: `${deliveredLine} ${note}`,
+        directFromSource: activeVendorWork.directFromSource,
+        estimateAmountCents: activeVendorWork.estimateAmountCents,
+        evidence: [nextPurchaseOrder?.purchaseOrderNumber, receivedBy ? `Vendor receiver: ${receivedBy}` : ""].filter(Boolean),
+        expectedReturnAt: activeVendorWork.expectedReturnAt,
+        idempotencyKey: crypto.randomUUID(),
+        internalNotes: `${deliveredLine}\nVendor progress: ${note}`,
+        keysCustodian: activeVendorWork.keysCustodian,
+        lastUpdateSummary: note,
+        nextAction,
+        nextFollowUpAt: deliveredAt.toISOString(),
+        occurredAt: deliveredAt.toISOString(),
+        reason: "Confirm dealership-supplied parts delivery and record outside vendor repair progress.",
+        scope: activeVendorWork.scope,
+        sentFrom: activeVendorWork.sentFrom,
+        status: selectedVendorProgressStatus,
+        supplementalAmountCents: activeVendorWork.supplementalAmountCents,
+        transportMethod: pickupPlan.method || activeVendorWork.transportMethod,
+        vendorWorkId: activeVendorWork.id,
+      }),
+    });
+    const result = await response.json().catch(() => null) as { error?: string } | null;
+    if (!response.ok) throw new Error(result?.error ?? "Vendor delivery and repair progress could not be saved.");
+    setVendorDeliveryProgress(initialVendorDeliveryProgressState());
   }
 
   async function saveRepairProgress() {
@@ -1001,17 +1131,39 @@ export function ServiceClosePartsWorkspace({ initial, initialRepairOrderId, retu
             <span>This update does not receive, install, or close parts. It only records that repair work is continuing or paused while parts are pending.</span>
           </div>
           <div className="scp-save-row"><button className="scp-primary-button" disabled={busy || !selectedOrder || repairProgress.note.trim().length < 10} type="submit">{busy ? "Saving progress..." : "Save repair progress"}<ArrowRight size={16} /></button><span className="scp-save-help">The next person will see this on the repair order timeline.</span></div>
-        </form> : mode === "vendor" ? <form aria-busy={busy} className="scp-pickup-plan" onSubmit={(event: FormEvent) => { event.preventDefault(); void run(savePickupPlan, `Pickup and delivery to ${activeVendorWork?.vendorName ?? "the repair vendor"} scheduled.`); }}>
-          <header><span>Repair-advancing action</span><h2>Coordinate pickup and delivery</h2><small>Move the bought part from its supplier to the shop that already has the vehicle.</small></header>
-          <div className="scp-route-summary"><article><span>Pick up from</span><strong>{nextPurchaseOrder ? pickupSupplierName : "No bought-part supplier"}</strong></article><ArrowRight /><article><span>Deliver to</span><strong>{activeVendorWork?.vendorName ?? "No outside repair vendor assigned"}</strong></article></div>
-          <div className="scp-form-grid">
-            <Field label="Who is handling it?"><input onChange={(event) => setPickupPlan({ ...pickupPlan, assignedTo: event.target.value })} placeholder="Staff member, courier, or vendor" value={pickupPlan.assignedTo} /></Field>
-            <Field label="Transportation"><select onChange={(event) => setPickupPlan({ ...pickupPlan, method: event.target.value })} value={pickupPlan.method}><option>Dealership driver</option><option>Courier / tow company</option><option>Supplier delivery</option><option>Repair vendor pickup</option></select></Field>
-            <Field label="Pickup time"><input onChange={(event) => setPickupPlan({ ...pickupPlan, pickupAt: event.target.value })} type="datetime-local" value={pickupPlan.pickupAt} /></Field>
-            <Field label="Expected at repair vendor"><input onChange={(event) => setPickupPlan({ ...pickupPlan, deliveryAt: event.target.value })} type="datetime-local" value={pickupPlan.deliveryAt} /></Field>
-          </div>
-          <div className="scp-save-row"><button className="scp-primary-button" disabled={busy || !activeVendorWork || !nextPurchaseOrder || !pickupPlan.assignedTo.trim() || !pickupPlan.pickupAt || !pickupPlan.deliveryAt} type="submit">{busy ? "Saving planâ€¦" : "Save pickup & delivery plan"}<ArrowRight size={16} /></button><span className="scp-save-help">After delivery, confirm the handoff and notify {activeVendorWork?.vendorName ?? "the repair vendor"} to continue repairs.</span></div>
-        </form> : <form aria-busy={busy} className="scp-comment-composer" onSubmit={(event: FormEvent) => { event.preventDefault(); void run(() => recordModeNote(mode), `${activeConfig.label} saved. The parts board has been updated.`); }}>
+        </form> : mode === "vendor" ? <section className="scp-vendor-delivery-workflow" aria-label="Vendor delivery and repair progress">
+          {showPickupPlanner ? <form aria-busy={busy} className="scp-pickup-plan" onSubmit={(event: FormEvent) => { event.preventDefault(); void run(savePickupPlan, `Pickup and delivery to ${activeVendorWork?.vendorName ?? "the repair vendor"} scheduled.`); }}>
+            <header><span>Repair-advancing action</span><h2>Coordinate pickup and delivery</h2><small>Move the bought part from its supplier to the shop that already has the vehicle.</small></header>
+            <div className="scp-route-summary"><article><span>Pick up from</span><strong>{nextPurchaseOrder ? pickupSupplierName : "No bought-part supplier"}</strong></article><ArrowRight /><article><span>Deliver to</span><strong>{activeVendorWork?.vendorName ?? "No outside repair vendor assigned"}</strong></article></div>
+            <div className="scp-form-grid">
+              <Field label="Who is handling it?"><input onChange={(event) => setPickupPlan({ ...pickupPlan, assignedTo: event.target.value })} placeholder="Staff member, courier, or vendor" value={pickupPlan.assignedTo} /></Field>
+              <Field label="Transportation"><select onChange={(event) => setPickupPlan({ ...pickupPlan, method: event.target.value })} value={pickupPlan.method}><option>Dealership driver</option><option>Courier / tow company</option><option>Supplier delivery</option><option>Repair vendor pickup</option></select></Field>
+              <Field label="Pickup time"><input onChange={(event) => setPickupPlan({ ...pickupPlan, pickupAt: event.target.value })} type="datetime-local" value={pickupPlan.pickupAt} /></Field>
+              <Field label="Expected at repair vendor"><input onChange={(event) => setPickupPlan({ ...pickupPlan, deliveryAt: event.target.value })} type="datetime-local" value={pickupPlan.deliveryAt} /></Field>
+            </div>
+            <div className="scp-save-row"><button className="scp-primary-button" disabled={busy || !activeVendorWork || !nextPurchaseOrder || !pickupPlan.assignedTo.trim() || !pickupPlan.pickupAt || !pickupPlan.deliveryAt} type="submit">{busy ? "Saving plan..." : "Save pickup & delivery plan"}<ArrowRight size={16} /></button><span className="scp-save-help">After delivery, confirm the handoff and notify {activeVendorWork?.vendorName ?? "the repair vendor"} to continue repairs.</span></div>
+          </form> : null}
+          <form aria-busy={busy} className="scp-pickup-plan" onSubmit={(event: FormEvent) => { event.preventDefault(); void run(saveVendorDeliveryProgress, `Vendor repair step saved for ${activeVendorWork?.vendorName ?? "the repair vendor"}.`); }}>
+            <header><span>Next move</span><h2>{vendorProgressHeading(activeVendorWork?.status)}</h2><small>{vendorProgressContext(activeVendorWork?.status)}</small></header>
+            <div className="scp-progress-context">
+              <strong>Current step: {format(activeVendorWork?.status)}</strong>
+              <span>{selectedVendorProgressOption?.nextAction ?? "Choose the next step and save a short note."}</span>
+            </div>
+            <div className="scp-form-grid">
+              <Field label={activeVendorWork?.status === "READY_FOR_PICKUP" ? "Pickup time" : ["RETURN_TRANSPORT", "RETURNED", "QC_REQUIRED"].includes(activeVendorWork?.status ?? "") ? "Decision time" : "Update time"}><input onChange={(event) => setVendorDeliveryProgress({ ...vendorDeliveryProgress, deliveredAt: event.target.value })} type="datetime-local" value={vendorDeliveryProgress.deliveredAt} /></Field>
+              <Field label={["RETURN_TRANSPORT", "RETURNED", "QC_REQUIRED"].includes(activeVendorWork?.status ?? "") ? "Checked by" : "Received by"}><input onChange={(event) => setVendorDeliveryProgress({ ...vendorDeliveryProgress, receivedBy: event.target.value })} placeholder={["RETURN_TRANSPORT", "RETURNED", "QC_REQUIRED"].includes(activeVendorWork?.status ?? "") ? "Staff member" : "Vendor contact or desk"} value={vendorDeliveryProgress.receivedBy} /></Field>
+              <Field label="Next simple step"><select onChange={(event) => {
+                const option = availableVendorProgressOptions.find((item) => item.value === event.target.value);
+                setVendorDeliveryProgress({ ...vendorDeliveryProgress, nextAction: option?.nextAction ?? vendorDeliveryProgress.nextAction, status: event.target.value });
+              }} value={selectedVendorProgressStatus}>{availableVendorProgressOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
+              <label className="scp-field scp-textarea-field">
+                <span>Short note</span>
+                <textarea onChange={(event) => setVendorDeliveryProgress({ ...vendorDeliveryProgress, note: event.target.value })} placeholder={activeVendorWork?.status === "QC_REQUIRED" ? "Example: QC passed. No rework found. Ready for inventory handoff." : activeVendorWork?.status === "READY_FOR_PICKUP" ? "Example: Gil Tires says repair is complete. Eli will pick it up and bring it back for QC." : "Example: Vehicle is back from Gil Tires. Start QC now."} value={vendorDeliveryProgress.note} />
+              </label>
+            </div>
+            <div className="scp-save-row"><button className="scp-primary-button" disabled={busy || !activeVendorWork || !vendorDeliveryProgress.deliveredAt || vendorDeliveryProgress.note.trim().length < 10} type="submit">{busy ? "Saving..." : "Save next move"}<ArrowRight size={16} /></button><span className="scp-save-help">{activeVendorWork?.status === "QC_REQUIRED" ? "Pass moves to handoff. Fail returns to a repair decision." : "Keep it moving with one clear next step."}</span></div>
+          </form>
+        </section> : <form aria-busy={busy} className="scp-comment-composer" onSubmit={(event: FormEvent) => { event.preventDefault(); void run(() => recordModeNote(mode), `${activeConfig.label} saved. The parts board has been updated.`); }}>
           <header><span>{activeConfig.label}</span><h2>{activeConfig.title}</h2><small>Write the note the way you received the information. The system will structure the parts record after you save.</small></header>
           <label className="scp-big-entry">
             <span>{activeConfig.label}</span>
