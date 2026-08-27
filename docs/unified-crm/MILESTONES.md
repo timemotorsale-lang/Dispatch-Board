@@ -227,7 +227,7 @@ Unless a row or acceptance ledger below says otherwise, slices begin as `PLANNED
 | UCRM-080 | Integration platform contract — `IMPLEMENTED_UNVERIFIED` | Credential isolation, tenant mapping, adapter interface, idempotency, delivery/sync state, retries, reconciliation, rate limits, webhooks, audit, and kill switches are accepted. |
 | UCRM-081 | Email/calendar provider A — `HELD` | One approved provider completes authorization, least privilege, sync/backfill, consent, dedupe, conflict, revoke, retry, reconciliation, security, browser, and rollback gates. |
 | UCRM-082 | Email/calendar provider B — `HELD` | Second provider repeats the full gate; it does not inherit approval from UCRM-081. |
-| UCRM-083 | SMS delivery | Approved vendor, consent/opt-out, templates, delivery states, quiet hours, inbound correlation, failure/retry, audit, cost/rate controls, and kill switch pass. |
+| UCRM-083 | SMS delivery — `HELD` | Approved vendor, consent/opt-out, templates, delivery states, quiet hours, inbound correlation, failure/retry, audit, cost/rate controls, and kill switch pass. |
 | UCRM-084 | Telephony/transcription | Calling, recording consent, retention, restricted access, transcription provenance, provider failure, audit, and legal approval pass before activation. |
 | UCRM-085 | E-signature | Document authority, signer identity, immutable envelope evidence, webhook reconciliation, expiry/cancel, permissions, and provider rollback pass. |
 | UCRM-086 | Accounting/DMS connector | Field ownership, mapping, conflict rules, backfill, incremental sync, reconciliation, sensitive data, failure recovery, and disablement are proven for one named system. |

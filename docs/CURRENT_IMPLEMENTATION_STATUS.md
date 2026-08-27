@@ -1,5 +1,13 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-083 SMS delivery readiness held
+
+The current CRM implementation branch now contains a safe SMS delivery readiness boundary. Management can inspect the SMS activation gates before any texting capability appears as live.
+
+This checkpoint is especially important for the future AI receptionist path because it defines consent, opt-out, templates, quiet hours, inbound correlation, delivery states, retry/failure handling, audit, cost/rate controls, and kill-switch expectations before automation can text a customer. Outbound SMS, inbound SMS, and provider configuration remain disabled.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_083_SMS_DELIVERY_EVIDENCE.md`](unified-crm/UCRM_083_SMS_DELIVERY_EVIDENCE.md). `UCRM-083` is `HELD`: the readiness boundary is in source, but live SMS activation is blocked by missing vendor, consent, quiet-hours, cost, browser, and rollback decisions.
+
 ## 2026-08-27 — Unified CRM UCRM-082 email/calendar provider B readiness held
 
 The current CRM implementation branch now contains a second-provider readiness boundary for future email/calendar integration. Provider B is explicitly independent from Provider A, so a first provider approval cannot silently authorize, configure, or prove a second provider.
