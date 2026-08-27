@@ -1,5 +1,13 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-080 integration platform contract implemented
+
+The current CRM implementation branch now contains the provider-neutral integration platform readiness boundary for the next large external communications and integrations envelope. CRM can now expose a manager-only readiness model for future email/calendar, SMS, telephony/transcription, e-signature, and accounting/DMS connectors without connecting any vendor or allowing external side effects.
+
+This checkpoint keeps the product deliberately safe. The default integration feature control remains disabled, provider activation is held, credentials are not stored or exposed, provider-specific gates remain separate, and the route fails closed for unauthenticated, unauthorized, and unknown-error states.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_080_INTEGRATION_PLATFORM_EVIDENCE.md`](unified-crm/UCRM_080_INTEGRATION_PLATFORM_EVIDENCE.md). `UCRM-080` is `IMPLEMENTED_UNVERIFIED`: authenticated browser proof, environment rollback proof, and all provider-specific approvals remain pending. No email, SMS, phone, e-signature, calendar sync, or accounting/DMS behavior was enabled by this checkpoint.
+
 ## 2026-08-15 — Unified CRM UCRM-041 implemented and UCRM-042 advanced to a held immutable-review boundary
 
 The current Unified CRM baseline now contains a real quote draft workspace inside `/crm/quotes`. Authorized CRM users can create or revise a visible quote draft through server-owned draft routes, the quote workspace now distinguishes live draft authority from held presentation authority, and quote saves remain typed, idempotent, audited, and version-aware.

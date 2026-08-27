@@ -224,7 +224,7 @@ Unless a row or acceptance ledger below says otherwise, slices begin as `PLANNED
 
 | ID | Agent-sized vertical slice | Acceptance evidence |
 | --- | --- | --- |
-| UCRM-080 | Integration platform contract | Credential isolation, tenant mapping, adapter interface, idempotency, delivery/sync state, retries, reconciliation, rate limits, webhooks, audit, and kill switches are accepted. |
+| UCRM-080 | Integration platform contract — `IMPLEMENTED_UNVERIFIED` | Credential isolation, tenant mapping, adapter interface, idempotency, delivery/sync state, retries, reconciliation, rate limits, webhooks, audit, and kill switches are accepted. |
 | UCRM-081 | Email/calendar provider A | One approved provider completes authorization, least privilege, sync/backfill, consent, dedupe, conflict, revoke, retry, reconciliation, security, browser, and rollback gates. |
 | UCRM-082 | Email/calendar provider B | Second provider repeats the full gate; it does not inherit approval from UCRM-081. |
 | UCRM-083 | SMS delivery | Approved vendor, consent/opt-out, templates, delivery states, quiet hours, inbound correlation, failure/retry, audit, cost/rate controls, and kill switch pass. |
