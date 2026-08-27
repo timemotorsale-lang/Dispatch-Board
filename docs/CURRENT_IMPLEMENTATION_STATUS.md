@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-113 SMS template catalog implemented
+
+The current CRM implementation branch now contains a review-only SMS template catalog. It gives managers draft customer text patterns with purpose labels, opt-in reminders, segment awareness, and explicit no-send posture.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_113_SMS_TEMPLATE_CATALOG_EVIDENCE.md`](unified-crm/UCRM_113_SMS_TEMPLATE_CATALOG_EVIDENCE.md). `UCRM-113` is `IMPLEMENTED_UNVERIFIED`; template publishing and outbound SMS remain disabled.
+
 ## 2026-08-27 — Unified CRM UCRM-112 email draft surface implemented
 
 The current CRM implementation branch now contains a review-only email draft readiness surface. It can represent safe draft copy and no-send language without mailbox sync or provider delivery.
