@@ -241,7 +241,7 @@ No adapter is complete at “API connected.” Each is a full vertical slice wit
 
 | ID | Capability package | Required gate |
 | --- | --- | --- |
-| UCRM-100 | Fine-grained field/record/territory sharing | Formal access model, scale tests, policy proof, admin UX, audit, recovery, and migration evidence. |
+| UCRM-100 | Fine-grained field/record/territory sharing — `HELD` | Formal access model, scale tests, policy proof, admin UX, audit, recovery, and migration evidence. |
 | UCRM-101 | Governed custom fields and layouts | Namespace/type/version rules, validation, indexing, permissions, reporting impact, limits, rollback, and admin preview. |
 | UCRM-102 | Workflow and approval designer | Versioning, simulation, authority, limits, loop protection, observability, rollback, and sandbox/publish gates. |
 | UCRM-103 | Sandbox and configuration promotion | Isolation, masked data, diff/review, promotion, validation, audit, and rollback. |

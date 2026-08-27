@@ -1,5 +1,13 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM UCRM-100 enterprise sharing readiness held
+
+The current CRM implementation branch now contains a safe enterprise field, record, and territory sharing readiness boundary. Management can inspect the formal access model, field classification, record-scope, territory-rule, policy-proof, admin-preview, audit, migration, scale-test, and rollback gates before any enterprise access override is treated as live.
+
+This checkpoint does not grant new access, expose restricted fields, or activate territory sharing. Existing role and organization scope remains the fallback until product/security decisions and policy proof are complete.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_100_ENTERPRISE_FIELD_SHARING_EVIDENCE.md`](unified-crm/UCRM_100_ENTERPRISE_FIELD_SHARING_EVIDENCE.md). `UCRM-100` is `HELD`: the readiness boundary is in source, but enterprise sharing activation is blocked by missing territory, record-sharing, admin-preview, policy-proof, scale, browser, and rollback evidence.
+
 ## 2026-08-27 — Unified CRM UCRM-086 accounting/DMS connector readiness held
 
 The current CRM implementation branch now contains a safe accounting/DMS connector readiness boundary. Management can inspect the field ownership, mapping, conflict, backfill, incremental sync, reconciliation, sensitive data, failure recovery, and disablement gates before any accounting or DMS integration is treated as live.
