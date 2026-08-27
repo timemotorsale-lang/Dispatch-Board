@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-08-27 — Unified CRM release-candidate local verification checkpoint recorded
+
+The current CRM release-readiness package now has a stronger local verification checkpoint. Focused release/pilot gate tests passed, verification-gate route tests passed, and TypeScript typecheck passed. A broader unit-test folder run is still red with 29 failing tests across 17 files, so the release candidate remains `HELD` and not ready for pilot or production release.
+
+Evidence is recorded in [`docs/unified-crm/UCRM_RELEASE_CANDIDATE_LOCAL_VERIFICATION_EVIDENCE.md`](unified-crm/UCRM_RELEASE_CANDIDATE_LOCAL_VERIFICATION_EVIDENCE.md). No release enablement, provider traffic, pilot cohort activation, production promotion, or write-capable CRM behavior was enabled.
+
 ## 2026-08-27 — Unified CRM release program stages 1–4 implemented as held review package
 
 Stages 1 through 4 of the current CRM release-readiness program are now represented in source evidence. The current envelope UCRM-122 through UCRM-127 is implemented and checkpointed; focused tests and typecheck passed for the envelope; held business decisions and pilot release gates are explicitly listed without enabling release, pilot cohort access, providers, production promotion, or risky operational behavior.
