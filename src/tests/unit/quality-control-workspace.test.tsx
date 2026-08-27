@@ -56,7 +56,7 @@ describe("QualityControlWorkspace", () => {
     expect(html).toContain("Fit and finish acceptable");
     expect(html).toContain("Safety/function check passed");
     expect(html).toContain("QC failed — return for correction");
-    expect(html).toContain("Pass Repair QC");
+    expect(html).toContain("Save &amp; open Final QC");
     expect(html).toContain("Show queue and detailed QC tools");
     expect(html).toContain("Ready for QC");
     expect(html).toContain("Inspector queue");

@@ -16,7 +16,7 @@ import {
   Wrench
 } from "lucide-react";
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 type User = { id: string; name: string };
 type Inspection = {
@@ -244,6 +244,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
   });
   const [release, setRelease] = useState({ keysVerified: false, releaseEvidence: "", openExceptions: "" });
   const [checkResults, setCheckResults] = useState<Record<string, "PASS" | "FAIL" | "NOT_APPLICABLE">>({});
+  const submitInFlightRef = useRef(false);
 
   const jobs = useMemo(() => model.repairOrders.flatMap((order) => order.repairJobs.map((job) => ({ order, job }))), [model]);
   const vendorQcRows = model.repairOrders.map((queueOrder) => ({ order: queueOrder, work: activeVendorQcWork(queueOrder) })).filter((row): row is { order: Order; work: VendorWork } => Boolean(row.work));
@@ -314,6 +315,8 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
   }
 
   async function submit(url: string, value: Record<string, unknown>, success: string) {
+    if (submitInFlightRef.current) return false;
+    submitInFlightRef.current = true;
     setBusy(true);
     setNotice("");
     try {
@@ -325,6 +328,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
       setNotice(error instanceof Error ? error.message : "Quality-control request failed.");
       return false;
     } finally {
+      submitInFlightRef.current = false;
       setBusy(false);
     }
   }
@@ -368,8 +372,36 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
       reworkInstructions: passed ? null : `Return for correction: ${quickNote.trim()}`,
       inspectedAt: new Date().toISOString(),
       reason: passed ? "Record quick repair QC pass and open Final Frontline QC." : "Record quick repair QC failure and return for correction."
-    }, passed ? "Repair QC passed. Complete Final Frontline QC to clear the vehicle for frontline readiness." : "Repair QC failed. The repair was returned for correction.");
+    }, passed ? "Repair QC saved. Final Frontline QC is open for this vehicle." : "Repair QC failed. The repair was returned for correction.");
     if (saved) {
+      if (passed) {
+        setModel((current) => ({
+          ...current,
+          repairOrders: current.repairOrders.map((currentOrder) => currentOrder.id !== order.id ? currentOrder : {
+            ...currentOrder,
+            repairJobs: currentOrder.repairJobs.map((currentJob) => currentJob.id !== job.id ? currentJob : {
+              ...currentJob,
+              qualityInspections: [{
+                failureReasonCodes: [],
+                id: `quick-qc-${job.id}`,
+                inspectedAt: new Date().toISOString(),
+                disposition: "PASSED",
+                peerVerificationPassed: false,
+                peerVerificationRequired: false,
+                peerVerifierUser: null,
+                reworkInstructions: null,
+                roadTestOutcome: "NOT_REQUIRED",
+                roadTestRequired: false,
+                safetyChecksPassed: true,
+                inspectorUser: { name: initial.users[0]?.name ?? "QC Inspector" },
+                version: (currentJob.qualityInspections[0]?.version ?? 0) + 1
+              }, ...currentJob.qualityInspections],
+              readinessReasonCodes: ["SHOP_QC_RELEASE_GATES_PASSED"],
+              status: "QC_PASSED"
+            })
+          })
+        }));
+      }
       setQuickChecks({ repair: false, finish: false, safety: false });
       setQuickNote("");
     }
@@ -550,14 +582,14 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
             <strong>{job.status.replaceAll("_", " ")}</strong>
           </header>
           <div className="qc-quick-checks">
-            <label><input checked={quickChecks.repair} onChange={(event) => setQuickChecks((value) => ({ ...value, repair: event.target.checked }))} type="checkbox" /><span><b>Repair completed</b><small>Matches the approved work.</small></span></label>
-            <label><input checked={quickChecks.finish} onChange={(event) => setQuickChecks((value) => ({ ...value, finish: event.target.checked }))} type="checkbox" /><span><b>Fit and finish acceptable</b><small>No visible defect or loose item.</small></span></label>
-            <label><input checked={quickChecks.safety} onChange={(event) => setQuickChecks((value) => ({ ...value, safety: event.target.checked }))} type="checkbox" /><span><b>Safety/function check passed</b><small>No warning or functional concern.</small></span></label>
+            <label><input checked={quickChecks.repair} onChange={(event) => { setNotice(""); setQuickChecks((value) => ({ ...value, repair: event.target.checked })); }} type="checkbox" /><span><b>Repair completed</b><small>Matches the approved work.</small></span></label>
+            <label><input checked={quickChecks.finish} onChange={(event) => { setNotice(""); setQuickChecks((value) => ({ ...value, finish: event.target.checked })); }} type="checkbox" /><span><b>Fit and finish acceptable</b><small>No visible defect or loose item.</small></span></label>
+            <label><input checked={quickChecks.safety} onChange={(event) => { setNotice(""); setQuickChecks((value) => ({ ...value, safety: event.target.checked })); }} type="checkbox" /><span><b>Safety/function check passed</b><small>No warning or functional concern.</small></span></label>
           </div>
-          <label className="qc-quick-note"><span>Note <small>(optional for pass; required for failure)</small></span><textarea placeholder="Example: Fender alignment, attachment, and finish verified." value={quickNote} onChange={(event) => setQuickNote(event.target.value)} /></label>
+          <label className="qc-quick-note"><span>Note <small>(optional for pass; required for failure)</small></span><textarea placeholder="Example: Fender alignment, attachment, and finish verified." value={quickNote} onChange={(event) => { setNotice(""); setQuickNote(event.target.value); }} /></label>
           <footer>
             <button className="qc-quick-fail" disabled={busy || job.status !== "READY_FOR_QC"} onClick={() => void recordQuickQc("FAIL")} type="button">QC failed — return for correction</button>
-            <button className="qc-quick-pass" disabled={busy || job.status !== "READY_FOR_QC" || !quickChecks.repair || !quickChecks.finish || !quickChecks.safety} onClick={() => void recordQuickQc("PASS")} type="button">Pass Repair QC</button>
+            <button className="qc-quick-pass" disabled={busy || job.status !== "READY_FOR_QC" || !quickChecks.repair || !quickChecks.finish || !quickChecks.safety} onClick={() => void recordQuickQc("PASS")} type="button">Save &amp; open Final QC</button>
           </footer>
           <button className="qc-advanced-toggle" onClick={() => setShowAdvanced((value) => !value)} type="button">{showAdvanced ? "Hide detailed QC tools" : "Show queue and detailed QC tools"}</button>
         </section>
