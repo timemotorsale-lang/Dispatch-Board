@@ -86,7 +86,7 @@ function buildStaffResourceCode(email: string) {
   return `STAFF-${normalizedLocalPart || "USER"}`;
 }
 
-async function main() {
+export async function seedDevelopmentData() {
   const defaultAppSettings = getDefaultAppSettings();
   const initialOrganization = getInitialOrganization();
   const initialLocation = getInitialMinneapolisLocation();
@@ -448,12 +448,20 @@ async function main() {
   );
 }
 
-main()
-  .catch((error) => {
-    console.error("Seed failed.", error);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+const isDirectSeedRun = process.argv.some(
+  (argument) =>
+    argument.endsWith("prisma/seed.ts") ||
+    argument.endsWith("prisma\\seed.ts")
+);
+
+if (isDirectSeedRun) {
+  seedDevelopmentData()
+    .catch((error) => {
+      console.error("Seed failed.", error);
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}
 
