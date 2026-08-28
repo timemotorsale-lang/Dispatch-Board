@@ -1,5 +1,11 @@
 # Current Implementation Status
 
+## 2026-08-28 — Unified CRM final release-candidate proof bundle run
+
+The final local CRM release-candidate proof bundle was run. The isolated scripted production build passed with `NEXT_DIST_DIR=.next-release-candidate npm run build`; TypeScript typecheck passed; the CRM pilot browser proof harness passed with 2 browser tests; the impacted Dispatch/repair smoke suite passed with 10 files and 92 tests; the focused CRM release/readiness gate suite passed with 15 files and 30 tests; and full unit regression passed with 722 files and 3,315 tests.
+
+Two local environment locks remain honest release-readiness blockers: clean `npm run db:generate` still cannot replace the locked Windows Prisma query-engine DLL, and the default `.next` build folder is locked by Windows/OneDrive during cleanup. The isolated build proved the application package, but final release signoff still needs a clean Prisma generation and either a cleared default `.next` build or an approved isolated release build directory in the target environment. No release enablement, provider traffic, pilot cohort activation, production promotion, or write-capable CRM behavior outside approved governed surfaces was enabled.
+
 ## 2026-08-27 — Unified CRM scripted build preflight hardened
 
 The scripted CRM release build path is now hardened for the known Windows Prisma engine file-lock case. `npm run build` now validates `prisma/schema.prisma`, retries Prisma generation, continues only when the failure is the known locked `query_engine-windows.dll.node` rename and an existing generated client is usable, then completes the Next.js production build. The scripted build passed locally after this change.

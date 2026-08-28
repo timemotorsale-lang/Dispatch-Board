@@ -40,6 +40,23 @@ The remaining local proof gates were executed on 2026-08-27:
 | Production package proof | Passed locally | `npm run build` completed successfully. The build preflight validated `prisma/schema.prisma`, retried Prisma generation, detected the known local Windows locked-engine case, verified an existing generated client, and then completed the Next.js production package. |
 | Keyboard proof | Passed with Playwright harness | `npx playwright test src/tests/e2e/unified-crm-pilot-proof.spec.ts` passed 2 tests, including Tab traversal through CRM shell navigation and work controls. |
 
+## Final release-candidate proof bundle
+
+The final local release-candidate proof bundle was rerun on 2026-08-28 against commit `fdde07bb` plus the existing release-candidate branch state:
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Clean Prisma generation | Blocked locally | `npm run db:generate` still fails with the known Windows `EPERM` rename lock on `query_engine-windows.dll.node`. This must be rerun after the local dev server releases the file or in the target release environment. |
+| Default scripted build | Blocked locally by `.next` lock | `npm run build` reached the Next.js package step but failed when Windows/OneDrive blocked unlinking a previous `.next/server/app/api/admin/seed` build artifact. No source compile failure was observed. |
+| Isolated scripted build | Passed | `NEXT_DIST_DIR=.next-release-candidate npm run build` completed successfully: Prisma schema validation passed, the known locked generated-client case was handled, Next compiled, TypeScript completed, 270 static pages generated, and all dynamic CRM/Dispatch/Customers/Diagnostics/Appointments/Vehicles routes were listed. |
+| Typecheck | Passed | `npm run typecheck` completed successfully after restoring generated TypeScript config drift from the isolated build. |
+| CRM pilot browser proof | Passed | `npx playwright test src/tests/e2e/unified-crm-pilot-proof.spec.ts` passed 2 browser tests, covering supported CRM review routes, desktop/mobile overflow, console errors, and keyboard Tab traversal. |
+| Impacted Dispatch/repair smoke tests | Passed | 10 files and 92 tests passed. |
+| Focused CRM release/readiness gates | Passed | 15 files and 30 tests passed. |
+| Full unit regression | Passed | 722 files and 3,315 tests passed. |
+
+The temporary `.next-release-candidate` build output was removed after the proof run. Generated `.next-local` cache changes remain local development noise and are not release evidence.
+
 ## Broad regression result
 
 The first broader unit-test folder run did **not** pass:
@@ -64,6 +81,7 @@ Follow-up release-cleanup repair completed:
 The CRM release candidate remains `IMPLEMENTED_UNVERIFIED` and not releasable until these gates are complete:
 
 - Clean Prisma generation is rerun after the local dev server releases the Windows query-engine DLL, or in the target release environment where no dev process holds the generated client.
+- The default `.next` build folder lock is cleared or the final release build is run with an approved isolated `NEXT_DIST_DIR` in the target release environment.
 - Named pilot cohort, owner approvals, rollback approver, and go/no-go decision are recorded.
 - Provider and communication automation approvals remain held before any live email, SMS, voice, e-signature, accounting/DMS, or AI receptionist behavior is enabled.
 
