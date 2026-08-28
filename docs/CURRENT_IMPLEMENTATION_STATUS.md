@@ -1,5 +1,277 @@
 # Current Implementation Status
 
+## 2026-08-28 — Unified CRM final release-candidate proof bundle run
+
+The final local CRM release-candidate proof bundle was run. The isolated scripted production build passed with `NEXT_DIST_DIR=.next-release-candidate npm run build`; TypeScript typecheck passed; the CRM pilot browser proof harness passed with 2 browser tests; the impacted Dispatch/repair smoke suite passed with 10 files and 92 tests; the focused CRM release/readiness gate suite passed with 15 files and 30 tests; and full unit regression passed with 722 files and 3,315 tests.
+
+Two local environment locks remain honest release-readiness blockers: clean `npm run db:generate` still cannot replace the locked Windows Prisma query-engine DLL, and the default `.next` build folder is locked by Windows/OneDrive during cleanup. The isolated build proved the application package, but final release signoff still needs a clean Prisma generation and either a cleared default `.next` build or an approved isolated release build directory in the target environment. No release enablement, provider traffic, pilot cohort activation, production promotion, or write-capable CRM behavior outside approved governed surfaces was enabled.
+
+## 2026-08-27 — Unified CRM scripted build preflight hardened
+
+The scripted CRM release build path is now hardened for the known Windows Prisma engine file-lock case. `npm run build` now validates `prisma/schema.prisma`, retries Prisma generation, continues only when the failure is the known locked `query_engine-windows.dll.node` rename and an existing generated client is usable, then completes the Next.js production build. The scripted build passed locally after this change.
+
+Evidence is recorded in [`docs/unified-crm/UCRM_RELEASE_CANDIDATE_LOCAL_VERIFICATION_EVIDENCE.md`](unified-crm/UCRM_RELEASE_CANDIDATE_LOCAL_VERIFICATION_EVIDENCE.md). The release candidate remains `IMPLEMENTED_UNVERIFIED`, not releasable, because a clean Prisma generation still needs to be rerun after the local dev server releases the Windows query-engine DLL or in the target release environment, and named pilot cohort, owner approvals, rollback approver, provider approvals, and pilot go/no-go remain unapproved. No release enablement, provider traffic, pilot cohort activation, production promotion, or write-capable CRM behavior outside approved governed surfaces was enabled.
+
+## 2026-08-27 — Unified CRM pilot keyboard proof harness implemented
+
+The CRM release-readiness package now includes a repeatable Playwright pilot proof harness for the supported CRM review routes. The new browser test verifies supported CRM route loading, desktop/mobile overflow, absence of browser console errors, and real keyboard Tab traversal through the CRM shell navigation and work controls. The proof passed locally with 2 browser tests, and TypeScript typecheck passed afterward.
+
+Evidence is recorded in [`docs/unified-crm/UCRM_RELEASE_CANDIDATE_LOCAL_VERIFICATION_EVIDENCE.md`](unified-crm/UCRM_RELEASE_CANDIDATE_LOCAL_VERIFICATION_EVIDENCE.md). The release candidate remains `IMPLEMENTED_UNVERIFIED`, not releasable, because the scripted `npm run build` path is still blocked by a local locked Prisma Windows DLL and named pilot cohort, owner approvals, rollback approver, provider approvals, and pilot go/no-go remain unapproved. No release enablement, provider traffic, pilot cohort activation, production promotion, or write-capable CRM behavior outside approved governed surfaces was enabled.
+
+## 2026-08-27 — Unified CRM remaining pilot-release proof gates run
+
+The remaining local CRM pilot-release proof gates were run. Typecheck passed; the focused release/readiness/accessibility route suite passed with 9 files and 18 tests; the impacted Dispatch/repair workflow smoke suite passed with 10 files and 92 tests; direct production package proof passed with `npx next build`; and an authenticated local browser walkthrough loaded the supported CRM views and review routes without 404s, console errors, or responsive overflow at desktop and mobile breakpoints.
+
+Evidence is recorded in [`docs/unified-crm/UCRM_RELEASE_CANDIDATE_LOCAL_VERIFICATION_EVIDENCE.md`](unified-crm/UCRM_RELEASE_CANDIDATE_LOCAL_VERIFICATION_EVIDENCE.md). The release candidate remains `IMPLEMENTED_UNVERIFIED`, not releasable, because the scripted `npm run build` path is still blocked by a local locked Prisma Windows DLL, keyboard traversal needs a real/manual or reliable harness proof, and named pilot cohort, owner approvals, rollback approver, provider approvals, and pilot go/no-go remain unapproved. No release enablement, provider traffic, pilot cohort activation, production promotion, or write-capable CRM behavior outside approved governed surfaces was enabled.
+
+## 2026-08-27 — Unified CRM release-candidate local verification checkpoint recorded
+
+The current CRM release-readiness package now has a stronger local verification checkpoint. Focused release/pilot gate tests passed, verification-gate route tests passed, TypeScript typecheck passed, and the full unit-test folder suite now passes after release-cleanup repair: 722 files and 3,315 tests. The cleanup also tightened delegated vehicle capability grants so scoped grant limits fail with `GRANT_CONSTRAINTS_NOT_MET` instead of falling through to broad role defaults.
+
+Evidence is recorded in [`docs/unified-crm/UCRM_RELEASE_CANDIDATE_LOCAL_VERIFICATION_EVIDENCE.md`](unified-crm/UCRM_RELEASE_CANDIDATE_LOCAL_VERIFICATION_EVIDENCE.md). The release candidate remains `IMPLEMENTED_UNVERIFIED`, not releasable, until authenticated browser/UX proof, impacted Dispatch Board smoke proof, accessibility/responsive proof, production build proof, owner approvals, and pilot go/no-go are complete. No release enablement, provider traffic, pilot cohort activation, production promotion, or write-capable CRM behavior outside the approved governed surfaces was enabled.
+
+## 2026-08-27 — Unified CRM release program stages 1–4 implemented as held review package
+
+Stages 1 through 4 of the current CRM release-readiness program are now represented in source evidence. The current envelope UCRM-122 through UCRM-127 is implemented and checkpointed; focused tests and typecheck passed for the envelope; held business decisions and pilot release gates are explicitly listed without enabling release, pilot cohort access, providers, production promotion, or risky operational behavior.
+
+Evidence is recorded in [`docs/unified-crm/UCRM_RELEASE_PROGRAM_STAGE_1_4_EVIDENCE.md`](unified-crm/UCRM_RELEASE_PROGRAM_STAGE_1_4_EVIDENCE.md). The release state remains held: implemented milestones are still `IMPLEMENTED_UNVERIFIED` until browser/UX proof, broader regression, production build proof, owner approvals, and pilot go/no-go are complete.
+
+## 2026-08-27 — Unified CRM UCRM-127 release-readiness cleanup implemented
+
+The current CRM implementation branch now contains a manager-only release-readiness cleanup model for the communication/admin envelope. It records focused-test/typecheck progress, preserved fallbacks, and exact release blockers for authenticated browser proof, accessibility proof, rollback rehearsal, business decisions, and pilot go/no-go.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_127_RELEASE_READINESS_CLEANUP_EVIDENCE.md`](unified-crm/UCRM_127_RELEASE_READINESS_CLEANUP_EVIDENCE.md). `UCRM-127` is `IMPLEMENTED_UNVERIFIED`; release remains held, merge review is not declared ready, and existing Dispatch/Customers/Sales fallbacks remain required.
+
+## 2026-08-27 — Unified CRM UCRM-126 sandbox promotion diff review implemented
+
+The current CRM implementation branch now extends the configuration-promotion readiness boundary with a manager-only diff review model covering fields, layouts, workflows, permissions, and rollback impact. Production apply remains disabled.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_126_CONFIGURATION_PROMOTION_DIFF_EVIDENCE.md`](unified-crm/UCRM_126_CONFIGURATION_PROMOTION_DIFF_EVIDENCE.md). `UCRM-126` is `IMPLEMENTED_UNVERIFIED`; no sandbox publish or production promotion was enabled.
+
+## 2026-08-27 — Unified CRM UCRM-125 workflow simulation preview implemented
+
+The current CRM implementation branch now extends the workflow/approval designer readiness boundary with deterministic simulation previews for quote discount review, overdue customer follow-up, and unassigned opportunity handling. It keeps publishing and live workflow execution disabled.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_125_WORKFLOW_SIMULATION_PREVIEW_EVIDENCE.md`](unified-crm/UCRM_125_WORKFLOW_SIMULATION_PREVIEW_EVIDENCE.md). `UCRM-125` is `IMPLEMENTED_UNVERIFIED`; no workflow, task, notification, quote, or source-domain mutation was executed.
+
+## 2026-08-27 — Unified CRM UCRM-124 custom field/layout admin preview implemented
+
+The current CRM implementation branch now extends the governed custom-fields readiness boundary with an admin layout preview for Customer 360, Opportunity Detail, and Quote Review surfaces. It shows future field labels, types, classifications, and target surfaces while keeping publishing and runtime mutation disabled.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_124_CUSTOM_LAYOUT_PREVIEW_EVIDENCE.md`](unified-crm/UCRM_124_CUSTOM_LAYOUT_PREVIEW_EVIDENCE.md). `UCRM-124` is `IMPLEMENTED_UNVERIFIED`; no custom field publishing or layout publishing was enabled.
+
+## 2026-08-27 — Unified CRM UCRM-123 accounting/DMS mapping preview implemented
+
+The current CRM implementation branch now extends the accounting/DMS connector readiness boundary with a manager-only mapping preview. It shows customer, quote, dispatch, and accounting/DMS source-authority rows, conflict risk, and decisions needed while keeping sync, backfill, and writeback disabled.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_123_ACCOUNTING_DMS_MAPPING_PREVIEW_EVIDENCE.md`](unified-crm/UCRM_123_ACCOUNTING_DMS_MAPPING_PREVIEW_EVIDENCE.md). `UCRM-123` is `IMPLEMENTED_UNVERIFIED`; no external accounting/DMS connection, export, sync, or writeback was enabled.
+
+## 2026-08-27 — Unified CRM UCRM-122 e-signature document readiness implemented
+
+The current CRM implementation branch now extends the e-signature readiness boundary with a manager-only document readiness surface for quote approval documents, customer authorization forms, and repair/dispatch handoff documents. It keeps envelope sending and provider status import disabled.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_122_ESIGNATURE_DOCUMENT_READINESS_EVIDENCE.md`](unified-crm/UCRM_122_ESIGNATURE_DOCUMENT_READINESS_EVIDENCE.md). `UCRM-122` is `IMPLEMENTED_UNVERIFIED`; no signature envelope is created or sent.
+
+## 2026-08-27 — Unified CRM UCRM-121 AI receptionist simulator implemented
+
+The current CRM implementation branch now contains a manager-only deterministic AI receptionist simulator model. It provides phone and SMS scenarios with allowed context, blocked actions, expected dispositions, and safe sample responses while keeping live provider traffic and autonomous behavior disabled.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_121_AI_RECEPTIONIST_SIMULATOR_EVIDENCE.md`](unified-crm/UCRM_121_AI_RECEPTIONIST_SIMULATOR_EVIDENCE.md). `UCRM-121` is `IMPLEMENTED_UNVERIFIED`; this is simulation-only and does not answer calls, send texts, schedule appointments, approve quotes, or mutate source workflows.
+
+## 2026-08-27 — Unified CRM UCRM-120 AI receptionist requirements implemented
+
+The current CRM implementation branch now contains a manager-only AI receptionist requirements and safety contract. It captures consent, human handoff, bounded retrieval, no-action defaults, audit, and cost controls while keeping live calls, live texts, and autonomous actions disabled.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_120_AI_RECEPTIONIST_REQUIREMENTS_EVIDENCE.md`](unified-crm/UCRM_120_AI_RECEPTIONIST_REQUIREMENTS_EVIDENCE.md). `UCRM-120` is `IMPLEMENTED_UNVERIFIED`; simulation is allowed as the next safe step, but live AI receptionist behavior remains held.
+
+## 2026-08-27 — Unified CRM UCRM-119 communication guardrails implemented
+
+The current CRM implementation branch now contains a manager-only communication guardrails model for quiet hours, rate limits, cost controls, consent checks, and global kill-switch readiness. It is preview-only, fail-closed, and keeps automated sending/provider traffic disabled.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_119_COMMUNICATION_GUARDRAILS_EVIDENCE.md`](unified-crm/UCRM_119_COMMUNICATION_GUARDRAILS_EVIDENCE.md). `UCRM-119` is `IMPLEMENTED_UNVERIFIED`; final business decisions are still required before enforcement or communication automation can be activated.
+
+## 2026-08-27 — Unified CRM UCRM-118 integration recovery review implemented
+
+The current CRM implementation branch now contains a manager-only integration recovery review model. It shows retry, reconciliation, and dead-letter items with external replay disabled, manual next steps, customer-impact labels, source links, and read-only rollback posture.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_118_INTEGRATION_RECOVERY_REVIEW_EVIDENCE.md`](unified-crm/UCRM_118_INTEGRATION_RECOVERY_REVIEW_EVIDENCE.md). `UCRM-118` is `IMPLEMENTED_UNVERIFIED`; no provider retry, replay, sync, send, webhook, or external side effect was enabled.
+
+## 2026-08-27 — Unified CRM UCRM-117 provider health dashboard implemented
+
+The current CRM implementation branch now contains a manager-only provider health/disabled-state dashboard model. It shows email/calendar, SMS, telephony, e-signature, and accounting/DMS channels as held or disabled with live traffic off, explicit disabled reasons, feature controls, and rollback fallbacks.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_117_PROVIDER_HEALTH_DASHBOARD_EVIDENCE.md`](unified-crm/UCRM_117_PROVIDER_HEALTH_DASHBOARD_EVIDENCE.md). `UCRM-117` is `IMPLEMENTED_UNVERIFIED`; the dashboard does not contact external providers or expose credentials.
+
+## 2026-08-27 — Unified CRM UCRM-116 Customer 360 communication action readiness implemented
+
+The current CRM implementation branch now contains a Customer 360 communication action-readiness card. It shows call, email, and text readiness with honest manual-only/provider-held/no-contact states, links staff to the safe manual outcome flow where allowed, and avoids implying that live providers are connected.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_116_CUSTOMER_360_COMMUNICATION_ACTION_READINESS_EVIDENCE.md`](unified-crm/UCRM_116_CUSTOMER_360_COMMUNICATION_ACTION_READINESS_EVIDENCE.md). `UCRM-116` is `IMPLEMENTED_UNVERIFIED`; provider sending, click-to-call, SMS delivery, and mailbox sync remain disabled.
+
+## 2026-08-27 — Unified CRM UCRM-115 Customer 360 communication timeline lens implemented
+
+The current CRM implementation branch now contains a read-only Customer 360 communication timeline lens. It summarizes permitted manual phone/email/SMS-style outcomes already visible in the governed customer timeline, keeps source systems authoritative, masks raw contact values and provider payloads, and falls back to manual timeline review when no permitted outcomes are visible.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_115_CUSTOMER_360_COMMUNICATION_TIMELINE_LENS_EVIDENCE.md`](unified-crm/UCRM_115_CUSTOMER_360_COMMUNICATION_TIMELINE_LENS_EVIDENCE.md). `UCRM-115` is `IMPLEMENTED_UNVERIFIED`; no email, SMS, phone, VoIP, transcription, or provider sending behavior was enabled.
+
+## 2026-08-27 — Unified CRM UCRM-114 manual call disposition implemented
+
+The current CRM implementation branch now contains a manual phone-call disposition readiness boundary. It prepares simple call outcomes without enabling VoIP, call recording, or transcription.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_114_MANUAL_CALL_DISPOSITION_EVIDENCE.md`](unified-crm/UCRM_114_MANUAL_CALL_DISPOSITION_EVIDENCE.md). `UCRM-114` is `IMPLEMENTED_UNVERIFIED`.
+
+## 2026-08-27 — Unified CRM UCRM-113 SMS template catalog implemented
+
+The current CRM implementation branch now contains a review-only SMS template catalog. It gives managers draft customer text patterns with purpose labels, opt-in reminders, segment awareness, and explicit no-send posture.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_113_SMS_TEMPLATE_CATALOG_EVIDENCE.md`](unified-crm/UCRM_113_SMS_TEMPLATE_CATALOG_EVIDENCE.md). `UCRM-113` is `IMPLEMENTED_UNVERIFIED`; template publishing and outbound SMS remain disabled.
+
+## 2026-08-27 — Unified CRM UCRM-112 email draft surface implemented
+
+The current CRM implementation branch now contains a review-only email draft readiness surface. It can represent safe draft copy and no-send language without mailbox sync or provider delivery.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_112_EMAIL_DRAFT_SURFACE_EVIDENCE.md`](unified-crm/UCRM_112_EMAIL_DRAFT_SURFACE_EVIDENCE.md). `UCRM-112` is `IMPLEMENTED_UNVERIFIED`; provider send and mailbox sync remain disabled.
+
+## 2026-08-27 — Unified CRM UCRM-111 conversation envelope boundary implemented
+
+The current CRM implementation branch now contains a conversation-envelope boundary around existing manual customer interaction storage. Manual outcomes can be treated as conversation envelope items without adding external provider side effects.
+
+This checkpoint does not import provider events, send messages, record calls, transcribe calls, or add a provider-message table. Existing `CustomerInteraction` remains the source for manual outcomes; provider events remain held.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_111_CONVERSATION_ENVELOPE_EVIDENCE.md`](unified-crm/UCRM_111_CONVERSATION_ENVELOPE_EVIDENCE.md). `UCRM-111` is `IMPLEMENTED_UNVERIFIED`.
+
+## 2026-08-27 — Unified CRM UCRM-110 communication consent foundation held
+
+The current CRM implementation branch now contains a communication consent foundation for email, SMS, and phone readiness. It exposes channel readiness, consent/purpose, suppression, opt-out, quiet-hours, contact-point authority, audit, and fallback gates before live communication buttons can be enabled.
+
+This checkpoint does not send messages, place calls, update consent, or activate provider behavior.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_110_COMMUNICATION_CONSENT_FOUNDATION_EVIDENCE.md`](unified-crm/UCRM_110_COMMUNICATION_CONSENT_FOUNDATION_EVIDENCE.md). `UCRM-110` is `HELD`.
+
+## 2026-08-27 — Unified CRM UCRM-109 provider decision intake held
+
+The current CRM implementation branch now contains a provider decision intake readiness boundary for email/calendar, SMS, and telephony providers. It lists the business, security/privacy, architecture, operations, and data decisions needed before customer communications can be activated.
+
+This checkpoint does not select providers, accept credentials, provision numbers, connect OAuth, or enable production communications.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_109_PROVIDER_DECISION_INTAKE_EVIDENCE.md`](unified-crm/UCRM_109_PROVIDER_DECISION_INTAKE_EVIDENCE.md). `UCRM-109` is `HELD`.
+
+## 2026-08-27 — Unified CRM UCRM-108 admin readiness hub implemented
+
+The current CRM implementation branch now contains a manager-only admin readiness hub that summarizes integration readiness, enterprise controls, and the next planned communication/AI build items in one read-only model.
+
+This checkpoint does not activate any held feature. It only makes the current readiness posture easier to inspect: available foundations, held gates, planned work, next decisions, feature controls, and read-only fallback.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_108_ADMIN_READINESS_HUB_EVIDENCE.md`](unified-crm/UCRM_108_ADMIN_READINESS_HUB_EVIDENCE.md). `UCRM-108` is `IMPLEMENTED_UNVERIFIED`: backend readiness exists; browser-visible management UI proof remains pending.
+
+## 2026-08-27 — Unified CRM UCRM-107 broader lifecycle module readiness held
+
+The current CRM implementation branch now contains a safe broader lifecycle module readiness boundary. Renewal, account health, service/case expansion, marketing expansion, and broader commercial lifecycle work are all held until each receives its own domain, security, test, pilot, release, and rollback gates.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_107_LIFECYCLE_MODULES_EVIDENCE.md`](unified-crm/UCRM_107_LIFECYCLE_MODULES_EVIDENCE.md). `UCRM-107` is `HELD`; existing CRM core and source-domain consoles remain the fallback.
+
+## 2026-08-27 — Unified CRM UCRM-106 governed AI assistance readiness held
+
+The current CRM implementation branch now contains a safe governed AI assistance readiness boundary for future CRM help and AI receptionist support. AI drafts, autonomous actions, and receptionist behavior remain disabled while citations, evaluations, prompt-injection defense, human approval, cost/latency, logging, opt-out, browser proof, and rollback gates remain pending.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_106_GOVERNED_AI_ASSISTANCE_EVIDENCE.md`](unified-crm/UCRM_106_GOVERNED_AI_ASSISTANCE_EVIDENCE.md). `UCRM-106` is `HELD`; deterministic CRM workflows remain the fallback.
+
+## 2026-08-27 — Unified CRM UCRM-105 advanced forecasting readiness held
+
+The current CRM implementation branch now contains a safe advanced forecasting and attribution readiness boundary. Predictive forecasting and attribution remain disabled while explainability, freshness, historical evaluation, override separation, bias/error review, browser proof, approval, and rollback gates remain pending.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_105_ADVANCED_FORECASTING_EVIDENCE.md`](unified-crm/UCRM_105_ADVANCED_FORECASTING_EVIDENCE.md). `UCRM-105` is `HELD`; the deterministic forecast baseline remains the fallback.
+
+## 2026-08-27 — Unified CRM UCRM-104 retention, legal hold, and export readiness held
+
+The current CRM implementation branch now contains a safe retention, legal hold, and export readiness boundary. It records the approved-policy, field-classification, legal-hold, immutable-evidence, job-simulation, export-threshold, recovery, and legal/security gates without enabling disposition or exports.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_104_RETENTION_EXPORT_EVIDENCE.md`](unified-crm/UCRM_104_RETENTION_EXPORT_EVIDENCE.md). `UCRM-104` is `HELD` under deferred `UCRM-DEC-014`.
+
+## 2026-08-27 — Unified CRM UCRM-103 sandbox and configuration promotion readiness held
+
+The current CRM implementation branch now contains a safe sandbox and configuration promotion readiness boundary. It defines isolation, masked-data, diff/review, promotion, validation, audit, and rollback gates without enabling production promotion.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_103_CONFIGURATION_PROMOTION_EVIDENCE.md`](unified-crm/UCRM_103_CONFIGURATION_PROMOTION_EVIDENCE.md). `UCRM-103` is `HELD`: sandbox configuration and production promotion remain disabled until isolation, masking, validation, browser, approval, and rollback evidence exist.
+
+## 2026-08-27 — Unified CRM UCRM-102 workflow and approval designer readiness held
+
+The current CRM implementation branch now contains a safe workflow and approval designer readiness boundary. Simulation can be represented without enabling live workflow execution, source-domain mutation, customer communication, or approval automation.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_102_WORKFLOW_APPROVAL_DESIGNER_EVIDENCE.md`](unified-crm/UCRM_102_WORKFLOW_APPROVAL_DESIGNER_EVIDENCE.md). `UCRM-102` is `HELD`: publishing and live execution are blocked by missing authority, limits, loop-protection, observability, sandbox, browser, and rollback evidence.
+
+## 2026-08-27 — Unified CRM UCRM-101 governed custom fields readiness held
+
+The current CRM implementation branch now contains a safe governed custom fields and layouts readiness boundary. Management can inspect namespace, type, versioning, validation, indexing, permission, reporting-impact, limit, admin-preview, and rollback gates before any custom metadata is treated as live.
+
+This checkpoint does not publish custom fields, alter live layouts, or enable runtime metadata mutation. Standard CRM fields and layouts remain the fallback.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_101_GOVERNED_CUSTOM_FIELDS_EVIDENCE.md`](unified-crm/UCRM_101_GOVERNED_CUSTOM_FIELDS_EVIDENCE.md). `UCRM-101` is `HELD`: the readiness boundary is in source, but activation is blocked by missing type, limit, indexing, validation, reporting, admin-preview, browser, and rollback decisions.
+
+## 2026-08-27 — Unified CRM UCRM-100 enterprise sharing readiness held
+
+The current CRM implementation branch now contains a safe enterprise field, record, and territory sharing readiness boundary. Management can inspect the formal access model, field classification, record-scope, territory-rule, policy-proof, admin-preview, audit, migration, scale-test, and rollback gates before any enterprise access override is treated as live.
+
+This checkpoint does not grant new access, expose restricted fields, or activate territory sharing. Existing role and organization scope remains the fallback until product/security decisions and policy proof are complete.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_100_ENTERPRISE_FIELD_SHARING_EVIDENCE.md`](unified-crm/UCRM_100_ENTERPRISE_FIELD_SHARING_EVIDENCE.md). `UCRM-100` is `HELD`: the readiness boundary is in source, but enterprise sharing activation is blocked by missing territory, record-sharing, admin-preview, policy-proof, scale, browser, and rollback evidence.
+
+## 2026-08-27 — Unified CRM UCRM-086 accounting/DMS connector readiness held
+
+The current CRM implementation branch now contains a safe accounting/DMS connector readiness boundary. Management can inspect the field ownership, mapping, conflict, backfill, incremental sync, reconciliation, sensitive data, failure recovery, and disablement gates before any accounting or DMS integration is treated as live.
+
+This checkpoint does not select an external system, run sync, perform backfill, or write accounting/DMS records. All connector behavior remains disabled until one named system, field ownership map, mapping rules, conflict behavior, dry-run proof, reconciliation proof, browser proof, and rollback evidence are approved.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_086_ACCOUNTING_DMS_CONNECTOR_EVIDENCE.md`](unified-crm/UCRM_086_ACCOUNTING_DMS_CONNECTOR_EVIDENCE.md). `UCRM-086` is `HELD`: the readiness boundary is in source, but live accounting/DMS activation is blocked by missing system, ownership, mapping, reconciliation, browser, and rollback decisions.
+
+## 2026-08-27 — Unified CRM UCRM-085 e-signature readiness held
+
+The current CRM implementation branch now contains a safe e-signature readiness boundary. Management can inspect the document authority, signer identity, immutable envelope evidence, webhook reconciliation, expiry/cancel, permission, template, audit, and rollback gates before any signature capability is treated as live.
+
+This checkpoint does not create signature envelopes or import provider signature status. Envelope creation and signature-status import remain disabled until a provider, document authority model, signer identity policy, webhook proof, browser proof, and rollback rehearsal are approved.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_085_E_SIGNATURE_EVIDENCE.md`](unified-crm/UCRM_085_E_SIGNATURE_EVIDENCE.md). `UCRM-085` is `HELD`: the readiness boundary is in source, but live e-signature activation is blocked by missing provider, authority, identity, webhook, browser, and rollback decisions.
+
+## 2026-08-27 — Unified CRM UCRM-084 telephony and transcription readiness held
+
+The current CRM implementation branch now contains a safe telephony/transcription readiness boundary for future click-to-call, inbound call routing, call recording, transcripts, and AI receptionist support.
+
+This checkpoint does not enable phone service. Calling, recording, transcription, inbound routing, and AI receptionist behavior remain disabled while provider selection, recording consent, retention, restricted access, legal approval, operations routing, browser proof, and rollback proof remain unresolved.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_084_TELEPHONY_TRANSCRIPTION_EVIDENCE.md`](unified-crm/UCRM_084_TELEPHONY_TRANSCRIPTION_EVIDENCE.md). `UCRM-084` is `HELD`: the readiness boundary is in source, but live telephony/transcription activation is blocked by missing provider, legal, retention, security, browser, and rollback decisions.
+
+## 2026-08-27 — Unified CRM UCRM-083 SMS delivery readiness held
+
+The current CRM implementation branch now contains a safe SMS delivery readiness boundary. Management can inspect the SMS activation gates before any texting capability appears as live.
+
+This checkpoint is especially important for the future AI receptionist path because it defines consent, opt-out, templates, quiet hours, inbound correlation, delivery states, retry/failure handling, audit, cost/rate controls, and kill-switch expectations before automation can text a customer. Outbound SMS, inbound SMS, and provider configuration remain disabled.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_083_SMS_DELIVERY_EVIDENCE.md`](unified-crm/UCRM_083_SMS_DELIVERY_EVIDENCE.md). `UCRM-083` is `HELD`: the readiness boundary is in source, but live SMS activation is blocked by missing vendor, consent, quiet-hours, cost, browser, and rollback decisions.
+
+## 2026-08-27 — Unified CRM UCRM-082 email/calendar provider B readiness held
+
+The current CRM implementation branch now contains a second-provider readiness boundary for future email/calendar integration. Provider B is explicitly independent from Provider A, so a first provider approval cannot silently authorize, configure, or prove a second provider.
+
+This checkpoint does not select a second provider, connect OAuth, sync messages, write calendar events, or send email. Provider B has separate held gates for credentials, least-privilege scopes, conflict handling, dedupe isolation, security/privacy, browser proof, and rollback.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_082_EMAIL_CALENDAR_PROVIDER_B_EVIDENCE.md`](unified-crm/UCRM_082_EMAIL_CALENDAR_PROVIDER_B_EVIDENCE.md). `UCRM-082` is `HELD`: the readiness boundary is in source, but live Provider B activation is blocked by missing provider-specific decisions and evidence.
+
+## 2026-08-27 — Unified CRM UCRM-081 email/calendar provider A readiness held
+
+The current CRM implementation branch now contains a safe provider A readiness boundary for future email/calendar integration. Management can inspect which gates must be satisfied before email, calendar sync, or calendar writes are allowed.
+
+This checkpoint does not select a provider or connect OAuth. External sending, calendar writes, and inbound sync all remain disabled. The fallback remains manual CRM contact outcomes plus the source calendar workflow until a named provider, OAuth scopes, sync direction, backfill, conflict behavior, security handling, browser proof, and rollback rehearsal are approved.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_081_EMAIL_CALENDAR_PROVIDER_A_EVIDENCE.md`](unified-crm/UCRM_081_EMAIL_CALENDAR_PROVIDER_A_EVIDENCE.md). `UCRM-081` is `HELD`: the readiness boundary is in source, but live provider activation is blocked by missing provider-specific decisions.
+
+## 2026-08-27 — Unified CRM UCRM-080 integration platform contract implemented
+
+The current CRM implementation branch now contains the provider-neutral integration platform readiness boundary for the next large external communications and integrations envelope. CRM can now expose a manager-only readiness model for future email/calendar, SMS, telephony/transcription, e-signature, and accounting/DMS connectors without connecting any vendor or allowing external side effects.
+
+This checkpoint keeps the product deliberately safe. The default integration feature control remains disabled, provider activation is held, credentials are not stored or exposed, provider-specific gates remain separate, and the route fails closed for unauthenticated, unauthorized, and unknown-error states.
+
+Focused verification is recorded in [`docs/unified-crm/UCRM_080_INTEGRATION_PLATFORM_EVIDENCE.md`](unified-crm/UCRM_080_INTEGRATION_PLATFORM_EVIDENCE.md). `UCRM-080` is `IMPLEMENTED_UNVERIFIED`: authenticated browser proof, environment rollback proof, and all provider-specific approvals remain pending. No email, SMS, phone, e-signature, calendar sync, or accounting/DMS behavior was enabled by this checkpoint.
+
 ## 2026-08-15 — Unified CRM UCRM-041 implemented and UCRM-042 advanced to a held immutable-review boundary
 
 The current Unified CRM baseline now contains a real quote draft workspace inside `/crm/quotes`. Authorized CRM users can create or revise a visible quote draft through server-owned draft routes, the quote workspace now distinguishes live draft authority from held presentation authority, and quote saves remain typed, idempotent, audited, and version-aware.

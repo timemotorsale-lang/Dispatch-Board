@@ -122,7 +122,7 @@ describe("task checklist service", () => {
       actorUserId: staffUser?.id ?? null,
       boardDayId: "board-day-1",
       eventType: "task.subtask_added",
-      message: "Walter Mechanic added a subtask to Vehicle Recon & Inspection: Confirm rotor thickness.",
+      message: "Walter Hernandez added a subtask to Vehicle Recon & Inspection: Confirm rotor thickness.",
       metadata: {
         itemId: "item-2",
         kind: TASK_CHECKLIST_ITEM_KIND.SUBTASK,

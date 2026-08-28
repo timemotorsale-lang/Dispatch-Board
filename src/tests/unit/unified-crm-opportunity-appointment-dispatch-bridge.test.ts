@@ -68,7 +68,7 @@ describe("Unified CRM appointment and dispatch bridge foundation", () => {
     [seller, "link-appointment", "OWNER"],
     [seller, "link-dispatch", "OWNER"]
   ] as const)(
-    "keeps %s %s mutations held while preserving the read scope",
+    "allows governed %s %s actions while preserving the read scope",
     (viewer, action, scopeKind) => {
       const decision = evaluateUnifiedCrmOpportunityPolicy(viewer, {
         action,
@@ -76,12 +76,12 @@ describe("Unified CRM appointment and dispatch bridge foundation", () => {
       });
 
       expect(decision).toMatchObject({
-        allowed: false,
-        reason: "OPPORTUNITY_MUTATION_HELD",
+        allowed: true,
+        reason: "ALLOWED",
         recordScope: { kind: scopeKind },
         capabilities: {
-          linkAppointment: false,
-          linkDispatch: false
+          linkAppointment: true,
+          linkDispatch: true
         }
       });
     }

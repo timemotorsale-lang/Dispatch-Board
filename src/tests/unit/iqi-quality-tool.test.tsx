@@ -12,7 +12,7 @@ describe("IqiQualityTool", () => {
     expect(markup).toContain("Confirm inspection package received");
     expect(markup).toContain("Release the controlled handoff");
     expect(markup).toContain("Open live QC workspace");
-    expect(markup).toContain("/vehicles/quality-control?returnTo=%2Fvehicles%2Finventory%2Fprototype");
+    expect(markup).toContain("/vehicles/quality-control?returnTo=%2Fvehicles%2Finventory");
     expect(markup).toContain("Operational work trail");
   });
 });

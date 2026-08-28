@@ -206,6 +206,7 @@ describe("enterprise shell navigation", () => {
       "Home",
       "Inventory Lifecycle",
       "COO Workbook",
+      "Outside Vendors",
       "Shop & Recon",
       "Recon/Repair Advisor",
       "Repair Workbench",
@@ -247,6 +248,7 @@ describe("enterprise shell navigation", () => {
       "My Vehicle Work",
       "Inventory Flow",
       "Shop & Recon",
+      "Outside Vendors",
       "Parts Runner",
       "Receive Vehicle",
       "Exceptions"
@@ -254,6 +256,7 @@ describe("enterprise shell navigation", () => {
     expect(getConsoleNavigation("/vehicles/shop-recon", user({ roles: ["Service Department Manager"] }))?.items.map((item) => item.title)).toEqual([
       "COO Workbook",
       "Shop & Recon",
+      "Outside Vendors",
       "Repair Orders",
       "Shop Dispatch",
       "Parts Operations",
@@ -265,6 +268,7 @@ describe("enterprise shell navigation", () => {
       "COO Workbook",
       "Inventory Lifecycle",
       "Shop & Recon",
+      "Outside Vendors",
       "Parts Readiness",
       "Reviews"
     ]);

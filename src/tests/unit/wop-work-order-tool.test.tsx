@@ -23,11 +23,11 @@ describe("WopWorkOrderTool", () => {
     expect(markup).toContain("Governed parts ordering chain");
     expect(markup).toContain("Create parts demand");
     expect(markup).toContain("Receive and match before repair");
-    expect(markup).toContain("/vehicles/shop-planning?returnTo=%2Fvehicles%2Finventory%2Fprototype");
-    expect(markup).toContain("/diagnostics/labor-guide?returnTo=%2Fvehicles%2Finventory%2Fprototype");
-    expect(markup).toContain("/diagnostics/autobody-estimate?returnTo=%2Fvehicles%2Finventory%2Fprototype");
-    expect(markup).toContain("/vehicles/repair-workbench?view=all&amp;returnTo=%2Fvehicles%2Finventory%2Fprototype");
-    expect(markup).toContain("/vehicles/parts-operations?returnTo=%2Fvehicles%2Finventory%2Fprototype");
+    expect(markup).toContain("/vehicles/shop-planning?returnTo=%2Fvehicles%2Finventory");
+    expect(markup).toContain("/diagnostics/labor-guide?returnTo=%2Fvehicles%2Finventory");
+    expect(markup).toContain("/diagnostics/autobody-estimate?returnTo=%2Fvehicles%2Finventory");
+    expect(markup).toContain("/vehicles/repair-workbench?view=all&amp;returnTo=%2Fvehicles%2Finventory");
+    expect(markup).toContain("/vehicles/parts-operations?returnTo=%2Fvehicles%2Finventory");
     expect(markup).toContain("Operational work trail");
   });
 });

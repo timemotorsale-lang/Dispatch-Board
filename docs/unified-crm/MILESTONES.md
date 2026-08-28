@@ -192,7 +192,7 @@ Unless a row or acceptance ledger below says otherwise, slices begin as `PLANNED
 | UCRM-062 | Reliability and concurrency — `IMPLEMENTED_UNVERIFIED` | A manager-only reliability verification API now records pass evidence for stale writes and idempotency reuse, with named holds for transaction failure, retries, projection lag, unavailable dependencies, job leases, and recovery rehearsal. Release-candidate fault proof remains pending. |
 | UCRM-063 | Accessibility and responsive gate — `IMPLEMENTED_UNVERIFIED` | A manager-only WCAG 2.2 AA verification API now records pass evidence for keyboard/focus/error behavior and named UX holds for screen-reader, contrast, zoom, desktop/mobile, and light/dark proof. Authenticated release-candidate UX review remains pending. |
 | UCRM-064 | Performance and observability — `IMPLEMENTED_UNVERIFIED` | A manager-only performance/observability API now records SLO targets plus pass evidence for query budgets, freshness/lag timestamps, and correlation, with named holds for representative data volume, page/search latency, logs, and alerts. Release-candidate performance proof remains pending. |
-| UCRM-065 | Full automated regression — `IMPLEMENTED_HELD` | A manager-only full-regression API now records passed focused schema/lint/unit/integration/policy evidence and named holds for full typecheck, production build, CRM browser suite, and impacted Dispatch Board regression. Source type blockers were fixed; stale external Next validator cache remains a broad typecheck hold. |
+| UCRM-065 | Full automated regression — `HELD` | A manager-only full-regression API records passed focused schema/lint/unit/integration/policy evidence and named holds for production build, CRM browser suite, and impacted Dispatch Board regression. Current source typecheck passes, but release-candidate proof remains required. |
 | UCRM-066 | Pilot operations package — `IMPLEMENTED_UNVERIFIED` | A manager-only pilot operations API and runbook now cover cohort, flags, training, support owner, known limits, monitoring, incident/escalation, privacy, backup, and rollback. Formal owner acceptance remains pending. |
 | UCRM-067 | Rollback rehearsal — `IMPLEMENTED_UNVERIFIED` | A manager-only rollback rehearsal API and runbook now cover kill switches, prior-release recovery, in-flight write handling, retained evidence, existing Customers/Sales fallback, restore timing, and decision logging. Release-candidate rehearsal remains pending. |
 | UCRM-068 | Pilot execution — `IMPLEMENTED_UNVERIFIED` | A manager-only pilot execution API now defines representative internal manager/staff workflows, reporting requirements, measures, and internal-pilot-only scope. Actual participant outcomes remain pending. |
@@ -224,13 +224,13 @@ Unless a row or acceptance ledger below says otherwise, slices begin as `PLANNED
 
 | ID | Agent-sized vertical slice | Acceptance evidence |
 | --- | --- | --- |
-| UCRM-080 | Integration platform contract | Credential isolation, tenant mapping, adapter interface, idempotency, delivery/sync state, retries, reconciliation, rate limits, webhooks, audit, and kill switches are accepted. |
-| UCRM-081 | Email/calendar provider A | One approved provider completes authorization, least privilege, sync/backfill, consent, dedupe, conflict, revoke, retry, reconciliation, security, browser, and rollback gates. |
-| UCRM-082 | Email/calendar provider B | Second provider repeats the full gate; it does not inherit approval from UCRM-081. |
-| UCRM-083 | SMS delivery | Approved vendor, consent/opt-out, templates, delivery states, quiet hours, inbound correlation, failure/retry, audit, cost/rate controls, and kill switch pass. |
-| UCRM-084 | Telephony/transcription | Calling, recording consent, retention, restricted access, transcription provenance, provider failure, audit, and legal approval pass before activation. |
-| UCRM-085 | E-signature | Document authority, signer identity, immutable envelope evidence, webhook reconciliation, expiry/cancel, permissions, and provider rollback pass. |
-| UCRM-086 | Accounting/DMS connector | Field ownership, mapping, conflict rules, backfill, incremental sync, reconciliation, sensitive data, failure recovery, and disablement are proven for one named system. |
+| UCRM-080 | Integration platform contract — `IMPLEMENTED_UNVERIFIED` | Credential isolation, tenant mapping, adapter interface, idempotency, delivery/sync state, retries, reconciliation, rate limits, webhooks, audit, and kill switches are accepted. |
+| UCRM-081 | Email/calendar provider A — `HELD` | One approved provider completes authorization, least privilege, sync/backfill, consent, dedupe, conflict, revoke, retry, reconciliation, security, browser, and rollback gates. |
+| UCRM-082 | Email/calendar provider B — `HELD` | Second provider repeats the full gate; it does not inherit approval from UCRM-081. |
+| UCRM-083 | SMS delivery — `HELD` | Approved vendor, consent/opt-out, templates, delivery states, quiet hours, inbound correlation, failure/retry, audit, cost/rate controls, and kill switch pass. |
+| UCRM-084 | Telephony/transcription — `HELD` | Calling, recording consent, retention, restricted access, transcription provenance, provider failure, audit, and legal approval pass before activation. |
+| UCRM-085 | E-signature — `HELD` | Document authority, signer identity, immutable envelope evidence, webhook reconciliation, expiry/cancel, permissions, and provider rollback pass. |
+| UCRM-086 | Accounting/DMS connector — `HELD` | Field ownership, mapping, conflict rules, backfill, incremental sync, reconciliation, sensitive data, failure recovery, and disablement are proven for one named system. |
 
 No adapter is complete at “API connected.” Each is a full vertical slice with external-side-effect proof.
 
@@ -241,16 +241,44 @@ No adapter is complete at “API connected.” Each is a full vertical slice wit
 
 | ID | Capability package | Required gate |
 | --- | --- | --- |
-| UCRM-100 | Fine-grained field/record/territory sharing | Formal access model, scale tests, policy proof, admin UX, audit, recovery, and migration evidence. |
-| UCRM-101 | Governed custom fields and layouts | Namespace/type/version rules, validation, indexing, permissions, reporting impact, limits, rollback, and admin preview. |
-| UCRM-102 | Workflow and approval designer | Versioning, simulation, authority, limits, loop protection, observability, rollback, and sandbox/publish gates. |
-| UCRM-103 | Sandbox and configuration promotion | Isolation, masked data, diff/review, promotion, validation, audit, and rollback. |
-| UCRM-104 | Advanced retention, legal hold, and export | Approved policy, field classification, immutable evidence, job simulation, recovery, and legal/security signoff. |
-| UCRM-105 | Advanced forecasting and attribution | Explainability, source freshness, historical evaluation, override separation, bias/error review, and deterministic fallback. |
-| UCRM-106 | Governed AI assistance | Permission-aware retrieval, citations/provenance, evaluation set, prompt-injection defense, human approval, cost/latency, logging, opt-out, and kill switch. |
-| UCRM-107 | Broader lifecycle modules | Renewal, account health, service/case, marketing, or commercial expansion receives its own domain, security, test, pilot, and release milestones. |
+| UCRM-100 | Fine-grained field/record/territory sharing — `HELD` | Formal access model, scale tests, policy proof, admin UX, audit, recovery, and migration evidence. |
+| UCRM-101 | Governed custom fields and layouts — `HELD` | Namespace/type/version rules, validation, indexing, permissions, reporting impact, limits, rollback, and admin preview. |
+| UCRM-102 | Workflow and approval designer — `HELD` | Versioning, simulation, authority, limits, loop protection, observability, rollback, and sandbox/publish gates. |
+| UCRM-103 | Sandbox and configuration promotion — `HELD` | Isolation, masked data, diff/review, promotion, validation, audit, and rollback. |
+| UCRM-104 | Advanced retention, legal hold, and export — `HELD` | Approved policy, field classification, immutable evidence, job simulation, recovery, and legal/security signoff. |
+| UCRM-105 | Advanced forecasting and attribution — `HELD` | Explainability, source freshness, historical evaluation, override separation, bias/error review, and deterministic fallback. |
+| UCRM-106 | Governed AI assistance — `HELD` | Permission-aware retrieval, citations/provenance, evaluation set, prompt-injection defense, human approval, cost/latency, logging, opt-out, and kill switch. |
+| UCRM-107 | Broader lifecycle modules — `HELD` | Renewal, account health, service/case, marketing, or commercial expansion receives its own domain, security, test, pilot, and release milestones. |
 
-## 13. Slice Definition of Done
+## 13. Milestone UCRM-10 — Communication, AI, and Admin Execution Layer
+
+**Status:** Planned; implement sequentially after enterprise readiness gates
+**Depends on:** UCRM-080 through UCRM-107 readiness boundaries and Product Owner review
+
+| ID | Capability package | Required gate |
+| --- | --- | --- |
+| UCRM-108 | CRM enterprise/admin readiness hub — `IMPLEMENTED_UNVERIFIED` | A manager-readable hub summarizes available, held, and planned CRM integration/admin gates without enabling held capabilities. |
+| UCRM-109 | Provider decision intake — `HELD` | Email, SMS, and phone provider choices are captured with owner, scope, credential, cost, consent, rollback, and evidence requirements. |
+| UCRM-110 | Customer communication consent foundation — `HELD` | Consent, suppression, opt-out, quiet hours, purpose, and channel readiness are visible before any send/call action. |
+| UCRM-111 | CRM conversation envelope storage — `IMPLEMENTED_UNVERIFIED` | Durable conversation envelopes safely link manual outcomes and future provider events without external sending. |
+| UCRM-112 | Email draft surface — `IMPLEMENTED_UNVERIFIED` | Staff can draft review-only customer email content without provider sending or mailbox sync. |
+| UCRM-113 | SMS template catalog — `IMPLEMENTED_UNVERIFIED` | Approved text-message templates can be prepared and reviewed without outbound SMS delivery. |
+| UCRM-114 | Manual phone-call disposition capture — `IMPLEMENTED_UNVERIFIED` | Staff can log call attempts/outcomes without VoIP or recording activation. |
+| UCRM-115 | Customer 360 communication timeline lens — `IMPLEMENTED_UNVERIFIED` | Customer 360 can show permitted communication envelopes and manual outcomes without leaking restricted fields. |
+| UCRM-116 | Customer 360 communication action readiness — `IMPLEMENTED_UNVERIFIED` | Customer 360 shows honest email/text/call readiness states and fallback actions. |
+| UCRM-117 | Provider health and disabled-state dashboard — `IMPLEMENTED_UNVERIFIED` | Management can inspect provider disabled/held/degraded state, health, and kill-switch posture. |
+| UCRM-118 | Integration retry and reconciliation review surface — `IMPLEMENTED_UNVERIFIED` | Management can inspect retry/reconciliation queues without replaying external side effects. |
+| UCRM-119 | Quiet hours, rate limits, and cost controls — `IMPLEMENTED_UNVERIFIED` | Communication guardrails are modeled, reviewable, and fail closed. |
+| UCRM-120 | AI receptionist requirements and safety contract — `IMPLEMENTED_UNVERIFIED` | AI receptionist behavior is specified with consent, retrieval, escalation, human approval, and no-action defaults. |
+| UCRM-121 | AI receptionist simulator — `IMPLEMENTED_UNVERIFIED` | Staff can simulate intake/receptionist scenarios without live calls or texts. |
+| UCRM-122 | E-signature/document readiness surface — `IMPLEMENTED_UNVERIFIED` | Management can review document/signature readiness gates without sending envelopes. |
+| UCRM-123 | Accounting/DMS mapping preview — `IMPLEMENTED_UNVERIFIED` | Management can preview mappings/conflicts for one future system without sync or writes. |
+| UCRM-124 | Custom field/layout admin preview — `IMPLEMENTED_UNVERIFIED` | Admins can preview effective custom layouts without publishing. |
+| UCRM-125 | Workflow simulation preview — `IMPLEMENTED_UNVERIFIED` | Admins can simulate workflow rules without live execution. |
+| UCRM-126 | Sandbox promotion diff/review screen — `IMPLEMENTED_UNVERIFIED` | Admins can review config promotion diffs without production promotion. |
+| UCRM-127 | CRM release-readiness cleanup and regression stabilization — `IMPLEMENTED_UNVERIFIED` | The communication/admin envelope receives regression, accessibility, fallback, rollback, and evidence cleanup before merge review. |
+
+## 14. Slice Definition of Done
 
 A `UCRM-###` slice is `VERIFIED` only when all applicable statements are true:
 

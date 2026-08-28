@@ -105,6 +105,42 @@ export type UnifiedCrmCustomer360TimelineItem = {
   sourceRecordId: string;
 };
 
+export type UnifiedCrmCustomer360CommunicationTimelineLens = {
+  state: "READY" | "EMPTY";
+  posture: "READ_ONLY";
+  detail: string;
+  visibleOutcomeCount: number;
+  latestOutcomeAt: string | null;
+  channels: {
+    label: "Phone" | "Email" | "Sms" | "Other";
+    count: number;
+    latestOutcomeAt: string | null;
+  }[];
+  fallback: {
+    label: "Manual timeline review";
+    href: string;
+    reason: string;
+  };
+};
+
+export type UnifiedCrmCustomer360CommunicationActionReadiness = {
+  state: "READY" | "HELD" | "UNAVAILABLE";
+  posture: "MANUAL_ONLY" | "PROVIDER_HELD" | "NO_CONTACT";
+  channels: {
+    id: "phone" | "email" | "sms";
+    label: "Call" | "Email" | "Text";
+    state: "READY_MANUAL" | "PROVIDER_HELD" | "NO_CONTACT" | "NOT_AUTHORIZED";
+    primaryActionLabel: string;
+    href: string;
+    detail: string;
+  }[];
+  fallback: {
+    label: "Log manual outcome";
+    href: string;
+    reason: string;
+  };
+};
+
 export type UnifiedCrmCustomer360Note = {
   id: string;
   body: string;
@@ -173,6 +209,8 @@ export type UnifiedCrmCustomer360ReadModel = {
       hasMore: boolean;
     };
   };
+  communicationTimelineLens: UnifiedCrmCustomer360CommunicationTimelineLens;
+  communicationActionReadiness: UnifiedCrmCustomer360CommunicationActionReadiness;
   sourceLenses: {
     leads: UnifiedCrmCustomer360LeadLens[];
     cases: UnifiedCrmCustomer360CaseLens[];

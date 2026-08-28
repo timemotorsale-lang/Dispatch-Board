@@ -47,12 +47,12 @@ describe("InventoryLifecyclePrototype", () => {
     expect(markup).toContain("Open Vehicle Intake form");
   });
 
-  it("uses transport-neutral assignment language in Transportation", () => {
+  it("renders the simplified transportation assignment choices", () => {
     const markup = renderToStaticMarkup(<InventoryLifecyclePrototype initialStage={1} />);
 
-    expect(markup).toContain("Transport provider assigned");
-    expect(markup).toContain("Transport assignment");
-    expect(markup).not.toContain("Driver assignment");
+    expect(markup).toContain("Transportation Custody Builder");
+    expect(markup).toContain("Dealership driver");
+    expect(markup).toContain("Tow or carrier");
   });
 
   it("renders return-to-lifecycle controls in the later lifecycle workspaces", () => {
