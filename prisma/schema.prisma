@@ -1713,9 +1713,28 @@ enum WorkdayReportSeedStatus {
   CARRIED_OVER
 }
 
+enum WorkdayReportCadence {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
 enum WorkdayReportDraftStatus {
   DRAFT
   SUBMITTED
+}
+
+enum WorkdayCarryoverStatus {
+  OPEN
+  CONFIRMED
+  DISMISSED
+  CONVERTED
+}
+
+enum WorkdaySupportActionStatus {
+  OPEN
+  UPDATE_REQUESTED
+  RESOLVED
 }
 
 // Placeholder model for the v0.1.0 foundation migration.
@@ -6722,6 +6741,9 @@ model WorkdayWorkbook {
   userId         String
   scope          WorkdayWorkbookScope  @default(COO)
   status         WorkdayWorkbookStatus @default(ACTIVE)
+  closedAt       DateTime?
+  closedByUserId String?
+  closeSnapshot  Json?
   createdAt      DateTime              @default(now())
   updatedAt      DateTime              @updatedAt
   boardDay       BoardDay              @relation(fields: [boardDayId], references: [id], onDelete: Cascade)
@@ -6730,6 +6752,8 @@ model WorkdayWorkbook {
   quickUpdates   WorkdayQuickUpdate[]
   reportSeeds    WorkdayReportSeed[]
   reportDrafts   WorkdayReportDraft[]
+  carryovers     WorkdayCarryover[]
+  supportActions WorkdaySupportAction[]
 
   @@unique([boardDayId, userId, scope])
   @@index([userId, scope, status])
@@ -6797,6 +6821,9 @@ model WorkdayReportDraft {
   id              String                   @id @default(cuid())
   workbookId      String
   version         Int
+  cadence         WorkdayReportCadence     @default(DAILY)
+  periodStart     DateTime
+  periodEnd       DateTime
   status          WorkdayReportDraftStatus @default(DRAFT)
   title           String
   summary         String
@@ -6809,7 +6836,49 @@ model WorkdayReportDraft {
   workbook        WorkdayWorkbook          @relation(fields: [workbookId], references: [id], onDelete: Cascade)
 
   @@unique([workbookId, version])
-  @@index([workbookId, status, generatedAt])
+  @@index([workbookId, cadence, status, generatedAt])
+}
+
+model WorkdayCarryover {
+  id              String                 @id @default(cuid())
+  workbookId      String
+  sourceType      WorkdayReportSeedSourceType
+  sourceId        String
+  sourceHref      String?
+  title           String
+  detail          String
+  status          WorkdayCarryoverStatus @default(OPEN)
+  targetBoardDate DateTime
+  convertedTaskId String?
+  dismissedReason String                  @default("")
+  confirmedAt     DateTime?
+  dismissedAt     DateTime?
+  convertedAt     DateTime?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  workbook        WorkdayWorkbook         @relation(fields: [workbookId], references: [id], onDelete: Cascade)
+  convertedTask   Task?                   @relation("WorkdayCarryoverConvertedTask", fields: [convertedTaskId], references: [id], onDelete: SetNull)
+
+  @@unique([workbookId, sourceType, sourceId, targetBoardDate])
+  @@index([workbookId, status, targetBoardDate])
+  @@index([convertedTaskId])
+}
+
+model WorkdaySupportAction {
+  id               String                     @id @default(cuid())
+  workbookId       String
+  targetUserId     String
+  actorUserId      String
+  status           WorkdaySupportActionStatus @default(OPEN)
+  note             String
+  requestedUpdate  Boolean                    @default(false)
+  resolvedAt       DateTime?
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+  workbook         WorkdayWorkbook            @relation(fields: [workbookId], references: [id], onDelete: Cascade)
+
+  @@index([workbookId, status, createdAt])
+  @@index([targetUserId, status])
 }
 
 model StaffDay {
@@ -7257,6 +7326,7 @@ model Task {
   inventoryWorkPacket        InventoryWorkPacket?
   convertedFromChecklist     WorkdayChecklistItem[]    @relation("WorkdayChecklistConvertedTask")
   convertedFromQuickUpdates  WorkdayQuickUpdate[]      @relation("WorkdayQuickUpdateConvertedTask")
+  convertedFromCarryovers    WorkdayCarryover[]        @relation("WorkdayCarryoverConvertedTask")
 
   @@unique([boardDayId, sourceTemplateId, assignedUserId])
   @@unique([boardDayId, carryoverSourceTaskId])

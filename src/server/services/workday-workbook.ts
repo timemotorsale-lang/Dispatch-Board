@@ -1,15 +1,19 @@
 import {
+  WorkdayCarryoverStatus,
   WorkdayChecklistStatus,
   WorkdayQuickUpdateCategory,
+  WorkdayReportCadence,
   WorkdayReportSeedSourceType,
   WorkdayReportSeedStatus,
   WorkdayReportSeedTone,
+  WorkdaySupportActionStatus,
   WorkdayWorkbookScope
 } from "@prisma/client";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 import {
   createWorkdayWorkbookRepository,
+  type WorkdayCarryoverInput,
   type WorkdayReportSeedInput,
   type WorkdayWorkbookRecord,
   type WorkdayWorkbookRepository,
@@ -31,6 +35,9 @@ type Dependencies = {
 const checklistStatuses = new Set(Object.values(WorkdayChecklistStatus));
 const quickUpdateCategories = new Set(Object.values(WorkdayQuickUpdateCategory));
 const reportSeedStatuses = new Set(Object.values(WorkdayReportSeedStatus));
+const reportCadences = new Set(Object.values(WorkdayReportCadence));
+const carryoverStatuses = new Set(Object.values(WorkdayCarryoverStatus));
+const supportActionStatuses = new Set(Object.values(WorkdaySupportActionStatus));
 const emptyOperatingSignals: WorkdayWorkbookOperatingSignals = {
   approvalCount: 0,
   handoffCount: 0,
@@ -80,6 +87,28 @@ function normalizeReportSeedStatus(value: unknown) {
   return value as WorkdayReportSeedStatus;
 }
 
+function normalizeReportCadence(value: unknown) {
+  if (value === undefined || value === null || value === "") return WorkdayReportCadence.DAILY;
+  if (typeof value !== "string" || !reportCadences.has(value as WorkdayReportCadence)) {
+    throw new Error("Report cadence is not supported.");
+  }
+  return value as WorkdayReportCadence;
+}
+
+function normalizeCarryoverStatus(value: unknown) {
+  if (typeof value !== "string" || !carryoverStatuses.has(value as WorkdayCarryoverStatus)) {
+    throw new Error("Carryover status is not supported.");
+  }
+  return value as WorkdayCarryoverStatus;
+}
+
+function normalizeSupportActionStatus(value: unknown) {
+  if (typeof value !== "string" || !supportActionStatuses.has(value as WorkdaySupportActionStatus)) {
+    throw new Error("Staff support status is not supported.");
+  }
+  return value as WorkdaySupportActionStatus;
+}
+
 function normalizeObject(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("Workbook update payload must be an object.");
@@ -93,8 +122,50 @@ function assertWorkbookOwner(user: AuthenticatedUser, workbook: { scope: Workday
   }
 }
 
+function assertWorkbookEditable(user: AuthenticatedUser, workbook: { scope: WorkdayWorkbookScope; status: string; userId: string }) {
+  assertWorkbookOwner(user, workbook);
+  if (workbook.status === "CLOSED") {
+    throw new Error("This workbook day is closed. Reopen it before making changes.");
+  }
+}
+
+function assertCanManageWorkbook(user: AuthenticatedUser, workbook: { scope: WorkdayWorkbookScope; userId: string }) {
+  if (workbook.userId === user.id) return;
+  if (isManager(user)) return;
+  throw new Error("Manager access is required for this workbook action.");
+}
+
 function dateToIso(value: Date) {
   return value.toISOString();
+}
+
+function addDays(boardDate: string, days: number) {
+  const value = new Date(`${boardDate}T00:00:00.000Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
+
+function periodFor(boardDate: string, cadence: WorkdayReportCadence) {
+  const date = new Date(`${boardDate}T00:00:00.000Z`);
+  if (cadence === WorkdayReportCadence.DAILY) return { end: boardDate, start: boardDate };
+  const daysBack = cadence === WorkdayReportCadence.WEEKLY ? 6 : 29;
+  const start = new Date(date);
+  start.setUTCDate(date.getUTCDate() - daysBack);
+  return { end: boardDate, start: start.toISOString().slice(0, 10) };
+}
+
+async function recordWorkbookActivity(repository: WorkdayWorkbookRepository, user: AuthenticatedUser, workbook: { boardDayId: string; id: string; scope: WorkdayWorkbookScope }, eventType: string, message: string, metadata: Record<string, unknown> = {}) {
+  await repository.recordActivity({
+    actorUserId: user.id,
+    boardDayId: workbook.boardDayId,
+    eventType,
+    message,
+    metadata: {
+      ...metadata,
+      scope: workbook.scope,
+      workbookId: workbook.id
+    }
+  });
 }
 
 function seedToneForChecklist(status: WorkdayChecklistStatus): WorkdayReportSeedTone {
@@ -135,6 +206,9 @@ export type WorkdayReportDraftSection = {
 };
 
 export type WorkdayReportDraftContent = {
+  cadence: WorkdayReportCadence;
+  periodEnd: string;
+  periodStart: string;
   sections: WorkdayReportDraftSection[];
   sourceSeedIds: string[];
   summary: string;
@@ -184,11 +258,114 @@ export function buildWorkdayDailyReportDraft(workbook: WorkdayWorkbookRecord, bo
     : "No reviewed or candidate report items are ready yet.";
 
   return {
+    cadence: WorkdayReportCadence.DAILY,
+    periodEnd: boardDate,
+    periodStart: boardDate,
     sections,
     sourceSeedIds: reportSeeds.map((seed) => seed.id),
     summary,
     title: `${reportLabel} - ${boardDate}`
   };
+}
+
+export function buildWorkdayPeriodReportDraft(workbooks: WorkdayWorkbookRecord[], boardDate: string, cadence: WorkdayReportCadence, reportLabel = "COO Report"): WorkdayReportDraftContent {
+  if (cadence === WorkdayReportCadence.DAILY) {
+    return buildWorkdayDailyReportDraft(workbooks[0], boardDate, reportLabel);
+  }
+  const period = periodFor(boardDate, cadence);
+  const seeds = workbooks.flatMap((workbook) => workbook.reportSeeds.filter((seed) => seed.status !== WorkdayReportSeedStatus.EXCLUDED));
+  const drafts = workbooks.flatMap((workbook) => workbook.reportDrafts.filter((draft) => draft.cadence === WorkdayReportCadence.DAILY));
+  const carryovers = workbooks.flatMap((workbook) => workbook.carryovers.filter((item) => item.status !== WorkdayCarryoverStatus.DISMISSED));
+  const supportActions = workbooks.flatMap((workbook) => workbook.supportActions);
+  const completed = seeds.filter((seed) => seed.tone === WorkdayReportSeedTone.GREEN);
+  const risks = seeds.filter((seed) => seed.tone === WorkdayReportSeedTone.RED || seed.tone === WorkdayReportSeedTone.YELLOW);
+  const management = seeds.filter((seed) => seed.sourceType === WorkdayReportSeedSourceType.OPERATING_EXCEPTION);
+  const sections: WorkdayReportDraftSection[] = [
+    draftSection("Completed / Closed Work", completed),
+    draftSection("Repeated Blockers and Risks", risks),
+    draftSection("Approval or Management Review", management),
+    {
+      title: "Carryover and Follow-up",
+      items: carryovers.map((item) => ({
+        detail: item.detail,
+        reviewNote: item.dismissedReason,
+        sourceHref: item.sourceHref,
+        sourceId: item.sourceId,
+        sourceLabel: "Carryover",
+        status: WorkdayReportSeedStatus.CARRIED_OVER,
+        title: item.title,
+        tone: WorkdayReportSeedTone.YELLOW
+      }))
+    },
+    {
+      title: "Staff Support and Coaching",
+      items: supportActions.map((item) => ({
+        detail: item.note,
+        reviewNote: item.requestedUpdate ? "Update requested." : "",
+        sourceHref: null,
+        sourceId: item.id,
+        sourceLabel: "Staff Support",
+        status: item.status === WorkdaySupportActionStatus.RESOLVED ? WorkdayReportSeedStatus.INCLUDED : WorkdayReportSeedStatus.CANDIDATE,
+        title: item.status === WorkdaySupportActionStatus.RESOLVED ? "Support resolved" : "Support note",
+        tone: item.status === WorkdaySupportActionStatus.RESOLVED ? WorkdayReportSeedTone.GREEN : WorkdayReportSeedTone.BLUE
+      }))
+    },
+    {
+      title: "Daily Draft Rollup",
+      items: drafts.map((draft) => ({
+        detail: draft.summary,
+        reviewNote: "",
+        sourceHref: null,
+        sourceId: draft.id,
+        sourceLabel: "Daily Draft",
+        status: WorkdayReportSeedStatus.INCLUDED,
+        title: draft.title,
+        tone: WorkdayReportSeedTone.BLUE
+      }))
+    }
+  ].filter((section) => section.items.length > 0);
+  const cadenceLabel = cadence === WorkdayReportCadence.WEEKLY ? "Weekly" : "Monthly";
+  const trainingSignals = supportActions.filter((item) => item.status !== WorkdaySupportActionStatus.RESOLVED).length;
+  const summary = `${cadenceLabel} report prepared from ${workbooks.length} workbook day(s), ${seeds.length} report seed(s), ${carryovers.length} carryover item(s), and ${trainingSignals} open support signal(s).`;
+
+  return {
+    cadence,
+    periodEnd: period.end,
+    periodStart: period.start,
+    sections,
+    sourceSeedIds: seeds.map((seed) => seed.id),
+    summary,
+    title: `${reportLabel} ${cadenceLabel} - ${period.start} to ${period.end}`
+  };
+}
+
+export function buildWorkdayCarryovers(workbook: WorkdayWorkbookRecord, targetBoardDate: string): WorkdayCarryoverInput[] {
+  return [
+    ...workbook.checklistItems.filter((item) => item.carryoverReady).map((item) => ({
+      detail: item.update || checklistLabel(item),
+      sourceHref: item.convertedTaskId ? `/tasks/${item.convertedTaskId}` : null,
+      sourceId: item.id,
+      sourceType: WorkdayReportSeedSourceType.CHECKLIST_ITEM,
+      targetBoardDate,
+      title: item.text
+    })),
+    ...workbook.quickUpdates.filter((item) => item.carryoverReady || item.followUpNeeded).map((item) => ({
+      detail: [item.text, item.person ? `Person: ${item.person}.` : "", item.company ? `Company: ${item.company}.` : "", item.dueWindow ? `Due: ${item.dueWindow}.` : ""].filter(Boolean).join(" "),
+      sourceHref: item.convertedTaskId ? `/tasks/${item.convertedTaskId}` : null,
+      sourceId: item.id,
+      sourceType: WorkdayReportSeedSourceType.QUICK_UPDATE,
+      targetBoardDate,
+      title: `${quickUpdateCategoryLabel(item.category)} follow-up`
+    })),
+    ...workbook.reportSeeds.filter((seed) => seed.status === WorkdayReportSeedStatus.CARRIED_OVER).map((seed) => ({
+      detail: seed.detail,
+      sourceHref: seed.sourceHref,
+      sourceId: seed.id,
+      sourceType: WorkdayReportSeedSourceType.OPERATING_EXCEPTION,
+      targetBoardDate,
+      title: seed.title
+    }))
+  ];
 }
 
 export function buildWorkdayReportSeeds(
@@ -273,13 +450,15 @@ function buildCloseReadiness(workbook: WorkdayWorkbookRecord) {
   const carryoverItems =
     workbook.checklistItems.filter((item) => item.carryoverReady).length +
     workbook.quickUpdates.filter((item) => item.carryoverReady).length +
-    workbook.reportSeeds.filter((seed) => seed.status === WorkdayReportSeedStatus.CARRIED_OVER).length;
+    workbook.reportSeeds.filter((seed) => seed.status === WorkdayReportSeedStatus.CARRIED_OVER).length +
+    workbook.carryovers.filter((item) => item.status === WorkdayCarryoverStatus.OPEN).length;
+  const supportActions = workbook.supportActions.filter((item) => item.status !== WorkdaySupportActionStatus.RESOLVED).length;
   const reviewedSeeds = workbook.reportSeeds.filter((seed) => seed.status !== WorkdayReportSeedStatus.CANDIDATE).length;
   const includedSeeds = workbook.reportSeeds.filter((seed) => seed.status === WorkdayReportSeedStatus.INCLUDED).length;
   const excludedSeeds = workbook.reportSeeds.filter((seed) => seed.status === WorkdayReportSeedStatus.EXCLUDED).length;
   const latestDraft = workbook.reportDrafts[0] ?? null;
   const checklistScore = checklistTotal ? Math.round((checklistDone / checklistTotal) * 35) : 20;
-  const supportPenaltyCount = checklistNeedsSupport + quickFollowUps;
+  const supportPenaltyCount = checklistNeedsSupport + quickFollowUps + supportActions;
   const supportScore = supportPenaltyCount ? Math.max(0, 25 - supportPenaltyCount * 6) : 25;
   const reviewScore = workbook.reportSeeds.length ? Math.round((reviewedSeeds / workbook.reportSeeds.length) * 25) : 10;
   const draftScore = latestDraft ? 15 : 0;
@@ -291,6 +470,7 @@ function buildCloseReadiness(workbook: WorkdayWorkbookRecord) {
   if (checklistNeedsSupport) prompts.push("Review yellow/red checklist items and decide what needs help.");
   if (quickFollowUps) prompts.push("Confirm Quick Update follow-ups have an owner or due window.");
   if (carryoverItems) prompts.push("Set tomorrow ownership for carryover items.");
+  if (supportActions) prompts.push("Review open staff support actions before close.");
   if (workbook.reportSeeds.length && reviewedSeeds < workbook.reportSeeds.length) prompts.push("Review remaining report seeds before generating the final draft.");
   if (!latestDraft) prompts.push("Generate the Daily Report Draft when today has enough signal.");
   if (!prompts.length) prompts.push("Daily close is ready for a manager review.");
@@ -304,6 +484,7 @@ function buildCloseReadiness(workbook: WorkdayWorkbookRecord) {
     checklistNeedsSupport,
     quickFollowUps,
     carryoverItems,
+    supportActions,
     reportSeedCount: workbook.reportSeeds.length,
     reviewedSeedCount: reviewedSeeds,
     includedSeedCount: includedSeeds,
@@ -322,10 +503,12 @@ function toStaffWorkbookSummary(record: WorkdayWorkbookSummaryRecord) {
   const carryoverCount =
     record.checklistItems.filter((item) => item.carryoverReady).length +
     record.quickUpdates.filter((item) => item.carryoverReady).length +
-    record.reportSeeds.filter((seed) => seed.status === WorkdayReportSeedStatus.CARRIED_OVER).length;
+    record.reportSeeds.filter((seed) => seed.status === WorkdayReportSeedStatus.CARRIED_OVER).length +
+    record.carryovers.filter((item) => item.status === WorkdayCarryoverStatus.OPEN).length;
+  const openSupportActions = record.supportActions.filter((item) => item.status !== WorkdaySupportActionStatus.RESOLVED).length;
   const reviewedSeedCount = record.reportSeeds.filter((seed) => seed.status !== WorkdayReportSeedStatus.CANDIDATE).length;
   const checklistScore = checklistCount ? Math.round((completedChecklistCount / checklistCount) * 40) : 20;
-  const supportScore = redYellowCount + followUpNeededCount ? Math.max(0, 25 - (redYellowCount + followUpNeededCount) * 6) : 25;
+  const supportScore = redYellowCount + followUpNeededCount + openSupportActions ? Math.max(0, 25 - (redYellowCount + followUpNeededCount + openSupportActions) * 6) : 25;
   const reviewScore = record.reportSeeds.length ? Math.round((reviewedSeedCount / record.reportSeeds.length) * 20) : 10;
   const draftScore = latestDraft ? 15 : 0;
   const closeScore = Math.min(100, checklistScore + supportScore + reviewScore + draftScore);
@@ -336,6 +519,7 @@ function toStaffWorkbookSummary(record: WorkdayWorkbookSummaryRecord) {
   if (redYellowCount) closePrompts.push("Has checklist items needing support.");
   if (followUpNeededCount) closePrompts.push("Has Quick Update follow-up to assign.");
   if (carryoverCount) closePrompts.push("Has carryover to plan for tomorrow.");
+  if (openSupportActions) closePrompts.push("Has open support or coaching action.");
   if (record.reportSeeds.length && reviewedSeedCount < record.reportSeeds.length) closePrompts.push("Report seeds still need review.");
   if (!latestDraft) closePrompts.push("No daily draft yet.");
   if (!closePrompts.length) closePrompts.push("Ready for daily close review.");
@@ -350,6 +534,7 @@ function toStaffWorkbookSummary(record: WorkdayWorkbookSummaryRecord) {
     quickUpdateCount: record.quickUpdates.length,
     followUpNeededCount,
     carryoverCount,
+    openSupportActions,
     reportSeedCount: record.reportSeeds.length,
     reviewedSeedCount,
     closeReadinessScore: closeScore,
@@ -359,6 +544,8 @@ function toStaffWorkbookSummary(record: WorkdayWorkbookSummaryRecord) {
       record.updatedAt,
       ...record.checklistItems.map((item) => item.updatedAt),
       ...record.quickUpdates.map((item) => item.updatedAt),
+      ...record.carryovers.map((item) => item.updatedAt),
+      ...record.supportActions.map((item) => item.updatedAt),
       ...record.reportDrafts.map((draft) => draft.generatedAt)
     ]),
     latestDraftStatus: latestDraft?.status ?? null,
@@ -373,6 +560,9 @@ function toReadModel(workbook: WorkdayWorkbookRecord) {
     userId: workbook.userId,
     scope: workbook.scope,
     status: workbook.status,
+    closedAt: workbook.closedAt ? dateToIso(workbook.closedAt) : null,
+    closedByUserId: workbook.closedByUserId,
+    closeSnapshot: workbook.closeSnapshot,
     createdAt: dateToIso(workbook.createdAt),
     updatedAt: dateToIso(workbook.updatedAt),
     checklistItems: workbook.checklistItems.map((item) => ({
@@ -383,6 +573,23 @@ function toReadModel(workbook: WorkdayWorkbookRecord) {
       done: item.done,
       carryoverReady: item.carryoverReady,
       convertedTaskId: item.convertedTaskId,
+      createdAt: dateToIso(item.createdAt),
+      updatedAt: dateToIso(item.updatedAt)
+    })),
+    carryovers: workbook.carryovers.map((item) => ({
+      id: item.id,
+      sourceType: item.sourceType,
+      sourceId: item.sourceId,
+      sourceHref: item.sourceHref,
+      title: item.title,
+      detail: item.detail,
+      status: item.status,
+      targetBoardDate: item.targetBoardDate.toISOString().slice(0, 10),
+      convertedTaskId: item.convertedTaskId,
+      dismissedReason: item.dismissedReason,
+      confirmedAt: item.confirmedAt ? dateToIso(item.confirmedAt) : null,
+      dismissedAt: item.dismissedAt ? dateToIso(item.dismissedAt) : null,
+      convertedAt: item.convertedAt ? dateToIso(item.convertedAt) : null,
       createdAt: dateToIso(item.createdAt),
       updatedAt: dateToIso(item.updatedAt)
     })),
@@ -415,6 +622,9 @@ function toReadModel(workbook: WorkdayWorkbookRecord) {
     reportDrafts: workbook.reportDrafts.map((draft) => ({
       id: draft.id,
       version: draft.version,
+      cadence: draft.cadence,
+      periodStart: draft.periodStart.toISOString().slice(0, 10),
+      periodEnd: draft.periodEnd.toISOString().slice(0, 10),
       status: draft.status,
       title: draft.title,
       summary: draft.summary,
@@ -424,6 +634,17 @@ function toReadModel(workbook: WorkdayWorkbookRecord) {
       generatedAt: dateToIso(draft.generatedAt),
       createdAt: dateToIso(draft.createdAt),
       updatedAt: dateToIso(draft.updatedAt)
+    })),
+    supportActions: workbook.supportActions.map((item) => ({
+      id: item.id,
+      targetUserId: item.targetUserId,
+      actorUserId: item.actorUserId,
+      status: item.status,
+      note: item.note,
+      requestedUpdate: item.requestedUpdate,
+      resolvedAt: item.resolvedAt ? dateToIso(item.resolvedAt) : null,
+      createdAt: dateToIso(item.createdAt),
+      updatedAt: dateToIso(item.updatedAt)
     })),
     closeReadiness: buildCloseReadiness(workbook)
   };
@@ -492,7 +713,9 @@ async function createWorkbookChecklistItem(actor: AuthenticatedUser | null, boar
   const repository = dependencies.repository ?? createWorkdayWorkbookRepository();
   const boardDay = await repository.getOrCreateBoardDay(normalizeBoardDate(boardDate));
   const workbook = await repository.getOrCreateWorkbook({ boardDayId: boardDay.id, scope, userId: user.id });
+  assertWorkbookEditable(user, workbook);
   await repository.createChecklistItem({ text, workbookId: workbook.id });
+  await recordWorkbookActivity(repository, user, workbook, "workbook.checklist_created", `${user.name} added a workbook checklist item.`, { sourceType: "CHECKLIST_ITEM", text });
   return { ok: true };
 }
 
@@ -510,7 +733,7 @@ export async function updateCooWorkbookChecklistItem(actor: AuthenticatedUser | 
   const repository = dependencies.repository ?? createWorkdayWorkbookRepository();
   const item = await repository.findChecklistItem(itemId.trim());
   if (!item) throw new Error("Checklist item not found.");
-  assertWorkbookOwner(user, item.workbook);
+  assertWorkbookEditable(user, item.workbook);
   await repository.updateChecklistItem({
     carryoverReady: normalizeBoolean(payload.carryoverReady, "carryoverReady"),
     convertedTaskId: normalizeOptionalText(payload.convertedTaskId, "convertedTaskId", 120),
@@ -519,6 +742,7 @@ export async function updateCooWorkbookChecklistItem(actor: AuthenticatedUser | 
     status: normalizeChecklistStatus(payload.status),
     update: normalizeOptionalText(payload.update, "update", 1000)
   });
+  await recordWorkbookActivity(repository, user, item.workbook, payload.done === true ? "workbook.checklist_completed" : "workbook.checklist_updated", `${user.name} updated a workbook checklist item.`, { checklistItemId: item.id });
   return { ok: true };
 }
 
@@ -528,6 +752,7 @@ async function createWorkbookQuickUpdate(actor: AuthenticatedUser | null, boardD
   const repository = dependencies.repository ?? createWorkdayWorkbookRepository();
   const boardDay = await repository.getOrCreateBoardDay(normalizeBoardDate(boardDate));
   const workbook = await repository.getOrCreateWorkbook({ boardDayId: boardDay.id, scope, userId: user.id });
+  assertWorkbookEditable(user, workbook);
   await repository.createQuickUpdate({
     category: normalizeQuickUpdateCategory(payload.category),
     company: normalizeOptionalText(payload.company, "company", 180) ?? "",
@@ -537,6 +762,7 @@ async function createWorkbookQuickUpdate(actor: AuthenticatedUser | null, boardD
     text: normalizeRequiredText(payload.text, "Quick Update text is required.", 1200),
     workbookId: workbook.id
   });
+  await recordWorkbookActivity(repository, user, workbook, "workbook.quick_update_created", `${user.name} saved a Quick Update.`, { category: payload.category ?? "OTHER" });
   return { ok: true };
 }
 
@@ -554,7 +780,7 @@ export async function updateCooWorkbookQuickUpdate(actor: AuthenticatedUser | nu
   const repository = dependencies.repository ?? createWorkdayWorkbookRepository();
   const item = await repository.findQuickUpdate(updateId.trim());
   if (!item) throw new Error("Quick Update not found.");
-  assertWorkbookOwner(user, item.workbook);
+  assertWorkbookEditable(user, item.workbook);
   await repository.updateQuickUpdate({
     carryoverReady: normalizeBoolean(payload.carryoverReady, "carryoverReady"),
     category: payload.category === undefined ? undefined : normalizeQuickUpdateCategory(payload.category),
@@ -566,6 +792,7 @@ export async function updateCooWorkbookQuickUpdate(actor: AuthenticatedUser | nu
     person: normalizeOptionalText(payload.person, "person", 180),
     text: payload.text === undefined ? undefined : normalizeRequiredText(payload.text, "Quick Update text is required.", 1200)
   });
+  await recordWorkbookActivity(repository, user, item.workbook, "workbook.quick_update_updated", `${user.name} updated a Quick Update.`, { quickUpdateId: item.id });
   return { ok: true };
 }
 
@@ -575,7 +802,7 @@ export async function updateCooWorkbookReportSeed(actor: AuthenticatedUser | nul
   const repository = dependencies.repository ?? createWorkdayWorkbookRepository();
   const seed = await repository.findReportSeed(seedId.trim());
   if (!seed) throw new Error("Report Seed not found.");
-  assertWorkbookOwner(user, seed.workbook);
+  assertWorkbookEditable(user, seed.workbook);
   await repository.updateReportSeed({
     detail: normalizeOptionalText(payload.detail, "detail", 1600),
     id: seed.id,
@@ -583,6 +810,7 @@ export async function updateCooWorkbookReportSeed(actor: AuthenticatedUser | nul
     status: normalizeReportSeedStatus(payload.status),
     title: normalizeOptionalText(payload.title, "title", 240)
   });
+  await recordWorkbookActivity(repository, user, seed.workbook, "workbook.report_seed_reviewed", `${user.name} reviewed a Report Seed.`, { reportSeedId: seed.id, status: payload.status ?? seed.status });
   return { ok: true };
 }
 
@@ -591,10 +819,13 @@ async function createWorkbookDailyReportDraft(
   boardDate: string,
   scope: WorkdayWorkbookScope,
   operatingSignals: WorkdayWorkbookOperatingSignals,
+  cadenceInput: unknown = WorkdayReportCadence.DAILY,
   dependencies: Dependencies = {}
 ) {
   const user = assertAuthenticatedUser(actor);
   const date = normalizeBoardDate(boardDate);
+  const cadence = normalizeReportCadence(cadenceInput);
+  const period = periodFor(date, cadence);
   const repository = dependencies.repository ?? createWorkdayWorkbookRepository();
   const boardDay = await repository.getOrCreateBoardDay(date);
   let workbook = await repository.getOrCreateWorkbook({
@@ -602,6 +833,7 @@ async function createWorkbookDailyReportDraft(
     scope,
     userId: user.id
   });
+  assertWorkbookEditable(user, workbook);
   await repository.upsertReportSeeds({
     seeds: buildWorkdayReportSeeds(workbook, operatingSignals),
     workbookId: workbook.id
@@ -611,15 +843,21 @@ async function createWorkbookDailyReportDraft(
     scope,
     userId: user.id
   });
-  const draft = buildWorkdayDailyReportDraft(workbook, date, scope === WorkdayWorkbookScope.STAFF ? "Staff Daily Report" : "COO Daily Report");
+  const draft = cadence === WorkdayReportCadence.DAILY
+    ? buildWorkdayDailyReportDraft(workbook, date, scope === WorkdayWorkbookScope.STAFF ? "Staff Daily Report" : "COO Daily Report")
+    : buildWorkdayPeriodReportDraft(await repository.listWorkbooksForBoardDateRange({ endDate: period.end, scope, startDate: period.start, userId: user.id }), date, cadence, scope === WorkdayWorkbookScope.STAFF ? "Staff" : "COO");
   await repository.createReportDraft({
+    cadence: draft.cadence,
     generatedByUserId: user.id,
+    periodEnd: draft.periodEnd,
+    periodStart: draft.periodStart,
     sections: draft.sections,
     sourceSeedIds: draft.sourceSeedIds,
     summary: draft.summary,
     title: draft.title,
     workbookId: workbook.id
   });
+  await recordWorkbookActivity(repository, user, workbook, "workbook.report_draft_generated", `${user.name} generated a ${draft.cadence.toLocaleLowerCase()} workbook report draft.`, { cadence: draft.cadence, periodEnd: draft.periodEnd, periodStart: draft.periodStart });
   return { ok: true };
 }
 
@@ -629,9 +867,133 @@ export async function createCooWorkbookDailyReportDraft(
   operatingSignals: WorkdayWorkbookOperatingSignals,
   dependencies: Dependencies = {}
 ) {
-  return createWorkbookDailyReportDraft(actor, boardDate, WorkdayWorkbookScope.COO, operatingSignals, dependencies);
+  return createWorkbookDailyReportDraft(actor, boardDate, WorkdayWorkbookScope.COO, operatingSignals, WorkdayReportCadence.DAILY, dependencies);
+}
+
+export async function createCooWorkbookReportDraft(
+  actor: AuthenticatedUser | null,
+  boardDate: string,
+  cadence: unknown,
+  operatingSignals: WorkdayWorkbookOperatingSignals,
+  dependencies: Dependencies = {}
+) {
+  return createWorkbookDailyReportDraft(actor, boardDate, WorkdayWorkbookScope.COO, operatingSignals, cadence, dependencies);
 }
 
 export async function createStaffWorkbookDailyReportDraft(actor: AuthenticatedUser | null, boardDate: string, dependencies: Dependencies = {}) {
-  return createWorkbookDailyReportDraft(actor, boardDate, WorkdayWorkbookScope.STAFF, emptyOperatingSignals, dependencies);
+  return createWorkbookDailyReportDraft(actor, boardDate, WorkdayWorkbookScope.STAFF, emptyOperatingSignals, WorkdayReportCadence.DAILY, dependencies);
+}
+
+export async function createStaffWorkbookReportDraft(actor: AuthenticatedUser | null, boardDate: string, cadence: unknown, dependencies: Dependencies = {}) {
+  return createWorkbookDailyReportDraft(actor, boardDate, WorkdayWorkbookScope.STAFF, emptyOperatingSignals, cadence, dependencies);
+}
+
+async function getOwnedWorkbook(user: AuthenticatedUser, boardDate: string, scope: WorkdayWorkbookScope, dependencies: Dependencies = {}) {
+  const repository = dependencies.repository ?? createWorkdayWorkbookRepository();
+  const boardDay = await repository.getOrCreateBoardDay(normalizeBoardDate(boardDate));
+  const workbook = await repository.getOrCreateWorkbook({ boardDayId: boardDay.id, scope, userId: user.id });
+  return { boardDay, repository, workbook };
+}
+
+export async function prepareWorkbookCarryovers(actor: AuthenticatedUser | null, boardDate: string, scope: WorkdayWorkbookScope = WorkdayWorkbookScope.COO, dependencies: Dependencies = {}) {
+  const user = assertAuthenticatedUser(actor);
+  const date = normalizeBoardDate(boardDate);
+  const { repository, workbook } = await getOwnedWorkbook(user, date, scope, dependencies);
+  assertWorkbookEditable(user, workbook);
+  const targetBoardDate = addDays(date, 1);
+  const carryovers = buildWorkdayCarryovers(workbook, targetBoardDate);
+  await repository.upsertCarryovers({ carryovers, workbookId: workbook.id });
+  await recordWorkbookActivity(repository, user, workbook, "workbook.carryover_prepared", `${user.name} prepared ${carryovers.length} carryover item(s).`, { count: carryovers.length, targetBoardDate });
+  return { count: carryovers.length, ok: true, targetBoardDate };
+}
+
+export async function updateWorkbookCarryover(actor: AuthenticatedUser | null, carryoverId: string, input: unknown, dependencies: Dependencies = {}) {
+  const user = assertAuthenticatedUser(actor);
+  const payload = normalizeObject(input);
+  const status = normalizeCarryoverStatus(payload.status);
+  const repository = dependencies.repository ?? createWorkdayWorkbookRepository();
+  const carryover = await repository.findCarryover(carryoverId.trim());
+  if (!carryover) throw new Error("Carryover item not found.");
+  assertWorkbookEditable(user, carryover.workbook);
+  await repository.updateCarryover({
+    convertedTaskId: normalizeOptionalText(payload.convertedTaskId, "convertedTaskId", 120),
+    dismissedReason: normalizeOptionalText(payload.dismissedReason, "dismissedReason", 500),
+    id: carryover.id,
+    status
+  });
+  await recordWorkbookActivity(repository, user, carryover.workbook, "workbook.carryover_updated", `${user.name} updated a carryover item.`, { carryoverId: carryover.id, status });
+  return { ok: true };
+}
+
+export async function closeWorkbookDay(actor: AuthenticatedUser | null, boardDate: string, scope: WorkdayWorkbookScope = WorkdayWorkbookScope.COO, dependencies: Dependencies = {}) {
+  const user = assertAuthenticatedUser(actor);
+  const date = normalizeBoardDate(boardDate);
+  const { repository, workbook } = await getOwnedWorkbook(user, date, scope, dependencies);
+  if (scope === WorkdayWorkbookScope.COO && !isManager(user)) throw new Error("Manager access is required to close the COO workbook.");
+  assertWorkbookEditable(user, workbook);
+  const targetBoardDate = addDays(date, 1);
+  const carryovers = buildWorkdayCarryovers(workbook, targetBoardDate);
+  await repository.upsertCarryovers({ carryovers, workbookId: workbook.id });
+  const snapshot = {
+    carryoverCount: carryovers.length,
+    checklistItems: workbook.checklistItems.map((item) => ({ id: item.id, text: item.text, status: item.status, done: item.done, update: item.update })),
+    closeReadiness: buildCloseReadiness(workbook),
+    quickUpdates: workbook.quickUpdates.map((item) => ({ id: item.id, text: item.text, followUpNeeded: item.followUpNeeded, dueWindow: item.dueWindow })),
+    reportDraftId: workbook.reportDrafts[0]?.id ?? null,
+    reportSeedIds: workbook.reportSeeds.map((seed) => seed.id)
+  };
+  await repository.closeWorkbook({ closeSnapshot: snapshot, closedByUserId: user.id, id: workbook.id });
+  await recordWorkbookActivity(repository, user, workbook, "workbook.day_closed", `${user.name} closed the workbook day.`, { targetBoardDate });
+  return { carryoverCount: carryovers.length, ok: true };
+}
+
+export async function reopenWorkbookDay(actor: AuthenticatedUser | null, workbookId: string, dependencies: Dependencies = {}) {
+  const user = assertAuthenticatedUser(actor);
+  const repository = dependencies.repository ?? createWorkdayWorkbookRepository();
+  const workbook = await repository.getWorkbookById(workbookId.trim());
+  if (!workbook) throw new Error("Workbook not found.");
+  assertCanManageWorkbook(user, workbook);
+  if (workbook.scope === WorkdayWorkbookScope.COO && !isManager(user)) throw new Error("Manager access is required to reopen the COO workbook.");
+  await repository.reopenWorkbook({ id: workbook.id });
+  await recordWorkbookActivity(repository, user, workbook, "workbook.day_reopened", `${user.name} reopened the workbook day.`, {});
+  return { ok: true };
+}
+
+export async function createStaffSupportAction(actor: AuthenticatedUser | null, workbookId: string, input: unknown, dependencies: Dependencies = {}) {
+  const user = assertAuthenticatedUser(actor);
+  if (!isManager(user)) throw new Error("Manager access is required for Staff Support.");
+  const payload = normalizeObject(input);
+  const note = normalizeRequiredText(payload.note, "Support note is required.", 1000);
+  const requestedUpdate = normalizeBoolean(payload.requestedUpdate, "requestedUpdate") ?? false;
+  const repository = dependencies.repository ?? createWorkdayWorkbookRepository();
+  const workbook = await repository.getWorkbookById(workbookId.trim());
+  if (!workbook) throw new Error("Workbook not found.");
+  await repository.createSupportAction({
+    actorUserId: user.id,
+    note,
+    requestedUpdate,
+    status: requestedUpdate ? WorkdaySupportActionStatus.UPDATE_REQUESTED : WorkdaySupportActionStatus.OPEN,
+    targetUserId: workbook.userId,
+    workbookId: workbook.id
+  });
+  await recordWorkbookActivity(repository, user, workbook, "workbook.staff_support_created", `${user.name} added a staff support note.`, { requestedUpdate, targetUserId: workbook.userId });
+  return { ok: true };
+}
+
+export async function updateStaffSupportAction(actor: AuthenticatedUser | null, actionId: string, input: unknown, dependencies: Dependencies = {}) {
+  const user = assertAuthenticatedUser(actor);
+  if (!isManager(user)) throw new Error("Manager access is required for Staff Support.");
+  const payload = normalizeObject(input);
+  const status = normalizeSupportActionStatus(payload.status);
+  const repository = dependencies.repository ?? createWorkdayWorkbookRepository();
+  const action = await repository.findSupportAction(actionId.trim());
+  if (!action) throw new Error("Staff support action not found.");
+  await repository.updateSupportAction({
+    id: action.id,
+    note: normalizeOptionalText(payload.note, "note", 1000),
+    requestedUpdate: normalizeBoolean(payload.requestedUpdate, "requestedUpdate"),
+    status
+  });
+  await recordWorkbookActivity(repository, user, action.workbook, "workbook.staff_support_updated", `${user.name} updated a staff support action.`, { actionId: action.id, status });
+  return { ok: true };
 }

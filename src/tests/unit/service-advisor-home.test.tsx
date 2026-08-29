@@ -13,6 +13,9 @@ const model = {
     userId: "user-alex",
     scope: "COO",
     status: "ACTIVE",
+    closedAt: null,
+    closedByUserId: null,
+    closeSnapshot: null,
     createdAt: "2026-07-20T14:00:00.000Z",
     updatedAt: "2026-07-20T14:00:00.000Z",
     checklistItems: [
@@ -26,6 +29,25 @@ const model = {
         convertedTaskId: null,
         createdAt: "2026-07-20T14:05:00.000Z",
         updatedAt: "2026-07-20T14:06:00.000Z"
+      }
+    ],
+    carryovers: [
+      {
+        id: "carryover-1",
+        sourceType: "CHECKLIST_ITEM",
+        sourceId: "checklist-1",
+        sourceHref: null,
+        title: "Review morning approval queue",
+        detail: "Waiting on customer callback.",
+        status: "OPEN",
+        targetBoardDate: "2026-07-21",
+        convertedTaskId: null,
+        dismissedReason: "",
+        confirmedAt: null,
+        dismissedAt: null,
+        convertedAt: null,
+        createdAt: "2026-07-20T14:12:00.000Z",
+        updatedAt: "2026-07-20T14:12:00.000Z"
       }
     ],
     quickUpdates: [
@@ -62,6 +84,9 @@ const model = {
       {
         id: "draft-1",
         version: 1,
+        cadence: "DAILY",
+        periodStart: "2026-07-20",
+        periodEnd: "2026-07-20",
         status: "DRAFT",
         title: "COO Daily Report - 2026-07-20",
         summary: "1 report item(s) prepared from 0 reviewed seed(s). 0 item(s) marked for carryover.",
@@ -98,6 +123,7 @@ const model = {
       checklistNeedsSupport: 1,
       quickFollowUps: 1,
       carryoverItems: 1,
+      supportActions: 0,
       reportSeedCount: 1,
       reviewedSeedCount: 0,
       includedSeedCount: 0,
@@ -108,7 +134,8 @@ const model = {
         "Confirm Quick Update follow-ups have an owner or due window.",
         "Review remaining report seeds before generating the final draft."
       ]
-    }
+    },
+    supportActions: []
   },
   staffWorkbook: {
     id: "staff-workbook-1",
@@ -116,6 +143,9 @@ const model = {
     userId: "user-alex",
     scope: "STAFF",
     status: "ACTIVE",
+    closedAt: null,
+    closedByUserId: null,
+    closeSnapshot: null,
     createdAt: "2026-07-20T14:00:00.000Z",
     updatedAt: "2026-07-20T14:00:00.000Z",
     checklistItems: [
@@ -131,6 +161,7 @@ const model = {
         updatedAt: "2026-07-20T14:06:00.000Z"
       }
     ],
+    carryovers: [],
     quickUpdates: [],
     reportSeeds: [],
     reportDrafts: [],
@@ -143,13 +174,15 @@ const model = {
       checklistNeedsSupport: 0,
       quickFollowUps: 0,
       carryoverItems: 0,
+      supportActions: 0,
       reportSeedCount: 0,
       reviewedSeedCount: 0,
       includedSeedCount: 0,
       excludedSeedCount: 0,
       latestDraftVersion: null,
       prompts: ["Daily close is ready for a manager review."]
-    }
+    },
+    supportActions: []
   },
   staffWorkbookSummaries: [
     {
@@ -162,6 +195,7 @@ const model = {
       quickUpdateCount: 0,
       followUpNeededCount: 0,
       carryoverCount: 0,
+      openSupportActions: 0,
       reportSeedCount: 0,
       reviewedSeedCount: 0,
       closeReadinessScore: 100,
@@ -343,7 +377,8 @@ describe("ServiceAdvisorHome", () => {
     expect(reportSeedsHtml).toContain("Include");
     expect(reportSeedsHtml).toContain("Exclude");
     expect(reportSeedsHtml).toContain("Optional review note");
-    expect(draftsHtml).toContain("Generate Draft");
+    expect(draftsHtml).toContain("Weekly");
+    expect(draftsHtml).toContain("Monthly");
     expect(draftsHtml).toContain("Copy Draft");
   });
 });

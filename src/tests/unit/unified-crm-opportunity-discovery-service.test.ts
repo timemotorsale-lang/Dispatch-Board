@@ -138,7 +138,7 @@ describe("getUnifiedCrmOpportunityDiscovery", () => {
     });
 
     expect(model.collectionObservation).toMatchObject({
-      detail: "Only same-scope persisted opportunities are available from this workspace entry for organization review. Lifecycle movement remains off.",
+      detail: "Only same-scope persisted opportunities are available from this workspace entry for organization review. Lifecycle movement uses governed commands.",
       freshnessLabel: "Newest visible persisted update observed at 2026-08-15T02:00:00.000Z.",
       newestVisibleRecordUpdatedAt: "2026-08-15T02:00:00.000Z",
       state: "READY",

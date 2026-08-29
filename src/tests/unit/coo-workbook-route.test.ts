@@ -1,16 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  createCooWorkbookDailyReportDraft: vi.fn(),
   createCooWorkbookChecklistItem: vi.fn(),
+  createCooWorkbookReportDraft: vi.fn(),
+  createStaffSupportAction: vi.fn(),
   createStaffWorkbookChecklistItem: vi.fn(),
-  createStaffWorkbookDailyReportDraft: vi.fn(),
   createStaffWorkbookQuickUpdate: vi.fn(),
+  createStaffWorkbookReportDraft: vi.fn(),
+  closeWorkbookDay: vi.fn(),
   getCurrentUser: vi.fn(),
   getStaffWorkbook: vi.fn(),
   getStaffWorkbookSummaries: vi.fn(),
   getServiceAdvisorWorkspace: vi.fn(),
-  updateCooWorkbookReportSeed: vi.fn()
+  prepareWorkbookCarryovers: vi.fn(),
+  reopenWorkbookDay: vi.fn(),
+  updateCooWorkbookReportSeed: vi.fn(),
+  updateStaffSupportAction: vi.fn(),
+  updateWorkbookCarryover: vi.fn()
 }));
 
 vi.mock("@/server/auth/current-user", () => ({
@@ -22,23 +28,35 @@ vi.mock("@/server/advisor-workspace/service", () => ({
 }));
 
 vi.mock("@/server/services/workday-workbook", () => ({
+  closeWorkbookDay: mocks.closeWorkbookDay,
   createCooWorkbookChecklistItem: mocks.createCooWorkbookChecklistItem,
-  createCooWorkbookDailyReportDraft: mocks.createCooWorkbookDailyReportDraft,
+  createCooWorkbookReportDraft: mocks.createCooWorkbookReportDraft,
+  createStaffSupportAction: mocks.createStaffSupportAction,
   createStaffWorkbookChecklistItem: mocks.createStaffWorkbookChecklistItem,
-  createStaffWorkbookDailyReportDraft: mocks.createStaffWorkbookDailyReportDraft,
   createStaffWorkbookQuickUpdate: mocks.createStaffWorkbookQuickUpdate,
+  createStaffWorkbookReportDraft: mocks.createStaffWorkbookReportDraft,
   getStaffWorkbook: mocks.getStaffWorkbook,
   getStaffWorkbookSummaries: mocks.getStaffWorkbookSummaries,
-  updateCooWorkbookReportSeed: mocks.updateCooWorkbookReportSeed
+  prepareWorkbookCarryovers: mocks.prepareWorkbookCarryovers,
+  reopenWorkbookDay: mocks.reopenWorkbookDay,
+  updateCooWorkbookReportSeed: mocks.updateCooWorkbookReportSeed,
+  updateStaffSupportAction: mocks.updateStaffSupportAction,
+  updateWorkbookCarryover: mocks.updateWorkbookCarryover
 }));
 
 import { POST as POSTChecklist } from "@/app/api/coo-workbook/checklist/route";
+import { POST as POSTClose } from "@/app/api/coo-workbook/close/route";
+import { POST as POSTCarryovers } from "@/app/api/coo-workbook/carryovers/route";
+import { PATCH as PATCHCarryover } from "@/app/api/coo-workbook/carryovers/[carryoverId]/route";
 import { POST as POSTReportDraft } from "@/app/api/coo-workbook/report-drafts/route";
 import { PATCH as PATCHReportSeed } from "@/app/api/coo-workbook/report-seeds/[seedId]/route";
+import { POST as POSTReopen } from "@/app/api/coo-workbook/reopen/route";
 import { GET as GETStaffWorkbook } from "@/app/api/coo-workbook/staff/route";
 import { POST as POSTStaffChecklist } from "@/app/api/coo-workbook/staff/checklist/route";
 import { POST as POSTStaffQuickUpdate } from "@/app/api/coo-workbook/staff/quick-updates/route";
 import { POST as POSTStaffReportDraft } from "@/app/api/coo-workbook/staff/report-drafts/route";
+import { POST as POSTStaffSupport } from "@/app/api/coo-workbook/staff-support/route";
+import { PATCH as PATCHStaffSupport } from "@/app/api/coo-workbook/staff-support/[actionId]/route";
 
 const user = {
   id: "user-manager",
@@ -57,14 +75,20 @@ describe("COO workbook checklist route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getCurrentUser.mockResolvedValue(user);
+    mocks.closeWorkbookDay.mockResolvedValue({ ok: true });
     mocks.createCooWorkbookChecklistItem.mockResolvedValue({ ok: true });
-    mocks.createCooWorkbookDailyReportDraft.mockResolvedValue({ ok: true });
+    mocks.createCooWorkbookReportDraft.mockResolvedValue({ ok: true });
+    mocks.createStaffSupportAction.mockResolvedValue({ ok: true });
     mocks.createStaffWorkbookChecklistItem.mockResolvedValue({ ok: true });
-    mocks.createStaffWorkbookDailyReportDraft.mockResolvedValue({ ok: true });
     mocks.createStaffWorkbookQuickUpdate.mockResolvedValue({ ok: true });
+    mocks.createStaffWorkbookReportDraft.mockResolvedValue({ ok: true });
     mocks.getStaffWorkbook.mockResolvedValue({ id: "staff-workbook-1" });
     mocks.getStaffWorkbookSummaries.mockResolvedValue([{ staffName: "Alex Carter" }]);
+    mocks.prepareWorkbookCarryovers.mockResolvedValue({ count: 2, ok: true, targetBoardDate: "2026-08-30" });
+    mocks.reopenWorkbookDay.mockResolvedValue({ ok: true });
     mocks.updateCooWorkbookReportSeed.mockResolvedValue({ ok: true });
+    mocks.updateStaffSupportAction.mockResolvedValue({ ok: true });
+    mocks.updateWorkbookCarryover.mockResolvedValue({ ok: true });
     mocks.getServiceAdvisorWorkspace.mockResolvedValue({
       actionQueue: [
         { actionKind: "AUTHORIZATION" },
@@ -117,7 +141,7 @@ describe("COO workbook checklist route", () => {
 
     expect(response.status).toBe(201);
     await expect(response.json()).resolves.toEqual({ ok: true });
-    expect(mocks.createCooWorkbookDailyReportDraft).toHaveBeenCalledWith(user, "2026-08-29", {
+    expect(mocks.createCooWorkbookReportDraft).toHaveBeenCalledWith(user, "2026-08-29", "DAILY", {
       approvalCount: 1,
       handoffCount: 1,
       reportExceptions: 3
@@ -162,6 +186,57 @@ describe("COO workbook checklist route", () => {
     }));
 
     expect(response.status).toBe(201);
-    expect(mocks.createStaffWorkbookDailyReportDraft).toHaveBeenCalledWith(user, "2026-08-29");
+    expect(mocks.createStaffWorkbookReportDraft).toHaveBeenCalledWith(user, "2026-08-29", "DAILY");
+  });
+
+  it("prepares carryover items for the selected workbook scope", async () => {
+    const response = await POSTCarryovers(new Request("http://localhost/api/coo-workbook/carryovers?date=2026-08-29&scope=STAFF", {
+      method: "POST"
+    }));
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toEqual({ count: 2, ok: true, targetBoardDate: "2026-08-30" });
+    expect(mocks.prepareWorkbookCarryovers).toHaveBeenCalledWith(user, "2026-08-29", "STAFF");
+  });
+
+  it("updates carryover review state", async () => {
+    const response = await PATCHCarryover(new Request("http://localhost/api/coo-workbook/carryovers/carryover-1", {
+      method: "PATCH",
+      body: JSON.stringify({ status: "CONFIRMED" })
+    }), { params: Promise.resolve({ carryoverId: "carryover-1" }) });
+
+    expect(response.status).toBe(200);
+    expect(mocks.updateWorkbookCarryover).toHaveBeenCalledWith(user, "carryover-1", { status: "CONFIRMED" });
+  });
+
+  it("closes and reopens workbook days", async () => {
+    const closeResponse = await POSTClose(new Request("http://localhost/api/coo-workbook/close?date=2026-08-29&scope=COO", {
+      method: "POST"
+    }));
+    const reopenResponse = await POSTReopen(new Request("http://localhost/api/coo-workbook/reopen", {
+      method: "POST",
+      body: JSON.stringify({ workbookId: "workbook-1" })
+    }));
+
+    expect(closeResponse.status).toBe(201);
+    expect(reopenResponse.status).toBe(201);
+    expect(mocks.closeWorkbookDay).toHaveBeenCalledWith(user, "2026-08-29", "COO");
+    expect(mocks.reopenWorkbookDay).toHaveBeenCalledWith(user, "workbook-1");
+  });
+
+  it("creates and updates staff support actions", async () => {
+    const createResponse = await POSTStaffSupport(new Request("http://localhost/api/coo-workbook/staff-support?workbookId=staff-workbook-1", {
+      method: "POST",
+      body: JSON.stringify({ note: "Please add the callback result.", requestedUpdate: true })
+    }));
+    const updateResponse = await PATCHStaffSupport(new Request("http://localhost/api/coo-workbook/staff-support/support-1", {
+      method: "PATCH",
+      body: JSON.stringify({ status: "RESOLVED" })
+    }), { params: Promise.resolve({ actionId: "support-1" }) });
+
+    expect(createResponse.status).toBe(201);
+    expect(updateResponse.status).toBe(200);
+    expect(mocks.createStaffSupportAction).toHaveBeenCalledWith(user, "staff-workbook-1", { note: "Please add the callback result.", requestedUpdate: true });
+    expect(mocks.updateStaffSupportAction).toHaveBeenCalledWith(user, "support-1", { status: "RESOLVED" });
   });
 });

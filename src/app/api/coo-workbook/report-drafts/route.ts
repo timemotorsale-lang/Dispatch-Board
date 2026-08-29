@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getServiceAdvisorWorkspace } from "@/server/advisor-workspace/service";
 import { getCurrentUser } from "@/server/auth/current-user";
-import { createCooWorkbookDailyReportDraft } from "@/server/services/workday-workbook";
+import { createCooWorkbookReportDraft } from "@/server/services/workday-workbook";
 
 function statusFor(message: string) {
   if (message === "Authentication required.") return 401;
@@ -13,6 +13,7 @@ function statusFor(message: string) {
 export async function POST(request: Request) {
   const url = new URL(request.url);
   const boardDate = url.searchParams.get("date") ?? new Date().toISOString().slice(0, 10);
+  const cadence = (url.searchParams.get("cadence") ?? "DAILY").toUpperCase();
 
   try {
     const user = await getCurrentUser();
@@ -21,7 +22,7 @@ export async function POST(request: Request) {
     const approvalCount = model.actionQueue.filter((item) => item.actionKind === "AUTHORIZATION").length;
     const handoffCount = model.actionQueue.filter((item) => item.actionKind === "HANDOFF").length;
     const reportExceptions = model.counts.needsAttention + model.counts.waitingOnOthers;
-    return NextResponse.json(await createCooWorkbookDailyReportDraft(user, boardDate, {
+    return NextResponse.json(await createCooWorkbookReportDraft(user, boardDate, cadence, {
       approvalCount,
       handoffCount,
       reportExceptions

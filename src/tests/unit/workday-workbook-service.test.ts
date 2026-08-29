@@ -1,9 +1,12 @@
 import {
+  WorkdayCarryoverStatus,
   WorkdayChecklistStatus,
   WorkdayQuickUpdateCategory,
+  WorkdayReportCadence,
   WorkdayReportSeedSourceType,
   WorkdayReportSeedStatus,
   WorkdayReportSeedTone,
+  WorkdaySupportActionStatus,
   WorkdayWorkbookScope,
   type BoardDay
 } from "@prisma/client";
@@ -12,13 +15,20 @@ import { describe, expect, it } from "vitest";
 import type { WorkdayWorkbookRepository, WorkdayWorkbookRecord } from "@/server/repositories/workday-workbook-repository";
 import {
   buildWorkdayDailyReportDraft,
+  buildWorkdayCarryovers,
   buildWorkdayReportSeeds,
+  closeWorkbookDay,
   createCooWorkbookChecklistItem,
+  createCooWorkbookReportDraft,
+  createStaffSupportAction,
   createStaffWorkbookChecklistItem,
   getStaffWorkbook,
   getStaffWorkbookSummaries,
+  prepareWorkbookCarryovers,
+  reopenWorkbookDay,
   updateCooWorkbookChecklistItem,
-  updateCooWorkbookReportSeed
+  updateCooWorkbookReportSeed,
+  updateWorkbookCarryover
 } from "@/server/services/workday-workbook";
 import { createTestAuthStore } from "@/tests/support/auth-test-store";
 
@@ -37,9 +47,13 @@ function workbook(userId = "user-jordan.sales@local.test"): WorkdayWorkbookRecor
   return {
     id: "workbook-1",
     boardDayId: boardDay.id,
+    boardDay,
     userId,
     scope: WorkdayWorkbookScope.COO,
     status: "ACTIVE",
+    closedAt: null,
+    closedByUserId: null,
+    closeSnapshot: null,
     createdAt: now,
     updatedAt: now,
     checklistItems: [
@@ -68,6 +82,7 @@ function workbook(userId = "user-jordan.sales@local.test"): WorkdayWorkbookRecor
         updatedAt: now
       }
     ],
+    carryovers: [],
     quickUpdates: [
       {
         id: "quick-1",
@@ -128,17 +143,28 @@ function workbook(userId = "user-jordan.sales@local.test"): WorkdayWorkbookRecor
         updatedAt: now
       }
     ],
-    reportDrafts: []
+    reportDrafts: [],
+    supportActions: []
   };
 }
 
 function repositoryHarness(ownerUserId = "user-jordan.sales@local.test") {
   const createdChecklistItems: Array<{ text: string; workbookId: string }> = [];
   const createdReportDrafts: unknown[] = [];
+  const createdSupportActions: unknown[] = [];
+  const activityEvents: unknown[] = [];
   const checklistUpdates: unknown[] = [];
+  const carryoverUpdates: unknown[] = [];
+  const closedWorkbooks: unknown[] = [];
   const reportSeedUpdates: unknown[] = [];
+  const reopenedWorkbooks: unknown[] = [];
+  const supportActionUpdates: unknown[] = [];
+  const upsertedCarryovers: unknown[] = [];
   const currentWorkbook = workbook(ownerUserId);
   const repository: WorkdayWorkbookRepository = {
+    async closeWorkbook(input) {
+      closedWorkbooks.push(input);
+    },
     async createChecklistItem(input) {
       createdChecklistItems.push(input);
     },
@@ -148,8 +174,15 @@ function repositoryHarness(ownerUserId = "user-jordan.sales@local.test") {
     async createQuickUpdate() {
       throw new Error("not needed");
     },
+    async createSupportAction(input) {
+      createdSupportActions.push(input);
+    },
     async findChecklistItem(itemId) {
       const item = currentWorkbook.checklistItems.find((candidate) => candidate.id === itemId);
+      return item ? { ...item, workbook: currentWorkbook } : null;
+    },
+    async findCarryover(carryoverId) {
+      const item = currentWorkbook.carryovers.find((candidate) => candidate.id === carryoverId);
       return item ? { ...item, workbook: currentWorkbook } : null;
     },
     async findQuickUpdate() {
@@ -159,11 +192,21 @@ function repositoryHarness(ownerUserId = "user-jordan.sales@local.test") {
       const seed = currentWorkbook.reportSeeds.find((candidate) => candidate.id === seedId);
       return seed ? { ...seed, workbook: currentWorkbook } : null;
     },
+    async findSupportAction(actionId) {
+      const item = currentWorkbook.supportActions.find((candidate) => candidate.id === actionId);
+      return item ? { ...item, workbook: currentWorkbook } : null;
+    },
     async getOrCreateBoardDay() {
       return boardDay;
     },
     async getOrCreateWorkbook() {
       return currentWorkbook;
+    },
+    async getWorkbookById(id) {
+      return id === currentWorkbook.id ? currentWorkbook : null;
+    },
+    async listWorkbooksForBoardDateRange() {
+      return [currentWorkbook];
     },
     async listWorkbooksForBoardDay() {
       return [{
@@ -183,16 +226,35 @@ function repositoryHarness(ownerUserId = "user-jordan.sales@local.test") {
           followUpNeeded: item.followUpNeeded,
           updatedAt: item.updatedAt
         })),
+        carryovers: currentWorkbook.carryovers.map((item) => ({
+          status: item.status,
+          targetBoardDate: item.targetBoardDate,
+          updatedAt: item.updatedAt
+        })),
         reportDrafts: [{
+          cadence: WorkdayReportCadence.DAILY,
           generatedAt: new Date("2026-08-29T15:00:00.000Z"),
           status: "DRAFT",
           version: 1
         }],
-        reportSeeds: currentWorkbook.reportSeeds.map((seed) => ({ id: seed.id, status: seed.status }))
+        reportSeeds: currentWorkbook.reportSeeds.map((seed) => ({ id: seed.id, status: seed.status })),
+        supportActions: currentWorkbook.supportActions.map((item) => ({
+          status: item.status,
+          updatedAt: item.updatedAt
+        }))
       }];
+    },
+    async recordActivity(input) {
+      activityEvents.push(input);
+    },
+    async reopenWorkbook(input) {
+      reopenedWorkbooks.push(input);
     },
     async updateChecklistItem(input) {
       checklistUpdates.push(input);
+    },
+    async updateCarryover(input) {
+      carryoverUpdates.push(input);
     },
     async updateQuickUpdate() {
       throw new Error("not needed");
@@ -200,12 +262,18 @@ function repositoryHarness(ownerUserId = "user-jordan.sales@local.test") {
     async updateReportSeed(input) {
       reportSeedUpdates.push(input);
     },
+    async updateSupportAction(input) {
+      supportActionUpdates.push(input);
+    },
+    async upsertCarryovers(input) {
+      upsertedCarryovers.push(input);
+    },
     async upsertReportSeeds() {
       return undefined;
     }
   };
 
-  return { checklistUpdates, createdChecklistItems, createdReportDrafts, reportSeedUpdates, repository };
+  return { activityEvents, carryoverUpdates, checklistUpdates, closedWorkbooks, createdChecklistItems, createdReportDrafts, createdSupportActions, currentWorkbook, reopenedWorkbooks, reportSeedUpdates, repository, supportActionUpdates, upsertedCarryovers };
 }
 
 describe("workday workbook service", () => {
@@ -234,11 +302,38 @@ describe("workday workbook service", () => {
     const draft = buildWorkdayDailyReportDraft(workbook(), "2026-08-29");
 
     expect(draft.title).toBe("COO Daily Report - 2026-08-29");
+    expect(draft.cadence).toBe(WorkdayReportCadence.DAILY);
     expect(draft.sourceSeedIds).toEqual(["seed-2", "seed-1"]);
     expect(draft.summary).toContain("2 report item(s)");
     expect(draft.sections.map((section) => section.title)).toContain("Blockers and Risks");
     expect(draft.sections.map((section) => section.title)).toContain("Carryover for Tomorrow");
     expect(JSON.stringify(draft.sections)).not.toContain("Do not include this line.");
+  });
+
+  it("builds carryovers from checklist, Quick Updates, and reviewed carried seeds", () => {
+    const targetBoardDate = "2026-08-30";
+    const seeds = buildWorkdayCarryovers(workbook(), targetBoardDate);
+
+    expect(seeds).toEqual([
+      expect.objectContaining({
+        sourceId: "checklist-1",
+        sourceType: WorkdayReportSeedSourceType.CHECKLIST_ITEM,
+        targetBoardDate,
+        title: "Call vendor about roof estimate"
+      }),
+      expect.objectContaining({
+        sourceId: "quick-1",
+        sourceType: WorkdayReportSeedSourceType.QUICK_UPDATE,
+        targetBoardDate,
+        title: "Sales opportunity follow-up"
+      }),
+      expect.objectContaining({
+        sourceId: "seed-1",
+        sourceType: WorkdayReportSeedSourceType.OPERATING_EXCEPTION,
+        targetBoardDate,
+        title: "Call vendor about roof estimate"
+      })
+    ]);
   });
 
   it("creates a checklist item in the current user's COO workbook", async () => {
@@ -313,6 +408,88 @@ describe("workday workbook service", () => {
         reviewNote: "Confirmed carryover.",
         status: WorkdayReportSeedStatus.INCLUDED,
         title: undefined
+      }
+    ]);
+  });
+
+  it("generates weekly report drafts from the workbook range", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("jordan.sales@local.test")!;
+    const harness = repositoryHarness(user.id);
+
+    await createCooWorkbookReportDraft(user, "2026-08-29", "WEEKLY", {
+      approvalCount: 1,
+      handoffCount: 1,
+      reportExceptions: 2
+    }, { repository: harness.repository });
+
+    expect(harness.createdReportDrafts).toEqual([
+      expect.objectContaining({
+        cadence: WorkdayReportCadence.WEEKLY,
+        periodEnd: "2026-08-29",
+        periodStart: "2026-08-23",
+        workbookId: "workbook-1"
+      })
+    ]);
+    expect(harness.activityEvents).toEqual([
+      expect.objectContaining({ eventType: "workbook.report_draft_generated" })
+    ]);
+  });
+
+  it("prepares, confirms, closes, and reopens carryover workflow state", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("morgan.manager@local.test")!;
+    const harness = repositoryHarness(user.id);
+    const now = new Date("2026-08-29T15:30:00.000Z");
+    harness.currentWorkbook.carryovers.push({
+      id: "carryover-1",
+      workbookId: "workbook-1",
+      sourceType: WorkdayReportSeedSourceType.CHECKLIST_ITEM,
+      sourceId: "checklist-1",
+      sourceHref: null,
+      title: "Call vendor about roof estimate",
+      detail: "Waiting on AJ to confirm timing.",
+      status: WorkdayCarryoverStatus.OPEN,
+      targetBoardDate: new Date("2026-08-30T00:00:00.000Z"),
+      convertedTaskId: null,
+      dismissedReason: "",
+      confirmedAt: null,
+      dismissedAt: null,
+      convertedAt: null,
+      createdAt: now,
+      updatedAt: now
+    });
+
+    await prepareWorkbookCarryovers(user, "2026-08-29", WorkdayWorkbookScope.COO, { repository: harness.repository });
+    await updateWorkbookCarryover(user, "carryover-1", { status: "CONFIRMED" }, { repository: harness.repository });
+    await closeWorkbookDay(user, "2026-08-29", WorkdayWorkbookScope.COO, { repository: harness.repository });
+    await reopenWorkbookDay(user, "workbook-1", { repository: harness.repository });
+
+    expect(harness.upsertedCarryovers).toHaveLength(2);
+    expect(harness.carryoverUpdates).toEqual([
+      expect.objectContaining({ id: "carryover-1", status: WorkdayCarryoverStatus.CONFIRMED })
+    ]);
+    expect(harness.closedWorkbooks).toEqual([
+      expect.objectContaining({ closedByUserId: user.id, id: "workbook-1" })
+    ]);
+    expect(harness.reopenedWorkbooks).toEqual([{ id: "workbook-1" }]);
+  });
+
+  it("allows managers to create staff support actions", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("morgan.manager@local.test")!;
+    const harness = repositoryHarness("user-jordan.sales@local.test");
+
+    await createStaffSupportAction(user, "workbook-1", { note: "Please add a clear callback outcome.", requestedUpdate: true }, { repository: harness.repository });
+
+    expect(harness.createdSupportActions).toEqual([
+      {
+        actorUserId: user.id,
+        note: "Please add a clear callback outcome.",
+        requestedUpdate: true,
+        status: WorkdaySupportActionStatus.UPDATE_REQUESTED,
+        targetUserId: "user-jordan.sales@local.test",
+        workbookId: "workbook-1"
       }
     ]);
   });

@@ -62,7 +62,7 @@ describe("Unified CRM opportunity read service", () => {
     });
 
     expect(model.visibility).toBe("owned");
-    expect(model.listPreview.heading).toContain("owned opportunity list");
+    expect(model.listPreview.heading).toContain("Your opportunity list");
   });
 
   it("surfaces a governed read-only collection in the list preview when available", async () => {

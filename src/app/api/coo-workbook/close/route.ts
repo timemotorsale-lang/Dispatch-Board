@@ -1,0 +1,25 @@
+import { WorkdayWorkbookScope } from "@prisma/client";
+import { NextResponse } from "next/server";
+
+import { getCurrentUser } from "@/server/auth/current-user";
+import { closeWorkbookDay } from "@/server/services/workday-workbook";
+
+function statusFor(message: string) {
+  if (message === "Authentication required.") return 401;
+  if (message.includes("Manager access")) return 403;
+  if (message.includes("closed") || message.includes("must be")) return 400;
+  return 500;
+}
+
+export async function POST(request: Request) {
+  const url = new URL(request.url);
+  const boardDate = url.searchParams.get("date") ?? new Date().toISOString().slice(0, 10);
+  const scope = url.searchParams.get("scope") === "STAFF" ? WorkdayWorkbookScope.STAFF : WorkdayWorkbookScope.COO;
+
+  try {
+    return NextResponse.json(await closeWorkbookDay(await getCurrentUser(), boardDate, scope), { status: 201 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to close workbook day.";
+    return NextResponse.json({ error: message }, { status: statusFor(message) });
+  }
+}

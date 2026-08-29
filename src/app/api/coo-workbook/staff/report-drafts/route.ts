@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/server/auth/current-user";
-import { createStaffWorkbookDailyReportDraft } from "@/server/services/workday-workbook";
+import { createStaffWorkbookReportDraft } from "@/server/services/workday-workbook";
 
 function statusFor(message: string) {
   if (message === "Authentication required.") return 401;
@@ -12,9 +12,10 @@ function statusFor(message: string) {
 export async function POST(request: Request) {
   const url = new URL(request.url);
   const boardDate = url.searchParams.get("date") ?? new Date().toISOString().slice(0, 10);
+  const cadence = (url.searchParams.get("cadence") ?? "DAILY").toUpperCase();
 
   try {
-    return NextResponse.json(await createStaffWorkbookDailyReportDraft(await getCurrentUser(), boardDate), { status: 201 });
+    return NextResponse.json(await createStaffWorkbookReportDraft(await getCurrentUser(), boardDate, cadence), { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to generate staff Daily Report Draft.";
     return NextResponse.json({ error: message }, { status: statusFor(message) });

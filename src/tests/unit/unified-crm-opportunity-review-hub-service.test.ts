@@ -61,7 +61,7 @@ describe("Unified CRM opportunity review hub service", () => {
       contractVersion: "ucrm.opportunity-review-hub/v1",
       generatedAt: "2026-08-14T21:00:00.000Z",
       liveReadObservation: {
-        detail: expect.stringContaining("No same-scope persisted read-only opportunity is visible right now"),
+        detail: expect.stringContaining("No same-scope persisted opportunity is visible right now"),
         freshnessLabel: "No visible persisted opportunity update is available yet.",
         newestVisibleRecordUpdatedAt: null,
         state: "EMPTY",
@@ -173,7 +173,7 @@ describe("Unified CRM opportunity review hub service", () => {
       state: "HELD_REVIEW"
     });
     expect(model.liveReadObservation).toMatchObject({
-      detail: expect.stringContaining("No same-scope persisted read-only opportunity is visible right now"),
+      detail: expect.stringContaining("No same-scope persisted opportunity is visible right now"),
       freshnessLabel: "No visible persisted opportunity update is available yet.",
       newestVisibleRecordUpdatedAt: null,
       state: "EMPTY",

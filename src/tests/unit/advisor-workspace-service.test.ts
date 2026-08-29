@@ -56,6 +56,12 @@ vi.mock("@/server/repair-order/service", () => ({
   }))
 }));
 
+vi.mock("@/server/services/workday-workbook", () => ({
+  getCooWorkbook: vi.fn(async () => ({ id: "coo-workbook-1" })),
+  getStaffWorkbook: vi.fn(async () => ({ id: "staff-workbook-1" })),
+  getStaffWorkbookSummaries: vi.fn(async () => [])
+}));
+
 describe("getServiceAdvisorWorkspace", () => {
   it("does not crash when legacy repair-order fields are incomplete", async () => {
     const result = await getServiceAdvisorWorkspace(actor);

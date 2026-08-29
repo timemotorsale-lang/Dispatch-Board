@@ -142,8 +142,11 @@ type StaffWorkbookSummary = ServiceAdvisorWorkspaceModel["staffWorkbookSummaries
 type DailyChecklistItem = WorkdayWorkbookModel["checklistItems"][number];
 type QuickUpdateItem = WorkdayWorkbookModel["quickUpdates"][number];
 type ReportSeedItem = WorkdayWorkbookModel["reportSeeds"][number];
+type CarryoverItem = WorkdayWorkbookModel["carryovers"][number];
+type SupportActionItem = WorkdayWorkbookModel["supportActions"][number];
 type DailyChecklistStatus = DailyChecklistItem["status"];
 type QuickUpdateCategory = QuickUpdateItem["category"];
+type ReportCadence = "DAILY" | "WEEKLY" | "MONTHLY";
 export type CooWorkbookTool = "CHECKLIST" | "TO_DO_LIST" | "QUICK_UPDATE" | "ACTION_PLAN" | "CARRYOVER" | "REPORT_SEEDS" | "STAFF_SUPPORT" | "DRAFTS";
 
 const quickUpdateCategories: Array<{ label: string; value: QuickUpdateCategory }> = [
@@ -209,6 +212,8 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
   const [quickUpdateCompany, setQuickUpdateCompany] = useState("");
   const [quickUpdateFollowUp, setQuickUpdateFollowUp] = useState(false);
   const [quickUpdateDueWindow, setQuickUpdateDueWindow] = useState("");
+  const [supportNote, setSupportNote] = useState("");
+  const [supportUpdateRequested, setSupportUpdateRequested] = useState(true);
   const [workspaceNotice, setWorkspaceNotice] = useState<string | null>(null);
   const [convertingId, setConvertingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -220,6 +225,9 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
   const quickUpdates = activeWorkbook.quickUpdates;
   const reportSeeds = activeWorkbook.reportSeeds;
   const latestReportDraft = activeWorkbook.reportDrafts[0] ?? null;
+  const carryovers = activeWorkbook.carryovers;
+  const supportActions = activeWorkbook.supportActions;
+  const isClosed = activeWorkbook.status === "CLOSED";
   const closeReadiness = activeWorkbook.closeReadiness;
   const checklistRollup = {
     carryover: checklistItems.filter((item) => item.carryoverReady).length,
@@ -313,7 +321,8 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
   const carryoverPreview = [
     ...checklistItems.filter((item) => item.carryoverReady).map((item) => ({ detail: item.update || checklistStatusLabel(item), id: `checklist-${item.id}`, kind: "Checklist", title: item.text })),
     ...quickUpdates.filter((item) => item.carryoverReady).map((item) => ({ detail: [item.person, item.company, item.dueWindow].filter(Boolean).join(" · ") || item.text, id: `quick-${item.id}`, kind: "Quick Update", title: item.text })),
-    ...reportSeeds.filter((seed) => seed.status === "CARRIED_OVER").map((seed) => ({ detail: seed.detail, id: `seed-${seed.id}`, kind: reportSeedSourceLabel(seed), title: seed.title }))
+    ...reportSeeds.filter((seed) => seed.status === "CARRIED_OVER").map((seed) => ({ detail: seed.detail, id: `seed-${seed.id}`, kind: reportSeedSourceLabel(seed), title: seed.title })),
+    ...carryovers.filter((item) => item.status !== "DISMISSED").map((item) => ({ detail: item.detail, id: `carryover-${item.id}`, kind: `Carryover · ${item.status.toLocaleLowerCase()}`, title: item.title }))
   ].slice(0, 6);
   const staffSupportQueue = [...staffWorkbookSummaries]
     .filter((item) => item.closeReadinessTone !== "READY" || item.redYellowItemCount > 0 || item.followUpNeededCount > 0 || item.carryoverCount > 0)
@@ -368,6 +377,10 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
   async function addChecklistItem() {
     const text = checklistText.trim();
     if (!text) return;
+    if (isClosed) {
+      setWorkspaceNotice("This workbook day is closed. Reopen it before adding checklist items.");
+      return;
+    }
     setSaving(true);
     try {
       const response = await fetch(`/api/coo-workbook/${workbookView === "MY" ? "staff/checklist" : "checklist"}?date=${encodeURIComponent(model.generatedAt.slice(0, 10))}`, {
@@ -392,6 +405,10 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
   }
 
   async function persistChecklistItem(id: string, patch: Partial<DailyChecklistItem>) {
+    if (isClosed) {
+      setWorkspaceNotice("This workbook day is closed. Reopen it before updating checklist items.");
+      return;
+    }
     updateChecklistItem(id, patch);
     try {
       const response = await fetch(`/api/coo-workbook/checklist/${encodeURIComponent(id)}`, {
@@ -410,6 +427,10 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
   async function addQuickUpdate() {
     const text = quickUpdateText.trim();
     if (!text) return;
+    if (isClosed) {
+      setWorkspaceNotice("This workbook day is closed. Reopen it before saving Quick Updates.");
+      return;
+    }
     setSaving(true);
     try {
       const response = await fetch(`/api/coo-workbook/${workbookView === "MY" ? "staff/quick-updates" : "quick-updates"}?date=${encodeURIComponent(model.generatedAt.slice(0, 10))}`, {
@@ -439,6 +460,10 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
   }
 
   async function persistQuickUpdate(id: string, patch: Partial<QuickUpdateItem>) {
+    if (isClosed) {
+      setWorkspaceNotice("This workbook day is closed. Reopen it before updating Quick Updates.");
+      return;
+    }
     updateQuickUpdateItem(id, patch);
     try {
       const response = await fetch(`/api/coo-workbook/quick-updates/${encodeURIComponent(id)}`, {
@@ -459,6 +484,10 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
   }
 
   async function persistReportSeed(id: string, patch: Partial<ReportSeedItem>) {
+    if (isClosed) {
+      setWorkspaceNotice("This workbook day is closed. Reopen it before updating Report Seeds.");
+      return;
+    }
     updateReportSeed(id, patch);
     try {
       const response = await fetch(`/api/coo-workbook/report-seeds/${encodeURIComponent(id)}`, {
@@ -474,18 +503,22 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
     }
   }
 
-  async function generateDailyReportDraft() {
+  async function generateReportDraft(cadence: ReportCadence = "DAILY") {
+    if (isClosed) {
+      setWorkspaceNotice("This workbook day is closed. Reopen it before generating a new report draft.");
+      return;
+    }
     setSaving(true);
     try {
-      const response = await fetch(`/api/coo-workbook/${workbookView === "MY" ? "staff/report-drafts" : "report-drafts"}?date=${encodeURIComponent(model.generatedAt.slice(0, 10))}`, {
+      const response = await fetch(`/api/coo-workbook/${workbookView === "MY" ? "staff/report-drafts" : "report-drafts"}?date=${encodeURIComponent(model.generatedAt.slice(0, 10))}&cadence=${cadence}`, {
         method: "POST"
       });
       const payload = await response.json().catch(() => null) as { error?: string } | null;
-      if (!response.ok) throw new Error(payload?.error ?? "Unable to generate Daily Report Draft.");
+      if (!response.ok) throw new Error(payload?.error ?? "Unable to generate Report Draft.");
       await refreshActiveWorkbook();
-      setWorkspaceNotice(`${activeWorkbookLabel} Daily Report Draft generated from reviewed seeds.`);
+      setWorkspaceNotice(`${activeWorkbookLabel} ${cadence.toLocaleLowerCase()} Report Draft generated.`);
     } catch (error) {
-      setWorkspaceNotice(error instanceof Error ? error.message : "Unable to generate Daily Report Draft.");
+      setWorkspaceNotice(error instanceof Error ? error.message : "Unable to generate Report Draft.");
     } finally {
       setSaving(false);
     }
@@ -502,6 +535,10 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
   }
 
   async function convertToTask(source: "checklist" | "quick", item: DailyChecklistItem | QuickUpdateItem) {
+    if (isClosed) {
+      setWorkspaceNotice("This workbook day is closed. Reopen it before converting items to tasks.");
+      return;
+    }
     setConvertingId(item.id);
     setWorkspaceNotice(null);
     const now = new Date();
@@ -551,6 +588,153 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
     }
   }
 
+  async function convertCarryoverToTask(item: CarryoverItem) {
+    if (isClosed) {
+      setWorkspaceNotice("This workbook day is closed. Reopen it before converting carryover items to tasks.");
+      return;
+    }
+    setConvertingId(item.id);
+    setWorkspaceNotice(null);
+    const dueAt = new Date(`${item.targetBoardDate}T17:00:00.000`);
+    if (Number.isNaN(dueAt.getTime())) dueAt.setHours(17, 0, 0, 0);
+
+    try {
+      const response = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          assignedUserId: model.advisor.id,
+          boardDate: item.targetBoardDate,
+          description: `Converted from COO Workbook carryover. ${item.detail}`,
+          dueAt: dueAt.toISOString(),
+          intakeMetadata: {
+            channel: "COO Workbook",
+            expectedOutcome: "The carryover has a clear owner, timing, and completion result.",
+            intakeType: "Carryover Task",
+            requiredUpdates: ["Record the outcome or blocker before the next close."]
+          },
+          priority: "HIGH",
+          requiresManagerApproval: false,
+          status: "NOT_STARTED",
+          title: `Carryover: ${item.title}`,
+          workflowArea: "GENERAL_MANAGER"
+        })
+      });
+      const payload = await response.json().catch(() => null) as { task?: { id: string; title: string }; error?: string } | null;
+      if (!response.ok || !payload?.task) throw new Error(payload?.error ?? "Unable to convert this carryover right now.");
+      await persistCarryover(item.id, { convertedTaskId: payload.task.id, status: "CONVERTED" });
+      setWorkspaceNotice(`Task created: ${payload.task.title}`);
+    } catch (error) {
+      setWorkspaceNotice(error instanceof Error ? error.message : "Unable to convert this carryover right now.");
+    } finally {
+      setConvertingId(null);
+    }
+  }
+
+  async function prepareCarryovers() {
+    if (isClosed) {
+      setWorkspaceNotice("This workbook day is closed. Reopen it before preparing carryover.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const response = await fetch(`/api/coo-workbook/carryovers?date=${encodeURIComponent(model.generatedAt.slice(0, 10))}&scope=${workbookView === "MY" ? "STAFF" : "COO"}`, { method: "POST" });
+      const payload = await response.json().catch(() => null) as { count?: number; targetBoardDate?: string; error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error ?? "Unable to prepare carryover.");
+      await refreshActiveWorkbook();
+      setWorkspaceNotice(`${payload?.count ?? 0} carryover item(s) prepared for ${payload?.targetBoardDate ?? "tomorrow"}.`);
+    } catch (error) {
+      setWorkspaceNotice(error instanceof Error ? error.message : "Unable to prepare carryover.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function persistCarryover(id: string, patch: Partial<CarryoverItem>) {
+    if (isClosed) {
+      setWorkspaceNotice("This workbook day is closed. Reopen it before updating carryover.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const response = await fetch(`/api/coo-workbook/carryovers/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch)
+      });
+      const payload = await response.json().catch(() => null) as { error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error ?? "Unable to update carryover.");
+      await refreshActiveWorkbook();
+      setWorkspaceNotice("Carryover updated.");
+    } catch (error) {
+      setWorkspaceNotice(error instanceof Error ? error.message : "Unable to update carryover.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function closeOrReopenDay() {
+    setSaving(true);
+    try {
+      const response = isClosed
+        ? await fetch("/api/coo-workbook/reopen", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ workbookId: activeWorkbook.id })
+        })
+        : await fetch(`/api/coo-workbook/close?date=${encodeURIComponent(model.generatedAt.slice(0, 10))}&scope=${workbookView === "MY" ? "STAFF" : "COO"}`, { method: "POST" });
+      const payload = await response.json().catch(() => null) as { carryoverCount?: number; error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error ?? "Unable to update workbook close status.");
+      await refreshActiveWorkbook();
+      setWorkspaceNotice(isClosed ? "Workbook day reopened." : `Workbook day closed with ${payload?.carryoverCount ?? 0} carryover item(s).`);
+    } catch (error) {
+      setWorkspaceNotice(error instanceof Error ? error.message : "Unable to update workbook close status.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function addStaffSupportAction(workbookId: string) {
+    const note = supportNote.trim();
+    if (!note) return;
+    setSaving(true);
+    try {
+      const response = await fetch(`/api/coo-workbook/staff-support?workbookId=${encodeURIComponent(workbookId)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note, requestedUpdate: supportUpdateRequested })
+      });
+      const payload = await response.json().catch(() => null) as { error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error ?? "Unable to add staff support.");
+      setSupportNote("");
+      await refreshStaffWorkbook();
+      setWorkspaceNotice("Staff support action saved.");
+    } catch (error) {
+      setWorkspaceNotice(error instanceof Error ? error.message : "Unable to add staff support.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function persistSupportAction(id: string, patch: Partial<SupportActionItem>) {
+    setSaving(true);
+    try {
+      const response = await fetch(`/api/coo-workbook/staff-support/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch)
+      });
+      const payload = await response.json().catch(() => null) as { error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error ?? "Unable to update staff support.");
+      await refreshActiveWorkbook();
+      setWorkspaceNotice("Staff support updated.");
+    } catch (error) {
+      setWorkspaceNotice(error instanceof Error ? error.message : "Unable to update staff support.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (initialTool) {
     const toolLabels: Record<CooWorkbookTool, string> = {
       ACTION_PLAN: "Daily Action Plan",
@@ -585,29 +769,55 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
               void addChecklistItem();
             }
           }} placeholder="Add something to do today..." value={checklistText} />
-          <button disabled={saving || !checklistText.trim()} onClick={() => void addChecklistItem()} type="button"><Plus /> Add</button>
+          <button disabled={saving || isClosed || !checklistText.trim()} onClick={() => void addChecklistItem()} type="button"><Plus /> Add</button>
         </div>
         <div className="advisor-coo-checklist-items">
           {checklistItems.length ? checklistItems.map((item) => <div className={`advisor-coo-checklist-item ${item.status.toLocaleLowerCase()} ${item.done ? "done" : ""}`} key={item.id}>
-            <button aria-label={`Mark ${item.text} ${item.done ? "not done" : "done"}`} className="advisor-coo-check" onClick={() => void persistChecklistItem(item.id, { done: !item.done, status: !item.done ? "GREEN" : item.status })} type="button"><CheckSquare /></button>
+            <button aria-label={`Mark ${item.text} ${item.done ? "not done" : "done"}`} className="advisor-coo-check" disabled={isClosed} onClick={() => void persistChecklistItem(item.id, { done: !item.done, status: !item.done ? "GREEN" : item.status })} type="button"><CheckSquare /></button>
             <div>
               <strong>{item.text}</strong>
               <small>{checklistStatusLabel(item)} · Added {dateLabel(item.createdAt)}</small>
-              <input aria-label={`Update for ${item.text}`} onBlur={() => void persistChecklistItem(item.id, { update: item.update })} onChange={(event) => updateChecklistItem(item.id, { update: event.target.value })} placeholder="Add update..." value={item.update} />
+              <input aria-label={`Update for ${item.text}`} disabled={isClosed} onBlur={() => void persistChecklistItem(item.id, { update: item.update })} onChange={(event) => updateChecklistItem(item.id, { update: event.target.value })} placeholder="Add update..." value={item.update} />
             </div>
-            <select aria-label={`Status for ${item.text}`} onChange={(event) => void persistChecklistItem(item.id, { status: event.target.value as DailyChecklistStatus, done: event.target.value === "GREEN" ? item.done : false })} value={item.status}>
+            <select aria-label={`Status for ${item.text}`} disabled={isClosed} onChange={(event) => void persistChecklistItem(item.id, { status: event.target.value as DailyChecklistStatus, done: event.target.value === "GREEN" ? item.done : false })} value={item.status}>
               <option value="GREEN">Green</option>
               <option value="YELLOW">Yellow</option>
               <option value="RED">Red</option>
             </select>
-            <button aria-pressed={item.carryoverReady} onClick={() => void persistChecklistItem(item.id, { carryoverReady: !item.carryoverReady })} type="button">{item.carryoverReady ? "Carryover" : "Carry over"}</button>
-            {item.convertedTaskId ? <Link href={`/tasks/${item.convertedTaskId}`}>Open task</Link> : <button disabled={convertingId === item.id} onClick={() => void convertToTask("checklist", item)} type="button">{convertingId === item.id ? "Converting..." : "Convert"}</button>}
+            <button aria-pressed={item.carryoverReady} disabled={isClosed} onClick={() => void persistChecklistItem(item.id, { carryoverReady: !item.carryoverReady })} type="button">{item.carryoverReady ? "Carryover" : "Carry over"}</button>
+            {item.convertedTaskId ? <Link href={`/tasks/${item.convertedTaskId}`}>Open task</Link> : <button disabled={isClosed || convertingId === item.id} onClick={() => void convertToTask("checklist", item)} type="button">{convertingId === item.id ? "Converting..." : "Convert"}</button>}
           </div>) : <p><ListChecks /> Add a quick list of what needs to get done today.</p>}
         </div>
       </section> : null}
 
       {initialTool === "TO_DO_LIST" ? <section className="advisor-coo-focused-tool advisor-coo-todo-list" aria-label="To-Do List tool">
         <header><div><strong>{activeWorkbookLabel} To-Do List</strong><small>Use the checklist for light same-day work. Convert only the items that need formal ownership, due dates, and tracking.</small></div><span>{checklistRollup.open} open</span></header>
+        <div className="advisor-coo-inline-form">
+          <input aria-label="Add To-Do item" onChange={(event) => setChecklistText(event.target.value)} onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              void addChecklistItem();
+            }
+          }} placeholder="Add a light to-do for today..." value={checklistText} />
+          <button disabled={saving || isClosed || !checklistText.trim()} onClick={() => void addChecklistItem()} type="button"><Plus /> Add To-Do</button>
+        </div>
+        <div className="advisor-coo-checklist-items">
+          {checklistItems.length ? checklistItems.map((item) => <div className={`advisor-coo-checklist-item ${item.status.toLocaleLowerCase()} ${item.done ? "done" : ""}`} key={item.id}>
+            <button aria-label={`Mark ${item.text} ${item.done ? "not done" : "done"}`} className="advisor-coo-check" disabled={isClosed} onClick={() => void persistChecklistItem(item.id, { done: !item.done, status: !item.done ? "GREEN" : item.status })} type="button"><CheckSquare /></button>
+            <div>
+              <strong>{item.text}</strong>
+              <small>{checklistStatusLabel(item)} · Checklist-powered to-do</small>
+              <input aria-label={`To-Do update for ${item.text}`} disabled={isClosed} onBlur={() => void persistChecklistItem(item.id, { update: item.update })} onChange={(event) => updateChecklistItem(item.id, { update: event.target.value })} placeholder="Add update..." value={item.update} />
+            </div>
+            <select aria-label={`To-Do status for ${item.text}`} disabled={isClosed} onChange={(event) => void persistChecklistItem(item.id, { status: event.target.value as DailyChecklistStatus, done: event.target.value === "GREEN" ? item.done : false })} value={item.status}>
+              <option value="GREEN">Green</option>
+              <option value="YELLOW">Yellow</option>
+              <option value="RED">Red</option>
+            </select>
+            <button aria-pressed={item.carryoverReady} disabled={isClosed} onClick={() => void persistChecklistItem(item.id, { carryoverReady: !item.carryoverReady })} type="button">{item.carryoverReady ? "Carryover" : "Carry over"}</button>
+            {item.convertedTaskId ? <Link href={`/tasks/${item.convertedTaskId}`}>Open task</Link> : <button disabled={isClosed || convertingId === item.id} onClick={() => void convertToTask("checklist", item)} type="button">{convertingId === item.id ? "Converting..." : "Convert"}</button>}
+          </div>) : <p><ListChecks /> Add a quick list of what needs to get done today.</p>}
+        </div>
         <div className="advisor-coo-close-flow">
           <span><ListChecks /><strong>Simple list</strong><small>Add light daily work in Daily Checklist</small></span>
           <span><CheckSquare /><strong>Mark progress</strong><small>Done, green, yellow, red, or carryover</small></span>
@@ -629,26 +839,26 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
 
       {initialTool === "QUICK_UPDATE" ? <section className="advisor-coo-quick-update advisor-coo-focused-tool" aria-label="Quick Update tool">
         <header><div><strong>{activeWorkbookLabel} Quick Update</strong><small>Capture unplanned events, visitors, facility issues, or anything worth remembering.</small></div><span>{quickUpdates.length} captured</span></header>
-        <textarea aria-label="Quick Update details" onChange={(event) => setQuickUpdateText(event.target.value)} placeholder="Example: AJ checked the roof today and may fix it in the next few weeks." value={quickUpdateText} />
+        <textarea aria-label="Quick Update details" disabled={isClosed} onChange={(event) => setQuickUpdateText(event.target.value)} placeholder="Example: AJ checked the roof today and may fix it in the next few weeks." value={quickUpdateText} />
         <div className="advisor-coo-quick-fields">
-          <select aria-label="Quick Update category" onChange={(event) => setQuickUpdateCategory(event.target.value as QuickUpdateCategory)} value={quickUpdateCategory}>
+          <select aria-label="Quick Update category" disabled={isClosed} onChange={(event) => setQuickUpdateCategory(event.target.value as QuickUpdateCategory)} value={quickUpdateCategory}>
             {quickUpdateCategories.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
-          <input aria-label="Person involved" onChange={(event) => setQuickUpdatePerson(event.target.value)} placeholder="Person" value={quickUpdatePerson} />
-          <input aria-label="Company or outside party" onChange={(event) => setQuickUpdateCompany(event.target.value)} placeholder="Company / outside party" value={quickUpdateCompany} />
+          <input aria-label="Person involved" disabled={isClosed} onChange={(event) => setQuickUpdatePerson(event.target.value)} placeholder="Person" value={quickUpdatePerson} />
+          <input aria-label="Company or outside party" disabled={isClosed} onChange={(event) => setQuickUpdateCompany(event.target.value)} placeholder="Company / outside party" value={quickUpdateCompany} />
         </div>
         <div className="advisor-coo-followup-row">
-          <label><input checked={quickUpdateFollowUp} onChange={(event) => setQuickUpdateFollowUp(event.target.checked)} type="checkbox" /> Follow-up needed</label>
-          <input aria-label="Follow-up due date or time window" disabled={!quickUpdateFollowUp} onChange={(event) => setQuickUpdateDueWindow(event.target.value)} placeholder="Due date or time window" value={quickUpdateDueWindow} />
-          <button disabled={saving || !quickUpdateText.trim()} onClick={() => void addQuickUpdate()} type="button"><Save /> Save update</button>
+          <label><input checked={quickUpdateFollowUp} disabled={isClosed} onChange={(event) => setQuickUpdateFollowUp(event.target.checked)} type="checkbox" /> Follow-up needed</label>
+          <input aria-label="Follow-up due date or time window" disabled={isClosed || !quickUpdateFollowUp} onChange={(event) => setQuickUpdateDueWindow(event.target.value)} placeholder="Due date or time window" value={quickUpdateDueWindow} />
+          <button disabled={saving || isClosed || !quickUpdateText.trim()} onClick={() => void addQuickUpdate()} type="button"><Save /> Save update</button>
         </div>
         <div className="advisor-coo-update-list">
           {quickUpdates.length ? quickUpdates.map((item) => <article key={item.id}>
             <span><strong>{quickUpdateCategoryLabel(item.category)}</strong><small>{dateLabel(item.createdAt)}</small></span>
             <p>{item.text}</p>
             <small>{[item.person, item.company, item.followUpNeeded ? `Follow-up: ${item.dueWindow || "needed"}` : "", item.carryoverReady ? "Carryover ready" : ""].filter(Boolean).join(" · ") || "No extra details"}</small>
-            <button aria-pressed={item.carryoverReady} onClick={() => void persistQuickUpdate(item.id, { carryoverReady: !item.carryoverReady })} type="button">{item.carryoverReady ? "Carryover" : "Carry over"}</button>
-            {item.convertedTaskId ? <Link href={`/tasks/${item.convertedTaskId}`}>Open task</Link> : <button disabled={convertingId === item.id} onClick={() => void convertToTask("quick", item)} type="button">{convertingId === item.id ? "Converting..." : "Convert to task"}</button>}
+            <button aria-pressed={item.carryoverReady} disabled={isClosed} onClick={() => void persistQuickUpdate(item.id, { carryoverReady: !item.carryoverReady })} type="button">{item.carryoverReady ? "Carryover" : "Carry over"}</button>
+            {item.convertedTaskId ? <Link href={`/tasks/${item.convertedTaskId}`}>Open task</Link> : <button disabled={isClosed || convertingId === item.id} onClick={() => void convertToTask("quick", item)} type="button">{convertingId === item.id ? "Converting..." : "Convert to task"}</button>}
           </article>) : <p><MessageSquareText /> No Quick Updates captured yet.</p>}
         </div>
       </section> : null}
@@ -666,8 +876,8 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
       </section> : null}
 
       {initialTool === "CARRYOVER" ? <section className="advisor-coo-focused-tool advisor-coo-carryover-center" aria-label="Carryover tool">
-        <header><div><strong>Carryover</strong><small>Tomorrow-facing items pulled from checklist, Quick Updates, and reviewed Report Seeds.</small></div><span>{closeReadiness.carryoverItems} item(s)</span></header>
-        <div>{carryoverPreview.length ? carryoverPreview.map((item) => <article key={item.id}><small>{item.kind}</small><strong>{item.title}</strong><span>{item.detail}</span></article>) : <p><CheckCircle2 /> No carryover items are marked yet.</p>}</div>
+        <header><div><strong>Carryover</strong><small>Tomorrow-facing items pulled from checklist, Quick Updates, and reviewed Report Seeds.</small></div><button disabled={saving || isClosed} onClick={() => void prepareCarryovers()} type="button"><CalendarClock /> Prepare Carryover</button></header>
+        <div>{carryovers.length ? carryovers.map((item) => <article key={item.id}><small>{item.targetBoardDate} · {item.status.toLocaleLowerCase()}</small><strong>{item.title}</strong><span>{item.detail}</span><div className="advisor-coo-seed-actions"><button disabled={saving || isClosed || item.status === "CONFIRMED"} onClick={() => void persistCarryover(item.id, { status: "CONFIRMED" })} type="button">Confirm</button><button disabled={saving || isClosed || item.status === "DISMISSED"} onClick={() => void persistCarryover(item.id, { status: "DISMISSED", dismissedReason: "Dismissed from COO Workbook." })} type="button">Dismiss</button>{item.convertedTaskId ? <Link href={`/tasks/${item.convertedTaskId}`}>Open task</Link> : <button disabled={saving || isClosed || convertingId === item.id} onClick={() => void convertCarryoverToTask(item)} type="button">{convertingId === item.id ? "Converting..." : "Convert to task"}</button>}</div></article>) : carryoverPreview.length ? carryoverPreview.map((item) => <article key={item.id}><small>{item.kind}</small><strong>{item.title}</strong><span>{item.detail}</span></article>) : <p><CheckCircle2 /> No carryover items are marked yet.</p>}</div>
       </section> : null}
 
       {initialTool === "REPORT_SEEDS" ? <section className="advisor-coo-focused-tool advisor-coo-report-seeds" aria-label="Report Seeds tool">
@@ -675,25 +885,27 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
         <div>{reportSeeds.length ? reportSeeds.map((seed) => <article className={seed.tone.toLocaleLowerCase()} key={seed.id}>
           <span><strong>{seed.title}</strong><small>{reportSeedSourceLabel(seed)} · {reportSeedStatusLabel(seed.status)}</small></span>
           <div className="advisor-coo-seed-actions">
-            <button aria-pressed={seed.status === "INCLUDED"} onClick={() => void persistReportSeed(seed.id, { status: "INCLUDED" })} type="button">Include</button>
-            <button aria-pressed={seed.status === "EXCLUDED"} onClick={() => void persistReportSeed(seed.id, { status: "EXCLUDED" })} type="button">Exclude</button>
-            <button aria-pressed={seed.status === "CARRIED_OVER"} onClick={() => void persistReportSeed(seed.id, { status: "CARRIED_OVER" })} type="button">Carry over</button>
+            <button aria-pressed={seed.status === "INCLUDED"} disabled={isClosed} onClick={() => void persistReportSeed(seed.id, { status: "INCLUDED" })} type="button">Include</button>
+            <button aria-pressed={seed.status === "EXCLUDED"} disabled={isClosed} onClick={() => void persistReportSeed(seed.id, { status: "EXCLUDED" })} type="button">Exclude</button>
+            <button aria-pressed={seed.status === "CARRIED_OVER"} disabled={isClosed} onClick={() => void persistReportSeed(seed.id, { status: "CARRIED_OVER" })} type="button">Carry over</button>
           </div>
-          <input aria-label={`Report Seed title for ${seed.title}`} onBlur={() => void persistReportSeed(seed.id, { title: seed.title })} onChange={(event) => updateReportSeed(seed.id, { title: event.target.value })} value={seed.title} />
-          <textarea aria-label={`Report Seed detail for ${seed.title}`} onBlur={() => void persistReportSeed(seed.id, { detail: seed.detail })} onChange={(event) => updateReportSeed(seed.id, { detail: event.target.value })} value={seed.detail} />
-          <input aria-label={`Review note for ${seed.title}`} onBlur={() => void persistReportSeed(seed.id, { reviewNote: seed.reviewNote })} onChange={(event) => updateReportSeed(seed.id, { reviewNote: event.target.value })} placeholder="Optional review note..." value={seed.reviewNote} />
+          <input aria-label={`Report Seed title for ${seed.title}`} disabled={isClosed} onBlur={() => void persistReportSeed(seed.id, { title: seed.title })} onChange={(event) => updateReportSeed(seed.id, { title: event.target.value })} value={seed.title} />
+          <textarea aria-label={`Report Seed detail for ${seed.title}`} disabled={isClosed} onBlur={() => void persistReportSeed(seed.id, { detail: seed.detail })} onChange={(event) => updateReportSeed(seed.id, { detail: event.target.value })} value={seed.detail} />
+          <input aria-label={`Review note for ${seed.title}`} disabled={isClosed} onBlur={() => void persistReportSeed(seed.id, { reviewNote: seed.reviewNote })} onChange={(event) => updateReportSeed(seed.id, { reviewNote: event.target.value })} placeholder="Optional review note..." value={seed.reviewNote} />
         </article>) : <p><FileText /> No report seeds yet. Work the day, then generate the report trail.</p>}</div>
       </section> : null}
 
       {initialTool === "STAFF_SUPPORT" ? <section className="advisor-coo-focused-tool advisor-coo-staff-visibility" aria-label="Staff Support tool">
         <header><div><strong>Staff Support</strong><small>Summary-first visibility for coaching, help, and daily accountability.</small></div><span>{staffTodayRollup.total} active</span></header>
-        <div>{staffSupportQueue.length ? staffSupportQueue.map((item) => <article key={item.workbookId}><span><strong>{item.staffName}</strong><small>{item.closeReadinessScore}/100 · {item.closeReadinessTone.toLocaleLowerCase()}</small></span><p>{item.closeReadinessPrompts[0] ?? "Ready for daily close review."}</p></article>) : <p><CheckCircle2 /> Staff workbooks are clear for now.</p>}</div>
+        <div className="advisor-coo-followup-row"><input aria-label="Staff support note" onChange={(event) => setSupportNote(event.target.value)} placeholder="Add coaching/support note..." value={supportNote} /><label><input checked={supportUpdateRequested} onChange={(event) => setSupportUpdateRequested(event.target.checked)} type="checkbox" /> Request update</label></div>
+        <div>{staffSupportQueue.length ? staffSupportQueue.map((item) => <article key={item.workbookId}><span><strong>{item.staffName}</strong><small>{item.closeReadinessScore}/100 · {item.closeReadinessTone.toLocaleLowerCase()}</small></span><p>{item.closeReadinessPrompts[0] ?? "Ready for daily close review."}</p><button disabled={saving || !supportNote.trim()} onClick={() => void addStaffSupportAction(item.workbookId)} type="button">Save support</button></article>) : <p><CheckCircle2 /> Staff workbooks are clear for now.</p>}</div>
+        {supportActions.length ? <div className="advisor-coo-update-list">{supportActions.map((item) => <article key={item.id}><span><strong>{item.status.toLocaleLowerCase().replaceAll("_", " ")}</strong><small>{dateLabel(item.createdAt)}</small></span><p>{item.note}</p><button disabled={saving || item.status === "RESOLVED"} onClick={() => void persistSupportAction(item.id, { status: "RESOLVED" })} type="button">Mark resolved</button></article>)}</div> : null}
       </section> : null}
 
       {initialTool === "DRAFTS" ? <section className="advisor-coo-focused-tool advisor-coo-report-draft" aria-label="Report Drafts tool">
-        <header><div><strong>Report Drafts</strong><small>Generate a manager-ready daily summary from reviewed seeds and operating signals.</small></div><button disabled={saving} onClick={() => void generateDailyReportDraft()} type="button"><FileText /> Generate Draft</button></header>
+        <header><div><strong>Report Drafts</strong><small>Generate manager-ready daily, weekly, or monthly summaries from reviewed seeds and operating signals.</small></div><div className="advisor-coo-seed-actions"><button disabled={saving || isClosed} onClick={() => void generateReportDraft("DAILY")} type="button">Daily</button><button disabled={saving || isClosed} onClick={() => void generateReportDraft("WEEKLY")} type="button">Weekly</button><button disabled={saving || isClosed} onClick={() => void generateReportDraft("MONTHLY")} type="button">Monthly</button></div></header>
         {latestReportDraft ? <div className="advisor-coo-saved-draft">
-          <header><strong>{latestReportDraft.title}</strong><small>Version {latestReportDraft.version} · Generated {dateLabel(latestReportDraft.generatedAt)}</small><button onClick={() => void copyDailyReportDraft()} type="button"><Copy /> Copy Draft</button></header>
+          <header><strong>{latestReportDraft.title}</strong><small>{latestReportDraft.cadence.toLocaleLowerCase()} · Version {latestReportDraft.version} · Generated {dateLabel(latestReportDraft.generatedAt)}</small><button onClick={() => void copyDailyReportDraft()} type="button"><Copy /> Copy Draft</button></header>
           <p>{latestReportDraft.summary}</p>
           <div>{latestReportDraft.sections.map((section) => <article key={section.title}><h2>{section.title}</h2>{section.items.map((item) => <span key={`${section.title}-${item.sourceId}-${item.title}`}><strong>{item.title}</strong><small>{item.detail}</small></span>)}</article>)}</div>
         </div> : <p>Review report seeds, then generate a manager-ready daily draft.</p>}
@@ -715,7 +927,7 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
       </nav>
       <div className="advisor-coo-header-actions">
         <Link href="/vehicles/coo-workbook/quick-update"><MessageSquareText /> Quick Update</Link>
-        <button disabled={saving} onClick={() => void generateDailyReportDraft()} type="button"><FileText /> {saving ? "Generating..." : "Generate Report"}</button>
+        <button disabled={saving || isClosed} onClick={() => void generateReportDraft("DAILY")} type="button"><FileText /> {saving ? "Generating..." : "Generate Report"}</button>
       </div>
     </header>
 
@@ -783,7 +995,7 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
         <div><dt>Latest draft</dt><dd>{latestReportDraft ? dateLabel(latestReportDraft.generatedAt) : "Not generated"}</dd></div>
         <div><dt>Staff source</dt><dd>{staffTodayRollup.total} active</dd></div>
       </dl>
-      <button disabled={saving} onClick={() => void generateDailyReportDraft()} type="button"><FileText /> {saving ? "Generating..." : "Generate Report"}</button>
+      <button disabled={saving} onClick={() => void closeOrReopenDay()} type="button"><FileText /> {saving ? "Saving..." : isClosed ? "Reopen Day" : "Close Day"}</button>
     </section>
 
     {workspaceNotice ? <p className="advisor-coo-workspace-notice" role="status">{workspaceNotice}</p> : null}
