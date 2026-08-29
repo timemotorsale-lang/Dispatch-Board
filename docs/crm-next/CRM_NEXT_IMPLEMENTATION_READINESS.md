@@ -1,22 +1,22 @@
 # CRM Next — Implementation Readiness
 
-**Status:** CRMN-001 through CRMN-006 readiness baseline  
-**Decision:** Do not start production implementation until this packet is reviewed.
+**Status:** CRMN-001 through CRMN-006 approved readiness baseline  
+**Decision:** Product Owner approved CRMN-001 through CRMN-006 implementation-readiness decisions on 2026-08-28.
 
 ## Readiness verdict
 
-CRM Next is ready for foundation planning and controlled documentation adoption. It is not yet ready for the first production implementation slice because the repository now needs a clean branch/worktree state, a formal CRM Next route/flag decision, and review of the reuse/migration map.
+CRM Next is ready for the first controlled implementation slice after the current approved baseline is pushed and an isolated CRM Next implementation branch/workspace is created. Product Owner approval confirms the route, feature flag, Legacy protection posture, and CRMN-010 starting boundary.
 
 ## CRMN-001 through CRMN-006 scorecard
 
 | Gate | Current state | Readiness |
 |---|---|---|
-| CRMN-001 approve documentation pack | CRM Next documentation pack is now represented under `docs/crm-next/`. | Ready for Product Owner review |
-| CRMN-002 inspect Legacy routes/screens | `/customers`, `/customers/customer-360`, `/customers/resolutions`, `/crm`, opportunity, quote, and supporting APIs were inspected. | Audit baseline complete |
-| CRMN-003 inventory schema/services | Customer, task, appointment, activity, vehicle, opportunity, quote, approval, saved-view, and integration-readiness models/services exist. | Audit baseline complete |
-| CRMN-004 complete capability ledger | Initial reuse/redesign/migrate/retire/defer map is documented. | Ready for review |
-| CRMN-005 data ownership map | Source-owner boundaries are recorded for Customers, Tasks, Appointments, Vehicles, Activity, and CRM commercial records. | Ready for review |
-| CRMN-006 feature-flag/parallel-route plan | Route strategy is documented below; implementation decision still required. | Needs approval before coding |
+| CRMN-001 approve documentation pack | CRM Next documentation pack is represented under `docs/crm-next/`. | Approved |
+| CRMN-002 inspect Legacy routes/screens | `/customers`, `/customers/customer-360`, `/customers/resolutions`, `/crm`, opportunity, quote, and supporting APIs were inspected. | Approved audit baseline |
+| CRMN-003 inventory schema/services | Customer, task, appointment, activity, vehicle, opportunity, quote, approval, saved-view, and integration-readiness models/services exist. | Approved audit baseline |
+| CRMN-004 complete capability ledger | Initial reuse/redesign/migrate/retire/defer map is documented. | Approved for implementation planning |
+| CRMN-005 data ownership map | Source-owner boundaries are recorded for Customers, Tasks, Appointments, Vehicles, Activity, and CRM commercial records. | Approved for implementation planning |
+| CRMN-006 feature-flag/parallel-route plan | `/crm-next`, `CRM_NEXT`, Legacy protection, and CRMN-010 starting boundary are approved. | Approved |
 
 ## Route strategy
 
@@ -29,12 +29,12 @@ CRM Next should be built as a parallel replacement experience inside the existin
 - Keep current `/crm` and `/crm/*` routes available during build unless a separate cleanup task is approved.
 - Do not redirect or retire Legacy routes until CRM Next passes promotion and rollback gates.
 
-### CRM Next route proposal
+### CRM Next route decision
 
 Use a separate CRM Next route and feature control during implementation:
 
-- Preferred implementation route: `/crm-next`
-- Preferred feature flag: `CRM_NEXT`
+- Approved implementation route: `/crm-next`
+- Approved feature flag: `CRM_NEXT`
 - Production default: off until promotion
 - Development/review default: enabled only for approved review users or local review mode
 
@@ -51,7 +51,7 @@ After CRM Next passes promotion:
 
 ## First implementation slice proposal
 
-After this readiness packet is reviewed, the first code slice should be:
+The first code slice is approved as:
 
 **CRMN-010 — CRM Next shell and feature flag**
 
@@ -76,13 +76,13 @@ Out of scope:
 
 ## Before coding checklist
 
-- Confirm whether CRM Next route should be `/crm-next` or another approved internal path.
-- Confirm whether the feature flag should be `CRM_NEXT`, `CRM_NEXT_REVIEW`, or another existing convention.
-- Clean or isolate the current uncommitted source work before starting implementation.
-- Decide whether the current Unified CRM `/crm` code will be treated as Legacy, source foundation, or future redirect target.
-- Confirm Product Owner acceptance of the reuse/migration map.
+- Route approved: `/crm-next`.
+- Feature flag approved: `CRM_NEXT`.
+- Legacy protection approved: existing `/customers`, `/customers/*`, `/crm`, and `/crm/*` stay operational during build.
+- CRMN-010 boundary approved: shell + feature flag only; no customer writes, no live communications, no route replacement.
+- Current checkpoint committed: `7629a9dd chore: checkpoint crm cleanup and crm next docs`.
+- Remaining setup before code: push the approved baseline and create the isolated CRM Next implementation branch/workspace.
 
-## Current blocker
+## Current implementation hold
 
-The repository currently contains uncommitted source changes and `.next-local` cache noise from prior work. CRM Next implementation should not begin until the next branch/workspace is clean or the current work is intentionally committed and isolated.
-
+Do not implement CRM Next on the shared `main` baseline directly. Start CRMN-010 only after the approved baseline is pushed and an isolated branch/workspace is created from that baseline.
