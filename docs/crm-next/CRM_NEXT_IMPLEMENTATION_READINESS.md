@@ -86,3 +86,64 @@ Out of scope:
 ## Current implementation hold
 
 Do not implement CRM Next on the shared `main` baseline directly. Start CRMN-010 only after the approved baseline is pushed and an isolated branch/workspace is created from that baseline.
+
+## Implementation evidence — CRMN-010 through CRMN-015 initial UX envelope
+
+**Status:** IMPLEMENTED_UNVERIFIED  
+**Branch:** `codex/crm-next-command-center`  
+**Scope:** CRM Next shell at `/crm-next`, Command Center layout, Needs Attention queue, Customer 360 overview, Work Customer/Attend Mode, and action-to-task dispatch bridge preview.  
+
+**Safety posture:**
+- Legacy `/customers` remains linked and operational.
+- Current `/crm` remains linked and operational.
+- CRM Next is controlled by `CRM_NEXT` and fails closed when the flag is absent or off.
+- No customer writes, live communications, route replacement, or Dispatch Board task creation were enabled.
+- CRMN-015 is preview-only: it returns the bridge handoff shape without mutating Dispatch Board tasks.
+
+**UX baseline:** User-approved CRM Next UI mockup dated 2026-08-28: Command Center, Customer 360, Customer Workbench/Attend Mode, Needs Attention, Intelligence & Next Action, and Dispatch Board handoff flow.
+
+## Implementation evidence — CRMN-016 visible progress cockpit
+
+**Status:** IMPLEMENTED_UNVERIFIED  
+**Branch:** `codex/crm-next-command-center`  
+**Scope:** Added a visible CRM Next implementation progress surface at `/crm-next/progress` and staged the next 20-milestone delivery envelope from CRMN-016 through CRMN-035.  
+
+**Review location:** `/crm-next/progress` with `CRM_NEXT=REVIEW`.
+
+**Safety posture:**
+- Progress uses the approved status vocabulary only: PLANNED, CONTRACTED, IN_PROGRESS, IMPLEMENTED_UNVERIFIED, VERIFIED, HELD, DEFERRED.
+- The page is read-only and does not create customer, communication, opportunity, or Dispatch Board task records.
+- Legacy `/customers` and current `/crm` remain linked as fallback review paths.
+- The envelope is explicitly sequential: each milestone is reviewed, verified, and committed before moving to the next slice.
+
+## Implementation evidence — CRMN-017 through CRMN-035 review-safe milestone envelope
+
+**Status:** IMPLEMENTED_UNVERIFIED  
+**Branch:** `codex/crm-next-command-center`  
+**Scope:** Completed the CRM Next review-safe envelope after the progress cockpit: UX navigation polish, search shell, grouped search, dynamic Customer 360 context, 70/30 Attend Mode refinement, universal action bar, open-items rail, unified source-linked timeline, responsive behavior, state/permission/rollback proof pages, lead/opportunity read adapters, read-only pipeline board, appointments context, test-drive review, deal review, and sales timeline events.
+
+**Review locations:**
+- `/crm-next`
+- `/crm-next/search`
+- `/crm-next/needs-attention`
+- `/crm-next/customers/michael-johnson`
+- `/crm-next/work/attn-michael-overdue-follow-up`
+- `/crm-next/timeline`
+- `/crm-next/pipeline`
+- `/crm-next/appointments`
+- `/crm-next/test-drives`
+- `/crm-next/deals`
+- `/crm-next/system/states`
+- `/crm-next/system/permissions`
+- `/crm-next/system/rollback`
+- `/crm-next/progress`
+
+**Safety posture:**
+- Legacy `/customers` and current `/crm` remain available and unchanged.
+- CRM Next remains behind `CRM_NEXT`.
+- New CRM Next surfaces are review-safe/read-only.
+- Live calling, texting, email, customer writes, deal mutation, appointment mutation, and Dispatch Board task creation remain disabled.
+- Source-of-truth boundaries are preserved: customer, vehicle, appointment, sales/deal, communication, and Dispatch context are displayed as linked review data, not duplicated operational ownership.
+- Rollback remains simple: disable `CRM_NEXT` and `/crm-next` fails closed to safe fallback workspaces.
+
+**Progress truth:** CRMN-016 through CRMN-035 are marked `IMPLEMENTED_UNVERIFIED`, not `VERIFIED`, until broader pilot-release proof and user review are complete. The next implementation marker is CRMN-036.
