@@ -7,6 +7,57 @@ import type { ServiceAdvisorWorkspaceModel } from "@/server/advisor-workspace/se
 const model = {
   generatedAt: "2026-07-20T14:00:00.000Z",
   advisor: { id: "user-alex", name: "Alex Carter" },
+  workbook: {
+    id: "workbook-1",
+    boardDayId: "board-day-1",
+    userId: "user-alex",
+    scope: "COO",
+    status: "ACTIVE",
+    createdAt: "2026-07-20T14:00:00.000Z",
+    updatedAt: "2026-07-20T14:00:00.000Z",
+    checklistItems: [
+      {
+        id: "checklist-1",
+        text: "Review morning approval queue",
+        status: "YELLOW",
+        update: "Waiting on customer callback.",
+        done: false,
+        carryoverReady: true,
+        convertedTaskId: null,
+        createdAt: "2026-07-20T14:05:00.000Z",
+        updatedAt: "2026-07-20T14:06:00.000Z"
+      }
+    ],
+    quickUpdates: [
+      {
+        id: "quick-1",
+        text: "AJ checked the roof today.",
+        category: "FACILITY",
+        person: "AJ",
+        company: "",
+        followUpNeeded: true,
+        dueWindow: "Next few weeks",
+        carryoverReady: false,
+        convertedTaskId: null,
+        createdAt: "2026-07-20T14:07:00.000Z",
+        updatedAt: "2026-07-20T14:08:00.000Z"
+      }
+    ],
+    reportSeeds: [
+      {
+        id: "seed-1",
+        sourceType: "CHECKLIST_ITEM",
+        sourceId: "checklist-1",
+        sourceHref: null,
+        title: "Review morning approval queue",
+        detail: "Waiting on customer callback.",
+        tone: "YELLOW",
+        status: "CANDIDATE",
+        createdAt: "2026-07-20T14:09:00.000Z",
+        updatedAt: "2026-07-20T14:10:00.000Z"
+      }
+    ]
+  },
   counts: {
     activeRepairOrders: 2,
     availableAppointments: 1,
@@ -132,6 +183,9 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("Simple same-day list");
     expect(html).toContain("Capture unplanned events");
     expect(html).toContain("Meaningful checklist items");
+    expect(html).toContain("Review morning approval queue");
+    expect(html).toContain("AJ checked the roof today.");
+    expect(html).toContain("Waiting on customer callback.");
     expect(html).toContain("/vehicles/advisor?queue=authorization");
     expect(html).toContain("/tasks/intake?");
     expect(html).toContain("Create+COO+daily+action+plan");

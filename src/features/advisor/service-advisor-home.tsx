@@ -20,7 +20,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 
 import type { ServiceAdvisorWorkspaceModel } from "@/server/advisor-workspace/service";
 
@@ -138,35 +138,10 @@ function cooTaskIntakeHref(input: { brief: string; dueAt?: string; expectedOutco
 type DailyChecklistStatus = "GREEN" | "YELLOW" | "RED";
 type QuickUpdateCategory = "CUSTOMER" | "VENDOR" | "FACILITY" | "STAFF" | "SALES_OPPORTUNITY" | "FINANCE" | "INVENTORY_PARTS" | "SAFETY" | "TRAINING" | "OTHER";
 
-type DailyChecklistItem = {
-  id: string;
-  text: string;
-  status: DailyChecklistStatus;
-  update: string;
-  done: boolean;
-  convertedTaskId?: string;
-  createdAt: string;
-};
-
-type QuickUpdateItem = {
-  id: string;
-  text: string;
-  category: QuickUpdateCategory;
-  person: string;
-  company: string;
-  followUpNeeded: boolean;
-  dueWindow: string;
-  convertedTaskId?: string;
-  createdAt: string;
-};
-
-type ReportSeedItem = {
-  id: string;
-  source: "Daily Checklist" | "Quick Update" | "Operations";
-  title: string;
-  detail: string;
-  tone: "green" | "yellow" | "red" | "blue";
-};
+type WorkdayWorkbookModel = ServiceAdvisorWorkspaceModel["workbook"];
+type DailyChecklistItem = WorkdayWorkbookModel["checklistItems"][number];
+type QuickUpdateItem = WorkdayWorkbookModel["quickUpdates"][number];
+type ReportSeedItem = WorkdayWorkbookModel["reportSeeds"][number];
 
 const checklistStatusOptions: Array<{ label: string; value: DailyChecklistStatus }> = [
   { label: "Green", value: "GREEN" },
@@ -187,28 +162,14 @@ const quickUpdateCategories: Array<{ label: string; value: QuickUpdateCategory }
   { label: "Other", value: "OTHER" }
 ];
 
-function todayStorageKey(prefix: string, model: ServiceAdvisorWorkspaceModel) {
-  return `${prefix}:${model.advisor.id}:${model.generatedAt.slice(0, 10)}`;
-}
-
-function readStoredArray<T>(key: string): T[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const saved = window.localStorage.getItem(key);
-    return saved ? JSON.parse(saved) as T[] : [];
-  } catch {
-    return [];
-  }
-}
-
-function createLocalId(prefix: string) {
-  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
 function statusTone(status: DailyChecklistStatus) {
   if (status === "GREEN") return "green";
   if (status === "RED") return "red";
   return "yellow";
+}
+
+function reportSeedTone(tone: ReportSeedItem["tone"]) {
+  return tone.toLocaleLowerCase();
 }
 
 function checklistStatusLabel(item: DailyChecklistItem) {
@@ -222,78 +183,16 @@ function quickUpdateCategoryLabel(value: QuickUpdateCategory) {
   return quickUpdateCategories.find((item) => item.value === value)?.label ?? "Other";
 }
 
-function buildReportSeeds(input: {
-  approvalCount: number;
-  checklistItems: DailyChecklistItem[];
-  handoffCount: number;
-  quickUpdates: QuickUpdateItem[];
-  reportExceptions: number;
-}) {
-  const seeds: ReportSeedItem[] = [];
-
-  for (const item of input.checklistItems) {
-    if (!item.done && item.status === "GREEN" && !item.update.trim()) continue;
-    seeds.push({
-      id: `checklist:${item.id}`,
-      source: "Daily Checklist",
-      title: item.text,
-      detail: item.done
-        ? item.update || "Marked done today."
-        : item.update || checklistStatusLabel(item),
-      tone: statusTone(item.status)
-    });
-  }
-
-  for (const item of input.quickUpdates) {
-    seeds.push({
-      id: `quick:${item.id}`,
-      source: "Quick Update",
-      title: `${quickUpdateCategoryLabel(item.category)} update`,
-      detail: [item.text, item.followUpNeeded ? `Follow-up: ${item.dueWindow || "needed"}` : ""].filter(Boolean).join(" "),
-      tone: item.followUpNeeded ? "yellow" : "blue"
-    });
-  }
-
-  if (input.approvalCount) {
-    seeds.push({
-      id: "ops:approval",
-      source: "Operations",
-      title: "Approval review",
-      detail: `${input.approvalCount} approval-sensitive item(s) need review before closeout.`,
-      tone: "red"
-    });
-  }
-
-  if (input.reportExceptions) {
-    seeds.push({
-      id: "ops:carryover",
-      source: "Operations",
-      title: "Carryover candidates",
-      detail: `${input.reportExceptions} unresolved risk or waiting item(s) may need daily report context.`,
-      tone: "yellow"
-    });
-  }
-
-  if (input.handoffCount) {
-    seeds.push({
-      id: "ops:handoff",
-      source: "Operations",
-      title: "Release and handoff control",
-      detail: `${input.handoffCount} handoff item(s) should be reviewed for tomorrow ownership or customer impact.`,
-      tone: "blue"
-    });
-  }
-
-  return seeds.slice(0, 12);
+function reportSeedSourceLabel(seed: ReportSeedItem) {
+  if (seed.sourceType === "CHECKLIST_ITEM") return "Daily Checklist";
+  if (seed.sourceType === "QUICK_UPDATE") return "Quick Update";
+  return "Operations";
 }
 
 export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean; model: ServiceAdvisorWorkspaceModel }) {
   const [planCreatedAt, setPlanCreatedAt] = useState<string | null>(null);
-  const checklistStorageKey = todayStorageKey("coo-daily-checklist", model);
-  const quickUpdateStorageKey = todayStorageKey("coo-quick-updates", model);
-  const [checklistItems, setChecklistItems] = useState<DailyChecklistItem[]>(() => readStoredArray<DailyChecklistItem>(checklistStorageKey));
+  const [workbook, setWorkbook] = useState<WorkdayWorkbookModel>(model.workbook);
   const [checklistText, setChecklistText] = useState("");
-  const [quickUpdates, setQuickUpdates] = useState<QuickUpdateItem[]>(() => readStoredArray<QuickUpdateItem>(quickUpdateStorageKey));
   const [quickUpdateText, setQuickUpdateText] = useState("");
   const [quickUpdateCategory, setQuickUpdateCategory] = useState<QuickUpdateCategory>("OTHER");
   const [quickUpdatePerson, setQuickUpdatePerson] = useState("");
@@ -302,19 +201,16 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
   const [quickUpdateDueWindow, setQuickUpdateDueWindow] = useState("");
   const [workspaceNotice, setWorkspaceNotice] = useState<string | null>(null);
   const [convertingId, setConvertingId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const approvalCount = actionCount(model, "AUTHORIZATION");
   const promiseRiskCount = actionCount(model, "PROMISE_RISK");
   const partsDelayCount = actionCount(model, "PARTS_DELAY");
   const techClarificationCount = actionCount(model, "TECHNICIAN_CLARIFICATION");
   const handoffCount = actionCount(model, "HANDOFF");
   const reportExceptions = model.counts.needsAttention + model.counts.waitingOnOthers;
-  const reportSeeds = useMemo(() => buildReportSeeds({
-    approvalCount,
-    checklistItems,
-    handoffCount,
-    quickUpdates,
-    reportExceptions
-  }), [approvalCount, checklistItems, handoffCount, quickUpdates, reportExceptions]);
+  const checklistItems = workbook.checklistItems;
+  const quickUpdates = workbook.quickUpdates;
+  const reportSeeds = workbook.reportSeeds;
   const actionPlan = [
     {
       empty: "No urgent operating actions are waiting.",
@@ -384,61 +280,113 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
     title: "Create COO daily action plan"
   });
 
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(checklistStorageKey, JSON.stringify(checklistItems));
-    } catch {
-      // Browser storage can be unavailable in private or restricted contexts.
-    }
-  }, [checklistItems, checklistStorageKey]);
+  async function refreshWorkbook() {
+    const response = await fetch("/api/coo-workbook");
+    const payload = await response.json().catch(() => null) as { workbook?: WorkdayWorkbookModel; error?: string } | null;
+    if (!response.ok || !payload?.workbook) throw new Error(payload?.error ?? "Unable to refresh the workbook.");
+    setWorkbook(payload.workbook);
+  }
 
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(quickUpdateStorageKey, JSON.stringify(quickUpdates));
-    } catch {
-      // Browser storage can be unavailable in private or restricted contexts.
-    }
-  }, [quickUpdates, quickUpdateStorageKey]);
-
-  function addChecklistItem() {
+  async function addChecklistItem() {
     const text = checklistText.trim();
     if (!text) return;
-    setChecklistItems((items) => [{
-      id: createLocalId("checklist"),
-      text,
-      status: "GREEN",
-      update: "",
-      done: false,
-      createdAt: new Date().toISOString()
-    }, ...items]);
-    setChecklistText("");
-    setWorkspaceNotice("Checklist item added for today.");
+    setSaving(true);
+    try {
+      const response = await fetch(`/api/coo-workbook/checklist?date=${encodeURIComponent(model.generatedAt.slice(0, 10))}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text })
+      });
+      const payload = await response.json().catch(() => null) as { error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error ?? "Unable to save checklist item.");
+      setChecklistText("");
+      await refreshWorkbook();
+      setWorkspaceNotice("Checklist item saved for today.");
+    } catch (error) {
+      setWorkspaceNotice(error instanceof Error ? error.message : "Unable to save checklist item.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   function updateChecklistItem(id: string, patch: Partial<DailyChecklistItem>) {
-    setChecklistItems((items) => items.map((item) => item.id === id ? { ...item, ...patch } : item));
+    setWorkbook((current) => ({
+      ...current,
+      checklistItems: current.checklistItems.map((item) => item.id === id ? { ...item, ...patch } : item)
+    }));
   }
 
-  function addQuickUpdate() {
+  async function persistChecklistItem(id: string, patch: Partial<DailyChecklistItem>) {
+    updateChecklistItem(id, patch);
+    try {
+      const response = await fetch(`/api/coo-workbook/checklist/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch)
+      });
+      const payload = await response.json().catch(() => null) as { error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error ?? "Unable to update checklist item.");
+      await refreshWorkbook();
+    } catch (error) {
+      setWorkspaceNotice(error instanceof Error ? error.message : "Unable to update checklist item.");
+    }
+  }
+
+  async function addQuickUpdate() {
     const text = quickUpdateText.trim();
     if (!text) return;
-    setQuickUpdates((items) => [{
-      id: createLocalId("quick"),
-      text,
-      category: quickUpdateCategory,
-      person: quickUpdatePerson.trim(),
-      company: quickUpdateCompany.trim(),
-      followUpNeeded: quickUpdateFollowUp,
-      dueWindow: quickUpdateDueWindow.trim(),
-      createdAt: new Date().toISOString()
-    }, ...items]);
-    setQuickUpdateText("");
-    setQuickUpdateCategory("OTHER");
-    setQuickUpdatePerson("");
-    setQuickUpdateCompany("");
-    setQuickUpdateFollowUp(false);
-    setQuickUpdateDueWindow("");
-    setWorkspaceNotice("Quick Update captured for today's report trail.");
+    setSaving(true);
+    try {
+      const response = await fetch(`/api/coo-workbook/quick-updates?date=${encodeURIComponent(model.generatedAt.slice(0, 10))}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          category: quickUpdateCategory,
+          company: quickUpdateCompany,
+          dueWindow: quickUpdateDueWindow,
+          followUpNeeded: quickUpdateFollowUp,
+          person: quickUpdatePerson,
+          text
+        })
+      });
+      const payload = await response.json().catch(() => null) as { error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error ?? "Unable to save Quick Update.");
+      setQuickUpdateText("");
+      setQuickUpdateCategory("OTHER");
+      setQuickUpdatePerson("");
+      setQuickUpdateCompany("");
+      setQuickUpdateFollowUp(false);
+      setQuickUpdateDueWindow("");
+      await refreshWorkbook();
+      setWorkspaceNotice("Quick Update saved for today's report trail.");
+    } catch (error) {
+      setWorkspaceNotice(error instanceof Error ? error.message : "Unable to save Quick Update.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function updateQuickUpdateItem(id: string, patch: Partial<QuickUpdateItem>) {
+    setWorkbook((current) => ({
+      ...current,
+      quickUpdates: current.quickUpdates.map((item) => item.id === id ? { ...item, ...patch } : item)
+    }));
+  }
+
+  async function persistQuickUpdate(id: string, patch: Partial<QuickUpdateItem>) {
+    updateQuickUpdateItem(id, patch);
+    try {
+      const response = await fetch(`/api/coo-workbook/quick-updates/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch)
+      });
+      const payload = await response.json().catch(() => null) as { error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error ?? "Unable to update Quick Update.");
+      await refreshWorkbook();
+    } catch (error) {
+      setWorkspaceNotice(error instanceof Error ? error.message : "Unable to update Quick Update.");
+    }
   }
 
   async function convertToTask(source: "checklist" | "quick", item: DailyChecklistItem | QuickUpdateItem) {
@@ -479,9 +427,9 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
       const payload = await response.json().catch(() => null) as { task?: { id: string; title: string }; error?: string } | null;
       if (!response.ok || !payload?.task) throw new Error(payload?.error ?? "Unable to convert this item right now.");
       if (isChecklist) {
-        updateChecklistItem(item.id, { convertedTaskId: payload.task.id });
+        await persistChecklistItem(item.id, { convertedTaskId: payload.task.id });
       } else {
-        setQuickUpdates((items) => items.map((quickItem) => quickItem.id === item.id ? { ...quickItem, convertedTaskId: payload.task!.id } : quickItem));
+        await persistQuickUpdate(item.id, { convertedTaskId: payload.task.id });
       }
       setWorkspaceNotice(`Task created: ${payload.task.title}`);
     } catch (error) {
@@ -524,22 +472,23 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
           <input aria-label="Add Daily Checklist item" onChange={(event) => setChecklistText(event.target.value)} onKeyDown={(event) => {
             if (event.key === "Enter") {
               event.preventDefault();
-              addChecklistItem();
+              void addChecklistItem();
             }
           }} placeholder="Add something to do today..." value={checklistText} />
-          <button disabled={!checklistText.trim()} onClick={addChecklistItem} type="button"><Plus /> Add</button>
+          <button disabled={saving || !checklistText.trim()} onClick={() => void addChecklistItem()} type="button"><Plus /> Add</button>
         </div>
         <div className="advisor-coo-checklist-items">
           {checklistItems.length ? checklistItems.map((item) => <div className={`advisor-coo-checklist-item ${statusTone(item.status)} ${item.done ? "done" : ""}`} key={item.id}>
-            <button aria-label={`Mark ${item.text} ${item.done ? "not done" : "done"}`} className="advisor-coo-check" onClick={() => updateChecklistItem(item.id, { done: !item.done, status: !item.done ? "GREEN" : item.status })} type="button"><CheckSquare /></button>
+            <button aria-label={`Mark ${item.text} ${item.done ? "not done" : "done"}`} className="advisor-coo-check" onClick={() => void persistChecklistItem(item.id, { done: !item.done, status: !item.done ? "GREEN" : item.status })} type="button"><CheckSquare /></button>
             <div>
               <strong>{item.text}</strong>
               <small>{checklistStatusLabel(item)} · Added {dateLabel(item.createdAt)}</small>
-              <input aria-label={`Update for ${item.text}`} onChange={(event) => updateChecklistItem(item.id, { update: event.target.value })} placeholder="Add update..." value={item.update} />
+              <input aria-label={`Update for ${item.text}`} onBlur={() => void persistChecklistItem(item.id, { update: item.update })} onChange={(event) => updateChecklistItem(item.id, { update: event.target.value })} placeholder="Add update..." value={item.update} />
             </div>
-            <select aria-label={`Status for ${item.text}`} onChange={(event) => updateChecklistItem(item.id, { status: event.target.value as DailyChecklistStatus, done: event.target.value === "GREEN" ? item.done : false })} value={item.status}>
+            <select aria-label={`Status for ${item.text}`} onChange={(event) => void persistChecklistItem(item.id, { status: event.target.value as DailyChecklistStatus, done: event.target.value === "GREEN" ? item.done : false })} value={item.status}>
               {checklistStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
+            <button aria-pressed={item.carryoverReady} onClick={() => void persistChecklistItem(item.id, { carryoverReady: !item.carryoverReady })} type="button">{item.carryoverReady ? "Carryover" : "Carry over"}</button>
             {item.convertedTaskId ? <Link href={`/tasks/${item.convertedTaskId}`}>Open task</Link> : <button disabled={convertingId === item.id} onClick={() => void convertToTask("checklist", item)} type="button">{convertingId === item.id ? "Converting..." : "Convert"}</button>}
           </div>) : <p><ListChecks /> Add a quick list of what needs to get done today.</p>}
         </div>
@@ -560,7 +509,7 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
         <div className="advisor-coo-followup-row">
           <label><input checked={quickUpdateFollowUp} onChange={(event) => setQuickUpdateFollowUp(event.target.checked)} type="checkbox" /> Follow-up needed</label>
           <input aria-label="Follow-up due date or time window" disabled={!quickUpdateFollowUp} onChange={(event) => setQuickUpdateDueWindow(event.target.value)} placeholder="Due date or time window" value={quickUpdateDueWindow} />
-          <button disabled={!quickUpdateText.trim()} onClick={addQuickUpdate} type="button"><Save /> Save update</button>
+          <button disabled={saving || !quickUpdateText.trim()} onClick={() => void addQuickUpdate()} type="button"><Save /> Save update</button>
         </div>
       </article>
       {workspaceNotice ? <p className="advisor-coo-workspace-notice" role="status">{workspaceNotice}</p> : null}
@@ -572,7 +521,8 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
           {quickUpdates.length ? quickUpdates.map((item) => <div className="advisor-coo-update-item" key={item.id}>
             <span><strong>{quickUpdateCategoryLabel(item.category)}</strong><small>{dateLabel(item.createdAt)}</small></span>
             <p>{item.text}</p>
-            <small>{[item.person, item.company, item.followUpNeeded ? `Follow-up: ${item.dueWindow || "needed"}` : ""].filter(Boolean).join(" · ") || "No extra details"}</small>
+            <small>{[item.person, item.company, item.followUpNeeded ? `Follow-up: ${item.dueWindow || "needed"}` : "", item.carryoverReady ? "Carryover ready" : ""].filter(Boolean).join(" · ") || "No extra details"}</small>
+            <button aria-pressed={item.carryoverReady} onClick={() => void persistQuickUpdate(item.id, { carryoverReady: !item.carryoverReady })} type="button">{item.carryoverReady ? "Carryover" : "Carry over"}</button>
             {item.convertedTaskId ? <Link href={`/tasks/${item.convertedTaskId}`}>Open task</Link> : <button disabled={convertingId === item.id} onClick={() => void convertToTask("quick", item)} type="button">{convertingId === item.id ? "Converting..." : "Convert to task"}</button>}
           </div>) : <p><MessageSquareText /> No Quick Updates captured yet.</p>}
         </div>
@@ -580,8 +530,8 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
       <article>
         <header><strong>Report Seeds</strong><small>Meaningful checklist items, Quick Updates, and operating exceptions.</small></header>
         <div>
-          {reportSeeds.length ? reportSeeds.map((seed) => <div className={`advisor-coo-seed-item ${seed.tone}`} key={seed.id}>
-            <span><strong>{seed.title}</strong><small>{seed.source}</small></span>
+          {reportSeeds.length ? reportSeeds.map((seed) => <div className={`advisor-coo-seed-item ${reportSeedTone(seed.tone)}`} key={seed.id}>
+            <span><strong>{seed.title}</strong><small>{reportSeedSourceLabel(seed)}</small></span>
             <p>{seed.detail}</p>
           </div>) : <p><FileText /> No report seeds yet. Work the day, then generate the report trail.</p>}
         </div>

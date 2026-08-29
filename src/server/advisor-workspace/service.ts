@@ -1,5 +1,6 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { getRepairOrderCreateOptions, listRepairOrders } from "@/server/repair-order/service";
+import { getCooWorkbook } from "@/server/services/workday-workbook";
 
 type AdvisorActionKind = "AUTHORIZATION" | "PROMISE_RISK" | "PARTS_DELAY" | "CUSTOMER_UPDATE" | "HANDOFF" | "FOLLOW_UP_SCHEDULED" | "TECHNICIAN_CLARIFICATION";
 
@@ -176,6 +177,14 @@ export async function getServiceAdvisorWorkspace(actor: AuthenticatedUser) {
   const activeHandoffs = actionQueue.filter(({ action }) => !["CUSTOMER_UPDATE", "FOLLOW_UP_SCHEDULED"].includes(action.kind));
   const needsAttention = actionQueue.filter(({ action }) => ["AUTHORIZATION", "PROMISE_RISK", "HANDOFF", "CUSTOMER_UPDATE"].includes(action.kind));
   const waitingOnOthers = actionQueue.filter(({ action }) => ["PARTS_DELAY", "TECHNICIAN_CLARIFICATION", "FOLLOW_UP_SCHEDULED"].includes(action.kind));
+  const approvalCount = actionQueue.filter(({ action }) => action.kind === "AUTHORIZATION").length;
+  const handoffCount = actionQueue.filter(({ action }) => action.kind === "HANDOFF").length;
+  const reportExceptions = needsAttention.length + waitingOnOthers.length;
+  const workbook = await getCooWorkbook(actor, todayKey, {
+    approvalCount,
+    handoffCount,
+    reportExceptions
+  });
   const inbox = openOrders.items.flatMap((order) => order.advisorUpdates.map((update) => {
     const exceptionCodes = advisorExceptionCodes(update.exceptionCodes);
     const audience = exceptionCodes.includes("MANAGER_REVIEW")
@@ -208,6 +217,7 @@ export async function getServiceAdvisorWorkspace(actor: AuthenticatedUser) {
   return {
     generatedAt: now.toISOString(),
     advisor: { id: actor.id, name: actor.name },
+    workbook,
     counts: {
       activeRepairOrders: openOrders.total,
       availableAppointments: appointments.length,

@@ -1664,6 +1664,55 @@ enum InventoryConsoleSignoffDecision {
   REJECT
 }
 
+enum WorkdayWorkbookScope {
+  COO
+  STAFF
+}
+
+enum WorkdayWorkbookStatus {
+  ACTIVE
+  CLOSED
+}
+
+enum WorkdayChecklistStatus {
+  GREEN
+  YELLOW
+  RED
+}
+
+enum WorkdayQuickUpdateCategory {
+  CUSTOMER
+  VENDOR
+  FACILITY
+  STAFF
+  SALES_OPPORTUNITY
+  FINANCE
+  INVENTORY_PARTS
+  SAFETY
+  TRAINING
+  OTHER
+}
+
+enum WorkdayReportSeedSourceType {
+  CHECKLIST_ITEM
+  QUICK_UPDATE
+  OPERATING_EXCEPTION
+}
+
+enum WorkdayReportSeedTone {
+  GREEN
+  YELLOW
+  RED
+  BLUE
+}
+
+enum WorkdayReportSeedStatus {
+  CANDIDATE
+  INCLUDED
+  EXCLUDED
+  CARRIED_OVER
+}
+
 // Placeholder model for the v0.1.0 foundation migration.
 // Domain models are intentionally deferred to later milestones.
 model BootstrapMarker {
@@ -1728,6 +1777,7 @@ model User {
   requestedTaskAssignments                TaskAssignmentRequest[]                @relation("TaskAssignmentRequestRequester")
   decidedTaskAssignmentRequests           TaskAssignmentRequest[]                @relation("TaskAssignmentRequestDecisionMaker")
   submittedStaffDailyReports              StaffDailyReport[]                     @relation("StaffDailyReportSubmittedByUser")
+  workdayWorkbooks                        WorkdayWorkbook[]
   taskCollaborations                      TaskCollaborator[]                     @relation("TaskCollaboratorUser")
   addedTaskCollaborators                  TaskCollaborator[]                     @relation("TaskCollaboratorAddedByUser")
   crmDecisionOverrides                    CrmDecisionRecord[]                    @relation("CrmDecisionOverrideUser")
@@ -6658,6 +6708,82 @@ model BoardDay {
   tasks             Task[]
   concerns          ConcernCase[]
   staffDays         StaffDay[]
+  workdayWorkbooks  WorkdayWorkbook[]
+}
+
+model WorkdayWorkbook {
+  id             String                @id @default(cuid())
+  boardDayId     String
+  userId         String
+  scope          WorkdayWorkbookScope  @default(COO)
+  status         WorkdayWorkbookStatus @default(ACTIVE)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  boardDay       BoardDay              @relation(fields: [boardDayId], references: [id], onDelete: Cascade)
+  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  checklistItems WorkdayChecklistItem[]
+  quickUpdates   WorkdayQuickUpdate[]
+  reportSeeds    WorkdayReportSeed[]
+
+  @@unique([boardDayId, userId, scope])
+  @@index([userId, scope, status])
+  @@index([boardDayId, scope])
+}
+
+model WorkdayChecklistItem {
+  id              String                 @id @default(cuid())
+  workbookId      String
+  text            String
+  status          WorkdayChecklistStatus @default(GREEN)
+  update          String                 @default("")
+  done            Boolean                @default(false)
+  carryoverReady  Boolean                @default(false)
+  convertedTaskId String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  workbook        WorkdayWorkbook        @relation(fields: [workbookId], references: [id], onDelete: Cascade)
+  convertedTask   Task?                  @relation("WorkdayChecklistConvertedTask", fields: [convertedTaskId], references: [id], onDelete: SetNull)
+
+  @@index([workbookId, status, done])
+  @@index([convertedTaskId])
+}
+
+model WorkdayQuickUpdate {
+  id              String                     @id @default(cuid())
+  workbookId      String
+  text            String
+  category        WorkdayQuickUpdateCategory @default(OTHER)
+  person          String                     @default("")
+  company         String                     @default("")
+  followUpNeeded  Boolean                    @default(false)
+  dueWindow       String                     @default("")
+  carryoverReady  Boolean                    @default(false)
+  convertedTaskId String?
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+  workbook        WorkdayWorkbook            @relation(fields: [workbookId], references: [id], onDelete: Cascade)
+  convertedTask   Task?                      @relation("WorkdayQuickUpdateConvertedTask", fields: [convertedTaskId], references: [id], onDelete: SetNull)
+
+  @@index([workbookId, category, followUpNeeded])
+  @@index([convertedTaskId])
+}
+
+model WorkdayReportSeed {
+  id          String                      @id @default(cuid())
+  workbookId  String
+  sourceType  WorkdayReportSeedSourceType
+  sourceId    String
+  title       String
+  detail      String
+  tone        WorkdayReportSeedTone
+  status      WorkdayReportSeedStatus     @default(CANDIDATE)
+  sourceHref  String?
+  createdAt   DateTime                    @default(now())
+  updatedAt   DateTime                    @updatedAt
+  workbook    WorkdayWorkbook             @relation(fields: [workbookId], references: [id], onDelete: Cascade)
+
+  @@unique([workbookId, sourceType, sourceId])
+  @@index([workbookId, status, tone])
 }
 
 model StaffDay {
@@ -7103,6 +7229,8 @@ model Task {
   unifiedCrmOpportunityLinks UnifiedCrmOpportunityTaskLink[]
   customer                   Customer?                 @relation(fields: [customerId], references: [id], onDelete: SetNull)
   inventoryWorkPacket        InventoryWorkPacket?
+  convertedFromChecklist     WorkdayChecklistItem[]    @relation("WorkdayChecklistConvertedTask")
+  convertedFromQuickUpdates  WorkdayQuickUpdate[]      @relation("WorkdayQuickUpdateConvertedTask")
 
   @@unique([boardDayId, sourceTemplateId, assignedUserId])
   @@unique([boardDayId, carryoverSourceTaskId])
