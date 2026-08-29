@@ -1,4 +1,5 @@
 import {
+  WorkdayActivityPurpose,
   WorkdayCarryoverStatus,
   WorkdayChecklistStatus,
   WorkdayDailyFocusStatus,
@@ -18,6 +19,14 @@ function statusLabel(score: number) {
   if (score >= 85) return "READY" as const;
   if (score >= 60) return "NEEDS_REVIEW" as const;
   return "NEEDS_SUPPORT" as const;
+}
+
+function countByPurpose(workbook: WorkdayWorkbookRecord, purpose: WorkdayActivityPurpose) {
+  return (workbook.activitySignals ?? []).filter((signal) => signal.purpose === purpose).length;
+}
+
+function minutesFromSeconds(seconds: number) {
+  return Math.round(seconds / 60);
 }
 
 export function buildDailyPlanningEngine(workbook: WorkdayWorkbookRecord) {
@@ -218,7 +227,8 @@ export function buildReportIntelligenceEngine(workbook: WorkdayWorkbookRecord, o
   const meaningfulChecklistSeeds = workbook.checklistItems.filter((item) => item.update.trim() || item.done || item.status !== WorkdayChecklistStatus.GREEN || item.carryoverReady);
   const quickUpdateSeeds = workbook.quickUpdates;
   const supportSeeds = workbook.supportActions;
-  const sourceBackedCount = includedSeeds.length + candidateSeeds.length + carriedSeeds.length + completedFocusSeeds.length + unresolvedFocusSeeds.length + meaningfulChecklistSeeds.length + quickUpdateSeeds.length + supportSeeds.length + operatingSignals.reportExceptions;
+  const reportActivitySignals = (workbook.activitySignals ?? []).filter((signal) => signal.reportRelevant);
+  const sourceBackedCount = includedSeeds.length + candidateSeeds.length + carriedSeeds.length + completedFocusSeeds.length + unresolvedFocusSeeds.length + meaningfulChecklistSeeds.length + quickUpdateSeeds.length + supportSeeds.length + reportActivitySignals.length + operatingSignals.reportExceptions;
   const reviewedCount = includedSeeds.length + carriedSeeds.length + excludedSeeds.length;
   const reviewScore = workbook.reportSeeds.length ? (reviewedCount / workbook.reportSeeds.length) * 50 : 20;
   const sourceScore = Math.min(35, sourceBackedCount * 5);
@@ -251,6 +261,7 @@ export function buildReportIntelligenceEngine(workbook: WorkdayWorkbookRecord, o
     meaningfulChecklistCount: meaningfulChecklistSeeds.length,
     quickUpdateCount: quickUpdateSeeds.length,
     supportSignalCount: supportSeeds.length,
+    reportActivitySignalCount: reportActivitySignals.length,
     dailyDraftInputs,
     weeklyRollupInputs: dailyDraftInputs,
     monthlyRollupInputs: dailyDraftInputs,
@@ -258,6 +269,93 @@ export function buildReportIntelligenceEngine(workbook: WorkdayWorkbookRecord, o
     staffGuidance: prompts[0],
     managerSummary: `${sourceBackedCount} source-backed report signal(s), ${reviewedCount} reviewed seed(s), and ${candidateSeeds.length} candidate seed(s).`,
     prompts
+  };
+}
+
+export function buildActivityIntelligenceEngine(workbook: WorkdayWorkbookRecord) {
+  const signals = workbook.activitySignals ?? [];
+  const reportRelevantSignals = signals.filter((signal) => signal.reportRelevant);
+  const coachingRelevantSignals = signals.filter((signal) => signal.coachingRelevant);
+  const completedWorkCount = countByPurpose(workbook, WorkdayActivityPurpose.COMPLETED_WORK);
+  const customerCommunicationCount = countByPurpose(workbook, WorkdayActivityPurpose.CUSTOMER_COMMUNICATION);
+  const blockerRiskCount = countByPurpose(workbook, WorkdayActivityPurpose.BLOCKER_RISK);
+  const followUpCount = countByPurpose(workbook, WorkdayActivityPurpose.FOLLOW_UP);
+  const supportRequestCount = countByPurpose(workbook, WorkdayActivityPurpose.SUPPORT_REQUEST);
+  const taskConversionCount = countByPurpose(workbook, WorkdayActivityPurpose.TASK_CONVERSION);
+  const promiseCommitmentCount = countByPurpose(workbook, WorkdayActivityPurpose.PROMISE_COMMITMENT);
+  const score = clampScore(
+    45 +
+    completedWorkCount * 8 +
+    customerCommunicationCount * 4 +
+    followUpCount * 5 +
+    reportRelevantSignals.length * 3 +
+    taskConversionCount * 5 -
+    blockerRiskCount * 8 +
+    supportRequestCount * 2
+  );
+  const feedback = [
+    ...(completedWorkCount ? [`${completedWorkCount} completed work signal(s) captured from the app.`] : []),
+    ...(customerCommunicationCount ? [`${customerCommunicationCount} customer communication signal(s) captured.`] : []),
+    ...(blockerRiskCount ? [`${blockerRiskCount} blocker or risk signal(s) need attention.`] : []),
+    ...(followUpCount ? [`${followUpCount} follow-up signal(s) should stay visible through close.`] : []),
+    ...(supportRequestCount ? [`${supportRequestCount} support request signal(s) captured.`] : [])
+  ];
+
+  return {
+    score,
+    status: statusLabel(score),
+    signalCount: signals.length,
+    reportRelevantCount: reportRelevantSignals.length,
+    coachingRelevantCount: coachingRelevantSignals.length,
+    completedWorkCount,
+    customerCommunicationCount,
+    blockerRiskCount,
+    followUpCount,
+    supportRequestCount,
+    taskConversionCount,
+    promiseCommitmentCount,
+    feedback,
+    recentSignals: signals.slice(0, 8).map((signal) => ({
+      id: signal.id,
+      actionType: signal.actionType,
+      businessImpact: signal.businessImpact,
+      occurredAt: signal.occurredAt.toISOString(),
+      purpose: signal.purpose,
+      reportRelevant: signal.reportRelevant,
+      sourceModule: signal.sourceModule,
+      sourceType: signal.sourceType,
+      title: signal.businessImpact || signal.actionType
+    })),
+    staffGuidance: feedback[0] ?? "No app activity signals have been attached to this workbook day yet.",
+    managerSummary: `${signals.length} activity signal(s), ${reportRelevantSignals.length} report-ready, ${blockerRiskCount} blocker/risk signal(s).`
+  };
+}
+
+export function buildTimeAndAttentionEngine(workbook: WorkdayWorkbookRecord) {
+  const sessions = workbook.attentionSessions ?? [];
+  const activeSeconds = sessions.reduce((total, session) => total + session.activeSeconds, 0);
+  const idleSeconds = sessions.reduce((total, session) => total + session.idleSeconds, 0);
+  const areaTotals = sessions.reduce<Record<string, number>>((totals, session) => {
+    totals[session.sourceArea] = (totals[session.sourceArea] ?? 0) + session.activeSeconds;
+    return totals;
+  }, {});
+  const areas = Object.entries(areaTotals)
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .map(([area, seconds]) => ({ area, activeMinutes: minutesFromSeconds(seconds) }));
+  const focusAlignmentScore = clampScore(areas.length ? 55 + Math.min(35, areas[0].activeMinutes * 2) - Math.min(25, minutesFromSeconds(idleSeconds)) : 40);
+  const topArea = areas[0]?.area ?? "No active area yet";
+
+  return {
+    score: focusAlignmentScore,
+    status: statusLabel(focusAlignmentScore),
+    activeMinutes: minutesFromSeconds(activeSeconds),
+    idleMinutes: minutesFromSeconds(idleSeconds),
+    sessionCount: sessions.length,
+    areas,
+    staffGuidance: sessions.length
+      ? `Most active workbook time is in ${topArea}. Keep time aligned with today's priority work.`
+      : "Time-in-area tracking has not started for this workbook day.",
+    managerSummary: `${minutesFromSeconds(activeSeconds)} active minute(s) captured across ${areas.length} area(s).`
   };
 }
 

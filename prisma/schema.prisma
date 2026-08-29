@@ -1743,6 +1743,22 @@ enum WorkdayReportDraftStatus {
   SUBMITTED
 }
 
+enum WorkdayActivityPurpose {
+  PLANNED_WORK
+  COMPLETED_WORK
+  CUSTOMER_COMMUNICATION
+  INTERNAL_COMMUNICATION
+  BLOCKER_RISK
+  FOLLOW_UP
+  PROMISE_COMMITMENT
+  SUPPORT_REQUEST
+  CARRYOVER
+  TASK_CONVERSION
+  LEARNING_COACHING_SIGNAL
+  REPORT_WORTHY_EVENT
+  TIME_ATTENTION
+}
+
 enum WorkdayCarryoverStatus {
   OPEN
   CONFIRMED
@@ -1821,6 +1837,8 @@ model User {
   decidedTaskAssignmentRequests           TaskAssignmentRequest[]                @relation("TaskAssignmentRequestDecisionMaker")
   submittedStaffDailyReports              StaffDailyReport[]                     @relation("StaffDailyReportSubmittedByUser")
   workdayWorkbooks                        WorkdayWorkbook[]
+  workdayActivitySignals                  WorkdayActivitySignal[]
+  workdayAttentionSessions                WorkdayAttentionSession[]
   taskCollaborations                      TaskCollaborator[]                     @relation("TaskCollaboratorUser")
   addedTaskCollaborators                  TaskCollaborator[]                     @relation("TaskCollaboratorAddedByUser")
   crmDecisionOverrides                    CrmDecisionRecord[]                    @relation("CrmDecisionOverrideUser")
@@ -6752,6 +6770,8 @@ model BoardDay {
   concerns          ConcernCase[]
   staffDays         StaffDay[]
   workdayWorkbooks  WorkdayWorkbook[]
+  workdayActivitySignals WorkdayActivitySignal[]
+  workdayAttentionSessions WorkdayAttentionSession[]
 }
 
 model WorkdayWorkbook {
@@ -6774,6 +6794,8 @@ model WorkdayWorkbook {
   reportDrafts   WorkdayReportDraft[]
   carryovers     WorkdayCarryover[]
   supportActions WorkdaySupportAction[]
+  activitySignals WorkdayActivitySignal[]
+  attentionSessions WorkdayAttentionSession[]
 
   @@unique([boardDayId, userId, scope])
   @@index([userId, scope, status])
@@ -6925,6 +6947,57 @@ model WorkdaySupportAction {
 
   @@index([workbookId, status, createdAt])
   @@index([targetUserId, status])
+}
+
+model WorkdayActivitySignal {
+  id               String                 @id @default(cuid())
+  workbookId       String
+  boardDayId       String
+  actorUserId      String
+  sourceModule     String
+  sourceType       String
+  sourceId         String
+  actionType       String
+  purpose          WorkdayActivityPurpose
+  businessImpact   String                 @default("")
+  reportRelevant   Boolean                @default(false)
+  coachingRelevant Boolean                @default(true)
+  metadata         Json
+  occurredAt       DateTime               @default(now())
+  createdAt        DateTime               @default(now())
+  workbook         WorkdayWorkbook        @relation(fields: [workbookId], references: [id], onDelete: Cascade)
+  boardDay         BoardDay               @relation(fields: [boardDayId], references: [id], onDelete: Cascade)
+  actorUser        User                   @relation(fields: [actorUserId], references: [id], onDelete: Cascade)
+
+  @@unique([workbookId, sourceType, sourceId, actionType])
+  @@index([boardDayId, actorUserId, occurredAt])
+  @@index([workbookId, purpose, occurredAt])
+  @@index([reportRelevant, occurredAt])
+}
+
+model WorkdayAttentionSession {
+  id              String          @id @default(cuid())
+  workbookId      String
+  boardDayId      String
+  userId          String
+  sourceArea      String
+  sourcePath      String          @default("")
+  sessionKey      String
+  activeSeconds   Int             @default(0)
+  idleSeconds     Int             @default(0)
+  startedAt       DateTime        @default(now())
+  lastHeartbeatAt DateTime        @default(now())
+  endedAt         DateTime?
+  metadata        Json
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  workbook        WorkdayWorkbook @relation(fields: [workbookId], references: [id], onDelete: Cascade)
+  boardDay        BoardDay        @relation(fields: [boardDayId], references: [id], onDelete: Cascade)
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workbookId, userId, sourceArea, sessionKey])
+  @@index([boardDayId, userId, sourceArea])
+  @@index([workbookId, lastHeartbeatAt])
 }
 
 model StaffDay {

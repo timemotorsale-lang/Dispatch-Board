@@ -1,4 +1,5 @@
 import {
+  WorkdayActivityPurpose,
   WorkdayChecklistStatus,
   WorkdayDailyFocusStatus,
   WorkdayPriority,
@@ -13,7 +14,7 @@ import {
 import { describe, expect, it } from "vitest";
 
 import type { WorkdayWorkbookRecord } from "@/server/repositories/workday-workbook-repository";
-import { buildCoachingAndAccountabilityEngine, buildDailyPlanningEngine, buildExecutionTrackingEngine, buildReportIntelligenceEngine, buildRiskAndBlockerEngine, buildWorkflowGovernanceEngine } from "@/server/services/workday-workbook-engines";
+import { buildActivityIntelligenceEngine, buildCoachingAndAccountabilityEngine, buildDailyPlanningEngine, buildExecutionTrackingEngine, buildReportIntelligenceEngine, buildRiskAndBlockerEngine, buildTimeAndAttentionEngine, buildWorkflowGovernanceEngine } from "@/server/services/workday-workbook-engines";
 
 const now = new Date("2026-08-29T14:00:00.000Z");
 const boardDay: BoardDay = {
@@ -62,6 +63,8 @@ function workbook(overrides: Partial<WorkdayWorkbookRecord> = {}): WorkdayWorkbo
     reportDrafts: [],
     carryovers: [],
     supportActions: [],
+    activitySignals: [],
+    attentionSessions: [],
     ...overrides
   };
 }
@@ -213,6 +216,105 @@ describe("workday workbook engines", () => {
     expect(reporting.excludedSeedCount).toBe(1);
     expect(reporting.dailyDraftInputs.map((item) => item.title)).toEqual(["Included work"]);
     expect(reporting.auditTrail).toEqual([{ sourceId: "seed-1", sourceType: WorkdayReportSeedSourceType.CHECKLIST_ITEM }]);
+  });
+
+  it("classifies activity intelligence from app activity signals", () => {
+    const intelligence = buildActivityIntelligenceEngine(workbook({
+      activitySignals: [
+        {
+          id: "activity-1",
+          workbookId: "workbook-1",
+          boardDayId: "board-day-1",
+          actorUserId: "user-1",
+          sourceModule: "TASKS",
+          sourceType: "TASK_ACTIVITY",
+          sourceId: "task-1",
+          actionType: "task.completed",
+          purpose: WorkdayActivityPurpose.COMPLETED_WORK,
+          businessImpact: "Completed customer callback.",
+          reportRelevant: true,
+          coachingRelevant: true,
+          metadata: {},
+          occurredAt: now,
+          createdAt: now
+        },
+        {
+          id: "activity-2",
+          workbookId: "workbook-1",
+          boardDayId: "board-day-1",
+          actorUserId: "user-1",
+          sourceModule: "REPAIR_ORDERS",
+          sourceType: "ACTIVITY_EVENT",
+          sourceId: "event-1",
+          actionType: "repair.blocker_raised",
+          purpose: WorkdayActivityPurpose.BLOCKER_RISK,
+          businessImpact: "Parts delay needs support.",
+          reportRelevant: true,
+          coachingRelevant: true,
+          metadata: {},
+          occurredAt: now,
+          createdAt: now
+        }
+      ]
+    }));
+
+    expect(intelligence).toMatchObject({
+      blockerRiskCount: 1,
+      completedWorkCount: 1,
+      reportRelevantCount: 2,
+      signalCount: 2,
+      status: "NEEDS_SUPPORT"
+    });
+    expect(intelligence.staffGuidance).toBe("1 completed work signal(s) captured from the app.");
+  });
+
+  it("summarizes time and attention by workbook area", () => {
+    const attention = buildTimeAndAttentionEngine(workbook({
+      attentionSessions: [
+        {
+          id: "attention-1",
+          workbookId: "workbook-1",
+          boardDayId: "board-day-1",
+          userId: "user-1",
+          sourceArea: "COO_WORKBOOK_EFFECTIVENESS",
+          sourcePath: "/vehicles/coo-workbook/effectiveness-pilot",
+          sessionKey: "session-1",
+          activeSeconds: 360,
+          idleSeconds: 60,
+          startedAt: now,
+          lastHeartbeatAt: now,
+          endedAt: null,
+          metadata: {},
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: "attention-2",
+          workbookId: "workbook-1",
+          boardDayId: "board-day-1",
+          userId: "user-1",
+          sourceArea: "QUICK_UPDATE",
+          sourcePath: "/vehicles/coo-workbook/quick-update",
+          sessionKey: "session-2",
+          activeSeconds: 120,
+          idleSeconds: 0,
+          startedAt: now,
+          lastHeartbeatAt: now,
+          endedAt: null,
+          metadata: {},
+          createdAt: now,
+          updatedAt: now
+        }
+      ]
+    }));
+
+    expect(attention).toMatchObject({
+      activeMinutes: 8,
+      idleMinutes: 1,
+      sessionCount: 2,
+      status: "NEEDS_REVIEW"
+    });
+    expect(attention.areas[0]).toEqual({ activeMinutes: 6, area: "COO_WORKBOOK_EFFECTIVENESS" });
   });
 
   it("governs lifecycle stage, close blockers, and allowed actions", () => {

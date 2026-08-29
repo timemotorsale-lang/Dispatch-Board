@@ -1,4 +1,5 @@
 import {
+  WorkdayActivityPurpose,
   WorkdayCarryoverStatus,
   WorkdayChecklistStatus,
   WorkdayDailyFocusStatus,
@@ -29,6 +30,7 @@ import {
   getStaffWorkbook,
   getStaffWorkbookSummaries,
   prepareWorkbookCarryovers,
+  recordWorkbookAttentionHeartbeat,
   reopenWorkbookDay,
   updateCooWorkbookChecklistItem,
   updateCooWorkbookReportSeed,
@@ -172,7 +174,9 @@ function workbook(userId = "user-jordan.sales@local.test"): WorkdayWorkbookRecor
       }
     ],
     reportDrafts: [],
-    supportActions: []
+    supportActions: [],
+    activitySignals: [],
+    attentionSessions: []
   };
 }
 
@@ -181,7 +185,10 @@ function repositoryHarness(ownerUserId = "user-jordan.sales@local.test") {
   const createdDailyFocusItems: unknown[] = [];
   const createdReportDrafts: unknown[] = [];
   const createdSupportActions: unknown[] = [];
+  const createdActivitySignals: unknown[] = [];
+  const attentionSessions: unknown[] = [];
   const activityEvents: unknown[] = [];
+  const activityEventsForSync: Awaited<ReturnType<WorkdayWorkbookRepository["listActivityEventsForWorkbookContext"]>> = [];
   const checklistUpdates: unknown[] = [];
   const carryoverUpdates: unknown[] = [];
   const dailyFocusUpdates: unknown[] = [];
@@ -209,6 +216,9 @@ function repositoryHarness(ownerUserId = "user-jordan.sales@local.test") {
     },
     async createSupportAction(input) {
       createdSupportActions.push(input);
+    },
+    async createActivitySignal(input) {
+      createdActivitySignals.push(input);
     },
     async findChecklistItem(itemId) {
       const item = currentWorkbook.checklistItems.find((candidate) => candidate.id === itemId);
@@ -289,6 +299,9 @@ function repositoryHarness(ownerUserId = "user-jordan.sales@local.test") {
         }))
       }];
     },
+    async listActivityEventsForWorkbookContext() {
+      return activityEventsForSync;
+    },
     async recordActivity(input) {
       activityEvents.push(input);
     },
@@ -313,6 +326,9 @@ function repositoryHarness(ownerUserId = "user-jordan.sales@local.test") {
     async updateSupportAction(input) {
       supportActionUpdates.push(input);
     },
+    async upsertAttentionSession(input) {
+      attentionSessions.push(input);
+    },
     async upsertCarryovers(input) {
       upsertedCarryovers.push(input);
     },
@@ -321,7 +337,7 @@ function repositoryHarness(ownerUserId = "user-jordan.sales@local.test") {
     }
   };
 
-  return { activityEvents, carryoverUpdates, checklistUpdates, closedWorkbooks, createdChecklistItems, createdDailyFocusItems, createdReportDrafts, createdSupportActions, currentWorkbook, dailyFocusUpdates, reopenedWorkbooks, reportSeedUpdates, repository, supportActionUpdates, upsertedCarryovers };
+  return { activityEvents, activityEventsForSync, attentionSessions, carryoverUpdates, checklistUpdates, closedWorkbooks, createdActivitySignals, createdChecklistItems, createdDailyFocusItems, createdReportDrafts, createdSupportActions, currentWorkbook, dailyFocusUpdates, reopenedWorkbooks, reportSeedUpdates, repository, supportActionUpdates, upsertedCarryovers };
 }
 
 describe("workday workbook service", () => {
@@ -346,6 +362,49 @@ describe("workday workbook service", () => {
       tone: WorkdayReportSeedTone.YELLOW
     });
   });
+
+  it("adds report seeds from report-worthy app activity signals", () => {
+    const now = new Date("2026-08-29T16:00:00.000Z");
+    const seeds = buildWorkdayReportSeeds({
+      ...workbook(),
+      dailyFocusItems: [],
+      checklistItems: [],
+      quickUpdates: [],
+      activitySignals: [
+        {
+          id: "activity-1",
+          workbookId: "workbook-1",
+          boardDayId: "board-day-1",
+          actorUserId: "user-jordan.sales@local.test",
+          sourceModule: "CUSTOMER_UPDATES",
+          sourceType: "ACTIVITY_EVENT",
+          sourceId: "customer-event-1",
+          actionType: "customer.update_sent",
+          purpose: WorkdayActivityPurpose.CUSTOMER_COMMUNICATION,
+          businessImpact: "Customer was updated before close.",
+          reportRelevant: true,
+          coachingRelevant: true,
+          metadata: {},
+          occurredAt: now,
+          createdAt: now
+        }
+      ]
+    }, {
+      approvalCount: 0,
+      handoffCount: 0,
+      reportExceptions: 0
+    });
+
+    expect(seeds).toEqual([
+      expect.objectContaining({
+        detail: "Customer was updated before close.",
+        sourceId: "activity:activity-1",
+        sourceType: WorkdayReportSeedSourceType.OPERATING_EXCEPTION,
+        title: "Customer updates"
+      })
+    ]);
+  });
+
 
   it("builds a saved daily report draft from reviewed seeds and excludes rejected noise", () => {
     const draft = buildWorkdayDailyReportDraft(workbook(), "2026-08-29");
@@ -407,6 +466,13 @@ describe("workday workbook service", () => {
         workbookId: "workbook-1"
       }
     ]);
+    expect(harness.createdActivitySignals).toEqual([
+      expect.objectContaining({
+        actionType: "workbook.checklist_created",
+        purpose: WorkdayActivityPurpose.PLANNED_WORK,
+        reportRelevant: false
+      })
+    ]);
   });
 
   it("creates a checklist item in the current user's staff workbook", async () => {
@@ -449,6 +515,47 @@ describe("workday workbook service", () => {
       mustCloseOpen: 1,
       supportNeeded: "Need manager approval if roof quote is high."
     });
+    expect(readModel.activityIntelligence).toMatchObject({
+      reportRelevantCount: 0,
+      signalCount: 0
+    });
+    expect(readModel.timeAttention).toMatchObject({
+      activeMinutes: 0,
+      sessionCount: 0
+    });
+  });
+
+  it("syncs existing app activity into the workbook read model", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("jordan.sales@local.test")!;
+    const harness = repositoryHarness(user.id);
+    harness.activityEventsForSync.push({
+      id: "event-1",
+      eventType: "task.completed",
+      message: "Completed delivery checklist.",
+      metadata: { sourceModule: "TASKS" },
+      taskId: "task-1",
+      createdAt: new Date("2026-08-29T16:00:00.000Z"),
+      task: {
+        id: "task-1",
+        status: "DONE",
+        title: "Delivery checklist",
+        workflowArea: "DELIVERY"
+      }
+    });
+
+    await getStaffWorkbook(user, "2026-08-29", { repository: harness.repository });
+
+    expect(harness.createdActivitySignals).toEqual([
+      expect.objectContaining({
+        actionType: "task.completed",
+        businessImpact: "Completed delivery checklist.",
+        purpose: WorkdayActivityPurpose.COMPLETED_WORK,
+        reportRelevant: true,
+        sourceId: "event-1",
+        sourceType: "TASK_ACTIVITY"
+      })
+    ]);
   });
 
   it("creates and updates Daily Focus items in the current workbook", async () => {
@@ -595,6 +702,40 @@ describe("workday workbook service", () => {
         targetUserId: "user-jordan.sales@local.test",
         workbookId: "workbook-1"
       }
+    ]);
+  });
+
+  it("records basic time-in-area attention heartbeats", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("jordan.sales@local.test")!;
+    const harness = repositoryHarness(user.id);
+
+    await recordWorkbookAttentionHeartbeat(user, {
+      activeSeconds: 75,
+      idleSeconds: 15,
+      sessionKey: "session-1",
+      sourceArea: "quick update",
+      sourcePath: "/vehicles/coo-workbook/quick-update",
+      workbookId: "workbook-1"
+    }, { repository: harness.repository });
+
+    expect(harness.attentionSessions).toEqual([
+      expect.objectContaining({
+        activeSeconds: 75,
+        idleSeconds: 15,
+        sessionKey: "session-1",
+        sourceArea: "QUICK_UPDATE",
+        workbookId: "workbook-1"
+      })
+    ]);
+    expect(harness.createdActivitySignals).toEqual([
+      expect.objectContaining({
+        actionType: "workbook.attention_heartbeat",
+        coachingRelevant: false,
+        purpose: WorkdayActivityPurpose.TIME_ATTENTION,
+        reportRelevant: false,
+        sourceType: "ATTENTION_SESSION"
+      })
     ]);
   });
 

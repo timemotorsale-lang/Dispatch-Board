@@ -2,6 +2,7 @@ import {
   Prisma,
   PrismaClient,
   type BoardDay,
+  type WorkdayActivityPurpose,
   type WorkdayCarryoverStatus,
   type WorkdayChecklistStatus,
   type WorkdayDailyFocusStatus,
@@ -18,7 +19,7 @@ import {
 
 import { prisma } from "@/server/db/client";
 
-type WorkdayWorkbookDatabase = Pick<PrismaClient, "activityEvent" | "boardDay" | "workdayCarryover" | "workdayChecklistItem" | "workdayDailyFocusItem" | "workdayQuickUpdate" | "workdayReportDraft" | "workdayReportSeed" | "workdaySupportAction" | "workdayWorkbook">;
+type WorkdayWorkbookDatabase = Pick<PrismaClient, "activityEvent" | "boardDay" | "workdayActivitySignal" | "workdayAttentionSession" | "workdayCarryover" | "workdayChecklistItem" | "workdayDailyFocusItem" | "workdayQuickUpdate" | "workdayReportDraft" | "workdayReportSeed" | "workdaySupportAction" | "workdayWorkbook">;
 
 const workbookInclude = {
   boardDay: true,
@@ -28,7 +29,9 @@ const workbookInclude = {
   quickUpdates: { orderBy: [{ createdAt: "desc" as const }, { id: "asc" as const }] },
   reportDrafts: { orderBy: [{ generatedAt: "desc" as const }, { id: "asc" as const }], take: 3 },
   reportSeeds: { orderBy: [{ createdAt: "desc" as const }, { id: "asc" as const }] },
-  supportActions: { orderBy: [{ createdAt: "desc" as const }, { id: "asc" as const }], take: 10 }
+  supportActions: { orderBy: [{ createdAt: "desc" as const }, { id: "asc" as const }], take: 10 },
+  activitySignals: { orderBy: [{ occurredAt: "desc" as const }, { id: "asc" as const }], take: 80 },
+  attentionSessions: { orderBy: [{ lastHeartbeatAt: "desc" as const }, { id: "asc" as const }], take: 40 }
 } satisfies Prisma.WorkdayWorkbookInclude;
 
 export type WorkdayWorkbookRecord = Prisma.WorkdayWorkbookGetPayload<{ include: typeof workbookInclude }>;
@@ -65,6 +68,37 @@ export type WorkdayCarryoverInput = {
   title: string;
 };
 
+export type WorkdayActivitySignalInput = {
+  actionType: string;
+  actorUserId: string;
+  boardDayId: string;
+  businessImpact: string;
+  coachingRelevant: boolean;
+  metadata: Prisma.InputJsonValue;
+  occurredAt?: Date;
+  purpose: WorkdayActivityPurpose;
+  reportRelevant: boolean;
+  sourceId: string;
+  sourceModule: string;
+  sourceType: string;
+  workbookId: string;
+};
+
+export type WorkdayAttentionHeartbeatInput = {
+  activeSeconds: number;
+  boardDayId: string;
+  endedAt?: Date | null;
+  idleSeconds: number;
+  lastHeartbeatAt: Date;
+  metadata: Prisma.InputJsonValue;
+  sessionKey: string;
+  sourceArea: string;
+  sourcePath: string;
+  startedAt: Date;
+  userId: string;
+  workbookId: string;
+};
+
 export type WorkdayWorkbookRepository = {
   closeWorkbook(input: { closeSnapshot: Prisma.InputJsonValue; closedByUserId: string; id: string }): Promise<void>;
   createChecklistItem(input: { priority?: WorkdayPriority; riskLevel?: WorkdayRiskLevel; riskNote?: string; text: string; workbookId: string }): Promise<void>;
@@ -72,6 +106,7 @@ export type WorkdayWorkbookRepository = {
   createReportDraft(input: { cadence: WorkdayReportCadence; generatedByUserId: string; periodEnd: string; periodStart: string; sections: Prisma.InputJsonValue; sourceSeedIds: Prisma.InputJsonValue; summary: string; title: string; workbookId: string }): Promise<void>;
   createQuickUpdate(input: { category: WorkdayQuickUpdateCategory; company: string; dueWindow: string; followUpNeeded: boolean; person: string; text: string; workbookId: string }): Promise<void>;
   createSupportAction(input: { actorUserId: string; note: string; requestedUpdate: boolean; status: WorkdaySupportActionStatus; targetUserId: string; workbookId: string }): Promise<void>;
+  createActivitySignal(input: WorkdayActivitySignalInput): Promise<void>;
   findChecklistItem(itemId: string): Promise<(Prisma.WorkdayChecklistItemGetPayload<{ include: { workbook: true } }>) | null>;
   findCarryover(carryoverId: string): Promise<(Prisma.WorkdayCarryoverGetPayload<{ include: { workbook: true } }>) | null>;
   findDailyFocusItem(itemId: string): Promise<(Prisma.WorkdayDailyFocusItemGetPayload<{ include: { workbook: true } }>) | null>;
@@ -81,6 +116,15 @@ export type WorkdayWorkbookRepository = {
   getOrCreateBoardDay(boardDate: string): Promise<BoardDay>;
   getOrCreateWorkbook(input: { boardDayId: string; scope: WorkdayWorkbookScope; userId: string }): Promise<WorkdayWorkbookRecord>;
   getWorkbookById(id: string): Promise<WorkdayWorkbookRecord | null>;
+  listActivityEventsForWorkbookContext(input: { actorUserId: string; boardDayId: string; limit?: number }): Promise<Array<{
+    id: string;
+    eventType: string;
+    message: string;
+    metadata: Prisma.JsonValue;
+    taskId: string | null;
+    createdAt: Date;
+    task: { id: string; title: string; status: string; workflowArea: string } | null;
+  }>>;
   listWorkbooksForBoardDateRange(input: { endDate: string; scope: WorkdayWorkbookScope; startDate: string; userId: string }): Promise<WorkdayWorkbookRecord[]>;
   listWorkbooksForBoardDay(input: { boardDayId: string; scope: WorkdayWorkbookScope }): Promise<WorkdayWorkbookSummaryRecord[]>;
   recordActivity(input: { actorUserId: string; boardDayId: string; eventType: string; message: string; metadata: Prisma.InputJsonValue; taskId?: string | null }): Promise<void>;
@@ -91,6 +135,7 @@ export type WorkdayWorkbookRepository = {
   updateQuickUpdate(input: { carryoverReady?: boolean; category?: WorkdayQuickUpdateCategory; company?: string; convertedTaskId?: string | null; dueWindow?: string; followUpNeeded?: boolean; id: string; person?: string; text?: string }): Promise<void>;
   updateReportSeed(input: { detail?: string; id: string; reviewNote?: string; status?: WorkdayReportSeedStatus; title?: string }): Promise<void>;
   updateSupportAction(input: { id: string; note?: string; requestedUpdate?: boolean; status: WorkdaySupportActionStatus }): Promise<void>;
+  upsertAttentionSession(input: WorkdayAttentionHeartbeatInput): Promise<void>;
   upsertCarryovers(input: { carryovers: WorkdayCarryoverInput[]; workbookId: string }): Promise<void>;
   upsertReportSeeds(input: { seeds: WorkdayReportSeedInput[]; workbookId: string }): Promise<void>;
 };
@@ -159,6 +204,42 @@ export function createWorkdayWorkbookRepository(database: WorkdayWorkbookDatabas
         data: input
       });
     },
+    async createActivitySignal(input) {
+      await database.workdayActivitySignal.upsert({
+        where: {
+          workbookId_sourceType_sourceId_actionType: {
+            actionType: input.actionType,
+            sourceId: input.sourceId,
+            sourceType: input.sourceType,
+            workbookId: input.workbookId
+          }
+        },
+        update: {
+          businessImpact: input.businessImpact,
+          coachingRelevant: input.coachingRelevant,
+          metadata: input.metadata,
+          occurredAt: input.occurredAt ?? new Date(),
+          purpose: input.purpose,
+          reportRelevant: input.reportRelevant,
+          sourceModule: input.sourceModule
+        },
+        create: {
+          actionType: input.actionType,
+          actorUserId: input.actorUserId,
+          boardDayId: input.boardDayId,
+          businessImpact: input.businessImpact,
+          coachingRelevant: input.coachingRelevant,
+          metadata: input.metadata,
+          occurredAt: input.occurredAt ?? new Date(),
+          purpose: input.purpose,
+          reportRelevant: input.reportRelevant,
+          sourceId: input.sourceId,
+          sourceModule: input.sourceModule,
+          sourceType: input.sourceType,
+          workbookId: input.workbookId
+        }
+      });
+    },
     async findChecklistItem(itemId) {
       return database.workdayChecklistItem.findUnique({ where: { id: itemId }, include: { workbook: true } });
     },
@@ -206,6 +287,32 @@ export function createWorkdayWorkbookRepository(database: WorkdayWorkbookDatabas
       return database.workdayWorkbook.findUnique({
         where: { id },
         include: workbookInclude
+      });
+    },
+    async listActivityEventsForWorkbookContext(input) {
+      return database.activityEvent.findMany({
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: {
+          id: true,
+          eventType: true,
+          message: true,
+          metadata: true,
+          taskId: true,
+          createdAt: true,
+          task: {
+            select: {
+              id: true,
+              title: true,
+              status: true,
+              workflowArea: true
+            }
+          }
+        },
+        take: input.limit ?? 80,
+        where: {
+          actorUserId: input.actorUserId,
+          boardDayId: input.boardDayId
+        }
       });
     },
     async listWorkbooksForBoardDateRange(input) {
@@ -335,6 +442,40 @@ export function createWorkdayWorkbookRepository(database: WorkdayWorkbookDatabas
           ...(input.requestedUpdate !== undefined ? { requestedUpdate: input.requestedUpdate } : {}),
           ...(input.status === "RESOLVED" ? { resolvedAt: new Date() } : {}),
           status: input.status
+        }
+      });
+    },
+    async upsertAttentionSession(input) {
+      await database.workdayAttentionSession.upsert({
+        where: {
+          workbookId_userId_sourceArea_sessionKey: {
+            sessionKey: input.sessionKey,
+            sourceArea: input.sourceArea,
+            userId: input.userId,
+            workbookId: input.workbookId
+          }
+        },
+        update: {
+          activeSeconds: { increment: input.activeSeconds },
+          endedAt: input.endedAt ?? null,
+          idleSeconds: { increment: input.idleSeconds },
+          lastHeartbeatAt: input.lastHeartbeatAt,
+          metadata: input.metadata,
+          sourcePath: input.sourcePath
+        },
+        create: {
+          activeSeconds: input.activeSeconds,
+          boardDayId: input.boardDayId,
+          endedAt: input.endedAt ?? null,
+          idleSeconds: input.idleSeconds,
+          lastHeartbeatAt: input.lastHeartbeatAt,
+          metadata: input.metadata,
+          sessionKey: input.sessionKey,
+          sourceArea: input.sourceArea,
+          sourcePath: input.sourcePath,
+          startedAt: input.startedAt,
+          userId: input.userId,
+          workbookId: input.workbookId
         }
       });
     },

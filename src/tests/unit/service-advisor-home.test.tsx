@@ -133,6 +133,8 @@ const model = {
         updatedAt: "2026-07-20T14:11:00.000Z"
       }
     ],
+    activitySignals: [],
+    attentionSessions: [],
     closeReadiness: {
       score: 64,
       tone: "SUPPORT",
@@ -240,6 +242,7 @@ const model = {
       meaningfulChecklistCount: 1,
       quickUpdateCount: 1,
       supportSignalCount: 0,
+      reportActivitySignalCount: 0,
       dailyDraftInputs: [{ id: "seed-1", sourceType: "CHECKLIST_ITEM", title: "Review morning approval queue", status: "CANDIDATE" }],
       weeklyRollupInputs: [{ id: "seed-1", sourceType: "CHECKLIST_ITEM", title: "Review morning approval queue", status: "CANDIDATE" }],
       monthlyRollupInputs: [{ id: "seed-1", sourceType: "CHECKLIST_ITEM", title: "Review morning approval queue", status: "CANDIDATE" }],
@@ -247,6 +250,34 @@ const model = {
       staffGuidance: "Review candidate Report Seeds before finalizing the draft.",
       managerSummary: "4 source-backed report signal(s), 0 reviewed seed(s), and 1 candidate seed(s).",
       prompts: ["Review candidate Report Seeds before finalizing the draft."]
+    },
+    activityIntelligence: {
+      score: 45,
+      status: "NEEDS_SUPPORT",
+      signalCount: 0,
+      reportRelevantCount: 0,
+      coachingRelevantCount: 0,
+      completedWorkCount: 0,
+      customerCommunicationCount: 0,
+      blockerRiskCount: 0,
+      followUpCount: 0,
+      supportRequestCount: 0,
+      taskConversionCount: 0,
+      promiseCommitmentCount: 0,
+      feedback: [],
+      recentSignals: [],
+      staffGuidance: "No app activity signals have been attached to this workbook day yet.",
+      managerSummary: "0 activity signal(s), 0 report-ready, 0 blocker/risk signal(s)."
+    },
+    timeAttention: {
+      score: 40,
+      status: "NEEDS_SUPPORT",
+      activeMinutes: 0,
+      idleMinutes: 0,
+      sessionCount: 0,
+      areas: [],
+      staffGuidance: "Time-in-area tracking has not started for this workbook day.",
+      managerSummary: "0 active minute(s) captured across 0 area(s)."
     },
     governance: {
       currentStage: "WORK_THE_DAY",
@@ -334,6 +365,8 @@ const model = {
     quickUpdates: [],
     reportSeeds: [],
     reportDrafts: [],
+    activitySignals: [],
+    attentionSessions: [],
     closeReadiness: {
       score: 100,
       tone: "READY",
@@ -436,6 +469,7 @@ const model = {
       meaningfulChecklistCount: 1,
       quickUpdateCount: 0,
       supportSignalCount: 0,
+      reportActivitySignalCount: 0,
       dailyDraftInputs: [],
       weeklyRollupInputs: [],
       monthlyRollupInputs: [],
@@ -443,6 +477,34 @@ const model = {
       staffGuidance: "Work the day before generating a report draft.",
       managerSummary: "0 source-backed report signal(s), 0 reviewed seed(s), and 0 candidate seed(s).",
       prompts: ["Work the day before generating a report draft."]
+    },
+    activityIntelligence: {
+      score: 45,
+      status: "NEEDS_SUPPORT",
+      signalCount: 0,
+      reportRelevantCount: 0,
+      coachingRelevantCount: 0,
+      completedWorkCount: 0,
+      customerCommunicationCount: 0,
+      blockerRiskCount: 0,
+      followUpCount: 0,
+      supportRequestCount: 0,
+      taskConversionCount: 0,
+      promiseCommitmentCount: 0,
+      feedback: [],
+      recentSignals: [],
+      staffGuidance: "No app activity signals have been attached to this workbook day yet.",
+      managerSummary: "0 activity signal(s), 0 report-ready, 0 blocker/risk signal(s)."
+    },
+    timeAttention: {
+      score: 40,
+      status: "NEEDS_SUPPORT",
+      activeMinutes: 0,
+      idleMinutes: 0,
+      sessionCount: 0,
+      areas: [],
+      staffGuidance: "Time-in-area tracking has not started for this workbook day.",
+      managerSummary: "0 active minute(s) captured across 0 area(s)."
     },
     governance: {
       currentStage: "CLOSE_THE_DAY",

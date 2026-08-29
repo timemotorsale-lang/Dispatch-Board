@@ -21,7 +21,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { ServiceAdvisorWorkspaceModel } from "@/server/advisor-workspace/service";
 
@@ -1052,9 +1052,12 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
   const [supportNeeded, setSupportNeeded] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [attentionSessionKey] = useState(() => `coo-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const activeWorkbook = workbookView === "MY" ? staffWorkbook : workbook;
   const activeLabel = workbookView === "MY" ? "My Workbook" : "COO Workbook";
   const coaching = activeWorkbook.coaching;
+  const activityIntelligence = activeWorkbook.activityIntelligence;
+  const timeAttention = activeWorkbook.timeAttention;
   const effectiveness = activeWorkbook.effectiveness;
   const dailyFocus = activeWorkbook.dailyFocusItems;
   const isPilotClosed = activeWorkbook.status === "CLOSED";
@@ -1067,6 +1070,42 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
   const staffNeedingSupport = staffWorkbookSummaries
     .filter((item) => item.closeReadinessTone !== "READY" || item.dailyFocusRiskCount > 0 || item.followUpNeededCount > 0)
     .slice(0, 4);
+
+  useEffect(() => {
+    let lastTick = Date.now();
+    const startedAt = new Date(lastTick).toISOString();
+
+    async function sendHeartbeat(ended = false) {
+      const now = Date.now();
+      const elapsedSeconds = Math.max(0, Math.round((now - lastTick) / 1000));
+      lastTick = now;
+      if (!elapsedSeconds && !ended) return;
+      await fetch("/api/coo-workbook/attention", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          activeSeconds: document.visibilityState === "visible" ? elapsedSeconds : 0,
+          ended,
+          idleSeconds: document.visibilityState === "visible" ? 0 : elapsedSeconds,
+          sessionKey: attentionSessionKey,
+          sourceArea: "COO_WORKBOOK_EFFECTIVENESS",
+          sourcePath: window.location.pathname,
+          startedAt,
+          workbookId: activeWorkbook.id
+        })
+      }).catch(() => undefined);
+    }
+
+    const interval = window.setInterval(() => void sendHeartbeat(), 60000);
+    const endSession = () => void sendHeartbeat(true);
+    window.addEventListener("pagehide", endSession);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("pagehide", endSession);
+      endSession();
+    };
+  }, [activeWorkbook.id, attentionSessionKey]);
 
   async function refreshPilotWorkbook() {
     if (workbookView === "MY") {
@@ -1244,7 +1283,11 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
 
       <article className="advisor-coo-coaching-panel">
         <header><div><strong>Coaching Panel</strong><small>Supportive signals from the day, not surveillance.</small></div><span>{activeWorkbook.risk.blockerCount} blocked</span></header>
-        <div>{coaching.coachingPrompts.map((prompt) => <p key={prompt}><CheckCircle2 /> {prompt}</p>)}</div>
+        <div>
+          <p><CheckCircle2 /> {activityIntelligence.staffGuidance}</p>
+          <p><CheckCircle2 /> {timeAttention.staffGuidance}</p>
+          {coaching.coachingPrompts.map((prompt) => <p key={prompt}><CheckCircle2 /> {prompt}</p>)}
+        </div>
         <button disabled={saving} onClick={() => void askForSupport()} type="button"><UsersRound /> Ask For Support</button>
       </article>
 

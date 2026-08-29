@@ -1,4 +1,5 @@
 import {
+  WorkdayActivityPurpose,
   WorkdayCarryoverStatus,
   WorkdayChecklistStatus,
   WorkdayDailyFocusStatus,
@@ -23,11 +24,13 @@ import {
   type WorkdayWorkbookSummaryRecord
 } from "@/server/repositories/workday-workbook-repository";
 import {
+  buildActivityIntelligenceEngine,
   buildCoachingAndAccountabilityEngine,
   buildDailyPlanningEngine,
   buildExecutionTrackingEngine,
   buildReportIntelligenceEngine,
   buildRiskAndBlockerEngine,
+  buildTimeAndAttentionEngine,
   buildWorkflowGovernanceEngine
 } from "@/server/services/workday-workbook-engines";
 import { assertAuthenticatedUser, isManager } from "@/server/policies/access";
@@ -81,6 +84,12 @@ function normalizeNumber(value: unknown, fieldName: string, fallback = 0) {
   if (value === undefined || value === null || value === "") return fallback;
   if (typeof value !== "number" || !Number.isFinite(value)) throw new Error(`${fieldName} must be a number.`);
   return Math.trunc(value);
+}
+
+function normalizeBoundedSeconds(value: unknown, fieldName: string) {
+  const seconds = normalizeNumber(value, fieldName, 0);
+  if (seconds < 0) throw new Error(`${fieldName} must be zero or greater.`);
+  return Math.min(seconds, 300);
 }
 
 function normalizeChecklistStatus(value: unknown) {
@@ -208,7 +217,59 @@ function periodFor(boardDate: string, cadence: WorkdayReportCadence) {
   return { end: boardDate, start: start.toISOString().slice(0, 10) };
 }
 
+function normalizeActivityArea(value: unknown) {
+  const area = normalizeRequiredText(value, "Activity area is required.", 80).toLocaleUpperCase().replace(/[^A-Z0-9_]+/g, "_");
+  return area || "COO_WORKBOOK";
+}
+
+function safeMetadata(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function classifyActivityPurpose(eventType: string, metadata: Record<string, unknown> = {}) {
+  const normalized = eventType.toLocaleLowerCase();
+  const sourceType = typeof metadata.sourceType === "string" ? metadata.sourceType : "";
+
+  if (normalized.includes("completed") || normalized.includes("complete")) return WorkdayActivityPurpose.COMPLETED_WORK;
+  if (normalized.includes("quick_update") || normalized.includes("report_seed") || normalized.includes("report_draft")) return WorkdayActivityPurpose.REPORT_WORTHY_EVENT;
+  if (normalized.includes("support")) return WorkdayActivityPurpose.SUPPORT_REQUEST;
+  if (normalized.includes("carryover")) return WorkdayActivityPurpose.CARRYOVER;
+  if (normalized.includes("blocked") || normalized.includes("risk") || sourceType === "BLOCKER_RISK") return WorkdayActivityPurpose.BLOCKER_RISK;
+  if (normalized.includes("promise")) return WorkdayActivityPurpose.PROMISE_COMMITMENT;
+  if (normalized.includes("follow")) return WorkdayActivityPurpose.FOLLOW_UP;
+  if (normalized.includes("customer")) return WorkdayActivityPurpose.CUSTOMER_COMMUNICATION;
+  if (normalized.includes("task_created") || normalized.includes("task.created") || normalized.includes("daily_focus") || normalized.includes("checklist")) return WorkdayActivityPurpose.PLANNED_WORK;
+  return WorkdayActivityPurpose.LEARNING_COACHING_SIGNAL;
+}
+
+function activitySourceModule(eventType: string, metadata: Record<string, unknown> = {}) {
+  const normalized = eventType.toLocaleLowerCase();
+  if (normalized.includes("workbook")) return "COO_WORKBOOK";
+  if (normalized.includes("task")) return "TASKS";
+  if (normalized.includes("appointment")) return "APPOINTMENTS";
+  if (normalized.includes("repair") || normalized.includes("ro")) return "REPAIR_ORDERS";
+  if (normalized.includes("customer")) return "CUSTOMER_UPDATES";
+  if (normalized.includes("vendor") || normalized.includes("parts")) return "VENDOR_PARTS";
+  if (typeof metadata.sourceModule === "string") return metadata.sourceModule;
+  return "APP_ACTIVITY";
+}
+
+function activityReportRelevant(purpose: WorkdayActivityPurpose) {
+  const reportRelevantPurposes: WorkdayActivityPurpose[] = [
+    WorkdayActivityPurpose.COMPLETED_WORK,
+    WorkdayActivityPurpose.CUSTOMER_COMMUNICATION,
+    WorkdayActivityPurpose.BLOCKER_RISK,
+    WorkdayActivityPurpose.FOLLOW_UP,
+    WorkdayActivityPurpose.PROMISE_COMMITMENT,
+    WorkdayActivityPurpose.SUPPORT_REQUEST,
+    WorkdayActivityPurpose.CARRYOVER,
+    WorkdayActivityPurpose.REPORT_WORTHY_EVENT
+  ];
+  return reportRelevantPurposes.includes(purpose);
+}
+
 async function recordWorkbookActivity(repository: WorkdayWorkbookRepository, user: AuthenticatedUser, workbook: { boardDayId: string; id: string; scope: WorkdayWorkbookScope }, eventType: string, message: string, metadata: Record<string, unknown> = {}) {
+  const purpose = classifyActivityPurpose(eventType, metadata);
   await repository.recordActivity({
     actorUserId: user.id,
     boardDayId: workbook.boardDayId,
@@ -220,6 +281,56 @@ async function recordWorkbookActivity(repository: WorkdayWorkbookRepository, use
       workbookId: workbook.id
     }
   });
+  await repository.createActivitySignal({
+    actionType: eventType,
+    actorUserId: user.id,
+    boardDayId: workbook.boardDayId,
+    businessImpact: message,
+    coachingRelevant: true,
+    metadata: { ...metadata, scope: workbook.scope },
+    purpose,
+    reportRelevant: activityReportRelevant(purpose),
+    sourceId: typeof metadata.sourceId === "string" ? metadata.sourceId : `${eventType}:${workbook.id}:${Date.now()}`,
+    sourceModule: activitySourceModule(eventType, metadata),
+    sourceType: typeof metadata.sourceType === "string" ? metadata.sourceType : "WORKBOOK_ACTIVITY",
+    workbookId: workbook.id
+  });
+}
+
+async function synchronizeActivityEventsForWorkbook(repository: WorkdayWorkbookRepository, workbook: WorkdayWorkbookRecord) {
+  const events = await repository.listActivityEventsForWorkbookContext({
+    actorUserId: workbook.userId,
+    boardDayId: workbook.boardDayId
+  });
+
+  await Promise.all(events
+    .filter((event) => !(safeMetadata(event.metadata).workbookId === workbook.id))
+    .map((event) => {
+      const metadata = safeMetadata(event.metadata);
+      const purpose = classifyActivityPurpose(event.eventType, metadata);
+      return repository.createActivitySignal({
+        actionType: event.eventType,
+        actorUserId: workbook.userId,
+        boardDayId: workbook.boardDayId,
+        businessImpact: event.message,
+        coachingRelevant: true,
+        metadata: {
+          ...metadata,
+          sourceActivityEventId: event.id,
+          taskId: event.taskId,
+          taskTitle: event.task?.title ?? null,
+          taskStatus: event.task?.status ?? null,
+          workflowArea: event.task?.workflowArea ?? null
+        },
+        occurredAt: event.createdAt,
+        purpose,
+        reportRelevant: activityReportRelevant(purpose),
+        sourceId: event.id,
+        sourceModule: activitySourceModule(event.eventType, metadata),
+        sourceType: event.taskId ? "TASK_ACTIVITY" : "ACTIVITY_EVENT",
+        workbookId: workbook.id
+      });
+    }));
 }
 
 function seedToneForChecklist(status: WorkdayChecklistStatus): WorkdayReportSeedTone {
@@ -518,6 +629,17 @@ export function buildWorkdayReportSeeds(
     });
   }
 
+  for (const signal of (workbook.activitySignals ?? []).filter((item) => item.reportRelevant)) {
+    seeds.push({
+      detail: signal.businessImpact,
+      sourceHref: null,
+      sourceId: `activity:${signal.id}`,
+      sourceType: WorkdayReportSeedSourceType.OPERATING_EXCEPTION,
+      title: activitySourceModule(signal.actionType, safeMetadata(signal.metadata)).replaceAll("_", " ").toLocaleLowerCase().replace(/^./, (letter) => letter.toUpperCase()),
+      tone: signal.purpose === WorkdayActivityPurpose.BLOCKER_RISK ? WorkdayReportSeedTone.RED : signal.purpose === WorkdayActivityPurpose.COMPLETED_WORK ? WorkdayReportSeedTone.GREEN : WorkdayReportSeedTone.BLUE
+    });
+  }
+
   if (operatingSignals.approvalCount > 0) {
     seeds.push({
       detail: `${operatingSignals.approvalCount} approval-sensitive item(s) need review before closeout.`,
@@ -765,6 +887,8 @@ function toReadModel(workbook: WorkdayWorkbookRecord, operatingSignals: WorkdayW
   const coaching = buildCoachingAndAccountabilityEngine(workbook, operatingSignals);
   const reporting = buildReportIntelligenceEngine(workbook, operatingSignals);
   const governance = buildWorkflowGovernanceEngine(workbook, operatingSignals);
+  const activityIntelligence = buildActivityIntelligenceEngine(workbook);
+  const timeAttention = buildTimeAndAttentionEngine(workbook);
   return {
     id: workbook.id,
     boardDayId: workbook.boardDayId,
@@ -874,12 +998,44 @@ function toReadModel(workbook: WorkdayWorkbookRecord, operatingSignals: WorkdayW
       createdAt: dateToIso(item.createdAt),
       updatedAt: dateToIso(item.updatedAt)
     })),
+    activitySignals: (workbook.activitySignals ?? []).map((signal) => ({
+      id: signal.id,
+      actorUserId: signal.actorUserId,
+      sourceModule: signal.sourceModule,
+      sourceType: signal.sourceType,
+      sourceId: signal.sourceId,
+      actionType: signal.actionType,
+      purpose: signal.purpose,
+      businessImpact: signal.businessImpact,
+      reportRelevant: signal.reportRelevant,
+      coachingRelevant: signal.coachingRelevant,
+      metadata: signal.metadata,
+      occurredAt: dateToIso(signal.occurredAt),
+      createdAt: dateToIso(signal.createdAt)
+    })),
+    attentionSessions: (workbook.attentionSessions ?? []).map((session) => ({
+      id: session.id,
+      userId: session.userId,
+      sourceArea: session.sourceArea,
+      sourcePath: session.sourcePath,
+      sessionKey: session.sessionKey,
+      activeSeconds: session.activeSeconds,
+      idleSeconds: session.idleSeconds,
+      startedAt: dateToIso(session.startedAt),
+      lastHeartbeatAt: dateToIso(session.lastHeartbeatAt),
+      endedAt: session.endedAt ? dateToIso(session.endedAt) : null,
+      metadata: session.metadata,
+      createdAt: dateToIso(session.createdAt),
+      updatedAt: dateToIso(session.updatedAt)
+    })),
     planning,
     execution,
     risk,
     coaching,
     reporting,
     governance,
+    activityIntelligence,
+    timeAttention,
     closeReadiness: buildCloseReadiness(workbook),
     effectiveness: buildDailyEffectiveness(workbook)
   };
@@ -904,8 +1060,14 @@ async function getWorkbookByScope(
     scope,
     userId: user.id
   });
+  await synchronizeActivityEventsForWorkbook(repository, workbook);
+  const workbookWithActivity = await repository.getOrCreateWorkbook({
+    boardDayId: boardDay.id,
+    scope,
+    userId: user.id
+  });
   await repository.upsertReportSeeds({
-    seeds: buildWorkdayReportSeeds(workbook, operatingSignals),
+    seeds: buildWorkdayReportSeeds(workbookWithActivity, operatingSignals),
     workbookId: workbook.id
   });
   return toReadModel(await repository.getOrCreateWorkbook({
@@ -1291,5 +1453,64 @@ export async function updateStaffSupportAction(actor: AuthenticatedUser | null, 
     status
   });
   await recordWorkbookActivity(repository, user, action.workbook, "workbook.staff_support_updated", `${user.name} updated a staff support action.`, { actionId: action.id, status });
+  return { ok: true };
+}
+
+export async function recordWorkbookAttentionHeartbeat(actor: AuthenticatedUser | null, input: unknown, dependencies: Dependencies = {}) {
+  const user = assertAuthenticatedUser(actor);
+  const payload = normalizeObject(input);
+  const workbookId = normalizeRequiredText(payload.workbookId, "Workbook id is required.", 120);
+  const repository = dependencies.repository ?? createWorkdayWorkbookRepository();
+  const workbook = await repository.getWorkbookById(workbookId);
+  if (!workbook) throw new Error("Workbook not found.");
+  assertCanManageWorkbook(user, workbook);
+
+  const activeSeconds = normalizeBoundedSeconds(payload.activeSeconds, "activeSeconds");
+  const idleSeconds = normalizeBoundedSeconds(payload.idleSeconds, "idleSeconds");
+  const sourceArea = normalizeActivityArea(payload.sourceArea);
+  const sourcePath = normalizeOptionalText(payload.sourcePath, "sourcePath", 240) ?? "";
+  const sessionKey = normalizeRequiredText(payload.sessionKey, "Session key is required.", 120);
+  const now = new Date();
+  const startedAt = normalizeOptionalText(payload.startedAt, "startedAt", 80);
+  const startedAtDate = startedAt ? new Date(startedAt) : now;
+
+  await repository.upsertAttentionSession({
+    activeSeconds,
+    boardDayId: workbook.boardDayId,
+    endedAt: normalizeBoolean(payload.ended, "ended") ? now : null,
+    idleSeconds,
+    lastHeartbeatAt: now,
+    metadata: {
+      scope: workbook.scope,
+      workbookId: workbook.id
+    },
+    sessionKey,
+    sourceArea,
+    sourcePath,
+    startedAt: Number.isNaN(startedAtDate.getTime()) ? now : startedAtDate,
+    userId: user.id,
+    workbookId: workbook.id
+  });
+
+  await repository.createActivitySignal({
+    actionType: "workbook.attention_heartbeat",
+    actorUserId: user.id,
+    boardDayId: workbook.boardDayId,
+    businessImpact: `${user.name} spent active time in ${sourceArea.toLocaleLowerCase().replaceAll("_", " ")}.`,
+    coachingRelevant: false,
+    metadata: {
+      activeSeconds,
+      idleSeconds,
+      sourceArea,
+      sourcePath
+    },
+    purpose: WorkdayActivityPurpose.TIME_ATTENTION,
+    reportRelevant: false,
+    sourceId: `${sourceArea}:${sessionKey}`,
+    sourceModule: sourceArea,
+    sourceType: "ATTENTION_SESSION",
+    workbookId: workbook.id
+  });
+
   return { ok: true };
 }
