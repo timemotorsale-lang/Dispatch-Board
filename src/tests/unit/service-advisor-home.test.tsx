@@ -281,6 +281,8 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("COO Daily Workbook");
     expect(html).toContain("My Workbook");
     expect(html).toContain("Staff Today");
+    expect(html).toContain("Staff Support Queue");
+    expect(html).toContain("No staff support signals are waiting");
     expect(html).toContain("Alex Carter");
     expect(html).toContain("All staff");
     expect(html).toContain("Ready");

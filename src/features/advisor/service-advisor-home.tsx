@@ -365,6 +365,14 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
     support: staffWorkbookSummaries.filter((item) => item.closeReadinessTone === "SUPPORT").length,
     total: staffWorkbookSummaries.length
   };
+  const staffSupportQueue = [...staffWorkbookSummaries]
+    .filter((item) => item.closeReadinessTone !== "READY" || item.redYellowItemCount > 0 || item.followUpNeededCount > 0 || item.carryoverCount > 0)
+    .sort((left, right) => {
+      const leftSupport = left.redYellowItemCount + left.followUpNeededCount + left.carryoverCount;
+      const rightSupport = right.redYellowItemCount + right.followUpNeededCount + right.carryoverCount;
+      return rightSupport - leftSupport || left.closeReadinessScore - right.closeReadinessScore || left.staffName.localeCompare(right.staffName);
+    })
+    .slice(0, 4);
   const closeNextStep = closeReadiness.checklistNeedsSupport + closeReadiness.quickFollowUps > 0
     ? "Resolve support items first"
     : closeReadiness.carryoverItems > 0
@@ -803,6 +811,16 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
         <span><strong>{staffTodayRollup.review}</strong><small>Review</small></span>
         <span><strong>{staffTodayRollup.ready}</strong><small>Ready</small></span>
       </div>
+      <section className="advisor-coo-staff-support-queue" aria-label="Staff support queue">
+        <header><strong>Staff Support Queue</strong><small>{staffSupportQueue.length ? "Highest-priority coaching and carryover signals." : "No staff support signals are waiting."}</small></header>
+        <div>
+          {staffSupportQueue.length ? staffSupportQueue.map((item) => <article key={`support-${item.workbookId}`}>
+            <span><strong>{item.staffName}</strong><small>{staffCloseLabel(item)} · {item.closeReadinessScore}/100</small></span>
+            <b>{item.redYellowItemCount + item.followUpNeededCount + item.carryoverCount}</b>
+            <em>{item.closeReadinessPrompts[0] ?? "Ready for daily close review."}</em>
+          </article>) : <p><CheckCircle2 /> Staff workbooks are clear for now.</p>}
+        </div>
+      </section>
       <nav className="advisor-coo-section-filters" aria-label="Filter Staff Today">
         {staffTodayFilters.map((option) => <button aria-pressed={staffTodayFilter === option.value} key={option.value} onClick={() => setStaffTodayFilter(option.value)} type="button">{option.label}</button>)}
       </nav>
