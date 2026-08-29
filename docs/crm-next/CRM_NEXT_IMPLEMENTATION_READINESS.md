@@ -86,3 +86,18 @@ Out of scope:
 ## Current implementation hold
 
 Do not implement CRM Next on the shared `main` baseline directly. Start CRMN-010 only after the approved baseline is pushed and an isolated branch/workspace is created from that baseline.
+
+## Implementation evidence — CRMN-010 through CRMN-015 initial UX envelope
+
+**Status:** IMPLEMENTED_UNVERIFIED  
+**Branch:** `codex/crm-next-command-center`  
+**Scope:** CRM Next shell at `/crm-next`, Command Center layout, Needs Attention queue, Customer 360 overview, Work Customer/Attend Mode, and action-to-task dispatch bridge preview.  
+
+**Safety posture:**
+- Legacy `/customers` remains linked and operational.
+- Current `/crm` remains linked and operational.
+- CRM Next is controlled by `CRM_NEXT` and fails closed when the flag is absent or off.
+- No customer writes, live communications, route replacement, or Dispatch Board task creation were enabled.
+- CRMN-015 is preview-only: it returns the bridge handoff shape without mutating Dispatch Board tasks.
+
+**UX baseline:** User-approved CRM Next UI mockup dated 2026-08-28: Command Center, Customer 360, Customer Workbench/Attend Mode, Needs Attention, Intelligence & Next Action, and Dispatch Board handoff flow.
