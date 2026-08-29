@@ -1054,9 +1054,9 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
   const [saving, setSaving] = useState(false);
   const activeWorkbook = workbookView === "MY" ? staffWorkbook : workbook;
   const activeLabel = workbookView === "MY" ? "My Workbook" : "COO Workbook";
+  const coaching = activeWorkbook.coaching;
   const effectiveness = activeWorkbook.effectiveness;
   const dailyFocus = activeWorkbook.dailyFocusItems;
-  const mustClose = dailyFocus.filter((item) => item.mustCloseToday && item.status !== "DONE");
   const tomorrowItems = [
     ...dailyFocus.filter((item) => item.status === "CARRY_OVER" || item.mustCloseToday && item.status !== "DONE").map((item) => ({ detail: item.supportNeeded || item.riskNote || "Needs tomorrow ownership.", id: `focus-${item.id}`, title: item.outcome })),
     ...activeWorkbook.carryovers.filter((item) => item.status !== "DISMISSED").map((item) => ({ detail: item.detail, id: `carryover-${item.id}`, title: item.title }))
@@ -1184,12 +1184,12 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
     </header>
 
     <section className="advisor-coo-effectiveness-score" aria-label="Daily Effectiveness">
-      <article><strong>{effectiveness.overallScore}/100</strong><span>Daily Effectiveness</span><small>{effectiveness.staffGuidance}</small></article>
+      <article><strong>{coaching.effectivenessScore}/100</strong><span>Daily Effectiveness</span><small>{coaching.staffSummary}</small></article>
       <dl>
-        <div><dt>Focus</dt><dd>{effectiveness.focusScore}</dd></div>
-        <div><dt>Execution</dt><dd>{effectiveness.executionScore}</dd></div>
-        <div><dt>Communication</dt><dd>{effectiveness.communicationScore}</dd></div>
-        <div><dt>Risk</dt><dd>{effectiveness.riskScore}</dd></div>
+        <div><dt>Focus</dt><dd>{activeWorkbook.planning.score}</dd></div>
+        <div><dt>Execution</dt><dd>{activeWorkbook.execution.score}</dd></div>
+        <div><dt>Reporting</dt><dd>{activeWorkbook.reporting.score}</dd></div>
+        <div><dt>Risk</dt><dd>{activeWorkbook.risk.score}</dd></div>
         <div><dt>Carryover</dt><dd>{effectiveness.carryoverQualityScore}</dd></div>
       </dl>
     </section>
@@ -1215,8 +1215,8 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
       </article>
 
       <article className="advisor-coo-coaching-panel">
-        <header><div><strong>Coaching Panel</strong><small>Supportive signals from the day, not surveillance.</small></div><span>{effectiveness.riskFlags} risk</span></header>
-        <div>{effectiveness.coachingPrompts.map((prompt) => <p key={prompt}><CheckCircle2 /> {prompt}</p>)}</div>
+        <header><div><strong>Coaching Panel</strong><small>Supportive signals from the day, not surveillance.</small></div><span>{activeWorkbook.risk.blockerCount} blocked</span></header>
+        <div>{coaching.coachingPrompts.map((prompt) => <p key={prompt}><CheckCircle2 /> {prompt}</p>)}</div>
         <button disabled={saving} onClick={() => void askForSupport()} type="button"><UsersRound /> Ask For Support</button>
       </article>
 
@@ -1231,12 +1231,13 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
       </article>
 
       <article className="advisor-coo-end-day">
-        <header><div><strong>End The Day</strong><small>Close cleanly and set tomorrow up before leaving.</small></div><span>{mustClose.length} must-close open</span></header>
+        <header><div><strong>End The Day</strong><small>Close cleanly and set tomorrow up before leaving.</small></div><span>{activeWorkbook.governance.closeReadinessState.toLocaleLowerCase()}</span></header>
         <div className="advisor-coo-close-flow">
-          <span><ListChecks /><strong>Done / Not Done</strong><small>{effectiveness.completedWork}/{effectiveness.plannedWork} planned complete</small></span>
-          <span><CalendarClock /><strong>Tomorrow Setup</strong><small>{tomorrowItems.length} carryover item(s)</small></span>
-          <span><FileText /><strong>Report Draft</strong><small>{activeWorkbook.reportDrafts[0] ? `Draft v${activeWorkbook.reportDrafts[0].version}` : "Not generated"}</small></span>
+          <span><ListChecks /><strong>Done / Not Done</strong><small>{activeWorkbook.execution.completedWorkCount}/{activeWorkbook.execution.plannedWorkCount} planned complete</small></span>
+          <span><CalendarClock /><strong>Tomorrow Setup</strong><small>{activeWorkbook.risk.tomorrowCarryoverCandidates.length} candidate item(s)</small></span>
+          <span><FileText /><strong>Report Draft</strong><small>{activeWorkbook.reporting.staffGuidance}</small></span>
         </div>
+        <p className="advisor-coo-governance-note">{activeWorkbook.governance.nextRecommendedAction}</p>
         <div className="advisor-coo-tomorrow-list">
           {tomorrowItems.length ? tomorrowItems.map((item) => <p key={item.id}><strong>{item.title}</strong><small>{item.detail}</small></p>) : <p><CheckCircle2 /> No tomorrow setup items yet.</p>}
         </div>
