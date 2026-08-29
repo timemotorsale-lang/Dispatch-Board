@@ -530,6 +530,88 @@
   padding: 14px;
 }
 
+.progressList {
+  display: grid;
+  gap: 10px;
+}
+
+.progressRow {
+  align-items: center;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  color: inherit;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 190px minmax(0, 1fr) auto;
+  padding: 14px;
+  text-decoration: none;
+}
+
+.progressRow:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 10px 24px rgb(37 99 235 / 10%);
+}
+
+.progressRow strong,
+.progressRow small {
+  display: block;
+}
+
+.progressRow small {
+  color: #64748b;
+  margin-top: 4px;
+}
+
+.statusVerified,
+.statusImplemented,
+.statusProgress,
+.statusHeld,
+.statusDeferred,
+.statusContracted,
+.statusPlanned {
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  padding: 7px 10px;
+  white-space: nowrap;
+}
+
+.statusVerified {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.statusImplemented {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.statusProgress {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.statusHeld {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.statusDeferred {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.statusContracted {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.statusPlanned {
+  background: #f8fafc;
+  color: #64748b;
+}
+
 @media (max-width: 1100px) {
   .frame,
   .customerGrid,
@@ -544,7 +626,8 @@
   .summaryGrid,
   .dashboardGrid,
   .actionCards,
-  .handoffGrid {
+  .handoffGrid,
+  .progressRow {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -557,7 +640,8 @@
   .summaryGrid,
   .dashboardGrid,
   .actionCards,
-  .handoffGrid {
+  .handoffGrid,
+  .progressRow {
     grid-template-columns: 1fr;
   }
 
@@ -566,4 +650,3 @@
     grid-template-columns: 1fr;
   }
 }
-

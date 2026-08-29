@@ -15,6 +15,7 @@ import CrmNextPage from "@/app/(app)/crm-next/page";
 import CrmNextCustomerPage from "@/app/(app)/crm-next/customers/[customerId]/page";
 import CrmNextNeedsAttentionPage from "@/app/(app)/crm-next/needs-attention/page";
 import CrmNextWorkPage from "@/app/(app)/crm-next/work/[itemId]/page";
+import CrmNextProgressPage from "@/app/(app)/crm-next/progress/page";
 
 const originalFlag = process.env.CRM_NEXT;
 
@@ -60,6 +61,7 @@ describe("CRM Next pages", () => {
     const attention = renderToStaticMarkup(await CrmNextNeedsAttentionPage());
     const customer = renderToStaticMarkup(await CrmNextCustomerPage({ params: Promise.resolve({ customerId: "michael-johnson" }) }));
     const work = renderToStaticMarkup(await CrmNextWorkPage({ params: Promise.resolve({ itemId: "attn-michael-overdue-follow-up" }) }));
+    const progress = renderToStaticMarkup(await CrmNextProgressPage());
 
     expect(command).toContain("Who needs attention?");
     expect(command).toContain("CRM Next Preview");
@@ -68,6 +70,8 @@ describe("CRM Next pages", () => {
     expect(customer).toContain("Open Legacy CRM");
     expect(work).toContain("Attend: Michael Johnson");
     expect(work).toContain("No live task is created in this slice");
+    expect(progress).toContain("CRM Next build cockpit");
+    expect(progress).toContain("CRMN-016 → CRMN-035");
+    expect(progress).toContain("CRMN-035");
   });
 });
-

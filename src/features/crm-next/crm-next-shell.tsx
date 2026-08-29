@@ -13,11 +13,12 @@ import {
   Phone,
   Search,
   ShieldCheck,
+  Target,
   Users
 } from "lucide-react";
 
 import type { CrmNextAccessReason } from "@/server/crm-next/access";
-import type { CrmNextAttentionItem, CrmNextCommandCenter, CrmNextCustomer360 } from "@/server/crm-next/read-model";
+import type { CrmNextAttentionItem, CrmNextCommandCenter, CrmNextCustomer360, CrmNextMilestoneStatus } from "@/server/crm-next/read-model";
 
 import styles from "./crm-next-shell.module.css";
 
@@ -50,12 +51,13 @@ export function CrmNextUnavailable({ fallbackHref, reason }: { fallbackHref: str
   );
 }
 
-function CrmNextFrame({ active, children, userName }: { active: "command" | "attention" | "customer" | "work"; children: React.ReactNode; userName: string }) {
+function CrmNextFrame({ active, children, userName }: { active: "command" | "attention" | "customer" | "work" | "progress"; children: React.ReactNode; userName: string }) {
   const links = [
     { id: "command", href: "/crm-next", label: "Command Center", icon: LayoutDashboard },
     { id: "customer", href: "/crm-next/customers/michael-johnson", label: "Customers", icon: Users },
     { id: "attention", href: "/crm-next/needs-attention", label: "Needs Attention", icon: Bell },
-    { id: "work", href: "/crm-next/work/attn-michael-overdue-follow-up", label: "Work Customer", icon: ClipboardCheck }
+    { id: "work", href: "/crm-next/work/attn-michael-overdue-follow-up", label: "Work Customer", icon: ClipboardCheck },
+    { id: "progress", href: "/crm-next/progress", label: "Progress", icon: Target }
   ] as const;
 
   return (
@@ -108,6 +110,7 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
         <div className={styles.quickActions}>
           <Link className={styles.primaryButton} href="/crm-next/needs-attention"><Bell size={16} /> View attention queue</Link>
           <Link className={styles.secondaryButton} href="/crm-next/customers/michael-johnson"><Users size={16} /> Open Customer 360</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/progress"><Target size={16} /> View progress</Link>
         </div>
       </section>
 
@@ -154,6 +157,81 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
           <header><h2>Revenue (MTD)</h2><DollarSign size={18} /></header>
           <div className={styles.revenueValue}>{model.revenue.monthToDate}</div>
           <p className={styles.muted}>{model.revenue.trend}</p>
+        </article>
+      </section>
+    </CrmNextFrame>
+  );
+}
+
+function statusClass(status: CrmNextMilestoneStatus) {
+  if (status === "VERIFIED") return styles.statusVerified;
+  if (status === "IMPLEMENTED_UNVERIFIED") return styles.statusImplemented;
+  if (status === "IN_PROGRESS") return styles.statusProgress;
+  if (status === "HELD") return styles.statusHeld;
+  if (status === "DEFERRED") return styles.statusDeferred;
+  if (status === "CONTRACTED") return styles.statusContracted;
+  return styles.statusPlanned;
+}
+
+export function CrmNextProgressView({ model }: { model: CrmNextCommandCenter }) {
+  return (
+    <CrmNextFrame active="progress" userName={model.userName}>
+      <Topbar />
+      <section className={styles.hero}>
+        <div>
+          <span className={styles.eyebrow}>Implementation Progress</span>
+          <h1>CRM Next build cockpit</h1>
+          <p>Review what is implemented, what is next, and what remains safely gated.</p>
+        </div>
+        <div className={styles.quickActions}>
+          <Link className={styles.primaryButton} href="/crm-next">Open CRM Next</Link>
+          <Link className={styles.secondaryButton} href="/crm">Current CRM</Link>
+          <Link className={styles.secondaryButton} href="/customers">Legacy Customers</Link>
+        </div>
+      </section>
+
+      <section className={styles.summaryGrid} aria-label="CRM Next implementation scorecard">
+        <article className={styles.summaryCard} data-tone="blue"><small>Envelope</small><strong>{model.progress.envelopeCount}</strong><p>next milestones staged</p></article>
+        <article className={styles.summaryCard}><small>Implemented</small><strong>{model.progress.completedCount}</strong><p>not yet promoted</p></article>
+        <article className={styles.summaryCard}><small>Verified</small><strong>{model.progress.verifiedCount}</strong><p>release-grade proof later</p></article>
+        <article className={styles.summaryCard}><small>Held</small><strong>{model.progress.heldCount}</strong><p>blocked decisions</p></article>
+        <article className={styles.summaryCard}><small>Next</small><strong>{model.progress.nextMilestone}</strong><p>current control slice</p></article>
+      </section>
+
+      <article className={styles.card} id="crm-next-envelope">
+        <header>
+          <div>
+            <h2>Next 20-milestone envelope</h2>
+            <p className={styles.muted}>Built sequentially. Each slice gets checks, honest status, and a commit checkpoint before the next one.</p>
+          </div>
+          <span className={styles.pill}>CRMN-016 → CRMN-035</span>
+        </header>
+        <div className={styles.progressList}>
+          {model.progress.milestones.map((milestone) => (
+            <Link className={styles.progressRow} href={milestone.reviewHref} key={milestone.id}>
+              <span>
+                <strong>{milestone.id}</strong>
+                <small>{milestone.title}</small>
+              </span>
+              <span>{milestone.objective}</span>
+              <b className={statusClass(milestone.status)}>{milestone.status}</b>
+            </Link>
+          ))}
+        </div>
+      </article>
+
+      <section className={styles.dashboardGrid}>
+        <article className={styles.card}>
+          <header><h2>How to review progress</h2></header>
+          <p>Start here, open the review link for any implemented milestone, and compare the screen against the approved UX baseline.</p>
+        </article>
+        <article className={styles.card}>
+          <header><h2>Safety promise</h2></header>
+          <p>No customer writes, live communications, route replacement, or Dispatch Board task creation are enabled by this envelope until a later approval gate.</p>
+        </article>
+        <article className={styles.card}>
+          <header><h2>Rollback posture</h2></header>
+          <p>Turn off `CRM_NEXT` and CRM Next fails closed while Legacy Customers and current CRM remain available.</p>
         </article>
       </section>
     </CrmNextFrame>

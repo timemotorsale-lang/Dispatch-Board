@@ -2,6 +2,24 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { resolveCrmNextAccess } from "@/server/crm-next/access";
 
 export type CrmNextAttentionLevel = "High" | "Medium" | "Low";
+export type CrmNextMilestoneStatus =
+  | "PLANNED"
+  | "CONTRACTED"
+  | "IN_PROGRESS"
+  | "IMPLEMENTED_UNVERIFIED"
+  | "VERIFIED"
+  | "HELD"
+  | "DEFERRED";
+
+export type CrmNextMilestoneProgress = {
+  id: string;
+  title: string;
+  status: CrmNextMilestoneStatus;
+  objective: string;
+  reviewHref: string;
+  evidence: string;
+  safety: string;
+};
 
 export type CrmNextAttentionItem = {
   id: string;
@@ -52,7 +70,252 @@ export type CrmNextCommandCenter = {
     previewEnabled: true;
     message: string;
   };
+  progress: {
+    completedCount: number;
+    envelopeCount: number;
+    verifiedCount: number;
+    heldCount: number;
+    nextMilestone: string;
+    milestones: CrmNextMilestoneProgress[];
+  };
 };
+
+const progressMilestones: CrmNextMilestoneProgress[] = [
+  {
+    id: "CRMN-010",
+    title: "CRM Next shell and feature flag",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Open CRM Next at /crm-next only when CRM_NEXT is enabled.",
+    reviewHref: "/crm-next",
+    evidence: "Route, feature flag access guard, fail-closed fallback, and Legacy links are implemented.",
+    safety: "No Legacy route replacement and no customer writes."
+  },
+  {
+    id: "CRMN-011",
+    title: "Command Center layout",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Use the approved mockup as a simple command center baseline.",
+    reviewHref: "/crm-next",
+    evidence: "Attention cards, pipeline summary, revenue summary, and next-action cards render in review mode.",
+    safety: "Read-model only; no operational metrics are claimed live."
+  },
+  {
+    id: "CRMN-012",
+    title: "Needs Attention queue",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Give users one clear queue of customers that need action.",
+    reviewHref: "/crm-next/needs-attention",
+    evidence: "Prioritized review rows open Work Customer/Attend Mode.",
+    safety: "Queue is review data until live signal sources are approved."
+  },
+  {
+    id: "CRMN-013",
+    title: "Customer 360 overview",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Show customer, vehicle, opportunity, communication, and next-action context in one place.",
+    reviewHref: "/crm-next/customers/michael-johnson",
+    evidence: "Customer 360 page renders the approved overview pattern.",
+    safety: "Customer profile is review-only and links back to Legacy/current CRM."
+  },
+  {
+    id: "CRMN-014",
+    title: "Work Customer / Attend Mode",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Make customer work feel like a simple action screen, not a database record.",
+    reviewHref: "/crm-next/work/attn-michael-overdue-follow-up",
+    evidence: "Work Customer screen shows action cards, suggested next action, and customer context.",
+    safety: "Sensitive payment/document paths explain held status instead of executing."
+  },
+  {
+    id: "CRMN-015",
+    title: "Action-to-task dispatch bridge",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Preview how CRM actions become Dispatch Board tasks later.",
+    reviewHref: "/crm-next/work/attn-michael-overdue-follow-up#dispatch-preview",
+    evidence: "Bridge contract returns preview shape with liveTaskCreated=false.",
+    safety: "No Dispatch Board task is created."
+  },
+  {
+    id: "CRMN-016",
+    title: "Visible implementation progress",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Show the build status and next 20-milestone envelope in CRM Next itself.",
+    reviewHref: "/crm-next/progress",
+    evidence: "Progress board is available at /crm-next/progress as the review cockpit.",
+    safety: "Status uses approved vocabulary and does not overstate completion."
+  },
+  {
+    id: "CRMN-017",
+    title: "UX baseline navigation polish",
+    status: "CONTRACTED",
+    objective: "Make CRM Next navigation obvious across Command Center, Customer 360, Work Customer, and Progress.",
+    reviewHref: "/crm-next/progress#crm-next-envelope",
+    evidence: "Next planned slice.",
+    safety: "Navigation-only; no writes."
+  },
+  {
+    id: "CRMN-018",
+    title: "Safe global search shell",
+    status: "PLANNED",
+    objective: "Create the search experience before connecting live sources.",
+    reviewHref: "/crm-next/progress#crm-next-envelope",
+    evidence: "Contract-first search shell pending.",
+    safety: "No broad data exposure until policies are connected."
+  },
+  {
+    id: "CRMN-019",
+    title: "Grouped search results",
+    status: "PLANNED",
+    objective: "Group results by customer, vehicle, deal, communication, and work.",
+    reviewHref: "/crm-next/progress#crm-next-envelope",
+    evidence: "Depends on CRMN-018.",
+    safety: "Permission filtering required before real data."
+  },
+  {
+    id: "CRMN-020",
+    title: "Dynamic customer overview",
+    status: "PLANNED",
+    objective: "Show the most relevant customer situation without hiding the full record.",
+    reviewHref: "/crm-next/progress#crm-next-envelope",
+    evidence: "Depends on customer read model review.",
+    safety: "Read-only prominence rules."
+  },
+  {
+    id: "CRMN-021",
+    title: "70/30 Workbench refinement",
+    status: "PLANNED",
+    objective: "Refine Work Customer into a focused execution pane plus context rail.",
+    reviewHref: "/crm-next/progress#crm-next-envelope",
+    evidence: "Depends on CRMN-014 feedback.",
+    safety: "No live actions without bridge approval."
+  },
+  {
+    id: "CRMN-022",
+    title: "Universal action bar",
+    status: "PLANNED",
+    objective: "Standardize Call, Text, Email, Appointment, Task, and More controls.",
+    reviewHref: "/crm-next/progress#crm-next-envelope",
+    evidence: "Depends on communication and task policy contracts.",
+    safety: "Disabled/preview actions must explain why."
+  },
+  {
+    id: "CRMN-023",
+    title: "Open-items context rail",
+    status: "PLANNED",
+    objective: "Summarize open cases, deals, appointments, documents, and dispatch work.",
+    reviewHref: "/crm-next/progress#crm-next-envelope",
+    evidence: "Read-model adapters pending.",
+    safety: "Source-of-truth boundaries preserved."
+  },
+  {
+    id: "CRMN-024",
+    title: "Activity interaction read model",
+    status: "PLANNED",
+    objective: "Prepare a unified timeline without creating duplicate source records.",
+    reviewHref: "/crm-next/progress#crm-next-envelope",
+    evidence: "Unified timeline mapping pending.",
+    safety: "Timeline events stay source-linked."
+  },
+  {
+    id: "CRMN-025",
+    title: "Responsive/mobile behavior",
+    status: "PLANNED",
+    objective: "Make the review flow usable on tablet/mobile.",
+    reviewHref: "/crm-next/progress#crm-next-envelope",
+    evidence: "Responsive proof pending.",
+    safety: "No horizontal overflow or buried primary actions."
+  },
+  {
+    id: "CRMN-026",
+    title: "Empty/loading/error states",
+    status: "PLANNED",
+    objective: "Make every blocked or missing state explain what the user can do next.",
+    reviewHref: "/crm-next/progress#crm-next-envelope",
+    evidence: "State coverage pending.",
+    safety: "No private error/data leakage."
+  },
+  {
+    id: "CRMN-027",
+    title: "Permission-denied surfaces",
+    status: "PLANNED",
+    objective: "Show safe denial states for unauthorized users.",
+    reviewHref: "/crm-next/progress#crm-next-envelope",
+    evidence: "Policy UX pending.",
+    safety: "Fail closed."
+  },
+  {
+    id: "CRMN-028",
+    title: "Legacy switch/fallback links",
+    status: "PLANNED",
+    objective: "Make switching between CRM Next and Legacy/current CRM obvious during pilot.",
+    reviewHref: "/crm-next/progress#crm-next-envelope",
+    evidence: "Fallback navigation review pending.",
+    safety: "Legacy remains operational."
+  },
+  {
+    id: "CRMN-029",
+    title: "Route and rollback proof",
+    status: "PLANNED",
+    objective: "Prove CRM Next can be disabled without harming existing workspaces.",
+    reviewHref: "/crm-next/progress#crm-next-envelope",
+    evidence: "Rollback tests pending.",
+    safety: "CRM_NEXT off returns to safe workspaces."
+  },
+  {
+    id: "CRMN-030",
+    title: "Lead/opportunity read adapters",
+    status: "PLANNED",
+    objective: "Prepare lead and opportunity read models for CRM Next.",
+    reviewHref: "/crm-next/progress#crm-next-envelope",
+    evidence: "Adapters pending.",
+    safety: "Read-only until lifecycle approvals."
+  },
+  {
+    id: "CRMN-031",
+    title: "Pipeline read-only board",
+    status: "PLANNED",
+    objective: "Show a real governed pipeline review surface.",
+    reviewHref: "/crm-next/progress#crm-next-envelope",
+    evidence: "Depends on CRMN-030.",
+    safety: "No stage mutation."
+  },
+  {
+    id: "CRMN-032",
+    title: "Appointments integration",
+    status: "PLANNED",
+    objective: "Surface appointment context from the existing appointment workspace.",
+    reviewHref: "/crm-next/progress#crm-next-envelope",
+    evidence: "Read bridge pending.",
+    safety: "Appointment source remains authoritative."
+  },
+  {
+    id: "CRMN-033",
+    title: "Test-drive review surface",
+    status: "PLANNED",
+    objective: "Expose test-drive context in Customer 360 and Work Customer.",
+    reviewHref: "/crm-next/progress#crm-next-envelope",
+    evidence: "Depends on sales/appointment source mapping.",
+    safety: "Review-only until test-drive commands are approved."
+  },
+  {
+    id: "CRMN-034",
+    title: "Deal review surface",
+    status: "PLANNED",
+    objective: "Show deal state, amount, owner, and next action clearly.",
+    reviewHref: "/crm-next/progress#crm-next-envelope",
+    evidence: "Depends on opportunity/deal adapters.",
+    safety: "No deal mutation."
+  },
+  {
+    id: "CRMN-035",
+    title: "Sales timeline events",
+    status: "PLANNED",
+    objective: "Add sales events to the unified customer timeline.",
+    reviewHref: "/crm-next/progress#crm-next-envelope",
+    evidence: "Depends on CRMN-024 and CRMN-030.",
+    safety: "Events remain source-linked and read-only."
+  }
+];
 
 const attentionItems: CrmNextAttentionItem[] = [
   {
@@ -193,6 +456,14 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
       liveTaskCreationEnabled: false,
       previewEnabled: true,
       message: "Action-to-task dispatch bridge is in review mode. No Dispatch Board task is created yet."
+    },
+    progress: {
+      completedCount: progressMilestones.filter((milestone) => ["IMPLEMENTED_UNVERIFIED", "VERIFIED"].includes(milestone.status)).length,
+      envelopeCount: 20,
+      verifiedCount: progressMilestones.filter((milestone) => milestone.status === "VERIFIED").length,
+      heldCount: progressMilestones.filter((milestone) => milestone.status === "HELD").length,
+      nextMilestone: "CRMN-017",
+      milestones: progressMilestones
     }
   };
 }
@@ -206,4 +477,3 @@ export function getCrmNextAttentionItem(actor: AuthenticatedUser | null, itemId:
   const model = getCrmNextCommandCenter(actor);
   return model.attention.find((item) => item.id === itemId) ?? model.attention[0];
 }
-

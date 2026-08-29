@@ -42,6 +42,9 @@ describe("CRM Next access and safe bridge", () => {
     const model = getCrmNextCommandCenter(user(["General Manager"]));
     expect(model.bridge.liveTaskCreationEnabled).toBe(false);
     expect(model.bridge.previewEnabled).toBe(true);
+    expect(model.progress.envelopeCount).toBe(20);
+    expect(model.progress.nextMilestone).toBe("CRMN-017");
+    expect(model.progress.milestones.map((milestone) => milestone.status)).toContain("CONTRACTED");
   });
 
   it("rejects ineligible users and does not create a dispatch task from the bridge", () => {

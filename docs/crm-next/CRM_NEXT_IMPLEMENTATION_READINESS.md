@@ -101,3 +101,17 @@ Do not implement CRM Next on the shared `main` baseline directly. Start CRMN-010
 - CRMN-015 is preview-only: it returns the bridge handoff shape without mutating Dispatch Board tasks.
 
 **UX baseline:** User-approved CRM Next UI mockup dated 2026-08-28: Command Center, Customer 360, Customer Workbench/Attend Mode, Needs Attention, Intelligence & Next Action, and Dispatch Board handoff flow.
+
+## Implementation evidence — CRMN-016 visible progress cockpit
+
+**Status:** IMPLEMENTED_UNVERIFIED  
+**Branch:** `codex/crm-next-command-center`  
+**Scope:** Added a visible CRM Next implementation progress surface at `/crm-next/progress` and staged the next 20-milestone delivery envelope from CRMN-016 through CRMN-035.  
+
+**Review location:** `/crm-next/progress` with `CRM_NEXT=REVIEW`.
+
+**Safety posture:**
+- Progress uses the approved status vocabulary only: PLANNED, CONTRACTED, IN_PROGRESS, IMPLEMENTED_UNVERIFIED, VERIFIED, HELD, DEFERRED.
+- The page is read-only and does not create customer, communication, opportunity, or Dispatch Board task records.
+- Legacy `/customers` and current `/crm` remain linked as fallback review paths.
+- The envelope is explicitly sequential: each milestone is reviewed, verified, and committed before moving to the next slice.
