@@ -8,6 +8,7 @@ import {
 } from "@prisma/client";
 
 import type { WorkdayWorkbookRecord } from "@/server/repositories/workday-workbook-repository";
+import type { WorkdayWorkbookOperatingSignals } from "@/server/services/workday-workbook";
 
 function clampScore(value: number) {
   return Math.max(0, Math.min(100, Math.round(value)));

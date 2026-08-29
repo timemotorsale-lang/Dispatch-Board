@@ -22,6 +22,14 @@ import {
   type WorkdayWorkbookRepository,
   type WorkdayWorkbookSummaryRecord
 } from "@/server/repositories/workday-workbook-repository";
+import {
+  buildCoachingAndAccountabilityEngine,
+  buildDailyPlanningEngine,
+  buildExecutionTrackingEngine,
+  buildReportIntelligenceEngine,
+  buildRiskAndBlockerEngine,
+  buildWorkflowGovernanceEngine
+} from "@/server/services/workday-workbook-engines";
 import { assertAuthenticatedUser, isManager } from "@/server/policies/access";
 import { normalizeBoardDate } from "@/server/validation/board-date";
 
@@ -750,7 +758,13 @@ function toStaffWorkbookSummary(record: WorkdayWorkbookSummaryRecord) {
   };
 }
 
-function toReadModel(workbook: WorkdayWorkbookRecord) {
+function toReadModel(workbook: WorkdayWorkbookRecord, operatingSignals: WorkdayWorkbookOperatingSignals = emptyOperatingSignals) {
+  const planning = buildDailyPlanningEngine(workbook);
+  const execution = buildExecutionTrackingEngine(workbook);
+  const risk = buildRiskAndBlockerEngine(workbook, operatingSignals);
+  const coaching = buildCoachingAndAccountabilityEngine(workbook, operatingSignals);
+  const reporting = buildReportIntelligenceEngine(workbook, operatingSignals);
+  const governance = buildWorkflowGovernanceEngine(workbook, operatingSignals);
   return {
     id: workbook.id,
     boardDayId: workbook.boardDayId,
@@ -860,6 +874,12 @@ function toReadModel(workbook: WorkdayWorkbookRecord) {
       createdAt: dateToIso(item.createdAt),
       updatedAt: dateToIso(item.updatedAt)
     })),
+    planning,
+    execution,
+    risk,
+    coaching,
+    reporting,
+    governance,
     closeReadiness: buildCloseReadiness(workbook),
     effectiveness: buildDailyEffectiveness(workbook)
   };
@@ -892,7 +912,7 @@ async function getWorkbookByScope(
     boardDayId: boardDay.id,
     scope,
     userId: user.id
-  }));
+  }), operatingSignals);
 }
 
 export async function getCooWorkbook(
