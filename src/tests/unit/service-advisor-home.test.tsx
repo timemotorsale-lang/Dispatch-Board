@@ -695,6 +695,10 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("Needs Attention");
     expect(html).toContain("Today’s Work");
     expect(html).toContain("Report Ready");
+    expect(html).toContain("role=\"tablist\"");
+    expect(html).toContain("aria-selected=\"true\"");
+    expect(html).toContain("Daily Close details");
+    expect(html).toContain("Review what must be cleaned up before the day is closed.");
     expect(html).toContain("Ready");
     expect(html).toContain("Review now");
     expect(html).toContain("Daily Checklist");

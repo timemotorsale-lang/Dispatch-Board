@@ -152,6 +152,7 @@ type DailyFocusStatus = DailyFocusItem["status"];
 type DailyFocusPriority = DailyFocusItem["priority"];
 type DailyFocusRisk = DailyFocusItem["riskLevel"];
 type CloseStepView = "DONE" | "TOMORROW" | "DRAFT";
+type CommandCardView = "CLOSE" | "ATTENTION" | "WORK" | "REPORT";
 export type CooWorkbookTool = "CHECKLIST" | "TO_DO_LIST" | "QUICK_UPDATE" | "ACTION_PLAN" | "CARRYOVER" | "REPORT_SEEDS" | "STAFF_SUPPORT" | "DRAFTS";
 
 const quickUpdateCategories: Array<{ label: string; value: QuickUpdateCategory }> = [
@@ -240,6 +241,7 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
   const [supportUpdateRequested, setSupportUpdateRequested] = useState(true);
   const [workspaceNotice, setWorkspaceNotice] = useState<string | null>(null);
   const [convertingId, setConvertingId] = useState<string | null>(null);
+  const [commandView, setCommandView] = useState<CommandCardView>("CLOSE");
   const [saving, setSaving] = useState(false);
   const approvalCount = actionCount(model, "AUTHORIZATION");
   const reportExceptions = model.counts.needsAttention + model.counts.waitingOnOthers;
@@ -315,6 +317,7 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
   const commandCards = [
     {
       icon: CheckCircle2,
+      key: "CLOSE" as const,
       label: "Daily Close",
       meta: closeReadinessLabel(closeReadiness.tone),
       stat: `${closeReadiness.score}/100`,
@@ -322,6 +325,7 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
     },
     {
       icon: AlertTriangle,
+      key: "ATTENTION" as const,
       label: "Needs Attention",
       meta: supportSignals ? "Review now" : "Clear",
       stat: supportSignals,
@@ -329,6 +333,7 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
     },
     {
       icon: ListChecks,
+      key: "WORK" as const,
       label: "Today’s Work",
       meta: `${checklistRollup.done} done`,
       stat: `${checklistItems.length} items`,
@@ -336,12 +341,33 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
     },
     {
       icon: FileText,
+      key: "REPORT" as const,
       label: "Report Ready",
       meta: latestReportDraft ? `Draft v${latestReportDraft.version}` : "Draft ready",
       stat: `${reportSeedRollup.active} seeds`,
       tone: latestReportDraft ? "green" : "blue"
     }
   ];
+  const commandDetailItems = commandView === "CLOSE"
+    ? closeReadiness.prompts.slice(0, 5).map((prompt, index) => ({ action: index === 0 ? "Open close" : "Review", detail: closeReadinessLabel(closeReadiness.tone), href: "#close-report", id: `close-${index}`, title: prompt }))
+    : commandView === "ATTENTION"
+      ? attentionItems.map((item) => ({ action: item.action, detail: item.context, href: item.href, id: item.id, title: item.title }))
+      : commandView === "WORK"
+        ? [
+          ...checklistItems.slice(0, 4).map((item) => ({ action: item.done ? "Done" : "Update", detail: item.update || checklistStatusLabel(item), href: "/vehicles/coo-workbook/checklist", id: `work-checklist-${item.id}`, title: item.text })),
+          ...quickUpdates.slice(0, 2).map((item) => ({ action: item.followUpNeeded ? "Follow up" : "Review", detail: quickUpdateCategoryLabel(item.category), href: "/vehicles/coo-workbook/quick-update", id: `work-quick-${item.id}`, title: item.text }))
+        ].slice(0, 5)
+        : latestReportDraft
+          ? latestReportDraft.sections.flatMap((section) => section.items.map((item) => ({ action: "Open draft", detail: section.title, href: "/vehicles/coo-workbook/drafts", id: `draft-${section.title}-${item.sourceId}-${item.title}`, title: item.title }))).slice(0, 5)
+          : reportSeeds.filter((seed) => seed.status !== "EXCLUDED").slice(0, 5).map((seed) => ({ action: reportSeedStatusLabel(seed.status), detail: reportSeedSourceLabel(seed), href: "/vehicles/coo-workbook/report-seeds", id: `seed-${seed.id}`, title: seed.title }));
+  const commandDetailTitle = commandCards.find((card) => card.key === commandView)?.label ?? "Daily Close";
+  const commandDetailHelp = commandView === "CLOSE"
+    ? "Review what must be cleaned up before the day is closed."
+    : commandView === "ATTENTION"
+      ? "Work these items first because they can block customers, staff, or reporting."
+      : commandView === "WORK"
+        ? "Update the work list so progress and report signals stay current."
+        : "Review the source-backed items that can become the manager-ready report.";
   const carryoverPreview = [
     ...checklistItems.filter((item) => item.carryoverReady).map((item) => ({ detail: item.update || checklistStatusLabel(item), id: `checklist-${item.id}`, kind: "Checklist", title: item.text })),
     ...quickUpdates.filter((item) => item.carryoverReady).map((item) => ({ detail: [item.person, item.company, item.dueWindow].filter(Boolean).join(" · ") || item.text, id: `quick-${item.id}`, kind: "Quick Update", title: item.text })),
@@ -965,16 +991,29 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
       </div>
     </header>
 
-    <section className="advisor-coo-command-strip" aria-label="Today's Command">
+    <section className="advisor-coo-command-strip" aria-label="Today's Command" role="tablist">
       {commandCards.map((card) => {
         const Icon = card.icon;
-        return <article className={card.tone} key={card.label}>
+        return <button aria-selected={commandView === card.key} className={card.tone} key={card.label} onClick={() => setCommandView(card.key)} role="tab" type="button">
           <Icon />
           <span>{card.label}</span>
           <strong>{card.stat}</strong>
           <small>{card.meta}</small>
-        </article>;
+        </button>;
       })}
+    </section>
+
+    <section className="advisor-coo-command-detail" aria-label={`${commandDetailTitle} details`} role="tabpanel">
+      <header>
+        <div><strong>{commandDetailTitle}</strong><small>{commandDetailHelp}</small></div>
+        <span>{commandDetailItems.length ? `${commandDetailItems.length} item(s)` : "Clear"}</span>
+      </header>
+      <div>
+        {commandDetailItems.length ? commandDetailItems.map((item) => <a href={item.href} key={item.id}>
+          <span><strong>{item.title}</strong><small>{item.detail}</small></span>
+          <em>{item.action}</em>
+        </a>) : <p><CheckCircle2 /> Nothing is waiting in this area right now.</p>}
+      </div>
     </section>
 
     <section className="advisor-coo-landing-grid" aria-label={`${activeWorkbookLabel} daily execution workspace`}>
