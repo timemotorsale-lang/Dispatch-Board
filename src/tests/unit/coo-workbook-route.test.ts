@@ -2,9 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   createCooWorkbookChecklistItem: vi.fn(),
+  createCooWorkbookDailyFocusItem: vi.fn(),
   createCooWorkbookReportDraft: vi.fn(),
   createStaffSupportAction: vi.fn(),
   createStaffWorkbookChecklistItem: vi.fn(),
+  createStaffWorkbookDailyFocusItem: vi.fn(),
   createStaffWorkbookQuickUpdate: vi.fn(),
   createStaffWorkbookReportDraft: vi.fn(),
   closeWorkbookDay: vi.fn(),
@@ -15,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   prepareWorkbookCarryovers: vi.fn(),
   reopenWorkbookDay: vi.fn(),
   updateCooWorkbookReportSeed: vi.fn(),
+  updateWorkbookDailyFocusItem: vi.fn(),
   updateStaffSupportAction: vi.fn(),
   updateWorkbookCarryover: vi.fn()
 }));
@@ -30,9 +33,11 @@ vi.mock("@/server/advisor-workspace/service", () => ({
 vi.mock("@/server/services/workday-workbook", () => ({
   closeWorkbookDay: mocks.closeWorkbookDay,
   createCooWorkbookChecklistItem: mocks.createCooWorkbookChecklistItem,
+  createCooWorkbookDailyFocusItem: mocks.createCooWorkbookDailyFocusItem,
   createCooWorkbookReportDraft: mocks.createCooWorkbookReportDraft,
   createStaffSupportAction: mocks.createStaffSupportAction,
   createStaffWorkbookChecklistItem: mocks.createStaffWorkbookChecklistItem,
+  createStaffWorkbookDailyFocusItem: mocks.createStaffWorkbookDailyFocusItem,
   createStaffWorkbookQuickUpdate: mocks.createStaffWorkbookQuickUpdate,
   createStaffWorkbookReportDraft: mocks.createStaffWorkbookReportDraft,
   getStaffWorkbook: mocks.getStaffWorkbook,
@@ -40,6 +45,7 @@ vi.mock("@/server/services/workday-workbook", () => ({
   prepareWorkbookCarryovers: mocks.prepareWorkbookCarryovers,
   reopenWorkbookDay: mocks.reopenWorkbookDay,
   updateCooWorkbookReportSeed: mocks.updateCooWorkbookReportSeed,
+  updateWorkbookDailyFocusItem: mocks.updateWorkbookDailyFocusItem,
   updateStaffSupportAction: mocks.updateStaffSupportAction,
   updateWorkbookCarryover: mocks.updateWorkbookCarryover
 }));
@@ -48,6 +54,8 @@ import { POST as POSTChecklist } from "@/app/api/coo-workbook/checklist/route";
 import { POST as POSTClose } from "@/app/api/coo-workbook/close/route";
 import { POST as POSTCarryovers } from "@/app/api/coo-workbook/carryovers/route";
 import { PATCH as PATCHCarryover } from "@/app/api/coo-workbook/carryovers/[carryoverId]/route";
+import { POST as POSTDailyFocus } from "@/app/api/coo-workbook/daily-focus/route";
+import { PATCH as PATCHDailyFocus } from "@/app/api/coo-workbook/daily-focus/[itemId]/route";
 import { POST as POSTReportDraft } from "@/app/api/coo-workbook/report-drafts/route";
 import { PATCH as PATCHReportSeed } from "@/app/api/coo-workbook/report-seeds/[seedId]/route";
 import { POST as POSTReopen } from "@/app/api/coo-workbook/reopen/route";
@@ -77,9 +85,11 @@ describe("COO workbook checklist route", () => {
     mocks.getCurrentUser.mockResolvedValue(user);
     mocks.closeWorkbookDay.mockResolvedValue({ ok: true });
     mocks.createCooWorkbookChecklistItem.mockResolvedValue({ ok: true });
+    mocks.createCooWorkbookDailyFocusItem.mockResolvedValue({ ok: true });
     mocks.createCooWorkbookReportDraft.mockResolvedValue({ ok: true });
     mocks.createStaffSupportAction.mockResolvedValue({ ok: true });
     mocks.createStaffWorkbookChecklistItem.mockResolvedValue({ ok: true });
+    mocks.createStaffWorkbookDailyFocusItem.mockResolvedValue({ ok: true });
     mocks.createStaffWorkbookQuickUpdate.mockResolvedValue({ ok: true });
     mocks.createStaffWorkbookReportDraft.mockResolvedValue({ ok: true });
     mocks.getStaffWorkbook.mockResolvedValue({ id: "staff-workbook-1" });
@@ -87,6 +97,7 @@ describe("COO workbook checklist route", () => {
     mocks.prepareWorkbookCarryovers.mockResolvedValue({ count: 2, ok: true, targetBoardDate: "2026-08-30" });
     mocks.reopenWorkbookDay.mockResolvedValue({ ok: true });
     mocks.updateCooWorkbookReportSeed.mockResolvedValue({ ok: true });
+    mocks.updateWorkbookDailyFocusItem.mockResolvedValue({ ok: true });
     mocks.updateStaffSupportAction.mockResolvedValue({ ok: true });
     mocks.updateWorkbookCarryover.mockResolvedValue({ ok: true });
     mocks.getServiceAdvisorWorkspace.mockResolvedValue({
@@ -168,6 +179,22 @@ describe("COO workbook checklist route", () => {
 
     expect(response.status).toBe(201);
     expect(mocks.createStaffWorkbookChecklistItem).toHaveBeenCalledWith(user, "2026-08-29", { text: "Finish daily callbacks" });
+  });
+
+  it("creates and updates Daily Focus items through protected workbook services", async () => {
+    const createResponse = await POSTDailyFocus(new Request("http://localhost/api/coo-workbook/daily-focus?date=2026-08-29&scope=STAFF", {
+      method: "POST",
+      body: JSON.stringify({ outcome: "Finish top three callbacks", priority: "HIGH", riskLevel: "NONE" })
+    }));
+    const updateResponse = await PATCHDailyFocus(new Request("http://localhost/api/coo-workbook/daily-focus/focus-1", {
+      method: "PATCH",
+      body: JSON.stringify({ status: "DONE" })
+    }), { params: Promise.resolve({ itemId: "focus-1" }) });
+
+    expect(createResponse.status).toBe(201);
+    expect(updateResponse.status).toBe(200);
+    expect(mocks.createStaffWorkbookDailyFocusItem).toHaveBeenCalledWith(user, "2026-08-29", { outcome: "Finish top three callbacks", priority: "HIGH", riskLevel: "NONE" });
+    expect(mocks.updateWorkbookDailyFocusItem).toHaveBeenCalledWith(user, "focus-1", { status: "DONE" });
   });
 
   it("creates staff Quick Updates through the staff workbook service", async () => {

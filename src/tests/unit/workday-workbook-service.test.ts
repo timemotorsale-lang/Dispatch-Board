@@ -1,11 +1,14 @@
 import {
   WorkdayCarryoverStatus,
   WorkdayChecklistStatus,
+  WorkdayDailyFocusStatus,
+  WorkdayPriority,
   WorkdayQuickUpdateCategory,
   WorkdayReportCadence,
   WorkdayReportSeedSourceType,
   WorkdayReportSeedStatus,
   WorkdayReportSeedTone,
+  WorkdayRiskLevel,
   WorkdaySupportActionStatus,
   WorkdayWorkbookScope,
   type BoardDay
@@ -19,6 +22,7 @@ import {
   buildWorkdayReportSeeds,
   closeWorkbookDay,
   createCooWorkbookChecklistItem,
+  createCooWorkbookDailyFocusItem,
   createCooWorkbookReportDraft,
   createStaffSupportAction,
   createStaffWorkbookChecklistItem,
@@ -28,6 +32,7 @@ import {
   reopenWorkbookDay,
   updateCooWorkbookChecklistItem,
   updateCooWorkbookReportSeed,
+  updateWorkbookDailyFocusItem,
   updateWorkbookCarryover
 } from "@/server/services/workday-workbook";
 import { createTestAuthStore } from "@/tests/support/auth-test-store";
@@ -62,6 +67,9 @@ function workbook(userId = "user-jordan.sales@local.test"): WorkdayWorkbookRecor
         workbookId: "workbook-1",
         text: "Call vendor about roof estimate",
         status: WorkdayChecklistStatus.YELLOW,
+        priority: WorkdayPriority.HIGH,
+        riskLevel: WorkdayRiskLevel.WATCH,
+        riskNote: "Roof timing could slip.",
         update: "Waiting on AJ to confirm timing.",
         done: false,
         carryoverReady: true,
@@ -74,9 +82,29 @@ function workbook(userId = "user-jordan.sales@local.test"): WorkdayWorkbookRecor
         workbookId: "workbook-1",
         text: "Clean desk",
         status: WorkdayChecklistStatus.GREEN,
+        priority: WorkdayPriority.LOW,
+        riskLevel: WorkdayRiskLevel.NONE,
+        riskNote: "",
         update: "",
         done: false,
         carryoverReady: false,
+        convertedTaskId: null,
+        createdAt: now,
+        updatedAt: now
+      }
+    ],
+    dailyFocusItems: [
+      {
+        id: "focus-1",
+        workbookId: "workbook-1",
+        outcome: "Confirm roof repair path",
+        mustCloseToday: true,
+        priority: WorkdayPriority.CRITICAL,
+        riskLevel: WorkdayRiskLevel.BLOCKED,
+        riskNote: "Waiting on AJ to confirm timing.",
+        supportNeeded: "Need manager approval if roof quote is high.",
+        status: WorkdayDailyFocusStatus.PLANNED,
+        sortOrder: 0,
         convertedTaskId: null,
         createdAt: now,
         updatedAt: now
@@ -149,12 +177,14 @@ function workbook(userId = "user-jordan.sales@local.test"): WorkdayWorkbookRecor
 }
 
 function repositoryHarness(ownerUserId = "user-jordan.sales@local.test") {
-  const createdChecklistItems: Array<{ text: string; workbookId: string }> = [];
+  const createdChecklistItems: Array<{ priority?: WorkdayPriority; riskLevel?: WorkdayRiskLevel; riskNote?: string; text: string; workbookId: string }> = [];
+  const createdDailyFocusItems: unknown[] = [];
   const createdReportDrafts: unknown[] = [];
   const createdSupportActions: unknown[] = [];
   const activityEvents: unknown[] = [];
   const checklistUpdates: unknown[] = [];
   const carryoverUpdates: unknown[] = [];
+  const dailyFocusUpdates: unknown[] = [];
   const closedWorkbooks: unknown[] = [];
   const reportSeedUpdates: unknown[] = [];
   const reopenedWorkbooks: unknown[] = [];
@@ -167,6 +197,9 @@ function repositoryHarness(ownerUserId = "user-jordan.sales@local.test") {
     },
     async createChecklistItem(input) {
       createdChecklistItems.push(input);
+    },
+    async createDailyFocusItem(input) {
+      createdDailyFocusItems.push(input);
     },
     async createReportDraft(input) {
       createdReportDrafts.push(input);
@@ -183,6 +216,10 @@ function repositoryHarness(ownerUserId = "user-jordan.sales@local.test") {
     },
     async findCarryover(carryoverId) {
       const item = currentWorkbook.carryovers.find((candidate) => candidate.id === carryoverId);
+      return item ? { ...item, workbook: currentWorkbook } : null;
+    },
+    async findDailyFocusItem(itemId) {
+      const item = currentWorkbook.dailyFocusItems.find((candidate) => candidate.id === itemId);
       return item ? { ...item, workbook: currentWorkbook } : null;
     },
     async findQuickUpdate() {
@@ -221,6 +258,14 @@ function repositoryHarness(ownerUserId = "user-jordan.sales@local.test") {
           status: item.status,
           updatedAt: item.updatedAt
         })),
+        dailyFocusItems: currentWorkbook.dailyFocusItems.map((item) => ({
+          mustCloseToday: item.mustCloseToday,
+          priority: item.priority,
+          riskLevel: item.riskLevel,
+          status: item.status,
+          supportNeeded: item.supportNeeded,
+          updatedAt: item.updatedAt
+        })),
         quickUpdates: currentWorkbook.quickUpdates.map((item) => ({
           carryoverReady: item.carryoverReady,
           followUpNeeded: item.followUpNeeded,
@@ -256,6 +301,9 @@ function repositoryHarness(ownerUserId = "user-jordan.sales@local.test") {
     async updateCarryover(input) {
       carryoverUpdates.push(input);
     },
+    async updateDailyFocusItem(input) {
+      dailyFocusUpdates.push(input);
+    },
     async updateQuickUpdate() {
       throw new Error("not needed");
     },
@@ -273,7 +321,7 @@ function repositoryHarness(ownerUserId = "user-jordan.sales@local.test") {
     }
   };
 
-  return { activityEvents, carryoverUpdates, checklistUpdates, closedWorkbooks, createdChecklistItems, createdReportDrafts, createdSupportActions, currentWorkbook, reopenedWorkbooks, reportSeedUpdates, repository, supportActionUpdates, upsertedCarryovers };
+  return { activityEvents, carryoverUpdates, checklistUpdates, closedWorkbooks, createdChecklistItems, createdDailyFocusItems, createdReportDrafts, createdSupportActions, currentWorkbook, dailyFocusUpdates, reopenedWorkbooks, reportSeedUpdates, repository, supportActionUpdates, upsertedCarryovers };
 }
 
 describe("workday workbook service", () => {
@@ -285,6 +333,7 @@ describe("workday workbook service", () => {
     });
 
     expect(seeds.map((seed) => seed.title)).toEqual([
+      "Confirm roof repair path",
       "Call vendor about roof estimate",
       "Sales opportunity update",
       "Approval review",
@@ -316,6 +365,12 @@ describe("workday workbook service", () => {
 
     expect(seeds).toEqual([
       expect.objectContaining({
+        sourceId: "daily-focus:focus-1",
+        sourceType: WorkdayReportSeedSourceType.OPERATING_EXCEPTION,
+        targetBoardDate,
+        title: "Confirm roof repair path"
+      }),
+      expect.objectContaining({
         sourceId: "checklist-1",
         sourceType: WorkdayReportSeedSourceType.CHECKLIST_ITEM,
         targetBoardDate,
@@ -345,6 +400,9 @@ describe("workday workbook service", () => {
 
     expect(harness.createdChecklistItems).toEqual([
       {
+        priority: WorkdayPriority.MEDIUM,
+        riskLevel: WorkdayRiskLevel.NONE,
+        riskNote: "",
         text: "Review Quick Updates",
         workbookId: "workbook-1"
       }
@@ -360,6 +418,9 @@ describe("workday workbook service", () => {
 
     expect(harness.createdChecklistItems).toEqual([
       {
+        priority: WorkdayPriority.MEDIUM,
+        riskLevel: WorkdayRiskLevel.NONE,
+        riskNote: "",
         text: "Finish customer callbacks",
         workbookId: "workbook-1"
       }
@@ -374,15 +435,53 @@ describe("workday workbook service", () => {
     const readModel = await getStaffWorkbook(user, "2026-08-29", { repository: harness.repository });
 
     expect(readModel.closeReadiness).toMatchObject({
-      carryoverItems: 2,
+      carryoverItems: 3,
       checklistCompletion: 0,
       checklistNeedsSupport: 1,
       quickFollowUps: 1,
       reviewedSeedCount: 3,
-      score: 38,
+      score: 41,
       tone: "SUPPORT"
     });
-    expect(readModel.closeReadiness.prompts).toContain("Generate the Daily Report Draft when today has enough signal.");
+    expect(readModel.closeReadiness.prompts).toContain("Review daily focus items that need support or have risk.");
+    expect(readModel.effectiveness).toMatchObject({
+      dailyFocusTotal: 1,
+      mustCloseOpen: 1,
+      supportNeeded: "Need manager approval if roof quote is high."
+    });
+  });
+
+  it("creates and updates Daily Focus items in the current workbook", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("jordan.sales@local.test")!;
+    const harness = repositoryHarness(user.id);
+
+    await createCooWorkbookDailyFocusItem(user, "2026-08-29", {
+      mustCloseToday: true,
+      outcome: "Finish morning promise review",
+      priority: "CRITICAL",
+      riskLevel: "WATCH",
+      supportNeeded: "Need parts ETA"
+    }, { repository: harness.repository });
+    await updateWorkbookDailyFocusItem(user, "focus-1", { status: "DONE", riskLevel: "NONE" }, { repository: harness.repository });
+
+    expect(harness.createdDailyFocusItems).toEqual([
+      expect.objectContaining({
+        mustCloseToday: true,
+        outcome: "Finish morning promise review",
+        priority: WorkdayPriority.CRITICAL,
+        riskLevel: WorkdayRiskLevel.WATCH,
+        supportNeeded: "Need parts ETA",
+        workbookId: "workbook-1"
+      })
+    ]);
+    expect(harness.dailyFocusUpdates).toEqual([
+      expect.objectContaining({
+        id: "focus-1",
+        riskLevel: WorkdayRiskLevel.NONE,
+        status: WorkdayDailyFocusStatus.DONE
+      })
+    ]);
   });
 
   it("rejects checklist updates for another user's workbook", async () => {
@@ -466,6 +565,11 @@ describe("workday workbook service", () => {
     await reopenWorkbookDay(user, "workbook-1", { repository: harness.repository });
 
     expect(harness.upsertedCarryovers).toHaveLength(2);
+    expect(harness.upsertedCarryovers[0]).toEqual(expect.objectContaining({
+      carryovers: expect.arrayContaining([
+        expect.objectContaining({ sourceId: "daily-focus:focus-1", title: "Confirm roof repair path" })
+      ])
+    }));
     expect(harness.carryoverUpdates).toEqual([
       expect.objectContaining({ id: "carryover-1", status: WorkdayCarryoverStatus.CONFIRMED })
     ]);
@@ -503,11 +607,14 @@ describe("workday workbook service", () => {
 
     expect(summaries).toEqual([
       expect.objectContaining({
-        carryoverCount: 2,
+        carryoverCount: 3,
         checklistCount: 2,
-        closeReadinessScore: 48,
+        closeReadinessScore: 42,
         closeReadinessTone: "SUPPORT",
         completedChecklistCount: 0,
+        dailyFocusCount: 1,
+        dailyFocusRiskCount: 1,
+        effectivenessScore: 42,
         followUpNeededCount: 1,
         latestDraftStatus: "DRAFT",
         redYellowItemCount: 1,

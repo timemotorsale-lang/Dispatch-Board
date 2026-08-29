@@ -1680,6 +1680,25 @@ enum WorkdayChecklistStatus {
   RED
 }
 
+enum WorkdayPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum WorkdayRiskLevel {
+  NONE
+  WATCH
+  BLOCKED
+}
+
+enum WorkdayDailyFocusStatus {
+  PLANNED
+  DONE
+  CARRY_OVER
+}
+
 enum WorkdayQuickUpdateCategory {
   CUSTOMER
   VENDOR
@@ -6749,6 +6768,7 @@ model WorkdayWorkbook {
   boardDay       BoardDay              @relation(fields: [boardDayId], references: [id], onDelete: Cascade)
   user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   checklistItems WorkdayChecklistItem[]
+  dailyFocusItems WorkdayDailyFocusItem[]
   quickUpdates   WorkdayQuickUpdate[]
   reportSeeds    WorkdayReportSeed[]
   reportDrafts   WorkdayReportDraft[]
@@ -6765,6 +6785,9 @@ model WorkdayChecklistItem {
   workbookId      String
   text            String
   status          WorkdayChecklistStatus @default(GREEN)
+  priority        WorkdayPriority        @default(MEDIUM)
+  riskLevel       WorkdayRiskLevel       @default(NONE)
+  riskNote        String                 @default("")
   update          String                 @default("")
   done            Boolean                @default(false)
   carryoverReady  Boolean                @default(false)
@@ -6775,6 +6798,29 @@ model WorkdayChecklistItem {
   convertedTask   Task?                  @relation("WorkdayChecklistConvertedTask", fields: [convertedTaskId], references: [id], onDelete: SetNull)
 
   @@index([workbookId, status, done])
+  @@index([workbookId, priority, riskLevel])
+  @@index([convertedTaskId])
+}
+
+model WorkdayDailyFocusItem {
+  id              String                  @id @default(cuid())
+  workbookId      String
+  outcome         String
+  mustCloseToday  Boolean                 @default(false)
+  priority        WorkdayPriority         @default(HIGH)
+  riskLevel       WorkdayRiskLevel        @default(NONE)
+  riskNote        String                  @default("")
+  supportNeeded   String                  @default("")
+  status          WorkdayDailyFocusStatus @default(PLANNED)
+  sortOrder       Int                     @default(0)
+  convertedTaskId String?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  workbook        WorkdayWorkbook         @relation(fields: [workbookId], references: [id], onDelete: Cascade)
+  convertedTask   Task?                   @relation("WorkdayDailyFocusConvertedTask", fields: [convertedTaskId], references: [id], onDelete: SetNull)
+
+  @@index([workbookId, status, priority])
+  @@index([workbookId, riskLevel])
   @@index([convertedTaskId])
 }
 
@@ -7325,6 +7371,7 @@ model Task {
   customer                   Customer?                 @relation(fields: [customerId], references: [id], onDelete: SetNull)
   inventoryWorkPacket        InventoryWorkPacket?
   convertedFromChecklist     WorkdayChecklistItem[]    @relation("WorkdayChecklistConvertedTask")
+  convertedFromDailyFocus    WorkdayDailyFocusItem[]    @relation("WorkdayDailyFocusConvertedTask")
   convertedFromQuickUpdates  WorkdayQuickUpdate[]      @relation("WorkdayQuickUpdateConvertedTask")
   convertedFromCarryovers    WorkdayCarryover[]        @relation("WorkdayCarryoverConvertedTask")
 

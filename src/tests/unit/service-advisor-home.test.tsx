@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { CooDailyWorkbook, ServiceAdvisorHome } from "@/features/advisor/service-advisor-home";
+import { CooDailyWorkbook, CooEffectivenessPilotWorkbook, ServiceAdvisorHome } from "@/features/advisor/service-advisor-home";
 import type { ServiceAdvisorWorkspaceModel } from "@/server/advisor-workspace/service";
 
 const model = {
@@ -23,12 +23,31 @@ const model = {
         id: "checklist-1",
         text: "Review morning approval queue",
         status: "YELLOW",
+        priority: "HIGH",
+        riskLevel: "WATCH",
+        riskNote: "Customer callback may delay close.",
         update: "Waiting on customer callback.",
         done: false,
         carryoverReady: true,
         convertedTaskId: null,
         createdAt: "2026-07-20T14:05:00.000Z",
         updatedAt: "2026-07-20T14:06:00.000Z"
+      }
+    ],
+    dailyFocusItems: [
+      {
+        id: "focus-1",
+        outcome: "Resolve top approval blocker",
+        mustCloseToday: true,
+        priority: "CRITICAL",
+        riskLevel: "WATCH",
+        riskNote: "Customer callback may delay close.",
+        supportNeeded: "Need manager backup if no response.",
+        status: "PLANNED",
+        sortOrder: 0,
+        convertedTaskId: null,
+        createdAt: "2026-07-20T14:04:00.000Z",
+        updatedAt: "2026-07-20T14:04:00.000Z"
       }
     ],
     carryovers: [
@@ -121,6 +140,10 @@ const model = {
       checklistDone: 0,
       checklistTotal: 1,
       checklistNeedsSupport: 1,
+      dailyFocusDone: 0,
+      dailyFocusTotal: 1,
+      dailyFocusNeedsSupport: 1,
+      mustCloseOpen: 1,
       quickFollowUps: 1,
       carryoverItems: 1,
       supportActions: 0,
@@ -130,12 +153,36 @@ const model = {
       excludedSeedCount: 0,
       latestDraftVersion: 1,
       prompts: [
+        "Review daily focus items that need support or have risk.",
         "Review yellow/red checklist items and decide what needs help.",
         "Confirm Quick Update follow-ups have an owner or due window.",
         "Review remaining report seeds before generating the final draft."
       ]
     },
-    supportActions: []
+    supportActions: [],
+    effectiveness: {
+      overallScore: 62,
+      focusScore: 70,
+      executionScore: 0,
+      communicationScore: 64,
+      riskScore: 58,
+      carryoverQualityScore: 79,
+      plannedWork: 2,
+      completedWork: 0,
+      dailyFocusTotal: 1,
+      dailyFocusDone: 0,
+      mustCloseOpen: 1,
+      followUps: 1,
+      riskFlags: 3,
+      carryoverItems: 2,
+      supportNeeded: "Need manager backup if no response.",
+      staffGuidance: "Finish or carry over must-close outcomes before the day ends.",
+      managerSummary: "0 of 2 planned item(s) completed, 3 risk/support signal(s), and 2 carryover item(s) identified.",
+      coachingPrompts: [
+        "Finish or carry over must-close outcomes before the day ends.",
+        "Raise blocked or watch items early so support can arrive sooner."
+      ]
+    }
   },
   staffWorkbook: {
     id: "staff-workbook-1",
@@ -153,12 +200,31 @@ const model = {
         id: "staff-checklist-1",
         text: "Finish customer callbacks",
         status: "GREEN",
+        priority: "MEDIUM",
+        riskLevel: "NONE",
+        riskNote: "",
         update: "All morning callbacks are done.",
         done: true,
         carryoverReady: false,
         convertedTaskId: null,
         createdAt: "2026-07-20T14:05:00.000Z",
         updatedAt: "2026-07-20T14:06:00.000Z"
+      }
+    ],
+    dailyFocusItems: [
+      {
+        id: "staff-focus-1",
+        outcome: "Complete scheduled callbacks",
+        mustCloseToday: true,
+        priority: "HIGH",
+        riskLevel: "NONE",
+        riskNote: "",
+        supportNeeded: "",
+        status: "DONE",
+        sortOrder: 0,
+        convertedTaskId: null,
+        createdAt: "2026-07-20T14:04:00.000Z",
+        updatedAt: "2026-07-20T14:04:00.000Z"
       }
     ],
     carryovers: [],
@@ -172,6 +238,10 @@ const model = {
       checklistDone: 1,
       checklistTotal: 1,
       checklistNeedsSupport: 0,
+      dailyFocusDone: 1,
+      dailyFocusTotal: 1,
+      dailyFocusNeedsSupport: 0,
+      mustCloseOpen: 0,
       quickFollowUps: 0,
       carryoverItems: 0,
       supportActions: 0,
@@ -182,7 +252,27 @@ const model = {
       latestDraftVersion: null,
       prompts: ["Daily close is ready for a manager review."]
     },
-    supportActions: []
+    supportActions: [],
+    effectiveness: {
+      overallScore: 88,
+      focusScore: 100,
+      executionScore: 100,
+      communicationScore: 40,
+      riskScore: 100,
+      carryoverQualityScore: 100,
+      plannedWork: 2,
+      completedWork: 2,
+      dailyFocusTotal: 1,
+      dailyFocusDone: 1,
+      mustCloseOpen: 0,
+      followUps: 0,
+      riskFlags: 0,
+      carryoverItems: 0,
+      supportNeeded: "",
+      staffGuidance: "The day is clear. Keep updates current before close.",
+      managerSummary: "2 of 2 planned item(s) completed, 0 risk/support signal(s), and 0 carryover item(s) identified.",
+      coachingPrompts: ["The day is clear. Keep updates current before close."]
+    }
   },
   staffWorkbookSummaries: [
     {
@@ -191,6 +281,9 @@ const model = {
       staffName: "Alex Carter",
       checklistCount: 1,
       completedChecklistCount: 1,
+      dailyFocusCount: 1,
+      completedDailyFocusCount: 1,
+      dailyFocusRiskCount: 0,
       redYellowItemCount: 0,
       quickUpdateCount: 0,
       followUpNeededCount: 0,
@@ -201,6 +294,8 @@ const model = {
       closeReadinessScore: 100,
       closeReadinessTone: "READY",
       closeReadinessPrompts: ["Ready for daily close review."],
+      effectivenessScore: 100,
+      managerCoachingSummary: "2 of 2 planned item(s) complete with 0 support signal(s).",
       latestUpdateAt: "2026-07-20T14:06:00.000Z",
       latestDraftStatus: null,
       latestDraftVersion: null
@@ -380,5 +475,21 @@ describe("ServiceAdvisorHome", () => {
     expect(draftsHtml).toContain("Weekly");
     expect(draftsHtml).toContain("Monthly");
     expect(draftsHtml).toContain("Copy Draft");
+  });
+
+  it("renders the separate COO effectiveness pilot for side-by-side review", () => {
+    const html = renderToStaticMarkup(<CooEffectivenessPilotWorkbook model={model} />);
+
+    expect(html).toContain("Effectiveness Pilot: start clear, work the day, close with accountability.");
+    expect(html).toContain("Current Workbook");
+    expect(html).toContain("Effectiveness Pilot");
+    expect(html).toContain("Start The Day");
+    expect(html).toContain("Daily Effectiveness");
+    expect(html).toContain("Coaching Panel");
+    expect(html).toContain("Ask For Support");
+    expect(html).toContain("Tomorrow Setup");
+    expect(html).toContain("Manager View");
+    expect(html).toContain("Resolve top approval blocker");
+    expect(html).toContain("/vehicles/coo-workbook/effectiveness-pilot");
   });
 });

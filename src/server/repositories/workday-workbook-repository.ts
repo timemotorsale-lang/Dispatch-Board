@@ -4,23 +4,27 @@ import {
   type BoardDay,
   type WorkdayCarryoverStatus,
   type WorkdayChecklistStatus,
+  type WorkdayDailyFocusStatus,
+  type WorkdayPriority,
   type WorkdayQuickUpdateCategory,
   type WorkdayReportCadence,
   type WorkdayReportSeedSourceType,
   type WorkdayReportSeedStatus,
   type WorkdayReportSeedTone,
+  type WorkdayRiskLevel,
   type WorkdaySupportActionStatus,
   type WorkdayWorkbookScope
 } from "@prisma/client";
 
 import { prisma } from "@/server/db/client";
 
-type WorkdayWorkbookDatabase = Pick<PrismaClient, "activityEvent" | "boardDay" | "workdayCarryover" | "workdayChecklistItem" | "workdayQuickUpdate" | "workdayReportDraft" | "workdayReportSeed" | "workdaySupportAction" | "workdayWorkbook">;
+type WorkdayWorkbookDatabase = Pick<PrismaClient, "activityEvent" | "boardDay" | "workdayCarryover" | "workdayChecklistItem" | "workdayDailyFocusItem" | "workdayQuickUpdate" | "workdayReportDraft" | "workdayReportSeed" | "workdaySupportAction" | "workdayWorkbook">;
 
 const workbookInclude = {
   boardDay: true,
   checklistItems: { orderBy: [{ createdAt: "desc" as const }, { id: "asc" as const }] },
   carryovers: { orderBy: [{ targetBoardDate: "asc" as const }, { createdAt: "desc" as const }] },
+  dailyFocusItems: { orderBy: [{ sortOrder: "asc" as const }, { createdAt: "asc" as const }, { id: "asc" as const }] },
   quickUpdates: { orderBy: [{ createdAt: "desc" as const }, { id: "asc" as const }] },
   reportDrafts: { orderBy: [{ generatedAt: "desc" as const }, { id: "asc" as const }], take: 3 },
   reportSeeds: { orderBy: [{ createdAt: "desc" as const }, { id: "asc" as const }] },
@@ -32,6 +36,7 @@ export type WorkdayWorkbookRecord = Prisma.WorkdayWorkbookGetPayload<{ include: 
 const workbookSummaryInclude = {
   checklistItems: { select: { carryoverReady: true, done: true, status: true, updatedAt: true } },
   carryovers: { select: { status: true, targetBoardDate: true, updatedAt: true } },
+  dailyFocusItems: { select: { mustCloseToday: true, priority: true, riskLevel: true, status: true, supportNeeded: true, updatedAt: true } },
   quickUpdates: { select: { carryoverReady: true, followUpNeeded: true, updatedAt: true } },
   reportDrafts: { orderBy: [{ generatedAt: "desc" as const }, { id: "asc" as const }], select: { generatedAt: true, status: true, version: true }, take: 1 },
   reportSeeds: { select: { id: true, status: true } },
@@ -62,12 +67,14 @@ export type WorkdayCarryoverInput = {
 
 export type WorkdayWorkbookRepository = {
   closeWorkbook(input: { closeSnapshot: Prisma.InputJsonValue; closedByUserId: string; id: string }): Promise<void>;
-  createChecklistItem(input: { text: string; workbookId: string }): Promise<void>;
+  createChecklistItem(input: { priority?: WorkdayPriority; riskLevel?: WorkdayRiskLevel; riskNote?: string; text: string; workbookId: string }): Promise<void>;
+  createDailyFocusItem(input: { mustCloseToday: boolean; outcome: string; priority: WorkdayPriority; riskLevel: WorkdayRiskLevel; riskNote: string; sortOrder: number; supportNeeded: string; workbookId: string }): Promise<void>;
   createReportDraft(input: { cadence: WorkdayReportCadence; generatedByUserId: string; periodEnd: string; periodStart: string; sections: Prisma.InputJsonValue; sourceSeedIds: Prisma.InputJsonValue; summary: string; title: string; workbookId: string }): Promise<void>;
   createQuickUpdate(input: { category: WorkdayQuickUpdateCategory; company: string; dueWindow: string; followUpNeeded: boolean; person: string; text: string; workbookId: string }): Promise<void>;
   createSupportAction(input: { actorUserId: string; note: string; requestedUpdate: boolean; status: WorkdaySupportActionStatus; targetUserId: string; workbookId: string }): Promise<void>;
   findChecklistItem(itemId: string): Promise<(Prisma.WorkdayChecklistItemGetPayload<{ include: { workbook: true } }>) | null>;
   findCarryover(carryoverId: string): Promise<(Prisma.WorkdayCarryoverGetPayload<{ include: { workbook: true } }>) | null>;
+  findDailyFocusItem(itemId: string): Promise<(Prisma.WorkdayDailyFocusItemGetPayload<{ include: { workbook: true } }>) | null>;
   findQuickUpdate(updateId: string): Promise<(Prisma.WorkdayQuickUpdateGetPayload<{ include: { workbook: true } }>) | null>;
   findReportSeed(seedId: string): Promise<(Prisma.WorkdayReportSeedGetPayload<{ include: { workbook: true } }>) | null>;
   findSupportAction(actionId: string): Promise<(Prisma.WorkdaySupportActionGetPayload<{ include: { workbook: true } }>) | null>;
@@ -78,8 +85,9 @@ export type WorkdayWorkbookRepository = {
   listWorkbooksForBoardDay(input: { boardDayId: string; scope: WorkdayWorkbookScope }): Promise<WorkdayWorkbookSummaryRecord[]>;
   recordActivity(input: { actorUserId: string; boardDayId: string; eventType: string; message: string; metadata: Prisma.InputJsonValue; taskId?: string | null }): Promise<void>;
   reopenWorkbook(input: { id: string }): Promise<void>;
-  updateChecklistItem(input: { carryoverReady?: boolean; convertedTaskId?: string | null; done?: boolean; id: string; status?: WorkdayChecklistStatus; update?: string }): Promise<void>;
+  updateChecklistItem(input: { carryoverReady?: boolean; convertedTaskId?: string | null; done?: boolean; id: string; priority?: WorkdayPriority; riskLevel?: WorkdayRiskLevel; riskNote?: string; status?: WorkdayChecklistStatus; update?: string }): Promise<void>;
   updateCarryover(input: { convertedTaskId?: string | null; dismissedReason?: string; id: string; status: WorkdayCarryoverStatus }): Promise<void>;
+  updateDailyFocusItem(input: { convertedTaskId?: string | null; id: string; mustCloseToday?: boolean; outcome?: string; priority?: WorkdayPriority; riskLevel?: WorkdayRiskLevel; riskNote?: string; sortOrder?: number; status?: WorkdayDailyFocusStatus; supportNeeded?: string }): Promise<void>;
   updateQuickUpdate(input: { carryoverReady?: boolean; category?: WorkdayQuickUpdateCategory; company?: string; convertedTaskId?: string | null; dueWindow?: string; followUpNeeded?: boolean; id: string; person?: string; text?: string }): Promise<void>;
   updateReportSeed(input: { detail?: string; id: string; reviewNote?: string; status?: WorkdayReportSeedStatus; title?: string }): Promise<void>;
   updateSupportAction(input: { id: string; note?: string; requestedUpdate?: boolean; status: WorkdaySupportActionStatus }): Promise<void>;
@@ -107,9 +115,17 @@ export function createWorkdayWorkbookRepository(database: WorkdayWorkbookDatabas
     async createChecklistItem(input) {
       await database.workdayChecklistItem.create({
         data: {
+          ...(input.priority !== undefined ? { priority: input.priority } : {}),
+          ...(input.riskLevel !== undefined ? { riskLevel: input.riskLevel } : {}),
+          ...(input.riskNote !== undefined ? { riskNote: input.riskNote } : {}),
           text: input.text,
           workbookId: input.workbookId
         }
+      });
+    },
+    async createDailyFocusItem(input) {
+      await database.workdayDailyFocusItem.create({
+        data: input
       });
     },
     async createReportDraft(input) {
@@ -148,6 +164,9 @@ export function createWorkdayWorkbookRepository(database: WorkdayWorkbookDatabas
     },
     async findCarryover(carryoverId) {
       return database.workdayCarryover.findUnique({ where: { id: carryoverId }, include: { workbook: true } });
+    },
+    async findDailyFocusItem(itemId) {
+      return database.workdayDailyFocusItem.findUnique({ where: { id: itemId }, include: { workbook: true } });
     },
     async findQuickUpdate(updateId) {
       return database.workdayQuickUpdate.findUnique({ where: { id: updateId }, include: { workbook: true } });
@@ -244,6 +263,9 @@ export function createWorkdayWorkbookRepository(database: WorkdayWorkbookDatabas
           ...(input.carryoverReady !== undefined ? { carryoverReady: input.carryoverReady } : {}),
           ...(input.convertedTaskId !== undefined ? { convertedTaskId: input.convertedTaskId } : {}),
           ...(input.done !== undefined ? { done: input.done } : {}),
+          ...(input.priority !== undefined ? { priority: input.priority } : {}),
+          ...(input.riskLevel !== undefined ? { riskLevel: input.riskLevel } : {}),
+          ...(input.riskNote !== undefined ? { riskNote: input.riskNote } : {}),
           ...(input.status !== undefined ? { status: input.status } : {}),
           ...(input.update !== undefined ? { update: input.update } : {})
         }
@@ -260,6 +282,22 @@ export function createWorkdayWorkbookRepository(database: WorkdayWorkbookDatabas
           ...(input.status === "DISMISSED" ? { dismissedAt: now } : {}),
           ...(input.status === "CONVERTED" ? { convertedAt: now } : {}),
           status: input.status
+        }
+      });
+    },
+    async updateDailyFocusItem(input) {
+      await database.workdayDailyFocusItem.update({
+        where: { id: input.id },
+        data: {
+          ...(input.convertedTaskId !== undefined ? { convertedTaskId: input.convertedTaskId } : {}),
+          ...(input.mustCloseToday !== undefined ? { mustCloseToday: input.mustCloseToday } : {}),
+          ...(input.outcome !== undefined ? { outcome: input.outcome } : {}),
+          ...(input.priority !== undefined ? { priority: input.priority } : {}),
+          ...(input.riskLevel !== undefined ? { riskLevel: input.riskLevel } : {}),
+          ...(input.riskNote !== undefined ? { riskNote: input.riskNote } : {}),
+          ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
+          ...(input.status !== undefined ? { status: input.status } : {}),
+          ...(input.supportNeeded !== undefined ? { supportNeeded: input.supportNeeded } : {})
         }
       });
     },
