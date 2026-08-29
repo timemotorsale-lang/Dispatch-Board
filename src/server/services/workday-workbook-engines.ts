@@ -1,4 +1,5 @@
 import {
+  WorkdayChecklistStatus,
   WorkdayDailyFocusStatus,
   WorkdayRiskLevel,
 } from "@prisma/client";
@@ -51,6 +52,63 @@ export function buildDailyPlanningEngine(workbook: WorkdayWorkbookRecord) {
     managerSummary: focusItems.length
       ? `${topOutcomes.length} focus outcome(s), ${mustCloseItems.length} must-close item(s), and ${riskItems.length} planning risk(s).`
       : "No Daily Focus outcomes have been set yet.",
+    prompts
+  };
+}
+
+export function buildExecutionTrackingEngine(workbook: WorkdayWorkbookRecord) {
+  const plannedDailyFocus = workbook.dailyFocusItems.length;
+  const completedDailyFocus = workbook.dailyFocusItems.filter((item) => item.status === WorkdayDailyFocusStatus.DONE).length;
+  const checklistCount = workbook.checklistItems.length;
+  const completedChecklist = workbook.checklistItems.filter((item) => item.done).length;
+  const plannedWorkCount = plannedDailyFocus + checklistCount;
+  const completedWorkCount = completedDailyFocus + completedChecklist;
+  const unplannedWorkCount = workbook.quickUpdates.length;
+  const taskConversionCount =
+    workbook.dailyFocusItems.filter((item) => item.convertedTaskId).length +
+    workbook.checklistItems.filter((item) => item.convertedTaskId).length +
+    workbook.quickUpdates.filter((item) => item.convertedTaskId).length +
+    workbook.carryovers.filter((item) => item.convertedTaskId).length;
+  const unfinishedWorkCount =
+    workbook.dailyFocusItems.filter((item) => item.status !== WorkdayDailyFocusStatus.DONE).length +
+    workbook.checklistItems.filter((item) => !item.done).length;
+  const carryoverReadyCount =
+    workbook.dailyFocusItems.filter((item) => item.status === WorkdayDailyFocusStatus.CARRY_OVER).length +
+    workbook.checklistItems.filter((item) => item.carryoverReady).length +
+    workbook.quickUpdates.filter((item) => item.carryoverReady).length;
+  const updatedChecklistCount = workbook.checklistItems.filter((item) => item.update.trim().length > 0).length;
+  const blockedOrDelayedCount = workbook.checklistItems.filter((item) => !item.done && (item.status === WorkdayChecklistStatus.YELLOW || item.status === WorkdayChecklistStatus.RED)).length;
+  const completionScore = plannedWorkCount ? (completedWorkCount / plannedWorkCount) * 75 : 35;
+  const updateScore = plannedWorkCount ? Math.min(15, updatedChecklistCount * 5) : 0;
+  const conversionScore = Math.min(10, taskConversionCount * 5);
+  const penalty = blockedOrDelayedCount * 6 + unfinishedWorkCount * 3;
+  const score = clampScore(completionScore + updateScore + conversionScore - penalty);
+  const prompts: string[] = [];
+
+  if (!plannedWorkCount) prompts.push("Add Daily Focus or checklist items so today's work can be tracked.");
+  if (unfinishedWorkCount) prompts.push("Review unfinished work and mark done, update, or carry over.");
+  if (unplannedWorkCount) prompts.push("Quick Updates captured unplanned work today.");
+  if (blockedOrDelayedCount) prompts.push("Resolve or escalate delayed checklist items.");
+  if (!prompts.length) prompts.push("Execution is clean. Keep work updated through close.");
+
+  return {
+    score,
+    status: statusLabel(score),
+    plannedDailyFocus,
+    completedDailyFocus,
+    checklistCount,
+    completedChecklist,
+    plannedWorkCount,
+    completedWorkCount,
+    unplannedWorkCount,
+    taskConversionCount,
+    unfinishedWorkCount,
+    carryoverReadyCount,
+    updatedChecklistCount,
+    blockedOrDelayedCount,
+    executionSummary: `${completedWorkCount} of ${plannedWorkCount} planned item(s) complete with ${unplannedWorkCount} unplanned update(s).`,
+    staffGuidance: prompts[0],
+    managerSummary: `${completedWorkCount}/${plannedWorkCount} planned complete, ${unfinishedWorkCount} unfinished, ${taskConversionCount} converted to formal task(s).`,
     prompts
   };
 }

@@ -1,6 +1,8 @@
 import {
+  WorkdayChecklistStatus,
   WorkdayDailyFocusStatus,
   WorkdayPriority,
+  WorkdayQuickUpdateCategory,
   WorkdayRiskLevel,
   WorkdayWorkbookScope,
   type BoardDay
@@ -8,7 +10,7 @@ import {
 import { describe, expect, it } from "vitest";
 
 import type { WorkdayWorkbookRecord } from "@/server/repositories/workday-workbook-repository";
-import { buildDailyPlanningEngine } from "@/server/services/workday-workbook-engines";
+import { buildDailyPlanningEngine, buildExecutionTrackingEngine } from "@/server/services/workday-workbook-engines";
 
 const now = new Date("2026-08-29T14:00:00.000Z");
 const boardDay: BoardDay = {
@@ -82,5 +84,52 @@ describe("workday workbook engines", () => {
     expect(planning.score).toBe(0);
     expect(planning.status).toBe("NEEDS_SUPPORT");
     expect(planning.staffGuidance).toBe("Add the top three outcomes before work gets busy.");
+  });
+
+  it("tracks execution across focus, checklist, quick updates, and task conversions", () => {
+    const execution = buildExecutionTrackingEngine(workbook({
+      checklistItems: [
+        {
+          id: "checklist-1",
+          workbookId: "workbook-1",
+          text: "Call customer",
+          status: WorkdayChecklistStatus.GREEN,
+          priority: WorkdayPriority.HIGH,
+          riskLevel: WorkdayRiskLevel.NONE,
+          riskNote: "",
+          update: "Customer reached.",
+          done: true,
+          carryoverReady: false,
+          convertedTaskId: "task-1",
+          createdAt: now,
+          updatedAt: now
+        }
+      ],
+      quickUpdates: [
+        {
+          id: "quick-1",
+          workbookId: "workbook-1",
+          text: "Unexpected vendor visit.",
+          category: WorkdayQuickUpdateCategory.VENDOR,
+          person: "AJ",
+          company: "Roof vendor",
+          followUpNeeded: false,
+          dueWindow: "",
+          carryoverReady: false,
+          convertedTaskId: null,
+          createdAt: now,
+          updatedAt: now
+        }
+      ]
+    }));
+
+    expect(execution).toMatchObject({
+      plannedWorkCount: 2,
+      completedWorkCount: 1,
+      unplannedWorkCount: 1,
+      taskConversionCount: 1,
+      unfinishedWorkCount: 1
+    });
+    expect(execution.executionSummary).toBe("1 of 2 planned item(s) complete with 1 unplanned update(s).");
   });
 });
