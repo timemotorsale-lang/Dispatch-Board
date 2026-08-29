@@ -21623,7 +21623,10 @@ html[data-app-theme="dark"] :where(.rowb-evidence-review,.rowb-evidence-review f
 .advisor-coo-close-day nav a{display:inline-flex;align-items:center;min-height:28px;border:0;border-radius:999px;padding:0 10px;color:#536980;background:transparent;font:inherit;font-size:11px;font-weight:900;text-decoration:none;cursor:pointer}
 .advisor-coo-close-day nav a[aria-current=page]{color:#075ed8;background:#fff;box-shadow:0 3px 9px rgba(18,45,80,.08)}
 .advisor-coo-close-flow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
-.advisor-coo-close-flow span{display:grid;grid-template-columns:34px minmax(0,1fr);align-items:center;gap:2px 9px;border:1px solid #e1e9f2;border-radius:9px;padding:10px;background:#fbfdff}
+.advisor-coo-close-flow span,.advisor-coo-close-flow button{display:grid;grid-template-columns:34px minmax(0,1fr);align-items:center;gap:2px 9px;border:1px solid #e1e9f2;border-radius:9px;padding:10px;background:#fbfdff}
+.advisor-coo-close-flow button{width:100%;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.advisor-coo-close-flow button:hover,.advisor-coo-close-flow button[aria-selected=true]{border-color:#8db7ea;background:#f1f8ff;box-shadow:inset 0 0 0 1px #8db7ea}
+.advisor-coo-close-flow button:focus-visible{outline:3px solid rgba(7,94,216,.24);outline-offset:2px}
 .advisor-coo-close-flow svg{grid-row:1/3;width:34px;height:34px;border-radius:9px;padding:8px;color:#075ed8;background:#eef6ff}
 .advisor-coo-close-flow strong{font-size:13px}
 .advisor-coo-close-flow small{overflow:hidden;color:#60728a;font-size:11.5px;text-overflow:ellipsis;white-space:nowrap}

@@ -151,6 +151,7 @@ type DailyFocusItem = WorkdayWorkbookModel["dailyFocusItems"][number];
 type DailyFocusStatus = DailyFocusItem["status"];
 type DailyFocusPriority = DailyFocusItem["priority"];
 type DailyFocusRisk = DailyFocusItem["riskLevel"];
+type CloseStepView = "DONE" | "TOMORROW" | "DRAFT";
 export type CooWorkbookTool = "CHECKLIST" | "TO_DO_LIST" | "QUICK_UPDATE" | "ACTION_PLAN" | "CARRYOVER" | "REPORT_SEEDS" | "STAFF_SUPPORT" | "DRAFTS";
 
 const quickUpdateCategories: Array<{ label: string; value: QuickUpdateCategory }> = [
@@ -1054,6 +1055,7 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
   const [notice, setNotice] = useState<string | null>(null);
   const [closeStepNotice, setCloseStepNotice] = useState<string | null>(null);
   const [closeStepInProgress, setCloseStepInProgress] = useState<"carryover" | "draft" | null>(null);
+  const [closeStepView, setCloseStepView] = useState<CloseStepView>("DONE");
   const [saving, setSaving] = useState(false);
   const attentionSessionKey = useId().replaceAll(":", "");
   const activeWorkbook = workbookView === "MY" ? staffWorkbook : workbook;
@@ -1070,6 +1072,34 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
     ...dailyFocus.filter((item) => (item.status === "CARRY_OVER" || item.mustCloseToday && item.status !== "DONE") && !carryoverSourceIds.has(`daily-focus:${item.id}`)).map((item) => ({ detail: item.supportNeeded || item.riskNote || "Needs tomorrow ownership.", id: `focus-${item.id}`, title: item.outcome })),
     ...activeCarryovers.map((item) => ({ detail: item.detail, id: `carryover-${item.id}`, title: item.title }))
   ].slice(0, 5);
+  const closeReviewItems = [
+    ...dailyFocus.map((item) => ({
+      detail: item.progressUpdate || item.supportNeeded || item.riskNote || (item.status === "DONE" ? "Completed today." : "Needs update or close decision."),
+      id: `focus-${item.id}`,
+      status: item.status === "DONE" ? "Done" : item.status === "CARRY_OVER" ? "Carry over" : "Not done",
+      title: item.outcome
+    })),
+    ...activeWorkbook.checklistItems.map((item) => ({
+      detail: item.update || checklistStatusLabel(item),
+      id: `checklist-${item.id}`,
+      status: item.done ? "Done" : "Not done",
+      title: item.text
+    }))
+  ].slice(0, 6);
+  const latestReportDraft = activeWorkbook.reportDrafts[0] ?? null;
+  const draftPreviewItems = latestReportDraft
+    ? latestReportDraft.sections.flatMap((section) => section.items.map((item) => ({
+      detail: item.detail,
+      id: `draft-${section.title}-${item.sourceId}-${item.title}`,
+      section: section.title,
+      title: item.title
+    }))).slice(0, 6)
+    : activeWorkbook.reportSeeds.filter((seed) => seed.status !== "EXCLUDED").slice(0, 6).map((seed) => ({
+      detail: seed.detail,
+      id: `seed-${seed.id}`,
+      section: reportSeedStatusLabel(seed.status),
+      title: seed.title
+    }));
   const staffNeedingSupport = staffWorkbookSummaries
     .filter((item) => item.closeReadinessTone !== "READY" || item.dailyFocusRiskCount > 0 || item.followUpNeededCount > 0)
     .slice(0, 4);
@@ -1241,6 +1271,7 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
       const message = step === "carryover"
         ? `Tomorrow setup prepared${payload?.count === undefined ? "" : ` with ${payload.count} item(s)`}${payload?.targetBoardDate ? ` for ${payload.targetBoardDate}` : ""}.`
         : "Daily report draft generated and saved.";
+      setCloseStepView(step === "carryover" ? "TOMORROW" : "DRAFT");
       setCloseStepNotice(message);
       setNotice(message);
       await refreshPilotWorkbook();
@@ -1330,14 +1361,19 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
 
       <article className="advisor-coo-end-day">
         <header><div><strong>End The Day</strong><small>Close cleanly and set tomorrow up before leaving.</small></div><span>{activeWorkbook.governance.closeReadinessState.toLocaleLowerCase()}</span></header>
-        <div className="advisor-coo-close-flow">
-          <span><ListChecks /><strong>Done / Not Done</strong><small>{activeWorkbook.execution.completedWorkCount}/{activeWorkbook.execution.plannedWorkCount} planned complete</small></span>
-          <span><CalendarClock /><strong>Tomorrow Setup</strong><small>{activeWorkbook.risk.tomorrowCarryoverCandidates.length} candidate item(s)</small></span>
-          <span><FileText /><strong>Report Draft</strong><small>{activeWorkbook.reporting.staffGuidance}</small></span>
+        <div aria-label="End The Day review steps" className="advisor-coo-close-flow" role="tablist">
+          <button aria-selected={closeStepView === "DONE"} onClick={() => setCloseStepView("DONE")} role="tab" type="button"><ListChecks /><strong>Done / Not Done</strong><small>{activeWorkbook.execution.completedWorkCount}/{activeWorkbook.execution.plannedWorkCount} planned complete</small></button>
+          <button aria-selected={closeStepView === "TOMORROW"} onClick={() => setCloseStepView("TOMORROW")} role="tab" type="button"><CalendarClock /><strong>Tomorrow Setup</strong><small>{activeWorkbook.risk.tomorrowCarryoverCandidates.length} candidate item(s)</small></button>
+          <button aria-selected={closeStepView === "DRAFT"} onClick={() => setCloseStepView("DRAFT")} role="tab" type="button"><FileText /><strong>Report Draft</strong><small>{activeWorkbook.reporting.staffGuidance}</small></button>
         </div>
         <p className="advisor-coo-governance-note">{activeWorkbook.governance.nextRecommendedAction}</p>
-        <div className="advisor-coo-tomorrow-list">
-          {tomorrowItems.length ? tomorrowItems.map((item) => <p key={item.id}><strong>{item.title}</strong><small>{item.detail}</small></p>) : <p><CheckCircle2 /> No tomorrow setup items yet.</p>}
+        <div className="advisor-coo-tomorrow-list" role="tabpanel">
+          {closeStepView === "DONE" ? closeReviewItems.length ? closeReviewItems.map((item) => <p key={item.id}><strong>{item.title}</strong><small>{item.status} · {item.detail}</small></p>) : <p><CheckCircle2 /> No planned work has been added yet.</p> : null}
+          {closeStepView === "TOMORROW" ? tomorrowItems.length ? tomorrowItems.map((item) => <p key={item.id}><strong>{item.title}</strong><small>{item.detail}</small></p>) : <p><CheckCircle2 /> No tomorrow setup items yet.</p> : null}
+          {closeStepView === "DRAFT" ? <>
+            {latestReportDraft ? <p><strong>{latestReportDraft.title}</strong><small>{latestReportDraft.summary}</small></p> : <p><FileText /> No saved draft yet. Generate a draft from reviewed report seeds when the day is ready.</p>}
+            {draftPreviewItems.length ? draftPreviewItems.map((item) => <p key={item.id}><strong>{item.title}</strong><small>{item.section} · {item.detail}</small></p>) : null}
+          </> : null}
         </div>
         {closeStepNotice ? <p className="advisor-coo-close-step-notice" role="status">{closeStepNotice}</p> : null}
         <div className="advisor-coo-seed-actions">
