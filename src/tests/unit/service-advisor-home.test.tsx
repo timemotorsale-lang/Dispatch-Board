@@ -324,6 +324,11 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("Daily Report Draft");
     expect(html).toContain("Generate Draft");
     expect(html).toContain("Copy Draft");
+    expect(html).toContain("Report Cadence");
+    expect(html).toContain("Weekly");
+    expect(html).toContain("Monthly");
+    expect(html).toContain("Daily draft saved");
+    expect(html).toContain("Staff source");
     expect(html).toContain("Sources");
     expect(html).toContain("Lowest score");
     expect(html).toContain("Support first");

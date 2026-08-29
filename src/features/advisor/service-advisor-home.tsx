@@ -144,6 +144,7 @@ type QuickUpdateFilter = "ALL" | "FOLLOW_UP" | "CARRYOVER";
 type ReportSeedFilter = "ACTIVE" | "INCLUDED" | "CANDIDATE" | "CARRYOVER" | "EXCLUDED";
 type StaffTodayFilter = "ALL" | "SUPPORT" | "REVIEW" | "READY";
 type StaffTodaySort = "SUPPORT_FIRST" | "LOW_SCORE" | "RECENT";
+type ReportCadence = "DAILY" | "WEEKLY" | "MONTHLY";
 
 type WorkdayWorkbookModel = ServiceAdvisorWorkspaceModel["workbook"];
 type StaffWorkbookSummary = ServiceAdvisorWorkspaceModel["staffWorkbookSummaries"][number];
@@ -204,6 +205,12 @@ const staffTodaySortOptions: Array<{ label: string; value: StaffTodaySort }> = [
   { label: "Support first", value: "SUPPORT_FIRST" },
   { label: "Lowest score", value: "LOW_SCORE" },
   { label: "Recent", value: "RECENT" }
+];
+
+const reportCadenceOptions: Array<{ label: string; value: ReportCadence }> = [
+  { label: "Daily", value: "DAILY" },
+  { label: "Weekly", value: "WEEKLY" },
+  { label: "Monthly", value: "MONTHLY" }
 ];
 
 function statusTone(status: DailyChecklistStatus) {
@@ -288,6 +295,7 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
   const [reportSeedFilter, setReportSeedFilter] = useState<ReportSeedFilter>("ACTIVE");
   const [staffTodayFilter, setStaffTodayFilter] = useState<StaffTodayFilter>("ALL");
   const [staffTodaySort, setStaffTodaySort] = useState<StaffTodaySort>("SUPPORT_FIRST");
+  const [reportCadence, setReportCadence] = useState<ReportCadence>("DAILY");
   const [workspaceNotice, setWorkspaceNotice] = useState<string | null>(null);
   const [convertingId, setConvertingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -391,6 +399,11 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
         : latestReportDraft
           ? "Ready for manager review"
           : "Generate Daily Report Draft";
+  const cadenceStatus = reportCadence === "DAILY"
+    ? latestReportDraft ? "Daily draft saved" : "Daily draft not generated"
+    : reportCadence === "WEEKLY"
+      ? `${staffTodayRollup.total} staff workbook(s) in today's weekly source set`
+      : `${reportSeedRollup.active} active report seed(s) in today's monthly source set`;
   const actionPlan = [
     {
       empty: "No urgent operating actions are waiting.",
@@ -930,6 +943,18 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
             })}>Add To-Do</Link>
           </div>) : <p><CheckCircle2 /> {group.empty}</p>}
         </article>)}
+      </div>
+    </section> : null}
+    {!compact ? <section className="advisor-coo-report-cadence" aria-label="Report cadence pilot">
+      <header><div><strong>Report Cadence</strong><small>{cadenceStatus}</small></div><span>{reportCadence.toLocaleLowerCase()}</span></header>
+      <nav className="advisor-coo-section-filters" aria-label="Choose report cadence">
+        {reportCadenceOptions.map((option) => <button aria-pressed={reportCadence === option.value} key={option.value} onClick={() => setReportCadence(option.value)} type="button">{option.label}</button>)}
+      </nav>
+      <div>
+        <article><Clock3 /><span><strong>{latestReportDraft ? `v${latestReportDraft.version}` : "Open"}</strong><small>Daily draft</small></span></article>
+        <article><UsersRound /><span><strong>{staffTodayRollup.total}</strong><small>Staff source</small></span></article>
+        <article><FileText /><span><strong>{reportSeedRollup.active}</strong><small>Active seeds</small></span></article>
+        <article><CalendarClock /><span><strong>{closeReadiness.carryoverItems}</strong><small>Carryover</small></span></article>
       </div>
     </section> : null}
     {!compact ? <section className="advisor-coo-report-draft" aria-label="Daily operations report draft inputs">

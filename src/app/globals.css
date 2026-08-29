@@ -21553,6 +21553,18 @@ html[data-app-theme="dark"] :where(.rowb-evidence-review,.rowb-evidence-review f
 .advisor-coo-carryover-center article span,.advisor-coo-carryover-center p{color:#66798e;font-size:11.5px;line-height:1.4}
 .advisor-coo-carryover-center p{display:flex;align-items:center;gap:7px;margin:0;border:1px dashed #cfdbea;border-radius:7px;padding:10px;background:#fbfdff}
 .advisor-coo-draft-meta{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+.advisor-coo-report-cadence{display:grid;gap:10px;border:1px solid #d5e0ec;border-radius:8px;padding:12px;background:#fff}
+.advisor-coo-report-cadence>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;border-bottom:1px solid #e7edf5;padding-bottom:9px}
+.advisor-coo-report-cadence>header div{display:grid;gap:3px}
+.advisor-coo-report-cadence>header strong{font-size:15px}
+.advisor-coo-report-cadence>header small{color:#66798e;font-size:11.5px}
+.advisor-coo-report-cadence>header span{border-radius:999px;padding:5px 8px;color:#075ed8;background:#eaf4ff;font-size:11px;font-weight:900;text-transform:capitalize}
+.advisor-coo-report-cadence>div{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.advisor-coo-report-cadence article{display:flex;align-items:center;gap:8px;border:1px solid #e0e8f1;border-radius:7px;padding:9px;background:#fbfdff}
+.advisor-coo-report-cadence article svg{width:18px;color:#075ed8}
+.advisor-coo-report-cadence article span{display:grid;gap:2px;min-width:0}
+.advisor-coo-report-cadence article strong{font-size:14px}
+.advisor-coo-report-cadence article small{overflow:hidden;color:#66798e;font-size:11px;text-overflow:ellipsis;white-space:nowrap}
 @media(max-width:900px){.advisor-coo-close-readiness>div{grid-template-columns:repeat(2,minmax(0,1fr))}.advisor-coo-close-readiness>header{display:grid}}
-@media(max-width:900px){.advisor-coo-carryover-center>div,.advisor-coo-draft-meta,.advisor-coo-staff-support-queue>div{grid-template-columns:1fr!important}}
+@media(max-width:900px){.advisor-coo-carryover-center>div,.advisor-coo-draft-meta,.advisor-coo-staff-support-queue>div,.advisor-coo-report-cadence>div{grid-template-columns:1fr!important}}
 @media(max-width:560px){.advisor-coo-close-readiness>div,.advisor-coo-staff-rollup{grid-template-columns:1fr}.advisor-coo-close-readiness li,.advisor-coo-section-filters button{border-radius:7px}}
