@@ -29,6 +29,7 @@ type InboxItem = ServiceAdvisorWorkspaceModel["inbox"][number];
 export type AdvisorQueueFilter = "ATTENTION" | "ALL" | Action["actionKind"] | "WAITING";
 type AdvisorViewMode = "CALM" | "HIGH_VOLUME";
 type AdvisorWorkspaceSection = "COO_WORKBOOK" | "INBOX" | "WORK";
+type WorkbookViewMode = "COO" | "MY";
 type InboxFilter = "ALL" | InboxItem["audience"] | "NEEDS_RESPONSE";
 
 function timeLabel(value: string | null) {
@@ -139,6 +140,7 @@ type DailyChecklistStatus = "GREEN" | "YELLOW" | "RED";
 type QuickUpdateCategory = "CUSTOMER" | "VENDOR" | "FACILITY" | "STAFF" | "SALES_OPPORTUNITY" | "FINANCE" | "INVENTORY_PARTS" | "SAFETY" | "TRAINING" | "OTHER";
 
 type WorkdayWorkbookModel = ServiceAdvisorWorkspaceModel["workbook"];
+type StaffWorkbookSummary = ServiceAdvisorWorkspaceModel["staffWorkbookSummaries"][number];
 type DailyChecklistItem = WorkdayWorkbookModel["checklistItems"][number];
 type QuickUpdateItem = WorkdayWorkbookModel["quickUpdates"][number];
 type ReportSeedItem = WorkdayWorkbookModel["reportSeeds"][number];
@@ -197,9 +199,22 @@ function reportSeedStatusLabel(status: ReportSeedStatus) {
   return "Candidate";
 }
 
+function staffSupportTone(item: StaffWorkbookSummary) {
+  if (item.redYellowItemCount > 0 || item.followUpNeededCount > 0) return "support";
+  if (item.completedChecklistCount > 0 || item.quickUpdateCount > 0) return "progress";
+  return "quiet";
+}
+
+function staffDraftLabel(item: StaffWorkbookSummary) {
+  return item.latestDraftStatus ? `Draft v${item.latestDraftVersion ?? 1} ${item.latestDraftStatus.toLocaleLowerCase()}` : "No draft yet";
+}
+
 export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean; model: ServiceAdvisorWorkspaceModel }) {
   const [planCreatedAt, setPlanCreatedAt] = useState<string | null>(null);
+  const [workbookView, setWorkbookView] = useState<WorkbookViewMode>("COO");
   const [workbook, setWorkbook] = useState<WorkdayWorkbookModel>(model.workbook);
+  const [staffWorkbook, setStaffWorkbook] = useState<WorkdayWorkbookModel>(model.staffWorkbook);
+  const [staffWorkbookSummaries, setStaffWorkbookSummaries] = useState(model.staffWorkbookSummaries);
   const [checklistText, setChecklistText] = useState("");
   const [quickUpdateText, setQuickUpdateText] = useState("");
   const [quickUpdateCategory, setQuickUpdateCategory] = useState<QuickUpdateCategory>("OTHER");
@@ -211,15 +226,16 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
   const [convertingId, setConvertingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const approvalCount = actionCount(model, "AUTHORIZATION");
-  const promiseRiskCount = actionCount(model, "PROMISE_RISK");
   const partsDelayCount = actionCount(model, "PARTS_DELAY");
   const techClarificationCount = actionCount(model, "TECHNICIAN_CLARIFICATION");
   const handoffCount = actionCount(model, "HANDOFF");
   const reportExceptions = model.counts.needsAttention + model.counts.waitingOnOthers;
-  const checklistItems = workbook.checklistItems;
-  const quickUpdates = workbook.quickUpdates;
-  const reportSeeds = workbook.reportSeeds;
-  const latestReportDraft = workbook.reportDrafts[0] ?? null;
+  const activeWorkbook = workbookView === "MY" ? staffWorkbook : workbook;
+  const activeWorkbookLabel = workbookView === "MY" ? "My Workbook" : "COO Workbook";
+  const checklistItems = activeWorkbook.checklistItems;
+  const quickUpdates = activeWorkbook.quickUpdates;
+  const reportSeeds = activeWorkbook.reportSeeds;
+  const latestReportDraft = activeWorkbook.reportDrafts[0] ?? null;
   const actionPlan = [
     {
       empty: "No urgent operating actions are waiting.",
@@ -296,12 +312,36 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
     setWorkbook(payload.workbook);
   }
 
+  async function refreshStaffWorkbook() {
+    const response = await fetch(`/api/coo-workbook/staff?date=${encodeURIComponent(model.generatedAt.slice(0, 10))}`);
+    const payload = await response.json().catch(() => null) as { staffWorkbookSummaries?: StaffWorkbookSummary[]; workbook?: WorkdayWorkbookModel; error?: string } | null;
+    if (!response.ok || !payload?.workbook) throw new Error(payload?.error ?? "Unable to refresh My Workbook.");
+    setStaffWorkbook(payload.workbook);
+    setStaffWorkbookSummaries(payload.staffWorkbookSummaries ?? []);
+  }
+
+  async function refreshActiveWorkbook() {
+    if (workbookView === "MY") {
+      await refreshStaffWorkbook();
+      return;
+    }
+    await refreshWorkbook();
+  }
+
+  function updateActiveWorkbook(updater: (current: WorkdayWorkbookModel) => WorkdayWorkbookModel) {
+    if (workbookView === "MY") {
+      setStaffWorkbook(updater);
+      return;
+    }
+    setWorkbook(updater);
+  }
+
   async function addChecklistItem() {
     const text = checklistText.trim();
     if (!text) return;
     setSaving(true);
     try {
-      const response = await fetch(`/api/coo-workbook/checklist?date=${encodeURIComponent(model.generatedAt.slice(0, 10))}`, {
+      const response = await fetch(`/api/coo-workbook/${workbookView === "MY" ? "staff/checklist" : "checklist"}?date=${encodeURIComponent(model.generatedAt.slice(0, 10))}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text })
@@ -309,8 +349,8 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
       const payload = await response.json().catch(() => null) as { error?: string } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Unable to save checklist item.");
       setChecklistText("");
-      await refreshWorkbook();
-      setWorkspaceNotice("Checklist item saved for today.");
+      await refreshActiveWorkbook();
+      setWorkspaceNotice(`${activeWorkbookLabel} checklist item saved for today.`);
     } catch (error) {
       setWorkspaceNotice(error instanceof Error ? error.message : "Unable to save checklist item.");
     } finally {
@@ -319,7 +359,7 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
   }
 
   function updateChecklistItem(id: string, patch: Partial<DailyChecklistItem>) {
-    setWorkbook((current) => ({
+    updateActiveWorkbook((current) => ({
       ...current,
       checklistItems: current.checklistItems.map((item) => item.id === id ? { ...item, ...patch } : item)
     }));
@@ -335,7 +375,7 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
       });
       const payload = await response.json().catch(() => null) as { error?: string } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Unable to update checklist item.");
-      await refreshWorkbook();
+      await refreshActiveWorkbook();
     } catch (error) {
       setWorkspaceNotice(error instanceof Error ? error.message : "Unable to update checklist item.");
     }
@@ -346,7 +386,7 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
     if (!text) return;
     setSaving(true);
     try {
-      const response = await fetch(`/api/coo-workbook/quick-updates?date=${encodeURIComponent(model.generatedAt.slice(0, 10))}`, {
+      const response = await fetch(`/api/coo-workbook/${workbookView === "MY" ? "staff/quick-updates" : "quick-updates"}?date=${encodeURIComponent(model.generatedAt.slice(0, 10))}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -366,8 +406,8 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
       setQuickUpdateCompany("");
       setQuickUpdateFollowUp(false);
       setQuickUpdateDueWindow("");
-      await refreshWorkbook();
-      setWorkspaceNotice("Quick Update saved for today's report trail.");
+      await refreshActiveWorkbook();
+      setWorkspaceNotice(`Quick Update saved to ${activeWorkbookLabel}.`);
     } catch (error) {
       setWorkspaceNotice(error instanceof Error ? error.message : "Unable to save Quick Update.");
     } finally {
@@ -376,7 +416,7 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
   }
 
   function updateQuickUpdateItem(id: string, patch: Partial<QuickUpdateItem>) {
-    setWorkbook((current) => ({
+    updateActiveWorkbook((current) => ({
       ...current,
       quickUpdates: current.quickUpdates.map((item) => item.id === id ? { ...item, ...patch } : item)
     }));
@@ -392,14 +432,14 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
       });
       const payload = await response.json().catch(() => null) as { error?: string } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Unable to update Quick Update.");
-      await refreshWorkbook();
+      await refreshActiveWorkbook();
     } catch (error) {
       setWorkspaceNotice(error instanceof Error ? error.message : "Unable to update Quick Update.");
     }
   }
 
   function updateReportSeed(id: string, patch: Partial<ReportSeedItem>) {
-    setWorkbook((current) => ({
+    updateActiveWorkbook((current) => ({
       ...current,
       reportSeeds: current.reportSeeds.map((seed) => seed.id === id ? { ...seed, ...patch } : seed)
     }));
@@ -415,7 +455,7 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
       });
       const payload = await response.json().catch(() => null) as { error?: string } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Unable to update Report Seed.");
-      await refreshWorkbook();
+      await refreshActiveWorkbook();
     } catch (error) {
       setWorkspaceNotice(error instanceof Error ? error.message : "Unable to update Report Seed.");
     }
@@ -424,13 +464,13 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
   async function generateDailyReportDraft() {
     setSaving(true);
     try {
-      const response = await fetch(`/api/coo-workbook/report-drafts?date=${encodeURIComponent(model.generatedAt.slice(0, 10))}`, {
+      const response = await fetch(`/api/coo-workbook/${workbookView === "MY" ? "staff/report-drafts" : "report-drafts"}?date=${encodeURIComponent(model.generatedAt.slice(0, 10))}`, {
         method: "POST"
       });
       const payload = await response.json().catch(() => null) as { error?: string } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Unable to generate Daily Report Draft.");
-      await refreshWorkbook();
-      setWorkspaceNotice("Daily Report Draft generated from reviewed seeds.");
+      await refreshActiveWorkbook();
+      setWorkspaceNotice(`${activeWorkbookLabel} Daily Report Draft generated from reviewed seeds.`);
     } catch (error) {
       setWorkspaceNotice(error instanceof Error ? error.message : "Unable to generate Daily Report Draft.");
     } finally {
@@ -492,17 +532,22 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
     <header>
       <div>
         <strong>COO Daily Workbook</strong>
-        <span>Separate operating workspace for accountability, daily execution, review before approval, and the future daily report.</span>
+        <span>Separate operating workspace for accountability, daily execution, review before approval, and simple report generation.</span>
       </div>
       <div className="advisor-coo-header-actions">
         {!compact ? <button onClick={() => setPlanCreatedAt(new Date().toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }))} type="button"><ClipboardCheck /> Create Daily Action Plan</button> : null}
         <Link href={compact ? "/vehicles/coo-workbook" : planTaskHref}><ClipboardList /> {compact ? "Open review" : "Add To-Do"}</Link>
       </div>
     </header>
+    {!compact ? <nav className="advisor-coo-workbook-switcher" aria-label="Workbook view">
+      <button aria-pressed={workbookView === "COO"} onClick={() => setWorkbookView("COO")} type="button"><ShieldCheck /> COO Workbook</button>
+      <button aria-pressed={workbookView === "MY"} onClick={() => setWorkbookView("MY")} type="button"><CheckSquare /> My Workbook</button>
+      {staffWorkbookSummaries.length ? <span><UsersRound /> {staffWorkbookSummaries.length} staff workbook(s) active today</span> : <span><UsersRound /> Staff Today is ready when updates appear</span>}
+    </nav> : null}
     <div className="advisor-coo-summary" aria-label="COO daily review summary">
       <article><ShieldCheck /><span>Review before approval</span><strong>{approvalCount}</strong><small>Approval-sensitive item(s)</small></article>
-      <article><AlertTriangle /><span>Operating risk</span><strong>{promiseRiskCount + reportExceptions}</strong><small>Promises, blockers, and follow-up</small></article>
-      <article><FileText /><span>Report seed</span><strong>{reportExceptions}</strong><small>Carryover candidates</small></article>
+      <article><AlertTriangle /><span>{activeWorkbookLabel} support needed</span><strong>{checklistItems.filter((item) => item.status === "RED" || item.status === "YELLOW").length + quickUpdates.filter((item) => item.followUpNeeded).length}</strong><small>Checklist risks and follow-up</small></article>
+      <article><FileText /><span>Report seed</span><strong>{reportSeeds.length}</strong><small>Source-backed candidate(s)</small></article>
     </div>
     <div className="advisor-coo-lanes">
       {lanes.map((lane) => <Link href={lane.href} key={lane.label}>
@@ -514,7 +559,7 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
     {!compact ? <section className="advisor-coo-live-workspace" aria-label="Daily checklist and quick updates">
       <article className="advisor-coo-daily-checklist">
         <header>
-          <div><strong>Daily Checklist</strong><small>Simple same-day list. Convert only the items that need formal task tracking.</small></div>
+          <div><strong>{activeWorkbookLabel} Daily Checklist</strong><small>Simple same-day list. Convert only the items that need formal task tracking.</small></div>
           <span>{checklistItems.filter((item) => item.done).length}/{checklistItems.length} done</span>
         </header>
         <div className="advisor-coo-inline-form">
@@ -544,7 +589,7 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
       </article>
       <article className="advisor-coo-quick-update">
         <header>
-          <div><strong>Quick Update</strong><small>Capture unplanned events, visitors, facility issues, or anything worth remembering.</small></div>
+          <div><strong>{activeWorkbookLabel} Quick Update</strong><small>Capture unplanned events, visitors, facility issues, or anything worth remembering.</small></div>
           <span>{quickUpdates.length} captured</span>
         </header>
         <textarea aria-label="Quick Update details" onChange={(event) => setQuickUpdateText(event.target.value)} placeholder="Example: AJ checked the roof today and may fix it in the next few weeks." value={quickUpdateText} />
@@ -562,6 +607,21 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
         </div>
       </article>
       {workspaceNotice ? <p className="advisor-coo-workspace-notice" role="status">{workspaceNotice}</p> : null}
+    </section> : null}
+    {!compact ? <section className="advisor-coo-staff-visibility" aria-label="Staff Today">
+      <header><div><strong>Staff Today</strong><small>Summary-first visibility for coaching, support, and carryover planning.</small></div><span>{staffWorkbookSummaries.length} active</span></header>
+      <div>
+        {staffWorkbookSummaries.length ? staffWorkbookSummaries.map((item) => <article className={staffSupportTone(item)} key={item.workbookId}>
+          <span><strong>{item.staffName}</strong><small>{item.latestUpdateAt ? `Latest update ${dateLabel(item.latestUpdateAt)}` : "No update yet"}</small></span>
+          <dl>
+            <div><dt>Progress</dt><dd>{item.completedChecklistCount}/{item.checklistCount}</dd></div>
+            <div><dt>Support needed</dt><dd>{item.redYellowItemCount}</dd></div>
+            <div><dt>Quick updates</dt><dd>{item.quickUpdateCount}</dd></div>
+            <div><dt>Follow-up</dt><dd>{item.followUpNeededCount}</dd></div>
+          </dl>
+          <small>{item.reportSeedCount} report seed(s) · {staffDraftLabel(item)}</small>
+        </article>) : <p><UsersRound /> Staff workbook summaries will appear as each person starts their day.</p>}
+      </div>
     </section> : null}
     {!compact ? <section className="advisor-coo-updates-seeds" aria-label="Today&apos;s updates and report seeds">
       <article>

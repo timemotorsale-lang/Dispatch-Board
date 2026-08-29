@@ -90,6 +90,47 @@ const model = {
       }
     ]
   },
+  staffWorkbook: {
+    id: "staff-workbook-1",
+    boardDayId: "board-day-1",
+    userId: "user-alex",
+    scope: "STAFF",
+    status: "ACTIVE",
+    createdAt: "2026-07-20T14:00:00.000Z",
+    updatedAt: "2026-07-20T14:00:00.000Z",
+    checklistItems: [
+      {
+        id: "staff-checklist-1",
+        text: "Finish customer callbacks",
+        status: "GREEN",
+        update: "All morning callbacks are done.",
+        done: true,
+        carryoverReady: false,
+        convertedTaskId: null,
+        createdAt: "2026-07-20T14:05:00.000Z",
+        updatedAt: "2026-07-20T14:06:00.000Z"
+      }
+    ],
+    quickUpdates: [],
+    reportSeeds: [],
+    reportDrafts: []
+  },
+  staffWorkbookSummaries: [
+    {
+      workbookId: "staff-workbook-1",
+      staffUserId: "user-alex",
+      staffName: "Alex Carter",
+      checklistCount: 1,
+      completedChecklistCount: 1,
+      redYellowItemCount: 0,
+      quickUpdateCount: 0,
+      followUpNeededCount: 0,
+      reportSeedCount: 0,
+      latestUpdateAt: "2026-07-20T14:06:00.000Z",
+      latestDraftStatus: null,
+      latestDraftVersion: null
+    }
+  ],
   counts: {
     activeRepairOrders: 2,
     availableAppointments: 1,
@@ -197,6 +238,10 @@ describe("ServiceAdvisorHome", () => {
     const html = renderToStaticMarkup(<CooDailyWorkbook model={model} />);
 
     expect(html).toContain("COO Daily Workbook");
+    expect(html).toContain("My Workbook");
+    expect(html).toContain("Staff Today");
+    expect(html).toContain("Alex Carter");
+    expect(html).toContain("Support needed");
     expect(html).toContain("Review before approval");
     expect(html).toContain("Approval readiness");
     expect(html).toContain("Daily action plan");

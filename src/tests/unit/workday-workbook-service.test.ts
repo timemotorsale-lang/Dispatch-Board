@@ -14,6 +14,8 @@ import {
   buildWorkdayDailyReportDraft,
   buildWorkdayReportSeeds,
   createCooWorkbookChecklistItem,
+  createStaffWorkbookChecklistItem,
+  getStaffWorkbookSummaries,
   updateCooWorkbookChecklistItem,
   updateCooWorkbookReportSeed
 } from "@/server/services/workday-workbook";
@@ -162,6 +164,30 @@ function repositoryHarness(ownerUserId = "user-jordan.sales@local.test") {
     async getOrCreateWorkbook() {
       return currentWorkbook;
     },
+    async listWorkbooksForBoardDay() {
+      return [{
+        ...currentWorkbook,
+        user: {
+          id: currentWorkbook.userId,
+          name: "Jordan Sales"
+        },
+        checklistItems: currentWorkbook.checklistItems.map((item) => ({
+          done: item.done,
+          status: item.status,
+          updatedAt: item.updatedAt
+        })),
+        quickUpdates: currentWorkbook.quickUpdates.map((item) => ({
+          followUpNeeded: item.followUpNeeded,
+          updatedAt: item.updatedAt
+        })),
+        reportDrafts: [{
+          generatedAt: new Date("2026-08-29T15:00:00.000Z"),
+          status: "DRAFT",
+          version: 1
+        }],
+        reportSeeds: currentWorkbook.reportSeeds.map((seed) => ({ id: seed.id }))
+      }];
+    },
     async updateChecklistItem(input) {
       checklistUpdates.push(input);
     },
@@ -227,6 +253,21 @@ describe("workday workbook service", () => {
     ]);
   });
 
+  it("creates a checklist item in the current user's staff workbook", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("jordan.sales@local.test")!;
+    const harness = repositoryHarness(user.id);
+
+    await createStaffWorkbookChecklistItem(user, "2026-08-29", { text: "Finish customer callbacks" }, { repository: harness.repository });
+
+    expect(harness.createdChecklistItems).toEqual([
+      {
+        text: "Finish customer callbacks",
+        workbookId: "workbook-1"
+      }
+    ]);
+  });
+
   it("rejects checklist updates for another user's workbook", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const user = usersByEmail.get("jordan.sales@local.test")!;
@@ -251,6 +292,25 @@ describe("workday workbook service", () => {
         status: WorkdayReportSeedStatus.INCLUDED,
         title: undefined
       }
+    ]);
+  });
+
+  it("allows managers to read Staff Today summaries", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("morgan.manager@local.test")!;
+    const harness = repositoryHarness("user-jordan.sales@local.test");
+
+    const summaries = await getStaffWorkbookSummaries(user, "2026-08-29", { repository: harness.repository });
+
+    expect(summaries).toEqual([
+      expect.objectContaining({
+        checklistCount: 2,
+        completedChecklistCount: 0,
+        followUpNeededCount: 1,
+        latestDraftStatus: "DRAFT",
+        redYellowItemCount: 1,
+        staffName: "Jordan Sales"
+      })
     ]);
   });
 });

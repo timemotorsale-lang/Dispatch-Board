@@ -23,6 +23,16 @@ const workbookInclude = {
 
 export type WorkdayWorkbookRecord = Prisma.WorkdayWorkbookGetPayload<{ include: typeof workbookInclude }>;
 
+const workbookSummaryInclude = {
+  checklistItems: { select: { done: true, status: true, updatedAt: true } },
+  quickUpdates: { select: { followUpNeeded: true, updatedAt: true } },
+  reportDrafts: { orderBy: [{ generatedAt: "desc" as const }, { id: "asc" as const }], select: { generatedAt: true, status: true, version: true }, take: 1 },
+  reportSeeds: { select: { id: true } },
+  user: { select: { id: true, name: true } }
+} satisfies Prisma.WorkdayWorkbookInclude;
+
+export type WorkdayWorkbookSummaryRecord = Prisma.WorkdayWorkbookGetPayload<{ include: typeof workbookSummaryInclude }>;
+
 export type WorkdayReportSeedInput = {
   detail: string;
   sourceHref?: string | null;
@@ -42,6 +52,7 @@ export type WorkdayWorkbookRepository = {
   findReportSeed(seedId: string): Promise<(Prisma.WorkdayReportSeedGetPayload<{ include: { workbook: true } }>) | null>;
   getOrCreateBoardDay(boardDate: string): Promise<BoardDay>;
   getOrCreateWorkbook(input: { boardDayId: string; scope: WorkdayWorkbookScope; userId: string }): Promise<WorkdayWorkbookRecord>;
+  listWorkbooksForBoardDay(input: { boardDayId: string; scope: WorkdayWorkbookScope }): Promise<WorkdayWorkbookSummaryRecord[]>;
   updateChecklistItem(input: { carryoverReady?: boolean; convertedTaskId?: string | null; done?: boolean; id: string; status?: WorkdayChecklistStatus; update?: string }): Promise<void>;
   updateQuickUpdate(input: { carryoverReady?: boolean; category?: WorkdayQuickUpdateCategory; company?: string; convertedTaskId?: string | null; dueWindow?: string; followUpNeeded?: boolean; id: string; person?: string; text?: string }): Promise<void>;
   updateReportSeed(input: { detail?: string; id: string; reviewNote?: string; status?: WorkdayReportSeedStatus; title?: string }): Promise<void>;
@@ -117,6 +128,16 @@ export function createWorkdayWorkbookRepository(database: WorkdayWorkbookDatabas
       return database.workdayWorkbook.findUniqueOrThrow({
         where: { id: workbook.id },
         include: workbookInclude
+      });
+    },
+    async listWorkbooksForBoardDay(input) {
+      return database.workdayWorkbook.findMany({
+        include: workbookSummaryInclude,
+        orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+        where: {
+          boardDayId: input.boardDayId,
+          scope: input.scope
+        }
       });
     },
     async updateChecklistItem(input) {

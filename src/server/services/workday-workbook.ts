@@ -12,9 +12,10 @@ import {
   createWorkdayWorkbookRepository,
   type WorkdayReportSeedInput,
   type WorkdayWorkbookRecord,
-  type WorkdayWorkbookRepository
+  type WorkdayWorkbookRepository,
+  type WorkdayWorkbookSummaryRecord
 } from "@/server/repositories/workday-workbook-repository";
-import { assertAuthenticatedUser } from "@/server/policies/access";
+import { assertAuthenticatedUser, isManager } from "@/server/policies/access";
 import { normalizeBoardDate } from "@/server/validation/board-date";
 
 export type WorkdayWorkbookOperatingSignals = {
@@ -30,6 +31,11 @@ type Dependencies = {
 const checklistStatuses = new Set(Object.values(WorkdayChecklistStatus));
 const quickUpdateCategories = new Set(Object.values(WorkdayQuickUpdateCategory));
 const reportSeedStatuses = new Set(Object.values(WorkdayReportSeedStatus));
+const emptyOperatingSignals: WorkdayWorkbookOperatingSignals = {
+  approvalCount: 0,
+  handoffCount: 0,
+  reportExceptions: 0
+};
 
 function normalizeRequiredText(value: unknown, errorMessage: string, maxLength = 500) {
   if (typeof value !== "string") throw new Error(errorMessage);
@@ -155,7 +161,7 @@ function draftSection(title: string, seeds: WorkdayWorkbookRecord["reportSeeds"]
   };
 }
 
-export function buildWorkdayDailyReportDraft(workbook: WorkdayWorkbookRecord, boardDate: string): WorkdayReportDraftContent {
+export function buildWorkdayDailyReportDraft(workbook: WorkdayWorkbookRecord, boardDate: string, reportLabel = "COO Daily Report"): WorkdayReportDraftContent {
   const usableSeeds = workbook.reportSeeds.filter((seed) => seed.status !== WorkdayReportSeedStatus.EXCLUDED);
   const includedSeeds = usableSeeds.filter((seed) => seed.status === WorkdayReportSeedStatus.INCLUDED);
   const candidateSeeds = usableSeeds.filter((seed) => seed.status === WorkdayReportSeedStatus.CANDIDATE);
@@ -181,7 +187,7 @@ export function buildWorkdayDailyReportDraft(workbook: WorkdayWorkbookRecord, bo
     sections,
     sourceSeedIds: reportSeeds.map((seed) => seed.id),
     summary,
-    title: `COO Daily Report - ${boardDate}`
+    title: `${reportLabel} - ${boardDate}`
   };
 }
 
@@ -253,6 +259,36 @@ export function buildWorkdayReportSeeds(
   return seeds;
 }
 
+function latestTimestamp(values: Date[]) {
+  const latest = values.reduce<Date | null>((current, value) => !current || value > current ? value : current, null);
+  return latest ? dateToIso(latest) : null;
+}
+
+function toStaffWorkbookSummary(record: WorkdayWorkbookSummaryRecord) {
+  const redYellowCount = record.checklistItems.filter((item) => item.status === WorkdayChecklistStatus.RED || item.status === WorkdayChecklistStatus.YELLOW).length;
+  const latestDraft = record.reportDrafts[0] ?? null;
+
+  return {
+    workbookId: record.id,
+    staffUserId: record.user.id,
+    staffName: record.user.name,
+    checklistCount: record.checklistItems.length,
+    completedChecklistCount: record.checklistItems.filter((item) => item.done).length,
+    redYellowItemCount: redYellowCount,
+    quickUpdateCount: record.quickUpdates.length,
+    followUpNeededCount: record.quickUpdates.filter((item) => item.followUpNeeded).length,
+    reportSeedCount: record.reportSeeds.length,
+    latestUpdateAt: latestTimestamp([
+      record.updatedAt,
+      ...record.checklistItems.map((item) => item.updatedAt),
+      ...record.quickUpdates.map((item) => item.updatedAt),
+      ...record.reportDrafts.map((draft) => draft.generatedAt)
+    ]),
+    latestDraftStatus: latestDraft?.status ?? null,
+    latestDraftVersion: latestDraft?.version ?? null
+  };
+}
+
 function toReadModel(workbook: WorkdayWorkbookRecord) {
   return {
     id: workbook.id,
@@ -316,10 +352,12 @@ function toReadModel(workbook: WorkdayWorkbookRecord) {
 }
 
 export type WorkdayWorkbookReadModel = ReturnType<typeof toReadModel>;
+export type StaffWorkbookSummaryModel = ReturnType<typeof toStaffWorkbookSummary>;
 
-export async function getCooWorkbook(
+async function getWorkbookByScope(
   actor: AuthenticatedUser | null,
   boardDate: string,
+  scope: WorkdayWorkbookScope,
   operatingSignals: WorkdayWorkbookOperatingSignals,
   dependencies: Dependencies = {}
 ) {
@@ -329,7 +367,7 @@ export async function getCooWorkbook(
   const boardDay = await repository.getOrCreateBoardDay(date);
   const workbook = await repository.getOrCreateWorkbook({
     boardDayId: boardDay.id,
-    scope: WorkdayWorkbookScope.COO,
+    scope,
     userId: user.id
   });
   await repository.upsertReportSeeds({
@@ -338,20 +376,54 @@ export async function getCooWorkbook(
   });
   return toReadModel(await repository.getOrCreateWorkbook({
     boardDayId: boardDay.id,
-    scope: WorkdayWorkbookScope.COO,
+    scope,
     userId: user.id
   }));
 }
 
-export async function createCooWorkbookChecklistItem(actor: AuthenticatedUser | null, boardDate: string, input: unknown, dependencies: Dependencies = {}) {
+export async function getCooWorkbook(
+  actor: AuthenticatedUser | null,
+  boardDate: string,
+  operatingSignals: WorkdayWorkbookOperatingSignals,
+  dependencies: Dependencies = {}
+) {
+  return getWorkbookByScope(actor, boardDate, WorkdayWorkbookScope.COO, operatingSignals, dependencies);
+}
+
+export async function getStaffWorkbook(actor: AuthenticatedUser | null, boardDate: string, dependencies: Dependencies = {}) {
+  return getWorkbookByScope(actor, boardDate, WorkdayWorkbookScope.STAFF, emptyOperatingSignals, dependencies);
+}
+
+export async function getStaffWorkbookSummaries(actor: AuthenticatedUser | null, boardDate: string, dependencies: Dependencies = {}) {
+  const user = assertAuthenticatedUser(actor);
+  if (!isManager(user)) throw new Error("Manager access is required to view Staff Today.");
+  const repository = dependencies.repository ?? createWorkdayWorkbookRepository();
+  const boardDay = await repository.getOrCreateBoardDay(normalizeBoardDate(boardDate));
+  const records = await repository.listWorkbooksForBoardDay({
+    boardDayId: boardDay.id,
+    scope: WorkdayWorkbookScope.STAFF
+  });
+
+  return records.map(toStaffWorkbookSummary);
+}
+
+async function createWorkbookChecklistItem(actor: AuthenticatedUser | null, boardDate: string, scope: WorkdayWorkbookScope, input: unknown, dependencies: Dependencies = {}) {
   const user = assertAuthenticatedUser(actor);
   const payload = normalizeObject(input);
   const text = normalizeRequiredText(payload.text, "Checklist item text is required.");
   const repository = dependencies.repository ?? createWorkdayWorkbookRepository();
   const boardDay = await repository.getOrCreateBoardDay(normalizeBoardDate(boardDate));
-  const workbook = await repository.getOrCreateWorkbook({ boardDayId: boardDay.id, scope: WorkdayWorkbookScope.COO, userId: user.id });
+  const workbook = await repository.getOrCreateWorkbook({ boardDayId: boardDay.id, scope, userId: user.id });
   await repository.createChecklistItem({ text, workbookId: workbook.id });
   return { ok: true };
+}
+
+export async function createCooWorkbookChecklistItem(actor: AuthenticatedUser | null, boardDate: string, input: unknown, dependencies: Dependencies = {}) {
+  return createWorkbookChecklistItem(actor, boardDate, WorkdayWorkbookScope.COO, input, dependencies);
+}
+
+export async function createStaffWorkbookChecklistItem(actor: AuthenticatedUser | null, boardDate: string, input: unknown, dependencies: Dependencies = {}) {
+  return createWorkbookChecklistItem(actor, boardDate, WorkdayWorkbookScope.STAFF, input, dependencies);
 }
 
 export async function updateCooWorkbookChecklistItem(actor: AuthenticatedUser | null, itemId: string, input: unknown, dependencies: Dependencies = {}) {
@@ -372,12 +444,12 @@ export async function updateCooWorkbookChecklistItem(actor: AuthenticatedUser | 
   return { ok: true };
 }
 
-export async function createCooWorkbookQuickUpdate(actor: AuthenticatedUser | null, boardDate: string, input: unknown, dependencies: Dependencies = {}) {
+async function createWorkbookQuickUpdate(actor: AuthenticatedUser | null, boardDate: string, scope: WorkdayWorkbookScope, input: unknown, dependencies: Dependencies = {}) {
   const user = assertAuthenticatedUser(actor);
   const payload = normalizeObject(input);
   const repository = dependencies.repository ?? createWorkdayWorkbookRepository();
   const boardDay = await repository.getOrCreateBoardDay(normalizeBoardDate(boardDate));
-  const workbook = await repository.getOrCreateWorkbook({ boardDayId: boardDay.id, scope: WorkdayWorkbookScope.COO, userId: user.id });
+  const workbook = await repository.getOrCreateWorkbook({ boardDayId: boardDay.id, scope, userId: user.id });
   await repository.createQuickUpdate({
     category: normalizeQuickUpdateCategory(payload.category),
     company: normalizeOptionalText(payload.company, "company", 180) ?? "",
@@ -388,6 +460,14 @@ export async function createCooWorkbookQuickUpdate(actor: AuthenticatedUser | nu
     workbookId: workbook.id
   });
   return { ok: true };
+}
+
+export async function createCooWorkbookQuickUpdate(actor: AuthenticatedUser | null, boardDate: string, input: unknown, dependencies: Dependencies = {}) {
+  return createWorkbookQuickUpdate(actor, boardDate, WorkdayWorkbookScope.COO, input, dependencies);
+}
+
+export async function createStaffWorkbookQuickUpdate(actor: AuthenticatedUser | null, boardDate: string, input: unknown, dependencies: Dependencies = {}) {
+  return createWorkbookQuickUpdate(actor, boardDate, WorkdayWorkbookScope.STAFF, input, dependencies);
 }
 
 export async function updateCooWorkbookQuickUpdate(actor: AuthenticatedUser | null, updateId: string, input: unknown, dependencies: Dependencies = {}) {
@@ -428,9 +508,10 @@ export async function updateCooWorkbookReportSeed(actor: AuthenticatedUser | nul
   return { ok: true };
 }
 
-export async function createCooWorkbookDailyReportDraft(
+async function createWorkbookDailyReportDraft(
   actor: AuthenticatedUser | null,
   boardDate: string,
+  scope: WorkdayWorkbookScope,
   operatingSignals: WorkdayWorkbookOperatingSignals,
   dependencies: Dependencies = {}
 ) {
@@ -440,7 +521,7 @@ export async function createCooWorkbookDailyReportDraft(
   const boardDay = await repository.getOrCreateBoardDay(date);
   let workbook = await repository.getOrCreateWorkbook({
     boardDayId: boardDay.id,
-    scope: WorkdayWorkbookScope.COO,
+    scope,
     userId: user.id
   });
   await repository.upsertReportSeeds({
@@ -449,10 +530,10 @@ export async function createCooWorkbookDailyReportDraft(
   });
   workbook = await repository.getOrCreateWorkbook({
     boardDayId: boardDay.id,
-    scope: WorkdayWorkbookScope.COO,
+    scope,
     userId: user.id
   });
-  const draft = buildWorkdayDailyReportDraft(workbook, date);
+  const draft = buildWorkdayDailyReportDraft(workbook, date, scope === WorkdayWorkbookScope.STAFF ? "Staff Daily Report" : "COO Daily Report");
   await repository.createReportDraft({
     generatedByUserId: user.id,
     sections: draft.sections,
@@ -462,4 +543,17 @@ export async function createCooWorkbookDailyReportDraft(
     workbookId: workbook.id
   });
   return { ok: true };
+}
+
+export async function createCooWorkbookDailyReportDraft(
+  actor: AuthenticatedUser | null,
+  boardDate: string,
+  operatingSignals: WorkdayWorkbookOperatingSignals,
+  dependencies: Dependencies = {}
+) {
+  return createWorkbookDailyReportDraft(actor, boardDate, WorkdayWorkbookScope.COO, operatingSignals, dependencies);
+}
+
+export async function createStaffWorkbookDailyReportDraft(actor: AuthenticatedUser | null, boardDate: string, dependencies: Dependencies = {}) {
+  return createWorkbookDailyReportDraft(actor, boardDate, WorkdayWorkbookScope.STAFF, emptyOperatingSignals, dependencies);
 }
