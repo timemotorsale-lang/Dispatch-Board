@@ -206,3 +206,56 @@ export function buildCoachingAndAccountabilityEngine(workbook: WorkdayWorkbookRe
     coachingPrompts: [...opportunities.slice(0, 3), ...strengths.slice(0, 2)]
   };
 }
+
+export function buildReportIntelligenceEngine(workbook: WorkdayWorkbookRecord, operatingSignals: WorkdayWorkbookOperatingSignals = { approvalCount: 0, handoffCount: 0, reportExceptions: 0 }) {
+  const includedSeeds = workbook.reportSeeds.filter((seed) => seed.status === WorkdayReportSeedStatus.INCLUDED);
+  const candidateSeeds = workbook.reportSeeds.filter((seed) => seed.status === WorkdayReportSeedStatus.CANDIDATE);
+  const carriedSeeds = workbook.reportSeeds.filter((seed) => seed.status === WorkdayReportSeedStatus.CARRIED_OVER);
+  const excludedSeeds = workbook.reportSeeds.filter((seed) => seed.status === WorkdayReportSeedStatus.EXCLUDED);
+  const completedFocusSeeds = workbook.dailyFocusItems.filter((item) => item.status === WorkdayDailyFocusStatus.DONE);
+  const unresolvedFocusSeeds = workbook.dailyFocusItems.filter((item) => item.status !== WorkdayDailyFocusStatus.DONE && (item.mustCloseToday || item.riskLevel !== WorkdayRiskLevel.NONE || item.supportNeeded.trim()));
+  const meaningfulChecklistSeeds = workbook.checklistItems.filter((item) => item.update.trim() || item.done || item.status !== WorkdayChecklistStatus.GREEN || item.carryoverReady);
+  const quickUpdateSeeds = workbook.quickUpdates;
+  const supportSeeds = workbook.supportActions;
+  const sourceBackedCount = includedSeeds.length + candidateSeeds.length + carriedSeeds.length + completedFocusSeeds.length + unresolvedFocusSeeds.length + meaningfulChecklistSeeds.length + quickUpdateSeeds.length + supportSeeds.length + operatingSignals.reportExceptions;
+  const reviewedCount = includedSeeds.length + carriedSeeds.length + excludedSeeds.length;
+  const reviewScore = workbook.reportSeeds.length ? (reviewedCount / workbook.reportSeeds.length) * 50 : 20;
+  const sourceScore = Math.min(35, sourceBackedCount * 5);
+  const noisePenalty = excludedSeeds.length * 2;
+  const score = clampScore(reviewScore + sourceScore + 15 - noisePenalty);
+  const dailyDraftInputs = [
+    ...includedSeeds.map((seed) => ({ id: seed.id, sourceType: seed.sourceType, title: seed.title, status: seed.status })),
+    ...candidateSeeds.map((seed) => ({ id: seed.id, sourceType: seed.sourceType, title: seed.title, status: seed.status })),
+    ...carriedSeeds.map((seed) => ({ id: seed.id, sourceType: seed.sourceType, title: seed.title, status: seed.status }))
+  ];
+  const prompts: string[] = [];
+
+  if (!sourceBackedCount) prompts.push("Work the day before generating a report draft.");
+  if (candidateSeeds.length) prompts.push("Review candidate Report Seeds before finalizing the draft.");
+  if (carriedSeeds.length) prompts.push("Confirm carried-over seeds appear in tomorrow setup.");
+  if (unresolvedFocusSeeds.length) prompts.push("Include unresolved must-close focus items in the manager summary.");
+  if (!prompts.length) prompts.push("Report inputs are reviewed and ready for a manager-ready draft.");
+
+  return {
+    score,
+    status: statusLabel(score),
+    sourceBackedCount,
+    reviewedCount,
+    includedSeedCount: includedSeeds.length,
+    candidateSeedCount: candidateSeeds.length,
+    carriedSeedCount: carriedSeeds.length,
+    excludedSeedCount: excludedSeeds.length,
+    completedFocusCount: completedFocusSeeds.length,
+    unresolvedFocusCount: unresolvedFocusSeeds.length,
+    meaningfulChecklistCount: meaningfulChecklistSeeds.length,
+    quickUpdateCount: quickUpdateSeeds.length,
+    supportSignalCount: supportSeeds.length,
+    dailyDraftInputs,
+    weeklyRollupInputs: dailyDraftInputs,
+    monthlyRollupInputs: dailyDraftInputs,
+    auditTrail: dailyDraftInputs.map((item) => ({ sourceId: item.id, sourceType: item.sourceType })),
+    staffGuidance: prompts[0],
+    managerSummary: `${sourceBackedCount} source-backed report signal(s), ${reviewedCount} reviewed seed(s), and ${candidateSeeds.length} candidate seed(s).`,
+    prompts
+  };
+}

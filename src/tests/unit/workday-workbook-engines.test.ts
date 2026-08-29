@@ -3,6 +3,9 @@ import {
   WorkdayDailyFocusStatus,
   WorkdayPriority,
   WorkdayQuickUpdateCategory,
+  WorkdayReportSeedSourceType,
+  WorkdayReportSeedStatus,
+  WorkdayReportSeedTone,
   WorkdayRiskLevel,
   WorkdayWorkbookScope,
   type BoardDay
@@ -10,7 +13,7 @@ import {
 import { describe, expect, it } from "vitest";
 
 import type { WorkdayWorkbookRecord } from "@/server/repositories/workday-workbook-repository";
-import { buildCoachingAndAccountabilityEngine, buildDailyPlanningEngine, buildExecutionTrackingEngine, buildRiskAndBlockerEngine } from "@/server/services/workday-workbook-engines";
+import { buildCoachingAndAccountabilityEngine, buildDailyPlanningEngine, buildExecutionTrackingEngine, buildReportIntelligenceEngine, buildRiskAndBlockerEngine } from "@/server/services/workday-workbook-engines";
 
 const now = new Date("2026-08-29T14:00:00.000Z");
 const boardDay: BoardDay = {
@@ -170,5 +173,45 @@ describe("workday workbook engines", () => {
     });
     expect(coaching.opportunities).toContain("Ask for support on blocked work now.");
     expect(coaching.strengths).toContain("The next improvement is to make the day visible early.");
+  });
+
+  it("builds source-backed report intelligence without promoted excluded seeds", () => {
+    const reporting = buildReportIntelligenceEngine(workbook({
+      reportSeeds: [
+        {
+          id: "seed-1",
+          workbookId: "workbook-1",
+          sourceType: WorkdayReportSeedSourceType.CHECKLIST_ITEM,
+          sourceId: "checklist-1",
+          sourceHref: null,
+          title: "Included work",
+          detail: "Use this.",
+          tone: WorkdayReportSeedTone.GREEN,
+          status: WorkdayReportSeedStatus.INCLUDED,
+          reviewNote: "",
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: "seed-2",
+          workbookId: "workbook-1",
+          sourceType: WorkdayReportSeedSourceType.OPERATING_EXCEPTION,
+          sourceId: "noise",
+          sourceHref: null,
+          title: "Excluded noise",
+          detail: "Do not use.",
+          tone: WorkdayReportSeedTone.BLUE,
+          status: WorkdayReportSeedStatus.EXCLUDED,
+          reviewNote: "",
+          createdAt: now,
+          updatedAt: now
+        }
+      ]
+    }));
+
+    expect(reporting.includedSeedCount).toBe(1);
+    expect(reporting.excludedSeedCount).toBe(1);
+    expect(reporting.dailyDraftInputs.map((item) => item.title)).toEqual(["Included work"]);
+    expect(reporting.auditTrail).toEqual([{ sourceId: "seed-1", sourceType: WorkdayReportSeedSourceType.CHECKLIST_ITEM }]);
   });
 });
