@@ -1057,9 +1057,12 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
   const coaching = activeWorkbook.coaching;
   const effectiveness = activeWorkbook.effectiveness;
   const dailyFocus = activeWorkbook.dailyFocusItems;
+  const isPilotClosed = activeWorkbook.status === "CLOSED";
+  const activeCarryovers = activeWorkbook.carryovers.filter((item) => item.status !== "DISMISSED");
+  const carryoverSourceIds = new Set(activeCarryovers.map((item) => item.sourceId));
   const tomorrowItems = [
-    ...dailyFocus.filter((item) => item.status === "CARRY_OVER" || item.mustCloseToday && item.status !== "DONE").map((item) => ({ detail: item.supportNeeded || item.riskNote || "Needs tomorrow ownership.", id: `focus-${item.id}`, title: item.outcome })),
-    ...activeWorkbook.carryovers.filter((item) => item.status !== "DISMISSED").map((item) => ({ detail: item.detail, id: `carryover-${item.id}`, title: item.title }))
+    ...dailyFocus.filter((item) => (item.status === "CARRY_OVER" || item.mustCloseToday && item.status !== "DONE") && !carryoverSourceIds.has(`daily-focus:${item.id}`)).map((item) => ({ detail: item.supportNeeded || item.riskNote || "Needs tomorrow ownership.", id: `focus-${item.id}`, title: item.outcome })),
+    ...activeCarryovers.map((item) => ({ detail: item.detail, id: `carryover-${item.id}`, title: item.title }))
   ].slice(0, 5);
   const staffNeedingSupport = staffWorkbookSummaries
     .filter((item) => item.closeReadinessTone !== "READY" || item.dailyFocusRiskCount > 0 || item.followUpNeededCount > 0)
@@ -1083,6 +1086,10 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
   async function addDailyFocus() {
     const outcome = focusOutcome.trim();
     if (!outcome) return;
+    if (isPilotClosed) {
+      setNotice("This workbook day is closed. Reopen the day before adding the next outcome.");
+      return;
+    }
     setSaving(true);
     try {
       const response = await fetch(`/api/coo-workbook/daily-focus?date=${encodeURIComponent(model.generatedAt.slice(0, 10))}&scope=${workbookView === "MY" ? "STAFF" : "COO"}`, {
@@ -1105,6 +1112,25 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
       await refreshPilotWorkbook();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Unable to save Daily Focus.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function reopenPilotWorkbook() {
+    setSaving(true);
+    try {
+      const response = await fetch("/api/coo-workbook/reopen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workbookId: activeWorkbook.id })
+      });
+      const payload = await response.json().catch(() => null) as { error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error ?? "Unable to reopen workbook day.");
+      setNotice("Workbook day reopened. You can add today's outcome now.");
+      await refreshPilotWorkbook();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Unable to reopen workbook day.");
     } finally {
       setSaving(false);
     }
@@ -1197,19 +1223,21 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
     <section className="advisor-coo-effectiveness-grid" aria-label={`${activeLabel} effectiveness pilot`}>
       <article className="advisor-coo-start-day">
         <header><div><strong>Start The Day</strong><small>Choose the top outcomes before work gets noisy.</small></div><span>{dailyFocus.length}/3 focus</span></header>
+        {isPilotClosed ? <p className="advisor-coo-workspace-notice" role="status">This workbook day is closed. Reopen it before adding or changing today&apos;s outcomes. <button disabled={saving} onClick={() => void reopenPilotWorkbook()} type="button">Reopen Day</button></p> : null}
         <div className="advisor-coo-focus-form">
           <input aria-label="Daily Focus outcome" onChange={(event) => setFocusOutcome(event.target.value)} placeholder="Outcome that matters today..." value={focusOutcome} />
           <select aria-label="Priority" onChange={(event) => setFocusPriority(event.target.value as DailyFocusPriority)} value={focusPriority}>{focusPriorities.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select>
           <select aria-label="Risk" onChange={(event) => setFocusRisk(event.target.value as DailyFocusRisk)} value={focusRisk}>{focusRiskLevels.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select>
           <label><input checked={focusMustClose} onChange={(event) => setFocusMustClose(event.target.checked)} type="checkbox" /> Must close today</label>
           <input aria-label="Support needed" onChange={(event) => setSupportNeeded(event.target.value)} placeholder="Support needed, if any..." value={supportNeeded} />
-          <button disabled={saving || !focusOutcome.trim()} onClick={() => void addDailyFocus()} type="button"><Plus /> Add Focus</button>
+          <button disabled={saving || isPilotClosed || !focusOutcome.trim()} onClick={() => void addDailyFocus()} title={isPilotClosed ? "Reopen the workbook day before adding an outcome." : "Add this outcome to the workbook."} type="button"><Plus /> Add Today&apos;s Outcome</button>
         </div>
+        {notice ? <p className="advisor-coo-workspace-notice" role="status">{notice}</p> : null}
         <div className="advisor-coo-focus-list">
           {dailyFocus.length ? dailyFocus.slice(0, 5).map((item) => <article className={item.riskLevel.toLocaleLowerCase()} key={item.id}>
             <span><strong>{item.outcome}</strong><small>{item.priority.toLocaleLowerCase()} · {item.mustCloseToday ? "must close" : "flexible"}</small></span>
-            <select aria-label={`Status for ${item.outcome}`} disabled={saving} onChange={(event) => void updateDailyFocus(item, { status: event.target.value as DailyFocusStatus })} value={item.status}>{focusStatuses.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select>
-            <select aria-label={`Risk for ${item.outcome}`} disabled={saving} onChange={(event) => void updateDailyFocus(item, { riskLevel: event.target.value as DailyFocusRisk })} value={item.riskLevel}>{focusRiskLevels.map((risk) => <option key={risk.value} value={risk.value}>{risk.label}</option>)}</select>
+            <select aria-label={`Status for ${item.outcome}`} disabled={saving || isPilotClosed} onChange={(event) => void updateDailyFocus(item, { status: event.target.value as DailyFocusStatus })} value={item.status}>{focusStatuses.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select>
+            <select aria-label={`Risk for ${item.outcome}`} disabled={saving || isPilotClosed} onChange={(event) => void updateDailyFocus(item, { riskLevel: event.target.value as DailyFocusRisk })} value={item.riskLevel}>{focusRiskLevels.map((risk) => <option key={risk.value} value={risk.value}>{risk.label}</option>)}</select>
           </article>) : <p><CheckCircle2 /> Add up to three outcomes that would make today successful.</p>}
         </div>
       </article>
@@ -1253,7 +1281,6 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
       </article>
     </section>
 
-    {notice ? <p className="advisor-coo-workspace-notice" role="status">{notice}</p> : null}
   </section>;
 }
 
