@@ -5,6 +5,7 @@ import {
   CalendarClock,
   CheckSquare,
   CheckCircle2,
+  ChevronDown,
   ClipboardList,
   ClipboardCheck,
   Clock3,
@@ -242,6 +243,7 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
   const [workspaceNotice, setWorkspaceNotice] = useState<string | null>(null);
   const [convertingId, setConvertingId] = useState<string | null>(null);
   const [commandView, setCommandView] = useState<CommandCardView>("CLOSE");
+  const [moreToolsOpen, setMoreToolsOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const approvalCount = actionCount(model, "AUTHORIZATION");
   const reportExceptions = model.counts.needsAttention + model.counts.waitingOnOthers;
@@ -401,6 +403,18 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
     { description: `${reportSeedRollup.reviewed}/${reportSeedRollup.total} reviewed`, href: "/vehicles/coo-workbook/report-seeds", icon: FileText, title: "Report Seeds" },
     { description: `${staffTodayRollup.support} need support · ${staffTodayRollup.ready} ready`, href: "/vehicles/coo-workbook/staff-support", icon: UsersRound, title: "Staff Support" },
     { description: latestReportDraft ? `Saved ${dateLabel(latestReportDraft.generatedAt)}` : "No draft saved yet", href: "/vehicles/coo-workbook/drafts", icon: Clock3, title: "Drafts" }
+  ];
+  const moreToolCards: Array<{ action?: () => void; description: string; href?: string; icon: typeof ClipboardCheck; title: string }> = [
+    { description: "Pick the work that should happen first.", href: "/vehicles/coo-workbook/effectiveness-pilot#start-the-day", icon: ClipboardCheck, title: "Start The Day" },
+    { action: () => setCommandView("ATTENTION"), description: "Rank urgent promises, blockers, and follow-ups.", icon: AlertTriangle, title: "Priority Triage" },
+    { href: "/vehicles/coo-workbook/quick-update", description: "Capture follow-up dates from Quick Updates.", icon: CalendarClock, title: "Follow-Up Center" },
+    { action: () => setCommandView("ATTENTION"), description: "Open the attention list for blocked work.", icon: AlertTriangle, title: "Blocker Escalation" },
+    { action: () => setCommandView("ATTENTION"), description: "Review promise-related items and commitments.", icon: ShieldCheck, title: "Promise Tracker" },
+    { href: "/vehicles/coo-workbook/staff-support", description: "Ask for or record manager support.", icon: UsersRound, title: "Manager Help Request" },
+    { href: "/vehicles/coo-workbook/quick-update", description: "Capture coaching or training needs.", icon: MessageSquareText, title: "Training Moment" },
+    { href: "/vehicles/coo-workbook/quick-update", description: "Record a win, lesson, or useful update.", icon: CheckCircle2, title: "Daily Win / Learning" },
+    { href: "/vehicles/coo-workbook/carryover", description: "Prepare unfinished work for tomorrow.", icon: CalendarClock, title: "Smart Carryover" },
+    { action: () => setCommandView("REPORT"), description: "Review what is ready for the report.", icon: FileText, title: "Report Readiness" }
   ];
 
   function openWorkbookTool(toolPath: string) {
@@ -995,6 +1009,24 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
         <Link aria-current="page" href="/vehicles/coo-workbook">Current Workbook</Link>
         <Link href="/vehicles/coo-workbook/effectiveness-pilot">Effectiveness Pilot</Link>
       </nav>
+      <div className="advisor-coo-more-tools">
+        <button aria-expanded={moreToolsOpen} onClick={() => setMoreToolsOpen((open) => !open)} type="button">More Tools <ChevronDown /></button>
+        {moreToolsOpen ? <div className="advisor-coo-more-tools-drawer" role="menu">
+          {moreToolCards.map((tool) => {
+            const Icon = tool.icon;
+            return tool.href ? <Link href={tool.href} key={tool.title} onClick={() => setMoreToolsOpen(false)} role="menuitem">
+              <Icon />
+              <span><strong>{tool.title}</strong><small>{tool.description}</small></span>
+            </Link> : <button key={tool.title} onClick={() => {
+              tool.action?.();
+              setMoreToolsOpen(false);
+            }} role="menuitem" type="button">
+              <Icon />
+              <span><strong>{tool.title}</strong><small>{tool.description}</small></span>
+            </button>;
+          })}
+        </div> : null}
+      </div>
       <div className="advisor-coo-header-actions">
         <Link href="/vehicles/coo-workbook/effectiveness-pilot#start-the-day"><ClipboardCheck /> Start The Day</Link>
         <Link href="/vehicles/coo-workbook/quick-update"><MessageSquareText /> Quick Update</Link>
