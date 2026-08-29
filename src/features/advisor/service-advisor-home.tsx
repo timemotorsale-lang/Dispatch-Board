@@ -915,7 +915,7 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
         </div>
         <div className="advisor-coo-followup-row">
           <label><input checked={quickUpdateFollowUp} disabled={isClosed} onChange={(event) => setQuickUpdateFollowUp(event.target.checked)} type="checkbox" /> Follow-up needed</label>
-          <input aria-label="Follow-up due date or time window" disabled={isClosed || !quickUpdateFollowUp} onChange={(event) => setQuickUpdateDueWindow(event.target.value)} placeholder="Due date or time window" value={quickUpdateDueWindow} />
+          <input aria-label="Follow-up date" disabled={isClosed || !quickUpdateFollowUp} min={model.generatedAt.slice(0, 10)} onChange={(event) => setQuickUpdateDueWindow(event.target.value)} type="date" value={quickUpdateDueWindow} />
           <button disabled={saving || isClosed || !quickUpdateText.trim()} onClick={() => void addQuickUpdate()} type="button"><Save /> Save update</button>
         </div>
         <div className="advisor-coo-update-list">
