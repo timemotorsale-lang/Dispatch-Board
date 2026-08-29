@@ -117,6 +117,11 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("Review before approval");
     expect(html).toContain("Approval readiness");
     expect(html).toContain("Daily action plan");
+    expect(html).toContain("Daily Checklist");
+    expect(html).toContain("Add something to do today");
+    expect(html).toContain("Quick Update");
+    expect(html).toContain("Today&#x27;s Updates");
+    expect(html).toContain("Report Seeds");
     expect(html).toContain("Create Daily Action Plan");
     expect(html).toContain("Add To-Do");
     expect(html).toContain("Start today");
@@ -124,6 +129,9 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("Daily report draft");
     expect(html).toContain("End-of-day report builder preview");
     expect(html).toContain("Approval stays governed");
+    expect(html).toContain("Simple same-day list");
+    expect(html).toContain("Capture unplanned events");
+    expect(html).toContain("Meaningful checklist items");
     expect(html).toContain("/vehicles/advisor?queue=authorization");
     expect(html).toContain("/tasks/intake?");
     expect(html).toContain("Create+COO+daily+action+plan");
