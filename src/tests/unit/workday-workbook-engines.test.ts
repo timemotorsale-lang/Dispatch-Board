@@ -13,7 +13,7 @@ import {
 import { describe, expect, it } from "vitest";
 
 import type { WorkdayWorkbookRecord } from "@/server/repositories/workday-workbook-repository";
-import { buildCoachingAndAccountabilityEngine, buildDailyPlanningEngine, buildExecutionTrackingEngine, buildReportIntelligenceEngine, buildRiskAndBlockerEngine } from "@/server/services/workday-workbook-engines";
+import { buildCoachingAndAccountabilityEngine, buildDailyPlanningEngine, buildExecutionTrackingEngine, buildReportIntelligenceEngine, buildRiskAndBlockerEngine, buildWorkflowGovernanceEngine } from "@/server/services/workday-workbook-engines";
 
 const now = new Date("2026-08-29T14:00:00.000Z");
 const boardDay: BoardDay = {
@@ -213,5 +213,19 @@ describe("workday workbook engines", () => {
     expect(reporting.excludedSeedCount).toBe(1);
     expect(reporting.dailyDraftInputs.map((item) => item.title)).toEqual(["Included work"]);
     expect(reporting.auditTrail).toEqual([{ sourceId: "seed-1", sourceType: WorkdayReportSeedSourceType.CHECKLIST_ITEM }]);
+  });
+
+  it("governs lifecycle stage, close blockers, and allowed actions", () => {
+    const governance = buildWorkflowGovernanceEngine(workbook(), { approvalCount: 1, handoffCount: 0, reportExceptions: 0 });
+
+    expect(governance.currentStage).toBe("ASK_FOR_SUPPORT");
+    expect(governance.closeReadinessState).toBe("BLOCKED");
+    expect(governance.closeBlockers).toContain("1 must-close item(s) unresolved.");
+    expect(governance.allowedActions).toMatchObject({
+      canAskForSupport: true,
+      canCloseDay: true,
+      canEdit: true,
+      canReopenDay: false
+    });
   });
 });

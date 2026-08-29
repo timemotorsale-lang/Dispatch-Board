@@ -259,3 +259,54 @@ export function buildReportIntelligenceEngine(workbook: WorkdayWorkbookRecord, o
     prompts
   };
 }
+
+export function buildWorkflowGovernanceEngine(workbook: WorkdayWorkbookRecord, operatingSignals: WorkdayWorkbookOperatingSignals = { approvalCount: 0, handoffCount: 0, reportExceptions: 0 }) {
+  const planning = buildDailyPlanningEngine(workbook);
+  const execution = buildExecutionTrackingEngine(workbook);
+  const risk = buildRiskAndBlockerEngine(workbook, operatingSignals);
+  const reporting = buildReportIntelligenceEngine(workbook, operatingSignals);
+  const isClosed = workbook.status === "CLOSED";
+  const unconfirmedCarryovers = workbook.carryovers.filter((item) => item.status === WorkdayCarryoverStatus.OPEN).length;
+  const needsDraft = reporting.sourceBackedCount > 0 && workbook.reportDrafts.length === 0;
+  const closeBlockers = [
+    ...(planning.unresolvedMustCloseCount ? [`${planning.unresolvedMustCloseCount} must-close item(s) unresolved.`] : []),
+    ...(risk.blockerCount ? [`${risk.blockerCount} blocker(s) need support or ownership.`] : []),
+    ...(risk.missingDueWindowCount ? [`${risk.missingDueWindowCount} follow-up(s) missing due window.`] : []),
+    ...(unconfirmedCarryovers ? [`${unconfirmedCarryovers} carryover item(s) not confirmed.`] : []),
+    ...(needsDraft ? ["Daily report draft has not been generated."] : [])
+  ];
+  const currentStage = isClosed
+    ? "GENERATE_REPORT" as const
+    : planning.focusItemCount === 0
+      ? "START_THE_DAY" as const
+      : risk.blockerCount > 0
+        ? "ASK_FOR_SUPPORT" as const
+        : execution.unfinishedWorkCount > 0
+          ? "WORK_THE_DAY" as const
+          : risk.tomorrowCarryoverCandidates.length > 0
+            ? "PREPARE_TOMORROW" as const
+            : "CLOSE_THE_DAY" as const;
+  const nextRecommendedAction =
+    currentStage === "START_THE_DAY" ? planning.staffGuidance :
+      currentStage === "ASK_FOR_SUPPORT" ? risk.staffGuidance :
+        currentStage === "WORK_THE_DAY" ? execution.staffGuidance :
+          currentStage === "PREPARE_TOMORROW" ? "Prepare tomorrow from carryovers and unresolved focus." :
+            currentStage === "GENERATE_REPORT" ? "Review or share the latest report draft." :
+              closeBlockers[0] ?? "Close the day and generate the report.";
+
+  return {
+    currentStage,
+    nextRecommendedAction,
+    closeReadinessState: closeBlockers.length ? "BLOCKED" as const : "CLEAN" as const,
+    closeBlockers,
+    allowedActions: {
+      canEdit: !isClosed,
+      canAskForSupport: !isClosed,
+      canPrepareTomorrow: !isClosed && risk.tomorrowCarryoverCandidates.length > 0,
+      canGenerateReport: !isClosed && reporting.sourceBackedCount > 0,
+      canCloseDay: !isClosed,
+      canReopenDay: isClosed
+    },
+    managerReviewPrompts: closeBlockers.length ? closeBlockers : ["Workbook is ready for manager review."]
+  };
+}
