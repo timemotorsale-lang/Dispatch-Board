@@ -323,10 +323,12 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("Daily report draft");
     expect(html).toContain("Daily Report Draft");
     expect(html).toContain("Generate Draft");
+    expect(html).toContain("Copy Draft");
     expect(html).toContain("Sources");
     expect(html).toContain("Lowest score");
     expect(html).toContain("Support first");
     expect(html).toContain("COO Daily Report - 2026-07-20");
+    expect(html).toContain("Daily Checklist · Candidate · yellow");
     expect(html).toContain("Blockers and Risks");
     expect(html).toContain("Simple same-day list");
     expect(html).toContain("Capture unplanned events");

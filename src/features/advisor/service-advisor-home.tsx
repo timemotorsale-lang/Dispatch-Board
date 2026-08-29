@@ -8,6 +8,7 @@ import {
   ClipboardList,
   ClipboardCheck,
   Clock3,
+  Copy,
   FileText,
   ListChecks,
   MessageSquareText,
@@ -259,6 +260,14 @@ function closeReadinessLabel(tone: WorkdayWorkbookModel["closeReadiness"]["tone"
   if (tone === "READY") return "Ready";
   if (tone === "SUPPORT") return "Needs support";
   return "Needs review";
+}
+
+function dailyReportDraftText(draft: WorkdayWorkbookModel["reportDrafts"][number]) {
+  const sections = draft.sections.map((section) => [
+    section.title,
+    ...section.items.map((item) => `- ${item.title}: ${item.detail}${item.reviewNote ? ` (${item.reviewNote})` : ""}`)
+  ].join("\n")).join("\n\n");
+  return `${draft.title}\n${draft.summary}\n\n${sections}`;
 }
 
 export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean; model: ServiceAdvisorWorkspaceModel }) {
@@ -624,6 +633,16 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
     }
   }
 
+  async function copyDailyReportDraft() {
+    if (!latestReportDraft || typeof navigator === "undefined" || !navigator.clipboard) return;
+    try {
+      await navigator.clipboard.writeText(dailyReportDraftText(latestReportDraft));
+      setWorkspaceNotice("Daily Report Draft copied.");
+    } catch {
+      setWorkspaceNotice("Unable to copy the draft from this browser.");
+    }
+  }
+
   async function convertToTask(source: "checklist" | "quick", item: DailyChecklistItem | QuickUpdateItem) {
     setConvertingId(item.id);
     setWorkspaceNotice(null);
@@ -925,7 +944,7 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
         <div><dt>Release control</dt><dd>{handoffCount} handoff item(s)</dd></div>
       </dl>
       {latestReportDraft ? <div className="advisor-coo-saved-draft">
-        <header><strong>{latestReportDraft.title}</strong><small>Version {latestReportDraft.version} · Generated {dateLabel(latestReportDraft.generatedAt)}</small></header>
+        <header><strong>{latestReportDraft.title}</strong><small>Version {latestReportDraft.version} · Generated {dateLabel(latestReportDraft.generatedAt)}</small><button onClick={() => void copyDailyReportDraft()} type="button"><Copy /> Copy Draft</button></header>
         <p>{latestReportDraft.summary}</p>
         <dl className="advisor-coo-draft-meta">
           <div><dt>Sources</dt><dd>{latestReportDraft.sourceSeedIds.length}</dd></div>
@@ -938,6 +957,7 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
             <h2>{section.title}</h2>
             {section.items.map((item) => <span key={`${section.title}-${item.sourceId}-${item.title}`}>
               <strong>{item.title}</strong>
+              <small>{item.sourceLabel} · {reportSeedStatusLabel(item.status)} · {item.tone.toLocaleLowerCase()}</small>
               <small>{item.detail}{item.reviewNote ? ` Review note: ${item.reviewNote}` : ""}</small>
             </span>)}
           </article>)}
