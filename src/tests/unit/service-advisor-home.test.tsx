@@ -293,6 +293,9 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("Daily Close");
     expect(html).toContain("Next:");
     expect(html).toContain("Resolve support items first");
+    expect(html).toContain("Support view");
+    expect(html).toContain("Carryover view");
+    expect(html).toContain("Review seeds");
     expect(html).toContain("Needs support");
     expect(html).toContain("Checklist complete");
     expect(html).toContain("Seeds reviewed");
@@ -301,7 +304,10 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("Add something to do today");
     expect(html).toContain("Quick Update");
     expect(html).toContain("Follow-up");
+    expect(html).toContain("Total");
     expect(html).toContain("Today&#x27;s Updates");
+    expect(html).toContain("Carryover Center");
+    expect(html).toContain("Tomorrow-facing items");
     expect(html).toContain("Report Seeds");
     expect(html).toContain("Active");
     expect(html).toContain("Candidate");
@@ -315,6 +321,9 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("Daily report draft");
     expect(html).toContain("Daily Report Draft");
     expect(html).toContain("Generate Draft");
+    expect(html).toContain("Sources");
+    expect(html).toContain("Lowest score");
+    expect(html).toContain("Support first");
     expect(html).toContain("COO Daily Report - 2026-07-20");
     expect(html).toContain("Blockers and Risks");
     expect(html).toContain("Simple same-day list");
