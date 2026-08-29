@@ -10,7 +10,7 @@ import {
 import { describe, expect, it } from "vitest";
 
 import type { WorkdayWorkbookRecord } from "@/server/repositories/workday-workbook-repository";
-import { buildDailyPlanningEngine, buildExecutionTrackingEngine, buildRiskAndBlockerEngine } from "@/server/services/workday-workbook-engines";
+import { buildCoachingAndAccountabilityEngine, buildDailyPlanningEngine, buildExecutionTrackingEngine, buildRiskAndBlockerEngine } from "@/server/services/workday-workbook-engines";
 
 const now = new Date("2026-08-29T14:00:00.000Z");
 const boardDay: BoardDay = {
@@ -158,5 +158,17 @@ describe("workday workbook engines", () => {
     expect(risk.blockerQueue.map((item) => item.sourceType)).toContain("QUICK_UPDATE");
     expect(risk.tomorrowCarryoverCandidates.map((item) => item.title)).toContain("Complete customer promise review");
     expect(risk.staffGuidance).toBe("Resolve or assign support for blocked work before close.");
+  });
+
+  it("turns workbook signals into coaching and accountability guidance", () => {
+    const coaching = buildCoachingAndAccountabilityEngine(workbook(), { approvalCount: 1, handoffCount: 0, reportExceptions: 0 });
+
+    expect(coaching).toMatchObject({
+      status: "NEEDS_SUPPORT",
+      supportNeededPrompt: "Support is needed to keep at least one item moving.",
+      managerSummary: "0 of 1 planned item(s) complete, 1 blocker(s), 1 carryover candidate(s)."
+    });
+    expect(coaching.opportunities).toContain("Ask for support on blocked work now.");
+    expect(coaching.strengths).toContain("The next improvement is to make the day visible early.");
   });
 });

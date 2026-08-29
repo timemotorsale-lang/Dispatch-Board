@@ -167,3 +167,42 @@ export function buildRiskAndBlockerEngine(workbook: WorkdayWorkbookRecord, opera
     prompts
   };
 }
+
+export function buildCoachingAndAccountabilityEngine(workbook: WorkdayWorkbookRecord, operatingSignals: WorkdayWorkbookOperatingSignals = { approvalCount: 0, handoffCount: 0, reportExceptions: 0 }) {
+  const planning = buildDailyPlanningEngine(workbook);
+  const execution = buildExecutionTrackingEngine(workbook);
+  const risk = buildRiskAndBlockerEngine(workbook, operatingSignals);
+  const reviewedSeeds = workbook.reportSeeds.filter((seed) => seed.status !== WorkdayReportSeedStatus.CANDIDATE).length;
+  const reportingScore = workbook.reportSeeds.length ? clampScore((reviewedSeeds / workbook.reportSeeds.length) * 100) : 45;
+  const effectivenessScore = clampScore((planning.score + execution.score + risk.score + reportingScore) / 4);
+  const strengths: string[] = [];
+  const opportunities: string[] = [];
+
+  if (planning.score >= 75) strengths.push("Started with clear daily focus.");
+  if (execution.completedWorkCount > 0) strengths.push("Moved planned work forward.");
+  if (workbook.quickUpdates.length > 0) strengths.push("Captured meaningful unplanned work.");
+  if (risk.blockerCount === 0) strengths.push("No hard blockers are open.");
+  if (!strengths.length) strengths.push("The next improvement is to make the day visible early.");
+
+  if (planning.score < 60) opportunities.push(planning.staffGuidance);
+  if (execution.unfinishedWorkCount > 0) opportunities.push("Close, update, or carry over unfinished work.");
+  if (risk.blockerCount > 0) opportunities.push("Ask for support on blocked work now.");
+  if (workbook.quickUpdates.some((item) => item.followUpNeeded && !item.dueWindow.trim())) opportunities.push("Add due windows to follow-ups.");
+  if (workbook.reportSeeds.length && reviewedSeeds < workbook.reportSeeds.length) opportunities.push("Review report seeds before generating the final draft.");
+  if (!opportunities.length) opportunities.push("Keep the day current and close it cleanly.");
+
+  return {
+    effectivenessScore,
+    status: statusLabel(effectivenessScore),
+    planning,
+    execution,
+    risk,
+    reportingScore,
+    strengths,
+    opportunities,
+    supportNeededPrompt: risk.blockerCount > 0 || planning.supportNeededCount > 0 ? "Support is needed to keep at least one item moving." : "",
+    staffSummary: opportunities[0],
+    managerSummary: `${execution.completedWorkCount} of ${execution.plannedWorkCount} planned item(s) complete, ${risk.blockerCount} blocker(s), ${risk.tomorrowCarryoverCandidates.length} carryover candidate(s).`,
+    coachingPrompts: [...opportunities.slice(0, 3), ...strengths.slice(0, 2)]
+  };
+}
