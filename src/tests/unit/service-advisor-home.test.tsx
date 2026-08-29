@@ -51,10 +51,42 @@ const model = {
         sourceHref: null,
         title: "Review morning approval queue",
         detail: "Waiting on customer callback.",
+        reviewNote: "Mention if customer does not call back.",
         tone: "YELLOW",
         status: "CANDIDATE",
         createdAt: "2026-07-20T14:09:00.000Z",
         updatedAt: "2026-07-20T14:10:00.000Z"
+      }
+    ],
+    reportDrafts: [
+      {
+        id: "draft-1",
+        version: 1,
+        status: "DRAFT",
+        title: "COO Daily Report - 2026-07-20",
+        summary: "1 report item(s) prepared from 0 reviewed seed(s). 0 item(s) marked for carryover.",
+        sections: [
+          {
+            title: "Blockers and Risks",
+            items: [
+              {
+                title: "Review morning approval queue",
+                detail: "Waiting on customer callback.",
+                reviewNote: "Mention if customer does not call back.",
+                sourceHref: null,
+                sourceId: "checklist-1",
+                sourceLabel: "Daily Checklist",
+                status: "CANDIDATE",
+                tone: "YELLOW"
+              }
+            ]
+          }
+        ],
+        sourceSeedIds: ["seed-1"],
+        generatedByUserId: "user-alex",
+        generatedAt: "2026-07-20T14:11:00.000Z",
+        createdAt: "2026-07-20T14:11:00.000Z",
+        updatedAt: "2026-07-20T14:11:00.000Z"
       }
     ]
   },
@@ -173,13 +205,18 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("Quick Update");
     expect(html).toContain("Today&#x27;s Updates");
     expect(html).toContain("Report Seeds");
+    expect(html).toContain("Include");
+    expect(html).toContain("Exclude");
+    expect(html).toContain("Optional review note");
     expect(html).toContain("Create Daily Action Plan");
     expect(html).toContain("Add To-Do");
     expect(html).toContain("Start today");
     expect(html).toContain("Carryover watch");
     expect(html).toContain("Daily report draft");
-    expect(html).toContain("End-of-day report builder preview");
-    expect(html).toContain("Approval stays governed");
+    expect(html).toContain("Daily Report Draft");
+    expect(html).toContain("Generate Draft");
+    expect(html).toContain("COO Daily Report - 2026-07-20");
+    expect(html).toContain("Blockers and Risks");
     expect(html).toContain("Simple same-day list");
     expect(html).toContain("Capture unplanned events");
     expect(html).toContain("Meaningful checklist items");

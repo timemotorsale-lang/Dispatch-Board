@@ -2,6 +2,7 @@ import {
   WorkdayChecklistStatus,
   WorkdayQuickUpdateCategory,
   WorkdayReportSeedSourceType,
+  WorkdayReportSeedStatus,
   WorkdayReportSeedTone,
   WorkdayWorkbookScope
 } from "@prisma/client";
@@ -28,6 +29,7 @@ type Dependencies = {
 
 const checklistStatuses = new Set(Object.values(WorkdayChecklistStatus));
 const quickUpdateCategories = new Set(Object.values(WorkdayQuickUpdateCategory));
+const reportSeedStatuses = new Set(Object.values(WorkdayReportSeedStatus));
 
 function normalizeRequiredText(value: unknown, errorMessage: string, maxLength = 500) {
   if (typeof value !== "string") throw new Error(errorMessage);
@@ -64,6 +66,14 @@ function normalizeQuickUpdateCategory(value: unknown) {
   return value as WorkdayQuickUpdateCategory;
 }
 
+function normalizeReportSeedStatus(value: unknown) {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || !reportSeedStatuses.has(value as WorkdayReportSeedStatus)) {
+    throw new Error("Report Seed status is not supported.");
+  }
+  return value as WorkdayReportSeedStatus;
+}
+
 function normalizeObject(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("Workbook update payload must be an object.");
@@ -96,6 +106,83 @@ function checklistLabel(item: WorkdayWorkbookRecord["checklistItems"][number]) {
 
 function quickUpdateCategoryLabel(category: WorkdayQuickUpdateCategory) {
   return category.replaceAll("_", " ").toLocaleLowerCase().replace(/^./, (letter) => letter.toUpperCase());
+}
+
+function reportSeedSourceLabel(seed: WorkdayWorkbookRecord["reportSeeds"][number]) {
+  if (seed.sourceType === WorkdayReportSeedSourceType.CHECKLIST_ITEM) return "Daily Checklist";
+  if (seed.sourceType === WorkdayReportSeedSourceType.QUICK_UPDATE) return "Quick Update";
+  return "Operations";
+}
+
+export type WorkdayReportDraftSection = {
+  items: Array<{
+    detail: string;
+    reviewNote: string;
+    sourceHref: string | null;
+    sourceId: string;
+    sourceLabel: string;
+    status: WorkdayReportSeedStatus;
+    title: string;
+    tone: WorkdayReportSeedTone;
+  }>;
+  title: string;
+};
+
+export type WorkdayReportDraftContent = {
+  sections: WorkdayReportDraftSection[];
+  sourceSeedIds: string[];
+  summary: string;
+  title: string;
+};
+
+function draftItem(seed: WorkdayWorkbookRecord["reportSeeds"][number]) {
+  return {
+    detail: seed.detail,
+    reviewNote: seed.reviewNote,
+    sourceHref: seed.sourceHref,
+    sourceId: seed.sourceId,
+    sourceLabel: reportSeedSourceLabel(seed),
+    status: seed.status,
+    title: seed.title,
+    tone: seed.tone
+  };
+}
+
+function draftSection(title: string, seeds: WorkdayWorkbookRecord["reportSeeds"]) {
+  return {
+    items: seeds.map(draftItem),
+    title
+  };
+}
+
+export function buildWorkdayDailyReportDraft(workbook: WorkdayWorkbookRecord, boardDate: string): WorkdayReportDraftContent {
+  const usableSeeds = workbook.reportSeeds.filter((seed) => seed.status !== WorkdayReportSeedStatus.EXCLUDED);
+  const includedSeeds = usableSeeds.filter((seed) => seed.status === WorkdayReportSeedStatus.INCLUDED);
+  const candidateSeeds = usableSeeds.filter((seed) => seed.status === WorkdayReportSeedStatus.CANDIDATE);
+  const carryoverSeeds = usableSeeds.filter((seed) => seed.status === WorkdayReportSeedStatus.CARRIED_OVER);
+  const reportSeeds = [...includedSeeds, ...candidateSeeds, ...carryoverSeeds];
+  const completedSeeds = reportSeeds.filter((seed) => seed.tone === WorkdayReportSeedTone.GREEN);
+  const riskSeeds = reportSeeds.filter((seed) => seed.tone === WorkdayReportSeedTone.RED || seed.tone === WorkdayReportSeedTone.YELLOW);
+  const quickUpdateSeeds = reportSeeds.filter((seed) => seed.sourceType === WorkdayReportSeedSourceType.QUICK_UPDATE);
+  const managementSeeds = reportSeeds.filter((seed) => seed.sourceType === WorkdayReportSeedSourceType.OPERATING_EXCEPTION);
+  const sections = [
+    draftSection("Completed / Closed Today", completedSeeds),
+    draftSection("Blockers and Risks", riskSeeds),
+    draftSection("Quick Updates / Unplanned Events", quickUpdateSeeds),
+    draftSection("Approval or Management Review", managementSeeds),
+    draftSection("Carryover for Tomorrow", carryoverSeeds)
+  ].filter((section) => section.items.length > 0);
+  const reviewedCount = usableSeeds.filter((seed) => seed.status !== WorkdayReportSeedStatus.CANDIDATE).length;
+  const summary = reportSeeds.length
+    ? `${reportSeeds.length} report item(s) prepared from ${reviewedCount} reviewed seed(s). ${carryoverSeeds.length} item(s) marked for carryover.`
+    : "No reviewed or candidate report items are ready yet.";
+
+  return {
+    sections,
+    sourceSeedIds: reportSeeds.map((seed) => seed.id),
+    summary,
+    title: `COO Daily Report - ${boardDate}`
+  };
 }
 
 export function buildWorkdayReportSeeds(
@@ -206,10 +293,24 @@ function toReadModel(workbook: WorkdayWorkbookRecord) {
       sourceHref: seed.sourceHref,
       title: seed.title,
       detail: seed.detail,
+      reviewNote: seed.reviewNote,
       tone: seed.tone,
       status: seed.status,
       createdAt: dateToIso(seed.createdAt),
       updatedAt: dateToIso(seed.updatedAt)
+    })),
+    reportDrafts: workbook.reportDrafts.map((draft) => ({
+      id: draft.id,
+      version: draft.version,
+      status: draft.status,
+      title: draft.title,
+      summary: draft.summary,
+      sections: draft.sections as WorkdayReportDraftSection[],
+      sourceSeedIds: draft.sourceSeedIds as string[],
+      generatedByUserId: draft.generatedByUserId,
+      generatedAt: dateToIso(draft.generatedAt),
+      createdAt: dateToIso(draft.createdAt),
+      updatedAt: dateToIso(draft.updatedAt)
     }))
   };
 }
@@ -306,6 +407,59 @@ export async function updateCooWorkbookQuickUpdate(actor: AuthenticatedUser | nu
     id: item.id,
     person: normalizeOptionalText(payload.person, "person", 180),
     text: payload.text === undefined ? undefined : normalizeRequiredText(payload.text, "Quick Update text is required.", 1200)
+  });
+  return { ok: true };
+}
+
+export async function updateCooWorkbookReportSeed(actor: AuthenticatedUser | null, seedId: string, input: unknown, dependencies: Dependencies = {}) {
+  const user = assertAuthenticatedUser(actor);
+  const payload = normalizeObject(input);
+  const repository = dependencies.repository ?? createWorkdayWorkbookRepository();
+  const seed = await repository.findReportSeed(seedId.trim());
+  if (!seed) throw new Error("Report Seed not found.");
+  assertWorkbookOwner(user, seed.workbook);
+  await repository.updateReportSeed({
+    detail: normalizeOptionalText(payload.detail, "detail", 1600),
+    id: seed.id,
+    reviewNote: normalizeOptionalText(payload.reviewNote, "reviewNote", 1000),
+    status: normalizeReportSeedStatus(payload.status),
+    title: normalizeOptionalText(payload.title, "title", 240)
+  });
+  return { ok: true };
+}
+
+export async function createCooWorkbookDailyReportDraft(
+  actor: AuthenticatedUser | null,
+  boardDate: string,
+  operatingSignals: WorkdayWorkbookOperatingSignals,
+  dependencies: Dependencies = {}
+) {
+  const user = assertAuthenticatedUser(actor);
+  const date = normalizeBoardDate(boardDate);
+  const repository = dependencies.repository ?? createWorkdayWorkbookRepository();
+  const boardDay = await repository.getOrCreateBoardDay(date);
+  let workbook = await repository.getOrCreateWorkbook({
+    boardDayId: boardDay.id,
+    scope: WorkdayWorkbookScope.COO,
+    userId: user.id
+  });
+  await repository.upsertReportSeeds({
+    seeds: buildWorkdayReportSeeds(workbook, operatingSignals),
+    workbookId: workbook.id
+  });
+  workbook = await repository.getOrCreateWorkbook({
+    boardDayId: boardDay.id,
+    scope: WorkdayWorkbookScope.COO,
+    userId: user.id
+  });
+  const draft = buildWorkdayDailyReportDraft(workbook, date);
+  await repository.createReportDraft({
+    generatedByUserId: user.id,
+    sections: draft.sections,
+    sourceSeedIds: draft.sourceSeedIds,
+    summary: draft.summary,
+    title: draft.title,
+    workbookId: workbook.id
   });
   return { ok: true };
 }

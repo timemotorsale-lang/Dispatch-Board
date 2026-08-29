@@ -12,11 +12,12 @@ import {
 
 import { prisma } from "@/server/db/client";
 
-type WorkdayWorkbookDatabase = Pick<PrismaClient, "boardDay" | "workdayChecklistItem" | "workdayQuickUpdate" | "workdayReportSeed" | "workdayWorkbook">;
+type WorkdayWorkbookDatabase = Pick<PrismaClient, "boardDay" | "workdayChecklistItem" | "workdayQuickUpdate" | "workdayReportDraft" | "workdayReportSeed" | "workdayWorkbook">;
 
 const workbookInclude = {
   checklistItems: { orderBy: [{ createdAt: "desc" as const }, { id: "asc" as const }] },
   quickUpdates: { orderBy: [{ createdAt: "desc" as const }, { id: "asc" as const }] },
+  reportDrafts: { orderBy: [{ generatedAt: "desc" as const }, { id: "asc" as const }], take: 3 },
   reportSeeds: { orderBy: [{ createdAt: "desc" as const }, { id: "asc" as const }] }
 } satisfies Prisma.WorkdayWorkbookInclude;
 
@@ -34,13 +35,16 @@ export type WorkdayReportSeedInput = {
 
 export type WorkdayWorkbookRepository = {
   createChecklistItem(input: { text: string; workbookId: string }): Promise<void>;
+  createReportDraft(input: { generatedByUserId: string; sections: Prisma.InputJsonValue; sourceSeedIds: Prisma.InputJsonValue; summary: string; title: string; workbookId: string }): Promise<void>;
   createQuickUpdate(input: { category: WorkdayQuickUpdateCategory; company: string; dueWindow: string; followUpNeeded: boolean; person: string; text: string; workbookId: string }): Promise<void>;
   findChecklistItem(itemId: string): Promise<(Prisma.WorkdayChecklistItemGetPayload<{ include: { workbook: true } }>) | null>;
   findQuickUpdate(updateId: string): Promise<(Prisma.WorkdayQuickUpdateGetPayload<{ include: { workbook: true } }>) | null>;
+  findReportSeed(seedId: string): Promise<(Prisma.WorkdayReportSeedGetPayload<{ include: { workbook: true } }>) | null>;
   getOrCreateBoardDay(boardDate: string): Promise<BoardDay>;
   getOrCreateWorkbook(input: { boardDayId: string; scope: WorkdayWorkbookScope; userId: string }): Promise<WorkdayWorkbookRecord>;
   updateChecklistItem(input: { carryoverReady?: boolean; convertedTaskId?: string | null; done?: boolean; id: string; status?: WorkdayChecklistStatus; update?: string }): Promise<void>;
   updateQuickUpdate(input: { carryoverReady?: boolean; category?: WorkdayQuickUpdateCategory; company?: string; convertedTaskId?: string | null; dueWindow?: string; followUpNeeded?: boolean; id: string; person?: string; text?: string }): Promise<void>;
+  updateReportSeed(input: { detail?: string; id: string; reviewNote?: string; status?: WorkdayReportSeedStatus; title?: string }): Promise<void>;
   upsertReportSeeds(input: { seeds: WorkdayReportSeedInput[]; workbookId: string }): Promise<void>;
 };
 
@@ -58,6 +62,24 @@ export function createWorkdayWorkbookRepository(database: WorkdayWorkbookDatabas
         }
       });
     },
+    async createReportDraft(input) {
+      const latest = await database.workdayReportDraft.findFirst({
+        orderBy: { version: "desc" },
+        select: { version: true },
+        where: { workbookId: input.workbookId }
+      });
+      await database.workdayReportDraft.create({
+        data: {
+          generatedByUserId: input.generatedByUserId,
+          sections: input.sections,
+          sourceSeedIds: input.sourceSeedIds,
+          summary: input.summary,
+          title: input.title,
+          version: (latest?.version ?? 0) + 1,
+          workbookId: input.workbookId
+        }
+      });
+    },
     async createQuickUpdate(input) {
       await database.workdayQuickUpdate.create({
         data: input
@@ -68,6 +90,9 @@ export function createWorkdayWorkbookRepository(database: WorkdayWorkbookDatabas
     },
     async findQuickUpdate(updateId) {
       return database.workdayQuickUpdate.findUnique({ where: { id: updateId }, include: { workbook: true } });
+    },
+    async findReportSeed(seedId) {
+      return database.workdayReportSeed.findUnique({ where: { id: seedId }, include: { workbook: true } });
     },
     async getOrCreateBoardDay(boardDate) {
       return database.boardDay.upsert({
@@ -118,6 +143,17 @@ export function createWorkdayWorkbookRepository(database: WorkdayWorkbookDatabas
           ...(input.followUpNeeded !== undefined ? { followUpNeeded: input.followUpNeeded } : {}),
           ...(input.person !== undefined ? { person: input.person } : {}),
           ...(input.text !== undefined ? { text: input.text } : {})
+        }
+      });
+    },
+    async updateReportSeed(input) {
+      await database.workdayReportSeed.update({
+        where: { id: input.id },
+        data: {
+          ...(input.detail !== undefined ? { detail: input.detail } : {}),
+          ...(input.reviewNote !== undefined ? { reviewNote: input.reviewNote } : {}),
+          ...(input.status !== undefined ? { status: input.status } : {}),
+          ...(input.title !== undefined ? { title: input.title } : {})
         }
       });
     },

@@ -1713,6 +1713,11 @@ enum WorkdayReportSeedStatus {
   CARRIED_OVER
 }
 
+enum WorkdayReportDraftStatus {
+  DRAFT
+  SUBMITTED
+}
+
 // Placeholder model for the v0.1.0 foundation migration.
 // Domain models are intentionally deferred to later milestones.
 model BootstrapMarker {
@@ -6724,6 +6729,7 @@ model WorkdayWorkbook {
   checklistItems WorkdayChecklistItem[]
   quickUpdates   WorkdayQuickUpdate[]
   reportSeeds    WorkdayReportSeed[]
+  reportDrafts   WorkdayReportDraft[]
 
   @@unique([boardDayId, userId, scope])
   @@index([userId, scope, status])
@@ -6777,6 +6783,7 @@ model WorkdayReportSeed {
   detail      String
   tone        WorkdayReportSeedTone
   status      WorkdayReportSeedStatus     @default(CANDIDATE)
+  reviewNote  String                      @default("")
   sourceHref  String?
   createdAt   DateTime                    @default(now())
   updatedAt   DateTime                    @updatedAt
@@ -6784,6 +6791,25 @@ model WorkdayReportSeed {
 
   @@unique([workbookId, sourceType, sourceId])
   @@index([workbookId, status, tone])
+}
+
+model WorkdayReportDraft {
+  id              String                   @id @default(cuid())
+  workbookId      String
+  version         Int
+  status          WorkdayReportDraftStatus @default(DRAFT)
+  title           String
+  summary         String
+  sections        Json
+  sourceSeedIds   Json
+  generatedByUserId String
+  generatedAt     DateTime                 @default(now())
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+  workbook        WorkdayWorkbook          @relation(fields: [workbookId], references: [id], onDelete: Cascade)
+
+  @@unique([workbookId, version])
+  @@index([workbookId, status, generatedAt])
 }
 
 model StaffDay {

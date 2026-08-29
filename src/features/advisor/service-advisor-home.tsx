@@ -142,6 +142,7 @@ type WorkdayWorkbookModel = ServiceAdvisorWorkspaceModel["workbook"];
 type DailyChecklistItem = WorkdayWorkbookModel["checklistItems"][number];
 type QuickUpdateItem = WorkdayWorkbookModel["quickUpdates"][number];
 type ReportSeedItem = WorkdayWorkbookModel["reportSeeds"][number];
+type ReportSeedStatus = ReportSeedItem["status"];
 
 const checklistStatusOptions: Array<{ label: string; value: DailyChecklistStatus }> = [
   { label: "Green", value: "GREEN" },
@@ -189,6 +190,13 @@ function reportSeedSourceLabel(seed: ReportSeedItem) {
   return "Operations";
 }
 
+function reportSeedStatusLabel(status: ReportSeedStatus) {
+  if (status === "INCLUDED") return "Included";
+  if (status === "EXCLUDED") return "Excluded";
+  if (status === "CARRIED_OVER") return "Carryover";
+  return "Candidate";
+}
+
 export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean; model: ServiceAdvisorWorkspaceModel }) {
   const [planCreatedAt, setPlanCreatedAt] = useState<string | null>(null);
   const [workbook, setWorkbook] = useState<WorkdayWorkbookModel>(model.workbook);
@@ -211,6 +219,7 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
   const checklistItems = workbook.checklistItems;
   const quickUpdates = workbook.quickUpdates;
   const reportSeeds = workbook.reportSeeds;
+  const latestReportDraft = workbook.reportDrafts[0] ?? null;
   const actionPlan = [
     {
       empty: "No urgent operating actions are waiting.",
@@ -389,6 +398,46 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
     }
   }
 
+  function updateReportSeed(id: string, patch: Partial<ReportSeedItem>) {
+    setWorkbook((current) => ({
+      ...current,
+      reportSeeds: current.reportSeeds.map((seed) => seed.id === id ? { ...seed, ...patch } : seed)
+    }));
+  }
+
+  async function persistReportSeed(id: string, patch: Partial<ReportSeedItem>) {
+    updateReportSeed(id, patch);
+    try {
+      const response = await fetch(`/api/coo-workbook/report-seeds/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch)
+      });
+      const payload = await response.json().catch(() => null) as { error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error ?? "Unable to update Report Seed.");
+      await refreshWorkbook();
+    } catch (error) {
+      setWorkspaceNotice(error instanceof Error ? error.message : "Unable to update Report Seed.");
+    }
+  }
+
+  async function generateDailyReportDraft() {
+    setSaving(true);
+    try {
+      const response = await fetch(`/api/coo-workbook/report-drafts?date=${encodeURIComponent(model.generatedAt.slice(0, 10))}`, {
+        method: "POST"
+      });
+      const payload = await response.json().catch(() => null) as { error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error ?? "Unable to generate Daily Report Draft.");
+      await refreshWorkbook();
+      setWorkspaceNotice("Daily Report Draft generated from reviewed seeds.");
+    } catch (error) {
+      setWorkspaceNotice(error instanceof Error ? error.message : "Unable to generate Daily Report Draft.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function convertToTask(source: "checklist" | "quick", item: DailyChecklistItem | QuickUpdateItem) {
     setConvertingId(item.id);
     setWorkspaceNotice(null);
@@ -531,8 +580,17 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
         <header><strong>Report Seeds</strong><small>Meaningful checklist items, Quick Updates, and operating exceptions.</small></header>
         <div>
           {reportSeeds.length ? reportSeeds.map((seed) => <div className={`advisor-coo-seed-item ${reportSeedTone(seed.tone)}`} key={seed.id}>
-            <span><strong>{seed.title}</strong><small>{reportSeedSourceLabel(seed)}</small></span>
-            <p>{seed.detail}</p>
+            <span><strong>{seed.title}</strong><small>{reportSeedSourceLabel(seed)} · {reportSeedStatusLabel(seed.status)}</small></span>
+            <div className="advisor-coo-seed-actions">
+              <button aria-pressed={seed.status === "INCLUDED"} onClick={() => void persistReportSeed(seed.id, { status: "INCLUDED" })} type="button">Include</button>
+              <button aria-pressed={seed.status === "EXCLUDED"} onClick={() => void persistReportSeed(seed.id, { status: "EXCLUDED" })} type="button">Exclude</button>
+              <button aria-pressed={seed.status === "CARRIED_OVER"} onClick={() => void persistReportSeed(seed.id, { status: "CARRIED_OVER" })} type="button">Carry over</button>
+            </div>
+            <div className="advisor-coo-seed-editor">
+              <input aria-label={`Report Seed title for ${seed.title}`} onBlur={() => void persistReportSeed(seed.id, { title: seed.title })} onChange={(event) => updateReportSeed(seed.id, { title: event.target.value })} value={seed.title} />
+              <textarea aria-label={`Report Seed detail for ${seed.title}`} onBlur={() => void persistReportSeed(seed.id, { detail: seed.detail })} onChange={(event) => updateReportSeed(seed.id, { detail: event.target.value })} value={seed.detail} />
+              <input aria-label={`Review note for ${seed.title}`} onBlur={() => void persistReportSeed(seed.id, { reviewNote: seed.reviewNote })} onChange={(event) => updateReportSeed(seed.id, { reviewNote: event.target.value })} placeholder="Optional review note..." value={seed.reviewNote} />
+            </div>
           </div>) : <p><FileText /> No report seeds yet. Work the day, then generate the report trail.</p>}
         </div>
       </article>
@@ -564,14 +622,29 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
       </div>
     </section> : null}
     {!compact ? <section className="advisor-coo-report-draft" aria-label="Daily operations report draft inputs">
-      <header><strong>End-of-day report builder preview</strong><small>This review produces the report later: completed priorities, blockers, approvals reviewed, escalations, and tomorrow carryovers.</small></header>
+      <header>
+        <div><strong>Daily Report Draft</strong><small>Generated from reviewed Report Seeds, Quick Updates, checklist progress, and operating exceptions.</small></div>
+        <button disabled={saving} onClick={() => void generateDailyReportDraft()} type="button"><FileText /> Generate Draft</button>
+      </header>
       <dl>
         <div><dt>Customer commitments</dt><dd>{model.counts.needsAttention} need COO visibility</dd></div>
         <div><dt>Waiting on others</dt><dd>{model.counts.waitingOnOthers} item(s)</dd></div>
         <div><dt>Approval review</dt><dd>{approvalCount} before approval</dd></div>
         <div><dt>Release control</dt><dd>{handoffCount} handoff item(s)</dd></div>
       </dl>
-      <p>Approval stays governed in the repair order and manager review tools. The workbook collects the COO review, decision context, and carryover shape before anything is marked approved.</p>
+      {latestReportDraft ? <div className="advisor-coo-saved-draft">
+        <header><strong>{latestReportDraft.title}</strong><small>Version {latestReportDraft.version} · Generated {dateLabel(latestReportDraft.generatedAt)}</small></header>
+        <p>{latestReportDraft.summary}</p>
+        <div>
+          {latestReportDraft.sections.map((section) => <article key={section.title}>
+            <h2>{section.title}</h2>
+            {section.items.map((item) => <span key={`${section.title}-${item.sourceId}-${item.title}`}>
+              <strong>{item.title}</strong>
+              <small>{item.detail}{item.reviewNote ? ` Review note: ${item.reviewNote}` : ""}</small>
+            </span>)}
+          </article>)}
+        </div>
+      </div> : <p>Approval stays governed in the repair order and manager review tools. Review the seeds above, then generate a manager-ready daily draft when the day has enough signal.</p>}
     </section> : null}
   </section>;
 }

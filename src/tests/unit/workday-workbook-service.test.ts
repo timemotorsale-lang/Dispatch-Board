@@ -1,6 +1,8 @@
 import {
   WorkdayChecklistStatus,
   WorkdayQuickUpdateCategory,
+  WorkdayReportSeedSourceType,
+  WorkdayReportSeedStatus,
   WorkdayReportSeedTone,
   WorkdayWorkbookScope,
   type BoardDay
@@ -9,9 +11,11 @@ import { describe, expect, it } from "vitest";
 
 import type { WorkdayWorkbookRepository, WorkdayWorkbookRecord } from "@/server/repositories/workday-workbook-repository";
 import {
+  buildWorkdayDailyReportDraft,
   buildWorkdayReportSeeds,
   createCooWorkbookChecklistItem,
-  updateCooWorkbookChecklistItem
+  updateCooWorkbookChecklistItem,
+  updateCooWorkbookReportSeed
 } from "@/server/services/workday-workbook";
 import { createTestAuthStore } from "@/tests/support/auth-test-store";
 
@@ -77,17 +81,66 @@ function workbook(userId = "user-jordan.sales@local.test"): WorkdayWorkbookRecor
         updatedAt: now
       }
     ],
-    reportSeeds: []
+    reportSeeds: [
+      {
+        id: "seed-1",
+        workbookId: "workbook-1",
+        sourceType: WorkdayReportSeedSourceType.CHECKLIST_ITEM,
+        sourceId: "checklist-1",
+        title: "Call vendor about roof estimate",
+        detail: "Waiting on AJ to confirm timing.",
+        tone: WorkdayReportSeedTone.YELLOW,
+        status: WorkdayReportSeedStatus.CARRIED_OVER,
+        reviewNote: "Ask for firm timing tomorrow.",
+        sourceHref: null,
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        id: "seed-2",
+        workbookId: "workbook-1",
+        sourceType: WorkdayReportSeedSourceType.QUICK_UPDATE,
+        sourceId: "quick-1",
+        title: "Sales opportunity update",
+        detail: "Moises from T-Mobile visited to discuss products.",
+        tone: WorkdayReportSeedTone.YELLOW,
+        status: WorkdayReportSeedStatus.INCLUDED,
+        reviewNote: "",
+        sourceHref: null,
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        id: "seed-3",
+        workbookId: "workbook-1",
+        sourceType: WorkdayReportSeedSourceType.OPERATING_EXCEPTION,
+        sourceId: "noise",
+        title: "Noisy exception",
+        detail: "Do not include this line.",
+        tone: WorkdayReportSeedTone.BLUE,
+        status: WorkdayReportSeedStatus.EXCLUDED,
+        reviewNote: "",
+        sourceHref: null,
+        createdAt: now,
+        updatedAt: now
+      }
+    ],
+    reportDrafts: []
   };
 }
 
 function repositoryHarness(ownerUserId = "user-jordan.sales@local.test") {
   const createdChecklistItems: Array<{ text: string; workbookId: string }> = [];
+  const createdReportDrafts: unknown[] = [];
   const checklistUpdates: unknown[] = [];
+  const reportSeedUpdates: unknown[] = [];
   const currentWorkbook = workbook(ownerUserId);
   const repository: WorkdayWorkbookRepository = {
     async createChecklistItem(input) {
       createdChecklistItems.push(input);
+    },
+    async createReportDraft(input) {
+      createdReportDrafts.push(input);
     },
     async createQuickUpdate() {
       throw new Error("not needed");
@@ -98,6 +151,10 @@ function repositoryHarness(ownerUserId = "user-jordan.sales@local.test") {
     },
     async findQuickUpdate() {
       return null;
+    },
+    async findReportSeed(seedId) {
+      const seed = currentWorkbook.reportSeeds.find((candidate) => candidate.id === seedId);
+      return seed ? { ...seed, workbook: currentWorkbook } : null;
     },
     async getOrCreateBoardDay() {
       return boardDay;
@@ -111,12 +168,15 @@ function repositoryHarness(ownerUserId = "user-jordan.sales@local.test") {
     async updateQuickUpdate() {
       throw new Error("not needed");
     },
+    async updateReportSeed(input) {
+      reportSeedUpdates.push(input);
+    },
     async upsertReportSeeds() {
       return undefined;
     }
   };
 
-  return { checklistUpdates, createdChecklistItems, repository };
+  return { checklistUpdates, createdChecklistItems, createdReportDrafts, reportSeedUpdates, repository };
 }
 
 describe("workday workbook service", () => {
@@ -141,6 +201,17 @@ describe("workday workbook service", () => {
     });
   });
 
+  it("builds a saved daily report draft from reviewed seeds and excludes rejected noise", () => {
+    const draft = buildWorkdayDailyReportDraft(workbook(), "2026-08-29");
+
+    expect(draft.title).toBe("COO Daily Report - 2026-08-29");
+    expect(draft.sourceSeedIds).toEqual(["seed-2", "seed-1"]);
+    expect(draft.summary).toContain("2 report item(s)");
+    expect(draft.sections.map((section) => section.title)).toContain("Blockers and Risks");
+    expect(draft.sections.map((section) => section.title)).toContain("Carryover for Tomorrow");
+    expect(JSON.stringify(draft.sections)).not.toContain("Do not include this line.");
+  });
+
   it("creates a checklist item in the current user's COO workbook", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const user = usersByEmail.get("jordan.sales@local.test")!;
@@ -163,5 +234,23 @@ describe("workday workbook service", () => {
 
     await expect(updateCooWorkbookChecklistItem(user, "checklist-1", { done: true }, { repository: harness.repository })).rejects.toThrow("permission");
     expect(harness.checklistUpdates).toEqual([]);
+  });
+
+  it("updates a report seed only for the workbook owner", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("jordan.sales@local.test")!;
+    const harness = repositoryHarness(user.id);
+
+    await updateCooWorkbookReportSeed(user, "seed-1", { reviewNote: "Confirmed carryover.", status: "INCLUDED" }, { repository: harness.repository });
+
+    expect(harness.reportSeedUpdates).toEqual([
+      {
+        detail: undefined,
+        id: "seed-1",
+        reviewNote: "Confirmed carryover.",
+        status: WorkdayReportSeedStatus.INCLUDED,
+        title: undefined
+      }
+    ]);
   });
 });
