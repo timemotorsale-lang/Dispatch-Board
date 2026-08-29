@@ -690,7 +690,12 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("Start The Day");
     expect(html).toContain("/vehicles/coo-workbook/effectiveness-pilot#start-the-day");
     expect(html).toContain("More Tools");
-    expect(html).toContain("aria-expanded=\"false\"");
+    expect(html).toContain("/vehicles/coo-workbook/more-tools");
+    expect(html).not.toContain("aria-expanded=\"false\"");
+    expect(html).toContain("Recommended Now");
+    expect(html).toContain("Daily workflow");
+    expect(html).toContain("Work The Day");
+    expect(html).toContain("End The Day");
     expect(html).toContain("Close the Day");
     expect(html).toContain("Review work");
     expect(html).toContain("Confirm carryover");
@@ -701,9 +706,9 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("2 items");
     expect(html).toContain("Report Ready");
     expect(html).toContain("role=\"tablist\"");
-    expect(html).toContain("aria-selected=\"true\"");
-    expect(html).toContain("Daily Close details");
-    expect(html).toContain("Review what must be cleaned up before the day is closed.");
+    expect(html).toContain("aria-selected=\"false\"");
+    expect(html).not.toContain("Daily Close details");
+    expect(html).not.toContain("Review what must be cleaned up before the day is closed.");
     expect(html).toContain("Ready");
     expect(html).toContain("Review now");
     expect(html).toContain("Daily Checklist");
@@ -740,6 +745,7 @@ describe("ServiceAdvisorHome", () => {
     const quickUpdateHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="QUICK_UPDATE" model={model} />);
     const reportSeedsHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="REPORT_SEEDS" model={model} />);
     const draftsHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="DRAFTS" model={model} />);
+    const moreToolsHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="MORE_TOOLS" model={model} />);
 
     expect(checklistHtml).toContain("Add Daily Checklist item");
     expect(checklistHtml).toContain("Status for Review morning approval queue");
@@ -758,6 +764,17 @@ describe("ServiceAdvisorHome", () => {
     expect(draftsHtml).toContain("Weekly");
     expect(draftsHtml).toContain("Monthly");
     expect(draftsHtml).toContain("Copy Draft");
+    expect(moreToolsHtml).toContain("COO Workbook More Tools");
+    expect(moreToolsHtml).toContain("Each tool opens a real workbook area");
+    expect(moreToolsHtml).toContain("10 tools");
+    expect(moreToolsHtml).toContain("Priority Triage");
+    expect(moreToolsHtml).toContain("Follow-Up Center");
+    expect(moreToolsHtml).toContain("Blocker Escalation");
+    expect(moreToolsHtml).toContain("Promise Tracker");
+    expect(moreToolsHtml).toContain("Training Moment Capture");
+    expect(moreToolsHtml).toContain("End-of-Day Assistant");
+    expect(moreToolsHtml).toContain("/vehicles/coo-workbook/action-plan");
+    expect(moreToolsHtml).toContain("/vehicles/coo-workbook/report-seeds");
   });
 
   it("renders the separate COO effectiveness pilot for side-by-side review", () => {

@@ -5,7 +5,6 @@ import {
   CalendarClock,
   CheckSquare,
   CheckCircle2,
-  ChevronDown,
   ClipboardList,
   ClipboardCheck,
   Clock3,
@@ -154,7 +153,11 @@ type DailyFocusPriority = DailyFocusItem["priority"];
 type DailyFocusRisk = DailyFocusItem["riskLevel"];
 type CloseStepView = "DONE" | "TOMORROW" | "DRAFT";
 type CommandCardView = "CLOSE" | "ATTENTION" | "WORK" | "REPORT";
-export type CooWorkbookTool = "CHECKLIST" | "TO_DO_LIST" | "QUICK_UPDATE" | "ACTION_PLAN" | "CARRYOVER" | "REPORT_SEEDS" | "STAFF_SUPPORT" | "DRAFTS";
+type MoreToolCard = { description: string; href: string; icon: typeof ClipboardCheck; outcome: string; title: string; whenToUse: string };
+type WorkflowPhaseKey = "START" | "WORK" | "END";
+type WorkflowPhaseAction = { detail: string; href: string; icon: typeof ClipboardCheck; key: WorkflowPhaseKey; onSelect?: never; title: string } | { detail: string; href?: never; icon: typeof ClipboardCheck; key: WorkflowPhaseKey; onSelect: () => void; title: string };
+type ContextRecommendation = { description: string; href: string; onSelect?: never; phase: WorkflowPhaseKey; title: string } | { description: string; href?: never; onSelect: () => void; phase: WorkflowPhaseKey; title: string };
+export type CooWorkbookTool = "CHECKLIST" | "TO_DO_LIST" | "QUICK_UPDATE" | "ACTION_PLAN" | "CARRYOVER" | "REPORT_SEEDS" | "STAFF_SUPPORT" | "DRAFTS" | "MORE_TOOLS";
 
 const quickUpdateCategories: Array<{ label: string; value: QuickUpdateCategory }> = [
   { label: "Customer", value: "CUSTOMER" },
@@ -242,8 +245,7 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
   const [supportUpdateRequested, setSupportUpdateRequested] = useState(true);
   const [workspaceNotice, setWorkspaceNotice] = useState<string | null>(null);
   const [convertingId, setConvertingId] = useState<string | null>(null);
-  const [commandView, setCommandView] = useState<CommandCardView>("CLOSE");
-  const [moreToolsOpen, setMoreToolsOpen] = useState(false);
+  const [commandView, setCommandView] = useState<CommandCardView | null>(null);
   const [saving, setSaving] = useState(false);
   const approvalCount = actionCount(model, "AUTHORIZATION");
   const reportExceptions = model.counts.needsAttention + model.counts.waitingOnOthers;
@@ -359,11 +361,12 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
       tone: latestReportDraft ? "green" : "blue"
     }
   ];
-  const commandDetailItems = commandView === "CLOSE"
+  const activeCommandView = commandView ?? "CLOSE";
+  const commandDetailItems = activeCommandView === "CLOSE"
     ? closeReadiness.prompts.slice(0, 5).map((prompt, index) => ({ action: index === 0 ? "Open close" : "Review", detail: closeReadinessLabel(closeReadiness.tone), href: "#close-report", id: `close-${index}`, title: prompt }))
-    : commandView === "ATTENTION"
+    : activeCommandView === "ATTENTION"
       ? attentionItems.map((item) => ({ action: item.action, detail: item.context, href: item.href, id: item.id, title: item.title }))
-      : commandView === "WORK"
+      : activeCommandView === "WORK"
         ? [
           ...activeWorkbook.dailyFocusItems.slice(0, 3).map((item) => ({ action: item.status === "DONE" ? "Done" : "Update", detail: item.progressUpdate || item.supportNeeded || item.riskNote || `${item.priority.toLocaleLowerCase()} priority`, href: "/vehicles/coo-workbook/effectiveness-pilot#start-the-day", id: `work-focus-${item.id}`, title: item.outcome })),
           ...checklistItems.slice(0, 4).map((item) => ({ action: item.done ? "Done" : "Update", detail: item.update || checklistStatusLabel(item), href: "/vehicles/coo-workbook/checklist", id: `work-checklist-${item.id}`, title: item.text })),
@@ -372,12 +375,12 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
         : latestReportDraft
           ? latestReportDraft.sections.flatMap((section) => section.items.map((item) => ({ action: "Open draft", detail: section.title, href: "/vehicles/coo-workbook/drafts", id: `draft-${section.title}-${item.sourceId}-${item.title}`, title: item.title }))).slice(0, 5)
           : reportSeeds.filter((seed) => seed.status !== "EXCLUDED").slice(0, 5).map((seed) => ({ action: reportSeedStatusLabel(seed.status), detail: reportSeedSourceLabel(seed), href: "/vehicles/coo-workbook/report-seeds", id: `seed-${seed.id}`, title: seed.title }));
-  const commandDetailTitle = commandCards.find((card) => card.key === commandView)?.label ?? "Daily Close";
-  const commandDetailHelp = commandView === "CLOSE"
+  const commandDetailTitle = commandCards.find((card) => card.key === activeCommandView)?.label ?? "Daily Close";
+  const commandDetailHelp = activeCommandView === "CLOSE"
     ? "Review what must be cleaned up before the day is closed."
-    : commandView === "ATTENTION"
+    : activeCommandView === "ATTENTION"
       ? "Work these items first because they can block customers, staff, or reporting."
-      : commandView === "WORK"
+      : activeCommandView === "WORK"
         ? "Update the work list so progress and report signals stay current."
         : "Review the source-backed items that can become the manager-ready report.";
   const carryoverPreview = [
@@ -404,17 +407,51 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
     { description: `${staffTodayRollup.support} need support · ${staffTodayRollup.ready} ready`, href: "/vehicles/coo-workbook/staff-support", icon: UsersRound, title: "Staff Support" },
     { description: latestReportDraft ? `Saved ${dateLabel(latestReportDraft.generatedAt)}` : "No draft saved yet", href: "/vehicles/coo-workbook/drafts", icon: Clock3, title: "Drafts" }
   ];
-  const moreToolCards: Array<{ action?: () => void; description: string; href?: string; icon: typeof ClipboardCheck; title: string }> = [
-    { description: "Pick the work that should happen first.", href: "/vehicles/coo-workbook/effectiveness-pilot#start-the-day", icon: ClipboardCheck, title: "Start The Day" },
-    { action: () => setCommandView("ATTENTION"), description: "Rank urgent promises, blockers, and follow-ups.", icon: AlertTriangle, title: "Priority Triage" },
-    { href: "/vehicles/coo-workbook/quick-update", description: "Capture follow-up dates from Quick Updates.", icon: CalendarClock, title: "Follow-Up Center" },
-    { action: () => setCommandView("ATTENTION"), description: "Open the attention list for blocked work.", icon: AlertTriangle, title: "Blocker Escalation" },
-    { action: () => setCommandView("ATTENTION"), description: "Review promise-related items and commitments.", icon: ShieldCheck, title: "Promise Tracker" },
-    { href: "/vehicles/coo-workbook/staff-support", description: "Ask for or record manager support.", icon: UsersRound, title: "Manager Help Request" },
-    { href: "/vehicles/coo-workbook/quick-update", description: "Capture coaching or training needs.", icon: MessageSquareText, title: "Training Moment" },
-    { href: "/vehicles/coo-workbook/quick-update", description: "Record a win, lesson, or useful update.", icon: CheckCircle2, title: "Daily Win / Learning" },
-    { href: "/vehicles/coo-workbook/carryover", description: "Prepare unfinished work for tomorrow.", icon: CalendarClock, title: "Smart Carryover" },
-    { action: () => setCommandView("REPORT"), description: "Review what is ready for the report.", icon: FileText, title: "Report Readiness" }
+  const moreToolCards: MoreToolCard[] = [
+    { description: "Rank urgent promises, blockers, and follow-ups before the day gets crowded.", href: "/vehicles/coo-workbook/action-plan", icon: AlertTriangle, outcome: "A short ordered action list for the work that matters most.", title: "Priority Triage", whenToUse: "Use when several issues are competing for attention." },
+    { description: "Review Quick Updates and follow-up dates so nothing important drifts.", href: "/vehicles/coo-workbook/quick-update", icon: CalendarClock, outcome: "Follow-ups have a person, note, and date window.", title: "Follow-Up Center", whenToUse: "Use after customer, vendor, parts, or facility updates." },
+    { description: "Escalate blocked work and connect it to support before close.", href: "/vehicles/coo-workbook/staff-support", icon: AlertTriangle, outcome: "Manager support is requested with context instead of a vague blocker.", title: "Blocker Escalation", whenToUse: "Use when work is red, blocked, or waiting on a decision." },
+    { description: "Review promises and customer commitments that may need protection.", href: "/vehicles/coo-workbook/action-plan", icon: ShieldCheck, outcome: "Promise risks become visible before they become missed commitments.", title: "Promise Tracker", whenToUse: "Use when promised or target times need review." },
+    { description: "Ask for or record manager help without turning the day into paperwork.", href: "/vehicles/coo-workbook/staff-support", icon: UsersRound, outcome: "Support requests are captured for accountability and coaching.", title: "Manager Help Request", whenToUse: "Use when staff need help, clarity, approval, or removal of a blocker." },
+    { description: "Capture a coaching opportunity, process gap, or training need from the day.", href: "/vehicles/coo-workbook/quick-update", icon: MessageSquareText, outcome: "Training moments become useful context for staff development.", title: "Training Moment Capture", whenToUse: "Use when repeated confusion or a learning opportunity appears." },
+    { description: "Record a win, lesson, or useful improvement that should not be lost.", href: "/vehicles/coo-workbook/quick-update", icon: CheckCircle2, outcome: "Good habits and useful lessons show up in reports and coaching.", title: "Daily Win / Learning", whenToUse: "Use when someone solved a problem or learned something worth repeating." },
+    { description: "Prepare unfinished work for tomorrow with clear ownership and context.", href: "/vehicles/coo-workbook/carryover", icon: CalendarClock, outcome: "Tomorrow starts with cleaner carryover instead of rediscovery.", title: "Smart Carryover Builder", whenToUse: "Use when work cannot be completed today." },
+    { description: "Review source-backed items that may belong in the report.", href: "/vehicles/coo-workbook/report-seeds", icon: FileText, outcome: "The report is built from reviewed signals, not noisy raw logs.", title: "Report Seeds", whenToUse: "Use before generating daily, weekly, or monthly summaries." },
+    { description: "Close the day through work review, carryover, and report preparation.", href: "/vehicles/coo-workbook/drafts", icon: ClipboardList, outcome: "The day ends cleanly with a manager-ready draft and tomorrow setup.", title: "End-of-Day Assistant", whenToUse: "Use near close or when the daily report is ready to finalize." }
+  ];
+  const contextRecommendation: ContextRecommendation = !dailyFocusRollup.total
+    ? { description: "No top outcomes are set yet. Start with the work that matters most today.", href: "/vehicles/coo-workbook/effectiveness-pilot#start-the-day", phase: "START" as const, title: "Start The Day" }
+    : supportSignals
+      ? { description: "There are promises, blockers, or follow-ups that can slow the day down.", onSelect: () => setCommandView("ATTENTION"), phase: "WORK" as const, title: "Review Needs Attention" }
+      : quickUpdateRollup.followUp
+        ? { description: "Follow-ups exist. Confirm dates, owners, and next action before they drift.", href: "/vehicles/coo-workbook/quick-update", phase: "WORK" as const, title: "Open Follow-Up Center" }
+        : reportSeedRollup.candidate
+          ? { description: "Report seeds are waiting for review before the draft is generated.", href: "/vehicles/coo-workbook/report-seeds", phase: "END" as const, title: "Review Report Seeds" }
+          : closeReadiness.carryoverItems
+            ? { description: "Unfinished work should be confirmed for tomorrow before close.", href: "/vehicles/coo-workbook/carryover", phase: "END" as const, title: "Prepare Carryover" }
+            : { description: "The day is ready to be summarized into a manager-ready report.", href: "/vehicles/coo-workbook/drafts", phase: "END" as const, title: "Generate Report Draft" };
+  const workflowPhases: WorkflowPhaseAction[] = [
+    {
+      detail: `${dailyFocusRollup.total}/3 focus · ${dailyFocusRollup.done} done`,
+      href: "/vehicles/coo-workbook/effectiveness-pilot#start-the-day",
+      icon: ClipboardCheck,
+      key: "START" as const,
+      title: "Start The Day"
+    },
+    {
+      detail: `${todayWorkRollup.total} planned · ${supportSignals} attention`,
+      icon: ListChecks,
+      key: "WORK" as const,
+      onSelect: () => setCommandView(supportSignals ? "ATTENTION" : "WORK"),
+      title: "Work The Day"
+    },
+    {
+      detail: `${closeReadiness.carryoverItems} carryover · ${reportSeedRollup.active} seeds`,
+      href: "#close-report",
+      icon: FileText,
+      key: "END" as const,
+      title: "End The Day"
+    }
   ];
 
   function openWorkbookTool(toolPath: string) {
@@ -824,7 +861,8 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
       QUICK_UPDATE: "Quick Update",
       REPORT_SEEDS: "Report Seeds",
       STAFF_SUPPORT: "Staff Support",
-      TO_DO_LIST: "To-Do List"
+      TO_DO_LIST: "To-Do List",
+      MORE_TOOLS: "More Tools"
     };
 
     return <section className={`advisor-panel advisor-coo-workbook advisor-coo-tool-page ${compact ? "compact" : "full"}`} id="coo-workbook-tool">
@@ -991,6 +1029,26 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
         </div> : <p>Review report seeds, then generate a manager-ready daily draft.</p>}
       </section> : null}
 
+      {initialTool === "MORE_TOOLS" ? <section className="advisor-coo-focused-tool advisor-coo-more-tools-page" aria-label="More Tools">
+        <header><div><strong>COO Workbook More Tools</strong><small>Use these supporting tools when the day needs extra structure. Each tool opens a real workbook area that already captures work for reports and coaching.</small></div><span>{moreToolCards.length} tools</span></header>
+        <div>
+          {moreToolCards.map((tool) => {
+            const Icon = tool.icon;
+            return <Link href={tool.href} key={tool.title}>
+              <Icon />
+              <span>
+                <strong>{tool.title}</strong>
+                <small>{tool.description}</small>
+              </span>
+              <dl>
+                <div><dt>Use when</dt><dd>{tool.whenToUse}</dd></div>
+                <div><dt>Expected result</dt><dd>{tool.outcome}</dd></div>
+              </dl>
+            </Link>;
+          })}
+        </div>
+      </section> : null}
+
       {workspaceNotice ? <p className="advisor-coo-workspace-notice" role="status">{workspaceNotice}</p> : null}
     </section>;
   }
@@ -1009,30 +1067,31 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
         <Link aria-current="page" href="/vehicles/coo-workbook">Current Workbook</Link>
         <Link href="/vehicles/coo-workbook/effectiveness-pilot">Effectiveness Pilot</Link>
       </nav>
-      <div className="advisor-coo-more-tools">
-        <button aria-expanded={moreToolsOpen} onClick={() => setMoreToolsOpen((open) => !open)} type="button">More Tools <ChevronDown /></button>
-        {moreToolsOpen ? <div className="advisor-coo-more-tools-drawer" role="menu">
-          {moreToolCards.map((tool) => {
-            const Icon = tool.icon;
-            return tool.href ? <Link href={tool.href} key={tool.title} onClick={() => setMoreToolsOpen(false)} role="menuitem">
-              <Icon />
-              <span><strong>{tool.title}</strong><small>{tool.description}</small></span>
-            </Link> : <button key={tool.title} onClick={() => {
-              tool.action?.();
-              setMoreToolsOpen(false);
-            }} role="menuitem" type="button">
-              <Icon />
-              <span><strong>{tool.title}</strong><small>{tool.description}</small></span>
-            </button>;
-          })}
-        </div> : null}
-      </div>
       <div className="advisor-coo-header-actions">
         <Link href="/vehicles/coo-workbook/effectiveness-pilot#start-the-day"><ClipboardCheck /> Start The Day</Link>
         <Link href="/vehicles/coo-workbook/quick-update"><MessageSquareText /> Quick Update</Link>
         <button aria-label={isClosed ? "Open latest report draft" : "Generate Daily Report"} disabled={saving} onClick={() => void generateReportDraft("DAILY", { openDrafts: true })} type="button"><FileText /> {saving ? "Generating..." : isClosed ? "Open Draft" : "Generate Report"}</button>
       </div>
     </header>
+
+    <section className="advisor-coo-workflow-guide" aria-label="Workbook workflow guide">
+      <article>
+        <small>Recommended Now</small>
+        <strong>{contextRecommendation.title}</strong>
+        <span>{contextRecommendation.description}</span>
+        {"href" in contextRecommendation ? <Link href={contextRecommendation.href!}>Open</Link> : <button onClick={contextRecommendation.onSelect} type="button">Open</button>}
+      </article>
+      <nav aria-label="Daily workflow">
+        {workflowPhases.map((phase) => {
+          const Icon = phase.icon;
+          const content = <>
+            <Icon />
+            <span><strong>{phase.title}</strong><small>{phase.detail}</small></span>
+          </>;
+          return "href" in phase ? <Link aria-current={contextRecommendation.phase === phase.key ? "step" : undefined} href={phase.href!} key={phase.key}>{content}</Link> : <button aria-current={contextRecommendation.phase === phase.key ? "step" : undefined} key={phase.key} onClick={phase.onSelect} type="button">{content}</button>;
+        })}
+      </nav>
+    </section>
 
     <section className="advisor-coo-command-strip" aria-label="Today's Command" role="tablist">
       {commandCards.map((card) => {
@@ -1046,7 +1105,7 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
       })}
     </section>
 
-    <section className="advisor-coo-command-detail" aria-label={`${commandDetailTitle} details`} role="tabpanel">
+    {commandView ? <section className="advisor-coo-command-detail" aria-label={`${commandDetailTitle} details`} role="tabpanel">
       <header>
         <div><strong>{commandDetailTitle}</strong><small>{commandDetailHelp}</small></div>
         <span>{commandDetailItems.length ? `${commandDetailItems.length} item(s)` : "Clear"}</span>
@@ -1057,7 +1116,7 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
           <em>{item.action}</em>
         </a>) : <p><CheckCircle2 /> Nothing is waiting in this area right now.</p>}
       </div>
-    </section>
+    </section> : null}
 
     <section className="advisor-coo-landing-grid" aria-label={`${activeWorkbookLabel} daily execution workspace`}>
       <article className="advisor-coo-attention-now">
@@ -1112,6 +1171,7 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
         <div><dt>Staff source</dt><dd>{staffTodayRollup.total} active</dd></div>
       </dl>
       <button disabled={saving} onClick={() => void closeOrReopenDay()} type="button"><FileText /> {saving ? "Saving..." : isClosed ? "Reopen Day" : "Close Day"}</button>
+      <Link className="advisor-coo-more-tools-link" href="/vehicles/coo-workbook/more-tools"><ClipboardList /> More Tools</Link>
     </section>
 
     {workspaceNotice ? <p className="advisor-coo-workspace-notice" role="status">{workspaceNotice}</p> : null}
