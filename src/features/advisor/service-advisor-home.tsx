@@ -138,6 +138,10 @@ function cooTaskIntakeHref(input: { brief: string; dueAt?: string; expectedOutco
 
 type DailyChecklistStatus = "GREEN" | "YELLOW" | "RED";
 type QuickUpdateCategory = "CUSTOMER" | "VENDOR" | "FACILITY" | "STAFF" | "SALES_OPPORTUNITY" | "FINANCE" | "INVENTORY_PARTS" | "SAFETY" | "TRAINING" | "OTHER";
+type ChecklistFilter = "ALL" | "OPEN" | "DONE" | "SUPPORT" | "CARRYOVER";
+type QuickUpdateFilter = "ALL" | "FOLLOW_UP" | "CARRYOVER";
+type ReportSeedFilter = "ACTIVE" | "INCLUDED" | "CANDIDATE" | "CARRYOVER" | "EXCLUDED";
+type StaffTodayFilter = "ALL" | "SUPPORT" | "REVIEW" | "READY";
 
 type WorkdayWorkbookModel = ServiceAdvisorWorkspaceModel["workbook"];
 type StaffWorkbookSummary = ServiceAdvisorWorkspaceModel["staffWorkbookSummaries"][number];
@@ -152,6 +156,14 @@ const checklistStatusOptions: Array<{ label: string; value: DailyChecklistStatus
   { label: "Red", value: "RED" }
 ];
 
+const checklistFilters: Array<{ label: string; value: ChecklistFilter }> = [
+  { label: "All", value: "ALL" },
+  { label: "Open", value: "OPEN" },
+  { label: "Done", value: "DONE" },
+  { label: "Support", value: "SUPPORT" },
+  { label: "Carryover", value: "CARRYOVER" }
+];
+
 const quickUpdateCategories: Array<{ label: string; value: QuickUpdateCategory }> = [
   { label: "Customer", value: "CUSTOMER" },
   { label: "Vendor", value: "VENDOR" },
@@ -163,6 +175,27 @@ const quickUpdateCategories: Array<{ label: string; value: QuickUpdateCategory }
   { label: "Safety", value: "SAFETY" },
   { label: "Training", value: "TRAINING" },
   { label: "Other", value: "OTHER" }
+];
+
+const quickUpdateFilters: Array<{ label: string; value: QuickUpdateFilter }> = [
+  { label: "All", value: "ALL" },
+  { label: "Follow-up", value: "FOLLOW_UP" },
+  { label: "Carryover", value: "CARRYOVER" }
+];
+
+const reportSeedFilters: Array<{ label: string; value: ReportSeedFilter }> = [
+  { label: "Active", value: "ACTIVE" },
+  { label: "Included", value: "INCLUDED" },
+  { label: "Candidate", value: "CANDIDATE" },
+  { label: "Carryover", value: "CARRYOVER" },
+  { label: "Excluded", value: "EXCLUDED" }
+];
+
+const staffTodayFilters: Array<{ label: string; value: StaffTodayFilter }> = [
+  { label: "All staff", value: "ALL" },
+  { label: "Support", value: "SUPPORT" },
+  { label: "Needs review", value: "REVIEW" },
+  { label: "Ready", value: "READY" }
 ];
 
 function statusTone(status: DailyChecklistStatus) {
@@ -234,6 +267,10 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
   const [quickUpdateCompany, setQuickUpdateCompany] = useState("");
   const [quickUpdateFollowUp, setQuickUpdateFollowUp] = useState(false);
   const [quickUpdateDueWindow, setQuickUpdateDueWindow] = useState("");
+  const [checklistFilter, setChecklistFilter] = useState<ChecklistFilter>("ALL");
+  const [quickUpdateFilter, setQuickUpdateFilter] = useState<QuickUpdateFilter>("ALL");
+  const [reportSeedFilter, setReportSeedFilter] = useState<ReportSeedFilter>("ACTIVE");
+  const [staffTodayFilter, setStaffTodayFilter] = useState<StaffTodayFilter>("ALL");
   const [workspaceNotice, setWorkspaceNotice] = useState<string | null>(null);
   const [convertingId, setConvertingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -249,6 +286,39 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
   const reportSeeds = activeWorkbook.reportSeeds;
   const latestReportDraft = activeWorkbook.reportDrafts[0] ?? null;
   const closeReadiness = activeWorkbook.closeReadiness;
+  const filteredChecklistItems = checklistItems.filter((item) => {
+    if (checklistFilter === "OPEN") return !item.done;
+    if (checklistFilter === "DONE") return item.done;
+    if (checklistFilter === "SUPPORT") return !item.done && (item.status === "YELLOW" || item.status === "RED");
+    if (checklistFilter === "CARRYOVER") return item.carryoverReady;
+    return true;
+  });
+  const filteredQuickUpdates = quickUpdates.filter((item) => {
+    if (quickUpdateFilter === "FOLLOW_UP") return item.followUpNeeded;
+    if (quickUpdateFilter === "CARRYOVER") return item.carryoverReady;
+    return true;
+  });
+  const filteredReportSeeds = reportSeeds.filter((seed) => {
+    if (reportSeedFilter === "ACTIVE") return seed.status !== "EXCLUDED";
+    if (reportSeedFilter === "CARRYOVER") return seed.status === "CARRIED_OVER";
+    return seed.status === reportSeedFilter;
+  });
+  const filteredStaffWorkbookSummaries = staffWorkbookSummaries.filter((item) => staffTodayFilter === "ALL" || item.closeReadinessTone === staffTodayFilter);
+  const staffTodayRollup = {
+    ready: staffWorkbookSummaries.filter((item) => item.closeReadinessTone === "READY").length,
+    review: staffWorkbookSummaries.filter((item) => item.closeReadinessTone === "REVIEW").length,
+    support: staffWorkbookSummaries.filter((item) => item.closeReadinessTone === "SUPPORT").length,
+    total: staffWorkbookSummaries.length
+  };
+  const closeNextStep = closeReadiness.checklistNeedsSupport + closeReadiness.quickFollowUps > 0
+    ? "Resolve support items first"
+    : closeReadiness.carryoverItems > 0
+      ? "Confirm tomorrow carryover"
+      : closeReadiness.reportSeedCount > closeReadiness.reviewedSeedCount
+        ? "Review remaining seeds"
+        : latestReportDraft
+          ? "Ready for manager review"
+          : "Generate Daily Report Draft";
   const actionPlan = [
     {
       empty: "No urgent operating actions are waiting.",
@@ -582,6 +652,7 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
       </div>
       <ul>
         <li><strong>{closeReadinessLabel(closeReadiness.tone)}</strong></li>
+        <li><strong>Next:</strong> {closeNextStep}</li>
         {closeReadiness.prompts.slice(0, 4).map((prompt) => <li key={prompt}>{prompt}</li>)}
       </ul>
     </section> : null}
@@ -591,6 +662,9 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
           <div><strong>{activeWorkbookLabel} Daily Checklist</strong><small>Simple same-day list. Convert only the items that need formal task tracking.</small></div>
           <span>{checklistItems.filter((item) => item.done).length}/{checklistItems.length} done</span>
         </header>
+        <nav className="advisor-coo-section-filters" aria-label="Filter Daily Checklist">
+          {checklistFilters.map((option) => <button aria-pressed={checklistFilter === option.value} key={option.value} onClick={() => setChecklistFilter(option.value)} type="button">{option.label}</button>)}
+        </nav>
         <div className="advisor-coo-inline-form">
           <input aria-label="Add Daily Checklist item" onChange={(event) => setChecklistText(event.target.value)} onKeyDown={(event) => {
             if (event.key === "Enter") {
@@ -601,7 +675,7 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
           <button disabled={saving || !checklistText.trim()} onClick={() => void addChecklistItem()} type="button"><Plus /> Add</button>
         </div>
         <div className="advisor-coo-checklist-items">
-          {checklistItems.length ? checklistItems.map((item) => <div className={`advisor-coo-checklist-item ${statusTone(item.status)} ${item.done ? "done" : ""}`} key={item.id}>
+          {filteredChecklistItems.length ? filteredChecklistItems.map((item) => <div className={`advisor-coo-checklist-item ${statusTone(item.status)} ${item.done ? "done" : ""}`} key={item.id}>
             <button aria-label={`Mark ${item.text} ${item.done ? "not done" : "done"}`} className="advisor-coo-check" onClick={() => void persistChecklistItem(item.id, { done: !item.done, status: !item.done ? "GREEN" : item.status })} type="button"><CheckSquare /></button>
             <div>
               <strong>{item.text}</strong>
@@ -613,7 +687,7 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
             </select>
             <button aria-pressed={item.carryoverReady} onClick={() => void persistChecklistItem(item.id, { carryoverReady: !item.carryoverReady })} type="button">{item.carryoverReady ? "Carryover" : "Carry over"}</button>
             {item.convertedTaskId ? <Link href={`/tasks/${item.convertedTaskId}`}>Open task</Link> : <button disabled={convertingId === item.id} onClick={() => void convertToTask("checklist", item)} type="button">{convertingId === item.id ? "Converting..." : "Convert"}</button>}
-          </div>) : <p><ListChecks /> Add a quick list of what needs to get done today.</p>}
+          </div>) : <p><ListChecks /> {checklistItems.length ? "No checklist items match this filter." : "Add a quick list of what needs to get done today."}</p>}
         </div>
       </article>
       <article className="advisor-coo-quick-update">
@@ -621,6 +695,9 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
           <div><strong>{activeWorkbookLabel} Quick Update</strong><small>Capture unplanned events, visitors, facility issues, or anything worth remembering.</small></div>
           <span>{quickUpdates.length} captured</span>
         </header>
+        <nav className="advisor-coo-section-filters" aria-label="Filter Quick Updates">
+          {quickUpdateFilters.map((option) => <button aria-pressed={quickUpdateFilter === option.value} key={option.value} onClick={() => setQuickUpdateFilter(option.value)} type="button">{option.label}</button>)}
+        </nav>
         <textarea aria-label="Quick Update details" onChange={(event) => setQuickUpdateText(event.target.value)} placeholder="Example: AJ checked the roof today and may fix it in the next few weeks." value={quickUpdateText} />
         <div className="advisor-coo-quick-fields">
           <select aria-label="Quick Update category" onChange={(event) => setQuickUpdateCategory(event.target.value as QuickUpdateCategory)} value={quickUpdateCategory}>
@@ -638,9 +715,17 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
       {workspaceNotice ? <p className="advisor-coo-workspace-notice" role="status">{workspaceNotice}</p> : null}
     </section> : null}
     {!compact ? <section className="advisor-coo-staff-visibility" aria-label="Staff Today">
-      <header><div><strong>Staff Today</strong><small>Summary-first visibility for coaching, support, and carryover planning.</small></div><span>{staffWorkbookSummaries.length} active</span></header>
+      <header><div><strong>Staff Today</strong><small>Summary-first visibility for coaching, support, and carryover planning.</small></div><span>{staffTodayRollup.total} active</span></header>
+      <div className="advisor-coo-staff-rollup">
+        <span><strong>{staffTodayRollup.support}</strong><small>Support</small></span>
+        <span><strong>{staffTodayRollup.review}</strong><small>Review</small></span>
+        <span><strong>{staffTodayRollup.ready}</strong><small>Ready</small></span>
+      </div>
+      <nav className="advisor-coo-section-filters" aria-label="Filter Staff Today">
+        {staffTodayFilters.map((option) => <button aria-pressed={staffTodayFilter === option.value} key={option.value} onClick={() => setStaffTodayFilter(option.value)} type="button">{option.label}</button>)}
+      </nav>
       <div>
-        {staffWorkbookSummaries.length ? staffWorkbookSummaries.map((item) => <article className={staffSupportTone(item)} key={item.workbookId}>
+        {filteredStaffWorkbookSummaries.length ? filteredStaffWorkbookSummaries.map((item) => <article className={staffSupportTone(item)} key={item.workbookId}>
           <span><strong>{item.staffName}</strong><small>{item.latestUpdateAt ? `Latest update ${dateLabel(item.latestUpdateAt)}` : "No update yet"}</small></span>
           <b className={`advisor-coo-staff-close ${item.closeReadinessTone.toLocaleLowerCase()}`}>{item.closeReadinessScore}<small>/100</small><em>{staffCloseLabel(item)}</em></b>
           <dl>
@@ -651,26 +736,32 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
           </dl>
           <small>{item.reportSeedCount} report seed(s) · {item.reviewedSeedCount} reviewed · {staffDraftLabel(item)}</small>
           <p>{item.closeReadinessPrompts[0] ?? "Ready for daily close review."}</p>
-        </article>) : <p><UsersRound /> Staff workbook summaries will appear as each person starts their day.</p>}
+        </article>) : <p><UsersRound /> {staffWorkbookSummaries.length ? "No staff workbooks match this filter." : "Staff workbook summaries will appear as each person starts their day."}</p>}
       </div>
     </section> : null}
     {!compact ? <section className="advisor-coo-updates-seeds" aria-label="Today&apos;s updates and report seeds">
       <article>
         <header><strong>Today&apos;s Updates</strong><small>Unplanned items captured today.</small></header>
+        <nav className="advisor-coo-section-filters" aria-label="Filter Today's Updates">
+          {quickUpdateFilters.map((option) => <button aria-pressed={quickUpdateFilter === option.value} key={option.value} onClick={() => setQuickUpdateFilter(option.value)} type="button">{option.label}</button>)}
+        </nav>
         <div>
-          {quickUpdates.length ? quickUpdates.map((item) => <div className="advisor-coo-update-item" key={item.id}>
+          {filteredQuickUpdates.length ? filteredQuickUpdates.map((item) => <div className="advisor-coo-update-item" key={item.id}>
             <span><strong>{quickUpdateCategoryLabel(item.category)}</strong><small>{dateLabel(item.createdAt)}</small></span>
             <p>{item.text}</p>
             <small>{[item.person, item.company, item.followUpNeeded ? `Follow-up: ${item.dueWindow || "needed"}` : "", item.carryoverReady ? "Carryover ready" : ""].filter(Boolean).join(" · ") || "No extra details"}</small>
             <button aria-pressed={item.carryoverReady} onClick={() => void persistQuickUpdate(item.id, { carryoverReady: !item.carryoverReady })} type="button">{item.carryoverReady ? "Carryover" : "Carry over"}</button>
             {item.convertedTaskId ? <Link href={`/tasks/${item.convertedTaskId}`}>Open task</Link> : <button disabled={convertingId === item.id} onClick={() => void convertToTask("quick", item)} type="button">{convertingId === item.id ? "Converting..." : "Convert to task"}</button>}
-          </div>) : <p><MessageSquareText /> No Quick Updates captured yet.</p>}
+          </div>) : <p><MessageSquareText /> {quickUpdates.length ? "No Quick Updates match this filter." : "No Quick Updates captured yet."}</p>}
         </div>
       </article>
       <article>
         <header><strong>Report Seeds</strong><small>Meaningful checklist items, Quick Updates, and operating exceptions.</small></header>
+        <nav className="advisor-coo-section-filters" aria-label="Filter Report Seeds">
+          {reportSeedFilters.map((option) => <button aria-pressed={reportSeedFilter === option.value} key={option.value} onClick={() => setReportSeedFilter(option.value)} type="button">{option.label}</button>)}
+        </nav>
         <div>
-          {reportSeeds.length ? reportSeeds.map((seed) => <div className={`advisor-coo-seed-item ${reportSeedTone(seed.tone)}`} key={seed.id}>
+          {filteredReportSeeds.length ? filteredReportSeeds.map((seed) => <div className={`advisor-coo-seed-item ${reportSeedTone(seed.tone)}`} key={seed.id}>
             <span><strong>{seed.title}</strong><small>{reportSeedSourceLabel(seed)} · {reportSeedStatusLabel(seed.status)}</small></span>
             <div className="advisor-coo-seed-actions">
               <button aria-pressed={seed.status === "INCLUDED"} onClick={() => void persistReportSeed(seed.id, { status: "INCLUDED" })} type="button">Include</button>
@@ -682,7 +773,7 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
               <textarea aria-label={`Report Seed detail for ${seed.title}`} onBlur={() => void persistReportSeed(seed.id, { detail: seed.detail })} onChange={(event) => updateReportSeed(seed.id, { detail: event.target.value })} value={seed.detail} />
               <input aria-label={`Review note for ${seed.title}`} onBlur={() => void persistReportSeed(seed.id, { reviewNote: seed.reviewNote })} onChange={(event) => updateReportSeed(seed.id, { reviewNote: event.target.value })} placeholder="Optional review note..." value={seed.reviewNote} />
             </div>
-          </div>) : <p><FileText /> No report seeds yet. Work the day, then generate the report trail.</p>}
+          </div>) : <p><FileText /> {reportSeeds.length ? "No report seeds match this filter." : "No report seeds yet. Work the day, then generate the report trail."}</p>}
         </div>
       </article>
     </section> : null}
