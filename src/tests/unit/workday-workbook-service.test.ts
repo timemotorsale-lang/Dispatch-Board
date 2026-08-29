@@ -105,6 +105,8 @@ function workbook(userId = "user-jordan.sales@local.test"): WorkdayWorkbookRecor
         riskLevel: WorkdayRiskLevel.BLOCKED,
         riskNote: "Waiting on AJ to confirm timing.",
         supportNeeded: "Need manager approval if roof quote is high.",
+        progressUpdate: "",
+        lastProgressAt: null,
         status: WorkdayDailyFocusStatus.PLANNED,
         sortOrder: 0,
         convertedTaskId: null,
@@ -405,6 +407,22 @@ describe("workday workbook service", () => {
     ]);
   });
 
+  it("includes Daily Focus progress updates in report seed details", () => {
+    const seeds = buildWorkdayReportSeeds({
+      ...workbook(),
+      dailyFocusItems: workbook().dailyFocusItems.map((item) => ({
+        ...item,
+        progressUpdate: "Customer callback completed and approval is waiting."
+      }))
+    }, {
+      approvalCount: 0,
+      handoffCount: 0,
+      reportExceptions: 0
+    });
+
+    expect(seeds.find((seed) => seed.sourceId === "daily-focus:focus-1")?.detail).toContain("Progress update: Customer callback completed and approval is waiting.");
+  });
+
 
   it("builds a saved daily report draft from reviewed seeds and excludes rejected noise", () => {
     const draft = buildWorkdayDailyReportDraft(workbook(), "2026-08-29");
@@ -587,6 +605,34 @@ describe("workday workbook service", () => {
         id: "focus-1",
         riskLevel: WorkdayRiskLevel.NONE,
         status: WorkdayDailyFocusStatus.DONE
+      })
+    ]);
+  });
+
+  it("saves Daily Focus progress updates as report-worthy activity", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("jordan.sales@local.test")!;
+    const harness = repositoryHarness(user.id);
+
+    await updateWorkbookDailyFocusItem(user, "focus-1", {
+      progressUpdate: "Called AJ and confirmed roof quote timing."
+    }, { repository: harness.repository });
+
+    expect(harness.dailyFocusUpdates).toEqual([
+      expect.objectContaining({
+        id: "focus-1",
+        progressUpdate: "Called AJ and confirmed roof quote timing.",
+        lastProgressAt: expect.any(Date)
+      })
+    ]);
+    expect(harness.createdActivitySignals).toEqual([
+      expect.objectContaining({
+        actionType: "workbook.daily_focus_progress_updated",
+        businessImpact: expect.stringContaining("Called AJ and confirmed roof quote timing."),
+        purpose: WorkdayActivityPurpose.REPORT_WORTHY_EVENT,
+        reportRelevant: true,
+        sourceId: "daily-focus:focus-1",
+        sourceType: "DAILY_FOCUS"
       })
     ]);
   });

@@ -201,6 +201,16 @@ describe("COO workbook checklist route", () => {
     expect(mocks.updateWorkbookDailyFocusItem).toHaveBeenCalledWith(user, "focus-1", { status: "DONE" });
   });
 
+  it("routes Daily Focus progress updates to the workbook service", async () => {
+    const response = await PATCHDailyFocus(new Request("http://localhost/api/coo-workbook/daily-focus/focus-1", {
+      method: "PATCH",
+      body: JSON.stringify({ progressUpdate: "Customer callback completed." })
+    }), { params: Promise.resolve({ itemId: "focus-1" }) });
+
+    expect(response.status).toBe(200);
+    expect(mocks.updateWorkbookDailyFocusItem).toHaveBeenCalledWith(user, "focus-1", { progressUpdate: "Customer callback completed." });
+  });
+
   it("creates staff Quick Updates through the staff workbook service", async () => {
     const response = await POSTStaffQuickUpdate(new Request("http://localhost/api/coo-workbook/staff/quick-updates?date=2026-08-29", {
       method: "POST",

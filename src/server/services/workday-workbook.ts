@@ -231,7 +231,7 @@ function classifyActivityPurpose(eventType: string, metadata: Record<string, unk
   const sourceType = typeof metadata.sourceType === "string" ? metadata.sourceType : "";
 
   if (normalized.includes("completed") || normalized.includes("complete")) return WorkdayActivityPurpose.COMPLETED_WORK;
-  if (normalized.includes("quick_update") || normalized.includes("report_seed") || normalized.includes("report_draft")) return WorkdayActivityPurpose.REPORT_WORTHY_EVENT;
+  if (normalized.includes("progress") || normalized.includes("quick_update") || normalized.includes("report_seed") || normalized.includes("report_draft")) return WorkdayActivityPurpose.REPORT_WORTHY_EVENT;
   if (normalized.includes("support")) return WorkdayActivityPurpose.SUPPORT_REQUEST;
   if (normalized.includes("carryover")) return WorkdayActivityPurpose.CARRYOVER;
   if (normalized.includes("blocked") || normalized.includes("risk") || sourceType === "BLOCKER_RISK") return WorkdayActivityPurpose.BLOCKER_RISK;
@@ -585,12 +585,13 @@ export function buildWorkdayReportSeeds(
   const seeds: WorkdayReportSeedInput[] = [];
 
   for (const item of workbook.dailyFocusItems) {
-    if (item.status === WorkdayDailyFocusStatus.DONE && item.riskLevel === WorkdayRiskLevel.NONE && !item.supportNeeded.trim() && !item.riskNote.trim()) {
+    if (item.status === WorkdayDailyFocusStatus.DONE && item.riskLevel === WorkdayRiskLevel.NONE && !item.supportNeeded.trim() && !item.riskNote.trim() && !item.progressUpdate.trim()) {
       continue;
     }
     seeds.push({
       detail: [
         item.status === WorkdayDailyFocusStatus.DONE ? "Completed today." : item.status === WorkdayDailyFocusStatus.CARRY_OVER ? "Needs carryover." : "Planned daily outcome.",
+        item.progressUpdate ? `Progress update: ${item.progressUpdate}.` : "",
         item.mustCloseToday ? "Must close before end of day." : "",
         item.supportNeeded ? `Support needed: ${item.supportNeeded}.` : "",
         item.riskNote ? `Risk: ${item.riskNote}.` : ""
@@ -922,6 +923,8 @@ function toReadModel(workbook: WorkdayWorkbookRecord, operatingSignals: WorkdayW
       riskLevel: item.riskLevel,
       riskNote: item.riskNote,
       supportNeeded: item.supportNeeded,
+      progressUpdate: item.progressUpdate,
+      lastProgressAt: item.lastProgressAt ? dateToIso(item.lastProgressAt) : null,
       status: item.status,
       sortOrder: item.sortOrder,
       convertedTaskId: item.convertedTaskId,
@@ -1192,13 +1195,29 @@ export async function updateWorkbookDailyFocusItem(actor: AuthenticatedUser | nu
     mustCloseToday: normalizeBoolean(payload.mustCloseToday, "mustCloseToday"),
     outcome: payload.outcome === undefined ? undefined : normalizeRequiredText(payload.outcome, "Daily Focus outcome is required.", 500),
     priority: normalizeOptionalPriority(payload.priority),
+    progressUpdate: normalizeOptionalText(payload.progressUpdate, "progressUpdate", 1000),
+    lastProgressAt: payload.progressUpdate === undefined ? undefined : new Date(),
     riskLevel: normalizeOptionalRiskLevel(payload.riskLevel),
     riskNote: normalizeOptionalText(payload.riskNote, "riskNote", 500),
     sortOrder: payload.sortOrder === undefined ? undefined : normalizeNumber(payload.sortOrder, "sortOrder"),
     status: normalizeDailyFocusStatus(payload.status),
     supportNeeded: normalizeOptionalText(payload.supportNeeded, "supportNeeded", 500)
   });
-  await recordWorkbookActivity(repository, user, item.workbook, "workbook.daily_focus_updated", `${user.name} updated a daily focus outcome.`, { dailyFocusItemId: item.id, status: payload.status ?? item.status });
+  const progressUpdate = normalizeOptionalText(payload.progressUpdate, "progressUpdate", 1000);
+  await recordWorkbookActivity(
+    repository,
+    user,
+    item.workbook,
+    progressUpdate !== undefined ? "workbook.daily_focus_progress_updated" : "workbook.daily_focus_updated",
+    progressUpdate !== undefined ? `${user.name} updated Daily Focus progress: ${progressUpdate}` : `${user.name} updated a daily focus outcome.`,
+    {
+      dailyFocusItemId: item.id,
+      progressUpdate,
+      sourceId: `daily-focus:${item.id}`,
+      sourceType: "DAILY_FOCUS",
+      status: payload.status ?? item.status
+    }
+  );
   return { ok: true };
 }
 
@@ -1392,7 +1411,7 @@ export async function closeWorkbookDay(actor: AuthenticatedUser | null, boardDat
   await repository.upsertCarryovers({ carryovers, workbookId: workbook.id });
   const snapshot = {
     carryoverCount: carryovers.length,
-    dailyFocusItems: workbook.dailyFocusItems.map((item) => ({ id: item.id, outcome: item.outcome, mustCloseToday: item.mustCloseToday, priority: item.priority, riskLevel: item.riskLevel, status: item.status, supportNeeded: item.supportNeeded })),
+    dailyFocusItems: workbook.dailyFocusItems.map((item) => ({ id: item.id, outcome: item.outcome, mustCloseToday: item.mustCloseToday, priority: item.priority, progressUpdate: item.progressUpdate, riskLevel: item.riskLevel, status: item.status, supportNeeded: item.supportNeeded })),
     checklistItems: workbook.checklistItems.map((item) => ({ id: item.id, text: item.text, status: item.status, done: item.done, update: item.update })),
     closeReadiness: buildCloseReadiness(workbook),
     effectiveness: buildDailyEffectiveness(workbook),

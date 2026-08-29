@@ -21,7 +21,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 
 import type { ServiceAdvisorWorkspaceModel } from "@/server/advisor-workspace/service";
 
@@ -1049,10 +1049,11 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
   const [focusPriority, setFocusPriority] = useState<DailyFocusPriority>("HIGH");
   const [focusRisk, setFocusRisk] = useState<DailyFocusRisk>("NONE");
   const [focusMustClose, setFocusMustClose] = useState(true);
+  const [focusProgressUpdates, setFocusProgressUpdates] = useState<Record<string, string>>({});
   const [supportNeeded, setSupportNeeded] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [attentionSessionKey] = useState(() => `coo-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const attentionSessionKey = useId().replaceAll(":", "");
   const activeWorkbook = workbookView === "MY" ? staffWorkbook : workbook;
   const activeLabel = workbookView === "MY" ? "My Workbook" : "COO Workbook";
   const coaching = activeWorkbook.coaching;
@@ -1175,7 +1176,7 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
     }
   }
 
-  async function updateDailyFocus(item: DailyFocusItem, input: Partial<Pick<DailyFocusItem, "mustCloseToday" | "outcome" | "priority" | "riskLevel" | "riskNote" | "status" | "supportNeeded">>) {
+  async function updateDailyFocus(item: DailyFocusItem, input: Partial<Pick<DailyFocusItem, "mustCloseToday" | "outcome" | "priority" | "progressUpdate" | "riskLevel" | "riskNote" | "status" | "supportNeeded">>) {
     setSaving(true);
     try {
       const response = await fetch(`/api/coo-workbook/daily-focus/${encodeURIComponent(item.id)}`, {
@@ -1192,6 +1193,16 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
     } finally {
       setSaving(false);
     }
+  }
+
+  async function saveDailyFocusProgress(item: DailyFocusItem) {
+    const progressUpdate = (focusProgressUpdates[item.id] ?? item.progressUpdate ?? "").trim();
+    if (!progressUpdate) {
+      setNotice("Add a short progress update first.");
+      return;
+    }
+    await updateDailyFocus(item, { progressUpdate });
+    setFocusProgressUpdates((current) => ({ ...current, [item.id]: progressUpdate }));
   }
 
   async function askForSupport() {
@@ -1277,6 +1288,11 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
             <span><strong>{item.outcome}</strong><small>{item.priority.toLocaleLowerCase()} · {item.mustCloseToday ? "must close" : "flexible"}</small></span>
             <select aria-label={`Status for ${item.outcome}`} disabled={saving || isPilotClosed} onChange={(event) => void updateDailyFocus(item, { status: event.target.value as DailyFocusStatus })} value={item.status}>{focusStatuses.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select>
             <select aria-label={`Risk for ${item.outcome}`} disabled={saving || isPilotClosed} onChange={(event) => void updateDailyFocus(item, { riskLevel: event.target.value as DailyFocusRisk })} value={item.riskLevel}>{focusRiskLevels.map((risk) => <option key={risk.value} value={risk.value}>{risk.label}</option>)}</select>
+            <div className="advisor-coo-focus-progress">
+              <input aria-label={`Progress update for ${item.outcome}`} disabled={saving || isPilotClosed} onChange={(event) => setFocusProgressUpdates((current) => ({ ...current, [item.id]: event.target.value }))} placeholder="Quick progress update..." value={focusProgressUpdates[item.id] ?? item.progressUpdate ?? ""} />
+              <button disabled={saving || isPilotClosed || !(focusProgressUpdates[item.id] ?? item.progressUpdate ?? "").trim()} onClick={() => void saveDailyFocusProgress(item)} type="button">Save Update</button>
+              {item.progressUpdate ? <small>Last update: {item.progressUpdate}</small> : null}
+            </div>
           </article>) : <p><CheckCircle2 /> Add up to three outcomes that would make today successful.</p>}
         </div>
       </article>

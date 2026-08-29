@@ -131,7 +131,7 @@ export type WorkdayWorkbookRepository = {
   reopenWorkbook(input: { id: string }): Promise<void>;
   updateChecklistItem(input: { carryoverReady?: boolean; convertedTaskId?: string | null; done?: boolean; id: string; priority?: WorkdayPriority; riskLevel?: WorkdayRiskLevel; riskNote?: string; status?: WorkdayChecklistStatus; update?: string }): Promise<void>;
   updateCarryover(input: { convertedTaskId?: string | null; dismissedReason?: string; id: string; status: WorkdayCarryoverStatus }): Promise<void>;
-  updateDailyFocusItem(input: { convertedTaskId?: string | null; id: string; mustCloseToday?: boolean; outcome?: string; priority?: WorkdayPriority; riskLevel?: WorkdayRiskLevel; riskNote?: string; sortOrder?: number; status?: WorkdayDailyFocusStatus; supportNeeded?: string }): Promise<void>;
+  updateDailyFocusItem(input: { convertedTaskId?: string | null; id: string; lastProgressAt?: Date | null; mustCloseToday?: boolean; outcome?: string; priority?: WorkdayPriority; progressUpdate?: string; riskLevel?: WorkdayRiskLevel; riskNote?: string; sortOrder?: number; status?: WorkdayDailyFocusStatus; supportNeeded?: string }): Promise<void>;
   updateQuickUpdate(input: { carryoverReady?: boolean; category?: WorkdayQuickUpdateCategory; company?: string; convertedTaskId?: string | null; dueWindow?: string; followUpNeeded?: boolean; id: string; person?: string; text?: string }): Promise<void>;
   updateReportSeed(input: { detail?: string; id: string; reviewNote?: string; status?: WorkdayReportSeedStatus; title?: string }): Promise<void>;
   updateSupportAction(input: { id: string; note?: string; requestedUpdate?: boolean; status: WorkdaySupportActionStatus }): Promise<void>;
@@ -400,6 +400,7 @@ export function createWorkdayWorkbookRepository(database: WorkdayWorkbookDatabas
           ...(input.mustCloseToday !== undefined ? { mustCloseToday: input.mustCloseToday } : {}),
           ...(input.outcome !== undefined ? { outcome: input.outcome } : {}),
           ...(input.priority !== undefined ? { priority: input.priority } : {}),
+          ...(input.progressUpdate !== undefined ? { progressUpdate: input.progressUpdate, lastProgressAt: input.lastProgressAt ?? new Date() } : {}),
           ...(input.riskLevel !== undefined ? { riskLevel: input.riskLevel } : {}),
           ...(input.riskNote !== undefined ? { riskNote: input.riskNote } : {}),
           ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),

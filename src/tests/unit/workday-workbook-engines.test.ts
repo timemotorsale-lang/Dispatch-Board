@@ -51,6 +51,8 @@ function workbook(overrides: Partial<WorkdayWorkbookRecord> = {}): WorkdayWorkbo
         riskLevel: WorkdayRiskLevel.WATCH,
         riskNote: "Waiting on one callback.",
         supportNeeded: "Manager backup if no response.",
+        progressUpdate: "",
+        lastProgressAt: null,
         status: WorkdayDailyFocusStatus.PLANNED,
         sortOrder: 0,
         convertedTaskId: null,

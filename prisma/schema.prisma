@@ -6833,6 +6833,8 @@ model WorkdayDailyFocusItem {
   riskLevel       WorkdayRiskLevel        @default(NONE)
   riskNote        String                  @default("")
   supportNeeded   String                  @default("")
+  progressUpdate  String                  @default("")
+  lastProgressAt  DateTime?
   status          WorkdayDailyFocusStatus @default(PLANNED)
   sortOrder       Int                     @default(0)
   convertedTaskId String?

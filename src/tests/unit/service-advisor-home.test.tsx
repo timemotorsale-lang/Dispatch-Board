@@ -43,6 +43,8 @@ const model = {
         riskLevel: "WATCH",
         riskNote: "Customer callback may delay close.",
         supportNeeded: "Need manager backup if no response.",
+        progressUpdate: "",
+        lastProgressAt: null,
         status: "PLANNED",
         sortOrder: 0,
         convertedTaskId: null,
@@ -354,6 +356,8 @@ const model = {
         riskLevel: "NONE",
         riskNote: "",
         supportNeeded: "",
+        progressUpdate: "",
+        lastProgressAt: null,
         status: "DONE",
         sortOrder: 0,
         convertedTaskId: null,
@@ -752,6 +756,8 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("Current Workbook");
     expect(html).toContain("Effectiveness Pilot");
     expect(html).toContain("Start The Day");
+    expect(html).toContain("Quick progress update");
+    expect(html).toContain("Save Update");
     expect(html).toContain("Daily Effectiveness");
     expect(html).toContain("Coaching Panel");
     expect(html).toContain("Ask For Support");
