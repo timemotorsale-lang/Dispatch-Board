@@ -261,6 +261,15 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
     open: checklistItems.filter((item) => !item.done).length,
     support: checklistItems.filter((item) => !item.done && (item.status === "YELLOW" || item.status === "RED")).length
   };
+  const dailyFocusRollup = {
+    done: activeWorkbook.dailyFocusItems.filter((item) => item.status === "DONE").length,
+    open: activeWorkbook.dailyFocusItems.filter((item) => item.status !== "DONE").length,
+    total: activeWorkbook.dailyFocusItems.length
+  };
+  const todayWorkRollup = {
+    done: dailyFocusRollup.done + checklistRollup.done,
+    total: dailyFocusRollup.total + checklistItems.length
+  };
   const quickUpdateRollup = {
     carryover: quickUpdates.filter((item) => item.carryoverReady).length,
     followUp: quickUpdates.filter((item) => item.followUpNeeded).length,
@@ -335,8 +344,8 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
       icon: ListChecks,
       key: "WORK" as const,
       label: "Today’s Work",
-      meta: `${checklistRollup.done} done`,
-      stat: `${checklistItems.length} items`,
+      meta: `${todayWorkRollup.done} done`,
+      stat: `${todayWorkRollup.total} items`,
       tone: "blue"
     },
     {
@@ -354,9 +363,10 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
       ? attentionItems.map((item) => ({ action: item.action, detail: item.context, href: item.href, id: item.id, title: item.title }))
       : commandView === "WORK"
         ? [
+          ...activeWorkbook.dailyFocusItems.slice(0, 3).map((item) => ({ action: item.status === "DONE" ? "Done" : "Update", detail: item.progressUpdate || item.supportNeeded || item.riskNote || `${item.priority.toLocaleLowerCase()} priority`, href: "/vehicles/coo-workbook/effectiveness-pilot#start-the-day", id: `work-focus-${item.id}`, title: item.outcome })),
           ...checklistItems.slice(0, 4).map((item) => ({ action: item.done ? "Done" : "Update", detail: item.update || checklistStatusLabel(item), href: "/vehicles/coo-workbook/checklist", id: `work-checklist-${item.id}`, title: item.text })),
           ...quickUpdates.slice(0, 2).map((item) => ({ action: item.followUpNeeded ? "Follow up" : "Review", detail: quickUpdateCategoryLabel(item.category), href: "/vehicles/coo-workbook/quick-update", id: `work-quick-${item.id}`, title: item.text }))
-        ].slice(0, 5)
+        ].slice(0, 6)
         : latestReportDraft
           ? latestReportDraft.sections.flatMap((section) => section.items.map((item) => ({ action: "Open draft", detail: section.title, href: "/vehicles/coo-workbook/drafts", id: `draft-${section.title}-${item.sourceId}-${item.title}`, title: item.title }))).slice(0, 5)
           : reportSeeds.filter((seed) => seed.status !== "EXCLUDED").slice(0, 5).map((seed) => ({ action: reportSeedStatusLabel(seed.status), detail: reportSeedSourceLabel(seed), href: "/vehicles/coo-workbook/report-seeds", id: `seed-${seed.id}`, title: seed.title }));
@@ -986,6 +996,7 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
         <Link href="/vehicles/coo-workbook/effectiveness-pilot">Effectiveness Pilot</Link>
       </nav>
       <div className="advisor-coo-header-actions">
+        <Link href="/vehicles/coo-workbook/effectiveness-pilot#start-the-day"><ClipboardCheck /> Start The Day</Link>
         <Link href="/vehicles/coo-workbook/quick-update"><MessageSquareText /> Quick Update</Link>
         <button aria-label={isClosed ? "Open latest report draft" : "Generate Daily Report"} disabled={saving} onClick={() => void generateReportDraft("DAILY", { openDrafts: true })} type="button"><FileText /> {saving ? "Generating..." : isClosed ? "Open Draft" : "Generate Report"}</button>
       </div>
@@ -1058,7 +1069,7 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
         </nav>
       </header>
       <div className="advisor-coo-close-flow">
-        <span><CheckCircle2 /><strong>Review work</strong><small>{checklistRollup.done}/{checklistItems.length} checklist done</small></span>
+        <span><CheckCircle2 /><strong>Review work</strong><small>{todayWorkRollup.done}/{todayWorkRollup.total} planned done</small></span>
         <span><CalendarClock /><strong>Confirm carryover</strong><small>{closeReadiness.carryoverItems} item(s)</small></span>
         <span><FileText /><strong>Generate report</strong><small>{latestReportDraft ? `Draft v${latestReportDraft.version}` : "Ready when reviewed"}</small></span>
       </div>
@@ -1352,7 +1363,7 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
     </section>
 
     <section className="advisor-coo-effectiveness-grid" aria-label={`${activeLabel} effectiveness pilot`}>
-      <article className="advisor-coo-start-day">
+      <article className="advisor-coo-start-day" id="start-the-day">
         <header><div><strong>Start The Day</strong><small>Choose the top outcomes before work gets noisy.</small></div><span>{dailyFocus.length}/3 focus</span></header>
         {isPilotClosed ? <p className="advisor-coo-workspace-notice" role="status">This workbook day is closed. Reopen it before adding or changing today&apos;s outcomes. <button disabled={saving} onClick={() => void reopenPilotWorkbook()} type="button">Reopen Day</button></p> : null}
         <div className="advisor-coo-focus-form">

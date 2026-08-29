@@ -687,6 +687,8 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("What Needs Attention Now");
     expect(html).toContain("Open a Tool");
     expect(html).toContain("Keep the landing page clean. Open only what you need to execute.");
+    expect(html).toContain("Start The Day");
+    expect(html).toContain("/vehicles/coo-workbook/effectiveness-pilot#start-the-day");
     expect(html).toContain("Close the Day");
     expect(html).toContain("Review work");
     expect(html).toContain("Confirm carryover");
@@ -694,6 +696,7 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("Daily Close");
     expect(html).toContain("Needs Attention");
     expect(html).toContain("Today’s Work");
+    expect(html).toContain("2 items");
     expect(html).toContain("Report Ready");
     expect(html).toContain("role=\"tablist\"");
     expect(html).toContain("aria-selected=\"true\"");
