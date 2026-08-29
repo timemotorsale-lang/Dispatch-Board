@@ -67,7 +67,8 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
               ? "more"
               : "home";
   const technicianOnly = isTechnicianOnlyUser(user);
-  const activeWorkspace = pathname === "/vehicles/coo-workbook"
+  const cooWorkbook = pathname === "/vehicles/coo-workbook" || pathname.startsWith("/vehicles/coo-workbook/");
+  const activeWorkspace = cooWorkbook
     ? "MANAGEMENT"
     : pathname === "/vehicles/advisor"
     || pathname === "/vehicles/recon-repair-advisor"
@@ -85,7 +86,7 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
     !containedWorkspace &&
     activeWorkspace === "ADVISOR" &&
     pathname !== "/vehicles/advisor" &&
-    pathname !== "/vehicles/coo-workbook" &&
+    !cooWorkbook &&
     pathname !== "/vehicles/recon-repair-advisor";
   const advisorWorkspaceReturnHref = sourceReturnTo ?? "/vehicles/advisor";
   const workspaceHome = activeWorkspaceDefinition.landingRoute;

@@ -284,7 +284,7 @@ export function getConsoleNavigation(
     };
   }
 
-  if (pathname === "/vehicles/coo-workbook") {
+  if (pathname === "/vehicles/coo-workbook" || pathname.startsWith("/vehicles/coo-workbook/")) {
     return {
       badge: "Review",
       homeHref: "/vehicles/coo-workbook",

@@ -27,7 +27,7 @@ const tabs: AdvisorTab[] = [
     href: "/vehicles/coo-workbook",
     icon: ClipboardList,
     label: "COO Workbook",
-    active: (pathname) => pathname === "/vehicles/coo-workbook",
+    active: (pathname) => pathname === "/vehicles/coo-workbook" || pathname.startsWith("/vehicles/coo-workbook/"),
   },
   {
     href: "/vehicles/advisor?inbox=all",
