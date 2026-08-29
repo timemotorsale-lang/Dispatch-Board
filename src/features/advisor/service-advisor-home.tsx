@@ -343,6 +343,11 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
     { description: latestReportDraft ? `Saved ${dateLabel(latestReportDraft.generatedAt)}` : "No draft saved yet", href: "/vehicles/coo-workbook/drafts", icon: Clock3, title: "Drafts" }
   ];
 
+  function openWorkbookTool(toolPath: string) {
+    if (typeof window === "undefined") return;
+    window.location.href = `${toolPath}${window.location.search}`;
+  }
+
   async function refreshWorkbook() {
     const response = await fetch("/api/coo-workbook");
     const payload = await response.json().catch(() => null) as { workbook?: WorkdayWorkbookModel; error?: string } | null;
@@ -503,9 +508,9 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
     }
   }
 
-  async function generateReportDraft(cadence: ReportCadence = "DAILY") {
+  async function generateReportDraft(cadence: ReportCadence = "DAILY", options: { openDrafts?: boolean } = {}) {
     if (isClosed) {
-      setWorkspaceNotice("This workbook day is closed. Reopen it before generating a new report draft.");
+      openWorkbookTool("/vehicles/coo-workbook/drafts");
       return;
     }
     setSaving(true);
@@ -517,6 +522,7 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
       if (!response.ok) throw new Error(payload?.error ?? "Unable to generate Report Draft.");
       await refreshActiveWorkbook();
       setWorkspaceNotice(`${activeWorkbookLabel} ${cadence.toLocaleLowerCase()} Report Draft generated.`);
+      if (options.openDrafts) openWorkbookTool("/vehicles/coo-workbook/drafts");
     } catch (error) {
       setWorkspaceNotice(error instanceof Error ? error.message : "Unable to generate Report Draft.");
     } finally {
@@ -927,7 +933,7 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
       </nav>
       <div className="advisor-coo-header-actions">
         <Link href="/vehicles/coo-workbook/quick-update"><MessageSquareText /> Quick Update</Link>
-        <button disabled={saving || isClosed} onClick={() => void generateReportDraft("DAILY")} type="button"><FileText /> {saving ? "Generating..." : "Generate Report"}</button>
+        <button aria-label={isClosed ? "Open latest report draft" : "Generate Daily Report"} disabled={saving} onClick={() => void generateReportDraft("DAILY", { openDrafts: true })} type="button"><FileText /> {saving ? "Generating..." : isClosed ? "Open Draft" : "Generate Report"}</button>
       </div>
     </header>
 
