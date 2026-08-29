@@ -43,8 +43,14 @@ describe("CRM Next access and safe bridge", () => {
     expect(model.bridge.liveTaskCreationEnabled).toBe(false);
     expect(model.bridge.previewEnabled).toBe(true);
     expect(model.progress.envelopeCount).toBe(20);
-    expect(model.progress.nextMilestone).toBe("CRMN-017");
-    expect(model.progress.milestones.map((milestone) => milestone.status)).toContain("CONTRACTED");
+    expect(model.progress.nextMilestone).toBe("CRMN-036");
+    expect(model.search.groups).toHaveLength(5);
+    expect(model.timeline.map((event) => event.source)).toContain("Opportunity");
+    const implementedEnvelope = model.progress.milestones.filter((milestone) =>
+      /^CRMN-0(1[7-9]|2[0-9]|3[0-5])$/.test(milestone.id)
+    );
+    expect(implementedEnvelope).toHaveLength(19);
+    expect(implementedEnvelope.every((milestone) => milestone.status === "IMPLEMENTED_UNVERIFIED")).toBe(true);
   });
 
   it("rejects ineligible users and does not create a dispatch task from the bridge", () => {

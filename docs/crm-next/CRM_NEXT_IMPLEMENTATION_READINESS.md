@@ -115,3 +115,35 @@ Do not implement CRM Next on the shared `main` baseline directly. Start CRMN-010
 - The page is read-only and does not create customer, communication, opportunity, or Dispatch Board task records.
 - Legacy `/customers` and current `/crm` remain linked as fallback review paths.
 - The envelope is explicitly sequential: each milestone is reviewed, verified, and committed before moving to the next slice.
+
+## Implementation evidence — CRMN-017 through CRMN-035 review-safe milestone envelope
+
+**Status:** IMPLEMENTED_UNVERIFIED  
+**Branch:** `codex/crm-next-command-center`  
+**Scope:** Completed the CRM Next review-safe envelope after the progress cockpit: UX navigation polish, search shell, grouped search, dynamic Customer 360 context, 70/30 Attend Mode refinement, universal action bar, open-items rail, unified source-linked timeline, responsive behavior, state/permission/rollback proof pages, lead/opportunity read adapters, read-only pipeline board, appointments context, test-drive review, deal review, and sales timeline events.
+
+**Review locations:**
+- `/crm-next`
+- `/crm-next/search`
+- `/crm-next/needs-attention`
+- `/crm-next/customers/michael-johnson`
+- `/crm-next/work/attn-michael-overdue-follow-up`
+- `/crm-next/timeline`
+- `/crm-next/pipeline`
+- `/crm-next/appointments`
+- `/crm-next/test-drives`
+- `/crm-next/deals`
+- `/crm-next/system/states`
+- `/crm-next/system/permissions`
+- `/crm-next/system/rollback`
+- `/crm-next/progress`
+
+**Safety posture:**
+- Legacy `/customers` and current `/crm` remain available and unchanged.
+- CRM Next remains behind `CRM_NEXT`.
+- New CRM Next surfaces are review-safe/read-only.
+- Live calling, texting, email, customer writes, deal mutation, appointment mutation, and Dispatch Board task creation remain disabled.
+- Source-of-truth boundaries are preserved: customer, vehicle, appointment, sales/deal, communication, and Dispatch context are displayed as linked review data, not duplicated operational ownership.
+- Rollback remains simple: disable `CRM_NEXT` and `/crm-next` fails closed to safe fallback workspaces.
+
+**Progress truth:** CRMN-016 through CRMN-035 are marked `IMPLEMENTED_UNVERIFIED`, not `VERIFIED`, until broader pilot-release proof and user review are complete. The next implementation marker is CRMN-036.

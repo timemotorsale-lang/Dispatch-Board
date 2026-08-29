@@ -42,7 +42,8 @@
 .buttonRow,
 .quickActions,
 .topActions,
-.workActions {
+.workActions,
+.actionBar {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
@@ -161,8 +162,15 @@
   padding: 14px 16px;
 }
 
-.search span {
+.search span,
+.search a {
   color: #76859c;
+  text-decoration: none;
+}
+
+.search a {
+  display: block;
+  width: 100%;
 }
 
 .governance {
@@ -189,7 +197,8 @@
 .dashboardGrid,
 .customerGrid,
 .intelligenceGrid,
-.handoffGrid {
+.handoffGrid,
+.searchGroups {
   display: grid;
   gap: 16px;
 }
@@ -204,7 +213,8 @@
 .panel,
 .timeline,
 .contextCard,
-.handoffCard {
+.handoffCard,
+.searchGroups a {
   background: white;
   border: 1px solid #dce6f5;
   border-radius: 16px;
@@ -278,7 +288,8 @@
 .attentionList,
 .nextList,
 .commList,
-.glanceList {
+.glanceList,
+.salesRows {
   display: grid;
   gap: 10px;
 }
@@ -286,7 +297,8 @@
 .attentionItem,
 .nextItem,
 .communicationItem,
-.glanceItem {
+.glanceItem,
+.salesRow {
   align-items: center;
   border: 1px solid #e2e8f0;
   border-radius: 14px;
@@ -313,14 +325,16 @@
 .attentionItem strong,
 .nextItem strong,
 .communicationItem strong,
-.glanceItem strong {
+.glanceItem strong,
+.salesRow strong {
   display: block;
 }
 
 .attentionItem small,
 .nextItem small,
 .communicationItem small,
-.glanceItem small {
+.glanceItem small,
+.salesRow small {
   color: #64748b;
 }
 
@@ -429,6 +443,14 @@
   text-transform: uppercase;
 }
 
+.actionBar {
+  background: #f8fbff;
+  border: 1px solid #dce6f5;
+  border-radius: 16px;
+  margin-bottom: 16px;
+  padding: 12px;
+}
+
 .tabs {
   border-bottom: 1px solid #dce6f5;
   display: flex;
@@ -456,6 +478,21 @@
 
 .communicationItem {
   grid-template-columns: 94px minmax(0, 1fr) auto;
+}
+
+.searchGroups {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.searchGroups a {
+  color: inherit;
+  display: block;
+  padding: 18px;
+  text-decoration: none;
+}
+
+.salesRow {
+  grid-template-columns: 1.2fr 110px 130px 120px minmax(0, 1fr);
 }
 
 .workShell {
@@ -627,6 +664,8 @@
   .dashboardGrid,
   .actionCards,
   .handoffGrid,
+  .searchGroups,
+  .salesRow,
   .progressRow {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -641,6 +680,8 @@
   .dashboardGrid,
   .actionCards,
   .handoffGrid,
+  .searchGroups,
+  .salesRow,
   .progressRow {
     grid-template-columns: 1fr;
   }

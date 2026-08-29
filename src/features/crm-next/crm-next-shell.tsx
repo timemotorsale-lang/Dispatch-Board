@@ -6,6 +6,7 @@ import {
   ChevronRight,
   ClipboardCheck,
   DollarSign,
+  FileSearch,
   FileText,
   LayoutDashboard,
   Mail,
@@ -18,7 +19,7 @@ import {
 } from "lucide-react";
 
 import type { CrmNextAccessReason } from "@/server/crm-next/access";
-import type { CrmNextAttentionItem, CrmNextCommandCenter, CrmNextCustomer360, CrmNextMilestoneStatus } from "@/server/crm-next/read-model";
+import type { CrmNextAttentionItem, CrmNextCommandCenter, CrmNextCustomer360, CrmNextMilestoneStatus, CrmNextSalesRecord } from "@/server/crm-next/read-model";
 
 import styles from "./crm-next-shell.module.css";
 
@@ -51,12 +52,15 @@ export function CrmNextUnavailable({ fallbackHref, reason }: { fallbackHref: str
   );
 }
 
-function CrmNextFrame({ active, children, userName }: { active: "command" | "attention" | "customer" | "work" | "progress"; children: React.ReactNode; userName: string }) {
+function CrmNextFrame({ active, children, userName }: { active: "command" | "attention" | "customer" | "work" | "progress" | "search" | "pipeline" | "timeline" | "safety"; children: React.ReactNode; userName: string }) {
   const links = [
     { id: "command", href: "/crm-next", label: "Command Center", icon: LayoutDashboard },
     { id: "customer", href: "/crm-next/customers/michael-johnson", label: "Customers", icon: Users },
     { id: "attention", href: "/crm-next/needs-attention", label: "Needs Attention", icon: Bell },
     { id: "work", href: "/crm-next/work/attn-michael-overdue-follow-up", label: "Work Customer", icon: ClipboardCheck },
+    { id: "search", href: "/crm-next/search", label: "Search", icon: Search },
+    { id: "pipeline", href: "/crm-next/pipeline", label: "Pipeline", icon: Target },
+    { id: "timeline", href: "/crm-next/timeline", label: "Timeline", icon: FileSearch },
     { id: "progress", href: "/crm-next/progress", label: "Progress", icon: Target }
   ] as const;
 
@@ -90,10 +94,23 @@ function Topbar() {
     <div className={styles.topbar}>
       <div className={styles.search} role="search">
         <Search size={20} aria-hidden="true" />
-        <span>Search customers, vehicles, deals, stock #, RO...</span>
+        <Link href="/crm-next/search">Search customers, vehicles, deals, stock #, RO...</Link>
       </div>
       <div className={styles.governance}><ShieldCheck size={16} /> CRM Next Preview · no live communications</div>
     </div>
+  );
+}
+
+function UniversalActionBar({ customerHref = "/crm-next/customers/michael-johnson" }: { customerHref?: string }) {
+  return (
+    <nav className={styles.actionBar} aria-label="CRM Next safe actions">
+      <Link className={styles.primaryButton} href="/crm-next/work/attn-michael-overdue-follow-up#dispatch-preview"><Phone size={16} /> Call preview</Link>
+      <Link className={styles.secondaryButton} href="#communications-held"><MessageSquare size={16} /> Text preview</Link>
+      <Link className={styles.secondaryButton} href="#communications-held"><Mail size={16} /> Email preview</Link>
+      <Link className={styles.secondaryButton} href="/crm-next/appointments"><CalendarDays size={16} /> Appointments</Link>
+      <Link className={styles.secondaryButton} href="/crm-next/work/attn-michael-overdue-follow-up#dispatch-preview"><ClipboardCheck size={16} /> Task bridge</Link>
+      <Link className={styles.secondaryButton} href={customerHref}><Users size={16} /> Customer 360</Link>
+    </nav>
   );
 }
 
@@ -109,6 +126,7 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
         </div>
         <div className={styles.quickActions}>
           <Link className={styles.primaryButton} href="/crm-next/needs-attention"><Bell size={16} /> View attention queue</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/search"><Search size={16} /> Search CRM Next</Link>
           <Link className={styles.secondaryButton} href="/crm-next/customers/michael-johnson"><Users size={16} /> Open Customer 360</Link>
           <Link className={styles.secondaryButton} href="/crm-next/progress"><Target size={16} /> View progress</Link>
         </div>
@@ -144,7 +162,7 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
           </div>
         </article>
         <article className={styles.card} id="pipeline">
-          <header><h2>Pipeline Overview</h2><span className={styles.pill}>This Month</span></header>
+          <header><h2>Pipeline Overview</h2><Link className={styles.textLink} href="/crm-next/pipeline">Open board</Link></header>
           <div className={styles.pipelineRows}>
             {model.pipeline.map((row) => (
               <div className={styles.pipelineRow} key={row.label}>
@@ -154,7 +172,7 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
           </div>
         </article>
         <article className={styles.card}>
-          <header><h2>Revenue (MTD)</h2><DollarSign size={18} /></header>
+          <header><h2>Revenue (MTD)</h2><Link className={styles.textLink} href="/crm-next/deals"><DollarSign size={18} /></Link></header>
           <div className={styles.revenueValue}>{model.revenue.monthToDate}</div>
           <p className={styles.muted}>{model.revenue.trend}</p>
         </article>
@@ -269,6 +287,194 @@ export function CrmNextNeedsAttentionView({ model }: { model: CrmNextCommandCent
   );
 }
 
+export function CrmNextSearchView({ model }: { model: CrmNextCommandCenter }) {
+  return (
+    <CrmNextFrame active="search" userName={model.userName}>
+      <Topbar />
+      <section className={styles.hero}>
+        <div>
+          <span className={styles.eyebrow}>Safe Global Search</span>
+          <h1>Find the customer, then take the next safe action</h1>
+          <p>{model.search.queryPlaceholder}</p>
+        </div>
+        <Link className={styles.secondaryButton} href="/crm-next">Back to Command Center</Link>
+      </section>
+      <section className={styles.searchGroups} aria-label="CRM Next grouped search results">
+        {model.search.groups.map((group) => (
+          <Link className={styles.card} href={group.href} key={group.id}>
+            <header><h2>{group.label}</h2><span className={styles.pill}>{group.count} review</span></header>
+            <p>{group.description}</p>
+            <p className={styles.safeNotice}>{group.safety}</p>
+          </Link>
+        ))}
+      </section>
+    </CrmNextFrame>
+  );
+}
+
+export function CrmNextTimelineView({ model }: { model: CrmNextCommandCenter }) {
+  return (
+    <CrmNextFrame active="timeline" userName={model.userName}>
+      <Topbar />
+      <section className={styles.hero}>
+        <div>
+          <span className={styles.eyebrow}>Unified Timeline</span>
+          <h1>Customer activity without source drift</h1>
+          <p>Events are shown together, but each one still belongs to its original customer, communication, appointment, opportunity, or Dispatch source.</p>
+        </div>
+        <Link className={styles.secondaryButton} href="/crm-next/customers/michael-johnson">Open Customer 360</Link>
+      </section>
+      <article className={styles.card}>
+        <div className={styles.commList}>
+          {model.timeline.map((event) => (
+            <Link className={styles.communicationItem} href={event.href} key={event.id}>
+              <strong>{event.source}</strong>
+              <span>{event.label}<small>{event.detail}</small></span>
+              <small>{event.occurredAt}</small>
+            </Link>
+          ))}
+        </div>
+      </article>
+    </CrmNextFrame>
+  );
+}
+
+function SalesTable({ records, title, summary }: { records: CrmNextSalesRecord[]; title: string; summary: string }) {
+  return (
+    <article className={styles.card}>
+      <header>
+        <div>
+          <h2>{title}</h2>
+          <p className={styles.muted}>{summary}</p>
+        </div>
+        <span className={styles.pill}>Read-only</span>
+      </header>
+      <div className={styles.salesRows}>
+        {records.map((record) => (
+          <Link className={styles.salesRow} href={record.href} key={record.id}>
+            <span><strong>{record.customerName}</strong><small>{record.vehicle}</small></span>
+            <span>{record.amount}</span>
+            <span>{record.stage}</span>
+            <span>{record.owner}</span>
+            <span>{record.nextAction}</span>
+          </Link>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+export function CrmNextPipelineView({ model }: { model: CrmNextCommandCenter }) {
+  return (
+    <CrmNextFrame active="pipeline" userName={model.userName}>
+      <Topbar />
+      <section className={styles.hero}>
+        <div>
+          <span className={styles.eyebrow}>Pipeline</span>
+          <h1>Read-only pipeline board</h1>
+          <p>Review lead and opportunity flow without changing stages or replacing existing sales sources.</p>
+        </div>
+        <div className={styles.quickActions}>
+          <Link className={styles.secondaryButton} href="/crm-next/deals">Deals</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/test-drives">Test drives</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/appointments">Appointments</Link>
+        </div>
+      </section>
+      <SalesTable records={model.sales.opportunities} title="Opportunities in review" summary="Stage, amount, owner, and next action are visible for pilot review." />
+    </CrmNextFrame>
+  );
+}
+
+export function CrmNextAppointmentsView({ model }: { model: CrmNextCommandCenter }) {
+  return (
+    <CrmNextFrame active="pipeline" userName={model.userName}>
+      <Topbar />
+      <section className={styles.hero}>
+        <div>
+          <span className={styles.eyebrow}>Appointments</span>
+          <h1>Appointment context from the existing workspace</h1>
+          <p>CRM Next can point users to appointments, while the appointment workspace remains the source of truth.</p>
+        </div>
+        <Link className={styles.primaryButton} href="/appointments">Open existing appointment workspace</Link>
+      </section>
+      <SalesTable records={model.sales.appointments} title="Appointment-linked opportunities" summary="Review appointments from CRM Next before live scheduling commands are approved." />
+    </CrmNextFrame>
+  );
+}
+
+export function CrmNextTestDrivesView({ model }: { model: CrmNextCommandCenter }) {
+  return (
+    <CrmNextFrame active="pipeline" userName={model.userName}>
+      <Topbar />
+      <section className={styles.hero}>
+        <div>
+          <span className={styles.eyebrow}>Test Drives</span>
+          <h1>Test-drive review surface</h1>
+          <p>Show who wants to drive what vehicle and what staff should do next.</p>
+        </div>
+        <Link className={styles.secondaryButton} href="/crm-next/pipeline">Back to pipeline</Link>
+      </section>
+      <SalesTable records={model.sales.testDrives} title="Test drives needing attention" summary="Review-only until test-drive commands and permissions are approved." />
+    </CrmNextFrame>
+  );
+}
+
+export function CrmNextDealsView({ model }: { model: CrmNextCommandCenter }) {
+  return (
+    <CrmNextFrame active="pipeline" userName={model.userName}>
+      <Topbar />
+      <section className={styles.hero}>
+        <div>
+          <span className={styles.eyebrow}>Deals</span>
+          <h1>Deal review without mutation</h1>
+          <p>Deal value, stage, owner, and next action are visible; write commands stay gated.</p>
+        </div>
+        <Link className={styles.secondaryButton} href="/crm-next/pipeline">Back to pipeline</Link>
+      </section>
+      <SalesTable records={model.sales.deals} title="Deals in progress" summary="A clean review surface for sales staff before operational deal commands go live." />
+    </CrmNextFrame>
+  );
+}
+
+export function CrmNextSafetyView({ kind, model }: { kind: "states" | "permissions" | "rollback"; model: CrmNextCommandCenter }) {
+  const copy = {
+    states: {
+      eyebrow: "State Coverage",
+      title: "Clear states instead of confusing dead ends",
+      body: "Empty, loading, blocked, and unavailable states explain what happened and offer a safe next step."
+    },
+    permissions: {
+      eyebrow: "Permission Safety",
+      title: "Denied users fail closed",
+      body: "CRM Next only opens for approved roles and workspaces. Otherwise users are routed back to Legacy/current CRM."
+    },
+    rollback: {
+      eyebrow: "Rollback Proof",
+      title: "CRM Next can be turned off safely",
+      body: "When CRM_NEXT is disabled, /crm-next shows the protected fallback and existing Dispatch Board routes continue working."
+    }
+  }[kind];
+
+  return (
+    <CrmNextFrame active="safety" userName={model.userName}>
+      <Topbar />
+      <section className={styles.hero}>
+        <div>
+          <span className={styles.eyebrow}>{copy.eyebrow}</span>
+          <h1>{copy.title}</h1>
+          <p>{copy.body}</p>
+        </div>
+        <Link className={styles.secondaryButton} href="/crm-next/progress">Back to progress</Link>
+      </section>
+      <section className={styles.dashboardGrid}>
+        <article className={styles.card}><header><h2>Feature flag</h2></header><p>CRM_NEXT controls access to the new experience and fails closed by default.</p></article>
+        <article className={styles.card}><header><h2>Fallback</h2></header><p>Legacy Customers and current CRM remain available during pilot review.</p></article>
+        <article className={styles.card}><header><h2>No live writes</h2></header><p>Calls, texts, emails, task creation, and deal updates remain preview-only in this envelope.</p></article>
+      </section>
+    </CrmNextFrame>
+  );
+}
+
 export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextCustomer360; model: CrmNextCommandCenter }) {
   return (
     <CrmNextFrame active="customer" userName={model.userName}>
@@ -281,7 +487,7 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
         </div>
         <div className={styles.topActions}>
           <Link className={styles.primaryButton} href="/crm-next/work/attn-michael-overdue-follow-up">Attend</Link>
-          <Link className={styles.secondaryButton} href="/crm-next#communications"><MessageSquare size={16} /> Message</Link>
+          <Link className={styles.secondaryButton} href="#communications-held"><MessageSquare size={16} /> Message</Link>
           <Link className={styles.secondaryButton} href="/crm">Open Legacy CRM</Link>
         </div>
       </section>
@@ -298,12 +504,13 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
           </div>
         </aside>
         <section className={styles.panel}>
+          <UniversalActionBar customerHref={`/crm-next/customers/${customer.id}`} />
           <nav className={styles.tabs} aria-label="Customer 360 sections">
             <Link aria-current="page" href="#overview">Overview</Link>
             <Link href="#timeline">Timeline</Link>
-            <Link href="#deals">Deals</Link>
+            <Link href="/crm-next/deals">Deals</Link>
             <Link href="#vehicles">Vehicles</Link>
-            <Link href="#documents">Documents</Link>
+            <Link href="#documents-held">Documents</Link>
           </nav>
           <div className={styles.glanceList}>
             {customer.glance.map((item) => (
@@ -312,6 +519,8 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
               </Link>
             ))}
           </div>
+          <p className={styles.safeNotice} id="communications-held">Live calls, texts, and emails are intentionally preview-only until phone, texting, email, consent, recording, and audit policies are approved.</p>
+          <p className={styles.safeNotice} id="documents-held">Document sending remains held until templates, authority, and retention rules are approved.</p>
         </section>
         <aside className={styles.contextCard}>
           <h2>What to do next</h2>
@@ -352,6 +561,7 @@ export function CrmNextWorkCustomerView({ item, model }: { item: CrmNextAttentio
         <main>
           <article className={styles.card}>
             <header><h2>What do you need to do?</h2><span className={levelClass(item.level)}>{item.level}</span></header>
+            <UniversalActionBar customerHref={item.customerHref} />
             <div className={styles.actionCards}>
               <Link className={styles.actionCard} href="#suggested"><Phone size={18} /><strong>Follow up</strong><p className={styles.muted}>{item.reason}</p></Link>
               <Link className={styles.actionCard} href="#finance-held"><DollarSign size={18} /><strong>Collect payment</strong><p className={styles.muted}>Finance actions are review-only.</p></Link>
