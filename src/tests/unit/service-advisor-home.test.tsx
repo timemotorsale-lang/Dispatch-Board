@@ -762,6 +762,8 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("Coaching Panel");
     expect(html).toContain("Ask For Support");
     expect(html).toContain("Tomorrow Setup");
+    expect(html).toContain("Prepare Tomorrow");
+    expect(html).toContain("Generate Draft");
     expect(html).toContain("Manager View");
     expect(html).toContain("Resolve top approval blocker");
     expect(html).toContain("/vehicles/coo-workbook/effectiveness-pilot");

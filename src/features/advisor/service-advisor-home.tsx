@@ -1052,6 +1052,8 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
   const [focusProgressUpdates, setFocusProgressUpdates] = useState<Record<string, string>>({});
   const [supportNeeded, setSupportNeeded] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
+  const [closeStepNotice, setCloseStepNotice] = useState<string | null>(null);
+  const [closeStepInProgress, setCloseStepInProgress] = useState<"carryover" | "draft" | null>(null);
   const [saving, setSaving] = useState(false);
   const attentionSessionKey = useId().replaceAll(":", "");
   const activeWorkbook = workbookView === "MY" ? staffWorkbook : workbook;
@@ -1228,17 +1230,26 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
 
   async function runCloseStep(step: "carryover" | "draft") {
     setSaving(true);
+    setCloseStepInProgress(step);
+    setCloseStepNotice(null);
     try {
       const scope = workbookView === "MY" ? "STAFF" : "COO";
       const path = step === "carryover" ? "carryovers" : scope === "STAFF" ? "staff/report-drafts" : "report-drafts";
       const response = await fetch(`/api/coo-workbook/${path}?date=${encodeURIComponent(model.generatedAt.slice(0, 10))}&scope=${scope}&cadence=DAILY`, { method: "POST" });
-      const payload = await response.json().catch(() => null) as { error?: string } | null;
+      const payload = await response.json().catch(() => null) as { count?: number; error?: string; targetBoardDate?: string } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Unable to complete close step.");
-      setNotice(step === "carryover" ? "Tomorrow setup prepared." : "Daily report draft generated.");
+      const message = step === "carryover"
+        ? `Tomorrow setup prepared${payload?.count === undefined ? "" : ` with ${payload.count} item(s)`}${payload?.targetBoardDate ? ` for ${payload.targetBoardDate}` : ""}.`
+        : "Daily report draft generated and saved.";
+      setCloseStepNotice(message);
+      setNotice(message);
       await refreshPilotWorkbook();
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Unable to complete close step.");
+      const message = error instanceof Error ? error.message : "Unable to complete close step.";
+      setCloseStepNotice(message);
+      setNotice(message);
     } finally {
+      setCloseStepInProgress(null);
       setSaving(false);
     }
   }
@@ -1328,9 +1339,10 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
         <div className="advisor-coo-tomorrow-list">
           {tomorrowItems.length ? tomorrowItems.map((item) => <p key={item.id}><strong>{item.title}</strong><small>{item.detail}</small></p>) : <p><CheckCircle2 /> No tomorrow setup items yet.</p>}
         </div>
+        {closeStepNotice ? <p className="advisor-coo-close-step-notice" role="status">{closeStepNotice}</p> : null}
         <div className="advisor-coo-seed-actions">
-          <button disabled={saving} onClick={() => void runCloseStep("carryover")} type="button">Prepare Tomorrow</button>
-          <button disabled={saving} onClick={() => void runCloseStep("draft")} type="button">Generate Draft</button>
+          <button disabled={saving} onClick={() => void runCloseStep("carryover")} type="button">{closeStepInProgress === "carryover" ? "Preparing..." : "Prepare Tomorrow"}</button>
+          <button disabled={saving} onClick={() => void runCloseStep("draft")} type="button">{closeStepInProgress === "draft" ? "Generating..." : "Generate Draft"}</button>
         </div>
       </article>
 
