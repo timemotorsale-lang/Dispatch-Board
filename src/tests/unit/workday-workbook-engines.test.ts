@@ -10,7 +10,7 @@ import {
 import { describe, expect, it } from "vitest";
 
 import type { WorkdayWorkbookRecord } from "@/server/repositories/workday-workbook-repository";
-import { buildDailyPlanningEngine, buildExecutionTrackingEngine } from "@/server/services/workday-workbook-engines";
+import { buildDailyPlanningEngine, buildExecutionTrackingEngine, buildRiskAndBlockerEngine } from "@/server/services/workday-workbook-engines";
 
 const now = new Date("2026-08-29T14:00:00.000Z");
 const boardDay: BoardDay = {
@@ -131,5 +131,32 @@ describe("workday workbook engines", () => {
       unfinishedWorkCount: 1
     });
     expect(execution.executionSummary).toBe("1 of 2 planned item(s) complete with 1 unplanned update(s).");
+  });
+
+  it("surfaces blockers, follow-up risk, and tomorrow carryover candidates", () => {
+    const risk = buildRiskAndBlockerEngine(workbook({
+      quickUpdates: [
+        {
+          id: "quick-1",
+          workbookId: "workbook-1",
+          text: "Customer needs a follow-up.",
+          category: WorkdayQuickUpdateCategory.CUSTOMER,
+          person: "Jordan",
+          company: "",
+          followUpNeeded: true,
+          dueWindow: "",
+          carryoverReady: false,
+          convertedTaskId: null,
+          createdAt: now,
+          updatedAt: now
+        }
+      ]
+    }), { approvalCount: 1, handoffCount: 0, reportExceptions: 1 });
+
+    expect(risk.blockerCount).toBe(2);
+    expect(risk.missingDueWindowCount).toBe(1);
+    expect(risk.blockerQueue.map((item) => item.sourceType)).toContain("QUICK_UPDATE");
+    expect(risk.tomorrowCarryoverCandidates.map((item) => item.title)).toContain("Complete customer promise review");
+    expect(risk.staffGuidance).toBe("Resolve or assign support for blocked work before close.");
   });
 });

@@ -1,7 +1,10 @@
 import {
+  WorkdayCarryoverStatus,
   WorkdayChecklistStatus,
   WorkdayDailyFocusStatus,
+  WorkdayReportSeedStatus,
   WorkdayRiskLevel,
+  WorkdaySupportActionStatus
 } from "@prisma/client";
 
 import type { WorkdayWorkbookRecord } from "@/server/repositories/workday-workbook-repository";
@@ -109,6 +112,58 @@ export function buildExecutionTrackingEngine(workbook: WorkdayWorkbookRecord) {
     executionSummary: `${completedWorkCount} of ${plannedWorkCount} planned item(s) complete with ${unplannedWorkCount} unplanned update(s).`,
     staffGuidance: prompts[0],
     managerSummary: `${completedWorkCount}/${plannedWorkCount} planned complete, ${unfinishedWorkCount} unfinished, ${taskConversionCount} converted to formal task(s).`,
+    prompts
+  };
+}
+
+export function buildRiskAndBlockerEngine(workbook: WorkdayWorkbookRecord, operatingSignals: WorkdayWorkbookOperatingSignals = { approvalCount: 0, handoffCount: 0, reportExceptions: 0 }) {
+  const dailyFocusBlockers = workbook.dailyFocusItems.filter((item) => item.riskLevel === WorkdayRiskLevel.BLOCKED);
+  const dailyFocusWatch = workbook.dailyFocusItems.filter((item) => item.riskLevel === WorkdayRiskLevel.WATCH);
+  const checklistRed = workbook.checklistItems.filter((item) => !item.done && item.status === WorkdayChecklistStatus.RED);
+  const checklistYellow = workbook.checklistItems.filter((item) => !item.done && item.status === WorkdayChecklistStatus.YELLOW);
+  const quickFollowUps = workbook.quickUpdates.filter((item) => item.followUpNeeded);
+  const missingDueWindow = quickFollowUps.filter((item) => !item.dueWindow.trim());
+  const openCarryovers = workbook.carryovers.filter((item) => item.status === WorkdayCarryoverStatus.OPEN);
+  const carriedSeeds = workbook.reportSeeds.filter((item) => item.status === WorkdayReportSeedStatus.CARRIED_OVER);
+  const openSupport = workbook.supportActions.filter((item) => item.status !== WorkdaySupportActionStatus.RESOLVED);
+  const blockerCount = dailyFocusBlockers.length + checklistRed.length + missingDueWindow.length + openSupport.length + operatingSignals.approvalCount;
+  const watchCount = dailyFocusWatch.length + checklistYellow.length + quickFollowUps.length + openCarryovers.length + carriedSeeds.length + operatingSignals.handoffCount + operatingSignals.reportExceptions;
+  const riskScore = clampScore(100 - blockerCount * 16 - watchCount * 7);
+  const blockerQueue = [
+    ...dailyFocusBlockers.map((item) => ({ id: item.id, sourceType: "DAILY_FOCUS" as const, title: item.outcome, detail: item.riskNote || item.supportNeeded || "Daily focus is blocked." })),
+    ...checklistRed.map((item) => ({ id: item.id, sourceType: "CHECKLIST_ITEM" as const, title: item.text, detail: item.riskNote || item.update || "Checklist item is blocked." })),
+    ...missingDueWindow.map((item) => ({ id: item.id, sourceType: "QUICK_UPDATE" as const, title: item.text, detail: "Follow-up needs a due window." })),
+    ...openSupport.map((item) => ({ id: item.id, sourceType: "SUPPORT_ACTION" as const, title: "Open support action", detail: item.note }))
+  ];
+  const tomorrowCarryoverCandidates = [
+    ...workbook.dailyFocusItems.filter((item) => item.status === WorkdayDailyFocusStatus.CARRY_OVER || item.mustCloseToday && item.status !== WorkdayDailyFocusStatus.DONE).map((item) => ({ id: item.id, sourceType: "DAILY_FOCUS" as const, title: item.outcome })),
+    ...workbook.checklistItems.filter((item) => item.carryoverReady).map((item) => ({ id: item.id, sourceType: "CHECKLIST_ITEM" as const, title: item.text })),
+    ...quickFollowUps.map((item) => ({ id: item.id, sourceType: "QUICK_UPDATE" as const, title: item.text })),
+    ...carriedSeeds.map((item) => ({ id: item.id, sourceType: "REPORT_SEED" as const, title: item.title }))
+  ];
+  const prompts: string[] = [];
+
+  if (blockerCount) prompts.push("Resolve or assign support for blocked work before close.");
+  if (missingDueWindow.length) prompts.push("Add due windows to Quick Update follow-ups.");
+  if (tomorrowCarryoverCandidates.length) prompts.push("Confirm tomorrow ownership for carryover candidates.");
+  if (!prompts.length) prompts.push("Risk is controlled. Keep watching promise and handoff signals.");
+
+  return {
+    score: riskScore,
+    status: statusLabel(riskScore),
+    blockerCount,
+    watchCount,
+    dailyFocusBlockerCount: dailyFocusBlockers.length,
+    checklistRedCount: checklistRed.length,
+    checklistYellowCount: checklistYellow.length,
+    quickFollowUpCount: quickFollowUps.length,
+    missingDueWindowCount: missingDueWindow.length,
+    openSupportCount: openSupport.length,
+    operatingExceptionCount: operatingSignals.reportExceptions,
+    blockerQueue,
+    tomorrowCarryoverCandidates,
+    staffGuidance: prompts[0],
+    managerSummary: `${blockerCount} blocker(s), ${watchCount} watch signal(s), and ${tomorrowCarryoverCandidates.length} tomorrow candidate(s).`,
     prompts
   };
 }
