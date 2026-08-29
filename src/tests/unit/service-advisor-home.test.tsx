@@ -88,7 +88,27 @@ const model = {
         createdAt: "2026-07-20T14:11:00.000Z",
         updatedAt: "2026-07-20T14:11:00.000Z"
       }
-    ]
+    ],
+    closeReadiness: {
+      score: 64,
+      tone: "SUPPORT",
+      checklistCompletion: 0,
+      checklistDone: 0,
+      checklistTotal: 1,
+      checklistNeedsSupport: 1,
+      quickFollowUps: 1,
+      carryoverItems: 1,
+      reportSeedCount: 1,
+      reviewedSeedCount: 0,
+      includedSeedCount: 0,
+      excludedSeedCount: 0,
+      latestDraftVersion: 1,
+      prompts: [
+        "Review yellow/red checklist items and decide what needs help.",
+        "Confirm Quick Update follow-ups have an owner or due window.",
+        "Review remaining report seeds before generating the final draft."
+      ]
+    }
   },
   staffWorkbook: {
     id: "staff-workbook-1",
@@ -113,7 +133,23 @@ const model = {
     ],
     quickUpdates: [],
     reportSeeds: [],
-    reportDrafts: []
+    reportDrafts: [],
+    closeReadiness: {
+      score: 100,
+      tone: "READY",
+      checklistCompletion: 100,
+      checklistDone: 1,
+      checklistTotal: 1,
+      checklistNeedsSupport: 0,
+      quickFollowUps: 0,
+      carryoverItems: 0,
+      reportSeedCount: 0,
+      reviewedSeedCount: 0,
+      includedSeedCount: 0,
+      excludedSeedCount: 0,
+      latestDraftVersion: null,
+      prompts: ["Daily close is ready for a manager review."]
+    }
   },
   staffWorkbookSummaries: [
     {
@@ -125,7 +161,12 @@ const model = {
       redYellowItemCount: 0,
       quickUpdateCount: 0,
       followUpNeededCount: 0,
+      carryoverCount: 0,
       reportSeedCount: 0,
+      reviewedSeedCount: 0,
+      closeReadinessScore: 100,
+      closeReadinessTone: "READY",
+      closeReadinessPrompts: ["Ready for daily close review."],
       latestUpdateAt: "2026-07-20T14:06:00.000Z",
       latestDraftStatus: null,
       latestDraftVersion: null
@@ -241,11 +282,16 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("My Workbook");
     expect(html).toContain("Staff Today");
     expect(html).toContain("Alex Carter");
+    expect(html).toContain("Ready");
     expect(html).toContain("Support needed");
     expect(html).toContain("Review before approval");
     expect(html).toContain("Approval readiness");
     expect(html).toContain("Daily action plan");
     expect(html).toContain("Daily Checklist");
+    expect(html).toContain("Daily Close");
+    expect(html).toContain("Needs support");
+    expect(html).toContain("Checklist complete");
+    expect(html).toContain("Seeds reviewed");
     expect(html).toContain("Add something to do today");
     expect(html).toContain("Quick Update");
     expect(html).toContain("Today&#x27;s Updates");

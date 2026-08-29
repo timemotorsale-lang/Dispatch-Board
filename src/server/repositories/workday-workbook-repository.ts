@@ -24,10 +24,10 @@ const workbookInclude = {
 export type WorkdayWorkbookRecord = Prisma.WorkdayWorkbookGetPayload<{ include: typeof workbookInclude }>;
 
 const workbookSummaryInclude = {
-  checklistItems: { select: { done: true, status: true, updatedAt: true } },
-  quickUpdates: { select: { followUpNeeded: true, updatedAt: true } },
+  checklistItems: { select: { carryoverReady: true, done: true, status: true, updatedAt: true } },
+  quickUpdates: { select: { carryoverReady: true, followUpNeeded: true, updatedAt: true } },
   reportDrafts: { orderBy: [{ generatedAt: "desc" as const }, { id: "asc" as const }], select: { generatedAt: true, status: true, version: true }, take: 1 },
-  reportSeeds: { select: { id: true } },
+  reportSeeds: { select: { id: true, status: true } },
   user: { select: { id: true, name: true } }
 } satisfies Prisma.WorkdayWorkbookInclude;
 

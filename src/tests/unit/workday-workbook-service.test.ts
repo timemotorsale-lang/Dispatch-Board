@@ -15,6 +15,7 @@ import {
   buildWorkdayReportSeeds,
   createCooWorkbookChecklistItem,
   createStaffWorkbookChecklistItem,
+  getStaffWorkbook,
   getStaffWorkbookSummaries,
   updateCooWorkbookChecklistItem,
   updateCooWorkbookReportSeed
@@ -172,11 +173,13 @@ function repositoryHarness(ownerUserId = "user-jordan.sales@local.test") {
           name: "Jordan Sales"
         },
         checklistItems: currentWorkbook.checklistItems.map((item) => ({
+          carryoverReady: item.carryoverReady,
           done: item.done,
           status: item.status,
           updatedAt: item.updatedAt
         })),
         quickUpdates: currentWorkbook.quickUpdates.map((item) => ({
+          carryoverReady: item.carryoverReady,
           followUpNeeded: item.followUpNeeded,
           updatedAt: item.updatedAt
         })),
@@ -185,7 +188,7 @@ function repositoryHarness(ownerUserId = "user-jordan.sales@local.test") {
           status: "DRAFT",
           version: 1
         }],
-        reportSeeds: currentWorkbook.reportSeeds.map((seed) => ({ id: seed.id }))
+        reportSeeds: currentWorkbook.reportSeeds.map((seed) => ({ id: seed.id, status: seed.status }))
       }];
     },
     async updateChecklistItem(input) {
@@ -268,6 +271,25 @@ describe("workday workbook service", () => {
     ]);
   });
 
+  it("returns daily close readiness from saved workbook activity", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("jordan.sales@local.test")!;
+    const harness = repositoryHarness(user.id);
+
+    const readModel = await getStaffWorkbook(user, "2026-08-29", { repository: harness.repository });
+
+    expect(readModel.closeReadiness).toMatchObject({
+      carryoverItems: 2,
+      checklistCompletion: 0,
+      checklistNeedsSupport: 1,
+      quickFollowUps: 1,
+      reviewedSeedCount: 3,
+      score: 38,
+      tone: "SUPPORT"
+    });
+    expect(readModel.closeReadiness.prompts).toContain("Generate the Daily Report Draft when today has enough signal.");
+  });
+
   it("rejects checklist updates for another user's workbook", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const user = usersByEmail.get("jordan.sales@local.test")!;
@@ -304,13 +326,18 @@ describe("workday workbook service", () => {
 
     expect(summaries).toEqual([
       expect.objectContaining({
+        carryoverCount: 2,
         checklistCount: 2,
+        closeReadinessScore: 48,
+        closeReadinessTone: "SUPPORT",
         completedChecklistCount: 0,
         followUpNeededCount: 1,
         latestDraftStatus: "DRAFT",
         redYellowItemCount: 1,
+        reviewedSeedCount: 3,
         staffName: "Jordan Sales"
       })
     ]);
+    expect(summaries[0].closeReadinessPrompts).toContain("Has checklist items needing support.");
   });
 });

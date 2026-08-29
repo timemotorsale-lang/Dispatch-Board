@@ -264,20 +264,97 @@ function latestTimestamp(values: Date[]) {
   return latest ? dateToIso(latest) : null;
 }
 
+function buildCloseReadiness(workbook: WorkdayWorkbookRecord) {
+  const checklistTotal = workbook.checklistItems.length;
+  const checklistDone = workbook.checklistItems.filter((item) => item.done).length;
+  const checklistCompletion = checklistTotal ? Math.round((checklistDone / checklistTotal) * 100) : 0;
+  const checklistNeedsSupport = workbook.checklistItems.filter((item) => !item.done && (item.status === WorkdayChecklistStatus.YELLOW || item.status === WorkdayChecklistStatus.RED)).length;
+  const quickFollowUps = workbook.quickUpdates.filter((item) => item.followUpNeeded).length;
+  const carryoverItems =
+    workbook.checklistItems.filter((item) => item.carryoverReady).length +
+    workbook.quickUpdates.filter((item) => item.carryoverReady).length +
+    workbook.reportSeeds.filter((seed) => seed.status === WorkdayReportSeedStatus.CARRIED_OVER).length;
+  const reviewedSeeds = workbook.reportSeeds.filter((seed) => seed.status !== WorkdayReportSeedStatus.CANDIDATE).length;
+  const includedSeeds = workbook.reportSeeds.filter((seed) => seed.status === WorkdayReportSeedStatus.INCLUDED).length;
+  const excludedSeeds = workbook.reportSeeds.filter((seed) => seed.status === WorkdayReportSeedStatus.EXCLUDED).length;
+  const latestDraft = workbook.reportDrafts[0] ?? null;
+  const checklistScore = checklistTotal ? Math.round((checklistDone / checklistTotal) * 35) : 20;
+  const supportPenaltyCount = checklistNeedsSupport + quickFollowUps;
+  const supportScore = supportPenaltyCount ? Math.max(0, 25 - supportPenaltyCount * 6) : 25;
+  const reviewScore = workbook.reportSeeds.length ? Math.round((reviewedSeeds / workbook.reportSeeds.length) * 25) : 10;
+  const draftScore = latestDraft ? 15 : 0;
+  const score = Math.min(100, checklistScore + supportScore + reviewScore + draftScore);
+  const tone = score >= 85 ? "READY" : checklistNeedsSupport > 0 || quickFollowUps > 0 ? "SUPPORT" : "REVIEW";
+  const prompts: string[] = [];
+
+  if (!checklistTotal) prompts.push("Add today's simple checklist before closing the day.");
+  if (checklistNeedsSupport) prompts.push("Review yellow/red checklist items and decide what needs help.");
+  if (quickFollowUps) prompts.push("Confirm Quick Update follow-ups have an owner or due window.");
+  if (carryoverItems) prompts.push("Set tomorrow ownership for carryover items.");
+  if (workbook.reportSeeds.length && reviewedSeeds < workbook.reportSeeds.length) prompts.push("Review remaining report seeds before generating the final draft.");
+  if (!latestDraft) prompts.push("Generate the Daily Report Draft when today has enough signal.");
+  if (!prompts.length) prompts.push("Daily close is ready for a manager review.");
+
+  return {
+    score,
+    tone,
+    checklistCompletion,
+    checklistDone,
+    checklistTotal,
+    checklistNeedsSupport,
+    quickFollowUps,
+    carryoverItems,
+    reportSeedCount: workbook.reportSeeds.length,
+    reviewedSeedCount: reviewedSeeds,
+    includedSeedCount: includedSeeds,
+    excludedSeedCount: excludedSeeds,
+    latestDraftVersion: latestDraft?.version ?? null,
+    prompts
+  };
+}
+
 function toStaffWorkbookSummary(record: WorkdayWorkbookSummaryRecord) {
   const redYellowCount = record.checklistItems.filter((item) => item.status === WorkdayChecklistStatus.RED || item.status === WorkdayChecklistStatus.YELLOW).length;
   const latestDraft = record.reportDrafts[0] ?? null;
+  const checklistCount = record.checklistItems.length;
+  const completedChecklistCount = record.checklistItems.filter((item) => item.done).length;
+  const followUpNeededCount = record.quickUpdates.filter((item) => item.followUpNeeded).length;
+  const carryoverCount =
+    record.checklistItems.filter((item) => item.carryoverReady).length +
+    record.quickUpdates.filter((item) => item.carryoverReady).length +
+    record.reportSeeds.filter((seed) => seed.status === WorkdayReportSeedStatus.CARRIED_OVER).length;
+  const reviewedSeedCount = record.reportSeeds.filter((seed) => seed.status !== WorkdayReportSeedStatus.CANDIDATE).length;
+  const checklistScore = checklistCount ? Math.round((completedChecklistCount / checklistCount) * 40) : 20;
+  const supportScore = redYellowCount + followUpNeededCount ? Math.max(0, 25 - (redYellowCount + followUpNeededCount) * 6) : 25;
+  const reviewScore = record.reportSeeds.length ? Math.round((reviewedSeedCount / record.reportSeeds.length) * 20) : 10;
+  const draftScore = latestDraft ? 15 : 0;
+  const closeScore = Math.min(100, checklistScore + supportScore + reviewScore + draftScore);
+  const closeTone = closeScore >= 85 ? "READY" : redYellowCount > 0 || followUpNeededCount > 0 ? "SUPPORT" : "REVIEW";
+  const closePrompts: string[] = [];
+
+  if (!checklistCount) closePrompts.push("Needs a simple checklist for today.");
+  if (redYellowCount) closePrompts.push("Has checklist items needing support.");
+  if (followUpNeededCount) closePrompts.push("Has Quick Update follow-up to assign.");
+  if (carryoverCount) closePrompts.push("Has carryover to plan for tomorrow.");
+  if (record.reportSeeds.length && reviewedSeedCount < record.reportSeeds.length) closePrompts.push("Report seeds still need review.");
+  if (!latestDraft) closePrompts.push("No daily draft yet.");
+  if (!closePrompts.length) closePrompts.push("Ready for daily close review.");
 
   return {
     workbookId: record.id,
     staffUserId: record.user.id,
     staffName: record.user.name,
-    checklistCount: record.checklistItems.length,
-    completedChecklistCount: record.checklistItems.filter((item) => item.done).length,
+    checklistCount,
+    completedChecklistCount,
     redYellowItemCount: redYellowCount,
     quickUpdateCount: record.quickUpdates.length,
-    followUpNeededCount: record.quickUpdates.filter((item) => item.followUpNeeded).length,
+    followUpNeededCount,
+    carryoverCount,
     reportSeedCount: record.reportSeeds.length,
+    reviewedSeedCount,
+    closeReadinessScore: closeScore,
+    closeReadinessTone: closeTone,
+    closeReadinessPrompts: closePrompts,
     latestUpdateAt: latestTimestamp([
       record.updatedAt,
       ...record.checklistItems.map((item) => item.updatedAt),
@@ -347,7 +424,8 @@ function toReadModel(workbook: WorkdayWorkbookRecord) {
       generatedAt: dateToIso(draft.generatedAt),
       createdAt: dateToIso(draft.createdAt),
       updatedAt: dateToIso(draft.updatedAt)
-    }))
+    })),
+    closeReadiness: buildCloseReadiness(workbook)
   };
 }
 

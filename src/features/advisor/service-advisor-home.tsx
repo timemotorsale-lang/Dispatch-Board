@@ -209,6 +209,18 @@ function staffDraftLabel(item: StaffWorkbookSummary) {
   return item.latestDraftStatus ? `Draft v${item.latestDraftVersion ?? 1} ${item.latestDraftStatus.toLocaleLowerCase()}` : "No draft yet";
 }
 
+function staffCloseLabel(item: StaffWorkbookSummary) {
+  if (item.closeReadinessTone === "READY") return "Ready";
+  if (item.closeReadinessTone === "SUPPORT") return "Needs support";
+  return "Needs review";
+}
+
+function closeReadinessLabel(tone: WorkdayWorkbookModel["closeReadiness"]["tone"]) {
+  if (tone === "READY") return "Ready";
+  if (tone === "SUPPORT") return "Needs support";
+  return "Needs review";
+}
+
 export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean; model: ServiceAdvisorWorkspaceModel }) {
   const [planCreatedAt, setPlanCreatedAt] = useState<string | null>(null);
   const [workbookView, setWorkbookView] = useState<WorkbookViewMode>("COO");
@@ -236,6 +248,7 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
   const quickUpdates = activeWorkbook.quickUpdates;
   const reportSeeds = activeWorkbook.reportSeeds;
   const latestReportDraft = activeWorkbook.reportDrafts[0] ?? null;
+  const closeReadiness = activeWorkbook.closeReadiness;
   const actionPlan = [
     {
       empty: "No urgent operating actions are waiting.",
@@ -556,6 +569,22 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
         <em>{lane.state}</em>
       </Link>)}
     </div>
+    {!compact ? <section className={`advisor-coo-close-readiness ${closeReadiness.tone.toLocaleLowerCase()}`} aria-label={`${activeWorkbookLabel} daily close readiness`}>
+      <header>
+        <div><strong>{activeWorkbookLabel} Daily Close</strong><small>Simple checkpoint for accountability, support, carryover, and report readiness.</small></div>
+        <b>{closeReadiness.score}<span>/100</span></b>
+      </header>
+      <div>
+        <article><CheckCircle2 /><span><strong>{closeReadiness.checklistCompletion}%</strong><small>Checklist complete</small></span></article>
+        <article><AlertTriangle /><span><strong>{closeReadiness.checklistNeedsSupport + closeReadiness.quickFollowUps}</strong><small>Need support</small></span></article>
+        <article><CalendarClock /><span><strong>{closeReadiness.carryoverItems}</strong><small>Carryover items</small></span></article>
+        <article><FileText /><span><strong>{closeReadiness.reviewedSeedCount}/{closeReadiness.reportSeedCount}</strong><small>Seeds reviewed</small></span></article>
+      </div>
+      <ul>
+        <li><strong>{closeReadinessLabel(closeReadiness.tone)}</strong></li>
+        {closeReadiness.prompts.slice(0, 4).map((prompt) => <li key={prompt}>{prompt}</li>)}
+      </ul>
+    </section> : null}
     {!compact ? <section className="advisor-coo-live-workspace" aria-label="Daily checklist and quick updates">
       <article className="advisor-coo-daily-checklist">
         <header>
@@ -613,13 +642,15 @@ export function CooDailyWorkbook({ compact = false, model }: { compact?: boolean
       <div>
         {staffWorkbookSummaries.length ? staffWorkbookSummaries.map((item) => <article className={staffSupportTone(item)} key={item.workbookId}>
           <span><strong>{item.staffName}</strong><small>{item.latestUpdateAt ? `Latest update ${dateLabel(item.latestUpdateAt)}` : "No update yet"}</small></span>
+          <b className={`advisor-coo-staff-close ${item.closeReadinessTone.toLocaleLowerCase()}`}>{item.closeReadinessScore}<small>/100</small><em>{staffCloseLabel(item)}</em></b>
           <dl>
             <div><dt>Progress</dt><dd>{item.completedChecklistCount}/{item.checklistCount}</dd></div>
             <div><dt>Support needed</dt><dd>{item.redYellowItemCount}</dd></div>
             <div><dt>Quick updates</dt><dd>{item.quickUpdateCount}</dd></div>
             <div><dt>Follow-up</dt><dd>{item.followUpNeededCount}</dd></div>
           </dl>
-          <small>{item.reportSeedCount} report seed(s) · {staffDraftLabel(item)}</small>
+          <small>{item.reportSeedCount} report seed(s) · {item.reviewedSeedCount} reviewed · {staffDraftLabel(item)}</small>
+          <p>{item.closeReadinessPrompts[0] ?? "Ready for daily close review."}</p>
         </article>) : <p><UsersRound /> Staff workbook summaries will appear as each person starts their day.</p>}
       </div>
     </section> : null}
