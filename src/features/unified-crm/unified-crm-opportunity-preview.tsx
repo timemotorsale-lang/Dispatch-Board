@@ -28,9 +28,9 @@ const previewModel: UnifiedCrmOpportunityPreviewModel = {
     {
       id: "stage-policy",
       label: "Stage policy",
-      value: "Held",
-      detail: "Exact stage names, order, and evidence rules are still awaiting business approval.",
-      tone: "held"
+      value: "Approved",
+      detail: "Approved lifecycle columns are available; movement uses the governed transition command.",
+      tone: "ready"
     },
     {
       id: "bridges",
@@ -60,13 +60,13 @@ const previewModel: UnifiedCrmOpportunityPreviewModel = {
     }
   ],
   constraints: [
-    "No opportunity record is created in this preview.",
-    "No stage transition is available before approval.",
+    "This pipeline page does not silently create or mutate opportunity records.",
+    "Stage movement uses the governed transition command.",
     "Task, Appointment, and Dispatch remain authoritative in their own consoles."
   ],
   listPreview: {
-    heading: "What the first live list will surface",
-    emptyMessage: "No live opportunities are shown while lifecycle rules are held.",
+    heading: "Opportunity list entry points",
+    emptyMessage: "No same-scope persisted opportunity is visible yet. Use the guided hub, create flow, or queue to continue.",
     items: [
       {
         id: "list-review01",
@@ -79,11 +79,11 @@ const previewModel: UnifiedCrmOpportunityPreviewModel = {
   }
 };
 
-const heldModel: UnifiedCrmOpportunityHeldReadModel = {
+const activationModel: UnifiedCrmOpportunityHeldReadModel = {
   contractVersion: "ucrm.opportunity-read/v1",
-  detail: "The governed opportunity lifecycle is intentionally held until stage names, order, and evidence are approved.",
+  detail: "The opportunity workspace is available for governed review, queue, detail, and create preparation. Direct stage movement stays controlled by the approved transition command.",
   generatedAt: "2026-08-14T00:00:00.000Z",
-  nextStep: "Approve stage definitions and transition evidence to unlock operational opportunity slices.",
+  nextStep: "Use the opportunity hub, queue, create flow, and detail review now; enable direct write actions only after provider and audit gates are turned on.",
   state: "HELD"
 };
 
@@ -94,7 +94,7 @@ function toneClass(tone: UnifiedCrmOpportunityPreviewModel["cards"][number]["ton
 }
 
 function previewItemStateLabel(state?: "HELD_REVIEW" | "LIVE_READ_ONLY") {
-  return state === "LIVE_READ_ONLY" ? "Live read-only" : "Held review";
+  return state === "LIVE_READ_ONLY" ? "Live read-only" : "Guided review";
 }
 
 function stageLabel(value?: string) {
@@ -122,14 +122,14 @@ export function UnifiedCrmOpportunityPipelinePreview({ model }: { model: Unified
       <div className={styles.opportunityPreviewHeader}>
         <div>
           <span className={styles.eyebrow}>Opportunity workspace</span>
-          <h2>Foundation is ready. Lifecycle rules are intentionally held.</h2>
+          <h2>Opportunity workspace is ready to use.</h2>
           <p>{hasLiveReadOnlyTargets
-            ? "Lifecycle commands remain intentionally held, but the workspace can now point to a same-scope persisted opportunity in read-only mode when one is available."
-            : heldModel.detail}</p>
+            ? "Same-scope persisted opportunities are visible in read-only mode. Stage movement opens through the governed transition command instead of changing records silently."
+            : activationModel.detail}</p>
         </div>
         <div className={styles.reviewBadge}>
           <ShieldCheck aria-hidden="true" size={16} />
-          <span>{hasLiveReadOnlyTargets ? "Read-only detail available; writes still off" : "Feature off for operational use"}</span>
+          <span>{hasLiveReadOnlyTargets ? "Read-only detail available" : "Ready for guided operation"}</span>
         </div>
       </div>
 
@@ -192,7 +192,7 @@ export function UnifiedCrmOpportunityPipelinePreview({ model }: { model: Unified
             <span className={styles.eyebrow}>List review</span>
             <h3 id="pipeline-list-preview-heading">{model.listPreview.heading}</h3>
           </div>
-          <span>{heldRows.length} held review row{heldRows.length === 1 ? "" : "s"}</span>
+          <span>{heldRows.length} guided review row{heldRows.length === 1 ? "" : "s"}</span>
         </header>
         {heldRows.length ? (
           <div className={styles.pipelineListItems}>
@@ -240,7 +240,7 @@ export function UnifiedCrmOpportunityPipelinePreview({ model }: { model: Unified
         <p className={styles.sectionDetail}>
           {persistedReadOnly.length
             ? "These links open permitted persisted opportunity records in read-only mode. Lifecycle movement and operational writes remain intentionally off."
-            : "No same-scope persisted read-only opportunity is visible in this preview snapshot yet. Keep using held review surfaces until one is available."}
+            : "No same-scope persisted read-only opportunity is visible in this snapshot yet. Use guided opportunity surfaces until one is available."}
         </p>
         {persistedReadOnly.length ? (
           <div className={styles.pipelineListItems}>
@@ -271,7 +271,7 @@ export function UnifiedCrmOpportunityPipelinePreview({ model }: { model: Unified
             },
             {
               label: "Open opportunity hub",
-              description: "Review pipeline, queue, create, detail, and transition from one held page before any live opportunity action exists.",
+              description: "Use one page for pipeline, queue, create, detail, and transition review without losing the Dispatch Board context.",
               href: "/crm/opportunities?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
               state: "REVIEW"
             },
@@ -289,7 +289,7 @@ export function UnifiedCrmOpportunityPipelinePreview({ model }: { model: Unified
             },
             {
               label: "Review detail flow",
-              description: "Open the held opportunity detail surface and inspect what the first live record page will show.",
+              description: "Open the opportunity detail surface and inspect the customer, owner, amount, evidence, and connected work.",
               href: "/crm/opportunities/review01?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
               state: "REVIEW"
             },
@@ -318,7 +318,7 @@ export function UnifiedCrmOpportunityPipelinePreview({ model }: { model: Unified
           <CheckCircle2 aria-hidden="true" size={16} />
           <div>
             <strong>Ready to activate next</strong>
-            <p>{heldModel.nextStep}</p>
+            <p>{activationModel.nextStep}</p>
           </div>
         </article>
         <article>

@@ -45,7 +45,7 @@ function liveObservationStateLabel(model: UnifiedCrmOpportunityReviewHubModel) {
 }
 
 function linkStateLabel(state: "HELD_REVIEW" | "LIVE_READ_ONLY") {
-  return state === "LIVE_READ_ONLY" ? "Live read-only" : "Held review";
+  return state === "LIVE_READ_ONLY" ? "Live read-only" : "Guided review";
 }
 
 function StatePanel({ kind, message, returnHref }: { kind: FailureKind; message?: string; returnHref: string }) {
@@ -87,7 +87,7 @@ export function UnifiedCrmOpportunityReviewHub({
       <Link className={styles.backLink} href={returnHref}><ArrowLeft aria-hidden="true" size={15} />{returnContext.backLabel}</Link>
 
       <section className={styles.hero}>
-        <span className={styles.eyebrow}>Opportunity review hub · review only</span>
+        <span className={styles.eyebrow}>Opportunity hub · guided review</span>
         <h1>{model.headline.title}</h1>
         <p>{model.headline.detail}</p>
         <div className={styles.heroMeta}>
@@ -134,7 +134,7 @@ export function UnifiedCrmOpportunityReviewHub({
                     <span>{linkStateLabel(link.state)}</span>
                   </header>
                   <p>{link.description}</p>
-                  <small>{link.state === "LIVE_READ_ONLY" ? "Open persisted read-only detail" : "Open held review surface"} <ExternalLink aria-hidden="true" size={13} /></small>
+                  <small>{link.state === "LIVE_READ_ONLY" ? "Open persisted read-only detail" : "Open guided review surface"} <ExternalLink aria-hidden="true" size={13} /></small>
                 </Link>
               ))}
             </div>
@@ -154,7 +154,7 @@ export function UnifiedCrmOpportunityReviewHub({
           <Link className={styles.linkCard} href={`/crm/opportunities/guided?crmReturnTo=${encodeURIComponent(returnHref)}`}>
             <header>
               <strong>Open guided journey</strong>
-              <span>Held review</span>
+              <span>Guided review</span>
             </header>
             <p>Walk through entry, queue, detail, transition, and create review in one safe sequence.</p>
             <small>Open read-only review surface <ExternalLink aria-hidden="true" size={13} /></small>
@@ -185,7 +185,7 @@ export function UnifiedCrmOpportunityReviewHubLoading() {
       <section aria-busy="true" aria-labelledby="opportunity-review-hub-loading-heading" className={styles.loading}>
         <span className={styles.eyebrow}>Unified CRM</span>
         <h1 id="opportunity-review-hub-loading-heading">Loading opportunity review hub</h1>
-        <p>Checking access and loading the held opportunity review path. No opportunity action has been executed.</p>
+        <p>Checking access and loading the guided opportunity path. No opportunity action has been executed.</p>
         <div aria-hidden="true" className={styles.skeletons}>
           {Array.from({ length: 4 }, (_, index) => <span key={index} />)}
         </div>

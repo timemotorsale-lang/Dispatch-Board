@@ -28,7 +28,7 @@ function formatDate(value: string) {
 }
 
 function queueItemStateLabel(state: "HELD_REVIEW" | "LIVE_READ_ONLY") {
-  return state === "LIVE_READ_ONLY" ? "Read-only live detail" : "Held review only";
+  return state === "LIVE_READ_ONLY" ? "Read-only live detail" : "Guided review";
 }
 
 function segmentLabel(value: string) {

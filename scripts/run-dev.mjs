@@ -109,7 +109,7 @@ async function prepareManagedWindowsDistDir() {
 
 await prepareManagedWindowsDistDir();
 
-const child = spawn(process.execPath, [nextCli, "dev", "--turbopack"], {
+const child = spawn(process.execPath, [nextCli, "dev", "--webpack"], {
   cwd: root,
   stdio: "inherit",
   env: {

@@ -73,7 +73,7 @@ const viewCopy: Record<Exclude<UnifiedCrmView, "home">, { eyebrow: string; title
   pipeline: {
     eyebrow: "Pipeline",
     title: "Progress that is easy to understand",
-    description: "Stages, amounts, and movement shown here are synthetic interaction scenarios, not operational forecasts."
+    description: "Review real permitted opportunities when available, then use the guided hub, queue, create, and detail paths to keep work moving safely."
   },
   conversations: {
     eyebrow: "Conversations",
@@ -240,12 +240,17 @@ export function describeLiveWorkPresentation(model: UnifiedCrmWorkQueueReadModel
   };
 }
 
-function ReviewNotice({ mode }: { mode: "review" | "live-customers" | "live-work" }) {
+function ReviewNotice({ mode }: { mode: "review" | "live-customers" | "live-pipeline" | "live-work" }) {
   const copy = mode === "live-customers"
     ? {
         title: "Live read-only customer list",
         detail: "Contact hints are masked. No customer record is changed."
       }
+    : mode === "live-pipeline"
+      ? {
+          title: "Opportunity workspace ready",
+          detail: "Open queue, hub, create, and detail paths from here. Stage movement remains governed by approved commands."
+        }
     : mode === "live-work"
       ? {
           title: "Live read-only CRM work queue",
@@ -836,7 +841,7 @@ function OpportunityDiscoveryPanel({ model, returnHref }: { model: UnifiedCrmOpp
         <ShieldCheck aria-hidden="true" size={17} />
         <div>
           <strong>{model.headline.title}</strong>
-          <span>{model.visibility === "owned" ? "Owned review" : "Organization review"} · {hasLiveRead ? "held workspace with live read-only detail" : "held only"}</span>
+          <span>{model.visibility === "owned" ? "Owned review" : "Organization review"} · {hasLiveRead ? "live read-only detail available" : "guided workspace ready"}</span>
         </div>
       </header>
       <p className={styles.sectionDetail}>{model.headline.detail}</p>
@@ -860,10 +865,10 @@ function OpportunityDiscoveryPanel({ model, returnHref }: { model: UnifiedCrmOpp
             <span className={styles.discoveryEyebrow}>{panel.label}</span>
             <div className={styles.previewItemHeader}>
               <strong>{panel.link.label}</strong>
-              <span className={styles.statePill}>{panel.link.state === "LIVE_READ_ONLY" ? "Live read-only" : "Held review"}</span>
+              <span className={styles.statePill}>{panel.link.state === "LIVE_READ_ONLY" ? "Live read-only" : "Guided review"}</span>
             </div>
             <p>{panel.detail}</p>
-            <small>{panel.link.description} {panel.link.state === "LIVE_READ_ONLY" ? "Opens a persisted read-only opportunity path." : "Held review only."}</small>
+            <small>{panel.link.description} {panel.link.state === "LIVE_READ_ONLY" ? "Opens a persisted read-only opportunity path." : "Opens a guided opportunity path."}</small>
           </Link>
         ))}
       </div>
@@ -960,7 +965,9 @@ export function UnifiedCrmShell({
       ? workQueue || workQueueError
         ? "live-work"
         : "review"
-      : "review";
+      : activeView === "pipeline"
+        ? "live-pipeline"
+        : "review";
 
   return (
     <main className={styles.shell} data-review-capabilities={Object.entries(capabilities).filter(([, enabled]) => enabled).map(([capability]) => capability).join(",")}>

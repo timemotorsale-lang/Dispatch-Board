@@ -45,12 +45,12 @@ function createPanels(primaryRecord?: UnifiedCrmOpportunityPreviewRecord | null)
     {
       id: "workspace-entry",
       label: "Start in the opportunity workspace",
-      detail: "Use the held pipeline review when you want the fastest look at what the day-to-day opportunity workspace will feel like.",
+      detail: "Use the pipeline workspace when you want the fastest look at current opportunity flow and safe next actions.",
       emphasis: "ENTRY",
       link: {
         id: "pipeline",
-        label: "Open pipeline review",
-        description: "See the entry board and list shape without live stages, forecasts, or writes.",
+        label: "Open pipeline workspace",
+        description: "See the entry board, list shape, queue, create, and detail paths without silent writes.",
         href: buildUnifiedCrmOpportunityReviewHref("pipeline"),
         state: "HELD_REVIEW"
       }
@@ -59,15 +59,15 @@ function createPanels(primaryRecord?: UnifiedCrmOpportunityPreviewRecord | null)
       id: "workspace-map",
       label: "Choose the exact review surface",
       detail: primaryRecord
-        ? "Use the review hub when you want one safe map that includes a same-scope persisted read-only opportunity detail alongside the held review surfaces."
+        ? "Use the review hub when you want one safe map that includes a same-scope persisted read-only opportunity detail alongside the guided workflow surfaces."
         : "Use the review hub when you want to compare pipeline, queue, detail, transition, and create surfaces from one safe map.",
       emphasis: "MAP",
       link: {
         id: "hub",
-        label: primaryRecord ? "Open review hub with live detail" : "Open review hub",
+        label: primaryRecord ? "Open hub with live detail" : "Open opportunity hub",
         description: primaryRecord
           ? "Jump to the opportunity review hub and open the first same-scope persisted detail record in read-only mode."
-          : "Jump to any opportunity review surface without leaving the held workspace.",
+          : "Jump to any opportunity surface without leaving the guided workspace.",
         href: "/crm/opportunities?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
         state: primaryRecord ? "LIVE_READ_ONLY" : "HELD_REVIEW"
       }
@@ -80,7 +80,7 @@ function createPanels(primaryRecord?: UnifiedCrmOpportunityPreviewRecord | null)
       link: {
         id: "guided",
         label: "Open guided journey",
-        description: "Walk entry, queue, detail, transition, and create in one held, read-only sequence.",
+        description: "Walk entry, queue, detail, transition, and create in one guided, read-only sequence.",
         href: "/crm/opportunities/guided?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
         state: "HELD_REVIEW"
       }
@@ -91,9 +91,9 @@ function createPanels(primaryRecord?: UnifiedCrmOpportunityPreviewRecord | null)
 function liveCollectionDetail(visiblePersistedRecordCount: number, visibility: "organization" | "owned") {
   const visibilityLabel = visibility === "organization" ? "organization review" : "owned review";
   if (visiblePersistedRecordCount > 0) {
-    return `Only same-scope persisted opportunities are available from this workspace entry for ${visibilityLabel}. Lifecycle movement remains off.`;
+    return `Only same-scope persisted opportunities are available from this workspace entry for ${visibilityLabel}. Lifecycle movement uses governed commands.`;
   }
-  return `No same-scope persisted read-only opportunity is visible from this workspace entry right now for ${visibilityLabel}. Continue with held review surfaces until one is available.`;
+  return `No same-scope persisted opportunity is visible from this workspace entry right now for ${visibilityLabel}. Use the guided hub, queue, or create flow to continue.`;
 }
 
 function liveCollectionFreshnessLabel(newestVisibleRecordUpdatedAt: string | null) {
@@ -144,14 +144,14 @@ export async function getUnifiedCrmOpportunityDiscovery(
     contractVersion: UNIFIED_CRM_OPPORTUNITY_DISCOVERY_CONTRACT_VERSION,
     generatedAt,
     headline: {
-      title: "Opportunity workspace is ready to review, not yet to operate",
+      title: "Opportunity workspace is ready to use",
       detail: visiblePersistedRecord
-        ? `Home and Work can safely point here so users can enter the opportunity workspace in ${orientation.visibilityLabel}, open one persisted read-only opportunity, and still avoid fake counts, live stage movement, or operational commands.`
-        : `Home and Work can safely point here so users can enter the opportunity workspace in ${orientation.visibilityLabel} without seeing fake counts, live stage movement, or operational commands.`
+        ? `Home and Work can safely point here so users can enter the opportunity workspace in ${orientation.visibilityLabel}, open one persisted read-only opportunity, and continue without fake counts or silent stage changes.`
+        : `Home and Work can safely point here so users can enter the opportunity workspace in ${orientation.visibilityLabel} and continue through queue, hub, create, and detail paths.`
     },
     nextUnlocks: [
-      "Approve lifecycle stages and evidence rules before turning the workspace entry into a live operational destination.",
-      "Verify the shell entry, fallback, and role-safe review path before surfacing live opportunity actions from Home or Work."
+      "Turn on audited write actions only after provider, permission, rollback, and evidence gates are verified.",
+      "Keep stage movement routed through the governed transition command so the pipeline never mutates records silently."
     ],
     panels: createPanels(visiblePersistedRecord),
     source: {

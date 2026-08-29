@@ -37,15 +37,15 @@ const opportunityDiscovery: UnifiedCrmOpportunityDiscoveryModel = {
   contractVersion: "ucrm.opportunity-discovery/v1",
   generatedAt: "2026-08-15T03:00:00.000Z",
   headline: {
-    title: "Opportunity workspace is ready to review, not yet to operate",
-    detail: "Home and Work can point to the held opportunity workspace without fake counts or operational commands."
+    title: "Opportunity workspace is ready to use",
+    detail: "Home and Work can point to the guided opportunity workspace without fake counts or silent stage changes."
   },
-  nextUnlocks: ["Approve lifecycle rules before enabling live actions."],
+  nextUnlocks: ["Turn on audited write actions only after gates are verified."],
   panels: [
     {
       id: "workspace-entry",
       label: "Start in the opportunity workspace",
-      detail: "Use the held pipeline review.",
+      detail: "Use the pipeline workspace.",
       emphasis: "ENTRY",
       link: {
         id: "pipeline",
@@ -58,7 +58,7 @@ const opportunityDiscovery: UnifiedCrmOpportunityDiscoveryModel = {
     {
       id: "workspace-map",
       label: "Choose the exact review surface",
-      detail: "Compare held review surfaces.",
+      detail: "Compare guided review surfaces.",
       emphasis: "MAP",
       link: {
         id: "hub",
@@ -71,12 +71,12 @@ const opportunityDiscovery: UnifiedCrmOpportunityDiscoveryModel = {
     {
       id: "guided-path",
       label: "Follow the intended end-to-end review path",
-      detail: "Walk the held path in user order.",
+      detail: "Walk the guided path in user order.",
       emphasis: "GUIDED",
       link: {
         id: "guided",
         label: "Open guided journey",
-        description: "Walk a held, read-only sequence.",
+        description: "Walk a guided, read-only sequence.",
         href: "/crm/opportunities/guided?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
         state: "HELD_REVIEW"
       }
@@ -192,8 +192,8 @@ describe("Unified CRM UX review shell", () => {
     const more = renderToStaticMarkup(<UnifiedCrmShell activeView="more" userName="Alex Operator" />);
 
     expect(conversations).toContain("No external messages are sent or synchronized");
-    expect(pipeline).toContain("Lifecycle rules are intentionally held");
-    expect(pipeline).toContain("No opportunity record is created in this preview");
+    expect(pipeline).toContain("Opportunity workspace ready");
+    expect(pipeline).toContain("This pipeline page does not silently create or mutate opportunity records");
     expect(pipeline).toContain("How the first opportunity board will feel");
     expect(more).toContain('/crm/quotes?crmReturnTo=%2Fcrm%3Fview%3Dmore');
     expect(more).toContain("Versioned storage is ready");
@@ -215,7 +215,7 @@ describe("Unified CRM UX review shell", () => {
   it.each([
     ["home", "/crm"],
     ["work", "/crm?view=work"]
-  ] as const)("discovers the same held opportunity workspace from %s", (activeView, expectedReturnHref) => {
+  ] as const)("discovers the same guided opportunity workspace from %s", (activeView, expectedReturnHref) => {
     const markup = renderToStaticMarkup(
       <UnifiedCrmShell
         activeView={activeView}
@@ -228,8 +228,8 @@ describe("Unified CRM UX review shell", () => {
 
     expect(markup).toContain('<main');
     expect(markup).toContain('aria-label="Opportunity workspace discovery"');
-    expect(markup).toContain("Opportunity workspace is ready to review, not yet to operate");
-    expect(markup).toContain("held workspace with live read-only detail");
+    expect(markup).toContain("Opportunity workspace is ready to use");
+    expect(markup).toContain("live read-only detail available");
     expect(markup).toContain("Persisted read-only entry visibility");
     expect(markup).toContain("Only same-scope persisted opportunities are available from this workspace entry for organization review. Lifecycle movement remains off.");
     expect(markup).toContain("Newest visible persisted update observed at 2026-08-15T03:00:00.000Z.");

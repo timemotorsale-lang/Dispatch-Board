@@ -99,7 +99,7 @@ function liveCollectionDetail(visiblePersistedRecordCount: number, visibility: "
   if (visiblePersistedRecordCount > 0) {
     return `Only same-scope persisted opportunities are listed here for ${visibilityLabel}. Lifecycle movement opens through the governed transition command.`;
   }
-  return `No same-scope persisted read-only opportunity is visible right now for ${visibilityLabel}. Continue with held pipeline review until one is available.`;
+  return `No same-scope persisted opportunity is visible right now for ${visibilityLabel}. Use the guided opportunity hub, create flow, or queue while the first record is prepared.`;
 }
 
 function liveCollectionFreshnessLabel(newestVisibleRecordUpdatedAt: string | null) {
@@ -199,7 +199,7 @@ export async function getUnifiedCrmOpportunityPipelinePreview(
             detailHref: buildUnifiedCrmOpportunityReviewHref("detail", "review01"),
             nextActionLabel: "Review create contract",
             ownerLabel: visibility === "organization" ? "Team-owned preview" : "Owned preview",
-            reason: "First secure create path will surface here after lifecycle approval.",
+            reason: "Use the governed create path to prepare the first opportunity without changing Dispatch Board ownership.",
             state: "HELD_REVIEW"
           },
           {
@@ -225,7 +225,7 @@ export async function getUnifiedCrmOpportunityPipelinePreview(
             detailHref: buildUnifiedCrmOpportunityReviewHref("detail", "review03"),
             nextActionLabel: "Review detail state",
             ownerLabel: visibility === "organization" ? "Team-owned preview" : "Owned preview",
-            reason: "Amounts, probability, and stage movement stay off until approved.",
+            reason: "Amounts and probability stay review-safe until the record has required evidence and audit context.",
             state: "HELD_REVIEW"
           },
           {
@@ -258,7 +258,7 @@ export async function getUnifiedCrmOpportunityPipelinePreview(
       }
     ],
     constraints: [
-      "No opportunity record is created from this preview.",
+      "This pipeline page does not silently create or mutate opportunity records.",
       "Stage movement must use the governed transition command; board cards link into that command instead of mutating directly.",
       "Task, Appointment, and Dispatch remain authoritative in their own consoles."
     ],
@@ -275,11 +275,11 @@ export async function getUnifiedCrmOpportunityPipelinePreview(
           ? "Visible read-only opportunities"
           : "Your visible read-only opportunities"
         : visibility === "organization"
-          ? "What the first live list will surface"
-          : "What your owned opportunity list will surface",
+          ? "Opportunity list entry points"
+          : "Your opportunity list entry points",
       emptyMessage: liveReadItems.length
         ? "Additional persisted opportunities will appear here when they are safe to show in read-only mode."
-        : "No same-scope persisted read-only opportunity is visible while lifecycle rules remain held.",
+        : "No same-scope persisted opportunity is visible yet. Use the guided hub, create flow, or queue to continue.",
       items: [
         ...liveReadItems,
         {
@@ -293,7 +293,7 @@ export async function getUnifiedCrmOpportunityPipelinePreview(
           id: "list-review02",
           title: "Safe path into detail",
           ownerLabel: "Review only",
-          reason: "Open detail stays one click away, but the detail remains read-only until activation is approved.",
+          reason: "Open detail stays one click away; write actions remain controlled by the approved command and audit gates.",
           state: "HELD_REVIEW"
         }
       ]

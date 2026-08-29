@@ -28,7 +28,7 @@ const STEPS: Record<Props["current"], { intro: string; title: string }> = {
 const ORIENTATION_STEPS: OrientationStep[] = [
   {
     label: "Pipeline",
-    description: "See the opportunity workspace entry point and the held board and list shape."
+    description: "See the opportunity workspace entry point, board, list, and safe next actions."
   },
   {
     label: "Hub",

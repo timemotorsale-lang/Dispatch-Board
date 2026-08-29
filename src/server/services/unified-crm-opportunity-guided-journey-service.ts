@@ -48,7 +48,7 @@ function createJourneySteps(): readonly UnifiedCrmOpportunityGuidedJourneyStep[]
     {
       id: "transition",
       label: "Inspect movement governance",
-      description: "Open the transition review to understand evidence, rollback posture, and why stage movement remains intentionally held.",
+      description: "Open the transition review to understand evidence, rollback posture, and how governed stage movement will work.",
       href: buildUnifiedCrmOpportunityReviewHref("transition", "review01"),
       state: "HELD_REVIEW"
     },

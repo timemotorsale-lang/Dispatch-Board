@@ -16,7 +16,8 @@ vi.mock("@/server/unified-crm/opportunity-detail-access", () => ({ requireUnifie
 vi.mock("@/server/unified-crm/shell-access", () => ({ resolveUnifiedCrmShellAccess: mocks.resolveUnifiedCrmShellAccess }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
-import OpportunityPage, { safeCrmOpportunityReturn } from "@/app/(app)/crm/opportunities/[opportunityId]/page";
+import OpportunityPage from "@/app/(app)/crm/opportunities/[opportunityId]/page";
+import { safeUnifiedCrmOpportunityReturn } from "@/server/unified-crm/opportunity-review-return";
 
 const actor: AuthenticatedUser = { id: "manager-1", name: "Manager", email: "manager@example.test", isActive: true, roles: ["General Manager"], duties: { direct: [], roleDefaults: [], all: [] } };
 
@@ -121,15 +122,15 @@ describe("Unified CRM opportunity detail page", () => {
 
   it("rejects external, protocol-relative, wrong-view, and unknown return parameters", () => {
     for (const value of ["https://evil.example", "//evil.example", "/crm?view=customers", "/crm?view=pipeline&redirect=https://evil.example"]) {
-      expect(safeCrmOpportunityReturn(value)).toBe("/crm?view=pipeline");
+      expect(safeUnifiedCrmOpportunityReturn(value)).toBe("/crm?view=pipeline");
     }
   });
 
   it("accepts only safe CRM customer-detail return parameters", () => {
-    expect(safeCrmOpportunityReturn("/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26q%3DAlex")).toBe(
+    expect(safeUnifiedCrmOpportunityReturn("/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26q%3DAlex")).toBe(
       "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26q%3DAlex"
     );
-    expect(safeCrmOpportunityReturn("/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dpipeline")).toBe(
+    expect(safeUnifiedCrmOpportunityReturn("/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dpipeline")).toBe(
       "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers"
     );
   });

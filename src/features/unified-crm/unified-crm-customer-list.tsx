@@ -201,7 +201,7 @@ export function UnifiedCrmCustomerList({ errorMessage, failureKind = "error", mo
         <>
           <div aria-live="polite" className={styles.summary}><span><strong>{resultLabel(model)}</strong>{filtered ? " for the current search and filters" : ""}</span><span>Contact hints are masked · recent activity first</span></div>
           {listDiscovery && opportunityBranchHref(listDiscovery) ? <section aria-label="Opportunity review discovery" className={styles.discoveryPanel}>
-            <div><strong>Need to review the commercial follow-up before opening a full customer?</strong><small>Use the held opportunity review workspace from the customer list. It stays read only and returns you safely to this list.</small></div>
+            <div><strong>Need to review the commercial follow-up before opening a full customer?</strong><small>Use the guided opportunity workspace from the customer list. It stays read only and returns you safely to this list.</small></div>
             <Link className={styles.branchLink} href={opportunityBranchHref(listDiscovery) ?? listDiscovery.customer.href}>Open opportunity review</Link>
           </section> : null}
           <CustomerRows model={model} opportunityDiscovery={opportunityDiscovery} />

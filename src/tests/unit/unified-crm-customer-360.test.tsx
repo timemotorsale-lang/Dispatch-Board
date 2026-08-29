@@ -36,7 +36,7 @@ const opportunityDiscovery: UnifiedCrmCustomerOpportunityDiscoveryModel = {
       {
         id: "workspace-entry",
         label: "Start in the opportunity workspace",
-        detail: "Use the held pipeline review.",
+        detail: "Use the pipeline workspace.",
         emphasis: "ENTRY",
         link: {
           id: "pipeline",
@@ -49,12 +49,12 @@ const opportunityDiscovery: UnifiedCrmCustomerOpportunityDiscoveryModel = {
       {
         id: "workspace-map",
         label: "Choose the exact review surface",
-        detail: "Use the held review hub.",
+        detail: "Use the guided review hub.",
         emphasis: "MAP",
         link: {
           id: "hub",
           label: "Open review hub",
-          description: "Review held surfaces.",
+          description: "Review guided surfaces.",
           href: "/crm/opportunities?crmReturnTo=%2Fcrm%3Fview%3Dpipeline",
           state: "HELD_REVIEW"
         }
@@ -62,7 +62,7 @@ const opportunityDiscovery: UnifiedCrmCustomerOpportunityDiscoveryModel = {
       {
         id: "guided-path",
         label: "Follow the intended path",
-        detail: "Use the held guided journey.",
+        detail: "Use the guided journey.",
         emphasis: "GUIDED",
         link: {
           id: "guided",
@@ -95,7 +95,7 @@ describe("Unified CRM Customer 360", () => {
     const markup = renderToStaticMarkup(<UnifiedCrmCustomer360 model={customer360Fixture()} opportunityDiscovery={opportunityDiscovery} returnHref="/crm?view=customers&amp;q=Alex" />);
     expect(markup).toContain("Alex Morgan"); expect(markup).toContain("Taylor B."); expect(markup).toContain("Next relationship action");
     expect(markup).toContain("Do the next safe thing in one click");
-    expect(markup).toContain("Live links only · held actions stay labeled");
+    expect(markup).toContain("Live links only · governed actions stay labeled");
     expect(markup).toContain("Log manual outcome");
     expect(markup).toContain("Update next action");
     expect(markup).toContain("Add internal note");
@@ -129,7 +129,7 @@ describe("Unified CRM Customer 360", () => {
     expect(markup.indexOf("From source context")).toBeGreaterThan(markup.indexOf("Lead and case context"));
     for (const title of ["Open pipeline review", "Open review hub", "Open guided journey"]) {
       const prompt = markup.match(new RegExp(`<a aria-label="${title}"[\\s\\S]*?<\\/a>`))?.[0];
-      expect(prompt).toMatch(/held|read.only/i);
+      expect(prompt).toMatch(/guided|read.only/i);
     }
     expect(markup).not.toMatch(/Create opportunity|Move stage|Mark won|Save opportunity|live forecast/i);
     expect(markup).toContain("Team context"); expect(markup).toContain("Customer prefers texts after lunch.");
@@ -364,7 +364,7 @@ describe("Unified CRM Customer 360", () => {
         model={{
           ...fixture,
           opportunityLensObservation: {
-            detail: "No same-scope persisted read-only opportunity linked to this customer is visible right now for organization review. Continue with held opportunity review surfaces until one is available.",
+            detail: "No same-scope persisted read-only opportunity linked to this customer is visible right now for organization review. Use guided opportunity surfaces until one is available.",
             dispatchLinkCount: 0,
             freshnessLabel: "No visible persisted opportunity update is available yet.",
             newestVisibleRecordUpdatedAt: null,
@@ -379,7 +379,7 @@ describe("Unified CRM Customer 360", () => {
     );
 
     expect(markup).toContain("No persisted opportunity is linked yet");
-    expect(markup).toContain("No same-scope persisted read-only opportunity linked to this customer is visible right now for organization review. Continue with held opportunity review surfaces until one is available.");
+    expect(markup).toContain("No same-scope persisted read-only opportunity linked to this customer is visible right now for organization review. Use guided opportunity surfaces until one is available.");
     expect(markup).toContain("No visible persisted opportunity update is available yet.");
   });
 

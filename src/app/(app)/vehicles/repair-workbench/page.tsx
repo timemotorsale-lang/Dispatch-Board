@@ -50,6 +50,44 @@ function activeVendorWork(order: {
   return works.find((work) => !["COMPLETED", "CANCELLED"].includes(work.status)) ?? works[0] ?? null;
 }
 
+function RepairWorkbenchUnavailable({
+  message,
+  returnTo,
+}: {
+  message: string;
+  returnTo?: string;
+}) {
+  return (
+    <section className={`page-stack ${styles.directory}`}>
+      <header className={`page-copy ${styles.hero}`}>
+        <span className="eyebrow">Shop &amp; Recon</span>
+        <h1>Repair Workbench needs attention</h1>
+        <p>
+          The workbench could not finish loading its repair-order data. Your saved work was not
+          changed, and you can safely return to a source workspace below.
+        </p>
+        <div className={styles.heroActions}>
+          <Link className="pill pill-primary" href="/vehicles/repair-workbench?view=all">
+            Retry repair queue
+          </Link>
+          <Link className="pill pill-secondary" href={returnTo ?? "/vehicles/shop-recon"}>
+            Return to Shop &amp; Recon
+          </Link>
+          <Link className="pill pill-secondary" href="/vehicles/inventory">
+            Inventory Lifecycle
+          </Link>
+          <Link className="pill pill-secondary" href="/board">
+            Dispatch Board
+          </Link>
+        </div>
+      </header>
+      <section className="notice notice-warning" role="status">
+        <p>{message}</p>
+      </section>
+    </section>
+  );
+}
+
 async function diagnosticsBridge(
   user: Awaited<ReturnType<typeof requireCurrentUser>>,
   repairOrderId: string,
@@ -89,7 +127,15 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
       getPermittedWorkspaces(user).some((workspace) => workspace.key === "ADVISOR"));
 
   if (params.repairOrderId) {
-    const order = await getShopPlanningDetail(user, params.repairOrderId);
+    const order = await getShopPlanningDetail(user, params.repairOrderId).catch(() => null);
+    if (!order) {
+      return (
+        <RepairWorkbenchUnavailable
+          message="That repair order could not be opened from the current source data. Return to the repair queue and select the current record."
+          returnTo={returnTo}
+        />
+      );
+    }
     if (params.vehicleId && order.vehicle.id !== params.vehicleId) {
       const mismatch = new URLSearchParams({
         contextError: "REPAIR_ORDER_VEHICLE_MISMATCH",
@@ -115,7 +161,7 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
       redirect(`/vehicles/repair-workbench?${canonical}`);
     }
     const [options, diagnostics] = await Promise.all([
-      getRepairOrderCreateOptions(user),
+      getRepairOrderCreateOptions(user).catch(() => ({ users: [] })),
       diagnosticsBridge(user, params.repairOrderId),
     ]);
     const partsWorkspace = (activeVendorWork(order) || order.partDemands?.length)
@@ -146,10 +192,23 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
   }
 
   const query = params.query?.trim().slice(0, 100) ?? "";
-  const [orders, contextOptions] = await Promise.all([
-    listRepairOrders(user, { page: 1, pageSize: 50, query, vehicleId: params.vehicleId }),
-    params.vehicleId ? getRepairOrderCreateOptions(user) : Promise.resolve(null),
+  const [ordersResult, contextOptions] = await Promise.all([
+    listRepairOrders(user, { page: 1, pageSize: 50, query, vehicleId: params.vehicleId }).catch((error) => ({
+      error: error instanceof Error ? error.message : "Repair-order queue could not be loaded.",
+      items: [],
+      page: 1,
+      pageSize: 50,
+      total: 0,
+    })),
+    params.vehicleId ? getRepairOrderCreateOptions(user).catch(() => null) : Promise.resolve(null),
   ]);
+  const orders = "error" in ordersResult ? {
+    items: [],
+    page: ordersResult.page,
+    pageSize: ordersResult.pageSize,
+    total: ordersResult.total,
+  } : ordersResult;
+  const queueError = "error" in ordersResult ? ordersResult.error : "";
   const contextVehicle =
     contextOptions?.vehicles.find((vehicle) => vehicle.id === params.vehicleId) ?? null;
 
@@ -214,6 +273,12 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
             or create a repair order for {contextName}.
           </p>
         </div>
+      ) : null}
+
+      {queueError ? (
+        <section className="notice notice-warning" role="status">
+          <p>{queueError} Your saved work was not changed. Retry the queue or return to Shop &amp; Recon.</p>
+        </section>
       ) : null}
 
       <section className={`panel-card ${styles.searchCard}`}>

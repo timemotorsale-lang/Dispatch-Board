@@ -15,7 +15,8 @@ vi.mock("@/server/services/unified-crm-opportunity-create-service", () => ({ get
 vi.mock("@/server/unified-crm/opportunity-detail-access", () => ({ requireUnifiedCrmOpportunityDetailAccess: mocks.requireUnifiedCrmOpportunityDetailAccess }));
 vi.mock("@/server/unified-crm/shell-access", () => ({ resolveUnifiedCrmShellAccess: mocks.resolveUnifiedCrmShellAccess }));
 
-import OpportunityCreatePage, { safeCrmOpportunityCreateReturn } from "@/app/(app)/crm/opportunities/new/page";
+import OpportunityCreatePage from "@/app/(app)/crm/opportunities/new/page";
+import { safeUnifiedCrmOpportunityReturn } from "@/server/unified-crm/opportunity-review-return";
 
 const actor: AuthenticatedUser = { id: "manager-1", name: "Manager", email: "manager@example.test", isActive: true, roles: ["General Manager"], duties: { direct: [], roleDefaults: [], all: [] } };
 
@@ -60,15 +61,15 @@ describe("Unified CRM opportunity create page", () => {
 
   it("rejects unsafe return parameters", () => {
     for (const value of ["https://evil.example", "//evil.example", "/crm?view=customers", "/crm?view=pipeline&redirect=https://evil.example"]) {
-      expect(safeCrmOpportunityCreateReturn(value)).toBe("/crm?view=pipeline");
+      expect(safeUnifiedCrmOpportunityReturn(value)).toBe("/crm?view=pipeline");
     }
   });
 
   it("accepts only safe CRM customer-detail return parameters", () => {
-    expect(safeCrmOpportunityCreateReturn("/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26owner%3Dmine")).toBe(
+    expect(safeUnifiedCrmOpportunityReturn("/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26owner%3Dmine")).toBe(
       "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26owner%3Dmine"
     );
-    expect(safeCrmOpportunityCreateReturn("/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dpipeline")).toBe(
+    expect(safeUnifiedCrmOpportunityReturn("/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dpipeline")).toBe(
       "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers"
     );
   });

@@ -22,8 +22,6 @@ function unavailableMessage(reason: string) {
   return "Unified CRM is temporarily unavailable. Your existing workspace remains available.";
 }
 
-export const safeCrmOpportunityHubReturn = safeUnifiedCrmOpportunityReturn;
-
 export default async function UnifiedCrmOpportunityHubPage({ searchParams }: Props) {
   const user = await requireCurrentUser();
   const shellAccess = resolveUnifiedCrmShellAccess(user);
@@ -32,7 +30,7 @@ export default async function UnifiedCrmOpportunityHubPage({ searchParams }: Pro
   }
 
   const query = await searchParams;
-  const returnHref = safeCrmOpportunityHubReturn(query.crmReturnTo);
+  const returnHref = safeUnifiedCrmOpportunityReturn(query.crmReturnTo);
   let model: UnifiedCrmOpportunityReviewHubModel | undefined;
   let failure: { kind: "error" | "restricted" | "unavailable"; message?: string } | undefined;
 

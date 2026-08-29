@@ -15,7 +15,8 @@ vi.mock("@/server/services/unified-crm-opportunity-review-hub-service", () => ({
 vi.mock("@/server/unified-crm/opportunity-detail-access", () => ({ requireUnifiedCrmOpportunityDetailAccess: mocks.requireUnifiedCrmOpportunityDetailAccess }));
 vi.mock("@/server/unified-crm/shell-access", () => ({ resolveUnifiedCrmShellAccess: mocks.resolveUnifiedCrmShellAccess }));
 
-import OpportunityHubPage, { safeCrmOpportunityHubReturn } from "@/app/(app)/crm/opportunities/page";
+import OpportunityHubPage from "@/app/(app)/crm/opportunities/page";
+import { safeUnifiedCrmOpportunityReturn } from "@/server/unified-crm/opportunity-review-return";
 
 const actor: AuthenticatedUser = {
   id: "manager-1",
@@ -69,14 +70,14 @@ describe("Unified CRM opportunity review hub page", () => {
   });
 
   it("accepts a safe CRM customer return path", () => {
-    expect(safeCrmOpportunityHubReturn("/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26q%3DAlex")).toBe(
+    expect(safeUnifiedCrmOpportunityReturn("/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26q%3DAlex")).toBe(
       "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26q%3DAlex"
     );
   });
 
   it("rejects unsafe return parameters", () => {
     for (const value of ["https://evil.example", "//evil.example", "/crm?view=customers", "/crm?view=pipeline&redirect=https://evil.example"]) {
-      expect(safeCrmOpportunityHubReturn(value)).toBe("/crm?view=pipeline");
+      expect(safeUnifiedCrmOpportunityReturn(value)).toBe("/crm?view=pipeline");
     }
   });
 
@@ -126,7 +127,7 @@ describe("Unified CRM opportunity review hub page", () => {
       "/crm?view=pipeline#https://evil.example",
       "/crm?view=pipeline&next=%2F%2Fevil.example"
     ]) {
-      expect(safeCrmOpportunityHubReturn(value)).toBe("/crm?view=pipeline");
+      expect(safeUnifiedCrmOpportunityReturn(value)).toBe("/crm?view=pipeline");
     }
   });
 });

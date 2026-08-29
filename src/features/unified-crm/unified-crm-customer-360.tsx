@@ -293,7 +293,7 @@ function QuickActions({
           <span className={styles.eyebrow}>Ready actions</span>
           <h2 id="customer-quick-actions-heading">Do the next safe thing in one click</h2>
         </div>
-        <small>Live links only · held actions stay labeled</small>
+        <small>Live links only · governed actions stay labeled</small>
       </header>
       <div className={styles.quickActionsGrid}>
         <Link className={`${styles.quickActionLink} ${styles.quickActionPrimary}`} href={customerSourceHref}>
@@ -319,7 +319,7 @@ function QuickActions({
         {primaryOpportunityAction ? (
           <Link className={styles.quickActionLink} href={withUnifiedCrmOpportunityReturn(primaryOpportunityAction.link.href, opportunityDiscovery.customer.href)}>
             <strong>{primaryOpportunityAction.link.label}</strong>
-            <small>{primaryOpportunityAction.link.description} Held review only.</small>
+            <small>{primaryOpportunityAction.link.description} Opens a guided opportunity path.</small>
           </Link>
         ) : null}
       </div>
@@ -346,7 +346,7 @@ function OpportunityDiscoveryNudges({ model }: { model: UnifiedCrmCustomerOpport
     connectedWork: pipeline
       ? (
         <OpportunityDiscoveryPrompt
-          detail="Use the held pipeline review when connected appointments or vehicles make you want to check the next commercial follow-up."
+          detail="Use the guided pipeline workspace when connected appointments or vehicles make you want to check the next commercial follow-up."
           href={withCustomerReturn(pipeline.link.href)}
           label="Commercial next step"
           title={pipeline.link.label}
@@ -356,7 +356,7 @@ function OpportunityDiscoveryNudges({ model }: { model: UnifiedCrmCustomerOpport
     sourceLenses: hub
       ? (
         <OpportunityDiscoveryPrompt
-          detail="Use the review hub when lead or case context makes you want to compare the held, read-only opportunity review surfaces from one place."
+          detail="Use the review hub when lead or case context makes you want to compare the guided, read-only opportunity surfaces from one place."
           href={withCustomerReturn(hub.link.href)}
           label="From source context"
           title={hub.link.label}
@@ -366,7 +366,7 @@ function OpportunityDiscoveryNudges({ model }: { model: UnifiedCrmCustomerOpport
     timeline: guided
       ? (
         <OpportunityDiscoveryPrompt
-          detail="Use the guided journey when recent history makes you want to walk the full held opportunity review path in order."
+          detail="Use the guided journey when recent history makes you want to walk the full opportunity review path in order."
           href={withCustomerReturn(guided.link.href)}
           label="Follow-up journey"
           title={guided.link.label}

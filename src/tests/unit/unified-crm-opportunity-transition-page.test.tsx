@@ -15,7 +15,8 @@ vi.mock("@/server/services/unified-crm-opportunity-transition-service", () => ({
 vi.mock("@/server/unified-crm/opportunity-detail-access", () => ({ requireUnifiedCrmOpportunityDetailAccess: mocks.requireUnifiedCrmOpportunityDetailAccess }));
 vi.mock("@/server/unified-crm/shell-access", () => ({ resolveUnifiedCrmShellAccess: mocks.resolveUnifiedCrmShellAccess }));
 
-import OpportunityTransitionPage, { safeCrmOpportunityTransitionReturn } from "@/app/(app)/crm/opportunities/[opportunityId]/transition/page";
+import OpportunityTransitionPage from "@/app/(app)/crm/opportunities/[opportunityId]/transition/page";
+import { safeUnifiedCrmOpportunityReturn } from "@/server/unified-crm/opportunity-review-return";
 
 const actor: AuthenticatedUser = { id: "manager-1", name: "Manager", email: "manager@example.test", isActive: true, roles: ["General Manager"], duties: { direct: [], roleDefaults: [], all: [] } };
 
@@ -72,15 +73,15 @@ describe("Unified CRM opportunity transition page", () => {
 
   it("rejects unsafe return parameters", () => {
     for (const value of ["https://evil.example", "//evil.example", "/crm?view=customers", "/crm?view=pipeline&redirect=https://evil.example"]) {
-      expect(safeCrmOpportunityTransitionReturn(value)).toBe("/crm?view=pipeline");
+      expect(safeUnifiedCrmOpportunityReturn(value)).toBe("/crm?view=pipeline");
     }
   });
 
   it("accepts only safe CRM customer-detail return parameters", () => {
-    expect(safeCrmOpportunityTransitionReturn("/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26status%3Dactive")).toBe(
+    expect(safeUnifiedCrmOpportunityReturn("/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26status%3Dactive")).toBe(
       "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26status%3Dactive"
     );
-    expect(safeCrmOpportunityTransitionReturn("/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dpipeline")).toBe(
+    expect(safeUnifiedCrmOpportunityReturn("/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dpipeline")).toBe(
       "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers"
     );
   });

@@ -15,7 +15,8 @@ vi.mock("@/server/services/unified-crm-opportunity-guided-journey-service", () =
 vi.mock("@/server/unified-crm/opportunity-detail-access", () => ({ requireUnifiedCrmOpportunityDetailAccess: mocks.requireUnifiedCrmOpportunityDetailAccess }));
 vi.mock("@/server/unified-crm/shell-access", () => ({ resolveUnifiedCrmShellAccess: mocks.resolveUnifiedCrmShellAccess }));
 
-import OpportunityGuidedJourneyPage, { safeCrmOpportunityGuidedJourneyReturn } from "@/app/(app)/crm/opportunities/guided/page";
+import OpportunityGuidedJourneyPage from "@/app/(app)/crm/opportunities/guided/page";
+import { safeUnifiedCrmOpportunityReturn } from "@/server/unified-crm/opportunity-review-return";
 
 const actor: AuthenticatedUser = {
   id: "manager-1",
@@ -62,14 +63,14 @@ describe("Unified CRM guided opportunity journey page", () => {
   });
 
   it("accepts a safe CRM customer return path", () => {
-    expect(safeCrmOpportunityGuidedJourneyReturn("/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26status%3Dactive")).toBe(
+    expect(safeUnifiedCrmOpportunityReturn("/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26status%3Dactive")).toBe(
       "/crm/customers/customer-1?crmReturnTo=%2Fcrm%3Fview%3Dcustomers%26status%3Dactive"
     );
   });
 
   it("rejects unsafe return parameters", () => {
     for (const value of ["https://evil.example", "//evil.example", "/crm?view=customers", "/crm?view=pipeline&redirect=https://evil.example"]) {
-      expect(safeCrmOpportunityGuidedJourneyReturn(value)).toBe("/crm?view=pipeline");
+      expect(safeUnifiedCrmOpportunityReturn(value)).toBe("/crm?view=pipeline");
     }
   });
 

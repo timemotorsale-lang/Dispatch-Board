@@ -71,38 +71,38 @@ function createLinks(
   return [
     {
       id: "pipeline",
-      label: "Review pipeline",
-      description: "Open the held board and list review that shows how opportunities should feel before lifecycle rules go live.",
+      label: "Open pipeline",
+      description: "Open the board and list workspace that shows permitted opportunity flow and safe next actions.",
       href: buildUnifiedCrmOpportunityReviewHref("pipeline"),
       state: "HELD_REVIEW"
     },
     {
       id: "queue",
-      label: "Review queue",
-      description: "Inspect the held owned, overdue, waiting, and at-risk queue experience without changing any opportunity record.",
+      label: "Open queue",
+      description: "Inspect owned, overdue, waiting, and at-risk opportunity work without changing any opportunity record.",
       href: buildUnifiedCrmOpportunityReviewHref("queue"),
       state: "HELD_REVIEW"
     },
     {
       id: "create",
-      label: "Review create flow",
-      description: "Check the first governed create experience and required inputs before any live opportunity write is enabled.",
+      label: "Start create flow",
+      description: "Open the governed create experience and required inputs; writes remain controlled by the approved command path.",
       href: buildUnifiedCrmOpportunityReviewHref("create"),
       state: "HELD_REVIEW"
     },
     {
       id: "detail",
-      label: primaryRecord && primaryOpportunityId ? "Open persisted detail" : "Review detail flow",
+      label: primaryRecord && primaryOpportunityId ? "Open persisted detail" : "Open detail flow",
       description: primaryRecord && primaryOpportunityId
-        ? "Open the first same-scope persisted opportunity in read-only mode while lifecycle commands remain off."
-        : "Open the held opportunity detail page to verify customer context, source bridges, and next unlocks.",
+        ? "Open the first same-scope persisted opportunity in read-only mode while lifecycle commands remain governed."
+        : "Open the opportunity detail page to verify customer context, source bridges, and next unlocks.",
       href: buildUnifiedCrmOpportunityReviewHref("detail", primaryOpportunityId ?? "review01"),
       state: primaryRecord && primaryOpportunityId ? "LIVE_READ_ONLY" : "HELD_REVIEW"
     },
     {
       id: "transition",
-      label: "Review transition flow",
-      description: "Inspect stage-movement governance, evidence expectations, and rollback posture before live transitions exist.",
+      label: "Review stage movement",
+      description: "Inspect stage-movement governance, evidence expectations, and rollback posture before a transition is submitted.",
       href: buildUnifiedCrmOpportunityReviewHref("transition", "review01"),
       state: "HELD_REVIEW"
     }
@@ -114,9 +114,9 @@ function liveObservationDetail(
   visibilityLabel: string
 ) {
   if (visiblePersistedRecordCount > 0) {
-    return `Only same-scope persisted opportunities are listed here for ${visibilityLabel.toLowerCase()}. Lifecycle movement remains off.`;
+    return `Only same-scope persisted opportunities are listed here for ${visibilityLabel.toLowerCase()}. Lifecycle movement uses governed commands.`;
   }
-  return `No same-scope persisted read-only opportunity is visible right now for ${visibilityLabel.toLowerCase()}. Continue with held review surfaces until one is available.`;
+  return `No same-scope persisted opportunity is visible right now for ${visibilityLabel.toLowerCase()}. Use the guided pipeline, queue, or create flow to continue.`;
 }
 
 function liveObservationFreshnessLabel(newestVisibleRecordUpdatedAt: string | null) {
@@ -169,8 +169,8 @@ export async function getUnifiedCrmOpportunityReviewHub(
     headline: {
       title: "Review the full opportunity experience from one safe hub",
       detail: visiblePersistedRecord
-        ? `This hub keeps pipeline, queue, create, a real read-only detail record, and transition review one click away while opportunity lifecycle rules remain intentionally held for ${orientation.visibilityLabel}.`
-        : `This hub keeps pipeline, queue, create, detail, and transition review one click away while opportunity lifecycle rules remain intentionally held for ${orientation.visibilityLabel}.`
+        ? `This hub keeps pipeline, queue, create, a real read-only detail record, and transition review one click away for ${orientation.visibilityLabel}.`
+        : `This hub keeps pipeline, queue, create, detail, and transition review one click away for ${orientation.visibilityLabel}.`
     },
       liveReadObservation: {
       detail: liveObservationDetail(visiblePersistedRecords.length, orientation.visibilityLabel),
@@ -201,13 +201,13 @@ export async function getUnifiedCrmOpportunityReviewHub(
         label: "Visible read-only opportunities",
         detail: liveRecordLinks.length
           ? "These persisted opportunity records are safe to open in read-only mode and still keep live lifecycle movement turned off."
-          : "No permitted persisted opportunity record is visible right now. Keep using held review surfaces until a same-scope read-only record is available.",
+          : "No permitted persisted opportunity record is visible right now. Use guided opportunity surfaces until a same-scope read-only record is available.",
         links: liveRecordLinks
       },
       {
         id: "governance",
         label: "Governed activation path",
-        detail: "Every linked surface stays read only, feature off, and safe to review until the business-approved lifecycle is complete.",
+        detail: "Every linked surface stays permission-checked, auditable, and safe; direct writes remain controlled by the approved lifecycle command.",
         links: links.filter((link) => link.id === "create" || link.id === "transition" || link.id === "queue")
       }
     ],

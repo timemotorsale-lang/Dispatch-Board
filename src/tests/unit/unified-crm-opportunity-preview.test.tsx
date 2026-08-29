@@ -12,7 +12,7 @@ function previewFixture(): UnifiedCrmOpportunityPreviewModel {
     visibility: "organization",
     cards: [
       { id: "foundation", label: "Foundation", value: "Ready", detail: "Foundation detail", tone: "ready" },
-      { id: "policy", label: "Stage policy", value: "Held", detail: "Policy detail", tone: "held" },
+      { id: "policy", label: "Stage policy", value: "Approved", detail: "Policy detail", tone: "ready" },
       { id: "bridges", label: "Owning-system bridges", value: "Prepared", detail: "Bridge detail", tone: "neutral" }
     ],
     columns: [{
@@ -43,7 +43,7 @@ function previewFixture(): UnifiedCrmOpportunityPreviewModel {
       }]
     }],
     constraints: [
-      "No opportunity record is created in this preview.",
+      "This pipeline page does not silently create or mutate opportunity records.",
       "Stage movement must use the governed transition command; board cards link into that command instead of mutating directly."
     ],
     listPreview: {
@@ -54,8 +54,8 @@ function previewFixture(): UnifiedCrmOpportunityPreviewModel {
         state: "READY",
         visibleRecordCount: 1
       },
-      heading: "What the first live list will surface",
-      emptyMessage: "No live opportunities are shown while lifecycle rules are held.",
+      heading: "Opportunity list entry points",
+      emptyMessage: "No same-scope persisted opportunity is visible yet. Use the guided hub, create flow, or queue to continue.",
       items: [
         {
           id: "live-opp-1",
@@ -84,26 +84,26 @@ function previewFixture(): UnifiedCrmOpportunityPreviewModel {
 }
 
 describe("Unified CRM opportunity preview", () => {
-  it("renders an honest held-state preview without claiming operational pipeline behavior", () => {
+  it("renders an honest guided pipeline workspace without claiming silent operational writes", () => {
     const markup = renderToStaticMarkup(<UnifiedCrmOpportunityPreview />);
 
-    expect(markup).toContain("Foundation is ready. Lifecycle rules are intentionally held.");
+    expect(markup).toContain("Opportunity workspace is ready to use.");
     expect(markup).toContain("Stage policy");
     expect(markup).toContain("Owning-system bridges");
-    expect(markup).toContain("No opportunity record is created in this preview.");
-    expect(markup).toContain("Approve stage definitions and transition evidence to unlock operational opportunity slices.");
+    expect(markup).toContain("This pipeline page does not silently create or mutate opportunity records.");
+    expect(markup).toContain("Use the opportunity hub, queue, create flow, and detail review now");
     expect(markup).not.toContain("Move to proposal");
     expect(markup).not.toContain("Won");
   });
 
-  it("renders a held board and list review experience", () => {
+  it("renders a guided board and list review experience", () => {
     const markup = renderToStaticMarkup(<UnifiedCrmOpportunityPipelinePreview model={previewFixture()} />);
 
     expect(markup).toContain("How the first opportunity board will feel");
     expect(markup).toContain("Intake review");
     expect(markup).toContain("Review create contract");
-    expect(markup).toContain("Held review");
-    expect(markup).toContain("What the first live list will surface");
+    expect(markup).toContain("Guided review");
+    expect(markup).toContain("Opportunity list entry points");
     expect(markup).toContain("Same-scope persisted read-only opportunities");
     expect(markup).toContain("ACME refresh project");
     expect(markup).toContain("Live read-only");
@@ -126,7 +126,7 @@ describe("Unified CRM opportunity preview", () => {
     expect(markup).toContain('aria-label="Opportunity workspace orientation"');
     expect(markup).toContain("You are at the workspace entry point");
     expect(markup).toContain("/crm/opportunities/review01/transition?crmReturnTo=%2Fcrm%3Fview%3Dpipeline");
-    expect(markup).toContain("Read-only detail available; writes still off");
+    expect(markup).toContain("Read-only detail available");
   });
 
   it("keeps the collection honest when no persisted read-only opportunity is visible", () => {
@@ -137,7 +137,7 @@ describe("Unified CRM opportunity preview", () => {
           listPreview: {
             ...previewFixture().listPreview,
             observation: {
-              detail: "No same-scope persisted read-only opportunity is visible right now for organization review. Continue with held pipeline review until one is available.",
+              detail: "No same-scope persisted opportunity is visible right now for organization review. Use the guided opportunity hub, create flow, or queue while the first record is prepared.",
               freshnessLabel: "No visible persisted opportunity update is available yet.",
               newestVisibleRecordUpdatedAt: null,
               state: "EMPTY",
@@ -158,10 +158,10 @@ describe("Unified CRM opportunity preview", () => {
     );
 
     expect(markup).toContain("Read-only visibility pending");
-    expect(markup).toContain("No same-scope persisted read-only opportunity is visible in this preview snapshot yet.");
-    expect(markup).toContain("No same-scope persisted read-only opportunity is visible right now for organization review. Continue with held pipeline review until one is available.");
+    expect(markup).toContain("No same-scope persisted read-only opportunity is visible in this snapshot yet.");
+    expect(markup).toContain("No same-scope persisted opportunity is visible right now for organization review. Use the guided opportunity hub, create flow, or queue while the first record is prepared.");
     expect(markup).toContain("No visible persisted opportunity update is available yet.");
     expect(markup).not.toContain("ACME refresh project");
-    expect(markup).toContain("Held review");
+    expect(markup).toContain("Guided review");
   });
 });
