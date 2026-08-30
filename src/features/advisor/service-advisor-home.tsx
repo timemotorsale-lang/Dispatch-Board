@@ -198,6 +198,23 @@ function checklistStatusLabel(item: DailyChecklistItem) {
   return "On track";
 }
 
+function checklistUpdateHistory(item: DailyChecklistItem) {
+  return item.update
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [maybeAt, ...textParts] = line.split("|");
+      const text = textParts.join("|").trim();
+      return text ? { at: maybeAt, text } : { at: item.updatedAt, text: line };
+    });
+}
+
+function latestChecklistUpdateText(item: DailyChecklistItem) {
+  const updates = checklistUpdateHistory(item);
+  return updates[updates.length - 1]?.text ?? "";
+}
+
 function quickUpdateCategoryLabel(value: QuickUpdateCategory) {
   return quickUpdateCategories.find((item) => item.value === value)?.label ?? "Other";
 }
@@ -235,6 +252,8 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
   const [staffWorkbook, setStaffWorkbook] = useState<WorkdayWorkbookModel>(model.staffWorkbook);
   const [staffWorkbookSummaries, setStaffWorkbookSummaries] = useState(model.staffWorkbookSummaries);
   const [checklistText, setChecklistText] = useState("");
+  const [checklistTextDrafts, setChecklistTextDrafts] = useState<Record<string, string>>({});
+  const [checklistUpdateDrafts, setChecklistUpdateDrafts] = useState<Record<string, string>>({});
   const [quickUpdateText, setQuickUpdateText] = useState("");
   const [quickUpdateCategory, setQuickUpdateCategory] = useState<QuickUpdateCategory>("OTHER");
   const [quickUpdatePerson, setQuickUpdatePerson] = useState("");
@@ -320,7 +339,7 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
     })),
     ...checklistItems.filter((item) => !item.done && (item.status === "RED" || item.status === "YELLOW" || item.carryoverReady)).slice(0, 2).map((item) => ({
       action: item.status === "RED" ? "Resolve" : "Update",
-      context: item.update || "Daily Checklist",
+      context: latestChecklistUpdateText(item) || "Daily Checklist",
       href: "/vehicles/coo-workbook/checklist",
       id: `checklist-${item.id}`,
       title: item.text,
@@ -369,7 +388,7 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
       : activeCommandView === "WORK"
         ? [
           ...activeWorkbook.dailyFocusItems.slice(0, 3).map((item) => ({ action: item.status === "DONE" ? "Done" : "Update", detail: item.progressUpdate || item.supportNeeded || item.riskNote || `${item.priority.toLocaleLowerCase()} priority`, href: "/vehicles/coo-workbook/effectiveness-pilot#start-the-day", id: `work-focus-${item.id}`, title: item.outcome })),
-          ...checklistItems.slice(0, 4).map((item) => ({ action: item.done ? "Done" : "Update", detail: item.update || checklistStatusLabel(item), href: "/vehicles/coo-workbook/checklist", id: `work-checklist-${item.id}`, title: item.text })),
+          ...checklistItems.slice(0, 4).map((item) => ({ action: item.done ? "Done" : "Update", detail: latestChecklistUpdateText(item) || checklistStatusLabel(item), href: "/vehicles/coo-workbook/checklist", id: `work-checklist-${item.id}`, title: item.text })),
           ...quickUpdates.slice(0, 2).map((item) => ({ action: item.followUpNeeded ? "Follow up" : "Review", detail: quickUpdateCategoryLabel(item.category), href: "/vehicles/coo-workbook/quick-update", id: `work-quick-${item.id}`, title: item.text }))
         ].slice(0, 6)
         : latestReportDraft
@@ -384,7 +403,7 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
         ? "Update the work list so progress and report signals stay current."
         : "Review the source-backed items that can become the manager-ready report.";
   const carryoverPreview = [
-    ...checklistItems.filter((item) => item.carryoverReady).map((item) => ({ detail: item.update || checklistStatusLabel(item), id: `checklist-${item.id}`, kind: "Checklist", title: item.text })),
+    ...checklistItems.filter((item) => item.carryoverReady).map((item) => ({ detail: latestChecklistUpdateText(item) || checklistStatusLabel(item), id: `checklist-${item.id}`, kind: "Checklist", title: item.text })),
     ...quickUpdates.filter((item) => item.carryoverReady).map((item) => ({ detail: [item.person, item.company, item.dueWindow].filter(Boolean).join(" · ") || item.text, id: `quick-${item.id}`, kind: "Quick Update", title: item.text })),
     ...reportSeeds.filter((seed) => seed.status === "CARRIED_OVER").map((seed) => ({ detail: seed.detail, id: `seed-${seed.id}`, kind: reportSeedSourceLabel(seed), title: seed.title })),
     ...carryovers.filter((item) => item.status !== "DISMISSED").map((item) => ({ detail: item.detail, id: `carryover-${item.id}`, kind: `Carryover · ${item.status.toLocaleLowerCase()}`, title: item.title }))
@@ -518,6 +537,36 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
 
   function updateChecklistItem(id: string, patch: Partial<DailyChecklistItem>) {
     updateActiveWorkbook((current) => ({ ...current, checklistItems: current.checklistItems.map((item) => item.id === id ? { ...item, ...patch } : item) }));
+  }
+
+  function updateChecklistDraft(id: string, value: string) {
+    setChecklistUpdateDrafts((current) => ({ ...current, [id]: value }));
+  }
+
+  function updateChecklistTextDraft(id: string, value: string) {
+    setChecklistTextDrafts((current) => ({ ...current, [id]: value }));
+  }
+
+  async function saveChecklistText(item: DailyChecklistItem) {
+    const text = (checklistTextDrafts[item.id] ?? item.text).trim();
+    if (!text || text === item.text) return;
+    await persistChecklistItem(item.id, { text });
+    setChecklistTextDrafts((current) => {
+      const next = { ...current };
+      delete next[item.id];
+      return next;
+    });
+    setWorkspaceNotice(`${activeWorkbookLabel} checklist item updated.`);
+  }
+
+  async function saveChecklistUpdate(item: DailyChecklistItem) {
+    const update = (checklistUpdateDrafts[item.id] ?? "").trim();
+    if (!update) return;
+    const updateEntry = `${new Date().toISOString()}|${update}`;
+    const updateHistory = item.update.trim() ? `${item.update.trim()}\n${updateEntry}` : updateEntry;
+    await persistChecklistItem(item.id, { update: updateHistory });
+    setChecklistUpdateDrafts((current) => ({ ...current, [item.id]: "" }));
+    setWorkspaceNotice(`${activeWorkbookLabel} checklist update saved.`);
   }
 
   async function persistChecklistItem(id: string, patch: Partial<DailyChecklistItem>) {
@@ -665,7 +714,7 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
     const isChecklist = source === "checklist";
     const title = isChecklist ? (item as DailyChecklistItem).text : `Follow up: ${(item as QuickUpdateItem).text.slice(0, 72)}`;
     const description = isChecklist
-      ? `Converted from COO Daily Checklist. Update: ${(item as DailyChecklistItem).update || "No update added yet."}`
+      ? `Converted from COO Daily Checklist. Update: ${latestChecklistUpdateText(item as DailyChecklistItem) || "No update added yet."}`
       : `Converted from COO Quick Update. Category: ${quickUpdateCategoryLabel((item as QuickUpdateItem).category)}. ${(item as QuickUpdateItem).person ? `Person: ${(item as QuickUpdateItem).person}. ` : ""}${(item as QuickUpdateItem).company ? `Company: ${(item as QuickUpdateItem).company}. ` : ""}${(item as QuickUpdateItem).text}`;
 
     try {
@@ -879,7 +928,7 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
       </header>
 
       {initialTool === "CHECKLIST" ? <section className="advisor-coo-daily-checklist advisor-coo-focused-tool" aria-label="Daily Checklist tool">
-        <header><div><strong>{activeWorkbookLabel} Daily Checklist</strong><small>Create a simple same-day list. Convert only the items that need formal tracking.</small></div><span>{checklistRollup.done}/{checklistItems.length} done</span></header>
+        <header><div><strong>{activeWorkbookLabel} Daily Checklist</strong><small>Track hot leads, prospects, customer follow-ups, and same-day operating work. Convert any item that needs formal tracking.</small></div><span>{checklistRollup.done}/{checklistItems.length} done</span></header>
         <div className="advisor-coo-inline-form">
           <input aria-label="Add Daily Checklist item" onChange={(event) => setChecklistText(event.target.value)} onKeyDown={(event) => {
             if (event.key === "Enter") {
@@ -893,11 +942,33 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
           {checklistItems.length ? checklistItems.map((item) => <div className={`advisor-coo-checklist-item ${item.status.toLocaleLowerCase()} ${item.done ? "done" : ""}`} key={item.id}>
             <button aria-label={`Mark ${item.text} ${item.done ? "not done" : "done"}`} className="advisor-coo-check" disabled={isClosed} onClick={() => void persistChecklistItem(item.id, { done: !item.done, status: !item.done ? "GREEN" : item.status })} type="button"><CheckSquare /></button>
             <div>
-              <strong>{item.text}</strong>
+              <div className="advisor-coo-checklist-title-row">
+                <input aria-label={`Checklist item for ${item.text}`} disabled={isClosed} onChange={(event) => updateChecklistTextDraft(item.id, event.target.value)} onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void saveChecklistText(item);
+                  }
+                }} value={checklistTextDrafts[item.id] ?? item.text} />
+                <button disabled={isClosed || !(checklistTextDrafts[item.id] ?? item.text).trim() || (checklistTextDrafts[item.id] ?? item.text).trim() === item.text} onClick={() => void saveChecklistText(item)} type="button">Save item</button>
+              </div>
               <small>{checklistStatusLabel(item)} · Added {dateLabel(item.createdAt)}</small>
-              <input aria-label={`Update for ${item.text}`} disabled={isClosed} onBlur={() => void persistChecklistItem(item.id, { update: item.update })} onChange={(event) => updateChecklistItem(item.id, { update: event.target.value })} placeholder="Add update..." value={item.update} />
+              {checklistUpdateHistory(item).length ? <div className="advisor-coo-checklist-update-history" aria-label={`Saved updates for ${item.text}`}>
+                {checklistUpdateHistory(item).slice().reverse().map((update, index) => <small key={`${item.id}-update-${index}`}>
+                  <span>{update.at ? dateLabel(update.at) : "Saved update"}</span>
+                  {update.text}
+                </small>)}
+              </div> : null}
+              <div className="advisor-coo-checklist-update-row">
+                <input aria-label={`Update for ${item.text}`} disabled={isClosed} onChange={(event) => updateChecklistDraft(item.id, event.target.value)} onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void saveChecklistUpdate(item);
+                  }
+                }} placeholder={item.update ? "Add another update..." : "Add update..."} value={checklistUpdateDrafts[item.id] ?? ""} />
+                <button disabled={isClosed || !(checklistUpdateDrafts[item.id] ?? "").trim()} onClick={() => void saveChecklistUpdate(item)} type="button">Save update</button>
+              </div>
             </div>
-            <select aria-label={`Status for ${item.text}`} disabled={isClosed} onChange={(event) => void persistChecklistItem(item.id, { status: event.target.value as DailyChecklistStatus, done: event.target.value === "GREEN" ? item.done : false })} value={item.status}>
+            <select aria-label={`Status for ${item.text}`} className={`advisor-coo-checklist-status ${item.status.toLocaleLowerCase()}`} disabled={isClosed} onChange={(event) => void persistChecklistItem(item.id, { status: event.target.value as DailyChecklistStatus, done: event.target.value === "GREEN" ? item.done : false })} value={item.status}>
               <option value="GREEN">Green</option>
               <option value="YELLOW">Yellow</option>
               <option value="RED">Red</option>
@@ -909,7 +980,7 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
       </section> : null}
 
       {initialTool === "TO_DO_LIST" ? <section className="advisor-coo-focused-tool advisor-coo-todo-list" aria-label="To-Do List tool">
-        <header><div><strong>{activeWorkbookLabel} To-Do List</strong><small>Use the checklist for light same-day work. Convert only the items that need formal ownership, due dates, and tracking.</small></div><span>{checklistRollup.open} open</span></header>
+        <header><div><strong>{activeWorkbookLabel} To-Do List</strong><small>Use the checklist for hot leads, prospects, customer follow-ups, and light same-day work. Convert only the items that need formal ownership, due dates, and tracking.</small></div><span>{checklistRollup.open} open</span></header>
         <div className="advisor-coo-inline-form">
           <input aria-label="Add To-Do item" onChange={(event) => setChecklistText(event.target.value)} onKeyDown={(event) => {
             if (event.key === "Enter") {
@@ -923,11 +994,33 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
           {checklistItems.length ? checklistItems.map((item) => <div className={`advisor-coo-checklist-item ${item.status.toLocaleLowerCase()} ${item.done ? "done" : ""}`} key={item.id}>
             <button aria-label={`Mark ${item.text} ${item.done ? "not done" : "done"}`} className="advisor-coo-check" disabled={isClosed} onClick={() => void persistChecklistItem(item.id, { done: !item.done, status: !item.done ? "GREEN" : item.status })} type="button"><CheckSquare /></button>
             <div>
-              <strong>{item.text}</strong>
+              <div className="advisor-coo-checklist-title-row">
+                <input aria-label={`To-Do item for ${item.text}`} disabled={isClosed} onChange={(event) => updateChecklistTextDraft(item.id, event.target.value)} onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void saveChecklistText(item);
+                  }
+                }} value={checklistTextDrafts[item.id] ?? item.text} />
+                <button disabled={isClosed || !(checklistTextDrafts[item.id] ?? item.text).trim() || (checklistTextDrafts[item.id] ?? item.text).trim() === item.text} onClick={() => void saveChecklistText(item)} type="button">Save item</button>
+              </div>
               <small>{checklistStatusLabel(item)} · Checklist-powered to-do</small>
-              <input aria-label={`To-Do update for ${item.text}`} disabled={isClosed} onBlur={() => void persistChecklistItem(item.id, { update: item.update })} onChange={(event) => updateChecklistItem(item.id, { update: event.target.value })} placeholder="Add update..." value={item.update} />
+              {checklistUpdateHistory(item).length ? <div className="advisor-coo-checklist-update-history" aria-label={`Saved updates for ${item.text}`}>
+                {checklistUpdateHistory(item).slice().reverse().map((update, index) => <small key={`${item.id}-todo-update-${index}`}>
+                  <span>{update.at ? dateLabel(update.at) : "Saved update"}</span>
+                  {update.text}
+                </small>)}
+              </div> : null}
+              <div className="advisor-coo-checklist-update-row">
+                <input aria-label={`To-Do update for ${item.text}`} disabled={isClosed} onChange={(event) => updateChecklistDraft(item.id, event.target.value)} onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void saveChecklistUpdate(item);
+                  }
+                }} placeholder={item.update ? "Add another update..." : "Add update..."} value={checklistUpdateDrafts[item.id] ?? ""} />
+                <button disabled={isClosed || !(checklistUpdateDrafts[item.id] ?? "").trim()} onClick={() => void saveChecklistUpdate(item)} type="button">Save update</button>
+              </div>
             </div>
-            <select aria-label={`To-Do status for ${item.text}`} disabled={isClosed} onChange={(event) => void persistChecklistItem(item.id, { status: event.target.value as DailyChecklistStatus, done: event.target.value === "GREEN" ? item.done : false })} value={item.status}>
+            <select aria-label={`To-Do status for ${item.text}`} className={`advisor-coo-checklist-status ${item.status.toLocaleLowerCase()}`} disabled={isClosed} onChange={(event) => void persistChecklistItem(item.id, { status: event.target.value as DailyChecklistStatus, done: event.target.value === "GREEN" ? item.done : false })} value={item.status}>
               <option value="GREEN">Green</option>
               <option value="YELLOW">Yellow</option>
               <option value="RED">Red</option>
@@ -1222,7 +1315,7 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
       title: item.outcome
     })),
     ...activeWorkbook.checklistItems.map((item) => ({
-      detail: item.update || checklistStatusLabel(item),
+      detail: latestChecklistUpdateText(item) || checklistStatusLabel(item),
       id: `checklist-${item.id}`,
       status: item.done ? "Done" : "Not done",
       title: item.text

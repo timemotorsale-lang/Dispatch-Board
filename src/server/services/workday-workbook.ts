@@ -1137,6 +1137,7 @@ export async function updateCooWorkbookChecklistItem(actor: AuthenticatedUser | 
   const item = await repository.findChecklistItem(itemId.trim());
   if (!item) throw new Error("Checklist item not found.");
   assertWorkbookEditable(user, item.workbook);
+  const update = normalizeOptionalText(payload.update, "update", 5000);
   await repository.updateChecklistItem({
     carryoverReady: normalizeBoolean(payload.carryoverReady, "carryoverReady"),
     convertedTaskId: normalizeOptionalText(payload.convertedTaskId, "convertedTaskId", 120),
@@ -1146,7 +1147,8 @@ export async function updateCooWorkbookChecklistItem(actor: AuthenticatedUser | 
     riskLevel: normalizeOptionalRiskLevel(payload.riskLevel),
     riskNote: normalizeOptionalText(payload.riskNote, "riskNote", 500),
     status: normalizeChecklistStatus(payload.status),
-    update: normalizeOptionalText(payload.update, "update", 1000)
+    text: normalizeOptionalText(payload.text, "text", 500),
+    update
   });
   await recordWorkbookActivity(repository, user, item.workbook, payload.done === true ? "workbook.checklist_completed" : "workbook.checklist_updated", `${user.name} updated a workbook checklist item.`, { checklistItemId: item.id });
   return { ok: true };

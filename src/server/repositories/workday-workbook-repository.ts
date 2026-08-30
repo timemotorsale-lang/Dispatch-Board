@@ -129,7 +129,7 @@ export type WorkdayWorkbookRepository = {
   listWorkbooksForBoardDay(input: { boardDayId: string; scope: WorkdayWorkbookScope }): Promise<WorkdayWorkbookSummaryRecord[]>;
   recordActivity(input: { actorUserId: string; boardDayId: string; eventType: string; message: string; metadata: Prisma.InputJsonValue; taskId?: string | null }): Promise<void>;
   reopenWorkbook(input: { id: string }): Promise<void>;
-  updateChecklistItem(input: { carryoverReady?: boolean; convertedTaskId?: string | null; done?: boolean; id: string; priority?: WorkdayPriority; riskLevel?: WorkdayRiskLevel; riskNote?: string; status?: WorkdayChecklistStatus; update?: string }): Promise<void>;
+  updateChecklistItem(input: { carryoverReady?: boolean; convertedTaskId?: string | null; done?: boolean; id: string; priority?: WorkdayPriority; riskLevel?: WorkdayRiskLevel; riskNote?: string; status?: WorkdayChecklistStatus; text?: string; update?: string }): Promise<void>;
   updateCarryover(input: { convertedTaskId?: string | null; dismissedReason?: string; id: string; status: WorkdayCarryoverStatus }): Promise<void>;
   updateDailyFocusItem(input: { convertedTaskId?: string | null; id: string; lastProgressAt?: Date | null; mustCloseToday?: boolean; outcome?: string; priority?: WorkdayPriority; progressUpdate?: string; riskLevel?: WorkdayRiskLevel; riskNote?: string; sortOrder?: number; status?: WorkdayDailyFocusStatus; supportNeeded?: string }): Promise<void>;
   updateQuickUpdate(input: { carryoverReady?: boolean; category?: WorkdayQuickUpdateCategory; company?: string; convertedTaskId?: string | null; dueWindow?: string; followUpNeeded?: boolean; id: string; person?: string; text?: string }): Promise<void>;
@@ -385,6 +385,7 @@ export function createWorkdayWorkbookRepository(database: WorkdayWorkbookDatabas
           ...(input.riskLevel !== undefined ? { riskLevel: input.riskLevel } : {}),
           ...(input.riskNote !== undefined ? { riskNote: input.riskNote } : {}),
           ...(input.status !== undefined ? { status: input.status } : {}),
+          ...(input.text !== undefined ? { text: input.text } : {}),
           ...(input.update !== undefined ? { update: input.update } : {})
         }
       });
