@@ -44,7 +44,7 @@ describe("CRM Next access and safe bridge", () => {
     expect(model.bridge.liveTaskCreationEnabled).toBe(false);
     expect(model.bridge.previewEnabled).toBe(true);
     expect(model.progress.envelopeCount).toBe(25);
-    expect(model.progress.nextMilestone).toBe("CRMN-100");
+    expect(model.progress.nextMilestone).toBe("Pilot approval");
     expect(model.operationalRead.state).toBe("FALLBACK_READ");
     expect(model.search.groups).toHaveLength(5);
     expect(model.ownershipSupport.map((record) => record.domain)).toEqual(
@@ -124,9 +124,9 @@ describe("CRM Next access and safe bridge", () => {
     expect(pilotReleaseEnvelope).toHaveLength(4);
     expect(pilotReleaseEnvelope.find((milestone) => milestone.id === "CRMN-094")?.status).toBe("HELD");
     const operationalReadEnvelope = model.progress.milestones.filter((milestone) =>
-      /^CRMN-09[5-9]$/.test(milestone.id)
+      /^CRMN-(09[5-9]|10[0-9]|11[0-9])$/.test(milestone.id)
     );
-    expect(operationalReadEnvelope).toHaveLength(5);
+    expect(operationalReadEnvelope).toHaveLength(25);
     expect(operationalReadEnvelope.every((milestone) => milestone.status === "IMPLEMENTED_UNVERIFIED")).toBe(true);
   });
 

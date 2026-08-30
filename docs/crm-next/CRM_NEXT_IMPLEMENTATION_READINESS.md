@@ -288,3 +288,35 @@ Do not implement CRM Next on the shared `main` baseline directly. Start CRMN-010
 - Legacy `/customers` and current `/crm` remain the safe operating fallback.
 
 **Progress truth:** CRMN-091 through CRMN-093 are marked `IMPLEMENTED_UNVERIFIED`, not `VERIFIED`, until the release-candidate proof bundle and user review are complete. CRMN-094 is marked `HELD` until pilot launch is explicitly approved. The envelope now points to `Pilot approval` as the next decision, not an automatic rollout.
+
+## Implementation evidence — CRMN-095 through CRMN-119 operational read envelope
+
+**Status:** IMPLEMENTED_UNVERIFIED  
+**Branch:** `codex/crm-next-operational-read-envelope`  
+**Scope:** Moved CRM Next from static/scenario-only review surfaces toward safe operational read surfaces by adding existing source-owned customer list, Unified CRM search, Needs Attention, Customer 360, vehicle relationship, and customer timeline adapters.
+
+**Review locations:**
+- `/crm-next`
+- `/crm-next/search`
+- `/crm-next/needs-attention`
+- `/crm-next/customers/michael-johnson`
+- `/crm-next/timeline`
+- `/crm-next/progress`
+
+**What changed:**
+- CRM Next now tries to read existing customer records through the Unified CRM customer list service before using protected preview records.
+- CRM Next search now tries to read existing grouped Unified CRM global search results before using protected preview search groups.
+- Needs Attention rows can be built from source-owned customer next-action dates with deterministic High/Medium/Low priority.
+- Customer 360 can hydrate source-owned customer detail, masked contacts, vehicle relationships, appointments, open case/opportunity counts, and recent timeline items.
+- Timeline events preserve source labels and source links from the existing customer timeline read model.
+- A visible operational-read status strip shows whether the current screen is using `LIVE_READ`, `PARTIAL_READ`, `EMPTY_READ`, or `FALLBACK_READ`.
+
+**Safety posture:**
+- CRM Next remains behind `/crm-next` and `CRM_NEXT`.
+- Legacy `/customers` and current `/crm` remain operational and linked.
+- Customer, search, Customer 360, and timeline data remain source-owned by existing backend services.
+- CRM Next does not create a new customer master.
+- No customer writes, customer creation, live calls, live texts, live emails, deal movement, payment action, document sending/uploading, Dispatch Board task creation, migration execution, route replacement, default switch, broad flag promotion, or pilot launch is enabled.
+- Missing, inaccessible, gated, or partial source data falls back honestly to protected preview data and visible status messaging.
+
+**Progress truth:** CRMN-095 through CRMN-119 are marked `IMPLEMENTED_UNVERIFIED`, not `VERIFIED`, until final release-candidate proof, source-owner review, and pilot approval are complete. The next decision remains `Pilot approval`, not automatic rollout.

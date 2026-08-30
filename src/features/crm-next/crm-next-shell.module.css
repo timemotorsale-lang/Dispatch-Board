@@ -1154,6 +1154,7 @@
 @media (max-width: 1100px) {
   .frame,
   .customerGrid,
+  .sourceStrip,
   .workShell {
     grid-template-columns: 1fr;
   }
@@ -1171,6 +1172,10 @@
     justify-content: flex-start;
     justify-self: stretch;
     max-width: none;
+  }
+
+  .sourcePills {
+    justify-content: flex-start;
   }
 
   .summaryGrid,
@@ -1211,6 +1216,7 @@
   }
 
   .hero,
+  .sourceStrip,
   .topbar,
   .workHeroMeta,
   .suggested {

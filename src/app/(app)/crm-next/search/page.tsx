@@ -3,7 +3,11 @@ import { requireCurrentUser } from "@/server/auth/current-user";
 import { resolveCrmNextAccess } from "@/server/crm-next/access";
 import { getCrmNextOperationalCommandCenter } from "@/server/crm-next/read-model";
 
-export default async function CrmNextSearchPage() {
+type CrmNextSearchPageProps = {
+  searchParams?: Promise<{ q?: string }>;
+};
+
+export default async function CrmNextSearchPage({ searchParams }: CrmNextSearchPageProps) {
   const user = await requireCurrentUser();
   const access = resolveCrmNextAccess(user);
 
@@ -11,5 +15,6 @@ export default async function CrmNextSearchPage() {
     return <CrmNextUnavailable fallbackHref={access.fallbackHref} reason={access.reason} />;
   }
 
-  return <CrmNextSearchView model={await getCrmNextOperationalCommandCenter(user)} />;
+  const params = await searchParams;
+  return <CrmNextSearchView model={await getCrmNextOperationalCommandCenter(user, { searchQuery: params?.q })} />;
 }

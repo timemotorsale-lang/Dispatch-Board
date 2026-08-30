@@ -980,6 +980,186 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     reviewHref: "/crm-next/progress#crm-next-envelope",
     evidence: "Unit tests cover live customer overlay, fallback, and no-write bridge posture.",
     safety: "Customer reads only; no create/update/delete path is introduced."
+  },
+  {
+    id: "CRMN-100",
+    title: "Existing CRM search adapter",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Wire CRM Next search to the existing Unified CRM global search service where available.",
+    reviewHref: "/crm-next/search",
+    evidence: "Search groups are hydrated from source-owned Unified CRM result groups with safe fallback.",
+    safety: "Read-only lookup; no source record is changed."
+  },
+  {
+    id: "CRMN-101",
+    title: "Grouped operational search results",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Group customer, vehicle, opportunity, quote, task, appointment, and dispatch results in CRM Next.",
+    reviewHref: "/crm-next/search",
+    evidence: "Unified CRM grouped results are mapped into CRM Next search cards with source links.",
+    safety: "CRM Next links to source-owned routes instead of creating a second record store."
+  },
+  {
+    id: "CRMN-102",
+    title: "Search empty/error/partial states",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Keep search usable when source data is empty, gated, partial, or unavailable.",
+    reviewHref: "/crm-next/search",
+    evidence: "Operational read source statuses show LIVE_READ, EMPTY_READ, PARTIAL_READ, or FALLBACK_READ.",
+    safety: "Safe navigation remains available to Legacy Customers and current CRM."
+  },
+  {
+    id: "CRMN-103",
+    title: "Search permissions and feature-flag proof",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Prove search respects CRM_NEXT access and Unified CRM read permissions.",
+    reviewHref: "/crm-next/progress#crm-next-envelope",
+    evidence: "Focused tests cover enabled access, fail-closed access, and mocked search source outcomes.",
+    safety: "Denied users never reach CRM Next operational search."
+  },
+  {
+    id: "CRMN-104",
+    title: "Source-linked Needs Attention adapter",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Build the Needs Attention queue from existing customer next-action signals where available.",
+    reviewHref: "/crm-next/needs-attention",
+    evidence: "Customer read items become prioritized attention rows with source customer links.",
+    safety: "Queue generation does not move, assign, or create work."
+  },
+  {
+    id: "CRMN-105",
+    title: "Deterministic priority reasons",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Make priority explainable using due/overdue next-action state rather than opaque automation.",
+    reviewHref: "/crm-next/needs-attention",
+    evidence: "Priority is derived deterministically from source next-action dates and displayed as High/Medium/Low.",
+    safety: "Human staff decide execution; CRM Next only explains read-only priority."
+  },
+  {
+    id: "CRMN-106",
+    title: "Source-linked records before synthetic examples",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Prefer source-owned customer records over synthetic examples when live reads return data.",
+    reviewHref: "/crm-next/needs-attention",
+    evidence: "Operational overlays replace static attention rows only when existing customer reads succeed.",
+    safety: "Fallback remains honest and visible when source reads are unavailable."
+  },
+  {
+    id: "CRMN-107",
+    title: "Manager/staff queue filter foundation",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Expose owner and source-state context needed for manager/staff filtering without creating write controls.",
+    reviewHref: "/crm-next/needs-attention",
+    evidence: "Attention rows carry owner, area, priority, and source-backed customer links for read-only filtering surfaces.",
+    safety: "No reassignment, escalation, or status movement is enabled."
+  },
+  {
+    id: "CRMN-108",
+    title: "Needs Attention no-write proof",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Prove source-linked attention remains read-only and feature-flag protected.",
+    reviewHref: "/crm-next/progress#crm-next-envelope",
+    evidence: "Focused operational tests cover priority ordering, source ownership, fallback, and live-write-disabled bridge posture.",
+    safety: "No Dispatch task creation or customer mutation is introduced."
+  },
+  {
+    id: "CRMN-109",
+    title: "Customer 360 tasks/cases context",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Map existing Customer 360 source lenses into CRM Next context where available.",
+    reviewHref: "/crm-next/customers/michael-johnson",
+    evidence: "Cases and source lenses contribute open-case counts and source-linked glance data.",
+    safety: "CRM Next does not create, close, or edit cases."
+  },
+  {
+    id: "CRMN-110",
+    title: "Customer 360 appointments/test drives",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Show appointment context from existing source-owned Customer 360 appointment reads.",
+    reviewHref: "/crm-next/customers/michael-johnson",
+    evidence: "Customer 360 appointment counts link staff back to the existing appointment workspace.",
+    safety: "No scheduling command is enabled."
+  },
+  {
+    id: "CRMN-111",
+    title: "Customer 360 deal/opportunity context",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Show existing opportunity visibility in CRM Next Customer 360.",
+    reviewHref: "/crm-next/customers/michael-johnson",
+    evidence: "Opportunity lens counts are mapped into CRM Next open-deal/glance context.",
+    safety: "No deal movement, quote approval, payment, or estimate mutation."
+  },
+  {
+    id: "CRMN-112",
+    title: "Ownership/support context boundary",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Keep documents, title, ownership, finance, and support context source-owned and review-only.",
+    reviewHref: "/crm-next/ownership-support",
+    evidence: "CRM Next Customer 360 and Ownership & Support surfaces preserve source links and held-state messaging.",
+    safety: "No document send/upload or payment action is enabled."
+  },
+  {
+    id: "CRMN-113",
+    title: "Customer 360 integration proof",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Prove Customer 360 handles live detail, partial data, fallback, and no-record scenarios.",
+    reviewHref: "/crm-next/progress#crm-next-envelope",
+    evidence: "Operational read tests cover Customer 360 mapping, vehicle relationships, timeline mapping, and fallback posture.",
+    safety: "Customer 360 remains read-only."
+  },
+  {
+    id: "CRMN-114",
+    title: "Timeline read-model reuse",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Reuse existing customer timeline/activity read infrastructure where available.",
+    reviewHref: "/crm-next/timeline",
+    evidence: "Customer 360 timeline items map into CRM Next timeline events with source labels.",
+    safety: "No duplicate ActivityEvent write path."
+  },
+  {
+    id: "CRMN-115",
+    title: "Timeline source labels and links",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Show source labels and safe source links for each operational timeline event.",
+    reviewHref: "/crm-next/timeline",
+    evidence: "Timeline events preserve source labels and sourceHref values from the existing timeline service.",
+    safety: "Opening a timeline event navigates to the source-owned record."
+  },
+  {
+    id: "CRMN-116",
+    title: "Timeline no-duplicate-write proof",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Prove CRM Next timeline rendering does not create or duplicate activity records.",
+    reviewHref: "/crm-next/progress#crm-next-envelope",
+    evidence: "Operational tests exercise timeline mapping through mocked read services only.",
+    safety: "No activity creation API is called."
+  },
+  {
+    id: "CRMN-117",
+    title: "Operational read progress cockpit",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Update CRM Next progress with CRMN-095 through CRMN-119.",
+    reviewHref: "/crm-next/progress#crm-next-envelope",
+    evidence: "Progress surface includes the operational read envelope and source-status strip.",
+    safety: "Progress is evidence-only and does not promote CRM Next."
+  },
+  {
+    id: "CRMN-118",
+    title: "Operational read readiness documentation",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Record implementation evidence, safety posture, review locations, and remaining gates.",
+    reviewHref: "/crm-next/progress#crm-next-envelope",
+    evidence: "CRM_NEXT_IMPLEMENTATION_READINESS.md records the operational-read envelope status.",
+    safety: "Documentation confirms no live writes, communications, migration, route replacement, or pilot launch."
+  },
+  {
+    id: "CRMN-119",
+    title: "Final operational read proof bundle",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Run focused CRM Next tests, typecheck, scoped lint, and git status before handoff.",
+    reviewHref: "/crm-next/progress#crm-next-envelope",
+    evidence: "Final proof bundle is run after implementation and recorded in the handoff.",
+    safety: "Envelope remains read-only until later explicit approval."
   }
 ];
 
@@ -2011,6 +2191,14 @@ export async function getCrmNextOperationalCommandCenter(
       detail: customerList.state === "EMPTY" ? "Customer source returned no visible records." : `${customerList.items.length} source-owned customer records are available.`,
       href: customerList.source.href
     }, customerList.freshness.observedAt));
+    statuses.push(readStatus({
+      id: "attention",
+      label: "Needs Attention",
+      state: customerList.state === "EMPTY" ? "EMPTY_READ" : "LIVE_READ",
+      sourceOfTruth: "Existing customer next-action dates",
+      detail: customerList.state === "EMPTY" ? "No source-owned next actions are visible." : "Queue priority is deterministically derived from source-owned next-action dates.",
+      href: "/crm-next/needs-attention"
+    }, customerList.freshness.observedAt));
   } catch {
     statuses.push(readStatus({
       id: "customers",
@@ -2220,7 +2408,7 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
       envelopeCount: 25,
       verifiedCount: progressMilestones.filter((milestone) => milestone.status === "VERIFIED").length,
       heldCount: progressMilestones.filter((milestone) => milestone.status === "HELD").length,
-      nextMilestone: "CRMN-100",
+      nextMilestone: "Pilot approval",
       milestones: progressMilestones
     }
   };
