@@ -259,11 +259,22 @@ export function createWorkdayWorkbookRepository(database: WorkdayWorkbookDatabas
       return database.workdaySupportAction.findUnique({ where: { id: actionId }, include: { workbook: true } });
     },
     async getOrCreateBoardDay(boardDate) {
-      return database.boardDay.upsert({
-        where: { date: boardDateValue(boardDate) },
-        update: {},
-        create: { date: boardDateValue(boardDate) }
-      });
+      const date = boardDateValue(boardDate);
+
+      try {
+        return await database.boardDay.upsert({
+          where: { date },
+          update: {},
+          create: { date }
+        });
+      } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+          const existing = await database.boardDay.findUnique({ where: { date } });
+          if (existing) return existing;
+        }
+
+        throw error;
+      }
     },
     async getOrCreateWorkbook(input) {
       const workbook = await database.workdayWorkbook.upsert({
