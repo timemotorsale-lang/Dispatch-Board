@@ -30,6 +30,7 @@ describe("CRM Next access and safe bridge", () => {
     expect(resolveCrmNextMode({ flag: "false" })).toBe("OFF");
     expect(resolveCrmNextMode({ flag: "REVIEW" })).toBe("REVIEW");
     expect(resolveCrmNextMode({ flag: "true" })).toBe("REVIEW");
+    expect(resolveCrmNextMode({ flag: "DOGFOOD" })).toBe("DOGFOOD");
   });
 
   it("allows an enabled manager without granting live task writes", () => {
@@ -151,6 +152,12 @@ describe("CRM Next access and safe bridge", () => {
     ]);
     expect(model.operatingActions.find((action) => action.id === "schedule-appointment")?.state).toBe("SAFE_ROUTE");
     expect(model.operatingActions.find((action) => action.id === "send-email")?.state).toBe("HELD");
+
+    process.env.CRM_NEXT = "DOGFOOD";
+    const dogfoodModel = getCrmNextCommandCenter(user(["General Manager"]));
+    expect(dogfoodModel.mode).toBe("DOGFOOD");
+    expect(dogfoodModel.bridge.liveTaskCreationEnabled).toBe(true);
+    expect(dogfoodModel.bridge.message).toContain("internal Dispatch tasks");
   });
 
   it("rejects ineligible users and does not create a dispatch task from the bridge", () => {
@@ -166,5 +173,12 @@ describe("CRM Next access and safe bridge", () => {
     expect(preview.state).toBe("PREVIEW_ONLY");
     expect(preview.liveTaskCreated).toBe(false);
     expect(preview.dispatchPreview?.customer360Update).toContain("would receive");
+
+    process.env.CRM_NEXT = "DOGFOOD";
+    const dogfoodPreview = previewCrmNextActionToTaskBridge(user(["General Manager"]), {
+      attentionItemId: "attn-michael-overdue-follow-up"
+    });
+    expect(dogfoodPreview.state).toBe("DOGFOOD_READY");
+    expect(dogfoodPreview.reason).toContain("create an internal Dispatch task");
   });
 });
