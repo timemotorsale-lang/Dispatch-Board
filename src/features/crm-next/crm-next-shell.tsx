@@ -951,8 +951,10 @@ export function CrmNextWorkCustomerView({ item, model }: { item: CrmNextAttentio
       <section className={styles.workShell}>
         <header className={styles.workHero}>
           <div className={styles.workHeroMeta}>
-            <Link href="/crm-next/needs-attention">← Back to attention queue</Link>
-            <span className={styles.eyebrow}>Customer Workbench</span>
+            <div className={styles.workHeroBreadcrumbs}>
+              <span className={styles.eyebrow}>Customer Workbench</span>
+              <Link href="/crm-next/needs-attention">← Back to attention queue</Link>
+            </div>
             <span className={levelClass(item.level)}>{item.level}</span>
           </div>
           <div className={styles.workHeroBody}>

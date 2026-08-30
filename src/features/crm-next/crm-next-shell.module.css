@@ -835,7 +835,7 @@
   box-shadow: 0 18px 44px rgb(15 23 42 / 14%);
   color: white;
   grid-column: 1 / -1;
-  padding: 22px 24px;
+  padding: 20px 24px 22px;
 }
 
 .workHero a {
@@ -852,6 +852,8 @@
 
 .workHero .workTitle {
   color: #ffffff;
+  font-size: clamp(30px, 2.2vw, 40px);
+  letter-spacing: -0.04em;
   margin: 0;
 }
 
@@ -861,32 +863,45 @@
 
 .workHeroMeta,
 .workHeroBody {
-  align-items: center;
-  display: flex;
+  display: grid;
   gap: 14px;
-  justify-content: space-between;
 }
 
 .workHeroMeta {
+  align-items: center;
   border-bottom: 1px solid rgb(255 255 255 / 10%);
+  grid-template-columns: minmax(0, 1fr) auto;
   margin-bottom: 14px;
   padding-bottom: 12px;
 }
 
+.workHeroBreadcrumbs {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+}
+
 .workHeroBody {
   align-items: end;
+  grid-template-columns: minmax(280px, 1fr) minmax(420px, auto);
 }
 
 .workHero .workActions {
-  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(138px, 1fr));
   justify-content: flex-end;
-  max-width: 720px;
+  justify-self: end;
+  max-width: 760px;
+  width: 100%;
 }
 
 .workHero .primaryButton,
 .workHero .secondaryButton {
+  justify-content: center;
   min-height: 40px;
   padding: 8px 14px;
+  white-space: nowrap;
 }
 
 .workHero .secondaryButton {
@@ -1073,11 +1088,12 @@
 
   .workHeroBody {
     align-items: stretch;
-    flex-direction: column;
+    grid-template-columns: 1fr;
   }
 
   .workHero .workActions {
     justify-content: flex-start;
+    justify-self: stretch;
     max-width: none;
   }
 
@@ -1123,7 +1139,10 @@
   .workHeroMeta,
   .suggested {
     grid-template-columns: 1fr;
-    flex-direction: column;
     align-items: stretch;
+  }
+
+  .workHero .workActions {
+    grid-template-columns: 1fr;
   }
 }
