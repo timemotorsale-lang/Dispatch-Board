@@ -248,7 +248,7 @@ export type CrmNextCommandCenter = {
   revenue: { monthToDate: string; trend: string };
   nextActions: Array<{ id: string; label: string; detail: string; impact: CrmNextAttentionLevel; href: string }>;
   customers: CrmNextCustomer360[];
-  search: { queryPlaceholder: string; groups: CrmNextSearchGroup[] };
+  search: { activeQuery: string; queryPlaceholder: string; groups: CrmNextSearchGroup[] };
   timeline: CrmNextTimelineEvent[];
   sales: {
     leads: CrmNextSalesRecord[];
@@ -2382,7 +2382,15 @@ export async function getCrmNextOperationalCommandCenter(
   dependencies: CrmNextOperationalReadDependencies = {}
 ): Promise<CrmNextCommandCenter> {
   const now = dependencies.now?.() ?? new Date();
+  const searchQuery = dependencies.searchQuery?.trim() ?? "";
   let model = getCrmNextCommandCenter(actor, now);
+  model = {
+    ...model,
+    search: {
+      ...model.search,
+      activeQuery: searchQuery
+    }
+  };
   const statuses: CrmNextSourceReadStatus[] = [];
   const observedAt = now.toISOString();
 
@@ -2419,7 +2427,7 @@ export async function getCrmNextOperationalCommandCenter(
   try {
     const search = await (dependencies.searchReader ?? searchUnifiedCrm)(actor, {
       limit: 12,
-      q: dependencies.searchQuery ?? "customer"
+      q: searchQuery || "customer"
     });
     const opportunityCount = search.groups.find((group) => group.entity === "opportunity")?.count;
     model = {
@@ -2651,6 +2659,7 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
     ],
     customers,
     search: {
+      activeQuery: "",
       queryPlaceholder: "Search customers, vehicles, deals, communications, work...",
       groups: searchGroups
     },

@@ -112,13 +112,20 @@ function CrmNextFrame({ active, children, userName }: { active: "command" | "new
   );
 }
 
-function Topbar() {
+function Topbar({ defaultQuery = "" }: { defaultQuery?: string }) {
   return (
     <div className={styles.topbar}>
-      <div className={styles.search} role="search">
+      <form action="/crm-next/search" className={styles.search} role="search">
         <Search size={20} aria-hidden="true" />
-        <Link href="/crm-next/search">Search customers, vehicles, deals, stock #, RO...</Link>
-      </div>
+        <input
+          aria-label="Search CRM Next"
+          defaultValue={defaultQuery}
+          name="q"
+          placeholder="Search customers, vehicles, deals, stock #, RO..."
+          type="search"
+        />
+        <button type="submit">Search</button>
+      </form>
       <div className={styles.topActions}>
         <Link className={styles.secondaryButton} href="/crm-next/new"><UserPlus size={16} /> Add Customer / Prospect</Link>
         <div className={styles.governance}><ShieldCheck size={16} /> CRM Next active</div>
@@ -545,7 +552,7 @@ export function CrmNextNeedsAttentionView({ model }: { model: CrmNextCommandCent
 export function CrmNextSearchView({ model }: { model: CrmNextCommandCenter }) {
   return (
     <CrmNextFrame active="search" userName={model.userName}>
-      <Topbar />
+      <Topbar defaultQuery={model.search.activeQuery} />
       <section className={styles.hero}>
         <div>
           <span className={styles.eyebrow}>Global Search</span>
