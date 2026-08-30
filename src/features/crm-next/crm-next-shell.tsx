@@ -53,7 +53,7 @@ export function CrmNextUnavailable({ fallbackHref, reason }: { fallbackHref: str
   );
 }
 
-function CrmNextFrame({ active, children, userName }: { active: "command" | "attention" | "customer" | "work" | "progress" | "search" | "pipeline" | "timeline" | "support" | "execution" | "intelligence" | "safety"; children: React.ReactNode; userName: string }) {
+function CrmNextFrame({ active, children, userName }: { active: "command" | "attention" | "customer" | "work" | "progress" | "search" | "pipeline" | "timeline" | "support" | "execution" | "intelligence" | "pilot" | "safety"; children: React.ReactNode; userName: string }) {
   const links = [
     { id: "command", href: "/crm-next", label: "Command Center", icon: LayoutDashboard },
     { id: "customer", href: "/crm-next/customers/michael-johnson", label: "Customers", icon: Users },
@@ -64,6 +64,7 @@ function CrmNextFrame({ active, children, userName }: { active: "command" | "att
     { id: "support", href: "/crm-next/ownership-support", label: "Ownership & Support", icon: FileText },
     { id: "execution", href: "/crm-next/shared-execution", label: "Shared Execution", icon: ClipboardCheck },
     { id: "intelligence", href: "/crm-next/intelligence-foundation", label: "Intelligence", icon: Brain },
+    { id: "pilot", href: "/crm-next/pilot-readiness", label: "Pilot Readiness", icon: ShieldCheck },
     { id: "timeline", href: "/crm-next/timeline", label: "Timeline", icon: FileSearch },
     { id: "progress", href: "/crm-next/progress", label: "Progress", icon: Target }
   ] as const;
@@ -132,6 +133,7 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
           <Link className={styles.primaryButton} href="/crm-next/needs-attention"><Bell size={16} /> View attention queue</Link>
           <Link className={styles.secondaryButton} href="/crm-next/search"><Search size={16} /> Search CRM Next</Link>
           <Link className={styles.secondaryButton} href="/crm-next/customers/michael-johnson"><Users size={16} /> Open Customer 360</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/pilot-readiness"><ShieldCheck size={16} /> Pilot readiness</Link>
           <Link className={styles.secondaryButton} href="/crm-next/progress"><Target size={16} /> View progress</Link>
         </div>
       </section>
@@ -244,7 +246,7 @@ export function CrmNextProgressView({ model }: { model: CrmNextCommandCenter }) 
             <h2>CRM Next milestone envelope</h2>
             <p className={styles.muted}>Built sequentially. Each slice gets checks, honest status, and a commit checkpoint before the next one.</p>
           </div>
-          <span className={styles.pill}>CRMN-016 → CRMN-074</span>
+          <span className={styles.pill}>CRMN-016 → CRMN-079</span>
         </header>
         <div className={styles.progressList}>
           {model.progress.milestones.map((milestone) => (
@@ -609,6 +611,58 @@ export function CrmNextIntelligenceFoundationView({ model }: { model: CrmNextCom
                 <small>{record.sourceSystem}</small>
               </div>
               <p className={styles.safeNotice}>{record.safety}</p>
+            </Link>
+          ))}
+        </div>
+      </article>
+    </CrmNextFrame>
+  );
+}
+
+export function CrmNextPilotReadinessView({ model }: { model: CrmNextCommandCenter }) {
+  return (
+    <CrmNextFrame active="pilot" userName={model.userName}>
+      <Topbar />
+      <section className={styles.hero}>
+        <div>
+          <span className={styles.eyebrow}>Pilot Readiness</span>
+          <h1>Enough substance to review before we turn anything live</h1>
+          <p>Expanded pilot scenarios show customers, queues, Customer 360 context, timeline activity, and manager review paths while preserving source-of-truth ownership.</p>
+        </div>
+        <div className={styles.quickActions}>
+          <Link className={styles.primaryButton} href="/crm-next">Command Center</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/progress">Progress</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/intelligence-foundation">Intelligence</Link>
+        </div>
+      </section>
+
+      <section className={styles.summaryGrid} aria-label="CRM Next pilot scenario summary">
+        <article className={styles.summaryCard} data-tone="blue"><small>Pilot scenarios</small><strong>{model.pilotScenarios.length}</strong><p>review records</p></article>
+        <article className={styles.summaryCard}><small>Writes</small><strong>0</strong><p>still disabled</p></article>
+        <article className={styles.summaryCard}><small>Live comms</small><strong>0</strong><p>not enabled</p></article>
+        <article className={styles.summaryCard}><small>Route replacement</small><strong>No</strong><p>Legacy protected</p></article>
+        <article className={styles.summaryCard}><small>Next</small><strong>{model.progress.nextMilestone}</strong><p>hardening gate</p></article>
+      </section>
+
+      <article className={styles.card}>
+        <header>
+          <div>
+            <h2>CRMN-075 → CRMN-079 pilot scenario expansion</h2>
+            <p className={styles.muted}>Each scenario explains what reviewers should inspect, which source system owns the data, and what remains gated.</p>
+          </div>
+          <span className={styles.pill}>IMPLEMENTED_UNVERIFIED</span>
+        </header>
+        <div className={styles.pilotScenarioGrid}>
+          {model.pilotScenarios.map((scenario) => (
+            <Link className={styles.pilotScenarioCard} href={scenario.href} id={scenario.id} key={scenario.id}>
+              <span className={styles.eyebrow}>{scenario.milestone} · {scenario.category}</span>
+              <h3>{scenario.title}</h3>
+              <p>{scenario.summary}</p>
+              <div className={styles.metaLine}>
+                <span>{scenario.reviewState}</span>
+                <small>{scenario.sourceOfTruth}</small>
+              </div>
+              <p className={styles.safeNotice}>{scenario.nextReviewStep}</p>
             </Link>
           ))}
         </div>

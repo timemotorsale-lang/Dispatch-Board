@@ -43,7 +43,7 @@ describe("CRM Next access and safe bridge", () => {
     expect(model.bridge.liveTaskCreationEnabled).toBe(false);
     expect(model.bridge.previewEnabled).toBe(true);
     expect(model.progress.envelopeCount).toBe(20);
-    expect(model.progress.nextMilestone).toBe("CRMN-075");
+    expect(model.progress.nextMilestone).toBe("CRMN-080");
     expect(model.search.groups).toHaveLength(5);
     expect(model.ownershipSupport.map((record) => record.domain)).toEqual(
       expect.arrayContaining(["Vehicle", "Finance", "Payment", "Case", "Title/Document", "Service", "Rental/Loaner", "Customer Issue", "Insurance"])
@@ -85,6 +85,14 @@ describe("CRM Next access and safe bridge", () => {
     );
     expect(commandCenterEnvelope).toHaveLength(7);
     expect(commandCenterEnvelope.every((milestone) => milestone.status === "IMPLEMENTED_UNVERIFIED")).toBe(true);
+    expect(model.pilotScenarios).toHaveLength(5);
+    expect(model.pilotScenarios.map((scenario) => scenario.milestone)).toEqual(["CRMN-075", "CRMN-076", "CRMN-077", "CRMN-078", "CRMN-079"]);
+    expect(model.pilotScenarios.find((scenario) => scenario.milestone === "CRMN-077")?.sourceOfTruth).toContain("Customer 360 read model");
+    const pilotScenarioEnvelope = model.progress.milestones.filter((milestone) =>
+      /^CRMN-07[5-9]$/.test(milestone.id)
+    );
+    expect(pilotScenarioEnvelope).toHaveLength(5);
+    expect(pilotScenarioEnvelope.every((milestone) => milestone.status === "IMPLEMENTED_UNVERIFIED")).toBe(true);
   });
 
   it("rejects ineligible users and does not create a dispatch task from the bridge", () => {

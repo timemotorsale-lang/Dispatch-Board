@@ -261,6 +261,7 @@
 
 .summaryGrid,
 .commandModeGrid,
+.pilotScenarioGrid,
 .dashboardGrid,
 .customerGrid,
 .intelligenceGrid,
@@ -283,9 +284,14 @@
   margin-bottom: 22px;
 }
 
+.pilotScenarioGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .card,
 .summaryCard,
 .commandModeCard,
+.pilotScenarioCard,
 .panel,
 .timeline,
 .contextCard,
@@ -325,6 +331,27 @@
   padding: 18px;
   text-decoration: none;
   transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+.pilotScenarioCard {
+  color: inherit;
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  text-decoration: none;
+  transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+.pilotScenarioCard h3 {
+  color: #0b1f44;
+  font-size: 18px;
+  letter-spacing: -.02em;
+  margin: 0;
+}
+
+.pilotScenarioCard p {
+  color: #475569;
+  margin: 0;
 }
 
 .commandModeCard div:first-of-type {
@@ -960,6 +987,7 @@
 
   .summaryGrid,
   .commandModeGrid,
+  .pilotScenarioGrid,
   .dashboardGrid,
   .actionCards,
   .intelligenceCards,
@@ -980,6 +1008,7 @@
 
   .summaryGrid,
   .commandModeGrid,
+  .pilotScenarioGrid,
   .dashboardGrid,
   .actionCards,
   .intelligenceCards,

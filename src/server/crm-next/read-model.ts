@@ -136,6 +136,18 @@ export type CrmNextCommandCenterMode = {
   href: string;
 };
 
+export type CrmNextPilotScenario = {
+  id: string;
+  milestone: "CRMN-075" | "CRMN-076" | "CRMN-077" | "CRMN-078" | "CRMN-079";
+  category: "Customer" | "Needs Attention" | "Customer 360" | "Timeline" | "Manager Review";
+  title: string;
+  reviewState: "Pilot review" | "Read-only" | "Foundation only";
+  summary: string;
+  sourceOfTruth: string;
+  nextReviewStep: string;
+  href: string;
+};
+
 export type CrmNextCommandCenter = {
   contractVersion: "crm-next-command-center/v1";
   generatedAt: string;
@@ -164,6 +176,7 @@ export type CrmNextCommandCenter = {
     guidance: string;
     modes: CrmNextCommandCenterMode[];
   };
+  pilotScenarios: CrmNextPilotScenario[];
   bridge: {
     liveTaskCreationEnabled: false;
     previewEnabled: true;
@@ -674,6 +687,51 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     reviewHref: "/crm-next#team-load-indicators",
     evidence: "Team load card shows response posture and manager review guidance.",
     safety: "No invisible reprioritization, reassignment, or escalation."
+  },
+  {
+    id: "CRMN-075",
+    title: "Pilot customer scenario expansion",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Add realistic customer scenarios so pilot reviewers can judge CRM Next substance.",
+    reviewHref: "/crm-next/pilot-readiness#pilot-customers",
+    evidence: "Pilot readiness surface includes multi-customer review scenarios with source labels.",
+    safety: "Scenario data is read-only and does not create customer records."
+  },
+  {
+    id: "CRMN-076",
+    title: "Needs Attention scenario expansion",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Expand queue scenarios across sales, finance, service, and support.",
+    reviewHref: "/crm-next/pilot-readiness#pilot-attention",
+    evidence: "Pilot readiness surface includes queue scenarios and review-only next steps.",
+    safety: "No queue automation or task mutation."
+  },
+  {
+    id: "CRMN-077",
+    title: "Customer 360 scenario expansion",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Represent richer Customer 360 review examples across vehicles, deals, support, and ownership.",
+    reviewHref: "/crm-next/pilot-readiness#pilot-customer-360",
+    evidence: "Pilot readiness surface documents expanded Customer 360 review coverage.",
+    safety: "No customer profile writes."
+  },
+  {
+    id: "CRMN-078",
+    title: "Timeline and communications scenario expansion",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Show richer activity and communication examples without sending messages.",
+    reviewHref: "/crm-next/pilot-readiness#pilot-timeline",
+    evidence: "Pilot readiness surface includes timeline/communications review scenarios.",
+    safety: "No live calls, texts, emails, or activity writes."
+  },
+  {
+    id: "CRMN-079",
+    title: "Manager pilot-review scenarios",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Add manager review scenarios for blocked, overdue, escalated, and load-sensitive work.",
+    reviewHref: "/crm-next/pilot-readiness#pilot-manager-review",
+    evidence: "Pilot readiness surface includes manager review scenarios and source boundaries.",
+    safety: "No manager override or reassignment mutation."
   }
 ];
 
@@ -1257,6 +1315,64 @@ const commandCenterModes: CrmNextCommandCenterMode[] = [
   }
 ];
 
+const pilotScenarios: CrmNextPilotScenario[] = [
+  {
+    id: "pilot-customers",
+    milestone: "CRMN-075",
+    category: "Customer",
+    title: "Multiple customer records ready for pilot review",
+    reviewState: "Pilot review",
+    summary: "Pilot review includes active buyer, payment follow-up, title pending, service due, and insurance/document scenarios.",
+    sourceOfTruth: "Customer, sales, finance, support, and document read models",
+    nextReviewStep: "Confirm the customer mix matches real dealership work before live customer actions are approved.",
+    href: "/crm-next/customers/michael-johnson"
+  },
+  {
+    id: "pilot-attention",
+    milestone: "CRMN-076",
+    category: "Needs Attention",
+    title: "Needs Attention spans sales, finance, service, and support",
+    reviewState: "Read-only",
+    summary: "The queue now has realistic pressure patterns: overdue follow-up, payment reminder, title review, service due, and insurance update.",
+    sourceOfTruth: "CRM Next attention read model linked to source-owned work",
+    nextReviewStep: "Review whether staff can understand who to call first without needing a manager to explain the queue.",
+    href: "/crm-next/needs-attention"
+  },
+  {
+    id: "pilot-customer-360",
+    milestone: "CRMN-077",
+    category: "Customer 360",
+    title: "Customer 360 has richer ownership and work context",
+    reviewState: "Pilot review",
+    summary: "Customer 360 review connects profile, vehicles, lifetime value, open deals, support cases, finance/payment, documents, and next action.",
+    sourceOfTruth: "Customer 360 read model with ownership/support projections",
+    nextReviewStep: "Confirm the screen answers “what is happening with this customer?” in under one minute.",
+    href: "/crm-next/customers/michael-johnson"
+  },
+  {
+    id: "pilot-timeline",
+    milestone: "CRMN-078",
+    category: "Timeline",
+    title: "Timeline and communications are reviewable without sending",
+    reviewState: "Read-only",
+    summary: "The pilot surface shows phone, text, email, appointment, opportunity, support, finance, and Dispatch-linked activity examples.",
+    sourceOfTruth: "ActivityEvent and communication read models",
+    nextReviewStep: "Validate whether staff can trust the sequence and find the source workspace for follow-up.",
+    href: "/crm-next/timeline"
+  },
+  {
+    id: "pilot-manager-review",
+    milestone: "CRMN-079",
+    category: "Manager Review",
+    title: "Manager review scenarios are visible before controls go live",
+    reviewState: "Foundation only",
+    summary: "Managers can review unassigned, overdue, blocked, escalated, and load-sensitive customer work without live overrides.",
+    sourceOfTruth: "Manager review and shared execution read models",
+    nextReviewStep: "Approve which manager actions should become live commands in a later gate.",
+    href: "/crm-next/shared-execution#manager-queue"
+  }
+];
+
 export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Date = new Date()): CrmNextCommandCenter {
   const access = resolveCrmNextAccess(actor);
   if (!access.allowed) {
@@ -1311,6 +1427,7 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
       guidance: "A compact command center for reviewing customer pressure, next actions, team load, pipeline context, and safe handoffs.",
       modes: commandCenterModes
     },
+    pilotScenarios,
     bridge: {
       liveTaskCreationEnabled: false,
       previewEnabled: true,
@@ -1321,7 +1438,7 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
       envelopeCount: 20,
       verifiedCount: progressMilestones.filter((milestone) => milestone.status === "VERIFIED").length,
       heldCount: progressMilestones.filter((milestone) => milestone.status === "HELD").length,
-      nextMilestone: "CRMN-075",
+      nextMilestone: "CRMN-080",
       milestones: progressMilestones
     }
   };

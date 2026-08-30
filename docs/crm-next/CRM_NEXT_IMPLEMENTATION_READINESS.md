@@ -218,3 +218,21 @@ Do not implement CRM Next on the shared `main` baseline directly. Start CRMN-010
 - Team load indicators explain pressure without invisible reprioritization or assignment automation.
 
 **Progress truth:** CRMN-068 through CRMN-074 are marked `IMPLEMENTED_UNVERIFIED`, not `VERIFIED`, until broader proof and user review are complete. The next implementation marker is CRMN-075.
+
+## Implementation evidence — CRMN-075 through CRMN-079 pilot scenario expansion
+
+**Status:** IMPLEMENTED_UNVERIFIED  
+**Branch:** `codex/crm-next-pilot-readiness-envelope`  
+**Scope:** Added the second packet of the CRMN-068 through CRMN-094 pilot-readiness envelope: pilot customer scenarios, Needs Attention scenario expansion, Customer 360 context expansion, timeline/communications scenario coverage, and manager pilot-review scenarios.
+
+**Review location:** `/crm-next/pilot-readiness` with `CRM_NEXT=REVIEW`.
+
+**Safety posture:**
+- CRM Next remains behind `/crm-next` and `CRM_NEXT`.
+- Legacy `/customers`, current `/crm`, Dispatch Board, communication systems, and source-owned workspaces remain protected.
+- Pilot scenarios are read-only review records.
+- The page explains what reviewers should inspect, what source system owns the data, and what remains gated.
+- No customer write, opportunity write, payment action, live call, live text, live email, task creation, manager override, or route replacement is enabled.
+- Scenario links route reviewers back to already-gated CRM Next review surfaces instead of creating new operational commands.
+
+**Progress truth:** CRMN-075 through CRMN-079 are marked `IMPLEMENTED_UNVERIFIED`, not `VERIFIED`, until broader proof and user review are complete. The next implementation marker is CRMN-080.
