@@ -173,22 +173,31 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
         ))}
       </section>
 
-      <section className={styles.commandModeGrid} aria-label="CRM Next command center review modes">
-        {model.commandCenter.modes.map((mode) => (
-          <Link className={styles.commandModeCard} href={mode.href} id={mode.id} key={mode.id}>
-            <span className={styles.eyebrow}>{mode.milestone} · {mode.audience}</span>
-            <div>
-              <h2>{mode.title}</h2>
-              <b>{mode.state}</b>
-            </div>
-            <p>{mode.objective}</p>
-            <dl>
-              <div><dt>Primary</dt><dd>{mode.primaryMetric}</dd></div>
-              <div><dt>Secondary</dt><dd>{mode.secondaryMetric}</dd></div>
-            </dl>
-            <small>{mode.guidance}</small>
-          </Link>
-        ))}
+      <section className={styles.operatorActionGrid} aria-label="CRM Next staff tools">
+        <Link className={styles.operatorActionCard} href="/crm-next/needs-attention">
+          <Bell size={22} />
+          <span><strong>Work the next customer</strong><small>Open the highest-priority customer that needs attention.</small></span>
+        </Link>
+        <Link className={styles.operatorActionCard} href="/crm-next/customers/michael-johnson">
+          <Users size={22} />
+          <span><strong>Open Customer 360</strong><small>See contacts, vehicles, appointments, cases, deals, and timeline.</small></span>
+        </Link>
+        <Link className={styles.operatorActionCard} href="/crm-next/work/attn-michael-overdue-follow-up#suggested">
+          <Phone size={22} />
+          <span><strong>Log contact preview</strong><small>Prepare call, text, or email work without sending live communications.</small></span>
+        </Link>
+        <Link className={styles.operatorActionCard} href="/crm-next/appointments">
+          <CalendarDays size={22} />
+          <span><strong>Review appointments</strong><small>Open appointment context and source-owned scheduling workspace.</small></span>
+        </Link>
+        <Link className={styles.operatorActionCard} href="/crm-next/work/attn-michael-overdue-follow-up#dispatch-preview">
+          <ClipboardCheck size={22} />
+          <span><strong>Prepare follow-up task</strong><small>Preview the Dispatch handoff before live task creation is approved.</small></span>
+        </Link>
+        <Link className={styles.operatorActionCard} href="/crm-next/deals">
+          <DollarSign size={22} />
+          <span><strong>Review deals</strong><small>Inspect deal context without moving stages or changing estimates.</small></span>
+        </Link>
       </section>
 
       <section className={styles.dashboardGrid}>
@@ -378,6 +387,33 @@ export function CrmNextReviewCenterView({ model }: { model: CrmNextCommandCenter
           </Link>
         ))}
       </section>
+
+      <article className={styles.card}>
+        <header>
+          <div>
+            <h2>Command Center implementation cards</h2>
+            <p className={styles.muted}>These cards explain the build milestones behind the operating dashboard and stay here for review only.</p>
+          </div>
+          <span className={styles.pill}>Hidden from staff nav</span>
+        </header>
+        <section className={styles.commandModeGrid} aria-label="CRM Next command center review modes">
+          {model.commandCenter.modes.map((mode) => (
+            <Link className={styles.commandModeCard} href={mode.href} id={mode.id} key={mode.id}>
+              <span className={styles.eyebrow}>{mode.milestone} · {mode.audience}</span>
+              <div>
+                <h2>{mode.title}</h2>
+                <b>{mode.state}</b>
+              </div>
+              <p>{mode.objective}</p>
+              <dl>
+                <div><dt>Primary</dt><dd>{mode.primaryMetric}</dd></div>
+                <div><dt>Secondary</dt><dd>{mode.secondaryMetric}</dd></div>
+              </dl>
+              <small>{mode.guidance}</small>
+            </Link>
+          ))}
+        </section>
+      </article>
     </CrmNextFrame>
   );
 }

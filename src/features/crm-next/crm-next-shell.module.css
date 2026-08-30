@@ -372,6 +372,59 @@
   margin-bottom: 22px;
 }
 
+.operatorActionGrid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 22px;
+}
+
+.operatorActionCard {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #cfdaea;
+  border-radius: 18px;
+  box-shadow: 0 14px 34px rgb(15 42 84 / 7%);
+  color: #071a3a;
+  display: flex;
+  gap: 14px;
+  min-height: 92px;
+  padding: 18px;
+  text-decoration: none;
+  transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+.operatorActionCard:hover {
+  border-color: #8fb2f8;
+  box-shadow: 0 18px 42px rgb(15 42 84 / 12%);
+  transform: translateY(-1px);
+}
+
+.operatorActionCard svg {
+  background: #eef4ff;
+  border-radius: 14px;
+  color: #155dfc;
+  flex: 0 0 auto;
+  padding: 10px;
+  box-sizing: content-box;
+}
+
+.operatorActionCard strong,
+.operatorActionCard small {
+  display: block;
+}
+
+.operatorActionCard strong {
+  font-size: 17px;
+  letter-spacing: -0.015em;
+}
+
+.operatorActionCard small {
+  color: #52637a;
+  line-height: 1.35;
+  margin-top: 3px;
+}
+
 .commandModeGrid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   margin-bottom: 22px;
@@ -1196,6 +1249,7 @@
   }
 
   .summaryGrid,
+  .operatorActionGrid,
   .commandModeGrid,
   .pilotScenarioGrid,
   .dashboardGrid,
@@ -1217,6 +1271,7 @@
   }
 
   .summaryGrid,
+  .operatorActionGrid,
   .commandModeGrid,
   .pilotScenarioGrid,
   .dashboardGrid,

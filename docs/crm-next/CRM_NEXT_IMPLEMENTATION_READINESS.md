@@ -330,6 +330,8 @@ Do not implement CRM Next on the shared `main` baseline directly. Start CRMN-010
 **What changed:**
 - Regular sidebar navigation now emphasizes daily CRM work: Command Center, Customers, Needs Attention, Work Customer, Search, Pipeline, Timeline, Appointments, Deals, Ownership & Support, Shared Execution, and Intelligence.
 - Build-review/governance pages were removed from the regular staff navigation.
+- Build milestone cards were removed from the operating Command Center dashboard body.
+- Staff-facing action cards now occupy that space: work next customer, open Customer 360, prepare contact, review appointments, prepare follow-up task, and review deals.
 - A low-emphasis `/crm-next/review` Review Center keeps the hidden pages available when explicitly needed for approval, QA, release, or leadership review.
 - The hidden review pages remain: Progress, Pilot Readiness, Hardening, Coexistence, Pilot Release, system permissions, system states, and rollback review.
 
