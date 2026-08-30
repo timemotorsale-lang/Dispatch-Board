@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   Bell,
+  Brain,
   CalendarDays,
   CheckCircle2,
   ChevronRight,
@@ -52,7 +53,7 @@ export function CrmNextUnavailable({ fallbackHref, reason }: { fallbackHref: str
   );
 }
 
-function CrmNextFrame({ active, children, userName }: { active: "command" | "attention" | "customer" | "work" | "progress" | "search" | "pipeline" | "timeline" | "safety"; children: React.ReactNode; userName: string }) {
+function CrmNextFrame({ active, children, userName }: { active: "command" | "attention" | "customer" | "work" | "progress" | "search" | "pipeline" | "timeline" | "support" | "execution" | "intelligence" | "safety"; children: React.ReactNode; userName: string }) {
   const links = [
     { id: "command", href: "/crm-next", label: "Command Center", icon: LayoutDashboard },
     { id: "customer", href: "/crm-next/customers/michael-johnson", label: "Customers", icon: Users },
@@ -60,6 +61,9 @@ function CrmNextFrame({ active, children, userName }: { active: "command" | "att
     { id: "work", href: "/crm-next/work/attn-michael-overdue-follow-up", label: "Work Customer", icon: ClipboardCheck },
     { id: "search", href: "/crm-next/search", label: "Search", icon: Search },
     { id: "pipeline", href: "/crm-next/pipeline", label: "Pipeline", icon: Target },
+    { id: "support", href: "/crm-next/ownership-support", label: "Ownership & Support", icon: FileText },
+    { id: "execution", href: "/crm-next/shared-execution", label: "Shared Execution", icon: ClipboardCheck },
+    { id: "intelligence", href: "/crm-next/intelligence-foundation", label: "Intelligence", icon: Brain },
     { id: "timeline", href: "/crm-next/timeline", label: "Timeline", icon: FileSearch },
     { id: "progress", href: "/crm-next/progress", label: "Progress", icon: Target }
   ] as const;
@@ -219,10 +223,10 @@ export function CrmNextProgressView({ model }: { model: CrmNextCommandCenter }) 
       <article className={styles.card} id="crm-next-envelope">
         <header>
           <div>
-            <h2>Next 20-milestone envelope</h2>
+            <h2>CRM Next milestone envelope</h2>
             <p className={styles.muted}>Built sequentially. Each slice gets checks, honest status, and a commit checkpoint before the next one.</p>
           </div>
-          <span className={styles.pill}>CRMN-016 → CRMN-035</span>
+          <span className={styles.pill}>CRMN-016 → CRMN-067</span>
         </header>
         <div className={styles.progressList}>
           {model.progress.milestones.map((milestone) => (
@@ -432,6 +436,165 @@ export function CrmNextDealsView({ model }: { model: CrmNextCommandCenter }) {
         <Link className={styles.secondaryButton} href="/crm-next/pipeline">Back to pipeline</Link>
       </section>
       <SalesTable records={model.sales.deals} title="Deals in progress" summary="A clean review surface for sales staff before operational deal commands go live." />
+    </CrmNextFrame>
+  );
+}
+
+export function CrmNextOwnershipSupportView({ model }: { model: CrmNextCommandCenter }) {
+  const grouped = [
+    { label: "Ownership", ids: ["Vehicle", "Finance", "Payment"] },
+    { label: "Support", ids: ["Case", "Title/Document", "Service", "Rental/Loaner", "Customer Issue", "Insurance"] }
+  ];
+
+  return (
+    <CrmNextFrame active="support" userName={model.userName}>
+      <Topbar />
+      <section className={styles.hero}>
+        <div>
+          <span className={styles.eyebrow}>Ownership & Support</span>
+          <h1>Everything important, without turning Customer 360 into a maze</h1>
+          <p>Vehicle, finance, payment, case, title, service, rental, issue, and insurance context are grouped for quick review.</p>
+        </div>
+        <div className={styles.quickActions}>
+          <Link className={styles.primaryButton} href="/crm-next/customers/michael-johnson">Customer 360</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/work/attn-michael-overdue-follow-up">Attend Customer</Link>
+        </div>
+      </section>
+
+      {grouped.map((group) => (
+        <article className={styles.card} key={group.label}>
+          <header>
+            <div>
+              <h2>{group.label}</h2>
+              <p className={styles.muted}>Review-safe context. Authoritative systems keep ownership of the underlying work.</p>
+            </div>
+            <span className={styles.pill}>CRMN-040 → CRMN-048</span>
+          </header>
+          <div className={styles.supportGrid}>
+            {model.ownershipSupport
+              .filter((record) => group.ids.includes(record.domain))
+              .map((record) => (
+                <Link className={styles.supportCard} href={record.href} id={record.href.startsWith("#") ? record.href.slice(1) : record.id} key={record.id}>
+                  <span className={styles.eyebrow}>{record.domain}</span>
+                  <h3>{record.title}</h3>
+                  <p>{record.status}</p>
+                  <p className={styles.muted}>{record.nextAction}</p>
+                  <div className={styles.metaLine}>
+                    <b className={levelClass(record.priority)}>{record.priority}</b>
+                    <span>{record.permission}</span>
+                    <small>{record.owner}</small>
+                  </div>
+                  <p className={styles.safeNotice}>Source: {record.sourceOfTruth}</p>
+                </Link>
+              ))}
+          </div>
+        </article>
+      ))}
+    </CrmNextFrame>
+  );
+}
+
+export function CrmNextSharedExecutionView({ model }: { model: CrmNextCommandCenter }) {
+  return (
+    <CrmNextFrame active="execution" userName={model.userName}>
+      <Topbar />
+      <section className={styles.hero}>
+        <div>
+          <span className={styles.eyebrow}>Shared Execution</span>
+          <h1>Shared execution without a second task board</h1>
+          <p>CRM Next can prepare and review customer work while Dispatch Board remains the operating source for tasks, assignments, comments, blockers, and manager queues.</p>
+        </div>
+        <div className={styles.quickActions}>
+          <Link className={styles.primaryButton} href="/crm-next/work/attn-michael-overdue-follow-up#dispatch-preview">Preview task bridge</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/needs-attention">Needs Attention</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/progress">Progress</Link>
+        </div>
+      </section>
+
+      <article className={styles.card}>
+        <header>
+          <div>
+            <h2>CRMN-050 → CRMN-054 foundation</h2>
+            <p className={styles.muted}>These slices are intentionally read-only or preview-only. They prove the bridge shape before live task creation or reassignment is approved.</p>
+          </div>
+          <span className={styles.pill}>IMPLEMENTED_UNVERIFIED</span>
+        </header>
+        <div className={styles.executionGrid}>
+          {model.sharedExecution.map((record) => (
+            <Link className={styles.executionCard} href={record.href} id={record.href.startsWith("#") ? record.href.slice(1) : record.id} key={record.id}>
+              <span className={styles.eyebrow}>{record.milestone}</span>
+              <h3>{record.title}</h3>
+              <p>{record.description}</p>
+              <div className={styles.surfacePair}>
+                <span><small>CRM Next</small><strong>{record.crmNextSurface}</strong></span>
+                <span><small>Dispatch</small><strong>{record.dispatchSurface}</strong></span>
+              </div>
+              <div className={styles.metaLine}>
+                <span>{record.state}</span>
+                <small>{record.sourceSystem}</small>
+              </div>
+              <p className={styles.safeNotice}>{record.safety}</p>
+            </Link>
+          ))}
+        </div>
+      </article>
+    </CrmNextFrame>
+  );
+}
+
+export function CrmNextIntelligenceFoundationView({ model }: { model: CrmNextCommandCenter }) {
+  return (
+    <CrmNextFrame active="intelligence" userName={model.userName}>
+      <Topbar />
+      <section className={styles.hero}>
+        <div>
+          <span className={styles.eyebrow}>Intelligence Foundation</span>
+          <h1>Recommendations that explain themselves</h1>
+          <p>CRM Next intelligence starts as visible signals, risk context, next-action suggestions, opportunity insight, priority reasons, and manager review — all human-approved before action.</p>
+        </div>
+        <div className={styles.quickActions}>
+          <Link className={styles.primaryButton} href="/crm-next/needs-attention">Open queue</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/work/attn-michael-overdue-follow-up">Attend customer</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/progress">Progress</Link>
+        </div>
+      </section>
+
+      <section className={styles.summaryGrid} aria-label="CRM Next intelligence summary">
+        <article className={styles.summaryCard} data-tone="blue"><small>Mode</small><strong>Review</strong><p>human decides</p></article>
+        <article className={styles.summaryCard}><small>Signals</small><strong>{model.intelligence.length}</strong><p>explainable inputs</p></article>
+        <article className={styles.summaryCard}><small>Automation</small><strong>Off</strong><p>no live actions</p></article>
+        <article className={styles.summaryCard}><small>Source drift</small><strong>0</strong><p>read-model only</p></article>
+        <article className={styles.summaryCard}><small>Next</small><strong>{model.progress.nextMilestone}</strong><p>control slice</p></article>
+      </section>
+
+      <article className={styles.card}>
+        <header>
+          <div>
+            <h2>CRMN-060 → CRMN-067 intelligence packet</h2>
+            <p className={styles.muted}>Every recommendation shows the signal, recommendation, explanation, source system, and safety boundary.</p>
+          </div>
+          <span className={styles.pill}>IMPLEMENTED_UNVERIFIED</span>
+        </header>
+        <div className={styles.intelligenceCards}>
+          {model.intelligence.map((record) => (
+            <Link className={styles.intelligenceCard} href={record.href} id={record.href.startsWith("#") ? record.href.slice(1) : record.id} key={record.id}>
+              <span className={styles.eyebrow}>{record.milestone} · {record.kind}</span>
+              <h3>{record.title}</h3>
+              <p>{record.signal}</p>
+              <div className={styles.recommendationBox}>
+                <small>Recommended next step</small>
+                <strong>{record.recommendation}</strong>
+                <span>{record.explanation}</span>
+              </div>
+              <div className={styles.metaLine}>
+                <span>{record.confidence}</span>
+                <small>{record.sourceSystem}</small>
+              </div>
+              <p className={styles.safeNotice}>{record.safety}</p>
+            </Link>
+          ))}
+        </div>
+      </article>
     </CrmNextFrame>
   );
 }

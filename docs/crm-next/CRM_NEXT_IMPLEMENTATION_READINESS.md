@@ -147,3 +147,56 @@ Do not implement CRM Next on the shared `main` baseline directly. Start CRMN-010
 - Rollback remains simple: disable `CRM_NEXT` and `/crm-next` fails closed to safe fallback workspaces.
 
 **Progress truth:** CRMN-016 through CRMN-035 are marked `IMPLEMENTED_UNVERIFIED`, not `VERIFIED`, until broader pilot-release proof and user review are complete. The next implementation marker is CRMN-036.
+
+## Implementation evidence — CRMN-040 through CRMN-048 ownership/support foundation
+
+**Status:** IMPLEMENTED_UNVERIFIED  
+**Branch:** `codex/crm-next-ownership-intelligence-envelope`  
+**Scope:** Added the first packet of the CRMN-040 through CRMN-067 envelope: vehicle relationships, BHPH/finance context, payment context, common case framework, titles/documents, service, rentals/loaners, customer issues, and insurance context.
+
+**Review location:** `/crm-next/ownership-support` with `CRM_NEXT=REVIEW`.
+
+**Safety posture:**
+- CRM Next remains behind `/crm-next` and `CRM_NEXT`.
+- Legacy `/customers`, current `/crm`, Dispatch Board, tasks, appointments, vehicles, and repair/service workspaces remain protected.
+- Stage 1 is review-safe and read-only.
+- Vehicle, finance, payment, case, document/title, service, rental/loaner, customer issue, and insurance cards show source-of-truth ownership instead of creating duplicate systems.
+- Sensitive finance, payment, document, and insurance execution remains restricted or held.
+- No payment collection, document sending, rental contract mutation, case closure, repair mutation, customer write, or Dispatch Board task creation is enabled.
+
+**Progress truth:** CRMN-040 through CRMN-048 are marked `IMPLEMENTED_UNVERIFIED`, not `VERIFIED`, until broader proof and user review are complete. The next implementation marker is CRMN-050.
+
+## Implementation evidence — CRMN-050 through CRMN-054 shared execution foundation
+
+**Status:** IMPLEMENTED_UNVERIFIED  
+**Branch:** `codex/crm-next-ownership-intelligence-envelope`  
+**Scope:** Added the second packet of the CRMN-040 through CRMN-067 envelope: CRM-to-shared-task linkage, Dispatch Board customer context, comments/blockers/review synchronization, task activity to Customer 360 timeline posture, and manager customer-work queue foundation.
+
+**Review location:** `/crm-next/shared-execution` with `CRM_NEXT=REVIEW`.
+
+**Safety posture:**
+- CRM Next still does not create live Dispatch Board tasks.
+- Shared execution is preview-only/read-only unless a later business approval enables live commands.
+- Dispatch Board remains the operating owner for task status, assignment, comments, blockers, reviews, and manager execution.
+- CRM Next displays bridge shape, source systems, destination surfaces, and safety limits without duplicating task records.
+- No reassignment, escalation, override, comment write, blocker write, task completion, customer write, or communication send is enabled.
+
+**Progress truth:** CRMN-050 through CRMN-054 are marked `IMPLEMENTED_UNVERIFIED`, not `VERIFIED`, until broader proof and user review are complete. The next implementation marker is CRMN-060.
+
+## Implementation evidence — CRMN-060 through CRMN-067 intelligence foundation
+
+**Status:** IMPLEMENTED_UNVERIFIED  
+**Branch:** `codex/crm-next-ownership-intelligence-envelope`  
+**Scope:** Added the third packet of the CRMN-040 through CRMN-067 envelope: explainable signal foundation, risk scoring posture, next-best-action foundation, opportunity intelligence, priority rules, Needs Attention intelligence, feedback-loop foundation, and manager intelligence cockpit.
+
+**Review location:** `/crm-next/intelligence-foundation` with `CRM_NEXT=REVIEW`.
+
+**Safety posture:**
+- Intelligence is advisory, explainable, and human-reviewed.
+- Every card shows the signal, recommendation, explanation, source system, confidence posture, and safety boundary.
+- No AI action, customer mutation, live call, live text, live email, task creation, task completion, deal movement, manager override, or reassignment is enabled.
+- Opportunity intelligence remains read-only and does not change pipeline stages.
+- Priority and queue intelligence explain review order without silently reprioritizing Dispatch Board work.
+- Feedback-loop categories are foundation-only; no model training or automatic preference mutation occurs.
+
+**Progress truth:** CRMN-060 through CRMN-067 are marked `IMPLEMENTED_UNVERIFIED`, not `VERIFIED`, until broader proof and user review are complete. The next implementation marker is CRMN-068.

@@ -65,7 +65,7 @@ export type CrmNextSearchGroup = {
 
 export type CrmNextTimelineEvent = {
   id: string;
-  source: "Customer" | "Communication" | "Opportunity" | "Appointment" | "Dispatch";
+  source: "Customer" | "Communication" | "Opportunity" | "Appointment" | "Dispatch" | "Vehicle" | "Finance" | "Support" | "Insurance";
   label: string;
   detail: string;
   occurredAt: string;
@@ -80,6 +80,46 @@ export type CrmNextSalesRecord = {
   stage: string;
   owner: string;
   nextAction: string;
+  href: string;
+};
+
+export type CrmNextOwnershipSupportRecord = {
+  id: string;
+  domain: "Vehicle" | "Finance" | "Payment" | "Case" | "Title/Document" | "Service" | "Rental/Loaner" | "Customer Issue" | "Insurance";
+  title: string;
+  status: string;
+  priority: CrmNextAttentionLevel;
+  owner: string;
+  nextAction: string;
+  href: string;
+  permission: "Open" | "Restricted" | "Held";
+  sourceOfTruth: string;
+};
+
+export type CrmNextSharedExecutionRecord = {
+  id: string;
+  milestone: "CRMN-050" | "CRMN-051" | "CRMN-052" | "CRMN-053" | "CRMN-054";
+  title: string;
+  state: "Preview only" | "Read-only" | "Manager review";
+  description: string;
+  sourceSystem: string;
+  crmNextSurface: string;
+  dispatchSurface: string;
+  safety: string;
+  href: string;
+};
+
+export type CrmNextIntelligenceRecord = {
+  id: string;
+  milestone: "CRMN-060" | "CRMN-061" | "CRMN-062" | "CRMN-063" | "CRMN-064" | "CRMN-065" | "CRMN-066" | "CRMN-067";
+  kind: "Signal" | "Risk" | "Next Action" | "Opportunity" | "Priority" | "Queue" | "Feedback" | "Manager Intelligence";
+  title: string;
+  confidence: "Explainable" | "Needs review" | "Human decides";
+  signal: string;
+  recommendation: string;
+  explanation: string;
+  sourceSystem: string;
+  safety: string;
   href: string;
 };
 
@@ -103,6 +143,9 @@ export type CrmNextCommandCenter = {
     testDrives: CrmNextSalesRecord[];
     deals: CrmNextSalesRecord[];
   };
+  ownershipSupport: CrmNextOwnershipSupportRecord[];
+  sharedExecution: CrmNextSharedExecutionRecord[];
+  intelligence: CrmNextIntelligenceRecord[];
   bridge: {
     liveTaskCreationEnabled: false;
     previewEnabled: true;
@@ -352,6 +395,204 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     reviewHref: "/crm-next/timeline",
     evidence: "Sales and opportunity events appear in the unified timeline as source-linked read-only events.",
     safety: "Events remain source-linked and read-only."
+  },
+  {
+    id: "CRMN-040",
+    title: "Vehicle relationships",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Show customer vehicle relationships without creating a second vehicle master.",
+    reviewHref: "/crm-next/ownership-support",
+    evidence: "Ownership/support surface includes source-linked vehicle relationship cards and vehicle workspace fallback.",
+    safety: "Vehicle workspace remains authoritative; CRM Next is read-only."
+  },
+  {
+    id: "CRMN-041",
+    title: "BHPH/finance context",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Show finance context only through permission-aware review surfaces.",
+    reviewHref: "/crm-next/ownership-support#finance",
+    evidence: "Finance context is visible as restricted summary with held execution copy.",
+    safety: "No accounting ledger or finance writes are introduced."
+  },
+  {
+    id: "CRMN-042",
+    title: "Payment context",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Surface payment due/overdue context as customer attention without processing payments.",
+    reviewHref: "/crm-next/ownership-support#payment",
+    evidence: "Payment context appears as a high-priority review card and timeline signal.",
+    safety: "Payment collection remains held."
+  },
+  {
+    id: "CRMN-043",
+    title: "Common Case framework",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Use one common support case pattern for customer issues, titles, service, insurance, payments, and rentals.",
+    reviewHref: "/crm-next/ownership-support#cases",
+    evidence: "Common case cards share domain, status, priority, owner, next action, and source-of-truth fields.",
+    safety: "No duplicate case universe is created."
+  },
+  {
+    id: "CRMN-044",
+    title: "Titles/documents",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Make document/title needs visible and actionable without enabling sending/uploading.",
+    reviewHref: "/crm-next/ownership-support#documents",
+    evidence: "Document/title review card shows status, owner, next action, and held document execution.",
+    safety: "Document actions remain permission-gated and held."
+  },
+  {
+    id: "CRMN-045",
+    title: "Service",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Show service/repair context in Customer 360 while repair workflows remain authoritative.",
+    reviewHref: "/crm-next/ownership-support#service",
+    evidence: "Service support card links customer context to existing service/repair ownership.",
+    safety: "No repair workflow replacement."
+  },
+  {
+    id: "CRMN-046",
+    title: "Rentals/loaners",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Expose loaner/rental status and due-back risk in the support context.",
+    reviewHref: "/crm-next/ownership-support#rental",
+    evidence: "Rental/loaner card shows due-back attention and owner.",
+    safety: "No rental contract mutation."
+  },
+  {
+    id: "CRMN-047",
+    title: "Customer issues",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Surface customer complaints and issue resolution as common cases.",
+    reviewHref: "/crm-next/ownership-support#issues",
+    evidence: "Customer issue card uses the common case pattern with severity and next action.",
+    safety: "No issue closure or escalation writes."
+  },
+  {
+    id: "CRMN-048",
+    title: "Insurance",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Expose insurance claim context with restricted sensitive detail.",
+    reviewHref: "/crm-next/ownership-support#insurance",
+    evidence: "Insurance card shows claim status, document need, owner, and safe next action.",
+    safety: "Insurance detail remains permission-aware and read-only."
+  },
+  {
+    id: "CRMN-050",
+    title: "CRM-to-shared-task linkage",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Prepare CRM actions to map to the shared Dispatch Board task engine without creating duplicate tasks.",
+    reviewHref: "/crm-next/shared-execution",
+    evidence: "Shared execution surface documents preview-only CRM action to shared task linkage.",
+    safety: "No live task creation; shared task engine remains authoritative."
+  },
+  {
+    id: "CRMN-051",
+    title: "Dispatch Board customer context",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Show how Dispatch Board work can retain customer context from CRM Next.",
+    reviewHref: "/crm-next/shared-execution#dispatch-context",
+    evidence: "Dispatch customer-context bridge is represented with CRM and Dispatch source links.",
+    safety: "Dispatch Board routes and task ownership remain unchanged."
+  },
+  {
+    id: "CRMN-052",
+    title: "Comments/blockers/review synchronization",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Keep comments, blockers, and review state source-linked instead of copied.",
+    reviewHref: "/crm-next/shared-execution#sync",
+    evidence: "Shared execution surface shows synchronized read-only state for comments, blockers, and review.",
+    safety: "No duplicate comment/blocker store."
+  },
+  {
+    id: "CRMN-053",
+    title: "Task activity integration",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Prepare task activity to appear in Customer 360 timeline as source-linked events.",
+    reviewHref: "/crm-next/shared-execution#activity",
+    evidence: "Task activity bridge is represented as a read-only Customer 360 timeline feed.",
+    safety: "Activity remains event-backed and source-owned."
+  },
+  {
+    id: "CRMN-054",
+    title: "Manager queue",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Give managers a queue for unassigned, overdue, blocked, escalated, or review-needed customer work.",
+    reviewHref: "/crm-next/shared-execution#manager-queue",
+    evidence: "Manager queue review cards show exception class, owner, destination, and safe action.",
+    safety: "No reassignment or escalation mutation."
+  },
+  {
+    id: "CRMN-060",
+    title: "Intelligence signal foundation",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Represent reusable customer, task, deal, and activity signals without autonomous execution.",
+    reviewHref: "/crm-next/intelligence-foundation",
+    evidence: "Intelligence foundation surface shows explainable signal cards and their source systems.",
+    safety: "Signals are advisory and read-only."
+  },
+  {
+    id: "CRMN-061",
+    title: "Risk scoring posture",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Show risk explanations that staff can review before taking action.",
+    reviewHref: "/crm-next/intelligence-foundation#risk",
+    evidence: "Risk card includes visible inputs and human decision copy.",
+    safety: "No hidden customer classification or automatic account change."
+  },
+  {
+    id: "CRMN-062",
+    title: "Next-best-action foundation",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Recommend the next safe action with plain-language explanation.",
+    reviewHref: "/crm-next/intelligence-foundation#next-action",
+    evidence: "Next-action card explains recommendation, source signal, and held execution boundary.",
+    safety: "No call, text, email, task, or deal mutation is triggered automatically."
+  },
+  {
+    id: "CRMN-063",
+    title: "Opportunity intelligence",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Expose opportunity value signals without changing pipeline stages.",
+    reviewHref: "/crm-next/intelligence-foundation#opportunity",
+    evidence: "Opportunity signal card links review value to the pipeline surface.",
+    safety: "Pipeline remains read-only."
+  },
+  {
+    id: "CRMN-064",
+    title: "Priority rules",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Make queue ordering understandable by showing the rule inputs.",
+    reviewHref: "/crm-next/intelligence-foundation#priority",
+    evidence: "Priority card explains why one item rises above another.",
+    safety: "No invisible reprioritization of Dispatch Board work."
+  },
+  {
+    id: "CRMN-065",
+    title: "Needs Attention intelligence",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Connect intelligence to the Needs Attention queue while keeping human review.",
+    reviewHref: "/crm-next/intelligence-foundation#needs-attention",
+    evidence: "Needs Attention card explains queue source, reason, and review path.",
+    safety: "Queue remains a review surface."
+  },
+  {
+    id: "CRMN-066",
+    title: "Feedback loop foundation",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Prepare staff feedback categories for improving recommendations later.",
+    reviewHref: "/crm-next/intelligence-foundation#feedback",
+    evidence: "Feedback card defines why staff can accept, skip, correct, or escalate a recommendation.",
+    safety: "No model training, customer mutation, or automatic preference change occurs in this slice."
+  },
+  {
+    id: "CRMN-067",
+    title: "Manager intelligence cockpit",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Give managers explainable visibility into risk, opportunity, overdue, and blocked customer work.",
+    reviewHref: "/crm-next/intelligence-foundation#manager-intelligence",
+    evidence: "Manager intelligence card links escalations to manager review without live overrides.",
+    safety: "No manager override or reassignment command is enabled."
   }
 ];
 
@@ -567,6 +808,287 @@ const salesRecords: CrmNextSalesRecord[] = [
   }
 ];
 
+const ownershipSupportRecords: CrmNextOwnershipSupportRecord[] = [
+  {
+    id: "ownership-vehicle-rav4",
+    domain: "Vehicle",
+    title: "2021 Toyota RAV4 XLE · owned vehicle relationship",
+    status: "Active ownership relationship",
+    priority: "Low",
+    owner: "Sales",
+    nextAction: "Open the vehicle workspace if deeper inventory/service context is needed.",
+    href: "/vehicles",
+    permission: "Open",
+    sourceOfTruth: "Vehicle and CustomerVehicle records"
+  },
+  {
+    id: "ownership-finance-bhph",
+    domain: "Finance",
+    title: "BHPH / finance context",
+    status: "Restricted summary",
+    priority: "Medium",
+    owner: "Finance",
+    nextAction: "Manager or finance user reviews account context before any payment action.",
+    href: "#finance",
+    permission: "Restricted",
+    sourceOfTruth: "Finance/accounting source; CRM Next shows context only"
+  },
+  {
+    id: "ownership-payment-due",
+    domain: "Payment",
+    title: "Payment due May 20 · $487.32",
+    status: "Due soon",
+    priority: "High",
+    owner: "Lisa Jones",
+    nextAction: "Send approved reminder after communication/payment policy is enabled.",
+    href: "#payment",
+    permission: "Held",
+    sourceOfTruth: "Payment source; no payment processing in CRM Next"
+  },
+  {
+    id: "support-case-title",
+    domain: "Case",
+    title: "Common support case framework",
+    status: "Contract-ready",
+    priority: "Medium",
+    owner: "Support",
+    nextAction: "Use one case pattern for title, service, insurance, payment, rental, and customer issue work.",
+    href: "#cases",
+    permission: "Open",
+    sourceOfTruth: "ConcernCase common case framework"
+  },
+  {
+    id: "support-title-document",
+    domain: "Title/Document",
+    title: "Title document pending",
+    status: "Open case",
+    priority: "Medium",
+    owner: "Mark Davis",
+    nextAction: "Verify title status and record the source workspace update.",
+    href: "#documents",
+    permission: "Restricted",
+    sourceOfTruth: "CustomerDocumentRequirement / title workflow"
+  },
+  {
+    id: "support-service-open",
+    domain: "Service",
+    title: "Service follow-up due",
+    status: "Open support context",
+    priority: "Medium",
+    owner: "Tom Wilson",
+    nextAction: "Open repair/service workspace for authoritative repair action.",
+    href: "/vehicles/repair-orders",
+    permission: "Open",
+    sourceOfTruth: "ServiceVisit / RepairOrder"
+  },
+  {
+    id: "support-rental-loaner",
+    domain: "Rental/Loaner",
+    title: "Loaner due-back check",
+    status: "Review needed",
+    priority: "Low",
+    owner: "Support",
+    nextAction: "Confirm due-back plan with the assigned owner.",
+    href: "#rental",
+    permission: "Held",
+    sourceOfTruth: "Rental/loaner source when connected"
+  },
+  {
+    id: "support-customer-issue",
+    domain: "Customer Issue",
+    title: "Customer complaint follow-up",
+    status: "Open common case",
+    priority: "High",
+    owner: "Manager Review",
+    nextAction: "Attend the customer and record the resolution outcome.",
+    href: "#issues",
+    permission: "Open",
+    sourceOfTruth: "ConcernCase common case framework"
+  },
+  {
+    id: "support-insurance-claim",
+    domain: "Insurance",
+    title: "Insurance claim update requested",
+    status: "Waiting on document confirmation",
+    priority: "Low",
+    owner: "John Smith",
+    nextAction: "Review claim status and confirm next document requirement.",
+    href: "#insurance",
+    permission: "Restricted",
+    sourceOfTruth: "Insurance claim source / document case"
+  }
+];
+
+const sharedExecutionRecords: CrmNextSharedExecutionRecord[] = [
+  {
+    id: "shared-task-linkage",
+    milestone: "CRMN-050",
+    title: "CRM action → shared Dispatch task",
+    state: "Preview only",
+    description: "A CRM action can prepare the exact shared-task payload, assignee, due time, customer reference, and source context.",
+    sourceSystem: "Task Engine",
+    crmNextSurface: "Attend Mode task bridge",
+    dispatchSurface: "Dispatch Board / My Tasks",
+    safety: "The bridge still returns liveTaskCreated=false until task creation is explicitly approved.",
+    href: "/crm-next/work/attn-michael-overdue-follow-up#dispatch-preview"
+  },
+  {
+    id: "dispatch-context",
+    milestone: "CRMN-051",
+    title: "Dispatch Board customer context",
+    state: "Read-only",
+    description: "CRM-originated work keeps the customer name, reason, related vehicle/deal/case, and recommended next action visible.",
+    sourceSystem: "TaskReadModel + customer context",
+    crmNextSurface: "Customer 360 / Attend Mode",
+    dispatchSurface: "Task detail and manager work queues",
+    safety: "Dispatch Board remains the operational owner of task status and assignment.",
+    href: "#dispatch-context"
+  },
+  {
+    id: "comments-blockers-sync",
+    milestone: "CRMN-052",
+    title: "Comments, blockers, and review sync",
+    state: "Read-only",
+    description: "CRM Next displays shared comments, blocker reason, review state, and status without copying those records.",
+    sourceSystem: "Task comments, blockers, and review fields",
+    crmNextSurface: "Attend Mode context rail",
+    dispatchSurface: "Task detail",
+    safety: "No duplicate comment or blocker store is introduced.",
+    href: "#sync"
+  },
+  {
+    id: "task-activity-customer-timeline",
+    milestone: "CRMN-053",
+    title: "Task activity → Customer 360 timeline",
+    state: "Read-only",
+    description: "Task progress can appear as customer activity while the original task activity remains event-backed.",
+    sourceSystem: "ActivityEvent / task activity history",
+    crmNextSurface: "Customer 360 Activity",
+    dispatchSurface: "Task activity feed",
+    safety: "Timeline uses linked context and does not infer hidden history from UI state.",
+    href: "/crm-next/timeline"
+  },
+  {
+    id: "manager-exception-queue",
+    milestone: "CRMN-054",
+    title: "Manager customer-work queue",
+    state: "Manager review",
+    description: "Managers can review unassigned, blocked, overdue, escalated, and approval-needed CRM/customer work.",
+    sourceSystem: "Manager review + Unified CRM exception queues",
+    crmNextSurface: "Manager intelligence queue",
+    dispatchSurface: "Manager workspace",
+    safety: "Reassignment, escalation, and override actions remain held.",
+    href: "#manager-queue"
+  }
+];
+
+const intelligenceRecords: CrmNextIntelligenceRecord[] = [
+  {
+    id: "signal-foundation",
+    milestone: "CRMN-060",
+    kind: "Signal",
+    title: "Explainable customer-work signals",
+    confidence: "Explainable",
+    signal: "Overdue follow-up, open deal, upcoming appointment, support case, and recent activity are available as separate inputs.",
+    recommendation: "Show the signals together before suggesting work.",
+    explanation: "Staff can see what the system considered instead of trusting a hidden score.",
+    sourceSystem: "Customer, task, opportunity, appointment, and activity read models",
+    safety: "Signals are advisory and do not change customer records.",
+    href: "/crm-next/intelligence-foundation"
+  },
+  {
+    id: "risk-posture",
+    milestone: "CRMN-061",
+    kind: "Risk",
+    title: "Medium risk explained",
+    confidence: "Needs review",
+    signal: "Payment due, open support case, and overdue customer follow-up are present.",
+    recommendation: "Review the customer before moving work forward.",
+    explanation: "Risk is shown as a review prompt, not as an automatic customer restriction.",
+    sourceSystem: "Customer 360 risk inputs and support case context",
+    safety: "No hidden customer classification, finance action, or account hold is created.",
+    href: "#risk"
+  },
+  {
+    id: "next-best-action",
+    milestone: "CRMN-062",
+    kind: "Next Action",
+    title: "Call Michael Johnson",
+    confidence: "Human decides",
+    signal: "Overdue follow-up and high-value opportunity are both visible.",
+    recommendation: "Open Attend Mode and prepare a call/task preview.",
+    explanation: "The recommendation is useful because the customer is overdue and has active purchase context.",
+    sourceSystem: "Needs Attention + opportunity read model",
+    safety: "No live call, text, email, or task is created.",
+    href: "/crm-next/work/attn-michael-overdue-follow-up"
+  },
+  {
+    id: "opportunity-intelligence",
+    milestone: "CRMN-063",
+    kind: "Opportunity",
+    title: "Opportunity value signal",
+    confidence: "Explainable",
+    signal: "Open proposal, vehicle interest, and recent customer activity are connected.",
+    recommendation: "Review pipeline context before the next outreach.",
+    explanation: "The system can highlight value without changing deal stage.",
+    sourceSystem: "Lead/opportunity read adapters",
+    safety: "Pipeline remains read-only and stage movement remains disabled.",
+    href: "/crm-next/pipeline"
+  },
+  {
+    id: "priority-rules",
+    milestone: "CRMN-064",
+    kind: "Priority",
+    title: "Priority order with visible reasons",
+    confidence: "Explainable",
+    signal: "Age, impact, area, owner, and risk determine the review order.",
+    recommendation: "Keep high-impact overdue work above lower-risk reminders.",
+    explanation: "Managers and staff can challenge the reason instead of guessing why a row moved.",
+    sourceSystem: "Needs Attention queue rules",
+    safety: "No invisible reprioritization is applied to Dispatch Board tasks.",
+    href: "#priority"
+  },
+  {
+    id: "needs-attention-intelligence",
+    milestone: "CRMN-065",
+    kind: "Queue",
+    title: "Needs Attention intelligence",
+    confidence: "Needs review",
+    signal: "Customer reason, owner, area, and recommended next action are bundled for review.",
+    recommendation: "Open one customer, finish the safe next step, then return to the queue.",
+    explanation: "The queue is designed to reduce hunting around the app.",
+    sourceSystem: "CRM Next attention read model",
+    safety: "Queue rows do not create or complete work by themselves.",
+    href: "/crm-next/needs-attention"
+  },
+  {
+    id: "feedback-loop",
+    milestone: "CRMN-066",
+    kind: "Feedback",
+    title: "Recommendation feedback loop",
+    confidence: "Human decides",
+    signal: "Staff can later mark recommendations as accepted, skipped, corrected, or escalated.",
+    recommendation: "Prepare feedback categories before enabling learning or automation.",
+    explanation: "Useful AI needs a way for staff to say when the suggestion helped or missed context.",
+    sourceSystem: "Future staff feedback events",
+    safety: "No model training, preference mutation, or customer update happens in this slice.",
+    href: "#feedback"
+  },
+  {
+    id: "manager-intelligence",
+    milestone: "CRMN-067",
+    kind: "Manager Intelligence",
+    title: "Manager intelligence cockpit",
+    confidence: "Needs review",
+    signal: "Unassigned, blocked, overdue, approval-needed, and escalated customer work can be reviewed together.",
+    recommendation: "Give managers explainable review without live override controls.",
+    explanation: "Managers need visibility first; controls come after permissions and audit approval.",
+    sourceSystem: "Manager review and exception queue read models",
+    safety: "No reassignment, override, escalation, or approval mutation is enabled.",
+    href: "#manager-intelligence"
+  }
+];
+
 export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Date = new Date()): CrmNextCommandCenter {
   const access = resolveCrmNextAccess(actor);
   if (!access.allowed) {
@@ -613,6 +1135,9 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
       testDrives: salesRecords.filter((record) => record.stage === "Test Drive"),
       deals: salesRecords
     },
+    ownershipSupport: ownershipSupportRecords,
+    sharedExecution: sharedExecutionRecords,
+    intelligence: intelligenceRecords,
     bridge: {
       liveTaskCreationEnabled: false,
       previewEnabled: true,
@@ -623,7 +1148,7 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
       envelopeCount: 20,
       verifiedCount: progressMilestones.filter((milestone) => milestone.status === "VERIFIED").length,
       heldCount: progressMilestones.filter((milestone) => milestone.status === "HELD").length,
-      nextMilestone: "CRMN-036",
+      nextMilestone: "CRMN-068",
       milestones: progressMilestones
     }
   };
