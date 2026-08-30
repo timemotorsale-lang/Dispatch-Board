@@ -342,3 +342,23 @@ Do not implement CRM Next on the shared `main` baseline directly. Start CRMN-010
 - No customer writes, communication sends, task creation, migration execution, route replacement, pilot launch, or default CRM switch was enabled.
 
 **Progress truth:** CRMN-120 is marked `IMPLEMENTED_UNVERIFIED` until user review confirms the staff-facing navigation is simpler and the hidden Review Center remains sufficient for approval workflows.
+
+## Implementation evidence — CRMN-121 compact Customer 360 redesign
+
+**Status:** IMPLEMENTED_UNVERIFIED  
+**Branch:** `codex/crm-next-operational-read-envelope`  
+**Scope:** Redesigned the CRM Next Customer 360 page for review using the compact Legacy Customers landing page as the visual and layout reference.
+
+**What changed:**
+- Customer 360 now leads with the customer profile instead of a large implementation/source-status block.
+- Source/read status moved into a compact trust strip.
+- Added compact customer metric tiles for leads, cases, appointments, tasks, documents, and SLA/risk.
+- Added a right-side operating rail with Quick Actions, Next Best Action, Customer Risk, and Linked Vehicles.
+- Preserved Customer 360 tabs and source-linked overview/timeline content.
+
+**Safety posture:**
+- This is a layout/UI redesign only.
+- Existing CRM Next read adapters remain read-only.
+- No live call, text, email, task creation, case creation, document upload/send, customer write, deal movement, route replacement, migration, or pilot launch was enabled.
+
+**Progress truth:** CRMN-121 is marked `IMPLEMENTED_UNVERIFIED` until user review approves the redesigned Customer 360 layout for adoption.

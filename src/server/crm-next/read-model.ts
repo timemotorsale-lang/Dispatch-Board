@@ -1169,6 +1169,15 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     reviewHref: "/crm-next/review",
     evidence: "Staff navigation now emphasizes operating CRM work while governance/proof pages move behind Review Center.",
     safety: "Review pages remain available for approval checks without cluttering regular staff workflows."
+  },
+  {
+    id: "CRMN-121",
+    title: "Compact enterprise Customer 360 redesign",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Redesign CRM Next Customer 360 using the compact Legacy customer landing page as the review baseline.",
+    reviewHref: "/crm-next/customers/michael-johnson",
+    evidence: "Customer 360 now leads with the customer profile, compact metrics, tabs, right-side quick actions, next-best-action, risk, and linked vehicles.",
+    safety: "Layout-only redesign; source reads remain read-only and live writes/communications stay gated."
   }
 ];
 
@@ -2414,7 +2423,7 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
     },
     progress: {
       completedCount: progressMilestones.filter((milestone) => ["IMPLEMENTED_UNVERIFIED", "VERIFIED"].includes(milestone.status)).length,
-      envelopeCount: 26,
+      envelopeCount: 27,
       verifiedCount: progressMilestones.filter((milestone) => milestone.status === "VERIFIED").length,
       heldCount: progressMilestones.filter((milestone) => milestone.status === "HELD").length,
       nextMilestone: "Pilot approval",

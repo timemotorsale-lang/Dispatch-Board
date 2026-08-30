@@ -130,16 +130,17 @@ function OperationalSourceStrip({ model }: { model: CrmNextCommandCenter }) {
   );
 }
 
-function UniversalActionBar({ customerHref = "/crm-next/customers/michael-johnson" }: { customerHref?: string }) {
+function CompactSourceStatus({ model }: { model: CrmNextCommandCenter }) {
   return (
-    <nav className={styles.actionBar} aria-label="CRM Next safe actions">
-      <Link className={styles.primaryButton} href="/crm-next/work/attn-michael-overdue-follow-up#dispatch-preview"><Phone size={16} /> Call preview</Link>
-      <Link className={styles.secondaryButton} href="#communications-held"><MessageSquare size={16} /> Text preview</Link>
-      <Link className={styles.secondaryButton} href="#communications-held"><Mail size={16} /> Email preview</Link>
-      <Link className={styles.secondaryButton} href="/crm-next/appointments"><CalendarDays size={16} /> Appointments</Link>
-      <Link className={styles.secondaryButton} href="/crm-next/work/attn-michael-overdue-follow-up#dispatch-preview"><ClipboardCheck size={16} /> Task bridge</Link>
-      <Link className={styles.secondaryButton} href={customerHref}><Users size={16} /> Customer 360</Link>
-    </nav>
+    <div className={styles.compactSourceStatus} aria-label="CRM Next compact source status">
+      <span>Source status: <strong>{model.operationalRead.state.replaceAll("_", " ")}</strong></span>
+      {model.operationalRead.sources.slice(0, 4).map((source) => (
+        <Link data-state={source.state} href={source.href} key={`${source.id}-${source.label}`}>
+          {source.label}: {source.state.replaceAll("_", " ")}
+        </Link>
+      ))}
+      <small>No live communications</small>
+    </div>
   );
 }
 
@@ -1017,68 +1018,136 @@ export function CrmNextSafetyView({ kind, model }: { kind: "states" | "permissio
 }
 
 export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextCustomer360; model: CrmNextCommandCenter }) {
+  const customerMetrics = [
+    { label: "Open Leads", value: customer.openDeals, detail: "Active", tone: "green" },
+    { label: "Open Cases", value: customer.openCases, detail: "Active", tone: "red" },
+    { label: "Appointments", value: customer.glance.find((item) => item.label === "Appointments")?.value ?? "0", detail: "Upcoming", tone: "blue" },
+    { label: "Tasks", value: model.attention.filter((item) => item.customerId === customer.id).length, detail: "Open", tone: "blue" },
+    { label: "Documents", value: "0", detail: "Missing", tone: "amber" },
+    { label: "SLA Risk", value: customer.riskLevel, detail: "Current", tone: customer.riskLevel === "High" ? "red" : customer.riskLevel === "Medium" ? "amber" : "green" }
+  ];
+
   return (
     <CrmNextFrame active="customer" userName={model.userName}>
       <Topbar />
-      <OperationalSourceStrip model={model} />
-      <section className={styles.hero}>
-        <div>
-          <span className={styles.eyebrow}>Customer 360 Overview</span>
-          <h1 className={styles.customerName}>{customer.name}</h1>
-          <p>{customer.phone} · {customer.email} · {customer.address}</p>
-        </div>
-        <div className={styles.topActions}>
-          <Link className={styles.primaryButton} href="/crm-next/work/attn-michael-overdue-follow-up">Attend</Link>
-          <Link className={styles.secondaryButton} href="#communications-held"><MessageSquare size={16} /> Message</Link>
-          <Link className={styles.secondaryButton} href="/crm">Open Legacy CRM</Link>
-        </div>
-      </section>
-      <section className={styles.customerGrid}>
-        <aside className={styles.profileCard}>
-          <div className={styles.profileTop}><span className={styles.profileAvatar}>{initials(customer.name)}</span><div><strong>{customer.name}</strong><p className={styles.muted}>{customer.status}</p></div></div>
-          <div className={styles.details}>
-            <p><span>Customer since</span>{customer.customerSince}</p>
-            <p><span>Lifetime value</span>{customer.lifetimeValue}</p>
-            <p><span>Vehicles owned</span>{customer.vehiclesOwned}</p>
-            <p><span>Open deals</span>{customer.openDeals}</p>
-            <p><span>Open cases</span>{customer.openCases}</p>
-            <p><span>Risk level</span><b className={levelClass(customer.riskLevel)}>{customer.riskLevel}</b></p>
-          </div>
-        </aside>
-        <section className={styles.panel}>
-          <UniversalActionBar customerHref={`/crm-next/customers/${customer.id}`} />
-          <nav className={styles.tabs} aria-label="Customer 360 sections">
-            <Link aria-current="page" href="#overview">Overview</Link>
-            <Link href="#timeline">Timeline</Link>
-            <Link href="/crm-next/deals">Deals</Link>
-            <Link href="#vehicles">Vehicles</Link>
-            <Link href="#documents-held">Documents</Link>
-          </nav>
-          <div className={styles.glanceList}>
-            {customer.glance.map((item) => (
-              <Link className={styles.glanceItem} href={item.href} key={item.label}>
-                <CalendarDays size={20} /><span><strong>{item.label}</strong><small>{item.value}</small></span><ChevronRight size={18} />
-              </Link>
-            ))}
-          </div>
-          <p className={styles.safeNotice} id="communications-held">Live calls, texts, and emails are intentionally preview-only until phone, texting, email, consent, recording, and audit policies are approved.</p>
-          <p className={styles.safeNotice} id="documents-held">Document sending remains held until templates, authority, and retention rules are approved.</p>
-        </section>
-        <aside className={styles.contextCard}>
-          <h2>What to do next</h2>
-          <p>{customer.nextAction}</p>
-          <Link className={styles.primaryButton} href="/crm-next/work/attn-michael-overdue-follow-up">Work Customer</Link>
-        </aside>
-        <section className={`${styles.timeline} ${styles.wide}`} id="timeline">
-          <header className={styles.panelHeader}><h2>Communication (Last 5)</h2><Link className={styles.textLink} href="/crm-next#communications">View all</Link></header>
-          <div className={styles.commList}>
-            {customer.communications.map((item) => (
-              <article className={styles.communicationItem} key={item.id}>
-                <strong>{item.channel}</strong><span>{item.detail}</span><small>{item.occurredAt}</small>
+      <CompactSourceStatus model={model} />
+      <section className={styles.customerWorkspace}>
+        <main className={styles.customerMain}>
+          <section className={styles.customerHeroCard}>
+            <div className={styles.customerIdentity}>
+              <span className={styles.profileAvatar}>{initials(customer.name)}</span>
+              <div>
+                <h1 className={styles.customerName}>{customer.name}</h1>
+                <span className={styles.customerBadge}>Preferred Customer</span>
+                <p>{customer.phone} · {customer.email}</p>
+                <p>{customer.address}</p>
+              </div>
+            </div>
+            <dl className={styles.customerFacts}>
+              <div><dt>Customer Since</dt><dd>{customer.customerSince}</dd></div>
+              <div><dt>Lifetime Value</dt><dd>{customer.lifetimeValue}</dd></div>
+              <div><dt>Owner</dt><dd>Unassigned</dd></div>
+              <div><dt>Status</dt><dd>{customer.status}</dd></div>
+              <div><dt>Risk</dt><dd><b className={levelClass(customer.riskLevel)}>{customer.riskLevel}</b></dd></div>
+            </dl>
+            <div className={styles.customerHeroActions}>
+              <Link className={styles.primaryButton} href="/crm-next/work/attn-michael-overdue-follow-up">Attend</Link>
+              <Link className={styles.secondaryButton} href="#communications-held"><MessageSquare size={16} /> Message</Link>
+              <Link className={styles.secondaryButton} href="/crm">Open Current CRM</Link>
+            </div>
+          </section>
+
+          <section className={styles.customerMetricGrid} aria-label="Customer operating metrics">
+            {customerMetrics.map((metric) => (
+              <article className={styles.customerMetricCard} data-tone={metric.tone} key={metric.label}>
+                <small>{metric.label}</small>
+                <strong>{metric.value}</strong>
+                <span>{metric.detail}</span>
               </article>
             ))}
-          </div>
-        </section>
+          </section>
+
+          <section className={styles.panel}>
+            <nav className={styles.tabs} aria-label="Customer 360 sections">
+              <Link aria-current="page" href="#overview">Overview</Link>
+              <Link href="#timeline">Timeline</Link>
+              <Link href="/crm-next/deals">Deals</Link>
+              <Link href="#cases">Cases</Link>
+              <Link href="/crm-next/appointments">Appointments</Link>
+              <Link href="#documents-held">Documents</Link>
+              <Link href="#vehicles">Vehicles</Link>
+              <Link href="#communications-held">Communications</Link>
+            </nav>
+            <div className={styles.glanceList} id="overview">
+              {customer.glance.map((item) => (
+                <Link className={styles.glanceItem} href={item.href} key={item.label}>
+                  <CalendarDays size={20} /><span><strong>{item.label}</strong><small>{item.value}</small></span><ChevronRight size={18} />
+                </Link>
+              ))}
+            </div>
+            <p className={styles.safeNotice} id="communications-held">Live calls, texts, and emails are intentionally preview-only until phone, texting, email, consent, recording, and audit policies are approved.</p>
+            <p className={styles.safeNotice} id="documents-held">Document sending remains held until templates, authority, and retention rules are approved.</p>
+          </section>
+
+          <section className={`${styles.timeline} ${styles.wide}`} id="timeline">
+            <header className={styles.panelHeader}><h2>Communication (Last 5)</h2><Link className={styles.textLink} href="/crm-next/timeline">View all</Link></header>
+            <div className={styles.commList}>
+              {customer.communications.map((item) => (
+                <article className={styles.communicationItem} key={item.id}>
+                  <strong>{item.channel}</strong><span>{item.detail}</span><small>{item.occurredAt}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+        </main>
+
+        <aside className={styles.customerAside}>
+          <article className={styles.sidePanel}>
+            <header><h2>Quick Actions</h2></header>
+            <div className={styles.quickActionTiles}>
+              <Link href="#communications-held"><Phone size={22} />Log Call</Link>
+              <Link href="#communications-held"><Mail size={22} />Send Email</Link>
+              <Link href="/crm-next/work/attn-michael-overdue-follow-up#dispatch-preview"><ClipboardCheck size={22} />New Task</Link>
+              <Link href="#cases"><FileText size={22} />New Case</Link>
+              <Link href="/crm-next/appointments"><CalendarDays size={22} />Schedule Appt</Link>
+              <Link href="#documents-held"><FileSearch size={22} />Upload Doc</Link>
+            </div>
+          </article>
+
+          <article className={styles.sidePanel}>
+            <header><h2>Next Best Action</h2></header>
+            <div className={styles.nextBestAction}>
+              <CheckCircle2 size={24} />
+              <div>
+                <strong>{customer.nextAction}</strong>
+                <p>Open Attend Mode to complete the next safe customer step.</p>
+              </div>
+            </div>
+            <Link className={styles.primaryButton} href="/crm-next/work/attn-michael-overdue-follow-up">Work Customer</Link>
+          </article>
+
+          <article className={styles.sidePanel}>
+            <header><h2>Customer Risk</h2></header>
+            <strong className={levelClass(customer.riskLevel)}>{customer.riskLevel}</strong>
+            <ul className={styles.signalList}>
+              <li>{customer.openCases} open cases</li>
+              <li>{customer.vehiclesOwned} linked vehicles</li>
+              <li>{customer.openDeals} open deals</li>
+            </ul>
+          </article>
+
+          <article className={styles.sidePanel} id="vehicles">
+            <header><h2>Linked Vehicles ({customer.vehicles.length})</h2></header>
+            <div className={styles.vehicleList}>
+              {customer.vehicles.length ? customer.vehicles.map((vehicle) => (
+                <Link href="/crm-next/search" key={vehicle.id}>
+                  <strong>{vehicle.label}</strong>
+                  <small>{vehicle.status} · {vehicle.vin}</small>
+                </Link>
+              )) : <p className={styles.muted}>No linked vehicles exposed by the current source.</p>}
+            </div>
+          </article>
+        </aside>
       </section>
     </CrmNextFrame>
   );

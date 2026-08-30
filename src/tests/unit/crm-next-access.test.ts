@@ -43,7 +43,7 @@ describe("CRM Next access and safe bridge", () => {
     const model = getCrmNextCommandCenter(user(["General Manager"]));
     expect(model.bridge.liveTaskCreationEnabled).toBe(false);
     expect(model.bridge.previewEnabled).toBe(true);
-    expect(model.progress.envelopeCount).toBe(26);
+    expect(model.progress.envelopeCount).toBe(27);
     expect(model.progress.nextMilestone).toBe("Pilot approval");
     expect(model.operationalRead.state).toBe("FALLBACK_READ");
     expect(model.search.groups).toHaveLength(5);
@@ -131,6 +131,9 @@ describe("CRM Next access and safe bridge", () => {
     const operatingNavigationMilestone = model.progress.milestones.find((milestone) => milestone.id === "CRMN-120");
     expect(operatingNavigationMilestone?.status).toBe("IMPLEMENTED_UNVERIFIED");
     expect(operatingNavigationMilestone?.reviewHref).toBe("/crm-next/review");
+    const customer360RedesignMilestone = model.progress.milestones.find((milestone) => milestone.id === "CRMN-121");
+    expect(customer360RedesignMilestone?.status).toBe("IMPLEMENTED_UNVERIFIED");
+    expect(customer360RedesignMilestone?.reviewHref).toBe("/crm-next/customers/michael-johnson");
   });
 
   it("rejects ineligible users and does not create a dispatch task from the bridge", () => {

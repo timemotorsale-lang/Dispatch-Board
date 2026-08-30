@@ -115,8 +115,14 @@ describe("CRM Next pages", () => {
     expect(command).not.toContain("CRMN-068");
     expect(command).not.toContain("Review ready");
     expect(attention).toContain("Prioritized customers that need action");
-    expect(customer).toContain("Customer 360 Overview");
-    expect(customer).toContain("Open Legacy CRM");
+    expect(customer).toContain("Michael Johnson");
+    expect(customer).toContain("Preferred Customer");
+    expect(customer).toContain("Customer Since");
+    expect(customer).toContain("Quick Actions");
+    expect(customer).toContain("Next Best Action");
+    expect(customer).toContain("Linked Vehicles");
+    expect(customer).toContain("Source status");
+    expect(customer).toContain("Open Current CRM");
     expect(work).toContain("Attend: Michael Johnson");
     expect(work).toContain("No live task is created in this slice");
     expect(ownershipSupport).toContain("Ownership &amp; Support");
