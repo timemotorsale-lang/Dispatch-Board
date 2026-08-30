@@ -697,7 +697,7 @@
 .compactInfoGrid,
 .compactSectionGrid {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
@@ -713,12 +713,12 @@
   align-items: center;
   background: #fbfdff;
   border: 1px solid #e1e9f5;
-  border-radius: 16px;
+  border-radius: 13px;
   color: inherit;
   display: grid;
-  gap: 12px;
+  gap: 10px;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  padding: 12px;
+  padding: 10px;
   text-decoration: none;
   transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
 }
@@ -769,12 +769,12 @@
 .compactSectionCard {
   background: #f8fbff;
   border: 1px solid #dce6f5;
-  border-radius: 14px;
+  border-radius: 13px;
   color: #102548;
   display: grid;
   gap: 4px;
   min-width: 0;
-  padding: 12px;
+  padding: 10px;
   scroll-margin-top: 92px;
 }
 
@@ -860,7 +860,7 @@
   align-items: start;
   display: grid;
   gap: 16px;
-  grid-template-columns: minmax(0, 1fr) minmax(290px, 320px);
+  grid-template-columns: minmax(0, 1fr) 300px;
   max-width: 100%;
   min-width: 0;
 }
@@ -871,15 +871,19 @@
 
 .customerMain {
   display: grid;
-  gap: 14px;
+  gap: 12px;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
+}
+
+.customerMain .wide {
+  grid-column: auto;
 }
 
 .customerAside {
   align-content: start;
   display: grid;
-  gap: 14px;
+  gap: 12px;
   min-width: 0;
   position: relative;
   z-index: 1;
@@ -894,12 +898,12 @@
   border-radius: 18px;
   box-shadow: 0 14px 34px rgb(15 42 84 / 7%);
   display: grid;
-  gap: 18px;
-  grid-template-columns: minmax(260px, 1fr) minmax(320px, 1fr);
+  gap: 14px;
+  grid-template-columns: minmax(280px, 1.05fr) minmax(280px, .95fr);
   max-width: 100%;
   min-width: 0;
   overflow: hidden;
-  padding: 18px 20px;
+  padding: 16px 18px;
   position: relative;
 }
 
@@ -917,7 +921,7 @@
 .customerIdentity {
   align-items: center;
   display: flex;
-  gap: 16px;
+  gap: 14px;
   min-width: 0;
   position: relative;
   z-index: 1;
@@ -925,6 +929,7 @@
 
 .customerIdentity p {
   color: #64748b;
+  line-height: 1.35;
   margin: 5px 0 0;
 }
 
@@ -942,8 +947,8 @@
 
 .customerFacts {
   display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   margin: 0;
   min-width: 0;
   position: relative;
@@ -963,6 +968,7 @@
 
 .customerFacts dd {
   color: #071a3a;
+  font-size: 14px;
   font-weight: 900;
   line-height: 1.35;
   margin: 7px 0 0;
@@ -972,11 +978,11 @@
   border-top: 1px solid #e4ecf8;
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
   grid-column: 1 / -1;
   justify-content: flex-start;
   min-width: 0;
-  padding-top: 14px;
+  padding-top: 12px;
   position: relative;
   z-index: 1;
 }
@@ -984,35 +990,41 @@
 .customerMetricGrid {
   display: grid;
   gap: 10px;
-  grid-template-columns: repeat(6, minmax(96px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   max-width: 100%;
   min-width: 0;
   overflow: hidden;
 }
 
 .customerMetricCard {
+  align-items: center;
   background: #ffffff;
   border: 1px solid #d7e1ef;
   border-radius: 14px;
   box-shadow: 0 10px 24px rgb(15 42 84 / 5%);
-  min-height: 76px;
-  padding: 12px;
-  text-align: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 58px;
+  padding: 10px 12px;
+  text-align: left;
 }
 
 .customerMetricCard small,
 .customerMetricCard span {
   color: #64748b;
   display: block;
+  font-size: 12px;
   font-weight: 750;
 }
 
 .customerMetricCard strong {
   color: #071a3a;
-  display: block;
-  font-size: 23px;
+  display: inline-flex;
+  font-size: 21px;
   font-weight: 950;
-  margin: 8px 0 4px;
+  grid-row: span 2;
+  justify-self: end;
+  margin: 0;
 }
 
 .customerMetricCard[data-tone="red"] strong {
@@ -1034,7 +1046,7 @@
   box-shadow: 0 12px 30px rgb(15 42 84 / 6%);
   min-width: 0;
   overflow: hidden;
-  padding: 16px;
+  padding: 14px;
 }
 
 .sidePanel header {
@@ -1044,13 +1056,13 @@
 }
 
 .sidePanel h2 {
-  font-size: 22px;
+  font-size: 18px;
   margin: 0;
 }
 
 .quickActionTiles {
   display: grid;
-  gap: 8px;
+  gap: 7px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
@@ -1065,8 +1077,8 @@
   font-weight: 850;
   gap: 8px;
   justify-items: center;
-  min-height: 72px;
-  padding: 9px;
+  min-height: 66px;
+  padding: 8px;
   text-align: center;
   text-decoration: none;
 }
@@ -1083,7 +1095,7 @@
   display: flex;
   gap: 12px;
   margin-bottom: 12px;
-  padding: 12px;
+  padding: 10px;
 }
 
 .nextBestAction svg {
@@ -1177,29 +1189,34 @@
 
 .tabs {
   border-bottom: 1px solid #dce6f5;
-  display: grid;
-  gap: 4px;
-  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
-  margin-bottom: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  margin-bottom: 12px;
   min-width: 0;
   overflow: visible;
+  padding-bottom: 8px;
 }
 
 .tabs a {
-  border-bottom: 3px solid transparent;
+  background: #f8fbff;
+  border: 1px solid transparent;
+  border-radius: 999px;
   color: #64748b;
+  display: inline-flex;
+  flex: 0 0 auto;
   font-weight: 850;
+  line-height: 1;
   min-width: 0;
-  overflow: hidden;
-  padding: 9px 8px;
+  padding: 8px 11px;
   text-decoration: none;
   text-align: center;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .tabs a[aria-current="page"] {
-  border-color: #155dfc;
+  background: #eef4ff;
+  border-color: #a9c2ff;
   color: #155dfc;
 }
 
