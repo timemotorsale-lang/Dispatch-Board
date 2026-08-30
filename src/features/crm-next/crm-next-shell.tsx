@@ -16,9 +16,11 @@ import {
   Search,
   ShieldCheck,
   Target,
+  UserPlus,
   Users
 } from "lucide-react";
 
+import { CrmNextIntakeForm } from "@/features/crm-next/crm-next-intake-form";
 import { CrmNextTaskBridgeControl } from "@/features/crm-next/crm-next-task-bridge-control";
 import type { CrmNextAccessReason } from "@/server/crm-next/access";
 import type { CrmNextActionBridgePreview } from "@/server/crm-next/action-bridge";
@@ -55,9 +57,10 @@ export function CrmNextUnavailable({ fallbackHref, reason }: { fallbackHref: str
   );
 }
 
-function CrmNextFrame({ active, children, userName }: { active: "command" | "attention" | "customer" | "work" | "progress" | "search" | "pipeline" | "timeline" | "appointments" | "deals" | "support" | "execution" | "intelligence" | "pilot" | "hardening" | "coexistence" | "release" | "safety" | "review"; children: React.ReactNode; userName: string }) {
+function CrmNextFrame({ active, children, userName }: { active: "command" | "new" | "attention" | "customer" | "work" | "progress" | "search" | "pipeline" | "timeline" | "appointments" | "deals" | "support" | "execution" | "intelligence" | "pilot" | "hardening" | "coexistence" | "release" | "safety" | "review"; children: React.ReactNode; userName: string }) {
   const links = [
     { id: "command", href: "/crm-next", label: "Command Center", icon: LayoutDashboard },
+    { id: "new", href: "/crm-next/new", label: "Add Customer", icon: UserPlus },
     { id: "customer", href: "/crm-next/customers/michael-johnson", label: "Customers", icon: Users },
     { id: "attention", href: "/crm-next/needs-attention", label: "Needs Attention", icon: Bell },
     { id: "work", href: "/crm-next/work/attn-michael-overdue-follow-up", label: "Work Customer", icon: ClipboardCheck },
@@ -103,7 +106,10 @@ function Topbar() {
         <Search size={20} aria-hidden="true" />
         <Link href="/crm-next/search">Search customers, vehicles, deals, stock #, RO...</Link>
       </div>
-      <div className={styles.governance}><ShieldCheck size={16} /> CRM Next active</div>
+      <div className={styles.topActions}>
+        <Link className={styles.secondaryButton} href="/crm-next/new"><UserPlus size={16} /> Add Customer / Prospect</Link>
+        <div className={styles.governance}><ShieldCheck size={16} /> CRM Next active</div>
+      </div>
     </div>
   );
 }
@@ -154,6 +160,7 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
           <p>{model.commandCenter.guidance}</p>
         </div>
         <div className={styles.quickActions}>
+          <Link className={styles.primaryButton} href="/crm-next/new"><UserPlus size={16} /> Add Customer / Prospect</Link>
           <Link className={styles.primaryButton} href="/crm-next/needs-attention"><Bell size={16} /> View attention queue</Link>
           <Link className={styles.secondaryButton} href="/crm-next/search"><Search size={16} /> Search CRM Next</Link>
           <Link className={styles.secondaryButton} href="/crm-next/customers/michael-johnson"><Users size={16} /> Open Customer 360</Link>
@@ -180,6 +187,10 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
         <Link className={styles.operatorActionCard} href="/crm-next/customers/michael-johnson">
           <Users size={22} />
           <span><strong>Open Customer 360</strong><small>See contacts, vehicles, appointments, cases, deals, and timeline.</small></span>
+        </Link>
+        <Link className={styles.operatorActionCard} href="/crm-next/new">
+          <UserPlus size={22} />
+          <span><strong>Add customer or prospect</strong><small>Create the shared customer record, then continue in CRM Next.</small></span>
         </Link>
         <Link className={styles.operatorActionCard} href="/crm-next/work/attn-michael-overdue-follow-up#suggested">
           <Phone size={22} />
@@ -490,7 +501,10 @@ export function CrmNextSearchView({ model }: { model: CrmNextCommandCenter }) {
           <h1>Find the customer, then take the next safe action</h1>
           <p>{model.search.queryPlaceholder}</p>
         </div>
-        <Link className={styles.secondaryButton} href="/crm-next">Back to Command Center</Link>
+        <div className={styles.quickActions}>
+          <Link className={styles.primaryButton} href="/crm-next/new"><UserPlus size={16} /> Add Customer / Prospect</Link>
+          <Link className={styles.secondaryButton} href="/crm-next">Back to Command Center</Link>
+        </div>
       </section>
       <section className={styles.searchGroups} aria-label="CRM Next grouped search results">
         {model.search.groups.map((group) => (
@@ -499,6 +513,48 @@ export function CrmNextSearchView({ model }: { model: CrmNextCommandCenter }) {
             <p>{group.description}</p>
           </Link>
         ))}
+      </section>
+    </CrmNextFrame>
+  );
+}
+
+export function CrmNextIntakeView({ model }: { model: CrmNextCommandCenter }) {
+  return (
+    <CrmNextFrame active="new" userName={model.userName}>
+      <Topbar />
+      <section className={styles.intakeHero}>
+        <div>
+          <span className={styles.eyebrow}>CRM Next Intake</span>
+          <h1>Add a customer or prospect</h1>
+          <p>Create the shared customer record once, then continue the sales or service workflow from CRM Next.</p>
+        </div>
+        <div className={styles.intakeHeroFacts}>
+          <span><strong>Shared customer record</strong><small>Visible across CRM modes</small></span>
+          <span><strong>Duplicate check</strong><small>Phone and email are matched</small></span>
+          <span><strong>Prospect lead</strong><small>Optional after customer save</small></span>
+        </div>
+      </section>
+
+      <section className={styles.intakeLayout}>
+        <CrmNextIntakeForm />
+        <aside className={styles.intakeAside}>
+          <article className={styles.sidePanel}>
+            <header><h2>How this works</h2></header>
+            <ul className={styles.signalList}>
+              <li>Enter the person once.</li>
+              <li>CRM Next checks the shared customer source.</li>
+              <li>If this is a sales prospect, add interest and priority notes.</li>
+              <li>After saving, continue from Customer 360.</li>
+            </ul>
+          </article>
+          <article className={styles.sidePanel}>
+            <header><h2>Need another mode?</h2></header>
+            <div className={styles.verticalActions}>
+              <Link className={styles.secondaryButton} href="/customers">Legacy Customers</Link>
+              <Link className={styles.secondaryButton} href="/crm">Unified CRM</Link>
+            </div>
+          </article>
+        </aside>
       </section>
     </CrmNextFrame>
   );
@@ -1073,6 +1129,7 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
               <div><dt>Risk</dt><dd><b className={levelClass(customer.riskLevel)}>{customer.riskLevel}</b></dd></div>
             </dl>
             <div className={styles.customerHeroActions}>
+              <Link className={styles.secondaryButton} href="/crm-next/new"><UserPlus size={16} /> Add Customer</Link>
               <Link className={styles.primaryButton} href="/crm-next/work/attn-michael-overdue-follow-up">Attend</Link>
               <Link className={styles.secondaryButton} href="/crm-next/actions/send-text"><MessageSquare size={16} /> Message</Link>
               <Link className={styles.secondaryButton} href="/crm">Open Current CRM</Link>

@@ -20,6 +20,7 @@ import CrmNextDealsPage from "@/app/(app)/crm-next/deals/page";
 import CrmNextIntelligenceFoundationPage from "@/app/(app)/crm-next/intelligence-foundation/page";
 import CrmNextHardeningPage from "@/app/(app)/crm-next/hardening/page";
 import CrmNextNeedsAttentionPage from "@/app/(app)/crm-next/needs-attention/page";
+import CrmNextNewCustomerPage from "@/app/(app)/crm-next/new/page";
 import CrmNextOwnershipSupportPage from "@/app/(app)/crm-next/ownership-support/page";
 import CrmNextPilotReadinessPage from "@/app/(app)/crm-next/pilot-readiness/page";
 import CrmNextPilotReleasePage from "@/app/(app)/crm-next/pilot-release/page";
@@ -100,10 +101,13 @@ describe("CRM Next pages", () => {
     const logCallAction = renderToStaticMarkup(await CrmNextActionPage({ params: Promise.resolve({ actionId: "log-call" }) }));
     const newTaskAction = renderToStaticMarkup(await CrmNextActionPage({ params: Promise.resolve({ actionId: "new-task" }) }));
     const emailAction = renderToStaticMarkup(await CrmNextActionPage({ params: Promise.resolve({ actionId: "send-email" }) }));
+    const newCustomer = renderToStaticMarkup(await CrmNextNewCustomerPage());
 
     expect(command).toContain("Who needs attention?");
     expect(command).toContain("CRM Next active");
+    expect(command).toContain("Add Customer / Prospect");
     expect(command).toContain("Work the next customer");
+    expect(command).toContain("Add customer or prospect");
     expect(command).toContain("Open Customer 360");
     expect(command).toContain("Create follow-up task");
     expect(command).not.toContain("Operational read status");
@@ -133,6 +137,7 @@ describe("CRM Next pages", () => {
     expect(customer).toContain("Linked Vehicles");
     expect(customer).toContain("Source status");
     expect(customer).toContain("Open Current CRM");
+    expect(customer).toContain("Add Customer");
     expect(customer).toContain("Open deal board");
     expect(customer).toContain("Open appointments");
     expect(work).toContain("Attend: Michael Johnson");
@@ -143,7 +148,13 @@ describe("CRM Next pages", () => {
     expect(work).toContain("Today 3:00 PM");
     expect(work).toContain('href="/crm-next/actions/log-call"');
     expect(work).toContain('href="#dispatch-task"');
-    for (const staffMarkup of [command, attention, customer, search, timeline, pipeline, appointments, testDrives, deals, ownershipSupport, sharedExecution, intelligence, work, logCallAction, newTaskAction, emailAction]) {
+    expect(search).toContain("Add Customer / Prospect");
+    expect(newCustomer).toContain("Add a customer or prospect");
+    expect(newCustomer).toContain("Customer details");
+    expect(newCustomer).toContain("Prospect");
+    expect(newCustomer).toContain("Save customer");
+    expect(newCustomer).toContain("Shared customer record");
+    for (const staffMarkup of [command, attention, customer, search, timeline, pipeline, appointments, testDrives, deals, ownershipSupport, sharedExecution, intelligence, work, logCallAction, newTaskAction, emailAction, newCustomer]) {
       expect(staffMarkup).not.toContain("CRMN-");
       expect(staffMarkup).not.toContain("IMPLEMENTED_UNVERIFIED");
       expect(staffMarkup).not.toContain("build cockpit");
