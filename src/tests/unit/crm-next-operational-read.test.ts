@@ -244,7 +244,7 @@ describe("CRM Next operational read model", () => {
     });
 
     expect(model.operationalRead.state).toBe("LIVE_READ");
-    expect(model.operationalRead.safety).toContain("Writes");
+    expect(model.operationalRead.safety).toContain("Customer communications");
     expect(model.operationalRead.sources.map((source) => source.sourceOfTruth)).toEqual(
       expect.arrayContaining([
         "Existing Customers / Unified CRM customer list",
