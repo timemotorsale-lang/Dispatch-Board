@@ -1,7 +1,7 @@
 import { getDefaultLandingRoute, getPermittedWorkspaces } from "@/server/auth/navigation";
 import type { AuthenticatedUser } from "@/server/auth/store";
 
-export type CrmNextMode = "OFF" | "REVIEW";
+export type CrmNextMode = "OFF" | "REVIEW" | "DOGFOOD";
 export type CrmNextWorkspace = "MANAGEMENT" | "SALES";
 export type CrmNextAccessReason =
   | "ALLOWED"
@@ -26,6 +26,7 @@ type CrmNextAccessOptions = {
 function normalizeFlag(value: unknown): CrmNextMode {
   if (typeof value !== "string") return "OFF";
   const normalized = value.trim().toUpperCase();
+  if (["DOGFOOD", "PILOT", "LIVE", "ACTIVE"].includes(normalized)) return "DOGFOOD";
   return ["1", "TRUE", "ON", "ENABLED", "REVIEW"].includes(normalized) ? "REVIEW" : "OFF";
 }
 
@@ -69,7 +70,7 @@ export function resolveCrmNextAccess(
   if (!workspace) {
     return { allowed: false, contractVersion: "crm-next-access/v1", fallbackHref, mode, reason: "WORKSPACE_NOT_ELIGIBLE", workspace: null };
   }
-  if (mode !== "REVIEW") {
+  if (mode === "OFF") {
     return { allowed: false, contractVersion: "crm-next-access/v1", fallbackHref, mode, reason: "CRM_NEXT_OFF", workspace };
   }
 

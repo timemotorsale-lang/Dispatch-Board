@@ -25,10 +25,12 @@ describe("CRM Next access and safe bridge", () => {
   });
 
   it("keeps CRM Next off unless the CRM_NEXT flag is explicitly enabled", () => {
+    delete process.env.CRM_NEXT;
     expect(resolveCrmNextMode({ flag: undefined })).toBe("OFF");
     expect(resolveCrmNextMode({ flag: "false" })).toBe("OFF");
     expect(resolveCrmNextMode({ flag: "REVIEW" })).toBe("REVIEW");
     expect(resolveCrmNextMode({ flag: "true" })).toBe("REVIEW");
+    expect(resolveCrmNextMode({ flag: "DOGFOOD" })).toBe("DOGFOOD");
   });
 
   it("allows an enabled manager without granting live task writes", () => {
@@ -42,8 +44,9 @@ describe("CRM Next access and safe bridge", () => {
     const model = getCrmNextCommandCenter(user(["General Manager"]));
     expect(model.bridge.liveTaskCreationEnabled).toBe(false);
     expect(model.bridge.previewEnabled).toBe(true);
-    expect(model.progress.envelopeCount).toBe(20);
-    expect(model.progress.nextMilestone).toBe("Pilot approval");
+    expect(model.progress.envelopeCount).toBe(29);
+    expect(model.progress.nextMilestone).toBe("CRMN-150 proof bundle");
+    expect(model.operationalRead.state).toBe("FALLBACK_READ");
     expect(model.search.groups).toHaveLength(5);
     expect(model.ownershipSupport.map((record) => record.domain)).toEqual(
       expect.arrayContaining(["Vehicle", "Finance", "Payment", "Case", "Title/Document", "Service", "Rental/Loaner", "Customer Issue", "Insurance"])
@@ -121,6 +124,40 @@ describe("CRM Next access and safe bridge", () => {
     );
     expect(pilotReleaseEnvelope).toHaveLength(4);
     expect(pilotReleaseEnvelope.find((milestone) => milestone.id === "CRMN-094")?.status).toBe("HELD");
+    const operationalReadEnvelope = model.progress.milestones.filter((milestone) =>
+      /^CRMN-(09[5-9]|10[0-9]|11[0-9])$/.test(milestone.id)
+    );
+    expect(operationalReadEnvelope).toHaveLength(25);
+    expect(operationalReadEnvelope.every((milestone) => milestone.status === "IMPLEMENTED_UNVERIFIED")).toBe(true);
+    const operatingNavigationMilestone = model.progress.milestones.find((milestone) => milestone.id === "CRMN-120");
+    expect(operatingNavigationMilestone?.status).toBe("IMPLEMENTED_UNVERIFIED");
+    expect(operatingNavigationMilestone?.reviewHref).toBe("/crm-next/review");
+    const customer360RedesignMilestone = model.progress.milestones.find((milestone) => milestone.id === "CRMN-121");
+    expect(customer360RedesignMilestone?.status).toBe("IMPLEMENTED_UNVERIFIED");
+    expect(customer360RedesignMilestone?.reviewHref).toBe("/crm-next/customers/michael-johnson");
+    const pilotOperatingEnvelope = model.progress.milestones.filter((milestone) =>
+      /^CRMN-1(2[2-9]|3[0-9]|4[0-9]|50)$/.test(milestone.id)
+    );
+    expect(pilotOperatingEnvelope).toHaveLength(29);
+    expect(pilotOperatingEnvelope.find((milestone) => milestone.id === "CRMN-126")?.reviewHref).toBe("/crm-next/actions/log-call");
+    expect(pilotOperatingEnvelope.find((milestone) => milestone.id === "CRMN-150")?.status).toBe("IN_PROGRESS");
+    expect(model.operatingActions.map((action) => action.id)).toEqual([
+      "log-call",
+      "send-email",
+      "send-text",
+      "new-task",
+      "new-case",
+      "schedule-appointment",
+      "upload-document"
+    ]);
+    expect(model.operatingActions.find((action) => action.id === "schedule-appointment")?.state).toBe("SAFE_ROUTE");
+    expect(model.operatingActions.find((action) => action.id === "send-email")?.state).toBe("HELD");
+
+    process.env.CRM_NEXT = "DOGFOOD";
+    const dogfoodModel = getCrmNextCommandCenter(user(["General Manager"]));
+    expect(dogfoodModel.mode).toBe("DOGFOOD");
+    expect(dogfoodModel.bridge.liveTaskCreationEnabled).toBe(true);
+    expect(dogfoodModel.bridge.message).toContain("internal Dispatch tasks");
   });
 
   it("rejects ineligible users and does not create a dispatch task from the bridge", () => {
@@ -136,5 +173,12 @@ describe("CRM Next access and safe bridge", () => {
     expect(preview.state).toBe("PREVIEW_ONLY");
     expect(preview.liveTaskCreated).toBe(false);
     expect(preview.dispatchPreview?.customer360Update).toContain("would receive");
+
+    process.env.CRM_NEXT = "DOGFOOD";
+    const dogfoodPreview = previewCrmNextActionToTaskBridge(user(["General Manager"]), {
+      attentionItemId: "attn-michael-overdue-follow-up"
+    });
+    expect(dogfoodPreview.state).toBe("DOGFOOD_READY");
+    expect(dogfoodPreview.reason).toContain("create an internal Dispatch task");
   });
 });

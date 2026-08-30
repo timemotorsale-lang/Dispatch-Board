@@ -1,7 +1,7 @@
 import { CrmNextNeedsAttentionView, CrmNextUnavailable } from "@/features/crm-next/crm-next-shell";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { resolveCrmNextAccess } from "@/server/crm-next/access";
-import { getCrmNextCommandCenter } from "@/server/crm-next/read-model";
+import { getCrmNextOperationalCommandCenter } from "@/server/crm-next/read-model";
 
 export default async function CrmNextNeedsAttentionPage() {
   const user = await requireCurrentUser();
@@ -11,6 +11,6 @@ export default async function CrmNextNeedsAttentionPage() {
     return <CrmNextUnavailable fallbackHref={access.fallbackHref} reason={access.reason} />;
   }
 
-  return <CrmNextNeedsAttentionView model={getCrmNextCommandCenter(user)} />;
+  return <CrmNextNeedsAttentionView model={await getCrmNextOperationalCommandCenter(user)} />;
 }
 

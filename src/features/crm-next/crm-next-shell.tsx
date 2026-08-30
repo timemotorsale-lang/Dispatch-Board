@@ -19,8 +19,10 @@ import {
   Users
 } from "lucide-react";
 
+import { CrmNextTaskBridgeControl } from "@/features/crm-next/crm-next-task-bridge-control";
 import type { CrmNextAccessReason } from "@/server/crm-next/access";
-import type { CrmNextAttentionItem, CrmNextCommandCenter, CrmNextCustomer360, CrmNextMilestoneStatus, CrmNextSalesRecord } from "@/server/crm-next/read-model";
+import type { CrmNextActionBridgePreview } from "@/server/crm-next/action-bridge";
+import type { CrmNextAttentionItem, CrmNextCommandCenter, CrmNextCustomer360, CrmNextMilestoneStatus, CrmNextOperatingAction, CrmNextSalesRecord } from "@/server/crm-next/read-model";
 
 import styles from "./crm-next-shell.module.css";
 
@@ -53,7 +55,7 @@ export function CrmNextUnavailable({ fallbackHref, reason }: { fallbackHref: str
   );
 }
 
-function CrmNextFrame({ active, children, userName }: { active: "command" | "attention" | "customer" | "work" | "progress" | "search" | "pipeline" | "timeline" | "support" | "execution" | "intelligence" | "pilot" | "hardening" | "coexistence" | "release" | "safety"; children: React.ReactNode; userName: string }) {
+function CrmNextFrame({ active, children, userName }: { active: "command" | "attention" | "customer" | "work" | "progress" | "search" | "pipeline" | "timeline" | "appointments" | "deals" | "support" | "execution" | "intelligence" | "pilot" | "hardening" | "coexistence" | "release" | "safety" | "review"; children: React.ReactNode; userName: string }) {
   const links = [
     { id: "command", href: "/crm-next", label: "Command Center", icon: LayoutDashboard },
     { id: "customer", href: "/crm-next/customers/michael-johnson", label: "Customers", icon: Users },
@@ -61,15 +63,12 @@ function CrmNextFrame({ active, children, userName }: { active: "command" | "att
     { id: "work", href: "/crm-next/work/attn-michael-overdue-follow-up", label: "Work Customer", icon: ClipboardCheck },
     { id: "search", href: "/crm-next/search", label: "Search", icon: Search },
     { id: "pipeline", href: "/crm-next/pipeline", label: "Pipeline", icon: Target },
+    { id: "timeline", href: "/crm-next/timeline", label: "Timeline", icon: FileSearch },
+    { id: "appointments", href: "/crm-next/appointments", label: "Appointments", icon: CalendarDays },
+    { id: "deals", href: "/crm-next/deals", label: "Deals", icon: DollarSign },
     { id: "support", href: "/crm-next/ownership-support", label: "Ownership & Support", icon: FileText },
     { id: "execution", href: "/crm-next/shared-execution", label: "Shared Execution", icon: ClipboardCheck },
-    { id: "intelligence", href: "/crm-next/intelligence-foundation", label: "Intelligence", icon: Brain },
-    { id: "pilot", href: "/crm-next/pilot-readiness", label: "Pilot Readiness", icon: ShieldCheck },
-    { id: "hardening", href: "/crm-next/hardening", label: "Hardening", icon: ShieldCheck },
-    { id: "coexistence", href: "/crm-next/coexistence", label: "Coexistence", icon: FileText },
-    { id: "release", href: "/crm-next/pilot-release", label: "Pilot Release", icon: CheckCircle2 },
-    { id: "timeline", href: "/crm-next/timeline", label: "Timeline", icon: FileSearch },
-    { id: "progress", href: "/crm-next/progress", label: "Progress", icon: Target }
+    { id: "intelligence", href: "/crm-next/intelligence-foundation", label: "Intelligence", icon: Brain }
   ] as const;
 
   return (
@@ -88,7 +87,7 @@ function CrmNextFrame({ active, children, userName }: { active: "command" | "att
           </nav>
           <div className={styles.operator}>
             <strong>{userName}</strong>
-            <small>CRM Next review user</small>
+            <small>Team workspace</small>
           </div>
         </aside>
         <main className={styles.content}>{children}</main>
@@ -104,21 +103,43 @@ function Topbar() {
         <Search size={20} aria-hidden="true" />
         <Link href="/crm-next/search">Search customers, vehicles, deals, stock #, RO...</Link>
       </div>
-      <div className={styles.governance}><ShieldCheck size={16} /> CRM Next Preview · no live communications</div>
+      <div className={styles.governance}><ShieldCheck size={16} /> CRM Next active</div>
     </div>
   );
 }
 
-function UniversalActionBar({ customerHref = "/crm-next/customers/michael-johnson" }: { customerHref?: string }) {
+function OperationalSourceStrip({ model }: { model: CrmNextCommandCenter }) {
   return (
-    <nav className={styles.actionBar} aria-label="CRM Next safe actions">
-      <Link className={styles.primaryButton} href="/crm-next/work/attn-michael-overdue-follow-up#dispatch-preview"><Phone size={16} /> Call preview</Link>
-      <Link className={styles.secondaryButton} href="#communications-held"><MessageSquare size={16} /> Text preview</Link>
-      <Link className={styles.secondaryButton} href="#communications-held"><Mail size={16} /> Email preview</Link>
-      <Link className={styles.secondaryButton} href="/crm-next/appointments"><CalendarDays size={16} /> Appointments</Link>
-      <Link className={styles.secondaryButton} href="/crm-next/work/attn-michael-overdue-follow-up#dispatch-preview"><ClipboardCheck size={16} /> Task bridge</Link>
-      <Link className={styles.secondaryButton} href={customerHref}><Users size={16} /> Customer 360</Link>
-    </nav>
+    <section className={styles.sourceStrip} aria-label="CRM Next source status">
+      <div>
+        <span className={styles.eyebrow}>Operational read status</span>
+        <strong>{model.operationalRead.state.replaceAll("_", " ")}</strong>
+        <p>{model.operationalRead.safety}</p>
+      </div>
+      <div className={styles.sourcePills}>
+        {model.operationalRead.sources.map((source) => (
+          <Link className={styles.sourcePill} data-state={source.state} href={source.href} key={`${source.id}-${source.observedAt}`}>
+            <span>{source.label}</span>
+            <b>{source.state.replaceAll("_", " ")}</b>
+            <small>{source.sourceOfTruth}</small>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function CompactSourceStatus({ model }: { model: CrmNextCommandCenter }) {
+  return (
+    <div className={styles.compactSourceStatus} aria-label="CRM Next compact source status">
+      <span>Source status: <strong>{model.operationalRead.state.replaceAll("_", " ")}</strong></span>
+      {model.operationalRead.sources.slice(0, 4).map((source) => (
+        <Link data-state={source.state} href={source.href} key={`${source.id}-${source.label}`}>
+          {source.label}: {source.state.replaceAll("_", " ")}
+        </Link>
+      ))}
+      <small>No live communications</small>
+    </div>
   );
 }
 
@@ -136,8 +157,8 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
           <Link className={styles.primaryButton} href="/crm-next/needs-attention"><Bell size={16} /> View attention queue</Link>
           <Link className={styles.secondaryButton} href="/crm-next/search"><Search size={16} /> Search CRM Next</Link>
           <Link className={styles.secondaryButton} href="/crm-next/customers/michael-johnson"><Users size={16} /> Open Customer 360</Link>
-          <Link className={styles.secondaryButton} href="/crm-next/pilot-readiness"><ShieldCheck size={16} /> Pilot readiness</Link>
-          <Link className={styles.secondaryButton} href="/crm-next/progress"><Target size={16} /> View progress</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/work/attn-michael-overdue-follow-up"><ClipboardCheck size={16} /> Work customer</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/pipeline"><Target size={16} /> Pipeline</Link>
         </div>
       </section>
 
@@ -151,22 +172,31 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
         ))}
       </section>
 
-      <section className={styles.commandModeGrid} aria-label="CRM Next command center review modes">
-        {model.commandCenter.modes.map((mode) => (
-          <Link className={styles.commandModeCard} href={mode.href} id={mode.id} key={mode.id}>
-            <span className={styles.eyebrow}>{mode.milestone} · {mode.audience}</span>
-            <div>
-              <h2>{mode.title}</h2>
-              <b>{mode.state}</b>
-            </div>
-            <p>{mode.objective}</p>
-            <dl>
-              <div><dt>Primary</dt><dd>{mode.primaryMetric}</dd></div>
-              <div><dt>Secondary</dt><dd>{mode.secondaryMetric}</dd></div>
-            </dl>
-            <small>{mode.guidance}</small>
-          </Link>
-        ))}
+      <section className={styles.operatorActionGrid} aria-label="CRM Next staff tools">
+        <Link className={styles.operatorActionCard} href="/crm-next/needs-attention">
+          <Bell size={22} />
+          <span><strong>Work the next customer</strong><small>Open the highest-priority customer that needs attention.</small></span>
+        </Link>
+        <Link className={styles.operatorActionCard} href="/crm-next/customers/michael-johnson">
+          <Users size={22} />
+          <span><strong>Open Customer 360</strong><small>See contacts, vehicles, appointments, cases, deals, and timeline.</small></span>
+        </Link>
+        <Link className={styles.operatorActionCard} href="/crm-next/work/attn-michael-overdue-follow-up#suggested">
+          <Phone size={22} />
+          <span><strong>Log customer contact</strong><small>Prepare the customer follow-up and record the next step.</small></span>
+        </Link>
+        <Link className={styles.operatorActionCard} href="/crm-next/appointments">
+          <CalendarDays size={22} />
+          <span><strong>Review appointments</strong><small>Open appointment context and scheduling tools.</small></span>
+        </Link>
+        <Link className={styles.operatorActionCard} href="/crm-next/work/attn-michael-overdue-follow-up#dispatch-task">
+          <ClipboardCheck size={22} />
+          <span><strong>Create follow-up task</strong><small>Send the customer follow-up into Dispatch tasks.</small></span>
+        </Link>
+        <Link className={styles.operatorActionCard} href="/crm-next/deals">
+          <DollarSign size={22} />
+          <span><strong>Review deals</strong><small>Inspect deal context, owner, stage, and next action.</small></span>
+        </Link>
       </section>
 
       <section className={styles.dashboardGrid}>
@@ -222,6 +252,7 @@ export function CrmNextProgressView({ model }: { model: CrmNextCommandCenter }) 
   return (
     <CrmNextFrame active="progress" userName={model.userName}>
       <Topbar />
+      <OperationalSourceStrip model={model} />
       <section className={styles.hero}>
         <div>
           <span className={styles.eyebrow}>Implementation Progress</span>
@@ -249,7 +280,7 @@ export function CrmNextProgressView({ model }: { model: CrmNextCommandCenter }) 
             <h2>CRM Next milestone envelope</h2>
             <p className={styles.muted}>Built sequentially. Each slice gets checks, honest status, and a commit checkpoint before the next one.</p>
           </div>
-          <span className={styles.pill}>CRMN-016 → CRMN-094</span>
+          <span className={styles.pill}>CRMN-016 → CRMN-119</span>
         </header>
         <div className={styles.progressList}>
           {model.progress.milestones.map((milestone) => (
@@ -272,13 +303,148 @@ export function CrmNextProgressView({ model }: { model: CrmNextCommandCenter }) 
         </article>
         <article className={styles.card}>
           <header><h2>Safety promise</h2></header>
-          <p>No customer writes, live communications, route replacement, or Dispatch Board task creation are enabled by this envelope until a later approval gate.</p>
+          <p>CRM Next is available for internal use. Internal Dispatch task creation is enabled; customer communications, payments, documents, and route replacement remain controlled.</p>
         </article>
         <article className={styles.card}>
           <header><h2>Rollback posture</h2></header>
           <p>Turn off `CRM_NEXT` and CRM Next fails closed while Legacy Customers and current CRM remain available.</p>
         </article>
       </section>
+    </CrmNextFrame>
+  );
+}
+
+export function CrmNextReviewCenterView({ model }: { model: CrmNextCommandCenter }) {
+  const reviewLinks = [
+    {
+      href: "/crm-next/progress",
+      label: "Progress",
+      detail: "Implementation milestones, evidence, and current proof state."
+    },
+    {
+      href: "/crm-next/pilot-readiness",
+      label: "Pilot Readiness",
+      detail: "Pilot scenarios and review expectations before any rollout decision."
+    },
+    {
+      href: "/crm-next/hardening",
+      label: "Hardening",
+      detail: "Testing, accessibility, security, rollback, and evidence controls."
+    },
+    {
+      href: "/crm-next/coexistence",
+      label: "Coexistence",
+      detail: "Legacy/current CRM protection, migration rules, and switchback posture."
+    },
+    {
+      href: "/crm-next/pilot-release",
+      label: "Pilot Release",
+      detail: "Promotion checklist, training readiness, and leadership approval hold."
+    },
+    {
+      href: "/crm-next/system/permissions",
+      label: "Permissions Review",
+      detail: "Who can access CRM Next and what remains blocked."
+    },
+    {
+      href: "/crm-next/system/states",
+      label: "State Review",
+      detail: "Empty, partial, unavailable, and protected states."
+    },
+    {
+      href: "/crm-next/system/rollback",
+      label: "Rollback Review",
+      detail: "How CRM Next fails closed while Legacy/current CRM remain available."
+    }
+  ];
+
+  return (
+    <CrmNextFrame active="review" userName={model.userName}>
+      <Topbar />
+      <OperationalSourceStrip model={model} />
+      <section className={styles.hero}>
+        <div>
+          <span className={styles.eyebrow}>Review Center</span>
+          <h1>Hidden build-review controls</h1>
+          <p>These pages are kept for approval, safety, and release review. They are not regular staff workflow screens.</p>
+        </div>
+        <div className={styles.quickActions}>
+          <Link className={styles.primaryButton} href="/crm-next">Return to operating CRM</Link>
+          <Link className={styles.secondaryButton} href="/crm">Current CRM</Link>
+          <Link className={styles.secondaryButton} href="/customers">Legacy Customers</Link>
+        </div>
+      </section>
+
+      <section className={styles.searchGroups} aria-label="CRM Next hidden review pages">
+        {reviewLinks.map((link) => (
+          <Link className={styles.card} href={link.href} key={link.href}>
+            <header>
+              <h2>{link.label}</h2>
+              <span className={styles.pill}>Review only</span>
+            </header>
+            <p>{link.detail}</p>
+            <p className={styles.safeNotice}>Hidden from regular staff navigation; available when called out for review.</p>
+          </Link>
+        ))}
+      </section>
+
+      <article className={styles.card}>
+        <header>
+          <div>
+            <h2>Command Center implementation cards</h2>
+            <p className={styles.muted}>These cards explain the build milestones behind the operating dashboard and stay here for review only.</p>
+          </div>
+          <span className={styles.pill}>Hidden from staff nav</span>
+        </header>
+        <section className={styles.commandModeGrid} aria-label="CRM Next command center review modes">
+          {model.commandCenter.modes.map((mode) => (
+            <Link className={styles.commandModeCard} href={mode.href} id={mode.id} key={mode.id}>
+              <span className={styles.eyebrow}>{mode.milestone} · {mode.audience}</span>
+              <div>
+                <h2>{mode.title}</h2>
+                <b>{mode.state}</b>
+              </div>
+              <p>{mode.objective}</p>
+              <dl>
+                <div><dt>Primary</dt><dd>{mode.primaryMetric}</dd></div>
+                <div><dt>Secondary</dt><dd>{mode.secondaryMetric}</dd></div>
+              </dl>
+              <small>{mode.guidance}</small>
+            </Link>
+          ))}
+        </section>
+      </article>
+
+      <article className={styles.card}>
+        <header>
+          <div>
+            <h2>Dispatch bridge implementation proof</h2>
+            <p className={styles.muted}>This is the builder-facing explanation that was removed from the staff Work Customer screen.</p>
+          </div>
+          <span className={styles.pill}>{model.bridge.liveTaskCreationEnabled ? "Task creation enabled" : "Review only"}</span>
+        </header>
+        <section className={styles.handoffGrid} aria-label="CRM Next dispatch bridge proof">
+          <article className={styles.handoffCard}>
+            <span>Backend contract</span>
+            <strong>CRM action prepared</strong>
+            <b>Customer follow-up</b>
+            <small>CRM Next prepares the task payload from attention/customer context.</small>
+          </article>
+          <article className={styles.handoffCard}>
+            <span>Dispatch Board</span>
+            <strong>Task engine owns creation</strong>
+            <b>Source-owned write</b>
+            <small>The existing Dispatch task engine remains the source of truth.</small>
+          </article>
+          <article className={styles.handoffCard}>
+            <span>Activation boundary</span>
+            <strong>Internal task only</strong>
+            <b>No external send</b>
+            <small>Calls, texts, emails, documents, payments, and customer writes remain gated.</small>
+          </article>
+        </section>
+        <p className={styles.safeNotice}>{model.bridge.message}</p>
+      </article>
     </CrmNextFrame>
   );
 }
@@ -320,7 +486,7 @@ export function CrmNextSearchView({ model }: { model: CrmNextCommandCenter }) {
       <Topbar />
       <section className={styles.hero}>
         <div>
-          <span className={styles.eyebrow}>Safe Global Search</span>
+          <span className={styles.eyebrow}>Global Search</span>
           <h1>Find the customer, then take the next safe action</h1>
           <p>{model.search.queryPlaceholder}</p>
         </div>
@@ -329,9 +495,8 @@ export function CrmNextSearchView({ model }: { model: CrmNextCommandCenter }) {
       <section className={styles.searchGroups} aria-label="CRM Next grouped search results">
         {model.search.groups.map((group) => (
           <Link className={styles.card} href={group.href} key={group.id}>
-            <header><h2>{group.label}</h2><span className={styles.pill}>{group.count} review</span></header>
+            <header><h2>{group.label}</h2><span className={styles.pill}>{group.count}</span></header>
             <p>{group.description}</p>
-            <p className={styles.safeNotice}>{group.safety}</p>
           </Link>
         ))}
       </section>
@@ -346,8 +511,8 @@ export function CrmNextTimelineView({ model }: { model: CrmNextCommandCenter }) 
       <section className={styles.hero}>
         <div>
           <span className={styles.eyebrow}>Unified Timeline</span>
-          <h1>Customer activity without source drift</h1>
-          <p>Events are shown together, but each one still belongs to its original customer, communication, appointment, opportunity, or Dispatch source.</p>
+          <h1>Customer activity timeline</h1>
+          <p>See recent customer activity, appointments, opportunities, and Dispatch work in one place.</p>
         </div>
         <Link className={styles.secondaryButton} href="/crm-next/customers/michael-johnson">Open Customer 360</Link>
       </section>
@@ -374,7 +539,7 @@ function SalesTable({ records, title, summary }: { records: CrmNextSalesRecord[]
           <h2>{title}</h2>
           <p className={styles.muted}>{summary}</p>
         </div>
-        <span className={styles.pill}>Read-only</span>
+        <span className={styles.pill}>Open</span>
       </header>
       <div className={styles.salesRows}>
         {records.map((record) => (
@@ -398,8 +563,8 @@ export function CrmNextPipelineView({ model }: { model: CrmNextCommandCenter }) 
       <section className={styles.hero}>
         <div>
           <span className={styles.eyebrow}>Pipeline</span>
-          <h1>Read-only pipeline board</h1>
-          <p>Review lead and opportunity flow without changing stages or replacing existing sales sources.</p>
+          <h1>Pipeline board</h1>
+          <p>Review lead and opportunity flow, owners, value, stage, and next action.</p>
         </div>
         <div className={styles.quickActions}>
           <Link className={styles.secondaryButton} href="/crm-next/deals">Deals</Link>
@@ -407,24 +572,24 @@ export function CrmNextPipelineView({ model }: { model: CrmNextCommandCenter }) 
           <Link className={styles.secondaryButton} href="/crm-next/appointments">Appointments</Link>
         </div>
       </section>
-      <SalesTable records={model.sales.opportunities} title="Opportunities in review" summary="Stage, amount, owner, and next action are visible for pilot review." />
+      <SalesTable records={model.sales.opportunities} title="Opportunities" summary="Stage, amount, owner, and next action are visible for the sales team." />
     </CrmNextFrame>
   );
 }
 
 export function CrmNextAppointmentsView({ model }: { model: CrmNextCommandCenter }) {
   return (
-    <CrmNextFrame active="pipeline" userName={model.userName}>
+    <CrmNextFrame active="appointments" userName={model.userName}>
       <Topbar />
       <section className={styles.hero}>
         <div>
           <span className={styles.eyebrow}>Appointments</span>
-          <h1>Appointment context from the existing workspace</h1>
-          <p>CRM Next can point users to appointments, while the appointment workspace remains the source of truth.</p>
+          <h1>Appointments</h1>
+          <p>See customer appointments and jump into the appointment workspace when scheduling work is needed.</p>
         </div>
         <Link className={styles.primaryButton} href="/appointments">Open existing appointment workspace</Link>
       </section>
-      <SalesTable records={model.sales.appointments} title="Appointment-linked opportunities" summary="Review appointments from CRM Next before live scheduling commands are approved." />
+      <SalesTable records={model.sales.appointments} title="Appointment-linked opportunities" summary="Customer appointment context for the sales team." />
     </CrmNextFrame>
   );
 }
@@ -436,29 +601,29 @@ export function CrmNextTestDrivesView({ model }: { model: CrmNextCommandCenter }
       <section className={styles.hero}>
         <div>
           <span className={styles.eyebrow}>Test Drives</span>
-          <h1>Test-drive review surface</h1>
+          <h1>Test drives</h1>
           <p>Show who wants to drive what vehicle and what staff should do next.</p>
         </div>
         <Link className={styles.secondaryButton} href="/crm-next/pipeline">Back to pipeline</Link>
       </section>
-      <SalesTable records={model.sales.testDrives} title="Test drives needing attention" summary="Review-only until test-drive commands and permissions are approved." />
+      <SalesTable records={model.sales.testDrives} title="Test drives needing attention" summary="Customers, vehicles, owners, and next steps for upcoming test-drive work." />
     </CrmNextFrame>
   );
 }
 
 export function CrmNextDealsView({ model }: { model: CrmNextCommandCenter }) {
   return (
-    <CrmNextFrame active="pipeline" userName={model.userName}>
+    <CrmNextFrame active="deals" userName={model.userName}>
       <Topbar />
       <section className={styles.hero}>
         <div>
           <span className={styles.eyebrow}>Deals</span>
-          <h1>Deal review without mutation</h1>
-          <p>Deal value, stage, owner, and next action are visible; write commands stay gated.</p>
+          <h1>Deals in progress</h1>
+          <p>Deal value, stage, owner, and next action for active sales work.</p>
         </div>
         <Link className={styles.secondaryButton} href="/crm-next/pipeline">Back to pipeline</Link>
       </section>
-      <SalesTable records={model.sales.deals} title="Deals in progress" summary="A clean review surface for sales staff before operational deal commands go live." />
+      <SalesTable records={model.sales.deals} title="Deals in progress" summary="A compact operating view for sales staff." />
     </CrmNextFrame>
   );
 }
@@ -476,7 +641,7 @@ export function CrmNextOwnershipSupportView({ model }: { model: CrmNextCommandCe
         <div>
           <span className={styles.eyebrow}>Ownership & Support</span>
           <h1>Everything important, without turning Customer 360 into a maze</h1>
-          <p>Vehicle, finance, payment, case, title, service, rental, issue, and insurance context are grouped for quick review.</p>
+          <p>Vehicle, finance, payment, case, title, service, rental, issue, and insurance context grouped by customer need.</p>
         </div>
         <div className={styles.quickActions}>
           <Link className={styles.primaryButton} href="/crm-next/customers/michael-johnson">Customer 360</Link>
@@ -489,9 +654,9 @@ export function CrmNextOwnershipSupportView({ model }: { model: CrmNextCommandCe
           <header>
             <div>
               <h2>{group.label}</h2>
-              <p className={styles.muted}>Review-safe context. Authoritative systems keep ownership of the underlying work.</p>
+              <p className={styles.muted}>Customer support context grouped for quick follow-up.</p>
             </div>
-            <span className={styles.pill}>CRMN-040 → CRMN-048</span>
+            <span className={styles.pill}>{group.label}</span>
           </header>
           <div className={styles.supportGrid}>
             {model.ownershipSupport
@@ -507,7 +672,6 @@ export function CrmNextOwnershipSupportView({ model }: { model: CrmNextCommandCe
                     <span>{record.permission}</span>
                     <small>{record.owner}</small>
                   </div>
-                  <p className={styles.safeNotice}>Source: {record.sourceOfTruth}</p>
                 </Link>
               ))}
           </div>
@@ -524,28 +688,27 @@ export function CrmNextSharedExecutionView({ model }: { model: CrmNextCommandCen
       <section className={styles.hero}>
         <div>
           <span className={styles.eyebrow}>Shared Execution</span>
-          <h1>Shared execution without a second task board</h1>
-          <p>CRM Next can prepare and review customer work while Dispatch Board remains the operating source for tasks, assignments, comments, blockers, and manager queues.</p>
+          <h1>Shared customer execution</h1>
+          <p>Turn customer follow-up into clear Dispatch work, keep assignments visible, and help managers see blocked or overdue customer tasks.</p>
         </div>
         <div className={styles.quickActions}>
-          <Link className={styles.primaryButton} href="/crm-next/work/attn-michael-overdue-follow-up#dispatch-preview">Preview task bridge</Link>
+          <Link className={styles.primaryButton} href="/crm-next/work/attn-michael-overdue-follow-up#dispatch-task">Create task</Link>
           <Link className={styles.secondaryButton} href="/crm-next/needs-attention">Needs Attention</Link>
-          <Link className={styles.secondaryButton} href="/crm-next/progress">Progress</Link>
         </div>
       </section>
 
       <article className={styles.card}>
         <header>
           <div>
-            <h2>CRMN-050 → CRMN-054 foundation</h2>
-            <p className={styles.muted}>These slices are intentionally read-only or preview-only. They prove the bridge shape before live task creation or reassignment is approved.</p>
+            <h2>Customer work handoff</h2>
+            <p className={styles.muted}>Follow customer work from CRM Next into Dispatch tasks and team execution.</p>
           </div>
-          <span className={styles.pill}>IMPLEMENTED_UNVERIFIED</span>
+          <span className={styles.pill}>Active workflow</span>
         </header>
         <div className={styles.executionGrid}>
           {model.sharedExecution.map((record) => (
-            <Link className={styles.executionCard} href={record.href} id={record.href.startsWith("#") ? record.href.slice(1) : record.id} key={record.id}>
-              <span className={styles.eyebrow}>{record.milestone}</span>
+            <Link className={styles.executionCard} href={record.href.replace("#dispatch-preview", "#dispatch-task")} id={record.href.startsWith("#") ? record.href.slice(1) : record.id} key={record.id}>
+              <span className={styles.eyebrow}>Customer work</span>
               <h3>{record.title}</h3>
               <p>{record.description}</p>
               <div className={styles.surfacePair}>
@@ -553,10 +716,9 @@ export function CrmNextSharedExecutionView({ model }: { model: CrmNextCommandCen
                 <span><small>Dispatch</small><strong>{record.dispatchSurface}</strong></span>
               </div>
               <div className={styles.metaLine}>
-                <span>{record.state}</span>
-                <small>{record.sourceSystem}</small>
+                <span>Open workflow</span>
+                <small>Team execution</small>
               </div>
-              <p className={styles.safeNotice}>{record.safety}</p>
             </Link>
           ))}
         </div>
@@ -571,37 +733,36 @@ export function CrmNextIntelligenceFoundationView({ model }: { model: CrmNextCom
       <Topbar />
       <section className={styles.hero}>
         <div>
-          <span className={styles.eyebrow}>Intelligence Foundation</span>
+          <span className={styles.eyebrow}>Intelligence</span>
           <h1>Recommendations that explain themselves</h1>
-          <p>CRM Next intelligence starts as visible signals, risk context, next-action suggestions, opportunity insight, priority reasons, and manager review — all human-approved before action.</p>
+          <p>See risk, next-action suggestions, opportunity signals, queue priority, and manager attention items with a clear reason.</p>
         </div>
         <div className={styles.quickActions}>
           <Link className={styles.primaryButton} href="/crm-next/needs-attention">Open queue</Link>
           <Link className={styles.secondaryButton} href="/crm-next/work/attn-michael-overdue-follow-up">Attend customer</Link>
-          <Link className={styles.secondaryButton} href="/crm-next/progress">Progress</Link>
         </div>
       </section>
 
       <section className={styles.summaryGrid} aria-label="CRM Next intelligence summary">
-        <article className={styles.summaryCard} data-tone="blue"><small>Mode</small><strong>Review</strong><p>human decides</p></article>
+        <article className={styles.summaryCard} data-tone="blue"><small>Mode</small><strong>Assist</strong><p>human decides</p></article>
         <article className={styles.summaryCard}><small>Signals</small><strong>{model.intelligence.length}</strong><p>explainable inputs</p></article>
-        <article className={styles.summaryCard}><small>Automation</small><strong>Off</strong><p>no live actions</p></article>
-        <article className={styles.summaryCard}><small>Source drift</small><strong>0</strong><p>read-model only</p></article>
-        <article className={styles.summaryCard}><small>Next</small><strong>{model.progress.nextMilestone}</strong><p>control slice</p></article>
+        <article className={styles.summaryCard}><small>Automation</small><strong>Manual</strong><p>staff confirms</p></article>
+        <article className={styles.summaryCard}><small>Risk items</small><strong>12</strong><p>need review</p></article>
+        <article className={styles.summaryCard}><small>Actions</small><strong>23</strong><p>recommended</p></article>
       </section>
 
       <article className={styles.card}>
         <header>
           <div>
-            <h2>CRMN-060 → CRMN-067 intelligence packet</h2>
-            <p className={styles.muted}>Every recommendation shows the signal, recommendation, explanation, source system, and safety boundary.</p>
+            <h2>Recommended customer actions</h2>
+            <p className={styles.muted}>Each recommendation explains the signal, the suggested next step, and why it matters.</p>
           </div>
-          <span className={styles.pill}>IMPLEMENTED_UNVERIFIED</span>
+          <span className={styles.pill}>Staff assist</span>
         </header>
         <div className={styles.intelligenceCards}>
           {model.intelligence.map((record) => (
             <Link className={styles.intelligenceCard} href={record.href} id={record.href.startsWith("#") ? record.href.slice(1) : record.id} key={record.id}>
-              <span className={styles.eyebrow}>{record.milestone} · {record.kind}</span>
+              <span className={styles.eyebrow}>{record.kind}</span>
               <h3>{record.title}</h3>
               <p>{record.signal}</p>
               <div className={styles.recommendationBox}>
@@ -872,80 +1033,272 @@ export function CrmNextSafetyView({ kind, model }: { kind: "states" | "permissio
       <section className={styles.dashboardGrid}>
         <article className={styles.card}><header><h2>Feature flag</h2></header><p>CRM_NEXT controls access to the new experience and fails closed by default.</p></article>
         <article className={styles.card}><header><h2>Fallback</h2></header><p>Legacy Customers and current CRM remain available during pilot review.</p></article>
-        <article className={styles.card}><header><h2>No live writes</h2></header><p>Calls, texts, emails, task creation, and deal updates remain preview-only in this envelope.</p></article>
+        <article className={styles.card}><header><h2>Activation boundary</h2></header><p>Internal Dispatch task creation is enabled. Calls, texts, emails, payments, documents, and deal/customer writes remain protected.</p></article>
       </section>
     </CrmNextFrame>
   );
 }
 
 export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextCustomer360; model: CrmNextCommandCenter }) {
+  const customerMetrics = [
+    { label: "Open Leads", value: customer.openDeals, detail: "Active", tone: "green" },
+    { label: "Open Cases", value: customer.openCases, detail: "Active", tone: "red" },
+    { label: "Appointments", value: customer.glance.find((item) => item.label === "Appointments")?.value ?? "0", detail: "Upcoming", tone: "blue" },
+    { label: "Tasks", value: model.attention.filter((item) => item.customerId === customer.id).length, detail: "Open", tone: "blue" },
+    { label: "Documents", value: "0", detail: "Missing", tone: "amber" },
+    { label: "SLA Risk", value: customer.riskLevel, detail: "Current", tone: customer.riskLevel === "High" ? "red" : customer.riskLevel === "Medium" ? "amber" : "green" }
+  ];
+
   return (
     <CrmNextFrame active="customer" userName={model.userName}>
       <Topbar />
-      <section className={styles.hero}>
-        <div>
-          <span className={styles.eyebrow}>Customer 360 Overview</span>
-          <h1 className={styles.customerName}>{customer.name}</h1>
-          <p>{customer.phone} · {customer.email} · {customer.address}</p>
-        </div>
-        <div className={styles.topActions}>
-          <Link className={styles.primaryButton} href="/crm-next/work/attn-michael-overdue-follow-up">Attend</Link>
-          <Link className={styles.secondaryButton} href="#communications-held"><MessageSquare size={16} /> Message</Link>
-          <Link className={styles.secondaryButton} href="/crm">Open Legacy CRM</Link>
-        </div>
-      </section>
-      <section className={styles.customerGrid}>
-        <aside className={styles.profileCard}>
-          <div className={styles.profileTop}><span className={styles.profileAvatar}>{initials(customer.name)}</span><div><strong>{customer.name}</strong><p className={styles.muted}>{customer.status}</p></div></div>
-          <div className={styles.details}>
-            <p><span>Customer since</span>{customer.customerSince}</p>
-            <p><span>Lifetime value</span>{customer.lifetimeValue}</p>
-            <p><span>Vehicles owned</span>{customer.vehiclesOwned}</p>
-            <p><span>Open deals</span>{customer.openDeals}</p>
-            <p><span>Open cases</span>{customer.openCases}</p>
-            <p><span>Risk level</span><b className={levelClass(customer.riskLevel)}>{customer.riskLevel}</b></p>
-          </div>
-        </aside>
-        <section className={styles.panel}>
-          <UniversalActionBar customerHref={`/crm-next/customers/${customer.id}`} />
-          <nav className={styles.tabs} aria-label="Customer 360 sections">
-            <Link aria-current="page" href="#overview">Overview</Link>
-            <Link href="#timeline">Timeline</Link>
-            <Link href="/crm-next/deals">Deals</Link>
-            <Link href="#vehicles">Vehicles</Link>
-            <Link href="#documents-held">Documents</Link>
-          </nav>
-          <div className={styles.glanceList}>
-            {customer.glance.map((item) => (
-              <Link className={styles.glanceItem} href={item.href} key={item.label}>
-                <CalendarDays size={20} /><span><strong>{item.label}</strong><small>{item.value}</small></span><ChevronRight size={18} />
-              </Link>
-            ))}
-          </div>
-          <p className={styles.safeNotice} id="communications-held">Live calls, texts, and emails are intentionally preview-only until phone, texting, email, consent, recording, and audit policies are approved.</p>
-          <p className={styles.safeNotice} id="documents-held">Document sending remains held until templates, authority, and retention rules are approved.</p>
-        </section>
-        <aside className={styles.contextCard}>
-          <h2>What to do next</h2>
-          <p>{customer.nextAction}</p>
-          <Link className={styles.primaryButton} href="/crm-next/work/attn-michael-overdue-follow-up">Work Customer</Link>
-        </aside>
-        <section className={`${styles.timeline} ${styles.wide}`} id="timeline">
-          <header className={styles.panelHeader}><h2>Communication (Last 5)</h2><Link className={styles.textLink} href="/crm-next#communications">View all</Link></header>
-          <div className={styles.commList}>
-            {customer.communications.map((item) => (
-              <article className={styles.communicationItem} key={item.id}>
-                <strong>{item.channel}</strong><span>{item.detail}</span><small>{item.occurredAt}</small>
+      <CompactSourceStatus model={model} />
+      <section className={styles.customerWorkspace}>
+        <main className={styles.customerMain}>
+          <section className={styles.customerHeroCard}>
+            <div className={styles.customerIdentity}>
+              <span className={styles.profileAvatar}>{initials(customer.name)}</span>
+              <div>
+                <h1 className={styles.customerName}>{customer.name}</h1>
+                <span className={styles.customerBadge}>Preferred Customer</span>
+                <p>{customer.phone} · {customer.email}</p>
+                <p>{customer.address}</p>
+              </div>
+            </div>
+            <dl className={styles.customerFacts}>
+              <div><dt>Customer Since</dt><dd>{customer.customerSince}</dd></div>
+              <div><dt>Lifetime Value</dt><dd>{customer.lifetimeValue}</dd></div>
+              <div><dt>Owner</dt><dd>Unassigned</dd></div>
+              <div><dt>Status</dt><dd>{customer.status}</dd></div>
+              <div><dt>Risk</dt><dd><b className={levelClass(customer.riskLevel)}>{customer.riskLevel}</b></dd></div>
+            </dl>
+            <div className={styles.customerHeroActions}>
+              <Link className={styles.primaryButton} href="/crm-next/work/attn-michael-overdue-follow-up">Attend</Link>
+              <Link className={styles.secondaryButton} href="/crm-next/actions/send-text"><MessageSquare size={16} /> Message</Link>
+              <Link className={styles.secondaryButton} href="/crm">Open Current CRM</Link>
+            </div>
+          </section>
+
+          <section className={styles.customerMetricGrid} aria-label="Customer operating metrics">
+            {customerMetrics.map((metric) => (
+              <article className={styles.customerMetricCard} data-tone={metric.tone} key={metric.label}>
+                <small>{metric.label}</small>
+                <strong>{metric.value}</strong>
+                <span>{metric.detail}</span>
               </article>
             ))}
-          </div>
-        </section>
+          </section>
+
+          <section className={styles.panel}>
+            <nav className={styles.tabs} aria-label="Customer 360 sections">
+              <Link aria-current="page" href="#overview">Overview</Link>
+              <Link href="#timeline">Timeline</Link>
+              <Link href="#deals">Deals</Link>
+              <Link href="#cases">Cases</Link>
+              <Link href="#appointments">Appointments</Link>
+              <Link href="#documents-held">Documents</Link>
+              <Link href="#vehicles">Vehicles</Link>
+              <Link href="#communications-held">Communications</Link>
+            </nav>
+            <div className={styles.compactInfoGrid} id="overview">
+              {customer.glance.map((item) => (
+                <Link className={styles.glanceItem} href={item.href} key={item.label}>
+                  <CalendarDays size={20} /><span><strong>{item.label}</strong><small>{item.value}</small></span><ChevronRight size={18} />
+                </Link>
+              ))}
+            </div>
+            <div className={styles.compactSectionGrid}>
+              <article id="deals" className={styles.compactSectionCard}>
+                <strong>Deals</strong>
+                <span>{customer.openDeals} open · managed in current CRM</span>
+                <Link href="/crm-next/deals">Open deal board</Link>
+              </article>
+              <article id="cases" className={styles.compactSectionCard}>
+                <strong>Cases</strong>
+                <span>{customer.openCases} open · support queue</span>
+                <Link href="/crm-next/ownership-support#cases">Open support cases</Link>
+              </article>
+              <article id="appointments" className={styles.compactSectionCard}>
+                <strong>Appointments</strong>
+                <span>{customer.glance.find((item) => item.label === "Appointments")?.value ?? "0"} upcoming · open calendar flow</span>
+                <Link href="/crm-next/appointments">Open appointments</Link>
+              </article>
+              <article id="documents-held" className={styles.compactSectionCard}>
+                <strong>Documents</strong>
+                <span>Use the approved document workspace for sending or uploads.</span>
+                <Link href="/crm-next/actions/upload-document">Review document action</Link>
+              </article>
+              <article id="communications-held" className={styles.compactSectionCard}>
+                <strong>Communications</strong>
+                <span>Use approved contact workflows for live calls, texts, and emails.</span>
+                <Link href="/crm-next/actions/log-call">Review contact actions</Link>
+              </article>
+            </div>
+          </section>
+
+          <section className={`${styles.timeline} ${styles.wide}`} id="timeline">
+            <header className={styles.panelHeader}><h2>Communication (Last 5)</h2><Link className={styles.textLink} href="/crm-next/timeline">View all</Link></header>
+            <div className={styles.commList}>
+              {customer.communications.map((item) => (
+                <article className={styles.communicationItem} key={item.id}>
+                  <strong>{item.channel}</strong><span>{item.detail}</span><small>{item.occurredAt}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+        </main>
+
+        <aside className={styles.customerAside}>
+          <article className={styles.sidePanel}>
+            <header><h2>Quick Actions</h2></header>
+            <div className={styles.quickActionTiles}>
+              <Link href="/crm-next/actions/log-call"><Phone size={22} />Log Call</Link>
+              <Link href="/crm-next/actions/send-email"><Mail size={22} />Send Email</Link>
+              <Link href="/crm-next/actions/new-task"><ClipboardCheck size={22} />New Task</Link>
+              <Link href="/crm-next/actions/new-case"><FileText size={22} />New Case</Link>
+              <Link href="/crm-next/actions/schedule-appointment"><CalendarDays size={22} />Schedule Appt</Link>
+              <Link href="/crm-next/actions/upload-document"><FileSearch size={22} />Upload Doc</Link>
+            </div>
+          </article>
+
+          <article className={styles.sidePanel}>
+            <header><h2>Next Best Action</h2></header>
+            <div className={styles.nextBestAction}>
+              <CheckCircle2 size={24} />
+              <div>
+                <strong>{customer.nextAction}</strong>
+                <p>Open Attend Mode to complete the next safe customer step.</p>
+              </div>
+            </div>
+            <Link className={styles.primaryButton} href="/crm-next/work/attn-michael-overdue-follow-up">Work Customer</Link>
+          </article>
+
+          <article className={styles.sidePanel}>
+            <header><h2>Customer Risk</h2></header>
+            <strong className={levelClass(customer.riskLevel)}>{customer.riskLevel}</strong>
+            <ul className={styles.signalList}>
+              <li>{customer.openCases} open cases</li>
+              <li>{customer.vehiclesOwned} linked vehicles</li>
+              <li>{customer.openDeals} open deals</li>
+            </ul>
+          </article>
+
+          <article className={styles.sidePanel} id="vehicles">
+            <header><h2>Linked Vehicles ({customer.vehicles.length})</h2></header>
+            <div className={styles.vehicleList}>
+              {customer.vehicles.length ? customer.vehicles.map((vehicle) => (
+                <Link href="/crm-next/search" key={vehicle.id}>
+                  <strong>{vehicle.label}</strong>
+                  <small>{vehicle.status} · {vehicle.vin}</small>
+                </Link>
+              )) : <p className={styles.muted}>No linked vehicles exposed by the current source.</p>}
+            </div>
+          </article>
+        </aside>
       </section>
     </CrmNextFrame>
   );
 }
 
-export function CrmNextWorkCustomerView({ item, model }: { item: CrmNextAttentionItem; model: CrmNextCommandCenter }) {
+export function CrmNextActionReadinessView({ action, model }: { action: CrmNextOperatingAction; model: CrmNextCommandCenter }) {
+  const relatedCustomer = model.customers[0];
+  const backHref = relatedCustomer ? `/crm-next/customers/${relatedCustomer.id}` : "/crm-next";
+  const stateCopy = action.state === "SAFE_ROUTE"
+    ? "Ready to continue"
+    : action.state === "PREVIEW_ONLY"
+      ? "Open the customer context before using the approved live workspace"
+      : "Use the approved workspace for this action";
+  const primaryHref = action.id === "schedule-appointment"
+    ? "/appointments"
+    : action.id === "new-task"
+      ? "/crm-next/work/attn-michael-overdue-follow-up#dispatch-task"
+      : backHref;
+
+  return (
+    <CrmNextFrame active="work" userName={model.userName}>
+      <Topbar />
+      <section className={styles.customerWorkspace}>
+        <section className={`${styles.customerHeroCard} ${styles.actionCustomerHero}`}>
+          <div className={styles.actionCustomerIdentity}>
+            <span className={styles.avatar}>{initials(relatedCustomer?.name ?? "CRM Next")}</span>
+            <div>
+              <span className={styles.eyebrow}>Customer action</span>
+              <h1 className={styles.customerName}>{relatedCustomer?.name ?? "Customer"}</h1>
+              <span className={styles.customerBadge}>{action.label}</span>
+              <p>{stateCopy}</p>
+            </div>
+          </div>
+          <dl className={styles.customerFacts}>
+            <div><dt>Status</dt><dd>{action.state === "HELD" ? "Use approved workspace" : "Available"}</dd></div>
+            <div><dt>Action type</dt><dd>{action.category}</dd></div>
+            <div><dt>Customer</dt><dd>{relatedCustomer?.name ?? "Available from CRM Next"}</dd></div>
+            <div><dt>Next step</dt><dd>{action.id === "new-task" ? "Create Dispatch task" : "Continue"}</dd></div>
+          </dl>
+          <div className={styles.customerHeroActions}>
+            <Link className={styles.primaryButton} href={primaryHref}>Continue</Link>
+            <Link className={styles.secondaryButton} href={backHref}>Back to Customer 360</Link>
+            <Link className={styles.secondaryButton} href="/crm">Open Current CRM</Link>
+          </div>
+        </section>
+        <main className={styles.customerMain}>
+          <section className={styles.panel}>
+            <header className={styles.panelHeader}><h2>What happens next</h2><span className={styles.pill}>{action.category}</span></header>
+            <div className={styles.compactSectionGrid}>
+              <article className={styles.compactSectionCard}><strong>Customer step</strong><span>{action.response}</span></article>
+              <article className={styles.compactSectionCard}><strong>Work area</strong><span>{action.sourceAuthority}</span></article>
+              <article className={styles.compactSectionCard}><strong>Follow-up</strong><span>{action.id === "new-task" ? "Create and open the Dispatch task." : "Return to Customer 360 after completing the step."}</span></article>
+              <article className={styles.compactSectionCard}><strong>Availability</strong><span>{action.state === "HELD" ? "This action continues in its approved workspace." : "This action can be opened from CRM Next."}</span></article>
+            </div>
+          </section>
+
+          <section className={styles.timeline}>
+            <header className={styles.panelHeader}><h2>Available customer actions</h2><Link className={styles.textLink} href="/crm-next/work/attn-michael-overdue-follow-up">Back to workbench</Link></header>
+            <div className={styles.compactInfoGrid}>
+              {model.operatingActions.map((item) => (
+                <Link className={styles.glanceItem} href={item.href} key={item.id}>
+                  <ClipboardCheck size={18} />
+                  <span><strong>{item.label}</strong><small>{item.category}</small></span>
+                  <ChevronRight size={16} />
+                </Link>
+              ))}
+            </div>
+          </section>
+        </main>
+
+        <aside className={styles.customerAside}>
+          <article className={styles.sidePanel}>
+            <header><h2>Action status</h2></header>
+            <strong className={action.state === "SAFE_ROUTE" ? styles.levelLow : action.state === "PREVIEW_ONLY" ? styles.levelMedium : styles.levelHigh}>
+              {action.state === "HELD" ? "Use workspace" : "Available"}
+            </strong>
+            <ul className={styles.signalList}>
+              <li>Customer context stays visible</li>
+              <li>Next step stays clear</li>
+              <li>Legacy and current CRM remain available</li>
+            </ul>
+          </article>
+          <article className={styles.sidePanel}>
+            <header><h2>Need the old view?</h2></header>
+            <p className={styles.muted}>Open Legacy Customers if you need a workflow that is not yet available here.</p>
+            <Link className={styles.secondaryButton} href="/customers">Open Legacy Customers</Link>
+          </article>
+        </aside>
+      </section>
+    </CrmNextFrame>
+  );
+}
+
+export function CrmNextWorkCustomerView({
+  bridgePreview,
+  item,
+  model
+}: {
+  bridgePreview?: CrmNextActionBridgePreview;
+  item: CrmNextAttentionItem;
+  model: CrmNextCommandCenter;
+}) {
+  const dispatchPreview = bridgePreview?.dispatchPreview;
+
   return (
     <CrmNextFrame active="work" userName={model.userName}>
       <section className={styles.workShell}>
@@ -963,59 +1316,81 @@ export function CrmNextWorkCustomerView({ item, model }: { item: CrmNextAttentio
               <p className={styles.muted}>{item.reason} · {item.area} · Owner: {item.owner}</p>
             </div>
             <div className={styles.workActions}>
-              <Link className={styles.primaryButton} href="#suggested"><Phone size={16} /> Log Call</Link>
-              <Link className={styles.secondaryButton} href="#suggested"><Mail size={16} /> Send Message</Link>
+              <Link className={styles.primaryButton} href="/crm-next/actions/log-call"><Phone size={16} /> Log Call</Link>
+              <Link className={styles.secondaryButton} href="/crm-next/actions/send-text"><Mail size={16} /> Send Message</Link>
               <Link className={styles.secondaryButton} href="/crm-next/customers/michael-johnson">Customer 360</Link>
-              <Link className={styles.secondaryButton} href="/crm-next#pipeline">Estimate / Deal</Link>
+              <Link className={styles.secondaryButton} href="/crm-next/deals">Estimate / Deal</Link>
             </div>
           </div>
         </header>
         <main>
+          <section className={styles.workContextStrip} aria-label="Customer context">
+            <div>
+              <span>Customer</span>
+              <strong>{item.customerName}</strong>
+            </div>
+            <div>
+              <span>Next action</span>
+              <strong>{item.nextAction}</strong>
+            </div>
+            <div>
+              <span>Owner</span>
+              <strong>{item.owner}</strong>
+            </div>
+            <div>
+              <span>Area</span>
+              <strong>{item.area}</strong>
+            </div>
+            <div className={styles.workContextActions}>
+              <Link className={styles.secondaryButton} href={item.customerHref}>Open Customer 360</Link>
+              <Link className={styles.secondaryButton} href="/tasks">Dispatch Tasks</Link>
+            </div>
+          </section>
           <article className={styles.card}>
             <header><h2>Choose the next customer action</h2><span className={levelClass(item.level)}>{item.level}</span></header>
           <div className={styles.workActions}>
-            <Link className={styles.primaryButton} href="#suggested"><Phone size={16} /> Call preview</Link>
-            <Link className={styles.secondaryButton} href="#suggested"><MessageSquare size={16} /> Text preview</Link>
-            <Link className={styles.secondaryButton} href="#suggested"><Mail size={16} /> Email preview</Link>
-            <Link className={styles.secondaryButton} href="/crm-next/appointments"><CalendarDays size={16} /> Appointments</Link>
-            <Link className={styles.secondaryButton} href="#dispatch-preview"><ClipboardCheck size={16} /> Task bridge</Link>
+            <Link className={styles.primaryButton} href="/crm-next/actions/log-call"><Phone size={16} /> Log call</Link>
+            <Link className={styles.secondaryButton} href="/crm-next/actions/send-text"><MessageSquare size={16} /> Text</Link>
+            <Link className={styles.secondaryButton} href="/crm-next/actions/send-email"><Mail size={16} /> Email</Link>
+            <Link className={styles.secondaryButton} href="/crm-next/actions/schedule-appointment"><CalendarDays size={16} /> Appointments</Link>
+            <Link className={styles.secondaryButton} href="#dispatch-task"><ClipboardCheck size={16} /> Create task</Link>
             <Link className={styles.secondaryButton} href={item.customerHref}><Users size={16} /> Customer 360</Link>
           </div>
             <div className={styles.actionCards}>
-              <Link className={styles.actionCard} href="#suggested"><Phone size={18} /><strong>Follow up</strong><p className={styles.muted}>{item.reason}</p></Link>
-              <Link className={styles.actionCard} href="#finance-held"><DollarSign size={18} /><strong>Collect payment</strong><p className={styles.muted}>Finance actions are review-only.</p></Link>
-              <Link className={styles.actionCard} href="/appointments"><CalendarDays size={18} /><strong>Schedule appointment</strong><p className={styles.muted}>Open existing appointment workspace.</p></Link>
-              <Link className={styles.actionCard} href="#documents-held"><FileText size={18} /><strong>Send document</strong><p className={styles.muted}>Document sending is held.</p></Link>
-              <Link className={styles.actionCard} href="#dispatch-preview"><ClipboardCheck size={18} /><strong>Create task</strong><p className={styles.muted}>Preview dispatch handoff.</p></Link>
-              <Link className={styles.actionCard} href="#suggested"><MessageSquare size={18} /><strong>Other action</strong><p className={styles.muted}>Review available safe actions.</p></Link>
+              <Link className={styles.actionCard} href="/crm-next/actions/log-call"><Phone size={18} /><strong>Follow up</strong><p className={styles.muted}>{item.reason}</p></Link>
+              <Link className={styles.actionCard} href="/crm-next/ownership-support"><DollarSign size={18} /><strong>Collect payment</strong><p className={styles.muted}>Open finance context.</p></Link>
+              <Link className={styles.actionCard} href="/crm-next/actions/schedule-appointment"><CalendarDays size={18} /><strong>Schedule appointment</strong><p className={styles.muted}>Open existing appointment workspace.</p></Link>
+              <Link className={styles.actionCard} href="/crm-next/actions/upload-document"><FileText size={18} /><strong>Send document</strong><p className={styles.muted}>Use the document workspace.</p></Link>
+              <Link className={styles.actionCard} href="#dispatch-task"><ClipboardCheck size={18} /><strong>Create task</strong><p className={styles.muted}>Send this follow-up to Dispatch tasks.</p></Link>
+              <Link className={styles.actionCard} href="/crm-next/actions/new-case"><MessageSquare size={18} /><strong>Other action</strong><p className={styles.muted}>Open more customer actions.</p></Link>
             </div>
             <section className={styles.suggested} id="suggested">
               <div>
                 <strong>Next Suggested Action</strong>
                 <p>{item.nextAction}. Last contacted 2 days ago.</p>
               </div>
-              <Link className={styles.primaryButton} href="#dispatch-preview">Preview Bridge</Link>
+              <Link className={styles.primaryButton} href="#dispatch-task">Create task</Link>
             </section>
           </article>
-          <article className={styles.card} id="dispatch-preview">
-            <header><h2>Dispatch Board integration</h2><span className={styles.pill}>Preview only</span></header>
-            <div className={styles.handoffGrid}>
-              {["CRM Action Created", "Dispatched to Employee", "Employee Task in My Day", "Task Execution", "Customer 360 Updated"].map((step) => (
-                <div className={styles.handoffCard} key={step}><strong>{step}</strong><small>No live task is created in this slice.</small></div>
-              ))}
-            </div>
-            <p className={styles.safeNotice}>{model.bridge.message}</p>
-            <p className={styles.safeNotice} id="finance-held">Finance/payment execution is intentionally held until approval of sensitive payment permissions.</p>
-            <p className={styles.safeNotice} id="documents-held">Document sending is intentionally held until document authority, templates, and audit retention are approved.</p>
+          <article className={styles.card} id="dispatch-task">
+            <header>
+              <div>
+                <h2>Create Dispatch task</h2>
+                <p className={styles.muted}>Send this customer follow-up to your Dispatch task list.</p>
+              </div>
+              <span className={styles.pill}>{model.bridge.liveTaskCreationEnabled ? "Ready" : "Unavailable"}</span>
+            </header>
+            {dispatchPreview ? (
+              <dl className={styles.bridgeReceipt}>
+                <div><dt>Task title</dt><dd>{dispatchPreview.title}</dd></div>
+                <div><dt>Assigned to</dt><dd>{dispatchPreview.assignedTo}</dd></div>
+                <div><dt>Due</dt><dd>{dispatchPreview.due}</dd></div>
+                <div><dt>Source</dt><dd>{dispatchPreview.source}</dd></div>
+              </dl>
+            ) : null}
+            <CrmNextTaskBridgeControl attentionItemId={item.id} enabled={bridgePreview?.state === "DOGFOOD_READY"} />
           </article>
         </main>
-        <aside className={styles.contextCard}>
-          <h2>Customer Context</h2>
-          <p><strong>{item.customerName}</strong></p>
-          <p className={styles.muted}>Next action: {item.nextAction}</p>
-          <Link className={styles.secondaryButton} href={item.customerHref}>Open Customer 360</Link>
-          <Link className={styles.secondaryButton} href="/tasks">Open Dispatch Tasks</Link>
-        </aside>
       </section>
     </CrmNextFrame>
   );
