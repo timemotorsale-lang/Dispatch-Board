@@ -1,5 +1,17 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { resolveCrmNextAccess } from "@/server/crm-next/access";
+import { getUnifiedCrmCustomer360 } from "@/server/services/unified-crm-customer-360-service";
+import { getUnifiedCrmCustomerList } from "@/server/services/unified-crm-customer-read-service";
+import { searchUnifiedCrm } from "@/server/services/unified-crm-global-search-service";
+import type {
+  UnifiedCrmCustomer360ReadModel,
+  UnifiedCrmCustomer360TimelineItem
+} from "@/server/unified-crm/customer-360-contract";
+import type {
+  UnifiedCrmCustomerListItem,
+  UnifiedCrmCustomerListReadModel
+} from "@/server/unified-crm/customer-read-contract";
+import type { UnifiedCrmGlobalSearchReadModel } from "@/server/unified-crm/global-search-contract";
 
 export type CrmNextAttentionLevel = "High" | "Medium" | "Low";
 export type CrmNextMilestoneStatus =
@@ -69,6 +81,18 @@ export type CrmNextTimelineEvent = {
   label: string;
   detail: string;
   occurredAt: string;
+  href: string;
+};
+
+export type CrmNextOperationalReadState = "LIVE_READ" | "PARTIAL_READ" | "FALLBACK_READ" | "EMPTY_READ";
+
+export type CrmNextSourceReadStatus = {
+  id: "customers" | "customer-360" | "search" | "attention" | "timeline";
+  label: string;
+  state: CrmNextOperationalReadState;
+  sourceOfTruth: string;
+  detail: string;
+  observedAt: string;
   href: string;
 };
 
@@ -220,6 +244,11 @@ export type CrmNextCommandCenter = {
     liveTaskCreationEnabled: false;
     previewEnabled: true;
     message: string;
+  };
+  operationalRead: {
+    state: CrmNextOperationalReadState;
+    safety: string;
+    sources: CrmNextSourceReadStatus[];
   };
   progress: {
     completedCount: number;
@@ -906,6 +935,51 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     reviewHref: "/crm-next/pilot-release#pilot-launch-hold",
     evidence: "Pilot release surface marks launch approval as held.",
     safety: "No production rollout, flag broadening, route replacement, or live command enablement."
+  },
+  {
+    id: "CRMN-095",
+    title: "Existing customer read adapter",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Let CRM Next consume the existing Unified CRM customer read service when it is safely available.",
+    reviewHref: "/crm-next",
+    evidence: "Operational read adapter overlays Customer source-of-truth data on the CRM Next preview model.",
+    safety: "No new customer master and no customer writes."
+  },
+  {
+    id: "CRMN-096",
+    title: "Customer identity normalization",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Normalize display name, masked phone, masked email, status, owner, and next-action state for CRM Next.",
+    reviewHref: "/crm-next/customers/michael-johnson",
+    evidence: "Customer list and Customer 360 records map into the CRM Next identity contract with masked contacts.",
+    safety: "Source-owned customer identity remains read-only."
+  },
+  {
+    id: "CRMN-097",
+    title: "Vehicle relationship read model",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Display existing vehicle relationships in CRM Next Customer 360 when the customer source exposes them.",
+    reviewHref: "/crm-next/customers/michael-johnson",
+    evidence: "Customer 360 vehicle relationships are mapped to CRM Next vehicle cards with source links preserved.",
+    safety: "CRM Next does not create or modify vehicle relationships."
+  },
+  {
+    id: "CRMN-098",
+    title: "Partial and inaccessible customer fallback states",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Keep CRM Next reviewable when customer, search, or timeline sources are empty, unavailable, or permission-blocked.",
+    reviewHref: "/crm-next",
+    evidence: "Operational read source statuses expose LIVE_READ, PARTIAL_READ, EMPTY_READ, or FALLBACK_READ without crashing pages.",
+    safety: "Fallback is explicit and keeps Legacy/current CRM switchback links available."
+  },
+  {
+    id: "CRMN-099",
+    title: "Customer source-of-truth proof",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Prove CRM Next reuses the existing customer read model and does not create another customer system.",
+    reviewHref: "/crm-next/progress#crm-next-envelope",
+    evidence: "Unit tests cover live customer overlay, fallback, and no-write bridge posture.",
+    safety: "Customer reads only; no create/update/delete path is introduced."
   }
 ];
 
@@ -1721,6 +1795,348 @@ const pilotReleaseGates: CrmNextPilotReleaseGate[] = [
   }
 ];
 
+type CrmNextOperationalReadDependencies = {
+  customer360Reader?: typeof getUnifiedCrmCustomer360;
+  customerListReader?: typeof getUnifiedCrmCustomerList;
+  now?: () => Date;
+  searchQuery?: string;
+  searchReader?: typeof searchUnifiedCrm;
+};
+
+function readStatus(
+  status: Omit<CrmNextSourceReadStatus, "observedAt">,
+  observedAt: string
+): CrmNextSourceReadStatus {
+  return { ...status, observedAt };
+}
+
+function operationalState(sources: CrmNextSourceReadStatus[]): CrmNextOperationalReadState {
+  const states = sources.map((source) => source.state);
+  if (states.some((state) => state === "LIVE_READ") && states.some((state) => state === "FALLBACK_READ")) {
+    return "PARTIAL_READ";
+  }
+  if (states.some((state) => state === "LIVE_READ")) return "LIVE_READ";
+  if (states.some((state) => state === "EMPTY_READ")) return "EMPTY_READ";
+  return "FALLBACK_READ";
+}
+
+function riskFromNextAction(nextActionAt: string | null, now: Date): CrmNextAttentionLevel {
+  if (!nextActionAt) return "Low";
+  const dueAt = new Date(nextActionAt);
+  if (Number.isNaN(dueAt.getTime())) return "Medium";
+  return dueAt.getTime() < now.getTime() ? "High" : "Medium";
+}
+
+function nextActionLabel(item: UnifiedCrmCustomerListItem, now: Date) {
+  const risk = riskFromNextAction(item.nextActionAt, now);
+  if (!item.nextActionAt) return "Review customer record";
+  return risk === "High" ? "Review overdue customer follow-up" : "Review scheduled customer follow-up";
+}
+
+function crmNextCustomerFromListItem(item: UnifiedCrmCustomerListItem, now: Date): CrmNextCustomer360 {
+  const riskLevel = riskFromNextAction(item.nextActionAt, now);
+  return {
+    id: item.id,
+    name: item.displayName,
+    status: "Active",
+    phone: item.maskedPhone,
+    email: item.maskedEmail,
+    address: "Address remains source-owned in Customers",
+    customerSince: item.customerNumber,
+    lifetimeValue: "Source-owned",
+    vehiclesOwned: 0,
+    openDeals: 0,
+    openCases: 0,
+    riskLevel,
+    nextAction: nextActionLabel(item, now),
+    vehicles: [],
+    glance: [
+      { label: "Customer #", value: item.customerNumber, href: item.sourceHref },
+      { label: "Owner", value: item.ownerName, href: item.sourceHref },
+      { label: "Status", value: item.status, href: item.sourceHref },
+      { label: "Next action", value: item.nextActionAt ? new Date(item.nextActionAt).toLocaleString("en-US") : "Not scheduled", href: item.sourceHref }
+    ],
+    communications: [
+      {
+        id: `${item.id}-read-source`,
+        channel: "Phone",
+        detail: item.lastInteractionAt ? "Latest interaction is visible from Customers." : "No recent interaction exposed by customer source.",
+        occurredAt: item.lastInteractionAt ?? item.updatedAt
+      }
+    ]
+  };
+}
+
+function attentionFromCustomerList(items: UnifiedCrmCustomerListItem[], now: Date): CrmNextAttentionItem[] {
+  return items
+    .map((item) => {
+      const level = riskFromNextAction(item.nextActionAt, now);
+      return {
+        id: `customer-read-${item.id}`,
+        customerId: item.id,
+        customerName: item.displayName,
+        reason: item.nextActionAt ? (level === "High" ? "Overdue customer follow-up" : "Scheduled customer follow-up") : "Customer record needs review",
+        age: item.nextActionAt ? new Date(item.nextActionAt).toLocaleDateString("en-US") : "Source",
+        area: "Sales" as const,
+        owner: item.ownerName,
+        level,
+        nextAction: nextActionLabel(item, now),
+        workHref: `/crm-next/work/customer-read-${encodeURIComponent(item.id)}`,
+        customerHref: `/crm-next/customers/${encodeURIComponent(item.id)}`
+      };
+    })
+    .sort((a, b) => {
+      const order: Record<CrmNextAttentionLevel, number> = { High: 0, Medium: 1, Low: 2 };
+      return order[a.level] - order[b.level] || a.customerName.localeCompare(b.customerName);
+    });
+}
+
+function customer360Contact(model: UnifiedCrmCustomer360ReadModel, type: string) {
+  return model.contacts.find((contact) => contact.type === type && contact.isPrimary)?.maskedValue ??
+    model.contacts.find((contact) => contact.type === type)?.maskedValue ??
+    "Not recorded";
+}
+
+function sourceToCrmNextTimelineSource(
+  item: UnifiedCrmCustomer360TimelineItem
+): CrmNextTimelineEvent["source"] {
+  if (item.kind.includes("appointment")) return "Appointment";
+  if (item.kind.includes("task")) return "Dispatch";
+  if (item.kind.includes("case")) return "Support";
+  if (item.kind.includes("lead")) return "Opportunity";
+  return item.sourceLabel.toLowerCase().includes("finance") ? "Finance" : "Communication";
+}
+
+function crmNextCustomerFrom360(model: UnifiedCrmCustomer360ReadModel): CrmNextCustomer360 {
+  const riskLevel: CrmNextAttentionLevel =
+    model.relationship.nextActionState === "OVERDUE" ? "High" :
+      model.relationship.nextActionState === "DUE_TODAY" ? "Medium" : "Low";
+  const opportunityCount = model.opportunityLensObservation.visibleRecordCount;
+  return {
+    id: model.identity.id,
+    name: model.identity.displayName,
+    status: "Active",
+    phone: customer360Contact(model, "PHONE"),
+    email: customer360Contact(model, "EMAIL"),
+    address: "Address remains source-owned in Customers",
+    customerSince: model.identity.customerSince,
+    lifetimeValue: "Source-owned",
+    vehiclesOwned: model.vehicles.length,
+    openDeals: opportunityCount,
+    openCases: model.sourceLenses.cases.length,
+    riskLevel,
+    nextAction: model.relationship.nextActionAt ? "Review source-owned next action" : "Review customer relationship",
+    vehicles: model.vehicles.map((vehicle) => ({
+      id: vehicle.id,
+      label: vehicle.label,
+      status: vehicle.status,
+      vin: vehicle.relationshipType
+    })),
+    glance: [
+      { label: "Customer #", value: model.identity.customerNumber, href: model.source.href },
+      { label: "Owner", value: model.owner?.name ?? "Unassigned", href: model.source.href },
+      { label: "Open cases", value: String(model.sourceLenses.cases.length), href: model.source.href },
+      { label: "Opportunities", value: String(opportunityCount), href: model.source.href },
+      { label: "Appointments", value: String(model.appointments.length), href: "/appointments" }
+    ],
+    communications: model.timeline.items.slice(0, 5).map((item) => ({
+      id: item.id,
+      channel: item.kind.includes("appointment") ? "Appointment" : item.sourceLabel.toLowerCase().includes("email") ? "Email" : "Phone",
+      detail: `${item.title}: ${item.detail}`,
+      occurredAt: item.occurredAt
+    }))
+  };
+}
+
+function timelineFrom360(model: UnifiedCrmCustomer360ReadModel): CrmNextTimelineEvent[] {
+  return model.timeline.items.slice(0, 12).map((item) => ({
+    id: item.id,
+    source: sourceToCrmNextTimelineSource(item),
+    label: item.title,
+    detail: `${item.detail} · Source: ${item.sourceLabel}`,
+    occurredAt: item.occurredAt,
+    href: item.sourceHref
+  }));
+}
+
+function searchGroupsFromUnifiedCrm(search: UnifiedCrmGlobalSearchReadModel): CrmNextSearchGroup[] {
+  return search.groups.map((group) => ({
+    id: `live-${group.entity}`,
+    label: group.label,
+    description: group.results.slice(0, 3).map((result) => result.label).join(" · ") || "No matching source records.",
+    href: group.results[0]?.href ?? "/crm-next/search",
+    count: group.count,
+    safety: "Live read-only result from existing Unified CRM search. Open the source record to execute approved work."
+  }));
+}
+
+function withCustomerListOverlay(
+  model: CrmNextCommandCenter,
+  customerList: UnifiedCrmCustomerListReadModel,
+  now: Date
+): CrmNextCommandCenter {
+  if (customerList.state === "EMPTY") return model;
+  const operationalCustomers = customerList.items.map((item) => crmNextCustomerFromListItem(item, now));
+  const operationalAttention = attentionFromCustomerList(customerList.items, now);
+  return {
+    ...model,
+    attention: operationalAttention.length ? operationalAttention : model.attention,
+    customers: operationalCustomers.length ? operationalCustomers : model.customers,
+    summary: model.summary.map((item) => item.label === "Needs Attention"
+      ? { ...item, value: String(operationalAttention.length), trend: "from existing customer source" }
+      : item.label === "Hot Leads"
+        ? { ...item, value: String(customerList.items.length), trend: "source-owned customer records" }
+        : item
+    )
+  };
+}
+
+export async function getCrmNextOperationalCommandCenter(
+  actor: AuthenticatedUser | null,
+  dependencies: CrmNextOperationalReadDependencies = {}
+): Promise<CrmNextCommandCenter> {
+  const now = dependencies.now?.() ?? new Date();
+  let model = getCrmNextCommandCenter(actor, now);
+  const statuses: CrmNextSourceReadStatus[] = [];
+  const observedAt = now.toISOString();
+
+  try {
+    const customerList = await (dependencies.customerListReader ?? getUnifiedCrmCustomerList)(actor, { limit: 8 });
+    model = withCustomerListOverlay(model, customerList, now);
+    statuses.push(readStatus({
+      id: "customers",
+      label: "Customer source",
+      state: customerList.state === "EMPTY" ? "EMPTY_READ" : "LIVE_READ",
+      sourceOfTruth: "Existing Customers / Unified CRM customer list",
+      detail: customerList.state === "EMPTY" ? "Customer source returned no visible records." : `${customerList.items.length} source-owned customer records are available.`,
+      href: customerList.source.href
+    }, customerList.freshness.observedAt));
+  } catch {
+    statuses.push(readStatus({
+      id: "customers",
+      label: "Customer source",
+      state: "FALLBACK_READ",
+      sourceOfTruth: "Existing Customers / Unified CRM customer list",
+      detail: "Customer source is unavailable, gated, or inaccessible; CRM Next is showing protected preview data.",
+      href: "/customers"
+    }, observedAt));
+  }
+
+  try {
+    const search = await (dependencies.searchReader ?? searchUnifiedCrm)(actor, {
+      limit: 12,
+      q: dependencies.searchQuery ?? "customer"
+    });
+    model = {
+      ...model,
+      search: {
+        ...model.search,
+        groups: search.groups.length ? searchGroupsFromUnifiedCrm(search) : model.search.groups
+      }
+    };
+    statuses.push(readStatus({
+      id: "search",
+      label: "Unified CRM search",
+      state: search.state === "EMPTY" ? "EMPTY_READ" : "LIVE_READ",
+      sourceOfTruth: "Existing Unified CRM global search",
+      detail: search.state === "EMPTY" ? "Search source returned no matching records." : `${search.resultCount} grouped source-owned results are available.`,
+      href: "/crm-next/search"
+    }, search.freshness.observedAt));
+  } catch {
+    statuses.push(readStatus({
+      id: "search",
+      label: "Unified CRM search",
+      state: "FALLBACK_READ",
+      sourceOfTruth: "Existing Unified CRM global search",
+      detail: "Search source is unavailable, gated, or inaccessible; CRM Next keeps safe search group fallbacks.",
+      href: "/crm-next/search"
+    }, observedAt));
+  }
+
+  const state = operationalState(statuses);
+  return {
+    ...model,
+    operationalRead: {
+      state,
+      safety: "Operational CRM Next reads reuse existing source-owned services. Writes, live communications, task creation, migration, and route replacement remain disabled.",
+      sources: statuses
+    }
+  };
+}
+
+export async function getCrmNextOperationalCustomer360(
+  actor: AuthenticatedUser | null,
+  customerId: string,
+  dependencies: CrmNextOperationalReadDependencies = {}
+): Promise<{ customer: CrmNextCustomer360; model: CrmNextCommandCenter }> {
+  let model = await getCrmNextOperationalCommandCenter(actor, dependencies);
+  const now = dependencies.now?.() ?? new Date();
+  const observedAt = now.toISOString();
+  try {
+    const customer360 = await (dependencies.customer360Reader ?? getUnifiedCrmCustomer360)(actor, customerId);
+    const customer = crmNextCustomerFrom360(customer360);
+    const sourceStatus = readStatus({
+      id: "customer-360",
+      label: "Customer 360 detail",
+      state: "LIVE_READ",
+      sourceOfTruth: "Existing Unified CRM Customer 360",
+      detail: "Customer detail, vehicles, appointments, opportunities, cases, and timeline are source-owned read-only records.",
+      href: customer360.source.href
+    }, customer360.freshness.observedAt);
+    const timeline = timelineFrom360(customer360);
+    const timelineStatus = readStatus({
+      id: "timeline",
+      label: "Customer timeline",
+      state: customer360.timeline.state === "EMPTY" ? "EMPTY_READ" : "LIVE_READ",
+      sourceOfTruth: "Existing customer timeline / ActivityEvent infrastructure",
+      detail: customer360.timeline.state === "EMPTY" ? customer360.timeline.emptyMessage : `${customer360.timeline.itemCount} source-linked timeline records are available.`,
+      href: customer360.source.href
+    }, customer360.timeline.freshness.observedAt);
+    model = {
+      ...model,
+      customers: [customer, ...model.customers.filter((record) => record.id !== customer.id)],
+      timeline: timeline.length ? timeline : model.timeline,
+      operationalRead: {
+        ...model.operationalRead,
+        state: operationalState([...model.operationalRead.sources, sourceStatus, timelineStatus]),
+        sources: [...model.operationalRead.sources, sourceStatus, timelineStatus]
+      }
+    };
+    return { customer, model };
+  } catch {
+    const fallbackCustomer = model.customers.find((customer) => customer.id === customerId) ?? model.customers[0];
+    model = {
+      ...model,
+      operationalRead: {
+        ...model.operationalRead,
+        state: operationalState([
+          ...model.operationalRead.sources,
+          readStatus({
+            id: "customer-360",
+            label: "Customer 360 detail",
+            state: "FALLBACK_READ",
+            sourceOfTruth: "Existing Unified CRM Customer 360",
+            detail: "Customer detail source is unavailable, gated, inaccessible, or the record was not found; CRM Next stayed in protected read-only fallback.",
+            href: "/customers"
+          }, observedAt)
+        ]),
+        sources: [
+          ...model.operationalRead.sources,
+          readStatus({
+            id: "customer-360",
+            label: "Customer 360 detail",
+            state: "FALLBACK_READ",
+            sourceOfTruth: "Existing Unified CRM Customer 360",
+            detail: "Customer detail source is unavailable, gated, inaccessible, or the record was not found; CRM Next stayed in protected read-only fallback.",
+            href: "/customers"
+          }, observedAt)
+        ]
+      }
+    };
+    return { customer: fallbackCustomer, model };
+  }
+}
+
 export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Date = new Date()): CrmNextCommandCenter {
   const access = resolveCrmNextAccess(actor);
   if (!access.allowed) {
@@ -1784,12 +2200,27 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
       previewEnabled: true,
       message: "Action-to-task dispatch bridge is in review mode. No Dispatch Board task is created yet."
     },
+    operationalRead: {
+      state: "FALLBACK_READ",
+      safety: "Static CRM Next review data is active until existing source-owned read services are available for this user.",
+      sources: [
+        {
+          id: "customers",
+          label: "Customer source",
+          state: "FALLBACK_READ",
+          sourceOfTruth: "Existing Customers / Unified CRM customer list",
+          detail: "Protected preview data is displayed by the base CRM Next read model.",
+          observedAt: now.toISOString(),
+          href: "/customers"
+        }
+      ]
+    },
     progress: {
       completedCount: progressMilestones.filter((milestone) => ["IMPLEMENTED_UNVERIFIED", "VERIFIED"].includes(milestone.status)).length,
-      envelopeCount: 20,
+      envelopeCount: 25,
       verifiedCount: progressMilestones.filter((milestone) => milestone.status === "VERIFIED").length,
       heldCount: progressMilestones.filter((milestone) => milestone.status === "HELD").length,
-      nextMilestone: "Pilot approval",
+      nextMilestone: "CRMN-100",
       milestones: progressMilestones
     }
   };

@@ -109,6 +109,27 @@ function Topbar() {
   );
 }
 
+function OperationalSourceStrip({ model }: { model: CrmNextCommandCenter }) {
+  return (
+    <section className={styles.sourceStrip} aria-label="CRM Next source status">
+      <div>
+        <span className={styles.eyebrow}>Operational read status</span>
+        <strong>{model.operationalRead.state.replaceAll("_", " ")}</strong>
+        <p>{model.operationalRead.safety}</p>
+      </div>
+      <div className={styles.sourcePills}>
+        {model.operationalRead.sources.map((source) => (
+          <Link className={styles.sourcePill} data-state={source.state} href={source.href} key={`${source.id}-${source.observedAt}`}>
+            <span>{source.label}</span>
+            <b>{source.state.replaceAll("_", " ")}</b>
+            <small>{source.sourceOfTruth}</small>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function UniversalActionBar({ customerHref = "/crm-next/customers/michael-johnson" }: { customerHref?: string }) {
   return (
     <nav className={styles.actionBar} aria-label="CRM Next safe actions">
@@ -126,6 +147,7 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
   return (
     <CrmNextFrame active="command" userName={model.userName}>
       <Topbar />
+      <OperationalSourceStrip model={model} />
       <section className={styles.hero}>
         <div>
           <span className={styles.eyebrow}>Command Center Dashboard</span>
@@ -222,6 +244,7 @@ export function CrmNextProgressView({ model }: { model: CrmNextCommandCenter }) 
   return (
     <CrmNextFrame active="progress" userName={model.userName}>
       <Topbar />
+      <OperationalSourceStrip model={model} />
       <section className={styles.hero}>
         <div>
           <span className={styles.eyebrow}>Implementation Progress</span>
@@ -249,7 +272,7 @@ export function CrmNextProgressView({ model }: { model: CrmNextCommandCenter }) 
             <h2>CRM Next milestone envelope</h2>
             <p className={styles.muted}>Built sequentially. Each slice gets checks, honest status, and a commit checkpoint before the next one.</p>
           </div>
-          <span className={styles.pill}>CRMN-016 → CRMN-094</span>
+          <span className={styles.pill}>CRMN-016 → CRMN-119</span>
         </header>
         <div className={styles.progressList}>
           {model.progress.milestones.map((milestone) => (
@@ -297,6 +320,7 @@ export function CrmNextNeedsAttentionView({ model }: { model: CrmNextCommandCent
   return (
     <CrmNextFrame active="attention" userName={model.userName}>
       <Topbar />
+      <OperationalSourceStrip model={model} />
       <section className={styles.hero}>
         <div>
           <span className={styles.eyebrow}>Needs Attention List</span>
@@ -318,6 +342,7 @@ export function CrmNextSearchView({ model }: { model: CrmNextCommandCenter }) {
   return (
     <CrmNextFrame active="search" userName={model.userName}>
       <Topbar />
+      <OperationalSourceStrip model={model} />
       <section className={styles.hero}>
         <div>
           <span className={styles.eyebrow}>Safe Global Search</span>
@@ -343,6 +368,7 @@ export function CrmNextTimelineView({ model }: { model: CrmNextCommandCenter }) 
   return (
     <CrmNextFrame active="timeline" userName={model.userName}>
       <Topbar />
+      <OperationalSourceStrip model={model} />
       <section className={styles.hero}>
         <div>
           <span className={styles.eyebrow}>Unified Timeline</span>
@@ -882,6 +908,7 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
   return (
     <CrmNextFrame active="customer" userName={model.userName}>
       <Topbar />
+      <OperationalSourceStrip model={model} />
       <section className={styles.hero}>
         <div>
           <span className={styles.eyebrow}>Customer 360 Overview</span>

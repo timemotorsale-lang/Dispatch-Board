@@ -25,6 +25,7 @@ describe("CRM Next access and safe bridge", () => {
   });
 
   it("keeps CRM Next off unless the CRM_NEXT flag is explicitly enabled", () => {
+    delete process.env.CRM_NEXT;
     expect(resolveCrmNextMode({ flag: undefined })).toBe("OFF");
     expect(resolveCrmNextMode({ flag: "false" })).toBe("OFF");
     expect(resolveCrmNextMode({ flag: "REVIEW" })).toBe("REVIEW");
@@ -42,8 +43,9 @@ describe("CRM Next access and safe bridge", () => {
     const model = getCrmNextCommandCenter(user(["General Manager"]));
     expect(model.bridge.liveTaskCreationEnabled).toBe(false);
     expect(model.bridge.previewEnabled).toBe(true);
-    expect(model.progress.envelopeCount).toBe(20);
-    expect(model.progress.nextMilestone).toBe("Pilot approval");
+    expect(model.progress.envelopeCount).toBe(25);
+    expect(model.progress.nextMilestone).toBe("CRMN-100");
+    expect(model.operationalRead.state).toBe("FALLBACK_READ");
     expect(model.search.groups).toHaveLength(5);
     expect(model.ownershipSupport.map((record) => record.domain)).toEqual(
       expect.arrayContaining(["Vehicle", "Finance", "Payment", "Case", "Title/Document", "Service", "Rental/Loaner", "Customer Issue", "Insurance"])
@@ -121,6 +123,11 @@ describe("CRM Next access and safe bridge", () => {
     );
     expect(pilotReleaseEnvelope).toHaveLength(4);
     expect(pilotReleaseEnvelope.find((milestone) => milestone.id === "CRMN-094")?.status).toBe("HELD");
+    const operationalReadEnvelope = model.progress.milestones.filter((milestone) =>
+      /^CRMN-09[5-9]$/.test(milestone.id)
+    );
+    expect(operationalReadEnvelope).toHaveLength(5);
+    expect(operationalReadEnvelope.every((milestone) => milestone.status === "IMPLEMENTED_UNVERIFIED")).toBe(true);
   });
 
   it("rejects ineligible users and does not create a dispatch task from the bridge", () => {

@@ -1,7 +1,7 @@
 import { CrmNextUnavailable, CrmNextWorkCustomerView } from "@/features/crm-next/crm-next-shell";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { resolveCrmNextAccess } from "@/server/crm-next/access";
-import { getCrmNextAttentionItem, getCrmNextCommandCenter } from "@/server/crm-next/read-model";
+import { getCrmNextAttentionItem, getCrmNextOperationalCommandCenter } from "@/server/crm-next/read-model";
 
 type CrmNextWorkPageProps = {
   params: Promise<{ itemId: string }>;
@@ -16,10 +16,11 @@ export default async function CrmNextWorkPage({ params }: CrmNextWorkPageProps) 
   }
 
   const { itemId } = await params;
+  const model = await getCrmNextOperationalCommandCenter(user);
   return (
     <CrmNextWorkCustomerView
-      item={getCrmNextAttentionItem(user, itemId)}
-      model={getCrmNextCommandCenter(user)}
+      item={model.attention.find((item) => item.id === itemId) ?? getCrmNextAttentionItem(user, itemId)}
+      model={model}
     />
   );
 }

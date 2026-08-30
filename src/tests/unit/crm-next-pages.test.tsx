@@ -97,6 +97,7 @@ describe("CRM Next pages", () => {
 
     expect(command).toContain("Who needs attention?");
     expect(command).toContain("CRM Next Preview");
+    expect(command).toContain("Operational read status");
     expect(command).toContain("Compact review cockpit");
     expect(command).toContain("Employee Command Center");
     expect(command).toContain("Manager Command Center");
@@ -139,12 +140,12 @@ describe("CRM Next pages", () => {
     expect(coexistence).toContain("CRMN-087 → CRMN-090 coexistence packet");
     expect(coexistence).toContain("Capability migration remains deliberate");
     expect(coexistence).toContain("Legacy retirement is not approved");
-    expect(coexistence).toContain("Pilot approval");
+    expect(coexistence).toContain("CRMN-100");
     expect(pilotRelease).toContain("Ready for review, not ready for launch without approval");
     expect(pilotRelease).toContain("CRMN-091 → CRMN-094 pilot release packet");
     expect(pilotRelease).toContain("Promotion checklist is ready for reviewers");
     expect(pilotRelease).toContain("Pilot launch is held for leadership approval");
-    expect(pilotRelease).toContain("Pilot approval");
+    expect(pilotRelease).toContain("CRMN-100");
     expect(search).toContain("Find the customer");
     expect(search).toContain("Deals and Opportunities");
     expect(timeline).toContain("Customer activity without source drift");
@@ -157,7 +158,7 @@ describe("CRM Next pages", () => {
     expect(permissions).toContain("Denied users fail closed");
     expect(rollback).toContain("CRM Next can be turned off safely");
     expect(progress).toContain("CRM Next build cockpit");
-    expect(progress).toContain("CRMN-016 → CRMN-094");
+    expect(progress).toContain("CRMN-016 → CRMN-119");
     expect(progress).toContain("CRMN-035");
     expect(progress).toContain("CRMN-048");
     expect(progress).toContain("CRMN-054");
@@ -170,6 +171,8 @@ describe("CRM Next pages", () => {
     expect(progress).toContain("CRMN-090");
     expect(progress).toContain("CRMN-091");
     expect(progress).toContain("CRMN-094");
-    expect(progress).toContain("Pilot approval");
+    expect(progress).toContain("CRMN-095");
+    expect(progress).toContain("CRMN-099");
+    expect(progress).toContain("CRMN-100");
   });
 });
