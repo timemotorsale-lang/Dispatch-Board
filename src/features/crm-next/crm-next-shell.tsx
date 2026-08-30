@@ -53,7 +53,7 @@ export function CrmNextUnavailable({ fallbackHref, reason }: { fallbackHref: str
   );
 }
 
-function CrmNextFrame({ active, children, userName }: { active: "command" | "attention" | "customer" | "work" | "progress" | "search" | "pipeline" | "timeline" | "support" | "execution" | "intelligence" | "safety"; children: React.ReactNode; userName: string }) {
+function CrmNextFrame({ active, children, userName }: { active: "command" | "attention" | "customer" | "work" | "progress" | "search" | "pipeline" | "timeline" | "support" | "execution" | "intelligence" | "pilot" | "hardening" | "coexistence" | "release" | "safety"; children: React.ReactNode; userName: string }) {
   const links = [
     { id: "command", href: "/crm-next", label: "Command Center", icon: LayoutDashboard },
     { id: "customer", href: "/crm-next/customers/michael-johnson", label: "Customers", icon: Users },
@@ -64,6 +64,10 @@ function CrmNextFrame({ active, children, userName }: { active: "command" | "att
     { id: "support", href: "/crm-next/ownership-support", label: "Ownership & Support", icon: FileText },
     { id: "execution", href: "/crm-next/shared-execution", label: "Shared Execution", icon: ClipboardCheck },
     { id: "intelligence", href: "/crm-next/intelligence-foundation", label: "Intelligence", icon: Brain },
+    { id: "pilot", href: "/crm-next/pilot-readiness", label: "Pilot Readiness", icon: ShieldCheck },
+    { id: "hardening", href: "/crm-next/hardening", label: "Hardening", icon: ShieldCheck },
+    { id: "coexistence", href: "/crm-next/coexistence", label: "Coexistence", icon: FileText },
+    { id: "release", href: "/crm-next/pilot-release", label: "Pilot Release", icon: CheckCircle2 },
     { id: "timeline", href: "/crm-next/timeline", label: "Timeline", icon: FileSearch },
     { id: "progress", href: "/crm-next/progress", label: "Progress", icon: Target }
   ] as const;
@@ -125,13 +129,14 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
       <section className={styles.hero}>
         <div>
           <span className={styles.eyebrow}>Command Center Dashboard</span>
-          <h1>Who needs attention?</h1>
-          <p>Start with the customer, understand the reason, then work the next action.</p>
+          <h1>{model.commandCenter.headline}</h1>
+          <p>{model.commandCenter.guidance}</p>
         </div>
         <div className={styles.quickActions}>
           <Link className={styles.primaryButton} href="/crm-next/needs-attention"><Bell size={16} /> View attention queue</Link>
           <Link className={styles.secondaryButton} href="/crm-next/search"><Search size={16} /> Search CRM Next</Link>
           <Link className={styles.secondaryButton} href="/crm-next/customers/michael-johnson"><Users size={16} /> Open Customer 360</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/pilot-readiness"><ShieldCheck size={16} /> Pilot readiness</Link>
           <Link className={styles.secondaryButton} href="/crm-next/progress"><Target size={16} /> View progress</Link>
         </div>
       </section>
@@ -143,6 +148,24 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
             <strong>{item.value}</strong>
             <p>{item.trend}</p>
           </article>
+        ))}
+      </section>
+
+      <section className={styles.commandModeGrid} aria-label="CRM Next command center review modes">
+        {model.commandCenter.modes.map((mode) => (
+          <Link className={styles.commandModeCard} href={mode.href} id={mode.id} key={mode.id}>
+            <span className={styles.eyebrow}>{mode.milestone} · {mode.audience}</span>
+            <div>
+              <h2>{mode.title}</h2>
+              <b>{mode.state}</b>
+            </div>
+            <p>{mode.objective}</p>
+            <dl>
+              <div><dt>Primary</dt><dd>{mode.primaryMetric}</dd></div>
+              <div><dt>Secondary</dt><dd>{mode.secondaryMetric}</dd></div>
+            </dl>
+            <small>{mode.guidance}</small>
+          </Link>
         ))}
       </section>
 
@@ -226,7 +249,7 @@ export function CrmNextProgressView({ model }: { model: CrmNextCommandCenter }) 
             <h2>CRM Next milestone envelope</h2>
             <p className={styles.muted}>Built sequentially. Each slice gets checks, honest status, and a commit checkpoint before the next one.</p>
           </div>
-          <span className={styles.pill}>CRMN-016 → CRMN-067</span>
+          <span className={styles.pill}>CRMN-016 → CRMN-094</span>
         </header>
         <div className={styles.progressList}>
           {model.progress.milestones.map((milestone) => (
@@ -599,6 +622,223 @@ export function CrmNextIntelligenceFoundationView({ model }: { model: CrmNextCom
   );
 }
 
+export function CrmNextPilotReadinessView({ model }: { model: CrmNextCommandCenter }) {
+  return (
+    <CrmNextFrame active="pilot" userName={model.userName}>
+      <Topbar />
+      <section className={styles.hero}>
+        <div>
+          <span className={styles.eyebrow}>Pilot Readiness</span>
+          <h1>Enough substance to review before we turn anything live</h1>
+          <p>Expanded pilot scenarios show customers, queues, Customer 360 context, timeline activity, and manager review paths while preserving source-of-truth ownership.</p>
+        </div>
+        <div className={styles.quickActions}>
+          <Link className={styles.primaryButton} href="/crm-next">Command Center</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/progress">Progress</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/intelligence-foundation">Intelligence</Link>
+        </div>
+      </section>
+
+      <section className={styles.summaryGrid} aria-label="CRM Next pilot scenario summary">
+        <article className={styles.summaryCard} data-tone="blue"><small>Pilot scenarios</small><strong>{model.pilotScenarios.length}</strong><p>review records</p></article>
+        <article className={styles.summaryCard}><small>Writes</small><strong>0</strong><p>still disabled</p></article>
+        <article className={styles.summaryCard}><small>Live comms</small><strong>0</strong><p>not enabled</p></article>
+        <article className={styles.summaryCard}><small>Route replacement</small><strong>No</strong><p>Legacy protected</p></article>
+        <article className={styles.summaryCard}><small>Next</small><strong>{model.progress.nextMilestone}</strong><p>hardening gate</p></article>
+      </section>
+
+      <article className={styles.card}>
+        <header>
+          <div>
+            <h2>CRMN-075 → CRMN-079 pilot scenario expansion</h2>
+            <p className={styles.muted}>Each scenario explains what reviewers should inspect, which source system owns the data, and what remains gated.</p>
+          </div>
+          <span className={styles.pill}>IMPLEMENTED_UNVERIFIED</span>
+        </header>
+        <div className={styles.pilotScenarioGrid}>
+          {model.pilotScenarios.map((scenario) => (
+            <Link className={styles.pilotScenarioCard} href={scenario.href} id={scenario.id} key={scenario.id}>
+              <span className={styles.eyebrow}>{scenario.milestone} · {scenario.category}</span>
+              <h3>{scenario.title}</h3>
+              <p>{scenario.summary}</p>
+              <div className={styles.metaLine}>
+                <span>{scenario.reviewState}</span>
+                <small>{scenario.sourceOfTruth}</small>
+              </div>
+              <p className={styles.safeNotice}>{scenario.nextReviewStep}</p>
+            </Link>
+          ))}
+        </div>
+      </article>
+    </CrmNextFrame>
+  );
+}
+
+export function CrmNextHardeningView({ model }: { model: CrmNextCommandCenter }) {
+  return (
+    <CrmNextFrame active="hardening" userName={model.userName}>
+      <Topbar />
+      <section className={styles.hero}>
+        <div>
+          <span className={styles.eyebrow}>Release Hardening</span>
+          <h1>Controls before pilot promotion</h1>
+          <p>CRM Next can be reviewed with richer scenarios, but migration, live communication, customer writes, manager overrides, and route replacement remain gated.</p>
+        </div>
+        <div className={styles.quickActions}>
+          <Link className={styles.primaryButton} href="/crm-next/pilot-readiness">Pilot readiness</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/progress">Progress</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/system/rollback">Rollback proof</Link>
+        </div>
+      </section>
+
+      <section className={styles.summaryGrid} aria-label="CRM Next hardening summary">
+        <article className={styles.summaryCard} data-tone="blue"><small>Hardening gates</small><strong>{model.hardeningGates.length}</strong><p>review controls</p></article>
+        <article className={styles.summaryCard}><small>Held gate</small><strong>CRMN-080</strong><p>migration approval</p></article>
+        <article className={styles.summaryCard}><small>Customer writes</small><strong>0</strong><p>still disabled</p></article>
+        <article className={styles.summaryCard}><small>Route replacement</small><strong>No</strong><p>Legacy protected</p></article>
+        <article className={styles.summaryCard}><small>Next</small><strong>{model.progress.nextMilestone}</strong><p>coexistence plan</p></article>
+      </section>
+
+      <article className={styles.card}>
+        <header>
+          <div>
+            <h2>CRMN-080 → CRMN-086 hardening packet</h2>
+            <p className={styles.muted}>This packet makes the pilot controls reviewable without turning on live operational commands.</p>
+          </div>
+          <span className={styles.pill}>approval-gated</span>
+        </header>
+        <div className={styles.pilotScenarioGrid}>
+          {model.hardeningGates.map((gate) => (
+            <article className={styles.pilotScenarioCard} id={gate.id} key={gate.id}>
+              <span className={styles.eyebrow}>{gate.milestone} · {gate.category}</span>
+              <h3>{gate.title}</h3>
+              <p>{gate.proof}</p>
+              <div className={styles.metaLine}>
+                <span>{gate.reviewState}</span>
+                <b className={statusClass(gate.status)}>{gate.status}</b>
+              </div>
+              <p className={styles.safeNotice}>{gate.riskControl}</p>
+              <p>{gate.nextStep}</p>
+            </article>
+          ))}
+        </div>
+      </article>
+    </CrmNextFrame>
+  );
+}
+
+export function CrmNextCoexistenceView({ model }: { model: CrmNextCommandCenter }) {
+  return (
+    <CrmNextFrame active="coexistence" userName={model.userName}>
+      <Topbar />
+      <section className={styles.hero}>
+        <div>
+          <span className={styles.eyebrow}>Legacy Coexistence</span>
+          <h1>CRM Next can be reviewed without replacing today’s CRM</h1>
+          <p>Legacy Customers and current CRM remain operational while CRM Next proves whether it is ready to become the replacement experience.</p>
+        </div>
+        <div className={styles.quickActions}>
+          <Link className={styles.primaryButton} href="/crm-next">CRM Next</Link>
+          <Link className={styles.secondaryButton} href="/customers">Legacy Customers</Link>
+          <Link className={styles.secondaryButton} href="/crm">Current CRM</Link>
+        </div>
+      </section>
+
+      <section className={styles.summaryGrid} aria-label="CRM Next coexistence summary">
+        <article className={styles.summaryCard} data-tone="blue"><small>Coexistence gates</small><strong>{model.coexistenceGates.length}</strong><p>review controls</p></article>
+        <article className={styles.summaryCard}><small>Legacy routes</small><strong>Open</strong><p>protected</p></article>
+        <article className={styles.summaryCard}><small>Default route</small><strong>No</strong><p>not replaced</p></article>
+        <article className={styles.summaryCard}><small>Retirement</small><strong>Held</strong><p>approval needed</p></article>
+        <article className={styles.summaryCard}><small>Next</small><strong>{model.progress.nextMilestone}</strong><p>pilot gates</p></article>
+      </section>
+
+      <article className={styles.card}>
+        <header>
+          <div>
+            <h2>CRMN-087 → CRMN-090 coexistence packet</h2>
+            <p className={styles.muted}>This page is the safe bridge between review, pilot, and any future cutover decision.</p>
+          </div>
+          <span className={styles.pill}>parallel replacement</span>
+        </header>
+        <div className={styles.pilotScenarioGrid}>
+          {model.coexistenceGates.map((gate) => (
+            <article className={styles.pilotScenarioCard} id={gate.id} key={gate.id}>
+              <span className={styles.eyebrow}>{gate.milestone}</span>
+              <h3>{gate.title}</h3>
+              <p>{gate.crmNextRole}</p>
+              <div className={styles.details}>
+                <p><span>Legacy owner</span>{gate.legacyOwner}</p>
+                <p><span>Cutover rule</span>{gate.cutoverRule}</p>
+                <p><span>Rollback rule</span>{gate.rollbackRule}</p>
+              </div>
+              <div className={styles.metaLine}>
+                <span>{gate.safety}</span>
+                <b className={statusClass(gate.status)}>{gate.status}</b>
+              </div>
+            </article>
+          ))}
+        </div>
+      </article>
+    </CrmNextFrame>
+  );
+}
+
+export function CrmNextPilotReleaseView({ model }: { model: CrmNextCommandCenter }) {
+  return (
+    <CrmNextFrame active="release" userName={model.userName}>
+      <Topbar />
+      <section className={styles.hero}>
+        <div>
+          <span className={styles.eyebrow}>Pilot Release Gates</span>
+          <h1>Ready for review, not ready for launch without approval</h1>
+          <p>The final CRM Next pilot gates show what must be reviewed before any broader rollout, live command, or Legacy replacement is allowed.</p>
+        </div>
+        <div className={styles.quickActions}>
+          <Link className={styles.primaryButton} href="/crm-next/progress">Progress cockpit</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/hardening">Hardening</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/coexistence">Coexistence</Link>
+        </div>
+      </section>
+
+      <section className={styles.summaryGrid} aria-label="CRM Next pilot release summary">
+        <article className={styles.summaryCard} data-tone="blue"><small>Release gates</small><strong>{model.pilotReleaseGates.length}</strong><p>final checks</p></article>
+        <article className={styles.summaryCard}><small>Launch</small><strong>Held</strong><p>approval needed</p></article>
+        <article className={styles.summaryCard}><small>Live commands</small><strong>0</strong><p>not enabled</p></article>
+        <article className={styles.summaryCard}><small>Legacy</small><strong>Open</strong><p>fallback kept</p></article>
+        <article className={styles.summaryCard}><small>Next</small><strong>{model.progress.nextMilestone}</strong><p>decision gate</p></article>
+      </section>
+
+      <article className={styles.card}>
+        <header>
+          <div>
+            <h2>CRMN-091 → CRMN-094 pilot release packet</h2>
+            <p className={styles.muted}>This is the review checklist before CRM Next can become a controlled pilot instead of a protected preview.</p>
+          </div>
+          <span className={styles.pill}>launch held</span>
+        </header>
+        <div className={styles.pilotScenarioGrid}>
+          {model.pilotReleaseGates.map((gate) => (
+            <article className={styles.pilotScenarioCard} id={gate.id} key={gate.id}>
+              <span className={styles.eyebrow}>{gate.milestone} · {gate.owner}</span>
+              <h3>{gate.title}</h3>
+              <p>{gate.requirement}</p>
+              <div className={styles.details}>
+                <p><span>Decision</span>{gate.decision}</p>
+                <p><span>Proof</span>{gate.proof}</p>
+                <p><span>Cannot proceed until</span>{gate.cannotProceedUntil}</p>
+              </div>
+              <div className={styles.metaLine}>
+                <span>Promotion gate</span>
+                <b className={statusClass(gate.status)}>{gate.status}</b>
+              </div>
+            </article>
+          ))}
+        </div>
+      </article>
+    </CrmNextFrame>
+  );
+}
+
 export function CrmNextSafetyView({ kind, model }: { kind: "states" | "permissions" | "rollback"; model: CrmNextCommandCenter }) {
   const copy = {
     states: {
@@ -710,21 +950,37 @@ export function CrmNextWorkCustomerView({ item, model }: { item: CrmNextAttentio
     <CrmNextFrame active="work" userName={model.userName}>
       <section className={styles.workShell}>
         <header className={styles.workHero}>
-          <Link href="/crm-next/needs-attention">← Back to attention queue</Link>
-          <span className={styles.eyebrow}>Customer Workbench</span>
-          <h1 className={styles.workTitle}>Attend: {item.customerName}</h1>
-          <p className={styles.muted}>{item.reason} · {item.area} · Owner: {item.owner}</p>
-          <div className={styles.workActions}>
-            <Link className={styles.primaryButton} href="#suggested"><Phone size={16} /> Log Call</Link>
-            <Link className={styles.secondaryButton} href="#suggested"><Mail size={16} /> Send Message</Link>
-            <Link className={styles.secondaryButton} href="/crm-next/customers/michael-johnson">Customer 360</Link>
-            <Link className={styles.secondaryButton} href="/crm-next#pipeline">Estimate / Deal</Link>
+          <div className={styles.workHeroMeta}>
+            <div className={styles.workHeroBreadcrumbs}>
+              <span className={styles.eyebrow}>Customer Workbench</span>
+              <Link href="/crm-next/needs-attention">← Back to attention queue</Link>
+            </div>
+            <span className={levelClass(item.level)}>{item.level}</span>
+          </div>
+          <div className={styles.workHeroBody}>
+            <div>
+              <h1 className={styles.workTitle}>Attend: {item.customerName}</h1>
+              <p className={styles.muted}>{item.reason} · {item.area} · Owner: {item.owner}</p>
+            </div>
+            <div className={styles.workActions}>
+              <Link className={styles.primaryButton} href="#suggested"><Phone size={16} /> Log Call</Link>
+              <Link className={styles.secondaryButton} href="#suggested"><Mail size={16} /> Send Message</Link>
+              <Link className={styles.secondaryButton} href="/crm-next/customers/michael-johnson">Customer 360</Link>
+              <Link className={styles.secondaryButton} href="/crm-next#pipeline">Estimate / Deal</Link>
+            </div>
           </div>
         </header>
         <main>
           <article className={styles.card}>
-            <header><h2>What do you need to do?</h2><span className={levelClass(item.level)}>{item.level}</span></header>
-            <UniversalActionBar customerHref={item.customerHref} />
+            <header><h2>Choose the next customer action</h2><span className={levelClass(item.level)}>{item.level}</span></header>
+          <div className={styles.workActions}>
+            <Link className={styles.primaryButton} href="#suggested"><Phone size={16} /> Call preview</Link>
+            <Link className={styles.secondaryButton} href="#suggested"><MessageSquare size={16} /> Text preview</Link>
+            <Link className={styles.secondaryButton} href="#suggested"><Mail size={16} /> Email preview</Link>
+            <Link className={styles.secondaryButton} href="/crm-next/appointments"><CalendarDays size={16} /> Appointments</Link>
+            <Link className={styles.secondaryButton} href="#dispatch-preview"><ClipboardCheck size={16} /> Task bridge</Link>
+            <Link className={styles.secondaryButton} href={item.customerHref}><Users size={16} /> Customer 360</Link>
+          </div>
             <div className={styles.actionCards}>
               <Link className={styles.actionCard} href="#suggested"><Phone size={18} /><strong>Follow up</strong><p className={styles.muted}>{item.reason}</p></Link>
               <Link className={styles.actionCard} href="#finance-held"><DollarSign size={18} /><strong>Collect payment</strong><p className={styles.muted}>Finance actions are review-only.</p></Link>

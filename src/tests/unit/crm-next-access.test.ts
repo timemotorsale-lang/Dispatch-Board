@@ -43,7 +43,7 @@ describe("CRM Next access and safe bridge", () => {
     expect(model.bridge.liveTaskCreationEnabled).toBe(false);
     expect(model.bridge.previewEnabled).toBe(true);
     expect(model.progress.envelopeCount).toBe(20);
-    expect(model.progress.nextMilestone).toBe("CRMN-068");
+    expect(model.progress.nextMilestone).toBe("Pilot approval");
     expect(model.search.groups).toHaveLength(5);
     expect(model.ownershipSupport.map((record) => record.domain)).toEqual(
       expect.arrayContaining(["Vehicle", "Finance", "Payment", "Case", "Title/Document", "Service", "Rental/Loaner", "Customer Issue", "Insurance"])
@@ -77,6 +77,50 @@ describe("CRM Next access and safe bridge", () => {
     );
     expect(intelligenceEnvelope).toHaveLength(8);
     expect(intelligenceEnvelope.every((milestone) => milestone.status === "IMPLEMENTED_UNVERIFIED")).toBe(true);
+    expect(model.commandCenter.headline).toBe("Who needs attention?");
+    expect(model.commandCenter.modes.map((mode) => mode.milestone)).toEqual(["CRMN-068", "CRMN-069", "CRMN-070", "CRMN-071", "CRMN-072", "CRMN-073", "CRMN-074"]);
+    expect(model.commandCenter.modes.find((mode) => mode.milestone === "CRMN-071")?.state).toBe("Preview only");
+    const commandCenterEnvelope = model.progress.milestones.filter((milestone) =>
+      /^CRMN-0(6[8-9]|7[0-4])$/.test(milestone.id)
+    );
+    expect(commandCenterEnvelope).toHaveLength(7);
+    expect(commandCenterEnvelope.every((milestone) => milestone.status === "IMPLEMENTED_UNVERIFIED")).toBe(true);
+    expect(model.pilotScenarios).toHaveLength(5);
+    expect(model.pilotScenarios.map((scenario) => scenario.milestone)).toEqual(["CRMN-075", "CRMN-076", "CRMN-077", "CRMN-078", "CRMN-079"]);
+    expect(model.pilotScenarios.find((scenario) => scenario.milestone === "CRMN-077")?.sourceOfTruth).toContain("Customer 360 read model");
+    const pilotScenarioEnvelope = model.progress.milestones.filter((milestone) =>
+      /^CRMN-07[5-9]$/.test(milestone.id)
+    );
+    expect(pilotScenarioEnvelope).toHaveLength(5);
+    expect(pilotScenarioEnvelope.every((milestone) => milestone.status === "IMPLEMENTED_UNVERIFIED")).toBe(true);
+    expect(model.hardeningGates).toHaveLength(7);
+    expect(model.hardeningGates.map((gate) => gate.milestone)).toEqual(["CRMN-080", "CRMN-081", "CRMN-082", "CRMN-083", "CRMN-084", "CRMN-085", "CRMN-086"]);
+    expect(model.hardeningGates.find((gate) => gate.milestone === "CRMN-080")?.status).toBe("HELD");
+    expect(model.hardeningGates.find((gate) => gate.milestone === "CRMN-084")?.riskControl).toContain("No sensitive write");
+    const hardeningEnvelope = model.progress.milestones.filter((milestone) =>
+      /^CRMN-08[0-6]$/.test(milestone.id)
+    );
+    expect(hardeningEnvelope).toHaveLength(7);
+    expect(hardeningEnvelope.find((milestone) => milestone.id === "CRMN-080")?.status).toBe("HELD");
+    expect(hardeningEnvelope.filter((milestone) => milestone.status === "IMPLEMENTED_UNVERIFIED")).toHaveLength(6);
+    expect(model.coexistenceGates).toHaveLength(4);
+    expect(model.coexistenceGates.map((gate) => gate.milestone)).toEqual(["CRMN-087", "CRMN-088", "CRMN-089", "CRMN-090"]);
+    expect(model.coexistenceGates.find((gate) => gate.milestone === "CRMN-090")?.status).toBe("HELD");
+    expect(model.coexistenceGates.find((gate) => gate.milestone === "CRMN-088")?.legacyOwner).toContain("Existing backend models");
+    const coexistenceEnvelope = model.progress.milestones.filter((milestone) =>
+      /^CRMN-09[0]$|^CRMN-08[7-9]$/.test(milestone.id)
+    );
+    expect(coexistenceEnvelope).toHaveLength(4);
+    expect(coexistenceEnvelope.find((milestone) => milestone.id === "CRMN-090")?.status).toBe("HELD");
+    expect(model.pilotReleaseGates).toHaveLength(4);
+    expect(model.pilotReleaseGates.map((gate) => gate.milestone)).toEqual(["CRMN-091", "CRMN-092", "CRMN-093", "CRMN-094"]);
+    expect(model.pilotReleaseGates.find((gate) => gate.milestone === "CRMN-094")?.status).toBe("HELD");
+    expect(model.pilotReleaseGates.find((gate) => gate.milestone === "CRMN-093")?.requirement).toContain("typecheck");
+    const pilotReleaseEnvelope = model.progress.milestones.filter((milestone) =>
+      /^CRMN-09[1-4]$/.test(milestone.id)
+    );
+    expect(pilotReleaseEnvelope).toHaveLength(4);
+    expect(pilotReleaseEnvelope.find((milestone) => milestone.id === "CRMN-094")?.status).toBe("HELD");
   });
 
   it("rejects ineligible users and does not create a dispatch task from the bridge", () => {

@@ -200,3 +200,91 @@ Do not implement CRM Next on the shared `main` baseline directly. Start CRMN-010
 - Feedback-loop categories are foundation-only; no model training or automatic preference mutation occurs.
 
 **Progress truth:** CRMN-060 through CRMN-067 are marked `IMPLEMENTED_UNVERIFIED`, not `VERIFIED`, until broader proof and user review are complete. The next implementation marker is CRMN-068.
+
+## Implementation evidence — CRMN-068 through CRMN-074 Command Center review completion
+
+**Status:** IMPLEMENTED_UNVERIFIED  
+**Branch:** `codex/crm-next-pilot-readiness-envelope`  
+**Scope:** Added the first packet of the CRMN-068 through CRMN-094 pilot-readiness envelope: compact review UX completion, visible review-state labels, employee Command Center, manager Command Center, appointments/work summary, pipeline/intelligence summary, and team-response/load indicators.
+
+**Review location:** `/crm-next` with `CRM_NEXT=REVIEW`.
+
+**Safety posture:**
+- CRM Next remains behind `/crm-next` and `CRM_NEXT`.
+- Legacy `/customers`, current `/crm`, Dispatch Board, tasks, appointments, manager workspaces, and source-owned modules remain protected.
+- Command Center cards are review-safe and do not create, mutate, reassign, escalate, send, or complete work.
+- Employee and manager command views show guidance, metrics, and review paths without enabling live actions.
+- Appointments/work and pipeline/intelligence summaries link to existing CRM Next review surfaces while preserving source-of-truth ownership.
+- Team load indicators explain pressure without invisible reprioritization or assignment automation.
+
+**Progress truth:** CRMN-068 through CRMN-074 are marked `IMPLEMENTED_UNVERIFIED`, not `VERIFIED`, until broader proof and user review are complete. The next implementation marker is CRMN-075.
+
+## Implementation evidence — CRMN-075 through CRMN-079 pilot scenario expansion
+
+**Status:** IMPLEMENTED_UNVERIFIED  
+**Branch:** `codex/crm-next-pilot-readiness-envelope`  
+**Scope:** Added the second packet of the CRMN-068 through CRMN-094 pilot-readiness envelope: pilot customer scenarios, Needs Attention scenario expansion, Customer 360 context expansion, timeline/communications scenario coverage, and manager pilot-review scenarios.
+
+**Review location:** `/crm-next/pilot-readiness` with `CRM_NEXT=REVIEW`.
+
+**Safety posture:**
+- CRM Next remains behind `/crm-next` and `CRM_NEXT`.
+- Legacy `/customers`, current `/crm`, Dispatch Board, communication systems, and source-owned workspaces remain protected.
+- Pilot scenarios are read-only review records.
+- The page explains what reviewers should inspect, what source system owns the data, and what remains gated.
+- No customer write, opportunity write, payment action, live call, live text, live email, task creation, manager override, or route replacement is enabled.
+- Scenario links route reviewers back to already-gated CRM Next review surfaces instead of creating new operational commands.
+
+**Progress truth:** CRMN-075 through CRMN-079 are marked `IMPLEMENTED_UNVERIFIED`, not `VERIFIED`, until broader proof and user review are complete. The next implementation marker is CRMN-080.
+
+## Implementation evidence — CRMN-080 through CRMN-086 hardening packet
+
+**Status:** MIXED — CRMN-080 is `HELD`; CRMN-081 through CRMN-086 are `IMPLEMENTED_UNVERIFIED`  
+**Branch:** `codex/crm-next-pilot-readiness-envelope`  
+**Scope:** Added the third packet of the CRMN-068 through CRMN-094 pilot-readiness envelope: migration/reconciliation hold visibility, pilot proof plan, accessibility/responsive review checklist, performance budget posture, security/audit boundaries, rollback rehearsal posture, and one hardening evidence package.
+
+**Review location:** `/crm-next/hardening` with `CRM_NEXT=REVIEW`.
+
+**Safety posture:**
+- CRMN-080 is intentionally held because migration/reconciliation execution is outside this approval envelope.
+- CRM Next remains behind `/crm-next` and `CRM_NEXT`.
+- Legacy `/customers`, current `/crm`, Dispatch Board, communications, finance/payment, document, insurance, and manager-control systems remain protected.
+- Hardening gates are reviewer-facing evidence and do not promote, migrate, replace routes, create customer records, send communications, or create Dispatch Board tasks.
+- Rollback remains simple: disable `CRM_NEXT`, and CRM Next fails closed while Legacy/current CRM remain available.
+
+**Progress truth:** CRMN-080 is marked `HELD` until a later migration/cutover approval. CRMN-081 through CRMN-086 are marked `IMPLEMENTED_UNVERIFIED`, not `VERIFIED`, until broader proof and user review are complete. The next implementation marker is CRMN-087.
+
+## Implementation evidence — CRMN-087 through CRMN-090 Legacy coexistence packet
+
+**Status:** MIXED — CRMN-087 through CRMN-089 are `IMPLEMENTED_UNVERIFIED`; CRMN-090 is `HELD`  
+**Branch:** `codex/crm-next-pilot-readiness-envelope`  
+**Scope:** Added the fourth packet of the CRMN-068 through CRMN-094 pilot-readiness envelope: Legacy coexistence map, capability migration planning posture, pilot switchback rules, and explicit Legacy-retirement hold.
+
+**Review location:** `/crm-next/coexistence` with `CRM_NEXT=REVIEW`.
+
+**Safety posture:**
+- Legacy `/customers` and current `/crm` remain operational.
+- CRM Next remains a parallel review/replacement candidate behind `/crm-next` and `CRM_NEXT`.
+- Capability migration planning does not replace backend models, services, APIs, permissions, data, or integrations.
+- Users have visible switchback paths to current operational routes during pilot.
+- CRMN-090 is intentionally held because Legacy retirement requires explicit promotion/cutover approval.
+- No redirect, deletion, archive, deprecation, migration execution, or route replacement is included.
+
+**Progress truth:** CRMN-087 through CRMN-089 are marked `IMPLEMENTED_UNVERIFIED`, not `VERIFIED`, until broader proof and user review are complete. CRMN-090 is marked `HELD` until Legacy retirement is explicitly approved. The next implementation marker is CRMN-091.
+
+## Implementation evidence — CRMN-091 through CRMN-094 pilot release gates
+
+**Status:** MIXED — CRMN-091 through CRMN-093 are `IMPLEMENTED_UNVERIFIED`; CRMN-094 is `HELD`  
+**Branch:** `codex/crm-next-pilot-readiness-envelope`  
+**Scope:** Added the final packet of the CRMN-068 through CRMN-094 pilot-readiness envelope: pilot promotion checklist, training/operations readiness, release-candidate proof bundle visibility, and pilot-launch approval hold.
+
+**Review location:** `/crm-next/pilot-release` with `CRM_NEXT=REVIEW`.
+
+**Safety posture:**
+- CRM Next remains a protected preview until leadership explicitly approves pilot launch.
+- CRMN-094 is intentionally held; the implementation does not launch the pilot.
+- No customer writes, live communication, task creation, deal movement, manager override, migration execution, route replacement, or Legacy retirement is enabled.
+- The pilot release page is a reviewer-facing checklist and proof register, not an operational promotion command.
+- Legacy `/customers` and current `/crm` remain the safe operating fallback.
+
+**Progress truth:** CRMN-091 through CRMN-093 are marked `IMPLEMENTED_UNVERIFIED`, not `VERIFIED`, until the release-candidate proof bundle and user review are complete. CRMN-094 is marked `HELD` until pilot launch is explicitly approved. The envelope now points to `Pilot approval` as the next decision, not an automatic rollout.

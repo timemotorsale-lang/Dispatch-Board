@@ -123,6 +123,67 @@ export type CrmNextIntelligenceRecord = {
   href: string;
 };
 
+export type CrmNextCommandCenterMode = {
+  id: string;
+  milestone: "CRMN-068" | "CRMN-069" | "CRMN-070" | "CRMN-071" | "CRMN-072" | "CRMN-073" | "CRMN-074";
+  audience: "All staff" | "Employee" | "Manager";
+  title: string;
+  state: "Review ready" | "Preview only" | "Held";
+  objective: string;
+  primaryMetric: string;
+  secondaryMetric: string;
+  guidance: string;
+  href: string;
+};
+
+export type CrmNextPilotScenario = {
+  id: string;
+  milestone: "CRMN-075" | "CRMN-076" | "CRMN-077" | "CRMN-078" | "CRMN-079";
+  category: "Customer" | "Needs Attention" | "Customer 360" | "Timeline" | "Manager Review";
+  title: string;
+  reviewState: "Pilot review" | "Read-only" | "Foundation only";
+  summary: string;
+  sourceOfTruth: string;
+  nextReviewStep: string;
+  href: string;
+};
+
+export type CrmNextHardeningGate = {
+  id: string;
+  milestone: "CRMN-080" | "CRMN-081" | "CRMN-082" | "CRMN-083" | "CRMN-084" | "CRMN-085" | "CRMN-086";
+  category: "Migration" | "Testing" | "Accessibility" | "Performance" | "Security" | "Rollback" | "Evidence";
+  title: string;
+  status: CrmNextMilestoneStatus;
+  reviewState: "Held for approval" | "Implemented for review" | "Proof required";
+  proof: string;
+  riskControl: string;
+  nextStep: string;
+};
+
+export type CrmNextCoexistenceGate = {
+  id: string;
+  milestone: "CRMN-087" | "CRMN-088" | "CRMN-089" | "CRMN-090";
+  title: string;
+  status: CrmNextMilestoneStatus;
+  legacyOwner: string;
+  crmNextRole: string;
+  cutoverRule: string;
+  rollbackRule: string;
+  safety: string;
+};
+
+export type CrmNextPilotReleaseGate = {
+  id: string;
+  milestone: "CRMN-091" | "CRMN-092" | "CRMN-093" | "CRMN-094";
+  title: string;
+  status: CrmNextMilestoneStatus;
+  owner: "Product" | "Operations" | "Engineering" | "Leadership";
+  decision: "Ready for review" | "Proof required" | "Held for approval";
+  requirement: string;
+  proof: string;
+  cannotProceedUntil: string;
+};
+
 export type CrmNextCommandCenter = {
   contractVersion: "crm-next-command-center/v1";
   generatedAt: string;
@@ -146,6 +207,15 @@ export type CrmNextCommandCenter = {
   ownershipSupport: CrmNextOwnershipSupportRecord[];
   sharedExecution: CrmNextSharedExecutionRecord[];
   intelligence: CrmNextIntelligenceRecord[];
+  commandCenter: {
+    headline: string;
+    guidance: string;
+    modes: CrmNextCommandCenterMode[];
+  };
+  pilotScenarios: CrmNextPilotScenario[];
+  hardeningGates: CrmNextHardeningGate[];
+  coexistenceGates: CrmNextCoexistenceGate[];
+  pilotReleaseGates: CrmNextPilotReleaseGate[];
   bridge: {
     liveTaskCreationEnabled: false;
     previewEnabled: true;
@@ -593,6 +663,249 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     reviewHref: "/crm-next/intelligence-foundation#manager-intelligence",
     evidence: "Manager intelligence card links escalations to manager review without live overrides.",
     safety: "No manager override or reassignment command is enabled."
+  },
+  {
+    id: "CRMN-068",
+    title: "Review UX completion",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Make CRM Next review pages feel like a compact enterprise console instead of a prototype.",
+    reviewHref: "/crm-next",
+    evidence: "Command Center includes compact direction, review state, and navigation to safe work surfaces.",
+    safety: "No operational behavior is enabled."
+  },
+  {
+    id: "CRMN-069",
+    title: "Review state labels",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Show staff what is review-ready, preview-only, or held before they click.",
+    reviewHref: "/crm-next",
+    evidence: "Command Center mode cards expose state labels and guidance.",
+    safety: "Held items remain non-operational."
+  },
+  {
+    id: "CRMN-070",
+    title: "Employee Command Center",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Give staff a simple work-first Command Center view.",
+    reviewHref: "/crm-next#employee-command-center",
+    evidence: "Employee command card summarizes next customer work and linked action path.",
+    safety: "Employee actions are still review/preview only."
+  },
+  {
+    id: "CRMN-071",
+    title: "Manager Command Center",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Give managers compact visibility into load, risk, and blocked customer work.",
+    reviewHref: "/crm-next#manager-command-center",
+    evidence: "Manager command card summarizes risk, blocked work, and review path.",
+    safety: "No manager override or reassignment mutation."
+  },
+  {
+    id: "CRMN-072",
+    title: "Appointments/work summary",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Summarize appointment and work obligations without replacing owning systems.",
+    reviewHref: "/crm-next#appointments-work-summary",
+    evidence: "Appointments/work summary card links to CRM Next appointment and task bridge surfaces.",
+    safety: "Appointments and tasks remain source-owned."
+  },
+  {
+    id: "CRMN-073",
+    title: "Pipeline/intelligence summaries",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Show pipeline and intelligence context side-by-side for daily review.",
+    reviewHref: "/crm-next#pipeline-intelligence-summary",
+    evidence: "Pipeline/intelligence summary card links to read-only pipeline and intelligence surfaces.",
+    safety: "No stage movement or AI execution."
+  },
+  {
+    id: "CRMN-074",
+    title: "Team response/load indicators",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Expose response pressure and team load without changing assignments.",
+    reviewHref: "/crm-next#team-load-indicators",
+    evidence: "Team load card shows response posture and manager review guidance.",
+    safety: "No invisible reprioritization, reassignment, or escalation."
+  },
+  {
+    id: "CRMN-075",
+    title: "Pilot customer scenario expansion",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Add realistic customer scenarios so pilot reviewers can judge CRM Next substance.",
+    reviewHref: "/crm-next/pilot-readiness#pilot-customers",
+    evidence: "Pilot readiness surface includes multi-customer review scenarios with source labels.",
+    safety: "Scenario data is read-only and does not create customer records."
+  },
+  {
+    id: "CRMN-076",
+    title: "Needs Attention scenario expansion",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Expand queue scenarios across sales, finance, service, and support.",
+    reviewHref: "/crm-next/pilot-readiness#pilot-attention",
+    evidence: "Pilot readiness surface includes queue scenarios and review-only next steps.",
+    safety: "No queue automation or task mutation."
+  },
+  {
+    id: "CRMN-077",
+    title: "Customer 360 scenario expansion",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Represent richer Customer 360 review examples across vehicles, deals, support, and ownership.",
+    reviewHref: "/crm-next/pilot-readiness#pilot-customer-360",
+    evidence: "Pilot readiness surface documents expanded Customer 360 review coverage.",
+    safety: "No customer profile writes."
+  },
+  {
+    id: "CRMN-078",
+    title: "Timeline and communications scenario expansion",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Show richer activity and communication examples without sending messages.",
+    reviewHref: "/crm-next/pilot-readiness#pilot-timeline",
+    evidence: "Pilot readiness surface includes timeline/communications review scenarios.",
+    safety: "No live calls, texts, emails, or activity writes."
+  },
+  {
+    id: "CRMN-079",
+    title: "Manager pilot-review scenarios",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Add manager review scenarios for blocked, overdue, escalated, and load-sensitive work.",
+    reviewHref: "/crm-next/pilot-readiness#pilot-manager-review",
+    evidence: "Pilot readiness surface includes manager review scenarios and source boundaries.",
+    safety: "No manager override or reassignment mutation."
+  },
+  {
+    id: "CRMN-080",
+    title: "Migration reconciliation hold",
+    status: "HELD",
+    objective: "Document migration/reconciliation readiness without executing data migration.",
+    reviewHref: "/crm-next/hardening#migration-hold",
+    evidence: "Hardening surface identifies migration as approval-gated before any customer, opportunity, communication, or task data movement.",
+    safety: "No data migration, reconciliation write, Legacy replacement, or cutover."
+  },
+  {
+    id: "CRMN-081",
+    title: "Pilot scenario proof plan",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Define the pilot proof checks reviewers should run before promotion.",
+    reviewHref: "/crm-next/hardening#scenario-proof",
+    evidence: "Hardening surface lists the proof bundle for customer, queue, Customer 360, work, and manager scenarios.",
+    safety: "Proof is read-only and does not mutate records."
+  },
+  {
+    id: "CRMN-082",
+    title: "Accessibility and responsive review",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Track accessibility and responsive-layout checks before pilot promotion.",
+    reviewHref: "/crm-next/hardening#accessibility",
+    evidence: "Hardening surface records keyboard, label, contrast, and responsive review expectations.",
+    safety: "No UX promotion until the review is accepted."
+  },
+  {
+    id: "CRMN-083",
+    title: "Performance budget review",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Set review expectations for fast CRM Next navigation and read-model rendering.",
+    reviewHref: "/crm-next/hardening#performance",
+    evidence: "Hardening surface captures performance guardrails for read-only CRM Next pages.",
+    safety: "No additional polling, live sync, or background mutation."
+  },
+  {
+    id: "CRMN-084",
+    title: "Security and audit review",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Make permission, audit, consent, and sensitive-data boundaries visible before pilot.",
+    reviewHref: "/crm-next/hardening#security-audit",
+    evidence: "Hardening surface captures permission and audit guardrails.",
+    safety: "No live communication, payment, document, manager override, or restricted finance action."
+  },
+  {
+    id: "CRMN-085",
+    title: "Rollback rehearsal",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Show the rollback path and Legacy fallback expectations before pilot.",
+    reviewHref: "/crm-next/hardening#rollback",
+    evidence: "Hardening surface describes the CRM_NEXT-off rollback posture.",
+    safety: "CRM Next remains isolated from Legacy routes."
+  },
+  {
+    id: "CRMN-086",
+    title: "Hardening evidence package",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Collect the hardening gates into one reviewer-facing evidence package.",
+    reviewHref: "/crm-next/hardening#evidence-package",
+    evidence: "Hardening page summarizes the pilot controls and links back to progress.",
+    safety: "Evidence-only; no operational enablement."
+  },
+  {
+    id: "CRMN-087",
+    title: "Legacy coexistence map",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Make Legacy/current CRM coexistence rules visible before pilot.",
+    reviewHref: "/crm-next/coexistence#legacy-coexistence",
+    evidence: "Coexistence surface maps Legacy owners, CRM Next review roles, cutover rules, and rollback rules.",
+    safety: "No Legacy route replacement."
+  },
+  {
+    id: "CRMN-088",
+    title: "Capability migration plan",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Document which capabilities are reused, redesigned, deferred, or kept in Legacy during pilot.",
+    reviewHref: "/crm-next/coexistence#capability-plan",
+    evidence: "Coexistence surface keeps capability migration as reviewable planning evidence.",
+    safety: "No backend model, API, permission, or data replacement is implied."
+  },
+  {
+    id: "CRMN-089",
+    title: "Pilot switchback rules",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Give reviewers clear switchback paths from CRM Next to current CRM and Legacy Customers.",
+    reviewHref: "/crm-next/coexistence#switchback",
+    evidence: "Coexistence surface documents safe fallback and switchback rules.",
+    safety: "Users can return to current operational routes during pilot."
+  },
+  {
+    id: "CRMN-090",
+    title: "Legacy retirement not approved",
+    status: "HELD",
+    objective: "Make Legacy retirement explicitly blocked until pilot gates are approved.",
+    reviewHref: "/crm-next/coexistence#retirement-hold",
+    evidence: "Coexistence surface marks retirement as held and approval-gated.",
+    safety: "No Legacy deprecation, archive, redirect, or removal."
+  },
+  {
+    id: "CRMN-091",
+    title: "Pilot promotion checklist",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Create a visible checklist for pilot promotion review.",
+    reviewHref: "/crm-next/pilot-release#promotion-checklist",
+    evidence: "Pilot release surface lists promotion requirements and proof expectations.",
+    safety: "Checklist does not promote CRM Next by itself."
+  },
+  {
+    id: "CRMN-092",
+    title: "Training and operations readiness",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Document staff readiness, support, and operating instructions before pilot.",
+    reviewHref: "/crm-next/pilot-release#training-readiness",
+    evidence: "Pilot release surface captures training/readiness requirements.",
+    safety: "No staff migration or live command enablement."
+  },
+  {
+    id: "CRMN-093",
+    title: "Release-candidate proof bundle",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Summarize final proof gates before a pilot decision.",
+    reviewHref: "/crm-next/pilot-release#release-proof",
+    evidence: "Pilot release surface identifies the final proof bundle: tests, typecheck, lint, route review, rollback, and safety gates.",
+    safety: "Proof bundle is evidence-only."
+  },
+  {
+    id: "CRMN-094",
+    title: "Pilot launch approval",
+    status: "HELD",
+    objective: "Hold actual pilot launch until leadership approves the promotion.",
+    reviewHref: "/crm-next/pilot-release#pilot-launch-hold",
+    evidence: "Pilot release surface marks launch approval as held.",
+    safety: "No production rollout, flag broadening, route replacement, or live command enablement."
   }
 ];
 
@@ -1089,6 +1402,325 @@ const intelligenceRecords: CrmNextIntelligenceRecord[] = [
   }
 ];
 
+const commandCenterModes: CrmNextCommandCenterMode[] = [
+  {
+    id: "review-ux-completion",
+    milestone: "CRMN-068",
+    audience: "All staff",
+    title: "Compact review cockpit",
+    state: "Review ready",
+    objective: "Keep the question simple, then show only the work surfaces that matter now.",
+    primaryMetric: "1-line question",
+    secondaryMetric: "0 live writes",
+    guidance: "Start with the customer that needs attention, then move through Customer 360, Attend Mode, and source-owned work.",
+    href: "/crm-next"
+  },
+  {
+    id: "review-state-labels",
+    milestone: "CRMN-069",
+    audience: "All staff",
+    title: "Clear review-state labels",
+    state: "Review ready",
+    objective: "Make preview-only, read-only, and held states obvious before staff click.",
+    primaryMetric: "3 states",
+    secondaryMetric: "safe by default",
+    guidance: "If a card looks operational, it must show whether it is review-ready, preview-only, or held.",
+    href: "/crm-next/progress"
+  },
+  {
+    id: "employee-command-center",
+    milestone: "CRMN-070",
+    audience: "Employee",
+    title: "Employee Command Center",
+    state: "Review ready",
+    objective: "Give staff one place to see their next customer action and open the correct workspace.",
+    primaryMetric: "48 need attention",
+    secondaryMetric: "19 overdue",
+    guidance: "Employees should not hunt through modules; the queue tells them who to work and why.",
+    href: "/crm-next/needs-attention"
+  },
+  {
+    id: "manager-command-center",
+    milestone: "CRMN-071",
+    audience: "Manager",
+    title: "Manager Command Center",
+    state: "Preview only",
+    objective: "Give managers compact oversight of blocked, overdue, escalated, and review-needed customer work.",
+    primaryMetric: "5 review lanes",
+    secondaryMetric: "0 overrides",
+    guidance: "Managers can review pressure and exceptions without live reassignment or escalation controls.",
+    href: "/crm-next/shared-execution#manager-queue"
+  },
+  {
+    id: "appointments-work-summary",
+    milestone: "CRMN-072",
+    audience: "All staff",
+    title: "Appointments & work summary",
+    state: "Review ready",
+    objective: "Show today’s appointments and task-linked customer work without replacing source systems.",
+    primaryMetric: "12 appointments",
+    secondaryMetric: "task bridge preview",
+    guidance: "CRM Next points staff to the right context while appointments and tasks remain authoritative elsewhere.",
+    href: "/crm-next/appointments"
+  },
+  {
+    id: "pipeline-intelligence-summary",
+    milestone: "CRMN-073",
+    audience: "Manager",
+    title: "Pipeline & intelligence summary",
+    state: "Review ready",
+    objective: "Put pipeline value, risk, and next-action intelligence together in one executive scan.",
+    primaryMetric: "$1.24M MTD",
+    secondaryMetric: "8 intelligence signals",
+    guidance: "Use pipeline and intelligence together to decide where attention should go next.",
+    href: "/crm-next/intelligence-foundation"
+  },
+  {
+    id: "team-load-indicators",
+    milestone: "CRMN-074",
+    audience: "Manager",
+    title: "Team response & load indicators",
+    state: "Preview only",
+    objective: "Expose workload pressure before enabling any assignment automation.",
+    primaryMetric: "High response load",
+    secondaryMetric: "manual review",
+    guidance: "Load indicators explain pressure; they do not silently move work between employees.",
+    href: "/crm-next/shared-execution"
+  }
+];
+
+const pilotScenarios: CrmNextPilotScenario[] = [
+  {
+    id: "pilot-customers",
+    milestone: "CRMN-075",
+    category: "Customer",
+    title: "Multiple customer records ready for pilot review",
+    reviewState: "Pilot review",
+    summary: "Pilot review includes active buyer, payment follow-up, title pending, service due, and insurance/document scenarios.",
+    sourceOfTruth: "Customer, sales, finance, support, and document read models",
+    nextReviewStep: "Confirm the customer mix matches real dealership work before live customer actions are approved.",
+    href: "/crm-next/customers/michael-johnson"
+  },
+  {
+    id: "pilot-attention",
+    milestone: "CRMN-076",
+    category: "Needs Attention",
+    title: "Needs Attention spans sales, finance, service, and support",
+    reviewState: "Read-only",
+    summary: "The queue now has realistic pressure patterns: overdue follow-up, payment reminder, title review, service due, and insurance update.",
+    sourceOfTruth: "CRM Next attention read model linked to source-owned work",
+    nextReviewStep: "Review whether staff can understand who to call first without needing a manager to explain the queue.",
+    href: "/crm-next/needs-attention"
+  },
+  {
+    id: "pilot-customer-360",
+    milestone: "CRMN-077",
+    category: "Customer 360",
+    title: "Customer 360 has richer ownership and work context",
+    reviewState: "Pilot review",
+    summary: "Customer 360 review connects profile, vehicles, lifetime value, open deals, support cases, finance/payment, documents, and next action.",
+    sourceOfTruth: "Customer 360 read model with ownership/support projections",
+    nextReviewStep: "Confirm the screen answers “what is happening with this customer?” in under one minute.",
+    href: "/crm-next/customers/michael-johnson"
+  },
+  {
+    id: "pilot-timeline",
+    milestone: "CRMN-078",
+    category: "Timeline",
+    title: "Timeline and communications are reviewable without sending",
+    reviewState: "Read-only",
+    summary: "The pilot surface shows phone, text, email, appointment, opportunity, support, finance, and Dispatch-linked activity examples.",
+    sourceOfTruth: "ActivityEvent and communication read models",
+    nextReviewStep: "Validate whether staff can trust the sequence and find the source workspace for follow-up.",
+    href: "/crm-next/timeline"
+  },
+  {
+    id: "pilot-manager-review",
+    milestone: "CRMN-079",
+    category: "Manager Review",
+    title: "Manager review scenarios are visible before controls go live",
+    reviewState: "Foundation only",
+    summary: "Managers can review unassigned, overdue, blocked, escalated, and load-sensitive customer work without live overrides.",
+    sourceOfTruth: "Manager review and shared execution read models",
+    nextReviewStep: "Approve which manager actions should become live commands in a later gate.",
+    href: "/crm-next/shared-execution#manager-queue"
+  }
+];
+
+const hardeningGates: CrmNextHardeningGate[] = [
+  {
+    id: "migration-hold",
+    milestone: "CRMN-080",
+    category: "Migration",
+    title: "Migration and reconciliation stay held",
+    status: "HELD",
+    reviewState: "Held for approval",
+    proof: "Legacy/customer/opportunity/task/communication data movement is documented as a later approval gate, not part of this build.",
+    riskControl: "Current Legacy Customers and /crm remain operational and authoritative.",
+    nextStep: "Approve a migration rehearsal plan only after pilot review coverage is accepted."
+  },
+  {
+    id: "scenario-proof",
+    milestone: "CRMN-081",
+    category: "Testing",
+    title: "Pilot proof scenarios are visible",
+    status: "IMPLEMENTED_UNVERIFIED",
+    reviewState: "Proof required",
+    proof: "Reviewers can inspect command center, Needs Attention, Customer 360, Attend Mode, timeline, shared execution, and manager scenarios.",
+    riskControl: "All proof paths are read-only or preview-only.",
+    nextStep: "Run reviewer walkthroughs and capture pass/fail notes before promotion."
+  },
+  {
+    id: "accessibility",
+    milestone: "CRMN-082",
+    category: "Accessibility",
+    title: "Accessibility and responsive review checklist",
+    status: "IMPLEMENTED_UNVERIFIED",
+    reviewState: "Proof required",
+    proof: "Keyboard navigation, visible labels, contrast, compact layouts, and mobile/tablet collapse behavior are tracked as promotion checks.",
+    riskControl: "No pilot promotion if key navigation or review surfaces are hard to use.",
+    nextStep: "Run manual keyboard and screen-size review on the CRM Next routes."
+  },
+  {
+    id: "performance",
+    milestone: "CRMN-083",
+    category: "Performance",
+    title: "Performance budget is stated before live data",
+    status: "IMPLEMENTED_UNVERIFIED",
+    reviewState: "Implemented for review",
+    proof: "CRM Next pages use server-side read models and static review data in this envelope to avoid live polling pressure.",
+    riskControl: "No background sync, no live communications, and no high-frequency operational polling are enabled.",
+    nextStep: "Add measured budgets when live read adapters are connected."
+  },
+  {
+    id: "security-audit",
+    milestone: "CRMN-084",
+    category: "Security",
+    title: "Security, consent, and audit boundaries are explicit",
+    status: "IMPLEMENTED_UNVERIFIED",
+    reviewState: "Proof required",
+    proof: "Restricted finance, payment, document, insurance, communication, and manager actions remain gated with source-of-truth labels.",
+    riskControl: "No sensitive write or communication command can be triggered from CRM Next.",
+    nextStep: "Review permission matrix and audit-event requirements before enabling any command."
+  },
+  {
+    id: "rollback",
+    milestone: "CRMN-085",
+    category: "Rollback",
+    title: "Rollback path stays simple",
+    status: "IMPLEMENTED_UNVERIFIED",
+    reviewState: "Implemented for review",
+    proof: "CRM_NEXT can be turned off so /crm-next fails closed while /customers and /crm remain available.",
+    riskControl: "No route replacement or Legacy deprecation is included in this envelope.",
+    nextStep: "Rehearse CRM_NEXT off/on during release-candidate proof."
+  },
+  {
+    id: "evidence-package",
+    milestone: "CRMN-086",
+    category: "Evidence",
+    title: "One evidence page for pilot hardening",
+    status: "IMPLEMENTED_UNVERIFIED",
+    reviewState: "Implemented for review",
+    proof: "Hardening gates are visible from CRM Next navigation and from the progress cockpit.",
+    riskControl: "Evidence package is informational and cannot promote, migrate, or enable operations by itself.",
+    nextStep: "Use this page as the reviewer checklist before CRMN-087 coexistence planning."
+  }
+];
+
+const coexistenceGates: CrmNextCoexistenceGate[] = [
+  {
+    id: "legacy-coexistence",
+    milestone: "CRMN-087",
+    title: "Legacy and CRM Next coexist during pilot",
+    status: "IMPLEMENTED_UNVERIFIED",
+    legacyOwner: "Legacy /customers and current /crm stay operational for active customer work.",
+    crmNextRole: "CRM Next provides the review experience at /crm-next without becoming the default CRM.",
+    cutoverRule: "No traffic moves to CRM Next by default until pilot gates are approved.",
+    rollbackRule: "Disable CRM_NEXT and users return to current operational routes.",
+    safety: "Parallel replacement strategy, not uncontrolled hybridization."
+  },
+  {
+    id: "capability-plan",
+    milestone: "CRMN-088",
+    title: "Capability migration remains deliberate",
+    status: "IMPLEMENTED_UNVERIFIED",
+    legacyOwner: "Existing backend models, services, APIs, permissions, and integrations remain source-owned.",
+    crmNextRole: "CRM Next reuses read models and displays migration decisions before any replacement.",
+    cutoverRule: "A capability can move only after source ownership, writes, audit, rollback, and support are approved.",
+    rollbackRule: "Retain Legacy capability until CRM Next has proof and a fallback.",
+    safety: "Replacing the UX does not automatically replace the backend."
+  },
+  {
+    id: "switchback",
+    milestone: "CRMN-089",
+    title: "Users always have a switchback path",
+    status: "IMPLEMENTED_UNVERIFIED",
+    legacyOwner: "Legacy routes remain available for real work while CRM Next is reviewed.",
+    crmNextRole: "CRM Next includes links back to /customers, /crm, progress, hardening, and source workspaces.",
+    cutoverRule: "Pilot users can inspect CRM Next but must use approved operational routes for live execution.",
+    rollbackRule: "Switchback is route-level and does not require data rollback because CRM Next does not write.",
+    safety: "No reviewer gets trapped in a preview surface."
+  },
+  {
+    id: "retirement-hold",
+    milestone: "CRMN-090",
+    title: "Legacy retirement is not approved",
+    status: "HELD",
+    legacyOwner: "Legacy Customers and current CRM remain the operating fallback and source of truth where applicable.",
+    crmNextRole: "CRM Next can demonstrate replacement readiness, but cannot retire Legacy by itself.",
+    cutoverRule: "Retirement requires an explicit promotion and cutover approval after pilot evidence is reviewed.",
+    rollbackRule: "Keep Legacy available until a tested rollback plan exists.",
+    safety: "No redirect, removal, archive, or deprecation is included in this envelope."
+  }
+];
+
+const pilotReleaseGates: CrmNextPilotReleaseGate[] = [
+  {
+    id: "promotion-checklist",
+    milestone: "CRMN-091",
+    title: "Promotion checklist is ready for reviewers",
+    status: "IMPLEMENTED_UNVERIFIED",
+    owner: "Product",
+    decision: "Ready for review",
+    requirement: "Review CRM Next command center, queues, Customer 360, Attend Mode, hardening, coexistence, and progress cockpit.",
+    proof: "Every implemented review route is linked and covered by focused page-render tests.",
+    cannotProceedUntil: "Product accepts the review scope and documents any UX blockers."
+  },
+  {
+    id: "training-readiness",
+    milestone: "CRMN-092",
+    title: "Operations training remains required",
+    status: "IMPLEMENTED_UNVERIFIED",
+    owner: "Operations",
+    decision: "Proof required",
+    requirement: "Define who pilots CRM Next, which actions stay in Legacy/current CRM, and where staff go when they hit a held command.",
+    proof: "Pilot release page states the training and switchback expectations before CRM Next is promoted.",
+    cannotProceedUntil: "Operations signs off on pilot users, support path, and daily workflow instructions."
+  },
+  {
+    id: "release-proof",
+    milestone: "CRMN-093",
+    title: "Release-candidate proof bundle is visible",
+    status: "IMPLEMENTED_UNVERIFIED",
+    owner: "Engineering",
+    decision: "Proof required",
+    requirement: "Run focused CRM Next tests, typecheck, scoped lint, route review, rollback review, and safety review.",
+    proof: "Proof requirements are visible in CRM Next and recorded in readiness docs.",
+    cannotProceedUntil: "The final proof bundle passes on the release candidate branch."
+  },
+  {
+    id: "pilot-launch-hold",
+    milestone: "CRMN-094",
+    title: "Pilot launch is held for leadership approval",
+    status: "HELD",
+    owner: "Leadership",
+    decision: "Held for approval",
+    requirement: "Leadership must approve pilot scope, rollout audience, communication policy, rollback plan, and Legacy coexistence posture.",
+    proof: "CRM Next shows launch as held and does not broaden CRM_NEXT or replace existing routes.",
+    cannotProceedUntil: "Leadership explicitly approves pilot launch."
+  }
+];
+
 export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Date = new Date()): CrmNextCommandCenter {
   const access = resolveCrmNextAccess(actor);
   if (!access.allowed) {
@@ -1138,6 +1770,15 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
     ownershipSupport: ownershipSupportRecords,
     sharedExecution: sharedExecutionRecords,
     intelligence: intelligenceRecords,
+    commandCenter: {
+      headline: "Who needs attention?",
+      guidance: "A compact command center for reviewing customer pressure, next actions, team load, pipeline context, and safe handoffs.",
+      modes: commandCenterModes
+    },
+    pilotScenarios,
+    hardeningGates,
+    coexistenceGates,
+    pilotReleaseGates,
     bridge: {
       liveTaskCreationEnabled: false,
       previewEnabled: true,
@@ -1148,7 +1789,7 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
       envelopeCount: 20,
       verifiedCount: progressMilestones.filter((milestone) => milestone.status === "VERIFIED").length,
       heldCount: progressMilestones.filter((milestone) => milestone.status === "HELD").length,
-      nextMilestone: "CRMN-068",
+      nextMilestone: "Pilot approval",
       milestones: progressMilestones
     }
   };
