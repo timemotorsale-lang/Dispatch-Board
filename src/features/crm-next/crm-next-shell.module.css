@@ -4,6 +4,7 @@
     radial-gradient(circle at 12% 0%, rgb(37 99 235 / 12%), transparent 28%),
     linear-gradient(180deg, #eef4ff 0%, #f7f9fc 44%, #edf2f8 100%);
   color: #071a3a;
+  overflow-x: hidden;
 }
 
 .blocked {
@@ -183,8 +184,11 @@
 }
 
 .content {
+  box-sizing: border-box;
   margin: 0 auto;
   max-width: 1540px;
+  min-width: 0;
+  overflow-x: hidden;
   padding: 22px 30px 38px;
   width: 100%;
 }
@@ -812,20 +816,32 @@
 }
 
 .customerWorkspace {
+  align-items: start;
   display: grid;
   gap: 18px;
-  grid-template-columns: minmax(0, 1fr) 330px;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 330px);
+  max-width: 100%;
+  min-width: 0;
+}
+
+.customerWorkspace > * {
+  min-width: 0;
 }
 
 .customerMain {
   display: grid;
   gap: 14px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .customerAside {
+  align-content: start;
   display: grid;
   gap: 14px;
-  align-content: start;
+  min-width: 0;
+  position: relative;
+  z-index: 1;
 }
 
 .customerHeroCard {
@@ -838,7 +854,9 @@
   box-shadow: 0 16px 42px rgb(15 42 84 / 8%);
   display: grid;
   gap: 18px;
-  grid-template-columns: minmax(300px, 1.15fr) minmax(380px, 1fr) auto;
+  grid-template-columns: minmax(260px, 1fr) minmax(320px, 1fr);
+  max-width: 100%;
+  min-width: 0;
   overflow: hidden;
   padding: 22px 24px;
   position: relative;
@@ -886,6 +904,7 @@
   gap: 12px;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   margin: 0;
+  min-width: 0;
   position: relative;
   z-index: 1;
 }
@@ -909,10 +928,14 @@
 }
 
 .customerHeroActions {
+  border-top: 1px solid #e4ecf8;
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  justify-content: flex-end;
+  grid-column: 1 / -1;
+  justify-content: flex-start;
+  min-width: 0;
+  padding-top: 14px;
   position: relative;
   z-index: 1;
 }
@@ -920,7 +943,10 @@
 .customerMetricGrid {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(112px, 1fr));
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .customerMetricCard {
@@ -965,6 +991,8 @@
   border: 1px solid #d7e1ef;
   border-radius: 18px;
   box-shadow: 0 16px 38px rgb(15 42 84 / 7%);
+  min-width: 0;
+  overflow: hidden;
   padding: 18px;
 }
 
@@ -981,7 +1009,7 @@
 .quickActionTiles {
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .quickActionTiles a {
@@ -1108,17 +1136,21 @@
 .tabs {
   border-bottom: 1px solid #dce6f5;
   display: flex;
-  gap: 8px;
+  gap: 4px;
   margin-bottom: 16px;
+  min-width: 0;
   overflow-x: auto;
+  scrollbar-width: thin;
 }
 
 .tabs a {
   border-bottom: 3px solid transparent;
   color: #64748b;
+  flex: 0 0 auto;
   font-weight: 850;
-  padding: 12px 14px;
+  padding: 10px 12px;
   text-decoration: none;
+  white-space: nowrap;
 }
 
 .tabs a[aria-current="page"] {
@@ -1127,11 +1159,14 @@
 }
 
 .timeline {
+  min-width: 0;
+  overflow: hidden;
   padding: 18px;
 }
 
 .communicationItem {
   grid-template-columns: 94px minmax(0, 1fr) auto;
+  min-width: 0;
 }
 
 .searchGroups {
@@ -1425,6 +1460,7 @@
   color: #1e40af;
   font-weight: 750;
   margin-top: 16px;
+  overflow-wrap: anywhere;
   padding: 14px;
 }
 
