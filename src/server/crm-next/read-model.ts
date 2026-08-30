@@ -109,6 +109,20 @@ export type CrmNextSharedExecutionRecord = {
   href: string;
 };
 
+export type CrmNextIntelligenceRecord = {
+  id: string;
+  milestone: "CRMN-060" | "CRMN-061" | "CRMN-062" | "CRMN-063" | "CRMN-064" | "CRMN-065" | "CRMN-066" | "CRMN-067";
+  kind: "Signal" | "Risk" | "Next Action" | "Opportunity" | "Priority" | "Queue" | "Feedback" | "Manager Intelligence";
+  title: string;
+  confidence: "Explainable" | "Needs review" | "Human decides";
+  signal: string;
+  recommendation: string;
+  explanation: string;
+  sourceSystem: string;
+  safety: string;
+  href: string;
+};
+
 export type CrmNextCommandCenter = {
   contractVersion: "crm-next-command-center/v1";
   generatedAt: string;
@@ -131,6 +145,7 @@ export type CrmNextCommandCenter = {
   };
   ownershipSupport: CrmNextOwnershipSupportRecord[];
   sharedExecution: CrmNextSharedExecutionRecord[];
+  intelligence: CrmNextIntelligenceRecord[];
   bridge: {
     liveTaskCreationEnabled: false;
     previewEnabled: true;
@@ -506,6 +521,78 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     reviewHref: "/crm-next/shared-execution#manager-queue",
     evidence: "Manager queue review cards show exception class, owner, destination, and safe action.",
     safety: "No reassignment or escalation mutation."
+  },
+  {
+    id: "CRMN-060",
+    title: "Intelligence signal foundation",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Represent reusable customer, task, deal, and activity signals without autonomous execution.",
+    reviewHref: "/crm-next/intelligence-foundation",
+    evidence: "Intelligence foundation surface shows explainable signal cards and their source systems.",
+    safety: "Signals are advisory and read-only."
+  },
+  {
+    id: "CRMN-061",
+    title: "Risk scoring posture",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Show risk explanations that staff can review before taking action.",
+    reviewHref: "/crm-next/intelligence-foundation#risk",
+    evidence: "Risk card includes visible inputs and human decision copy.",
+    safety: "No hidden customer classification or automatic account change."
+  },
+  {
+    id: "CRMN-062",
+    title: "Next-best-action foundation",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Recommend the next safe action with plain-language explanation.",
+    reviewHref: "/crm-next/intelligence-foundation#next-action",
+    evidence: "Next-action card explains recommendation, source signal, and held execution boundary.",
+    safety: "No call, text, email, task, or deal mutation is triggered automatically."
+  },
+  {
+    id: "CRMN-063",
+    title: "Opportunity intelligence",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Expose opportunity value signals without changing pipeline stages.",
+    reviewHref: "/crm-next/intelligence-foundation#opportunity",
+    evidence: "Opportunity signal card links review value to the pipeline surface.",
+    safety: "Pipeline remains read-only."
+  },
+  {
+    id: "CRMN-064",
+    title: "Priority rules",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Make queue ordering understandable by showing the rule inputs.",
+    reviewHref: "/crm-next/intelligence-foundation#priority",
+    evidence: "Priority card explains why one item rises above another.",
+    safety: "No invisible reprioritization of Dispatch Board work."
+  },
+  {
+    id: "CRMN-065",
+    title: "Needs Attention intelligence",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Connect intelligence to the Needs Attention queue while keeping human review.",
+    reviewHref: "/crm-next/intelligence-foundation#needs-attention",
+    evidence: "Needs Attention card explains queue source, reason, and review path.",
+    safety: "Queue remains a review surface."
+  },
+  {
+    id: "CRMN-066",
+    title: "Feedback loop foundation",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Prepare staff feedback categories for improving recommendations later.",
+    reviewHref: "/crm-next/intelligence-foundation#feedback",
+    evidence: "Feedback card defines why staff can accept, skip, correct, or escalate a recommendation.",
+    safety: "No model training, customer mutation, or automatic preference change occurs in this slice."
+  },
+  {
+    id: "CRMN-067",
+    title: "Manager intelligence cockpit",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Give managers explainable visibility into risk, opportunity, overdue, and blocked customer work.",
+    reviewHref: "/crm-next/intelligence-foundation#manager-intelligence",
+    evidence: "Manager intelligence card links escalations to manager review without live overrides.",
+    safety: "No manager override or reassignment command is enabled."
   }
 ];
 
@@ -895,6 +982,113 @@ const sharedExecutionRecords: CrmNextSharedExecutionRecord[] = [
   }
 ];
 
+const intelligenceRecords: CrmNextIntelligenceRecord[] = [
+  {
+    id: "signal-foundation",
+    milestone: "CRMN-060",
+    kind: "Signal",
+    title: "Explainable customer-work signals",
+    confidence: "Explainable",
+    signal: "Overdue follow-up, open deal, upcoming appointment, support case, and recent activity are available as separate inputs.",
+    recommendation: "Show the signals together before suggesting work.",
+    explanation: "Staff can see what the system considered instead of trusting a hidden score.",
+    sourceSystem: "Customer, task, opportunity, appointment, and activity read models",
+    safety: "Signals are advisory and do not change customer records.",
+    href: "/crm-next/intelligence-foundation"
+  },
+  {
+    id: "risk-posture",
+    milestone: "CRMN-061",
+    kind: "Risk",
+    title: "Medium risk explained",
+    confidence: "Needs review",
+    signal: "Payment due, open support case, and overdue customer follow-up are present.",
+    recommendation: "Review the customer before moving work forward.",
+    explanation: "Risk is shown as a review prompt, not as an automatic customer restriction.",
+    sourceSystem: "Customer 360 risk inputs and support case context",
+    safety: "No hidden customer classification, finance action, or account hold is created.",
+    href: "#risk"
+  },
+  {
+    id: "next-best-action",
+    milestone: "CRMN-062",
+    kind: "Next Action",
+    title: "Call Michael Johnson",
+    confidence: "Human decides",
+    signal: "Overdue follow-up and high-value opportunity are both visible.",
+    recommendation: "Open Attend Mode and prepare a call/task preview.",
+    explanation: "The recommendation is useful because the customer is overdue and has active purchase context.",
+    sourceSystem: "Needs Attention + opportunity read model",
+    safety: "No live call, text, email, or task is created.",
+    href: "/crm-next/work/attn-michael-overdue-follow-up"
+  },
+  {
+    id: "opportunity-intelligence",
+    milestone: "CRMN-063",
+    kind: "Opportunity",
+    title: "Opportunity value signal",
+    confidence: "Explainable",
+    signal: "Open proposal, vehicle interest, and recent customer activity are connected.",
+    recommendation: "Review pipeline context before the next outreach.",
+    explanation: "The system can highlight value without changing deal stage.",
+    sourceSystem: "Lead/opportunity read adapters",
+    safety: "Pipeline remains read-only and stage movement remains disabled.",
+    href: "/crm-next/pipeline"
+  },
+  {
+    id: "priority-rules",
+    milestone: "CRMN-064",
+    kind: "Priority",
+    title: "Priority order with visible reasons",
+    confidence: "Explainable",
+    signal: "Age, impact, area, owner, and risk determine the review order.",
+    recommendation: "Keep high-impact overdue work above lower-risk reminders.",
+    explanation: "Managers and staff can challenge the reason instead of guessing why a row moved.",
+    sourceSystem: "Needs Attention queue rules",
+    safety: "No invisible reprioritization is applied to Dispatch Board tasks.",
+    href: "#priority"
+  },
+  {
+    id: "needs-attention-intelligence",
+    milestone: "CRMN-065",
+    kind: "Queue",
+    title: "Needs Attention intelligence",
+    confidence: "Needs review",
+    signal: "Customer reason, owner, area, and recommended next action are bundled for review.",
+    recommendation: "Open one customer, finish the safe next step, then return to the queue.",
+    explanation: "The queue is designed to reduce hunting around the app.",
+    sourceSystem: "CRM Next attention read model",
+    safety: "Queue rows do not create or complete work by themselves.",
+    href: "/crm-next/needs-attention"
+  },
+  {
+    id: "feedback-loop",
+    milestone: "CRMN-066",
+    kind: "Feedback",
+    title: "Recommendation feedback loop",
+    confidence: "Human decides",
+    signal: "Staff can later mark recommendations as accepted, skipped, corrected, or escalated.",
+    recommendation: "Prepare feedback categories before enabling learning or automation.",
+    explanation: "Useful AI needs a way for staff to say when the suggestion helped or missed context.",
+    sourceSystem: "Future staff feedback events",
+    safety: "No model training, preference mutation, or customer update happens in this slice.",
+    href: "#feedback"
+  },
+  {
+    id: "manager-intelligence",
+    milestone: "CRMN-067",
+    kind: "Manager Intelligence",
+    title: "Manager intelligence cockpit",
+    confidence: "Needs review",
+    signal: "Unassigned, blocked, overdue, approval-needed, and escalated customer work can be reviewed together.",
+    recommendation: "Give managers explainable review without live override controls.",
+    explanation: "Managers need visibility first; controls come after permissions and audit approval.",
+    sourceSystem: "Manager review and exception queue read models",
+    safety: "No reassignment, override, escalation, or approval mutation is enabled.",
+    href: "#manager-intelligence"
+  }
+];
+
 export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Date = new Date()): CrmNextCommandCenter {
   const access = resolveCrmNextAccess(actor);
   if (!access.allowed) {
@@ -943,6 +1137,7 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
     },
     ownershipSupport: ownershipSupportRecords,
     sharedExecution: sharedExecutionRecords,
+    intelligence: intelligenceRecords,
     bridge: {
       liveTaskCreationEnabled: false,
       previewEnabled: true,
@@ -953,7 +1148,7 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
       envelopeCount: 20,
       verifiedCount: progressMilestones.filter((milestone) => milestone.status === "VERIFIED").length,
       heldCount: progressMilestones.filter((milestone) => milestone.status === "HELD").length,
-      nextMilestone: "CRMN-060",
+      nextMilestone: "CRMN-068",
       milestones: progressMilestones
     }
   };

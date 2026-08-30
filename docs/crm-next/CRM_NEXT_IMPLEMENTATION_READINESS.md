@@ -182,3 +182,21 @@ Do not implement CRM Next on the shared `main` baseline directly. Start CRMN-010
 - No reassignment, escalation, override, comment write, blocker write, task completion, customer write, or communication send is enabled.
 
 **Progress truth:** CRMN-050 through CRMN-054 are marked `IMPLEMENTED_UNVERIFIED`, not `VERIFIED`, until broader proof and user review are complete. The next implementation marker is CRMN-060.
+
+## Implementation evidence — CRMN-060 through CRMN-067 intelligence foundation
+
+**Status:** IMPLEMENTED_UNVERIFIED  
+**Branch:** `codex/crm-next-ownership-intelligence-envelope`  
+**Scope:** Added the third packet of the CRMN-040 through CRMN-067 envelope: explainable signal foundation, risk scoring posture, next-best-action foundation, opportunity intelligence, priority rules, Needs Attention intelligence, feedback-loop foundation, and manager intelligence cockpit.
+
+**Review location:** `/crm-next/intelligence-foundation` with `CRM_NEXT=REVIEW`.
+
+**Safety posture:**
+- Intelligence is advisory, explainable, and human-reviewed.
+- Every card shows the signal, recommendation, explanation, source system, confidence posture, and safety boundary.
+- No AI action, customer mutation, live call, live text, live email, task creation, task completion, deal movement, manager override, or reassignment is enabled.
+- Opportunity intelligence remains read-only and does not change pipeline stages.
+- Priority and queue intelligence explain review order without silently reprioritizing Dispatch Board work.
+- Feedback-loop categories are foundation-only; no model training or automatic preference mutation occurs.
+
+**Progress truth:** CRMN-060 through CRMN-067 are marked `IMPLEMENTED_UNVERIFIED`, not `VERIFIED`, until broader proof and user review are complete. The next implementation marker is CRMN-068.

@@ -197,6 +197,7 @@
 .dashboardGrid,
 .customerGrid,
 .intelligenceGrid,
+.intelligenceCards,
 .handoffGrid,
 .searchGroups,
 .supportGrid,
@@ -215,6 +216,7 @@
 .panel,
 .timeline,
 .contextCard,
+.intelligenceCard,
 .handoffCard,
 .searchGroups a,
 .supportCard,
@@ -527,6 +529,44 @@
   margin: 8px 0;
 }
 
+.intelligenceCards {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.intelligenceCard {
+  color: inherit;
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  text-decoration: none;
+}
+
+.intelligenceCard h3 {
+  font-size: 18px;
+  margin: 0;
+}
+
+.recommendationBox {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 14px;
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+}
+
+.recommendationBox small {
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.recommendationBox span {
+  color: #475569;
+}
+
 .surfacePair {
   display: grid;
   gap: 10px;
@@ -735,6 +775,7 @@
   .summaryGrid,
   .dashboardGrid,
   .actionCards,
+  .intelligenceCards,
   .handoffGrid,
   .searchGroups,
   .supportGrid,
@@ -753,6 +794,7 @@
   .summaryGrid,
   .dashboardGrid,
   .actionCards,
+  .intelligenceCards,
   .handoffGrid,
   .searchGroups,
   .supportGrid,
