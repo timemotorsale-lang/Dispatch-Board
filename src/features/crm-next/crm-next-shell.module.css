@@ -1,6 +1,8 @@
 .shell {
   min-height: 100%;
-  background: #f4f7fb;
+  background:
+    radial-gradient(circle at 12% 0%, rgb(37 99 235 / 12%), transparent 28%),
+    linear-gradient(180deg, #eef4ff 0%, #f7f9fc 44%, #edf2f8 100%);
   color: #071a3a;
 }
 
@@ -27,10 +29,11 @@
 .hero h1,
 .customerName,
 .workTitle {
-  margin: 8px 0;
+  margin: 6px 0 8px;
   color: #061735;
-  font-size: clamp(32px, 4vw, 52px);
-  line-height: 0.98;
+  font-size: clamp(30px, 2.35vw, 44px);
+  letter-spacing: -0.035em;
+  line-height: 1.04;
 }
 
 .blocked p,
@@ -54,26 +57,36 @@
 .softButton,
 .dangerSoftButton {
   align-items: center;
-  border-radius: 12px;
+  border-radius: 14px;
   display: inline-flex;
   font-weight: 800;
   gap: 8px;
-  min-height: 44px;
-  padding: 10px 16px;
+  min-height: 46px;
+  padding: 10px 18px;
   text-decoration: none;
+  transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
 }
 
 .primaryButton {
-  background: #155dfc;
+  background: linear-gradient(135deg, #155dfc, #0f4adf);
   border: 1px solid #155dfc;
+  box-shadow: 0 14px 30px rgb(21 93 252 / 20%);
   color: white;
 }
 
 .secondaryButton,
 .softButton {
-  background: white;
+  background: linear-gradient(180deg, #fff, #f8fbff);
   border: 1px solid #d8e2f3;
   color: #17345f;
+}
+
+.primaryButton:hover,
+.secondaryButton:hover,
+.softButton:hover,
+.dangerSoftButton:hover {
+  box-shadow: 0 16px 34px rgb(15 42 84 / 11%);
+  transform: translateY(-1px);
 }
 
 .dangerSoftButton {
@@ -84,21 +97,26 @@
 
 .frame {
   display: grid;
-  grid-template-columns: 180px minmax(0, 1fr);
+  grid-template-columns: 250px minmax(0, 1fr);
   min-height: calc(100vh - 70px);
 }
 
 .sidebar {
-  background: #061735;
+  background:
+    radial-gradient(circle at 20% 10%, rgb(59 130 246 / 34%), transparent 24%),
+    linear-gradient(180deg, #061735 0%, #071a3a 46%, #031022 100%);
+  border-right: 1px solid rgb(255 255 255 / 10%);
+  box-shadow: 18px 0 55px rgb(7 23 53 / 14%);
   color: white;
   display: flex;
   flex-direction: column;
   gap: 22px;
-  padding: 22px 14px;
+  padding: 24px 18px;
 }
 
 .brand {
   border-bottom: 1px solid rgb(255 255 255 / 16%);
+  color: #f8fbff;
   font-weight: 900;
   letter-spacing: 0.12em;
   padding-bottom: 18px;
@@ -112,22 +130,30 @@
 
 .nav a {
   align-items: center;
-  border-radius: 10px;
+  border: 1px solid transparent;
+  border-radius: 14px;
   color: #c8d8ee;
   display: flex;
   gap: 10px;
-  padding: 10px 12px;
+  padding: 11px 12px;
   text-decoration: none;
+  transition: background .16s ease, border-color .16s ease, color .16s ease;
 }
 
 .nav a[aria-current="page"],
 .nav a:hover {
-  background: #155dfc;
+  background: rgb(21 93 252 / 92%);
+  border-color: rgb(147 197 253 / 35%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 18%);
   color: white;
 }
 
 .operator {
+  background: rgb(255 255 255 / 8%);
+  border: 1px solid rgb(255 255 255 / 13%);
+  border-radius: 18px;
   margin-top: auto;
+  padding: 14px;
 }
 
 .operator strong,
@@ -140,7 +166,10 @@
 }
 
 .content {
-  padding: 28px;
+  margin: 0 auto;
+  max-width: 1540px;
+  padding: 22px 30px 38px;
+  width: 100%;
 }
 
 .topbar {
@@ -148,17 +177,18 @@
   display: grid;
   gap: 16px;
   grid-template-columns: minmax(0, 1fr) auto;
-  margin-bottom: 26px;
+  margin-bottom: 18px;
 }
 
 .search {
   align-items: center;
-  background: white;
-  border: 1px solid #d9e3f4;
-  border-radius: 14px;
+  background: rgb(255 255 255 / 86%);
+  border: 1px solid #d4e0f2;
+  border-radius: 18px;
+  box-shadow: 0 16px 40px rgb(15 42 84 / 7%);
   display: flex;
   gap: 10px;
-  max-width: 720px;
+  max-width: 780px;
   padding: 14px 16px;
 }
 
@@ -175,10 +205,10 @@
 
 .governance {
   align-items: center;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
   border-radius: 999px;
-  color: #1d4ed8;
+  color: #166534;
   display: flex;
   font-weight: 800;
   gap: 8px;
@@ -186,11 +216,47 @@
 }
 
 .hero {
-  align-items: end;
+  align-items: start;
+  background:
+    radial-gradient(circle at 92% 18%, rgb(21 93 252 / 18%), transparent 26%),
+    linear-gradient(135deg, #ffffff 0%, #f8fbff 54%, #eef6ff 100%);
+  border: 1px solid #d7e3f5;
+  border-radius: 22px;
+  box-shadow: 0 18px 48px rgb(15 42 84 / 8%);
   display: grid;
-  gap: 20px;
-  grid-template-columns: minmax(0, 1fr) auto;
-  margin-bottom: 24px;
+  gap: 18px;
+  grid-template-columns: 1fr;
+  margin-bottom: 18px;
+  overflow: hidden;
+  padding: 22px 24px;
+  position: relative;
+}
+
+.hero::before {
+  background: linear-gradient(180deg, #155dfc, #3b82f6);
+  border-radius: 999px;
+  content: "";
+  height: calc(100% - 32px);
+  left: 0;
+  position: absolute;
+  top: 16px;
+  width: 5px;
+}
+
+.hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+.hero p {
+  max-width: 920px;
+  margin: 0;
+}
+
+.hero .quickActions {
+  align-items: center;
+  border-top: 1px solid #e2eaf7;
+  padding-top: 16px;
 }
 
 .summaryGrid,
@@ -208,7 +274,7 @@
 
 .summaryGrid {
   grid-template-columns: repeat(5, minmax(130px, 1fr));
-  margin-bottom: 18px;
+  margin-bottom: 22px;
 }
 
 .card,
@@ -221,19 +287,33 @@
 .searchGroups a,
 .supportCard,
 .executionCard {
-  background: white;
-  border: 1px solid #dce6f5;
-  border-radius: 16px;
-  box-shadow: 0 12px 28px rgb(15 42 84 / 6%);
+  background: rgb(255 255 255 / 92%);
+  border: 1px solid #dbe6f6;
+  border-radius: 20px;
+  box-shadow: 0 18px 44px rgb(15 42 84 / 8%);
 }
 
 .summaryCard {
-  padding: 18px;
+  overflow: hidden;
+  padding: 20px;
+  position: relative;
+}
+
+.summaryCard::after {
+  background: linear-gradient(180deg, rgb(21 93 252 / 14%), transparent);
+  border-radius: 999px;
+  content: "";
+  height: 78px;
+  position: absolute;
+  right: -28px;
+  top: -30px;
+  width: 78px;
 }
 
 .summaryCard strong {
   display: block;
-  font-size: 30px;
+  font-size: 34px;
+  letter-spacing: -0.04em;
   margin: 8px 0;
 }
 
@@ -249,8 +329,16 @@
 }
 
 .summaryCard[data-tone="blue"] {
-  background: #155dfc;
+  background: linear-gradient(135deg, #155dfc, #0b3fb8);
   color: white;
+}
+
+.summaryCard[data-tone="green"] strong {
+  color: #15803d;
+}
+
+.summaryCard[data-tone="red"] strong {
+  color: #dc2626;
 }
 
 .summaryCard[data-tone="blue"] p,
@@ -260,6 +348,7 @@
 
 .dashboardGrid {
   grid-template-columns: 1.3fr 1fr 1fr;
+  align-items: start;
 }
 
 .wide {
@@ -267,7 +356,7 @@
 }
 
 .card {
-  padding: 18px;
+  padding: 20px;
 }
 
 .card header,
@@ -281,7 +370,9 @@
 
 .card h2,
 .panel h2 {
+  color: #0b1f44;
   font-size: 18px;
+  letter-spacing: -0.02em;
   margin: 0;
 }
 
@@ -306,19 +397,35 @@
 .glanceItem,
 .salesRow {
   align-items: center;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
+  background: #fbfdff;
+  border: 1px solid #e1e9f5;
+  border-radius: 16px;
   color: inherit;
   display: grid;
   gap: 12px;
   grid-template-columns: auto minmax(0, 1fr) auto;
   padding: 12px;
   text-decoration: none;
+  transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+.attentionItem:hover,
+.nextItem:hover,
+.communicationItem:hover,
+.glanceItem:hover,
+.salesRow:hover,
+.supportCard:hover,
+.executionCard:hover,
+.intelligenceCard:hover,
+.searchGroups a:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 16px 34px rgb(37 99 235 / 10%);
+  transform: translateY(-1px);
 }
 
 .avatar {
   align-items: center;
-  background: #dbeafe;
+  background: linear-gradient(135deg, #dbeafe, #bfdbfe);
   border-radius: 999px;
   color: #1d4ed8;
   display: inline-flex;
@@ -389,7 +496,7 @@
 }
 
 .bar i {
-  background: #155dfc;
+  background: linear-gradient(90deg, #155dfc, #38bdf8);
   display: block;
   height: 100%;
 }
