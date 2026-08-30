@@ -200,3 +200,21 @@ Do not implement CRM Next on the shared `main` baseline directly. Start CRMN-010
 - Feedback-loop categories are foundation-only; no model training or automatic preference mutation occurs.
 
 **Progress truth:** CRMN-060 through CRMN-067 are marked `IMPLEMENTED_UNVERIFIED`, not `VERIFIED`, until broader proof and user review are complete. The next implementation marker is CRMN-068.
+
+## Implementation evidence — CRMN-068 through CRMN-074 Command Center review completion
+
+**Status:** IMPLEMENTED_UNVERIFIED  
+**Branch:** `codex/crm-next-pilot-readiness-envelope`  
+**Scope:** Added the first packet of the CRMN-068 through CRMN-094 pilot-readiness envelope: compact review UX completion, visible review-state labels, employee Command Center, manager Command Center, appointments/work summary, pipeline/intelligence summary, and team-response/load indicators.
+
+**Review location:** `/crm-next` with `CRM_NEXT=REVIEW`.
+
+**Safety posture:**
+- CRM Next remains behind `/crm-next` and `CRM_NEXT`.
+- Legacy `/customers`, current `/crm`, Dispatch Board, tasks, appointments, manager workspaces, and source-owned modules remain protected.
+- Command Center cards are review-safe and do not create, mutate, reassign, escalate, send, or complete work.
+- Employee and manager command views show guidance, metrics, and review paths without enabling live actions.
+- Appointments/work and pipeline/intelligence summaries link to existing CRM Next review surfaces while preserving source-of-truth ownership.
+- Team load indicators explain pressure without invisible reprioritization or assignment automation.
+
+**Progress truth:** CRMN-068 through CRMN-074 are marked `IMPLEMENTED_UNVERIFIED`, not `VERIFIED`, until broader proof and user review are complete. The next implementation marker is CRMN-075.

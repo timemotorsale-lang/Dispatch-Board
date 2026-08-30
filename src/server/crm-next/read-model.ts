@@ -123,6 +123,19 @@ export type CrmNextIntelligenceRecord = {
   href: string;
 };
 
+export type CrmNextCommandCenterMode = {
+  id: string;
+  milestone: "CRMN-068" | "CRMN-069" | "CRMN-070" | "CRMN-071" | "CRMN-072" | "CRMN-073" | "CRMN-074";
+  audience: "All staff" | "Employee" | "Manager";
+  title: string;
+  state: "Review ready" | "Preview only" | "Held";
+  objective: string;
+  primaryMetric: string;
+  secondaryMetric: string;
+  guidance: string;
+  href: string;
+};
+
 export type CrmNextCommandCenter = {
   contractVersion: "crm-next-command-center/v1";
   generatedAt: string;
@@ -146,6 +159,11 @@ export type CrmNextCommandCenter = {
   ownershipSupport: CrmNextOwnershipSupportRecord[];
   sharedExecution: CrmNextSharedExecutionRecord[];
   intelligence: CrmNextIntelligenceRecord[];
+  commandCenter: {
+    headline: string;
+    guidance: string;
+    modes: CrmNextCommandCenterMode[];
+  };
   bridge: {
     liveTaskCreationEnabled: false;
     previewEnabled: true;
@@ -593,6 +611,69 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     reviewHref: "/crm-next/intelligence-foundation#manager-intelligence",
     evidence: "Manager intelligence card links escalations to manager review without live overrides.",
     safety: "No manager override or reassignment command is enabled."
+  },
+  {
+    id: "CRMN-068",
+    title: "Review UX completion",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Make CRM Next review pages feel like a compact enterprise console instead of a prototype.",
+    reviewHref: "/crm-next",
+    evidence: "Command Center includes compact direction, review state, and navigation to safe work surfaces.",
+    safety: "No operational behavior is enabled."
+  },
+  {
+    id: "CRMN-069",
+    title: "Review state labels",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Show staff what is review-ready, preview-only, or held before they click.",
+    reviewHref: "/crm-next",
+    evidence: "Command Center mode cards expose state labels and guidance.",
+    safety: "Held items remain non-operational."
+  },
+  {
+    id: "CRMN-070",
+    title: "Employee Command Center",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Give staff a simple work-first Command Center view.",
+    reviewHref: "/crm-next#employee-command-center",
+    evidence: "Employee command card summarizes next customer work and linked action path.",
+    safety: "Employee actions are still review/preview only."
+  },
+  {
+    id: "CRMN-071",
+    title: "Manager Command Center",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Give managers compact visibility into load, risk, and blocked customer work.",
+    reviewHref: "/crm-next#manager-command-center",
+    evidence: "Manager command card summarizes risk, blocked work, and review path.",
+    safety: "No manager override or reassignment mutation."
+  },
+  {
+    id: "CRMN-072",
+    title: "Appointments/work summary",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Summarize appointment and work obligations without replacing owning systems.",
+    reviewHref: "/crm-next#appointments-work-summary",
+    evidence: "Appointments/work summary card links to CRM Next appointment and task bridge surfaces.",
+    safety: "Appointments and tasks remain source-owned."
+  },
+  {
+    id: "CRMN-073",
+    title: "Pipeline/intelligence summaries",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Show pipeline and intelligence context side-by-side for daily review.",
+    reviewHref: "/crm-next#pipeline-intelligence-summary",
+    evidence: "Pipeline/intelligence summary card links to read-only pipeline and intelligence surfaces.",
+    safety: "No stage movement or AI execution."
+  },
+  {
+    id: "CRMN-074",
+    title: "Team response/load indicators",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Expose response pressure and team load without changing assignments.",
+    reviewHref: "/crm-next#team-load-indicators",
+    evidence: "Team load card shows response posture and manager review guidance.",
+    safety: "No invisible reprioritization, reassignment, or escalation."
   }
 ];
 
@@ -1089,6 +1170,93 @@ const intelligenceRecords: CrmNextIntelligenceRecord[] = [
   }
 ];
 
+const commandCenterModes: CrmNextCommandCenterMode[] = [
+  {
+    id: "review-ux-completion",
+    milestone: "CRMN-068",
+    audience: "All staff",
+    title: "Compact review cockpit",
+    state: "Review ready",
+    objective: "Keep the question simple, then show only the work surfaces that matter now.",
+    primaryMetric: "1-line question",
+    secondaryMetric: "0 live writes",
+    guidance: "Start with the customer that needs attention, then move through Customer 360, Attend Mode, and source-owned work.",
+    href: "/crm-next"
+  },
+  {
+    id: "review-state-labels",
+    milestone: "CRMN-069",
+    audience: "All staff",
+    title: "Clear review-state labels",
+    state: "Review ready",
+    objective: "Make preview-only, read-only, and held states obvious before staff click.",
+    primaryMetric: "3 states",
+    secondaryMetric: "safe by default",
+    guidance: "If a card looks operational, it must show whether it is review-ready, preview-only, or held.",
+    href: "/crm-next/progress"
+  },
+  {
+    id: "employee-command-center",
+    milestone: "CRMN-070",
+    audience: "Employee",
+    title: "Employee Command Center",
+    state: "Review ready",
+    objective: "Give staff one place to see their next customer action and open the correct workspace.",
+    primaryMetric: "48 need attention",
+    secondaryMetric: "19 overdue",
+    guidance: "Employees should not hunt through modules; the queue tells them who to work and why.",
+    href: "/crm-next/needs-attention"
+  },
+  {
+    id: "manager-command-center",
+    milestone: "CRMN-071",
+    audience: "Manager",
+    title: "Manager Command Center",
+    state: "Preview only",
+    objective: "Give managers compact oversight of blocked, overdue, escalated, and review-needed customer work.",
+    primaryMetric: "5 review lanes",
+    secondaryMetric: "0 overrides",
+    guidance: "Managers can review pressure and exceptions without live reassignment or escalation controls.",
+    href: "/crm-next/shared-execution#manager-queue"
+  },
+  {
+    id: "appointments-work-summary",
+    milestone: "CRMN-072",
+    audience: "All staff",
+    title: "Appointments & work summary",
+    state: "Review ready",
+    objective: "Show today’s appointments and task-linked customer work without replacing source systems.",
+    primaryMetric: "12 appointments",
+    secondaryMetric: "task bridge preview",
+    guidance: "CRM Next points staff to the right context while appointments and tasks remain authoritative elsewhere.",
+    href: "/crm-next/appointments"
+  },
+  {
+    id: "pipeline-intelligence-summary",
+    milestone: "CRMN-073",
+    audience: "Manager",
+    title: "Pipeline & intelligence summary",
+    state: "Review ready",
+    objective: "Put pipeline value, risk, and next-action intelligence together in one executive scan.",
+    primaryMetric: "$1.24M MTD",
+    secondaryMetric: "8 intelligence signals",
+    guidance: "Use pipeline and intelligence together to decide where attention should go next.",
+    href: "/crm-next/intelligence-foundation"
+  },
+  {
+    id: "team-load-indicators",
+    milestone: "CRMN-074",
+    audience: "Manager",
+    title: "Team response & load indicators",
+    state: "Preview only",
+    objective: "Expose workload pressure before enabling any assignment automation.",
+    primaryMetric: "High response load",
+    secondaryMetric: "manual review",
+    guidance: "Load indicators explain pressure; they do not silently move work between employees.",
+    href: "/crm-next/shared-execution"
+  }
+];
+
 export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Date = new Date()): CrmNextCommandCenter {
   const access = resolveCrmNextAccess(actor);
   if (!access.allowed) {
@@ -1138,6 +1306,11 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
     ownershipSupport: ownershipSupportRecords,
     sharedExecution: sharedExecutionRecords,
     intelligence: intelligenceRecords,
+    commandCenter: {
+      headline: "Who needs attention?",
+      guidance: "A compact command center for reviewing customer pressure, next actions, team load, pipeline context, and safe handoffs.",
+      modes: commandCenterModes
+    },
     bridge: {
       liveTaskCreationEnabled: false,
       previewEnabled: true,
@@ -1148,7 +1321,7 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
       envelopeCount: 20,
       verifiedCount: progressMilestones.filter((milestone) => milestone.status === "VERIFIED").length,
       heldCount: progressMilestones.filter((milestone) => milestone.status === "HELD").length,
-      nextMilestone: "CRMN-068",
+      nextMilestone: "CRMN-075",
       milestones: progressMilestones
     }
   };

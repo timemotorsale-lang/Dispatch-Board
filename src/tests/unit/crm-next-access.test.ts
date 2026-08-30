@@ -43,7 +43,7 @@ describe("CRM Next access and safe bridge", () => {
     expect(model.bridge.liveTaskCreationEnabled).toBe(false);
     expect(model.bridge.previewEnabled).toBe(true);
     expect(model.progress.envelopeCount).toBe(20);
-    expect(model.progress.nextMilestone).toBe("CRMN-068");
+    expect(model.progress.nextMilestone).toBe("CRMN-075");
     expect(model.search.groups).toHaveLength(5);
     expect(model.ownershipSupport.map((record) => record.domain)).toEqual(
       expect.arrayContaining(["Vehicle", "Finance", "Payment", "Case", "Title/Document", "Service", "Rental/Loaner", "Customer Issue", "Insurance"])
@@ -77,6 +77,14 @@ describe("CRM Next access and safe bridge", () => {
     );
     expect(intelligenceEnvelope).toHaveLength(8);
     expect(intelligenceEnvelope.every((milestone) => milestone.status === "IMPLEMENTED_UNVERIFIED")).toBe(true);
+    expect(model.commandCenter.headline).toBe("Who needs attention?");
+    expect(model.commandCenter.modes.map((mode) => mode.milestone)).toEqual(["CRMN-068", "CRMN-069", "CRMN-070", "CRMN-071", "CRMN-072", "CRMN-073", "CRMN-074"]);
+    expect(model.commandCenter.modes.find((mode) => mode.milestone === "CRMN-071")?.state).toBe("Preview only");
+    const commandCenterEnvelope = model.progress.milestones.filter((milestone) =>
+      /^CRMN-0(6[8-9]|7[0-4])$/.test(milestone.id)
+    );
+    expect(commandCenterEnvelope).toHaveLength(7);
+    expect(commandCenterEnvelope.every((milestone) => milestone.status === "IMPLEMENTED_UNVERIFIED")).toBe(true);
   });
 
   it("rejects ineligible users and does not create a dispatch task from the bridge", () => {

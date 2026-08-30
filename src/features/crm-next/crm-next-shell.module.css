@@ -260,6 +260,7 @@
 }
 
 .summaryGrid,
+.commandModeGrid,
 .dashboardGrid,
 .customerGrid,
 .intelligenceGrid,
@@ -277,8 +278,14 @@
   margin-bottom: 22px;
 }
 
+.commandModeGrid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 22px;
+}
+
 .card,
 .summaryCard,
+.commandModeCard,
 .panel,
 .timeline,
 .contextCard,
@@ -308,6 +315,77 @@
   right: -28px;
   top: -30px;
   width: 78px;
+}
+
+.commandModeCard {
+  color: inherit;
+  display: grid;
+  gap: 12px;
+  min-height: 190px;
+  padding: 18px;
+  text-decoration: none;
+  transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+.commandModeCard div:first-of-type {
+  align-items: start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.commandModeCard h2 {
+  color: #0b1f44;
+  font-size: 18px;
+  letter-spacing: -.02em;
+  margin: 0;
+}
+
+.commandModeCard b {
+  background: #eef6ff;
+  border-radius: 999px;
+  color: #1d4ed8;
+  flex: 0 0 auto;
+  font-size: 11px;
+  padding: 6px 9px;
+}
+
+.commandModeCard p {
+  color: #475569;
+  margin: 0;
+}
+
+.commandModeCard dl {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+.commandModeCard dl div {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.commandModeCard dt {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.commandModeCard dd {
+  color: #071a3a;
+  font-weight: 950;
+  margin: 3px 0 0;
+}
+
+.commandModeCard small {
+  color: #64748b;
+  line-height: 1.45;
 }
 
 .summaryCard strong {
@@ -414,6 +492,7 @@
 .communicationItem:hover,
 .glanceItem:hover,
 .salesRow:hover,
+.commandModeCard:hover,
 .supportCard:hover,
 .executionCard:hover,
 .intelligenceCard:hover,
@@ -880,6 +959,7 @@
   }
 
   .summaryGrid,
+  .commandModeGrid,
   .dashboardGrid,
   .actionCards,
   .intelligenceCards,
@@ -899,6 +979,7 @@
   }
 
   .summaryGrid,
+  .commandModeGrid,
   .dashboardGrid,
   .actionCards,
   .intelligenceCards,

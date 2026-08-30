@@ -89,6 +89,10 @@ describe("CRM Next pages", () => {
 
     expect(command).toContain("Who needs attention?");
     expect(command).toContain("CRM Next Preview");
+    expect(command).toContain("Compact review cockpit");
+    expect(command).toContain("Employee Command Center");
+    expect(command).toContain("Manager Command Center");
+    expect(command).toContain("Team response &amp; load indicators");
     expect(attention).toContain("Prioritized customers that need action");
     expect(customer).toContain("Customer 360 Overview");
     expect(customer).toContain("Open Legacy CRM");
@@ -121,11 +125,12 @@ describe("CRM Next pages", () => {
     expect(permissions).toContain("Denied users fail closed");
     expect(rollback).toContain("CRM Next can be turned off safely");
     expect(progress).toContain("CRM Next build cockpit");
-    expect(progress).toContain("CRMN-016 → CRMN-067");
+    expect(progress).toContain("CRMN-016 → CRMN-074");
     expect(progress).toContain("CRMN-035");
     expect(progress).toContain("CRMN-048");
     expect(progress).toContain("CRMN-054");
     expect(progress).toContain("CRMN-067");
-    expect(progress).toContain("CRMN-068");
+    expect(progress).toContain("CRMN-074");
+    expect(progress).toContain("CRMN-075");
   });
 });

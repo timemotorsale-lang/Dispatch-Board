@@ -125,8 +125,8 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
       <section className={styles.hero}>
         <div>
           <span className={styles.eyebrow}>Command Center Dashboard</span>
-          <h1>Who needs attention?</h1>
-          <p>Start with the customer, understand the reason, then work the next action.</p>
+          <h1>{model.commandCenter.headline}</h1>
+          <p>{model.commandCenter.guidance}</p>
         </div>
         <div className={styles.quickActions}>
           <Link className={styles.primaryButton} href="/crm-next/needs-attention"><Bell size={16} /> View attention queue</Link>
@@ -143,6 +143,24 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
             <strong>{item.value}</strong>
             <p>{item.trend}</p>
           </article>
+        ))}
+      </section>
+
+      <section className={styles.commandModeGrid} aria-label="CRM Next command center review modes">
+        {model.commandCenter.modes.map((mode) => (
+          <Link className={styles.commandModeCard} href={mode.href} id={mode.id} key={mode.id}>
+            <span className={styles.eyebrow}>{mode.milestone} · {mode.audience}</span>
+            <div>
+              <h2>{mode.title}</h2>
+              <b>{mode.state}</b>
+            </div>
+            <p>{mode.objective}</p>
+            <dl>
+              <div><dt>Primary</dt><dd>{mode.primaryMetric}</dd></div>
+              <div><dt>Secondary</dt><dd>{mode.secondaryMetric}</dd></div>
+            </dl>
+            <small>{mode.guidance}</small>
+          </Link>
         ))}
       </section>
 
@@ -226,7 +244,7 @@ export function CrmNextProgressView({ model }: { model: CrmNextCommandCenter }) 
             <h2>CRM Next milestone envelope</h2>
             <p className={styles.muted}>Built sequentially. Each slice gets checks, honest status, and a commit checkpoint before the next one.</p>
           </div>
-          <span className={styles.pill}>CRMN-016 → CRMN-067</span>
+          <span className={styles.pill}>CRMN-016 → CRMN-074</span>
         </header>
         <div className={styles.progressList}>
           {model.progress.milestones.map((milestone) => (
