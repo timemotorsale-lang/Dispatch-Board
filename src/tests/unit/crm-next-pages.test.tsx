@@ -24,6 +24,7 @@ import CrmNextPilotReadinessPage from "@/app/(app)/crm-next/pilot-readiness/page
 import CrmNextPilotReleasePage from "@/app/(app)/crm-next/pilot-release/page";
 import CrmNextPipelinePage from "@/app/(app)/crm-next/pipeline/page";
 import CrmNextProgressPage from "@/app/(app)/crm-next/progress/page";
+import CrmNextReviewCenterPage from "@/app/(app)/crm-next/review/page";
 import CrmNextSearchPage from "@/app/(app)/crm-next/search/page";
 import CrmNextSharedExecutionPage from "@/app/(app)/crm-next/shared-execution/page";
 import CrmNextPermissionReviewPage from "@/app/(app)/crm-next/system/permissions/page";
@@ -94,6 +95,7 @@ describe("CRM Next pages", () => {
     const permissions = renderToStaticMarkup(await CrmNextPermissionReviewPage());
     const rollback = renderToStaticMarkup(await CrmNextRollbackReviewPage());
     const progress = renderToStaticMarkup(await CrmNextProgressPage());
+    const review = renderToStaticMarkup(await CrmNextReviewCenterPage());
 
     expect(command).toContain("Who needs attention?");
     expect(command).toContain("CRM Next Preview");
@@ -102,10 +104,11 @@ describe("CRM Next pages", () => {
     expect(command).toContain("Employee Command Center");
     expect(command).toContain("Manager Command Center");
     expect(command).toContain("Team response &amp; load indicators");
-    expect(command).toContain("Pilot readiness");
-    expect(command).toContain("Hardening");
-    expect(command).toContain("Coexistence");
-    expect(command).toContain("Pilot Release");
+    expect(command).toContain("Review Center");
+    expect(command).not.toContain("Pilot Readiness");
+    expect(command).not.toContain("Coexistence");
+    expect(command).not.toContain("Pilot Release");
+    expect(command).not.toContain("View progress");
     expect(attention).toContain("Prioritized customers that need action");
     expect(customer).toContain("Customer 360 Overview");
     expect(customer).toContain("Open Legacy CRM");
@@ -176,5 +179,14 @@ describe("CRM Next pages", () => {
     expect(progress).toContain("CRMN-100");
     expect(progress).toContain("CRMN-119");
     expect(progress).toContain("Pilot approval");
+    expect(progress).toContain("CRMN-120");
+    expect(review).toContain("Hidden build-review controls");
+    expect(review).toContain("Progress");
+    expect(review).toContain("Pilot Readiness");
+    expect(review).toContain("Hardening");
+    expect(review).toContain("Coexistence");
+    expect(review).toContain("Pilot Release");
+    expect(review).toContain("Permissions Review");
+    expect(review).toContain("Rollback Review");
   });
 });

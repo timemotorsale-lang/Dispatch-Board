@@ -1160,6 +1160,15 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     reviewHref: "/crm-next/progress#crm-next-envelope",
     evidence: "Final proof bundle is run after implementation and recorded in the handoff.",
     safety: "Envelope remains read-only until later explicit approval."
+  },
+  {
+    id: "CRMN-120",
+    title: "Operating CRM navigation conversion",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Convert CRM Next from a build-review cockpit into a usable operating CRM navigation model.",
+    reviewHref: "/crm-next/review",
+    evidence: "Staff navigation now emphasizes operating CRM work while governance/proof pages move behind Review Center.",
+    safety: "Review pages remain available for approval checks without cluttering regular staff workflows."
   }
 ];
 
@@ -2405,7 +2414,7 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
     },
     progress: {
       completedCount: progressMilestones.filter((milestone) => ["IMPLEMENTED_UNVERIFIED", "VERIFIED"].includes(milestone.status)).length,
-      envelopeCount: 25,
+      envelopeCount: 26,
       verifiedCount: progressMilestones.filter((milestone) => milestone.status === "VERIFIED").length,
       heldCount: progressMilestones.filter((milestone) => milestone.status === "HELD").length,
       nextMilestone: "Pilot approval",

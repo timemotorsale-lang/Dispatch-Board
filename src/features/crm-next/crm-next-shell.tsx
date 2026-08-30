@@ -53,7 +53,7 @@ export function CrmNextUnavailable({ fallbackHref, reason }: { fallbackHref: str
   );
 }
 
-function CrmNextFrame({ active, children, userName }: { active: "command" | "attention" | "customer" | "work" | "progress" | "search" | "pipeline" | "timeline" | "support" | "execution" | "intelligence" | "pilot" | "hardening" | "coexistence" | "release" | "safety"; children: React.ReactNode; userName: string }) {
+function CrmNextFrame({ active, children, userName }: { active: "command" | "attention" | "customer" | "work" | "progress" | "search" | "pipeline" | "timeline" | "support" | "execution" | "intelligence" | "pilot" | "hardening" | "coexistence" | "release" | "safety" | "review"; children: React.ReactNode; userName: string }) {
   const links = [
     { id: "command", href: "/crm-next", label: "Command Center", icon: LayoutDashboard },
     { id: "customer", href: "/crm-next/customers/michael-johnson", label: "Customers", icon: Users },
@@ -61,15 +61,12 @@ function CrmNextFrame({ active, children, userName }: { active: "command" | "att
     { id: "work", href: "/crm-next/work/attn-michael-overdue-follow-up", label: "Work Customer", icon: ClipboardCheck },
     { id: "search", href: "/crm-next/search", label: "Search", icon: Search },
     { id: "pipeline", href: "/crm-next/pipeline", label: "Pipeline", icon: Target },
+    { id: "timeline", href: "/crm-next/timeline", label: "Timeline", icon: FileSearch },
+    { id: "pipeline", href: "/crm-next/appointments", label: "Appointments", icon: CalendarDays },
+    { id: "pipeline", href: "/crm-next/deals", label: "Deals", icon: DollarSign },
     { id: "support", href: "/crm-next/ownership-support", label: "Ownership & Support", icon: FileText },
     { id: "execution", href: "/crm-next/shared-execution", label: "Shared Execution", icon: ClipboardCheck },
-    { id: "intelligence", href: "/crm-next/intelligence-foundation", label: "Intelligence", icon: Brain },
-    { id: "pilot", href: "/crm-next/pilot-readiness", label: "Pilot Readiness", icon: ShieldCheck },
-    { id: "hardening", href: "/crm-next/hardening", label: "Hardening", icon: ShieldCheck },
-    { id: "coexistence", href: "/crm-next/coexistence", label: "Coexistence", icon: FileText },
-    { id: "release", href: "/crm-next/pilot-release", label: "Pilot Release", icon: CheckCircle2 },
-    { id: "timeline", href: "/crm-next/timeline", label: "Timeline", icon: FileSearch },
-    { id: "progress", href: "/crm-next/progress", label: "Progress", icon: Target }
+    { id: "intelligence", href: "/crm-next/intelligence-foundation", label: "Intelligence", icon: Brain }
   ] as const;
 
   return (
@@ -88,7 +85,10 @@ function CrmNextFrame({ active, children, userName }: { active: "command" | "att
           </nav>
           <div className={styles.operator}>
             <strong>{userName}</strong>
-            <small>CRM Next review user</small>
+            <small>CRM Next operator</small>
+            <Link className={styles.reviewCenterLink} href="/crm-next/review">
+              <ShieldCheck size={14} /> Review Center
+            </Link>
           </div>
         </aside>
         <main className={styles.content}>{children}</main>
@@ -158,8 +158,8 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
           <Link className={styles.primaryButton} href="/crm-next/needs-attention"><Bell size={16} /> View attention queue</Link>
           <Link className={styles.secondaryButton} href="/crm-next/search"><Search size={16} /> Search CRM Next</Link>
           <Link className={styles.secondaryButton} href="/crm-next/customers/michael-johnson"><Users size={16} /> Open Customer 360</Link>
-          <Link className={styles.secondaryButton} href="/crm-next/pilot-readiness"><ShieldCheck size={16} /> Pilot readiness</Link>
-          <Link className={styles.secondaryButton} href="/crm-next/progress"><Target size={16} /> View progress</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/work/attn-michael-overdue-follow-up"><ClipboardCheck size={16} /> Work customer</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/pipeline"><Target size={16} /> Pipeline</Link>
         </div>
       </section>
 
@@ -301,6 +301,82 @@ export function CrmNextProgressView({ model }: { model: CrmNextCommandCenter }) 
           <header><h2>Rollback posture</h2></header>
           <p>Turn off `CRM_NEXT` and CRM Next fails closed while Legacy Customers and current CRM remain available.</p>
         </article>
+      </section>
+    </CrmNextFrame>
+  );
+}
+
+export function CrmNextReviewCenterView({ model }: { model: CrmNextCommandCenter }) {
+  const reviewLinks = [
+    {
+      href: "/crm-next/progress",
+      label: "Progress",
+      detail: "Implementation milestones, evidence, and current proof state."
+    },
+    {
+      href: "/crm-next/pilot-readiness",
+      label: "Pilot Readiness",
+      detail: "Pilot scenarios and review expectations before any rollout decision."
+    },
+    {
+      href: "/crm-next/hardening",
+      label: "Hardening",
+      detail: "Testing, accessibility, security, rollback, and evidence controls."
+    },
+    {
+      href: "/crm-next/coexistence",
+      label: "Coexistence",
+      detail: "Legacy/current CRM protection, migration rules, and switchback posture."
+    },
+    {
+      href: "/crm-next/pilot-release",
+      label: "Pilot Release",
+      detail: "Promotion checklist, training readiness, and leadership approval hold."
+    },
+    {
+      href: "/crm-next/system/permissions",
+      label: "Permissions Review",
+      detail: "Who can access CRM Next and what remains blocked."
+    },
+    {
+      href: "/crm-next/system/states",
+      label: "State Review",
+      detail: "Empty, partial, unavailable, and protected states."
+    },
+    {
+      href: "/crm-next/system/rollback",
+      label: "Rollback Review",
+      detail: "How CRM Next fails closed while Legacy/current CRM remain available."
+    }
+  ];
+
+  return (
+    <CrmNextFrame active="review" userName={model.userName}>
+      <Topbar />
+      <section className={styles.hero}>
+        <div>
+          <span className={styles.eyebrow}>Review Center</span>
+          <h1>Hidden build-review controls</h1>
+          <p>These pages are kept for approval, safety, and release review. They are not regular staff workflow screens.</p>
+        </div>
+        <div className={styles.quickActions}>
+          <Link className={styles.primaryButton} href="/crm-next">Return to operating CRM</Link>
+          <Link className={styles.secondaryButton} href="/crm">Current CRM</Link>
+          <Link className={styles.secondaryButton} href="/customers">Legacy Customers</Link>
+        </div>
+      </section>
+
+      <section className={styles.searchGroups} aria-label="CRM Next hidden review pages">
+        {reviewLinks.map((link) => (
+          <Link className={styles.card} href={link.href} key={link.href}>
+            <header>
+              <h2>{link.label}</h2>
+              <span className={styles.pill}>Review only</span>
+            </header>
+            <p>{link.detail}</p>
+            <p className={styles.safeNotice}>Hidden from regular staff navigation; available when called out for review.</p>
+          </Link>
+        ))}
       </section>
     </CrmNextFrame>
   );

@@ -320,3 +320,23 @@ Do not implement CRM Next on the shared `main` baseline directly. Start CRMN-010
 - Missing, inaccessible, gated, or partial source data falls back honestly to protected preview data and visible status messaging.
 
 **Progress truth:** CRMN-095 through CRMN-119 are marked `IMPLEMENTED_UNVERIFIED`, not `VERIFIED`, until final release-candidate proof, source-owner review, and pilot approval are complete. The next decision remains `Pilot approval`, not automatic rollout.
+
+## Implementation evidence — CRMN-120 operating CRM navigation conversion
+
+**Status:** IMPLEMENTED_UNVERIFIED  
+**Branch:** `codex/crm-next-operational-read-envelope`  
+**Scope:** Converted the CRM Next shell from an implementation/review cockpit into a staff-facing operating CRM navigation model.
+
+**What changed:**
+- Regular sidebar navigation now emphasizes daily CRM work: Command Center, Customers, Needs Attention, Work Customer, Search, Pipeline, Timeline, Appointments, Deals, Ownership & Support, Shared Execution, and Intelligence.
+- Build-review/governance pages were removed from the regular staff navigation.
+- A low-emphasis `/crm-next/review` Review Center keeps the hidden pages available when explicitly needed for approval, QA, release, or leadership review.
+- The hidden review pages remain: Progress, Pilot Readiness, Hardening, Coexistence, Pilot Release, system permissions, system states, and rollback review.
+
+**Safety posture:**
+- No review/proof page was deleted.
+- CRM Next remains behind `/crm-next` and `CRM_NEXT`.
+- Legacy `/customers` and current `/crm` remain operational and linked.
+- No customer writes, communication sends, task creation, migration execution, route replacement, pilot launch, or default CRM switch was enabled.
+
+**Progress truth:** CRMN-120 is marked `IMPLEMENTED_UNVERIFIED` until user review confirms the staff-facing navigation is simpler and the hidden Review Center remains sufficient for approval workflows.

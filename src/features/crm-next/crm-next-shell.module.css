@@ -165,6 +165,23 @@
   color: #9fb3d1;
 }
 
+.reviewCenterLink {
+  align-items: center;
+  border-top: 1px solid rgb(255 255 255 / 12%);
+  color: #b9c9e5;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 10px;
+  text-decoration: none;
+}
+
+.reviewCenterLink:hover {
+  color: #ffffff;
+}
+
 .content {
   margin: 0 auto;
   max-width: 1540px;
