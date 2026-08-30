@@ -43,14 +43,23 @@ describe("CRM Next access and safe bridge", () => {
     expect(model.bridge.liveTaskCreationEnabled).toBe(false);
     expect(model.bridge.previewEnabled).toBe(true);
     expect(model.progress.envelopeCount).toBe(20);
-    expect(model.progress.nextMilestone).toBe("CRMN-036");
+    expect(model.progress.nextMilestone).toBe("CRMN-050");
     expect(model.search.groups).toHaveLength(5);
+    expect(model.ownershipSupport.map((record) => record.domain)).toEqual(
+      expect.arrayContaining(["Vehicle", "Finance", "Payment", "Case", "Title/Document", "Service", "Rental/Loaner", "Customer Issue", "Insurance"])
+    );
+    expect(model.ownershipSupport.find((record) => record.domain === "Payment")?.permission).toBe("Held");
     expect(model.timeline.map((event) => event.source)).toContain("Opportunity");
     const implementedEnvelope = model.progress.milestones.filter((milestone) =>
       /^CRMN-0(1[7-9]|2[0-9]|3[0-5])$/.test(milestone.id)
     );
     expect(implementedEnvelope).toHaveLength(19);
     expect(implementedEnvelope.every((milestone) => milestone.status === "IMPLEMENTED_UNVERIFIED")).toBe(true);
+    const ownershipSupportEnvelope = model.progress.milestones.filter((milestone) =>
+      /^CRMN-04[0-8]$/.test(milestone.id)
+    );
+    expect(ownershipSupportEnvelope).toHaveLength(9);
+    expect(ownershipSupportEnvelope.every((milestone) => milestone.status === "IMPLEMENTED_UNVERIFIED")).toBe(true);
   });
 
   it("rejects ineligible users and does not create a dispatch task from the bridge", () => {

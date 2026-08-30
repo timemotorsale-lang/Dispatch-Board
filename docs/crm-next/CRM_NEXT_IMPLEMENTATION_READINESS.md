@@ -147,3 +147,21 @@ Do not implement CRM Next on the shared `main` baseline directly. Start CRMN-010
 - Rollback remains simple: disable `CRM_NEXT` and `/crm-next` fails closed to safe fallback workspaces.
 
 **Progress truth:** CRMN-016 through CRMN-035 are marked `IMPLEMENTED_UNVERIFIED`, not `VERIFIED`, until broader pilot-release proof and user review are complete. The next implementation marker is CRMN-036.
+
+## Implementation evidence — CRMN-040 through CRMN-048 ownership/support foundation
+
+**Status:** IMPLEMENTED_UNVERIFIED  
+**Branch:** `codex/crm-next-ownership-intelligence-envelope`  
+**Scope:** Added the first packet of the CRMN-040 through CRMN-067 envelope: vehicle relationships, BHPH/finance context, payment context, common case framework, titles/documents, service, rentals/loaners, customer issues, and insurance context.
+
+**Review location:** `/crm-next/ownership-support` with `CRM_NEXT=REVIEW`.
+
+**Safety posture:**
+- CRM Next remains behind `/crm-next` and `CRM_NEXT`.
+- Legacy `/customers`, current `/crm`, Dispatch Board, tasks, appointments, vehicles, and repair/service workspaces remain protected.
+- Stage 1 is review-safe and read-only.
+- Vehicle, finance, payment, case, document/title, service, rental/loaner, customer issue, and insurance cards show source-of-truth ownership instead of creating duplicate systems.
+- Sensitive finance, payment, document, and insurance execution remains restricted or held.
+- No payment collection, document sending, rental contract mutation, case closure, repair mutation, customer write, or Dispatch Board task creation is enabled.
+
+**Progress truth:** CRMN-040 through CRMN-048 are marked `IMPLEMENTED_UNVERIFIED`, not `VERIFIED`, until broader proof and user review are complete. The next implementation marker is CRMN-050.

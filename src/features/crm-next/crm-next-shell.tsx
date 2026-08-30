@@ -52,7 +52,7 @@ export function CrmNextUnavailable({ fallbackHref, reason }: { fallbackHref: str
   );
 }
 
-function CrmNextFrame({ active, children, userName }: { active: "command" | "attention" | "customer" | "work" | "progress" | "search" | "pipeline" | "timeline" | "safety"; children: React.ReactNode; userName: string }) {
+function CrmNextFrame({ active, children, userName }: { active: "command" | "attention" | "customer" | "work" | "progress" | "search" | "pipeline" | "timeline" | "support" | "safety"; children: React.ReactNode; userName: string }) {
   const links = [
     { id: "command", href: "/crm-next", label: "Command Center", icon: LayoutDashboard },
     { id: "customer", href: "/crm-next/customers/michael-johnson", label: "Customers", icon: Users },
@@ -60,6 +60,7 @@ function CrmNextFrame({ active, children, userName }: { active: "command" | "att
     { id: "work", href: "/crm-next/work/attn-michael-overdue-follow-up", label: "Work Customer", icon: ClipboardCheck },
     { id: "search", href: "/crm-next/search", label: "Search", icon: Search },
     { id: "pipeline", href: "/crm-next/pipeline", label: "Pipeline", icon: Target },
+    { id: "support", href: "/crm-next/ownership-support", label: "Ownership & Support", icon: FileText },
     { id: "timeline", href: "/crm-next/timeline", label: "Timeline", icon: FileSearch },
     { id: "progress", href: "/crm-next/progress", label: "Progress", icon: Target }
   ] as const;
@@ -219,10 +220,10 @@ export function CrmNextProgressView({ model }: { model: CrmNextCommandCenter }) 
       <article className={styles.card} id="crm-next-envelope">
         <header>
           <div>
-            <h2>Next 20-milestone envelope</h2>
+            <h2>CRM Next milestone envelope</h2>
             <p className={styles.muted}>Built sequentially. Each slice gets checks, honest status, and a commit checkpoint before the next one.</p>
           </div>
-          <span className={styles.pill}>CRMN-016 → CRMN-035</span>
+          <span className={styles.pill}>CRMN-016 → CRMN-048</span>
         </header>
         <div className={styles.progressList}>
           {model.progress.milestones.map((milestone) => (
@@ -432,6 +433,60 @@ export function CrmNextDealsView({ model }: { model: CrmNextCommandCenter }) {
         <Link className={styles.secondaryButton} href="/crm-next/pipeline">Back to pipeline</Link>
       </section>
       <SalesTable records={model.sales.deals} title="Deals in progress" summary="A clean review surface for sales staff before operational deal commands go live." />
+    </CrmNextFrame>
+  );
+}
+
+export function CrmNextOwnershipSupportView({ model }: { model: CrmNextCommandCenter }) {
+  const grouped = [
+    { label: "Ownership", ids: ["Vehicle", "Finance", "Payment"] },
+    { label: "Support", ids: ["Case", "Title/Document", "Service", "Rental/Loaner", "Customer Issue", "Insurance"] }
+  ];
+
+  return (
+    <CrmNextFrame active="support" userName={model.userName}>
+      <Topbar />
+      <section className={styles.hero}>
+        <div>
+          <span className={styles.eyebrow}>Ownership & Support</span>
+          <h1>Everything important, without turning Customer 360 into a maze</h1>
+          <p>Vehicle, finance, payment, case, title, service, rental, issue, and insurance context are grouped for quick review.</p>
+        </div>
+        <div className={styles.quickActions}>
+          <Link className={styles.primaryButton} href="/crm-next/customers/michael-johnson">Customer 360</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/work/attn-michael-overdue-follow-up">Attend Customer</Link>
+        </div>
+      </section>
+
+      {grouped.map((group) => (
+        <article className={styles.card} key={group.label}>
+          <header>
+            <div>
+              <h2>{group.label}</h2>
+              <p className={styles.muted}>Review-safe context. Authoritative systems keep ownership of the underlying work.</p>
+            </div>
+            <span className={styles.pill}>CRMN-040 → CRMN-048</span>
+          </header>
+          <div className={styles.supportGrid}>
+            {model.ownershipSupport
+              .filter((record) => group.ids.includes(record.domain))
+              .map((record) => (
+                <Link className={styles.supportCard} href={record.href} id={record.href.startsWith("#") ? record.href.slice(1) : record.id} key={record.id}>
+                  <span className={styles.eyebrow}>{record.domain}</span>
+                  <h3>{record.title}</h3>
+                  <p>{record.status}</p>
+                  <p className={styles.muted}>{record.nextAction}</p>
+                  <div className={styles.metaLine}>
+                    <b className={levelClass(record.priority)}>{record.priority}</b>
+                    <span>{record.permission}</span>
+                    <small>{record.owner}</small>
+                  </div>
+                  <p className={styles.safeNotice}>Source: {record.sourceOfTruth}</p>
+                </Link>
+              ))}
+          </div>
+        </article>
+      ))}
     </CrmNextFrame>
   );
 }

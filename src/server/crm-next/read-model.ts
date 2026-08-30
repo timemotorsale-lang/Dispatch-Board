@@ -65,7 +65,7 @@ export type CrmNextSearchGroup = {
 
 export type CrmNextTimelineEvent = {
   id: string;
-  source: "Customer" | "Communication" | "Opportunity" | "Appointment" | "Dispatch";
+  source: "Customer" | "Communication" | "Opportunity" | "Appointment" | "Dispatch" | "Vehicle" | "Finance" | "Support" | "Insurance";
   label: string;
   detail: string;
   occurredAt: string;
@@ -81,6 +81,19 @@ export type CrmNextSalesRecord = {
   owner: string;
   nextAction: string;
   href: string;
+};
+
+export type CrmNextOwnershipSupportRecord = {
+  id: string;
+  domain: "Vehicle" | "Finance" | "Payment" | "Case" | "Title/Document" | "Service" | "Rental/Loaner" | "Customer Issue" | "Insurance";
+  title: string;
+  status: string;
+  priority: CrmNextAttentionLevel;
+  owner: string;
+  nextAction: string;
+  href: string;
+  permission: "Open" | "Restricted" | "Held";
+  sourceOfTruth: string;
 };
 
 export type CrmNextCommandCenter = {
@@ -103,6 +116,7 @@ export type CrmNextCommandCenter = {
     testDrives: CrmNextSalesRecord[];
     deals: CrmNextSalesRecord[];
   };
+  ownershipSupport: CrmNextOwnershipSupportRecord[];
   bridge: {
     liveTaskCreationEnabled: false;
     previewEnabled: true;
@@ -352,6 +366,87 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     reviewHref: "/crm-next/timeline",
     evidence: "Sales and opportunity events appear in the unified timeline as source-linked read-only events.",
     safety: "Events remain source-linked and read-only."
+  },
+  {
+    id: "CRMN-040",
+    title: "Vehicle relationships",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Show customer vehicle relationships without creating a second vehicle master.",
+    reviewHref: "/crm-next/ownership-support",
+    evidence: "Ownership/support surface includes source-linked vehicle relationship cards and vehicle workspace fallback.",
+    safety: "Vehicle workspace remains authoritative; CRM Next is read-only."
+  },
+  {
+    id: "CRMN-041",
+    title: "BHPH/finance context",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Show finance context only through permission-aware review surfaces.",
+    reviewHref: "/crm-next/ownership-support#finance",
+    evidence: "Finance context is visible as restricted summary with held execution copy.",
+    safety: "No accounting ledger or finance writes are introduced."
+  },
+  {
+    id: "CRMN-042",
+    title: "Payment context",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Surface payment due/overdue context as customer attention without processing payments.",
+    reviewHref: "/crm-next/ownership-support#payment",
+    evidence: "Payment context appears as a high-priority review card and timeline signal.",
+    safety: "Payment collection remains held."
+  },
+  {
+    id: "CRMN-043",
+    title: "Common Case framework",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Use one common support case pattern for customer issues, titles, service, insurance, payments, and rentals.",
+    reviewHref: "/crm-next/ownership-support#cases",
+    evidence: "Common case cards share domain, status, priority, owner, next action, and source-of-truth fields.",
+    safety: "No duplicate case universe is created."
+  },
+  {
+    id: "CRMN-044",
+    title: "Titles/documents",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Make document/title needs visible and actionable without enabling sending/uploading.",
+    reviewHref: "/crm-next/ownership-support#documents",
+    evidence: "Document/title review card shows status, owner, next action, and held document execution.",
+    safety: "Document actions remain permission-gated and held."
+  },
+  {
+    id: "CRMN-045",
+    title: "Service",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Show service/repair context in Customer 360 while repair workflows remain authoritative.",
+    reviewHref: "/crm-next/ownership-support#service",
+    evidence: "Service support card links customer context to existing service/repair ownership.",
+    safety: "No repair workflow replacement."
+  },
+  {
+    id: "CRMN-046",
+    title: "Rentals/loaners",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Expose loaner/rental status and due-back risk in the support context.",
+    reviewHref: "/crm-next/ownership-support#rental",
+    evidence: "Rental/loaner card shows due-back attention and owner.",
+    safety: "No rental contract mutation."
+  },
+  {
+    id: "CRMN-047",
+    title: "Customer issues",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Surface customer complaints and issue resolution as common cases.",
+    reviewHref: "/crm-next/ownership-support#issues",
+    evidence: "Customer issue card uses the common case pattern with severity and next action.",
+    safety: "No issue closure or escalation writes."
+  },
+  {
+    id: "CRMN-048",
+    title: "Insurance",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Expose insurance claim context with restricted sensitive detail.",
+    reviewHref: "/crm-next/ownership-support#insurance",
+    evidence: "Insurance card shows claim status, document need, owner, and safe next action.",
+    safety: "Insurance detail remains permission-aware and read-only."
   }
 ];
 
@@ -567,6 +662,117 @@ const salesRecords: CrmNextSalesRecord[] = [
   }
 ];
 
+const ownershipSupportRecords: CrmNextOwnershipSupportRecord[] = [
+  {
+    id: "ownership-vehicle-rav4",
+    domain: "Vehicle",
+    title: "2021 Toyota RAV4 XLE · owned vehicle relationship",
+    status: "Active ownership relationship",
+    priority: "Low",
+    owner: "Sales",
+    nextAction: "Open the vehicle workspace if deeper inventory/service context is needed.",
+    href: "/vehicles",
+    permission: "Open",
+    sourceOfTruth: "Vehicle and CustomerVehicle records"
+  },
+  {
+    id: "ownership-finance-bhph",
+    domain: "Finance",
+    title: "BHPH / finance context",
+    status: "Restricted summary",
+    priority: "Medium",
+    owner: "Finance",
+    nextAction: "Manager or finance user reviews account context before any payment action.",
+    href: "#finance",
+    permission: "Restricted",
+    sourceOfTruth: "Finance/accounting source; CRM Next shows context only"
+  },
+  {
+    id: "ownership-payment-due",
+    domain: "Payment",
+    title: "Payment due May 20 · $487.32",
+    status: "Due soon",
+    priority: "High",
+    owner: "Lisa Jones",
+    nextAction: "Send approved reminder after communication/payment policy is enabled.",
+    href: "#payment",
+    permission: "Held",
+    sourceOfTruth: "Payment source; no payment processing in CRM Next"
+  },
+  {
+    id: "support-case-title",
+    domain: "Case",
+    title: "Common support case framework",
+    status: "Contract-ready",
+    priority: "Medium",
+    owner: "Support",
+    nextAction: "Use one case pattern for title, service, insurance, payment, rental, and customer issue work.",
+    href: "#cases",
+    permission: "Open",
+    sourceOfTruth: "ConcernCase common case framework"
+  },
+  {
+    id: "support-title-document",
+    domain: "Title/Document",
+    title: "Title document pending",
+    status: "Open case",
+    priority: "Medium",
+    owner: "Mark Davis",
+    nextAction: "Verify title status and record the source workspace update.",
+    href: "#documents",
+    permission: "Restricted",
+    sourceOfTruth: "CustomerDocumentRequirement / title workflow"
+  },
+  {
+    id: "support-service-open",
+    domain: "Service",
+    title: "Service follow-up due",
+    status: "Open support context",
+    priority: "Medium",
+    owner: "Tom Wilson",
+    nextAction: "Open repair/service workspace for authoritative repair action.",
+    href: "/vehicles/repair-orders",
+    permission: "Open",
+    sourceOfTruth: "ServiceVisit / RepairOrder"
+  },
+  {
+    id: "support-rental-loaner",
+    domain: "Rental/Loaner",
+    title: "Loaner due-back check",
+    status: "Review needed",
+    priority: "Low",
+    owner: "Support",
+    nextAction: "Confirm due-back plan with the assigned owner.",
+    href: "#rental",
+    permission: "Held",
+    sourceOfTruth: "Rental/loaner source when connected"
+  },
+  {
+    id: "support-customer-issue",
+    domain: "Customer Issue",
+    title: "Customer complaint follow-up",
+    status: "Open common case",
+    priority: "High",
+    owner: "Manager Review",
+    nextAction: "Attend the customer and record the resolution outcome.",
+    href: "#issues",
+    permission: "Open",
+    sourceOfTruth: "ConcernCase common case framework"
+  },
+  {
+    id: "support-insurance-claim",
+    domain: "Insurance",
+    title: "Insurance claim update requested",
+    status: "Waiting on document confirmation",
+    priority: "Low",
+    owner: "John Smith",
+    nextAction: "Review claim status and confirm next document requirement.",
+    href: "#insurance",
+    permission: "Restricted",
+    sourceOfTruth: "Insurance claim source / document case"
+  }
+];
+
 export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Date = new Date()): CrmNextCommandCenter {
   const access = resolveCrmNextAccess(actor);
   if (!access.allowed) {
@@ -613,6 +819,7 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
       testDrives: salesRecords.filter((record) => record.stage === "Test Drive"),
       deals: salesRecords
     },
+    ownershipSupport: ownershipSupportRecords,
     bridge: {
       liveTaskCreationEnabled: false,
       previewEnabled: true,
@@ -623,7 +830,7 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
       envelopeCount: 20,
       verifiedCount: progressMilestones.filter((milestone) => milestone.status === "VERIFIED").length,
       heldCount: progressMilestones.filter((milestone) => milestone.status === "HELD").length,
-      nextMilestone: "CRMN-036",
+      nextMilestone: "CRMN-050",
       milestones: progressMilestones
     }
   };
