@@ -950,21 +950,35 @@ export function CrmNextWorkCustomerView({ item, model }: { item: CrmNextAttentio
     <CrmNextFrame active="work" userName={model.userName}>
       <section className={styles.workShell}>
         <header className={styles.workHero}>
-          <Link href="/crm-next/needs-attention">← Back to attention queue</Link>
-          <span className={styles.eyebrow}>Customer Workbench</span>
-          <h1 className={styles.workTitle}>Attend: {item.customerName}</h1>
-          <p className={styles.muted}>{item.reason} · {item.area} · Owner: {item.owner}</p>
-          <div className={styles.workActions}>
-            <Link className={styles.primaryButton} href="#suggested"><Phone size={16} /> Log Call</Link>
-            <Link className={styles.secondaryButton} href="#suggested"><Mail size={16} /> Send Message</Link>
-            <Link className={styles.secondaryButton} href="/crm-next/customers/michael-johnson">Customer 360</Link>
-            <Link className={styles.secondaryButton} href="/crm-next#pipeline">Estimate / Deal</Link>
+          <div className={styles.workHeroMeta}>
+            <Link href="/crm-next/needs-attention">← Back to attention queue</Link>
+            <span className={styles.eyebrow}>Customer Workbench</span>
+            <span className={levelClass(item.level)}>{item.level}</span>
+          </div>
+          <div className={styles.workHeroBody}>
+            <div>
+              <h1 className={styles.workTitle}>Attend: {item.customerName}</h1>
+              <p className={styles.muted}>{item.reason} · {item.area} · Owner: {item.owner}</p>
+            </div>
+            <div className={styles.workActions}>
+              <Link className={styles.primaryButton} href="#suggested"><Phone size={16} /> Log Call</Link>
+              <Link className={styles.secondaryButton} href="#suggested"><Mail size={16} /> Send Message</Link>
+              <Link className={styles.secondaryButton} href="/crm-next/customers/michael-johnson">Customer 360</Link>
+              <Link className={styles.secondaryButton} href="/crm-next#pipeline">Estimate / Deal</Link>
+            </div>
           </div>
         </header>
         <main>
           <article className={styles.card}>
-            <header><h2>What do you need to do?</h2><span className={levelClass(item.level)}>{item.level}</span></header>
-            <UniversalActionBar customerHref={item.customerHref} />
+            <header><h2>Choose the next customer action</h2><span className={levelClass(item.level)}>{item.level}</span></header>
+          <div className={styles.workActions}>
+            <Link className={styles.primaryButton} href="#suggested"><Phone size={16} /> Call preview</Link>
+            <Link className={styles.secondaryButton} href="#suggested"><MessageSquare size={16} /> Text preview</Link>
+            <Link className={styles.secondaryButton} href="#suggested"><Mail size={16} /> Email preview</Link>
+            <Link className={styles.secondaryButton} href="/crm-next/appointments"><CalendarDays size={16} /> Appointments</Link>
+            <Link className={styles.secondaryButton} href="#dispatch-preview"><ClipboardCheck size={16} /> Task bridge</Link>
+            <Link className={styles.secondaryButton} href={item.customerHref}><Users size={16} /> Customer 360</Link>
+          </div>
             <div className={styles.actionCards}>
               <Link className={styles.actionCard} href="#suggested"><Phone size={18} /><strong>Follow up</strong><p className={styles.muted}>{item.reason}</p></Link>
               <Link className={styles.actionCard} href="#finance-held"><DollarSign size={18} /><strong>Collect payment</strong><p className={styles.muted}>Finance actions are review-only.</p></Link>
