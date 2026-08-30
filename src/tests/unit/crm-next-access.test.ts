@@ -43,7 +43,7 @@ describe("CRM Next access and safe bridge", () => {
     expect(model.bridge.liveTaskCreationEnabled).toBe(false);
     expect(model.bridge.previewEnabled).toBe(true);
     expect(model.progress.envelopeCount).toBe(20);
-    expect(model.progress.nextMilestone).toBe("CRMN-050");
+    expect(model.progress.nextMilestone).toBe("CRMN-060");
     expect(model.search.groups).toHaveLength(5);
     expect(model.ownershipSupport.map((record) => record.domain)).toEqual(
       expect.arrayContaining(["Vehicle", "Finance", "Payment", "Case", "Title/Document", "Service", "Rental/Loaner", "Customer Issue", "Insurance"])
@@ -60,6 +60,14 @@ describe("CRM Next access and safe bridge", () => {
     );
     expect(ownershipSupportEnvelope).toHaveLength(9);
     expect(ownershipSupportEnvelope.every((milestone) => milestone.status === "IMPLEMENTED_UNVERIFIED")).toBe(true);
+    expect(model.sharedExecution).toHaveLength(5);
+    expect(model.sharedExecution.map((record) => record.milestone)).toEqual(["CRMN-050", "CRMN-051", "CRMN-052", "CRMN-053", "CRMN-054"]);
+    expect(model.sharedExecution.find((record) => record.milestone === "CRMN-050")?.state).toBe("Preview only");
+    const sharedExecutionEnvelope = model.progress.milestones.filter((milestone) =>
+      /^CRMN-05[0-4]$/.test(milestone.id)
+    );
+    expect(sharedExecutionEnvelope).toHaveLength(5);
+    expect(sharedExecutionEnvelope.every((milestone) => milestone.status === "IMPLEMENTED_UNVERIFIED")).toBe(true);
   });
 
   it("rejects ineligible users and does not create a dispatch task from the bridge", () => {

@@ -165,3 +165,20 @@ Do not implement CRM Next on the shared `main` baseline directly. Start CRMN-010
 - No payment collection, document sending, rental contract mutation, case closure, repair mutation, customer write, or Dispatch Board task creation is enabled.
 
 **Progress truth:** CRMN-040 through CRMN-048 are marked `IMPLEMENTED_UNVERIFIED`, not `VERIFIED`, until broader proof and user review are complete. The next implementation marker is CRMN-050.
+
+## Implementation evidence — CRMN-050 through CRMN-054 shared execution foundation
+
+**Status:** IMPLEMENTED_UNVERIFIED  
+**Branch:** `codex/crm-next-ownership-intelligence-envelope`  
+**Scope:** Added the second packet of the CRMN-040 through CRMN-067 envelope: CRM-to-shared-task linkage, Dispatch Board customer context, comments/blockers/review synchronization, task activity to Customer 360 timeline posture, and manager customer-work queue foundation.
+
+**Review location:** `/crm-next/shared-execution` with `CRM_NEXT=REVIEW`.
+
+**Safety posture:**
+- CRM Next still does not create live Dispatch Board tasks.
+- Shared execution is preview-only/read-only unless a later business approval enables live commands.
+- Dispatch Board remains the operating owner for task status, assignment, comments, blockers, reviews, and manager execution.
+- CRM Next displays bridge shape, source systems, destination surfaces, and safety limits without duplicating task records.
+- No reassignment, escalation, override, comment write, blocker write, task completion, customer write, or communication send is enabled.
+
+**Progress truth:** CRMN-050 through CRMN-054 are marked `IMPLEMENTED_UNVERIFIED`, not `VERIFIED`, until broader proof and user review are complete. The next implementation marker is CRMN-060.

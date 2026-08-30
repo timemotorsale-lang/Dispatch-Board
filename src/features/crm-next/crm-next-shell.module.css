@@ -199,7 +199,8 @@
 .intelligenceGrid,
 .handoffGrid,
 .searchGroups,
-.supportGrid {
+.supportGrid,
+.executionGrid {
   display: grid;
   gap: 16px;
 }
@@ -216,7 +217,8 @@
 .contextCard,
 .handoffCard,
 .searchGroups a,
-.supportCard {
+.supportCard,
+.executionCard {
   background: white;
   border: 1px solid #dce6f5;
   border-radius: 16px;
@@ -501,15 +503,51 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.executionGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .supportCard {
   color: inherit;
   padding: 18px;
   text-decoration: none;
 }
 
-.supportCard h3 {
+.executionCard {
+  color: inherit;
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  text-decoration: none;
+}
+
+.supportCard h3,
+.executionCard h3 {
   font-size: 18px;
   margin: 8px 0;
+}
+
+.surfacePair {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.surfacePair span {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+}
+
+.surfacePair small {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
 }
 
 .metaLine {
@@ -700,6 +738,7 @@
   .handoffGrid,
   .searchGroups,
   .supportGrid,
+  .executionGrid,
   .salesRow,
   .progressRow {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -717,6 +756,8 @@
   .handoffGrid,
   .searchGroups,
   .supportGrid,
+  .executionGrid,
+  .surfacePair,
   .salesRow,
   .progressRow {
     grid-template-columns: 1fr;

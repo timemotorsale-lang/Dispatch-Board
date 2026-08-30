@@ -20,6 +20,7 @@ import CrmNextOwnershipSupportPage from "@/app/(app)/crm-next/ownership-support/
 import CrmNextPipelinePage from "@/app/(app)/crm-next/pipeline/page";
 import CrmNextProgressPage from "@/app/(app)/crm-next/progress/page";
 import CrmNextSearchPage from "@/app/(app)/crm-next/search/page";
+import CrmNextSharedExecutionPage from "@/app/(app)/crm-next/shared-execution/page";
 import CrmNextPermissionReviewPage from "@/app/(app)/crm-next/system/permissions/page";
 import CrmNextRollbackReviewPage from "@/app/(app)/crm-next/system/rollback/page";
 import CrmNextStateReviewPage from "@/app/(app)/crm-next/system/states/page";
@@ -72,6 +73,7 @@ describe("CRM Next pages", () => {
     const customer = renderToStaticMarkup(await CrmNextCustomerPage({ params: Promise.resolve({ customerId: "michael-johnson" }) }));
     const work = renderToStaticMarkup(await CrmNextWorkPage({ params: Promise.resolve({ itemId: "attn-michael-overdue-follow-up" }) }));
     const ownershipSupport = renderToStaticMarkup(await CrmNextOwnershipSupportPage());
+    const sharedExecution = renderToStaticMarkup(await CrmNextSharedExecutionPage());
     const search = renderToStaticMarkup(await CrmNextSearchPage());
     const timeline = renderToStaticMarkup(await CrmNextTimelinePage());
     const pipeline = renderToStaticMarkup(await CrmNextPipelinePage());
@@ -96,6 +98,10 @@ describe("CRM Next pages", () => {
     expect(ownershipSupport).toContain("Payment due May 20");
     expect(ownershipSupport).toContain("Common support case framework");
     expect(ownershipSupport).toContain("Insurance claim update requested");
+    expect(sharedExecution).toContain("Shared execution without a second task board");
+    expect(sharedExecution).toContain("CRM action → shared Dispatch task");
+    expect(sharedExecution).toContain("No duplicate comment or blocker store");
+    expect(sharedExecution).toContain("Manager customer-work queue");
     expect(search).toContain("Find the customer");
     expect(search).toContain("Deals and Opportunities");
     expect(timeline).toContain("Customer activity without source drift");
@@ -108,9 +114,10 @@ describe("CRM Next pages", () => {
     expect(permissions).toContain("Denied users fail closed");
     expect(rollback).toContain("CRM Next can be turned off safely");
     expect(progress).toContain("CRM Next build cockpit");
-    expect(progress).toContain("CRMN-016 → CRMN-048");
+    expect(progress).toContain("CRMN-016 → CRMN-054");
     expect(progress).toContain("CRMN-035");
     expect(progress).toContain("CRMN-048");
-    expect(progress).toContain("CRMN-050");
+    expect(progress).toContain("CRMN-054");
+    expect(progress).toContain("CRMN-060");
   });
 });

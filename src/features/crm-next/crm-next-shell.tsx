@@ -52,7 +52,7 @@ export function CrmNextUnavailable({ fallbackHref, reason }: { fallbackHref: str
   );
 }
 
-function CrmNextFrame({ active, children, userName }: { active: "command" | "attention" | "customer" | "work" | "progress" | "search" | "pipeline" | "timeline" | "support" | "safety"; children: React.ReactNode; userName: string }) {
+function CrmNextFrame({ active, children, userName }: { active: "command" | "attention" | "customer" | "work" | "progress" | "search" | "pipeline" | "timeline" | "support" | "execution" | "safety"; children: React.ReactNode; userName: string }) {
   const links = [
     { id: "command", href: "/crm-next", label: "Command Center", icon: LayoutDashboard },
     { id: "customer", href: "/crm-next/customers/michael-johnson", label: "Customers", icon: Users },
@@ -61,6 +61,7 @@ function CrmNextFrame({ active, children, userName }: { active: "command" | "att
     { id: "search", href: "/crm-next/search", label: "Search", icon: Search },
     { id: "pipeline", href: "/crm-next/pipeline", label: "Pipeline", icon: Target },
     { id: "support", href: "/crm-next/ownership-support", label: "Ownership & Support", icon: FileText },
+    { id: "execution", href: "/crm-next/shared-execution", label: "Shared Execution", icon: ClipboardCheck },
     { id: "timeline", href: "/crm-next/timeline", label: "Timeline", icon: FileSearch },
     { id: "progress", href: "/crm-next/progress", label: "Progress", icon: Target }
   ] as const;
@@ -223,7 +224,7 @@ export function CrmNextProgressView({ model }: { model: CrmNextCommandCenter }) 
             <h2>CRM Next milestone envelope</h2>
             <p className={styles.muted}>Built sequentially. Each slice gets checks, honest status, and a commit checkpoint before the next one.</p>
           </div>
-          <span className={styles.pill}>CRMN-016 → CRMN-048</span>
+          <span className={styles.pill}>CRMN-016 → CRMN-054</span>
         </header>
         <div className={styles.progressList}>
           {model.progress.milestones.map((milestone) => (
@@ -487,6 +488,54 @@ export function CrmNextOwnershipSupportView({ model }: { model: CrmNextCommandCe
           </div>
         </article>
       ))}
+    </CrmNextFrame>
+  );
+}
+
+export function CrmNextSharedExecutionView({ model }: { model: CrmNextCommandCenter }) {
+  return (
+    <CrmNextFrame active="execution" userName={model.userName}>
+      <Topbar />
+      <section className={styles.hero}>
+        <div>
+          <span className={styles.eyebrow}>Shared Execution</span>
+          <h1>Shared execution without a second task board</h1>
+          <p>CRM Next can prepare and review customer work while Dispatch Board remains the operating source for tasks, assignments, comments, blockers, and manager queues.</p>
+        </div>
+        <div className={styles.quickActions}>
+          <Link className={styles.primaryButton} href="/crm-next/work/attn-michael-overdue-follow-up#dispatch-preview">Preview task bridge</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/needs-attention">Needs Attention</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/progress">Progress</Link>
+        </div>
+      </section>
+
+      <article className={styles.card}>
+        <header>
+          <div>
+            <h2>CRMN-050 → CRMN-054 foundation</h2>
+            <p className={styles.muted}>These slices are intentionally read-only or preview-only. They prove the bridge shape before live task creation or reassignment is approved.</p>
+          </div>
+          <span className={styles.pill}>IMPLEMENTED_UNVERIFIED</span>
+        </header>
+        <div className={styles.executionGrid}>
+          {model.sharedExecution.map((record) => (
+            <Link className={styles.executionCard} href={record.href} id={record.href.startsWith("#") ? record.href.slice(1) : record.id} key={record.id}>
+              <span className={styles.eyebrow}>{record.milestone}</span>
+              <h3>{record.title}</h3>
+              <p>{record.description}</p>
+              <div className={styles.surfacePair}>
+                <span><small>CRM Next</small><strong>{record.crmNextSurface}</strong></span>
+                <span><small>Dispatch</small><strong>{record.dispatchSurface}</strong></span>
+              </div>
+              <div className={styles.metaLine}>
+                <span>{record.state}</span>
+                <small>{record.sourceSystem}</small>
+              </div>
+              <p className={styles.safeNotice}>{record.safety}</p>
+            </Link>
+          ))}
+        </div>
+      </article>
     </CrmNextFrame>
   );
 }

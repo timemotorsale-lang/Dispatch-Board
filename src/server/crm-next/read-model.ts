@@ -96,6 +96,19 @@ export type CrmNextOwnershipSupportRecord = {
   sourceOfTruth: string;
 };
 
+export type CrmNextSharedExecutionRecord = {
+  id: string;
+  milestone: "CRMN-050" | "CRMN-051" | "CRMN-052" | "CRMN-053" | "CRMN-054";
+  title: string;
+  state: "Preview only" | "Read-only" | "Manager review";
+  description: string;
+  sourceSystem: string;
+  crmNextSurface: string;
+  dispatchSurface: string;
+  safety: string;
+  href: string;
+};
+
 export type CrmNextCommandCenter = {
   contractVersion: "crm-next-command-center/v1";
   generatedAt: string;
@@ -117,6 +130,7 @@ export type CrmNextCommandCenter = {
     deals: CrmNextSalesRecord[];
   };
   ownershipSupport: CrmNextOwnershipSupportRecord[];
+  sharedExecution: CrmNextSharedExecutionRecord[];
   bridge: {
     liveTaskCreationEnabled: false;
     previewEnabled: true;
@@ -447,6 +461,51 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     reviewHref: "/crm-next/ownership-support#insurance",
     evidence: "Insurance card shows claim status, document need, owner, and safe next action.",
     safety: "Insurance detail remains permission-aware and read-only."
+  },
+  {
+    id: "CRMN-050",
+    title: "CRM-to-shared-task linkage",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Prepare CRM actions to map to the shared Dispatch Board task engine without creating duplicate tasks.",
+    reviewHref: "/crm-next/shared-execution",
+    evidence: "Shared execution surface documents preview-only CRM action to shared task linkage.",
+    safety: "No live task creation; shared task engine remains authoritative."
+  },
+  {
+    id: "CRMN-051",
+    title: "Dispatch Board customer context",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Show how Dispatch Board work can retain customer context from CRM Next.",
+    reviewHref: "/crm-next/shared-execution#dispatch-context",
+    evidence: "Dispatch customer-context bridge is represented with CRM and Dispatch source links.",
+    safety: "Dispatch Board routes and task ownership remain unchanged."
+  },
+  {
+    id: "CRMN-052",
+    title: "Comments/blockers/review synchronization",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Keep comments, blockers, and review state source-linked instead of copied.",
+    reviewHref: "/crm-next/shared-execution#sync",
+    evidence: "Shared execution surface shows synchronized read-only state for comments, blockers, and review.",
+    safety: "No duplicate comment/blocker store."
+  },
+  {
+    id: "CRMN-053",
+    title: "Task activity integration",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Prepare task activity to appear in Customer 360 timeline as source-linked events.",
+    reviewHref: "/crm-next/shared-execution#activity",
+    evidence: "Task activity bridge is represented as a read-only Customer 360 timeline feed.",
+    safety: "Activity remains event-backed and source-owned."
+  },
+  {
+    id: "CRMN-054",
+    title: "Manager queue",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Give managers a queue for unassigned, overdue, blocked, escalated, or review-needed customer work.",
+    reviewHref: "/crm-next/shared-execution#manager-queue",
+    evidence: "Manager queue review cards show exception class, owner, destination, and safe action.",
+    safety: "No reassignment or escalation mutation."
   }
 ];
 
@@ -773,6 +832,69 @@ const ownershipSupportRecords: CrmNextOwnershipSupportRecord[] = [
   }
 ];
 
+const sharedExecutionRecords: CrmNextSharedExecutionRecord[] = [
+  {
+    id: "shared-task-linkage",
+    milestone: "CRMN-050",
+    title: "CRM action → shared Dispatch task",
+    state: "Preview only",
+    description: "A CRM action can prepare the exact shared-task payload, assignee, due time, customer reference, and source context.",
+    sourceSystem: "Task Engine",
+    crmNextSurface: "Attend Mode task bridge",
+    dispatchSurface: "Dispatch Board / My Tasks",
+    safety: "The bridge still returns liveTaskCreated=false until task creation is explicitly approved.",
+    href: "/crm-next/work/attn-michael-overdue-follow-up#dispatch-preview"
+  },
+  {
+    id: "dispatch-context",
+    milestone: "CRMN-051",
+    title: "Dispatch Board customer context",
+    state: "Read-only",
+    description: "CRM-originated work keeps the customer name, reason, related vehicle/deal/case, and recommended next action visible.",
+    sourceSystem: "TaskReadModel + customer context",
+    crmNextSurface: "Customer 360 / Attend Mode",
+    dispatchSurface: "Task detail and manager work queues",
+    safety: "Dispatch Board remains the operational owner of task status and assignment.",
+    href: "#dispatch-context"
+  },
+  {
+    id: "comments-blockers-sync",
+    milestone: "CRMN-052",
+    title: "Comments, blockers, and review sync",
+    state: "Read-only",
+    description: "CRM Next displays shared comments, blocker reason, review state, and status without copying those records.",
+    sourceSystem: "Task comments, blockers, and review fields",
+    crmNextSurface: "Attend Mode context rail",
+    dispatchSurface: "Task detail",
+    safety: "No duplicate comment or blocker store is introduced.",
+    href: "#sync"
+  },
+  {
+    id: "task-activity-customer-timeline",
+    milestone: "CRMN-053",
+    title: "Task activity → Customer 360 timeline",
+    state: "Read-only",
+    description: "Task progress can appear as customer activity while the original task activity remains event-backed.",
+    sourceSystem: "ActivityEvent / task activity history",
+    crmNextSurface: "Customer 360 Activity",
+    dispatchSurface: "Task activity feed",
+    safety: "Timeline uses linked context and does not infer hidden history from UI state.",
+    href: "/crm-next/timeline"
+  },
+  {
+    id: "manager-exception-queue",
+    milestone: "CRMN-054",
+    title: "Manager customer-work queue",
+    state: "Manager review",
+    description: "Managers can review unassigned, blocked, overdue, escalated, and approval-needed CRM/customer work.",
+    sourceSystem: "Manager review + Unified CRM exception queues",
+    crmNextSurface: "Manager intelligence queue",
+    dispatchSurface: "Manager workspace",
+    safety: "Reassignment, escalation, and override actions remain held.",
+    href: "#manager-queue"
+  }
+];
+
 export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Date = new Date()): CrmNextCommandCenter {
   const access = resolveCrmNextAccess(actor);
   if (!access.allowed) {
@@ -820,6 +942,7 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
       deals: salesRecords
     },
     ownershipSupport: ownershipSupportRecords,
+    sharedExecution: sharedExecutionRecords,
     bridge: {
       liveTaskCreationEnabled: false,
       previewEnabled: true,
@@ -830,7 +953,7 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
       envelopeCount: 20,
       verifiedCount: progressMilestones.filter((milestone) => milestone.status === "VERIFIED").length,
       heldCount: progressMilestones.filter((milestone) => milestone.status === "HELD").length,
-      nextMilestone: "CRMN-050",
+      nextMilestone: "CRMN-060",
       milestones: progressMilestones
     }
   };
