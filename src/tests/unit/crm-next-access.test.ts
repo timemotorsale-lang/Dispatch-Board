@@ -43,7 +43,7 @@ describe("CRM Next access and safe bridge", () => {
     expect(model.bridge.liveTaskCreationEnabled).toBe(false);
     expect(model.bridge.previewEnabled).toBe(true);
     expect(model.progress.envelopeCount).toBe(20);
-    expect(model.progress.nextMilestone).toBe("CRMN-091");
+    expect(model.progress.nextMilestone).toBe("Pilot approval");
     expect(model.search.groups).toHaveLength(5);
     expect(model.ownershipSupport.map((record) => record.domain)).toEqual(
       expect.arrayContaining(["Vehicle", "Finance", "Payment", "Case", "Title/Document", "Service", "Rental/Loaner", "Customer Issue", "Insurance"])
@@ -112,6 +112,15 @@ describe("CRM Next access and safe bridge", () => {
     );
     expect(coexistenceEnvelope).toHaveLength(4);
     expect(coexistenceEnvelope.find((milestone) => milestone.id === "CRMN-090")?.status).toBe("HELD");
+    expect(model.pilotReleaseGates).toHaveLength(4);
+    expect(model.pilotReleaseGates.map((gate) => gate.milestone)).toEqual(["CRMN-091", "CRMN-092", "CRMN-093", "CRMN-094"]);
+    expect(model.pilotReleaseGates.find((gate) => gate.milestone === "CRMN-094")?.status).toBe("HELD");
+    expect(model.pilotReleaseGates.find((gate) => gate.milestone === "CRMN-093")?.requirement).toContain("typecheck");
+    const pilotReleaseEnvelope = model.progress.milestones.filter((milestone) =>
+      /^CRMN-09[1-4]$/.test(milestone.id)
+    );
+    expect(pilotReleaseEnvelope).toHaveLength(4);
+    expect(pilotReleaseEnvelope.find((milestone) => milestone.id === "CRMN-094")?.status).toBe("HELD");
   });
 
   it("rejects ineligible users and does not create a dispatch task from the bridge", () => {

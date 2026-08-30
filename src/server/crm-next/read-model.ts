@@ -172,6 +172,18 @@ export type CrmNextCoexistenceGate = {
   safety: string;
 };
 
+export type CrmNextPilotReleaseGate = {
+  id: string;
+  milestone: "CRMN-091" | "CRMN-092" | "CRMN-093" | "CRMN-094";
+  title: string;
+  status: CrmNextMilestoneStatus;
+  owner: "Product" | "Operations" | "Engineering" | "Leadership";
+  decision: "Ready for review" | "Proof required" | "Held for approval";
+  requirement: string;
+  proof: string;
+  cannotProceedUntil: string;
+};
+
 export type CrmNextCommandCenter = {
   contractVersion: "crm-next-command-center/v1";
   generatedAt: string;
@@ -203,6 +215,7 @@ export type CrmNextCommandCenter = {
   pilotScenarios: CrmNextPilotScenario[];
   hardeningGates: CrmNextHardeningGate[];
   coexistenceGates: CrmNextCoexistenceGate[];
+  pilotReleaseGates: CrmNextPilotReleaseGate[];
   bridge: {
     liveTaskCreationEnabled: false;
     previewEnabled: true;
@@ -857,6 +870,42 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     reviewHref: "/crm-next/coexistence#retirement-hold",
     evidence: "Coexistence surface marks retirement as held and approval-gated.",
     safety: "No Legacy deprecation, archive, redirect, or removal."
+  },
+  {
+    id: "CRMN-091",
+    title: "Pilot promotion checklist",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Create a visible checklist for pilot promotion review.",
+    reviewHref: "/crm-next/pilot-release#promotion-checklist",
+    evidence: "Pilot release surface lists promotion requirements and proof expectations.",
+    safety: "Checklist does not promote CRM Next by itself."
+  },
+  {
+    id: "CRMN-092",
+    title: "Training and operations readiness",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Document staff readiness, support, and operating instructions before pilot.",
+    reviewHref: "/crm-next/pilot-release#training-readiness",
+    evidence: "Pilot release surface captures training/readiness requirements.",
+    safety: "No staff migration or live command enablement."
+  },
+  {
+    id: "CRMN-093",
+    title: "Release-candidate proof bundle",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Summarize final proof gates before a pilot decision.",
+    reviewHref: "/crm-next/pilot-release#release-proof",
+    evidence: "Pilot release surface identifies the final proof bundle: tests, typecheck, lint, route review, rollback, and safety gates.",
+    safety: "Proof bundle is evidence-only."
+  },
+  {
+    id: "CRMN-094",
+    title: "Pilot launch approval",
+    status: "HELD",
+    objective: "Hold actual pilot launch until leadership approves the promotion.",
+    reviewHref: "/crm-next/pilot-release#pilot-launch-hold",
+    evidence: "Pilot release surface marks launch approval as held.",
+    safety: "No production rollout, flag broadening, route replacement, or live command enablement."
   }
 ];
 
@@ -1625,6 +1674,53 @@ const coexistenceGates: CrmNextCoexistenceGate[] = [
   }
 ];
 
+const pilotReleaseGates: CrmNextPilotReleaseGate[] = [
+  {
+    id: "promotion-checklist",
+    milestone: "CRMN-091",
+    title: "Promotion checklist is ready for reviewers",
+    status: "IMPLEMENTED_UNVERIFIED",
+    owner: "Product",
+    decision: "Ready for review",
+    requirement: "Review CRM Next command center, queues, Customer 360, Attend Mode, hardening, coexistence, and progress cockpit.",
+    proof: "Every implemented review route is linked and covered by focused page-render tests.",
+    cannotProceedUntil: "Product accepts the review scope and documents any UX blockers."
+  },
+  {
+    id: "training-readiness",
+    milestone: "CRMN-092",
+    title: "Operations training remains required",
+    status: "IMPLEMENTED_UNVERIFIED",
+    owner: "Operations",
+    decision: "Proof required",
+    requirement: "Define who pilots CRM Next, which actions stay in Legacy/current CRM, and where staff go when they hit a held command.",
+    proof: "Pilot release page states the training and switchback expectations before CRM Next is promoted.",
+    cannotProceedUntil: "Operations signs off on pilot users, support path, and daily workflow instructions."
+  },
+  {
+    id: "release-proof",
+    milestone: "CRMN-093",
+    title: "Release-candidate proof bundle is visible",
+    status: "IMPLEMENTED_UNVERIFIED",
+    owner: "Engineering",
+    decision: "Proof required",
+    requirement: "Run focused CRM Next tests, typecheck, scoped lint, route review, rollback review, and safety review.",
+    proof: "Proof requirements are visible in CRM Next and recorded in readiness docs.",
+    cannotProceedUntil: "The final proof bundle passes on the release candidate branch."
+  },
+  {
+    id: "pilot-launch-hold",
+    milestone: "CRMN-094",
+    title: "Pilot launch is held for leadership approval",
+    status: "HELD",
+    owner: "Leadership",
+    decision: "Held for approval",
+    requirement: "Leadership must approve pilot scope, rollout audience, communication policy, rollback plan, and Legacy coexistence posture.",
+    proof: "CRM Next shows launch as held and does not broaden CRM_NEXT or replace existing routes.",
+    cannotProceedUntil: "Leadership explicitly approves pilot launch."
+  }
+];
+
 export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Date = new Date()): CrmNextCommandCenter {
   const access = resolveCrmNextAccess(actor);
   if (!access.allowed) {
@@ -1682,6 +1778,7 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
     pilotScenarios,
     hardeningGates,
     coexistenceGates,
+    pilotReleaseGates,
     bridge: {
       liveTaskCreationEnabled: false,
       previewEnabled: true,
@@ -1692,7 +1789,7 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
       envelopeCount: 20,
       verifiedCount: progressMilestones.filter((milestone) => milestone.status === "VERIFIED").length,
       heldCount: progressMilestones.filter((milestone) => milestone.status === "HELD").length,
-      nextMilestone: "CRMN-091",
+      nextMilestone: "Pilot approval",
       milestones: progressMilestones
     }
   };

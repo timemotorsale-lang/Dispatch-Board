@@ -53,7 +53,7 @@ export function CrmNextUnavailable({ fallbackHref, reason }: { fallbackHref: str
   );
 }
 
-function CrmNextFrame({ active, children, userName }: { active: "command" | "attention" | "customer" | "work" | "progress" | "search" | "pipeline" | "timeline" | "support" | "execution" | "intelligence" | "pilot" | "hardening" | "coexistence" | "safety"; children: React.ReactNode; userName: string }) {
+function CrmNextFrame({ active, children, userName }: { active: "command" | "attention" | "customer" | "work" | "progress" | "search" | "pipeline" | "timeline" | "support" | "execution" | "intelligence" | "pilot" | "hardening" | "coexistence" | "release" | "safety"; children: React.ReactNode; userName: string }) {
   const links = [
     { id: "command", href: "/crm-next", label: "Command Center", icon: LayoutDashboard },
     { id: "customer", href: "/crm-next/customers/michael-johnson", label: "Customers", icon: Users },
@@ -67,6 +67,7 @@ function CrmNextFrame({ active, children, userName }: { active: "command" | "att
     { id: "pilot", href: "/crm-next/pilot-readiness", label: "Pilot Readiness", icon: ShieldCheck },
     { id: "hardening", href: "/crm-next/hardening", label: "Hardening", icon: ShieldCheck },
     { id: "coexistence", href: "/crm-next/coexistence", label: "Coexistence", icon: FileText },
+    { id: "release", href: "/crm-next/pilot-release", label: "Pilot Release", icon: CheckCircle2 },
     { id: "timeline", href: "/crm-next/timeline", label: "Timeline", icon: FileSearch },
     { id: "progress", href: "/crm-next/progress", label: "Progress", icon: Target }
   ] as const;
@@ -248,7 +249,7 @@ export function CrmNextProgressView({ model }: { model: CrmNextCommandCenter }) 
             <h2>CRM Next milestone envelope</h2>
             <p className={styles.muted}>Built sequentially. Each slice gets checks, honest status, and a commit checkpoint before the next one.</p>
           </div>
-          <span className={styles.pill}>CRMN-016 → CRMN-090</span>
+          <span className={styles.pill}>CRMN-016 → CRMN-094</span>
         </header>
         <div className={styles.progressList}>
           {model.progress.milestones.map((milestone) => (
@@ -772,6 +773,62 @@ export function CrmNextCoexistenceView({ model }: { model: CrmNextCommandCenter 
               </div>
               <div className={styles.metaLine}>
                 <span>{gate.safety}</span>
+                <b className={statusClass(gate.status)}>{gate.status}</b>
+              </div>
+            </article>
+          ))}
+        </div>
+      </article>
+    </CrmNextFrame>
+  );
+}
+
+export function CrmNextPilotReleaseView({ model }: { model: CrmNextCommandCenter }) {
+  return (
+    <CrmNextFrame active="release" userName={model.userName}>
+      <Topbar />
+      <section className={styles.hero}>
+        <div>
+          <span className={styles.eyebrow}>Pilot Release Gates</span>
+          <h1>Ready for review, not ready for launch without approval</h1>
+          <p>The final CRM Next pilot gates show what must be reviewed before any broader rollout, live command, or Legacy replacement is allowed.</p>
+        </div>
+        <div className={styles.quickActions}>
+          <Link className={styles.primaryButton} href="/crm-next/progress">Progress cockpit</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/hardening">Hardening</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/coexistence">Coexistence</Link>
+        </div>
+      </section>
+
+      <section className={styles.summaryGrid} aria-label="CRM Next pilot release summary">
+        <article className={styles.summaryCard} data-tone="blue"><small>Release gates</small><strong>{model.pilotReleaseGates.length}</strong><p>final checks</p></article>
+        <article className={styles.summaryCard}><small>Launch</small><strong>Held</strong><p>approval needed</p></article>
+        <article className={styles.summaryCard}><small>Live commands</small><strong>0</strong><p>not enabled</p></article>
+        <article className={styles.summaryCard}><small>Legacy</small><strong>Open</strong><p>fallback kept</p></article>
+        <article className={styles.summaryCard}><small>Next</small><strong>{model.progress.nextMilestone}</strong><p>decision gate</p></article>
+      </section>
+
+      <article className={styles.card}>
+        <header>
+          <div>
+            <h2>CRMN-091 → CRMN-094 pilot release packet</h2>
+            <p className={styles.muted}>This is the review checklist before CRM Next can become a controlled pilot instead of a protected preview.</p>
+          </div>
+          <span className={styles.pill}>launch held</span>
+        </header>
+        <div className={styles.pilotScenarioGrid}>
+          {model.pilotReleaseGates.map((gate) => (
+            <article className={styles.pilotScenarioCard} id={gate.id} key={gate.id}>
+              <span className={styles.eyebrow}>{gate.milestone} · {gate.owner}</span>
+              <h3>{gate.title}</h3>
+              <p>{gate.requirement}</p>
+              <div className={styles.details}>
+                <p><span>Decision</span>{gate.decision}</p>
+                <p><span>Proof</span>{gate.proof}</p>
+                <p><span>Cannot proceed until</span>{gate.cannotProceedUntil}</p>
+              </div>
+              <div className={styles.metaLine}>
+                <span>Promotion gate</span>
                 <b className={statusClass(gate.status)}>{gate.status}</b>
               </div>
             </article>
