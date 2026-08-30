@@ -1,5 +1,13 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
+import { getInitialMinneapolisLocation } from "@/server/appointments/location-foundation";
+import {
+  getLocationLocalDate,
+  locationLocalDateMinuteToInstant
+} from "@/server/appointments/location-time-service";
 import { resolveCrmNextAccess, type CrmNextMode } from "@/server/crm-next/access";
+import { listAppointmentReadModels } from "@/server/services/appointment-read-service";
+import { listRecentCustomerLeads } from "@/server/services/customer-lead-service";
+import { getSalesConsoleReadModel } from "@/server/services/sales-console-read-service";
 import { getUnifiedCrmCustomer360 } from "@/server/services/unified-crm-customer-360-service";
 import { getUnifiedCrmCustomerList } from "@/server/services/unified-crm-customer-read-service";
 import { searchUnifiedCrm } from "@/server/services/unified-crm-global-search-service";
@@ -220,12 +228,21 @@ export type CrmNextOperatingAction = {
   pilotRequirement: string;
 };
 
+export type CrmNextSummaryMetric = {
+  href: string;
+  label: string;
+  source: string;
+  tone: "blue" | "green" | "red";
+  trend: string;
+  value: string;
+};
+
 export type CrmNextCommandCenter = {
   contractVersion: "crm-next-command-center/v1";
   generatedAt: string;
   userName: string;
   mode: Exclude<CrmNextMode, "OFF">;
-  summary: Array<{ label: string; value: string; trend: string; tone: "blue" | "green" | "red" }>;
+  summary: CrmNextSummaryMetric[];
   attention: CrmNextAttentionItem[];
   pipeline: Array<{ label: string; value: number }>;
   revenue: { monthToDate: string; trend: string };
@@ -2129,9 +2146,12 @@ const pilotReleaseGates: CrmNextPilotReleaseGate[] = [
 ];
 
 type CrmNextOperationalReadDependencies = {
+  appointmentReader?: typeof listAppointmentReadModels;
   customer360Reader?: typeof getUnifiedCrmCustomer360;
   customerListReader?: typeof getUnifiedCrmCustomerList;
+  leadReader?: typeof listRecentCustomerLeads;
   now?: () => Date;
+  salesReader?: typeof getSalesConsoleReadModel;
   searchQuery?: string;
   searchReader?: typeof searchUnifiedCrm;
 };
@@ -2303,6 +2323,32 @@ function searchGroupsFromUnifiedCrm(search: UnifiedCrmGlobalSearchReadModel): Cr
   }));
 }
 
+function updateSummaryMetric(
+  summary: CrmNextSummaryMetric[],
+  label: string,
+  patch: Partial<CrmNextSummaryMetric>
+): CrmNextSummaryMetric[] {
+  return summary.map((item) => (item.label === label ? { ...item, ...patch } : item));
+}
+
+function todayAppointmentWindow(now: Date) {
+  const location = getInitialMinneapolisLocation();
+  const localDate = getLocationLocalDate(now, location.timezone);
+  return {
+    location,
+    windowEnd: locationLocalDateMinuteToInstant({
+      localDate,
+      minuteOfDay: 1440,
+      timezone: location.timezone
+    }),
+    windowStart: locationLocalDateMinuteToInstant({
+      localDate,
+      minuteOfDay: 0,
+      timezone: location.timezone
+    })
+  };
+}
+
 function withCustomerListOverlay(
   model: CrmNextCommandCenter,
   customerList: UnifiedCrmCustomerListReadModel,
@@ -2311,16 +2357,23 @@ function withCustomerListOverlay(
   if (customerList.state === "EMPTY") return model;
   const operationalCustomers = customerList.items.map((item) => crmNextCustomerFromListItem(item, now));
   const operationalAttention = attentionFromCustomerList(customerList.items, now);
+  const overdueCount = operationalAttention.filter((item) => item.level === "High").length;
+  let summary = updateSummaryMetric(model.summary, "Needs Attention", {
+    source: "Customer next actions",
+    trend: "from customer records",
+    value: String(operationalAttention.length)
+  });
+  summary = updateSummaryMetric(summary, "Overdue Follow-ups", {
+    source: "Customer next actions",
+    trend: overdueCount === 1 ? "requires attention" : "require attention",
+    value: String(overdueCount)
+  });
+
   return {
     ...model,
     attention: operationalAttention.length ? operationalAttention : model.attention,
     customers: operationalCustomers.length ? operationalCustomers : model.customers,
-    summary: model.summary.map((item) => item.label === "Needs Attention"
-      ? { ...item, value: String(operationalAttention.length), trend: "from existing customer source" }
-      : item.label === "Hot Leads"
-        ? { ...item, value: String(customerList.items.length), trend: "customer records" }
-        : item
-    )
+    summary
   };
 }
 
@@ -2368,12 +2421,20 @@ export async function getCrmNextOperationalCommandCenter(
       limit: 12,
       q: dependencies.searchQuery ?? "customer"
     });
+    const opportunityCount = search.groups.find((group) => group.entity === "opportunity")?.count;
     model = {
       ...model,
       search: {
         ...model.search,
         groups: search.groups.length ? searchGroupsFromUnifiedCrm(search) : model.search.groups
-      }
+      },
+      summary: typeof opportunityCount === "number"
+        ? updateSummaryMetric(model.summary, "Deals in Progress", {
+          source: "Opportunity search",
+          trend: "matching open records",
+          value: String(opportunityCount)
+        })
+        : model.summary
     };
     statuses.push(readStatus({
       id: "search",
@@ -2392,6 +2453,79 @@ export async function getCrmNextOperationalCommandCenter(
       detail: "Search source is unavailable, gated, or inaccessible; CRM Next keeps safe search group fallbacks.",
       href: "/crm-next/search"
     }, observedAt));
+  }
+
+  try {
+    const leads = await (dependencies.leadReader ?? listRecentCustomerLeads)(actor, 25);
+    const activeLeadCount = leads.filter((lead) => !["WON", "LOST"].includes(String(lead.stage))).length;
+    model = {
+      ...model,
+      summary: updateSummaryMetric(model.summary, "Hot Leads", {
+        source: "Lead engine",
+        trend: "active lead records",
+        value: String(activeLeadCount)
+      })
+    };
+  } catch {
+    model = {
+      ...model,
+      summary: updateSummaryMetric(model.summary, "Hot Leads", {
+        source: "Lead workspace",
+        trend: "open lead view",
+        value: String(model.sales.leads.length)
+      })
+    };
+  }
+
+  try {
+    const appointmentWindow = todayAppointmentWindow(now);
+    const appointments = await (dependencies.appointmentReader ?? listAppointmentReadModels)(actor, {
+      includeCancelled: false,
+      locationId: appointmentWindow.location.id,
+      windowEnd: appointmentWindow.windowEnd,
+      windowStart: appointmentWindow.windowStart
+    });
+    model = {
+      ...model,
+      summary: updateSummaryMetric(model.summary, "Appointments Today", {
+        source: "Appointment schedule",
+        trend: "scheduled today",
+        value: String(appointments.appointmentCount)
+      })
+    };
+  } catch {
+    model = {
+      ...model,
+      summary: updateSummaryMetric(model.summary, "Appointments Today", {
+        source: "Appointment board",
+        trend: "open schedule",
+        value: String(model.sales.appointments.length)
+      })
+    };
+  }
+
+  try {
+    const sales = await (dependencies.salesReader ?? getSalesConsoleReadModel)(actor, { now: () => now });
+    const dealSource = sales.dataSources.find((source) => source.source === "Deal visibility");
+    if (dealSource?.status === "mapped") {
+      model = {
+        ...model,
+        summary: updateSummaryMetric(model.summary, "Deals in Progress", {
+          source: "Deal visibility",
+          trend: "active deal records",
+          value: String(dealSource.usedRecords)
+        })
+      };
+    }
+  } catch {
+    model = {
+      ...model,
+      summary: updateSummaryMetric(model.summary, "Deals in Progress", {
+        source: "Sales workspace",
+        trend: "open deal view",
+        value: String(model.sales.deals.length)
+      })
+    };
   }
 
   const state = operationalState(statuses);
@@ -2494,11 +2628,11 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
     userName: actor?.name ?? "CRM user",
     mode: activeMode,
     summary: [
-      { label: "Needs Attention", value: "48", trend: "12 from yesterday", tone: "blue" },
-      { label: "Hot Leads", value: "26", trend: "8 from yesterday", tone: "red" },
-      { label: "Appointments Today", value: "12", trend: "3 from yesterday", tone: "green" },
-      { label: "Deals in Progress", value: "37", trend: "5 from yesterday", tone: "green" },
-      { label: "Overdue Follow-ups", value: "19", trend: "4 from yesterday", tone: "red" }
+      { href: "/crm-next/needs-attention", label: "Needs Attention", source: "Customer next actions", value: "48", trend: "open customer work", tone: "blue" },
+      { href: "/crm-next/pipeline", label: "Hot Leads", source: "Lead engine", value: "26", trend: "active lead records", tone: "red" },
+      { href: "/crm-next/appointments", label: "Appointments Today", source: "Appointment schedule", value: "12", trend: "scheduled today", tone: "green" },
+      { href: "/crm-next/deals", label: "Deals in Progress", source: "Deal visibility", value: "37", trend: "active deal records", tone: "green" },
+      { href: "/crm-next/needs-attention", label: "Overdue Follow-ups", source: "Customer next actions", value: "19", trend: "require attention", tone: "red" }
     ],
     attention: attentionItems,
     pipeline: [

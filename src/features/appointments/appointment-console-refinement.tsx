@@ -261,6 +261,13 @@ function appointmentTop(appointment: LiveAppointment) {
   return Math.max(0, ((hour * 60 + minute) - 8 * 60) * (53 / 60));
 }
 
+function timeSlotTop(time: string) {
+  const [hourText, minuteText] = time.split(":");
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  return Math.max(0, ((hour * 60 + minute) - 8 * 60) * (53 / 60));
+}
+
 function appointmentDateKey(appointment: LiveAppointment) {
   if (!appointment.startsAt) return null;
   return dateKeyFromDate(new Date(appointment.startsAt));
@@ -313,6 +320,28 @@ const kpis = [
   { icon: MessageSquareText, label: "Waiting Confirmation", value: "7", detail: "Appts", tone: "orange" },
   { icon: RefreshCw, label: "Follow-ups", value: "5", detail: "Appts", tone: "purple" },
   { icon: AlertTriangle, label: "Exceptions", value: "2", detail: "Appts", tone: "red" }
+];
+
+const appointmentTimeSlots = [
+  "08:00",
+  "08:30",
+  "09:00",
+  "09:30",
+  "10:00",
+  "10:30",
+  "11:00",
+  "11:30",
+  "12:00",
+  "12:30",
+  "13:00",
+  "13:30",
+  "14:00",
+  "14:30",
+  "15:00",
+  "15:30",
+  "16:00",
+  "16:30",
+  "17:00"
 ];
 
 function useAppointmentConsoleData() {
@@ -741,7 +770,7 @@ export function AppointmentConsoleNewAppointment() {
     reason: ""
   });
   const [calendarView, setCalendarView] = useState<"day" | "week" | "month">("day");
-  const [notice, setNotice] = useState("Ready to create an audited appointment draft.");
+  const [notice, setNotice] = useState("Ready to create appointment.");
   const [isSaving, setIsSaving] = useState(false);
   const [createdAppointmentNumber, setCreatedAppointmentNumber] = useState<string | null>(null);
   const [customerQuery, setCustomerQuery] = useState("");
@@ -756,6 +785,7 @@ export function AppointmentConsoleNewAppointment() {
   const effectiveIdentityStatus = identityQuery.length < 2 ? "idle" : identityStatus;
   const startsAtIso = useMemo(() => localDateTimeToIso(form.localDate, form.startTime), [form.localDate, form.startTime]);
   const endsAtIso = useMemo(() => addMinutesToIso(startsAtIso, form.durationMinutes), [startsAtIso, form.durationMinutes]);
+  const selectedSlotTop = useMemo(() => timeSlotTop(form.startTime), [form.startTime]);
   const monthCells = useMemo(() => buildMonthCells(form.localDate), [form.localDate]);
   const visibleAppointments = useMemo(() => appointmentWindow.data?.appointments ?? [], [appointmentWindow.data?.appointments]);
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(weekStart(form.localDate), index)), [form.localDate]);
@@ -858,7 +888,7 @@ export function AppointmentConsoleNewAppointment() {
     }
 
     setIsSaving(true);
-    setNotice("Creating appointment through the appointment command ledger...");
+    setNotice("Creating appointment...");
 
     try {
       const appointmentNumber = createAppointmentNumber();
@@ -1020,21 +1050,30 @@ export function AppointmentConsoleNewAppointment() {
               <strong>{calendarView === "month" ? monthLabel(form.localDate) : calendarView === "week" ? `Week of ${new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: defaultTimezone }).format(noonDate(weekStart(form.localDate)))}` : appointmentDateLabel}</strong>
             </header>
             {calendarView === "day" ? (
-              <div className="calendar-stage">
-                {["8 AM","9 AM","10 AM","11 AM","12 PM","1 PM","2 PM","3 PM","4 PM","5 PM","6 PM"].map((hour) => <span className="time-label" key={hour}>{hour}</span>)}
-                <div className="availability good top" />
-                <div className="availability constrained mid" />
-                <div className="availability good lower" />
-                <div className="availability constrained bottom" />
-                {visibleAppointments.map((appointment) => (
-                  <Link className="calendar-event blue" href={boardFocusHref(appointment)} key={appointment.id} style={{ top: appointmentTop(appointment), height: 58 }}>
-                    <span>{formatTime(appointment.startsAt)} - {formatTime(appointment.endsAt)}</span>
-                    <strong>{appointment.title}</strong>
-                    <small>{appointment.customer?.displayName ?? appointment.owner?.name ?? "Unassigned"}</small>
-                  </Link>
-                ))}
-                <button className="selected-slot" type="button">{formatTime(startsAtIso)} - {formatTime(endsAtIso)}</button>
-              </div>
+              <>
+                <div className="appointment-time-picker" aria-label="Available appointment times">
+                  {appointmentTimeSlots.map((slot) => (
+                    <button className={form.startTime === slot ? "active" : ""} key={slot} onClick={() => updateField("startTime", slot)} type="button">
+                      {formatTime(localDateTimeToIso(form.localDate, slot))}
+                    </button>
+                  ))}
+                </div>
+                <div className="calendar-stage">
+                  {["8 AM","9 AM","10 AM","11 AM","12 PM","1 PM","2 PM","3 PM","4 PM","5 PM","6 PM"].map((hour) => <span className="time-label" key={hour}>{hour}</span>)}
+                  <div className="availability good top" />
+                  <div className="availability constrained mid" />
+                  <div className="availability good lower" />
+                  <div className="availability constrained bottom" />
+                  {visibleAppointments.map((appointment) => (
+                    <Link className="calendar-event blue" href={boardFocusHref(appointment)} key={appointment.id} style={{ top: appointmentTop(appointment), height: 58 }}>
+                      <span>{formatTime(appointment.startsAt)} - {formatTime(appointment.endsAt)}</span>
+                      <strong>{appointment.title}</strong>
+                      <small>{appointment.customer?.displayName ?? appointment.owner?.name ?? "Unassigned"}</small>
+                    </Link>
+                  ))}
+                  <button className="selected-slot" style={{ top: selectedSlotTop }} type="button">{formatTime(startsAtIso)} - {formatTime(endsAtIso)}</button>
+                </div>
+              </>
             ) : calendarView === "week" ? (
               <div className="appointment-week-view">
                 {weekDays.map((dateKey) => {
@@ -1096,8 +1135,17 @@ export function AppointmentConsoleNewAppointment() {
                 <div><dt>Advisor / Owner</dt><dd>{form.advisor}</dd></div>
                 <div><dt>Transportation</dt><dd>{form.transportation}</dd></div>
               </dl>
+              <label className="appointment-summary-reason">
+                <span>Appointment reason</span>
+                <textarea onChange={(event) => updateField("reason", event.target.value)} placeholder="Example: customer called about title paperwork, repair status, sales visit, payment, or another issue." value={form.reason} />
+              </label>
               <h3>Readiness Checklist</h3>
-              {["Purpose selected", "Time window selected", "Reason documented", "Canonical command will create the appointment draft"].map((item) => <p className="ready" key={item}>✓ {item}</p>)}
+              {[
+                ["ready", "Purpose selected"],
+                ["ready", "Time window selected"],
+                [form.reason.trim() ? "ready" : "pending", form.reason.trim() ? "Reason added" : "Add appointment reason"],
+                ["ready", "Appointment draft will be created"]
+              ].map(([state, item]) => <p className={state} key={item}>{state === "ready" ? "✓" : "•"} {item}</p>)}
               <p className="appointment-command-notice">{notice}</p>
               <footer>
                 {createdAppointmentNumber ? <Link href={`/appointments?view=board&appointment=${encodeURIComponent(createdAppointmentNumber)}`}>Open in Board</Link> : <button type="button">Save Draft</button>}

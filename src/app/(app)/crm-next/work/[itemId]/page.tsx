@@ -2,11 +2,33 @@ import { CrmNextUnavailable, CrmNextWorkCustomerView } from "@/features/crm-next
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { resolveCrmNextAccess } from "@/server/crm-next/access";
 import { previewCrmNextActionToTaskBridge } from "@/server/crm-next/action-bridge";
-import { getCrmNextAttentionItem, getCrmNextOperationalCommandCenter } from "@/server/crm-next/read-model";
+import {
+  getCrmNextAttentionItem,
+  getCrmNextOperationalCommandCenter,
+  getCrmNextOperationalCustomer360,
+  type CrmNextAttentionItem,
+  type CrmNextCustomer360
+} from "@/server/crm-next/read-model";
 
 type CrmNextWorkPageProps = {
   params: Promise<{ itemId: string }>;
 };
+
+function attentionItemFromCustomer(customer: CrmNextCustomer360, itemId: string): CrmNextAttentionItem {
+  return {
+    age: "Current",
+    area: "Sales",
+    customerHref: `/crm-next/customers/${encodeURIComponent(customer.id)}`,
+    customerId: customer.id,
+    customerName: customer.name,
+    id: itemId,
+    level: customer.riskLevel,
+    nextAction: customer.nextAction,
+    owner: "Unassigned",
+    reason: customer.nextAction || "Review customer record",
+    workHref: `/crm-next/work/${encodeURIComponent(itemId)}`
+  };
+}
 
 export default async function CrmNextWorkPage({ params }: CrmNextWorkPageProps) {
   const user = await requireCurrentUser();
@@ -18,8 +40,16 @@ export default async function CrmNextWorkPage({ params }: CrmNextWorkPageProps) 
 
   const { itemId } = await params;
   const model = await getCrmNextOperationalCommandCenter(user);
-  const item = model.attention.find((item) => item.id === itemId) ?? getCrmNextAttentionItem(user, itemId);
-  const bridgePreview = previewCrmNextActionToTaskBridge(user, { attentionItemId: item.id });
+  let item = model.attention.find((attentionItem) => attentionItem.id === itemId);
+
+  if (!item && itemId.startsWith("customer-read-")) {
+    const customerId = decodeURIComponent(itemId.slice("customer-read-".length));
+    const { customer } = await getCrmNextOperationalCustomer360(user, customerId);
+    item = attentionItemFromCustomer(customer, itemId);
+  }
+
+  item ??= getCrmNextAttentionItem(user, itemId);
+  const bridgePreview = previewCrmNextActionToTaskBridge(user, { attentionItemId: item.id, itemOverride: item });
 
   return (
     <CrmNextWorkCustomerView

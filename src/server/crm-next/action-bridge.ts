@@ -1,6 +1,12 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { resolveCrmNextAccess } from "@/server/crm-next/access";
-import { getCrmNextAttentionItem } from "@/server/crm-next/read-model";
+import {
+  getCrmNextAttentionItem,
+  getCrmNextOperationalCommandCenter,
+  getCrmNextOperationalCustomer360,
+  type CrmNextAttentionItem,
+  type CrmNextCustomer360
+} from "@/server/crm-next/read-model";
 import { createManualTask } from "@/server/services/task-create-service";
 
 export type CrmNextActionBridgePreview = {
@@ -17,9 +23,37 @@ export type CrmNextActionBridgePreview = {
   };
 };
 
+function attentionItemFromCustomer(customer: CrmNextCustomer360, itemId: string): CrmNextAttentionItem {
+  return {
+    age: "Current",
+    area: "Sales",
+    customerHref: `/crm-next/customers/${encodeURIComponent(customer.id)}`,
+    customerId: customer.id,
+    customerName: customer.name,
+    id: itemId,
+    level: customer.riskLevel,
+    nextAction: customer.nextAction,
+    owner: "Unassigned",
+    reason: customer.nextAction || "Review customer record",
+    workHref: `/crm-next/work/${encodeURIComponent(itemId)}`
+  };
+}
+
+async function resolveBridgeAttentionItem(actor: AuthenticatedUser | null, attentionItemId: string) {
+  if (!attentionItemId.startsWith("customer-read-")) return getCrmNextAttentionItem(actor, attentionItemId);
+
+  const model = await getCrmNextOperationalCommandCenter(actor);
+  const queued = model.attention.find((item) => item.id === attentionItemId);
+  if (queued) return queued;
+
+  const customerId = decodeURIComponent(attentionItemId.slice("customer-read-".length));
+  const { customer } = await getCrmNextOperationalCustomer360(actor, customerId);
+  return attentionItemFromCustomer(customer, attentionItemId);
+}
+
 export function previewCrmNextActionToTaskBridge(
   actor: AuthenticatedUser | null,
-  input: { attentionItemId: string }
+  input: { attentionItemId: string; itemOverride?: CrmNextAttentionItem }
 ): CrmNextActionBridgePreview {
   const access = resolveCrmNextAccess(actor);
   if (!access.allowed) {
@@ -31,7 +65,7 @@ export function previewCrmNextActionToTaskBridge(
     };
   }
 
-  const item = getCrmNextAttentionItem(actor, input.attentionItemId);
+  const item = input.itemOverride ?? getCrmNextAttentionItem(actor, input.attentionItemId);
   const dogfoodReady = access.mode === "DOGFOOD";
 
   return {
@@ -66,7 +100,7 @@ export async function createCrmNextDispatchTaskFromAttention(
     throw new Error("Authentication required.");
   }
 
-  const item = getCrmNextAttentionItem(actor, input.attentionItemId);
+  const item = await resolveBridgeAttentionItem(actor, input.attentionItemId);
   const now = new Date();
   const boardDate = now.toISOString().slice(0, 10);
   const dueAt = new Date(now);

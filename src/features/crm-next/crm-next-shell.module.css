@@ -112,7 +112,10 @@
   display: flex;
   flex-direction: column;
   gap: 22px;
+  overflow: visible;
   padding: 24px 18px;
+  position: relative;
+  z-index: 20;
 }
 
 .brand {
@@ -127,6 +130,7 @@
 .nav {
   display: grid;
   gap: 8px;
+  overflow: visible;
 }
 
 .nav a {
@@ -147,6 +151,50 @@
   border-color: rgb(147 197 253 / 35%);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 18%);
   color: white;
+}
+
+.navGroup {
+  position: relative;
+}
+
+.navGroup[data-active="true"] > a {
+  background: rgb(21 93 252 / 92%);
+  border-color: rgb(147 197 253 / 35%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 18%);
+  color: white;
+}
+
+.navChildren {
+  background: linear-gradient(180deg, #0b1f44 0%, #071a3a 100%);
+  border: 1px solid rgb(147 197 253 / 24%);
+  border-radius: 14px;
+  box-shadow: 0 18px 42px rgb(3 16 34 / 28%);
+  display: grid;
+  gap: 6px;
+  left: calc(100% + 10px);
+  min-width: 185px;
+  opacity: 0;
+  padding: 8px;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  transform: translateX(-4px);
+  transition: opacity .16s ease, transform .16s ease;
+  z-index: 40;
+}
+
+.navGroup:hover .navChildren,
+.navGroup:focus-within .navChildren,
+.navGroup[data-active="true"] .navChildren {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
+}
+
+.navChildren a {
+  border-radius: 10px;
+  font-size: 13px;
+  padding: 7px 9px;
 }
 
 .operator {
@@ -372,19 +420,18 @@
 }
 
 .hero {
-  align-items: start;
   background:
     radial-gradient(circle at 92% 18%, rgb(21 93 252 / 18%), transparent 26%),
     linear-gradient(135deg, #ffffff 0%, #f8fbff 54%, #eef6ff 100%);
   border: 1px solid #d7e3f5;
-  border-radius: 22px;
-  box-shadow: 0 18px 48px rgb(15 42 84 / 8%);
+  border-radius: 16px;
+  box-shadow: 0 12px 28px rgb(15 42 84 / 7%);
   display: grid;
-  gap: 18px;
+  gap: 10px;
   grid-template-columns: 1fr;
-  margin-bottom: 18px;
+  margin-bottom: 10px;
   overflow: hidden;
-  padding: 22px 24px;
+  padding: 16px 20px;
   position: relative;
 }
 
@@ -405,14 +452,58 @@
 }
 
 .hero p {
-  max-width: 920px;
+  max-width: 760px;
   margin: 0;
 }
 
 .hero .quickActions {
   align-items: center;
-  border-top: 1px solid #e2eaf7;
-  padding-top: 16px;
+  border-top: 0;
+  flex-wrap: nowrap;
+  gap: 8px;
+  justify-content: flex-start;
+  overflow-x: auto;
+  padding-top: 0;
+  scrollbar-width: thin;
+}
+
+.hero .primaryButton,
+.hero .secondaryButton {
+  border-radius: 12px;
+  flex: 0 0 auto;
+  font-size: 14px;
+  min-height: 38px;
+  padding: 8px 12px;
+  white-space: nowrap;
+}
+
+.compactHero {
+  align-items: center;
+  background:
+    radial-gradient(circle at 92% 0%, rgb(21 93 252 / 14%), transparent 24%),
+    linear-gradient(135deg, #ffffff 0%, #f7faff 100%);
+  border: 1px solid #d7e3f5;
+  border-radius: 16px;
+  box-shadow: 0 12px 28px rgb(15 42 84 / 7%);
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  margin-bottom: 12px;
+  padding: 16px 20px;
+}
+
+.compactHero h1 {
+  color: #061735;
+  font-size: clamp(26px, 2vw, 36px);
+  letter-spacing: -0.035em;
+  line-height: 1.04;
+  margin: 4px 0 4px;
+}
+
+.compactHero p {
+  color: #64748b;
+  margin: 0;
+  max-width: 780px;
 }
 
 .summaryGrid,
@@ -431,28 +522,29 @@
 }
 
 .summaryGrid {
-  grid-template-columns: repeat(5, minmax(130px, 1fr));
-  margin-bottom: 22px;
+  gap: 10px;
+  grid-template-columns: repeat(5, minmax(138px, 1fr));
+  margin-bottom: 12px;
 }
 
 .operatorActionGrid {
   display: grid;
-  gap: 14px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin-bottom: 22px;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 14px;
 }
 
 .operatorActionCard {
   align-items: center;
   background: #ffffff;
   border: 1px solid #cfdaea;
-  border-radius: 18px;
-  box-shadow: 0 14px 34px rgb(15 42 84 / 7%);
+  border-radius: 14px;
+  box-shadow: 0 10px 24px rgb(15 42 84 / 6%);
   color: #071a3a;
   display: flex;
-  gap: 14px;
-  min-height: 92px;
-  padding: 18px;
+  gap: 10px;
+  min-height: 72px;
+  padding: 12px;
   text-decoration: none;
   transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
 }
@@ -465,10 +557,10 @@
 
 .operatorActionCard svg {
   background: #eef4ff;
-  border-radius: 14px;
+  border-radius: 12px;
   color: #155dfc;
   flex: 0 0 auto;
-  padding: 10px;
+  padding: 9px;
   box-sizing: content-box;
 }
 
@@ -478,14 +570,136 @@
 }
 
 .operatorActionCard strong {
-  font-size: 17px;
+  font-size: 15px;
   letter-spacing: -0.015em;
 }
 
 .operatorActionCard small {
   color: #52637a;
-  line-height: 1.35;
-  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.25;
+  margin-top: 2px;
+}
+
+.customerDirectoryGrid {
+  align-items: start;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) 300px;
+}
+
+.directoryCard {
+  display: grid;
+  gap: 10px;
+}
+
+.directoryRows {
+  display: grid;
+  gap: 8px;
+}
+
+.directoryRow {
+  align-items: center;
+  background: #fbfdff;
+  border: 1px solid #dce6f5;
+  border-radius: 14px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(240px, 1.1fr) minmax(360px, 1.4fr) auto;
+  padding: 10px;
+}
+
+.directoryIdentity {
+  align-items: center;
+  color: #071a3a;
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+  text-decoration: none;
+}
+
+.directoryIdentity span:last-child {
+  min-width: 0;
+}
+
+.directoryIdentity strong,
+.directoryIdentity small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.directoryIdentity strong {
+  font-size: 16px;
+  letter-spacing: -0.015em;
+}
+
+.directoryIdentity small {
+  color: #64748b;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.directoryRow dl {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+}
+
+.directoryRow dt {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.directoryRow dd {
+  color: #071a3a;
+  font-size: 13px;
+  font-weight: 850;
+  margin: 2px 0 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.directoryActions {
+  display: flex;
+  gap: 8px;
+}
+
+.directoryActions .primaryButton,
+.directoryActions .secondaryButton,
+.miniActionList a {
+  border-radius: 12px;
+  font-size: 13px;
+  min-height: 36px;
+  padding: 7px 11px;
+}
+
+.directorySide {
+  display: grid;
+  gap: 12px;
+}
+
+.miniActionList {
+  display: grid;
+  gap: 8px;
+}
+
+.miniActionList a {
+  align-items: center;
+  background: #f8fbff;
+  border: 1px solid #dce6f5;
+  color: #102548;
+  display: flex;
+  font-weight: 850;
+  gap: 8px;
+  text-decoration: none;
 }
 
 .commandModeGrid {
@@ -516,20 +730,32 @@
 }
 
 .summaryCard {
+  color: #071a3a;
+  display: grid;
+  gap: 3px;
+  min-height: 86px;
   overflow: hidden;
-  padding: 20px;
+  padding: 12px 14px;
   position: relative;
+  text-decoration: none;
+  transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
 }
 
 .summaryCard::after {
   background: linear-gradient(180deg, rgb(21 93 252 / 14%), transparent);
   border-radius: 999px;
   content: "";
-  height: 78px;
+  height: 62px;
   position: absolute;
-  right: -28px;
-  top: -30px;
-  width: 78px;
+  right: -24px;
+  top: -24px;
+  width: 62px;
+}
+
+.summaryCard:hover {
+  border-color: #8fb2f8;
+  box-shadow: 0 14px 30px rgb(15 42 84 / 12%);
+  transform: translateY(-1px);
 }
 
 .commandModeCard {
@@ -626,20 +852,31 @@
 
 .summaryCard strong {
   display: block;
-  font-size: 34px;
+  font-size: clamp(24px, 2vw, 30px);
   letter-spacing: -0.04em;
-  margin: 8px 0;
+  line-height: .95;
+  margin: 2px 0;
 }
 
 .summaryCard small {
   color: #64748b;
+  font-size: 11px;
   font-weight: 750;
 }
 
 .summaryCard p {
   color: #64748b;
-  font-size: 12px;
+  font-size: 11px;
+  line-height: 1.25;
   margin: 0;
+}
+
+.summaryCard span {
+  color: #6b7c93;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
 }
 
 .summaryCard[data-tone="blue"] {
@@ -656,12 +893,14 @@
 }
 
 .summaryCard[data-tone="blue"] p,
-.summaryCard[data-tone="blue"] small {
+.summaryCard[data-tone="blue"] small,
+.summaryCard[data-tone="blue"] span {
   color: #dbeafe;
 }
 
 .dashboardGrid {
-  grid-template-columns: 1.3fr 1fr 1fr;
+  gap: 12px;
+  grid-template-columns: minmax(300px, 1.45fr) minmax(260px, 1fr) minmax(240px, .8fr);
   align-items: start;
 }
 
@@ -670,7 +909,7 @@
 }
 
 .card {
-  padding: 20px;
+  padding: 16px;
 }
 
 .card header,
@@ -678,14 +917,14 @@
   align-items: center;
   display: flex;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
 .card h2,
 .panel h2 {
   color: #0b1f44;
-  font-size: 18px;
+  font-size: 16px;
   letter-spacing: -0.02em;
   margin: 0;
 }
@@ -702,7 +941,7 @@
 .glanceList,
 .salesRows {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .compactInfoGrid,
@@ -2020,6 +2259,10 @@
 
 @media (max-width: 1100px) {
   .frame,
+  .hero,
+  .compactHero,
+  .customerDirectoryGrid,
+  .directoryRow,
   .customerGrid,
   .customerWorkspace,
   .customerHeroCard,
@@ -2028,6 +2271,15 @@
   .intakeHero,
   .intakeLayout {
     grid-template-columns: 1fr;
+  }
+
+  .hero .quickActions {
+    justify-content: flex-start;
+  }
+
+  .compactHero .quickActions,
+  .directoryActions {
+    justify-content: flex-start;
   }
 
   .customerFacts,
@@ -2041,6 +2293,20 @@
 
   .sidebar {
     min-height: auto;
+  }
+
+  .navChildren {
+    border-left: 1px solid rgb(203 213 225 / 30%);
+    border-radius: 0;
+    box-shadow: none;
+    left: auto;
+    margin-left: 20px;
+    min-width: 0;
+    opacity: 1;
+    padding: 0 0 0 10px;
+    pointer-events: auto;
+    position: static;
+    transform: none;
   }
 
   .workHeroBody {
@@ -2077,6 +2343,7 @@
 
   .summaryGrid,
   .operatorActionGrid,
+  .directoryRow dl,
   .customerFacts,
   .customerMetricGrid,
   .commandModeGrid,
@@ -2120,6 +2387,7 @@
   }
 
   .hero,
+  .compactHero,
   .sourceStrip,
   .topbar,
   .customerHeroCard,
@@ -2127,6 +2395,15 @@
   .suggested {
     grid-template-columns: 1fr;
     align-items: stretch;
+  }
+
+  .compactHero .quickActions,
+  .directoryActions {
+    flex-wrap: wrap;
+  }
+
+  .directoryRow dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .customerIdentity {

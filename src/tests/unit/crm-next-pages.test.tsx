@@ -106,10 +106,14 @@ describe("CRM Next pages", () => {
     expect(command).toContain("Who needs attention?");
     expect(command).toContain("CRM Next active");
     expect(command).toContain("Add Customer / Prospect");
-    expect(command).toContain("Work the next customer");
-    expect(command).toContain("Add customer or prospect");
+    expect(command).toContain("View attention queue");
+    expect(command).toContain("Work customer");
     expect(command).toContain("Open Customer 360");
-    expect(command).toContain("Create follow-up task");
+    expect(command).toContain('href="/crm-next/needs-attention"');
+    expect(command).toContain('href="/crm-next/appointments"');
+    expect(command).toContain('href="/crm-next/deals"');
+    expect(command).toContain("Customer next actions");
+    expect(command).toContain("Appointment board");
     expect(command).not.toContain("Operational read status");
     expect(command).not.toContain("Review Center");
     expect(command).not.toContain("Compact review cockpit");

@@ -57,11 +57,9 @@ export function CrmNextUnavailable({ fallbackHref, reason }: { fallbackHref: str
   );
 }
 
-function CrmNextFrame({ active, children, userName }: { active: "command" | "new" | "attention" | "customer" | "work" | "progress" | "search" | "pipeline" | "timeline" | "appointments" | "deals" | "support" | "execution" | "intelligence" | "pilot" | "hardening" | "coexistence" | "release" | "safety" | "review"; children: React.ReactNode; userName: string }) {
+function CrmNextFrame({ active, children, userName }: { active: "command" | "new" | "attention" | "customer" | "customers" | "work" | "progress" | "search" | "pipeline" | "timeline" | "appointments" | "deals" | "support" | "execution" | "intelligence" | "pilot" | "hardening" | "coexistence" | "release" | "safety" | "review"; children: React.ReactNode; userName: string }) {
   const links = [
     { id: "command", href: "/crm-next", label: "Command Center", icon: LayoutDashboard },
-    { id: "new", href: "/crm-next/new", label: "Add Customer", icon: UserPlus },
-    { id: "customer", href: "/crm-next/customers/michael-johnson", label: "Customers", icon: Users },
     { id: "attention", href: "/crm-next/needs-attention", label: "Needs Attention", icon: Bell },
     { id: "work", href: "/crm-next/work/attn-michael-overdue-follow-up", label: "Work Customer", icon: ClipboardCheck },
     { id: "search", href: "/crm-next/search", label: "Search", icon: Search },
@@ -80,7 +78,22 @@ function CrmNextFrame({ active, children, userName }: { active: "command" | "new
         <aside className={styles.sidebar} aria-label="CRM Next navigation">
           <div className={styles.brand}>Time Motor Sales</div>
           <nav className={styles.nav}>
-            {links.map(({ id, href, label, icon: Icon }) => (
+            {links.slice(0, 1).map(({ id, href, label, icon: Icon }) => (
+              <Link aria-current={active === id ? "page" : undefined} href={href} key={id}>
+                <Icon size={17} /> {label}
+              </Link>
+            ))}
+            <div className={styles.navGroup} data-active={active === "customers" || active === "customer" || active === "new" ? "true" : undefined}>
+              <Link aria-current={active === "customers" || active === "customer" ? "page" : undefined} href="/crm-next/customers">
+                <Users size={17} /> Customers
+              </Link>
+              <div className={styles.navChildren}>
+                <Link aria-current={active === "customers" ? "page" : undefined} href="/crm-next/customers">Customer List</Link>
+                <Link aria-current={active === "new" ? "page" : undefined} href="/crm-next/new">Add Customer</Link>
+                <Link href="/crm-next/pipeline">Leads</Link>
+              </div>
+            </div>
+            {links.slice(1).map(({ id, href, label, icon: Icon }) => (
               <Link aria-current={active === id ? "page" : undefined} href={href} key={id}>
                 <Icon size={17} /> {label}
               </Link>
@@ -171,43 +184,13 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
 
       <section className={styles.summaryGrid} aria-label="CRM Next summary">
         {model.summary.map((item) => (
-          <article className={styles.summaryCard} data-tone={item.tone} key={item.label}>
+          <Link className={styles.summaryCard} data-tone={item.tone} href={item.href} key={item.label}>
             <small>{item.label}</small>
             <strong>{item.value}</strong>
             <p>{item.trend}</p>
-          </article>
+            <span>{item.source}</span>
+          </Link>
         ))}
-      </section>
-
-      <section className={styles.operatorActionGrid} aria-label="CRM Next staff tools">
-        <Link className={styles.operatorActionCard} href="/crm-next/needs-attention">
-          <Bell size={22} />
-          <span><strong>Work the next customer</strong><small>Open the highest-priority customer that needs attention.</small></span>
-        </Link>
-        <Link className={styles.operatorActionCard} href="/crm-next/customers/michael-johnson">
-          <Users size={22} />
-          <span><strong>Open Customer 360</strong><small>See contacts, vehicles, appointments, cases, deals, and timeline.</small></span>
-        </Link>
-        <Link className={styles.operatorActionCard} href="/crm-next/new">
-          <UserPlus size={22} />
-          <span><strong>Add customer or prospect</strong><small>Create the shared customer record, then continue in CRM Next.</small></span>
-        </Link>
-        <Link className={styles.operatorActionCard} href="/crm-next/work/attn-michael-overdue-follow-up#suggested">
-          <Phone size={22} />
-          <span><strong>Log customer contact</strong><small>Prepare the customer follow-up and record the next step.</small></span>
-        </Link>
-        <Link className={styles.operatorActionCard} href="/crm-next/appointments">
-          <CalendarDays size={22} />
-          <span><strong>Review appointments</strong><small>Open appointment context and scheduling tools.</small></span>
-        </Link>
-        <Link className={styles.operatorActionCard} href="/crm-next/work/attn-michael-overdue-follow-up#dispatch-task">
-          <ClipboardCheck size={22} />
-          <span><strong>Create follow-up task</strong><small>Send the customer follow-up into Dispatch tasks.</small></span>
-        </Link>
-        <Link className={styles.operatorActionCard} href="/crm-next/deals">
-          <DollarSign size={22} />
-          <span><strong>Review deals</strong><small>Inspect deal context, owner, stage, and next action.</small></span>
-        </Link>
       </section>
 
       <section className={styles.dashboardGrid}>
@@ -244,6 +227,74 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
           <div className={styles.revenueValue}>{model.revenue.monthToDate}</div>
           <p className={styles.muted}>{model.revenue.trend}</p>
         </article>
+      </section>
+    </CrmNextFrame>
+  );
+}
+
+export function CrmNextCustomersListView({ model }: { model: CrmNextCommandCenter }) {
+  return (
+    <CrmNextFrame active="customers" userName={model.userName}>
+      <Topbar />
+      <section className={styles.compactHero}>
+        <div>
+          <span className={styles.eyebrow}>Customers</span>
+          <h1>Find the customer, then keep working.</h1>
+          <p>Browse active customers when you do not remember the name, or jump into Customer 360, Attend Mode, leads, and intake.</p>
+        </div>
+        <div className={styles.quickActions}>
+          <Link className={styles.primaryButton} href="/crm-next/new"><UserPlus size={16} /> Add Customer / Prospect</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/search"><Search size={16} /> Search CRM Next</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/pipeline"><Target size={16} /> Leads</Link>
+        </div>
+      </section>
+
+      <section className={styles.customerDirectoryGrid}>
+        <article className={`${styles.card} ${styles.directoryCard}`}>
+          <header>
+            <h2>Customer List</h2>
+            <span className={styles.pill}>{model.customers.length} visible</span>
+          </header>
+          <div className={styles.directoryRows}>
+            {model.customers.map((customer) => {
+              const activeAttentionItem = model.attention.find((item) => item.customerId === customer.id);
+              const attendHref = activeAttentionItem?.workHref ?? `/crm-next/work/customer-read-${encodeURIComponent(customer.id)}`;
+              return (
+                <article className={styles.directoryRow} key={customer.id}>
+                  <Link className={styles.directoryIdentity} href={`/crm-next/customers/${customer.id}`}>
+                    <span className={styles.avatar}>{initials(customer.name)}</span>
+                    <span>
+                      <strong>{customer.name}</strong>
+                      <small>{customer.phone} · {customer.email}</small>
+                    </span>
+                  </Link>
+                  <dl>
+                    <div><dt>Owner</dt><dd>{activeAttentionItem?.owner ?? "Unassigned"}</dd></div>
+                    <div><dt>Risk</dt><dd>{customer.riskLevel}</dd></div>
+                    <div><dt>Status</dt><dd>{customer.status}</dd></div>
+                    <div><dt>Next</dt><dd>{customer.nextAction}</dd></div>
+                  </dl>
+                  <div className={styles.directoryActions}>
+                    <Link className={styles.secondaryButton} href={`/crm-next/customers/${customer.id}`}>Open</Link>
+                    <Link className={styles.primaryButton} href={attendHref}>Attend</Link>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </article>
+
+        <aside className={styles.directorySide}>
+          <article className={styles.sidePanel}>
+            <h2>Customer tools</h2>
+            <div className={styles.miniActionList}>
+              <Link href="/crm-next/new"><UserPlus size={16} /> Add a customer or prospect</Link>
+              <Link href="/crm-next/pipeline"><Target size={16} /> Open leads and pipeline</Link>
+              <Link href="/crm-next/needs-attention"><Bell size={16} /> View customers needing attention</Link>
+              <Link href="/crm-next/search"><Search size={16} /> Search all CRM Next records</Link>
+            </div>
+          </article>
+        </aside>
       </section>
     </CrmNextFrame>
   );
@@ -1096,6 +1147,8 @@ export function CrmNextSafetyView({ kind, model }: { kind: "states" | "permissio
 }
 
 export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextCustomer360; model: CrmNextCommandCenter }) {
+  const activeAttentionItem = model.attention.find((item) => item.customerId === customer.id);
+  const attendHref = activeAttentionItem?.workHref ?? `/crm-next/work/customer-read-${encodeURIComponent(customer.id)}`;
   const customerMetrics = [
     { label: "Open Leads", value: customer.openDeals, detail: "Active", tone: "green" },
     { label: "Open Cases", value: customer.openCases, detail: "Active", tone: "red" },
@@ -1130,7 +1183,7 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
             </dl>
             <div className={styles.customerHeroActions}>
               <Link className={styles.secondaryButton} href="/crm-next/new"><UserPlus size={16} /> Add Customer</Link>
-              <Link className={styles.primaryButton} href="/crm-next/work/attn-michael-overdue-follow-up">Attend</Link>
+              <Link className={styles.primaryButton} href={attendHref}>Attend</Link>
               <Link className={styles.secondaryButton} href="/crm-next/actions/send-text"><MessageSquare size={16} /> Message</Link>
               <Link className={styles.secondaryButton} href="/crm">Open Current CRM</Link>
             </div>
@@ -1227,7 +1280,7 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
                 <p>Open Attend Mode to complete the next safe customer step.</p>
               </div>
             </div>
-            <Link className={styles.primaryButton} href="/crm-next/work/attn-michael-overdue-follow-up">Work Customer</Link>
+            <Link className={styles.primaryButton} href={attendHref}>Work Customer</Link>
           </article>
 
           <article className={styles.sidePanel}>

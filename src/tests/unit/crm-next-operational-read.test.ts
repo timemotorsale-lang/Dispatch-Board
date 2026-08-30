@@ -98,6 +98,33 @@ function globalSearch() {
             updatedAt: "2026-08-30T14:00:00.000Z"
           }
         ]
+      },
+      {
+        count: 2,
+        entity: "opportunity",
+        label: "Opportunities",
+        results: [
+          {
+            entity: "opportunity",
+            href: "/crm/opportunities/opportunity-1",
+            id: "opportunity-1",
+            label: "Amina Yusuf · Accord",
+            matchedOn: "customer",
+            rank: 2,
+            secondary: "Negotiation",
+            updatedAt: "2026-08-30T14:00:00.000Z"
+          },
+          {
+            entity: "opportunity",
+            href: "/crm/opportunities/opportunity-2",
+            id: "opportunity-2",
+            label: "Brian Cole · RAV4",
+            matchedOn: "customer",
+            rank: 3,
+            secondary: "Qualified",
+            updatedAt: "2026-08-30T13:00:00.000Z"
+          }
+        ]
       }
     ],
     query: { limit: 12, q: "customer" },
@@ -238,8 +265,17 @@ describe("CRM Next operational read model", () => {
   it("overlays existing customer and search read sources without creating a new customer master", async () => {
     process.env.CRM_NEXT = "REVIEW";
     const model = await getCrmNextOperationalCommandCenter(user(), {
+      appointmentReader: vi.fn().mockResolvedValue({ appointmentCount: 3 }),
       customerListReader: vi.fn().mockResolvedValue(customerList()),
+      leadReader: vi.fn().mockResolvedValue([
+        { stage: "NEW" },
+        { stage: "QUALIFIED" },
+        { stage: "WON" }
+      ]),
       now: () => fixedNow,
+      salesReader: vi.fn().mockResolvedValue({
+        dataSources: [{ source: "Deal visibility", status: "mapped", usedRecords: 2 }]
+      }),
       searchReader: vi.fn().mockResolvedValue(globalSearch())
     });
 
@@ -267,6 +303,15 @@ describe("CRM Next operational read model", () => {
       href: "/customers/customer-amina",
       label: "Customers"
     });
+    expect(model.summary).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ href: "/crm-next/needs-attention", label: "Needs Attention", source: "Customer next actions", value: "2" }),
+        expect.objectContaining({ href: "/crm-next/pipeline", label: "Hot Leads", source: "Lead engine", value: "2" }),
+        expect.objectContaining({ href: "/crm-next/appointments", label: "Appointments Today", source: "Appointment schedule", value: "3" }),
+        expect.objectContaining({ href: "/crm-next/deals", label: "Deals in Progress", source: "Deal visibility", value: "2" }),
+        expect.objectContaining({ href: "/crm-next/needs-attention", label: "Overdue Follow-ups", value: "1" })
+      ])
+    );
   });
 
   it("falls back honestly when existing read sources are unavailable", async () => {

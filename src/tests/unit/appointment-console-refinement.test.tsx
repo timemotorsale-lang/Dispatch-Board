@@ -37,10 +37,16 @@ describe("Appointment Console refinement", () => {
     expect(markup).toContain("Daily Rental / Loaner");
     expect(markup).toContain("Photos / Marketing / Advertising");
     expect(markup).toContain("2:30 PM");
+    expect(markup).toContain("8:00 AM");
+    expect(markup).toContain("5:00 PM");
     expect(markup).toContain("Appointment Summary");
-    expect(markup).toContain("Ready to create an audited appointment draft.");
+    expect(markup).toContain("Appointment reason");
+    expect(markup).toContain("Add appointment reason");
+    expect(markup).toContain("Ready to create appointment.");
     expect(markup).toContain("Create Appointment");
     expect(markup).toContain("Staff conflicts");
+    expect(markup).not.toContain("command ledger");
+    expect(markup).not.toContain("Canonical command");
     expect(markup).not.toContain("Coordinator Home");
   });
 });
