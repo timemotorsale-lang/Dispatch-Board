@@ -253,3 +253,21 @@ Do not implement CRM Next on the shared `main` baseline directly. Start CRMN-010
 - Rollback remains simple: disable `CRM_NEXT`, and CRM Next fails closed while Legacy/current CRM remain available.
 
 **Progress truth:** CRMN-080 is marked `HELD` until a later migration/cutover approval. CRMN-081 through CRMN-086 are marked `IMPLEMENTED_UNVERIFIED`, not `VERIFIED`, until broader proof and user review are complete. The next implementation marker is CRMN-087.
+
+## Implementation evidence — CRMN-087 through CRMN-090 Legacy coexistence packet
+
+**Status:** MIXED — CRMN-087 through CRMN-089 are `IMPLEMENTED_UNVERIFIED`; CRMN-090 is `HELD`  
+**Branch:** `codex/crm-next-pilot-readiness-envelope`  
+**Scope:** Added the fourth packet of the CRMN-068 through CRMN-094 pilot-readiness envelope: Legacy coexistence map, capability migration planning posture, pilot switchback rules, and explicit Legacy-retirement hold.
+
+**Review location:** `/crm-next/coexistence` with `CRM_NEXT=REVIEW`.
+
+**Safety posture:**
+- Legacy `/customers` and current `/crm` remain operational.
+- CRM Next remains a parallel review/replacement candidate behind `/crm-next` and `CRM_NEXT`.
+- Capability migration planning does not replace backend models, services, APIs, permissions, data, or integrations.
+- Users have visible switchback paths to current operational routes during pilot.
+- CRMN-090 is intentionally held because Legacy retirement requires explicit promotion/cutover approval.
+- No redirect, deletion, archive, deprecation, migration execution, or route replacement is included.
+
+**Progress truth:** CRMN-087 through CRMN-089 are marked `IMPLEMENTED_UNVERIFIED`, not `VERIFIED`, until broader proof and user review are complete. CRMN-090 is marked `HELD` until Legacy retirement is explicitly approved. The next implementation marker is CRMN-091.

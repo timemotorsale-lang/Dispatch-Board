@@ -43,7 +43,7 @@ describe("CRM Next access and safe bridge", () => {
     expect(model.bridge.liveTaskCreationEnabled).toBe(false);
     expect(model.bridge.previewEnabled).toBe(true);
     expect(model.progress.envelopeCount).toBe(20);
-    expect(model.progress.nextMilestone).toBe("CRMN-087");
+    expect(model.progress.nextMilestone).toBe("CRMN-091");
     expect(model.search.groups).toHaveLength(5);
     expect(model.ownershipSupport.map((record) => record.domain)).toEqual(
       expect.arrayContaining(["Vehicle", "Finance", "Payment", "Case", "Title/Document", "Service", "Rental/Loaner", "Customer Issue", "Insurance"])
@@ -103,6 +103,15 @@ describe("CRM Next access and safe bridge", () => {
     expect(hardeningEnvelope).toHaveLength(7);
     expect(hardeningEnvelope.find((milestone) => milestone.id === "CRMN-080")?.status).toBe("HELD");
     expect(hardeningEnvelope.filter((milestone) => milestone.status === "IMPLEMENTED_UNVERIFIED")).toHaveLength(6);
+    expect(model.coexistenceGates).toHaveLength(4);
+    expect(model.coexistenceGates.map((gate) => gate.milestone)).toEqual(["CRMN-087", "CRMN-088", "CRMN-089", "CRMN-090"]);
+    expect(model.coexistenceGates.find((gate) => gate.milestone === "CRMN-090")?.status).toBe("HELD");
+    expect(model.coexistenceGates.find((gate) => gate.milestone === "CRMN-088")?.legacyOwner).toContain("Existing backend models");
+    const coexistenceEnvelope = model.progress.milestones.filter((milestone) =>
+      /^CRMN-09[0]$|^CRMN-08[7-9]$/.test(milestone.id)
+    );
+    expect(coexistenceEnvelope).toHaveLength(4);
+    expect(coexistenceEnvelope.find((milestone) => milestone.id === "CRMN-090")?.status).toBe("HELD");
   });
 
   it("rejects ineligible users and does not create a dispatch task from the bridge", () => {

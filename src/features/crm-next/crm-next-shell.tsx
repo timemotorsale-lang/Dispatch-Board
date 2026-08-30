@@ -53,7 +53,7 @@ export function CrmNextUnavailable({ fallbackHref, reason }: { fallbackHref: str
   );
 }
 
-function CrmNextFrame({ active, children, userName }: { active: "command" | "attention" | "customer" | "work" | "progress" | "search" | "pipeline" | "timeline" | "support" | "execution" | "intelligence" | "pilot" | "hardening" | "safety"; children: React.ReactNode; userName: string }) {
+function CrmNextFrame({ active, children, userName }: { active: "command" | "attention" | "customer" | "work" | "progress" | "search" | "pipeline" | "timeline" | "support" | "execution" | "intelligence" | "pilot" | "hardening" | "coexistence" | "safety"; children: React.ReactNode; userName: string }) {
   const links = [
     { id: "command", href: "/crm-next", label: "Command Center", icon: LayoutDashboard },
     { id: "customer", href: "/crm-next/customers/michael-johnson", label: "Customers", icon: Users },
@@ -66,6 +66,7 @@ function CrmNextFrame({ active, children, userName }: { active: "command" | "att
     { id: "intelligence", href: "/crm-next/intelligence-foundation", label: "Intelligence", icon: Brain },
     { id: "pilot", href: "/crm-next/pilot-readiness", label: "Pilot Readiness", icon: ShieldCheck },
     { id: "hardening", href: "/crm-next/hardening", label: "Hardening", icon: ShieldCheck },
+    { id: "coexistence", href: "/crm-next/coexistence", label: "Coexistence", icon: FileText },
     { id: "timeline", href: "/crm-next/timeline", label: "Timeline", icon: FileSearch },
     { id: "progress", href: "/crm-next/progress", label: "Progress", icon: Target }
   ] as const;
@@ -247,7 +248,7 @@ export function CrmNextProgressView({ model }: { model: CrmNextCommandCenter }) 
             <h2>CRM Next milestone envelope</h2>
             <p className={styles.muted}>Built sequentially. Each slice gets checks, honest status, and a commit checkpoint before the next one.</p>
           </div>
-          <span className={styles.pill}>CRMN-016 → CRMN-086</span>
+          <span className={styles.pill}>CRMN-016 → CRMN-090</span>
         </header>
         <div className={styles.progressList}>
           {model.progress.milestones.map((milestone) => (
@@ -717,6 +718,62 @@ export function CrmNextHardeningView({ model }: { model: CrmNextCommandCenter })
               </div>
               <p className={styles.safeNotice}>{gate.riskControl}</p>
               <p>{gate.nextStep}</p>
+            </article>
+          ))}
+        </div>
+      </article>
+    </CrmNextFrame>
+  );
+}
+
+export function CrmNextCoexistenceView({ model }: { model: CrmNextCommandCenter }) {
+  return (
+    <CrmNextFrame active="coexistence" userName={model.userName}>
+      <Topbar />
+      <section className={styles.hero}>
+        <div>
+          <span className={styles.eyebrow}>Legacy Coexistence</span>
+          <h1>CRM Next can be reviewed without replacing today’s CRM</h1>
+          <p>Legacy Customers and current CRM remain operational while CRM Next proves whether it is ready to become the replacement experience.</p>
+        </div>
+        <div className={styles.quickActions}>
+          <Link className={styles.primaryButton} href="/crm-next">CRM Next</Link>
+          <Link className={styles.secondaryButton} href="/customers">Legacy Customers</Link>
+          <Link className={styles.secondaryButton} href="/crm">Current CRM</Link>
+        </div>
+      </section>
+
+      <section className={styles.summaryGrid} aria-label="CRM Next coexistence summary">
+        <article className={styles.summaryCard} data-tone="blue"><small>Coexistence gates</small><strong>{model.coexistenceGates.length}</strong><p>review controls</p></article>
+        <article className={styles.summaryCard}><small>Legacy routes</small><strong>Open</strong><p>protected</p></article>
+        <article className={styles.summaryCard}><small>Default route</small><strong>No</strong><p>not replaced</p></article>
+        <article className={styles.summaryCard}><small>Retirement</small><strong>Held</strong><p>approval needed</p></article>
+        <article className={styles.summaryCard}><small>Next</small><strong>{model.progress.nextMilestone}</strong><p>pilot gates</p></article>
+      </section>
+
+      <article className={styles.card}>
+        <header>
+          <div>
+            <h2>CRMN-087 → CRMN-090 coexistence packet</h2>
+            <p className={styles.muted}>This page is the safe bridge between review, pilot, and any future cutover decision.</p>
+          </div>
+          <span className={styles.pill}>parallel replacement</span>
+        </header>
+        <div className={styles.pilotScenarioGrid}>
+          {model.coexistenceGates.map((gate) => (
+            <article className={styles.pilotScenarioCard} id={gate.id} key={gate.id}>
+              <span className={styles.eyebrow}>{gate.milestone}</span>
+              <h3>{gate.title}</h3>
+              <p>{gate.crmNextRole}</p>
+              <div className={styles.details}>
+                <p><span>Legacy owner</span>{gate.legacyOwner}</p>
+                <p><span>Cutover rule</span>{gate.cutoverRule}</p>
+                <p><span>Rollback rule</span>{gate.rollbackRule}</p>
+              </div>
+              <div className={styles.metaLine}>
+                <span>{gate.safety}</span>
+                <b className={statusClass(gate.status)}>{gate.status}</b>
+              </div>
             </article>
           ))}
         </div>

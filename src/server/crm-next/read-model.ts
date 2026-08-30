@@ -160,6 +160,18 @@ export type CrmNextHardeningGate = {
   nextStep: string;
 };
 
+export type CrmNextCoexistenceGate = {
+  id: string;
+  milestone: "CRMN-087" | "CRMN-088" | "CRMN-089" | "CRMN-090";
+  title: string;
+  status: CrmNextMilestoneStatus;
+  legacyOwner: string;
+  crmNextRole: string;
+  cutoverRule: string;
+  rollbackRule: string;
+  safety: string;
+};
+
 export type CrmNextCommandCenter = {
   contractVersion: "crm-next-command-center/v1";
   generatedAt: string;
@@ -190,6 +202,7 @@ export type CrmNextCommandCenter = {
   };
   pilotScenarios: CrmNextPilotScenario[];
   hardeningGates: CrmNextHardeningGate[];
+  coexistenceGates: CrmNextCoexistenceGate[];
   bridge: {
     liveTaskCreationEnabled: false;
     previewEnabled: true;
@@ -808,6 +821,42 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     reviewHref: "/crm-next/hardening#evidence-package",
     evidence: "Hardening page summarizes the pilot controls and links back to progress.",
     safety: "Evidence-only; no operational enablement."
+  },
+  {
+    id: "CRMN-087",
+    title: "Legacy coexistence map",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Make Legacy/current CRM coexistence rules visible before pilot.",
+    reviewHref: "/crm-next/coexistence#legacy-coexistence",
+    evidence: "Coexistence surface maps Legacy owners, CRM Next review roles, cutover rules, and rollback rules.",
+    safety: "No Legacy route replacement."
+  },
+  {
+    id: "CRMN-088",
+    title: "Capability migration plan",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Document which capabilities are reused, redesigned, deferred, or kept in Legacy during pilot.",
+    reviewHref: "/crm-next/coexistence#capability-plan",
+    evidence: "Coexistence surface keeps capability migration as reviewable planning evidence.",
+    safety: "No backend model, API, permission, or data replacement is implied."
+  },
+  {
+    id: "CRMN-089",
+    title: "Pilot switchback rules",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Give reviewers clear switchback paths from CRM Next to current CRM and Legacy Customers.",
+    reviewHref: "/crm-next/coexistence#switchback",
+    evidence: "Coexistence surface documents safe fallback and switchback rules.",
+    safety: "Users can return to current operational routes during pilot."
+  },
+  {
+    id: "CRMN-090",
+    title: "Legacy retirement not approved",
+    status: "HELD",
+    objective: "Make Legacy retirement explicitly blocked until pilot gates are approved.",
+    reviewHref: "/crm-next/coexistence#retirement-hold",
+    evidence: "Coexistence surface marks retirement as held and approval-gated.",
+    safety: "No Legacy deprecation, archive, redirect, or removal."
   }
 ];
 
@@ -1529,6 +1578,53 @@ const hardeningGates: CrmNextHardeningGate[] = [
   }
 ];
 
+const coexistenceGates: CrmNextCoexistenceGate[] = [
+  {
+    id: "legacy-coexistence",
+    milestone: "CRMN-087",
+    title: "Legacy and CRM Next coexist during pilot",
+    status: "IMPLEMENTED_UNVERIFIED",
+    legacyOwner: "Legacy /customers and current /crm stay operational for active customer work.",
+    crmNextRole: "CRM Next provides the review experience at /crm-next without becoming the default CRM.",
+    cutoverRule: "No traffic moves to CRM Next by default until pilot gates are approved.",
+    rollbackRule: "Disable CRM_NEXT and users return to current operational routes.",
+    safety: "Parallel replacement strategy, not uncontrolled hybridization."
+  },
+  {
+    id: "capability-plan",
+    milestone: "CRMN-088",
+    title: "Capability migration remains deliberate",
+    status: "IMPLEMENTED_UNVERIFIED",
+    legacyOwner: "Existing backend models, services, APIs, permissions, and integrations remain source-owned.",
+    crmNextRole: "CRM Next reuses read models and displays migration decisions before any replacement.",
+    cutoverRule: "A capability can move only after source ownership, writes, audit, rollback, and support are approved.",
+    rollbackRule: "Retain Legacy capability until CRM Next has proof and a fallback.",
+    safety: "Replacing the UX does not automatically replace the backend."
+  },
+  {
+    id: "switchback",
+    milestone: "CRMN-089",
+    title: "Users always have a switchback path",
+    status: "IMPLEMENTED_UNVERIFIED",
+    legacyOwner: "Legacy routes remain available for real work while CRM Next is reviewed.",
+    crmNextRole: "CRM Next includes links back to /customers, /crm, progress, hardening, and source workspaces.",
+    cutoverRule: "Pilot users can inspect CRM Next but must use approved operational routes for live execution.",
+    rollbackRule: "Switchback is route-level and does not require data rollback because CRM Next does not write.",
+    safety: "No reviewer gets trapped in a preview surface."
+  },
+  {
+    id: "retirement-hold",
+    milestone: "CRMN-090",
+    title: "Legacy retirement is not approved",
+    status: "HELD",
+    legacyOwner: "Legacy Customers and current CRM remain the operating fallback and source of truth where applicable.",
+    crmNextRole: "CRM Next can demonstrate replacement readiness, but cannot retire Legacy by itself.",
+    cutoverRule: "Retirement requires an explicit promotion and cutover approval after pilot evidence is reviewed.",
+    rollbackRule: "Keep Legacy available until a tested rollback plan exists.",
+    safety: "No redirect, removal, archive, or deprecation is included in this envelope."
+  }
+];
+
 export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Date = new Date()): CrmNextCommandCenter {
   const access = resolveCrmNextAccess(actor);
   if (!access.allowed) {
@@ -1585,6 +1681,7 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
     },
     pilotScenarios,
     hardeningGates,
+    coexistenceGates,
     bridge: {
       liveTaskCreationEnabled: false,
       previewEnabled: true,
@@ -1595,7 +1692,7 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
       envelopeCount: 20,
       verifiedCount: progressMilestones.filter((milestone) => milestone.status === "VERIFIED").length,
       heldCount: progressMilestones.filter((milestone) => milestone.status === "HELD").length,
-      nextMilestone: "CRMN-087",
+      nextMilestone: "CRMN-091",
       milestones: progressMilestones
     }
   };

@@ -13,6 +13,7 @@ vi.mock("@/server/auth/current-user", () => ({
 
 import CrmNextPage from "@/app/(app)/crm-next/page";
 import CrmNextAppointmentsPage from "@/app/(app)/crm-next/appointments/page";
+import CrmNextCoexistencePage from "@/app/(app)/crm-next/coexistence/page";
 import CrmNextCustomerPage from "@/app/(app)/crm-next/customers/[customerId]/page";
 import CrmNextDealsPage from "@/app/(app)/crm-next/deals/page";
 import CrmNextIntelligenceFoundationPage from "@/app/(app)/crm-next/intelligence-foundation/page";
@@ -80,6 +81,7 @@ describe("CRM Next pages", () => {
     const intelligence = renderToStaticMarkup(await CrmNextIntelligenceFoundationPage());
     const pilot = renderToStaticMarkup(await CrmNextPilotReadinessPage());
     const hardening = renderToStaticMarkup(await CrmNextHardeningPage());
+    const coexistence = renderToStaticMarkup(await CrmNextCoexistencePage());
     const search = renderToStaticMarkup(await CrmNextSearchPage());
     const timeline = renderToStaticMarkup(await CrmNextTimelinePage());
     const pipeline = renderToStaticMarkup(await CrmNextPipelinePage());
@@ -99,6 +101,7 @@ describe("CRM Next pages", () => {
     expect(command).toContain("Team response &amp; load indicators");
     expect(command).toContain("Pilot readiness");
     expect(command).toContain("Hardening");
+    expect(command).toContain("Coexistence");
     expect(attention).toContain("Prioritized customers that need action");
     expect(customer).toContain("Customer 360 Overview");
     expect(customer).toContain("Open Legacy CRM");
@@ -129,6 +132,11 @@ describe("CRM Next pages", () => {
     expect(hardening).toContain("Migration and reconciliation stay held");
     expect(hardening).toContain("Security, consent, and audit boundaries are explicit");
     expect(hardening).toContain("CRMN-087");
+    expect(coexistence).toContain("CRM Next can be reviewed without replacing today’s CRM");
+    expect(coexistence).toContain("CRMN-087 → CRMN-090 coexistence packet");
+    expect(coexistence).toContain("Capability migration remains deliberate");
+    expect(coexistence).toContain("Legacy retirement is not approved");
+    expect(coexistence).toContain("CRMN-091");
     expect(search).toContain("Find the customer");
     expect(search).toContain("Deals and Opportunities");
     expect(timeline).toContain("Customer activity without source drift");
@@ -141,7 +149,7 @@ describe("CRM Next pages", () => {
     expect(permissions).toContain("Denied users fail closed");
     expect(rollback).toContain("CRM Next can be turned off safely");
     expect(progress).toContain("CRM Next build cockpit");
-    expect(progress).toContain("CRMN-016 → CRMN-086");
+    expect(progress).toContain("CRMN-016 → CRMN-090");
     expect(progress).toContain("CRMN-035");
     expect(progress).toContain("CRMN-048");
     expect(progress).toContain("CRMN-054");
@@ -151,5 +159,7 @@ describe("CRM Next pages", () => {
     expect(progress).toContain("CRMN-080");
     expect(progress).toContain("CRMN-086");
     expect(progress).toContain("CRMN-087");
+    expect(progress).toContain("CRMN-090");
+    expect(progress).toContain("CRMN-091");
   });
 });
