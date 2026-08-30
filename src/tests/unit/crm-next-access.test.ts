@@ -43,7 +43,7 @@ describe("CRM Next access and safe bridge", () => {
     expect(model.bridge.liveTaskCreationEnabled).toBe(false);
     expect(model.bridge.previewEnabled).toBe(true);
     expect(model.progress.envelopeCount).toBe(20);
-    expect(model.progress.nextMilestone).toBe("CRMN-080");
+    expect(model.progress.nextMilestone).toBe("CRMN-087");
     expect(model.search.groups).toHaveLength(5);
     expect(model.ownershipSupport.map((record) => record.domain)).toEqual(
       expect.arrayContaining(["Vehicle", "Finance", "Payment", "Case", "Title/Document", "Service", "Rental/Loaner", "Customer Issue", "Insurance"])
@@ -93,6 +93,16 @@ describe("CRM Next access and safe bridge", () => {
     );
     expect(pilotScenarioEnvelope).toHaveLength(5);
     expect(pilotScenarioEnvelope.every((milestone) => milestone.status === "IMPLEMENTED_UNVERIFIED")).toBe(true);
+    expect(model.hardeningGates).toHaveLength(7);
+    expect(model.hardeningGates.map((gate) => gate.milestone)).toEqual(["CRMN-080", "CRMN-081", "CRMN-082", "CRMN-083", "CRMN-084", "CRMN-085", "CRMN-086"]);
+    expect(model.hardeningGates.find((gate) => gate.milestone === "CRMN-080")?.status).toBe("HELD");
+    expect(model.hardeningGates.find((gate) => gate.milestone === "CRMN-084")?.riskControl).toContain("No sensitive write");
+    const hardeningEnvelope = model.progress.milestones.filter((milestone) =>
+      /^CRMN-08[0-6]$/.test(milestone.id)
+    );
+    expect(hardeningEnvelope).toHaveLength(7);
+    expect(hardeningEnvelope.find((milestone) => milestone.id === "CRMN-080")?.status).toBe("HELD");
+    expect(hardeningEnvelope.filter((milestone) => milestone.status === "IMPLEMENTED_UNVERIFIED")).toHaveLength(6);
   });
 
   it("rejects ineligible users and does not create a dispatch task from the bridge", () => {

@@ -53,7 +53,7 @@ export function CrmNextUnavailable({ fallbackHref, reason }: { fallbackHref: str
   );
 }
 
-function CrmNextFrame({ active, children, userName }: { active: "command" | "attention" | "customer" | "work" | "progress" | "search" | "pipeline" | "timeline" | "support" | "execution" | "intelligence" | "pilot" | "safety"; children: React.ReactNode; userName: string }) {
+function CrmNextFrame({ active, children, userName }: { active: "command" | "attention" | "customer" | "work" | "progress" | "search" | "pipeline" | "timeline" | "support" | "execution" | "intelligence" | "pilot" | "hardening" | "safety"; children: React.ReactNode; userName: string }) {
   const links = [
     { id: "command", href: "/crm-next", label: "Command Center", icon: LayoutDashboard },
     { id: "customer", href: "/crm-next/customers/michael-johnson", label: "Customers", icon: Users },
@@ -65,6 +65,7 @@ function CrmNextFrame({ active, children, userName }: { active: "command" | "att
     { id: "execution", href: "/crm-next/shared-execution", label: "Shared Execution", icon: ClipboardCheck },
     { id: "intelligence", href: "/crm-next/intelligence-foundation", label: "Intelligence", icon: Brain },
     { id: "pilot", href: "/crm-next/pilot-readiness", label: "Pilot Readiness", icon: ShieldCheck },
+    { id: "hardening", href: "/crm-next/hardening", label: "Hardening", icon: ShieldCheck },
     { id: "timeline", href: "/crm-next/timeline", label: "Timeline", icon: FileSearch },
     { id: "progress", href: "/crm-next/progress", label: "Progress", icon: Target }
   ] as const;
@@ -246,7 +247,7 @@ export function CrmNextProgressView({ model }: { model: CrmNextCommandCenter }) 
             <h2>CRM Next milestone envelope</h2>
             <p className={styles.muted}>Built sequentially. Each slice gets checks, honest status, and a commit checkpoint before the next one.</p>
           </div>
-          <span className={styles.pill}>CRMN-016 → CRMN-079</span>
+          <span className={styles.pill}>CRMN-016 → CRMN-086</span>
         </header>
         <div className={styles.progressList}>
           {model.progress.milestones.map((milestone) => (
@@ -664,6 +665,59 @@ export function CrmNextPilotReadinessView({ model }: { model: CrmNextCommandCent
               </div>
               <p className={styles.safeNotice}>{scenario.nextReviewStep}</p>
             </Link>
+          ))}
+        </div>
+      </article>
+    </CrmNextFrame>
+  );
+}
+
+export function CrmNextHardeningView({ model }: { model: CrmNextCommandCenter }) {
+  return (
+    <CrmNextFrame active="hardening" userName={model.userName}>
+      <Topbar />
+      <section className={styles.hero}>
+        <div>
+          <span className={styles.eyebrow}>Release Hardening</span>
+          <h1>Controls before pilot promotion</h1>
+          <p>CRM Next can be reviewed with richer scenarios, but migration, live communication, customer writes, manager overrides, and route replacement remain gated.</p>
+        </div>
+        <div className={styles.quickActions}>
+          <Link className={styles.primaryButton} href="/crm-next/pilot-readiness">Pilot readiness</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/progress">Progress</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/system/rollback">Rollback proof</Link>
+        </div>
+      </section>
+
+      <section className={styles.summaryGrid} aria-label="CRM Next hardening summary">
+        <article className={styles.summaryCard} data-tone="blue"><small>Hardening gates</small><strong>{model.hardeningGates.length}</strong><p>review controls</p></article>
+        <article className={styles.summaryCard}><small>Held gate</small><strong>CRMN-080</strong><p>migration approval</p></article>
+        <article className={styles.summaryCard}><small>Customer writes</small><strong>0</strong><p>still disabled</p></article>
+        <article className={styles.summaryCard}><small>Route replacement</small><strong>No</strong><p>Legacy protected</p></article>
+        <article className={styles.summaryCard}><small>Next</small><strong>{model.progress.nextMilestone}</strong><p>coexistence plan</p></article>
+      </section>
+
+      <article className={styles.card}>
+        <header>
+          <div>
+            <h2>CRMN-080 → CRMN-086 hardening packet</h2>
+            <p className={styles.muted}>This packet makes the pilot controls reviewable without turning on live operational commands.</p>
+          </div>
+          <span className={styles.pill}>approval-gated</span>
+        </header>
+        <div className={styles.pilotScenarioGrid}>
+          {model.hardeningGates.map((gate) => (
+            <article className={styles.pilotScenarioCard} id={gate.id} key={gate.id}>
+              <span className={styles.eyebrow}>{gate.milestone} · {gate.category}</span>
+              <h3>{gate.title}</h3>
+              <p>{gate.proof}</p>
+              <div className={styles.metaLine}>
+                <span>{gate.reviewState}</span>
+                <b className={statusClass(gate.status)}>{gate.status}</b>
+              </div>
+              <p className={styles.safeNotice}>{gate.riskControl}</p>
+              <p>{gate.nextStep}</p>
+            </article>
           ))}
         </div>
       </article>

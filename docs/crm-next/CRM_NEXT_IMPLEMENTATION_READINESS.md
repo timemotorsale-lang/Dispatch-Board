@@ -236,3 +236,20 @@ Do not implement CRM Next on the shared `main` baseline directly. Start CRMN-010
 - Scenario links route reviewers back to already-gated CRM Next review surfaces instead of creating new operational commands.
 
 **Progress truth:** CRMN-075 through CRMN-079 are marked `IMPLEMENTED_UNVERIFIED`, not `VERIFIED`, until broader proof and user review are complete. The next implementation marker is CRMN-080.
+
+## Implementation evidence — CRMN-080 through CRMN-086 hardening packet
+
+**Status:** MIXED — CRMN-080 is `HELD`; CRMN-081 through CRMN-086 are `IMPLEMENTED_UNVERIFIED`  
+**Branch:** `codex/crm-next-pilot-readiness-envelope`  
+**Scope:** Added the third packet of the CRMN-068 through CRMN-094 pilot-readiness envelope: migration/reconciliation hold visibility, pilot proof plan, accessibility/responsive review checklist, performance budget posture, security/audit boundaries, rollback rehearsal posture, and one hardening evidence package.
+
+**Review location:** `/crm-next/hardening` with `CRM_NEXT=REVIEW`.
+
+**Safety posture:**
+- CRMN-080 is intentionally held because migration/reconciliation execution is outside this approval envelope.
+- CRM Next remains behind `/crm-next` and `CRM_NEXT`.
+- Legacy `/customers`, current `/crm`, Dispatch Board, communications, finance/payment, document, insurance, and manager-control systems remain protected.
+- Hardening gates are reviewer-facing evidence and do not promote, migrate, replace routes, create customer records, send communications, or create Dispatch Board tasks.
+- Rollback remains simple: disable `CRM_NEXT`, and CRM Next fails closed while Legacy/current CRM remain available.
+
+**Progress truth:** CRMN-080 is marked `HELD` until a later migration/cutover approval. CRMN-081 through CRMN-086 are marked `IMPLEMENTED_UNVERIFIED`, not `VERIFIED`, until broader proof and user review are complete. The next implementation marker is CRMN-087.

@@ -148,6 +148,18 @@ export type CrmNextPilotScenario = {
   href: string;
 };
 
+export type CrmNextHardeningGate = {
+  id: string;
+  milestone: "CRMN-080" | "CRMN-081" | "CRMN-082" | "CRMN-083" | "CRMN-084" | "CRMN-085" | "CRMN-086";
+  category: "Migration" | "Testing" | "Accessibility" | "Performance" | "Security" | "Rollback" | "Evidence";
+  title: string;
+  status: CrmNextMilestoneStatus;
+  reviewState: "Held for approval" | "Implemented for review" | "Proof required";
+  proof: string;
+  riskControl: string;
+  nextStep: string;
+};
+
 export type CrmNextCommandCenter = {
   contractVersion: "crm-next-command-center/v1";
   generatedAt: string;
@@ -177,6 +189,7 @@ export type CrmNextCommandCenter = {
     modes: CrmNextCommandCenterMode[];
   };
   pilotScenarios: CrmNextPilotScenario[];
+  hardeningGates: CrmNextHardeningGate[];
   bridge: {
     liveTaskCreationEnabled: false;
     previewEnabled: true;
@@ -732,6 +745,69 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     reviewHref: "/crm-next/pilot-readiness#pilot-manager-review",
     evidence: "Pilot readiness surface includes manager review scenarios and source boundaries.",
     safety: "No manager override or reassignment mutation."
+  },
+  {
+    id: "CRMN-080",
+    title: "Migration reconciliation hold",
+    status: "HELD",
+    objective: "Document migration/reconciliation readiness without executing data migration.",
+    reviewHref: "/crm-next/hardening#migration-hold",
+    evidence: "Hardening surface identifies migration as approval-gated before any customer, opportunity, communication, or task data movement.",
+    safety: "No data migration, reconciliation write, Legacy replacement, or cutover."
+  },
+  {
+    id: "CRMN-081",
+    title: "Pilot scenario proof plan",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Define the pilot proof checks reviewers should run before promotion.",
+    reviewHref: "/crm-next/hardening#scenario-proof",
+    evidence: "Hardening surface lists the proof bundle for customer, queue, Customer 360, work, and manager scenarios.",
+    safety: "Proof is read-only and does not mutate records."
+  },
+  {
+    id: "CRMN-082",
+    title: "Accessibility and responsive review",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Track accessibility and responsive-layout checks before pilot promotion.",
+    reviewHref: "/crm-next/hardening#accessibility",
+    evidence: "Hardening surface records keyboard, label, contrast, and responsive review expectations.",
+    safety: "No UX promotion until the review is accepted."
+  },
+  {
+    id: "CRMN-083",
+    title: "Performance budget review",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Set review expectations for fast CRM Next navigation and read-model rendering.",
+    reviewHref: "/crm-next/hardening#performance",
+    evidence: "Hardening surface captures performance guardrails for read-only CRM Next pages.",
+    safety: "No additional polling, live sync, or background mutation."
+  },
+  {
+    id: "CRMN-084",
+    title: "Security and audit review",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Make permission, audit, consent, and sensitive-data boundaries visible before pilot.",
+    reviewHref: "/crm-next/hardening#security-audit",
+    evidence: "Hardening surface captures permission and audit guardrails.",
+    safety: "No live communication, payment, document, manager override, or restricted finance action."
+  },
+  {
+    id: "CRMN-085",
+    title: "Rollback rehearsal",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Show the rollback path and Legacy fallback expectations before pilot.",
+    reviewHref: "/crm-next/hardening#rollback",
+    evidence: "Hardening surface describes the CRM_NEXT-off rollback posture.",
+    safety: "CRM Next remains isolated from Legacy routes."
+  },
+  {
+    id: "CRMN-086",
+    title: "Hardening evidence package",
+    status: "IMPLEMENTED_UNVERIFIED",
+    objective: "Collect the hardening gates into one reviewer-facing evidence package.",
+    reviewHref: "/crm-next/hardening#evidence-package",
+    evidence: "Hardening page summarizes the pilot controls and links back to progress.",
+    safety: "Evidence-only; no operational enablement."
   }
 ];
 
@@ -1373,6 +1449,86 @@ const pilotScenarios: CrmNextPilotScenario[] = [
   }
 ];
 
+const hardeningGates: CrmNextHardeningGate[] = [
+  {
+    id: "migration-hold",
+    milestone: "CRMN-080",
+    category: "Migration",
+    title: "Migration and reconciliation stay held",
+    status: "HELD",
+    reviewState: "Held for approval",
+    proof: "Legacy/customer/opportunity/task/communication data movement is documented as a later approval gate, not part of this build.",
+    riskControl: "Current Legacy Customers and /crm remain operational and authoritative.",
+    nextStep: "Approve a migration rehearsal plan only after pilot review coverage is accepted."
+  },
+  {
+    id: "scenario-proof",
+    milestone: "CRMN-081",
+    category: "Testing",
+    title: "Pilot proof scenarios are visible",
+    status: "IMPLEMENTED_UNVERIFIED",
+    reviewState: "Proof required",
+    proof: "Reviewers can inspect command center, Needs Attention, Customer 360, Attend Mode, timeline, shared execution, and manager scenarios.",
+    riskControl: "All proof paths are read-only or preview-only.",
+    nextStep: "Run reviewer walkthroughs and capture pass/fail notes before promotion."
+  },
+  {
+    id: "accessibility",
+    milestone: "CRMN-082",
+    category: "Accessibility",
+    title: "Accessibility and responsive review checklist",
+    status: "IMPLEMENTED_UNVERIFIED",
+    reviewState: "Proof required",
+    proof: "Keyboard navigation, visible labels, contrast, compact layouts, and mobile/tablet collapse behavior are tracked as promotion checks.",
+    riskControl: "No pilot promotion if key navigation or review surfaces are hard to use.",
+    nextStep: "Run manual keyboard and screen-size review on the CRM Next routes."
+  },
+  {
+    id: "performance",
+    milestone: "CRMN-083",
+    category: "Performance",
+    title: "Performance budget is stated before live data",
+    status: "IMPLEMENTED_UNVERIFIED",
+    reviewState: "Implemented for review",
+    proof: "CRM Next pages use server-side read models and static review data in this envelope to avoid live polling pressure.",
+    riskControl: "No background sync, no live communications, and no high-frequency operational polling are enabled.",
+    nextStep: "Add measured budgets when live read adapters are connected."
+  },
+  {
+    id: "security-audit",
+    milestone: "CRMN-084",
+    category: "Security",
+    title: "Security, consent, and audit boundaries are explicit",
+    status: "IMPLEMENTED_UNVERIFIED",
+    reviewState: "Proof required",
+    proof: "Restricted finance, payment, document, insurance, communication, and manager actions remain gated with source-of-truth labels.",
+    riskControl: "No sensitive write or communication command can be triggered from CRM Next.",
+    nextStep: "Review permission matrix and audit-event requirements before enabling any command."
+  },
+  {
+    id: "rollback",
+    milestone: "CRMN-085",
+    category: "Rollback",
+    title: "Rollback path stays simple",
+    status: "IMPLEMENTED_UNVERIFIED",
+    reviewState: "Implemented for review",
+    proof: "CRM_NEXT can be turned off so /crm-next fails closed while /customers and /crm remain available.",
+    riskControl: "No route replacement or Legacy deprecation is included in this envelope.",
+    nextStep: "Rehearse CRM_NEXT off/on during release-candidate proof."
+  },
+  {
+    id: "evidence-package",
+    milestone: "CRMN-086",
+    category: "Evidence",
+    title: "One evidence page for pilot hardening",
+    status: "IMPLEMENTED_UNVERIFIED",
+    reviewState: "Implemented for review",
+    proof: "Hardening gates are visible from CRM Next navigation and from the progress cockpit.",
+    riskControl: "Evidence package is informational and cannot promote, migrate, or enable operations by itself.",
+    nextStep: "Use this page as the reviewer checklist before CRMN-087 coexistence planning."
+  }
+];
+
 export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Date = new Date()): CrmNextCommandCenter {
   const access = resolveCrmNextAccess(actor);
   if (!access.allowed) {
@@ -1428,6 +1584,7 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
       modes: commandCenterModes
     },
     pilotScenarios,
+    hardeningGates,
     bridge: {
       liveTaskCreationEnabled: false,
       previewEnabled: true,
@@ -1438,7 +1595,7 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
       envelopeCount: 20,
       verifiedCount: progressMilestones.filter((milestone) => milestone.status === "VERIFIED").length,
       heldCount: progressMilestones.filter((milestone) => milestone.status === "HELD").length,
-      nextMilestone: "CRMN-080",
+      nextMilestone: "CRMN-087",
       milestones: progressMilestones
     }
   };

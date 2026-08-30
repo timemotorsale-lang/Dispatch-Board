@@ -16,6 +16,7 @@ import CrmNextAppointmentsPage from "@/app/(app)/crm-next/appointments/page";
 import CrmNextCustomerPage from "@/app/(app)/crm-next/customers/[customerId]/page";
 import CrmNextDealsPage from "@/app/(app)/crm-next/deals/page";
 import CrmNextIntelligenceFoundationPage from "@/app/(app)/crm-next/intelligence-foundation/page";
+import CrmNextHardeningPage from "@/app/(app)/crm-next/hardening/page";
 import CrmNextNeedsAttentionPage from "@/app/(app)/crm-next/needs-attention/page";
 import CrmNextOwnershipSupportPage from "@/app/(app)/crm-next/ownership-support/page";
 import CrmNextPilotReadinessPage from "@/app/(app)/crm-next/pilot-readiness/page";
@@ -78,6 +79,7 @@ describe("CRM Next pages", () => {
     const sharedExecution = renderToStaticMarkup(await CrmNextSharedExecutionPage());
     const intelligence = renderToStaticMarkup(await CrmNextIntelligenceFoundationPage());
     const pilot = renderToStaticMarkup(await CrmNextPilotReadinessPage());
+    const hardening = renderToStaticMarkup(await CrmNextHardeningPage());
     const search = renderToStaticMarkup(await CrmNextSearchPage());
     const timeline = renderToStaticMarkup(await CrmNextTimelinePage());
     const pipeline = renderToStaticMarkup(await CrmNextPipelinePage());
@@ -96,6 +98,7 @@ describe("CRM Next pages", () => {
     expect(command).toContain("Manager Command Center");
     expect(command).toContain("Team response &amp; load indicators");
     expect(command).toContain("Pilot readiness");
+    expect(command).toContain("Hardening");
     expect(attention).toContain("Prioritized customers that need action");
     expect(customer).toContain("Customer 360 Overview");
     expect(customer).toContain("Open Legacy CRM");
@@ -121,6 +124,11 @@ describe("CRM Next pages", () => {
     expect(pilot).toContain("Multiple customer records ready for pilot review");
     expect(pilot).toContain("Manager review scenarios are visible before controls go live");
     expect(pilot).toContain("Legacy protected");
+    expect(hardening).toContain("Controls before pilot promotion");
+    expect(hardening).toContain("CRMN-080 → CRMN-086 hardening packet");
+    expect(hardening).toContain("Migration and reconciliation stay held");
+    expect(hardening).toContain("Security, consent, and audit boundaries are explicit");
+    expect(hardening).toContain("CRMN-087");
     expect(search).toContain("Find the customer");
     expect(search).toContain("Deals and Opportunities");
     expect(timeline).toContain("Customer activity without source drift");
@@ -133,7 +141,7 @@ describe("CRM Next pages", () => {
     expect(permissions).toContain("Denied users fail closed");
     expect(rollback).toContain("CRM Next can be turned off safely");
     expect(progress).toContain("CRM Next build cockpit");
-    expect(progress).toContain("CRMN-016 → CRMN-079");
+    expect(progress).toContain("CRMN-016 → CRMN-086");
     expect(progress).toContain("CRMN-035");
     expect(progress).toContain("CRMN-048");
     expect(progress).toContain("CRMN-054");
@@ -141,5 +149,7 @@ describe("CRM Next pages", () => {
     expect(progress).toContain("CRMN-074");
     expect(progress).toContain("CRMN-079");
     expect(progress).toContain("CRMN-080");
+    expect(progress).toContain("CRMN-086");
+    expect(progress).toContain("CRMN-087");
   });
 });
