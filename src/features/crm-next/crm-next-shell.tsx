@@ -1071,22 +1071,42 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
             <nav className={styles.tabs} aria-label="Customer 360 sections">
               <Link aria-current="page" href="#overview">Overview</Link>
               <Link href="#timeline">Timeline</Link>
-              <Link href="/crm-next/deals">Deals</Link>
+              <Link href="#deals">Deals</Link>
               <Link href="#cases">Cases</Link>
-              <Link href="/crm-next/appointments">Appointments</Link>
+              <Link href="#appointments">Appointments</Link>
               <Link href="#documents-held">Documents</Link>
               <Link href="#vehicles">Vehicles</Link>
               <Link href="#communications-held">Communications</Link>
             </nav>
-            <div className={styles.glanceList} id="overview">
+            <div className={styles.compactInfoGrid} id="overview">
               {customer.glance.map((item) => (
                 <Link className={styles.glanceItem} href={item.href} key={item.label}>
                   <CalendarDays size={20} /><span><strong>{item.label}</strong><small>{item.value}</small></span><ChevronRight size={18} />
                 </Link>
               ))}
             </div>
-            <p className={styles.safeNotice} id="communications-held">Live calls, texts, and emails are intentionally preview-only until phone, texting, email, consent, recording, and audit policies are approved.</p>
-            <p className={styles.safeNotice} id="documents-held">Document sending remains held until templates, authority, and retention rules are approved.</p>
+            <div className={styles.compactSectionGrid}>
+              <article id="deals" className={styles.compactSectionCard}>
+                <strong>Deals</strong>
+                <span>{customer.openDeals} open · source-owned in current CRM</span>
+              </article>
+              <article id="cases" className={styles.compactSectionCard}>
+                <strong>Cases</strong>
+                <span>{customer.openCases} open · support read model only</span>
+              </article>
+              <article id="appointments" className={styles.compactSectionCard}>
+                <strong>Appointments</strong>
+                <span>{customer.glance.find((item) => item.label === "Appointments")?.value ?? "0"} upcoming · open calendar flow</span>
+              </article>
+              <article id="documents-held" className={styles.compactSectionCard}>
+                <strong>Documents</strong>
+                <span>Sending held for templates, authority, and retention approval.</span>
+              </article>
+              <article id="communications-held" className={styles.compactSectionCard}>
+                <strong>Communications</strong>
+                <span>Calls, texts, and emails stay preview-only until consent and audit policies are approved.</span>
+              </article>
+            </div>
           </section>
 
           <section className={`${styles.timeline} ${styles.wide}`} id="timeline">

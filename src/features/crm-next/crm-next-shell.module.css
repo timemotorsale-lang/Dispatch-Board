@@ -694,6 +694,17 @@
   gap: 10px;
 }
 
+.compactInfoGrid,
+.compactSectionGrid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.compactSectionGrid {
+  margin-top: 10px;
+}
+
 .attentionItem,
 .nextItem,
 .communicationItem,
@@ -753,6 +764,36 @@
 .glanceItem small,
 .salesRow small {
   color: #64748b;
+}
+
+.compactSectionCard {
+  background: #f8fbff;
+  border: 1px solid #dce6f5;
+  border-radius: 14px;
+  color: #102548;
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px;
+  scroll-margin-top: 92px;
+}
+
+.compactSectionCard strong,
+.compactSectionCard span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.compactSectionCard strong {
+  color: #071a3a;
+  font-size: 15px;
+}
+
+.compactSectionCard span {
+  color: #52637a;
+  font-size: 13px;
+  line-height: 1.35;
 }
 
 .pill,
@@ -818,8 +859,8 @@
 .customerWorkspace {
   align-items: start;
   display: grid;
-  gap: 18px;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 330px);
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) minmax(290px, 320px);
   max-width: 100%;
   min-width: 0;
 }
@@ -850,15 +891,15 @@
     radial-gradient(circle at 94% 14%, rgb(21 93 252 / 14%), transparent 26%),
     linear-gradient(135deg, #ffffff 0%, #f9fbff 62%, #eef5ff 100%);
   border: 1px solid #d3dfef;
-  border-radius: 20px;
-  box-shadow: 0 16px 42px rgb(15 42 84 / 8%);
+  border-radius: 18px;
+  box-shadow: 0 14px 34px rgb(15 42 84 / 7%);
   display: grid;
   gap: 18px;
   grid-template-columns: minmax(260px, 1fr) minmax(320px, 1fr);
   max-width: 100%;
   min-width: 0;
   overflow: hidden;
-  padding: 22px 24px;
+  padding: 18px 20px;
   position: relative;
 }
 
@@ -942,8 +983,8 @@
 
 .customerMetricGrid {
   display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(6, minmax(112px, 1fr));
+  gap: 10px;
+  grid-template-columns: repeat(6, minmax(96px, 1fr));
   max-width: 100%;
   min-width: 0;
   overflow: hidden;
@@ -952,10 +993,10 @@
 .customerMetricCard {
   background: #ffffff;
   border: 1px solid #d7e1ef;
-  border-radius: 16px;
-  box-shadow: 0 12px 30px rgb(15 42 84 / 6%);
-  min-height: 96px;
-  padding: 16px;
+  border-radius: 14px;
+  box-shadow: 0 10px 24px rgb(15 42 84 / 5%);
+  min-height: 76px;
+  padding: 12px;
   text-align: center;
 }
 
@@ -969,7 +1010,7 @@
 .customerMetricCard strong {
   color: #071a3a;
   display: block;
-  font-size: 28px;
+  font-size: 23px;
   font-weight: 950;
   margin: 8px 0 4px;
 }
@@ -989,20 +1030,21 @@
 .sidePanel {
   background: #ffffff;
   border: 1px solid #d7e1ef;
-  border-radius: 18px;
-  box-shadow: 0 16px 38px rgb(15 42 84 / 7%);
+  border-radius: 16px;
+  box-shadow: 0 12px 30px rgb(15 42 84 / 6%);
   min-width: 0;
   overflow: hidden;
-  padding: 18px;
+  padding: 16px;
 }
 
 .sidePanel header {
   border-bottom: 1px solid #e2eaf7;
-  margin-bottom: 14px;
-  padding-bottom: 12px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
 }
 
 .sidePanel h2 {
+  font-size: 22px;
   margin: 0;
 }
 
@@ -1023,8 +1065,8 @@
   font-weight: 850;
   gap: 8px;
   justify-items: center;
-  min-height: 86px;
-  padding: 10px;
+  min-height: 72px;
+  padding: 9px;
   text-align: center;
   text-decoration: none;
 }
@@ -1037,11 +1079,11 @@
   align-items: flex-start;
   background: #eef6ff;
   border: 1px solid #dbeafe;
-  border-radius: 14px;
+  border-radius: 13px;
   display: flex;
   gap: 12px;
-  margin-bottom: 14px;
-  padding: 14px;
+  margin-bottom: 12px;
+  padding: 12px;
 }
 
 .nextBestAction svg {
@@ -1083,7 +1125,7 @@
 .profileCard,
 .contextCard,
 .panel {
-  padding: 18px;
+  padding: 14px;
 }
 
 .profileCard {
@@ -1135,21 +1177,24 @@
 
 .tabs {
   border-bottom: 1px solid #dce6f5;
-  display: flex;
+  display: grid;
   gap: 4px;
+  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
   margin-bottom: 16px;
   min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: thin;
+  overflow: visible;
 }
 
 .tabs a {
   border-bottom: 3px solid transparent;
   color: #64748b;
-  flex: 0 0 auto;
   font-weight: 850;
-  padding: 10px 12px;
+  min-width: 0;
+  overflow: hidden;
+  padding: 9px 8px;
   text-decoration: none;
+  text-align: center;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -1161,7 +1206,7 @@
 .timeline {
   min-width: 0;
   overflow: hidden;
-  padding: 18px;
+  padding: 14px;
 }
 
 .communicationItem {
