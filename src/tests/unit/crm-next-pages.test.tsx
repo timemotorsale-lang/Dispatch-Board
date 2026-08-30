@@ -13,6 +13,7 @@ vi.mock("@/server/auth/current-user", () => ({
 
 import CrmNextPage from "@/app/(app)/crm-next/page";
 import CrmNextAppointmentsPage from "@/app/(app)/crm-next/appointments/page";
+import CrmNextActionPage from "@/app/(app)/crm-next/actions/[actionId]/page";
 import CrmNextCoexistencePage from "@/app/(app)/crm-next/coexistence/page";
 import CrmNextCustomerPage from "@/app/(app)/crm-next/customers/[customerId]/page";
 import CrmNextDealsPage from "@/app/(app)/crm-next/deals/page";
@@ -96,6 +97,9 @@ describe("CRM Next pages", () => {
     const rollback = renderToStaticMarkup(await CrmNextRollbackReviewPage());
     const progress = renderToStaticMarkup(await CrmNextProgressPage());
     const review = renderToStaticMarkup(await CrmNextReviewCenterPage());
+    const logCallAction = renderToStaticMarkup(await CrmNextActionPage({ params: Promise.resolve({ actionId: "log-call" }) }));
+    const newTaskAction = renderToStaticMarkup(await CrmNextActionPage({ params: Promise.resolve({ actionId: "new-task" }) }));
+    const emailAction = renderToStaticMarkup(await CrmNextActionPage({ params: Promise.resolve({ actionId: "send-email" }) }));
 
     expect(command).toContain("Who needs attention?");
     expect(command).toContain("CRM Next Preview");
@@ -119,12 +123,20 @@ describe("CRM Next pages", () => {
     expect(customer).toContain("Preferred Customer");
     expect(customer).toContain("Customer Since");
     expect(customer).toContain("Quick Actions");
+    expect(customer).toContain('href="/crm-next/actions/log-call"');
+    expect(customer).toContain('href="/crm-next/actions/send-email"');
+    expect(customer).toContain('href="/crm-next/actions/new-task"');
+    expect(customer).toContain('href="/crm-next/actions/new-case"');
+    expect(customer).toContain('href="/crm-next/actions/schedule-appointment"');
+    expect(customer).toContain('href="/crm-next/actions/upload-document"');
     expect(customer).toContain("Next Best Action");
     expect(customer).toContain("Linked Vehicles");
     expect(customer).toContain("Source status");
     expect(customer).toContain("Open Current CRM");
     expect(work).toContain("Attend: Michael Johnson");
     expect(work).toContain("No live task is created in this slice");
+    expect(work).toContain('href="/crm-next/actions/log-call"');
+    expect(work).toContain('href="/crm-next/actions/new-task"');
     expect(ownershipSupport).toContain("Ownership &amp; Support");
     expect(ownershipSupport).toContain("Everything important");
     expect(ownershipSupport).toContain("BHPH / finance context");
@@ -154,12 +166,12 @@ describe("CRM Next pages", () => {
     expect(coexistence).toContain("CRMN-087 → CRMN-090 coexistence packet");
     expect(coexistence).toContain("Capability migration remains deliberate");
     expect(coexistence).toContain("Legacy retirement is not approved");
-    expect(coexistence).toContain("Pilot approval");
+    expect(coexistence).toContain("CRMN-150 proof bundle");
     expect(pilotRelease).toContain("Ready for review, not ready for launch without approval");
     expect(pilotRelease).toContain("CRMN-091 → CRMN-094 pilot release packet");
     expect(pilotRelease).toContain("Promotion checklist is ready for reviewers");
     expect(pilotRelease).toContain("Pilot launch is held for leadership approval");
-    expect(pilotRelease).toContain("Pilot approval");
+    expect(pilotRelease).toContain("CRMN-150 proof bundle");
     expect(search).toContain("Find the customer");
     expect(search).toContain("Deals and Opportunities");
     expect(timeline).toContain("Customer activity without source drift");
@@ -189,7 +201,9 @@ describe("CRM Next pages", () => {
     expect(progress).toContain("CRMN-099");
     expect(progress).toContain("CRMN-100");
     expect(progress).toContain("CRMN-119");
-    expect(progress).toContain("Pilot approval");
+    expect(progress).toContain("CRMN-150 proof bundle");
+    expect(progress).toContain("CRMN-122");
+    expect(progress).toContain("CRMN-150");
     expect(progress).toContain("CRMN-120");
     expect(review).toContain("Hidden build-review controls");
     expect(review).toContain("Progress");
@@ -202,5 +216,12 @@ describe("CRM Next pages", () => {
     expect(review).toContain("Command Center implementation cards");
     expect(review).toContain("CRMN-068");
     expect(review).toContain("Review ready");
+    expect(logCallAction).toContain("Log Call");
+    expect(logCallAction).toContain("Preview-only until pilot approval");
+    expect(logCallAction).toContain("What this button does now");
+    expect(newTaskAction).toContain("Dispatch Board task engine");
+    expect(newTaskAction).toContain("Prepares a Dispatch Board task payload preview");
+    expect(emailAction).toContain("Held until authority and policy are approved");
+    expect(emailAction).toContain("Shows email readiness");
   });
 });

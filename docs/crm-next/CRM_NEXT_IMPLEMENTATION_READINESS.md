@@ -362,3 +362,58 @@ Do not implement CRM Next on the shared `main` baseline directly. Start CRMN-010
 - No live call, text, email, task creation, case creation, document upload/send, customer write, deal movement, route replacement, migration, or pilot launch was enabled.
 
 **Progress truth:** CRMN-121 is marked `IMPLEMENTED_UNVERIFIED` until user review approves the redesigned Customer 360 layout for adoption.
+
+## Implementation evidence — CRMN-122 through CRMN-150 pilot-ready operating envelope
+
+**Status:** IMPLEMENTED_UNVERIFIED / FINAL PROOF IN PROGRESS  
+**Branch:** `codex/crm-next-operational-read-envelope`  
+**Scope:** Converts CRM Next from a protected review cockpit toward a pilot-ready operating CRM candidate by wiring normal staff actions to safe destinations, keeping risky capabilities held, and extending progress/readiness truth through CRMN-150.
+
+**Review locations:**
+- `/crm-next`
+- `/crm-next/search`
+- `/crm-next/needs-attention`
+- `/crm-next/customers/michael-johnson`
+- `/crm-next/work/attn-michael-overdue-follow-up`
+- `/crm-next/actions/log-call`
+- `/crm-next/actions/send-email`
+- `/crm-next/actions/send-text`
+- `/crm-next/actions/new-task`
+- `/crm-next/actions/new-case`
+- `/crm-next/actions/schedule-appointment`
+- `/crm-next/actions/upload-document`
+- `/crm-next/timeline`
+- `/crm-next/deals`
+- `/crm-next/appointments`
+- `/crm-next/review`
+- `/crm-next/progress`
+- `/crm-next/pilot-release`
+
+**What changed:**
+- Added a CRM Next operating-action readiness catalog for Log Call, Send Email, Send Text, New Task, New Case, Schedule Appointment, and Upload Document.
+- Added `/crm-next/actions/[actionId]` so visible staff actions route to a safe, useful page instead of dead anchors or accidental 404s.
+- Customer 360 Quick Actions now open safe CRM Next action readiness routes.
+- Attend Mode action buttons now open safe action routes or existing source-owned workspaces.
+- The Schedule Appointment action is treated as a safe route to the existing appointment workspace, while appointment mutations remain source-owned.
+- Communication, task, case, and document actions show their source authority, current state, audit posture, and pilot requirement before any live activation.
+- Progress milestones now include CRMN-122 through CRMN-150, with CRMN-150 retained as the final proof bundle gate.
+
+**Safety posture:**
+- CRM Next remains behind `/crm-next` and `CRM_NEXT`.
+- Legacy `/customers` and current `/crm` remain operational and linked.
+- CRM Next does not become the default CRM.
+- CRM Next does not create a duplicate customer master.
+- No live phone call, text, email, customer write, payment action, document upload/send, deal movement, migration execution, Legacy read-only switch, route replacement, pilot launch, or broad feature-flag promotion was enabled.
+- Held actions render useful readiness states rather than pretending to be live.
+- Every future live-capable action identifies source authority and audit posture before activation.
+
+**Remaining blockers before release or broad pilot:**
+- User acceptance of the Customer 360 and staff workflow layout.
+- Browser proof on the actual running app for desktop/laptop/tablet/mobile overflow.
+- Business approval for the pilot cohort, action permissions, rollback owner, and go/no-go decision.
+- Provider/consent/quiet-hours/audit approval before any live communication.
+- Document authority, storage, retention, and restricted-field approval before upload/send.
+- Dispatch Board task creation approval before CRM Next creates live tasks.
+- Migration/reconciliation approval before any Legacy/default route cutover.
+
+**Progress truth:** CRMN-122 through CRMN-149 are marked `IMPLEMENTED_UNVERIFIED`. CRMN-150 remains `IN_PROGRESS` until the final proof bundle is run and accepted. CRM Next is a pilot-ready operating candidate only after proof and business approval; it is not release-approved by implementation alone.

@@ -208,6 +208,18 @@ export type CrmNextPilotReleaseGate = {
   cannotProceedUntil: string;
 };
 
+export type CrmNextOperatingAction = {
+  id: "log-call" | "send-email" | "new-task" | "new-case" | "schedule-appointment" | "upload-document" | "send-text";
+  label: string;
+  category: "Communication" | "Task" | "Case" | "Appointment" | "Document";
+  state: "SAFE_ROUTE" | "PREVIEW_ONLY" | "HELD";
+  href: string;
+  sourceAuthority: string;
+  response: string;
+  auditPosture: string;
+  pilotRequirement: string;
+};
+
 export type CrmNextCommandCenter = {
   contractVersion: "crm-next-command-center/v1";
   generatedAt: string;
@@ -240,6 +252,7 @@ export type CrmNextCommandCenter = {
   hardeningGates: CrmNextHardeningGate[];
   coexistenceGates: CrmNextCoexistenceGate[];
   pilotReleaseGates: CrmNextPilotReleaseGate[];
+  operatingActions: CrmNextOperatingAction[];
   bridge: {
     liveTaskCreationEnabled: false;
     previewEnabled: true;
@@ -1181,6 +1194,48 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
   }
 ];
 
+const pilotOperatingMilestones: CrmNextMilestoneProgress[] = [
+  ["CRMN-122", "Customer 360 production-quality recovery", "/crm-next/customers/michael-johnson", "Customer 360 is stabilized as a compact operating page with complete section navigation and no intentional dead controls."],
+  ["CRMN-123", "Operating Customer List", "/crm-next/search", "CRM Next customer discovery uses source-owned customer/search reads with honest fallback states."],
+  ["CRMN-124", "Needs Attention operating queue", "/crm-next/needs-attention", "Needs Attention rows explain priority, owner, reason, customer, and next safe work path."],
+  ["CRMN-125", "Attend Mode usable workflow", "/crm-next/work/attn-michael-overdue-follow-up", "Attend Mode guides staff from context to safe action preview and source-owned follow-up."],
+  ["CRMN-126", "Quick Actions wired to safe backend paths", "/crm-next/actions/log-call", "Visible quick actions route to safe action readiness pages or existing source-owned workspaces instead of dead anchors."],
+  ["CRMN-127", "Dispatch Board task bridge pilot readiness", "/crm-next/actions/new-task", "CRM Next prepares a Dispatch task payload preview while live task creation remains disabled."],
+  ["CRMN-128", "Activity/timeline integration", "/crm-next/timeline", "Timeline stays source-linked and avoids duplicate CRM Next activity writes."],
+  ["CRMN-129", "Cases/issues operating surface", "/crm-next/actions/new-case", "Case intake is represented as a safe readiness path with common case fields and source ownership."],
+  ["CRMN-130", "Appointments operating surface", "/crm-next/actions/schedule-appointment", "Appointment action routes through the existing appointment workspace authority."],
+  ["CRMN-131", "Deals/opportunities operating surface", "/crm-next/deals", "Deals and opportunities remain read-only with valid source/work destinations."],
+  ["CRMN-132", "Documents/title readiness surface", "/crm-next/actions/upload-document", "Document and title actions show readiness/authority blockers instead of unsafe upload/send behavior."],
+  ["CRMN-133", "Communications readiness and manual outcome capture", "/crm-next/actions/send-email", "Communication actions expose consent/provider/audit readiness without live provider traffic."],
+  ["CRMN-134", "Risk and next-best-action rules", "/crm-next/intelligence-foundation", "Risk and next actions remain deterministic, explainable, and human-operated."],
+  ["CRMN-135", "Manager queue and oversight", "/crm-next/shared-execution#manager-queue", "Manager oversight shows customer-work pressure without reassignment or override mutation."],
+  ["CRMN-136", "Employee command center refinement", "/crm-next", "Staff-facing CRM Next navigation emphasizes daily customer work and keeps review pages hidden under Review Center."],
+  ["CRMN-137", "Search refinement", "/crm-next/search", "Search groups route to safe Customer 360, work, timeline, vehicle, deal, appointment, and source-owned destinations."],
+  ["CRMN-138", "Permission and role polish", "/crm-next/system/permissions", "Feature flag and role gating remain fail-closed and visible in review evidence."],
+  ["CRMN-139", "Error, empty, loading, and fallback states", "/crm-next/system/states", "Expected missing or held capabilities render useful states instead of raw 404/dead ends."],
+  ["CRMN-140", "Responsive and overflow proof", "/crm-next/customers/michael-johnson", "CRM Next pages receive containment and compact layout rules to prevent known overflow regressions."],
+  ["CRMN-141", "Performance/read-model hygiene", "/crm-next/review", "Read models stay server-side and source-owned without live polling or duplicate business rules."],
+  ["CRMN-142", "Audit/event posture", "/crm-next/review", "Every future live-capable action identifies required audit posture before activation."],
+  ["CRMN-143", "Release-readiness documentation update", "/crm-next/progress", "Readiness documentation records this envelope, held capabilities, review routes, and blockers."],
+  ["CRMN-144", "Route map and no-dead-button proof", "/crm-next/actions/new-task", "Focused tests verify visible CRM Next action destinations render safe pages."],
+  ["CRMN-145", "Accessibility/readability pass", "/crm-next", "Normal staff pages use stronger contrast, complete labels, and keyboard-reachable links."],
+  ["CRMN-146", "Security and source ownership check", "/crm-next/system/permissions", "CRM Next keeps source-owned services authoritative and does not create a duplicate customer master."],
+  ["CRMN-147", "Pilot workflow proof", "/crm-next/needs-attention", "Pilot workflow proof covers Command Center, queue, Customer 360, Attend Mode, action readiness, and switchback."],
+  ["CRMN-148", "Rollback/fallback proof", "/crm-next/system/rollback", "CRM_NEXT-off rollback remains route-level because CRM Next does not own source data."],
+  ["CRMN-149", "Pilot readiness gate", "/crm-next/pilot-release", "CRM Next is positioned as an internal pilot candidate, not a full release or default CRM."],
+  ["CRMN-150", "Final envelope proof bundle", "/crm-next/progress", "Focused tests, lint, typecheck, route proof, and documentation proof are required before handoff."]
+].map(([id, title, reviewHref, evidence]) => ({
+  id,
+  title,
+  status: id === "CRMN-150" ? "IN_PROGRESS" : "IMPLEMENTED_UNVERIFIED",
+  objective: `Complete ${title.toLowerCase()} as part of the CRM Next pilot-readiness operating envelope.`,
+  reviewHref,
+  evidence,
+  safety: "CRM Next remains behind /crm-next and CRM_NEXT; Legacy/current CRM stay operational; live communications, customer writes, migration, route replacement, and pilot launch remain held unless separately approved."
+}));
+
+const allProgressMilestones = [...progressMilestones, ...pilotOperatingMilestones];
+
 const attentionItems: CrmNextAttentionItem[] = [
   {
     id: "attn-michael-overdue-follow-up",
@@ -1279,6 +1334,86 @@ const customers: CrmNextCustomer360[] = [
       { id: "comm-email-1", channel: "Email", detail: "Sent insurance documents.", occurredAt: "May 8, 2025" },
       { id: "comm-appt-1", channel: "Appointment", detail: "Test drove 2021 Toyota RAV4.", occurredAt: "May 2, 2025" }
     ]
+  }
+];
+
+const operatingActions: CrmNextOperatingAction[] = [
+  {
+    id: "log-call",
+    label: "Log Call",
+    category: "Communication",
+    state: "PREVIEW_ONLY",
+    href: "/crm-next/actions/log-call",
+    sourceAuthority: "Existing customer interaction/manual outcome services",
+    response: "Opens a manual call outcome readiness screen; no phone call is placed.",
+    auditPosture: "Requires actor, customer, channel, outcome, timestamp, and source link before live logging.",
+    pilotRequirement: "Approve consent, call outcome fields, and audit retention."
+  },
+  {
+    id: "send-email",
+    label: "Send Email",
+    category: "Communication",
+    state: "HELD",
+    href: "/crm-next/actions/send-email",
+    sourceAuthority: "Future approved email provider and consent controls",
+    response: "Shows email readiness and provider/consent blockers instead of sending.",
+    auditPosture: "Requires template/version, recipient consent, sender, delivery provider, and retention proof.",
+    pilotRequirement: "Select provider, approve scopes, templates, opt-out handling, and kill switch."
+  },
+  {
+    id: "send-text",
+    label: "Send Text",
+    category: "Communication",
+    state: "HELD",
+    href: "/crm-next/actions/send-text",
+    sourceAuthority: "Future approved SMS provider and consent controls",
+    response: "Shows text readiness and consent/quiet-hours blockers instead of sending.",
+    auditPosture: "Requires consent, quiet-hours check, template, delivery state, cost guardrail, and opt-out proof.",
+    pilotRequirement: "Approve SMS provider, opt-out policy, quiet hours, rate limits, and cost controls."
+  },
+  {
+    id: "new-task",
+    label: "New Task",
+    category: "Task",
+    state: "PREVIEW_ONLY",
+    href: "/crm-next/actions/new-task",
+    sourceAuthority: "Dispatch Board task engine",
+    response: "Prepares a Dispatch Board task payload preview from customer context.",
+    auditPosture: "Requires actor, assignee, due date, source customer, payload, and bridge result.",
+    pilotRequirement: "Approve task creation scope and rollback/failure handling."
+  },
+  {
+    id: "new-case",
+    label: "New Case",
+    category: "Case",
+    state: "PREVIEW_ONLY",
+    href: "/crm-next/actions/new-case",
+    sourceAuthority: "Common case/support framework",
+    response: "Opens a case intake readiness screen with customer context and required fields.",
+    auditPosture: "Requires actor, case type, priority, owner, related customer/vehicle/deal, and source link.",
+    pilotRequirement: "Approve case types, ownership rules, SLA policy, and close/escalation workflow."
+  },
+  {
+    id: "schedule-appointment",
+    label: "Schedule Appointment",
+    category: "Appointment",
+    state: "SAFE_ROUTE",
+    href: "/crm-next/actions/schedule-appointment",
+    sourceAuthority: "Existing appointment workspace",
+    response: "Routes staff to the existing appointment workspace with CRM Next context.",
+    auditPosture: "Appointment mutations remain owned by the appointment workspace.",
+    pilotRequirement: "Confirm appointment return path and customer context handoff."
+  },
+  {
+    id: "upload-document",
+    label: "Upload Document",
+    category: "Document",
+    state: "HELD",
+    href: "/crm-next/actions/upload-document",
+    sourceAuthority: "Future document/title authority and retention rules",
+    response: "Shows document upload readiness and retention/authority blockers.",
+    auditPosture: "Requires document type, retention class, actor, customer, source system, and storage policy.",
+    pilotRequirement: "Approve templates, authority, storage, retention, and restricted-field handling."
   }
 ];
 
@@ -2401,6 +2536,7 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
     hardeningGates,
     coexistenceGates,
     pilotReleaseGates,
+    operatingActions,
     bridge: {
       liveTaskCreationEnabled: false,
       previewEnabled: true,
@@ -2422,12 +2558,12 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
       ]
     },
     progress: {
-      completedCount: progressMilestones.filter((milestone) => ["IMPLEMENTED_UNVERIFIED", "VERIFIED"].includes(milestone.status)).length,
-      envelopeCount: 27,
-      verifiedCount: progressMilestones.filter((milestone) => milestone.status === "VERIFIED").length,
-      heldCount: progressMilestones.filter((milestone) => milestone.status === "HELD").length,
-      nextMilestone: "Pilot approval",
-      milestones: progressMilestones
+      completedCount: allProgressMilestones.filter((milestone) => ["IMPLEMENTED_UNVERIFIED", "VERIFIED"].includes(milestone.status)).length,
+      envelopeCount: 29,
+      verifiedCount: allProgressMilestones.filter((milestone) => milestone.status === "VERIFIED").length,
+      heldCount: allProgressMilestones.filter((milestone) => milestone.status === "HELD").length,
+      nextMilestone: "CRMN-150 proof bundle",
+      milestones: allProgressMilestones
     }
   };
 }
@@ -2440,4 +2576,9 @@ export function getCrmNextCustomer360(actor: AuthenticatedUser | null, customerI
 export function getCrmNextAttentionItem(actor: AuthenticatedUser | null, itemId: string) {
   const model = getCrmNextCommandCenter(actor);
   return model.attention.find((item) => item.id === itemId) ?? model.attention[0];
+}
+
+export function getCrmNextOperatingAction(actor: AuthenticatedUser | null, actionId: string) {
+  const model = getCrmNextCommandCenter(actor);
+  return model.operatingActions.find((action) => action.id === actionId) ?? model.operatingActions[0];
 }
