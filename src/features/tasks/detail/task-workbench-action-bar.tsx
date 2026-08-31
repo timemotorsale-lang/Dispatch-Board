@@ -94,7 +94,7 @@ export function TaskWorkbenchActionBar({
       <button aria-pressed={focusMode} onClick={() => setFocusMode((current) => !current)} type="button"><Focus size={14} />{focusMode ? "Exit focus view" : "Focus view"}</button>
       <div className="etw-task-action-more">
         <button aria-expanded={menuOpen} aria-label="More task actions" onClick={() => setMenuOpen((current) => !current)} type="button"><MoreHorizontal size={15} /></button>
-        {menuOpen ? <div role="menu"><Link href={`/tasks/intake?returnTo=${encodeURIComponent(`/tasks/${taskId}`)}`} role="menuitem">Create related task</Link><Link href={`/appointments?sourceTask=${encodeURIComponent(taskId)}`} role="menuitem">Schedule follow-up</Link><Link href="/activity" role="menuitem">View full activity</Link><Link href={returnTo} role="menuitem">Return to task board</Link></div> : null}
+        {menuOpen ? <div role="menu"><Link href={`/tasks/intake?returnTo=${encodeURIComponent(`/tasks/${taskId}`)}`} role="menuitem">Create related task</Link><Link href={`/appointments?action=new&sourceTask=${encodeURIComponent(taskId)}&returnTo=${encodeURIComponent(`/tasks/${taskId}`)}`} role="menuitem">Schedule follow-up</Link><Link href="/activity" role="menuitem">View full activity</Link><Link href={returnTo} role="menuitem">Return to task board</Link></div> : null}
       </div>
       {message ? <span className="etw-task-action-message" role="status"><Clipboard size={12} />{message}</span> : null}
     </section>

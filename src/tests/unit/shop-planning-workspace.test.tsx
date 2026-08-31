@@ -88,7 +88,8 @@ describe("Shop Planning diagnostic release workspace", () => {
     expect(markup).toContain("Repair jobs already created");
     expect(markup).toContain("already carrying this approved work");
     expect(markup).toContain("J001");
-    expect(markup).toContain("Live repair progress");
+    expect(markup).toContain("Repair Update");
+    expect(markup).toContain("Waiting on tool / equipment");
     expect(markup).toContain("What happened? (required)");
     expect(markup).toContain("Save update");
     expect(markup).toContain("Recent repair updates");

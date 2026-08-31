@@ -99,6 +99,26 @@ function getAppointmentBoardHref(taskId: string, appointmentNumber?: string | nu
   return `/appointments?${params.toString()}`;
 }
 
+function getAppointmentSetupHref(task: TaskReadModel) {
+  const params = new URLSearchParams({
+    action: "new",
+    sourceTask: task.id,
+    returnTo: `/tasks/${task.id}`,
+    title: `Appointment for ${task.title}`,
+    reason: `Task requires a meeting or appointment before work can continue: ${task.title}.`
+  });
+
+  if (task.customerReference) {
+    params.set("customerReference", task.customerReference);
+  }
+
+  if (task.vehicleReference) {
+    params.set("vehicleReference", task.vehicleReference);
+  }
+
+  return `/appointments?${params.toString()}`;
+}
+
 export function TaskAppointmentPanel({ canCreateAppointment, task }: TaskAppointmentPanelProps) {
   const router = useRouter();
   const defaultReason = useMemo(
@@ -202,6 +222,9 @@ export function TaskAppointmentPanel({ canCreateAppointment, task }: TaskAppoint
             </button>
             <Link className="pill pill-secondary" href={getAppointmentBoardHref(task.id)}>
               Open Board
+            </Link>
+            <Link className="pill pill-secondary" href={getAppointmentSetupHref(task)}>
+              Focused setup
             </Link>
           </div>
         </>

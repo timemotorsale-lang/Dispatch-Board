@@ -23,6 +23,25 @@ function vehicleLabelFor(order: Awaited<ReturnType<typeof listRepairOrders>>["it
   return [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || vehicle.vehicleNumber || order.inventoryUnit?.inventoryNumber || "Vehicle not linked";
 }
 
+function vehicleIdentifiersFor(order: Awaited<ReturnType<typeof listRepairOrders>>["items"][number]) {
+  return [
+    order.vehicle?.vin,
+    order.vehicle?.stockNumber,
+    order.vehicle?.vehicleNumber,
+    order.vehicle?.licensePlate,
+    order.inventoryUnit?.inventoryNumber
+  ].filter((value): value is string => Boolean(value));
+}
+
+function appointmentVehicleIdentifiersFor(appointment: { vehicle?: { licensePlate?: string | null; stockNumber?: string | null; vehicleNumber?: string | null; vin?: string | null } | null }) {
+  return [
+    appointment.vehicle?.vin,
+    appointment.vehicle?.stockNumber,
+    appointment.vehicle?.vehicleNumber,
+    appointment.vehicle?.licensePlate
+  ].filter((value): value is string => Boolean(value));
+}
+
 function customerLabelFor(order: Awaited<ReturnType<typeof listRepairOrders>>["items"][number]) {
   return order.customer?.displayName ?? order.inventoryUnit?.inventoryNumber ?? "Internal vehicle";
 }
@@ -215,6 +234,7 @@ export async function getServiceAdvisorWorkspace(actor: AuthenticatedUser) {
       statusCode: update.statusCode,
       subject: safeText(update.contactOutcome, "Repair order update"),
       transportState: audience === "CUSTOMER" ? "RECORDED_CONTACT" as const : audience === "MANAGEMENT" ? "ESCALATION_RECORDED" as const : "SHARED_IN_REPAIR_ORDER" as const,
+      vehicleIdentifiers: vehicleIdentifiersFor(order),
       vehicleLabel: vehicleLabelFor(order)
     };
   })).sort((left, right) => Number(right.needsResponse) - Number(left.needsResponse) || new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime());
@@ -251,6 +271,7 @@ export async function getServiceAdvisorWorkspace(actor: AuthenticatedUser) {
       stage: safeText(order.stage, "UNKNOWN"),
       targetAt: safeDateIso(order.targetAt) ?? new Date(0).toISOString(),
       unresolvedPartDemandCount: unresolvedPartDemandCountFor(order),
+      vehicleIdentifiers: vehicleIdentifiersFor(order),
       vehicleLabel: vehicleLabelFor(order),
       vendorStatus: activeVendorWork(order)?.status ?? null,
       overdue: order.age.overdue,
@@ -271,6 +292,7 @@ export async function getServiceAdvisorWorkspace(actor: AuthenticatedUser) {
       phoneNumber: appointment.customer?.phoneNumber ?? null,
       startsAt: safeDateIso(appointment.startsAt),
       title: safeText(appointment.title, "Appointment"),
+      vehicleIdentifiers: appointmentVehicleIdentifiersFor(appointment),
       vehicleLabel: appointment.vehicle
         ? [appointment.vehicle.year, appointment.vehicle.make, appointment.vehicle.model].filter(Boolean).join(" ") || appointment.vehicle.vehicleNumber
         : "Vehicle not linked"
@@ -284,6 +306,7 @@ export async function getServiceAdvisorWorkspace(actor: AuthenticatedUser) {
       repairOrderNumber: order.repairOrderNumber,
       stage: safeText(order.stage, "UNKNOWN"),
       targetAt: safeDateIso(order.targetAt) ?? new Date(0).toISOString(),
+      vehicleIdentifiers: vehicleIdentifiersFor(order),
       vehicleLabel: vehicleLabelFor(order)
     }))
   };

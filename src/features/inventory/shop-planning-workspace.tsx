@@ -164,6 +164,7 @@ const seedVendorProgress = (work?: RepairVendorWork | null, order?: Order) => ({
 const progressStatuses = [
   { value: "REPAIR_IN_PROGRESS", label: "Repair in progress" },
   { value: "WAITING_PARTS", label: "Waiting on parts" },
+  { value: "WAITING_TOOL", label: "Waiting on tool / equipment" },
   { value: "WAITING_VENDOR", label: "Waiting on vendor" },
   { value: "READY_FOR_QC", label: "Ready for quality check" },
   { value: "REPAIR_BLOCKED", label: "Blocked / needs decision" },
@@ -329,7 +330,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
                 : { action: "Open repair release", detail: "Create the repair job first. After that, staff can record the result and move straight to Final QC.", href: repairReleaseHref, step: 5, title: "Release the approved repair" }
               : qcReady
                 ? { action: "Open Final QC", detail: "The repair result is already recorded. Continue in Final QC to inspect and release the vehicle.", href: repairReleaseHref, step: 5, title: "Complete final quality control" }
-                : { action: "Open repair result", detail: "Record what was completed, then send the vehicle directly to Final QC.", href: repairReleaseHref, step: 5, title: "Record the repair result" };
+                : { action: "Open repair update", detail: "Record progress, blockers, next steps, or the final repair result.", href: repairReleaseHref, step: 5, title: "Update repair progress" };
   const displayNotice = notice.includes("cannot move backward") && staffNext
     ? `This repair order is already at ${format(selected?.stage ?? "the current gate")}. Do not repeat an earlier step. ${staffNext.title}.`
     : notice;
@@ -731,8 +732,8 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
     const readyForQc = qcReadyStatuses.has(statusCode);
     setRepairProgress((value) => ({
       ...value,
-      contactOutcome: readyForQc ? "Repair complete and ready for QC" : statusCode === "WAITING_PARTS" ? "Repair waiting on parts" : statusCode === "WAITING_VENDOR" ? "Repair waiting on vendor" : statusCode === "REPAIR_BLOCKED" ? "Repair needs a decision" : "Repair progress updated",
-      nextAction: readyForQc ? "Complete final quality control, then hand off the vehicle." : statusCode === "WAITING_PARTS" ? "Confirm parts availability and resume repair when ready." : statusCode === "WAITING_VENDOR" ? "Follow up with the vendor and confirm the next committed date." : statusCode === "REPAIR_BLOCKED" ? "Resolve the blocker and record the repair decision." : "Continue repair and record the next meaningful update.",
+      contactOutcome: readyForQc ? "Repair complete and ready for QC" : statusCode === "WAITING_PARTS" ? "Repair waiting on parts" : statusCode === "WAITING_TOOL" ? "Repair waiting on tool / equipment" : statusCode === "WAITING_VENDOR" ? "Repair waiting on vendor" : statusCode === "REPAIR_BLOCKED" ? "Repair needs a decision" : "Repair progress updated",
+      nextAction: readyForQc ? "Complete final quality control, then hand off the vehicle." : statusCode === "WAITING_PARTS" ? "Confirm parts availability and resume repair when ready." : statusCode === "WAITING_TOOL" ? "Confirm tool delivery and resume repair when it arrives." : statusCode === "WAITING_VENDOR" ? "Follow up with the vendor and confirm the next committed date." : statusCode === "REPAIR_BLOCKED" ? "Resolve the blocker and record the repair decision." : "Continue repair and record the next meaningful update.",
       statusCode,
     }));
   }
@@ -757,7 +758,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
       setNotice(readyForQc ? "This completion update is already saved. Open QC to continue." : "This exact repair update is already saved; no duplicate was created.");
       return;
     }
-    const saved = await submit("RECORD_REPAIR_PROGRESS", { contactChannel: "INTERNAL", contactDirection: "INTERNAL", contactOutcome, customerVisibleSummary, exceptionCodes: ["REPAIR_BLOCKED", "WAITING_PARTS", "WAITING_VENDOR"].includes(statusCode) ? [statusCode] : [], internalNotes: [outcomeOverride ? `Repair outcome: ${outcomeOverride}. Work performed by: ${completedBy}.` : "", repairProgress.internalNotes.trim(), `Next action: ${nextAction}`].filter(Boolean).join("\n"), nextContactAt: readyForQc ? null : repairProgress.nextContactAt ? new Date(repairProgress.nextContactAt).toISOString() : null, occurredAt: new Date().toISOString(), promiseAt: repairProgress.promiseAt ? new Date(repairProgress.promiseAt).toISOString() : null, reason: "Record live repair progress from the repair planning workspace.", statusCode }, readyForQc ? "Repair result saved. Opening Final QC." : "Repair progress update recorded.");
+    const saved = await submit("RECORD_REPAIR_PROGRESS", { contactChannel: "INTERNAL", contactDirection: "INTERNAL", contactOutcome, customerVisibleSummary, exceptionCodes: ["REPAIR_BLOCKED", "WAITING_PARTS", "WAITING_TOOL", "WAITING_VENDOR"].includes(statusCode) ? [statusCode] : [], internalNotes: [outcomeOverride ? `Repair outcome: ${outcomeOverride}. Work performed by: ${completedBy}.` : "", repairProgress.internalNotes.trim(), `Next action: ${nextAction}`].filter(Boolean).join("\n"), nextContactAt: readyForQc ? null : repairProgress.nextContactAt ? new Date(repairProgress.nextContactAt).toISOString() : null, occurredAt: new Date().toISOString(), promiseAt: repairProgress.promiseAt ? new Date(repairProgress.promiseAt).toISOString() : null, reason: "Record live repair progress from the repair planning workspace.", statusCode }, readyForQc ? "Repair result saved. Opening Final QC." : "Repair progress update recorded.");
     if (saved && openQc) {
       window.location.assign(qcHref);
       return;
@@ -1160,13 +1161,13 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
                 </dl>
                 <div className={styles.simpleInstructions}>
                   <strong>Next step</strong>
-                  <p>{(existingJobForSelectedLine?.status ?? selected.repairJobs[0]?.status) === "WAITING_PARTS" ? "Open Parts & readiness first, then return to dispatch or repair execution once the required parts are ready." : qcReady ? "The repair result is already saved. Go straight to Final QC." : "Open dispatch or the repair work order, complete the work, and then record the repair result for Final QC."}</p>
+                  <p>{(existingJobForSelectedLine?.status ?? selected.repairJobs[0]?.status) === "WAITING_PARTS" ? "Open Parts & readiness first, then return to dispatch or repair execution once the required parts are ready." : qcReady ? "The repair result is already saved. Go straight to Final QC." : "Open dispatch or the repair work order, then record progress, blockers, or the final result from the Repair Update area."}</p>
                 </div>
                 <div className={styles.simpleActions}>
                   <Link href={dispatchHref}>Open repair assignment</Link>
                   <Link href={repairJobWorkbenchHref}>Open repair work order</Link>
                   <Link href={partsHref}>Open parts purchases</Link>
-                  {qcReady ? <Link className={styles.primaryAction} href={qcHref}>Open Final QC</Link> : <a className={styles.primaryAction} href="#repair-result">Record repair result</a>}
+                  {qcReady ? <Link className={styles.primaryAction} href={qcHref}>Open Final QC</Link> : <a className={styles.primaryAction} href="#repair-result">Record repair update</a>}
                 </div>
               </section>
             ) : releasePrerequisiteBlocked ? (
@@ -1217,38 +1218,8 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
           {hasRepairJob ? <section className={styles.repairResult} id="repair-result" tabIndex={-1}>
             <header>
               <span>Manage repair</span>
-              <h2>Record the repair result</h2>
-              <p>Choose the outcome, say what happened, and send the vehicle straight to Final QC.</p>
-            </header>
-            <div className={styles.outcomeChoices} role="group" aria-label="Repair outcome">
-              <button aria-pressed={repairOutcome === "SUCCESS"} onClick={() => setRepairOutcome("SUCCESS")} type="button">
-                <Check aria-hidden="true" />
-                <span><strong>Completed successfully</strong><small>The repair is finished and ready for inspection.</small></span>
-              </button>
-              <button aria-pressed={repairOutcome === "FAILED"} onClick={() => setRepairOutcome("FAILED")} type="button">
-                <Wrench aria-hidden="true" />
-                <span><strong>Repair failed</strong><small>Send it to QC for a rework decision.</small></span>
-              </button>
-            </div>
-            <div className={styles.repairResultFields}>
-              <label><span>Who performed the work?</span><select value={completedByUserId} onChange={(event) => setCompletedByUserId(event.target.value)}>{model.users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></label>
-              <label><span>What happened?</span><textarea required placeholder="Example: Left fender from Metro Auto Salvage was received and installed today. Panel fit and attachment are complete." value={repairProgress.customerVisibleSummary} onChange={(event) => setRepairProgress((value) => ({ ...value, customerVisibleSummary: event.target.value }))} /></label>
-            </div>
-            <button className={styles.sendToQcAction} disabled={busy || !repairProgress.customerVisibleSummary.trim() || !completedByUserId} onClick={() => void submitRepairProgress("READY_FOR_QC", true, repairOutcome)} type="button">
-              {busy ? "Saving..." : "Save result and open Final QC"}
-            </button>
-          </section> : null}
-
-          {hasRepairJob ? <details className={styles.moreRepairUpdates}>
-            <summary>More repair update options and history</summary>
-          <section className={styles.progressWorkspace} id="repair-progress">
-            <header>
-              <div>
-                <span>Live repair progress</span>
-                <h2>Give staff one simple place to update the work</h2>
-                <p>Record what changed, what is next, and when we should follow up. This writes to the real repair-order timeline.</p>
-              </div>
-              <b>{recentRepairUpdates.length} update{recentRepairUpdates.length === 1 ? "" : "s"}</b>
+              <h2>Repair Update</h2>
+              <p>Document repair progress, blockers, next steps, or the final result without losing the vehicle history.</p>
             </header>
             {qcReady ? <div className={styles.qcReadyBanner}>
               <div>
@@ -1258,14 +1229,19 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
               <Link className={styles.qcReadyAction} href={qcHref}>Open QC workspace</Link>
             </div> : null}
             <form onSubmit={(event: FormEvent) => { event.preventDefault(); void submitRepairProgress(); }}>
+              <div className={styles.repairUpdateModeHint}>
+                <strong>Progress update</strong>
+                <span>Use this when the repair is still open, paused, waiting, or blocked.</span>
+                <b>{recentRepairUpdates.length} prior update{recentRepairUpdates.length === 1 ? "" : "s"}</b>
+              </div>
               <div className={styles.progressGrid}>
                 <label><span>What is the status?</span><select value={repairProgress.statusCode} onChange={(event) => chooseProgressStatus(event.target.value)}>{progressStatuses.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select></label>
                 <label><span>Update title</span><input value={repairProgress.contactOutcome} onChange={(event) => setRepairProgress((value) => ({ ...value, contactOutcome: event.target.value }))} /></label>
                 <label><span>Follow up (optional)</span><input type="datetime-local" value={repairProgress.nextContactAt} onChange={(event) => setRepairProgress((value) => ({ ...value, nextContactAt: event.target.value }))} /></label>
                 <label><span>Target date (optional)</span><input type="datetime-local" value={repairProgress.promiseAt} onChange={(event) => setRepairProgress((value) => ({ ...value, promiseAt: event.target.value }))} /></label>
-                <label className={styles.wideField}><span>What happened? (required)</span><textarea required placeholder="Example: Fender replaced and repair is ready for final QC." value={repairProgress.customerVisibleSummary} onChange={(event) => setRepairProgress((value) => ({ ...value, customerVisibleSummary: event.target.value }))} /></label>
-                <label className={styles.wideField}><span>Next step</span><input placeholder="Example: Order missing parts and follow up with vendor tomorrow morning." value={repairProgress.nextAction} onChange={(event) => setRepairProgress((value) => ({ ...value, nextAction: event.target.value }))} /></label>
-                <label className={styles.wideField}><span>Private notes (optional)</span><textarea placeholder="Internal repair detail, handoff note, or blocker context." value={repairProgress.internalNotes} onChange={(event) => setRepairProgress((value) => ({ ...value, internalNotes: event.target.value }))} /></label>
+                <label className={styles.wideField}><span>What happened? (required)</span><textarea required placeholder="Example: Required repair tool was not available. Tool was ordered online and repair is paused until it arrives." value={repairProgress.customerVisibleSummary} onChange={(event) => setRepairProgress((value) => ({ ...value, customerVisibleSummary: event.target.value }))} /></label>
+                <label className={styles.wideField}><span>Next step</span><input placeholder="Example: Confirm tool delivery and resume repair when it arrives." value={repairProgress.nextAction} onChange={(event) => setRepairProgress((value) => ({ ...value, nextAction: event.target.value }))} /></label>
+                <label className={styles.wideField}><span>Internal repair note (optional)</span><textarea placeholder="Tool order, tracking number, blocker context, or handoff note." value={repairProgress.internalNotes} onChange={(event) => setRepairProgress((value) => ({ ...value, internalNotes: event.target.value }))} /></label>
               </div>
               {displayNotice ? <div aria-live="polite" className={`${styles.notice} ${/required|cannot|invalid|failed|error/i.test(displayNotice) ? styles.danger : ""}`}><p>{displayNotice}</p></div> : null}
               <div className={styles.progressActions}>
@@ -1277,6 +1253,28 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
                 </div>
               </div>
             </form>
+
+            <details className={styles.finalRepairResult}>
+              <summary>Final result / send to QC</summary>
+              <div className={styles.outcomeChoices} role="group" aria-label="Repair outcome">
+                <button aria-pressed={repairOutcome === "SUCCESS"} onClick={() => setRepairOutcome("SUCCESS")} type="button">
+                  <Check aria-hidden="true" />
+                  <span><strong>Completed successfully</strong><small>The repair is finished and ready for inspection.</small></span>
+                </button>
+                <button aria-pressed={repairOutcome === "FAILED"} onClick={() => setRepairOutcome("FAILED")} type="button">
+                  <Wrench aria-hidden="true" />
+                  <span><strong>Repair failed</strong><small>Send it to QC for a rework decision.</small></span>
+                </button>
+              </div>
+              <div className={styles.repairResultFields}>
+                <label><span>Who performed the work?</span><select value={completedByUserId} onChange={(event) => setCompletedByUserId(event.target.value)}>{model.users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></label>
+                <label><span>Final result note</span><textarea required placeholder="Example: Left fender from Metro Auto Salvage was received and installed today. Panel fit and attachment are complete." value={repairProgress.customerVisibleSummary} onChange={(event) => setRepairProgress((value) => ({ ...value, customerVisibleSummary: event.target.value }))} /></label>
+              </div>
+              <button className={styles.sendToQcAction} disabled={busy || !repairProgress.customerVisibleSummary.trim() || !completedByUserId} onClick={() => void submitRepairProgress("READY_FOR_QC", true, repairOutcome)} type="button">
+                {busy ? "Saving..." : "Save final result and open Final QC"}
+              </button>
+            </details>
+
             <div className={styles.progressHistory}>
               <strong>Recent repair updates</strong>
               {recentRepairUpdates.length ? recentRepairUpdates.map((update) => <article key={update.id}>
@@ -1292,8 +1290,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
                 </aside>
               </article>) : <p>No repair progress has been recorded yet.</p>}
             </div>
-          </section>
-          </details> : null}
+          </section> : null}
         </main>
 
         <aside className={styles.rail}>

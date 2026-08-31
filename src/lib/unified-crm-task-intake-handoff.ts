@@ -34,6 +34,7 @@ export type UnifiedCrmTaskIntakeDefaults = {
   expectedOutcome?: string;
   intakeType?: UnifiedCrmTaskIntakeType;
   title?: string;
+  vehicleReference?: string;
   workflowArea?: UnifiedCrmTaskWorkflowArea;
 };
 
@@ -101,6 +102,7 @@ export function normalizeUnifiedCrmTaskIntakeDefaults(input: Record<string, stri
     expectedOutcome: text(input.expectedOutcome, 500),
     intakeType: intakeType && TASK_INTAKE_TYPE_SET.has(intakeType) ? intakeType as UnifiedCrmTaskIntakeType : undefined,
     title: text(input.title, 240),
+    vehicleReference: text(input.vehicleReference, 240),
     workflowArea: workflowArea && TASK_WORKFLOW_AREA_SET.has(workflowArea) ? workflowArea as UnifiedCrmTaskWorkflowArea : undefined
   };
 }

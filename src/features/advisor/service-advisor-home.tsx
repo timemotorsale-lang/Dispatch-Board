@@ -238,6 +238,10 @@ function reportSeedSourceLabel(seed: ReportSeedItem) {
   return "Operations";
 }
 
+function reportSeedRecordHref(seed: ReportSeedItem) {
+  return seed.sourceHref || `/vehicles/coo-workbook/report-seeds#report-seed-${encodeURIComponent(seed.id)}`;
+}
+
 function dailyReportDraftText(draft: WorkdayWorkbookModel["reportDrafts"][number]) {
   const sections = draft.sections.map((section) => [
     section.title,
@@ -265,6 +269,7 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
   const [workspaceNotice, setWorkspaceNotice] = useState<string | null>(null);
   const [convertingId, setConvertingId] = useState<string | null>(null);
   const [commandView, setCommandView] = useState<CommandCardView | null>(null);
+  const [workSearchQuery, setWorkSearchQuery] = useState("");
   const [saving, setSaving] = useState(false);
   const approvalCount = actionCount(model, "AUTHORIZATION");
   const reportExceptions = model.counts.needsAttention + model.counts.waitingOnOthers;
@@ -320,32 +325,123 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
     title: "Create COO daily action plan"
   });
   const supportSignals = closeReadiness.checklistNeedsSupport + closeReadiness.quickFollowUps + reportExceptions;
+  const buildSearchText = (...parts: Array<string | number | null | undefined | string[]>) => parts.flatMap((part) => Array.isArray(part) ? part : [part]).filter((part): part is string | number => part !== null && part !== undefined && String(part).trim().length > 0).join(" ").toLocaleLowerCase();
   const attentionItems = [
     ...model.actionQueue.slice(0, 4).map((item) => ({
       action: actionButton(item.actionKind),
-      context: `${item.customerName} · ${item.repairOrderNumber}`,
+      context: `${item.customerName} · ${item.repairOrderNumber} · ${item.vehicleLabel}`,
+      description: item.actionReason,
       href: `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(item.id)}`,
       id: `action-${item.id}`,
-      title: item.actionReason,
+      meta: item.nextAction !== "Next action not recorded" ? `Next: ${item.nextAction}` : `${stageLabel(item.stage)} · ${stageLabel(item.operatingState)}`,
+      searchText: buildSearchText(item.actionLabel, item.actionReason, item.customerName, item.repairOrderNumber, item.vehicleLabel, item.vehicleIdentifiers ?? [], item.nextAction, item.stage, item.operatingState),
+      title: item.actionLabel,
       tone: item.actionKind === "AUTHORIZATION" || item.overdue ? "red" : item.actionKind === "PARTS_DELAY" || item.actionKind === "TECHNICIAN_CLARIFICATION" || item.actionKind === "PROMISE_RISK" ? "yellow" : "blue"
     })),
     ...quickUpdates.filter((item) => item.followUpNeeded || item.carryoverReady).slice(0, 2).map((item) => ({
       action: item.followUpNeeded ? "Follow up" : "Review",
       context: [item.person, item.company, item.dueWindow].filter(Boolean).join(" · ") || "Quick Update",
+      description: item.text,
       href: "/vehicles/coo-workbook/quick-update",
       id: `quick-${item.id}`,
-      title: item.text,
+      meta: quickUpdateCategoryLabel(item.category),
+      searchText: buildSearchText(item.text, item.person, item.company, item.dueWindow, quickUpdateCategoryLabel(item.category)),
+      title: "Quick update needs follow-up",
       tone: item.followUpNeeded ? "yellow" : "blue"
     })),
     ...checklistItems.filter((item) => !item.done && (item.status === "RED" || item.status === "YELLOW" || item.carryoverReady)).slice(0, 2).map((item) => ({
       action: item.status === "RED" ? "Resolve" : "Update",
       context: latestChecklistUpdateText(item) || "Daily Checklist",
+      description: item.text,
       href: "/vehicles/coo-workbook/checklist",
       id: `checklist-${item.id}`,
-      title: item.text,
+      meta: checklistStatusLabel(item),
+      searchText: buildSearchText(item.text, latestChecklistUpdateText(item), checklistStatusLabel(item)),
+      title: "Checklist item needs attention",
       tone: item.status === "RED" ? "red" : "yellow"
     }))
   ].slice(0, 4);
+  const searchableWorkItems = [
+    ...attentionItems.map((item) => ({
+      action: item.action,
+      context: item.context,
+      description: item.description,
+      href: item.href,
+      id: item.id,
+      kind: "Attention",
+      searchText: item.searchText,
+      title: item.title,
+      tone: item.tone
+    })),
+    ...model.repairOrders.map((item) => ({
+      action: "Open RO",
+      context: `${item.customerName} · ${item.vehicleLabel}`,
+      description: `${item.repairOrderNumber} · ${stageLabel(item.stage)} · ${stageLabel(item.operatingState)} · Next: ${item.nextAction}`,
+      href: `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(item.id)}`,
+      id: `repair-${item.id}`,
+      kind: "Repair Order",
+      searchText: buildSearchText(item.customerName, item.repairOrderNumber, item.vehicleLabel, item.vehicleIdentifiers ?? [], item.stage, item.operatingState, item.nextAction),
+      title: item.repairOrderNumber,
+      tone: item.age.overdue ? "red" : "blue"
+    })),
+    ...model.appointments.map((item) => ({
+      action: "Open schedule",
+      context: `${item.customerName} · ${item.vehicleLabel}`,
+      description: `${item.title} · ${item.startsAt ? dateLabel(item.startsAt) : "Time not set"}`,
+      href: "/appointments?view=board",
+      id: `appointment-${item.id}`,
+      kind: "Appointment",
+      searchText: buildSearchText(item.appointmentNumber, item.customerName, item.email, item.phoneNumber, item.title, item.vehicleLabel, item.vehicleIdentifiers ?? [], item.startsAt),
+      title: item.appointmentNumber,
+      tone: "blue"
+    })),
+    ...checklistItems.map((item) => ({
+      action: item.done ? "Review" : "Update",
+      context: checklistStatusLabel(item),
+      description: latestChecklistUpdateText(item) || item.text,
+      href: "/vehicles/coo-workbook/checklist",
+      id: `search-checklist-${item.id}`,
+      kind: "Checklist",
+      searchText: buildSearchText(item.text, latestChecklistUpdateText(item), checklistStatusLabel(item)),
+      title: item.text,
+      tone: item.status === "RED" ? "red" : item.status === "YELLOW" ? "yellow" : "blue"
+    })),
+    ...quickUpdates.map((item) => ({
+      action: item.followUpNeeded ? "Follow up" : "Review",
+      context: [quickUpdateCategoryLabel(item.category), item.person, item.company, item.dueWindow].filter(Boolean).join(" · "),
+      description: item.text,
+      href: "/vehicles/coo-workbook/quick-update",
+      id: `search-quick-${item.id}`,
+      kind: "Quick Update",
+      searchText: buildSearchText(item.text, item.person, item.company, item.dueWindow, quickUpdateCategoryLabel(item.category)),
+      title: item.text,
+      tone: item.followUpNeeded ? "yellow" : "blue"
+    })),
+    ...reportSeeds.map((item) => ({
+      action: item.sourceHref ? "Open source" : "Open seed",
+      context: reportSeedSourceLabel(item),
+      description: item.detail,
+      href: reportSeedRecordHref(item),
+      id: `search-seed-${item.id}`,
+      kind: "Report Seed",
+      searchText: buildSearchText(item.title, item.detail, reportSeedSourceLabel(item), reportSeedStatusLabel(item.status)),
+      title: item.title,
+      tone: item.status === "CARRIED_OVER" ? "yellow" : "blue"
+    }))
+  ];
+  const normalizedWorkSearch = workSearchQuery.trim().toLocaleLowerCase();
+  const workSearchResults = normalizedWorkSearch
+    ? searchableWorkItems.filter((item) => item.searchText.includes(normalizedWorkSearch)).slice(0, 8)
+    : [];
+  const workSearchTaskHref = workSearchQuery.trim()
+    ? cooTaskIntakeHref({
+      brief: `Review and create the right follow-up for: ${workSearchQuery.trim()}`,
+      dueAt: model.generatedAt,
+      expectedOutcome: "The searched customer, vehicle, repair order, or work reference is reviewed and routed to the right next action.",
+      title: `Review ${workSearchQuery.trim().slice(0, 70)}`,
+      vehicleReference: workSearchQuery.trim()
+    })
+    : "";
   const commandCards = [
     {
       icon: CheckCircle2,
@@ -1093,9 +1189,10 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
 
       {initialTool === "REPORT_SEEDS" ? <section className="advisor-coo-focused-tool advisor-coo-report-seeds" aria-label="Report Seeds tool">
         <header><div><strong>Report Seeds</strong><small>Review, include, exclude, edit, or carry over source-backed report material.</small></div><span>{reportSeedRollup.reviewed}/{reportSeedRollup.total} reviewed</span></header>
-        <div>{reportSeeds.length ? reportSeeds.map((seed) => <article className={seed.tone.toLocaleLowerCase()} key={seed.id}>
+        <div>{reportSeeds.length ? reportSeeds.map((seed) => <article className={seed.tone.toLocaleLowerCase()} id={`report-seed-${seed.id}`} key={seed.id}>
           <span><strong>{seed.title}</strong><small>{reportSeedSourceLabel(seed)} · {reportSeedStatusLabel(seed.status)}</small></span>
           <div className="advisor-coo-seed-actions">
+            {seed.sourceHref ? <Link href={seed.sourceHref}>Open source</Link> : null}
             <button aria-pressed={seed.status === "INCLUDED"} disabled={isClosed} onClick={() => void persistReportSeed(seed.id, { status: "INCLUDED" })} type="button">Include</button>
             <button aria-pressed={seed.status === "EXCLUDED"} disabled={isClosed} onClick={() => void persistReportSeed(seed.id, { status: "EXCLUDED" })} type="button">Exclude</button>
             <button aria-pressed={seed.status === "CARRIED_OVER"} disabled={isClosed} onClick={() => void persistReportSeed(seed.id, { status: "CARRIED_OVER" })} type="button">Carry over</button>
@@ -1211,6 +1308,36 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
       </div>
     </section> : null}
 
+    <section className="advisor-coo-work-search" aria-label="Find task, ticket, vehicle, or customer">
+      <header>
+        <div>
+          <strong>Find task, ticket, vehicle, or customer</strong>
+          <small>Search by VIN, stock #, repair order, customer, appointment, checklist, or update note.</small>
+        </div>
+        <span>{normalizedWorkSearch ? `${workSearchResults.length} match${workSearchResults.length === 1 ? "" : "es"}` : "Ready"}</span>
+      </header>
+      <label className="advisor-coo-search-box">
+        <Search />
+        <input
+          aria-label="Search COO work"
+          onChange={(event) => setWorkSearchQuery(event.target.value)}
+          placeholder="Try a VIN like 1G1ZE5SX1JF103855, RO, stock #, customer, or task..."
+          type="search"
+          value={workSearchQuery}
+        />
+        {workSearchQuery ? <button onClick={() => setWorkSearchQuery("")} type="button">Clear</button> : null}
+      </label>
+      {normalizedWorkSearch ? <div className="advisor-coo-search-results">
+        {workSearchResults.length ? workSearchResults.map((item) => <a className={item.tone} href={item.href} key={item.id}>
+          <span><b>{item.kind}</b><strong>{item.title}</strong><small>{item.context}</small><small>{item.description}</small></span>
+          <em>{item.action}</em>
+        </a>) : <div className="advisor-coo-search-empty">
+          <span>No matching work found on this board. If this is still work that needs attention, create a task from the search and keep moving.</span>
+          <Link href={workSearchTaskHref}>Create task from search</Link>
+        </div>}
+      </div> : null}
+    </section>
+
     <section className="advisor-coo-landing-grid" aria-label={`${activeWorkbookLabel} daily execution workspace`}>
       <article className="advisor-coo-attention-now">
         <header>
@@ -1220,7 +1347,7 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
         <div>
           {attentionItems.length ? attentionItems.map((item, index) => <a className={item.tone} href={item.href} key={item.id}>
             <b>{index + 1}</b>
-            <span><strong>{item.title}</strong><small>{item.context}</small></span>
+            <span><strong>{item.title}</strong><small>{item.context}</small><small>{item.description}</small>{item.meta ? <i>{item.meta}</i> : null}</span>
             <em>{item.action}</em>
           </a>) : <p><CheckCircle2 /> No urgent workbook or operating signals need attention right now.</p>}
         </div>

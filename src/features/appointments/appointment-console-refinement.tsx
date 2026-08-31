@@ -756,25 +756,45 @@ function LegacyAppointmentConsoleNewAppointment() {
 
 void LegacyAppointmentConsoleNewAppointment;
 
-export function AppointmentConsoleNewAppointment() {
+type AppointmentNewInitialContext = {
+  customerReference?: string;
+  localDate?: string;
+  reason?: string;
+  returnTo?: string;
+  sourceTaskId?: string;
+  sourceTaskTitle?: string;
+  startTime?: string;
+  title?: string;
+  vehicleReference?: string;
+};
+
+function validDateInput(value?: string) {
+  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : todayDateKey();
+}
+
+function validTimeInput(value?: string) {
+  return value && /^\d{2}:\d{2}$/.test(value) ? value : "14:30";
+}
+
+export function AppointmentConsoleNewAppointment({ initialContext }: { initialContext?: AppointmentNewInitialContext }) {
   const [selectedPurposeCode, setSelectedPurposeCode] = useState<(typeof purposeOptions)[number]["value"]>("CUSTOMER_ISSUE");
   const selectedPurpose = purposeOptions.find((purpose) => purpose.value === selectedPurposeCode) ?? purposeOptions[0];
   const [form, setForm] = useState({
-    customer: "",
-    vehicle: "",
-    localDate: todayDateKey(),
-    startTime: "14:30",
+    customer: initialContext?.customerReference ?? "",
+    vehicle: initialContext?.vehicleReference ?? "",
+    localDate: validDateInput(initialContext?.localDate),
+    startTime: validTimeInput(initialContext?.startTime),
     durationMinutes: selectedPurpose.duration,
     advisor: "Any Advisor",
     transportation: "Customer Drive",
-    reason: ""
+    reason: initialContext?.reason ?? ""
   });
   const [calendarView, setCalendarView] = useState<"day" | "week" | "month">("day");
   const [notice, setNotice] = useState("Ready to create appointment.");
   const [isSaving, setIsSaving] = useState(false);
   const [createdAppointmentNumber, setCreatedAppointmentNumber] = useState<string | null>(null);
-  const [customerQuery, setCustomerQuery] = useState("");
-  const [vehicleQuery, setVehicleQuery] = useState("");
+  const [customerQuery, setCustomerQuery] = useState(initialContext?.customerReference ?? "");
+  const [vehicleQuery, setVehicleQuery] = useState(initialContext?.vehicleReference ?? "");
   const [identityResults, setIdentityResults] = useState<AppointmentIdentitySearchResponse>({ customers: [], vehicles: [] });
   const [identityStatus, setIdentityStatus] = useState<"idle" | "loading" | "ready" | "unavailable">("idle");
   const [selectedCustomer, setSelectedCustomer] = useState<AppointmentIdentityCustomer | null>(null);
@@ -804,6 +824,9 @@ export function AppointmentConsoleNewAppointment() {
     dateStyle: "medium",
     timeZone: defaultTimezone
   }).format(new Date(`${form.localDate}T12:00:00`)), [form.localDate]);
+  const returnHref = initialContext?.returnTo || "/appointments";
+  const sourceTaskLabel = initialContext?.sourceTaskTitle || initialContext?.sourceTaskId || "";
+  const hasHandoffContext = Boolean(initialContext?.customerReference || initialContext?.vehicleReference || sourceTaskLabel);
 
   function updateField(field: keyof typeof form, value: string | number) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -905,8 +928,8 @@ export function AppointmentConsoleNewAppointment() {
           payload: {
             appointmentNumber,
             title: selectedPurpose.label,
-            sourceType: "MANUAL",
-            sourceReference: form.reason.trim(),
+            sourceType: initialContext?.sourceTaskId ? "TASK" : "MANUAL",
+            sourceReference: initialContext?.sourceTaskId || form.reason.trim(),
             startsAt: startsAtIso,
             endsAt: endsAtIso,
             schedulingTimezone: defaultTimezone,
@@ -935,7 +958,29 @@ export function AppointmentConsoleNewAppointment() {
                   stockNumber: selectedVehicle?.stockNumber ?? null,
                   licensePlate: selectedVehicle?.licensePlate ?? null
                 }
-              : null
+              : null,
+            sourceSnapshot: initialContext?.sourceTaskId
+              ? {
+                  taskId: initialContext.sourceTaskId,
+                  taskTitle: sourceTaskLabel,
+                  reasonNotes: form.reason.trim()
+                }
+              : null,
+            taskLinks: initialContext?.sourceTaskId
+              ? [
+                  {
+                    action: "CREATE_LINK",
+                    taskId: initialContext.sourceTaskId,
+                    linkType: "SOURCE",
+                    linkCode: "SOURCE_TASK",
+                    title: "Created from task",
+                    explanation: form.reason.trim(),
+                    isRequired: true,
+                    blocksAppointment: false,
+                    appointmentRequiredForTask: false
+                  }
+                ]
+              : []
           }
         })
       });
@@ -962,8 +1007,23 @@ export function AppointmentConsoleNewAppointment() {
             <h1>New Appointment</h1>
             <p>Choose a date and time, then add customer, vehicle, and purpose.</p>
           </div>
-          <Link href="/appointments">Back to Appointment Console</Link>
+          <Link href={returnHref}>Back to {initialContext?.returnTo ? "source workspace" : "Appointment Console"}</Link>
         </header>
+
+        {hasHandoffContext ? (
+          <section className="appointment-active-context-card" aria-label="Active appointment context">
+            <div>
+              <span>Active context</span>
+              <strong>{sourceTaskLabel || form.customer || form.vehicle || "Appointment handoff"}</strong>
+              <p>This context stays with the appointment setup so the customer or vehicle you started from does not disappear.</p>
+            </div>
+            <dl>
+              <div><dt>Customer</dt><dd>{form.customer || "Not selected yet"}</dd></div>
+              <div><dt>Vehicle</dt><dd>{form.vehicle || "Not selected yet"}</dd></div>
+              {sourceTaskLabel ? <div><dt>Task</dt><dd>{sourceTaskLabel}</dd></div> : null}
+            </dl>
+          </section>
+        ) : null}
 
         <div className="appointment-new-layout">
           <aside className="appointment-booking-rail">
