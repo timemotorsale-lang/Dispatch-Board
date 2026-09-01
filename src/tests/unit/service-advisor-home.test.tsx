@@ -7,6 +7,60 @@ import type { ServiceAdvisorWorkspaceModel } from "@/server/advisor-workspace/se
 const model = {
   generatedAt: "2026-07-20T14:00:00.000Z",
   advisor: { id: "user-alex", name: "Alex Carter" },
+  morningPrioritySources: [
+    {
+      detail: "Alex Carter · blocked · Customer callback may delay close.",
+      dueAt: "2026-07-20T15:00:00.000Z",
+      href: "/tasks/task-priority-1",
+      priority: "CRITICAL",
+      rank: 120,
+      riskLevel: "BLOCKED",
+      sourceId: "task-priority-1",
+      sourceType: "TASK",
+      staffName: "Alex Carter",
+      staffUserId: "user-alex",
+      title: "Call Maria about approval"
+    },
+    {
+      detail: "Alex Carter · in progress · Stock TMS-001",
+      dueAt: "2026-07-20T17:00:00.000Z",
+      href: "/tasks/task-priority-2",
+      priority: "HIGH",
+      rank: 90,
+      riskLevel: "NONE",
+      sourceId: "task-priority-2",
+      sourceType: "TASK",
+      staffName: "Alex Carter",
+      staffUserId: "user-alex",
+      title: "Finish TMS-001 delivery packet"
+    },
+    {
+      detail: "Alex Carter · general manager · Required daily responsibility",
+      dueAt: null,
+      href: "/my-day",
+      priority: "HIGH",
+      rank: 70,
+      riskLevel: "NONE",
+      sourceId: "duty-priority-1",
+      sourceType: "DUTY",
+      staffName: "Alex Carter",
+      staffUserId: "user-alex",
+      title: "Review assigned daily duties"
+    },
+    {
+      detail: "Alex Carter · not started · Inventory photo queue",
+      dueAt: "2026-07-20T19:00:00.000Z",
+      href: "/tasks/task-priority-4",
+      priority: "MEDIUM",
+      rank: 55,
+      riskLevel: "NONE",
+      sourceId: "task-priority-4",
+      sourceType: "TASK",
+      staffName: "Alex Carter",
+      staffUserId: "user-alex",
+      title: "Upload photos for aged inventory"
+    }
+  ],
   workbook: {
     id: "workbook-1",
     boardDayId: "board-day-1",
@@ -697,9 +751,12 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("Work The Day");
     expect(html).toContain("End The Day");
     expect(html).toContain("Close the Day");
-    expect(html).toContain("Review work");
-    expect(html).toContain("Confirm carryover");
-    expect(html).toContain("Generate report");
+    expect(html).toContain("One closing workspace for done/not done review, tomorrow setup, and the manager-ready report.");
+    expect(html).toContain("Done / Not Done");
+    expect(html).toContain("Tomorrow Setup");
+    expect(html).toContain("Report Draft");
+    expect(html).toContain("Prepare Tomorrow");
+    expect(html).toContain("Generate Draft");
     expect(html).toContain("Daily Close");
     expect(html).toContain("Needs Attention");
     expect(html).toContain("Today’s Work");
@@ -737,6 +794,26 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("/vehicles/coo-workbook/report-seeds");
     expect(html).toContain("/vehicles/coo-workbook/staff-support");
     expect(html).toContain("/vehicles/coo-workbook/drafts");
+    expect(html).toContain("returnTo=%2Fvehicles%2Fcoo-workbook");
+  });
+
+  it("removes a repair order from COO workbook attention when it was closed from the summary card", () => {
+    const closedModel = {
+      ...model,
+      actionQueue: [{
+        ...model.actionQueue[0],
+        id: "closed_ro_1",
+        customerName: "Closed Customer",
+        repairOrderNumber: "RO-CLOSED",
+        vehicleLabel: "2018 Honda Accord"
+      }]
+    } satisfies ServiceAdvisorWorkspaceModel;
+
+    const html = renderToStaticMarkup(<CooDailyWorkbook closedRepairOrderId="closed_ro_1" model={closedModel} />);
+
+    expect(html).not.toContain("Closed Customer");
+    expect(html).not.toContain("RO-CLOSED");
+    expect(html).not.toContain("2018 Honda Accord");
   });
 
   it("renders focused COO workbook tools with working controls", () => {
@@ -789,15 +866,110 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("Daily Effectiveness");
     expect(html).toContain("Coaching Panel");
     expect(html).toContain("Ask For Support");
-    expect(html).toContain("Tomorrow Setup");
-    expect(html).toContain("role=\"tablist\"");
-    expect(html).toContain("aria-selected=\"true\"");
-    expect(html).toContain("Done / Not Done");
-    expect(html).toContain("Not done");
-    expect(html).toContain("Prepare Tomorrow");
-    expect(html).toContain("Generate Draft");
+    expect(html).not.toContain("Tomorrow Setup");
+    expect(html).not.toContain("Prepare Tomorrow");
+    expect(html).not.toContain("Generate Draft");
     expect(html).toContain("Manager View");
     expect(html).toContain("Resolve top approval blocker");
     expect(html).toContain("/vehicles/coo-workbook/effectiveness-pilot");
+  });
+
+  it("shows source-backed staff priorities for Daily Focus approval", () => {
+    const staffPriorityModel = {
+      ...model,
+      workbook: {
+        ...model.workbook,
+        checklistItems: [],
+        carryovers: [],
+        dailyFocusItems: [],
+        quickUpdates: []
+      }
+    } satisfies ServiceAdvisorWorkspaceModel;
+
+    const html = renderToStaticMarkup(<CooEffectivenessPilotWorkbook model={staffPriorityModel} />);
+
+    expect(html).toContain("Suggested focus");
+    expect(html).toContain("Call Maria about approval");
+    expect(html).toContain("Finish TMS-001 delivery packet");
+    expect(html).toContain("Review assigned daily duties");
+    expect(html).toContain("Alex Carter task");
+    expect(html).toContain("Alex Carter duty");
+    expect(html).toContain("href=\"/tasks/task-priority-1\"");
+    expect(html).toContain("href=\"/my-day\"");
+    expect(html).toContain("Approve");
+    expect(html).toContain("More needing attention");
+    expect(html).toContain("Upload photos for aged inventory");
+    expect(html).toContain("Add to Focus");
+  });
+
+  it("shows fewer than three source-backed suggestions and prompts staff to add the rest", () => {
+    const partialPriorityModel = {
+      ...model,
+      morningPrioritySources: model.morningPrioritySources.slice(0, 1),
+      workbook: {
+        ...model.workbook,
+        checklistItems: [],
+        carryovers: [],
+        dailyFocusItems: [],
+        quickUpdates: []
+      }
+    } satisfies ServiceAdvisorWorkspaceModel;
+
+    const html = renderToStaticMarkup(<CooEffectivenessPilotWorkbook model={partialPriorityModel} />);
+
+    expect(html).toContain("Suggested focus");
+    expect(html).toContain("Call Maria about approval");
+    expect(html).toContain("add 2 more manually");
+    expect(html).toContain("Add up to three outcomes that would make today successful.");
+  });
+
+  it("lets staff undo a selected Daily Focus item before choosing another", () => {
+    const html = renderToStaticMarkup(<CooEffectivenessPilotWorkbook model={model} />);
+
+    expect(html).toContain("Undo");
+    expect(html).toContain("Remove this Daily Focus so another can be chosen.");
+  });
+
+  it("removes legacy generic advisor focus rows from the Start The Day panel", () => {
+    const legacyGenericModel = {
+      ...model,
+      morningPrioritySources: [],
+      workbook: {
+        ...model.workbook,
+        checklistItems: [],
+        carryovers: [],
+        dailyFocusItems: [
+          { ...model.workbook.dailyFocusItems[0], id: "legacy-authorization", outcome: "Authorization needed", progressUpdate: "", supportNeeded: "" },
+          { ...model.workbook.dailyFocusItems[0], id: "legacy-promise", outcome: "Promise risk", progressUpdate: "", supportNeeded: "" }
+        ],
+        quickUpdates: []
+      }
+    } satisfies ServiceAdvisorWorkspaceModel;
+
+    const html = renderToStaticMarkup(<CooEffectivenessPilotWorkbook model={legacyGenericModel} />);
+
+    expect(html).toContain("0/3 focus");
+    expect(html).not.toContain("Authorization needed");
+    expect(html).not.toContain("Promise risk");
+  });
+
+  it("does not use generic advisor queue labels as Daily Focus outcomes", () => {
+    const genericQueueOnlyModel = {
+      ...model,
+      morningPrioritySources: [],
+      workbook: {
+        ...model.workbook,
+        checklistItems: [],
+        carryovers: [],
+        dailyFocusItems: [],
+        quickUpdates: []
+      }
+    } satisfies ServiceAdvisorWorkspaceModel;
+
+    const html = renderToStaticMarkup(<CooEffectivenessPilotWorkbook model={genericQueueOnlyModel} />);
+
+    expect(html).not.toContain("Authorization needed");
+    expect(html).not.toContain("Promise risk");
+    expect(html).not.toContain("Suggested from unfinished work");
   });
 });

@@ -97,7 +97,7 @@ describe("shop planning vendor estimate gate", () => {
     const { db } = database(null);
     const repository = createShopPlanningRepository(db as never);
 
-    await expect(repository.estimate(command, estimateData)).rejects.toThrow("approved outside-vendor workflow");
+    await expect(repository.estimate(command, estimateData)).rejects.toThrow("mechanical diagnosis, in-house bodywork/direct repair scope");
   });
 
   it("allows a failed-QC completion estimate to reopen planning from quality control", async () => {

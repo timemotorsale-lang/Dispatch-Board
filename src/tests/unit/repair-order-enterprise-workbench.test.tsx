@@ -27,6 +27,12 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("Repair Order Workbench");
     expect(html).toContain("Vehicle summary card");
     expect(html).toContain("Recon progress");
+    expect(html).toContain("Choose recon path");
+    expect(html).toContain("Mechanical repair");
+    expect(html).toContain("Bodywork");
+    expect(html).toContain("Outside vendor");
+    expect(html).toContain("Detail / prep");
+    expect(html).toContain("Inspection only");
     expect(html).toContain("Full repair order details");
     expect(html).toContain("Vehicle information");
     expect(html).toContain("Color not recorded");
@@ -47,6 +53,7 @@ describe("enterprise repair-order workbench", () => {
     expect(html).not.toContain("Stage clock");
     expect(html).not.toContain("Recent progress");
     expect(html).toContain("View full details");
+    expect(html).toContain("Close RO");
     expect(html).toContain("fullDetails=1");
     expect(html).not.toContain("summaryCardPreview");
     expect(html).not.toContain("Live summary-card preview");
@@ -83,6 +90,47 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("/vehicles/shop-recon/ro-1?returnTo=");
     expect(html).not.toContain("/vehicles/shop-recon?returnTo=");
     expect(html).not.toContain("Final QC</span>");
+  });
+
+  it("keeps the repair path selector visible after diagnosis and QC have started", () => {
+    const qualityCheckOrder = {
+      ...order,
+      diagnosisVersions: [{
+        cause: "Brake vibration confirmed.",
+        concern: "Brake vibration",
+        diagnosedAt: "2026-07-20T16:00:00Z",
+        id: "diag-1",
+        proposedCorrection: "Replace pads and rotors.",
+        recommendation: "Complete approved brake repair.",
+        technicianUser: { id: "tech-1", name: "Walter Mechanic" },
+        uncertainty: "LOW",
+        version: 1,
+      }],
+      estimateVersions: [{
+        authorizations: [{ disposition: "ACCEPTED", id: "auth-1" }],
+        id: "estimate-1",
+        status: "AUTHORIZED",
+        totalCents: 129900,
+        version: 1,
+      }],
+      repairJobs: [{ description: "Replace front pads and rotors.", id: "job-1", jobNumber: "JOB-1", readinessReasonCodes: [], status: "COMPLETED" }],
+      stage: "QUALITY_CONTROL",
+    };
+
+    const html = renderToStaticMarkup(
+      <RepairOrderEnterpriseWorkbench
+        order={qualityCheckOrder}
+        options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }, { id: "tech-1", name: "Walter Mechanic" }] }}
+      />,
+    );
+
+    expect(html).toContain("Repair path");
+    expect(html).toContain("Mechanical repair");
+    expect(html).toContain("Bodywork");
+    expect(html).toContain("Outside vendor");
+    expect(html).toContain("Detail / prep");
+    expect(html).toContain("Inspection only");
+    expect(html).toContain("Quality control · use this selector to keep the intended work path visible");
   });
 
   it("renders concern-centered diagnostic planning and governed downstream gates", () => {
@@ -790,5 +838,45 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain('id="follow-up-vendor-documentation"');
     expect(html).toContain("Document the next vendor repair");
     expect(html).toContain("Choose the approved follow-up vendor, confirm the repair scope, then save this outside repair record.");
+  });
+
+  it("preserves a closed outside-vendor leg while showing the internal repair path", () => {
+    const internalTakeoverOrder = {
+      ...order,
+      stage: "REPAIR",
+      nextAction: "Continue internal repair: Replace rear differential in-house. Track parts and progress, then move to Final QC when complete.",
+      vendorWorks: [{
+        id: "vendor-work-simba",
+        vendorName: "Simba Collision",
+        status: "CANCELLED",
+        approvalStatus: "APPROVED",
+        approvedAmountCents: 20000,
+        currentLocation: "Minneapolis",
+        directFromSource: false,
+        expectedReturnAt: null,
+        nextAction: "Continue internal repair: Replace rear differential in-house.",
+        lastUpdateSummary: "Simba Collision history preserved; remaining work moved to internal recon.",
+        scope: "Outside vendor inspected the vehicle before the dealership took over the rear differential repair.",
+        sentAt: "2026-08-31T16:48:00.000Z",
+        sentFrom: "Dealership",
+        transportMethod: "Staff/vendor coordination",
+        workType: "BODY_SHOP",
+      }],
+    };
+
+    const html = renderToStaticMarkup(
+      <RepairOrderEnterpriseWorkbench
+        fullDetailMode
+        order={internalTakeoverOrder}
+        options={{ users: [{ id: "advisor-1", name: "Alex Advisor" }] }}
+      />,
+    );
+
+    expect(html).toContain("Internal recon workflow");
+    expect(html).toContain("Vehicle is being repaired internally");
+    expect(html).toContain("Outside vendor history preserved");
+    expect(html).toContain("Simba Collision remains on this RO as a prior vendor leg.");
+    expect(html).toContain("Simba Collision history preserved; remaining work moved to internal recon.");
+    expect(html).toContain("Replace rear differential in-house");
   });
 });

@@ -20,11 +20,16 @@ type CooWorkbookToolPageProps = {
   params: Promise<{
     tool: string;
   }>;
+  searchParams?: Promise<{
+    closedRepairOrderId?: string | string[];
+  }>;
 };
 
-export default async function CooWorkbookToolPage({ params }: CooWorkbookToolPageProps) {
+export default async function CooWorkbookToolPage({ params, searchParams }: CooWorkbookToolPageProps) {
   const [{ tool }, user] = await Promise.all([params, requireCurrentUser()]);
+  const query = searchParams ? await searchParams : {};
   const initialTool = toolBySlug[tool];
+  const closedRepairOrderId = typeof query.closedRepairOrderId === "string" ? query.closedRepairOrderId : null;
 
   if (!initialTool) {
     notFound();
@@ -32,5 +37,5 @@ export default async function CooWorkbookToolPage({ params }: CooWorkbookToolPag
 
   const model = await getServiceAdvisorWorkspace(user);
 
-  return <CooDailyWorkbook initialTool={initialTool} model={JSON.parse(JSON.stringify(model))} />;
+  return <CooDailyWorkbook closedRepairOrderId={closedRepairOrderId} initialTool={initialTool} model={JSON.parse(JSON.stringify(model))} />;
 }

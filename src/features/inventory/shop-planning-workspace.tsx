@@ -319,7 +319,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
       : currentStep === 1
         ? { action: "Open repair path", detail: "Choose diagnostic repair, visible body/collision scope, or an outside vendor route.", href: "#repair-planning-step-2", step: 2, title: "Choose how the work will be completed" }
         : currentStep === 2
-          ? { action: "Open estimate", detail: "Build and save the estimate from the recorded diagnosis or direct repair scope.", href: "#repair-planning-step-3", step: 3, title: "Create the repair estimate" }
+          ? { action: "Open estimate", detail: directPath ? "Build and save the in-house bodywork estimate from the recorded bodywork scope." : "Build and save the estimate from the recorded diagnosis.", href: "#repair-planning-step-3", step: 3, title: "Create the repair estimate" }
           : currentStep === 3
             ? { action: "Open authorization", detail: "Record who approved which estimate lines and the exact approved amount.", href: "#repair-planning-step-4", step: 4, title: "Record the authorization decision" }
             : !hasRepairJob
@@ -331,9 +331,16 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
               : qcReady
                 ? { action: "Open Final QC", detail: "The repair result is already recorded. Continue in Final QC to inspect and release the vehicle.", href: repairReleaseHref, step: 5, title: "Complete final quality control" }
                 : { action: "Open repair update", detail: "Record progress, blockers, next steps, or the final repair result.", href: repairReleaseHref, step: 5, title: "Update repair progress" };
-  const displayNotice = notice.includes("cannot move backward") && staffNext
-    ? `This repair order is already at ${format(selected?.stage ?? "the current gate")}. Do not repeat an earlier step. ${staffNext.title}.`
-    : notice;
+  const estimateBasisNotice = directPath
+    ? "In-house bodywork does not need a mechanical diagnosis. Save the bodywork repair scope first, then present the estimate from that scope."
+    : vendorPath
+      ? "Outside-vendor estimates need the vendor, repair scope, and approval saved before presentation."
+      : "Mechanical estimates need a recorded diagnosis before presentation.";
+  const displayNotice = notice.includes("Presenting this estimate needs")
+    ? estimateBasisNotice
+    : notice.includes("cannot move backward") && staffNext
+      ? `This repair order is already at ${format(selected?.stage ?? "the current gate")}. Do not repeat an earlier step. ${staffNext.title}.`
+      : notice;
 
   function navigateToInternalTarget(hash: string) {
     if (!hash.startsWith("#")) return;
@@ -1071,7 +1078,10 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
               <FormGrid><Field label="Line key (required)"><input required value={estimate.lineKey} onChange={(event) => setEstimate((value) => ({ ...value, lineKey: event.target.value }))} /></Field><Field label="Type"><select value={estimate.lineType} onChange={(event) => setEstimate((value) => ({ ...value, lineType: event.target.value as EstimateDraft["lineType"] }))}>{["LABOR", "PART", "FEE"].map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Quantity"><input min="1" type="number" value={estimate.quantity} onChange={(event) => setEstimate((value) => ({ ...value, quantity: Number(event.target.value) || 1 }))} /></Field><Field label="Description (required)"><input placeholder="Example: R & R brake vacuum pump" required value={estimate.description} onChange={(event) => setEstimate((value) => ({ ...value, description: event.target.value }))} /></Field><Field label="Unit price (cents)"><input min="0" type="number" value={estimate.unitPriceCents} onChange={(event) => setEstimate((value) => ({ ...value, unitPriceCents: Number(event.target.value) }))} /></Field><Field label="Labor guide minutes"><input min="0" type="number" value={estimate.laborGuideMinutes} onChange={(event) => setEstimate((value) => ({ ...value, laborGuideMinutes: Number(event.target.value) }))} /></Field><Field label="What should be done (required)" wide><input placeholder="Example: Remove and replace failed brake vacuum pump, verify brake assist, and road test" required value={estimate.plannedCorrection} onChange={(event) => setEstimate((value) => ({ ...value, plannedCorrection: event.target.value }))} /></Field><Field label="Work type code"><input value={estimate.workTypeCode} onChange={(event) => setEstimate((value) => ({ ...value, workTypeCode: event.target.value }))} /></Field><Field label="Tax (cents)"><input min="0" type="number" value={estimate.taxCents} onChange={(event) => setEstimate((value) => ({ ...value, taxCents: Number(event.target.value) }))} /></Field><Field label="Discount (cents)"><input min="0" type="number" value={estimate.discountCents} onChange={(event) => setEstimate((value) => ({ ...value, discountCents: Number(event.target.value) }))} /></Field><Field label="Presented (required)"><input required type="datetime-local" value={estimate.presentedAt} onChange={(event) => setEstimate((value) => ({ ...value, presentedAt: event.target.value }))} /></Field><Field label="Expires (required)"><input min={estimate.presentedAt} required type="datetime-local" value={estimate.expiresAt} onChange={(event) => setEstimate((value) => ({ ...value, expiresAt: event.target.value }))} /></Field></FormGrid>
               {!vendorPath ? <div className={styles.estimateLineActions}><button disabled={busy} onClick={saveEstimateLine} type="button">{estimateLines.some((line) => line.key === estimate.lineKey) ? "Update line" : "Add line to estimate"}</button><button disabled={busy} onClick={() => resetEstimateDraft()} type="button">Start a new line</button></div> : null}
               {!vendorPath && estimateLines.length ? <section className={styles.estimateLineList} aria-label="Estimate draft lines"><header><div><span>Estimate draft</span><h3>{estimateLines.length} line{estimateLines.length === 1 ? "" : "s"} ready for approval</h3></div></header>{estimateLines.map((line) => <article key={line.key}><div><strong>{line.key} · {line.description}</strong><p>{line.plannedCorrection}</p><small>{line.quantity} x {money(line.unitPriceCents)} · {format(line.workTypeCode)}</small></div><div className={styles.estimateLineActions}><button disabled={busy} onClick={() => editEstimateLine(line)} type="button">Edit</button><button disabled={busy} onClick={() => removeEstimateLine(line.key)} type="button">Remove</button></div></article>)}</section> : null}
-              {displayNotice ? <div aria-live="polite" className={`${styles.notice} ${/required|cannot|invalid|not enabled|already exists|expiration|valid date/i.test(displayNotice) ? styles.danger : ""}`}><p>{displayNotice}</p></div> : null}
+              {displayNotice ? <div aria-live="polite" className={`${styles.notice} ${/required|cannot|invalid|not enabled|already exists|expiration|valid date/i.test(displayNotice) ? styles.danger : ""}`}>
+                <p>{displayNotice}</p>
+                {directPath && displayNotice.includes("Save the bodywork repair scope first") ? <button className={styles.inlineNavAction} onClick={() => navigateToInternalTarget("#repair-planning-step-2")} type="button">Open bodywork scope<ChevronRight /></button> : null}
+              </div> : null}
               <Submit busy={busy}>Present estimate version</Submit>
             </form>
           </WorkflowStep>

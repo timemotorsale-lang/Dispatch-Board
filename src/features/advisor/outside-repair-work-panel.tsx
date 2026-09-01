@@ -108,6 +108,7 @@ export function OutsideRepairWorkPanel({
   const [nextAction, setNextAction] = useState(work?.nextAction ?? draft?.nextAction ?? "Confirm vendor estimate, approval, and expected return.");
   const [customerSummary, setCustomerSummary] = useState(work ? `The vehicle remains with ${work.vendorName} for outside repair work. We are monitoring progress and the expected return.` : draft?.customerVisibleSummary ?? "The vehicle is with an outside repair facility. We are monitoring the work and expected return.");
   const [internalNotes, setInternalNotes] = useState("");
+  const [internalReconScope, setInternalReconScope] = useState("Replace rear differential in-house.");
   const [approvedBy, setApprovedBy] = useState("");
   const allowParallelVendorWork = draft?.allowParallelVendorWork === true;
   const answers = work ? vendorRapidReconAnswers(work) : null;
@@ -138,10 +139,24 @@ export function OutsideRepairWorkPanel({
   useEffect(() => {
     if (!openOnHash) return;
     const expectedHash = openOnHash.startsWith("#") ? openOnHash : `#${openOnHash}`;
-    const openFromHash = () => {
-      if (window.location.hash === expectedHash) setOpen(true);
+    const targetId = expectedHash.slice(1);
+    const focusPanel = () => {
+      window.setTimeout(() => {
+        const target = document.getElementById(targetId);
+        target?.scrollIntoView({ behavior: "smooth", block: "start" });
+        const firstField = target?.querySelector("input, textarea, select, button") as HTMLElement | null;
+        firstField?.focus({ preventScroll: true });
+      }, 50);
     };
-    const openFromEvent = () => setOpen(true);
+    const openPanel = () => {
+      setOpen(true);
+      focusPanel();
+    };
+    const openFromHash = () => {
+      if (window.location.hash === expectedHash) openPanel();
+    };
+    const openFromEvent = () => openPanel();
+    openFromHash();
     window.addEventListener("hashchange", openFromHash);
     window.addEventListener("repair-vendor-progress:open", openFromEvent);
     return () => {
@@ -252,7 +267,7 @@ export function OutsideRepairWorkPanel({
     setMessage(null);
     if (!work) {
       setOpen(false);
-      setMessage("Outside vendor workflow closed. Continue this repair as internal recon.");
+      setMessage("Outside vendor path closed for now. Continue this repair as internal recon.");
       onUseInternalRecon?.();
       return;
     }
@@ -270,19 +285,25 @@ export function OutsideRepairWorkPanel({
             approvalStatus: work.approvalStatus,
             approvedAmountCents: work.approvedAmountCents,
             currentLocation: accountableLocation?.trim() || "Dealership",
-            customerVisibleSummary: "The vehicle is being repaired internally at the dealership.",
+            customerVisibleSummary: "The vehicle is back with our team and the remaining repair work is being handled internally.",
             directFromSource: false,
             estimateAmountCents: work.estimateAmountCents,
             evidence: [],
             expectedReturnAt: null,
             idempotencyKey: crypto.randomUUID(),
-            internalNotes: "Corrected workflow: this vehicle is not at an outside vendor and repair will continue as internal recon.",
+            internalNotes: [
+              `${work.vendorName} vendor leg preserved on this repair order.`,
+              "Repair path changed to internal recon for remaining work.",
+              internalReconScope.trim() ? `Internal repair scope: ${internalReconScope.trim()}` : null,
+            ].filter(Boolean).join("\n"),
             keysCustodian: work.keysCustodian || "Dealership",
-            lastUpdateSummary: "Corrected to internal recon.",
-            nextAction: "Continue internal recon repair progress, track any pending parts, then move to Final QC when the work is complete.",
+            lastUpdateSummary: `${work.vendorName} history preserved; remaining work moved to internal recon.`,
+            nextAction: internalReconScope.trim()
+              ? `Continue internal repair: ${internalReconScope.trim()}. Track parts and progress, then move to Final QC when complete.`
+              : "Continue internal recon repair progress, track any pending parts, then move to Final QC when the work is complete.",
             nextFollowUpAt: null,
             occurredAt: new Date().toISOString(),
-            reason: "Correct repair workflow from outside vendor to internal recon.",
+            reason: "Preserve outside vendor history and continue the remaining repair work as internal recon.",
             scope: work.scope,
             sentFrom: accountableLocation?.trim() || "Dealership",
             status: "CANCELLED",
@@ -293,7 +314,7 @@ export function OutsideRepairWorkPanel({
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.error ?? "Internal recon correction could not be saved.");
-        setMessage("Outside vendor workflow cleared. This repair is now tracked as internal recon.");
+        setMessage("Outside vendor history preserved. The remaining repair is now tracked as internal recon.");
         setOpen(false);
         onUseInternalRecon?.();
         router.refresh();
@@ -342,11 +363,15 @@ export function OutsideRepairWorkPanel({
     {canSwitchToInternalRecon ? <div className="advisor-vendor-internal-switch">
       <Wrench />
       <div>
-        <strong>This repair is internal recon?</strong>
-        <span>Use this when the vehicle is staying with our team. It clears the outside-vendor path and keeps staff moving through internal repair, parts, completion, and Final QC.</span>
+        <strong>Continue remaining repair internally?</strong>
+        <span>Use this when the outside-vendor history should stay on the RO, but our team is taking over the remaining repair, parts, completion, and Final QC.</span>
+        {work ? <label>
+          <span>Internal repair scope</span>
+          <input onChange={(event) => setInternalReconScope(event.target.value)} value={internalReconScope} />
+        </label> : null}
       </div>
       <button disabled={pending} onClick={switchToInternalRecon} type="button">
-        {pending ? "Saving..." : "Switch to internal recon"}
+        {pending ? "Saving..." : "Preserve vendor + continue internal"}
       </button>
     </div> : null}
     {work ? <>

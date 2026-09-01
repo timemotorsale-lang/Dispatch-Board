@@ -6,7 +6,7 @@ import { createEnterpriseCommandRepository, type EnterpriseCommandRepository } f
 import { evaluateVehicleOperationsFeature } from "@/server/enterprise-command/service";
 import { assertVehicleCapability, type VehicleCapability } from "@/server/enterprise-command/vehicle-capabilities";
 import { assertAuthenticatedUser } from "@/server/policies/access";
-import { isSameRepairOrderConcern, normalizeRepairOrderControlUpdate, normalizeRepairOrderCreate, normalizeRepairOrderDuplicateClose, repairOrderAge } from "./domain";
+import { isSameRepairOrderConcern, normalizeRepairOrderControlUpdate, normalizeRepairOrderCreate, normalizeRepairOrderDuplicateClose, normalizeRepairOrderNoWorkClose, repairOrderAge } from "./domain";
 import { createRepairOrderRepository, type RepairOrderRepository } from "./repository";
 type Dependencies = { enforceRollout?: boolean; foundationRepository?: EnterpriseCommandRepository; now?: () => Date; organizationId?: string; repository?: RepairOrderRepository };
 function deps(input: Dependencies) { return { enforceRollout: input.enforceRollout ?? true, foundationRepository: input.foundationRepository ?? createEnterpriseCommandRepository(), now: input.now ?? (() => new Date()), organizationId: input.organizationId ?? INITIAL_ORGANIZATION.id, repository: input.repository ?? createRepairOrderRepository() }; }
@@ -53,4 +53,25 @@ export async function closeDuplicateRepairOrder(actor:AuthenticatedUser|null,id:
     reason: normalized.reason,
     subjectId: id,
   }), { actorUserId: user.id, duplicateOfRepairOrderId: normalized.duplicateOfRepairOrderId, occurredAt, reason: normalized.reason });
+}
+
+export async function closeRepairOrderNoFurtherWork(actor: AuthenticatedUser | null, id: string, value: unknown, input: Dependencies = {}) {
+  const context = deps(input);
+  const normalized = normalizeRepairOrderNoWorkClose(value);
+  const closeContext = await context.repository.getCloseContext(context.organizationId, id);
+  if (!closeContext) throw new Error("Repair order was not found.");
+  if (closeContext.closedAt) throw new Error("Repair order is already closed.");
+  const user = await authorize(actor, "REPAIR_ORDER_MANAGE", closeContext.locationId, context, true);
+  const occurredAt = context.now();
+  return context.repository.closeNoWork(command({
+    actorUserId: user.id,
+    commandType: "CLOSE_REPAIR_ORDER_NO_FURTHER_WORK",
+    expectedVersion: normalized.expectedVersion,
+    idempotencyKey: normalized.idempotencyKey,
+    locationId: closeContext.locationId,
+    organizationId: context.organizationId,
+    payload: { occurredAt: occurredAt.toISOString() },
+    reason: normalized.reason,
+    subjectId: id,
+  }), { actorUserId: user.id, occurredAt, reason: normalized.reason });
 }

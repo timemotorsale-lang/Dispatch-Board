@@ -107,6 +107,7 @@ export type WorkdayWorkbookRepository = {
   createQuickUpdate(input: { category: WorkdayQuickUpdateCategory; company: string; dueWindow: string; followUpNeeded: boolean; person: string; text: string; workbookId: string }): Promise<void>;
   createSupportAction(input: { actorUserId: string; note: string; requestedUpdate: boolean; status: WorkdaySupportActionStatus; targetUserId: string; workbookId: string }): Promise<void>;
   createActivitySignal(input: WorkdayActivitySignalInput): Promise<void>;
+  deleteDailyFocusItem(input: { id: string }): Promise<void>;
   findChecklistItem(itemId: string): Promise<(Prisma.WorkdayChecklistItemGetPayload<{ include: { workbook: true } }>) | null>;
   findCarryover(carryoverId: string): Promise<(Prisma.WorkdayCarryoverGetPayload<{ include: { workbook: true } }>) | null>;
   findDailyFocusItem(itemId: string): Promise<(Prisma.WorkdayDailyFocusItemGetPayload<{ include: { workbook: true } }>) | null>;
@@ -239,6 +240,9 @@ export function createWorkdayWorkbookRepository(database: WorkdayWorkbookDatabas
           workbookId: input.workbookId
         }
       });
+    },
+    async deleteDailyFocusItem(input) {
+      await database.workdayDailyFocusItem.delete({ where: { id: input.id } });
     },
     async findChecklistItem(itemId) {
       return database.workdayChecklistItem.findUnique({ where: { id: itemId }, include: { workbook: true } });

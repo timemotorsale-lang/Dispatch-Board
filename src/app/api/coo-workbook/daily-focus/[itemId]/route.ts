@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/server/auth/current-user";
-import { updateWorkbookDailyFocusItem } from "@/server/services/workday-workbook";
+import { deleteWorkbookDailyFocusItem, updateWorkbookDailyFocusItem } from "@/server/services/workday-workbook";
 
 function statusFor(message: string) {
   if (message === "Authentication required.") return 401;
@@ -20,6 +20,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ it
     return NextResponse.json(await updateWorkbookDailyFocusItem(await getCurrentUser(), itemId, payload));
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to update Daily Focus item.";
+    return NextResponse.json({ error: message }, { status: statusFor(message) });
+  }
+}
+
+export async function DELETE(_request: Request, { params }: { params: Promise<{ itemId: string }> }) {
+  const { itemId } = await params;
+
+  try {
+    return NextResponse.json(await deleteWorkbookDailyFocusItem(await getCurrentUser(), itemId));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to remove Daily Focus item.";
     return NextResponse.json({ error: message }, { status: statusFor(message) });
   }
 }

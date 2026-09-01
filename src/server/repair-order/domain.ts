@@ -43,4 +43,16 @@ export function normalizeRepairOrderDuplicateClose(value: unknown) {
   };
 }
 
+export function normalizeRepairOrderNoWorkClose(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Repair-order close request must be an object.");
+  const raw = value as Record<string, unknown>;
+  const expectedVersion = Number(raw.expectedVersion);
+  if (!Number.isInteger(expectedVersion) || expectedVersion < 1) throw new Error("Expected repair-order version must be a positive whole number.");
+  return {
+    expectedVersion,
+    idempotencyKey: required(raw.idempotencyKey, "Idempotency key", 200),
+    reason: required(raw.reason, "Closure reason", 500),
+  };
+}
+
 export function repairOrderAge(input: { now: Date; openedAt: Date; stageStartedAt: Date; targetAt: Date }) { const hours = (a: Date, b: Date) => Math.max(0, (b.getTime() - a.getTime()) / 3_600_000); return { openAgeHours: hours(input.openedAt, input.now), overdue: input.now > input.targetAt, stageAgeHours: hours(input.stageStartedAt, input.now), targetVarianceHours: (input.now.getTime() - input.targetAt.getTime()) / 3_600_000 }; }

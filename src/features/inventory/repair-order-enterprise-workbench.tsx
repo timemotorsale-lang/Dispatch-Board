@@ -18,10 +18,12 @@ import {
   Printer,
   ScanLine,
   ShieldAlert,
+  XCircle,
   UserRound,
   Wrench,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { BackToServiceAdvisorWorkspace } from "@/features/advisor/advisor-return-link";
@@ -148,6 +150,21 @@ type RelatedPurchaseOrder = {
   status?: string;
   vendor?: { name?: string } | null;
 };
+
+type ReconRepairPath = "MECHANICAL" | "BODYWORK" | "OUTSIDE_VENDOR" | "DETAIL_PREP" | "INSPECTION_ONLY";
+
+const reconRepairPathOptions: Array<{
+  detail: string;
+  label: string;
+  value: ReconRepairPath;
+}> = [
+  { detail: "Diagnosis, estimate, parts, repair, QC", label: "Mechanical repair", value: "MECHANICAL" },
+  { detail: "Visible damage, body labor, paint, vendor if needed", label: "Bodywork", value: "BODYWORK" },
+  { detail: "Send out, track estimate, approval, ETA, return", label: "Outside vendor", value: "OUTSIDE_VENDOR" },
+  { detail: "Detail, cleanup, recon package, frontline prep", label: "Detail / prep", value: "DETAIL_PREP" },
+  { detail: "Verify condition, document, then close or QC", label: "Inspection only", value: "INSPECTION_ONLY" },
+];
+
 type DiagnosticsBridge =
   | Awaited<ReturnType<typeof getRepairOrderDiagnosticsBridge>>
   | { state: "UNAVAILABLE"; reason: string; repairOrderId: string };
@@ -244,6 +261,13 @@ const duration = (value: string | Date | null | undefined) => {
   if (hours > 0) return `${hours}h ${mins}m`;
   return `${mins}m`;
 };
+
+function returnToAfterRepairOrderClose(returnTo: string, repairOrderId: string) {
+  const url = new URL(returnTo, window.location.origin);
+  url.searchParams.set("closedRepairOrderId", repairOrderId);
+  url.searchParams.set("repairOrderClosed", "1");
+  return `${url.pathname}${url.search}${url.hash}`;
+}
 const lifecycleLabels = ["Intake", "Diagnose", "Estimate", "Approval", "Repair", "Quality Check", "Handoff"] as const;
 const stageToLifecycleIndex: Record<string, number> = {
   INTAKE: 0,
@@ -315,6 +339,21 @@ function vendorDispatchSummary(work: NonNullable<ReturnType<typeof activeVendorW
   if (work.directFromSource) return `Vehicle sent directly from ${work.sentFrom} to ${work.vendorName}.`;
   if (work.transportMethod?.trim()) return `Vehicle ${work.transportMethod} from ${work.sentFrom} to ${work.vendorName}.`;
   return `Vehicle sent from ${work.sentFrom} to ${work.vendorName}.`;
+}
+
+function inferReconRepairPath(order: RepairOrderWorkbenchOrder): ReconRepairPath {
+  const concern = `${order.serviceVisit?.concernSummary ?? ""} ${order.serviceVisit?.intakeNotes ?? ""} ${order.nextAction ?? ""}`;
+  if (activeVendorWorkFor(order)) return "OUTSIDE_VENDOR";
+  if (order.diagnosisVersions[0]?.cause?.includes("Direct repair scope approved without troubleshooting diagnosis.")) return "BODYWORK";
+  if (/\b(vendor|sublet|body shop|glass shop|calibration|outside repair|offsite)\b/i.test(concern)) return "OUTSIDE_VENDOR";
+  if (/\b(body|bumper|fender|paint|dent|collision|cosmetic|scratch|panel|door|quarter|hood|trunk)\b/i.test(concern)) return "BODYWORK";
+  if (/\b(detail|cleanup|clean up|wash|odor|interior|frontline|photo|merchandising|recon package)\b/i.test(concern)) return "DETAIL_PREP";
+  if (/\b(inspect only|inspection only|verify only|check only|no repair|condition report)\b/i.test(concern)) return "INSPECTION_ONLY";
+  return "MECHANICAL";
+}
+
+function reconPathLabel(path: ReconRepairPath) {
+  return reconRepairPathOptions.find((option) => option.value === path)?.label ?? "Mechanical repair";
 }
 
 function nextStepPlan(input: {
@@ -594,8 +633,12 @@ export function RepairOrderEnterpriseWorkbench({
   showAdvisorReturn?: boolean;
   showWorkspaceReturn?: boolean;
 }) {
+  const router = useRouter();
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [closePanelOpen, setClosePanelOpen] = useState(false);
+  const [closePanelMessage, setClosePanelMessage] = useState("");
+  const [closeReason, setCloseReason] = useState("");
   const [ownerUserId, setOwnerUserId] = useState(order.ownerUser.id);
   const [currentOwner, setCurrentOwner] = useState(order.ownerUser);
   const [currentVersion, setCurrentVersion] = useState(order.version);
@@ -606,6 +649,7 @@ export function RepairOrderEnterpriseWorkbench({
   const [vehicleColorDraft, setVehicleColorDraft] = useState(order.vehicle.color ?? "");
   const [vehicleColorBusy, setVehicleColorBusy] = useState(false);
   const [vehicleVersion, setVehicleVersion] = useState(order.vehicle.version ?? 0);
+  const [selectedReconPath, setSelectedReconPath] = useState<ReconRepairPath>(() => inferReconRepairPath(order));
   const concernSummary = order.serviceVisit?.concernSummary?.trim() || "Concern not recorded.";
   const intakeNotes = order.serviceVisit?.intakeNotes?.trim() || null;
   const plan = useMemo(() => diagnosticPlan(concernSummary), [concernSummary]);
@@ -644,6 +688,9 @@ export function RepairOrderEnterpriseWorkbench({
   const readinessNote = isInventoryRecon ? "Retail appointment readiness does not apply. Diagnosis determines the repair scope." : capacityEvidence ? "A live shop-capacity snapshot is linked to this intake." : "You can start diagnosis now; capacity can be reviewed before scheduling repair work.";
   const activeVendorWork = activeVendorWorkFor(order);
   const showingInternalRecon = useInternalRecon || !activeVendorWork;
+  const preservedVendorHistoryWork = useInternalRecon && activeVendorWork
+    ? activeVendorWork
+    : (order.vendorWorks ?? []).find((work) => ["COMPLETED", "CANCELLED"].includes(work.status)) ?? null;
   const vendorNeedsInternalCompletion = vendorQcNeedsInternalCompletion(activeVendorWork);
   const needsFollowUpVendor = vendorNeedsFollowUpVendor(activeVendorWork);
   const vendorReadyForFinalQc = Boolean(activeVendorWork && ["RETURNED", "QC_REQUIRED"].includes(activeVendorWork.status) && !vendorNeedsInternalCompletion && !needsFollowUpVendor);
@@ -712,12 +759,50 @@ export function RepairOrderEnterpriseWorkbench({
     orderStage: order.stage,
     waitingParts,
   });
+  const reconPathCanGuide = !activeVendorWork && !diagnosis && !estimate && !authorization && order.repairJobs.length === 0;
+  const selectedReconPathOption = reconRepairPathOptions.find((option) => option.value === selectedReconPath) ?? reconRepairPathOptions[0];
+  const reconPathRecommendation = selectedReconPath === "BODYWORK"
+    ? {
+        href: `${planningHref}#repair-planning-step-2`,
+        label: "Start Bodywork Scope",
+        nextAction: "Capture the visible bodywork scope, evidence, and repair path before estimate.",
+        summary: "Use the direct bodywork path when troubleshooting diagnosis is not needed."
+      }
+    : selectedReconPath === "OUTSIDE_VENDOR"
+      ? {
+          href: "#vendor-repair-progress",
+          label: "Send to Outside Vendor",
+          nextAction: "Create or update the outside-vendor workflow for this repair order.",
+          summary: "Send the vehicle out, then track vendor scope, estimate, approval, ETA, return, and QC."
+        }
+      : selectedReconPath === "DETAIL_PREP"
+        ? {
+            href: `/vehicles/shop-recon/${encodeURIComponent(order.id)}?${new URLSearchParams({ returnTo: planningReturn })}`,
+            label: "Start Detail / Prep",
+            nextAction: "Open the Shop & Recon workspace for detail, cleanup, and frontline-prep execution.",
+            summary: "Use a recon package path when the work is preparation rather than mechanical diagnosis."
+          }
+        : selectedReconPath === "INSPECTION_ONLY"
+          ? {
+              href: finalQcHref,
+              label: "Document Inspection",
+              nextAction: "Verify the condition, document the inspection outcome, then close or move to QC.",
+              summary: "Use inspection-only when the vehicle needs condition verification without repair work."
+            }
+          : {
+              href: planningHref,
+              label: "Start Diagnosis",
+              nextAction: concernSummary === "Concern not recorded." && !order.nextAction.trim() ? "Continue governed repair flow" : "Start an evidence-led mechanical diagnosis for this repair order.",
+              summary: safetyReview ? "Use diagnosis with safety-first handling before operating or road-testing this vehicle." : "Use diagnosis when the cause, tests, or mechanical repair plan still needs to be proven."
+            };
   const displayedNextAction = vendorWaitingParts
     ? activeVendorWork?.nextAction || activeVendorWork?.lastUpdateSummary || "Vendor is waiting on parts from the dealership before repair can continue."
     : vendorReadyForFinalQc
       ? "Open Final QC to record pass/fail, complete recon, and hand off the vehicle."
     : activeVendorWork
       ? activeVendorWork.nextAction || activeVendorWork.lastUpdateSummary || "Record the latest outside-vendor progress and expected return."
+      : reconPathCanGuide
+        ? reconPathRecommendation.nextAction
       : order.repairJobs.length > 0
         ? nextSteps[0]?.detail || inventorySafeNextAction(order.nextAction, isInventoryRecon)
       : inventorySafeNextAction(order.nextAction, isInventoryRecon);
@@ -725,10 +810,12 @@ export function RepairOrderEnterpriseWorkbench({
     ? partsWorkspaceHref
     : vendorNeedsInternalCompletion
       ? `${vendorFollowUpPlanningHref}#repair-planning-step-2`
-      : vendorReadyForFinalQc
-        ? finalQcHref
+    : vendorReadyForFinalQc
+      ? finalQcHref
       : activeVendorWork
         ? vendorProgressHref
+        : reconPathCanGuide
+          ? reconPathRecommendation.href
         : diagnosis || directBodyPath
           ? estimatePlanningHref
           : planningHref;
@@ -740,6 +827,8 @@ export function RepairOrderEnterpriseWorkbench({
       ? "Open Final QC"
     : activeVendorWork
       ? "Document vendor repair progress"
+      : reconPathCanGuide
+        ? reconPathRecommendation.label
       : order.repairJobs.length > 0
         ? "Manage repair readiness"
       : diagnosis
@@ -755,6 +844,8 @@ export function RepairOrderEnterpriseWorkbench({
       ? "The vendor repair is back with the dealership. Record the Final QC pass/fail decision so recon can complete and handoff can proceed."
     : activeVendorWork
       ? activeVendorWork.nextAction
+      : reconPathCanGuide
+        ? reconPathRecommendation.summary
       : order.repairJobs.length > 0
         ? nextSteps[0]?.detail || "Continue the approved repair path and keep readiness, parts, and dispatch current."
       : diagnosis
@@ -858,8 +949,14 @@ export function RepairOrderEnterpriseWorkbench({
   });
 
   function openVendorProgress() {
-    if (!activeVendorWork || vendorWaitingParts || vendorNeedsInternalCompletion || vendorReadyForFinalQc) return;
+    if (!activeVendorWork || vendorNeedsInternalCompletion || vendorReadyForFinalQc) return;
     window.dispatchEvent(new Event("repair-vendor-progress:open"));
+    window.setTimeout(() => {
+      const target = document.getElementById("vendor-repair-progress");
+      target?.scrollIntoView({ behavior: "smooth", block: "start" });
+      const firstField = target?.querySelector("input, textarea, select, button") as HTMLElement | null;
+      firstField?.focus({ preventScroll: true });
+    }, 50);
   }
 
   async function approveRelatedPurchaseOrder(purchaseOrder: RelatedPurchaseOrder) {
@@ -954,6 +1051,47 @@ export function RepairOrderEnterpriseWorkbench({
     }
   }
 
+  async function closeNoFurtherWork() {
+    const reason = closeReason.trim();
+    if (reason.length < 10) {
+      setClosePanelMessage("Add a clear closure reason before closing this repair order.");
+      return;
+    }
+    setBusy(true);
+    setClosePanelMessage("Closing repair order...");
+    setNotice("");
+    try {
+      const response = await fetch(`/api/repair-orders/${encodeURIComponent(order.id)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "CLOSE_NO_FURTHER_WORK",
+          expectedVersion: currentVersion,
+          idempotencyKey: crypto.randomUUID(),
+          reason,
+        }),
+      });
+      const body = await response.json().catch(() => ({})) as { error?: string; result?: { version?: number } };
+      if (!response.ok) throw new Error(body.error ?? "Repair order could not be closed.");
+      const savedVersion = Number(body.result?.version);
+      if (Number.isInteger(savedVersion) && savedVersion > currentVersion) setCurrentVersion(savedVersion);
+      setClosePanelOpen(false);
+      setClosePanelMessage("");
+      setCloseReason("");
+      setNotice("Repair order closed. No further work is planned.");
+      if (returnTo) {
+        router.push(returnToAfterRepairOrderClose(returnTo, order.id));
+      }
+      router.refresh();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Repair order could not be closed.";
+      setClosePanelMessage(message);
+      setNotice(message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const vehicle = [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber;
   const vehicleColorEditor = (
     <section className="rowb-vehicle-color-editor" aria-label="Vehicle color">
@@ -975,7 +1113,7 @@ export function RepairOrderEnterpriseWorkbench({
     return "upcoming";
   };
   const summaryActionLabel = vendorReadyForFinalQc ? "Continue to Final QC" : primaryActionLabel;
-  const summaryBadge = vendorReadyForFinalQc ? "Ready for Final QC" : workflowGateLabel;
+  const summaryBadge = vendorReadyForFinalQc ? "Ready for Final QC" : reconPathCanGuide ? `${reconPathLabel(selectedReconPath)} path` : workflowGateLabel;
   const vendorAmountLabel = money(activeVendorWork?.approvedAmountCents ?? activeVendorWork?.estimateAmountCents ?? null);
   const activeVendorEvents = activeVendorWork?.events ?? [];
   const vendorApprovalEvent = activeVendorEvents.find((event) => /approv/i.test(event.summary));
@@ -1102,6 +1240,31 @@ export function RepairOrderEnterpriseWorkbench({
       <Link href={shopReconHref}><Wrench /><span><strong>Shop &amp; Recon</strong><small>{shopReconStageLabel} · {shopReconWhereLabel}</small></span></Link>
     </div>
   );
+  const showReconPathSelector = !activeVendorWork || vendorNeedsInternalCompletion || needsFollowUpVendor;
+  const reconPathSelector = showReconPathSelector ? (
+    <section className="rowb-recon-path-selector" aria-label="Choose repair or recon path">
+      <header>
+        <div>
+          <span>{reconPathCanGuide ? "Choose recon path" : "Repair path"}</span>
+          <strong>{selectedReconPathOption.label}</strong>
+        </div>
+        <small>{reconPathCanGuide ? selectedReconPathOption.detail : `${format(order.stage)} · use this selector to keep the intended work path visible while the governed workflow continues.`}</small>
+      </header>
+      <div>
+        {reconRepairPathOptions.map((option) => (
+          <button
+            aria-pressed={selectedReconPath === option.value}
+            key={option.value}
+            onClick={() => setSelectedReconPath(option.value)}
+            type="button"
+          >
+            <strong>{option.label}</strong>
+            <span>{option.detail}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  ) : null;
 
   return (
     <section className={`rowb-shell${fullDetailMode ? " rowb-full-detail-mode" : ""}`} aria-label="Repair Order Workbench">
@@ -1176,6 +1339,7 @@ export function RepairOrderEnterpriseWorkbench({
             <button aria-expanded={reconReportOpen} aria-controls="recon-report" onClick={toggleReconReport} type="button"><Activity /> Recon Report</button>
             <Link href={`${detailRoute}#repair-order-document`}><FileText /> View RO</Link>
             <a href={`/api/repair-orders/${encodeURIComponent(order.id)}/print`} rel="noreferrer" target="_blank"><Printer /> Print RO</a>
+            <button aria-expanded={closePanelOpen} aria-controls="repair-order-close-panel" onClick={() => { setClosePanelMessage(""); setClosePanelOpen((open) => !open); }} type="button"><XCircle /> Close RO</button>
           </div>
         </nav>
         <div className="rowb-summary-top">
@@ -1215,6 +1379,20 @@ export function RepairOrderEnterpriseWorkbench({
             </button>
           </div>
         </div>
+        {closePanelOpen ? (
+          <div className="rowb-close-panel" id="repair-order-close-panel">
+            <label>
+              <span>Closure reason</span>
+              <textarea onChange={(event) => setCloseReason(event.target.value)} placeholder="Example: Customer declined further diagnosis; no work will be pursued." value={closeReason} />
+            </label>
+            <div>
+              <button disabled={busy} onClick={() => { setClosePanelOpen(false); setClosePanelMessage(""); setCloseReason(""); }} type="button">Keep open</button>
+              <button disabled={busy || closeReason.trim().length < 10} onClick={() => void closeNoFurtherWork()} type="button">{busy ? "Closing..." : "Close with no further work"}</button>
+            </div>
+            {closePanelMessage ? <p role="status">{closePanelMessage}</p> : null}
+          </div>
+        ) : null}
+        {reconPathSelector}
         {reconReportOpen ? reconReportPanel : null}
         <dl className="rowb-summary-facts">
           <div><dt>Custody / location</dt><dd>{currentLocationLabel}</dd></div>
@@ -1332,7 +1510,7 @@ export function RepairOrderEnterpriseWorkbench({
             <div>
               <small>Location / workflow correction</small>
               <strong>{activeVendorWork && !useInternalRecon ? "Outside vendor workflow is active" : "Internal recon workflow"}</strong>
-              <span>{activeVendorWork && !useInternalRecon ? "If this is wrong, switch it back to internal recon below. Otherwise update vendor status, ETA, and next action from this repair order." : "Use this when our staff are repairing the vehicle internally. Keep parts, job creation, repair progress, and Final QC on this same RO."}</span>
+              <span>{activeVendorWork && !useInternalRecon ? "Update vendor status, ETA, and next action here. If our team is taking over the remaining work, preserve the vendor history and continue internally below." : "Use this when our staff are repairing the vehicle internally. Keep parts, job creation, repair progress, and Final QC on this same RO."}</span>
             </div>
           </header>
           {showingInternalRecon ? (
@@ -1343,6 +1521,17 @@ export function RepairOrderEnterpriseWorkbench({
                 <span>Continue with the internal chain: create or update the repair job, track parts, record repair progress, then open Final QC.</span>
               </div>
               <Link href={partsWorkspaceHref}>Open internal repair and parts <ChevronRight /></Link>
+            </div>
+          ) : null}
+          {showingInternalRecon && preservedVendorHistoryWork ? (
+            <div className="rowb-preserved-vendor-path">
+              <Building2 />
+              <div>
+                <strong>Outside vendor history preserved</strong>
+                <span>{preservedVendorHistoryWork.vendorName} remains on this RO as a prior vendor leg. Last vendor update: {preservedVendorHistoryWork.lastUpdateSummary}</span>
+                <span>Next internal action: {preservedVendorHistoryWork.nextAction}</span>
+              </div>
+              <small>{format(preservedVendorHistoryWork.status)} · {date(preservedVendorHistoryWork.expectedReturnAt ?? preservedVendorHistoryWork.sentAt)}</small>
             </div>
           ) : null}
           {needsFollowUpVendor && activeVendorWork ? (

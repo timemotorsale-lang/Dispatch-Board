@@ -27,6 +27,7 @@ import {
   createCooWorkbookReportDraft,
   createStaffSupportAction,
   createStaffWorkbookChecklistItem,
+  deleteWorkbookDailyFocusItem,
   getStaffWorkbook,
   getStaffWorkbookSummaries,
   prepareWorkbookCarryovers,
@@ -194,6 +195,7 @@ function repositoryHarness(ownerUserId = "user-jordan.sales@local.test") {
   const checklistUpdates: unknown[] = [];
   const carryoverUpdates: unknown[] = [];
   const dailyFocusUpdates: unknown[] = [];
+  const deletedDailyFocusItems: unknown[] = [];
   const closedWorkbooks: unknown[] = [];
   const reportSeedUpdates: unknown[] = [];
   const reopenedWorkbooks: unknown[] = [];
@@ -221,6 +223,9 @@ function repositoryHarness(ownerUserId = "user-jordan.sales@local.test") {
     },
     async createActivitySignal(input) {
       createdActivitySignals.push(input);
+    },
+    async deleteDailyFocusItem(input) {
+      deletedDailyFocusItems.push(input);
     },
     async findChecklistItem(itemId) {
       const item = currentWorkbook.checklistItems.find((candidate) => candidate.id === itemId);
@@ -339,7 +344,7 @@ function repositoryHarness(ownerUserId = "user-jordan.sales@local.test") {
     }
   };
 
-  return { activityEvents, activityEventsForSync, attentionSessions, carryoverUpdates, checklistUpdates, closedWorkbooks, createdActivitySignals, createdChecklistItems, createdDailyFocusItems, createdReportDrafts, createdSupportActions, currentWorkbook, dailyFocusUpdates, reopenedWorkbooks, reportSeedUpdates, repository, supportActionUpdates, upsertedCarryovers };
+  return { activityEvents, activityEventsForSync, attentionSessions, carryoverUpdates, checklistUpdates, closedWorkbooks, createdActivitySignals, createdChecklistItems, createdDailyFocusItems, createdReportDrafts, createdSupportActions, currentWorkbook, dailyFocusUpdates, deletedDailyFocusItems, reopenedWorkbooks, reportSeedUpdates, repository, supportActionUpdates, upsertedCarryovers };
 }
 
 describe("workday workbook service", () => {
@@ -633,6 +638,26 @@ describe("workday workbook service", () => {
         reportRelevant: true,
         sourceId: "daily-focus:focus-1",
         sourceType: "DAILY_FOCUS"
+      })
+    ]);
+  });
+
+  it("removes Daily Focus items in the current workbook", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("jordan.sales@local.test")!;
+    const harness = repositoryHarness(user.id);
+
+    await deleteWorkbookDailyFocusItem(user, "focus-1", { repository: harness.repository });
+
+    expect(harness.deletedDailyFocusItems).toEqual([{ id: "focus-1" }]);
+    expect(harness.activityEvents).toEqual([
+      expect.objectContaining({
+        eventType: "workbook.daily_focus_removed",
+        metadata: expect.objectContaining({
+          dailyFocusItemId: "focus-1",
+          outcome: "Confirm roof repair path",
+          sourceId: "daily-focus:focus-1"
+        })
       })
     ]);
   });

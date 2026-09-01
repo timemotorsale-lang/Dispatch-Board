@@ -228,6 +228,7 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
   const [quickChecks, setQuickChecks] = useState({ repair: false, finish: false, safety: false });
   const [quickNote, setQuickNote] = useState("");
   const [vendorQcNote, setVendorQcNote] = useState("");
+  const [frontlineVendorName, setFrontlineVendorName] = useState("");
   const [qc, setQc] = useState({
     templateCode: "FINAL_QC",
     templateVersion: 1,
@@ -275,6 +276,15 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
   const frontlineInspected = frontlineCounts.FAIL + frontlineCounts.REVIEW + frontlineCounts.PASS;
   const frontlineRemaining = frontlineQcItems.length - frontlineInspected;
   const frontlineReady = allPassed && frontlineRemaining === 0 && frontlineCounts.FAIL === 0 && frontlineCounts.REVIEW === 0;
+  const frontlineExceptions = frontlineQcSections.flatMap((section) => section.items.flatMap((item) => {
+    const result = frontlineResults[item.code];
+    if (result !== "FAIL" && result !== "REVIEW") return [];
+    const note = frontlineNotes[item.code]?.trim();
+    return [`${section.title} — ${item.label}: ${result}${note ? ` — ${note}` : ""}`];
+  }));
+  const frontlineVendorScope = frontlineExceptions.length
+    ? frontlineExceptions.join("\n")
+    : `Final Frontline QC follow-up for ${order ? vehicleName(order) : "vehicle"}.`;
   const showVendorReturnQc = Boolean(order && vendorQcWork && !order.releaseAuthorization && (!job || order.stage === "QUALITY_CONTROL"));
   const showFrontlineQc = Boolean(order && job && !showVendorReturnQc && !order.releaseAuthorization && allPassed);
 
@@ -523,6 +533,45 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
     }
   }
 
+  async function sendFrontlineExceptionsToVendor() {
+    if (!order) return;
+    const vendorName = frontlineVendorName.trim();
+    if (!vendorName) {
+      setNotice("Enter the outside vendor name before sending this QC follow-up out.");
+      return;
+    }
+    if (!frontlineExceptions.length) {
+      setNotice("Select at least one failed or review item before creating an outside-vendor follow-up.");
+      return;
+    }
+    const now = new Date().toISOString();
+    const saved = await submit(`/api/repair-orders/${order.id}/vendor-work`, {
+      action: "CREATE",
+      allowParallelVendorWork: true,
+      approvalStatus: "NEEDS_DOCUMENTATION",
+      currentLocation: vendorName,
+      customerVisibleSummary: `Final QC found items that need outside repair before ${vehicleName(order)} can be marked frontline ready.`,
+      directFromSource: false,
+      evidence: frontlineExceptions,
+      internalNotes: `Created from failed Final Frontline QC. Prior internal repair history remains on ${order.repairOrderNumber}.`,
+      keysCustodian: vendorName,
+      lastUpdateSummary: "Final QC follow-up sent to outside vendor.",
+      nextAction: "Confirm vendor estimate, approval, expected return, and repair completion.",
+      occurredAt: now,
+      reason: "Final Frontline QC failed or needs review; preserve internal repair history and create outside-vendor correction path.",
+      scope: frontlineVendorScope,
+      sentAt: now,
+      sentFrom: order.location.name,
+      status: "ESTIMATE_NEEDED",
+      transportMethod: "Staff/vendor coordination from failed QC",
+      vendorName,
+      workType: "BODY_SHOP"
+    }, "Outside-vendor follow-up created from failed Final QC. Internal repair history is preserved on this repair order.");
+    if (saved) {
+      setFrontlineVendorName("");
+    }
+  }
+
   return (
     <section className="qc-workspace-home">
       <header className="qc-hero">
@@ -647,6 +696,27 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
               </section>
             ))}
           </div>
+
+          {frontlineExceptions.length ? (
+            <section className="frontline-vendor-shift" aria-label="Failed QC outside vendor follow-up">
+              <header>
+                <Wrench />
+                <div>
+                  <strong>Resolve failed QC with outside vendor</strong>
+                  <span>Use this when the internal repair history should stay preserved, but the correction now needs outside bodywork/vendor help.</span>
+                </div>
+              </header>
+              <label>
+                <span>Outside vendor name</span>
+                <input placeholder="Example: Simba Collision" value={frontlineVendorName} onChange={(event) => setFrontlineVendorName(event.target.value)} />
+              </label>
+              <div>
+                <strong>Scope created from QC notes</strong>
+                <p>{frontlineExceptions.slice(0, 3).join(" · ")}{frontlineExceptions.length > 3 ? ` · ${frontlineExceptions.length - 3} more` : ""}</p>
+              </div>
+              <button disabled={busy || !frontlineVendorName.trim()} onClick={() => void sendFrontlineExceptionsToVendor()} type="button">Send failed QC to vendor</button>
+            </section>
+          ) : null}
 
           <footer className="frontline-final-actions">
             <p><AlertTriangle /> {frontlineReady ? "Every check passed. This vehicle can be cleared for frontline readiness." : "Resolve failed and review items, then complete all checks."}</p>

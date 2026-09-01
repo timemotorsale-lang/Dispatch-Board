@@ -1223,6 +1223,29 @@ export async function updateWorkbookDailyFocusItem(actor: AuthenticatedUser | nu
   return { ok: true };
 }
 
+export async function deleteWorkbookDailyFocusItem(actor: AuthenticatedUser | null, itemId: string, dependencies: Dependencies = {}) {
+  const user = assertAuthenticatedUser(actor);
+  const repository = dependencies.repository ?? createWorkdayWorkbookRepository();
+  const item = await repository.findDailyFocusItem(itemId.trim());
+  if (!item) throw new Error("Daily Focus item not found.");
+  assertWorkbookEditable(user, item.workbook);
+  await repository.deleteDailyFocusItem({ id: item.id });
+  await recordWorkbookActivity(
+    repository,
+    user,
+    item.workbook,
+    "workbook.daily_focus_removed",
+    `${user.name} removed a daily focus outcome.`,
+    {
+      dailyFocusItemId: item.id,
+      outcome: item.outcome,
+      sourceId: `daily-focus:${item.id}`,
+      sourceType: "DAILY_FOCUS"
+    }
+  );
+  return { ok: true };
+}
+
 async function createWorkbookQuickUpdate(actor: AuthenticatedUser | null, boardDate: string, scope: WorkdayWorkbookScope, input: unknown, dependencies: Dependencies = {}) {
   const user = assertAuthenticatedUser(actor);
   const payload = normalizeObject(input);

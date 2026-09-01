@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   createStaffWorkbookDailyFocusItem: vi.fn(),
   createStaffWorkbookQuickUpdate: vi.fn(),
   createStaffWorkbookReportDraft: vi.fn(),
+  deleteWorkbookDailyFocusItem: vi.fn(),
   closeWorkbookDay: vi.fn(),
   getCurrentUser: vi.fn(),
   getStaffWorkbook: vi.fn(),
@@ -41,6 +42,7 @@ vi.mock("@/server/services/workday-workbook", () => ({
   createStaffWorkbookDailyFocusItem: mocks.createStaffWorkbookDailyFocusItem,
   createStaffWorkbookQuickUpdate: mocks.createStaffWorkbookQuickUpdate,
   createStaffWorkbookReportDraft: mocks.createStaffWorkbookReportDraft,
+  deleteWorkbookDailyFocusItem: mocks.deleteWorkbookDailyFocusItem,
   getStaffWorkbook: mocks.getStaffWorkbook,
   getStaffWorkbookSummaries: mocks.getStaffWorkbookSummaries,
   prepareWorkbookCarryovers: mocks.prepareWorkbookCarryovers,
@@ -58,7 +60,7 @@ import { POST as POSTCarryovers } from "@/app/api/coo-workbook/carryovers/route"
 import { POST as POSTAttention } from "@/app/api/coo-workbook/attention/route";
 import { PATCH as PATCHCarryover } from "@/app/api/coo-workbook/carryovers/[carryoverId]/route";
 import { POST as POSTDailyFocus } from "@/app/api/coo-workbook/daily-focus/route";
-import { PATCH as PATCHDailyFocus } from "@/app/api/coo-workbook/daily-focus/[itemId]/route";
+import { DELETE as DELETEDailyFocus, PATCH as PATCHDailyFocus } from "@/app/api/coo-workbook/daily-focus/[itemId]/route";
 import { POST as POSTReportDraft } from "@/app/api/coo-workbook/report-drafts/route";
 import { PATCH as PATCHReportSeed } from "@/app/api/coo-workbook/report-seeds/[seedId]/route";
 import { POST as POSTReopen } from "@/app/api/coo-workbook/reopen/route";
@@ -95,6 +97,7 @@ describe("COO workbook checklist route", () => {
     mocks.createStaffWorkbookDailyFocusItem.mockResolvedValue({ ok: true });
     mocks.createStaffWorkbookQuickUpdate.mockResolvedValue({ ok: true });
     mocks.createStaffWorkbookReportDraft.mockResolvedValue({ ok: true });
+    mocks.deleteWorkbookDailyFocusItem.mockResolvedValue({ ok: true });
     mocks.getStaffWorkbook.mockResolvedValue({ id: "staff-workbook-1" });
     mocks.getStaffWorkbookSummaries.mockResolvedValue([{ staffName: "Alex Carter" }]);
     mocks.prepareWorkbookCarryovers.mockResolvedValue({ count: 2, ok: true, targetBoardDate: "2026-08-30" });
@@ -199,6 +202,16 @@ describe("COO workbook checklist route", () => {
     expect(updateResponse.status).toBe(200);
     expect(mocks.createStaffWorkbookDailyFocusItem).toHaveBeenCalledWith(user, "2026-08-29", { outcome: "Finish top three callbacks", priority: "HIGH", riskLevel: "NONE" });
     expect(mocks.updateWorkbookDailyFocusItem).toHaveBeenCalledWith(user, "focus-1", { status: "DONE" });
+  });
+
+  it("removes Daily Focus items through the protected workbook service", async () => {
+    const response = await DELETEDailyFocus(new Request("http://localhost/api/coo-workbook/daily-focus/focus-1", {
+      method: "DELETE"
+    }), { params: Promise.resolve({ itemId: "focus-1" }) });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(mocks.deleteWorkbookDailyFocusItem).toHaveBeenCalledWith(user, "focus-1");
   });
 
   it("routes Daily Focus progress updates to the workbook service", async () => {

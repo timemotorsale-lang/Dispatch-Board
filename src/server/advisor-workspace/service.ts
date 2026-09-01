@@ -1,4 +1,6 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
+import { createBoardReadRepository } from "@/server/repositories/board-read-repository";
+import { createStaffDayRepository } from "@/server/repositories/staff-day-repository";
 import { getRepairOrderCreateOptions, listRepairOrders } from "@/server/repair-order/service";
 import { getCooWorkbook, getStaffWorkbook, getStaffWorkbookSummaries } from "@/server/services/workday-workbook";
 import { isManager } from "@/server/policies/access";
@@ -40,6 +42,79 @@ function appointmentVehicleIdentifiersFor(appointment: { vehicle?: { licensePlat
     appointment.vehicle?.vehicleNumber,
     appointment.vehicle?.licensePlate
   ].filter((value): value is string => Boolean(value));
+}
+
+function priorityRank(value: string) {
+  if (value === "CRITICAL") return 4;
+  if (value === "HIGH") return 3;
+  if (value === "MEDIUM") return 2;
+  return 1;
+}
+
+function taskUrgencyRank(input: { dueAt: Date; priority: string; status: string }) {
+  const now = Date.now();
+  const dueTime = input.dueAt.getTime();
+  const overdue = dueTime < now;
+  const dueSoon = dueTime <= now + 4 * 60 * 60 * 1000;
+  const statusScore =
+    input.status === "BLOCKED" ? 60 :
+    input.status === "WAITING_ON_APPROVAL" || input.status === "WAITING_ON_PARTS" ? 45 :
+    input.status === "READY_FOR_REVIEW" ? 35 :
+    input.status === "IN_PROGRESS" ? 25 :
+    15;
+  return statusScore + priorityRank(input.priority) * 10 + (overdue ? 20 : dueSoon ? 10 : 0);
+}
+
+async function buildMorningPrioritySources(actor: AuthenticatedUser, boardDate: string) {
+  const taskRepository = createBoardReadRepository();
+  const staffDayRepository = createStaffDayRepository();
+  const tasks = await taskRepository.listOpenPriorityTasks();
+  const canSeeTeam = isManager(actor);
+  const staffDays = canSeeTeam
+    ? await staffDayRepository.listForBoardDate(boardDate)
+    : await staffDayRepository.findForUser(boardDate, actor.id).then((staffDay) => staffDay ? [staffDay] : []);
+
+  const taskSources = tasks
+    .filter((task) => task.status !== "COMPLETED" && (canSeeTeam || task.assignedUser.id === actor.id || task.recommendedUser?.id === actor.id))
+    .map((task) => ({
+      detail: [
+        task.assignedUser.name,
+        task.status.replaceAll("_", " ").toLocaleLowerCase(),
+        task.customerReference,
+        task.vehicleReference,
+        task.recommendationExplanation
+      ].filter(Boolean).join(" · "),
+      dueAt: task.dueAt.toISOString(),
+      href: `/tasks/${task.id}`,
+      priority: task.priority,
+      rank: taskUrgencyRank(task),
+      riskLevel: task.status === "BLOCKED" ? "BLOCKED" as const : ["WAITING_ON_APPROVAL", "WAITING_ON_PARTS"].includes(task.status) ? "WATCH" as const : "NONE" as const,
+      sourceId: task.id,
+      sourceType: "TASK" as const,
+      staffUserId: task.assignedUser.id,
+      staffName: task.assignedUser.name,
+      title: task.title
+    }));
+
+  const dutySources = staffDays.flatMap((staffDay) => staffDay.dutyItems.map((duty) => ({ duty, staffDay })))
+    .filter(({ duty }) => !duty.completed)
+    .map(({ duty, staffDay }) => ({
+      detail: [staffDay.user.name, duty.workflowArea.replaceAll("_", " ").toLocaleLowerCase(), duty.description].filter(Boolean).join(" · "),
+      dueAt: null,
+      href: canSeeTeam ? `/my-day?userId=${encodeURIComponent(staffDay.user.id)}` : "/my-day",
+      priority: duty.required ? "HIGH" as const : "MEDIUM" as const,
+      rank: (duty.required ? 25 : 10) + Math.max(0, 10 - duty.sortOrder),
+      riskLevel: "NONE" as const,
+      sourceId: duty.id,
+      sourceType: "DUTY" as const,
+      staffUserId: staffDay.user.id,
+      staffName: staffDay.user.name,
+      title: duty.label
+    }));
+
+  return [...taskSources, ...dutySources]
+    .sort((left, right) => right.rank - left.rank || left.title.localeCompare(right.title))
+    .slice(0, 12);
 }
 
 function customerLabelFor(order: Awaited<ReturnType<typeof listRepairOrders>>["items"][number]) {
@@ -200,14 +275,15 @@ export async function getServiceAdvisorWorkspace(actor: AuthenticatedUser) {
   const approvalCount = actionQueue.filter(({ action }) => action.kind === "AUTHORIZATION").length;
   const handoffCount = actionQueue.filter(({ action }) => action.kind === "HANDOFF").length;
   const reportExceptions = needsAttention.length + waitingOnOthers.length;
-  const [workbook, staffWorkbook, staffWorkbookSummaries] = await Promise.all([
+  const [workbook, staffWorkbook, staffWorkbookSummaries, morningPrioritySources] = await Promise.all([
     getCooWorkbook(actor, todayKey, {
     approvalCount,
     handoffCount,
     reportExceptions
     }),
     getStaffWorkbook(actor, todayKey),
-    isManager(actor) ? getStaffWorkbookSummaries(actor, todayKey) : Promise.resolve([])
+    isManager(actor) ? getStaffWorkbookSummaries(actor, todayKey) : Promise.resolve([]),
+    buildMorningPrioritySources(actor, todayKey)
   ]);
   const inbox = openOrders.items.flatMap((order) => order.advisorUpdates.map((update) => {
     const exceptionCodes = advisorExceptionCodes(update.exceptionCodes);
@@ -245,6 +321,7 @@ export async function getServiceAdvisorWorkspace(actor: AuthenticatedUser) {
     workbook,
     staffWorkbook,
     staffWorkbookSummaries,
+    morningPrioritySources,
     counts: {
       activeRepairOrders: openOrders.total,
       availableAppointments: appointments.length,

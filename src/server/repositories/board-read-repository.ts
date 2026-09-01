@@ -1,4 +1,4 @@
-import { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient, TaskStatus } from "@prisma/client";
 
 import { prisma } from "@/server/db/client";
 
@@ -58,6 +58,7 @@ export type BoardReadTaskRecord = Prisma.TaskGetPayload<{
 
 export type BoardReadRepository = {
   findBoardDayByDate(boardDate: string): Promise<BoardReadBoardDayRecord | null>;
+  listOpenPriorityTasks(): Promise<BoardReadTaskRecord[]>;
   listTasksForBoardDay(boardDayId: string): Promise<BoardReadTaskRecord[]>;
 };
 
@@ -83,6 +84,17 @@ export function createBoardReadRepository(database: BoardReadDatabase = prisma):
         },
         select: boardTaskSelect,
         orderBy: [{ dueAt: "asc" }, { createdAt: "asc" }, { id: "asc" }]
+      });
+    },
+
+    async listOpenPriorityTasks() {
+      return database.task.findMany({
+        where: {
+          status: { not: TaskStatus.COMPLETED }
+        },
+        select: boardTaskSelect,
+        orderBy: [{ dueAt: "asc" }, { priority: "desc" }, { createdAt: "asc" }, { id: "asc" }],
+        take: 80
       });
     }
   };

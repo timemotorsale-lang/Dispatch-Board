@@ -18,10 +18,11 @@ import {
   Send,
   ShieldCheck,
   Save,
+  Undo2,
   UsersRound,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 
 import type { ServiceAdvisorWorkspaceModel } from "@/server/advisor-workspace/service";
 
@@ -107,8 +108,16 @@ function inboxComposeHref(item: InboxItem) {
   return `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(item.repairOrderId)}&compose=${compose}#advisor-response`;
 }
 
-function actionCount(model: ServiceAdvisorWorkspaceModel, kind: Action["actionKind"]) {
-  return model.actionQueue.filter((item) => item.actionKind === kind).length;
+function actionQueueCount(items: Action[], kind: Action["actionKind"]) {
+  return items.filter((item) => item.actionKind === kind).length;
+}
+
+function repairOrderWorkbookHref(repairOrderId: string) {
+  return `/vehicles/repair-workbench?${new URLSearchParams({
+    repairOrderId,
+    returnLabel: "COO Workbook",
+    returnTo: "/vehicles/coo-workbook"
+  }).toString()}`;
 }
 
 function taskDateParts(value?: string) {
@@ -139,6 +148,7 @@ function cooTaskIntakeHref(input: { brief: string; dueAt?: string; expectedOutco
 
 type WorkdayWorkbookModel = ServiceAdvisorWorkspaceModel["workbook"];
 type StaffWorkbookSummary = ServiceAdvisorWorkspaceModel["staffWorkbookSummaries"][number];
+type MorningPrioritySource = ServiceAdvisorWorkspaceModel["morningPrioritySources"][number];
 type DailyChecklistItem = WorkdayWorkbookModel["checklistItems"][number];
 type QuickUpdateItem = WorkdayWorkbookModel["quickUpdates"][number];
 type ReportSeedItem = WorkdayWorkbookModel["reportSeeds"][number];
@@ -151,6 +161,16 @@ type DailyFocusItem = WorkdayWorkbookModel["dailyFocusItems"][number];
 type DailyFocusStatus = DailyFocusItem["status"];
 type DailyFocusPriority = DailyFocusItem["priority"];
 type DailyFocusRisk = DailyFocusItem["riskLevel"];
+type DailyFocusSuggestion = {
+  detail: string;
+  href: string;
+  mustCloseToday: boolean;
+  outcome: string;
+  priority: DailyFocusPriority;
+  riskLevel: DailyFocusRisk;
+  sourceLabel: string;
+  sourceId: string;
+};
 type CloseStepView = "DONE" | "TOMORROW" | "DRAFT";
 type CommandCardView = "CLOSE" | "ATTENTION" | "WORK" | "REPORT";
 type MoreToolCard = { description: string; href: string; icon: typeof ClipboardCheck; outcome: string; title: string; whenToUse: string };
@@ -190,6 +210,14 @@ const focusStatuses: Array<{ label: string; value: DailyFocusStatus }> = [
   { label: "Done", value: "DONE" },
   { label: "Carry over", value: "CARRY_OVER" }
 ];
+
+const genericAdvisorFocusOutcomes = new Set(["authorization needed", "promise risk"]);
+
+function isGenericAdvisorFocusItem(item: DailyFocusItem) {
+  return genericAdvisorFocusOutcomes.has(item.outcome.trim().toLocaleLowerCase()) &&
+    !item.progressUpdate.trim() &&
+    !item.supportNeeded.trim();
+}
 
 function checklistStatusLabel(item: DailyChecklistItem) {
   if (item.done) return "Done";
@@ -250,7 +278,85 @@ function dailyReportDraftText(draft: WorkdayWorkbookModel["reportDrafts"][number
   return `${draft.title}\n${draft.summary}\n\n${sections}`;
 }
 
-export function CooDailyWorkbook({ compact = false, initialTool = null, model }: { compact?: boolean; initialTool?: CooWorkbookTool | null; model: ServiceAdvisorWorkspaceModel }) {
+function dailyFocusRiskFromChecklist(item: DailyChecklistItem): DailyFocusRisk {
+  if (item.riskLevel !== "NONE") return item.riskLevel;
+  if (item.status === "RED") return "BLOCKED";
+  if (item.status === "YELLOW") return "WATCH";
+  return "NONE";
+}
+
+function buildDailyFocusSuggestions(workbook: WorkdayWorkbookModel, morningPrioritySources: MorningPrioritySource[]): DailyFocusSuggestion[] {
+  const existingOutcomes = new Set(workbook.dailyFocusItems.map((item) => item.outcome.trim().toLocaleLowerCase()).filter(Boolean));
+  const seen = new Set<string>();
+  const suggestions: DailyFocusSuggestion[] = [];
+  const addSuggestion = (suggestion: DailyFocusSuggestion) => {
+    const key = suggestion.outcome.trim().toLocaleLowerCase();
+    if (!key || existingOutcomes.has(key) || seen.has(key)) return;
+    seen.add(key);
+    suggestions.push(suggestion);
+  };
+
+  workbook.checklistItems
+    .filter((item) => !item.done)
+    .sort((left, right) => Number(right.status === "RED") - Number(left.status === "RED") || Number(right.carryoverReady) - Number(left.carryoverReady))
+    .forEach((item) => addSuggestion({
+      detail: latestChecklistUpdateText(item) || checklistStatusLabel(item),
+      href: `/vehicles/coo-workbook/checklist#checklist-${encodeURIComponent(item.id)}`,
+      mustCloseToday: item.status === "RED" || item.carryoverReady,
+      outcome: item.text,
+      priority: item.priority,
+      riskLevel: dailyFocusRiskFromChecklist(item),
+      sourceLabel: "Workbook checklist",
+      sourceId: `checklist-${item.id}`
+    }));
+
+  workbook.carryovers
+    .filter((item) => item.status === "OPEN" || item.status === "CONFIRMED")
+    .forEach((item) => addSuggestion({
+      detail: item.detail || "Carryover work needs ownership.",
+      href: item.sourceHref || `/vehicles/coo-workbook/carryover#carryover-${encodeURIComponent(item.id)}`,
+      mustCloseToday: item.status === "CONFIRMED",
+      outcome: item.title,
+      priority: "HIGH",
+      riskLevel: item.status === "OPEN" ? "WATCH" : "NONE",
+      sourceLabel: "Workbook carryover",
+      sourceId: `carryover-${item.id}`
+    }));
+
+  workbook.quickUpdates
+    .filter((item) => item.followUpNeeded || item.carryoverReady)
+    .forEach((item) => addSuggestion({
+      detail: [item.person, item.company, item.dueWindow].filter(Boolean).join(" · ") || quickUpdateCategoryLabel(item.category),
+      href: `/vehicles/coo-workbook/quick-update#quick-${encodeURIComponent(item.id)}`,
+      mustCloseToday: item.followUpNeeded && !item.dueWindow.trim(),
+      outcome: item.text,
+      priority: item.followUpNeeded ? "HIGH" : "MEDIUM",
+      riskLevel: item.followUpNeeded && !item.dueWindow.trim() ? "WATCH" : "NONE",
+      sourceLabel: "Workbook quick update",
+      sourceId: `quick-${item.id}`
+    }));
+
+  morningPrioritySources.forEach((item) => addSuggestion({
+    detail: item.detail || (item.dueAt ? `Due ${dateLabel(item.dueAt)}` : item.sourceType === "DUTY" ? "Assigned staff duty" : "Assigned staff task"),
+    href: item.href,
+    mustCloseToday: item.priority === "CRITICAL" || item.riskLevel === "BLOCKED",
+    outcome: item.title,
+    priority: item.priority,
+    riskLevel: item.riskLevel,
+    sourceLabel: item.sourceType === "DUTY" ? `${item.staffName} duty` : `${item.staffName} task`,
+    sourceId: `${item.sourceType.toLocaleLowerCase()}-${item.sourceId}`
+  }));
+
+  return suggestions.slice(0, 12);
+}
+
+function dailyFocusSuggestionTone(suggestion: DailyFocusSuggestion) {
+  if (suggestion.riskLevel === "BLOCKED" || suggestion.priority === "CRITICAL") return "red";
+  if (suggestion.riskLevel === "WATCH" || suggestion.priority === "HIGH" || suggestion.mustCloseToday) return "yellow";
+  return "blue";
+}
+
+export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, initialTool = null, model }: { compact?: boolean; closedRepairOrderId?: string | null; initialTool?: CooWorkbookTool | null; model: ServiceAdvisorWorkspaceModel }) {
   const [workbookView, setWorkbookView] = useState<WorkbookViewMode>("COO");
   const [workbook, setWorkbook] = useState<WorkdayWorkbookModel>(model.workbook);
   const [staffWorkbook, setStaffWorkbook] = useState<WorkdayWorkbookModel>(model.staffWorkbook);
@@ -269,10 +375,16 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
   const [workspaceNotice, setWorkspaceNotice] = useState<string | null>(null);
   const [convertingId, setConvertingId] = useState<string | null>(null);
   const [commandView, setCommandView] = useState<CommandCardView | null>(null);
+  const [closeStepNotice, setCloseStepNotice] = useState<string | null>(null);
+  const [closeStepInProgress, setCloseStepInProgress] = useState<"carryover" | "draft" | null>(null);
+  const [closeStepView, setCloseStepView] = useState<CloseStepView>("DONE");
   const [workSearchQuery, setWorkSearchQuery] = useState("");
   const [saving, setSaving] = useState(false);
-  const approvalCount = actionCount(model, "AUTHORIZATION");
-  const reportExceptions = model.counts.needsAttention + model.counts.waitingOnOthers;
+  const actionQueue = closedRepairOrderId
+    ? model.actionQueue.filter((item) => item.id !== closedRepairOrderId)
+    : model.actionQueue;
+  const approvalCount = actionQueueCount(actionQueue, "AUTHORIZATION");
+  const reportExceptions = actionQueue.filter((item) => matchesFilter(item, "ATTENTION") || matchesFilter(item, "WAITING")).length;
   const activeWorkbook = workbookView === "MY" ? staffWorkbook : workbook;
   const activeWorkbookLabel = workbookView === "MY" ? "My Workbook" : "COO Workbook";
   const checklistItems = activeWorkbook.checklistItems;
@@ -319,7 +431,7 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
     total: staffWorkbookSummaries.length
   };
   const planTaskHref = cooTaskIntakeHref({
-    brief: `Create the COO daily action plan from ${model.counts.activeRepairOrders} active repair order(s), ${approvalCount} approval review item(s), and ${reportExceptions} unresolved risk/carryover item(s).`,
+    brief: `Create the COO daily action plan from ${actionQueue.length} active repair order signal(s), ${approvalCount} approval review item(s), and ${reportExceptions} unresolved risk/carryover item(s).`,
     dueAt: model.generatedAt,
     expectedOutcome: "The COO daily action plan is reviewed, prioritized, assigned, and ready to support the end-of-day operations report.",
     title: "Create COO daily action plan"
@@ -327,11 +439,11 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
   const supportSignals = closeReadiness.checklistNeedsSupport + closeReadiness.quickFollowUps + reportExceptions;
   const buildSearchText = (...parts: Array<string | number | null | undefined | string[]>) => parts.flatMap((part) => Array.isArray(part) ? part : [part]).filter((part): part is string | number => part !== null && part !== undefined && String(part).trim().length > 0).join(" ").toLocaleLowerCase();
   const attentionItems = [
-    ...model.actionQueue.slice(0, 4).map((item) => ({
+    ...actionQueue.slice(0, 4).map((item) => ({
       action: actionButton(item.actionKind),
       context: `${item.customerName} · ${item.repairOrderNumber} · ${item.vehicleLabel}`,
       description: item.actionReason,
-      href: `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(item.id)}`,
+      href: repairOrderWorkbookHref(item.id),
       id: `action-${item.id}`,
       meta: item.nextAction !== "Next action not recorded" ? `Next: ${item.nextAction}` : `${stageLabel(item.stage)} · ${stageLabel(item.operatingState)}`,
       searchText: buildSearchText(item.actionLabel, item.actionReason, item.customerName, item.repairOrderNumber, item.vehicleLabel, item.vehicleIdentifiers ?? [], item.nextAction, item.stage, item.operatingState),
@@ -373,11 +485,11 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
       title: item.title,
       tone: item.tone
     })),
-    ...model.repairOrders.map((item) => ({
+    ...model.repairOrders.filter((item) => item.id !== closedRepairOrderId).map((item) => ({
       action: "Open RO",
       context: `${item.customerName} · ${item.vehicleLabel}`,
       description: `${item.repairOrderNumber} · ${stageLabel(item.stage)} · ${stageLabel(item.operatingState)} · Next: ${item.nextAction}`,
-      href: `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(item.id)}`,
+      href: repairOrderWorkbookHref(item.id),
       id: `repair-${item.id}`,
       kind: "Repair Order",
       searchText: buildSearchText(item.customerName, item.repairOrderNumber, item.vehicleLabel, item.vehicleIdentifiers ?? [], item.stage, item.operatingState, item.nextAction),
@@ -504,6 +616,40 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
     ...reportSeeds.filter((seed) => seed.status === "CARRIED_OVER").map((seed) => ({ detail: seed.detail, id: `seed-${seed.id}`, kind: reportSeedSourceLabel(seed), title: seed.title })),
     ...carryovers.filter((item) => item.status !== "DISMISSED").map((item) => ({ detail: item.detail, id: `carryover-${item.id}`, kind: `Carryover · ${item.status.toLocaleLowerCase()}`, title: item.title }))
   ].slice(0, 6);
+  const activeDailyFocusItems = activeWorkbook.dailyFocusItems.filter((item) => !isGenericAdvisorFocusItem(item));
+  const activeCarryovers = carryovers.filter((item) => item.status !== "DISMISSED");
+  const carryoverSourceIds = new Set(activeCarryovers.map((item) => item.sourceId));
+  const closeReviewItems = [
+    ...activeDailyFocusItems.map((item) => ({
+      detail: item.progressUpdate || item.supportNeeded || item.riskNote || (item.status === "DONE" ? "Completed today." : "Needs update or close decision."),
+      id: `focus-${item.id}`,
+      status: item.status === "DONE" ? "Done" : item.status === "CARRY_OVER" ? "Carry over" : "Not done",
+      title: item.outcome
+    })),
+    ...checklistItems.map((item) => ({
+      detail: latestChecklistUpdateText(item) || checklistStatusLabel(item),
+      id: `checklist-${item.id}`,
+      status: item.done ? "Done" : "Not done",
+      title: item.text
+    }))
+  ].slice(0, 8);
+  const tomorrowItems = [
+    ...activeDailyFocusItems.filter((item) => (item.status === "CARRY_OVER" || item.mustCloseToday && item.status !== "DONE") && !carryoverSourceIds.has(`daily-focus:${item.id}`)).map((item) => ({ detail: item.supportNeeded || item.riskNote || "Needs tomorrow ownership.", id: `focus-${item.id}`, title: item.outcome })),
+    ...activeCarryovers.map((item) => ({ detail: item.detail, id: `carryover-${item.id}`, title: item.title }))
+  ].slice(0, 8);
+  const draftPreviewItems = latestReportDraft
+    ? latestReportDraft.sections.flatMap((section) => section.items.map((item) => ({
+      detail: item.detail,
+      id: `draft-${section.title}-${item.sourceId}-${item.title}`,
+      section: section.title,
+      title: item.title
+    }))).slice(0, 8)
+    : reportSeeds.filter((seed) => seed.status !== "EXCLUDED").slice(0, 8).map((seed) => ({
+      detail: seed.detail,
+      id: `seed-${seed.id}`,
+      section: reportSeedStatusLabel(seed.status),
+      title: seed.title
+    }));
   const staffSupportQueue = [...staffWorkbookSummaries]
     .filter((item) => item.closeReadinessTone !== "READY" || item.redYellowItemCount > 0 || item.followUpNeededCount > 0 || item.carryoverCount > 0)
     .sort((left, right) => {
@@ -904,7 +1050,10 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
       const payload = await response.json().catch(() => null) as { count?: number; targetBoardDate?: string; error?: string } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Unable to prepare carryover.");
       await refreshActiveWorkbook();
-      setWorkspaceNotice(`${payload?.count ?? 0} carryover item(s) prepared for ${payload?.targetBoardDate ?? "tomorrow"}.`);
+      const message = `${payload?.count ?? 0} carryover item(s) prepared for ${payload?.targetBoardDate ?? "tomorrow"}.`;
+      setCloseStepView("TOMORROW");
+      setCloseStepNotice(message);
+      setWorkspaceNotice(message);
     } catch (error) {
       setWorkspaceNotice(error instanceof Error ? error.message : "Unable to prepare carryover.");
     } finally {
@@ -952,6 +1101,34 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
     } catch (error) {
       setWorkspaceNotice(error instanceof Error ? error.message : "Unable to update workbook close status.");
     } finally {
+      setSaving(false);
+    }
+  }
+
+  async function runCloseStep(step: "carryover" | "draft") {
+    setCloseStepInProgress(step);
+    setCloseStepNotice(null);
+    try {
+      if (step === "carryover") {
+        await prepareCarryovers();
+        return;
+      }
+      setSaving(true);
+      const response = await fetch(`/api/coo-workbook/${workbookView === "MY" ? "staff/report-drafts" : "report-drafts"}?date=${encodeURIComponent(model.generatedAt.slice(0, 10))}&cadence=DAILY`, {
+        method: "POST"
+      });
+      const payload = await response.json().catch(() => null) as { error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error ?? "Unable to generate Report Draft.");
+      await refreshActiveWorkbook();
+      setCloseStepView("DRAFT");
+      setCloseStepNotice("Daily report draft generated and saved.");
+      setWorkspaceNotice("Daily report draft generated and saved.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to complete close step.";
+      setCloseStepNotice(message);
+      setWorkspaceNotice(message);
+    } finally {
+      setCloseStepInProgress(null);
       setSaving(false);
     }
   }
@@ -1372,24 +1549,38 @@ export function CooDailyWorkbook({ compact = false, initialTool = null, model }:
 
     <section className="advisor-coo-close-day" id="close-report" aria-label="Close the Day">
       <header>
-        <div><strong>Close the Day</strong><small>Review work, confirm carryover, then generate a manager-ready report.</small></div>
+        <div><strong>Close the Day</strong><small>One closing workspace for done/not done review, tomorrow setup, and the manager-ready report.</small></div>
         <nav aria-label="Report cadence">
           <Link aria-current="page" href="/vehicles/coo-workbook/drafts?cadence=daily">Daily</Link>
           <Link href="/vehicles/coo-workbook/drafts?cadence=weekly">Weekly</Link>
           <Link href="/vehicles/coo-workbook/drafts?cadence=monthly">Monthly</Link>
         </nav>
       </header>
-      <div className="advisor-coo-close-flow">
-        <span><CheckCircle2 /><strong>Review work</strong><small>{todayWorkRollup.done}/{todayWorkRollup.total} planned done</small></span>
-        <span><CalendarClock /><strong>Confirm carryover</strong><small>{closeReadiness.carryoverItems} item(s)</small></span>
-        <span><FileText /><strong>Generate report</strong><small>{latestReportDraft ? `Draft v${latestReportDraft.version}` : "Ready when reviewed"}</small></span>
+      <div aria-label="Close the Day review steps" className="advisor-coo-close-flow" role="tablist">
+        <button aria-selected={closeStepView === "DONE"} onClick={() => setCloseStepView("DONE")} role="tab" type="button"><ListChecks /><strong>Done / Not Done</strong><small>{activeWorkbook.execution.completedWorkCount}/{activeWorkbook.execution.plannedWorkCount} planned complete</small></button>
+        <button aria-selected={closeStepView === "TOMORROW"} onClick={() => setCloseStepView("TOMORROW")} role="tab" type="button"><CalendarClock /><strong>Tomorrow Setup</strong><small>{activeWorkbook.risk.tomorrowCarryoverCandidates.length} candidate item(s)</small></button>
+        <button aria-selected={closeStepView === "DRAFT"} onClick={() => setCloseStepView("DRAFT")} role="tab" type="button"><FileText /><strong>Report Draft</strong><small>{activeWorkbook.reporting.staffGuidance}</small></button>
       </div>
+      <p className="advisor-coo-governance-note">{activeWorkbook.governance.nextRecommendedAction}</p>
+      <div className="advisor-coo-tomorrow-list" role="tabpanel">
+        {closeStepView === "DONE" ? closeReviewItems.length ? closeReviewItems.map((item) => <p key={item.id}><strong>{item.title}</strong><small>{item.status} · {item.detail}</small></p>) : <p><CheckCircle2 /> No planned work has been added yet.</p> : null}
+        {closeStepView === "TOMORROW" ? tomorrowItems.length ? tomorrowItems.map((item) => <p key={item.id}><strong>{item.title}</strong><small>{item.detail}</small></p>) : <p><CheckCircle2 /> No tomorrow setup items yet.</p> : null}
+        {closeStepView === "DRAFT" ? <>
+          {latestReportDraft ? <p><strong>{latestReportDraft.title}</strong><small>{latestReportDraft.summary}</small></p> : <p><FileText /> No saved draft yet. Generate a draft from reviewed report seeds when the day is ready.</p>}
+          {draftPreviewItems.length ? draftPreviewItems.map((item) => <p key={item.id}><strong>{item.title}</strong><small>{item.section} · {item.detail}</small></p>) : null}
+        </> : null}
+      </div>
+      {closeStepNotice ? <p className="advisor-coo-close-step-notice" role="status">{closeStepNotice}</p> : null}
       <dl className="advisor-coo-close-preview">
         <div><dt>Seeds ready</dt><dd>{reportSeedRollup.active}</dd></div>
         <div><dt>Sections</dt><dd>{latestReportDraft?.sections.length ?? 5}</dd></div>
         <div><dt>Latest draft</dt><dd>{latestReportDraft ? dateLabel(latestReportDraft.generatedAt) : "Not generated"}</dd></div>
         <div><dt>Staff source</dt><dd>{staffTodayRollup.total} active</dd></div>
       </dl>
+      <div className="advisor-coo-seed-actions">
+        <button disabled={saving || isClosed} onClick={() => void runCloseStep("carryover")} type="button">{closeStepInProgress === "carryover" ? "Preparing..." : "Prepare Tomorrow"}</button>
+        <button disabled={saving || isClosed} onClick={() => void runCloseStep("draft")} type="button">{closeStepInProgress === "draft" ? "Generating..." : "Generate Draft"}</button>
+      </div>
       <button disabled={saving} onClick={() => void closeOrReopenDay()} type="button"><FileText /> {saving ? "Saving..." : isClosed ? "Reopen Day" : "Close Day"}</button>
       <Link className="advisor-coo-more-tools-link" href="/vehicles/coo-workbook/more-tools"><ClipboardList /> More Tools</Link>
     </section>
@@ -1415,9 +1606,6 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
   const [focusProgressUpdates, setFocusProgressUpdates] = useState<Record<string, string>>({});
   const [supportNeeded, setSupportNeeded] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
-  const [closeStepNotice, setCloseStepNotice] = useState<string | null>(null);
-  const [closeStepInProgress, setCloseStepInProgress] = useState<"carryover" | "draft" | null>(null);
-  const [closeStepView, setCloseStepView] = useState<CloseStepView>("DONE");
   const [saving, setSaving] = useState(false);
   const attentionSessionKey = useId().replaceAll(":", "");
   const activeWorkbook = workbookView === "MY" ? staffWorkbook : workbook;
@@ -1426,42 +1614,16 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
   const activityIntelligence = activeWorkbook.activityIntelligence;
   const timeAttention = activeWorkbook.timeAttention;
   const effectiveness = activeWorkbook.effectiveness;
-  const dailyFocus = activeWorkbook.dailyFocusItems;
+  const dailyFocus = activeWorkbook.dailyFocusItems.filter((item) => !isGenericAdvisorFocusItem(item));
   const isPilotClosed = activeWorkbook.status === "CLOSED";
-  const activeCarryovers = activeWorkbook.carryovers.filter((item) => item.status !== "DISMISSED");
-  const carryoverSourceIds = new Set(activeCarryovers.map((item) => item.sourceId));
-  const tomorrowItems = [
-    ...dailyFocus.filter((item) => (item.status === "CARRY_OVER" || item.mustCloseToday && item.status !== "DONE") && !carryoverSourceIds.has(`daily-focus:${item.id}`)).map((item) => ({ detail: item.supportNeeded || item.riskNote || "Needs tomorrow ownership.", id: `focus-${item.id}`, title: item.outcome })),
-    ...activeCarryovers.map((item) => ({ detail: item.detail, id: `carryover-${item.id}`, title: item.title }))
-  ].slice(0, 5);
-  const closeReviewItems = [
-    ...dailyFocus.map((item) => ({
-      detail: item.progressUpdate || item.supportNeeded || item.riskNote || (item.status === "DONE" ? "Completed today." : "Needs update or close decision."),
-      id: `focus-${item.id}`,
-      status: item.status === "DONE" ? "Done" : item.status === "CARRY_OVER" ? "Carry over" : "Not done",
-      title: item.outcome
-    })),
-    ...activeWorkbook.checklistItems.map((item) => ({
-      detail: latestChecklistUpdateText(item) || checklistStatusLabel(item),
-      id: `checklist-${item.id}`,
-      status: item.done ? "Done" : "Not done",
-      title: item.text
-    }))
-  ].slice(0, 6);
-  const latestReportDraft = activeWorkbook.reportDrafts[0] ?? null;
-  const draftPreviewItems = latestReportDraft
-    ? latestReportDraft.sections.flatMap((section) => section.items.map((item) => ({
-      detail: item.detail,
-      id: `draft-${section.title}-${item.sourceId}-${item.title}`,
-      section: section.title,
-      title: item.title
-    }))).slice(0, 6)
-    : activeWorkbook.reportSeeds.filter((seed) => seed.status !== "EXCLUDED").slice(0, 6).map((seed) => ({
-      detail: seed.detail,
-      id: `seed-${seed.id}`,
-      section: reportSeedStatusLabel(seed.status),
-      title: seed.title
-    }));
+  const prioritySourcesForView = workbookView === "MY"
+    ? model.morningPrioritySources.filter((item) => item.staffUserId === model.advisor.id)
+    : model.morningPrioritySources;
+  const dailyFocusSuggestions = buildDailyFocusSuggestions(activeWorkbook, prioritySourcesForView);
+  const remainingFocusSlots = Math.max(0, 3 - dailyFocus.length);
+  const visibleDailyFocusSuggestions = remainingFocusSlots ? dailyFocusSuggestions.slice(0, remainingFocusSlots) : [];
+  const moreAttentionSuggestions = remainingFocusSlots ? dailyFocusSuggestions.slice(visibleDailyFocusSuggestions.length, visibleDailyFocusSuggestions.length + 8) : [];
+  const manualFocusSlots = Math.max(0, remainingFocusSlots - visibleDailyFocusSuggestions.length);
   const staffNeedingSupport = staffWorkbookSummaries
     .filter((item) => item.closeReadinessTone !== "READY" || item.dailyFocusRiskCount > 0 || item.followUpNeededCount > 0)
     .slice(0, 4);
@@ -1502,10 +1664,10 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
     };
   }, [activeWorkbook.id, attentionSessionKey]);
 
-  async function refreshPilotWorkbook() {
+  const refreshPilotWorkbook = useCallback(async function refreshPilotWorkbook() {
     if (workbookView === "MY") {
       const response = await fetch(`/api/coo-workbook/staff?date=${encodeURIComponent(model.generatedAt.slice(0, 10))}`);
-      const payload = await response.json().catch(() => null) as { staffWorkbookSummaries?: typeof staffWorkbookSummaries; workbook?: WorkdayWorkbookModel; error?: string } | null;
+      const payload = await response.json().catch(() => null) as { staffWorkbookSummaries?: StaffWorkbookSummary[]; workbook?: WorkdayWorkbookModel; error?: string } | null;
       if (!response.ok || !payload?.workbook) throw new Error(payload?.error ?? "Unable to refresh My Workbook.");
       setStaffWorkbook(payload.workbook);
       setStaffWorkbookSummaries(payload.staffWorkbookSummaries ?? []);
@@ -1515,10 +1677,28 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
     const payload = await response.json().catch(() => null) as { workbook?: WorkdayWorkbookModel; error?: string } | null;
     if (!response.ok || !payload?.workbook) throw new Error(payload?.error ?? "Unable to refresh COO Workbook.");
     setWorkbook(payload.workbook);
-  }
+  }, [model.generatedAt, workbookView]);
 
-  async function addDailyFocus() {
-    const outcome = focusOutcome.trim();
+  const createDailyFocusFromSuggestion = useCallback(async function createDailyFocusFromSuggestion(suggestion: DailyFocusSuggestion, sortOrder: number) {
+    const response = await fetch(`/api/coo-workbook/daily-focus?date=${encodeURIComponent(model.generatedAt.slice(0, 10))}&scope=${workbookView === "MY" ? "STAFF" : "COO"}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mustCloseToday: suggestion.mustCloseToday,
+        outcome: suggestion.outcome,
+        priority: suggestion.priority,
+        riskLevel: suggestion.riskLevel,
+        sortOrder,
+        supportNeeded: suggestion.riskLevel === "BLOCKED" ? suggestion.detail : "",
+        riskNote: suggestion.riskLevel === "WATCH" ? suggestion.detail : ""
+      })
+    });
+    const payload = await response.json().catch(() => null) as { error?: string } | null;
+    if (!response.ok) throw new Error(payload?.error ?? "Unable to save Daily Focus.");
+  }, [model.generatedAt, workbookView]);
+
+  async function addDailyFocus(suggestion?: DailyFocusSuggestion) {
+    const outcome = (suggestion?.outcome ?? focusOutcome).trim();
     if (!outcome) return;
     if (isPilotClosed) {
       setNotice("This workbook day is closed. Reopen the day before adding the next outcome.");
@@ -1526,23 +1706,21 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
     }
     setSaving(true);
     try {
-      const response = await fetch(`/api/coo-workbook/daily-focus?date=${encodeURIComponent(model.generatedAt.slice(0, 10))}&scope=${workbookView === "MY" ? "STAFF" : "COO"}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mustCloseToday: focusMustClose,
-          outcome,
-          priority: focusPriority,
-          riskLevel: focusRisk,
-          sortOrder: dailyFocus.length,
-          supportNeeded
-        })
-      });
-      const payload = await response.json().catch(() => null) as { error?: string } | null;
-      if (!response.ok) throw new Error(payload?.error ?? "Unable to save Daily Focus.");
-      setFocusOutcome("");
-      setSupportNeeded("");
-      setNotice("Daily Focus saved.");
+      await createDailyFocusFromSuggestion(suggestion ?? {
+        detail: supportNeeded,
+        href: "/vehicles/coo-workbook/effectiveness-pilot#start-the-day",
+        mustCloseToday: focusMustClose,
+        outcome,
+        priority: focusPriority,
+        riskLevel: focusRisk,
+        sourceId: "manual",
+        sourceLabel: "Manual"
+      }, dailyFocus.length);
+      if (!suggestion) {
+        setFocusOutcome("");
+        setSupportNeeded("");
+      }
+      setNotice(suggestion ? "Suggested Daily Focus added." : "Daily Focus saved.");
       await refreshPilotWorkbook();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Unable to save Daily Focus.");
@@ -1589,6 +1767,23 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
     }
   }
 
+  async function undoDailyFocus(item: DailyFocusItem) {
+    setSaving(true);
+    try {
+      const response = await fetch(`/api/coo-workbook/daily-focus/${encodeURIComponent(item.id)}`, {
+        method: "DELETE"
+      });
+      const payload = await response.json().catch(() => null) as { error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error ?? "Unable to remove Daily Focus.");
+      setNotice("Daily Focus removed. You can choose another item.");
+      await refreshPilotWorkbook();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Unable to remove Daily Focus.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function saveDailyFocusProgress(item: DailyFocusItem) {
     const progressUpdate = (focusProgressUpdates[item.id] ?? item.progressUpdate ?? "").trim();
     if (!progressUpdate) {
@@ -1616,33 +1811,6 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Unable to ask for support.");
     } finally {
-      setSaving(false);
-    }
-  }
-
-  async function runCloseStep(step: "carryover" | "draft") {
-    setSaving(true);
-    setCloseStepInProgress(step);
-    setCloseStepNotice(null);
-    try {
-      const scope = workbookView === "MY" ? "STAFF" : "COO";
-      const path = step === "carryover" ? "carryovers" : scope === "STAFF" ? "staff/report-drafts" : "report-drafts";
-      const response = await fetch(`/api/coo-workbook/${path}?date=${encodeURIComponent(model.generatedAt.slice(0, 10))}&scope=${scope}&cadence=DAILY`, { method: "POST" });
-      const payload = await response.json().catch(() => null) as { count?: number; error?: string; targetBoardDate?: string } | null;
-      if (!response.ok) throw new Error(payload?.error ?? "Unable to complete close step.");
-      const message = step === "carryover"
-        ? `Tomorrow setup prepared${payload?.count === undefined ? "" : ` with ${payload.count} item(s)`}${payload?.targetBoardDate ? ` for ${payload.targetBoardDate}` : ""}.`
-        : "Daily report draft generated and saved.";
-      setCloseStepView(step === "carryover" ? "TOMORROW" : "DRAFT");
-      setCloseStepNotice(message);
-      setNotice(message);
-      await refreshPilotWorkbook();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to complete close step.";
-      setCloseStepNotice(message);
-      setNotice(message);
-    } finally {
-      setCloseStepInProgress(null);
       setSaving(false);
     }
   }
@@ -1686,12 +1854,28 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
           <input aria-label="Support needed" onChange={(event) => setSupportNeeded(event.target.value)} placeholder="Support needed, if any..." value={supportNeeded} />
           <button disabled={saving || isPilotClosed || !focusOutcome.trim()} onClick={() => void addDailyFocus()} title={isPilotClosed ? "Reopen the workbook day before adding an outcome." : "Add this outcome to the workbook."} type="button"><Plus /> Add Today&apos;s Outcome</button>
         </div>
+        {visibleDailyFocusSuggestions.length ? <div className="advisor-coo-focus-suggestions" aria-label="Suggested Daily Focus from app priorities">
+          <header><strong>Suggested focus</strong><small>{manualFocusSlots ? `Approve what fits, then add ${manualFocusSlots} more manually to reach three focus items.` : "Review and approve the three most important source-backed priorities."}</small></header>
+          {visibleDailyFocusSuggestions.map((item) => <article className={dailyFocusSuggestionTone(item)} key={item.sourceId}>
+            <Link href={item.href} title={`Open source details for ${item.outcome}`}><strong>{item.outcome}</strong><small>{item.sourceLabel} · {item.priority.toLocaleLowerCase()} · {item.riskLevel.toLocaleLowerCase()}</small><small>{item.detail}</small></Link>
+            <button disabled={saving || isPilotClosed || dailyFocus.length >= 3} onClick={() => void addDailyFocus(item)} title={item.detail} type="button"><Plus /> Approve</button>
+          </article>)}
+        </div> : null}
+        {moreAttentionSuggestions.length ? <div className="advisor-coo-more-attention" aria-label="More app priorities needing attention">
+          <header><strong>More needing attention</strong><small>Use these if one of the suggested focus items does not fit today.</small></header>
+          {moreAttentionSuggestions.map((item) => <article className={dailyFocusSuggestionTone(item)} key={item.sourceId}>
+            <Link href={item.href} title={`Open source details for ${item.outcome}`}><strong>{item.outcome}</strong><small>{item.sourceLabel} · {item.priority.toLocaleLowerCase()} · {item.riskLevel.toLocaleLowerCase()}</small></Link>
+            <Link className="advisor-coo-suggestion-detail-link" href={item.href} title={`Open source details for ${item.outcome}`}>{item.detail}</Link>
+            <button disabled={saving || isPilotClosed || dailyFocus.length >= 3} onClick={() => void addDailyFocus(item)} title={item.detail} type="button"><Plus /> Add to Focus</button>
+          </article>)}
+        </div> : null}
         {notice ? <p className="advisor-coo-workspace-notice" role="status">{notice}</p> : null}
         <div className="advisor-coo-focus-list">
           {dailyFocus.length ? dailyFocus.slice(0, 5).map((item) => <article className={item.riskLevel.toLocaleLowerCase()} key={item.id}>
             <span><strong>{item.outcome}</strong><small>{item.priority.toLocaleLowerCase()} · {item.mustCloseToday ? "must close" : "flexible"}</small></span>
             <select aria-label={`Status for ${item.outcome}`} disabled={saving || isPilotClosed} onChange={(event) => void updateDailyFocus(item, { status: event.target.value as DailyFocusStatus })} value={item.status}>{focusStatuses.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select>
             <select aria-label={`Risk for ${item.outcome}`} disabled={saving || isPilotClosed} onChange={(event) => void updateDailyFocus(item, { riskLevel: event.target.value as DailyFocusRisk })} value={item.riskLevel}>{focusRiskLevels.map((risk) => <option key={risk.value} value={risk.value}>{risk.label}</option>)}</select>
+            <button className="advisor-coo-focus-undo" disabled={saving || isPilotClosed} onClick={() => void undoDailyFocus(item)} title="Remove this Daily Focus so another can be chosen." type="button"><Undo2 /> Undo</button>
             <div className="advisor-coo-focus-progress">
               <input aria-label={`Progress update for ${item.outcome}`} disabled={saving || isPilotClosed} onChange={(event) => setFocusProgressUpdates((current) => ({ ...current, [item.id]: event.target.value }))} placeholder="Quick progress update..." value={focusProgressUpdates[item.id] ?? item.progressUpdate ?? ""} />
               <button disabled={saving || isPilotClosed || !(focusProgressUpdates[item.id] ?? item.progressUpdate ?? "").trim()} onClick={() => void saveDailyFocusProgress(item)} type="button">Save Update</button>
@@ -1718,29 +1902,6 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
           <Link href="/vehicles/coo-workbook/quick-update"><MessageSquareText /> Quick Update</Link>
           <Link href="/vehicles/coo-workbook/action-plan"><ClipboardCheck /> Action Plan</Link>
           <Link href="/vehicles/coo-workbook/report-seeds"><FileText /> Report Seeds</Link>
-        </div>
-      </article>
-
-      <article className="advisor-coo-end-day">
-        <header><div><strong>End The Day</strong><small>Close cleanly and set tomorrow up before leaving.</small></div><span>{activeWorkbook.governance.closeReadinessState.toLocaleLowerCase()}</span></header>
-        <div aria-label="End The Day review steps" className="advisor-coo-close-flow" role="tablist">
-          <button aria-selected={closeStepView === "DONE"} onClick={() => setCloseStepView("DONE")} role="tab" type="button"><ListChecks /><strong>Done / Not Done</strong><small>{activeWorkbook.execution.completedWorkCount}/{activeWorkbook.execution.plannedWorkCount} planned complete</small></button>
-          <button aria-selected={closeStepView === "TOMORROW"} onClick={() => setCloseStepView("TOMORROW")} role="tab" type="button"><CalendarClock /><strong>Tomorrow Setup</strong><small>{activeWorkbook.risk.tomorrowCarryoverCandidates.length} candidate item(s)</small></button>
-          <button aria-selected={closeStepView === "DRAFT"} onClick={() => setCloseStepView("DRAFT")} role="tab" type="button"><FileText /><strong>Report Draft</strong><small>{activeWorkbook.reporting.staffGuidance}</small></button>
-        </div>
-        <p className="advisor-coo-governance-note">{activeWorkbook.governance.nextRecommendedAction}</p>
-        <div className="advisor-coo-tomorrow-list" role="tabpanel">
-          {closeStepView === "DONE" ? closeReviewItems.length ? closeReviewItems.map((item) => <p key={item.id}><strong>{item.title}</strong><small>{item.status} · {item.detail}</small></p>) : <p><CheckCircle2 /> No planned work has been added yet.</p> : null}
-          {closeStepView === "TOMORROW" ? tomorrowItems.length ? tomorrowItems.map((item) => <p key={item.id}><strong>{item.title}</strong><small>{item.detail}</small></p>) : <p><CheckCircle2 /> No tomorrow setup items yet.</p> : null}
-          {closeStepView === "DRAFT" ? <>
-            {latestReportDraft ? <p><strong>{latestReportDraft.title}</strong><small>{latestReportDraft.summary}</small></p> : <p><FileText /> No saved draft yet. Generate a draft from reviewed report seeds when the day is ready.</p>}
-            {draftPreviewItems.length ? draftPreviewItems.map((item) => <p key={item.id}><strong>{item.title}</strong><small>{item.section} · {item.detail}</small></p>) : null}
-          </> : null}
-        </div>
-        {closeStepNotice ? <p className="advisor-coo-close-step-notice" role="status">{closeStepNotice}</p> : null}
-        <div className="advisor-coo-seed-actions">
-          <button disabled={saving} onClick={() => void runCloseStep("carryover")} type="button">{closeStepInProgress === "carryover" ? "Preparing..." : "Prepare Tomorrow"}</button>
-          <button disabled={saving} onClick={() => void runCloseStep("draft")} type="button">{closeStepInProgress === "draft" ? "Generating..." : "Generate Draft"}</button>
         </div>
       </article>
 
