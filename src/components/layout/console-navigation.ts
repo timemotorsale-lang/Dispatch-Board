@@ -4,6 +4,7 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import {
   getPermittedWorkspaces,
   getWorkspaceDefinition,
+  getWorkspaceWorkbookLabel,
   resolveWorkspaceForPath,
   type WorkspaceKey
 } from "@/server/auth/navigation";
@@ -57,7 +58,7 @@ const inventoryItems: NavigationItem[] = [
   },
   {
     href: "/vehicles/coo-workbook",
-    title: "COO Workbook",
+    title: "Inventory Workbook",
     description: "Daily operating checklist, review-before-approval context, and report draft workspace.",
     icon: ClipboardList
   },
@@ -285,11 +286,12 @@ export function getConsoleNavigation(
   }
 
   if (pathname === "/vehicles/coo-workbook" || pathname.startsWith("/vehicles/coo-workbook/")) {
+    const label = getWorkspaceWorkbookLabel(resolvedWorkspace);
     return {
       badge: "Review",
       homeHref: "/vehicles/coo-workbook",
-      items: getDispatchNavigationItems(user),
-      subtitle: "COO Daily Workbook",
+      items: getDispatchNavigationItems(user, resolvedWorkspace),
+      subtitle: label,
       title: "Time Motor Sales"
     };
   }

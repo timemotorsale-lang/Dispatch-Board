@@ -27,6 +27,7 @@ import {
   createCooWorkbookReportDraft,
   createStaffSupportAction,
   createStaffWorkbookChecklistItem,
+  currentWorkdayBoardDate,
   deleteWorkbookDailyFocusItem,
   getStaffWorkbook,
   getStaffWorkbookSummaries,
@@ -295,9 +296,31 @@ function repositoryHarness(ownerUserId = "user-jordan.sales@local.test") {
         })),
         reportDrafts: [{
           cadence: WorkdayReportCadence.DAILY,
+          createdAt: new Date("2026-08-29T15:00:00.000Z"),
           generatedAt: new Date("2026-08-29T15:00:00.000Z"),
+          generatedByUserId: "user-jordan.sales@local.test",
+          id: "draft-1",
+          periodEnd: new Date("2026-08-29T00:00:00.000Z"),
+          periodStart: new Date("2026-08-29T00:00:00.000Z"),
+          sections: [{
+            id: "execution",
+            items: [{
+              detail: "Customer callback is still pending.",
+              reviewNote: "",
+              sourceId: "seed-1",
+              sourceType: WorkdayReportSeedSourceType.OPERATING_SIGNAL,
+              title: "Approval follow-up"
+            }],
+            summary: "One staff report item is ready.",
+            title: "Execution"
+          }],
+          sourceSeedIds: ["seed-1"],
           status: "DRAFT",
-          version: 1
+          summary: "Jordan prepared one staff report item.",
+          title: "Jordan Daily Report - 2026-08-29",
+          updatedAt: new Date("2026-08-29T15:00:00.000Z"),
+          version: 1,
+          workbookId: currentWorkbook.id
         }],
         reportSeeds: currentWorkbook.reportSeeds.map((seed) => ({ id: seed.id, status: seed.status })),
         supportActions: currentWorkbook.supportActions.map((item) => ({
@@ -348,6 +371,11 @@ function repositoryHarness(ownerUserId = "user-jordan.sales@local.test") {
 }
 
 describe("workday workbook service", () => {
+  it("uses the dealership local date for the current workbook date", () => {
+    expect(currentWorkdayBoardDate(new Date("2026-09-01T01:51:00.000Z"))).toBe("2026-08-31");
+    expect(currentWorkdayBoardDate(new Date("2026-09-01T06:01:00.000Z"))).toBe("2026-09-01");
+  });
+
   it("generates report seeds from meaningful checklist items, quick updates, and operating signals", () => {
     const seeds = buildWorkdayReportSeeds(workbook(), {
       approvalCount: 1,
@@ -439,6 +467,23 @@ describe("workday workbook service", () => {
     expect(draft.sections.map((section) => section.title)).toContain("Blockers and Risks");
     expect(draft.sections.map((section) => section.title)).toContain("Carryover for Tomorrow");
     expect(JSON.stringify(draft.sections)).not.toContain("Do not include this line.");
+  });
+
+  it("does not turn report-generation bookkeeping into future report content", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("morgan.manager@local.test")!;
+    const harness = repositoryHarness(user.id);
+
+    await createCooWorkbookReportDraft(user, "2026-08-29", WorkdayReportCadence.DAILY, {
+      approvalCount: 0,
+      handoffCount: 0,
+      reportExceptions: 0
+    }, { repository: harness.repository });
+
+    expect(harness.createdActivitySignals).toContainEqual(expect.objectContaining({
+      actionType: "workbook.report_draft_generated",
+      reportRelevant: false
+    }));
   });
 
   it("builds carryovers from checklist, Quick Updates, and reviewed carried seeds", () => {

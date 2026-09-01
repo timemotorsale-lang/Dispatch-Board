@@ -166,6 +166,7 @@ const ROUTE_WORKSPACES: Array<{ prefix: string; workspaces: WorkspaceKey[] }> = 
   { prefix: "/today", workspaces: [...WORKSPACE_KEYS] },
   { prefix: "/board", workspaces: ["MANAGEMENT"] },
   { prefix: "/command-center", workspaces: ["MANAGEMENT"] },
+  { prefix: "/vehicles/coo-workbook", workspaces: [...WORKSPACE_KEYS] },
   { prefix: "/vehicles/parts", workspaces: ["PARTS", "VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "MANAGEMENT"] },
   { prefix: "/vehicles/quality-control", workspaces: ["QUALITY", "VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "MANAGEMENT"] },
   { prefix: "/vehicles/shop-recon", workspaces: ["VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "MANAGEMENT"] },
@@ -243,6 +244,26 @@ export function isWorkspaceKey(value: unknown): value is WorkspaceKey {
 
 export function getWorkspaceDefinition(key: WorkspaceKey) {
   return WORKSPACE_BY_KEY[key];
+}
+
+export function getWorkspaceWorkbookLabel(key: WorkspaceKey) {
+  const labels = {
+    ADVISOR: "Service Advisor Workbook",
+    COLLECTIONS: "Collections Workbook",
+    GENERAL_STAFF: "General Staff Workbook",
+    INVENTORY: "Inventory Workbook",
+    MANAGEMENT: "COO Workbook",
+    MARKETING: "Marketing Workbook",
+    OFFICE: "Office Workbook",
+    OPERATIONS_COORDINATOR: "Operations Coordinator Workbook",
+    PARTS: "Parts Workbook",
+    QUALITY: "Quality Workbook",
+    SALES: "Sales Workbook",
+    SERVICE: "Service Operations Workbook",
+    TECHNICIAN: "Technician Workbook",
+    VEHICLE_OPERATIONS_LEAD: "Vehicle Operations Lead Workbook"
+  } satisfies Record<WorkspaceKey, string>;
+  return labels[key];
 }
 
 export function getPermittedWorkspaces(user: AuthenticatedUser): WorkspaceDefinition[] {

@@ -41,7 +41,7 @@ const workbookSummaryInclude = {
   carryovers: { select: { status: true, targetBoardDate: true, updatedAt: true } },
   dailyFocusItems: { select: { mustCloseToday: true, priority: true, riskLevel: true, status: true, supportNeeded: true, updatedAt: true } },
   quickUpdates: { select: { carryoverReady: true, followUpNeeded: true, updatedAt: true } },
-  reportDrafts: { orderBy: [{ generatedAt: "desc" as const }, { id: "asc" as const }], select: { generatedAt: true, status: true, version: true }, take: 1 },
+  reportDrafts: { orderBy: [{ generatedAt: "desc" as const }, { id: "asc" as const }], take: 1 },
   reportSeeds: { select: { id: true, status: true } },
   supportActions: { select: { status: true, updatedAt: true } },
   user: { select: { id: true, name: true } }

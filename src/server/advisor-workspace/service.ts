@@ -2,7 +2,8 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { createBoardReadRepository } from "@/server/repositories/board-read-repository";
 import { createStaffDayRepository } from "@/server/repositories/staff-day-repository";
 import { getRepairOrderCreateOptions, listRepairOrders } from "@/server/repair-order/service";
-import { getCooWorkbook, getStaffWorkbook, getStaffWorkbookSummaries } from "@/server/services/workday-workbook";
+import { currentWorkdayBoardDate, getCooWorkbook, getStaffWorkbook, getStaffWorkbookSummaries } from "@/server/services/workday-workbook";
+import { getWorkspaceDefinition, getWorkspaceKey, getWorkspaceWorkbookLabel } from "@/server/auth/navigation";
 import { isManager } from "@/server/policies/access";
 
 type AdvisorActionKind = "AUTHORIZATION" | "PROMISE_RISK" | "PARTS_DELAY" | "CUSTOMER_UPDATE" | "HANDOFF" | "FOLLOW_UP_SCHEDULED" | "TECHNICIAN_CLARIFICATION";
@@ -258,13 +259,17 @@ export async function getServiceAdvisorWorkspace(actor: AuthenticatedUser) {
     listRepairOrders(actor, { page: 1, pageSize: 12 })
   ]);
   const now = new Date();
-  const todayKey = now.toISOString().slice(0, 10);
+  const todayKey = currentWorkdayBoardDate(now);
+  const workspaceKey = getWorkspaceKey(actor);
+  const workspaceDefinition = getWorkspaceDefinition(workspaceKey);
+  const staffWorkbookLabel = getWorkspaceWorkbookLabel(workspaceKey);
+  const managementWorkbookLabel = isManager(actor) ? getWorkspaceWorkbookLabel("MANAGEMENT") : "Team Workbook";
   const appointments = options.appointments.map((appointment) => ({
     ...appointment,
       customer: appointment.participants[0]?.customer ?? null,
       vehicle: appointment.vehicles[0]?.vehicle ?? null
   }));
-  const todaysArrivals = appointments.filter((appointment) => appointment.startsAt?.toISOString().slice(0, 10) === todayKey);
+  const todaysArrivals = appointments.filter((appointment) => appointment.startsAt ? currentWorkdayBoardDate(appointment.startsAt) === todayKey : false);
   const waitingCheckIn = appointments.filter((appointment) => !appointment.startsAt || appointment.startsAt >= new Date(now.getTime() - 12 * 60 * 60 * 1000));
   const actionQueue = openOrders.items
     .map((order) => ({ order, action: advisorActionFor(order) }))
@@ -316,8 +321,16 @@ export async function getServiceAdvisorWorkspace(actor: AuthenticatedUser) {
   })).sort((left, right) => Number(right.needsResponse) - Number(left.needsResponse) || new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime());
 
   return {
+    boardDate: todayKey,
     generatedAt: now.toISOString(),
     advisor: { id: actor.id, name: actor.name },
+    workspace: {
+      canUseManagementWorkbook: isManager(actor),
+      key: workspaceKey,
+      label: workspaceDefinition.label,
+      staffWorkbookLabel,
+      managementWorkbookLabel
+    },
     workbook,
     staffWorkbook,
     staffWorkbookSummaries,

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/server/auth/current-user";
-import { createCooWorkbookQuickUpdate } from "@/server/services/workday-workbook";
+import { createCooWorkbookQuickUpdate, currentWorkdayBoardDate } from "@/server/services/workday-workbook";
 
 function statusFor(message: string) {
   if (message === "Authentication required.") return 401;
@@ -11,7 +11,7 @@ function statusFor(message: string) {
 
 export async function POST(request: Request) {
   const url = new URL(request.url);
-  const boardDate = url.searchParams.get("date") ?? new Date().toISOString().slice(0, 10);
+  const boardDate = url.searchParams.get("date") ?? currentWorkdayBoardDate();
   const payload = await request.json().catch(() => null);
 
   try {

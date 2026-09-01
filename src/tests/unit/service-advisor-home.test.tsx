@@ -5,8 +5,16 @@ import { CooDailyWorkbook, CooEffectivenessPilotWorkbook, ServiceAdvisorHome } f
 import type { ServiceAdvisorWorkspaceModel } from "@/server/advisor-workspace/service";
 
 const model = {
+  boardDate: "2026-07-20",
   generatedAt: "2026-07-20T14:00:00.000Z",
   advisor: { id: "user-alex", name: "Alex Carter" },
+  workspace: {
+    canUseManagementWorkbook: false,
+    key: "ADVISOR",
+    label: "Advisor Workspace",
+    managementWorkbookLabel: "Management Workbook",
+    staffWorkbookLabel: "Service Advisor Workbook"
+  },
   morningPrioritySources: [
     {
       detail: "Alex Carter · blocked · Customer callback may delay close.",
@@ -730,13 +738,12 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("compose=customer");
   });
 
-  it("renders the COO workbook as a simple daily execution landing page", () => {
+  it("renders the role workbook as a simple daily execution landing page", () => {
     const html = renderToStaticMarkup(<CooDailyWorkbook model={model} />);
 
-    expect(html).toContain("COO Workbook");
     expect(html).toContain("A simple daily workspace for planning, execution, accountability, and reporting.");
-    expect(html).toContain("COO View");
-    expect(html).toContain("My Workbook");
+    expect(html).toContain("Service Advisor Workbook");
+    expect(html).not.toContain("Management Workbook");
     expect(html).toContain("Today&#x27;s Command");
     expect(html).toContain("What Needs Attention Now");
     expect(html).toContain("Open a Tool");
@@ -784,8 +791,7 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("Staff source");
     expect(html).toContain("Generate Report");
     expect(html).toContain("All workspace sources connected");
-    expect(html).toContain("Review morning approval queue");
-    expect(html).toContain("AJ checked the roof today.");
+    expect(html).toContain("Finish customer callbacks");
     expect(html).toContain("/vehicles/coo-workbook/checklist");
     expect(html).toContain("/vehicles/coo-workbook/to-do-list");
     expect(html).toContain("/vehicles/coo-workbook/quick-update");
@@ -816,16 +822,25 @@ describe("ServiceAdvisorHome", () => {
     expect(html).not.toContain("2018 Honda Accord");
   });
 
-  it("renders focused COO workbook tools with working controls", () => {
-    const checklistHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="CHECKLIST" model={model} />);
-    const todoHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="TO_DO_LIST" model={model} />);
-    const quickUpdateHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="QUICK_UPDATE" model={model} />);
-    const reportSeedsHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="REPORT_SEEDS" model={model} />);
-    const draftsHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="DRAFTS" model={model} />);
-    const moreToolsHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="MORE_TOOLS" model={model} />);
+  it("renders focused role workbook tools with working controls", () => {
+    const toolModel = {
+      ...model,
+      staffWorkbook: {
+        ...model.staffWorkbook,
+        quickUpdates: model.workbook.quickUpdates,
+        reportDrafts: model.workbook.reportDrafts,
+        reportSeeds: model.workbook.reportSeeds
+      }
+    } satisfies ServiceAdvisorWorkspaceModel;
+    const checklistHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="CHECKLIST" model={toolModel} />);
+    const todoHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="TO_DO_LIST" model={toolModel} />);
+    const quickUpdateHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="QUICK_UPDATE" model={toolModel} />);
+    const reportSeedsHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="REPORT_SEEDS" model={toolModel} />);
+    const draftsHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="DRAFTS" model={toolModel} />);
+    const moreToolsHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="MORE_TOOLS" model={toolModel} />);
 
     expect(checklistHtml).toContain("Add Daily Checklist item");
-    expect(checklistHtml).toContain("Status for Review morning approval queue");
+    expect(checklistHtml).toContain("Status for Finish customer callbacks");
     expect(checklistHtml).toContain("Convert");
     expect(todoHtml).toContain("Open Daily Checklist");
     expect(todoHtml).toContain("Open Tasks");
@@ -841,7 +856,7 @@ describe("ServiceAdvisorHome", () => {
     expect(draftsHtml).toContain("Weekly");
     expect(draftsHtml).toContain("Monthly");
     expect(draftsHtml).toContain("Copy Draft");
-    expect(moreToolsHtml).toContain("COO Workbook More Tools");
+    expect(moreToolsHtml).toContain("Service Advisor Workbook More Tools");
     expect(moreToolsHtml).toContain("Each tool opens a real workbook area");
     expect(moreToolsHtml).toContain("10 tools");
     expect(moreToolsHtml).toContain("Priority Triage");
@@ -870,15 +885,15 @@ describe("ServiceAdvisorHome", () => {
     expect(html).not.toContain("Prepare Tomorrow");
     expect(html).not.toContain("Generate Draft");
     expect(html).toContain("Manager View");
-    expect(html).toContain("Resolve top approval blocker");
+    expect(html).toContain("Complete scheduled callbacks");
     expect(html).toContain("/vehicles/coo-workbook/effectiveness-pilot");
   });
 
   it("shows source-backed staff priorities for Daily Focus approval", () => {
     const staffPriorityModel = {
       ...model,
-      workbook: {
-        ...model.workbook,
+      staffWorkbook: {
+        ...model.staffWorkbook,
         checklistItems: [],
         carryovers: [],
         dailyFocusItems: [],
@@ -906,8 +921,8 @@ describe("ServiceAdvisorHome", () => {
     const partialPriorityModel = {
       ...model,
       morningPrioritySources: model.morningPrioritySources.slice(0, 1),
-      workbook: {
-        ...model.workbook,
+      staffWorkbook: {
+        ...model.staffWorkbook,
         checklistItems: [],
         carryovers: [],
         dailyFocusItems: [],
@@ -934,13 +949,13 @@ describe("ServiceAdvisorHome", () => {
     const legacyGenericModel = {
       ...model,
       morningPrioritySources: [],
-      workbook: {
-        ...model.workbook,
+      staffWorkbook: {
+        ...model.staffWorkbook,
         checklistItems: [],
         carryovers: [],
         dailyFocusItems: [
-          { ...model.workbook.dailyFocusItems[0], id: "legacy-authorization", outcome: "Authorization needed", progressUpdate: "", supportNeeded: "" },
-          { ...model.workbook.dailyFocusItems[0], id: "legacy-promise", outcome: "Promise risk", progressUpdate: "", supportNeeded: "" }
+          { ...model.staffWorkbook.dailyFocusItems[0], id: "legacy-authorization", outcome: "Authorization needed", progressUpdate: "", supportNeeded: "" },
+          { ...model.staffWorkbook.dailyFocusItems[0], id: "legacy-promise", outcome: "Promise risk", progressUpdate: "", supportNeeded: "" }
         ],
         quickUpdates: []
       }
@@ -957,8 +972,8 @@ describe("ServiceAdvisorHome", () => {
     const genericQueueOnlyModel = {
       ...model,
       morningPrioritySources: [],
-      workbook: {
-        ...model.workbook,
+      staffWorkbook: {
+        ...model.staffWorkbook,
         checklistItems: [],
         carryovers: [],
         dailyFocusItems: [],

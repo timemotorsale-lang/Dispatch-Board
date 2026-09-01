@@ -21742,6 +21742,8 @@ html[data-app-theme="dark"] :where(.rowb-evidence-review,.rowb-evidence-review f
 .advisor-coo-landing-header>div:first-child{display:grid;gap:4px;min-width:0}
 .advisor-coo-landing-header strong{color:#091f3f;font-size:22px;line-height:1.15}
 .advisor-coo-landing-header span{color:#60728a;font-size:13px;line-height:1.35}
+.advisor-coo-landing-header .advisor-coo-header-actions{grid-column:1/-1;justify-content:flex-start;flex-wrap:nowrap}
+.advisor-coo-landing-header .advisor-coo-header-actions a,.advisor-coo-landing-header .advisor-coo-header-actions button{white-space:nowrap}
 .advisor-coo-landing .advisor-coo-workbook-switcher{border-color:#d8e2ef;background:#f8fbff}
 .advisor-coo-landing .advisor-coo-workbook-switcher button{min-height:34px;border-radius:8px;background:#fff}
 .advisor-coo-landing .advisor-coo-workbook-switcher button[aria-pressed=true]{box-shadow:0 8px 18px rgba(7,94,216,.1)}
@@ -21872,7 +21874,7 @@ html[data-app-theme="dark"] :where(.rowb-evidence-review,.rowb-evidence-review f
 .advisor-coo-landing-status span{display:inline-flex;align-items:center;gap:7px}
 .advisor-coo-landing-status svg{width:16px;color:#178850}
 @media(max-width:1100px){.advisor-coo-landing-header,.advisor-coo-landing-grid,.advisor-coo-close-day,.advisor-coo-workflow-guide{grid-template-columns:1fr}.advisor-coo-command-strip,.advisor-coo-close-flow,.advisor-coo-close-preview{grid-template-columns:repeat(2,minmax(0,1fr))}.advisor-coo-landing-header .advisor-coo-header-actions{justify-content:flex-start}.advisor-coo-close-day>button,.advisor-coo-more-tools-link{min-height:42px;width:max-content}}
-@media(max-width:720px){.advisor-coo-landing.full{padding:14px 12px 22px}.advisor-coo-command-strip,.advisor-coo-tool-grid,.advisor-coo-close-flow,.advisor-coo-close-preview,.advisor-coo-more-tools-page>div,.advisor-coo-workflow-guide nav,.advisor-coo-search-results{grid-template-columns:1fr}.advisor-coo-workflow-guide article{grid-template-columns:1fr}.advisor-coo-workflow-guide article a,.advisor-coo-workflow-guide article button{grid-row:auto;grid-column:auto;width:max-content}.advisor-coo-attention-now a{grid-template-columns:30px minmax(0,1fr)}.advisor-coo-attention-now em{grid-column:2;width:max-content}.advisor-coo-close-day>header{display:grid}.advisor-coo-landing-status{align-items:flex-start;flex-direction:column}.advisor-coo-landing-header strong{font-size:20px}}
+@media(max-width:720px){.advisor-coo-landing.full{padding:14px 12px 22px}.advisor-coo-command-strip,.advisor-coo-tool-grid,.advisor-coo-close-flow,.advisor-coo-close-preview,.advisor-coo-more-tools-page>div,.advisor-coo-workflow-guide nav,.advisor-coo-search-results{grid-template-columns:1fr}.advisor-coo-workflow-guide article{grid-template-columns:1fr}.advisor-coo-workflow-guide article a,.advisor-coo-workflow-guide article button{grid-row:auto;grid-column:auto;width:max-content}.advisor-coo-attention-now a{grid-template-columns:30px minmax(0,1fr)}.advisor-coo-attention-now em{grid-column:2;width:max-content}.advisor-coo-close-day>header{display:grid}.advisor-coo-landing-status{align-items:flex-start;flex-direction:column}.advisor-coo-landing-header strong{font-size:20px}.advisor-coo-landing-header .advisor-coo-header-actions{flex-wrap:wrap}}
 .app-content:has(.advisor-coo-effectiveness.full){padding:0;background:#f4f7fb}
 .advisor-coo-effectiveness.full{display:grid;gap:14px;max-width:1460px;margin:0 auto;padding:22px 24px 28px;color:#10233f;background:#f4f7fb;box-shadow:none}
 .advisor-coo-effectiveness .advisor-coo-landing-header{grid-template-columns:minmax(280px,1fr) auto auto}
@@ -21920,7 +21922,31 @@ html[data-app-theme="dark"] :where(.rowb-evidence-review,.rowb-evidence-review f
 .advisor-coo-update-list article>small,.advisor-coo-report-seeds article>input,.advisor-coo-report-seeds article>textarea{grid-column:1/-1}
 .advisor-coo-report-seeds article.green{border-left-color:#1c8b4d}.advisor-coo-report-seeds article.yellow{border-left-color:#c48a13}.advisor-coo-report-seeds article.red{border-left-color:#c63637}.advisor-coo-report-seeds article.blue{border-left-color:#2878c8}
 .advisor-coo-report-seeds article:target{border-color:#7aa7f5;background:#f2f7ff;box-shadow:0 0 0 3px rgba(67,105,230,.14),0 12px 30px rgba(16,38,76,.08);scroll-margin-top:110px}
+.advisor-coo-staff-reports{display:grid;gap:10px;border:1px solid #d5e0ec;border-radius:9px;padding:12px;background:#fff}
+.advisor-coo-staff-reports>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;border-bottom:1px solid #e7edf5;padding-bottom:9px}
+.advisor-coo-staff-reports>header div{display:grid;gap:3px}
+.advisor-coo-staff-reports>header strong{font-size:15px}
+.advisor-coo-staff-reports>header small{color:#60728a;font-size:11.5px}
+.advisor-coo-staff-reports>header span{border-radius:999px;padding:5px 8px;color:#075ed8;background:#eaf4ff;font-size:11px;font-weight:900;white-space:nowrap}
+.advisor-coo-staff-reports>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.advisor-coo-staff-reports article{display:grid;gap:8px;border:1px solid #e1e9f2;border-left:4px solid #68839f;border-radius:9px;padding:10px;background:#fbfdff}
+.advisor-coo-staff-reports article.ready{border-left-color:#1c8b4d}.advisor-coo-staff-reports article.support{border-left-color:#c48a13}.advisor-coo-staff-reports article.review{border-left-color:#2878c8}
+.advisor-coo-staff-reports article>header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.advisor-coo-staff-reports article>header div{display:grid;gap:2px;min-width:0}
+.advisor-coo-staff-reports article>header strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.advisor-coo-staff-reports article>header small{color:#60728a;font-size:11px}
+.advisor-coo-staff-reports article>header span{border-radius:999px;padding:4px 7px;color:#35516f;background:#eef4ff;font-size:11px;font-weight:900;white-space:nowrap}
+.advisor-coo-staff-reports p{margin:0!important;border:1px solid #e6edf5!important;border-radius:8px!important;padding:8px!important;color:#29435f!important;background:#fff!important;font-size:12px!important;line-height:1.4!important}
+.advisor-coo-staff-reports details{display:grid;gap:8px}
+.advisor-coo-staff-reports summary{color:#075ed8;font-size:12px;font-weight:900;cursor:pointer}
+.advisor-coo-staff-reports details>div{display:grid;gap:8px;margin-top:8px}
+.advisor-coo-staff-reports details section{display:grid;gap:6px;border:1px solid #e6edf5;border-radius:8px;padding:8px;background:#fff}
+.advisor-coo-staff-reports h3{margin:0;color:#10233f;font-size:12px}
+.advisor-coo-staff-reports details span{display:grid;gap:2px;border-top:1px solid #edf2f7;padding-top:6px}
+.advisor-coo-staff-reports details span:first-of-type{border-top:0;padding-top:0}
+.advisor-coo-staff-reports details strong{font-size:12px}
+.advisor-coo-staff-reports details small{color:#60728a;font-size:11px;line-height:1.35}
 .advisor-coo-action-plan>div{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.advisor-coo-action-plan article{display:grid;gap:7px;border:1px solid #e1e9f2;border-radius:9px;padding:10px;background:#fbfdff}.advisor-coo-action-plan h2{margin:0;font-size:13px}.advisor-coo-action-plan p{margin:0;color:#60728a;font-size:12px}
 .advisor-coo-todo-list .advisor-coo-action-plan{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.advisor-coo-todo-list .advisor-coo-action-plan article{display:grid;gap:8px;border:1px solid #e1e9f2;border-radius:9px;padding:10px;background:#fbfdff}.advisor-coo-todo-list .advisor-coo-action-plan h2{margin:0;font-size:13px}.advisor-coo-todo-list .advisor-coo-action-plan p{margin:0;color:#60728a;font-size:12px;line-height:1.4}
 .advisor-coo-workspace-notice button{margin-left:8px;border:1px solid #075ed8;border-radius:6px;padding:5px 8px;color:#fff;background:#075ed8;font:inherit;font-size:11.5px;font-weight:900;cursor:pointer}.advisor-coo-workspace-notice button:disabled{cursor:not-allowed;opacity:.6}
-@media(max-width:900px){.advisor-coo-tool-page-header,.advisor-coo-action-plan>div{grid-template-columns:1fr}.advisor-coo-tool-page.full{padding:14px 12px 22px}.advisor-coo-focused-tool>header{display:grid}.advisor-coo-update-list article,.advisor-coo-report-seeds article{grid-template-columns:1fr}}
+@media(max-width:900px){.advisor-coo-tool-page-header,.advisor-coo-action-plan>div,.advisor-coo-staff-reports>div{grid-template-columns:1fr}.advisor-coo-tool-page.full{padding:14px 12px 22px}.advisor-coo-focused-tool>header,.advisor-coo-staff-reports>header{display:grid}.advisor-coo-update-list article,.advisor-coo-report-seeds article{grid-template-columns:1fr}}

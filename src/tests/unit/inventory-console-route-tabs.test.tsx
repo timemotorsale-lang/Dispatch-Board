@@ -11,7 +11,7 @@ describe("Inventory Console route tabs", () => {
     expect(markup).toContain('href="/vehicles/vehicle-1/inventory-planning"');
     expect(markup).toContain('/vehicles/repair-workbench?vehicleId=vehicle-1&amp;returnTo=%2Fvehicles%2F360%2Fvehicle-1%3FreturnTo%3D%252Fvehicles%252Fvehicle-1%252Finventory-planning');
     expect(markup).toContain("Return to previous page");
-    for (const label of ["Home", "Inventory Lifecycle", "Find Vehicle", "Add Vehicle", "COO Workbook", "Shop &amp; Recon", "Repair Workbench", "Parts", "Quality Control", "Vehicle 360", "Inventory Planning", "Vehicle Workbench"]) expect(markup).toContain(label);
+    for (const label of ["Home", "Inventory Lifecycle", "Find Vehicle", "Add Vehicle", "Inventory Workbook", "Shop &amp; Recon", "Repair Workbench", "Parts", "Quality Control", "Vehicle 360", "Inventory Planning", "Vehicle Workbench"]) expect(markup).toContain(label);
     expect(markup).toContain('aria-current="page"');
   });
 

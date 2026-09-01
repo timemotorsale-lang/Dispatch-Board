@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getServiceAdvisorWorkspace } from "@/server/advisor-workspace/service";
 import { getCurrentUser } from "@/server/auth/current-user";
-import { createCooWorkbookReportDraft } from "@/server/services/workday-workbook";
+import { createCooWorkbookReportDraft, currentWorkdayBoardDate } from "@/server/services/workday-workbook";
 
 function statusFor(message: string) {
   if (message === "Authentication required.") return 401;
@@ -12,7 +12,7 @@ function statusFor(message: string) {
 
 export async function POST(request: Request) {
   const url = new URL(request.url);
-  const boardDate = url.searchParams.get("date") ?? new Date().toISOString().slice(0, 10);
+  const boardDate = url.searchParams.get("date") ?? currentWorkdayBoardDate();
   const cadence = (url.searchParams.get("cadence") ?? "DAILY").toUpperCase();
 
   try {

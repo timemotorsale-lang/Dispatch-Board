@@ -34,13 +34,19 @@ import {
   buildWorkflowGovernanceEngine
 } from "@/server/services/workday-workbook-engines";
 import { assertAuthenticatedUser, isManager } from "@/server/policies/access";
-import { normalizeBoardDate } from "@/server/validation/board-date";
+import { getBoardDateInTimeZone, normalizeBoardDate } from "@/server/validation/board-date";
 
 export type WorkdayWorkbookOperatingSignals = {
   approvalCount: number;
   handoffCount: number;
   reportExceptions: number;
 };
+
+export const WORKDAY_WORKBOOK_TIME_ZONE = "America/Chicago";
+
+export function currentWorkdayBoardDate(now = new Date()) {
+  return getBoardDateInTimeZone(now, WORKDAY_WORKBOOK_TIME_ZONE);
+}
 
 type Dependencies = {
   repository?: WorkdayWorkbookRepository;
@@ -268,6 +274,19 @@ function activityReportRelevant(purpose: WorkdayActivityPurpose) {
   return reportRelevantPurposes.includes(purpose);
 }
 
+function workbookActivityReportRelevant(eventType: string, purpose: WorkdayActivityPurpose) {
+  const normalized = eventType.toLocaleLowerCase();
+  const internalWorkbookEvents = [
+    "workbook.report_draft",
+    "workbook.report_seed",
+    "workbook.day_",
+    "workbook.carryover_",
+    "workbook.staff_support_"
+  ];
+  if (internalWorkbookEvents.some((eventPrefix) => normalized.startsWith(eventPrefix))) return false;
+  return activityReportRelevant(purpose);
+}
+
 async function recordWorkbookActivity(repository: WorkdayWorkbookRepository, user: AuthenticatedUser, workbook: { boardDayId: string; id: string; scope: WorkdayWorkbookScope }, eventType: string, message: string, metadata: Record<string, unknown> = {}) {
   const purpose = classifyActivityPurpose(eventType, metadata);
   await repository.recordActivity({
@@ -289,7 +308,7 @@ async function recordWorkbookActivity(repository: WorkdayWorkbookRepository, use
     coachingRelevant: true,
     metadata: { ...metadata, scope: workbook.scope },
     purpose,
-    reportRelevant: activityReportRelevant(purpose),
+    reportRelevant: workbookActivityReportRelevant(eventType, purpose),
     sourceId: typeof metadata.sourceId === "string" ? metadata.sourceId : `${eventType}:${workbook.id}:${Date.now()}`,
     sourceModule: activitySourceModule(eventType, metadata),
     sourceType: typeof metadata.sourceType === "string" ? metadata.sourceType : "WORKBOOK_ACTIVITY",
@@ -862,6 +881,22 @@ function toStaffWorkbookSummary(record: WorkdayWorkbookSummaryRecord) {
     openSupportActions,
     reportSeedCount: record.reportSeeds.length,
     reviewedSeedCount,
+    latestReportDraft: latestDraft ? {
+      id: latestDraft.id,
+      version: latestDraft.version,
+      cadence: latestDraft.cadence,
+      periodStart: latestDraft.periodStart.toISOString().slice(0, 10),
+      periodEnd: latestDraft.periodEnd.toISOString().slice(0, 10),
+      status: latestDraft.status,
+      title: latestDraft.title,
+      summary: latestDraft.summary,
+      sections: latestDraft.sections as WorkdayReportDraftSection[],
+      sourceSeedIds: latestDraft.sourceSeedIds as string[],
+      generatedByUserId: latestDraft.generatedByUserId,
+      generatedAt: dateToIso(latestDraft.generatedAt),
+      createdAt: dateToIso(latestDraft.createdAt),
+      updatedAt: dateToIso(latestDraft.updatedAt)
+    } : null,
     closeReadinessScore: closeScore,
     closeReadinessTone: closeTone,
     closeReadinessPrompts: closePrompts,

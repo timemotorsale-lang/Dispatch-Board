@@ -115,7 +115,7 @@ function actionQueueCount(items: Action[], kind: Action["actionKind"]) {
 function repairOrderWorkbookHref(repairOrderId: string) {
   return `/vehicles/repair-workbench?${new URLSearchParams({
     repairOrderId,
-    returnLabel: "COO Workbook",
+    returnLabel: "Daily Workbook",
     returnTo: "/vehicles/coo-workbook"
   }).toString()}`;
 }
@@ -357,7 +357,7 @@ function dailyFocusSuggestionTone(suggestion: DailyFocusSuggestion) {
 }
 
 export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, initialTool = null, model }: { compact?: boolean; closedRepairOrderId?: string | null; initialTool?: CooWorkbookTool | null; model: ServiceAdvisorWorkspaceModel }) {
-  const [workbookView, setWorkbookView] = useState<WorkbookViewMode>("COO");
+  const [workbookView, setWorkbookView] = useState<WorkbookViewMode>(model.workspace.canUseManagementWorkbook ? "COO" : "MY");
   const [workbook, setWorkbook] = useState<WorkdayWorkbookModel>(model.workbook);
   const [staffWorkbook, setStaffWorkbook] = useState<WorkdayWorkbookModel>(model.staffWorkbook);
   const [staffWorkbookSummaries, setStaffWorkbookSummaries] = useState(model.staffWorkbookSummaries);
@@ -385,8 +385,12 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
     : model.actionQueue;
   const approvalCount = actionQueueCount(actionQueue, "AUTHORIZATION");
   const reportExceptions = actionQueue.filter((item) => matchesFilter(item, "ATTENTION") || matchesFilter(item, "WAITING")).length;
-  const activeWorkbook = workbookView === "MY" ? staffWorkbook : workbook;
-  const activeWorkbookLabel = workbookView === "MY" ? "My Workbook" : "COO Workbook";
+  const staffWorkbookLabel = model.workspace.staffWorkbookLabel;
+  const managementWorkbookLabel = model.workspace.managementWorkbookLabel;
+  const canUseManagementWorkbook = model.workspace.canUseManagementWorkbook;
+  const effectiveWorkbookView: WorkbookViewMode = canUseManagementWorkbook ? workbookView : "MY";
+  const activeWorkbook = effectiveWorkbookView === "MY" ? staffWorkbook : workbook;
+  const activeWorkbookLabel = effectiveWorkbookView === "MY" ? staffWorkbookLabel : managementWorkbookLabel;
   const checklistItems = activeWorkbook.checklistItems;
   const quickUpdates = activeWorkbook.quickUpdates;
   const reportSeeds = activeWorkbook.reportSeeds;
@@ -431,10 +435,10 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
     total: staffWorkbookSummaries.length
   };
   const planTaskHref = cooTaskIntakeHref({
-    brief: `Create the COO daily action plan from ${actionQueue.length} active repair order signal(s), ${approvalCount} approval review item(s), and ${reportExceptions} unresolved risk/carryover item(s).`,
+    brief: `Create the ${activeWorkbookLabel} daily action plan from ${actionQueue.length} active repair order signal(s), ${approvalCount} approval review item(s), and ${reportExceptions} unresolved risk/carryover item(s).`,
     dueAt: model.generatedAt,
     expectedOutcome: "The COO daily action plan is reviewed, prioritized, assigned, and ready to support the end-of-day operations report.",
-    title: "Create COO daily action plan"
+    title: `Create ${activeWorkbookLabel} daily action plan`
   });
   const supportSignals = closeReadiness.checklistNeedsSupport + closeReadiness.quickFollowUps + reportExceptions;
   const buildSearchText = (...parts: Array<string | number | null | undefined | string[]>) => parts.flatMap((part) => Array.isArray(part) ? part : [part]).filter((part): part is string | number => part !== null && part !== undefined && String(part).trim().length > 0).join(" ").toLocaleLowerCase();
@@ -728,15 +732,15 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
   }
 
   async function refreshStaffWorkbook() {
-    const response = await fetch(`/api/coo-workbook/staff?date=${encodeURIComponent(model.generatedAt.slice(0, 10))}`);
+    const response = await fetch(`/api/coo-workbook/staff?date=${encodeURIComponent(model.boardDate)}`);
     const payload = await response.json().catch(() => null) as { staffWorkbookSummaries?: StaffWorkbookSummary[]; workbook?: WorkdayWorkbookModel; error?: string } | null;
-    if (!response.ok || !payload?.workbook) throw new Error(payload?.error ?? "Unable to refresh My Workbook.");
+    if (!response.ok || !payload?.workbook) throw new Error(payload?.error ?? `Unable to refresh ${staffWorkbookLabel}.`);
     setStaffWorkbook(payload.workbook);
     setStaffWorkbookSummaries(payload.staffWorkbookSummaries ?? []);
   }
 
   async function refreshActiveWorkbook() {
-    if (workbookView === "MY") {
+    if (effectiveWorkbookView === "MY") {
       await refreshStaffWorkbook();
       return;
     }
@@ -744,7 +748,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
   }
 
   function updateActiveWorkbook(updater: (current: WorkdayWorkbookModel) => WorkdayWorkbookModel) {
-    if (workbookView === "MY") {
+    if (effectiveWorkbookView === "MY") {
       setStaffWorkbook(updater);
       return;
     }
@@ -760,7 +764,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
     }
     setSaving(true);
     try {
-      const response = await fetch(`/api/coo-workbook/${workbookView === "MY" ? "staff/checklist" : "checklist"}?date=${encodeURIComponent(model.generatedAt.slice(0, 10))}`, {
+      const response = await fetch(`/api/coo-workbook/${effectiveWorkbookView === "MY" ? "staff/checklist" : "checklist"}?date=${encodeURIComponent(model.boardDate)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text })
@@ -840,7 +844,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
     }
     setSaving(true);
     try {
-      const response = await fetch(`/api/coo-workbook/${workbookView === "MY" ? "staff/quick-updates" : "quick-updates"}?date=${encodeURIComponent(model.generatedAt.slice(0, 10))}`, {
+      const response = await fetch(`/api/coo-workbook/${effectiveWorkbookView === "MY" ? "staff/quick-updates" : "quick-updates"}?date=${encodeURIComponent(model.boardDate)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ category: quickUpdateCategory, company: quickUpdateCompany, dueWindow: quickUpdateDueWindow, followUpNeeded: quickUpdateFollowUp, person: quickUpdatePerson, text })
@@ -917,7 +921,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
     }
     setSaving(true);
     try {
-      const response = await fetch(`/api/coo-workbook/${workbookView === "MY" ? "staff/report-drafts" : "report-drafts"}?date=${encodeURIComponent(model.generatedAt.slice(0, 10))}&cadence=${cadence}`, {
+      const response = await fetch(`/api/coo-workbook/${effectiveWorkbookView === "MY" ? "staff/report-drafts" : "report-drafts"}?date=${encodeURIComponent(model.boardDate)}&cadence=${cadence}`, {
         method: "POST"
       });
       const payload = await response.json().catch(() => null) as { error?: string } | null;
@@ -932,11 +936,11 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
     }
   }
 
-  async function copyDailyReportDraft() {
-    if (!latestReportDraft || typeof navigator === "undefined" || !navigator.clipboard) return;
+  async function copyReportDraft(draft = latestReportDraft) {
+    if (!draft || typeof navigator === "undefined" || !navigator.clipboard) return;
     try {
-      await navigator.clipboard.writeText(dailyReportDraftText(latestReportDraft));
-      setWorkspaceNotice("Daily Report Draft copied.");
+      await navigator.clipboard.writeText(dailyReportDraftText(draft));
+      setWorkspaceNotice("Report Draft copied.");
     } catch {
       setWorkspaceNotice("Unable to copy the draft from this browser.");
     }
@@ -956,8 +960,8 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
     const isChecklist = source === "checklist";
     const title = isChecklist ? (item as DailyChecklistItem).text : `Follow up: ${(item as QuickUpdateItem).text.slice(0, 72)}`;
     const description = isChecklist
-      ? `Converted from COO Daily Checklist. Update: ${latestChecklistUpdateText(item as DailyChecklistItem) || "No update added yet."}`
-      : `Converted from COO Quick Update. Category: ${quickUpdateCategoryLabel((item as QuickUpdateItem).category)}. ${(item as QuickUpdateItem).person ? `Person: ${(item as QuickUpdateItem).person}. ` : ""}${(item as QuickUpdateItem).company ? `Company: ${(item as QuickUpdateItem).company}. ` : ""}${(item as QuickUpdateItem).text}`;
+      ? `Converted from ${activeWorkbookLabel} Daily Checklist. Update: ${latestChecklistUpdateText(item as DailyChecklistItem) || "No update added yet."}`
+      : `Converted from ${activeWorkbookLabel} Quick Update. Category: ${quickUpdateCategoryLabel((item as QuickUpdateItem).category)}. ${(item as QuickUpdateItem).person ? `Person: ${(item as QuickUpdateItem).person}. ` : ""}${(item as QuickUpdateItem).company ? `Company: ${(item as QuickUpdateItem).company}. ` : ""}${(item as QuickUpdateItem).text}`;
 
     try {
       const response = await fetch("/api/tasks", {
@@ -965,11 +969,11 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           assignedUserId: model.advisor.id,
-          boardDate: model.generatedAt.slice(0, 10),
+          boardDate: model.boardDate,
           description,
           dueAt: dueAt.toISOString(),
           intakeMetadata: {
-            channel: "COO Workbook",
+            channel: activeWorkbookLabel,
             expectedOutcome: "The converted workbook item has a clear owner, next update, and completion result for the daily report trail.",
             intakeType: "Quick Task",
             requiredUpdates: ["Record the outcome or blocker before end of day."]
@@ -1013,10 +1017,10 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
         body: JSON.stringify({
           assignedUserId: model.advisor.id,
           boardDate: item.targetBoardDate,
-          description: `Converted from COO Workbook carryover. ${item.detail}`,
+          description: `Converted from ${activeWorkbookLabel} carryover. ${item.detail}`,
           dueAt: dueAt.toISOString(),
           intakeMetadata: {
-            channel: "COO Workbook",
+            channel: activeWorkbookLabel,
             expectedOutcome: "The carryover has a clear owner, timing, and completion result.",
             intakeType: "Carryover Task",
             requiredUpdates: ["Record the outcome or blocker before the next close."]
@@ -1046,7 +1050,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
     }
     setSaving(true);
     try {
-      const response = await fetch(`/api/coo-workbook/carryovers?date=${encodeURIComponent(model.generatedAt.slice(0, 10))}&scope=${workbookView === "MY" ? "STAFF" : "COO"}`, { method: "POST" });
+      const response = await fetch(`/api/coo-workbook/carryovers?date=${encodeURIComponent(model.boardDate)}&scope=${effectiveWorkbookView === "MY" ? "STAFF" : "COO"}`, { method: "POST" });
       const payload = await response.json().catch(() => null) as { count?: number; targetBoardDate?: string; error?: string } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Unable to prepare carryover.");
       await refreshActiveWorkbook();
@@ -1093,7 +1097,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ workbookId: activeWorkbook.id })
         })
-        : await fetch(`/api/coo-workbook/close?date=${encodeURIComponent(model.generatedAt.slice(0, 10))}&scope=${workbookView === "MY" ? "STAFF" : "COO"}`, { method: "POST" });
+        : await fetch(`/api/coo-workbook/close?date=${encodeURIComponent(model.boardDate)}&scope=${effectiveWorkbookView === "MY" ? "STAFF" : "COO"}`, { method: "POST" });
       const payload = await response.json().catch(() => null) as { carryoverCount?: number; error?: string } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Unable to update workbook close status.");
       await refreshActiveWorkbook();
@@ -1114,7 +1118,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
         return;
       }
       setSaving(true);
-      const response = await fetch(`/api/coo-workbook/${workbookView === "MY" ? "staff/report-drafts" : "report-drafts"}?date=${encodeURIComponent(model.generatedAt.slice(0, 10))}&cadence=DAILY`, {
+      const response = await fetch(`/api/coo-workbook/${effectiveWorkbookView === "MY" ? "staff/report-drafts" : "report-drafts"}?date=${encodeURIComponent(model.boardDate)}&cadence=DAILY`, {
         method: "POST"
       });
       const payload = await response.json().catch(() => null) as { error?: string } | null;
@@ -1190,13 +1194,13 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
     return <section className={`advisor-panel advisor-coo-workbook advisor-coo-tool-page ${compact ? "compact" : "full"}`} id="coo-workbook-tool">
       <header className="advisor-coo-tool-page-header">
         <div>
-          <Link href="/vehicles/coo-workbook">← COO Workbook</Link>
+          <Link href="/vehicles/coo-workbook">← {activeWorkbookLabel}</Link>
           <strong>{toolLabels[initialTool]}</strong>
           <span>{activeWorkbookLabel} focused workspace. Finish the action here, then return to the landing page.</span>
         </div>
         <nav className="advisor-coo-workbook-switcher" aria-label="Workbook view">
-          <button aria-pressed={workbookView === "COO"} onClick={() => setWorkbookView("COO")} type="button"><ShieldCheck /> COO View</button>
-          <button aria-pressed={workbookView === "MY"} onClick={() => setWorkbookView("MY")} type="button"><CheckSquare /> My Workbook</button>
+          {canUseManagementWorkbook ? <button aria-pressed={workbookView === "COO"} onClick={() => setWorkbookView("COO")} type="button"><ShieldCheck /> {managementWorkbookLabel}</button> : null}
+          <button aria-pressed={workbookView === "MY"} onClick={() => setWorkbookView("MY")} type="button"><CheckSquare /> {staffWorkbookLabel}</button>
         </nav>
       </header>
 
@@ -1333,7 +1337,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
         </div>
         <div className="advisor-coo-followup-row">
           <label><input checked={quickUpdateFollowUp} disabled={isClosed} onChange={(event) => setQuickUpdateFollowUp(event.target.checked)} type="checkbox" /> Follow-up needed</label>
-          <input aria-label="Follow-up date" disabled={isClosed || !quickUpdateFollowUp} min={model.generatedAt.slice(0, 10)} onChange={(event) => setQuickUpdateDueWindow(event.target.value)} type="date" value={quickUpdateDueWindow} />
+          <input aria-label="Follow-up date" disabled={isClosed || !quickUpdateFollowUp} min={model.boardDate} onChange={(event) => setQuickUpdateDueWindow(event.target.value)} type="date" value={quickUpdateDueWindow} />
           <button disabled={saving || isClosed || !quickUpdateText.trim()} onClick={() => void addQuickUpdate()} type="button"><Save /> Save update</button>
         </div>
         <div className="advisor-coo-update-list">
@@ -1361,7 +1365,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
 
       {initialTool === "CARRYOVER" ? <section className="advisor-coo-focused-tool advisor-coo-carryover-center" aria-label="Carryover tool">
         <header><div><strong>Carryover</strong><small>Tomorrow-facing items pulled from checklist, Quick Updates, and reviewed Report Seeds.</small></div><button disabled={saving || isClosed} onClick={() => void prepareCarryovers()} type="button"><CalendarClock /> Prepare Carryover</button></header>
-        <div>{carryovers.length ? carryovers.map((item) => <article key={item.id}><small>{item.targetBoardDate} · {item.status.toLocaleLowerCase()}</small><strong>{item.title}</strong><span>{item.detail}</span><div className="advisor-coo-seed-actions"><button disabled={saving || isClosed || item.status === "CONFIRMED"} onClick={() => void persistCarryover(item.id, { status: "CONFIRMED" })} type="button">Confirm</button><button disabled={saving || isClosed || item.status === "DISMISSED"} onClick={() => void persistCarryover(item.id, { status: "DISMISSED", dismissedReason: "Dismissed from COO Workbook." })} type="button">Dismiss</button>{item.convertedTaskId ? <Link href={`/tasks/${item.convertedTaskId}`}>Open task</Link> : <button disabled={saving || isClosed || convertingId === item.id} onClick={() => void convertCarryoverToTask(item)} type="button">{convertingId === item.id ? "Converting..." : "Convert to task"}</button>}</div></article>) : carryoverPreview.length ? carryoverPreview.map((item) => <article key={item.id}><small>{item.kind}</small><strong>{item.title}</strong><span>{item.detail}</span></article>) : <p><CheckCircle2 /> No carryover items are marked yet.</p>}</div>
+        <div>{carryovers.length ? carryovers.map((item) => <article key={item.id}><small>{item.targetBoardDate} · {item.status.toLocaleLowerCase()}</small><strong>{item.title}</strong><span>{item.detail}</span><div className="advisor-coo-seed-actions"><button disabled={saving || isClosed || item.status === "CONFIRMED"} onClick={() => void persistCarryover(item.id, { status: "CONFIRMED" })} type="button">Confirm</button><button disabled={saving || isClosed || item.status === "DISMISSED"} onClick={() => void persistCarryover(item.id, { status: "DISMISSED", dismissedReason: `Dismissed from ${activeWorkbookLabel}.` })} type="button">Dismiss</button>{item.convertedTaskId ? <Link href={`/tasks/${item.convertedTaskId}`}>Open task</Link> : <button disabled={saving || isClosed || convertingId === item.id} onClick={() => void convertCarryoverToTask(item)} type="button">{convertingId === item.id ? "Converting..." : "Convert to task"}</button>}</div></article>) : carryoverPreview.length ? carryoverPreview.map((item) => <article key={item.id}><small>{item.kind}</small><strong>{item.title}</strong><span>{item.detail}</span></article>) : <p><CheckCircle2 /> No carryover items are marked yet.</p>}</div>
       </section> : null}
 
       {initialTool === "REPORT_SEEDS" ? <section className="advisor-coo-focused-tool advisor-coo-report-seeds" aria-label="Report Seeds tool">
@@ -1390,14 +1394,30 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
       {initialTool === "DRAFTS" ? <section className="advisor-coo-focused-tool advisor-coo-report-draft" aria-label="Report Drafts tool">
         <header><div><strong>Report Drafts</strong><small>Generate manager-ready daily, weekly, or monthly summaries from reviewed seeds and operating signals.</small></div><div className="advisor-coo-seed-actions"><button disabled={saving || isClosed} onClick={() => void generateReportDraft("DAILY")} type="button">Daily</button><button disabled={saving || isClosed} onClick={() => void generateReportDraft("WEEKLY")} type="button">Weekly</button><button disabled={saving || isClosed} onClick={() => void generateReportDraft("MONTHLY")} type="button">Monthly</button></div></header>
         {latestReportDraft ? <div className="advisor-coo-saved-draft">
-          <header><strong>{latestReportDraft.title}</strong><small>{latestReportDraft.cadence.toLocaleLowerCase()} · Version {latestReportDraft.version} · Generated {dateLabel(latestReportDraft.generatedAt)}</small><button onClick={() => void copyDailyReportDraft()} type="button"><Copy /> Copy Draft</button></header>
+          <header><strong>{latestReportDraft.title}</strong><small>{latestReportDraft.cadence.toLocaleLowerCase()} · Version {latestReportDraft.version} · Generated {dateLabel(latestReportDraft.generatedAt)}</small><button onClick={() => void copyReportDraft()} type="button"><Copy /> Copy Draft</button></header>
           <p>{latestReportDraft.summary}</p>
           <div>{latestReportDraft.sections.map((section) => <article key={section.title}><h2>{section.title}</h2>{section.items.map((item) => <span key={`${section.title}-${item.sourceId}-${item.title}`}><strong>{item.title}</strong><small>{item.detail}</small></span>)}</article>)}</div>
         </div> : <p>Review report seeds, then generate a manager-ready daily draft.</p>}
+        {staffWorkbookSummaries.length ? <section className="advisor-coo-staff-reports" aria-label="Staff Reports">
+          <header><div><strong>Staff Reports</strong><small>Read the latest staff workbook drafts for this workday.</small></div><span>{staffWorkbookSummaries.filter((item) => item.latestReportDraft).length}/{staffWorkbookSummaries.length} drafted</span></header>
+          <div>
+            {staffWorkbookSummaries.map((item) => <article className={item.latestReportDraft ? "ready" : item.closeReadinessTone.toLocaleLowerCase()} key={item.workbookId}>
+              <header><div><strong>{item.staffName}</strong><small>{item.closeReadinessScore}/100 · {item.closeReadinessTone.toLocaleLowerCase()} · {item.completedDailyFocusCount}/{item.dailyFocusCount} focus done</small></div><span>{item.latestReportDraft ? `v${item.latestReportDraft.version}` : "No draft"}</span></header>
+              {item.latestReportDraft ? <>
+                <p>{item.latestReportDraft.summary}</p>
+                <details>
+                  <summary>Read report</summary>
+                  <div>{item.latestReportDraft.sections.map((section) => <section key={`${item.workbookId}-${section.title}`}><h3>{section.title}</h3>{section.items.map((draftItem) => <span key={`${item.workbookId}-${section.title}-${draftItem.sourceId}-${draftItem.title}`}><strong>{draftItem.title}</strong><small>{draftItem.detail}</small></span>)}</section>)}</div>
+                </details>
+                <button onClick={() => void copyReportDraft(item.latestReportDraft ?? undefined)} type="button"><Copy /> Copy</button>
+              </> : <p>{item.closeReadinessPrompts[0] ?? "No staff report has been generated yet."}</p>}
+            </article>)}
+          </div>
+        </section> : null}
       </section> : null}
 
       {initialTool === "MORE_TOOLS" ? <section className="advisor-coo-focused-tool advisor-coo-more-tools-page" aria-label="More Tools">
-        <header><div><strong>COO Workbook More Tools</strong><small>Use these supporting tools when the day needs extra structure. Each tool opens a real workbook area that already captures work for reports and coaching.</small></div><span>{moreToolCards.length} tools</span></header>
+        <header><div><strong>{activeWorkbookLabel} More Tools</strong><small>Use these supporting tools when the day needs extra structure. Each tool opens a real workbook area that already captures work for reports and coaching.</small></div><span>{moreToolCards.length} tools</span></header>
         <div>
           {moreToolCards.map((tool) => {
             const Icon = tool.icon;
@@ -1423,12 +1443,12 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
   return <section className={`advisor-panel advisor-coo-workbook advisor-coo-landing ${compact ? "compact" : "full"}`} id="coo-daily-workbook">
     <header className="advisor-coo-landing-header">
       <div>
-        <strong>COO Workbook</strong>
+        <strong>{activeWorkbookLabel}</strong>
         <span>A simple daily workspace for planning, execution, accountability, and reporting.</span>
       </div>
       <nav className="advisor-coo-workbook-switcher" aria-label="Workbook view">
-        <button aria-pressed={workbookView === "COO"} onClick={() => setWorkbookView("COO")} type="button"><ShieldCheck /> COO View</button>
-        <button aria-pressed={workbookView === "MY"} onClick={() => setWorkbookView("MY")} type="button"><CheckSquare /> My Workbook</button>
+        {canUseManagementWorkbook ? <button aria-pressed={workbookView === "COO"} onClick={() => setWorkbookView("COO")} type="button"><ShieldCheck /> {managementWorkbookLabel}</button> : null}
+        <button aria-pressed={workbookView === "MY"} onClick={() => setWorkbookView("MY")} type="button"><CheckSquare /> {staffWorkbookLabel}</button>
       </nav>
       <nav className="advisor-coo-version-switcher" aria-label="Workbook version">
         <Link aria-current="page" href="/vehicles/coo-workbook">Current Workbook</Link>
@@ -1595,7 +1615,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
 }
 
 export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisorWorkspaceModel }) {
-  const [workbookView, setWorkbookView] = useState<WorkbookViewMode>("COO");
+  const [workbookView, setWorkbookView] = useState<WorkbookViewMode>(model.workspace.canUseManagementWorkbook ? "COO" : "MY");
   const [workbook, setWorkbook] = useState<WorkdayWorkbookModel>(model.workbook);
   const [staffWorkbook, setStaffWorkbook] = useState<WorkdayWorkbookModel>(model.staffWorkbook);
   const [staffWorkbookSummaries, setStaffWorkbookSummaries] = useState(model.staffWorkbookSummaries);
@@ -1608,15 +1628,19 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const attentionSessionKey = useId().replaceAll(":", "");
-  const activeWorkbook = workbookView === "MY" ? staffWorkbook : workbook;
-  const activeLabel = workbookView === "MY" ? "My Workbook" : "COO Workbook";
+  const staffWorkbookLabel = model.workspace.staffWorkbookLabel;
+  const managementWorkbookLabel = model.workspace.managementWorkbookLabel;
+  const canUseManagementWorkbook = model.workspace.canUseManagementWorkbook;
+  const effectiveWorkbookView: WorkbookViewMode = canUseManagementWorkbook ? workbookView : "MY";
+  const activeWorkbook = effectiveWorkbookView === "MY" ? staffWorkbook : workbook;
+  const activeLabel = effectiveWorkbookView === "MY" ? staffWorkbookLabel : managementWorkbookLabel;
   const coaching = activeWorkbook.coaching;
   const activityIntelligence = activeWorkbook.activityIntelligence;
   const timeAttention = activeWorkbook.timeAttention;
   const effectiveness = activeWorkbook.effectiveness;
   const dailyFocus = activeWorkbook.dailyFocusItems.filter((item) => !isGenericAdvisorFocusItem(item));
   const isPilotClosed = activeWorkbook.status === "CLOSED";
-  const prioritySourcesForView = workbookView === "MY"
+  const prioritySourcesForView = effectiveWorkbookView === "MY"
     ? model.morningPrioritySources.filter((item) => item.staffUserId === model.advisor.id)
     : model.morningPrioritySources;
   const dailyFocusSuggestions = buildDailyFocusSuggestions(activeWorkbook, prioritySourcesForView);
@@ -1665,22 +1689,22 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
   }, [activeWorkbook.id, attentionSessionKey]);
 
   const refreshPilotWorkbook = useCallback(async function refreshPilotWorkbook() {
-    if (workbookView === "MY") {
-      const response = await fetch(`/api/coo-workbook/staff?date=${encodeURIComponent(model.generatedAt.slice(0, 10))}`);
+    if (effectiveWorkbookView === "MY") {
+      const response = await fetch(`/api/coo-workbook/staff?date=${encodeURIComponent(model.boardDate)}`);
       const payload = await response.json().catch(() => null) as { staffWorkbookSummaries?: StaffWorkbookSummary[]; workbook?: WorkdayWorkbookModel; error?: string } | null;
-      if (!response.ok || !payload?.workbook) throw new Error(payload?.error ?? "Unable to refresh My Workbook.");
+      if (!response.ok || !payload?.workbook) throw new Error(payload?.error ?? `Unable to refresh ${staffWorkbookLabel}.`);
       setStaffWorkbook(payload.workbook);
       setStaffWorkbookSummaries(payload.staffWorkbookSummaries ?? []);
       return;
     }
     const response = await fetch("/api/coo-workbook");
     const payload = await response.json().catch(() => null) as { workbook?: WorkdayWorkbookModel; error?: string } | null;
-    if (!response.ok || !payload?.workbook) throw new Error(payload?.error ?? "Unable to refresh COO Workbook.");
+    if (!response.ok || !payload?.workbook) throw new Error(payload?.error ?? `Unable to refresh ${managementWorkbookLabel}.`);
     setWorkbook(payload.workbook);
-  }, [model.generatedAt, workbookView]);
+  }, [effectiveWorkbookView, managementWorkbookLabel, model.boardDate, staffWorkbookLabel]);
 
   const createDailyFocusFromSuggestion = useCallback(async function createDailyFocusFromSuggestion(suggestion: DailyFocusSuggestion, sortOrder: number) {
-    const response = await fetch(`/api/coo-workbook/daily-focus?date=${encodeURIComponent(model.generatedAt.slice(0, 10))}&scope=${workbookView === "MY" ? "STAFF" : "COO"}`, {
+      const response = await fetch(`/api/coo-workbook/daily-focus?date=${encodeURIComponent(model.boardDate)}&scope=${effectiveWorkbookView === "MY" ? "STAFF" : "COO"}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1695,7 +1719,7 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
     });
     const payload = await response.json().catch(() => null) as { error?: string } | null;
     if (!response.ok) throw new Error(payload?.error ?? "Unable to save Daily Focus.");
-  }, [model.generatedAt, workbookView]);
+  }, [effectiveWorkbookView, model.boardDate]);
 
   async function addDailyFocus(suggestion?: DailyFocusSuggestion) {
     const outcome = (suggestion?.outcome ?? focusOutcome).trim();
@@ -1818,7 +1842,7 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
   return <section className="advisor-panel advisor-coo-workbook advisor-coo-effectiveness full" id="coo-effectiveness-pilot">
     <header className="advisor-coo-landing-header">
       <div>
-        <strong>COO Workbook</strong>
+        <strong>{activeLabel}</strong>
         <span>Effectiveness Pilot: start clear, work the day, close with accountability.</span>
       </div>
       <nav className="advisor-coo-version-switcher" aria-label="Workbook version">
@@ -1826,8 +1850,8 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
         <Link aria-current="page" href="/vehicles/coo-workbook/effectiveness-pilot">Effectiveness Pilot</Link>
       </nav>
       <nav className="advisor-coo-workbook-switcher" aria-label="Workbook view">
-        <button aria-pressed={workbookView === "COO"} onClick={() => setWorkbookView("COO")} type="button"><ShieldCheck /> COO View</button>
-        <button aria-pressed={workbookView === "MY"} onClick={() => setWorkbookView("MY")} type="button"><CheckSquare /> My Workbook</button>
+        {canUseManagementWorkbook ? <button aria-pressed={workbookView === "COO"} onClick={() => setWorkbookView("COO")} type="button"><ShieldCheck /> {managementWorkbookLabel}</button> : null}
+        <button aria-pressed={workbookView === "MY"} onClick={() => setWorkbookView("MY")} type="button"><CheckSquare /> {staffWorkbookLabel}</button>
       </nav>
     </header>
 

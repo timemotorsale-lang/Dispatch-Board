@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/server/auth/current-user";
 import { isManager } from "@/server/policies/access";
-import { getStaffWorkbook, getStaffWorkbookSummaries } from "@/server/services/workday-workbook";
+import { currentWorkdayBoardDate, getStaffWorkbook, getStaffWorkbookSummaries } from "@/server/services/workday-workbook";
 
 function statusFor(message: string) {
   if (message === "Authentication required.") return 401;
@@ -12,7 +12,7 @@ function statusFor(message: string) {
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const boardDate = url.searchParams.get("date") ?? new Date().toISOString().slice(0, 10);
+  const boardDate = url.searchParams.get("date") ?? currentWorkdayBoardDate();
 
   try {
     const user = await getCurrentUser();
