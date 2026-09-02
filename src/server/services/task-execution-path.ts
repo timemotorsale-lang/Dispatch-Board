@@ -33,6 +33,16 @@ const workflowAreaLabels: Record<WorkflowArea, string> = {
   [WorkflowArea.SHOP]: "Shop & Recon"
 };
 
+const workflowAreaAliases = new Map<string, WorkflowArea>(
+  Object.entries(workflowAreaLabels).flatMap(([value, label]) => [
+    [value, value as WorkflowArea],
+    [label, value as WorkflowArea],
+    [label.toUpperCase(), value as WorkflowArea],
+    [label.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, ""), value as WorkflowArea],
+    [label.toUpperCase().replace(/[^A-Z0-9]+/g, ""), value as WorkflowArea]
+  ])
+);
+
 const genericGeneratedSubtaskLabels = new Set([
   "Review task objective",
   "Post progress update",
@@ -51,16 +61,22 @@ function normalizeTaskId(taskId: string) {
   return normalizedTaskId;
 }
 
-function normalizeWorkflowArea(input: unknown) {
+export function normalizeWorkflowArea(input: unknown) {
   const value = typeof input === "object" && input !== null && "workflowArea" in input
     ? (input as { workflowArea?: unknown }).workflowArea
     : undefined;
+  const normalizedValue = typeof value === "string" ? value.trim() : "";
+  const compactNormalizedValue = normalizedValue.toUpperCase().replace(/[^A-Z0-9]+/g, "");
+  const aliasedValue = workflowAreaAliases.get(normalizedValue) ??
+    workflowAreaAliases.get(normalizedValue.toUpperCase()) ??
+    workflowAreaAliases.get(normalizedValue.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "")) ??
+    workflowAreaAliases.get(compactNormalizedValue);
 
-  if (typeof value !== "string" || !(value in WorkflowArea)) {
+  if (!aliasedValue) {
     throw new Error("Task path initiation requires a valid execution path.");
   }
 
-  return value as WorkflowArea;
+  return aliasedValue;
 }
 
 function assertCanInitiatePath(
@@ -85,9 +101,7 @@ function assertCanInitiatePath(
   return user;
 }
 
-function isGeneratedPathItem(item: { completed: boolean; kind: TaskChecklistItemKind; label: string }) {
-  if (item.completed) return false;
-
+function isGeneratedPathItem(item: { kind: TaskChecklistItemKind; label: string }) {
   if (item.kind === TASK_CHECKLIST_ITEM_KIND.DEFINITION_OF_DONE) {
     return isKnownAdaptiveChecklistLabel(item.label);
   }

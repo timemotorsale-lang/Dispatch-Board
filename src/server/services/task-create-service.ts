@@ -1,6 +1,7 @@
 ﻿import { TaskSourceType, TaskStatus } from "@prisma/client";
 
 import { buildAdaptiveTaskChecklist } from "@/lib/adaptive-task-checklist";
+import { buildAdaptiveTaskSubtasks } from "@/lib/adaptive-task-checklist";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { canManageAssignments } from "@/server/policies/access";
 import { ActivityEventType } from "@/server/services/activity-events";
@@ -15,6 +16,8 @@ import {
   normalizeTaskCreateInput,
   type NormalizedTaskCreateInput
 } from "@/server/validation/task-create";
+import { TaskChecklistItemKind, WorkflowArea } from "@prisma/client";
+import { classifyConvertedTask } from "@/server/services/task-conversion-classifier";
 
 type TaskCreateUserSummary = {
   id: string;
@@ -203,6 +206,41 @@ export async function createManualTask(
 
   const boardDay = await repository.getOrCreateBoardDay(normalizedInput.boardDate);
   const workflowFields = buildManualTaskWorkflowFields(authenticatedUser, normalizedInput);
+  const conversionContract = classifyConvertedTask({
+    channel: normalizedInput.intakeMetadata?.channel,
+    conversionContext: normalizedInput.conversionContext,
+    description: normalizedInput.description,
+    expectedOutcome: normalizedInput.intakeMetadata?.expectedOutcome,
+    intakeType: normalizedInput.intakeMetadata?.intakeType,
+    requestedWorkflowArea: normalizedInput.workflowArea,
+    title: normalizedInput.title
+  });
+  const selectedWorkflowArea = conversionContract?.selectedWorkflowArea ?? normalizedInput.workflowArea;
+  const checklistItems = [
+    ...buildAdaptiveTaskChecklist({
+      title: normalizedInput.title,
+      description: normalizedInput.description,
+      workflowArea: selectedWorkflowArea
+    }).map((item) => ({
+      ...item,
+      kind: TaskChecklistItemKind.DEFINITION_OF_DONE,
+      isRequired: false
+    })),
+    ...buildAdaptiveTaskSubtasks({ workflowArea: selectedWorkflowArea }).map((item) => ({
+      key: item.key,
+      label: item.label,
+      kind: TaskChecklistItemKind.SUBTASK,
+      isRequired: true
+    })),
+    ...(conversionContract?.linkedWorkflowAreas.includes(WorkflowArea.SHOP)
+      ? [{
+          key: "conversion_linked_shop_child_task",
+          label: "Create or open the linked Shop & Recon task for inspection, diagnosis, parts, repair, or QC",
+          kind: TaskChecklistItemKind.SUBTASK,
+          isRequired: true
+        }]
+      : [])
+  ];
   const task = await repository.createTask({
     assignedUserId: normalizedInput.assignedUserId,
     collaboratorIds: normalizedInput.collaboratorIds,
@@ -215,6 +253,7 @@ export async function createManualTask(
       : {}),
     description: normalizedInput.description,
     dueAt: normalizedInput.dueAt,
+    ...(conversionContract ? { conversionContract } : {}),
     ...(normalizedInput.intakeMetadata ? { intakeMetadata: normalizedInput.intakeMetadata } : {}),
     priority: normalizedInput.priority,
     readyForReviewAt: workflowFields.readyForReviewAt,
@@ -226,12 +265,8 @@ export async function createManualTask(
     ...(normalizedInput.vehicleReference
       ? { vehicleReference: normalizedInput.vehicleReference }
       : {}),
-    workflowArea: normalizedInput.workflowArea,
-    checklistItems: buildAdaptiveTaskChecklist({
-      title: normalizedInput.title,
-      description: normalizedInput.description,
-      workflowArea: normalizedInput.workflowArea
-    })
+    workflowArea: selectedWorkflowArea,
+    checklistItems
   });
 
   if (repository.createActivityEvent) {
@@ -248,7 +283,8 @@ export async function createManualTask(
         requiresManagerApproval: task.requiresManagerApproval,
         sourceType: task.sourceType,
         title: task.title,
-        workflowArea: task.workflowArea
+        workflowArea: task.workflowArea,
+        ...(conversionContract ? { conversionContract } : {})
       }
     });
   } else if (repository.supportsActivityEvents) {

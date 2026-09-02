@@ -199,7 +199,7 @@ type WorkbookSearchResume = {
   priority: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
   source: WorkbookResumeSource;
   title: string;
-  workflowArea: "ADMIN" | "COLLECTIONS" | "GENERAL_MANAGER" | "INVENTORY" | "MARKETING" | "SALES" | "SHOP";
+  workflowArea: "ADMIN" | "COLLECTIONS" | "GENERAL_MANAGER" | "INVENTORY" | "MARKETING" | "SALES" | "SERVICE_ADVISOR" | "SHOP";
 };
 type SearchableWorkItem = {
   action: string;
@@ -1082,6 +1082,14 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
           boardDate: model.boardDate,
           description,
           dueAt: dueAt.toISOString(),
+          conversionContext: {
+            category: isChecklist ? "DAILY_CHECKLIST" : (item as QuickUpdateItem).category,
+            company: isChecklist ? "" : (item as QuickUpdateItem).company,
+            originText: isChecklist ? (item as DailyChecklistItem).text : (item as QuickUpdateItem).text,
+            person: isChecklist ? "" : (item as QuickUpdateItem).person,
+            sourceId: item.id,
+            sourceKind: isChecklist ? "COO_WORKBOOK_DAILY_CHECKLIST" : "COO_WORKBOOK_QUICK_UPDATE"
+          },
           intakeMetadata: {
             channel: activeWorkbookLabel,
             expectedOutcome: "The converted workbook item has a clear owner, next update, and completion result for the daily report trail.",
@@ -1129,6 +1137,12 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
           boardDate: item.targetBoardDate,
           description: `Converted from ${activeWorkbookLabel} carryover. ${item.detail}`,
           dueAt: dueAt.toISOString(),
+          conversionContext: {
+            category: "CARRYOVER",
+            originText: `${item.title}. ${item.detail}`,
+            sourceId: item.id,
+            sourceKind: "COO_WORKBOOK_CARRYOVER"
+          },
           intakeMetadata: {
             channel: activeWorkbookLabel,
             expectedOutcome: "The carryover has a clear owner, timing, and completion result.",
@@ -1190,6 +1204,12 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
           boardDate: model.boardDate,
           description: item.resume.description,
           dueAt: dueAt.toISOString(),
+          conversionContext: {
+            category: item.kind,
+            originText: item.description || item.title,
+            sourceId: item.resume.id,
+            sourceKind: `COO_WORKBOOK_${item.resume.source.toUpperCase()}`
+          },
           intakeMetadata: {
             channel: item.context,
             expectedOutcome: "The resumed workbook item has an active owner, progress updates, and a completion result.",

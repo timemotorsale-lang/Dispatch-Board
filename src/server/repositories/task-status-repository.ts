@@ -11,6 +11,7 @@ const taskStatusSelect = {
   assignedUserId: true,
   requiresManagerApproval: true,
   status: true,
+  workflowArea: true,
   dueAt: true,
   blockerReason: true,
   executionAssurance: true,
@@ -59,6 +60,7 @@ export type TaskStatusLookupRecord = {
   assignedUserId: string;
   requiresManagerApproval: boolean;
   status: TaskStatus;
+  workflowArea: string;
   dueAt?: Date;
   blockerReason: string | null;
   executionAssurance?: Prisma.JsonValue | null;

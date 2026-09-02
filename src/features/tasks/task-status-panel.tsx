@@ -21,6 +21,7 @@ type TaskStatusPanelProps = {
   actorIsManager: boolean;
   canUpdate: boolean;
   initialReadiness?: TaskCompletionReadiness | null;
+  onStatusChanged?: (status: TaskStatus) => void;
   task: TaskReadModel;
 };
 
@@ -109,7 +110,13 @@ function getGuidedUpdateFieldPresentation(
   };
 }
 
-export function TaskStatusPanel({ actorIsManager, canUpdate, initialReadiness = null, task }: TaskStatusPanelProps) {
+export function TaskStatusPanel({
+  actorIsManager,
+  canUpdate,
+  initialReadiness = null,
+  onStatusChanged,
+  task
+}: TaskStatusPanelProps) {
   const initialAssurance = normalizeTaskExecutionAssurance(task.executionAssurance);
   const requiredUpdateFields = useMemo(() => task.requiredUpdateFields ?? [], [task.requiredUpdateFields]);
   const requiredCompletionFields = useMemo(
@@ -249,6 +256,7 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, initialReadiness = 
 
       setStatus(result.task.status);
       setSavedStatus(result.task.status);
+      onStatusChanged?.(result.task.status);
       setBlockerReason(result.task.blockerReason ?? "");
       setAssurance(result.task.executionAssurance);
       setNextCheckpointAt(toDateTimeLocal(result.task.executionAssurance.nextCheckpointAt));

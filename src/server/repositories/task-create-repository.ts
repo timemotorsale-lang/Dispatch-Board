@@ -1,6 +1,6 @@
 ﻿import { Prisma, PrismaClient, type BoardDay } from "@prisma/client";
 
-import type { TaskTemplatePriority } from "@prisma/client";
+import type { TaskChecklistItemKind, TaskTemplatePriority, WorkflowArea } from "@prisma/client";
 
 import { prisma } from "@/server/db/client";
 
@@ -76,6 +76,21 @@ export type CreateTaskRecordInput = {
   customerReference?: string;
   description: string;
   dueAt: Date;
+  conversionContract?: {
+    classificationReason: string;
+    confidence: string;
+    executionIntent: string;
+    linkedWorkflowAreas: WorkflowArea[];
+    origin: {
+      channel: string;
+      sourceId?: string;
+      sourceKind: string;
+      text: string;
+    };
+    selectedWorkflowArea: WorkflowArea;
+    suggestedWorkflowArea: WorkflowArea;
+    version: number;
+  };
   intakeMetadata?: {
     channel: string;
     expectedOutcome: string;
@@ -91,7 +106,7 @@ export type CreateTaskRecordInput = {
   title: string;
   vehicleReference?: string;
   workflowArea: CreatedTaskRecord["workflowArea"];
-  checklistItems?: Array<{ key: string; label: string }>;
+  checklistItems?: Array<{ isRequired?: boolean; key: string; kind?: TaskChecklistItemKind; label: string }>;
 };
 
 export type TaskCreateRepository = {
@@ -145,22 +160,31 @@ export function createTaskCreateRepository(
           sourceType: input.sourceType,
           status: input.status,
           title: input.title,
-          ...(input.intakeMetadata
+          ...(input.intakeMetadata || input.conversionContract
             ? {
                 templateSnapshot: {
-                  completionCriteria: {
-                    mode: "update_fields",
-                    requiredChecklistKeys: [],
-                    requiredFieldKeys: input.intakeMetadata.requiredUpdates.map((_, index) => `intake_update_${index + 1}`)
-                  },
-                  intake: input.intakeMetadata,
-                  requiredUpdateFields: input.intakeMetadata.requiredUpdates.map((label, index) => ({
-                    helpText: `Required by ${input.intakeMetadata?.intakeType} intake via ${input.intakeMetadata?.channel}.`,
-                    key: `intake_update_${index + 1}`,
-                    label,
-                    required: true,
-                    type: "long_text"
-                  })),
+                  ...(input.intakeMetadata
+                    ? {
+                        completionCriteria: {
+                          mode: "update_fields",
+                          requiredChecklistKeys: [],
+                          requiredFieldKeys: input.intakeMetadata.requiredUpdates.map((_, index) => `intake_update_${index + 1}`)
+                        },
+                        intake: input.intakeMetadata,
+                        requiredUpdateFields: input.intakeMetadata.requiredUpdates.map((label, index) => ({
+                          helpText: `Required by ${input.intakeMetadata?.intakeType} intake via ${input.intakeMetadata?.channel}.`,
+                          key: `intake_update_${index + 1}`,
+                          label,
+                          required: true,
+                          type: "long_text"
+                        }))
+                      }
+                    : {}),
+                  ...(input.conversionContract
+                    ? {
+                        conversionContract: input.conversionContract
+                      }
+                    : {}),
                   version: 1
                 }
               }
@@ -172,10 +196,10 @@ export function createTaskCreateRepository(
                 checklistItems: {
                   createMany: {
                     data: input.checklistItems.map((item, index) => ({
-                      kind: "DEFINITION_OF_DONE",
+                      kind: item.kind ?? "DEFINITION_OF_DONE",
                       key: item.key,
                       label: item.label,
-                      isRequired: false,
+                      isRequired: item.isRequired ?? false,
                       sortOrder: index
                     }))
                   }

@@ -10,6 +10,7 @@ const taskCreateAllowedKeys = new Set([
   "boardDate",
   "customerReference",
   "collaboratorIds",
+  "conversionContext",
   "description",
   "dueAt",
   "intakeMetadata",
@@ -31,6 +32,15 @@ export type NormalizedTaskIntakeMetadata = {
   requiredUpdates: string[];
 };
 
+export type NormalizedTaskConversionContext = {
+  category?: string;
+  company?: string;
+  originText?: string;
+  person?: string;
+  sourceId?: string;
+  sourceKind?: string;
+};
+
 export type NormalizedTaskCreateInput = {
   assignedUserId: string;
   collaboratorIds: string[];
@@ -41,6 +51,7 @@ export type NormalizedTaskCreateInput = {
   customerReference?: string;
   description: string;
   dueAt: Date;
+  conversionContext?: NormalizedTaskConversionContext;
   intakeMetadata?: NormalizedTaskIntakeMetadata;
   priority: TaskTemplatePriority;
   requiresManagerApproval: boolean;
@@ -201,6 +212,25 @@ function normalizeIntakeMetadata(value: unknown) {
   };
 }
 
+function normalizeConversionContext(value: unknown) {
+  if (value === undefined) return undefined;
+  const context = assertTaskCreateObject(value);
+  const allowedKeys = new Set(["category", "company", "originText", "person", "sourceId", "sourceKind"]);
+  for (const key of Object.keys(context)) {
+    if (!allowedKeys.has(key)) throw new Error(`Task conversion context contains an unsupported field: "${key}".`);
+  }
+
+  const normalizedContext: NormalizedTaskConversionContext = {};
+  for (const key of allowedKeys) {
+    const normalizedValue = normalizeOptionalText(context[key], key);
+    if (normalizedValue) {
+      normalizedContext[key as keyof NormalizedTaskConversionContext] = normalizedValue;
+    }
+  }
+
+  return Object.keys(normalizedContext).length ? normalizedContext : undefined;
+}
+
 export function normalizeTaskCreateInput(value: unknown): NormalizedTaskCreateInput {
   const input = assertTaskCreateObject(value);
 
@@ -226,6 +256,11 @@ export function normalizeTaskCreateInput(value: unknown): NormalizedTaskCreateIn
   };
 
   const intakeMetadata = normalizeIntakeMetadata(input.intakeMetadata);
+  const conversionContext = normalizeConversionContext(input.conversionContext);
+  if (conversionContext) {
+    normalizedInput.conversionContext = conversionContext;
+  }
+
   if (intakeMetadata) {
     if (normalizedInput.title.length < 8) throw new Error("Task intake requires an executable title of at least 8 characters.");
     if (normalizedInput.description.length < 16) throw new Error("Task intake requires a clear brief of at least 16 characters.");

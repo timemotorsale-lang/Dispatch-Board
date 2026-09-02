@@ -2,6 +2,7 @@
 
 import {
   Activity,
+  AlertTriangle,
   Building2,
   CalendarDays,
   CheckCircle2,
@@ -13,11 +14,13 @@ import {
   ShieldCheck,
   Sparkles,
   Tag,
+  UserPlus,
   UserRound
 } from "lucide-react";
+import { TaskStatus } from "@prisma/client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { TASK_CHECKLIST_ITEM_KIND } from "@/lib/task-checklist-kind";
 import type { TaskDetailChecklistItem, TaskDetailSubtaskItem } from "@/features/tasks/detail/task-detail-mappers";
@@ -26,13 +29,16 @@ import { TaskStatusPanel } from "@/features/tasks/task-status-panel";
 import { TaskUpdatesCommentsCard } from "@/features/tasks/detail/task-updates-comments-card";
 import type { TaskCompletionReadiness } from "@/server/services/task-execution-readiness";
 import type { TaskReadModel } from "@/server/services/task-read";
+import type { ActiveUserSummary } from "@/server/services/user-summary";
 
 type TaskWorkspaceView = "simple" | "workbench";
 type SummaryPanel = "progress" | "next" | "checklist" | "comments" | "signals";
 
 type TaskSimpleSummaryCardProps = {
   actorIsManager: boolean;
+  assignableUsers: ActiveUserSummary[];
   canComment: boolean;
+  canManageCollaborators: boolean;
   canUpdateStatus: boolean;
   checklist: TaskDetailChecklistItem[];
   commentCount: number;
@@ -101,34 +107,34 @@ function isClosedStatus(status: string) {
   return status === "COMPLETED";
 }
 
-function getCardTone(task: TaskReadModel) {
+function getCardTone(task: TaskReadModel, status = task.status) {
   const dueDate = parseValidDate(task.dueAt);
-  const isPastDue = !isClosedStatus(task.status) && Boolean(dueDate && dueDate.getTime() < Date.now());
+  const isPastDue = !isClosedStatus(status) && Boolean(dueDate && dueDate.getTime() < Date.now());
 
-  if (task.status === "COMPLETED") return "complete";
-  if (task.status === "BLOCKED" || isPastDue) return "danger";
+  if (status === "COMPLETED") return "complete";
+  if (status === "BLOCKED" || isPastDue) return "danger";
   if (
-    task.status === "WAITING_ON_APPROVAL" ||
-    task.status === "WAITING_ON_PARTS" ||
+    status === "WAITING_ON_APPROVAL" ||
+    status === "WAITING_ON_PARTS" ||
     task.priority === "CRITICAL" ||
     task.priority === "HIGH"
   ) {
     return "elevated";
   }
-  if (task.status === "IN_PROGRESS" || task.status === "READY_FOR_REVIEW") return "active";
+  if (status === "IN_PROGRESS" || status === "READY_FOR_REVIEW") return "active";
 
   return "pending";
 }
 
-function getDisplayStatusItems(task: TaskReadModel, statusLabel: string, priorityLabel: string) {
-  const items = [{ label: statusLabel, tone: getCardTone(task) }];
+function getDisplayStatusItems(task: TaskReadModel, status: TaskStatus, priorityLabel: string) {
+  const items = [{ label: statusLabelFromValue(status), tone: getCardTone(task, status) }];
   const dueDate = parseValidDate(task.dueAt);
-  const isPastDue = !isClosedStatus(task.status) && Boolean(dueDate && dueDate.getTime() < Date.now());
+  const isPastDue = !isClosedStatus(status) && Boolean(dueDate && dueDate.getTime() < Date.now());
   const isElevated =
-    !isClosedStatus(task.status) &&
-    (task.status === "BLOCKED" ||
-      task.status === "WAITING_ON_APPROVAL" ||
-      task.status === "WAITING_ON_PARTS" ||
+    !isClosedStatus(status) &&
+    (status === "BLOCKED" ||
+      status === "WAITING_ON_APPROVAL" ||
+      status === "WAITING_ON_PARTS" ||
       task.priority === "CRITICAL" ||
       task.priority === "HIGH");
 
@@ -254,6 +260,19 @@ function executionPathLabel(value: string) {
   return executionPathOptions.find((option) => option.value === value)?.label ?? value.replaceAll("_", " ");
 }
 
+function executionPathValue(value: string) {
+  const normalizedValue = value.trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  const matchingOption = executionPathOptions.find((option) =>
+    option.value === value ||
+    option.value === normalizedValue ||
+    option.label === value ||
+    option.label.toUpperCase() === value.trim().toUpperCase() ||
+    option.label.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "") === normalizedValue
+  );
+
+  return matchingOption?.value ?? value;
+}
+
 function ExecutionPathSwitch({
   canEdit,
   taskId,
@@ -264,12 +283,22 @@ function ExecutionPathSwitch({
   workflowArea: string;
 }) {
   const router = useRouter();
-  const [currentPath, setCurrentPath] = useState(workflowArea);
-  const [draftPath, setDraftPath] = useState(workflowArea);
+  const currentPath = executionPathValue(workflowArea);
+  const [draftPath, setDraftPath] = useState(executionPathValue(workflowArea));
+  const draftPathRef = useRef(executionPathValue(workflowArea));
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
+  function updateDraftPath(nextPath: string) {
+    const normalizedNextPath = executionPathValue(nextPath);
+
+    draftPathRef.current = normalizedNextPath;
+    setDraftPath(normalizedNextPath);
+  }
+
   async function initiatePath(nextPath: string) {
+    const normalizedNextPath = executionPathValue(nextPath);
+
     setIsSaving(true);
     setErrorMessage(null);
 
@@ -277,21 +306,18 @@ function ExecutionPathSwitch({
       const response = await fetch(`/api/tasks/${encodeURIComponent(taskId)}/path`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ workflowArea: nextPath })
+        body: JSON.stringify({ workflowArea: normalizedNextPath })
       });
       const result = (await response.json().catch(() => null)) as { task?: { workflowArea: string }; error?: string } | null;
 
       if (!response.ok || !result?.task) {
-        setDraftPath(currentPath);
         setErrorMessage(result?.error ?? "Unable to initiate the execution path right now.");
         return;
       }
 
-      setCurrentPath(result.task.workflowArea);
-      setDraftPath(result.task.workflowArea);
+      updateDraftPath(result.task.workflowArea);
       router.refresh();
     } catch (error) {
-      setDraftPath(currentPath);
       setErrorMessage(error instanceof Error ? error.message : "Unable to initiate the execution path right now.");
     } finally {
       setIsSaving(false);
@@ -309,7 +335,7 @@ function ExecutionPathSwitch({
           aria-label="Task execution path"
           disabled={isSaving}
           onChange={(event) => {
-            setDraftPath(event.target.value);
+            updateDraftPath(event.target.value);
             if (errorMessage) setErrorMessage(null);
           }}
           value={draftPath}
@@ -320,7 +346,7 @@ function ExecutionPathSwitch({
         </select>
         <button
           disabled={isSaving}
-          onClick={() => void initiatePath(draftPath)}
+          onClick={() => void initiatePath(draftPathRef.current)}
           type="button"
         >
           {isSaving ? "Initiating..." : draftPath === currentPath ? "Initiate path" : "Activate path"}
@@ -332,9 +358,441 @@ function ExecutionPathSwitch({
   );
 }
 
+type SimpleOwner = {
+  id: string;
+  name: string;
+  email?: string;
+};
+
+type SimpleCollaborator = SimpleOwner & {
+  addedAt: string;
+  addedBy: SimpleOwner | null;
+  isActive: boolean;
+};
+
+function initials(name: string) {
+  return name.split(/\s+/).filter(Boolean).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "??";
+}
+
+function TaskPeopleControls({
+  assignableUsers,
+  canManageCollaborators,
+  canReassign,
+  task
+}: {
+  assignableUsers: ActiveUserSummary[];
+  canManageCollaborators: boolean;
+  canReassign: boolean;
+  task: TaskReadModel;
+}) {
+  const router = useRouter();
+  const [owner, setOwner] = useState<SimpleOwner>(task.assignedUser);
+  const [ownerDraftId, setOwnerDraftId] = useState(task.assignedUser.id);
+  const [collaborators, setCollaborators] = useState<SimpleCollaborator[]>(task.collaborators ?? []);
+  const [collaboratorDraftId, setCollaboratorDraftId] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSavingOwner, setIsSavingOwner] = useState(false);
+  const [isSavingCollaborators, setIsSavingCollaborators] = useState(false);
+
+  async function saveCollaborators(nextIds: string[], successMessage = "Collaborators updated.") {
+    setIsSavingCollaborators(true);
+    setErrorMessage(null);
+    setMessage(null);
+
+    try {
+      const response = await fetch(`/api/tasks/${encodeURIComponent(task.id)}/collaborators`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ collaboratorIds: nextIds })
+      });
+      const result = (await response.json().catch(() => null)) as {
+        collaborators?: SimpleCollaborator[];
+        error?: string;
+      } | null;
+
+      if (!response.ok || !result?.collaborators) {
+        throw new Error(result?.error ?? "Unable to update collaborators right now.");
+      }
+
+      setCollaborators(result.collaborators);
+      setCollaboratorDraftId("");
+      setMessage(successMessage);
+      router.refresh();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Unable to update collaborators right now.");
+    } finally {
+      setIsSavingCollaborators(false);
+    }
+  }
+
+  async function saveOwner() {
+    if (ownerDraftId === owner.id) return;
+
+    setIsSavingOwner(true);
+    setErrorMessage(null);
+    setMessage(null);
+
+    try {
+      const response = await fetch(`/api/tasks/${encodeURIComponent(task.id)}/assignment`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignedUserId: ownerDraftId })
+      });
+      const result = (await response.json().catch(() => null)) as {
+        task?: { assignedUser: SimpleOwner };
+        error?: string;
+      } | null;
+
+      if (!response.ok || !result?.task) {
+        throw new Error(result?.error ?? "Unable to change the task owner right now.");
+      }
+
+      const nextOwner = result.task.assignedUser;
+      setOwner(nextOwner);
+      setOwnerDraftId(nextOwner.id);
+      setMessage(`Owner changed to ${nextOwner.name}.`);
+
+      if (collaborators.some((item) => item.id === nextOwner.id)) {
+        await saveCollaborators(
+          collaborators.filter((item) => item.id !== nextOwner.id).map((item) => item.id),
+          `Owner changed to ${nextOwner.name}. Collaborators updated.`
+        );
+      } else {
+        router.refresh();
+      }
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Unable to change the task owner right now.");
+    } finally {
+      setIsSavingOwner(false);
+    }
+  }
+
+  const availableCollaborators = assignableUsers.filter(
+    (user) => user.id !== owner.id && !collaborators.some((item) => item.id === user.id)
+  );
+  const canSaveOwner = canReassign && !isSavingOwner && ownerDraftId !== owner.id;
+  const canAddCollaborator = canManageCollaborators && !isSavingCollaborators && Boolean(collaboratorDraftId);
+
+  return (
+    <dd className="etw-compact-people-control">
+      <div className="etw-compact-owner-row">
+        <b>{owner.name}</b>
+        {canReassign ? (
+          <>
+            <select
+              aria-label="Change task owner"
+              disabled={isSavingOwner}
+              onChange={(event) => {
+                setOwnerDraftId(event.target.value);
+                setErrorMessage(null);
+                setMessage(null);
+              }}
+              value={ownerDraftId}
+            >
+              {assignableUsers.map((user) => (
+                <option key={user.id} value={user.id}>{user.name}</option>
+              ))}
+            </select>
+            <button disabled={!canSaveOwner} onClick={() => void saveOwner()} type="button">
+              {isSavingOwner ? "Saving..." : "Change"}
+            </button>
+          </>
+        ) : null}
+      </div>
+      <div className="etw-compact-collaborator-row">
+        <span>Collaborators</span>
+        {collaborators.length ? (
+          <ul aria-label="Task collaborators">
+            {collaborators.map((collaborator) => (
+              <li key={collaborator.id}>
+                <b>{initials(collaborator.name)}</b>
+                <span>{collaborator.name}</span>
+                {canManageCollaborators ? (
+                  <button
+                    aria-label={`Remove ${collaborator.name}`}
+                    disabled={isSavingCollaborators}
+                    onClick={() => void saveCollaborators(
+                      collaborators.filter((item) => item.id !== collaborator.id).map((item) => item.id)
+                    )}
+                    type="button"
+                  >
+                    Remove
+                  </button>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <em>No collaborators</em>
+        )}
+        {canManageCollaborators ? (
+          <div>
+            <select
+              aria-label="Add task collaborator"
+              disabled={isSavingCollaborators}
+              onChange={(event) => {
+                setCollaboratorDraftId(event.target.value);
+                setErrorMessage(null);
+                setMessage(null);
+              }}
+              value={collaboratorDraftId}
+            >
+              <option value="">Add collaborator</option>
+              {availableCollaborators.map((user) => (
+                <option key={user.id} value={user.id}>{user.name}</option>
+              ))}
+            </select>
+            <button
+              disabled={!canAddCollaborator}
+              onClick={() => void saveCollaborators([...collaborators.map((item) => item.id), collaboratorDraftId])}
+              type="button"
+            >
+              <UserPlus size={13} />Add
+            </button>
+          </div>
+        ) : null}
+      </div>
+      {message ? <small>{message}</small> : null}
+      {errorMessage ? <small role="alert">{errorMessage}</small> : null}
+    </dd>
+  );
+}
+
+const statusActionOptions = [
+  {
+    action: "IN_PROGRESS",
+    description: "Work has started and should keep moving.",
+    label: "In progress",
+    nextStatus: TaskStatus.IN_PROGRESS,
+    requiresReason: false
+  },
+  {
+    action: "BLOCKED",
+    description: "Work cannot continue until the blocker is cleared.",
+    label: "Blocked",
+    nextStatus: TaskStatus.BLOCKED,
+    requiresReason: true
+  },
+  {
+    action: "COMPLETED",
+    description: "The work is done and ready to leave the active queue.",
+    label: "Completed",
+    nextStatus: TaskStatus.COMPLETED,
+    requiresReason: false
+  },
+  {
+    action: "CLOSE",
+    description: "Close this task with a reason saved to the history.",
+    label: "Close",
+    nextStatus: TaskStatus.COMPLETED,
+    requiresReason: true
+  }
+] as const;
+
+type StatusAction = typeof statusActionOptions[number]["action"];
+
+function statusLabelFromValue(status: TaskStatus) {
+  return status.toLowerCase().replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function TaskStatusActionMenu({
+  canComment,
+  canUpdate,
+  currentStatus,
+  onStatusChanged,
+  task
+}: {
+  canComment: boolean;
+  canUpdate: boolean;
+  currentStatus: TaskStatus;
+  onStatusChanged: (status: TaskStatus) => void;
+  task: TaskReadModel;
+}) {
+  const router = useRouter();
+  const [pendingReasonAction, setPendingReasonAction] = useState<StatusAction | null>(null);
+  const [reason, setReason] = useState("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const pendingReasonOption = statusActionOptions.find((option) => option.action === pendingReasonAction) ?? null;
+  const trimmedReason = reason.trim();
+  const canApplyPendingStatus = canUpdate && !isSaving && Boolean(
+    pendingReasonOption && (!pendingReasonOption.requiresReason || trimmedReason)
+  );
+
+  function actionFromStatus(status: TaskStatus): StatusAction {
+    if (status === TaskStatus.BLOCKED) return "BLOCKED";
+    if (status === TaskStatus.COMPLETED) return "COMPLETED";
+
+    return "IN_PROGRESS";
+  }
+
+  async function saveCloseComment(action: StatusAction) {
+    if (!canComment || action !== "CLOSE" || !trimmedReason) {
+      return;
+    }
+
+    const response = await fetch(`/api/tasks/${encodeURIComponent(task.id)}/comments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body: `Closed task: ${trimmedReason}` })
+    });
+    const result = (await response.json().catch(() => null)) as { error?: string } | null;
+
+    if (!response.ok) {
+      throw new Error(result?.error ?? "Unable to save the close reason right now.");
+    }
+  }
+
+  async function patchStatus(status: TaskStatus, action: StatusAction) {
+    const response = await fetch(`/api/tasks/${encodeURIComponent(task.id)}/status`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        status,
+        ...(status === TaskStatus.BLOCKED ? { blockerReason: trimmedReason } : {}),
+        ...(trimmedReason ? { progressNote: action === "CLOSE" ? `Closed task: ${trimmedReason}` : trimmedReason } : {})
+      })
+    });
+    const result = (await response.json().catch(() => null)) as { task?: { status: TaskStatus }; error?: string } | null;
+
+    if (!response.ok || !result?.task) {
+      throw new Error(result?.error ?? "Unable to update the task status right now.");
+    }
+
+    return result.task;
+  }
+
+  async function applyStatus(action: StatusAction) {
+    const option = statusActionOptions.find((item) => item.action === action) ?? statusActionOptions[0];
+    const actionNeedsReason = option.requiresReason;
+    const actionCanApply = canUpdate && !isSaving && (!actionNeedsReason || Boolean(trimmedReason));
+
+    if (!actionCanApply) {
+      setErrorMessage(actionNeedsReason ? "Add a reason before applying this status." : null);
+      return;
+    }
+
+    setIsSaving(true);
+    setErrorMessage(null);
+
+    try {
+      await saveCloseComment(action);
+      let updatedTask: { status: TaskStatus };
+
+      try {
+        updatedTask = await patchStatus(option.nextStatus, action);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "";
+        if (
+          option.nextStatus === TaskStatus.COMPLETED &&
+          message === "Approval-required tasks must move through Ready for Review before Completed."
+        ) {
+          await patchStatus(TaskStatus.READY_FOR_REVIEW, action);
+          updatedTask = await patchStatus(TaskStatus.COMPLETED, action);
+        } else {
+          throw error;
+        }
+      }
+
+      onStatusChanged(updatedTask.status);
+      setReason("");
+      setPendingReasonAction(null);
+      router.refresh();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Unable to update the task status right now.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  return (
+    <dd className="etw-compact-status-menu">
+      <select
+        aria-label="Task status"
+        disabled={!canUpdate}
+        onChange={(event) => {
+          const nextAction = event.target.value as StatusAction;
+          const nextOption = statusActionOptions.find((option) => option.action === nextAction);
+
+          setErrorMessage(null);
+          setReason("");
+          if (nextOption) {
+            setPendingReasonAction(nextAction);
+          }
+        }}
+        value={pendingReasonAction ?? actionFromStatus(currentStatus)}
+      >
+        {statusActionOptions.map((option) => (
+          <option key={option.action} value={option.action}>{option.label}</option>
+        ))}
+      </select>
+      {pendingReasonOption ? (
+        <div className="etw-compact-status-popover" role="menu">
+          <strong>{pendingReasonOption.label}</strong>
+          <p>{pendingReasonOption.description}</p>
+          <label>
+            <span>
+              {pendingReasonAction === "BLOCKED"
+                ? "Blocker reason"
+                : pendingReasonAction === "CLOSE"
+                  ? "Close reason"
+                  : "Progress note"}
+              {pendingReasonOption.requiresReason ? "" : " (optional)"}
+            </span>
+            <textarea
+              disabled={isSaving}
+              onChange={(event) => {
+                setReason(event.target.value);
+                setErrorMessage(null);
+              }}
+              placeholder={
+                pendingReasonAction === "BLOCKED"
+                  ? "What is blocking this task?"
+                  : pendingReasonAction === "CLOSE"
+                    ? "Why is this task being closed?"
+                    : "Add a short reason or progress note..."
+              }
+              rows={3}
+              value={reason}
+            />
+          </label>
+          <div className="etw-compact-people-field">
+            <button
+              disabled={!canApplyPendingStatus}
+              onClick={() => {
+                if (pendingReasonAction) void applyStatus(pendingReasonAction);
+              }}
+              type="button"
+            >
+              {isSaving ? "Saving..." : pendingReasonAction === "CLOSE" ? "Close task" : "Apply status"}
+            </button>
+            <button
+              disabled={isSaving}
+              onClick={() => {
+                setPendingReasonAction(null);
+                setReason("");
+                setErrorMessage(null);
+              }}
+              type="button"
+            >
+              Cancel
+            </button>
+          </div>
+          {errorMessage ? (
+            <small role="alert"><AlertTriangle size={13} />{errorMessage}</small>
+          ) : null}
+        </div>
+      ) : null}
+    </dd>
+  );
+}
+
 export function TaskSimpleSummaryCard({
   actorIsManager,
+  assignableUsers,
   canComment,
+  canManageCollaborators,
   canUpdateStatus,
   checklist,
   commentCount,
@@ -352,13 +810,14 @@ export function TaskSimpleSummaryCard({
   returnTo,
   roleLabel,
   sourceLabel,
-  statusLabel,
   subtaskItems,
   task,
   taskCategory
 }: TaskSimpleSummaryCardProps) {
   const router = useRouter();
   const [activePanel, setActivePanel] = useState<SummaryPanel | null>(null);
+  const [currentStatus, setCurrentStatus] = useState(task.status as TaskStatus);
+
   const togglePanel = (panel: SummaryPanel) => {
     setActivePanel((currentPanel) => currentPanel === panel ? null : panel);
   };
@@ -372,11 +831,11 @@ export function TaskSimpleSummaryCard({
     { label: "SLA watched", state: "watch" },
     { label: `${commentCount} comment${commentCount === 1 ? "" : "s"}`, state: commentCount > 0 ? "ready" : "open" },
     { label: `${checklistCount} open checklist`, state: checklistCount > 0 ? "watch" : "ready" },
-    { label: statusLabel, state: task.status === "COMPLETED" ? "ready" : "open" }
+    { label: statusLabelFromValue(currentStatus), state: currentStatus === "COMPLETED" ? "ready" : "open" }
   ];
   const readySignalCount = signals.filter((signal) => signal.state === "ready").length;
-  const cardTone = getCardTone(task);
-  const displayStatusItems = getDisplayStatusItems(task, statusLabel, priorityLabel);
+  const cardTone = getCardTone(task, currentStatus);
+  const displayStatusItems = getDisplayStatusItems(task, currentStatus, priorityLabel);
 
   return (
     <section className={`etw-compact-task-card etw-compact-tone-${cardTone}`} aria-label="Task summary card">
@@ -405,10 +864,28 @@ export function TaskSimpleSummaryCard({
         <p className="etw-compact-task-description"><b>Description:</b> {recordDescription}</p>
 
         <dl className="etw-compact-task-fields" aria-label="Task details">
-          <div><dt><UserRound size={17} />Owner</dt><dd>{task.assignedUser.name}</dd></div>
+          <div className="etw-compact-people-field">
+            <dt><UserRound size={17} />Owner</dt>
+            <TaskPeopleControls
+              assignableUsers={assignableUsers}
+              canManageCollaborators={canManageCollaborators}
+              canReassign={actorIsManager}
+              task={task}
+            />
+          </div>
           <div><dt><CalendarDays size={17} />Due</dt><DueDateEditor canEdit={actorIsManager} dueAt={dueAt} dueLabel={dueLabel} taskId={task.id} /></div>
           <div><dt><ShieldCheck size={17} />Role</dt><dd>{roleLabel}</dd></div>
           <div><dt><Grid3X3 size={17} />Path</dt><ExecutionPathSwitch canEdit={canUpdateStatus} taskId={task.id} workflowArea={task.workflowArea} /></div>
+          <div>
+            <dt><Activity size={17} />Status</dt>
+            <TaskStatusActionMenu
+              canComment={canComment}
+              canUpdate={canUpdateStatus}
+              currentStatus={currentStatus}
+              onStatusChanged={setCurrentStatus}
+              task={task}
+            />
+          </div>
         </dl>
 
         <section className="etw-compact-next-action" aria-label="Next action">
@@ -436,7 +913,13 @@ export function TaskSimpleSummaryCard({
 
       {activePanel ? <div className="etw-compact-expanded-panel">
         {activePanel === "progress" ? (
-          <TaskStatusPanel actorIsManager={actorIsManager} canUpdate={canUpdateStatus} initialReadiness={readiness} task={task} />
+          <TaskStatusPanel
+            actorIsManager={actorIsManager}
+            canUpdate={canUpdateStatus}
+            initialReadiness={readiness}
+            onStatusChanged={setCurrentStatus}
+            task={task}
+          />
         ) : null}
 
         {activePanel === "next" ? (

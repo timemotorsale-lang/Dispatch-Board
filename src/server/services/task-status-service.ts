@@ -181,6 +181,47 @@ function shouldEnforceRequiredUpdateFields(status: TaskStatus) {
   return status === TaskStatus.READY_FOR_REVIEW || status === TaskStatus.COMPLETED;
 }
 
+function snapshotHasConversionContract(snapshot: unknown) {
+  return isPlainObject(snapshot) && isPlainObject(snapshot.conversionContract);
+}
+
+function workflowAreaCanUseProgressNoteCompletionEvidence(workflowArea?: string | null) {
+  return workflowArea === "SERVICE_ADVISOR" || workflowArea === "SHOP";
+}
+
+function progressNoteLooksLikeCompletionEvidence(progressNote: string | null | undefined) {
+  const normalizedNote = progressNote?.trim().toLowerCase() ?? "";
+
+  if (normalizedNote.length < 10) {
+    return false;
+  }
+
+  return [
+    "complete",
+    "completed",
+    "close",
+    "closed",
+    "done",
+    "fixed",
+    "installed",
+    "no further work",
+    "repaired",
+    "replaced",
+    "resolved",
+    "successfully"
+  ].some((term) => normalizedNote.includes(term));
+}
+
+function shouldUseConvertedProgressNoteAsCompletionEvidence(
+  task: { templateSnapshot?: unknown; workflowArea?: string | null },
+  input: NormalizedTaskStatusUpdateInput
+) {
+  return input.status === TaskStatus.COMPLETED &&
+    (snapshotHasConversionContract(task.templateSnapshot) ||
+      workflowAreaCanUseProgressNoteCompletionEvidence(task.workflowArea)) &&
+    progressNoteLooksLikeCompletionEvidence(input.progressNote);
+}
+
 function assertRequiredChecklistSatisfied(
   task: { checklistItems?: Array<{ label: string; isRequired: boolean; completed: boolean }> },
   status: TaskStatus
@@ -584,6 +625,10 @@ export async function updateTaskStatus(
     staffExecutionFlags
   );
   const previousStatus = task.status;
+  const completionNoteSuppliesConvertedEvidence = shouldUseConvertedProgressNoteAsCompletionEvidence(
+    task,
+    normalizedInput
+  );
 
   const updatedTask = await repository.updateTaskStatus(
     normalizedTaskId,
@@ -591,7 +636,8 @@ export async function updateTaskStatus(
       authenticatedUser,
       task,
       normalizedInput,
-      Boolean(staffExecutionFlags.taskAcceptanceEnabled && task.completionOverrideAt && isManager(authenticatedUser))
+      completionNoteSuppliesConvertedEvidence ||
+        Boolean(staffExecutionFlags.taskAcceptanceEnabled && task.completionOverrideAt && isManager(authenticatedUser))
     )
   );
 

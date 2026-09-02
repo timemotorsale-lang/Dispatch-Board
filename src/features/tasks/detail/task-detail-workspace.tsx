@@ -314,7 +314,9 @@ export function TaskDetailWorkspace({
         <main className="etw-simple-shell">
           <TaskSimpleSummaryCard
             actorIsManager={actorIsManager}
+            assignableUsers={assignableUsers}
             canComment={canComment}
+            canManageCollaborators={canManageCollaborators}
             canUpdateStatus={canUpdateStatus}
             checklist={checklist}
             commentCount={task.comments.length}

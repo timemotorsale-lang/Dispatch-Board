@@ -1,4 +1,4 @@
-import { Prisma, TaskStatus } from "@prisma/client";
+import { Prisma, TaskStatus, WorkflowArea } from "@prisma/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -12,6 +12,7 @@ type StoredTask = {
   assignedUserId: string;
   requiresManagerApproval: boolean;
   status: TaskStatus;
+  workflowArea: WorkflowArea;
   dueAt: Date;
   blockerReason: string | null;
   executionAssurance: Prisma.JsonValue | null;
@@ -49,6 +50,7 @@ function createStoredTask(overrides: Partial<StoredTask> = {}): StoredTask {
     assignedUserId: "user-jordan.sales@local.test",
     requiresManagerApproval: false,
     status: TaskStatus.IN_PROGRESS,
+    workflowArea: WorkflowArea.GENERAL_MANAGER,
     dueAt: new Date("2026-06-18T18:00:00.000Z"),
     blockerReason: null,
     executionAssurance: null,
@@ -862,6 +864,127 @@ describe("task status service", () => {
     await expect(updateTaskStatus(staffUser, "task-1", { status: "COMPLETED" }, repository)).rejects.toThrow(
       "Task checklist is incomplete"
     );
+  });
+
+  it("allows converted workflow completion when the status note supplies clear completion evidence", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
+    const { repository, readTask } = createTaskStatusRepository([
+      createStoredTask({
+        checklistItems: [
+          { label: "Record customer-facing update and internal advisor note", isRequired: true, completed: false }
+        ],
+        templateSnapshot: {
+          conversionContract: {
+            classificationReason: "Customer-facing repair work should start with Service Advisor ownership.",
+            confidence: "HIGH",
+            executionIntent: "CUSTOMER_ADVISOR_FOLLOW_UP",
+            linkedWorkflowAreas: ["SHOP"],
+            origin: { channel: "COO Workbook", sourceKind: "Workbook item", text: "Customer wants brakes checked." },
+            selectedWorkflowArea: "SERVICE_ADVISOR",
+            suggestedWorkflowArea: "SERVICE_ADVISOR",
+            version: 1
+          },
+          requiredUpdateFields: [
+            {
+              key: "advisor_outcome",
+              label: "Advisor outcome",
+              type: "long_text",
+              required: true,
+              helpText: null
+            }
+          ],
+          completionCriteria: {
+            mode: "checklist_and_update_fields",
+            requiredChecklistKeys: [],
+            requiredFieldKeys: ["advisor_outcome"]
+          }
+        }
+      })
+    ]);
+
+    const result = await updateTaskStatus(
+      staffUser,
+      "task-1",
+      {
+        status: "COMPLETED",
+        progressNote: "Both rear hub assemblies were successfully replaced."
+      },
+      repository
+    );
+
+    expect(result.status).toBe(TaskStatus.COMPLETED);
+    expect(result.executionAssurance.lastProgressNote).toBe("Both rear hub assemblies were successfully replaced.");
+    expect(readTask()).toMatchObject({
+      status: TaskStatus.COMPLETED,
+      completedAt: new Date("2026-06-18T15:30:00.000Z")
+    });
+  });
+
+  it("allows path-selected service tasks to complete from a clear completion note even without conversion metadata", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
+    const { repository, readTask } = createTaskStatusRepository([
+      createStoredTask({
+        checklistItems: [
+          { label: "Record customer-facing update and internal advisor note", isRequired: true, completed: false }
+        ],
+        templateSnapshot: null,
+        workflowArea: WorkflowArea.SERVICE_ADVISOR
+      })
+    ]);
+
+    const result = await updateTaskStatus(
+      staffUser,
+      "task-1",
+      {
+        status: "COMPLETED",
+        progressNote: "Both rear hub assemblies were successfully replaced."
+      },
+      repository
+    );
+
+    expect(result.status).toBe(TaskStatus.COMPLETED);
+    expect(readTask()).toMatchObject({
+      status: TaskStatus.COMPLETED,
+      completedAt: new Date("2026-06-18T15:30:00.000Z")
+    });
+  });
+
+  it("keeps converted workflow completion gated when the status note is not completion evidence", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const staffUser = usersByEmail.get("jordan.sales@local.test") ?? null;
+    const { repository } = createTaskStatusRepository([
+      createStoredTask({
+        checklistItems: [
+          { label: "Record customer-facing update and internal advisor note", isRequired: true, completed: false }
+        ],
+        templateSnapshot: {
+          conversionContract: {
+            classificationReason: "Customer-facing repair work should start with Service Advisor ownership.",
+            confidence: "HIGH",
+            executionIntent: "CUSTOMER_ADVISOR_FOLLOW_UP",
+            linkedWorkflowAreas: ["SHOP"],
+            origin: { channel: "COO Workbook", sourceKind: "Workbook item", text: "Customer wants brakes checked." },
+            selectedWorkflowArea: "SERVICE_ADVISOR",
+            suggestedWorkflowArea: "SERVICE_ADVISOR",
+            version: 1
+          }
+        }
+      })
+    ]);
+
+    await expect(
+      updateTaskStatus(
+        staffUser,
+        "task-1",
+        {
+          status: "COMPLETED",
+          progressNote: "Need to look at this."
+        },
+        repository
+      )
+    ).rejects.toThrow("Task checklist is incomplete");
   });
 
   it("rejects concern work when its dependency steps are incomplete", async () => {
