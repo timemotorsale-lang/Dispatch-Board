@@ -88,6 +88,7 @@ type QueueFilter =
 
 type DepartmentFilter =
   | "INVENTORY"
+  | "SERVICE_ADVISOR"
   | "SHOP"
   | "SALES"
   | "ADVERTISING"
@@ -165,6 +166,7 @@ const TASKS_CONSOLE_CREATE_STATUS_OPTIONS: TaskStatus[] = [
 ];
 const TASKS_CONSOLE_WORKFLOW_AREAS: WorkflowArea[] = [
   WorkflowArea.GENERAL_MANAGER,
+  WorkflowArea.SERVICE_ADVISOR,
   WorkflowArea.INVENTORY,
   WorkflowArea.SHOP,
   WorkflowArea.SALES,
@@ -245,6 +247,10 @@ function formatAgeFromTimestamp(value: string, now: Date) {
 function getDepartmentLabel(workflowArea: string) {
   if (workflowArea === "SHOP") {
     return "Service / Recon";
+  }
+
+  if (workflowArea === "SERVICE_ADVISOR") {
+    return "Service Advisor";
   }
 
   if (workflowArea === "GENERAL_MANAGER") {
@@ -830,7 +836,7 @@ export function TasksConsoleScreen({
       : "ALL"
   );
   const [activeDepartmentFilter, setActiveDepartmentFilter] = useState<DepartmentFilter | null>(
-    initialDepartmentFilter && ["INVENTORY", "SHOP", "SALES", "ADVERTISING", "ADMIN", "COLLECTIONS"].includes(initialDepartmentFilter)
+    initialDepartmentFilter && ["INVENTORY", "SERVICE_ADVISOR", "SHOP", "SALES", "ADVERTISING", "ADMIN", "COLLECTIONS"].includes(initialDepartmentFilter)
       ? initialDepartmentFilter as DepartmentFilter
       : null
   );
@@ -960,6 +966,7 @@ export function TasksConsoleScreen({
     (task) => task.assignedUser.id === currentUserId && task.status !== TaskStatus.COMPLETED
   ).length;
   const inventoryCount = getDepartmentCount(allTasks, "INVENTORY");
+  const serviceAdvisorCount = getDepartmentCount(allTasks, "SERVICE_ADVISOR");
   const serviceReconCount = getDepartmentCount(allTasks, "SHOP");
   const salesCount = getDepartmentCount(allTasks, "SALES");
   const marketingCount = getDepartmentCount(allTasks, "ADVERTISING");
@@ -1755,6 +1762,14 @@ export function TasksConsoleScreen({
       tone: "slate"
     },
     {
+      active: activeDepartmentFilter === "SERVICE_ADVISOR",
+      badge: serviceAdvisorCount,
+      key: "service-advisor",
+      label: "Service Advisor",
+      onClick: () => handleDepartmentFilterChange("SERVICE_ADVISOR"),
+      tone: "slate"
+    },
+    {
       active: activeDepartmentFilter === "SHOP",
       badge: serviceReconCount,
       key: "service-recon",
@@ -1982,7 +1997,7 @@ export function TasksConsoleScreen({
                 </div>
                 <strong>Department</strong>
                 <div className="tasks-console-popover-grid">
-                  {(["INVENTORY", "SHOP", "SALES", "ADVERTISING", "ADMIN", "COLLECTIONS"] as DepartmentFilter[]).map((filter) => (
+                  {(["INVENTORY", "SERVICE_ADVISOR", "SHOP", "SALES", "ADVERTISING", "ADMIN", "COLLECTIONS"] as DepartmentFilter[]).map((filter) => (
                     <button
                       className={activeDepartmentFilter === filter ? "tasks-console-popover-active" : undefined}
                       key={filter}

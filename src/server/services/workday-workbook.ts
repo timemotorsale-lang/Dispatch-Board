@@ -28,9 +28,11 @@ import {
   buildCoachingAndAccountabilityEngine,
   buildDailyPlanningEngine,
   buildExecutionTrackingEngine,
+  buildQuickUpdateIntelligenceEngine,
   buildReportIntelligenceEngine,
   buildRiskAndBlockerEngine,
   buildTimeAndAttentionEngine,
+  buildOperatingRhythmEngine,
   buildWorkflowGovernanceEngine
 } from "@/server/services/workday-workbook-engines";
 import { assertAuthenticatedUser, isManager } from "@/server/policies/access";
@@ -602,6 +604,7 @@ export function buildWorkdayReportSeeds(
   operatingSignals: WorkdayWorkbookOperatingSignals
 ): WorkdayReportSeedInput[] {
   const seeds: WorkdayReportSeedInput[] = [];
+  const quickUpdateIntelligence = buildQuickUpdateIntelligenceEngine(workbook);
 
   for (const item of workbook.dailyFocusItems) {
     if (item.status === WorkdayDailyFocusStatus.DONE && item.riskLevel === WorkdayRiskLevel.NONE && !item.supportNeeded.trim() && !item.riskNote.trim() && !item.progressUpdate.trim()) {
@@ -639,13 +642,21 @@ export function buildWorkdayReportSeeds(
   }
 
   for (const item of workbook.quickUpdates) {
+    const intelligence = quickUpdateIntelligence.items.find((signal) => signal.id === item.id);
     seeds.push({
-      detail: [item.text, item.person ? `Person: ${item.person}.` : "", item.company ? `Company: ${item.company}.` : "", item.followUpNeeded ? `Follow-up: ${item.dueWindow || "needed"}.` : ""].filter(Boolean).join(" "),
+      detail: [
+        item.text,
+        intelligence ? `Signal: ${intelligence.signalLabel} (${intelligence.confidence.toLocaleLowerCase()} confidence, impact ${intelligence.impactScore}/100).` : "",
+        item.person ? `Person: ${item.person}.` : "",
+        item.company ? `Company: ${item.company}.` : "",
+        item.followUpNeeded ? `Follow-up: ${item.dueWindow || "needed"}.` : "",
+        intelligence?.recommendedAction ? `Recommended action: ${intelligence.recommendedAction}` : ""
+      ].filter(Boolean).join(" "),
       sourceHref: item.convertedTaskId ? `/tasks/${item.convertedTaskId}` : null,
       sourceId: item.id,
       sourceType: WorkdayReportSeedSourceType.QUICK_UPDATE,
-      title: `${quickUpdateCategoryLabel(item.category)} update`,
-      tone: item.followUpNeeded || item.carryoverReady ? WorkdayReportSeedTone.YELLOW : WorkdayReportSeedTone.BLUE
+      title: intelligence ? `${intelligence.signalLabel} update` : `${quickUpdateCategoryLabel(item.category)} update`,
+      tone: intelligence && intelligence.impactScore >= 75 ? WorkdayReportSeedTone.RED : item.followUpNeeded || item.carryoverReady ? WorkdayReportSeedTone.YELLOW : WorkdayReportSeedTone.BLUE
     });
   }
 
@@ -925,6 +936,8 @@ function toReadModel(workbook: WorkdayWorkbookRecord, operatingSignals: WorkdayW
   const governance = buildWorkflowGovernanceEngine(workbook, operatingSignals);
   const activityIntelligence = buildActivityIntelligenceEngine(workbook);
   const timeAttention = buildTimeAndAttentionEngine(workbook);
+  const quickUpdateIntelligence = buildQuickUpdateIntelligenceEngine(workbook);
+  const operatingRhythm = buildOperatingRhythmEngine(workbook, governance);
   return {
     id: workbook.id,
     boardDayId: workbook.boardDayId,
@@ -993,6 +1006,7 @@ function toReadModel(workbook: WorkdayWorkbookRecord, operatingSignals: WorkdayW
       dueWindow: item.dueWindow,
       carryoverReady: item.carryoverReady,
       convertedTaskId: item.convertedTaskId,
+      intelligence: quickUpdateIntelligence.items.find((signal) => signal.id === item.id) ?? null,
       createdAt: dateToIso(item.createdAt),
       updatedAt: dateToIso(item.updatedAt)
     })),
@@ -1072,8 +1086,10 @@ function toReadModel(workbook: WorkdayWorkbookRecord, operatingSignals: WorkdayW
     coaching,
     reporting,
     governance,
+    operatingRhythm,
     activityIntelligence,
     timeAttention,
+    quickUpdateIntelligence,
     closeReadiness: buildCloseReadiness(workbook),
     effectiveness: buildDailyEffectiveness(workbook)
   };
@@ -1592,4 +1608,44 @@ export async function recordWorkbookAttentionHeartbeat(actor: AuthenticatedUser 
   });
 
   return { ok: true };
+}
+
+export async function recordWorkbookOperatingRhythmEvent(actor: AuthenticatedUser | null, input: unknown, dependencies: Dependencies = {}) {
+  const user = assertAuthenticatedUser(actor);
+  const payload = normalizeObject(input);
+  const workbookId = normalizeRequiredText(payload.workbookId, "Workbook id is required.", 120);
+  const action = normalizeRequiredText(payload.action, "Rhythm action is required.", 80);
+  const repository = dependencies.repository ?? createWorkdayWorkbookRepository();
+  const workbook = await repository.getWorkbookById(workbookId);
+  if (!workbook) throw new Error("Workbook not found.");
+  assertCanManageWorkbook(user, workbook);
+
+  const now = new Date();
+  const reason = normalizeOptionalText(payload.reason, "reason", 700) ?? "";
+  const sourcePath = normalizeOptionalText(payload.sourcePath, "sourcePath", 240) ?? "";
+  const eventType =
+    action === "START_REMINDER_SHOWN" ? "workbook.rhythm_start_reminder_shown" :
+    action === "START_DELAY_EXPLAINED" ? "workbook.rhythm_start_delay_explained" :
+    action === "END_PREP_REMINDER_SHOWN" ? "workbook.rhythm_end_prep_reminder_shown" :
+    "";
+  if (!eventType) throw new Error("Rhythm action is not supported.");
+  if (action === "START_DELAY_EXPLAINED" && !reason) throw new Error("Delay reason is required.");
+
+  const message =
+    action === "START_REMINDER_SHOWN" ? `${user.name} was reminded to Start The Day.` :
+    action === "START_DELAY_EXPLAINED" ? `${user.name} explained why Start The Day cannot happen yet: ${reason}` :
+    `${user.name} was reminded to prepare End The Day.`;
+
+  await recordWorkbookActivity(repository, user, workbook, eventType, message, {
+    reason,
+    sourcePath,
+    sourceId: `operating-rhythm:${action.toLocaleLowerCase()}:${now.getTime()}`,
+    sourceType: "OPERATING_RHYTHM"
+  });
+
+  const refreshed = await repository.getWorkbookById(workbook.id);
+  return {
+    ok: true,
+    operatingRhythm: refreshed ? toReadModel(refreshed).operatingRhythm : null
+  };
 }

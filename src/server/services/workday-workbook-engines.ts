@@ -29,6 +29,173 @@ function minutesFromSeconds(seconds: number) {
   return Math.round(seconds / 60);
 }
 
+function isAfterCloseWindow(now: Date, workbook: WorkdayWorkbookRecord) {
+  const boardDate = workbook.boardDay.date;
+  const closeWindowStart = new Date(boardDate);
+  closeWindowStart.setUTCHours(21, 0, 0, 0);
+
+  return now >= closeWindowStart;
+}
+
+function isAfterEndPrepNotice(now: Date, workbook: WorkdayWorkbookRecord) {
+  const boardDate = workbook.boardDay.date;
+  const endPrepNoticeAt = new Date(boardDate);
+  endPrepNoticeAt.setUTCHours(20, 0, 0, 0);
+
+  return now >= endPrepNoticeAt;
+}
+
+function latestRhythmSignal(workbook: WorkdayWorkbookRecord, actionType: string) {
+  return (workbook.activitySignals ?? [])
+    .filter((signal) => signal.actionType === actionType)
+    .sort((left, right) => right.occurredAt.getTime() - left.occurredAt.getTime())[0] ?? null;
+}
+
+function rhythmSignalsSince(workbook: WorkdayWorkbookRecord, actionType: string, since: Date | null) {
+  return (workbook.activitySignals ?? []).filter((signal) =>
+    signal.actionType === actionType &&
+    (!since || signal.occurredAt > since)
+  );
+}
+
+type QuickUpdateIntelligenceType =
+  "CUSTOMER_RISK" |
+  "FACILITY_ISSUE" |
+  "FINANCE_PAYMENT" |
+  "INFORMATIONAL" |
+  "INVENTORY_RECON_BLOCKER" |
+  "PARTS_DELAY" |
+  "PROCESS_IMPROVEMENT" |
+  "SALES_OPPORTUNITY" |
+  "STAFF_SUPPORT" |
+  "TRAINING_MOMENT" |
+  "VENDOR_DELAY";
+
+type QuickUpdateRecommendedRoute =
+  "CARRYOVER" |
+  "CONVERT_TO_TASK" |
+  "INFORMATIONAL" |
+  "REPORT_SEED" |
+  "STAFF_SUPPORT" |
+  "START_DAY_FOCUS" |
+  "WORK_DAY_ATTENTION";
+
+function includesAny(value: string, terms: string[]) {
+  return terms.some((term) => value.includes(term));
+}
+
+function classifyQuickUpdate(item: WorkdayWorkbookRecord["quickUpdates"][number]): QuickUpdateIntelligenceType {
+  const text = `${item.text} ${item.person} ${item.company}`.toLocaleLowerCase();
+  if (item.category === "CUSTOMER" || includesAny(text, ["customer", "client", "approval", "authorization", "promise", "upset", "callback", "call back"])) return "CUSTOMER_RISK";
+  if (item.category === "VENDOR" || includesAny(text, ["vendor", "sublet", "outside", "estimate", "supplement", "pickup", "drop off"])) return "VENDOR_DELAY";
+  if (item.category === "INVENTORY_PARTS" || includesAny(text, ["part", "parts", "eta", "backorder", "mirror", "rim"])) return "PARTS_DELAY";
+  if (includesAny(text, ["recon", "ready", "detail", "body", "paint", "inspection", "inventory", "photo"])) return "INVENTORY_RECON_BLOCKER";
+  if (item.category === "STAFF" || includesAny(text, ["need help", "support", "blocked", "stuck", "training", "not sure", "who owns"])) return "STAFF_SUPPORT";
+  if (item.category === "FACILITY" || includesAny(text, ["facility", "roof", "building", "lot", "snow", "camera", "internet", "phone"])) return "FACILITY_ISSUE";
+  if (item.category === "SALES_OPPORTUNITY" || includesAny(text, ["lead", "buy", "sale", "sold", "opportunity", "prospect"])) return "SALES_OPPORTUNITY";
+  if (item.category === "FINANCE" || includesAny(text, ["payment", "finance", "deposit", "refund", "title", "bank"])) return "FINANCE_PAYMENT";
+  if (item.category === "TRAINING" || includesAny(text, ["training", "coach", "mistake", "learn", "process"])) return "TRAINING_MOMENT";
+  if (includesAny(text, ["again", "keeps", "repeat", "bottleneck", "process", "policy"])) return "PROCESS_IMPROVEMENT";
+  return "INFORMATIONAL";
+}
+
+function quickUpdateTypeLabel(type: QuickUpdateIntelligenceType) {
+  return type.replaceAll("_", " ").toLocaleLowerCase().replace(/^./, (letter) => letter.toUpperCase());
+}
+
+function quickUpdateImpactScore(item: WorkdayWorkbookRecord["quickUpdates"][number], type: QuickUpdateIntelligenceType) {
+  const text = item.text.toLocaleLowerCase();
+  const explicitRisk = includesAny(text, ["blocked", "stuck", "urgent", "overdue", "promise", "approval", "authorization", "upset"]);
+  const base =
+    type === "CUSTOMER_RISK" ? 66 :
+    type === "VENDOR_DELAY" || type === "PARTS_DELAY" || type === "INVENTORY_RECON_BLOCKER" ? 60 :
+    type === "STAFF_SUPPORT" ? 56 :
+    type === "FINANCE_PAYMENT" ? 52 :
+    type === "FACILITY_ISSUE" ? 44 :
+    type === "SALES_OPPORTUNITY" ? 42 :
+    type === "TRAINING_MOMENT" || type === "PROCESS_IMPROVEMENT" ? 36 :
+    18;
+  return clampScore(base + (item.followUpNeeded ? 18 : 0) + (item.carryoverReady ? 12 : 0) + (!item.dueWindow.trim() && item.followUpNeeded ? 10 : 0) + (explicitRisk ? 10 : 0) + (item.convertedTaskId ? -12 : 0));
+}
+
+function quickUpdateRoutes(item: WorkdayWorkbookRecord["quickUpdates"][number], type: QuickUpdateIntelligenceType, impactScore: number): QuickUpdateRecommendedRoute[] {
+  const routes = new Set<QuickUpdateRecommendedRoute>();
+  if (item.followUpNeeded || impactScore >= 70) routes.add("WORK_DAY_ATTENTION");
+  if (item.followUpNeeded && !item.dueWindow.trim() || impactScore >= 78) routes.add("START_DAY_FOCUS");
+  if (item.carryoverReady || item.followUpNeeded && item.dueWindow.trim()) routes.add("CARRYOVER");
+  if (impactScore >= 45 || item.followUpNeeded || item.carryoverReady) routes.add("REPORT_SEED");
+  if (type === "STAFF_SUPPORT" || impactScore >= 82) routes.add("STAFF_SUPPORT");
+  if (!item.convertedTaskId && (impactScore >= 70 || item.followUpNeeded && !item.dueWindow.trim())) routes.add("CONVERT_TO_TASK");
+  if (!routes.size) routes.add("INFORMATIONAL");
+  return Array.from(routes);
+}
+
+function quickUpdateConfidence(item: WorkdayWorkbookRecord["quickUpdates"][number], type: QuickUpdateIntelligenceType) {
+  const structuredFields = [item.person, item.company, item.dueWindow].filter((value) => value.trim()).length;
+  if (type !== "INFORMATIONAL" && (item.followUpNeeded || item.carryoverReady || structuredFields >= 2)) return "HIGH" as const;
+  if (type !== "INFORMATIONAL" || structuredFields > 0) return "MEDIUM" as const;
+  return "LOW" as const;
+}
+
+export function buildQuickUpdateIntelligenceEngine(workbook: WorkdayWorkbookRecord) {
+  const items = workbook.quickUpdates.map((item) => {
+    const signalType = classifyQuickUpdate(item);
+    const impactScore = quickUpdateImpactScore(item, signalType);
+    const recommendedRoutes = quickUpdateRoutes(item, signalType, impactScore);
+    const missingFollowUpDate = item.followUpNeeded && !item.dueWindow.trim();
+    return {
+      id: item.id,
+      impactScore,
+      signalType,
+      signalLabel: quickUpdateTypeLabel(signalType),
+      confidence: quickUpdateConfidence(item, signalType),
+      recommendedRoutes,
+      missingFollowUpDate,
+      reportWorthy: recommendedRoutes.includes("REPORT_SEED"),
+      needsSupport: recommendedRoutes.includes("STAFF_SUPPORT"),
+      recommendedAction: missingFollowUpDate
+        ? "Add a follow-up date or convert this into a formal task."
+        : recommendedRoutes.includes("START_DAY_FOCUS")
+          ? "Consider this for Start The Day focus."
+          : recommendedRoutes.includes("CARRYOVER")
+            ? "Confirm tomorrow ownership during close."
+            : recommendedRoutes.includes("REPORT_SEED")
+              ? "Review this as a report seed before close."
+              : "Keep this as an informational note."
+    };
+  }).sort((left, right) => right.impactScore - left.impactScore);
+  const highImpactCount = items.filter((item) => item.impactScore >= 70).length;
+  const followUpGapCount = items.filter((item) => item.missingFollowUpDate).length;
+  const reportWorthyCount = items.filter((item) => item.reportWorthy).length;
+  const supportSignalCount = items.filter((item) => item.needsSupport).length;
+  const categoryCounts = items.reduce<Record<QuickUpdateIntelligenceType, number>>((counts, item) => {
+    counts[item.signalType] = (counts[item.signalType] ?? 0) + 1;
+    return counts;
+  }, {} as Record<QuickUpdateIntelligenceType, number>);
+  const topSignal = items[0];
+  const prompts = [
+    ...(followUpGapCount ? [`${followUpGapCount} Quick Update follow-up(s) need a due date.`] : []),
+    ...(highImpactCount ? [`${highImpactCount} high-impact Quick Update signal(s) should be reviewed today.`] : []),
+    ...(supportSignalCount ? [`${supportSignalCount} Quick Update support signal(s) may need manager help.`] : []),
+    ...(reportWorthyCount ? [`${reportWorthyCount} Quick Update(s) are report-worthy.`] : [])
+  ];
+
+  return {
+    score: clampScore(45 + reportWorthyCount * 7 + highImpactCount * 6 - followUpGapCount * 10 + supportSignalCount * 4),
+    status: statusLabel(clampScore(45 + reportWorthyCount * 7 + highImpactCount * 6 - followUpGapCount * 10 + supportSignalCount * 4)),
+    totalCount: items.length,
+    highImpactCount,
+    followUpGapCount,
+    reportWorthyCount,
+    supportSignalCount,
+    categoryCounts,
+    topSignalId: topSignal?.id ?? null,
+    staffGuidance: prompts[0] ?? (items.length ? "Quick Updates are classified and ready for close review." : "No Quick Updates captured yet."),
+    managerSummary: `${items.length} Quick Update signal(s), ${highImpactCount} high-impact, ${reportWorthyCount} report-worthy, ${followUpGapCount} missing follow-up date(s).`,
+    items
+  };
+}
+
 export function buildDailyPlanningEngine(workbook: WorkdayWorkbookRecord) {
   const focusItems = workbook.dailyFocusItems;
   const topOutcomes = focusItems.slice(0, 3);
@@ -127,6 +294,7 @@ export function buildExecutionTrackingEngine(workbook: WorkdayWorkbookRecord) {
 }
 
 export function buildRiskAndBlockerEngine(workbook: WorkdayWorkbookRecord, operatingSignals: WorkdayWorkbookOperatingSignals = { approvalCount: 0, handoffCount: 0, reportExceptions: 0 }) {
+  const quickUpdateIntelligence = buildQuickUpdateIntelligenceEngine(workbook);
   const dailyFocusBlockers = workbook.dailyFocusItems.filter((item) => item.riskLevel === WorkdayRiskLevel.BLOCKED);
   const dailyFocusWatch = workbook.dailyFocusItems.filter((item) => item.riskLevel === WorkdayRiskLevel.WATCH);
   const checklistRed = workbook.checklistItems.filter((item) => !item.done && item.status === WorkdayChecklistStatus.RED);
@@ -136,13 +304,14 @@ export function buildRiskAndBlockerEngine(workbook: WorkdayWorkbookRecord, opera
   const openCarryovers = workbook.carryovers.filter((item) => item.status === WorkdayCarryoverStatus.OPEN);
   const carriedSeeds = workbook.reportSeeds.filter((item) => item.status === WorkdayReportSeedStatus.CARRIED_OVER);
   const openSupport = workbook.supportActions.filter((item) => item.status !== WorkdaySupportActionStatus.RESOLVED);
-  const blockerCount = dailyFocusBlockers.length + checklistRed.length + missingDueWindow.length + openSupport.length + operatingSignals.approvalCount;
-  const watchCount = dailyFocusWatch.length + checklistYellow.length + quickFollowUps.length + openCarryovers.length + carriedSeeds.length + operatingSignals.handoffCount + operatingSignals.reportExceptions;
+  const blockerCount = dailyFocusBlockers.length + checklistRed.length + missingDueWindow.length + openSupport.length + operatingSignals.approvalCount + quickUpdateIntelligence.supportSignalCount;
+  const watchCount = dailyFocusWatch.length + checklistYellow.length + quickFollowUps.length + openCarryovers.length + carriedSeeds.length + operatingSignals.handoffCount + operatingSignals.reportExceptions + quickUpdateIntelligence.highImpactCount;
   const riskScore = clampScore(100 - blockerCount * 16 - watchCount * 7);
   const blockerQueue = [
     ...dailyFocusBlockers.map((item) => ({ id: item.id, sourceType: "DAILY_FOCUS" as const, title: item.outcome, detail: item.riskNote || item.supportNeeded || "Daily focus is blocked." })),
     ...checklistRed.map((item) => ({ id: item.id, sourceType: "CHECKLIST_ITEM" as const, title: item.text, detail: item.riskNote || item.update || "Checklist item is blocked." })),
     ...missingDueWindow.map((item) => ({ id: item.id, sourceType: "QUICK_UPDATE" as const, title: item.text, detail: "Follow-up needs a due window." })),
+    ...quickUpdateIntelligence.items.filter((item) => item.needsSupport).map((item) => ({ id: item.id, sourceType: "QUICK_UPDATE_INTELLIGENCE" as const, title: item.signalLabel, detail: item.recommendedAction })),
     ...openSupport.map((item) => ({ id: item.id, sourceType: "SUPPORT_ACTION" as const, title: "Open support action", detail: item.note }))
   ];
   const tomorrowCarryoverCandidates = [
@@ -155,6 +324,7 @@ export function buildRiskAndBlockerEngine(workbook: WorkdayWorkbookRecord, opera
 
   if (blockerCount) prompts.push("Resolve or assign support for blocked work before close.");
   if (missingDueWindow.length) prompts.push("Add due windows to Quick Update follow-ups.");
+  if (quickUpdateIntelligence.highImpactCount) prompts.push("Review high-impact Quick Updates before close.");
   if (tomorrowCarryoverCandidates.length) prompts.push("Confirm tomorrow ownership for carryover candidates.");
   if (!prompts.length) prompts.push("Risk is controlled. Keep watching promise and handoff signals.");
 
@@ -169,6 +339,8 @@ export function buildRiskAndBlockerEngine(workbook: WorkdayWorkbookRecord, opera
     quickFollowUpCount: quickFollowUps.length,
     missingDueWindowCount: missingDueWindow.length,
     openSupportCount: openSupport.length,
+    quickUpdateHighImpactCount: quickUpdateIntelligence.highImpactCount,
+    quickUpdateSupportSignalCount: quickUpdateIntelligence.supportSignalCount,
     operatingExceptionCount: operatingSignals.reportExceptions,
     blockerQueue,
     tomorrowCarryoverCandidates,
@@ -182,6 +354,7 @@ export function buildCoachingAndAccountabilityEngine(workbook: WorkdayWorkbookRe
   const planning = buildDailyPlanningEngine(workbook);
   const execution = buildExecutionTrackingEngine(workbook);
   const risk = buildRiskAndBlockerEngine(workbook, operatingSignals);
+  const quickUpdateIntelligence = buildQuickUpdateIntelligenceEngine(workbook);
   const reviewedSeeds = workbook.reportSeeds.filter((seed) => seed.status !== WorkdayReportSeedStatus.CANDIDATE).length;
   const reportingScore = workbook.reportSeeds.length ? clampScore((reviewedSeeds / workbook.reportSeeds.length) * 100) : 45;
   const effectivenessScore = clampScore((planning.score + execution.score + risk.score + reportingScore) / 4);
@@ -191,6 +364,7 @@ export function buildCoachingAndAccountabilityEngine(workbook: WorkdayWorkbookRe
   if (planning.score >= 75) strengths.push("Started with clear daily focus.");
   if (execution.completedWorkCount > 0) strengths.push("Moved planned work forward.");
   if (workbook.quickUpdates.length > 0) strengths.push("Captured meaningful unplanned work.");
+  if (quickUpdateIntelligence.reportWorthyCount > 0) strengths.push("Quick Updates created report-ready operating signal.");
   if (risk.blockerCount === 0) strengths.push("No hard blockers are open.");
   if (!strengths.length) strengths.push("The next improvement is to make the day visible early.");
 
@@ -198,6 +372,7 @@ export function buildCoachingAndAccountabilityEngine(workbook: WorkdayWorkbookRe
   if (execution.unfinishedWorkCount > 0) opportunities.push("Close, update, or carry over unfinished work.");
   if (risk.blockerCount > 0) opportunities.push("Ask for support on blocked work now.");
   if (workbook.quickUpdates.some((item) => item.followUpNeeded && !item.dueWindow.trim())) opportunities.push("Add due windows to follow-ups.");
+  if (quickUpdateIntelligence.highImpactCount > 0) opportunities.push("Review high-impact Quick Updates before close.");
   if (workbook.reportSeeds.length && reviewedSeeds < workbook.reportSeeds.length) opportunities.push("Review report seeds before generating the final draft.");
   if (!opportunities.length) opportunities.push("Keep the day current and close it cleanly.");
 
@@ -210,7 +385,7 @@ export function buildCoachingAndAccountabilityEngine(workbook: WorkdayWorkbookRe
     reportingScore,
     strengths,
     opportunities,
-    supportNeededPrompt: risk.blockerCount > 0 || planning.supportNeededCount > 0 ? "Support is needed to keep at least one item moving." : "",
+    supportNeededPrompt: risk.blockerCount > 0 || planning.supportNeededCount > 0 || quickUpdateIntelligence.supportSignalCount > 0 ? "Support is needed to keep at least one item moving." : "",
     staffSummary: opportunities[0],
     managerSummary: `${execution.completedWorkCount} of ${execution.plannedWorkCount} planned item(s) complete, ${risk.blockerCount} blocker(s), ${risk.tomorrowCarryoverCandidates.length} carryover candidate(s).`,
     coachingPrompts: [...opportunities.slice(0, 3), ...strengths.slice(0, 2)]
@@ -218,6 +393,7 @@ export function buildCoachingAndAccountabilityEngine(workbook: WorkdayWorkbookRe
 }
 
 export function buildReportIntelligenceEngine(workbook: WorkdayWorkbookRecord, operatingSignals: WorkdayWorkbookOperatingSignals = { approvalCount: 0, handoffCount: 0, reportExceptions: 0 }) {
+  const quickUpdateIntelligence = buildQuickUpdateIntelligenceEngine(workbook);
   const includedSeeds = workbook.reportSeeds.filter((seed) => seed.status === WorkdayReportSeedStatus.INCLUDED);
   const candidateSeeds = workbook.reportSeeds.filter((seed) => seed.status === WorkdayReportSeedStatus.CANDIDATE);
   const carriedSeeds = workbook.reportSeeds.filter((seed) => seed.status === WorkdayReportSeedStatus.CARRIED_OVER);
@@ -228,7 +404,7 @@ export function buildReportIntelligenceEngine(workbook: WorkdayWorkbookRecord, o
   const quickUpdateSeeds = workbook.quickUpdates;
   const supportSeeds = workbook.supportActions;
   const reportActivitySignals = (workbook.activitySignals ?? []).filter((signal) => signal.reportRelevant);
-  const sourceBackedCount = includedSeeds.length + candidateSeeds.length + carriedSeeds.length + completedFocusSeeds.length + unresolvedFocusSeeds.length + meaningfulChecklistSeeds.length + quickUpdateSeeds.length + supportSeeds.length + reportActivitySignals.length + operatingSignals.reportExceptions;
+  const sourceBackedCount = includedSeeds.length + candidateSeeds.length + carriedSeeds.length + completedFocusSeeds.length + unresolvedFocusSeeds.length + meaningfulChecklistSeeds.length + quickUpdateIntelligence.reportWorthyCount + supportSeeds.length + reportActivitySignals.length + operatingSignals.reportExceptions;
   const reviewedCount = includedSeeds.length + carriedSeeds.length + excludedSeeds.length;
   const reviewScore = workbook.reportSeeds.length ? (reviewedCount / workbook.reportSeeds.length) * 50 : 20;
   const sourceScore = Math.min(35, sourceBackedCount * 5);
@@ -244,6 +420,7 @@ export function buildReportIntelligenceEngine(workbook: WorkdayWorkbookRecord, o
   if (!sourceBackedCount) prompts.push("Work the day before generating a report draft.");
   if (candidateSeeds.length) prompts.push("Review candidate Report Seeds before finalizing the draft.");
   if (carriedSeeds.length) prompts.push("Confirm carried-over seeds appear in tomorrow setup.");
+  if (quickUpdateIntelligence.reportWorthyCount) prompts.push("Review report-worthy Quick Updates before finalizing.");
   if (unresolvedFocusSeeds.length) prompts.push("Include unresolved must-close focus items in the manager summary.");
   if (!prompts.length) prompts.push("Report inputs are reviewed and ready for a manager-ready draft.");
 
@@ -260,6 +437,7 @@ export function buildReportIntelligenceEngine(workbook: WorkdayWorkbookRecord, o
     unresolvedFocusCount: unresolvedFocusSeeds.length,
     meaningfulChecklistCount: meaningfulChecklistSeeds.length,
     quickUpdateCount: quickUpdateSeeds.length,
+    quickUpdateReportWorthyCount: quickUpdateIntelligence.reportWorthyCount,
     supportSignalCount: supportSeeds.length,
     reportActivitySignalCount: reportActivitySignals.length,
     dailyDraftInputs,
@@ -359,29 +537,70 @@ export function buildTimeAndAttentionEngine(workbook: WorkdayWorkbookRecord) {
   };
 }
 
-export function buildWorkflowGovernanceEngine(workbook: WorkdayWorkbookRecord, operatingSignals: WorkdayWorkbookOperatingSignals = { approvalCount: 0, handoffCount: 0, reportExceptions: 0 }) {
+export function buildWorkflowGovernanceEngine(workbook: WorkdayWorkbookRecord, operatingSignals: WorkdayWorkbookOperatingSignals = { approvalCount: 0, handoffCount: 0, reportExceptions: 0 }, now = new Date()) {
   const planning = buildDailyPlanningEngine(workbook);
   const execution = buildExecutionTrackingEngine(workbook);
   const risk = buildRiskAndBlockerEngine(workbook, operatingSignals);
   const reporting = buildReportIntelligenceEngine(workbook, operatingSignals);
   const isClosed = workbook.status === "CLOSED";
+  const closeWindowOpen = isAfterCloseWindow(now, workbook);
   const unconfirmedCarryovers = workbook.carryovers.filter((item) => item.status === WorkdayCarryoverStatus.OPEN).length;
   const needsDraft = reporting.sourceBackedCount > 0 && workbook.reportDrafts.length === 0;
+  const focusWithoutDisposition = workbook.dailyFocusItems.filter((item) =>
+    item.status !== WorkdayDailyFocusStatus.DONE &&
+    item.status !== WorkdayDailyFocusStatus.CARRY_OVER &&
+    !item.convertedTaskId &&
+    !item.progressUpdate.trim() &&
+    !item.supportNeeded.trim() &&
+    !item.riskNote.trim()
+  ).length;
+  const checklistWithoutDisposition = workbook.checklistItems.filter((item) =>
+    !item.done &&
+    !item.carryoverReady &&
+    !item.convertedTaskId &&
+    !item.update.trim() &&
+    item.status === WorkdayChecklistStatus.GREEN
+  ).length;
+  const followUpsWithoutDisposition = workbook.quickUpdates.filter((item) =>
+    item.followUpNeeded &&
+    !item.dueWindow.trim() &&
+    !item.carryoverReady &&
+    !item.convertedTaskId
+  ).length;
+  const unresolvedAttentionCount =
+    focusWithoutDisposition +
+    checklistWithoutDisposition +
+    followUpsWithoutDisposition +
+    unconfirmedCarryovers;
+  const allImportantItemsDispositioned = unresolvedAttentionCount === 0;
+  const startReadyScore = planning.focusItemCount ? 20 : 0;
+  const quickUpdateReviewScore = followUpsWithoutDisposition === 0 ? 20 : Math.max(0, 20 - followUpsWithoutDisposition * 7);
+  const workDispositionScore = focusWithoutDisposition + checklistWithoutDisposition === 0 ? 20 : Math.max(0, 20 - (focusWithoutDisposition + checklistWithoutDisposition) * 5);
+  const attentionDispositionScore = risk.blockerCount === 0 || allImportantItemsDispositioned ? 20 : Math.max(0, 20 - risk.blockerCount * 5);
+  const reportScore = reporting.candidateSeedCount === 0 || workbook.reportDrafts.length > 0 ? 10 : Math.max(0, 10 - reporting.candidateSeedCount * 2);
+  const staffReviewScore = workbook.supportActions.every((item) => item.status === WorkdaySupportActionStatus.RESOLVED) || allImportantItemsDispositioned ? 10 : 0;
+  const endTheDayEligibilityScore = clampScore(startReadyScore + quickUpdateReviewScore + workDispositionScore + attentionDispositionScore + reportScore + staffReviewScore + (closeWindowOpen ? 8 : 0));
   const closeBlockers = [
-    ...(planning.unresolvedMustCloseCount ? [`${planning.unresolvedMustCloseCount} must-close item(s) unresolved.`] : []),
-    ...(risk.blockerCount ? [`${risk.blockerCount} blocker(s) need support or ownership.`] : []),
-    ...(risk.missingDueWindowCount ? [`${risk.missingDueWindowCount} follow-up(s) missing due window.`] : []),
+    ...(planning.focusItemCount ? [] : ["Start The Day needs at least one focus outcome."]),
+    ...(focusWithoutDisposition ? [`${focusWithoutDisposition} focus item(s) need done, carryover, task, support, or progress decision.`] : []),
+    ...(checklistWithoutDisposition ? [`${checklistWithoutDisposition} checklist item(s) need done, carryover, task, support, or progress decision.`] : []),
+    ...(followUpsWithoutDisposition ? [`${followUpsWithoutDisposition} follow-up(s) need a due window, task, or carryover decision.`] : []),
     ...(unconfirmedCarryovers ? [`${unconfirmedCarryovers} carryover item(s) not confirmed.`] : []),
-    ...(needsDraft ? ["Daily report draft has not been generated."] : [])
+    ...(needsDraft && endTheDayEligibilityScore >= 80 ? ["Daily report draft has not been generated."] : [])
   ];
+  const endTheDayReady = !isClosed && planning.focusItemCount > 0 && (endTheDayEligibilityScore >= 80 || closeWindowOpen && allImportantItemsDispositioned);
   const currentStage = isClosed
     ? "GENERATE_REPORT" as const
     : planning.focusItemCount === 0
       ? "START_THE_DAY" as const
-      : risk.blockerCount > 0
+      : endTheDayReady
+        ? "CLOSE_THE_DAY" as const
+      : closeWindowOpen && closeBlockers.length
+        ? "PREPARE_TOMORROW" as const
+      : risk.blockerCount > 0 && !allImportantItemsDispositioned
         ? "ASK_FOR_SUPPORT" as const
-        : execution.unfinishedWorkCount > 0
-          ? "WORK_THE_DAY" as const
+      : execution.unfinishedWorkCount > 0
+        ? "WORK_THE_DAY" as const
           : risk.tomorrowCarryoverCandidates.length > 0
             ? "PREPARE_TOMORROW" as const
             : "CLOSE_THE_DAY" as const;
@@ -395,6 +614,17 @@ export function buildWorkflowGovernanceEngine(workbook: WorkdayWorkbookRecord, o
 
   return {
     currentStage,
+    currentPhase: isClosed ? "CLOSED" as const : currentStage === "START_THE_DAY" ? "START" as const : currentStage === "CLOSE_THE_DAY" || currentStage === "PREPARE_TOMORROW" || currentStage === "GENERATE_REPORT" ? "END" as const : "WORK" as const,
+    closeWindowOpen,
+    endTheDayEligibilityScore,
+    allImportantItemsDispositioned,
+    unresolvedAttentionCount,
+    dispositionCounts: {
+      focusWithoutDisposition,
+      checklistWithoutDisposition,
+      followUpsWithoutDisposition,
+      unconfirmedCarryovers
+    },
     nextRecommendedAction,
     closeReadinessState: closeBlockers.length ? "BLOCKED" as const : "CLEAN" as const,
     closeBlockers,
@@ -407,5 +637,63 @@ export function buildWorkflowGovernanceEngine(workbook: WorkdayWorkbookRecord, o
       canReopenDay: isClosed
     },
     managerReviewPrompts: closeBlockers.length ? closeBlockers : ["Workbook is ready for manager review."]
+  };
+}
+
+export function buildOperatingRhythmEngine(
+  workbook: WorkdayWorkbookRecord,
+  governance = buildWorkflowGovernanceEngine(workbook),
+  now = new Date()
+) {
+  const startComplete = workbook.status === "CLOSED" || workbook.dailyFocusItems.length > 0;
+  const latestDelay = latestRhythmSignal(workbook, "workbook.rhythm_start_delay_explained");
+  const startReminderCount = rhythmSignalsSince(workbook, "workbook.rhythm_start_reminder_shown", latestDelay?.occurredAt ?? null).length;
+  const explanationCount = rhythmSignalsSince(workbook, "workbook.rhythm_start_delay_explained", null).length;
+  const reminderLimit = 3;
+  const startGateState = startComplete
+    ? "COMPLETE" as const
+    : startReminderCount >= reminderLimit
+      ? "LOCKED_UNTIL_REASON" as const
+      : latestDelay
+        ? "REASON_ACCEPTED" as const
+        : "REMIND" as const;
+  const endPrepNoticeOpen = isAfterEndPrepNotice(now, workbook);
+  const endPrepActive = isAfterCloseWindow(now, workbook);
+  const endPrepState = workbook.status === "CLOSED"
+    ? "CLOSED" as const
+    : endPrepActive
+      ? "ACTIVE" as const
+      : endPrepNoticeOpen
+        ? "PREP_NOTICE" as const
+        : "QUIET" as const;
+
+  return {
+    startTheDay: {
+      complete: startComplete,
+      state: startGateState,
+      reminderCount: Math.min(startReminderCount, reminderLimit),
+      reminderLimit,
+      remainingReminders: Math.max(0, reminderLimit - startReminderCount),
+      explanationCount,
+      latestExplanation: latestDelay?.businessImpact ?? "",
+      message: startComplete
+        ? "Start The Day is complete."
+        : startReminderCount >= reminderLimit
+          ? "Start The Day has not been completed. Start the day or explain the delay to keep working."
+          : `Start The Day has not been completed. ${Math.max(0, reminderLimit - startReminderCount)} reminder(s) left before a reason is required.`
+    },
+    endTheDay: {
+      state: endPrepState,
+      readinessScore: governance.endTheDayEligibilityScore,
+      closeWindowOpen: governance.closeWindowOpen,
+      message: endPrepState === "ACTIVE"
+        ? `End The Day preparation is active. You are ${governance.endTheDayEligibilityScore}/100 ready.`
+        : endPrepState === "PREP_NOTICE"
+          ? `End The Day preparation starts at 4 PM. You are ${governance.endTheDayEligibilityScore}/100 ready.`
+          : workbook.status === "CLOSED"
+            ? "End The Day is complete."
+            : "End The Day reminders are quiet until 3 PM.",
+      blockers: governance.closeBlockers
+    }
   };
 }

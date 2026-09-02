@@ -14,7 +14,7 @@ import {
 import { describe, expect, it } from "vitest";
 
 import type { WorkdayWorkbookRecord } from "@/server/repositories/workday-workbook-repository";
-import { buildActivityIntelligenceEngine, buildCoachingAndAccountabilityEngine, buildDailyPlanningEngine, buildExecutionTrackingEngine, buildReportIntelligenceEngine, buildRiskAndBlockerEngine, buildTimeAndAttentionEngine, buildWorkflowGovernanceEngine } from "@/server/services/workday-workbook-engines";
+import { buildActivityIntelligenceEngine, buildCoachingAndAccountabilityEngine, buildDailyPlanningEngine, buildExecutionTrackingEngine, buildOperatingRhythmEngine, buildQuickUpdateIntelligenceEngine, buildReportIntelligenceEngine, buildRiskAndBlockerEngine, buildTimeAndAttentionEngine, buildWorkflowGovernanceEngine } from "@/server/services/workday-workbook-engines";
 
 const now = new Date("2026-08-29T14:00:00.000Z");
 const boardDay: BoardDay = {
@@ -161,11 +161,60 @@ describe("workday workbook engines", () => {
       ]
     }), { approvalCount: 1, handoffCount: 0, reportExceptions: 1 });
 
-    expect(risk.blockerCount).toBe(2);
+    expect(risk.blockerCount).toBe(3);
     expect(risk.missingDueWindowCount).toBe(1);
     expect(risk.blockerQueue.map((item) => item.sourceType)).toContain("QUICK_UPDATE");
+    expect(risk.blockerQueue.map((item) => item.sourceType)).toContain("QUICK_UPDATE_INTELLIGENCE");
     expect(risk.tomorrowCarryoverCandidates.map((item) => item.title)).toContain("Complete customer promise review");
     expect(risk.staffGuidance).toBe("Resolve or assign support for blocked work before close.");
+  });
+
+  it("classifies Quick Updates into operational intelligence", () => {
+    const intelligence = buildQuickUpdateIntelligenceEngine(workbook({
+      quickUpdates: [
+        {
+          id: "quick-1",
+          workbookId: "workbook-1",
+          text: "Customer is upset and needs authorization callback before close.",
+          category: WorkdayQuickUpdateCategory.CUSTOMER,
+          person: "Jordan",
+          company: "",
+          followUpNeeded: true,
+          dueWindow: "",
+          carryoverReady: false,
+          convertedTaskId: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: "quick-2",
+          workbookId: "workbook-1",
+          text: "Roof vendor stopped by with next-week timing.",
+          category: WorkdayQuickUpdateCategory.FACILITY,
+          person: "AJ",
+          company: "Roof vendor",
+          followUpNeeded: false,
+          dueWindow: "",
+          carryoverReady: false,
+          convertedTaskId: null,
+          createdAt: now,
+          updatedAt: now
+        }
+      ]
+    }));
+
+    expect(intelligence).toMatchObject({
+      totalCount: 2,
+      highImpactCount: 1,
+      followUpGapCount: 1,
+      reportWorthyCount: 2,
+      supportSignalCount: 1
+    });
+    expect(intelligence.items[0]).toMatchObject({
+      signalType: "CUSTOMER_RISK",
+      confidence: "HIGH",
+      recommendedAction: "Add a follow-up date or convert this into a formal task."
+    });
   });
 
   it("turns workbook signals into coaching and accountability guidance", () => {
@@ -319,17 +368,166 @@ describe("workday workbook engines", () => {
     expect(attention.areas[0]).toEqual({ activeMinutes: 6, area: "COO_WORKBOOK_EFFECTIVENESS" });
   });
 
-  it("governs lifecycle stage, close blockers, and allowed actions", () => {
+  it("moves to End The Day when important work has a disposition", () => {
     const governance = buildWorkflowGovernanceEngine(workbook(), { approvalCount: 1, handoffCount: 0, reportExceptions: 0 });
 
-    expect(governance.currentStage).toBe("ASK_FOR_SUPPORT");
-    expect(governance.closeReadinessState).toBe("BLOCKED");
-    expect(governance.closeBlockers).toContain("1 must-close item(s) unresolved.");
+    expect(governance.currentPhase).toBe("END");
+    expect(governance.currentStage).toBe("CLOSE_THE_DAY");
+    expect(governance.endTheDayEligibilityScore).toBeGreaterThanOrEqual(80);
+    expect(governance.allImportantItemsDispositioned).toBe(true);
     expect(governance.allowedActions).toMatchObject({
       canAskForSupport: true,
       canCloseDay: true,
       canEdit: true,
       canReopenDay: false
     });
+  });
+
+  it("explains why the workflow is not ready to end the day", () => {
+    const governance = buildWorkflowGovernanceEngine(workbook({
+      dailyFocusItems: [
+        {
+          ...workbook().dailyFocusItems[0],
+          progressUpdate: "",
+          riskLevel: WorkdayRiskLevel.NONE,
+          riskNote: "",
+          supportNeeded: ""
+        }
+      ],
+      quickUpdates: [
+        {
+          id: "quick-missing-due",
+          workbookId: "workbook-1",
+          text: "Customer needs a callback.",
+          category: WorkdayQuickUpdateCategory.CUSTOMER,
+          person: "Maria",
+          company: "",
+          followUpNeeded: true,
+          dueWindow: "",
+          carryoverReady: false,
+          convertedTaskId: null,
+          createdAt: now,
+          updatedAt: now
+        }
+      ]
+    }), { approvalCount: 0, handoffCount: 0, reportExceptions: 0 }, new Date("2026-08-29T18:00:00.000Z"));
+
+    expect(governance.currentPhase).toBe("WORK");
+    expect(governance.unresolvedAttentionCount).toBe(2);
+    expect(governance.closeBlockers).toEqual(expect.arrayContaining([
+      "1 focus item(s) need done, carryover, task, support, or progress decision.",
+      "1 follow-up(s) need a due window, task, or carryover decision."
+    ]));
+  });
+
+  it("governs Start The Day reminders before requiring a reason", () => {
+    const rhythm = buildOperatingRhythmEngine(workbook({
+      dailyFocusItems: [],
+      activitySignals: [
+        {
+          id: "rhythm-1",
+          workbookId: "workbook-1",
+          boardDayId: "board-day-1",
+          actorUserId: "user-1",
+          sourceModule: "COO_WORKBOOK",
+          sourceType: "OPERATING_RHYTHM",
+          sourceId: "reminder-1",
+          actionType: "workbook.rhythm_start_reminder_shown",
+          purpose: WorkdayActivityPurpose.LEARNING_COACHING_SIGNAL,
+          businessImpact: "Reminder 1",
+          reportRelevant: false,
+          coachingRelevant: true,
+          metadata: {},
+          occurredAt: new Date("2026-08-29T13:00:00.000Z"),
+          createdAt: now
+        },
+        {
+          id: "rhythm-2",
+          workbookId: "workbook-1",
+          boardDayId: "board-day-1",
+          actorUserId: "user-1",
+          sourceModule: "COO_WORKBOOK",
+          sourceType: "OPERATING_RHYTHM",
+          sourceId: "reminder-2",
+          actionType: "workbook.rhythm_start_reminder_shown",
+          purpose: WorkdayActivityPurpose.LEARNING_COACHING_SIGNAL,
+          businessImpact: "Reminder 2",
+          reportRelevant: false,
+          coachingRelevant: true,
+          metadata: {},
+          occurredAt: new Date("2026-08-29T14:00:00.000Z"),
+          createdAt: now
+        },
+        {
+          id: "rhythm-3",
+          workbookId: "workbook-1",
+          boardDayId: "board-day-1",
+          actorUserId: "user-1",
+          sourceModule: "COO_WORKBOOK",
+          sourceType: "OPERATING_RHYTHM",
+          sourceId: "reminder-3",
+          actionType: "workbook.rhythm_start_reminder_shown",
+          purpose: WorkdayActivityPurpose.LEARNING_COACHING_SIGNAL,
+          businessImpact: "Reminder 3",
+          reportRelevant: false,
+          coachingRelevant: true,
+          metadata: {},
+          occurredAt: new Date("2026-08-29T15:00:00.000Z"),
+          createdAt: now
+        }
+      ]
+    }));
+
+    expect(rhythm.startTheDay).toMatchObject({
+      complete: false,
+      reminderCount: 3,
+      remainingReminders: 0,
+      state: "LOCKED_UNTIL_REASON"
+    });
+  });
+
+  it("starts a new reminder cycle after staff explains why the day cannot start yet", () => {
+    const rhythm = buildOperatingRhythmEngine(workbook({
+      dailyFocusItems: [],
+      activitySignals: [
+        {
+          id: "reason-1",
+          workbookId: "workbook-1",
+          boardDayId: "board-day-1",
+          actorUserId: "user-1",
+          sourceModule: "COO_WORKBOOK",
+          sourceType: "OPERATING_RHYTHM",
+          sourceId: "reason-1",
+          actionType: "workbook.rhythm_start_delay_explained",
+          purpose: WorkdayActivityPurpose.LEARNING_COACHING_SIGNAL,
+          businessImpact: "Eli explained why Start The Day cannot happen yet: urgent customer issue.",
+          reportRelevant: false,
+          coachingRelevant: true,
+          metadata: {},
+          occurredAt: new Date("2026-08-29T15:05:00.000Z"),
+          createdAt: now
+        }
+      ]
+    }));
+
+    expect(rhythm.startTheDay).toMatchObject({
+      explanationCount: 1,
+      reminderCount: 0,
+      remainingReminders: 3,
+      state: "REASON_ACCEPTED"
+    });
+  });
+
+  it("opens End The Day preparation reminders at 3 PM and active preparation at 4 PM Central", () => {
+    const notice = buildOperatingRhythmEngine(workbook(), undefined, new Date("2026-08-29T20:05:00.000Z"));
+    const active = buildOperatingRhythmEngine(workbook(), undefined, new Date("2026-08-29T21:05:00.000Z"));
+
+    expect(notice.endTheDay).toMatchObject({
+      state: "PREP_NOTICE",
+      readinessScore: expect.any(Number)
+    });
+    expect(notice.endTheDay.message).toContain("starts at 4 PM");
+    expect(active.endTheDay.state).toBe("ACTIVE");
+    expect(active.endTheDay.message).toContain("preparation is active");
   });
 });

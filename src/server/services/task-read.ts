@@ -17,6 +17,10 @@ import {
   type TaskExecutionAssurance,
   type TaskMomentumState
 } from "@/lib/task-execution-assurance";
+import {
+  buildTaskNextActionRecommendation,
+  type TaskNextActionRecommendation
+} from "@/server/services/task-next-action";
 
 type TaskReadUserSummary = {
   id: string;
@@ -141,6 +145,7 @@ export type TaskReadModel = {
   customerReference: string | null;
   blockerReason: string | null;
   executionAssurance: TaskExecutionAssurance & { state: TaskMomentumState };
+  nextActionRecommendation?: TaskNextActionRecommendation;
   readyForReviewAt: string | null;
   completedAt: string | null;
   createdAt: string;
@@ -362,7 +367,7 @@ function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
         }
       : null;
 
-  return {
+  const readModel: TaskReadModel = {
     id: task.id,
     boardDayId: task.boardDay.id,
     boardDate: task.boardDay.date.toISOString().slice(0, 10),
@@ -501,6 +506,11 @@ function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
         email: comment.authorUser.email || undefined
       }
     }))
+  };
+
+  return {
+    ...readModel,
+    nextActionRecommendation: buildTaskNextActionRecommendation(readModel)
   };
 }
 

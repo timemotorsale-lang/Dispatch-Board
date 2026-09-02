@@ -176,6 +176,10 @@
 .vendorLifecycleActions button{min-height:34px;border:1px solid #bcd0e5;border-radius:999px;padding:0 11px;color:#29415f;background:#fff;font-size:.72rem;font-weight:850}
 .vendorLifecycleActions button:hover{border-color:#315ed0;color:#315ed0;background:#f5f8ff}
 .vendorLifecycleActions button:disabled{cursor:not-allowed;opacity:.55}
+.authorizationGuardrail{display:grid;gap:4px;margin-top:10px;border:1px solid #bfd8cb;border-radius:9px;padding:10px 12px;color:#245b43;background:#f4fbf7}
+.authorizationGuardrail strong{font-size:.72rem;font-weight:900;text-transform:uppercase}
+.authorizationGuardrail p{margin:0;font-size:.72rem;line-height:1.45}
+.authorizationGuardrailBlocked{border-color:#efc4bd;color:#8e3428;background:#fff4f2}
 @media(max-width:850px){.outcomeChoices,.repairResultFields,.progressGrid{grid-template-columns:1fr}.sendToQcAction{justify-self:stretch}.wideField{grid-column:auto}.progressWorkspace header,.progressActions,.progressHistory article,.qcReadyBanner{display:grid}.progressHistory aside{justify-items:start}.progressPrimaryActions{display:grid}}
 @media(max-width:1100px){.vendorAlgorithmGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){.vendorAlgorithmGrid{grid-template-columns:1fr}.vendorRouteActive header{grid-template-columns:1fr}.vendorRouteActive b{width:max-content}}

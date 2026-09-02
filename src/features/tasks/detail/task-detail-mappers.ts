@@ -1,7 +1,13 @@
 import { TaskStatus, WorkflowArea } from "@prisma/client";
 
 import { TASK_CHECKLIST_ITEM_KIND } from "@/lib/task-checklist-kind";
-import { buildAdaptiveTaskChecklist, isLegacyGenericAdaptiveChecklist } from "@/lib/adaptive-task-checklist";
+import {
+  buildAdaptiveTaskChecklist,
+  buildAdaptiveTaskSubtasks,
+  isKnownAdaptiveChecklist,
+  isKnownAdaptiveSubtaskLabel,
+  isLegacyGenericAdaptiveChecklist
+} from "@/lib/adaptive-task-checklist";
 import type { ActivityFeedEvent } from "@/server/services/activity-feed";
 import type { TaskReadModel } from "@/server/services/task-read";
 
@@ -78,7 +84,8 @@ export function buildDefinitionOfDone(task: TaskReadModel): TaskDetailChecklistI
   if (persistedItems.length > 0) {
     if (
       persistedItems.every((item) => !item.completed) &&
-      isLegacyGenericAdaptiveChecklist(persistedItems.map((item) => item.label))
+      (isLegacyGenericAdaptiveChecklist(persistedItems.map((item) => item.label)) ||
+        isKnownAdaptiveChecklist(persistedItems.map((item) => item.label)))
     ) {
       return buildAdaptiveTaskChecklist(task).map((item) => ({
         id: `${task.id}-adaptive-${item.key}`,
@@ -105,6 +112,38 @@ export function buildDefinitionOfDone(task: TaskReadModel): TaskDetailChecklistI
   }));
 }
 
+function buildPathSubtasks(task: TaskReadModel): TaskDetailSubtaskItem[] {
+  return buildAdaptiveTaskSubtasks(task).map((item) => ({
+    id: `${task.id}-subtask-path-${item.key}`,
+    label: item.label,
+    completed:
+      item.completedWhen === "started"
+        ? task.status !== TaskStatus.NOT_STARTED
+        : item.completedWhen === "commented"
+          ? task.comments.length > 0
+          : item.completedWhen === "closed"
+            ? Boolean(task.readyForReviewAt || task.completedAt)
+            : false
+  }));
+}
+
+function isGeneratedSubtaskList(labels: string[]) {
+  const genericLabels = [
+    "Review task objective",
+    "Post progress update",
+    "Resolve blocker or assign next step",
+    "Confirm next execution step",
+    "Move to Ready for Review"
+  ];
+
+  return labels.every((label) =>
+    genericLabels.includes(label) ||
+    isKnownAdaptiveSubtaskLabel(label) ||
+    label.startsWith("Review ") ||
+    label.startsWith("Confirm ")
+  );
+}
+
 export function buildSubtasks(task: TaskReadModel): TaskDetailSubtaskItem[] {
   const persistedItems = task.checklistItems
     .filter((item) => item.kind === TASK_CHECKLIST_ITEM_KIND.SUBTASK)
@@ -115,8 +154,19 @@ export function buildSubtasks(task: TaskReadModel): TaskDetailSubtaskItem[] {
     }));
 
   if (persistedItems.length > 0) {
+    if (
+      persistedItems.every((item) => !item.completed) &&
+      isGeneratedSubtaskList(persistedItems.map((item) => item.label))
+    ) {
+      const pathSubtasks = buildPathSubtasks(task);
+      if (pathSubtasks.length > 0) return pathSubtasks;
+    }
+
     return persistedItems;
   }
+
+  const pathSubtasks = buildPathSubtasks(task);
+  if (pathSubtasks.length > 0) return pathSubtasks;
 
   const baseItems: TaskDetailSubtaskItem[] = [
     {

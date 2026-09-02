@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { ChevronDown, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { RichTextComposer, RichTextContent } from "@/components/ui/rich-text-composer";
@@ -21,8 +21,10 @@ type UnifiedFeedItem = {
 type TaskUpdatesCommentsCardProps = {
   canComment: boolean;
   compact?: boolean;
+  heading?: string;
   initialFeedItems: UnifiedFeedItem[];
   onActivityChanged?: () => void;
+  quickNoteShortcuts?: Array<{ label: string; text: string }>;
   refreshKey?: number;
   taskId: string;
 };
@@ -42,16 +44,20 @@ const TASK_NOTE_SHORTCUTS = [
 export function TaskUpdatesCommentsCard({
   canComment,
   compact = false,
+  heading = "Case Notes",
   initialFeedItems,
   onActivityChanged,
+  quickNoteShortcuts = TASK_NOTE_SHORTCUTS,
   refreshKey = 0,
   taskId
 }: TaskUpdatesCommentsCardProps) {
   const [feedItems, setFeedItems] = useState(initialFeedItems);
   const [draftBody, setDraftBody] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [quickNotesOpen, setQuickNotesOpen] = useState(false);
+  const progressItems = feedItems.filter((item) => item.kind === "comment");
 
   useEffect(() => {
     if (refreshKey === 0) {
@@ -155,9 +161,42 @@ export function TaskUpdatesCommentsCard({
   if (compact) {
     return (
       <section className="etw-notes-card">
-        <div className="etw-note-heading"><strong>Case Notes</strong><span>{feedItems.filter((item) => item.kind === "comment").length}</span></div>
+        <button
+          aria-expanded={historyOpen}
+          className="etw-note-heading etw-note-heading-button"
+          onClick={() => setHistoryOpen((current) => !current)}
+          type="button"
+        >
+          <span><strong>{heading}</strong><em>{progressItems.length}</em></span>
+          <ChevronDown size={15} />
+        </button>
+        {historyOpen ? (
+          <div className="etw-note-history" aria-label={`${heading} history`}>
+            {progressItems.length ? progressItems.map((item) => (
+              <article key={item.id}>
+                <span>
+                  <strong>{item.actorName}</strong>
+                  <small>{formatTaskDetailDateTime(item.createdAt)}</small>
+                </span>
+                <RichTextContent value={item.message} />
+              </article>
+            )) : <p className="task-workspace-empty-copy">No progress updates have been saved yet.</p>}
+          </div>
+        ) : null}
         {canComment ? (
           <form className="etw-note-composer" onSubmit={handleSubmit}>
+            <div className="etw-note-template-strip" aria-label="Progress update templates">
+              {quickNoteShortcuts.slice(0, 6).map((shortcut) => (
+                <button
+                  disabled={isSubmitting}
+                  key={shortcut.label}
+                  onClick={() => insertQuickNote(shortcut.text)}
+                  type="button"
+                >
+                  {shortcut.label}
+                </button>
+              ))}
+            </div>
             <RichTextComposer
               ariaLabel="Post a comment"
               compact
@@ -185,7 +224,7 @@ export function TaskUpdatesCommentsCard({
                   {quickNotesOpen ? (
                     <div aria-label="Note templates" className="etw-note-quick-menu-popover" role="menu">
                       <strong>Start a structured note</strong>
-                      {TASK_NOTE_SHORTCUTS.map((shortcut) => (
+                      {quickNoteShortcuts.map((shortcut) => (
                         <button
                           aria-label={`Insert ${shortcut.label} note`}
                           key={shortcut.label}

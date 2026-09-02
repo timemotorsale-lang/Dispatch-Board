@@ -84,6 +84,7 @@ type SelfCreateTaskForm = {
 
 const selfCreateWorkflowAreas: WorkflowArea[] = [
   WorkflowArea.INVENTORY,
+  WorkflowArea.SERVICE_ADVISOR,
   WorkflowArea.SHOP,
   WorkflowArea.SALES,
   WorkflowArea.ADVERTISING,

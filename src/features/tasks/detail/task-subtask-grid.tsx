@@ -13,6 +13,7 @@ export function TaskSubtaskGrid({ initialItems, taskId }: TaskSubtaskGridProps) 
   return (
     <TaskExecutionChecklistCard
       allowCreate
+      allowExpandToTask
       createPlaceholder="Add subtask"
       initialItems={initialItems}
       kind={TASK_CHECKLIST_ITEM_KIND.SUBTASK}

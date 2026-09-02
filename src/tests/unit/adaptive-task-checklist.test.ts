@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildAdaptiveTaskChecklist } from "@/lib/adaptive-task-checklist";
+import { buildAdaptiveTaskChecklist, buildAdaptiveTaskSubtasks } from "@/lib/adaptive-task-checklist";
 
 describe("adaptive task checklist", () => {
   it("builds a repair and safety checklist for a brake vibration concern", () => {
@@ -12,23 +12,23 @@ describe("adaptive task checklist", () => {
 
     expect(checklist).toHaveLength(6);
     expect(checklist.map((item) => item.label)).toEqual(expect.arrayContaining([
-      "Confirm the reported symptom and operating conditions",
-      "Inspect the affected safety or mechanical system",
-      "Document diagnostic findings and root cause",
-      "Verify the completed repair and final outcome"
+      "Confirm the repair concern, vehicle condition, and current recon stage",
+      "Select the right repair path: internal repair, outside vendor, bodywork, detail/prep, or inspection only",
+      "Confirm required parts, labor, vendor, owner, and ETA",
+      "Verify final QC, readiness, and release or delivery handoff"
     ]));
-    expect(checklist.every((item) => item.key.startsWith("repair_"))).toBe(true);
+    expect(checklist.every((item) => item.key.startsWith("shop_recon_"))).toBe(true);
   });
 
-  it("keeps title-delay work on the deterministic documentation path", () => {
+  it("keeps admin work on the deterministic documentation path", () => {
     const checklist = buildAdaptiveTaskChecklist({
       title: "Customer title delay",
       description: "DMV paperwork remains pending.",
       workflowArea: "ADMIN"
     });
 
-    expect(checklist.map((item) => item.label)).toContain("Confirm submission or rejection status");
-    expect(checklist.map((item) => item.label)).toContain("Contact the processor, DMV, or responsible vendor");
+    expect(checklist.map((item) => item.label)).toContain("Verify the missing requirement, proof, signature, or handoff need");
+    expect(checklist.map((item) => item.label)).toContain("Set the next owner, due time, and follow-up action before closing");
   });
 
   it("anchors office and front-desk support work to canonical records and handoffs", () => {
@@ -57,7 +57,28 @@ describe("adaptive task checklist", () => {
       workflowArea: "SALES"
     });
 
-    expect(checklist.map((item) => item.label)).toContain("Link the customer, vehicle, and sales packet before changing paperwork");
-    expect(checklist.map((item) => item.label)).toContain("Route financing, accounting, or manager-only decisions to the proper authority");
+    expect(checklist.map((item) => item.label)).toContain("Verify the customer, vehicle interest, and sales stage");
+    expect(checklist.map((item) => item.label)).toContain("Confirm ownership of the next step");
+  });
+
+  it("builds service advisor steps around customer promises and repair-order handoffs", () => {
+    const checklist = buildAdaptiveTaskChecklist({
+      title: "Customer needs repair authorization update",
+      description: "Advisor needs to call the customer, confirm approval, and set the next promise.",
+      workflowArea: "SERVICE_ADVISOR"
+    });
+    const subtasks = buildAdaptiveTaskSubtasks({ workflowArea: "SERVICE_ADVISOR" });
+
+    expect(checklist).toHaveLength(6);
+    expect(checklist.map((item) => item.label)).toEqual([
+      "Verify the customer, vehicle, repair order, and current service promise",
+      "Confirm the customer concern, authorization need, or requested update",
+      "Check shop, parts, appointment, and customer communication context",
+      "Complete the advisor action: contact customer, collect decision, set promise, or route support",
+      "Record the customer-facing outcome and internal handoff notes",
+      "Confirm the next advisor follow-up, owner, and due time before closing"
+    ]);
+    expect(checklist.every((item) => item.key.startsWith("service_advisor_"))).toBe(true);
+    expect(subtasks.map((item) => item.label)).toContain("Coordinate shop, parts, appointment, or manager support");
   });
 });

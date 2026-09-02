@@ -3,7 +3,13 @@ import os from "node:os";
 import path from "node:path";
 
 const root = process.cwd();
-const projectCacheNames = [".next-local", ".next-runtime", ".next-runtime-3000", ".next-dev-cache"];
+const projectCacheNames = [
+  ".next-local",
+  ".next-runtime",
+  ".next-runtime-3000",
+  ".next-runtime-cache",
+  ".next-dev-cache"
+];
 const runtimeCacheBase = process.env.NEXT_DEV_CACHE_ROOT?.trim()
   || path.join(process.env.LOCALAPPDATA || os.tmpdir(), "DispatchBoard", "next");
 

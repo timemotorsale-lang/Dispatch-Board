@@ -21,6 +21,7 @@ import { AdvisorWorkspaceTabs } from "./advisor-workspace-tabs";
 import { ManagerWorkspaceGuard } from "./manager-workspace-guard";
 import { ManagerWorkspaceSidebar } from "./manager-workspace-sidebar";
 import { TasksWorkspaceSidebar } from "./tasks-workspace-sidebar";
+import { OperatingRhythmReminder } from "./operating-rhythm-reminder";
 import { readManagerWorkspaceContext, withManagerWorkspaceContext } from "@/lib/manager-workspace-context";
 
 type AppShellProps = {
@@ -153,6 +154,7 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
         <button className="sidebar-scrim" aria-label="Close navigation" onClick={() => setNavigationOpen(false)} />
       ) : null}
       <div className="app-workspace">
+        <OperatingRhythmReminder />
         {salesConsole ? null : (
           <AppTopbar commandCenterHome={commandCenterHome} containedWorkspace={Boolean(managerContext)} onMenuOpen={() => setNavigationOpen(true)} preferredWorkspace={preferredWorkspace} showNavigationMenu={hasSidebar} user={user} />
         )}

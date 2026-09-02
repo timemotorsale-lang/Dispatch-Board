@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 
-import { TaskDetailWorkspace } from "@/features/tasks/detail/task-detail-workspace";
+import { TaskDetailWorkspace, shouldPreferSimpleTaskView } from "@/features/tasks/detail/task-detail-workspace";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { canUpdateAssignedWork, isManager } from "@/server/policies/access";
 import { getActivityFeedForDate } from "@/server/services/activity-feed";
@@ -14,13 +14,14 @@ type TaskDetailPageProps = {
   params: Promise<{
     id: string;
   }>;
-  searchParams: Promise<{ returnTo?: string }>;
+  searchParams: Promise<{ returnTo?: string; view?: string }>;
 };
 
 export default async function TaskDetailPage({ params, searchParams }: TaskDetailPageProps) {
   const user = await requireCurrentUser();
   const { id } = await params;
-  const requestedReturnTo = (await searchParams).returnTo;
+  const resolvedSearchParams = await searchParams;
+  const requestedReturnTo = resolvedSearchParams.returnTo;
   const returnTo = requestedReturnTo?.startsWith("/tasks") ? requestedReturnTo : "/tasks";
   const task = await getTaskReadModelById(user, id);
 
@@ -50,6 +51,10 @@ export default async function TaskDetailPage({ params, searchParams }: TaskDetai
   const readiness = executionFlags.taskAcceptanceEnabled
     ? await getTaskCompletionReadiness(user, task.id)
     : null;
+  const requestedView = resolvedSearchParams.view === "simple" || resolvedSearchParams.view === "workbench"
+    ? resolvedSearchParams.view
+    : null;
+  const initialView = requestedView ?? (shouldPreferSimpleTaskView(task) ? "simple" : "workbench");
 
   return (
     <TaskDetailWorkspace
@@ -60,6 +65,7 @@ export default async function TaskDetailPage({ params, searchParams }: TaskDetai
       canManageCollaborators={canManageCollaborators}
       canCreateAppointment={canCreateAppointment}
       canUpdateStatus={canUpdateStatus}
+      initialView={initialView}
       readiness={readiness}
       returnTo={returnTo}
       task={task}

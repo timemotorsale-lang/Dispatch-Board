@@ -59,10 +59,13 @@ function toDateTimeLocal(value: string | null | undefined) {
 
 function formatAssuranceTime(value: string | null | undefined) {
   if (!value) return "Not scheduled";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Time needs review";
+
   return new Intl.DateTimeFormat("en-US", {
     dateStyle: "medium",
     timeStyle: "short"
-  }).format(new Date(value));
+  }).format(date);
 }
 
 function defaultBlockerTime(hoursFromNow: number) {
@@ -315,7 +318,14 @@ export function TaskStatusPanel({ actorIsManager, canUpdate, initialReadiness = 
                 <small>Next check-in: {formatAssuranceTime(assurance.nextCheckpointAt)}</small>
               </div>
               {assurance.lastProgressNote ? (
-                <p><b>Latest progress:</b> {assurance.lastProgressNote}</p>
+                <p>
+                  <b>
+                    Latest progress
+                    {assurance.lastProgressAt ? ` recorded ${formatAssuranceTime(assurance.lastProgressAt)}` : ""}
+                    :
+                  </b>{" "}
+                  {assurance.lastProgressNote}
+                </p>
               ) : (
                 <p>Add a brief outcome when meaningful progress is made. The next check-in will renew automatically.</p>
               )}

@@ -2,6 +2,7 @@ const TASK_INTAKE_TYPES = [
   "Quick Task",
   "Vehicle / Service",
   "Customer Issue",
+  "Service Advisor",
   "Sales Lead / Appointment",
   "Inventory Movement",
   "Marketing / Listing",
@@ -12,6 +13,7 @@ const TASK_INTAKE_TYPES = [
 
 const TASK_WORKFLOW_AREAS = [
   "INVENTORY",
+  "SERVICE_ADVISOR",
   "SHOP",
   "SALES",
   "ADVERTISING",

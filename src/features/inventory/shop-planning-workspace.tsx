@@ -89,6 +89,7 @@ const local = (value: string) => { const date = new Date(value); return new Date
 const daysAfter = (value: string | Date, days: number) => local(new Date(new Date(value).getTime() + days * 86_400_000).toISOString());
 const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value / 100);
 const format = (value: string) => value.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
+const readableDateTime = (value: string | Date) => new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 const vehicleLabel = (order: Order) => [order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber;
 const directRepairPattern = /\b(body|bodywork|collision|bumper|fender|paint|mirror|dent|hail|panel|cosmetic)\b/i;
 const bodyworkRepairDefaults = (concern = "Visible bodywork damage") => ({
@@ -245,6 +246,37 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
   const latestEstimate = selected?.estimateVersions[0];
   const latestDiagnosis = selected?.diagnosisVersions[0];
   const accepted = selected?.estimateVersions.flatMap((item) => item.authorizations.map((auth) => ({ ...auth, estimate: item }))).find((item) => ["ACCEPTED", "PARTIAL"].includes(item.disposition));
+  const authorizationEstimate = selected?.estimateVersions.find((item) => item.id === (authorization.estimateVersionId || latestEstimate?.id)) ?? latestEstimate;
+  const authorizationLineKeys = authorizationEstimate?.lineItems.map((line) => line.key).filter(Boolean) ?? [];
+  const typedAuthorizationLineKeys = authorization.authorizedLineKeys.split(",").map((value) => value.trim()).filter(Boolean);
+  const approvalNeedsLineKeys = ["ACCEPTED", "PARTIAL"].includes(authorization.disposition);
+  const authorizationDraftLineKeys = authorization.disposition === "ACCEPTED" ? authorizationLineKeys : authorization.authorizedLineKeys.trim() ? typedAuthorizationLineKeys : approvalNeedsLineKeys ? authorizationLineKeys : [];
+  const authorizationDecisionDate = authorization.decidedAt ? new Date(authorization.decidedAt) : null;
+  const authorizationDecisionTimeValid = Boolean(authorizationDecisionDate && !Number.isNaN(authorizationDecisionDate.getTime()));
+  const authorizationExpired = Boolean(approvalNeedsLineKeys && authorizationEstimate && authorizationDecisionDate && !Number.isNaN(authorizationDecisionDate.getTime()) && new Date(authorizationEstimate.expiresAt) < authorizationDecisionDate);
+  const authorizationUnknownLineKeys = authorizationDraftLineKeys.filter((key) => !authorizationLineKeys.includes(key));
+  const partialCoversAllLines = authorization.disposition === "PARTIAL" && authorizationLineKeys.length > 0 && authorizationDraftLineKeys.length >= authorizationLineKeys.length;
+  const authorizationBlockedReason = !authorizationEstimate
+    ? "Create and present an estimate version before recording authorization."
+    : authorizationExpired
+      ? `This estimate expired on ${readableDateTime(authorizationEstimate.expiresAt)}. Present a new estimate version before authorizing repair work.`
+      : !authorization.decisionActorName.trim()
+        ? "Enter who made the authorization decision before continuing."
+        : !authorization.decidedAt || !authorizationDecisionTimeValid
+          ? "Enter a valid decision time before continuing."
+          : approvalNeedsLineKeys && !authorizationDraftLineKeys.length
+            ? "Choose at least one estimate line for this authorization."
+            : authorizationUnknownLineKeys.length
+              ? `Remove unknown line key${authorizationUnknownLineKeys.length === 1 ? "" : "s"}: ${authorizationUnknownLineKeys.join(", ")}.`
+              : partialCoversAllLines
+                ? "Partial authorization must cover fewer than all estimate lines. Use Accepted if the full estimate was approved."
+                : "";
+  const authorizationCanSubmit = Boolean(!authorizationBlockedReason && !busy);
+  const authorizationHelper = authorization.disposition === "ACCEPTED"
+    ? `Accepted will approve all ${authorizationLineKeys.length || "available"} estimate line${authorizationLineKeys.length === 1 ? "" : "s"} on this exact version.`
+    : authorization.disposition === "PARTIAL"
+      ? "Partial approves only the selected line keys. Leave only the lines the decision maker accepted."
+      : "Declined, deferred, expired, and revoked decisions do not release repair work.";
   const authorizedLaborLines = (latestEstimate?.lineItems ?? []).filter((line) => line.type === "LABOR" && Boolean(accepted?.authorizedLineKeys.includes(line.key)));
   const existingAuthorizedLineKeys = new Set((selected?.repairJobs ?? []).map((item) => item.authorizedLineKey));
   const creatableAuthorizedLineKeys = authorizedLaborLines.filter((line) => !existingAuthorizedLineKeys.has(line.key)).map((line) => line.key);
@@ -884,6 +916,21 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
     }
   }
 
+  async function submitAuthorizationDecision() {
+    if (authorizationBlockedReason) {
+      setNotice(authorizationBlockedReason);
+      return;
+    }
+    const saved = await submit("DECIDE_AUTHORIZATION", {
+      ...authorization,
+      estimateVersionId: authorizationEstimate?.id,
+      authorizedLineKeys: authorizationDraftLineKeys,
+    }, "Record an attributable decision on the exact estimate version.");
+    if (saved && approvalNeedsLineKeys) {
+      window.setTimeout(() => navigateToInternalTarget("#repair-planning-step-5"), 150);
+    }
+  }
+
   const vendorWorkflowForm = selected ? <form onSubmit={(event: FormEvent) => { event.preventDefault(); void submitVendorWork(); }}>
       <div className={styles.pathInfo}><strong>Outside vendor path</strong><p>Use this when the next accountable work belongs to a body shop, glass shop, calibration vendor, mechanic, detailer, or other third party. Saving this deploys the vendor workflow: custody, scope, parts needs, completion, return transportation, QC, and handoff.</p></div>
       <div className={styles.vendorAlgorithmGrid}>
@@ -1103,9 +1150,14 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
                 <button disabled={busy} onClick={() => void submitVendorProgress(vendorProgress.status, "Vendor approval is pending.", "Confirm the approval decision before releasing more vendor work.", { approvalStatus: "PENDING" })} type="button">Still pending</button>
               </div>
               <Submit busy={busy}>Save vendor approval</Submit>
-            </form> : <form onSubmit={(event: FormEvent) => { event.preventDefault(); void submit("DECIDE_AUTHORIZATION", { ...authorization, estimateVersionId: authorization.estimateVersionId || latestEstimate?.id, authorizedLineKeys: (authorization.authorizedLineKeys || latestEstimate?.lineItems.map((line) => line.key).join(",") || "").split(",").map((value) => value.trim()).filter(Boolean) }, "Record an attributable decision on the exact estimate version."); }}>
-              <FormGrid><Field label="Estimate version"><select value={authorization.estimateVersionId || latestEstimate?.id || ""} onChange={(event) => setAuthorization((value) => ({ ...value, estimateVersionId: event.target.value }))}>{selected.estimateVersions.map((item) => <option key={item.id} value={item.id}>v{item.version} · {money(item.totalCents)}</option>)}</select></Field><Field label="Decision"><select value={authorization.disposition} onChange={(event) => setAuthorization((value) => ({ ...value, disposition: event.target.value }))}>{["ACCEPTED", "PARTIAL", "DECLINED", "DEFERRED", "EXPIRED", "REVOKED"].map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Authorized line keys"><input placeholder={latestEstimate?.lineItems.map((line) => line.key).join(",")} value={authorization.authorizedLineKeys} onChange={(event) => setAuthorization((value) => ({ ...value, authorizedLineKeys: event.target.value }))} /></Field><Field label="Channel"><select value={authorization.channel} onChange={(event) => setAuthorization((value) => ({ ...value, channel: event.target.value }))}>{["IN_PERSON", "PHONE", "SMS", "EMAIL", "INTERNAL", "WARRANTY"].map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Decision actor"><input value={authorization.decisionActorName} onChange={(event) => setAuthorization((value) => ({ ...value, decisionActorName: event.target.value }))} /></Field><Field label="Decision time"><input type="datetime-local" value={authorization.decidedAt} onChange={(event) => setAuthorization((value) => ({ ...value, decidedAt: event.target.value }))} /></Field></FormGrid>
-              <Submit busy={busy}>Record authorization decision</Submit>
+            </form> : <form onSubmit={(event: FormEvent) => { event.preventDefault(); void submitAuthorizationDecision(); }}>
+              <FormGrid><Field label="Estimate version"><select value={authorization.estimateVersionId || latestEstimate?.id || ""} onChange={(event) => setAuthorization((value) => ({ ...value, estimateVersionId: event.target.value, authorizedLineKeys: value.disposition === "ACCEPTED" ? "" : value.authorizedLineKeys }))}>{selected.estimateVersions.map((item) => <option key={item.id} value={item.id}>v{item.version} · {money(item.totalCents)}</option>)}</select></Field><Field label="Decision"><select value={authorization.disposition} onChange={(event) => setAuthorization((value) => ({ ...value, disposition: event.target.value, authorizedLineKeys: event.target.value === "ACCEPTED" ? "" : value.authorizedLineKeys }))}>{["ACCEPTED", "PARTIAL", "DECLINED", "DEFERRED", "EXPIRED", "REVOKED"].map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Authorized line keys"><input disabled={authorization.disposition === "ACCEPTED" || !approvalNeedsLineKeys} placeholder={authorizationLineKeys.join(",")} value={authorization.disposition === "ACCEPTED" ? authorizationLineKeys.join(", ") : authorization.authorizedLineKeys} onChange={(event) => setAuthorization((value) => ({ ...value, authorizedLineKeys: event.target.value }))} /></Field><Field label="Channel"><select value={authorization.channel} onChange={(event) => setAuthorization((value) => ({ ...value, channel: event.target.value }))}>{["IN_PERSON", "PHONE", "SMS", "EMAIL", "INTERNAL", "WARRANTY"].map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Decision actor"><input value={authorization.decisionActorName} onChange={(event) => setAuthorization((value) => ({ ...value, decisionActorName: event.target.value }))} /></Field><Field label="Decision time"><input type="datetime-local" value={authorization.decidedAt} onChange={(event) => setAuthorization((value) => ({ ...value, decidedAt: event.target.value }))} /></Field></FormGrid>
+              <div className={`${styles.authorizationGuardrail} ${authorizationBlockedReason ? styles.authorizationGuardrailBlocked : ""}`} aria-live="polite">
+                <strong>{authorizationBlockedReason ? "Authorization needs attention" : "Authorization ready"}</strong>
+                <p>{authorizationBlockedReason || authorizationHelper}</p>
+                {authorizationBlockedReason ? <p>{authorizationHelper}</p> : null}
+              </div>
+              <Submit busy={busy} disabled={!authorizationCanSubmit}>Record authorization decision</Submit>
             </form>}
           </WorkflowStep>
 
@@ -1325,4 +1377,4 @@ function WorkflowStep({ children, complete, icon, number, open, subtitle, title 
 }
 function FormGrid({ children }: { children: ReactNode }) { return <div className={styles.formGrid}>{children}</div>; }
 function Field({ children, label, wide = false }: { children: ReactNode; label: string; wide?: boolean }) { return <label className={wide ? styles.wide : ""}><span>{label}</span>{children}</label>; }
-function Submit({ busy, children }: { busy: boolean; children: ReactNode }) { return <footer className={styles.submit}><span><LockKeyhole />Creates a new immutable version and audit event.</span><button disabled={busy} type="submit">{busy ? "Saving governed version..." : children}</button></footer>; }
+function Submit({ busy, children, disabled = false }: { busy: boolean; children: ReactNode; disabled?: boolean }) { return <footer className={styles.submit}><span><LockKeyhole />Creates a new immutable version and audit event.</span><button disabled={busy || disabled} type="submit">{busy ? "Saving governed version..." : children}</button></footer>; }

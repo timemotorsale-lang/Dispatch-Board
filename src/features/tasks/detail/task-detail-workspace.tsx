@@ -20,6 +20,7 @@ import {
   Phone,
   Settings,
   ShieldAlert,
+  Sparkles,
   UserRound,
   UsersRound,
   WalletCards,
@@ -47,6 +48,7 @@ import { TaskAppointmentPanel } from "@/features/tasks/detail/task-appointment-p
 import { TaskCollaboratorPanel } from "@/features/tasks/detail/task-collaborator-panel";
 import { TaskMetadataPanel } from "@/features/tasks/detail/task-metadata-panel";
 import { TaskResolutionAccordion } from "@/features/tasks/detail/task-resolution-accordion";
+import { TaskSimpleSummaryCard } from "@/features/tasks/detail/task-simple-summary-card";
 import { TaskWorkbenchActionBar } from "@/features/tasks/detail/task-workbench-action-bar";
 import { TaskUpdatesCommentsCard } from "@/features/tasks/detail/task-updates-comments-card";
 import type { TaskCompletionReadiness } from "@/server/services/task-execution-readiness";
@@ -59,13 +61,22 @@ type TaskDetailWorkspaceProps = {
   canManageCollaborators: boolean;
   canCreateAppointment: boolean;
   canUpdateStatus: boolean;
+  initialView?: TaskWorkspaceView;
   readiness?: TaskCompletionReadiness | null;
   returnTo?: string;
   task: TaskReadModel;
 };
 
+type TaskWorkspaceView = "simple" | "workbench";
+
 function dateLabel(value: string) {
-  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value));
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Due date needs review";
+  }
+
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(date);
 }
 
 function statusTone(status: string) {
@@ -79,6 +90,158 @@ function hasRequiredUpdateValue(value: string | boolean | undefined) {
   return typeof value === "boolean" || typeof value === "string" && value.trim().length > 0;
 }
 
+export function shouldPreferSimpleTaskView(task: TaskReadModel) {
+  const sourceText = `${task.title} ${task.description ?? ""} ${task.sourceType}`.toLocaleLowerCase();
+
+  return sourceText.includes("converted from") && sourceText.includes("quick update");
+}
+
+function viewHref(taskId: string, view: TaskWorkspaceView, returnTo: string) {
+  const params = new URLSearchParams({ view });
+  if (returnTo && returnTo !== "/tasks") params.set("returnTo", returnTo);
+
+  return `/tasks/${encodeURIComponent(taskId)}?${params.toString()}`;
+}
+
+function sourceLabel(task: TaskReadModel) {
+  if (shouldPreferSimpleTaskView(task)) return "Workbook Quick Update";
+  if (task.concernWorkspace) return "Case / Concern";
+  if (task.sourceType === "LEAD") return "Sales Lead";
+  if (task.sourceType === "TEMPLATE") return "Generated Task";
+  if (task.sourceType === "STAFF") return "Staff Task";
+  if (task.sourceType === "MANAGER") return "Manager Task";
+
+  return formatTaskEnumLabel(task.sourceType);
+}
+
+function extractDescriptionValue(description: string | null | undefined, label: string) {
+  if (!description) return null;
+  const pattern = new RegExp(`${label}:\\s*([^.]*)`, "i");
+  const match = description.match(pattern);
+  const value = match?.[1]?.trim();
+
+  return value || null;
+}
+
+function taskCategoryLabel(task: TaskReadModel) {
+  const quickUpdateCategory = extractDescriptionValue(task.description, "Category");
+  if (quickUpdateCategory) return quickUpdateCategory;
+  if (task.concernWorkspace?.category) return formatTaskEnumLabel(task.concernWorkspace.category);
+  if (task.intelligenceSignalType) return formatTaskEnumLabel(task.intelligenceSignalType);
+
+  return formatTaskEnumLabel(task.workflowArea);
+}
+
+function roleExecutionLabel(task: TaskReadModel) {
+  if (task.workflowArea === "SHOP") return "Shop execution";
+  if (task.workflowArea === "SALES") return "Sales follow-up";
+  if (task.workflowArea === "INVENTORY") return "Inventory operations";
+  if (task.workflowArea === "ADVERTISING") return "Marketing execution";
+  if (task.workflowArea === "COLLECTIONS") return "Collections follow-up";
+  if (task.workflowArea === "SERVICE_ADVISOR") return "Service advisor follow-up";
+  if (task.workflowArea === "GENERAL_MANAGER") return "Management coordination";
+
+  return `${formatTaskEnumLabel(task.workflowArea)} execution`;
+}
+
+function buildRoleAwareAction(task: TaskReadModel, category: string) {
+  const normalizedCategory = category.toLocaleLowerCase();
+  const person = extractDescriptionValue(task.description, "Person");
+  const company = extractDescriptionValue(task.description, "Company");
+  const contact = person ?? company ?? task.customerReference;
+  const contactTarget = contact ? ` ${contact}` : "";
+
+  if (normalizedCategory.includes("vendor")) return `Contact${contactTarget || " the vendor"}, confirm the next commitment, and record the outcome.`;
+  if (normalizedCategory.includes("customer")) return `Follow up with${contactTarget || " the customer"}, confirm the decision or need, and record the outcome.`;
+  if (normalizedCategory.includes("parts")) return "Confirm parts status, ETA, and owner, then record the next movement.";
+  if (normalizedCategory.includes("facility")) return "Confirm the facility issue owner, fix plan, and follow-up time.";
+  if (normalizedCategory.includes("finance")) return "Confirm the payment, title, lender, or finance item and record the result.";
+  if (normalizedCategory.includes("sales")) return "Follow up on the sales opportunity and record the next customer step.";
+  if (normalizedCategory.includes("staff") || normalizedCategory.includes("training")) return "Clarify who needs support, assign the next help step, and record the result.";
+  if (task.workflowArea === "SERVICE_ADVISOR") return "Confirm the customer update, authorization, promise, or handoff, then record the advisor outcome.";
+  if (task.workflowArea === "SHOP") return "Confirm the repair or recon step, update blockers, and record the next shop action.";
+  if (task.workflowArea === "SALES") return "Contact the customer or lead and record the next sales step.";
+  if (task.workflowArea === "INVENTORY") return "Confirm inventory status, owner, and next movement.";
+
+  return "Confirm the next owner, action, and due time, then record the progress update.";
+}
+
+function buildProgressShortcuts(task: TaskReadModel, category: string) {
+  const normalizedCategory = category.toLocaleLowerCase();
+  const person = extractDescriptionValue(task.description, "Person") ?? task.customerReference ?? "contact";
+
+  if (normalizedCategory.includes("vendor")) {
+    return [
+      { label: "Vendor contacted", text: `Vendor contacted — person: ${person}. Outcome: ` },
+      { label: "Waiting on vendor", text: "Waiting on vendor — needed item and promised time: " },
+      { label: "Vendor confirmed", text: "Vendor confirmed — commitment, ETA, and next owner: " },
+      { label: "Needs manager", text: "Needs manager support — decision needed: " }
+    ];
+  }
+
+  if (normalizedCategory.includes("customer")) {
+    return [
+      { label: "Customer called", text: `Customer called — person: ${person}. Outcome: ` },
+      { label: "Left message", text: `Left message for ${person} — requested callback about: ` },
+      { label: "Waiting on customer", text: "Waiting on customer — decision or document needed: " },
+      { label: "Customer confirmed", text: "Customer confirmed — next step and time: " }
+    ];
+  }
+
+  if (task.workflowArea === "SHOP" || normalizedCategory.includes("parts")) {
+    return [
+      { label: "Work started", text: "Work started — current repair/recon step: " },
+      { label: "Parts delayed", text: "Parts delayed — part, ETA, and owner: " },
+      { label: "Work completed", text: "Work completed — result and any remaining issue: " },
+      { label: "Blocked", text: "Blocked — reason, owner, and unblock action: " }
+    ];
+  }
+
+  if (task.workflowArea === "SERVICE_ADVISOR") {
+    return [
+      { label: "Customer updated", text: `Customer updated — person: ${person}. Outcome and next promise: ` },
+      { label: "Authorization needed", text: "Authorization needed — decision, amount/scope, and follow-up time: " },
+      { label: "Shop coordination", text: "Shop coordination — shop/parts need, owner, and ETA: " },
+      { label: "Advisor handoff", text: "Advisor handoff — next owner, due time, and customer expectation: " }
+    ];
+  }
+
+  return [
+    { label: "Progress made", text: "Progress made — outcome: " },
+    { label: "Waiting on someone", text: "Waiting on someone — person, need, and follow-up time: " },
+    { label: "Needs support", text: "Needs support — decision or help needed: " },
+    { label: "Completed", text: "Completed — final outcome: " }
+  ];
+}
+
+function buildSimpleNextStep(task: TaskReadModel, missingFields: string[], checklist: Array<{ completed: boolean }>, category: string) {
+  if (task.status === "COMPLETED") return "This task is closed. Review the record only if you need the history.";
+  if (task.status === "BLOCKED" || task.status === "ESCALATED") return "Record what is blocking the work, who owns the unblock step, and when it will be reviewed.";
+  if (missingFields.length > 0) return buildRoleAwareAction(task, category);
+  if (checklist.some((item) => !item.completed)) return "Work through the remaining checklist item, then record the result.";
+  if (task.requiresManagerApproval && !task.readyForReviewAt) return "Send this for manager review after confirming the outcome.";
+  if (task.status === "NOT_STARTED") return "Start the task, confirm the next action, and leave a short progress note.";
+
+  return "Record the latest outcome, then mark the task complete or set the next check-in.";
+}
+
+function ViewSwitcher({
+  returnTo,
+  taskId,
+  view
+}: {
+  returnTo: string;
+  taskId: string;
+  view: TaskWorkspaceView;
+}) {
+  return (
+    <nav className="etw-view-switcher" aria-label="Task view switch">
+      <Link aria-current={view === "simple" ? "page" : undefined} href={viewHref(taskId, "simple", returnTo)}><Sparkles size={14} />Simple View</Link>
+      <Link aria-current={view === "workbench" ? "page" : undefined} href={viewHref(taskId, "workbench", returnTo)}><Grid3X3 size={14} />Full Workbench</Link>
+    </nav>
+  );
+}
+
 export function TaskDetailWorkspace({
   activityEvents,
   actorIsManager,
@@ -87,6 +250,7 @@ export function TaskDetailWorkspace({
   canManageCollaborators,
   canCreateAppointment,
   canUpdateStatus,
+  initialView = "workbench",
   readiness = null,
   returnTo = "/tasks",
   task
@@ -129,6 +293,54 @@ export function TaskDetailWorkspace({
     checklistCompleted: checklist.filter((item) => item.completed).length,
     checklistTotal: checklist.length
   }];
+  const taskView = initialView === "simple" ? "simple" : "workbench";
+  const missingUpdateLabels = requiredCompletionFields
+    .filter((field) => !hasRequiredUpdateValue(updateFieldValues[field.key]))
+    .map((field) => field.label);
+  const simpleCategory = taskCategoryLabel(task);
+  const simpleNextStep =
+    task.nextActionRecommendation?.label ??
+    buildSimpleNextStep(task, missingUpdateLabels, checklist, simpleCategory);
+
+  if (taskView === "simple") {
+    return (
+      <section className="enterprise-task-workbench etw-simple-workbench" aria-label="Simple task execution view">
+        <header className="etw-command-bar">
+          <div className="etw-brand"><ClipboardCheck size={20} /><div><strong>Time Motor Sales</strong><span>Task Execution View</span></div></div>
+          <label className="etw-search"><span aria-hidden="true">/</span><input aria-label="Search workbench" placeholder="Search customers, vehicles, tasks, cases, VIN, anything..." /></label>
+          <div className="etw-command-actions"><Link href={returnTo}>Return to Tasks</Link></div>
+        </header>
+
+        <main className="etw-simple-shell">
+          <TaskSimpleSummaryCard
+            actorIsManager={actorIsManager}
+            canComment={canComment}
+            canUpdateStatus={canUpdateStatus}
+            checklist={checklist}
+            commentCount={task.comments.length}
+            dueAt={task.dueAt}
+            dueLabel={dateLabel(task.dueAt)}
+            feedItems={feedItems}
+            missingUpdateLabels={missingUpdateLabels}
+            nextStep={simpleNextStep}
+            priorityLabel={`${formatTaskEnumLabel(task.priority)} priority`}
+            progressShortcuts={buildProgressShortcuts(task, simpleCategory)}
+            readiness={readiness}
+            recordDescription={recordDescription}
+            recordNumber={formatTaskDisplayNumber(task.id)}
+            recordTitle={recordTitle}
+            returnTo={returnTo}
+            roleLabel={roleExecutionLabel(task)}
+            sourceLabel={sourceLabel(task)}
+            statusLabel={formatTaskEnumLabel(task.status)}
+            subtaskItems={subtasks}
+            task={task}
+            taskCategory={simpleCategory}
+          />
+        </main>
+      </section>
+    );
+  }
 
   return (
     <section className="enterprise-task-workbench" aria-label="Enterprise task workbench">
@@ -159,6 +371,7 @@ export function TaskDetailWorkspace({
       <header className="etw-command-bar">
         <div className="etw-brand"><ClipboardCheck size={20} /><div><strong>Time Motor Sales</strong><span>Task Resolution Workbench</span></div></div>
         <label className="etw-search"><span aria-hidden="true">/</span><input aria-label="Search workbench" placeholder="Search customers, vehicles, tasks, cases, VIN, anything..." /></label>
+        <ViewSwitcher returnTo={returnTo} taskId={task.id} view="workbench" />
         <div className="etw-command-actions"><Link href={returnTo}>Return to Tasks</Link><Link className="etw-new-action" href={`/tasks/intake?returnTo=${encodeURIComponent(`/tasks/${task.id}`)}${concern?.id ? `&concern=${encodeURIComponent(concern.id)}` : ""}`}>Task Intake</Link></div>
       </header>
 

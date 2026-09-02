@@ -15,6 +15,7 @@ const model = {
     managementWorkbookLabel: "Management Workbook",
     staffWorkbookLabel: "Service Advisor Workbook"
   },
+  workbookSearchHistory: [],
   morningPrioritySources: [
     {
       detail: "Alex Carter · blocked · Customer callback may delay close.",
@@ -22,8 +23,11 @@ const model = {
       href: "/tasks/task-priority-1",
       priority: "CRITICAL",
       rank: 120,
+      reason: "Suggested from an open critical task that is blocked.",
       riskLevel: "BLOCKED",
+      roleFit: "DIRECT",
       sourceId: "task-priority-1",
+      sourceLabel: "Task",
       sourceType: "TASK",
       staffName: "Alex Carter",
       staffUserId: "user-alex",
@@ -35,8 +39,11 @@ const model = {
       href: "/tasks/task-priority-2",
       priority: "HIGH",
       rank: 90,
+      reason: "Suggested from an open high task that is in progress.",
       riskLevel: "NONE",
+      roleFit: "DIRECT",
       sourceId: "task-priority-2",
+      sourceLabel: "Task",
       sourceType: "TASK",
       staffName: "Alex Carter",
       staffUserId: "user-alex",
@@ -48,8 +55,11 @@ const model = {
       href: "/my-day",
       priority: "HIGH",
       rank: 70,
+      reason: "Suggested from an unfinished required staff duty.",
       riskLevel: "NONE",
+      roleFit: "DIRECT",
       sourceId: "duty-priority-1",
+      sourceLabel: "Staff duty",
       sourceType: "DUTY",
       staffName: "Alex Carter",
       staffUserId: "user-alex",
@@ -61,8 +71,11 @@ const model = {
       href: "/tasks/task-priority-4",
       priority: "MEDIUM",
       rank: 55,
+      reason: "Suggested from an open medium task that is not started.",
       riskLevel: "NONE",
+      roleFit: "SUPPORTING",
       sourceId: "task-priority-4",
+      sourceLabel: "Task",
       sourceType: "TASK",
       staffName: "Alex Carter",
       staffUserId: "user-alex",
@@ -907,8 +920,9 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("Call Maria about approval");
     expect(html).toContain("Finish TMS-001 delivery packet");
     expect(html).toContain("Review assigned daily duties");
-    expect(html).toContain("Alex Carter task");
-    expect(html).toContain("Alex Carter duty");
+    expect(html).toContain("Task · role match");
+    expect(html).toContain("Staff duty · role match");
+    expect(html).toContain("Suggested from an open critical task that is blocked.");
     expect(html).toContain("href=\"/tasks/task-priority-1\"");
     expect(html).toContain("href=\"/my-day\"");
     expect(html).toContain("Approve");

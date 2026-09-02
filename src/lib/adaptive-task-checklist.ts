@@ -1,4 +1,85 @@
 export type AdaptiveChecklistItem = { key: string; label: string };
+export type AdaptiveSubtaskItem = AdaptiveChecklistItem & { completedWhen?: "started" | "commented" | "closed" };
+
+const workflowAreaBlueprints: Record<string, { items: string[]; code: string }> = {
+  SHOP: {
+    code: "shop_recon",
+    items: [
+      "Confirm the repair concern, vehicle condition, and current recon stage",
+      "Select the right repair path: internal repair, outside vendor, bodywork, detail/prep, or inspection only",
+      "Confirm required parts, labor, vendor, owner, and ETA",
+      "Record customer or inventory impact before work continues",
+      "Complete the repair or recon action and document the result",
+      "Verify final QC, readiness, and release or delivery handoff"
+    ]
+  },
+  INVENTORY: {
+    code: "inventory",
+    items: [
+      "Verify the vehicle, stock record, and current location",
+      "Confirm missing inventory, title, keys, photos, parts, or recon requirements",
+      "Assign the next owner and operational movement",
+      "Update the inventory record with current evidence",
+      "Record blocker, ETA, or readiness decision",
+      "Confirm the vehicle is ready for its next stage"
+    ]
+  },
+  SALES: {
+    code: "sales",
+    items: [
+      "Verify the customer, vehicle interest, and sales stage",
+      "Confirm the required customer follow-up",
+      "Document customer needs, objections, or decision",
+      "Complete the next sales action",
+      "Record the outcome and next commitment",
+      "Confirm ownership of the next step"
+    ]
+  },
+  SERVICE_ADVISOR: {
+    code: "service_advisor",
+    items: [
+      "Verify the customer, vehicle, repair order, and current service promise",
+      "Confirm the customer concern, authorization need, or requested update",
+      "Check shop, parts, appointment, and customer communication context",
+      "Complete the advisor action: contact customer, collect decision, set promise, or route support",
+      "Record the customer-facing outcome and internal handoff notes",
+      "Confirm the next advisor follow-up, owner, and due time before closing"
+    ]
+  },
+  COLLECTIONS: {
+    code: "collections",
+    items: [
+      "Verify the account, balance, and payment history",
+      "Confirm the customer contact information",
+      "Document the collection contact attempt",
+      "Record the payment commitment, dispute, or blocker",
+      "Schedule the next account follow-up",
+      "Document the final account disposition"
+    ]
+  },
+  ADMIN: {
+    code: "admin",
+    items: [
+      "Identify the customer, vehicle, document, payment, or operational record involved",
+      "Verify the missing requirement, proof, signature, or handoff need",
+      "Check the canonical record for current status and owner",
+      "Complete the safe admin step or route protected work to the authorized owner",
+      "Attach or record evidence on the canonical record",
+      "Set the next owner, due time, and follow-up action before closing"
+    ]
+  },
+  GENERAL_MANAGER: {
+    code: "manager",
+    items: [
+      "Clarify the operating issue and expected outcome",
+      "Confirm owner, urgency, risk, and due time",
+      "Decide whether support, reassignment, or escalation is required",
+      "Record the management decision and next action",
+      "Verify the accountable owner can execute",
+      "Confirm no unresolved blocker remains before close"
+    ]
+  }
+};
 
 const blueprints: Array<{ match: RegExp; items: string[]; code: string }> = [
   {
@@ -117,14 +198,100 @@ const generalItems = [
   "Set the next owner, due time, and follow-up action before closing the task"
 ];
 
+const workflowAreaSubtaskBlueprints: Record<string, { items: AdaptiveSubtaskItem[]; code: string }> = {
+  SHOP: {
+    code: "shop_recon_subtask",
+    items: [
+      { key: "concern", label: "Confirm repair concern and vehicle condition", completedWhen: "started" },
+      { key: "path", label: "Choose repair path: internal, outside vendor, bodywork, detail/prep, or inspection only" },
+      { key: "resources", label: "Confirm parts, labor, vendor owner, and ETA" },
+      { key: "impact", label: "Record customer or inventory impact", completedWhen: "commented" },
+      { key: "qc", label: "Complete final QC and release or delivery handoff", completedWhen: "closed" }
+    ]
+  },
+  INVENTORY: {
+    code: "inventory_subtask",
+    items: [
+      { key: "vehicle", label: "Verify vehicle, stock record, and location", completedWhen: "started" },
+      { key: "missing", label: "Identify missing inventory, title, keys, parts, photos, or recon items" },
+      { key: "owner", label: "Assign owner and next movement" },
+      { key: "record", label: "Update the inventory record with evidence", completedWhen: "commented" },
+      { key: "ready", label: "Confirm next-stage readiness", completedWhen: "closed" }
+    ]
+  },
+  SALES: {
+    code: "sales_subtask",
+    items: [
+      { key: "customer", label: "Confirm customer, vehicle interest, and sales stage", completedWhen: "started" },
+      { key: "contact", label: "Complete the required customer follow-up" },
+      { key: "outcome", label: "Record customer outcome and next commitment", completedWhen: "commented" },
+      { key: "owner", label: "Confirm owner of the next sales step", completedWhen: "closed" }
+    ]
+  },
+  SERVICE_ADVISOR: {
+    code: "service_advisor_subtask",
+    items: [
+      { key: "context", label: "Confirm customer, vehicle, RO, promise, and advisor context", completedWhen: "started" },
+      { key: "need", label: "Identify the customer decision, update, authorization, or handoff needed" },
+      { key: "coordinate", label: "Coordinate shop, parts, appointment, or manager support" },
+      { key: "customer_update", label: "Record customer-facing update and internal advisor note", completedWhen: "commented" },
+      { key: "follow_up", label: "Set the next advisor follow-up, owner, and due time", completedWhen: "closed" }
+    ]
+  }
+};
+
 export function buildAdaptiveTaskChecklist(input: { description?: string | null; title: string; workflowArea?: string | null }): AdaptiveChecklistItem[] {
   const searchable = `${input.title} ${input.description ?? ""} ${input.workflowArea ?? ""}`;
-  const blueprint = blueprints.find((candidate) => candidate.match.test(searchable));
+  const workflowBlueprint = input.workflowArea ? workflowAreaBlueprints[input.workflowArea] : undefined;
+  const blueprint = workflowBlueprint ?? blueprints.find((candidate) => candidate.match.test(searchable));
   const code = blueprint?.code ?? "general";
   return (blueprint?.items ?? generalItems).map((label, index) => ({ key: `${code}_${index + 1}`, label }));
+}
+
+export function buildAdaptiveTaskSubtasks(input: { workflowArea?: string | null }): AdaptiveSubtaskItem[] {
+  const blueprint = input.workflowArea ? workflowAreaSubtaskBlueprints[input.workflowArea] : undefined;
+  if (!blueprint) return [];
+
+  return blueprint.items.map((item, index) => ({
+    ...item,
+    key: `${blueprint.code}_${item.key || index + 1}`
+  }));
 }
 
 export function isLegacyGenericAdaptiveChecklist(labels: string[]) {
   return labels.length === legacyGenericItems.length &&
     labels.every((label, index) => label === legacyGenericItems[index]);
+}
+
+export function isKnownAdaptiveChecklist(labels: string[]) {
+  const knownItemSets = [
+    legacyGenericItems,
+    generalItems,
+    ...blueprints.map((blueprint) => blueprint.items),
+    ...Object.values(workflowAreaBlueprints).map((blueprint) => blueprint.items)
+  ];
+
+  return knownItemSets.some((items) =>
+    labels.length === items.length &&
+    labels.every((label, index) => label === items[index])
+  );
+}
+
+export function isKnownAdaptiveChecklistLabel(label: string) {
+  const knownLabels = [
+    ...legacyGenericItems,
+    ...generalItems,
+    ...blueprints.flatMap((blueprint) => blueprint.items),
+    ...Object.values(workflowAreaBlueprints).flatMap((blueprint) => blueprint.items)
+  ];
+
+  return knownLabels.includes(label);
+}
+
+export function isKnownAdaptiveSubtaskLabel(label: string) {
+  const knownLabels = Object.values(workflowAreaSubtaskBlueprints)
+    .flatMap((blueprint) => blueprint.items)
+    .map((item) => item.label);
+
+  return knownLabels.includes(label);
 }

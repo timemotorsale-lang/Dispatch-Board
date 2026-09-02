@@ -30,6 +30,7 @@ type IntakeType =
   | "Quick Task"
   | "Vehicle / Service"
   | "Customer Issue"
+  | "Service Advisor"
   | "Sales Lead / Appointment"
   | "Inventory Movement"
   | "Marketing / Listing"
@@ -69,6 +70,7 @@ const typeOptions: Array<{ icon: typeof ClipboardCheck; label: IntakeType; workf
   { icon: ClipboardCheck, label: "Quick Task", workflow: "GENERAL_MANAGER", outcome: "The requested work is completed and the next operational step is recorded." },
   { icon: Wrench, label: "Vehicle / Service", workflow: "SHOP", outcome: "The vehicle condition, work performed, blockers, parts, ETA, and QC readiness are documented." },
   { icon: UserRound, label: "Customer Issue", workflow: "ADMIN", outcome: "The customer receives a clear resolution or a documented next step with ownership and follow-up timing." },
+  { icon: UserRound, label: "Service Advisor", workflow: "SERVICE_ADVISOR", outcome: "The customer concern, authorization, promise, and advisor handoff are documented with the next follow-up owned." },
   { icon: UsersRound, label: "Sales Lead / Appointment", workflow: "SALES", outcome: "The lead receives timely follow-up and the next sales or appointment action is recorded." },
   { icon: CarFront, label: "Inventory Movement", workflow: "INVENTORY", outcome: "The vehicle reaches its target stage or the movement blocker and ETA are visible." },
   { icon: Megaphone, label: "Marketing / Listing", workflow: "ADVERTISING", outcome: "The listing or campaign is complete, accurate, and ready for customer visibility." },

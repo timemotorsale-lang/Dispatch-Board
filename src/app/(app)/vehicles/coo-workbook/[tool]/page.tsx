@@ -22,6 +22,7 @@ type CooWorkbookToolPageProps = {
   }>;
   searchParams?: Promise<{
     closedRepairOrderId?: string | string[];
+    date?: string | string[];
   }>;
 };
 
@@ -30,12 +31,13 @@ export default async function CooWorkbookToolPage({ params, searchParams }: CooW
   const query = searchParams ? await searchParams : {};
   const initialTool = toolBySlug[tool];
   const closedRepairOrderId = typeof query.closedRepairOrderId === "string" ? query.closedRepairOrderId : null;
+  const boardDate = typeof query.date === "string" ? query.date : undefined;
 
   if (!initialTool) {
     notFound();
   }
 
-  const model = await getServiceAdvisorWorkspace(user);
+  const model = await getServiceAdvisorWorkspace(user, boardDate);
 
   return <CooDailyWorkbook closedRepairOrderId={closedRepairOrderId} initialTool={initialTool} model={JSON.parse(JSON.stringify(model))} />;
 }

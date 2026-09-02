@@ -23,6 +23,7 @@ const allowedQueueFilters = [
 ] as const;
 const allowedDepartmentFilters = [
   "INVENTORY",
+  "SERVICE_ADVISOR",
   "SHOP",
   "SALES",
   "ADVERTISING",

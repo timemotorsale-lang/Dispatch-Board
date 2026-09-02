@@ -57,9 +57,21 @@ vi.mock("@/server/repair-order/service", () => ({
 }));
 
 vi.mock("@/server/services/workday-workbook", () => ({
+  currentWorkdayBoardDate: vi.fn(() => "2026-08-10"),
   getCooWorkbook: vi.fn(async () => ({ id: "coo-workbook-1" })),
   getStaffWorkbook: vi.fn(async () => ({ id: "staff-workbook-1" })),
   getStaffWorkbookSummaries: vi.fn(async () => [])
+}));
+
+vi.mock("@/server/db/client", () => ({
+  prisma: {
+    staffDay: { findFirst: vi.fn(async () => null) },
+    task: { findMany: vi.fn(async () => []) },
+    workdayChecklistItem: { findMany: vi.fn(async () => []) },
+    workdayDailyFocusItem: { findMany: vi.fn(async () => []) },
+    workdayQuickUpdate: { findMany: vi.fn(async () => []) },
+    workdayReportSeed: { findMany: vi.fn(async () => []) }
+  }
 }));
 
 describe("getServiceAdvisorWorkspace", () => {

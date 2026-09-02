@@ -1,15 +1,20 @@
+import { WorkflowArea } from "@prisma/client";
+
 const taskMetadataAllowedKeys = new Set([
   "customerReference",
   "description",
   "dueAt",
-  "vehicleReference"
+  "vehicleReference",
+  "workflowArea"
 ]);
+const workflowAreaValues = new Set(Object.values(WorkflowArea));
 
 export type NormalizedTaskMetadataUpdateInput = {
   customerReference?: string | null;
   description?: string;
   dueAt?: Date;
   vehicleReference?: string | null;
+  workflowArea?: WorkflowArea;
 };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -96,6 +101,18 @@ function normalizeDueAt(value: unknown) {
   return parsedDate;
 }
 
+function normalizeWorkflowArea(value: unknown) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value !== "string" || !workflowAreaValues.has(value as WorkflowArea)) {
+    throw new Error("Task metadata updates require workflowArea to be a valid execution path.");
+  }
+
+  return value as WorkflowArea;
+}
+
 export function normalizeTaskMetadataUpdateInput(value: unknown): NormalizedTaskMetadataUpdateInput {
   const input = assertTaskMetadataObject(value);
 
@@ -121,6 +138,11 @@ export function normalizeTaskMetadataUpdateInput(value: unknown): NormalizedTask
   const dueAt = normalizeDueAt(input.dueAt);
   if (dueAt !== undefined) {
     normalizedInput.dueAt = dueAt;
+  }
+
+  const workflowArea = normalizeWorkflowArea(input.workflowArea);
+  if (workflowArea !== undefined) {
+    normalizedInput.workflowArea = workflowArea;
   }
 
   if (Object.keys(normalizedInput).length === 0) {

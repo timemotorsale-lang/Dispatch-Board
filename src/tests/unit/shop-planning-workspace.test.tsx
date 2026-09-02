@@ -227,4 +227,48 @@ describe("Shop Planning diagnostic release workspace", () => {
     expect(markup).not.toContain("Approved repair line");
     expect(markup).not.toContain("Add line to release");
   });
+
+  it("makes accepted authorization approve the exact estimate lines instead of relying on manual line entry", () => {
+    const order = {
+      id: "ro-auth", repairOrderNumber: "RO-700", version: 5, stage: "AUTHORIZATION", updatedAt: "2026-08-25T12:00:00.000Z",
+      vehicle: { id: "vehicle-7", vehicleNumber: "VEH-7", vin: "VIN700", year: 2019, make: "Ford", model: "Fusion" },
+      customer: null, inventoryUnit: null,
+      serviceVisit: { arrivedAt: "2026-08-24T21:06:00.000Z", concernSummary: "Customer approved brake check." },
+      advisorUpdates: [], vendorWorks: [],
+      inspectionVersions: [{ id: "insp-7", version: 1, summary: "inspected", completedAt: "2026-08-24T21:30:00.000Z" }],
+      diagnosisVersions: [{ id: "diag-7", version: 1, cause: "Brake noise confirmed.", proposedCorrection: "Replace brake pads and inspect rotors.", uncertainty: "LOW", technicianUser: { name: "Walter Mechanic" } }],
+      estimateVersions: [{ id: "est-7", version: 1, status: "PRESENTED", totalCents: 32500, expiresAt: "2026-09-08T22:00:00.000Z", lineItems: [
+        { key: "LINE-1", type: "LABOR", description: "Brake labor", quantity: 1, unitPriceCents: 22500, taxable: false, workTypeCode: "BRAKE", laborGuideMinutes: 90, plannedCorrection: "Replace brake pads" },
+        { key: "LINE-2", type: "PART", description: "Brake pads", quantity: 1, unitPriceCents: 10000, taxable: true, workTypeCode: "PARTS", laborGuideMinutes: 0, plannedCorrection: "Install brake pads" },
+      ], authorizations: [] }],
+      repairJobs: [], partDemands: [],
+    };
+
+    const markup = renderToStaticMarkup(<ShopPlanningWorkspace initial={{ repairOrders: [order], users: [{ id: "tech-1", name: "Walter Mechanic" }] }} returnTo="/vehicles/repair-workbench?repairOrderId=ro-auth" />);
+
+    expect(markup).toContain("Attributable authorization");
+    expect(markup).toContain("Accepted will approve all 2 estimate lines on this exact version.");
+    expect(markup).toContain('value="LINE-1, LINE-2"');
+    expect(markup).toContain("Enter who made the authorization decision before continuing.");
+  });
+
+  it("explains expired estimates before staff records an authorization decision", () => {
+    const order = {
+      id: "ro-expired-auth", repairOrderNumber: "RO-800", version: 5, stage: "AUTHORIZATION", updatedAt: "2026-09-01T21:43:00.000Z",
+      vehicle: { id: "vehicle-8", vehicleNumber: "VEH-8", vin: "VIN800", year: 2017, make: "Chevrolet", model: "Malibu" },
+      customer: null, inventoryUnit: null,
+      serviceVisit: { arrivedAt: "2026-09-01T18:00:00.000Z", concernSummary: "Repair authorization needed." },
+      advisorUpdates: [], vendorWorks: [],
+      inspectionVersions: [{ id: "insp-8", version: 1, summary: "inspected", completedAt: "2026-09-01T18:30:00.000Z" }],
+      diagnosisVersions: [{ id: "diag-8", version: 1, cause: "Repair scope confirmed.", proposedCorrection: "Complete repair.", uncertainty: "LOW", technicianUser: { name: "Walter Mechanic" } }],
+      estimateVersions: [{ id: "est-8", version: 1, status: "PRESENTED", totalCents: 900, expiresAt: "2026-09-01T20:00:00.000Z", lineItems: [{ key: "LINE-1", type: "LABOR", description: "Repair labor", quantity: 1, unitPriceCents: 900, taxable: false, workTypeCode: "REPAIR", laborGuideMinutes: 30, plannedCorrection: "Complete repair" }], authorizations: [] }],
+      repairJobs: [], partDemands: [],
+    };
+
+    const markup = renderToStaticMarkup(<ShopPlanningWorkspace initial={{ repairOrders: [order], users: [{ id: "tech-1", name: "Walter Mechanic" }] }} returnTo="/vehicles/repair-workbench?repairOrderId=ro-expired-auth" />);
+
+    expect(markup).toContain("Authorization needs attention");
+    expect(markup).toContain("This estimate expired on");
+    expect(markup).toContain("Present a new estimate version before authorizing repair work.");
+  });
 });

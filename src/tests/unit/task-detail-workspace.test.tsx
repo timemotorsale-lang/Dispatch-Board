@@ -3,9 +3,14 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { vi } from "vitest";
+import { TASK_CHECKLIST_ITEM_KIND } from "@/lib/task-checklist-kind";
 import { TaskDetailWorkspace } from "@/features/tasks/detail/task-detail-workspace";
+import { TaskExecutionChecklistCard } from "@/features/tasks/detail/task-execution-checklist-card";
+import { buildDefinitionOfDone, buildSubtasks } from "@/features/tasks/detail/task-detail-mappers";
 import { normalizeRequiredUpdateProgress } from "@/features/tasks/detail/task-required-update-progress";
 import { TaskWorkbenchActionBar } from "@/features/tasks/detail/task-workbench-action-bar";
+import { TaskStatusPanel } from "@/features/tasks/task-status-panel";
+import { buildTaskNextActionRecommendation } from "@/server/services/task-next-action";
 import type { TaskReadModel } from "@/server/services/task-read";
 
 vi.mock("next/navigation", () => ({
@@ -147,10 +152,11 @@ describe("task detail workspace", () => {
     expect(markup).toContain("Task Resolution Workbench");
     expect(markup).toContain("Generated Resolution Tasks");
     expect(markup).toContain("Checklist");
-    expect(markup).toContain("Confirm the reported symptom and operating conditions");
-    expect(markup).toContain("Inspect the affected safety or mechanical system");
+    expect(markup).toContain("Confirm the repair concern, vehicle condition, and current recon stage");
+    expect(markup).toContain("Select the right repair path: internal repair, outside vendor, bodywork, detail/prep, or inspection only");
     expect(markup).toContain("Case Notes");
-    expect(markup).toContain('class="etw-note-heading"');
+    expect(markup).toContain("etw-note-heading-button");
+    expect(markup).toContain('aria-expanded="false"');
     expect(markup).toContain("Expand All");
     expect(markup).toContain("Collapse All");
     expect(markup).toContain("Customer Communication");
@@ -179,6 +185,210 @@ describe("task detail workspace", () => {
     expect(markup).not.toContain(">Add Note</button>");
     expect(markup).not.toContain('class="etw-note-actions"');
     expect(markup).not.toContain("Internal Notes (Manager Only)");
+  });
+
+  it("renders a simplified execution view for quick-update tasks without replacing the full workbench", () => {
+    const markup = renderToStaticMarkup(
+      <TaskDetailWorkspace
+        activityEvents={[]}
+        actorIsManager
+        assignableUsers={[]}
+        canComment
+        canCreateAppointment
+        canUpdateStatus
+        initialView="simple"
+        task={createTask({
+          title: "Follow up: Bobby called to check new vehicles for detailing",
+          description: "Converted from Advisor Workbook Quick Update. Category: Vendor. Person: Bobby. Company: Detailing issue. Bobby called to check if we have new vehicles for detailing.",
+          sourceType: TaskSourceType.STAFF,
+          status: TaskStatus.NOT_STARTED,
+          requiredUpdateFields: [
+            { key: "outcome", label: "Outcome", type: "long_text", required: true, helpText: null }
+          ]
+        })}
+      />
+    );
+
+    expect(markup).toContain("Task Execution View");
+    expect(markup).toContain("Workbook Quick Update");
+    expect(markup).toContain("Vendor");
+    expect(markup).toContain("Shop execution");
+    expect(markup).toContain("Next Action");
+    expect(markup).toContain("Contact Bobby, confirm the next commitment, and record the outcome.");
+    expect(markup).toContain("Tools for this next action");
+    expect(markup).toContain("Record update");
+    expect(markup).toContain("Add subtask");
+    expect(markup).toContain("Open checklist");
+    expect(markup).toContain("Full tools");
+    expect(markup).toContain("Owner");
+    expect(markup).toContain("Due");
+    expect(markup).toContain("Change");
+    expect(markup).toContain("Path");
+    expect(markup).toContain("Shop &amp; Recon");
+    expect(markup).toContain("Initiate path");
+    expect(markup).toContain("Past due");
+    expect(markup).toContain("Elevated");
+    expect(markup).toContain("Progress / Updates");
+    expect(markup).toContain("Subtasks");
+    expect(markup).toContain("Checklist");
+    expect(markup).toContain("Comments");
+    expect(markup).toContain("Signals");
+    expect(markup).not.toContain("Source backed");
+    expect(markup).not.toContain("Role aware");
+    expect(markup).not.toContain('id="required-task-update"');
+    expect(markup).toContain("Simple View");
+    expect(markup).toContain("Full Workbench");
+    expect(markup).toContain("view=workbench");
+    expect(markup).not.toContain("Generated Resolution Tasks");
+  });
+
+  it("keeps the simplified task card available when due date data needs review", () => {
+    const markup = renderToStaticMarkup(
+      <TaskDetailWorkspace
+        activityEvents={[]}
+        actorIsManager
+        assignableUsers={[]}
+        canComment
+        canCreateAppointment
+        canUpdateStatus
+        initialView="simple"
+        task={createTask({
+          description: "Converted from Advisor Workbook Quick Update. Category: Vendor. Person: Bobby.",
+          dueAt: "invalid-date"
+        })}
+      />
+    );
+
+    expect(markup).toContain("Task Execution View");
+    expect(markup).toContain("Due date needs review");
+    expect(markup).toContain("Change");
+  });
+
+  it("offers a subtask expansion action when subtasks can become task tickets", () => {
+    const markup = renderToStaticMarkup(
+      <TaskExecutionChecklistCard
+        allowExpandToTask
+        embedded
+        initialItems={[{ id: "subtask-1", label: "Call Bobby back", completed: false }]}
+        kind={TASK_CHECKLIST_ITEM_KIND.SUBTASK}
+        taskId="TMS-1493"
+        title="Subtasks"
+      />
+    );
+
+    expect(markup).toContain("Open task");
+    expect(markup).toContain("Open subtask Call Bobby back as a task");
+  });
+
+  it("shows when the latest progress update was recorded", () => {
+    const markup = renderToStaticMarkup(
+      <TaskStatusPanel
+        actorIsManager
+        canUpdate
+        task={createTask({
+          status: TaskStatus.IN_PROGRESS,
+          executionAssurance: {
+            startedAt: "2026-09-01T14:00:00.000Z",
+            lastProgressAt: "2026-09-01T17:20:00.000Z",
+            nextCheckpointAt: "2026-09-01T19:20:00.000Z",
+            lastProgressNote: "Brock started assessing what needs to be done.",
+            blockerPlan: null,
+            state: "ON_TRACK"
+          }
+        })}
+      />
+    );
+
+    expect(markup).toContain("Latest progress recorded");
+    expect(markup).toContain("Sep 1, 2026");
+    expect(markup).toContain("Brock started assessing what needs to be done.");
+  });
+
+  it("changes generated execution workflow items when the task path is Shop and Recon", () => {
+    const task = createTask({
+      title: "Customer wants brake repairs",
+      description: "Customer wants us to check brakes and advise repair path.",
+      workflowArea: WorkflowArea.SHOP,
+      checklistItems: []
+    });
+
+    expect(buildDefinitionOfDone(task).map((item) => item.label)).toContain(
+      "Select the right repair path: internal repair, outside vendor, bodywork, detail/prep, or inspection only"
+    );
+    expect(buildSubtasks(task).map((item) => item.label)).toContain(
+      "Choose repair path: internal, outside vendor, bodywork, detail/prep, or inspection only"
+    );
+  });
+
+  it("recommends the next action from backend task evidence instead of a static sentence", () => {
+    const recommendation = buildTaskNextActionRecommendation(
+      createTask({
+        comments: [
+          {
+            id: "comment-done",
+            taskId: "TMS-1493",
+            authorUserId: "user-sarah",
+            body: "Work completed and ready for final check.",
+            createdAt: "2026-09-01T15:00:00.000Z",
+            author: {
+              id: "user-sarah",
+              name: "Sarah M.",
+              email: "sarah@local.test"
+            }
+          }
+        ],
+        checklistItems: [
+          {
+            id: "check-1",
+            kind: TASK_CHECKLIST_ITEM_KIND.DEFINITION_OF_DONE,
+            key: "final-qc",
+            label: "Confirm final quality check",
+            required: true,
+            completed: false,
+            sortOrder: 1,
+            completedAt: null,
+            completedByUserId: null,
+            createdAt: "2026-09-01T14:00:00.000Z",
+            updatedAt: "2026-09-01T14:00:00.000Z"
+          }
+        ]
+      }),
+      new Date("2026-09-01T15:30:00.000Z")
+    );
+
+    expect(recommendation.label).toBe("Verify the remaining checklist item: Confirm final quality check.");
+    expect(recommendation.triggers).toContain("latest-update:completion");
+    expect(recommendation.triggers).toContain("checklist:open");
+  });
+
+  it("changes the backend next action when transportation details are added to report or filing work", () => {
+    const recommendation = buildTaskNextActionRecommendation(
+      createTask({
+        title: "2023 Ford F-150 White - AJ - file an arbitration for the accident report",
+        description: "Expanded from subtask. Parent task context: Resume the accident report filing.",
+        comments: [
+          {
+            id: "comment-transportation",
+            taskId: "TMS-1493",
+            authorUserId: "user-sarah",
+            body: "Transportation information added: vehicle pickup and delivery details are now confirmed.",
+            createdAt: "2026-09-01T21:00:00.000Z",
+            author: {
+              id: "user-sarah",
+              name: "Sarah M.",
+              email: "sarah@local.test"
+            }
+          }
+        ]
+      }),
+      new Date("2026-09-01T21:05:00.000Z")
+    );
+
+    expect(recommendation.label).toBe(
+      "Use the transportation details to complete the report or filing step, then record the filing status."
+    );
+    expect(recommendation.triggers).toContain("latest-update:transportation");
+    expect(recommendation.triggers).toContain("task-context:report-filing");
   });
 
   it("guides incomplete completion updates to the authoritative form", () => {
