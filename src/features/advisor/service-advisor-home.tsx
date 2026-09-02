@@ -713,20 +713,40 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
   const closeReviewItems = [
     ...activeDailyFocusItems.map((item) => ({
       detail: item.progressUpdate || item.supportNeeded || item.riskNote || (item.status === "DONE" ? "Completed today." : "Needs update or close decision."),
+      href: "/vehicles/coo-workbook/action-plan",
       id: `focus-${item.id}`,
       status: item.status === "DONE" ? "Done" : item.status === "CARRY_OVER" ? "Carry over" : "Not done",
-      title: item.outcome
+      title: item.outcome,
+      toolLabel: "Open action plan"
     })),
     ...checklistItems.map((item) => ({
       detail: latestChecklistUpdateText(item) || checklistStatusLabel(item),
+      href: "/vehicles/coo-workbook/checklist",
       id: `checklist-${item.id}`,
       status: item.done ? "Done" : "Not done",
-      title: item.text
+      title: item.text,
+      toolLabel: "Open checklist"
     }))
   ].slice(0, 8);
   const tomorrowItems = [
-    ...activeDailyFocusItems.filter((item) => (item.status === "CARRY_OVER" || item.mustCloseToday && item.status !== "DONE") && !carryoverSourceIds.has(`daily-focus:${item.id}`)).map((item) => ({ detail: item.supportNeeded || item.riskNote || "Needs tomorrow ownership.", id: `focus-${item.id}`, title: item.outcome })),
-    ...activeCarryovers.map((item) => ({ detail: item.detail, id: `carryover-${item.id}`, title: item.title }))
+    ...activeDailyFocusItems.filter((item) => (item.status === "CARRY_OVER" || item.mustCloseToday && item.status !== "DONE") && !carryoverSourceIds.has(`daily-focus:${item.id}`)).map((item) => ({
+      action: "prepare" as const,
+      detail: item.supportNeeded || item.riskNote || "Needs tomorrow ownership.",
+      href: "/vehicles/coo-workbook/action-plan",
+      id: `focus-${item.id}`,
+      status: "Candidate",
+      title: item.outcome,
+      toolLabel: "Open source"
+    })),
+    ...activeCarryovers.map((item) => ({
+      action: "open" as const,
+      detail: item.detail,
+      href: item.sourceHref ?? "/vehicles/coo-workbook/carryover",
+      id: `carryover-${item.id}`,
+      status: item.status === "CONFIRMED" ? "Confirmed" : item.status === "CONVERTED" ? "Task created" : "Carryover",
+      title: item.title,
+      toolLabel: item.sourceHref ? "Open source" : "Open carryover"
+    }))
   ].slice(0, 8);
   const draftPreviewItems = latestReportDraft
     ? latestReportDraft.sections.flatMap((section) => section.items.map((item) => ({
@@ -1757,8 +1777,17 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
       </div>
       <p className="advisor-coo-governance-note">{activeWorkbook.governance.nextRecommendedAction}</p>
       <div className="advisor-coo-tomorrow-list" role="tabpanel">
-        {closeStepView === "DONE" ? closeReviewItems.length ? closeReviewItems.map((item) => <p key={item.id}><strong>{item.title}</strong><small>{item.status} · {item.detail}</small></p>) : <p><CheckCircle2 /> No planned work has been added yet.</p> : null}
-        {closeStepView === "TOMORROW" ? tomorrowItems.length ? tomorrowItems.map((item) => <p key={item.id}><strong>{item.title}</strong><small>{item.detail}</small></p>) : <p><CheckCircle2 /> No tomorrow setup items yet.</p> : null}
+        {closeStepView === "DONE" ? closeReviewItems.length ? closeReviewItems.map((item) => <article className="advisor-coo-close-action-row" key={item.id}>
+          <span><strong>{item.title}</strong><small>{item.status} · {item.detail}</small></span>
+          <Link href={item.href}>{item.toolLabel}</Link>
+        </article>) : <p><CheckCircle2 /> No planned work has been added yet.</p> : null}
+        {closeStepView === "TOMORROW" ? tomorrowItems.length ? tomorrowItems.map((item) => <article className="advisor-coo-close-action-row" key={item.id}>
+          <span><strong>{item.title}</strong><small>{item.status} · {item.detail}</small></span>
+          <div>
+            <Link href={item.href}>{item.toolLabel}</Link>
+            {item.action === "prepare" ? <button disabled={saving || isClosed} onClick={() => void runCloseStep("carryover")} type="button">Prepare tomorrow</button> : null}
+          </div>
+        </article>) : <p><CheckCircle2 /> No tomorrow setup items yet.</p> : null}
         {closeStepView === "DRAFT" ? <>
           {latestReportDraft ? <>
             <button
