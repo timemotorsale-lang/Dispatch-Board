@@ -4756,7 +4756,7 @@ code {
 
 .tasks-console-column-priority { width: 4.6rem !important; }
 .tasks-console-column-task-number { width: 4.9rem !important; }
-.tasks-console-column-title { width: 30% !important; }
+.tasks-console-column-title { width: 36% !important; }
 .tasks-console-column-status { width: 5.9rem !important; }
 .tasks-console-column-owner { width: 7.4rem !important; }
 .tasks-console-column-department { width: 6rem !important; }
@@ -4785,9 +4785,17 @@ code {
 
 .tasks-console-title-cell {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.34rem;
   min-width: 0;
+}
+
+.tasks-console-title-cell > a {
+  flex: 0 0 100%;
+  min-width: 0;
+  overflow: visible;
+  white-space: normal;
 }
 
 .tasks-console-title-cell strong,
@@ -4802,12 +4810,12 @@ code {
 .tasks-console-title-cell strong {
   display: block;
   min-width: 0;
-  overflow: hidden;
-  font-size: 0.74rem;
-  letter-spacing: 0.025em;
-  text-overflow: ellipsis;
-  text-transform: uppercase;
-  white-space: nowrap;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .tasks-console-feed-item p,
@@ -5037,7 +5045,21 @@ code {
 }
 
 .tasks-console-page-size {
+  display: inline-flex;
+  align-items: center;
   min-width: 4.2rem;
+}
+
+.tasks-console-page-size select {
+  min-width: 5.5rem;
+  height: 1.45rem;
+  padding: 0 1.55rem 0 0.55rem;
+  color: #334155;
+  background: #fff;
+  border: 1px solid #d8e2f0;
+  border-radius: 0.65rem;
+  font-size: .72rem;
+  font-weight: 800;
 }
 
 .tasks-console-board-view {

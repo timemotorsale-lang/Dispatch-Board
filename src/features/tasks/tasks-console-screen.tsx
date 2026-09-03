@@ -55,6 +55,7 @@ export type TasksConsoleScreenProps = {
   initialQueueFilter?: string;
   initialView?: string;
   isManager: boolean;
+  consoleBaseHref?: string;
   todayBoardDate: string;
 };
 
@@ -75,6 +76,7 @@ type TasksConsoleColumnKey =
   | "age";
 type QueueFilter =
   | "ALL"
+  | "MY_TASKS"
   | "NOT_STARTED"
   | "IN_PROGRESS"
   | "BLOCKED"
@@ -146,7 +148,9 @@ const BOARD_VIEW_STATUSES: TaskStatus[] = [
   TaskStatus.READY_FOR_REVIEW,
   TaskStatus.COMPLETED
 ];
-const TASKS_PER_PAGE = 8;
+const DEFAULT_TASKS_PER_PAGE = 8;
+const TASKS_PAGE_SIZE_OPTIONS = [8, 25, "all"] as const;
+type TasksPageSize = typeof TASKS_PAGE_SIZE_OPTIONS[number];
 const TASKS_CONSOLE_STATUS_OPTIONS: TaskStatus[] = [
   TaskStatus.NOT_STARTED,
   TaskStatus.IN_PROGRESS,
@@ -155,6 +159,20 @@ const TASKS_CONSOLE_STATUS_OPTIONS: TaskStatus[] = [
   TaskStatus.WAITING_ON_APPROVAL,
   TaskStatus.READY_FOR_REVIEW,
   TaskStatus.COMPLETED
+];
+const TASKS_CONSOLE_QUEUE_FILTERS: QueueFilter[] = [
+  "ALL",
+  "MY_TASKS",
+  "NOT_STARTED",
+  "IN_PROGRESS",
+  "BLOCKED",
+  "WAITING",
+  "WAITING_ON_PARTS",
+  "WAITING_ON_APPROVAL",
+  "READY_FOR_REVIEW",
+  "OVERDUE",
+  "COMPLETED",
+  "UNASSIGNED"
 ];
 const TASKS_CONSOLE_CREATE_STATUS_OPTIONS: TaskStatus[] = [
   TaskStatus.NOT_STARTED,
@@ -179,15 +197,15 @@ const TASKS_CONSOLE_STORAGE_KEYS = {
   columns: "tasks-console-visible-columns"
 } as const;
 const TASKS_CONSOLE_COLUMNS: Array<{ key: TasksConsoleColumnKey; label: string }> = [
+  { key: "title", label: "Task description" },
   { key: "priority", label: "Priority" },
-  { key: "taskNumber", label: "Task #" },
-  { key: "title", label: "Title" },
   { key: "status", label: "Status" },
   { key: "owner", label: "Owner" },
   { key: "department", label: "Department" },
   { key: "dueTime", label: "Due Time" },
   { key: "vehicleCustomer", label: "Vehicle / Customer" },
-  { key: "age", label: "Age" }
+  { key: "age", label: "Age" },
+  { key: "taskNumber", label: "Task #" }
 ];
 const DEFAULT_VISIBLE_COLUMNS = TASKS_CONSOLE_COLUMNS.map((column) => column.key);
 
@@ -347,7 +365,9 @@ export function createTasksConsoleAssigneeOptions(
   }
 
   for (const task of tasks) {
-    users.set(task.assignedUser.id, task.assignedUser);
+    if (task.assignedUser?.id) {
+      users.set(task.assignedUser.id, task.assignedUser);
+    }
 
     if (task.recommendedUser) {
       users.set(task.recommendedUser.id, task.recommendedUser);
@@ -532,6 +552,10 @@ function getPriorityToneClass(priority: string) {
 }
 
 function getQueueFilterLabel(filter: QueueFilter) {
+  if (filter === "MY_TASKS") {
+    return "My Tasks";
+  }
+
   if (filter === "NOT_STARTED") {
     return "Not Started";
   }
@@ -575,6 +599,23 @@ function getQueueFilterLabel(filter: QueueFilter) {
   return "All Tasks";
 }
 
+function getTaskOwnerId(task: Pick<BoardReadTask, "assignedUser">) {
+  return task.assignedUser?.id ?? "";
+}
+
+function getTaskOwnerName(task: Pick<BoardReadTask, "assignedUser">) {
+  return task.assignedUser?.name ?? "Unassigned";
+}
+
+function getTaskOwnerInitials(task: Pick<BoardReadTask, "assignedUser">) {
+  return getTaskOwnerName(task)
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
 function isTaskCompletedOnBoardDate(task: BoardReadTask, boardDate: string) {
   if (!task.completedAt) {
     return task.status === TaskStatus.COMPLETED;
@@ -583,9 +624,13 @@ function isTaskCompletedOnBoardDate(task: BoardReadTask, boardDate: string) {
   return task.completedAt.startsWith(boardDate);
 }
 
-function matchesQueueFilter(task: BoardReadTask, filter: QueueFilter, now: Date, boardDate: string) {
+function matchesQueueFilter(task: BoardReadTask, filter: QueueFilter, now: Date, boardDate: string, currentUserId: string) {
   if (filter === "ALL") {
     return true;
+  }
+
+  if (filter === "MY_TASKS") {
+    return getTaskOwnerId(task) === currentUserId && task.status !== TaskStatus.COMPLETED;
   }
 
   if (filter === "WAITING") {
@@ -625,8 +670,8 @@ function matchesDepartmentFilter(task: BoardReadTask, filter: DepartmentFilter |
   return task.workflowArea === filter;
 }
 
-function getQueueCount(tasks: BoardReadTask[], filter: QueueFilter, now: Date, boardDate: string) {
-  return tasks.filter((task) => matchesQueueFilter(task, filter, now, boardDate)).length;
+function getQueueCount(tasks: BoardReadTask[], filter: QueueFilter, now: Date, boardDate: string, currentUserId: string) {
+  return tasks.filter((task) => matchesQueueFilter(task, filter, now, boardDate, currentUserId)).length;
 }
 
 function getDepartmentCount(tasks: BoardReadTask[], filter: DepartmentFilter) {
@@ -657,7 +702,7 @@ function createSearchIndex(task: BoardReadTask) {
   return [
     task.title,
     task.description ?? "",
-    task.assignedUser.name,
+    getTaskOwnerName(task),
     getDepartmentLabel(task.workflowArea),
     task.vehicleReference ?? "",
     task.customerReference ?? ""
@@ -822,6 +867,7 @@ export function TasksConsoleScreen({
   initialQueueFilter,
   initialView,
   isManager,
+  consoleBaseHref = "/tasks",
   todayBoardDate
 }: TasksConsoleScreenProps) {
   const router = useRouter();
@@ -831,7 +877,7 @@ export function TasksConsoleScreen({
   const [activeView, setActiveView] = useState<TasksConsoleView>(initialView === "board" ? "board" : "list");
   const [activeTab, setActiveTab] = useState<TasksConsoleTab>("details");
   const [activeQueueFilter, setActiveQueueFilter] = useState<QueueFilter>(
-    initialQueueFilter && ["ALL", "NOT_STARTED", "IN_PROGRESS", "BLOCKED", "WAITING", "WAITING_ON_PARTS", "WAITING_ON_APPROVAL", "READY_FOR_REVIEW", "OVERDUE", "COMPLETED", "UNASSIGNED"].includes(initialQueueFilter)
+    initialQueueFilter && TASKS_CONSOLE_QUEUE_FILTERS.includes(initialQueueFilter as QueueFilter)
       ? initialQueueFilter as QueueFilter
       : "ALL"
   );
@@ -857,6 +903,7 @@ export function TasksConsoleScreen({
   );
   const [searchText, setSearchText] = useState("");
   const [currentPage, setCurrentPage] = useState(Math.max(1, initialPage));
+  const [pageSize, setPageSize] = useState<TasksPageSize>(DEFAULT_TASKS_PER_PAGE);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(
     initialTask?.id ?? board?.tasks[0]?.id ?? null
   );
@@ -894,13 +941,13 @@ export function TasksConsoleScreen({
       if (acquisitionView === "my-requests" && !requestedTaskIds.has(task.id)) return false;
       if (
         acquisitionView === "needs-help" &&
-        !(task.assignedUser.id === currentUserId && (
+        !(getTaskOwnerId(task) === currentUserId && (
           task.status === TaskStatus.BLOCKED ||
           task.status === TaskStatus.WAITING_ON_PARTS ||
           task.status === TaskStatus.WAITING_ON_APPROVAL
         ))
       ) return false;
-      if (!matchesQueueFilter(task, activeQueueFilter, now, boardDate)) {
+      if (!matchesQueueFilter(task, activeQueueFilter, now, boardDate, currentUserId)) {
         return false;
       }
 
@@ -915,12 +962,17 @@ export function TasksConsoleScreen({
       return createSearchIndex(task).includes(deferredSearchText);
     })
     .sort((left, right) => compareGroupedTasks(left, right, groupBy));
-  const totalPages = Math.max(1, Math.ceil(visibleTasks.length / TASKS_PER_PAGE));
-  const activePage = Math.min(currentPage, totalPages);
-  const pageStartIndex = (activePage - 1) * TASKS_PER_PAGE;
-  const pagedTasks = visibleTasks.slice(pageStartIndex, pageStartIndex + TASKS_PER_PAGE);
+  const pageSizeCount = pageSize === "all" ? Math.max(visibleTasks.length, 1) : pageSize;
+  const totalPages = pageSize === "all" ? 1 : Math.max(1, Math.ceil(visibleTasks.length / pageSizeCount));
+  const activePage = pageSize === "all" ? 1 : Math.min(currentPage, totalPages);
+  const pageStartIndex = pageSize === "all" ? 0 : (activePage - 1) * pageSizeCount;
+  const pagedTasks = pageSize === "all"
+    ? visibleTasks
+    : visibleTasks.slice(pageStartIndex, pageStartIndex + pageSizeCount);
   const pageCountStart = visibleTasks.length === 0 ? 0 : pageStartIndex + 1;
-  const pageCountEnd = Math.min(pageStartIndex + TASKS_PER_PAGE, visibleTasks.length);
+  const pageCountEnd = pageSize === "all"
+    ? visibleTasks.length
+    : Math.min(pageStartIndex + pageSizeCount, visibleTasks.length);
   const paginationItems = buildPaginationItems(totalPages, activePage);
   const visibleColumnSet = new Set(visibleColumns);
   const visibleDataColumnCount = TASKS_CONSOLE_COLUMNS.filter((column) => visibleColumnSet.has(column.key)).length;
@@ -932,7 +984,7 @@ export function TasksConsoleScreen({
     ? acquisitionOverview?.available.find((item) => item.task.id === selectedBoardTask.id)?.decision ?? null
     : null;
   const canStartSelectedTask = Boolean(
-    selectedBoardTask?.assignedUser.id === currentUserId && selectedBoardTask.status === TaskStatus.NOT_STARTED
+    selectedBoardTask && getTaskOwnerId(selectedBoardTask) === currentUserId && selectedBoardTask.status === TaskStatus.NOT_STARTED
   );
   const activeTaskDetail = selectedTaskDetail?.id === effectiveSelectedTaskId ? selectedTaskDetail : null;
   const activeStatusDraft = selectedBoardTask
@@ -954,7 +1006,9 @@ export function TasksConsoleScreen({
   const readyForReviewTasks = allTasks.filter((task) => task.status === TaskStatus.READY_FOR_REVIEW);
   const unassignedTasks = allTasks.filter((task) => !task.assignedUser?.id);
   const completedTodayTasks = allTasks.filter((task) => isTaskCompletedOnBoardDate(task, boardDate));
-  const defaultQuickCreateAssigneeId = selectedBoardTask?.assignedUser.id ?? assigneeOptions[0]?.id ?? "";
+  const defaultQuickCreateAssigneeId = selectedBoardTask
+    ? (getTaskOwnerId(selectedBoardTask) || assigneeOptions[0]?.id || "")
+    : (assigneeOptions[0]?.id ?? "");
   const activeFilterChips = [
     activeQueueFilter !== "ALL" ? `Queue: ${getQueueFilterLabel(activeQueueFilter)}` : null,
     activeDepartmentFilter ? `Department: ${getDepartmentLabel(activeDepartmentFilter)}` : null,
@@ -963,7 +1017,7 @@ export function TasksConsoleScreen({
     activeView === "board" ? "Board lanes" : null
   ].filter((chip): chip is string => Boolean(chip));
   const myTasksCount = allTasks.filter(
-    (task) => task.assignedUser.id === currentUserId && task.status !== TaskStatus.COMPLETED
+    (task) => getTaskOwnerId(task) === currentUserId && task.status !== TaskStatus.COMPLETED
   ).length;
   const inventoryCount = getDepartmentCount(allTasks, "INVENTORY");
   const serviceAdvisorCount = getDepartmentCount(allTasks, "SERVICE_ADVISOR");
@@ -972,28 +1026,28 @@ export function TasksConsoleScreen({
   const marketingCount = getDepartmentCount(allTasks, "ADVERTISING");
   const adminCount = getDepartmentCount(allTasks, "ADMIN");
   const collectionsCount = getDepartmentCount(allTasks, "COLLECTIONS");
-  const consoleReturnHref = `/tasks?date=${encodeURIComponent(boardDate)}&queue=${encodeURIComponent(activeQueueFilter)}&department=${encodeURIComponent(activeDepartmentFilter ?? "")}&view=${activeView}&group=${groupBy}&page=${activePage}&task=${encodeURIComponent(effectiveSelectedTaskId ?? "")}`;
+  const consoleReturnHref = `${consoleBaseHref}?date=${encodeURIComponent(boardDate)}&queue=${encodeURIComponent(activeQueueFilter)}&department=${encodeURIComponent(activeDepartmentFilter ?? "")}&view=${activeView}&group=${groupBy}&page=${activePage}&task=${encodeURIComponent(effectiveSelectedTaskId ?? "")}`;
   const effectiveRightRailMode: TasksConsoleRailMode = workspaceMode === "focus" ? "collapsed" : rightRailMode;
   const taskMetrics = [
     { label: "Total Tasks", value: allTasks.length, filter: "ALL" as const },
     {
       label: "Not Started",
-      value: getQueueCount(allTasks, "NOT_STARTED", now, boardDate),
+      value: getQueueCount(allTasks, "NOT_STARTED", now, boardDate, currentUserId),
       filter: "NOT_STARTED" as const
     },
     {
       label: "In Progress",
-      value: getQueueCount(allTasks, "IN_PROGRESS", now, boardDate),
+      value: getQueueCount(allTasks, "IN_PROGRESS", now, boardDate, currentUserId),
       filter: "IN_PROGRESS" as const
     },
-    { label: "Blocked", value: getQueueCount(allTasks, "BLOCKED", now, boardDate), filter: "BLOCKED" as const },
-    { label: "Waiting", value: getQueueCount(allTasks, "WAITING", now, boardDate), filter: "WAITING" as const },
+    { label: "Blocked", value: getQueueCount(allTasks, "BLOCKED", now, boardDate, currentUserId), filter: "BLOCKED" as const },
+    { label: "Waiting", value: getQueueCount(allTasks, "WAITING", now, boardDate, currentUserId), filter: "WAITING" as const },
     {
       label: "Ready for Review",
-      value: getQueueCount(allTasks, "READY_FOR_REVIEW", now, boardDate),
+      value: getQueueCount(allTasks, "READY_FOR_REVIEW", now, boardDate, currentUserId),
       filter: "READY_FOR_REVIEW" as const
     },
-    { label: "Overdue", value: getQueueCount(allTasks, "OVERDUE", now, boardDate), filter: "OVERDUE" as const }
+    { label: "Overdue", value: getQueueCount(allTasks, "OVERDUE", now, boardDate, currentUserId), filter: "OVERDUE" as const }
   ];
 
   useEffect(() => {
@@ -1679,7 +1733,7 @@ export function TasksConsoleScreen({
         task.title,
         formatTaskEnumLabel(task.status),
         priority,
-        task.assignedUser.name,
+        getTaskOwnerName(task),
         getDepartmentLabel(task.workflowArea),
         formatTime(task.dueAt),
         getTaskReference(task)
@@ -1736,7 +1790,7 @@ export function TasksConsoleScreen({
     },
     {
       active: activeQueueFilter === "OVERDUE",
-      badge: getQueueCount(allTasks, "OVERDUE", now, boardDate),
+      badge: getQueueCount(allTasks, "OVERDUE", now, boardDate, currentUserId),
       key: "overdue",
       label: "Overdue",
       onClick: () => handleQueueFilterChange("OVERDUE"),
@@ -1894,7 +1948,7 @@ export function TasksConsoleScreen({
         <div className="tasks-console-action-group">
           <Link
             className="pill pill-primary tasks-console-create"
-            href="/tasks/intake?returnTo=%2Ftasks"
+            href={`/tasks/intake?returnTo=${encodeURIComponent(consoleBaseHref)}`}
           >
             <Plus size={16} />
             Task Intake
@@ -2064,7 +2118,9 @@ export function TasksConsoleScreen({
       {board ? (
         <nav className="tasks-console-context-nav" aria-label="Task board navigation">
           <Link href={boardHref}>Overview</Link>
-          <Link href="/my-tasks">My Tasks <span>{myTasksCount}</span></Link>
+          <button className={activeQueueFilter === "MY_TASKS" ? "active" : undefined} onClick={() => handleQueueFilterChange("MY_TASKS")} type="button">
+            My Tasks <span>{myTasksCount}</span>
+          </button>
           <button className={activeQueueFilter === "ALL" ? "active" : undefined} onClick={() => handleQueueFilterChange("ALL")} type="button">
             Team Queue <span>{allTasks.length}</span>
           </button>
@@ -2500,9 +2556,8 @@ export function TasksConsoleScreen({
                           <th className="tasks-console-checkbox-column">
                             <input aria-label="Select visible tasks" type="checkbox" />
                           </th>
+                          {visibleColumnSet.has("title") ? <th className="tasks-console-column-title">Task description</th> : null}
                           {visibleColumnSet.has("priority") ? <th className="tasks-console-column-priority">Priority</th> : null}
-                          {visibleColumnSet.has("taskNumber") ? <th className="tasks-console-column-task-number">Task #</th> : null}
-                          {visibleColumnSet.has("title") ? <th className="tasks-console-column-title">Title</th> : null}
                           {visibleColumnSet.has("status") ? <th className="tasks-console-column-status">Status</th> : null}
                           {visibleColumnSet.has("owner") ? <th className="tasks-console-column-owner">Owner</th> : null}
                           {visibleColumnSet.has("department") ? <th className="tasks-console-column-department">Department</th> : null}
@@ -2511,6 +2566,7 @@ export function TasksConsoleScreen({
                             <th className="tasks-console-column-vehicle">Vehicle / Customer</th>
                           ) : null}
                           {visibleColumnSet.has("age") ? <th className="tasks-console-column-age">Age</th> : null}
+                          {visibleColumnSet.has("taskNumber") ? <th className="tasks-console-column-task-number">Task #</th> : null}
                         </tr>
                       </thead>
                       <tbody>
@@ -2527,7 +2583,7 @@ export function TasksConsoleScreen({
                             const updating = active && isWorkflowPending;
                             const taskReference = getTaskReference(task);
                             const acquisitionDecision = getTaskAcquisitionDecision(task.id);
-                            const canStartTask = task.assignedUser.id === currentUserId && task.status === TaskStatus.NOT_STARTED;
+                            const canStartTask = getTaskOwnerId(task) === currentUserId && task.status === TaskStatus.NOT_STARTED;
 
                             return (
                               <tr
@@ -2545,18 +2601,6 @@ export function TasksConsoleScreen({
                                 <td className="tasks-console-checkbox-column">
                                   <input aria-label={`Select ${task.title}`} type="checkbox" />
                                 </td>
-                                {visibleColumnSet.has("priority") ? (
-                                  <td className="tasks-console-column-priority">
-                                    <span className={getPriorityToneClass(priority)}>{priority}</span>
-                                  </td>
-                                ) : null}
-                                {visibleColumnSet.has("taskNumber") ? (
-                                  <td className="tasks-console-column-task-number tasks-console-task-number">
-                                    <Link href={createTaskDetailHref(task.id, consoleReturnHref)} onClick={(event) => event.stopPropagation()} title="Open task workbench">
-                                      {formatTaskDisplayNumber(task.id)}
-                                    </Link>
-                                  </td>
-                                ) : null}
                                 {visibleColumnSet.has("title") ? (
                                   <td className="tasks-console-column-title">
                                     <div className="tasks-console-title-cell">
@@ -2576,6 +2620,11 @@ export function TasksConsoleScreen({
                                     </div>
                                   </td>
                                 ) : null}
+                                {visibleColumnSet.has("priority") ? (
+                                  <td className="tasks-console-column-priority">
+                                    <span className={getPriorityToneClass(priority)}>{priority}</span>
+                                  </td>
+                                ) : null}
                                 {visibleColumnSet.has("status") ? (
                                   <td className="tasks-console-column-status">
                                     <span className={getStatusToneClass(task.status)}>
@@ -2587,14 +2636,9 @@ export function TasksConsoleScreen({
                                   <td className="tasks-console-column-owner">
                                     <div className="tasks-console-owner-cell">
                                       <span className="tasks-console-avatar">
-                                        {task.assignedUser.name
-                                          .split(/\s+/)
-                                          .map((part) => part[0])
-                                          .join("")
-                                          .slice(0, 2)
-                                          .toUpperCase()}
+                                        {getTaskOwnerInitials(task)}
                                       </span>
-                                      <span className="tasks-console-owner-name">{task.assignedUser.name}</span>
+                                      <span className="tasks-console-owner-name">{getTaskOwnerName(task)}</span>
                                     </div>
                                   </td>
                                 ) : null}
@@ -2621,6 +2665,13 @@ export function TasksConsoleScreen({
                                     ) : null}
                                   </td>
                                 ) : null}
+                                {visibleColumnSet.has("taskNumber") ? (
+                                  <td className="tasks-console-column-task-number tasks-console-task-number">
+                                    <Link href={createTaskDetailHref(task.id, consoleReturnHref)} onClick={(event) => event.stopPropagation()} title="Open task workbench">
+                                      {formatTaskDisplayNumber(task.id)}
+                                    </Link>
+                                  </td>
+                                ) : null}
                               </tr>
                             );
                           })
@@ -2631,7 +2682,9 @@ export function TasksConsoleScreen({
 
                   <div className="tasks-console-table-footer">
                     <span>
-                      Showing {pageCountStart} to {pageCountEnd} of {visibleTasks.length} tasks
+                      {pageSize === "all"
+                        ? `Showing all ${visibleTasks.length} tasks`
+                        : `Showing ${pageCountStart} to ${pageCountEnd} of ${visibleTasks.length} tasks`}
                     </span>
                     <div className="tasks-console-table-footer-controls">
                       <span>{getQueueFilterLabel(activeQueueFilter)}</span>
@@ -2672,9 +2725,24 @@ export function TasksConsoleScreen({
                         >
                           <ChevronRight size={14} />
                         </button>
-                        <button className="pill pill-secondary tasks-console-page-size" disabled type="button">
-                          {TASKS_PER_PAGE} / page
-                        </button>
+                        <label className="tasks-console-page-size">
+                          <span className="sr-only">Rows per page</span>
+                          <select
+                            aria-label="Rows per page"
+                            onChange={(event) => {
+                              const nextPageSize = event.target.value === "all"
+                                ? "all"
+                                : Number(event.target.value) as Exclude<TasksPageSize, "all">;
+                              setPageSize(nextPageSize);
+                              setCurrentPage(1);
+                            }}
+                            value={String(pageSize)}
+                          >
+                            <option value="8">8 / page</option>
+                            <option value="25">25 / page</option>
+                            <option value="all">All</option>
+                          </select>
+                        </label>
                       </div>
                     </div>
                   </div>
@@ -2724,7 +2792,7 @@ export function TasksConsoleScreen({
                                     <span className={getStatusToneClass(task.status)}>
                                       {formatTaskEnumLabel(task.status)}
                                     </span>
-                                    <small>{task.assignedUser.name}</small>
+                                    <small>{getTaskOwnerName(task)}</small>
                                   </div>
                                 </button>
                               );
@@ -2797,7 +2865,7 @@ export function TasksConsoleScreen({
                         >
                           <strong>{task.title}</strong>
                           <small>
-                            {formatTaskDisplayNumber(task.id)} | {task.assignedUser.name} | {formatTime(task.dueAt)}
+                            {formatTaskDisplayNumber(task.id)} | {getTaskOwnerName(task)} | {formatTime(task.dueAt)}
                           </small>
                         </button>
                       ))
@@ -3226,11 +3294,11 @@ export function TasksConsoleScreen({
                   {isManager ? (
                     <form
                       className="tasks-console-reassign-form"
-                      key={`assign-${activeTaskDetail?.id ?? selectedBoardTask.id}-${activeTaskDetail?.assignedUser.id ?? selectedBoardTask.assignedUser.id}`}
+                      key={`assign-${activeTaskDetail?.id ?? selectedBoardTask.id}-${activeTaskDetail?.assignedUser.id ?? getTaskOwnerId(selectedBoardTask)}`}
                       onSubmit={handleReassignTask}
                     >
                       <select
-                        defaultValue={activeTaskDetail?.assignedUser.id ?? selectedBoardTask.assignedUser.id}
+                        defaultValue={activeTaskDetail?.assignedUser.id ?? getTaskOwnerId(selectedBoardTask)}
                         disabled={isWorkflowPending}
                         name="assignedUserId"
                       >

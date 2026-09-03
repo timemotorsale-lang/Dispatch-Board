@@ -24,6 +24,7 @@
     "db:seed:shop-recon-pilot": "tsx scripts/seed-shop-recon-pilot.ts",
     "db:cleanup-pilot-data": "tsx scripts/cleanup-pilot-data.ts",
     "db:consolidate-open-repair-orders": "tsx scripts/consolidate-open-repair-order-duplicates.ts",
+    "db:backfill-repair-order-tasks": "tsx scripts/backfill-repair-order-tasks.ts",
     "diagnostics:trial": "tsx scripts/configure-diagnostics-trial.ts",
     "db:validate": "prisma validate"
   },

@@ -134,6 +134,7 @@ export type TaskReadModel = {
   dueAt: string;
   workflowArea: string;
   sourceType: string;
+  repairOrderHref?: string | null;
   requiresManagerApproval: boolean;
   requiredUpdateFields: TaskTemplateRequiredUpdateField[];
   updateFieldValues: Record<string, string | boolean>;
@@ -378,6 +379,10 @@ function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
     dueAt: task.dueAt.toISOString(),
     workflowArea: task.workflowArea,
     sourceType: task.sourceType,
+    repairOrderHref: task.sourceType === "REPAIR_ORDER" && snapshot && typeof snapshot === "object" &&
+      "repairOrderId" in snapshot && typeof snapshot.repairOrderId === "string"
+      ? `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(snapshot.repairOrderId)}`
+      : null,
     requiresManagerApproval: task.requiresManagerApproval,
     requiredUpdateFields: normalizeRequiredUpdateFields(snapshot),
     updateFieldValues: normalizeUpdateFieldValues(updateFieldValues),

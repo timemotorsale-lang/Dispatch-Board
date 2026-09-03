@@ -313,7 +313,7 @@ export function TaskDetailWorkspace({
         <header className="etw-command-bar">
           <div className="etw-brand"><ClipboardCheck size={20} /><div><strong>Time Motor Sales</strong><span>Task Execution View</span></div></div>
           <TaskWorkbenchSearch currentTaskId={task.id} returnTo={returnTo} view="simple" />
-          <div className="etw-command-actions"><Link href={returnTo}>Return to Tasks</Link></div>
+          <div className="etw-command-actions">{task.repairOrderHref ? <Link href={task.repairOrderHref}>Open Repair Order</Link> : null}<Link href={returnTo}>Return to Tasks</Link></div>
         </header>
 
         <main className="etw-simple-shell">
@@ -388,6 +388,7 @@ export function TaskDetailWorkspace({
       </nav>
 
       <div className="etw-breadcrumb"><Link href={returnTo}>Cases &amp; Tasks</Link><ChevronRight size={13} /><span>Case #{recordNumber}</span></div>
+      {task.repairOrderHref ? <div className="etw-breadcrumb"><Link href={task.repairOrderHref}><Wrench size={15} /> Open Repair Order</Link></div> : null}
       <TaskWorkbenchActionBar canComplete={canUpdateStatus} initialRequiredUpdateProgress={requiredUpdateProgress} returnTo={returnTo} status={task.status} taskId={task.id} />
 
       <div className="etw-layout">

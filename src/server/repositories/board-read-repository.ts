@@ -60,6 +60,7 @@ export type BoardReadRepository = {
   findBoardDayByDate(boardDate: string): Promise<BoardReadBoardDayRecord | null>;
   listOpenPriorityTasks(): Promise<BoardReadTaskRecord[]>;
   listTasksForBoardDay(boardDayId: string): Promise<BoardReadTaskRecord[]>;
+  listTasksForOperationsConsole?(boardDayId: string | null): Promise<BoardReadTaskRecord[]>;
 };
 
 function toBoardDateValue(boardDate: string) {
@@ -81,6 +82,19 @@ export function createBoardReadRepository(database: BoardReadDatabase = prisma):
       return database.task.findMany({
         where: {
           boardDayId
+        },
+        select: boardTaskSelect,
+        orderBy: [{ dueAt: "asc" }, { createdAt: "asc" }, { id: "asc" }]
+      });
+    },
+
+    async listTasksForOperationsConsole(boardDayId) {
+      return database.task.findMany({
+        where: {
+          OR: [
+            { status: { not: TaskStatus.COMPLETED } },
+            ...(boardDayId ? [{ boardDayId, status: TaskStatus.COMPLETED }] : [])
+          ]
         },
         select: boardTaskSelect,
         orderBy: [{ dueAt: "asc" }, { createdAt: "asc" }, { id: "asc" }]

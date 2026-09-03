@@ -237,6 +237,53 @@ describe("tasks console screen", () => {
     expect(markup).toContain("Due Next 2 Hours");
     expect(markup).toContain("Unassigned Queue");
     expect(countClass(markup, "tasks-console-row")).toBe(8);
+    const header = markup.match(/<thead>([\s\S]*?)<\/thead>/)?.[1] ?? "";
+    expect(header.indexOf("Task description")).toBeLessThan(header.indexOf("Priority"));
+    expect(header).toMatch(/Task #<\/th><\/tr>$/);
+    const firstRow = markup.match(/<tbody><tr[^>]*>([\s\S]*?)<\/tr>/)?.[1] ?? "";
+    expect(firstRow.indexOf("tasks-console-column-title")).toBeLessThan(firstRow.indexOf("tasks-console-column-priority"));
+    expect(firstRow).toMatch(/tasks-console-column-task-number[\s\S]*<\/a><\/td>$/);
+  });
+
+  it("can open the modern console as a My Tasks queue", () => {
+    const tasks = [
+      createBoardTask(1, {
+        assignedUser: { id: "user-manager", name: "Eli Manager", email: "eli@local.test" }
+      }),
+      createBoardTask(2, {
+        assignedUser: { id: "user-manager", name: "Eli Manager", email: "eli@local.test" },
+        status: TaskStatus.COMPLETED,
+        completedAt: `${boardDate}T13:00:00.000Z`
+      }),
+      createBoardTask(3, {
+        assignedUser: { id: "user-other", name: "Other Staff", email: "other@local.test" }
+      })
+    ];
+    const markup = renderToStaticMarkup(
+      <WorkspaceModeProvider>
+        <TasksConsoleScreen
+          assignableUsers={[createActiveUser("user-manager", "Eli Manager")]}
+          board={createBoard(tasks)}
+          boardDate={boardDate}
+          consoleBaseHref="/my-tasks"
+          currentUserId="user-manager"
+          errorMessage={null}
+          initialTask={createTaskReadModel(tasks[0])}
+          initialQueueFilter="MY_TASKS"
+          initialSavedViews={[]}
+          isManager
+          todayBoardDate={boardDate}
+        />
+      </WorkspaceModeProvider>
+    );
+
+    expect(markup).toContain("Task Operations Console");
+    expect(markup).toContain("Queue: My Tasks");
+    expect(markup).toContain('returnTo=%2Fmy-tasks');
+    expect(markup).toContain("Showing 1 to 1 of 1 tasks");
+    expect(markup).toContain("Console Smoke Task 1");
+    expect(markup).not.toContain("Console Smoke Task 2");
+    expect(countClass(markup, "tasks-console-row")).toBe(1);
   });
 
   it("builds quick-create owner options from active users before board fallbacks", () => {

@@ -1354,6 +1354,7 @@ enum TaskSourceType {
   STAFF
   CONCERN
   LEAD
+  REPAIR_ORDER
 }
 
 enum CustomerLeadStage {
@@ -1797,6 +1798,7 @@ model User {
   assignedTasks                           Task[]                                 @relation("TaskAssignedUser")
   recommendedTasks                        Task[]                                 @relation("TaskRecommendedUser")
   createdTasks                            Task[]                                 @relation("TaskCreatedByUser")
+  createdRepairOrderTaskLinks                  RepairOrderTaskLink[]                  @relation("RepairOrderTaskLinkCreatedBy")
   reviewedTasks                           Task[]                                 @relation("TaskReviewedByUser")
   acceptedTasks                           Task[]                                 @relation("TaskAcceptedByUser")
   completionOverriddenTasks               Task[]                                 @relation("TaskCompletionOverrideByUser")
@@ -2101,6 +2103,7 @@ model Organization {
   serviceVisits                         ServiceVisit[]
   serviceIntakeReadinessSnapshots       ServiceIntakeReadinessSnapshot[]
   repairOrders                          RepairOrder[]
+  repairOrderTaskLinks                  RepairOrderTaskLink[]
   repairVendorWorks                     RepairVendorWork[]
   repairVendorWorkEvents                RepairVendorWorkEvent[]
   repairVendors                         RepairVendor[]
@@ -3834,6 +3837,7 @@ model RepairOrder {
   unifiedCrmOpportunityLinks   UnifiedCrmOpportunityDispatchLink[]
   diagnosticVerifications      DiagnosticVerificationVersion[]
   shopReconLifecycle           ShopReconLifecycle?
+  taskLinks                    RepairOrderTaskLink[]
 
   @@unique([organizationId, repairOrderNumber])
   @@unique([id, organizationId])
@@ -5083,6 +5087,7 @@ model RepairJob {
   comebackCases          RepairComebackCase[]
   partCustodyEvents      PartCustodyEvent[]
   unifiedCrmOpportunityLinks UnifiedCrmOpportunityDispatchLink[]
+  taskLinks                  RepairOrderTaskLink[]
 
   @@unique([repairOrderId, jobNumber])
   @@unique([repairOrderId, authorizedLineKey, authorizationId])
@@ -7450,6 +7455,7 @@ model Task {
   convertedFromDailyFocus    WorkdayDailyFocusItem[]    @relation("WorkdayDailyFocusConvertedTask")
   convertedFromQuickUpdates  WorkdayQuickUpdate[]      @relation("WorkdayQuickUpdateConvertedTask")
   convertedFromCarryovers    WorkdayCarryover[]        @relation("WorkdayCarryoverConvertedTask")
+  repairOrderLinks           RepairOrderTaskLink[]
 
   @@unique([boardDayId, sourceTemplateId, assignedUserId])
   @@unique([boardDayId, carryoverSourceTaskId])
@@ -7462,6 +7468,28 @@ model Task {
   @@index([boardDayId, isClaimable, status])
   @@index([carryoverReportId])
   @@index([customerId, status, dueAt])
+}
+
+/// Durable projection link from authoritative repair work into the universal Task ledger.
+model RepairOrderTaskLink {
+  id              String       @id @default(cuid())
+  organizationId  String
+  repairOrderId   String
+  repairJobId     String?
+  taskId          String       @unique
+  assignmentKey   String
+  createdByUserId String
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  repairOrder     RepairOrder  @relation(fields: [repairOrderId], references: [id], onDelete: Cascade)
+  repairJob       RepairJob?   @relation(fields: [repairJobId], references: [id], onDelete: Cascade)
+  task            Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  createdByUser   User         @relation("RepairOrderTaskLinkCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, repairOrderId, assignmentKey])
+  @@index([repairOrderId, assignmentKey])
+  @@index([repairJobId])
 }
 
 /// Vehicle-centered execution contract that extends, but never replaces, its authoritative Task.

@@ -2,7 +2,7 @@ import { TasksConsoleLoader } from "@/features/tasks/tasks-console-loader";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { isManager } from "@/server/policies/access";
 import { getGenerationSettings } from "@/server/services/app-settings-service";
-import { getBoardReadModelForDate } from "@/server/services/board-read";
+import { getTaskOperationsReadModelForDate } from "@/server/services/board-read";
 import { getTaskReadModelById } from "@/server/services/task-read";
 import { listTaskSavedViews, type TaskSavedViewModel } from "@/server/services/task-saved-views";
 import { listActiveUserSummaries } from "@/server/services/user-summary";
@@ -80,7 +80,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
     const [resolvedAssignableUsers, resolvedSavedViews, boardLookup] = await Promise.all([
       manager ? listActiveUserSummaries() : Promise.resolve([]),
       listTaskSavedViews(user),
-      getBoardReadModelForDate(user, boardDate)
+      getTaskOperationsReadModelForDate(user, boardDate)
     ]);
 
     assignableUsers = resolvedAssignableUsers;

@@ -1,113 +1,118 @@
-import type { ComponentProps } from "react";
-
-import { MyTasksScreen } from "@/features/tasks/my-tasks-screen";
+import { TasksConsoleLoader } from "@/features/tasks/tasks-console-loader";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { isManager } from "@/server/policies/access";
-import { getMyTasksViewModelForToday } from "@/server/services/my-tasks";
-import { getStaffDay } from "@/server/services/staff-day";
-import { getStaffExecutionFlags } from "@/lib/staff-execution-flags";
-import { getTaskCompletionReadiness } from "@/server/services/task-execution-readiness";
-import { isTechnicianOnlyUser } from "@/server/auth/navigation";
-import { RepairAssignmentsPanel } from "@/features/technician/repair-assignments-panel";
-import { TechnicianShiftControl } from "@/features/technician/technician-shift-control";
-import {
-  getTaskSpecialistRoutes,
-  getTechnicianMyWork,
-  type TechnicianShopPulse
-} from "@/server/technician-workspace/service";
-import { getSafeTimeAttendanceCaptureState } from "@/server/time-attendance";
+import { getGenerationSettings } from "@/server/services/app-settings-service";
+import { getTaskOperationsReadModelForDate } from "@/server/services/board-read";
+import { getTaskReadModelById } from "@/server/services/task-read";
+import { listTaskSavedViews, type TaskSavedViewModel } from "@/server/services/task-saved-views";
+import { listActiveUserSummaries } from "@/server/services/user-summary";
+import { getBoardDateInTimeZone, normalizeBoardDate } from "@/server/validation/board-date";
 
-export default async function MyTasksPage() {
-  const user = await requireCurrentUser();
-  const technicianMode = isTechnicianOnlyUser(user);
-  let repairAssignments: Awaited<ReturnType<typeof getTechnicianMyWork>>["assignments"] = [];
-  let shopPulse: TechnicianShopPulse | null = null;
-  let repairAssignmentsError: string | null = null;
-  let shiftState: Awaited<ReturnType<typeof getSafeTimeAttendanceCaptureState>> | null = null;
-  const executionFlags = getStaffExecutionFlags();
-  const screenProps: ComponentProps<typeof MyTasksScreen> = {
-    boardDate: new Date().toISOString().slice(0, 10),
-    boardExists: false,
-    availableWorkEnabled: executionFlags.availableWorkEnabled,
-    endOfDayHandoffEnabled: executionFlags.endOfDayReportEnabled,
-    currentUserId: user.id,
-    errorMessage: null,
-    fullBoardHref: "/board",
-    generatedAt: null,
-    generationStatus: null,
-    initialTasks: [],
-    initialStaffDay: null,
-    initialReadinessByTask: {},
-    isManager: isManager(user),
-    nowIso: new Date().toISOString(),
-    specialistHrefByTask: {},
-    technicianMode,
-    userName: user.name
-  };
+type MyTasksPageProps = {
+  searchParams?: Promise<{
+    create?: string | string[];
+    concern?: string | string[];
+    date?: string | string[];
+    department?: string | string[];
+    group?: string | string[];
+    page?: string | string[];
+    queue?: string | string[];
+    task?: string | string[];
+    view?: string | string[];
+  }>;
+};
+
+function readParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function resolveSelectedBoardDate(
+  rawBoardDate: string | undefined,
+  fallbackBoardDate: string
+): { boardDate: string; errorMessage: string | null } {
+  if (!rawBoardDate) {
+    return {
+      boardDate: fallbackBoardDate,
+      errorMessage: null
+    };
+  }
 
   try {
-    const myTasks = await getMyTasksViewModelForToday(user);
-
-    screenProps.boardDate = myTasks.date;
-    screenProps.boardExists = myTasks.boardExists;
-    screenProps.fullBoardHref = `/board?date=${encodeURIComponent(myTasks.date)}`;
-    screenProps.generatedAt = myTasks.generatedAt;
-    screenProps.generationStatus = myTasks.generationStatus;
-    screenProps.initialTasks = myTasks.tasks;
-    screenProps.specialistHrefByTask = await getTaskSpecialistRoutes(myTasks.tasks.map((task) => task.id));
-    const [readinessEntries, staffDayResult] = await Promise.all([
-      executionFlags.taskAcceptanceEnabled
-        ? Promise.all(myTasks.tasks.map(async (task) => [
-          task.id,
-          await getTaskCompletionReadiness(user, task.id)
-        ] as const))
-        : Promise.resolve([]),
-      getStaffDay(user, myTasks.date)
-    ]);
-    screenProps.initialReadinessByTask = Object.fromEntries(readinessEntries);
-    screenProps.initialStaffDay = staffDayResult.startDayEnabled ? staffDayResult.staffDay : null;
-  } catch (error) {
-    screenProps.errorMessage =
-      error instanceof Error ? error.message : "Unable to load your tasks right now.";
+    return {
+      boardDate: normalizeBoardDate(rawBoardDate),
+      errorMessage: null
+    };
+  } catch {
+    return {
+      boardDate: fallbackBoardDate,
+      errorMessage: "The requested My Tasks date was invalid, so the console has been reset to today."
+    };
   }
+}
 
-  if (technicianMode) {
-    const [technicianWorkResult, shiftStateResult] = await Promise.allSettled([
-      getTechnicianMyWork(user),
-      getSafeTimeAttendanceCaptureState(user)
-    ]);
-    if (technicianWorkResult.status === "fulfilled") {
-      const technicianWork = technicianWorkResult.value;
-      repairAssignments = technicianWork.assignments;
-      shopPulse = technicianWork.pulse;
-    } else {
-      const error = technicianWorkResult.reason;
-      repairAssignmentsError = error instanceof Error ? error.message : "Repair assignments are unavailable.";
-    }
-    if (shiftStateResult.status === "fulfilled") shiftState = shiftStateResult.value;
-  }
-
-  const shiftGateActive = Boolean(
-    technicianMode &&
-    shiftState &&
-    !shiftState.unavailableReason &&
-    shiftState.state !== "OPEN"
+export default async function MyTasksPage({ searchParams }: MyTasksPageProps) {
+  const [user, resolvedSearchParams, settings] = await Promise.all([
+    requireCurrentUser(),
+    searchParams,
+    getGenerationSettings()
+  ]);
+  const manager = isManager(user);
+  const todayBoardDate = getBoardDateInTimeZone(new Date(), settings.timezone);
+  const { boardDate, errorMessage: dateErrorMessage } = resolveSelectedBoardDate(
+    readParam(resolvedSearchParams?.date),
+    todayBoardDate
   );
 
-  if (technicianMode && shiftState && shiftGateActive) {
-    return <TechnicianShiftControl hasRunningRepair={false} initialState={shiftState} />;
+  let board = null;
+  let initialTask = null;
+  let initialSavedViews: TaskSavedViewModel[] = [];
+  let screenErrorMessage = dateErrorMessage;
+  let assignableUsers: Awaited<ReturnType<typeof listActiveUserSummaries>> = [];
+
+  try {
+    const [resolvedAssignableUsers, resolvedSavedViews, boardLookup] = await Promise.all([
+      manager ? listActiveUserSummaries() : Promise.resolve([]),
+      listTaskSavedViews(user),
+      getTaskOperationsReadModelForDate(user, boardDate)
+    ]);
+
+    assignableUsers = resolvedAssignableUsers;
+    initialSavedViews = resolvedSavedViews;
+    board = boardLookup.board;
+
+    const requestedTaskId = readParam(resolvedSearchParams?.task);
+    const userTask =
+      board?.tasks.find((task) => task.id === requestedTaskId) ??
+      board?.tasks.find((task) => task.assignedUser?.id === user.id && task.status !== "COMPLETED") ??
+      board?.tasks[0];
+
+    if (userTask) {
+      initialTask = await getTaskReadModelById(user, userTask.id);
+    }
+  } catch (error) {
+    screenErrorMessage =
+      error instanceof Error ? error.message : "Unable to load My Tasks right now.";
   }
 
   return (
-    <>
-      {technicianMode && shiftState ? (
-        <TechnicianShiftControl
-          hasRunningRepair={repairAssignments.some((assignment) => assignment.clockState === "RUNNING")}
-          initialState={shiftState}
-        />
-      ) : null}
-      {technicianMode ? <RepairAssignmentsPanel assignments={repairAssignments} pulse={shopPulse} unavailableReason={repairAssignmentsError} /> : null}
-      <MyTasksScreen {...screenProps} />
-    </>
+    <TasksConsoleLoader
+      assignableUsers={assignableUsers}
+      board={board}
+      boardDate={boardDate}
+      consoleBaseHref="/my-tasks"
+      currentUserId={user.id}
+      errorMessage={screenErrorMessage}
+      initialTask={initialTask}
+      initialSavedViews={initialSavedViews}
+      initialQuickCreateOpen={manager && readParam(resolvedSearchParams?.create) === "1"}
+      initialConcernIntakeOpen={manager && readParam(resolvedSearchParams?.concern) === "1"}
+      initialDepartmentFilter={readParam(resolvedSearchParams?.department)}
+      initialGroupBy={readParam(resolvedSearchParams?.group)}
+      initialPage={Number.parseInt(readParam(resolvedSearchParams?.page) ?? "1", 10) || 1}
+      initialQueueFilter={readParam(resolvedSearchParams?.queue) ?? "MY_TASKS"}
+      initialView={readParam(resolvedSearchParams?.view)}
+      isManager={manager}
+      todayBoardDate={todayBoardDate}
+    />
   );
 }

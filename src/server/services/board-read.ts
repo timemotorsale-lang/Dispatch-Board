@@ -1143,6 +1143,44 @@ export async function getBoardReadModelForDate(
   };
 }
 
+/**
+ * Loads the Tasks operations ledger. Active work is intentionally cross-date;
+ * only completed work remains scoped to the selected board date. The daily
+ * board continues to use getBoardReadModelForDate and remains date-specific.
+ */
+export async function getTaskOperationsReadModelForDate(
+  user: AuthenticatedUser | null,
+  boardDate: string,
+  dependencies: BoardReadDependencies = {}
+): Promise<BoardReadLookupResult> {
+  assertCanViewBoard(user);
+
+  const normalizedBoardDate = normalizeBoardDate(boardDate);
+  const repository = dependencies.repository ?? createBoardReadRepository();
+  const boardResult = await getBoardReadModelForDate(user, normalizedBoardDate, {
+    ...dependencies,
+    repository
+  });
+
+  const records = repository.listTasksForOperationsConsole
+    ? await repository.listTasksForOperationsConsole(boardResult.board?.id ?? null)
+    : boardResult.board ? await repository.listTasksForBoardDay(boardResult.board.id) : [];
+  const tasks = records.map(toTaskSummary);
+  // A missing daily board must not hide carry-over assignments. This is a
+  // read-only console envelope, not a newly generated daily board.
+  const board = boardResult.board ?? toBoardReadModel(
+    { id: `operations:${normalizedBoardDate}`, generationStatus: "NOT_GENERATED", generatedAt: null },
+    normalizedBoardDate,
+    [],
+    null
+  );
+
+  return {
+    ...boardResult,
+    board: { ...board, taskCount: tasks.length, statusCounts: createStatusCounts(tasks), sourceCounts: createSourceCounts(tasks), tasks }
+  };
+}
+
 export async function getBoardReadModelForToday(
   user: AuthenticatedUser | null,
   dependencies: BoardReadTodayDependencies = {}
