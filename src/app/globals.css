@@ -11596,8 +11596,28 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
 .etw-brand div { display: grid; gap: 1px; }
 .etw-brand strong { font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase; }
 .etw-brand span { color: #aebdd1; font-size:11.5px; letter-spacing: 0.06em; text-transform: uppercase; }
+.etw-search-shell { position: relative; flex: 1; max-width: 620px; }
 .etw-search { flex: 1; max-width: 620px; gap: 7px; min-height: 32px; padding: 0 11px; color: #66758b; background: #fff; border-radius: 7px; }
 .etw-search input { width: 100%; padding: 0; border: 0; outline: 0; font-size: 12px; }
+.etw-search-shell .etw-search { max-width: none; }
+.etw-search-results { position: absolute; top: calc(100% + 7px); right: 0; left: 0; z-index: 40; display: grid; gap: 3px; padding: 7px; color: #16243a; background: #fff; border: 1px solid #cfdced; border-radius: 8px; box-shadow: 0 18px 44px rgba(10, 25, 55, .24); }
+.etw-search-results header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 5px 7px; color: #66758b; font-size: 11px; }
+.etw-search-results header strong { color: #14233a; }
+.etw-search-results button { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 9px; width: 100%; min-height: 58px; border: 1px solid transparent; border-radius: 7px; background: transparent; padding: 8px; color: inherit; text-align: left; font: inherit; cursor: pointer; }
+.etw-search-results button:hover,
+.etw-search-results button:focus-visible,
+.etw-search-results button.active,
+.etw-search-results button[aria-selected="true"] { border-color: #bdd0f2; outline: none; background: #f3f7ff; }
+.etw-search-results svg { color: #2d5be3; }
+.etw-search-results button span { display: grid; gap: 3px; min-width: 0; }
+.etw-search-results button strong,
+.etw-search-results button small,
+.etw-search-results button em { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.etw-search-results button strong { color: #0c1f3d; font-size: 12px; }
+.etw-search-results button small { color: #56677e; font-size: 11px; }
+.etw-search-results button em { color: #6d7c90; font-size: 10.5px; font-style: normal; }
+.etw-search-results button b { color: #2457de; font-size: 10.5px; text-transform: uppercase; white-space: nowrap; }
+.etw-search-results p { margin: 0; padding: 8px 7px 10px; color: #66758b; font-size: 11px; line-height: 1.4; }
 .etw-command-actions { margin-left: auto; gap: 10px; }
 .etw-command-actions a { color: #dce7f7; font-size:11.5px; font-weight: 700; text-decoration: none; }
 .etw-command-actions .etw-new-action { padding: 8px 18px; color: #fff; background: linear-gradient(135deg, #2764f3, #6637ed); border-radius: 7px; }
@@ -11676,6 +11696,17 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
 .etw-compact-action-panel ul { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
 .etw-compact-action-panel li { display: flex; align-items: flex-start; gap: 7px; min-height: 31px; padding: 8px 9px; color: #253750; background: #fff; border: 1px solid #dce5f0; border-radius: 7px; font-size: 12px; font-weight: 800; line-height: 1.35; }
 .etw-compact-action-panel svg { flex: 0 0 auto; margin-top: 1px; color: #2c58df; }
+.etw-compact-repair-details header { display: grid; gap: 3px; }
+.etw-compact-repair-details header strong { display: inline-flex; align-items: center; gap: 7px; color: #071c39; font-size: 14px; line-height: 1.25; }
+.etw-compact-repair-details header span { color: #5e7189; font-size: 12px; line-height: 1.35; }
+.etw-compact-repair-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.etw-compact-repair-grid article { display: grid; gap: 8px; min-width: 0; padding: 10px; background: #fff; border: 1px solid #dce5f0; border-radius: 8px; }
+.etw-compact-repair-grid small { display: inline-flex; align-items: center; gap: 6px; color: #183c75; font-size: 11px; font-weight: 950; letter-spacing: .05em; text-transform: uppercase; }
+.etw-compact-repair-grid dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.etw-compact-repair-grid dl div { min-width: 0; }
+.etw-compact-repair-grid dt { color: #68798e; font-size: 10.5px; font-weight: 900; }
+.etw-compact-repair-grid dd { margin: 2px 0 0; color: #0b1f3b; font-size: 12px; font-weight: 850; overflow-wrap: anywhere; }
+.etw-compact-repair-details > a { display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: max-content; min-height: 34px; padding: 0 12px; color: #244fd0; background: #eef5ff; border: 1px solid #bfd0f1; border-radius: 8px; font-size: 12px; font-weight: 900; text-decoration: none; }
 
 .etw-compact-task-card { grid-template-columns: 160px minmax(0, 1fr) minmax(280px, 360px) 56px; gap: 0; padding: 0; overflow: hidden; border-color: #c8d5e6; box-shadow: 0 18px 48px rgba(15, 35, 68, .1); }
 .etw-compact-status-rail { grid-row: 1 / span 2; display: grid; align-content: center; justify-items: center; gap: 13px; min-height: 230px; padding: 18px 14px; color: #fff; text-align: center; background: linear-gradient(180deg, #063b78 0%, #08264f 100%); }
@@ -12443,7 +12474,8 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
   .etw-task-action-bar { justify-content:flex-start; overflow-x:auto; }
   .etw-command-bar { flex-wrap: wrap; }
   .etw-brand { min-width: 0; }
-  .etw-search { order: 3; flex-basis: 100%; }
+  .etw-search,
+  .etw-search-shell { order: 3; flex-basis: 100%; max-width: none; }
   .etw-view-switcher { order: 2; }
   .etw-simple-shell { padding: 12px; }
   .etw-simple-header h1 { font-size: 21px; }

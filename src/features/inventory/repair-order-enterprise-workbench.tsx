@@ -1408,10 +1408,10 @@ export function RepairOrderEnterpriseWorkbench({
             </span>
           ))}
         </div>
-        <details className="rowb-summary-details" id="repair-order-details" open>
+        <details className="rowb-summary-details" id="repair-order-details">
           <summary>
-            <span>Full repair order details</span>
-            <strong>Open the deeper record when staff need vendor notes, approvals, amounts, and QC context.</strong>
+            <span>Repair details</span>
+            <strong>Open for vendor notes, approvals, amounts, and QC context.</strong>
           </summary>
           <div>
             <article>
@@ -1424,8 +1424,6 @@ export function RepairOrderEnterpriseWorkbench({
                 <div><dt>Inventory / vehicle</dt><dd>{order.inventoryUnit?.inventoryNumber ?? order.vehicle.vehicleNumber}</dd></div>
                 <div><dt>In-service date</dt><dd>{date(order.openedAt)}</dd></div>
               </dl>
-              {vehicleToolLinks()}
-              {vehicleColorEditor}
             </article>
             <article>
               <small><Wrench /> Vendor progress</small>

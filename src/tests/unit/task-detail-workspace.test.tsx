@@ -232,7 +232,7 @@ describe("task detail workspace", () => {
     expect(markup).toContain("Subtasks");
     expect(markup).toContain("Checklist");
     expect(markup).toContain("Comments");
-    expect(markup).toContain("Signals");
+    expect(markup).toContain("Repair Details");
     expect(markup).not.toContain("Source backed");
     expect(markup).not.toContain("Role aware");
     expect(markup).not.toContain('id="required-task-update"');
