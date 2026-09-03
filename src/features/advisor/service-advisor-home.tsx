@@ -26,6 +26,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useId, useState } from "react";
 
 import type { ServiceAdvisorWorkspaceModel } from "@/server/advisor-workspace/service";
+import { ChecklistReminderField } from "./checklist-reminder-field";
+import { ExpandableFocusDetails } from "./expandable-focus-details";
 
 type Action = ServiceAdvisorWorkspaceModel["actionQueue"][number];
 type InboxItem = ServiceAdvisorWorkspaceModel["inbox"][number];
@@ -930,7 +932,8 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
       setWorkspaceNotice("This workbook day is closed. Reopen it before updating checklist items.");
       return;
     }
-    updateChecklistItem(id, patch);
+    // Keep the last saved reminder date visible if the request fails.
+    if (!("reminderDate" in patch)) updateChecklistItem(id, patch);
     try {
       const response = await fetch(`/api/coo-workbook/checklist/${encodeURIComponent(id)}`, {
         method: "PATCH",
@@ -1453,6 +1456,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
             </select>
             <button aria-pressed={item.carryoverReady} disabled={isClosed} onClick={() => void persistChecklistItem(item.id, { carryoverReady: !item.carryoverReady })} type="button">{item.carryoverReady ? "Carryover" : "Carry over"}</button>
             {item.convertedTaskId ? <Link href={`/tasks/${item.convertedTaskId}`}>Open task</Link> : <button disabled={isClosed || convertingId === item.id} onClick={() => void convertToTask("checklist", item)} type="button">{convertingId === item.id ? "Converting..." : "Convert"}</button>}
+            <ChecklistReminderField key={`${item.id}:${item.reminderDate ?? ""}`} value={item.reminderDate ?? ""} disabled={isClosed} title={item.text} onSave={date => persistChecklistItem(item.id, { reminderDate: date })} />
           </div>) : <p><ListChecks /> Add a quick list of what needs to get done today.</p>}
         </div>
       </section> : null}
@@ -1505,6 +1509,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
             </select>
             <button aria-pressed={item.carryoverReady} disabled={isClosed} onClick={() => void persistChecklistItem(item.id, { carryoverReady: !item.carryoverReady })} type="button">{item.carryoverReady ? "Carryover" : "Carry over"}</button>
             {item.convertedTaskId ? <Link href={`/tasks/${item.convertedTaskId}`}>Open task</Link> : <button disabled={isClosed || convertingId === item.id} onClick={() => void convertToTask("checklist", item)} type="button">{convertingId === item.id ? "Converting..." : "Convert"}</button>}
+            <ChecklistReminderField key={`${item.id}:${item.reminderDate ?? ""}`} value={item.reminderDate ?? ""} disabled={isClosed} title={item.text} onSave={date => persistChecklistItem(item.id, { reminderDate: date })} />
           </div>) : <p><ListChecks /> Add a quick list of what needs to get done today.</p>}
         </div>
         <div className="advisor-coo-close-flow">
@@ -2165,7 +2170,7 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
         {notice ? <p className="advisor-coo-workspace-notice" role="status">{notice}</p> : null}
         <div className="advisor-coo-focus-list">
           {dailyFocus.length ? dailyFocus.slice(0, 5).map((item) => <article className={item.riskLevel.toLocaleLowerCase()} key={item.id}>
-            <span><strong>{item.outcome}</strong><small>{item.priority.toLocaleLowerCase()} · {item.mustCloseToday ? "must close" : "flexible"}</small></span>
+            <ExpandableFocusDetails item={item} />
             <select aria-label={`Status for ${item.outcome}`} disabled={saving || isPilotClosed} onChange={(event) => void updateDailyFocus(item, { status: event.target.value as DailyFocusStatus })} value={item.status}>{focusStatuses.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select>
             <select aria-label={`Risk for ${item.outcome}`} disabled={saving || isPilotClosed} onChange={(event) => void updateDailyFocus(item, { riskLevel: event.target.value as DailyFocusRisk })} value={item.riskLevel}>{focusRiskLevels.map((risk) => <option key={risk.value} value={risk.value}>{risk.label}</option>)}</select>
             <button className="advisor-coo-focus-undo" disabled={saving || isPilotClosed} onClick={() => void undoDailyFocus(item)} title="Remove this Daily Focus so another can be chosen." type="button"><Undo2 /> Undo</button>

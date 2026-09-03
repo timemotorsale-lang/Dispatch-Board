@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import styles from "./category-badge.module.css";
 
 export const appointmentCategoryColors: Record<string, { label: string; color: string; background: string }> = {
+  CHECKLIST: { label: "Checklist", color: "#334155", background: "#f1f5f9" },
   CUSTOMER: { label: "Customer", color: "#1d4ed8", background: "#eff6ff" },
   VENDOR: { label: "Vendor", color: "#7e22ce", background: "#faf5ff" },
   FACILITY: { label: "Facility", color: "#92400e", background: "#fffbeb" },

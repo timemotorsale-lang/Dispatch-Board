@@ -16,7 +16,12 @@ export async function GET(request: Request) {
       select: { id: true, text: true, category: true, person: true, company: true, convertedTaskId: true },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }]
     });
-    return NextResponse.json({ date, reminders }, { headers: { "Cache-Control": "private, no-store" } });
+    const checklist = await prisma.workdayChecklistItem.findMany({
+      where: { reminderDate: date, done: false, workbook: { userId: user.id } },
+      select: { id: true, text: true, convertedTaskId: true },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }]
+    });
+    return NextResponse.json({ date, reminders: [...reminders, ...checklist.map(item => ({ ...item, id: `checklist:${item.id}`, category: "CHECKLIST", person: "", company: "", source: "Checklist" }))] }, { headers: { "Cache-Control": "private, no-store" } });
   } catch {
     return NextResponse.json({ error: "Unable to load scheduled reminders." }, { status: 500 });
   }

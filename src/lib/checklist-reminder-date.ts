@@ -1,0 +1,8 @@
+export function normalizeChecklistReminderDate(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (value === "" || value === null) return "";
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(Date.parse(value)) || new Date(value).toISOString().slice(0, 10) !== value) {
+    throw new Error("Reminder date must be a valid date (YYYY-MM-DD).");
+  }
+  return value;
+}

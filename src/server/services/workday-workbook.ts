@@ -1,3 +1,4 @@
+import { normalizeChecklistReminderDate } from "@/lib/checklist-reminder-date";
 import {
   WorkdayActivityPurpose,
   WorkdayCarryoverStatus,
@@ -950,6 +951,7 @@ function toReadModel(workbook: WorkdayWorkbookRecord, operatingSignals: WorkdayW
     createdAt: dateToIso(workbook.createdAt),
     updatedAt: dateToIso(workbook.updatedAt),
     checklistItems: workbook.checklistItems.map((item) => ({
+      ...(item.reminderDate ? { reminderDate: item.reminderDate } : {}),
       id: item.id,
       text: item.text,
       status: item.status,
@@ -1190,6 +1192,7 @@ export async function updateCooWorkbookChecklistItem(actor: AuthenticatedUser | 
   assertWorkbookEditable(user, item.workbook);
   const update = normalizeOptionalText(payload.update, "update", 5000);
   await repository.updateChecklistItem({
+    reminderDate: normalizeChecklistReminderDate(payload.reminderDate),
     carryoverReady: normalizeBoolean(payload.carryoverReady, "carryoverReady"),
     convertedTaskId: normalizeOptionalText(payload.convertedTaskId, "convertedTaskId", 120),
     done: normalizeBoolean(payload.done, "done"),

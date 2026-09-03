@@ -1,0 +1,16 @@
+.details { min-width: 0; }
+.details[open] { grid-column: 1 / -1; }
+.details summary { cursor: pointer; border-radius: 5px; }
+.details summary:focus-visible { outline: 2px solid #315dcc; outline-offset: 4px; }
+.details summary strong { display: block; }
+.details summary small { display: block; }
+.details summary em { font-style: normal; color: #315dcc; text-decoration: underline; }
+.details[open] summary strong, .details[open] summary small { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+.body { margin-top: 10px; padding: 12px; border: 1px solid #cfdbea; border-radius: 8px; background: #fff; color: #17253c; font-size: 13px; line-height: 1.5; }
+.body dl { margin: 0; }
+.body dt { font-weight: 600; margin-top: 10px; }
+.body dt:first-child { margin-top: 0; }
+.body dd { margin: 3px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.body a { display: inline-block; margin-top: 12px; color: #315dcc; }
+:global(html[data-app-theme="dark"]) .body { background: #17253c; color: #e4ebf7; border-color: #40516b; }
+:global(html[data-app-theme="dark"]) .body a, :global(html[data-app-theme="dark"]) .details summary em { color: #a9c3ff; }

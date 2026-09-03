@@ -6809,6 +6809,7 @@ model WorkdayWorkbook {
 }
 
 model WorkdayChecklistItem {
+  reminderDate    String                 @default("")
   id              String                 @id @default(cuid())
   workbookId      String
   text            String
