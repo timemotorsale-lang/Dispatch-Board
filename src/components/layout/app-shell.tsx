@@ -23,6 +23,7 @@ import { ManagerWorkspaceSidebar } from "./manager-workspace-sidebar";
 import { TasksWorkspaceSidebar } from "./tasks-workspace-sidebar";
 import { OperatingRhythmReminder } from "./operating-rhythm-reminder";
 import { readManagerWorkspaceContext, withManagerWorkspaceContext } from "@/lib/manager-workspace-context";
+import taskPageStyles from "./tasks-page-shell.module.css";
 
 type AppShellProps = {
   children: ReactNode;
@@ -45,7 +46,7 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
   const { mode } = useWorkspaceMode();
   const commandCenterHome = pathname === "/command-center";
   const managerWorkspaceHome = pathname === "/manager-workspace";
-  const tasksConsoleHome = pathname === "/tasks";
+  const tasksConsoleHome = pathname === "/tasks" || pathname === "/my-tasks";
   const salesConsole = isSalesConsolePath(pathname);
   const operationsCoordinatorConsole = isOperationsCoordinatorConsolePath(pathname);
   const dispatchConsole = isDispatchConsolePath(pathname) && !isInventoryConsolePath(pathname) && !isAppointmentConsolePath(pathname) && !isSalesConsolePath(pathname);
@@ -61,7 +62,7 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
   const consoleNavigation = salesConsole || tasksConsoleHome ? null : getConsoleNavigation(pathname, user, preferredWorkspace, containedConsoleWorkspace);
   const hasSidebar = commandCenterHome || managerWorkspaceHome || tasksConsoleHome || Boolean(consoleNavigation);
   const tasksWorkspace = pathname.startsWith("/tasks");
-  const sidebarCompact = isTasksSidebarCompact(pathname, mode);
+  const sidebarCompact = !tasksConsoleHome && isTasksSidebarCompact(pathname, mode);
   const salesConsoleReturnTo = searchParams.get("returnTo");
   const showSalesConsoleReturn =
     Boolean(salesConsoleReturnTo?.startsWith("/sales")) &&
@@ -137,6 +138,7 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
     <div
       className={[
         "app-frame",
+        tasksConsoleHome ? taskPageStyles.shell : "",
         !commandCenterHome ? "app-frame-console" : "",
         consoleNavigation || managerWorkspaceHome || tasksConsoleHome ? "app-frame-console-sidebar" : "",
         salesConsole ? "app-frame-sales-standalone" : "",
@@ -158,7 +160,7 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
         {salesConsole ? null : (
           <AppTopbar commandCenterHome={commandCenterHome} containedWorkspace={Boolean(managerContext)} onMenuOpen={() => setNavigationOpen(true)} preferredWorkspace={preferredWorkspace} showNavigationMenu={hasSidebar} user={user} />
         )}
-        {dispatchConsole ? <DispatchConsoleHeader preferredWorkspace={preferredWorkspace} user={user} /> : null}
+        {dispatchConsole && !tasksConsoleHome ? <DispatchConsoleHeader preferredWorkspace={preferredWorkspace} user={user} /> : null}
         {showSalesConsoleReturn ? (
           <nav className="app-return-banner" aria-label="Return navigation">
             <a href={salesConsoleReturnTo ?? "/sales"}>← Return to Sales Console</a>

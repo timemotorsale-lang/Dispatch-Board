@@ -152,7 +152,7 @@ describe("application shell Sales Console return navigation", () => {
     expect(markup).not.toContain("My Action Queue");
   });
 
-  it("mounts a contextual compact navigation rail on the Tasks console", () => {
+  it("keeps task navigation available without a duplicate page header", () => {
     currentPathname = "/tasks";
     currentSearchParams = new URLSearchParams("queue=ALL");
 
@@ -163,7 +163,10 @@ describe("application shell Sales Console return navigation", () => {
     );
 
     expect(markup).toContain("app-frame-console-sidebar");
-    expect(markup).toContain("app-frame-sidebar-compact");
+    expect(markup).not.toContain("app-frame-sidebar-compact");
+    expect(markup).not.toContain("app-sidebar-open");
+    expect(markup).not.toContain("dispatch-console-header");
+    expect(markup).toContain('aria-label="Open navigation"');
     expect(markup).toContain('aria-label="Time Motor Sales Tasks Workspace"');
     expect(markup).toContain('aria-label="Task work views"');
     expect(markup).toContain('aria-label="Task status views"');

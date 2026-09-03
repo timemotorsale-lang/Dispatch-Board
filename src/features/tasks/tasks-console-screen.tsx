@@ -921,7 +921,10 @@ export function TasksConsoleScreen({
   const [quickCreateMessage, setQuickCreateMessage] = useState<string | null>(null);
   const [acquisitionOverview, setAcquisitionOverview] = useState<AcquisitionOverview | null>(null);
   const [managerRequests, setManagerRequests] = useState<AssignmentRequestModel[]>([]);
-  const [acquisitionView, setAcquisitionView] = useState<AcquisitionView>("all");
+  const [acquisitionView, setAcquisitionView] = useState<AcquisitionView>(
+    initialView && ["available", "my-requests", "needs-help", "manager-requests"].includes(initialView)
+      ? initialView as AcquisitionView : "all"
+  );
   const [acquisitionMessage, setAcquisitionMessage] = useState<string | null>(null);
   const [acquisitionError, setAcquisitionError] = useState<string | null>(null);
   const [isGeneratePending, startGenerateTransition] = useTransition();

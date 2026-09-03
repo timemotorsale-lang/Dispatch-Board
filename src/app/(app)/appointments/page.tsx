@@ -88,7 +88,7 @@ export default async function AppointmentsPage({ searchParams }: AppointmentsPag
     );
   }
   if (!boardMode) {
-    return <AppointmentConsoleTodayFlow section={focusParams?.section ?? "today"} />;
+    return <AppointmentConsoleTodayFlow key={focusParams?.localDate} initialDate={focusParams?.localDate} section={focusParams?.section ?? "today"} />;
   }
 
   return (

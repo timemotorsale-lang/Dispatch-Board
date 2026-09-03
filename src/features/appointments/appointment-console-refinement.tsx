@@ -11,11 +11,14 @@ import {
   UserRound
 } from "lucide-react";
 import Link from "next/link";
+import { QuickUpdateReminders } from "./quick-update-reminders";
+import { CategoryBadge, categoryRowStyle } from "./category-badge";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 
 type AppointmentConsoleSection = "today" | "planning" | "operations" | "follow-up" | "intelligence" | "exceptions";
 
 type LiveAppointment = {
+  category?: string | null;
   id: string;
   appointmentNumber: string;
   title: string;
@@ -344,7 +347,7 @@ const appointmentTimeSlots = [
   "17:00"
 ];
 
-function useAppointmentConsoleData() {
+function useAppointmentConsoleData(date: string) {
   const [data, setData] = useState<AppointmentApiResponse | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "unavailable">("loading");
 
@@ -353,7 +356,7 @@ function useAppointmentConsoleData() {
 
     async function load() {
       try {
-        const response = await fetch(`/api/appointments?date=${encodeURIComponent(todayDateKey())}`);
+        const response = await fetch(`/api/appointments?date=${encodeURIComponent(date)}`);
         const result = await response.json().catch(() => null) as AppointmentApiResponse | { error?: string } | null;
 
         if (!response.ok || !result || !("appointments" in result)) {
@@ -376,9 +379,9 @@ function useAppointmentConsoleData() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [date]);
 
-  return { data, status };
+  return { data: data?.date === date ? data : null, status: data && data.date !== date ? "loading" as const : status };
 }
 
 function useAppointmentWindow(dateKey: string, view: "day" | "week" | "month") {
@@ -513,13 +516,14 @@ function AppointmentSectionPanel({
   );
 }
 
-export function AppointmentConsoleTodayFlow({ section = "today" }: { section?: string }) {
+export function AppointmentConsoleTodayFlow({ section = "today", initialDate }: { section?: string; initialDate?: string }) {
+  const [scheduleDate, setScheduleDate] = useState(() => validDateInput(initialDate));
   const normalizedSection = ["planning", "operations", "follow-up", "intelligence", "exceptions"].includes(section)
     ? section as AppointmentConsoleSection
     : "today";
-  const { data, status } = useAppointmentConsoleData();
+  const { data, status } = useAppointmentConsoleData(scheduleDate);
   const liveAppointments = data?.appointments ?? [];
-  const arrivalCount = liveAppointments.length || kpis[0].value;
+  const arrivalCount = status === "ready" ? liveAppointments.length : kpis[0].value;
   const waitingConfirmation = liveAppointments.filter(needsConfirmation).length;
   const followUpCount = liveAppointments.filter(needsFollowUp).length;
   const exceptionCount = liveAppointments.filter(hasException).length;
@@ -558,6 +562,8 @@ export function AppointmentConsoleTodayFlow({ section = "today" }: { section?: s
           <Link href="/appointments?view=board#advanced">Advanced</Link>
         </div>
 
+        <label>Daily schedule date <input aria-label="Daily schedule date" type="date" value={scheduleDate} onChange={event => { if (event.target.value) setScheduleDate(event.target.value); }} /></label>
+        <QuickUpdateReminders key={scheduleDate} date={scheduleDate} />
         <section className="appointment-console-kpis" aria-label="Appointment snapshot">
           {liveKpis.map(({ detail, icon: Icon, label, tone, value }) => (
             <article className={tone} key={label}>
@@ -574,7 +580,7 @@ export function AppointmentConsoleTodayFlow({ section = "today" }: { section?: s
         <div className="appointment-console-grid">
           <section className="appointment-panel appointment-today-flow">
             <header>
-              <strong>Today Flow</strong>
+              <strong>Daily schedule · {scheduleDate}</strong>
               <Link href="/appointments?section=operations">View all</Link>
             </header>
             {status === "ready" && liveAppointments.length > 0 ? (
@@ -584,10 +590,10 @@ export function AppointmentConsoleTodayFlow({ section = "today" }: { section?: s
                   <thead><tr><th>Time</th><th>Customer</th><th>Purpose</th><th>Vehicle</th><th>Owner</th><th>Action</th></tr></thead>
                   <tbody>
                     {liveAppointments.slice(0, 9).map((appointment) => (
-                      <tr key={appointment.id}>
+                      <tr key={appointment.id} style={categoryRowStyle(appointment.category)}>
                         <td>{formatTime(appointment.startsAt)}</td>
                         <td>{appointment.customer?.displayName ?? "No customer"}</td>
-                        <td>{appointment.title}</td>
+                        <td><CategoryBadge category={appointment.category} /><br />{appointment.title}</td>
                         <td>{vehicleLabel(appointment)}</td>
                         <td>{appointment.owner?.name ?? "Unassigned"}</td>
                         <td><Link href={boardFocusHref(appointment)}>{needsConfirmation(appointment) ? "Confirm" : appointment.attendanceStatus === "CHECKED_IN" ? "Open" : "Review"}</Link></td>
@@ -596,7 +602,7 @@ export function AppointmentConsoleTodayFlow({ section = "today" }: { section?: s
                   </tbody>
                 </table>
               </div>
-            ) : todayFlowGroups.map((group) => (
+            ) : status === "ready" ? <p>No appointments for this date.</p> : todayFlowGroups.map((group) => (
               <div className={`appointment-flow-group ${group.tone}`} key={group.label}>
                 <h3>{group.label} <b>{group.count}</b></h3>
                 <table>
@@ -1172,6 +1178,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
               </div>
             ) : (
               <div className="appointment-window-list">
+                {calendarView === "day" ? <QuickUpdateReminders key={form.localDate} date={form.localDate} /> : null}
                 <header><strong>{appointmentWindow.status === "loading" ? "Loading live schedule..." : `${visibleAppointments.length} appointment${visibleAppointments.length === 1 ? "" : "s"} in this ${calendarView}`}</strong><span>Powered by appointment read model</span></header>
                 {visibleAppointments.length > 0 ? visibleAppointments.slice(0, 12).map((appointment) => (
                   <Link href={boardFocusHref(appointment)} key={appointment.id}>

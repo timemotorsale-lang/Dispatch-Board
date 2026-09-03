@@ -2,7 +2,7 @@
 
 import { AlertTriangle, CheckCircle2, ChevronDown, CircleDot, Clock3, Inbox, ListChecks, LogOut, PackageSearch, ShieldQuestion, UserRoundCheck, UsersRound, Wrench, X } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 import { TimeMotorSalesLogo } from "@/components/brand/time-motor-sales-logo";
 import { LogoutButton } from "@/features/auth/logout-button";
@@ -35,9 +35,10 @@ function initials(name: string) {
 }
 
 export function TasksWorkspaceSidebar({ compact, isOpen, onClose, user }: Props) {
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const activeView = searchParams.get("view");
-  const activeQueue = searchParams.get("queue") ?? "ALL";
+  const activeQueue = searchParams.get("queue") ?? (pathname === "/my-tasks" ? "MY_TASKS" : "ALL");
 
   return (
     <aside className={["app-sidebar", "tasks-workspace-app-sidebar", compact ? "app-sidebar-compact" : "", isOpen ? "app-sidebar-open" : ""].filter(Boolean).join(" ")}>
@@ -55,7 +56,7 @@ export function TasksWorkspaceSidebar({ compact, isOpen, onClose, user }: Props)
           <nav aria-label="Task work views">
             {workViews.filter((item) => !item.managerOnly || isManager(user)).map((item) => {
               const Icon = item.icon;
-              const active = item.key === "team" ? !activeView && activeQueue === "ALL" : item.key === "mine" ? false : activeView === item.key;
+              const active = item.key === "team" ? !activeView && activeQueue === "ALL" : item.key === "mine" ? !activeView && activeQueue === "MY_TASKS" : activeView === item.key;
               return <Link aria-current={active ? "page" : undefined} className={["sidebar-link", active ? "sidebar-link-active" : ""].filter(Boolean).join(" ")} href={item.href} key={item.key} onClick={onClose} title={compact ? item.label : undefined}><Icon aria-hidden="true" size={18} strokeWidth={1.8} /><span>{item.label}</span></Link>;
             })}
           </nav>

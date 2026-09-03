@@ -4,6 +4,7 @@ import { AlertTriangle, CheckCircle2, Clock3, FileText, ShieldCheck, X } from "l
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { claimEndOfDayReminder, endOfDayReminderKey, getEndOfDayReminderSlot } from "@/lib/end-of-day-reminder-schedule";
 
 type OperatingRhythmModel = {
   boardDate: string;
@@ -57,6 +58,8 @@ export function OperatingRhythmReminder() {
   const pathname = usePathname();
   const [model, setModel] = useState<OperatingRhythmModel | null>(null);
   const [dismissed, setDismissed] = useState(false);
+  const [clock, setClock] = useState(() => new Date());
+  const [visibleEndKey, setVisibleEndKey] = useState<string | null>(null);
   const [reasonOpen, setReasonOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -66,7 +69,11 @@ export function OperatingRhythmReminder() {
   const criticalWorkflow = isCriticalWorkflow(pathname);
   const startState = model?.operatingRhythm.startTheDay.state ?? "COMPLETE";
   const showStartReminder = Boolean(model && !model.operatingRhythm.startTheDay.complete && !dismissed);
-  const showEndReminder = Boolean(model && !dismissed && ["PREP_NOTICE", "ACTIVE"].includes(model.operatingRhythm.endTheDay.state));
+  const schedule = getEndOfDayReminderSlot(clock);
+  const eligibleEndKey = model && model.boardDate === schedule.boardDate && schedule.slot &&
+    ["PREP_NOTICE", "ACTIVE"].includes(model.operatingRhythm.endTheDay.state)
+    ? endOfDayReminderKey(model.boardDate, model.workbookId, schedule.slot) : null;
+  const showEndReminder = Boolean(eligibleEndKey && visibleEndKey === eligibleEndKey && !showStartReminder);
   const locked = showStartReminder && startState === "LOCKED_UNTIL_REASON" && !insideWorkbook && !criticalWorkflow;
   const storageKey = useMemo(() => model ? `operating-rhythm:${model.boardDate}:${model.workbookId}:${startState}:${pathname}` : "", [model, pathname, startState]);
 
@@ -77,7 +84,18 @@ export function OperatingRhythmReminder() {
   }
 
   useEffect(() => {
-    void refresh();
+    const controller = new AbortController();
+    void fetch("/api/coo-workbook/rhythm", { cache: "no-store", signal: controller.signal })
+      .then(async response => { if (response.ok) { const next = await response.json(); if (!controller.signal.aborted) setModel(next); } })
+      .catch(() => { /* Retry at the next scheduled slot. */ });
+    return () => controller.abort();
+  }, [schedule.boardDate, schedule.slot]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock(new Date()), 30_000);
+    const onFocus = () => setClock(new Date());
+    window.addEventListener("focus", onFocus);
+    return () => { window.clearInterval(timer); window.removeEventListener("focus", onFocus); };
   }, []);
 
   useEffect(() => {
@@ -93,16 +111,26 @@ export function OperatingRhythmReminder() {
   }, [model, pathname, showStartReminder, startState, storageKey]);
 
   useEffect(() => {
-    if (!model || !showEndReminder || model.operatingRhythm.endTheDay.state !== "PREP_NOTICE") return;
-    const key = `operating-rhythm:${model.boardDate}:${model.workbookId}:end-prep`;
-    if (window.sessionStorage.getItem(key)) return;
-    window.sessionStorage.setItem(key, "shown");
+    if (!model || !eligibleEndKey || showStartReminder) return;
+    // Persist on display, not just dismissal: navigation, reloads, and other tabs
+    // must not create another popup for the same scheduled slot.
+    try {
+      if (!claimEndOfDayReminder(window.localStorage, eligibleEndKey)) return;
+    } catch {
+      // Session storage retains deduplication when persistent storage is blocked.
+      try {
+        if (!claimEndOfDayReminder(window.sessionStorage, eligibleEndKey)) return;
+      } catch { return; }
+    }
+    // Synchronize the visible popup with the external storage claim above.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setVisibleEndKey(eligibleEndKey);
     void postRhythmEvent({
       action: "END_PREP_REMINDER_SHOWN",
       sourcePath: pathname,
       workbookId: model.workbookId
-    });
-  }, [model, pathname, showEndReminder]);
+    }).catch(() => { /* Logging failures must not replay the popup. */ });
+  }, [model, pathname, eligibleEndKey, showStartReminder]);
 
   async function explainDelay() {
     if (!model) return;
@@ -142,7 +170,7 @@ export function OperatingRhythmReminder() {
             <strong>{showStartReminder ? "Start The Day needed" : "End The Day preparation"}</strong>
             <p>{showStartReminder ? start.message : end.message}</p>
           </div>
-          {!locked ? <button aria-label="Dismiss reminder" onClick={() => setDismissed(true)} type="button"><X /></button> : null}
+          {!locked ? <button aria-label="Dismiss reminder" onClick={() => { if (showStartReminder) setDismissed(true); setVisibleEndKey(null); }} type="button"><X /></button> : null}
         </header>
 
         {showEndReminder ? (

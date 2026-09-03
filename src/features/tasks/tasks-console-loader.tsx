@@ -1,13 +1,16 @@
 "use client";
 
 import dynamic from "next/dynamic";
+// Load the workspace styles with the route, not only its deferred client chunk.
+// This keeps List/Board styled during client navigation and development refreshes.
+import "@/features/tasks/compact-tasks-workspace.module.css";
 
 import type { TasksConsoleScreenProps } from "@/features/tasks/tasks-console-screen";
 
 const TasksConsoleScreen = dynamic(
   () =>
-    import("@/features/tasks/tasks-console-screen").then(
-      (module) => module.TasksConsoleScreen
+    import("@/features/tasks/compact-tasks-workspace").then(
+      (module) => module.TasksWorkspace
     ),
   {
     loading: () => <TasksConsoleLoadingState />,
@@ -33,5 +36,5 @@ function TasksConsoleLoadingState() {
 }
 
 export function TasksConsoleLoader(props: TasksConsoleScreenProps) {
-  return <TasksConsoleScreen {...props} />;
+  return <TasksConsoleScreen key={[props.consoleBaseHref, props.initialQueueFilter, props.initialDepartmentFilter, props.initialView, props.initialPage].join(":")} {...props} />;
 }

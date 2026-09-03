@@ -1548,6 +1548,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
             <p>{item.text}</p>
             {item.intelligence ? <small>{item.intelligence.signalLabel} · impact {item.intelligence.impactScore}/100 · {item.intelligence.confidence.toLocaleLowerCase()} confidence · {item.intelligence.recommendedAction}</small> : null}
             <small>{[item.person, item.company, item.followUpNeeded ? `Follow-up: ${item.dueWindow || "needed"}` : "", item.carryoverReady ? "Carryover ready" : ""].filter(Boolean).join(" · ") || "No extra details"}</small>
+            {item.followUpNeeded && /^\d{4}-\d{2}-\d{2}$/.test(item.dueWindow) ? <Link href={`/appointments?section=today&localDate=${encodeURIComponent(item.dueWindow)}`}>Open daily schedule · {item.dueWindow}</Link> : null}
             <button aria-pressed={item.carryoverReady} disabled={isClosed} onClick={() => void persistQuickUpdate(item.id, { carryoverReady: !item.carryoverReady })} type="button">{item.carryoverReady ? "Carryover" : "Carry over"}</button>
             {item.convertedTaskId ? <Link href={`/tasks/${item.convertedTaskId}`}>Open task</Link> : <button disabled={isClosed || convertingId === item.id} onClick={() => void convertToTask("quick", item)} type="button">{convertingId === item.id ? "Converting..." : "Convert to task"}</button>}
           </article>) : <p><MessageSquareText /> No Quick Updates captured yet.</p>}
