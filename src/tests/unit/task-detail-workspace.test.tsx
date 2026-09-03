@@ -143,7 +143,9 @@ describe("task detail workspace", () => {
         ]}
         canComment
         canCreateAppointment
+        canOpenFullWorkbench
         canUpdateStatus
+        initialView="workbench"
         task={createTask()}
       />
     );
@@ -219,7 +221,7 @@ describe("task detail workspace", () => {
     expect(markup).toContain("Record update");
     expect(markup).toContain("Add subtask");
     expect(markup).toContain("Open checklist");
-    expect(markup).toContain("Full tools");
+    expect(markup).not.toContain("Full tools");
     expect(markup).toContain("Owner");
     expect(markup).toContain("Due");
     expect(markup).toContain("Change");
@@ -232,14 +234,35 @@ describe("task detail workspace", () => {
     expect(markup).toContain("Subtasks");
     expect(markup).toContain("Checklist");
     expect(markup).toContain("Comments");
-    expect(markup).toContain("Repair Details");
+    expect(markup).toContain("Signals");
+    expect(markup).not.toContain("Repair Details");
     expect(markup).not.toContain("Source backed");
     expect(markup).not.toContain("Role aware");
     expect(markup).not.toContain('id="required-task-update"');
     expect(markup).toContain("Simple View");
+    expect(markup).not.toContain("Full Workbench");
+    expect(markup).not.toContain("view=workbench");
+    expect(markup).not.toContain("Generated Resolution Tasks");
+  });
+
+  it("keeps full workbench retrievable when archived access is allowed", () => {
+    const markup = renderToStaticMarkup(
+      <TaskDetailWorkspace
+        activityEvents={[]}
+        actorIsManager
+        assignableUsers={[]}
+        canComment
+        canCreateAppointment
+        canOpenFullWorkbench
+        canUpdateStatus
+        initialView="simple"
+        task={createTask()}
+      />
+    );
+
+    expect(markup).toContain("Simple View");
     expect(markup).toContain("Full Workbench");
     expect(markup).toContain("view=workbench");
-    expect(markup).not.toContain("Generated Resolution Tasks");
   });
 
   it("keeps the simplified task card available when due date data needs review", () => {
@@ -399,7 +422,9 @@ describe("task detail workspace", () => {
         assignableUsers={[]}
         canComment
         canCreateAppointment
+        canOpenFullWorkbench
         canUpdateStatus
+        initialView="workbench"
         task={createTask({
           requiredUpdateFields: [
             { key: "focus_summary", label: "Focus summary", type: "long_text", required: true, helpText: null },
@@ -435,7 +460,9 @@ describe("task detail workspace", () => {
         assignableUsers={[]}
         canComment
         canCreateAppointment
+        canOpenFullWorkbench
         canUpdateStatus
+        initialView="workbench"
         task={createTask({
           appointmentLinks: [
             {

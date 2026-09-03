@@ -6,13 +6,19 @@ import { AdvisorRepairOrderStatusView } from "@/features/advisor/advisor-repair-
 import { BackToServiceAdvisorWorkspace } from "@/features/advisor/advisor-return-link";
 import { RepairOrderEnterpriseWorkbench } from "@/features/inventory/repair-order-enterprise-workbench";
 import { BackToVehicleOperationsWorkspace } from "@/features/inventory/workspace-return-link";
+import { getStaffExecutionFlags } from "@/lib/staff-execution-flags";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { getPermittedWorkspaces, getWorkspaceKey } from "@/server/auth/navigation";
+import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
 import { getRepairOrderDiagnosticsBridge } from "@/server/diagnostics/service";
+import { prisma } from "@/server/db/client";
+import { isManager } from "@/server/policies/access";
 import { getRepairOrderCreateOptions, listRepairOrders } from "@/server/repair-order/service";
 import { getShopPlanningDetail } from "@/server/shop-planning/service";
 import { readManagerWorkspaceContext } from "@/lib/manager-workspace-context";
 import { getServiceClosePartsWorkspace } from "@/server/service-close-parts/service";
+import { getTaskCompletionReadiness } from "@/server/services/task-execution-readiness";
+import { getTaskReadModelById } from "@/server/services/task-read";
 
 import styles from "./repair-workbench.module.css";
 
@@ -164,6 +170,25 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
       getRepairOrderCreateOptions(user).catch(() => ({ users: [] })),
       diagnosticsBridge(user, params.repairOrderId),
     ]);
+    const linkedTaskReference = await prisma.inventoryWorkPacket.findFirst({
+      where: {
+        organizationId: "organizationId" in order && typeof order.organizationId === "string"
+          ? order.organizationId
+          : INITIAL_ORGANIZATION.id,
+        repairOrderId: order.id,
+        task: { status: { not: "COMPLETED" } },
+      },
+      orderBy: { updatedAt: "desc" },
+      select: { taskId: true },
+    });
+    const linkedTask = linkedTaskReference
+      ? await getTaskReadModelById(user, linkedTaskReference.taskId).catch(() => null)
+      : null;
+    const actorIsManager = isManager(user);
+    const canUpdateLinkedTask = Boolean(linkedTask && (actorIsManager || user.id === linkedTask.assignedUser.id));
+    const linkedTaskReadiness = linkedTask && getStaffExecutionFlags().taskAcceptanceEnabled
+      ? await getTaskCompletionReadiness(user, linkedTask.id).catch(() => null)
+      : null;
     const partsWorkspace = (activeVendorWork(order) || order.partDemands?.length)
       ? await getServiceClosePartsWorkspace(user).catch(() => null)
       : null;
@@ -178,7 +203,11 @@ export default async function RepairWorkbenchPage({ searchParams }: PageProps) {
 
     return (
       <RepairOrderEnterpriseWorkbench
+        actorIsManager={actorIsManager}
+        canUpdateLinkedTask={canUpdateLinkedTask}
         diagnostics={JSON.parse(JSON.stringify(diagnostics))}
+        linkedTask={linkedTask ? JSON.parse(JSON.stringify(linkedTask)) : null}
+        linkedTaskReadiness={linkedTaskReadiness ? JSON.parse(JSON.stringify(linkedTaskReadiness)) : null}
         options={{ users: JSON.parse(JSON.stringify(options.users)) }}
         order={JSON.parse(JSON.stringify(order))}
         relatedPurchaseOrders={JSON.parse(JSON.stringify(relatedPurchaseOrders))}

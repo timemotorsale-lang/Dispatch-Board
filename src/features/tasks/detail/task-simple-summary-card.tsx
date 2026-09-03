@@ -5,7 +5,6 @@ import {
   AlertTriangle,
   Building2,
   CalendarDays,
-  CarFront,
   Circle,
   ClipboardCheck,
   Grid3X3,
@@ -13,7 +12,6 @@ import {
   MessageSquareText,
   ShieldCheck,
   Sparkles,
-  Wrench,
   UserPlus,
   UserRound
 } from "lucide-react";
@@ -32,13 +30,14 @@ import type { TaskReadModel } from "@/server/services/task-read";
 import type { ActiveUserSummary } from "@/server/services/user-summary";
 
 type TaskWorkspaceView = "simple" | "workbench";
-type SummaryPanel = "progress" | "next" | "checklist" | "comments" | "repairDetails";
+type SummaryPanel = "progress" | "next" | "checklist" | "comments" | "signals";
 
 type TaskSimpleSummaryCardProps = {
   actorIsManager: boolean;
   assignableUsers: ActiveUserSummary[];
   canComment: boolean;
   canManageCollaborators: boolean;
+  canOpenFullWorkbench?: boolean;
   canUpdateStatus: boolean;
   checklist: TaskDetailChecklistItem[];
   commentCount: number;
@@ -277,27 +276,65 @@ function formatSourceType(value: string) {
   return value.toLowerCase().replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function buildRepairDetails(task: TaskReadModel, roleLabel: string, dueLabel: string, currentStatus: TaskStatus) {
-  return {
-    linkedCount: [
-      task.vehicleReference,
-      task.customerReference,
-      task.workflowArea,
-      task.sourceType
-    ].filter(Boolean).length,
-    overview: [
-      { label: "Vehicle", value: task.vehicleReference ?? "Not linked yet" },
-      { label: "Customer", value: task.customerReference ?? "Not linked yet" },
-      { label: "Due", value: dueLabel },
-      { label: "Source", value: formatSourceType(task.sourceType) }
-    ],
-    workflow: [
-      { label: "Repair path", value: executionPathLabel(executionPathValue(task.workflowArea)) },
-      { label: "Role", value: roleLabel },
-      { label: "Status", value: statusLabelFromValue(currentStatus) },
-      { label: "Priority", value: formatSourceType(task.priority) }
-    ]
-  };
+function buildTaskSignals(task: TaskReadModel, roleLabel: string, dueLabel: string, currentStatus: TaskStatus) {
+  const signals = [
+    {
+      className: "etw-compact-signal-ready",
+      icon: <ShieldCheck size={14} />,
+      label: `Status: ${statusLabelFromValue(currentStatus)}`
+    },
+    {
+      className: "etw-compact-signal-watch",
+      icon: <Activity size={14} />,
+      label: `Priority: ${formatSourceType(task.priority)}`
+    },
+    {
+      className: "etw-compact-signal-ready",
+      icon: <Grid3X3 size={14} />,
+      label: `Path: ${executionPathLabel(executionPathValue(task.workflowArea))}`
+    },
+    {
+      className: "etw-compact-signal-open",
+      icon: <Building2 size={14} />,
+      label: `Source: ${formatSourceType(task.sourceType)}`
+    },
+    {
+      className: "etw-compact-signal-open",
+      icon: <CalendarDays size={14} />,
+      label: `Due: ${dueLabel}`
+    },
+    {
+      className: "etw-compact-signal-ready",
+      icon: <ShieldCheck size={14} />,
+      label: `Role: ${roleLabel}`
+    }
+  ];
+
+  if (task.vehicleReference) {
+    signals.push({
+      className: "etw-compact-signal-open",
+      icon: <Building2 size={14} />,
+      label: `Vehicle: ${task.vehicleReference}`
+    });
+  }
+
+  if (task.customerReference) {
+    signals.push({
+      className: "etw-compact-signal-open",
+      icon: <UserRound size={14} />,
+      label: `Customer: ${task.customerReference}`
+    });
+  }
+
+  if (task.requiresManagerApproval) {
+    signals.push({
+      className: "etw-compact-signal-watch",
+      icon: <AlertTriangle size={14} />,
+      label: "Manager review required"
+    });
+  }
+
+  return signals;
 }
 
 function ExecutionPathSwitch({
@@ -820,6 +857,7 @@ export function TaskSimpleSummaryCard({
   assignableUsers,
   canComment,
   canManageCollaborators,
+  canOpenFullWorkbench = false,
   canUpdateStatus,
   checklist,
   commentCount,
@@ -851,7 +889,7 @@ export function TaskSimpleSummaryCard({
   const openChecklist = checklist.filter((item) => !item.completed);
   const openSubtasks = subtaskItems.filter((item) => !item.completed);
   const checklistCount = missingUpdateLabels.length + openChecklist.length;
-  const repairDetails = buildRepairDetails(task, roleLabel, dueLabel, currentStatus);
+  const taskSignals = buildTaskSignals(task, roleLabel, dueLabel, currentStatus);
   const cardTone = getCardTone(task, currentStatus);
   const displayStatusItems = getDisplayStatusItems(task, currentStatus, priorityLabel);
 
@@ -875,7 +913,7 @@ export function TaskSimpleSummaryCard({
           </div>
           <nav className="etw-view-switcher" aria-label="Task view switch">
             <Link aria-current="page" href={viewHref(task.id, "simple", returnTo)}><Sparkles size={14} />Simple View</Link>
-            <Link href={viewHref(task.id, "workbench", returnTo)}><Grid3X3 size={14} />Full Workbench</Link>
+            {canOpenFullWorkbench ? <Link href={viewHref(task.id, "workbench", returnTo)}><Grid3X3 size={14} />Full Workbench</Link> : null}
           </nav>
         </header>
 
@@ -916,7 +954,7 @@ export function TaskSimpleSummaryCard({
             <button onClick={() => togglePanel("comments")} type="button"><Activity size={14} />Record update</button>
             <button onClick={() => togglePanel("next")} type="button"><ListChecks size={14} />Add subtask</button>
             <button onClick={() => togglePanel("checklist")} type="button"><ClipboardCheck size={14} />Open checklist</button>
-            <Link href={viewHref(task.id, "workbench", returnTo)}><Grid3X3 size={14} />Full tools</Link>
+            {canOpenFullWorkbench ? <Link href={viewHref(task.id, "workbench", returnTo)}><Grid3X3 size={14} />Full tools</Link> : null}
           </nav>
         </section>
       </div>
@@ -926,7 +964,7 @@ export function TaskSimpleSummaryCard({
         <button aria-pressed={activePanel === "next"} onClick={() => togglePanel("next")} type="button"><ListChecks size={14} />Subtasks <span>{openSubtasks.length}</span></button>
         <button aria-pressed={activePanel === "checklist"} onClick={() => togglePanel("checklist")} type="button"><ClipboardCheck size={14} />Checklist <span>{checklistCount}</span></button>
         <button aria-pressed={activePanel === "comments"} onClick={() => togglePanel("comments")} type="button"><MessageSquareText size={14} />Comments <span>{commentCount}</span></button>
-        <button aria-pressed={activePanel === "repairDetails"} onClick={() => togglePanel("repairDetails")} type="button"><Wrench size={14} />Repair Details <span>{repairDetails.linkedCount}</span></button>
+        <button aria-pressed={activePanel === "signals"} onClick={() => togglePanel("signals")} type="button"><Activity size={14} />Signals <span>{taskSignals.length}</span></button>
       </nav>
 
       {activePanel ? <div className="etw-compact-expanded-panel">
@@ -991,31 +1029,20 @@ export function TaskSimpleSummaryCard({
           />
         ) : null}
 
-        {activePanel === "repairDetails" ? (
-          <section className="etw-compact-action-panel etw-compact-repair-details">
+        {activePanel === "signals" ? (
+          <section className="etw-compact-action-panel etw-compact-signals">
             <header>
-              <strong><Wrench size={15} />Repair Details</strong>
-              <span>Review vehicle, customer, path, and task source before opening the full workbench.</span>
+              <strong><Activity size={15} />Signals</strong>
+              <span>{taskSignals.length}</span>
             </header>
-            <div className="etw-compact-repair-grid">
-              <article>
-                <small><CarFront size={14} />Vehicle / Customer</small>
-                <dl>
-                  {repairDetails.overview.map((item) => (
-                    <div key={item.label}><dt>{item.label}</dt><dd>{item.value}</dd></div>
-                  ))}
-                </dl>
-              </article>
-              <article>
-                <small><Wrench size={14} />Workflow</small>
-                <dl>
-                  {repairDetails.workflow.map((item) => (
-                    <div key={item.label}><dt>{item.label}</dt><dd>{item.value}</dd></div>
-                  ))}
-                </dl>
-              </article>
+            <div>
+              {taskSignals.map((signal) => (
+                <p className={signal.className} key={signal.label}>
+                  {signal.icon}
+                  <span>{signal.label}</span>
+                </p>
+              ))}
             </div>
-            <Link href={viewHref(task.id, "workbench", returnTo)}><Grid3X3 size={14} />Open full repair/workbench details</Link>
           </section>
         ) : null}
       </div> : null}

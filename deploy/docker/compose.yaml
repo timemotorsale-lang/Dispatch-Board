@@ -34,6 +34,8 @@ services:
       target: tooling
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:?POSTGRES_USER is required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/${POSTGRES_DB:?POSTGRES_DB is required}?schema=public
+      ENABLE_DEMO_DATA: ${ENABLE_DEMO_DATA:-false}
+      ENABLE_SHOP_RECON_PILOT_SEED: ${ENABLE_SHOP_RECON_PILOT_SEED:-false}
     command: ["npm", "run", "db:migrate:deploy"]
     depends_on:
       db:

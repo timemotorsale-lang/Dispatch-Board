@@ -33,6 +33,7 @@ type TaskExecutionChecklistCardProps = {
   allowCreate?: boolean;
   allowDelete?: boolean;
   allowExpandToTask?: boolean;
+  allowToggle?: boolean;
   createPlaceholder?: string;
   embedded?: boolean;
   initialItems: ExecutionChecklistItem[];
@@ -46,6 +47,7 @@ export function TaskExecutionChecklistCard({
   allowCreate = false,
   allowDelete = false,
   allowExpandToTask = false,
+  allowToggle = true,
   createPlaceholder = "Add item",
   embedded = false,
   initialItems,
@@ -254,7 +256,7 @@ export function TaskExecutionChecklistCard({
             <label>
               <input
                 checked={item.completed}
-                disabled={isSaving}
+                disabled={isSaving || !allowToggle}
                 onChange={() => void toggleItem(item)}
                 type="checkbox"
               />

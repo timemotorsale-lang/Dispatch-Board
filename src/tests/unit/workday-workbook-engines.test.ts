@@ -71,6 +71,26 @@ function workbook(overrides: Partial<WorkdayWorkbookRecord> = {}): WorkdayWorkbo
   };
 }
 
+function activitySignal(actionType: string, occurredAt = now): WorkdayWorkbookRecord["activitySignals"][number] {
+  return {
+    id: `activity-${actionType}`,
+    workbookId: "workbook-1",
+    boardDayId: "board-day-1",
+    actorUserId: "user-1",
+    sourceModule: "COO_WORKBOOK",
+    sourceType: "WORKBOOK_ACTIVITY",
+    sourceId: actionType,
+    actionType,
+    purpose: WorkdayActivityPurpose.PLANNED_WORK,
+    businessImpact: `${actionType} happened.`,
+    reportRelevant: false,
+    coachingRelevant: true,
+    metadata: {},
+    occurredAt,
+    createdAt: occurredAt
+  };
+}
+
 describe("workday workbook engines", () => {
   it("scores Daily Planning from focus, must-close, risk, and support signals", () => {
     const planning = buildDailyPlanningEngine(workbook());
@@ -418,6 +438,53 @@ describe("workday workbook engines", () => {
       "1 focus item(s) need done, carryover, task, support, or progress decision.",
       "1 follow-up(s) need a due window, task, or carryover decision."
     ]));
+  });
+
+  it("keeps End The Day from being recommended before Start The Day evidence exists", () => {
+    const lateDayWorkbook = workbook({
+      dailyFocusItems: [],
+      checklistItems: [],
+      quickUpdates: [],
+      carryovers: [],
+      reportDrafts: [],
+      reportSeeds: [
+        {
+          id: "seed-ready",
+          workbookId: "workbook-1",
+          sourceType: WorkdayReportSeedSourceType.CHECKLIST_ITEM,
+          sourceId: "checklist-1",
+          sourceHref: null,
+          title: "Ready report note",
+          detail: "Reviewed and ready.",
+          tone: WorkdayReportSeedTone.GREEN,
+          status: WorkdayReportSeedStatus.INCLUDED,
+          reviewNote: "",
+          createdAt: now,
+          updatedAt: now
+        }
+      ]
+    });
+    const governance = buildWorkflowGovernanceEngine(lateDayWorkbook, { approvalCount: 0, handoffCount: 0, reportExceptions: 0 }, new Date("2026-08-29T21:30:00.000Z"));
+    const rhythm = buildOperatingRhythmEngine(lateDayWorkbook, governance, new Date("2026-08-29T21:30:00.000Z"));
+
+    expect(governance.currentStage).toBe("START_THE_DAY");
+    expect(governance.currentPhase).toBe("START");
+    expect(governance.closeBlockers).toContain("Start The Day needs to be completed before End The Day can be recommended.");
+    expect(rhythm.endTheDay.state).toBe("START_REQUIRED");
+    expect(rhythm.endTheDay.message).toBe("Start The Day before End The Day reminders begin.");
+  });
+
+  it("treats workbook start activity as Start The Day evidence for reminders", () => {
+    const rhythm = buildOperatingRhythmEngine(workbook({
+      dailyFocusItems: [],
+      activitySignals: [activitySignal("workbook.daily_focus_created")]
+    }), undefined, new Date("2026-08-29T14:00:00.000Z"));
+
+    expect(rhythm.startTheDay).toMatchObject({
+      complete: true,
+      state: "COMPLETE"
+    });
+    expect(rhythm.endTheDay.state).toBe("QUIET");
   });
 
   it("governs Start The Day reminders before requiring a reason", () => {

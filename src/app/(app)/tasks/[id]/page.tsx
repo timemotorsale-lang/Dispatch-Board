@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 
-import { TaskDetailWorkspace, shouldPreferSimpleTaskView } from "@/features/tasks/detail/task-detail-workspace";
+import { TaskDetailWorkspace } from "@/features/tasks/detail/task-detail-workspace";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { canUpdateAssignedWork, isManager } from "@/server/policies/access";
 import { getActivityFeedForDate } from "@/server/services/activity-feed";
@@ -41,6 +41,8 @@ export default async function TaskDetailPage({ params, searchParams }: TaskDetai
     requestedAction: "comment"
   });
   const actorIsManager = isManager(user);
+  const fullWorkbenchArchived = process.env.TASK_FULL_WORKBENCH_ARCHIVED !== "false";
+  const canOpenFullWorkbench = !fullWorkbenchArchived || actorIsManager;
   const canUpdateStatus = actorIsManager || user.id === task.assignedUser.id;
   const canCreateAppointment = actorIsManager || user.id === task.assignedUser.id;
   const canManageCollaborators = actorIsManager || user.id === task.assignedUser.id;
@@ -54,7 +56,7 @@ export default async function TaskDetailPage({ params, searchParams }: TaskDetai
   const requestedView = resolvedSearchParams.view === "simple" || resolvedSearchParams.view === "workbench"
     ? resolvedSearchParams.view
     : null;
-  const initialView = requestedView ?? (shouldPreferSimpleTaskView(task) ? "simple" : "workbench");
+  const initialView = requestedView === "workbench" && canOpenFullWorkbench ? "workbench" : "simple";
 
   return (
     <TaskDetailWorkspace
@@ -65,6 +67,7 @@ export default async function TaskDetailPage({ params, searchParams }: TaskDetai
       canManageCollaborators={canManageCollaborators}
       canCreateAppointment={canCreateAppointment}
       canUpdateStatus={canUpdateStatus}
+      canOpenFullWorkbench={canOpenFullWorkbench}
       initialView={initialView}
       readiness={readiness}
       returnTo={returnTo}

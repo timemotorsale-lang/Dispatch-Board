@@ -58,6 +58,20 @@ function rhythmSignalsSince(workbook: WorkdayWorkbookRecord, actionType: string,
   );
 }
 
+const startDayEvidenceActionTypes = new Set([
+  "workbook.daily_focus_created",
+  "workbook.checklist_created",
+  "workbook.quick_update_created",
+  "workbook.report_draft_generated",
+  "workbook.carryover_prepared"
+]);
+
+export function hasStartTheDayEvidence(workbook: WorkdayWorkbookRecord) {
+  if (workbook.status === "CLOSED") return true;
+  if (workbook.dailyFocusItems.length > 0) return true;
+  return (workbook.activitySignals ?? []).some((signal) => startDayEvidenceActionTypes.has(signal.actionType));
+}
+
 type QuickUpdateIntelligenceType =
   "CUSTOMER_RISK" |
   "FACILITY_ISSUE" |
@@ -543,6 +557,7 @@ export function buildWorkflowGovernanceEngine(workbook: WorkdayWorkbookRecord, o
   const risk = buildRiskAndBlockerEngine(workbook, operatingSignals);
   const reporting = buildReportIntelligenceEngine(workbook, operatingSignals);
   const isClosed = workbook.status === "CLOSED";
+  const startComplete = hasStartTheDayEvidence(workbook);
   const closeWindowOpen = isAfterCloseWindow(now, workbook);
   const unconfirmedCarryovers = workbook.carryovers.filter((item) => item.status === WorkdayCarryoverStatus.OPEN).length;
   const needsDraft = reporting.sourceBackedCount > 0 && workbook.reportDrafts.length === 0;
@@ -573,7 +588,7 @@ export function buildWorkflowGovernanceEngine(workbook: WorkdayWorkbookRecord, o
     followUpsWithoutDisposition +
     unconfirmedCarryovers;
   const allImportantItemsDispositioned = unresolvedAttentionCount === 0;
-  const startReadyScore = planning.focusItemCount ? 20 : 0;
+  const startReadyScore = startComplete && planning.focusItemCount ? 20 : 0;
   const quickUpdateReviewScore = followUpsWithoutDisposition === 0 ? 20 : Math.max(0, 20 - followUpsWithoutDisposition * 7);
   const workDispositionScore = focusWithoutDisposition + checklistWithoutDisposition === 0 ? 20 : Math.max(0, 20 - (focusWithoutDisposition + checklistWithoutDisposition) * 5);
   const attentionDispositionScore = risk.blockerCount === 0 || allImportantItemsDispositioned ? 20 : Math.max(0, 20 - risk.blockerCount * 5);
@@ -581,6 +596,7 @@ export function buildWorkflowGovernanceEngine(workbook: WorkdayWorkbookRecord, o
   const staffReviewScore = workbook.supportActions.every((item) => item.status === WorkdaySupportActionStatus.RESOLVED) || allImportantItemsDispositioned ? 10 : 0;
   const endTheDayEligibilityScore = clampScore(startReadyScore + quickUpdateReviewScore + workDispositionScore + attentionDispositionScore + reportScore + staffReviewScore + (closeWindowOpen ? 8 : 0));
   const closeBlockers = [
+    ...(startComplete ? [] : ["Start The Day needs to be completed before End The Day can be recommended."]),
     ...(planning.focusItemCount ? [] : ["Start The Day needs at least one focus outcome."]),
     ...(focusWithoutDisposition ? [`${focusWithoutDisposition} focus item(s) need done, carryover, task, support, or progress decision.`] : []),
     ...(checklistWithoutDisposition ? [`${checklistWithoutDisposition} checklist item(s) need done, carryover, task, support, or progress decision.`] : []),
@@ -588,10 +604,10 @@ export function buildWorkflowGovernanceEngine(workbook: WorkdayWorkbookRecord, o
     ...(unconfirmedCarryovers ? [`${unconfirmedCarryovers} carryover item(s) not confirmed.`] : []),
     ...(needsDraft && endTheDayEligibilityScore >= 80 ? ["Daily report draft has not been generated."] : [])
   ];
-  const endTheDayReady = !isClosed && planning.focusItemCount > 0 && (endTheDayEligibilityScore >= 80 || closeWindowOpen && allImportantItemsDispositioned);
+  const endTheDayReady = !isClosed && startComplete && planning.focusItemCount > 0 && (endTheDayEligibilityScore >= 80 || closeWindowOpen && allImportantItemsDispositioned);
   const currentStage = isClosed
     ? "GENERATE_REPORT" as const
-    : planning.focusItemCount === 0
+    : !startComplete || planning.focusItemCount === 0
       ? "START_THE_DAY" as const
       : endTheDayReady
         ? "CLOSE_THE_DAY" as const
@@ -645,7 +661,7 @@ export function buildOperatingRhythmEngine(
   governance = buildWorkflowGovernanceEngine(workbook),
   now = new Date()
 ) {
-  const startComplete = workbook.status === "CLOSED" || workbook.dailyFocusItems.length > 0;
+  const startComplete = hasStartTheDayEvidence(workbook);
   const latestDelay = latestRhythmSignal(workbook, "workbook.rhythm_start_delay_explained");
   const startReminderCount = rhythmSignalsSince(workbook, "workbook.rhythm_start_reminder_shown", latestDelay?.occurredAt ?? null).length;
   const explanationCount = rhythmSignalsSince(workbook, "workbook.rhythm_start_delay_explained", null).length;
@@ -661,6 +677,8 @@ export function buildOperatingRhythmEngine(
   const endPrepActive = isAfterCloseWindow(now, workbook);
   const endPrepState = workbook.status === "CLOSED"
     ? "CLOSED" as const
+    : !startComplete
+      ? "START_REQUIRED" as const
     : endPrepActive
       ? "ACTIVE" as const
       : endPrepNoticeOpen
@@ -690,6 +708,8 @@ export function buildOperatingRhythmEngine(
         ? `End The Day preparation is active. You are ${governance.endTheDayEligibilityScore}/100 ready.`
         : endPrepState === "PREP_NOTICE"
           ? `End The Day preparation starts at 4 PM. You are ${governance.endTheDayEligibilityScore}/100 ready.`
+          : endPrepState === "START_REQUIRED"
+            ? "Start The Day before End The Day reminders begin."
           : workbook.status === "CLOSED"
             ? "End The Day is complete."
             : "End The Day reminders are quiet until 3 PM.",

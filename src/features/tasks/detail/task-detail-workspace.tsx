@@ -49,6 +49,7 @@ import { TaskCollaboratorPanel } from "@/features/tasks/detail/task-collaborator
 import { TaskMetadataPanel } from "@/features/tasks/detail/task-metadata-panel";
 import { TaskResolutionAccordion } from "@/features/tasks/detail/task-resolution-accordion";
 import { TaskSimpleSummaryCard } from "@/features/tasks/detail/task-simple-summary-card";
+import { TaskWorkbenchSearch } from "@/features/tasks/detail/task-workbench-search";
 import { TaskWorkbenchActionBar } from "@/features/tasks/detail/task-workbench-action-bar";
 import { TaskUpdatesCommentsCard } from "@/features/tasks/detail/task-updates-comments-card";
 import type { TaskCompletionReadiness } from "@/server/services/task-execution-readiness";
@@ -60,6 +61,7 @@ type TaskDetailWorkspaceProps = {
   canComment: boolean;
   canManageCollaborators: boolean;
   canCreateAppointment: boolean;
+  canOpenFullWorkbench?: boolean;
   canUpdateStatus: boolean;
   initialView?: TaskWorkspaceView;
   readiness?: TaskCompletionReadiness | null;
@@ -226,10 +228,12 @@ function buildSimpleNextStep(task: TaskReadModel, missingFields: string[], check
 }
 
 function ViewSwitcher({
+  canOpenFullWorkbench,
   returnTo,
   taskId,
   view
 }: {
+  canOpenFullWorkbench: boolean;
   returnTo: string;
   taskId: string;
   view: TaskWorkspaceView;
@@ -237,7 +241,7 @@ function ViewSwitcher({
   return (
     <nav className="etw-view-switcher" aria-label="Task view switch">
       <Link aria-current={view === "simple" ? "page" : undefined} href={viewHref(taskId, "simple", returnTo)}><Sparkles size={14} />Simple View</Link>
-      <Link aria-current={view === "workbench" ? "page" : undefined} href={viewHref(taskId, "workbench", returnTo)}><Grid3X3 size={14} />Full Workbench</Link>
+      {canOpenFullWorkbench ? <Link aria-current={view === "workbench" ? "page" : undefined} href={viewHref(taskId, "workbench", returnTo)}><Grid3X3 size={14} />Full Workbench</Link> : null}
     </nav>
   );
 }
@@ -249,8 +253,9 @@ export function TaskDetailWorkspace({
   canComment,
   canManageCollaborators,
   canCreateAppointment,
+  canOpenFullWorkbench = false,
   canUpdateStatus,
-  initialView = "workbench",
+  initialView = "simple",
   readiness = null,
   returnTo = "/tasks",
   task
@@ -307,7 +312,7 @@ export function TaskDetailWorkspace({
       <section className="enterprise-task-workbench etw-simple-workbench" aria-label="Simple task execution view">
         <header className="etw-command-bar">
           <div className="etw-brand"><ClipboardCheck size={20} /><div><strong>Time Motor Sales</strong><span>Task Execution View</span></div></div>
-          <label className="etw-search"><span aria-hidden="true">/</span><input aria-label="Search workbench" placeholder="Search customers, vehicles, tasks, cases, VIN, anything..." /></label>
+          <TaskWorkbenchSearch currentTaskId={task.id} returnTo={returnTo} view="simple" />
           <div className="etw-command-actions"><Link href={returnTo}>Return to Tasks</Link></div>
         </header>
 
@@ -317,6 +322,7 @@ export function TaskDetailWorkspace({
             assignableUsers={assignableUsers}
             canComment={canComment}
             canManageCollaborators={canManageCollaborators}
+            canOpenFullWorkbench={canOpenFullWorkbench}
             canUpdateStatus={canUpdateStatus}
             checklist={checklist}
             commentCount={task.comments.length}
@@ -372,8 +378,8 @@ export function TaskDetailWorkspace({
       </aside>
       <header className="etw-command-bar">
         <div className="etw-brand"><ClipboardCheck size={20} /><div><strong>Time Motor Sales</strong><span>Task Resolution Workbench</span></div></div>
-        <label className="etw-search"><span aria-hidden="true">/</span><input aria-label="Search workbench" placeholder="Search customers, vehicles, tasks, cases, VIN, anything..." /></label>
-        <ViewSwitcher returnTo={returnTo} taskId={task.id} view="workbench" />
+        <TaskWorkbenchSearch currentTaskId={task.id} returnTo={returnTo} view="workbench" />
+        <ViewSwitcher canOpenFullWorkbench={canOpenFullWorkbench} returnTo={returnTo} taskId={task.id} view="workbench" />
         <div className="etw-command-actions"><Link href={returnTo}>Return to Tasks</Link><Link className="etw-new-action" href={`/tasks/intake?returnTo=${encodeURIComponent(`/tasks/${task.id}`)}${concern?.id ? `&concern=${encodeURIComponent(concern.id)}` : ""}`}>Task Intake</Link></div>
       </header>
 

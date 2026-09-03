@@ -4,11 +4,22 @@ import { SHOP_RECON_PILOT_CONTRACT_VERSION, SHOP_RECON_PILOT_SCENARIOS } from ".
 
 const prisma = new PrismaClient();
 
+function pilotSeedEnabled() {
+  return process.env.ENABLE_DEMO_DATA === "true" && process.env.ENABLE_SHOP_RECON_PILOT_SEED === "true";
+}
+
 function plusHours(value: Date, hours: number) {
   return new Date(value.getTime() + hours * 60 * 60 * 1_000);
 }
 
 async function main() {
+  if (!pilotSeedEnabled()) {
+    console.log(
+      "Shop & Recon pilot seed skipped. Set ENABLE_DEMO_DATA=true and ENABLE_SHOP_RECON_PILOT_SEED=true to create demo pilot records."
+    );
+    return;
+  }
+
   const [organization, location, brock, eli, walter] = await Promise.all([
     prisma.organization.findFirst({ orderBy: { createdAt: "asc" }, select: { id: true, code: true } }),
     prisma.location.findFirst({ orderBy: { createdAt: "asc" }, select: { id: true, name: true } }),

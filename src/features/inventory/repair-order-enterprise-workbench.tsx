@@ -12,9 +12,12 @@ import {
   ClipboardCheck,
   FileText,
   Gauge,
+  Grid3X3,
   KeyRound,
+  ListChecks,
   LockKeyhole,
   MapPin,
+  MessageSquareText,
   Printer,
   ScanLine,
   ShieldAlert,
@@ -29,7 +32,13 @@ import { useMemo, useState } from "react";
 import { BackToServiceAdvisorWorkspace } from "@/features/advisor/advisor-return-link";
 import { OutsideRepairWorkPanel, type OutsideWork } from "@/features/advisor/outside-repair-work-panel";
 import { RepairOrderDiagnosticsBridge } from "@/features/diagnostics/repair-order-diagnostics-bridge";
+import { TaskExecutionChecklistCard } from "@/features/tasks/detail/task-execution-checklist-card";
+import { TaskUpdatesCommentsCard } from "@/features/tasks/detail/task-updates-comments-card";
+import { TaskStatusPanel } from "@/features/tasks/task-status-panel";
+import { TASK_CHECKLIST_ITEM_KIND } from "@/lib/task-checklist-kind";
 import type { getRepairOrderDiagnosticsBridge } from "@/server/diagnostics/service";
+import type { TaskCompletionReadiness } from "@/server/services/task-execution-readiness";
+import type { TaskReadModel } from "@/server/services/task-read";
 import { SHOP_RECON_STAGES } from "@/server/shop-recon/foundation";
 
 import { BackToVehicleOperationsWorkspace } from "./workspace-return-link";
@@ -152,6 +161,7 @@ type RelatedPurchaseOrder = {
 };
 
 type ReconRepairPath = "MECHANICAL" | "BODYWORK" | "OUTSIDE_VENDOR" | "DETAIL_PREP" | "INSPECTION_ONLY";
+type RoSummaryDrawer = "progress" | "subtasks" | "checklist" | "comments" | "fullTools" | "repairDetails";
 
 const reconRepairPathOptions: Array<{
   detail: string;
@@ -613,8 +623,12 @@ const inventorySafeNextAction = (nextAction: string | null | undefined, inventor
 };
 
 export function RepairOrderEnterpriseWorkbench({
+  actorIsManager = false,
+  canUpdateLinkedTask = false,
   diagnostics,
   fullDetailMode = false,
+  linkedTask = null,
+  linkedTaskReadiness = null,
   order,
   options,
   relatedPurchaseOrders = [],
@@ -623,8 +637,12 @@ export function RepairOrderEnterpriseWorkbench({
   showAdvisorReturn = false,
   showWorkspaceReturn = false,
 }: {
+  actorIsManager?: boolean;
+  canUpdateLinkedTask?: boolean;
   diagnostics?: DiagnosticsBridge;
   fullDetailMode?: boolean;
+  linkedTask?: TaskReadModel | null;
+  linkedTaskReadiness?: TaskCompletionReadiness | null;
   order: RepairOrderWorkbenchOrder;
   options: Options;
   relatedPurchaseOrders?: RelatedPurchaseOrder[];
@@ -645,6 +663,7 @@ export function RepairOrderEnterpriseWorkbench({
   const [evidencePreviewOpen, setEvidencePreviewOpen] = useState(false);
   const [useInternalRecon, setUseInternalRecon] = useState(false);
   const [reconReportOpen, setReconReportOpen] = useState(false);
+  const [activeRoDrawer, setActiveRoDrawer] = useState<RoSummaryDrawer | null>(null);
   const [vehicleColor, setVehicleColor] = useState(order.vehicle.color ?? "");
   const [vehicleColorDraft, setVehicleColorDraft] = useState(order.vehicle.color ?? "");
   const [vehicleColorBusy, setVehicleColorBusy] = useState(false);
@@ -1168,6 +1187,30 @@ export function RepairOrderEnterpriseWorkbench({
       ? { label: "Estimate prepared", detail: `${money(estimate.totalCents)} - ${format(estimate.status)}`, when: `Version ${estimate.version}` }
       : null,
   ].filter(Boolean) as Array<{ detail: string; label: string; when: string }>;
+  const summaryChecklist = [
+    { complete: intakeReady, detail: `${readyCount}/${intakeChecks.length} intake facts complete`, label: "Intake facts" },
+    { complete: Boolean(diagnosis || directBodyPath || hasOffsiteVendorWithoutDiagnosis), detail: hasOffsiteVendorWithoutDiagnosis ? "Outside vendor path is active" : diagnosis?.recommendation ?? "Technician evidence or direct scope needed", label: "Diagnosis / scope" },
+    { complete: Boolean(estimate), detail: estimate ? `${money(estimate.totalCents)} - ${format(estimate.status)}` : "Estimate has not been prepared", label: "Estimate" },
+    { complete: Boolean(authorization), detail: authorization ? format(authorization.disposition) : "Approval decision still needs to be recorded", label: "Approval" },
+    { complete: !waitingParts, detail: waitingParts ? "Parts are not fully reserved" : "No open parts blocker", label: "Parts readiness" },
+    { complete: vendorReadyForFinalQc || order.repairJobs.some((job) => job.status === "COMPLETED"), detail: vendorReadyForFinalQc ? "Final QC is ready" : order.repairJobs.length ? `${order.repairJobs.length} job(s) on this RO` : "Repair execution has not been completed", label: "Repair / QC" },
+  ];
+  const openSummaryChecklistCount = summaryChecklist.filter((item) => !item.complete).length;
+  const linkedTaskCommentFeedItems = linkedTask ? linkedTask.comments.map((comment) => ({
+    actorName: comment.author.name,
+    createdAt: comment.createdAt,
+    id: `comment-${comment.id}`,
+    kind: "comment" as const,
+    message: comment.body,
+  })) : [];
+  const summaryCommentCount = linkedTask ? linkedTaskCommentFeedItems.length : activeVendorEvents.length + (intakeNotes ? 1 : 0);
+  const linkedTaskSubtasks = linkedTask ? linkedTask.checklistItems
+    .filter((item) => item.kind === TASK_CHECKLIST_ITEM_KIND.SUBTASK)
+    .map((item) => ({ id: item.id, label: item.label, completed: item.completed })) : [];
+  const repairDetailCount = 4;
+  const toggleRoDrawer = (drawer: RoSummaryDrawer) => {
+    setActiveRoDrawer((currentDrawer) => currentDrawer === drawer ? null : drawer);
+  };
   const reconReportPanel = (
     <section className="rowb-recon-report" id="recon-report" aria-label="Vehicle recon progress report">
       <header>
@@ -1408,64 +1451,145 @@ export function RepairOrderEnterpriseWorkbench({
             </span>
           ))}
         </div>
-        <details className="rowb-summary-details" id="repair-order-details">
-          <summary>
-            <span>Repair details</span>
-            <strong>Open for vendor notes, approvals, amounts, and QC context.</strong>
-          </summary>
-          <div>
-            <article>
-              <small><CarFront /> Vehicle information</small>
-              <strong>{vehicle}</strong>
-              <dl>
-                <div><dt>Year / Make / Model</dt><dd>{vehicle}</dd></div>
-                <div><dt>Color</dt><dd>{vehicleColor || "Not recorded"}</dd></div>
-                <div><dt>VIN</dt><dd>{order.vehicle.vin ?? "Not recorded"}</dd></div>
-                <div><dt>Inventory / vehicle</dt><dd>{order.inventoryUnit?.inventoryNumber ?? order.vehicle.vehicleNumber}</dd></div>
-                <div><dt>In-service date</dt><dd>{date(order.openedAt)}</dd></div>
-              </dl>
-            </article>
-            <article>
-              <small><Wrench /> Vendor progress</small>
-              <strong>{activeVendorWork?.vendorName ?? "No active outside vendor"}</strong>
-              <dl>
-                <div><dt>Vendor</dt><dd>{activeVendorWork?.vendorName ?? "Not recorded"}</dd></div>
-                <div><dt>Date received</dt><dd>{date(activeVendorWork?.sentAt)}</dd></div>
-                <div><dt>Target completion</dt><dd>{date(activeVendorWork?.expectedReturnAt)}</dd></div>
-                <div><dt>Days in stage</dt><dd>{duration(activeVendorWork?.sentAt)}</dd></div>
-                <div><dt>Last update</dt><dd>{date(activeVendorEvents[0]?.occurredAt ?? activeVendorWork?.sentAt)}</dd></div>
-                <div><dt>Status</dt><dd><em>{format(activeVendorWork?.status)}</em></dd></div>
-              </dl>
-            </article>
-            <article>
-              <small><ClipboardCheck /> Approved work</small>
-              <strong>{format(activeVendorWork?.approvalStatus)}</strong>
-              <dl>
-                <div><dt>Amount</dt><dd className="money">{vendorAmountLabel}</dd></div>
-                <div><dt>Approved by</dt><dd>{vendorApprovalActor ?? "Not recorded"}</dd></div>
-                <div><dt>Approved on</dt><dd>{vendorApprovedOn}</dd></div>
-                <div><dt>Revision</dt><dd>RO v{currentVersion}</dd></div>
-              </dl>
-            </article>
-            <article>
-              <small><ShieldAlert /> Repair outcome</small>
-              <strong>{vendorReadyForFinalQc ? "Vendor repaired and returned" : primaryActionLabel}</strong>
-              <dl>
-                <div><dt>Repairs completed</dt><dd>{vendorStatusDone ? "Yes" : "Pending"}</dd></div>
-                <div><dt>Quality check</dt><dd>{vendorReadyForFinalQc ? "Ready for pass/fail" : "Pending"}</dd></div>
-                <div><dt>Notes</dt><dd>{activeVendorWork?.lastUpdateSummary ?? primaryActionSummary}</dd></div>
-              </dl>
-              <Link
-                href={vendorReadyForFinalQc ? finalQcHref : summaryPrimaryHref}
-                onClick={() => {
-                  if (!vendorReadyForFinalQc && primaryActionHref === vendorProgressHref && fullDetailMode) openVendorProgress();
-                }}
-              >
-                {summaryActionLabel}
-              </Link>
-            </article>
-          </div>
-        </details>
+        <div className="rowb-summary-drawer-stack">
+          <nav className="rowb-summary-drawer-tabs" aria-label="Repair order drawers">
+            <button aria-pressed={activeRoDrawer === "progress"} onClick={() => toggleRoDrawer("progress")} type="button"><Activity />Progress / Updates <span>{reportEvents.length}</span></button>
+            <button aria-pressed={activeRoDrawer === "subtasks"} onClick={() => toggleRoDrawer("subtasks")} type="button"><ListChecks />Subtasks <span>{linkedTask ? linkedTaskSubtasks.length : nextSteps.length || 1}</span></button>
+            <button aria-pressed={activeRoDrawer === "checklist"} onClick={() => toggleRoDrawer("checklist")} type="button"><ClipboardCheck />Checklist <span>{openSummaryChecklistCount}</span></button>
+            <button aria-pressed={activeRoDrawer === "comments"} onClick={() => toggleRoDrawer("comments")} type="button"><MessageSquareText />Comments <span>{summaryCommentCount}</span></button>
+            <button aria-pressed={activeRoDrawer === "fullTools"} onClick={() => toggleRoDrawer("fullTools")} type="button"><Grid3X3 />Full tools <span>{workspaceTabs.length}</span></button>
+            <button aria-pressed={activeRoDrawer === "repairDetails"} onClick={() => toggleRoDrawer("repairDetails")} type="button"><Wrench />RO statistics <span>{repairDetailCount}</span></button>
+          </nav>
+          {activeRoDrawer ? (
+            <section className="rowb-summary-drawer-panel">
+              {activeRoDrawer === "progress" ? (
+                linkedTask ? (
+                  <TaskStatusPanel
+                    actorIsManager={actorIsManager}
+                    canUpdate={canUpdateLinkedTask}
+                    initialReadiness={linkedTaskReadiness}
+                    task={linkedTask}
+                  />
+                ) : (
+                  <div className="rowb-summary-drawer-list">
+                    <strong>Progress / Updates</strong>
+                    {reportEvents.length ? reportEvents.map((event) => (
+                      <p key={`${event.label}-${event.when}`}><span>{event.label}</span><b>{event.when}</b>{event.detail}</p>
+                    )) : <p><span>Current record</span><b>Now</b>{stageSummary}</p>}
+                    <p><span>Task progress</span><b>Available after task link</b>Link this repair order to a task to use the full task progress workflow here.</p>
+                  </div>
+                )
+              ) : null}
+              {activeRoDrawer === "subtasks" ? (
+                linkedTask ? (
+                  <div className="rowb-summary-task-checklist-panel">
+                    <TaskExecutionChecklistCard
+                      allowCreate
+                      allowDelete
+                      allowToggle={false}
+                      createPlaceholder="Add a subtask..."
+                      embedded
+                      initialItems={linkedTaskSubtasks}
+                      kind={TASK_CHECKLIST_ITEM_KIND.SUBTASK}
+                      onActivityChanged={() => router.refresh()}
+                      taskId={linkedTask.id}
+                      title="Subtasks"
+                    />
+                  </div>
+                ) : (
+                  <div className="rowb-summary-drawer-next">
+                    <strong>Subtasks</strong>
+                    <p>Link this repair order to a task to add and delete subtasks here.</p>
+                  </div>
+                )
+              ) : null}
+              {activeRoDrawer === "checklist" ? (
+                <div className="rowb-summary-drawer-list">
+                  <strong>Checklist</strong>
+                  {summaryChecklist.map((item) => (
+                    <p className={item.complete ? "complete" : "open"} key={item.label}><i>{item.complete ? <Check /> : "!"}</i><span>{item.label}</span><b>{item.complete ? "Done" : "Open"}</b>{item.detail}</p>
+                  ))}
+                </div>
+              ) : null}
+              {activeRoDrawer === "comments" ? (
+                linkedTask ? (
+                  <TaskUpdatesCommentsCard
+                    canComment={canUpdateLinkedTask}
+                    compact
+                    heading="Comments"
+                    initialFeedItems={linkedTaskCommentFeedItems}
+                    onActivityChanged={() => router.refresh()}
+                    quickNoteShortcuts={[]}
+                    taskId={linkedTask.id}
+                  />
+                ) : (
+                  <div className="rowb-summary-drawer-list">
+                    <strong>Comments</strong>
+                    <p><span>Task comments</span><b>Available after task link</b>Link this repair order to a task to add and view comments here.</p>
+                  </div>
+                )
+              ) : null}
+              {activeRoDrawer === "fullTools" ? (
+                <div className="rowb-summary-drawer-tools">
+                  <Link href={detailRoute}><FileText />View full details</Link>
+                  <button aria-expanded={reconReportOpen} aria-controls="recon-report" onClick={toggleReconReport} type="button"><Activity />Recon Report</button>
+                  {workspaceTabs.map((tab) => (
+                    <Link className={tab.recommended ? "recommended" : undefined} href={tab.href} key={`${tab.title}-${tab.href}`} onClick={tab.href === vendorProgressHref ? openVendorProgress : undefined}>
+                      <span><strong>{tab.title}</strong><small>{tab.detail}</small></span>
+                    </Link>
+                  ))}
+                </div>
+              ) : null}
+              {activeRoDrawer === "repairDetails" ? (
+                <div className="rowb-summary-details rowb-summary-details-panel" id="repair-order-details">
+                  <article>
+                    <small><CarFront /> Vehicle information</small>
+                    <strong>{vehicle}</strong>
+                    <dl>
+                      <div><dt>Year / Make / Model</dt><dd>{vehicle}</dd></div>
+                      <div><dt>Color</dt><dd>{vehicleColor || "Not recorded"}</dd></div>
+                      <div><dt>VIN</dt><dd>{order.vehicle.vin ?? "Not recorded"}</dd></div>
+                      <div><dt>Inventory / vehicle</dt><dd>{order.inventoryUnit?.inventoryNumber ?? order.vehicle.vehicleNumber}</dd></div>
+                      <div><dt>In-service date</dt><dd>{date(order.openedAt)}</dd></div>
+                    </dl>
+                  </article>
+                  <article>
+                    <small><Wrench /> Vendor progress</small>
+                    <strong>{activeVendorWork?.vendorName ?? "No active outside vendor"}</strong>
+                    <dl>
+                      <div><dt>Vendor</dt><dd>{activeVendorWork?.vendorName ?? "Not recorded"}</dd></div>
+                      <div><dt>Date received</dt><dd>{date(activeVendorWork?.sentAt)}</dd></div>
+                      <div><dt>Target completion</dt><dd>{date(activeVendorWork?.expectedReturnAt)}</dd></div>
+                      <div><dt>Days in stage</dt><dd>{duration(activeVendorWork?.sentAt)}</dd></div>
+                      <div><dt>Last update</dt><dd>{date(activeVendorEvents[0]?.occurredAt ?? activeVendorWork?.sentAt)}</dd></div>
+                      <div><dt>Status</dt><dd><em>{format(activeVendorWork?.status)}</em></dd></div>
+                    </dl>
+                  </article>
+                  <article>
+                    <small><ClipboardCheck /> Approved work</small>
+                    <strong>{format(activeVendorWork?.approvalStatus)}</strong>
+                    <dl>
+                      <div><dt>Amount</dt><dd className="money">{vendorAmountLabel}</dd></div>
+                      <div><dt>Approved by</dt><dd>{vendorApprovalActor ?? "Not recorded"}</dd></div>
+                      <div><dt>Approved on</dt><dd>{vendorApprovedOn}</dd></div>
+                      <div><dt>Revision</dt><dd>RO v{currentVersion}</dd></div>
+                    </dl>
+                  </article>
+                  <article>
+                    <small><ShieldAlert /> Repair outcome</small>
+                    <strong>{vendorReadyForFinalQc ? "Vendor repaired and returned" : primaryActionLabel}</strong>
+                    <dl>
+                      <div><dt>Repairs completed</dt><dd>{vendorStatusDone ? "Yes" : "Pending"}</dd></div>
+                      <div><dt>Quality check</dt><dd>{vendorReadyForFinalQc ? "Ready for pass/fail" : "Pending"}</dd></div>
+                      <div><dt>Notes</dt><dd>{activeVendorWork?.lastUpdateSummary ?? primaryActionSummary}</dd></div>
+                    </dl>
+                    <Link href={vendorReadyForFinalQc ? finalQcHref : summaryPrimaryHref}>{summaryActionLabel}</Link>
+                  </article>
+                </div>
+              ) : null}
+            </section>
+          ) : null}
+        </div>
       </section>
       ) : null}
       {fullDetailMode ? (

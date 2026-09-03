@@ -23,11 +23,12 @@ type OperatingRhythmModel = {
       closeWindowOpen: boolean;
       message: string;
       readinessScore: number;
-      state: "ACTIVE" | "CLOSED" | "PREP_NOTICE" | "QUIET";
+      state: "ACTIVE" | "CLOSED" | "PREP_NOTICE" | "QUIET" | "START_REQUIRED";
     };
   };
   workbookId: string;
   workbookLabel: string;
+  workbookScope: string;
   workspaceKey: string;
 };
 
