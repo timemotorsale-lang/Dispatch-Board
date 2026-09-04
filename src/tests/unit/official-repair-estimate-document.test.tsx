@@ -6,6 +6,7 @@ import { OfficialRepairEstimateDocument } from "@/features/diagnostics/official-
 describe("official repair estimate document", () => {
   it("renders a branded print-safe estimate document with workbench routing", () => {
     const markup = renderToStaticMarkup(<OfficialRepairEstimateDocument
+      isDraft={false}
       concern="Grinding noise from front brakes"
       createdAt="2026-08-02T18:53:00.000Z"
       customer="Leo James"
@@ -32,7 +33,8 @@ describe("official repair estimate document", () => {
     expect(markup).toContain("Print official estimate");
     expect(markup).toContain("Send to repair workbench");
     expect(markup).toContain("/vehicles/repair-workbench?repairOrderId=ro-id-3411&amp;returnTo=%2Fdiagnostics%2Flabor-guide%3FrepairOrderId%3Dro-id-3411");
-    expect(markup).toContain("Approved estimate lines");
+    expect(markup).toContain("Recorded estimate lines");
+    expect(markup).toContain("not proof of customer authorization");
     expect(markup).toContain("Replace front brake pads and rotors");
     expect(markup).toContain("Front brake pad set");
     expect(markup).toContain("Estimate summary");

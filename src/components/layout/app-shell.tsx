@@ -47,6 +47,7 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
   const commandCenterHome = pathname === "/command-center";
   const managerWorkspaceHome = pathname === "/manager-workspace";
   const tasksConsoleHome = pathname === "/tasks" || pathname === "/my-tasks";
+  const diagnosticVehicleWorkspace = pathname === "/diagnostics/labor-guide";
   const salesConsole = isSalesConsolePath(pathname);
   const operationsCoordinatorConsole = isOperationsCoordinatorConsolePath(pathname);
   const dispatchConsole = isDispatchConsolePath(pathname) && !isInventoryConsolePath(pathname) && !isAppointmentConsolePath(pathname) && !isSalesConsolePath(pathname);
@@ -59,7 +60,7 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
           ? "SERVICE"
           : null
     : null;
-  const consoleNavigation = salesConsole || tasksConsoleHome ? null : getConsoleNavigation(pathname, user, preferredWorkspace, containedConsoleWorkspace);
+  const consoleNavigation = salesConsole || tasksConsoleHome || diagnosticVehicleWorkspace ? null : getConsoleNavigation(pathname, user, preferredWorkspace, containedConsoleWorkspace);
   const hasSidebar = commandCenterHome || managerWorkspaceHome || tasksConsoleHome || Boolean(consoleNavigation);
   const tasksWorkspace = pathname.startsWith("/tasks");
   const sidebarCompact = !tasksConsoleHome && isTasksSidebarCompact(pathname, mode);
@@ -160,7 +161,7 @@ function AppShellContent({ children, preferredWorkspace, user }: AppShellProps) 
         {salesConsole ? null : (
           <AppTopbar commandCenterHome={commandCenterHome} containedWorkspace={Boolean(managerContext)} onMenuOpen={() => setNavigationOpen(true)} preferredWorkspace={preferredWorkspace} showNavigationMenu={hasSidebar} user={user} />
         )}
-        {dispatchConsole && !tasksConsoleHome ? <DispatchConsoleHeader preferredWorkspace={preferredWorkspace} user={user} /> : null}
+        {dispatchConsole && !tasksConsoleHome && !diagnosticVehicleWorkspace ? <DispatchConsoleHeader preferredWorkspace={preferredWorkspace} user={user} /> : null}
         {showSalesConsoleReturn ? (
           <nav className="app-return-banner" aria-label="Return navigation">
             <a href={salesConsoleReturnTo ?? "/sales"}>← Return to Sales Console</a>

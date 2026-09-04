@@ -68,14 +68,19 @@
 }
 
 .lookupBand {
-  display: grid;
-  grid-template-columns: minmax(240px, 1.25fr) minmax(170px, .58fr) minmax(210px, .7fr) minmax(120px, .32fr) minmax(142px, .36fr);
-  gap: 8px;
-  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: stretch;
   padding: 8px 10px;
   margin-bottom: 10px;
-  overflow: hidden;
+  overflow: visible;
 }
+
+.lookupBand > .lookupSearch { flex: 2 1 270px; }
+.lookupBand > .lookupResult { flex: 1 1 200px; }
+.lookupBand > button, .lookupBand > a { flex: 0 1 auto; }
+.lookupBand svg { flex-shrink: 0; }
 
 .lookupSearch,
 .catalogTools label {
@@ -220,10 +225,12 @@
 .lookupBand > a {
   min-height: 42px;
   min-width: 0;
-  padding: 0 9px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  max-width: 100%;
+  padding: 9px 12px;
+  white-space: normal;
+  line-height: 1.4;
+  text-align: center;
+  overflow-wrap: anywhere;
 }
 
 .lookupBand > button {

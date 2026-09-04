@@ -1783,7 +1783,21 @@ model BootstrapMarker {
   updatedAt DateTime @updatedAt
 }
 
+model DiagnosticWorkspaceDraft {
+  id String @id
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title String
+  version Int @default(1)
+  content Json
+  contentHash String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([userId, updatedAt])
+}
+
 model User {
+  diagnosticWorkspaceDrafts DiagnosticWorkspaceDraft[]
   id                                      String                                 @id @default(cuid())
   name                                    String
   email                                   String                                 @unique

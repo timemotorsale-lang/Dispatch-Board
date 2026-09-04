@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, BookOpen, Brain, CarFront, Check, ChevronLeft, ClipboardList, Edit3, Grid2X2, History, List, Package, Plus, ScanBarcode, Search, ShoppingCart, Trash2, UserRound, X } from "lucide-react";
+import { BookOpen, Brain, Check, ChevronLeft, Edit3, Grid2X2, List, Package, Plus, ScanBarcode, Search, ShoppingCart, Trash2, UserRound, X } from "lucide-react";
 import Link from "next/link";
 import type { KeyboardEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -11,6 +11,9 @@ import type { LaborOperationSystem, LaborRepairOperation } from "@/server/diagno
 import { evaluateRepairAreaIntelligence, type RepairAreaPartRule } from "@/server/diagnostics/repair-area-intelligence";
 
 import styles from "./enterprise-labor-guide-console.module.css";
+import { LaborGuideDetailsForm, emptyLaborGuideDetails, type LaborGuideDetails } from "./labor-guide-details";
+import { useWorkspaceDraft } from "./use-workspace-draft";
+import { DiagnosticWorkspace } from "./diagnostic-workspace";
 
 type ActiveRepairOrder = {
   concern: string;
@@ -57,12 +60,6 @@ type RepairOrderLookup = {
   customer: { displayName: string } | null;
   ownerUser?: { id: string; name: string };
   serviceVisit: { concernSummary: string };
-};
-type PlanningDetail = RepairOrderLookup & {
-  diagnosisVersions: Array<{ id: string; version: number }>;
-  estimateVersions: Array<{ id: string; totalCents: number; version: number }>;
-  location: { id: string; name: string };
-  ownerUser: { id: string; name: string };
 };
 type PartsWorkspacePart = { description: string; id: string; partNumber: string; standardCostCents?: number };
 
@@ -208,9 +205,19 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   const [lookupQuery, setLookupQuery] = useState("");
   const [lookupResults, setLookupResults] = useState<RepairOrderLookup[]>([]);
   const [selectedRepairOrder, setSelectedRepairOrder] = useState<ActiveRepairOrder | null>(activeRepairOrder);
+  const [manualDetails, setManualDetails] = useState<LaborGuideDetails>(emptyLaborGuideDetails);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const contextCustomer = selectedRepairOrder?.customer ?? (manualDetails.customer || undefined);
+  const contextVehicle = selectedRepairOrder?.vehicle.label ?? (manualDetails.vehicle || undefined);
+  const contextVin = selectedRepairOrder?.vehicle.vin ?? (manualDetails.vin || undefined);
+  const contextConcern = selectedRepairOrder?.concern ?? (manualDetails.concern || undefined);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [partsCatalogBusy, setPartsCatalogBusy] = useState(false);
+  const [estimateAttempt, setEstimateAttempt] = useState<{ fingerprint: string; body: Record<string, unknown> } | null>(null);
+  const [pendingSwitch, setPendingSwitch] = useState<RepairOrderLookup | null>(null);
+  const workspaceContent = useMemo(() => ({ ro: selectedRepairOrder, manual: manualDetails, labor: selectedLabor, parts: selectedParts, evidence: evidenceDrafts, attempt: estimateAttempt }), [selectedRepairOrder, manualDetails, selectedLabor, selectedParts, evidenceDrafts, estimateAttempt]);
+  const draft = useWorkspaceDraft(workspaceContent, contextVehicle ?? "Preliminary quote");
 
   const activeSystem = repairTaxonomy.find((system) => system.id === activeSystemId) ?? repairTaxonomy[0];
   const engineAnalysis = useMemo(
@@ -266,7 +273,6 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   const subtotal = laborTotal + partsTotal;
   const taxAndSupplies = estimatePolicy.tax.taxCents / 100;
   const total = subtotal + taxAndSupplies;
-  const activeRoHref = selectedRepairOrder ? `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(selectedRepairOrder.id)}` : "/vehicles/repair-workbench?view=all";
   const laborGuideReturnTo = selectedRepairOrder ? `/diagnostics/labor-guide?repairOrderId=${encodeURIComponent(selectedRepairOrder.id)}` : "/diagnostics/labor-guide";
   const assignTechnicianHref = selectedRepairOrder
     ? `/vehicles/repair-workbench?${new URLSearchParams({
@@ -284,12 +290,12 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
     returnTo: laborGuideReturnTo,
   }).toString()}`;
   const officialEstimateHref = `/repair-estimate?${new URLSearchParams({
-    concern: selectedRepairOrder?.concern ?? "Repair estimate review",
+    concern: contextConcern ?? "Repair estimate review",
     createdAt: selectedRepairOrder?.openedAt ?? "Pending estimate date",
-    customer: selectedRepairOrder?.customer ?? "Internal vehicle",
+    customer: contextCustomer ?? "Internal vehicle",
     estimateNumber: selectedRepairOrder ? `EST-${selectedRepairOrder.repairOrderNumber.replace(/^RO-?/i, "")}` : "EST-DRAFT",
     lines: encodeOfficialEstimateLines(estimateLabor, estimateParts),
-    ...(selectedRepairOrder ? { repairOrderId: selectedRepairOrder.id, repairOrderNumber: selectedRepairOrder.repairOrderNumber, vehicle: selectedRepairOrder.vehicle.label } : { repairOrderNumber: "RO-DRAFT", vehicle: "Vehicle pending" }),
+    ...(selectedRepairOrder ? { repairOrderId: selectedRepairOrder.id, repairOrderNumber: selectedRepairOrder.repairOrderNumber, vehicle: selectedRepairOrder.vehicle.label } : { repairOrderNumber: "RO-DRAFT", vehicle: contextVehicle ?? "Vehicle pending" }),
     returnTo: laborGuideReturnTo,
     summary: encodeOfficialEstimateSummary([
       { label: "Labor", value: `${totalHours.toFixed(1)} hrs · ${money(laborTotal)}` },
@@ -522,6 +528,13 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   }
 
   function selectRepairOrder(order: RepairOrderLookup) {
+    setPendingSwitch(order);
+  }
+
+  function applyRepairOrder(order: RepairOrderLookup) {
+    draft.adopt();
+    setEstimateAttempt(null);
+    setManualDetails(emptyLaborGuideDetails);
     clearEstimateWorkspace();
     setSelectedRepairOrder({
       concern: order.serviceVisit.concernSummary,
@@ -534,12 +547,13 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
     setLookupQuery("");
     setLookupResults([]);
     setNotice(`Loaded ${order.repairOrderNumber} for estimate work.`);
+    setPendingSwitch(null);
   }
 
   async function request<T>(url: string, init?: RequestInit) {
     const response = await fetch(url, init);
     const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(body.error ?? "Request failed.");
+    if (!response.ok) throw Object.assign(new Error(body.error ?? "Request failed."), { status: response.status });
     return body as T;
   }
 
@@ -635,34 +649,13 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
     setBusy(true);
     setNotice("");
     try {
-      const detail = await request<PlanningDetail>(`/api/repair-orders/${encodeURIComponent(selectedRepairOrder.id)}/planning`);
-      const now = new Date();
-      await request(`/api/repair-orders/${encodeURIComponent(selectedRepairOrder.id)}/planning`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          action: "RECORD_DIAGNOSIS",
-          cause: selectedRepairOrder.concern || "Customer concern requires repair estimate review.",
-          concern: selectedRepairOrder.concern || "Repair concern",
-          diagnosedAt: now.toISOString(),
-          evidence: ["RO creation workspace selected labor package"],
-          idempotencyKey: crypto.randomUUID(),
-          proposedCorrection: estimateLabor.map((item) => item.title).join("; ") || "Review selected repair operations.",
-          reason: "Record diagnosis context from the RO creation workspace before presenting a governed estimate.",
-          recommendation: estimateLabor.map((item) => item.title).join("; ") || "Review selected repair operations.",
-          symptoms: [selectedRepairOrder.concern || "Repair concern"],
-          technicianUserId: detail.ownerUser.id,
-          tests: [{ name: "Advisor estimate workspace review", result: "Labor and parts package prepared for estimate presentation." }],
-          uncertainty: "MEDIUM",
-        }),
-      });
       const presentedAt = new Date();
       const expiresAt = new Date(presentedAt.getTime() + 7 * 86_400_000);
       const taxCents = estimatePolicy.tax.taxCents;
-      const result = await request<{ result?: { estimateVersion?: number; totalCents?: number } }>(`/api/repair-orders/${encodeURIComponent(selectedRepairOrder.id)}/planning`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
+      const fingerprint = JSON.stringify({ ro: selectedRepairOrder.id, lineItems, taxCents });
+      const planning = estimateAttempt?.fingerprint === fingerprint ? null : await request<{ version: number }>(`/api/repair-orders/${encodeURIComponent(selectedRepairOrder.id)}/planning`);
+      const attempt = estimateAttempt?.fingerprint === fingerprint ? estimateAttempt : { fingerprint, body: {
+          expectedVersion: planning!.version,
           action: "PRESENT_ESTIMATE",
           assumptions: "Prepared from selected labor catalog operations and manual parts in the RO creation workspace.",
           discountCents: 0,
@@ -675,11 +668,19 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
           reason: "Present governed estimate from RO creation workspace selected labor and parts.",
           taxBoundary: estimatePolicy.tax.taxSummary,
           taxCents,
-        }),
+        } };
+      setEstimateAttempt(attempt);
+      if (!await draft.save({ ...workspaceContent, attempt })) throw new Error("Save the draft successfully before presenting this estimate.");
+      const result = await request<{ result?: { id?: string; estimateVersion?: number; totalCents?: number } }>(`/api/repair-orders/${encodeURIComponent(selectedRepairOrder.id)}/planning`, {
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(attempt.body),
       });
       setNotice(`Estimate presented${result.result?.estimateVersion ? ` as version ${result.result.estimateVersion}` : ""}. Opening the official estimate document.`);
-      window.location.assign(officialEstimateHref);
+      if (!result.result?.id) throw new Error("Estimate response was incomplete. Retry to retrieve the same estimate; do not create a second one.");
+      window.location.assign(`/repair-estimate?repairOrderId=${encodeURIComponent(selectedRepairOrder.id)}&estimateId=${encodeURIComponent(result.result.id)}&returnTo=${encodeURIComponent(laborGuideReturnTo)}`);
     } catch (error) {
+      // A definite rejection can start a fresh attempt after the prerequisite is corrected.
+      // Network failures and uncertain server errors retain the saved retry identity.
+      if (error instanceof Error && "status" in error && ([400, 401, 403].includes(Number(error.status)) || (error.status === 409 && error.message.startsWith("Expected version")))) setEstimateAttempt(null);
       setNotice(error instanceof Error ? error.message : "Unable to present estimate.");
     } finally {
       setBusy(false);
@@ -737,43 +738,44 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   }
 
   return (
-    <section className={styles.console} aria-label="RO Creation Workspace">
-      <header className={styles.pageHeader}>
-        <div>
-          {returnTo ? <Link className={styles.returnLink} href={returnTo}><ArrowLeft size={15} />{returnLabel ?? "Return to source workspace"}</Link> : null}
-          <h1>RO Creation Workspace</h1>
-          <p>CCC Home / Dispatch Board / Diagnostics / Estimate</p>
-        </div>
-      </header>
+    <DiagnosticWorkspace vehicle={contextVehicle} customer={contextCustomer} vin={contextVin} concern={contextConcern} repairOrderId={selectedRepairOrder?.id} repairOrderNumber={selectedRepairOrder?.repairOrderNumber} onSave={draft.save} onFindDrafts={() => draft.refresh().catch(error => setNotice(error.message))} saveStatus={draft.status} returnTo={returnTo} returnLabel={returnLabel} feedback={notice ? <div className={styles.notice} role="status">{notice}</div> : null} tools={<>
+      <section className={styles.lookupBand} aria-label="Draft protection">
+        <button disabled={draft.saving || busy} onClick={() => void draft.save()} type="button">Save preliminary quote</button>
+        <button disabled={draft.saving || busy} onClick={() => void draft.refresh().catch(error => setNotice(error.message))} type="button">Find saved drafts</button>
+        {draft.status.includes("another session") ? <button disabled={draft.saving || busy} onClick={() => void draft.saveCopy()} type="button">Save my changes as a separate draft</button> : null}
+        <span>A preliminary quote is not a confirmed diagnosis or repair authorization.</span>
+      </section>
+      {draft.draftsLoaded && !draft.drafts.length ? <p role="status">No saved quotes yet. Add vehicle details or estimate lines, then choose Save quote.</p> : null}
+      {draft.drafts.length ? <section className={styles.lookupResults} aria-label="Saved drafts">{draft.drafts.map(saved => <button key={saved.id} disabled={busy || draft.saving} onClick={async () => {
+        if (!await draft.save()) return;
+        try {
+          const latest = (await draft.refresh()).find(item => item.id === saved.id);
+          if (!latest) throw new Error("That draft is no longer available in the recent drafts list.");
+          const value = latest.content;
+          draft.adopt(latest); setSelectedRepairOrder(value.ro); setManualDetails(value.manual); setSelectedLabor(value.labor); setSelectedParts(value.parts); setEvidenceDrafts(value.evidence); setEstimateAttempt(value.attempt);
+          setNotice(`Resumed ${latest.title}.`);
+        } catch (error) { setNotice(error instanceof Error ? error.message : "Unable to resume draft."); }
+      }} type="button">Resume {saved.title}</button>)}</section> : null}
+      {pendingSwitch ? <section className={styles.notice} role="region" aria-label="Confirm vehicle switch">
+        <span>Switch to {pendingSwitch.repairOrderNumber}? Choose what to do with your current draft.</span>
+        <button disabled={draft.saving} type="button" onClick={async () => { if (await draft.save()) applyRepairOrder(pendingSwitch); }}>Save and switch</button>
+        <button disabled={draft.saving} type="button" onClick={() => applyRepairOrder(pendingSwitch)}>Discard unsaved changes and switch</button>
+        <button disabled={draft.saving} type="button" onClick={() => setPendingSwitch(null)}>Cancel</button>
+      </section> : null}
 
       <section className={styles.lookupBand} aria-label="Customer and vehicle lookup">
         <label className={styles.lookupSearch}>
           <Search />
           <input onChange={(event) => setLookupQuery(event.target.value)} placeholder="Search customer, phone, VIN, plate, vehicle, or RO number" value={lookupQuery} />
         </label>
-        <div className={styles.lookupResult}>
-          <UserRound />
-          <span><strong>{selectedRepairOrder?.customer ?? "No customer selected"}</strong><small>{selectedRepairOrder ? selectedRepairOrder.repairOrderNumber : "Search for an RO to begin"}</small></span>
-        </div>
-        <div className={styles.lookupResult}>
-          <CarFront />
-          <span><strong>{selectedRepairOrder?.vehicle.label ?? "No vehicle selected"}</strong><small>{selectedRepairOrder ? `VIN ${selectedRepairOrder.vehicle.vin}` : "The estimate is blank"}</small></span>
-        </div>
-        <button disabled={!selectedRepairOrder} type="button"><Check />Use selected</button>
+        <button disabled={Boolean(selectedRepairOrder)} onClick={() => setDetailsOpen(!detailsOpen)} type="button"><Edit3 />Vehicle & customer details</button>
         <Link href="/vehicles/repair-orders?intakeSource=WALK_IN&returnTo=%2Fdiagnostics%2Flabor-guide"><Plus />Check in vehicle</Link>
       </section>
+      {detailsOpen && !selectedRepairOrder ? <LaborGuideDetailsForm value={manualDetails} onApply={value => { setManualDetails(value); setDetailsOpen(false); setNotice("Vehicle and customer details applied to this page. No repair order or check-in was created."); }} onCancel={() => setDetailsOpen(false)} /> : null}
       {lookupResults.length ? <section className={styles.lookupResults} aria-label="Repair order lookup results">{lookupResults.map((order) => <button key={order.id} onClick={() => selectRepairOrder(order)} type="button"><strong>{order.repairOrderNumber}</strong><span>{order.customer?.displayName ?? "Internal"} · {[order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber}</span><small>{order.serviceVisit.concernSummary}</small></button>)}</section> : null}
-      {notice ? <div className={notice.includes("Unable") || notice.includes("required") || notice.includes("not") ? styles.noticeDanger : styles.notice} role="status">{notice}</div> : null}
 
-      <section className={styles.compactContext} aria-label="Selected RO context">
-        <div><ClipboardList /><span>Active RO {selectedRepairOrder ? <Link href={activeRoHref}>#{selectedRepairOrder.repairOrderNumber.replace(/^RO-?/i, "")}</Link> : <strong>Not selected</strong>}</span></div>
-        <div><span>Customer</span><strong>{selectedRepairOrder?.customer ?? "—"}</strong></div>
-        <div><span>Vehicle</span><strong>{selectedRepairOrder?.vehicle.label ?? "—"}</strong></div>
-        <div><span>VIN</span><strong>{selectedRepairOrder?.vehicle.vin ?? "—"}</strong></div>
-        <div><span>Concern</span><strong>{selectedRepairOrder?.concern ?? "—"}</strong></div>
-        <button type="button"><History />Repair history</button>
-      </section>
-
+      </>}>
+      <div className={styles.console} aria-label="Estimate editor">
       <div className={styles.modeTabs} role="tablist" aria-label="RO creation mode">
         <button aria-selected={mode === "manual"} onClick={() => setMode("manual")} role="tab" type="button"><BookOpen />Manual Labor Guide</button>
         <button aria-selected={mode === "engine"} onClick={() => setMode("engine")} role="tab" type="button"><Brain />Labor Intelligence Engine</button>
@@ -1024,7 +1026,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
                 </header>
                 <dl>
                   <div><dt>Repair order</dt><dd>{selectedRepairOrder?.repairOrderNumber ?? "Select RO first"}</dd></div>
-                  <div><dt>Vehicle</dt><dd>{selectedRepairOrder?.vehicle.label ?? "Vehicle pending"}</dd></div>
+                  <div><dt>Vehicle</dt><dd>{contextVehicle ?? "Vehicle pending"}</dd></div>
                 </dl>
                 <Link className={styles.assignTechnicianLink} href={assignTechnicianHref}>Assign Technician</Link>
               </section>
@@ -1054,7 +1056,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
                   <li>Receiving match confirms the right part before repair begins.</li>
                 </ul>
               </section>
-              <Link className={styles.secondaryReview} href={officialEstimateHref}>Open Official Estimate</Link>
+              <Link className={styles.secondaryReview} href={officialEstimateHref}>Preview preliminary quote</Link>
               <Link className={styles.secondaryReview} href={`/diagnostics/advisor-review${selectedRepairOrder ? `?repairOrderId=${encodeURIComponent(selectedRepairOrder.id)}` : ""}`}>Advisor review</Link>
               <section className={styles.historyCard}>
                 <h3>Customer / Vehicle Context</h3>
@@ -1064,6 +1066,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
           ) : null}
         </aside>
       </div>
-    </section>
+      </div>
+    </DiagnosticWorkspace>
   );
 }

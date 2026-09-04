@@ -10,7 +10,7 @@ import styles from "./official-repair-estimate-document.module.css";
 type EstimateLine = {
   amountLabel: string;
   detail: string;
-  kind: "Labor" | "Part";
+  kind: "Labor" | "Part" | "Fee";
   quantityLabel: string;
   title: string;
 };
@@ -27,6 +27,7 @@ function formatDocumentDate(value: string) {
 }
 
 export function OfficialRepairEstimateDocument({
+  isDraft = true,
   concern,
   createdAt,
   customer,
@@ -38,6 +39,7 @@ export function OfficialRepairEstimateDocument({
   summary,
   vehicle,
 }: {
+  isDraft?: boolean;
   concern: string;
   createdAt: string;
   customer: string;
@@ -54,7 +56,7 @@ export function OfficialRepairEstimateDocument({
   return <section className={styles.documentShell} aria-label="Official repair estimate document">
     <div className={styles.commandBar}>
       <Link className={styles.commandLink} href={returnTo}><ArrowLeft size={15} />Return to labor guide</Link>
-      <button className={styles.commandPrimary} onClick={() => window.print()} type="button"><Printer size={15} />Print official estimate</button>
+      <button className={styles.commandPrimary} onClick={() => window.print()} type="button"><Printer size={15} />{isDraft ? "Print preliminary quote" : "Print official estimate"}</button>
       <Link className={styles.commandLink} href={workbenchHref}><Send size={15} />Send to repair workbench</Link>
     </div>
 
@@ -64,7 +66,7 @@ export function OfficialRepairEstimateDocument({
           <TimeMotorSalesLogo className={`${styles.logo} ${styles.screenLogo}`} priority variant="horizontal-reversed" />
           <TimeMotorSalesLogo className={`${styles.logo} ${styles.printLogo}`} priority variant="horizontal" />
           <div>
-            <strong>Official Repair Estimate</strong>
+            <strong>{isDraft ? "PRELIMINARY QUOTE — NOT AUTHORIZED" : "Official Repair Estimate"}</strong>
             <span>Time Motor Sales · Store ID TMS-001</span>
             <span>1101 E. Lake Street, Minneapolis MN 55407 · (612) 724-3631</span>
             <small>Prepared for internal service planning, technician handoff, customer-safe estimate review, and governed work-order execution.</small>
@@ -94,7 +96,7 @@ export function OfficialRepairEstimateDocument({
 
       <section className={styles.lineSection}>
         <header>
-          <h2>Approved estimate lines</h2>
+          <h2>{isDraft ? "Proposed quote lines" : "Recorded estimate lines"}</h2>
           <p>Structured labor and parts prepared from the diagnostics labor guide.</p>
         </header>
         <div className={styles.lineHead}>
@@ -126,9 +128,9 @@ export function OfficialRepairEstimateDocument({
         <div className={styles.footerCard}>
           <h2>Operational release notes</h2>
           <ul>
-            <li>This document is the official estimate package for printing or digital technician handoff.</li>
+            <li>{isDraft ? "This preliminary quote is not a recorded estimate or authorization to begin repairs." : "This document reflects the recorded estimate version shown above. It is not proof of customer authorization."}</li>
             <li>Parts sourcing, supplement control, and receiving match continue in the governed parts workflow.</li>
-            <li>Repair workbench execution should use this estimate package as its current scope reference.</li>
+            <li>Repair execution requires a separately recorded authorization for the exact estimate version and approved lines.</li>
           </ul>
         </div>
       </section>

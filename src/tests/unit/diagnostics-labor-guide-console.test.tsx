@@ -9,7 +9,7 @@ describe("enterprise labor guide console", () => {
   it("renders the approved dual-mode labor guide and a live repair-order workbench link", () => {
     const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole activeRepairOrder={{ concern: "Clunking noise in front end and rear feels bouncy over bumps", customer: "Jordan Ellis", id: "ro-id-3411", openedAt: "2026-07-21T14:00:00.000Z", repairOrderNumber: "RO-3411", vehicle: { id: "veh-id-1", label: "2018 Ford F-150", vin: "1FTFW1E84KFC12345" } }} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} initialSelectedWork="starter" laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={[{ id: "ro-id-3411", label: "RO-3411 - 2018 Ford F-150" }]} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />);
 
-    expect(markup).toContain("RO Creation Workspace");
+    expect(markup).toContain("Diagnostic vehicle workspace");
     expect(markup).toContain("Search customer, phone, VIN, plate, vehicle, or RO number");
     expect(markup).toContain("RO-3411");
     expect(markup).toContain("Check in vehicle");
@@ -49,15 +49,16 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("Customer / Vehicle");
     expect(markup).toContain("Estimate / RO Preview");
     expect(markup).toContain("Active RO");
-    expect(markup).toContain("#3411");
-    expect(markup).toContain("Repair history");
+    expect(markup).toContain("Active RO RO-3411");
+    expect(markup).toContain("Open findings workbench");
     expect(markup).toContain("/vehicles/repair-workbench?repairOrderId=ro-id-3411");
     expect(markup).toContain("Create &amp; Open Official Estimate");
     expect(markup).toContain("Creates the official estimate document and opens print and repair-workbench actions.");
     expect(markup).toContain("Parts needed for this repair");
     expect(markup).toContain("Open Parts Ordering Workflow");
     expect(markup).toContain("Sync parts demand to RO");
-    expect(markup).toContain("Open Official Estimate");
+    expect(markup).toContain("Preview preliminary quote");
+    expect(markup).toContain("not a confirmed diagnosis or repair authorization");
     expect(markup).toContain("part lines");
     expect(markup).toContain("/diagnostics/parts-ordering?");
     expect(markup).toContain("/repair-estimate?");
@@ -71,8 +72,8 @@ describe("enterprise labor guide console", () => {
   it("routes missing vehicle and repair-order context to intake before estimate creation", () => {
     const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole activeRepairOrder={null} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={[]} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />);
 
-    expect(markup).toContain("No vehicle selected");
-    expect(markup).toContain("No customer selected");
+    expect(markup).toContain("Choose a vehicle to begin");
+    expect(markup).toContain("Customer not selected");
     expect(markup).toContain("Selected Work 0");
     expect(markup).toContain("Parts 0");
     expect(markup).toContain("<dt>Total</dt><dd>$0.00</dd>");
@@ -88,7 +89,7 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("Selected Work");
     expect(markup).toContain("Parts");
     expect(markup).toContain("Open Parts Ordering Workflow");
-    expect(markup).toContain("Open Official Estimate");
+    expect(markup).toContain("Preview preliminary quote");
     expect(markup).toContain("/diagnostics/parts-ordering?");
     expect(markup).toContain("/repair-estimate?");
     expect(markup).toContain("returnTo=%2Fdiagnostics%2Flabor-guide");
