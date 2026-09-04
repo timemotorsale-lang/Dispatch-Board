@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/server/auth/current-user";
 import { prisma } from "@/server/db/client";
 import { diagnosticDraftPayload } from "@/lib/diagnostic-draft";
 import { getRepairOrderDetail } from "@/server/repair-order/service";
+import { workdayDate } from "@/lib/workday-activity";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -29,15 +30,28 @@ export async function PUT(request: Request) {
     }
     const contentHash = createHash("sha256").update(JSON.stringify(content)).digest("hex");
     const title = typeof body.title === "string" ? body.title.slice(0, 200) : "Untitled quote";
-    const current = await prisma.diagnosticWorkspaceDraft.findFirst({ where: { id: body.id, userId: user.id } });
+    return await prisma.$transaction(async tx => {
+    const recordSave = async (version: number) => {
+      const date = new Date(`${workdayDate(new Date())}T00:00:00Z`);
+      const board = await tx.boardDay.upsert({ where: { date }, create: { date }, update: {} });
+      await tx.activityEvent.create({ data: {
+        actorUserId: user.id, boardDayId: board.id, eventType: "diagnostic.quote_saved",
+        message: `Saved preliminary quote: ${title} (version ${version}). Not an authorization or completed repair.`,
+        metadata: { sourceType: "DIAGNOSTIC_DRAFT", reportSourceId: `draft:${body.id}`, sourceModule: "DIAGNOSTICS", sourceHref: ro ? `/diagnostics/labor-guide?repairOrderId=${encodeURIComponent(String(ro.id))}` : "/diagnostics/labor-guide", draftId: body.id, version }
+      } });
+    };
+    const current = await tx.diagnosticWorkspaceDraft.findFirst({ where: { id: body.id, userId: user.id } });
     if (current?.contentHash === contentHash) return NextResponse.json({ version: current.version });
     if (!current && body.version === 0) {
-      const created = await prisma.diagnosticWorkspaceDraft.create({ data: { id: body.id, userId: user.id, title, content, contentHash } });
+      const created = await tx.diagnosticWorkspaceDraft.create({ data: { id: body.id, userId: user.id, title, content, contentHash } });
+      await recordSave(created.version);
       return NextResponse.json({ version: created.version });
     }
-    const updated = await prisma.diagnosticWorkspaceDraft.updateMany({ where: { id: body.id, userId: user.id, version: body.version }, data: { title, content, contentHash, version: { increment: 1 } } });
+    const updated = await tx.diagnosticWorkspaceDraft.updateMany({ where: { id: body.id, userId: user.id, version: body.version }, data: { title, content, contentHash, version: { increment: 1 } } });
     if (!updated.count) return NextResponse.json({ error: "Draft changed in another session. Resume the latest saved draft before editing." }, { status: 409 });
+    await recordSave(body.version + 1);
     return NextResponse.json({ version: body.version + 1 });
+    });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to save draft." }, { status: 400 });
   }

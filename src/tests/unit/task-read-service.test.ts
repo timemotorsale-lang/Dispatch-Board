@@ -23,6 +23,9 @@ function createTaskReadRepository(): TaskReadRepository {
         sourceType: "MANAGER",
         requiresManagerApproval: true,
         templateSnapshot: {
+          conversionContract: {
+            origin: { channel: "Workbook", sourceId: "update-1", sourceKind: "COO_WORKBOOK_QUICK_UPDATE", text: "Customer asked for a return call." }
+          },
           checklistItems: [
             {
               key: "confirm_customer",
@@ -174,6 +177,13 @@ describe("task read service", () => {
       },
       workflowArea: "SALES",
       sourceType: "MANAGER",
+      sourceContext: {
+        channel: "Workbook",
+        href: "/vehicles/coo-workbook/quick-update#source-update-1",
+        sourceId: "update-1",
+        sourceKind: "COO_WORKBOOK_QUICK_UPDATE",
+        text: "Customer asked for a return call."
+      },
       repairOrderHref: null,
       nextActionRecommendation: expect.objectContaining({
         triggers: ["latest-update:waiting"]

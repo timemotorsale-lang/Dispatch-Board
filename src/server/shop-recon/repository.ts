@@ -230,15 +230,19 @@ export function createShopReconLifecycleRepository(database: PrismaClient = pris
           payload = { ...payload, releaseReady: true, releaseAuthorizationId: release.id, deliveryReadinessId: deliveryReadiness.id, deliveryReadinessVersion: deliveryReadiness.version, destination, readyKeys, finalCostCents: draftMoneyCents(form, "finalCost", "Final cost"), readinessNotes: draftText(form, "readinessNotes", "Readiness notes") };
           sourceReferences.push({ type: "REPAIR_RELEASE_AUTHORIZATION", id: release.id }, { type: "DELIVERY_READINESS_EVALUATION", id: deliveryReadiness.id, version: deliveryReadiness.version });
         } else if (lifecycle.stage === "VEHICLE_HANDOVER_SHOP_EXIT") {
-          const release = order.releaseAuthorization, deliveryReadiness = order.deliveryReadinessEvaluations[0], destination = draftText(form, "handoffDestination", "Handoff destination"), expectedDestination = order.origin === "INVENTORY_RECON" ? "Inventory lifecycle" : "Service advisor / customer";
+          const release = order.releaseAuthorization, deliveryReadiness = order.deliveryReadinessEvaluations[0], expectedDestination = order.origin === "INVENTORY_RECON" ? "Inventory lifecycle" : "Service advisor / customer";
+          const destination = typeof form.handoffDestination === "string" && form.handoffDestination.trim() ? form.handoffDestination.trim() : expectedDestination;
           if (!release) throw new Error("Shop exit requires a governed release authorization.");
           if (!deliveryReadiness || deliveryReadiness.disposition !== "READY" || deliveryReadiness.releaseAuthorizationId !== release.id) throw new Error("Shop exit requires a current READY delivery evaluation tied to the release authorization.");
           if (destination !== expectedDestination) throw new Error(`The handoff destination must follow the ${order.origin === "INVENTORY_RECON" ? "Inventory Recon" : "Customer Repair"} lane: ${expectedDestination}.`);
-          const releasedKeys = draftNumber(form, "keyCountReleased", "Keys released");
+          const releasedKeys = form.keyCountReleased == null || form.keyCountReleased === "" ? order.serviceVisit.keysReceivedCount : draftNumber(form, "keyCountReleased", "Keys released");
           if (releasedKeys !== order.serviceVisit.keysReceivedCount) throw new Error(`Keys released must reconcile to the ${order.serviceVisit.keysReceivedCount} keys accepted at check-in.`);
+          const handoffNote = typeof form.receiverAcceptance === "string" && form.receiverAcceptance.trim()
+            ? form.receiverAcceptance.trim()
+            : evidenceReferences[0] ?? reason;
           const existingCustody = await tx.vehicleCustodyEvent.findFirst({ where: { organizationId: command.organizationId, vehicleId: order.vehicleId, sourceCode: "SHOP_RECON_STAGE_16", sourceReference: order.id }, orderBy: { occurredAt: "desc" } });
           const custody = existingCustody ?? await tx.vehicleCustodyEvent.create({ data: { organizationId: command.organizationId, vehicleId: order.vehicleId, locationId: order.locationId, eventType: order.origin === "INVENTORY_RECON" ? "CHECK_OUT" : "CUSTOMER_DELIVERY", custodianType: order.origin === "INVENTORY_RECON" ? "INVENTORY_OPERATIONS" : "CUSTOMER_OR_ADVISOR", custodianId: order.origin === "INVENTORY_RECON" ? actor.id : null, positionLabel: order.origin === "INVENTORY_RECON" ? "INVENTORY_HANDOFF" : "CUSTOMER_DELIVERY", occurredAt: now, sourceCode: "SHOP_RECON_STAGE_16", sourceReference: order.id, reason, recordedByUserId: actor.id } });
-          payload = { ...payload, shopExitRecorded: true, custodyEventId: custody.id, releaseAuthorizationId: release.id, deliveryReadinessId: deliveryReadiness.id, deliveryReadinessVersion: deliveryReadiness.version, destination, releasedKeys, receiverAcceptance: draftText(form, "receiverAcceptance", "Receiver acceptance") };
+          payload = { ...payload, shopExitRecorded: true, finalLocationExitRecorded: true, custodyEventId: custody.id, releaseAuthorizationId: release.id, deliveryReadinessId: deliveryReadiness.id, deliveryReadinessVersion: deliveryReadiness.version, destination, releasedKeys, receiverAcceptance: handoffNote };
           sourceReferences.push({ type: "REPAIR_RELEASE_AUTHORIZATION", id: release.id }, { type: "DELIVERY_READINESS_EVALUATION", id: deliveryReadiness.id, version: deliveryReadiness.version }, { type: "VEHICLE_CUSTODY_EVENT", id: custody.id });
           if (order.inventoryUnit) sourceReferences.push({ type: "INVENTORY_UNIT", id: order.inventoryUnit.id });
         }
@@ -274,7 +278,7 @@ export function createShopReconLifecycleRepository(database: PrismaClient = pris
         const final = lifecycle.stage === "VEHICLE_HANDOVER_SHOP_EXIT" && data.toStage === "VEHICLE_HANDOVER_SHOP_EXIT";
         if (final) {
           const exitEvidence = lifecycle.stageEvidence.find(item => item.stage === "VEHICLE_HANDOVER_SHOP_EXIT" && item.scopeVersion === lifecycle.scopeVersion), exitPayload = draftRecord(exitEvidence?.payload);
-          if (exitPayload.shopExitRecorded !== true) throw new Error("Shop exit cannot close until the physical custody handoff is published.");
+          if (exitPayload.shopExitRecorded !== true && exitPayload.finalLocationExitRecorded !== true) throw new Error("Shop exit cannot close until the physical custody handoff is published.");
         }
         const state = final ? "CLOSED" : "ACTIVE", next = await tx.shopReconLifecycle.update({ where: { id: lifecycle.id }, data: { stage: data.toStage, operatingState: state, stageStartedAt: now, zoneCode: SHOP_RECON_ZONE_BY_STAGE[data.toStage], targetAt: targetAt(data.toStage, now, order.targetAt), nextAction: final ? "Shop custody handoff complete; continue the receiving Inventory or customer close workflow." : nextAction(data.toStage), blockerCodes: toJson([]), version } });
         if (data.toStage === "REPAIR_EXECUTION") await tx.shopReconScopeChange.updateMany({ where: { lifecycleId: lifecycle.id, status: "SUBMITTED" }, data: { status: "RESOLVED", resolvedByUserId: actor.id, resolvedAt: now, resolutionReference: `Lifecycle transition v${version}; current plan and authorization gates passed.` } });

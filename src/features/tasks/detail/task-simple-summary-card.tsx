@@ -28,6 +28,7 @@ import { TaskUpdatesCommentsCard } from "@/features/tasks/detail/task-updates-co
 import type { TaskCompletionReadiness } from "@/server/services/task-execution-readiness";
 import type { TaskReadModel } from "@/server/services/task-read";
 import type { ActiveUserSummary } from "@/server/services/user-summary";
+import { TaskSourceContext } from "./task-source-context";
 
 type TaskWorkspaceView = "simple" | "workbench";
 type SummaryPanel = "progress" | "next" | "checklist" | "comments" | "signals";
@@ -915,6 +916,7 @@ export function TaskSimpleSummaryCard({
             <Link aria-current="page" href={viewHref(task.id, "simple", returnTo)}><Sparkles size={14} />Simple View</Link>
             {canOpenFullWorkbench ? <Link href={viewHref(task.id, "workbench", returnTo)}><Grid3X3 size={14} />Full Workbench</Link> : null}
           </nav>
+          <TaskSourceContext canEdit={canUpdateStatus} task={task} />
         </header>
 
         <p className="etw-compact-task-description"><b>Description:</b> {recordDescription}</p>

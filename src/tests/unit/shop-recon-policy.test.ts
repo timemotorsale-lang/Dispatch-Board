@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AuthenticatedUser } from "@/server/auth/store";
-import { canCompleteShopReconStage, evaluateGovernedTransition, normalizeShopReconPartsReadinessReturn, normalizeShopReconScopeChange } from "@/server/shop-recon/policy";
+import { canCompleteShopReconStage, evaluateDraftCompletion, evaluateGovernedTransition, normalizeShopReconPartsReadinessReturn, normalizeShopReconScopeChange } from "@/server/shop-recon/policy";
 
 const actor = (name: string, roles: string[] = []): AuthenticatedUser => ({ id: name.toLowerCase().replaceAll(" ", "-"), name, email: `${name}@example.com`, isActive: true, roles, duties: { direct: [], roleDefaults: [], all: [] } });
 const completeDraft = {
@@ -64,5 +64,22 @@ describe("Shop Recon governed transition policy", () => {
     expect(canCompleteShopReconStage(actor("Brock"), "QUALITY_CONTROL_ROAD_TEST").allowed).toBe(true);
     expect(canCompleteShopReconStage(actor("Walter Hernandez"), "QUALITY_CONTROL_ROAD_TEST").allowed).toBe(false);
     expect(canCompleteShopReconStage(actor("Eli"), "VEHICLE_HANDOVER_SHOP_EXIT").allowed).toBe(true);
+  });
+
+  it("accepts one plain handoff note as Stage 16 evidence", () => {
+    const completion = evaluateDraftCompletion("VEHICLE_HANDOVER_SHOP_EXIT", {
+      checklist: { item_1: true, item_2: true, item_3: true, item_4: true, item_5: true },
+      evidence: ["Brock received the vehicle and loved it"],
+      formData: {
+        finalLocationExitRecorded: true,
+        receivingPartyAcceptanceCaptured: true,
+        releaseReadinessVerified: true,
+        returnPathSynced: true,
+        vehicleKeysTransferred: true
+      }
+    }, "INVENTORY_RECON");
+
+    expect(completion.complete).toBe(true);
+    expect(completion.missingEvidenceCount).toBe(0);
   });
 });

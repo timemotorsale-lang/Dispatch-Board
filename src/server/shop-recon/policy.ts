@@ -142,7 +142,9 @@ export function evaluateDraftCompletion(stageCode: ShopReconStageCode, draft: { 
     const definition = workspace.fields.find(field => field.key === key);
     return value === undefined || value === null || value === "" || (definition?.type === "checkbox" && value !== true);
   });
-  const missingEvidenceCount = Math.max(0, workspace.evidence.length - evidence.length);
+  const missingEvidenceCount = stageCode === "VEHICLE_HANDOVER_SHOP_EXIT"
+    ? evidence.some((item) => item.trim().length >= 8) ? 0 : 1
+    : Math.max(0, workspace.evidence.length - evidence.length);
   return { complete: !incompleteChecklist.length && !missingFields.length && missingEvidenceCount === 0, incompleteChecklist, missingFields, missingEvidenceCount };
 }
 

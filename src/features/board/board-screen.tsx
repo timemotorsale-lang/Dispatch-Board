@@ -100,12 +100,14 @@ function buildGenerationFeedback(
 
 function createMetrics(board: BoardReadModel): Metric[] {
   const active = board.taskCount - statusCount(board, "COMPLETED");
+  const generated = board.sourceCounts.template;
+  const manual = board.sourceCounts.manager + board.sourceCounts.staff;
 
   return [
     {
-      label: "Active Today",
+      label: "Board Tasks",
       value: active,
-      detail: `${board.taskCount} total tasks`,
+      detail: `${generated} generated / ${manual} manual`,
       tone: "blue",
       icon: "active",
       metricKey: "active"
@@ -185,6 +187,7 @@ export function BoardScreen({
     async function load() {
       try {
         const response = await fetch(endpoint(selectedBoardDate, todayBoardDate), {
+          cache: "no-store",
           signal: controller.signal
         });
         const payload = (await response.json().catch(() => null)) as BoardApiPayload | null;
@@ -346,7 +349,7 @@ export function BoardScreen({
       }
 
       setGenerationFeedback(buildGenerationFeedback(payload));
-      requestBoardReload();
+      requestBoardReload("blocking");
     });
   }
 

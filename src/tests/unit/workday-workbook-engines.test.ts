@@ -1,5 +1,6 @@
 import {
   WorkdayActivityPurpose,
+  WorkdayCarryoverStatus,
   WorkdayChecklistStatus,
   WorkdayDailyFocusStatus,
   WorkdayPriority,
@@ -389,7 +390,18 @@ describe("workday workbook engines", () => {
   });
 
   it("moves to End The Day when important work has a disposition", () => {
-    const governance = buildWorkflowGovernanceEngine(workbook(), { approvalCount: 1, handoffCount: 0, reportExceptions: 0 });
+    const governance = buildWorkflowGovernanceEngine(workbook({
+      dailyFocusItems: [
+        {
+          ...workbook().dailyFocusItems[0],
+          progressUpdate: "Customer promise review complete.",
+          riskLevel: WorkdayRiskLevel.NONE,
+          riskNote: "",
+          status: WorkdayDailyFocusStatus.DONE,
+          supportNeeded: ""
+        }
+      ]
+    }), { approvalCount: 0, handoffCount: 0, reportExceptions: 0 }, new Date("2026-08-29T18:00:00.000Z"));
 
     expect(governance.currentPhase).toBe("END");
     expect(governance.currentStage).toBe("CLOSE_THE_DAY");
@@ -438,6 +450,87 @@ describe("workday workbook engines", () => {
       "1 focus item(s) need done, carryover, task, support, or progress decision.",
       "1 follow-up(s) need a due window, task, or carryover decision."
     ]));
+  });
+
+  it("does not recommend preparing carryover again after the source item already has carryover", () => {
+    const lateDayWorkbook = workbook({
+      carryovers: [
+        {
+          id: "carryover-1",
+          workbookId: "workbook-1",
+          sourceType: WorkdayReportSeedSourceType.OPERATING_EXCEPTION,
+          sourceId: "daily-focus:focus-1",
+          sourceHref: "/vehicles/coo-workbook/effectiveness-pilot",
+          title: "Complete customer promise review",
+          detail: "Daily focus item needs tomorrow ownership.",
+          status: WorkdayCarryoverStatus.CONFIRMED,
+          targetBoardDate: new Date("2026-08-30T00:00:00.000Z"),
+          convertedTaskId: null,
+          dismissedReason: "",
+          confirmedAt: now,
+          dismissedAt: null,
+          convertedAt: null,
+          createdAt: now,
+          updatedAt: now
+        }
+      ],
+      dailyFocusItems: [
+        {
+          ...workbook().dailyFocusItems[0],
+          progressUpdate: "",
+          riskLevel: WorkdayRiskLevel.NONE,
+          riskNote: "",
+          supportNeeded: ""
+        }
+      ]
+    });
+
+    const risk = buildRiskAndBlockerEngine(lateDayWorkbook);
+    const governance = buildWorkflowGovernanceEngine(lateDayWorkbook, { approvalCount: 0, handoffCount: 0, reportExceptions: 0 }, new Date("2026-08-29T21:30:00.000Z"));
+
+    expect(risk.tomorrowCarryoverCandidates).toHaveLength(0);
+    expect(governance.closeBlockers).not.toContain("1 focus item(s) need done, carryover, task, support, or progress decision.");
+    expect(governance.currentStage).not.toBe("PREPARE_TOMORROW");
+  });
+
+  it("does not recommend ending the day when attention remains after carryover is confirmed", () => {
+    const lateDayWorkbook = workbook({
+      carryovers: [
+        {
+          id: "carryover-1",
+          workbookId: "workbook-1",
+          sourceType: WorkdayReportSeedSourceType.OPERATING_EXCEPTION,
+          sourceId: "daily-focus:focus-1",
+          sourceHref: "/vehicles/coo-workbook/effectiveness-pilot",
+          title: "Complete customer promise review",
+          detail: "Daily focus item needs tomorrow ownership.",
+          status: WorkdayCarryoverStatus.CONFIRMED,
+          targetBoardDate: new Date("2026-08-30T00:00:00.000Z"),
+          convertedTaskId: null,
+          dismissedReason: "",
+          confirmedAt: now,
+          dismissedAt: null,
+          convertedAt: null,
+          createdAt: now,
+          updatedAt: now
+        }
+      ],
+      dailyFocusItems: [
+        {
+          ...workbook().dailyFocusItems[0],
+          progressUpdate: "",
+          riskLevel: WorkdayRiskLevel.NONE,
+          riskNote: "",
+          supportNeeded: ""
+        }
+      ]
+    });
+
+    const governance = buildWorkflowGovernanceEngine(lateDayWorkbook, { approvalCount: 0, handoffCount: 0, reportExceptions: 12 }, new Date("2026-08-29T21:30:00.000Z"));
+
+    expect(governance.currentPhase).toBe("WORK");
+    expect(governance.currentStage).toBe("ASK_FOR_SUPPORT");
+    expect(governance.nextRecommendedAction).toBe("Review needs-attention work before ending the day.");
   });
 
   it("keeps End The Day from being recommended before Start The Day evidence exists", () => {

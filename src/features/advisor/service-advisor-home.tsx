@@ -28,6 +28,9 @@ import { useCallback, useEffect, useId, useState } from "react";
 import type { ServiceAdvisorWorkspaceModel } from "@/server/advisor-workspace/service";
 import { ChecklistReminderField } from "./checklist-reminder-field";
 import { ExpandableFocusDetails } from "./expandable-focus-details";
+import { WorkbookAppointmentFlow } from "./workbook-appointment-flow";
+import { QuickUpdateEditor } from "./quick-update-editor";
+import { CrmContactImport } from "./crm-contact-import";
 
 type Action = ServiceAdvisorWorkspaceModel["actionQueue"][number];
 type InboxItem = ServiceAdvisorWorkspaceModel["inbox"][number];
@@ -370,7 +373,7 @@ function buildDailyFocusSuggestions(workbook: WorkdayWorkbookModel, morningPrior
   workbook.quickUpdates
     .filter((item) => item.followUpNeeded || item.carryoverReady)
     .forEach((item) => addSuggestion({
-      detail: [item.person, item.company, item.dueWindow].filter(Boolean).join(" · ") || quickUpdateCategoryLabel(item.category),
+      detail: [item.person, item.phoneNumber, item.company, item.dueWindow].filter(Boolean).join(" · ") || quickUpdateCategoryLabel(item.category),
       href: `/vehicles/coo-workbook/quick-update#quick-${encodeURIComponent(item.id)}`,
       mustCloseToday: item.followUpNeeded && !item.dueWindow.trim(),
       outcome: item.text,
@@ -417,6 +420,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
   const [quickUpdateText, setQuickUpdateText] = useState("");
   const [quickUpdateCategory, setQuickUpdateCategory] = useState<QuickUpdateCategory>("OTHER");
   const [quickUpdatePerson, setQuickUpdatePerson] = useState("");
+  const [quickUpdatePhone, setQuickUpdatePhone] = useState("");
   const [quickUpdateCompany, setQuickUpdateCompany] = useState("");
   const [quickUpdateFollowUp, setQuickUpdateFollowUp] = useState(false);
   const [quickUpdateDueWindow, setQuickUpdateDueWindow] = useState("");
@@ -435,6 +439,12 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
   const actionQueue = closedRepairOrderId
     ? model.actionQueue.filter((item) => item.id !== closedRepairOrderId)
     : model.actionQueue;
+  const dailyPursePendingWork = actionQueue.map((item) => ({
+    detail: `${item.repairOrderNumber} · ${item.vehicleLabel} · ${item.actionReason}`,
+    href: repairOrderWorkbookHref(item.id),
+    id: `${item.actionKind}-${item.id}`,
+    title: item.actionLabel
+  }));
   const approvalCount = actionQueueCount(actionQueue, "AUTHORIZATION");
   const reportExceptions = actionQueue.filter((item) => matchesFilter(item, "ATTENTION") || matchesFilter(item, "WAITING")).length;
   const staffWorkbookLabel = model.workspace.staffWorkbookLabel;
@@ -513,12 +523,12 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
     })),
     ...quickUpdates.filter((item) => item.followUpNeeded || item.carryoverReady).slice(0, 2).map((item) => ({
       action: item.followUpNeeded ? "Follow up" : "Review",
-      context: [item.person, item.company, item.dueWindow].filter(Boolean).join(" · ") || "Quick Update",
+      context: [item.person, item.phoneNumber, item.company, item.dueWindow].filter(Boolean).join(" · ") || "Quick Update",
       description: item.text,
       href: "/vehicles/coo-workbook/quick-update",
       id: `quick-${item.id}`,
       meta: quickUpdateCategoryLabel(item.category),
-      searchText: buildSearchText(item.text, item.person, item.company, item.dueWindow, quickUpdateCategoryLabel(item.category)),
+      searchText: buildSearchText(item.text, item.person, item.phoneNumber, item.company, item.dueWindow, quickUpdateCategoryLabel(item.category)),
       title: "Quick update needs follow-up",
       tone: item.followUpNeeded ? "yellow" : "blue"
     })),
@@ -592,7 +602,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
     })),
     ...quickUpdates.map((item) => ({
       action: item.convertedTaskId ? "Open task" : item.followUpNeeded ? "Follow up" : "Review",
-      context: [quickUpdateCategoryLabel(item.category), item.person, item.company, item.dueWindow].filter(Boolean).join(" · "),
+      context: [quickUpdateCategoryLabel(item.category), item.person, item.phoneNumber, item.company, item.dueWindow].filter(Boolean).join(" · "),
       description: item.text,
       href: item.convertedTaskId ? `/tasks/${item.convertedTaskId}` : "/vehicles/coo-workbook/quick-update",
       id: `search-quick-${item.id}`,
@@ -600,7 +610,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
       ...(item.convertedTaskId ? {} : {
         resume: {
           boardDate: model.boardDate,
-          description: `Converted from ${activeWorkbookLabel} Quick Update. Category: ${quickUpdateCategoryLabel(item.category)}. ${item.person ? `Person: ${item.person}. ` : ""}${item.company ? `Company: ${item.company}. ` : ""}${item.text}`,
+          description: `Converted from ${activeWorkbookLabel} Quick Update. Category: ${quickUpdateCategoryLabel(item.category)}. ${item.person ? `Person: ${item.person}. ` : ""}${item.phoneNumber ? `Phone: ${item.phoneNumber}. ` : ""}${item.company ? `Company: ${item.company}. ` : ""}${item.text}`,
           id: item.id,
           priority: item.followUpNeeded ? "HIGH" as const : "MEDIUM" as const,
           source: "quick" as const,
@@ -608,7 +618,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
           workflowArea: inferWorkflowAreaFromText(`${item.text} ${item.category} ${item.company}`)
         }
       }),
-      searchText: buildSearchText(item.text, item.person, item.company, item.dueWindow, quickUpdateCategoryLabel(item.category)),
+      searchText: buildSearchText(item.text, item.person, item.phoneNumber, item.company, item.dueWindow, quickUpdateCategoryLabel(item.category)),
       title: item.text,
       tone: item.followUpNeeded ? "yellow" : "blue"
     })),
@@ -705,7 +715,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
         : "Review the source-backed items that can become the manager-ready report.";
   const carryoverPreview = [
     ...checklistItems.filter((item) => item.carryoverReady).map((item) => ({ detail: latestChecklistUpdateText(item) || checklistStatusLabel(item), id: `checklist-${item.id}`, kind: "Checklist", title: item.text })),
-    ...quickUpdates.filter((item) => item.carryoverReady).map((item) => ({ detail: [item.person, item.company, item.dueWindow].filter(Boolean).join(" · ") || item.text, id: `quick-${item.id}`, kind: "Quick Update", title: item.text })),
+    ...quickUpdates.filter((item) => item.carryoverReady).map((item) => ({ detail: [item.person, item.phoneNumber, item.company, item.dueWindow].filter(Boolean).join(" · ") || item.text, id: `quick-${item.id}`, kind: "Quick Update", title: item.text })),
     ...reportSeeds.filter((seed) => seed.status === "CARRIED_OVER").map((seed) => ({ detail: seed.detail, id: `seed-${seed.id}`, kind: reportSeedSourceLabel(seed), title: seed.title })),
     ...carryovers.filter((item) => item.status !== "DISMISSED").map((item) => ({ detail: item.detail, id: `carryover-${item.id}`, kind: `Carryover · ${item.status.toLocaleLowerCase()}`, title: item.title }))
   ].slice(0, 6);
@@ -715,11 +725,16 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
   const closeReviewItems = [
     ...activeDailyFocusItems.map((item) => ({
       detail: item.progressUpdate || item.supportNeeded || item.riskNote || (item.status === "DONE" ? "Completed today." : "Needs update or close decision."),
-      href: "/vehicles/coo-workbook/action-plan",
+      href: item.convertedTaskId ? `/tasks/${item.convertedTaskId}` : cooTaskIntakeHref({
+        brief: item.progressUpdate || item.supportNeeded || item.riskNote || `Review this Daily Focus item and record whether it is done, needs support, should become a task, or should carry over: ${item.outcome}`,
+        dueAt: model.generatedAt,
+        expectedOutcome: "This Daily Focus item has a clear owner, status, next action, and close decision.",
+        title: item.outcome
+      }),
       id: `focus-${item.id}`,
       status: item.status === "DONE" ? "Done" : item.status === "CARRY_OVER" ? "Carry over" : "Not done",
       title: item.outcome,
-      toolLabel: "Open action plan"
+      toolLabel: item.convertedTaskId ? "Open task" : "Create task"
     })),
     ...checklistItems.map((item) => ({
       detail: latestChecklistUpdateText(item) || checklistStatusLabel(item),
@@ -794,16 +809,20 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
     { description: "Review source-backed items that may belong in the report.", href: "/vehicles/coo-workbook/report-seeds", icon: FileText, outcome: "The report is built from reviewed signals, not noisy raw logs.", title: "Report Seeds", whenToUse: "Use before generating daily, weekly, or monthly summaries." },
     { description: "Close the day through work review, carryover, and report preparation.", href: "/vehicles/coo-workbook/drafts", icon: ClipboardList, outcome: "The day ends cleanly with a manager-ready draft and tomorrow setup.", title: "End-of-Day Assistant", whenToUse: "Use near close or when the daily report is ready to finalize." }
   ];
+  const hasReportDraftBlocker = activeWorkbook.governance.closeBlockers.some((prompt) => prompt.toLocaleLowerCase().includes("report draft"));
+  const hasOpenCarryoverBlocker = (activeWorkbook.governance.dispositionCounts?.unconfirmedCarryovers ?? 0) > 0;
+  const needsAttentionRecommendation = "Review needs-attention work before ending the day.";
+  const endTheDayDisplayScore = Math.min(activeWorkbook.governance.endTheDayEligibilityScore ?? closeReadiness.score, closeReadiness.score);
   const contextRecommendation: ContextRecommendation = activeWorkbook.governance.currentPhase === "START"
     ? { description: activeWorkbook.governance.nextRecommendedAction, href: "/vehicles/coo-workbook/effectiveness-pilot#start-the-day", phase: "START" as const, title: "Start The Day" }
     : activeWorkbook.governance.currentPhase === "END"
-      ? activeWorkbook.governance.closeBlockers.some((prompt) => prompt.includes("report draft"))
+      ? hasReportDraftBlocker
         ? { description: activeWorkbook.governance.closeBlockers[0] ?? activeWorkbook.governance.nextRecommendedAction, href: "/vehicles/coo-workbook/drafts", phase: "END" as const, title: "Generate Report Draft" }
-        : activeWorkbook.governance.closeBlockers.some((prompt) => prompt.includes("carryover"))
-          ? { description: activeWorkbook.governance.closeBlockers[0] ?? activeWorkbook.governance.nextRecommendedAction, href: "/vehicles/coo-workbook/carryover", phase: "END" as const, title: "Prepare Carryover" }
+        : hasOpenCarryoverBlocker
+          ? { description: activeWorkbook.governance.closeBlockers.find((prompt) => prompt.toLocaleLowerCase().includes("carryover")) ?? activeWorkbook.governance.nextRecommendedAction, href: "/vehicles/coo-workbook/carryover", phase: "END" as const, title: "Confirm Carryover" }
           : { description: activeWorkbook.governance.nextRecommendedAction, href: "#close-report", phase: "END" as const, title: "End The Day" }
       : supportSignals
-        ? { description: activeWorkbook.governance.nextRecommendedAction, onSelect: () => setCommandView("ATTENTION"), phase: "WORK" as const, title: "Review Needs Attention" }
+        ? { description: needsAttentionRecommendation, onSelect: () => setCommandView("ATTENTION"), phase: "WORK" as const, title: "Review Needs Attention" }
         : quickUpdateRollup.followUp
           ? { description: "Follow-ups exist. Confirm dates, owners, and next action before they drift.", href: "/vehicles/coo-workbook/quick-update", phase: "WORK" as const, title: "Open Follow-Up Center" }
           : { description: activeWorkbook.governance.nextRecommendedAction, onSelect: () => setCommandView("WORK"), phase: "WORK" as const, title: "Work The Day" };
@@ -823,7 +842,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
       title: "Work The Day"
     },
     {
-      detail: `${activeWorkbook.governance.endTheDayEligibilityScore}/100 ready · ${closeReadiness.carryoverItems} carryover`,
+      detail: `${endTheDayDisplayScore}/100 ready · ${closeReadiness.carryoverItems} carryover`,
       href: "#close-report",
       icon: FileText,
       key: "END" as const,
@@ -960,13 +979,14 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
       const response = await fetch(`/api/coo-workbook/${effectiveWorkbookView === "MY" ? "staff/quick-updates" : "quick-updates"}?date=${encodeURIComponent(model.boardDate)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category: quickUpdateCategory, company: quickUpdateCompany, dueWindow: quickUpdateDueWindow, followUpNeeded: quickUpdateFollowUp, person: quickUpdatePerson, text })
+        body: JSON.stringify({ category: quickUpdateCategory, company: quickUpdateCompany, dueWindow: quickUpdateDueWindow, followUpNeeded: quickUpdateFollowUp, person: quickUpdatePerson, phoneNumber: quickUpdatePhone, text })
       });
       const payload = await response.json().catch(() => null) as { error?: string } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Unable to save Quick Update.");
       setQuickUpdateText("");
       setQuickUpdateCategory("OTHER");
       setQuickUpdatePerson("");
+      setQuickUpdatePhone("");
       setQuickUpdateCompany("");
       setQuickUpdateFollowUp(false);
       setQuickUpdateDueWindow("");
@@ -1074,7 +1094,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
     const title = isChecklist ? (item as DailyChecklistItem).text : `Follow up: ${(item as QuickUpdateItem).text.slice(0, 72)}`;
     const description = isChecklist
       ? `Converted from ${activeWorkbookLabel} Daily Checklist. Update: ${latestChecklistUpdateText(item as DailyChecklistItem) || "No update added yet."}`
-      : `Converted from ${activeWorkbookLabel} Quick Update. Category: ${quickUpdateCategoryLabel((item as QuickUpdateItem).category)}. ${(item as QuickUpdateItem).person ? `Person: ${(item as QuickUpdateItem).person}. ` : ""}${(item as QuickUpdateItem).company ? `Company: ${(item as QuickUpdateItem).company}. ` : ""}${(item as QuickUpdateItem).text}`;
+      : `Converted from ${activeWorkbookLabel} Quick Update. Category: ${quickUpdateCategoryLabel((item as QuickUpdateItem).category)}. ${(item as QuickUpdateItem).person ? `Person: ${(item as QuickUpdateItem).person}. ` : ""}${(item as QuickUpdateItem).phoneNumber ? `Phone: ${(item as QuickUpdateItem).phoneNumber}. ` : ""}${(item as QuickUpdateItem).company ? `Company: ${(item as QuickUpdateItem).company}. ` : ""}${(item as QuickUpdateItem).text}`;
 
     try {
       const response = await fetch("/api/tasks", {
@@ -1408,6 +1428,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
         </nav>
       </header>
 
+      <WorkbookAppointmentFlow date={model.boardDate} workbook={activeWorkbook} pendingWork={dailyPursePendingWork} generating={saving} onGenerateReport={() => generateReportDraft("DAILY")} />
       {initialTool === "CHECKLIST" ? <section className="advisor-coo-daily-checklist advisor-coo-focused-tool" aria-label="Daily Checklist tool">
         <header><div><strong>{activeWorkbookLabel} Daily Checklist</strong><small>Track hot leads, prospects, customer follow-ups, and same-day operating work. Convert any item that needs formal tracking.</small></div><span>{checklistRollup.done}/{checklistItems.length} done</span></header>
         <div className="advisor-coo-inline-form">
@@ -1420,7 +1441,8 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
           <button disabled={saving || isClosed || !checklistText.trim()} onClick={() => void addChecklistItem()} type="button"><Plus /> Add</button>
         </div>
         <div className="advisor-coo-checklist-items">
-          {checklistItems.length ? checklistItems.map((item) => <div className={`advisor-coo-checklist-item ${item.status.toLocaleLowerCase()} ${item.done ? "done" : ""}`} key={item.id}>
+          {checklistItems.length ? checklistItems.map((item) => <div className={`advisor-coo-checklist-item ${item.status.toLocaleLowerCase()} ${item.done ? "done" : ""}`} id={`source-${item.id}`} key={item.id}>
+            <CrmContactImport disabled={isClosed} sourceId={item.id} sourceKind="Daily Checklist" sourceText={[item.text,item.update].filter(Boolean).join(". ")} followUpDate={item.reminderDate ?? ""} />
             <button aria-label={`Mark ${item.text} ${item.done ? "not done" : "done"}`} className="advisor-coo-check" disabled={isClosed} onClick={() => void persistChecklistItem(item.id, { done: !item.done, status: !item.done ? "GREEN" : item.status })} type="button"><CheckSquare /></button>
             <div>
               <div className="advisor-coo-checklist-title-row">
@@ -1473,7 +1495,8 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
           <button disabled={saving || isClosed || !checklistText.trim()} onClick={() => void addChecklistItem()} type="button"><Plus /> Add To-Do</button>
         </div>
         <div className="advisor-coo-checklist-items">
-          {checklistItems.length ? checklistItems.map((item) => <div className={`advisor-coo-checklist-item ${item.status.toLocaleLowerCase()} ${item.done ? "done" : ""}`} key={item.id}>
+          {checklistItems.length ? checklistItems.map((item) => <div className={`advisor-coo-checklist-item ${item.status.toLocaleLowerCase()} ${item.done ? "done" : ""}`} id={`source-${item.id}`} key={item.id}>
+            <CrmContactImport disabled={isClosed} sourceId={item.id} sourceKind="Daily Checklist" sourceText={[item.text,item.update].filter(Boolean).join(". ")} followUpDate={item.reminderDate ?? ""} />
             <button aria-label={`Mark ${item.text} ${item.done ? "not done" : "done"}`} className="advisor-coo-check" disabled={isClosed} onClick={() => void persistChecklistItem(item.id, { done: !item.done, status: !item.done ? "GREEN" : item.status })} type="button"><CheckSquare /></button>
             <div>
               <div className="advisor-coo-checklist-title-row">
@@ -1540,6 +1563,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
             {quickUpdateCategories.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
           <input aria-label="Person involved" disabled={isClosed} onChange={(event) => setQuickUpdatePerson(event.target.value)} placeholder="Person" value={quickUpdatePerson} />
+          <input aria-label="Phone number" disabled={isClosed} inputMode="tel" onChange={(event) => setQuickUpdatePhone(event.target.value)} placeholder="Phone number" value={quickUpdatePhone} />
           <input aria-label="Company or outside party" disabled={isClosed} onChange={(event) => setQuickUpdateCompany(event.target.value)} placeholder="Company / outside party" value={quickUpdateCompany} />
         </div>
         <div className="advisor-coo-followup-row">
@@ -1548,11 +1572,13 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
           <button disabled={saving || isClosed || !quickUpdateText.trim()} onClick={() => void addQuickUpdate()} type="button"><Save /> Save update</button>
         </div>
         <div className="advisor-coo-update-list">
-          {quickUpdates.length ? quickUpdates.map((item) => <article key={item.id}>
-            <span><strong>{quickUpdateCategoryLabel(item.category)}</strong><small>{dateLabel(item.createdAt)}</small></span>
+          {quickUpdates.length ? quickUpdates.map((item) => <article id={`source-${item.id}`} key={item.id}>
+            <span><strong>{quickUpdateCategoryLabel(item.category)}</strong>{" · "}<small>{dateLabel(item.createdAt)}</small></span>
+            <QuickUpdateEditor item={item} categories={quickUpdateCategories} disabled={isClosed} onSaved={refreshActiveWorkbook} />
+            <CrmContactImport disabled={isClosed} sourceId={item.id} sourceKind="Quick Update" sourceText={item.text} person={item.person} phoneNumber={item.phoneNumber} company={item.company} followUpDate={item.followUpNeeded ? item.dueWindow : ""} />
             <p>{item.text}</p>
             {item.intelligence ? <small>{item.intelligence.signalLabel} · impact {item.intelligence.impactScore}/100 · {item.intelligence.confidence.toLocaleLowerCase()} confidence · {item.intelligence.recommendedAction}</small> : null}
-            <small>{[item.person, item.company, item.followUpNeeded ? `Follow-up: ${item.dueWindow || "needed"}` : "", item.carryoverReady ? "Carryover ready" : ""].filter(Boolean).join(" · ") || "No extra details"}</small>
+            <small>{[item.person, item.phoneNumber, item.company, item.followUpNeeded ? `Follow-up: ${item.dueWindow || "needed"}` : "", item.carryoverReady ? "Carryover ready" : ""].filter(Boolean).join(" · ") || "No extra details"}</small>
             {item.followUpNeeded && /^\d{4}-\d{2}-\d{2}$/.test(item.dueWindow) ? <Link href={`/appointments?section=today&localDate=${encodeURIComponent(item.dueWindow)}`}>Open daily schedule · {item.dueWindow}</Link> : null}
             <button aria-pressed={item.carryoverReady} disabled={isClosed} onClick={() => void persistQuickUpdate(item.id, { carryoverReady: !item.carryoverReady })} type="button">{item.carryoverReady ? "Carryover" : "Carry over"}</button>
             {item.convertedTaskId ? <Link href={`/tasks/${item.convertedTaskId}`}>Open task</Link> : <button disabled={isClosed || convertingId === item.id} onClick={() => void convertToTask("quick", item)} type="button">{convertingId === item.id ? "Converting..." : "Convert to task"}</button>}
@@ -1569,11 +1595,12 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
             <Link href={item.href}>{item.action}</Link>
           </article>) : <p><CheckCircle2 /> No urgent operating actions are waiting.</p>}
         </div>
-        <Link className="advisor-coo-primary-link" href={planTaskHref}>Create action plan task</Link>
+        <Link className="advisor-coo-primary-link" href={planTaskHref}>Create overall action plan task</Link>
       </section> : null}
 
       {initialTool === "CARRYOVER" ? <section className="advisor-coo-focused-tool advisor-coo-carryover-center" aria-label="Carryover tool">
         <header><div><strong>Carryover</strong><small>Tomorrow-facing items pulled from checklist, Quick Updates, and reviewed Report Seeds.</small></div><button disabled={saving || isClosed} onClick={() => void prepareCarryovers()} type="button"><CalendarClock /> Prepare Carryover</button></header>
+        <p className="advisor-coo-tool-guidance">Confirm keeps it as tomorrow context. Convert to task gives it an owner, due time, checklist, comments, and status tracking. Dismiss removes items that do not need follow-up.</p>
         <div>{carryovers.length ? carryovers.map((item) => <article key={item.id}><small>{item.targetBoardDate} · {item.status.toLocaleLowerCase()}</small><strong>{item.title}</strong><span>{item.detail}</span><div className="advisor-coo-seed-actions"><button disabled={saving || isClosed || item.status === "CONFIRMED"} onClick={() => void persistCarryover(item.id, { status: "CONFIRMED" })} type="button">Confirm</button><button disabled={saving || isClosed || item.status === "DISMISSED"} onClick={() => void persistCarryover(item.id, { status: "DISMISSED", dismissedReason: `Dismissed from ${activeWorkbookLabel}.` })} type="button">Dismiss</button>{item.convertedTaskId ? <Link href={`/tasks/${item.convertedTaskId}`}>Open task</Link> : <button disabled={saving || isClosed || convertingId === item.id} onClick={() => void convertCarryoverToTask(item)} type="button">{convertingId === item.id ? "Converting..." : "Convert to task"}</button>}</div></article>) : carryoverPreview.length ? carryoverPreview.map((item) => <article key={item.id}><small>{item.kind}</small><strong>{item.title}</strong><span>{item.detail}</span></article>) : <p><CheckCircle2 /> No carryover items are marked yet.</p>}</div>
       </section> : null}
 
@@ -1670,6 +1697,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
       </div>
     </header>
 
+    <WorkbookAppointmentFlow date={model.boardDate} workbook={activeWorkbook} pendingWork={dailyPursePendingWork} generating={saving} onGenerateReport={() => generateReportDraft("DAILY")} />
     <section className="advisor-coo-workflow-guide" aria-label="Workbook workflow guide">
       <article>
         <small>Recommended Now</small>
@@ -1905,6 +1933,10 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
   const effectiveWorkbookView: WorkbookViewMode = canUseManagementWorkbook ? workbookView : "MY";
   const activeWorkbook = effectiveWorkbookView === "MY" ? staffWorkbook : workbook;
   const activeLabel = effectiveWorkbookView === "MY" ? staffWorkbookLabel : managementWorkbookLabel;
+  const pilotDailyPursePendingWork = model.actionQueue.map((item) => ({
+    detail: `${item.repairOrderNumber} · ${item.vehicleLabel} · ${item.actionReason}`,
+    href: repairOrderWorkbookHref(item.id), id: `${item.actionKind}-${item.id}`, title: item.actionLabel
+  }));
   const coaching = activeWorkbook.coaching;
   const activityIntelligence = activeWorkbook.activityIntelligence;
   const timeAttention = activeWorkbook.timeAttention;
@@ -1922,6 +1954,16 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
   const staffNeedingSupport = staffWorkbookSummaries
     .filter((item) => item.closeReadinessTone !== "READY" || item.dailyFocusRiskCount > 0 || item.followUpNeededCount > 0)
     .slice(0, 4);
+  async function generatePilotDailyReport() {
+    setSaving(true); setNotice(null);
+    try {
+      const response = await fetch(`/api/coo-workbook/${effectiveWorkbookView === "MY" ? "staff/report-drafts" : "report-drafts"}?date=${encodeURIComponent(model.boardDate)}&cadence=DAILY`, { method: "POST" });
+      const payload = await response.json().catch(() => null) as { error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error ?? "Unable to generate the daily report.");
+      await refreshPilotWorkbook(); setNotice("Daily report generated from current workbook activity.");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Unable to generate the daily report."); }
+    finally { setSaving(false); }
+  }
 
   useEffect(() => {
     let lastTick = Date.now();
@@ -2129,6 +2171,7 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
       </nav>
     </header>
 
+    <WorkbookAppointmentFlow date={model.boardDate} workbook={activeWorkbook} pendingWork={pilotDailyPursePendingWork} generating={saving} onGenerateReport={generatePilotDailyReport} />
     <section className="advisor-coo-effectiveness-score" aria-label="Daily Effectiveness">
       <article><strong>{coaching.effectivenessScore}/100</strong><span>Daily Effectiveness</span><small>{coaching.staffSummary}</small></article>
       <dl>

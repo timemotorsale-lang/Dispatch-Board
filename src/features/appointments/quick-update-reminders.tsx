@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CategoryBadge, categoryRowStyle } from "./category-badge";
 
-type Reminder = { id: string; text: string; category?: string; person: string; company: string; convertedTaskId: string | null };
+type Reminder = { id: string; text: string; category?: string; person: string; phoneNumber?: string; company: string; convertedTaskId: string | null };
 
 export function QuickUpdateReminders({ date }: { date: string }) {
   const [result, setResult] = useState<{ date: string; reminders: Reminder[]; error?: boolean } | null>(null);
@@ -29,7 +29,7 @@ export function QuickUpdateReminders({ date }: { date: string }) {
     <header><strong>My reminders · {date}</strong><small>Quick Updates and checklist · no appointment time reserved</small></header>
     {!current ? <p role="status">Loading reminders…</p> : current.error ? <p role="alert">Reminders could not load. Reopen this schedule to retry.</p> : current.reminders.length ? <div className="appointment-flow-group blue"><table>
       <thead><tr><th>Reminder</th><th>Person / company</th><th>Action</th></tr></thead>
-      <tbody>{current.reminders.map(item => <tr key={item.id} style={categoryRowStyle(item.category)}><td><CategoryBadge category={item.category} /><br />{item.text}</td><td>{[item.person, item.company].filter(Boolean).join(" · ") || "—"}</td><td>{item.convertedTaskId ? <Link href={`/tasks/${encodeURIComponent(item.convertedTaskId)}`}>Open task</Link> : <span>Follow-up needed</span>}</td></tr>)}</tbody>
+      <tbody>{current.reminders.map(item => <tr key={item.id} style={categoryRowStyle(item.category)}><td><CategoryBadge category={item.category} /><br />{item.text}</td><td>{[item.person, item.phoneNumber, item.company].filter(Boolean).join(" · ") || "—"}</td><td>{item.convertedTaskId ? <Link href={`/tasks/${encodeURIComponent(item.convertedTaskId)}`}>Open task</Link> : <span>Follow-up needed</span>}</td></tr>)}</tbody>
     </table></div> : <p>No reminders for this date.</p>}
   </section>;
 }

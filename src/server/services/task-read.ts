@@ -134,6 +134,13 @@ export type TaskReadModel = {
   dueAt: string;
   workflowArea: string;
   sourceType: string;
+  sourceContext: {
+    channel: string;
+    sourceId: string | null;
+    sourceKind: string;
+    text: string;
+    href: string | null;
+  } | null;
   repairOrderHref?: string | null;
   requiresManagerApproval: boolean;
   requiredUpdateFields: TaskTemplateRequiredUpdateField[];
@@ -345,6 +352,15 @@ function toUserSummary(
 
 function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
   const snapshot = (task as { templateSnapshot?: unknown }).templateSnapshot;
+  const conversionContract = snapshot && typeof snapshot === "object" && "conversionContract" in snapshot && snapshot.conversionContract && typeof snapshot.conversionContract === "object"
+    ? snapshot.conversionContract as Record<string, unknown>
+    : null;
+  const origin = conversionContract?.origin && typeof conversionContract.origin === "object"
+    ? conversionContract.origin as Record<string, unknown>
+    : null;
+  const sourceKind = typeof origin?.sourceKind === "string" ? origin.sourceKind : "";
+  const sourceId = typeof origin?.sourceId === "string" ? origin.sourceId : null;
+  const workbookSource = /workbook/i.test(sourceKind);
   const updateFieldValues = (task as { updateFieldValues?: unknown }).updateFieldValues;
   const checklistItems = (task as { checklistItems?: TaskReadRecord["checklistItems"] }).checklistItems ?? [];
   const activityEvents = (task as {
@@ -379,6 +395,13 @@ function toTaskReadModel(task: TaskReadRecord): TaskReadModel {
     dueAt: task.dueAt.toISOString(),
     workflowArea: task.workflowArea,
     sourceType: task.sourceType,
+    sourceContext: origin ? {
+      channel: typeof origin.channel === "string" ? origin.channel : "Workbook",
+      sourceId,
+      sourceKind: sourceKind || "Workbook item",
+      text: typeof origin.text === "string" ? origin.text : task.description,
+      href: workbookSource ? `/vehicles/coo-workbook/${sourceKind.toLowerCase().includes("quick") ? "quick-update" : sourceKind.toLowerCase().includes("checklist") ? "checklist" : ""}${sourceId ? `#source-${encodeURIComponent(sourceId)}` : ""}` : null
+    } : null,
     repairOrderHref: task.sourceType === "REPAIR_ORDER" && snapshot && typeof snapshot === "object" &&
       "repairOrderId" in snapshot && typeof snapshot.repairOrderId === "string"
       ? `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(snapshot.repairOrderId)}`

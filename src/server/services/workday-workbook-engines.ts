@@ -58,6 +58,14 @@ function rhythmSignalsSince(workbook: WorkdayWorkbookRecord, actionType: string,
   );
 }
 
+function activeCarryoverSourceIds(workbook: WorkdayWorkbookRecord) {
+  return new Set(
+    workbook.carryovers
+      .filter((item) => item.status !== WorkdayCarryoverStatus.DISMISSED)
+      .map((item) => item.sourceId)
+  );
+}
+
 const startDayEvidenceActionTypes = new Set([
   "workbook.daily_focus_created",
   "workbook.checklist_created",
@@ -309,12 +317,13 @@ export function buildExecutionTrackingEngine(workbook: WorkdayWorkbookRecord) {
 
 export function buildRiskAndBlockerEngine(workbook: WorkdayWorkbookRecord, operatingSignals: WorkdayWorkbookOperatingSignals = { approvalCount: 0, handoffCount: 0, reportExceptions: 0 }) {
   const quickUpdateIntelligence = buildQuickUpdateIntelligenceEngine(workbook);
+  const preparedCarryoverSourceIds = activeCarryoverSourceIds(workbook);
   const dailyFocusBlockers = workbook.dailyFocusItems.filter((item) => item.riskLevel === WorkdayRiskLevel.BLOCKED);
   const dailyFocusWatch = workbook.dailyFocusItems.filter((item) => item.riskLevel === WorkdayRiskLevel.WATCH);
   const checklistRed = workbook.checklistItems.filter((item) => !item.done && item.status === WorkdayChecklistStatus.RED);
   const checklistYellow = workbook.checklistItems.filter((item) => !item.done && item.status === WorkdayChecklistStatus.YELLOW);
   const quickFollowUps = workbook.quickUpdates.filter((item) => item.followUpNeeded);
-  const missingDueWindow = quickFollowUps.filter((item) => !item.dueWindow.trim());
+  const missingDueWindow = quickFollowUps.filter((item) => !item.dueWindow.trim() && !item.carryoverReady && !item.convertedTaskId && !preparedCarryoverSourceIds.has(item.id));
   const openCarryovers = workbook.carryovers.filter((item) => item.status === WorkdayCarryoverStatus.OPEN);
   const carriedSeeds = workbook.reportSeeds.filter((item) => item.status === WorkdayReportSeedStatus.CARRIED_OVER);
   const openSupport = workbook.supportActions.filter((item) => item.status !== WorkdaySupportActionStatus.RESOLVED);
@@ -329,10 +338,10 @@ export function buildRiskAndBlockerEngine(workbook: WorkdayWorkbookRecord, opera
     ...openSupport.map((item) => ({ id: item.id, sourceType: "SUPPORT_ACTION" as const, title: "Open support action", detail: item.note }))
   ];
   const tomorrowCarryoverCandidates = [
-    ...workbook.dailyFocusItems.filter((item) => item.status === WorkdayDailyFocusStatus.CARRY_OVER || item.mustCloseToday && item.status !== WorkdayDailyFocusStatus.DONE).map((item) => ({ id: item.id, sourceType: "DAILY_FOCUS" as const, title: item.outcome })),
-    ...workbook.checklistItems.filter((item) => item.carryoverReady).map((item) => ({ id: item.id, sourceType: "CHECKLIST_ITEM" as const, title: item.text })),
-    ...quickFollowUps.map((item) => ({ id: item.id, sourceType: "QUICK_UPDATE" as const, title: item.text })),
-    ...carriedSeeds.map((item) => ({ id: item.id, sourceType: "REPORT_SEED" as const, title: item.title }))
+    ...workbook.dailyFocusItems.filter((item) => (item.status === WorkdayDailyFocusStatus.CARRY_OVER || item.mustCloseToday && item.status !== WorkdayDailyFocusStatus.DONE) && !preparedCarryoverSourceIds.has(`daily-focus:${item.id}`)).map((item) => ({ id: item.id, sourceType: "DAILY_FOCUS" as const, title: item.outcome })),
+    ...workbook.checklistItems.filter((item) => item.carryoverReady && !preparedCarryoverSourceIds.has(item.id)).map((item) => ({ id: item.id, sourceType: "CHECKLIST_ITEM" as const, title: item.text })),
+    ...quickFollowUps.filter((item) => !preparedCarryoverSourceIds.has(item.id)).map((item) => ({ id: item.id, sourceType: "QUICK_UPDATE" as const, title: item.text })),
+    ...carriedSeeds.filter((item) => !preparedCarryoverSourceIds.has(item.id)).map((item) => ({ id: item.id, sourceType: "REPORT_SEED" as const, title: item.title }))
   ];
   const prompts: string[] = [];
 
@@ -559,12 +568,14 @@ export function buildWorkflowGovernanceEngine(workbook: WorkdayWorkbookRecord, o
   const isClosed = workbook.status === "CLOSED";
   const startComplete = hasStartTheDayEvidence(workbook);
   const closeWindowOpen = isAfterCloseWindow(now, workbook);
+  const preparedCarryoverSourceIds = activeCarryoverSourceIds(workbook);
   const unconfirmedCarryovers = workbook.carryovers.filter((item) => item.status === WorkdayCarryoverStatus.OPEN).length;
   const needsDraft = reporting.sourceBackedCount > 0 && workbook.reportDrafts.length === 0;
   const focusWithoutDisposition = workbook.dailyFocusItems.filter((item) =>
     item.status !== WorkdayDailyFocusStatus.DONE &&
     item.status !== WorkdayDailyFocusStatus.CARRY_OVER &&
     !item.convertedTaskId &&
+    !preparedCarryoverSourceIds.has(`daily-focus:${item.id}`) &&
     !item.progressUpdate.trim() &&
     !item.supportNeeded.trim() &&
     !item.riskNote.trim()
@@ -573,6 +584,7 @@ export function buildWorkflowGovernanceEngine(workbook: WorkdayWorkbookRecord, o
     !item.done &&
     !item.carryoverReady &&
     !item.convertedTaskId &&
+    !preparedCarryoverSourceIds.has(item.id) &&
     !item.update.trim() &&
     item.status === WorkdayChecklistStatus.GREEN
   ).length;
@@ -580,7 +592,8 @@ export function buildWorkflowGovernanceEngine(workbook: WorkdayWorkbookRecord, o
     item.followUpNeeded &&
     !item.dueWindow.trim() &&
     !item.carryoverReady &&
-    !item.convertedTaskId
+    !item.convertedTaskId &&
+    !preparedCarryoverSourceIds.has(item.id)
   ).length;
   const unresolvedAttentionCount =
     focusWithoutDisposition +
@@ -590,8 +603,15 @@ export function buildWorkflowGovernanceEngine(workbook: WorkdayWorkbookRecord, o
   const allImportantItemsDispositioned = unresolvedAttentionCount === 0;
   const startReadyScore = startComplete && planning.focusItemCount ? 20 : 0;
   const quickUpdateReviewScore = followUpsWithoutDisposition === 0 ? 20 : Math.max(0, 20 - followUpsWithoutDisposition * 7);
-  const workDispositionScore = focusWithoutDisposition + checklistWithoutDisposition === 0 ? 20 : Math.max(0, 20 - (focusWithoutDisposition + checklistWithoutDisposition) * 5);
-  const attentionDispositionScore = risk.blockerCount === 0 || allImportantItemsDispositioned ? 20 : Math.max(0, 20 - risk.blockerCount * 5);
+  const workDispositionScore = execution.unfinishedWorkCount === 0
+    ? 20
+    : focusWithoutDisposition + checklistWithoutDisposition === 0
+      ? Math.max(0, 12 - execution.unfinishedWorkCount * 2)
+      : Math.max(0, 20 - (focusWithoutDisposition + checklistWithoutDisposition) * 5 - execution.unfinishedWorkCount * 2);
+  const unresolvedOperatingAttentionCount = operatingSignals.approvalCount + operatingSignals.handoffCount + operatingSignals.reportExceptions;
+  const attentionDispositionScore = unresolvedOperatingAttentionCount === 0 && (risk.blockerCount === 0 || allImportantItemsDispositioned)
+    ? 20
+    : Math.max(0, 20 - risk.blockerCount * 5 - unresolvedOperatingAttentionCount * 2);
   const reportScore = reporting.candidateSeedCount === 0 || workbook.reportDrafts.length > 0 ? 10 : Math.max(0, 10 - reporting.candidateSeedCount * 2);
   const staffReviewScore = workbook.supportActions.every((item) => item.status === WorkdaySupportActionStatus.RESOLVED) || allImportantItemsDispositioned ? 10 : 0;
   const endTheDayEligibilityScore = clampScore(startReadyScore + quickUpdateReviewScore + workDispositionScore + attentionDispositionScore + reportScore + staffReviewScore + (closeWindowOpen ? 8 : 0));
@@ -604,25 +624,34 @@ export function buildWorkflowGovernanceEngine(workbook: WorkdayWorkbookRecord, o
     ...(unconfirmedCarryovers ? [`${unconfirmedCarryovers} carryover item(s) not confirmed.`] : []),
     ...(needsDraft && endTheDayEligibilityScore >= 80 ? ["Daily report draft has not been generated."] : [])
   ];
-  const endTheDayReady = !isClosed && startComplete && planning.focusItemCount > 0 && (endTheDayEligibilityScore >= 80 || closeWindowOpen && allImportantItemsDispositioned);
+  const workHasActuallyMoved = execution.completedWorkCount > 0 || execution.taskConversionCount > 0 || workbook.quickUpdates.length > 0;
+  const readyToCloseActiveWork = execution.unfinishedWorkCount === 0 || closeWindowOpen && allImportantItemsDispositioned && workHasActuallyMoved;
+  const endTheDayReady =
+    !isClosed &&
+    startComplete &&
+    planning.focusItemCount > 0 &&
+    allImportantItemsDispositioned &&
+    unresolvedOperatingAttentionCount === 0 &&
+    readyToCloseActiveWork &&
+    endTheDayEligibilityScore >= 80;
   const currentStage = isClosed
     ? "GENERATE_REPORT" as const
     : !startComplete || planning.focusItemCount === 0
       ? "START_THE_DAY" as const
-      : endTheDayReady
-        ? "CLOSE_THE_DAY" as const
-      : closeWindowOpen && closeBlockers.length
-        ? "PREPARE_TOMORROW" as const
-      : risk.blockerCount > 0 && !allImportantItemsDispositioned
+      : risk.blockerCount > 0 && !allImportantItemsDispositioned || unresolvedOperatingAttentionCount > 0
         ? "ASK_FOR_SUPPORT" as const
       : execution.unfinishedWorkCount > 0
         ? "WORK_THE_DAY" as const
+        : closeWindowOpen && closeBlockers.length
+          ? "PREPARE_TOMORROW" as const
+          : endTheDayReady
+            ? "CLOSE_THE_DAY" as const
           : risk.tomorrowCarryoverCandidates.length > 0
             ? "PREPARE_TOMORROW" as const
-            : "CLOSE_THE_DAY" as const;
+            : "WORK_THE_DAY" as const;
   const nextRecommendedAction =
     currentStage === "START_THE_DAY" ? planning.staffGuidance :
-      currentStage === "ASK_FOR_SUPPORT" ? risk.staffGuidance :
+      currentStage === "ASK_FOR_SUPPORT" ? unresolvedOperatingAttentionCount > 0 ? "Review needs-attention work before ending the day." : risk.staffGuidance :
         currentStage === "WORK_THE_DAY" ? execution.staffGuidance :
           currentStage === "PREPARE_TOMORROW" ? "Prepare tomorrow from carryovers and unresolved focus." :
             currentStage === "GENERATE_REPORT" ? "Review or share the latest report draft." :

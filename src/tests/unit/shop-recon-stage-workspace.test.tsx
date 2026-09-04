@@ -469,5 +469,6 @@ describe("Shop Recon unified vehicle-card design", () => {
     expect(html).toContain("Receiving-party acceptance captured");
     expect(html).toContain("Final location and exit recorded");
     expect(html).toContain("Return path synced");
+    expect(html).toContain("Complete handoff checklist");
   });
 });

@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 
 import { ShopReconSafetyMobilityTriage } from "@/features/inventory/shop-recon-safety-mobility-triage";
 import { requireCurrentUser } from "@/server/auth/current-user";
@@ -8,9 +8,9 @@ import { getShopReconLifecycleWorkspace } from "@/server/shop-recon/service";
 export default async function ShopReconSafetyMobilityTriagePage({ params, searchParams }: { params: Promise<{ repairOrderId: string }>; searchParams?: Promise<{ returnTo?: string }> }) {
   const user = await requireCurrentUser();
   const [{ repairOrderId }, query, model] = await Promise.all([params, searchParams ?? Promise.resolve<{ returnTo?: string }>({}), getShopReconLanding(user)]);
+  const returnTo = query.returnTo?.startsWith("/") && !query.returnTo.startsWith("//") ? query.returnTo : "/vehicles/shop-recon";
   const item = model.items.find(candidate => candidate.id === repairOrderId);
-  if (!item) notFound();
+  if (!item) redirect(returnTo);
   const lifecycleWorkspace = await getShopReconLifecycleWorkspace(user, repairOrderId);
-  const returnTo = query.returnTo?.startsWith("/") && !query.returnTo.startsWith("//") ? query.returnTo : `/vehicles/shop-recon/${encodeURIComponent(repairOrderId)}`;
   return <ShopReconSafetyMobilityTriage item={JSON.parse(JSON.stringify(item))} lifecycleWorkspace={JSON.parse(JSON.stringify(lifecycleWorkspace))} returnTo={returnTo} />;
 }

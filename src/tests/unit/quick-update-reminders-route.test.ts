@@ -29,6 +29,19 @@ describe("Quick Update schedule reminders", () => {
     expect((await GET(new Request("http://localhost/api/appointments/reminders?date=2026-09-08"))).status).toBe(401);
     expect(mocks.findMany).not.toHaveBeenCalled();
   });
+  it("reads a bounded month with dates and preserves user isolation", async () => {
+    mocks.findMany.mockResolvedValue([{ id: "note-1", text: "Call", dueWindow: "2026-09-08" }]);
+    mocks.checklist.mockResolvedValue([{ id: "item-1", text: "Review", reminderDate: "2026-09-12" }]);
+    const response = await GET(new Request("http://localhost/api/appointments/reminders?date=2026-09-01&through=2026-09-30"));
+    expect(response.status).toBe(200);
+    expect(mocks.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { followUpNeeded: true, dueWindow: { gte: "2026-09-01", lte: "2026-09-30" }, workbook: { userId: "staff-1" } } }));
+    expect(mocks.checklist).toHaveBeenCalledWith(expect.objectContaining({ where: { done: false, reminderDate: { gte: "2026-09-01", lte: "2026-09-30" }, workbook: { userId: "staff-1" } } }));
+    expect((await response.json()).reminders.map((item: { date: string }) => item.date)).toEqual(["2026-09-08", "2026-09-12"]);
+  });
+  it.each(["2026-08-31", "2026-10-02", "2026-09-31", "bad"])("rejects an invalid or oversized range ending %s", async through => {
+    expect((await GET(new Request(`http://localhost/api/appointments/reminders?date=2026-09-01&through=${through}`))).status).toBe(400);
+    expect(mocks.findMany).not.toHaveBeenCalled();
+  });
   it("reports read failures instead of a misleading empty schedule", async () => {
     mocks.findMany.mockRejectedValue(new Error("Database unavailable"));
     expect((await GET(new Request("http://localhost/api/appointments/reminders?date=2026-09-08"))).status).toBe(500);

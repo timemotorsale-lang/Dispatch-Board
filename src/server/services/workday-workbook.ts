@@ -1,4 +1,5 @@
 import { normalizeChecklistReminderDate } from "@/lib/checklist-reminder-date";
+import { externalActivityPurpose, WORKDAY_ACTIVITY_TIME_ZONE } from "@/lib/workday-activity";
 import {
   WorkdayActivityPurpose,
   WorkdayCarryoverStatus,
@@ -45,7 +46,7 @@ export type WorkdayWorkbookOperatingSignals = {
   reportExceptions: number;
 };
 
-export const WORKDAY_WORKBOOK_TIME_ZONE = "America/Chicago";
+export const WORKDAY_WORKBOOK_TIME_ZONE = WORKDAY_ACTIVITY_TIME_ZONE;
 
 export function currentWorkdayBoardDate(now = new Date()) {
   return getBoardDateInTimeZone(now, WORKDAY_WORKBOOK_TIME_ZONE);
@@ -252,6 +253,7 @@ function classifyActivityPurpose(eventType: string, metadata: Record<string, unk
 }
 
 function activitySourceModule(eventType: string, metadata: Record<string, unknown> = {}) {
+  if (typeof metadata.sourceModule === "string") return metadata.sourceModule;
   const normalized = eventType.toLocaleLowerCase();
   if (normalized.includes("workbook")) return "COO_WORKBOOK";
   if (normalized.includes("task")) return "TASKS";
@@ -322,15 +324,18 @@ async function recordWorkbookActivity(repository: WorkdayWorkbookRepository, use
 async function synchronizeActivityEventsForWorkbook(repository: WorkdayWorkbookRepository, workbook: WorkdayWorkbookRecord) {
   const events = await repository.listActivityEventsForWorkbookContext({
     actorUserId: workbook.userId,
+    boardDate: workbook.boardDay.date.toISOString().slice(0, 10),
     boardDayId: workbook.boardDayId
   });
 
-  await Promise.all(events
+  // Sequential upserts avoid flooding the connection pool on high-activity days.
+  for (const event of events
     .filter((event) => !(safeMetadata(event.metadata).workbookId === workbook.id))
-    .map((event) => {
+    ) {
       const metadata = safeMetadata(event.metadata);
-      const purpose = classifyActivityPurpose(event.eventType, metadata);
-      return repository.createActivitySignal({
+      const internalWorkbook = event.eventType.toLowerCase().startsWith("workbook.");
+      const purpose = internalWorkbook ? classifyActivityPurpose(event.eventType, metadata) : externalActivityPurpose(event.eventType, metadata);
+      await repository.createActivitySignal({
         actionType: event.eventType,
         actorUserId: workbook.userId,
         boardDayId: workbook.boardDayId,
@@ -346,13 +351,13 @@ async function synchronizeActivityEventsForWorkbook(repository: WorkdayWorkbookR
         },
         occurredAt: event.createdAt,
         purpose,
-        reportRelevant: activityReportRelevant(purpose),
-        sourceId: event.id,
+        reportRelevant: internalWorkbook ? workbookActivityReportRelevant(event.eventType, purpose) : activityReportRelevant(purpose),
+        sourceId: typeof metadata.reportSourceId === "string" ? metadata.reportSourceId : event.id,
         sourceModule: activitySourceModule(event.eventType, metadata),
-        sourceType: event.taskId ? "TASK_ACTIVITY" : "ACTIVITY_EVENT",
+        sourceType: typeof metadata.sourceType === "string" && ["ENTERPRISE_AUDIT", "DIAGNOSTIC_DRAFT"].includes(metadata.sourceType) ? metadata.sourceType : event.taskId ? "TASK_ACTIVITY" : "ACTIVITY_EVENT",
         workbookId: workbook.id
       });
-    }));
+    }
 }
 
 function seedToneForChecklist(status: WorkdayChecklistStatus): WorkdayReportSeedTone {
@@ -440,12 +445,14 @@ export function buildWorkdayDailyReportDraft(workbook: WorkdayWorkbookRecord, bo
   const completedSeeds = reportSeeds.filter((seed) => seed.tone === WorkdayReportSeedTone.GREEN);
   const riskSeeds = reportSeeds.filter((seed) => seed.tone === WorkdayReportSeedTone.RED || seed.tone === WorkdayReportSeedTone.YELLOW);
   const quickUpdateSeeds = reportSeeds.filter((seed) => seed.sourceType === WorkdayReportSeedSourceType.QUICK_UPDATE);
-  const managementSeeds = reportSeeds.filter((seed) => seed.sourceType === WorkdayReportSeedSourceType.OPERATING_EXCEPTION);
+  const appActivitySeeds = reportSeeds.filter((seed) => seed.sourceId.startsWith("activity:"));
+  const managementSeeds = reportSeeds.filter((seed) => seed.sourceType === WorkdayReportSeedSourceType.OPERATING_EXCEPTION && !seed.sourceId.startsWith("activity:"));
   const effectiveness = buildDailyEffectiveness(workbook);
   const sections = [
     draftSection("Completed / Closed Today", completedSeeds),
     draftSection("Blockers and Risks", riskSeeds),
     draftSection("Quick Updates / Unplanned Events", quickUpdateSeeds),
+    draftSection("Work performed across the app", appActivitySeeds),
     draftSection("Approval or Management Review", managementSeeds),
     draftSection("Carryover for Tomorrow", carryoverSeeds),
     {
@@ -582,7 +589,7 @@ export function buildWorkdayCarryovers(workbook: WorkdayWorkbookRecord, targetBo
       title: item.text
     })),
     ...workbook.quickUpdates.filter((item) => item.carryoverReady || item.followUpNeeded).map((item) => ({
-      detail: [item.text, item.person ? `Person: ${item.person}.` : "", item.company ? `Company: ${item.company}.` : "", item.dueWindow ? `Due: ${item.dueWindow}.` : ""].filter(Boolean).join(" "),
+      detail: [item.text, item.person ? `Person: ${item.person}.` : "", item.phoneNumber ? `Phone: ${item.phoneNumber}.` : "", item.company ? `Company: ${item.company}.` : "", item.dueWindow ? `Due: ${item.dueWindow}.` : ""].filter(Boolean).join(" "),
       sourceHref: item.convertedTaskId ? `/tasks/${item.convertedTaskId}` : null,
       sourceId: item.id,
       sourceType: WorkdayReportSeedSourceType.QUICK_UPDATE,
@@ -649,6 +656,7 @@ export function buildWorkdayReportSeeds(
         item.text,
         intelligence ? `Signal: ${intelligence.signalLabel} (${intelligence.confidence.toLocaleLowerCase()} confidence, impact ${intelligence.impactScore}/100).` : "",
         item.person ? `Person: ${item.person}.` : "",
+        item.phoneNumber ? `Phone: ${item.phoneNumber}.` : "",
         item.company ? `Company: ${item.company}.` : "",
         item.followUpNeeded ? `Follow-up: ${item.dueWindow || "needed"}.` : "",
         intelligence?.recommendedAction ? `Recommended action: ${intelligence.recommendedAction}` : ""
@@ -662,12 +670,14 @@ export function buildWorkdayReportSeeds(
   }
 
   for (const signal of (workbook.activitySignals ?? []).filter((item) => item.reportRelevant)) {
+    const metadata = safeMetadata(signal.metadata);
+    const href = typeof metadata.sourceHref === "string" && metadata.sourceHref.startsWith("/") && !metadata.sourceHref.startsWith("//") ? metadata.sourceHref : typeof metadata.taskId === "string" ? `/tasks/${encodeURIComponent(metadata.taskId)}` : null;
     seeds.push({
       detail: signal.businessImpact,
-      sourceHref: null,
+      sourceHref: href,
       sourceId: `activity:${signal.id}`,
       sourceType: WorkdayReportSeedSourceType.OPERATING_EXCEPTION,
-      title: activitySourceModule(signal.actionType, safeMetadata(signal.metadata)).replaceAll("_", " ").toLocaleLowerCase().replace(/^./, (letter) => letter.toUpperCase()),
+      title: typeof metadata.taskTitle === "string" && metadata.taskTitle ? metadata.taskTitle : signal.actionType.replace(/[._]/g, " ").toLocaleLowerCase().replace(/^./, (letter) => letter.toUpperCase()),
       tone: signal.purpose === WorkdayActivityPurpose.BLOCKER_RISK ? WorkdayReportSeedTone.RED : signal.purpose === WorkdayActivityPurpose.COMPLETED_WORK ? WorkdayReportSeedTone.GREEN : WorkdayReportSeedTone.BLUE
     });
   }
@@ -717,10 +727,19 @@ function percentScore(done: number, total: number, fallback: number) {
   return total ? Math.round((done / total) * 100) : fallback;
 }
 
+function activeCarryoverSourceIds(workbook: { carryovers: Array<{ sourceId: string; status: WorkdayCarryoverStatus }> }) {
+  return new Set(
+    workbook.carryovers
+      .filter((item) => item.status !== WorkdayCarryoverStatus.DISMISSED)
+      .map((item) => item.sourceId)
+  );
+}
+
 function buildDailyEffectiveness(workbook: WorkdayWorkbookRecord) {
+  const preparedCarryoverSourceIds = activeCarryoverSourceIds(workbook);
   const focusTotal = workbook.dailyFocusItems.length;
   const focusDone = workbook.dailyFocusItems.filter((item) => item.status === WorkdayDailyFocusStatus.DONE).length;
-  const mustCloseOpen = workbook.dailyFocusItems.filter((item) => item.mustCloseToday && item.status !== WorkdayDailyFocusStatus.DONE).length;
+  const mustCloseOpen = workbook.dailyFocusItems.filter((item) => item.mustCloseToday && item.status !== WorkdayDailyFocusStatus.DONE && !preparedCarryoverSourceIds.has(`daily-focus:${item.id}`)).length;
   const focusRisks = workbook.dailyFocusItems.filter((item) => item.riskLevel !== WorkdayRiskLevel.NONE).length;
   const checklistTotal = workbook.checklistItems.length;
   const checklistDone = workbook.checklistItems.filter((item) => item.done).length;
@@ -728,13 +747,13 @@ function buildDailyEffectiveness(workbook: WorkdayWorkbookRecord) {
   const completedTotal = focusDone + checklistDone;
   const checklistRisks = workbook.checklistItems.filter((item) => !item.done && (item.status === WorkdayChecklistStatus.RED || item.status === WorkdayChecklistStatus.YELLOW || item.riskLevel !== WorkdayRiskLevel.NONE)).length;
   const quickUpdateCount = workbook.quickUpdates.length;
-  const followUps = workbook.quickUpdates.filter((item) => item.followUpNeeded).length;
+  const followUps = workbook.quickUpdates.filter((item) => item.followUpNeeded && !preparedCarryoverSourceIds.has(item.id)).length;
   const reviewedSeeds = workbook.reportSeeds.filter((seed) => seed.status !== WorkdayReportSeedStatus.CANDIDATE).length;
   const carryovers =
-    workbook.dailyFocusItems.filter((item) => item.status === WorkdayDailyFocusStatus.CARRY_OVER).length +
-    workbook.checklistItems.filter((item) => item.carryoverReady).length +
-    workbook.quickUpdates.filter((item) => item.carryoverReady).length +
-    workbook.reportSeeds.filter((seed) => seed.status === WorkdayReportSeedStatus.CARRIED_OVER).length +
+    workbook.dailyFocusItems.filter((item) => item.status === WorkdayDailyFocusStatus.CARRY_OVER && !preparedCarryoverSourceIds.has(`daily-focus:${item.id}`)).length +
+    workbook.checklistItems.filter((item) => item.carryoverReady && !preparedCarryoverSourceIds.has(item.id)).length +
+    workbook.quickUpdates.filter((item) => item.carryoverReady && !preparedCarryoverSourceIds.has(item.id)).length +
+    workbook.reportSeeds.filter((seed) => seed.status === WorkdayReportSeedStatus.CARRIED_OVER && !preparedCarryoverSourceIds.has(seed.id)).length +
     workbook.carryovers.filter((item) => item.status !== WorkdayCarryoverStatus.DISMISSED).length;
   const openSupport = workbook.supportActions.filter((item) => item.status !== WorkdaySupportActionStatus.RESOLVED).length;
   const supportNotes = workbook.dailyFocusItems.map((item) => item.supportNeeded.trim()).filter(Boolean);
@@ -778,18 +797,19 @@ function buildDailyEffectiveness(workbook: WorkdayWorkbookRecord) {
 }
 
 function buildCloseReadiness(workbook: WorkdayWorkbookRecord) {
+  const preparedCarryoverSourceIds = activeCarryoverSourceIds(workbook);
   const effectiveness = buildDailyEffectiveness(workbook);
   const checklistTotal = workbook.checklistItems.length;
   const checklistDone = workbook.checklistItems.filter((item) => item.done).length;
   const checklistCompletion = checklistTotal ? Math.round((checklistDone / checklistTotal) * 100) : 0;
   const checklistNeedsSupport = workbook.checklistItems.filter((item) => !item.done && (item.status === WorkdayChecklistStatus.YELLOW || item.status === WorkdayChecklistStatus.RED || item.riskLevel !== WorkdayRiskLevel.NONE)).length;
   const focusNeedsSupport = workbook.dailyFocusItems.filter((item) => item.status !== WorkdayDailyFocusStatus.DONE && (item.riskLevel !== WorkdayRiskLevel.NONE || item.supportNeeded.trim().length > 0)).length;
-  const quickFollowUps = workbook.quickUpdates.filter((item) => item.followUpNeeded).length;
+  const quickFollowUps = workbook.quickUpdates.filter((item) => item.followUpNeeded && !preparedCarryoverSourceIds.has(item.id)).length;
   const carryoverItems =
-    workbook.dailyFocusItems.filter((item) => item.status === WorkdayDailyFocusStatus.CARRY_OVER || item.mustCloseToday && item.status !== WorkdayDailyFocusStatus.DONE).length +
-    workbook.checklistItems.filter((item) => item.carryoverReady).length +
-    workbook.quickUpdates.filter((item) => item.carryoverReady).length +
-    workbook.reportSeeds.filter((seed) => seed.status === WorkdayReportSeedStatus.CARRIED_OVER).length +
+    workbook.dailyFocusItems.filter((item) => (item.status === WorkdayDailyFocusStatus.CARRY_OVER || item.mustCloseToday && item.status !== WorkdayDailyFocusStatus.DONE) && !preparedCarryoverSourceIds.has(`daily-focus:${item.id}`)).length +
+    workbook.checklistItems.filter((item) => item.carryoverReady && !preparedCarryoverSourceIds.has(item.id)).length +
+    workbook.quickUpdates.filter((item) => item.carryoverReady && !preparedCarryoverSourceIds.has(item.id)).length +
+    workbook.reportSeeds.filter((seed) => seed.status === WorkdayReportSeedStatus.CARRIED_OVER && !preparedCarryoverSourceIds.has(seed.id)).length +
     workbook.carryovers.filter((item) => item.status === WorkdayCarryoverStatus.OPEN).length;
   const supportActions = workbook.supportActions.filter((item) => item.status !== WorkdaySupportActionStatus.RESOLVED).length;
   const reviewedSeeds = workbook.reportSeeds.filter((seed) => seed.status !== WorkdayReportSeedStatus.CANDIDATE).length;
@@ -841,6 +861,7 @@ function buildCloseReadiness(workbook: WorkdayWorkbookRecord) {
 }
 
 function toStaffWorkbookSummary(record: WorkdayWorkbookSummaryRecord) {
+  const preparedCarryoverSourceIds = activeCarryoverSourceIds(record);
   const redYellowCount = record.checklistItems.filter((item) => item.status === WorkdayChecklistStatus.RED || item.status === WorkdayChecklistStatus.YELLOW).length;
   const latestDraft = record.reportDrafts[0] ?? null;
   const checklistCount = record.checklistItems.length;
@@ -848,12 +869,12 @@ function toStaffWorkbookSummary(record: WorkdayWorkbookSummaryRecord) {
   const dailyFocusCount = record.dailyFocusItems.length;
   const completedDailyFocusCount = record.dailyFocusItems.filter((item) => item.status === WorkdayDailyFocusStatus.DONE).length;
   const dailyFocusRiskCount = record.dailyFocusItems.filter((item) => item.riskLevel !== WorkdayRiskLevel.NONE || item.supportNeeded.trim().length > 0).length;
-  const followUpNeededCount = record.quickUpdates.filter((item) => item.followUpNeeded).length;
+  const followUpNeededCount = record.quickUpdates.filter((item) => item.followUpNeeded && !preparedCarryoverSourceIds.has(item.id)).length;
   const carryoverCount =
-    record.dailyFocusItems.filter((item) => item.status === WorkdayDailyFocusStatus.CARRY_OVER || item.mustCloseToday && item.status !== WorkdayDailyFocusStatus.DONE).length +
-    record.checklistItems.filter((item) => item.carryoverReady).length +
-    record.quickUpdates.filter((item) => item.carryoverReady).length +
-    record.reportSeeds.filter((seed) => seed.status === WorkdayReportSeedStatus.CARRIED_OVER).length +
+    record.dailyFocusItems.filter((item) => (item.status === WorkdayDailyFocusStatus.CARRY_OVER || item.mustCloseToday && item.status !== WorkdayDailyFocusStatus.DONE) && !preparedCarryoverSourceIds.has(`daily-focus:${item.id}`)).length +
+    record.checklistItems.filter((item) => item.carryoverReady && !preparedCarryoverSourceIds.has(item.id)).length +
+    record.quickUpdates.filter((item) => item.carryoverReady && !preparedCarryoverSourceIds.has(item.id)).length +
+    record.reportSeeds.filter((seed) => seed.status === WorkdayReportSeedStatus.CARRIED_OVER && !preparedCarryoverSourceIds.has(seed.id)).length +
     record.carryovers.filter((item) => item.status === WorkdayCarryoverStatus.OPEN).length;
   const openSupportActions = record.supportActions.filter((item) => item.status !== WorkdaySupportActionStatus.RESOLVED).length;
   const reviewedSeedCount = record.reportSeeds.filter((seed) => seed.status !== WorkdayReportSeedStatus.CANDIDATE).length;
@@ -1003,6 +1024,7 @@ function toReadModel(workbook: WorkdayWorkbookRecord, operatingSignals: WorkdayW
       text: item.text,
       category: item.category,
       person: item.person,
+      phoneNumber: item.phoneNumber,
       company: item.company,
       followUpNeeded: item.followUpNeeded,
       dueWindow: item.dueWindow,
@@ -1313,6 +1335,7 @@ async function createWorkbookQuickUpdate(actor: AuthenticatedUser | null, boardD
     dueWindow: normalizeOptionalText(payload.dueWindow, "dueWindow", 180) ?? "",
     followUpNeeded: normalizeBoolean(payload.followUpNeeded, "followUpNeeded") ?? false,
     person: normalizeOptionalText(payload.person, "person", 180) ?? "",
+    phoneNumber: normalizeOptionalText(payload.phoneNumber, "phoneNumber", 50) ?? "",
     text: normalizeRequiredText(payload.text, "Quick Update text is required.", 1200),
     workbookId: workbook.id
   });
@@ -1344,6 +1367,7 @@ export async function updateCooWorkbookQuickUpdate(actor: AuthenticatedUser | nu
     followUpNeeded: normalizeBoolean(payload.followUpNeeded, "followUpNeeded"),
     id: item.id,
     person: normalizeOptionalText(payload.person, "person", 180),
+    phoneNumber: normalizeOptionalText(payload.phoneNumber, "phoneNumber", 50),
     text: payload.text === undefined ? undefined : normalizeRequiredText(payload.text, "Quick Update text is required.", 1200)
   });
   await recordWorkbookActivity(repository, user, item.workbook, "workbook.quick_update_updated", `${user.name} updated a Quick Update.`, { quickUpdateId: item.id });
@@ -1388,6 +1412,8 @@ async function createWorkbookDailyReportDraft(
     userId: user.id
   });
   assertWorkbookEditable(user, workbook);
+  await synchronizeActivityEventsForWorkbook(repository, workbook);
+  workbook = await repository.getOrCreateWorkbook({ boardDayId: boardDay.id, scope, userId: user.id });
   await repository.upsertReportSeeds({
     seeds: buildWorkdayReportSeeds(workbook, operatingSignals),
     workbookId: workbook.id

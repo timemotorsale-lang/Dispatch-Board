@@ -37,6 +37,26 @@ describe("task intake validation", () => {
     );
   });
 
+  it("allows management carryovers without vehicle or customer context", () => {
+    expect(normalizeTaskCreateInput({
+      ...validIntake,
+      customerReference: undefined,
+      description: "Converted from COO Workbook carryover. Daily focus item needs tomorrow ownership.",
+      intakeMetadata: {
+        channel: "COO Workbook",
+        expectedOutcome: "The carryover has a clear owner, timing, and completion result.",
+        intakeType: "Carryover Task",
+        requiredUpdates: ["Record the outcome or blocker before the next close."]
+      },
+      title: "Carryover: Review conciliation cases",
+      vehicleReference: undefined,
+      workflowArea: "GENERAL_MANAGER"
+    })).toMatchObject({
+      intakeMetadata: { intakeType: "Carryover Task" },
+      workflowArea: "GENERAL_MANAGER"
+    });
+  });
+
   it("rejects an intake with an incomplete expected outcome", () => {
     expect(() => normalizeTaskCreateInput({
       ...validIntake,

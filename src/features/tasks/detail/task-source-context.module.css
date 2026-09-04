@@ -1,0 +1,20 @@
+.source { display: contents; color: #24344f; }
+.bar { position: absolute; top: 45px; right: 0; display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 5px; max-width: 380px; padding: 3px 0; color: #506078; }
+.bar span, .source a { display: flex; align-items: center; gap: 6px; }
+.bar span { font-size: 11px; white-space: nowrap; }
+.bar button { border: 0; border-radius: 6px; padding: 4px 6px; background: transparent; color: #3557c7; font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; }
+.bar button:hover { background: #edf2fc; }
+.details { grid-column: 1 / -1; display: grid; gap: 12px; padding: 14px; border: 1px solid #d7e0ef; border-radius: 10px; background: #f8faff; }
+.details dl { display: flex; flex-wrap: wrap; gap: 12px 28px; margin: 0; }
+.details dt { color: #66738a; font-size: 12px; text-transform: uppercase; }
+.details dd { margin: 2px 0 0; overflow-wrap: anywhere; }
+.details p { margin: 5px 0; line-height: 1.5; white-space: pre-wrap; }
+.editor { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid #d7e0ef; }
+.editor label { display: grid; gap: 6px; font-weight: 700; }
+.editor textarea { box-sizing: border-box; width: 100%; min-height: 110px; padding: 10px; border: 1px solid #bdc9df; border-radius: 8px; resize: vertical; font: inherit; }
+.editor span { display: flex; flex-wrap: wrap; gap: 8px; }
+.editor button { padding: 9px 14px; border: 1px solid #3656ca; border-radius: 8px; background: #3656ca; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+.editor button + button { background: #fff; color: #3656ca; }
+.source :is(button, a, textarea):focus-visible { outline: 3px solid #4d6ce3; outline-offset: 2px; }
+@media(max-width:900px) { .bar { position: static; grid-column: 1 / -1; justify-self: stretch; justify-content: flex-start; max-width: none; margin-top: -2px; } }
+@media(max-width:600px) { .bar { align-items: center; } }

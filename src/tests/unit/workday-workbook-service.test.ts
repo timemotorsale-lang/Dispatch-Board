@@ -371,6 +371,33 @@ function repositoryHarness(ownerUserId = "user-jordan.sales@local.test") {
 }
 
 describe("workday workbook service", () => {
+  it("syncs cross-app work before generating a report without opening the workbook first, and deduplicates repeat syncs", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("jordan.sales@local.test")!;
+    const harness = repositoryHarness(user.id);
+    harness.currentWorkbook.activitySignals = [];
+    harness.currentWorkbook.reportSeeds = [];
+    harness.activityEventsForSync.push(...Array.from({ length: 121 }, (_, index) => ({ id: `audit:${index}`, eventType: "PRESENT_ESTIMATE_COMPLETED", message: `Estimate revision ${index} saved; awaiting approval`, metadata: { sourceType: "ENTERPRISE_AUDIT", sourceModule: "SHOP_PLANNING", commandType: "PRESENT_ESTIMATE", sourceHref: `/vehicles/repair-workbench?repairOrderId=ro-${index}` }, taskId: null, task: null, createdAt: new Date("2026-08-29T16:00:00Z") })));
+    harness.repository.createActivitySignal = async input => {
+      const existing = harness.currentWorkbook.activitySignals.find(row => row.sourceId === input.sourceId && row.actionType === input.actionType && row.sourceType === input.sourceType);
+      const row = { ...input, metadata: JSON.parse(JSON.stringify(input.metadata)), id: existing?.id ?? `signal-${input.sourceId}`, occurredAt: input.occurredAt ?? new Date(), createdAt: new Date(), updatedAt: new Date() };
+      if (existing) Object.assign(existing, row); else harness.currentWorkbook.activitySignals.push(row);
+    };
+    harness.repository.upsertReportSeeds = async ({ seeds, workbookId }) => {
+      for (const seed of seeds) {
+        const existing = harness.currentWorkbook.reportSeeds.find(row => row.sourceId === seed.sourceId && row.sourceType === seed.sourceType);
+        if (existing) Object.assign(existing, seed);
+        else harness.currentWorkbook.reportSeeds.push({ ...seed, id: `seed-${seed.sourceId}`, workbookId, sourceHref: seed.sourceHref ?? null, status: seed.status ?? WorkdayReportSeedStatus.CANDIDATE, reviewNote: "", createdAt: new Date(), updatedAt: new Date() });
+      }
+    };
+    for (let attempt = 0; attempt < 2; attempt++) await createCooWorkbookReportDraft(user, "2026-08-29", "DAILY", { approvalCount: 0, handoffCount: 0, reportExceptions: 0 }, { repository: harness.repository });
+    expect(harness.currentWorkbook.activitySignals.filter(signal => signal.reportRelevant)).toHaveLength(121);
+    expect(harness.currentWorkbook.reportSeeds.filter(seed => seed.sourceId.startsWith("activity:"))).toHaveLength(121);
+    const report = harness.createdReportDrafts[1] as { sections: Array<{ title: string; items: Array<{ sourceHref: string }> }> };
+    expect(report.sections.find(section => section.title === "Work performed across the app")?.items).toHaveLength(121);
+    expect(report.sections.find(section => section.title === "Completed / Closed Today")?.items.some(item => item.sourceHref?.startsWith("/vehicles/repair-workbench?repairOrderId=")) ?? false).toBe(false);
+    expect(report.sections.find(section => section.title === "Work performed across the app")?.items[0].sourceHref).toContain("/vehicles/repair-workbench?repairOrderId=");
+  });
   it("uses the dealership local date for the current workbook date", () => {
     expect(currentWorkdayBoardDate(new Date("2026-09-01T01:51:00.000Z"))).toBe("2026-08-31");
     expect(currentWorkdayBoardDate(new Date("2026-09-01T06:01:00.000Z"))).toBe("2026-09-01");
@@ -435,7 +462,7 @@ describe("workday workbook service", () => {
         detail: "Customer was updated before close.",
         sourceId: "activity:activity-1",
         sourceType: WorkdayReportSeedSourceType.OPERATING_EXCEPTION,
-        title: "Customer updates"
+        title: "Customer update sent"
       })
     ]);
   });

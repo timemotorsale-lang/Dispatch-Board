@@ -765,7 +765,8 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("/vehicles/coo-workbook/effectiveness-pilot#start-the-day");
     expect(html).toContain("More Tools");
     expect(html).toContain("/vehicles/coo-workbook/more-tools");
-    expect(html).not.toContain("aria-expanded=\"false\"");
+    expect(html).toContain("Daily Purse");
+    expect(html.match(/aria-expanded="false"/g)).toHaveLength(1);
     expect(html).toContain("Recommended Now");
     expect(html).toContain("Daily workflow");
     expect(html).toContain("Work The Day");
@@ -814,6 +815,9 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("/vehicles/coo-workbook/staff-support");
     expect(html).toContain("/vehicles/coo-workbook/drafts");
     expect(html).toContain("returnTo=%2Fvehicles%2Fcoo-workbook");
+    expect(html).toContain("Create task");
+    expect(html).toContain("title=Complete+scheduled+callbacks");
+    expect(html).toContain("brief=Review+this+Daily+Focus+item");
   });
 
   it("removes a repair order from COO workbook attention when it was closed from the summary card", () => {
@@ -848,6 +852,8 @@ describe("ServiceAdvisorHome", () => {
     const checklistHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="CHECKLIST" model={toolModel} />);
     const todoHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="TO_DO_LIST" model={toolModel} />);
     const quickUpdateHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="QUICK_UPDATE" model={toolModel} />);
+    const actionPlanHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="ACTION_PLAN" model={toolModel} />);
+    const carryoverHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="CARRYOVER" model={toolModel} />);
     const reportSeedsHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="REPORT_SEEDS" model={toolModel} />);
     const draftsHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="DRAFTS" model={toolModel} />);
     const moreToolsHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="MORE_TOOLS" model={toolModel} />);
@@ -863,6 +869,9 @@ describe("ServiceAdvisorHome", () => {
     expect(quickUpdateHtml).toContain("type=\"date\"");
     expect(quickUpdateHtml).toContain("Save update");
     expect(quickUpdateHtml).toContain("Convert to task");
+    expect(actionPlanHtml).toContain("Create overall action plan task");
+    expect(actionPlanHtml).toContain("Create+Service+Advisor+Workbook+daily+action+plan");
+    expect(carryoverHtml).toContain("Convert to task gives it an owner, due time, checklist, comments, and status tracking.");
     expect(reportSeedsHtml).toContain("Include");
     expect(reportSeedsHtml).toContain("Exclude");
     expect(reportSeedsHtml).toContain("Optional review note");

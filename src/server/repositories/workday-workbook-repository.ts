@@ -18,8 +18,9 @@ import {
 } from "@prisma/client";
 
 import { prisma } from "@/server/db/client";
+import { readExternalReportActivity } from "./workday-external-activity";
 
-type WorkdayWorkbookDatabase = Pick<PrismaClient, "activityEvent" | "boardDay" | "workdayActivitySignal" | "workdayAttentionSession" | "workdayCarryover" | "workdayChecklistItem" | "workdayDailyFocusItem" | "workdayQuickUpdate" | "workdayReportDraft" | "workdayReportSeed" | "workdaySupportAction" | "workdayWorkbook">;
+type WorkdayWorkbookDatabase = Pick<PrismaClient, "enterpriseAuditEvent" | "diagnosticWorkspaceDraft" | "activityEvent" | "boardDay" | "workdayActivitySignal" | "workdayAttentionSession" | "workdayCarryover" | "workdayChecklistItem" | "workdayDailyFocusItem" | "workdayQuickUpdate" | "workdayReportDraft" | "workdayReportSeed" | "workdaySupportAction" | "workdayWorkbook">;
 
 const workbookInclude = {
   boardDay: true,
@@ -30,17 +31,17 @@ const workbookInclude = {
   reportDrafts: { orderBy: [{ generatedAt: "desc" as const }, { id: "asc" as const }], take: 3 },
   reportSeeds: { orderBy: [{ createdAt: "desc" as const }, { id: "asc" as const }] },
   supportActions: { orderBy: [{ createdAt: "desc" as const }, { id: "asc" as const }], take: 10 },
-  activitySignals: { orderBy: [{ occurredAt: "desc" as const }, { id: "asc" as const }], take: 80 },
+  activitySignals: { orderBy: [{ occurredAt: "desc" as const }, { id: "asc" as const }] },
   attentionSessions: { orderBy: [{ lastHeartbeatAt: "desc" as const }, { id: "asc" as const }], take: 40 }
 } satisfies Prisma.WorkdayWorkbookInclude;
 
 export type WorkdayWorkbookRecord = Prisma.WorkdayWorkbookGetPayload<{ include: typeof workbookInclude }>;
 
 const workbookSummaryInclude = {
-  checklistItems: { select: { carryoverReady: true, done: true, status: true, updatedAt: true } },
-  carryovers: { select: { status: true, targetBoardDate: true, updatedAt: true } },
-  dailyFocusItems: { select: { mustCloseToday: true, priority: true, riskLevel: true, status: true, supportNeeded: true, updatedAt: true } },
-  quickUpdates: { select: { carryoverReady: true, followUpNeeded: true, updatedAt: true } },
+  checklistItems: { select: { carryoverReady: true, done: true, id: true, status: true, updatedAt: true } },
+  carryovers: { select: { sourceId: true, status: true, targetBoardDate: true, updatedAt: true } },
+  dailyFocusItems: { select: { id: true, mustCloseToday: true, priority: true, riskLevel: true, status: true, supportNeeded: true, updatedAt: true } },
+  quickUpdates: { select: { carryoverReady: true, convertedTaskId: true, dueWindow: true, followUpNeeded: true, id: true, updatedAt: true } },
   reportDrafts: { orderBy: [{ generatedAt: "desc" as const }, { id: "asc" as const }], take: 1 },
   reportSeeds: { select: { id: true, status: true } },
   supportActions: { select: { status: true, updatedAt: true } },
@@ -104,7 +105,7 @@ export type WorkdayWorkbookRepository = {
   createChecklistItem(input: { priority?: WorkdayPriority; riskLevel?: WorkdayRiskLevel; riskNote?: string; text: string; workbookId: string }): Promise<void>;
   createDailyFocusItem(input: { mustCloseToday: boolean; outcome: string; priority: WorkdayPriority; riskLevel: WorkdayRiskLevel; riskNote: string; sortOrder: number; supportNeeded: string; workbookId: string }): Promise<void>;
   createReportDraft(input: { cadence: WorkdayReportCadence; generatedByUserId: string; periodEnd: string; periodStart: string; sections: Prisma.InputJsonValue; sourceSeedIds: Prisma.InputJsonValue; summary: string; title: string; workbookId: string }): Promise<void>;
-  createQuickUpdate(input: { category: WorkdayQuickUpdateCategory; company: string; dueWindow: string; followUpNeeded: boolean; person: string; text: string; workbookId: string }): Promise<void>;
+  createQuickUpdate(input: { category: WorkdayQuickUpdateCategory; company: string; dueWindow: string; followUpNeeded: boolean; person: string; phoneNumber: string; text: string; workbookId: string }): Promise<void>;
   createSupportAction(input: { actorUserId: string; note: string; requestedUpdate: boolean; status: WorkdaySupportActionStatus; targetUserId: string; workbookId: string }): Promise<void>;
   createActivitySignal(input: WorkdayActivitySignalInput): Promise<void>;
   deleteDailyFocusItem(input: { id: string }): Promise<void>;
@@ -117,7 +118,7 @@ export type WorkdayWorkbookRepository = {
   getOrCreateBoardDay(boardDate: string): Promise<BoardDay>;
   getOrCreateWorkbook(input: { boardDayId: string; scope: WorkdayWorkbookScope; userId: string }): Promise<WorkdayWorkbookRecord>;
   getWorkbookById(id: string): Promise<WorkdayWorkbookRecord | null>;
-  listActivityEventsForWorkbookContext(input: { actorUserId: string; boardDayId: string; limit?: number }): Promise<Array<{
+  listActivityEventsForWorkbookContext(input: { actorUserId: string; boardDayId: string; boardDate?: string; limit?: number }): Promise<Array<{
     id: string;
     eventType: string;
     message: string;
@@ -133,7 +134,7 @@ export type WorkdayWorkbookRepository = {
   updateChecklistItem(input: { reminderDate?: string; carryoverReady?: boolean; convertedTaskId?: string | null; done?: boolean; id: string; priority?: WorkdayPriority; riskLevel?: WorkdayRiskLevel; riskNote?: string; status?: WorkdayChecklistStatus; text?: string; update?: string }): Promise<void>;
   updateCarryover(input: { convertedTaskId?: string | null; dismissedReason?: string; id: string; status: WorkdayCarryoverStatus }): Promise<void>;
   updateDailyFocusItem(input: { convertedTaskId?: string | null; id: string; lastProgressAt?: Date | null; mustCloseToday?: boolean; outcome?: string; priority?: WorkdayPriority; progressUpdate?: string; riskLevel?: WorkdayRiskLevel; riskNote?: string; sortOrder?: number; status?: WorkdayDailyFocusStatus; supportNeeded?: string }): Promise<void>;
-  updateQuickUpdate(input: { carryoverReady?: boolean; category?: WorkdayQuickUpdateCategory; company?: string; convertedTaskId?: string | null; dueWindow?: string; followUpNeeded?: boolean; id: string; person?: string; text?: string }): Promise<void>;
+  updateQuickUpdate(input: { carryoverReady?: boolean; category?: WorkdayQuickUpdateCategory; company?: string; convertedTaskId?: string | null; dueWindow?: string; followUpNeeded?: boolean; id: string; person?: string; phoneNumber?: string; text?: string }): Promise<void>;
   updateReportSeed(input: { detail?: string; id: string; reviewNote?: string; status?: WorkdayReportSeedStatus; title?: string }): Promise<void>;
   updateSupportAction(input: { id: string; note?: string; requestedUpdate?: boolean; status: WorkdaySupportActionStatus }): Promise<void>;
   upsertAttentionSession(input: WorkdayAttentionHeartbeatInput): Promise<void>;
@@ -305,30 +306,8 @@ export function createWorkdayWorkbookRepository(database: WorkdayWorkbookDatabas
       });
     },
     async listActivityEventsForWorkbookContext(input) {
-      return database.activityEvent.findMany({
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        select: {
-          id: true,
-          eventType: true,
-          message: true,
-          metadata: true,
-          taskId: true,
-          createdAt: true,
-          task: {
-            select: {
-              id: true,
-              title: true,
-              status: true,
-              workflowArea: true
-            }
-          }
-        },
-        take: input.limit ?? 80,
-        where: {
-          actorUserId: input.actorUserId,
-          boardDayId: input.boardDayId
-        }
-      });
+      const boardDate = input.boardDate ?? (await database.boardDay.findUniqueOrThrow({ where: { id: input.boardDayId } })).date.toISOString().slice(0, 10);
+      return readExternalReportActivity(database, input.actorUserId, boardDate);
     },
     async listWorkbooksForBoardDateRange(input) {
       return database.workdayWorkbook.findMany({
@@ -437,6 +416,7 @@ export function createWorkdayWorkbookRepository(database: WorkdayWorkbookDatabas
           ...(input.dueWindow !== undefined ? { dueWindow: input.dueWindow } : {}),
           ...(input.followUpNeeded !== undefined ? { followUpNeeded: input.followUpNeeded } : {}),
           ...(input.person !== undefined ? { person: input.person } : {}),
+          ...(input.phoneNumber !== undefined ? { phoneNumber: input.phoneNumber } : {}),
           ...(input.text !== undefined ? { text: input.text } : {})
         }
       });

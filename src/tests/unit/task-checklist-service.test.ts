@@ -132,6 +132,28 @@ describe("task checklist service", () => {
     });
   });
 
+  it("lets staff add a contextual subtask longer than a checklist label", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const staffUser = usersByEmail.get("casey.mechanic@local.test") ?? null;
+    const { repository, items } = createTaskChecklistRepositoryHarness();
+    const label =
+      "Review Billboard Signage - AJ wants the full signage details including size, design, and the exact message we want displayed before the next vendor conversation.";
+
+    const item = await createTaskChecklistItem(
+      staffUser,
+      "task-1",
+      {
+        kind: TASK_CHECKLIST_ITEM_KIND.SUBTASK,
+        label
+      },
+      repository
+    );
+
+    expect(item.kind).toBe(TASK_CHECKLIST_ITEM_KIND.SUBTASK);
+    expect(item.label).toBe(label);
+    expect(items).toHaveLength(2);
+  });
+
   it("updates completion state and records checklist activity", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const managerUser = usersByEmail.get("morgan.manager@local.test") ?? null;
