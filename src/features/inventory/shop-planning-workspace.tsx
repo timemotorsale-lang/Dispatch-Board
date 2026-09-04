@@ -2,8 +2,10 @@
 
 import { ArrowLeft, BadgeCheck, Building2, CarFront, Check, ChevronRight, ClipboardCheck, FileCheck2, Gauge, LockKeyhole, PackageCheck, ShieldCheck, Stethoscope, Truck, Wrench } from "lucide-react";
 import Link from "next/link";
-import { FormEvent, ReactNode, useRef, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { buildReconBudgetSummary, formatMoneyCents } from "@/lib/recon-budget";
+import { copyEstimateForRevision, type RevisableEstimate } from "@/lib/estimate-revision";
+import { EstimatePriceCorrection } from "./estimate-price-correction";
 import styles from "./shop-planning-workspace.module.css";
 
 type Line = { key: string; type: "LABOR" | "PART" | "FEE"; description: string; quantity: number; unitPriceCents: number; taxable: boolean; workTypeCode: string; laborGuideMinutes: number; plannedCorrection: string };
@@ -50,7 +52,7 @@ type Order = {
   vendorWorks: RepairVendorWork[];
   inspectionVersions: Array<{ id: string; version: number; summary: string; completedAt: string }>;
   diagnosisVersions: Array<{ id: string; version: number; cause: string; proposedCorrection: string; uncertainty: string; technicianUser: { name: string } }>;
-  estimateVersions: Array<{ id: string; version: number; status: string; totalCents: number; expiresAt: string; lineItems: Line[]; authorizations: Array<{ id: string; disposition: string; authorizedLineKeys: string[]; authorizedAmountCents: number; decisionActorName: string }> }>;
+  estimateVersions: Array<RevisableEstimate & { status: string; totalCents: number; expiresAt: string; authorizations: Array<{ id: string; disposition: string; authorizedLineKeys: string[]; authorizedAmountCents: number; decisionActorName: string }> }>;
   repairJobs: Array<{ id: string; jobNumber: string; authorizedLineKey: string; description: string; status: string; readinessReasonCodes: string[]; partDemands: Array<{ part: { partNumber: string }; quantityRequired: number; quantityReserved: number }> }>;
   partDemands: Array<{ id: string; repairJobId: string | null; quantityRequired: number; quantityReserved: number; part: { partNumber: string; description: string } }>;
 };
@@ -186,7 +188,7 @@ function activeStep(order?: Order) {
   if (!inspectionComplete && !diagnosisComplete && !directBodyPath) return 0;
   if (!diagnosisComplete && !directBodyPath) return 1;
   if (!order.estimateVersions.length) return 2;
-  const accepted = order.estimateVersions.some((estimate) => estimate.authorizations.some((authorization) => ["ACCEPTED", "PARTIAL"].includes(authorization.disposition)));
+  const accepted = ["ACCEPTED", "PARTIAL"].includes(order.estimateVersions[0]?.authorizations[0]?.disposition ?? "");
   if (!accepted) return 3;
   return 4;
 }
@@ -229,6 +231,18 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
   const defaultExpiresAt = defaultTime ? daysAfter(defaultTime, 7) : "";
   const [estimate, setEstimate] = useState<EstimateDraft>(createEstimateDraft(defaultPresentedAt, defaultExpiresAt));
   const [estimateLines, setEstimateLines] = useState<Line[]>([]);
+  const [editingStep, setEditingStep] = useState<number | null>(null);
+  const cancelDraftEdits = useRef<(() => void) | null>(null);
+  const [revisionSource, setRevisionSource] = useState<{ id: string; version: number } | null>(null);
+  const [revisionReason, setRevisionReason] = useState("");
+  const [revisionNotes, setRevisionNotes] = useState("");
+  const [revisionOptions, setRevisionOptions] = useState<unknown>(null);
+  useEffect(() => {
+    if (editingStep === null) return;
+    const protectDraft = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", protectDraft);
+    return () => window.removeEventListener("beforeunload", protectDraft);
+  }, [editingStep]);
   const [laborGuideQuery, setLaborGuideQuery] = useState("");
   const [authorization, setAuthorization] = useState({ estimateVersionId: "", disposition: "ACCEPTED", channel: "IN_PERSON", authorizedLineKeys: "", decisionActorType: "CUSTOMER", decisionActorName: "", decisionActorReference: "", decidedAt: defaultTime ? local(defaultTime) : "" });
   const [job, setJob] = useState({ authorizationId: firstAccepted?.id ?? "", authorizedLineKey: firstReleaseLine?.key ?? "", diagnosisVersionId: first?.diagnosisVersions[0]?.id ?? "", workTypeCode: firstReleaseLine?.workTypeCode ?? "GENERAL_REPAIR", description: firstReleaseLine?.description ?? "", plannedCorrection: firstReleaseLine?.plannedCorrection ?? "", laborGuideMinutes: firstReleaseLine?.laborGuideMinutes ?? 60, requiredSkills: "", requiredCertifications: "", bayRequirements: "", toolRequirements: "", priority: "NORMAL", dependencyJobIds: "", partsRequired: false, partDemandIds: [] as string[] });
@@ -245,7 +259,8 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
   const currentStep = activeStep(selected);
   const latestEstimate = selected?.estimateVersions[0];
   const latestDiagnosis = selected?.diagnosisVersions[0];
-  const accepted = selected?.estimateVersions.flatMap((item) => item.authorizations.map((auth) => ({ ...auth, estimate: item }))).find((item) => ["ACCEPTED", "PARTIAL"].includes(item.disposition));
+  const latestDecision = latestEstimate?.authorizations[0];
+  const accepted = latestEstimate && latestDecision && ["ACCEPTED", "PARTIAL"].includes(latestDecision.disposition) ? { ...latestDecision, estimate: latestEstimate } : undefined;
   const authorizationEstimate = selected?.estimateVersions.find((item) => item.id === (authorization.estimateVersionId || latestEstimate?.id)) ?? latestEstimate;
   const authorizationLineKeys = authorizationEstimate?.lineItems.map((line) => line.key).filter(Boolean) ?? [];
   const typedAuthorizationLineKeys = authorization.authorizedLineKeys.split(",").map((value) => value.trim()).filter(Boolean);
@@ -439,6 +454,57 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
     return `LINE-${index}`;
   }
 
+  function beginDraftEdit(step: number) {
+    if (busy) return false;
+    if (editingStep !== null) {
+      if (editingStep === step) return true;
+      setNotice("Save or cancel the current edits before editing another section.");
+      return false;
+    }
+    cancelDraftEdits.current = () => {
+      setInspection(inspection); setDiagnosis(diagnosis); setDirectScope(directScope);
+      setVendorWork(vendorWork); setVendorProgress(vendorProgress);
+      setEstimate(estimate); setEstimateLines(estimateLines); setAuthorization(authorization);
+      setJob(job); setReleaseJobs(releaseJobs); setRepairProgress(repairProgress);
+      setRepairOutcome(repairOutcome); setCompletedByUserId(completedByUserId);
+      setRevisionSource(revisionSource); setRevisionReason(revisionReason);
+      setRevisionNotes(revisionNotes); setRevisionOptions(revisionOptions);
+    };
+    setEditingStep(step);
+    window.setTimeout(() => navigateToInternalTarget(`#repair-planning-step-${step}`), 0);
+    return true;
+  }
+
+  function cancelEditing() {
+    cancelDraftEdits.current?.();
+    cancelDraftEdits.current = null;
+    setEditingStep(null);
+    setNotice("Edits cancelled. Saved records were not changed.");
+  }
+
+  function reviseEstimate() {
+    if (!authorizationEstimate || busy) return;
+    if (revisionSource?.id === authorizationEstimate.id && editingStep === 3) {
+      navigateToInternalTarget("#estimate-price-correction");
+      return;
+    }
+    if (revisionSource || estimateLines.length || estimate.description.trim()) {
+      if (!window.confirm("Replace the current estimate draft with a copy of the selected version? Saved estimates will not change.")) return;
+    }
+    if (editingStep === 4) setEditingStep(3);
+    else if (!beginDraftEdit(3)) return;
+    const copy = copyEstimateForRevision(authorizationEstimate);
+    const now = new Date();
+    setEstimateLines(copy.lineItems);
+    setEstimate({ ...createEstimateDraft(local(now.toISOString()), daysAfter(now, 7), nextEstimateLineKey(copy.lineItems)), taxCents: copy.taxCents, discountCents: copy.discountCents, taxBoundary: copy.taxBoundary, presentationChannel: copy.presentationChannel });
+    setRevisionSource({ id: authorizationEstimate.id, version: authorizationEstimate.version });
+    setRevisionReason("");
+    setRevisionNotes(copy.assumptions ?? "");
+    setRevisionOptions(copy.optionGroups);
+    setNotice(`Editing a copy of estimate v${authorizationEstimate.version}. Update the lines, then save a new version. Existing approvals will not transfer.`);
+    window.setTimeout(() => navigateToInternalTarget("#estimate-price-correction"), 0);
+  }
+
   function resetEstimateDraft(lineKey = nextEstimateLineKey()) {
     setEstimate((value) => ({
       ...createEstimateDraft(value.presentedAt, value.expiresAt, lineKey),
@@ -612,7 +678,15 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
     setNotice(`${option.title} loaded into the estimate line. Review it, edit anything needed, then save the line.`);
   }
 
-  function submitEstimate() {
+  async function submitEstimate(correctedLines?: Line[]) {
+    if (revisionSource && !revisionReason.trim()) {
+      setNotice("Enter the reason for revising this estimate before saving.");
+      return;
+    }
+    if (!correctedLines && estimateLines.length && (estimate.description.trim() || estimate.plannedCorrection.trim())) {
+      setNotice("Save your line changes with Update line or Add line to estimate before presenting this version.");
+      return;
+    }
     const now = new Date();
     const presentedAt = new Date(estimate.presentedAt);
     const expiresAt = new Date(estimate.expiresAt);
@@ -626,7 +700,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
       return;
     }
     const currentDraftReady = estimate.description.trim() && estimate.plannedCorrection.trim();
-    const lineItems = estimateLines.length
+    const lineItems = correctedLines ?? (estimateLines.length
       ? estimateLines
       : currentDraftReady
         ? [{
@@ -640,12 +714,20 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
           laborGuideMinutes: estimate.laborGuideMinutes,
           plannedCorrection: estimate.plannedCorrection.trim()
         }]
-        : [];
+        : []);
     if (!lineItems.length) {
       setNotice("Add at least one estimate line before presenting the estimate.");
       return;
     }
-    void submit("PRESENT_ESTIMATE", { lineItems, taxCents: estimate.taxCents, discountCents: estimate.discountCents, taxBoundary: estimate.taxBoundary, presentationChannel: estimate.presentationChannel, presentedAt: estimate.presentedAt, expiresAt: estimate.expiresAt }, vendorPath ? "Present an immutable estimate version from the approved outside-vendor scope." : "Present an immutable estimate version from diagnostic evidence.");
+    const saved = await submit("PRESENT_ESTIMATE", { lineItems, taxCents: estimate.taxCents, discountCents: estimate.discountCents, taxBoundary: estimate.taxBoundary, presentationChannel: estimate.presentationChannel, presentedAt: estimate.presentedAt, expiresAt: estimate.expiresAt, ...(revisionSource ? { assumptions: revisionNotes, optionGroups: revisionOptions } : {}) }, revisionSource ? `Revise estimate v${revisionSource.version} (${revisionSource.id}): ${revisionReason.trim()}` : vendorPath ? "Present an immutable estimate version from the approved outside-vendor scope." : "Present an immutable estimate version from diagnostic evidence.");
+    if (saved) {
+      setEstimateLines([]);
+      resetEstimateDraft("LINE-1");
+      setRevisionSource(null); setRevisionReason(""); setRevisionNotes(""); setRevisionOptions(null);
+      setAuthorization(value => ({ ...value, estimateVersionId: "", authorizedLineKeys: "", decisionActorName: "", decisionActorReference: "", decidedAt: local(new Date().toISOString()) }));
+      setNotice("New estimate version saved. Review it and record a new authorization decision; previous approvals do not transfer.");
+      window.setTimeout(() => navigateToInternalTarget("#repair-planning-step-4"), 0);
+    }
   }
 
   async function createFastApprovedRepairJob() {
@@ -742,6 +824,8 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
       setRepairPath("VENDOR");
       setVendorProgress(seedVendorProgress(vendor, nextOrder));
     }
+    cancelDraftEdits.current = null;
+    setEditingStep(null);
   }
 
   async function submit(action: string, value: Record<string, unknown>, reason: string) {
@@ -753,10 +837,12 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
       const result = await request(`/api/repair-orders/${selected.id}/planning`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action, ...value, idempotencyKey: crypto.randomUUID(), reason })
+        body: JSON.stringify({ action, ...value, expectedVersion: selected.version, idempotencyKey: crypto.randomUUID(), reason })
       }) as { result?: { message?: string } };
       setNotice(result?.result?.message ?? reason);
       await refresh();
+      cancelDraftEdits.current = null;
+      setEditingStep(null);
       return true;
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Shop planning request failed.");
@@ -898,6 +984,10 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
   }
 
   function choose(id: string) {
+    if (editingStep !== null) {
+      setNotice("Save or cancel your edits before switching repair orders.");
+      return;
+    }
     setSelectedId(id);
     const order = model.repairOrders.find((item) => item.id === id);
     if (order) {
@@ -988,7 +1078,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
 
       <div className={styles.commandGrid}>
         <main className={styles.workflow}>
-          <WorkflowStep complete={selected.inspectionVersions.length > 0} icon={<FileCheck2 />} number={1} open={currentStep === 0 || staffNext?.step === 1} subtitle="Establish the physical-condition baseline and attach supporting evidence." title="Digital vehicle inspection">
+          <WorkflowStep editing={editingStep === 1} editDisabled={busy || (editingStep !== null && editingStep !== 1)} onEdit={() => beginDraftEdit(1)} onCancel={cancelEditing} complete={selected.inspectionVersions.length > 0} icon={<FileCheck2 />} number={1} open={currentStep === 0 || staffNext?.step === 1} subtitle="Establish the physical-condition baseline and attach supporting evidence." title="Digital vehicle inspection">
             <form onSubmit={(event: FormEvent) => { event.preventDefault(); void submit("RECORD_INSPECTION", { templateCode: inspection.templateCode, templateVersion: inspection.templateVersion, templateSnapshot: { code: inspection.templateCode, version: inspection.templateVersion }, startedAt: inspection.startedAt, completedAt: inspection.completedAt, summary: inspection.summary, items: [{ key: inspection.itemKey, label: inspection.itemLabel, result: inspection.itemResult, measurement: inspection.measurement, notes: inspection.itemNotes, evidence: inspection.evidence.split(",").map((value) => value.trim()).filter(Boolean) }] }, "Record a versioned digital vehicle inspection."); }}>
               <div className={styles.simpleCard}>
                 <span className={styles.simpleEyebrow}>Simple inspection entry</span>
@@ -1029,7 +1119,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
             </form>
           </WorkflowStep>
 
-          <WorkflowStep complete={stageTwoComplete} icon={vendorPath ? <Building2 /> : <Stethoscope />} number={2} open={currentStep === 1 || staffNext?.step === 2} subtitle={stageTwoSubtitle} title={stageTwoTitle}>
+          <WorkflowStep editing={editingStep === 2} editDisabled={busy || (editingStep !== null && editingStep !== 2)} onEdit={() => beginDraftEdit(2)} onCancel={cancelEditing} complete={stageTwoComplete} icon={vendorPath ? <Building2 /> : <Stethoscope />} number={2} open={currentStep === 1 || staffNext?.step === 2} subtitle={stageTwoSubtitle} title={stageTwoTitle}>
             <div className={styles.pathPicker} role="tablist" aria-label="Repair path">
               <button aria-pressed={!directPath && !vendorPath} className={!directPath && !vendorPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("DIAGNOSTIC")} type="button">Diagnostic / mechanical</button>
               <button aria-pressed={directPath} className={directPath ? styles.pathActive : ""} onClick={() => chooseRepairPath("DIRECT_BODY")} type="button">Bodywork repair</button>
@@ -1104,8 +1194,9 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
             </form>}
           </WorkflowStep>
 
-          <WorkflowStep complete={vendorPath ? vendorEstimateCaptured(currentVendorWork) : selected.estimateVersions.length > 0} icon={<Gauge />} number={3} open={currentStep === 2 || staffNext?.step === 3} subtitle={vendorPath ? "Vendor estimate and approval are tracked from staff-entered vendor updates while the work stays offsite." : directPath ? "Create the governed body, collision, vendor, or teardown estimate from the approved direct scope." : "Create an immutable, expiring estimate from the verified diagnostic correction."} title={vendorPath ? "Vendor estimate update" : directPath ? "Direct repair estimate" : "Exact-version estimate"}>
-            <form onSubmit={(event: FormEvent) => { event.preventDefault(); submitEstimate(); }}>
+          <WorkflowStep editing={editingStep === 3} editDisabled={busy || (editingStep !== null && editingStep !== 3)} onEdit={() => beginDraftEdit(3)} onCancel={cancelEditing} complete={vendorPath ? vendorEstimateCaptured(currentVendorWork) : selected.estimateVersions.length > 0} icon={<Gauge />} number={3} open={currentStep === 2 || staffNext?.step === 3} subtitle={vendorPath ? "Vendor estimate and approval are tracked from staff-entered vendor updates while the work stays offsite." : directPath ? "Create the governed body, collision, vendor, or teardown estimate from the approved direct scope." : "Create an immutable, expiring estimate from the verified diagnostic correction."} title={vendorPath ? "Vendor estimate update" : directPath ? "Direct repair estimate" : "Exact-version estimate"}>
+            <form onSubmit={(event: FormEvent) => { event.preventDefault(); void submitEstimate(); }}>
+              {revisionSource ? <section className={styles.pathInfo} aria-label="Estimate revision"><strong>Revising estimate v{revisionSource.version}</strong><p>The original remains in history. Review every price, tax, discount, source note, and date. Prior manual-review notes are historical, not verification of this revision. Changed work needs a new approval.</p><FormGrid><Field label="Reason for revision"><input required maxLength={350} value={revisionReason} onChange={event => setRevisionReason(event.target.value)} /></Field><Field label="Assumptions / source notes (review before saving)" wide><textarea value={revisionNotes} onChange={event => setRevisionNotes(event.target.value)} /></Field></FormGrid></section> : null}
               {vendorPath ? <div className={styles.pathInfo}><strong>Simple vendor estimate path</strong><p>If the outside vendor is already approved to do the job, the saved vendor record is the evidence: vendor name, repair scope, current location/status, and approval. You do not need to create an internal diagnosis just to present this estimate.</p></div> : directPath ? <div className={styles.pathInfo}><strong>Body and collision estimating discipline</strong><p>Follow the same fast sequence every time: visible scope, labor guide or vendor quote, parts list, internal spend decision, then repair release. This keeps bodywork moving without pretending a troubleshooting diagnosis happened when it did not.</p></div> : null}
               {vendorNeedsInternalCompletion && !vendorPath ? <div className={styles.simpleCard} id="repair-planning-step-3-completion-estimate" tabIndex={-1}>
                 <span className={styles.simpleEyebrow}>Completion estimate</span>
@@ -1122,18 +1213,18 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
               {reconBudget ? <div className={styles.concern}><span>{reconBudget.source === "TAI" ? "TAI recon budget guardrail" : "Recon budget guardrail"}</span><p>{reconBudget.status === "OVER_BUDGET" ? "This estimate is already beyond the current recon spend target. Review the scope, labor source, and approval path before releasing more work." : reconBudget.status === "CAUTION" ? "This vehicle is getting close to its current recon budget. Tighten the estimate and confirm the next approval before moving forward." : "There is still recon spend room available for this vehicle. Keep the estimate anchored to real labor, parts, and vendor work."}</p><p>Budget {formatMoneyCents(reconBudget.estimatedReconBudgetCents)} · committed {formatMoneyCents(reconBudget.committedSpendCents)} · remaining {formatMoneyCents(reconBudget.remainingBudgetCents)}</p></div> : null}
               {directPath ? <div className={styles.pathInfo}><strong>Rapid recon estimate recipe</strong><p>1) use body labor guide or vendor quote, 2) separate labor, parts, and sublet cleanly, 3) preserve teardown supplements as new exact versions, and 4) never promise completion until parts and vendor timing are real.</p></div> : null}
               {!vendorPath ? <section className={styles.simpleCard} aria-label="Simple estimate builder"><span className={styles.simpleEyebrow}>Simple estimate lines</span><h3>Add the repair lines, edit them if needed, then present the estimate</h3><p>Keep this stage simple. Add plain estimate lines like R &amp; R brake vacuum pump, repair and paint front bumper cover, sublet alignment, or teardown. The full labor guide is still available when staff needs deeper research.</p><div className={styles.simpleActions}>{directPath || vendorNeedsInternalCompletion ? <button className={styles.primaryAction} disabled={busy} onClick={() => void createFastApprovedRepairJob()} type="button">{busy ? "Creating completion job..." : vendorNeedsInternalCompletion ? "Create/open completion job" : "Create/open repair job"}</button> : null}<Link className={styles.primaryAction} href={laborGuideHref}>Open full Labor Guide</Link></div><label className={styles.laborGuideHelper}><span>Quick search for a common repair area</span><input placeholder="Example: brake vacuum pump, bumper, paint, teardown" value={laborGuideQuery} onChange={(event) => setLaborGuideQuery(event.target.value)} /></label>{quickEstimateOptions.length ? <div className={styles.estimateQuickPicks}>{quickEstimateOptions.map((option) => <button disabled={busy} key={option.key} onClick={() => applyLaborGuideOption(option)} type="button">{option.title}</button>)}</div> : null}</section> : null}
-              <FormGrid><Field label="Line key (required)"><input required value={estimate.lineKey} onChange={(event) => setEstimate((value) => ({ ...value, lineKey: event.target.value }))} /></Field><Field label="Type"><select value={estimate.lineType} onChange={(event) => setEstimate((value) => ({ ...value, lineType: event.target.value as EstimateDraft["lineType"] }))}>{["LABOR", "PART", "FEE"].map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Quantity"><input min="1" type="number" value={estimate.quantity} onChange={(event) => setEstimate((value) => ({ ...value, quantity: Number(event.target.value) || 1 }))} /></Field><Field label="Description (required)"><input placeholder="Example: R & R brake vacuum pump" required value={estimate.description} onChange={(event) => setEstimate((value) => ({ ...value, description: event.target.value }))} /></Field><Field label="Unit price (cents)"><input min="0" type="number" value={estimate.unitPriceCents} onChange={(event) => setEstimate((value) => ({ ...value, unitPriceCents: Number(event.target.value) }))} /></Field><Field label="Labor guide minutes"><input min="0" type="number" value={estimate.laborGuideMinutes} onChange={(event) => setEstimate((value) => ({ ...value, laborGuideMinutes: Number(event.target.value) }))} /></Field><Field label="What should be done (required)" wide><input placeholder="Example: Remove and replace failed brake vacuum pump, verify brake assist, and road test" required value={estimate.plannedCorrection} onChange={(event) => setEstimate((value) => ({ ...value, plannedCorrection: event.target.value }))} /></Field><Field label="Work type code"><input value={estimate.workTypeCode} onChange={(event) => setEstimate((value) => ({ ...value, workTypeCode: event.target.value }))} /></Field><Field label="Tax (cents)"><input min="0" type="number" value={estimate.taxCents} onChange={(event) => setEstimate((value) => ({ ...value, taxCents: Number(event.target.value) }))} /></Field><Field label="Discount (cents)"><input min="0" type="number" value={estimate.discountCents} onChange={(event) => setEstimate((value) => ({ ...value, discountCents: Number(event.target.value) }))} /></Field><Field label="Presented (required)"><input required type="datetime-local" value={estimate.presentedAt} onChange={(event) => setEstimate((value) => ({ ...value, presentedAt: event.target.value }))} /></Field><Field label="Expires (required)"><input min={estimate.presentedAt} required type="datetime-local" value={estimate.expiresAt} onChange={(event) => setEstimate((value) => ({ ...value, expiresAt: event.target.value }))} /></Field></FormGrid>
+              <FormGrid><Field label="Line key (required)"><input required value={estimate.lineKey} onChange={(event) => setEstimate((value) => ({ ...value, lineKey: event.target.value }))} /></Field><Field label="Type"><select value={estimate.lineType} onChange={(event) => setEstimate((value) => ({ ...value, lineType: event.target.value as EstimateDraft["lineType"] }))}>{["LABOR", "PART", "FEE"].map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Quantity"><input min="1" type="number" value={estimate.quantity} onChange={(event) => setEstimate((value) => ({ ...value, quantity: Number(event.target.value) || 1 }))} /></Field><Field label="Description (required)"><input placeholder="Example: R & R brake vacuum pump" required={!estimateLines.length} value={estimate.description} onChange={(event) => setEstimate((value) => ({ ...value, description: event.target.value }))} /></Field><Field label="Unit price (cents)"><input min="0" type="number" value={estimate.unitPriceCents} onChange={(event) => setEstimate((value) => ({ ...value, unitPriceCents: Number(event.target.value) }))} /></Field><Field label="Labor guide minutes"><input min="0" type="number" value={estimate.laborGuideMinutes} onChange={(event) => setEstimate((value) => ({ ...value, laborGuideMinutes: Number(event.target.value) }))} /></Field><Field label="What should be done (required)" wide><input placeholder="Example: Remove and replace failed brake vacuum pump, verify brake assist, and road test" required={!estimateLines.length} value={estimate.plannedCorrection} onChange={(event) => setEstimate((value) => ({ ...value, plannedCorrection: event.target.value }))} /></Field><Field label="Work type code"><input value={estimate.workTypeCode} onChange={(event) => setEstimate((value) => ({ ...value, workTypeCode: event.target.value }))} /></Field><Field label="Tax (cents)"><input min="0" type="number" value={estimate.taxCents} onChange={(event) => setEstimate((value) => ({ ...value, taxCents: Number(event.target.value) }))} /></Field><Field label="Discount (cents)"><input min="0" type="number" value={estimate.discountCents} onChange={(event) => setEstimate((value) => ({ ...value, discountCents: Number(event.target.value) }))} /></Field><Field label="Presented (required)"><input required type="datetime-local" value={estimate.presentedAt} onChange={(event) => setEstimate((value) => ({ ...value, presentedAt: event.target.value }))} /></Field><Field label="Expires (required)"><input min={estimate.presentedAt} required type="datetime-local" value={estimate.expiresAt} onChange={(event) => setEstimate((value) => ({ ...value, expiresAt: event.target.value }))} /></Field></FormGrid>
               {!vendorPath ? <div className={styles.estimateLineActions}><button disabled={busy} onClick={saveEstimateLine} type="button">{estimateLines.some((line) => line.key === estimate.lineKey) ? "Update line" : "Add line to estimate"}</button><button disabled={busy} onClick={() => resetEstimateDraft()} type="button">Start a new line</button></div> : null}
               {!vendorPath && estimateLines.length ? <section className={styles.estimateLineList} aria-label="Estimate draft lines"><header><div><span>Estimate draft</span><h3>{estimateLines.length} line{estimateLines.length === 1 ? "" : "s"} ready for approval</h3></div></header>{estimateLines.map((line) => <article key={line.key}><div><strong>{line.key} · {line.description}</strong><p>{line.plannedCorrection}</p><small>{line.quantity} x {money(line.unitPriceCents)} · {format(line.workTypeCode)}</small></div><div className={styles.estimateLineActions}><button disabled={busy} onClick={() => editEstimateLine(line)} type="button">Edit</button><button disabled={busy} onClick={() => removeEstimateLine(line.key)} type="button">Remove</button></div></article>)}</section> : null}
               {displayNotice ? <div aria-live="polite" className={`${styles.notice} ${/required|cannot|invalid|not enabled|already exists|expiration|valid date/i.test(displayNotice) ? styles.danger : ""}`}>
                 <p>{displayNotice}</p>
                 {directPath && displayNotice.includes("Save the bodywork repair scope first") ? <button className={styles.inlineNavAction} onClick={() => navigateToInternalTarget("#repair-planning-step-2")} type="button">Open bodywork scope<ChevronRight /></button> : null}
               </div> : null}
-              <Submit busy={busy}>Present estimate version</Submit>
+              <Submit busy={busy}>{revisionSource ? "Save revised estimate version" : "Present estimate version"}</Submit>
             </form>
           </WorkflowStep>
 
-          <WorkflowStep complete={vendorPath ? vendorApprovalCaptured(currentVendorWork) : Boolean(accepted)} icon={<ShieldCheck />} number={4} open={currentStep === 3 || staffNext?.step === 4} subtitle={vendorPath ? "Record the outside-vendor approval decision and release the vendor repair lifecycle." : "Record who decided, through which channel, and exactly which estimate lines were accepted."} title={vendorPath ? "Vendor approval decision" : "Attributable authorization"}>
+          <WorkflowStep editing={editingStep === 4} editDisabled={busy || (editingStep !== null && editingStep !== 4)} onEdit={() => beginDraftEdit(4)} onCancel={cancelEditing} complete={vendorPath ? vendorApprovalCaptured(currentVendorWork) : Boolean(accepted)} icon={<ShieldCheck />} number={4} open={currentStep === 3 || staffNext?.step === 4} subtitle={vendorPath ? "Record the outside-vendor approval decision and release the vendor repair lifecycle." : "Record who decided, through which channel, and exactly which estimate lines were accepted."} title={vendorPath ? "Vendor approval decision" : "Attributable authorization"}>
             {vendorPath && currentVendorWork ? <form className={styles.vendorProgressForm} onSubmit={(event: FormEvent) => { event.preventDefault(); void submitVendorProgress(vendorProgress.status, vendorProgress.lastUpdateSummary || "Vendor approval updated.", vendorProgress.nextAction || "Continue vendor repair and monitor parts or return timing."); }}>
               <div className={styles.pathInfo}><strong>Staff-entered vendor approval</strong><p>Record the approval your team received or decided from the vendor quote. Once approved, the outside-vendor record projects the repair order out of authorization waiting and into vendor repair.</p></div>
               <FormGrid>
@@ -1151,7 +1242,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
               </div>
               <Submit busy={busy}>Save vendor approval</Submit>
             </form> : <form onSubmit={(event: FormEvent) => { event.preventDefault(); void submitAuthorizationDecision(); }}>
-              <FormGrid><Field label="Estimate version"><select value={authorization.estimateVersionId || latestEstimate?.id || ""} onChange={(event) => setAuthorization((value) => ({ ...value, estimateVersionId: event.target.value, authorizedLineKeys: value.disposition === "ACCEPTED" ? "" : value.authorizedLineKeys }))}>{selected.estimateVersions.map((item) => <option key={item.id} value={item.id}>v{item.version} · {money(item.totalCents)}</option>)}</select></Field><Field label="Decision"><select value={authorization.disposition} onChange={(event) => setAuthorization((value) => ({ ...value, disposition: event.target.value, authorizedLineKeys: event.target.value === "ACCEPTED" ? "" : value.authorizedLineKeys }))}>{["ACCEPTED", "PARTIAL", "DECLINED", "DEFERRED", "EXPIRED", "REVOKED"].map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Authorized line keys"><input disabled={authorization.disposition === "ACCEPTED" || !approvalNeedsLineKeys} placeholder={authorizationLineKeys.join(",")} value={authorization.disposition === "ACCEPTED" ? authorizationLineKeys.join(", ") : authorization.authorizedLineKeys} onChange={(event) => setAuthorization((value) => ({ ...value, authorizedLineKeys: event.target.value }))} /></Field><Field label="Channel"><select value={authorization.channel} onChange={(event) => setAuthorization((value) => ({ ...value, channel: event.target.value }))}>{["IN_PERSON", "PHONE", "SMS", "EMAIL", "INTERNAL", "WARRANTY"].map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Decision actor"><input value={authorization.decisionActorName} onChange={(event) => setAuthorization((value) => ({ ...value, decisionActorName: event.target.value }))} /></Field><Field label="Decision time"><input type="datetime-local" value={authorization.decidedAt} onChange={(event) => setAuthorization((value) => ({ ...value, decidedAt: event.target.value }))} /></Field></FormGrid>
+              <div className={styles.estimateLineActions}><button type="button" disabled={busy || !authorizationEstimate || (editingStep !== null && editingStep !== 3 && editingStep !== 4)} onClick={reviseEstimate}>Edit selected estimate</button><span>Creates a new version; previous estimates and decisions stay in history.</span></div>{revisionSource && editingStep === 3 ? <div id="estimate-price-correction" tabIndex={-1}><EstimatePriceCorrection key={revisionSource.id} lines={estimateLines} taxCents={estimate.taxCents} discountCents={estimate.discountCents} reason={revisionReason} feedback={displayNotice} busy={busy} onReason={setRevisionReason} onSave={lines => void submitEstimate(lines)} onCancel={cancelEditing} /></div> : null}<FormGrid><Field label="Estimate version"><select value={authorization.estimateVersionId || latestEstimate?.id || ""} onChange={(event) => setAuthorization((value) => ({ ...value, estimateVersionId: event.target.value, authorizedLineKeys: value.disposition === "ACCEPTED" ? "" : value.authorizedLineKeys }))}>{selected.estimateVersions.map((item) => <option key={item.id} value={item.id}>v{item.version} · {money(item.totalCents)}</option>)}</select></Field><Field label="Decision"><select value={authorization.disposition} onChange={(event) => setAuthorization((value) => ({ ...value, disposition: event.target.value, authorizedLineKeys: event.target.value === "ACCEPTED" ? "" : value.authorizedLineKeys }))}>{["ACCEPTED", "PARTIAL", "DECLINED", "DEFERRED", "EXPIRED", "REVOKED"].map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Authorized line keys"><input disabled={authorization.disposition === "ACCEPTED" || !approvalNeedsLineKeys} placeholder={authorizationLineKeys.join(",")} value={authorization.disposition === "ACCEPTED" ? authorizationLineKeys.join(", ") : authorization.authorizedLineKeys} onChange={(event) => setAuthorization((value) => ({ ...value, authorizedLineKeys: event.target.value }))} /></Field><Field label="Channel"><select value={authorization.channel} onChange={(event) => setAuthorization((value) => ({ ...value, channel: event.target.value }))}>{["IN_PERSON", "PHONE", "SMS", "EMAIL", "INTERNAL", "WARRANTY"].map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Decision actor"><input value={authorization.decisionActorName} onChange={(event) => setAuthorization((value) => ({ ...value, decisionActorName: event.target.value }))} /></Field><Field label="Decision time"><input type="datetime-local" value={authorization.decidedAt} onChange={(event) => setAuthorization((value) => ({ ...value, decidedAt: event.target.value }))} /></Field></FormGrid>
               <div className={`${styles.authorizationGuardrail} ${authorizationBlockedReason ? styles.authorizationGuardrailBlocked : ""}`} aria-live="polite">
                 <strong>{authorizationBlockedReason ? "Authorization needs attention" : "Authorization ready"}</strong>
                 <p>{authorizationBlockedReason || authorizationHelper}</p>
@@ -1161,7 +1252,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
             </form>}
           </WorkflowStep>
 
-          <WorkflowStep complete={vendorPath ? vendorRepairReturned(currentVendorWork) : selected.repairJobs.length > 0} icon={<Wrench />} number={5} open={currentStep === 4 || staffNext?.step === 5} subtitle={vendorPath ? "Confirm vendor repair completion, plan return transportation, then move to dealership QC and inventory handoff." : "Simple instructions for moving approved work forward."} title={vendorPath ? "Vendor repair, return, and QC handoff" : "Repair release"}>
+          <WorkflowStep editing={editingStep === 5} editDisabled={busy || (editingStep !== null && editingStep !== 5)} onEdit={() => beginDraftEdit(5)} onCancel={cancelEditing} complete={vendorPath ? vendorRepairReturned(currentVendorWork) : selected.repairJobs.length > 0} icon={<Wrench />} number={5} open={currentStep === 4 || staffNext?.step === 5} subtitle={vendorPath ? "Confirm vendor repair completion, plan return transportation, then move to dealership QC and inventory handoff." : "Simple instructions for moving approved work forward."} title={vendorPath ? "Vendor repair, return, and QC handoff" : "Repair release"}>
             {vendorPath && currentVendorWork ? <section className={`${styles.vendorRouteActive} ${vendorRepairFailed(currentVendorWork) ? styles.vendorRouteFailed : ""}`}>
               <header><Truck /><div><span>Vendor repair lifecycle</span><h3>{currentVendorWork.vendorName}</h3><p>{currentVendorWork.nextAction}</p></div><b>{format(currentVendorWork.status)}</b></header>
               {vendorNeedsInternalCompletion ? (
@@ -1372,8 +1463,8 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
   </section>;
 }
 
-function WorkflowStep({ children, complete, icon, number, open, subtitle, title }: { children: ReactNode; complete: boolean; icon: ReactNode; number: number; open: boolean; subtitle: string; title: string }) {
-  return <details className={styles.step} id={`repair-planning-step-${number}`} open={open}><summary><span className={complete ? styles.done : ""}>{complete ? <Check /> : icon}</span><div><small>Stage {number}</small><h2>{title}</h2><p>{subtitle}</p></div><b>{complete ? "Complete" : open ? "Current" : "Pending"}</b><ChevronRight /></summary><div className={styles.stepBody}>{children}</div></details>;
+function WorkflowStep({ children, complete, icon, number, open, subtitle, title, editing, editDisabled, onEdit, onCancel }: { children: ReactNode; complete: boolean; icon: ReactNode; number: number; open: boolean; subtitle: string; title: string; editing: boolean; editDisabled: boolean; onEdit: () => void; onCancel: () => void }) {
+  return <details className={styles.step} id={`repair-planning-step-${number}`} open={open || editing}><summary><span className={complete ? styles.done : ""}>{complete ? <Check /> : icon}</span><div><small>Stage {number}</small><h2>{title}</h2><p>{subtitle}</p></div><b>{editing ? "Editing draft" : complete ? "Complete" : open ? "Current" : "Pending"}</b><ChevronRight /></summary><div className={styles.stepBody}><div className={styles.estimateLineActions}><button type="button" disabled={editDisabled} onClick={editing ? onCancel : onEdit}>{editing ? "Cancel edits" : "Edit draft / add update"}</button><small>{editing ? "Edit the form below, then use its save action. Cancel restores the draft from before editing." : "Recorded history is preserved. New updates use the existing approval and workflow checks."}</small></div>{children}</div></details>;
 }
 function FormGrid({ children }: { children: ReactNode }) { return <div className={styles.formGrid}>{children}</div>; }
 function Field({ children, label, wide = false }: { children: ReactNode; label: string; wide?: boolean }) { return <label className={wide ? styles.wide : ""}><span>{label}</span>{children}</label>; }

@@ -172,7 +172,7 @@
 .lookupResults {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
   gap: 8px;
   padding-top: 2px;
 }
@@ -232,6 +232,8 @@
   text-align: center;
   overflow-wrap: anywhere;
 }
+
+.lookupResults > button { display:flex; flex-direction:column; align-items:flex-start; gap:6px; text-align:left; min-width:0; overflow-wrap:anywhere; }
 
 .lookupBand > button {
   border-color: #075fd4;

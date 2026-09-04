@@ -15,6 +15,8 @@ import { LaborGuideDetailsForm, emptyLaborGuideDetails, type LaborGuideDetails }
 import { useWorkspaceDraft } from "./use-workspace-draft";
 import { DiagnosticWorkspace } from "./diagnostic-workspace";
 import type { ClinicalDrafts } from "@/lib/diagnostic-clinical-draft";
+import { emptyManualLaborReview, estimateReviewScope, manualReviewComplete, type ManualLaborReview } from "@/lib/estimate-review";
+import { GuidedEstimate } from "./guided-estimate";
 
 type ActiveRepairOrder = {
   concern: string;
@@ -217,8 +219,10 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   const [partsCatalogBusy, setPartsCatalogBusy] = useState(false);
   const [estimateAttempt, setEstimateAttempt] = useState<{ fingerprint: string; body: Record<string, unknown> } | null>(null);
   const [pendingSwitch, setPendingSwitch] = useState<RepairOrderLookup | null>(null);
+  const [estimateOpenRequest, setEstimateOpenRequest] = useState(0);
   const [clinical, setClinical] = useState<ClinicalDrafts>({});
-  const workspaceContent = useMemo(() => ({ ro: selectedRepairOrder, manual: manualDetails, labor: selectedLabor, parts: selectedParts, evidence: evidenceDrafts, attempt: estimateAttempt, clinical }), [selectedRepairOrder, manualDetails, selectedLabor, selectedParts, evidenceDrafts, estimateAttempt, clinical]);
+  const [laborReview, setLaborReview] = useState<ManualLaborReview>(emptyManualLaborReview);
+  const workspaceContent = useMemo(() => ({ ro: selectedRepairOrder, manual: manualDetails, labor: selectedLabor, parts: selectedParts, evidence: evidenceDrafts, attempt: estimateAttempt, clinical, laborReview }), [selectedRepairOrder, manualDetails, selectedLabor, selectedParts, evidenceDrafts, estimateAttempt, clinical, laborReview]);
   const draft = useWorkspaceDraft(workspaceContent, contextVehicle ?? "Preliminary quote");
 
   const activeSystem = repairTaxonomy.find((system) => system.id === activeSystemId) ?? repairTaxonomy[0];
@@ -530,12 +534,18 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   }
 
   function selectRepairOrder(order: RepairOrderLookup) {
+    const hasWork = selectedRepairOrder || Object.values(manualDetails).some(Boolean) || selectedLabor.length || selectedParts.length || evidenceDrafts.length || Object.keys(clinical).length || estimateAttempt || Object.values(laborReview).some(Boolean);
+    if (!hasWork) {
+      applyRepairOrder(order);
+      return;
+    }
     setPendingSwitch(order);
   }
 
   function applyRepairOrder(order: RepairOrderLookup) {
     draft.adopt();
     setClinical({});
+    setLaborReview(emptyManualLaborReview);
     setEstimateAttempt(null);
     setManualDetails(emptyLaborGuideDetails);
     clearEstimateWorkspace();
@@ -551,6 +561,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
     setLookupResults([]);
     setNotice(`Loaded ${order.repairOrderNumber} for estimate work.`);
     setPendingSwitch(null);
+    setEstimateOpenRequest(value => value + 1);
   }
 
   async function request<T>(url: string, init?: RequestInit) {
@@ -639,8 +650,11 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
       workTypeCode: "PART",
     })),
   ], [estimateLabor, estimateParts]);
+  const reviewScope = estimateReviewScope(selectedRepairOrder?.vehicle.id ?? `${contextVehicle ?? ""}|${contextVin ?? ""}`, lineItems);
+  const guidedReady = manualReviewComplete(laborReview, reviewScope) && !estimateParts.some(part => part.pricingStatus === "PRICE_PENDING");
 
   async function presentEstimate() {
+    if (!guidedReady) { setNotice("Complete the manual labor review and resolve pending part prices before presenting. You can still save a preliminary quote."); return; }
     if (!selectedRepairOrder) {
       setNotice("Select or create an active repair order before presenting an estimate.");
       return;
@@ -655,11 +669,12 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
       const presentedAt = new Date();
       const expiresAt = new Date(presentedAt.getTime() + 7 * 86_400_000);
       const taxCents = estimatePolicy.tax.taxCents;
-      const fingerprint = JSON.stringify({ ro: selectedRepairOrder.id, lineItems, taxCents });
+      const fingerprint = JSON.stringify({ ro: selectedRepairOrder.id, lineItems, taxCents, laborReview });
       const planning = estimateAttempt?.fingerprint === fingerprint ? null : await request<{ version: number }>(`/api/repair-orders/${encodeURIComponent(selectedRepairOrder.id)}/planning`);
       const attempt = estimateAttempt?.fingerprint === fingerprint ? estimateAttempt : { fingerprint, body: {
           expectedVersion: planning!.version,
           action: "PRESENT_ESTIMATE",
+          manualLaborReview: laborReview,
           assumptions: "Prepared from selected labor catalog operations and manual parts in the RO creation workspace.",
           discountCents: 0,
           expiresAt: expiresAt.toISOString(),
@@ -741,7 +756,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   }
 
   return (
-    <DiagnosticWorkspace clinical={clinical} onClinicalChange={setClinical} onClinicalPersist={async value => { const saved = await draft.save({ ...workspaceContent, clinical: value }); if (saved) setClinical(value); return saved; }} vehicle={contextVehicle} customer={contextCustomer} vin={contextVin} concern={contextConcern} repairOrderId={selectedRepairOrder?.id} repairOrderNumber={selectedRepairOrder?.repairOrderNumber} onSave={draft.save} onFindDrafts={() => draft.refresh().catch(error => setNotice(error.message))} saveStatus={draft.status} returnTo={returnTo} returnLabel={returnLabel} feedback={notice ? <div className={styles.notice} role="status">{notice}</div> : null} tools={<>
+    <DiagnosticWorkspace estimateOpenRequest={estimateOpenRequest} clinical={clinical} onClinicalChange={setClinical} onClinicalPersist={async value => { const saved = await draft.save({ ...workspaceContent, clinical: value }); if (saved) setClinical(value); return saved; }} vehicle={contextVehicle} customer={contextCustomer} vin={contextVin} concern={contextConcern} repairOrderId={selectedRepairOrder?.id} repairOrderNumber={selectedRepairOrder?.repairOrderNumber} onSave={draft.save} onFindDrafts={() => draft.refresh().catch(error => setNotice(error.message))} saveStatus={draft.status} returnTo={returnTo} returnLabel={returnLabel} feedback={notice ? <div className={styles.notice} role="status">{notice}</div> : null} tools={<>
       <section className={styles.lookupBand} aria-label="Draft protection">
         <button disabled={draft.saving || busy} onClick={() => void draft.save()} type="button">Save preliminary quote</button>
         <button disabled={draft.saving || busy} onClick={() => void draft.refresh().catch(error => setNotice(error.message))} type="button">Find saved drafts</button>
@@ -756,13 +771,14 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
           if (!latest) throw new Error("That draft is no longer available in the recent drafts list.");
           const value = latest.content;
           setClinical(value.clinical ?? {});
+          setLaborReview(value.laborReview ?? emptyManualLaborReview);
           draft.adopt(latest); setSelectedRepairOrder(value.ro); setManualDetails(value.manual); setSelectedLabor(value.labor); setSelectedParts(value.parts); setEvidenceDrafts(value.evidence); setEstimateAttempt(value.attempt);
           setNotice(`Resumed ${latest.title}.`);
         } catch (error) { setNotice(error instanceof Error ? error.message : "Unable to resume draft."); }
       }} type="button">Resume {saved.title}</button>)}</section> : null}
       {pendingSwitch ? <section className={styles.notice} role="region" aria-label="Confirm vehicle switch">
         <span>Switch to {pendingSwitch.repairOrderNumber}? Choose what to do with your current draft.</span>
-        <button disabled={draft.saving} type="button" onClick={async () => { if (await draft.save()) applyRepairOrder(pendingSwitch); }}>Save and switch</button>
+        <button ref={element => { element?.focus(); }} disabled={draft.saving} type="button" onClick={async () => { if (await draft.save()) applyRepairOrder(pendingSwitch); }}>Save and switch</button>
         <button disabled={draft.saving} type="button" onClick={() => applyRepairOrder(pendingSwitch)}>Discard unsaved changes and switch</button>
         <button disabled={draft.saving} type="button" onClick={() => setPendingSwitch(null)}>Cancel</button>
       </section> : null}
@@ -776,10 +792,18 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
         <Link href="/vehicles/repair-orders?intakeSource=WALK_IN&returnTo=%2Fdiagnostics%2Flabor-guide"><Plus />Check in vehicle</Link>
       </section>
       {detailsOpen && !selectedRepairOrder ? <LaborGuideDetailsForm value={manualDetails} onApply={value => { setManualDetails(value); setDetailsOpen(false); setNotice("Vehicle and customer details applied to this page. No repair order or check-in was created."); }} onCancel={() => setDetailsOpen(false)} /> : null}
-      {lookupResults.length ? <section className={styles.lookupResults} aria-label="Repair order lookup results">{lookupResults.map((order) => <button key={order.id} onClick={() => selectRepairOrder(order)} type="button"><strong>{order.repairOrderNumber}</strong><span>{order.customer?.displayName ?? "Internal"} · {[order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber}</span><small>{order.serviceVisit.concernSummary}</small></button>)}</section> : null}
+      {lookupResults.length ? <section className={styles.lookupResults} aria-label="Repair order lookup results">{lookupResults.map((order) => <button key={order.id} disabled={busy || draft.saving || Boolean(pendingSwitch)} onClick={() => selectRepairOrder(order)} type="button"><strong>{[order.vehicle.year, order.vehicle.make, order.vehicle.model].filter(Boolean).join(" ") || order.vehicle.vehicleNumber}</strong><span>{order.customer?.displayName ?? "Internal"} · {order.repairOrderNumber}</span><small>{order.serviceVisit.concernSummary}</small><span>Select vehicle for estimate →</span></button>)}</section> : null}
 
       </>}>
       <div className={styles.console} aria-label="Estimate editor">
+      <GuidedEstimate vehicle={contextVehicle} vin={contextVin} hasRO={Boolean(selectedRepairOrder)} lines={[
+        ...estimateLabor.map(item => ({ id: item.rowId, title: item.title, kind: "Labor" as const, quantity: item.hours, price: laborRate, pending: false, editable: selectedLabor.some(row => row.rowId === item.rowId) })),
+        ...estimateParts.map(item => ({ id: item.id, title: item.name, kind: "Part" as const, quantity: item.quantity, price: item.unitPrice, pending: item.pricingStatus === "PRICE_PENDING", editable: selectedParts.some(row => row.id === item.id) })),
+      ]} review={laborReview} scope={reviewScope} total={money(total)} busy={busy || draft.saving} onReview={setLaborReview} onSave={() => void draft.save()} onPresent={() => void presentEstimate()} onEdit={(line, field, value) => {
+        if (line.kind === "Labor") setSelectedLabor(rows => rows.map(row => row.rowId === line.id ? { ...row, hours: value } : row));
+        else setSelectedParts(rows => rows.map(row => row.id === line.id ? { ...row, ...(field === "quantity" ? { quantity: Math.max(1, Math.floor(value)) } : { unitPrice: value, pricingStatus: "ESTIMATED" as const }) } : row));
+      }} />
+      <details><summary>Add work / advanced tools</summary>
       <p role="note">Labor applicability: internal reference only—not an OEM-validated time or confirmed fit for {contextVehicle ?? "a selected vehicle"}. Check the exact VIN, engine, configuration, and repair procedure against your approved source before presenting an estimate.</p>
       <div className={styles.modeTabs} role="tablist" aria-label="RO creation mode">
         <button aria-selected={mode === "manual"} onClick={() => setMode("manual")} role="tab" type="button"><BookOpen />Manual Labor Guide</button>
@@ -1017,9 +1041,8 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
                 <div><dt>MN taxable parts</dt><dd>{money(estimatePolicy.tax.taxablePartsCents / 100)}</dd></div>
                 <div><dt>Tax</dt><dd>{money(taxAndSupplies)}</dd></div>
                 <div className={styles.total}><dt>Total</dt><dd>{money(total)}</dd></div>
-                <div><dt>Gross profit</dt><dd className={styles.good}>{estimateLabor.length || estimateParts.length ? "31.8%" : "—"}</dd></div>
               </dl>
-              <button aria-describedby="create-estimate-help" className={styles.createRo} disabled={busy || !canCreateEstimate} onClick={() => void presentEstimate()} type="button">{busy ? "Creating estimate..." : canCreateEstimate ? "Create & Open Official Estimate" : "Repair order required"}</button>
+              <button aria-describedby="create-estimate-help" className={styles.createRo} disabled={busy || !canCreateEstimate || !guidedReady} onClick={() => void presentEstimate()} type="button">{busy ? "Creating estimate..." : canCreateEstimate ? "Create & Open Official Estimate" : "Repair order required"}</button>
               <p className={styles.createEstimateHint} id="create-estimate-help">{createEstimateReason}</p>
               <section className={styles.assignmentCard} aria-label="Technician assignment handoff">
                 <header>
@@ -1071,7 +1094,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
           ) : null}
         </aside>
       </div>
-      </div>
+      </details></div>
     </DiagnosticWorkspace>
   );
 }

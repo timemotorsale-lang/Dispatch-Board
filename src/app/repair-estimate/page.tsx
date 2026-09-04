@@ -88,6 +88,7 @@ export default async function OfficialRepairEstimatePage({ searchParams }: { sea
     const persistedLines = estimate.lineItems as Array<{ description: string; quantity: number; unitPriceCents: number; type: string }>;
     return <OfficialRepairEstimateDocument
       isDraft={false}
+      reviewNotes={estimate.assumptions}
       concern={ro.serviceVisit.concernSummary}
       createdAt={estimate.presentedAt?.toISOString() ?? estimate.createdAt.toISOString()}
       customer={ro.customer?.displayName ?? "Internal vehicle"}

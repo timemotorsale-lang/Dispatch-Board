@@ -28,6 +28,7 @@ function formatDocumentDate(value: string) {
 
 export function OfficialRepairEstimateDocument({
   isDraft = true,
+  reviewNotes,
   concern,
   createdAt,
   customer,
@@ -40,6 +41,7 @@ export function OfficialRepairEstimateDocument({
   vehicle,
 }: {
   isDraft?: boolean;
+  reviewNotes?: string | null;
   concern: string;
   createdAt: string;
   customer: string;
@@ -127,6 +129,7 @@ export function OfficialRepairEstimateDocument({
         </div>
         <div className={styles.footerCard}>
           <h2>Operational release notes</h2>
+          {reviewNotes ? <p>{reviewNotes}</p> : null}
           <ul>
             <li>{isDraft ? "This preliminary quote is not a recorded estimate or authorization to begin repairs." : "This document reflects the recorded estimate version shown above. It is not proof of customer authorization."}</li>
             <li>Parts sourcing, supplement control, and receiving match continue in the governed parts workflow.</li>
