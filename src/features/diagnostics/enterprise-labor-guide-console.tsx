@@ -14,6 +14,7 @@ import styles from "./enterprise-labor-guide-console.module.css";
 import { LaborGuideDetailsForm, emptyLaborGuideDetails, type LaborGuideDetails } from "./labor-guide-details";
 import { useWorkspaceDraft } from "./use-workspace-draft";
 import { DiagnosticWorkspace } from "./diagnostic-workspace";
+import type { ClinicalDrafts } from "@/lib/diagnostic-clinical-draft";
 
 type ActiveRepairOrder = {
   concern: string;
@@ -216,7 +217,8 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   const [partsCatalogBusy, setPartsCatalogBusy] = useState(false);
   const [estimateAttempt, setEstimateAttempt] = useState<{ fingerprint: string; body: Record<string, unknown> } | null>(null);
   const [pendingSwitch, setPendingSwitch] = useState<RepairOrderLookup | null>(null);
-  const workspaceContent = useMemo(() => ({ ro: selectedRepairOrder, manual: manualDetails, labor: selectedLabor, parts: selectedParts, evidence: evidenceDrafts, attempt: estimateAttempt }), [selectedRepairOrder, manualDetails, selectedLabor, selectedParts, evidenceDrafts, estimateAttempt]);
+  const [clinical, setClinical] = useState<ClinicalDrafts>({});
+  const workspaceContent = useMemo(() => ({ ro: selectedRepairOrder, manual: manualDetails, labor: selectedLabor, parts: selectedParts, evidence: evidenceDrafts, attempt: estimateAttempt, clinical }), [selectedRepairOrder, manualDetails, selectedLabor, selectedParts, evidenceDrafts, estimateAttempt, clinical]);
   const draft = useWorkspaceDraft(workspaceContent, contextVehicle ?? "Preliminary quote");
 
   const activeSystem = repairTaxonomy.find((system) => system.id === activeSystemId) ?? repairTaxonomy[0];
@@ -533,6 +535,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
 
   function applyRepairOrder(order: RepairOrderLookup) {
     draft.adopt();
+    setClinical({});
     setEstimateAttempt(null);
     setManualDetails(emptyLaborGuideDetails);
     clearEstimateWorkspace();
@@ -738,7 +741,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   }
 
   return (
-    <DiagnosticWorkspace vehicle={contextVehicle} customer={contextCustomer} vin={contextVin} concern={contextConcern} repairOrderId={selectedRepairOrder?.id} repairOrderNumber={selectedRepairOrder?.repairOrderNumber} onSave={draft.save} onFindDrafts={() => draft.refresh().catch(error => setNotice(error.message))} saveStatus={draft.status} returnTo={returnTo} returnLabel={returnLabel} feedback={notice ? <div className={styles.notice} role="status">{notice}</div> : null} tools={<>
+    <DiagnosticWorkspace clinical={clinical} onClinicalChange={setClinical} onClinicalPersist={async value => { const saved = await draft.save({ ...workspaceContent, clinical: value }); if (saved) setClinical(value); return saved; }} vehicle={contextVehicle} customer={contextCustomer} vin={contextVin} concern={contextConcern} repairOrderId={selectedRepairOrder?.id} repairOrderNumber={selectedRepairOrder?.repairOrderNumber} onSave={draft.save} onFindDrafts={() => draft.refresh().catch(error => setNotice(error.message))} saveStatus={draft.status} returnTo={returnTo} returnLabel={returnLabel} feedback={notice ? <div className={styles.notice} role="status">{notice}</div> : null} tools={<>
       <section className={styles.lookupBand} aria-label="Draft protection">
         <button disabled={draft.saving || busy} onClick={() => void draft.save()} type="button">Save preliminary quote</button>
         <button disabled={draft.saving || busy} onClick={() => void draft.refresh().catch(error => setNotice(error.message))} type="button">Find saved drafts</button>
@@ -752,6 +755,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
           const latest = (await draft.refresh()).find(item => item.id === saved.id);
           if (!latest) throw new Error("That draft is no longer available in the recent drafts list.");
           const value = latest.content;
+          setClinical(value.clinical ?? {});
           draft.adopt(latest); setSelectedRepairOrder(value.ro); setManualDetails(value.manual); setSelectedLabor(value.labor); setSelectedParts(value.parts); setEvidenceDrafts(value.evidence); setEstimateAttempt(value.attempt);
           setNotice(`Resumed ${latest.title}.`);
         } catch (error) { setNotice(error instanceof Error ? error.message : "Unable to resume draft."); }
@@ -776,6 +780,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
 
       </>}>
       <div className={styles.console} aria-label="Estimate editor">
+      <p role="note">Labor applicability: internal reference only—not an OEM-validated time or confirmed fit for {contextVehicle ?? "a selected vehicle"}. Check the exact VIN, engine, configuration, and repair procedure against your approved source before presenting an estimate.</p>
       <div className={styles.modeTabs} role="tablist" aria-label="RO creation mode">
         <button aria-selected={mode === "manual"} onClick={() => setMode("manual")} role="tab" type="button"><BookOpen />Manual Labor Guide</button>
         <button aria-selected={mode === "engine"} onClick={() => setMode("engine")} role="tab" type="button"><Brain />Labor Intelligence Engine</button>

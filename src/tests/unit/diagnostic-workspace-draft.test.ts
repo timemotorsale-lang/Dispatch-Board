@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { diagnosticDraftPayload } from "@/lib/diagnostic-draft";
+import { emptyClinicalForm } from "@/lib/diagnostic-clinical-draft";
 
 const draft = () => ({ ro: null, manual: { customer: "Sample", vehicle: "2017 Acura TLX", vin: "", concern: "Brakes" }, labor: [], parts: [], evidence: [], attempt: null });
 describe("diagnostic draft validation", () => {
+  it("preserves clinical drafts and rejects invalid pending endpoints", () => {
+    const clinical = { "case-1": { ...emptyClinicalForm, statement: "Observed wear" } };
+    expect(diagnosticDraftPayload({ ...draft(), clinical }).clinical).toEqual(clinical);
+    expect(() => diagnosticDraftPayload({ ...draft(), clinical: { "case-1": { ...emptyClinicalForm, pending: { endpoint: "../../transition", body: {} } } } })).toThrow("pending evidence");
+  });
   it("preserves standalone vehicle and customer details without creating an RO", () => {
     expect(diagnosticDraftPayload(draft())).toEqual(draft());
   });

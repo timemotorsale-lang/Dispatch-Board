@@ -25,6 +25,15 @@ export function diagnosticDraftPayload(value: unknown) {
     if (!object(row) || !strings(row, ["accessLevel", "attachedTo", "category", "fileName", "note", "status"])) throw new Error("Invalid draft evidence.");
   }
   if (data.attempt !== null && (!object(data.attempt) || !strings(data.attempt, ["fingerprint"]) || !object(data.attempt.body))) throw new Error("Invalid estimate attempt.");
+  if (data.clinical !== undefined) {
+    if (!object(data.clinical) || Object.keys(data.clinical).length > 20) throw new Error("Invalid clinical drafts.");
+    for (const [caseId, form] of Object.entries(data.clinical)) {
+      if (!/^[\w-]{1,100}$/.test(caseId) || !object(form) || !strings(form, ["mode", "statement", "conditions", "quantity", "value", "unit", "group", "instrument", "calibration", "referenceMin", "referenceMax", "referenceSource", "evidenceObjectId", "purpose"])) throw new Error("Invalid clinical draft fields.");
+      if (!["observations", "measurements", "evidence"].includes(String(form.mode))) throw new Error("Invalid evidence record type.");
+      if (Object.values(form).some(value => typeof value === "string" && value.length > 2000)) throw new Error("Clinical draft field is too long.");
+      if (form.pending !== undefined && (!object(form.pending) || !["observations", "measurements", "evidence"].includes(String(form.pending.endpoint)) || !object(form.pending.body))) throw new Error("Invalid pending evidence request.");
+    }
+  }
   if (JSON.stringify(data).length > 200000) throw new Error("Draft is too large.");
   return JSON.parse(JSON.stringify(data)) as Record<string, unknown>;
 }

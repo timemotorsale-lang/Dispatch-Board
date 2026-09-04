@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useId, useState, type ReactNode } from "react";
 import styles from "./diagnostic-workspace.module.css";
+import { DiagnosticEvidencePanel } from "./diagnostic-evidence-panel";
+import type { ClinicalDrafts } from "@/lib/diagnostic-clinical-draft";
 
 const sections = ["Overview", "Findings & tests", "Estimate", "Authorization", "Verification"] as const;
 type Section = typeof sections[number];
@@ -15,10 +17,11 @@ type Planning = {
   repairJobs: Array<{ id: string; jobNumber: string; description: string; status: string }>;
 };
 
-export function DiagnosticWorkspace({ vehicle, customer, vin, concern, repairOrderId, repairOrderNumber, tools, children, feedback, onSave, onFindDrafts, saveStatus, returnTo, returnLabel }: {
+export function DiagnosticWorkspace({ vehicle, customer, vin, concern, repairOrderId, repairOrderNumber, tools, children, feedback, onSave, onFindDrafts, saveStatus, returnTo, returnLabel, clinical, onClinicalChange, onClinicalPersist }: {
   vehicle: string | null | undefined; customer: string | null | undefined; vin: string | null | undefined; concern: string | null | undefined;
   repairOrderId?: string; repairOrderNumber?: string; tools: ReactNode; children: ReactNode;
   onSave: () => Promise<boolean>; onFindDrafts: () => Promise<unknown>; saveStatus: string; returnTo?: string; returnLabel?: string; feedback?: ReactNode;
+  clinical?: ClinicalDrafts; onClinicalChange?: (value: ClinicalDrafts) => void; onClinicalPersist?: (value: ClinicalDrafts) => Promise<boolean>;
 }) {
   const [section, setSection] = useState<Section>("Overview");
   const [toolsOpen, setToolsOpen] = useState(false);
@@ -95,6 +98,7 @@ export function DiagnosticWorkspace({ vehicle, customer, vin, concern, repairOrd
         {planning?.repairJobs.length ? <ul className={styles.jobs}>{planning.repairJobs.map(job => <li key={job.id}><strong>{job.jobNumber} · {job.description}</strong><span>{job.status.replaceAll("_", " ")}</span></li>)}</ul> : <p>{unavailable ? "Repair job status has not loaded." : "No repair jobs recorded. This does not indicate that the vehicle has passed verification."}</p>}
         <footer><span>Job completion alone does not prove that the concern was resolved.</span>{workbench ? <Link className={styles.primary} href={workbench}>Open repair & verification workbench</Link> : <button type="button" onClick={showTools}>Select a repair order</button>}</footer>
       </section>
+      {repairOrderId && clinical && onClinicalChange && onClinicalPersist ? <DiagnosticEvidencePanel key={repairOrderId} repairOrderId={repairOrderId} section={section} drafts={clinical} onChange={onClinicalChange} onPersist={onClinicalPersist} /> : null}
     </div>
   </section>;
 }
