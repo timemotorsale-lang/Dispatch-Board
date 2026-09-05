@@ -22,6 +22,7 @@ import {
   buildWorkdayCarryovers,
   buildWorkdayReportSeeds,
   closeWorkbookDay,
+  createWorkbookManualReportItems,
   createCooWorkbookChecklistItem,
   createCooWorkbookDailyFocusItem,
   createCooWorkbookReportDraft,
@@ -33,6 +34,7 @@ import {
   getStaffWorkbookSummaries,
   prepareWorkbookCarryovers,
   recordWorkbookAttentionHeartbeat,
+  recordWorkbookOperatingRhythmEvent,
   reopenWorkbookDay,
   updateCooWorkbookChecklistItem,
   updateCooWorkbookReportSeed,
@@ -184,7 +186,7 @@ function workbook(userId = "user-jordan.sales@local.test"): WorkdayWorkbookRecor
   };
 }
 
-function repositoryHarness(ownerUserId = "user-jordan.sales@local.test") {
+function repositoryHarness(ownerUserId = "user-jordan.sales@local.test", rangeWorkbooks?: WorkdayWorkbookRecord[]) {
   const createdChecklistItems: Array<{ priority?: WorkdayPriority; riskLevel?: WorkdayRiskLevel; riskNote?: string; text: string; workbookId: string }> = [];
   const createdDailyFocusItems: unknown[] = [];
   const createdReportDrafts: unknown[] = [];
@@ -261,7 +263,7 @@ function repositoryHarness(ownerUserId = "user-jordan.sales@local.test") {
       return id === currentWorkbook.id ? currentWorkbook : null;
     },
     async listWorkbooksForBoardDateRange() {
-      return [currentWorkbook];
+      return rangeWorkbooks ?? [currentWorkbook];
     },
     async listWorkbooksForBoardDay() {
       return [{
@@ -620,6 +622,49 @@ describe("workday workbook service", () => {
     });
   });
 
+  it("brings prior-day carryover assignments into today's planning view", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("jordan.sales@local.test")!;
+    const priorWorkbook = workbook(user.id);
+    priorWorkbook.id = "workbook-prior";
+    priorWorkbook.boardDayId = "board-day-prior";
+    priorWorkbook.boardDay = {
+      ...boardDay,
+      id: "board-day-prior",
+      date: new Date("2026-08-28T00:00:00.000Z")
+    };
+    priorWorkbook.carryovers = [{
+      confirmedAt: null,
+      convertedAt: null,
+      convertedTaskId: null,
+      createdAt: new Date("2026-08-28T22:00:00.000Z"),
+      detail: "Customer approval is still outstanding.",
+      dismissedAt: null,
+      dismissedReason: "",
+      id: "carryover-prior-1",
+      sourceHref: "/tasks/task-approval",
+      sourceId: "task-approval",
+      sourceType: WorkdayReportSeedSourceType.OPERATING_EXCEPTION,
+      status: WorkdayCarryoverStatus.OPEN,
+      targetBoardDate: new Date("2026-08-29T00:00:00.000Z"),
+      title: "Obtain customer approval",
+      updatedAt: new Date("2026-08-28T22:00:00.000Z"),
+      workbookId: "workbook-prior"
+    }];
+    const harness = repositoryHarness(user.id, [priorWorkbook]);
+
+    const readModel = await getStaffWorkbook(user, "2026-08-29", { repository: harness.repository });
+
+    expect(readModel.incomingCarryovers).toEqual([
+      expect.objectContaining({
+        id: "carryover-prior-1",
+        sourceHref: "/tasks/task-approval",
+        targetBoardDate: "2026-08-29",
+        title: "Obtain customer approval"
+      })
+    ]);
+  });
+
   it("syncs existing app activity into the workbook read model", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const user = usersByEmail.get("jordan.sales@local.test")!;
@@ -708,6 +753,70 @@ describe("workday workbook service", () => {
         businessImpact: expect.stringContaining("Called AJ and confirmed roof quote timing."),
         purpose: WorkdayActivityPurpose.REPORT_WORTHY_EVENT,
         reportRelevant: true,
+        sourceId: "daily-focus:focus-1",
+        sourceType: "DAILY_FOCUS"
+      })
+    ]);
+  });
+
+  it("replaces a Daily Focus outcome without retaining the prior execution state", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("jordan.sales@local.test")!;
+    const harness = repositoryHarness(user.id);
+
+    await updateWorkbookDailyFocusItem(user, "focus-1", {
+      mustCloseToday: true,
+      outcome: "Call customer about the updated repair promise",
+      priority: "HIGH",
+      replaceOutcome: true,
+      riskLevel: "WATCH",
+      riskNote: "Customer confirmation is still needed.",
+      status: "PLANNED",
+      supportNeeded: ""
+    }, { repository: harness.repository });
+
+    expect(harness.dailyFocusUpdates).toEqual([
+      expect.objectContaining({
+        convertedTaskId: null,
+        id: "focus-1",
+        lastProgressAt: null,
+        outcome: "Call customer about the updated repair promise",
+        progressUpdate: "",
+        riskLevel: WorkdayRiskLevel.WATCH,
+        status: WorkdayDailyFocusStatus.PLANNED
+      })
+    ]);
+    expect(harness.activityEvents).toEqual([
+      expect.objectContaining({
+        eventType: "workbook.daily_focus_replaced",
+        metadata: expect.objectContaining({
+          previousOutcome: "Confirm roof repair path",
+          replacementOutcome: "Call customer about the updated repair promise"
+        })
+      })
+    ]);
+  });
+
+  it("records explicit approval of a chosen Daily Focus outcome", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("jordan.sales@local.test")!;
+    const harness = repositoryHarness(user.id);
+
+    await updateWorkbookDailyFocusItem(user, "focus-1", { approveOutcome: true }, { repository: harness.repository });
+
+    expect(harness.dailyFocusUpdates).toEqual([]);
+    expect(harness.activityEvents).toEqual([
+      expect.objectContaining({
+        eventType: "workbook.daily_focus_approved",
+        metadata: expect.objectContaining({
+          dailyFocusItemId: "focus-1",
+          outcome: "Confirm roof repair path"
+        })
+      })
+    ]);
+    expect(harness.createdActivitySignals).toEqual([
+      expect.objectContaining({
+        actionType: "workbook.daily_focus_approved",
         sourceId: "daily-focus:focus-1",
         sourceType: "DAILY_FOCUS"
       })
@@ -811,7 +920,9 @@ describe("workday workbook service", () => {
 
     await prepareWorkbookCarryovers(user, "2026-08-29", WorkdayWorkbookScope.COO, { repository: harness.repository });
     await updateWorkbookCarryover(user, "carryover-1", { status: "CONFIRMED" }, { repository: harness.repository });
-    await closeWorkbookDay(user, "2026-08-29", WorkdayWorkbookScope.COO, { repository: harness.repository });
+    harness.currentWorkbook.dailyFocusItems[0].status = WorkdayDailyFocusStatus.CARRY_OVER;
+    harness.currentWorkbook.checklistItems[1].done = true;
+    await closeWorkbookDay(user, "2026-08-29", WorkdayWorkbookScope.COO, { reviewedDay: true }, { repository: harness.repository });
     await reopenWorkbookDay(user, "workbook-1", { repository: harness.repository });
 
     expect(harness.upsertedCarryovers).toHaveLength(2);
@@ -827,6 +938,45 @@ describe("workday workbook service", () => {
       expect.objectContaining({ closedByUserId: user.id, id: "workbook-1" })
     ]);
     expect(harness.reopenedWorkbooks).toEqual([{ id: "workbook-1" }]);
+  });
+
+  it("requires an explicit End The Day review before closing", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("morgan.manager@local.test")!;
+    const harness = repositoryHarness(user.id);
+
+    await expect(closeWorkbookDay(user, "2026-08-29", WorkdayWorkbookScope.COO, {}, { repository: harness.repository })).rejects.toThrow("Review End The Day");
+    expect(harness.closedWorkbooks).toHaveLength(0);
+  });
+
+  it("adds attributable manual report items without overwriting the generated evidence", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("morgan.manager@local.test")!;
+    const harness = repositoryHarness(user.id);
+    const savedSeeds: Array<{ reviewNote?: string; sourceId: string; status?: WorkdayReportSeedStatus; title: string }> = [];
+    harness.repository.upsertReportSeeds = async ({ seeds }) => { savedSeeds.push(...seeds); };
+
+    await createWorkbookManualReportItems(user, "2026-08-29", WorkdayWorkbookScope.COO, {
+      items: [
+        { category: "COMPLETED", title: "Vendor payment reconciled", detail: "Invoice matched and paid.", relatedContext: "Task TMS-100" },
+        { category: "CARRYOVER", title: "Call warranty adjuster", detail: "Waiting on claim response." }
+      ]
+    }, { repository: harness.repository });
+
+    expect(savedSeeds).toHaveLength(2);
+    expect(savedSeeds[0]).toEqual(expect.objectContaining({ sourceId: expect.stringContaining("manual:completed:"), status: WorkdayReportSeedStatus.INCLUDED, title: "Vendor payment reconciled" }));
+    expect(savedSeeds[0].reviewNote).toContain(user.name);
+    expect(savedSeeds[1]).toEqual(expect.objectContaining({ sourceId: expect.stringContaining("manual:carryover:"), status: WorkdayReportSeedStatus.CARRIED_OVER }));
+    expect(harness.activityEvents).toContainEqual(expect.objectContaining({ eventType: "workbook.manual_report_items_added" }));
+  });
+
+  it("does not close while a planned item still lacks a close decision", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("morgan.manager@local.test")!;
+    const harness = repositoryHarness(user.id);
+
+    await expect(closeWorkbookDay(user, "2026-08-29", WorkdayWorkbookScope.COO, { reviewedDay: true }, { repository: harness.repository })).rejects.toThrow("Resolve every planned item");
+    expect(harness.closedWorkbooks).toHaveLength(0);
   });
 
   it("allows managers to create staff support actions", async () => {
@@ -880,6 +1030,113 @@ describe("workday workbook service", () => {
         sourceType: "ATTENTION_SESSION"
       })
     ]);
+  });
+
+  it("records an auditable Start The Day confirmation snapshot", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("jordan.sales@local.test")!;
+    const harness = repositoryHarness(user.id);
+    harness.currentWorkbook.activitySignals.push({
+      actionType: "workbook.daily_focus_approved",
+      actorUserId: user.id,
+      boardDayId: harness.currentWorkbook.boardDayId,
+      businessImpact: "Jordan approved the outcome.",
+      coachingRelevant: true,
+      createdAt: new Date("2026-08-29T14:01:00.000Z"),
+      id: "approval-focus-1",
+      metadata: {},
+      occurredAt: new Date("2026-08-29T14:01:00.000Z"),
+      purpose: WorkdayActivityPurpose.PLANNED_WORK,
+      reportRelevant: false,
+      sourceId: "daily-focus:focus-1",
+      sourceModule: "COO_WORKBOOK",
+      sourceType: "DAILY_FOCUS",
+      workbookId: harness.currentWorkbook.id
+    });
+
+    await recordWorkbookOperatingRhythmEvent(user, {
+      action: "START_CONFIRMED",
+      capacityState: "AT_RISK",
+      reviewedPlan: true,
+      sourcePath: "/vehicles/coo-workbook/effectiveness-pilot",
+      supportBy: "10:30",
+      supportNeeded: "Parts ETA could affect the customer promise.",
+      supportOwner: "Parts",
+      workbookId: "workbook-1"
+    }, { repository: harness.repository });
+
+    expect(harness.createdActivitySignals).toEqual([
+      expect.objectContaining({
+        actionType: "workbook.rhythm_start_confirmed",
+        metadata: expect.objectContaining({
+          capacityState: "AT_RISK",
+          focusSnapshot: [expect.objectContaining({ id: "focus-1", outcome: "Confirm roof repair path" })],
+          supportBy: "10:30",
+          supportOwner: "Parts"
+        }),
+        sourceType: "OPERATING_RHYTHM"
+      })
+    ]);
+  });
+
+  it("prevents Start The Day confirmation while an outcome still needs approval", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("jordan.sales@local.test")!;
+    const harness = repositoryHarness(user.id);
+
+    await expect(recordWorkbookOperatingRhythmEvent(user, {
+      action: "START_CONFIRMED",
+      capacityState: "ON_TRACK",
+      reviewedPlan: true,
+      sourcePath: "/vehicles/coo-workbook/effectiveness-pilot",
+      workbookId: "workbook-1"
+    }, { repository: harness.repository })).rejects.toThrow("still need approval");
+
+    expect(harness.activityEvents).toEqual([]);
+  });
+
+  it("prevents direct Start The Day adoption without the review checkpoint", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("jordan.sales@local.test")!;
+    const harness = repositoryHarness(user.id);
+
+    await expect(recordWorkbookOperatingRhythmEvent(user, {
+      action: "START_CONFIRMED",
+      capacityState: "ON_TRACK",
+      workbookId: "workbook-1"
+    }, { repository: harness.repository })).rejects.toThrow("Review Start The Day");
+
+    expect(harness.activityEvents).toEqual([]);
+  });
+
+  it("requires fresh approval when an approved outcome was edited afterward", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("jordan.sales@local.test")!;
+    const harness = repositoryHarness(user.id);
+    harness.currentWorkbook.activitySignals.push({
+      actionType: "workbook.daily_focus_approved",
+      actorUserId: user.id,
+      boardDayId: harness.currentWorkbook.boardDayId,
+      businessImpact: "Jordan approved the earlier version.",
+      coachingRelevant: true,
+      createdAt: new Date("2026-08-29T13:59:00.000Z"),
+      id: "stale-approval-focus-1",
+      metadata: {},
+      occurredAt: new Date("2026-08-29T13:59:00.000Z"),
+      purpose: WorkdayActivityPurpose.PLANNED_WORK,
+      reportRelevant: false,
+      sourceId: "daily-focus:focus-1",
+      sourceModule: "COO_WORKBOOK",
+      sourceType: "DAILY_FOCUS",
+      workbookId: harness.currentWorkbook.id
+    });
+
+    await expect(recordWorkbookOperatingRhythmEvent(user, {
+      action: "START_CONFIRMED",
+      capacityState: "ON_TRACK",
+      reviewedPlan: true,
+      workbookId: "workbook-1"
+    }, { repository: harness.repository })).rejects.toThrow("still need approval");
   });
 
   it("allows managers to read Staff Today summaries", async () => {

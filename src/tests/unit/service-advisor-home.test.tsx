@@ -146,6 +146,7 @@ const model = {
         updatedAt: "2026-07-20T14:12:00.000Z"
       }
     ],
+    incomingCarryovers: [],
     quickUpdates: [
       {
         id: "quick-1",
@@ -441,6 +442,7 @@ const model = {
       }
     ],
     carryovers: [],
+    incomingCarryovers: [],
     quickUpdates: [],
     reportSeeds: [],
     reportDrafts: [],
@@ -766,18 +768,19 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("More Tools");
     expect(html).toContain("/vehicles/coo-workbook/more-tools");
     expect(html).toContain("Daily Purse");
-    expect(html.match(/aria-expanded="false"/g)).toHaveLength(1);
+    expect(html.match(/aria-expanded="false"/g)).toHaveLength(2);
     expect(html).toContain("Recommended Now");
     expect(html).toContain("Daily workflow");
     expect(html).toContain("Work The Day");
     expect(html).toContain("End The Day");
-    expect(html).toContain("Close the Day");
-    expect(html).toContain("One closing workspace for done/not done review, tomorrow setup, and the manager-ready report.");
-    expect(html).toContain("Done / Not Done");
-    expect(html).toContain("Tomorrow Setup");
-    expect(html).toContain("Report Draft");
-    expect(html).toContain("Prepare Tomorrow");
-    expect(html).toContain("Generate Draft");
+    expect(html).toContain("Resolve today, protect tomorrow, review the evidence, and close with an explicit approval.");
+    expect(html).toContain("Review today’s results");
+    expect(html).toContain("Protect tomorrow");
+    expect(html).toContain("Review the daily report evidence");
+    expect(html).toContain("Prepare tomorrow");
+    expect(html).toContain("Generate daily draft");
+    expect(html).toContain("Review End The Day");
+    expect(html).toContain("Add missing item");
     expect(html).toContain("Daily Close");
     expect(html).toContain("Needs Attention");
     expect(html).toContain("Today’s Work");
@@ -818,6 +821,26 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("Create task");
     expect(html).toContain("title=Complete+scheduled+callbacks");
     expect(html).toContain("brief=Review+this+Daily+Focus+item");
+  });
+
+  it("opens existing task and repair-order sources instead of offering duplicate task creation", () => {
+    const sourceAwareModel = {
+      ...model,
+      staffWorkbook: {
+        ...model.staffWorkbook,
+        dailyFocusItems: [
+          { ...model.staffWorkbook.dailyFocusItems[0], id: "focus-task-source", outcome: "Call Maria about approval" },
+          { ...model.staffWorkbook.dailyFocusItems[0], id: "focus-ro-source", outcome: "Promise risk: RO-1001 2024 Ford F-150" }
+        ]
+      }
+    } satisfies ServiceAdvisorWorkspaceModel;
+
+    const html = renderToStaticMarkup(<CooDailyWorkbook model={sourceAwareModel} />);
+
+    expect(html).toContain('href="/tasks/task-priority-1">Open task');
+    expect(html).toContain('repairOrderId=ro_1&amp;returnLabel=Daily+Workbook&amp;returnTo=%2Fvehicles%2Fcoo-workbook">Open RO');
+    expect(html).not.toContain("title=Call+Maria+about+approval");
+    expect(html).not.toContain("title=Promise+risk%3A+RO-1001+2024+Ford+F-150");
   });
 
   it("removes a repair order from COO workbook attention when it was closed from the summary card", () => {
@@ -898,15 +921,20 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("Current Workbook");
     expect(html).toContain("Effectiveness Pilot");
     expect(html).toContain("Start The Day");
-    expect(html).toContain("Quick progress update");
-    expect(html).toContain("Save Update");
-    expect(html).toContain("Daily Effectiveness");
-    expect(html).toContain("Coaching Panel");
-    expect(html).toContain("Ask For Support");
+    expect(html).toContain("Build a clear plan before work begins");
+    expect(html).toContain("What needs your attention today?");
+    expect(html).toContain("Choose today&#x27;s outcomes");
+    expect(html).toContain("Confirm capacity and support");
+    expect(html).toContain("Review Start Day");
+    expect(html).toContain("Any revision requires a fresh review and approval.");
+    expect(html).not.toContain("Quick progress update");
+    expect(html).not.toContain("Coaching Panel");
     expect(html).not.toContain("Tomorrow Setup");
     expect(html).not.toContain("Prepare Tomorrow");
     expect(html).not.toContain("Generate Draft");
-    expect(html).toContain("Manager View");
+    expect(html).not.toContain("Manager View");
+    expect(html).not.toContain("Light Checklist");
+    expect(html).not.toContain("Report Seeds");
     expect(html).toContain("Complete scheduled callbacks");
     expect(html).toContain("/vehicles/coo-workbook/effectiveness-pilot");
   });
@@ -925,7 +953,7 @@ describe("ServiceAdvisorHome", () => {
 
     const html = renderToStaticMarkup(<CooEffectivenessPilotWorkbook model={staffPriorityModel} />);
 
-    expect(html).toContain("Suggested focus");
+    expect(html).toContain("What needs your attention today?");
     expect(html).toContain("Call Maria about approval");
     expect(html).toContain("Finish TMS-001 delivery packet");
     expect(html).toContain("Review assigned daily duties");
@@ -934,10 +962,31 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("Suggested from an open critical task that is blocked.");
     expect(html).toContain("href=\"/tasks/task-priority-1\"");
     expect(html).toContain("href=\"/my-day\"");
-    expect(html).toContain("Approve");
-    expect(html).toContain("More needing attention");
+    expect(html).toContain("Add to Today");
     expect(html).toContain("Upload photos for aged inventory");
-    expect(html).toContain("Add to Focus");
+    expect(html).toContain("View source context");
+  });
+
+  it("shows unfinished prior assignments as explicit carryover choices", () => {
+    const carryoverModel = {
+      ...model,
+      staffWorkbook: {
+        ...model.staffWorkbook,
+        incomingCarryovers: [{
+          ...model.workbook.carryovers[0],
+          id: "incoming-carryover-1",
+          targetBoardDate: model.boardDate,
+          title: "Call AJ for the final roof repair decision"
+        }]
+      }
+    } satisfies ServiceAdvisorWorkspaceModel;
+
+    const html = renderToStaticMarkup(<CooEffectivenessPilotWorkbook model={carryoverModel} />);
+
+    expect(html).toContain("Unfinished prior assignments");
+    expect(html).toContain("Call AJ for the final roof repair decision");
+    expect(html).toContain("Prior carryover");
+    expect(html).toContain("Add to Today");
   });
 
   it("shows fewer than three source-backed suggestions and prompts staff to add the rest", () => {
@@ -955,17 +1004,42 @@ describe("ServiceAdvisorHome", () => {
 
     const html = renderToStaticMarkup(<CooEffectivenessPilotWorkbook model={partialPriorityModel} />);
 
-    expect(html).toContain("Suggested focus");
+    expect(html).toContain("What needs your attention today?");
     expect(html).toContain("Call Maria about approval");
-    expect(html).toContain("add 2 more manually");
-    expect(html).toContain("Add up to three outcomes that would make today successful.");
+    expect(html).toContain("Design an outcome manually");
+    expect(html).toContain("Add at least one meaningful outcome");
   });
 
-  it("lets staff undo a selected Daily Focus item before choosing another", () => {
+  it("lets staff approve or edit a selected Daily Focus item", () => {
     const html = renderToStaticMarkup(<CooEffectivenessPilotWorkbook model={model} />);
 
-    expect(html).toContain("Undo");
-    expect(html).toContain("Remove this Daily Focus so another can be chosen.");
+    expect(html).toContain("Approve");
+    expect(html).toContain("Edit outcome");
+    expect(html).toContain("Edit the outcome and refine its scope.");
+    expect(html).toContain("Design an outcome manually");
+  });
+
+  it("allows additional outcomes when three have already been chosen", () => {
+    const fullPlanModel = {
+      ...model,
+      staffWorkbook: {
+        ...model.staffWorkbook,
+        dailyFocusItems: [
+          model.staffWorkbook.dailyFocusItems[0],
+          { ...model.staffWorkbook.dailyFocusItems[0], id: "staff-focus-2", outcome: "Confirm the first delivery promise", sortOrder: 1 },
+          { ...model.staffWorkbook.dailyFocusItems[0], id: "staff-focus-3", outcome: "Resolve the open approval", sortOrder: 2 }
+        ]
+      }
+    } satisfies ServiceAdvisorWorkspaceModel;
+
+    const html = renderToStaticMarkup(<CooEffectivenessPilotWorkbook model={fullPlanModel} />);
+
+    expect(html).toContain("3 chosen");
+    expect(html).toContain("Add to Today");
+    expect(html).toContain("Design an outcome manually");
+    expect(html).toContain("Add outcome");
+    expect(html).not.toContain("Swap into Today");
+    expect(html).not.toContain("Plan full");
   });
 
   it("removes legacy generic advisor focus rows from the Start The Day panel", () => {
@@ -986,7 +1060,7 @@ describe("ServiceAdvisorHome", () => {
 
     const html = renderToStaticMarkup(<CooEffectivenessPilotWorkbook model={legacyGenericModel} />);
 
-    expect(html).toContain("0/3 focus");
+    expect(html).toContain("0 chosen");
     expect(html).not.toContain("Authorization needed");
     expect(html).not.toContain("Promise risk");
   });

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  currentWorkdayBoardDate: vi.fn(() => "2026-08-29"),
   createCooWorkbookChecklistItem: vi.fn(),
   createCooWorkbookDailyFocusItem: vi.fn(),
   createCooWorkbookReportDraft: vi.fn(),
@@ -33,6 +34,7 @@ vi.mock("@/server/advisor-workspace/service", () => ({
 }));
 
 vi.mock("@/server/services/workday-workbook", () => ({
+  currentWorkdayBoardDate: mocks.currentWorkdayBoardDate,
   closeWorkbookDay: mocks.closeWorkbookDay,
   createCooWorkbookChecklistItem: mocks.createCooWorkbookChecklistItem,
   createCooWorkbookDailyFocusItem: mocks.createCooWorkbookDailyFocusItem,
@@ -284,7 +286,8 @@ describe("COO workbook checklist route", () => {
 
   it("closes and reopens workbook days", async () => {
     const closeResponse = await POSTClose(new Request("http://localhost/api/coo-workbook/close?date=2026-08-29&scope=COO", {
-      method: "POST"
+      method: "POST",
+      body: JSON.stringify({ reviewedDay: true })
     }));
     const reopenResponse = await POSTReopen(new Request("http://localhost/api/coo-workbook/reopen", {
       method: "POST",
@@ -293,7 +296,7 @@ describe("COO workbook checklist route", () => {
 
     expect(closeResponse.status).toBe(201);
     expect(reopenResponse.status).toBe(201);
-    expect(mocks.closeWorkbookDay).toHaveBeenCalledWith(user, "2026-08-29", "COO");
+    expect(mocks.closeWorkbookDay).toHaveBeenCalledWith(user, "2026-08-29", "COO", { reviewedDay: true });
     expect(mocks.reopenWorkbookDay).toHaveBeenCalledWith(user, "workbook-1");
   });
 

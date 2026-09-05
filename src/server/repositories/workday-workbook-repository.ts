@@ -52,6 +52,7 @@ export type WorkdayWorkbookSummaryRecord = Prisma.WorkdayWorkbookGetPayload<{ in
 
 export type WorkdayReportSeedInput = {
   detail: string;
+  reviewNote?: string;
   sourceHref?: string | null;
   sourceId: string;
   sourceType: WorkdayReportSeedSourceType;
@@ -396,7 +397,7 @@ export function createWorkdayWorkbookRepository(database: WorkdayWorkbookDatabas
           ...(input.mustCloseToday !== undefined ? { mustCloseToday: input.mustCloseToday } : {}),
           ...(input.outcome !== undefined ? { outcome: input.outcome } : {}),
           ...(input.priority !== undefined ? { priority: input.priority } : {}),
-          ...(input.progressUpdate !== undefined ? { progressUpdate: input.progressUpdate, lastProgressAt: input.lastProgressAt ?? new Date() } : {}),
+          ...(input.progressUpdate !== undefined ? { progressUpdate: input.progressUpdate, lastProgressAt: input.lastProgressAt === undefined ? new Date() : input.lastProgressAt } : {}),
           ...(input.riskLevel !== undefined ? { riskLevel: input.riskLevel } : {}),
           ...(input.riskNote !== undefined ? { riskNote: input.riskNote } : {}),
           ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
@@ -520,6 +521,7 @@ export function createWorkdayWorkbookRepository(database: WorkdayWorkbookDatabas
         },
         create: {
           detail: seed.detail,
+          reviewNote: seed.reviewNote ?? "",
           sourceHref: seed.sourceHref ?? null,
           sourceId: seed.sourceId,
           sourceType: seed.sourceType,

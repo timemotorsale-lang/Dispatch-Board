@@ -65,6 +65,8 @@ const reportCadences = new Set(Object.values(WorkdayReportCadence));
 const carryoverStatuses = new Set(Object.values(WorkdayCarryoverStatus));
 const riskLevels = new Set(Object.values(WorkdayRiskLevel));
 const supportActionStatuses = new Set(Object.values(WorkdaySupportActionStatus));
+const manualReportCategories = new Set(["COMPLETED", "UPDATE", "BLOCKER", "MANAGEMENT", "CARRYOVER"] as const);
+type ManualReportCategory = "COMPLETED" | "UPDATE" | "BLOCKER" | "MANAGEMENT" | "CARRYOVER";
 const emptyOperatingSignals: WorkdayWorkbookOperatingSignals = {
   approvalCount: 0,
   handoffCount: 0,
@@ -94,6 +96,11 @@ function normalizeNumber(value: unknown, fieldName: string, fallback = 0) {
   if (value === undefined || value === null || value === "") return fallback;
   if (typeof value !== "number" || !Number.isFinite(value)) throw new Error(`${fieldName} must be a number.`);
   return Math.trunc(value);
+}
+
+function normalizeManualReportCategory(value: unknown): ManualReportCategory {
+  if (typeof value !== "string" || !manualReportCategories.has(value as ManualReportCategory)) throw new Error("Choose a valid report section.");
+  return value as ManualReportCategory;
 }
 
 function normalizeBoundedSeconds(value: unknown, fieldName: string) {
@@ -386,6 +393,7 @@ function quickUpdateCategoryLabel(category: WorkdayQuickUpdateCategory) {
 }
 
 function reportSeedSourceLabel(seed: WorkdayWorkbookRecord["reportSeeds"][number]) {
+  if (seed.sourceId.startsWith("manual:")) return "Staff-added item";
   if (seed.sourceType === WorkdayReportSeedSourceType.CHECKLIST_ITEM) return "Daily Checklist";
   if (seed.sourceType === WorkdayReportSeedSourceType.QUICK_UPDATE) return "Quick Update";
   if (seed.sourceId.startsWith("daily-focus:")) return "Daily Focus";
@@ -442,11 +450,11 @@ export function buildWorkdayDailyReportDraft(workbook: WorkdayWorkbookRecord, bo
   const candidateSeeds = usableSeeds.filter((seed) => seed.status === WorkdayReportSeedStatus.CANDIDATE);
   const carryoverSeeds = usableSeeds.filter((seed) => seed.status === WorkdayReportSeedStatus.CARRIED_OVER);
   const reportSeeds = [...includedSeeds, ...candidateSeeds, ...carryoverSeeds];
-  const completedSeeds = reportSeeds.filter((seed) => seed.tone === WorkdayReportSeedTone.GREEN);
-  const riskSeeds = reportSeeds.filter((seed) => seed.tone === WorkdayReportSeedTone.RED || seed.tone === WorkdayReportSeedTone.YELLOW);
-  const quickUpdateSeeds = reportSeeds.filter((seed) => seed.sourceType === WorkdayReportSeedSourceType.QUICK_UPDATE);
+  const completedSeeds = reportSeeds.filter((seed) => seed.sourceId.startsWith("manual:") ? seed.sourceId.startsWith("manual:completed:") : seed.tone === WorkdayReportSeedTone.GREEN);
+  const riskSeeds = reportSeeds.filter((seed) => seed.sourceId.startsWith("manual:") ? seed.sourceId.startsWith("manual:blocker:") : seed.tone === WorkdayReportSeedTone.RED || seed.tone === WorkdayReportSeedTone.YELLOW);
+  const quickUpdateSeeds = reportSeeds.filter((seed) => seed.sourceType === WorkdayReportSeedSourceType.QUICK_UPDATE || seed.sourceId.startsWith("manual:update:"));
   const appActivitySeeds = reportSeeds.filter((seed) => seed.sourceId.startsWith("activity:"));
-  const managementSeeds = reportSeeds.filter((seed) => seed.sourceType === WorkdayReportSeedSourceType.OPERATING_EXCEPTION && !seed.sourceId.startsWith("activity:"));
+  const managementSeeds = reportSeeds.filter((seed) => seed.sourceId.startsWith("manual:") ? seed.sourceId.startsWith("manual:management:") : seed.sourceType === WorkdayReportSeedSourceType.OPERATING_EXCEPTION && !seed.sourceId.startsWith("activity:"));
   const effectiveness = buildDailyEffectiveness(workbook);
   const sections = [
     draftSection("Completed / Closed Today", completedSeeds),
@@ -949,7 +957,11 @@ function toStaffWorkbookSummary(record: WorkdayWorkbookSummaryRecord) {
   };
 }
 
-function toReadModel(workbook: WorkdayWorkbookRecord, operatingSignals: WorkdayWorkbookOperatingSignals = emptyOperatingSignals) {
+function toReadModel(
+  workbook: WorkdayWorkbookRecord,
+  operatingSignals: WorkdayWorkbookOperatingSignals = emptyOperatingSignals,
+  incomingCarryovers: WorkdayWorkbookRecord["carryovers"] = []
+) {
   const planning = buildDailyPlanningEngine(workbook);
   const execution = buildExecutionTrackingEngine(workbook);
   const risk = buildRiskAndBlockerEngine(workbook, operatingSignals);
@@ -1031,6 +1043,23 @@ function toReadModel(workbook: WorkdayWorkbookRecord, operatingSignals: WorkdayW
       carryoverReady: item.carryoverReady,
       convertedTaskId: item.convertedTaskId,
       intelligence: quickUpdateIntelligence.items.find((signal) => signal.id === item.id) ?? null,
+      createdAt: dateToIso(item.createdAt),
+      updatedAt: dateToIso(item.updatedAt)
+    })),
+    incomingCarryovers: incomingCarryovers.map((item) => ({
+      id: item.id,
+      sourceType: item.sourceType,
+      sourceId: item.sourceId,
+      sourceHref: item.sourceHref,
+      title: item.title,
+      detail: item.detail,
+      status: item.status,
+      targetBoardDate: item.targetBoardDate.toISOString().slice(0, 10),
+      convertedTaskId: item.convertedTaskId,
+      dismissedReason: item.dismissedReason,
+      confirmedAt: item.confirmedAt ? dateToIso(item.confirmedAt) : null,
+      dismissedAt: item.dismissedAt ? dateToIso(item.dismissedAt) : null,
+      convertedAt: item.convertedAt ? dateToIso(item.convertedAt) : null,
       createdAt: dateToIso(item.createdAt),
       updatedAt: dateToIso(item.updatedAt)
     })),
@@ -1148,11 +1177,22 @@ async function getWorkbookByScope(
     seeds: buildWorkdayReportSeeds(workbookWithActivity, operatingSignals),
     workbookId: workbook.id
   });
-  return toReadModel(await repository.getOrCreateWorkbook({
+  const currentWorkbook = await repository.getOrCreateWorkbook({
     boardDayId: boardDay.id,
     scope,
     userId: user.id
-  }), operatingSignals);
+  });
+  const priorWorkbooks = await repository.listWorkbooksForBoardDateRange({
+    endDate: addDays(date, -1),
+    scope,
+    startDate: addDays(date, -30),
+    userId: user.id
+  });
+  const incomingCarryovers = priorWorkbooks
+    .flatMap((item) => item.carryovers)
+    .filter((item) => item.targetBoardDate.toISOString().slice(0, 10) === date)
+    .filter((item) => item.status !== WorkdayCarryoverStatus.DISMISSED && item.status !== WorkdayCarryoverStatus.CONVERTED);
+  return toReadModel(currentWorkbook, operatingSignals, incomingCarryovers);
 }
 
 export async function getCooWorkbook(
@@ -1267,14 +1307,33 @@ export async function updateWorkbookDailyFocusItem(actor: AuthenticatedUser | nu
   const item = await repository.findDailyFocusItem(itemId.trim());
   if (!item) throw new Error("Daily Focus item not found.");
   assertWorkbookEditable(user, item.workbook);
+  const approveOutcome = normalizeBoolean(payload.approveOutcome, "approveOutcome") ?? false;
+  if (approveOutcome) {
+    await recordWorkbookActivity(
+      repository,
+      user,
+      item.workbook,
+      "workbook.daily_focus_approved",
+      `${user.name} approved “${item.outcome}” for today’s focus.`,
+      {
+        dailyFocusItemId: item.id,
+        outcome: item.outcome,
+        sourceId: `daily-focus:${item.id}`,
+        sourceType: "DAILY_FOCUS",
+        status: item.status
+      }
+    );
+    return { ok: true };
+  }
+  const replaceOutcome = normalizeBoolean(payload.replaceOutcome, "replaceOutcome") ?? false;
   await repository.updateDailyFocusItem({
-    convertedTaskId: normalizeOptionalText(payload.convertedTaskId, "convertedTaskId", 120),
+    convertedTaskId: replaceOutcome ? null : normalizeOptionalText(payload.convertedTaskId, "convertedTaskId", 120),
     id: item.id,
     mustCloseToday: normalizeBoolean(payload.mustCloseToday, "mustCloseToday"),
     outcome: payload.outcome === undefined ? undefined : normalizeRequiredText(payload.outcome, "Daily Focus outcome is required.", 500),
     priority: normalizeOptionalPriority(payload.priority),
-    progressUpdate: normalizeOptionalText(payload.progressUpdate, "progressUpdate", 1000),
-    lastProgressAt: payload.progressUpdate === undefined ? undefined : new Date(),
+    progressUpdate: replaceOutcome ? "" : normalizeOptionalText(payload.progressUpdate, "progressUpdate", 1000),
+    lastProgressAt: replaceOutcome ? null : payload.progressUpdate === undefined ? undefined : new Date(),
     riskLevel: normalizeOptionalRiskLevel(payload.riskLevel),
     riskNote: normalizeOptionalText(payload.riskNote, "riskNote", 500),
     sortOrder: payload.sortOrder === undefined ? undefined : normalizeNumber(payload.sortOrder, "sortOrder"),
@@ -1282,14 +1341,16 @@ export async function updateWorkbookDailyFocusItem(actor: AuthenticatedUser | nu
     supportNeeded: normalizeOptionalText(payload.supportNeeded, "supportNeeded", 500)
   });
   const progressUpdate = normalizeOptionalText(payload.progressUpdate, "progressUpdate", 1000);
+  const replacementOutcome = replaceOutcome ? normalizeRequiredText(payload.outcome, "Replacement outcome is required.", 500) : "";
   await recordWorkbookActivity(
     repository,
     user,
     item.workbook,
-    progressUpdate !== undefined ? "workbook.daily_focus_progress_updated" : "workbook.daily_focus_updated",
-    progressUpdate !== undefined ? `${user.name} updated Daily Focus progress: ${progressUpdate}` : `${user.name} updated a daily focus outcome.`,
+    replaceOutcome ? "workbook.daily_focus_replaced" : progressUpdate !== undefined ? "workbook.daily_focus_progress_updated" : "workbook.daily_focus_updated",
+    replaceOutcome ? `${user.name} replaced “${item.outcome}” with “${replacementOutcome}” in today’s focus.` : progressUpdate !== undefined ? `${user.name} updated Daily Focus progress: ${progressUpdate}` : `${user.name} updated a daily focus outcome.`,
     {
       dailyFocusItemId: item.id,
+      ...(replaceOutcome ? { previousOutcome: item.outcome, replacementOutcome } : {}),
       progressUpdate,
       sourceId: `daily-focus:${item.id}`,
       sourceType: "DAILY_FOCUS",
@@ -1390,6 +1451,40 @@ export async function updateCooWorkbookReportSeed(actor: AuthenticatedUser | nul
   });
   await recordWorkbookActivity(repository, user, seed.workbook, "workbook.report_seed_reviewed", `${user.name} reviewed a Report Seed.`, { reportSeedId: seed.id, status: payload.status ?? seed.status });
   return { ok: true };
+}
+
+export async function createWorkbookManualReportItems(actor: AuthenticatedUser | null, boardDate: string, scope: WorkdayWorkbookScope, input: unknown, dependencies: Dependencies = {}) {
+  const user = assertAuthenticatedUser(actor);
+  const payload = normalizeObject(input);
+  if (!Array.isArray(payload.items) || payload.items.length < 1 || payload.items.length > 20) throw new Error("Add between 1 and 20 report items.");
+  const date = normalizeBoardDate(boardDate);
+  const { repository, workbook } = await getOwnedWorkbook(user, date, scope, dependencies);
+  assertWorkbookEditable(user, workbook);
+  const createdAt = new Date();
+  const seeds: WorkdayReportSeedInput[] = payload.items.map((rawItem, index) => {
+    const item = normalizeObject(rawItem);
+    const category = normalizeManualReportCategory(item.category);
+    const title = normalizeRequiredText(item.title, "Each report item needs a title.", 240);
+    const detail = normalizeOptionalText(item.detail, "detail", 1600) ?? "Staff supplied this item during End The Day review.";
+    const relatedContext = normalizeOptionalText(item.relatedContext, "relatedContext", 300);
+    const tone = category === "COMPLETED" ? WorkdayReportSeedTone.GREEN
+      : category === "BLOCKER" ? WorkdayReportSeedTone.RED
+        : category === "CARRYOVER" ? WorkdayReportSeedTone.YELLOW
+          : WorkdayReportSeedTone.BLUE;
+    return {
+      detail: relatedContext ? `${detail}\nRelated: ${relatedContext}` : detail,
+      reviewNote: `Added manually by ${user.name} on ${createdAt.toISOString()}.`,
+      sourceHref: null,
+      sourceId: `manual:${category.toLocaleLowerCase()}:${createdAt.getTime()}:${index}`,
+      sourceType: WorkdayReportSeedSourceType.OPERATING_EXCEPTION,
+      status: category === "CARRYOVER" ? WorkdayReportSeedStatus.CARRIED_OVER : WorkdayReportSeedStatus.INCLUDED,
+      title,
+      tone
+    };
+  });
+  await repository.upsertReportSeeds({ seeds, workbookId: workbook.id });
+  await recordWorkbookActivity(repository, user, workbook, "workbook.manual_report_items_added", `${user.name} added ${seeds.length} missing item(s) during End The Day review.`, { count: seeds.length, sourceIds: seeds.map((seed) => seed.sourceId) });
+  return { count: seeds.length, ok: true };
 }
 
 async function createWorkbookDailyReportDraft(
@@ -1505,12 +1600,17 @@ export async function updateWorkbookCarryover(actor: AuthenticatedUser | null, c
   return { ok: true };
 }
 
-export async function closeWorkbookDay(actor: AuthenticatedUser | null, boardDate: string, scope: WorkdayWorkbookScope = WorkdayWorkbookScope.COO, dependencies: Dependencies = {}) {
+export async function closeWorkbookDay(actor: AuthenticatedUser | null, boardDate: string, scope: WorkdayWorkbookScope = WorkdayWorkbookScope.COO, input: unknown = {}, dependencies: Dependencies = {}) {
   const user = assertAuthenticatedUser(actor);
+  const payload = normalizeObject(input);
+  if (normalizeBoolean(payload.reviewedDay, "reviewedDay") !== true) throw new Error("Review End The Day before approving and closing the workbook.");
   const date = normalizeBoardDate(boardDate);
   const { repository, workbook } = await getOwnedWorkbook(user, date, scope, dependencies);
   if (scope === WorkdayWorkbookScope.COO && !isManager(user)) throw new Error("Manager access is required to close the COO workbook.");
   assertWorkbookEditable(user, workbook);
+  const unresolvedFocusCount = workbook.dailyFocusItems.filter((item) => item.status !== WorkdayDailyFocusStatus.DONE && item.status !== WorkdayDailyFocusStatus.CARRY_OVER).length;
+  const unresolvedChecklistCount = workbook.checklistItems.filter((item) => !item.done && !item.carryoverReady).length;
+  if (unresolvedFocusCount + unresolvedChecklistCount > 0) throw new Error("Resolve every planned item as Done or Carry to tomorrow before closing the day.");
   const targetBoardDate = addDays(date, 1);
   const carryovers = buildWorkdayCarryovers(workbook, targetBoardDate);
   await repository.upsertCarryovers({ carryovers, workbookId: workbook.id });
@@ -1525,7 +1625,7 @@ export async function closeWorkbookDay(actor: AuthenticatedUser | null, boardDat
     reportSeedIds: workbook.reportSeeds.map((seed) => seed.id)
   };
   await repository.closeWorkbook({ closeSnapshot: snapshot, closedByUserId: user.id, id: workbook.id });
-  await recordWorkbookActivity(repository, user, workbook, "workbook.day_closed", `${user.name} closed the workbook day.`, { targetBoardDate });
+  await recordWorkbookActivity(repository, user, workbook, "workbook.day_closed", `${user.name} reviewed and approved the workbook day close.`, { reviewedDay: true, targetBoardDate });
   return { carryoverCount: carryovers.length, ok: true };
 }
 
@@ -1652,22 +1752,48 @@ export async function recordWorkbookOperatingRhythmEvent(actor: AuthenticatedUse
   const now = new Date();
   const reason = normalizeOptionalText(payload.reason, "reason", 700) ?? "";
   const sourcePath = normalizeOptionalText(payload.sourcePath, "sourcePath", 240) ?? "";
+  const capacityState = normalizeOptionalText(payload.capacityState, "capacityState", 40)?.toLocaleUpperCase() ?? "ON_TRACK";
+  const supportNeeded = normalizeOptionalText(payload.supportNeeded, "supportNeeded", 700) ?? "";
+  const supportOwner = normalizeOptionalText(payload.supportOwner, "supportOwner", 180) ?? "";
+  const supportBy = normalizeOptionalText(payload.supportBy, "supportBy", 40) ?? "";
   const eventType =
+    action === "START_CONFIRMED" ? "workbook.rhythm_start_confirmed" :
     action === "START_REMINDER_SHOWN" ? "workbook.rhythm_start_reminder_shown" :
     action === "START_DELAY_EXPLAINED" ? "workbook.rhythm_start_delay_explained" :
     action === "END_PREP_REMINDER_SHOWN" ? "workbook.rhythm_end_prep_reminder_shown" :
     "";
   if (!eventType) throw new Error("Rhythm action is not supported.");
   if (action === "START_DELAY_EXPLAINED" && !reason) throw new Error("Delay reason is required.");
+  if (action === "START_CONFIRMED" && !workbook.dailyFocusItems.length) throw new Error("Choose at least one daily outcome before starting the day.");
+  if (action === "START_CONFIRMED" && normalizeBoolean(payload.reviewedPlan, "reviewedPlan") !== true) throw new Error("Review Start The Day before approving and adopting the plan.");
+  const approvedFocusIds = new Set(workbook.activitySignals
+    .filter((signal) => signal.actionType === "workbook.daily_focus_approved")
+    .filter((signal) => {
+      const focusId = signal.sourceId.replace(/^daily-focus:/, "");
+      const focusItem = workbook.dailyFocusItems.find((item) => item.id === focusId);
+      return Boolean(focusItem && signal.occurredAt >= focusItem.updatedAt);
+    })
+    .map((signal) => signal.sourceId.replace(/^daily-focus:/, "")));
+  const unapprovedFocusItems = workbook.dailyFocusItems.filter((item) => !approvedFocusIds.has(item.id));
+  if (action === "START_CONFIRMED" && unapprovedFocusItems.length) throw new Error(`Review and approve all Daily Focus outcomes before starting the day. ${unapprovedFocusItems.length} outcome(s) still need approval.`);
+  if (action === "START_CONFIRMED" && !["ON_TRACK", "AT_RISK", "SUPPORT_NEEDED"].includes(capacityState)) throw new Error("Capacity state is not supported.");
+  if (action === "START_CONFIRMED" && capacityState === "SUPPORT_NEEDED" && !supportNeeded) throw new Error("Support details are required when support is needed.");
 
   const message =
+    action === "START_CONFIRMED" ? `${user.name} confirmed Start The Day with ${workbook.dailyFocusItems.length} committed outcome(s).` :
     action === "START_REMINDER_SHOWN" ? `${user.name} was reminded to Start The Day.` :
     action === "START_DELAY_EXPLAINED" ? `${user.name} explained why Start The Day cannot happen yet: ${reason}` :
     `${user.name} was reminded to prepare End The Day.`;
 
   await recordWorkbookActivity(repository, user, workbook, eventType, message, {
+    capacityState,
+    ...(action === "START_CONFIRMED" ? { reviewedPlan: true } : {}),
+    ...(action === "START_CONFIRMED" ? { focusSnapshot: workbook.dailyFocusItems.map((item) => ({ id: item.id, mustCloseToday: item.mustCloseToday, outcome: item.outcome, priority: item.priority, riskLevel: item.riskLevel })) } : {}),
     reason,
     sourcePath,
+    supportBy,
+    supportNeeded,
+    supportOwner,
     sourceId: `operating-rhythm:${action.toLocaleLowerCase()}:${now.getTime()}`,
     sourceType: "OPERATING_RHYTHM"
   });

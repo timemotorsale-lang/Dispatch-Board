@@ -7,7 +7,7 @@ import { closeWorkbookDay, currentWorkdayBoardDate } from "@/server/services/wor
 function statusFor(message: string) {
   if (message === "Authentication required.") return 401;
   if (message.includes("Manager access")) return 403;
-  if (message.includes("closed") || message.includes("must be")) return 400;
+  if (message.includes("closed") || message.includes("must be") || message.includes("Review End The Day") || message.includes("Resolve every planned item")) return 400;
   return 500;
 }
 
@@ -17,7 +17,8 @@ export async function POST(request: Request) {
   const scope = url.searchParams.get("scope") === "STAFF" ? WorkdayWorkbookScope.STAFF : WorkdayWorkbookScope.COO;
 
   try {
-    return NextResponse.json(await closeWorkbookDay(await getCurrentUser(), boardDate, scope), { status: 201 });
+    const payload = await request.json().catch(() => ({}));
+    return NextResponse.json(await closeWorkbookDay(await getCurrentUser(), boardDate, scope, payload), { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to close workbook day.";
     return NextResponse.json({ error: message }, { status: statusFor(message) });

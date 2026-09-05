@@ -67,6 +67,7 @@ function activeCarryoverSourceIds(workbook: WorkdayWorkbookRecord) {
 }
 
 const startDayEvidenceActionTypes = new Set([
+  "workbook.rhythm_start_confirmed",
   "workbook.daily_focus_created",
   "workbook.checklist_created",
   "workbook.quick_update_created",
