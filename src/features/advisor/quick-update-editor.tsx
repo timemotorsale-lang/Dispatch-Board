@@ -4,7 +4,7 @@ import styles from "./quick-update-editor.module.css";
 
 type Fields = { text: string; category: string; person: string; phoneNumber: string; company: string; followUpNeeded: boolean; dueWindow: string };
 export function QuickUpdateEditor({ item, categories, disabled, onSaved }: {
-  item: Fields & { id: string; convertedTaskId: string | null };
+  item: Fields & { id: string; convertedTaskId: string | null; relatedCustomerId: string | null };
   categories: Array<{ label: string; value: string }>;
   disabled: boolean;
   onSaved: () => Promise<void>;
@@ -16,13 +16,14 @@ export function QuickUpdateEditor({ item, categories, disabled, onSaved }: {
     if (!draft || saving || disabled) return;
     setSaving(true); setNotice("");
     try {
+      const identityChanged = draft.person.trim() !== item.person.trim() || draft.phoneNumber.trim() !== item.phoneNumber.trim() || draft.company.trim() !== item.company.trim();
       const response = await fetch(`/api/coo-workbook/quick-updates/${encodeURIComponent(item.id)}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...draft, text: draft.text.trim(), dueWindow: draft.followUpNeeded ? draft.dueWindow : "" })
+        body: JSON.stringify({ ...draft, text: draft.text.trim(), dueWindow: draft.followUpNeeded ? draft.dueWindow : "", ...(identityChanged ? { relatedCustomerId: null } : {}) })
       });
       const payload = await response.json().catch(() => null);
       if (!response.ok) throw new Error(payload?.error ?? "Unable to save your changes. Please try again.");
-      setDraft(null); setNotice("Update saved.");
+      setDraft(null); setNotice(identityChanged && item.relatedCustomerId ? "Update saved. Confirm the customer again because identifying details changed." : "Update saved.");
       try { await onSaved(); } catch { setNotice("Update saved. Refresh this page to see the latest details."); }
     } catch (error) { setNotice(error instanceof Error ? error.message : "Unable to save changes."); }
     finally { setSaving(false); }

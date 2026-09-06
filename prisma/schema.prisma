@@ -2639,6 +2639,7 @@ model Customer {
   serviceVisits                   ServiceVisit[]
   serviceIntakeReadinessSnapshots ServiceIntakeReadinessSnapshot[]
   repairOrders                    RepairOrder[]
+  workdayQuickUpdates             WorkdayQuickUpdate[]
   unifiedCrmOpportunities         UnifiedCrmOpportunityRecord[]    @relation("UnifiedCrmOpportunityCustomer")
   unifiedCrmQuotes                UnifiedCrmQuoteRecord[]          @relation("UnifiedCrmQuoteCustomer")
 
@@ -6877,17 +6878,22 @@ model WorkdayQuickUpdate {
   person          String                     @default("")
   phoneNumber     String                     @default("")
   company         String                     @default("")
+  identityKey     String                     @default("")
   followUpNeeded  Boolean                    @default(false)
   dueWindow       String                     @default("")
   carryoverReady  Boolean                    @default(false)
   convertedTaskId String?
+  relatedCustomerId String?
   createdAt       DateTime                   @default(now())
   updatedAt       DateTime                   @updatedAt
   workbook        WorkdayWorkbook            @relation(fields: [workbookId], references: [id], onDelete: Cascade)
   convertedTask   Task?                      @relation("WorkdayQuickUpdateConvertedTask", fields: [convertedTaskId], references: [id], onDelete: SetNull)
+  relatedCustomer Customer?                  @relation(fields: [relatedCustomerId], references: [id], onDelete: SetNull)
 
   @@index([workbookId, category, followUpNeeded])
   @@index([convertedTaskId])
+  @@index([relatedCustomerId, createdAt])
+  @@index([identityKey, createdAt])
 }
 
 model WorkdayReportSeed {

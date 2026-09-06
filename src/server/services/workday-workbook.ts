@@ -1,4 +1,5 @@
 import { normalizeChecklistReminderDate } from "@/lib/checklist-reminder-date";
+import { quickUpdateIdentityKey } from "@/lib/quick-update-identity";
 import { externalActivityPurpose, WORKDAY_ACTIVITY_TIME_ZONE } from "@/lib/workday-activity";
 import {
   WorkdayActivityPurpose,
@@ -1037,6 +1038,7 @@ function toReadModel(
       category: item.category,
       person: item.person,
       phoneNumber: item.phoneNumber,
+      relatedCustomerId: item.relatedCustomerId,
       company: item.company,
       followUpNeeded: item.followUpNeeded,
       dueWindow: item.dueWindow,
@@ -1390,13 +1392,18 @@ async function createWorkbookQuickUpdate(actor: AuthenticatedUser | null, boardD
   const boardDay = await repository.getOrCreateBoardDay(normalizeBoardDate(boardDate));
   const workbook = await repository.getOrCreateWorkbook({ boardDayId: boardDay.id, scope, userId: user.id });
   assertWorkbookEditable(user, workbook);
+  const person = normalizeOptionalText(payload.person, "person", 180) ?? "";
+  const phoneNumber = normalizeOptionalText(payload.phoneNumber, "phoneNumber", 50) ?? "";
+  const company = normalizeOptionalText(payload.company, "company", 180) ?? "";
   await repository.createQuickUpdate({
     category: normalizeQuickUpdateCategory(payload.category),
-    company: normalizeOptionalText(payload.company, "company", 180) ?? "",
+    company,
     dueWindow: normalizeOptionalText(payload.dueWindow, "dueWindow", 180) ?? "",
     followUpNeeded: normalizeBoolean(payload.followUpNeeded, "followUpNeeded") ?? false,
-    person: normalizeOptionalText(payload.person, "person", 180) ?? "",
-    phoneNumber: normalizeOptionalText(payload.phoneNumber, "phoneNumber", 50) ?? "",
+    identityKey: quickUpdateIdentityKey(person, phoneNumber, company),
+    person,
+    phoneNumber,
+    relatedCustomerId: normalizeOptionalText(payload.relatedCustomerId, "relatedCustomerId", 120) ?? null,
     text: normalizeRequiredText(payload.text, "Quick Update text is required.", 1200),
     workbookId: workbook.id
   });
@@ -1419,16 +1426,21 @@ export async function updateCooWorkbookQuickUpdate(actor: AuthenticatedUser | nu
   const item = await repository.findQuickUpdate(updateId.trim());
   if (!item) throw new Error("Quick Update not found.");
   assertWorkbookEditable(user, item.workbook);
+  const person = payload.person === undefined ? item.person : normalizeOptionalText(payload.person, "person", 180) ?? "";
+  const phoneNumber = payload.phoneNumber === undefined ? item.phoneNumber : normalizeOptionalText(payload.phoneNumber, "phoneNumber", 50) ?? "";
+  const company = payload.company === undefined ? item.company : normalizeOptionalText(payload.company, "company", 180) ?? "";
   await repository.updateQuickUpdate({
     carryoverReady: normalizeBoolean(payload.carryoverReady, "carryoverReady"),
     category: payload.category === undefined ? undefined : normalizeQuickUpdateCategory(payload.category),
-    company: normalizeOptionalText(payload.company, "company", 180),
+    company: payload.company === undefined ? undefined : company,
     convertedTaskId: normalizeOptionalText(payload.convertedTaskId, "convertedTaskId", 120),
     dueWindow: normalizeOptionalText(payload.dueWindow, "dueWindow", 180),
     followUpNeeded: normalizeBoolean(payload.followUpNeeded, "followUpNeeded"),
     id: item.id,
-    person: normalizeOptionalText(payload.person, "person", 180),
-    phoneNumber: normalizeOptionalText(payload.phoneNumber, "phoneNumber", 50),
+    identityKey: quickUpdateIdentityKey(person, phoneNumber, company),
+    person: payload.person === undefined ? undefined : person,
+    phoneNumber: payload.phoneNumber === undefined ? undefined : phoneNumber,
+    relatedCustomerId: payload.relatedCustomerId === null ? null : normalizeOptionalText(payload.relatedCustomerId, "relatedCustomerId", 120),
     text: payload.text === undefined ? undefined : normalizeRequiredText(payload.text, "Quick Update text is required.", 1200)
   });
   await recordWorkbookActivity(repository, user, item.workbook, "workbook.quick_update_updated", `${user.name} updated a Quick Update.`, { quickUpdateId: item.id });

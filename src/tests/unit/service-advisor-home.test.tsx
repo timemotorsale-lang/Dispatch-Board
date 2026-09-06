@@ -823,6 +823,44 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("brief=Review+this+Daily+Focus+item");
   });
 
+  it("shows checklist carryover decisions as selected and protects them for tomorrow", () => {
+    const carryoverModel = {
+      ...model,
+      staffWorkbook: {
+        ...model.staffWorkbook,
+        checklistItems: model.staffWorkbook.checklistItems.map((item) => ({ ...item, carryoverReady: true, done: false }))
+      }
+    } as ServiceAdvisorWorkspaceModel;
+    const html = renderToStaticMarkup(<CooDailyWorkbook model={carryoverModel} />);
+
+    expect(html).toContain('class="selected carry"');
+    expect(html).toContain('aria-pressed="true"');
+    expect(html).toContain("Candidate · All morning callbacks are done.");
+  });
+
+  it("makes closed-day status override work-the-day recommendations", () => {
+    const closedModel = {
+      ...model,
+      staffWorkbook: {
+        ...model.staffWorkbook,
+        carryovers: model.workbook.carryovers,
+        closedAt: "2026-07-20T23:13:00.000Z",
+        reportDrafts: model.workbook.reportDrafts,
+        status: "CLOSED"
+      }
+    } as ServiceAdvisorWorkspaceModel;
+    const html = renderToStaticMarkup(<CooDailyWorkbook model={closedModel} />);
+
+    expect(html).toContain("Day Closed — Review Report");
+    expect(html).toContain("Today is closed. Review the saved report; 1 carryover item is protected for tomorrow.");
+    expect(html).toContain("Closed · 1 protected for tomorrow");
+    expect(html).toContain("Review report");
+    expect(html).toContain("Attention at Close");
+    expect(html).toContain("Carried or reported");
+    expect(html).toContain("Daily Report");
+    expect(html).toContain("Ready to review");
+  });
+
   it("opens existing task and repair-order sources instead of offering duplicate task creation", () => {
     const sourceAwareModel = {
       ...model,
@@ -892,6 +930,8 @@ describe("ServiceAdvisorHome", () => {
     expect(quickUpdateHtml).toContain("type=\"date\"");
     expect(quickUpdateHtml).toContain("Save update");
     expect(quickUpdateHtml).toContain("Convert to task");
+    expect(quickUpdateHtml).toContain("Find related context");
+    expect(quickUpdateHtml).toContain("Related Quick Update context");
     expect(actionPlanHtml).toContain("Create overall action plan task");
     expect(actionPlanHtml).toContain("Create+Service+Advisor+Workbook+daily+action+plan");
     expect(carryoverHtml).toContain("Convert to task gives it an owner, due time, checklist, comments, and status tracking.");
@@ -1017,6 +1057,54 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("Edit outcome");
     expect(html).toContain("Edit the outcome and refine its scope.");
     expect(html).toContain("Design an outcome manually");
+  });
+
+  it("identifies an unlinked manual outcome without pretending it is an existing task", () => {
+    const manualOutcomeModel = {
+      ...model,
+      morningPrioritySources: [],
+      staffWorkbook: {
+        ...model.staffWorkbook,
+        checklistItems: [],
+        carryovers: [],
+        dailyFocusItems: [{
+          ...model.staffWorkbook.dailyFocusItems[0],
+          convertedTaskId: null,
+          outcome: "Identify Pending/Almost Done Vehicles - Devise a Plan to Fix them"
+        }],
+        incomingCarryovers: [],
+        quickUpdates: []
+      }
+    } satisfies ServiceAdvisorWorkspaceModel;
+
+    const html = renderToStaticMarkup(<CooEffectivenessPilotWorkbook model={manualOutcomeModel} />);
+
+    expect(html).toContain("Manual outcome · not a task");
+    expect(html).toContain("Manually added Daily Focus outcome. No task has been created.");
+    expect(html).toContain("Convert to task");
+    expect(html).not.toContain("Open linked task");
+  });
+
+  it("opens a linked task instead of offering to create a duplicate", () => {
+    const linkedOutcomeModel = {
+      ...model,
+      morningPrioritySources: [],
+      staffWorkbook: {
+        ...model.staffWorkbook,
+        checklistItems: [],
+        carryovers: [],
+        dailyFocusItems: [{ ...model.staffWorkbook.dailyFocusItems[0], convertedTaskId: "task-linked-1" }],
+        incomingCarryovers: [],
+        quickUpdates: []
+      }
+    } satisfies ServiceAdvisorWorkspaceModel;
+
+    const html = renderToStaticMarkup(<CooEffectivenessPilotWorkbook model={linkedOutcomeModel} />);
+
+    expect(html).toContain("Linked task");
+    expect(html).toContain("href=\"/tasks/task-linked-1\"");
+    expect(html).toContain("Open linked task");
+    expect(html).not.toContain("Manual outcome · not a task");
   });
 
   it("allows additional outcomes when three have already been chosen", () => {

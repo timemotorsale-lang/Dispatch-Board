@@ -106,7 +106,7 @@ export type WorkdayWorkbookRepository = {
   createChecklistItem(input: { priority?: WorkdayPriority; riskLevel?: WorkdayRiskLevel; riskNote?: string; text: string; workbookId: string }): Promise<void>;
   createDailyFocusItem(input: { mustCloseToday: boolean; outcome: string; priority: WorkdayPriority; riskLevel: WorkdayRiskLevel; riskNote: string; sortOrder: number; supportNeeded: string; workbookId: string }): Promise<void>;
   createReportDraft(input: { cadence: WorkdayReportCadence; generatedByUserId: string; periodEnd: string; periodStart: string; sections: Prisma.InputJsonValue; sourceSeedIds: Prisma.InputJsonValue; summary: string; title: string; workbookId: string }): Promise<void>;
-  createQuickUpdate(input: { category: WorkdayQuickUpdateCategory; company: string; dueWindow: string; followUpNeeded: boolean; person: string; phoneNumber: string; text: string; workbookId: string }): Promise<void>;
+  createQuickUpdate(input: { category: WorkdayQuickUpdateCategory; company: string; dueWindow: string; followUpNeeded: boolean; identityKey: string; person: string; phoneNumber: string; relatedCustomerId?: string | null; text: string; workbookId: string }): Promise<void>;
   createSupportAction(input: { actorUserId: string; note: string; requestedUpdate: boolean; status: WorkdaySupportActionStatus; targetUserId: string; workbookId: string }): Promise<void>;
   createActivitySignal(input: WorkdayActivitySignalInput): Promise<void>;
   deleteDailyFocusItem(input: { id: string }): Promise<void>;
@@ -135,7 +135,7 @@ export type WorkdayWorkbookRepository = {
   updateChecklistItem(input: { reminderDate?: string; carryoverReady?: boolean; convertedTaskId?: string | null; done?: boolean; id: string; priority?: WorkdayPriority; riskLevel?: WorkdayRiskLevel; riskNote?: string; status?: WorkdayChecklistStatus; text?: string; update?: string }): Promise<void>;
   updateCarryover(input: { convertedTaskId?: string | null; dismissedReason?: string; id: string; status: WorkdayCarryoverStatus }): Promise<void>;
   updateDailyFocusItem(input: { convertedTaskId?: string | null; id: string; lastProgressAt?: Date | null; mustCloseToday?: boolean; outcome?: string; priority?: WorkdayPriority; progressUpdate?: string; riskLevel?: WorkdayRiskLevel; riskNote?: string; sortOrder?: number; status?: WorkdayDailyFocusStatus; supportNeeded?: string }): Promise<void>;
-  updateQuickUpdate(input: { carryoverReady?: boolean; category?: WorkdayQuickUpdateCategory; company?: string; convertedTaskId?: string | null; dueWindow?: string; followUpNeeded?: boolean; id: string; person?: string; phoneNumber?: string; text?: string }): Promise<void>;
+  updateQuickUpdate(input: { carryoverReady?: boolean; category?: WorkdayQuickUpdateCategory; company?: string; convertedTaskId?: string | null; dueWindow?: string; followUpNeeded?: boolean; id: string; identityKey?: string; person?: string; phoneNumber?: string; relatedCustomerId?: string | null; text?: string }): Promise<void>;
   updateReportSeed(input: { detail?: string; id: string; reviewNote?: string; status?: WorkdayReportSeedStatus; title?: string }): Promise<void>;
   updateSupportAction(input: { id: string; note?: string; requestedUpdate?: boolean; status: WorkdaySupportActionStatus }): Promise<void>;
   upsertAttentionSession(input: WorkdayAttentionHeartbeatInput): Promise<void>;
@@ -416,8 +416,10 @@ export function createWorkdayWorkbookRepository(database: WorkdayWorkbookDatabas
           ...(input.convertedTaskId !== undefined ? { convertedTaskId: input.convertedTaskId } : {}),
           ...(input.dueWindow !== undefined ? { dueWindow: input.dueWindow } : {}),
           ...(input.followUpNeeded !== undefined ? { followUpNeeded: input.followUpNeeded } : {}),
+          ...(input.identityKey !== undefined ? { identityKey: input.identityKey } : {}),
           ...(input.person !== undefined ? { person: input.person } : {}),
           ...(input.phoneNumber !== undefined ? { phoneNumber: input.phoneNumber } : {}),
+          ...(input.relatedCustomerId !== undefined ? { relatedCustomerId: input.relatedCustomerId } : {}),
           ...(input.text !== undefined ? { text: input.text } : {})
         }
       });

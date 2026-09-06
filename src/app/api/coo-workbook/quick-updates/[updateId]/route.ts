@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/server/auth/current-user";
 import { updateCooWorkbookQuickUpdate } from "@/server/services/workday-workbook";
+import { assertQuickUpdateCustomerLink, safeQuickUpdateError } from "@/server/services/workday-quick-update-context";
 
 function statusFor(message: string) {
   if (message === "Authentication required.") return 401;
@@ -16,9 +17,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ up
   const { updateId } = await params;
 
   try {
-    return NextResponse.json(await updateCooWorkbookQuickUpdate(await getCurrentUser(), updateId, payload));
+    const user = await getCurrentUser();
+    await assertQuickUpdateCustomerLink(user, payload);
+    return NextResponse.json(await updateCooWorkbookQuickUpdate(user, updateId, payload));
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to update Quick Update.";
+    const message = safeQuickUpdateError(error, "Unable to update Quick Update. Please refresh the page and try again.");
     return NextResponse.json({ error: message }, { status: statusFor(message) });
   }
 }
