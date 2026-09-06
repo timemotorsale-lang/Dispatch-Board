@@ -100,16 +100,17 @@ function createEmptyDraft(assignedUserId = "", dueDate = new Date().toISOString(
 }
 
 export function calculateTaskIntakeReadiness(draft: IntakeDraft) {
+  const needsCustomerOrVehicleContext = /advisor|appointment|customer|repair|service|vehicle|vin/.test(draft.intakeType.toLocaleLowerCase());
   const checks = [
     { label: "Executable title", ready: draft.title.trim().length >= 8, weight: 15 },
-    { label: "Clear one-line brief", ready: draft.brief.trim().length >= 16, weight: 10 },
+    { label: "Clear task details", ready: draft.brief.trim().length >= 16, weight: 10 },
     { label: "Workflow selected", ready: Boolean(draft.workflowArea), weight: 10 },
     { label: "Due date and time", ready: Boolean(draft.dueDate && draft.dueTime), weight: 10 },
     { label: "Expected outcome", ready: draft.expectedOutcome.trim().length >= 20, weight: 15 },
     { label: "Required updates", ready: draft.requiredUpdates.length > 0, weight: 10 },
     { label: "Accountable owner", ready: Boolean(draft.assignedUserId), weight: 15 },
-    { label: "Manager control aligned", ready: (draft.priority !== "CRITICAL" && draft.intakeType !== "Manager Decision") || draft.requiresManagerApproval, weight: 5 },
-    { label: "Context linked or intentionally omitted", ready: draft.intakeType === "Quick Task" || Boolean(draft.customerReference.trim() || draft.vehicleReference.trim()), weight: 10 }
+    { label: "Manager control optional", ready: true, weight: 5 },
+    { label: "Context linked or intentionally omitted", ready: !needsCustomerOrVehicleContext || Boolean(draft.customerReference.trim() || draft.vehicleReference.trim()), weight: 10 }
   ];
   const score = checks.reduce((total, check) => total + (check.ready ? check.weight : 0), 0);
   return { checks, score };
@@ -122,11 +123,20 @@ function acquisitionPolicy(draft: IntakeDraft) {
   return "Available for claim";
 }
 
+function shouldClearStarterTaskDetails(value: string) {
+  const normalized = value.trim().toLocaleLowerCase();
+  if (!normalized) return false;
+  if (normalized.startsWith("source:")) return false;
+  return normalized.startsWith("review this daily focus item and record whether")
+    || normalized.startsWith("converted from a manually added")
+    || normalized === "document the action, evidence, and next step expected from the owner.";
+}
+
 type TaskIntakeProps = {
   canAssignOthers?: boolean;
   currentUserId?: string;
   defaultDueDate?: string;
-  initialDraft?: Partial<IntakeDraft>;
+  initialDraft?: Partial<IntakeDraft> & { sourceDetail?: string; sourceTitle?: string };
   returnTo?: string;
   staff?: ActiveUserSummary[];
 };
@@ -150,11 +160,23 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
   const [draftMessage, setDraftMessage] = useState("");
   const [submitError, setSubmitError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [detailsExpanded, setDetailsExpanded] = useState(false);
+  const detailsAutoClearRef = useRef(false);
   const submitLock = useRef(false);
   const readiness = calculateTaskIntakeReadiness(draft);
   const policy = acquisitionPolicy(draft);
 
   useEffect(() => {
+    const hasIncomingSourceDraft = Boolean(
+      initialDraft?.sourceDetail?.trim()
+      || initialDraft?.sourceTitle?.trim()
+      || initialDraft?.title?.trim()
+      || initialDraft?.brief?.trim()
+      || initialDraft?.expectedOutcome?.trim()
+      || initialDraft?.customerReference?.trim()
+      || initialDraft?.vehicleReference?.trim()
+    );
+    if (hasIncomingSourceDraft) return;
     const savedDraft = window.localStorage.getItem(draftStorageKey);
     if (!savedDraft) return;
     try {
@@ -174,7 +196,7 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
     } catch {
       window.localStorage.removeItem(draftStorageKey);
     }
-  }, [canAssignOthers, currentUserId]);
+  }, [canAssignOthers, currentUserId, initialDraft]);
 
   function saveDraft() {
     window.localStorage.setItem(draftStorageKey, JSON.stringify(draft));
@@ -234,7 +256,6 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
     setDraft((current) => ({
       ...current,
       intakeType: nextType,
-      requiresManagerApproval: nextType === "Manager Decision" ? true : current.requiresManagerApproval,
       workflowArea: definition.workflow,
       expectedOutcome: current.expectedOutcome || definition.outcome
     }));
@@ -247,6 +268,13 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
         ? current.requiredUpdates.filter((item) => item !== label)
         : [...current.requiredUpdates, label]
     }));
+  }
+
+  function expandTaskDetails() {
+    setDetailsExpanded(true);
+    if (detailsAutoClearRef.current) return;
+    detailsAutoClearRef.current = true;
+    setDraft((current) => shouldClearStarterTaskDetails(current.brief) ? { ...current, brief: "" } : current);
   }
 
   function addCollaborator() {
@@ -311,7 +339,21 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
 
           <div className="task-intake-form-grid">
             <label className="task-intake-span-2"><span>Task title *</span><input onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Example: Diagnose 2014 Acura MDX A/C issue" value={draft.title} /></label>
-            <label className="task-intake-span-2"><span>One-line brief *</span><textarea onChange={(event) => setDraft((current) => ({ ...current, brief: event.target.value }))} placeholder="Describe the action, evidence, and next step expected from the owner." rows={2} value={draft.brief} /></label>
+            <div className={`task-intake-details task-intake-span-2${detailsExpanded ? " task-intake-details-expanded" : ""}`}>
+              <div className="task-intake-details-header">
+                <span>Task details *</span>
+                {!detailsExpanded ? <small>Click to expand</small> : null}
+              </div>
+              <textarea
+                aria-label="Task details"
+                onClick={expandTaskDetails}
+                onFocus={expandTaskDetails}
+                onChange={(event) => setDraft((current) => ({ ...current, brief: event.target.value }))}
+                rows={detailsExpanded ? 7 : 2}
+                value={draft.brief}
+              />
+              {detailsExpanded ? <p className="task-intake-details-help">Use this space like the staff instruction note. These details help the system generate better subtasks, checklist items, ownership, and follow-up context.</p> : null}
+            </div>
             <label><span>Workflow area *</span><select onChange={(event) => setDraft((current) => ({ ...current, workflowArea: event.target.value }))} value={draft.workflowArea}><option value="INVENTORY">Inventory</option><option value="SHOP">Service / Recon</option><option value="SALES">Sales</option><option value="ADVERTISING">Marketing / Advertising</option><option value="ADMIN">Admin / Documentation</option><option value="COLLECTIONS">Collections</option><option value="GENERAL_MANAGER">Management</option></select></label>
             <label><span>Priority *</span><select onChange={(event) => setDraft((current) => ({ ...current, priority: event.target.value as IntakeDraft["priority"], requiresManagerApproval: event.target.value === "CRITICAL" ? true : current.requiresManagerApproval }))} value={draft.priority}><option value="LOW">Low</option><option value="MEDIUM">Normal</option><option value="HIGH">High</option><option disabled={!canAssignOthers} value="CRITICAL">Critical</option></select></label>
             <label><span>Accountable owner *</span><select disabled={!canAssignOthers} onChange={(event) => setDraft((current) => ({ ...current, assignedUserId: event.target.value, collaboratorIds: current.collaboratorIds.filter((id) => id !== event.target.value) }))} value={draft.assignedUserId}><option value="">Choose task owner</option>{collaboratorOptions.map((option) => <option key={option.id} value={option.id}>{option.name} · {option.role}</option>)}</select></label>
@@ -359,7 +401,7 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
           <section className="task-intake-card-preview">
             <header><span>{draft.priority}</span><strong>{draft.dueTime || "No due time"}</strong></header>
             <h3>{draft.title || "Untitled task"}</h3>
-            <p>{draft.brief || "The one-line task brief will appear here."}</p>
+            <p>{draft.brief || "Task details will appear here."}</p>
             <div><span>{draft.workflowArea.replaceAll("_", " ")}</span><span>Not Started</span></div>
           </section>
 

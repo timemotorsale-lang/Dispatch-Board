@@ -154,6 +154,26 @@ describe("task checklist service", () => {
     expect(items).toHaveLength(2);
   });
 
+  it("reuses an existing checklist item instead of creating duplicate labels", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const staffUser = usersByEmail.get("casey.mechanic@local.test") ?? null;
+    const { repository, items } = createTaskChecklistRepositoryHarness();
+
+    const item = await createTaskChecklistItem(
+      staffUser,
+      "task-1",
+      {
+        kind: TASK_CHECKLIST_ITEM_KIND.DEFINITION_OF_DONE,
+        label: "  Keep the task status current  "
+      },
+      repository
+    );
+
+    expect(item.id).toBe("item-dod-1");
+    expect(items).toHaveLength(1);
+    expect(recordBoardActivityEvent).not.toHaveBeenCalled();
+  });
+
   it("updates completion state and records checklist activity", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const managerUser = usersByEmail.get("morgan.manager@local.test") ?? null;

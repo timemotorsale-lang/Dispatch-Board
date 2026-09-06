@@ -1,7 +1,7 @@
 "use client";
 import { ExternalLink, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { type TaskChecklistItemKindValue } from "@/lib/task-checklist-kind";
 import type {
@@ -43,6 +43,28 @@ type TaskExecutionChecklistCardProps = {
   title: string;
 };
 
+function normalizeChecklistLabelForView(label: string) {
+  return label.trim().replace(/\s+/g, " ").toLocaleLowerCase();
+}
+
+function dedupeChecklistItems(items: ExecutionChecklistItem[]) {
+  const byLabel = new Map<string, ExecutionChecklistItem>();
+
+  for (const item of items) {
+    const key = normalizeChecklistLabelForView(item.label);
+    const existingItem = byLabel.get(key);
+
+    if (!existingItem || item.completed) {
+      byLabel.set(key, {
+        ...item,
+        completed: existingItem?.completed || item.completed
+      });
+    }
+  }
+
+  return Array.from(byLabel.values());
+}
+
 export function TaskExecutionChecklistCard({
   allowCreate = false,
   allowDelete = false,
@@ -57,10 +79,14 @@ export function TaskExecutionChecklistCard({
   title
 }: TaskExecutionChecklistCardProps) {
   const router = useRouter();
-  const [items, setItems] = useState(initialItems);
+  const [items, setItems] = useState(() => dedupeChecklistItems(initialItems));
   const [draftLabel, setDraftLabel] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    setItems(dedupeChecklistItems(initialItems));
+  }, [initialItems]);
 
   function isTransientItemId(itemId: string) {
     return itemId.includes("-adaptive-") || itemId.includes("-template-") || itemId.includes("-subtask-");

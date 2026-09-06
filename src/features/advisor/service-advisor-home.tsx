@@ -138,10 +138,9 @@ function taskDateParts(value?: string) {
   };
 }
 
-function cooTaskIntakeHref(input: { brief: string; dueAt?: string; expectedOutcome: string; title: string; vehicleReference?: string }) {
+function cooTaskIntakeHref(input: { brief?: string; dueAt?: string; expectedOutcome: string; sourceTitle?: string; title: string; vehicleReference?: string }) {
   const due = taskDateParts(input.dueAt);
   const params = new URLSearchParams({
-    brief: input.brief,
     dueDate: due.date,
     dueTime: due.time,
     expectedOutcome: input.expectedOutcome,
@@ -150,8 +149,25 @@ function cooTaskIntakeHref(input: { brief: string; dueAt?: string; expectedOutco
     title: input.title,
     workflowArea: "GENERAL_MANAGER"
   });
+  if (input.brief) params.set("brief", input.brief);
+  if (input.sourceTitle) params.set("sourceTitle", input.sourceTitle);
   if (input.vehicleReference) params.set("vehicleReference", input.vehicleReference);
   return `/tasks/intake?${params.toString()}`;
+}
+
+function dailyFocusTaskDetails(item: DailyFocusItem, workbookLabel: string) {
+  return [
+    `Source: ${workbookLabel} Daily Focus`,
+    `Source item: ${item.outcome}`,
+    item.progressUpdate ? `Progress already recorded: ${item.progressUpdate}` : "",
+    item.supportNeeded ? `Support needed: ${item.supportNeeded}` : "",
+    item.riskNote ? `Risk or blocker: ${item.riskNote}` : "",
+    "",
+    "Staff plan:",
+    "- Confirm the current status of this source item.",
+    "- Record what changed, what is next, who owns it, and when it is due.",
+    "- Close it, carry it over, or keep it active with a clear next update."
+  ].filter((line) => line || line === "").join("\n").trim();
 }
 
 function inferWorkflowAreaFromText(value: string): WorkbookSearchResume["workflowArea"] {
@@ -777,9 +793,9 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
       return {
         detail: item.progressUpdate || item.supportNeeded || item.riskNote || (item.status === "DONE" ? "Completed today." : "Needs update or close decision."),
         href: source?.href ?? cooTaskIntakeHref({
-          brief: item.progressUpdate || item.supportNeeded || item.riskNote || `Review this Daily Focus item and record whether it is done, needs support, should become a task, or should carry over: ${item.outcome}`,
           dueAt: model.generatedAt,
-          expectedOutcome: "This Daily Focus item has a clear owner, status, next action, and close decision.",
+          expectedOutcome: `${item.outcome} has a clear owner, status, next action, and close decision.`,
+          sourceTitle: item.outcome,
           title: item.outcome
         }),
         id: `focus-${item.id}`,
@@ -2375,6 +2391,7 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
     setNotice(null);
     try {
       const dueAt = new Date(`${model.boardDate}T17:00:00`);
+      const description = dailyFocusTaskDetails(item, activeLabel);
       const response = await fetch("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2387,11 +2404,11 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
             sourceId: item.id,
             sourceKind: "COO_WORKBOOK_DAILY_FOCUS"
           },
-          description: `Converted from a manually added ${activeLabel} Daily Focus outcome. ${item.riskNote || item.supportNeeded || "No additional context was recorded."}`,
+          description,
           dueAt: dueAt.toISOString(),
           intakeMetadata: {
             channel: activeLabel,
-            expectedOutcome: "The manually planned outcome has a clear owner, next action, progress trail, and completion result.",
+            expectedOutcome: `${item.outcome} has a clear owner, next action, progress trail, and completion result.`,
             intakeType: "Daily Focus Task",
             requiredUpdates: ["Record progress or a blocker before end of day."]
           },

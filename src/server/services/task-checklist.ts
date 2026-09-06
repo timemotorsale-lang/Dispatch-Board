@@ -147,6 +147,10 @@ function buildChecklistUpdateMessage(
   return `${actorName} reopened a ${itemType} on ${taskTitle}: ${item.label}.`;
 }
 
+function normalizeChecklistLabelForMatch(label: string) {
+  return label.trim().replace(/\s+/g, " ").toLocaleLowerCase();
+}
+
 function toExpandedTaskModel(
   task: Prisma.TaskGetPayload<{ select: typeof expandedTaskSelect }>,
   created: boolean
@@ -185,6 +189,14 @@ export async function createTaskChecklistItem(
   const normalizedInput = normalizeTaskChecklistCreateInput(input);
   const task = await requireTaskForChecklist(repository, normalizedTaskId);
   const authenticatedUser = assertCanManageTaskChecklist(user, task);
+  const existingItems = await repository.listItemsForTask(normalizedTaskId, normalizedInput.kind);
+  const existingItem = existingItems.find((item) =>
+    normalizeChecklistLabelForMatch(item.label) === normalizeChecklistLabelForMatch(normalizedInput.label)
+  );
+
+  if (existingItem) {
+    return toTaskChecklistItemModel(existingItem);
+  }
 
   const item = await repository.createItem(normalizedTaskId, normalizedInput);
 
@@ -470,13 +482,18 @@ export async function seedTaskChecklistItems(
   }
 
   const createdItems: TaskChecklistItemModel[] = [];
+  const seededLabels = new Set<string>();
 
   for (const item of items) {
     const normalizedLabel = item.label.trim();
 
-    if (!normalizedLabel) {
+    const labelKey = normalizeChecklistLabelForMatch(normalizedLabel);
+
+    if (!normalizedLabel || seededLabels.has(`${item.kind}:${labelKey}`)) {
       continue;
     }
+
+    seededLabels.add(`${item.kind}:${labelKey}`);
 
     const createdItem = await repository.createItem(normalizedTaskId, {
       kind: item.kind,

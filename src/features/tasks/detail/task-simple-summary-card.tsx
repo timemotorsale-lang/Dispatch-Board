@@ -23,6 +23,7 @@ import { useRef, useState } from "react";
 import { TASK_CHECKLIST_ITEM_KIND } from "@/lib/task-checklist-kind";
 import type { TaskDetailChecklistItem, TaskDetailSubtaskItem } from "@/features/tasks/detail/task-detail-mappers";
 import { TaskExecutionChecklistCard } from "@/features/tasks/detail/task-execution-checklist-card";
+import { TaskPlanReviewCard } from "@/features/tasks/detail/task-plan-review-card";
 import { TaskStatusPanel } from "@/features/tasks/task-status-panel";
 import { TaskUpdatesCommentsCard } from "@/features/tasks/detail/task-updates-comments-card";
 import type { TaskCompletionReadiness } from "@/server/services/task-execution-readiness";
@@ -968,6 +969,8 @@ export function TaskSimpleSummaryCard({
         <button aria-pressed={activePanel === "comments"} onClick={() => togglePanel("comments")} type="button"><MessageSquareText size={14} />Comments <span>{commentCount}</span></button>
         <button aria-pressed={activePanel === "signals"} onClick={() => togglePanel("signals")} type="button"><Activity size={14} />Signals <span>{taskSignals.length}</span></button>
       </nav>
+
+      <TaskPlanReviewCard canUpdate={canUpdateStatus} compact task={task} />
 
       {activePanel ? <div className="etw-compact-expanded-panel">
         {activePanel === "progress" ? (

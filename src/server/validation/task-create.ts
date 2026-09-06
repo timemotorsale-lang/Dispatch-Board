@@ -269,7 +269,7 @@ export function normalizeTaskCreateInput(value: unknown): NormalizedTaskCreateIn
 
   if (intakeMetadata) {
     if (normalizedInput.title.length < 8) throw new Error("Task intake requires an executable title of at least 8 characters.");
-    if (normalizedInput.description.length < 16) throw new Error("Task intake requires a clear brief of at least 16 characters.");
+    if (normalizedInput.description.length < 16) throw new Error("Task intake requires clear task details of at least 16 characters.");
     if (intakeMetadata.expectedOutcome.length < 20) throw new Error("Task intake requires an expected outcome of at least 20 characters.");
     if (intakeTypeRequiresCustomerOrVehicle(intakeMetadata.intakeType) && !normalizeOptionalText(input.customerReference, "customerReference") && !normalizeOptionalText(input.vehicleReference, "vehicleReference")) {
       throw new Error("Task intake requires customer or vehicle context for this intake type.");

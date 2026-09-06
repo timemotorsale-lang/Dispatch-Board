@@ -5,12 +5,27 @@ export type TaskBlockerPlan = {
   escalationAt: string;
 };
 
+export type TaskPlanReviewStatus =
+  | "DRAFT_GENERATED"
+  | "CONFIRMED"
+  | "SIMPLIFIED"
+  | "BYPASSED";
+
+export type TaskPlanReview = {
+  status: TaskPlanReviewStatus;
+  reviewedAt: string | null;
+  reviewedByUserId: string | null;
+  reviewedByName: string | null;
+  note: string | null;
+};
+
 export type TaskExecutionAssurance = {
   startedAt: string | null;
   lastProgressAt: string | null;
   nextCheckpointAt: string | null;
   lastProgressNote: string | null;
   blockerPlan: TaskBlockerPlan | null;
+  planReview: TaskPlanReview;
 };
 
 export type TaskMomentumState =
@@ -28,7 +43,14 @@ const emptyAssurance: TaskExecutionAssurance = {
   lastProgressAt: null,
   nextCheckpointAt: null,
   lastProgressNote: null,
-  blockerPlan: null
+  blockerPlan: null,
+  planReview: {
+    status: "DRAFT_GENERATED",
+    reviewedAt: null,
+    reviewedByUserId: null,
+    reviewedByName: null,
+    note: null
+  }
 };
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -44,6 +66,25 @@ function normalizeDate(value: unknown) {
   if (!text) return null;
   const date = new Date(text);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function normalizePlanReview(value: unknown): TaskPlanReview {
+  if (!isObject(value)) return { ...emptyAssurance.planReview };
+  const status =
+    value.status === "CONFIRMED" ||
+    value.status === "SIMPLIFIED" ||
+    value.status === "BYPASSED" ||
+    value.status === "DRAFT_GENERATED"
+      ? value.status
+      : "DRAFT_GENERATED";
+
+  return {
+    status,
+    reviewedAt: normalizeDate(value.reviewedAt),
+    reviewedByUserId: normalizeText(value.reviewedByUserId),
+    reviewedByName: normalizeText(value.reviewedByName),
+    note: normalizeText(value.note)
+  };
 }
 
 export function normalizeTaskExecutionAssurance(value: unknown): TaskExecutionAssurance {
@@ -69,8 +110,14 @@ export function normalizeTaskExecutionAssurance(value: unknown): TaskExecutionAs
       blockerPlan.reviewAt &&
       blockerPlan.escalationAt
         ? blockerPlan
-        : null
+        : null,
+    planReview: normalizePlanReview(value.planReview)
   };
+}
+
+export function isTaskPlanConfirmed(assuranceValue: unknown) {
+  const status = normalizeTaskExecutionAssurance(assuranceValue).planReview.status;
+  return status === "CONFIRMED" || status === "SIMPLIFIED";
 }
 
 export function getTaskMomentumState(

@@ -1,5 +1,16 @@
-﻿import { TaskStatus } from "@prisma/client";
+import { TaskStatus } from "@prisma/client";
 
+import {
+  isKnownAdaptiveChecklistLabel,
+  isKnownAdaptiveSubtaskLabel
+} from "@/lib/adaptive-task-checklist";
+import { getStaffExecutionFlags, type StaffExecutionFlags } from "@/lib/staff-execution-flags";
+import {
+  createDefaultCheckpoint,
+  isTaskPlanConfirmed,
+  normalizeTaskExecutionAssurance
+} from "@/lib/task-execution-assurance";
+import { TASK_CHECKLIST_ITEM_KIND } from "@/lib/task-checklist-kind";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { canUpdateAssignedWork, isManager } from "@/server/policies/access";
 import { recordBoardActivityEvent } from "@/server/services/activity-feed";
@@ -16,11 +27,6 @@ import type {
   TaskTemplateCompletionCriteria,
   TaskTemplateRequiredUpdateField
 } from "@/server/validation/task-template";
-import { getStaffExecutionFlags, type StaffExecutionFlags } from "@/lib/staff-execution-flags";
-import {
-  createDefaultCheckpoint,
-  normalizeTaskExecutionAssurance
-} from "@/lib/task-execution-assurance";
 
 export type TaskStatusUpdateResult = {
   id: string;
@@ -222,12 +228,37 @@ function shouldUseConvertedProgressNoteAsCompletionEvidence(
     progressNoteLooksLikeCompletionEvidence(input.progressNote);
 }
 
+const genericGeneratedSubtaskLabels = new Set([
+  "Review task objective",
+  "Post progress update",
+  "Resolve blocker or assign next step",
+  "Confirm next execution step",
+  "Move to Ready for Review"
+]);
+
+function isGeneratedPlanItem(item: { kind?: string; label: string }) {
+  if (item.kind === TASK_CHECKLIST_ITEM_KIND.DEFINITION_OF_DONE) {
+    return isKnownAdaptiveChecklistLabel(item.label);
+  }
+
+  if (item.kind === TASK_CHECKLIST_ITEM_KIND.SUBTASK) {
+    return genericGeneratedSubtaskLabels.has(item.label) || isKnownAdaptiveSubtaskLabel(item.label);
+  }
+
+  return false;
+}
+
 function assertRequiredChecklistSatisfied(
-  task: { checklistItems?: Array<{ label: string; isRequired: boolean; completed: boolean }> },
+  task: { checklistItems?: Array<{ kind?: string; label: string; isRequired: boolean; completed: boolean }>; executionAssurance?: unknown },
   status: TaskStatus
 ) {
   if (!shouldEnforceRequiredUpdateFields(status)) return;
-  const incomplete = (task.checklistItems ?? []).filter((item) => item.isRequired && !item.completed);
+  const planConfirmed = isTaskPlanConfirmed(task.executionAssurance);
+  const incomplete = (task.checklistItems ?? []).filter((item) =>
+    item.isRequired &&
+    !item.completed &&
+    (planConfirmed || !isGeneratedPlanItem(item))
+  );
   if (incomplete.length) {
     throw new Error(`Task checklist is incomplete: ${incomplete.map((item) => item.label).join(", ")}.`);
   }
@@ -392,7 +423,7 @@ function buildTaskStatusUpdateData(
     requiresManagerApproval: boolean;
     templateSnapshot?: unknown;
     updateFieldValues?: unknown;
-    checklistItems?: Array<{ label: string; isRequired: boolean; completed: boolean }>;
+    checklistItems?: Array<{ kind?: string; label: string; isRequired: boolean; completed: boolean }>;
     concernLink?: {
       dependsOnStepCodes: unknown;
       concernCase: { taskLinks: Array<{ stepCode: string; task: { status: TaskStatus } }> };

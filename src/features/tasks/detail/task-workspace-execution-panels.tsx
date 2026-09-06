@@ -8,7 +8,9 @@ import type {
   TaskDetailSubtaskItem
 } from "@/features/tasks/detail/task-detail-mappers";
 import { TaskExecutionChecklistCard } from "@/features/tasks/detail/task-execution-checklist-card";
+import { TaskPlanReviewCard } from "@/features/tasks/detail/task-plan-review-card";
 import { TaskUpdatesCommentsCard } from "@/features/tasks/detail/task-updates-comments-card";
+import type { TaskReadModel } from "@/server/services/task-read";
 
 type UnifiedFeedItem = {
   actorName: string;
@@ -23,6 +25,7 @@ type TaskWorkspaceExecutionPanelsProps = {
   definitionOfDone: TaskDetailChecklistItem[];
   initialFeedItems: UnifiedFeedItem[];
   subtasks: TaskDetailSubtaskItem[];
+  task: Pick<TaskReadModel, "executionAssurance" | "id">;
   taskId: string;
 };
 
@@ -31,6 +34,7 @@ export function TaskWorkspaceExecutionPanels({
   definitionOfDone,
   initialFeedItems,
   subtasks,
+  task,
   taskId
 }: TaskWorkspaceExecutionPanelsProps) {
   const [activityRefreshKey, setActivityRefreshKey] = useState(0);
@@ -41,6 +45,8 @@ export function TaskWorkspaceExecutionPanels({
 
   return (
     <>
+      <TaskPlanReviewCard canUpdate={canComment} task={task} />
+
       <TaskUpdatesCommentsCard
         canComment={canComment}
         initialFeedItems={initialFeedItems}

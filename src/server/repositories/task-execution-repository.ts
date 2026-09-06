@@ -19,7 +19,7 @@ const executionSelect = {
   templateSnapshot: true,
   updateFieldValues: true,
   checklistItems: {
-    select: { key: true, label: true, isRequired: true, completed: true }
+    select: { key: true, kind: true, label: true, isRequired: true, completed: true }
   },
   concernLink: {
     select: {

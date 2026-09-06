@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildDefinitionOfDone } from "@/features/tasks/detail/task-detail-mappers";
+import { buildDefinitionOfDone, buildSubtasks } from "@/features/tasks/detail/task-detail-mappers";
 import { TASK_CHECKLIST_ITEM_KIND } from "@/lib/task-checklist-kind";
 
 describe("task detail mappers", () => {
@@ -33,6 +33,53 @@ describe("task detail mappers", () => {
       "Complete the safe coordinator step or prepare the workflow for the authorized owner",
       "Attach the evidence or note to the canonical record, not a duplicate task trail",
       "Record the blocker, responsible owner, due time, and next handoff"
+    ]);
+  });
+
+  it("keeps saved checklist and subtask rows as the source of truth", () => {
+    const task = {
+      id: "task_1",
+      title: "Review manager decision",
+      description: "Review the operating issue.",
+      workflowArea: "GENERAL_MANAGER",
+      status: "IN_PROGRESS",
+      comments: [],
+      readyForReviewAt: null,
+      completedAt: null,
+      blockerReason: null,
+      vehicleReference: null,
+      customerReference: null,
+      requiresManagerApproval: false,
+      templateChecklistItems: [],
+      checklistItems: [
+        {
+          id: "check-1",
+          kind: TASK_CHECKLIST_ITEM_KIND.DEFINITION_OF_DONE,
+          label: "Clarify the operating issue and expected outcome",
+          completed: true
+        },
+        {
+          id: "subtask-1",
+          kind: TASK_CHECKLIST_ITEM_KIND.SUBTASK,
+          label: "Confirm next execution step",
+          completed: true
+        }
+      ]
+    } as Parameters<typeof buildDefinitionOfDone>[0];
+
+    expect(buildDefinitionOfDone(task)).toEqual([
+      {
+        id: "check-1",
+        label: "Clarify the operating issue and expected outcome",
+        completed: true
+      }
+    ]);
+    expect(buildSubtasks(task)).toEqual([
+      {
+        id: "subtask-1",
+        label: "Confirm next execution step",
+        completed: true
+      }
     ]);
   });
 });

@@ -47,6 +47,7 @@ import {
 import { TaskAppointmentPanel } from "@/features/tasks/detail/task-appointment-panel";
 import { TaskCollaboratorPanel } from "@/features/tasks/detail/task-collaborator-panel";
 import { TaskMetadataPanel } from "@/features/tasks/detail/task-metadata-panel";
+import { TaskPlanReviewCard } from "@/features/tasks/detail/task-plan-review-card";
 import { TaskResolutionAccordion } from "@/features/tasks/detail/task-resolution-accordion";
 import { TaskSimpleSummaryCard } from "@/features/tasks/detail/task-simple-summary-card";
 import { TaskWorkbenchSearch } from "@/features/tasks/detail/task-workbench-search";
@@ -424,6 +425,8 @@ export function TaskDetailWorkspace({
               return <div className={reached ? "reached" : ""} key={label}><span>{reached ? <CheckCircle2 size={14} /> : <Circle size={13} />}</span><b>{label}</b><small>{index < 3 ? formatTaskDetailDateTime(concern?.createdAt ?? task.createdAt) : ""}</small></div>;
             })}
           </section>
+
+          <TaskPlanReviewCard canUpdate={canUpdateStatus} task={task} />
 
           <TaskResolutionAccordion checklist={checklist} concernId={concern?.id ?? null} selectedTaskDescription={task.description} selectedTaskId={task.id} subtasks={subtasks} tasks={resolutionTasks} />
 

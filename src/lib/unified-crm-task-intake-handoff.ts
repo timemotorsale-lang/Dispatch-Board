@@ -35,6 +35,8 @@ export type UnifiedCrmTaskIntakeDefaults = {
   dueTime?: string;
   expectedOutcome?: string;
   intakeType?: UnifiedCrmTaskIntakeType;
+  sourceDetail?: string;
+  sourceTitle?: string;
   title?: string;
   vehicleReference?: string;
   workflowArea?: UnifiedCrmTaskWorkflowArea;
@@ -58,6 +60,13 @@ function timeValue(value: string | null | undefined) {
   if (!value) return undefined;
   if (!/^\d{2}:\d{2}$/.test(value)) return undefined;
   return value;
+}
+
+function isGenericStarterTaskDetail(value: string) {
+  const normalized = value.trim().toLocaleLowerCase();
+  return normalized.startsWith("review this daily focus item and record whether")
+    || normalized.startsWith("converted from a manually added")
+    || normalized === "document the action, evidence, and next step expected from the owner.";
 }
 
 export function buildUnifiedCrmTaskIntakeHref(input: {
@@ -95,15 +104,21 @@ export function buildUnifiedCrmTaskIntakeHref(input: {
 export function normalizeUnifiedCrmTaskIntakeDefaults(input: Record<string, string | undefined>): UnifiedCrmTaskIntakeDefaults {
   const intakeType = text(input.intakeType, 80);
   const workflowArea = text(input.workflowArea, 40)?.toUpperCase();
+  const sourceTitle = text(input.sourceTitle, 240);
+  const sourceDetail = text(input.sourceDetail, 1200);
+  const briefCandidate = text(input.brief, 1200);
+  const brief = briefCandidate && !isGenericStarterTaskDetail(briefCandidate) ? briefCandidate : undefined;
 
   return {
-    brief: text(input.brief, 500),
+    brief,
     customerReference: text(input.customerReference, 240),
     dueDate: dateValue(input.dueDate),
     dueTime: timeValue(input.dueTime),
     expectedOutcome: text(input.expectedOutcome, 500),
     intakeType: intakeType && TASK_INTAKE_TYPE_SET.has(intakeType) ? intakeType as UnifiedCrmTaskIntakeType : undefined,
-    title: text(input.title, 240),
+    sourceDetail,
+    sourceTitle,
+    title: text(input.title, 240) ?? sourceTitle,
     vehicleReference: text(input.vehicleReference, 240),
     workflowArea: workflowArea && TASK_WORKFLOW_AREA_SET.has(workflowArea) ? workflowArea as UnifiedCrmTaskWorkflowArea : undefined
   };

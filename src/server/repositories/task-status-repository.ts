@@ -28,6 +28,7 @@ const taskStatusSelect = {
   checklistItems: {
     select: {
       key: true,
+      kind: true,
       label: true,
       isRequired: true,
       completed: true
@@ -75,7 +76,7 @@ export type TaskStatusLookupRecord = {
   completionOverrideByUserId?: string | null;
   completionOverrideReason?: string | null;
   updatedAt: Date;
-  checklistItems?: Array<{ key: string | null; label: string; isRequired: boolean; completed: boolean }>;
+  checklistItems?: Array<{ key: string | null; kind: string; label: string; isRequired: boolean; completed: boolean }>;
   concernLink?: {
     dependsOnStepCodes: Prisma.JsonValue;
     concernCase: { taskLinks: Array<{ stepCode: string; task: { status: TaskStatus } }> };

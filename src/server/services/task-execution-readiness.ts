@@ -1,10 +1,16 @@
 import { TaskStatus } from "@prisma/client";
 
+import {
+  isKnownAdaptiveChecklistLabel,
+  isKnownAdaptiveSubtaskLabel
+} from "@/lib/adaptive-task-checklist";
 import { getStaffExecutionFlags, type StaffExecutionFlags } from "@/lib/staff-execution-flags";
 import {
   getTaskMomentumState,
+  isTaskPlanConfirmed,
   normalizeTaskExecutionAssurance
 } from "@/lib/task-execution-assurance";
+import { TASK_CHECKLIST_ITEM_KIND } from "@/lib/task-checklist-kind";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { canUpdateAssignedWork, isManager } from "@/server/policies/access";
 import {
@@ -46,9 +52,32 @@ function requiredFieldLabels(task: TaskExecutionRecord) {
   });
 }
 
+const genericGeneratedSubtaskLabels = new Set([
+  "Review task objective",
+  "Post progress update",
+  "Resolve blocker or assign next step",
+  "Confirm next execution step",
+  "Move to Ready for Review"
+]);
+
+function isGeneratedPlanItem(item: { kind?: string; label: string }) {
+  if (item.kind === TASK_CHECKLIST_ITEM_KIND.DEFINITION_OF_DONE) {
+    return isKnownAdaptiveChecklistLabel(item.label);
+  }
+
+  if (item.kind === TASK_CHECKLIST_ITEM_KIND.SUBTASK) {
+    return genericGeneratedSubtaskLabels.has(item.label) || isKnownAdaptiveSubtaskLabel(item.label);
+  }
+
+  return false;
+}
+
 export function evaluateTaskCompletionReadiness(task: TaskExecutionRecord, now = new Date()) {
   const requirements: Array<{ code: string; label: string; satisfied: boolean }> = [];
-  for (const item of task.checklistItems.filter((entry) => entry.isRequired)) {
+  const planConfirmed = isTaskPlanConfirmed(task.executionAssurance);
+  for (const item of task.checklistItems.filter((entry) =>
+    entry.isRequired && (planConfirmed || !isGeneratedPlanItem(entry))
+  )) {
     requirements.push({ code: `checklist:${item.key ?? item.label}`, label: item.label, satisfied: item.completed });
   }
   for (const label of requiredFieldLabels(task)) {
