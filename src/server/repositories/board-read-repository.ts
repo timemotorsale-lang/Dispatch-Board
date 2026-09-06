@@ -37,6 +37,21 @@ const boardTaskSelect = {
       email: true
     }
   },
+  collaborators: {
+    select: {
+      userId: true,
+      collaborationScope: true,
+      capacityRequested: true,
+      createdAt: true,
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true
+        }
+      }
+    }
+  },
   recommendedUser: {
     select: {
       id: true,

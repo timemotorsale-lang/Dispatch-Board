@@ -26,12 +26,20 @@ export function compactTaskTitle(title: string, vehicleReference?: string | null
 }
 
 function matchesQueue(task: BoardReadTask, queue: string, currentUserId: string, now: number) {
-  if (queue === "MY_TASKS") return task.assignedUser?.id === currentUserId && task.status !== "COMPLETED";
+  if (queue === "MY_TASKS") return isMyTaskOrCollaboration(task, currentUserId) && task.status !== "COMPLETED";
   if (queue === "ALL") return true;
   if (queue === "WAITING") return task.status.startsWith("WAITING_");
   if (queue === "OVERDUE") return task.status !== "COMPLETED" && new Date(task.dueAt).getTime() < now;
   if (queue === "UNASSIGNED") return !task.assignedUser?.id;
   return task.status === queue;
+}
+
+function isMyTaskOrCollaboration(task: BoardReadTask, currentUserId: string) {
+  return task.assignedUser?.id === currentUserId || task.collaborators?.some(collaborator => collaborator.id === currentUserId) === true;
+}
+
+function getCollaborationForUser(task: BoardReadTask, currentUserId: string) {
+  return task.collaborators?.find(collaborator => collaborator.id === currentUserId) ?? null;
 }
 
 export function filterCompactTasks(tasks: BoardReadTask[], filters: CompactTaskFilters, currentUserId: string, now = Date.now()) {
@@ -40,6 +48,7 @@ export function filterCompactTasks(tasks: BoardReadTask[], filters: CompactTaskF
     && (!filters.owner || task.assignedUser?.id === filters.owner)
     && (!filters.department || task.workflowArea === filters.department)
     && (!query || [task.title, task.description, task.vehicleReference, task.customerReference, task.assignedUser?.name,
+      ...(task.collaborators ?? []).flatMap(collaborator => [collaborator.name, collaborator.collaborationScope, collaborator.capacityRequested]),
       formatTaskDisplayNumber(task.id), departmentLabel(task.workflowArea)].filter(Boolean).join(" ").toLocaleLowerCase().includes(query)))
     .sort((a, b) => {
       if (filters.sort === "description") return compactTaskTitle(a.title).localeCompare(compactTaskTitle(b.title)) || a.id.localeCompare(b.id);
@@ -63,6 +72,7 @@ function CompactTaskDetails({ task, currentUserId, returnTo, onClose }: {
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const href = `/tasks/${encodeURIComponent(task.id)}?returnTo=${encodeURIComponent(returnTo)}`;
+  const collaboration = getCollaborationForUser(task, currentUserId);
   useEffect(() => {
     const controller = new AbortController();
     fetch(`/api/tasks/${encodeURIComponent(task.id)}`, { signal: controller.signal })
@@ -87,7 +97,7 @@ function CompactTaskDetails({ task, currentUserId, returnTo, onClose }: {
   }
   return <div className={styles.detail} id={`task-details-${task.id}`}>
     <div className={styles.detailHeading}><h2>{compactTaskTitle(task.title, task.vehicleReference)}</h2><button onClick={onClose} type="button" aria-label="Close task details"><X size={15} /> Close</button></div>
-    <div className={styles.metadata}><span>{task.title.match(/^RO-[A-Z0-9]+/i)?.[0] ?? formatTaskDisplayNumber(task.id)}</span><span>{task.vehicleReference ?? task.customerReference ?? "General task"}</span><span>{departmentLabel(task.workflowArea)}</span><span>Owner: {task.assignedUser?.name ?? "Unassigned"}</span><span>Due {dueLabel(task.dueAt)}</span></div>
+    <div className={styles.metadata}><span>{task.title.match(/^RO-[A-Z0-9]+/i)?.[0] ?? formatTaskDisplayNumber(task.id)}</span><span>{task.vehicleReference ?? task.customerReference ?? "General task"}</span><span>{departmentLabel(task.workflowArea)}</span><span>Owner: {task.assignedUser?.name ?? "Unassigned"}</span>{collaboration ? <span>Collaborator: {collaboration.collaborationScope || "Assist owner"}</span> : null}<span>Due {dueLabel(task.dueAt)}</span></div>
     <RichTextContent value={detail?.description ?? task.description ?? "No additional description recorded."} />
     {task.blockerReason ? <p className={styles.error}>Blocker: {task.blockerReason}</p> : null}
     {error ? <p role="alert" className={styles.error}>{error}</p> : null}
@@ -173,7 +183,7 @@ export function CompactTasksList(props: TasksConsoleScreenProps & { onAdvanced: 
         <summary><ClipboardList size={18} /><span>{status === "READY_FOR_REVIEW" ? "Needs review" : formatTaskEnumLabel(status)}</span><span className={styles.groupCount}>{rows.filter(task => task.status === status).length} on this page</span></summary>
         <div className={styles.cardGrid}>{rows.filter(task => task.status === status).map(task => <article className={styles.taskCard} key={task.id} data-task-card={task.id}>
           <div className={styles.cardHeading}><span className={styles.cardIcon}><ClipboardList size={22} /></span><h2><button type="button" id={`task-open-${task.id}`} aria-expanded={selected === task.id} aria-controls={selected === task.id ? `task-details-${task.id}` : undefined} onClick={() => setSelected(selected === task.id ? null : task.id)}>{compactTaskTitle(task.title, task.vehicleReference)}</button></h2></div>
-          <div className={styles.cardMeta}><span>{task.assignedUser?.name ?? "Unassigned"}</span><span>{departmentLabel(task.workflowArea)}</span><span>Due {dueLabel(task.dueAt)}</span></div>
+          <div className={styles.cardMeta}><span>{task.assignedUser?.name ?? "Unassigned"}</span><span>{getCollaborationForUser(task, props.currentUserId) ? "Collaboration" : departmentLabel(task.workflowArea)}</span><span>Due {dueLabel(task.dueAt)}</span></div>
           {contextVisible ? <p className={styles.cardContext}>{[task.title.match(/^RO-[A-Z0-9]+/i)?.[0], task.vehicleReference, task.customerReference].filter(Boolean).join(" · ")}</p> : null}
           <div className={styles.cardFooter}><span className={task.priority === "CRITICAL" ? styles.urgent : undefined}>{task.priority === "CRITICAL" ? "Urgent" : formatTaskEnumLabel(task.priority)}</span><label><input type="checkbox" aria-label={`Select ${compactTaskTitle(task.title, task.vehicleReference)}`} checked={checked.has(task.id)} onChange={() => toggleCheck(task.id)} /> Select</label></div>
           <Link className={styles.primary} href={`/tasks/${encodeURIComponent(task.id)}?returnTo=${encodeURIComponent(returnTo)}`}>Open task</Link>
@@ -185,7 +195,7 @@ export function CompactTasksList(props: TasksConsoleScreenProps & { onAdvanced: 
     </div> : <div className={styles.tableWrap}><table><thead><tr><th className={styles.check}><input ref={allCheckbox} aria-label="Select all visible tasks" type="checkbox" checked={allChecked} onChange={event => { const value = event.target.checked; setChecked(current => { const next = new Set(current); rows.forEach(task => { if (value) next.add(task.id); else next.delete(task.id); }); return next; }); }} /></th><th>Task description</th><th className={styles.priority}>Priority</th><th className={styles.status}>Status</th><th className={styles.owner}>Owner</th><th className={styles.due}>Due</th><th className={styles.number}>Task #</th></tr></thead><tbody>
       {rows.map(task => <Fragment key={task.id}><tr className={selected === task.id ? styles.selected : undefined} data-task-row={task.id}>
         <td className={styles.check}><input type="checkbox" aria-label={`Select ${compactTaskTitle(task.title, task.vehicleReference)}`} checked={checked.has(task.id)} onChange={() => toggleCheck(task.id)} /></td>
-        <td><button id={`task-open-${task.id}`} className={styles.title} title={compactTaskTitle(task.title, task.vehicleReference)} aria-expanded={selected === task.id} aria-controls={selected === task.id ? `task-details-${task.id}` : undefined} onClick={() => setSelected(selected === task.id ? null : task.id)} type="button">{compactTaskTitle(task.title, task.vehicleReference)}</button>{contextVisible ? <span className={styles.context}>{[task.title.match(/^RO-[A-Z0-9]+/i)?.[0], task.vehicleReference, task.customerReference, departmentLabel(task.workflowArea)].filter(Boolean).join(" · ")}</span> : null}<span className={styles.mobileMeta}>{task.assignedUser?.name ?? "Unassigned"} · {dueLabel(task.dueAt)} · {formatTaskEnumLabel(task.priority)}</span></td>
+        <td><button id={`task-open-${task.id}`} className={styles.title} title={compactTaskTitle(task.title, task.vehicleReference)} aria-expanded={selected === task.id} aria-controls={selected === task.id ? `task-details-${task.id}` : undefined} onClick={() => setSelected(selected === task.id ? null : task.id)} type="button">{compactTaskTitle(task.title, task.vehicleReference)}</button>{getCollaborationForUser(task, props.currentUserId) ? <span className={styles.context}>Collaboration requested</span> : null}{contextVisible ? <span className={styles.context}>{[task.title.match(/^RO-[A-Z0-9]+/i)?.[0], task.vehicleReference, task.customerReference, departmentLabel(task.workflowArea)].filter(Boolean).join(" · ")}</span> : null}<span className={styles.mobileMeta}>{task.assignedUser?.name ?? "Unassigned"} · {dueLabel(task.dueAt)} · {formatTaskEnumLabel(task.priority)}</span></td>
         <td className={`${styles.priority} ${task.priority === "CRITICAL" ? styles.urgent : ""}`}>{task.priority === "CRITICAL" ? "Urgent" : formatTaskEnumLabel(task.priority)}</td><td className={styles.status}><span className={`${styles.badge} ${task.status === "BLOCKED" ? styles.blocked : task.status === "IN_PROGRESS" ? styles.progress : task.status === "READY_FOR_REVIEW" ? styles.review : ""}`}>{task.status === "READY_FOR_REVIEW" ? "Needs review" : formatTaskEnumLabel(task.status)}</span></td>
         <td className={styles.owner} title={task.assignedUser?.name}>{task.assignedUser?.name ?? "Unassigned"}</td><td className={styles.due} title={dueLabel(task.dueAt)}>{dueLabel(task.dueAt)}</td><td className={styles.number}><Link href={`/tasks/${encodeURIComponent(task.id)}?returnTo=${encodeURIComponent(returnTo)}`}>{formatTaskDisplayNumber(task.id)}</Link></td>
       </tr>{selected === task.id ? <tr><td colSpan={7} className={styles.detailCell}><CompactTaskDetails task={task} currentUserId={props.currentUserId} returnTo={returnTo} onClose={() => closeDetails(task.id)} /></td></tr> : null}</Fragment>)}

@@ -31,6 +31,18 @@ function resolverLabel(value: string) {
   return "Peek";
 }
 
+const operationsCoordinatorReturnTo = "/operations-coordinator";
+
+function withWorkspaceReturn(href: string, returnTo = operationsCoordinatorReturnTo) {
+  const [hrefWithoutHash, hash] = href.split("#");
+  const [pathname, query = ""] = hrefWithoutHash.split("?");
+  if (!pathname.startsWith("/") || pathname === returnTo) return href;
+  const params = new URLSearchParams(query);
+  if (!params.has("returnTo")) params.set("returnTo", returnTo);
+
+  return `${pathname}?${params.toString()}${hash ? `#${hash}` : ""}`;
+}
+
 export function OperationsCoordinatorWorkspace({ model }: { model: OperationsCoordinatorWorkspaceModel }) {
   const firstName = model.coordinator.name.split(" ")[0] ?? "Coordinator";
   const kpis = [
@@ -57,14 +69,12 @@ export function OperationsCoordinatorWorkspace({ model }: { model: OperationsCoo
       <header className="oc-hero">
         <div>
           <p>Operations Coordinator Workspace</p>
-          <h1>Welcome, {firstName}. Keep the front door moving.</h1>
-          <span>Broad visibility, guided lightweight action, and protected routing across appointments, intake, parts, paperwork, payments, sales, rentals, and documentation.</span>
+          <h1>Welcome, {firstName}. Keep paperwork moving.</h1>
+          <span>Documentation, packets, payments, and clean handoffs come first. Use the rest of the workspace for intake support, customer lookup, parts touches, and protected routing.</span>
         </div>
-        <nav aria-label="Operations coordinator exits and primary routes">
-          <Link href="/command-center">CCC Home</Link>
-          <Link href="/board">Dispatch</Link>
-          <Link className="primary" href="/vehicles/advisor">Service Advisor</Link>
-          <Link href="/my-tasks">My Work</Link>
+        <nav aria-label="Operations coordinator work choices">
+          <Link className="primary" href={withWorkspaceReturn("/my-tasks")}>My Work</Link>
+          <Link href={withWorkspaceReturn("/vehicles/coo-workbook?workbookScope=MY")}>Operations Coordinator Workbook</Link>
         </nav>
       </header>
 
@@ -88,14 +98,14 @@ export function OperationsCoordinatorWorkspace({ model }: { model: OperationsCoo
         </div>
         <div>
           {model.universalSearch.noResultActions.map((action) => (
-            <Link href={action.href} key={action.label}>{action.label}</Link>
+            <Link href={withWorkspaceReturn(action.href)} key={action.label}>{action.label}</Link>
           ))}
         </div>
       </section>
 
       <section className="oc-dock" aria-label="Start work dock">
         {dock.map(({ icon: Icon, label, href }) => (
-          <Link href={href} key={label}>
+          <Link href={withWorkspaceReturn(href)} key={label}>
             <Icon />
             <span>{label}</span>
             <ArrowRight />
@@ -103,23 +113,22 @@ export function OperationsCoordinatorWorkspace({ model }: { model: OperationsCoo
         ))}
       </section>
 
-      <section className="oc-panel oc-advisor-support" id="service-advisor-support">
+      <section className="oc-panel oc-paperwork oc-paperwork-priority" id="paperwork-command-center">
         <header>
           <div>
-          <strong>Service Advisor</strong>
-          <span>Daily customer-facing repair coordination: appointments, arrivals, status questions, check-ins, and routed decisions.</span>
-        </div>
-          <Link href="/vehicles/advisor">Open advisor workspace</Link>
+            <strong>Documentation / Paperwork command center</strong>
+            <span>Prepare packets, attach evidence, verify documents, and route final approval without turning every office duty into a manager detour.</span>
+          </div>
+          <Link href={withWorkspaceReturn("/tasks?department=OFFICE")}>Open paperwork work</Link>
         </header>
         <div>
-          {model.advisorSupport.map((item) => (
-            <Link href={item.href} key={item.label}>
-              <ClipboardCheck />
+          {model.paperworkCenter.map((item) => (
+            <Link href={withWorkspaceReturn(item.href)} key={item.label}>
               <span>
                 <strong>{item.label}</strong>
                 <small>{item.detail}</small>
               </span>
-              <em>{resolverLabel(item.mode)}</em>
+              <em>{item.status}</em>
             </Link>
           ))}
         </div>
@@ -132,11 +141,11 @@ export function OperationsCoordinatorWorkspace({ model }: { model: OperationsCoo
               <strong>My coordination queue</strong>
               <span>Ranked by waiting customer, appointment time, due soon, blocker severity, missing document, payment risk, promise risk, and escalation state.</span>
             </div>
-            <Link href="/my-tasks">Open my work</Link>
+            <Link href={withWorkspaceReturn("/my-tasks")}>Open my work</Link>
           </header>
           <div>
             {model.actionQueue.length ? model.actionQueue.map((action) => (
-              <Link className="oc-action-row" href={action.href} key={action.id}>
+              <Link className="oc-action-row" href={withWorkspaceReturn(action.href)} key={action.id}>
                 <b>{action.rank}</b>
                 <span>
                   <strong>{action.label}</strong>
@@ -152,22 +161,26 @@ export function OperationsCoordinatorWorkspace({ model }: { model: OperationsCoo
           </div>
         </section>
 
-        <aside className="oc-panel oc-paperwork" id="paperwork-command-center">
+        <aside className="oc-panel oc-advisor-support oc-advisor-support-secondary" id="service-advisor-support">
           <header>
             <div>
-              <strong>Paperwork command center</strong>
-              <span>Prepare and attach. Final authority stays protected.</span>
+              <strong>Service Advisor support</strong>
+              <span>Use only when front-desk paperwork depends on arrivals, RO status, customer updates, or routed repair decisions.</span>
             </div>
+            <Link href={withWorkspaceReturn("/vehicles/advisor")}>Open advisor workspace</Link>
           </header>
-          {model.paperworkCenter.map((item) => (
-            <Link href={item.href} key={item.label}>
+          <div>
+          {model.advisorSupport.slice(0, 4).map((item) => (
+            <Link href={withWorkspaceReturn(item.href)} key={item.label}>
+              <ClipboardCheck />
               <span>
                 <strong>{item.label}</strong>
                 <small>{item.detail}</small>
               </span>
-              <em>{item.status}</em>
+              <em>{resolverLabel(item.mode)}</em>
             </Link>
           ))}
+          </div>
         </aside>
       </div>
 
@@ -180,7 +193,7 @@ export function OperationsCoordinatorWorkspace({ model }: { model: OperationsCoo
         </header>
         <div>
           {model.departmentPanels.map((panel) => (
-            <Link href={panel.href} key={panel.label}>
+            <Link href={withWorkspaceReturn(panel.href)} key={panel.label}>
               <span>{stateLabel(panel.state)}</span>
               <strong>{panel.label}</strong>
               <b>{panel.value ?? "—"}</b>
@@ -199,7 +212,7 @@ export function OperationsCoordinatorWorkspace({ model }: { model: OperationsCoo
         </header>
         <div>
           {model.escalationRouter.map((route) => (
-            <Link href={route.href} key={route.label}>
+            <Link href={withWorkspaceReturn(route.href)} key={route.label}>
               <Route />
               <span>
                 <strong>{route.label}</strong>

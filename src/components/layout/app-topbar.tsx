@@ -97,6 +97,7 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
     !cooWorkbook &&
     pathname !== "/vehicles/recon-repair-advisor";
   const advisorWorkspaceReturnHref = sourceReturnTo ?? "/vehicles/advisor";
+  const sourceReturnPath = sourceReturnTo?.split(/[?#]/, 1)[0] ?? null;
   const workspaceHome = activeWorkspaceDefinition.landingRoute;
   const inventoryConsole = isInventoryConsolePath(pathname);
   const dispatchConsole = isDispatchConsolePath(pathname) && !inventoryConsole;
@@ -135,6 +136,14 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
       : []),
     { href: "/board?view=live", label: "Live Board", detail: "Return to today’s operating work." }
   ];
+  const explicitSourceReturnVisible = Boolean(
+    sourceReturnTo &&
+    sourceReturnPath &&
+    pathname !== sourceReturnPath &&
+    !operationsCoordinatorAwayFromHome &&
+    !appointmentConsoleAwayFromHome &&
+    !advisorWorkspaceAwayFromHome
+  );
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
@@ -189,8 +198,13 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
           </Link>
         </>
       ) : null}
+      {explicitSourceReturnVisible ? (
+        <Link aria-label="Return to source workspace" className="ccc-home-link oc-topbar-return" href={sourceReturnTo!}>
+          <ArrowLeft size={15} /><span>Back to My Workspace</span>
+        </Link>
+      ) : null}
       {operationsCoordinatorAwayFromHome ? (
-        <Link aria-label="Return to Operations Coordinator workspace" className="ccc-home-link oc-topbar-return" href="/operations-coordinator">
+        <Link aria-label="Return to Operations Coordinator workspace" className="ccc-home-link oc-topbar-return" href={sourceReturnTo ?? "/operations-coordinator"}>
           <ArrowLeft size={15} /><span>Back to My Workspace</span>
         </Link>
       ) : null}

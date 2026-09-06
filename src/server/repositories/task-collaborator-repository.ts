@@ -6,6 +6,8 @@ type TaskCollaboratorDatabase = Pick<PrismaClient, "task" | "taskCollaborator" |
 
 const collaboratorSelect = {
   userId: true,
+  collaborationScope: true,
+  capacityRequested: true,
   createdAt: true,
   user: { select: { id: true, name: true, email: true, isActive: true } },
   addedByUser: { select: { id: true, name: true } }
@@ -18,7 +20,7 @@ export type TaskCollaboratorRepository = {
   findTaskById(taskId: string): Promise<TaskCollaboratorTaskRecord | null>;
   findActiveUsersByIds(userIds: string[]): Promise<Array<{ id: string; name: string }>>;
   listForTask(taskId: string): Promise<TaskCollaboratorRecord[]>;
-  replace(taskId: string, collaboratorIds: string[], addedByUserId: string): Promise<TaskCollaboratorRecord[]>;
+  replace(taskId: string, collaborators: Array<{ userId: string; collaborationScope: string; capacityRequested?: string }>, addedByUserId: string): Promise<TaskCollaboratorRecord[]>;
 };
 
 export function createTaskCollaboratorRepository(database: TaskCollaboratorDatabase = prisma): TaskCollaboratorRepository {
@@ -32,15 +34,24 @@ export function createTaskCollaboratorRepository(database: TaskCollaboratorDatab
     listForTask(taskId) {
       return database.taskCollaborator.findMany({ where: { taskId }, orderBy: [{ createdAt: "asc" }, { userId: "asc" }], select: collaboratorSelect });
     },
-    async replace(taskId, collaboratorIds, addedByUserId) {
+    async replace(taskId, collaborators, addedByUserId) {
+      const collaboratorIds = collaborators.map((collaborator) => collaborator.userId);
       await database.$transaction(async (transaction) => {
         await transaction.taskCollaborator.deleteMany({ where: { taskId, userId: { notIn: collaboratorIds } } });
-        if (collaboratorIds.length) {
-          await transaction.taskCollaborator.createMany({
-            data: collaboratorIds.map((userId) => ({ taskId, userId, addedByUserId })),
-            skipDuplicates: true
-          });
-        }
+        await Promise.all(collaborators.map((collaborator) => transaction.taskCollaborator.upsert({
+          where: { taskId_userId: { taskId, userId: collaborator.userId } },
+          create: {
+            taskId,
+            userId: collaborator.userId,
+            addedByUserId,
+            collaborationScope: collaborator.collaborationScope,
+            capacityRequested: collaborator.capacityRequested ?? null
+          },
+          update: {
+            collaborationScope: collaborator.collaborationScope,
+            capacityRequested: collaborator.capacityRequested ?? null
+          }
+        })));
       });
       return database.taskCollaborator.findMany({ where: { taskId }, orderBy: [{ createdAt: "asc" }, { userId: "asc" }], select: collaboratorSelect });
     }

@@ -7661,13 +7661,15 @@ model InventoryWorkSession {
 }
 
 model TaskCollaborator {
-  taskId        String
-  userId        String
-  addedByUserId String?
-  createdAt     DateTime @default(now())
-  task          Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  user          User     @relation("TaskCollaboratorUser", fields: [userId], references: [id], onDelete: Cascade)
-  addedByUser   User?    @relation("TaskCollaboratorAddedByUser", fields: [addedByUserId], references: [id], onDelete: SetNull)
+  taskId             String
+  userId             String
+  addedByUserId      String?
+  collaborationScope String   @default("")
+  capacityRequested  String?
+  createdAt          DateTime @default(now())
+  task               Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user               User     @relation("TaskCollaboratorUser", fields: [userId], references: [id], onDelete: Cascade)
+  addedByUser        User?    @relation("TaskCollaboratorAddedByUser", fields: [addedByUserId], references: [id], onDelete: SetNull)
 
   @@id([taskId, userId])
   @@index([userId, createdAt])

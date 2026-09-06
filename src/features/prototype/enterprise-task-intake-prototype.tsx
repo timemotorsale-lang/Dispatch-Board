@@ -49,7 +49,7 @@ type IntakeDraft = {
   priority: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
   requiredUpdates: string[];
   requiresManagerApproval: boolean;
-  collaboratorIds: string[];
+  collaboratorRequests: Array<{ userId: string; collaborationScope: string; capacityRequested: string }>;
   title: string;
   brief: string;
   vehicleReference: string;
@@ -91,7 +91,7 @@ function createEmptyDraft(assignedUserId = "", dueDate = new Date().toISOString(
   priority: "MEDIUM",
   requiredUpdates: ["Next step", "Final note"],
   requiresManagerApproval: false,
-  collaboratorIds: [],
+  collaboratorRequests: [],
   title: "",
   brief: "",
   vehicleReference: "",
@@ -157,6 +157,8 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
     ...initialDraft
   }));
   const [collaboratorCandidate, setCollaboratorCandidate] = useState("");
+  const [collaboratorScope, setCollaboratorScope] = useState("");
+  const [collaboratorCapacity, setCollaboratorCapacity] = useState("");
   const [draftMessage, setDraftMessage] = useState("");
   const [submitError, setSubmitError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -186,6 +188,7 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
           ...current,
           ...parsed,
           assignedUserId: canAssignOthers ? (parsed.assignedUserId ?? current.assignedUserId) : currentUserId,
+          collaboratorRequests: (parsed.collaboratorRequests ?? []).filter((request) => request.userId !== (canAssignOthers ? (parsed.assignedUserId ?? current.assignedUserId) : currentUserId)),
           intakeType: !canAssignOthers && parsed.intakeType === "Manager Decision" ? "Quick Task" : (parsed.intakeType ?? current.intakeType),
           priority: !canAssignOthers && parsed.priority === "CRITICAL" ? "HIGH" : (parsed.priority ?? current.priority),
           requiresManagerApproval: canAssignOthers ? (parsed.requiresManagerApproval ?? current.requiresManagerApproval) : false
@@ -222,7 +225,11 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
         body: JSON.stringify({
           assignedUserId: draft.assignedUserId,
           boardDate: draft.dueDate,
-          collaboratorIds: draft.collaboratorIds,
+          collaboratorRequests: draft.collaboratorRequests.map((request) => ({
+            userId: request.userId,
+            collaborationScope: request.collaborationScope,
+            ...(request.capacityRequested.trim() ? { capacityRequested: request.capacityRequested.trim() } : {})
+          })),
           customerReference: draft.customerReference || undefined,
           description: draft.brief,
           dueAt: new Date(`${draft.dueDate}T${draft.dueTime}:00`).toISOString(),
@@ -278,15 +285,25 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
   }
 
   function addCollaborator() {
-    if (!collaboratorCandidate || draft.collaboratorIds.includes(collaboratorCandidate)) return;
-    setDraft((current) => ({ ...current, collaboratorIds: [...current.collaboratorIds, collaboratorCandidate] }));
+    const scope = collaboratorScope.trim();
+    if (!collaboratorCandidate || !scope || draft.collaboratorRequests.some((request) => request.userId === collaboratorCandidate)) return;
+    setDraft((current) => ({
+      ...current,
+      collaboratorRequests: [...current.collaboratorRequests, {
+        userId: collaboratorCandidate,
+        collaborationScope: scope,
+        capacityRequested: collaboratorCapacity.trim()
+      }]
+    }));
     setCollaboratorCandidate("");
+    setCollaboratorScope("");
+    setCollaboratorCapacity("");
   }
 
   function removeCollaborator(collaboratorId: string) {
     setDraft((current) => ({
       ...current,
-      collaboratorIds: current.collaboratorIds.filter((id) => id !== collaboratorId)
+      collaboratorRequests: current.collaboratorRequests.filter((request) => request.userId !== collaboratorId)
     }));
   }
 
@@ -356,7 +373,7 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
             </div>
             <label><span>Workflow area *</span><select onChange={(event) => setDraft((current) => ({ ...current, workflowArea: event.target.value }))} value={draft.workflowArea}><option value="INVENTORY">Inventory</option><option value="SHOP">Service / Recon</option><option value="SALES">Sales</option><option value="ADVERTISING">Marketing / Advertising</option><option value="ADMIN">Admin / Documentation</option><option value="COLLECTIONS">Collections</option><option value="GENERAL_MANAGER">Management</option></select></label>
             <label><span>Priority *</span><select onChange={(event) => setDraft((current) => ({ ...current, priority: event.target.value as IntakeDraft["priority"], requiresManagerApproval: event.target.value === "CRITICAL" ? true : current.requiresManagerApproval }))} value={draft.priority}><option value="LOW">Low</option><option value="MEDIUM">Normal</option><option value="HIGH">High</option><option disabled={!canAssignOthers} value="CRITICAL">Critical</option></select></label>
-            <label><span>Accountable owner *</span><select disabled={!canAssignOthers} onChange={(event) => setDraft((current) => ({ ...current, assignedUserId: event.target.value, collaboratorIds: current.collaboratorIds.filter((id) => id !== event.target.value) }))} value={draft.assignedUserId}><option value="">Choose task owner</option>{collaboratorOptions.map((option) => <option key={option.id} value={option.id}>{option.name} · {option.role}</option>)}</select></label>
+            <label><span>Accountable owner *</span><select disabled={!canAssignOthers} onChange={(event) => setDraft((current) => ({ ...current, assignedUserId: event.target.value, collaboratorRequests: current.collaboratorRequests.filter((request) => request.userId !== event.target.value) }))} value={draft.assignedUserId}><option value="">Choose task owner</option>{collaboratorOptions.map((option) => <option key={option.id} value={option.id}>{option.name} · {option.role}</option>)}</select></label>
             <label className="task-intake-approval"><span>Manager control</span><span><input checked={draft.requiresManagerApproval} disabled={!canAssignOthers} onChange={(event) => setDraft((current) => ({ ...current, requiresManagerApproval: event.target.checked }))} type="checkbox" />Require approval before completion</span></label>
             <label><span>Due date *</span><input onChange={(event) => setDraft((current) => ({ ...current, dueDate: event.target.value }))} type="date" value={draft.dueDate} /></label>
             <label><span>Due time *</span><input onChange={(event) => setDraft((current) => ({ ...current, dueTime: event.target.value }))} type="time" value={draft.dueTime} /></label>
@@ -369,14 +386,16 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
               <div className="task-intake-collaborator-picker">
                 <select aria-label="Choose collaborator" onChange={(event) => setCollaboratorCandidate(event.target.value)} value={collaboratorCandidate}>
                   <option value="">Choose a staff member</option>
-                  {collaboratorOptions.filter((option) => option.id !== draft.assignedUserId && !draft.collaboratorIds.includes(option.id)).map((option) => <option key={option.id} value={option.id}>{option.name} · {option.role}</option>)}
+                  {collaboratorOptions.filter((option) => option.id !== draft.assignedUserId && !draft.collaboratorRequests.some((request) => request.userId === option.id)).map((option) => <option key={option.id} value={option.id}>{option.name} · {option.role}</option>)}
                 </select>
-                <button disabled={!collaboratorCandidate} onClick={addCollaborator} type="button"><CirclePlus size={14} />Add collaborator</button>
+                <textarea aria-label="Collaboration scope" onChange={(event) => setCollaboratorScope(event.target.value)} placeholder="What are you asking this person to help with?" rows={2} value={collaboratorScope} />
+                <input aria-label="Capacity requested" onChange={(event) => setCollaboratorCapacity(event.target.value)} placeholder="Capacity or timing requested, optional" value={collaboratorCapacity} />
+                <button disabled={!collaboratorCandidate || !collaboratorScope.trim()} onClick={addCollaborator} type="button"><CirclePlus size={14} />Add collaborator</button>
               </div>
               <div className="task-intake-collaborator-list">
-                {draft.collaboratorIds.length ? draft.collaboratorIds.map((id) => {
-                  const collaborator = collaboratorOptions.find((option) => option.id === id)!;
-                  return <div key={id}><span>{collaborator.initials}</span><p><strong>{collaborator.name}</strong><small>{collaborator.role}</small></p><button aria-label={`Remove ${collaborator.name}`} onClick={() => removeCollaborator(id)} type="button">×</button></div>;
+                {draft.collaboratorRequests.length ? draft.collaboratorRequests.map((request) => {
+                  const collaborator = collaboratorOptions.find((option) => option.id === request.userId)!;
+                  return <div key={request.userId}><span>{collaborator.initials}</span><p><strong>{collaborator.name}</strong><small>{request.collaborationScope}</small>{request.capacityRequested ? <small>Capacity: {request.capacityRequested}</small> : null}</p><button aria-label={`Remove ${collaborator.name}`} onClick={() => removeCollaborator(request.userId)} type="button">×</button></div>;
                 }) : <em>No collaborators added. The task will begin with owner-only visibility.</em>}
               </div>
             </div>
@@ -409,7 +428,7 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
             <div><p>Ownership policy</p><strong>{policy}</strong><span>Previewed from workflow, priority, and intake type.</span></div>
             <div><p>Expected outcome</p><strong>{draft.expectedOutcome || "Define the expected outcome."}</strong></div>
             <div><p>Required update</p><ul>{draft.requiredUpdates.map((update) => <li key={update}>{update}</li>)}</ul></div>
-            <div><p>Collaborators ({draft.collaboratorIds.length})</p>{draft.collaboratorIds.length ? <ul>{draft.collaboratorIds.map((id) => <li key={id}>{collaboratorOptions.find((option) => option.id === id)?.name}</li>)}</ul> : <span>Owner-only until collaborators are added.</span>}</div>
+            <div><p>Collaborators ({draft.collaboratorRequests.length})</p>{draft.collaboratorRequests.length ? <ul>{draft.collaboratorRequests.map((request) => <li key={request.userId}>{collaboratorOptions.find((option) => option.id === request.userId)?.name}: {request.collaborationScope}</li>)}</ul> : <span>Owner-only until collaborators are added.</span>}</div>
           </section>
 
           <section className="task-intake-checks">

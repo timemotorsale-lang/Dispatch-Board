@@ -729,13 +729,10 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("Last note: Customer requested a callback before approval.");
     expect(html).toContain("/vehicles/repair-workbench?repairOrderId=ro_1");
     expect(html).toContain("Check In Vehicle");
-    expect(html).toContain("Search &amp; check in");
+    expect(html).toContain("Find customer, vehicle, appointment, VIN, phone, or RO");
     expect(html).toContain("Record decision");
-    expect(html).toContain("Calm");
-    expect(html).toContain("High-volume");
     expect(html).toContain("Inbox");
     expect(html).toContain("Can you explain the brake recommendation?");
-    expect(html).toContain('aria-label="Advisor workspace display mode"');
     expect(html).toContain('aria-pressed="true"');
     expect(html).not.toContain("Repair-order handoffs");
   });
@@ -764,9 +761,9 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("Open a Tool");
     expect(html).toContain("Keep the landing page clean. Open only what you need to execute.");
     expect(html).toContain("Start The Day");
-    expect(html).toContain("/vehicles/coo-workbook/effectiveness-pilot#start-the-day");
+    expect(html).toContain("/vehicles/coo-workbook/effectiveness-pilot?workbookScope=MY#start-the-day");
     expect(html).toContain("More Tools");
-    expect(html).toContain("/vehicles/coo-workbook/more-tools");
+    expect(html).toContain("/vehicles/coo-workbook/more-tools?workbookScope=MY");
     expect(html).toContain("Daily Purse");
     expect(html.match(/aria-expanded="false"/g)).toHaveLength(2);
     expect(html).toContain("Recommended Now");
@@ -818,9 +815,10 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("/vehicles/coo-workbook/staff-support");
     expect(html).toContain("/vehicles/coo-workbook/drafts");
     expect(html).toContain("returnTo=%2Fvehicles%2Fcoo-workbook");
-    expect(html).toContain("Create task");
-    expect(html).toContain("title=Complete+scheduled+callbacks");
-    expect(html).toContain("brief=Review+this+Daily+Focus+item");
+    expect(html).toContain("Review source");
+    expect(html).not.toContain("Create task");
+    expect(html).not.toContain("title=Complete+scheduled+callbacks");
+    expect(html).not.toContain("brief=Review+this+Daily+Focus+item");
   });
 
   it("shows checklist carryover decisions as selected and protects them for tomorrow", () => {
@@ -876,7 +874,7 @@ describe("ServiceAdvisorHome", () => {
     const html = renderToStaticMarkup(<CooDailyWorkbook model={sourceAwareModel} />);
 
     expect(html).toContain('href="/tasks/task-priority-1">Open task');
-    expect(html).toContain('repairOrderId=ro_1&amp;returnLabel=Daily+Workbook&amp;returnTo=%2Fvehicles%2Fcoo-workbook">Open RO');
+    expect(html).toContain('repairOrderId=ro_1&amp;returnLabel=Service+Advisor+Workbook&amp;returnTo=%2Fvehicles%2Fcoo-workbook%3FworkbookScope%3DMY">Open RO');
     expect(html).not.toContain("title=Call+Maria+about+approval");
     expect(html).not.toContain("title=Promise+risk%3A+RO-1001+2024+Ford+F-150");
   });
@@ -954,12 +952,13 @@ describe("ServiceAdvisorHome", () => {
     expect(moreToolsHtml).toContain("/vehicles/coo-workbook/report-seeds");
   });
 
-  it("renders the separate COO effectiveness pilot for side-by-side review", () => {
+  it("renders Start The Day without exposing workbook mode switching", () => {
     const html = renderToStaticMarkup(<CooEffectivenessPilotWorkbook model={model} />);
 
-    expect(html).toContain("Effectiveness Pilot: start clear, work the day, close with accountability.");
-    expect(html).toContain("Current Workbook");
-    expect(html).toContain("Effectiveness Pilot");
+    expect(html).toContain("Start The Day: start clear, work the day, close with accountability.");
+    expect(html).not.toContain("Current Workbook");
+    expect(html).not.toContain("Effectiveness Pilot");
+    expect(html).not.toContain('aria-label="Workbook version"');
     expect(html).toContain("Start The Day");
     expect(html).toContain("Build a clear plan before work begins");
     expect(html).toContain("What needs your attention today?");
@@ -976,7 +975,6 @@ describe("ServiceAdvisorHome", () => {
     expect(html).not.toContain("Light Checklist");
     expect(html).not.toContain("Report Seeds");
     expect(html).toContain("Complete scheduled callbacks");
-    expect(html).toContain("/vehicles/coo-workbook/effectiveness-pilot");
   });
 
   it("shows source-backed staff priorities for Daily Focus approval", () => {
@@ -1105,6 +1103,41 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("href=\"/tasks/task-linked-1\"");
     expect(html).toContain("Open linked task");
     expect(html).not.toContain("Manual outcome · not a task");
+  });
+
+  it("opens an existing matching task source instead of offering conversion", () => {
+    const matchingTaskModel = {
+      ...model,
+      morningPrioritySources: [
+        {
+          ...model.morningPrioritySources[0],
+          href: "/tasks/task-existing-1",
+          sourceId: "task-existing-1",
+          sourceType: "TASK",
+          staffUserId: "user-other",
+          title: "Review DealerCenter Updating - Resolve Known Issues"
+        }
+      ],
+      staffWorkbook: {
+        ...model.staffWorkbook,
+        checklistItems: [],
+        carryovers: [],
+        dailyFocusItems: [{
+          ...model.staffWorkbook.dailyFocusItems[0],
+          convertedTaskId: null,
+          outcome: "DealerCenter Updating - Resolve Known Issues"
+        }],
+        incomingCarryovers: [],
+        quickUpdates: []
+      }
+    } satisfies ServiceAdvisorWorkspaceModel;
+
+    const html = renderToStaticMarkup(<CooEffectivenessPilotWorkbook model={matchingTaskModel} />);
+
+    expect(html).toContain("Linked task");
+    expect(html).toContain("href=\"/tasks/task-existing-1\"");
+    expect(html).toContain("Open task");
+    expect(html).not.toContain("Convert to task");
   });
 
   it("allows additional outcomes when three have already been chosen", () => {

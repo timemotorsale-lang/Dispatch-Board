@@ -434,6 +434,8 @@ type SimpleCollaborator = SimpleOwner & {
   addedAt: string;
   addedBy: SimpleOwner | null;
   isActive: boolean;
+  collaborationScope: string;
+  capacityRequested: string | null;
 };
 
 function initials(name: string) {
@@ -456,12 +458,22 @@ function TaskPeopleControls({
   const [ownerDraftId, setOwnerDraftId] = useState(task.assignedUser.id);
   const [collaborators, setCollaborators] = useState<SimpleCollaborator[]>(task.collaborators ?? []);
   const [collaboratorDraftId, setCollaboratorDraftId] = useState("");
+  const [collaboratorScopeDraft, setCollaboratorScopeDraft] = useState("");
+  const [collaboratorCapacityDraft, setCollaboratorCapacityDraft] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSavingOwner, setIsSavingOwner] = useState(false);
   const [isSavingCollaborators, setIsSavingCollaborators] = useState(false);
 
-  async function saveCollaborators(nextIds: string[], successMessage = "Collaborators updated.") {
+  function collaboratorRequests(nextCollaborators: SimpleCollaborator[]) {
+    return nextCollaborators.map((collaborator) => ({
+      userId: collaborator.id,
+      collaborationScope: collaborator.collaborationScope ?? "",
+      capacityRequested: collaborator.capacityRequested ?? undefined
+    }));
+  }
+
+  async function saveCollaborators(nextCollaborators: SimpleCollaborator[], successMessage = "Collaborators updated.") {
     setIsSavingCollaborators(true);
     setErrorMessage(null);
     setMessage(null);
@@ -470,7 +482,7 @@ function TaskPeopleControls({
       const response = await fetch(`/api/tasks/${encodeURIComponent(task.id)}/collaborators`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ collaboratorIds: nextIds })
+        body: JSON.stringify({ collaboratorRequests: collaboratorRequests(nextCollaborators) })
       });
       const result = (await response.json().catch(() => null)) as {
         collaborators?: SimpleCollaborator[];
@@ -483,6 +495,8 @@ function TaskPeopleControls({
 
       setCollaborators(result.collaborators);
       setCollaboratorDraftId("");
+      setCollaboratorScopeDraft("");
+      setCollaboratorCapacityDraft("");
       setMessage(successMessage);
       router.refresh();
     } catch (error) {
@@ -521,7 +535,7 @@ function TaskPeopleControls({
 
       if (collaborators.some((item) => item.id === nextOwner.id)) {
         await saveCollaborators(
-          collaborators.filter((item) => item.id !== nextOwner.id).map((item) => item.id),
+          collaborators.filter((item) => item.id !== nextOwner.id),
           `Owner changed to ${nextOwner.name}. Collaborators updated.`
         );
       } else {
@@ -538,7 +552,7 @@ function TaskPeopleControls({
     (user) => user.id !== owner.id && !collaborators.some((item) => item.id === user.id)
   );
   const canSaveOwner = canReassign && !isSavingOwner && ownerDraftId !== owner.id;
-  const canAddCollaborator = canManageCollaborators && !isSavingCollaborators && Boolean(collaboratorDraftId);
+  const canAddCollaborator = canManageCollaborators && !isSavingCollaborators && Boolean(collaboratorDraftId && collaboratorScopeDraft.trim());
 
   return (
     <dd className="etw-compact-people-control">
@@ -573,13 +587,13 @@ function TaskPeopleControls({
             {collaborators.map((collaborator) => (
               <li key={collaborator.id}>
                 <b>{initials(collaborator.name)}</b>
-                <span>{collaborator.name}</span>
+                <span>{collaborator.name}{collaborator.collaborationScope ? <small>{collaborator.collaborationScope}</small> : null}</span>
                 {canManageCollaborators ? (
                   <button
                     aria-label={`Remove ${collaborator.name}`}
                     disabled={isSavingCollaborators}
                     onClick={() => void saveCollaborators(
-                      collaborators.filter((item) => item.id !== collaborator.id).map((item) => item.id)
+                      collaborators.filter((item) => item.id !== collaborator.id)
                     )}
                     type="button"
                   >
@@ -609,9 +623,44 @@ function TaskPeopleControls({
                 <option key={user.id} value={user.id}>{user.name}</option>
               ))}
             </select>
+            <textarea
+              aria-label="Collaboration scope"
+              disabled={isSavingCollaborators}
+              onChange={(event) => {
+                setCollaboratorScopeDraft(event.target.value);
+                setErrorMessage(null);
+                setMessage(null);
+              }}
+              placeholder="What should this person help with?"
+              rows={2}
+              value={collaboratorScopeDraft}
+            />
+            <input
+              aria-label="Capacity requested"
+              disabled={isSavingCollaborators}
+              onChange={(event) => setCollaboratorCapacityDraft(event.target.value)}
+              placeholder="Capacity or timing requested, optional"
+              value={collaboratorCapacityDraft}
+            />
             <button
               disabled={!canAddCollaborator}
-              onClick={() => void saveCollaborators([...collaborators.map((item) => item.id), collaboratorDraftId])}
+              onClick={() => {
+                const selected = availableCollaborators.find((user) => user.id === collaboratorDraftId);
+                if (!selected) return;
+                void saveCollaborators([
+                  ...collaborators,
+                  {
+                    id: selected.id,
+                    name: selected.name,
+                    email: selected.email,
+                    addedAt: new Date().toISOString(),
+                    addedBy: null,
+                    isActive: true,
+                    collaborationScope: collaboratorScopeDraft.trim(),
+                    capacityRequested: collaboratorCapacityDraft.trim() || null
+                  }
+                ]);
+              }}
               type="button"
             >
               <UserPlus size={13} />Add

@@ -32,6 +32,12 @@ type BoardReadUserSummary = {
   email?: string;
 };
 
+type BoardReadCollaboratorSummary = BoardReadUserSummary & {
+  collaborationScope: string;
+  capacityRequested: string | null;
+  addedAt: string;
+};
+
 type BoardReadRecommendation = {
   reasonCode: string;
   explanation: string;
@@ -61,6 +67,7 @@ export type BoardReadTask = {
   requiredUpdateFields: BoardReadRequiredUpdateField[];
   updateFieldValues: Record<string, string | boolean>;
   assignedUser: BoardReadUserSummary;
+  collaborators?: BoardReadCollaboratorSummary[];
   recommendedUser: BoardReadUserSummary | null;
   recommendation: BoardReadRecommendation | null;
   vehicleReference: string | null;
@@ -346,6 +353,14 @@ function toTaskSummary(task: BoardReadTaskRecord): BoardReadTask {
       name: task.assignedUser.name,
       email: task.assignedUser.email || undefined
     },
+    collaborators: (task.collaborators ?? []).map((collaborator) => ({
+      id: collaborator.user.id,
+      name: collaborator.user.name,
+      email: collaborator.user.email || undefined,
+      collaborationScope: collaborator.collaborationScope,
+      capacityRequested: collaborator.capacityRequested,
+      addedAt: collaborator.createdAt.toISOString()
+    })),
     recommendedUser: toUserSummary(task.recommendedUser),
     recommendation,
     vehicleReference: normalizeOptionalText(task.vehicleReference),

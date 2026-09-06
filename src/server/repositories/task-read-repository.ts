@@ -64,6 +64,8 @@ const taskReadSelect = {
   collaborators: {
     orderBy: { createdAt: "asc" },
     select: {
+      collaborationScope: true,
+      capacityRequested: true,
       createdAt: true,
       user: { select: { id: true, name: true, email: true, isActive: true } },
       addedByUser: { select: { id: true, name: true, email: true } }

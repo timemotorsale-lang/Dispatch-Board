@@ -24,7 +24,7 @@ const tabs: AdvisorTab[] = [
     active: (pathname) => pathname === "/vehicles/recon-repair-advisor",
   },
   {
-    href: "/vehicles/coo-workbook",
+    href: "/vehicles/coo-workbook?workbookScope=MY",
     icon: ClipboardList,
     label: "Service Advisor Workbook",
     active: (pathname) => pathname === "/vehicles/coo-workbook" || pathname.startsWith("/vehicles/coo-workbook/"),
@@ -67,6 +67,18 @@ const tabs: AdvisorTab[] = [
   },
 ];
 
+const advisorWorkspaceReturnTo = "/vehicles/advisor";
+
+function withWorkspaceReturn(href: string, returnTo = advisorWorkspaceReturnTo) {
+  const [hrefWithoutHash, hash] = href.split("#");
+  const [pathname, query = ""] = hrefWithoutHash.split("?");
+  if (!pathname.startsWith("/") || pathname === returnTo) return href;
+  const params = new URLSearchParams(query);
+  if (!params.has("returnTo")) params.set("returnTo", returnTo);
+
+  return `${pathname}?${params.toString()}${hash ? `#${hash}` : ""}`;
+}
+
 export function AdvisorWorkspaceTabs({ pathname, searchParams }: { pathname: string; searchParams: URLSearchParams }) {
   return (
     <nav className="advisor-workspace-tabs" aria-label="Service Advisor workspace navigation">
@@ -76,7 +88,7 @@ export function AdvisorWorkspaceTabs({ pathname, searchParams }: { pathname: str
           const Icon = tab.icon;
           const active = tab.active(pathname, searchParams);
           return (
-            <Link aria-current={active ? "page" : undefined} className={active ? "active" : ""} href={tab.href} key={tab.label}>
+            <Link aria-current={active ? "page" : undefined} className={active ? "active" : ""} href={withWorkspaceReturn(tab.href)} key={tab.label}>
               <Icon />
               {tab.label}
             </Link>

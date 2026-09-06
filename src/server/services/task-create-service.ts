@@ -244,6 +244,7 @@ export async function createManualTask(
   const task = await repository.createTask({
     assignedUserId: normalizedInput.assignedUserId,
     collaboratorIds: normalizedInput.collaboratorIds,
+    collaboratorRequests: normalizedInput.collaboratorRequests,
     ...(workflowFields.blockerReason ? { blockerReason: workflowFields.blockerReason } : {}),
     boardDayId: boardDay.id,
     completedAt: workflowFields.completedAt,
@@ -279,6 +280,9 @@ export async function createManualTask(
       metadata: {
         assignedUserId: task.assignedUser.id,
         ...(normalizedInput.collaboratorIds.length ? { collaboratorIds: normalizedInput.collaboratorIds } : {}),
+        ...(normalizedInput.collaboratorRequests.some((request) => request.collaborationScope)
+          ? { collaboratorRequests: normalizedInput.collaboratorRequests }
+          : {}),
         dueAt: task.dueAt.toISOString(),
         requiresManagerApproval: task.requiresManagerApproval,
         sourceType: task.sourceType,

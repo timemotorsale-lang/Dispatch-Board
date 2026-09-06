@@ -24,7 +24,8 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useId, useRef, useState } from "react";
 
 import type { ServiceAdvisorWorkspaceModel } from "@/server/advisor-workspace/service";
 import { ChecklistReminderField } from "./checklist-reminder-field";
@@ -41,6 +42,33 @@ type AdvisorViewMode = "CALM" | "HIGH_VOLUME";
 type AdvisorWorkspaceSection = "COO_WORKBOOK" | "INBOX" | "WORK";
 type WorkbookViewMode = "COO" | "MY";
 type InboxFilter = "ALL" | InboxItem["audience"] | "NEEDS_RESPONSE";
+
+type WorkbookScopeSearchParams = {
+  get(name: string): string | null;
+};
+
+function automaticWorkbookView(canUseManagementWorkbook: boolean, searchParams: WorkbookScopeSearchParams): WorkbookViewMode {
+  if (!canUseManagementWorkbook) return "MY";
+  const workbookScope = searchParams.get("workbookScope")?.toUpperCase();
+  if (workbookScope === "MY") return "MY";
+  if (workbookScope === "COO") return "COO";
+
+  const managerMode = searchParams.get("managerMode")?.toUpperCase();
+
+  return managerMode === "WORK" ? "MY" : "COO";
+}
+
+function workbookScopeHref(href: string, workbookView: WorkbookViewMode, returnTo?: string | null) {
+  const [hrefWithoutHash, hash] = href.split("#");
+  const [pathname, query = ""] = hrefWithoutHash.split("?");
+  const params = new URLSearchParams(query);
+
+  if (workbookView === "MY") params.set("workbookScope", "MY");
+  if (returnTo?.startsWith("/") && !returnTo.startsWith("//") && !params.has("returnTo")) params.set("returnTo", returnTo);
+
+  const nextQuery = params.toString();
+  return `${pathname}${nextQuery ? `?${nextQuery}` : ""}${hash ? `#${hash}` : ""}`;
+}
 
 function timeLabel(value: string | null) {
   return value ? new Date(value).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "Walk-in";
@@ -120,12 +148,24 @@ function actionQueueCount(items: Action[], kind: Action["actionKind"]) {
   return items.filter((item) => item.actionKind === kind).length;
 }
 
-function repairOrderWorkbookHref(repairOrderId: string) {
+function repairOrderWorkbookHref(repairOrderId: string, returnTo = "/vehicles/coo-workbook", returnLabel = "Daily Workbook") {
   return `/vehicles/repair-workbench?${new URLSearchParams({
     repairOrderId,
-    returnLabel: "Daily Workbook",
-    returnTo: "/vehicles/coo-workbook"
+    returnLabel,
+    returnTo
   }).toString()}`;
+}
+
+const advisorWorkspaceReturnTo = "/vehicles/advisor";
+
+function withAdvisorWorkspaceReturn(href: string, returnTo = advisorWorkspaceReturnTo) {
+  const [hrefWithoutHash, hash] = href.split("#");
+  const [pathname, query = ""] = hrefWithoutHash.split("?");
+  if (!pathname.startsWith("/") || pathname === returnTo) return href;
+  const params = new URLSearchParams(query);
+  if (!params.has("returnTo")) params.set("returnTo", returnTo);
+
+  return `${pathname}?${params.toString()}${hash ? `#${hash}` : ""}`;
 }
 
 function taskDateParts(value?: string) {
@@ -138,14 +178,14 @@ function taskDateParts(value?: string) {
   };
 }
 
-function cooTaskIntakeHref(input: { brief?: string; dueAt?: string; expectedOutcome: string; sourceTitle?: string; title: string; vehicleReference?: string }) {
+function cooTaskIntakeHref(input: { brief?: string; dueAt?: string; expectedOutcome: string; returnTo?: string; sourceTitle?: string; title: string; vehicleReference?: string }) {
   const due = taskDateParts(input.dueAt);
   const params = new URLSearchParams({
     dueDate: due.date,
     dueTime: due.time,
     expectedOutcome: input.expectedOutcome,
     intakeType: "Manager Decision",
-    returnTo: "/vehicles/coo-workbook",
+    returnTo: input.returnTo ?? "/vehicles/coo-workbook",
     title: input.title,
     workflowArea: "GENERAL_MANAGER"
   });
@@ -410,6 +450,18 @@ function buildDailyFocusSuggestions(workbook: WorkdayWorkbookModel, morningPrior
   return suggestions.sort((left, right) => right.rank - left.rank || left.outcome.localeCompare(right.outcome)).slice(0, 12);
 }
 
+function normalizeTaskSourceTitle(value: string) {
+  return value.toLocaleLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/^(review|confirm|complete|update|resolve|follow up on|follow up)\s+/, "").trim();
+}
+
+function matchesTaskSourceTitle(sourceTitle: string, outcome: string) {
+  const normalizedSourceTitle = normalizeTaskSourceTitle(sourceTitle);
+  const normalizedOutcome = normalizeTaskSourceTitle(outcome);
+  return normalizedSourceTitle === normalizedOutcome
+    || Math.min(normalizedSourceTitle.length, normalizedOutcome.length) > 12
+      && (normalizedSourceTitle.includes(normalizedOutcome) || normalizedOutcome.includes(normalizedSourceTitle));
+}
+
 function dailyFocusSuggestionTone(suggestion: DailyFocusSuggestion) {
   if (suggestion.riskLevel === "BLOCKED" || suggestion.priority === "CRITICAL") return "red";
   if (suggestion.riskLevel === "WATCH" || suggestion.priority === "HIGH" || suggestion.mustCloseToday) return "yellow";
@@ -417,7 +469,7 @@ function dailyFocusSuggestionTone(suggestion: DailyFocusSuggestion) {
 }
 
 export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, initialTool = null, model }: { compact?: boolean; closedRepairOrderId?: string | null; initialTool?: CooWorkbookTool | null; model: ServiceAdvisorWorkspaceModel }) {
-  const [workbookView, setWorkbookView] = useState<WorkbookViewMode>(model.workspace.canUseManagementWorkbook ? "COO" : "MY");
+  const searchParams = useSearchParams() ?? new URLSearchParams();
   const [workbook, setWorkbook] = useState<WorkdayWorkbookModel>(model.workbook);
   const [staffWorkbook, setStaffWorkbook] = useState<WorkdayWorkbookModel>(model.staffWorkbook);
   const [staffWorkbookSummaries, setStaffWorkbookSummaries] = useState(model.staffWorkbookSummaries);
@@ -472,20 +524,25 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
   const actionQueue = closedRepairOrderId
     ? model.actionQueue.filter((item) => item.id !== closedRepairOrderId)
     : model.actionQueue;
-  const dailyPursePendingWork = actionQueue.map((item) => ({
-    detail: `${item.repairOrderNumber} · ${item.vehicleLabel} · ${item.actionReason}`,
-    href: repairOrderWorkbookHref(item.id),
-    id: `${item.actionKind}-${item.id}`,
-    title: item.actionLabel
-  }));
   const approvalCount = actionQueueCount(actionQueue, "AUTHORIZATION");
   const reportExceptions = actionQueue.filter((item) => matchesFilter(item, "ATTENTION") || matchesFilter(item, "WAITING")).length;
   const staffWorkbookLabel = model.workspace.staffWorkbookLabel;
   const managementWorkbookLabel = model.workspace.managementWorkbookLabel;
   const canUseManagementWorkbook = model.workspace.canUseManagementWorkbook;
-  const effectiveWorkbookView: WorkbookViewMode = canUseManagementWorkbook ? workbookView : "MY";
+  const effectiveWorkbookView = automaticWorkbookView(canUseManagementWorkbook, searchParams);
   const activeWorkbook = effectiveWorkbookView === "MY" ? staffWorkbook : workbook;
   const activeWorkbookLabel = effectiveWorkbookView === "MY" ? staffWorkbookLabel : managementWorkbookLabel;
+  const sourceReturnTo = searchParams.get("returnTo");
+  const scopedWorkbookHref = (href: string) => href.startsWith("/vehicles/coo-workbook") ? workbookScopeHref(href, effectiveWorkbookView, sourceReturnTo) : href;
+  const workbookExitHref = sourceReturnTo?.startsWith("/") && !sourceReturnTo.startsWith("//") ? sourceReturnTo : scopedWorkbookHref("/vehicles/coo-workbook");
+  const repairOrderHref = (repairOrderId: string) => repairOrderWorkbookHref(repairOrderId, workbookExitHref, sourceReturnTo ? "My Workspace" : activeWorkbookLabel);
+  const taskIntakeReturnHref = scopedWorkbookHref("/vehicles/coo-workbook");
+  const dailyPursePendingWork = actionQueue.map((item) => ({
+    detail: `${item.repairOrderNumber} · ${item.vehicleLabel} · ${item.actionReason}`,
+    href: repairOrderHref(item.id),
+    id: `${item.actionKind}-${item.id}`,
+    title: item.actionLabel
+  }));
   const checklistItems = activeWorkbook.checklistItems;
   const quickUpdates = activeWorkbook.quickUpdates;
   const reportSeeds = activeWorkbook.reportSeeds;
@@ -539,6 +596,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
     brief: `Create the ${activeWorkbookLabel} daily action plan from ${actionQueue.length} active repair order signal(s), ${approvalCount} approval review item(s), and ${reportExceptions} unresolved risk/carryover item(s).`,
     dueAt: model.generatedAt,
     expectedOutcome: "The COO daily action plan is reviewed, prioritized, assigned, and ready to support the end-of-day operations report.",
+    returnTo: taskIntakeReturnHref,
     title: `Create ${activeWorkbookLabel} daily action plan`
   });
   const supportSignals = closeReadiness.checklistNeedsSupport + closeReadiness.quickFollowUps + reportExceptions;
@@ -548,7 +606,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
       action: actionButton(item.actionKind),
       context: `${item.customerName} · ${item.repairOrderNumber} · ${item.vehicleLabel}`,
       description: item.actionReason,
-      href: repairOrderWorkbookHref(item.id),
+      href: repairOrderHref(item.id),
       id: `action-${item.id}`,
       meta: item.nextAction !== "Next action not recorded" ? `Next: ${item.nextAction}` : `${stageLabel(item.stage)} · ${stageLabel(item.operatingState)}`,
       searchText: buildSearchText(item.actionLabel, item.actionReason, item.customerName, item.repairOrderNumber, item.vehicleLabel, item.vehicleIdentifiers ?? [], item.nextAction, item.stage, item.operatingState),
@@ -594,7 +652,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
       action: "Open RO",
       context: `${item.customerName} · ${item.vehicleLabel}`,
       description: `${item.repairOrderNumber} · ${stageLabel(item.stage)} · ${stageLabel(item.operatingState)} · Next: ${item.nextAction}`,
-      href: repairOrderWorkbookHref(item.id),
+      href: repairOrderHref(item.id),
       id: `repair-${item.id}`,
       kind: "Repair Order",
       searchText: buildSearchText(item.customerName, item.repairOrderNumber, item.vehicleLabel, item.vehicleIdentifiers ?? [], item.stage, item.operatingState, item.nextAction),
@@ -687,6 +745,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
       brief: `Review and create the right follow-up for: ${workSearchQuery.trim()}`,
       dueAt: model.generatedAt,
       expectedOutcome: "The searched customer, vehicle, repair order, or work reference is reviewed and routed to the right next action.",
+      returnTo: taskIntakeReturnHref,
       title: `Review ${workSearchQuery.trim().slice(0, 70)}`,
       vehicleReference: workSearchQuery.trim()
     })
@@ -766,16 +825,15 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
     const repairOrder = repairOrderNumber
       ? model.repairOrders.find((order) => order.repairOrderNumber.toLocaleUpperCase() === repairOrderNumber)
       : null;
-    if (repairOrder) return { href: repairOrderWorkbookHref(repairOrder.id), toolLabel: "Open RO" };
+    if (repairOrder) return { href: repairOrderHref(repairOrder.id), toolLabel: "Open RO" };
     const repairOrderAction = repairOrderNumber
       ? model.actionQueue.find((action) => action.repairOrderNumber.toLocaleUpperCase() === repairOrderNumber)
       : null;
-    if (repairOrderAction) return { href: repairOrderWorkbookHref(repairOrderAction.id), toolLabel: "Open RO" };
-    const prioritySource = model.morningPrioritySources.find((source) => {
-      const normalizedTitle = normalizeSourceTitle(source.title);
-      return normalizedTitle === normalizedOutcome
-        || source.sourceType === "TASK" && Math.min(normalizedTitle.length, normalizedOutcome.length) > 12 && (normalizedTitle.includes(normalizedOutcome) || normalizedOutcome.includes(normalizedTitle));
-    });
+    if (repairOrderAction) return { href: repairOrderHref(repairOrderAction.id), toolLabel: "Open RO" };
+    const prioritySource = [
+      ...model.morningPrioritySources.filter((source) => source.staffUserId === model.advisor.id),
+      ...model.morningPrioritySources
+    ].find((source) => source.sourceType === "TASK" ? matchesTaskSourceTitle(source.title, item.outcome) : normalizeSourceTitle(source.title) === normalizedOutcome);
     if (prioritySource) return {
       href: prioritySource.href,
       toolLabel: prioritySource.sourceType === "TASK" ? "Open task" : prioritySource.sourceType === "REPAIR_ORDER" ? "Open RO" : prioritySource.sourceType === "APPOINTMENT" ? "Open schedule" : "Open duty"
@@ -785,7 +843,13 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
       href: carryoverSource.sourceHref,
       toolLabel: carryoverSource.sourceHref.startsWith("/tasks/") ? "Open task" : carryoverSource.sourceHref.includes("repair-workbench") ? "Open RO" : "Open source"
     };
-    return null;
+    const checklistSource = activeWorkbook.checklistItems.find((candidate) => normalizeSourceTitle(candidate.text) === normalizedOutcome);
+    if (checklistSource) return { href: `/vehicles/coo-workbook/checklist#checklist-${encodeURIComponent(checklistSource.id)}`, toolLabel: "Open checklist" };
+    const quickUpdateSource = activeWorkbook.quickUpdates.find((candidate) => normalizeSourceTitle(candidate.text) === normalizedOutcome);
+    if (quickUpdateSource) return { href: `/vehicles/coo-workbook/quick-update#quick-${encodeURIComponent(quickUpdateSource.id)}`, toolLabel: "Open update" };
+    const carryoverFallback = activeCarryovers.find((carryover) => normalizeSourceTitle(carryover.title) === normalizedOutcome);
+    if (carryoverFallback) return { href: carryoverFallback.sourceHref ?? "/vehicles/coo-workbook/carryover", toolLabel: carryoverFallback.sourceHref?.startsWith("/tasks/") ? "Open task" : "Open source" };
+    return { href: "/vehicles/coo-workbook/effectiveness-pilot#start-the-day", toolLabel: "Review source" };
   };
   const closeReviewItems = [
     ...activeDailyFocusItems.map((item) => {
@@ -795,6 +859,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
         href: source?.href ?? cooTaskIntakeHref({
           dueAt: model.generatedAt,
           expectedOutcome: `${item.outcome} has a clear owner, status, next action, and close decision.`,
+          returnTo: taskIntakeReturnHref,
           sourceTitle: item.outcome,
           title: item.outcome
         }),
@@ -803,7 +868,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
         kind: "focus" as const,
         status: item.status === "DONE" ? "Done" : item.status === "CARRY_OVER" ? "Carry over" : "Not done",
         title: item.outcome,
-        toolLabel: source?.toolLabel ?? "Create task"
+        toolLabel: source.toolLabel
       };
     }),
     ...checklistItems.map((item) => ({
@@ -1573,14 +1638,10 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
     return <section className={`advisor-panel advisor-coo-workbook advisor-coo-tool-page ${compact ? "compact" : "full"}`} id="coo-workbook-tool">
       <header className="advisor-coo-tool-page-header">
         <div>
-          <Link href="/vehicles/coo-workbook">← {activeWorkbookLabel}</Link>
+          <Link href={scopedWorkbookHref("/vehicles/coo-workbook")}>← {activeWorkbookLabel}</Link>
           <strong>{toolLabels[initialTool]}</strong>
           <span>{activeWorkbookLabel} focused workspace. Finish the action here, then return to the landing page.</span>
         </div>
-        <nav className="advisor-coo-workbook-switcher" aria-label="Workbook view">
-          {canUseManagementWorkbook ? <button aria-pressed={workbookView === "COO"} onClick={() => setWorkbookView("COO")} type="button"><ShieldCheck /> {managementWorkbookLabel}</button> : null}
-          <button aria-pressed={workbookView === "MY"} onClick={() => setWorkbookView("MY")} type="button"><CheckSquare /> {staffWorkbookLabel}</button>
-        </nav>
       </header>
 
       <WorkbookAppointmentFlow date={model.boardDate} workbook={activeWorkbook} pendingWork={dailyPursePendingWork} generating={saving} onGenerateReport={() => generateReportDraft("DAILY")} />
@@ -1699,7 +1760,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
           <article>
             <h2>Light To-Do</h2>
             <p>Open the checklist tool to add quick same-day items without turning everything into paperwork.</p>
-            <Link href="/vehicles/coo-workbook/checklist">Open Daily Checklist</Link>
+            <Link href={scopedWorkbookHref("/vehicles/coo-workbook/checklist")}>Open Daily Checklist</Link>
           </article>
           <article>
             <h2>Formal Task</h2>
@@ -1749,7 +1810,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
           {attentionItems.length ? attentionItems.map((item) => <article key={item.id}>
             <h2>{item.title}</h2>
             <p>{item.context}</p>
-            <Link href={item.href}>{item.action}</Link>
+            <Link href={scopedWorkbookHref(item.href)}>{item.action}</Link>
           </article>) : <p><CheckCircle2 /> No urgent operating actions are waiting.</p>}
         </div>
         <Link className="advisor-coo-primary-link" href={planTaskHref}>Create overall action plan task</Link>
@@ -1814,7 +1875,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
         <div>
           {moreToolCards.map((tool) => {
             const Icon = tool.icon;
-            return <Link href={tool.href} key={tool.title}>
+            return <Link href={scopedWorkbookHref(tool.href)} key={tool.title}>
               <Icon />
               <span>
                 <strong>{tool.title}</strong>
@@ -1839,17 +1900,9 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
         <strong>{activeWorkbookLabel}</strong>
         <span>A simple daily workspace for planning, execution, accountability, and reporting.</span>
       </div>
-      <nav className="advisor-coo-workbook-switcher" aria-label="Workbook view">
-        {canUseManagementWorkbook ? <button aria-pressed={workbookView === "COO"} onClick={() => setWorkbookView("COO")} type="button"><ShieldCheck /> {managementWorkbookLabel}</button> : null}
-        <button aria-pressed={workbookView === "MY"} onClick={() => setWorkbookView("MY")} type="button"><CheckSquare /> {staffWorkbookLabel}</button>
-      </nav>
-      <nav className="advisor-coo-version-switcher" aria-label="Workbook version">
-        <Link aria-current="page" href="/vehicles/coo-workbook">Current Workbook</Link>
-        <Link href="/vehicles/coo-workbook/effectiveness-pilot">Effectiveness Pilot</Link>
-      </nav>
       <div className="advisor-coo-header-actions">
-        <Link href="/vehicles/coo-workbook/effectiveness-pilot#start-the-day"><ClipboardCheck /> Start The Day</Link>
-        <Link href="/vehicles/coo-workbook/quick-update"><MessageSquareText /> Quick Update</Link>
+        <Link href={scopedWorkbookHref("/vehicles/coo-workbook/effectiveness-pilot#start-the-day")}><ClipboardCheck /> Start The Day</Link>
+        <Link href={scopedWorkbookHref("/vehicles/coo-workbook/quick-update")}><MessageSquareText /> Quick Update</Link>
         <button aria-label={isClosed ? "Open latest report draft" : "Generate Daily Report"} disabled={saving} onClick={() => void generateReportDraft("DAILY", { openDrafts: true })} type="button"><FileText /> {saving ? "Generating..." : isClosed ? "Open Draft" : "Generate Report"}</button>
       </div>
     </header>
@@ -1860,7 +1913,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
         <small>Recommended Now</small>
         <strong>{contextRecommendation.title}</strong>
         <span>{contextRecommendation.description}</span>
-        {"href" in contextRecommendation ? <Link href={contextRecommendation.href!}>{isClosed ? "Review report" : "Open"}</Link> : <button onClick={contextRecommendation.onSelect} type="button">Open</button>}
+        {"href" in contextRecommendation ? <Link href={scopedWorkbookHref(contextRecommendation.href!)}>{isClosed ? "Review report" : "Open"}</Link> : <button onClick={contextRecommendation.onSelect} type="button">Open</button>}
       </article>
       <nav aria-label="Daily workflow">
         {workflowPhases.map((phase) => {
@@ -1869,7 +1922,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
             <Icon />
             <span><strong>{phase.title}</strong><small>{phase.detail}</small></span>
           </>;
-          return "href" in phase ? <Link aria-current={contextRecommendation.phase === phase.key ? "step" : undefined} href={phase.href!} key={phase.key}>{content}</Link> : <button aria-current={contextRecommendation.phase === phase.key ? "step" : undefined} key={phase.key} onClick={phase.onSelect} type="button">{content}</button>;
+          return "href" in phase ? <Link aria-current={contextRecommendation.phase === phase.key ? "step" : undefined} href={scopedWorkbookHref(phase.href!)} key={phase.key}>{content}</Link> : <button aria-current={contextRecommendation.phase === phase.key ? "step" : undefined} key={phase.key} onClick={phase.onSelect} type="button">{content}</button>;
         })}
       </nav>
     </section>
@@ -1892,7 +1945,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
         <span>{commandDetailItems.length ? `${commandDetailItems.length} item(s)` : "Clear"}</span>
       </header>
       <div>
-        {commandDetailItems.length ? commandDetailItems.map((item) => <a href={item.href} key={item.id}>
+        {commandDetailItems.length ? commandDetailItems.map((item) => <a href={scopedWorkbookHref(item.href)} key={item.id}>
           <span><strong>{item.title}</strong><small>{item.detail}</small></span>
           <em>{item.action}</em>
         </a>) : <p><CheckCircle2 /> Nothing is waiting in this area right now.</p>}
@@ -1920,7 +1973,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
       </label>
       {normalizedWorkSearch ? <div className="advisor-coo-search-results">
         {workSearchResults.length ? workSearchResults.map((item) => <article className={item.tone} key={item.id}>
-          <a href={item.href}>
+          <a href={scopedWorkbookHref(item.href)}>
             <span><b>{item.kind}</b><strong>{item.title}</strong><small>{item.context}</small><small>{item.description}</small></span>
             <em>{item.action}</em>
           </a>
@@ -1947,7 +2000,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
           <span>{attentionItems.length ? `${attentionItems.length} priority` : "Clear"}</span>
         </header>
         <div>
-          {attentionItems.length ? attentionItems.map((item, index) => <a className={item.tone} href={item.href} key={item.id}>
+          {attentionItems.length ? attentionItems.map((item, index) => <a className={item.tone} href={scopedWorkbookHref(item.href)} key={item.id}>
             <b>{index + 1}</b>
             <span><strong>{item.title}</strong><small>{item.context}</small><small>{item.description}</small>{item.meta ? <i>{item.meta}</i> : null}</span>
             <em>{item.action}</em>
@@ -1963,7 +2016,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
         <div className="advisor-coo-tool-grid">
           {toolCards.map((tool) => {
             const Icon = tool.icon;
-            return <a href={tool.href} key={tool.title}>
+            return <a href={scopedWorkbookHref(tool.href)} key={tool.title}>
               <Icon />
               <span><strong>{tool.title}</strong><small>{tool.description}</small></span>
             </a>;
@@ -1991,7 +2044,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
         <div className="advisor-end-day-list">
           {closeReviewItems.length ? closeReviewItems.map((item) => <article className={item.status === "Done" ? "done" : item.status === "Carry over" ? "carry" : "open"} key={item.id}>
             <span><strong>{item.title}</strong><small>{item.status} · {item.detail}</small></span>
-            <Link href={item.href}>{item.toolLabel}</Link>
+            <Link href={scopedWorkbookHref(item.href)}>{item.toolLabel}</Link>
             <div>
               <button aria-pressed={item.status === "Done"} className={item.status === "Done" ? "selected" : ""} disabled={saving || isClosed} onClick={() => item.kind === "focus" ? void setEndDayFocusStatus(item.focusId, "DONE") : void persistChecklistItem(item.checklistId, { done: true, carryoverReady: false, status: "GREEN" })} type="button"><CheckCircle2 /> Done</button>
               <button aria-pressed={item.status === "Carry over"} className={item.status === "Carry over" ? "selected carry" : ""} disabled={saving || isClosed} onClick={() => item.kind === "focus" ? void setEndDayFocusStatus(item.focusId, "CARRY_OVER") : void persistChecklistItem(item.checklistId, { done: false, carryoverReady: true })} type="button"><CalendarClock /> Carry to tomorrow</button>
@@ -2005,14 +2058,14 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
         <div className="advisor-end-day-list compact">
           {tomorrowItems.length ? tomorrowItems.map((item) => <article className="carry" key={item.id}>
             <span><strong>{item.title}</strong><small>{item.status} · {item.detail}</small></span>
-            <Link href={item.href}>{item.toolLabel}</Link>
+            <Link href={scopedWorkbookHref(item.href)}>{item.toolLabel}</Link>
           </article>) : <p className="advisor-end-day-empty"><CheckCircle2 /> Nothing needs to carry into tomorrow.</p>}
         </div>
         <footer><span>Preparing tomorrow creates governed carryover records; it does not duplicate tasks or repair orders.</span><button disabled={saving || isClosed || !tomorrowItems.length} onClick={() => void runCloseStep("carryover")} type="button">{closeStepInProgress === "carryover" ? "Preparing…" : "Prepare tomorrow"}</button></footer>
       </section>
 
       <section className="advisor-end-day-section">
-        <header><div><span>3</span><div><h2>Review the daily report evidence</h2><p>Generate a source-backed draft, then inspect the work that will appear in the daily report.</p></div></div><nav aria-label="Report cadence"><Link aria-current="page" href="/vehicles/coo-workbook/drafts?cadence=daily">Daily</Link><Link href="/vehicles/coo-workbook/drafts?cadence=weekly">Weekly</Link><Link href="/vehicles/coo-workbook/drafts?cadence=monthly">Monthly</Link></nav></header>
+        <header><div><span>3</span><div><h2>Review the daily report evidence</h2><p>Generate a source-backed draft, then inspect the work that will appear in the daily report.</p></div></div><nav aria-label="Report cadence"><Link aria-current="page" href={scopedWorkbookHref("/vehicles/coo-workbook/drafts?cadence=daily")}>Daily</Link><Link href={scopedWorkbookHref("/vehicles/coo-workbook/drafts?cadence=weekly")}>Weekly</Link><Link href={scopedWorkbookHref("/vehicles/coo-workbook/drafts?cadence=monthly")}>Monthly</Link></nav></header>
         <dl className="advisor-end-day-evidence"><div><dt>Seeds ready</dt><dd>{reportSeedRollup.active}</dd></div><div><dt>Sections</dt><dd>{latestReportDraft?.sections.length ?? 0}</dd></div><div><dt>Latest draft</dt><dd>{latestReportDraft ? dateLabel(latestReportDraft.generatedAt) : "Not generated"}</dd></div><div><dt>Staff source</dt><dd>{staffTodayRollup.total} active</dd></div></dl>
         {latestReportDraft ? <button aria-expanded={closeDraftExpanded} className="advisor-end-day-draft" onClick={() => setCloseDraftExpanded((current) => !current)} type="button"><span><strong>{latestReportDraft.title}</strong><small>{latestReportDraft.summary}</small></span><span>{closeDraftExpanded ? "Hide evidence" : `Review ${latestReportDraftItemCount} item(s)`}<ChevronDown /></span></button> : <p className="advisor-end-day-empty"><FileText /> No daily report draft has been generated yet.</p>}
         {latestReportDraft && closeDraftExpanded ? <div className="advisor-end-day-draft-items">{latestReportDraft.sections.map((section) => <section key={section.title}><strong>{section.title}</strong>{section.items.map((item) => <p key={`${section.title}-${item.sourceId}-${item.title}`}><b>{item.title}</b><small>{item.detail}</small>{item.reviewNote ? <em>{item.reviewNote}</em> : null}</p>)}</section>)}</div> : null}
@@ -2045,7 +2098,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
             </div>;
           })() : null}
         </section>
-        <footer><span className="advisor-end-day-support-links"><Link href="/vehicles/coo-workbook/report-seeds">Review report seeds</Link><Link href="/vehicles/coo-workbook/more-tools">More Tools</Link></span><button disabled={saving || isClosed} onClick={() => void runCloseStep("draft")} type="button">{closeStepInProgress === "draft" ? "Generating…" : latestReportDraft ? "Refresh daily draft" : "Generate daily draft"}</button></footer>
+        <footer><span className="advisor-end-day-support-links"><Link href={scopedWorkbookHref("/vehicles/coo-workbook/report-seeds")}>Review report seeds</Link><Link href={scopedWorkbookHref("/vehicles/coo-workbook/more-tools")}>More Tools</Link></span><button disabled={saving || isClosed} onClick={() => void runCloseStep("draft")} type="button">{closeStepInProgress === "draft" ? "Generating…" : latestReportDraft ? "Refresh daily draft" : "Generate daily draft"}</button></footer>
       </section>
 
       {reviewingEndDay && !isClosed ? <section className="advisor-end-day-final-review" ref={endDayReviewRef} tabIndex={-1}>
@@ -2071,7 +2124,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
 }
 
 export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisorWorkspaceModel }) {
-  const [workbookView, setWorkbookView] = useState<WorkbookViewMode>(model.workspace.canUseManagementWorkbook ? "COO" : "MY");
+  const searchParams = useSearchParams() ?? new URLSearchParams();
   const [workbook, setWorkbook] = useState<WorkdayWorkbookModel>(model.workbook);
   const [staffWorkbook, setStaffWorkbook] = useState<WorkdayWorkbookModel>(model.staffWorkbook);
   const [, setStaffWorkbookSummaries] = useState(model.staffWorkbookSummaries);
@@ -2095,9 +2148,13 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
   const staffWorkbookLabel = model.workspace.staffWorkbookLabel;
   const managementWorkbookLabel = model.workspace.managementWorkbookLabel;
   const canUseManagementWorkbook = model.workspace.canUseManagementWorkbook;
-  const effectiveWorkbookView: WorkbookViewMode = canUseManagementWorkbook ? workbookView : "MY";
+  const effectiveWorkbookView = automaticWorkbookView(canUseManagementWorkbook, searchParams);
   const activeWorkbook = effectiveWorkbookView === "MY" ? staffWorkbook : workbook;
   const activeLabel = effectiveWorkbookView === "MY" ? staffWorkbookLabel : managementWorkbookLabel;
+  const sourceReturnTo = searchParams.get("returnTo");
+  const scopedWorkbookHref = (href: string) => href.startsWith("/vehicles/coo-workbook") ? workbookScopeHref(href, effectiveWorkbookView, sourceReturnTo) : href;
+  const workbookExitHref = sourceReturnTo?.startsWith("/") && !sourceReturnTo.startsWith("//") ? sourceReturnTo : scopedWorkbookHref("/vehicles/coo-workbook");
+  const repairOrderHref = (repairOrderId: string) => repairOrderWorkbookHref(repairOrderId, workbookExitHref, sourceReturnTo ? "My Workspace" : activeLabel);
   const dailyFocus = activeWorkbook.dailyFocusItems.filter((item) => !isGenericAdvisorFocusItem(item));
   const isPilotClosed = activeWorkbook.status === "CLOSED";
   const prioritySourcesForView = effectiveWorkbookView === "MY"
@@ -2149,16 +2206,15 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
     const repairOrder = repairOrderNumber
       ? model.repairOrders.find((order) => order.repairOrderNumber.toLocaleUpperCase() === repairOrderNumber)
       : null;
-    if (repairOrder) return { actionLabel: "Open repair order", description: "This outcome is linked to an existing repair order.", href: repairOrderWorkbookHref(repairOrder.id), isOperationalRecord: true, label: "Existing repair order" };
+    if (repairOrder) return { actionLabel: "Open repair order", description: "This outcome is linked to an existing repair order.", href: repairOrderHref(repairOrder.id), isOperationalRecord: true, label: "Existing repair order" };
     const repairOrderAction = repairOrderNumber
       ? model.actionQueue.find((action) => action.repairOrderNumber.toLocaleUpperCase() === repairOrderNumber)
       : null;
-    if (repairOrderAction) return { actionLabel: "Open repair order", description: "This outcome is linked to an existing repair order.", href: repairOrderWorkbookHref(repairOrderAction.id), isOperationalRecord: true, label: "Existing repair order" };
-    const prioritySource = prioritySourcesForView.find((source) => {
-      const normalizedTitle = normalizedSourceTitle(source.title);
-      return normalizedTitle === normalizedOutcome
-        || source.sourceType === "TASK" && Math.min(normalizedTitle.length, normalizedOutcome.length) > 12 && (normalizedTitle.includes(normalizedOutcome) || normalizedOutcome.includes(normalizedTitle));
-    });
+    if (repairOrderAction) return { actionLabel: "Open repair order", description: "This outcome is linked to an existing repair order.", href: repairOrderHref(repairOrderAction.id), isOperationalRecord: true, label: "Existing repair order" };
+    const prioritySource = [
+      ...prioritySourcesForView,
+      ...model.morningPrioritySources
+    ].find((source) => source.sourceType === "TASK" ? matchesTaskSourceTitle(source.title, item.outcome) : normalizedSourceTitle(source.title) === normalizedOutcome);
     if (prioritySource) return {
       actionLabel: prioritySource.sourceType === "TASK" ? "Open task" : prioritySource.sourceType === "APPOINTMENT" ? "Open schedule" : "Open source",
       description: `This outcome is linked to an existing ${prioritySource.sourceType.toLocaleLowerCase().replace("_", " ")}.`,
@@ -2210,7 +2266,7 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
     };
   }, [activeWorkbook.id, attentionSessionKey]);
 
-  const refreshPilotWorkbook = useCallback(async function refreshPilotWorkbook() {
+  async function refreshPilotWorkbook() {
     if (effectiveWorkbookView === "MY") {
       const response = await fetch(`/api/coo-workbook/staff?date=${encodeURIComponent(model.boardDate)}`);
       const payload = await response.json().catch(() => null) as { staffWorkbookSummaries?: StaffWorkbookSummary[]; workbook?: WorkdayWorkbookModel; error?: string } | null;
@@ -2223,9 +2279,9 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
     const payload = await response.json().catch(() => null) as { workbook?: WorkdayWorkbookModel; error?: string } | null;
     if (!response.ok || !payload?.workbook) throw new Error(payload?.error ?? `Unable to refresh ${managementWorkbookLabel}.`);
     setWorkbook(payload.workbook);
-  }, [effectiveWorkbookView, managementWorkbookLabel, model.boardDate, staffWorkbookLabel]);
+  }
 
-  const createDailyFocusFromSuggestion = useCallback(async function createDailyFocusFromSuggestion(suggestion: DailyFocusSuggestion, sortOrder: number) {
+  async function createDailyFocusFromSuggestion(suggestion: DailyFocusSuggestion, sortOrder: number) {
       const response = await fetch(`/api/coo-workbook/daily-focus?date=${encodeURIComponent(model.boardDate)}&scope=${effectiveWorkbookView === "MY" ? "STAFF" : "COO"}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -2241,7 +2297,7 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
     });
     const payload = await response.json().catch(() => null) as { error?: string } | null;
     if (!response.ok) throw new Error(payload?.error ?? "Unable to save Daily Focus.");
-  }, [effectiveWorkbookView, model.boardDate]);
+  }
 
   async function addDailyFocus(suggestion?: DailyFocusSuggestion) {
     const outcome = (suggestion?.outcome ?? focusOutcome).trim();
@@ -2511,16 +2567,8 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
     <header className="advisor-coo-landing-header">
       <div>
         <strong>{activeLabel}</strong>
-        <span>Effectiveness Pilot: start clear, work the day, close with accountability.</span>
+        <span>Start The Day: start clear, work the day, close with accountability.</span>
       </div>
-      <nav className="advisor-coo-version-switcher" aria-label="Workbook version">
-        <Link href="/vehicles/coo-workbook">Current Workbook</Link>
-        <Link aria-current="page" href="/vehicles/coo-workbook/effectiveness-pilot">Effectiveness Pilot</Link>
-      </nav>
-      <nav className="advisor-coo-workbook-switcher" aria-label="Workbook view">
-        {canUseManagementWorkbook ? <button aria-pressed={workbookView === "COO"} onClick={() => setWorkbookView("COO")} type="button"><ShieldCheck /> {managementWorkbookLabel}</button> : null}
-        <button aria-pressed={workbookView === "MY"} onClick={() => setWorkbookView("MY")} type="button"><CheckSquare /> {staffWorkbookLabel}</button>
-      </nav>
     </header>
 
     <main className="advisor-start-day-shell" id="start-the-day">
@@ -2545,7 +2593,7 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
         <div className="advisor-start-day-carryover-list">
           {carryoverSuggestions.length ? carryoverSuggestions.map((item) => <article key={item.sourceId}>
             <div><strong>{item.outcome}</strong><small>{item.sourceLabel} · {item.mustCloseToday ? "confirmed for today" : "decision needed"}</small><p>{item.detail}</p></div>
-            <Link href={item.href}>Review source →</Link>
+            <Link href={scopedWorkbookHref(item.href)}>Review source →</Link>
             <button disabled={saving || isPilotClosed} onClick={() => chooseSuggestedOutcome(item)} type="button"><Plus /> Add to Today</button>
           </article>) : <p className="advisor-start-day-empty"><CheckCircle2 /> No unfinished prior assignments were carried into today.</p>}
         </div>
@@ -2555,7 +2603,7 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
         <header><div><span>1</span><div><h2 id="start-attention-title">What needs your attention today?</h2><p>Source-backed recommendations ranked by urgency, promise risk, and role fit.</p></div></div><small>{attentionSuggestions.length} recommendations</small></header>
         <div className="advisor-start-day-recommendations">
           {attentionSuggestions.length ? attentionSuggestions.map((item) => <article className={dailyFocusSuggestionTone(item)} key={item.sourceId}>
-            <div><strong>{item.outcome}</strong><small>{item.sourceLabel} · {item.priority.toLocaleLowerCase()}{item.mustCloseToday ? " · must close" : ""}</small><p>{item.reason}</p><Link href={item.href}>View source context →</Link></div>
+            <div><strong>{item.outcome}</strong><small>{item.sourceLabel} · {item.priority.toLocaleLowerCase()}{item.mustCloseToday ? " · must close" : ""}</small><p>{item.reason}</p><Link href={scopedWorkbookHref(item.href)}>View source context →</Link></div>
             <button disabled={saving || isPilotClosed} onClick={() => chooseSuggestedOutcome(item)} title={item.detail} type="button"><Plus /> Add to Today</button>
           </article>) : <p className="advisor-start-day-empty"><CheckCircle2 /> No additional source-backed priorities need review.</p>}
         </div>
@@ -2630,7 +2678,7 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
 
       <section className="advisor-start-day-confirm" aria-labelledby="start-confirm-title">
         <div><span>4</span><div><h2 id="start-confirm-title">Review and start</h2><p>{dailyFocus.length} committed outcome{dailyFocus.length === 1 ? "" : "s"} · {mustCloseCount} must close · {activeCarryovers.length} carryover · {capacityState === "ON_TRACK" ? "capacity on track" : capacityState === "AT_RISK" ? "capacity at risk" : "support requested"}</p><small><CheckCircle2 /> Approved plans remain editable. Any revision requires a fresh review and approval.</small></div></div>
-        {startConfirmed ? <Link href="/vehicles/coo-workbook">Open Work The Day →</Link> : <div className="advisor-start-day-confirm-actions">
+        {startConfirmed ? <Link href={scopedWorkbookHref("/vehicles/coo-workbook")}>Open Work The Day →</Link> : <div className="advisor-start-day-confirm-actions">
           {reviewingStartDay ? <button className="secondary" onClick={() => setReviewingStartDay(false)} type="button">Back to edit</button> : null}
           <button disabled={saving || isPilotClosed || !dailyFocus.length || reviewingStartDay && unapprovedFocusCount > 0} onClick={() => reviewingStartDay ? void confirmStartDay() : setReviewingStartDay(true)} type="button">{saving ? "Saving…" : reviewingStartDay ? planChangedAfterConfirmation || localPlanRevision ? "Approve Updated Plan" : "Approve & Start My Day" : "Review Start Day"}</button>
         </div>}
@@ -2650,8 +2698,8 @@ function AdvisorInbox({ compact = false, highVolume, items }: { compact?: boolea
     const needsResponse = items.filter((item) => item.needsResponse);
     const preview = needsResponse.slice(0, 3);
     return <section className="advisor-panel advisor-inbox-preview">
-      <header><div><strong>Inbox</strong><span>Customer replies, team responses, and management decisions connected to repair work.</span></div><Link href="/appointments?inbox=all">Open inbox{needsResponse.length ? ` · ${needsResponse.length}` : ""}</Link></header>
-      <div>{preview.length ? preview.map((item) => <Link href={`/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(item.repairOrderId)}#advisor-response`} key={item.id}><span className={`advisor-inbox-audience ${item.audience.toLocaleLowerCase()}`}>{inboxAudienceLabel(item.audience)}</span><span><strong>{item.customerName} · {item.repairOrderNumber}</strong><small>{item.preview}</small></span><em>{dateLabel(item.occurredAt)}</em></Link>) : <p className="advisor-empty"><CheckCircle2 /> No conversations currently need a response.</p>}</div>
+      <header><div><strong>Inbox</strong><span>Customer replies, team responses, and management decisions connected to repair work.</span></div><Link href={withAdvisorWorkspaceReturn("/appointments?inbox=all")}>Open inbox{needsResponse.length ? ` · ${needsResponse.length}` : ""}</Link></header>
+      <div>{preview.length ? preview.map((item) => <Link href={withAdvisorWorkspaceReturn(`/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(item.repairOrderId)}#advisor-response`)} key={item.id}><span className={`advisor-inbox-audience ${item.audience.toLocaleLowerCase()}`}>{inboxAudienceLabel(item.audience)}</span><span><strong>{item.customerName} · {item.repairOrderNumber}</strong><small>{item.preview}</small></span><em>{dateLabel(item.occurredAt)}</em></Link>) : <p className="advisor-empty"><CheckCircle2 /> No conversations currently need a response.</p>}</div>
     </section>;
   }
 
@@ -2665,7 +2713,7 @@ function AdvisorInbox({ compact = false, highVolume, items }: { compact?: boolea
         {filtered.length ? filtered.map((item) => <button aria-selected={selected?.id === item.id} className={selected?.id === item.id ? "selected" : ""} key={item.id} onClick={() => setSelectedId(item.id)} role="option" type="button"><span className={`advisor-inbox-audience ${item.audience.toLocaleLowerCase()}`}>{inboxAudienceLabel(item.audience)}</span><span><strong>{item.customerName}</strong><small>{item.repairOrderNumber} · {item.channel} · {item.direction}</small><p>{item.preview}</p></span><em>{item.needsResponse ? "Needs response" : dateLabel(item.occurredAt)}</em></button>) : <p className="advisor-empty"><CheckCircle2 /> No conversations match this filter.</p>}
       </div>
       <aside className="advisor-inbox-detail" aria-live="polite">
-        {selected ? <><header><span className={`advisor-inbox-audience ${selected.audience.toLocaleLowerCase()}`}>{inboxAudienceLabel(selected.audience)}</span><small>{dateLabel(selected.occurredAt)}</small></header><div><small>Repair-order context</small><h2>{selected.customerName}</h2><span>{selected.vehicleLabel} · {selected.repairOrderNumber}</span></div><section><small>Subject</small><strong>{selected.subject}</strong><p>{selected.preview}</p></section><dl><div><dt>Channel</dt><dd>{stageLabel(selected.channel)}</dd></div><div><dt>Direction</dt><dd>{stageLabel(selected.direction)}</dd></div><div><dt>Recorded by</dt><dd>{selected.authorName}</dd></div><div><dt>Transport</dt><dd>{selected.transportState === "RECORDED_CONTACT" ? "Contact recorded — external delivery not verified" : selected.transportState === "ESCALATION_RECORDED" ? "Management escalation recorded" : "Shared in repair-order workspace"}</dd></div>{selected.dueAt ? <div><dt>Response due</dt><dd>{dateLabel(selected.dueAt)}</dd></div> : null}</dl>{selected.audience === "CUSTOMER" ? <p className="advisor-inbox-boundary">SMS and email delivery require a connected communications provider. This record does not claim delivery.</p> : <p className="advisor-inbox-boundary internal">Internal content is never included in customer-facing updates.</p>}<Link href={inboxComposeHref(selected)}><Send /> {inboxActionLabel(selected)}</Link></> : <p className="advisor-empty"><CheckCircle2 /> Choose a conversation to review its repair-order context.</p>}
+        {selected ? <><header><span className={`advisor-inbox-audience ${selected.audience.toLocaleLowerCase()}`}>{inboxAudienceLabel(selected.audience)}</span><small>{dateLabel(selected.occurredAt)}</small></header><div><small>Repair-order context</small><h2>{selected.customerName}</h2><span>{selected.vehicleLabel} · {selected.repairOrderNumber}</span></div><section><small>Subject</small><strong>{selected.subject}</strong><p>{selected.preview}</p></section><dl><div><dt>Channel</dt><dd>{stageLabel(selected.channel)}</dd></div><div><dt>Direction</dt><dd>{stageLabel(selected.direction)}</dd></div><div><dt>Recorded by</dt><dd>{selected.authorName}</dd></div><div><dt>Transport</dt><dd>{selected.transportState === "RECORDED_CONTACT" ? "Contact recorded — external delivery not verified" : selected.transportState === "ESCALATION_RECORDED" ? "Management escalation recorded" : "Shared in repair-order workspace"}</dd></div>{selected.dueAt ? <div><dt>Response due</dt><dd>{dateLabel(selected.dueAt)}</dd></div> : null}</dl>{selected.audience === "CUSTOMER" ? <p className="advisor-inbox-boundary">SMS and email delivery require a connected communications provider. This record does not claim delivery.</p> : <p className="advisor-inbox-boundary internal">Internal content is never included in customer-facing updates.</p>}<Link href={withAdvisorWorkspaceReturn(inboxComposeHref(selected))}><Send /> {inboxActionLabel(selected)}</Link></> : <p className="advisor-empty"><CheckCircle2 /> Choose a conversation to review its repair-order context.</p>}
       </aside>
     </div>
   </section>;
@@ -2673,15 +2721,12 @@ function AdvisorInbox({ compact = false, highVolume, items }: { compact?: boolea
 
 export function ServiceAdvisorHome({ initialFilter = "ATTENTION", initialSection = "WORK", model }: { initialFilter?: AdvisorQueueFilter; initialSection?: AdvisorWorkspaceSection; model: ServiceAdvisorWorkspaceModel }) {
   const [filter, setFilter] = useState<AdvisorQueueFilter>(initialFilter);
-  const [viewMode, setViewMode] = useState<AdvisorViewMode>("CALM");
+  const [viewMode] = useState<AdvisorViewMode>("CALM");
   const [selectedActionId, setSelectedActionId] = useState(model.actionQueue[0]?.id ?? "");
   const firstName = model.advisor.name.split(" ")[0] ?? "Advisor";
   const visibleActions = model.actionQueue.filter((item) => matchesFilter(item, filter));
   const selectedAction = visibleActions.find((item) => item.id === selectedActionId) ?? visibleActions[0] ?? null;
-
-  function chooseViewMode(mode: AdvisorViewMode) {
-    setViewMode(mode);
-  }
+  const primaryAction = model.actionQueue.find((item) => matchesFilter(item, "ATTENTION")) ?? model.actionQueue[0] ?? null;
 
   function moveSelection(direction: -1 | 1) {
     if (!visibleActions.length) return;
@@ -2695,27 +2740,44 @@ export function ServiceAdvisorHome({ initialFilter = "ATTENTION", initialSection
       <header className="advisor-hero advisor-hero-simplified">
         <div>
           <p>Service Advisor Workspace</p>
-          <h1>Welcome, {firstName}. Who needs you next?</h1>
-          <span>One focused queue for arrivals, customer decisions, promises, and repair updates.</span>
+          <h1>Welcome, {firstName}. Start with the next customer need.</h1>
+          <span>Your queue is already prioritized. Open the first action, check in a vehicle, or search when a customer is in front of you.</span>
         </div>
         <div className="advisor-hero-controls">
-          <div className="advisor-view-mode" role="group" aria-label="Advisor workspace display mode">
-            <button aria-pressed={viewMode === "CALM"} onClick={() => chooseViewMode("CALM")} type="button">Calm</button>
-            <button aria-pressed={viewMode === "HIGH_VOLUME"} onClick={() => chooseViewMode("HIGH_VOLUME")} type="button">High-volume</button>
-          </div>
-          <Link className="advisor-check-in-primary" href="/vehicles/repair-orders?intakeSource=WALK_IN"><ClipboardCheck /> Check In Vehicle</Link>
+          <Link className="advisor-check-in-primary" href={withAdvisorWorkspaceReturn("/vehicles/repair-orders?intakeSource=WALK_IN")}><ClipboardCheck /> Check In Vehicle</Link>
         </div>
       </header>
 
-      <form action="/vehicles/repair-orders" className="advisor-search-panel advisor-search-form" method="get" aria-label="Find or check in a customer or vehicle">
-        <Search />
-        <label>
-          <strong>Find or check in a customer, vehicle, appointment, VIN, phone, or RO</strong>
-          <input aria-label="Search customer, vehicle, appointment, VIN, phone, or repair order" name="search" placeholder="Start typing a name, phone, VIN, plate, appointment, or RO…" type="search" />
-        </label>
-        <input name="intakeSource" type="hidden" value="WALK_IN" />
-        <button type="submit">Search &amp; check in <Search /></button>
-      </form>
+      <section className="advisor-command-center" aria-label="Today’s first action">
+        <article className={`advisor-next-action ${primaryAction ? actionTone(primaryAction.actionKind) : "ready"}`}>
+          <small>Start here</small>
+          {primaryAction ? <>
+            <span className="advisor-action-type">{primaryAction.overdue ? <AlertTriangle /> : primaryAction.actionKind === "PARTS_DELAY" ? <PackageCheck /> : <MessageSquareText />}{primaryAction.actionLabel}</span>
+            <h2>{primaryAction.customerName} · {primaryAction.vehicleLabel}</h2>
+            <p>{primaryAction.actionReason}</p>
+            <div>
+              <span>{primaryAction.repairOrderNumber} · {stageLabel(primaryAction.stage)}</span>
+              <em>{primaryAction.overdue ? "Overdue" : dateLabel(primaryAction.targetAt)}</em>
+            </div>
+            <Link href={withAdvisorWorkspaceReturn(`/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(primaryAction.id)}`)}><Send /> {actionButton(primaryAction.actionKind)}</Link>
+          </> : <>
+            <h2>No urgent customer action is waiting.</h2>
+            <p>Use search or check in the next customer when they arrive.</p>
+            <Link href={withAdvisorWorkspaceReturn("/vehicles/repair-orders?intakeSource=WALK_IN")}><ClipboardCheck /> Check In Vehicle</Link>
+          </>}
+        </article>
+
+        <form action="/vehicles/repair-orders" className="advisor-search-panel advisor-search-form" method="get" aria-label="Find or check in a customer or vehicle">
+          <Search />
+          <label>
+            <strong>Find customer, vehicle, appointment, VIN, phone, or RO</strong>
+            <input aria-label="Search customer, vehicle, appointment, VIN, phone, or repair order" name="search" placeholder="Start typing a name, phone, VIN, plate, appointment, or RO…" type="search" />
+          </label>
+          <input name="intakeSource" type="hidden" value="WALK_IN" />
+          <input name="returnTo" type="hidden" value={advisorWorkspaceReturnTo} />
+          <button type="submit">Search <Search /></button>
+        </form>
+      </section>
 
       <section className="advisor-focus-counters" aria-label="Advisor operating snapshot">
         <a href="#arrival-queue">
@@ -2739,15 +2801,13 @@ export function ServiceAdvisorHome({ initialFilter = "ATTENTION", initialSection
       </section>
 
       {initialSection === "INBOX" ? <AdvisorInbox highVolume={viewMode === "HIGH_VOLUME"} items={model.inbox} /> : <>
-      <AdvisorInbox compact highVolume={false} items={model.inbox} />
-
       <section className="advisor-panel advisor-action-queue advisor-priority-queue">
         <header>
           <div>
             <strong>{filter === "WAITING" ? "Waiting on others" : filter === "AUTHORIZATION" ? "Customer approvals" : "My next actions"}</strong>
             <span>Sorted by urgency and promise time. Each repair order appears once.</span>
           </div>
-          <Link href="/vehicles/repair-workbench?view=all">All repair orders</Link>
+          <Link href={withAdvisorWorkspaceReturn("/vehicles/repair-workbench?view=all")}>All repair orders</Link>
         </header>
         <nav className="advisor-queue-filters" aria-label="Filter advisor actions">
           {filters.map((item) => (
@@ -2756,7 +2816,7 @@ export function ServiceAdvisorHome({ initialFilter = "ATTENTION", initialSection
         </nav>
         {viewMode === "CALM" ? <div>
           {visibleActions.length ? visibleActions.map((item) => (
-            <Link className={`advisor-action-card ${actionTone(item.actionKind)}`} href={`/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(item.id)}`} key={`${item.actionKind}-${item.id}`}>
+            <Link className={`advisor-action-card ${actionTone(item.actionKind)}`} href={withAdvisorWorkspaceReturn(`/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(item.id)}`)} key={`${item.actionKind}-${item.id}`}>
               <span className="advisor-action-type">{item.overdue ? <AlertTriangle /> : item.actionKind === "PARTS_DELAY" ? <PackageCheck /> : <MessageSquareText />}{item.actionLabel}</span>
               <span>
                 <strong>{item.customerName} <i>·</i> {item.vehicleLabel}</strong>
@@ -2809,40 +2869,44 @@ export function ServiceAdvisorHome({ initialFilter = "ATTENTION", initialSection
                 <strong>{selectedAction.nextAction}</strong>
               </section>
               {selectedAction.latestAdvisorUpdate ? <section><small>Last advisor note</small><strong>{selectedAction.latestAdvisorUpdate.summary}</strong></section> : null}
-              <Link href={`/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(selectedAction.id)}`}><Send /> {actionButton(selectedAction.actionKind)}</Link>
+              <Link href={withAdvisorWorkspaceReturn(`/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(selectedAction.id)}`)}><Send /> {actionButton(selectedAction.actionKind)}</Link>
               <footer>Use ↑ and ↓ while the queue is focused to review the next item.</footer>
             </> : <p className="advisor-empty"><CheckCircle2 /> Select another filter to review advisor work.</p>}
           </aside>
         </div>}
       </section>
 
-      <section className={`advisor-panel advisor-arrivals advisor-arrivals-compact ${model.appointments.length ? "" : "is-empty"}`} id="arrival-queue">
-        <header>
-          <div>
-            <strong>{model.appointments.length ? "Arrivals ready for check-in" : "All expected arrivals are handled"}</strong>
-            <span>{model.appointments.length ? "Confirm the customer and vehicle before creating repair work." : "No appointment arrivals are waiting in the current view."}</span>
-          </div>
-          <Link href="/appointments?view=board">Appointment board</Link>
-        </header>
-        {model.appointments.length ? <div>
-          {model.appointments.map((appointment) => (
-            <article key={appointment.id}>
-              <time>{timeLabel(appointment.startsAt)}</time>
-              <span>
-                <strong>{appointment.customerName}</strong>
-                <small>{appointment.vehicleLabel} · {appointment.appointmentNumber}</small>
-                <small>{appointment.phoneNumber ?? appointment.email ?? appointment.title}</small>
-              </span>
-              <Link href={`/vehicles/repair-orders?intakeSource=APPOINTMENT&appointmentId=${encodeURIComponent(appointment.id)}`}>Check in</Link>
-            </article>
-          ))}
-        </div> : <p className="advisor-arrivals-clear"><CheckCircle2 /> You’re caught up on arrivals.</p>}
-      </section>
+      <div className="advisor-support-grid">
+        <AdvisorInbox compact highVolume={false} items={model.inbox} />
+
+        <section className={`advisor-panel advisor-arrivals advisor-arrivals-compact ${model.appointments.length ? "" : "is-empty"}`} id="arrival-queue">
+          <header>
+            <div>
+              <strong>{model.appointments.length ? "Arrivals" : "Arrivals clear"}</strong>
+              <span>{model.appointments.length ? "Confirm before creating repair work." : "No appointment arrivals are waiting."}</span>
+            </div>
+            <Link href={withAdvisorWorkspaceReturn("/appointments?view=board")}>Appointment board</Link>
+          </header>
+          {model.appointments.length ? <div>
+            {model.appointments.map((appointment) => (
+              <article key={appointment.id}>
+                <time>{timeLabel(appointment.startsAt)}</time>
+                <span>
+                  <strong>{appointment.customerName}</strong>
+                  <small>{appointment.vehicleLabel} · {appointment.appointmentNumber}</small>
+                  <small>{appointment.phoneNumber ?? appointment.email ?? appointment.title}</small>
+                </span>
+                <Link href={withAdvisorWorkspaceReturn(`/vehicles/repair-orders?intakeSource=APPOINTMENT&appointmentId=${encodeURIComponent(appointment.id)}`)}>Check in</Link>
+              </article>
+            ))}
+          </div> : <p className="advisor-arrivals-clear"><CheckCircle2 /> You’re caught up on arrivals.</p>}
+        </section>
+      </div>
 
       <footer className="advisor-calm-footer">
         <CheckCircle2 />
         <span><strong>Stay customer-centered.</strong> Confirm the concern, make only a supportable promise, and leave every repair order with a clear owner and next update.</span>
-        <Link href="/customers"><UsersRound /> Find customer</Link>
+        <Link href={withAdvisorWorkspaceReturn("/customers")}><UsersRound /> Find customer</Link>
       </footer>
       </>}
     </section>

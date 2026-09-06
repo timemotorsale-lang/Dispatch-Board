@@ -149,8 +149,7 @@ const BOARD_VIEW_STATUSES: TaskStatus[] = [
   TaskStatus.COMPLETED
 ];
 const DEFAULT_TASKS_PER_PAGE = 8;
-const TASKS_PAGE_SIZE_OPTIONS = [8, 25, "all"] as const;
-type TasksPageSize = typeof TASKS_PAGE_SIZE_OPTIONS[number];
+type TasksPageSize = 8 | 25 | "all";
 const TASKS_CONSOLE_STATUS_OPTIONS: TaskStatus[] = [
   TaskStatus.NOT_STARTED,
   TaskStatus.IN_PROGRESS,
@@ -616,6 +615,10 @@ function getTaskOwnerInitials(task: Pick<BoardReadTask, "assignedUser">) {
     .toUpperCase();
 }
 
+function isTaskOwnedByOrCollaborating(task: BoardReadTask, currentUserId: string) {
+  return getTaskOwnerId(task) === currentUserId || task.collaborators?.some((collaborator) => collaborator.id === currentUserId) === true;
+}
+
 function isTaskCompletedOnBoardDate(task: BoardReadTask, boardDate: string) {
   if (!task.completedAt) {
     return task.status === TaskStatus.COMPLETED;
@@ -630,7 +633,7 @@ function matchesQueueFilter(task: BoardReadTask, filter: QueueFilter, now: Date,
   }
 
   if (filter === "MY_TASKS") {
-    return getTaskOwnerId(task) === currentUserId && task.status !== TaskStatus.COMPLETED;
+    return isTaskOwnedByOrCollaborating(task, currentUserId) && task.status !== TaskStatus.COMPLETED;
   }
 
   if (filter === "WAITING") {
@@ -703,6 +706,11 @@ function createSearchIndex(task: BoardReadTask) {
     task.title,
     task.description ?? "",
     getTaskOwnerName(task),
+    ...(task.collaborators ?? []).flatMap((collaborator) => [
+      collaborator.name,
+      collaborator.collaborationScope,
+      collaborator.capacityRequested ?? ""
+    ]),
     getDepartmentLabel(task.workflowArea),
     task.vehicleReference ?? "",
     task.customerReference ?? ""
@@ -1020,7 +1028,7 @@ export function TasksConsoleScreen({
     activeView === "board" ? "Board lanes" : null
   ].filter((chip): chip is string => Boolean(chip));
   const myTasksCount = allTasks.filter(
-    (task) => getTaskOwnerId(task) === currentUserId && task.status !== TaskStatus.COMPLETED
+    (task) => isTaskOwnedByOrCollaborating(task, currentUserId) && task.status !== TaskStatus.COMPLETED
   ).length;
   const inventoryCount = getDepartmentCount(allTasks, "INVENTORY");
   const serviceAdvisorCount = getDepartmentCount(allTasks, "SERVICE_ADVISOR");

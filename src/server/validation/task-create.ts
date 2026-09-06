@@ -10,6 +10,7 @@ const taskCreateAllowedKeys = new Set([
   "boardDate",
   "customerReference",
   "collaboratorIds",
+  "collaboratorRequests",
   "conversionContext",
   "description",
   "dueAt",
@@ -44,6 +45,7 @@ export type NormalizedTaskConversionContext = {
 export type NormalizedTaskCreateInput = {
   assignedUserId: string;
   collaboratorIds: string[];
+  collaboratorRequests: Array<{ userId: string; collaborationScope: string; capacityRequested?: string }>;
   appointmentAutomationReasonNotes?: string;
   appointmentAutomationTriggerCode?: string;
   blockerReason?: string;
@@ -186,6 +188,30 @@ function normalizeCollaboratorIds(value: unknown) {
   return ids;
 }
 
+function normalizeCollaboratorRequests(value: unknown) {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) throw new Error("Task creation requires collaboratorRequests to be an array when provided.");
+  const requests = value.map((entry) => {
+    if (!isPlainObject(entry)) throw new Error("Every collaborator request must be an object.");
+    const allowedKeys = new Set(["userId", "collaborationScope", "capacityRequested"]);
+    for (const key of Object.keys(entry)) {
+      if (!allowedKeys.has(key)) throw new Error(`Task collaborator request contains an unsupported field: "${key}".`);
+    }
+    const collaborationScope = normalizeRequiredText(entry.collaborationScope, "Every collaborator request needs a collaboration scope.");
+    if (collaborationScope.length > 600) throw new Error("Collaboration scope must be 600 characters or fewer.");
+    const capacityRequested = normalizeOptionalText(entry.capacityRequested, "capacityRequested");
+    if (capacityRequested && capacityRequested.length > 240) throw new Error("Collaboration capacity must be 240 characters or fewer.");
+    return {
+      userId: normalizeRequiredText(entry.userId, "Every collaborator id must be a non-empty string."),
+      collaborationScope,
+      ...(capacityRequested ? { capacityRequested } : {})
+    };
+  });
+  if (requests.length > 25) throw new Error("A task can have at most 25 collaborators.");
+  if (new Set(requests.map((request) => request.userId)).size !== requests.length) throw new Error("Task collaborators cannot contain duplicates.");
+  return requests;
+}
+
 function normalizePriority(value: unknown) {
   if (value === undefined) return TaskTemplatePriority.MEDIUM;
   if (typeof value !== "string" || !taskPriorityValues.has(value as TaskTemplatePriority)) {
@@ -242,12 +268,15 @@ export function normalizeTaskCreateInput(value: unknown): NormalizedTaskCreateIn
 
   rejectUnknownKeys(input);
 
+  const collaboratorRequests = normalizeCollaboratorRequests(input.collaboratorRequests);
+  const collaboratorIds = collaboratorRequests?.map((request) => request.userId) ?? normalizeCollaboratorIds(input.collaboratorIds);
   const normalizedInput: NormalizedTaskCreateInput = {
     assignedUserId: normalizeRequiredText(
       input.assignedUserId,
       "Task creation requires an assigned user."
     ),
-    collaboratorIds: normalizeCollaboratorIds(input.collaboratorIds),
+    collaboratorIds,
+    collaboratorRequests: collaboratorRequests ?? collaboratorIds.map((userId) => ({ userId, collaborationScope: "" })),
     boardDate: normalizeBoardDateInput(input.boardDate),
     description: normalizeOptionalText(input.description, "description") ?? "",
     dueAt: normalizeDueAt(input.dueAt),

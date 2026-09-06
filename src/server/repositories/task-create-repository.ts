@@ -69,6 +69,7 @@ export type CreatedTaskRecord = Prisma.TaskGetPayload<{
 export type CreateTaskRecordInput = {
   assignedUserId: string;
   collaboratorIds?: string[];
+  collaboratorRequests?: Array<{ userId: string; collaborationScope: string; capacityRequested?: string }>;
   blockerReason?: string;
   boardDayId: string;
   completedAt?: Date | null;
@@ -143,7 +144,12 @@ export function createTaskCreateRepository(
       return database.task.create({
         data: {
           assignedUserId: input.assignedUserId,
-          ...(input.collaboratorIds?.length ? { collaborators: { createMany: { data: input.collaboratorIds.map((userId) => ({ userId, addedByUserId: input.createdByUserId })) } } } : {}),
+          ...(input.collaboratorRequests?.length ? { collaborators: { createMany: { data: input.collaboratorRequests.map((request) => ({
+            userId: request.userId,
+            addedByUserId: input.createdByUserId,
+            collaborationScope: request.collaborationScope,
+            capacityRequested: request.capacityRequested ?? null
+          })) } } } : input.collaboratorIds?.length ? { collaborators: { createMany: { data: input.collaboratorIds.map((userId) => ({ userId, addedByUserId: input.createdByUserId })) } } } : {}),
           ...(input.blockerReason ? { blockerReason: input.blockerReason } : {}),
           boardDayId: input.boardDayId,
           ...(input.completedAt !== undefined ? { completedAt: input.completedAt } : {}),
