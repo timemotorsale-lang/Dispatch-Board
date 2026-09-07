@@ -18,6 +18,7 @@ import {
   UsersRound
 } from "lucide-react";
 
+import { buildGrowthAdvertisingReviewModel } from "@/server/growth/advertising-activation";
 import { buildGrowthCampaignPlanReviewModel, buildGrowthConsoleReadModel, type GrowthReadiness } from "@/server/growth/read-model";
 import { buildGrowthPolicyReviewModel } from "@/server/growth/policy";
 import { buildGrowthProviderPilotReviewModel } from "@/server/growth/provider-pilot";
@@ -88,6 +89,7 @@ export function GrowthConsoleFoundation() {
   const campaignPlan = buildGrowthCampaignPlanReviewModel();
   const policy = buildGrowthPolicyReviewModel();
   const pilot = buildGrowthProviderPilotReviewModel();
+  const advertising = buildGrowthAdvertisingReviewModel();
   const selectedOpportunity = model.opportunities[0];
   const sourceHealthText = model.sourceHealth.map((source) => `${source.label}: ${source.state}`).join(" | ");
 
@@ -346,6 +348,35 @@ export function GrowthConsoleFoundation() {
             <span>Next action</span>
             <strong>{pilot.lastResult.nextAction}</strong>
             <p>Pause, retry, and reconciliation are required before any real provider launch.</p>
+          </article>
+        </div>
+      </section>
+
+      <section className={styles.panel} id="paid-advertising">
+        <div className={styles.panelHeader}>
+          <div>
+            <span className={styles.sectionLabel}>Paid Advertising</span>
+            <h2>Ad launch stays locked until every approval is clear</h2>
+          </div>
+          <span className={styles.statusNote}>{advertising.state}</span>
+        </div>
+        <div className={styles.activationGrid}>
+          <article>
+            <span>Budget</span>
+            <strong>{advertising.budget}</strong>
+            <p>{advertising.summary}</p>
+          </article>
+          {advertising.checks.map((check) => (
+            <article data-passed={check.passed ? "true" : "false"} key={check.label}>
+              <span>{check.passed ? "Clear" : "Needs action"}</span>
+              <strong>{check.label}</strong>
+              <p>{check.nextAction}</p>
+            </article>
+          ))}
+          <article>
+            <span>Performance intake</span>
+            <strong>{advertising.performance.impressions} impressions | {advertising.performance.clicks} clicks</strong>
+            <p>No provider performance is ingested until an approved pilot exists.</p>
           </article>
         </div>
       </section>

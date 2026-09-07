@@ -42,6 +42,9 @@ describe("Growth Console foundation", () => {
     expect(markup).toContain("Safe first launch path");
     expect(markup).toContain("Internal task pilot");
     expect(markup).toContain("does not send customer messages or spend advertising budget");
+    expect(markup).toContain("Paid Advertising");
+    expect(markup).toContain("Ad launch stays locked");
+    expect(markup).toContain("Live spend not approved");
   });
 
   it("builds a source-labeled read model without mutation commands", () => {
