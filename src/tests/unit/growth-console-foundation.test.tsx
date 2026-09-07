@@ -33,8 +33,13 @@ describe("Growth Console foundation", () => {
     expect(markup).toContain("Advertising Workspace");
     expect(markup).toContain("Audience Review");
     expect(markup).toContain("Automation Library");
-    expect(markup).toContain("Launch disabled");
+    expect(markup).toContain("Review launch lock");
     expect(markup).toContain("G1 is read-only");
+    expect(markup).toContain("Open campaign plan");
+    expect(markup).toContain("Check launch readiness");
+    expect(markup).toContain("Workflow Engine");
+    expect(markup).toContain("Algorithms, workflow, automation, and attribution are connected");
+    expect(markup).toContain("Opportunity ranking");
     expect(markup).toContain("Prepared plan waiting for approval");
     expect(markup).toContain("Prior versions are preserved");
     expect(markup).toContain("Blocked safely until policy clears");
@@ -42,6 +47,40 @@ describe("Growth Console foundation", () => {
     expect(markup).toContain("Safe first launch path");
     expect(markup).toContain("Internal task pilot");
     expect(markup).toContain("does not send customer messages or spend advertising budget");
+    expect(markup).toContain("Paid Advertising");
+    expect(markup).toContain("Ad launch stays locked");
+    expect(markup).toContain("Live spend not approved");
+    expect(markup).toContain("Automation Activation");
+    expect(markup).toContain("Automations stay inactive");
+    expect(markup).toContain("Prepared task only");
+    expect(markup).toContain("Optimization");
+    expect(markup).toContain("Best next move");
+    expect(markup).toContain("does not change budget");
+    expect(markup).toContain("Adoption Review");
+    expect(markup).toContain("Ready for your review");
+    expect(markup).toContain("Stored records preserved");
+  });
+
+  it("wires every workspace tab and review action to a visible section", () => {
+    const markup = renderToStaticMarkup(<GrowthConsoleFoundation />);
+
+    [
+      "#growth-home",
+      "#marketing-workspace",
+      "#advertising-workspace",
+      "#audiences",
+      "#campaign-plan",
+      "#workflow-engine",
+      "#approval",
+      "#automations",
+      "#provider-pilot",
+      "#paid-advertising",
+      "#optimization",
+      "#adoption-review",
+      "#crm-writeback"
+    ].forEach((target) => {
+      expect(markup).toContain(`href="${target}"`);
+    });
   });
 
   it("builds a source-labeled read model without mutation commands", () => {

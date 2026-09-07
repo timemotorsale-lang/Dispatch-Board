@@ -20,6 +20,8 @@
 | GROWTH-040 | Provider pilot | Held | GROWTH-030 | One approved provider pilot launches with reconciliation and rollback. |
 | GROWTH-050 | Paid advertising pilot | Held | GROWTH-030 and budget approval | Paid campaigns require budget, inventory, creative, and provider proof. |
 | GROWTH-060 | Governed automations | Held | GROWTH-040 or GROWTH-050 | Approved automations run with throttles, owners, pauses, and audit. |
+| GROWTH-070 | Optimization recommendations | Held | GROWTH-040 or reviewed outcome imports | Recommendations explain value, readiness, risk, and next action without autonomous changes. |
+| GROWTH-080 | Adoption and release readiness | Held | GROWTH-001 through GROWTH-070 review | UI shows completion, locks, preservation, and approval status before adoption. |
 
 ## GROWTH-001 Acceptance Criteria
 
@@ -37,4 +39,4 @@ The first implementation must:
 
 ## Review Gate
 
-After GROWTH-001, the user reviews the implementation. Adoption is not assumed until the user approves it.
+After each implementation batch, the user reviews the implementation. Adoption is not assumed until the user approves it.

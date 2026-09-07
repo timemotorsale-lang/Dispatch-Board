@@ -1,9 +1,9 @@
 # Time Motor Sales Growth Console
 
 **Program ID:** `GROWTH`
-**Version:** 0.1 foundation baseline
+**Version:** 0.2 governed logic foundation
 **Date:** 2026-09-07
-**Status:** Planning baseline and first frontend implementation source of truth; not approved for live customer sends, ad spend, autonomous audience activation, or CRM mutation
+**Status:** Source-of-truth packet plus governed frontend and deterministic domain logic; not approved for live customer sends, ad spend, autonomous audience activation, or CRM mutation
 **Target route:** `/growth`
 **Parent product:** Time Motor Sales Dispatch Board
 
@@ -76,6 +76,25 @@ The first implementation is a reviewable frontend foundation only. It should:
 - label live activation as unavailable until backend controls are implemented;
 - avoid sample data pretending to be production data;
 - give the user room to review the design before adoption.
+
+## Implemented Logic Foundation
+
+The current implementation includes deterministic foundation services for:
+
+- opportunity ranking;
+- audience inclusion, exclusion, suppression, and cleanup decisions;
+- campaign planning and version preservation;
+- message and offer readiness;
+- approval and policy checks;
+- provider pilot readiness;
+- paid advertising activation readiness;
+- automation activation readiness;
+- workflow stage and next-action decisions;
+- outcome attribution tiers;
+- optimization recommendations;
+- adoption and release readiness.
+
+These services support review and backend design. They do not execute live outreach, live ad spend, provider sends, autonomous CRM mutation, or destructive record changes.
 
 It must not:
 
