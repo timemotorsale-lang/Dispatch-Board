@@ -23,6 +23,7 @@
 | GROWTH-070 | Optimization recommendations | Held | GROWTH-040 or reviewed outcome imports | Recommendations explain value, readiness, risk, and next action without autonomous changes. |
 | GROWTH-080 | Adoption and release readiness | Held | GROWTH-001 through GROWTH-070 review | UI shows completion, locks, preservation, and approval status before adoption. |
 | GROWTH-090 | Real read adapter contracts | In progress | GROWTH-080 | Source adapters normalize CRM, inventory, sales, service, appointment, and task signals without mutation. |
+| GROWTH-100 | Governed audience builder | In progress | GROWTH-090 | Audience decisions explain included, excluded, suppressed, and cleanup records with reason codes. |
 
 ## GROWTH-001 Acceptance Criteria
 

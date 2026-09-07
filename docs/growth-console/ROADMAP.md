@@ -188,3 +188,18 @@ Scope:
 Exit:
 
 - Growth can consume source-domain signals without creating, changing, or deleting source records.
+
+## Phase G10 - Governed Audience Builder
+
+Goal: turn source signals into clear audience decisions before any campaign can be reviewed.
+
+Scope:
+
+- included, excluded, suppressed, and cleanup audience decisions;
+- reason codes for every decision;
+- opt-out, consent, quiet window, duplicate campaign, stale source, and inventory availability checks;
+- frontend-ready audience counts.
+
+Exit:
+
+- every audience record has an explainable status and suppression always wins.
