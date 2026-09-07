@@ -156,3 +156,19 @@ Scope:
 Exit:
 
 - recommendations remain explainable and human-governed.
+
+## Phase G8 - Adoption And Release Readiness
+
+Goal: make the review status obvious before the Growth Console is adopted as the official workflow.
+
+Scope:
+
+- review-ready completion checklist;
+- preservation check for CRM, estimates, quotes, invoices, customer records, and inventory records;
+- live-send and ad-spend lock confirmation;
+- frontend adoption status;
+- remaining backend readiness list.
+
+Exit:
+
+- user can clearly see what is complete, what is still locked, and what requires approval before adoption.

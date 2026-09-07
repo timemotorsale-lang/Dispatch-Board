@@ -51,6 +51,9 @@ describe("Growth Console foundation", () => {
     expect(markup).toContain("Optimization");
     expect(markup).toContain("Best next move");
     expect(markup).toContain("does not change budget");
+    expect(markup).toContain("Adoption Review");
+    expect(markup).toContain("Ready for your review");
+    expect(markup).toContain("Stored records preserved");
   });
 
   it("builds a source-labeled read model without mutation commands", () => {

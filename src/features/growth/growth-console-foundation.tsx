@@ -24,6 +24,7 @@ import { buildGrowthCampaignPlanReviewModel, buildGrowthConsoleReadModel, type G
 import { buildGrowthOptimizationReviewModel } from "@/server/growth/optimization";
 import { buildGrowthPolicyReviewModel } from "@/server/growth/policy";
 import { buildGrowthProviderPilotReviewModel } from "@/server/growth/provider-pilot";
+import { buildGrowthReleaseReadinessReviewModel } from "@/server/growth/release-readiness";
 
 import styles from "./growth-console-foundation.module.css";
 
@@ -94,6 +95,7 @@ export function GrowthConsoleFoundation() {
   const advertising = buildGrowthAdvertisingReviewModel();
   const automationActivation = buildGrowthAutomationActivationReviewModel();
   const optimization = buildGrowthOptimizationReviewModel();
+  const releaseReadiness = buildGrowthReleaseReadinessReviewModel();
   const selectedOpportunity = model.opportunities[0];
   const sourceHealthText = model.sourceHealth.map((source) => `${source.label}: ${source.state}`).join(" | ");
 
@@ -435,6 +437,29 @@ export function GrowthConsoleFoundation() {
               <p>{recommendation.reason}</p>
               <p>{recommendation.recommendedAction}</p>
               <small>{recommendation.guardrail}</small>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className={styles.panel} id="adoption-review">
+        <div className={styles.panelHeader}>
+          <div>
+            <span className={styles.sectionLabel}>Adoption Review</span>
+            <h2>Ready for your review before this becomes the official console</h2>
+          </div>
+          <span className={styles.statusNote}>{releaseReadiness.adoptionStatus}</span>
+        </div>
+        <div className={styles.releaseSummary}>
+          <strong>{releaseReadiness.nextAction}</strong>
+          <p>{releaseReadiness.summary}</p>
+        </div>
+        <div className={styles.policyGrid}>
+          {releaseReadiness.items.map((item) => (
+            <article data-passed={item.passed ? "true" : "false"} key={item.id}>
+              <span>{item.passed ? "Clear" : "Approval needed"}</span>
+              <strong>{item.label}</strong>
+              <p>{item.summary}</p>
             </article>
           ))}
         </div>
