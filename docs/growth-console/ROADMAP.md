@@ -219,3 +219,19 @@ Scope:
 Exit:
 
 - campaign history is reviewable, duplicate command replay is safe, and launch locks are recorded instead of executed.
+
+## Phase G12 - Enterprise Approval And Permission Gates
+
+Goal: enforce campaign owner, budget, offer, channel, and provider readiness before execution can be considered.
+
+Scope:
+
+- role-specific approval decisions;
+- paid budget approval thresholds;
+- offer source verification;
+- provider readiness checks;
+- locked execution result with one next approval.
+
+Exit:
+
+- unsafe or incomplete launches fail closed and explain the exact approval or policy action needed.

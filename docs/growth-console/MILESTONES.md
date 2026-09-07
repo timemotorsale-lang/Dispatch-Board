@@ -25,6 +25,7 @@
 | GROWTH-090 | Real read adapter contracts | In progress | GROWTH-080 | Source adapters normalize CRM, inventory, sales, service, appointment, and task signals without mutation. |
 | GROWTH-100 | Governed audience builder | In progress | GROWTH-090 | Audience decisions explain included, excluded, suppressed, and cleanup records with reason codes. |
 | GROWTH-110 | Campaign ledger and version history | In progress | GROWTH-100 | Campaign plans, snapshots, messages, approvals, and launch locks preserve versions and audit events. |
+| GROWTH-120 | Enterprise approval and permission gates | In progress | GROWTH-110 | Role, budget, offer, channel, and provider gates fail closed with exact next approval. |
 
 ## GROWTH-001 Acceptance Criteria
 

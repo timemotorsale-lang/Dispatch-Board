@@ -18,6 +18,7 @@
 | Source signals are safe to consume | Workflow Engine and future read adapters | CRM Connection Workflow | Source Authority, Freshness, Confidence | GROWTH-090 | `src/server/growth/source-adapters.ts`, source adapter tests |
 | Audience decisions are explainable | Audience review and future audience builder panels | Campaign Creation, Approval Workflow | Suppression, Consent, Quiet Window, Cleanup | GROWTH-100 | `src/server/growth/audience-builder.ts`, audience builder tests |
 | Campaign history is preserved | Campaign Plan and future ledger review panels | Campaign Creation, Approval Workflow | Version Preservation, Audit, Idempotency | GROWTH-110 | `src/server/growth/campaign-ledger.ts`, campaign ledger tests |
+| Approval gaps point to one next action | Launch Readiness and future manager review panels | Approval Workflow, Exception Workflows | Role, Budget, Offer, Provider Gates | GROWTH-120 | `src/server/growth/approval-gates.ts`, approval gate tests |
 
 ## Evidence Rule
 
