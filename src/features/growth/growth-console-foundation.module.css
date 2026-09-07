@@ -256,11 +256,7 @@
 }
 
 .operatorGrid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, .42fr);
-  gap: 12px;
   margin-top: 12px;
-  align-items: start;
 }
 
 .panel {
@@ -274,6 +270,64 @@
 
 .operatorGrid .panel {
   margin-top: 0;
+}
+
+.drawer {
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.drawer summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 68px;
+  padding: 14px 16px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.drawer summary::-webkit-details-marker {
+  display: none;
+}
+
+.drawer summary::after {
+  content: "+";
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  color: var(--blue);
+  background: var(--surface);
+  font-size: 20px;
+  font-weight: 850;
+}
+
+.drawer[open] summary {
+  border-bottom: 1px solid var(--border);
+}
+
+.drawer[open] summary::after {
+  content: "-";
+}
+
+.drawer summary span {
+  display: grid;
+  gap: 3px;
+}
+
+.drawer summary strong {
+  font-size: 19px;
+}
+
+.drawer summary small {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 850;
 }
 
 .panelHeader {
@@ -513,7 +567,6 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .operatorGrid,
   .priorityCard {
     grid-template-columns: 1fr;
   }

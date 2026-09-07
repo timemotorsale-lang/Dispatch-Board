@@ -23,6 +23,7 @@ describe("Growth Console foundation", () => {
     expect(markup).toContain("Do this first");
     expect(markup).toContain("Campaigns");
     expect(markup).toContain("Needs Attention");
+    expect(markup).toContain("Open blocker drawer");
     expect(markup).toContain("Results Snapshot");
     expect(markup).toContain("Review Controls");
     expect(markup).toContain("Pick the best opportunity");
@@ -61,6 +62,7 @@ describe("Growth Console foundation", () => {
     expect(markup).toContain("Start today");
     expect(markup).toContain("Review campaign");
     expect(markup).toContain("View controls");
+    expect(markup).toContain("4 items need review");
   });
 
   it("builds a source-labeled read model without mutation commands", () => {

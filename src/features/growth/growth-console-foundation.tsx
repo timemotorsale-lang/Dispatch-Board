@@ -180,14 +180,17 @@ export function GrowthConsoleFoundation() {
             ))}
           </div>
         </section>
+      </main>
 
-        <aside className={styles.panel} id="attention">
-          <div className={styles.panelHeader}>
-            <div>
+      <section className={styles.panel} id="attention">
+        <details className={styles.drawer}>
+          <summary>
+            <span>
               <span className={styles.sectionLabel}>Needs Attention</span>
-              <h2>Clear blockers</h2>
-            </div>
-          </div>
+              <strong>Open blocker drawer</strong>
+            </span>
+            <small>{needsAttention.length} items need review</small>
+          </summary>
           <div className={styles.attentionList}>
             {needsAttention.map((item) => (
               <article key={item.label}>
@@ -198,8 +201,8 @@ export function GrowthConsoleFoundation() {
               </article>
             ))}
           </div>
-        </aside>
-      </main>
+        </details>
+      </section>
 
       <section className={styles.panel} id="campaigns">
         <div className={styles.panelHeader}>
