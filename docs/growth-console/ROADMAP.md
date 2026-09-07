@@ -203,3 +203,19 @@ Scope:
 Exit:
 
 - every audience record has an explainable status and suppression always wins.
+
+## Phase G11 - Campaign Ledger And Version History
+
+Goal: preserve campaign plan history, audience snapshots, message drafts, approval requests, and launch locks.
+
+Scope:
+
+- campaign ledger records;
+- immutable version entries;
+- audit events;
+- idempotent command handling;
+- launch lock evidence.
+
+Exit:
+
+- campaign history is reviewable, duplicate command replay is safe, and launch locks are recorded instead of executed.

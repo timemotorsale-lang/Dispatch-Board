@@ -17,6 +17,7 @@
 | Existing records are preserved | Guardrail language and command boundary | All workflows | Source Authority Map | GROWTH-000 onward | Docs and no destructive migrations |
 | Source signals are safe to consume | Workflow Engine and future read adapters | CRM Connection Workflow | Source Authority, Freshness, Confidence | GROWTH-090 | `src/server/growth/source-adapters.ts`, source adapter tests |
 | Audience decisions are explainable | Audience review and future audience builder panels | Campaign Creation, Approval Workflow | Suppression, Consent, Quiet Window, Cleanup | GROWTH-100 | `src/server/growth/audience-builder.ts`, audience builder tests |
+| Campaign history is preserved | Campaign Plan and future ledger review panels | Campaign Creation, Approval Workflow | Version Preservation, Audit, Idempotency | GROWTH-110 | `src/server/growth/campaign-ledger.ts`, campaign ledger tests |
 
 ## Evidence Rule
 
