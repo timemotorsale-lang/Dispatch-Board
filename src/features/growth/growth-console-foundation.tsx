@@ -20,6 +20,7 @@ import {
 
 import { buildGrowthCampaignPlanReviewModel, buildGrowthConsoleReadModel, type GrowthReadiness } from "@/server/growth/read-model";
 import { buildGrowthPolicyReviewModel } from "@/server/growth/policy";
+import { buildGrowthProviderPilotReviewModel } from "@/server/growth/provider-pilot";
 
 import styles from "./growth-console-foundation.module.css";
 
@@ -86,6 +87,7 @@ export function GrowthConsoleFoundation() {
   const model = buildGrowthConsoleReadModel();
   const campaignPlan = buildGrowthCampaignPlanReviewModel();
   const policy = buildGrowthPolicyReviewModel();
+  const pilot = buildGrowthProviderPilotReviewModel();
   const selectedOpportunity = model.opportunities[0];
   const sourceHealthText = model.sourceHealth.map((source) => `${source.label}: ${source.state}`).join(" | ");
 
@@ -319,6 +321,32 @@ export function GrowthConsoleFoundation() {
               <small>{automation.owner}</small>
             </article>
           ))}
+        </div>
+      </section>
+
+      <section className={styles.panel} id="provider-pilot">
+        <div className={styles.panelHeader}>
+          <div>
+            <span className={styles.sectionLabel}>Provider Pilot</span>
+            <h2>Safe first launch path</h2>
+          </div>
+          <span className={styles.statusNote}>{pilot.health.mode} | {pilot.health.state}</span>
+        </div>
+        <div className={styles.pilotGrid}>
+          <article>
+            <span>Health</span>
+            <strong>{pilot.health.summary}</strong>
+          </article>
+          <article>
+            <span>Last dry run</span>
+            <strong>{pilot.lastResult.deliveryState}</strong>
+            <p>{pilot.lastResult.reconciliation}</p>
+          </article>
+          <article>
+            <span>Next action</span>
+            <strong>{pilot.lastResult.nextAction}</strong>
+            <p>Pause, retry, and reconciliation are required before any real provider launch.</p>
+          </article>
         </div>
       </section>
 

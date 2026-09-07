@@ -39,6 +39,9 @@ describe("Growth Console foundation", () => {
     expect(markup).toContain("Prior versions are preserved");
     expect(markup).toContain("Blocked safely until policy clears");
     expect(markup).toContain("Send offer language to manager review");
+    expect(markup).toContain("Safe first launch path");
+    expect(markup).toContain("Internal task pilot");
+    expect(markup).toContain("does not send customer messages or spend advertising budget");
   });
 
   it("builds a source-labeled read model without mutation commands", () => {

@@ -542,6 +542,40 @@
   padding: 12px;
 }
 
+.pilotGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px;
+}
+
+.pilotGrid article {
+  display: grid;
+  gap: 7px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--surface-soft);
+}
+
+.pilotGrid span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.pilotGrid strong {
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.pilotGrid p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .policyGrid article {
   display: grid;
   gap: 7px;
@@ -733,6 +767,7 @@
   .workspaceGrid,
   .planGrid,
   .policyGrid,
+  .pilotGrid,
   .automationGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -774,6 +809,7 @@
   .workspaceGrid,
   .planGrid,
   .policyGrid,
+  .pilotGrid,
   .automationGrid {
     grid-template-columns: 1fr;
   }
