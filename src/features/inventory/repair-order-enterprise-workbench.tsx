@@ -1349,6 +1349,22 @@ export function RepairOrderEnterpriseWorkbench({
     ...(returnLabel ? { returnLabel } : {}),
   })}`;
   const workbenchReturnRoute = fullDetailMode ? detailRoute : summaryRoute;
+  const linkedTaskReturnRoute = linkedTask
+    ? `/tasks/${encodeURIComponent(linkedTask.id)}?${new URLSearchParams({ view: "workbench", returnTo: workbenchReturnRoute })}`
+    : null;
+  const calendarPlannerHref = linkedTask
+    ? `/appointments?${new URLSearchParams({
+        action: "new",
+        returnTo: linkedTaskReturnRoute ?? workbenchReturnRoute,
+        sourceTask: linkedTask.id
+      })}`
+    : `/appointments?${new URLSearchParams({
+        action: "new",
+        reason: order.nextAction,
+        returnTo: workbenchReturnRoute,
+        title: `${order.repairOrderNumber} appointment`,
+        vehicleReference: [order.vehicle.year, order.vehicle.make, order.vehicle.model, order.vehicle.vin ?? order.vehicle.vehicleNumber].filter(Boolean).join(" ")
+      })}`;
   const inventoryLifecycleHref = `/vehicles/${encodeURIComponent(order.vehicle.id)}/inventory-planning?${new URLSearchParams({ repairOrderId: order.id })}`;
   const shopReconHref = `/vehicles/shop-recon/${encodeURIComponent(order.id)}?${new URLSearchParams({ returnTo: workbenchReturnRoute })}`;
   const shopReconStageDefinition = SHOP_RECON_STAGES.find((stage) => stage.code === order.shopReconLifecycle?.stage);
@@ -1598,7 +1614,13 @@ export function RepairOrderEnterpriseWorkbench({
               ) : null}
               {activeRoDrawer === "fullTools" ? (
                 <div className="rowb-summary-drawer-tools">
-                  <Link href={detailRoute}><FileText />View full details</Link>
+                  <Link href={calendarPlannerHref}>
+                    <CalendarClock />
+                    <span>
+                      <strong>Calendar planner</strong>
+                      <small>{linkedTask ? "Plan from linked task" : "Create appointment block"}</small>
+                    </span>
+                  </Link>
                   <button aria-expanded={reconReportOpen} aria-controls="recon-report" onClick={toggleReconReport} type="button"><Activity />Recon Report</button>
                   {workspaceTabs.map((tab) => (
                     <Link className={tab.recommended ? "recommended" : undefined} href={tab.href} key={`${tab.title}-${tab.href}`} onClick={tab.href === vendorProgressHref ? openVendorProgress : undefined}>

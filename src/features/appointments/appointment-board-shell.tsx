@@ -4269,8 +4269,9 @@ export function buildAppointmentNotificationFanoutSources(input: {
         .filter((event) => event.lane === "appointment" || event.lane === "automation" || event.lane === "manager")
         .slice(0, 2)
         .map((event) => {
-          const id = `fanout-${appointment.id}-${event.lane}`;
-          const fanoutState = fanoutStates[id];
+          const id = `fanout-${appointment.id}-${event.id}`;
+          const legacyId = `fanout-${appointment.id}-${event.lane}`;
+          const fanoutState = fanoutStates[id] ?? fanoutStates[legacyId];
           const status = fanoutState?.status ?? "active";
           const derivedNotificationLabels =
             event.lane === "automation"
