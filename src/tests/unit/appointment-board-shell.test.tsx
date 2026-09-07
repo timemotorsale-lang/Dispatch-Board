@@ -59,7 +59,7 @@ describe("appointment board shell", () => {
       expect.arrayContaining([
         ".appointment-board-toolbar",
         ".appointment-date-row",
-        ".appointment-metric-grid",
+        ".appointment-status-strip",
         ".appointment-board-card",
         ".appointment-detail-panel",
         ".appointment-upcoming-card"
@@ -73,14 +73,10 @@ describe("appointment board shell", () => {
     const markup = renderToStaticMarkup(<AppointmentBoardShell />);
 
     expect(markup).toContain("Appointment Board");
-    expect(markup).toContain('aria-label="Appointment module navigation"');
-    expect(markup).toContain("appointment-module-rail-expanded");
-    expect(markup).toContain('aria-label="Collapse appointment navigation"');
-    expect(markup).toContain('aria-label="Day"');
-    expect(markup).toContain('aria-label="Planning Hub"');
-    expect(markup).toContain('aria-label="Operations"');
-    expect(markup).toContain('aria-label="Intelligence"');
-    expect(markup).toContain('aria-controls="appointment-workspace-drawer"');
+    expect(markup).toContain("appointment-board-simplified");
+    expect(markup).toContain('aria-label="Appointment status summary"');
+    expect(markup).toContain('aria-label="Exceptions"');
+    expect(markup).toContain("Group by");
     expect(markup).toContain("Planning Hub");
     expect(markup).toContain("1101 E. Lake Street");
     expect(markup).toContain("New Appointment");
