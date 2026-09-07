@@ -32,6 +32,14 @@ describe("PartsOperationsWorkspace", () => {
               repairOrder: { locationId: "loc-1", repairOrderNumber: "RO-1001" },
               requiredAt: "2026-07-18T15:00:00.000Z",
               status: "OPEN"
+            }, {
+              id: "demand-duplicate",
+              part: { description: "Brake caliper", partNumber: "BC-100" },
+              quantityRequired: 1,
+              quantityReserved: 0,
+              repairOrder: { locationId: "loc-1", repairOrderNumber: "RO-1001" },
+              requiredAt: "2026-07-18T15:05:00.000Z",
+              status: "OPEN"
             }],
             discrepancies: [],
             locations: [{ id: "loc-1", name: "Main Store" }],
@@ -56,6 +64,13 @@ describe("PartsOperationsWorkspace", () => {
     expect(markup).toContain("Parts Operations");
     expect(markup).toContain("Parts Milestones");
     expect(markup).toContain("Parts Work Queue");
+    expect(markup).toContain("Review the actual needed parts for RO-1001");
+    expect(markup).toContain("1 repeated demand record detected");
+    expect(markup).toContain("2 repeated demand records grouped");
+    expect(markup).toContain("Order reviewed needed parts");
+    expect(markup).toContain("Edit needed parts");
+    expect(markup).toContain("Cancel repeated records");
+    expect(markup).toContain("/diagnostics/parts-ordering?");
     expect(markup).toContain("Part # / Description");
     expect(markup).toContain("Repair Order / Job");
     expect(markup).toContain("2025 Ford F-150 · TMS-100");

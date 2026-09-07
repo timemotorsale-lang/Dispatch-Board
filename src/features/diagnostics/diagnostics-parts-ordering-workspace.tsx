@@ -2,7 +2,7 @@
 
 import { Check, ClipboardList, Package, Plus, RotateCcw, ScanBarcode, ShoppingCart, Truck, Wrench } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import styles from "./diagnostics-parts-ordering-workspace.module.css";
 
@@ -84,6 +84,8 @@ export function DiagnosticsPartsOrderingWorkspace({
     usedOnRepair: "",
     usedDate: "",
   })));
+  const [notice, setNotice] = useState("");
+  const workflowRef = useRef<HTMLDivElement | null>(null);
 
   const sourcedCount = orderedParts.filter((part) => {
     if (part.source === "Custom vendor") return part.sourceCustom.trim().length > 0;
@@ -93,8 +95,36 @@ export function DiagnosticsPartsOrderingWorkspace({
     const amount = Number(part.cost);
     return Number.isFinite(amount) ? sum + amount : sum;
   }, 0), [orderedParts]);
+  const datedCount = orderedParts.filter((part) => part.orderedDate.trim()).length;
+  const costedCount = orderedParts.filter((part) => part.cost.trim()).length;
   const returnedCount = returnParts.reduce((sum, part) => sum + (Number(part.qty) || 0), 0);
   const usedCount = usedParts.reduce((sum, part) => sum + (Number(part.qtyUsed) || 0), 0);
+  const nextAction = !parts.length
+    ? { detail: "No labor-guide parts arrived on this worksheet yet.", label: "Return to estimate and add parts demand", target: "return" as const }
+    : sourcedCount < orderedParts.length
+      ? { detail: `${orderedParts.length - sourcedCount} ordered part${orderedParts.length - sourcedCount === 1 ? "" : "s"} still need a source.`, label: "Select vendor/source for each ordered part", target: "source" as const }
+      : datedCount < orderedParts.length
+        ? { detail: `${orderedParts.length - datedCount} ordered part${orderedParts.length - datedCount === 1 ? "" : "s"} still need an order date.`, label: "Enter ordered date for each part", target: "date" as const }
+        : costedCount < orderedParts.length
+          ? { detail: `${orderedParts.length - costedCount} ordered part${orderedParts.length - costedCount === 1 ? "" : "s"} still need cost.`, label: "Enter actual cost for each part", target: "cost" as const }
+          : { detail: "Sources, dates, and costs are filled in for the ordered-parts ledger.", label: "Send documented parts plan forward", target: "ready" as const };
+
+  function runNextAction() {
+    if (nextAction.target === "return") {
+      window.location.assign(returnTo);
+      return;
+    }
+    if (nextAction.target === "ready") {
+      setNotice("Parts plan looks ready. Send it to the repair workbench or return to the estimate when your review is complete.");
+      return;
+    }
+    workflowRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.requestAnimationFrame(() => {
+      const field = workflowRef.current?.querySelector<HTMLElement>(`[data-next-missing="${nextAction.target}"]`);
+      field?.focus();
+    });
+    setNotice(nextAction.detail);
+  }
 
   function updateOrderedPart(id: string, field: keyof Omit<OrderedPart, "id">, value: string) {
     setOrderedParts((current) => current.map((part) => part.id === id ? { ...part, [field]: value } : part));
@@ -160,6 +190,16 @@ export function DiagnosticsPartsOrderingWorkspace({
       </div>
     </header>
 
+    <section className={styles.nextActionPanel} aria-label="Parts workflow next action">
+      <div>
+        <span>Next action</span>
+        <h2>{nextAction.label}</h2>
+        <p>{nextAction.detail}</p>
+      </div>
+      <button onClick={runNextAction} type="button">{nextAction.target === "ready" ? "Show completion options" : "Take me there"}</button>
+    </section>
+    {notice ? <p className={styles.notice} role="status">{notice}</p> : null}
+
     <section className={styles.quickVendorBar} aria-label="Quick add vendor">
       <div className={styles.quickVendorText}>
         <strong>Add missing vendor</strong>
@@ -206,7 +246,7 @@ export function DiagnosticsPartsOrderingWorkspace({
       </div>
     </section>
 
-    <div className={styles.workflow}>
+    <div className={styles.workflow} ref={workflowRef}>
       <section className={styles.stepCard}>
         <header><span>Step 1</span><h2>Confirm exact parts demand</h2></header>
         <p>Make sure every needed part is tied to the repair scope before sourcing begins.</p>
@@ -250,6 +290,7 @@ export function DiagnosticsPartsOrderingWorkspace({
               <select
                 aria-label={`Source ${part.id}`}
                 className={styles.field}
+                data-next-missing={part.source === "Custom vendor" ? part.sourceCustom.trim() ? undefined : "source" : part.source.trim() ? undefined : "source"}
                 onChange={(event) => updateOrderedPart(part.id, "source", event.target.value)}
                 value={part.source}
               >
@@ -267,6 +308,7 @@ export function DiagnosticsPartsOrderingWorkspace({
             <input
               aria-label={`Ordered date ${part.id}`}
               className={styles.field}
+              data-next-missing={part.orderedDate.trim() ? undefined : "date"}
               onChange={(event) => updateOrderedPart(part.id, "orderedDate", event.target.value)}
               type="date"
               value={part.orderedDate}
@@ -274,6 +316,7 @@ export function DiagnosticsPartsOrderingWorkspace({
             <input
               aria-label={`Cost ${part.id}`}
               className={styles.field}
+              data-next-missing={part.cost.trim() ? undefined : "cost"}
               inputMode="decimal"
               onChange={(event) => updateOrderedPart(part.id, "cost", event.target.value)}
               placeholder="128.99"

@@ -19,8 +19,8 @@ describe("simplified diagnostic workspace", () => {
     expect(html).toContain("Loading recorded progress");
     expect(html).toContain("Not loaded");
     expect(html).not.toContain("No diagnosis has been recorded.");
-    expect(html).toContain("Open findings workbench");
-    expect(html).toContain("Open authorization workbench");
+    expect(html).toContain("Open simple findings entry");
+    expect(html).toContain("Record customer decision");
     expect(html).toContain("Job completion alone does not prove");
   });
 });

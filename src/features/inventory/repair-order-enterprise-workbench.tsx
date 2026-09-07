@@ -687,6 +687,7 @@ export function RepairOrderEnterpriseWorkbench({
   const [vehicleColorBusy, setVehicleColorBusy] = useState(false);
   const [vehicleVersion, setVehicleVersion] = useState(order.vehicle.version ?? 0);
   const [selectedReconPath, setSelectedReconPath] = useState<ReconRepairPath>(() => inferReconRepairPath(order));
+  const [advancedDetailOpen, setAdvancedDetailOpen] = useState(false);
   const concernSummary = order.serviceVisit?.concernSummary?.trim() || "Concern not recorded.";
   const intakeNotes = order.serviceVisit?.intakeNotes?.trim() || null;
   const plan = useMemo(() => diagnosticPlan(concernSummary), [concernSummary]);
@@ -1468,6 +1469,43 @@ export function RepairOrderEnterpriseWorkbench({
         </>
       ) : null}
       {notice ? <div className="rowb-notice" role="status">{notice}</div> : null}
+      {fullDetailMode ? (
+        <section className="rowb-daily-command" aria-label="Daily repair-order action">
+          <div className="rowb-daily-primary">
+            <span>Today&apos;s RO action</span>
+            <h2>{primaryActionLabel}</h2>
+            <p>{primaryActionSummary}</p>
+            <div>
+              <Link
+                className="primary"
+                href={primaryActionHref}
+                onClick={primaryActionHref === vendorProgressHref ? openVendorProgress : undefined}
+              >
+                {primaryActionLabel}
+                <ChevronRight />
+              </Link>
+              <button onClick={() => setAdvancedDetailOpen(true)} type="button">Open full RO detail</button>
+            </div>
+          </div>
+          <dl className="rowb-daily-status">
+            <div><dt>Stage</dt><dd>{workflowGateLabel}</dd></div>
+            <div><dt>Owner</dt><dd>{currentOwner.name}</dd></div>
+            <div><dt>Target</dt><dd>{date(order.targetAt)}</dd></div>
+            <div><dt>Approval</dt><dd>{authorization ? format(authorization.disposition) : "Not approved yet"}</dd></div>
+          </dl>
+          <ol className="rowb-daily-path" aria-label="Simple daily path">
+            {nextSteps.slice(0, 4).map((step, index) => (
+              <li className={step.current ? "current" : undefined} key={step.title}>
+                <b>{index + 1}</b>
+                <span>
+                  <strong>{step.title}</strong>
+                  {step.detail}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : null}
       {!fullDetailMode ? (
       <section className="rowb-summary-card" aria-label="Vehicle summary card">
         <nav className="rowb-summary-nav" aria-label="Repair order navigation">
@@ -1682,6 +1720,12 @@ export function RepairOrderEnterpriseWorkbench({
       </section>
       ) : null}
       {fullDetailMode ? (
+      <details className="rowb-advanced-detail" id="full-ro-details" onToggle={(event) => setAdvancedDetailOpen(event.currentTarget.open)} open={advancedDetailOpen}>
+        <summary>
+          <span>Full RO details and evidence tools</span>
+          <small>Open source record, evidence forms, assignment, timing, audit, and deeper controls when needed.</small>
+          <ChevronRight />
+        </summary>
       <div className="rowb-legacy-detail-page" id="legacy-vehicle-card">
         <div className="rowb-official-detail-stack">
       <section className="rowb-print-document" id="repair-order-document" aria-label="Repair Order document">
@@ -1987,6 +2031,7 @@ export function RepairOrderEnterpriseWorkbench({
       </div>
         </div>
       </div>
+      </details>
       ) : null}
       <footer className="rowb-footer"><span><ShieldAlert />{promiseGuardrailLabel}</span><div>{returnTo ? <Link href={returnTo}>{returnLabel ?? "Source Workspace"}</Link> : null}<Link href="/vehicles/shop-recon">Shop &amp; Recon</Link><Link href="/vehicles/repair-workbench?view=all">All Repair Orders</Link>{vendorCanOpenFinalQc && primaryActionHref !== finalQcHref ? <Link href={finalQcHref}>Open Final QC</Link> : null}<Link className="primary" href={footerPrimaryHref} onClick={footerPrimaryClick}>{vendorWaitingParts ? "Open Parts Workspace" : primaryActionLabel}</Link></div></footer>
     </section>

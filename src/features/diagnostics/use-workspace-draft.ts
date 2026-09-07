@@ -21,6 +21,18 @@ export function useWorkspaceDraft<T extends object>(content: T, title: string) {
     setDraftsLoaded(true);
     return values;
   }, []);
+  const archiveDraft = useCallback(async (id: string) => {
+    const response = await fetch(`/api/diagnostics/workspace-drafts?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Saved quote could not be archived.");
+    setDrafts(values => values.filter(draft => draft.id !== id));
+    setDraftsLoaded(true);
+    if (identity.current.id === id) {
+      identity.current = { id: "", version: 0, saved: "" };
+      setStatus("Not saved");
+    }
+    return true;
+  }, []);
   const save = useCallback(async (override?: T): Promise<boolean> => {
     while (pending.current) { if (!await pending.current) return false; }
     const snapshot = override ? { ...latest.current, content: override } : latest.current;
@@ -66,5 +78,5 @@ export function useWorkspaceDraft<T extends object>(content: T, title: string) {
     identity.current = { id: "", version: 0, saved: "" };
     return save();
   }
-  return { save, saveCopy, refresh, drafts, draftsLoaded, adopt, status, saving: status === "Saving…" };
+  return { save, saveCopy, refresh, archiveDraft, drafts, draftsLoaded, adopt, status, saving: status === "Saving…" };
 }

@@ -17,6 +17,9 @@ describe("diagnostics parts ordering workspace", () => {
     />);
 
     expect(markup).toContain("Govern parts ordering, receiving, and returns in one worksheet.");
+    expect(markup).toContain("Parts workflow next action");
+    expect(markup).toContain("Enter ordered date for each part");
+    expect(markup).toContain("Take me there");
     expect(markup).toContain("Record what was actually ordered");
     expect(markup).toContain("Add ordered part");
     expect(markup).toContain("Use the full-width ordered-parts ledger");

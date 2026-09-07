@@ -7,11 +7,52 @@ import { diagnosticDraftPayload } from "@/lib/diagnostic-draft";
 import { getRepairOrderDetail } from "@/server/repair-order/service";
 import { workdayDate } from "@/lib/workday-activity";
 
+function isArchivedDraft(draft: { content: Prisma.JsonValue }) {
+  const content = draft.content;
+  return Boolean(content && typeof content === "object" && !Array.isArray(content) && "archivedAt" in content);
+}
+
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
-  const drafts = await prisma.diagnosticWorkspaceDraft.findMany({ where: { userId: user.id }, orderBy: { updatedAt: "desc" }, take: 30 });
+  const records = await prisma.diagnosticWorkspaceDraft.findMany({ where: { userId: user.id }, orderBy: { updatedAt: "desc" }, take: 60 });
+  const drafts = records.filter(draft => !isArchivedDraft(draft)).slice(0, 30);
   return NextResponse.json({ drafts }, { headers: { "Cache-Control": "private, no-store" } });
+}
+
+export async function DELETE(request: Request) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  const id = new URL(request.url).searchParams.get("id") ?? "";
+  if (!/^[a-zA-Z0-9-]{1,80}$/.test(id)) return NextResponse.json({ error: "Choose a saved quote to archive." }, { status: 400 });
+  const current = await prisma.diagnosticWorkspaceDraft.findFirst({ where: { id, userId: user.id } });
+  if (!current) return NextResponse.json({ archived: 0 });
+  if (isArchivedDraft(current)) return NextResponse.json({ archived: 1, preserved: true });
+  const archivedAt = new Date().toISOString();
+  const content = current.content && typeof current.content === "object" && !Array.isArray(current.content)
+    ? { ...current.content, archivedAt, archivedByUserId: user.id, archiveReason: "Removed from active saved quote list. Preserved for customer and inventory estimate history." }
+    : { archivedAt, archivedByUserId: user.id, archiveReason: "Removed from active saved quote list. Original draft content was not an object.", originalContent: current.content };
+  await prisma.$transaction(async tx => {
+    await tx.diagnosticWorkspaceDraft.updateMany({
+      where: { id, userId: user.id, version: current.version },
+      data: {
+        content: content as Prisma.InputJsonObject,
+        contentHash: createHash("sha256").update(JSON.stringify(content)).digest("hex"),
+        title: current.title.startsWith("Archived - ") ? current.title : `Archived - ${current.title}`.slice(0, 200),
+        version: { increment: 1 }
+      }
+    });
+    const date = new Date(`${workdayDate(new Date())}T00:00:00Z`);
+    const board = await tx.boardDay.upsert({ where: { date }, create: { date }, update: {} });
+    await tx.activityEvent.create({ data: {
+      actorUserId: user.id,
+      boardDayId: board.id,
+      eventType: "diagnostic.quote_archived",
+      message: `Archived saved preliminary quote: ${current.title}. Record preserved for history.`,
+      metadata: { sourceType: "DIAGNOSTIC_DRAFT", reportSourceId: `draft:${id}`, sourceModule: "DIAGNOSTICS", sourceHref: "/diagnostics/labor-guide", draftId: id, preserved: true, archivedAt }
+    } });
+  });
+  return NextResponse.json({ archived: 1, preserved: true });
 }
 
 export async function PUT(request: Request) {

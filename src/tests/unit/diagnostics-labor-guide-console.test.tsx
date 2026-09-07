@@ -13,9 +13,17 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("Search customer, phone, VIN, plate, vehicle, or RO number");
     expect(markup).toContain("RO-3411");
     expect(markup).toContain("Check in vehicle");
+    expect(markup).toContain("Labor &amp; parts estimate builder");
+    expect(markup).toContain("Estimate workstation");
+    expect(markup).toContain("Find labor and parts fast");
+    expect(markup).toContain("Search work");
+    expect(markup).toContain("Add labor and parts");
+    expect(markup).toContain("Review pricing");
+    expect(markup).toContain("Create estimate");
     expect(markup).toContain("Manual Labor Guide");
     expect(markup).toContain("Labor Intelligence Engine");
     expect(markup).toContain("Complete Repair Catalog");
+    expect(markup).toContain("Find labor or parts");
     expect(markup).toContain("List");
     expect(markup).toContain("Board");
     expect(markup).toContain("Steering &amp; Suspension");
@@ -39,20 +47,25 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("Auto from parts catalog");
     expect(markup).toContain("Automatic Suggested Add-Ons");
     expect(markup).toContain("Road test and repair verification");
-    expect(markup).toContain("Repair area intelligence");
-    expect(markup).toContain("Brake Assembly");
-    expect(markup).toContain("OEM-BRAKE-PADS-VIN-REVIEW");
+    expect(markup).toContain("Helpful items to review");
+    expect(markup).not.toContain("Estimate Labor Rules");
+    expect(markup).not.toContain("OEM Parts Map");
+    expect(markup).not.toContain("OEM-BRAKE-PADS-VIN-REVIEW");
     expect(markup).toContain("Selected Work");
     expect(markup).toContain("Evidence 0");
     expect(markup).toContain("Edit Replace front brake pads and rotors");
     expect(markup).toContain("Replace pads");
     expect(markup).toContain("Customer / Vehicle");
     expect(markup).toContain("Estimate / RO Preview");
+    expect(markup).toContain("Live estimate preview");
+    expect(markup).toContain("Estimate readiness");
+    expect(markup).toContain("RO loaded");
+    expect(markup).toContain("Work added");
     expect(markup).toContain("Active RO");
     expect(markup).toContain("Active RO RO-3411");
-    expect(markup).toContain("Open findings workbench");
+    expect(markup).toContain("Open simple findings entry");
     expect(markup).toContain("/vehicles/repair-workbench?repairOrderId=ro-id-3411");
-    expect(markup).toContain("Create &amp; Open Official Estimate");
+    expect(markup).toContain("Show next step to present estimate");
     expect(markup).toContain("Creates the official estimate document and opens print and repair-workbench actions.");
     expect(markup).toContain("Parts needed for this repair");
     expect(markup).toContain("Open Parts Ordering Workflow");
@@ -84,7 +97,7 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("/vehicles/repair-orders?intakeSource=WALK_IN&amp;returnTo=%2Fdiagnostics%2Flabor-guide");
     expect(markup).toContain("Check in vehicle");
     expect(markup).not.toContain("/vehicles/workflows/add-vehicle");
-    expect(markup).toContain("Repair order required");
+    expect(markup).toContain("Show next step to present estimate");
     expect(markup).toContain("Select the repair order shown in the customer and vehicle lookup before creating this estimate.");
     expect(markup).toContain("Selected Work");
     expect(markup).toContain("Parts");
@@ -135,9 +148,10 @@ describe("enterprise labor guide console", () => {
     expect(markup).toContain("Axle/output shaft seal set");
     expect(markup).toContain("Torque converter/front pump seal");
     expect(markup).toContain("Transmission programming, configuration, and adaptive relearn");
-    expect(markup).toContain("Transmission Assembly");
-    expect(markup).toContain("OEM-TRANS-ASSEMBLY-VIN-REVIEW");
-    expect(markup).toContain("Program/configure TCM when required.");
+    expect(markup).toContain("Helpful items to review");
+    expect(markup).toContain("Transmission assembly");
+    expect(markup).not.toContain("OEM-TRANS-ASSEMBLY-VIN-REVIEW");
+    expect(markup).toContain("confirm fitment before ordering");
     expect(markup).toContain("MN taxable parts");
     expect(markup).toContain("separately stated repair labor is not taxed");
   });
@@ -145,11 +159,11 @@ describe("enterprise labor guide console", () => {
   it("renders bodywork repair-area intelligence for door estimates", () => {
     const markup = renderToStaticMarkup(<EnterpriseLaborGuideConsole activeRepairOrder={null} catalog={LABOR_GUIDE_DIAGNOSTIC_NAVIGATION} initialQuery="door" initialSelectedWork="empty" laborAddOns={LABOR_OPERATION_ADD_ONS} repairOrders={[]} repairTaxonomy={LABOR_OPERATION_TAXONOMY} />);
 
-    expect(markup).toContain("Door Assembly");
+    expect(markup).toContain("Helpful items to review");
     expect(markup).toContain("Door shell");
-    expect(markup).toContain("Glass and regulator");
-    expect(markup).toContain("OEM-DOOR-SHELL-VIN-REVIEW");
-    expect(markup).toContain("Door shell replacement needs refinish review");
+    expect(markup).toContain("Door glass and regulator");
+    expect(markup).not.toContain("OEM-DOOR-SHELL-VIN-REVIEW");
+    expect(markup).toContain("Add part");
     expect(markup).toContain("Replace door shell");
   });
 

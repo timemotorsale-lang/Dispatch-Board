@@ -1,9 +1,9 @@
 "use client";
 
-import { BookOpen, Brain, Check, ChevronLeft, Edit3, Grid2X2, List, Package, Plus, ScanBarcode, Search, ShoppingCart, Trash2, UserRound, X } from "lucide-react";
+import { BookOpen, Brain, Check, ChevronLeft, ClipboardCheck, Edit3, FileText, Grid2X2, List, Package, Plus, ScanBarcode, Search, ShoppingCart, Trash2, UserRound, X } from "lucide-react";
 import Link from "next/link";
 import type { KeyboardEvent } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { evaluateEstimatePartsTaxPolicy, type EstimateRequiredPart } from "@/server/diagnostics/estimate-parts-tax-policy";
 import { analyzeLaborLanguage } from "@/server/diagnostics/labor-language-intelligence";
@@ -180,12 +180,25 @@ function matchesRepairText(operation: LaborRepairOperation, searchText: string) 
   return matchedWords.length >= Math.min(2, words.length);
 }
 
+function initialRepairSystemId(repairTaxonomy: LaborOperationSystem[], initialQuery: string) {
+  const fallback = repairTaxonomy.find((system) => system.id === "brakes")?.id ?? repairTaxonomy[0]?.id ?? "";
+  const searchText = initialQuery.trim().toLocaleLowerCase();
+  if (!searchText) return fallback;
+  if (["body", "collision", "door", "glass", "bumper", "fender", "paint", "refinish"].some((word) => searchText.includes(word))) {
+    return repairTaxonomy.find((system) => system.id === "body-collision")?.id ?? fallback;
+  }
+  const directSystem = repairTaxonomy.find((system) => `${system.title} ${system.description}`.toLocaleLowerCase().includes(searchText));
+  if (directSystem) return directSystem.id;
+  const matchingSystem = repairTaxonomy.find((system) => system.groups.some((group) => group.operations.some((operation) => matchesRepairText(operation, searchText))));
+  return matchingSystem?.id ?? fallback;
+}
+
 export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "manual", initialQuery = "", initialSelectedWork = "empty", initialWorkTab = "selected", repairTaxonomy, returnLabel, returnTo }: { activeRepairOrder: ActiveRepairOrder | null; catalog: unknown[]; initialMode?: "manual" | "engine"; initialQuery?: string; initialSelectedWork?: "empty" | "starter" | "transmission"; initialWorkTab?: WorkTab; laborAddOns: unknown[]; repairOrders?: { id: string; label: string }[]; repairTaxonomy: LaborOperationSystem[]; returnLabel?: string; returnTo?: string }) {
   const allOperations = useMemo(() => repairTaxonomy.flatMap((system) => system.groups.flatMap((group) => group.operations)), [repairTaxonomy]);
   const brakeStarter = allOperations.filter((operation) => ["front-brake-pads-rotors", "brake-caliper-front"].includes(operation.id));
   const transmissionStarter = allOperations.filter((operation) => operation.id === "transmission-remove-install");
   const [mode, setMode] = useState<"manual" | "engine">(initialMode);
-  const [activeSystemId, setActiveSystemId] = useState(repairTaxonomy.find((system) => system.id === "brakes")?.id ?? repairTaxonomy[0]?.id ?? "");
+  const [activeSystemId, setActiveSystemId] = useState(() => initialRepairSystemId(repairTaxonomy, initialQuery));
   const [query, setQuery] = useState(initialQuery);
   const [enginePrompt, setEnginePrompt] = useState("");
   const [analyzedEnginePrompt, setAnalyzedEnginePrompt] = useState("");
@@ -219,9 +232,11 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   const [partsCatalogBusy, setPartsCatalogBusy] = useState(false);
   const [estimateAttempt, setEstimateAttempt] = useState<{ fingerprint: string; body: Record<string, unknown> } | null>(null);
   const [pendingSwitch, setPendingSwitch] = useState<RepairOrderLookup | null>(null);
-  const [estimateOpenRequest, setEstimateOpenRequest] = useState(0);
   const [clinical, setClinical] = useState<ClinicalDrafts>({});
   const [laborReview, setLaborReview] = useState<ManualLaborReview>(emptyManualLaborReview);
+  const [workToolsOpen, setWorkToolsOpen] = useState(true);
+  const estimateGuideRef = useRef<HTMLDivElement | null>(null);
+  const workToolsRef = useRef<HTMLDetailsElement | null>(null);
   const workspaceContent = useMemo(() => ({ ro: selectedRepairOrder, manual: manualDetails, labor: selectedLabor, parts: selectedParts, evidence: evidenceDrafts, attempt: estimateAttempt, clinical, laborReview }), [selectedRepairOrder, manualDetails, selectedLabor, selectedParts, evidenceDrafts, estimateAttempt, clinical, laborReview]);
   const draft = useWorkspaceDraft(workspaceContent, contextVehicle ?? "Preliminary quote");
 
@@ -239,14 +254,27 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
     if (mode === "engine" && normalizedQuery) return engineAnalysis.candidates.map((candidate) => candidate.operation);
     const scoped = normalizedQuery ? allOperations : activeSystem?.groups.flatMap((group) => group.operations) ?? [];
     if (!normalizedQuery) return scoped;
-    return scoped.filter((operation) => matchesRepairText(operation, normalizedQuery));
+    return scoped
+      .filter((operation) => matchesRepairText(operation, normalizedQuery))
+      .sort((a, b) => Number(b.system === activeSystem?.title) - Number(a.system === activeSystem?.title));
   }, [activeSystem, allOperations, engineAnalysis, mode, normalizedQuery]);
-  const repairAreaOperations = selectedLabor.length ? selectedLabor : catalogOperations.slice(0, 3);
-  const repairAreaQuery = selectedLabor.length ? selectedLabor.map((operation) => operation.title).join(" ") : normalizedQuery || enginePrompt || activeSystem?.title;
+  const repairAreaOperations = useMemo(
+    () => selectedLabor.length ? selectedLabor : normalizedQuery ? catalogOperations.slice(0, 3) : [],
+    [catalogOperations, normalizedQuery, selectedLabor]
+  );
+  const repairAreaQuery = selectedLabor.length ? selectedLabor.map((operation) => operation.title).join(" ") : normalizedQuery;
   const repairAreaIntelligence = useMemo(
     () => evaluateRepairAreaIntelligence({ query: repairAreaQuery, operations: repairAreaOperations }),
     [repairAreaOperations, repairAreaQuery]
   );
+  const repairAssistantParts = repairAreaIntelligence.activeRulePack?.partRules.slice(0, 4) ?? [];
+  const repairAssistantChecks = repairAreaIntelligence.activeRulePack
+    ? [
+      ...repairAreaIntelligence.activeRulePack.fitmentRules,
+      ...repairAreaIntelligence.activeRulePack.calibrationRules,
+      ...repairAreaIntelligence.activeRulePack.refinishRules
+    ].slice(0, 4)
+    : [];
   const groupedCatalog = useMemo(() => {
     const byGroup = new Map<string, { description: string; id: string; operations: LaborRepairOperation[]; title: string }>();
     if (normalizedQuery) {
@@ -311,10 +339,13 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
       { label: "Total", value: money(total) },
     ]),
   }).toString()}`;
+  const advisorReviewHref = `/diagnostics/advisor-review${selectedRepairOrder ? `?repairOrderId=${encodeURIComponent(selectedRepairOrder.id)}` : ""}`;
   const partsNeedCount = estimateParts.reduce((sum, item) => sum + item.quantity, 0);
   const pendingPricingCount = estimateParts.filter((item) => item.pricingStatus === "PRICE_PENDING" || item.unitPrice === 0).length;
   const policyRequiredCount = estimateParts.filter((item) => item.source === "POLICY_REQUIRED").length;
   const canCreateEstimate = Boolean(selectedRepairOrder) && Boolean(selectedLabor.length || selectedParts.length);
+  const totalWorkLines = estimateLabor.length + estimateParts.length;
+  const pricingReady = pendingPricingCount === 0;
   const createEstimateReason = !selectedRepairOrder
     ? "Select the repair order shown in the customer and vehicle lookup before creating this estimate."
     : !selectedLabor.length && !selectedParts.length
@@ -561,7 +592,22 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
     setLookupResults([]);
     setNotice(`Loaded ${order.repairOrderNumber} for estimate work.`);
     setPendingSwitch(null);
-    setEstimateOpenRequest(value => value + 1);
+  }
+
+  function revealWorkTools(tab: WorkTab = "labor") {
+    setWorkTab(tab);
+    setWorkToolsOpen(true);
+    window.requestAnimationFrame(() => {
+      workToolsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      workToolsRef.current?.focus({ preventScroll: true });
+    });
+  }
+
+  function revealEstimateGuide() {
+    window.requestAnimationFrame(() => {
+      estimateGuideRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      estimateGuideRef.current?.focus({ preventScroll: true });
+    });
   }
 
   async function request<T>(url: string, init?: RequestInit) {
@@ -652,15 +698,33 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   ], [estimateLabor, estimateParts]);
   const reviewScope = estimateReviewScope(selectedRepairOrder?.vehicle.id ?? `${contextVehicle ?? ""}|${contextVin ?? ""}`, lineItems);
   const guidedReady = manualReviewComplete(laborReview, reviewScope) && !estimateParts.some(part => part.pricingStatus === "PRICE_PENDING");
+  const reviewReady = manualReviewComplete(laborReview, reviewScope);
+  const estimatePath = [
+    { label: "Search work", note: mode === "manual" ? "Catalog lookup ready" : "AI assist ready", ready: Boolean(query.trim() || analyzedEnginePrompt || totalWorkLines) },
+    { label: "Add labor and parts", note: totalWorkLines ? `${totalWorkLines} line${totalWorkLines === 1 ? "" : "s"} selected` : "Choose the needed repair", ready: totalWorkLines > 0 },
+    { label: "Review pricing", note: pricingReady ? "Prices clear" : `${pendingPricingCount} quote${pendingPricingCount === 1 ? "" : "s"} needed`, ready: pricingReady },
+    { label: "Create estimate", note: canCreateEstimate && guidedReady ? "Ready for handoff" : "Finish vehicle and review", ready: canCreateEstimate && guidedReady },
+  ];
 
   async function presentEstimate() {
-    if (!guidedReady) { setNotice("Complete the manual labor review and resolve pending part prices before presenting. You can still save a preliminary quote."); return; }
     if (!selectedRepairOrder) {
+      setDetailsOpen(true);
       setNotice("Select or create an active repair order before presenting an estimate.");
       return;
     }
     if (!selectedLabor.length && !selectedParts.length) {
+      revealWorkTools("labor");
       setNotice("Add at least one labor or part line before presenting an estimate.");
+      return;
+    }
+    if (estimateParts.some(part => part.pricingStatus === "PRICE_PENDING")) {
+      revealWorkTools("parts");
+      setNotice("Enter or confirm part pricing before presenting this estimate.");
+      return;
+    }
+    if (!reviewReady) {
+      revealEstimateGuide();
+      setNotice("Complete the labor basis review, then choose Mark manually reviewed before presenting.");
       return;
     }
     setBusy(true);
@@ -756,7 +820,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   }
 
   return (
-    <DiagnosticWorkspace estimateOpenRequest={estimateOpenRequest} clinical={clinical} onClinicalChange={setClinical} onClinicalPersist={async value => { const saved = await draft.save({ ...workspaceContent, clinical: value }); if (saved) setClinical(value); return saved; }} vehicle={contextVehicle} customer={contextCustomer} vin={contextVin} concern={contextConcern} repairOrderId={selectedRepairOrder?.id} repairOrderNumber={selectedRepairOrder?.repairOrderNumber} onSave={draft.save} onFindDrafts={() => draft.refresh().catch(error => setNotice(error.message))} saveStatus={draft.status} returnTo={returnTo} returnLabel={returnLabel} feedback={notice ? <div className={styles.notice} role="status">{notice}</div> : null} tools={<>
+    <DiagnosticWorkspace clinical={clinical} onClinicalChange={setClinical} onClinicalPersist={async value => { const saved = await draft.save({ ...workspaceContent, clinical: value }); if (saved) setClinical(value); return saved; }} vehicle={contextVehicle} customer={contextCustomer} vin={contextVin} concern={contextConcern} repairOrderId={selectedRepairOrder?.id} repairOrderNumber={selectedRepairOrder?.repairOrderNumber} onSave={draft.save} onFindDrafts={() => draft.refresh().catch(error => setNotice(error.message))} saveStatus={draft.status} returnTo={returnTo} returnLabel={returnLabel} feedback={notice ? <div className={styles.notice} role="status">{notice}</div> : null} tools={<>
       <section className={styles.lookupBand} aria-label="Draft protection">
         <button disabled={draft.saving || busy} onClick={() => void draft.save()} type="button">Save preliminary quote</button>
         <button disabled={draft.saving || busy} onClick={() => void draft.refresh().catch(error => setNotice(error.message))} type="button">Find saved drafts</button>
@@ -764,18 +828,26 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
         <span>A preliminary quote is not a confirmed diagnosis or repair authorization.</span>
       </section>
       {draft.draftsLoaded && !draft.drafts.length ? <p role="status">No saved quotes yet. Add vehicle details or estimate lines, then choose Save quote.</p> : null}
-      {draft.drafts.length ? <section className={styles.lookupResults} aria-label="Saved drafts">{draft.drafts.map(saved => <button key={saved.id} disabled={busy || draft.saving} onClick={async () => {
-        if (!await draft.save()) return;
-        try {
-          const latest = (await draft.refresh()).find(item => item.id === saved.id);
-          if (!latest) throw new Error("That draft is no longer available in the recent drafts list.");
-          const value = latest.content;
-          setClinical(value.clinical ?? {});
-          setLaborReview(value.laborReview ?? emptyManualLaborReview);
-          draft.adopt(latest); setSelectedRepairOrder(value.ro); setManualDetails(value.manual); setSelectedLabor(value.labor); setSelectedParts(value.parts); setEvidenceDrafts(value.evidence); setEstimateAttempt(value.attempt);
-          setNotice(`Resumed ${latest.title}.`);
-        } catch (error) { setNotice(error instanceof Error ? error.message : "Unable to resume draft."); }
-      }} type="button">Resume {saved.title}</button>)}</section> : null}
+      {draft.drafts.length ? <section className={styles.savedDraftGrid} aria-label="Saved drafts">{draft.drafts.map(saved => <article key={saved.id}>
+        <button disabled={busy || draft.saving} onClick={async () => {
+          if (!await draft.save()) return;
+          try {
+            const latest = (await draft.refresh()).find(item => item.id === saved.id);
+            if (!latest) throw new Error("That draft is no longer available in the recent drafts list.");
+            const value = latest.content;
+            setClinical(value.clinical ?? {});
+            setLaborReview(value.laborReview ?? emptyManualLaborReview);
+            draft.adopt(latest); setSelectedRepairOrder(value.ro); setManualDetails(value.manual); setSelectedLabor(value.labor); setSelectedParts(value.parts); setEvidenceDrafts(value.evidence); setEstimateAttempt(value.attempt);
+            setNotice(`Resumed ${latest.title}.`);
+          } catch (error) { setNotice(error instanceof Error ? error.message : "Unable to resume draft."); }
+        }} type="button">Resume {saved.title}</button>
+        <button aria-label={`Archive saved quote ${saved.title}`} disabled={busy || draft.saving} onClick={async () => {
+          try {
+            await draft.archiveDraft(saved.id);
+            setNotice(`Archived saved quote: ${saved.title}. The record is preserved for history.`);
+          } catch (error) { setNotice(error instanceof Error ? error.message : "Unable to archive saved quote."); }
+        }} type="button">Archive</button>
+      </article>)}</section> : null}
       {pendingSwitch ? <section className={styles.notice} role="region" aria-label="Confirm vehicle switch">
         <span>Switch to {pendingSwitch.repairOrderNumber}? Choose what to do with your current draft.</span>
         <button ref={element => { element?.focus(); }} disabled={draft.saving} type="button" onClick={async () => { if (await draft.save()) applyRepairOrder(pendingSwitch); }}>Save and switch</button>
@@ -796,15 +868,45 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
 
       </>}>
       <div className={styles.console} aria-label="Estimate editor">
+      <section className={styles.dailyFlow} aria-label="Daily labor guide workflow">
+        <article data-ready={Boolean(selectedRepairOrder)}><strong>1. Vehicle</strong><span>{selectedRepairOrder?.repairOrderNumber ?? "Select RO or quote first"}</span><button onClick={() => setDetailsOpen(true)} type="button">Choose</button></article>
+        <article data-ready={estimateLabor.length > 0 || estimateParts.length > 0}><strong>2. Work</strong><span>{estimateLabor.length + estimateParts.length ? `${estimateLabor.length + estimateParts.length} line${estimateLabor.length + estimateParts.length === 1 ? "" : "s"} ready` : "Find labor or parts"}</span><button onClick={() => revealWorkTools("labor")} type="button">Add work</button></article>
+        <article data-ready={manualReviewComplete(laborReview, reviewScope) && pendingPricingCount === 0}><strong>3. Readiness</strong><span>{manualReviewComplete(laborReview, reviewScope) && pendingPricingCount === 0 ? "Clear for presentation check" : "Items need attention"}</span><button onClick={() => revealWorkTools("selected")} type="button">Check</button></article>
+        <article data-ready={canCreateEstimate && guidedReady}><strong>4. Handoff</strong><span>{canCreateEstimate && guidedReady ? "Estimate can be presented" : "Save as draft first"}</span><button disabled={busy || draft.saving} onClick={() => void draft.save()} type="button">Save</button></article>
+      </section>
+      <div ref={estimateGuideRef} tabIndex={-1}>
       <GuidedEstimate vehicle={contextVehicle} vin={contextVin} hasRO={Boolean(selectedRepairOrder)} lines={[
         ...estimateLabor.map(item => ({ id: item.rowId, title: item.title, kind: "Labor" as const, quantity: item.hours, price: laborRate, pending: false, editable: selectedLabor.some(row => row.rowId === item.rowId) })),
         ...estimateParts.map(item => ({ id: item.id, title: item.name, kind: "Part" as const, quantity: item.quantity, price: item.unitPrice, pending: item.pricingStatus === "PRICE_PENDING", editable: selectedParts.some(row => row.id === item.id) })),
-      ]} review={laborReview} scope={reviewScope} total={money(total)} busy={busy || draft.saving} onReview={setLaborReview} onSave={() => void draft.save()} onPresent={() => void presentEstimate()} onEdit={(line, field, value) => {
+      ]} review={laborReview} scope={reviewScope} total={money(total)} busy={busy || draft.saving} onFindVehicle={() => setDetailsOpen(true)} onAddWork={() => revealWorkTools("labor")} onReview={setLaborReview} onSave={() => void draft.save()} onPresent={() => void presentEstimate()} onEdit={(line, field, value) => {
         if (line.kind === "Labor") setSelectedLabor(rows => rows.map(row => row.rowId === line.id ? { ...row, hours: value } : row));
         else setSelectedParts(rows => rows.map(row => row.id === line.id ? { ...row, ...(field === "quantity" ? { quantity: Math.max(1, Math.floor(value)) } : { unitPrice: value, pricingStatus: "ESTIMATED" as const }) } : row));
       }} />
-      <details><summary>Add work / advanced tools</summary>
-      <p role="note">Labor applicability: internal reference only—not an OEM-validated time or confirmed fit for {contextVehicle ?? "a selected vehicle"}. Check the exact VIN, engine, configuration, and repair procedure against your approved source before presenting an estimate.</p>
+      </div>
+      <details className={styles.workTools} open={workToolsOpen} onToggle={(event) => setWorkToolsOpen(event.currentTarget.open)} ref={workToolsRef} tabIndex={-1}><summary><span>Labor & parts estimate builder</span><small>Search, add, review, create estimate</small></summary>
+      <section className={styles.estimateCommandCenter} aria-label="Labor and parts estimate command">
+        <div className={styles.estimateCommandCopy}>
+          <span>Estimate workstation</span>
+          <h2>Find labor and parts fast</h2>
+          <p>Search the repair, add the right labor or parts, review the live total, then create the estimate for internal or customer-facing use.</p>
+        </div>
+        <dl className={styles.estimateCommandFacts}>
+          <div><dt>Vehicle</dt><dd>{contextVehicle ?? "Not selected"}</dd></div>
+          <div><dt>RO</dt><dd>{selectedRepairOrder?.repairOrderNumber ?? "Draft quote"}</dd></div>
+          <div><dt>Work lines</dt><dd>{totalWorkLines}</dd></div>
+          <div><dt>Total</dt><dd>{money(total)}</dd></div>
+        </dl>
+      </section>
+      <ol className={styles.estimatePath} aria-label="Estimate builder path">
+        {estimatePath.map((step, index) => (
+          <li data-ready={step.ready} key={step.label}>
+            <span>{index + 1}</span>
+            <strong>{step.label}</strong>
+            <small>{step.note}</small>
+          </li>
+        ))}
+      </ol>
+      <p className={styles.sourceNote} role="note">Internal preparation quote. Review VIN, configuration, source, repair basis, and pricing before external presentation.</p>
       <div className={styles.modeTabs} role="tablist" aria-label="RO creation mode">
         <button aria-selected={mode === "manual"} onClick={() => setMode("manual")} role="tab" type="button"><BookOpen />Manual Labor Guide</button>
         <button aria-selected={mode === "engine"} onClick={() => setMode("engine")} role="tab" type="button"><Brain />Labor Intelligence Engine</button>
@@ -814,8 +916,9 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
         <main className={styles.catalogWorkspace}>
           <div className={styles.catalogHeader}>
             <div>
-              <h2>{mode === "manual" ? "Complete Repair Catalog" : "Labor Intelligence Engine"}</h2>
-              <p>{mode === "manual" ? "Search and add any available repair category, operation, labor line, or manual part." : "Start with the concern, then accept, edit, or remove generated labor lines."}</p>
+              <span className={styles.catalogEyebrow}>{mode === "manual" ? "Complete Repair Catalog" : "Labor Intelligence Engine"}</span>
+              <h2>{mode === "manual" ? "Find labor or parts" : "Describe the work once"}</h2>
+              <p>{mode === "manual" ? "Use one search box, pick the closest repair group, then add the line to the estimate worksheet." : "Write the concern in plain language, then accept, edit, or remove the suggested labor lines."}</p>
             </div>
             <div className={styles.viewToggle}>
               <button aria-pressed={view === "list"} onClick={() => openCatalogView("list")} type="button"><List />List</button>
@@ -854,46 +957,34 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
             </section>
           ) : null}
 
-          {repairAreaIntelligence.activeRulePack ? (
-            <section className={styles.repairAreaIntelligence} aria-label="Repair area intelligence">
+          {repairAreaIntelligence.activeRulePack && (repairAssistantParts.length || repairAssistantChecks.length) ? (
+            <section className={styles.repairAreaAssistant} aria-label="Repair area assistance">
               <header>
                 <div>
                   <span>{repairAreaIntelligence.activeRulePack.domain}</span>
-                  <h3>{repairAreaIntelligence.activeRulePack.title}</h3>
-                  <p>{repairAreaIntelligence.summary}</p>
+                  <h3>Helpful items to review</h3>
+                  <p>Use these only if they match the vehicle, concern, and approved repair direction.</p>
                 </div>
-                <small>{repairAreaIntelligence.version} · {displayLabel(repairAreaIntelligence.confidence)}</small>
+                <small>{displayLabel(repairAreaIntelligence.confidence)}</small>
               </header>
-              <div className={styles.assemblyMap} aria-label={`${repairAreaIntelligence.activeRulePack.title} assembly map`}>
-                {repairAreaIntelligence.activeRulePack.assembly.map((node) => (
-                  <article data-zone={node.zone} key={node.id}>
-                    <strong>{node.label}</strong>
-                    <small>{node.description}</small>
-                  </article>
-                ))}
-              </div>
-              <div className={styles.areaRuleGrid}>
-                <section>
-                  <h4>Estimate Labor Rules</h4>
-                  {repairAreaIntelligence.activeRulePack.laborRules.map((rule) => (
-                    <p key={`${rule.title}-${rule.requirement}`}><b>{rule.requirement}</b><span>{rule.title}</span><small>{rule.hours == null ? "Review time" : `${rule.hours.toFixed(1)} hrs`} · {rule.reason}</small></p>
+              {repairAssistantParts.length ? (
+                <div className={styles.quickPartList}>
+                  {repairAssistantParts.map((part) => (
+                    <article key={`${part.oemPartNumber}-${part.description}`}>
+                      <span>
+                        <strong>{part.description}</strong>
+                        <small>Qty {part.quantity} · confirm fitment before ordering</small>
+                      </span>
+                      <button onClick={() => addRepairAreaPart(part)} type="button"><Plus />Add part</button>
+                    </article>
                   ))}
-                </section>
-                <section>
-                  <h4>OEM Parts Map</h4>
-                  {repairAreaIntelligence.activeRulePack.partRules.slice(0, 6).map((part) => (
-                    <p key={`${part.oemPartNumber}-${part.description}`}>
-                      <b>{part.requirement}</b>
-                      <span>{part.description}</span>
-                      <small>{part.oemPartNumber} · Qty {part.quantity} · {part.fitmentBasis}</small>
-                      <button onClick={() => addRepairAreaPart(part)} type="button"><Plus />Add</button>
-                    </p>
-                  ))}
-                </section>
-              </div>
-              <div className={styles.areaChecks}>
-                {[...repairAreaIntelligence.activeRulePack.fitmentRules, ...repairAreaIntelligence.activeRulePack.calibrationRules, ...repairAreaIntelligence.activeRulePack.refinishRules].slice(0, 6).map((rule) => <span key={rule}>{rule}</span>)}
-              </div>
+                </div>
+              ) : null}
+              {repairAssistantChecks.length ? (
+                <div className={styles.fitmentChecklist} aria-label="Fitment checks">
+                  {repairAssistantChecks.map((rule) => <span key={rule}><ClipboardCheck />{rule}</span>)}
+                </div>
+              ) : null}
             </section>
           ) : null}
 
@@ -1032,7 +1123,18 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
           <button className={styles.collapseReview} onClick={() => setReviewOpen((current) => !current)} type="button"><ChevronLeft />{reviewOpen ? "Collapse" : "Open preview"}</button>
           {reviewOpen ? (
             <>
-              <h2>Estimate / RO Preview</h2>
+              <div className={styles.previewHero}>
+                <span>Estimate / RO Preview</span>
+                <h2>Live estimate preview</h2>
+                <strong>{money(total)}</strong>
+                <small>{totalWorkLines ? `${totalWorkLines} line${totalWorkLines === 1 ? "" : "s"} ready for review` : "Add labor or parts to build the estimate"}</small>
+              </div>
+              <div className={styles.previewReadiness} aria-label="Estimate readiness">
+                <span data-ready={Boolean(selectedRepairOrder)}><ClipboardCheck />{selectedRepairOrder ? "RO loaded" : "RO needed"}</span>
+                <span data-ready={totalWorkLines > 0}><FileText />{totalWorkLines ? "Work added" : "Add work"}</span>
+                <span data-ready={pricingReady}><ShoppingCart />{pricingReady ? "Pricing clear" : "Price parts"}</span>
+                <span data-ready={reviewReady}><Check />{reviewReady ? "Review clear" : "Review needed"}</span>
+              </div>
               <dl>
                 <div><dt>Labor</dt><dd>{totalHours.toFixed(1)} hrs</dd></div>
                 <div><dt>Labor retail</dt><dd>{money(laborTotal)}</dd></div>
@@ -1042,7 +1144,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
                 <div><dt>Tax</dt><dd>{money(taxAndSupplies)}</dd></div>
                 <div className={styles.total}><dt>Total</dt><dd>{money(total)}</dd></div>
               </dl>
-              <button aria-describedby="create-estimate-help" className={styles.createRo} disabled={busy || !canCreateEstimate || !guidedReady} onClick={() => void presentEstimate()} type="button">{busy ? "Creating estimate..." : canCreateEstimate ? "Create & Open Official Estimate" : "Repair order required"}</button>
+              <button aria-describedby="create-estimate-help" className={styles.createRo} data-ready={canCreateEstimate && guidedReady} disabled={busy} onClick={() => void presentEstimate()} type="button">{busy ? "Creating estimate..." : canCreateEstimate && guidedReady ? "Create & Open Official Estimate" : "Show next step to present estimate"}</button>
               <p className={styles.createEstimateHint} id="create-estimate-help">{createEstimateReason}</p>
               <section className={styles.assignmentCard} aria-label="Technician assignment handoff">
                 <header>
@@ -1085,7 +1187,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
                 </ul>
               </section>
               <Link className={styles.secondaryReview} href={officialEstimateHref}>Preview preliminary quote</Link>
-              <Link className={styles.secondaryReview} href={`/diagnostics/advisor-review${selectedRepairOrder ? `?repairOrderId=${encodeURIComponent(selectedRepairOrder.id)}` : ""}`}>Advisor review</Link>
+              <Link className={styles.secondaryReview} href={advisorReviewHref}>Advisor review</Link>
               <section className={styles.historyCard}>
                 <h3>Customer / Vehicle Context</h3>
                 <p><span>{selectedRepairOrder ? "This is a new blank estimate. Prior estimate lines are not carried into this RO." : "Select a repair order to begin. No previous estimate is loaded."}</span></p>

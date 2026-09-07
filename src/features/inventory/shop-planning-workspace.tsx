@@ -646,6 +646,8 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
       navigateToInternalTarget("#repair-planning-step-5-create-job");
       return;
     }
+    let firstRepairJobId = "";
+    let firstRepairJobNumber = "";
     for (const draft of drafts) {
       const created = await submit("CREATE_JOB", {
         authorizationId: draft.authorizationId || accepted?.id,
@@ -666,9 +668,16 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
         workTypeCode: draft.workTypeCode,
       }, "Create an authorized, readiness-gated repair job.");
       if (!created) return;
+      if (!firstRepairJobId && typeof created.result?.id === "string") firstRepairJobId = created.result.id;
+      if (!firstRepairJobNumber && typeof created.result?.jobNumber === "string") firstRepairJobNumber = created.result.jobNumber;
     }
     setReleaseJobs([]);
-    setNotice("Repair job created. Next: assign the work, buy or update parts if needed, complete the repair, then hand off to Final QC.");
+    if (firstRepairJobId) {
+      setNotice(`${firstRepairJobNumber || "Repair job"} created. Opening the repair workbench now.`);
+      window.setTimeout(() => window.location.assign(`/vehicles/repair-jobs/${encodeURIComponent(firstRepairJobId)}/workbench`), 120);
+      return;
+    }
+    setNotice("Repair job created. Open repair work order below to assign work, update parts, complete repair, then move to Final QC.");
     window.setTimeout(() => navigateToInternalTarget("#repair-next-actions"), 120);
   }
 
@@ -838,12 +847,12 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action, ...value, expectedVersion: selected.version, idempotencyKey: crypto.randomUUID(), reason })
-      }) as { result?: { message?: string } };
+      }) as { result?: { id?: string; jobNumber?: string; message?: string } };
       setNotice(result?.result?.message ?? reason);
       await refresh();
       cancelDraftEdits.current = null;
       setEditingStep(null);
-      return true;
+      return result;
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Shop planning request failed.");
       return false;
@@ -1078,15 +1087,20 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
 
       <div className={styles.commandGrid}>
         <main className={styles.workflow}>
-          <WorkflowStep editing={editingStep === 1} editDisabled={busy || (editingStep !== null && editingStep !== 1)} onEdit={() => beginDraftEdit(1)} onCancel={cancelEditing} complete={selected.inspectionVersions.length > 0} icon={<FileCheck2 />} number={1} open={currentStep === 0 || staffNext?.step === 1} subtitle="Establish the physical-condition baseline and attach supporting evidence." title="Digital vehicle inspection">
+          <WorkflowStep editing={editingStep === 1} editDisabled={busy || (editingStep !== null && editingStep !== 1)} onEdit={() => beginDraftEdit(1)} onCancel={cancelEditing} complete={selected.inspectionVersions.length > 0} icon={<FileCheck2 />} number={1} open={currentStep === 0 || staffNext?.step === 1} subtitle="Capture what was checked, the result, the finding, and proof. Save once." title="Inspection entry">
             <form onSubmit={(event: FormEvent) => { event.preventDefault(); void submit("RECORD_INSPECTION", { templateCode: inspection.templateCode, templateVersion: inspection.templateVersion, templateSnapshot: { code: inspection.templateCode, version: inspection.templateVersion }, startedAt: inspection.startedAt, completedAt: inspection.completedAt, summary: inspection.summary, items: [{ key: inspection.itemKey, label: inspection.itemLabel, result: inspection.itemResult, measurement: inspection.measurement, notes: inspection.itemNotes, evidence: inspection.evidence.split(",").map((value) => value.trim()).filter(Boolean) }] }, "Record a versioned digital vehicle inspection."); }}>
-              <div className={styles.simpleCard}>
-                <span className={styles.simpleEyebrow}>Simple inspection entry</span>
-                <h3>Capture the condition in plain language</h3>
-                <p>Tell the team what you checked, whether it passed, what you found, and what proof supports it. Technical versioning stays preserved automatically.</p>
+              <div className={styles.quickEntryHeader}>
+                <span className={styles.simpleEyebrow}>Inspection entry</span>
+                <h3>Write the finding in four plain steps</h3>
+                <ol className={styles.quickSteps}>
+                  <li><strong>Check</strong><span>Area, concern, or system inspected.</span></li>
+                  <li><strong>Result</strong><span>Pass, advisory, fail, or not applicable.</span></li>
+                  <li><strong>Finding</strong><span>What you saw, heard, measured, or confirmed.</span></li>
+                  <li><strong>Proof</strong><span>Photo, scan, video, note, or measurement.</span></li>
+                </ol>
               </div>
               <FormGrid>
-                <Field label="What did you inspect?">
+                <Field label="Area checked">
                   <input placeholder="Example: General condition, brakes, front suspension, body damage" value={inspection.itemLabel} onChange={(event) => setInspection((value) => ({ ...value, itemLabel: event.target.value }))} />
                 </Field>
                 <Field label="Result">
@@ -1094,13 +1108,13 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
                     {["PASS", "ADVISORY", "FAIL", "NOT_APPLICABLE"].map((value) => <option key={value}>{value}</option>)}
                   </select>
                 </Field>
-                <Field label="Optional measurement">
+                <Field label="Measurement or quick note (optional)">
                   <input placeholder="Example: 4 mm, 12.4V, cracked, no reading" value={inspection.measurement} onChange={(event) => setInspection((value) => ({ ...value, measurement: event.target.value }))} />
                 </Field>
-                <Field label="What did you find?" wide>
+                <Field label="Finding" wide>
                   <textarea placeholder="Write the finding in plain language so the next person immediately understands the condition." value={inspection.summary} onChange={(event) => setInspection((value) => ({ ...value, summary: event.target.value }))} />
                 </Field>
-                <Field label="Proof / evidence" wide>
+                <Field label="Proof" wide>
                   <input placeholder="Example: photos, scan results, auction notes, walkaround video" value={inspection.evidence} onChange={(event) => setInspection((value) => ({ ...value, evidence: event.target.value }))} />
                 </Field>
                 <Field label="Extra inspection notes (optional)" wide>
@@ -1115,7 +1129,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
                   <Field label="Template code"><input value={inspection.templateCode} onChange={(event) => setInspection((value) => ({ ...value, templateCode: event.target.value }))} /></Field>
                 </FormGrid>
               </details>
-              <Submit busy={busy}>Record immutable inspection version</Submit>
+              <Submit busy={busy}>Save inspection finding</Submit>
             </form>
           </WorkflowStep>
 
@@ -1197,7 +1211,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
           <WorkflowStep editing={editingStep === 3} editDisabled={busy || (editingStep !== null && editingStep !== 3)} onEdit={() => beginDraftEdit(3)} onCancel={cancelEditing} complete={vendorPath ? vendorEstimateCaptured(currentVendorWork) : selected.estimateVersions.length > 0} icon={<Gauge />} number={3} open={currentStep === 2 || staffNext?.step === 3} subtitle={vendorPath ? "Vendor estimate and approval are tracked from staff-entered vendor updates while the work stays offsite." : directPath ? "Create the governed body, collision, vendor, or teardown estimate from the approved direct scope." : "Create an immutable, expiring estimate from the verified diagnostic correction."} title={vendorPath ? "Vendor estimate update" : directPath ? "Direct repair estimate" : "Exact-version estimate"}>
             <form onSubmit={(event: FormEvent) => { event.preventDefault(); void submitEstimate(); }}>
               {revisionSource ? <section className={styles.pathInfo} aria-label="Estimate revision"><strong>Revising estimate v{revisionSource.version}</strong><p>The original remains in history. Review every price, tax, discount, source note, and date. Prior manual-review notes are historical, not verification of this revision. Changed work needs a new approval.</p><FormGrid><Field label="Reason for revision"><input required maxLength={350} value={revisionReason} onChange={event => setRevisionReason(event.target.value)} /></Field><Field label="Assumptions / source notes (review before saving)" wide><textarea value={revisionNotes} onChange={event => setRevisionNotes(event.target.value)} /></Field></FormGrid></section> : null}
-              {vendorPath ? <div className={styles.pathInfo}><strong>Simple vendor estimate path</strong><p>If the outside vendor is already approved to do the job, the saved vendor record is the evidence: vendor name, repair scope, current location/status, and approval. You do not need to create an internal diagnosis just to present this estimate.</p></div> : directPath ? <div className={styles.pathInfo}><strong>Body and collision estimating discipline</strong><p>Follow the same fast sequence every time: visible scope, labor guide or vendor quote, parts list, internal spend decision, then repair release. This keeps bodywork moving without pretending a troubleshooting diagnosis happened when it did not.</p></div> : null}
+              {vendorPath ? <div className={styles.pathInfo}><strong>Simple vendor estimate path</strong><p>If the outside vendor is already approved to do the job, the saved vendor record is the evidence: vendor name, repair scope, current location/status, and approval. You do not need to create an internal diagnosis just to present this estimate.</p></div> : directPath ? <details className={styles.advancedDetails}><summary>Estimate guidance</summary><div className={styles.pathInfo}><strong>Body and collision estimating discipline</strong><p>Follow the same fast sequence every time: visible scope, labor guide or vendor quote, parts list, internal spend decision, then repair release. This keeps bodywork moving without pretending a troubleshooting diagnosis happened when it did not.</p></div><div className={styles.pathInfo}><strong>Rapid recon estimate recipe</strong><p>1) use body labor guide or vendor quote, 2) separate labor, parts, and sublet cleanly, 3) preserve teardown supplements as new exact versions, and 4) never promise completion until parts and vendor timing are real.</p></div></details> : null}
               {vendorNeedsInternalCompletion && !vendorPath ? <div className={styles.simpleCard} id="repair-planning-step-3-completion-estimate" tabIndex={-1}>
                 <span className={styles.simpleEyebrow}>Completion estimate</span>
                 <h3>Turn the failed vendor QC items into an approved line</h3>
@@ -1211,9 +1225,44 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
                 </div>
               </div> : null}
               {reconBudget ? <div className={styles.concern}><span>{reconBudget.source === "TAI" ? "TAI recon budget guardrail" : "Recon budget guardrail"}</span><p>{reconBudget.status === "OVER_BUDGET" ? "This estimate is already beyond the current recon spend target. Review the scope, labor source, and approval path before releasing more work." : reconBudget.status === "CAUTION" ? "This vehicle is getting close to its current recon budget. Tighten the estimate and confirm the next approval before moving forward." : "There is still recon spend room available for this vehicle. Keep the estimate anchored to real labor, parts, and vendor work."}</p><p>Budget {formatMoneyCents(reconBudget.estimatedReconBudgetCents)} · committed {formatMoneyCents(reconBudget.committedSpendCents)} · remaining {formatMoneyCents(reconBudget.remainingBudgetCents)}</p></div> : null}
-              {directPath ? <div className={styles.pathInfo}><strong>Rapid recon estimate recipe</strong><p>1) use body labor guide or vendor quote, 2) separate labor, parts, and sublet cleanly, 3) preserve teardown supplements as new exact versions, and 4) never promise completion until parts and vendor timing are real.</p></div> : null}
               {!vendorPath ? <section className={styles.simpleCard} aria-label="Simple estimate builder"><span className={styles.simpleEyebrow}>Simple estimate lines</span><h3>Add the repair lines, edit them if needed, then present the estimate</h3><p>Keep this stage simple. Add plain estimate lines like R &amp; R brake vacuum pump, repair and paint front bumper cover, sublet alignment, or teardown. The full labor guide is still available when staff needs deeper research.</p><div className={styles.simpleActions}>{directPath || vendorNeedsInternalCompletion ? <button className={styles.primaryAction} disabled={busy} onClick={() => void createFastApprovedRepairJob()} type="button">{busy ? "Creating completion job..." : vendorNeedsInternalCompletion ? "Create/open completion job" : "Create/open repair job"}</button> : null}<Link className={styles.primaryAction} href={laborGuideHref}>Open full Labor Guide</Link></div><label className={styles.laborGuideHelper}><span>Quick search for a common repair area</span><input placeholder="Example: brake vacuum pump, bumper, paint, teardown" value={laborGuideQuery} onChange={(event) => setLaborGuideQuery(event.target.value)} /></label>{quickEstimateOptions.length ? <div className={styles.estimateQuickPicks}>{quickEstimateOptions.map((option) => <button disabled={busy} key={option.key} onClick={() => applyLaborGuideOption(option)} type="button">{option.title}</button>)}</div> : null}</section> : null}
-              <FormGrid><Field label="Line key (required)"><input required value={estimate.lineKey} onChange={(event) => setEstimate((value) => ({ ...value, lineKey: event.target.value }))} /></Field><Field label="Type"><select value={estimate.lineType} onChange={(event) => setEstimate((value) => ({ ...value, lineType: event.target.value as EstimateDraft["lineType"] }))}>{["LABOR", "PART", "FEE"].map((value) => <option key={value}>{value}</option>)}</select></Field><Field label="Quantity"><input min="1" type="number" value={estimate.quantity} onChange={(event) => setEstimate((value) => ({ ...value, quantity: Number(event.target.value) || 1 }))} /></Field><Field label="Description (required)"><input placeholder="Example: R & R brake vacuum pump" required={!estimateLines.length} value={estimate.description} onChange={(event) => setEstimate((value) => ({ ...value, description: event.target.value }))} /></Field><Field label="Unit price (cents)"><input min="0" type="number" value={estimate.unitPriceCents} onChange={(event) => setEstimate((value) => ({ ...value, unitPriceCents: Number(event.target.value) }))} /></Field><Field label="Labor guide minutes"><input min="0" type="number" value={estimate.laborGuideMinutes} onChange={(event) => setEstimate((value) => ({ ...value, laborGuideMinutes: Number(event.target.value) }))} /></Field><Field label="What should be done (required)" wide><input placeholder="Example: Remove and replace failed brake vacuum pump, verify brake assist, and road test" required={!estimateLines.length} value={estimate.plannedCorrection} onChange={(event) => setEstimate((value) => ({ ...value, plannedCorrection: event.target.value }))} /></Field><Field label="Work type code"><input value={estimate.workTypeCode} onChange={(event) => setEstimate((value) => ({ ...value, workTypeCode: event.target.value }))} /></Field><Field label="Tax (cents)"><input min="0" type="number" value={estimate.taxCents} onChange={(event) => setEstimate((value) => ({ ...value, taxCents: Number(event.target.value) }))} /></Field><Field label="Discount (cents)"><input min="0" type="number" value={estimate.discountCents} onChange={(event) => setEstimate((value) => ({ ...value, discountCents: Number(event.target.value) }))} /></Field><Field label="Presented (required)"><input required type="datetime-local" value={estimate.presentedAt} onChange={(event) => setEstimate((value) => ({ ...value, presentedAt: event.target.value }))} /></Field><Field label="Expires (required)"><input min={estimate.presentedAt} required type="datetime-local" value={estimate.expiresAt} onChange={(event) => setEstimate((value) => ({ ...value, expiresAt: event.target.value }))} /></Field></FormGrid>
+              <section className={styles.estimateEntryCard} aria-label="Add work to estimate">
+                <header>
+                  <span>Add work to estimate</span>
+                  <h3>Describe the work, confirm time and price, then add the line.</h3>
+                </header>
+                <div className={styles.estimateEntryGrid}>
+                  <Field label="Work type">
+                    <select value={estimate.lineType} onChange={(event) => setEstimate((value) => ({ ...value, lineType: event.target.value as EstimateDraft["lineType"] }))}>{["LABOR", "PART", "FEE"].map((value) => <option key={value}>{format(value)}</option>)}</select>
+                  </Field>
+                  <Field label="Quantity">
+                    <input min="1" type="number" value={estimate.quantity} onChange={(event) => setEstimate((value) => ({ ...value, quantity: Number(event.target.value) || 1 }))} />
+                  </Field>
+                  <Field label="Labor time">
+                    <input min="0" type="number" value={estimate.laborGuideMinutes} onChange={(event) => setEstimate((value) => ({ ...value, laborGuideMinutes: Number(event.target.value) }))} />
+                  </Field>
+                  <Field label="Price">
+                    <input min="0" type="number" value={estimate.unitPriceCents} onChange={(event) => setEstimate((value) => ({ ...value, unitPriceCents: Number(event.target.value) }))} />
+                  </Field>
+                  <Field label="What is being added?" wide>
+                    <input placeholder="Example: R & R brake vacuum pump" required={!estimateLines.length} value={estimate.description} onChange={(event) => setEstimate((value) => ({ ...value, description: event.target.value }))} />
+                  </Field>
+                  <Field label="What should be done?" wide>
+                    <input placeholder="Example: Remove and replace failed brake vacuum pump, verify brake assist, and road test" required={!estimateLines.length} value={estimate.plannedCorrection} onChange={(event) => setEstimate((value) => ({ ...value, plannedCorrection: event.target.value }))} />
+                  </Field>
+                </div>
+                <details className={styles.advancedDetails}>
+                  <summary>Advanced defaults</summary>
+                  <FormGrid>
+                    <Field label="Line key"><input required value={estimate.lineKey} onChange={(event) => setEstimate((value) => ({ ...value, lineKey: event.target.value }))} /></Field>
+                    <Field label="Work type code"><input value={estimate.workTypeCode} onChange={(event) => setEstimate((value) => ({ ...value, workTypeCode: event.target.value }))} /></Field>
+                    <Field label="Tax (cents)"><input min="0" type="number" value={estimate.taxCents} onChange={(event) => setEstimate((value) => ({ ...value, taxCents: Number(event.target.value) }))} /></Field>
+                    <Field label="Discount (cents)"><input min="0" type="number" value={estimate.discountCents} onChange={(event) => setEstimate((value) => ({ ...value, discountCents: Number(event.target.value) }))} /></Field>
+                    <Field label="Presented"><input required type="datetime-local" value={estimate.presentedAt} onChange={(event) => setEstimate((value) => ({ ...value, presentedAt: event.target.value }))} /></Field>
+                    <Field label="Expires"><input min={estimate.presentedAt} required type="datetime-local" value={estimate.expiresAt} onChange={(event) => setEstimate((value) => ({ ...value, expiresAt: event.target.value }))} /></Field>
+                  </FormGrid>
+                </details>
+              </section>
               {!vendorPath ? <div className={styles.estimateLineActions}><button disabled={busy} onClick={saveEstimateLine} type="button">{estimateLines.some((line) => line.key === estimate.lineKey) ? "Update line" : "Add line to estimate"}</button><button disabled={busy} onClick={() => resetEstimateDraft()} type="button">Start a new line</button></div> : null}
               {!vendorPath && estimateLines.length ? <section className={styles.estimateLineList} aria-label="Estimate draft lines"><header><div><span>Estimate draft</span><h3>{estimateLines.length} line{estimateLines.length === 1 ? "" : "s"} ready for approval</h3></div></header>{estimateLines.map((line) => <article key={line.key}><div><strong>{line.key} · {line.description}</strong><p>{line.plannedCorrection}</p><small>{line.quantity} x {money(line.unitPriceCents)} · {format(line.workTypeCode)}</small></div><div className={styles.estimateLineActions}><button disabled={busy} onClick={() => editEstimateLine(line)} type="button">Edit</button><button disabled={busy} onClick={() => removeEstimateLine(line.key)} type="button">Remove</button></div></article>)}</section> : null}
               {displayNotice ? <div aria-live="polite" className={`${styles.notice} ${/required|cannot|invalid|not enabled|already exists|expiration|valid date/i.test(displayNotice) ? styles.danger : ""}`}>
@@ -1340,26 +1389,45 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
               </section>
             ) : (
               <>
-                <div className={styles.simpleCard} id="repair-planning-step-5-create-job" tabIndex={-1}>
-                  <span className={styles.simpleEyebrow}>Flexible repair release</span>
-                  <h3>Add as many approved repair lines as needed</h3>
-                  <p>Build the release list one line at a time. Staff can edit any line before creating the repair jobs. This stage should move the work forward into job creation, assignment, parts, repair completion, and Final QC.</p>
+                <div className={styles.repairReleaseNow} id="repair-planning-step-5-create-job" tabIndex={-1}>
+                  <header>
+                    <span>Next action</span>
+                    <h3>Create the repair job for the approved work</h3>
+                    <p>The customer or manager already approved this line. Confirm the job details below, then select Create repair job.</p>
+                  </header>
+                  <ol className={styles.quickSteps}>
+                    <li><strong>Approved</strong><span>{selectedReleaseLine ? `${selectedReleaseLine.description} · ${money(selectedReleaseLine.quantity * selectedReleaseLine.unitPriceCents)}` : "Choose the approved line."}</span></li>
+                    <li><strong>Repair job</strong><span>{job.description || "Confirm the job description."}</span></li>
+                    <li><strong>Parts</strong><span>{job.partsRequired ? "Parts must be ready before repair starts." : "No parts blocker selected."}</span></li>
+                    <li><strong>Move forward</strong><span>Create the job, then manage repair progress and Final QC.</span></li>
+                  </ol>
                 </div>
                 <form onSubmit={(event: FormEvent) => { event.preventDefault(); void createReleaseJobs(); }}>
-                  <FormGrid>
+                  <section className={styles.repairReleaseCard} aria-label="Repair job details">
+                    <header>
+                      <span>Repair job details</span>
+                      <h3>{job.description || "Approved repair line"}</h3>
+                    </header>
+                    <FormGrid>
+                      <Field label="Approved work"><select value={selectedAuthorizedLineKey} onChange={(event) => applyReleaseLineDefaults(event.target.value)}>{creatableAuthorizedLineKeys.map((value) => { const line = releaseLineByKey(value); return <option key={value} value={value}>{line?.description ?? value} · {line ? money(line.quantity * line.unitPriceCents) : ""}</option>; })}</select></Field>
+                      <Field label="Job description"><input placeholder="Example: Bodywork repair and paint front bumper cover" value={job.description} onChange={(event) => setJob((value) => ({ ...value, description: event.target.value }))} /></Field>
+                      <Field label="What should be done" wide><input placeholder="Example: Repair and paint front bumper cover" value={job.plannedCorrection} onChange={(event) => setJob((value) => ({ ...value, plannedCorrection: event.target.value }))} /></Field>
+                      <Field label="Labor time"><input min="0" type="number" value={job.laborGuideMinutes} onChange={(event) => setJob((value) => ({ ...value, laborGuideMinutes: Number(event.target.value) }))} /></Field>
+                      <label className={styles.check}><input checked={job.partsRequired} type="checkbox" onChange={(event) => setJob((value) => ({ ...value, partsRequired: event.target.checked }))} />This job needs parts before repair can continue</label>
+                      {job.partsRequired ? <fieldset className={styles.parts}><legend>Select part records only if they already exist</legend>{selected.partDemands.filter((item) => !item.repairJobId).map((item) => <label key={item.id}><input checked={job.partDemandIds.includes(item.id)} type="checkbox" onChange={(event) => setJob((value) => ({ ...value, partDemandIds: event.target.checked ? [...value.partDemandIds, item.id] : value.partDemandIds.filter((id) => id !== item.id) }))} />{item.part.partNumber} · {item.quantityReserved}/{item.quantityRequired} reserved</label>)}</fieldset> : null}
+                    </FormGrid>
+                    <details className={styles.advancedDetails}>
+                      <summary>Advanced release details</summary>
+                      <FormGrid>
                     <Field label="Approved decision"><select value={job.authorizationId || accepted?.id || ""} onChange={(event) => setJob((value) => ({ ...value, authorizationId: event.target.value }))}>{selected.estimateVersions.flatMap((item) => item.authorizations).filter((item) => ["ACCEPTED", "PARTIAL"].includes(item.disposition)).map((item) => <option key={item.id} value={item.id}>{format(item.disposition)} · {item.decisionActorName || "Approved decision"}</option>)}</select></Field>
-                    <Field label="Approved repair line"><select value={selectedAuthorizedLineKey} onChange={(event) => applyReleaseLineDefaults(event.target.value)}>{creatableAuthorizedLineKeys.map((value) => { const line = releaseLineByKey(value); return <option key={value} value={value}>{value} · {line?.description ?? "Approved labor line"} · {line ? money(line.quantity * line.unitPriceCents) : ""}</option>; })}</select></Field>
-                    <Field label="Job description"><input placeholder="Example: Bodywork repair and paint front bumper cover" value={job.description} onChange={(event) => setJob((value) => ({ ...value, description: event.target.value }))} /></Field>
-                    <Field label="What should be done"><input placeholder="Example: Repair and paint front bumper cover" value={job.plannedCorrection} onChange={(event) => setJob((value) => ({ ...value, plannedCorrection: event.target.value }))} /></Field>
                     <Field label="Work type code"><input value={job.workTypeCode} onChange={(event) => setJob((value) => ({ ...value, workTypeCode: event.target.value }))} /></Field>
-                    <Field label="Labor guide minutes"><input min="0" type="number" value={job.laborGuideMinutes} onChange={(event) => setJob((value) => ({ ...value, laborGuideMinutes: Number(event.target.value) }))} /></Field>
-                    <label className={styles.check}><input checked={job.partsRequired} type="checkbox" onChange={(event) => setJob((value) => ({ ...value, partsRequired: event.target.checked }))} />This job needs parts before repair can continue</label>
-                    {job.partsRequired ? <fieldset className={styles.parts}><legend>Select part records only if they already exist</legend>{selected.partDemands.filter((item) => !item.repairJobId).map((item) => <label key={item.id}><input checked={job.partDemandIds.includes(item.id)} type="checkbox" onChange={(event) => setJob((value) => ({ ...value, partDemandIds: event.target.checked ? [...value.partDemandIds, item.id] : value.partDemandIds.filter((id) => id !== item.id) }))} />{item.part.partNumber} · {item.quantityReserved}/{item.quantityRequired} reserved</label>)}</fieldset> : null}
-                  </FormGrid>
-                  {selectedReleaseLine ? <div className={styles.pathInfo}><strong>Approved line amount</strong><p>{selectedReleaseLine.description} is currently approved at {money(selectedReleaseLine.quantity * selectedReleaseLine.unitPriceCents)} on this release line. If that amount is wrong, update the estimate line first, then return here to continue the repair workflow.</p></div> : null}
+                      </FormGrid>
+                    </details>
+                  </section>
+                  {selectedReleaseLine ? <div className={styles.pathInfo}><strong>Approved amount</strong><p>{selectedReleaseLine.description} is approved at {money(selectedReleaseLine.quantity * selectedReleaseLine.unitPriceCents)}. If that amount is wrong, update the estimate line first.</p></div> : null}
                   <div className={styles.estimateLineActions}>
-                    <button disabled={busy || !creatableAuthorizedLineKeys.length} onClick={saveReleaseJobDraft} type="button">{releaseJobs.some((item) => item.authorizedLineKey === selectedAuthorizedLineKey) ? "Update release line" : "Add line to release"}</button>
-                    <button disabled={busy || !creatableAuthorizedLineKeys.length} onClick={() => applyReleaseLineDefaults(nextReleaseLineKey(releaseJobs.map((item) => item.authorizedLineKey)))} type="button">Start another line</button>
+                    <button disabled={busy || !creatableAuthorizedLineKeys.length} onClick={saveReleaseJobDraft} type="button">{releaseJobs.some((item) => item.authorizedLineKey === selectedAuthorizedLineKey) ? "Update selected job" : "Add another approved job"}</button>
+                    <button disabled={busy || !creatableAuthorizedLineKeys.length} onClick={() => applyReleaseLineDefaults(nextReleaseLineKey(releaseJobs.map((item) => item.authorizedLineKey)))} type="button">Choose another approved line</button>
                   </div>
                   {releaseJobs.length ? <section className={styles.estimateLineList} aria-label="Repair release lines"><header><div><span>Repair release list</span><h3>{releaseJobs.length} line{releaseJobs.length === 1 ? "" : "s"} ready to create</h3></div></header>{releaseJobs.map((draft) => { const line = releaseLineByKey(draft.authorizedLineKey); return <article key={draft.authorizedLineKey}><div><strong>{draft.authorizedLineKey} · {draft.description}</strong><p>{draft.plannedCorrection}</p><small>{line ? money(line.quantity * line.unitPriceCents) : ""} · {draft.workTypeCode}</small></div><div className={styles.estimateLineActions}><button disabled={busy} onClick={() => editReleaseJobDraft(draft)} type="button">Edit</button><button disabled={busy} onClick={() => removeReleaseJobDraft(draft.authorizedLineKey)} type="button">Remove</button></div></article>; })}</section> : null}
                   <Submit busy={busy}>{releaseJobs.length > 1 ? "Create repair jobs" : "Create repair job"}</Submit>
@@ -1371,8 +1439,8 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
           {hasRepairJob ? <section className={styles.repairResult} id="repair-result" tabIndex={-1}>
             <header>
               <span>Manage repair</span>
-              <h2>Repair Update</h2>
-              <p>Document repair progress, blockers, next steps, or the final result without losing the vehicle history.</p>
+              <h2>Tell the shop what happened</h2>
+              <p>Choose the repair status, write the update, then save it or send the vehicle to Final QC.</p>
             </header>
             {qcReady ? <div className={styles.qcReadyBanner}>
               <div>
@@ -1382,6 +1450,12 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
               <Link className={styles.qcReadyAction} href={qcHref}>Open QC workspace</Link>
             </div> : null}
             <form onSubmit={(event: FormEvent) => { event.preventDefault(); void submitRepairProgress(); }}>
+              <ol className={styles.quickSteps}>
+                <li><strong>Status</strong><span>Pick where the repair stands now.</span></li>
+                <li><strong>Update</strong><span>Write the plain-language result or blocker.</span></li>
+                <li><strong>Action</strong><span>Save progress or send completed work to QC.</span></li>
+                <li><strong>History</strong><span>The note stays on the repair record.</span></li>
+              </ol>
               <div className={styles.repairUpdateModeHint}>
                 <strong>Progress update</strong>
                 <span>Use this when the repair is still open, paused, waiting, or blocked.</span>
@@ -1398,7 +1472,7 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
               </div>
               {displayNotice ? <div aria-live="polite" className={`${styles.notice} ${/required|cannot|invalid|failed|error/i.test(displayNotice) ? styles.danger : ""}`}><p>{displayNotice}</p></div> : null}
               <div className={styles.progressActions}>
-                <small>Enter what happened, then choose one clear action.</small>
+                <small>{repairProgress.customerVisibleSummary.trim() ? "Choose one clear action." : "Enter what happened to unlock save and QC actions."}</small>
                 <div className={styles.progressPrimaryActions}>
                   {qcReady || qcReadyStatuses.has(repairProgress.statusCode) ? <Link className={styles.secondaryAction} href={qcHref}>Go to QC</Link> : null}
                   {!qcReady ? <button className={styles.completeQcAction} disabled={busy || !repairProgress.customerVisibleSummary.trim()} onClick={() => void submitRepairProgress("READY_FOR_QC")} type="button">{busy ? "Saving..." : "Repair complete — send to QC"}</button> : null}
@@ -1464,8 +1538,8 @@ export function ShopPlanningWorkspace({ initial, returnTo, vendorFollowUp = fals
 }
 
 function WorkflowStep({ children, complete, icon, number, open, subtitle, title, editing, editDisabled, onEdit, onCancel }: { children: ReactNode; complete: boolean; icon: ReactNode; number: number; open: boolean; subtitle: string; title: string; editing: boolean; editDisabled: boolean; onEdit: () => void; onCancel: () => void }) {
-  return <details className={styles.step} id={`repair-planning-step-${number}`} open={open || editing}><summary><span className={complete ? styles.done : ""}>{complete ? <Check /> : icon}</span><div><small>Stage {number}</small><h2>{title}</h2><p>{subtitle}</p></div><b>{editing ? "Editing draft" : complete ? "Complete" : open ? "Current" : "Pending"}</b><ChevronRight /></summary><div className={styles.stepBody}><div className={styles.estimateLineActions}><button type="button" disabled={editDisabled} onClick={editing ? onCancel : onEdit}>{editing ? "Cancel edits" : "Edit draft / add update"}</button><small>{editing ? "Edit the form below, then use its save action. Cancel restores the draft from before editing." : "Recorded history is preserved. New updates use the existing approval and workflow checks."}</small></div>{children}</div></details>;
+  return <details className={styles.step} id={`repair-planning-step-${number}`} open={open || editing}><summary><span className={complete ? styles.done : ""}>{complete ? <Check /> : icon}</span><div><small>Stage {number}</small><h2>{title}</h2><p>{subtitle}</p></div><b>{editing ? "Editing draft" : complete ? "Complete" : open ? "Current" : "Pending"}</b><ChevronRight /></summary><div className={styles.stepBody}><div className={styles.estimateLineActions}><button type="button" disabled={editDisabled} onClick={editing ? onCancel : onEdit}>{editing ? "Cancel edits" : "Update this stage"}</button><small>{editing ? "Edit the form below, then use its save action. Cancel restores the draft from before editing." : "History stays saved automatically. Use the existing approval checks when the scope changes."}</small></div>{children}</div></details>;
 }
 function FormGrid({ children }: { children: ReactNode }) { return <div className={styles.formGrid}>{children}</div>; }
 function Field({ children, label, wide = false }: { children: ReactNode; label: string; wide?: boolean }) { return <label className={wide ? styles.wide : ""}><span>{label}</span>{children}</label>; }
-function Submit({ busy, children, disabled = false }: { busy: boolean; children: ReactNode; disabled?: boolean }) { return <footer className={styles.submit}><span><LockKeyhole />Creates a new immutable version and audit event.</span><button disabled={busy || disabled} type="submit">{busy ? "Saving governed version..." : children}</button></footer>; }
+function Submit({ busy, children, disabled = false }: { busy: boolean; children: ReactNode; disabled?: boolean }) { return <footer className={styles.submit}><span><LockKeyhole />Saved history and approval checks stay protected.</span><button disabled={busy || disabled} type="submit">{busy ? "Saving..." : children}</button></footer>; }

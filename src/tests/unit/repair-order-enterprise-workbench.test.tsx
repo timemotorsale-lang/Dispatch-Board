@@ -143,6 +143,9 @@ describe("enterprise repair-order workbench", () => {
 
     expect(html).toContain("Repair Order Workbench");
     expect(html).toContain("RO-20481");
+    expect(html).toContain("Today&#x27;s RO action");
+    expect(html).toContain("Simple daily path");
+    expect(html).toContain("Full RO details and evidence tools");
     expect(html).toContain("Authoritative Repair Order");
     expect(html).not.toContain("Vehicle summary card");
     expect(html).toContain("Location / workflow correction");

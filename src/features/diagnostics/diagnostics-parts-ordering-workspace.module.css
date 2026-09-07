@@ -127,6 +127,66 @@
   text-overflow: ellipsis;
 }
 
+.nextActionPanel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 16px;
+  border: 1px solid #b8dec5;
+  border-radius: 16px;
+  background: #f5fcf7;
+  box-shadow: 0 12px 28px rgba(18, 38, 79, 0.08);
+}
+
+.nextActionPanel span {
+  color: #237044;
+  font-size: .72rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.nextActionPanel h2,
+.nextActionPanel p {
+  margin: 0;
+}
+
+.nextActionPanel h2 {
+  margin-top: 3px;
+  color: #07142b;
+  font-size: 1.08rem;
+}
+
+.nextActionPanel p {
+  margin-top: 4px;
+  color: #4d607b;
+  font-size: .86rem;
+  line-height: 1.35;
+}
+
+.nextActionPanel button {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid #237044;
+  border-radius: 12px;
+  background: #237044;
+  color: #fff;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.notice {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #bfd0f5;
+  border-radius: 12px;
+  background: #f7faff;
+  color: #244a8a;
+  font-weight: 800;
+}
+
 .kpis {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -509,8 +569,13 @@
 
   .quickVendorBar,
   .addVendorCard,
-  .addVendorControls {
+  .addVendorControls,
+  .nextActionPanel {
     grid-template-columns: 1fr;
+  }
+
+  .nextActionPanel button {
+    justify-self: stretch;
   }
 
   .ledgerHead,

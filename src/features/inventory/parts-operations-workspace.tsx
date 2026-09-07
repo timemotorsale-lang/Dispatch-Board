@@ -11,12 +11,15 @@ import {
   ClipboardCheck,
   Clock3,
   Download,
+  Edit3,
   PackageCheck,
   PackageOpen,
+  Plus,
   RefreshCw,
   ShieldCheck,
   ShoppingCart,
   Truck,
+  Trash2,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -177,6 +180,10 @@ function ageLabel(value: string, now: number) {
   return hours < 24 ? `${hours}h` : `${Math.floor(hours / 24)}d`;
 }
 
+function formatStatus(value: string) {
+  return value.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 const localTabs = [
   ["Overview", "overview"],
   ["Demand", "demand"],
@@ -191,6 +198,7 @@ const localTabs = [
 
 type PartsView = (typeof localTabs)[number][1];
 const validViews = new Set<PartsView>(localTabs.map(([, view]) => view));
+type NeededPartDraft = { description: string; partNumber: string; quantity: string };
 
 function partsHref(view: PartsView, repairOrderId?: string, returnTo?: string, returnLabel?: string) {
   const params = new URLSearchParams();
@@ -202,6 +210,17 @@ function partsHref(view: PartsView, repairOrderId?: string, returnTo?: string, r
   return query ? `/vehicles/parts-operations?${query}` : "/vehicles/parts-operations";
 }
 
+function encodeOrderingParts(parts: Array<{ id: string; partNumber: string; description: string; quantity: number }>) {
+  return JSON.stringify(parts.map((part) => ({
+    id: part.id,
+    name: part.description,
+    number: part.partNumber,
+    quantity: part.quantity,
+    sourceLabel: "RO needed part",
+    totalLabel: "Quote needed",
+  })));
+}
+
 export function PartsOperationsWorkspace({ initial, initialRepairOrderId, initialView, returnLabel, returnTo, showAdvisorReturn = false, showPartsReturn = false, showWorkspaceReturn = false }: { initial: Model; initialRepairOrderId?: string; initialView?: string; returnLabel?: string; returnTo?: string; showAdvisorReturn?: boolean; showPartsReturn?: boolean; showWorkspaceReturn?: boolean }) {
   const currentView: PartsView = validViews.has(initialView as PartsView) ? initialView as PartsView : "overview";
   const [renderedAt] = useState(() => Date.now());
@@ -209,6 +228,10 @@ export function PartsOperationsWorkspace({ initial, initialRepairOrderId, initia
   const [workType, setWorkType] = useState("ALL");
   const [queueView, setQueueView] = useState<"MY" | "TEAM" | "EXCEPTIONS">("MY");
   const [approvalView, setApprovalView] = useState<"REVIEWS" | "APPROVALS">("REVIEWS");
+  const [notice, setNotice] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [editNeededParts, setEditNeededParts] = useState(false);
+  const [neededPartDraft, setNeededPartDraft] = useState<NeededPartDraft>({ description: "", partNumber: "", quantity: "1" });
 
   const balances = initial.waveOne.parts.flatMap((part) => part.balances);
   const balanceTotals = balances.reduce(
@@ -240,7 +263,155 @@ export function PartsOperationsWorkspace({ initial, initialRepairOrderId, initia
     const vehicle = repairOrdersByNumber.get(repairOrderNumber)?.vehicle;
     return vehicle ? `${vehicle.year} ${vehicle.make} ${vehicle.model} · ${vehicle.vehicleNumber}` : "—";
   };
+  const selectedRepairOrder = initialRepairOrderId ? initial.ledger.repairOrders.find((order) => order.id === initialRepairOrderId) : null;
+  const selectedRepairOrderNumber = selectedRepairOrder?.repairOrderNumber;
+  const selectedRoDemands = selectedRepairOrderNumber ? initial.service.demands.filter((demand) => demand.repairOrder.repairOrderNumber === selectedRepairOrderNumber) : [];
+  const groupedDemandMap = new Map<string, {
+    demandIds: string[];
+    description: string;
+    partNumber: string;
+    quantityRequired: number;
+    quantityReserved: number;
+    requiredAt: string;
+    status: string;
+  }>();
+  for (const demand of selectedRoDemands) {
+    const key = demand.part.partNumber;
+    const current = groupedDemandMap.get(key);
+    if (!current) {
+      groupedDemandMap.set(key, {
+        demandIds: [demand.id],
+        description: demand.part.description,
+        partNumber: demand.part.partNumber,
+        quantityRequired: demand.quantityRequired,
+        quantityReserved: demand.quantityReserved,
+        requiredAt: demand.requiredAt,
+        status: demand.status,
+      });
+      continue;
+    }
+    current.demandIds.push(demand.id);
+    current.quantityRequired = Math.max(current.quantityRequired, demand.quantityRequired);
+    current.quantityReserved = Math.max(current.quantityReserved, demand.quantityReserved);
+    if (new Date(demand.requiredAt).getTime() < new Date(current.requiredAt).getTime()) current.requiredAt = demand.requiredAt;
+    if (demand.status !== "RESERVED") current.status = demand.status;
+  }
+  const groupedRoDemands = Array.from(groupedDemandMap.values());
+  const duplicateDemandCount = selectedRoDemands.length - groupedRoDemands.length;
+  const groupedOrderingHref = groupedRoDemands.length ? `/diagnostics/parts-ordering?${new URLSearchParams({
+    parts: encodeOrderingParts(groupedRoDemands.map((demand) => ({ id: demand.demandIds[0] ?? demand.partNumber, partNumber: demand.partNumber, description: demand.description, quantity: Math.max(1, demand.quantityRequired - demand.quantityReserved) }))),
+    ...(selectedRepairOrder ? { repairOrderId: selectedRepairOrder.id, repairOrderNumber: selectedRepairOrder.repairOrderNumber, vehicle: vehicleFor(selectedRepairOrder.repairOrderNumber) } : {}),
+    returnLabel: "Return to Parts Operations",
+    returnTo: partsHref("demand", initialRepairOrderId, returnTo, returnLabel),
+  }).toString()}` : "";
+  const repeatedDemandIds = groupedRoDemands.flatMap((demand) => demand.demandIds.slice(1));
   const queueDefaults = { availability: "—", owner: "—", reservation: "—", vehicle: "—", vendorEta: "—" };
+
+  async function cancelRepeatedDemandRecords() {
+    if (!selectedRepairOrder || !repeatedDemandIds.length) return;
+    setBusy(true);
+    setNotice("");
+    try {
+      for (const demandId of repeatedDemandIds) {
+        const response = await fetch(`/api/repair-orders/${encodeURIComponent(selectedRepairOrder.id)}/parts/${encodeURIComponent(demandId)}`, {
+          method: "DELETE",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ idempotencyKey: crypto.randomUUID(), reason: "Cancel repeated part demand created during estimate workflow cleanup." }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || "Repeated demand could not be cancelled.");
+      }
+      setNotice(`Cancelled ${repeatedDemandIds.length} repeated demand record${repeatedDemandIds.length === 1 ? "" : "s"}. Refreshing parts operations.`);
+      window.location.reload();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Repeated demand could not be cancelled.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function cancelDemandRecords(demandIds: string[], message: string) {
+    if (!selectedRepairOrder || !demandIds.length) return;
+    setBusy(true);
+    setNotice("");
+    try {
+      for (const demandId of demandIds) {
+        const response = await fetch(`/api/repair-orders/${encodeURIComponent(selectedRepairOrder.id)}/parts/${encodeURIComponent(demandId)}`, {
+          method: "DELETE",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ idempotencyKey: crypto.randomUUID(), reason: message }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || "Needed part could not be removed.");
+      }
+      setNotice(`Removed ${demandIds.length} needed part record${demandIds.length === 1 ? "" : "s"}. Refreshing parts operations.`);
+      window.location.reload();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Needed part could not be removed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function addNeededPart() {
+    if (!selectedRepairOrder) return;
+    const partNumber = neededPartDraft.partNumber.trim().toUpperCase();
+    const description = neededPartDraft.description.trim();
+    const quantity = Number(neededPartDraft.quantity);
+    if (!partNumber || !description || !Number.isInteger(quantity) || quantity <= 0) {
+      setNotice("Enter a part number, description, and positive whole quantity before adding a needed part.");
+      return;
+    }
+    setBusy(true);
+    setNotice("");
+    try {
+      const partLookup = await fetch(`/api/parts?query=${encodeURIComponent(partNumber)}`, { cache: "no-store" });
+      const lookupBody = await partLookup.json().catch(() => ({}));
+      if (!partLookup.ok) throw new Error(lookupBody.error || "Part lookup failed.");
+      let partId = (lookupBody.parts as Array<{ id: string; partNumber: string }> | undefined)?.find((part) => part.partNumber.toUpperCase() === partNumber)?.id;
+      if (!partId) {
+        const created = await fetch("/api/parts", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            description,
+            idempotencyKey: crypto.randomUUID(),
+            partNumber,
+            reason: "Create manual part while editing the repair order needed-parts list.",
+            standardCostCents: 0,
+            unitOfMeasure: "EACH",
+          }),
+        });
+        const createdBody = await created.json().catch(() => ({}));
+        if (!created.ok) throw new Error(createdBody.error || "Manual part could not be created.");
+        partId = createdBody.result?.id;
+      }
+      if (!partId) throw new Error("Part could not be resolved.");
+      const demand = await fetch(`/api/repair-orders/${encodeURIComponent(selectedRepairOrder.id)}/parts`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          idempotencyKey: crypto.randomUUID(),
+          notes: `Needed part added from Parts Operations: ${description}.`,
+          partId,
+          quantityRequired: quantity,
+          reason: "Add needed part from Parts Operations edit mode.",
+          repairJobReference: null,
+          requiredAt: new Date(Date.now() + 24 * 3_600_000).toISOString(),
+          substitutionAllowed: true,
+        }),
+      });
+      const demandBody = await demand.json().catch(() => ({}));
+      if (!demand.ok) throw new Error(demandBody.error || "Needed part could not be added.");
+      setNotice(`Added ${description}. Refreshing parts operations.`);
+      setNeededPartDraft({ description: "", partNumber: "", quantity: "1" });
+      window.location.reload();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Needed part could not be added.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const queue: QueueRow[] = (() => {
     const demandRows = initial.service.demands.slice(0, 4).map((demand) => ({
@@ -432,6 +603,38 @@ export function PartsOperationsWorkspace({ initial, initialRepairOrderId, initia
         <label><span>Owner</span><select disabled><option>All permitted owners</option></select></label>
         <label><span>Date Range</span><select disabled><option>{dateLabel(initial.generatedAt)}</option></select></label>
       </section>
+
+      {selectedRepairOrder ? <section className="parts-ro-action-panel" aria-label="Selected repair order parts action">
+        <div>
+          <span>Do this next</span>
+          <h2>Review the actual needed parts for {selectedRepairOrder.repairOrderNumber}</h2>
+          <p>{duplicateDemandCount > 0 ? `${duplicateDemandCount} repeated demand record${duplicateDemandCount === 1 ? "" : "s"} detected. The ordering worksheet will use the unique needed parts below so staff can order deliberately.` : "No repeated demand records detected for this repair order."}</p>
+          {notice ? <p className="parts-ro-notice" role="status">{notice}</p> : null}
+        </div>
+        <div className="parts-ro-demand-list">
+          {groupedRoDemands.length ? groupedRoDemands.map((demand) => <article key={demand.partNumber}>
+            <span>
+              <strong>{demand.description}</strong>
+              <small>{demand.partNumber} - {demand.quantityReserved}/{demand.quantityRequired} reserved</small>
+              {demand.demandIds.length > 1 ? <small>{demand.demandIds.length} repeated demand records grouped</small> : <small>{formatStatus(demand.status)} - needed {dateLabel(demand.requiredAt)}</small>}
+            </span>
+            {editNeededParts ? <button disabled={busy || demand.quantityReserved > 0} onClick={() => void cancelDemandRecords(demand.demandIds, "Remove unneeded part demand from Parts Operations edit mode.")} type="button"><Trash2 size={14} />Remove</button> : null}
+          </article>) : <p>No open needed parts are recorded for this repair order.</p>}
+          {editNeededParts ? <section className="parts-ro-add-needed" aria-label="Add needed part">
+            <label><span>Part #</span><input onChange={(event) => setNeededPartDraft((draft) => ({ ...draft, partNumber: event.target.value }))} placeholder="Example: DOOR-GLASS-LH" value={neededPartDraft.partNumber} /></label>
+            <label><span>Description</span><input onChange={(event) => setNeededPartDraft((draft) => ({ ...draft, description: event.target.value }))} placeholder="Example: Left rear door glass" value={neededPartDraft.description} /></label>
+            <label><span>Qty</span><input inputMode="numeric" min="1" onChange={(event) => setNeededPartDraft((draft) => ({ ...draft, quantity: event.target.value }))} type="number" value={neededPartDraft.quantity} /></label>
+            <button disabled={busy} onClick={() => void addNeededPart()} type="button"><Plus size={14} />Add needed part</button>
+          </section> : null}
+        </div>
+        <div className="parts-ro-actions">
+          <button className="parts-ro-edit-button" disabled={busy} onClick={() => setEditNeededParts((value) => !value)} type="button"><Edit3 size={14} />{editNeededParts ? "Done editing" : "Edit needed parts"}</button>
+          {groupedOrderingHref ? <Link className="parts-action-primary" href={groupedOrderingHref}>Order reviewed needed parts</Link> : null}
+          {repeatedDemandIds.length ? <button disabled={busy} onClick={() => void cancelRepeatedDemandRecords()} type="button">{busy ? "Cancelling..." : "Cancel repeated records"}</button> : null}
+          <Link href={partsHref("demand", initialRepairOrderId, returnTo, returnLabel)}>Review demand records</Link>
+          {returnTo ? <Link href={returnTo}>{returnLabel ?? "Return to source workspace"}</Link> : null}
+        </div>
+      </section> : null}
 
       <section aria-label="Parts Operations KPIs" className="parts-operations-kpis">
         {kpiCards.map(({ href, icon: Icon, label, tone, value }) => (
