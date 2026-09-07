@@ -27,6 +27,7 @@
 | GROWTH-110 | Campaign ledger and version history | In progress | GROWTH-100 | Campaign plans, snapshots, messages, approvals, and launch locks preserve versions and audit events. |
 | GROWTH-120 | Enterprise approval and permission gates | In progress | GROWTH-110 | Role, budget, offer, channel, and provider gates fail closed with exact next approval. |
 | GROWTH-130 | Results and attribution foundation | In progress | GROWTH-120 | Result events normalize into direct, assisted, influenced, and unattributed summaries without CRM mutation. |
+| GROWTH-140 | Operator UI simplification | In progress | GROWTH-130 | Landing page shows Today, Campaigns, Needs Attention, Results, and Review Controls without exposing backend machinery. |
 
 ## GROWTH-001 Acceptance Criteria
 

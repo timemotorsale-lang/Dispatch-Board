@@ -20,6 +20,7 @@
 | Campaign history is preserved | Campaign Plan and future ledger review panels | Campaign Creation, Approval Workflow | Version Preservation, Audit, Idempotency | GROWTH-110 | `src/server/growth/campaign-ledger.ts`, campaign ledger tests |
 | Approval gaps point to one next action | Launch Readiness and future manager review panels | Approval Workflow, Exception Workflows | Role, Budget, Offer, Provider Gates | GROWTH-120 | `src/server/growth/approval-gates.ts`, approval gate tests |
 | Results are attributed without overclaiming | Results and future reporting panels | Results Workflow | Attribution Window, Proof Events, Context Metrics | GROWTH-130 | `src/server/growth/results-attribution.ts`, results attribution tests |
+| Landing page stays simple for staff | Today, Campaigns, Needs Attention, Results, Review Controls | Daily Growth Home | Backend Logic Hidden Behind Next Actions | GROWTH-140 | `src/features/growth/growth-console-foundation.tsx`, render tests |
 
 ## Evidence Rule
 

@@ -251,3 +251,18 @@ Scope:
 Exit:
 
 - Growth can explain campaign outcomes without writing CRM results until mutation controls are approved.
+
+## Phase G14 - Operator UI Simplification
+
+Goal: keep the Growth Console landing page focused on daily execution instead of exposing backend machinery.
+
+Scope:
+
+- simple Today, Campaigns, Needs Attention, Results, and Review Controls sections;
+- visible next actions for every primary row;
+- backend algorithm details moved behind concise status summaries;
+- live send, ad spend, CRM mutation, and automation locks preserved.
+
+Exit:
+
+- staff can start work from the landing page without guessing what to click first.
