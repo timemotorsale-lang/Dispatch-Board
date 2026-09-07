@@ -68,6 +68,7 @@ export function ingestGrowthAdvertisingPerformance(events: GrowthAdvertisingPerf
 export function buildGrowthAdvertisingReviewModel() {
   return {
     budget: "$750 requested",
+    canActivatePaidSpend: false,
     checks: [
       { label: "Budget approved", nextAction: "Request GM budget approval", passed: false },
       { label: "Inventory available", nextAction: "Confirm vehicle list", passed: true },
@@ -75,6 +76,7 @@ export function buildGrowthAdvertisingReviewModel() {
       { label: "Provider account connected", nextAction: "Connect approved ad provider", passed: false },
       { label: "Live spend approved", nextAction: "Keep in review mode", passed: false }
     ],
+    nextAction: "Keep in review mode",
     performance: { clicks: 0, costCents: 0, impressions: 0 },
     state: "Live spend not approved",
     summary: "Paid advertising setup can be reviewed, but no budget can be spent until provider, inventory, creative, and owner approvals are complete."
