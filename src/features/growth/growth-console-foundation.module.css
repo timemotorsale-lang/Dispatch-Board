@@ -117,7 +117,8 @@
 .smallButton,
 .smallLink,
 .workspaceCard a,
-.cardActions a {
+.cardActions a,
+.panelActions a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -147,7 +148,8 @@
 .smallButton,
 .smallLink,
 .workspaceCard a,
-.cardActions a {
+.cardActions a,
+.panelActions a {
   border: 1px solid var(--border-strong);
   color: var(--text);
   background: var(--surface);
@@ -182,6 +184,8 @@
 .workspaceCard a:focus-visible,
 .cardActions a:hover,
 .cardActions a:focus-visible,
+.panelActions a:hover,
+.panelActions a:focus-visible,
 .tabs a:hover,
 .tabs a:focus-visible {
   border-color: var(--blue);
@@ -216,7 +220,7 @@
   margin-top: 14px;
 }
 
-.pathPanel article {
+.pathPanel a {
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr);
   gap: 10px;
@@ -224,10 +228,18 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 12px;
+  color: var(--text);
   background: var(--surface);
+  text-decoration: none;
 }
 
-.pathPanel article span {
+.pathPanel a:hover,
+.pathPanel a:focus-visible {
+  border-color: var(--blue);
+  outline: 3px solid rgb(40 91 212 / 13%);
+}
+
+.pathPanel a span {
   display: grid;
   width: 34px;
   height: 34px;
@@ -358,6 +370,13 @@
   font-size: 13px;
 }
 
+.panel,
+.workspaceCard,
+.crmPanel,
+.mainGrid {
+  scroll-margin-top: 92px;
+}
+
 .queueCard > div:first-child > p + p {
   max-width: 620px;
   color: #44546c;
@@ -467,6 +486,16 @@
   margin: 0;
   padding: 0 14px 14px;
   font-size: 13px;
+}
+
+.panelActions {
+  display: grid;
+  gap: 8px;
+  padding: 0 14px 14px;
+}
+
+.panelActions a {
+  width: 100%;
 }
 
 .workspaceGrid {
@@ -886,6 +915,7 @@
   }
 
   .cardActions a,
+  .panelActions a,
   .workspaceCard a,
   .secondaryButton {
     width: 100%;

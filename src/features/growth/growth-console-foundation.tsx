@@ -68,11 +68,26 @@ const automations: Automation[] = [
 ];
 
 const pathSteps = [
-  ["1", "Find opportunity", "Ranked by value, urgency, readiness, and risk."],
-  ["2", "Review audience", "See included, excluded, suppressed, and cleanup records."],
-  ["3", "Approve message or ad", "Confirm offer, claim, budget, timing, and owner."],
-  ["4", "Schedule launch", "Live activation waits for approved backend controls."],
-  ["5", "Track results", "Write outcomes back to CRM and assign follow-up."]
+  { detail: "Ranked by value, urgency, readiness, and risk.", href: "#growth-home", number: "1", title: "Find opportunity" },
+  { detail: "See included, excluded, suppressed, and cleanup records.", href: "#audiences", number: "2", title: "Review audience" },
+  { detail: "Confirm offer, claim, budget, timing, and owner.", href: "#campaign-plan", number: "3", title: "Approve message or ad" },
+  { detail: "Live activation waits for approved backend controls.", href: "#approval", number: "4", title: "Schedule launch" },
+  { detail: "Write outcomes back to CRM and assign follow-up.", href: "#results", number: "5", title: "Track results" }
+] as const;
+
+const workspaceTabs = [
+  { href: "#growth-home", label: "Growth Home" },
+  { href: "#marketing-workspace", label: "Marketing" },
+  { href: "#advertising-workspace", label: "Advertising" },
+  { href: "#audiences", label: "Audiences" },
+  { href: "#campaign-plan", label: "Campaign Plan" },
+  { href: "#approval", label: "Launch Readiness" },
+  { href: "#automations", label: "Automations" },
+  { href: "#provider-pilot", label: "Provider Pilot" },
+  { href: "#paid-advertising", label: "Paid Ads" },
+  { href: "#optimization", label: "Optimization" },
+  { href: "#adoption-review", label: "Adoption Review" },
+  { href: "#crm-writeback", label: "CRM Writeback" }
 ] as const;
 
 function readinessClass(readiness: GrowthReadiness) {
@@ -115,27 +130,27 @@ export function GrowthConsoleFoundation() {
         <div className={styles.headerActions}>
           <Link className={styles.secondaryButton} href="/crm">Open CRM</Link>
           <Link className={styles.secondaryButton} href="/sales">Open Sales</Link>
-          <button className={styles.primaryButton} type="button" disabled title="Backend launch controls are not implemented yet">
-            <PauseCircle size={16} aria-hidden="true" /> Launch disabled
-          </button>
+          <a className={styles.primaryButton} href="#adoption-review" title="Review why live launch is locked">
+            <PauseCircle size={16} aria-hidden="true" /> Review launch lock
+          </a>
         </div>
       </header>
 
       <nav className={styles.tabs} aria-label="Growth workspaces">
-        {["Growth Home", "Marketing Workspace", "Advertising Workspace", "Audiences", "Message Studio", "Automations", "Results"].map((item) => (
-          <a href={`#${item.toLowerCase().replaceAll(" ", "-")}`} key={item}>{item}</a>
+        {workspaceTabs.map((item) => (
+          <a href={item.href} key={item.href}>{item.label}</a>
         ))}
       </nav>
 
       <section className={styles.pathPanel} aria-label="Growth execution path">
-        {pathSteps.map(([number, title, detail]) => (
-          <article key={title}>
+        {pathSteps.map(({ detail, href, number, title }) => (
+          <a href={href} key={title}>
             <span>{number}</span>
             <div>
               <strong>{title}</strong>
               <p>{detail}</p>
             </div>
-          </article>
+          </a>
         ))}
       </section>
 
@@ -195,6 +210,11 @@ export function GrowthConsoleFoundation() {
             <div><PauseCircle size={17} /><span>Live launch</span><strong>Unavailable</strong></div>
           </div>
           <p className={styles.guardrail}>G1 is read-only. It prepares the work and makes the next review step clear without changing CRM, customer, inventory, quote, invoice, appointment, task, or repair records.</p>
+          <div className={styles.panelActions}>
+            <a href="#audiences">Review audience <ArrowRight size={15} aria-hidden="true" /></a>
+            <a href="#campaign-plan">Open campaign plan <ArrowRight size={15} aria-hidden="true" /></a>
+            <a href="#approval">Check launch readiness <ArrowRight size={15} aria-hidden="true" /></a>
+          </div>
         </aside>
       </div>
 
@@ -465,7 +485,7 @@ export function GrowthConsoleFoundation() {
         </div>
       </section>
 
-      <section className={styles.crmPanel} aria-label="CRM writeback plan">
+      <section className={styles.crmPanel} id="crm-writeback" aria-label="CRM writeback plan">
         <Sparkles size={22} aria-hidden="true" />
         <div>
           <span className={styles.sectionLabel}>CRM connection</span>
