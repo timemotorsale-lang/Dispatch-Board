@@ -535,6 +535,57 @@
   padding: 12px;
 }
 
+.planGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px;
+}
+
+.planGrid article {
+  display: grid;
+  gap: 7px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--surface-soft);
+}
+
+.planGrid span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.planGrid strong {
+  font-size: 15px;
+}
+
+.planGrid p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.versionStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  border-top: 1px solid var(--border);
+  padding: 12px;
+}
+
+.versionStrip span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 9px;
+  color: #365070;
+  background: #f2f6fb;
+  font-size: 12px;
+  font-weight: 850;
+}
+
 .resultsGrid article {
   display: grid;
   grid-template-columns: 24px minmax(0, .55fr);
@@ -632,6 +683,7 @@
   .pathPanel,
   .metricsGrid,
   .workspaceGrid,
+  .planGrid,
   .automationGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -671,6 +723,7 @@
   .pathPanel,
   .metricsGrid,
   .workspaceGrid,
+  .planGrid,
   .automationGrid {
     grid-template-columns: 1fr;
   }

@@ -35,6 +35,8 @@ describe("Growth Console foundation", () => {
     expect(markup).toContain("Automation Library");
     expect(markup).toContain("Launch disabled");
     expect(markup).toContain("G1 is read-only");
+    expect(markup).toContain("Prepared plan waiting for approval");
+    expect(markup).toContain("Prior versions are preserved");
   });
 
   it("builds a source-labeled read model without mutation commands", () => {

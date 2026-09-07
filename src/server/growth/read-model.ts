@@ -201,3 +201,25 @@ export function buildGrowthConsoleReadModel(now = new Date("2026-09-07T12:00:00-
     sourceMode: "Read-only source snapshot"
   };
 }
+
+export function buildGrowthCampaignPlanReviewModel(now = new Date("2026-09-07T12:30:00-05:00")) {
+  const model = buildGrowthConsoleReadModel(now);
+  const opportunity = model.opportunities[0];
+
+  return {
+    audienceSnapshotVersion: 1,
+    budget: "$0 internal task budget",
+    channel: "Email",
+    messageDraftVersion: 1,
+    objective: "Recover unsold estimates and quotes without sending anything live.",
+    opportunity,
+    planStatus: "Approval requested",
+    version: 4,
+    versionHistory: [
+      "Campaign plan created",
+      "Audience snapshot saved",
+      "Message draft edited",
+      "Approval requested"
+    ]
+  };
+}

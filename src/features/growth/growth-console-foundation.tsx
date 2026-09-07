@@ -18,7 +18,7 @@ import {
   UsersRound
 } from "lucide-react";
 
-import { buildGrowthConsoleReadModel, type GrowthReadiness } from "@/server/growth/read-model";
+import { buildGrowthCampaignPlanReviewModel, buildGrowthConsoleReadModel, type GrowthReadiness } from "@/server/growth/read-model";
 
 import styles from "./growth-console-foundation.module.css";
 
@@ -83,6 +83,7 @@ function automationClass(state: Automation["state"]) {
 
 export function GrowthConsoleFoundation() {
   const model = buildGrowthConsoleReadModel();
+  const campaignPlan = buildGrowthCampaignPlanReviewModel();
   const selectedOpportunity = model.opportunities[0];
   const sourceHealthText = model.sourceHealth.map((source) => `${source.label}: ${source.state}`).join(" | ");
 
@@ -207,6 +208,41 @@ export function GrowthConsoleFoundation() {
           <p>Plain-language offer, call to action, disclosure check, owner assignment, and reply handling.</p>
           <a href="#audiences">Review audience first</a>
         </article>
+      </section>
+
+      <section className={styles.panel} id="campaign-plan">
+        <div className={styles.panelHeader}>
+          <div>
+            <span className={styles.sectionLabel}>Campaign Plan</span>
+            <h2>Prepared plan waiting for approval</h2>
+          </div>
+          <span className={styles.statusNote}>Version {campaignPlan.version} | {campaignPlan.planStatus}</span>
+        </div>
+        <div className={styles.planGrid}>
+          <article>
+            <span>Opportunity</span>
+            <strong>{campaignPlan.opportunity.title}</strong>
+            <p>{campaignPlan.objective}</p>
+          </article>
+          <article>
+            <span>Channel</span>
+            <strong>{campaignPlan.channel}</strong>
+            <p>{campaignPlan.budget}</p>
+          </article>
+          <article>
+            <span>Saved versions</span>
+            <strong>Audience v{campaignPlan.audienceSnapshotVersion} | Message v{campaignPlan.messageDraftVersion}</strong>
+            <p>Prior versions are preserved for review and rollback.</p>
+          </article>
+          <article>
+            <span>Next action</span>
+            <strong>Manager approval</strong>
+            <p>Approval request is saved; live sending still waits for policy and provider controls.</p>
+          </article>
+        </div>
+        <div className={styles.versionStrip}>
+          {campaignPlan.versionHistory.map((item, index) => <span key={item}>{index + 1}. {item}</span>)}
+        </div>
       </section>
 
       <div className={styles.twoColumn}>
