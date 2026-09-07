@@ -37,6 +37,9 @@ describe("Growth Console foundation", () => {
     expect(markup).toContain("G1 is read-only");
     expect(markup).toContain("Open campaign plan");
     expect(markup).toContain("Check launch readiness");
+    expect(markup).toContain("Workflow Engine");
+    expect(markup).toContain("Algorithms, workflow, automation, and attribution are connected");
+    expect(markup).toContain("Opportunity ranking");
     expect(markup).toContain("Prepared plan waiting for approval");
     expect(markup).toContain("Prior versions are preserved");
     expect(markup).toContain("Blocked safely until policy clears");
@@ -67,6 +70,7 @@ describe("Growth Console foundation", () => {
       "#advertising-workspace",
       "#audiences",
       "#campaign-plan",
+      "#workflow-engine",
       "#approval",
       "#automations",
       "#provider-pilot",

@@ -21,6 +21,7 @@ import {
 import { buildGrowthAdvertisingReviewModel } from "@/server/growth/advertising-activation";
 import { buildGrowthAutomationActivationReviewModel } from "@/server/growth/automation-activation";
 import { buildGrowthCampaignPlanReviewModel, buildGrowthConsoleReadModel, type GrowthReadiness } from "@/server/growth/read-model";
+import { buildGrowthDomainEngineReviewModel } from "@/server/growth/domain-engine";
 import { buildGrowthOptimizationReviewModel } from "@/server/growth/optimization";
 import { buildGrowthPolicyReviewModel } from "@/server/growth/policy";
 import { buildGrowthProviderPilotReviewModel } from "@/server/growth/provider-pilot";
@@ -81,6 +82,7 @@ const workspaceTabs = [
   { href: "#advertising-workspace", label: "Advertising" },
   { href: "#audiences", label: "Audiences" },
   { href: "#campaign-plan", label: "Campaign Plan" },
+  { href: "#workflow-engine", label: "Workflow Engine" },
   { href: "#approval", label: "Launch Readiness" },
   { href: "#automations", label: "Automations" },
   { href: "#provider-pilot", label: "Provider Pilot" },
@@ -105,6 +107,7 @@ function automationClass(state: Automation["state"]) {
 export function GrowthConsoleFoundation() {
   const model = buildGrowthConsoleReadModel();
   const campaignPlan = buildGrowthCampaignPlanReviewModel();
+  const engine = buildGrowthDomainEngineReviewModel();
   const policy = buildGrowthPolicyReviewModel();
   const pilot = buildGrowthProviderPilotReviewModel();
   const advertising = buildGrowthAdvertisingReviewModel();
@@ -274,6 +277,48 @@ export function GrowthConsoleFoundation() {
         </div>
         <div className={styles.versionStrip}>
           {campaignPlan.versionHistory.map((item, index) => <span key={item}>{index + 1}. {item}</span>)}
+        </div>
+      </section>
+
+      <section className={styles.panel} id="workflow-engine">
+        <div className={styles.panelHeader}>
+          <div>
+            <span className={styles.sectionLabel}>Workflow Engine</span>
+            <h2>Algorithms, workflow, automation, and attribution are connected</h2>
+          </div>
+          <span className={styles.statusNote}>Next: {engine.workflow.nextAction}</span>
+        </div>
+        <div className={styles.activationGrid}>
+          <article>
+            <span>Opportunity ranking</span>
+            <strong>{engine.opportunity.title}</strong>
+            <p>{engine.opportunity.explanation}</p>
+          </article>
+          <article>
+            <span>Audience decision</span>
+            <strong>{engine.audienceSummary}</strong>
+            <p>Consent, opt-out, lifecycle fit, escalation, and quiet-window rules decide who is included.</p>
+          </article>
+          <article>
+            <span>Message readiness</span>
+            <strong>{engine.messageReady ? "Ready for approval" : "Needs review"}</strong>
+            <p>Offer source, verified claims, disclosure, call to action, and fallback owner are checked.</p>
+          </article>
+          <article>
+            <span>Workflow stage</span>
+            <strong>{engine.workflow.stage}</strong>
+            <p>{engine.workflow.blockedReason ?? "Workflow is active and ready to measure."}</p>
+          </article>
+          <article>
+            <span>Automation gate</span>
+            <strong>{engine.automation.state}</strong>
+            <p>{engine.automation.nextAction}</p>
+          </article>
+          <article>
+            <span>Attribution tier</span>
+            <strong>{engine.attribution}</strong>
+            <p>Direct, assisted, influenced, and unattributed outcomes remain separate.</p>
+          </article>
         </div>
       </section>
 
