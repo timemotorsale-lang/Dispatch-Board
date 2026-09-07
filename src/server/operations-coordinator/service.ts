@@ -1,7 +1,13 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
-import { getPartsOperationsWorkspace } from "@/server/parts-operations/service";
-import { listRepairOrders, getRepairOrderCreateOptions } from "@/server/repair-order/service";
-import { getMyTasksViewModelForToday } from "@/server/services/my-tasks";
+import {
+  AppointmentBookingStatus,
+  PartDemandStatus,
+  RepairOrderOperatingState,
+  TaskStatus
+} from "@prisma/client";
+
+import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
+import { prisma } from "@/server/db/client";
 
 type SourceState = "READY" | "EMPTY" | "UNAVAILABLE";
 type ActionResolverOutcome = "COMPLETE_SAFELY" | "PREPARE_CANONICAL_WORKFLOW" | "ROUTE_TO_AUTHORITY" | "READ_ONLY_PEEK";
@@ -83,26 +89,117 @@ function sourceState(hasData: boolean, source: { state: SourceState }) {
   return hasData ? "READY" as const : "EMPTY" as const;
 }
 
-export async function getOperationsCoordinatorWorkspace(actor: AuthenticatedUser) {
-  const now = new Date();
-  const [createOptions, repairOrders, parts, myTasks] = await Promise.all([
-    safeSource(() => getRepairOrderCreateOptions(actor)),
-    safeSource(() => listRepairOrders(actor, { page: 1, pageSize: 16 })),
-    safeSource(() => getPartsOperationsWorkspace(actor)),
-    safeSource(() => getMyTasksViewModelForToday(actor))
+function dateWindowFor(value: Date) {
+  const key = value.toISOString().slice(0, 10);
+  const start = new Date(`${key}T00:00:00.000Z`);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+
+  return { end, key, start };
+}
+
+async function readCoordinatorSnapshot(actor: AuthenticatedUser, now: Date) {
+  const { end, start } = dateWindowFor(now);
+  const organizationId = INITIAL_ORGANIZATION.id;
+
+  const [
+    todaysAppointments,
+    customerCount,
+    vehicleCount,
+    repairOrderTotal,
+    orders,
+    partsDemands,
+    receivingExceptionCount,
+    partReceiptCount,
+    tasks
+  ] = await Promise.all([
+    prisma.appointment.findMany({
+      include: {
+        participants: { include: { customer: { select: { displayName: true } } }, take: 1 },
+        vehicles: {
+          include: {
+            vehicle: { select: { make: true, model: true, vehicleNumber: true, year: true } }
+          },
+          take: 1
+        }
+      },
+      orderBy: [{ startsAt: "asc" }, { createdAt: "asc" }],
+      take: 8,
+      where: {
+        bookingStatus: { not: AppointmentBookingStatus.CANCELLED },
+        organizationId,
+        startsAt: { gte: start, lt: end }
+      }
+    }),
+    prisma.customer.count({ where: { organizationId } }),
+    prisma.vehicle.count({ where: { mergedIntoVehicleId: null, organizationId, status: "ACTIVE" } }),
+    prisma.repairOrder.count({
+      where: { organizationId, operatingState: { not: RepairOrderOperatingState.CLOSED } }
+    }),
+    prisma.repairOrder.findMany({
+      include: {
+        customer: { select: { displayName: true } },
+        inventoryUnit: { select: { inventoryNumber: true } },
+        vehicle: { select: { make: true, model: true, vehicleNumber: true, year: true } }
+      },
+      orderBy: [{ targetAt: "asc" }, { updatedAt: "desc" }],
+      take: 8,
+      where: { organizationId, operatingState: { not: RepairOrderOperatingState.CLOSED } }
+    }),
+    prisma.repairPartDemand.findMany({
+      include: {
+        part: { select: { description: true, partNumber: true } },
+        repairOrder: { select: { repairOrderNumber: true } }
+      },
+      orderBy: [{ requiredAt: "asc" }, { createdAt: "desc" }],
+      take: 5,
+      where: {
+        organizationId,
+        status: { in: [PartDemandStatus.OPEN, PartDemandStatus.PARTIALLY_RESERVED] }
+      }
+    }),
+    prisma.partReceivingDiscrepancy.count({ where: { organizationId, status: "OPEN" } }),
+    prisma.partReceipt.count({ where: { organizationId, receivedAt: { gte: start, lt: end } } }),
+    prisma.task.findMany({
+      include: { boardDay: { select: { date: true } } },
+      orderBy: [{ dueAt: "asc" }, { updatedAt: "desc" }],
+      take: 12,
+      where: {
+        boardDay: { date: { gte: start, lt: end } },
+        status: { not: TaskStatus.COMPLETED },
+        OR: [
+          { assignedUserId: actor.id },
+          { createdByUserId: actor.id },
+          { recommendedUserId: actor.id },
+          { collaborators: { some: { userId: actor.id, isActive: true } } }
+        ]
+      }
+    })
   ]);
 
-  const appointments = createOptions.value?.appointments ?? [];
-  const customers = createOptions.value?.customers ?? [];
-  const vehicles = createOptions.value?.vehicles ?? [];
-  const orders = repairOrders.value?.items ?? [];
-  const tasks = myTasks.value?.tasks ?? [];
-  const partsDemands = parts.value?.service.demands ?? [];
-  const receivingExceptions = parts.value?.service.discrepancies ?? [];
-  const partsReceipts = parts.value?.service.receipts ?? [];
+  return {
+    customerCount,
+    orders,
+    partReceiptCount,
+    partsDemands,
+    receivingExceptionCount,
+    repairOrderTotal,
+    tasks,
+    todaysAppointments,
+    vehicleCount
+  };
+}
 
-  const todaysKey = now.toISOString().slice(0, 10);
-  const todaysAppointments = appointments.filter((appointment) => appointment.startsAt?.toISOString().slice(0, 10) === todaysKey);
+export async function getOperationsCoordinatorWorkspace(actor: AuthenticatedUser) {
+  const now = new Date();
+  const snapshot = await safeSource(() => readCoordinatorSnapshot(actor, now));
+  const appointments = snapshot.value?.todaysAppointments ?? [];
+  const orders = snapshot.value?.orders ?? [];
+  const tasks = snapshot.value?.tasks ?? [];
+  const partsDemands = snapshot.value?.partsDemands ?? [];
+  const receivingExceptionCount = snapshot.value?.receivingExceptionCount ?? 0;
+  const partReceiptCount = snapshot.value?.partReceiptCount ?? 0;
+  const todaysAppointments = appointments;
   const openTasks = tasks.filter((task) => task.status !== "COMPLETED");
   const blockedOrders = orders.filter((order) => /part|approval|authorize|wait|block|delay/i.test(`${order.operatingState} ${order.nextAction}`));
 
@@ -123,18 +220,21 @@ export async function getOperationsCoordinatorWorkspace(actor: AuthenticatedUser
         source: "Appointments"
       };
     }),
-    ...orders.slice(0, 8).map((order) => ({
-      id: `ro-${order.id}`,
-      type: order.age.overdue ? "PROMISE_RISK" as CoordinatorActionType : "ESCALATION" as CoordinatorActionType,
-      label: `${order.repairOrderNumber} · ${order.customer?.displayName ?? order.inventoryUnit?.inventoryNumber ?? "Internal vehicle"}`,
-      detail: order.nextAction,
-      href: `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(order.id)}`,
-      dueAt: order.targetAt.toISOString(),
-      promiseRisk: order.age.overdue,
-      escalationState: blockedOrders.some((blocked) => blocked.id === order.id),
-      blockerSeverity: order.age.overdue ? "HIGH" as const : "MEDIUM" as const,
-      source: "Repair Orders"
-    })),
+    ...orders.slice(0, 8).map((order) => {
+      const overdue = order.targetAt.getTime() < now.getTime();
+      return {
+        id: `ro-${order.id}`,
+        type: overdue ? "PROMISE_RISK" as CoordinatorActionType : "ESCALATION" as CoordinatorActionType,
+        label: `${order.repairOrderNumber} · ${order.customer?.displayName ?? order.inventoryUnit?.inventoryNumber ?? "Internal vehicle"}`,
+        detail: order.nextAction,
+        href: `/vehicles/repair-workbench?repairOrderId=${encodeURIComponent(order.id)}`,
+        dueAt: order.targetAt.toISOString(),
+        promiseRisk: overdue,
+        escalationState: blockedOrders.some((blocked) => blocked.id === order.id),
+        blockerSeverity: overdue ? "HIGH" as const : "MEDIUM" as const,
+        source: "Repair Orders"
+      };
+    }),
     ...partsDemands.slice(0, 5).map((demand) => ({
       id: `part-${demand.id}`,
       type: "PARTS_BLOCK" as CoordinatorActionType,
@@ -151,7 +251,7 @@ export async function getOperationsCoordinatorWorkspace(actor: AuthenticatedUser
       label: task.title,
       detail: `${task.workflowArea} · ${task.status}`,
       href: `/tasks/${encodeURIComponent(task.id)}`,
-      dueAt: task.dueAt,
+      dueAt: task.dueAt.toISOString(),
       escalationState: task.requiresManagerApproval,
       blockerSeverity: task.status === "BLOCKED" ? "HIGH" as const : undefined,
       source: "Tasks"
@@ -178,12 +278,12 @@ export async function getOperationsCoordinatorWorkspace(actor: AuthenticatedUser
     generatedAt: now.toISOString(),
     coordinator: { id: actor.id, name: actor.name },
     sourceStates: {
-      appointments: sourceState(appointments.length > 0, createOptions),
-      customers: sourceState(customers.length > 0, createOptions),
-      vehicles: sourceState(vehicles.length > 0, createOptions),
-      repairOrders: sourceState(orders.length > 0, repairOrders),
-      parts: sourceState(Boolean(partsDemands.length || receivingExceptions.length || partsReceipts.length), parts),
-      tasks: sourceState(tasks.length > 0, myTasks),
+      appointments: sourceState(appointments.length > 0, snapshot),
+      customers: sourceState(Boolean(snapshot.value?.customerCount), snapshot),
+      vehicles: sourceState(Boolean(snapshot.value?.vehicleCount), snapshot),
+      repairOrders: sourceState(orders.length > 0, snapshot),
+      parts: sourceState(Boolean(partsDemands.length || receivingExceptionCount || partReceiptCount), snapshot),
+      tasks: sourceState(tasks.length > 0, snapshot),
       salesPaperwork: "UNAVAILABLE" as SourceState,
       financePaperwork: "UNAVAILABLE" as SourceState,
       rentals: "UNAVAILABLE" as SourceState,
@@ -194,8 +294,8 @@ export async function getOperationsCoordinatorWorkspace(actor: AuthenticatedUser
     },
     counts: {
       todaysAppointments: todaysAppointments.length,
-      activeRepairOrders: repairOrders.value?.total ?? orders.length,
-      partsActions: partsDemands.length + receivingExceptions.length,
+      activeRepairOrders: snapshot.value?.repairOrderTotal ?? orders.length,
+      partsActions: partsDemands.length + receivingExceptionCount,
       paperworkItems: openTasks.filter((task) => /office|sales|paper|document|finance|insurance|rental/i.test(`${task.workflowArea} ${task.title}`)).length,
       openTasks: openTasks.length,
       escalations: blockedOrders.length + openTasks.filter((task) => task.requiresManagerApproval || task.status === "BLOCKED").length
@@ -257,10 +357,10 @@ export async function getOperationsCoordinatorWorkspace(actor: AuthenticatedUser
       { label: "Payments / collections", status: "Placeholder", detail: "Record intake or note; final close/approval stays routed.", href: "/tasks?department=COLLECTIONS" }
     ],
     departmentPanels: [
-      { label: "Appointments", state: sourceState(todaysAppointments.length > 0, createOptions), value: todaysAppointments.length, href: "/appointments", detail: "Today arrivals and schedule support" },
-      { label: "Service Intake", state: sourceState(orders.length > 0, repairOrders), value: orders.length, href: "/vehicles/repair-orders?intakeSource=WALK_IN", detail: "Walk-ins, custody, and RO preparation" },
-      { label: "Repair Orders", state: sourceState(orders.length > 0, repairOrders), value: orders.length, href: "/vehicles/repair-workbench", detail: "Peek status and route advisor/manager actions" },
-      { label: "Parts Receiving", state: sourceState(Boolean(partsDemands.length || receivingExceptions.length), parts), value: partsDemands.length + receivingExceptions.length, href: "/vehicles/parts-receiving", detail: "Receive, label, bin, and escalate exceptions" },
+      { label: "Appointments", state: sourceState(todaysAppointments.length > 0, snapshot), value: todaysAppointments.length, href: "/appointments", detail: "Today arrivals and schedule support" },
+      { label: "Service Intake", state: sourceState(orders.length > 0, snapshot), value: orders.length, href: "/vehicles/repair-orders?intakeSource=WALK_IN", detail: "Walk-ins, custody, and RO preparation" },
+      { label: "Repair Orders", state: sourceState(orders.length > 0, snapshot), value: orders.length, href: "/vehicles/repair-workbench", detail: "Peek status and route advisor/manager actions" },
+      { label: "Parts Receiving", state: sourceState(Boolean(partsDemands.length || receivingExceptionCount), snapshot), value: partsDemands.length + receivingExceptionCount, href: "/vehicles/parts-receiving", detail: "Receive, label, bin, and escalate exceptions" },
       { label: "Inventory / Photos", state: "UNAVAILABLE" as SourceState, value: null, href: "/tasks?department=ADVERTISING", detail: "Photo/listing support routes to marketing tasks" },
       { label: "Sales / Finance", state: "UNAVAILABLE" as SourceState, value: null, href: "/tasks?department=SALES", detail: "Packets, insurance, financing paperwork, delivery support" }
     ],

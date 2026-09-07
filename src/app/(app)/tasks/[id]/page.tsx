@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { TaskDetailWorkspace } from "@/features/tasks/detail/task-detail-workspace";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { canUpdateAssignedWork, isManager } from "@/server/policies/access";
-import { getActivityFeedForDate } from "@/server/services/activity-feed";
+import { listActivityFeedEventsForTask } from "@/server/services/activity-feed";
 import { getTaskReadModelById } from "@/server/services/task-read";
 import { listActiveUserSummaries } from "@/server/services/user-summary";
 import { getStaffExecutionFlags } from "@/lib/staff-execution-flags";
@@ -20,9 +20,11 @@ type TaskDetailPageProps = {
 };
 
 export default async function TaskDetailPage({ params, searchParams }: TaskDetailPageProps) {
-  const user = await requireCurrentUser();
-  const { id } = await params;
-  const resolvedSearchParams = await searchParams;
+  const [user, { id }, resolvedSearchParams] = await Promise.all([
+    requireCurrentUser(),
+    params,
+    searchParams
+  ]);
   const requestedReturnTo = resolvedSearchParams.returnTo;
   const returnTo = requestedReturnTo?.startsWith("/tasks") ? requestedReturnTo : "/tasks";
   const task = await getTaskReadModelById(user, id);
@@ -48,13 +50,12 @@ export default async function TaskDetailPage({ params, searchParams }: TaskDetai
   const canUpdateStatus = actorIsManager || user.id === task.assignedUser.id;
   const canCreateAppointment = actorIsManager || user.id === task.assignedUser.id;
   const canManageCollaborators = actorIsManager || user.id === task.assignedUser.id;
-  const assignableUsers = actorIsManager || canManageCollaborators ? await listActiveUserSummaries() : [];
-  const activityFeed = await getActivityFeedForDate(user, task.boardDate);
-  const activityEvents = activityFeed.events.filter((event) => event.task?.id === task.id);
   const executionFlags = getStaffExecutionFlags();
-  const readiness = executionFlags.taskAcceptanceEnabled
-    ? await getTaskCompletionReadiness(user, task.id)
-    : null;
+  const [assignableUsers, activityEvents, readiness] = await Promise.all([
+    actorIsManager || canManageCollaborators ? listActiveUserSummaries() : Promise.resolve([]),
+    listActivityFeedEventsForTask(user, task.id),
+    executionFlags.taskAcceptanceEnabled ? getTaskCompletionReadiness(user, task.id) : Promise.resolve(null)
+  ]);
   const requestedView = resolvedSearchParams.view === "simple" || resolvedSearchParams.view === "workbench"
     ? resolvedSearchParams.view
     : null;

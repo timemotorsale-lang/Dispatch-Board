@@ -1,7 +1,10 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
+import { AppointmentBookingStatus } from "@prisma/client";
+
+import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
 import { createBoardReadRepository } from "@/server/repositories/board-read-repository";
 import { createStaffDayRepository } from "@/server/repositories/staff-day-repository";
-import { getRepairOrderCreateOptions, listRepairOrders } from "@/server/repair-order/service";
+import { listRepairOrders } from "@/server/repair-order/service";
 import { currentWorkdayBoardDate, getCooWorkbook, getStaffWorkbook, getStaffWorkbookSummaries } from "@/server/services/workday-workbook";
 import { getWorkspaceDefinition, getWorkspaceKey, getWorkspaceWorkbookLabel, type WorkspaceKey } from "@/server/auth/navigation";
 import { prisma } from "@/server/db/client";
@@ -162,6 +165,69 @@ function buildSearchText(...values: Array<unknown>) {
 
 function boardDateHrefSuffix(value: Date) {
   return `?date=${encodeURIComponent(value.toISOString().slice(0, 10))}`;
+}
+
+async function readAdvisorAppointmentSnapshot(todayKey: string) {
+  const dayStart = new Date(`${todayKey}T00:00:00.000Z`);
+  const recentStart = new Date(dayStart);
+  recentStart.setUTCHours(recentStart.getUTCHours() - 12);
+  const dayEnd = new Date(dayStart);
+  dayEnd.setUTCDate(dayEnd.getUTCDate() + 1);
+  const organizationId = INITIAL_ORGANIZATION.id;
+
+  const [appointments, availableAppointments, customers] = await Promise.all([
+    prisma.appointment.findMany({
+      orderBy: [{ startsAt: "asc" }, { createdAt: "asc" }],
+      select: {
+        appointmentNumber: true,
+        id: true,
+        startsAt: true,
+        title: true,
+        participants: {
+          select: {
+            customer: { select: { displayName: true, email: true, phoneNumber: true } }
+          },
+          take: 1,
+          where: { customerId: { not: null }, isPrimary: true, participantType: "CUSTOMER" }
+        },
+        vehicles: {
+          select: {
+            vehicle: {
+              select: {
+                licensePlate: true,
+                make: true,
+                model: true,
+                stockNumber: true,
+                vehicleNumber: true,
+                vin: true,
+                year: true
+              }
+            }
+          },
+          take: 1,
+          where: { isPrimary: true }
+        }
+      },
+      take: 24,
+      where: {
+        bookingStatus: { not: AppointmentBookingStatus.CANCELLED },
+        organizationId,
+        OR: [
+          { startsAt: { gte: recentStart, lt: dayEnd } },
+          { startsAt: null }
+        ]
+      }
+    }),
+    prisma.appointment.count({
+      where: {
+        bookingStatus: { not: AppointmentBookingStatus.CANCELLED },
+        organizationId
+      }
+    }),
+    prisma.customer.count({ where: { mergedIntoCustomerId: null, organizationId, status: "ACTIVE" } })
+  ]);
+
+  return { appointments, availableAppointments, customers };
 }
 
 function workbookVisibilityWhere(actor: AuthenticatedUser) {
@@ -701,17 +767,17 @@ function advisorActionFor(order: Awaited<ReturnType<typeof listRepairOrders>>["i
 }
 
 export async function getServiceAdvisorWorkspace(actor: AuthenticatedUser, boardDate?: string) {
-  const [options, openOrders] = await Promise.all([
-    getRepairOrderCreateOptions(actor),
-    listRepairOrders(actor, { page: 1, pageSize: 12 })
-  ]);
   const now = new Date();
   const todayKey = boardDate ? normalizeBoardDate(boardDate) : currentWorkdayBoardDate(now);
+  const [appointmentSnapshot, openOrders] = await Promise.all([
+    readAdvisorAppointmentSnapshot(todayKey),
+    listRepairOrders(actor, { page: 1, pageSize: 12 })
+  ]);
   const workspaceKey = getWorkspaceKey(actor);
   const workspaceDefinition = getWorkspaceDefinition(workspaceKey);
   const staffWorkbookLabel = getWorkspaceWorkbookLabel(workspaceKey);
   const managementWorkbookLabel = isManager(actor) ? getWorkspaceWorkbookLabel("MANAGEMENT") : "Team Workbook";
-  const appointments = options.appointments.map((appointment) => ({
+  const appointments = appointmentSnapshot.appointments.map((appointment) => ({
     ...appointment,
       customer: appointment.participants[0]?.customer ?? null,
       vehicle: appointment.vehicles[0]?.vehicle ?? null
@@ -791,8 +857,8 @@ export async function getServiceAdvisorWorkspace(actor: AuthenticatedUser, board
     workbookSearchHistory,
     counts: {
       activeRepairOrders: activeRepairOrders.length,
-      availableAppointments: appointments.length,
-      customers: options.customers.length,
+      availableAppointments: appointmentSnapshot.availableAppointments,
+      customers: appointmentSnapshot.customers,
       todaysArrivals: todaysArrivals.length,
       waitingCheckIn: waitingCheckIn.length,
       handoffs: activeHandoffs.length,
