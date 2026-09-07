@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 
 import { buildGrowthAdvertisingReviewModel } from "@/server/growth/advertising-activation";
+import { buildGrowthAutomationActivationReviewModel } from "@/server/growth/automation-activation";
 import { buildGrowthCampaignPlanReviewModel, buildGrowthConsoleReadModel, type GrowthReadiness } from "@/server/growth/read-model";
 import { buildGrowthPolicyReviewModel } from "@/server/growth/policy";
 import { buildGrowthProviderPilotReviewModel } from "@/server/growth/provider-pilot";
@@ -90,6 +91,7 @@ export function GrowthConsoleFoundation() {
   const policy = buildGrowthPolicyReviewModel();
   const pilot = buildGrowthProviderPilotReviewModel();
   const advertising = buildGrowthAdvertisingReviewModel();
+  const automationActivation = buildGrowthAutomationActivationReviewModel();
   const selectedOpportunity = model.opportunities[0];
   const sourceHealthText = model.sourceHealth.map((source) => `${source.label}: ${source.state}`).join(" | ");
 
@@ -321,6 +323,35 @@ export function GrowthConsoleFoundation() {
               <p><strong>Trigger:</strong> {automation.trigger}</p>
               <p><strong>Action:</strong> {automation.action}</p>
               <small>{automation.owner}</small>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className={styles.panel} id="automation-activation">
+        <div className={styles.panelHeader}>
+          <div>
+            <span className={styles.sectionLabel}>Automation Activation</span>
+            <h2>Automations stay inactive until the review path is clear</h2>
+          </div>
+          <span className={styles.statusNote}>{automationActivation.state}</span>
+        </div>
+        <div className={styles.activationGrid}>
+          <article>
+            <span>Playbook</span>
+            <strong>{automationActivation.playbook}</strong>
+            <p>{automationActivation.summary}</p>
+          </article>
+          <article>
+            <span>Touch limit</span>
+            <strong>{automationActivation.touchLimit}</strong>
+            <p>{automationActivation.writeback}</p>
+          </article>
+          {automationActivation.checks.map((check) => (
+            <article data-passed={check.passed ? "true" : "false"} key={check.label}>
+              <span>{check.passed ? "Clear" : "Needs action"}</span>
+              <strong>{check.label}</strong>
+              <p>{check.nextAction}</p>
             </article>
           ))}
         </div>

@@ -45,6 +45,9 @@ describe("Growth Console foundation", () => {
     expect(markup).toContain("Paid Advertising");
     expect(markup).toContain("Ad launch stays locked");
     expect(markup).toContain("Live spend not approved");
+    expect(markup).toContain("Automation Activation");
+    expect(markup).toContain("Automations stay inactive");
+    expect(markup).toContain("Prepared task only");
   });
 
   it("builds a source-labeled read model without mutation commands", () => {
