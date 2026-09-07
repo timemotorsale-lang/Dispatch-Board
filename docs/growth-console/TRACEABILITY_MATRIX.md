@@ -15,6 +15,7 @@
 | Results are measurable | Results and Workflow Engine panels | Results Workflow | Attribution Logic | GROWTH-006, GROWTH-040 | `attributeGrowthOutcome`, domain tests |
 | Recommendations stay human-governed | Optimization panel | Results Workflow | Enterprise Optimization Logic | GROWTH-070 | `src/server/growth/optimization.ts`, optimization tests |
 | Existing records are preserved | Guardrail language and command boundary | All workflows | Source Authority Map | GROWTH-000 onward | Docs and no destructive migrations |
+| Source signals are safe to consume | Workflow Engine and future read adapters | CRM Connection Workflow | Source Authority, Freshness, Confidence | GROWTH-090 | `src/server/growth/source-adapters.ts`, source adapter tests |
 
 ## Evidence Rule
 

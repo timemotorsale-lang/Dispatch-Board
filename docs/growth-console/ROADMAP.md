@@ -172,3 +172,19 @@ Scope:
 Exit:
 
 - user can clearly see what is complete, what is still locked, and what requires approval before adoption.
+
+## Phase G9 - Real Read Adapter Contracts
+
+Goal: define how Growth safely reads CRM, inventory, sales, service, appointment, and task signals.
+
+Scope:
+
+- source adapter contracts;
+- normalized source signals;
+- source authority labels;
+- source freshness and confidence checks;
+- read-only guarantees.
+
+Exit:
+
+- Growth can consume source-domain signals without creating, changing, or deleting source records.
