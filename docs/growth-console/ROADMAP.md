@@ -235,3 +235,19 @@ Scope:
 Exit:
 
 - unsafe or incomplete launches fail closed and explain the exact approval or policy action needed.
+
+## Phase G13 - Results And Attribution Foundation
+
+Goal: measure outcomes with clear attribution tiers and avoid treating noisy metrics as proof.
+
+Scope:
+
+- result event normalization;
+- attribution window checks;
+- direct, assisted, influenced, and unattributed tiers;
+- open-rate context handling;
+- read-only performance summaries.
+
+Exit:
+
+- Growth can explain campaign outcomes without writing CRM results until mutation controls are approved.

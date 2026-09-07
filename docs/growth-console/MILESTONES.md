@@ -26,6 +26,7 @@
 | GROWTH-100 | Governed audience builder | In progress | GROWTH-090 | Audience decisions explain included, excluded, suppressed, and cleanup records with reason codes. |
 | GROWTH-110 | Campaign ledger and version history | In progress | GROWTH-100 | Campaign plans, snapshots, messages, approvals, and launch locks preserve versions and audit events. |
 | GROWTH-120 | Enterprise approval and permission gates | In progress | GROWTH-110 | Role, budget, offer, channel, and provider gates fail closed with exact next approval. |
+| GROWTH-130 | Results and attribution foundation | In progress | GROWTH-120 | Result events normalize into direct, assisted, influenced, and unattributed summaries without CRM mutation. |
 
 ## GROWTH-001 Acceptance Criteria
 
