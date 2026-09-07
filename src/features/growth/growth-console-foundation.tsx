@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 
 import { buildGrowthCampaignPlanReviewModel, buildGrowthConsoleReadModel, type GrowthReadiness } from "@/server/growth/read-model";
+import { buildGrowthPolicyReviewModel } from "@/server/growth/policy";
 
 import styles from "./growth-console-foundation.module.css";
 
@@ -84,6 +85,7 @@ function automationClass(state: Automation["state"]) {
 export function GrowthConsoleFoundation() {
   const model = buildGrowthConsoleReadModel();
   const campaignPlan = buildGrowthCampaignPlanReviewModel();
+  const policy = buildGrowthPolicyReviewModel();
   const selectedOpportunity = model.opportunities[0];
   const sourceHealthText = model.sourceHealth.map((source) => `${source.label}: ${source.state}`).join(" | ");
 
@@ -242,6 +244,25 @@ export function GrowthConsoleFoundation() {
         </div>
         <div className={styles.versionStrip}>
           {campaignPlan.versionHistory.map((item, index) => <span key={item}>{index + 1}. {item}</span>)}
+        </div>
+      </section>
+
+      <section className={styles.panel} id="approval">
+        <div className={styles.panelHeader}>
+          <div>
+            <span className={styles.sectionLabel}>Launch Readiness</span>
+            <h2>Blocked safely until policy clears</h2>
+          </div>
+          <span className={styles.statusNote}>Next: {policy.nextAction}</span>
+        </div>
+        <div className={styles.policyGrid}>
+          {policy.checks.map((check) => (
+            <article data-passed={check.passed ? "true" : "false"} key={check.label}>
+              <span>{check.passed ? "Clear" : "Needs action"}</span>
+              <strong>{check.label}</strong>
+              <p>{check.action}</p>
+            </article>
+          ))}
         </div>
       </section>
 
