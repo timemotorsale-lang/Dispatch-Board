@@ -21,6 +21,7 @@ import {
 import { buildGrowthAdvertisingReviewModel } from "@/server/growth/advertising-activation";
 import { buildGrowthAutomationActivationReviewModel } from "@/server/growth/automation-activation";
 import { buildGrowthCampaignPlanReviewModel, buildGrowthConsoleReadModel, type GrowthReadiness } from "@/server/growth/read-model";
+import { buildGrowthOptimizationReviewModel } from "@/server/growth/optimization";
 import { buildGrowthPolicyReviewModel } from "@/server/growth/policy";
 import { buildGrowthProviderPilotReviewModel } from "@/server/growth/provider-pilot";
 
@@ -92,6 +93,7 @@ export function GrowthConsoleFoundation() {
   const pilot = buildGrowthProviderPilotReviewModel();
   const advertising = buildGrowthAdvertisingReviewModel();
   const automationActivation = buildGrowthAutomationActivationReviewModel();
+  const optimization = buildGrowthOptimizationReviewModel();
   const selectedOpportunity = model.opportunities[0];
   const sourceHealthText = model.sourceHealth.map((source) => `${source.label}: ${source.state}`).join(" | ");
 
@@ -409,6 +411,32 @@ export function GrowthConsoleFoundation() {
             <strong>{advertising.performance.impressions} impressions | {advertising.performance.clicks} clicks</strong>
             <p>No provider performance is ingested until an approved pilot exists.</p>
           </article>
+        </div>
+      </section>
+
+      <section className={styles.panel} id="optimization">
+        <div className={styles.panelHeader}>
+          <div>
+            <span className={styles.sectionLabel}>Optimization</span>
+            <h2>Best next move, with the reason shown</h2>
+          </div>
+          <span className={styles.statusNote}>Next: {optimization.nextAction}</span>
+        </div>
+        <div className={styles.activationGrid}>
+          <article>
+            <span>Decision source</span>
+            <strong>{optimization.generatedFrom}</strong>
+            <p>{optimization.summary}</p>
+          </article>
+          {optimization.recommendations.map((recommendation) => (
+            <article key={recommendation.title}>
+              <span>{recommendation.confidence} confidence</span>
+              <strong>{recommendation.title}</strong>
+              <p>{recommendation.reason}</p>
+              <p>{recommendation.recommendedAction}</p>
+              <small>{recommendation.guardrail}</small>
+            </article>
+          ))}
         </div>
       </section>
 

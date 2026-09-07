@@ -588,6 +588,12 @@
   line-height: 1.45;
 }
 
+.activationGrid small {
+  color: #365070;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
 .pilotGrid article {
   display: grid;
   gap: 7px;

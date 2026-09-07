@@ -48,6 +48,9 @@ describe("Growth Console foundation", () => {
     expect(markup).toContain("Automation Activation");
     expect(markup).toContain("Automations stay inactive");
     expect(markup).toContain("Prepared task only");
+    expect(markup).toContain("Optimization");
+    expect(markup).toContain("Best next move");
+    expect(markup).toContain("does not change budget");
   });
 
   it("builds a source-labeled read model without mutation commands", () => {
