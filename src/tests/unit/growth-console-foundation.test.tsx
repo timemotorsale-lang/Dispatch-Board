@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import GrowthPage from "@/app/(app)/growth/page";
 import { GrowthConsoleFoundation } from "@/features/growth/growth-console-foundation";
+import { buildGrowthConsoleReadModel } from "@/server/growth/read-model";
 
 describe("Growth Console foundation", () => {
   it("renders the review-ready Growth Console route", () => {
@@ -10,7 +11,7 @@ describe("Growth Console foundation", () => {
 
     expect(markup).toContain("Growth Console");
     expect(markup).toContain("Marketing + Advertising Command Center");
-    expect(markup).toContain("Review foundation");
+    expect(markup).toContain("G1 read-only foundation");
     expect(markup).toContain("No live send is enabled");
   });
 
@@ -33,6 +34,23 @@ describe("Growth Console foundation", () => {
     expect(markup).toContain("Audience Review");
     expect(markup).toContain("Automation Library");
     expect(markup).toContain("Launch disabled");
-    expect(markup).toContain("Backend expansion is intentionally deferred");
+    expect(markup).toContain("G1 is read-only");
+    expect(markup).toContain("Prepared plan waiting for approval");
+    expect(markup).toContain("Prior versions are preserved");
+    expect(markup).toContain("Blocked safely until policy clears");
+    expect(markup).toContain("Send offer language to manager review");
+    expect(markup).toContain("Safe first launch path");
+    expect(markup).toContain("Internal task pilot");
+    expect(markup).toContain("does not send customer messages or spend advertising budget");
+  });
+
+  it("builds a source-labeled read model without mutation commands", () => {
+    const model = buildGrowthConsoleReadModel(new Date("2026-09-07T17:00:00.000Z"));
+
+    expect(model.sourceMode).toBe("Read-only source snapshot");
+    expect(model.opportunities[0].priorityScore).toBeGreaterThanOrEqual(model.opportunities[1].priorityScore);
+    expect(model.opportunities.every((opportunity) => opportunity.sourceSystems.length > 0)).toBe(true);
+    expect(model.audienceRows.some((row) => row.label === "Suppressed" && row.reason.includes("Opt-out"))).toBe(true);
+    expect(model.crmWritebackEvents.some((event) => event.state === "Blocked until policy")).toBe(true);
   });
 });
