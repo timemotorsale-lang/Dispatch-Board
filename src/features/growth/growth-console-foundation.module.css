@@ -1,0 +1,659 @@
+.shell {
+  --bg: #f5f7fb;
+  --surface: #ffffff;
+  --surface-soft: #f8fafc;
+  --border: #d9e2ef;
+  --border-strong: #bdcbe0;
+  --text: #10203a;
+  --muted: #607089;
+  --blue: #285bd4;
+  --blue-dark: #1f48aa;
+  --green: #157f4b;
+  --green-soft: #ebf8f1;
+  --amber: #a85b10;
+  --amber-soft: #fff5e8;
+  --red: #b42331;
+  --red-soft: #fff0f1;
+  min-height: calc(100vh - 58px);
+  padding: 16px;
+  color: var(--text);
+  background: var(--bg);
+}
+
+.shell *,
+.shell *::before,
+.shell *::after {
+  box-sizing: border-box;
+}
+
+.shell button {
+  font: inherit;
+}
+
+.reviewBar,
+.header,
+.tabs,
+.pathPanel,
+.metricsGrid,
+.mainGrid,
+.workspaceGrid,
+.twoColumn,
+.panel,
+.crmPanel {
+  max-width: 1460px;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.reviewBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  border: 1px solid #bdd4f2;
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: #234875;
+  background: #eef6ff;
+  font-size: 13px;
+}
+
+.reviewBar svg {
+  flex: 0 0 auto;
+  color: var(--blue);
+}
+
+.header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 10px 0 14px;
+}
+
+.header h1,
+.header p,
+.panel h2,
+.panel h3,
+.workspaceCard h2,
+.workspaceCard p,
+.crmPanel h2,
+.crmPanel p {
+  margin: 0;
+}
+
+.header h1 {
+  margin-top: 4px;
+  font-size: 32px;
+  line-height: 1.05;
+}
+
+.header p {
+  max-width: 760px;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.eyebrow,
+.sectionLabel {
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+
+.headerActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.primaryButton,
+.secondaryButton,
+.smallButton,
+.smallLink,
+.workspaceCard a,
+.cardActions a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 40px;
+  border-radius: 8px;
+  padding: 0 14px;
+  font-weight: 850;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.primaryButton {
+  border: 1px solid var(--blue);
+  color: #fff;
+  background: var(--blue);
+}
+
+.primaryButton:disabled {
+  border-color: #cfd8e6;
+  color: #697892;
+  background: #eef2f7;
+  cursor: not-allowed;
+}
+
+.secondaryButton,
+.smallButton,
+.smallLink,
+.workspaceCard button,
+.cardActions button {
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  background: var(--surface);
+}
+
+.smallButton,
+.smallLink,
+.statusNote {
+  min-height: 34px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.statusNote {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--surface-soft);
+  font-weight: 850;
+}
+
+.secondaryButton:hover,
+.secondaryButton:focus-visible,
+.smallButton:hover,
+.smallButton:focus-visible,
+.smallLink:hover,
+.smallLink:focus-visible,
+.workspaceCard a:hover,
+.workspaceCard a:focus-visible,
+.cardActions a:hover,
+.cardActions a:focus-visible,
+.tabs a:hover,
+.tabs a:focus-visible {
+  border-color: var(--blue);
+  outline: 3px solid rgb(40 91 212 / 13%);
+  color: var(--blue-dark);
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+
+.tabs a {
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 12px;
+  color: var(--text);
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.pathPanel {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.pathPanel article {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  min-height: 92px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--surface);
+}
+
+.pathPanel article span {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--green);
+  background: var(--green-soft);
+  font-weight: 900;
+}
+
+.pathPanel strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 14px;
+}
+
+.pathPanel p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.metricsGrid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.metricsGrid article {
+  display: grid;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--surface);
+}
+
+.metricsGrid svg {
+  color: var(--blue);
+}
+
+.metricsGrid span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.metricsGrid strong {
+  font-size: 22px;
+}
+
+.mainGrid,
+.twoColumn {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(320px, .55fr);
+  gap: 12px;
+  margin-top: 12px;
+  align-items: start;
+}
+
+.panel,
+.workspaceCard,
+.crmPanel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgb(18 36 65 / 5%);
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 68px;
+  border-bottom: 1px solid var(--border);
+  padding: 14px 16px;
+}
+
+.panelHeader h2 {
+  margin-top: 3px;
+  font-size: 19px;
+}
+
+.queue {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.queueCard {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(270px, .9fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  background: var(--surface-soft);
+}
+
+.queueCard h3 {
+  margin-top: 7px;
+  font-size: 17px;
+}
+
+.queueCard p,
+.guardrail,
+.audienceTable p {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.queueCard > div:first-child > p {
+  margin: 5px 0 0;
+  font-size: 13px;
+}
+
+.typePill,
+.ready,
+.review,
+.blocked,
+.inactive {
+  display: inline-flex;
+  width: fit-content;
+  border-radius: 999px;
+  padding: 5px 8px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.typePill {
+  color: #24436d;
+  background: #eaf0f8;
+}
+
+.ready {
+  color: var(--green);
+  background: var(--green-soft);
+}
+
+.review {
+  color: var(--amber);
+  background: var(--amber-soft);
+}
+
+.blocked {
+  color: var(--red);
+  background: var(--red-soft);
+}
+
+.inactive {
+  color: var(--blue);
+  background: #eef4ff;
+}
+
+.queueCard dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.queueCard dt {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.queueCard dd {
+  overflow: hidden;
+  margin: 3px 0 0;
+  font-size: 12px;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardActions {
+  display: grid;
+  justify-items: end;
+  gap: 9px;
+}
+
+.cardActions button {
+  color: var(--blue);
+}
+
+.readinessList {
+  display: grid;
+  gap: 9px;
+  padding: 14px;
+}
+
+.readinessList div {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--surface-soft);
+}
+
+.readinessList svg {
+  grid-row: span 2;
+  margin-top: 2px;
+  color: var(--blue);
+}
+
+.readinessList span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.readinessList strong {
+  font-size: 14px;
+}
+
+.guardrail {
+  margin: 0;
+  padding: 0 14px 14px;
+  font-size: 13px;
+}
+
+.workspaceGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.workspaceCard {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+}
+
+.workspaceCard svg {
+  color: var(--blue);
+}
+
+.workspaceCard h2 {
+  font-size: 19px;
+}
+
+.workspaceCard p {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.workspaceCard a {
+  width: fit-content;
+  color: var(--blue);
+}
+
+.audienceTable {
+  display: grid;
+  padding: 12px;
+}
+
+.audienceTable div {
+  display: grid;
+  grid-template-columns: minmax(130px, .4fr) 72px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+  padding: 12px 4px;
+}
+
+.audienceTable div:last-child {
+  border-bottom: 0;
+}
+
+.audienceTable span {
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.audienceTable p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.resultsGrid,
+.automationGrid {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.resultsGrid article {
+  display: grid;
+  grid-template-columns: 24px minmax(0, .55fr);
+  gap: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--surface-soft);
+}
+
+.resultsGrid svg {
+  grid-row: span 2;
+  color: var(--green);
+}
+
+.resultsGrid span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.resultsGrid strong {
+  font-size: 13px;
+}
+
+.automationGrid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.automationGrid article {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--surface-soft);
+}
+
+.automationGrid h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.automationGrid p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.automationGrid small {
+  color: var(--text);
+  font-weight: 850;
+}
+
+.crmPanel {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 16px;
+}
+
+.crmPanel svg {
+  color: var(--green);
+}
+
+.crmPanel h2 {
+  margin-top: 3px;
+  font-size: 19px;
+}
+
+.crmPanel p {
+  margin-top: 5px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+@media (max-width: 1120px) {
+  .pathPanel,
+  .metricsGrid,
+  .workspaceGrid,
+  .automationGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mainGrid,
+  .twoColumn {
+    grid-template-columns: 1fr;
+  }
+
+  .queueCard {
+    grid-template-columns: 1fr;
+  }
+
+  .cardActions {
+    justify-items: start;
+  }
+}
+
+@media (max-width: 720px) {
+  .shell {
+    padding: 10px;
+  }
+
+  .header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .headerActions {
+    justify-content: stretch;
+  }
+
+  .headerActions > * {
+    flex: 1 1 150px;
+  }
+
+  .pathPanel,
+  .metricsGrid,
+  .workspaceGrid,
+  .automationGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .queueCard dl,
+  .audienceTable div,
+  .crmPanel {
+    grid-template-columns: 1fr;
+  }
+
+.cardActions a,
+.workspaceCard a,
+  .secondaryButton {
+    width: 100%;
+  }
+}

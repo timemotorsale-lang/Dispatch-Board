@@ -115,6 +115,7 @@ npm run build
 - Enterprise Appointment program: [docs/appointments/README.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/appointments/README.md)
 - Enterprise Sales Console planning package: [docs/sales-console/README.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/sales-console/README.md)
 - Unified CRM Console foundation: [docs/unified-crm/README.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/unified-crm/README.md)
+- Growth Console foundation: [docs/growth-console/README.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/growth-console/README.md)
 - COO Workbook and Staff Reporting Intelligence: [docs/coo-workbook/README.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/coo-workbook/README.md)
 - MVP scope: [docs/MVP_SCOPE.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/MVP_SCOPE.md)
 - Release checklist: [docs/RELEASE_CHECKLIST.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/RELEASE_CHECKLIST.md)

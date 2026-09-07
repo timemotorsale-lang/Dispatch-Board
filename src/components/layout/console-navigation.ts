@@ -1,4 +1,4 @@
-import { BadgeDollarSign, BarChart3, BriefcaseBusiness, Building2, CalendarDays, CarFront, ClipboardList, ContactRound, Gauge, HandCoins, House, MessageSquareText, Plug, RefreshCw, Settings, ShieldCheck, UserRoundCheck, Wrench } from "lucide-react";
+import { BadgeDollarSign, BarChart3, BriefcaseBusiness, Building2, CalendarDays, CarFront, ClipboardList, ContactRound, Gauge, HandCoins, House, Megaphone, MessageSquareText, Plug, RefreshCw, Settings, ShieldCheck, Target, UserRoundCheck, UsersRound, Wrench } from "lucide-react";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 import {
@@ -178,6 +178,52 @@ const salesItems: NavigationItem[] = [
   }
 ];
 
+const growthItems: NavigationItem[] = [
+  {
+    href: "/growth",
+    title: "Growth Home",
+    description: "Daily opportunities, next actions, and launch readiness.",
+    icon: House,
+    matchExact: true
+  },
+  {
+    href: "/growth#marketing-workspace",
+    title: "Marketing",
+    description: "Owned-channel messages, CRM follow-up, and customer lifecycle plays.",
+    icon: MessageSquareText
+  },
+  {
+    href: "/growth#advertising-workspace",
+    title: "Advertising",
+    description: "Paid promotion, audience signals, creative review, and budget approval.",
+    icon: Megaphone
+  },
+  {
+    href: "/growth#audiences",
+    title: "Audiences",
+    description: "Included, excluded, suppressed, and cleanup records before launch.",
+    icon: UsersRound
+  },
+  {
+    href: "/growth#message-studio",
+    title: "Message Studio",
+    description: "Customer-facing message, ad copy, offer, and disclosure review.",
+    icon: Target
+  },
+  {
+    href: "/growth#automations",
+    title: "Automations",
+    description: "Governed playbooks that wait for approval before activation.",
+    icon: Settings
+  },
+  {
+    href: "/growth#results",
+    title: "Results",
+    description: "Outcomes, attribution, CRM writeback, and follow-up work.",
+    icon: BarChart3
+  }
+];
+
 export const unifiedCrmItems: NavigationItem[] = [
   {
     href: "/crm",
@@ -245,6 +291,10 @@ export function isAppointmentConsolePath(pathname: string) {
 
 export function isSalesConsolePath(pathname: string) {
   return pathname === "/sales" || pathname.startsWith("/sales/");
+}
+
+export function isGrowthConsolePath(pathname: string) {
+  return pathname === "/growth" || pathname.startsWith("/growth/");
 }
 
 export function isUnifiedCrmConsolePath(pathname: string) {
@@ -324,6 +374,16 @@ export function getConsoleNavigation(
       items: salesItems,
       subtitle: "Enterprise Sales",
       title: "Sales Console"
+    };
+  }
+
+  if (isGrowthConsolePath(pathname)) {
+    return {
+      badge: "Review",
+      homeHref: "/growth",
+      items: growthItems,
+      subtitle: "Marketing & Advertising",
+      title: "Growth Console"
     };
   }
 

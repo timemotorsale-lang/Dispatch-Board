@@ -249,6 +249,14 @@ export const dispatchNavigationItems: NavigationItem[] = [
     activePaths: ["/sales"]
   },
   {
+    href: "/growth",
+    title: "Growth",
+    description: "Marketing and advertising command center for campaigns, audiences, approvals, and results.",
+    icon: Megaphone,
+    parentHref: "/board",
+    activePaths: ["/growth"]
+  },
+  {
     href: "/tasks?department=MARKETING",
     title: "Marketing",
     description: "Marketing campaigns, content, and audience work.",
@@ -550,6 +558,7 @@ export function getNavigationItemsForPath(
 
 export function isDispatchConsolePath(pathname: string) {
   if (pathname === "/crm" || pathname.startsWith("/crm/")) return false;
+  if (pathname === "/growth" || pathname.startsWith("/growth/")) return false;
   return dispatchNavigationItems.some((item) => {
     const baseHref = item.href.split(/[?#]/, 1)[0];
     return pathname === baseHref || pathname.startsWith(`${baseHref}/`);
