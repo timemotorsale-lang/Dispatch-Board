@@ -23,6 +23,7 @@ import { useRef, useState } from "react";
 import { TASK_CHECKLIST_ITEM_KIND } from "@/lib/task-checklist-kind";
 import type { TaskDetailChecklistItem, TaskDetailSubtaskItem } from "@/features/tasks/detail/task-detail-mappers";
 import { TaskExecutionChecklistCard } from "@/features/tasks/detail/task-execution-checklist-card";
+import { TaskAppointmentPanel } from "@/features/tasks/detail/task-appointment-panel";
 import { TaskPlanReviewCard } from "@/features/tasks/detail/task-plan-review-card";
 import { TaskStatusPanel } from "@/features/tasks/task-status-panel";
 import { TaskUpdatesCommentsCard } from "@/features/tasks/detail/task-updates-comments-card";
@@ -39,6 +40,7 @@ type TaskSimpleSummaryCardProps = {
   assignableUsers: ActiveUserSummary[];
   canComment: boolean;
   canManageCollaborators: boolean;
+  canCreateAppointment: boolean;
   canOpenFullWorkbench?: boolean;
   canUpdateStatus: boolean;
   checklist: TaskDetailChecklistItem[];
@@ -261,6 +263,85 @@ function executionPathLabel(value: string) {
   return executionPathOptions.find((option) => option.value === value)?.label ?? value.replaceAll("_", " ");
 }
 
+function taskSchedulingHint(task: TaskReadModel, returnTo: string) {
+  const source = `${task.title} ${task.description ?? ""} ${task.workflowArea}`.toLocaleLowerCase();
+  const taskReturnTo = `/tasks/${task.id}?view=simple&returnTo=${encodeURIComponent(returnTo)}`;
+  const boardHref = `/appointments?sourceTask=${encodeURIComponent(task.id)}&returnTo=${encodeURIComponent(taskReturnTo)}`;
+  const eventsHref = `${viewHref(task.id, "workbench", returnTo)}#task-linked-appointments`;
+  const appointmentCount = task.appointmentLinks.length;
+  const scheduledCount = task.appointmentLinks.filter((appointment) => appointment.startsAt).length;
+  const linkedSummary = appointmentCount
+    ? scheduledCount
+      ? `${scheduledCount} scheduled / ${appointmentCount} linked`
+      : `${appointmentCount} linked draft event${appointmentCount === 1 ? "" : "s"}`
+    : "No linked appointment yet";
+
+  if (source.includes("deliver") || source.includes("delivery") || source.includes("sold vehicle")) {
+    return {
+      boardHref,
+      boardLabel: "Board",
+      eventsHref: appointmentCount ? eventsHref : null,
+      eventsLabel: "Open events",
+      isDeliveryTask: true,
+      label: "Delivery planner",
+      primaryHref: `${viewHref(task.id, "workbench", returnTo)}#task-delivery-schedule`,
+      primaryLabel: "Plan deliveries",
+      summary: linkedSummary
+    };
+  }
+
+  return {
+    boardHref,
+    boardLabel: "Board",
+    eventsHref: appointmentCount ? eventsHref : null,
+    eventsLabel: "Open events",
+    isDeliveryTask: false,
+    label: "Calendar planner",
+    primaryHref: `${boardHref}&action=new`,
+    primaryLabel: "Plan event",
+    summary: linkedSummary
+  };
+}
+
+function TaskCalendarPlannerLink({
+  onHidePlanner,
+  onOpenDeliveryPlanner,
+  returnTo,
+  task
+}: {
+  onHidePlanner: () => void;
+  onOpenDeliveryPlanner: () => void;
+  returnTo: string;
+  task: TaskReadModel;
+}) {
+  const scheduling = taskSchedulingHint(task, returnTo);
+
+  return (
+    <div className="etw-compact-calendar-planner" aria-label={scheduling.label}>
+      <CalendarDays size={17} />
+      <strong>{scheduling.label}</strong>
+      <span>{scheduling.summary}</span>
+      <button
+        aria-label="Hide scheduling planner"
+        className="etw-compact-calendar-hide"
+        onClick={onHidePlanner}
+        type="button"
+      >
+        Hide
+      </button>
+      <span className="etw-compact-calendar-actions">
+        {scheduling.eventsHref ? <Link href={scheduling.eventsHref}>{scheduling.eventsLabel}</Link> : null}
+        {scheduling.isDeliveryTask ? (
+          <button onClick={onOpenDeliveryPlanner} type="button">{scheduling.primaryLabel}</button>
+        ) : (
+          <Link href={scheduling.primaryHref}>{scheduling.primaryLabel}</Link>
+        )}
+        <Link href={scheduling.boardHref}>{scheduling.boardLabel}</Link>
+      </span>
+    </div>
+  );
+}
+
 function executionPathValue(value: string) {
   const normalizedValue = value.trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
   const matchingOption = executionPathOptions.find((option) =>
@@ -464,6 +545,7 @@ function TaskPeopleControls({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSavingOwner, setIsSavingOwner] = useState(false);
   const [isSavingCollaborators, setIsSavingCollaborators] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   function collaboratorRequests(nextCollaborators: SimpleCollaborator[]) {
     return nextCollaborators.map((collaborator) => ({
@@ -553,124 +635,146 @@ function TaskPeopleControls({
   );
   const canSaveOwner = canReassign && !isSavingOwner && ownerDraftId !== owner.id;
   const canAddCollaborator = canManageCollaborators && !isSavingCollaborators && Boolean(collaboratorDraftId && collaboratorScopeDraft.trim());
+  const collaboratorSummary = collaborators.length
+    ? `${collaborators.length} collaborator${collaborators.length === 1 ? "" : "s"}`
+    : "No collaborators";
 
   return (
-    <dd className="etw-compact-people-control">
-      <div className="etw-compact-owner-row">
-        <b>{owner.name}</b>
-        {canReassign ? (
-          <>
-            <select
-              aria-label="Change task owner"
-              disabled={isSavingOwner}
-              onChange={(event) => {
-                setOwnerDraftId(event.target.value);
-                setErrorMessage(null);
-                setMessage(null);
-              }}
-              value={ownerDraftId}
-            >
-              {assignableUsers.map((user) => (
-                <option key={user.id} value={user.id}>{user.name}</option>
-              ))}
-            </select>
-            <button disabled={!canSaveOwner} onClick={() => void saveOwner()} type="button">
-              {isSavingOwner ? "Saving..." : "Change"}
-            </button>
-          </>
-        ) : null}
-      </div>
-      <div className="etw-compact-collaborator-row">
-        <span>Collaborators</span>
-        {collaborators.length ? (
-          <ul aria-label="Task collaborators">
-            {collaborators.map((collaborator) => (
-              <li key={collaborator.id}>
-                <b>{initials(collaborator.name)}</b>
-                <span>{collaborator.name}{collaborator.collaborationScope ? <small>{collaborator.collaborationScope}</small> : null}</span>
-                {canManageCollaborators ? (
-                  <button
-                    aria-label={`Remove ${collaborator.name}`}
-                    disabled={isSavingCollaborators}
-                    onClick={() => void saveCollaborators(
-                      collaborators.filter((item) => item.id !== collaborator.id)
-                    )}
-                    type="button"
-                  >
-                    Remove
-                  </button>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <em>No collaborators</em>
-        )}
-        {canManageCollaborators ? (
-          <div>
-            <select
-              aria-label="Add task collaborator"
-              disabled={isSavingCollaborators}
-              onChange={(event) => {
-                setCollaboratorDraftId(event.target.value);
-                setErrorMessage(null);
-                setMessage(null);
-              }}
-              value={collaboratorDraftId}
-            >
-              <option value="">Add collaborator</option>
-              {availableCollaborators.map((user) => (
-                <option key={user.id} value={user.id}>{user.name}</option>
-              ))}
-            </select>
-            <textarea
-              aria-label="Collaboration scope"
-              disabled={isSavingCollaborators}
-              onChange={(event) => {
-                setCollaboratorScopeDraft(event.target.value);
-                setErrorMessage(null);
-                setMessage(null);
-              }}
-              placeholder="What should this person help with?"
-              rows={2}
-              value={collaboratorScopeDraft}
-            />
-            <input
-              aria-label="Capacity requested"
-              disabled={isSavingCollaborators}
-              onChange={(event) => setCollaboratorCapacityDraft(event.target.value)}
-              placeholder="Capacity or timing requested, optional"
-              value={collaboratorCapacityDraft}
-            />
-            <button
-              disabled={!canAddCollaborator}
-              onClick={() => {
-                const selected = availableCollaborators.find((user) => user.id === collaboratorDraftId);
-                if (!selected) return;
-                void saveCollaborators([
-                  ...collaborators,
-                  {
-                    id: selected.id,
-                    name: selected.name,
-                    email: selected.email,
-                    addedAt: new Date().toISOString(),
-                    addedBy: null,
-                    isActive: true,
-                    collaborationScope: collaboratorScopeDraft.trim(),
-                    capacityRequested: collaboratorCapacityDraft.trim() || null
-                  }
-                ]);
-              }}
-              type="button"
-            >
-              <UserPlus size={13} />Add
-            </button>
+    <section className="etw-compact-people-control" aria-label="Task people">
+      <button
+        aria-expanded={expanded}
+        className="etw-compact-people-summary"
+        onClick={() => setExpanded((current) => !current)}
+        type="button"
+      >
+        <UserRound size={16} />
+        <span>
+          <strong>{owner.name}</strong>
+          <small>Owner - {collaboratorSummary}</small>
+        </span>
+        <b>{expanded ? "Close" : "Manage"}</b>
+      </button>
+      {expanded ? (
+        <div className="etw-compact-people-editor">
+          <div className="etw-compact-owner-row">
+            <b>Owner</b>
+            {canReassign ? (
+              <>
+                <select
+                  aria-label="Change task owner"
+                  disabled={isSavingOwner}
+                  onChange={(event) => {
+                    setOwnerDraftId(event.target.value);
+                    setErrorMessage(null);
+                    setMessage(null);
+                  }}
+                  value={ownerDraftId}
+                >
+                  {assignableUsers.map((user) => (
+                    <option key={user.id} value={user.id}>{user.name}</option>
+                  ))}
+                </select>
+                <button disabled={!canSaveOwner} onClick={() => void saveOwner()} type="button">
+                  {isSavingOwner ? "Saving..." : "Change"}
+                </button>
+              </>
+            ) : (
+              <span>{owner.name}</span>
+            )}
           </div>
-        ) : null}
-      </div>
+          <div className="etw-compact-collaborator-row">
+            <span>Collaborators</span>
+            {collaborators.length ? (
+              <ul aria-label="Task collaborators">
+                {collaborators.map((collaborator) => (
+                  <li key={collaborator.id}>
+                    <b>{initials(collaborator.name)}</b>
+                    <span>{collaborator.name}{collaborator.collaborationScope ? <small>{collaborator.collaborationScope}</small> : null}</span>
+                    {canManageCollaborators ? (
+                      <button
+                        aria-label={`Remove ${collaborator.name}`}
+                        disabled={isSavingCollaborators}
+                        onClick={() => void saveCollaborators(
+                          collaborators.filter((item) => item.id !== collaborator.id)
+                        )}
+                        type="button"
+                      >
+                        Remove
+                      </button>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <em>No collaborators</em>
+            )}
+            {canManageCollaborators ? (
+              <div>
+                <select
+                  aria-label="Add task collaborator"
+                  disabled={isSavingCollaborators}
+                  onChange={(event) => {
+                    setCollaboratorDraftId(event.target.value);
+                    setErrorMessage(null);
+                    setMessage(null);
+                  }}
+                  value={collaboratorDraftId}
+                >
+                  <option value="">Add collaborator</option>
+                  {availableCollaborators.map((user) => (
+                    <option key={user.id} value={user.id}>{user.name}</option>
+                  ))}
+                </select>
+                <textarea
+                  aria-label="Collaboration scope"
+                  disabled={isSavingCollaborators}
+                  onChange={(event) => {
+                    setCollaboratorScopeDraft(event.target.value);
+                    setErrorMessage(null);
+                    setMessage(null);
+                  }}
+                  placeholder="What should this person help with?"
+                  rows={2}
+                  value={collaboratorScopeDraft}
+                />
+                <input
+                  aria-label="Capacity requested"
+                  disabled={isSavingCollaborators}
+                  onChange={(event) => setCollaboratorCapacityDraft(event.target.value)}
+                  placeholder="Capacity or timing requested, optional"
+                  value={collaboratorCapacityDraft}
+                />
+                <button
+                  disabled={!canAddCollaborator}
+                  onClick={() => {
+                    const selected = availableCollaborators.find((user) => user.id === collaboratorDraftId);
+                    if (!selected) return;
+                    void saveCollaborators([
+                      ...collaborators,
+                      {
+                        id: selected.id,
+                        name: selected.name,
+                        email: selected.email,
+                        addedAt: new Date().toISOString(),
+                        addedBy: null,
+                        isActive: true,
+                        collaborationScope: collaboratorScopeDraft.trim(),
+                        capacityRequested: collaboratorCapacityDraft.trim() || null
+                      }
+                    ]);
+                  }}
+                  type="button"
+                >
+                  <UserPlus size={13} />Add
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
       {message ? <small>{message}</small> : null}
       {errorMessage ? <small role="alert">{errorMessage}</small> : null}
-    </dd>
+    </section>
   );
 }
 
@@ -907,6 +1011,7 @@ export function TaskSimpleSummaryCard({
   actorIsManager,
   assignableUsers,
   canComment,
+  canCreateAppointment,
   canManageCollaborators,
   canOpenFullWorkbench = false,
   canUpdateStatus,
@@ -933,6 +1038,8 @@ export function TaskSimpleSummaryCard({
   const router = useRouter();
   const [activePanel, setActivePanel] = useState<SummaryPanel | null>(null);
   const [currentStatus, setCurrentStatus] = useState(task.status as TaskStatus);
+  const [deliveryPlannerOpen, setDeliveryPlannerOpen] = useState(false);
+  const [plannerHidden, setPlannerHidden] = useState(false);
 
   const togglePanel = (panel: SummaryPanel) => {
     setActivePanel((currentPanel) => currentPanel === panel ? null : panel);
@@ -970,17 +1077,47 @@ export function TaskSimpleSummaryCard({
         </header>
 
         <p className="etw-compact-task-description"><b>Description:</b> {recordDescription}</p>
+        <div className="etw-compact-task-utility-row">
+          <TaskPeopleControls
+            assignableUsers={assignableUsers}
+            canManageCollaborators={canManageCollaborators}
+            canReassign={actorIsManager}
+            task={task}
+          />
+          <div className="etw-compact-task-schedule-strip">
+            {plannerHidden ? (
+              <button
+                className="etw-compact-calendar-restore"
+                onClick={() => setPlannerHidden(false)}
+                type="button"
+              >
+                <CalendarDays size={15} />
+                Show planner
+              </button>
+            ) : (
+              <TaskCalendarPlannerLink
+                onHidePlanner={() => {
+                  setDeliveryPlannerOpen(false);
+                  setPlannerHidden(true);
+                }}
+                onOpenDeliveryPlanner={() => setDeliveryPlannerOpen(true)}
+                returnTo={returnTo}
+                task={task}
+              />
+            )}
+          </div>
+        </div>
+        {!plannerHidden && deliveryPlannerOpen ? (
+          <section className="etw-inline-delivery-planner" id="task-delivery-schedule">
+            <header>
+              <strong>Plan delivery events</strong>
+              <button onClick={() => setDeliveryPlannerOpen(false)} type="button">Close</button>
+            </header>
+            <TaskAppointmentPanel canCreateAppointment={canCreateAppointment} task={task} />
+          </section>
+        ) : null}
 
         <dl className="etw-compact-task-fields" aria-label="Task details">
-          <div className="etw-compact-people-field">
-            <dt><UserRound size={17} />Owner</dt>
-            <TaskPeopleControls
-              assignableUsers={assignableUsers}
-              canManageCollaborators={canManageCollaborators}
-              canReassign={actorIsManager}
-              task={task}
-            />
-          </div>
           <div><dt><CalendarDays size={17} />Due</dt><DueDateEditor canEdit={actorIsManager} dueAt={dueAt} dueLabel={dueLabel} taskId={task.id} /></div>
           <div><dt><ShieldCheck size={17} />Role</dt><dd>{roleLabel}</dd></div>
           <div><dt><Grid3X3 size={17} />Path</dt><ExecutionPathSwitch canEdit={canUpdateStatus} taskId={task.id} workflowArea={task.workflowArea} /></div>

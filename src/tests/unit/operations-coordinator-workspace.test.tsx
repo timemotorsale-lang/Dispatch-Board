@@ -107,6 +107,10 @@ describe("OperationsCoordinatorWorkspace", () => {
     expect(html).toContain("Keep paperwork moving.");
     expect(html).toContain("Documentation, packets, payments, and clean handoffs come first.");
     expect(html).toContain("Universal search first");
+    expect(html).toContain('action="/crm-next/search"');
+    expect(html).toContain('name="q"');
+    expect(html).toContain("Find a customer, vehicle, VIN, appointment, RO, part, payment, document, or task.");
+    expect(html).toContain(">Search</button>");
     expect(html).toContain("Add customer");
     expect(html).toContain("Documentation / Paperwork command center");
     expect(html).toContain("Open paperwork work");

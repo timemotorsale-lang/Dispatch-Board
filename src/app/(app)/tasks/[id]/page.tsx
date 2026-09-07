@@ -10,6 +10,8 @@ import { getStaffExecutionFlags } from "@/lib/staff-execution-flags";
 import { getTaskCompletionReadiness } from "@/server/services/task-execution-readiness";
 import { getTaskSpecialistRoutes } from "@/server/technician-workspace/service";
 
+export const dynamic = "force-dynamic";
+
 type TaskDetailPageProps = {
   params: Promise<{
     id: string;

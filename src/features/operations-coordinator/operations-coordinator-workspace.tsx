@@ -89,19 +89,29 @@ export function OperationsCoordinatorWorkspace({ model }: { model: OperationsCoo
         ))}
       </section>
 
-      <section className="oc-search" aria-label="Universal search">
+      <form action="/crm-next/search" className="oc-search" role="search" aria-label="Universal search">
         <Search />
         <div>
-          <strong>Universal search first</strong>
-          <span>{model.universalSearch.placeholder}</span>
+          <label htmlFor="operations-coordinator-universal-search">
+            <strong>Universal search first</strong>
+            <span>Find a customer, vehicle, VIN, appointment, RO, part, payment, document, or task.</span>
+          </label>
+          <input
+            id="operations-coordinator-universal-search"
+            name="q"
+            placeholder={model.universalSearch.placeholder}
+            type="search"
+          />
+          <input name="returnTo" type="hidden" value={operationsCoordinatorReturnTo} />
           <small>No match? Prepare the missing canonical record without leaving the loop.</small>
         </div>
         <div>
+          <button type="submit">Search</button>
           {model.universalSearch.noResultActions.map((action) => (
             <Link href={withWorkspaceReturn(action.href)} key={action.label}>{action.label}</Link>
           ))}
         </div>
-      </section>
+      </form>
 
       <section className="oc-dock" aria-label="Start work dock">
         {dock.map(({ icon: Icon, label, href }) => (

@@ -224,6 +224,11 @@ describe("task detail workspace", () => {
     expect(markup).not.toContain("Full tools");
     expect(markup).toContain("Owner");
     expect(markup).toContain("Due");
+    expect(markup).toContain("Calendar planner");
+    expect(markup).toContain("No linked appointment yet");
+    expect(markup).toContain("Plan event");
+    expect(markup).toContain("Board");
+    expect(markup).not.toContain("Open events");
     expect(markup).toContain("Change");
     expect(markup).toContain("Path");
     expect(markup).toContain("Shop &amp; Recon");
@@ -243,6 +248,77 @@ describe("task detail workspace", () => {
     expect(markup).not.toContain("Full Workbench");
     expect(markup).not.toContain("view=workbench");
     expect(markup).not.toContain("Generated Resolution Tasks");
+  });
+
+  it("adds a compact delivery planner shortcut to delivery task templates", () => {
+    const markup = renderToStaticMarkup(
+      <TaskDetailWorkspace
+        activityEvents={[]}
+        actorIsManager
+        assignableUsers={[]}
+        canComment
+        canCreateAppointment
+        canUpdateStatus
+        initialView="simple"
+        task={createTask({
+          title: "Deliver All Sold Vehicles",
+          description:
+            "We have 4 vehicles already sold that need to be delivered on Tuesday 9/8/2026 -2023 Toyota Camry Gray - windshield, trunk lid alignment.",
+          workflowArea: WorkflowArea.SALES
+        })}
+      />
+    );
+
+    expect(markup).toContain("Delivery planner");
+    expect(markup).toContain("No linked appointment yet");
+    expect(markup).toContain("Plan deliveries");
+    expect(markup).toContain("Hide scheduling planner");
+    expect(markup).toContain("Board");
+    expect(markup).toContain("/appointments?sourceTask=TMS-1493");
+  });
+
+  it("opens linked scheduled events under the task when appointments already exist", () => {
+    const markup = renderToStaticMarkup(
+      <TaskDetailWorkspace
+        activityEvents={[]}
+        actorIsManager
+        assignableUsers={[]}
+        canComment
+        canCreateAppointment
+        canOpenFullWorkbench
+        canUpdateStatus
+        initialView="simple"
+        task={createTask({
+          appointmentLinks: [
+            {
+              id: "appointment-link-1",
+              appointmentId: "appointment-1",
+              appointmentNumber: "APT-TASK-1",
+              appointmentTitle: "Delivery handoff",
+              startsAt: "2026-09-08T15:00:00.000Z",
+              endsAt: "2026-09-08T16:00:00.000Z",
+              bookingStatus: "CONFIRMED",
+              attendanceStatus: "EXPECTED",
+              executionStatus: "NOT_STARTED",
+              followUpDispositionCode: null,
+              linkType: "SOURCE",
+              linkCode: "SOURCE_TASK",
+              linkTitle: "Created from task",
+              explanation: "Delivery needs scheduled customer handoff.",
+              isRequired: true,
+              blocksAppointment: false,
+              blocksTask: false,
+              createdAt: "2026-09-07T14:30:00.000Z"
+            }
+          ]
+        })}
+      />
+    );
+
+    expect(markup).toContain("1 scheduled / 1 linked");
+    expect(markup).toContain("Open events");
+    expect(markup).toContain("task-linked-appointments");
+    expect(markup).toContain("Plan event");
   });
 
   it("keeps full workbench retrievable when archived access is allowed", () => {
@@ -496,5 +572,34 @@ describe("task detail workspace", () => {
     expect(markup).toContain("Unscheduled draft");
     expect(markup).toContain("Open on Board");
     expect(markup).toContain("/appointments?sourceTask=TMS-1493&amp;appointment=APT-TASK-1");
+  });
+
+  it("adds a delivery appointment planner for sold-vehicle delivery tasks", () => {
+    const markup = renderToStaticMarkup(
+      <TaskDetailWorkspace
+        activityEvents={[]}
+        actorIsManager
+        assignableUsers={[]}
+        canComment
+        canCreateAppointment
+        canOpenFullWorkbench
+        canUpdateStatus
+        initialView="workbench"
+        task={createTask({
+          title: "Deliver All Sold Vehicles",
+          description:
+            "We have 4 vehicles already sold that need to be delivered on Tuesday 9/8/2026 -2023 Toyota Camry Gray - windshield, trunk lid alignment. - 2016 Chevrolet Malibu Gold - check engine light on.",
+          workflowArea: WorkflowArea.SALES
+        })}
+      />
+    );
+
+    expect(markup).toContain("Delivery Appointments");
+    expect(markup).toContain("Delivery schedule blocks");
+    expect(markup).toContain("2023 Toyota Camry Gray");
+    expect(markup).toContain("2016 Chevrolet Malibu Gold");
+    expect(markup).toContain("2026-09-08");
+    expect(markup).toContain("Create 2 delivery drafts");
+    expect(markup).toContain("Create one general draft");
   });
 });

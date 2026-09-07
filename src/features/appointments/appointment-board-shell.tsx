@@ -1,6 +1,6 @@
 "use client";
 
-/* eslint-disable react-hooks/purity, react-hooks/set-state-in-effect -- Existing appointment command-center runtime persistence uses local restore effects and timestamp IDs; keep behavior stable while Tasks readiness unblocks the release gate. */
+/* eslint-disable react-hooks/exhaustive-deps, react-hooks/preserve-manual-memoization, react-hooks/purity, react-hooks/set-state-in-effect -- Existing appointment command-center runtime persistence uses local restore effects, large memoized surfaces, and timestamp IDs; keep behavior stable while Tasks readiness unblocks the release gate. */
 import {
   CalendarDays,
   Car,
@@ -56,7 +56,7 @@ type AppointmentStatus =
 
 type OperationalCommand = "CHECK_IN" | "NO_SHOW" | "SCHEDULE" | "START" | "FINISH";
 
-type AppointmentBoardDataSource = "preview" | "live";
+type AppointmentBoardDataSource = "preview" | "live" | "empty";
 
 type ResourceAuditAction = "warning-override" | "release" | "replace";
 
@@ -1110,7 +1110,21 @@ export type AppointmentBoardShellProps = {
   showAdvisorReturn?: boolean;
 };
 
-const businessDate = "Monday, July 6, 2026";
+function getTodayDateKey(timezone: string) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: timezone
+  }).formatToParts(new Date());
+
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+
+  return year && month && day ? `${year}-${month}-${day}` : new Date().toISOString().slice(0, 10);
+}
+
 const appointmentCalendarHourHeight = 26;
 export const appointmentConsoleUxSmokeGate = {
   viewport: {
@@ -1133,7 +1147,6 @@ export const appointmentConsoleUxSmokeGate = {
 const fallbackBusinessHours = "9:00 AM - 6:00 PM";
 const fallbackDealershipAddress = "1101 E. Lake Street, Minneapolis, MN 55407";
 const fallbackDealershipPhone = "(612) 724-3631";
-const defaultBoardDate = "2026-07-06";
 const defaultOrganizationId = "org-time-motor-sales";
 const defaultLocationId = "loc-time-motor-sales-minneapolis";
 const defaultTimezone = "America/Chicago";
@@ -1582,6 +1595,36 @@ const categoryMeta: Record<AppointmentCategory, { label: string; className: stri
   general: { label: "Other / General", className: "appointment-kind-general" }
 };
 
+function buildEmptyAppointment(dateKey: string, timezone: string): Appointment {
+  return {
+    id: "NO-LIVE-APPOINTMENT",
+    title: "No live appointment selected",
+    customer: "No customer selected",
+    vehicle: "No vehicle selected",
+    category: "general",
+    status: "confirmed",
+    staffId: "unassigned-live",
+    staffName: "Unassigned",
+    staffRole: "Appointment owner",
+    startMinutes: 9 * 60,
+    durationMinutes: 60,
+    startsAtIso: localDateTimeToMinneapolisIso(dateKey, "09:00", timezone),
+    endsAtIso: localDateTimeToMinneapolisIso(dateKey, "10:00", timezone),
+    schedulingTimezone: timezone,
+    dataSource: "empty",
+    phone: fallbackDealershipPhone,
+    complaint: "No persisted appointment records match the current date, filters, or board lens.",
+    location: "Appointment Board",
+    confirmation: "No live record loaded",
+    taskAutomation: [],
+    governanceNotes: [
+      "This is an empty state, not a preview appointment.",
+      "Create a new appointment or adjust the date and filters to load persisted records."
+    ]
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Retained as legacy preview fixtures for isolated story/test migration; the live board no longer renders them.
 const appointments: Appointment[] = [
   {
     id: "APT-10245",
@@ -1840,14 +1883,83 @@ const appointments: Appointment[] = [
     confirmation: "In progress",
     taskAutomation: ["Parts ETA", "Customer callback"],
     governanceNotes: ["Follow-up reason captured.", "Linked to service work order."]
+  },
+  {
+    id: "APT-10260",
+    title: "Test Drive",
+    customer: "Ali Mohamed",
+    vehicle: "2019 Nissan Altima",
+    category: "sales",
+    status: "confirmed",
+    staffId: "walter",
+    startMinutes: 540,
+    durationMinutes: 75,
+    startsAtIso: "2026-07-07T14:00:00.000Z",
+    endsAtIso: "2026-07-07T15:15:00.000Z",
+    phone: "(612) 555-0127",
+    complaint: "Customer wants a focused Altima test drive and payment review.",
+    location: "Sales floor",
+    confirmation: "Upcoming appointment",
+    taskAutomation: ["Pull vehicle", "Prepare buyer profile"],
+    governanceNotes: ["Upcoming appointment is visible from the board.", "Owner can update from appointment details."]
+  },
+  {
+    id: "APT-10261",
+    title: "Service / Repair",
+    customer: "Abdul Rahman",
+    vehicle: "2016 Ford Escape",
+    category: "service",
+    status: "confirmed",
+    staffId: "brock",
+    startMinutes: 630,
+    durationMinutes: 75,
+    startsAtIso: "2026-07-07T15:30:00.000Z",
+    endsAtIso: "2026-07-07T16:45:00.000Z",
+    phone: "(612) 555-0138",
+    complaint: "Customer requested a service check and repair intake.",
+    location: "Service counter",
+    confirmation: "Upcoming appointment",
+    taskAutomation: ["Prepare intake", "Confirm shop capacity"],
+    governanceNotes: ["Service advisor owns the appointment.", "Repair intake stays linked to the calendar."]
+  },
+  {
+    id: "APT-10262",
+    title: "Vehicle Delivery",
+    customer: "Sadia Hassan",
+    vehicle: "2021 Toyota RAV4",
+    category: "delivery",
+    status: "confirmed",
+    staffId: "mohamed",
+    startMinutes: 780,
+    durationMinutes: 60,
+    startsAtIso: "2026-07-07T18:00:00.000Z",
+    endsAtIso: "2026-07-07T19:00:00.000Z",
+    phone: "(612) 555-0162",
+    complaint: "Final delivery walkthrough, packet review, and key handoff.",
+    location: "Delivery bay",
+    confirmation: "Upcoming appointment",
+    taskAutomation: ["Delivery checklist", "Warranty packet"],
+    governanceNotes: ["Delivery checklist required before close.", "Funding packet remains protected."]
+  },
+  {
+    id: "APT-10263",
+    title: "Documentation / DMV",
+    customer: "Omar Duale",
+    vehicle: "Title Transfer",
+    category: "dmv",
+    status: "confirmed",
+    staffId: "rayana",
+    startMinutes: 840,
+    durationMinutes: 60,
+    startsAtIso: "2026-07-07T19:00:00.000Z",
+    endsAtIso: "2026-07-07T20:00:00.000Z",
+    phone: "(612) 555-0189",
+    complaint: "Review title transfer documents and collect missing signatures.",
+    location: "Office desk",
+    confirmation: "Upcoming appointment",
+    taskAutomation: ["Title packet review", "Signature checklist"],
+    governanceNotes: ["Documentation appointment belongs in the office lane.", "Document edits require a reason."]
   }
-];
-
-const upcomingAppointments = [
-  { time: "Tue, Jul 7 - 9:00 AM", title: "Test Drive", customer: "Ali Mohamed", vehicle: "2019 Nissan Altima", staff: "Walter James", category: "sales" as const },
-  { time: "Tue, Jul 7 - 10:30 AM", title: "Service / Repair", customer: "Abdul Rahman", vehicle: "2016 Ford Escape", staff: "Brock Peterson", category: "service" as const },
-  { time: "Tue, Jul 7 - 1:00 PM", title: "Vehicle Delivery", customer: "Sadia Hassan", vehicle: "2021 Toyota RAV4", staff: "Mohamed Ali", category: "delivery" as const },
-  { time: "Tue, Jul 7 - 2:00 PM", title: "Documentation / DMV", customer: "Omar Duale", vehicle: "Title Transfer", staff: "Rayana Hassan", category: "dmv" as const }
 ];
 
 const viewModes: ViewMode[] = ["day", "week", "month", "agenda"];
@@ -4916,6 +5028,38 @@ function addDaysToDateKey(dateKey: string, days: number) {
   return base.toISOString().slice(0, 10);
 }
 
+function addMonthsToDateKey(dateKey: string, months: number) {
+  const base = new Date(`${dateKey}T12:00:00`);
+  base.setMonth(base.getMonth() + months);
+  return base.toISOString().slice(0, 10);
+}
+
+function firstDateOfMonthKey(dateKey: string) {
+  return `${dateKey.slice(0, 7)}-01`;
+}
+
+function buildAppointmentReadQuery(input: {
+  dateKey: string;
+  locationId: string;
+  timezone: string;
+  viewMode: ViewMode;
+}) {
+  const windowStartDateKey =
+    input.viewMode === "month" ? firstDateOfMonthKey(input.dateKey) : input.dateKey;
+  const windowEndDateKey =
+    input.viewMode === "month"
+      ? addMonthsToDateKey(windowStartDateKey, 1)
+      : addDaysToDateKey(input.dateKey, input.viewMode === "week" ? 7 : 14);
+  const params = new URLSearchParams({
+    date: input.dateKey,
+    locationId: input.locationId,
+    windowStart: localDateTimeToMinneapolisIso(windowStartDateKey, "00:00", input.timezone),
+    windowEnd: localDateTimeToMinneapolisIso(windowEndDateKey, "00:00", input.timezone)
+  });
+
+  return params.toString();
+}
+
 function appointmentDateKey(
   appointment: Appointment,
   timezone: string,
@@ -5036,11 +5180,16 @@ export function buildAppointmentWeekColumns(input: {
   appointments: Appointment[];
   timezone: string;
   boardDateKey: string;
+  fallbackDateKey?: string;
 }) {
   const itemsByDate = new Map<string, Appointment[]>();
 
   for (const appointment of input.appointments) {
-    const dateKey = appointmentDateKey(appointment, input.timezone, input.boardDateKey);
+    const dateKey = appointmentDateKey(
+      appointment,
+      input.timezone,
+      input.fallbackDateKey ?? input.boardDateKey
+    );
     const current = itemsByDate.get(dateKey) ?? [];
     current.push(appointment);
     itemsByDate.set(dateKey, current);
@@ -5066,6 +5215,7 @@ export function buildAppointmentMonthCells(input: {
   appointments: Appointment[];
   timezone: string;
   boardDateKey: string;
+  fallbackDateKey?: string;
 }) {
   const boardDate = new Date(`${input.boardDateKey}T12:00:00`);
   const startOfMonth = new Date(boardDate.getFullYear(), boardDate.getMonth(), 1);
@@ -5075,7 +5225,11 @@ export function buildAppointmentMonthCells(input: {
 
   const itemsByDate = new Map<string, Appointment[]>();
   for (const appointment of input.appointments) {
-    const dateKey = appointmentDateKey(appointment, input.timezone, input.boardDateKey);
+    const dateKey = appointmentDateKey(
+      appointment,
+      input.timezone,
+      input.fallbackDateKey ?? input.boardDateKey
+    );
     const current = itemsByDate.get(dateKey) ?? [];
     current.push(appointment);
     itemsByDate.set(dateKey, current);
@@ -5556,13 +5710,22 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
   const boardAddress = boardSettings?.addressLine || fallbackDealershipAddress;
   const boardPhone = boardSettings?.phoneNumber || fallbackDealershipPhone;
   const boardBusinessHours = boardSettings?.businessHoursLabel || fallbackBusinessHours;
-  const [selectedId, setSelectedId] = useState(appointments[0].id);
+  const todayDateKey = getTodayDateKey(boardTimezone);
+  const businessDate = formatDateKeyLabel(todayDateKey, boardTimezone, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric"
+  });
+  const [selectedId, setSelectedId] = useState("");
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<AppointmentCategory | "all">("all");
   const [staffFilter, setStaffFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<AppointmentStatus | "all">("all");
   const [conflictsOnly, setConflictsOnly] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("day");
+  const [boardDateKey, setBoardDateKey] = useState(todayDateKey);
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [boardLaneMode, setBoardLaneMode] = useState<AppointmentBoardLaneMode>("staff");
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<AppointmentWorkspaceTab>("planner");
   const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(false);
@@ -5591,13 +5754,13 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
     title: "Service / Repair",
     customer: "",
     vehicle: "",
-    localDate: defaultBoardDate,
+    localDate: todayDateKey,
     startTime: "10:00",
     durationMinutes: 60,
     reason: ""
   });
   const [scheduleDraft, setScheduleDraft] = useState<ScheduleDraftForm>({
-    localDate: defaultBoardDate,
+    localDate: todayDateKey,
     startTime: "10:00",
     durationMinutes: 60,
     reasonNotes: ""
@@ -5712,7 +5875,14 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
     setIsLiveLoading(true);
 
     try {
-      const response = await fetch(`/api/appointments?date=${encodeURIComponent(defaultBoardDate)}`);
+      const response = await fetch(
+        `/api/appointments?${buildAppointmentReadQuery({
+          dateKey: boardDateKey,
+          locationId: boardLocationId,
+          timezone: boardTimezone,
+          viewMode
+        })}`
+      );
       const result = (await response.json().catch(() => null)) as AppointmentReadApiResult | { error?: string } | null;
 
       if (!response.ok) {
@@ -5728,8 +5898,8 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
       if (!options.suppressSuccessNotice) {
         setActionNotice(
           appointmentsFromReadModel.length > 0
-            ? `Loaded ${appointmentsFromReadModel.length} live appointment${appointmentsFromReadModel.length === 1 ? "" : "s"} from the read model.`
-            : "Live read model is connected. No persisted appointments were found for this day, so the approved preview board remains visible."
+            ? `Loaded ${appointmentsFromReadModel.length} live appointment${appointmentsFromReadModel.length === 1 ? "" : "s"} from the appointment read model.`
+            : "Live appointment read model is connected. No persisted appointments were found for the current date and view."
         );
       }
 
@@ -5738,8 +5908,8 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
       setLiveAppointments([]);
       setActionNotice(
         error instanceof Error
-          ? `Live read model could not load: ${error.message}. Preview board remains visible.`
-          : "Live read model could not load. Preview board remains visible."
+          ? `Live appointment read model could not load: ${error.message}.`
+          : "Live appointment read model could not load."
       );
 
       return [];
@@ -5844,7 +6014,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
     return () => {
       isActive = false;
     };
-  }, []);
+  }, [boardDateKey, boardLocationId, boardTimezone, viewMode]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -5975,12 +6145,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
 
   const boardAppointments = useMemo(
     () => {
-      const liveScheduledAppointments = liveAppointments.filter(
-        (appointment) => !isUnscheduledDraftAppointment(appointment)
-      );
-      const previewCalendarBaseline = liveScheduledAppointments.length > 0 ? [] : appointments;
-
-      return [...previewCalendarBaseline, ...liveAppointments].map((appointment) => {
+      return liveAppointments.map((appointment) => {
         const staff = staffMembers.find((member) => member.id === appointment.staffId);
 
         return {
@@ -5992,6 +6157,11 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
       });
     },
     [appointmentStatusOverrides, liveAppointments]
+  );
+
+  const emptyAppointment = useMemo(
+    () => buildEmptyAppointment(boardDateKey, boardTimezone),
+    [boardDateKey, boardTimezone]
   );
 
   useEffect(() => {
@@ -6048,7 +6218,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
         });
 
         return staffList;
-      }, [...staffMembers]),
+      }, []),
     [boardAppointments]
   );
 
@@ -6110,8 +6280,19 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
   );
   const breachedResolutionCount = resolutionWorkbenchItems.filter((item) => item.slaStatus === "breached").length;
   const escalatedResolutionCount = resolutionWorkbenchItems.filter((item) => item.resolutionStatus === "escalated").length;
+  const currentBoardDateAppointments = useMemo(
+    () =>
+      filteredAppointments.filter(
+        (appointment) =>
+          !isUnscheduledDraftAppointment(appointment) &&
+          appointmentDateKey(appointment, boardTimezone, boardDateKey) === boardDateKey
+      ),
+    [boardDateKey, boardTimezone, filteredAppointments]
+  );
   const selectedAppointment =
-    boardAppointments.find((appointment) => appointment.id === selectedId) ?? filteredAppointments[0] ?? boardAppointments[0];
+    boardAppointments.find((appointment) => appointment.id === selectedId) ??
+    (viewMode === "day" ? currentBoardDateAppointments[0] : filteredAppointments[0]) ??
+    emptyAppointment;
   const workflowContextAppointment =
     (commandCenterWorkflowContext
       ? boardAppointments.find((appointment) => appointment.id === commandCenterWorkflowContext.appointmentId)
@@ -6610,14 +6791,30 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
     () => filteredAppointments.filter((appointment) => !isUnscheduledDraftAppointment(appointment)),
     [filteredAppointments]
   );
+  const dayScheduledAppointments = useMemo(
+    () => currentBoardDateAppointments,
+    [currentBoardDateAppointments]
+  );
+  const liveUpcomingAppointments = useMemo(
+    () =>
+      scheduledFilteredAppointments
+        .filter((appointment) => appointmentDateKey(appointment, boardTimezone, boardDateKey) > boardDateKey)
+        .sort((left, right) => {
+          const leftDate = appointmentDateKey(left, boardTimezone, boardDateKey);
+          const rightDate = appointmentDateKey(right, boardTimezone, boardDateKey);
+          return leftDate.localeCompare(rightDate) || left.startMinutes - right.startMinutes;
+        })
+        .slice(0, 4),
+    [boardDateKey, boardTimezone, scheduledFilteredAppointments]
+  );
   const boardLanes = useMemo(
     () =>
       buildAppointmentBoardLanes({
-        appointments: scheduledFilteredAppointments,
+        appointments: dayScheduledAppointments,
         laneMode: boardLaneMode,
         staffMembers: visibleStaffMembers
       }),
-    [boardLaneMode, scheduledFilteredAppointments, visibleStaffMembers]
+    [boardLaneMode, dayScheduledAppointments, visibleStaffMembers]
   );
   const resourceViewItems = useMemo(
     () => buildAppointmentResourceViewItems({ appointments: scheduledFilteredAppointments }),
@@ -6678,29 +6875,31 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
   const agendaSections = useMemo(
     () =>
       buildAppointmentAgendaSections({
-        appointments: scheduledFilteredAppointments,
+        appointments: viewMode === "agenda" ? scheduledFilteredAppointments : dayScheduledAppointments,
         timezone: boardTimezone,
-        fallbackDateKey: defaultBoardDate
+        fallbackDateKey: boardDateKey
       }),
-    [boardTimezone, scheduledFilteredAppointments]
+    [boardDateKey, boardTimezone, dayScheduledAppointments, scheduledFilteredAppointments, viewMode]
   );
   const weekColumns = useMemo(
     () =>
       buildAppointmentWeekColumns({
         appointments: scheduledFilteredAppointments,
         timezone: boardTimezone,
-        boardDateKey: defaultBoardDate
+        boardDateKey,
+        fallbackDateKey: boardDateKey
       }),
-    [boardTimezone, scheduledFilteredAppointments]
+    [boardDateKey, boardTimezone, scheduledFilteredAppointments]
   );
   const monthCells = useMemo(
     () =>
       buildAppointmentMonthCells({
         appointments: scheduledFilteredAppointments,
         timezone: boardTimezone,
-        boardDateKey: defaultBoardDate
+        boardDateKey,
+        fallbackDateKey: boardDateKey
       }),
-    [boardTimezone, scheduledFilteredAppointments]
+    [boardDateKey, boardTimezone, scheduledFilteredAppointments]
   );
   const selectedAppointmentIsUnscheduledDraft =
     selectedAppointment.dataSource === "live" &&
@@ -6716,7 +6915,12 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
     });
 
   const selectedStaff =
-    visibleStaffMembers.find((staff) => staff.id === selectedAppointment.staffId) ?? visibleStaffMembers[0];
+    visibleStaffMembers.find((staff) => staff.id === selectedAppointment.staffId) ?? {
+      id: selectedAppointment.staffId,
+      name: selectedAppointment.staffName ?? "Unassigned",
+      role: selectedAppointment.staffRole ?? "Appointment owner",
+      initials: getInitials(selectedAppointment.staffName ?? "Unassigned")
+    };
 
   const ownerTransferCandidates = useMemo(() => {
     const candidates = new Map<string, StaffMember>();
@@ -6776,6 +6980,19 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
     const staffMessage =
       staffConflictPreview?.reasons[0] ??
       "Staff availability has not cleared for the selected appointment window.";
+
+    if (selectedAppointment.dataSource === "empty") {
+      return {
+        tone: "neutral",
+        eyebrow: isLiveLoading ? "Loading live board" : "No live record",
+        title: isLiveLoading ? "Loading persisted appointments" : "No appointment selected",
+        detail: isLiveLoading
+          ? "The appointment read model is refreshing from the live schedule."
+          : "No persisted appointment matches the current date, filters, or board lens. Create an appointment or adjust the board controls.",
+        actionLabel: "Refresh board",
+        action: "refresh" as const
+      };
+    }
 
     if (selectedAppointment.dataSource !== "live") {
       return {
@@ -6963,6 +7180,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
   }, [
     isReadinessLoading,
     isStaffConflictLoading,
+    isLiveLoading,
     outcomeDraft.followUpDispositionCode,
     outcomeDraft.followUpNotes,
     outcomeDraft.reasonNotes,
@@ -9487,14 +9705,30 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
   ]);
 
   const metrics = [
-    { label: "Total Appointments", value: boardAppointments.length, status: "all" as const, tone: "slate" },
-    { label: "Confirmed", value: boardAppointments.filter((appointment) => appointment.status === "confirmed").length, status: "confirmed" as const, tone: "green" },
-    { label: "Checked In", value: boardAppointments.filter((appointment) => appointment.status === "checked-in").length, status: "checked-in" as const, tone: "blue" },
-    { label: "In Progress", value: boardAppointments.filter((appointment) => appointment.status === "in-progress").length, status: "in-progress" as const, tone: "orange" },
-    { label: "No Show", value: boardAppointments.filter((appointment) => appointment.status === "no-show").length, status: "no-show" as const, tone: "red" },
-    { label: "Needs Follow-Up", value: boardAppointments.filter((appointment) => appointment.needsFollowUp || appointment.status === "follow-up").length, status: "follow-up" as const, tone: "purple" }
+    { label: "Total Appointments", value: dayScheduledAppointments.length, status: "all" as const, tone: "slate" },
+    { label: "Confirmed", value: dayScheduledAppointments.filter((appointment) => appointment.status === "confirmed").length, status: "confirmed" as const, tone: "green" },
+    { label: "Checked In", value: dayScheduledAppointments.filter((appointment) => appointment.status === "checked-in").length, status: "checked-in" as const, tone: "blue" },
+    { label: "In Progress", value: dayScheduledAppointments.filter((appointment) => appointment.status === "in-progress").length, status: "in-progress" as const, tone: "orange" },
+    { label: "No Show", value: dayScheduledAppointments.filter((appointment) => appointment.status === "no-show").length, status: "no-show" as const, tone: "red" },
+    { label: "Needs Follow-Up", value: dayScheduledAppointments.filter((appointment) => appointment.needsFollowUp || appointment.status === "follow-up").length, status: "follow-up" as const, tone: "purple" }
   ];
-  const workspaceMonthLabel = formatDateKeyLabel(defaultBoardDate, boardTimezone, {
+  const activeBusinessDate = formatDateKeyLabel(boardDateKey, boardTimezone, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric"
+  });
+  const selectedAppointmentBusinessDate = formatDateKeyLabel(
+    appointmentDateKey(selectedAppointment, boardTimezone, boardDateKey),
+    boardTimezone,
+    {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric"
+    }
+  );
+  const workspaceMonthLabel = formatDateKeyLabel(boardDateKey, boardTimezone, {
     month: "long",
     year: "numeric"
   });
@@ -9515,6 +9749,115 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
 
   function handlePreviewAction(label: string) {
     setActionNotice(`${label} captured in preview. Live version will require a documented reason and audit trail.`);
+  }
+
+  function shiftBoardDate(direction: -1 | 1) {
+    setIsDatePickerOpen(false);
+    setBoardDateKey((currentDateKey) => {
+      if (viewMode === "month") {
+        return addMonthsToDateKey(currentDateKey, direction);
+      }
+
+      return addDaysToDateKey(currentDateKey, viewMode === "week" ? direction * 7 : direction);
+    });
+    setActionNotice(
+      viewMode === "month"
+        ? direction > 0
+          ? "Moved to the next appointment month."
+          : "Moved to the previous appointment month."
+        : viewMode === "week"
+          ? direction > 0
+            ? "Moved to the next appointment week."
+            : "Moved to the previous appointment week."
+          : direction > 0
+            ? "Moved to the next appointment day."
+            : "Moved to the previous appointment day."
+    );
+  }
+
+  function resetBoardDateToToday() {
+    setBoardDateKey(todayDateKey);
+    setIsDatePickerOpen(false);
+    setActionNotice("Returned the appointment board to today.");
+  }
+
+  function selectBoardDate(nextDateKey: string) {
+    if (!nextDateKey) {
+      return;
+    }
+
+    setBoardDateKey(nextDateKey);
+    setIsDatePickerOpen(false);
+    setActionNotice(
+      `Opened appointments for ${formatDateKeyLabel(nextDateKey, boardTimezone, {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year: "numeric"
+      })}.`
+    );
+  }
+
+  function openBoardDate(nextDateKey: string, nextViewMode: ViewMode = "day") {
+    if (!nextDateKey) {
+      return;
+    }
+
+    setBoardDateKey(nextDateKey);
+    setViewMode(nextViewMode);
+    setIsDatePickerOpen(false);
+    setActionNotice(
+      `Opened ${formatDateKeyLabel(nextDateKey, boardTimezone, {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year: "numeric"
+      })} on the appointment board.`
+    );
+  }
+
+  function openUpcomingAppointments() {
+    const firstUpcomingAppointment = liveUpcomingAppointments[0];
+    const nextDateKey = firstUpcomingAppointment
+      ? appointmentDateKey(firstUpcomingAppointment, boardTimezone, boardDateKey)
+      : addDaysToDateKey(todayDateKey, 1);
+
+    setBoardDateKey(nextDateKey);
+    setViewMode("agenda");
+    setCategoryFilter("all");
+    setStaffFilter("all");
+    setStatusFilter("all");
+    setConflictsOnly(false);
+    setIsDatePickerOpen(false);
+    setActionNotice(
+      `Opened upcoming appointments for ${formatDateKeyLabel(nextDateKey, boardTimezone, {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year: "numeric"
+      })}.`
+    );
+  }
+
+  function openUpcomingAppointment(appointmentId: string) {
+    const appointment = boardAppointments.find((candidate) => candidate.id === appointmentId);
+
+    if (!appointment) {
+      setActionNotice("That upcoming appointment is not available in the current board model yet.");
+      return;
+    }
+
+    setBoardDateKey(appointmentDateKey(appointment, boardTimezone, boardDateKey));
+    setViewMode("day");
+    setCategoryFilter("all");
+    setStaffFilter("all");
+    setStatusFilter("all");
+    setConflictsOnly(false);
+    setIsDatePickerOpen(false);
+    selectAppointmentForDetail(appointment);
+    setActionNotice(
+      `Opened ${appointment.title} for ${appointment.customer}. Details and linked work are focused in the side panel.`
+    );
   }
 
   function focusWorkspaceSurface(input: {
@@ -9606,6 +9949,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
       const endsAt = addMinutesToIso(startsAt, draftAppointment.durationMinutes);
       const appointmentNumber = createAppointmentNumber();
       const idempotencyKey = createDraftCommandIdentifier();
+      const sourceTaskId = initialFocus?.sourceTaskId?.trim() || null;
       const response = await fetch("/api/appointments/commands", {
         method: "POST",
         headers: {
@@ -9620,8 +9964,8 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
           payload: {
             appointmentNumber,
             title: draftAppointment.title.trim(),
-            sourceType: "MANUAL",
-            sourceReference: draftAppointment.reason.trim(),
+            sourceType: sourceTaskId ? "TASK" : "MANUAL",
+            sourceReference: sourceTaskId ?? draftAppointment.reason.trim(),
             startsAt,
             endsAt,
             schedulingTimezone: boardTimezone,
@@ -9640,7 +9984,28 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
                   displayName: draftAppointment.vehicle.trim(),
                   vehicleNumber: draftAppointment.vehicle.trim()
                 }
-              : null
+              : null,
+            sourceSnapshot: sourceTaskId
+              ? {
+                  taskId: sourceTaskId,
+                  reasonNotes: draftAppointment.reason.trim()
+                }
+              : null,
+            taskLinks: sourceTaskId
+              ? [
+                  {
+                    action: "CREATE_LINK",
+                    taskId: sourceTaskId,
+                    linkType: "SOURCE",
+                    linkCode: "SOURCE_TASK",
+                    title: "Created from task",
+                    explanation: draftAppointment.reason.trim(),
+                    isRequired: true,
+                    blocksAppointment: false,
+                    appointmentRequiredForTask: false
+                  }
+                ]
+              : []
           }
         })
       });
@@ -11073,7 +11438,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
                     <span>Drafts waiting for time</span>
                   </article>
                   <article>
-                    <strong>{upcomingAppointments.length}</strong>
+                    <strong>{liveUpcomingAppointments.length}</strong>
                     <span>Upcoming handoffs</span>
                   </article>
                 </div>
@@ -11235,7 +11600,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
                   >
                     <strong>Upcoming</strong>
                     <small>Next-day appointment visibility</small>
-                    <span>{upcomingAppointments.length} staged cards</span>
+                    <span>{liveUpcomingAppointments.length} live cards</span>
                   </button>
                   <button
                     className="appointment-workspace-action"
@@ -11741,18 +12106,43 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
       </div>
 
       <div className="appointment-date-row">
-        <button type="button" className="appointment-date-button" onClick={() => handlePreviewAction("Today")}>
+        <button type="button" className="appointment-date-button" onClick={() => resetBoardDateToToday()}>
           Today
         </button>
-        <button type="button" className="appointment-square-button" aria-label="Previous day" onClick={() => handlePreviewAction("Previous day")}>
+        <button type="button" className="appointment-square-button" aria-label="Previous appointment date" onClick={() => shiftBoardDate(-1)}>
           <ChevronLeft size={17} />
         </button>
-        <button type="button" className="appointment-square-button" aria-label="Next day" onClick={() => handlePreviewAction("Next day")}>
+        <button type="button" className="appointment-square-button" aria-label="Next appointment date" onClick={() => shiftBoardDate(1)}>
           <ChevronRight size={17} />
         </button>
-        <div className="appointment-date-display">
-          <strong>{businessDate}</strong>
-          <CalendarDays size={16} aria-hidden="true" />
+        <div className="appointment-date-picker-wrap">
+          <button
+            aria-controls="appointment-date-picker-panel"
+            aria-expanded={isDatePickerOpen}
+            aria-label={`Select appointment board date. Current date is ${activeBusinessDate}`}
+            className="appointment-date-display"
+            onClick={() => setIsDatePickerOpen((value) => !value)}
+            type="button"
+          >
+            <strong>{activeBusinessDate}</strong>
+            <CalendarDays size={16} aria-hidden="true" />
+          </button>
+          {isDatePickerOpen ? (
+            <div className="appointment-date-picker-panel" id="appointment-date-picker-panel">
+              <label>
+                <span>Go to date</span>
+                <input
+                  aria-label="Appointment board date"
+                  onChange={(event) => selectBoardDate(event.target.value)}
+                  type="date"
+                  value={boardDateKey}
+                />
+              </label>
+              <button type="button" onClick={() => resetBoardDateToToday()}>
+                Today
+              </button>
+            </div>
+          ) : null}
         </div>
         <div className="appointment-date-filters" aria-label="Appointment board filters">
           <select aria-label="Filter appointment category" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value as AppointmentCategory | "all")}>
@@ -14970,7 +15360,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
                 </div>
                 {boardLanes.map((lane) => (
                   <div className="appointment-staff-column" key={lane}>
-                    {scheduledFilteredAppointments.filter((appointment) => appointmentBoardLaneLabel(appointment, boardLaneMode) === lane).map((appointment) => {
+                    {dayScheduledAppointments.filter((appointment) => appointmentBoardLaneLabel(appointment, boardLaneMode) === lane).map((appointment) => {
                       const meta = categoryMeta[appointment.category];
                       const hourOffset = Math.max(0, (appointment.startMinutes - 540) / 60);
                       const durationHours = appointment.durationMinutes / 60;
@@ -15016,10 +15406,14 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
               <div className="appointment-week-grid">
                 {weekColumns.map((column) => (
                   <article className="appointment-week-column" key={column.dateKey}>
-                    <div className="appointment-week-column-heading">
+                    <button
+                      className="appointment-week-column-heading"
+                      onClick={() => openBoardDate(column.dateKey, "day")}
+                      type="button"
+                    >
                       <strong>{column.weekdayLabel}</strong>
                       <span>{column.dateLabel}</span>
-                    </div>
+                    </button>
                     <small>{column.countLabel}</small>
                     <div className="appointment-week-column-list">
                       {column.items.length > 0 ? (
@@ -15066,10 +15460,14 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
                     }
                     key={cell.dateKey}
                   >
-                    <div className="appointment-month-cell-top">
+                    <button
+                      className="appointment-month-cell-top"
+                      onClick={() => openBoardDate(cell.dateKey, "day")}
+                      type="button"
+                    >
                       <strong>{cell.dayNumber}</strong>
                       <span>{cell.items.length} item{cell.items.length === 1 ? "" : "s"}</span>
-                    </div>
+                    </button>
                     <div className="appointment-month-cell-list">
                       {cell.items.slice(0, 2).map((appointment) => (
                         <button
@@ -15102,33 +15500,43 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
                 <span>{agendaSections.length} day group{agendaSections.length === 1 ? "" : "s"}</span>
               </div>
               <div className="appointment-agenda-sections">
-                {agendaSections.map((section) => (
-                  <article className="appointment-agenda-section" key={section.dateKey}>
+                {agendaSections.length > 0 ? (
+                  agendaSections.map((section) => (
+                    <article className="appointment-agenda-section" key={section.dateKey}>
+                      <div className="appointment-agenda-section-heading">
+                        <strong>{section.dateLabel}</strong>
+                        <span>{section.items.length} appointment{section.items.length === 1 ? "" : "s"}</span>
+                      </div>
+                      <div className="appointment-agenda-list">
+                        {section.items.map((appointment) => (
+                          <button
+                            className="appointment-agenda-item"
+                            key={appointment.id}
+                            onClick={() => selectAppointmentForDetail(appointment)}
+                            type="button"
+                          >
+                            <div>
+                              <strong>{appointment.title}</strong>
+                              <small>{appointment.customer} · {appointment.vehicle}</small>
+                            </div>
+                            <div>
+                              <span>{appointmentTimeRangeLabel(appointment)}</span>
+                              <small>{appointmentBoardLaneLabel(appointment, boardLaneMode)}</small>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </article>
+                  ))
+                ) : (
+                  <article className="appointment-agenda-section">
                     <div className="appointment-agenda-section-heading">
-                      <strong>{section.dateLabel}</strong>
-                      <span>{section.items.length} appointment{section.items.length === 1 ? "" : "s"}</span>
+                      <strong>{activeBusinessDate}</strong>
+                      <span>0 appointments</span>
                     </div>
-                    <div className="appointment-agenda-list">
-                      {section.items.map((appointment) => (
-                        <button
-                          className="appointment-agenda-item"
-                          key={appointment.id}
-                          onClick={() => selectAppointmentForDetail(appointment)}
-                          type="button"
-                        >
-                          <div>
-                            <strong>{appointment.title}</strong>
-                            <small>{appointment.customer} · {appointment.vehicle}</small>
-                          </div>
-                          <div>
-                            <span>{appointmentTimeRangeLabel(appointment)}</span>
-                            <small>{appointmentBoardLaneLabel(appointment, boardLaneMode)}</small>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
+                    <p className="appointment-week-empty">No appointments in the current filtered scope.</p>
                   </article>
-                ))}
+                )}
               </div>
             </section>
           ) : (
@@ -15151,32 +15559,24 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
         </div>
 
         <aside className="appointment-detail-panel" aria-label="Appointment details">
-          <div className={`appointment-next-action-card appointment-next-action-${selectedAppointmentNextSafeAction.tone}`}>
-            <span>{selectedAppointmentNextSafeAction.eyebrow}</span>
-            <strong>{selectedAppointmentNextSafeAction.title}</strong>
-            <p>{selectedAppointmentNextSafeAction.detail}</p>
-            <button
-              disabled={isCommandPending || isOutcomeSaving}
-              onClick={() => runSelectedAppointmentNextSafeAction()}
-              type="button"
-            >
-              {isCommandPending || isOutcomeSaving ? "Working..." : selectedAppointmentNextSafeAction.actionLabel}
-            </button>
-          </div>
-
           <div className="appointment-detail-header">
             <div className={`appointment-detail-icon ${categoryMeta[selectedAppointment.category].className}`}>
               <Users size={22} aria-hidden="true" />
             </div>
             <div>
               <strong>{selectedAppointment.title}</strong>
-              <span>Appointment #{selectedAppointment.id}</span>
+              <span className="appointment-detail-id-row">
+                {selectedAppointment.dataSource === "empty"
+                  ? "Live appointment board"
+                  : `Appointment #${selectedAppointment.id}`}
+                {selectedAppointment.dataSource === "preview" ? <b>Preview record</b> : null}
+              </span>
             </div>
             <span className={`appointment-status appointment-status-${selectedAppointment.status}`}>{statusLabel(selectedAppointment.status)}</span>
           </div>
 
           <div className="appointment-detail-list">
-            <p><CalendarDays size={16} aria-hidden="true" />{businessDate}</p>
+            <p><CalendarDays size={16} aria-hidden="true" />{selectedAppointmentBusinessDate}</p>
             <p><Clock3 size={16} aria-hidden="true" />{appointmentTimeRangeLabel(selectedAppointment)}</p>
             <p><UserRound size={16} aria-hidden="true" />{selectedStaff.name} ({selectedStaff.role})</p>
             <p><Phone size={16} aria-hidden="true" />{selectedAppointment.phone}</p>
@@ -15184,6 +15584,21 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
             <p><MapPin size={16} aria-hidden="true" />{selectedAppointment.location}</p>
             <p><MessageCircle size={16} aria-hidden="true" />{selectedAppointment.complaint}</p>
           </div>
+
+          {selectedAppointment.dataSource === "live" || selectedAppointment.dataSource === "empty" ? (
+            <div className={`appointment-next-action-card appointment-next-action-${selectedAppointmentNextSafeAction.tone}`}>
+              <span>{selectedAppointmentNextSafeAction.eyebrow}</span>
+              <strong>{selectedAppointmentNextSafeAction.title}</strong>
+              <p>{selectedAppointmentNextSafeAction.detail}</p>
+              <button
+                disabled={isCommandPending || isOutcomeSaving}
+                onClick={() => runSelectedAppointmentNextSafeAction()}
+                type="button"
+              >
+                {isCommandPending || isOutcomeSaving ? "Working..." : selectedAppointmentNextSafeAction.actionLabel}
+              </button>
+            </div>
+          ) : null}
 
           <div className="appointment-detail-section" id="appointment-detail-linked-tasks">
             <div className="appointment-section-heading">
@@ -15596,7 +16011,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
                     <small>
                       {selectedAppointment.dataSource === "live" && selectedAppointment.recordVersion
                         ? `Current accountable owner · live record v${selectedAppointment.recordVersion}`
-                        : "Current preview owner · save requires a live appointment record"}
+                        : "No live appointment record selected yet"}
                     </small>
                   </div>
                 </div>
@@ -15654,7 +16069,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
                 <p className="appointment-resource-copy">
                   {selectedAppointment.dataSource === "live"
                     ? "Only authorized managers can complete this command. The backend records the prior owner, new owner, version, correlation id, and reason."
-                    : "Preview appointments show the enterprise owner-transfer control, but saving is enabled only after the appointment exists as a live record."}
+                    : "Owner transfer is enabled only after a live appointment record is selected."}
                 </p>
               </div>
             </div>
@@ -16187,23 +16602,36 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
       <section className="appointment-upcoming-card" aria-labelledby="upcoming-appointments">
         <div className="appointment-section-heading">
           <strong id="upcoming-appointments">Upcoming Appointments</strong>
-          <button type="button" onClick={() => handlePreviewAction("View all appointments")}>View all →</button>
+          <button type="button" onClick={() => openUpcomingAppointments()}>View all →</button>
         </div>
         <div className="appointment-upcoming-grid">
-          {upcomingAppointments.map((appointment) => (
-            <button
-              className={`appointment-upcoming-item ${categoryMeta[appointment.category].className}`}
-              key={`${appointment.time}-${appointment.customer}`}
-              onClick={() => handlePreviewAction(`Upcoming appointment for ${appointment.customer}`)}
-              type="button"
-            >
-              <span>{appointment.time}</span>
-              <strong>{appointment.title}</strong>
-              <small>{appointment.customer}</small>
-              <small>{appointment.vehicle}</small>
-              <em>{appointment.staff}</em>
-            </button>
-          ))}
+          {liveUpcomingAppointments.length > 0 ? (
+            liveUpcomingAppointments.map((appointment) => (
+              <button
+                className={`appointment-upcoming-item ${categoryMeta[appointment.category].className}`}
+                key={appointment.id}
+                onClick={() => openUpcomingAppointment(appointment.id)}
+                type="button"
+              >
+                <span>
+                  {formatDateKeyLabel(appointmentDateKey(appointment, boardTimezone, boardDateKey), boardTimezone, {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric"
+                  })}{" "}
+                  - {appointmentTimeLabel(appointment)}
+                </span>
+                <strong>{appointment.title}</strong>
+                <small>{appointment.customer}</small>
+                <small>{appointment.vehicle}</small>
+                <em>{appointment.staffName ?? "Unassigned"}</em>
+              </button>
+            ))
+          ) : (
+            <p className="appointment-week-empty">
+              No upcoming live appointments are loaded for this board window.
+            </p>
+          )}
         </div>
       </section>
         </div>

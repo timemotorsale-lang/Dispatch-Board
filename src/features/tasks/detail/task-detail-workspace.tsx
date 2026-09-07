@@ -99,6 +99,12 @@ export function shouldPreferSimpleTaskView(task: TaskReadModel) {
   return sourceText.includes("converted from") && sourceText.includes("quick update");
 }
 
+function shouldElevateTaskAppointmentPanel(task: TaskReadModel) {
+  const sourceText = `${task.title} ${task.description ?? ""} ${task.workflowArea}`.toLocaleLowerCase();
+
+  return sourceText.includes("deliver") || sourceText.includes("delivery") || sourceText.includes("sold vehicle");
+}
+
 function viewHref(taskId: string, view: TaskWorkspaceView, returnTo: string) {
   const params = new URLSearchParams({ view });
   if (returnTo && returnTo !== "/tasks") params.set("returnTo", returnTo);
@@ -307,6 +313,7 @@ export function TaskDetailWorkspace({
   const simpleNextStep =
     task.nextActionRecommendation?.label ??
     buildSimpleNextStep(task, missingUpdateLabels, checklist, simpleCategory);
+  const elevateAppointmentPanel = shouldElevateTaskAppointmentPanel(task);
 
   if (taskView === "simple") {
     return (
@@ -322,6 +329,7 @@ export function TaskDetailWorkspace({
             actorIsManager={actorIsManager}
             assignableUsers={assignableUsers}
             canComment={canComment}
+            canCreateAppointment={canCreateAppointment}
             canManageCollaborators={canManageCollaborators}
             canOpenFullWorkbench={canOpenFullWorkbench}
             canUpdateStatus={canUpdateStatus}
@@ -371,6 +379,7 @@ export function TaskDetailWorkspace({
           <strong>Quick Actions</strong>
           <Link href="/tasks?concern=1"><AlertTriangle size={14} />Log Concern</Link>
           <Link href={`/tasks/intake?returnTo=${encodeURIComponent(`/tasks/${task.id}`)}`}><ClipboardCheck size={14} />Task Intake</Link>
+          {elevateAppointmentPanel ? <a href="#task-delivery-schedule"><CalendarDays size={14} />Schedule Deliveries</a> : null}
           <a href="#notes"><MessageSquareText size={14} />Add Note</a>
           <a href="#documents"><FileText size={14} />Upload Doc</a>
           <a href="#customer-comms"><Mail size={14} />Send Update</a>
@@ -417,7 +426,7 @@ export function TaskDetailWorkspace({
         </aside>
 
         <main className="etw-main">
-          <nav className="etw-tabs" aria-label="Workbench sections"><a className="active" href="#overview">Overview</a><a href="#resolution-tasks">Tasks ({resolutionTasks.length})</a><a href="#selected-checklist">Checklist</a><a href="#timeline">Timeline</a><a href="#documents">Documents</a><a href="#notes">Notes ({task.comments.length})</a><a href="#customer-comms">Customer Comms</a><a href="#approvals">Approvals</a></nav>
+          <nav className="etw-tabs" aria-label="Workbench sections"><a className="active" href="#overview">Overview</a><a href="#resolution-tasks">Tasks ({resolutionTasks.length})</a><a href="#selected-checklist">Checklist</a><a href="#timeline">Timeline</a><a href="#documents">Documents</a><a href="#notes">Notes ({task.comments.length})</a>{elevateAppointmentPanel ? <a href="#task-delivery-schedule">Delivery Schedule</a> : <a href="#customer-comms">Customer Comms</a>}<a href="#approvals">Approvals</a></nav>
 
           <section className="etw-lifecycle" id="overview" aria-label="Resolution lifecycle">
             {["Case Created", "Classified & Scored", "Tasks Generated", "In Progress", "Manager Review", "Resolved", "Closed"].map((label, index) => {
@@ -427,6 +436,12 @@ export function TaskDetailWorkspace({
           </section>
 
           <TaskPlanReviewCard canUpdate={canUpdateStatus} task={task} />
+
+          {elevateAppointmentPanel ? (
+            <section id="task-delivery-schedule">
+              <TaskAppointmentPanel canCreateAppointment={canCreateAppointment} task={task} />
+            </section>
+          ) : null}
 
           <TaskResolutionAccordion checklist={checklist} concernId={concern?.id ?? null} selectedTaskDescription={task.description} selectedTaskId={task.id} subtasks={subtasks} tasks={resolutionTasks} />
 
@@ -438,7 +453,7 @@ export function TaskDetailWorkspace({
           <section className="etw-card" id="timeline"><h2><Activity size={16} /> Activity Feed</h2><div className="etw-side-feed">{feedItems.slice(0, 6).map((item) => <article key={item.id}><span /><div><small>{formatTaskDetailDateTime(item.createdAt)}</small><b>{item.message}</b><em>{item.actorName}</em></div></article>)}{feedItems.length === 0 ? <p>No activity recorded yet.</p> : null}</div></section>
           <section className="etw-card" id="approvals"><h2><Gauge size={16} /> Workflow Command</h2><TaskStatusPanel actorIsManager={actorIsManager} canUpdate={canUpdateStatus} initialReadiness={readiness} task={task} /></section>
           {actorIsManager ? <section className="etw-card etw-assignment-card"><h2><UserRound size={16} /> Ownership</h2><TaskAssignmentPanel assignableUsers={assignableUsers} task={task} /></section> : null}
-          <section id="customer-comms"><TaskAppointmentPanel canCreateAppointment={canCreateAppointment} task={task} /></section>
+          {!elevateAppointmentPanel ? <section id="customer-comms"><TaskAppointmentPanel canCreateAppointment={canCreateAppointment} task={task} /></section> : null}
           <section className="etw-card" id="documents"><h2><FileText size={16} /> Documents</h2><div className="etw-document-shell"><p>No documents are linked to this task yet.</p><button disabled type="button">+ Upload coming soon</button></div></section>
           <section className="etw-card etw-communication-card"><h2><MessageSquareText size={16} /> Customer Communication</h2><div className="etw-communication-channels"><button aria-label="WhatsApp customer" disabled type="button"><MessageCircle size={18} /></button><button aria-label="Call customer" disabled type="button"><Phone size={18} /></button><button aria-label="Email customer" disabled type="button"><Mail size={18} /></button></div><p>{task.customerReference ? `Last update for ${task.customerReference}` : "Link a customer to enable direct communication."}</p><span className="etw-update-sent">Update Sent</span><button disabled type="button">Send Customer Update</button></section>
         </aside>
