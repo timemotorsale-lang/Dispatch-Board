@@ -320,6 +320,15 @@
   padding: 12px;
 }
 
+.sourceLine {
+  margin: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 10px 16px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .queueCard {
   display: grid;
   grid-template-columns: minmax(220px, 1fr) minmax(270px, .9fr) auto;
@@ -338,7 +347,8 @@
 
 .queueCard p,
 .guardrail,
-.audienceTable p {
+.audienceTable p,
+.writebackList {
   color: var(--muted);
   line-height: 1.45;
 }
@@ -346,6 +356,11 @@
 .queueCard > div:first-child > p {
   margin: 5px 0 0;
   font-size: 13px;
+}
+
+.queueCard > div:first-child > p + p {
+  max-width: 620px;
+  color: #44546c;
 }
 
 .typePill,
@@ -596,6 +611,21 @@
   margin-top: 5px;
   color: var(--muted);
   line-height: 1.45;
+}
+
+.writebackList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+  font-size: 12px;
+}
+
+.writebackList span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 8px;
+  background: var(--surface-soft);
 }
 
 @media (max-width: 1120px) {

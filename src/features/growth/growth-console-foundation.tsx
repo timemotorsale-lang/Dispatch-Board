@@ -18,18 +18,9 @@ import {
   UsersRound
 } from "lucide-react";
 
-import styles from "./growth-console-foundation.module.css";
+import { buildGrowthConsoleReadModel, type GrowthReadiness } from "@/server/growth/read-model";
 
-type Opportunity = {
-  audience: string;
-  impact: string;
-  nextAction: string;
-  owner: string;
-  readiness: "Ready" | "Review needed" | "Blocked";
-  source: string;
-  title: string;
-  type: string;
-};
+import styles from "./growth-console-foundation.module.css";
 
 type Automation = {
   action: string;
@@ -38,56 +29,6 @@ type Automation = {
   title: string;
   trigger: string;
 };
-
-const opportunities: Opportunity[] = [
-  {
-    audience: "48 CRM contacts",
-    impact: "$42K expected pipeline",
-    nextAction: "Review audience",
-    owner: "Marketing Manager",
-    readiness: "Ready",
-    source: "CRM + Sales quotes",
-    title: "Recover unsold estimates and quotes",
-    type: "Customer recovery"
-  },
-  {
-    audience: "12 vehicles",
-    impact: "$68K aged inventory exposure",
-    nextAction: "Approve vehicle list",
-    owner: "Inventory Manager",
-    readiness: "Review needed",
-    source: "Inventory + Sales policy",
-    title: "Promote aging retail-ready inventory",
-    type: "Advertising"
-  },
-  {
-    audience: "31 customers",
-    impact: "$18K service opportunity",
-    nextAction: "Check consent",
-    owner: "Service Manager",
-    readiness: "Blocked",
-    source: "Service + CRM consent",
-    title: "Seasonal service reminder",
-    type: "Retention"
-  },
-  {
-    audience: "22 leads",
-    impact: "$29K possible reactivation",
-    nextAction: "Edit message",
-    owner: "Sales Manager",
-    readiness: "Ready",
-    source: "CRM lifecycle",
-    title: "Reactivate cold leads with trade-in interest",
-    type: "Lead nurture"
-  }
-];
-
-const audienceRows = [
-  ["Included", "64", "Valid CRM contact, relevant vehicle or service signal"],
-  ["Excluded", "17", "Sold vehicle, stale quote, wrong lifecycle, or duplicate campaign"],
-  ["Suppressed", "9", "Opt-out, missing consent, quiet window, or complaint flag"],
-  ["Needs cleanup", "6", "Missing phone, email, owner, or source freshness"]
-] as const;
 
 const automations: Automation[] = [
   {
@@ -128,7 +69,7 @@ const pathSteps = [
   ["5", "Track results", "Write outcomes back to CRM and assign follow-up."]
 ] as const;
 
-function readinessClass(readiness: Opportunity["readiness"]) {
+function readinessClass(readiness: GrowthReadiness) {
   if (readiness === "Ready") return styles.ready;
   if (readiness === "Review needed") return styles.review;
   return styles.blocked;
@@ -141,11 +82,15 @@ function automationClass(state: Automation["state"]) {
 }
 
 export function GrowthConsoleFoundation() {
+  const model = buildGrowthConsoleReadModel();
+  const selectedOpportunity = model.opportunities[0];
+  const sourceHealthText = model.sourceHealth.map((source) => `${source.label}: ${source.state}`).join(" | ");
+
   return (
     <section className={styles.shell} aria-labelledby="growth-title">
       <div className={styles.reviewBar}>
         <Eye size={16} aria-hidden="true" />
-        <span><strong>Review foundation.</strong> This is the first Growth Console implementation for user review before adoption. No live send is enabled.</span>
+        <span><strong>G1 read-only foundation.</strong> Source-labeled Growth signals are available for review. No live send is enabled.</span>
       </div>
 
       <header className={styles.header}>
@@ -182,11 +127,10 @@ export function GrowthConsoleFoundation() {
       </section>
 
       <div className={styles.metricsGrid} aria-label="Growth summary">
-        <article><Target size={17} /><span>Opportunities</span><strong>4</strong></article>
-        <article><UsersRound size={17} /><span>Reachable audience</span><strong>165</strong></article>
-        <article><ShieldCheck size={17} /><span>Approval needed</span><strong>3</strong></article>
-        <article><CircleDollarSign size={17} /><span>Expected value</span><strong>$157K</strong></article>
-        <article><DatabaseZap size={17} /><span>Suppressed records</span><strong>9</strong></article>
+        {model.metrics.map((metric, index) => {
+          const MetricIcon = [Target, UsersRound, ShieldCheck, CircleDollarSign, DatabaseZap][index] ?? Gauge;
+          return <article key={metric.label}><MetricIcon size={17} /><span>{metric.label}</span><strong>{metric.value}</strong></article>;
+        })}
       </div>
 
       <div className={styles.mainGrid} id="growth-home">
@@ -196,15 +140,17 @@ export function GrowthConsoleFoundation() {
               <span className={styles.sectionLabel}>Daily queue</span>
               <h2>What should we grow today?</h2>
             </div>
-            <span className={styles.statusNote}>Review data</span>
+            <span className={styles.statusNote}>{model.sourceMode}</span>
           </div>
+          <p className={styles.sourceLine}>{sourceHealthText}</p>
           <div className={styles.queue}>
-            {opportunities.map((opportunity) => (
+            {model.opportunities.map((opportunity) => (
               <article className={styles.queueCard} key={opportunity.title}>
                 <div>
                   <span className={styles.typePill}>{opportunity.type}</span>
                   <h3>{opportunity.title}</h3>
-                  <p>{opportunity.source}</p>
+                  <p>{opportunity.sourceSummary}</p>
+                  <p>{opportunity.reason}</p>
                 </div>
                 <dl>
                   <div><dt>Audience</dt><dd>{opportunity.audience}</dd></div>
@@ -230,12 +176,12 @@ export function GrowthConsoleFoundation() {
             </div>
           </div>
           <div className={styles.readinessList}>
-            <div><CheckCircle2 size={17} /><span>Opportunity selected</span><strong>Quote recovery</strong></div>
-            <div><CheckCircle2 size={17} /><span>Audience source</span><strong>CRM + Sales</strong></div>
-            <div><ShieldCheck size={17} /><span>Approval state</span><strong>Manager needed</strong></div>
+            <div><CheckCircle2 size={17} /><span>Opportunity selected</span><strong>{selectedOpportunity.title}</strong></div>
+            <div><CheckCircle2 size={17} /><span>Audience source</span><strong>{selectedOpportunity.sourceSummary}</strong></div>
+            <div><ShieldCheck size={17} /><span>Approval state</span><strong>{selectedOpportunity.readiness === "Ready" ? "Ready for manager review" : selectedOpportunity.readiness}</strong></div>
             <div><PauseCircle size={17} /><span>Live launch</span><strong>Unavailable</strong></div>
           </div>
-          <p className={styles.guardrail}>Backend expansion is intentionally deferred. This page prepares the work and makes the next review step clear.</p>
+          <p className={styles.guardrail}>G1 is read-only. It prepares the work and makes the next review step clear without changing CRM, customer, inventory, quote, invoice, appointment, task, or repair records.</p>
         </aside>
       </div>
 
@@ -272,7 +218,7 @@ export function GrowthConsoleFoundation() {
             </div>
           </div>
           <div className={styles.audienceTable}>
-            {audienceRows.map(([label, count, reason]) => (
+            {model.audienceRows.map(({ count, label, reason }) => (
               <div key={label}>
                 <strong>{label}</strong>
                 <span>{count}</span>
@@ -324,7 +270,10 @@ export function GrowthConsoleFoundation() {
         <div>
           <span className={styles.sectionLabel}>CRM connection</span>
           <h2>Every growth action returns to the customer record</h2>
-          <p>Planned writeback events: campaign prepared, audience approved, message approved, launch scheduled, reply received, appointment created, opportunity updated, sale/service outcome, opt-out, and cleanup needed.</p>
+          <p>Planned writeback events are visible now, but CRM updates stay blocked until governed command and policy controls are implemented.</p>
+          <div className={styles.writebackList}>
+            {model.crmWritebackEvents.map((event) => <span key={event.event}>{event.event}: {event.state}</span>)}
+          </div>
         </div>
         <Link className={styles.secondaryButton} href="/crm">Open CRM relationship record</Link>
       </section>
