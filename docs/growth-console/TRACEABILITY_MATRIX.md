@@ -21,6 +21,10 @@
 | Approval gaps point to one next action | Launch Readiness and future manager review panels | Approval Workflow, Exception Workflows | Role, Budget, Offer, Provider Gates | GROWTH-120 | `src/server/growth/approval-gates.ts`, approval gate tests |
 | Results are attributed without overclaiming | Results and future reporting panels | Results Workflow | Attribution Window, Proof Events, Context Metrics | GROWTH-130 | `src/server/growth/results-attribution.ts`, results attribution tests |
 | Landing page stays simple for staff | Today, Campaigns, Needs Attention, Results, Review Controls | Daily Growth Home | Backend Logic Hidden Behind Next Actions | GROWTH-140 | `src/features/growth/growth-console-foundation.tsx`, render tests |
+| Backend commands fail closed before side effects | Future command entry points | All workflows | Role Permission, Mutation Boundary, Idempotency | GROWTH-150 | `src/server/growth/command-boundary.ts`, command boundary tests |
+| Source signals become explainable opportunities | Today queue and future source detail drawer | Daily Growth Home, CRM Connection Workflow | Source Freshness, Opportunity Priority Score | GROWTH-160 | `src/server/growth/opportunity-orchestrator.ts`, opportunity orchestrator tests |
+| Campaign lifecycle can be prepared end to end | Campaign drawer and future campaign detail workspace | Campaign Creation, Approval Workflow | Audience, Message, Approval, Policy, Launch Lock | GROWTH-170 | `src/server/growth/lifecycle-service.ts`, lifecycle service tests |
+| CRM writeback remains reviewable and locked | Review Controls and future CRM writeback preview | CRM Connection Workflow, Results Workflow | Source Authority, Attribution Proof Filtering | GROWTH-180 | `src/server/growth/crm-writeback-preview.ts`, CRM writeback preview tests |
 
 ## Evidence Rule
 

@@ -89,6 +89,8 @@ Future backend commands must be explicit and idempotent where retry is possible:
 
 Frontend buttons may prepare intent, but server commands must validate role, consent, audience, budget, source freshness, and approval state.
 
+The current backend foundation now includes a fail-closed command boundary and lifecycle application service. These services can create Growth-owned review plans, audience snapshots, message drafts, approval requests, launch locks, dry-run provider records, and CRM/task writeback previews. They do not activate customer outreach, ad spend, CRM mutation, inventory mutation, accounting mutation, appointment creation, or source-record updates.
+
 ## Permission Model
 
 | Role | Can do |

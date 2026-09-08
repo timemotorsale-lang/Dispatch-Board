@@ -269,3 +269,67 @@ Exit:
 
 - staff can start work from the landing page without guessing what to click first.
 - users can inspect detail on demand without scrolling through every Growth capability.
+
+## Phase G15 - Backend Command Boundary
+
+Goal: validate every Growth command before it can create plans, previews, locks, or external intent.
+
+Scope:
+
+- actor, role, reason, timestamp, scope, and idempotency validation;
+- explicit mutation boundary classification;
+- external provider and CRM mutation locks defaulted closed;
+- one plain-language next action for rejected commands.
+
+Exit:
+
+- unsafe or unauthorized commands fail before reaching workflow services.
+- CRM, inventory, sales, service, appointment, accounting, and provider mutations remain locked unless separately approved.
+
+## Phase G16 - Source-Backed Opportunity Orchestration
+
+Goal: turn governed source signals into ranked opportunities without duplicating source records.
+
+Scope:
+
+- read-only source normalization;
+- opportunity grouping by customer recovery, advertising, retention, lead nurture, and operations;
+- priority scoring with review routing for stale or low-confidence signals;
+- source ID and authority traceability.
+
+Exit:
+
+- Growth can explain why an opportunity is recommended and which source records support it.
+
+## Phase G17 - Campaign Lifecycle Application Service
+
+Goal: orchestrate the safe backend path from opportunity to approval and launch lock.
+
+Scope:
+
+- campaign plan creation;
+- audience snapshot creation;
+- message draft creation;
+- approval request;
+- approval gate and launch policy evaluation;
+- provider dry-run attempt;
+- launch lock ledger event.
+
+Exit:
+
+- backend can prepare and audit a complete campaign lifecycle while live execution remains blocked.
+
+## Phase G18 - CRM Writeback Preview Boundary
+
+Goal: show what Growth would write back later without changing CRM or task records.
+
+Scope:
+
+- campaign, audience, message, task, and attribution writeback previews;
+- attribution-only proof filtering;
+- explicit preservation statement for estimates, quotes, invoices, inventory, appointments, tasks, and repair records;
+- `canMutateCrm: false` default.
+
+Exit:
+
+- managers can review CRM/task writeback intent before mutation commands are enabled.

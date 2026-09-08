@@ -28,6 +28,10 @@
 | GROWTH-120 | Enterprise approval and permission gates | In progress | GROWTH-110 | Role, budget, offer, channel, and provider gates fail closed with exact next approval. |
 | GROWTH-130 | Results and attribution foundation | In progress | GROWTH-120 | Result events normalize into direct, assisted, influenced, and unattributed summaries without CRM mutation. |
 | GROWTH-140 | Operator UI simplification | In progress | GROWTH-130 | Landing page shows Today, Campaigns, Needs Attention, Results, and Review Controls without exposing backend machinery. |
+| GROWTH-150 | Backend command boundary | In progress | GROWTH-140 | Growth commands validate actor, role, reason, idempotency, scope, and mutation boundary before workflow execution. |
+| GROWTH-160 | Source-backed opportunity orchestration | In progress | GROWTH-150 | Read-only source signals become ranked Growth opportunities with source IDs, authority, review routing, and explanations. |
+| GROWTH-170 | Campaign lifecycle application service | In progress | GROWTH-160 | Campaign plan, audience, message, approval, policy, provider dry-run, and launch lock are orchestrated without live execution. |
+| GROWTH-180 | CRM writeback preview boundary | In progress | GROWTH-170 | Prepared CRM/task writeback events are reviewable while `canMutateCrm` remains false. |
 
 ## GROWTH-001 Acceptance Criteria
 
@@ -46,3 +50,7 @@ The first implementation must:
 ## Review Gate
 
 After each implementation batch, the user reviews the implementation. Adoption is not assumed until the user approves it.
+
+## Backend Expansion Guardrail
+
+Backend milestones may prepare, validate, preview, lock, audit, and dry-run Growth work. They may not send messages, spend advertising budget, mutate CRM records, mutate inventory, change sales/service/accounting records, create appointments, or alter stored estimates, quotes, invoices, or customer history until a later milestone explicitly adds approved backend mutation controls.
