@@ -238,6 +238,7 @@ type QuickUpdateCategory = QuickUpdateItem["category"];
 type ReportCadence = "DAILY" | "WEEKLY" | "MONTHLY";
 type ManualReportCategory = "COMPLETED" | "UPDATE" | "BLOCKER" | "MANAGEMENT" | "CARRYOVER";
 type ManualReportItemDraft = { category: ManualReportCategory; detail: string; id: string; relatedContext: string; title: string };
+type QuickUpdateCategoryOption = { group: string; label: string; value: QuickUpdateCategory };
 type DailyFocusItem = WorkdayWorkbookModel["dailyFocusItems"][number];
 type DailyFocusPriority = DailyFocusItem["priority"];
 type DailyFocusRisk = DailyFocusItem["riskLevel"];
@@ -290,18 +291,37 @@ type SearchableWorkItem = {
 };
 export type CooWorkbookTool = "CHECKLIST" | "TO_DO_LIST" | "QUICK_UPDATE" | "ACTION_PLAN" | "CARRYOVER" | "REPORT_SEEDS" | "STAFF_SUPPORT" | "DRAFTS" | "BRING_FORWARD" | "PURCHASE_APPRAISAL_CAPTURE" | "MORE_TOOLS";
 
-const quickUpdateCategories: Array<{ label: string; value: QuickUpdateCategory }> = [
-  { label: "Customer", value: "CUSTOMER" },
-  { label: "Vendor", value: "VENDOR" },
-  { label: "Facility", value: "FACILITY" },
-  { label: "Staff", value: "STAFF" },
-  { label: "Sales / Opportunity", value: "SALES_OPPORTUNITY" },
-  { label: "Finance", value: "FINANCE" },
-  { label: "Inventory / Parts", value: "INVENTORY_PARTS" },
-  { label: "Safety", value: "SAFETY" },
-  { label: "Training", value: "TRAINING" },
-  { label: "Other", value: "OTHER" }
+const quickUpdateCategories: QuickUpdateCategoryOption[] = [
+  { group: "People", label: "Customer", value: "CUSTOMER" },
+  { group: "People", label: "Vendor", value: "VENDOR" },
+  { group: "People", label: "Staff", value: "STAFF" },
+  { group: "People", label: "Management", value: "MANAGEMENT" },
+  { group: "People", label: "Customer Issue", value: "CUSTOMER_ISSUE" },
+  { group: "Operations", label: "Service / Repair", value: "SERVICE_REPAIR" },
+  { group: "Operations", label: "Inventory / Parts", value: "INVENTORY_PARTS" },
+  { group: "Operations", label: "Purchase / Appraisal", value: "PURCHASE_APPRAISAL" },
+  { group: "Operations", label: "Delivery", value: "DELIVERY" },
+  { group: "Operations", label: "Towing", value: "TOWING" },
+  { group: "Operations", label: "Appointment", value: "APPOINTMENT" },
+  { group: "Commitments", label: "Promise / Commitment", value: "PROMISE_COMMITMENT" },
+  { group: "Commitments", label: "Blocker / Risk", value: "BLOCKER_RISK" },
+  { group: "Business", label: "Sales / Opportunity", value: "SALES_OPPORTUNITY" },
+  { group: "Business", label: "Finance", value: "FINANCE" },
+  { group: "Business", label: "Title / Registration", value: "TITLE_REGISTRATION" },
+  { group: "Business", label: "Warranty", value: "WARRANTY" },
+  { group: "Business", label: "Licensing", value: "LICENSING" },
+  { group: "Business", label: "Compliance", value: "COMPLIANCE" },
+  { group: "Business", label: "Marketing", value: "MARKETING" },
+  { group: "Administration", label: "Administration", value: "ADMINISTRATION" },
+  { group: "Administration", label: "Documentation", value: "DOCUMENTATION" },
+  { group: "Workplace", label: "Facility", value: "FACILITY" },
+  { group: "Workplace", label: "Safety", value: "SAFETY" },
+  { group: "Learning", label: "Training", value: "TRAINING" },
+  { group: "Learning", label: "Process Improvement", value: "PROCESS_IMPROVEMENT" },
+  { group: "Other", label: "Other", value: "OTHER" }
 ];
+
+const quickUpdateCategoryGroups = Array.from(new Set(quickUpdateCategories.map((item) => item.group)));
 
 const focusPriorities: Array<{ label: string; value: DailyFocusPriority }> = [
   { label: "Low", value: "LOW" },
@@ -502,6 +522,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
   const [quickUpdateCustomerId, setQuickUpdateCustomerId] = useState<string | null>(null);
   const [quickUpdateFollowUp, setQuickUpdateFollowUp] = useState(false);
   const [quickUpdateDueWindow, setQuickUpdateDueWindow] = useState("");
+  const [quickUpdateSaveNotice, setQuickUpdateSaveNotice] = useState("");
   const [supportNote, setSupportNote] = useState("");
   const [supportUpdateRequested, setSupportUpdateRequested] = useState(true);
   const [workspaceNotice, setWorkspaceNotice] = useState<string | null>(null);
@@ -1106,7 +1127,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
   }
 
   async function refreshWorkbook() {
-    const response = await fetch("/api/coo-workbook");
+    const response = await fetch(`/api/coo-workbook?date=${encodeURIComponent(model.boardDate)}`);
     const payload = await response.json().catch(() => null) as { workbook?: WorkdayWorkbookModel; error?: string } | null;
     if (!response.ok || !payload?.workbook) throw new Error(payload?.error ?? "Unable to refresh the workbook.");
     setWorkbook(payload.workbook);
@@ -1224,9 +1245,11 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
     if (!text) return;
     if (isClosed) {
       setWorkspaceNotice("This workbook day is closed. Reopen it before saving Quick Updates.");
+      setQuickUpdateSaveNotice("This workbook day is closed. Reopen it before saving Quick Updates.");
       return;
     }
     setSaving(true);
+    setQuickUpdateSaveNotice("Saving Quick Update...");
     try {
       const response = await fetch(`/api/coo-workbook/${effectiveWorkbookView === "MY" ? "staff/quick-updates" : "quick-updates"}?date=${encodeURIComponent(model.boardDate)}`, {
         method: "POST",
@@ -1244,9 +1267,13 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
       setQuickUpdateFollowUp(false);
       setQuickUpdateDueWindow("");
       await refreshActiveWorkbook();
-      setWorkspaceNotice(`Quick Update saved to ${activeWorkbookLabel}.`);
+      const notice = `Quick Update saved to ${activeWorkbookLabel}.`;
+      setQuickUpdateSaveNotice(notice);
+      setWorkspaceNotice(notice);
     } catch (error) {
-      setWorkspaceNotice(error instanceof Error ? error.message : "Unable to save Quick Update.");
+      const notice = error instanceof Error ? error.message : "Unable to save Quick Update.";
+      setQuickUpdateSaveNotice(notice);
+      setWorkspaceNotice(notice);
     } finally {
       setSaving(false);
     }
@@ -2050,7 +2077,9 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
         <textarea aria-label="Quick Update details" disabled={isClosed} onChange={(event) => setQuickUpdateText(event.target.value)} placeholder="Example: AJ checked the roof today and may fix it in the next few weeks." value={quickUpdateText} />
         <div className="advisor-coo-quick-fields">
           <select aria-label="Quick Update category" disabled={isClosed} onChange={(event) => setQuickUpdateCategory(event.target.value as QuickUpdateCategory)} value={quickUpdateCategory}>
-            {quickUpdateCategories.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            {quickUpdateCategoryGroups.map((group) => <optgroup key={group} label={group}>
+              {quickUpdateCategories.filter((option) => option.group === group).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </optgroup>)}
           </select>
           <input aria-label="Person involved" disabled={isClosed} onChange={(event) => { setQuickUpdatePerson(event.target.value); setQuickUpdateCustomerId(null); }} placeholder="Person" value={quickUpdatePerson} />
           <input aria-label="Phone number" disabled={isClosed} inputMode="tel" onChange={(event) => { setQuickUpdatePhone(event.target.value); setQuickUpdateCustomerId(null); }} placeholder="Phone number" value={quickUpdatePhone} />
@@ -2060,8 +2089,9 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
         <div className="advisor-coo-followup-row">
           <label><input checked={quickUpdateFollowUp} disabled={isClosed} onChange={(event) => setQuickUpdateFollowUp(event.target.checked)} type="checkbox" /> Follow-up needed</label>
           <input aria-label="Follow-up date" disabled={isClosed || !quickUpdateFollowUp} min={model.boardDate} onChange={(event) => setQuickUpdateDueWindow(event.target.value)} type="date" value={quickUpdateDueWindow} />
-          <button disabled={saving || isClosed || !quickUpdateText.trim()} onClick={() => void addQuickUpdate()} type="button"><Save /> Save update</button>
+          <button disabled={saving || isClosed || !quickUpdateText.trim()} onClick={() => void addQuickUpdate()} type="button"><Save /> {saving ? "Saving..." : "Save update"}</button>
         </div>
+        {quickUpdateSaveNotice ? <p className="advisor-coo-workspace-notice" role="status">{quickUpdateSaveNotice}</p> : null}
         <div className="advisor-coo-update-list">
           {quickUpdates.length ? quickUpdates.map((item) => <article id={`source-${item.id}`} key={item.id}>
             <span><strong>{quickUpdateCategoryLabel(item.category)}</strong>{" · "}<small>{dateLabel(item.createdAt)}</small></span>

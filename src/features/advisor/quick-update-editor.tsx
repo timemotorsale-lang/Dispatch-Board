@@ -3,9 +3,10 @@ import { useState } from "react";
 import styles from "./quick-update-editor.module.css";
 
 type Fields = { text: string; category: string; person: string; phoneNumber: string; company: string; followUpNeeded: boolean; dueWindow: string };
+type CategoryOption = { group?: string; label: string; value: string };
 export function QuickUpdateEditor({ item, categories, disabled, onSaved }: {
   item: Fields & { id: string; convertedTaskId: string | null; relatedCustomerId: string | null };
-  categories: Array<{ label: string; value: string }>;
+  categories: CategoryOption[];
   disabled: boolean;
   onSaved: () => Promise<void>;
 }) {
@@ -33,7 +34,7 @@ export function QuickUpdateEditor({ item, categories, disabled, onSaved }: {
       setDraft({ text: item.text, category: item.category, person: item.person, phoneNumber: item.phoneNumber, company: item.company, followUpNeeded: item.followUpNeeded, dueWindow: item.dueWindow }); setNotice("");
     }}>Edit update</button> : <div role="group" aria-label="Edit saved Quick Update" className={styles.fields}>
       <label className={styles.wide}>Update details<textarea maxLength={1200} disabled={saving || disabled} value={draft.text} onChange={event => setDraft({ ...draft, text: event.target.value })} /></label>
-      <label>Category<select disabled={saving || disabled} value={draft.category} onChange={event => setDraft({ ...draft, category: event.target.value })}>{categories.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+      <label>Category<select disabled={saving || disabled} value={draft.category} onChange={event => setDraft({ ...draft, category: event.target.value })}>{groupedCategoryOptions(categories).map(group => group.label ? <optgroup key={group.label} label={group.label}>{group.options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</optgroup> : group.options.map(option => <option key={option.value} value={option.value}>{option.label}</option>))}</select></label>
       <label>Person<input maxLength={180} disabled={saving || disabled} value={draft.person} onChange={event => setDraft({ ...draft, person: event.target.value })} /></label>
       <label>Phone number<input inputMode="tel" maxLength={50} disabled={saving || disabled} value={draft.phoneNumber} onChange={event => setDraft({ ...draft, phoneNumber: event.target.value })} /></label>
       <label>Company<input maxLength={180} disabled={saving || disabled} value={draft.company} onChange={event => setDraft({ ...draft, company: event.target.value })} /></label>
@@ -44,4 +45,15 @@ export function QuickUpdateEditor({ item, categories, disabled, onSaved }: {
     </div>}
     {notice ? <p role="status">{notice}</p> : null}
   </div>;
+}
+
+function groupedCategoryOptions(categories: CategoryOption[]) {
+  const groups: Array<{ label: string; options: CategoryOption[] }> = [];
+  for (const option of categories) {
+    const label = option.group ?? "";
+    const group = groups.find((item) => item.label === label);
+    if (group) group.options.push(option);
+    else groups.push({ label, options: [option] });
+  }
+  return groups;
 }

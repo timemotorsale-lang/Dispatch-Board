@@ -157,6 +157,8 @@ describe("enterprise repair-order workbench", () => {
     expect(html).toContain("View RO");
     expect(html).toContain("Print RO");
     expect(html).toContain("Recon Report");
+    expect(html).toContain(">Parts</a>");
+    expect(html).toContain("/vehicles/service-close-parts?repairOrderId=ro-1");
     expect(html).toContain('aria-expanded="false"');
     expect(html).not.toContain('href="#recon-report"');
     expect(html).not.toContain("Vehicle recon progress report");

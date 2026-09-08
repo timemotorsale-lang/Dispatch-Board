@@ -18,6 +18,7 @@ import {
   LockKeyhole,
   MapPin,
   MessageSquareText,
+  PackageCheck,
   Plus,
   Printer,
   ScanLine,
@@ -1435,6 +1436,10 @@ export function RepairOrderEnterpriseWorkbench({
                   <Activity />
                   Recon Report
                 </button>
+                <Link href={partsWorkspaceHref}>
+                  <PackageCheck />
+                  Parts
+                </Link>
                 <a href="#repair-order-document">
                   <FileText />
                   View RO
@@ -1521,6 +1526,7 @@ export function RepairOrderEnterpriseWorkbench({
           </div>
           <div>
             <button aria-expanded={reconReportOpen} aria-controls="recon-report" onClick={toggleReconReport} type="button"><Activity /> Recon Report</button>
+            <Link href={partsWorkspaceHref}><PackageCheck /> Parts</Link>
             <Link href={`${detailRoute}#repair-order-document`}><FileText /> View RO</Link>
             <a href={`/api/repair-orders/${encodeURIComponent(order.id)}/print`} rel="noreferrer" target="_blank"><Printer /> Print RO</a>
             <button aria-expanded={closePanelOpen} aria-controls="repair-order-close-panel" onClick={() => { setClosePanelMessage(""); setClosePanelOpen((open) => !open); }} type="button"><XCircle /> Close RO</button>

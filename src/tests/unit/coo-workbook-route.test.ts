@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   currentWorkdayBoardDate: vi.fn(() => "2026-08-29"),
   createCooWorkbookChecklistItem: vi.fn(),
   createCooWorkbookDailyFocusItem: vi.fn(),
+  createCooWorkbookQuickUpdate: vi.fn(),
   createCooWorkbookReportDraft: vi.fn(),
   createStaffSupportAction: vi.fn(),
   createStaffWorkbookChecklistItem: vi.fn(),
@@ -38,6 +39,7 @@ vi.mock("@/server/services/workday-workbook", () => ({
   closeWorkbookDay: mocks.closeWorkbookDay,
   createCooWorkbookChecklistItem: mocks.createCooWorkbookChecklistItem,
   createCooWorkbookDailyFocusItem: mocks.createCooWorkbookDailyFocusItem,
+  createCooWorkbookQuickUpdate: mocks.createCooWorkbookQuickUpdate,
   createCooWorkbookReportDraft: mocks.createCooWorkbookReportDraft,
   createStaffSupportAction: mocks.createStaffSupportAction,
   createStaffWorkbookChecklistItem: mocks.createStaffWorkbookChecklistItem,
@@ -60,9 +62,11 @@ import { POST as POSTChecklist } from "@/app/api/coo-workbook/checklist/route";
 import { POST as POSTClose } from "@/app/api/coo-workbook/close/route";
 import { POST as POSTCarryovers } from "@/app/api/coo-workbook/carryovers/route";
 import { POST as POSTAttention } from "@/app/api/coo-workbook/attention/route";
+import { GET as GETCooWorkbook } from "@/app/api/coo-workbook/route";
 import { PATCH as PATCHCarryover } from "@/app/api/coo-workbook/carryovers/[carryoverId]/route";
 import { POST as POSTDailyFocus } from "@/app/api/coo-workbook/daily-focus/route";
 import { DELETE as DELETEDailyFocus, PATCH as PATCHDailyFocus } from "@/app/api/coo-workbook/daily-focus/[itemId]/route";
+import { POST as POSTQuickUpdate } from "@/app/api/coo-workbook/quick-updates/route";
 import { POST as POSTReportDraft } from "@/app/api/coo-workbook/report-drafts/route";
 import { PATCH as PATCHReportSeed } from "@/app/api/coo-workbook/report-seeds/[seedId]/route";
 import { POST as POSTReopen } from "@/app/api/coo-workbook/reopen/route";
@@ -93,6 +97,7 @@ describe("COO workbook checklist route", () => {
     mocks.closeWorkbookDay.mockResolvedValue({ ok: true });
     mocks.createCooWorkbookChecklistItem.mockResolvedValue({ ok: true });
     mocks.createCooWorkbookDailyFocusItem.mockResolvedValue({ ok: true });
+    mocks.createCooWorkbookQuickUpdate.mockResolvedValue({ ok: true });
     mocks.createCooWorkbookReportDraft.mockResolvedValue({ ok: true });
     mocks.createStaffSupportAction.mockResolvedValue({ ok: true });
     mocks.createStaffWorkbookChecklistItem.mockResolvedValue({ ok: true });
@@ -121,6 +126,16 @@ describe("COO workbook checklist route", () => {
     });
   });
 
+  it("loads the COO workbook for the requested board date", async () => {
+    mocks.getServiceAdvisorWorkspace.mockResolvedValueOnce({ workbook: { id: "workbook-2026-09-08" } });
+
+    const response = await GETCooWorkbook(new Request("http://localhost/api/coo-workbook?date=2026-09-08"));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ workbook: { id: "workbook-2026-09-08" } });
+    expect(mocks.getServiceAdvisorWorkspace).toHaveBeenCalledWith(user, "2026-09-08");
+  });
+
   it("creates checklist items through the protected workbook service", async () => {
     const response = await POSTChecklist(new Request("http://localhost/api/coo-workbook/checklist?date=2026-08-29", {
       method: "POST",
@@ -130,6 +145,18 @@ describe("COO workbook checklist route", () => {
     expect(response.status).toBe(201);
     await expect(response.json()).resolves.toEqual({ ok: true });
     expect(mocks.createCooWorkbookChecklistItem).toHaveBeenCalledWith(user, "2026-08-29", { text: "Review daily report seeds" });
+  });
+
+  it("creates COO Quick Updates with expanded categories", async () => {
+    const payload = { category: "CUSTOMER_ISSUE", person: "Furgasa Bertola", text: "Customer needs towing support." };
+    const response = await POSTQuickUpdate(new Request("http://localhost/api/coo-workbook/quick-updates?date=2026-09-08", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }));
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(mocks.createCooWorkbookQuickUpdate).toHaveBeenCalledWith(user, "2026-09-08", payload);
   });
 
   it("maps validation failures to bad request", async () => {

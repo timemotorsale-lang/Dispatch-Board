@@ -109,16 +109,23 @@ function includesAny(value: string, terms: string[]) {
 
 function classifyQuickUpdate(item: WorkdayWorkbookRecord["quickUpdates"][number]): QuickUpdateIntelligenceType {
   const text = `${item.text} ${item.person} ${item.company}`.toLocaleLowerCase();
-  if (item.category === "CUSTOMER" || includesAny(text, ["customer", "client", "approval", "authorization", "promise", "upset", "callback", "call back"])) return "CUSTOMER_RISK";
+  if (item.category === "CUSTOMER" || item.category === "CUSTOMER_ISSUE" || includesAny(text, ["customer", "client", "approval", "authorization", "promise", "upset", "callback", "call back", "complaint", "issue"])) return "CUSTOMER_RISK";
+  if (item.category === "PROMISE_COMMITMENT" || includesAny(text, ["promise", "promised", "commitment", "committed", "target time", "due today"])) return "CUSTOMER_RISK";
+  if (item.category === "BLOCKER_RISK" || includesAny(text, ["blocked", "stuck", "risk", "urgent", "overdue", "cannot move"])) return "STAFF_SUPPORT";
   if (item.category === "VENDOR" || includesAny(text, ["vendor", "sublet", "outside", "estimate", "supplement", "pickup", "drop off"])) return "VENDOR_DELAY";
-  if (item.category === "INVENTORY_PARTS" || includesAny(text, ["part", "parts", "eta", "backorder", "mirror", "rim"])) return "PARTS_DELAY";
+  if (item.category === "INVENTORY_PARTS" || item.category === "WARRANTY" || includesAny(text, ["part", "parts", "eta", "backorder", "mirror", "rim", "warranty", "claim"])) return "PARTS_DELAY";
+  if (item.category === "SERVICE_REPAIR" || item.category === "TOWING" || includesAny(text, ["repair", "ro-", "diagnosis", "estimate", "technician", "shop", "qc", "tow", "towing", "transport"])) return "INVENTORY_RECON_BLOCKER";
+  if (item.category === "PURCHASE_APPRAISAL" || includesAny(text, ["purchase", "appraisal", "manheim", "auction", "bought vehicle", "acquisition"])) return "INVENTORY_RECON_BLOCKER";
+  if (item.category === "DELIVERY" || includesAny(text, ["deliver", "delivery", "pickup", "ready for customer", "sold vehicle"])) return "CUSTOMER_RISK";
   if (includesAny(text, ["recon", "ready", "detail", "body", "paint", "inspection", "inventory", "photo"])) return "INVENTORY_RECON_BLOCKER";
-  if (item.category === "STAFF" || includesAny(text, ["need help", "support", "blocked", "stuck", "training", "not sure", "who owns"])) return "STAFF_SUPPORT";
+  if (item.category === "STAFF" || item.category === "MANAGEMENT" || item.category === "ADMINISTRATION" || includesAny(text, ["need help", "support", "blocked", "stuck", "training", "not sure", "who owns", "manager", "approval needed", "admin"])) return "STAFF_SUPPORT";
   if (item.category === "FACILITY" || includesAny(text, ["facility", "roof", "building", "lot", "snow", "camera", "internet", "phone"])) return "FACILITY_ISSUE";
   if (item.category === "SALES_OPPORTUNITY" || includesAny(text, ["lead", "buy", "sale", "sold", "opportunity", "prospect"])) return "SALES_OPPORTUNITY";
-  if (item.category === "FINANCE" || includesAny(text, ["payment", "finance", "deposit", "refund", "title", "bank"])) return "FINANCE_PAYMENT";
+  if (item.category === "FINANCE" || item.category === "TITLE_REGISTRATION" || item.category === "LICENSING" || includesAny(text, ["payment", "finance", "deposit", "refund", "title", "registration", "plates", "license", "licensing", "bank"])) return "FINANCE_PAYMENT";
   if (item.category === "TRAINING" || includesAny(text, ["training", "coach", "mistake", "learn", "process"])) return "TRAINING_MOMENT";
-  if (includesAny(text, ["again", "keeps", "repeat", "bottleneck", "process", "policy"])) return "PROCESS_IMPROVEMENT";
+  if (item.category === "PROCESS_IMPROVEMENT" || item.category === "DOCUMENTATION" || item.category === "COMPLIANCE" || includesAny(text, ["again", "keeps", "repeat", "bottleneck", "process", "policy", "document", "documentation", "compliance"])) return "PROCESS_IMPROVEMENT";
+  if (item.category === "APPOINTMENT" || includesAny(text, ["appointment", "scheduled", "calendar", "visit", "arrived"])) return "INFORMATIONAL";
+  if (item.category === "MARKETING" || includesAny(text, ["marketing", "ad", "campaign", "facebook", "google", "website"])) return "INFORMATIONAL";
   return "INFORMATIONAL";
 }
 

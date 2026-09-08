@@ -61,7 +61,36 @@ type Dependencies = {
 const checklistStatuses = new Set(Object.values(WorkdayChecklistStatus));
 const dailyFocusStatuses = new Set(Object.values(WorkdayDailyFocusStatus));
 const priorities = new Set(Object.values(WorkdayPriority));
-const quickUpdateCategories = new Set(Object.values(WorkdayQuickUpdateCategory));
+const workdayQuickUpdateCategories = [
+  "ADMINISTRATION",
+  "APPOINTMENT",
+  "BLOCKER_RISK",
+  "COMPLIANCE",
+  "CUSTOMER",
+  "CUSTOMER_ISSUE",
+  "DELIVERY",
+  "DOCUMENTATION",
+  "FACILITY",
+  "FINANCE",
+  "INVENTORY_PARTS",
+  "LICENSING",
+  "MANAGEMENT",
+  "MARKETING",
+  "OTHER",
+  "PROCESS_IMPROVEMENT",
+  "PROMISE_COMMITMENT",
+  "PURCHASE_APPRAISAL",
+  "SAFETY",
+  "SALES_OPPORTUNITY",
+  "SERVICE_REPAIR",
+  "STAFF",
+  "TITLE_REGISTRATION",
+  "TOWING",
+  "TRAINING",
+  "VENDOR",
+  "WARRANTY"
+] as const satisfies readonly WorkdayQuickUpdateCategory[];
+const quickUpdateCategories = new Set<WorkdayQuickUpdateCategory>(workdayQuickUpdateCategories);
 const reportSeedStatuses = new Set(Object.values(WorkdayReportSeedStatus));
 const reportCadences = new Set(Object.values(WorkdayReportCadence));
 const carryoverStatuses = new Set(Object.values(WorkdayCarryoverStatus));
@@ -454,7 +483,36 @@ function checklistLabel(item: WorkdayWorkbookRecord["checklistItems"][number]) {
 }
 
 function quickUpdateCategoryLabel(category: WorkdayQuickUpdateCategory) {
-  return category.replaceAll("_", " ").toLocaleLowerCase().replace(/^./, (letter) => letter.toUpperCase());
+  const labels: Record<WorkdayQuickUpdateCategory, string> = {
+    ADMINISTRATION: "Administration",
+    APPOINTMENT: "Appointment",
+    BLOCKER_RISK: "Blocker / Risk",
+    COMPLIANCE: "Compliance",
+    CUSTOMER: "Customer",
+    CUSTOMER_ISSUE: "Customer Issue",
+    DELIVERY: "Delivery",
+    DOCUMENTATION: "Documentation",
+    FACILITY: "Facility",
+    FINANCE: "Finance",
+    INVENTORY_PARTS: "Inventory / Parts",
+    LICENSING: "Licensing",
+    MANAGEMENT: "Management",
+    MARKETING: "Marketing",
+    OTHER: "Other",
+    PROCESS_IMPROVEMENT: "Process Improvement",
+    PROMISE_COMMITMENT: "Promise / Commitment",
+    PURCHASE_APPRAISAL: "Purchase / Appraisal",
+    SAFETY: "Safety",
+    SALES_OPPORTUNITY: "Sales / Opportunity",
+    SERVICE_REPAIR: "Service / Repair",
+    STAFF: "Staff",
+    TITLE_REGISTRATION: "Title / Registration",
+    TOWING: "Towing",
+    TRAINING: "Training",
+    WARRANTY: "Warranty",
+    VENDOR: "Vendor"
+  };
+  return labels[category] ?? "Other";
 }
 
 function reportSeedSourceLabel(seed: WorkdayWorkbookRecord["reportSeeds"][number]) {

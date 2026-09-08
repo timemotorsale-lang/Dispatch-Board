@@ -26,6 +26,7 @@ import {
   createWorkbookManualReportItems,
   createCooWorkbookChecklistItem,
   createCooWorkbookDailyFocusItem,
+  createCooWorkbookQuickUpdate,
   createCooWorkbookReportDraft,
   createStaffSupportAction,
   createStaffWorkbookChecklistItem,
@@ -208,6 +209,7 @@ function workbook(userId = "user-jordan.sales@local.test"): WorkdayWorkbookRecor
 function repositoryHarness(ownerUserId = "user-jordan.sales@local.test", rangeWorkbooks?: WorkdayWorkbookRecord[]) {
   const createdChecklistItems: unknown[] = [];
   const createdDailyFocusItems: unknown[] = [];
+  const createdQuickUpdates: unknown[] = [];
   const createdReportDrafts: unknown[] = [];
   const createdSupportActions: unknown[] = [];
   const createdActivitySignals: unknown[] = [];
@@ -237,8 +239,8 @@ function repositoryHarness(ownerUserId = "user-jordan.sales@local.test", rangeWo
     async createReportDraft(input) {
       createdReportDrafts.push(input);
     },
-    async createQuickUpdate() {
-      throw new Error("not needed");
+    async createQuickUpdate(input) {
+      createdQuickUpdates.push(input);
     },
     async createSupportAction(input) {
       createdSupportActions.push(input);
@@ -388,10 +390,28 @@ function repositoryHarness(ownerUserId = "user-jordan.sales@local.test", rangeWo
     }
   };
 
-  return { activityEvents, activityEventsForSync, attentionSessions, carryoverUpdates, checklistUpdates, closedWorkbooks, createdActivitySignals, createdChecklistItems, createdDailyFocusItems, createdReportDrafts, createdSupportActions, currentWorkbook, dailyFocusUpdates, deletedDailyFocusItems, reopenedWorkbooks, reportSeedUpdates, repository, supportActionUpdates, upsertedCarryovers };
+  return { activityEvents, activityEventsForSync, attentionSessions, carryoverUpdates, checklistUpdates, closedWorkbooks, createdActivitySignals, createdChecklistItems, createdDailyFocusItems, createdQuickUpdates, createdReportDrafts, createdSupportActions, currentWorkbook, dailyFocusUpdates, deletedDailyFocusItems, reopenedWorkbooks, reportSeedUpdates, repository, supportActionUpdates, upsertedCarryovers };
 }
 
 describe("workday workbook service", () => {
+  it("saves expanded Quick Update categories through backend validation", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("morgan.manager@local.test")!;
+    const harness = repositoryHarness(user.id);
+
+    await createCooWorkbookQuickUpdate(user, "2026-09-08", {
+      category: "CUSTOMER_ISSUE",
+      person: "Furgasa Bertola",
+      text: "Customer needs towing support after vehicle would not restart."
+    }, { repository: harness.repository });
+
+    expect(harness.createdQuickUpdates).toContainEqual(expect.objectContaining({
+      category: WorkdayQuickUpdateCategory.CUSTOMER_ISSUE,
+      person: "Furgasa Bertola",
+      text: "Customer needs towing support after vehicle would not restart."
+    }));
+  });
+
   it("syncs cross-app work before generating a report without opening the workbook first, and deduplicates repeat syncs", async () => {
     const { usersByEmail } = await createTestAuthStore();
     const user = usersByEmail.get("jordan.sales@local.test")!;
@@ -555,7 +575,7 @@ describe("workday workbook service", () => {
         sourceId: "quick-1",
         sourceType: WorkdayReportSeedSourceType.QUICK_UPDATE,
         targetBoardDate,
-        title: "Sales opportunity follow-up"
+        title: "Sales / Opportunity follow-up"
       }),
       expect.objectContaining({
         sourceId: "seed-1",

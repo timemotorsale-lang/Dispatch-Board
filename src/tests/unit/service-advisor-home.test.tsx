@@ -945,6 +945,15 @@ describe("ServiceAdvisorHome", () => {
     expect(todoHtml).toContain("Open Tasks");
     expect(todoHtml).toContain("/tasks?returnTo=/vehicles/coo-workbook");
     expect(quickUpdateHtml).toContain("Quick Update details");
+    expect(quickUpdateHtml).toContain("Service / Repair");
+    expect(quickUpdateHtml).toContain("Promise / Commitment");
+    expect(quickUpdateHtml).toContain("Process Improvement");
+    expect(quickUpdateHtml).toContain("Title / Registration");
+    expect(quickUpdateHtml).toContain("Documentation");
+    expect(quickUpdateHtml).toContain("Customer Issue");
+    expect(quickUpdateHtml).toContain("Compliance");
+    expect(quickUpdateHtml).toContain("Warranty");
+    expect(quickUpdateHtml).toContain("Towing");
     expect(quickUpdateHtml).toContain("Follow-up date");
     expect(quickUpdateHtml).toContain("type=\"date\"");
     expect(quickUpdateHtml).toContain("Save update");
