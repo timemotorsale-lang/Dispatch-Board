@@ -25,10 +25,17 @@ describe("Manager Workspace", () => {
     expect(html).toContain("CEO");
     expect(html).toContain("COO");
     expect(html).toContain("My Work");
+    expect(html).toContain('aria-label="Fast routes"');
     expect(html).toContain("Fast routes");
+    expect(html).toContain("Dispatch Board");
+    expect(html).toContain("Unified Inbox");
     expect(html).toContain("COO Workbook");
-    expect(html).toContain("Daily checklist, action plan, and report draft");
+    expect(html).toContain("Inventory Manager");
+    expect(html).toContain("Service Advisor");
+    expect(html).toContain("Shop &amp; Recon");
+    expect(html).toContain("/vehicles/advisor?inbox=1");
     expect(html).toContain("/vehicles/coo-workbook");
+    expect(html).not.toContain('id="manager-fast-routes"');
     expect(html).toContain("Decisions that need your authority");
     expect(html).toContain("Mode changes perspective—not authority");
   });

@@ -8,8 +8,8 @@ import type { ManagerAction, ManagerMode, ManagerWorkHat, ManagerWorkspaceModel 
 import styles from "./manager-workspace.module.css";
 
 type Density = "CALM" | "HIGH_VOLUME";
-type InboxFilter = "ALL" | "CUSTOMER" | "MANAGEMENT" | "TEAM";
 type MetricItem = { label: string; value: string | number; note: string; attention?: boolean; href?: string; icon: typeof Gauge };
+type FastRoute = { description: string; href: string; icon: typeof ClipboardList; label: string; launch?: "advisor" };
 const modes: Array<{ id: ManagerMode; label: string; eyebrow: string; description: string; icon: typeof Landmark }> = [
   { id: "CEO", label: "CEO", eyebrow: "Direction", description: "Business health, capital exposure, and decisions requiring executive authority.", icon: Landmark },
   { id: "COO", label: "COO", eyebrow: "Operations", description: "Keep today moving by resolving constraints, promises, and cross-team dependencies.", icon: Gauge },
@@ -19,6 +19,14 @@ const hats: Array<{ id: "ALL" | ManagerWorkHat; label: string; icon: typeof CarF
   { id: "ALL", label: "All work", icon: ClipboardList }, { id: "ADVISOR", label: "Service Advisor", icon: MessageSquareText },
   { id: "INVENTORY", label: "Inventory", icon: CarFront }, { id: "TECHNICIAN", label: "Technician", icon: Wrench },
   { id: "LOT", label: "Lot", icon: MapPinned }, { id: "PARTS", label: "Parts", icon: Boxes }, { id: "DETAIL", label: "Detail", icon: Sparkles },
+];
+const fastRoutes: FastRoute[] = [
+  { description: "People, assignments, and the day", href: "/board", icon: ClipboardList, label: "Dispatch Board" },
+  { description: "Customer, management, and internal communication", href: "/vehicles/advisor?inbox=1", icon: Inbox, label: "Unified Inbox", launch: "advisor" },
+  { description: "Daily checklist, action plan, and report draft", href: "/vehicles/coo-workbook", icon: Gauge, label: "COO Workbook" },
+  { description: "Lifecycle and vehicle readiness", href: "/vehicles?workspace=inventory", icon: CarFront, label: "Inventory Manager" },
+  { description: "Customers, promises, and repair orders", href: "/appointments", icon: MessageSquareText, label: "Service Advisor", launch: "advisor" },
+  { description: "Production, constraints, and handoffs", href: "/vehicles/shop-recon", icon: Wrench, label: "Shop & Recon" }
 ];
 function money(cents: number) { return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(cents / 100); }
 function date(value: string) { return new Date(value).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); }
@@ -32,17 +40,24 @@ function ManagerLink({ children, href, launch, mode, openAsPage = false }: { chi
   return <Link href={targetHref} prefetch={false}>{children}</Link>;
 }
 
+function FastRouteTabs({ mode }: { mode: ManagerMode }) {
+  return <nav aria-label="Fast routes" className={styles.fastRouteTabs}>
+    {fastRoutes.map((route) => <ManagerLink href={route.href} key={route.label} launch={route.launch} mode={mode} openAsPage>
+      <route.icon />
+      <span>{route.label}</span>
+    </ManagerLink>)}
+  </nav>;
+}
+
 export function ManagerWorkspace({ initialMode = "CEO", model }: { initialMode?: ManagerMode; model: ManagerWorkspaceModel }) {
   const [mode, setMode] = useState<ManagerMode>(initialMode);
   const [activeHat, setActiveHat] = useState<"ALL" | ManagerWorkHat>("ALL");
   const [density, setDensity] = useState<Density>("CALM");
-  const [inboxFilter, setInboxFilter] = useState<InboxFilter>("ALL");
   const modeDefinition = modes.find(item => item.id === mode)!;
   const modeActions = useMemo(() => {
     const matching = model.actions.filter(item => mode === "CEO" ? item.mode === "CEO" : mode === "COO" ? item.mode !== "WORK" : item.mode === "WORK" && (activeHat === "ALL" || item.hat === activeHat));
     return matching.slice(0, mode === "CEO" ? 5 : density === "CALM" ? 7 : 24);
   }, [activeHat, density, mode, model.actions]);
-  const inbox = model.inbox.filter(item => inboxFilter === "ALL" || item.audience === inboxFilter).slice(0, density === "CALM" ? 4 : 12);
   const topAction = modeActions[0] ?? null;
   const missingSources = Object.entries(model.sources).filter(([, available]) => !available).map(([source]) => words(source));
   const selectMode = (nextMode: ManagerMode) => {
@@ -59,13 +74,13 @@ export function ManagerWorkspace({ initialMode = "CEO", model }: { initialMode?:
 
     <form action="/vehicles/registry" className={styles.search} id="manager-search" role="search"><Search /><label><strong>Find anything</strong><span>Vehicle, VIN, stock number, customer, repair order, task, or key tag</span><input aria-label="Find dealership record" name="query" /></label><input name="workspaceContext" type="hidden" value="MANAGEMENT" /><input name="managerMode" type="hidden" value={mode} /><input name="returnTo" type="hidden" value={getManagerWorkspaceHref(mode)} /><button type="submit">Search</button></form>
 
+    <FastRouteTabs mode={mode} />
+
     <section className={styles.modeIntro}><span><modeDefinition.icon /></span><div><small>{modeDefinition.eyebrow} mode</small><h2>{modeDefinition.label === "My Work" ? "Execute the next task." : modeDefinition.label === "COO" ? "Keep the dealership moving." : "Lead through the decisions that matter."}</h2><p>{modeDefinition.description}</p></div><b>{mode === "WORK" ? "Your actual authority" : mode === "COO" ? "Operational authority" : "Executive authority"}</b></section>
 
     {topAction ? <section className={styles.focus} id="manager-focus"><div><small>{mode === "CEO" ? "Highest-value decision" : mode === "COO" ? "Most important intervention" : "Do this next"}</small><h2>{topAction.title}</h2><p>{topAction.reason}</p><span>{topAction.subject} · {actionLabel(topAction)}</span></div><ManagerLink href={topAction.href} mode={mode}><small>{topAction.authority}</small>{topAction.action}<ArrowRight /></ManagerLink></section> : <section className={`${styles.focus} ${styles.clear}`} id="manager-focus"><CheckCircle2 /><div><small>Calm state</small><h2>No action currently requires this mode.</h2><p>Use another mode or open a focused workspace when you are ready.</p></div></section>}
 
     {mode === "CEO" ? <CeoMode actions={modeActions} mode={mode} model={model} /> : mode === "COO" ? <CooMode actions={modeActions} density={density} mode={mode} model={model} setDensity={setDensity} /> : <WorkMode actions={modeActions} activeHat={activeHat} density={density} mode={mode} model={model} setActiveHat={setActiveHat} setDensity={setDensity} />}
-
-    <section className={styles.lowerGrid}><InboxPanel density={density} filter={inboxFilter} items={inbox} mode={mode} setFilter={setInboxFilter} /><section className={styles.brief} id="manager-fast-routes"><header><div><strong>Fast routes</strong><small>Open a focused tool without leaving your selected Manager mode.</small></div></header><div><ManagerLink href="/board" mode={mode} openAsPage><ClipboardList /><span><strong>Dispatch Board</strong><small>People, assignments, and the day</small></span><ChevronRight /></ManagerLink><ManagerLink href="/vehicles/coo-workbook" mode={mode} openAsPage><Gauge /><span><strong>COO Workbook</strong><small>Daily checklist, action plan, and report draft</small></span><ChevronRight /></ManagerLink><ManagerLink href="/vehicles?workspace=inventory" mode={mode} openAsPage><CarFront /><span><strong>Inventory Manager</strong><small>Lifecycle and vehicle readiness</small></span><ChevronRight /></ManagerLink><ManagerLink href="/appointments" launch="advisor" mode={mode} openAsPage><MessageSquareText /><span><strong>Service Advisor</strong><small>Customers, promises, and repair orders</small></span><ChevronRight /></ManagerLink><ManagerLink href="/vehicles/shop-recon" mode={mode} openAsPage><Wrench /><span><strong>Shop &amp; Recon</strong><small>Production, constraints, and handoffs</small></span><ChevronRight /></ManagerLink></div></section></section>
 
     <footer className={styles.boundary}><ShieldCheck /><span><strong>Mode changes perspective—not authority.</strong> Every approval, customer authorization, repair action, QC decision, financial commitment, and release still checks the user’s actual permissions and the owning workflow.</span>{missingSources.length ? <b><AlertTriangle />Limited sources: {missingSources.join(", ")}</b> : <b><CheckCircle2 />All workspace sources connected</b>}</footer>
   </section>;
@@ -82,5 +97,3 @@ function CooMode({ actions, density, mode, model, setDensity }: { actions: Manag
 function WorkMode({ actions, activeHat, density, mode, model, setActiveHat, setDensity }: { actions: ManagerAction[]; activeHat: "ALL" | ManagerWorkHat; density: Density; mode: ManagerMode; model: ManagerWorkspaceModel; setActiveHat: (value: "ALL" | ManagerWorkHat) => void; setDensity: (value: Density) => void }) { const allCount = model.actions.filter(item => item.mode === "WORK").length; return <><div className={styles.workControls}><nav aria-label="Working hats">{hats.map(item => <button aria-pressed={activeHat === item.id} key={item.id} onClick={() => setActiveHat(item.id)} type="button"><item.icon />{item.label}<span>{item.id === "ALL" ? allCount : model.hats.find(hat => hat.id === item.id)?.count ?? 0}</span></button>)}</nav><div><button aria-pressed={density === "CALM"} onClick={() => setDensity("CALM")} type="button">Calm</button><button aria-pressed={density === "HIGH_VOLUME"} onClick={() => setDensity("HIGH_VOLUME")} type="button">High volume</button></div></div><Metrics mode={mode} items={[{ icon: ClipboardList, label: "My active work", value: allCount, note: "Across authorized hats" }, { icon: MessageSquareText, label: "Inbox", value: model.health.inbox, note: "Customer, management, and team", attention: model.health.inbox > 0, href: "/appointments?inbox=1" }, { icon: Clock3, label: "Overdue work", value: model.actions.filter(item => item.mode === "WORK" && item.overdue).length, note: "Personal follow-up", attention: model.actions.some(item => item.mode === "WORK" && item.overdue), href: "/tasks?focus=overdue" }, { icon: UserRoundCog, label: "Active hat", value: activeHat === "ALL" ? "All" : words(activeHat), note: "Authority remains task-specific" }]} /><ActionQueue actions={actions} eyebrow="Personal execution" empty="No active work is assigned in this hat." mode={mode} title="What I should do next" /></>; }
 
 function ActionQueue({ actions, empty, eyebrow, mode, title }: { actions: ManagerAction[]; empty: string; eyebrow: string; mode: ManagerMode; title: string }) { return <section className={styles.queue} id="manager-action-queue"><header><div><small>{eyebrow}</small><strong>{title}</strong></div><b>{actions.length} shown</b></header>{actions.map((item, index) => <article key={item.id}><b>{index + 1}</b><i>{hatIcon(item.hat)}</i><div><small>{words(item.hat)} · {item.authority}</small><strong>{item.title}</strong><span>{item.subject}</span><p>{item.reason}</p></div><time className={item.overdue ? styles.overdue : ""}>{actionLabel(item)}</time><ManagerLink href={item.href} mode={mode}>{item.action}<ArrowRight /></ManagerLink></article>)}{!actions.length ? <p className={styles.empty}><CheckCircle2 />{empty}</p> : null}</section>; }
-
-function InboxPanel({ density, filter, items, mode, setFilter }: { density: Density; filter: InboxFilter; items: ManagerWorkspaceModel["inbox"]; mode: ManagerMode; setFilter: (value: InboxFilter) => void }) { return <section className={styles.inbox} id="manager-inbox"><header><div><strong>Unified inbox</strong><small>Customer, management, and internal communication.</small></div><ManagerLink href="/vehicles/advisor?inbox=1" mode={mode}>Open all</ManagerLink></header><nav aria-label="Inbox audience">{(["ALL", "CUSTOMER", "MANAGEMENT", "TEAM"] as InboxFilter[]).map(item => <button aria-pressed={filter === item} key={item} onClick={() => setFilter(item)} type="button">{words(item)}</button>)}</nav><div>{items.map(item => <ManagerLink href={item.href} key={item.id} mode={mode}><i className={styles[item.audience.toLowerCase()]}><Inbox /></i><span><strong>{item.subject}</strong><small>{words(item.audience)} · {item.needsResponse ? "Response needed" : "Information"}</small>{density === "HIGH_VOLUME" ? <p>{item.preview}</p> : null}</span><ChevronRight /></ManagerLink>)}{!items.length ? <p className={styles.empty}><CheckCircle2 />No messages need attention in this audience.</p> : null}</div></section>; }
