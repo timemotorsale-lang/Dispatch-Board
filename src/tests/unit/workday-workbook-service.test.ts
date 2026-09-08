@@ -728,6 +728,7 @@ describe("workday workbook service", () => {
       id: "board-day-prior",
       date: new Date("2026-08-28T00:00:00.000Z")
     };
+    priorWorkbook.dailyFocusItems[0].outcome = "Confirm prior roof repair path";
     const harness = repositoryHarness(user.id, [priorWorkbook]);
 
     const readModel = await getStaffWorkbook(user, "2026-08-29", { repository: harness.repository });
@@ -737,7 +738,7 @@ describe("workday workbook service", () => {
         id: "DAILY_FOCUS:focus-1",
         sourceBoardDate: "2026-08-28",
         sourceType: "DAILY_FOCUS",
-        title: "Confirm roof repair path"
+        title: "Confirm prior roof repair path"
       }),
       expect.objectContaining({
         id: "CHECKLIST_ITEM:checklist-1",
@@ -764,6 +765,7 @@ describe("workday workbook service", () => {
       id: "board-day-prior",
       date: new Date("2026-08-28T00:00:00.000Z")
     };
+    priorWorkbook.dailyFocusItems[0].outcome = "Confirm prior roof repair path";
     const harness = repositoryHarness(user.id, [priorWorkbook]);
 
     const result = await bringForwardCooWorkbookItem(user, "2026-08-29", {
@@ -771,11 +773,11 @@ describe("workday workbook service", () => {
       target: "FOCUS"
     }, { repository: harness.repository });
 
-    expect(result).toMatchObject({ ok: true, target: "FOCUS", title: "Confirm roof repair path" });
+    expect(result).toMatchObject({ ok: true, target: "FOCUS", title: "Confirm prior roof repair path" });
     expect(harness.createdDailyFocusItems).toEqual([
       expect.objectContaining({
         mustCloseToday: true,
-        outcome: "Confirm roof repair path",
+        outcome: "Confirm prior roof repair path",
         sourceId: "focus-1",
         sourceType: "DAILY_FOCUS",
         workbookId: "workbook-1"
@@ -851,6 +853,26 @@ describe("workday workbook service", () => {
         id: "focus-1",
         riskLevel: WorkdayRiskLevel.NONE,
         status: WorkdayDailyFocusStatus.DONE
+      })
+    ]);
+  });
+
+  it("blocks duplicate Daily Focus items for the same workbook day", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("jordan.sales@local.test")!;
+    const harness = repositoryHarness(user.id);
+
+    const result = await createCooWorkbookDailyFocusItem(user, "2026-08-29", {
+      outcome: "Confirm roof repair path",
+      priority: "HIGH"
+    }, { repository: harness.repository });
+
+    expect(result).toEqual({ duplicate: true, existingFocusId: "focus-1", ok: true });
+    expect(harness.createdDailyFocusItems).toEqual([]);
+    expect(harness.activityEvents).toEqual([
+      expect.objectContaining({
+        eventType: "workbook.daily_focus_duplicate_blocked",
+        metadata: expect.objectContaining({ duplicateFocusId: "focus-1" })
       })
     ]);
   });

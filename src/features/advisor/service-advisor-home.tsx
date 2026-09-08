@@ -279,6 +279,12 @@ type SearchableWorkItem = {
   kind: string;
   resume?: WorkbookSearchResume;
   searchText: string;
+  source?: {
+    boardDate?: string;
+    href?: string;
+    id: string;
+    type: string;
+  };
   title: string;
   tone: string;
 };
@@ -693,6 +699,34 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
       title: item.appointmentNumber,
       tone: "blue"
     })),
+    ...model.collaboratingTasks.map((item) => ({
+      action: "Work task",
+      context: [
+        `Owner: ${item.assignedUserName}`,
+        item.status.replaceAll("_", " ").toLocaleLowerCase(),
+        item.priority.toLocaleLowerCase(),
+        item.capacityRequested
+      ].filter(Boolean).join(" · "),
+      description: [
+        item.description,
+        item.collaborationScope ? `Help needed: ${item.collaborationScope}` : "",
+        item.vehicleReference,
+        item.customerReference,
+        `Due ${dateLabel(item.dueAt)}`
+      ].filter(Boolean).join(" · "),
+      href: item.href,
+      id: `collaborating-task-${item.id}`,
+      kind: "Collaborating Task",
+      searchText: item.searchText,
+      source: {
+        boardDate: item.boardDate,
+        href: item.href,
+        id: item.id,
+        type: "TASK"
+      },
+      title: item.title,
+      tone: item.status === "BLOCKED" ? "red" : ["WAITING_ON_APPROVAL", "WAITING_ON_PARTS", "READY_FOR_REVIEW"].includes(item.status) || item.priority === "HIGH" || item.priority === "CRITICAL" ? "yellow" : "blue"
+    })),
     ...checklistItems.map((item) => ({
       action: item.convertedTaskId ? "Open task" : item.done ? "Review" : "Update",
       context: checklistStatusLabel(item),
@@ -844,6 +878,26 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
   const normalizeSourceTitle = (value: string) => value.toLocaleLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   const dailyFocusSource = (item: DailyFocusItem) => {
     if (item.convertedTaskId) return { href: `/tasks/${encodeURIComponent(item.convertedTaskId)}`, toolLabel: "Open task" };
+    if (item.sourceHref) {
+      const sourceHref = item.sourceHref;
+      return {
+        href: sourceHref,
+        toolLabel: sourceHref.startsWith("/tasks/")
+          ? "Open task"
+          : sourceHref.includes("repair-workbench")
+            ? "Open RO"
+            : sourceHref.includes("checklist")
+              ? "Open checklist"
+              : sourceHref.includes("quick-update")
+                ? "Open update"
+                : sourceHref.includes("carryover")
+                  ? "Open carryover"
+                  : "Open source"
+      };
+    }
+    if (item.sourceType === "CHECKLIST_ITEM" && item.sourceId) return { href: `/vehicles/coo-workbook/checklist#checklist-${encodeURIComponent(item.sourceId)}`, toolLabel: "Open checklist" };
+    if (item.sourceType === "QUICK_UPDATE" && item.sourceId) return { href: `/vehicles/coo-workbook/quick-update#quick-${encodeURIComponent(item.sourceId)}`, toolLabel: "Open update" };
+    if (item.sourceType === "CARRYOVER" && item.sourceId) return { href: `/vehicles/coo-workbook/carryover#carryover-${encodeURIComponent(item.sourceId)}`, toolLabel: "Open carryover" };
     const normalizedOutcome = normalizeSourceTitle(item.outcome);
     const repairOrderNumber = item.outcome.match(/\bRO-[A-Z0-9]+\b/i)?.[0]?.toLocaleUpperCase();
     const repairOrder = repairOrderNumber
@@ -894,6 +948,16 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
   const attachedAttentionIds = new Set(focusAttentionLinks.flatMap((item) => item.attention.map((attention) => attention.id)));
   const otherAttentionItems = attentionItems.filter((item) => !attachedAttentionIds.has(item.id));
   const executionPanelCount = executionFocusItems.length ? `${dailyFocusRollup.done}/${executionFocusItems.length} focus` : attentionItems.length ? `${attentionItems.length} priority` : "Clear";
+  const isCloseWindow = new Date(model.generatedAt).getHours() >= 16;
+  const executionFocusTone = (focus: DailyFocusItem) => {
+    if (focus.status === "DONE") return "done";
+    if (focus.status === "CARRY_OVER") return "carryover";
+    if (focus.progressUpdate.trim() || focus.lastProgressAt) return "updated";
+    if (isCloseWindow) return "red";
+    if (focus.riskLevel === "BLOCKED") return "red";
+    if (focus.riskLevel === "WATCH" || focus.priority === "HIGH" || focus.priority === "CRITICAL") return "yellow";
+    return "blue";
+  };
   const closeReviewItems = [
     ...activeDailyFocusItems.map((item) => {
       const source = dailyFocusSource(item);
@@ -1416,18 +1480,26 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
       quick: "QUICK_UPDATE",
       reportSeed: "REPORT_SEED"
     };
-    const sourceType = item.resume ? resumeSourceType[item.resume.source] : item.kind.toUpperCase().replace(/[^A-Z0-9]+/g, "_");
+    const sourceType = item.source?.type ?? (item.resume ? resumeSourceType[item.resume.source] : item.kind.toUpperCase().replace(/[^A-Z0-9]+/g, "_"));
 
     return {
-      sourceBoardDate: item.resume?.boardDate ?? model.boardDate,
-      sourceHref: scopedWorkbookHref(item.href),
-      sourceId: item.resume?.id ?? item.id,
+      sourceBoardDate: item.source?.boardDate ?? item.resume?.boardDate ?? model.boardDate,
+      sourceHref: scopedWorkbookHref(item.source?.href ?? item.href),
+      sourceId: item.source?.id ?? item.resume?.id ?? item.id,
       sourceType
     };
   }
 
   function searchResultDetail(item: SearchableWorkItem) {
     return [item.context, item.description].filter(Boolean).join(" · ").slice(0, 500);
+  }
+
+  function findExistingSearchFocus(item: SearchableWorkItem) {
+    const lineage = searchResultLineage(item);
+    const normalizedTitle = normalizeSourceTitle(item.resume?.title ?? item.title);
+    return activeWorkbook.dailyFocusItems.find((focus) => focus.sourceType === lineage.sourceType && focus.sourceId === lineage.sourceId)
+      ?? activeWorkbook.dailyFocusItems.find((focus) => normalizeSourceTitle(focus.outcome) === normalizedTitle)
+      ?? null;
   }
 
   async function addSearchResultToWorkbook(item: SearchableWorkItem, target: "FOCUS" | "CHECKLIST") {
@@ -1445,6 +1517,11 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
     const lineage = searchResultLineage(item);
 
     try {
+      const existingFocus = target === "FOCUS" ? findExistingSearchFocus(item) : null;
+      if (existingFocus) {
+        setWorkspaceNotice("This item is already in Today’s Focus.");
+        return;
+      }
       const endpoint = target === "FOCUS" ? "daily-focus" : "checklist";
       const body = target === "FOCUS"
         ? {
@@ -1469,10 +1546,10 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body)
       });
-      const payload = await response.json().catch(() => null) as { error?: string } | null;
+      const payload = await response.json().catch(() => null) as { duplicate?: boolean; error?: string } | null;
       if (!response.ok) throw new Error(payload?.error ?? "Unable to add this search result right now.");
       await refreshActiveWorkbook();
-      setWorkspaceNotice(`${item.resume?.title ?? item.title} added to ${target === "FOCUS" ? "Today’s Focus" : "today’s checklist"}.`);
+      setWorkspaceNotice(payload?.duplicate ? "This item is already in Today’s Focus." : `${item.resume?.title ?? item.title} added to ${target === "FOCUS" ? "Today’s Focus" : "today’s checklist"}.`);
     } catch (error) {
       setWorkspaceNotice(error instanceof Error ? error.message : "Unable to add this search result right now.");
     } finally {
@@ -2261,45 +2338,52 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
         {workSearchQuery ? <button onClick={() => setWorkSearchQuery("")} type="button">Clear</button> : null}
       </label>
       {normalizedWorkSearch ? <div className="advisor-coo-search-results">
-        {workSearchResults.length ? workSearchResults.map((item) => <article className={item.tone} key={item.id}>
-          <a className="advisor-coo-search-summary" href={scopedWorkbookHref(item.href)}>
-            <span><b>{item.kind}</b><strong>{item.title}</strong><small>{item.context}</small><small>{item.description}</small></span>
-            <em>{item.action}</em>
-          </a>
-          <div className="advisor-coo-search-actions">
-            <button
-              disabled={Boolean(searchActionId || convertingId) || isClosed}
-              onClick={() => void addSearchResultToWorkbook(item, "FOCUS")}
-              type="button"
-            >
-              {searchActionId === `FOCUS:${item.id}` ? "Adding..." : "Add to Today’s Focus"}
-            </button>
-            <button
-              disabled={Boolean(searchActionId || convertingId) || isClosed}
-              onClick={() => void addSearchResultToWorkbook(item, "CHECKLIST")}
-              type="button"
-            >
-              {searchActionId === `CHECKLIST:${item.id}` ? "Adding..." : "Add checklist"}
-            </button>
-            <button
-              disabled={Boolean(searchActionId || convertingId) || isClosed}
-              onClick={() => void carrySearchResultForward(item)}
-              type="button"
-            >
-              {searchActionId === `CARRY:${item.id}` ? "Marking..." : "Carry over"}
-            </button>
-            {item.resume ? (
+        {workSearchResults.length ? workSearchResults.map((item) => {
+          const existingFocus = findExistingSearchFocus(item);
+          return <article className={item.tone} key={item.id}>
+            <a className="advisor-coo-search-summary" href={scopedWorkbookHref(item.href)}>
+              <span><b>{item.kind}</b><strong>{item.title}</strong><small>{item.context}</small><small>{item.description}</small></span>
+              <em>{item.action}</em>
+            </a>
+            <div className="advisor-coo-search-actions">
+              {existingFocus ? (
+                <a href={scopedWorkbookHref("/vehicles/coo-workbook/effectiveness-pilot#start-the-day")}>Open existing focus</a>
+              ) : (
+                <button
+                  disabled={Boolean(searchActionId || convertingId) || isClosed}
+                  onClick={() => void addSearchResultToWorkbook(item, "FOCUS")}
+                  type="button"
+                >
+                  {searchActionId === `FOCUS:${item.id}` ? "Adding..." : "Add to Today’s Focus"}
+                </button>
+              )}
               <button
-                className="primary"
-                disabled={Boolean(searchActionId || convertingId)}
-                onClick={() => void resumeSearchResultAsTask(item)}
+                disabled={Boolean(searchActionId || convertingId) || isClosed}
+                onClick={() => void addSearchResultToWorkbook(item, "CHECKLIST")}
                 type="button"
               >
-                {convertingId === item.id ? "Resuming..." : "Resume as task"}
+                {searchActionId === `CHECKLIST:${item.id}` ? "Adding..." : "Add checklist"}
               </button>
-            ) : null}
-          </div>
-        </article>) : <div className="advisor-coo-search-empty">
+              <button
+                disabled={Boolean(searchActionId || convertingId) || isClosed}
+                onClick={() => void carrySearchResultForward(item)}
+                type="button"
+              >
+                {searchActionId === `CARRY:${item.id}` ? "Marking..." : "Carry over"}
+              </button>
+              {item.resume ? (
+                <button
+                  className="primary"
+                  disabled={Boolean(searchActionId || convertingId)}
+                  onClick={() => void resumeSearchResultAsTask(item)}
+                  type="button"
+                >
+                  {convertingId === item.id ? "Resuming..." : "Resume as task"}
+                </button>
+              ) : null}
+            </div>
+          </article>;
+        }) : <div className="advisor-coo-search-empty">
           <span>No matching work found on this board. If this is still work that needs attention, create a task from the search and keep moving.</span>
           <Link href={workSearchTaskHref}>Create task from search</Link>
         </div>}
@@ -2317,7 +2401,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
             <div className="advisor-coo-execution-list">
               {focusAttentionLinks.map(({ attention, focus }, index) => {
                 const source = dailyFocusSource(focus);
-                return <article className={focus.riskLevel === "BLOCKED" ? "red" : focus.riskLevel === "WATCH" || focus.priority === "HIGH" || focus.priority === "CRITICAL" ? "yellow" : "blue"} key={focus.id}>
+                return <article className={executionFocusTone(focus)} key={focus.id}>
                   <div>
                     <b>{index + 1}</b>
                     <span>
@@ -2334,10 +2418,10 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
                     </a>)}
                   </div> : null}
                   <div className="advisor-coo-execution-actions">
-                    <a href={scopedWorkbookHref(source.href)}>{source.toolLabel}</a>
+                    <a className="primary" href={scopedWorkbookHref(source.href)}><Pencil /> Work / Update</a>
                     <button disabled={saving || isClosed || focus.status === "DONE"} onClick={() => void setEndDayFocusStatus(focus.id, "DONE")} type="button"><CheckCircle2 /> Done</button>
                     <button disabled={saving || isClosed || focus.status === "CARRY_OVER"} onClick={() => void setEndDayFocusStatus(focus.id, "CARRY_OVER")} type="button"><CalendarClock /> Carry over</button>
-                    <a href={scopedWorkbookHref("/vehicles/coo-workbook/effectiveness-pilot#start-the-day")}>Update focus</a>
+                    <a href={scopedWorkbookHref("/vehicles/coo-workbook/effectiveness-pilot#start-the-day")}>Edit focus</a>
                   </div>
                 </article>;
               })}
@@ -2646,8 +2730,9 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
         riskNote: suggestion.riskLevel === "WATCH" ? suggestion.detail : ""
       })
     });
-    const payload = await response.json().catch(() => null) as { error?: string } | null;
+    const payload = await response.json().catch(() => null) as { duplicate?: boolean; error?: string } | null;
     if (!response.ok) throw new Error(payload?.error ?? "Unable to save Daily Focus.");
+    return payload;
   }
 
   async function addDailyFocus(suggestion?: DailyFocusSuggestion) {
@@ -2659,7 +2744,7 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
     }
     setSaving(true);
     try {
-      await createDailyFocusFromSuggestion(suggestion ?? {
+      const result = await createDailyFocusFromSuggestion(suggestion ?? {
         detail: supportNeeded,
         href: "/vehicles/coo-workbook/effectiveness-pilot#start-the-day",
         mustCloseToday: focusMustClose,
@@ -2672,6 +2757,12 @@ export function CooEffectivenessPilotWorkbook({ model }: { model: ServiceAdvisor
         sourceId: "manual",
         sourceLabel: "Manual"
       }, dailyFocus.length);
+      if (result?.duplicate) {
+        setNotice("This item is already in Today’s Focus.");
+        setReviewingStartDay(false);
+        await refreshPilotWorkbook();
+        return;
+      }
       if (!suggestion) {
         setFocusOutcome("");
         setSupportNeeded("");

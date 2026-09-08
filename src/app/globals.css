@@ -23391,6 +23391,12 @@ html[data-app-theme="dark"] :where(.rowb-daily-command,.rowb-daily-status div,.r
 .advisor-coo-execution-list>article{display:grid;gap:10px;border:1px solid #e1e9f2;border-left:4px solid #2878c8;border-radius:9px;padding:11px;background:#fbfdff}
 .advisor-coo-execution-list>article.red{border-left-color:#c63637}
 .advisor-coo-execution-list>article.yellow{border-left-color:#c48a13}
+.advisor-coo-execution-list>article.done{border-color:#bfe5cc;border-left-color:#178850;background:#f1fbf4}
+.advisor-coo-execution-list>article.updated{border-color:#bfd3ff;border-left-color:#315bdc;background:#f2f6ff}
+.advisor-coo-execution-list>article.carryover{border-color:#ead6b5;border-left-color:#a86f1d;background:#fff8eb}
+.advisor-coo-execution-list>article.done b{color:#1e6f3d;background:#dff5e7}
+.advisor-coo-execution-list>article.updated b{color:#2452c5;background:#e4ecff}
+.advisor-coo-execution-list>article.carryover b{color:#855416;background:#f7e6c8}
 .advisor-coo-execution-list>article>div:first-child{display:grid;grid-template-columns:34px minmax(0,1fr);align-items:start;gap:10px}
 .advisor-coo-execution-list>article b,.advisor-coo-other-attention>a b{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:999px;color:#47617c;background:#eef3f8;font-size:12px}
 .advisor-coo-execution-list>article span{display:grid;gap:4px;min-width:0}
@@ -23405,6 +23411,7 @@ html[data-app-theme="dark"] :where(.rowb-daily-command,.rowb-daily-status div,.r
 .advisor-coo-related-attention em{align-self:center}
 .advisor-coo-execution-actions{display:flex;flex-wrap:wrap;gap:6px;margin-left:44px}
 .advisor-coo-execution-actions a,.advisor-coo-execution-actions button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:31px;border:1px solid #d5e0ef;border-radius:8px;padding:0 9px;background:#f4f8ff;color:#315bdc;font:inherit;font-size:11.5px;font-weight:900;text-decoration:none;cursor:pointer;white-space:nowrap}
+.advisor-coo-execution-actions a.primary{border-color:#315bdc;background:#315bdc;color:#fff}
 .advisor-coo-execution-actions button:first-of-type{border-color:#2d8750;background:#eef9f1;color:#247044}
 .advisor-coo-execution-actions button:disabled{cursor:not-allowed;opacity:.6}
 .advisor-coo-execution-actions svg{width:14px;height:14px}
@@ -23438,7 +23445,7 @@ html[data-app-theme="dark"] :where(.rowb-daily-command,.rowb-daily-status div,.r
 .advisor-coo-search-results small{overflow:hidden;color:#60728a;font-size:11.5px;text-overflow:ellipsis;white-space:nowrap}
 .advisor-coo-search-results em{border-radius:8px;padding:7px 9px;color:#075ed8;background:#eef6ff;font-size:11.5px;font-style:normal;font-weight:900;white-space:nowrap}
 .advisor-coo-search-actions{display:flex;flex-wrap:wrap;gap:6px}
-.advisor-coo-search-actions button{display:inline-flex;align-items:center;justify-content:center;min-height:32px;border:1px solid #d5e0ef;border-radius:8px;padding:0 9px;background:#f4f8ff;color:#315bdc;font:inherit;font-size:11.5px;font-weight:900;cursor:pointer;white-space:nowrap}
+.advisor-coo-search-actions a,.advisor-coo-search-actions button{display:inline-flex;align-items:center;justify-content:center;min-height:32px;border:1px solid #d5e0ef;border-radius:8px;padding:0 9px;background:#f4f8ff;color:#315bdc;font:inherit;font-size:11.5px;font-weight:900;cursor:pointer;text-decoration:none;white-space:nowrap}
 .advisor-coo-search-actions button.primary{border-color:#315bdc;background:#315bdc;color:#fff}
 .advisor-coo-search-actions button:disabled{cursor:not-allowed;opacity:.6}
 .advisor-coo-search-empty{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0;border:1px dashed #cfdbea;border-radius:9px;padding:12px 14px;color:#60728a;background:#fbfdff;font-size:12px}

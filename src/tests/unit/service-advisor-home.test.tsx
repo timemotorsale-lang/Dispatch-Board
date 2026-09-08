@@ -15,6 +15,7 @@ const model = {
     managementWorkbookLabel: "Management Workbook",
     staffWorkbookLabel: "Service Advisor Workbook"
   },
+  collaboratingTasks: [],
   workbookSearchHistory: [],
   morningPrioritySources: [
     {
@@ -986,6 +987,29 @@ describe("ServiceAdvisorHome", () => {
     expect(moreToolsHtml).toContain("/vehicles/coo-workbook/action-plan");
     expect(moreToolsHtml).toContain("/vehicles/coo-workbook/purchase-appraisal-capture");
     expect(moreToolsHtml).toContain("/vehicles/coo-workbook/report-seeds");
+  });
+
+  it("colors execution focus cards by work status", () => {
+    const statusModel = {
+      ...model,
+      generatedAt: "2026-07-20T17:00:00.000Z",
+      staffWorkbook: {
+        ...model.staffWorkbook,
+        dailyFocusItems: [
+          { ...model.staffWorkbook.dailyFocusItems[0], id: "focus-done", outcome: "Completed delivery", progressUpdate: "", status: "DONE" },
+          { ...model.staffWorkbook.dailyFocusItems[0], id: "focus-updated", outcome: "Updated customer promise", progressUpdate: "Customer was called.", status: "PLANNED" },
+          { ...model.staffWorkbook.dailyFocusItems[0], id: "focus-carryover", outcome: "Carry roof follow-up", progressUpdate: "", status: "CARRY_OVER" },
+          { ...model.staffWorkbook.dailyFocusItems[0], id: "focus-untouched", outcome: "Untouched close-window focus", priority: "LOW", progressUpdate: "", riskLevel: "NONE", status: "PLANNED" }
+        ]
+      }
+    } satisfies ServiceAdvisorWorkspaceModel;
+
+    const html = renderToStaticMarkup(<CooDailyWorkbook model={statusModel} />);
+
+    expect(html).toContain('class="done"');
+    expect(html).toContain('class="updated"');
+    expect(html).toContain('class="carryover"');
+    expect(html).toContain('class="red"');
   });
 
   it("renders Start The Day without exposing workbook mode switching", () => {

@@ -33,6 +33,24 @@ type WorkbookSearchHistoryItem = {
   title: string;
   tone: "blue" | "green" | "red" | "yellow";
 };
+type CollaboratingTaskItem = {
+  action: string;
+  assignedUserName: string;
+  boardDate: string;
+  capacityRequested: string | null;
+  collaborationScope: string;
+  customerReference: string | null;
+  description: string;
+  dueAt: string;
+  href: string;
+  id: string;
+  priority: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  searchText: string;
+  status: string;
+  title: string;
+  vehicleReference: string | null;
+  workflowArea: string;
+};
 type MorningPrioritySource = {
   detail: string;
   dueAt: string | null;
@@ -478,6 +496,77 @@ async function buildWorkbookSearchHistory(actor: AuthenticatedUser, todayKey: st
   ].slice(0, 160);
 }
 
+async function buildCollaboratingTasks(actor: AuthenticatedUser, todayKey: string): Promise<CollaboratingTaskItem[]> {
+  const since = new Date(`${todayKey}T00:00:00.000Z`);
+  since.setUTCDate(since.getUTCDate() - 45);
+  const tasks = await prisma.task.findMany({
+    orderBy: [{ dueAt: "asc" }, { updatedAt: "desc" }, { id: "asc" }],
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      status: true,
+      priority: true,
+      dueAt: true,
+      customerReference: true,
+      vehicleReference: true,
+      workflowArea: true,
+      boardDay: { select: { date: true } },
+      assignedUser: { select: { id: true, name: true } },
+      collaborators: {
+        select: {
+          capacityRequested: true,
+          collaborationScope: true
+        },
+        where: { userId: actor.id },
+        take: 1
+      },
+      checklistItems: { orderBy: { sortOrder: "asc" }, select: { label: true }, take: 8 },
+      comments: { orderBy: { createdAt: "desc" }, select: { body: true }, take: 5 }
+    },
+    take: 60,
+    where: {
+      assignedUserId: { not: actor.id },
+      boardDay: { date: { gte: since } },
+      collaborators: { some: { userId: actor.id } },
+      status: { not: "COMPLETED" }
+    }
+  });
+
+  return tasks.map((task): CollaboratingTaskItem => {
+    const collaborator = task.collaborators[0] ?? null;
+    const checklistText = task.checklistItems.map((item) => item.label).join(" ");
+    const commentText = task.comments.map((item) => item.body).join(" ");
+    const dueAt = task.dueAt.toISOString();
+    const boardDate = task.boardDay.date.toISOString().slice(0, 10);
+    const context = [
+      `Owner: ${task.assignedUser.name}`,
+      task.status.replaceAll("_", " ").toLocaleLowerCase(),
+      task.priority.toLocaleLowerCase(),
+      collaborator?.capacityRequested
+    ].filter(Boolean).join(" · ");
+
+    return {
+      action: "Work task",
+      assignedUserName: task.assignedUser.name,
+      boardDate,
+      capacityRequested: collaborator?.capacityRequested ?? null,
+      collaborationScope: collaborator?.collaborationScope ?? "",
+      customerReference: task.customerReference,
+      description: task.description || collaborator?.collaborationScope || task.customerReference || task.vehicleReference || "Shared task",
+      dueAt,
+      href: `/tasks/${task.id}`,
+      id: task.id,
+      priority: task.priority,
+      searchText: buildSearchText(task.id, task.title, task.description, task.customerReference, task.vehicleReference, task.workflowArea, context, collaborator?.collaborationScope, collaborator?.capacityRequested, checklistText, commentText),
+      status: task.status,
+      title: task.title,
+      vehicleReference: task.vehicleReference,
+      workflowArea: task.workflowArea
+    };
+  });
+}
+
 async function buildMorningPrioritySources(actor: AuthenticatedUser, boardDate: string, workspaceKey: WorkspaceKey) {
   const taskRepository = createBoardReadRepository();
   const staffDayRepository = createStaffDayRepository();
@@ -794,7 +883,7 @@ export async function getServiceAdvisorWorkspace(actor: AuthenticatedUser, board
   const approvalCount = actionQueue.filter(({ action }) => action.kind === "AUTHORIZATION").length;
   const handoffCount = actionQueue.filter(({ action }) => action.kind === "HANDOFF").length;
   const reportExceptions = needsAttention.length + waitingOnOthers.length;
-  const [workbook, staffWorkbook, staffWorkbookSummaries, workbookPrioritySources, workbookSearchHistory] = await Promise.all([
+  const [workbook, staffWorkbook, staffWorkbookSummaries, workbookPrioritySources, workbookSearchHistory, collaboratingTasks] = await Promise.all([
     getCooWorkbook(actor, todayKey, {
     approvalCount,
     handoffCount,
@@ -803,7 +892,8 @@ export async function getServiceAdvisorWorkspace(actor: AuthenticatedUser, board
     getStaffWorkbook(actor, todayKey),
     isManager(actor) ? getStaffWorkbookSummaries(actor, todayKey) : Promise.resolve([]),
     buildMorningPrioritySources(actor, todayKey, workspaceKey),
-    buildWorkbookSearchHistory(actor, todayKey)
+    buildWorkbookSearchHistory(actor, todayKey),
+    buildCollaboratingTasks(actor, todayKey)
   ]);
   const morningPrioritySources = finishMorningPrioritySources([
     ...buildOperatingMorningPrioritySources(actor, workspaceKey, actionQueue, todaysArrivals),
@@ -855,6 +945,7 @@ export async function getServiceAdvisorWorkspace(actor: AuthenticatedUser, board
     staffWorkbookSummaries,
     morningPrioritySources,
     workbookSearchHistory,
+    collaboratingTasks,
     counts: {
       activeRepairOrders: activeRepairOrders.length,
       availableAppointments: appointmentSnapshot.availableAppointments,

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { getServiceAdvisorWorkspace } from "@/server/advisor-workspace/service";
+import { prisma } from "@/server/db/client";
 
 const actor: AuthenticatedUser = {
   id: "advisor-1",
@@ -65,6 +66,11 @@ vi.mock("@/server/services/workday-workbook", () => ({
 
 vi.mock("@/server/db/client", () => ({
   prisma: {
+    appointment: {
+      count: vi.fn(async () => 0),
+      findMany: vi.fn(async () => [])
+    },
+    customer: { count: vi.fn(async () => 0) },
     staffDay: { findFirst: vi.fn(async () => null) },
     task: { findMany: vi.fn(async () => []) },
     workdayChecklistItem: { findMany: vi.fn(async () => []) },
@@ -91,5 +97,44 @@ describe("getServiceAdvisorWorkspace", () => {
       preview: "Customer communication recorded.",
       subject: "Repair order update"
     });
+  });
+
+  it("returns tasks where the staff member is a collaborator", async () => {
+    vi.mocked(prisma.task.findMany).mockImplementation(async (args) => {
+      const where = args?.where as { collaborators?: unknown } | undefined;
+      if (!where?.collaborators) return [];
+      return [
+        {
+          assignedUser: { id: "ancilla-1", name: "Ancilla" },
+          boardDay: { date: new Date("2026-09-08T00:00:00.000Z") },
+          capacityRequested: null,
+          checklistItems: [{ label: "Confirm delivery window" }],
+          collaborators: [{ capacityRequested: "Support", collaborationScope: "Help coordinate the sold vehicle delivery." }],
+          comments: [{ body: "Customer asked for a same-day update." }],
+          customerReference: "Customer: Hassan",
+          description: "Coordinate handoff and make sure delivery is complete.",
+          dueAt: new Date("2026-09-08T21:00:00.000Z"),
+          id: "task-deliver-sold-vehicles",
+          priority: "HIGH",
+          status: "IN_PROGRESS",
+          title: "Deliver sold vehicles",
+          vehicleReference: "2019 Hyundai Tucson White",
+          workflowArea: "SALES"
+        }
+      ] as never;
+    });
+
+    const result = await getServiceAdvisorWorkspace(actor);
+
+    expect(result.collaboratingTasks).toHaveLength(1);
+    expect(result.collaboratingTasks[0]).toMatchObject({
+      action: "Work task",
+      assignedUserName: "Ancilla",
+      href: "/tasks/task-deliver-sold-vehicles",
+      id: "task-deliver-sold-vehicles",
+      title: "Deliver sold vehicles"
+    });
+    expect(result.collaboratingTasks[0].searchText).toContain("deliver sold vehicles");
+    expect(result.collaboratingTasks[0].searchText).toContain("hassan");
   });
 });

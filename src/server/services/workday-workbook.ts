@@ -97,6 +97,10 @@ function normalizeRequiredText(value: unknown, errorMessage: string, maxLength =
   return normalized.slice(0, maxLength);
 }
 
+function normalizedDuplicateText(value: string) {
+  return value.toLocaleLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
 function normalizeOptionalText(value: unknown, fieldName: string, maxLength = 500) {
   if (value === undefined || value === null) return undefined;
   if (typeof value !== "string") throw new Error(`${fieldName} must be text.`);
@@ -127,6 +131,19 @@ function normalizeSourceLineageFromPayload(payload: Record<string, unknown>, use
     sourceId,
     sourceType
   };
+}
+
+function findDuplicateDailyFocusItem(workbook: Pick<WorkdayWorkbookRecord, "dailyFocusItems">, outcome: string, sourceLineage: BringForwardLineageInput) {
+  const sourceType = sourceLineage.sourceType?.trim();
+  const sourceId = sourceLineage.sourceId?.trim();
+  if (sourceType && sourceId) {
+    const sourceMatch = workbook.dailyFocusItems.find((item) => item.sourceType === sourceType && item.sourceId === sourceId);
+    if (sourceMatch) return sourceMatch;
+  }
+
+  const normalizedOutcome = normalizedDuplicateText(outcome);
+  if (!normalizedOutcome) return null;
+  return workbook.dailyFocusItems.find((item) => normalizedDuplicateText(item.outcome) === normalizedOutcome) ?? null;
 }
 
 function normalizeBoolean(value: unknown, fieldName: string) {
@@ -1451,6 +1468,11 @@ async function createWorkbookDailyFocusItem(actor: AuthenticatedUser | null, boa
   const boardDay = await repository.getOrCreateBoardDay(normalizeBoardDate(boardDate));
   const workbook = await repository.getOrCreateWorkbook({ boardDayId: boardDay.id, scope, userId: user.id });
   assertWorkbookEditable(user, workbook);
+  const duplicate = findDuplicateDailyFocusItem(workbook, outcome, sourceLineage);
+  if (duplicate) {
+    await recordWorkbookActivity(repository, user, workbook, "workbook.daily_focus_duplicate_blocked", `${user.name} tried to add a duplicate daily focus outcome.`, { duplicateFocusId: duplicate.id, outcome, scope, sourceId: sourceLineage.sourceId, sourceType: sourceLineage.sourceType });
+    return { duplicate: true, existingFocusId: duplicate.id, ok: true };
+  }
   await repository.createDailyFocusItem({
     mustCloseToday: normalizeBoolean(payload.mustCloseToday, "mustCloseToday") ?? false,
     outcome,
@@ -1515,6 +1537,15 @@ async function bringForwardWorkbookItem(actor: AuthenticatedUser | null, boardDa
       workbookId: workbook.id
     });
   } else {
+    const duplicate = findDuplicateDailyFocusItem(workbook, candidate.title, lineage);
+    if (duplicate) {
+      await recordWorkbookActivity(repository, user, workbook, "workbook.daily_focus_duplicate_blocked", `${user.name} tried to bring forward a duplicate daily focus outcome.`, {
+        candidateId: candidate.id,
+        duplicateFocusId: duplicate.id,
+        target
+      });
+      return { duplicate: true, existingFocusId: duplicate.id, ok: true, target, title: duplicate.outcome };
+    }
     await repository.createDailyFocusItem({
       ...lineage,
       mustCloseToday: target === "FOCUS",
