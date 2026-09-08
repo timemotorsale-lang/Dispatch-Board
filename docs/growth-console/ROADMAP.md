@@ -10,6 +10,7 @@
 - Connect to CRM as the relationship record.
 - Do frontend review before adoption.
 - Add backend controls only after the user approves the workflow.
+- Keep default workspaces short: primary action visible first, secondary detail opened through drawers, tabs, or focused drill-ins.
 
 ## Phase G0 - Source Of Truth And Review Shell
 
@@ -261,8 +262,10 @@ Scope:
 - simple Today, Campaigns, Needs Attention, Results, and Review Controls sections;
 - visible next actions for every primary row;
 - backend algorithm details moved behind concise status summaries;
+- secondary blocker, campaign, result, and manager-control detail collapsed by default to avoid long scrolling;
 - live send, ad spend, CRM mutation, and automation locks preserved.
 
 Exit:
 
 - staff can start work from the landing page without guessing what to click first.
+- users can inspect detail on demand without scrolling through every Growth capability.

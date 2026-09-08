@@ -64,6 +64,7 @@ The Growth Console borrows proven patterns from current enterprise marketing and
 5. No live send, live ad spend, or customer mutation without approval and backend enforcement.
 6. Every recommendation explains the source signals, exclusions, and expected outcome.
 7. Every launched campaign writes back measurable outcomes to the right CRM, inventory, sales, service, and task records.
+8. No long-scroll default workspaces: the first screen must stay compact, expose the primary daily action, and move secondary detail into tabs, drawers, or focused drill-ins instead of stacking every capability on one page.
 
 ## Initial Frontend Review Boundary
 
@@ -73,6 +74,7 @@ The first implementation is a reviewable frontend foundation only. It should:
 - show the combined Marketing + Advertising operating model;
 - make the daily execution path obvious;
 - display opportunity, audience, message/ad, approval, automation, and results sections;
+- keep the landing page compact by default, with secondary campaign, blocker, result, and manager-control detail opened on demand;
 - label live activation as unavailable until backend controls are implemented;
 - avoid sample data pretending to be production data;
 - give the user room to review the design before adoption.

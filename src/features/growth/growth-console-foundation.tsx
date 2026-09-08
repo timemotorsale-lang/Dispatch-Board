@@ -205,81 +205,99 @@ export function GrowthConsoleFoundation() {
       </section>
 
       <section className={styles.panel} id="campaigns">
-        <div className={styles.panelHeader}>
-          <div>
-            <span className={styles.sectionLabel}>Campaigns</span>
-            <h2>Review, approve, then keep launch locked</h2>
+        <details className={styles.drawer}>
+          <summary>
+            <span>
+              <span className={styles.sectionLabel}>Campaigns</span>
+              <strong>Open campaign drawer</strong>
+            </span>
+            <small>{campaigns.length} plans prepared for review</small>
+          </summary>
+          <div className={styles.drawerIntro}>
+            <p>Review, approve, then keep launch locked until backend controls are approved.</p>
+            <a className={styles.smallLink} href="#controls">View controls</a>
           </div>
-          <a className={styles.smallLink} href="#controls">View controls</a>
-        </div>
-        <div className={styles.campaignTable} role="table" aria-label="Growth campaigns">
-          <div role="row">
-            <span>Campaign</span>
-            <span>Type</span>
-            <span>Status</span>
-            <span>Owner</span>
-            <span>Next action</span>
-            <span>Performance</span>
-          </div>
-          {campaigns.map((campaign) => (
-            <div role="row" key={campaign.name}>
-              <strong>{campaign.name}</strong>
-              <span>{campaign.type}</span>
-              <span className={campaignClass(campaign.status)}>{campaign.status}</span>
-              <span>{campaign.owner}</span>
-              <a href={campaign.status === "Blocked" ? "#attention" : "#controls"}>{campaign.nextAction}</a>
-              <span>{campaign.performance}</span>
+          <div className={styles.campaignTable} role="table" aria-label="Growth campaigns">
+            <div role="row">
+              <span>Campaign</span>
+              <span>Type</span>
+              <span>Status</span>
+              <span>Owner</span>
+              <span>Next action</span>
+              <span>Performance</span>
             </div>
-          ))}
-        </div>
+            {campaigns.map((campaign) => (
+              <div role="row" key={campaign.name}>
+                <strong>{campaign.name}</strong>
+                <span>{campaign.type}</span>
+                <span className={campaignClass(campaign.status)}>{campaign.status}</span>
+                <span>{campaign.owner}</span>
+                <a href={campaign.status === "Blocked" ? "#attention" : "#controls"}>{campaign.nextAction}</a>
+                <span>{campaign.performance}</span>
+              </div>
+            ))}
+          </div>
+        </details>
       </section>
 
       <section className={styles.panel} id="results">
-        <div className={styles.panelHeader}>
-          <div>
-            <span className={styles.sectionLabel}>Results Snapshot</span>
-            <h2>Measure outcomes, not noise</h2>
+        <details className={styles.drawer}>
+          <summary>
+            <span>
+              <span className={styles.sectionLabel}>Results Snapshot</span>
+              <strong>Open results drawer</strong>
+            </span>
+            <small>Read-only attribution</small>
+          </summary>
+          <div className={styles.drawerIntro}>
+            <p>Measure outcomes, not noise.</p>
+            <span className={styles.statusNote}>Read-only</span>
           </div>
-          <span className={styles.statusNote}>Read-only</span>
-        </div>
-        <div className={styles.resultsGrid}>
-          <article><CheckCircle2 size={17} /><span>Direct</span><strong>{results.direct}</strong><p>Replies, appointments, forms, sales, or service outcomes.</p></article>
-          <article><ClipboardCheck size={17} /><span>Assisted</span><strong>{results.assisted}</strong><p>CRM follow-up connected within the approved window.</p></article>
-          <article><Sparkles size={17} /><span>Influenced</span><strong>{results.influenced}</strong><p>Relevant exposure with incomplete identity or softer proof.</p></article>
-          <article><Eye size={17} /><span>Context only</span><strong>{results.contextOnly}</strong><p>Opens help with context, but never prove customer intent alone.</p></article>
-        </div>
+          <div className={styles.resultsGrid}>
+            <article><CheckCircle2 size={17} /><span>Direct</span><strong>{results.direct}</strong><p>Replies, appointments, forms, sales, or service outcomes.</p></article>
+            <article><ClipboardCheck size={17} /><span>Assisted</span><strong>{results.assisted}</strong><p>CRM follow-up connected within the approved window.</p></article>
+            <article><Sparkles size={17} /><span>Influenced</span><strong>{results.influenced}</strong><p>Relevant exposure with incomplete identity or softer proof.</p></article>
+            <article><Eye size={17} /><span>Context only</span><strong>{results.contextOnly}</strong><p>Opens help with context, but never prove customer intent alone.</p></article>
+          </div>
+        </details>
       </section>
 
       <section className={styles.panel} id="controls">
-        <div className={styles.panelHeader}>
-          <div>
-            <span className={styles.sectionLabel}>Review Controls</span>
-            <h2>Manager details stay here</h2>
+        <details className={styles.drawer}>
+          <summary>
+            <span>
+              <span className={styles.sectionLabel}>Review Controls</span>
+              <strong>Open manager controls</strong>
+            </span>
+            <small>{releaseReadiness.adoptionStatus}</small>
+          </summary>
+          <div className={styles.drawerIntro}>
+            <p>Manager details stay here so the daily path stays short.</p>
+            <span className={styles.statusNote}>{releaseReadiness.adoptionStatus}</span>
           </div>
-          <span className={styles.statusNote}>{releaseReadiness.adoptionStatus}</span>
-        </div>
-        <div className={styles.controlGrid}>
-          <article>
-            <Lock size={18} aria-hidden="true" />
-            <strong>Launch lock</strong>
-            <p>{policy.nextAction}. Provider: {pilot.health.state}. Paid ads: {advertising.state}.</p>
-          </article>
-          <article>
-            <ShieldCheck size={18} aria-hidden="true" />
-            <strong>Record protection</strong>
-            <p>Existing CRM, customer, inventory, quote, invoice, appointment, task, and repair records are not changed from this page.</p>
-          </article>
-          <article>
-            <PauseCircle size={18} aria-hidden="true" />
-            <strong>Automation lock</strong>
-            <p>{automation.state}. {automation.summary}</p>
-          </article>
-          <article>
-            <BarChart3 size={18} aria-hidden="true" />
-            <strong>Best next move</strong>
-            <p>{optimization.nextAction}. Recommendations stay advisory until approved.</p>
-          </article>
-        </div>
+          <div className={styles.controlGrid}>
+            <article>
+              <Lock size={18} aria-hidden="true" />
+              <strong>Launch lock</strong>
+              <p>{policy.nextAction}. Provider: {pilot.health.state}. Paid ads: {advertising.state}.</p>
+            </article>
+            <article>
+              <ShieldCheck size={18} aria-hidden="true" />
+              <strong>Record protection</strong>
+              <p>Existing CRM, customer, inventory, quote, invoice, appointment, task, and repair records are not changed from this page.</p>
+            </article>
+            <article>
+              <PauseCircle size={18} aria-hidden="true" />
+              <strong>Automation lock</strong>
+              <p>{automation.state}. {automation.summary}</p>
+            </article>
+            <article>
+              <BarChart3 size={18} aria-hidden="true" />
+              <strong>Best next move</strong>
+              <p>{optimization.nextAction}. Recommendations stay advisory until approved.</p>
+            </article>
+          </div>
+        </details>
       </section>
     </section>
   );

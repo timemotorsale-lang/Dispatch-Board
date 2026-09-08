@@ -24,6 +24,9 @@ describe("Growth Console foundation", () => {
     expect(markup).toContain("Campaigns");
     expect(markup).toContain("Needs Attention");
     expect(markup).toContain("Open blocker drawer");
+    expect(markup).toContain("Open campaign drawer");
+    expect(markup).toContain("Open results drawer");
+    expect(markup).toContain("Open manager controls");
     expect(markup).toContain("Results Snapshot");
     expect(markup).toContain("Review Controls");
     expect(markup).toContain("Pick the best opportunity");
