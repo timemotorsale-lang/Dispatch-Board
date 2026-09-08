@@ -155,6 +155,13 @@ describe("CRM Next pages", () => {
     expect(search).toContain("Add Customer / Prospect");
     expect(newCustomer).toContain("Add a customer or prospect");
     expect(newCustomer).toContain("Customer details");
+    expect(newCustomer).toContain("Capture Hub");
+    expect(newCustomer).toContain("Use the phone camera to start the right work");
+    expect(newCustomer).toContain("Add vehicle");
+    expect(newCustomer).toContain("Repair proof");
+    expect(newCustomer).toContain("Capture approval");
+    expect(newCustomer).toContain("No sensitive photo is saved in this review build.");
+    expect(newCustomer).toContain("Use this customer info");
     expect(newCustomer).toContain("Prospect");
     expect(newCustomer).toContain("Save customer");
     expect(newCustomer).toContain("Shared customer record");

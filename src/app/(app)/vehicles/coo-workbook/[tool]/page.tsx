@@ -10,6 +10,7 @@ const toolBySlug: Record<string, CooWorkbookTool> = {
   checklist: "CHECKLIST",
   drafts: "DRAFTS",
   "more-tools": "MORE_TOOLS",
+  "purchase-appraisal-capture": "PURCHASE_APPRAISAL_CAPTURE",
   "quick-update": "QUICK_UPDATE",
   "report-seeds": "REPORT_SEEDS",
   "staff-support": "STAFF_SUPPORT",
