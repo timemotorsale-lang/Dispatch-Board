@@ -147,6 +147,7 @@ const model = {
       }
     ],
     incomingCarryovers: [],
+    bringForwardCandidates: [],
     quickUpdates: [
       {
         id: "quick-1",
@@ -443,6 +444,7 @@ const model = {
     ],
     carryovers: [],
     incomingCarryovers: [],
+    bringForwardCandidates: [],
     quickUpdates: [],
     reportSeeds: [],
     reportDrafts: [],
@@ -757,7 +759,9 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("Service Advisor Workbook");
     expect(html).not.toContain("Management Workbook");
     expect(html).toContain("Today&#x27;s Command");
-    expect(html).toContain("What Needs Attention Now");
+    expect(html).toContain("Today’s Execution");
+    expect(html).toContain("Work selected focus items first. Review attached risks when they affect delivery.");
+    expect(html).toContain("Other Attention");
     expect(html).toContain("Open a Tool");
     expect(html).toContain("Keep the landing page clean. Open only what you need to execute.");
     expect(html).toContain("Start The Day");
@@ -906,6 +910,18 @@ describe("ServiceAdvisorHome", () => {
       staffWorkbook: {
         ...model.staffWorkbook,
         quickUpdates: model.workbook.quickUpdates,
+        bringForwardCandidates: [{
+          detail: "Waiting on AJ to confirm timing.",
+          id: "DAILY_FOCUS:focus-prior",
+          priority: "HIGH",
+          recommendedTarget: "FOCUS",
+          riskLevel: "WATCH",
+          sourceBoardDate: "2026-07-19",
+          sourceHref: "/vehicles/coo-workbook/effectiveness-pilot#focus-focus-prior",
+          sourceId: "focus-prior",
+          sourceType: "DAILY_FOCUS",
+          title: "Recover roof follow-up"
+        }],
         reportDrafts: model.workbook.reportDrafts,
         reportSeeds: model.workbook.reportSeeds
       }
@@ -917,6 +933,7 @@ describe("ServiceAdvisorHome", () => {
     const carryoverHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="CARRYOVER" model={toolModel} />);
     const reportSeedsHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="REPORT_SEEDS" model={toolModel} />);
     const draftsHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="DRAFTS" model={toolModel} />);
+    const bringForwardHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="BRING_FORWARD" model={toolModel} />);
     const purchaseCaptureHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="PURCHASE_APPRAISAL_CAPTURE" model={toolModel} />);
     const moreToolsHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="MORE_TOOLS" model={toolModel} />);
 
@@ -942,6 +959,12 @@ describe("ServiceAdvisorHome", () => {
     expect(draftsHtml).toContain("Weekly");
     expect(draftsHtml).toContain("Monthly");
     expect(draftsHtml).toContain("Copy Draft");
+    expect(bringForwardHtml).toContain("Bring Forward Work");
+    expect(bringForwardHtml).toContain("Search prior unfinished work");
+    expect(bringForwardHtml).toContain("Recover roof follow-up");
+    expect(bringForwardHtml).toContain("Today&#x27;s Focus");
+    expect(bringForwardHtml).toContain("Action Plan");
+    expect(bringForwardHtml).toContain("Checklist");
     expect(purchaseCaptureHtml).toContain("TAI Purchase Assist");
     expect(purchaseCaptureHtml).toContain("Build the buy/appraisal packet in one pass");
     expect(purchaseCaptureHtml).toContain("Purchase capture purpose");
@@ -951,7 +974,8 @@ describe("ServiceAdvisorHome", () => {
     expect(purchaseCaptureHtml).toContain("No customer, inventory, quote, invoice, or appraisal records were changed");
     expect(moreToolsHtml).toContain("Service Advisor Workbook More Tools");
     expect(moreToolsHtml).toContain("Each tool opens a real workbook area");
-    expect(moreToolsHtml).toContain("11 tools");
+    expect(moreToolsHtml).toContain("12 tools");
+    expect(moreToolsHtml).toContain("Bring Forward Work");
     expect(moreToolsHtml).toContain("Purchase / Appraisal Capture");
     expect(moreToolsHtml).toContain("Priority Triage");
     expect(moreToolsHtml).toContain("Follow-Up Center");
@@ -1083,6 +1107,7 @@ describe("ServiceAdvisorHome", () => {
           outcome: "Identify Pending/Almost Done Vehicles - Devise a Plan to Fix them"
         }],
         incomingCarryovers: [],
+        bringForwardCandidates: [],
         quickUpdates: []
       }
     } satisfies ServiceAdvisorWorkspaceModel;
@@ -1105,6 +1130,7 @@ describe("ServiceAdvisorHome", () => {
         carryovers: [],
         dailyFocusItems: [{ ...model.staffWorkbook.dailyFocusItems[0], convertedTaskId: "task-linked-1" }],
         incomingCarryovers: [],
+        bringForwardCandidates: [],
         quickUpdates: []
       }
     } satisfies ServiceAdvisorWorkspaceModel;
@@ -1140,6 +1166,7 @@ describe("ServiceAdvisorHome", () => {
           outcome: "DealerCenter Updating - Resolve Known Issues"
         }],
         incomingCarryovers: [],
+        bringForwardCandidates: [],
         quickUpdates: []
       }
     } satisfies ServiceAdvisorWorkspaceModel;

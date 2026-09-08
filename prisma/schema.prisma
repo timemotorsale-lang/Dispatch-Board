@@ -6836,6 +6836,12 @@ model WorkdayChecklistItem {
   done            Boolean                @default(false)
   carryoverReady  Boolean                @default(false)
   convertedTaskId String?
+  sourceType      String?
+  sourceId        String?
+  sourceBoardDate DateTime?
+  sourceHref      String?
+  broughtForwardAt DateTime?
+  broughtForwardByUserId String?
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
   workbook        WorkdayWorkbook        @relation(fields: [workbookId], references: [id], onDelete: Cascade)
@@ -6844,6 +6850,7 @@ model WorkdayChecklistItem {
   @@index([workbookId, status, done])
   @@index([workbookId, priority, riskLevel])
   @@index([convertedTaskId])
+  @@index([workbookId, sourceType, sourceId])
 }
 
 model WorkdayDailyFocusItem {
@@ -6860,6 +6867,12 @@ model WorkdayDailyFocusItem {
   status          WorkdayDailyFocusStatus @default(PLANNED)
   sortOrder       Int                     @default(0)
   convertedTaskId String?
+  sourceType      String?
+  sourceId        String?
+  sourceBoardDate DateTime?
+  sourceHref      String?
+  broughtForwardAt DateTime?
+  broughtForwardByUserId String?
   createdAt       DateTime                @default(now())
   updatedAt       DateTime                @updatedAt
   workbook        WorkdayWorkbook         @relation(fields: [workbookId], references: [id], onDelete: Cascade)
@@ -6868,6 +6881,7 @@ model WorkdayDailyFocusItem {
   @@index([workbookId, status, priority])
   @@index([workbookId, riskLevel])
   @@index([convertedTaskId])
+  @@index([workbookId, sourceType, sourceId])
 }
 
 model WorkdayQuickUpdate {

@@ -20,6 +20,7 @@ import {
 import type { AuthenticatedUser } from "@/server/auth/store";
 import {
   createWorkdayWorkbookRepository,
+  type BringForwardLineageInput,
   type WorkdayCarryoverInput,
   type WorkdayReportSeedInput,
   type WorkdayWorkbookRecord,
@@ -68,6 +69,21 @@ const riskLevels = new Set(Object.values(WorkdayRiskLevel));
 const supportActionStatuses = new Set(Object.values(WorkdaySupportActionStatus));
 const manualReportCategories = new Set(["COMPLETED", "UPDATE", "BLOCKER", "MANAGEMENT", "CARRYOVER"] as const);
 type ManualReportCategory = "COMPLETED" | "UPDATE" | "BLOCKER" | "MANAGEMENT" | "CARRYOVER";
+const bringForwardTargets = new Set(["FOCUS", "CHECKLIST", "ACTION_PLAN"] as const);
+type WorkdayBringForwardTarget = "FOCUS" | "CHECKLIST" | "ACTION_PLAN";
+type WorkdayBringForwardSourceType = "DAILY_FOCUS" | "CHECKLIST_ITEM" | "QUICK_UPDATE" | "CARRYOVER";
+type WorkdayBringForwardCandidate = {
+  detail: string;
+  id: string;
+  priority: WorkdayPriority;
+  recommendedTarget: WorkdayBringForwardTarget;
+  riskLevel: WorkdayRiskLevel;
+  sourceBoardDate: string;
+  sourceHref: string;
+  sourceId: string;
+  sourceType: WorkdayBringForwardSourceType;
+  title: string;
+};
 const emptyOperatingSignals: WorkdayWorkbookOperatingSignals = {
   approvalCount: 0,
   handoffCount: 0,
@@ -87,6 +103,32 @@ function normalizeOptionalText(value: unknown, fieldName: string, maxLength = 50
   return value.trim().slice(0, maxLength);
 }
 
+function normalizeOptionalBoardDateValue(value: unknown, fieldName: string) {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string") throw new Error(`${fieldName} must be a valid date.`);
+  return new Date(`${normalizeBoardDate(value)}T00:00:00.000Z`);
+}
+
+function normalizeSourceLineageFromPayload(payload: Record<string, unknown>, user: AuthenticatedUser): BringForwardLineageInput {
+  const sourceType = normalizeOptionalText(payload.sourceType, "sourceType", 80);
+  const sourceId = normalizeOptionalText(payload.sourceId, "sourceId", 180);
+  const sourceHref = normalizeOptionalText(payload.sourceHref, "sourceHref", 500);
+  const sourceBoardDate = normalizeOptionalBoardDateValue(payload.sourceBoardDate, "sourceBoardDate");
+  const hasLineage = Boolean(sourceType || sourceId || sourceHref || sourceBoardDate);
+
+  if (!hasLineage) return {};
+  if (!sourceType || !sourceId) throw new Error("Source type and source ID are required when adding source-backed workbook work.");
+
+  return {
+    broughtForwardAt: new Date(),
+    broughtForwardByUserId: user.id,
+    sourceBoardDate,
+    sourceHref: sourceHref ?? null,
+    sourceId,
+    sourceType
+  };
+}
+
 function normalizeBoolean(value: unknown, fieldName: string) {
   if (value === undefined) return undefined;
   if (typeof value !== "boolean") throw new Error(`${fieldName} must be true or false.`);
@@ -102,6 +144,11 @@ function normalizeNumber(value: unknown, fieldName: string, fallback = 0) {
 function normalizeManualReportCategory(value: unknown): ManualReportCategory {
   if (typeof value !== "string" || !manualReportCategories.has(value as ManualReportCategory)) throw new Error("Choose a valid report section.");
   return value as ManualReportCategory;
+}
+
+function normalizeBringForwardTarget(value: unknown): WorkdayBringForwardTarget {
+  if (typeof value !== "string" || !bringForwardTargets.has(value as WorkdayBringForwardTarget)) throw new Error("Choose where this work should be added today.");
+  return value as WorkdayBringForwardTarget;
 }
 
 function normalizeBoundedSeconds(value: unknown, fieldName: string) {
@@ -958,10 +1005,118 @@ function toStaffWorkbookSummary(record: WorkdayWorkbookSummaryRecord) {
   };
 }
 
+function bringForwardKey(sourceType: string | null | undefined, sourceId: string | null | undefined) {
+  return sourceType && sourceId ? `${sourceType}:${sourceId}` : "";
+}
+
+function candidateId(sourceType: WorkdayBringForwardSourceType, sourceId: string) {
+  return `${sourceType}:${sourceId}`;
+}
+
+function sourceHrefForCandidate(sourceType: WorkdayBringForwardSourceType, sourceId: string) {
+  if (sourceType === "DAILY_FOCUS") return `/vehicles/coo-workbook/effectiveness-pilot#focus-${sourceId}`;
+  if (sourceType === "CHECKLIST_ITEM") return `/vehicles/coo-workbook/checklist#source-${sourceId}`;
+  if (sourceType === "QUICK_UPDATE") return `/vehicles/coo-workbook/quick-update#source-${sourceId}`;
+  return "/vehicles/coo-workbook/carryover";
+}
+
+function buildBringForwardCandidates(priorWorkbooks: WorkdayWorkbookRecord[], currentWorkbook: WorkdayWorkbookRecord): WorkdayBringForwardCandidate[] {
+  const existingSources = new Set([
+    ...currentWorkbook.dailyFocusItems.map((item) => bringForwardKey(item.sourceType, item.sourceId)),
+    ...currentWorkbook.checklistItems.map((item) => bringForwardKey(item.sourceType, item.sourceId))
+  ].filter(Boolean));
+
+  const candidates: WorkdayBringForwardCandidate[] = [];
+
+  for (const workbook of priorWorkbooks) {
+    const sourceBoardDate = workbook.boardDay.date.toISOString().slice(0, 10);
+    for (const item of workbook.dailyFocusItems) {
+      if (item.status === WorkdayDailyFocusStatus.DONE || item.convertedTaskId) continue;
+      const sourceType = "DAILY_FOCUS";
+      const sourceId = item.id;
+      if (existingSources.has(bringForwardKey(sourceType, sourceId))) continue;
+      candidates.push({
+        detail: item.progressUpdate || item.supportNeeded || item.riskNote || `${item.status.toLocaleLowerCase().replaceAll("_", " ")} from ${sourceBoardDate}.`,
+        id: candidateId(sourceType, sourceId),
+        priority: item.priority,
+        recommendedTarget: item.mustCloseToday || item.priority === WorkdayPriority.CRITICAL || item.priority === WorkdayPriority.HIGH ? "FOCUS" : "ACTION_PLAN",
+        riskLevel: item.riskLevel,
+        sourceBoardDate,
+        sourceHref: sourceHrefForCandidate(sourceType, sourceId),
+        sourceId,
+        sourceType,
+        title: item.outcome
+      });
+    }
+
+    for (const item of workbook.checklistItems) {
+      if (item.done || item.convertedTaskId) continue;
+      const sourceType = "CHECKLIST_ITEM";
+      const sourceId = item.id;
+      if (existingSources.has(bringForwardKey(sourceType, sourceId))) continue;
+      candidates.push({
+        detail: item.update || item.riskNote || `${item.status.toLocaleLowerCase()} checklist item from ${sourceBoardDate}.`,
+        id: candidateId(sourceType, sourceId),
+        priority: item.priority,
+        recommendedTarget: item.priority === WorkdayPriority.CRITICAL || item.priority === WorkdayPriority.HIGH || item.riskLevel !== WorkdayRiskLevel.NONE ? "ACTION_PLAN" : "CHECKLIST",
+        riskLevel: item.riskLevel,
+        sourceBoardDate,
+        sourceHref: sourceHrefForCandidate(sourceType, sourceId),
+        sourceId,
+        sourceType,
+        title: item.text
+      });
+    }
+
+    for (const item of workbook.quickUpdates) {
+      if ((!item.followUpNeeded && !item.carryoverReady) || item.convertedTaskId) continue;
+      const sourceType = "QUICK_UPDATE";
+      const sourceId = item.id;
+      if (existingSources.has(bringForwardKey(sourceType, sourceId))) continue;
+      candidates.push({
+        detail: [item.person, item.phoneNumber, item.company, item.dueWindow ? `Due: ${item.dueWindow}` : "", item.text].filter(Boolean).join(" · "),
+        id: candidateId(sourceType, sourceId),
+        priority: item.followUpNeeded ? WorkdayPriority.HIGH : WorkdayPriority.MEDIUM,
+        recommendedTarget: item.followUpNeeded ? "ACTION_PLAN" : "CHECKLIST",
+        riskLevel: item.followUpNeeded ? WorkdayRiskLevel.WATCH : WorkdayRiskLevel.NONE,
+        sourceBoardDate,
+        sourceHref: sourceHrefForCandidate(sourceType, sourceId),
+        sourceId,
+        sourceType,
+        title: item.text.slice(0, 120)
+      });
+    }
+
+    for (const item of workbook.carryovers) {
+      if (item.status === WorkdayCarryoverStatus.CONVERTED || item.status === WorkdayCarryoverStatus.DISMISSED || item.convertedTaskId) continue;
+      const sourceType = "CARRYOVER";
+      const sourceId = item.id;
+      if (existingSources.has(bringForwardKey(sourceType, sourceId))) continue;
+      candidates.push({
+        detail: item.detail || `${item.status.toLocaleLowerCase()} carryover from ${sourceBoardDate}.`,
+        id: candidateId(sourceType, sourceId),
+        priority: WorkdayPriority.HIGH,
+        recommendedTarget: "FOCUS",
+        riskLevel: WorkdayRiskLevel.WATCH,
+        sourceBoardDate,
+        sourceHref: item.sourceHref ?? sourceHrefForCandidate(sourceType, sourceId),
+        sourceId,
+        sourceType,
+        title: item.title
+      });
+    }
+  }
+
+  return candidates
+    .sort((left, right) => right.sourceBoardDate.localeCompare(left.sourceBoardDate) || right.priority.localeCompare(left.priority) || left.title.localeCompare(right.title))
+    .slice(0, 60);
+}
+
 function toReadModel(
   workbook: WorkdayWorkbookRecord,
   operatingSignals: WorkdayWorkbookOperatingSignals = emptyOperatingSignals,
-  incomingCarryovers: WorkdayWorkbookRecord["carryovers"] = []
+  incomingCarryovers: WorkdayWorkbookRecord["carryovers"] = [],
+  bringForwardCandidates: WorkdayBringForwardCandidate[] = []
 ) {
   const planning = buildDailyPlanningEngine(workbook);
   const execution = buildExecutionTrackingEngine(workbook);
@@ -996,6 +1151,12 @@ function toReadModel(
       done: item.done,
       carryoverReady: item.carryoverReady,
       convertedTaskId: item.convertedTaskId,
+      sourceType: item.sourceType,
+      sourceId: item.sourceId,
+      sourceBoardDate: item.sourceBoardDate ? item.sourceBoardDate.toISOString().slice(0, 10) : null,
+      sourceHref: item.sourceHref,
+      broughtForwardAt: item.broughtForwardAt ? dateToIso(item.broughtForwardAt) : null,
+      broughtForwardByUserId: item.broughtForwardByUserId,
       createdAt: dateToIso(item.createdAt),
       updatedAt: dateToIso(item.updatedAt)
     })),
@@ -1012,9 +1173,16 @@ function toReadModel(
       status: item.status,
       sortOrder: item.sortOrder,
       convertedTaskId: item.convertedTaskId,
+      sourceType: item.sourceType,
+      sourceId: item.sourceId,
+      sourceBoardDate: item.sourceBoardDate ? item.sourceBoardDate.toISOString().slice(0, 10) : null,
+      sourceHref: item.sourceHref,
+      broughtForwardAt: item.broughtForwardAt ? dateToIso(item.broughtForwardAt) : null,
+      broughtForwardByUserId: item.broughtForwardByUserId,
       createdAt: dateToIso(item.createdAt),
       updatedAt: dateToIso(item.updatedAt)
     })),
+    bringForwardCandidates,
     carryovers: workbook.carryovers.map((item) => ({
       id: item.id,
       sourceType: item.sourceType,
@@ -1194,7 +1362,7 @@ async function getWorkbookByScope(
     .flatMap((item) => item.carryovers)
     .filter((item) => item.targetBoardDate.toISOString().slice(0, 10) === date)
     .filter((item) => item.status !== WorkdayCarryoverStatus.DISMISSED && item.status !== WorkdayCarryoverStatus.CONVERTED);
-  return toReadModel(currentWorkbook, operatingSignals, incomingCarryovers);
+  return toReadModel(currentWorkbook, operatingSignals, incomingCarryovers, buildBringForwardCandidates(priorWorkbooks, currentWorkbook));
 }
 
 export async function getCooWorkbook(
@@ -1230,12 +1398,14 @@ async function createWorkbookChecklistItem(actor: AuthenticatedUser | null, boar
   const priority = normalizePriority(payload.priority, WorkdayPriority.MEDIUM);
   const riskLevel = normalizeRiskLevel(payload.riskLevel, WorkdayRiskLevel.NONE);
   const riskNote = normalizeOptionalText(payload.riskNote, "riskNote", 500) ?? "";
+  const carryoverReady = normalizeBoolean(payload.carryoverReady, "carryoverReady") ?? false;
+  const sourceLineage = normalizeSourceLineageFromPayload(payload, user);
   const repository = dependencies.repository ?? createWorkdayWorkbookRepository();
   const boardDay = await repository.getOrCreateBoardDay(normalizeBoardDate(boardDate));
   const workbook = await repository.getOrCreateWorkbook({ boardDayId: boardDay.id, scope, userId: user.id });
   assertWorkbookEditable(user, workbook);
-  await repository.createChecklistItem({ priority, riskLevel, riskNote, text, workbookId: workbook.id });
-  await recordWorkbookActivity(repository, user, workbook, "workbook.checklist_created", `${user.name} added a workbook checklist item.`, { priority, riskLevel, sourceType: "CHECKLIST_ITEM", text });
+  await repository.createChecklistItem({ carryoverReady, priority, riskLevel, riskNote, text, workbookId: workbook.id, ...sourceLineage });
+  await recordWorkbookActivity(repository, user, workbook, "workbook.checklist_created", `${user.name} added a workbook checklist item.`, { carryoverReady, priority, riskLevel, sourceId: sourceLineage.sourceId, sourceType: sourceLineage.sourceType ?? "CHECKLIST_ITEM", text });
   return { ok: true };
 }
 
@@ -1276,6 +1446,7 @@ async function createWorkbookDailyFocusItem(actor: AuthenticatedUser | null, boa
   const user = assertAuthenticatedUser(actor);
   const payload = normalizeObject(input);
   const outcome = normalizeRequiredText(payload.outcome, "Daily Focus outcome is required.", 500);
+  const sourceLineage = normalizeSourceLineageFromPayload(payload, user);
   const repository = dependencies.repository ?? createWorkdayWorkbookRepository();
   const boardDay = await repository.getOrCreateBoardDay(normalizeBoardDate(boardDate));
   const workbook = await repository.getOrCreateWorkbook({ boardDayId: boardDay.id, scope, userId: user.id });
@@ -1288,9 +1459,10 @@ async function createWorkbookDailyFocusItem(actor: AuthenticatedUser | null, boa
     riskNote: normalizeOptionalText(payload.riskNote, "riskNote", 500) ?? "",
     sortOrder: normalizeNumber(payload.sortOrder, "sortOrder", workbook.dailyFocusItems.length),
     supportNeeded: normalizeOptionalText(payload.supportNeeded, "supportNeeded", 500) ?? "",
-    workbookId: workbook.id
+    workbookId: workbook.id,
+    ...sourceLineage
   });
-  await recordWorkbookActivity(repository, user, workbook, "workbook.daily_focus_created", `${user.name} added a daily focus outcome.`, { outcome, scope });
+  await recordWorkbookActivity(repository, user, workbook, "workbook.daily_focus_created", `${user.name} added a daily focus outcome.`, { outcome, scope, sourceId: sourceLineage.sourceId, sourceType: sourceLineage.sourceType });
   return { ok: true };
 }
 
@@ -1300,6 +1472,87 @@ export async function createCooWorkbookDailyFocusItem(actor: AuthenticatedUser |
 
 export async function createStaffWorkbookDailyFocusItem(actor: AuthenticatedUser | null, boardDate: string, input: unknown, dependencies: Dependencies = {}) {
   return createWorkbookDailyFocusItem(actor, boardDate, WorkdayWorkbookScope.STAFF, input, dependencies);
+}
+
+async function bringForwardWorkbookItem(actor: AuthenticatedUser | null, boardDate: string, scope: WorkdayWorkbookScope, input: unknown, dependencies: Dependencies = {}) {
+  const user = assertAuthenticatedUser(actor);
+  const payload = normalizeObject(input);
+  const candidateKey = normalizeRequiredText(payload.candidateId, "Choose prior work to bring forward.", 180);
+  const target = normalizeBringForwardTarget(payload.target);
+  const note = normalizeOptionalText(payload.note, "note", 500) ?? "";
+  const date = normalizeBoardDate(boardDate);
+  const repository = dependencies.repository ?? createWorkdayWorkbookRepository();
+  const boardDay = await repository.getOrCreateBoardDay(date);
+  const workbook = await repository.getOrCreateWorkbook({ boardDayId: boardDay.id, scope, userId: user.id });
+  assertWorkbookEditable(user, workbook);
+  const priorWorkbooks = await repository.listWorkbooksForBoardDateRange({
+    endDate: addDays(date, -1),
+    scope,
+    startDate: addDays(date, -30),
+    userId: user.id
+  });
+  const candidate = buildBringForwardCandidates(priorWorkbooks, workbook).find((item) => item.id === candidateKey);
+  if (!candidate) throw new Error("This prior work is already on today’s plan or is no longer available.");
+
+  const sourceBoardDate = new Date(`${candidate.sourceBoardDate}T00:00:00.000Z`);
+  const lineage = {
+    broughtForwardAt: new Date(),
+    broughtForwardByUserId: user.id,
+    sourceBoardDate,
+    sourceHref: candidate.sourceHref,
+    sourceId: candidate.sourceId,
+    sourceType: candidate.sourceType
+  };
+  const detail = note || candidate.detail;
+
+  if (target === "CHECKLIST") {
+    await repository.createChecklistItem({
+      ...lineage,
+      priority: candidate.priority,
+      riskLevel: candidate.riskLevel,
+      riskNote: detail,
+      text: candidate.title,
+      workbookId: workbook.id
+    });
+  } else {
+    await repository.createDailyFocusItem({
+      ...lineage,
+      mustCloseToday: target === "FOCUS",
+      outcome: candidate.title,
+      priority: target === "ACTION_PLAN" && candidate.priority === WorkdayPriority.MEDIUM ? WorkdayPriority.HIGH : candidate.priority,
+      riskLevel: candidate.riskLevel,
+      riskNote: candidate.riskLevel === WorkdayRiskLevel.NONE ? "" : detail,
+      sortOrder: workbook.dailyFocusItems.length,
+      supportNeeded: candidate.riskLevel === WorkdayRiskLevel.BLOCKED ? detail : "",
+      workbookId: workbook.id
+    });
+  }
+
+  await recordWorkbookActivity(
+    repository,
+    user,
+    workbook,
+    "workbook.prior_work_brought_forward",
+    `${user.name} brought prior work into today’s ${target === "CHECKLIST" ? "checklist" : target === "ACTION_PLAN" ? "action plan" : "focus"}.`,
+    {
+      candidateId: candidate.id,
+      sourceBoardDate: candidate.sourceBoardDate,
+      sourceId: candidate.sourceId,
+      sourceType: candidate.sourceType,
+      target,
+      title: candidate.title
+    }
+  );
+
+  return { ok: true, target, title: candidate.title };
+}
+
+export async function bringForwardCooWorkbookItem(actor: AuthenticatedUser | null, boardDate: string, input: unknown, dependencies: Dependencies = {}) {
+  return bringForwardWorkbookItem(actor, boardDate, WorkdayWorkbookScope.COO, input, dependencies);
+}
+
+export async function bringForwardStaffWorkbookItem(actor: AuthenticatedUser | null, boardDate: string, input: unknown, dependencies: Dependencies = {}) {
+  return bringForwardWorkbookItem(actor, boardDate, WorkdayWorkbookScope.STAFF, input, dependencies);
 }
 
 export async function updateWorkbookDailyFocusItem(actor: AuthenticatedUser | null, itemId: string, input: unknown, dependencies: Dependencies = {}) {

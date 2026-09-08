@@ -21,6 +21,7 @@ import {
   buildWorkdayDailyReportDraft,
   buildWorkdayCarryovers,
   buildWorkdayReportSeeds,
+  bringForwardCooWorkbookItem,
   closeWorkbookDay,
   createWorkbookManualReportItems,
   createCooWorkbookChecklistItem,
@@ -80,6 +81,12 @@ function workbook(userId = "user-jordan.sales@local.test"): WorkdayWorkbookRecor
         done: false,
         carryoverReady: true,
         convertedTaskId: null,
+        sourceType: null,
+        sourceId: null,
+        sourceBoardDate: null,
+        sourceHref: null,
+        broughtForwardAt: null,
+        broughtForwardByUserId: null,
         createdAt: now,
         updatedAt: now
       },
@@ -95,6 +102,12 @@ function workbook(userId = "user-jordan.sales@local.test"): WorkdayWorkbookRecor
         done: false,
         carryoverReady: false,
         convertedTaskId: null,
+        sourceType: null,
+        sourceId: null,
+        sourceBoardDate: null,
+        sourceHref: null,
+        broughtForwardAt: null,
+        broughtForwardByUserId: null,
         createdAt: now,
         updatedAt: now
       }
@@ -114,6 +127,12 @@ function workbook(userId = "user-jordan.sales@local.test"): WorkdayWorkbookRecor
         status: WorkdayDailyFocusStatus.PLANNED,
         sortOrder: 0,
         convertedTaskId: null,
+        sourceType: null,
+        sourceId: null,
+        sourceBoardDate: null,
+        sourceHref: null,
+        broughtForwardAt: null,
+        broughtForwardByUserId: null,
         createdAt: now,
         updatedAt: now
       }
@@ -187,7 +206,7 @@ function workbook(userId = "user-jordan.sales@local.test"): WorkdayWorkbookRecor
 }
 
 function repositoryHarness(ownerUserId = "user-jordan.sales@local.test", rangeWorkbooks?: WorkdayWorkbookRecord[]) {
-  const createdChecklistItems: Array<{ priority?: WorkdayPriority; riskLevel?: WorkdayRiskLevel; riskNote?: string; text: string; workbookId: string }> = [];
+  const createdChecklistItems: unknown[] = [];
   const createdDailyFocusItems: unknown[] = [];
   const createdReportDrafts: unknown[] = [];
   const createdSupportActions: unknown[] = [];
@@ -556,6 +575,7 @@ describe("workday workbook service", () => {
 
     expect(harness.createdChecklistItems).toEqual([
       {
+        carryoverReady: false,
         priority: WorkdayPriority.MEDIUM,
         riskLevel: WorkdayRiskLevel.NONE,
         riskNote: "",
@@ -581,12 +601,44 @@ describe("workday workbook service", () => {
 
     expect(harness.createdChecklistItems).toEqual([
       {
+        carryoverReady: false,
         priority: WorkdayPriority.MEDIUM,
         riskLevel: WorkdayRiskLevel.NONE,
         riskNote: "",
         text: "Finish customer callbacks",
         workbookId: "workbook-1"
       }
+    ]);
+  });
+
+  it("creates source-backed checklist items for search-result carryover", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("jordan.sales@local.test")!;
+    const harness = repositoryHarness(user.id);
+
+    await createCooWorkbookChecklistItem(user, "2026-08-29", {
+      carryoverReady: true,
+      priority: "HIGH",
+      riskLevel: "WATCH",
+      riskNote: "Marked from workbook search.",
+      sourceBoardDate: "2026-08-28",
+      sourceHref: "/vehicles/coo-workbook?tool=bring-forward",
+      sourceId: "history-1",
+      sourceType: "WORKBOOK_HISTORY",
+      text: "DealerCenter follow-up"
+    }, { repository: harness.repository });
+
+    expect(harness.createdChecklistItems).toEqual([
+      expect.objectContaining({
+        broughtForwardByUserId: user.id,
+        carryoverReady: true,
+        priority: WorkdayPriority.HIGH,
+        riskLevel: WorkdayRiskLevel.WATCH,
+        sourceId: "history-1",
+        sourceType: "WORKBOOK_HISTORY",
+        text: "DealerCenter follow-up",
+        workbookId: "workbook-1"
+      })
     ]);
   });
 
@@ -661,6 +713,78 @@ describe("workday workbook service", () => {
         sourceHref: "/tasks/task-approval",
         targetBoardDate: "2026-08-29",
         title: "Obtain customer approval"
+      })
+    ]);
+  });
+
+  it("lists unfinished prior work as bring-forward candidates", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("jordan.sales@local.test")!;
+    const priorWorkbook = workbook(user.id);
+    priorWorkbook.id = "workbook-prior";
+    priorWorkbook.boardDayId = "board-day-prior";
+    priorWorkbook.boardDay = {
+      ...boardDay,
+      id: "board-day-prior",
+      date: new Date("2026-08-28T00:00:00.000Z")
+    };
+    const harness = repositoryHarness(user.id, [priorWorkbook]);
+
+    const readModel = await getStaffWorkbook(user, "2026-08-29", { repository: harness.repository });
+
+    expect(readModel.bringForwardCandidates).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: "DAILY_FOCUS:focus-1",
+        sourceBoardDate: "2026-08-28",
+        sourceType: "DAILY_FOCUS",
+        title: "Confirm roof repair path"
+      }),
+      expect.objectContaining({
+        id: "CHECKLIST_ITEM:checklist-1",
+        recommendedTarget: "ACTION_PLAN",
+        sourceType: "CHECKLIST_ITEM",
+        title: "Call vendor about roof estimate"
+      }),
+      expect.objectContaining({
+        id: "QUICK_UPDATE:quick-1",
+        sourceType: "QUICK_UPDATE",
+        title: "Moises from T-Mobile visited to discuss products."
+      })
+    ]));
+  });
+
+  it("brings prior work into today's focus with source lineage", async () => {
+    const { usersByEmail } = await createTestAuthStore();
+    const user = usersByEmail.get("jordan.sales@local.test")!;
+    const priorWorkbook = workbook(user.id);
+    priorWorkbook.id = "workbook-prior";
+    priorWorkbook.boardDayId = "board-day-prior";
+    priorWorkbook.boardDay = {
+      ...boardDay,
+      id: "board-day-prior",
+      date: new Date("2026-08-28T00:00:00.000Z")
+    };
+    const harness = repositoryHarness(user.id, [priorWorkbook]);
+
+    const result = await bringForwardCooWorkbookItem(user, "2026-08-29", {
+      candidateId: "DAILY_FOCUS:focus-1",
+      target: "FOCUS"
+    }, { repository: harness.repository });
+
+    expect(result).toMatchObject({ ok: true, target: "FOCUS", title: "Confirm roof repair path" });
+    expect(harness.createdDailyFocusItems).toEqual([
+      expect.objectContaining({
+        mustCloseToday: true,
+        outcome: "Confirm roof repair path",
+        sourceId: "focus-1",
+        sourceType: "DAILY_FOCUS",
+        workbookId: "workbook-1"
+      })
+    ]);
+    expect(harness.activityEvents).toEqual([
+      expect.objectContaining({
+        eventType: "workbook.prior_work_brought_forward",
+        metadata: expect.objectContaining({ candidateId: "DAILY_FOCUS:focus-1", target: "FOCUS" })
       })
     ]);
   });

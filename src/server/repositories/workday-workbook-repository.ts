@@ -86,6 +86,15 @@ export type WorkdayActivitySignalInput = {
   workbookId: string;
 };
 
+export type BringForwardLineageInput = {
+  broughtForwardAt?: Date;
+  broughtForwardByUserId?: string;
+  sourceBoardDate?: Date;
+  sourceHref?: string | null;
+  sourceId?: string;
+  sourceType?: string;
+};
+
 export type WorkdayAttentionHeartbeatInput = {
   activeSeconds: number;
   boardDayId: string;
@@ -103,8 +112,8 @@ export type WorkdayAttentionHeartbeatInput = {
 
 export type WorkdayWorkbookRepository = {
   closeWorkbook(input: { closeSnapshot: Prisma.InputJsonValue; closedByUserId: string; id: string }): Promise<void>;
-  createChecklistItem(input: { priority?: WorkdayPriority; riskLevel?: WorkdayRiskLevel; riskNote?: string; text: string; workbookId: string }): Promise<void>;
-  createDailyFocusItem(input: { mustCloseToday: boolean; outcome: string; priority: WorkdayPriority; riskLevel: WorkdayRiskLevel; riskNote: string; sortOrder: number; supportNeeded: string; workbookId: string }): Promise<void>;
+  createChecklistItem(input: { carryoverReady?: boolean; priority?: WorkdayPriority; riskLevel?: WorkdayRiskLevel; riskNote?: string; text: string; workbookId: string } & BringForwardLineageInput): Promise<void>;
+  createDailyFocusItem(input: { mustCloseToday: boolean; outcome: string; priority: WorkdayPriority; riskLevel: WorkdayRiskLevel; riskNote: string; sortOrder: number; supportNeeded: string; workbookId: string } & BringForwardLineageInput): Promise<void>;
   createReportDraft(input: { cadence: WorkdayReportCadence; generatedByUserId: string; periodEnd: string; periodStart: string; sections: Prisma.InputJsonValue; sourceSeedIds: Prisma.InputJsonValue; summary: string; title: string; workbookId: string }): Promise<void>;
   createQuickUpdate(input: { category: WorkdayQuickUpdateCategory; company: string; dueWindow: string; followUpNeeded: boolean; identityKey: string; person: string; phoneNumber: string; relatedCustomerId?: string | null; text: string; workbookId: string }): Promise<void>;
   createSupportAction(input: { actorUserId: string; note: string; requestedUpdate: boolean; status: WorkdaySupportActionStatus; targetUserId: string; workbookId: string }): Promise<void>;
@@ -163,9 +172,16 @@ export function createWorkdayWorkbookRepository(database: WorkdayWorkbookDatabas
     async createChecklistItem(input) {
       await database.workdayChecklistItem.create({
         data: {
+          ...(input.broughtForwardAt !== undefined ? { broughtForwardAt: input.broughtForwardAt } : {}),
+          ...(input.broughtForwardByUserId !== undefined ? { broughtForwardByUserId: input.broughtForwardByUserId } : {}),
+          ...(input.carryoverReady !== undefined ? { carryoverReady: input.carryoverReady } : {}),
           ...(input.priority !== undefined ? { priority: input.priority } : {}),
           ...(input.riskLevel !== undefined ? { riskLevel: input.riskLevel } : {}),
           ...(input.riskNote !== undefined ? { riskNote: input.riskNote } : {}),
+          ...(input.sourceBoardDate !== undefined ? { sourceBoardDate: input.sourceBoardDate } : {}),
+          ...(input.sourceHref !== undefined ? { sourceHref: input.sourceHref } : {}),
+          ...(input.sourceId !== undefined ? { sourceId: input.sourceId } : {}),
+          ...(input.sourceType !== undefined ? { sourceType: input.sourceType } : {}),
           text: input.text,
           workbookId: input.workbookId
         }

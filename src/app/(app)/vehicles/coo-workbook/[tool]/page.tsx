@@ -6,6 +6,7 @@ import { requireCurrentUser } from "@/server/auth/current-user";
 
 const toolBySlug: Record<string, CooWorkbookTool> = {
   "action-plan": "ACTION_PLAN",
+  "bring-forward": "BRING_FORWARD",
   carryover: "CARRYOVER",
   checklist: "CHECKLIST",
   drafts: "DRAFTS",
