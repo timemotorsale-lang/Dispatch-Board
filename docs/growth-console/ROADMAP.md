@@ -10,6 +10,7 @@
 - Connect to CRM as the relationship record.
 - Do frontend review before adoption.
 - Add backend controls only after the user approves the workflow.
+- Keep default workspaces short: primary action visible first, secondary detail opened through drawers, tabs, or focused drill-ins.
 
 ## Phase G0 - Source Of Truth And Review Shell
 
@@ -172,3 +173,163 @@ Scope:
 Exit:
 
 - user can clearly see what is complete, what is still locked, and what requires approval before adoption.
+
+## Phase G9 - Real Read Adapter Contracts
+
+Goal: define how Growth safely reads CRM, inventory, sales, service, appointment, and task signals.
+
+Scope:
+
+- source adapter contracts;
+- normalized source signals;
+- source authority labels;
+- source freshness and confidence checks;
+- read-only guarantees.
+
+Exit:
+
+- Growth can consume source-domain signals without creating, changing, or deleting source records.
+
+## Phase G10 - Governed Audience Builder
+
+Goal: turn source signals into clear audience decisions before any campaign can be reviewed.
+
+Scope:
+
+- included, excluded, suppressed, and cleanup audience decisions;
+- reason codes for every decision;
+- opt-out, consent, quiet window, duplicate campaign, stale source, and inventory availability checks;
+- frontend-ready audience counts.
+
+Exit:
+
+- every audience record has an explainable status and suppression always wins.
+
+## Phase G11 - Campaign Ledger And Version History
+
+Goal: preserve campaign plan history, audience snapshots, message drafts, approval requests, and launch locks.
+
+Scope:
+
+- campaign ledger records;
+- immutable version entries;
+- audit events;
+- idempotent command handling;
+- launch lock evidence.
+
+Exit:
+
+- campaign history is reviewable, duplicate command replay is safe, and launch locks are recorded instead of executed.
+
+## Phase G12 - Enterprise Approval And Permission Gates
+
+Goal: enforce campaign owner, budget, offer, channel, and provider readiness before execution can be considered.
+
+Scope:
+
+- role-specific approval decisions;
+- paid budget approval thresholds;
+- offer source verification;
+- provider readiness checks;
+- locked execution result with one next approval.
+
+Exit:
+
+- unsafe or incomplete launches fail closed and explain the exact approval or policy action needed.
+
+## Phase G13 - Results And Attribution Foundation
+
+Goal: measure outcomes with clear attribution tiers and avoid treating noisy metrics as proof.
+
+Scope:
+
+- result event normalization;
+- attribution window checks;
+- direct, assisted, influenced, and unattributed tiers;
+- open-rate context handling;
+- read-only performance summaries.
+
+Exit:
+
+- Growth can explain campaign outcomes without writing CRM results until mutation controls are approved.
+
+## Phase G14 - Operator UI Simplification
+
+Goal: keep the Growth Console landing page focused on daily execution instead of exposing backend machinery.
+
+Scope:
+
+- simple Today, Campaigns, Needs Attention, Results, and Review Controls sections;
+- visible next actions for every primary row;
+- backend algorithm details moved behind concise status summaries;
+- secondary blocker, campaign, result, and manager-control detail collapsed by default to avoid long scrolling;
+- live send, ad spend, CRM mutation, and automation locks preserved.
+
+Exit:
+
+- staff can start work from the landing page without guessing what to click first.
+- users can inspect detail on demand without scrolling through every Growth capability.
+
+## Phase G15 - Backend Command Boundary
+
+Goal: validate every Growth command before it can create plans, previews, locks, or external intent.
+
+Scope:
+
+- actor, role, reason, timestamp, scope, and idempotency validation;
+- explicit mutation boundary classification;
+- external provider and CRM mutation locks defaulted closed;
+- one plain-language next action for rejected commands.
+
+Exit:
+
+- unsafe or unauthorized commands fail before reaching workflow services.
+- CRM, inventory, sales, service, appointment, accounting, and provider mutations remain locked unless separately approved.
+
+## Phase G16 - Source-Backed Opportunity Orchestration
+
+Goal: turn governed source signals into ranked opportunities without duplicating source records.
+
+Scope:
+
+- read-only source normalization;
+- opportunity grouping by customer recovery, advertising, retention, lead nurture, and operations;
+- priority scoring with review routing for stale or low-confidence signals;
+- source ID and authority traceability.
+
+Exit:
+
+- Growth can explain why an opportunity is recommended and which source records support it.
+
+## Phase G17 - Campaign Lifecycle Application Service
+
+Goal: orchestrate the safe backend path from opportunity to approval and launch lock.
+
+Scope:
+
+- campaign plan creation;
+- audience snapshot creation;
+- message draft creation;
+- approval request;
+- approval gate and launch policy evaluation;
+- provider dry-run attempt;
+- launch lock ledger event.
+
+Exit:
+
+- backend can prepare and audit a complete campaign lifecycle while live execution remains blocked.
+
+## Phase G18 - CRM Writeback Preview Boundary
+
+Goal: show what Growth would write back later without changing CRM or task records.
+
+Scope:
+
+- campaign, audience, message, task, and attribution writeback previews;
+- attribution-only proof filtering;
+- explicit preservation statement for estimates, quotes, invoices, inventory, appointments, tasks, and repair records;
+- `canMutateCrm: false` default.
+
+Exit:
+
+- managers can review CRM/task writeback intent before mutation commands are enabled.

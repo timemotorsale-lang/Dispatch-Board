@@ -8,7 +8,7 @@ export type GrowthCampaignPlan = {
   approvalRequestedAt: string | null;
   audienceSnapshots: GrowthAudienceSnapshot[];
   budgetCents: number;
-  channel: "Email" | "SMS draft" | "Phone task" | "Paid ads" | "Social" | "Website";
+  channel: "Email" | "SMS draft" | "Phone task" | "Paid ads" | "Social" | "Website" | "Internal task";
   createdAt: string;
   id: string;
   messageDrafts: GrowthMessageDraft[];

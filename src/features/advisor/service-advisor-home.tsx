@@ -3,6 +3,8 @@
 import {
   AlertTriangle,
   CalendarClock,
+  Camera,
+  CarFront,
   CheckSquare,
   CheckCircle2,
   ChevronDown,
@@ -11,6 +13,7 @@ import {
   Clock3,
   Copy,
   FileText,
+  Gauge,
   ListChecks,
   MessageSquareText,
   PackageCheck,
@@ -20,6 +23,7 @@ import {
   Send,
   ShieldCheck,
   Save,
+  TrendingUp,
   UsersRound,
   X,
 } from "lucide-react";
@@ -277,7 +281,7 @@ type SearchableWorkItem = {
   title: string;
   tone: string;
 };
-export type CooWorkbookTool = "CHECKLIST" | "TO_DO_LIST" | "QUICK_UPDATE" | "ACTION_PLAN" | "CARRYOVER" | "REPORT_SEEDS" | "STAFF_SUPPORT" | "DRAFTS" | "MORE_TOOLS";
+export type CooWorkbookTool = "CHECKLIST" | "TO_DO_LIST" | "QUICK_UPDATE" | "ACTION_PLAN" | "CARRYOVER" | "REPORT_SEEDS" | "STAFF_SUPPORT" | "DRAFTS" | "PURCHASE_APPRAISAL_CAPTURE" | "MORE_TOOLS";
 
 const quickUpdateCategories: Array<{ label: string; value: QuickUpdateCategory }> = [
   { label: "Customer", value: "CUSTOMER" },
@@ -499,6 +503,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
   const [expandedManualReportItemId, setExpandedManualReportItemId] = useState<string | null>(null);
   const [workSearchQuery, setWorkSearchQuery] = useState("");
   const [saving, setSaving] = useState(false);
+  const [purchaseCaptureType, setPurchaseCaptureType] = useState("TRADE_IN");
   function openEndDayReview() {
     if (!reviewingEndDay) {
       setReviewingEndDay(true);
@@ -932,9 +937,11 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
     { description: `${closeReadiness.carryoverItems} tomorrow-facing item(s)`, href: "/vehicles/coo-workbook/carryover", icon: CalendarClock, title: "Carryover" },
     { description: `${reportSeedRollup.reviewed}/${reportSeedRollup.total} reviewed`, href: "/vehicles/coo-workbook/report-seeds", icon: FileText, title: "Report Seeds" },
     { description: `${staffTodayRollup.support} need support · ${staffTodayRollup.ready} ready`, href: "/vehicles/coo-workbook/staff-support", icon: UsersRound, title: "Staff Support" },
+    { description: "Phone evidence for purchase, appraisal, or trade-in review", href: "/vehicles/coo-workbook/purchase-appraisal-capture", icon: Camera, title: "Purchase / Appraisal Capture" },
     { description: latestReportDraft ? `Saved ${dateLabel(latestReportDraft.generatedAt)}` : "No draft saved yet", href: "/vehicles/coo-workbook/drafts", icon: Clock3, title: "Drafts" }
   ];
   const moreToolCards: MoreToolCard[] = [
+    { description: "Capture VIN, mileage, condition, seller, price, and document proof before TAI makes a purchase or appraisal recommendation.", href: "/vehicles/coo-workbook/purchase-appraisal-capture", icon: CarFront, outcome: "TAI receives a clean review packet without changing inventory, customer, quote, invoice, or appraisal records.", title: "Purchase / Appraisal Capture", whenToUse: "Use before auction bids, outside purchases, trade-in appraisals, wholesale reviews, or manager buy decisions." },
     { description: "Rank urgent promises, blockers, and follow-ups before the day gets crowded.", href: "/vehicles/coo-workbook/action-plan", icon: AlertTriangle, outcome: "A short ordered action list for the work that matters most.", title: "Priority Triage", whenToUse: "Use when several issues are competing for attention." },
     { description: "Review Quick Updates and follow-up dates so nothing important drifts.", href: "/vehicles/coo-workbook/quick-update", icon: CalendarClock, outcome: "Follow-ups have a person, note, and date window.", title: "Follow-Up Center", whenToUse: "Use after customer, vendor, parts, or facility updates." },
     { description: "Escalate blocked work and connect it to support before close.", href: "/vehicles/coo-workbook/staff-support", icon: AlertTriangle, outcome: "Manager support is requested with context instead of a vague blocker.", title: "Blocker Escalation", whenToUse: "Use when work is red, blocked, or waiting on a decision." },
@@ -1632,6 +1639,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
       REPORT_SEEDS: "Report Seeds",
       STAFF_SUPPORT: "Staff Support",
       TO_DO_LIST: "To-Do List",
+      PURCHASE_APPRAISAL_CAPTURE: "Purchase / Appraisal Capture",
       MORE_TOOLS: "More Tools"
     };
 
@@ -1868,6 +1876,68 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
             </article>)}
           </div>
         </section> : null}
+      </section> : null}
+
+      {initialTool === "PURCHASE_APPRAISAL_CAPTURE" ? <section className="advisor-coo-focused-tool advisor-coo-purchase-capture" aria-label="Purchase / Appraisal Capture tool">
+        <header>
+          <div><strong>TAI Purchase Assist</strong><small>Capture only the proof needed for a purchase, appraisal, trade-in, or wholesale review. This stays review-only until a manager approves adoption.</small></div>
+          <span>Review only</span>
+        </header>
+        <div className="advisor-coo-purchase-hero">
+          <div>
+            <small>PHONE CAPTURE WORKFLOW</small>
+            <h2>Build the buy/appraisal packet in one pass</h2>
+            <p>Use a phone camera for VIN, odometer, condition, title or auction documents, seller/source proof, and pricing evidence. TAI can analyze the packet, but saved customers, inventory, estimates, quotes, and invoices are not changed from this review screen.</p>
+          </div>
+          <dl>
+            <div><dt>Vehicle</dt><dd>VIN, plate, stock tag, keys</dd></div>
+            <div><dt>Value</dt><dd>Bid, trade number, recon reserve</dd></div>
+            <div><dt>Decision</dt><dd>Buy, hold, pass, manager review</dd></div>
+          </dl>
+        </div>
+        <div className="advisor-coo-purchase-steps" aria-label="Purchase capture steps">
+          {[
+            ["1", "Capture identity", "VIN label, plate, stock tag, seller, auction lane, or appraisal source."],
+            ["2", "Capture condition", "Odometer, dash lights, exterior, interior, tires, damage, keys, and startup proof."],
+            ["3", "Attach documents", "Title, registration, auction sheet, payoff, disclosures, bill of sale, or trade worksheet."],
+            ["4", "Send to TAI review", "TAI checks missing proof, risk, market fit, recon reserve, and recommended next action."]
+          ].map(([step, title, detail]) => <article key={step}>
+            <b>{step}</b>
+            <span><strong>{title}</strong><small>{detail}</small></span>
+          </article>)}
+        </div>
+        <div className="advisor-coo-purchase-grid">
+          <form className="advisor-coo-purchase-form">
+            <label>Capture purpose<select aria-label="Purchase capture purpose" onChange={(event) => setPurchaseCaptureType(event.target.value)} value={purchaseCaptureType}>
+              <option value="TRADE_IN">Trade-in appraisal</option>
+              <option value="AUCTION_PURCHASE">Auction purchase</option>
+              <option value="OUTSIDE_PURCHASE">Outside purchase</option>
+              <option value="APPRAISAL">Customer appraisal</option>
+              <option value="WHOLESALE_REVIEW">Wholesale review</option>
+            </select></label>
+            <label>Source / seller / lane<input aria-label="Source seller lane" placeholder="Example: Manheim Lane 3, customer trade, Facebook lead" /></label>
+            <label>VIN / plate / stock reference<input aria-label="VIN plate stock reference" placeholder="Scan or type VIN, plate, or stock tag" /></label>
+            <label>Odometer<input aria-label="Odometer reading" inputMode="numeric" placeholder="Mileage shown on dash" /></label>
+            <label>Bid / asking / trade number<input aria-label="Bid asking trade number" inputMode="decimal" placeholder="$ amount being considered" /></label>
+            <label>Photo or document proof<input aria-label="Purchase appraisal photo or document proof" accept="image/*,.pdf" capture="environment" multiple type="file" /></label>
+            <label className="wide">TAI review notes<textarea aria-label="TAI review notes" placeholder="Damage, warning lights, missing keys, title issue, transport, recon concern, comparable sale, or manager question." /></label>
+          </form>
+          <aside className="advisor-coo-purchase-review">
+            <h2>TAI will check</h2>
+            <ul>
+              <li><CarFront /> Identity and ownership proof</li>
+              <li><Gauge /> Mileage and visible condition risk</li>
+              <li><TrendingUp /> Market fit, bid ceiling, margin, and recon reserve</li>
+              <li><ShieldCheck /> Missing evidence before purchase or appraisal approval</li>
+            </ul>
+            <p>No customer, inventory, quote, invoice, or appraisal records were changed from this review screen.</p>
+            <div className="advisor-coo-seed-actions">
+              <Link href={scopedWorkbookHref("/vehicles/acquisition-appraisal")}>Open Acquisition & Appraisal</Link>
+              <Link href={scopedWorkbookHref("/vehicles/coo-workbook/quick-update")}>Save as Quick Update</Link>
+              <button onClick={() => setWorkspaceNotice("Purchase/appraisal packet staged for TAI review. Review-only mode is active; no customer, inventory, quote, invoice, or appraisal records were changed.")} type="button"><Send /> Send to TAI review</button>
+            </div>
+          </aside>
+        </div>
       </section> : null}
 
       {initialTool === "MORE_TOOLS" ? <section className="advisor-coo-focused-tool advisor-coo-more-tools-page" aria-label="More Tools">

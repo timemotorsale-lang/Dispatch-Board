@@ -10,77 +10,62 @@ describe("Growth Console foundation", () => {
     const markup = renderToStaticMarkup(<GrowthPage />);
 
     expect(markup).toContain("Growth Console");
-    expect(markup).toContain("Marketing + Advertising Command Center");
-    expect(markup).toContain("G1 read-only foundation");
-    expect(markup).toContain("No live send is enabled");
+    expect(markup).toContain("Marketing + Advertising");
+    expect(markup).toContain("Review mode");
+    expect(markup).toContain("Live sends, ad spend, and CRM changes stay locked");
   });
 
-  it("keeps the first implementation focused on simple daily execution", () => {
+  it("keeps the landing page focused on simple daily execution", () => {
     const markup = renderToStaticMarkup(<GrowthConsoleFoundation />);
 
-    expect(markup).toContain("CRM is the record");
-    expect(markup).toContain("Find opportunity");
+    expect(markup).toContain("Start here each day");
+    expect(markup).toContain("Today&#x27;s Growth Work");
+    expect(markup).toContain("Do this first");
+    expect(markup).toContain("Campaigns");
+    expect(markup).toContain("Needs Attention");
+    expect(markup).toContain("Open blocker drawer");
+    expect(markup).toContain("Open campaign drawer");
+    expect(markup).toContain("Open results drawer");
+    expect(markup).toContain("Open manager controls");
+    expect(markup).toContain("Results Snapshot");
+    expect(markup).toContain("Review Controls");
+    expect(markup).toContain("Pick the best opportunity");
     expect(markup).toContain("Review audience");
     expect(markup).toContain("Approve message or ad");
-    expect(markup).toContain("Schedule launch");
-    expect(markup).toContain("Track results");
+    expect(markup).toContain("Launch stays locked");
+    expect(markup).toContain("Track outcome");
   });
 
-  it("combines marketing and advertising while preserving approval boundaries", () => {
+  it("preserves approval boundaries without exposing backend machinery on the home page", () => {
     const markup = renderToStaticMarkup(<GrowthConsoleFoundation />);
 
-    expect(markup).toContain("Marketing Workspace");
-    expect(markup).toContain("Advertising Workspace");
-    expect(markup).toContain("Audience Review");
-    expect(markup).toContain("Automation Library");
-    expect(markup).toContain("Review launch lock");
-    expect(markup).toContain("G1 is read-only");
-    expect(markup).toContain("Open campaign plan");
-    expect(markup).toContain("Check launch readiness");
-    expect(markup).toContain("Workflow Engine");
-    expect(markup).toContain("Algorithms, workflow, automation, and attribution are connected");
-    expect(markup).toContain("Opportunity ranking");
-    expect(markup).toContain("Prepared plan waiting for approval");
-    expect(markup).toContain("Prior versions are preserved");
-    expect(markup).toContain("Blocked safely until policy clears");
-    expect(markup).toContain("Send offer language to manager review");
-    expect(markup).toContain("Safe first launch path");
-    expect(markup).toContain("Internal task pilot");
-    expect(markup).toContain("does not send customer messages or spend advertising budget");
-    expect(markup).toContain("Paid Advertising");
-    expect(markup).toContain("Ad launch stays locked");
-    expect(markup).toContain("Live spend not approved");
-    expect(markup).toContain("Automation Activation");
-    expect(markup).toContain("Automations stay inactive");
-    expect(markup).toContain("Prepared task only");
-    expect(markup).toContain("Optimization");
+    expect(markup).toContain("Review, approve, then keep launch locked");
+    expect(markup).toContain("Launch lock");
+    expect(markup).toContain("Record protection");
+    expect(markup).toContain("Automation lock");
     expect(markup).toContain("Best next move");
-    expect(markup).toContain("does not change budget");
-    expect(markup).toContain("Adoption Review");
-    expect(markup).toContain("Ready for your review");
-    expect(markup).toContain("Stored records preserved");
+    expect(markup).toContain("Existing CRM, customer, inventory, quote, invoice, appointment, task, and repair records are not changed");
+    expect(markup).not.toContain("Workflow Engine");
+    expect(markup).not.toContain("Algorithms, workflow, automation, and attribution are connected");
   });
 
-  it("wires every workspace tab and review action to a visible section", () => {
+  it("wires every simplified tab and primary action to a visible section", () => {
     const markup = renderToStaticMarkup(<GrowthConsoleFoundation />);
 
     [
-      "#growth-home",
-      "#marketing-workspace",
-      "#advertising-workspace",
-      "#audiences",
-      "#campaign-plan",
-      "#workflow-engine",
-      "#approval",
-      "#automations",
-      "#provider-pilot",
-      "#paid-advertising",
-      "#optimization",
-      "#adoption-review",
-      "#crm-writeback"
+      "#today",
+      "#campaigns",
+      "#attention",
+      "#results",
+      "#controls"
     ].forEach((target) => {
       expect(markup).toContain(`href="${target}"`);
     });
+
+    expect(markup).toContain("Start today");
+    expect(markup).toContain("Review campaign");
+    expect(markup).toContain("View controls");
+    expect(markup).toContain("4 items need review");
   });
 
   it("builds a source-labeled read model without mutation commands", () => {

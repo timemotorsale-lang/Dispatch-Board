@@ -796,6 +796,7 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("Carryover");
     expect(html).toContain("Report Seeds");
     expect(html).toContain("Staff Support");
+    expect(html).toContain("Purchase / Appraisal Capture");
     expect(html).toContain("Drafts");
     expect(html).toContain("Daily");
     expect(html).toContain("Weekly");
@@ -813,6 +814,7 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("/vehicles/coo-workbook/carryover");
     expect(html).toContain("/vehicles/coo-workbook/report-seeds");
     expect(html).toContain("/vehicles/coo-workbook/staff-support");
+    expect(html).toContain("/vehicles/coo-workbook/purchase-appraisal-capture");
     expect(html).toContain("/vehicles/coo-workbook/drafts");
     expect(html).toContain("returnTo=%2Fvehicles%2Fcoo-workbook");
     expect(html).toContain("Review source");
@@ -915,6 +917,7 @@ describe("ServiceAdvisorHome", () => {
     const carryoverHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="CARRYOVER" model={toolModel} />);
     const reportSeedsHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="REPORT_SEEDS" model={toolModel} />);
     const draftsHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="DRAFTS" model={toolModel} />);
+    const purchaseCaptureHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="PURCHASE_APPRAISAL_CAPTURE" model={toolModel} />);
     const moreToolsHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="MORE_TOOLS" model={toolModel} />);
 
     expect(checklistHtml).toContain("Add Daily Checklist item");
@@ -939,9 +942,17 @@ describe("ServiceAdvisorHome", () => {
     expect(draftsHtml).toContain("Weekly");
     expect(draftsHtml).toContain("Monthly");
     expect(draftsHtml).toContain("Copy Draft");
+    expect(purchaseCaptureHtml).toContain("TAI Purchase Assist");
+    expect(purchaseCaptureHtml).toContain("Build the buy/appraisal packet in one pass");
+    expect(purchaseCaptureHtml).toContain("Purchase capture purpose");
+    expect(purchaseCaptureHtml).toContain("VIN / plate / stock reference");
+    expect(purchaseCaptureHtml).toContain("Photo or document proof");
+    expect(purchaseCaptureHtml).toContain("Send to TAI review");
+    expect(purchaseCaptureHtml).toContain("No customer, inventory, quote, invoice, or appraisal records were changed");
     expect(moreToolsHtml).toContain("Service Advisor Workbook More Tools");
     expect(moreToolsHtml).toContain("Each tool opens a real workbook area");
-    expect(moreToolsHtml).toContain("10 tools");
+    expect(moreToolsHtml).toContain("11 tools");
+    expect(moreToolsHtml).toContain("Purchase / Appraisal Capture");
     expect(moreToolsHtml).toContain("Priority Triage");
     expect(moreToolsHtml).toContain("Follow-Up Center");
     expect(moreToolsHtml).toContain("Blocker Escalation");
@@ -949,6 +960,7 @@ describe("ServiceAdvisorHome", () => {
     expect(moreToolsHtml).toContain("Training Moment Capture");
     expect(moreToolsHtml).toContain("End-of-Day Assistant");
     expect(moreToolsHtml).toContain("/vehicles/coo-workbook/action-plan");
+    expect(moreToolsHtml).toContain("/vehicles/coo-workbook/purchase-appraisal-capture");
     expect(moreToolsHtml).toContain("/vehicles/coo-workbook/report-seeds");
   });
 

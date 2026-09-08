@@ -51,7 +51,7 @@ Growth does not own:
 
 | Layer | Responsibility |
 | --- | --- |
-| Frontend console | Daily action path, workspace navigation, review cards, approval panels, results readout, and disabled live-launch boundaries. |
+| Frontend console | Daily action path, workspace navigation, compact review cards, on-demand drawers, focused drill-ins, results readout, and disabled live-launch boundaries. |
 | Growth application service | Validate commands, prepare audience snapshots, generate campaign plans, request approvals, and coordinate external providers. |
 | Policy service | Consent, quiet hours, frequency caps, budget approval, brand safety, role permissions, and suppression checks. |
 | Scoring service | Opportunity priority, audience readiness, channel fit, expected value, and risk scoring. |
@@ -89,6 +89,8 @@ Future backend commands must be explicit and idempotent where retry is possible:
 
 Frontend buttons may prepare intent, but server commands must validate role, consent, audience, budget, source freshness, and approval state.
 
+The current backend foundation now includes a fail-closed command boundary and lifecycle application service. These services can create Growth-owned review plans, audience snapshots, message drafts, approval requests, launch locks, dry-run provider records, and CRM/task writeback previews. They do not activate customer outreach, ad spend, CRM mutation, inventory mutation, accounting mutation, appointment creation, or source-record updates.
+
 ## Permission Model
 
 | Role | Can do |
@@ -111,3 +113,5 @@ Frontend buttons may prepare intent, but server commands must validate role, con
 ## Frontend Foundation Slice
 
 The first `/growth` slice may use static review data and disabled live actions. It must present itself as a review foundation, not operational proof.
+
+The default landing must not become a long-scroll report. It should keep primary daily work visible without hunting, then expose secondary campaign, blocker, result, and manager-control detail through compact drawers, tabs, or purpose-specific drill-ins.

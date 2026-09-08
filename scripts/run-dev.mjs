@@ -95,7 +95,7 @@ async function prepareManagedWindowsDistDir() {
     return;
   }
 
-  if (process.env.NEXT_USE_TEMP_BACKED_CACHE !== "1") {
+  if (process.env.NEXT_USE_TEMP_BACKED_CACHE === "0") {
     await fs.mkdir(path.join(root, defaultNextDistDir), { recursive: true });
     console.log(`Using workspace-local Next cache at '${path.join(root, defaultNextDistDir)}'.`);
     return;
