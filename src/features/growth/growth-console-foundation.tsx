@@ -16,7 +16,8 @@ import {
 
 import { buildGrowthAdvertisingReviewModel } from "@/server/growth/advertising-activation";
 import { buildGrowthAutomationActivationReviewModel } from "@/server/growth/automation-activation";
-import { buildGrowthCampaignPlanReviewModel, buildGrowthConsoleReadModel, type GrowthReadiness } from "@/server/growth/read-model";
+import type { GrowthOperationalHome } from "@/server/growth/operational-service";
+import { buildGrowthCampaignPlanReviewModel, buildGrowthConsoleReadModel, type GrowthConsoleReadModel, type GrowthReadiness } from "@/server/growth/read-model";
 import { buildGrowthOptimizationReviewModel } from "@/server/growth/optimization";
 import { buildGrowthPolicyReviewModel } from "@/server/growth/policy";
 import { buildGrowthProviderPilotReviewModel } from "@/server/growth/provider-pilot";
@@ -55,8 +56,12 @@ function campaignClass(status: CampaignStatus) {
   return styles.blocked;
 }
 
-export function GrowthConsoleFoundation() {
-  const model = buildGrowthConsoleReadModel();
+function isOperationalHome(model: GrowthConsoleReadModel | GrowthOperationalHome): model is GrowthOperationalHome {
+  return "activeCampaigns" in model && Array.isArray(model.activeCampaigns);
+}
+
+export function GrowthConsoleFoundation({ model: providedModel }: { model?: GrowthConsoleReadModel | GrowthOperationalHome } = {}) {
+  const model = providedModel ?? buildGrowthConsoleReadModel();
   const campaignPlan = buildGrowthCampaignPlanReviewModel();
   const policy = buildGrowthPolicyReviewModel();
   const pilot = buildGrowthProviderPilotReviewModel();
@@ -66,6 +71,8 @@ export function GrowthConsoleFoundation() {
   const releaseReadiness = buildGrowthReleaseReadinessReviewModel();
   const results = buildGrowthResultsAttributionReviewModel();
   const primaryOpportunity = model.opportunities[0];
+  const activeCampaigns = isOperationalHome(model) ? model.activeCampaigns : [];
+  const operationalStatus = isOperationalHome(model) ? model.operationalStatus : null;
   const needsAttention = [
     { action: policy.nextAction, label: "Launch readiness", reason: "Policy checks must clear before scheduling.", status: "Needs review" },
     { action: advertising.nextAction, label: "Paid advertising", reason: advertising.state, status: "Blocked" },
@@ -103,7 +110,7 @@ export function GrowthConsoleFoundation() {
     <section className={styles.shell} aria-labelledby="growth-title">
       <div className={styles.reviewBar}>
         <Eye size={16} aria-hidden="true" />
-        <span><strong>Review mode.</strong> Growth can prepare work and show next steps. Live sends, ad spend, and CRM changes stay locked.</span>
+        <span><strong>{operationalStatus ? "Operational review mode." : "Review mode."}</strong> Growth can prepare work and show next steps. Live sends, ad spend, and CRM changes stay locked.</span>
       </div>
 
       <header className={styles.header}>
@@ -151,22 +158,36 @@ export function GrowthConsoleFoundation() {
             </div>
             <span className={styles.statusNote}>{model.sourceMode}</span>
           </div>
-          <div className={styles.priorityCard}>
-            <div>
-              <span className={styles.typePill}>{primaryOpportunity.type}</span>
-              <h3>{primaryOpportunity.title}</h3>
-              <p>{primaryOpportunity.reason}</p>
+          {primaryOpportunity ? (
+            <div className={styles.priorityCard}>
+              <div>
+                <span className={styles.typePill}>{primaryOpportunity.type}</span>
+                <h3>{primaryOpportunity.title}</h3>
+                <p>{primaryOpportunity.reason}</p>
+              </div>
+              <dl>
+                <div><dt>Audience</dt><dd>{primaryOpportunity.audience}</dd></div>
+                <div><dt>Value</dt><dd>{primaryOpportunity.impact}</dd></div>
+                <div><dt>Owner</dt><dd>{primaryOpportunity.owner}</dd></div>
+              </dl>
+              <div className={styles.cardActions}>
+                <span className={readinessClass(primaryOpportunity.readiness)}>{primaryOpportunity.readiness}</span>
+                <a href="#campaigns">Review campaign <ArrowRight size={15} aria-hidden="true" /></a>
+              </div>
             </div>
-            <dl>
-              <div><dt>Audience</dt><dd>{primaryOpportunity.audience}</dd></div>
-              <div><dt>Value</dt><dd>{primaryOpportunity.impact}</dd></div>
-              <div><dt>Owner</dt><dd>{primaryOpportunity.owner}</dd></div>
-            </dl>
-            <div className={styles.cardActions}>
-              <span className={readinessClass(primaryOpportunity.readiness)}>{primaryOpportunity.readiness}</span>
-              <a href="#campaigns">Review campaign <ArrowRight size={15} aria-hidden="true" /></a>
+          ) : (
+            <div className={styles.priorityCard}>
+              <div>
+                <span className={styles.typePill}>Source review</span>
+                <h3>No Growth opportunities are ready yet</h3>
+                <p>Growth is connected to the operational layer, but no current source signals are available to rank.</p>
+              </div>
+              <div className={styles.cardActions}>
+                <span className={styles.review}>Review needed</span>
+                <a href="#controls">Check source controls <ArrowRight size={15} aria-hidden="true" /></a>
+              </div>
             </div>
-          </div>
+          )}
           <div className={styles.workList}>
             {model.opportunities.slice(1).map((opportunity) => (
               <article key={opportunity.title}>
@@ -211,7 +232,7 @@ export function GrowthConsoleFoundation() {
               <span className={styles.sectionLabel}>Campaigns</span>
               <strong>Open campaign drawer</strong>
             </span>
-            <small>{campaigns.length} plans prepared for review</small>
+            <small>{activeCampaigns.length || campaigns.length} plans prepared for review</small>
           </summary>
           <div className={styles.drawerIntro}>
             <p>Review, approve, then keep launch locked until backend controls are approved.</p>
@@ -226,7 +247,7 @@ export function GrowthConsoleFoundation() {
               <span>Next action</span>
               <span>Performance</span>
             </div>
-            {campaigns.map((campaign) => (
+            {(activeCampaigns.length ? [] : campaigns).map((campaign) => (
               <div role="row" key={campaign.name}>
                 <strong>{campaign.name}</strong>
                 <span>{campaign.type}</span>
@@ -234,6 +255,16 @@ export function GrowthConsoleFoundation() {
                 <span>{campaign.owner}</span>
                 <a href={campaign.status === "Blocked" ? "#attention" : "#controls"}>{campaign.nextAction}</a>
                 <span>{campaign.performance}</span>
+              </div>
+            ))}
+            {activeCampaigns.map((campaign) => (
+              <div role="row" key={campaign.id}>
+                <strong>{campaign.opportunityTitle}</strong>
+                <span>{campaign.channel}</span>
+                <span className={campaign.launchLocked ? styles.blocked : styles.review}>{campaign.status}</span>
+                <span>{campaign.ownerRole}</span>
+                <a href={`/api/growth/campaigns/${campaign.id}`}>{campaign.nextAction}</a>
+                <span>{campaign.messageDraftCount} draft · {campaign.audienceSnapshotCount} audience · {campaign.approvalCount} approval</span>
               </div>
             ))}
           </div>
@@ -281,6 +312,13 @@ export function GrowthConsoleFoundation() {
               <strong>Launch lock</strong>
               <p>{policy.nextAction}. Provider: {pilot.health.state}. Paid ads: {advertising.state}.</p>
             </article>
+            {operationalStatus ? (
+              <article>
+                <ShieldCheck size={18} aria-hidden="true" />
+                <strong>Operational backend</strong>
+                <p>Growth APIs, durable records, and source-backed read models are active. Live send, paid spend, and source mutation remain locked.</p>
+              </article>
+            ) : null}
             <article>
               <ShieldCheck size={18} aria-hidden="true" />
               <strong>Record protection</strong>

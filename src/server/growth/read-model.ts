@@ -1,3 +1,6 @@
+import { orchestrateGrowthOpportunities } from "./opportunity-orchestrator";
+import type { GrowthSourceReadSignal } from "./source-adapters";
+
 export type GrowthReadiness = "Ready" | "Review needed" | "Blocked";
 
 export type GrowthSourceSystem = "CRM" | "Inventory" | "Sales" | "Service" | "Appointments" | "Tasks";
@@ -200,6 +203,72 @@ export function buildGrowthConsoleReadModel(now = new Date("2026-09-07T12:00:00-
     sourceHealth,
     sourceMode: "Read-only source snapshot"
   };
+}
+
+export function buildGrowthConsoleReadModelFromSignals(
+  signals: GrowthSourceReadSignal[],
+  now = new Date()
+): GrowthConsoleReadModel {
+  const orchestration = orchestrateGrowthOpportunities(signals, now);
+  const opportunitiesFromSignals = orchestration.opportunities.map((opportunity): GrowthOpportunityReadModel => {
+    const readiness: GrowthReadiness = opportunity.nextAction === "Review source records"
+      ? "Review needed"
+      : opportunity.priorityScore >= 65
+        ? "Ready"
+        : "Blocked";
+    return {
+      audience: `${opportunity.sourceIds.length} source signal${opportunity.sourceIds.length === 1 ? "" : "s"}`,
+      estimatedValue: Math.round(opportunity.estimatedValueCents / 100),
+      impact: formatCurrency(opportunity.estimatedValueCents),
+      nextAction: opportunity.nextAction,
+      owner: ownerForGrowthType(opportunity.type),
+      priorityScore: opportunity.priorityScore,
+      readiness,
+      reason: opportunity.explanation,
+      sourceSystems: opportunity.sourceSystems,
+      sourceSummary: opportunity.sourceSystems.join(" + "),
+      title: opportunity.title,
+      type: opportunity.type
+    };
+  });
+  const included = Math.max(0, signals.filter((signal) => signal.confidence >= 70).length);
+  const cleanup = orchestration.sourceReviewNeeded;
+  const expectedValue = orchestration.opportunities.reduce((total, opportunity) => total + opportunity.estimatedValueCents, 0);
+  const sourceLabels = new Set(signals.map((signal) => signal.source));
+
+  return {
+    audienceRows: [
+      { count: included, label: "Included", reason: "Fresh, source-backed signals with enough confidence to review." },
+      { count: 0, label: "Excluded", reason: "Excluded records stay out of active Growth planning." },
+      { count: 0, label: "Suppressed", reason: "Suppressed records are locked out before any outreach." },
+      { count: cleanup, label: "Needs cleanup", reason: "Stale or low-confidence source records need review first." }
+    ],
+    crmWritebackEvents,
+    generatedAt: now.toISOString(),
+    metrics: [
+      { label: "Opportunities", value: String(opportunitiesFromSignals.length) },
+      { label: "Reachable audience", value: String(included) },
+      { label: "Approval needed", value: String(opportunitiesFromSignals.filter((opportunity) => opportunity.readiness !== "Ready").length) },
+      { label: "Expected value", value: formatCurrency(expectedValue) },
+      { label: "Suppressed records", value: "0" }
+    ],
+    opportunities: opportunitiesFromSignals,
+    sourceHealth: sourceHealth.map((source) => ({
+      ...source,
+      state: sourceLabels.has(source.label) ? "Readable" : "Unavailable",
+      summary: sourceLabels.has(source.label)
+        ? source.summary
+        : "No current source signals were found for this Growth source."
+    })),
+    sourceMode: "Read-only source snapshot"
+  };
+}
+
+function ownerForGrowthType(type: string) {
+  if (type === "Advertising") return "Inventory Manager";
+  if (type === "Retention") return "Service Manager";
+  if (type === "Lead nurture" || type === "Customer recovery") return "Sales Manager";
+  return "Marketing Manager";
 }
 
 export function buildGrowthCampaignPlanReviewModel(now = new Date("2026-09-07T12:30:00-05:00")) {

@@ -6,8 +6,8 @@ import { GrowthConsoleFoundation } from "@/features/growth/growth-console-founda
 import { buildGrowthConsoleReadModel } from "@/server/growth/read-model";
 
 describe("Growth Console foundation", () => {
-  it("renders the review-ready Growth Console route", () => {
-    const markup = renderToStaticMarkup(<GrowthPage />);
+  it("renders the review-ready Growth Console route", async () => {
+    const markup = renderToStaticMarkup(await GrowthPage());
 
     expect(markup).toContain("Growth Console");
     expect(markup).toContain("Marketing + Advertising");
@@ -76,5 +76,40 @@ describe("Growth Console foundation", () => {
     expect(model.opportunities.every((opportunity) => opportunity.sourceSystems.length > 0)).toBe(true);
     expect(model.audienceRows.some((row) => row.label === "Suppressed" && row.reason.includes("Opt-out"))).toBe(true);
     expect(model.crmWritebackEvents.some((event) => event.state === "Blocked until policy")).toBe(true);
+  });
+
+  it("can render an operational backend model without exposing live launch controls", () => {
+    const model = {
+      ...buildGrowthConsoleReadModel(new Date("2026-09-08T15:00:00.000Z")),
+      activeCampaigns: [
+        {
+          approvalCount: 1,
+          audienceSnapshotCount: 1,
+          budgetCents: 0,
+          channel: "Internal task",
+          id: "growth-campaign-1",
+          launchLocked: true,
+          messageDraftCount: 1,
+          nextAction: "Review launch lock",
+          opportunityTitle: "Recover unsold estimates and quotes",
+          ownerRole: "Marketing Manager",
+          status: "LAUNCH_LOCKED",
+          version: 3
+        }
+      ],
+      operationalStatus: {
+        apiRoutesGuarded: true,
+        durableRecordsEnabled: true,
+        liveSendLocked: true,
+        paidSpendLocked: true,
+        sourceMutationLocked: true
+      }
+    } as const;
+    const markup = renderToStaticMarkup(<GrowthConsoleFoundation model={model} />);
+
+    expect(markup).toContain("Operational review mode");
+    expect(markup).toContain("Operational backend");
+    expect(markup).toContain("Growth APIs, durable records, and source-backed read models are active");
+    expect(markup).toContain("Review launch lock");
   });
 });

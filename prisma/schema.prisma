@@ -1801,20 +1801,21 @@ model BootstrapMarker {
 }
 
 model DiagnosticWorkspaceDraft {
-  id String @id
-  userId String
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title String
-  version Int @default(1)
-  content Json
+  id          String   @id
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  version     Int      @default(1)
+  content     Json
   contentHash String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
   @@index([userId, updatedAt])
 }
 
 model User {
-  diagnosticWorkspaceDrafts DiagnosticWorkspaceDraft[]
+  diagnosticWorkspaceDrafts                    DiagnosticWorkspaceDraft[]
   id                                           String                                 @id @default(cuid())
   name                                         String
   email                                        String                                 @unique
@@ -6841,28 +6842,28 @@ model WorkdayWorkbook {
 }
 
 model WorkdayChecklistItem {
-  reminderDate    String                 @default("")
-  id              String                 @id @default(cuid())
-  workbookId      String
-  text            String
-  status          WorkdayChecklistStatus @default(GREEN)
-  priority        WorkdayPriority        @default(MEDIUM)
-  riskLevel       WorkdayRiskLevel       @default(NONE)
-  riskNote        String                 @default("")
-  update          String                 @default("")
-  done            Boolean                @default(false)
-  carryoverReady  Boolean                @default(false)
-  convertedTaskId String?
-  sourceType      String?
-  sourceId        String?
-  sourceBoardDate DateTime?
-  sourceHref      String?
-  broughtForwardAt DateTime?
+  reminderDate           String                 @default("")
+  id                     String                 @id @default(cuid())
+  workbookId             String
+  text                   String
+  status                 WorkdayChecklistStatus @default(GREEN)
+  priority               WorkdayPriority        @default(MEDIUM)
+  riskLevel              WorkdayRiskLevel       @default(NONE)
+  riskNote               String                 @default("")
+  update                 String                 @default("")
+  done                   Boolean                @default(false)
+  carryoverReady         Boolean                @default(false)
+  convertedTaskId        String?
+  sourceType             String?
+  sourceId               String?
+  sourceBoardDate        DateTime?
+  sourceHref             String?
+  broughtForwardAt       DateTime?
   broughtForwardByUserId String?
-  createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
-  workbook        WorkdayWorkbook        @relation(fields: [workbookId], references: [id], onDelete: Cascade)
-  convertedTask   Task?                  @relation("WorkdayChecklistConvertedTask", fields: [convertedTaskId], references: [id], onDelete: SetNull)
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  workbook               WorkdayWorkbook        @relation(fields: [workbookId], references: [id], onDelete: Cascade)
+  convertedTask          Task?                  @relation("WorkdayChecklistConvertedTask", fields: [convertedTaskId], references: [id], onDelete: SetNull)
 
   @@index([workbookId, status, done])
   @@index([workbookId, priority, riskLevel])
@@ -6871,29 +6872,29 @@ model WorkdayChecklistItem {
 }
 
 model WorkdayDailyFocusItem {
-  id              String                  @id @default(cuid())
-  workbookId      String
-  outcome         String
-  mustCloseToday  Boolean                 @default(false)
-  priority        WorkdayPriority         @default(HIGH)
-  riskLevel       WorkdayRiskLevel        @default(NONE)
-  riskNote        String                  @default("")
-  supportNeeded   String                  @default("")
-  progressUpdate  String                  @default("")
-  lastProgressAt  DateTime?
-  status          WorkdayDailyFocusStatus @default(PLANNED)
-  sortOrder       Int                     @default(0)
-  convertedTaskId String?
-  sourceType      String?
-  sourceId        String?
-  sourceBoardDate DateTime?
-  sourceHref      String?
-  broughtForwardAt DateTime?
+  id                     String                  @id @default(cuid())
+  workbookId             String
+  outcome                String
+  mustCloseToday         Boolean                 @default(false)
+  priority               WorkdayPriority         @default(HIGH)
+  riskLevel              WorkdayRiskLevel        @default(NONE)
+  riskNote               String                  @default("")
+  supportNeeded          String                  @default("")
+  progressUpdate         String                  @default("")
+  lastProgressAt         DateTime?
+  status                 WorkdayDailyFocusStatus @default(PLANNED)
+  sortOrder              Int                     @default(0)
+  convertedTaskId        String?
+  sourceType             String?
+  sourceId               String?
+  sourceBoardDate        DateTime?
+  sourceHref             String?
+  broughtForwardAt       DateTime?
   broughtForwardByUserId String?
-  createdAt       DateTime                @default(now())
-  updatedAt       DateTime                @updatedAt
-  workbook        WorkdayWorkbook         @relation(fields: [workbookId], references: [id], onDelete: Cascade)
-  convertedTask   Task?                   @relation("WorkdayDailyFocusConvertedTask", fields: [convertedTaskId], references: [id], onDelete: SetNull)
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  workbook               WorkdayWorkbook         @relation(fields: [workbookId], references: [id], onDelete: Cascade)
+  convertedTask          Task?                   @relation("WorkdayDailyFocusConvertedTask", fields: [convertedTaskId], references: [id], onDelete: SetNull)
 
   @@index([workbookId, status, priority])
   @@index([workbookId, riskLevel])
@@ -6902,24 +6903,24 @@ model WorkdayDailyFocusItem {
 }
 
 model WorkdayQuickUpdate {
-  id              String                     @id @default(cuid())
-  workbookId      String
-  text            String
-  category        WorkdayQuickUpdateCategory @default(OTHER)
-  person          String                     @default("")
-  phoneNumber     String                     @default("")
-  company         String                     @default("")
-  identityKey     String                     @default("")
-  followUpNeeded  Boolean                    @default(false)
-  dueWindow       String                     @default("")
-  carryoverReady  Boolean                    @default(false)
-  convertedTaskId String?
+  id                String                     @id @default(cuid())
+  workbookId        String
+  text              String
+  category          WorkdayQuickUpdateCategory @default(OTHER)
+  person            String                     @default("")
+  phoneNumber       String                     @default("")
+  company           String                     @default("")
+  identityKey       String                     @default("")
+  followUpNeeded    Boolean                    @default(false)
+  dueWindow         String                     @default("")
+  carryoverReady    Boolean                    @default(false)
+  convertedTaskId   String?
   relatedCustomerId String?
-  createdAt       DateTime                   @default(now())
-  updatedAt       DateTime                   @updatedAt
-  workbook        WorkdayWorkbook            @relation(fields: [workbookId], references: [id], onDelete: Cascade)
-  convertedTask   Task?                      @relation("WorkdayQuickUpdateConvertedTask", fields: [convertedTaskId], references: [id], onDelete: SetNull)
-  relatedCustomer Customer?                  @relation(fields: [relatedCustomerId], references: [id], onDelete: SetNull)
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+  workbook          WorkdayWorkbook            @relation(fields: [workbookId], references: [id], onDelete: Cascade)
+  convertedTask     Task?                      @relation("WorkdayQuickUpdateConvertedTask", fields: [convertedTaskId], references: [id], onDelete: SetNull)
+  relatedCustomer   Customer?                  @relation(fields: [relatedCustomerId], references: [id], onDelete: SetNull)
 
   @@index([workbookId, category, followUpNeeded])
   @@index([convertedTaskId])
@@ -9125,4 +9126,224 @@ model SchedulerAttempt {
   @@index([attemptState, receivedAt])
   @@index([authorizationOutcome, receivedAt])
   @@index([generationRunId])
+}
+
+model GrowthOpportunity {
+  id                  String    @id @default(cuid())
+  organizationId      String
+  title               String
+  opportunityType     String
+  ownerRole           String
+  priorityScore       Int
+  readiness           String
+  audienceLabel       String
+  estimatedValueCents Int       @default(0)
+  reason              String
+  nextAction          String
+  sourceSummary       String
+  sourceSystems       Json
+  sourceRecordRefs    Json
+  status              String    @default("OPEN")
+  dismissedAt         DateTime?
+  dismissedByUserId   String?
+  dismissedReason     String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([organizationId, status, priorityScore])
+  @@index([organizationId, ownerRole, status])
+  @@index([organizationId, readiness, status])
+  @@index([createdAt])
+}
+
+model GrowthCampaignPlan {
+  id                  String                      @id @default(cuid())
+  organizationId      String
+  opportunityId       String?
+  opportunityTitle    String
+  objective           String
+  channel             String
+  campaignType        String
+  ownerRole           String
+  budgetCents         Int                         @default(0)
+  status              String                      @default("DRAFT")
+  version             Int                         @default(1)
+  approvalRequestedAt DateTime?
+  sourceRecordRefs    Json
+  createdByUserId     String
+  createdReason       String
+  idempotencyKey      String
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
+  audienceSnapshots   GrowthAudienceSnapshot[]
+  messageDrafts       GrowthMessageDraft[]
+  approvals           GrowthApproval[]
+  ledgerEvents        GrowthCampaignLedgerEvent[]
+  launchLocks         GrowthLaunchLock[]
+  resultEvents        GrowthResultEvent[]
+  writebackPreviews   GrowthCrmWritebackPreview[]
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, status, updatedAt])
+  @@index([organizationId, ownerRole, status])
+  @@index([opportunityId])
+  @@index([createdAt])
+}
+
+model GrowthAudienceSnapshot {
+  id              String                      @id @default(cuid())
+  organizationId  String
+  campaignPlanId  String
+  version         Int
+  summary         Json
+  createdByUserId String
+  reason          String
+  idempotencyKey  String
+  createdAt       DateTime                    @default(now())
+  campaignPlan    GrowthCampaignPlan          @relation(fields: [campaignPlanId], references: [id], onDelete: Cascade)
+  rows            GrowthAudienceSnapshotRow[]
+
+  @@unique([campaignPlanId, version])
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, campaignPlanId, createdAt])
+}
+
+model GrowthAudienceSnapshotRow {
+  id                 String                 @id @default(cuid())
+  organizationId     String
+  audienceSnapshotId String
+  label              String
+  count              Int
+  reason             String
+  sourceRecordRefs   Json
+  createdAt          DateTime               @default(now())
+  audienceSnapshot   GrowthAudienceSnapshot @relation(fields: [audienceSnapshotId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, label])
+  @@index([audienceSnapshotId])
+}
+
+model GrowthMessageDraft {
+  id              String             @id @default(cuid())
+  organizationId  String
+  campaignPlanId  String
+  version         Int
+  subject         String
+  body            String
+  callToAction    String
+  createdByUserId String
+  reason          String
+  idempotencyKey  String
+  createdAt       DateTime           @default(now())
+  campaignPlan    GrowthCampaignPlan @relation(fields: [campaignPlanId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignPlanId, version])
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, campaignPlanId, createdAt])
+}
+
+model GrowthApproval {
+  id                String             @id @default(cuid())
+  organizationId    String
+  campaignPlanId    String
+  approvalType      String
+  status            String             @default("REQUESTED")
+  requestedRole     String
+  requestedByUserId String
+  decidedByUserId   String?
+  decisionReason    String?
+  idempotencyKey    String
+  requestedAt       DateTime           @default(now())
+  decidedAt         DateTime?
+  campaignPlan      GrowthCampaignPlan @relation(fields: [campaignPlanId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, status, requestedAt])
+  @@index([campaignPlanId, status])
+  @@index([requestedRole, status])
+}
+
+model GrowthCampaignLedgerEvent {
+  id             String             @id @default(cuid())
+  organizationId String
+  campaignPlanId String
+  eventType      String
+  version        Int
+  actorUserId    String
+  actorRole      String
+  reason         String
+  commandHash    String
+  idempotencyKey String
+  payload        Json
+  occurredAt     DateTime           @default(now())
+  campaignPlan   GrowthCampaignPlan @relation(fields: [campaignPlanId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, eventType, occurredAt])
+  @@index([campaignPlanId, occurredAt])
+}
+
+model GrowthLaunchLock {
+  id             String             @id @default(cuid())
+  organizationId String
+  campaignPlanId String
+  lockedReason   String
+  nextAction     String
+  lockState      String             @default("LOCKED")
+  actorUserId    String
+  actorRole      String
+  idempotencyKey String
+  createdAt      DateTime           @default(now())
+  campaignPlan   GrowthCampaignPlan @relation(fields: [campaignPlanId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, lockState, createdAt])
+  @@index([campaignPlanId, createdAt])
+}
+
+model GrowthResultEvent {
+  id               String             @id @default(cuid())
+  organizationId   String
+  campaignPlanId   String
+  eventType        String
+  source           String
+  sourceEventId    String
+  customerId       String?
+  valueCents       Int                @default(0)
+  attributionTier  String
+  proofEvent       Boolean            @default(false)
+  occurredAt       DateTime
+  recordedByUserId String
+  idempotencyKey   String
+  payload          Json
+  createdAt        DateTime           @default(now())
+  campaignPlan     GrowthCampaignPlan @relation(fields: [campaignPlanId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, source, sourceEventId])
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, attributionTier, occurredAt])
+  @@index([campaignPlanId, occurredAt])
+}
+
+model GrowthCrmWritebackPreview {
+  id              String             @id @default(cuid())
+  organizationId  String
+  campaignPlanId  String
+  eventType       String
+  targetSystem    String
+  customerId      String?
+  valueCents      Int                @default(0)
+  locked          Boolean            @default(true)
+  approvalNeeded  String
+  sourceEvidence  Json
+  nextAction      String
+  reason          String
+  createdByUserId String
+  idempotencyKey  String
+  createdAt       DateTime           @default(now())
+  campaignPlan    GrowthCampaignPlan @relation(fields: [campaignPlanId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, targetSystem, locked])
+  @@index([campaignPlanId, createdAt])
 }
