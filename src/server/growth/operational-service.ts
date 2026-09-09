@@ -152,6 +152,56 @@ export type GrowthCampaignAdminDetail = GrowthAdminCampaignItem & {
   }>;
 };
 
+export type GrowthResultsDashboardModel = {
+  campaigns: Array<{
+    assistedResults: number;
+    directResults: number;
+    id: string;
+    launchLocked: boolean;
+    lockedWritebacks: number;
+    proofEvents: number;
+    resultEvents: number;
+    roiSignal: "No proof yet" | "Proof building" | "Value proven";
+    status: string;
+    title: string;
+    totalValueCents: number;
+    unattributedResults: number;
+  }>;
+  generatedAt: string;
+  proofBySource: Array<{
+    lastProofAt: string | null;
+    proofEvents: number;
+    source: string;
+    status: "No proof yet" | "Proof found";
+    valueCents: number;
+  }>;
+  role: GrowthRole;
+  summary: {
+    assistedResults: number;
+    directResults: number;
+    influencedResults: number;
+    launchLockedCampaigns: number;
+    lockedWritebacks: number;
+    proofCoveragePercent: number;
+    proofEvents: number;
+    resultEvents: number;
+    roiStatus: "No proof yet" | "Proof building" | "Value proven";
+    totalCampaigns: number;
+    totalValueCents: number;
+    unattributedResults: number;
+  };
+  timeline: Array<{
+    attributionTier: string;
+    campaignId: string;
+    campaignTitle: string;
+    eventType: string;
+    occurredAt: string;
+    proofEvent: boolean;
+    source: string;
+    valueCents: number;
+  }>;
+};
+
 function jsonArray(value: unknown): Prisma.InputJsonValue {
   return Array.isArray(value) ? (value as Prisma.InputJsonArray) : [];
 }
@@ -257,6 +307,112 @@ export async function getGrowthAdminReview(
     },
     generatedAt: now.toISOString(),
     role
+  };
+}
+
+function roiSignal(valueCents: number, proofEvents: number): GrowthResultsDashboardModel["summary"]["roiStatus"] {
+  if (valueCents > 0) return "Value proven";
+  if (proofEvents > 0) return "Proof building";
+  return "No proof yet";
+}
+
+export async function getGrowthResultsDashboard(
+  user: AuthenticatedUser | null,
+  input: { database?: GrowthDatabase; now?: Date; organizationId?: string } = {}
+): Promise<GrowthResultsDashboardModel> {
+  const actor = assertUser(user);
+  const role = growthRoleForUser(actor);
+  assertCanOpenGrowthAdmin(role);
+  const database = input.database ?? prisma;
+  const organizationId = input.organizationId ?? INITIAL_ORGANIZATION.id;
+  const now = input.now ?? new Date();
+  const campaigns = await database.growthCampaignPlan.findMany({
+    include: {
+      launchLocks: { orderBy: [{ createdAt: "desc" }], take: 1 },
+      resultEvents: { orderBy: [{ occurredAt: "desc" }] },
+      writebackPreviews: { orderBy: [{ createdAt: "desc" }] }
+    },
+    orderBy: [{ updatedAt: "desc" }],
+    take: 60,
+    where: { organizationId }
+  });
+  const allEvents = campaigns.flatMap((campaign) =>
+    campaign.resultEvents.map((event) => ({
+      attributionTier: event.attributionTier,
+      campaignId: campaign.id,
+      campaignTitle: campaign.opportunityTitle,
+      eventType: event.eventType,
+      occurredAt: event.occurredAt.toISOString(),
+      proofEvent: event.proofEvent,
+      source: event.source,
+      valueCents: event.valueCents
+    }))
+  );
+  const proofEvents = allEvents.filter((event) => event.proofEvent);
+  const sourceMap = new Map<string, { lastProofAt: string | null; proofEvents: number; valueCents: number }>();
+  for (const event of proofEvents) {
+    const current = sourceMap.get(event.source) ?? { lastProofAt: null, proofEvents: 0, valueCents: 0 };
+    sourceMap.set(event.source, {
+      lastProofAt: !current.lastProofAt || event.occurredAt > current.lastProofAt ? event.occurredAt : current.lastProofAt,
+      proofEvents: current.proofEvents + 1,
+      valueCents: current.valueCents + event.valueCents
+    });
+  }
+
+  const totalValueCents = allEvents
+    .filter((event) => event.attributionTier !== "Unattributed" && event.eventType !== "open")
+    .reduce((total, event) => total + event.valueCents, 0);
+  const resultEvents = allEvents.length;
+  const lockedWritebacks = campaigns.reduce((total, campaign) => total + campaign.writebackPreviews.filter((preview) => preview.locked).length, 0);
+  const launchLockedCampaigns = campaigns.filter((campaign) => campaign.launchLocks.some((lock) => lock.lockState === "LOCKED")).length;
+  const summary = {
+    assistedResults: allEvents.filter((event) => event.attributionTier === "Assisted").length,
+    directResults: allEvents.filter((event) => event.attributionTier === "Direct").length,
+    influencedResults: allEvents.filter((event) => event.attributionTier === "Influenced").length,
+    launchLockedCampaigns,
+    lockedWritebacks,
+    proofCoveragePercent: resultEvents ? Math.round((proofEvents.length / resultEvents) * 100) : 0,
+    proofEvents: proofEvents.length,
+    resultEvents,
+    roiStatus: roiSignal(totalValueCents, proofEvents.length),
+    totalCampaigns: campaigns.length,
+    totalValueCents,
+    unattributedResults: allEvents.filter((event) => event.attributionTier === "Unattributed").length
+  };
+
+  return {
+    campaigns: campaigns.map((campaign) => {
+      const events = allEvents.filter((event) => event.campaignId === campaign.id);
+      const campaignProof = events.filter((event) => event.proofEvent);
+      const valueCents = events
+        .filter((event) => event.attributionTier !== "Unattributed" && event.eventType !== "open")
+        .reduce((total, event) => total + event.valueCents, 0);
+      return {
+        assistedResults: events.filter((event) => event.attributionTier === "Assisted").length,
+        directResults: events.filter((event) => event.attributionTier === "Direct").length,
+        id: campaign.id,
+        launchLocked: campaign.launchLocks.some((lock) => lock.lockState === "LOCKED"),
+        lockedWritebacks: campaign.writebackPreviews.filter((preview) => preview.locked).length,
+        proofEvents: campaignProof.length,
+        resultEvents: events.length,
+        roiSignal: roiSignal(valueCents, campaignProof.length),
+        status: campaign.status,
+        title: campaign.opportunityTitle,
+        totalValueCents: valueCents,
+        unattributedResults: events.filter((event) => event.attributionTier === "Unattributed").length
+      };
+    }),
+    generatedAt: now.toISOString(),
+    proofBySource: Array.from(sourceMap.entries()).map(([source, proof]) => ({
+      ...proof,
+      source,
+      status: proof.proofEvents > 0 ? "Proof found" : "No proof yet"
+    })),
+    role,
+    summary,
+    timeline: allEvents
+      .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime())
+      .slice(0, 30)
   };
 }
 

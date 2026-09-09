@@ -51,6 +51,7 @@ export function GrowthAdminReviewConsole({ model }: { model: GrowthAdminReviewMo
           <p>Approve or reject prepared Growth work, inspect launch locks, and review the audit trail before anything goes live.</p>
         </div>
         <div className={styles.headerActions}>
+          <Link className={styles.secondaryButton} href="/growth/results">Results Proof</Link>
           <Link className={styles.secondaryButton} href="/growth/policy">Policy Controls</Link>
           <Link className={styles.secondaryButton} href="/growth">Growth Console</Link>
           <a className={styles.primaryButton} href="#approval-queue">Review approvals</a>

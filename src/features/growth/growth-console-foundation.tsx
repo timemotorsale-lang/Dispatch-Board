@@ -122,6 +122,7 @@ export function GrowthConsoleFoundation({ model: providedModel }: { model?: Grow
         <div className={styles.headerActions}>
           <Link className={styles.secondaryButton} href="/crm">Open CRM</Link>
           <Link className={styles.secondaryButton} href="/growth/admin">Manager review</Link>
+          <Link className={styles.secondaryButton} href="/growth/results">Results proof</Link>
           <Link className={styles.secondaryButton} href="/growth/policy">Policy controls</Link>
           <a className={styles.primaryButton} href="#today">
             <Target size={16} aria-hidden="true" /> Start today
@@ -284,7 +285,7 @@ export function GrowthConsoleFoundation({ model: providedModel }: { model?: Grow
           </summary>
           <div className={styles.drawerIntro}>
             <p>Measure outcomes, not noise.</p>
-            <span className={styles.statusNote}>Read-only</span>
+            <Link className={styles.smallLink} href="/growth/results">Open full results dashboard</Link>
           </div>
           <div className={styles.resultsGrid}>
             <article><CheckCircle2 size={17} /><span>Direct</span><strong>{results.direct}</strong><p>Replies, appointments, forms, sales, or service outcomes.</p></article>

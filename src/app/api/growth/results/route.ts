@@ -1,15 +1,13 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/server/auth/current-user";
-import { getGrowthOperationalHome } from "@/server/growth/operational-service";
-import { buildGrowthResultsAttributionReviewModel } from "@/server/growth/results-attribution";
+import { getGrowthResultsDashboard } from "@/server/growth/operational-service";
 
 import { growthApiError } from "../_helpers";
 
 export async function GET() {
   try {
-    await getGrowthOperationalHome(await getCurrentUser());
-    return NextResponse.json(buildGrowthResultsAttributionReviewModel());
+    return NextResponse.json(await getGrowthResultsDashboard(await getCurrentUser()));
   } catch (error) {
     return growthApiError(error);
   }
