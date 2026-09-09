@@ -8,6 +8,7 @@ const command = {
   actorUserId: "seller-a",
   channel: "PHONE",
   commandType: "LOG_CUSTOMER_INTERACTION",
+  completeCurrentFollowUp: false,
   consentState: "CONFIRMED",
   correlationId: "correlation-1",
   customerId: "customer-a",
@@ -19,7 +20,12 @@ const command = {
   occurredAt: new Date("2026-08-14T15:00:00.000Z"),
   organizationId: "org-a",
   outcome: "Reached customer",
+  relatedDealId: null,
+  relatedRepairOrderId: null,
+  relatedStaffMemberId: null,
+  relatedVehicleId: null,
   reason: "Record customer interaction",
+  reportWorthy: false,
   requestHash: "request-hash-1",
   summary: "Confirmed the delivery time."
 };
@@ -43,17 +49,78 @@ function transaction(overrides: Record<string, unknown> = {}) {
       }),
       update: vi.fn()
     },
-    customerInteraction: { create: vi.fn() },
+    customerInteraction: { create: vi.fn().mockResolvedValue({ id: "interaction-created" }) },
     enterpriseAggregateVersion: { create: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
     enterpriseAuditEvent: { create: vi.fn() },
-    enterpriseCommandLedger: { create: vi.fn(), findUnique: vi.fn().mockResolvedValue(null) },
-    enterpriseDomainEvent: { create: vi.fn() },
+    enterpriseCommandLedger: { create: vi.fn().mockResolvedValue({ id: "command-1" }), findUnique: vi.fn().mockResolvedValue(null) },
+    enterpriseDomainEvent: { create: vi.fn().mockResolvedValue({ id: "event-1" }) },
     enterpriseOutboxMessage: { create: vi.fn() },
     ...overrides
   };
 }
 
 describe("Unified CRM customer interaction repository", () => {
+  it("saves the communication outcome, clears a completed follow-up, and emits governed audit context", async () => {
+    const tx = transaction();
+    tx.customer.findFirst.mockResolvedValue({
+      id: "customer-a",
+      organizationId: "org-a",
+      ownerUserId: "seller-a",
+      lastInteractionAt: new Date("2026-08-14T14:00:00.000Z"),
+      nextActionAt: new Date("2026-08-15T15:00:00.000Z"),
+      contactPoints: [{ type: "PHONE", consentStatus: "CONFIRMED" }]
+    });
+    const repository = createUnifiedCrmCustomerInteractionRepository(database(tx));
+
+    const result = await repository.createInteraction({
+      command: {
+        ...command,
+        completeCurrentFollowUp: true,
+        relatedRepairOrderId: "RO-1001",
+        reportWorthy: true
+      },
+      recordScope: { kind: "ORGANIZATION" }
+    });
+
+    expect(tx.customerInteraction.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        channel: "PHONE",
+        customerId: "customer-a",
+        summary: "Confirmed the delivery time."
+      })
+    }));
+    expect(tx.customer.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        lastInteractionAt: new Date("2026-08-14T15:00:00.000Z"),
+        nextActionAt: null
+      })
+    }));
+    expect(tx.enterpriseDomainEvent.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        payload: expect.objectContaining({
+          followUpCompleted: true,
+          relatedRepairOrderId: "RO-1001",
+          reportWorthy: true
+        })
+      })
+    }));
+    expect(tx.enterpriseAuditEvent.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        metadata: expect.objectContaining({
+          relatedRepairOrderId: "RO-1001",
+          reportWorthy: true
+        })
+      })
+    }));
+    expect(result).toMatchObject({
+      customerId: "customer-a",
+      duplicate: false,
+      followUpCompleted: true,
+      interactionId: "interaction-created",
+      nextActionAt: null
+    });
+  });
+
   it("authorizes the exact organization and owner before consulting idempotency state", async () => {
     const tx = transaction();
     tx.customer.findFirst.mockResolvedValue(null);

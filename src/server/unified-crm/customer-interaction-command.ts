@@ -2,12 +2,13 @@ export const UNIFIED_CRM_CUSTOMER_INTERACTION_COMMAND = "LOG_CUSTOMER_INTERACTIO
 export const UNIFIED_CRM_CUSTOMER_INTERACTION_CONTRACT_VERSION = "ucrm.customer-interaction/v1" as const;
 export const UNIFIED_CRM_CUSTOMER_INTERACTION_ERROR_CONTRACT_VERSION = "ucrm.customer-interaction-error/v1" as const;
 
-export type UnifiedCrmCustomerInteractionChannel = "PHONE" | "TEXT" | "EMAIL" | "MEETING" | "VISIT";
-export type UnifiedCrmCustomerInteractionDirection = "INBOUND" | "OUTBOUND";
+export type UnifiedCrmCustomerInteractionChannel = "PHONE" | "TEXT" | "EMAIL" | "MEETING" | "VISIT" | "INTERNAL_NOTE";
+export type UnifiedCrmCustomerInteractionDirection = "INBOUND" | "OUTBOUND" | "INTERNAL";
 export type UnifiedCrmCustomerInteractionConsentState = "NOT_REQUIRED" | "CONFIRMED" | "UNKNOWN";
 
 export type UnifiedCrmCustomerInteractionCommandInput = {
   channel?: unknown;
+  completeCurrentFollowUp?: unknown;
   consentState?: unknown;
   direction?: unknown;
   idempotencyKey?: unknown;
@@ -15,11 +16,17 @@ export type UnifiedCrmCustomerInteractionCommandInput = {
   nextStep?: unknown;
   occurredAt?: unknown;
   outcome?: unknown;
+  relatedDealId?: unknown;
+  relatedRepairOrderId?: unknown;
+  relatedStaffMemberId?: unknown;
+  relatedVehicleId?: unknown;
+  reportWorthy?: unknown;
   summary?: unknown;
 };
 
 export type UnifiedCrmCustomerInteractionCommand = {
   channel: UnifiedCrmCustomerInteractionChannel;
+  completeCurrentFollowUp: boolean;
   consentState: UnifiedCrmCustomerInteractionConsentState;
   direction: UnifiedCrmCustomerInteractionDirection;
   idempotencyKey: string;
@@ -27,6 +34,11 @@ export type UnifiedCrmCustomerInteractionCommand = {
   nextStep: string | null;
   occurredAt: Date;
   outcome: string | null;
+  relatedDealId: string | null;
+  relatedRepairOrderId: string | null;
+  relatedStaffMemberId: string | null;
+  relatedVehicleId: string | null;
+  reportWorthy: boolean;
   summary: string;
 };
 
@@ -34,6 +46,7 @@ export type UnifiedCrmCustomerInteractionCommandResult = {
   contractVersion: typeof UNIFIED_CRM_CUSTOMER_INTERACTION_CONTRACT_VERSION;
   customerId: string;
   duplicate: boolean;
+  followUpCompleted: boolean;
   interactionId: string;
   occurredAt: string;
   nextActionAt: string | null;

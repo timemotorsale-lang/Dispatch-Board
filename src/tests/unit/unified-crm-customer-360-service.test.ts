@@ -373,6 +373,66 @@ describe("Unified CRM Customer 360 service", () => {
     });
   });
 
+  it("lists manual communication channels and follow-up completion in the Customer 360 timeline", async () => {
+    const setup = dependencies(record());
+    const model = await getUnifiedCrmCustomer360(manager, "customer-a", {
+      ...setup.deps,
+      timelineRepository: {
+        async listTimeline() {
+          return {
+            interactions: [
+              {
+                id: "interaction-email",
+                channel: "EMAIL",
+                direction: "OUTBOUND",
+                summary: "Sent manual email recap after the customer call.",
+                outcome: "Manual email logged",
+                nextStep: "Customer will reply with proof of insurance.",
+                occurredAt: new Date("2026-08-14T13:30:00.000Z"),
+                actorUser: { id: manager.id, name: manager.name }
+              },
+              {
+                id: "interaction-note",
+                channel: "INTERNAL_NOTE",
+                direction: "INTERNAL",
+                summary: "Manager note: title concern is resolved.",
+                outcome: "Follow-up complete",
+                nextStep: null,
+                occurredAt: new Date("2026-08-14T13:00:00.000Z"),
+                actorUser: { id: manager.id, name: manager.name }
+              }
+            ],
+            activityEvents: [],
+            appointmentHistoryEvents: [],
+            leadEvents: [],
+            caseEvents: [],
+            promiseEvents: [],
+            crmDomainEvents: [{
+              id: "crm-completed",
+              eventType: "CRM_CUSTOMER_NEXT_ACTION_COMPLETED",
+              occurredAt: new Date("2026-08-14T14:00:00.000Z"),
+              payload: { note: "Customer confirmed the issue is resolved.", operation: "COMPLETE", previousNextActionAt: "2026-08-14T13:00:00.000Z" },
+              command: { actorUserId: manager.id }
+            }],
+            page: { limit: 20, hasMore: false }
+          };
+        }
+      }
+    });
+
+    expect(model.timeline.items.map((item) => item.title)).toContain("Email Outbound");
+    expect(model.timeline.items.map((item) => item.title)).toContain("Internal Note Internal");
+    expect(model.timeline.items.map((item) => item.title)).toContain("Next action completed");
+    expect(model.communicationTimelineLens).toMatchObject({
+      state: "READY",
+      visibleOutcomeCount: 2,
+      channels: expect.arrayContaining([
+        { label: "Email", count: 1, latestOutcomeAt: "2026-08-14T13:30:00.000Z" },
+        { label: "Other", count: 1, latestOutcomeAt: "2026-08-14T13:00:00.000Z" }
+      ])
+    });
+  });
+
   it("uses masked legacy contact fallback without exposing raw values", async () => {
     const model = await getUnifiedCrmCustomer360(manager, "customer-a", dependencies(record({ contactPoints: [] })).deps);
     expect(model.contacts).toEqual([

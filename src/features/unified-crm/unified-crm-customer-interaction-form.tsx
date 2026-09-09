@@ -49,6 +49,8 @@ export function UnifiedCrmCustomerInteractionForm({
   const [channel, setChannel] = useState("PHONE");
   const [direction, setDirection] = useState("OUTBOUND");
   const [consentState, setConsentState] = useState("CONFIRMED");
+  const [completeCurrentFollowUp, setCompleteCurrentFollowUp] = useState(false);
+  const [reportWorthy, setReportWorthy] = useState(false);
   const [summary, setSummary] = useState("");
   const [outcome, setOutcome] = useState("");
   const [nextStep, setNextStep] = useState("");
@@ -56,6 +58,17 @@ export function UnifiedCrmCustomerInteractionForm({
   const [nextActionAt, setNextActionAt] = useState("");
   const [idempotencyKey, setIdempotencyKey] = useState(() => createIdempotencyKey(customerId));
   const timelineHref = currentCustomerPageHref(pathname, searchParams.toString(), "timeline-heading");
+
+  function selectChannel(value: string) {
+    setChannel(value);
+    if (value === "INTERNAL_NOTE") {
+      setDirection("INTERNAL");
+      setConsentState("NOT_REQUIRED");
+    } else if (direction === "INTERNAL") {
+      setDirection("OUTBOUND");
+      setConsentState("CONFIRMED");
+    }
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -70,6 +83,7 @@ export function UnifiedCrmCustomerInteractionForm({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           channel,
+          completeCurrentFollowUp,
           consentState,
           direction,
           idempotencyKey,
@@ -77,6 +91,7 @@ export function UnifiedCrmCustomerInteractionForm({
           nextStep: nextStep || null,
           occurredAt,
           outcome: outcome || null,
+          reportWorthy,
           summary
         })
       });
@@ -96,6 +111,8 @@ export function UnifiedCrmCustomerInteractionForm({
       setOutcome("");
       setNextStep("");
       setNextActionAt("");
+      setCompleteCurrentFollowUp(false);
+      setReportWorthy(false);
       setOpen(false);
       startTransition(() => router.refresh());
     } catch (error) {
@@ -166,12 +183,13 @@ export function UnifiedCrmCustomerInteractionForm({
           <fieldset className={styles.interactionFieldset} disabled={pending}>
             <label>
               <span>Channel</span>
-              <select onChange={(event) => setChannel(event.target.value)} value={channel}>
+              <select onChange={(event) => selectChannel(event.target.value)} value={channel}>
                 <option value="PHONE">Phone</option>
-                <option value="TEXT">Text</option>
-                <option value="EMAIL">Email</option>
+                <option value="TEXT">Manual text / SMS</option>
+                <option value="EMAIL">Manual email</option>
                 <option value="MEETING">Meeting</option>
                 <option value="VISIT">Visit</option>
+                <option value="INTERNAL_NOTE">Internal note</option>
               </select>
             </label>
             <label>
@@ -179,6 +197,7 @@ export function UnifiedCrmCustomerInteractionForm({
               <select onChange={(event) => setDirection(event.target.value)} value={direction}>
                 <option value="OUTBOUND">Outbound</option>
                 <option value="INBOUND">Inbound</option>
+                <option value="INTERNAL">Internal</option>
               </select>
             </label>
             <label>
@@ -207,7 +226,18 @@ export function UnifiedCrmCustomerInteractionForm({
             </label>
             <label>
               <span>Next action time</span>
-              <input onChange={(event) => setNextActionAt(event.target.value)} type="datetime-local" value={nextActionAt} />
+              <input disabled={completeCurrentFollowUp} onChange={(event) => setNextActionAt(event.target.value)} type="datetime-local" value={nextActionAt} />
+            </label>
+            <label className={styles.interactionCheckbox}>
+              <input checked={completeCurrentFollowUp} onChange={(event) => {
+                setCompleteCurrentFollowUp(event.target.checked);
+                if (event.target.checked) setNextActionAt("");
+              }} type="checkbox" />
+              <span>Mark current follow-up complete</span>
+            </label>
+            <label className={styles.interactionCheckbox}>
+              <input checked={reportWorthy} onChange={(event) => setReportWorthy(event.target.checked)} type="checkbox" />
+              <span>Report-worthy</span>
             </label>
             <div className={styles.interactionActions}>
               <button disabled={pending || !summary.trim()} type="submit">{pending ? "Recording outcome…" : "Record outcome"}</button>

@@ -31,7 +31,12 @@ describe("Unified CRM customer interaction form", () => {
     expect(markup).toContain("This form does not contact the customer.");
     expect(markup).toContain("<fieldset");
     expect(markup).toContain("Consent state");
+    expect(markup).toContain("Manual text / SMS");
+    expect(markup).toContain("Manual email");
+    expect(markup).toContain("Internal note");
     expect(markup).toContain("Occurred at");
+    expect(markup).toContain("Mark current follow-up complete");
+    expect(markup).toContain("Report-worthy");
     expect(markup).toContain("Record outcome");
     expect(markup).toContain("Saved here only. No message will be sent.");
     expect(markup).toContain('aria-expanded="true"');

@@ -8,6 +8,7 @@ type InteractionCommandInput = {
   actorUserId: string;
   channel: string;
   commandType: string;
+  completeCurrentFollowUp: boolean;
   consentState: string;
   correlationId: string;
   customerId: string;
@@ -19,7 +20,12 @@ type InteractionCommandInput = {
   occurredAt: Date;
   organizationId: string;
   outcome: string | null;
+  relatedDealId: string | null;
+  relatedRepairOrderId: string | null;
+  relatedStaffMemberId: string | null;
+  relatedVehicleId: string | null;
   reason: string;
+  reportWorthy: boolean;
   requestHash: string;
   summary: string;
 };
@@ -49,6 +55,7 @@ export type UnifiedCrmCustomerInteractionRepository = {
   }): Promise<{
     customerId: string;
     duplicate: boolean;
+    followUpCompleted: boolean;
     interactionId: string;
     nextActionAt: Date | null;
     occurredAt: Date;
@@ -127,6 +134,7 @@ export function createUnifiedCrmCustomerInteractionRepository(
           }
           const snapshot = existing.resultSnapshot as {
             customerId: string;
+            followUpCompleted?: boolean;
             interactionId: string;
             nextActionAt: string | null;
             occurredAt: string;
@@ -142,6 +150,7 @@ export function createUnifiedCrmCustomerInteractionRepository(
           return {
             customerId: snapshot.customerId,
             duplicate: true,
+            followUpCompleted: snapshot.followUpCompleted === true,
             interactionId: snapshot.interactionId,
             nextActionAt: snapshot.nextActionAt ? new Date(snapshot.nextActionAt) : null,
             occurredAt: new Date(snapshot.occurredAt),
@@ -166,7 +175,8 @@ export function createUnifiedCrmCustomerInteractionRepository(
         const nextLastInteractionAt = customer.lastInteractionAt && customer.lastInteractionAt.getTime() > input.command.occurredAt.getTime()
           ? customer.lastInteractionAt
           : input.command.occurredAt;
-        const nextActionAt = input.command.nextActionAt ?? customer.nextActionAt;
+        const followUpCompleted = input.command.completeCurrentFollowUp && Boolean(customer.nextActionAt);
+        const nextActionAt = input.command.completeCurrentFollowUp ? null : input.command.nextActionAt ?? customer.nextActionAt;
 
         await tx.customer.update({
           where: { id: customer.id },
@@ -206,6 +216,7 @@ export function createUnifiedCrmCustomerInteractionRepository(
 
         const resultSnapshot = {
           customerId: customer.id,
+          followUpCompleted,
           interactionId: interaction.id,
           occurredAt: input.command.occurredAt.toISOString(),
           nextActionAt: nextActionAt?.toISOString() ?? null
@@ -246,6 +257,12 @@ export function createUnifiedCrmCustomerInteractionRepository(
               direction: input.command.direction,
               interactionId: interaction.id,
               occurredAt: input.command.occurredAt.toISOString(),
+              relatedDealId: input.command.relatedDealId,
+              relatedRepairOrderId: input.command.relatedRepairOrderId,
+              relatedStaffMemberId: input.command.relatedStaffMemberId,
+              relatedVehicleId: input.command.relatedVehicleId,
+              reportWorthy: input.command.reportWorthy,
+              followUpCompleted,
               reason: input.command.reason
             })
           }
@@ -262,7 +279,14 @@ export function createUnifiedCrmCustomerInteractionRepository(
             eventType,
             reason: input.command.reason,
             newValue: json(resultSnapshot),
-            metadata: json({ requestHash: input.command.requestHash }),
+            metadata: json({
+              relatedDealId: input.command.relatedDealId,
+              relatedRepairOrderId: input.command.relatedRepairOrderId,
+              relatedStaffMemberId: input.command.relatedStaffMemberId,
+              relatedVehicleId: input.command.relatedVehicleId,
+              reportWorthy: input.command.reportWorthy,
+              requestHash: input.command.requestHash
+            }),
             correlationId: input.command.correlationId
           }
         });
@@ -286,6 +310,7 @@ export function createUnifiedCrmCustomerInteractionRepository(
         return {
           customerId: customer.id,
           duplicate: false,
+          followUpCompleted,
           interactionId: interaction.id,
           nextActionAt,
           occurredAt: input.command.occurredAt,

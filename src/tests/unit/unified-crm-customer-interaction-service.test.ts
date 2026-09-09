@@ -15,7 +15,7 @@ const manager: AuthenticatedUser = {
   duties: { direct: [], roleDefaults: [], all: [] }
 };
 
-function repository(result = { customerId: "customer-1", duplicate: false, interactionId: "interaction-1", occurredAt: new Date("2026-08-14T15:00:00.000Z"), nextActionAt: new Date("2026-08-15T15:00:00.000Z"), version: 1 }) {
+function repository(result = { customerId: "customer-1", duplicate: false, followUpCompleted: false, interactionId: "interaction-1", occurredAt: new Date("2026-08-14T15:00:00.000Z"), nextActionAt: new Date("2026-08-15T15:00:00.000Z"), version: 1 }) {
   const received: unknown[] = [];
   const repo: UnifiedCrmCustomerInteractionRepository = {
     async createInteraction(input) {
@@ -52,7 +52,8 @@ describe("Unified CRM customer interaction command", () => {
         consentState: "CONFIRMED",
         customerId: "customer-1",
         direction: "OUTBOUND",
-        organizationId: "org-a"
+        organizationId: "org-a",
+        reportWorthy: false
       }
     });
     expect(result).toMatchObject({
@@ -61,6 +62,72 @@ describe("Unified CRM customer interaction command", () => {
       duplicate: false,
       interactionId: "interaction-1"
     });
+  });
+
+  it("records internal notes and manual communication context without requiring outbound consent", async () => {
+    const source = repository({
+      customerId: "customer-1",
+      duplicate: false,
+      followUpCompleted: true,
+      interactionId: "interaction-note",
+      occurredAt: new Date("2026-08-14T16:00:00.000Z"),
+      nextActionAt: null,
+      version: 2
+    });
+    const result = await logUnifiedCrmCustomerInteraction(manager, "customer-1", {
+      channel: "internal_note",
+      completeCurrentFollowUp: true,
+      consentState: "not_required",
+      direction: "internal",
+      idempotencyKey: "interaction-note",
+      occurredAt: "2026-08-14T16:00:00.000Z",
+      relatedRepairOrderId: "RO-1001",
+      relatedStaffMemberId: "staff-1",
+      reportWorthy: true,
+      summary: "Customer called back and the promised follow-up is complete."
+    }, {
+      readMode: "REVIEW",
+      repository: source.repo,
+      scopeRepository: { async listActiveOrganizationIds() { return ["org-a"]; } }
+    });
+
+    expect(source.received[0]).toMatchObject({
+      command: {
+        channel: "INTERNAL_NOTE",
+        completeCurrentFollowUp: true,
+        direction: "INTERNAL",
+        relatedRepairOrderId: "RO-1001",
+        relatedStaffMemberId: "staff-1",
+        reportWorthy: true
+      }
+    });
+    expect(result).toMatchObject({
+      followUpCompleted: true,
+      interactionId: "interaction-note",
+      nextActionAt: null
+    });
+  });
+
+  it("requires staff to either complete the current follow-up or schedule a new one", async () => {
+    const source = repository();
+    const listActiveOrganizationIds = vi.fn();
+    await expect(logUnifiedCrmCustomerInteraction(manager, "customer-1", {
+      channel: "phone",
+      completeCurrentFollowUp: true,
+      consentState: "confirmed",
+      direction: "outbound",
+      idempotencyKey: "interaction-conflicting-follow-up",
+      nextActionAt: "2026-08-15T15:00:00.000Z",
+      occurredAt: "2026-08-14T15:00:00.000Z",
+      summary: "Reached customer."
+    }, {
+      readMode: "REVIEW",
+      repository: source.repo,
+      scopeRepository: { listActiveOrganizationIds }
+    })).rejects.toMatchObject({ code: "INVALID_INTERACTION_COMMAND" });
+
+    expect(listActiveOrganizationIds).not.toHaveBeenCalled();
+    expect(source.received).toEqual([]);
   });
 
   it("rejects outbound contact when consent is not confirmed", async () => {
@@ -124,6 +191,7 @@ describe("Unified CRM customer interaction command", () => {
     const source = repository({
       customerId: "customer-1",
       duplicate: true,
+      followUpCompleted: false,
       interactionId: "interaction-1",
       occurredAt: new Date("2026-08-14T15:00:00.000Z"),
       nextActionAt: null,

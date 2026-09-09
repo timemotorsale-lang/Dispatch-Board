@@ -72,6 +72,9 @@
 .interactionForm textarea { resize: vertical; }
 .interactionForm input:focus-visible,.interactionForm select:focus-visible,.interactionForm textarea:focus-visible { outline: 3px solid rgb(23 98 207 / 15%); border-color: var(--crm360-blue); }
 .interactionWide { grid-column: 1 / -1; }
+.interactionCheckbox { grid-template-columns: 18px minmax(0,1fr); align-items: center; align-content: center; min-height: 40px; border: 1px solid var(--crm360-border); border-radius: 7px; padding: 8px 10px; background: #f8fbff; }
+.interactionCheckbox input { width: 16px; min-width: 16px; height: 16px; padding: 0; }
+.interactionCheckbox span { color: var(--crm360-text) !important; font-size: 11px !important; }
 .interactionActions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .interactionActionNote { color: var(--crm360-muted); font-size: 10px; line-height: 1.45; }
 .formError,.formSuccess { margin: 0; padding: 0 14px 12px; font-size: 10.5px; line-height: 1.45; }

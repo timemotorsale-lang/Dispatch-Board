@@ -30,8 +30,8 @@ type Dependencies = UnifiedCrmCustomerInteractionAccessOptions & {
   scopeRepository?: Pick<UnifiedCrmCustomerReadRepository, "listActiveOrganizationIds">;
 };
 
-const CHANNELS = ["PHONE", "TEXT", "EMAIL", "MEETING", "VISIT"] as const;
-const DIRECTIONS = ["INBOUND", "OUTBOUND"] as const;
+const CHANNELS = ["PHONE", "TEXT", "EMAIL", "MEETING", "VISIT", "INTERNAL_NOTE"] as const;
+const DIRECTIONS = ["INBOUND", "OUTBOUND", "INTERNAL"] as const;
 const CONSENT_STATES = ["NOT_REQUIRED", "CONFIRMED", "UNKNOWN"] as const;
 
 function normalizeCustomerId(value: unknown) {
@@ -74,24 +74,40 @@ function timestamp(value: unknown, field: string, fallback?: Date) {
   return result;
 }
 
+function flag(value: unknown) {
+  return value === true || value === "true" || value === "on";
+}
+
 function normalizeCommand(value: UnifiedCrmCustomerInteractionCommandInput, now: Date): UnifiedCrmCustomerInteractionCommand {
   const channel = enumValue(value.channel, "Channel", CHANNELS) as UnifiedCrmCustomerInteractionChannel;
   const direction = enumValue(value.direction, "Direction", DIRECTIONS) as UnifiedCrmCustomerInteractionDirection;
   const consentState = enumValue(value.consentState, "Consent state", CONSENT_STATES) as UnifiedCrmCustomerInteractionConsentState;
   const occurredAt = timestamp(value.occurredAt, "Occurred time", now);
   const nextActionAt = value.nextActionAt == null || value.nextActionAt === "" ? null : timestamp(value.nextActionAt, "Next action time");
+  const completeCurrentFollowUp = flag(value.completeCurrentFollowUp);
   if (nextActionAt && nextActionAt.getTime() < occurredAt.getTime()) {
     throw new UnifiedCrmCustomerInteractionError("INVALID_INTERACTION_COMMAND", "Next action time must be at or after the interaction time.");
+  }
+  if (completeCurrentFollowUp && nextActionAt) {
+    throw new UnifiedCrmCustomerInteractionError("INVALID_INTERACTION_COMMAND", "Complete the current follow-up or schedule a new one, not both in the same interaction.");
   }
   const summary = text(value.summary, "Summary", 500)!;
   const outcome = text(value.outcome, "Outcome", 120, false);
   const nextStep = text(value.nextStep, "Next step", 240, false);
   const idempotencyKey = text(value.idempotencyKey, "Idempotency key", 200)!;
+  const relatedDealId = text(value.relatedDealId, "Related deal", 200, false);
+  const relatedRepairOrderId = text(value.relatedRepairOrderId, "Related repair order", 200, false);
+  const relatedStaffMemberId = text(value.relatedStaffMemberId, "Related staff member", 200, false);
+  const relatedVehicleId = text(value.relatedVehicleId, "Related vehicle", 200, false);
   if (direction === "OUTBOUND" && (channel === "PHONE" || channel === "TEXT" || channel === "EMAIL") && consentState !== "CONFIRMED") {
     throw new UnifiedCrmCustomerInteractionError("OUTBOUND_CONSENT_REQUIRED", "Outbound contact requires a confirmed consent state.");
   }
+  if (channel === "INTERNAL_NOTE" && direction !== "INTERNAL") {
+    throw new UnifiedCrmCustomerInteractionError("INVALID_INTERACTION_COMMAND", "Internal notes must use internal direction.");
+  }
   return {
     channel,
+    completeCurrentFollowUp,
     consentState,
     direction,
     idempotencyKey,
@@ -99,6 +115,11 @@ function normalizeCommand(value: UnifiedCrmCustomerInteractionCommandInput, now:
     nextStep,
     occurredAt,
     outcome,
+    relatedDealId,
+    relatedRepairOrderId,
+    relatedStaffMemberId,
+    relatedVehicleId,
+    reportWorthy: flag(value.reportWorthy),
     summary
   };
 }
@@ -141,6 +162,12 @@ export async function logUnifiedCrmCustomerInteraction(
         nextStep: command.nextStep,
         occurredAt: command.occurredAt.toISOString(),
         outcome: command.outcome,
+        relatedDealId: command.relatedDealId,
+        relatedRepairOrderId: command.relatedRepairOrderId,
+        relatedStaffMemberId: command.relatedStaffMemberId,
+        relatedVehicleId: command.relatedVehicleId,
+        reportWorthy: command.reportWorthy,
+        followUpCompleted: command.completeCurrentFollowUp,
         summary: command.summary
       },
       reason: `Record customer interaction: ${command.summary}`,
@@ -153,6 +180,7 @@ export async function logUnifiedCrmCustomerInteraction(
         actorUserId: actor!.id,
         channel: command.channel,
         commandType: normalized.commandType,
+        completeCurrentFollowUp: command.completeCurrentFollowUp,
         consentState: command.consentState,
         correlationId: normalized.correlationId,
         customerId: normalizedCustomerId,
@@ -164,7 +192,12 @@ export async function logUnifiedCrmCustomerInteraction(
         occurredAt: command.occurredAt,
         organizationId,
         outcome: command.outcome,
+        relatedDealId: command.relatedDealId,
+        relatedRepairOrderId: command.relatedRepairOrderId,
+        relatedStaffMemberId: command.relatedStaffMemberId,
+        relatedVehicleId: command.relatedVehicleId,
         reason: normalized.reason,
+        reportWorthy: command.reportWorthy,
         requestHash: normalized.requestHash,
         summary: command.summary
       },
@@ -175,6 +208,7 @@ export async function logUnifiedCrmCustomerInteraction(
       contractVersion: UNIFIED_CRM_CUSTOMER_INTERACTION_CONTRACT_VERSION,
       customerId: result.customerId,
       duplicate: result.duplicate,
+      followUpCompleted: result.followUpCompleted,
       interactionId: result.interactionId,
       occurredAt: result.occurredAt.toISOString(),
       nextActionAt: result.nextActionAt?.toISOString() ?? null,
