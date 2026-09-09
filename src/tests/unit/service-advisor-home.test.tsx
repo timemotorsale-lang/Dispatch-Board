@@ -775,6 +775,16 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("Daily workflow");
     expect(html).toContain("Work The Day");
     expect(html).toContain("End The Day");
+    expect(html).toContain("Staff Execution Home");
+    expect(html).toContain("Open the next thing, update what changed, ask for help, or close the day without hunting through the workbook.");
+    expect(html).toContain("Due Next");
+    expect(html).toContain("Needs Help");
+    expect(html).toContain("Recently Updated");
+    expect(html).toContain("Open work");
+    expect(html).toContain("Add update");
+    expect(html).toContain("Ask for help");
+    expect(html).toContain("Set follow-up");
+    expect(html).toContain("Attach photo/document");
     expect(html).toContain("Resolve today, protect tomorrow, review the evidence, and close with an explicit approval.");
     expect(html).toContain("Review today’s results");
     expect(html).toContain("Protect tomorrow");

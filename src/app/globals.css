@@ -23339,6 +23339,29 @@ html[data-app-theme="dark"] :where(.rowb-daily-command,.rowb-daily-status div,.r
 .advisor-coo-workflow-guide nav strong,.advisor-coo-workflow-guide nav small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .advisor-coo-workflow-guide nav strong{font-size:12.5px}
 .advisor-coo-workflow-guide nav small{color:#60728a;font-size:11px}
+.advisor-staff-execution-home{display:grid;gap:12px;border:1px solid #cddbed;border-radius:10px;padding:14px;background:#fff;box-shadow:0 12px 28px rgba(18,45,80,.045)}
+.advisor-staff-execution-home>header{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;border-bottom:1px solid #e7edf5;padding-bottom:10px}
+.advisor-staff-execution-home>header div{display:grid;gap:3px;min-width:0}
+.advisor-staff-execution-home>header strong{color:#091f3f;font-size:16px}
+.advisor-staff-execution-home>header small{color:#60728a;font-size:12px;line-height:1.35}
+.advisor-staff-execution-home>header span{border-radius:999px;padding:5px 8px;color:#075ed8;background:#eaf4ff;font-size:11px;font-weight:900;white-space:nowrap}
+.advisor-staff-execution-home>div{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.advisor-staff-execution-home>div a{display:grid;grid-template-columns:34px minmax(0,1fr);align-items:start;gap:8px;min-height:110px;border:1px solid #e1e9f2;border-left:4px solid #2878c8;border-radius:9px;padding:10px;color:#142944;background:#fbfdff;text-decoration:none}
+.advisor-staff-execution-home>div a:hover{border-color:#8db7ea;background:#f8fbff}
+.advisor-staff-execution-home>div a.green{border-left-color:#178850;background:#f5fcf7}
+.advisor-staff-execution-home>div a.yellow{border-left-color:#c48a13;background:#fffaf0}
+.advisor-staff-execution-home>div a.red{border-left-color:#c63637;background:#fff7f7}
+.advisor-staff-execution-home>div svg{width:34px;height:34px;border-radius:9px;padding:8px;color:#075ed8;background:#eef6ff}
+.advisor-staff-execution-home>div a.green svg{color:#178850;background:#eaf8ef}
+.advisor-staff-execution-home>div a.yellow svg{color:#9a6508;background:#fff2d9}
+.advisor-staff-execution-home>div a.red svg{color:#a4262c;background:#fff0f1}
+.advisor-staff-execution-home>div span{display:grid;gap:3px;min-width:0}
+.advisor-staff-execution-home>div small{color:#315bdc;font-size:10.5px;font-weight:950;text-transform:uppercase}
+.advisor-staff-execution-home>div strong{overflow:hidden;color:#091f3f;font-size:12.5px;line-height:1.25;text-overflow:ellipsis;white-space:nowrap}
+.advisor-staff-execution-home>div em{display:-webkit-box;overflow:hidden;color:#60728a;font-size:11.5px;font-style:normal;line-height:1.35;-webkit-box-orient:vertical;-webkit-line-clamp:3}
+.advisor-staff-execution-home>footer{display:flex;flex-wrap:wrap;gap:7px;border-top:1px solid #e7edf5;padding-top:10px}
+.advisor-staff-execution-home>footer a{display:inline-flex;align-items:center;justify-content:center;min-height:30px;border:1px solid #d5e0ef;border-radius:8px;padding:0 10px;background:#f4f8ff;color:#315bdc;font-size:11.5px;font-weight:900;text-decoration:none}
+.advisor-staff-execution-home>footer a:hover{border-color:#8db7ea;background:#eef6ff}
 .advisor-coo-command-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
 .advisor-coo-command-strip article,.advisor-coo-command-strip button{display:grid;grid-template-columns:42px minmax(0,1fr);grid-template-rows:auto auto auto;align-items:center;gap:2px 10px;min-height:96px;border:1px solid #d5e0ec;border-radius:10px;padding:12px 14px;background:#fff;box-shadow:0 12px 28px rgba(18,45,80,.045)}
 .advisor-coo-command-strip button{width:100%;color:inherit;font:inherit;text-align:left;cursor:pointer}
@@ -23489,8 +23512,8 @@ html[data-app-theme="dark"] :where(.rowb-daily-command,.rowb-daily-status div,.r
 .advisor-coo-landing-status{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid #d5e0ec;border-radius:10px;padding:10px 12px;color:#536980;background:#fff;font-size:12px;font-weight:850}
 .advisor-coo-landing-status span{display:inline-flex;align-items:center;gap:7px}
 .advisor-coo-landing-status svg{width:16px;color:#178850}
-@media(max-width:1100px){.advisor-coo-landing-header,.advisor-coo-landing-grid,.advisor-coo-close-day,.advisor-coo-workflow-guide{grid-template-columns:1fr}.advisor-coo-command-strip,.advisor-coo-close-flow,.advisor-coo-close-preview{grid-template-columns:repeat(2,minmax(0,1fr))}.advisor-coo-landing-header .advisor-coo-header-actions{justify-content:flex-start}.advisor-coo-close-day>button,.advisor-coo-more-tools-link{min-height:42px;width:max-content}}
-@media(max-width:720px){.advisor-coo-landing.full{padding:14px 12px 22px}.advisor-coo-command-strip,.advisor-coo-tool-grid,.advisor-coo-close-flow,.advisor-coo-close-preview,.advisor-coo-more-tools-page>div,.advisor-coo-workflow-guide nav,.advisor-coo-search-results{grid-template-columns:1fr}.advisor-coo-workflow-guide article{grid-template-columns:1fr}.advisor-coo-workflow-guide article a,.advisor-coo-workflow-guide article button{grid-row:auto;grid-column:auto;width:max-content}.advisor-coo-attention-now a,.advisor-coo-other-attention>a{grid-template-columns:30px minmax(0,1fr)}.advisor-coo-attention-now em,.advisor-coo-other-attention em{grid-column:2;width:max-content}.advisor-coo-related-attention,.advisor-coo-execution-actions{margin-left:0}.advisor-coo-related-attention a{grid-template-columns:1fr}.advisor-coo-close-day>header{display:grid}.advisor-coo-landing-status{align-items:flex-start;flex-direction:column}.advisor-coo-landing-header strong{font-size:20px}.advisor-coo-landing-header .advisor-coo-header-actions{flex-wrap:wrap}}
+@media(max-width:1100px){.advisor-coo-landing-header,.advisor-coo-landing-grid,.advisor-coo-close-day,.advisor-coo-workflow-guide{grid-template-columns:1fr}.advisor-staff-execution-home>div{grid-template-columns:repeat(2,minmax(0,1fr))}.advisor-coo-command-strip,.advisor-coo-close-flow,.advisor-coo-close-preview{grid-template-columns:repeat(2,minmax(0,1fr))}.advisor-coo-landing-header .advisor-coo-header-actions{justify-content:flex-start}.advisor-coo-close-day>button,.advisor-coo-more-tools-link{min-height:42px;width:max-content}}
+@media(max-width:720px){.advisor-coo-landing.full{padding:14px 12px 22px}.advisor-coo-command-strip,.advisor-coo-tool-grid,.advisor-coo-close-flow,.advisor-coo-close-preview,.advisor-coo-more-tools-page>div,.advisor-coo-workflow-guide nav,.advisor-coo-search-results,.advisor-staff-execution-home>div{grid-template-columns:1fr}.advisor-coo-workflow-guide article{grid-template-columns:1fr}.advisor-coo-workflow-guide article a,.advisor-coo-workflow-guide article button{grid-row:auto;grid-column:auto;width:max-content}.advisor-coo-attention-now a,.advisor-coo-other-attention>a{grid-template-columns:30px minmax(0,1fr)}.advisor-coo-attention-now em,.advisor-coo-other-attention em{grid-column:2;width:max-content}.advisor-coo-related-attention,.advisor-coo-execution-actions{margin-left:0}.advisor-coo-related-attention a{grid-template-columns:1fr}.advisor-coo-close-day>header,.advisor-staff-execution-home>header{display:grid}.advisor-coo-landing-status{align-items:flex-start;flex-direction:column}.advisor-coo-landing-header strong{font-size:20px}.advisor-coo-landing-header .advisor-coo-header-actions{flex-wrap:wrap}}
 .app-content:has(.advisor-coo-effectiveness.full){padding:0;background:#f4f7fb}
 .advisor-coo-effectiveness.full{display:grid;gap:14px;max-width:1460px;margin:0 auto;padding:22px 24px 28px;color:#10233f;background:#f4f7fb;box-shadow:none}
 .advisor-coo-effectiveness .advisor-coo-landing-header{grid-template-columns:minmax(280px,1fr) auto auto}

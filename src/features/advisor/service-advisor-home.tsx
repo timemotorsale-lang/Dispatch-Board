@@ -261,6 +261,7 @@ type MoreToolCard = { description: string; href: string; icon: typeof ClipboardC
 type WorkflowPhaseKey = "START" | "WORK" | "END";
 type WorkflowPhaseAction = { detail: string; href: string; icon: typeof ClipboardCheck; key: WorkflowPhaseKey; onSelect?: never; title: string } | { detail: string; href?: never; icon: typeof ClipboardCheck; key: WorkflowPhaseKey; onSelect: () => void; title: string };
 type ContextRecommendation = { description: string; href: string; onSelect?: never; phase: WorkflowPhaseKey; title: string } | { description: string; href?: never; onSelect: () => void; phase: WorkflowPhaseKey; title: string };
+type StaffExecutionCard = { action: string; detail: string; href: string; icon: typeof ClipboardCheck; title: string; tone: "blue" | "green" | "red" | "yellow" };
 type WorkbookResumeSource = "checklist" | "quick" | "focus" | "reportSeed";
 type WorkbookSearchResume = {
   boardDate?: string;
@@ -1118,6 +1119,68 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
       icon: FileText,
       key: "END" as const,
       title: isClosed ? "Day Closed" : "End The Day"
+    }
+  ];
+  const primaryExecutionFocus = executionFocusItems.find((item) => item.status !== "DONE" && item.status !== "CARRY_OVER") ?? executionFocusItems[0] ?? null;
+  const primaryExecutionSource = primaryExecutionFocus ? dailyFocusSource(primaryExecutionFocus) : null;
+  const primaryExecutionTone = primaryExecutionFocus
+    ? primaryExecutionFocus.status === "DONE"
+      ? "green"
+      : primaryExecutionFocus.riskLevel === "BLOCKED" || isCloseWindow
+        ? "red"
+        : primaryExecutionFocus.status === "CARRY_OVER" || primaryExecutionFocus.riskLevel === "WATCH" || primaryExecutionFocus.priority === "HIGH" || primaryExecutionFocus.priority === "CRITICAL"
+          ? "yellow"
+          : "blue"
+    : "blue";
+  const staffExecutionHomeCards: StaffExecutionCard[] = [
+    primaryExecutionFocus
+      ? {
+        action: "Open work",
+        detail: primaryExecutionFocus.progressUpdate || primaryExecutionFocus.supportNeeded || primaryExecutionFocus.riskNote || `${primaryExecutionFocus.priority.toLocaleLowerCase()} priority · ${primaryExecutionFocus.mustCloseToday ? "must close today" : "flexible"}`,
+        href: primaryExecutionSource?.href ?? "/vehicles/coo-workbook/effectiveness-pilot#start-the-day",
+        icon: ClipboardCheck,
+        title: primaryExecutionFocus.outcome,
+        tone: primaryExecutionTone
+      }
+      : {
+        action: "Plan today",
+        detail: "Pick the work that must be handled today before the day gets busy.",
+        href: "/vehicles/coo-workbook/effectiveness-pilot#start-the-day",
+        icon: ClipboardCheck,
+        title: "Choose today’s focus",
+        tone: "blue"
+      },
+    {
+      action: quickUpdateRollup.followUp ? "Set follow-up" : "Open work list",
+      detail: quickUpdateRollup.followUp ? `${quickUpdateRollup.followUp} follow-up item(s) need owner/date clarity.` : `${todayWorkRollup.total} planned item(s), ${todayWorkRollup.done} done.`,
+      href: quickUpdateRollup.followUp ? "/vehicles/coo-workbook/quick-update" : "/vehicles/coo-workbook/action-plan",
+      icon: CalendarClock,
+      title: "Due Next",
+      tone: quickUpdateRollup.followUp ? "yellow" : "blue"
+    },
+    {
+      action: supportSignals ? "Ask for help" : "Open support",
+      detail: supportSignals ? `${supportSignals} blocker, risk, or follow-up signal(s) may slow the day down.` : "No active support request is blocking the current workbook.",
+      href: "/vehicles/coo-workbook/staff-support",
+      icon: AlertTriangle,
+      title: "Needs Help",
+      tone: supportSignals ? "red" : "green"
+    },
+    {
+      action: "Add update",
+      detail: quickUpdates[0]?.text ?? "Capture what changed, what happened, and what should happen next.",
+      href: "/vehicles/coo-workbook/quick-update",
+      icon: MessageSquareText,
+      title: "Recently Updated",
+      tone: quickUpdates.length ? "blue" : "green"
+    },
+    {
+      action: isClosed ? "Review report" : "Close day",
+      detail: isClosed ? `${protectedCarryoverCount} carryover item(s) protected for tomorrow.` : `${unresolvedEndDayCount} item(s) need a Done or Carry decision.`,
+      href: isClosed ? "/vehicles/coo-workbook/drafts" : "#close-report",
+      icon: FileText,
+      title: "End The Day",
+      tone: isClosed || endDayReadyForApproval ? "green" : unresolvedEndDayCount ? "yellow" : "blue"
     }
   ];
 
@@ -2321,6 +2384,36 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
           return "href" in phase ? <Link aria-current={contextRecommendation.phase === phase.key ? "step" : undefined} href={scopedWorkbookHref(phase.href!)} key={phase.key}>{content}</Link> : <button aria-current={contextRecommendation.phase === phase.key ? "step" : undefined} key={phase.key} onClick={phase.onSelect} type="button">{content}</button>;
         })}
       </nav>
+    </section>
+
+    <section className="advisor-staff-execution-home" aria-label="Staff Execution Home">
+      <header>
+        <div>
+          <strong>Staff Execution Home</strong>
+          <small>Open the next thing, update what changed, ask for help, or close the day without hunting through the workbook.</small>
+        </div>
+        <span>{todayWorkRollup.total} active</span>
+      </header>
+      <div>
+        {staffExecutionHomeCards.map((card) => {
+          const Icon = card.icon;
+          return <Link className={card.tone} href={scopedWorkbookHref(card.href)} key={card.title}>
+            <Icon />
+            <span>
+              <small>{card.action}</small>
+              <strong>{card.title}</strong>
+              <em>{card.detail}</em>
+            </span>
+          </Link>;
+        })}
+      </div>
+      <footer>
+        <Link href={scopedWorkbookHref("/vehicles/coo-workbook/quick-update")}>Add update</Link>
+        <Link href={scopedWorkbookHref("/vehicles/coo-workbook/staff-support")}>Ask for help</Link>
+        <Link href={scopedWorkbookHref("/vehicles/coo-workbook/quick-update")}>Set follow-up</Link>
+        <Link href={scopedWorkbookHref("/vehicles/coo-workbook/carryover")}>Carry over</Link>
+        <Link href={scopedWorkbookHref("/vehicles/coo-workbook/purchase-appraisal-capture")}>Attach photo/document</Link>
+      </footer>
     </section>
 
     <section className="advisor-coo-command-strip" aria-label="Today's Command" role="tablist">
