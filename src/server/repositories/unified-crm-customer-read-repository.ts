@@ -10,6 +10,7 @@ import type {
 
 const customerListSelect = {
   id: true,
+  duplicateKey: true,
   customerNumber: true,
   displayName: true,
   phoneNumber: true,

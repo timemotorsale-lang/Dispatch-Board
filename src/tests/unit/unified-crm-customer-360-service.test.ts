@@ -206,6 +206,10 @@ function dependencies(value: UnifiedCrmCustomer360Record | null, organizations =
       received.push(input);
       return value;
     },
+    async getCustomerVersion(input) {
+      received.push({ customerVersionFor: input });
+      return 7;
+    },
     async listOpportunityDispatchLinks(input) {
       received.push({ dispatchLinksFor: input });
       return value
@@ -256,6 +260,9 @@ describe("Unified CRM Customer 360 service", () => {
         observedAt: now.toISOString(),
         sourceRecordUpdatedAt: "2026-08-14T12:00:00.000Z"
       },
+      lifecycle: {
+        version: 7
+      },
       contacts: [
         { type: "PHONE", maskedValue: "••••1234", source: "CONTACT_POINT" },
         { type: "EMAIL", maskedValue: "m•••@e•••.com", source: "CONTACT_POINT" }
@@ -265,6 +272,7 @@ describe("Unified CRM Customer 360 service", () => {
         canLogInteraction: true,
         canCreateNote: true,
         canCreateGovernedTask: true,
+        canEditCustomerDetails: true,
         canManageNextAction: true,
         canCreateRestrictedNote: false
       },

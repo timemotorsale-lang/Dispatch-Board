@@ -4,6 +4,7 @@ export const UNIFIED_CRM_CUSTOMER_CONTROLLED_EDIT_ERROR_CONTRACT_VERSION =
   "ucrm.customer-controlled-edit-error/v1" as const;
 
 export type UnifiedCrmCustomerControlledEditInput = {
+  address?: unknown;
   displayName?: unknown;
   email?: unknown;
   expectedVersion?: unknown;
@@ -14,6 +15,7 @@ export type UnifiedCrmCustomerControlledEditInput = {
 };
 
 export type UnifiedCrmCustomerControlledEditCommand = {
+  address?: string | null;
   displayName?: string;
   email?: string | null;
   expectedVersion: number;

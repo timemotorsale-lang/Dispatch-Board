@@ -18,7 +18,7 @@ function scopeRepository(organizationIds = ["org-1"]) {
   return { listActiveOrganizationIds: vi.fn(async () => organizationIds) };
 }
 
-function repository(result = { changedFields: ["displayName", "email", "phoneNumber"], customerId: "customer-1", duplicate: false, version: 4 }) {
+function repository(result = { changedFields: ["address", "displayName", "email", "phoneNumber"], customerId: "customer-1", duplicate: false, version: 4 }) {
   return { updateCustomer: vi.fn(async () => result) };
 }
 
@@ -26,6 +26,7 @@ describe("Unified CRM customer controlled edit", () => {
   it("normalizes approved customer/contact edits and records them through the repository", async () => {
     const repo = repository();
     const result = await updateUnifiedCrmCustomerControlledEdit(manager, " customer-1 ", {
+      address: "  123 Main St, Minneapolis, MN 55407 ",
       displayName: "  Maria Lane ",
       email: " MARIA@EXAMPLE.TEST ",
       expectedVersion: 3,
@@ -39,7 +40,7 @@ describe("Unified CRM customer controlled edit", () => {
     });
 
     expect(result).toEqual({
-      changedFields: ["displayName", "email", "phoneNumber"],
+      changedFields: ["address", "displayName", "email", "phoneNumber"],
       contractVersion: "ucrm.customer-controlled-edit/v1",
       customerId: "customer-1",
       duplicate: false,
@@ -47,7 +48,8 @@ describe("Unified CRM customer controlled edit", () => {
     });
     expect(repo.updateCustomer).toHaveBeenCalledWith(expect.objectContaining({
       command: expect.objectContaining({
-        changedFields: ["displayName", "email", "phoneNumber"],
+        address: "123 Main St, Minneapolis, MN 55407",
+        changedFields: ["address", "displayName", "email", "phoneNumber"],
         customerId: "customer-1",
         email: "maria@example.test",
         expectedVersion: 3,

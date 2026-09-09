@@ -33,9 +33,14 @@ export type UnifiedCrmCustomerListItem = {
   id: string;
   displayName: string;
   customerNumber: string;
+  contactCompleteness: "complete" | "partial" | "missing";
+  duplicateRisk: boolean;
+  hasNextAction: boolean;
   maskedPhone: string;
   maskedEmail: string;
   ownerName: string;
+  preferredContactMethod: string | null;
+  sourceCode: string | null;
   status: "active" | "inactive" | "retired";
   lastInteractionAt: string | null;
   nextActionAt: string | null;

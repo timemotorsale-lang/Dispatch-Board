@@ -6,6 +6,7 @@ import type { UnifiedCrmCustomerRecordScope } from "@/server/policies/unified-cr
 
 type ControlledEditCommandInput = {
   actorUserId: string;
+  address?: string | null;
   changedFields: string[];
   commandType: string;
   correlationId: string;
@@ -115,6 +116,7 @@ export function createUnifiedCrmCustomerControlledEditRepository(
         await tx.customer.update({
           where: { id: customer.id },
           data: {
+            ...(input.command.address !== undefined ? { address: input.command.address } : {}),
             ...(input.command.displayName !== undefined ? { displayName: input.command.displayName } : {}),
             ...(input.command.email !== undefined ? { email: input.command.email } : {}),
             ...(input.command.phoneNumber !== undefined ? { phoneNumber: input.command.phoneNumber } : {}),

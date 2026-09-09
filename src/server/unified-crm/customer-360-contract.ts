@@ -174,6 +174,9 @@ export type UnifiedCrmCustomer360ReadModel = {
     customerSince: string;
   };
   owner: { id: string; name: string } | null;
+  lifecycle: {
+    version: number;
+  };
   contacts: UnifiedCrmCustomer360Contact[];
   preferences: {
     preferredContactMethod: string | null;
@@ -184,6 +187,7 @@ export type UnifiedCrmCustomer360ReadModel = {
     canLogInteraction: boolean;
     canCreateNote: boolean;
     canCreateGovernedTask: boolean;
+    canEditCustomerDetails: boolean;
     canManageNextAction: boolean;
     canCreateRestrictedNote: boolean;
   };

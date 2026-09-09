@@ -16,6 +16,9 @@ import {
   type UnifiedCrmCustomerReadRepository
 } from "@/server/repositories/unified-crm-customer-read-repository";
 import {
+  canUpdateUnifiedCrmCustomerControlledEdit,
+} from "@/server/unified-crm/customer-controlled-edit-access";
+import {
   requireUnifiedCrmCustomer360Access,
   type UnifiedCrmCustomer360AccessOptions
 } from "@/server/unified-crm/customer-360-access";
@@ -47,6 +50,7 @@ import { normalizeUnifiedCrmOpportunityId } from "@/server/validation/unified-cr
 type UnifiedCrmCustomer360Dependencies = UnifiedCrmCustomer360AccessOptions & {
   bridgeMode?: unknown;
   commandMode?: unknown;
+  editCommandMode?: unknown;
   interactionCommandMode?: unknown;
   noteCommandMode?: unknown;
   now?: () => Date;
@@ -455,6 +459,7 @@ export async function getUnifiedCrmCustomer360(
   const timelineRepository = dependencies.timelineRepository ?? createUnifiedCrmCustomerTimelineRepository();
   let organizationIds: string[];
   let record: UnifiedCrmCustomer360Record | null;
+  let customerVersion = 0;
   let opportunityDispatchLinks: UnifiedCrmCustomer360OpportunityDispatchLinkRecord[] = [];
   let opportunityQuoteLinks: UnifiedCrmCustomer360OpportunityQuoteLinkRecord[] = [];
   let timeline;
@@ -476,9 +481,12 @@ export async function getUnifiedCrmCustomer360(
     if (record) {
       const linkRepository = repository as Partial<Pick<
         UnifiedCrmCustomer360Repository,
-        "listOpportunityDispatchLinks" | "listOpportunityQuoteLinks"
+        "getCustomerVersion" | "listOpportunityDispatchLinks" | "listOpportunityQuoteLinks"
       >>;
-      [opportunityDispatchLinks, opportunityQuoteLinks] = await Promise.all([
+      [customerVersion, opportunityDispatchLinks, opportunityQuoteLinks] = await Promise.all([
+        linkRepository.getCustomerVersion
+          ? linkRepository.getCustomerVersion({ customerId, organizationId: organizationIds[0], recordScope })
+          : Promise.resolve(0),
         linkRepository.listOpportunityDispatchLinks
           ? linkRepository.listOpportunityDispatchLinks({ customerId, organizationId: organizationIds[0], recordScope })
           : Promise.resolve([]),
@@ -541,6 +549,12 @@ export async function getUnifiedCrmCustomer360(
     readMode: dependencies.readMode ?? process.env.UNIFIED_CRM_CUSTOMER_READ_MODE,
     shellMode: dependencies.shellMode ?? process.env.UNIFIED_CRM_SHELL_MODE
   });
+  const canEditCustomerDetails = canUpdateUnifiedCrmCustomerControlledEdit(actor, record.ownerUser?.id ?? null, {
+    commandMode: dependencies.editCommandMode ?? process.env.UNIFIED_CRM_CUSTOMER_CONTROLLED_EDIT_MODE,
+    nodeEnv: dependencies.nodeEnv ?? process.env.NODE_ENV,
+    readMode: dependencies.readMode ?? process.env.UNIFIED_CRM_CUSTOMER_READ_MODE,
+    shellMode: dependencies.shellMode ?? process.env.UNIFIED_CRM_SHELL_MODE
+  });
   const timelineView = timelineItems({ model: timeline });
   const newestTimelineItem = timelineView[0]?.occurredAt ?? null;
   const visibility = recordScope.kind === "ORGANIZATION" ? "organization" : "owned";
@@ -579,6 +593,9 @@ export async function getUnifiedCrmCustomer360(
       customerSince: record.createdAt.toISOString()
     },
     owner: record.ownerUser,
+    lifecycle: {
+      version: customerVersion
+    },
     contacts: visibleContacts,
     preferences: {
       preferredContactMethod: record.preferredContactMethod,
@@ -589,6 +606,7 @@ export async function getUnifiedCrmCustomer360(
       canLogInteraction,
       canCreateNote,
       canCreateGovernedTask,
+      canEditCustomerDetails,
       canManageNextAction,
       canCreateRestrictedNote: canViewRestricted
     },

@@ -97,6 +97,9 @@ describe("Unified CRM Customer 360", () => {
     expect(markup).toContain("Do the next safe thing in one click");
     expect(markup).toContain("Live links only · governed actions stay labeled");
     expect(markup).toContain("Log manual outcome");
+    expect(markup).toContain("Edit customer details");
+    expect(markup).toContain("Add or correct source details here");
+    expect(markup).toContain("Save missing details from a Quick Update without leaving Customer 360.");
     expect(markup).toContain("Update next action");
     expect(markup).toContain("Add internal note");
     expect(markup).toContain("Create governed task");
@@ -156,7 +159,7 @@ describe("Unified CRM Customer 360", () => {
     expect(markup).toContain('dateTime="2026-08-14T14:30:00.000Z"');
     expect(markup).toContain('aria-label="Open Customer interactions source for Phone Outbound"');
     expect(markup).toContain("LEAD-101"); expect(markup).toContain("CASE-202"); expect(markup).toContain("changes stay in their source");
-    expect(markup).toContain("manual contact outcomes are recorded here"); expect(markup).toContain("Create governed task"); expect(markup).not.toContain("Edit customer"); expect(markup).not.toContain("New task");
+    expect(markup).toContain("manual contact outcomes are recorded here"); expect(markup).toContain("Create governed task"); expect(markup).not.toContain("New task");
   });
 
   it("surfaces overdue renewal language when the next action has passed", () => {

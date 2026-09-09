@@ -61,6 +61,12 @@ function primaryContact(record: UnifiedCrmCustomerListRecord, type: "PHONE" | "E
     (type === "PHONE" ? record.phoneNumber : record.email);
 }
 
+function contactCompleteness(phone: string | null | undefined, email: string | null | undefined): UnifiedCrmCustomerListItem["contactCompleteness"] {
+  if (phone && email) return "complete";
+  if (phone || email) return "partial";
+  return "missing";
+}
+
 function toItem(record: UnifiedCrmCustomerListRecord): UnifiedCrmCustomerListItem {
   const phone = primaryContact(record, "PHONE");
   const email = primaryContact(record, "EMAIL");
@@ -68,9 +74,14 @@ function toItem(record: UnifiedCrmCustomerListRecord): UnifiedCrmCustomerListIte
     id: record.id,
     displayName: record.displayName,
     customerNumber: record.customerNumber,
+    contactCompleteness: contactCompleteness(phone, email),
+    duplicateRisk: Boolean(record.duplicateKey),
+    hasNextAction: Boolean(record.nextActionAt),
     maskedPhone: phone ? maskedPhone(phone) : "Not recorded",
     maskedEmail: email ? maskedEmail(email) : "Not recorded",
     ownerName: record.ownerUser?.name ?? "Unassigned",
+    preferredContactMethod: record.preferredContactMethod,
+    sourceCode: record.sourceCode,
     status: record.status.toLowerCase() as UnifiedCrmCustomerListItem["status"],
     lastInteractionAt: record.lastInteractionAt?.toISOString() ?? null,
     nextActionAt: record.nextActionAt?.toISOString() ?? null,

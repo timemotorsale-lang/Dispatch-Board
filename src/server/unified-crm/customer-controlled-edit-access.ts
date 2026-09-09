@@ -14,6 +14,29 @@ export type UnifiedCrmCustomerControlledEditAccessOptions = {
   shellMode?: unknown;
 };
 
+export function canUpdateUnifiedCrmCustomerControlledEdit(
+  actor: AuthenticatedUser | null,
+  ownerUserId: string | null | undefined,
+  options: UnifiedCrmCustomerControlledEditAccessOptions = {}
+) {
+  if (!actor?.isActive) return false;
+  if (!evaluateUnifiedCrmCapability(actor, "crm.mutate").allowed) return false;
+
+  const workspace = resolveUnifiedCrmWorkspace(actor);
+  if (!workspace) return false;
+  if (workspace === "SALES" && ownerUserId !== actor.id) return false;
+
+  const shellAccess = resolveUnifiedCrmShellAccess(actor, {
+    nodeEnv: options.nodeEnv,
+    shellMode: options.shellMode
+  });
+  if (!shellAccess.allowed || shellAccess.mode !== "REVIEW") return false;
+  if (resolveUnifiedCrmCustomerReadMode(options) !== "REVIEW") return false;
+  if (resolveUnifiedCrmCustomerControlledEditMode(options) !== "REVIEW") return false;
+
+  return true;
+}
+
 export function resolveUnifiedCrmCustomerControlledEditMode(
   options: Pick<UnifiedCrmCustomerControlledEditAccessOptions, "commandMode" | "nodeEnv"> = {}
 ): UnifiedCrmCustomerControlledEditMode {

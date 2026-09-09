@@ -79,6 +79,7 @@ function normalizePhone(value: string | null | undefined) {
 
 function normalizeCommand(value: UnifiedCrmCustomerControlledEditInput): UnifiedCrmCustomerControlledEditCommand {
   const command = {
+    address: optionalText(value.address, "Address", 500),
     displayName: optionalText(value.displayName, "Display name", 160) ?? undefined,
     email: normalizeEmail(optionalText(value.email, "Email", 254)),
     expectedVersion: normalizeVersion(value.expectedVersion),
@@ -96,6 +97,7 @@ function normalizeCommand(value: UnifiedCrmCustomerControlledEditInput): Unified
 
 function changedFieldNames(command: Omit<UnifiedCrmCustomerControlledEditCommand, "expectedVersion" | "idempotencyKey" | "reason">) {
   return [
+    command.address !== undefined ? "address" : null,
     command.displayName !== undefined ? "displayName" : null,
     command.email !== undefined ? "email" : null,
     command.phoneNumber !== undefined ? "phoneNumber" : null,
@@ -135,6 +137,7 @@ export async function updateUnifiedCrmCustomerControlledEdit(
       locationId: null,
       organizationId,
       payload: {
+        address: normalizedCommand.address,
         changedFields,
         displayName: normalizedCommand.displayName,
         email: normalizedCommand.email,
@@ -148,6 +151,7 @@ export async function updateUnifiedCrmCustomerControlledEdit(
     const result = await repository.updateCustomer({
       command: {
         actorUserId: actor!.id,
+        address: normalizedCommand.address,
         changedFields,
         commandType: command.commandType,
         correlationId: command.correlationId,

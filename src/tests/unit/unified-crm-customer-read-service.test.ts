@@ -25,6 +25,7 @@ const manager: AuthenticatedUser = {
 function record(overrides: Partial<UnifiedCrmCustomerListRecord> = {}): UnifiedCrmCustomerListRecord {
   return {
     id: "customer-a",
+    duplicateKey: null,
     customerNumber: "CUS-001",
     displayName: "Maria Santos",
     phoneNumber: "+16125550000",
@@ -114,7 +115,15 @@ describe("Unified CRM canonical customer read service", () => {
         observedAt: now.toISOString(),
         newestRecordUpdatedAt: "2026-08-14T12:00:00.000Z"
       },
-      items: [{ maskedPhone: "••••1234", maskedEmail: "m•••@e•••.com" }]
+      items: [{
+        contactCompleteness: "complete",
+        duplicateRisk: false,
+        hasNextAction: true,
+        maskedPhone: "••••1234",
+        maskedEmail: "m•••@e•••.com",
+        preferredContactMethod: "PHONE",
+        sourceCode: "CUSTOMERS"
+      }]
     });
     expect(JSON.stringify(result)).not.toContain("+16125551234");
     expect(JSON.stringify(result)).not.toContain("maria@example.com");
@@ -131,6 +140,40 @@ describe("Unified CRM canonical customer read service", () => {
       repository: source
     });
     expect(result.items[0]).toMatchObject({ maskedPhone: "••••0000", maskedEmail: "l•••@e•••.test" });
+  });
+
+  it("surfaces safe operational CRM foundation fields without raw contact leakage", async () => {
+    const source = repository(["org-a"], [record({
+      duplicateKey: "maria-santos",
+      email: null,
+      nextActionAt: null,
+      phoneNumber: null,
+      sourceCode: "WALK_IN",
+      contactPoints: [{
+        id: "phone-primary",
+        type: "PHONE",
+        value: "+16125554321",
+        normalizedValue: "+16125554321",
+        isPrimary: true,
+        updatedAt: new Date("2026-08-14T11:00:00.000Z")
+      }]
+    })]);
+    const result = await getUnifiedCrmCustomerList(manager, {}, {
+      now: () => now,
+      readMode: "REVIEW",
+      repository: source
+    });
+
+    expect(result.items[0]).toMatchObject({
+      contactCompleteness: "partial",
+      duplicateRisk: true,
+      hasNextAction: false,
+      maskedPhone: "••••4321",
+      maskedEmail: "Not recorded",
+      sourceCode: "WALK_IN"
+    });
+    expect(JSON.stringify(result)).not.toContain("+16125554321");
+    expect(JSON.stringify(result)).not.toContain("maria-santos");
   });
 
   it.each([

@@ -10,6 +10,7 @@ import type { UnifiedCrmCustomerOpportunityDiscoveryModel } from "@/server/unifi
 import { buildUnifiedCrmCustomerReturn, withUnifiedCrmOpportunityReturn } from "@/server/unified-crm/opportunity-review-return";
 
 import { UnifiedCrmCustomerInteractionForm } from "./unified-crm-customer-interaction-form";
+import { UnifiedCrmCustomerDetailsForm } from "./unified-crm-customer-details-form";
 import { UnifiedCrmCustomerNextActionForm } from "./unified-crm-customer-next-action-form";
 import { UnifiedCrmCustomerNoteForm } from "./unified-crm-customer-note-form";
 import { UnifiedCrmCustomerTaskBridgeForm } from "./unified-crm-customer-task-bridge-form";
@@ -273,12 +274,14 @@ function OpportunityDiscoveryPrompt({
 
 function QuickActions({
   customerSourceHref,
+  editAvailable,
   nextActionAvailable,
   opportunityDiscovery,
   taskBridgeAvailable,
   taskBridgeHref
 }: {
   customerSourceHref: string;
+  editAvailable: boolean;
   nextActionAvailable: boolean;
   opportunityDiscovery?: UnifiedCrmCustomerOpportunityDiscoveryModel;
   taskBridgeAvailable: boolean;
@@ -299,6 +302,10 @@ function QuickActions({
         <Link className={`${styles.quickActionLink} ${styles.quickActionPrimary}`} href={customerSourceHref}>
           <strong>Open existing customer record</strong>
           <small>Go straight to the governed source-of-truth record.</small>
+        </Link>
+        <Link className={styles.quickActionLink} href={editAvailable ? "#customer-details-form-heading" : customerSourceHref}>
+          <strong>{editAvailable ? "Edit customer details" : "Open source details"}</strong>
+          <small>{editAvailable ? "Add missing name, contact, address, or preference details here." : "Customer detail edits are unavailable here, so use the source record."}</small>
         </Link>
         <Link className={styles.quickActionLink} href="#interaction-form-heading">
           <strong>Log manual outcome</strong>
@@ -594,16 +601,24 @@ export function UnifiedCrmCustomer360({ errorMessage, failureKind = "error", mod
     <main className={styles.page}>
       <Link className={styles.backLink} href={returnHref}><ArrowLeft aria-hidden="true" size={15} />{returnContext.backLabel}</Link>
       <section className={styles.identityCard} aria-labelledby="customer-name-heading">
-        <div className={styles.identityMain}><span className={styles.avatar}><UserRound aria-hidden="true" size={22} /></span><div><span className={styles.eyebrow}>Customer relationship · read only</span><h1 id="customer-name-heading">{model.identity.displayName}</h1><p>{model.identity.customerNumber} · Customer since {formatDateOnly(model.identity.customerSince)}</p></div></div>
+        <div className={styles.identityMain}><span className={styles.avatar}><UserRound aria-hidden="true" size={22} /></span><div><span className={styles.eyebrow}>Customer relationship · read-only overview</span><h1 id="customer-name-heading">{model.identity.displayName}</h1><p>{model.identity.customerNumber} · Customer since {formatDateOnly(model.identity.customerSince)}</p></div></div>
         <div className={styles.identityMeta}><Status value={model.identity.status} /><span><small>Owner</small><strong>{model.owner?.name ?? "Unassigned"}</strong></span></div>
       </section>
       <section className={styles.trustBar} aria-label="Customer source and freshness"><span><ShieldCheck aria-hidden="true" size={15} /><strong>{model.source.label}</strong> · canonical identity</span><span><ShieldCheck aria-hidden="true" size={14} />Current · observed {formatDate(model.freshness.observedAt, "time unavailable")}</span><span><ShieldCheck aria-hidden="true" size={14} />{returnContext.continuityLabel}</span><Link href={customerSourceHref}>Open existing customer record<ExternalLink aria-hidden="true" size={13} /></Link></section>
       <QuickActions
         customerSourceHref={customerSourceHref}
+        editAvailable={model.permissions.canEditCustomerDetails}
         nextActionAvailable={model.permissions.canManageNextAction}
         opportunityDiscovery={opportunityDiscovery}
         taskBridgeAvailable={model.permissions.canCreateGovernedTask}
         taskBridgeHref={taskBridgeHref}
+      />
+      <UnifiedCrmCustomerDetailsForm
+        available={model.permissions.canEditCustomerDetails}
+        customerDisplayName={model.identity.displayName}
+        customerId={model.identity.id}
+        expectedVersion={model.lifecycle.version}
+        fallbackHref={customerSourceHref}
       />
       <section className={styles.priorityGrid}>
         <article className={styles.nextAction}><span className={styles.eyebrow}>{nextActionEyebrow(model.relationship.nextActionState)}</span><h2>{model.relationship.nextActionAt ? formatDate(model.relationship.nextActionAt, "Not scheduled") : "No next action scheduled"}</h2><p>Last interaction: {formatDate(model.relationship.lastInteractionAt, "No interaction recorded")}</p><p>{nextActionGuidance(model)}</p><small>This overview is read only. Continue in the appropriate source workflow to make a change.</small><Link className={styles.secondaryActionLink} href={model.permissions.canCreateGovernedTask ? "#task-bridge-heading" : taskBridgeHref}>Create governed task<ExternalLink aria-hidden="true" size={13} /></Link></article>

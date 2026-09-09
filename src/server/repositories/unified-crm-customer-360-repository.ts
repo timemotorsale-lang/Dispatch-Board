@@ -163,12 +163,13 @@ export type UnifiedCrmCustomer360OpportunityQuoteLinkRecord = {
 
 export type UnifiedCrmCustomer360Repository = {
   findCustomer(input: UnifiedCrmCustomer360RepositoryInput): Promise<UnifiedCrmCustomer360Record | null>;
+  getCustomerVersion?(input: UnifiedCrmCustomer360RepositoryInput): Promise<number>;
   listOpportunityDispatchLinks(input: UnifiedCrmCustomer360RepositoryInput): Promise<UnifiedCrmCustomer360OpportunityDispatchLinkRecord[]>;
   listOpportunityQuoteLinks(input: UnifiedCrmCustomer360RepositoryInput): Promise<UnifiedCrmCustomer360OpportunityQuoteLinkRecord[]>;
 };
 
 export function createUnifiedCrmCustomer360Repository(
-  database: Pick<PrismaClient, "$queryRaw" | "customer"> = prisma
+  database: Pick<PrismaClient, "$queryRaw" | "customer" | "enterpriseAggregateVersion"> = prisma
 ): UnifiedCrmCustomer360Repository {
   return {
     findCustomer(input) {
@@ -185,6 +186,20 @@ export function createUnifiedCrmCustomer360Repository(
         },
         select: customer360Select(input.organizationId, input.recordScope)
       });
+    },
+    async getCustomerVersion(input) {
+      const aggregate = await database.enterpriseAggregateVersion.findUnique({
+        where: {
+          organizationId_domain_subjectType_subjectId: {
+            domain: "UNIFIED_CRM",
+            organizationId: input.organizationId,
+            subjectId: input.customerId,
+            subjectType: "CUSTOMER"
+          }
+        },
+        select: { version: true }
+      });
+      return aggregate?.version ?? 0;
     },
     listOpportunityDispatchLinks(input) {
       const ownerFilter = input.recordScope.kind === "OWNER"

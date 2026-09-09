@@ -7,12 +7,14 @@ export function customer360Fixture(): UnifiedCrmCustomer360ReadModel {
     freshness: { status: "CURRENT", observedAt: "2026-08-14T15:00:00.000Z", sourceRecordUpdatedAt: "2026-08-14T14:45:00.000Z" },
     identity: { id: "customer-1", customerNumber: "CUS-1001", displayName: "Alex Morgan", status: "active", customerSince: "2024-02-01T12:00:00.000Z" },
     owner: { id: "owner-1", name: "Taylor B." },
+    lifecycle: { version: 3 },
     contacts: [{ type: "PHONE", maskedValue: "••••1234", isPrimary: true, source: "CONTACT_POINT" }, { type: "EMAIL", maskedValue: "a•••@e•••.com", isPrimary: false, source: "CONTACT_POINT" }],
     preferences: { preferredContactMethod: "PHONE", preferredContactTime: "Afternoons", languageCode: "en" },
     permissions: {
       canLogInteraction: true,
       canCreateNote: true,
       canCreateGovernedTask: true,
+      canEditCustomerDetails: true,
       canManageNextAction: true,
       canCreateRestrictedNote: false
     },
