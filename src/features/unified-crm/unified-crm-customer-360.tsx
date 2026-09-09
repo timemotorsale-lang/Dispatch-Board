@@ -272,6 +272,107 @@ function OpportunityDiscoveryPrompt({
   );
 }
 
+function activeRelationshipWork(model: UnifiedCrmCustomer360ReadModel, returnHref: string) {
+  const opportunity = model.opportunityLenses[0];
+  if (opportunity) {
+    return {
+      detail: `${label(opportunity.stage)} · ${opportunity.dispatchLinkCount} dispatch link${opportunity.dispatchLinkCount === 1 ? "" : "s"}`,
+      href: withUnifiedCrmOpportunityReturn(opportunity.href, returnHref),
+      title: opportunity.title
+    };
+  }
+
+  const activeCase = model.sourceLenses.cases[0];
+  if (activeCase) {
+    return {
+      detail: `${label(activeCase.priority)} priority · ${label(activeCase.status)} · ${activeCase.ownerName}`,
+      href: withCustomerSourceReturn(activeCase.sourceHref, model.identity.id, returnHref),
+      title: activeCase.title
+    };
+  }
+
+  const activeLead = model.sourceLenses.leads[0];
+  if (activeLead) {
+    return {
+      detail: `${label(activeLead.stage)} · ${activeLead.ownerName} · ${activeLead.vehicleInterest ?? "General interest"}`,
+      href: withCustomerSourceReturn(activeLead.sourceHref, model.identity.id, returnHref),
+      title: activeLead.leadNumber
+    };
+  }
+
+  return {
+    detail: "No active opportunity, case, or lead is visible in this customer scope.",
+    href: "#relationship-work-heading",
+    title: "Review relationship context"
+  };
+}
+
+function CustomerExecutionBrief({
+  model,
+  returnHref
+}: {
+  model: UnifiedCrmCustomer360ReadModel;
+  returnHref: string;
+}) {
+  const activeWork = activeRelationshipWork(model, returnHref);
+  return (
+    <section className={styles.executionBrief} aria-labelledby="customer-execution-brief-heading">
+      <header>
+        <div>
+          <span className={styles.eyebrow}>Execution brief</span>
+          <h2 id="customer-execution-brief-heading">What matters right now</h2>
+        </div>
+        <small>Customer 360 should answer who, what, owner, due, and next action first.</small>
+      </header>
+      <div className={styles.executionBriefGrid}>
+        <article>
+          <span>Who</span>
+          <strong>{model.identity.displayName}</strong>
+          <small>{model.identity.customerNumber} · {label(model.identity.status)}</small>
+        </article>
+        <Link href={activeWork.href}>
+          <span>Active work</span>
+          <strong>{activeWork.title}</strong>
+          <small>{activeWork.detail}</small>
+        </Link>
+        <article>
+          <span>Owner</span>
+          <strong>{model.owner?.name ?? "Unassigned"}</strong>
+          <small>{model.visibility === "owned" ? "Owned customer scope" : "Authorized customer scope"}</small>
+        </article>
+        <article>
+          <span>Due</span>
+          <strong>{model.relationship.nextActionAt ? formatDate(model.relationship.nextActionAt, "Not scheduled") : "No date set"}</strong>
+          <small>{nextActionEyebrow(model.relationship.nextActionState)}</small>
+        </article>
+        <Link href={model.permissions.canManageNextAction ? "#next-action-form-heading" : "#task-bridge-heading"}>
+          <span>Next button</span>
+          <strong>{model.permissions.canManageNextAction ? "Update next action" : "Create governed task"}</strong>
+          <small>{nextActionGuidance(model)}</small>
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+function CustomerDetailJumpRail({ canEditCustomerDetails }: { canEditCustomerDetails: boolean }) {
+  const links = [
+    { href: canEditCustomerDetails ? "#customer-details-form-heading" : "#customer-name-heading", label: "Contact" },
+    { href: "#relationship-work-heading", label: "Vehicles & appointments" },
+    { href: "#customer-opportunity-lenses-heading", label: "Deals" },
+    { href: "#task-bridge-heading", label: "Tasks" },
+    { href: "#customer-notes-heading", label: "Notes" },
+    { href: "#communication-timeline-lens-heading", label: "Communication" },
+    { href: "#timeline-heading", label: "Timeline" },
+    { href: "#source-lenses-heading", label: "External/source context" }
+  ];
+  return (
+    <nav className={styles.detailJumpRail} aria-label="Customer 360 detail sections">
+      {links.map((item) => <Link href={item.href} key={item.label}>{item.label}</Link>)}
+    </nav>
+  );
+}
+
 function QuickActions({
   customerSourceHref,
   editAvailable,
@@ -605,6 +706,7 @@ export function UnifiedCrmCustomer360({ errorMessage, failureKind = "error", mod
         <div className={styles.identityMeta}><Status value={model.identity.status} /><span><small>Owner</small><strong>{model.owner?.name ?? "Unassigned"}</strong></span></div>
       </section>
       <section className={styles.trustBar} aria-label="Customer source and freshness"><span><ShieldCheck aria-hidden="true" size={15} /><strong>{model.source.label}</strong> · canonical identity</span><span><ShieldCheck aria-hidden="true" size={14} />Current · observed {formatDate(model.freshness.observedAt, "time unavailable")}</span><span><ShieldCheck aria-hidden="true" size={14} />{returnContext.continuityLabel}</span><Link href={customerSourceHref}>Open existing customer record<ExternalLink aria-hidden="true" size={13} /></Link></section>
+      <CustomerExecutionBrief model={model} returnHref={returnHref} />
       <QuickActions
         customerSourceHref={customerSourceHref}
         editAvailable={model.permissions.canEditCustomerDetails}
@@ -613,6 +715,7 @@ export function UnifiedCrmCustomer360({ errorMessage, failureKind = "error", mod
         taskBridgeAvailable={model.permissions.canCreateGovernedTask}
         taskBridgeHref={taskBridgeHref}
       />
+      <CustomerDetailJumpRail canEditCustomerDetails={model.permissions.canEditCustomerDetails} />
       <UnifiedCrmCustomerDetailsForm
         available={model.permissions.canEditCustomerDetails}
         customerDisplayName={model.identity.displayName}

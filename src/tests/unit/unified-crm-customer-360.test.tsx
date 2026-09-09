@@ -94,6 +94,19 @@ describe("Unified CRM Customer 360", () => {
   it("prioritizes read-only identity, next action, masked contact, provenance, and source lenses", () => {
     const markup = renderToStaticMarkup(<UnifiedCrmCustomer360 model={customer360Fixture()} opportunityDiscovery={opportunityDiscovery} returnHref="/crm?view=customers&amp;q=Alex" />);
     expect(markup).toContain("Alex Morgan"); expect(markup).toContain("Taylor B."); expect(markup).toContain("Next relationship action");
+    expect(markup).toContain("Execution brief");
+    expect(markup).toContain("What matters right now");
+    expect(markup).toContain("Who");
+    expect(markup).toContain("Active work");
+    expect(markup).toContain("Owner");
+    expect(markup).toContain("Due");
+    expect(markup).toContain("Next button");
+    expect(markup).toContain("Customer 360 should answer who, what, owner, due, and next action first.");
+    expect(markup).toContain("Customer 360 detail sections");
+    expect(markup).toContain("External/source context");
+    expect(markup).toContain('href="#relationship-work-heading"');
+    expect(markup).toContain('href="#customer-opportunity-lenses-heading"');
+    expect(markup).toContain('href="#source-lenses-heading"');
     expect(markup).toContain("Do the next safe thing in one click");
     expect(markup).toContain("Live links only · governed actions stay labeled");
     expect(markup).toContain("Log manual outcome");
