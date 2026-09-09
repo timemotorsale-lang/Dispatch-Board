@@ -49,4 +49,19 @@ describe("growth command boundary", () => {
     expect(validation.allowed).toBe(false);
     expect(validation.failures[0]).toBe("Staff cannot run launch_lock.");
   });
+
+  it("allows authorized managers to record approval decisions", () => {
+    const validation = validateGrowthCommandBoundary({
+      actorId: "manager-1",
+      actorRole: "Inventory Manager",
+      idempotencyKey: "cmd-4",
+      payload: { approvalId: "approval-1", campaignId: "G-1", decision: "APPROVED" },
+      reason: "Inventory manager approved the vehicle audience.",
+      requestedAt: "2026-09-08T18:00:00.000Z",
+      scope: "approval_decision"
+    });
+
+    expect(validation.allowed).toBe(true);
+    expect(validation.boundary).toBe("GrowthOnly");
+  });
 });

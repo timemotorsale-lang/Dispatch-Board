@@ -76,6 +76,16 @@ export function growthRoleForUser(user: AuthenticatedUser): GrowthRole {
   return "Staff";
 }
 
+export function canDecideGrowthApproval(actorRole: GrowthRole, requestedRole: GrowthRole) {
+  return actorRole === "GM/Admin" || actorRole === requestedRole;
+}
+
+function assertCanDecideApproval(actorRole: GrowthRole, requestedRole: GrowthRole) {
+  if (!canDecideGrowthApproval(actorRole, requestedRole)) {
+    throw new Error(`${actorRole} cannot decide a Growth approval requested from ${requestedRole}.`);
+  }
+}
+
 export async function getGrowthOperationalHome(
   user: AuthenticatedUser | null,
   input: { database?: GrowthDatabase; now?: Date; organizationId?: string } = {}
@@ -358,6 +368,66 @@ export async function requestGrowthApproval(
   return getGrowthCampaign(campaign.id, { database, organizationId });
 }
 
+export async function decideGrowthApproval(
+  command: GrowthCommandInput<{ approvalId: string; campaignId: string; decision: "APPROVED" | "REJECTED" }>,
+  input: { database?: GrowthDatabase; now?: Date; organizationId?: string } = {}
+) {
+  const user = assertUser(command.actor);
+  const actorRole = growthRoleForUser(user);
+  const now = input.now ?? new Date();
+  const organizationId = input.organizationId ?? INITIAL_ORGANIZATION.id;
+  const validation = validateOperationalCommand(command, actorRole, user.id, now);
+  if (!validation.allowed) throw new Error(validation.nextAction);
+  if (!["APPROVED", "REJECTED"].includes(command.payload.decision)) throw new Error("Approval decision must be approved or rejected.");
+  if (command.reason.trim().length < 12) throw new Error("Decision reason must explain the approval or rejection.");
+  const database = input.database ?? prisma;
+  const approval = await database.growthApproval.findFirst({
+    where: {
+      campaignPlanId: command.payload.campaignId,
+      id: command.payload.approvalId,
+      organizationId,
+      status: "REQUESTED"
+    }
+  });
+  if (!approval) throw new Error("Requested Growth approval was not found.");
+  assertCanDecideApproval(actorRole, approval.requestedRole as GrowthRole);
+
+  await database.$transaction(async (tx) => {
+    const decided = await tx.growthApproval.update({
+      data: {
+        decidedAt: now,
+        decidedByUserId: user.id,
+        decisionReason: command.reason,
+        status: command.payload.decision
+      },
+      where: { id: approval.id }
+    });
+    const campaign = await tx.growthCampaignPlan.update({
+      data: {
+        status: command.payload.decision === "REJECTED" ? "REJECTED" : "APPROVAL_REQUESTED",
+        version: { increment: 1 }
+      },
+      where: { id: approval.campaignPlanId }
+    });
+    await tx.growthCampaignLedgerEvent.create({
+      data: {
+        actorRole,
+        actorUserId: user.id,
+        campaignPlanId: approval.campaignPlanId,
+        commandHash: validation.commandHash,
+        eventType: command.payload.decision === "APPROVED" ? "APPROVAL_APPROVED" : "APPROVAL_REJECTED",
+        idempotencyKey: `${command.idempotencyKey}:ledger`,
+        organizationId,
+        payload: jsonObject({ approvalId: decided.id, decision: decided.status, requestedRole: decided.requestedRole }),
+        reason: command.reason,
+        version: campaign.version
+      }
+    });
+  });
+
+  return getGrowthCampaign(command.payload.campaignId, { database, organizationId });
+}
+
 export async function createGrowthLaunchLock(
   command: GrowthCommandInput<{ campaignId: string }>,
   input: { database?: GrowthDatabase; now?: Date; organizationId?: string } = {}
@@ -382,7 +452,9 @@ export async function createGrowthLaunchLock(
     offerSourceVerified: false,
     planStatus: campaign.status === "APPROVAL_REQUESTED" ? "Approval requested" : "Draft",
     providerReady: false,
-    requestedApprovals: campaign.approvals.map((approval) => approval.requestedRole as GrowthRole)
+    requestedApprovals: campaign.approvals
+      .filter((approval) => approval.status === "APPROVED")
+      .map((approval) => approval.requestedRole as GrowthRole)
   });
 
   await database.$transaction(async (tx) => {

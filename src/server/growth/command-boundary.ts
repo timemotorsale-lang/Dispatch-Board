@@ -7,6 +7,7 @@ export type GrowthCommandScope =
   | "audience_snapshot"
   | "message_draft"
   | "approval_request"
+  | "approval_decision"
   | "launch_lock"
   | "provider_dry_run"
   | "crm_writeback_preview";
@@ -45,6 +46,7 @@ const externalMutationScopes: Partial<Record<GrowthCommandScope, GrowthMutationB
 };
 
 const rolesByScope: Record<GrowthCommandScope, GrowthRole[]> = {
+  approval_decision: ["GM/Admin", "Marketing Manager", "Sales Manager", "Inventory Manager", "Service Manager"],
   approval_request: ["GM/Admin", "Marketing Manager", "Sales Manager", "Inventory Manager", "Service Manager"],
   audience_snapshot: ["GM/Admin", "Marketing Manager", "Sales Manager", "Inventory Manager", "Service Manager"],
   campaign_plan: ["GM/Admin", "Marketing Manager", "Sales Manager", "Inventory Manager", "Service Manager"],

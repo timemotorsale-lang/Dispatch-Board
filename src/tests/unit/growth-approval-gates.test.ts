@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildGrowthApprovalGateReviewModel, evaluateGrowthApprovalGates } from "@/server/growth/approval-gates";
+import { canDecideGrowthApproval } from "@/server/growth/operational-service";
 
 describe("growth approval gates", () => {
   it("requires the right business owner approval by campaign type", () => {
@@ -58,5 +59,12 @@ describe("growth approval gates", () => {
     expect(model.canExecute).toBe(false);
     expect(model.nextApproval).toBe("GM/Admin");
     expect(model.checks.some((check) => check.label === "Provider execution ready" && !check.passed)).toBe(true);
+  });
+
+  it("limits approval decisions to the requested role or GM/Admin", () => {
+    expect(canDecideGrowthApproval("Inventory Manager", "Inventory Manager")).toBe(true);
+    expect(canDecideGrowthApproval("GM/Admin", "Service Manager")).toBe(true);
+    expect(canDecideGrowthApproval("Sales Manager", "Inventory Manager")).toBe(false);
+    expect(canDecideGrowthApproval("Staff", "Sales Manager")).toBe(false);
   });
 });
