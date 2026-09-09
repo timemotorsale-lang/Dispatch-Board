@@ -121,6 +121,7 @@ export function GrowthConsoleFoundation({ model: providedModel }: { model?: Grow
         </div>
         <div className={styles.headerActions}>
           <Link className={styles.secondaryButton} href="/crm">Open CRM</Link>
+          <Link className={styles.secondaryButton} href="/growth/admin">Manager review</Link>
           <a className={styles.primaryButton} href="#today">
             <Target size={16} aria-hidden="true" /> Start today
           </a>

@@ -52,6 +52,106 @@ export type GrowthCampaignSummary = {
   version: number;
 };
 
+export type GrowthApprovalQueueItem = {
+  approvalId: string;
+  approvalType: string;
+  campaignId: string;
+  campaignStatus: string;
+  campaignTitle: string;
+  requestedAt: string;
+  requestedByUserId: string;
+  requestedRole: string;
+};
+
+export type GrowthAdminCampaignItem = {
+  approvalCount: number;
+  audienceSnapshotCount: number;
+  budgetCents: number;
+  campaignType: string;
+  channel: string;
+  id: string;
+  launchLockCount: number;
+  messageDraftCount: number;
+  nextAction: string;
+  ownerRole: string;
+  resultCount: number;
+  status: string;
+  title: string;
+  updatedAt: string;
+  version: number;
+  writebackPreviewCount: number;
+};
+
+export type GrowthAdminReviewModel = {
+  approvalQueue: GrowthApprovalQueueItem[];
+  campaigns: GrowthAdminCampaignItem[];
+  controls: GrowthOperationalHome["operationalStatus"];
+  generatedAt: string;
+  role: GrowthRole;
+};
+
+export type GrowthCampaignAdminDetail = GrowthAdminCampaignItem & {
+  approvals: Array<{
+    approvalId: string;
+    approvalType: string;
+    decidedAt: string | null;
+    decidedByUserId: string | null;
+    decisionReason: string | null;
+    requestedAt: string;
+    requestedByUserId: string;
+    requestedRole: string;
+    status: string;
+  }>;
+  audienceSnapshots: Array<{
+    createdAt: string;
+    createdByUserId: string;
+    reason: string;
+    rows: Array<{ count: number; label: string; reason: string }>;
+    version: number;
+  }>;
+  ledgerEvents: Array<{
+    actorRole: string;
+    actorUserId: string;
+    eventType: string;
+    occurredAt: string;
+    reason: string;
+    version: number;
+  }>;
+  launchLocks: Array<{
+    actorRole: string;
+    createdAt: string;
+    lockedReason: string;
+    lockState: string;
+    nextAction: string;
+  }>;
+  messageDrafts: Array<{
+    body: string;
+    callToAction: string;
+    createdAt: string;
+    createdByUserId: string;
+    reason: string;
+    subject: string;
+    version: number;
+  }>;
+  objective: string;
+  resultEvents: Array<{
+    attributionTier: string;
+    eventType: string;
+    occurredAt: string;
+    proofEvent: boolean;
+    source: string;
+    valueCents: number;
+  }>;
+  sourceRecordCount: number;
+  writebackPreviews: Array<{
+    approvalNeeded: string;
+    eventType: string;
+    locked: boolean;
+    nextAction: string;
+    targetSystem: string;
+  }>;
+};
+
 function jsonArray(value: unknown): Prisma.InputJsonValue {
   return Array.isArray(value) ? (value as Prisma.InputJsonArray) : [];
 }
@@ -80,10 +180,182 @@ export function canDecideGrowthApproval(actorRole: GrowthRole, requestedRole: Gr
   return actorRole === "GM/Admin" || actorRole === requestedRole;
 }
 
+export function canOpenGrowthAdmin(actorRole: GrowthRole) {
+  return actorRole !== "Staff";
+}
+
+function assertCanOpenGrowthAdmin(actorRole: GrowthRole) {
+  if (!canOpenGrowthAdmin(actorRole)) {
+    throw new Error("Growth admin review requires manager access.");
+  }
+}
+
 function assertCanDecideApproval(actorRole: GrowthRole, requestedRole: GrowthRole) {
   if (!canDecideGrowthApproval(actorRole, requestedRole)) {
     throw new Error(`${actorRole} cannot decide a Growth approval requested from ${requestedRole}.`);
   }
+}
+
+export async function getGrowthAdminReview(
+  user: AuthenticatedUser | null,
+  input: { database?: GrowthDatabase; now?: Date; organizationId?: string } = {}
+): Promise<GrowthAdminReviewModel> {
+  const actor = assertUser(user);
+  const role = growthRoleForUser(actor);
+  assertCanOpenGrowthAdmin(role);
+  const database = input.database ?? prisma;
+  const organizationId = input.organizationId ?? INITIAL_ORGANIZATION.id;
+  const now = input.now ?? new Date();
+  const [approvals, campaigns] = await Promise.all([
+    database.growthApproval.findMany({
+      include: {
+        campaignPlan: {
+          select: { id: true, opportunityTitle: true, status: true }
+        }
+      },
+      orderBy: [{ requestedAt: "asc" }],
+      take: 30,
+      where: { organizationId, status: "REQUESTED" }
+    }),
+    database.growthCampaignPlan.findMany({
+      include: {
+        _count: {
+          select: {
+            approvals: true,
+            audienceSnapshots: true,
+            launchLocks: true,
+            messageDrafts: true,
+            resultEvents: true,
+            writebackPreviews: true
+          }
+        }
+      },
+      orderBy: [{ updatedAt: "desc" }],
+      take: 40,
+      where: { organizationId }
+    })
+  ]);
+
+  return {
+    approvalQueue: approvals.map((approval) => ({
+      approvalId: approval.id,
+      approvalType: approval.approvalType,
+      campaignId: approval.campaignPlan.id,
+      campaignStatus: approval.campaignPlan.status,
+      campaignTitle: approval.campaignPlan.opportunityTitle,
+      requestedAt: approval.requestedAt.toISOString(),
+      requestedByUserId: approval.requestedByUserId,
+      requestedRole: approval.requestedRole
+    })),
+    campaigns: campaigns.map(toAdminCampaignItem),
+    controls: {
+      apiRoutesGuarded: true,
+      durableRecordsEnabled: true,
+      liveSendLocked: true,
+      paidSpendLocked: true,
+      sourceMutationLocked: true
+    },
+    generatedAt: now.toISOString(),
+    role
+  };
+}
+
+export async function getGrowthCampaignAdminDetail(
+  user: AuthenticatedUser | null,
+  campaignId: string,
+  input: { database?: GrowthDatabase; organizationId?: string } = {}
+): Promise<GrowthCampaignAdminDetail> {
+  const actor = assertUser(user);
+  const role = growthRoleForUser(actor);
+  assertCanOpenGrowthAdmin(role);
+  const database = input.database ?? prisma;
+  const organizationId = input.organizationId ?? INITIAL_ORGANIZATION.id;
+  const campaign = await database.growthCampaignPlan.findFirst({
+    include: {
+      _count: {
+        select: {
+          approvals: true,
+          audienceSnapshots: true,
+          launchLocks: true,
+          messageDrafts: true,
+          resultEvents: true,
+          writebackPreviews: true
+        }
+      },
+      approvals: { orderBy: [{ requestedAt: "asc" }] },
+      audienceSnapshots: { include: { rows: true }, orderBy: [{ version: "desc" }] },
+      ledgerEvents: { orderBy: [{ occurredAt: "asc" }] },
+      launchLocks: { orderBy: [{ createdAt: "desc" }] },
+      messageDrafts: { orderBy: [{ version: "desc" }] },
+      resultEvents: { orderBy: [{ occurredAt: "desc" }] },
+      writebackPreviews: { orderBy: [{ createdAt: "desc" }] }
+    },
+    where: { id: campaignId, organizationId }
+  });
+  if (!campaign) throw new Error("Growth campaign was not found.");
+
+  return {
+    ...toAdminCampaignItem(campaign),
+    approvals: campaign.approvals.map((approval) => ({
+      approvalId: approval.id,
+      approvalType: approval.approvalType,
+      decidedAt: approval.decidedAt?.toISOString() ?? null,
+      decidedByUserId: approval.decidedByUserId,
+      decisionReason: approval.decisionReason,
+      requestedAt: approval.requestedAt.toISOString(),
+      requestedByUserId: approval.requestedByUserId,
+      requestedRole: approval.requestedRole,
+      status: approval.status
+    })),
+    audienceSnapshots: campaign.audienceSnapshots.map((snapshot) => ({
+      createdAt: snapshot.createdAt.toISOString(),
+      createdByUserId: snapshot.createdByUserId,
+      reason: snapshot.reason,
+      rows: snapshot.rows.map((row) => ({ count: row.count, label: row.label, reason: row.reason })),
+      version: snapshot.version
+    })),
+    ledgerEvents: campaign.ledgerEvents.map((event) => ({
+      actorRole: event.actorRole,
+      actorUserId: event.actorUserId,
+      eventType: event.eventType,
+      occurredAt: event.occurredAt.toISOString(),
+      reason: event.reason,
+      version: event.version
+    })),
+    launchLocks: campaign.launchLocks.map((lock) => ({
+      actorRole: lock.actorRole,
+      createdAt: lock.createdAt.toISOString(),
+      lockedReason: lock.lockedReason,
+      lockState: lock.lockState,
+      nextAction: lock.nextAction
+    })),
+    messageDrafts: campaign.messageDrafts.map((draft) => ({
+      body: draft.body,
+      callToAction: draft.callToAction,
+      createdAt: draft.createdAt.toISOString(),
+      createdByUserId: draft.createdByUserId,
+      reason: draft.reason,
+      subject: draft.subject,
+      version: draft.version
+    })),
+    objective: campaign.objective,
+    resultEvents: campaign.resultEvents.map((event) => ({
+      attributionTier: event.attributionTier,
+      eventType: event.eventType,
+      occurredAt: event.occurredAt.toISOString(),
+      proofEvent: event.proofEvent,
+      source: event.source,
+      valueCents: event.valueCents
+    })),
+    sourceRecordCount: Array.isArray(campaign.sourceRecordRefs) ? campaign.sourceRecordRefs.length : 0,
+    writebackPreviews: campaign.writebackPreviews.map((preview) => ({
+      approvalNeeded: preview.approvalNeeded,
+      eventType: preview.eventType,
+      locked: preview.locked,
+      nextAction: preview.nextAction,
+      targetSystem: preview.targetSystem
+    }))
+  };
 }
 
 export async function getGrowthOperationalHome(
@@ -725,6 +997,42 @@ function toReadModelOpportunity(opportunity: PrismaGrowthCampaignPlan | PrismaGr
     sourceSummary: opportunity.sourceSummary,
     title: opportunity.title,
     type: opportunity.opportunityType
+  };
+}
+
+function toAdminCampaignItem(campaign: PrismaGrowthCampaignPlan & {
+  _count: {
+    approvals: number;
+    audienceSnapshots: number;
+    launchLocks: number;
+    messageDrafts: number;
+    resultEvents: number;
+    writebackPreviews: number;
+  };
+}): GrowthAdminCampaignItem {
+  return {
+    approvalCount: campaign._count.approvals,
+    audienceSnapshotCount: campaign._count.audienceSnapshots,
+    budgetCents: campaign.budgetCents,
+    campaignType: campaign.campaignType,
+    channel: campaign.channel,
+    id: campaign.id,
+    launchLockCount: campaign._count.launchLocks,
+    messageDraftCount: campaign._count.messageDrafts,
+    nextAction: campaign.status === "REJECTED"
+      ? "Review rejection"
+      : campaign._count.launchLocks > 0
+        ? "Review launch lock"
+        : campaign.status === "APPROVAL_REQUESTED"
+          ? "Decide approval"
+          : "Continue campaign setup",
+    ownerRole: campaign.ownerRole,
+    resultCount: campaign._count.resultEvents,
+    status: campaign.status,
+    title: campaign.opportunityTitle,
+    updatedAt: campaign.updatedAt.toISOString(),
+    version: campaign.version,
+    writebackPreviewCount: campaign._count.writebackPreviews
   };
 }
 
