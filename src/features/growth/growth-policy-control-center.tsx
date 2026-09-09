@@ -37,9 +37,10 @@ export function GrowthPolicyControlCenter({ model }: { model: GrowthPolicyContro
 
       <div className={styles.metricsGrid} aria-label="Growth policy summary">
         <article><Lock size={18} /><span>Launch posture</span><strong>{model.launchPosture}</strong></article>
+        <article><ShieldCheck size={18} /><span>Policy version</span><strong>v{model.policyVersion.version}</strong></article>
         <article><ShieldCheck size={18} /><span>Locked controls</span><strong>{model.summary.locked}</strong></article>
         <article><SlidersHorizontal size={18} /><span>Need review</span><strong>{model.summary.reviewNeeded}</strong></article>
-        <article><Clock size={18} /><span>Last reviewed</span><strong>{formatDate(model.generatedAt)}</strong></article>
+        <article><Clock size={18} /><span>Policy source</span><strong>{model.policyVersion.source}</strong></article>
       </div>
 
       <section className={styles.panel}>
@@ -102,7 +103,32 @@ export function GrowthPolicyControlCenter({ model }: { model: GrowthPolicyContro
           <article><Lock size={18} /><strong>Fail closed</strong><p>If a rule is missing, stale, or unclear, Growth stays locked and tells the manager what to review.</p></article>
           <article><DollarSign size={18} /><strong>No hidden spend</strong><p>Paid campaigns can be planned, but spend cannot activate from this layer.</p></article>
           <article><ShieldCheck size={18} /><strong>Source protection</strong><p>CRM, inventory, service, appointment, task, and sales records remain the source of truth.</p></article>
-          <article><SlidersHorizontal size={18} /><strong>Future admin settings</strong><p>The next version can make approved limits editable with audit history and rollback.</p></article>
+          <article><SlidersHorizontal size={18} /><strong>Versioned settings</strong><p>Policy controls now load from a durable active version, with every review event kept for manager audit.</p></article>
+        </div>
+      </section>
+
+      <section className={styles.panel}>
+        <div className={styles.panelHeader}>
+          <div>
+            <span className={styles.sectionLabel}>Policy Audit</span>
+            <h2>Durable control history</h2>
+          </div>
+          <span className={styles.statusNote}>{model.auditEvents.length || 1} event(s)</span>
+        </div>
+        <div className={styles.auditList}>
+          {model.auditEvents.length ? model.auditEvents.map((event) => (
+            <article key={`${event.eventType}-${event.occurredAt}`}>
+              <span>{formatDate(event.occurredAt)}</span>
+              <strong>{event.eventType.replaceAll("_", " ")}</strong>
+              <p>{event.reason}</p>
+            </article>
+          )) : (
+            <article>
+              <span>{formatDate(model.generatedAt)}</span>
+              <strong>MODEL ONLY REVIEW</strong>
+              <p>This preview is using the default locked-by-default model because no durable policy record was loaded.</p>
+            </article>
+          )}
         </div>
       </section>
     </section>

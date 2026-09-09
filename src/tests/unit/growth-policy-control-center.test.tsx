@@ -9,6 +9,7 @@ describe("Growth Policy Control Center", () => {
     const model = buildGrowthPolicyControlCenterModel(new Date("2026-09-08T20:00:00.000Z"));
 
     expect(model.launchPosture).toBe("Locked by default");
+    expect(model.policyVersion.source).toBe("Default review model");
     expect(model.summary.total).toBeGreaterThanOrEqual(8);
     expect(model.summary.locked).toBeGreaterThan(0);
     expect(model.controls.some((control) => control.area === "Live customer sends" && control.state === "Locked")).toBe(true);
@@ -23,11 +24,13 @@ describe("Growth Policy Control Center", () => {
 
     expect(markup).toContain("Policy control mode");
     expect(markup).toContain("Control Center");
+    expect(markup).toContain("Policy version");
     expect(markup).toContain("What Growth is allowed to do");
     expect(markup).toContain("Live customer sends");
     expect(markup).toContain("Paid advertising spend");
     expect(markup).toContain("CRM and source record mutation");
     expect(markup).toContain("No hidden spend");
+    expect(markup).toContain("Policy Audit");
     expect(markup).not.toContain("Schedule launch");
   });
 });

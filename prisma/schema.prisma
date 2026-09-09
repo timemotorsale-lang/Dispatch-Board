@@ -9347,3 +9347,42 @@ model GrowthCrmWritebackPreview {
   @@index([organizationId, targetSystem, locked])
   @@index([campaignPlanId, createdAt])
 }
+
+model GrowthPolicyVersion {
+  id                String                   @id @default(cuid())
+  organizationId    String
+  policyCode        String
+  status            String                   @default("ACTIVE")
+  version           Int                      @default(1)
+  launchPosture     String                   @default("Locked by default")
+  settings          Json
+  createdByUserId   String?
+  createdReason     String
+  activatedByUserId String?
+  activatedAt       DateTime?
+  supersededAt      DateTime?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+  auditEvents       GrowthPolicyAuditEvent[]
+
+  @@unique([organizationId, policyCode, version])
+  @@index([organizationId, policyCode, status, updatedAt])
+}
+
+model GrowthPolicyAuditEvent {
+  id              String               @id @default(cuid())
+  organizationId  String
+  policyVersionId String?
+  eventType       String
+  actorUserId     String?
+  actorRole       String
+  reason          String
+  idempotencyKey  String?
+  snapshot        Json
+  occurredAt      DateTime             @default(now())
+  policyVersion   GrowthPolicyVersion? @relation(fields: [policyVersionId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, eventType, occurredAt])
+  @@index([policyVersionId, occurredAt])
+}
