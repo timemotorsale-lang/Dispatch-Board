@@ -212,6 +212,31 @@ describe("Unified CRM UX review shell", () => {
     expect(work).toContain("Filter owned work, customers, or source");
   });
 
+  it("turns the live CRM home into a simple customer command landing page", () => {
+    const markup = renderToStaticMarkup(
+      <UnifiedCrmShell
+        activeView="home"
+        homeDashboard={homeDashboard}
+        opportunityDiscovery={opportunityDiscovery}
+        userName="Alex Operator"
+        workQueue={liveWorkQueue}
+      />
+    );
+
+    expect(markup).toContain("Customer command center");
+    expect(markup).toContain("Who needs attention now?");
+    expect(markup).toContain("Recommended next");
+    expect(markup).toContain("Delivery follow-up");
+    expect(markup).toContain("Find customer");
+    expect(markup).toContain('href="/crm?view=customers"');
+    expect(markup).toContain("Add Customer / Prospect");
+    expect(markup).toContain("Start in the existing Customers source until native CRM creation is approved.");
+    expect(markup).toContain('href="/customers?returnTo=%2Fcrm"');
+    expect(markup).toContain("Recent customer activity");
+    expect(markup).toContain("Open source");
+    expect(markup).not.toContain("Save customer");
+  });
+
   it.each([
     ["home", "/crm"],
     ["work", "/crm?view=work"]
@@ -316,7 +341,7 @@ describe("Unified CRM UX review shell", () => {
       />
     );
 
-    expect(markup.match(/href="\/crm\/customers\/customer-1\?crmReturnTo=%2Fcrm%3Fview%3Dwork"/g)?.length ?? 0).toBe(1);
+    expect(markup.match(/href="\/crm\/customers\/customer-1\?crmReturnTo=%2Fcrm%3Fview%3Dwork"/g)?.length ?? 0).toBe(2);
   });
 
   it("keeps live work filtering honest when no item matches the query", () => {

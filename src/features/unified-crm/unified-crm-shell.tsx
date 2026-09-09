@@ -526,6 +526,48 @@ function HomeView({
   );
 }
 
+function CustomerCommandCenter({
+  selected,
+  workCount
+}: {
+  selected: UnifiedCrmWorkQueueItem | null;
+  workCount: number;
+}) {
+  return (
+    <section className={styles.customerCommand} aria-label="Customer CRM landing actions">
+      <header>
+        <div>
+          <span className={styles.sectionLabel}>Customer command center</span>
+          <strong>Who needs attention now?</strong>
+        </div>
+        <small>{workCount} visible work item{workCount === 1 ? "" : "s"}</small>
+      </header>
+      <div className={styles.customerCommandGrid}>
+        <Link className={styles.customerCommandCard} data-emphasis="primary" href={selected?.sourceHref ?? "/crm?view=work"}>
+          <span>Recommended next</span>
+          <strong>{selected?.title ?? "Open CRM work queue"}</strong>
+          <small>{selected?.primaryActionLabel ?? "Review the next customer action"}</small>
+        </Link>
+        <Link className={styles.customerCommandCard} href="/crm?view=customers">
+          <span>Find customer</span>
+          <strong>Search customer records</strong>
+          <small>Open the governed customer list and Customer 360 paths.</small>
+        </Link>
+        <Link className={styles.customerCommandCard} href={withShellSourceReturn("/customers", "/crm")}>
+          <span>New relationship</span>
+          <strong>Add Customer / Prospect</strong>
+          <small>Start in the existing Customers source until native CRM creation is approved.</small>
+        </Link>
+        <Link className={styles.customerCommandCard} href={selected?.customerHref ?? "/crm?view=customers"}>
+          <span>Customer view</span>
+          <strong>{selected?.customerHref ? "Open Customer 360" : "Open customer list"}</strong>
+          <small>{selected?.customerLabel ?? "Choose a customer before opening a 360 view."}</small>
+        </Link>
+      </div>
+    </section>
+  );
+}
+
 function flattenGlobalSearchResults(model: UnifiedCrmGlobalSearchReadModel | null) {
   return model?.groups.flatMap((group) => group.results) ?? [];
 }
@@ -732,10 +774,14 @@ function LiveHomeView({
 }) {
   const overdue = model.items.filter((item) => item.dueState === "overdue");
   const today = model.items.filter((item) => item.dueState === "today");
+  const recentCustomerActivity = [...model.items]
+    .sort((first, second) => new Date(second.updatedAt).getTime() - new Date(first.updatedAt).getTime())
+    .slice(0, 3);
   const presentation = describeLiveWorkPresentation(model, filterQuery);
   return (
     <div className={styles.homeGrid}>
       <HomeDashboard model={homeDashboard} />
+      <CustomerCommandCenter selected={selected} workCount={model.items.length} />
       <section className={styles.queuePanel} aria-labelledby="crm-next-heading">
         <header className={styles.panelHeading}>
           <div><span>{model.visibility === "owned" ? "Owned live work" : "Live team work"}</span><h2 id="crm-next-heading">Do this next</h2></div>
@@ -775,6 +821,21 @@ function LiveHomeView({
           <header><span><Clock3 aria-hidden="true" size={16} />Attention</span></header>
           <button disabled={!overdue[0]} onClick={() => overdue[0] && onSelect(overdue[0])} type="button"><strong>{presentation.overdueCount} overdue</strong><span>Past-due work rises to the top first</span></button>
           <button disabled={!today[0]} onClick={() => today[0] && onSelect(today[0])} type="button"><strong>{presentation.todayCount} due today</strong><span>Use this to stay ahead of the next promised action</span></button>
+        </section>
+        <section className={styles.todayCard}>
+          <header><span><MessageSquareText aria-hidden="true" size={16} />Recent customer activity</span><small>Live</small></header>
+          {recentCustomerActivity.length ? recentCustomerActivity.map((item) => (
+            <article key={`recent-${item.id}`}>
+              <time>{formatTime(item.updatedAt, "New")}</time>
+              <span>
+                <strong>{item.customerLabel}</strong>
+                <small>{item.title} · {item.sourceLabel}</small>
+                <Link aria-label={`Open source work for ${item.title}`} className={styles.todaySecondaryAction} href={item.sourceHref}>
+                  Open source<ArrowRight aria-hidden="true" size={14} />
+                </Link>
+              </span>
+            </article>
+          )) : <p className={styles.railEmpty}>No recent customer activity is visible in this CRM scope.</p>}
         </section>
       </aside>
       {opportunityDiscovery ? <OpportunityDiscoveryPanel model={opportunityDiscovery} returnHref="/crm" /> : null}

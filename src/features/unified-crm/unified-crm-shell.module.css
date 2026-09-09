@@ -263,6 +263,18 @@
 .dashboardMetric strong { font-size: 25px; line-height: 1; }
 .dashboardMetric small { color: var(--crm-muted); font-size: 10.5px; line-height: 1.35; }
 .dashboardMetric[data-state="empty"] { opacity: .78; }
+.customerCommand { grid-column: 1 / -1; display: grid; gap: 10px; border: 1px solid var(--crm-border); border-radius: 9px; padding: 11px; background: var(--crm-surface); box-shadow: 0 2px 8px rgb(22 42 68 / 4%); }
+.customerCommand > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.customerCommand > header div { display: grid; gap: 3px; }
+.customerCommand > header strong { font-size: 15px; }
+.customerCommand > header small { color: var(--crm-muted); font-size: 10.5px; }
+.customerCommandGrid { display: grid; grid-template-columns: 1.18fr repeat(3, minmax(0, 1fr)); gap: 8px; }
+.customerCommandCard { display: grid; gap: 5px; min-height: 94px; border: 1px solid var(--crm-border); border-radius: 8px; padding: 10px; color: var(--crm-text); background: var(--crm-surface-soft); }
+.customerCommandCard:hover,.customerCommandCard:focus-visible { border-color: #86acd9; outline: 3px solid rgb(23 98 207 / 12%); background: var(--crm-blue-soft); }
+.customerCommandCard[data-emphasis="primary"] { border-color: #98b8e2; background: linear-gradient(135deg, #edf5ff, #fff); box-shadow: inset 3px 0 var(--crm-blue); }
+.customerCommandCard span { color: var(--crm-blue); font-size: 9.5px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.customerCommandCard strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.customerCommandCard small { color: var(--crm-muted); font-size: 10.5px; line-height: 1.4; }
 .sectionDetail { margin: 0; padding: 10px 11px 0; color: var(--crm-muted); font-size: 10.5px; line-height: 1.45; }
 .sourceCoverage { display: grid; gap: 8px; padding: 10px 11px 0; }
 .sourceCoverage > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -371,6 +383,7 @@
   .todayRail { grid-column: auto; }
   .cardGrid,.pipeline,.insights,.moreGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dashboardMetrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .customerCommandGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .sourceCoverageGrid { grid-template-columns: 1fr; }
   .discoveryGrid { grid-template-columns: 1fr; }
   .opportunityPreviewGrid,.opportunityNextSteps { grid-template-columns: 1fr; }
@@ -393,6 +406,9 @@
   .newMenu { position: fixed; right: 8px; bottom: 8px; left: 8px; top: auto; width: auto; max-height: calc(100vh - 80px); overflow-y: auto; }
   .newMenu > a { min-height: 58px; }
   .dashboardMetrics { grid-template-columns: 1fr; }
+  .customerCommand > header { align-items: flex-start; flex-direction: column; }
+  .customerCommandGrid { grid-template-columns: 1fr; }
+  .customerCommandCard { min-height: 86px; }
   .todayRail,.cardGrid,.pipeline,.insights,.moreGrid { grid-template-columns: 1fr; }
   .reviewBadge { width: 100%; justify-content: center; }
   .queueRow { grid-template-columns: 8px minmax(0, 1fr) auto; min-height: 74px; padding-block: 9px; }
