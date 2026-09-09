@@ -30,8 +30,9 @@ describe("Vehicle 360 evidence domain", () => {
     expect(stableEvidenceId("org", "upload-1")).toBe(stableEvidenceId("org", "upload-1"));
     const timeline = sortVehicleTimeline([
       { id: "old", occurredAt: new Date("2026-01-01"), source: "A", type: "A", title: "Old", detail: null, subjectType: "VEHICLE", subjectId: "v" },
-      { id: "new", occurredAt: new Date("2026-07-01"), source: "B", type: "B", title: "New", detail: null, subjectType: "VEHICLE", subjectId: "v" }
+      { id: "new-a", occurredAt: new Date("2026-07-01"), source: "B", type: "B", title: "New", detail: null, subjectType: "VEHICLE", subjectId: "v" },
+      { id: "new-b", occurredAt: new Date("2026-07-01"), source: "B", type: "B", title: "New", detail: null, subjectType: "VEHICLE", subjectId: "v" }
     ]);
-    expect(timeline.map((item) => item.id)).toEqual(["new", "old"]);
+    expect(timeline.map((item) => item.id)).toEqual(["new-b", "new-a", "old"]);
   });
 });

@@ -28,6 +28,7 @@ import {
 import {
   canCreateUnifiedCrmCustomerNote
 } from "@/server/unified-crm/customer-note-access";
+import { orderUnifiedTimelineItems } from "@/server/services/unified-timeline-service";
 import {
   canManageUnifiedCrmCustomerNextAction
 } from "@/server/unified-crm/customer-next-action-access";
@@ -347,12 +348,7 @@ function timelineItems(input: {
     })
   ];
 
-  return items
-    .sort((left, right) => {
-      const byDate = new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime();
-      return byDate !== 0 ? byDate : right.id.localeCompare(left.id);
-    })
-    .slice(0, input.model.page.limit);
+  return orderUnifiedTimelineItems(items, input.model.page.limit);
 }
 
 function communicationTimelineLens(items: UnifiedCrmCustomer360TimelineItem[]): UnifiedCrmCustomer360CommunicationTimelineLens {

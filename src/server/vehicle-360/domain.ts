@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { orderUnifiedTimelineItems } from "@/server/services/unified-timeline-service";
 
 export const VEHICLE_EVIDENCE_MAX_BYTES = 10 * 1024 * 1024;
 export const VEHICLE_EVIDENCE_CONTENT_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp", "text/plain"] as const;
@@ -118,5 +119,5 @@ export function stableEvidenceId(organizationId: string, idempotencyKey: string)
 export type Vehicle360TimelineItem = { id: string; occurredAt: Date; source: string; type: string; title: string; detail: string | null; subjectType: string; subjectId: string };
 
 export function sortVehicleTimeline(items: Vehicle360TimelineItem[], limit = 200) {
-  return [...items].sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime() || a.id.localeCompare(b.id)).slice(0, limit);
+  return orderUnifiedTimelineItems(items, limit);
 }
