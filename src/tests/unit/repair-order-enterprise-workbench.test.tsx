@@ -47,6 +47,8 @@ describe("enterprise repair-order workbench", () => {
     expect(html).not.toContain("Approved work");
     expect(html).not.toContain("Repair outcome");
     expect(html).toContain("Recon Report");
+    expect(html).toContain("360 Photos");
+    expect(html).toContain("/vehicles/360/vehicle-1?section=photos");
     expect(html).toContain('aria-expanded="false"');
     expect(html).toContain("Inventory Lifecycle");
     expect(html).toContain("Shop &amp; Recon");

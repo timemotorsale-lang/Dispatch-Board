@@ -42,8 +42,24 @@ export type Vehicle360View = {
   graph: { nodes: GraphNode[]; edges: GraphEdge[] };
 };
 
-const sections = ["overview", "identity", "work", "safety", "evidence"] as const;
+const sections = ["overview", "photos", "identity", "work", "safety", "evidence"] as const;
 type Section = (typeof sections)[number];
+
+const walkaroundAngles = [
+  { code: "front", label: "Front", hint: "Front bumper, grille, hood, and windshield." },
+  { code: "front_left", label: "Front left", hint: "Driver front corner, wheel, fender, and headlamp." },
+  { code: "driver_side", label: "Driver side", hint: "Full left side profile with doors and rocker panels." },
+  { code: "rear_left", label: "Rear left", hint: "Driver rear corner, quarter panel, and tail lamp." },
+  { code: "rear", label: "Rear", hint: "Rear bumper, trunk or hatch, plate area, and glass." },
+  { code: "rear_right", label: "Rear right", hint: "Passenger rear corner, quarter panel, and tail lamp." },
+  { code: "passenger_side", label: "Passenger side", hint: "Full right side profile with doors and rocker panels." },
+  { code: "front_right", label: "Front right", hint: "Passenger front corner, wheel, fender, and headlamp." },
+  { code: "interior_dash", label: "Interior / dash", hint: "Dash, controls, warning lights, and cabin condition." },
+  { code: "odometer", label: "Odometer", hint: "Mileage reading and cluster warning lights." },
+  { code: "damage_closeup", label: "Damage close-up", hint: "Known scratches, dents, broken trim, or issue evidence." },
+] as const;
+type WalkaroundAngleCode = (typeof walkaroundAngles)[number]["code"];
+const requiredWalkaroundAngles = walkaroundAngles.filter(angle => angle.code !== "damage_closeup");
 
 const specificationGroups = [
   { title: "Identity and configuration", fields: ["trim", "series", "bodyClass", "vehicleType", "doors", "cabType"] },
@@ -66,6 +82,34 @@ function withReturn(path: string, returnTo: string) { const url = new URL(path, 
 function validReturnTo(value: string | null) { return value?.startsWith("/") && !value.startsWith("//") ? value : ""; }
 function relationship(view: Vehicle360View) { if (view.tabs.inventory.items.length) return "Dealership inventory"; if (view.summary.owner && (view.summary.owner.displayName || view.summary.owner.customerNumber)) return "Customer vehicle"; return "Ownership unconfirmed"; }
 function sourceIcon(source: string) { if (source === "SERVICE") return Wrench; if (source === "EVIDENCE") return FileText; if (source === "APPOINTMENT") return CalendarClock; if (source === "INVENTORY") return ClipboardCheck; return History; }
+function normalizeEvidenceText(item: EvidenceItem) { return `${item.evidenceObject.fileName} ${item.category} ${item.relationship} ${item.subjectType} ${item.subjectId}`.toLowerCase().replaceAll(/[_-]+/g, " "); }
+function inferWalkaroundAngle(item: EvidenceItem): WalkaroundAngleCode | null {
+  const text = normalizeEvidenceText(item);
+  if (text.includes("odometer") || text.includes("mileage") || text.includes("cluster")) return "odometer";
+  if (text.includes("interior") || text.includes("dash") || text.includes("cabin")) return "interior_dash";
+  if (text.includes("damage") || text.includes("dent") || text.includes("scratch") || text.includes("close up") || text.includes("closeup")) return "damage_closeup";
+  if (text.includes("front left") || text.includes("driver front")) return "front_left";
+  if (text.includes("front right") || text.includes("passenger front")) return "front_right";
+  if (text.includes("rear left") || text.includes("driver rear")) return "rear_left";
+  if (text.includes("rear right") || text.includes("passenger rear")) return "rear_right";
+  if (text.includes("driver side") || text.includes("left side")) return "driver_side";
+  if (text.includes("passenger side") || text.includes("right side")) return "passenger_side";
+  if (text.includes("rear") || text.includes("back")) return "rear";
+  if (text.includes("front")) return "front";
+  return null;
+}
+function walkaroundPhotoItems(items: EvidenceItem[]) {
+  return items.filter(item => item.category === "PHOTO" && item.evidenceObject.status === "AVAILABLE" && item.evidenceObject.contentType.toLowerCase().startsWith("image/"));
+}
+function walkaroundCoverage(items: EvidenceItem[]) {
+  const photos = walkaroundPhotoItems(items);
+  const byAngle = new Map<WalkaroundAngleCode, EvidenceItem>();
+  for (const item of photos) {
+    const angle = inferWalkaroundAngle(item);
+    if (angle && !byAngle.has(angle)) byAngle.set(angle, item);
+  }
+  return { photos, byAngle, capturedRequired: requiredWalkaroundAngles.filter(angle => byAngle.has(angle.code)).length, missingRequired: requiredWalkaroundAngles.filter(angle => !byAngle.has(angle.code)) };
+}
 
 function AccessEmpty({ allowed, labelText }: { allowed: boolean; labelText: string }) {
   return <div className={styles.empty}><AlertTriangle /><div><strong>{allowed ? `No ${labelText.toLowerCase()} records` : `${labelText} restricted`}</strong><p>{allowed ? "Nothing is connected to this canonical vehicle yet." : `Your current role does not include access to ${labelText.toLowerCase()}.`}</p></div></div>;
@@ -117,7 +161,7 @@ export function Vehicle360Workspace({ initial }: { initial: Vehicle360View }) {
   const searchParams = useSearchParams();
   const requestedSection = searchParams.get("section");
   const returnTo = validReturnTo(searchParams.get("returnTo"));
-  const initialSection: Section = requestedSection === "documents" ? "evidence" : requestedSection === "intelligence" ? "safety" : sections.includes(requestedSection as Section) ? requestedSection as Section : "overview";
+  const initialSection: Section = requestedSection === "documents" ? "evidence" : requestedSection === "walkaround" || requestedSection === "photo" ? "photos" : requestedSection === "intelligence" ? "safety" : sections.includes(requestedSection as Section) ? requestedSection as Section : "overview";
   const [view, setView] = useState(initial);
   const [active, setActive] = useState<Section>(initialSection);
   const [notice, setNotice] = useState("");
@@ -191,15 +235,16 @@ export function Vehicle360Workspace({ initial }: { initial: Vehicle360View }) {
       <div className={styles.identityRow}>
         <div className={styles.vehicleIcon}><CarFront /></div>
         <div className={styles.identityCopy}><small>Canonical vehicle command center</small><h1>{identityName}</h1><p>VIN {vehicle.vin ?? vehicle.vinState} · Stock {vehicle.stockNumber ?? "not recorded"} · Plate {vehicle.licensePlate ?? "not recorded"} · {typeof mileage === "number" ? `${mileage.toLocaleString()} mi` : "Mileage not recorded"}</p><div className={styles.badgeRow}><OperationalBadge tone={vehicle.vinState === "VERIFIED" ? "good" : "attention"}><BadgeCheck />VIN {sentence(vehicle.vinState)}</OperationalBadge><OperationalBadge>{relationship(view)}</OperationalBadge>{view.summary.risks.length ? <OperationalBadge tone="attention"><AlertTriangle />{view.summary.risks.length} operational signal{view.summary.risks.length === 1 ? "" : "s"}</OperationalBadge> : <OperationalBadge tone="good"><CheckCircle2 />No active operating risks</OperationalBadge>}</div></div>
-        <div className={styles.heroActions}><button className={styles.secondaryButton} onClick={() => setActive("evidence")} type="button"><Camera />Add evidence</button><Link className={styles.secondaryButton} href={withReturn(`/vehicles/repair-workbench?vehicleId=${encodeURIComponent(vehicle.id)}`, vehicle360Return)}><Wrench />Start repair order</Link><Link className={styles.primaryButton} href={primaryHref}>{primaryLabel}<ArrowRight /></Link></div>
+        <div className={styles.heroActions}><button className={styles.secondaryButton} onClick={() => setActive("photos")} type="button"><Camera />360 photos</button><button className={styles.secondaryButton} onClick={() => setActive("evidence")} type="button"><FileText />Add evidence</button><Link className={styles.secondaryButton} href={withReturn(`/vehicles/repair-workbench?vehicleId=${encodeURIComponent(vehicle.id)}`, vehicle360Return)}><Wrench />Start repair order</Link><Link className={styles.primaryButton} href={primaryHref}>{primaryLabel}<ArrowRight /></Link></div>
       </div>
-      <nav className={styles.tabs} aria-label="Vehicle 360 sections">{sections.map(section => <button aria-current={active === section ? "page" : undefined} className={active === section ? styles.activeTab : ""} key={section} onClick={() => setActive(section)} type="button">{section === "identity" ? "Identity & specifications" : section === "work" ? "Work & service history" : section === "safety" ? "Safety intelligence" : section === "evidence" ? "Evidence & documents" : "Overview"}</button>)}</nav>
+      <nav className={styles.tabs} aria-label="Vehicle 360 sections">{sections.map(section => <button aria-current={active === section ? "page" : undefined} className={active === section ? styles.activeTab : ""} key={section} onClick={() => setActive(section)} type="button">{section === "photos" ? "360 Photos" : section === "identity" ? "Identity & specifications" : section === "work" ? "Work & service history" : section === "safety" ? "Safety intelligence" : section === "evidence" ? "Evidence & documents" : "Overview"}</button>)}</nav>
     </header>
 
     {notice ? <div className={notice.toLowerCase().includes("failed") || notice.toLowerCase().includes("quarantine") || notice.toLowerCase().includes("required") ? styles.warning : styles.success}><ShieldCheck /><p>{notice}</p></div> : null}
 
     {decodeError ? <div className={styles.warning}><AlertTriangle /><p>{decodeError}</p></div> : null}
     {active === "overview" ? <Overview view={view} specifications={specifications} specificationAvailable={specificationView.available} specificationStatus={decodeLoading ? "Retrieving live NHTSA decode" : liveDecode ? "Live NHTSA refresh" : view.tabs.specifications.available ? "Canonical snapshot" : "Missing"} safety={safety} safetyError={safetyError} safetyLoading={safetyLoading} nodes={nodes} missingCanonical={missingCanonical.map(([name]) => String(name))} onOpenEvidence={() => setActive("evidence")} onOpenIdentity={() => setActive("identity")} onOpenSafety={() => setActive("safety")} primaryHref={primaryHref} /> : null}
+    {active === "photos" ? <PhotoWalkaround allowed={view.tabs.documents.allowed} items={view.tabs.documents.items} vehicle={vehicle} onAddPhoto={() => { setCategory("PHOTO"); setActive("evidence"); setNotice("Choose a vehicle photo file, label the angle in the file name, then store it as governed evidence."); }} /> : null}
     {active === "identity" ? <VehicleSpecifications view={specificationView} /> : null}
     {active === "work" ? <WorkHistory view={view} /> : null}
     {active === "safety" ? <SafetyIntelligence intelligence={safety} loading={safetyLoading} error={safetyError} onRefresh={() => void loadSafety()} vehicle={vehicle} /> : null}
@@ -245,6 +290,72 @@ function WorkHistory({ view }: { view: Vehicle360View }) {
 
 function RecordSection({ title, allowed, items, kind }: { title: string; allowed: boolean; items: RecordItem[]; kind: string }) {
   return <section className={styles.panel}><SectionHeading eyebrow="Connected source records" title={title} action={<OperationalBadge>{allowed ? `${items.length} record${items.length === 1 ? "" : "s"}` : "Restricted"}</OperationalBadge>} />{allowed ? <GenericCards items={items} kind={kind} /> : <AccessEmpty allowed={false} labelText={title} />}</section>;
+}
+
+function PhotoWalkaround({ allowed, items, onAddPhoto, vehicle }: { allowed: boolean; items: EvidenceItem[]; onAddPhoto: () => void; vehicle: Vehicle360View["summary"]["vehicle"] }) {
+  const { photos, byAngle, capturedRequired, missingRequired } = walkaroundCoverage(items);
+  const firstCaptured = walkaroundAngles.find(angle => byAngle.has(angle.code))?.code;
+  const [selectedCode, setSelectedCode] = useState<WalkaroundAngleCode>(firstCaptured ?? "front");
+  const selected = walkaroundAngles.find(angle => angle.code === selectedCode) ?? walkaroundAngles[0];
+  const selectedItem = byAngle.get(selected.code);
+  const title = [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || vehicle.vehicleNumber;
+  return <div className={styles.sectionStack}>
+    <section className={styles.panel}>
+      <SectionHeading
+        eyebrow="360 photo walkaround"
+        title="Vehicle photo coverage"
+        detail="Use normal phone photos. Vehicle 360 organizes the evidence by required angle so intake, recon, sales, warranty, and reports can reuse the same governed source."
+        action={<button className={styles.primaryButton} disabled={!allowed} onClick={onAddPhoto} type="button"><Camera />Add photo evidence</button>}
+      />
+      <div className={styles.photoStats}>
+        <div><small>Required coverage</small><strong>{capturedRequired}/{requiredWalkaroundAngles.length}</strong><span>{capturedRequired === requiredWalkaroundAngles.length ? "Ready for review" : "More angles needed"}</span></div>
+        <div><small>Missing angles</small><strong>{missingRequired.length}</strong><span>{missingRequired.slice(0, 2).map(angle => angle.label).join(", ") || "None"}</span></div>
+        <div><small>Available photos</small><strong>{photos.length}</strong><span>Governed evidence</span></div>
+        <div><small>Vehicle</small><strong>{title}</strong><span>Stock {vehicle.stockNumber ?? "not recorded"}</span></div>
+      </div>
+    </section>
+
+    <main className={styles.walkaroundLayout}>
+      <section className={`${styles.panel} ${styles.walkaroundViewer}`}>
+        <div className={styles.photoFrame}>
+          {selectedItem?.downloadUrl ? <div aria-label={`${selected.label} vehicle photo`} className={styles.photoImage} role="img" style={{ backgroundImage: `url("${selectedItem.downloadUrl}")` }} /> : <div className={styles.photoPlaceholder}><Camera /><strong>{selectedItem ? selectedItem.evidenceObject.fileName : `${selected.label} photo missing`}</strong><p>{selected.hint}</p></div>}
+        </div>
+        <div className={styles.angleRail} aria-label="Walkaround photo angles">
+          {walkaroundAngles.map(angle => {
+            const captured = byAngle.has(angle.code);
+            return <button aria-current={selectedCode === angle.code ? "true" : undefined} className={`${styles.angleButton} ${selectedCode === angle.code ? styles.angleButtonActive : ""}`} key={angle.code} onClick={() => setSelectedCode(angle.code)} type="button"><span>{angle.label}</span><small>{captured ? "Captured" : "Needed"}</small></button>;
+          })}
+        </div>
+      </section>
+
+      <aside className={styles.sectionStack}>
+        <section className={styles.panel}>
+          <SectionHeading eyebrow="Selected angle" title={selected.label} detail={selected.hint} />
+          {selectedItem ? <dl className={styles.photoMeta}>
+            <div><dt>File</dt><dd>{selectedItem.evidenceObject.fileName}</dd></div>
+            <div><dt>Uploaded by</dt><dd>{selectedItem.evidenceObject.uploadedByUser.name}</dd></div>
+            <div><dt>Uploaded</dt><dd>{dateTime(selectedItem.evidenceObject.createdAt)}</dd></div>
+            <div><dt>Access</dt><dd>{sentence(selectedItem.evidenceObject.accessLevel)}</dd></div>
+            <div><dt>Malware result</dt><dd>{sentence(selectedItem.evidenceObject.malwareStatus)}</dd></div>
+          </dl> : <div className={styles.empty}><AlertTriangle /><div><strong>Photo needed</strong><p>Add a photo for this angle and include the angle name in the file name, such as front-left or odometer.</p></div></div>}
+          <div className={styles.cardActions}>{selectedItem?.downloadUrl ? <a className={styles.secondaryButton} href={selectedItem.downloadUrl}>Open photo</a> : null}<button className={styles.secondaryButton} disabled={!allowed} onClick={onAddPhoto} type="button">{selectedItem ? "Add another angle" : "Add this angle"}</button></div>
+        </section>
+
+        <section className={styles.panel}>
+          <SectionHeading eyebrow="Workflow use" title="Where these photos help" detail="One captured photo set should support the workbench instead of being re-uploaded in multiple places." />
+          <div className={styles.workflowChips}><span>Delivery readiness</span><span>Repair progress</span><span>Appraisal proof</span><span>Customer issue</span><span>Warranty</span><span>Towing / intake</span><span>Report evidence</span></div>
+        </section>
+      </aside>
+    </main>
+
+    <section className={styles.panel}>
+      <SectionHeading eyebrow="Walkaround checklist" title="Required and optional angles" detail="Captured angles show as ready. Missing angles become the next photo work for staff." />
+      {allowed ? <div className={styles.angleChecklist}>{walkaroundAngles.map(angle => {
+        const item = byAngle.get(angle.code);
+        return <article key={angle.code}><div><CheckCircle2 className={item ? styles.positiveIcon : styles.mutedIcon} /><strong>{angle.label}</strong><p>{item ? item.evidenceObject.fileName : angle.hint}</p></div><button className={styles.textButton} onClick={() => item ? setSelectedCode(angle.code) : onAddPhoto()} type="button">{item ? "Inspect" : "Add photo"}<ArrowRight /></button></article>;
+      })}</div> : <AccessEmpty allowed={false} labelText="Vehicle photos" />}
+    </section>
+  </div>;
 }
 
 function EvidenceWorkspace({ accessLevel, allowed, busy, category, file, items, retention, onAccessLevel, onCategory, onFile, onGovern, onRetention, onUpload }: { accessLevel: string; allowed: boolean; busy: boolean; category: string; file: File | null; items: EvidenceItem[]; retention: string; onAccessLevel: (value: string) => void; onCategory: (value: string) => void; onFile: (value: File | null) => void; onGovern: (item: EvidenceItem, changes: Record<string, unknown>, reason: string) => Promise<void>; onRetention: (value: string) => void; onUpload: (event: FormEvent) => Promise<void> }) {

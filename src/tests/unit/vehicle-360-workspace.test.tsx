@@ -3,8 +3,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import { Vehicle360Workspace, type Vehicle360View } from "@/features/inventory/vehicle-360-workspace";
 
+const navigationMock = vi.hoisted(() => ({
+  search: "returnTo=%2Fvehicles%2Fvehicle-1%2Finventory-planning",
+}));
+
 vi.mock("next/navigation", () => ({
-  useSearchParams: () => new URLSearchParams("returnTo=%2Fvehicles%2Fvehicle-1%2Finventory-planning"),
+  useSearchParams: () => new URLSearchParams(navigationMock.search),
 }));
 
 const view: Vehicle360View = {
@@ -48,6 +52,7 @@ describe("Vehicle 360 enterprise command center", () => {
       "VIN Verified",
       "Dealership inventory",
       "Overview",
+      "360 Photos",
       "Identity &amp; specifications",
       "Work &amp; service history",
       "Safety intelligence",
@@ -65,5 +70,60 @@ describe("Vehicle 360 enterprise command center", () => {
     expect(html).toContain("42,118 mi");
     expect(html).toContain("Eli Manager");
     expect(html).toContain("Minneapolis");
+  });
+
+  it("renders the photo walkaround coverage workspace from governed evidence", () => {
+    navigationMock.search = "section=photos";
+    const photoView: Vehicle360View = {
+      ...view,
+      tabs: {
+        ...view.tabs,
+        documents: {
+          allowed: true,
+          items: [{
+            id: "evidence-link-1",
+            category: "PHOTO",
+            relationship: "SUPPORTS",
+            subjectType: "VEHICLE",
+            subjectId: "vehicle-1",
+            createdAt: "2026-08-01T15:10:00.000Z",
+            evidenceObjectId: "evidence-object-1",
+            downloadUrl: "/api/vehicle-evidence/evidence-object-1/content",
+            evidenceObject: {
+              id: "evidence-object-1",
+              fileName: "front-left-arrival-photo.png",
+              contentType: "image/png",
+              byteSize: 2048,
+              checksumSha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+              malwareStatus: "CLEAN",
+              accessLevel: "INTERNAL",
+              retentionUntil: "2029-08-01T23:59:59.999Z",
+              legalHold: false,
+              status: "AVAILABLE",
+              version: 1,
+              createdAt: "2026-08-01T15:10:00.000Z",
+              uploadedByUser: { id: "user-1", name: "Eli Manager" },
+            },
+          }],
+        },
+      },
+    };
+
+    const html = renderToStaticMarkup(<Vehicle360Workspace initial={photoView} />);
+
+    for (const content of [
+      "360 photo walkaround",
+      "Vehicle photo coverage",
+      "Required coverage",
+      "1/10",
+      "Missing angles",
+      "Front left",
+      "front-left-arrival-photo.png",
+      "Delivery readiness",
+      "Report evidence",
+      "Walkaround checklist",
+    ]) expect(html).toContain(content);
+
+    navigationMock.search = "returnTo=%2Fvehicles%2Fvehicle-1%2Finventory-planning";
   });
 });

@@ -1369,6 +1369,7 @@ export function RepairOrderEnterpriseWorkbench({
       })}`;
   const inventoryLifecycleHref = `/vehicles/${encodeURIComponent(order.vehicle.id)}/inventory-planning?${new URLSearchParams({ repairOrderId: order.id })}`;
   const shopReconHref = `/vehicles/shop-recon/${encodeURIComponent(order.id)}?${new URLSearchParams({ returnTo: workbenchReturnRoute })}`;
+  const vehicle360PhotosHref = `/vehicles/360/${encodeURIComponent(order.vehicle.id)}?${new URLSearchParams({ section: "photos", returnTo: workbenchReturnRoute })}`;
   const shopReconStageDefinition = SHOP_RECON_STAGES.find((stage) => stage.code === order.shopReconLifecycle?.stage);
   const shopReconStageLabel = shopReconStageDefinition
     ? `${shopReconStageDefinition.order}. ${shopReconStageDefinition.label}`
@@ -1526,6 +1527,7 @@ export function RepairOrderEnterpriseWorkbench({
           </div>
           <div>
             <button aria-expanded={reconReportOpen} aria-controls="recon-report" onClick={toggleReconReport} type="button"><Activity /> Recon Report</button>
+            <Link href={vehicle360PhotosHref}><Camera /> 360 Photos</Link>
             <Link href={partsWorkspaceHref}><PackageCheck /> Parts</Link>
             <Link href={`${detailRoute}#repair-order-document`}><FileText /> View RO</Link>
             <a href={`/api/repair-orders/${encodeURIComponent(order.id)}/print`} rel="noreferrer" target="_blank"><Printer /> Print RO</a>

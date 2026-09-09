@@ -101,6 +101,40 @@
 .recordCard dl>div:last-child,.evidenceCard dl>div:last-child { border-bottom:0; }
 .recordCard dd,.evidenceCard dd { text-align:right; }
 .recordCard p { color:#4f627c; font-size:.76rem; }
+.photoStats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+.photoStats>div { min-width:0; padding:12px; border:1px solid #dfe6f0; border-radius:10px; background:#fbfcfe; }
+.photoStats small { display:block; color:#6e7f96; font-size:.7rem; font-weight:850; letter-spacing:.04em; text-transform:uppercase; }
+.photoStats strong { display:block; margin:5px 0 2px; color:#112847; font-size:1rem; overflow-wrap:anywhere; }
+.photoStats span { display:block; color:#64768e; font-size:.76rem; overflow-wrap:anywhere; }
+.walkaroundLayout { display:grid; grid-template-columns:minmax(0,1.45fr) minmax(280px,.75fr); gap:15px; align-items:start; }
+.walkaroundViewer { display:grid; gap:12px; }
+.photoFrame { display:grid; place-items:center; min-height:420px; overflow:hidden; border:1px solid #d5deea; border-radius:12px; background:#111827; }
+.photoImage { width:100%; min-height:420px; background-position:center; background-repeat:no-repeat; background-size:contain; }
+.photoPlaceholder { display:grid; place-items:center; gap:8px; width:100%; min-height:420px; padding:30px; text-align:center; color:#d8e3f5; background:linear-gradient(135deg,#172033,#263954); }
+.photoPlaceholder svg { width:42px; height:42px; color:#91a9d7; }
+.photoPlaceholder strong { color:#fff; font-size:1.04rem; }
+.photoPlaceholder p { max-width:360px; margin:0; color:#cfdbef; }
+.angleRail { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:7px; }
+.angleButton { min-width:0; min-height:55px; padding:8px; border:1px solid #cfdaeb; border-radius:9px; background:#fff; color:#29466a; text-align:left; cursor:pointer; }
+.angleButton span,.angleButton small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.angleButton span { font-weight:850; }
+.angleButton small { margin-top:4px; color:#728198; font-size:.68rem; font-weight:800; }
+.angleButtonActive { border-color:#426bd4; background:#eef4ff; box-shadow:inset 0 0 0 1px #426bd4; }
+.photoMeta { display:grid; margin:0; }
+.photoMeta>div { display:flex; gap:10px; justify-content:space-between; padding:8px 0; border-bottom:1px solid #e4e9f1; }
+.photoMeta>div:last-child { border-bottom:0; }
+.photoMeta dt { color:#728198; font-size:.72rem; }
+.photoMeta dd { margin:0; color:#172d49; font-size:.78rem; font-weight:800; text-align:right; overflow-wrap:anywhere; }
+.workflowChips { display:flex; flex-wrap:wrap; gap:8px; }
+.workflowChips span { padding:7px 9px; border:1px solid #d4deeb; border-radius:999px; background:#f7faff; color:#36507a; font-size:.72rem; font-weight:800; }
+.angleChecklist { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.angleChecklist article { display:flex; gap:12px; align-items:center; justify-content:space-between; min-width:0; padding:11px; border:1px solid #dce4ed; border-radius:10px; background:#fbfcfe; }
+.angleChecklist article>div { display:grid; grid-template-columns:auto minmax(0,1fr); column-gap:9px; min-width:0; }
+.angleChecklist svg { grid-row:1 / span 2; width:18px; height:18px; }
+.angleChecklist strong { color:#1b3555; font-size:.83rem; }
+.angleChecklist p { grid-column:2; margin:2px 0 0; font-size:.74rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.positiveIcon { color:#2c7b4a; }
+.mutedIcon { color:#a7b4c5; }
 .uploadGrid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:11px; margin-bottom:13px; }
 .uploadGrid label { display:grid; gap:5px; color:#52647c; font-size:.73rem; font-weight:800; }
 .uploadGrid input,.uploadGrid select { min-width:0; min-height:39px; padding:7px 9px; border:1px solid #c9d5e5; border-radius:8px; background:#fff; color:#1b334f; }
@@ -109,5 +143,6 @@
 .evidenceCard header small { color:#6f8096; font-size:.72rem; font-weight:800; text-transform:uppercase; }
 .cardActions { margin-top:12px; }
 @media(max-width:1050px){.identityRow{grid-template-columns:70px 1fr}.heroActions{grid-column:1/-1;justify-content:flex-start;max-width:none}.overviewLayout{grid-template-columns:1fr}.sideRail{grid-template-columns:repeat(2,minmax(0,1fr))}.nextPanel{grid-column:1/-1}}
-@media(max-width:760px){.factGrid,.originGrid,.specificationGrid,.recordGrid,.evidenceGrid,.safetyGrid,.uploadGrid{grid-template-columns:1fr}.sideRail{grid-template-columns:1fr}.nextPanel{grid-column:auto}.sectionHeading{display:grid}.safetyBoundary{grid-template-columns:auto 1fr}.safetyBoundary a{grid-column:2}.timeline article{grid-template-columns:auto 1fr}.timeline time{grid-column:2}.breadcrumb{padding:11px 14px}.identityRow{padding:16px 14px}.tabs{padding:0 14px}}
+@media(max-width:900px){.walkaroundLayout,.photoStats{grid-template-columns:1fr}.angleRail{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:760px){.factGrid,.originGrid,.specificationGrid,.recordGrid,.evidenceGrid,.safetyGrid,.uploadGrid,.angleChecklist{grid-template-columns:1fr}.sideRail{grid-template-columns:1fr}.nextPanel{grid-column:auto}.sectionHeading{display:grid}.safetyBoundary{grid-template-columns:auto 1fr}.safetyBoundary a{grid-column:2}.timeline article{grid-template-columns:auto 1fr}.timeline time{grid-column:2}.breadcrumb{padding:11px 14px}.identityRow{padding:16px 14px}.tabs{padding:0 14px}.photoFrame,.photoImage,.photoPlaceholder{min-height:300px}}
 @media(max-width:480px){.identityRow{grid-template-columns:1fr}.vehicleIcon{width:58px;height:52px}.heroActions{display:grid}.primaryButton,.secondaryButton{width:100%}.sideFacts>div,.sourceList>div{display:grid}.sideFacts dd,.sourceList dd{text-align:left}.recallCard header{display:grid}.cardActions{display:grid}}
