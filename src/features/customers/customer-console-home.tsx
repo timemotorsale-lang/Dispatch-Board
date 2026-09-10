@@ -160,7 +160,7 @@ export function CustomerConsoleHome({ showAdvisorReturn = false }: { showAdvisor
           <Link href="/customers/customer-360">Customer 360</Link>
           <Link href="/customers/resolutions">Resolution</Link>
         </nav>
-        <CrmModeSwitch active="legacy" />
+        <CrmModeSwitch />
         <button className="customer-quick-action" onClick={() => void runGuardedAction("leads", "Lead backend responded. Use Customer 360 or the guided lead flow when creation is enabled.")} type="button"><Plus size={16} /> New <ChevronDown size={13} /></button>
         <button className="customer-home-toolbar-icon" aria-label="Notifications" onClick={() => void safeNavigate("/customers/tasks", "Customer task context is not available from this Customers screen yet.")} type="button"><Bell size={17} /><span>6</span></button>
         <button className="customer-home-toolbar-icon" aria-label="Messages" onClick={() => void runGuardedAction("email", "Email draft backend responded. Provider sending remains governed by communication readiness.")} type="button"><Mail size={17} /></button>

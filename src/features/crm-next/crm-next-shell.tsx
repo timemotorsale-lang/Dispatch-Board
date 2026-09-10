@@ -40,7 +40,7 @@ function initials(name: string) {
 
 export function CrmNextUnavailable({ fallbackHref, reason }: { fallbackHref: string; reason: CrmNextAccessReason }) {
   const message = reason === "CRM_NEXT_OFF"
-    ? "CRM Next is safely turned off. Legacy Customers and current CRM remain available."
+    ? "CRM Next is safely turned off. Customer Archive and the current CRM fallback remain available."
     : "CRM Next is not enabled for your current workspace.";
 
   return (
@@ -50,8 +50,8 @@ export function CrmNextUnavailable({ fallbackHref, reason }: { fallbackHref: str
       <p>{message}</p>
       <div className={styles.buttonRow}>
         <Link className={styles.primaryButton} href={fallbackHref}>Return to my workspace</Link>
-        <Link className={styles.secondaryButton} href="/customers">Open Legacy Customers</Link>
-        <Link className={styles.secondaryButton} href="/crm">Open current CRM</Link>
+        <Link className={styles.secondaryButton} href="/customers">Customer archive</Link>
+        <Link className={styles.secondaryButton} href="/crm">Current CRM fallback</Link>
       </div>
     </section>
   );
@@ -98,8 +98,8 @@ function CrmNextFrame({ active, children, userName }: { active: "command" | "new
                 <Icon size={17} /> {label}
               </Link>
             ))}
-            <Link href="/crm"><ChevronRight size={17} /> Current CRM</Link>
-            <Link href="/customers"><ChevronRight size={17} /> Legacy Customers</Link>
+            <Link href="/crm"><ChevronRight size={17} /> Current CRM fallback</Link>
+            <Link href="/customers"><ChevronRight size={17} /> Customer archive</Link>
           </nav>
           <div className={styles.operator}>
             <strong>{userName}</strong>
@@ -439,8 +439,8 @@ export function CrmNextProgressView({ model }: { model: CrmNextCommandCenter }) 
         </div>
         <div className={styles.quickActions}>
           <Link className={styles.primaryButton} href="/crm-next">Open CRM Next</Link>
-          <Link className={styles.secondaryButton} href="/crm">Current CRM</Link>
-          <Link className={styles.secondaryButton} href="/customers">Legacy Customers</Link>
+          <Link className={styles.secondaryButton} href="/crm">Current CRM fallback</Link>
+          <Link className={styles.secondaryButton} href="/customers">Customer archive</Link>
         </div>
       </section>
 
@@ -485,7 +485,7 @@ export function CrmNextProgressView({ model }: { model: CrmNextCommandCenter }) 
         </article>
         <article className={styles.card}>
           <header><h2>Rollback posture</h2></header>
-          <p>Turn off `CRM_NEXT` and CRM Next fails closed while Legacy Customers and current CRM remain available.</p>
+          <p>Turn off `CRM_NEXT` and CRM Next fails closed while Customer Archive and the current CRM fallback remain available.</p>
         </article>
       </section>
     </CrmNextFrame>
@@ -512,7 +512,7 @@ export function CrmNextReviewCenterView({ model }: { model: CrmNextCommandCenter
     {
       href: "/crm-next/coexistence",
       label: "Coexistence",
-      detail: "Legacy/current CRM protection, migration rules, and switchback posture."
+      detail: "Customer archive/current CRM fallback protection, migration rules, and switchback posture."
     },
     {
       href: "/crm-next/pilot-release",
@@ -532,7 +532,7 @@ export function CrmNextReviewCenterView({ model }: { model: CrmNextCommandCenter
     {
       href: "/crm-next/system/rollback",
       label: "Rollback Review",
-      detail: "How CRM Next fails closed while Legacy/current CRM remain available."
+      detail: "How CRM Next fails closed while the customer archive/current CRM fallback remain available."
     }
   ];
 
@@ -548,8 +548,8 @@ export function CrmNextReviewCenterView({ model }: { model: CrmNextCommandCenter
         </div>
         <div className={styles.quickActions}>
           <Link className={styles.primaryButton} href="/crm-next">Return to operating CRM</Link>
-          <Link className={styles.secondaryButton} href="/crm">Current CRM</Link>
-          <Link className={styles.secondaryButton} href="/customers">Legacy Customers</Link>
+          <Link className={styles.secondaryButton} href="/crm">Current CRM fallback</Link>
+          <Link className={styles.secondaryButton} href="/customers">Customer archive</Link>
         </div>
       </section>
 
@@ -717,8 +717,8 @@ export function CrmNextIntakeView({ model }: { model: CrmNextCommandCenter }) {
           <article className={styles.sidePanel}>
             <header><h2>Need another mode?</h2></header>
             <div className={styles.verticalActions}>
-              <Link className={styles.secondaryButton} href="/customers">Legacy Customers</Link>
-              <Link className={styles.secondaryButton} href="/crm">Unified CRM</Link>
+              <Link className={styles.secondaryButton} href="/customers">Customer archive</Link>
+              <Link className={styles.secondaryButton} href="/crm">Current CRM fallback</Link>
             </div>
           </article>
         </aside>
@@ -1027,7 +1027,7 @@ export function CrmNextPilotReadinessView({ model }: { model: CrmNextCommandCent
         <article className={styles.summaryCard} data-tone="blue"><small>Pilot scenarios</small><strong>{model.pilotScenarios.length}</strong><p>review records</p></article>
         <article className={styles.summaryCard}><small>Writes</small><strong>0</strong><p>still disabled</p></article>
         <article className={styles.summaryCard}><small>Live comms</small><strong>0</strong><p>not enabled</p></article>
-        <article className={styles.summaryCard}><small>Route replacement</small><strong>No</strong><p>Legacy protected</p></article>
+        <article className={styles.summaryCard}><small>Route replacement</small><strong>No</strong><p>Fallback protected</p></article>
         <article className={styles.summaryCard}><small>Next</small><strong>{model.progress.nextMilestone}</strong><p>hardening gate</p></article>
       </section>
 
@@ -1079,7 +1079,7 @@ export function CrmNextHardeningView({ model }: { model: CrmNextCommandCenter })
         <article className={styles.summaryCard} data-tone="blue"><small>Hardening gates</small><strong>{model.hardeningGates.length}</strong><p>review controls</p></article>
         <article className={styles.summaryCard}><small>Held gate</small><strong>CRMN-080</strong><p>migration approval</p></article>
         <article className={styles.summaryCard}><small>Customer writes</small><strong>0</strong><p>still disabled</p></article>
-        <article className={styles.summaryCard}><small>Route replacement</small><strong>No</strong><p>Legacy protected</p></article>
+        <article className={styles.summaryCard}><small>Route replacement</small><strong>No</strong><p>Fallback protected</p></article>
         <article className={styles.summaryCard}><small>Next</small><strong>{model.progress.nextMilestone}</strong><p>coexistence plan</p></article>
       </section>
 
@@ -1117,20 +1117,20 @@ export function CrmNextCoexistenceView({ model }: { model: CrmNextCommandCenter 
       <Topbar />
       <section className={styles.hero}>
         <div>
-          <span className={styles.eyebrow}>Legacy Coexistence</span>
+          <span className={styles.eyebrow}>Fallback Coexistence</span>
           <h1>CRM Next can be reviewed without replacing today’s CRM</h1>
-          <p>Legacy Customers and current CRM remain operational while CRM Next proves whether it is ready to become the replacement experience.</p>
+          <p>Customer Archive and the current CRM fallback remain operational while CRM Next proves whether it is ready to become the replacement experience.</p>
         </div>
         <div className={styles.quickActions}>
           <Link className={styles.primaryButton} href="/crm-next">CRM Next</Link>
-          <Link className={styles.secondaryButton} href="/customers">Legacy Customers</Link>
-          <Link className={styles.secondaryButton} href="/crm">Current CRM</Link>
+          <Link className={styles.secondaryButton} href="/customers">Customer archive</Link>
+          <Link className={styles.secondaryButton} href="/crm">Current CRM fallback</Link>
         </div>
       </section>
 
       <section className={styles.summaryGrid} aria-label="CRM Next coexistence summary">
         <article className={styles.summaryCard} data-tone="blue"><small>Coexistence gates</small><strong>{model.coexistenceGates.length}</strong><p>review controls</p></article>
-        <article className={styles.summaryCard}><small>Legacy routes</small><strong>Open</strong><p>protected</p></article>
+        <article className={styles.summaryCard}><small>Fallback routes</small><strong>Open</strong><p>protected</p></article>
         <article className={styles.summaryCard}><small>Default route</small><strong>No</strong><p>not replaced</p></article>
         <article className={styles.summaryCard}><small>Retirement</small><strong>Held</strong><p>approval needed</p></article>
         <article className={styles.summaryCard}><small>Next</small><strong>{model.progress.nextMilestone}</strong><p>pilot gates</p></article>
@@ -1151,7 +1151,7 @@ export function CrmNextCoexistenceView({ model }: { model: CrmNextCommandCenter 
               <h3>{gate.title}</h3>
               <p>{gate.crmNextRole}</p>
               <div className={styles.details}>
-                <p><span>Legacy owner</span>{gate.legacyOwner}</p>
+                <p><span>Fallback owner</span>{gate.legacyOwner}</p>
                 <p><span>Cutover rule</span>{gate.cutoverRule}</p>
                 <p><span>Rollback rule</span>{gate.rollbackRule}</p>
               </div>
@@ -1175,7 +1175,7 @@ export function CrmNextPilotReleaseView({ model }: { model: CrmNextCommandCenter
         <div>
           <span className={styles.eyebrow}>Pilot Release Gates</span>
           <h1>Ready for review, not ready for launch without approval</h1>
-          <p>The final CRM Next pilot gates show what must be reviewed before any broader rollout, live command, or Legacy replacement is allowed.</p>
+          <p>The final CRM Next pilot gates show what must be reviewed before any broader rollout, live command, or fallback replacement is allowed.</p>
         </div>
         <div className={styles.quickActions}>
           <Link className={styles.primaryButton} href="/crm-next/progress">Progress cockpit</Link>
@@ -1188,7 +1188,7 @@ export function CrmNextPilotReleaseView({ model }: { model: CrmNextCommandCenter
         <article className={styles.summaryCard} data-tone="blue"><small>Release gates</small><strong>{model.pilotReleaseGates.length}</strong><p>final checks</p></article>
         <article className={styles.summaryCard}><small>Launch</small><strong>Held</strong><p>approval needed</p></article>
         <article className={styles.summaryCard}><small>Live commands</small><strong>0</strong><p>not enabled</p></article>
-        <article className={styles.summaryCard}><small>Legacy</small><strong>Open</strong><p>fallback kept</p></article>
+        <article className={styles.summaryCard}><small>Fallback</small><strong>Open</strong><p>archive kept</p></article>
         <article className={styles.summaryCard}><small>Next</small><strong>{model.progress.nextMilestone}</strong><p>decision gate</p></article>
       </section>
 
@@ -1233,7 +1233,7 @@ export function CrmNextSafetyView({ kind, model }: { kind: "states" | "permissio
     permissions: {
       eyebrow: "Permission Safety",
       title: "Denied users fail closed",
-      body: "CRM Next only opens for approved roles and workspaces. Otherwise users are routed back to Legacy/current CRM."
+      body: "CRM Next only opens for approved roles and workspaces. Otherwise users are routed back to the customer archive/current CRM fallback."
     },
     rollback: {
       eyebrow: "Rollback Proof",
@@ -1255,7 +1255,7 @@ export function CrmNextSafetyView({ kind, model }: { kind: "states" | "permissio
       </section>
       <section className={styles.dashboardGrid}>
         <article className={styles.card}><header><h2>Feature flag</h2></header><p>CRM_NEXT controls access to the new experience and fails closed by default.</p></article>
-        <article className={styles.card}><header><h2>Fallback</h2></header><p>Legacy Customers and current CRM remain available during pilot review.</p></article>
+        <article className={styles.card}><header><h2>Fallback</h2></header><p>Customer Archive and the current CRM fallback remain available during pilot review.</p></article>
         <article className={styles.card}><header><h2>Activation boundary</h2></header><p>Internal Dispatch task creation is enabled. Calls, texts, emails, payments, documents, and deal/customer writes remain protected.</p></article>
       </section>
     </CrmNextFrame>
@@ -1301,7 +1301,7 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
               <Link className={styles.secondaryButton} href="/crm-next/new"><UserPlus size={16} /> Add Customer</Link>
               <Link className={styles.primaryButton} href={attendHref}>Attend</Link>
               <Link className={styles.secondaryButton} href="/crm-next/actions/send-text"><MessageSquare size={16} /> Message</Link>
-              <Link className={styles.secondaryButton} href="/crm">Open Current CRM</Link>
+              <Link className={styles.secondaryButton} href="/crm">Open fallback CRM</Link>
             </div>
           </section>
 
@@ -1468,7 +1468,7 @@ export function CrmNextActionReadinessView({ action, model }: { action: CrmNextO
           <div className={styles.customerHeroActions}>
             <Link className={styles.primaryButton} href={primaryHref}>Continue</Link>
             <Link className={styles.secondaryButton} href={backHref}>Back to Customer 360</Link>
-            <Link className={styles.secondaryButton} href="/crm">Open Current CRM</Link>
+            <Link className={styles.secondaryButton} href="/crm">Open fallback CRM</Link>
           </div>
         </section>
         <main className={styles.customerMain}>
@@ -1505,13 +1505,13 @@ export function CrmNextActionReadinessView({ action, model }: { action: CrmNextO
             <ul className={styles.signalList}>
               <li>Customer context stays visible</li>
               <li>Next step stays clear</li>
-              <li>Legacy and current CRM remain available</li>
+              <li>Customer archive and current CRM fallback remain available</li>
             </ul>
           </article>
           <article className={styles.sidePanel}>
             <header><h2>Need the old view?</h2></header>
-            <p className={styles.muted}>Open Legacy Customers if you need a workflow that is not yet available here.</p>
-            <Link className={styles.secondaryButton} href="/customers">Open Legacy Customers</Link>
+            <p className={styles.muted}>Open the customer archive only when a workflow is not yet available here.</p>
+            <Link className={styles.secondaryButton} href="/customers">Open customer archive</Link>
           </article>
         </aside>
       </section>

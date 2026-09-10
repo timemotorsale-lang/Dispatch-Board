@@ -307,8 +307,8 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     status: "IMPLEMENTED_UNVERIFIED",
     objective: "Open CRM Next at /crm-next only when CRM_NEXT is enabled.",
     reviewHref: "/crm-next",
-    evidence: "Route, feature flag access guard, fail-closed fallback, and Legacy links are implemented.",
-    safety: "No Legacy route replacement and no customer writes."
+    evidence: "Route, feature flag access guard, fail-closed fallback, and archive/fallback links are implemented.",
+    safety: "No fallback route replacement and no customer writes."
   },
   {
     id: "CRMN-011",
@@ -335,7 +335,7 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     objective: "Show customer, vehicle, opportunity, communication, and next-action context in one place.",
     reviewHref: "/crm-next/customers/michael-johnson",
     evidence: "Customer 360 page renders the approved overview pattern.",
-    safety: "Customer profile is review-only and links back to Legacy/current CRM."
+    safety: "Customer profile is review-only and links back to Customer Archive/current CRM fallback."
   },
   {
     id: "CRMN-014",
@@ -370,7 +370,7 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     status: "IMPLEMENTED_UNVERIFIED",
     objective: "Make CRM Next navigation obvious across Command Center, Customer 360, Work Customer, and Progress.",
     reviewHref: "/crm-next",
-    evidence: "Primary navigation, search entry, Legacy/current CRM fallback links, and progress review links are wired.",
+    evidence: "Primary navigation, search entry, Customer Archive/current CRM fallback links, and progress review links are wired.",
     safety: "Navigation-only; no writes."
   },
   {
@@ -465,12 +465,12 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
   },
   {
     id: "CRMN-028",
-    title: "Legacy switch/fallback links",
+    title: "Archive and fallback links",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Make switching between CRM Next and Legacy/current CRM obvious during pilot.",
+    objective: "Make switchback between CRM Next and archive/current CRM fallback obvious during pilot.",
     reviewHref: "/crm-next",
-    evidence: "CRM Next sidebar, unavailable state, progress cockpit, and work views include Legacy/current CRM exits.",
-    safety: "Legacy remains operational."
+    evidence: "CRM Next sidebar, unavailable state, progress cockpit, and work views include archive/current CRM fallback exits.",
+    safety: "Fallback routes remain operational."
   },
   {
     id: "CRMN-029",
@@ -848,7 +848,7 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     objective: "Document migration/reconciliation readiness without executing data migration.",
     reviewHref: "/crm-next/hardening#migration-hold",
     evidence: "Hardening surface identifies migration as approval-gated before any customer, opportunity, communication, or task data movement.",
-    safety: "No data migration, reconciliation write, Legacy replacement, or cutover."
+    safety: "No data migration, reconciliation write, fallback replacement, or cutover."
   },
   {
     id: "CRMN-081",
@@ -890,10 +890,10 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     id: "CRMN-085",
     title: "Rollback rehearsal",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Show the rollback path and Legacy fallback expectations before pilot.",
+    objective: "Show the rollback path and archive/fallback expectations before pilot.",
     reviewHref: "/crm-next/hardening#rollback",
     evidence: "Hardening surface describes the CRM_NEXT-off rollback posture.",
-    safety: "CRM Next remains isolated from Legacy routes."
+    safety: "CRM Next remains isolated from fallback routes."
   },
   {
     id: "CRMN-086",
@@ -906,18 +906,18 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
   },
   {
     id: "CRMN-087",
-    title: "Legacy coexistence map",
+    title: "Fallback coexistence map",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Make Legacy/current CRM coexistence rules visible before pilot.",
+    objective: "Make archive/current CRM fallback coexistence rules visible before pilot.",
     reviewHref: "/crm-next/coexistence#legacy-coexistence",
-    evidence: "Coexistence surface maps Legacy owners, CRM Next review roles, cutover rules, and rollback rules.",
-    safety: "No Legacy route replacement."
+    evidence: "Coexistence surface maps fallback owners, CRM Next review roles, cutover rules, and rollback rules.",
+    safety: "No fallback route replacement."
   },
   {
     id: "CRMN-088",
     title: "Capability migration plan",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Document which capabilities are reused, redesigned, deferred, or kept in Legacy during pilot.",
+    objective: "Document which capabilities are reused, redesigned, deferred, or kept in fallback routes during pilot.",
     reviewHref: "/crm-next/coexistence#capability-plan",
     evidence: "Coexistence surface keeps capability migration as reviewable planning evidence.",
     safety: "No backend model, API, permission, or data replacement is implied."
@@ -926,19 +926,19 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     id: "CRMN-089",
     title: "Pilot switchback rules",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Give reviewers clear switchback paths from CRM Next to current CRM and Legacy Customers.",
+    objective: "Give reviewers clear switchback paths from CRM Next to current CRM fallback and Customer Archive.",
     reviewHref: "/crm-next/coexistence#switchback",
     evidence: "Coexistence surface documents safe fallback and switchback rules.",
     safety: "Users can return to current operational routes during pilot."
   },
   {
     id: "CRMN-090",
-    title: "Legacy retirement not approved",
+    title: "Fallback retirement not approved",
     status: "HELD",
-    objective: "Make Legacy retirement explicitly blocked until pilot gates are approved.",
+    objective: "Make fallback retirement explicitly blocked until pilot gates are approved.",
     reviewHref: "/crm-next/coexistence#retirement-hold",
     evidence: "Coexistence surface marks retirement as held and approval-gated.",
-    safety: "No Legacy deprecation, archive, redirect, or removal."
+    safety: "No fallback deprecation, archive, redirect, or removal."
   },
   {
     id: "CRMN-091",
@@ -1010,7 +1010,7 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     objective: "Keep CRM Next reviewable when customer, search, or timeline sources are empty, unavailable, or permission-blocked.",
     reviewHref: "/crm-next",
     evidence: "Operational read source statuses expose LIVE_READ, PARTIAL_READ, EMPTY_READ, or FALLBACK_READ without crashing pages.",
-    safety: "Fallback is explicit and keeps Legacy/current CRM switchback links available."
+    safety: "Fallback is explicit and keeps Customer Archive/current CRM switchback links available."
   },
   {
     id: "CRMN-099",
@@ -1046,7 +1046,7 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     objective: "Keep search usable when source data is empty, gated, partial, or unavailable.",
     reviewHref: "/crm-next/search",
     evidence: "Operational read source statuses show LIVE_READ, EMPTY_READ, PARTIAL_READ, or FALLBACK_READ.",
-    safety: "Safe navigation remains available to Legacy Customers and current CRM."
+    safety: "Safe navigation remains available to Customer Archive and current CRM fallback."
   },
   {
     id: "CRMN-103",
@@ -1214,7 +1214,7 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     id: "CRMN-121",
     title: "Compact enterprise Customer 360 redesign",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Redesign CRM Next Customer 360 using the compact Legacy customer landing page as the review baseline.",
+    objective: "Redesign CRM Next Customer 360 using the compact customer archive landing page as the review baseline.",
     reviewHref: "/crm-next/customers/michael-johnson",
     evidence: "Customer 360 now leads with the customer profile, compact metrics, tabs, right-side quick actions, next-best-action, risk, and linked vehicles.",
     safety: "Layout-only redesign; source reads remain read-only and live writes/communications stay gated."
@@ -1258,7 +1258,7 @@ const pilotOperatingMilestones: CrmNextMilestoneProgress[] = [
   objective: `Complete ${title.toLowerCase()} as part of the CRM Next pilot-readiness operating envelope.`,
   reviewHref,
   evidence,
-  safety: "CRM Next remains behind /crm-next and CRM_NEXT; Legacy/current CRM stay operational; live communications, customer writes, migration, route replacement, and pilot launch remain held unless separately approved."
+  safety: "CRM Next remains behind /crm-next and CRM_NEXT; Customer Archive/current CRM fallback stay operational; live communications, customer writes, migration, route replacement, and pilot launch remain held unless separately approved."
 }));
 
 const allProgressMilestones = [...progressMilestones, ...pilotOperatingMilestones];
@@ -1989,8 +1989,8 @@ const hardeningGates: CrmNextHardeningGate[] = [
     title: "Migration and reconciliation stay held",
     status: "HELD",
     reviewState: "Held for approval",
-    proof: "Legacy/customer/opportunity/task/communication data movement is documented as a later approval gate, not part of this build.",
-    riskControl: "Current Legacy Customers and /crm remain operational and authoritative.",
+    proof: "Archive/customer/opportunity/task/communication data movement is documented as a later approval gate, not part of this build.",
+    riskControl: "Customer Archive and /crm remain operational and authoritative.",
     nextStep: "Approve a migration rehearsal plan only after pilot review coverage is accepted."
   },
   {
@@ -2045,7 +2045,7 @@ const hardeningGates: CrmNextHardeningGate[] = [
     status: "IMPLEMENTED_UNVERIFIED",
     reviewState: "Implemented for review",
     proof: "CRM_NEXT can be turned off so /crm-next fails closed while /customers and /crm remain available.",
-    riskControl: "No route replacement or Legacy deprecation is included in this envelope.",
+    riskControl: "No route replacement or fallback deprecation is included in this envelope.",
     nextStep: "Rehearse CRM_NEXT off/on during release-candidate proof."
   },
   {
@@ -2065,9 +2065,9 @@ const coexistenceGates: CrmNextCoexistenceGate[] = [
   {
     id: "legacy-coexistence",
     milestone: "CRMN-087",
-    title: "Legacy and CRM Next coexist during pilot",
+    title: "Fallback routes and CRM Next coexist during pilot",
     status: "IMPLEMENTED_UNVERIFIED",
-    legacyOwner: "Legacy /customers and current /crm stay operational for active customer work.",
+    legacyOwner: "Customer Archive and current /crm stay operational for active customer work.",
     crmNextRole: "CRM Next provides the review experience at /crm-next without becoming the default CRM.",
     cutoverRule: "No traffic moves to CRM Next by default until pilot gates are approved.",
     rollbackRule: "Disable CRM_NEXT and users return to current operational routes.",
@@ -2081,7 +2081,7 @@ const coexistenceGates: CrmNextCoexistenceGate[] = [
     legacyOwner: "Existing backend models, services, APIs, permissions, and integrations remain source-owned.",
     crmNextRole: "CRM Next reuses read models and displays migration decisions before any replacement.",
     cutoverRule: "A capability can move only after source ownership, writes, audit, rollback, and support are approved.",
-    rollbackRule: "Retain Legacy capability until CRM Next has proof and a fallback.",
+    rollbackRule: "Retain fallback capability until CRM Next has proof and a fallback.",
     safety: "Replacing the UX does not automatically replace the backend."
   },
   {
@@ -2089,7 +2089,7 @@ const coexistenceGates: CrmNextCoexistenceGate[] = [
     milestone: "CRMN-089",
     title: "Users always have a switchback path",
     status: "IMPLEMENTED_UNVERIFIED",
-    legacyOwner: "Legacy routes remain available for real work while CRM Next is reviewed.",
+    legacyOwner: "Fallback routes remain available for real work while CRM Next is reviewed.",
     crmNextRole: "CRM Next includes links back to /customers, /crm, progress, hardening, and source workspaces.",
     cutoverRule: "Pilot users can inspect CRM Next but must use approved operational routes for live execution.",
     rollbackRule: "Switchback is route-level and does not require data rollback because CRM Next does not write.",
@@ -2098,12 +2098,12 @@ const coexistenceGates: CrmNextCoexistenceGate[] = [
   {
     id: "retirement-hold",
     milestone: "CRMN-090",
-    title: "Legacy retirement is not approved",
+    title: "Fallback retirement is not approved",
     status: "HELD",
-    legacyOwner: "Legacy Customers and current CRM remain the operating fallback and source of truth where applicable.",
-    crmNextRole: "CRM Next can demonstrate replacement readiness, but cannot retire Legacy by itself.",
+    legacyOwner: "Customer Archive and current CRM fallback remain the operating fallback and source of truth where applicable.",
+    crmNextRole: "CRM Next can demonstrate replacement readiness, but cannot retire fallback routes by itself.",
     cutoverRule: "Retirement requires an explicit promotion and cutover approval after pilot evidence is reviewed.",
-    rollbackRule: "Keep Legacy available until a tested rollback plan exists.",
+    rollbackRule: "Keep fallback routes available until a tested rollback plan exists.",
     safety: "No redirect, removal, archive, or deprecation is included in this envelope."
   }
 ];
@@ -2127,7 +2127,7 @@ const pilotReleaseGates: CrmNextPilotReleaseGate[] = [
     status: "IMPLEMENTED_UNVERIFIED",
     owner: "Operations",
     decision: "Proof required",
-    requirement: "Define who pilots CRM Next, which actions stay in Legacy/current CRM, and where staff go when they hit a held command.",
+    requirement: "Define who pilots CRM Next, which actions stay in Customer Archive/current CRM fallback, and where staff go when they hit a held command.",
     proof: "Pilot release page states the training and switchback expectations before CRM Next is promoted.",
     cannotProceedUntil: "Operations signs off on pilot users, support path, and daily workflow instructions."
   },
@@ -2149,7 +2149,7 @@ const pilotReleaseGates: CrmNextPilotReleaseGate[] = [
     status: "HELD",
     owner: "Leadership",
     decision: "Held for approval",
-    requirement: "Leadership must approve pilot scope, rollout audience, communication policy, rollback plan, and Legacy coexistence posture.",
+    requirement: "Leadership must approve pilot scope, rollout audience, communication policy, rollback plan, and fallback coexistence posture.",
     proof: "CRM Next shows launch as held and does not broaden CRM_NEXT or replace existing routes.",
     cannotProceedUntil: "Leadership explicitly approves pilot launch."
   }

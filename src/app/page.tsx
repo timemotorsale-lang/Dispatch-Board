@@ -18,10 +18,10 @@ const workspaceLinks = [
     tone: "primary"
   },
   {
-    description: "Review customer records and continue customer work from the shared customer source.",
+    description: "Fallback access for historical customer records when CRM Next cannot complete the workflow yet.",
     href: "/customers",
-    label: "Open Customers",
-    title: "Customers",
+    label: "Open Customer Archive",
+    title: "Customer Archive",
     tone: "secondary"
   },
   {

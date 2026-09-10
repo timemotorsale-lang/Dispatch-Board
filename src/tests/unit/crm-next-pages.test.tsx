@@ -59,7 +59,7 @@ describe("CRM Next pages", () => {
     else process.env.CRM_NEXT = originalFlag;
   });
 
-  it("fails closed when CRM_NEXT is off and preserves Legacy routes", async () => {
+  it("fails closed when CRM_NEXT is off and preserves fallback routes", async () => {
     process.env.CRM_NEXT = "OFF";
     mocks.requireCurrentUser.mockResolvedValue(user(["General Manager"]));
 
@@ -67,8 +67,11 @@ describe("CRM Next pages", () => {
 
     expect(markup).toContain("CRM Next is protected right now");
     expect(markup).toContain("CRM Next is safely turned off");
+    expect(markup).toContain("Customer archive");
+    expect(markup).toContain("Current CRM fallback");
     expect(markup).toContain('href="/customers"');
     expect(markup).toContain('href="/crm"');
+    expect(markup).not.toContain('href="/crm-next"');
     expect(markup).not.toContain("Who needs attention?");
   });
 
@@ -146,7 +149,7 @@ describe("CRM Next pages", () => {
     expect(customer).toContain("Next Best Action");
     expect(customer).toContain("Linked Vehicles");
     expect(customer).toContain("Source status");
-    expect(customer).toContain("Open Current CRM");
+    expect(customer).toContain("Open fallback CRM");
     expect(customer).toContain("Add Customer");
     expect(customer).toContain("Open deal board");
     expect(customer).toContain("Open appointments");
@@ -205,7 +208,7 @@ describe("CRM Next pages", () => {
     expect(pilot).toContain("CRMN-075 → CRMN-079 pilot scenario expansion");
     expect(pilot).toContain("Multiple customer records ready for pilot review");
     expect(pilot).toContain("Manager review scenarios are visible before controls go live");
-    expect(pilot).toContain("Legacy protected");
+    expect(pilot).toContain("Fallback protected");
     expect(hardening).toContain("Controls before pilot promotion");
     expect(hardening).toContain("CRMN-080 → CRMN-086 hardening packet");
     expect(hardening).toContain("Migration and reconciliation stay held");
@@ -214,7 +217,7 @@ describe("CRM Next pages", () => {
     expect(coexistence).toContain("CRM Next can be reviewed without replacing today’s CRM");
     expect(coexistence).toContain("CRMN-087 → CRMN-090 coexistence packet");
     expect(coexistence).toContain("Capability migration remains deliberate");
-    expect(coexistence).toContain("Legacy retirement is not approved");
+    expect(coexistence).toContain("Fallback retirement is not approved");
     expect(coexistence).toContain("CRMN-150 proof bundle");
     expect(pilotRelease).toContain("Ready for review, not ready for launch without approval");
     expect(pilotRelease).toContain("CRMN-091 → CRMN-094 pilot release packet");

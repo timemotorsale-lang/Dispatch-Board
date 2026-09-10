@@ -255,7 +255,7 @@
   color: #52637a;
   font-size: 11px;
   font-weight: 900;
-  letter-spacing: .08em;
+  letter-spacing: 0;
   padding: 0 8px 0 10px;
   text-transform: uppercase;
 }
@@ -269,6 +269,53 @@
   padding: 9px 12px;
   text-decoration: none;
   white-space: nowrap;
+}
+
+.crm-mode-switch details {
+  position: relative;
+}
+
+.crm-mode-switch summary {
+  border-radius: 999px;
+  color: #52637a;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+  list-style: none;
+  padding: 9px 10px;
+  white-space: nowrap;
+}
+
+.crm-mode-switch summary::-webkit-details-marker {
+  display: none;
+}
+
+.crm-mode-switch summary:hover {
+  background: #eef4ff;
+  color: #0b3fb8;
+}
+
+.crm-mode-switch details > div {
+  background: #ffffff;
+  border: 1px solid #d9e4f3;
+  border-radius: 14px;
+  box-shadow: 0 18px 42px rgba(15, 42, 84, .14);
+  display: grid;
+  gap: 4px;
+  min-width: 180px;
+  padding: 8px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 40;
+}
+
+.crm-mode-switch details > div a {
+  border-radius: 10px;
+  color: #17345f;
+  padding: 9px 10px;
 }
 
 .crm-mode-switch a[aria-current="page"] {
@@ -305,6 +352,12 @@
 .ccc-topbar > .crm-mode-switch a[aria-current="page"] {
   background: #3f5cf4;
   color: #ffffff;
+}
+
+.ccc-topbar > .crm-mode-switch summary {
+  color: #9fb2d3;
+  font-size: 11px;
+  padding: 6px 7px;
 }
 
 .crm-next-bridge-control {

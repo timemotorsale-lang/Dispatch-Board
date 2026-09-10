@@ -69,13 +69,9 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
               : "home";
   const technicianOnly = isTechnicianOnlyUser(user);
   const cooWorkbook = pathname === "/vehicles/coo-workbook" || pathname.startsWith("/vehicles/coo-workbook/");
-  const crmMode = pathname === "/crm-next" || pathname.startsWith("/crm-next/")
-    ? "next"
-    : pathname === "/customers" || pathname.startsWith("/customers/")
-      ? "legacy"
-      : pathname === "/crm" || pathname.startsWith("/crm/")
-        ? "unified"
-        : null;
+  const showCrmModeSwitch = pathname === "/crm-next" || pathname.startsWith("/crm-next/")
+    || pathname === "/customers" || pathname.startsWith("/customers/")
+    || pathname === "/crm" || pathname.startsWith("/crm/");
   const activeWorkspace = cooWorkbook
     ? "MANAGEMENT"
     : pathname === "/vehicles/advisor"
@@ -238,7 +234,7 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
 
       <span className="ccc-dispatch-status"><i aria-hidden="true" />{commandCenterHome ? "CCC online" : pathname.startsWith("/crm/opportunities") ? "Opportunity review active" : pathname === "/crm" && crmView === "pipeline" ? "Opportunity workspace active" : activeWorkspace === "ADVISOR" ? "Advisor ready" : inventoryConsole ? "Inventory live" : dispatchConsole ? "Dispatch online" : "Console active"}</span>
 
-      {crmMode ? <CrmModeSwitch active={crmMode} /> : null}
+      {showCrmModeSwitch ? <CrmModeSwitch /> : null}
 
       <div className="topbar-actions" ref={actionsRef}>
         <div aria-label="Application appearance" className="app-appearance-switch" role="group">

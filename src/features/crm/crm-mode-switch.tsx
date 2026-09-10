@@ -2,23 +2,24 @@
 
 import Link from "next/link";
 
-type CrmMode = "legacy" | "unified" | "next";
-
-const modes = [
-  { id: "legacy", href: "/customers", label: "Legacy CRM" },
-  { id: "unified", href: "/crm", label: "Unified CRM" },
-  { id: "next", href: "/crm-next", label: "CRM Next" }
+const fallbackLinks = [
+  { href: "/customers", label: "Customer Archive" },
+  { href: "/crm", label: "Current CRM Fallback" }
 ] as const;
 
-export function CrmModeSwitch({ active }: { active: CrmMode }) {
+export function CrmModeSwitch() {
   return (
-    <nav aria-label="CRM mode switch" className="crm-mode-switch">
-      <span>CRM Mode</span>
-      {modes.map((mode) => (
-        <Link aria-current={active === mode.id ? "page" : undefined} href={mode.href} key={mode.id}>
-          {mode.label}
-        </Link>
-      ))}
+    <nav aria-label="Default CRM and fallback tools" className="crm-mode-switch">
+      <span>Default CRM</span>
+      <Link aria-current="page" href="/crm-next">CRM Next</Link>
+      <details>
+        <summary>Older tools</summary>
+        <div>
+          {fallbackLinks.map((link) => (
+            <Link href={link.href} key={link.href}>{link.label}</Link>
+          ))}
+        </div>
+      </details>
     </nav>
   );
 }
