@@ -33,6 +33,9 @@ describe("Manager Workspace", () => {
     expect(html).toContain("Inventory Manager");
     expect(html).toContain("Service Advisor");
     expect(html).toContain("Shop &amp; Recon");
+    expect(html).toContain("Exception brief");
+    expect(html).toContain("Customers needing attention");
+    expect(html).toContain("Open customer queue");
     expect(html).toContain("/vehicles/advisor?inbox=1");
     expect(html).toContain("/vehicles/coo-workbook");
     expect(html).not.toContain('id="manager-fast-routes"');

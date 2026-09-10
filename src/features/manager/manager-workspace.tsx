@@ -3,6 +3,7 @@
 import { type ReactNode, useMemo, useState } from "react";
 import { AlertTriangle, ArrowRight, BadgeDollarSign, Boxes, BriefcaseBusiness, CarFront, CheckCircle2, ChevronRight, ClipboardList, Clock3, Gauge, Inbox, Landmark, MapPinned, MessageSquareText, Search, ShieldCheck, Sparkles, UserRoundCog, UsersRound, Wrench } from "lucide-react";
 import Link from "next/link";
+import { buildManagerCommandCenterBrief, type ManagerExceptionCard } from "@/lib/manager-command-center-intelligence";
 import { getManagerWorkspaceHref, withManagerWorkspaceContext } from "@/lib/manager-workspace-context";
 import type { ManagerAction, ManagerMode, ManagerWorkHat, ManagerWorkspaceModel } from "@/server/manager-workspace/service";
 import styles from "./manager-workspace.module.css";
@@ -58,7 +59,8 @@ export function ManagerWorkspace({ initialMode = "CEO", model }: { initialMode?:
     const matching = model.actions.filter(item => mode === "CEO" ? item.mode === "CEO" : mode === "COO" ? item.mode !== "WORK" : item.mode === "WORK" && (activeHat === "ALL" || item.hat === activeHat));
     return matching.slice(0, mode === "CEO" ? 5 : density === "CALM" ? 7 : 24);
   }, [activeHat, density, mode, model.actions]);
-  const topAction = modeActions[0] ?? null;
+  const commandBrief = useMemo(() => buildManagerCommandCenterBrief(model, mode), [mode, model]);
+  const topAction = commandBrief.primaryAction ?? modeActions[0] ?? null;
   const missingSources = Object.entries(model.sources).filter(([, available]) => !available).map(([source]) => words(source));
   const selectMode = (nextMode: ManagerMode) => {
     setMode(nextMode);
@@ -80,6 +82,8 @@ export function ManagerWorkspace({ initialMode = "CEO", model }: { initialMode?:
 
     {topAction ? <section className={styles.focus} id="manager-focus"><div><small>{mode === "CEO" ? "Highest-value decision" : mode === "COO" ? "Most important intervention" : "Do this next"}</small><h2>{topAction.title}</h2><p>{topAction.reason}</p><span>{topAction.subject} · {actionLabel(topAction)}</span></div><ManagerLink href={topAction.href} mode={mode}><small>{topAction.authority}</small>{topAction.action}<ArrowRight /></ManagerLink></section> : <section className={`${styles.focus} ${styles.clear}`} id="manager-focus"><CheckCircle2 /><div><small>Calm state</small><h2>No action currently requires this mode.</h2><p>Use another mode or open a focused workspace when you are ready.</p></div></section>}
 
+    <ManagerExceptionBrief cards={commandBrief.exceptionCards} headline={commandBrief.headline} mode={mode} />
+
     {mode === "CEO" ? <CeoMode actions={modeActions} mode={mode} model={model} /> : mode === "COO" ? <CooMode actions={modeActions} density={density} mode={mode} model={model} setDensity={setDensity} /> : <WorkMode actions={modeActions} activeHat={activeHat} density={density} mode={mode} model={model} setActiveHat={setActiveHat} setDensity={setDensity} />}
 
     <footer className={styles.boundary}><ShieldCheck /><span><strong>Mode changes perspective—not authority.</strong> Every approval, customer authorization, repair action, QC decision, financial commitment, and release still checks the user’s actual permissions and the owning workflow.</span>{missingSources.length ? <b><AlertTriangle />Limited sources: {missingSources.join(", ")}</b> : <b><CheckCircle2 />All workspace sources connected</b>}</footer>
@@ -89,6 +93,19 @@ export function ManagerWorkspace({ initialMode = "CEO", model }: { initialMode?:
 function MetricCard({ item }: { item: MetricItem }) { return <article className={item.attention ? styles.attention : ""}><item.icon /><span><small>{item.label}</small><strong>{item.value}</strong><em>{item.note}</em></span>{item.href ? <ChevronRight aria-hidden="true" /> : null}</article>; }
 
 function Metrics({ items, mode }: { items: MetricItem[]; mode: ManagerMode }) { return <section className={styles.metrics} id="manager-summary">{items.map(item => item.href ? <ManagerLink href={item.href} key={item.label} mode={mode}><MetricCard item={item} /></ManagerLink> : <MetricCard item={item} key={item.label} />)}</section>; }
+
+function ManagerExceptionBrief({ cards, headline, mode }: { cards: ManagerExceptionCard[]; headline: string; mode: ManagerMode }) {
+  return <section className={styles.exceptionBrief} aria-label="Manager exception brief">
+    <header><div><small>Exception brief</small><strong>{headline}</strong></div><ManagerLink href="/vehicles/coo-workbook" mode={mode}>Open COO workbook<ArrowRight /></ManagerLink></header>
+    <div>{cards.map((card) => <ManagerLink href={card.href} key={card.id} mode={mode}>
+      <article className={styles[card.tone]}>
+        <span>{card.count}</span>
+        <div><strong>{card.title}</strong><small>{card.detail}</small></div>
+        <b>{card.actionLabel}<ArrowRight /></b>
+      </article>
+    </ManagerLink>)}</div>
+  </section>;
+}
 
 function CeoMode({ actions, mode, model }: { actions: ManagerAction[]; mode: ManagerMode; model: ManagerWorkspaceModel }) { const h = model.health; return <><Metrics mode={mode} items={[{ icon: BadgeDollarSign, label: "Capital deployed", value: money(h.exposureCents), note: `${h.activeInventory} active units`, href: "/reports?scope=inventory" }, { icon: Clock3, label: "Aged exposure", value: money(h.agedExposureCents), note: "Inventory over 30 days", attention: h.agedExposureCents > 0, href: "/vehicles/control-tower?focus=AGING" }, { icon: ShieldCheck, label: "Decisions pending", value: h.approvals + h.reviews, note: `${h.approvals} approvals · ${h.reviews} reviews`, attention: h.approvals > 0, href: "/manager-review?scope=inventory&view=approvals" }, { icon: MessageSquareText, label: "Customer commitments", value: h.advisorAttention, note: `${h.activeRepairOrders} active repair orders`, attention: h.advisorAttention > 0, href: "/vehicles/advisor?inbox=1" }]} /><section className={styles.twoColumn}><ActionQueue actions={actions} eyebrow="Executive queue" empty="No executive decisions are waiting." mode={mode} title="Decisions that need your authority" /><section className={styles.brief}><header><div><strong>Executive brief</strong><small>A concise view of business risk and operating capacity.</small></div></header><dl><div><dt>Inventory at risk</dt><dd>{h.blocked + h.overdue}</dd></div><div><dt>Customer attention</dt><dd>{h.advisorAttention}</dd></div><div><dt>Parts dependencies</dt><dd>{h.waitingParts}</dd></div><div><dt>System execution failures</dt><dd>{h.failedCommands}</dd></div></dl><ManagerLink href="/reports" mode={mode}>Open management reports<ArrowRight /></ManagerLink></section></section></>; }
 
