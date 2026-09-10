@@ -1,13 +1,14 @@
 import { CrmNextActionReadinessView, CrmNextUnavailable } from "@/features/crm-next/crm-next-shell";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { resolveCrmNextAccess } from "@/server/crm-next/access";
-import { getCrmNextOperatingAction, getCrmNextOperationalCommandCenter } from "@/server/crm-next/read-model";
+import { getCrmNextOperatingAction, getCrmNextOperationalCommandCenter, getCrmNextOperationalCustomer360 } from "@/server/crm-next/read-model";
 
 type CrmNextActionPageProps = {
   params: Promise<{ actionId: string }>;
+  searchParams?: Promise<{ customerId?: string }>;
 };
 
-export default async function CrmNextActionPage({ params }: CrmNextActionPageProps) {
+export default async function CrmNextActionPage({ params, searchParams }: CrmNextActionPageProps) {
   const user = await requireCurrentUser();
   const access = resolveCrmNextAccess(user);
 
@@ -16,6 +17,9 @@ export default async function CrmNextActionPage({ params }: CrmNextActionPagePro
   }
 
   const { actionId } = await params;
-  const model = await getCrmNextOperationalCommandCenter(user);
-  return <CrmNextActionReadinessView action={getCrmNextOperatingAction(user, actionId)} model={model} />;
+  const query = await searchParams;
+  const model = query?.customerId
+    ? (await getCrmNextOperationalCustomer360(user, query.customerId)).model
+    : await getCrmNextOperationalCommandCenter(user);
+  return <CrmNextActionReadinessView action={getCrmNextOperatingAction(user, actionId)} customerId={query?.customerId} model={model} />;
 }

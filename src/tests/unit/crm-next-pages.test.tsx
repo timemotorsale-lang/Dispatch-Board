@@ -35,6 +35,8 @@ import CrmNextStateReviewPage from "@/app/(app)/crm-next/system/states/page";
 import CrmNextTestDrivesPage from "@/app/(app)/crm-next/test-drives/page";
 import CrmNextTimelinePage from "@/app/(app)/crm-next/timeline/page";
 import CrmNextWorkPage from "@/app/(app)/crm-next/work/[itemId]/page";
+import { CrmNextActionReadinessView } from "@/features/crm-next/crm-next-shell";
+import type { CrmNextCommandCenter, CrmNextCustomer360, CrmNextOperatingAction } from "@/server/crm-next/read-model";
 
 const originalFlag = process.env.CRM_NEXT;
 
@@ -140,12 +142,12 @@ describe("CRM Next pages", () => {
     expect(customer).toContain("Preferred Customer");
     expect(customer).toContain("Customer Since");
     expect(customer).toContain("Quick Actions");
-    expect(customer).toContain('href="/crm-next/actions/log-call"');
-    expect(customer).toContain('href="/crm-next/actions/send-email"');
-    expect(customer).toContain('href="/crm-next/actions/new-task"');
-    expect(customer).toContain('href="/crm-next/actions/new-case"');
-    expect(customer).toContain('href="/crm-next/actions/schedule-appointment"');
-    expect(customer).toContain('href="/crm-next/actions/upload-document"');
+    expect(customer).toContain('href="/crm-next/actions/log-call?customerId=michael-johnson"');
+    expect(customer).toContain('href="/crm-next/actions/send-email?customerId=michael-johnson"');
+    expect(customer).toContain('href="/crm-next/actions/new-task?customerId=michael-johnson"');
+    expect(customer).toContain('href="/crm-next/actions/new-case?customerId=michael-johnson"');
+    expect(customer).toContain('href="/crm-next/actions/schedule-appointment?customerId=michael-johnson"');
+    expect(customer).toContain('href="/crm-next/actions/upload-document?customerId=michael-johnson"');
     expect(customer).toContain("Next Best Action");
     expect(customer).toContain("Linked Vehicles");
     expect(customer).toContain("Source status");
@@ -161,7 +163,7 @@ describe("CRM Next pages", () => {
     expect(work).not.toContain("Backend wired · writes held");
     expect(work).toContain("Call Michael Johnson");
     expect(work).toContain("Today 3:00 PM");
-    expect(work).toContain('href="/crm-next/actions/log-call"');
+    expect(work).toContain('href="/crm-next/actions/log-call?customerId=michael-johnson"');
     expect(work).toContain('href="#dispatch-task"');
     expect(search).toContain("Add Customer / Prospect");
     expect(newCustomer).toContain("Add a customer or prospect");
@@ -275,5 +277,54 @@ describe("CRM Next pages", () => {
     expect(newTaskAction).toContain("Create a Dispatch task");
     expect(emailAction).toContain("Use approved workspace");
     expect(emailAction).toContain("approved email workflow");
+  });
+
+  it("keeps the selected customer attached when opening an action", () => {
+    const action: CrmNextOperatingAction = {
+      auditPosture: "Audit the task creation request.",
+      category: "Task",
+      href: "/crm-next/actions/new-task",
+      id: "new-task",
+      label: "New Task",
+      pilotRequirement: "Task creation scope approved.",
+      response: "Create a Dispatch task from this customer follow-up.",
+      sourceAuthority: "Dispatch Board task engine",
+      state: "PREVIEW_ONLY"
+    };
+    const selectedCustomer: CrmNextCustomer360 = {
+      address: "Address available in Customers",
+      communications: [],
+      customerSince: "2026-09-09",
+      email: "ainanshe@example.test",
+      glance: [],
+      id: "ainanshe-bashir",
+      lifetimeValue: "Open customer record",
+      name: "Ainanshe Bashir",
+      openCases: 0,
+      openDeals: 0,
+      phone: "555-3073",
+      riskLevel: "Low",
+      status: "Active",
+      nextAction: "Review customer relationship",
+      vehicles: [],
+      vehiclesOwned: 0
+    };
+    const defaultCustomer: CrmNextCustomer360 = {
+      ...selectedCustomer,
+      id: "ibrahim-adam",
+      name: "Ibrahim Adam"
+    };
+    const model = {
+      attention: [],
+      customers: [defaultCustomer, selectedCustomer],
+      operatingActions: [action],
+      userName: "CRM Next Page User"
+    } as CrmNextCommandCenter;
+
+    const markup = renderToStaticMarkup(<CrmNextActionReadinessView action={action} customerId={selectedCustomer.id} model={model} />);
+
+    expect(markup).toContain("Ainanshe Bashir");
+    expect(markup).not.toContain("Ibrahim Adam");
+    expect(markup).toContain('href="/crm-next/actions/new-task?customerId=ainanshe-bashir"');
   });
 });

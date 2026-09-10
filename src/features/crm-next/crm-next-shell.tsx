@@ -38,6 +38,11 @@ function initials(name: string) {
   return name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
 }
 
+function crmNextActionHref(actionId: string, customerId?: string) {
+  const baseHref = `/crm-next/actions/${actionId}`;
+  return customerId ? `${baseHref}?customerId=${encodeURIComponent(customerId)}` : baseHref;
+}
+
 export function CrmNextUnavailable({ fallbackHref, reason }: { fallbackHref: string; reason: CrmNextAccessReason }) {
   const message = reason === "CRM_NEXT_OFF"
     ? "CRM Next is safely turned off. Customer Archive and the current CRM fallback remain available."
@@ -1300,7 +1305,7 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
             <div className={styles.customerHeroActions}>
               <Link className={styles.secondaryButton} href="/crm-next/new"><UserPlus size={16} /> Add Customer</Link>
               <Link className={styles.primaryButton} href={attendHref}>Attend</Link>
-              <Link className={styles.secondaryButton} href="/crm-next/actions/send-text"><MessageSquare size={16} /> Message</Link>
+              <Link className={styles.secondaryButton} href={crmNextActionHref("send-text", customer.id)}><MessageSquare size={16} /> Message</Link>
               <Link className={styles.secondaryButton} href="/crm">Open fallback CRM</Link>
             </div>
           </section>
@@ -1353,12 +1358,12 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
               <article id="documents-held" className={styles.compactSectionCard}>
                 <strong>Documents</strong>
                 <span>Use the approved document workspace for sending or uploads.</span>
-                <Link href="/crm-next/actions/upload-document">Review document action</Link>
+                <Link href={crmNextActionHref("upload-document", customer.id)}>Review document action</Link>
               </article>
               <article id="communications-held" className={styles.compactSectionCard}>
                 <strong>Communications</strong>
                 <span>Use approved contact workflows for live calls, texts, and emails.</span>
-                <Link href="/crm-next/actions/log-call">Review contact actions</Link>
+                <Link href={crmNextActionHref("log-call", customer.id)}>Review contact actions</Link>
               </article>
             </div>
           </section>
@@ -1379,12 +1384,12 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
           <article className={styles.sidePanel}>
             <header><h2>Quick Actions</h2></header>
             <div className={styles.quickActionTiles}>
-              <Link href="/crm-next/actions/log-call"><Phone size={22} />Log Call</Link>
-              <Link href="/crm-next/actions/send-email"><Mail size={22} />Send Email</Link>
-              <Link href="/crm-next/actions/new-task"><ClipboardCheck size={22} />New Task</Link>
-              <Link href="/crm-next/actions/new-case"><FileText size={22} />New Case</Link>
-              <Link href="/crm-next/actions/schedule-appointment"><CalendarDays size={22} />Schedule Appt</Link>
-              <Link href="/crm-next/actions/upload-document"><FileSearch size={22} />Upload Doc</Link>
+              <Link href={crmNextActionHref("log-call", customer.id)}><Phone size={22} />Log Call</Link>
+              <Link href={crmNextActionHref("send-email", customer.id)}><Mail size={22} />Send Email</Link>
+              <Link href={crmNextActionHref("new-task", customer.id)}><ClipboardCheck size={22} />New Task</Link>
+              <Link href={crmNextActionHref("new-case", customer.id)}><FileText size={22} />New Case</Link>
+              <Link href={crmNextActionHref("schedule-appointment", customer.id)}><CalendarDays size={22} />Schedule Appt</Link>
+              <Link href={crmNextActionHref("upload-document", customer.id)}><FileSearch size={22} />Upload Doc</Link>
             </div>
           </article>
 
@@ -1431,9 +1436,13 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
   );
 }
 
-export function CrmNextActionReadinessView({ action, model }: { action: CrmNextOperatingAction; model: CrmNextCommandCenter }) {
-  const relatedCustomer = model.customers[0];
+export function CrmNextActionReadinessView({ action, customerId, model }: { action: CrmNextOperatingAction; customerId?: string; model: CrmNextCommandCenter }) {
+  const relatedCustomer = customerId
+    ? model.customers.find((customer) => customer.id === customerId) ?? model.customers[0]
+    : model.customers[0];
   const backHref = relatedCustomer ? `/crm-next/customers/${relatedCustomer.id}` : "/crm-next";
+  const activeAttentionItem = relatedCustomer ? model.attention.find((item) => item.customerId === relatedCustomer.id) : undefined;
+  const workbenchHref = activeAttentionItem?.workHref ?? backHref;
   const stateCopy = action.state === "SAFE_ROUTE"
     ? "Ready to continue"
     : action.state === "PREVIEW_ONLY"
@@ -1442,7 +1451,7 @@ export function CrmNextActionReadinessView({ action, model }: { action: CrmNextO
   const primaryHref = action.id === "schedule-appointment"
     ? "/appointments"
     : action.id === "new-task"
-      ? "/crm-next/work/attn-michael-overdue-follow-up#dispatch-task"
+      ? activeAttentionItem ? `${activeAttentionItem.workHref}#dispatch-task` : backHref
       : backHref;
 
   return (
@@ -1483,10 +1492,10 @@ export function CrmNextActionReadinessView({ action, model }: { action: CrmNextO
           </section>
 
           <section className={styles.timeline}>
-            <header className={styles.panelHeader}><h2>Available customer actions</h2><Link className={styles.textLink} href="/crm-next/work/attn-michael-overdue-follow-up">Back to workbench</Link></header>
+            <header className={styles.panelHeader}><h2>Available customer actions</h2><Link className={styles.textLink} href={workbenchHref}>Back to workbench</Link></header>
             <div className={styles.compactInfoGrid}>
               {model.operatingActions.map((item) => (
-                <Link className={styles.glanceItem} href={item.href} key={item.id}>
+                <Link className={styles.glanceItem} href={crmNextActionHref(item.id, relatedCustomer?.id)} key={item.id}>
                   <ClipboardCheck size={18} />
                   <span><strong>{item.label}</strong><small>{item.category}</small></span>
                   <ChevronRight size={16} />
@@ -1529,6 +1538,7 @@ export function CrmNextWorkCustomerView({
   model: CrmNextCommandCenter;
 }) {
   const dispatchPreview = bridgePreview?.dispatchPreview;
+  const actionCustomerId = item.customerId;
 
   return (
     <CrmNextFrame active="work" userName={model.userName}>
@@ -1547,9 +1557,9 @@ export function CrmNextWorkCustomerView({
               <p className={styles.muted}>{item.reason} · {item.area} · Owner: {item.owner}</p>
             </div>
             <div className={styles.workActions}>
-              <Link className={styles.primaryButton} href="/crm-next/actions/log-call"><Phone size={16} /> Log Call</Link>
-              <Link className={styles.secondaryButton} href="/crm-next/actions/send-text"><Mail size={16} /> Send Message</Link>
-              <Link className={styles.secondaryButton} href="/crm-next/customers/michael-johnson">Customer 360</Link>
+              <Link className={styles.primaryButton} href={crmNextActionHref("log-call", actionCustomerId)}><Phone size={16} /> Log Call</Link>
+              <Link className={styles.secondaryButton} href={crmNextActionHref("send-text", actionCustomerId)}><Mail size={16} /> Send Message</Link>
+              <Link className={styles.secondaryButton} href={item.customerHref}>Customer 360</Link>
               <Link className={styles.secondaryButton} href="/crm-next/deals">Estimate / Deal</Link>
             </div>
           </div>
@@ -1580,20 +1590,20 @@ export function CrmNextWorkCustomerView({
           <article className={styles.card}>
             <header><h2>Choose the next customer action</h2><span className={levelClass(item.level)}>{item.level}</span></header>
           <div className={styles.workActions}>
-            <Link className={styles.primaryButton} href="/crm-next/actions/log-call"><Phone size={16} /> Log call</Link>
-            <Link className={styles.secondaryButton} href="/crm-next/actions/send-text"><MessageSquare size={16} /> Text</Link>
-            <Link className={styles.secondaryButton} href="/crm-next/actions/send-email"><Mail size={16} /> Email</Link>
-            <Link className={styles.secondaryButton} href="/crm-next/actions/schedule-appointment"><CalendarDays size={16} /> Appointments</Link>
+            <Link className={styles.primaryButton} href={crmNextActionHref("log-call", actionCustomerId)}><Phone size={16} /> Log call</Link>
+            <Link className={styles.secondaryButton} href={crmNextActionHref("send-text", actionCustomerId)}><MessageSquare size={16} /> Text</Link>
+            <Link className={styles.secondaryButton} href={crmNextActionHref("send-email", actionCustomerId)}><Mail size={16} /> Email</Link>
+            <Link className={styles.secondaryButton} href={crmNextActionHref("schedule-appointment", actionCustomerId)}><CalendarDays size={16} /> Appointments</Link>
             <Link className={styles.secondaryButton} href="#dispatch-task"><ClipboardCheck size={16} /> Create task</Link>
             <Link className={styles.secondaryButton} href={item.customerHref}><Users size={16} /> Customer 360</Link>
           </div>
             <div className={styles.actionCards}>
-              <Link className={styles.actionCard} href="/crm-next/actions/log-call"><Phone size={18} /><strong>Follow up</strong><p className={styles.muted}>{item.reason}</p></Link>
+              <Link className={styles.actionCard} href={crmNextActionHref("log-call", actionCustomerId)}><Phone size={18} /><strong>Follow up</strong><p className={styles.muted}>{item.reason}</p></Link>
               <Link className={styles.actionCard} href="/crm-next/ownership-support"><DollarSign size={18} /><strong>Collect payment</strong><p className={styles.muted}>Open finance context.</p></Link>
-              <Link className={styles.actionCard} href="/crm-next/actions/schedule-appointment"><CalendarDays size={18} /><strong>Schedule appointment</strong><p className={styles.muted}>Open existing appointment workspace.</p></Link>
-              <Link className={styles.actionCard} href="/crm-next/actions/upload-document"><FileText size={18} /><strong>Send document</strong><p className={styles.muted}>Use the document workspace.</p></Link>
+              <Link className={styles.actionCard} href={crmNextActionHref("schedule-appointment", actionCustomerId)}><CalendarDays size={18} /><strong>Schedule appointment</strong><p className={styles.muted}>Open existing appointment workspace.</p></Link>
+              <Link className={styles.actionCard} href={crmNextActionHref("upload-document", actionCustomerId)}><FileText size={18} /><strong>Send document</strong><p className={styles.muted}>Use the document workspace.</p></Link>
               <Link className={styles.actionCard} href="#dispatch-task"><ClipboardCheck size={18} /><strong>Create task</strong><p className={styles.muted}>Send this follow-up to Dispatch tasks.</p></Link>
-              <Link className={styles.actionCard} href="/crm-next/actions/new-case"><MessageSquare size={18} /><strong>Other action</strong><p className={styles.muted}>Open more customer actions.</p></Link>
+              <Link className={styles.actionCard} href={crmNextActionHref("new-case", actionCustomerId)}><MessageSquare size={18} /><strong>Other action</strong><p className={styles.muted}>Open more customer actions.</p></Link>
             </div>
             <section className={styles.suggested} id="suggested">
               <div>
