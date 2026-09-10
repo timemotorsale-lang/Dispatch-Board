@@ -312,6 +312,14 @@ describe("CRM Next operational read model", () => {
         expect.objectContaining({ href: "/crm-next/needs-attention", label: "Overdue Follow-ups", value: "1" })
       ])
     );
+    expect(model.enterpriseLayer.automationRecommendations.length).toBeGreaterThan(0);
+    expect(model.enterpriseLayer.supportingParties.map((party) => party.party.typeLabel)).toEqual(
+      expect.arrayContaining(["Government agency", "Towing company", "Warranty company"])
+    );
+    expect(model.enterpriseLayer.reportingBrief.sourceCount).toBeGreaterThan(0);
+    expect(model.enterpriseLayer.adminGuardrails.map((control) => control.title)).toEqual(
+      expect.arrayContaining(["Roles", "Permissions"])
+    );
   });
 
   it("falls back honestly when existing read sources are unavailable", async () => {

@@ -5,6 +5,10 @@ import {
   locationLocalDateMinuteToInstant
 } from "@/server/appointments/location-time-service";
 import { resolveCrmNextAccess, type CrmNextMode } from "@/server/crm-next/access";
+import { buildEnterpriseReportingBrief, type EnterpriseReportingBrief } from "@/lib/enterprise-reporting-intelligence";
+import { buildSupportingPartyContext, type SupportingPartyContext } from "@/lib/supporting-party-context";
+import { evaluateWorkflowAutomationRules, type AutomationAction } from "@/lib/workflow-automation-rules";
+import { listEnterpriseAdminControls } from "@/server/enterprise-admin/controls";
 import { listAppointmentReadModels } from "@/server/services/appointment-read-service";
 import { listRecentCustomerLeads } from "@/server/services/customer-lead-service";
 import { getSalesConsoleReadModel } from "@/server/services/sales-console-read-service";
@@ -270,6 +274,12 @@ export type CrmNextCommandCenter = {
   coexistenceGates: CrmNextCoexistenceGate[];
   pilotReleaseGates: CrmNextPilotReleaseGate[];
   operatingActions: CrmNextOperatingAction[];
+  enterpriseLayer: {
+    adminGuardrails: Array<{ href: string; summary: string; title: string }>;
+    automationRecommendations: AutomationAction[];
+    reportingBrief: EnterpriseReportingBrief;
+    supportingParties: SupportingPartyContext[];
+  };
   bridge: {
     liveTaskCreationEnabled: boolean;
     previewEnabled: true;
@@ -2349,6 +2359,148 @@ function todayAppointmentWindow(now: Date) {
   };
 }
 
+function buildCrmNextEnterpriseLayer(model: CrmNextCommandCenter, now: Date): CrmNextCommandCenter["enterpriseLayer"] {
+  const customerFollowUps = model.attention.map((item) => ({
+    dueAt: item.level === "High" ? new Date(now.getTime() - 3600000).toISOString() : new Date(now.getTime() + 86400000).toISOString(),
+    href: item.workHref,
+    id: item.id,
+    status: "OPEN",
+    title: `${item.customerName}: ${item.reason}`,
+  }));
+  const promises = model.attention
+    .filter((item) => item.reason.toLowerCase().includes("follow-up") || item.reason.toLowerCase().includes("payment"))
+    .slice(0, 3)
+    .map((item) => ({
+      dueAt: item.level === "High" ? new Date(now.getTime() - 7200000).toISOString() : new Date(now.getTime() + 43200000).toISOString(),
+      href: item.workHref,
+      id: `promise-${item.id}`,
+      status: "OPEN",
+      title: `Promise check: ${item.customerName}`,
+    }));
+  const automationRecommendations = evaluateWorkflowAutomationRules({
+    appointments: model.sales.appointments.slice(0, 2).map((record, index) => ({
+      href: record.href,
+      id: `appointment-${record.id}`,
+      startAt: index === 0 ? new Date(now.getTime() - 3600000).toISOString() : new Date(now.getTime() + 7200000).toISOString(),
+      status: index === 0 ? "SCHEDULED" : "CONFIRMED",
+      title: `${record.customerName}: ${record.nextAction}`,
+    })),
+    carryovers: model.ownershipSupport.slice(0, 2).map((record, index) => ({
+      count: index === 0 ? 4 : 2,
+      href: record.href,
+      id: `carryover-${record.id}`,
+      title: record.title,
+    })),
+    customerFollowUps,
+    documents: model.ownershipSupport
+      .filter((record) => ["Title/Document", "Insurance"].includes(record.domain))
+      .map((record) => ({
+        href: record.href,
+        id: `document-${record.id}`,
+        received: false,
+        required: true,
+        title: record.title,
+      })),
+    leads: model.sales.leads.map((record) => ({
+      href: record.href,
+      id: `lead-${record.id}`,
+      lastActivityAt: new Date(now.getTime() - 9 * 86400000).toISOString(),
+      status: "OPEN",
+      title: `${record.customerName}: ${record.nextAction}`,
+    })),
+    now,
+    promises,
+    repairDelays: model.ownershipSupport
+      .filter((record) => record.domain === "Service")
+      .map((record) => ({
+        href: record.href,
+        id: `repair-${record.id}`,
+        lastCustomerUpdateAt: new Date(now.getTime() - 30 * 3600000).toISOString(),
+        targetAt: new Date(now.getTime() - 3600000).toISOString(),
+        title: record.title,
+        waitingOnParts: true,
+      })),
+    vehicles: model.ownershipSupport
+      .filter((record) => record.domain === "Vehicle")
+      .map((record) => ({
+        blocked: record.priority === "High",
+        href: record.href,
+        id: `vehicle-${record.id}`,
+        stageEnteredAt: new Date(now.getTime() - 96 * 3600000).toISOString(),
+        status: "IN_PROGRESS",
+        title: record.title,
+      })),
+  }).slice(0, 8);
+
+  const supportingParties = [
+    buildSupportingPartyContext({
+      associations: [
+        { href: "/crm-next/ownership-support#documents", partyId: "dmv-minnesota", relationship: "Title and registration follow-up", subjectId: model.customers[0]?.id ?? "customer", subjectTitle: model.customers[0]?.name ?? "Customer record", subjectType: "CUSTOMER" },
+        { href: "/crm-next/actions/upload-document", partyId: "dmv-minnesota", relationship: "Document proof", subjectId: "title-packet", subjectTitle: "Title packet review", subjectType: "TASK" },
+      ],
+      interactions: [
+        { channel: "PHONE", direction: "OUTBOUND", followUpAt: new Date(now.getTime() + 86400000).toISOString(), id: "dmv-call-1", occurredAt: new Date(now.getTime() - 86400000).toISOString(), partyId: "dmv-minnesota", reportWorthy: true, sourceHref: "/crm-next/ownership-support#documents", summary: "Confirm whether the title packet is ready or needs correction." },
+      ],
+      party: { id: "dmv-minnesota", name: "Minnesota DMV", type: "government_agency" },
+    }),
+    buildSupportingPartyContext({
+      associations: [
+        { href: "/crm-next/ownership-support#service", partyId: "northside-towing", relationship: "Customer vehicle movement", subjectId: "tow-need", subjectTitle: "Customer tow support", subjectType: "TASK" },
+      ],
+      interactions: [
+        { channel: "SMS", direction: "OUTBOUND", followUpAt: new Date(now.getTime() + 4 * 3600000).toISOString(), id: "tow-text-1", occurredAt: new Date(now.getTime() - 2 * 3600000).toISOString(), partyId: "northside-towing", reportWorthy: true, sourceHref: "/crm-next/actions/log-call", summary: "Confirm pickup window and customer authorization before dispatch." },
+      ],
+      party: { id: "northside-towing", name: "Northside Towing", type: "towing_company" },
+    }),
+    buildSupportingPartyContext({
+      associations: [
+        { href: "/crm-next/ownership-support#insurance", partyId: "metro-warranty", relationship: "Warranty claim status", subjectId: "warranty-claim", subjectTitle: "Warranty claim follow-up", subjectType: "TASK" },
+      ],
+      interactions: [
+        { channel: "EMAIL", direction: "INBOUND", followUpAt: new Date(now.getTime() + 2 * 86400000).toISOString(), id: "warranty-email-1", occurredAt: new Date(now.getTime() - 5 * 3600000).toISOString(), partyId: "metro-warranty", sourceHref: "/crm-next/ownership-support#insurance", summary: "Warranty company requested repair proof and customer authorization." },
+      ],
+      party: { id: "metro-warranty", name: "Metro Warranty", type: "warranty_company" },
+    }),
+  ];
+
+  const reportingBrief = buildEnterpriseReportingBrief({
+    generatedAt: now,
+    sources: [
+      ...automationRecommendations.slice(0, 5).map((action) => ({
+        createdAt: now.toISOString(),
+        detail: action.explanation,
+        href: action.href,
+        id: action.id,
+        kind: "crm_action" as const,
+        ownerName: "CRM Next",
+        reportTypes: action.targetQueue === "COMPLIANCE_TASK" ? ["compliance" as const] : undefined,
+        status: action.severity.toUpperCase(),
+        title: action.title,
+      })),
+      ...supportingParties.flatMap((context) => context.reportSeeds.map((seed) => ({
+        createdAt: now.toISOString(),
+        detail: seed.text,
+        href: seed.sourceHref,
+        id: seed.id,
+        kind: "report_seed" as const,
+        ownerName: context.party.name,
+        title: `${context.party.typeLabel}: ${context.party.name}`,
+      }))),
+    ],
+  });
+
+  return {
+    adminGuardrails: listEnterpriseAdminControls().slice(0, 5).map((control) => ({
+      href: control.href,
+      summary: control.summary,
+      title: control.title,
+    })),
+    automationRecommendations,
+    reportingBrief,
+    supportingParties,
+  };
+}
+
 function withCustomerListOverlay(
   model: CrmNextCommandCenter,
   customerList: UnifiedCrmCustomerListReadModel,
@@ -2539,6 +2691,7 @@ export async function getCrmNextOperationalCommandCenter(
   const state = operationalState(statuses);
   return {
     ...model,
+    enterpriseLayer: buildCrmNextEnterpriseLayer(model, now),
     operationalRead: {
       state,
       safety: model.mode === "DOGFOOD"
@@ -2580,6 +2733,11 @@ export async function getCrmNextOperationalCustomer360(
     model = {
       ...model,
       customers: [customer, ...model.customers.filter((record) => record.id !== customer.id)],
+      enterpriseLayer: buildCrmNextEnterpriseLayer({
+        ...model,
+        customers: [customer, ...model.customers.filter((record) => record.id !== customer.id)],
+        timeline: timeline.length ? timeline : model.timeline,
+      }, now),
       timeline: timeline.length ? timeline : model.timeline,
       operationalRead: {
         ...model.operationalRead,
@@ -2684,6 +2842,12 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
     coexistenceGates,
     pilotReleaseGates,
     operatingActions,
+    enterpriseLayer: {
+      adminGuardrails: [],
+      automationRecommendations: [],
+      reportingBrief: buildEnterpriseReportingBrief({ generatedAt: now, sources: [] }),
+      supportingParties: [],
+    },
     bridge: {
       liveTaskCreationEnabled: dogfoodMode,
       previewEnabled: true,

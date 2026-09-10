@@ -114,6 +114,12 @@ describe("CRM Next pages", () => {
     expect(command).toContain('href="/crm-next/deals"');
     expect(command).toContain("Customer next actions");
     expect(command).toContain("Appointment board");
+    expect(command).toContain("Recommended by system");
+    expect(command).toContain("Report readiness");
+    expect(command).toContain("Supporting Parties");
+    expect(command).toContain("Admin guardrails");
+    expect(command).toContain("Minnesota DMV");
+    expect(command).toContain("Northside Towing");
     expect(command).not.toContain("Operational read status");
     expect(command).not.toContain("Review Center");
     expect(command).not.toContain("Compact review cockpit");
@@ -144,6 +150,8 @@ describe("CRM Next pages", () => {
     expect(customer).toContain("Add Customer");
     expect(customer).toContain("Open deal board");
     expect(customer).toContain("Open appointments");
+    expect(customer).toContain("Supporting Parties");
+    expect(customer).toContain("Warranty company");
     expect(work).toContain("Attend: Michael Johnson");
     expect(work).toContain("Create Dispatch task");
     expect(work).not.toContain("Connected to the CRM Next action-to-task bridge contract");

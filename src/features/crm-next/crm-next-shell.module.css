@@ -934,6 +934,134 @@
   align-items: start;
 }
 
+.enterpriseSurfaceGrid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1.4fr) minmax(260px, .8fr);
+  margin-bottom: 12px;
+}
+
+.enterprisePanel {
+  align-self: stretch;
+}
+
+.enterpriseActionList,
+.partyList,
+.guardrailList,
+.reportSectionList {
+  display: grid;
+  gap: 8px;
+}
+
+.enterpriseActionRow {
+  align-items: center;
+  background: #fbfdff;
+  border: 1px solid #dce6f5;
+  border-radius: 13px;
+  color: #071a3a;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 10px 12px;
+  text-decoration: none;
+  transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+.enterpriseActionRow:hover,
+.partyItem:hover,
+.guardrailList a:hover,
+.reportSectionItem:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 12px 28px rgb(37 99 235 / 10%);
+  transform: translateY(-1px);
+}
+
+.enterpriseActionRow strong,
+.enterpriseActionRow small,
+.partyItem strong,
+.partyItem small,
+.partyItem span,
+.guardrailList strong,
+.guardrailList small {
+  display: block;
+  min-width: 0;
+}
+
+.enterpriseActionRow strong {
+  color: #071a3a;
+  font-size: 15px;
+  letter-spacing: -.01em;
+}
+
+.enterpriseActionRow small {
+  color: #52637a;
+  font-size: 12px;
+  line-height: 1.35;
+  margin-top: 3px;
+}
+
+.enterpriseActionRow b {
+  justify-self: end;
+  white-space: nowrap;
+}
+
+.partyItem,
+.guardrailList a {
+  background: #f8fbff;
+  border: 1px solid #dce6f5;
+  border-radius: 12px;
+  color: #102548;
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  text-decoration: none;
+  transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+.partyItem strong,
+.guardrailList strong {
+  color: #071a3a;
+  font-size: 14px;
+}
+
+.partyItem small,
+.guardrailList small {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.partyItem span {
+  color: #2458dc;
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.35;
+  margin-top: 4px;
+}
+
+.reportSectionItem {
+  align-items: center;
+  background: #f8fbff;
+  border: 1px solid #dce6f5;
+  border-radius: 12px;
+  color: #102548;
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 12px;
+  text-decoration: none;
+  transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+.reportSectionItem span {
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.reportSectionItem strong {
+  color: #155dfc;
+  font-size: 18px;
+}
+
 .wide {
   grid-column: span 2;
 }
@@ -2641,6 +2769,7 @@
   }
 
   .summaryGrid,
+  .enterpriseSurfaceGrid,
   .operatorActionGrid,
   .directoryRow dl,
   .customerFacts,
@@ -2671,6 +2800,7 @@
   }
 
   .summaryGrid,
+  .enterpriseSurfaceGrid,
   .operatorActionGrid,
   .commandModeGrid,
   .pilotScenarioGrid,

@@ -169,6 +169,108 @@ function CompactSourceStatus({ model }: { model: CrmNextCommandCenter }) {
   );
 }
 
+function automationLevelClass(severity: string) {
+  if (severity === "critical" || severity === "high") return styles.levelHigh;
+  if (severity === "medium") return styles.levelMedium;
+  return styles.levelLow;
+}
+
+function CrmNextRecommendedWork({ model }: { model: CrmNextCommandCenter }) {
+  const recommendations = model.enterpriseLayer.automationRecommendations.slice(0, 4);
+  if (recommendations.length === 0) return null;
+
+  return (
+    <article className={`${styles.card} ${styles.enterprisePanel}`}>
+      <header>
+        <div>
+          <h2>Recommended by system</h2>
+          <p className={styles.muted}>CRM Next is surfacing the next safest customer work from the signals already visible to the team.</p>
+        </div>
+        <span className={styles.pill}>{recommendations.length} ready</span>
+      </header>
+      <div className={styles.enterpriseActionList}>
+        {recommendations.map((item) => (
+          <Link className={styles.enterpriseActionRow} href={item.href} key={item.id}>
+            <span>
+              <strong>{item.title}</strong>
+              <small>{item.explanation}</small>
+            </span>
+            <b className={automationLevelClass(item.severity)}>{item.actionLabel}</b>
+          </Link>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function CrmNextSupportingParties({ model, compact = false }: { compact?: boolean; model: CrmNextCommandCenter }) {
+  const parties = model.enterpriseLayer.supportingParties.slice(0, compact ? 3 : 3);
+  if (parties.length === 0) return null;
+
+  return (
+    <article className={styles.sidePanel}>
+      <header>
+        <h2>Supporting Parties</h2>
+        <span className={styles.pill}>{parties.length}</span>
+      </header>
+      <div className={styles.partyList}>
+        {parties.map((context) => (
+          <Link className={styles.partyItem} href={context.associations[0]?.href ?? "/crm-next/ownership-support"} key={context.party.id}>
+            <strong>{context.party.name}</strong>
+            <small>{context.party.typeLabel} · {context.openFollowUps.length} follow-up</small>
+            <span>{context.workbookCandidates[0]?.title ?? context.associations[0]?.label ?? "Open supporting context"}</span>
+          </Link>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function CrmNextReportReadiness({ model }: { model: CrmNextCommandCenter }) {
+  const brief = model.enterpriseLayer.reportingBrief;
+  return (
+    <article className={styles.card}>
+      <header>
+        <div>
+          <h2>Report readiness</h2>
+          <p className={styles.muted}>{brief.managerSummary}</p>
+        </div>
+        <span className={styles.pill}>{brief.reviewableSeedCount} seeds</span>
+      </header>
+      <div className={styles.reportSectionList}>
+        {brief.sections.slice(0, 4).map((section) => (
+          <Link className={styles.reportSectionItem} href={section.items[0]?.href ?? "/crm-next/timeline"} key={section.reportType}>
+            <span>{section.title}</span>
+            <strong>{section.items.length}</strong>
+          </Link>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function CrmNextAdminGuardrails({ model }: { model: CrmNextCommandCenter }) {
+  const controls = model.enterpriseLayer.adminGuardrails.slice(0, 4);
+  if (controls.length === 0) return null;
+
+  return (
+    <article className={styles.sidePanel}>
+      <header>
+        <h2>Admin guardrails</h2>
+        <span className={styles.pill}>{controls.length}</span>
+      </header>
+      <div className={styles.guardrailList}>
+        {controls.map((control) => (
+          <Link href={control.href} key={control.title}>
+            <strong>{control.title}</strong>
+            <small>{control.summary}</small>
+          </Link>
+        ))}
+      </div>
+    </article>
+  );
+}
+
 export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCenter }) {
   return (
     <CrmNextFrame active="command" userName={model.userName}>
@@ -200,6 +302,11 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
         ))}
       </section>
 
+      <section className={styles.enterpriseSurfaceGrid} aria-label="CRM Next operating intelligence">
+        <CrmNextRecommendedWork model={model} />
+        <CrmNextReportReadiness model={model} />
+      </section>
+
       <section className={styles.dashboardGrid}>
         <article className={`${styles.card} ${styles.wide}`}>
           <header><h2>Needs Attention (Top 5)</h2><Link className={styles.textLink} href="/crm-next/needs-attention">View all</Link></header>
@@ -219,6 +326,7 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
             ))}
           </div>
         </article>
+        <CrmNextSupportingParties model={model} />
         <article className={styles.card} id="pipeline">
           <header><h2>Pipeline Overview</h2><Link className={styles.textLink} href="/crm-next/pipeline">Open board</Link></header>
           <div className={styles.pipelineRows}>
@@ -234,6 +342,7 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
           <div className={styles.revenueValue}>{model.revenue.monthToDate}</div>
           <p className={styles.muted}>{model.revenue.trend}</p>
         </article>
+        <CrmNextAdminGuardrails model={model} />
       </section>
     </CrmNextFrame>
   );
@@ -1215,6 +1324,7 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
               <Link href="#appointments">Appointments</Link>
               <Link href="#documents-held">Documents</Link>
               <Link href="#vehicles">Vehicles</Link>
+              <Link href="#supporting-parties">Parties</Link>
               <Link href="#communications-held">Communications</Link>
             </nav>
             <div className={styles.compactInfoGrid} id="overview">
@@ -1289,6 +1399,10 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
             </div>
             <Link className={styles.primaryButton} href={attendHref}>Work Customer</Link>
           </article>
+
+          <div id="supporting-parties">
+            <CrmNextSupportingParties compact model={model} />
+          </div>
 
           <article className={styles.sidePanel}>
             <header><h2>Customer Risk</h2></header>
