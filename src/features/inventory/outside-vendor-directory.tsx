@@ -4,6 +4,7 @@ import { FormEvent, useMemo, useState, useTransition } from "react";
 import { ArrowRight, Building2, CheckCircle2, Clock3, FileText, Mail, MapPin, Phone, Plus, ReceiptText, Save, ShieldCheck, Wrench } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { supportingPartyTypeForVendorType, supportingPartyTypeLabel } from "@/lib/supporting-party-context";
 
 type VendorWorkEvent = {
   actorUser?: { id: string; name: string } | null;
@@ -83,6 +84,7 @@ function vendorStats(vendor: OutsideVendorRecord) {
   const totalSpendCents = completed.reduce((sum, work) => sum + finalEstimateCents(work), 0);
   return { active, billingReady, completed, openBalanceCents, pendingApproval, qcIssues, totalSpendCents, works };
 }
+function vendorPartyLabel(vendorType: string) { return supportingPartyTypeLabel(supportingPartyTypeForVendorType(vendorType)); }
 
 export function OutsideVendorDirectory({ vendors }: { vendors: OutsideVendorRecord[] }) {
   const router = useRouter();
@@ -150,7 +152,7 @@ export function OutsideVendorDirectory({ vendors }: { vendors: OutsideVendorReco
       <button onClick={() => setOpen(true)} type="button"><Plus /> Add outside vendor</button>
     </header>
 
-    <section className="outside-vendor-guidance"><Building2 /><div><strong>Separate from Customers, connected to every RO</strong><span>Vendors are operational partners. Their profile stays here, while each vehicle and repair order keeps a linked vendor work record.</span></div></section>
+    <section className="outside-vendor-guidance"><Building2 /><div><strong>Supporting parties stay connected, not mixed into Customer CRM</strong><span>Vendors, towing companies, suppliers, agencies, lenders, warranty companies, and contractors appear beside the customer, vehicle, task, or repair order where they matter.</span></div></section>
 
     <section className="outside-vendor-kpis" aria-label="Outside vendor operating summary">
       <article><Wrench /><span>Active vendor jobs</span><strong>{workspaceStats.active}</strong><small>Offsite or waiting for vendor QC/return</small></article>
@@ -168,7 +170,7 @@ export function OutsideVendorDirectory({ vendors }: { vendors: OutsideVendorReco
         {vendors.length ? vendors.map((vendor) => {
           const stats = vendorStats(vendor);
           return <button aria-pressed={selectedVendor?.id === vendor.id} key={vendor.id} onClick={() => setSelectedVendorId(vendor.id)} type="button">
-            <Building2 /><span><strong>{vendor.name}</strong><small>{vendor.code} · {format(vendor.vendorType)}</small></span><b>{stats.works.length}</b>
+            <Building2 /><span><strong>{vendor.name}</strong><small>{vendor.code} · {vendorPartyLabel(vendor.vendorType)} · {format(vendor.vendorType)}</small></span><b>{stats.works.length}</b>
           </button>;
         }) : <div className="outside-vendor-empty"><Building2 /><strong>No outside vendors added yet</strong><span>Add Simba Collision or another partner once, then select it from any repair order.</span></div>}
       </aside>
@@ -176,7 +178,7 @@ export function OutsideVendorDirectory({ vendors }: { vendors: OutsideVendorReco
       <main className="outside-vendor-detail">
         {selectedVendor && selectedStats ? <>
           <section className="outside-vendor-profile">
-            <header><Building2 /><div><span>{selectedVendor.code} · {format(selectedVendor.vendorType)}</span><h2>{selectedVendor.name}</h2><p>{selectedVendor.notes ?? "No operating notes recorded yet."}</p></div><b>{format(selectedVendor.status)}</b></header>
+            <header><Building2 /><div><span>Supporting party · {vendorPartyLabel(selectedVendor.vendorType)} · {selectedVendor.code} · {format(selectedVendor.vendorType)}</span><h2>{selectedVendor.name}</h2><p>{selectedVendor.notes ?? "No operating notes recorded yet."}</p></div><b>{format(selectedVendor.status)}</b></header>
             <dl><div><dt>Contact</dt><dd>{selectedVendor.contactName ?? "Not recorded"}</dd></div><div><dt>Lead time</dt><dd>{selectedVendor.defaultLeadDays} day(s)</dd></div><div><dt>Total completed spend</dt><dd>{money(selectedStats.totalSpendCents)}</dd></div><div><dt>Open billing proxy</dt><dd>{money(selectedStats.openBalanceCents)}</dd></div></dl>
             <div className="outside-vendor-contact">{selectedVendor.phoneNumber ? <a href={`tel:${selectedVendor.phoneNumber}`}><Phone /> {selectedVendor.phoneNumber}</a> : null}{selectedVendor.email ? <a href={`mailto:${selectedVendor.email}`}><Mail /> {selectedVendor.email}</a> : null}{selectedVendor.address ? <span><MapPin /> {selectedVendor.address}</span> : null}</div>
           </section>

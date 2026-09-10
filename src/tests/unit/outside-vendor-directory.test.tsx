@@ -10,6 +10,8 @@ describe("outside vendor directory", () => {
     const html = renderToStaticMarkup(<OutsideVendorDirectory vendors={[{ id: "vendor-1", code: "DIEGO-AUTO-BODY", name: "Diego Auto Body", vendorType: "BODY_SHOP", contactName: "Diego", phoneNumber: "555-0199", email: null, address: "Body Shop Road", defaultLeadDays: 2, notes: null, status: "ACTIVE" }]} />);
     expect(html).toContain("Operations · Outside vendor workspace");
     expect(html).toContain("Diego Auto Body");
+    expect(html).toContain("Supporting party · Vendor");
+    expect(html).toContain("Supporting parties stay connected");
     expect(html).toContain("Vendor work ledger");
     expect(html).toContain("Billing and invoice control");
     expect(html).toContain("Add outside vendor");
