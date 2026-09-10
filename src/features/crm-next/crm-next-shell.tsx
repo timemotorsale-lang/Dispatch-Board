@@ -43,6 +43,58 @@ function crmNextActionHref(actionId: string, customerId?: string) {
   return customerId ? `${baseHref}?customerId=${encodeURIComponent(customerId)}` : baseHref;
 }
 
+function customerWorkIssue(item: CrmNextAttentionItem) {
+  const reason = item.reason.toLowerCase();
+  const nextAction = item.nextAction || "Review customer record";
+  if (reason.includes("payment")) {
+    return {
+      done: "Payment status, customer promise, and next due date are recorded.",
+      issue: item.reason,
+      stage: "Resolution",
+      why: "Finance risk can interrupt delivery, collections, or the next customer commitment."
+    };
+  }
+  if (reason.includes("title")) {
+    return {
+      done: "Title status is confirmed, blocker is owned, and the customer has a clear update.",
+      issue: item.reason,
+      stage: "Review",
+      why: "Title uncertainty can block delivery, registration, financing, or customer trust."
+    };
+  }
+  if (reason.includes("service") || reason.includes("appointment")) {
+    return {
+      done: "Appointment or service plan is scheduled, confirmed, or clearly carried forward.",
+      issue: item.reason,
+      stage: "Contact",
+      why: "The customer needs a clear service path before the issue becomes a complaint."
+    };
+  }
+  if (reason.includes("insurance") || reason.includes("claim")) {
+    return {
+      done: "Claim status, responsible party, and customer follow-up window are recorded.",
+      issue: item.reason,
+      stage: "Follow-up",
+      why: "Insurance work often depends on outside parties and needs visible ownership."
+    };
+  }
+  return {
+    done: `${nextAction} is completed or updated with the customer outcome and next follow-up.`,
+    issue: item.reason || "Customer record needs review",
+    stage: "Review",
+    why: "The customer record needs enough clarity for staff to take the next safe step."
+  };
+}
+
+function customerWorkSteps(activeStage: string) {
+  const steps = ["Intake", "Review", "Contact", "Resolution", "Follow-up", "Done"];
+  const activeIndex = Math.max(0, steps.indexOf(activeStage));
+  return steps.map((step, index) => ({
+    state: index < activeIndex ? "complete" : index === activeIndex ? "active" : "pending",
+    step
+  }));
+}
+
 export function CrmNextUnavailable({ fallbackHref, reason }: { fallbackHref: string; reason: CrmNextAccessReason }) {
   const message = reason === "CRM_NEXT_OFF"
     ? "CRM Next is safely turned off. Customer Archive and the current CRM fallback remain available."
@@ -1539,6 +1591,8 @@ export function CrmNextWorkCustomerView({
 }) {
   const dispatchPreview = bridgePreview?.dispatchPreview;
   const actionCustomerId = item.customerId;
+  const issue = customerWorkIssue(item);
+  const progressSteps = customerWorkSteps(issue.stage);
 
   return (
     <CrmNextFrame active="work" userName={model.userName}>
@@ -1554,7 +1608,7 @@ export function CrmNextWorkCustomerView({
           <div className={styles.workHeroBody}>
             <div>
               <h1 className={styles.workTitle}>Attend: {item.customerName}</h1>
-              <p className={styles.muted}>{item.reason} · {item.area} · Owner: {item.owner}</p>
+              <p className={styles.muted}>{issue.issue} · {item.area} · Owner: {item.owner}</p>
             </div>
             <div className={styles.workActions}>
               <Link className={styles.primaryButton} href={crmNextActionHref("log-call", actionCustomerId)}><Phone size={16} /> Log Call</Link>
@@ -1565,6 +1619,43 @@ export function CrmNextWorkCustomerView({
           </div>
         </header>
         <main>
+          <section className={styles.issueWorkbench} aria-label="Current customer issue">
+            <div className={styles.issueSummary}>
+              <div>
+                <span className={styles.eyebrow}>Current customer issue</span>
+                <h2>{issue.issue}</h2>
+                <strong>Why this matters</strong>
+                <p>{issue.why}</p>
+              </div>
+              <dl>
+                <div><dt>Customer</dt><dd>{item.customerName}</dd></div>
+                <div><dt>Owner</dt><dd>{item.owner}</dd></div>
+                <div><dt>Area</dt><dd>{item.area}</dd></div>
+                <div><dt>Priority</dt><dd>{item.level}</dd></div>
+              </dl>
+            </div>
+            <div className={styles.issueDefinitionGrid}>
+              <article>
+                <strong>Next required step</strong>
+                <span>{item.nextAction}</span>
+              </article>
+              <article>
+                <strong>What done means</strong>
+                <span>{issue.done}</span>
+              </article>
+              <article>
+                <strong>Work status</strong>
+                <span>In progress · review before closing</span>
+              </article>
+            </div>
+            <ol className={styles.issueProgress} aria-label="Issue progress">
+              {progressSteps.map((step) => (
+                <li data-state={step.state} key={step.step}>
+                  <span>{step.step}</span>
+                </li>
+              ))}
+            </ol>
+          </section>
           <section className={styles.workContextStrip} aria-label="Customer context">
             <div>
               <span>Customer</span>
@@ -1607,8 +1698,8 @@ export function CrmNextWorkCustomerView({
             </div>
             <section className={styles.suggested} id="suggested">
               <div>
-                <strong>Next Suggested Action</strong>
-                <p>{item.nextAction}. Last contacted 2 days ago.</p>
+                <strong>Resolve the customer issue</strong>
+                <p>{item.nextAction}. Record the outcome, follow-up window, or reason this cannot close today.</p>
               </div>
               <Link className={styles.primaryButton} href="#dispatch-task">Create task</Link>
             </section>

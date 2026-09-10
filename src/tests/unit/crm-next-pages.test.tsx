@@ -158,6 +158,10 @@ describe("CRM Next pages", () => {
     expect(customer).toContain("Supporting Parties");
     expect(customer).toContain("Warranty company");
     expect(work).toContain("Attend: Michael Johnson");
+    expect(work).toContain("Current customer issue");
+    expect(work).toContain("Why this matters");
+    expect(work).toContain("What done means");
+    expect(work).toContain("Issue progress");
     expect(work).toContain("Create Dispatch task");
     expect(work).not.toContain("Connected to the CRM Next action-to-task bridge contract");
     expect(work).not.toContain("Backend wired · writes held");
@@ -165,6 +169,7 @@ describe("CRM Next pages", () => {
     expect(work).toContain("Today 3:00 PM");
     expect(work).toContain('href="/crm-next/actions/log-call?customerId=michael-johnson"');
     expect(work).toContain('href="#dispatch-task"');
+    expect(work).toContain("Resolve the customer issue");
     expect(search).toContain("Add Customer / Prospect");
     expect(newCustomer).toContain("Add a customer or prospect");
     expect(newCustomer).toContain("Customer details");
