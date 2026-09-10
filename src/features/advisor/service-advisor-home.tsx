@@ -31,6 +31,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 
+import { buildCrmWorkbookPlan } from "@/lib/workday-workbook-crm-integration";
 import type { ServiceAdvisorWorkspaceModel } from "@/server/advisor-workspace/service";
 import { ChecklistReminderField } from "./checklist-reminder-field";
 import { ExpandableFocusDetails } from "./expandable-focus-details";
@@ -652,6 +653,60 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
   });
   const supportSignals = closeReadiness.checklistNeedsSupport + closeReadiness.quickFollowUps + reportExceptions;
   const buildSearchText = (...parts: Array<string | number | null | undefined | string[]>) => parts.flatMap((part) => Array.isArray(part) ? part : [part]).filter((part): part is string | number => part !== null && part !== undefined && String(part).trim().length > 0).join(" ").toLocaleLowerCase();
+  const crmWorkbookPlan = buildCrmWorkbookPlan([
+    ...quickUpdates.filter((item) => item.followUpNeeded).map((item) => ({
+      detail: [item.person, item.phoneNumber, item.company, item.dueWindow, item.text].filter(Boolean).join(" · "),
+      href: "/vehicles/coo-workbook/quick-update",
+      id: `crm-quick-${item.id}`,
+      itemType: item.dueWindow.trim() ? "FOLLOW_UP_DUE_TODAY" as const : "OVERDUE_FOLLOW_UP" as const,
+      priority: item.dueWindow.trim() ? "HIGH" as const : "CRITICAL" as const,
+      riskLevel: item.dueWindow.trim() ? "WATCH" as const : "BLOCKED" as const,
+      sourceId: item.id,
+      sourceType: "QUICK_UPDATE",
+      title: item.person ? `Follow up with ${item.person}` : item.text.slice(0, 90)
+    })),
+    ...model.appointments.map((item) => ({
+      customerName: item.customerName,
+      detail: `${item.title} · ${item.vehicleLabel} · ${item.startsAt ? dateLabel(item.startsAt) : "Time not set"}`,
+      dueAt: item.startsAt,
+      href: "/appointments?view=board",
+      id: `crm-appointment-${item.id}`,
+      itemType: "APPOINTMENT_TODAY" as const,
+      priority: "MEDIUM" as const,
+      riskLevel: "NONE" as const,
+      sourceId: item.id,
+      sourceType: "APPOINTMENT",
+      title: item.customerName ? `Appointment: ${item.customerName}` : item.title
+    })),
+    ...reportSeeds.filter((seed) => seed.status !== "EXCLUDED").map((seed) => ({
+      detail: seed.detail,
+      href: reportSeedRecordHref(seed),
+      id: `crm-seed-${seed.id}`,
+      itemType: seed.sourceType === "OPERATING_EXCEPTION" ? "OPEN_CUSTOMER_ISSUE" as const : "DEAL_NEEDS_ACTION" as const,
+      priority: seed.tone === "RED" ? "CRITICAL" as const : seed.tone === "YELLOW" ? "HIGH" as const : "MEDIUM" as const,
+      riskLevel: seed.tone === "RED" ? "BLOCKED" as const : seed.tone === "YELLOW" ? "WATCH" as const : "NONE" as const,
+      sourceId: seed.id,
+      sourceType: "REPORT_SEED",
+      title: seed.title
+    })),
+    ...model.collaboratingTasks.map((item) => ({
+      customerName: item.customerReference,
+      detail: [item.description, item.customerReference, item.vehicleReference, item.capacityRequested, `Due ${dateLabel(item.dueAt)}`].filter(Boolean).join(" · "),
+      dueAt: item.dueAt,
+      href: item.href,
+      id: `crm-task-${item.id}`,
+      itemType: "MANAGER_ASSIGNED_CUSTOMER_TASK" as const,
+      ownerUserId: model.advisor.id,
+      priority: item.priority,
+      riskLevel: item.status === "BLOCKED" ? "BLOCKED" as const : ["WAITING_ON_APPROVAL", "WAITING_ON_PARTS", "READY_FOR_REVIEW"].includes(item.status) ? "WATCH" as const : "NONE" as const,
+      sourceId: item.id,
+      sourceType: "TASK",
+      title: item.title
+    }))
+  ], {
+    existingFocusItems: activeWorkbook.dailyFocusItems,
+    limit: 10
+  });
   const attentionItems = [
     ...actionQueue.slice(0, 4).map((item) => ({
       action: actionButton(item.actionKind),
@@ -748,6 +803,22 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
       },
       title: item.title,
       tone: item.status === "BLOCKED" ? "red" : ["WAITING_ON_APPROVAL", "WAITING_ON_PARTS", "READY_FOR_REVIEW"].includes(item.status) || item.priority === "HIGH" || item.priority === "CRITICAL" ? "yellow" : "blue"
+    })),
+    ...crmWorkbookPlan.map((item) => ({
+      action: item.alreadyInTodayFocus ? "In focus" : item.nextBestAction.label,
+      context: [item.customerName, item.itemType.replaceAll("_", " ").toLocaleLowerCase(), item.dueAt ? dateLabel(item.dueAt) : ""].filter(Boolean).join(" · "),
+      description: item.detail,
+      href: item.href,
+      id: `crm-workbook-${item.id}`,
+      kind: "CRM Work",
+      searchText: buildSearchText(item.title, item.detail, item.customerName, item.itemType, item.sourceType),
+      source: {
+        href: item.href,
+        id: item.sourceId,
+        type: item.sourceType
+      },
+      title: item.title,
+      tone: item.riskLevel === "BLOCKED" ? "red" : item.riskLevel === "WATCH" || item.priority === "HIGH" || item.priority === "CRITICAL" ? "yellow" : "blue"
     })),
     ...checklistItems.map((item) => ({
       action: item.convertedTaskId ? "Open task" : item.done ? "Review" : "Update",
