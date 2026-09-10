@@ -14,6 +14,11 @@ describe("Unified CRM admin readiness hub", () => {
     expect(result.contractVersion).toBe("ucrm.admin-readiness-hub/v1");
     expect(result.state).toBe("AVAILABLE");
     expect(result.generatedAt).toBe("2026-08-28T01:00:00.000Z");
+    expect(result.adminControls).toEqual(expect.arrayContaining([
+      expect.objectContaining({ area: "roles", staffVisibility: "ADMIN_ONLY", auditEventType: "ADMIN_ROLE_POLICY_CHANGED" }),
+      expect.objectContaining({ area: "required_fields", staffVisibility: "ADMIN_ONLY" }),
+      expect.objectContaining({ area: "data_correction_process", staffVisibility: "ADMIN_ONLY" }),
+    ]));
     expect(allTiles.find((tile) => tile.milestoneId === "UCRM-080")).toMatchObject({ status: "AVAILABLE" });
     expect(allTiles.find((tile) => tile.milestoneId === "UCRM-106")).toMatchObject({ status: "HELD" });
     expect(allTiles.find((tile) => tile.milestoneId === "UCRM-121")).toMatchObject({ status: "PLANNED" });

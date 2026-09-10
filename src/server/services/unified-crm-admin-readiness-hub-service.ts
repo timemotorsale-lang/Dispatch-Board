@@ -1,4 +1,5 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
+import { listEnterpriseAdminControls } from "@/server/enterprise-admin/controls";
 import { resolveUnifiedCrmWorkspace } from "@/server/policies/unified-crm-access";
 import {
   UNIFIED_CRM_ADMIN_READINESS_HUB_CONTRACT_VERSION,
@@ -116,6 +117,14 @@ export async function getUnifiedCrmAdminReadinessHub(
   }
 
   return {
+    adminControls: listEnterpriseAdminControls().map((control) => ({
+      area: control.area,
+      auditEventType: control.auditEventType,
+      href: control.href,
+      staffVisibility: control.staffVisibility,
+      summary: control.summary,
+      title: control.title
+    })),
     contractVersion: UNIFIED_CRM_ADMIN_READINESS_HUB_CONTRACT_VERSION,
     generatedAt: (dependencies.now?.() ?? new Date()).toISOString(),
     groups: [

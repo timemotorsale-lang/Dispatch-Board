@@ -12,7 +12,17 @@ export type UnifiedCrmAdminReadinessHubTile = {
   featureControl: string;
 };
 
+export type UnifiedCrmAdminReadinessHubControl = {
+  area: string;
+  auditEventType: string;
+  href: string;
+  staffVisibility: "ADMIN_ONLY";
+  summary: string;
+  title: string;
+};
+
 export type UnifiedCrmAdminReadinessHubReadModel = {
+  adminControls: UnifiedCrmAdminReadinessHubControl[];
   contractVersion: typeof UNIFIED_CRM_ADMIN_READINESS_HUB_CONTRACT_VERSION;
   generatedAt: string;
   groups: {
