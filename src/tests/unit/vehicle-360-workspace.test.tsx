@@ -58,6 +58,19 @@ describe("Vehicle 360 enterprise command center", () => {
       "Safety intelligence",
       "Evidence &amp; documents",
       "Current operational state",
+      "Vehicle truth center",
+      "Everything important about this vehicle, one jump away",
+      "360 photos",
+      "Inventory lifecycle",
+      "Repair orders",
+      "Title / licensing",
+      "Towing",
+      "Warranty",
+      "Costs",
+      "Documents",
+      "Timeline",
+      "Current blocker",
+      "Next best action",
       "Do this next",
       "Canonical data health",
       "Connected records",
@@ -66,6 +79,7 @@ describe("Vehicle 360 enterprise command center", () => {
     ]) expect(html).toContain(content);
 
     expect(html).toContain('href="/vehicles/vehicle-1/inventory-planning"');
+    expect(html).toContain('href="/vehicles/parts-operations?vehicleId=vehicle-1&amp;returnTo=%2Fvehicles%2F360%2Fvehicle-1%3FreturnTo%3D%252Fvehicles%252Fvehicle-1%252Finventory-planning"');
     expect(html).toContain("returnTo=%2Fvehicles%2F360%2Fvehicle-1%3FreturnTo%3D%252Fvehicles%252Fvehicle-1%252Finventory-planning");
     expect(html).toContain("42,118 mi");
     expect(html).toContain("Eli Manager");

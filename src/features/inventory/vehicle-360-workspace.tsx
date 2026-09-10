@@ -9,6 +9,7 @@ import {
   CarFront,
   CheckCircle2,
   ClipboardCheck,
+  ClipboardList,
   FileSearch,
   FileText,
   Gauge,
@@ -17,6 +18,7 @@ import {
   RefreshCw,
   ShieldAlert,
   ShieldCheck,
+  Truck,
   Wrench,
 } from "lucide-react";
 import Link from "next/link";
@@ -110,6 +112,8 @@ function walkaroundCoverage(items: EvidenceItem[]) {
   }
   return { photos, byAngle, capturedRequired: requiredWalkaroundAngles.filter(angle => byAngle.has(angle.code)).length, missingRequired: requiredWalkaroundAngles.filter(angle => !byAngle.has(angle.code)) };
 }
+function itemText(item: RecordItem) { return Object.values(item).filter(value => ["string", "number", "boolean"].includes(typeof value)).join(" ").toLowerCase(); }
+function matchingRecords(items: RecordItem[], pattern: RegExp) { return items.filter(item => pattern.test(itemText(item))); }
 
 function AccessEmpty({ allowed, labelText }: { allowed: boolean; labelText: string }) {
   return <div className={styles.empty}><AlertTriangle /><div><strong>{allowed ? `No ${labelText.toLowerCase()} records` : `${labelText} restricted`}</strong><p>{allowed ? "Nothing is connected to this canonical vehicle yet." : `Your current role does not include access to ${labelText.toLowerCase()}.`}</p></div></div>;
@@ -243,7 +247,7 @@ export function Vehicle360Workspace({ initial }: { initial: Vehicle360View }) {
     {notice ? <div className={notice.toLowerCase().includes("failed") || notice.toLowerCase().includes("quarantine") || notice.toLowerCase().includes("required") ? styles.warning : styles.success}><ShieldCheck /><p>{notice}</p></div> : null}
 
     {decodeError ? <div className={styles.warning}><AlertTriangle /><p>{decodeError}</p></div> : null}
-    {active === "overview" ? <Overview view={view} specifications={specifications} specificationAvailable={specificationView.available} specificationStatus={decodeLoading ? "Retrieving live NHTSA decode" : liveDecode ? "Live NHTSA refresh" : view.tabs.specifications.available ? "Canonical snapshot" : "Missing"} safety={safety} safetyError={safetyError} safetyLoading={safetyLoading} nodes={nodes} missingCanonical={missingCanonical.map(([name]) => String(name))} onOpenEvidence={() => setActive("evidence")} onOpenIdentity={() => setActive("identity")} onOpenSafety={() => setActive("safety")} primaryHref={primaryHref} /> : null}
+    {active === "overview" ? <Overview view={view} specifications={specifications} specificationAvailable={specificationView.available} specificationStatus={decodeLoading ? "Retrieving live NHTSA decode" : liveDecode ? "Live NHTSA refresh" : view.tabs.specifications.available ? "Canonical snapshot" : "Missing"} safety={safety} safetyError={safetyError} safetyLoading={safetyLoading} nodes={nodes} missingCanonical={missingCanonical.map(([name]) => String(name))} onOpenEvidence={() => setActive("evidence")} onOpenIdentity={() => setActive("identity")} onOpenPhotos={() => setActive("photos")} onOpenSafety={() => setActive("safety")} onOpenWork={() => setActive("work")} primaryHref={primaryHref} vehicle360Return={vehicle360Return} /> : null}
     {active === "photos" ? <PhotoWalkaround allowed={view.tabs.documents.allowed} items={view.tabs.documents.items} vehicle={vehicle} onAddPhoto={() => { setCategory("PHOTO"); setActive("evidence"); setNotice("Choose a vehicle photo file, label the angle in the file name, then store it as governed evidence."); }} /> : null}
     {active === "identity" ? <VehicleSpecifications view={specificationView} /> : null}
     {active === "work" ? <WorkHistory view={view} /> : null}
@@ -252,13 +256,14 @@ export function Vehicle360Workspace({ initial }: { initial: Vehicle360View }) {
   </section>;
 }
 
-function Overview({ view, specifications, specificationAvailable, specificationStatus, safety, safetyError, safetyLoading, nodes, missingCanonical, onOpenEvidence, onOpenIdentity, onOpenSafety, primaryHref }: { view: Vehicle360View; specifications: RecordItem; specificationAvailable: boolean; specificationStatus: string; safety: NhtsaSafetyIntelligence | null; safetyError: string; safetyLoading: boolean; nodes: Map<string, GraphNode>; missingCanonical: string[]; onOpenEvidence: () => void; onOpenIdentity: () => void; onOpenSafety: () => void; primaryHref: string }) {
+function Overview({ view, specifications, specificationAvailable, specificationStatus, safety, safetyError, safetyLoading, nodes, missingCanonical, onOpenEvidence, onOpenIdentity, onOpenPhotos, onOpenSafety, onOpenWork, primaryHref, vehicle360Return }: { view: Vehicle360View; specifications: RecordItem; specificationAvailable: boolean; specificationStatus: string; safety: NhtsaSafetyIntelligence | null; safetyError: string; safetyLoading: boolean; nodes: Map<string, GraphNode>; missingCanonical: string[]; onOpenEvidence: () => void; onOpenIdentity: () => void; onOpenPhotos: () => void; onOpenSafety: () => void; onOpenWork: () => void; primaryHref: string; vehicle360Return: string }) {
   const vehicle = view.summary.vehicle;
   const recallCount = safety?.recalls.length ?? 0;
   const nextAction = view.summary.nextAction ?? (view.tabs.inventory.items.length ? "Continue receiving and inventory planning" : "Review vehicle record and establish the next workflow");
   return <main className={styles.overviewLayout}>
     <div className={styles.sectionStack}>
       <section className={styles.panel}><SectionHeading eyebrow="Current operational state" title={sentence(view.summary.stage)} detail={`${sentence(view.summary.operatingState)} · ${view.summary.location?.name ?? "No active location"}${view.summary.targetAt ? ` · target ${dateTime(view.summary.targetAt)}` : ""}`} action={<Link className={styles.secondaryButton} href={primaryHref}>Continue work<ArrowRight /></Link>} /><div className={styles.nextAction}><Gauge /><div><small>Do this next</small><strong>{nextAction}</strong><p>The command center preserves context while the authoritative work remains in its governed workflow.</p></div></div></section>
+      <VehicleTruthMap view={view} missingCanonical={missingCanonical} onOpenEvidence={onOpenEvidence} onOpenIdentity={onOpenIdentity} onOpenPhotos={onOpenPhotos} onOpenWork={onOpenWork} primaryHref={primaryHref} vehicle360Return={vehicle360Return} />
       <section className={styles.panel}><SectionHeading eyebrow="Safety intelligence" title={safetyLoading ? "Checking NHTSA sources" : safetyError ? "Safety source needs attention" : recallCount ? `${recallCount} model-level campaign${recallCount === 1 ? "" : "s"} found` : safety ? "No model-level campaigns returned" : "Safety intelligence pending"} detail="Potential campaigns require VIN-specific verification before they can be treated as an open recall." action={<button className={styles.textButton} onClick={onOpenSafety} type="button">Open safety review<ArrowRight /></button>} />{safetyError ? <div className={styles.warning}><AlertTriangle /><p>{safetyError}</p></div> : recallCount ? <div className={styles.safetyPreview}><ShieldAlert /><div><OperationalBadge tone="attention">Potentially applicable—verify by VIN</OperationalBadge><strong>{safety?.recalls[0]?.component}</strong><p>{safety?.recalls[0]?.summary}</p></div></div> : <div className={styles.safetyPreview}><ShieldCheck /><div><strong>{safetyLoading ? "Retrieving current model-level results" : safety ? "No model-level campaign returned" : "VIN verification policy remains active"}</strong><p>A model-level search does not replace the NHTSA or manufacturer VIN-specific lookup.</p></div></div>}</section>
       <section className={styles.panel}><SectionHeading eyebrow="Vehicle facts" title="Canonical identity and decoded specifications" detail={`The most useful identity and technical facts are visible here. Decode status: ${specificationStatus}.`} action={<button className={styles.textButton} onClick={onOpenIdentity} type="button">View all specifications<ArrowRight /></button>} /><dl className={styles.factGrid}><div><dt>Year / make / model</dt><dd>{[specifications.modelYear ?? vehicle.year, specifications.make ?? vehicle.make, specifications.model ?? vehicle.model].filter(Boolean).join(" ") || dash}</dd></div><div><dt>Trim / series</dt><dd>{rawLabel(specifications.trim ?? specifications.series)}</dd></div><div><dt>Engine</dt><dd>{[specifications.displacementLiters ? `${specifications.displacementLiters}L` : null, specifications.engineCylinders ? `${specifications.engineCylinders} cylinder` : null, specifications.engineConfiguration].filter(Boolean).join(" · ") || dash}</dd></div><div><dt>Drive / transmission</dt><dd>{[specifications.driveType, specifications.transmissionStyle].filter(Boolean).map(rawLabel).join(" · ") || dash}</dd></div><div><dt>Body / doors</dt><dd>{[specifications.bodyClass, specifications.doors ? `${specifications.doors} door` : null].filter(Boolean).map(rawLabel).join(" · ") || dash}</dd></div><div><dt>Manufactured</dt><dd>{[specifications.manufacturer, specifications.plantCountry].filter(Boolean).map(rawLabel).join(" · ") || dash}</dd></div></dl></section>
       <section className={styles.panel}><SectionHeading eyebrow="Connected activity" title="Work, service, and evidence timeline" detail="Events from durable source records are presented in one vehicle history." /><div className={styles.timeline}>{view.timeline.length ? view.timeline.slice(0, 8).map(item => { const Icon = sourceIcon(item.source); return <article key={item.id}><Icon /><div><small>{sentence(item.source)} · {sentence(item.type)}</small><strong>{item.title}</strong><p>{item.detail ?? `${item.subjectType} ${item.subjectId}`}</p></div><time>{dateTime(item.occurredAt)}</time></article>; }) : <AccessEmpty allowed labelText="Timeline" />}</div></section>
@@ -271,6 +276,38 @@ function Overview({ view, specifications, specificationAvailable, specificationS
       <section className={styles.panel}><SectionHeading eyebrow="Relationships" title={`${view.graph.edges.length} durable connection${view.graph.edges.length === 1 ? "" : "s"}`} /><div className={styles.relationships}>{view.graph.edges.slice(0, 5).map(edge => <div key={edge.id}><Link2 /><span>{nodes.get(edge.to)?.label ?? edge.to}</span><small>{sentence(edge.type)}</small></div>)}</div></section>
     </aside>
   </main>;
+}
+
+function VehicleTruthMap({ view, missingCanonical, onOpenEvidence, onOpenIdentity, onOpenPhotos, onOpenWork, primaryHref, vehicle360Return }: { view: Vehicle360View; missingCanonical: string[]; onOpenEvidence: () => void; onOpenIdentity: () => void; onOpenPhotos: () => void; onOpenWork: () => void; primaryHref: string; vehicle360Return: string }) {
+  const { capturedRequired } = walkaroundCoverage(view.tabs.documents.items);
+  const warrantyCount = view.tabs.warranty.allowed ? view.tabs.warranty.items.length : null;
+  const partsCount = view.tabs.parts.allowed ? view.tabs.parts.demands.length + view.tabs.parts.custody.length : null;
+  const towingCount = matchingRecords([...view.timeline, ...view.tabs.communications.items, ...view.tabs.service.repairOrders], /tow|towing|transport|pickup|drop off|dropped off/).length;
+  const documentCount = view.tabs.documents.allowed ? view.tabs.documents.items.length : null;
+  const titleRecords = view.tabs.documents.allowed ? view.tabs.documents.items.filter(item => item.category === "TITLE").length : null;
+  const costPackages = view.tabs.costs.allowed ? view.tabs.costs.items.length : null;
+  const cards = [
+    { action: "Review identity", detail: missingCanonical.length ? `${missingCanonical.length} identity field${missingCanonical.length === 1 ? "" : "s"} need attention` : "VIN and core identity are available", icon: BadgeCheck, label: "Identity", onClick: onOpenIdentity, value: view.summary.vehicle.vinState === "VERIFIED" ? "Verified" : sentence(view.summary.vehicle.vinState) },
+    { action: "Open photos", detail: "Arrival, damage, odometer, and report proof", icon: Camera, label: "360 photos", onClick: onOpenPhotos, value: `${capturedRequired}/${requiredWalkaroundAngles.length}` },
+    { action: "Open lifecycle", detail: sentence(view.summary.stage), icon: ClipboardCheck, label: "Inventory lifecycle", onClick: onOpenWork, value: view.tabs.inventory.allowed ? view.tabs.inventory.items.length : "Restricted" },
+    { action: "Open repair", detail: "Workbench and RO source records", icon: Wrench, label: "Repair orders", onClick: onOpenWork, value: view.tabs.service.allowed ? view.tabs.service.repairOrders.length : "Restricted" },
+    { action: "Open parts", detail: "Demand, custody, and receiving context", href: withReturn(`/vehicles/parts-operations?vehicleId=${encodeURIComponent(view.summary.vehicle.id)}`, vehicle360Return), icon: ClipboardList, label: "Parts", value: partsCount ?? "Restricted" },
+    { action: "Open documents", detail: `Plate ${view.summary.vehicle.licensePlate ?? "not recorded"}`, icon: FileText, label: "Title / licensing", onClick: onOpenEvidence, value: titleRecords ?? "Restricted" },
+    { action: "Review towing", detail: "Pickup, drop-off, and custody signals", icon: Truck, label: "Towing", onClick: onOpenWork, value: towingCount },
+    { action: "Open warranty", detail: "Coverage, claims, and approval proof", icon: ShieldCheck, label: "Warranty", onClick: onOpenWork, value: warrantyCount ?? "Restricted" },
+    { action: "Review costs", detail: "Estimates and invoice packages", icon: Gauge, label: "Costs", onClick: onOpenWork, value: costPackages ?? "Restricted" },
+    { action: "Open evidence", detail: "Governed photos, approvals, and files", icon: FileSearch, label: "Documents", onClick: onOpenEvidence, value: documentCount ?? "Restricted" },
+    { action: "View timeline", detail: "Durable vehicle event history", icon: History, label: "Timeline", onClick: onOpenWork, value: view.timeline.length },
+    { action: "Continue", detail: view.summary.risks[0] ? sentence(view.summary.risks[0]) : "No active blocker recorded", href: primaryHref, icon: AlertTriangle, label: "Current blocker", value: view.summary.risks.length || "Clear" },
+  ];
+  return <section className={`${styles.panel} ${styles.truthCenter}`}>
+    <SectionHeading eyebrow="Vehicle truth center" title="Everything important about this vehicle, one jump away" detail="Open only the part of the record needed for the next decision or task." action={<Link className={styles.primaryButton} href={primaryHref}>Next best action<ArrowRight /></Link>} />
+    <div className={styles.truthGrid}>{cards.map(card => {
+      const Icon = card.icon;
+      const body = <><Icon /><div><small>{card.label}</small><strong>{card.value}</strong><p>{card.detail}</p></div><b>{card.action}<ArrowRight /></b></>;
+      return card.href ? <Link className={styles.truthCard} href={card.href} key={card.label}>{body}</Link> : <button className={styles.truthCard} key={card.label} onClick={card.onClick} type="button">{body}</button>;
+    })}</div>
+  </section>;
 }
 
 function WorkHistory({ view }: { view: Vehicle360View }) {

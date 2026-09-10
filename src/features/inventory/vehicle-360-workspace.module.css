@@ -38,6 +38,16 @@
 .nextAction svg { color:#3760c9; }
 .nextAction small { display:block; color:#6d7e95; font-size:.72rem; font-weight:850; text-transform:uppercase; }
 .nextAction strong { display:block; margin:3px 0; color:#16345a; }
+.truthCenter { border-left:4px solid #426bd4; }
+.truthGrid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:9px; }
+.truthCard { display:grid; grid-template-columns:34px minmax(0,1fr); gap:9px; align-items:start; min-width:0; min-height:104px; padding:10px; border:1px solid #dbe4ef; border-radius:10px; background:#fbfdff; color:inherit; text-align:left; text-decoration:none; cursor:pointer; transition:border-color .15s ease, box-shadow .15s ease, transform .15s ease; }
+.truthCard:hover,.truthCard:focus-visible { border-color:#95b8ec; box-shadow:0 9px 18px rgb(35 69 118 / 8%); outline:none; transform:translateY(-1px); }
+.truthCard>svg { width:34px; height:34px; padding:8px; border-radius:9px; background:#eef5ff; color:#315dcc; }
+.truthCard small { display:block; color:#677993; font-size:.68rem; font-weight:900; letter-spacing:.04em; text-transform:uppercase; }
+.truthCard strong { display:block; margin:3px 0; color:#132844; font-size:.95rem; overflow-wrap:anywhere; }
+.truthCard p { margin:0; font-size:.72rem; line-height:1.35; }
+.truthCard b { grid-column:2; display:flex; gap:4px; align-items:center; color:#3159bc; font-size:.72rem; }
+.truthCard b svg { width:12px; height:12px; }
 .safetyPreview { display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:start; padding:13px; border:1px solid #ead59f; border-radius:10px; background:#fffaec; }
 .safetyPreview>svg { color:#a8770e; }
 .safetyPreview strong { display:block; margin:7px 0 3px; }
@@ -142,7 +152,9 @@
 .evidenceCard header>svg { color:#4261a2; }
 .evidenceCard header small { color:#6f8096; font-size:.72rem; font-weight:800; text-transform:uppercase; }
 .cardActions { margin-top:12px; }
+@media(max-width:1180px){.truthGrid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:1050px){.identityRow{grid-template-columns:70px 1fr}.heroActions{grid-column:1/-1;justify-content:flex-start;max-width:none}.overviewLayout{grid-template-columns:1fr}.sideRail{grid-template-columns:repeat(2,minmax(0,1fr))}.nextPanel{grid-column:1/-1}}
-@media(max-width:900px){.walkaroundLayout,.photoStats{grid-template-columns:1fr}.angleRail{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:900px){.walkaroundLayout,.photoStats{grid-template-columns:1fr}.angleRail{grid-template-columns:repeat(3,minmax(0,1fr))}.truthGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.factGrid,.originGrid,.specificationGrid,.recordGrid,.evidenceGrid,.safetyGrid,.uploadGrid,.angleChecklist{grid-template-columns:1fr}.sideRail{grid-template-columns:1fr}.nextPanel{grid-column:auto}.sectionHeading{display:grid}.safetyBoundary{grid-template-columns:auto 1fr}.safetyBoundary a{grid-column:2}.timeline article{grid-template-columns:auto 1fr}.timeline time{grid-column:2}.breadcrumb{padding:11px 14px}.identityRow{padding:16px 14px}.tabs{padding:0 14px}.photoFrame,.photoImage,.photoPlaceholder{min-height:300px}}
+@media(max-width:560px){.truthGrid{grid-template-columns:1fr}}
 @media(max-width:480px){.identityRow{grid-template-columns:1fr}.vehicleIcon{width:58px;height:52px}.heroActions{display:grid}.primaryButton,.secondaryButton{width:100%}.sideFacts>div,.sourceList>div{display:grid}.sideFacts dd,.sourceList dd{text-align:left}.recallCard header{display:grid}.cardActions{display:grid}}
