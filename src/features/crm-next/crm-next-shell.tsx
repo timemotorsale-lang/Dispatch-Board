@@ -45,6 +45,8 @@ function crmNextActionHref(actionId: string, customerId?: string) {
 }
 
 const CUSTOMER_JOURNEY_STAGES = ["New", "Contact Attempt", "Contacted", "Appointment Scheduled", "Working Deal", "Sold", "Lost"] as const;
+const CRM_WORKBENCH_TABS = ["Lead", "Credit App", "Pre-Qual", "Vehicle", "Deals", "Files", "Compliance", "Duplicates", "Journal Entries", "Logs"] as const;
+const CRM_ACTIVITY_FILTERS = ["All", "Notes", "Appt", "Phone", "SMS", "Email", "Tasks", "Chat", "Other"] as const;
 
 function customerJourneyStage(customer: CrmNextCustomer360, activeAttentionItem?: CrmNextAttentionItem) {
   const nextAction = `${customer.nextAction} ${activeAttentionItem?.nextAction ?? ""}`.toLowerCase();
@@ -1608,6 +1610,7 @@ export function CrmNextWorkCustomerView({
   const dispatchPreview = bridgePreview?.dispatchPreview;
   const actionCustomerId = item.customerId;
   const issue = customerWorkIssue(item);
+  const recentActivity = model.timeline.slice(0, 5);
 
   return (
     <CrmNextFrame active="work" userName={model.userName}>
@@ -1634,128 +1637,115 @@ export function CrmNextWorkCustomerView({
           </div>
         </header>
         <main>
-          <section className={styles.issueWorkbench} aria-label="Current customer issue">
-            <div className={styles.issueSummary}>
+          <section className={styles.crmWorkbenchBoard} aria-label="CRM customer workbench">
+            <header className={styles.crmWorkbenchHeader}>
               <div>
-                <span className={styles.eyebrow}>Current customer issue</span>
-                <h2>{issue.issue}</h2>
-                <strong>Why this matters</strong>
-                <p>{issue.why}</p>
+                <span className={styles.eyebrow}>Customer file</span>
+                <h2>{item.customerName}</h2>
+                <p>{issue.issue}</p>
               </div>
-              <dl>
-                <div><dt>Customer</dt><dd>{item.customerName}</dd></div>
+              <dl className={styles.crmWorkbenchFacts}>
+                <div><dt>Status</dt><dd>Contacted</dd></div>
                 <div><dt>Owner</dt><dd>{item.owner}</dd></div>
                 <div><dt>Area</dt><dd>{item.area}</dd></div>
                 <div><dt>Priority</dt><dd>{item.level}</dd></div>
               </dl>
+            </header>
+
+            <div className={styles.dealerActionBar} aria-label="CRM actions">
+              <Link className={styles.primaryButton} href={crmNextActionHref("log-call", actionCustomerId)}><Phone size={16} /> Phone Call</Link>
+              <Link className={styles.secondaryButton} href={crmNextActionHref("send-text", actionCustomerId)}><MessageSquare size={16} /> Send SMS</Link>
+              <Link className={styles.secondaryButton} href={crmNextActionHref("send-email", actionCustomerId)}><Mail size={16} /> Send Email</Link>
+              <Link className={styles.secondaryButton} href={crmNextActionHref("schedule-appointment", actionCustomerId)}><CalendarDays size={16} /> Schedule Appt</Link>
+              <Link className={styles.secondaryButton} href={crmNextActionHref("new-task", actionCustomerId)}><ClipboardCheck size={16} /> Add CRM Task</Link>
+              <Link className={styles.secondaryButton} href="#customer-activity"><FileText size={16} /> Add Note</Link>
+              <Link className={styles.secondaryButton} href="#work-disposition"><CheckCircle2 size={16} /> Disposition</Link>
             </div>
-            <div className={styles.issueDefinitionGrid}>
-              <article>
-                <strong>Next required step</strong>
-                <span>{item.nextAction}</span>
-              </article>
-              <article>
-                <strong>What done means</strong>
-                <span>{issue.done}</span>
-              </article>
-              <article>
-                <strong>Work status</strong>
-                <span>Staff controls progress by recording real actions below.</span>
-              </article>
-            </div>
-            <CrmNextWorkbenchProgressControl initialStage="Contacted" nextAction={item.nextAction} />
-          </section>
-          <section className={styles.workContextStrip} aria-label="Customer context">
-            <div>
-              <span>Customer</span>
-              <strong>{item.customerName}</strong>
-            </div>
-            <div>
-              <span>Next action</span>
-              <strong>{item.nextAction}</strong>
-            </div>
-            <div>
-              <span>Owner</span>
-              <strong>{item.owner}</strong>
-            </div>
-            <div>
-              <span>Area</span>
-              <strong>{item.area}</strong>
-            </div>
-            <div className={styles.workContextActions}>
-              <Link className={styles.secondaryButton} href={item.customerHref}>Open Customer 360</Link>
-              <Link className={styles.secondaryButton} href="/tasks">Dispatch Handoffs</Link>
-            </div>
-          </section>
-          <article className={styles.card}>
-            <header><h2>Choose the next customer action</h2><span className={levelClass(item.level)}>{item.level}</span></header>
-          <div className={styles.workActions}>
-            <Link className={styles.primaryButton} href={crmNextActionHref("log-call", actionCustomerId)}><Phone size={16} /> Log call</Link>
-            <Link className={styles.secondaryButton} href={crmNextActionHref("send-text", actionCustomerId)}><MessageSquare size={16} /> Text</Link>
-            <Link className={styles.secondaryButton} href={crmNextActionHref("send-email", actionCustomerId)}><Mail size={16} /> Email</Link>
-            <Link className={styles.secondaryButton} href={crmNextActionHref("schedule-appointment", actionCustomerId)}><CalendarDays size={16} /> Appointments</Link>
-            <Link className={styles.secondaryButton} href={crmNextActionHref("new-task", actionCustomerId)}><ClipboardCheck size={16} /> Create CRM task</Link>
-            <Link className={styles.secondaryButton} href="#customer-activity"><MessageSquare size={16} /> Add note</Link>
-            <Link className={styles.secondaryButton} href="#dispatch-task"><ChevronRight size={16} /> Dispatch handoff</Link>
-            <Link className={styles.secondaryButton} href={item.customerHref}><Users size={16} /> Customer 360</Link>
-          </div>
-            <div className={styles.actionCards}>
-              <Link className={styles.actionCard} href={crmNextActionHref("log-call", actionCustomerId)}><Phone size={18} /><strong>Follow up</strong><p className={styles.muted}>{item.reason}</p></Link>
-              <Link className={styles.actionCard} href="/crm-next/ownership-support"><DollarSign size={18} /><strong>Collect payment</strong><p className={styles.muted}>Open finance context.</p></Link>
-              <Link className={styles.actionCard} href={crmNextActionHref("schedule-appointment", actionCustomerId)}><CalendarDays size={18} /><strong>Schedule appointment</strong><p className={styles.muted}>Open existing appointment workspace.</p></Link>
-              <Link className={styles.actionCard} href={crmNextActionHref("upload-document", actionCustomerId)}><FileText size={18} /><strong>Send document</strong><p className={styles.muted}>Use the document workspace.</p></Link>
-              <Link className={styles.actionCard} href={crmNextActionHref("new-task", actionCustomerId)}><ClipboardCheck size={18} /><strong>Create CRM task</strong><p className={styles.muted}>Keep this customer follow-up inside CRM.</p></Link>
-              <Link className={styles.actionCard} href="#customer-activity"><MessageSquare size={18} /><strong>Add note</strong><p className={styles.muted}>Record what happened before moving progress.</p></Link>
-              <Link className={styles.actionCard} href="#dispatch-task"><ChevronRight size={18} /><strong>Dispatch handoff</strong><p className={styles.muted}>Use only when operations must execute work.</p></Link>
-              <Link className={styles.actionCard} href={crmNextActionHref("new-case", actionCustomerId)}><MessageSquare size={18} /><strong>Other action</strong><p className={styles.muted}>Open more customer actions.</p></Link>
-            </div>
-            <section className={styles.suggested} id="suggested">
+
+            <ol className={styles.dealerJourneyStrip} aria-label="Customer journey">
+              {CUSTOMER_JOURNEY_STAGES.map((stage) => (
+                <li data-state={stage === "Contacted" ? "active" : "idle"} key={stage}>{stage}</li>
+              ))}
+            </ol>
+
+            <nav className={styles.dealerTabs} aria-label="Customer work sections">
+              {CRM_WORKBENCH_TABS.map((tab, index) => (
+                <Link className={index === 0 ? styles.activeTab : undefined} href={index === 0 ? "#lead" : "#customer-activity"} key={tab}>
+                  {tab}
+                </Link>
+              ))}
+            </nav>
+
+            <section className={styles.customerWorkSummary} id="lead">
               <div>
-                <strong>Resolve the customer issue</strong>
-                <p>{item.nextAction}. Record the outcome, follow-up window, or reason this cannot close today.</p>
+                <span className={styles.eyebrow}>Next CRM step</span>
+                <h3>{item.nextAction}</h3>
+                <p>{issue.done}</p>
               </div>
-              <div className={styles.suggestedActions}>
+              <div className={styles.customerWorkSummaryActions}>
                 <Link className={styles.primaryButton} href={crmNextActionHref("new-task", actionCustomerId)}>Create CRM task</Link>
+                <Link className={styles.secondaryButton} href={item.customerHref}>Customer 360</Link>
                 <Link className={styles.secondaryButton} href="#dispatch-task">Dispatch handoff</Link>
               </div>
             </section>
-          </article>
-          <article className={styles.card} id="dispatch-task">
-            <header>
-              <div>
-                <h2>Create Dispatch handoff</h2>
-                <p className={styles.muted}>Use this only when the customer need must leave CRM for operational execution.</p>
+
+            <CrmNextWorkbenchProgressControl initialStage="Contacted" nextAction={item.nextAction} />
+          </section>
+
+          <section className={styles.activityWorkbenchGrid}>
+            <article className={styles.card} id="customer-activity">
+              <header>
+                <div>
+                  <h2>Activity</h2>
+                  <p className={styles.muted}>Everything staff needs to understand what happened and decide the next customer step.</p>
+                </div>
+                <Link className={styles.textLink} href="/crm-next/timeline">Open full timeline</Link>
+              </header>
+              <nav className={styles.activityFilters} aria-label="Activity filters">
+                {CRM_ACTIVITY_FILTERS.map((filter, index) => (
+                  <Link className={index === 0 ? styles.activeTab : undefined} href="#customer-activity" key={filter}>{filter}</Link>
+                ))}
+              </nav>
+              <div className={styles.activityTimelineList}>
+                {recentActivity.map((event) => (
+                  <Link className={styles.activityTimelineItem} href={event.href} key={event.id}>
+                    <strong>{event.label}</strong>
+                    <span>{event.detail}</span>
+                    <small>{event.source} · {event.occurredAt}</small>
+                  </Link>
+                ))}
               </div>
-              <span className={styles.pill}>{model.bridge.liveTaskCreationEnabled ? "Ready" : "Unavailable"}</span>
-            </header>
-            {dispatchPreview ? (
-              <dl className={styles.bridgeReceipt}>
-                <div><dt>Task title</dt><dd>{dispatchPreview.title}</dd></div>
-                <div><dt>Assigned to</dt><dd>{dispatchPreview.assignedTo}</dd></div>
-                <div><dt>Due</dt><dd>{dispatchPreview.due}</dd></div>
-                <div><dt>Source</dt><dd>{dispatchPreview.source}</dd></div>
-              </dl>
-            ) : null}
-            <CrmNextTaskBridgeControl attentionItemId={item.id} enabled={bridgePreview?.state === "DOGFOOD_READY"} />
-          </article>
-          <article className={styles.card} id="customer-activity">
-            <header>
-              <div>
-                <h2>Customer activity</h2>
-                <p className={styles.muted}>Use this timeline to understand the last touch before recording the next CRM action.</p>
-              </div>
-              <Link className={styles.textLink} href="/crm-next/timeline">Open full timeline</Link>
-            </header>
-            <div className={styles.activityTimelineList}>
-              {model.timeline.slice(0, 4).map((event) => (
-                <Link className={styles.activityTimelineItem} href={event.href} key={event.id}>
-                  <strong>{event.label}</strong>
-                  <span>{event.detail}</span>
-                  <small>{event.source} · {event.occurredAt}</small>
-                </Link>
-              ))}
-            </div>
-          </article>
+            </article>
+
+            <aside className={styles.workbenchSideRail}>
+              <article className={styles.sidePanel} id="work-disposition">
+                <header><h2>Disposition</h2></header>
+                <p className={styles.muted}>Record the customer outcome before moving the journey stage.</p>
+                <div className={styles.dispositionActions}>
+                  <Link className={styles.secondaryButton} href="#customer-activity">Add note first</Link>
+                  <Link className={styles.primaryButton} href={crmNextActionHref("new-task", actionCustomerId)}>Set follow-up</Link>
+                </div>
+              </article>
+              <article className={styles.sidePanel} id="dispatch-task">
+                <header>
+                  <div>
+                    <h2>Dispatch handoff</h2>
+                    <p className={styles.muted}>Use only when operations must execute work outside CRM.</p>
+                  </div>
+                  <span className={styles.pill}>{model.bridge.liveTaskCreationEnabled ? "Ready" : "Unavailable"}</span>
+                </header>
+                {dispatchPreview ? (
+                  <dl className={styles.bridgeReceipt}>
+                    <div><dt>Task title</dt><dd>{dispatchPreview.title}</dd></div>
+                    <div><dt>Assigned to</dt><dd>{dispatchPreview.assignedTo}</dd></div>
+                    <div><dt>Due</dt><dd>{dispatchPreview.due}</dd></div>
+                    <div><dt>Source</dt><dd>{dispatchPreview.source}</dd></div>
+                  </dl>
+                ) : null}
+                <CrmNextTaskBridgeControl attentionItemId={item.id} enabled={bridgePreview?.state === "DOGFOOD_READY"} />
+              </article>
+            </aside>
+          </section>
         </main>
       </section>
     </CrmNextFrame>

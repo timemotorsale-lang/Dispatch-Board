@@ -2719,6 +2719,213 @@
   color: #1d4ed8;
 }
 
+.crmWorkbenchBoard {
+  background: #ffffff;
+  border: 1px solid #dbe6f6;
+  border-radius: 10px;
+  box-shadow: 0 12px 30px rgb(15 42 84 / 7%);
+  display: grid;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 14px;
+}
+
+.crmWorkbenchHeader {
+  align-items: start;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, .9fr);
+}
+
+.crmWorkbenchHeader h2 {
+  color: #071a3a;
+  font-size: 25px;
+  line-height: 1.05;
+  margin: 2px 0 4px;
+}
+
+.crmWorkbenchHeader p {
+  color: #52637a;
+  font-size: 15px;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.crmWorkbenchFacts {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+}
+
+.crmWorkbenchFacts div {
+  background: #f8fbff;
+  border: 1px solid #dbe6f6;
+  border-radius: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+}
+
+.crmWorkbenchFacts dt {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.crmWorkbenchFacts dd {
+  color: #071a3a;
+  font-weight: 900;
+  margin: 3px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dealerActionBar {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(7, minmax(118px, 1fr));
+}
+
+.dealerActionBar .primaryButton,
+.dealerActionBar .secondaryButton {
+  border-radius: 8px;
+  justify-content: center;
+  min-height: 42px;
+  padding: 8px 10px;
+  white-space: nowrap;
+}
+
+.dealerJourneyStrip {
+  display: grid;
+  gap: 0;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.dealerJourneyStrip li {
+  align-items: center;
+  background: #edf4fb;
+  border-right: 2px solid #ffffff;
+  color: #475569;
+  display: flex;
+  font-size: 13px;
+  font-weight: 900;
+  justify-content: center;
+  min-height: 38px;
+  padding: 8px;
+  text-align: center;
+}
+
+.dealerJourneyStrip li:first-child {
+  border-radius: 8px 0 0 8px;
+}
+
+.dealerJourneyStrip li:last-child {
+  border-radius: 0 8px 8px 0;
+  border-right: 0;
+}
+
+.dealerJourneyStrip li[data-state="active"] {
+  background: #95d2b3;
+  color: #064e3b;
+}
+
+.dealerTabs,
+.activityFilters {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dealerTabs a,
+.activityFilters a {
+  background: #eaf2ff;
+  border: 1px solid #d8e6fb;
+  border-radius: 6px;
+  color: #102548;
+  font-weight: 850;
+  min-height: 36px;
+  padding: 8px 14px;
+  text-align: center;
+  text-decoration: none;
+}
+
+.dealerTabs .activeTab,
+.activityFilters .activeTab {
+  background: #ffffff;
+  border-color: #8fb1f7;
+  box-shadow: inset 0 3px 0 #3f63df;
+  color: #071a3a;
+}
+
+.customerWorkSummary {
+  align-items: center;
+  background: #f8fbff;
+  border: 1px solid #dbe6f6;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 12px;
+}
+
+.customerWorkSummary h3 {
+  color: #071a3a;
+  font-size: 19px;
+  line-height: 1.15;
+  margin: 2px 0 4px;
+}
+
+.customerWorkSummary p {
+  color: #52637a;
+  margin: 0;
+}
+
+.customerWorkSummaryActions,
+.dispositionActions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.crmWorkbenchBoard .workbenchProgressControl {
+  box-shadow: none;
+  padding: 10px;
+}
+
+.crmWorkbenchBoard .workbenchProgressControl header span {
+  display: none;
+}
+
+.activityWorkbenchGrid {
+  align-items: start;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+}
+
+.activityFilters {
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 10px;
+}
+
+.activityFilters a {
+  min-height: 32px;
+  padding: 7px 12px;
+}
+
+.workbenchSideRail {
+  display: grid;
+  gap: 12px;
+}
+
 .workbenchProgressControl {
   background: #f8fbff;
   border: 1px solid #dbe6f6;
@@ -3192,6 +3399,31 @@
     max-width: none;
   }
 
+  .crmWorkbenchHeader,
+  .customerWorkSummary,
+  .activityWorkbenchGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .dealerActionBar {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .dealerJourneyStrip {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .dealerJourneyStrip li,
+  .dealerJourneyStrip li:first-child,
+  .dealerJourneyStrip li:last-child {
+    border: 1px solid #ffffff;
+    border-radius: 8px;
+  }
+
+  .customerWorkSummaryActions {
+    justify-content: flex-start;
+  }
+
   .issueSummary,
   .issueDefinitionGrid {
     grid-template-columns: 1fr;
@@ -3317,6 +3549,23 @@
 
   .workHero .workActions {
     grid-template-columns: 1fr;
+  }
+
+  .crmWorkbenchFacts,
+  .dealerActionBar,
+  .dealerJourneyStrip {
+    grid-template-columns: 1fr;
+  }
+
+  .dealerTabs a,
+  .activityFilters a {
+    flex: 1 1 135px;
+  }
+
+  .customerWorkSummaryActions,
+  .dispositionActions {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .workContextStrip,
