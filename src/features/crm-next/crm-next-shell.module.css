@@ -2797,6 +2797,131 @@
   white-space: nowrap;
 }
 
+.inlineTaskComposer {
+  background: #f8fbff;
+  border: 1px solid #dbe6f6;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+}
+
+.inlineActionBar {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(7, minmax(118px, 1fr));
+}
+
+.inlineActionBar button {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #cfdbea;
+  border-radius: 8px;
+  color: #102548;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-weight: 900;
+  gap: 8px;
+  justify-content: center;
+  min-height: 42px;
+  padding: 8px 10px;
+  white-space: nowrap;
+}
+
+.inlineActionBar button[aria-pressed="true"] {
+  background: #3f63df;
+  border-color: #3f63df;
+  color: #ffffff;
+}
+
+.inlineTaskComposer header {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.inlineTaskComposer header strong,
+.inlineTaskComposer label span {
+  color: #071a3a;
+  display: block;
+  font-weight: 900;
+}
+
+.inlineTaskComposer header span {
+  color: #52637a;
+  display: block;
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+.inlineTaskComposer header b {
+  background: #dcfce7;
+  border-radius: 999px;
+  color: #166534;
+  font-size: 12px;
+  padding: 7px 10px;
+  white-space: nowrap;
+}
+
+.inlineTaskComposer label {
+  display: grid;
+  gap: 6px;
+}
+
+.inlineTaskComposer textarea,
+.inlineTaskComposer select {
+  background: #ffffff;
+  border: 1px solid #cfdbea;
+  border-radius: 8px;
+  color: #071a3a;
+  font: inherit;
+  padding: 9px 10px;
+  width: 100%;
+}
+
+.inlineTaskComposer textarea {
+  min-height: 78px;
+  resize: vertical;
+}
+
+.inlineTaskComposerRow {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(160px, 220px) auto;
+}
+
+.inlineTaskComposerRow button {
+  background: #3f63df;
+  border: 1px solid #3f63df;
+  border-radius: 8px;
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 950;
+  min-height: 42px;
+  padding: 9px 16px;
+}
+
+.inlineTaskComposerRow button:disabled {
+  background: #e2e8f0;
+  border-color: #e2e8f0;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.inlineTaskSaved {
+  background: #ecfdf5;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  color: #166534;
+  font-weight: 850;
+  margin: 0;
+  padding: 9px 10px;
+}
+
 .dealerJourneyStrip {
   display: grid;
   gap: 0;
@@ -3409,6 +3534,10 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .inlineActionBar {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .dealerJourneyStrip {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
@@ -3553,6 +3682,8 @@
 
   .crmWorkbenchFacts,
   .dealerActionBar,
+  .inlineActionBar,
+  .inlineTaskComposerRow,
   .dealerJourneyStrip {
     grid-template-columns: 1fr;
   }

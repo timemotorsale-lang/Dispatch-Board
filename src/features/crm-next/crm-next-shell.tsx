@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 
 import { CrmNextIntakeForm } from "@/features/crm-next/crm-next-intake-form";
+import { CrmNextInlineTaskComposer } from "@/features/crm-next/crm-next-inline-task-composer";
 import { CrmNextTaskBridgeControl } from "@/features/crm-next/crm-next-task-bridge-control";
 import { CrmNextWorkbenchProgressControl } from "@/features/crm-next/crm-next-workbench-progress-control";
 import type { CrmNextAccessReason } from "@/server/crm-next/access";
@@ -1608,7 +1609,6 @@ export function CrmNextWorkCustomerView({
   model: CrmNextCommandCenter;
 }) {
   const dispatchPreview = bridgePreview?.dispatchPreview;
-  const actionCustomerId = item.customerId;
   const issue = customerWorkIssue(item);
   const recentActivity = model.timeline.slice(0, 5);
 
@@ -1629,8 +1629,8 @@ export function CrmNextWorkCustomerView({
               <p className={styles.muted}>{issue.issue} · {item.area} · Owner: {item.owner}</p>
             </div>
             <div className={styles.workActions}>
-              <Link className={styles.primaryButton} href={crmNextActionHref("log-call", actionCustomerId)}><Phone size={16} /> Log Call</Link>
-              <Link className={styles.secondaryButton} href={crmNextActionHref("send-text", actionCustomerId)}><Mail size={16} /> Send Message</Link>
+              <Link className={styles.primaryButton} href="#lead"><Phone size={16} /> Log Call</Link>
+              <Link className={styles.secondaryButton} href="#lead"><Mail size={16} /> Send Message</Link>
               <Link className={styles.secondaryButton} href={item.customerHref}>Customer 360</Link>
               <Link className={styles.secondaryButton} href="/crm-next/deals">Estimate / Deal</Link>
             </div>
@@ -1652,15 +1652,7 @@ export function CrmNextWorkCustomerView({
               </dl>
             </header>
 
-            <div className={styles.dealerActionBar} aria-label="CRM actions">
-              <Link className={styles.primaryButton} href={crmNextActionHref("log-call", actionCustomerId)}><Phone size={16} /> Phone Call</Link>
-              <Link className={styles.secondaryButton} href={crmNextActionHref("send-text", actionCustomerId)}><MessageSquare size={16} /> Send SMS</Link>
-              <Link className={styles.secondaryButton} href={crmNextActionHref("send-email", actionCustomerId)}><Mail size={16} /> Send Email</Link>
-              <Link className={styles.secondaryButton} href={crmNextActionHref("schedule-appointment", actionCustomerId)}><CalendarDays size={16} /> Schedule Appt</Link>
-              <Link className={styles.secondaryButton} href={crmNextActionHref("new-task", actionCustomerId)}><ClipboardCheck size={16} /> Add CRM Task</Link>
-              <Link className={styles.secondaryButton} href="#customer-activity"><FileText size={16} /> Add Note</Link>
-              <Link className={styles.secondaryButton} href="#work-disposition"><CheckCircle2 size={16} /> Disposition</Link>
-            </div>
+            <CrmNextInlineTaskComposer customerName={item.customerName} nextAction={item.nextAction} owner={item.owner} />
 
             <ol className={styles.dealerJourneyStrip} aria-label="Customer journey">
               {CUSTOMER_JOURNEY_STAGES.map((stage) => (
@@ -1683,7 +1675,7 @@ export function CrmNextWorkCustomerView({
                 <p>{issue.done}</p>
               </div>
               <div className={styles.customerWorkSummaryActions}>
-                <Link className={styles.primaryButton} href={crmNextActionHref("new-task", actionCustomerId)}>Create CRM task</Link>
+                <Link className={styles.primaryButton} href="#lead">Use quick action box</Link>
                 <Link className={styles.secondaryButton} href={item.customerHref}>Customer 360</Link>
                 <Link className={styles.secondaryButton} href="#dispatch-task">Dispatch handoff</Link>
               </div>
@@ -1722,8 +1714,8 @@ export function CrmNextWorkCustomerView({
                 <header><h2>Disposition</h2></header>
                 <p className={styles.muted}>Record the customer outcome before moving the journey stage.</p>
                 <div className={styles.dispositionActions}>
-                  <Link className={styles.secondaryButton} href="#customer-activity">Add note first</Link>
-                  <Link className={styles.primaryButton} href={crmNextActionHref("new-task", actionCustomerId)}>Set follow-up</Link>
+                  <Link className={styles.secondaryButton} href="#lead">Use quick action box</Link>
+                  <Link className={styles.primaryButton} href="#customer-activity">Review activity</Link>
                 </div>
               </article>
               <article className={styles.sidePanel} id="dispatch-task">
