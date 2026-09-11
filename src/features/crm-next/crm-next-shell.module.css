@@ -2878,8 +2878,34 @@
   justify-content: space-between;
 }
 
+.inlineActionDrawer {
+  background: #ffffff;
+  border: 1px solid #dbe6f6;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+}
+
+.inlineActionDrawer header button {
+  background: #f8fbff;
+  border: 1px solid #cfdbea;
+  border-radius: 8px;
+  color: #475569;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+  min-height: 34px;
+  padding: 7px 12px;
+}
+
+.inlineActionDrawer header button:hover {
+  border-color: #93c5fd;
+  color: #2454d6;
+}
+
 .inlineTaskComposer header strong,
-.inlineTaskComposer label span {
+.inlineActionDrawer label span {
   color: #071a3a;
   display: block;
   font-weight: 900;
@@ -2901,13 +2927,13 @@
   white-space: nowrap;
 }
 
-.inlineTaskComposer label {
+.inlineActionDrawer label {
   display: grid;
   gap: 6px;
 }
 
-.inlineTaskComposer textarea,
-.inlineTaskComposer select {
+.inlineActionDrawer textarea,
+.inlineActionDrawer select {
   background: #ffffff;
   border: 1px solid #cfdbea;
   border-radius: 8px;
@@ -2917,7 +2943,7 @@
   width: 100%;
 }
 
-.inlineTaskComposer textarea {
+.inlineActionDrawer textarea {
   min-height: 78px;
   resize: vertical;
 }

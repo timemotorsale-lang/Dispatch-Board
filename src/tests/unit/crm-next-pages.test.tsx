@@ -181,8 +181,10 @@ describe("CRM Next pages", () => {
     expect(work).toContain("Tasks");
     expect(work).toContain("Inline CRM action composer");
     expect(work).toContain("Add CRM Task");
-    expect(work).toContain("Save CRM Task");
-    expect(work).toContain("Keep it on Michael Johnson");
+    expect(work).toContain("Add Note");
+    expect(work).toContain("Disposition");
+    expect(work).not.toContain("Save CRM Task");
+    expect(work).not.toContain("Keep it on Michael Johnson");
     expect(work).toContain("Dispatch handoff");
     expect(work).not.toContain("Connected to the CRM Next action-to-task bridge contract");
     expect(work).not.toContain("Backend wired · writes held");
