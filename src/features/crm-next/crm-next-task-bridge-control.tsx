@@ -27,20 +27,20 @@ export function CrmNextTaskBridgeControl({ attentionItemId, enabled }: { attenti
 
     if (!response.ok || !payload?.task?.id) {
       setState("error");
-      setMessage(payload?.error ?? "CRM Next could not create the Dispatch task.");
+      setMessage(payload?.error ?? "CRM Next could not create the Dispatch handoff.");
       return;
     }
 
     setState("created");
-    setMessage(payload.reason ?? `Created Dispatch task: ${payload.task.title ?? "Customer follow-up"}.`);
+    setMessage(payload.reason ?? `Created Dispatch handoff: ${payload.task.title ?? "Customer follow-up"}.`);
     setTaskHref(`/tasks/${encodeURIComponent(payload.task.id)}`);
   }
 
   if (!enabled) {
     return (
       <div className="crm-next-bridge-control" data-state="held">
-        <strong>Task creation is not available right now.</strong>
-        <span>Use the existing Dispatch task workspace for this follow-up.</span>
+        <strong>Dispatch handoff is not available right now.</strong>
+        <span>Keep ordinary customer follow-ups as CRM tasks unless operations must execute work.</span>
       </div>
     );
   }
@@ -48,10 +48,10 @@ export function CrmNextTaskBridgeControl({ attentionItemId, enabled }: { attenti
   return (
     <div className="crm-next-bridge-control" data-state={state}>
       <button disabled={state === "creating" || state === "created"} onClick={() => void createTask()} type="button">
-        {state === "creating" ? "Creating Dispatch task..." : state === "created" ? "Dispatch task created" : "Create Dispatch task"}
+        {state === "creating" ? "Creating Dispatch handoff..." : state === "created" ? "Dispatch handoff created" : "Create Dispatch handoff"}
       </button>
-      {message ? <span role={state === "error" ? "alert" : "status"}>{message}</span> : <span>Creates a Dispatch task assigned to you.</span>}
-      {taskHref ? <a href={taskHref}>Open created task</a> : null}
+      {message ? <span role={state === "error" ? "alert" : "status"}>{message}</span> : <span>Creates an operational Dispatch task assigned to the right work queue.</span>}
+      {taskHref ? <a href={taskHref}>Open Dispatch task</a> : null}
     </div>
   );
 }

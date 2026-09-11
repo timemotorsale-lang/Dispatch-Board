@@ -348,12 +348,12 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
   },
   {
     id: "CRMN-015",
-    title: "Action-to-task dispatch bridge",
+    title: "Dispatch handoff bridge",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Let CRM Next create internal Dispatch Board tasks through the existing task engine when task creation is enabled.",
+    objective: "Let CRM Next create operational Dispatch handoffs only when customer work must leave the CRM workbench.",
     reviewHref: "/crm-next/work/attn-michael-overdue-follow-up#dispatch-preview",
-    evidence: "Bridge contract returns a preview shape in review mode and creates a Dispatch task only when task creation is enabled after user confirmation.",
-    safety: "Task creation stays inside Dispatch Board; live communications, payments, documents, customer writes, and route replacement remain held."
+    evidence: "Bridge contract returns a preview shape in review mode and creates a Dispatch handoff only when enabled after user confirmation.",
+    safety: "Ordinary CRM tasks stay inside CRM; live communications, payments, documents, customer writes, and route replacement remain held."
   },
   {
     id: "CRMN-016",
@@ -618,12 +618,12 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
   },
   {
     id: "CRMN-050",
-    title: "CRM-to-shared-task linkage",
+    title: "CRM task and Dispatch handoff boundary",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Prepare CRM actions to map to the shared Dispatch Board task engine without creating duplicate tasks.",
+    objective: "Separate customer CRM tasks from operational Dispatch handoffs without creating duplicate work.",
     reviewHref: "/crm-next/shared-execution",
-    evidence: "Shared execution surface documents CRM action to shared task linkage; active mode creates internal Dispatch Board tasks through the source-owned task engine.",
-    safety: "Shared task engine remains authoritative; external communications, payments, documents, and customer writes remain held."
+    evidence: "Shared execution surface documents the CRM task boundary and the explicit operational handoff path.",
+    safety: "CRM remains authoritative for customer tasks; Dispatch Board remains authoritative only after an operational handoff is created."
   },
   {
     id: "CRMN-051",
@@ -1100,7 +1100,7 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     objective: "Prove source-linked attention remains read-only and feature-flag protected.",
     reviewHref: "/crm-next/progress#crm-next-envelope",
     evidence: "Focused operational tests cover priority ordering, source ownership, fallback, and live-write-disabled bridge posture.",
-    safety: "No Dispatch task creation or customer mutation is introduced."
+    safety: "No Dispatch handoff creation or customer mutation is introduced."
   },
   {
     id: "CRMN-109",
@@ -1400,14 +1400,14 @@ const operatingActions: CrmNextOperatingAction[] = [
   },
   {
     id: "new-task",
-    label: "New Task",
+    label: "Create CRM Task",
     category: "Task",
     state: "PREVIEW_ONLY",
     href: "/crm-next/actions/new-task",
-    sourceAuthority: "Dispatch Board task engine",
-    response: "Create a Dispatch task from this customer follow-up.",
-    auditPosture: "Requires actor, assignee, due date, source customer, payload, and bridge result.",
-    pilotRequirement: "Approve task creation scope and rollback/failure handling."
+    sourceAuthority: "CRM customer task list",
+    response: "Create a CRM task that stays attached to this customer record.",
+    auditPosture: "Requires actor, assignee, due date, source customer, task type, outcome expectation, and timeline entry.",
+    pilotRequirement: "Approve CRM task fields, ownership rules, completion outcomes, and escalation-to-dispatch boundary."
   },
   {
     id: "new-case",
@@ -1515,8 +1515,8 @@ const timelineEvents: CrmNextTimelineEvent[] = [
   {
     id: "timeline-dispatch",
     source: "Dispatch",
-    label: "Dispatch task ready",
-    detail: "Customer follow-up can be sent to Dispatch tasks from Attend Mode.",
+    label: "Dispatch handoff available",
+    detail: "Operational work can be sent to Dispatch from Attend Mode when it must leave CRM.",
     occurredAt: "Today",
     href: "/crm-next/work/attn-michael-overdue-follow-up#dispatch-task"
   }
@@ -1670,13 +1670,13 @@ const sharedExecutionRecords: CrmNextSharedExecutionRecord[] = [
   {
     id: "shared-task-linkage",
     milestone: "CRMN-050",
-    title: "CRM action → shared Dispatch task",
+    title: "CRM task → Dispatch handoff only when needed",
     state: "Preview only",
-    description: "A CRM action can prepare the exact shared-task payload, assignee, due time, customer reference, and source context.",
+    description: "Customer work stays as a CRM task unless staff explicitly creates an operational Dispatch handoff with the exact payload, assignee, due time, customer reference, and source context.",
     sourceSystem: "Task Engine",
-    crmNextSurface: "Attend Mode task bridge",
+    crmNextSurface: "Customer workbench CRM task and handoff controls",
     dispatchSurface: "Dispatch Board / My Tasks",
-    safety: "The bridge still returns liveTaskCreated=false until task creation is explicitly approved.",
+    safety: "The bridge only creates Dispatch work for explicit handoff actions; ordinary CRM tasks remain inside the customer record.",
     href: "/crm-next/work/attn-michael-overdue-follow-up#dispatch-preview"
   },
   {
@@ -2695,7 +2695,7 @@ export async function getCrmNextOperationalCommandCenter(
     operationalRead: {
       state,
       safety: model.mode === "DOGFOOD"
-        ? "CRM Next can use existing customer data and create internal Dispatch tasks. Customer communications, payments, documents, and route replacement stay controlled."
+        ? "CRM Next can use existing customer data and create operational Dispatch handoffs. Customer communications, payments, documents, and route replacement stay controlled."
         : "CRM Next can use existing customer data. Customer communications, payments, documents, task creation, and route replacement stay controlled.",
       sources: statuses
     }
@@ -2852,7 +2852,7 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
       liveTaskCreationEnabled: dogfoodMode,
       previewEnabled: true,
       message: dogfoodMode
-        ? "CRM Next can create internal Dispatch tasks."
+        ? "CRM Next can create operational Dispatch handoffs."
         : "Task creation is not available in this mode."
     },
     operationalRead: {

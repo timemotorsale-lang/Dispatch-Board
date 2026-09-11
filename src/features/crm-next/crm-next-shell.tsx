@@ -538,7 +538,7 @@ export function CrmNextProgressView({ model }: { model: CrmNextCommandCenter }) 
         </article>
         <article className={styles.card}>
           <header><h2>Safety promise</h2></header>
-          <p>CRM Next is available for internal use. Internal Dispatch task creation is enabled; customer communications, payments, documents, and route replacement remain controlled.</p>
+          <p>CRM Next is available for internal use. Operational Dispatch handoff creation is enabled; customer communications, payments, documents, and route replacement remain controlled.</p>
         </article>
         <article className={styles.card}>
           <header><h2>Rollback posture</h2></header>
@@ -669,7 +669,7 @@ export function CrmNextReviewCenterView({ model }: { model: CrmNextCommandCenter
             <span>Dispatch Board</span>
             <strong>Task engine owns creation</strong>
             <b>Source-owned write</b>
-            <small>The existing Dispatch task engine remains the source of truth.</small>
+            <small>The existing Dispatch task engine remains the source of truth after a handoff is created.</small>
           </article>
           <article className={styles.handoffCard}>
             <span>Activation boundary</span>
@@ -969,10 +969,10 @@ export function CrmNextSharedExecutionView({ model }: { model: CrmNextCommandCen
         <div>
           <span className={styles.eyebrow}>Shared Execution</span>
           <h1>Shared customer execution</h1>
-          <p>Turn customer follow-up into clear Dispatch work, keep assignments visible, and help managers see blocked or overdue customer tasks.</p>
+          <p>Keep customer tasks inside CRM, then create a Dispatch handoff only when operations must execute the work.</p>
         </div>
         <div className={styles.quickActions}>
-          <Link className={styles.primaryButton} href="/crm-next/work/attn-michael-overdue-follow-up#dispatch-task">Create task</Link>
+          <Link className={styles.primaryButton} href="/crm-next/work/attn-michael-overdue-follow-up#dispatch-task">Create Dispatch handoff</Link>
           <Link className={styles.secondaryButton} href="/crm-next/needs-attention">Needs Attention</Link>
         </div>
       </section>
@@ -981,7 +981,7 @@ export function CrmNextSharedExecutionView({ model }: { model: CrmNextCommandCen
         <header>
           <div>
             <h2>Customer work handoff</h2>
-            <p className={styles.muted}>Follow customer work from CRM Next into Dispatch tasks and team execution.</p>
+            <p className={styles.muted}>CRM tasks stay with the customer record. Dispatch handoffs are reserved for operational execution.</p>
           </div>
           <span className={styles.pill}>Active workflow</span>
         </header>
@@ -1313,7 +1313,7 @@ export function CrmNextSafetyView({ kind, model }: { kind: "states" | "permissio
       <section className={styles.dashboardGrid}>
         <article className={styles.card}><header><h2>Feature flag</h2></header><p>CRM_NEXT controls access to the new experience and fails closed by default.</p></article>
         <article className={styles.card}><header><h2>Fallback</h2></header><p>Customer Archive and the current CRM fallback remain available during pilot review.</p></article>
-        <article className={styles.card}><header><h2>Activation boundary</h2></header><p>Internal Dispatch task creation is enabled. Calls, texts, emails, payments, documents, and deal/customer writes remain protected.</p></article>
+        <article className={styles.card}><header><h2>Activation boundary</h2></header><p>Operational Dispatch handoff creation is enabled. Calls, texts, emails, payments, documents, and deal/customer writes remain protected.</p></article>
       </section>
     </CrmNextFrame>
   );
@@ -1438,7 +1438,7 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
             <div className={styles.quickActionTiles}>
               <Link href={crmNextActionHref("log-call", customer.id)}><Phone size={22} />Log Call</Link>
               <Link href={crmNextActionHref("send-email", customer.id)}><Mail size={22} />Send Email</Link>
-              <Link href={crmNextActionHref("new-task", customer.id)}><ClipboardCheck size={22} />New Task</Link>
+              <Link href={crmNextActionHref("new-task", customer.id)}><ClipboardCheck size={22} />CRM Task</Link>
               <Link href={crmNextActionHref("new-case", customer.id)}><FileText size={22} />New Case</Link>
               <Link href={crmNextActionHref("schedule-appointment", customer.id)}><CalendarDays size={22} />Schedule Appt</Link>
               <Link href={crmNextActionHref("upload-document", customer.id)}><FileSearch size={22} />Upload Doc</Link>
@@ -1502,9 +1502,8 @@ export function CrmNextActionReadinessView({ action, customerId, model }: { acti
       : "Use the approved workspace for this action";
   const primaryHref = action.id === "schedule-appointment"
     ? "/appointments"
-    : action.id === "new-task"
-      ? activeAttentionItem ? `${activeAttentionItem.workHref}#dispatch-task` : backHref
       : backHref;
+  const isCrmTaskAction = action.id === "new-task";
 
   return (
     <CrmNextFrame active="work" userName={model.userName}>
@@ -1524,7 +1523,7 @@ export function CrmNextActionReadinessView({ action, customerId, model }: { acti
             <div><dt>Status</dt><dd>{action.state === "HELD" ? "Use approved workspace" : "Available"}</dd></div>
             <div><dt>Action type</dt><dd>{action.category}</dd></div>
             <div><dt>Customer</dt><dd>{relatedCustomer?.name ?? "Available from CRM Next"}</dd></div>
-            <div><dt>Next step</dt><dd>{action.id === "new-task" ? "Create Dispatch task" : "Continue"}</dd></div>
+            <div><dt>Next step</dt><dd>{isCrmTaskAction ? "Create CRM task" : "Continue"}</dd></div>
           </dl>
           <div className={styles.customerHeroActions}>
             <Link className={styles.primaryButton} href={primaryHref}>Continue</Link>
@@ -1538,7 +1537,7 @@ export function CrmNextActionReadinessView({ action, customerId, model }: { acti
             <div className={styles.compactSectionGrid}>
               <article className={styles.compactSectionCard}><strong>Customer step</strong><span>{action.response}</span></article>
               <article className={styles.compactSectionCard}><strong>Work area</strong><span>{action.sourceAuthority}</span></article>
-              <article className={styles.compactSectionCard}><strong>Follow-up</strong><span>{action.id === "new-task" ? "Create and open the Dispatch task." : "Return to Customer 360 after completing the step."}</span></article>
+              <article className={styles.compactSectionCard}><strong>Follow-up</strong><span>{isCrmTaskAction ? "Keep this task in the customer CRM record unless an operational handoff is required." : "Return to Customer 360 after completing the step."}</span></article>
               <article className={styles.compactSectionCard}><strong>Availability</strong><span>{action.state === "HELD" ? "This action continues in its approved workspace." : "This action can be opened from CRM Next."}</span></article>
             </div>
           </section>
@@ -1675,7 +1674,7 @@ export function CrmNextWorkCustomerView({
             </div>
             <div className={styles.workContextActions}>
               <Link className={styles.secondaryButton} href={item.customerHref}>Open Customer 360</Link>
-              <Link className={styles.secondaryButton} href="/tasks">Dispatch Tasks</Link>
+              <Link className={styles.secondaryButton} href="/tasks">Dispatch Handoffs</Link>
             </div>
           </section>
           <article className={styles.card}>
@@ -1685,7 +1684,8 @@ export function CrmNextWorkCustomerView({
             <Link className={styles.secondaryButton} href={crmNextActionHref("send-text", actionCustomerId)}><MessageSquare size={16} /> Text</Link>
             <Link className={styles.secondaryButton} href={crmNextActionHref("send-email", actionCustomerId)}><Mail size={16} /> Email</Link>
             <Link className={styles.secondaryButton} href={crmNextActionHref("schedule-appointment", actionCustomerId)}><CalendarDays size={16} /> Appointments</Link>
-            <Link className={styles.secondaryButton} href="#dispatch-task"><ClipboardCheck size={16} /> Create task</Link>
+            <Link className={styles.secondaryButton} href={crmNextActionHref("new-task", actionCustomerId)}><ClipboardCheck size={16} /> Create CRM task</Link>
+            <Link className={styles.secondaryButton} href="#dispatch-task"><ChevronRight size={16} /> Dispatch handoff</Link>
             <Link className={styles.secondaryButton} href={item.customerHref}><Users size={16} /> Customer 360</Link>
           </div>
             <div className={styles.actionCards}>
@@ -1693,7 +1693,8 @@ export function CrmNextWorkCustomerView({
               <Link className={styles.actionCard} href="/crm-next/ownership-support"><DollarSign size={18} /><strong>Collect payment</strong><p className={styles.muted}>Open finance context.</p></Link>
               <Link className={styles.actionCard} href={crmNextActionHref("schedule-appointment", actionCustomerId)}><CalendarDays size={18} /><strong>Schedule appointment</strong><p className={styles.muted}>Open existing appointment workspace.</p></Link>
               <Link className={styles.actionCard} href={crmNextActionHref("upload-document", actionCustomerId)}><FileText size={18} /><strong>Send document</strong><p className={styles.muted}>Use the document workspace.</p></Link>
-              <Link className={styles.actionCard} href="#dispatch-task"><ClipboardCheck size={18} /><strong>Create task</strong><p className={styles.muted}>Send this follow-up to Dispatch tasks.</p></Link>
+              <Link className={styles.actionCard} href={crmNextActionHref("new-task", actionCustomerId)}><ClipboardCheck size={18} /><strong>Create CRM task</strong><p className={styles.muted}>Keep this customer follow-up inside CRM.</p></Link>
+              <Link className={styles.actionCard} href="#dispatch-task"><ChevronRight size={18} /><strong>Dispatch handoff</strong><p className={styles.muted}>Use only when operations must execute work.</p></Link>
               <Link className={styles.actionCard} href={crmNextActionHref("new-case", actionCustomerId)}><MessageSquare size={18} /><strong>Other action</strong><p className={styles.muted}>Open more customer actions.</p></Link>
             </div>
             <section className={styles.suggested} id="suggested">
@@ -1701,14 +1702,17 @@ export function CrmNextWorkCustomerView({
                 <strong>Resolve the customer issue</strong>
                 <p>{item.nextAction}. Record the outcome, follow-up window, or reason this cannot close today.</p>
               </div>
-              <Link className={styles.primaryButton} href="#dispatch-task">Create task</Link>
+              <div className={styles.suggestedActions}>
+                <Link className={styles.primaryButton} href={crmNextActionHref("new-task", actionCustomerId)}>Create CRM task</Link>
+                <Link className={styles.secondaryButton} href="#dispatch-task">Dispatch handoff</Link>
+              </div>
             </section>
           </article>
           <article className={styles.card} id="dispatch-task">
             <header>
               <div>
-                <h2>Create Dispatch task</h2>
-                <p className={styles.muted}>Send this customer follow-up to your Dispatch task list.</p>
+                <h2>Create Dispatch handoff</h2>
+                <p className={styles.muted}>Use this only when the customer need must leave CRM for operational execution.</p>
               </div>
               <span className={styles.pill}>{model.bridge.liveTaskCreationEnabled ? "Ready" : "Unavailable"}</span>
             </header>

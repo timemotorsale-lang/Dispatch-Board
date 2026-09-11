@@ -162,7 +162,8 @@ describe("CRM Next pages", () => {
     expect(work).toContain("Why this matters");
     expect(work).toContain("What done means");
     expect(work).toContain("Issue progress");
-    expect(work).toContain("Create Dispatch task");
+    expect(work).toContain("Create CRM task");
+    expect(work).toContain("Create Dispatch handoff");
     expect(work).not.toContain("Connected to the CRM Next action-to-task bridge contract");
     expect(work).not.toContain("Backend wired · writes held");
     expect(work).toContain("Call Michael Johnson");
@@ -203,7 +204,7 @@ describe("CRM Next pages", () => {
     expect(ownershipSupport).toContain("Common support case framework");
     expect(ownershipSupport).toContain("Insurance claim update requested");
     expect(sharedExecution).toContain("Shared customer execution");
-    expect(sharedExecution).toContain("CRM action → shared Dispatch task");
+    expect(sharedExecution).toContain("CRM task → Dispatch handoff only when needed");
     expect(sharedExecution).toContain("Team execution");
     expect(sharedExecution).toContain("Manager customer-work queue");
     expect(intelligence).toContain("Recommendations that explain themselves");
@@ -278,8 +279,9 @@ describe("CRM Next pages", () => {
     expect(logCallAction).toContain("Log Call");
     expect(logCallAction).toContain("Open the call workflow");
     expect(logCallAction).toContain("What happens next");
-    expect(newTaskAction).toContain("Dispatch Board task engine");
-    expect(newTaskAction).toContain("Create a Dispatch task");
+    expect(newTaskAction).toContain("CRM customer task list");
+    expect(newTaskAction).toContain("Create a CRM task");
+    expect(newTaskAction).toContain("Keep this task in the customer CRM record");
     expect(emailAction).toContain("Use approved workspace");
     expect(emailAction).toContain("approved email workflow");
   });
@@ -290,10 +292,10 @@ describe("CRM Next pages", () => {
       category: "Task",
       href: "/crm-next/actions/new-task",
       id: "new-task",
-      label: "New Task",
+      label: "Create CRM Task",
       pilotRequirement: "Task creation scope approved.",
-      response: "Create a Dispatch task from this customer follow-up.",
-      sourceAuthority: "Dispatch Board task engine",
+      response: "Create a CRM task that stays attached to this customer record.",
+      sourceAuthority: "CRM customer task list",
       state: "PREVIEW_ONLY"
     };
     const selectedCustomer: CrmNextCustomer360 = {

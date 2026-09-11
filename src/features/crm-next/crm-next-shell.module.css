@@ -2546,7 +2546,7 @@
 .actionCards {
   display: grid;
   gap: 10px;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   margin-bottom: 12px;
 }
 
@@ -2588,6 +2588,14 @@
   gap: 14px;
   justify-content: space-between;
   padding: 12px 14px;
+}
+
+.suggestedActions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 .workContextStrip {
