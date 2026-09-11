@@ -7,9 +7,9 @@ import { useMemo, useState } from "react";
 import styles from "./crm-next-shell.module.css";
 
 const COMMUNICATION_ACTIONS = [
-  { id: "call", label: "Phone Call", icon: Phone, status: "Not wired yet" },
-  { id: "sms", label: "Send SMS", icon: MessageSquare, status: "Not wired yet" },
-  { id: "email", label: "Send Email", icon: Mail, status: "Not wired yet" }
+  { id: "call", label: "Phone Call", icon: Phone },
+  { id: "sms", label: "Send SMS", icon: MessageSquare },
+  { id: "email", label: "Send Email", icon: Mail }
 ] as const;
 
 const INLINE_ACTIONS = [
@@ -30,6 +30,7 @@ export function CrmNextInlineTaskComposer({
   owner: string;
 }) {
   const [activeAction, setActiveAction] = useState<InlineActionId>("task");
+  const [heldAction, setHeldAction] = useState<string | null>(null);
   const [taskNote, setTaskNote] = useState(nextAction);
   const [dueWindow, setDueWindow] = useState("Today");
   const [savedTask, setSavedTask] = useState<{ action: string; note: string } | null>(null);
@@ -44,6 +45,7 @@ export function CrmNextInlineTaskComposer({
 
   function chooseAction(actionId: InlineActionId) {
     const next = INLINE_ACTIONS.find((item) => item.id === actionId) ?? INLINE_ACTIONS[0];
+    setHeldAction(null);
     setActiveAction(actionId);
     setTaskNote(next.id === "task" ? nextAction : next.defaultNote);
   }
@@ -54,17 +56,15 @@ export function CrmNextInlineTaskComposer({
         {COMMUNICATION_ACTIONS.map((item) => {
           const Icon = item.icon;
           return (
-            <button className={styles.heldInlineAction} disabled key={item.id} type="button">
+            <button key={item.id} onClick={() => setHeldAction(item.label)} type="button">
               <Icon size={16} />
-              <span>{item.label}</span>
-              <small>{item.status}</small>
+              {item.label}
             </button>
           );
         })}
         <Link className={styles.appointmentInlineAction} href="/crm-next/appointments">
           <CalendarDays size={16} />
-          <span>Schedule Appt</span>
-          <small>Open appointment console</small>
+          Schedule Appt
         </Link>
         {INLINE_ACTIONS.map((item) => {
           const Icon = item.icon;
@@ -76,6 +76,9 @@ export function CrmNextInlineTaskComposer({
           );
         })}
       </div>
+      {heldAction ? (
+        <p className={styles.inlineActionNotice}>{heldAction} is not wired yet. It will connect here once the live communication provider is ready.</p>
+      ) : null}
       <header>
         <div>
           <strong>{action.label}</strong>

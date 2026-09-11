@@ -164,9 +164,10 @@ describe("CRM Next pages", () => {
     expect(work).toContain("Phone Call");
     expect(work).toContain("Send SMS");
     expect(work).toContain("Schedule Appt");
-    expect(work).toContain("Not wired yet");
-    expect(work).toContain("Open appointment console");
     expect(work).toContain('href="/crm-next/appointments"');
+    expect(work).not.toContain("Not wired yet");
+    expect(work).not.toContain("Open appointment console");
+    expect(work).not.toContain("will connect here once the live communication provider is ready");
     expect(work).toContain("Lead");
     expect(work).toContain("Credit App");
     expect(work).toContain("Journal Entries");
