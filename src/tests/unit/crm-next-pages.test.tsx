@@ -164,6 +164,9 @@ describe("CRM Next pages", () => {
     expect(work).toContain("Phone Call");
     expect(work).toContain("Send SMS");
     expect(work).toContain("Schedule Appt");
+    expect(work).toContain("Not wired yet");
+    expect(work).toContain("Open appointment console");
+    expect(work).toContain('href="/crm-next/appointments"');
     expect(work).toContain("Lead");
     expect(work).toContain("Credit App");
     expect(work).toContain("Journal Entries");
@@ -186,6 +189,9 @@ describe("CRM Next pages", () => {
     expect(work).toContain("Today 3:00 PM");
     expect(work).toContain('href="#lead"');
     expect(work).not.toContain('href="/crm-next/actions/log-call?customerId=michael-johnson"');
+    expect(work).not.toContain('href="/crm-next/actions/send-text?customerId=michael-johnson"');
+    expect(work).not.toContain('href="/crm-next/actions/send-email?customerId=michael-johnson"');
+    expect(work).not.toContain('href="/crm-next/actions/schedule-appointment?customerId=michael-johnson"');
     expect(work).not.toContain('href="/crm-next/actions/new-task?customerId=michael-johnson"');
     expect(work).toContain('href="#dispatch-task"');
     expect(work).not.toContain("Choose the next customer action");

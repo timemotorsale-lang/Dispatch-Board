@@ -1,15 +1,18 @@
 "use client";
 
+import Link from "next/link";
 import { CalendarDays, CheckCircle2, ClipboardCheck, FileText, Mail, MessageSquare, Phone } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import styles from "./crm-next-shell.module.css";
 
+const COMMUNICATION_ACTIONS = [
+  { id: "call", label: "Phone Call", icon: Phone, status: "Not wired yet" },
+  { id: "sms", label: "Send SMS", icon: MessageSquare, status: "Not wired yet" },
+  { id: "email", label: "Send Email", icon: Mail, status: "Not wired yet" }
+] as const;
+
 const INLINE_ACTIONS = [
-  { id: "call", label: "Phone Call", icon: Phone, prompt: "Log the call outcome for this customer.", defaultNote: "Called customer about the next step." },
-  { id: "sms", label: "Send SMS", icon: MessageSquare, prompt: "Draft the text message or record the SMS sent.", defaultNote: "Texted customer with a follow-up update." },
-  { id: "email", label: "Send Email", icon: Mail, prompt: "Draft the email or record the email sent.", defaultNote: "Emailed customer with the requested information." },
-  { id: "appt", label: "Schedule Appt", icon: CalendarDays, prompt: "Record the appointment plan.", defaultNote: "Schedule appointment with customer." },
   { id: "task", label: "Add CRM Task", icon: ClipboardCheck, prompt: "Type the task staff should complete for this customer.", defaultNote: "" },
   { id: "note", label: "Add Note", icon: FileText, prompt: "Record a quick customer note.", defaultNote: "Customer note:" },
   { id: "disposition", label: "Disposition", icon: CheckCircle2, prompt: "Record the customer outcome before moving the journey stage.", defaultNote: "Customer outcome:" }
@@ -48,6 +51,21 @@ export function CrmNextInlineTaskComposer({
   return (
     <section className={styles.inlineTaskComposer} aria-label="Inline CRM action composer">
       <div className={styles.inlineActionBar} aria-label="CRM actions">
+        {COMMUNICATION_ACTIONS.map((item) => {
+          const Icon = item.icon;
+          return (
+            <button className={styles.heldInlineAction} disabled key={item.id} type="button">
+              <Icon size={16} />
+              <span>{item.label}</span>
+              <small>{item.status}</small>
+            </button>
+          );
+        })}
+        <Link className={styles.appointmentInlineAction} href="/crm-next/appointments">
+          <CalendarDays size={16} />
+          <span>Schedule Appt</span>
+          <small>Open appointment console</small>
+        </Link>
         {INLINE_ACTIONS.map((item) => {
           const Icon = item.icon;
           return (
