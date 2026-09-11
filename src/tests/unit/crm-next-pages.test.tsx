@@ -174,6 +174,15 @@ describe("CRM Next pages", () => {
     expect(search).toContain("Add Customer / Prospect");
     expect(newCustomer).toContain("Add a customer or prospect");
     expect(newCustomer).toContain("Customer details");
+    expect(newCustomer).toContain("Detailed customer intake");
+    expect(newCustomer).toContain("Buyer Info");
+    expect(newCustomer).toContain("Customer type");
+    expect(newCustomer).toContain("Lead and assignment");
+    expect(newCustomer).toContain("Interested Vehicle");
+    expect(newCustomer).toContain("Customer Wishlist");
+    expect(newCustomer).toContain("Referrer");
+    expect(newCustomer).toContain("Employment");
+    expect(newCustomer).toContain("Campaign");
     expect(newCustomer).toContain("Capture Hub");
     expect(newCustomer).toContain("Use the phone camera to start the right work");
     expect(newCustomer).toContain("Add vehicle");

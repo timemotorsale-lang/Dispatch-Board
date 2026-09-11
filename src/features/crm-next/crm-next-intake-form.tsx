@@ -256,6 +256,206 @@ export function CrmNextIntakeForm() {
 
       <input name="locationId" type="hidden" value={DEFAULT_LOCATION_ID} />
 
+      <section className={styles.intakeSection} aria-label="Detailed customer intake">
+        <header className={styles.sectionTitle}>
+          <div>
+            <h3>Detailed customer intake</h3>
+            <p className={styles.muted}>Capture enough context for sales, follow-up, and compliance without forcing staff to leave CRM.</p>
+          </div>
+          <span>CRM record</span>
+        </header>
+
+        <div className={styles.customerTypeRow} role="radiogroup" aria-label="Customer type">
+          <span>Customer type</span>
+          <label><input defaultChecked name="customerType" type="radio" value="Individual" /> Individual</label>
+          <label><input name="customerType" type="radio" value="Business" /> Business</label>
+        </div>
+
+        <section className={styles.intakeSubsection} aria-label="Buyer Info">
+          <h4>Buyer Info</h4>
+          <div className={styles.intakeFields}>
+            <label>
+              <span>Buyer</span>
+              <input autoComplete="name" name="displayName" onChange={(event) => updateCustomerField("displayName", event.target.value)} placeholder="Customer legal name" required value={customerFields.displayName} />
+            </label>
+            <label>
+              <span>Business name</span>
+              <input name="businessName" placeholder="If business customer" />
+            </label>
+            <label>
+              <span>Gender</span>
+              <select name="gender" defaultValue="">
+                <option value="">Select</option>
+                <option>Female</option>
+                <option>Male</option>
+                <option>Prefer not to say</option>
+              </select>
+            </label>
+            <label>
+              <span>SSN last 4</span>
+              <input inputMode="numeric" maxLength={4} name="ssnLast4" placeholder="Last 4 only" />
+            </label>
+            <label>
+              <span>Date of birth</span>
+              <input name="dateOfBirth" type="date" />
+            </label>
+            <label>
+              <span>ID type</span>
+              <select name="idType" defaultValue="">
+                <option value="">Select</option>
+                <option>Driver license</option>
+                <option>State ID</option>
+                <option>Passport</option>
+                <option>Business document</option>
+              </select>
+            </label>
+            <label>
+              <span>ID state</span>
+              <input maxLength={2} name="idState" placeholder="MN" />
+            </label>
+            <label>
+              <span>ID ending</span>
+              <input inputMode="numeric" maxLength={4} name="idEnding" placeholder="Last 4 only" />
+            </label>
+            <label>
+              <span>Issued date</span>
+              <input name="idIssuedDate" type="date" />
+            </label>
+            <label>
+              <span>Expiration date</span>
+              <input name="idExpirationDate" type="date" />
+            </label>
+            <label>
+              <span>Cell phone</span>
+              <input aria-label="Customer phone" autoComplete="tel" inputMode="tel" name="phoneNumber" onChange={(event) => updateCustomerField("phoneNumber", event.target.value)} placeholder="612 342 5656" type="tel" value={customerFields.phoneNumber} />
+            </label>
+            <label>
+              <span>Home phone</span>
+              <input inputMode="tel" name="homePhone" placeholder="Optional" type="tel" />
+            </label>
+            <label>
+              <span>Work phone</span>
+              <input inputMode="tel" name="workPhone" placeholder="Optional" type="tel" />
+            </label>
+            <label>
+              <span>Email</span>
+              <input autoComplete="email" name="email" onChange={(event) => updateCustomerField("email", event.target.value)} placeholder="customer@example.com" type="email" value={customerFields.email} />
+            </label>
+            <label>
+              <span>Preferred contact</span>
+              <select name="preferredContactMethod" onChange={(event) => updateCustomerField("preferredContactMethod", event.target.value)} value={customerFields.preferredContactMethod}>
+                <option value="PHONE">Phone</option>
+                <option value="EMAIL">Email</option>
+                <option value="TEXT">Text</option>
+              </select>
+            </label>
+            <label>
+              <span>Cash down</span>
+              <input inputMode="decimal" name="cashDown" placeholder="$0.00" />
+            </label>
+            <label className={styles.fullField}>
+              <span>Current address</span>
+              <input autoComplete="street-address" name="address" onChange={(event) => updateCustomerField("address", event.target.value)} placeholder="Street, city, state" value={customerFields.address} />
+            </label>
+          </div>
+        </section>
+
+        <section className={styles.intakeSubsection} aria-label="Lead and assignment">
+          <h4>Lead and assignment</h4>
+          <div className={styles.intakeFields}>
+            <label>
+              <span>Lead type</span>
+              <select name="leadType" defaultValue="Walk-in">
+                <option>Walk-in</option>
+                <option>Phone</option>
+                <option>Internet</option>
+                <option>Referral</option>
+                <option>Service customer</option>
+                <option>Repeat customer</option>
+              </select>
+            </label>
+            <label>
+              <span>Customer status</span>
+              <select name="customerStatus" defaultValue="New">
+                <option>New</option>
+                <option>Contact attempt</option>
+                <option>Contacted</option>
+                <option>Appointment scheduled</option>
+                <option>Working deal</option>
+                <option>Sold</option>
+                <option>Lost</option>
+              </select>
+            </label>
+            <label>
+              <span>Lead source</span>
+              <input name="leadSource" placeholder="Walk-in, Facebook, website, referral..." />
+            </label>
+            <label>
+              <span>Inquiry type</span>
+              <input name="inquiryType" placeholder="Sales, service, finance, trade..." />
+            </label>
+            <label>
+              <span>Sales rep</span>
+              <input name="salesRep" placeholder="Assigned sales rep" />
+            </label>
+            <label>
+              <span>BDC rep</span>
+              <input name="bdcRep" placeholder="Optional" />
+            </label>
+            <label className={styles.fullField}>
+              <span>Special notes</span>
+              <textarea name="specialNotes" placeholder="Anything staff should know before contacting this customer" rows={3} />
+            </label>
+            <label className={styles.checkField}>
+              <input name="isInShowroom" type="checkbox" />
+              <span>Customer is in showroom / checked in</span>
+            </label>
+          </div>
+        </section>
+
+        <section className={styles.intakeSubsection} aria-label="Interested Vehicle">
+          <h4>Interested Vehicle</h4>
+          <div className={styles.intakeFields}>
+            <label>
+              <span>Vehicle interest</span>
+              <input name="vehicleInterest" placeholder="2021 Toyota RAV4, pickup truck, SUV..." />
+            </label>
+            <label>
+              <span>Stock # / VIN</span>
+              <input name="vehicleReference" placeholder="Stock number or VIN if known" />
+            </label>
+            <label>
+              <span>Budget</span>
+              <input name="budget" placeholder="$350/month, under $18k..." />
+            </label>
+            <label>
+              <span>Trade-in</span>
+              <input name="tradeIn" placeholder="Year make model or none" />
+            </label>
+          </div>
+        </section>
+
+        <div className={styles.intakeQuickAddGrid}>
+          <section className={styles.intakeSubsection} aria-label="Customer Wishlist">
+            <h4>Customer Wishlist</h4>
+            <textarea name="customerWishlist" placeholder="Must-haves, nice-to-haves, color, payment goal, features..." rows={4} />
+          </section>
+          <section className={styles.intakeSubsection} aria-label="Referrer">
+            <h4>Referrer</h4>
+            <input name="referrer" placeholder="Who referred this customer?" />
+          </section>
+          <section className={styles.intakeSubsection} aria-label="Employment">
+            <h4>Employment</h4>
+            <input name="employerName" placeholder="Employer" />
+            <input name="occupation" placeholder="Occupation" />
+          </section>
+          <section className={styles.intakeSubsection} aria-label="Campaign association">
+            <h4>Campaign</h4>
+            <input name="campaign" placeholder="Campaign, ad, or source tag" />
+          </section>
+        </div>
+      </section>
+
       <section className={styles.mobileCapturePanel} aria-label="Capture Hub review">
         <div className={styles.captureIntro}>
           <div>
@@ -360,33 +560,6 @@ export function CrmNextIntakeForm() {
           {capturePurpose === "customer" ? <button className={styles.secondaryButton} onClick={applyMobileIdDraft} type="button">Use this customer info</button> : null}
         </div>
       </section>
-
-      <div className={styles.intakeFields}>
-        <label>
-          <span>Name</span>
-          <input autoComplete="name" name="displayName" onChange={(event) => updateCustomerField("displayName", event.target.value)} placeholder="First and last name" required value={customerFields.displayName} />
-        </label>
-        <label>
-          <span>Phone</span>
-          <input aria-label="Customer phone" autoComplete="tel" inputMode="tel" name="phoneNumber" onChange={(event) => updateCustomerField("phoneNumber", event.target.value)} placeholder="612 342 5656" type="tel" value={customerFields.phoneNumber} />
-        </label>
-        <label>
-          <span>Email</span>
-          <input autoComplete="email" name="email" onChange={(event) => updateCustomerField("email", event.target.value)} placeholder="customer@example.com" type="email" value={customerFields.email} />
-        </label>
-        <label>
-          <span>Preferred contact</span>
-          <select name="preferredContactMethod" onChange={(event) => updateCustomerField("preferredContactMethod", event.target.value)} value={customerFields.preferredContactMethod}>
-            <option value="PHONE">Phone</option>
-            <option value="EMAIL">Email</option>
-            <option value="TEXT">Text</option>
-          </select>
-        </label>
-        <label className={styles.fullField}>
-          <span>Address</span>
-          <input autoComplete="street-address" name="address" onChange={(event) => updateCustomerField("address", event.target.value)} placeholder="Street, city, state" value={customerFields.address} />
-        </label>
-      </div>
 
       {mode === "prospect" ? (
         <section className={styles.prospectFields} aria-label="Prospect details">
