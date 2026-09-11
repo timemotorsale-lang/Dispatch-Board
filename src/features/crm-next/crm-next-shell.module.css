@@ -1557,6 +1557,59 @@
   color: #071a3a;
 }
 
+.customerJourneyPanel {
+  background: #ffffff;
+  border: 1px solid #dbe6f6;
+  border-radius: 16px;
+  box-shadow: 0 12px 30px rgb(15 42 84 / 7%);
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.customerJourneyPanel header {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.customerJourneyPanel h2 {
+  color: #071a3a;
+  font-size: 20px;
+  margin: 4px 0 0;
+}
+
+.customerJourneyRail {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.customerJourneyRail li {
+  align-items: center;
+  background: #f8fbff;
+  border: 1px solid #dbe6f6;
+  border-radius: 999px;
+  color: #64748b;
+  display: flex;
+  font-size: 12px;
+  font-weight: 900;
+  justify-content: center;
+  min-height: 36px;
+  padding: 7px 8px;
+  text-align: center;
+}
+
+.customerJourneyRail li[data-state="active"] {
+  background: #eef4ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
 .nextBestAction {
   align-items: flex-start;
   background: #eef6ff;
@@ -2531,7 +2584,7 @@
   background: #f8fbff;
   border: 1px solid #dbe6f6;
   border-radius: 14px;
-  grid-template-columns: repeat(6, minmax(132px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
   margin-bottom: 12px;
   padding: 10px;
 }
@@ -2664,6 +2717,110 @@
   background: #eef4ff;
   border-color: #93c5fd;
   color: #1d4ed8;
+}
+
+.workbenchProgressControl {
+  background: #f8fbff;
+  border: 1px solid #dbe6f6;
+  border-radius: 14px;
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+.workbenchProgressControl header {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.workbenchProgressControl header strong {
+  color: #071a3a;
+  display: block;
+  font-size: 15px;
+}
+
+.workbenchProgressControl header span,
+.progressOutcomeBox span,
+.progressOutcomeBox small {
+  color: #52637a;
+  font-size: 13px;
+}
+
+.workbenchProgressControl header b {
+  background: #eef4ff;
+  border-radius: 999px;
+  color: #2454d6;
+  font-size: 12px;
+  padding: 7px 10px;
+  white-space: nowrap;
+}
+
+.journeyStageRail,
+.progressActionGrid {
+  display: grid;
+  gap: 8px;
+}
+
+.journeyStageRail {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.progressActionGrid {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.journeyStageRail button,
+.progressActionGrid button {
+  background: #ffffff;
+  border: 1px solid #cfdbea;
+  border-radius: 999px;
+  color: #475569;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  min-height: 36px;
+  padding: 7px 10px;
+}
+
+.journeyStageRail button[aria-pressed="true"],
+.progressActionGrid button[aria-pressed="true"] {
+  background: #ecfdf5;
+  border-color: #86efac;
+  color: #166534;
+}
+
+.progressOutcomeBox {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(220px, .7fr) minmax(0, 1.3fr);
+}
+
+.progressOutcomeBox > div,
+.progressOutcomeBox label {
+  background: #ffffff;
+  border: 1px solid #dbe6f6;
+  border-radius: 12px;
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+}
+
+.progressOutcomeBox strong {
+  color: #071a3a;
+}
+
+.progressOutcomeBox textarea {
+  border: 1px solid #cfdbea;
+  border-radius: 10px;
+  color: #071a3a;
+  font: inherit;
+  min-height: 76px;
+  padding: 9px 10px;
+  resize: vertical;
+  width: 100%;
 }
 
 .actionCards {
@@ -2846,6 +3003,39 @@
   white-space: nowrap;
 }
 
+.activityTimelineList {
+  display: grid;
+  gap: 10px;
+}
+
+.activityTimelineItem {
+  background: #f8fbff;
+  border: 1px solid #dbe6f6;
+  border-radius: 14px;
+  color: inherit;
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  text-decoration: none;
+}
+
+.activityTimelineItem:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 10px 24px rgb(37 99 235 / 10%);
+}
+
+.activityTimelineItem strong {
+  color: #071a3a;
+}
+
+.activityTimelineItem span {
+  color: #52637a;
+}
+
+.activityTimelineItem small {
+  color: #64748b;
+}
+
 .safeNotice {
   background: #eff6ff;
   border: 1px solid #bfdbfe;
@@ -3011,6 +3201,12 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .customerJourneyRail,
+  .journeyStageRail,
+  .progressOutcomeBox {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .workContextStrip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -3125,6 +3321,9 @@
 
   .workContextStrip,
   .issueProgress,
+  .customerJourneyRail,
+  .journeyStageRail,
+  .progressOutcomeBox,
   .bridgeReceipt,
   .card > .workActions {
     grid-template-columns: 1fr;

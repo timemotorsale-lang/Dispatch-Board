@@ -22,6 +22,7 @@ import {
 
 import { CrmNextIntakeForm } from "@/features/crm-next/crm-next-intake-form";
 import { CrmNextTaskBridgeControl } from "@/features/crm-next/crm-next-task-bridge-control";
+import { CrmNextWorkbenchProgressControl } from "@/features/crm-next/crm-next-workbench-progress-control";
 import type { CrmNextAccessReason } from "@/server/crm-next/access";
 import type { CrmNextActionBridgePreview } from "@/server/crm-next/action-bridge";
 import type { CrmNextAttentionItem, CrmNextCommandCenter, CrmNextCustomer360, CrmNextMilestoneStatus, CrmNextOperatingAction, CrmNextSalesRecord } from "@/server/crm-next/read-model";
@@ -43,6 +44,16 @@ function crmNextActionHref(actionId: string, customerId?: string) {
   return customerId ? `${baseHref}?customerId=${encodeURIComponent(customerId)}` : baseHref;
 }
 
+const CUSTOMER_JOURNEY_STAGES = ["New", "Contact Attempt", "Contacted", "Appointment Scheduled", "Working Deal", "Sold", "Lost"] as const;
+
+function customerJourneyStage(customer: CrmNextCustomer360, activeAttentionItem?: CrmNextAttentionItem) {
+  const nextAction = `${customer.nextAction} ${activeAttentionItem?.nextAction ?? ""}`.toLowerCase();
+  if (customer.openDeals > 0 || nextAction.includes("deal")) return "Working Deal";
+  if (nextAction.includes("appointment") || nextAction.includes("schedule")) return "Appointment Scheduled";
+  if (customer.communications.length > 0 || nextAction.includes("call") || nextAction.includes("contact")) return "Contacted";
+  return "New";
+}
+
 function customerWorkIssue(item: CrmNextAttentionItem) {
   const reason = item.reason.toLowerCase();
   const nextAction = item.nextAction || "Review customer record";
@@ -50,7 +61,6 @@ function customerWorkIssue(item: CrmNextAttentionItem) {
     return {
       done: "Payment status, customer promise, and next due date are recorded.",
       issue: item.reason,
-      stage: "Resolution",
       why: "Finance risk can interrupt delivery, collections, or the next customer commitment."
     };
   }
@@ -58,7 +68,6 @@ function customerWorkIssue(item: CrmNextAttentionItem) {
     return {
       done: "Title status is confirmed, blocker is owned, and the customer has a clear update.",
       issue: item.reason,
-      stage: "Review",
       why: "Title uncertainty can block delivery, registration, financing, or customer trust."
     };
   }
@@ -66,7 +75,6 @@ function customerWorkIssue(item: CrmNextAttentionItem) {
     return {
       done: "Appointment or service plan is scheduled, confirmed, or clearly carried forward.",
       issue: item.reason,
-      stage: "Contact",
       why: "The customer needs a clear service path before the issue becomes a complaint."
     };
   }
@@ -74,25 +82,14 @@ function customerWorkIssue(item: CrmNextAttentionItem) {
     return {
       done: "Claim status, responsible party, and customer follow-up window are recorded.",
       issue: item.reason,
-      stage: "Follow-up",
       why: "Insurance work often depends on outside parties and needs visible ownership."
     };
   }
   return {
     done: `${nextAction} is completed or updated with the customer outcome and next follow-up.`,
     issue: item.reason || "Customer record needs review",
-    stage: "Review",
     why: "The customer record needs enough clarity for staff to take the next safe step."
   };
-}
-
-function customerWorkSteps(activeStage: string) {
-  const steps = ["Intake", "Review", "Contact", "Resolution", "Follow-up", "Done"];
-  const activeIndex = Math.max(0, steps.indexOf(activeStage));
-  return steps.map((step, index) => ({
-    state: index < activeIndex ? "complete" : index === activeIndex ? "active" : "pending",
-    step
-  }));
 }
 
 export function CrmNextUnavailable({ fallbackHref, reason }: { fallbackHref: string; reason: CrmNextAccessReason }) {
@@ -1322,6 +1319,7 @@ export function CrmNextSafetyView({ kind, model }: { kind: "states" | "permissio
 export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextCustomer360; model: CrmNextCommandCenter }) {
   const activeAttentionItem = model.attention.find((item) => item.customerId === customer.id);
   const attendHref = activeAttentionItem?.workHref ?? `/crm-next/work/customer-read-${encodeURIComponent(customer.id)}`;
+  const currentJourneyStage = customerJourneyStage(customer, activeAttentionItem);
   const customerMetrics = [
     { label: "Open Leads", value: customer.openDeals, detail: "Active", tone: "green" },
     { label: "Open Cases", value: customer.openCases, detail: "Active", tone: "red" },
@@ -1360,6 +1358,24 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
               <Link className={styles.secondaryButton} href={crmNextActionHref("send-text", customer.id)}><MessageSquare size={16} /> Message</Link>
               <Link className={styles.secondaryButton} href="/crm">Open fallback CRM</Link>
             </div>
+          </section>
+
+          <section className={styles.customerJourneyPanel} aria-label="Customer journey">
+            <header>
+              <div>
+                <span className={styles.eyebrow}>Customer journey</span>
+                <h2>Work the customer from first contact to outcome.</h2>
+              </div>
+              <Link className={styles.secondaryButton} href={attendHref}>Update progress</Link>
+            </header>
+            <ol className={styles.customerJourneyRail}>
+              {CUSTOMER_JOURNEY_STAGES.map((stage) => (
+                <li data-state={stage === currentJourneyStage ? "active" : "pending"} key={stage}>
+                  <span>{stage}</span>
+                </li>
+              ))}
+            </ol>
+            <p className={styles.muted}>Stage changes should come from staff actions: calls, texts, appointments, CRM tasks, deal work, or a sold/lost decision.</p>
           </section>
 
           <section className={styles.customerMetricGrid} aria-label="Customer operating metrics">
@@ -1439,6 +1455,7 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
               <Link href={crmNextActionHref("log-call", customer.id)}><Phone size={22} />Log Call</Link>
               <Link href={crmNextActionHref("send-email", customer.id)}><Mail size={22} />Send Email</Link>
               <Link href={crmNextActionHref("new-task", customer.id)}><ClipboardCheck size={22} />CRM Task</Link>
+              <Link href="#timeline"><MessageSquare size={22} />Add Note</Link>
               <Link href={crmNextActionHref("new-case", customer.id)}><FileText size={22} />New Case</Link>
               <Link href={crmNextActionHref("schedule-appointment", customer.id)}><CalendarDays size={22} />Schedule Appt</Link>
               <Link href={crmNextActionHref("upload-document", customer.id)}><FileSearch size={22} />Upload Doc</Link>
@@ -1502,7 +1519,7 @@ export function CrmNextActionReadinessView({ action, customerId, model }: { acti
       : "Use the approved workspace for this action";
   const primaryHref = action.id === "schedule-appointment"
     ? "/appointments"
-      : backHref;
+    : backHref;
   const isCrmTaskAction = action.id === "new-task";
 
   return (
@@ -1591,7 +1608,6 @@ export function CrmNextWorkCustomerView({
   const dispatchPreview = bridgePreview?.dispatchPreview;
   const actionCustomerId = item.customerId;
   const issue = customerWorkIssue(item);
-  const progressSteps = customerWorkSteps(issue.stage);
 
   return (
     <CrmNextFrame active="work" userName={model.userName}>
@@ -1644,16 +1660,10 @@ export function CrmNextWorkCustomerView({
               </article>
               <article>
                 <strong>Work status</strong>
-                <span>In progress · review before closing</span>
+                <span>Staff controls progress by recording real actions below.</span>
               </article>
             </div>
-            <ol className={styles.issueProgress} aria-label="Issue progress">
-              {progressSteps.map((step) => (
-                <li data-state={step.state} key={step.step}>
-                  <span>{step.step}</span>
-                </li>
-              ))}
-            </ol>
+            <CrmNextWorkbenchProgressControl initialStage="Contacted" nextAction={item.nextAction} />
           </section>
           <section className={styles.workContextStrip} aria-label="Customer context">
             <div>
@@ -1685,6 +1695,7 @@ export function CrmNextWorkCustomerView({
             <Link className={styles.secondaryButton} href={crmNextActionHref("send-email", actionCustomerId)}><Mail size={16} /> Email</Link>
             <Link className={styles.secondaryButton} href={crmNextActionHref("schedule-appointment", actionCustomerId)}><CalendarDays size={16} /> Appointments</Link>
             <Link className={styles.secondaryButton} href={crmNextActionHref("new-task", actionCustomerId)}><ClipboardCheck size={16} /> Create CRM task</Link>
+            <Link className={styles.secondaryButton} href="#customer-activity"><MessageSquare size={16} /> Add note</Link>
             <Link className={styles.secondaryButton} href="#dispatch-task"><ChevronRight size={16} /> Dispatch handoff</Link>
             <Link className={styles.secondaryButton} href={item.customerHref}><Users size={16} /> Customer 360</Link>
           </div>
@@ -1694,6 +1705,7 @@ export function CrmNextWorkCustomerView({
               <Link className={styles.actionCard} href={crmNextActionHref("schedule-appointment", actionCustomerId)}><CalendarDays size={18} /><strong>Schedule appointment</strong><p className={styles.muted}>Open existing appointment workspace.</p></Link>
               <Link className={styles.actionCard} href={crmNextActionHref("upload-document", actionCustomerId)}><FileText size={18} /><strong>Send document</strong><p className={styles.muted}>Use the document workspace.</p></Link>
               <Link className={styles.actionCard} href={crmNextActionHref("new-task", actionCustomerId)}><ClipboardCheck size={18} /><strong>Create CRM task</strong><p className={styles.muted}>Keep this customer follow-up inside CRM.</p></Link>
+              <Link className={styles.actionCard} href="#customer-activity"><MessageSquare size={18} /><strong>Add note</strong><p className={styles.muted}>Record what happened before moving progress.</p></Link>
               <Link className={styles.actionCard} href="#dispatch-task"><ChevronRight size={18} /><strong>Dispatch handoff</strong><p className={styles.muted}>Use only when operations must execute work.</p></Link>
               <Link className={styles.actionCard} href={crmNextActionHref("new-case", actionCustomerId)}><MessageSquare size={18} /><strong>Other action</strong><p className={styles.muted}>Open more customer actions.</p></Link>
             </div>
@@ -1725,6 +1737,24 @@ export function CrmNextWorkCustomerView({
               </dl>
             ) : null}
             <CrmNextTaskBridgeControl attentionItemId={item.id} enabled={bridgePreview?.state === "DOGFOOD_READY"} />
+          </article>
+          <article className={styles.card} id="customer-activity">
+            <header>
+              <div>
+                <h2>Customer activity</h2>
+                <p className={styles.muted}>Use this timeline to understand the last touch before recording the next CRM action.</p>
+              </div>
+              <Link className={styles.textLink} href="/crm-next/timeline">Open full timeline</Link>
+            </header>
+            <div className={styles.activityTimelineList}>
+              {model.timeline.slice(0, 4).map((event) => (
+                <Link className={styles.activityTimelineItem} href={event.href} key={event.id}>
+                  <strong>{event.label}</strong>
+                  <span>{event.detail}</span>
+                  <small>{event.source} · {event.occurredAt}</small>
+                </Link>
+              ))}
+            </div>
           </article>
         </main>
       </section>

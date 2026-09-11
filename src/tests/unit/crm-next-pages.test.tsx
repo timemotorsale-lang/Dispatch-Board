@@ -141,6 +141,8 @@ describe("CRM Next pages", () => {
     expect(customer).toContain("Michael Johnson");
     expect(customer).toContain("Preferred Customer");
     expect(customer).toContain("Customer Since");
+    expect(customer).toContain("Customer journey");
+    expect(customer).toContain("Work the customer from first contact to outcome.");
     expect(customer).toContain("Quick Actions");
     expect(customer).toContain('href="/crm-next/actions/log-call?customerId=michael-johnson"');
     expect(customer).toContain('href="/crm-next/actions/send-email?customerId=michael-johnson"');
@@ -161,7 +163,9 @@ describe("CRM Next pages", () => {
     expect(work).toContain("Current customer issue");
     expect(work).toContain("Why this matters");
     expect(work).toContain("What done means");
-    expect(work).toContain("Issue progress");
+    expect(work).toContain("Staff-controlled progress");
+    expect(work).toContain("No action recorded");
+    expect(work).toContain("Customer activity");
     expect(work).toContain("Create CRM task");
     expect(work).toContain("Create Dispatch handoff");
     expect(work).not.toContain("Connected to the CRM Next action-to-task bridge contract");
