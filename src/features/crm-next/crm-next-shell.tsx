@@ -52,6 +52,80 @@ function crmNextActionHref(actionId: string, customerId?: string) {
   return customerId ? `${baseHref}?customerId=${encodeURIComponent(customerId)}` : baseHref;
 }
 
+function directActionWorkspace(action: CrmNextOperatingAction, customerName: string, nextAction: string) {
+  if (action.id === "log-call") {
+    return {
+      button: "Log call when phone is wired",
+      fields: [
+        { label: "Call outcome", placeholder: "Phone provider is not wired yet. This will capture the call result here." },
+        { label: "Follow-up", placeholder: nextAction }
+      ],
+      status: "Phone logging is not wired yet. Once connected, this page will save the call directly to the customer timeline.",
+      title: "Log customer call"
+    };
+  }
+  if (action.id === "send-email") {
+    return {
+      button: "Send when email is wired",
+      fields: [
+        { label: "Email note", placeholder: "Email provider is not wired yet. Draft context will open here." },
+        { label: "Purpose", placeholder: nextAction }
+      ],
+      status: "Email is not wired yet. Staff can see the intended action here without being sent to another page.",
+      title: "Send customer email"
+    };
+  }
+  if (action.id === "new-task") {
+    return {
+      button: "Save CRM Task",
+      fields: [
+        { label: "Task", placeholder: nextAction },
+        { label: "Due", placeholder: "Today" }
+      ],
+      status: `This creates a CRM task on ${customerName}'s record. It does not become a dispatch task unless staff hand it off.`,
+      title: "Create CRM task"
+    };
+  }
+  if (action.id === "add-note") {
+    return {
+      button: "Save Note",
+      fields: [
+        { label: "Note", placeholder: "Type the customer note here." }
+      ],
+      status: `This note stays on ${customerName}'s CRM timeline.`,
+      title: "Add customer note"
+    };
+  }
+  if (action.id === "new-case") {
+    return {
+      button: "Open Case",
+      fields: [
+        { label: "Case summary", placeholder: "What customer issue needs ownership?" },
+        { label: "Priority", placeholder: "Low, Medium, or High" }
+      ],
+      status: `This opens a CRM case tied to ${customerName}, not a generic support page.`,
+      title: "Create customer case"
+    };
+  }
+  if (action.id === "upload-document") {
+    return {
+      button: "Upload when document storage is wired",
+      fields: [
+        { label: "Document type", placeholder: "Insurance, ID, title, proof, or other customer document" },
+        { label: "Notes", placeholder: "Document storage is not wired yet. Upload context will stay attached here." }
+      ],
+      status: "Document upload is not wired yet. This action remains customer-specific and ready for the approved document workflow.",
+      title: "Upload customer document"
+    };
+  }
+  return {
+    button: "Continue",
+    fields: [{ label: "Next step", placeholder: action.response }],
+    status: "This action is available from CRM Next.",
+    title: action.label
+  };
+}
+
 const CUSTOMER_JOURNEY_STAGES = ["New", "Contact Attempt", "Contacted", "Appointment Scheduled", "Working Deal", "Missed Appt.", "Visit Follow-up", "Sold", "Lost"] as const;
 const CRM_ACTIVITY_FILTERS = ["All", "Notes", "Appt", "Phone", "SMS", "Email", "Tasks", "Chat", "Other"] as const;
 
@@ -136,7 +210,7 @@ function CrmNextFrame({ active, children, userName }: { active: "command" | "new
   ] as const;
 
   return (
-    <section className={styles.shell}>
+    <section className={`${styles.shell} crm-next-shell`}>
       <div className={styles.frame}>
         <aside className={styles.sidebar} aria-label="CRM Next navigation">
           <div className={styles.brand}>Time Motor Sales</div>
@@ -1541,7 +1615,7 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
               <Link href={crmNextActionHref("log-call", customer.id)}><Phone size={22} />Log Call</Link>
               <Link href={crmNextActionHref("send-email", customer.id)}><Mail size={22} />Send Email</Link>
               <Link href={crmNextActionHref("new-task", customer.id)}><ClipboardCheck size={22} />CRM Task</Link>
-              <Link href="#timeline"><MessageSquare size={22} />Add Note</Link>
+              <Link href={crmNextActionHref("add-note", customer.id)}><MessageSquare size={22} />Add Note</Link>
               <Link href={crmNextActionHref("new-case", customer.id)}><FileText size={22} />New Case</Link>
               <Link href={appointmentHref}><CalendarDays size={22} />Schedule Appt</Link>
               <Link href={crmNextActionHref("upload-document", customer.id)}><FileSearch size={22} />Upload Doc</Link>
@@ -1611,7 +1685,9 @@ export function CrmNextActionReadinessView({ action, customerId, model }: { acti
         returnTo: backHref
       })
     : backHref;
+  const workspace = directActionWorkspace(action, relatedCustomer?.name ?? "Customer", relatedCustomer?.nextAction ?? action.response);
   const isCrmTaskAction = action.id === "new-task";
+  const isHeldProviderAction = action.id === "log-call" || action.id === "send-email" || action.id === "upload-document";
 
   return (
     <CrmNextFrame active="work" userName={model.userName}>
@@ -1634,12 +1710,39 @@ export function CrmNextActionReadinessView({ action, customerId, model }: { acti
             <div><dt>Next step</dt><dd>{isCrmTaskAction ? "Create CRM task" : "Continue"}</dd></div>
           </dl>
           <div className={styles.customerHeroActions}>
-            <Link className={styles.primaryButton} href={primaryHref}>Continue</Link>
+            {action.id === "schedule-appointment" ? <Link className={styles.primaryButton} href={primaryHref}>Open appointment console</Link> : null}
             <Link className={styles.secondaryButton} href={backHref}>Back to Customer 360</Link>
             <Link className={styles.secondaryButton} href="/crm">Open fallback CRM</Link>
           </div>
         </section>
         <main className={styles.customerMain}>
+          {action.id === "schedule-appointment" ? null : (
+            <section className={`${styles.panel} ${styles.directActionPanel}`}>
+              <header className={styles.panelHeader}>
+                <div>
+                  <span className={styles.eyebrow}>Ready action</span>
+                  <h2>{workspace.title}</h2>
+                  <p>{workspace.status}</p>
+                </div>
+                <span className={isHeldProviderAction ? styles.levelMedium : styles.levelLow}>
+                  {isHeldProviderAction ? "Not wired yet" : "CRM record"}
+                </span>
+              </header>
+              <div className={styles.directActionForm}>
+                {workspace.fields.map((field) => (
+                  <label key={field.label}>
+                    <span>{field.label}</span>
+                    <textarea defaultValue={field.placeholder} rows={field.label === "Due" || field.label === "Priority" ? 1 : 4} />
+                  </label>
+                ))}
+                <div className={styles.directActionFooter}>
+                  <button disabled={isHeldProviderAction} type="button">{workspace.button}</button>
+                  <Link href={backHref}>Cancel</Link>
+                </div>
+              </div>
+            </section>
+          )}
+
           <section className={styles.panel}>
             <header className={styles.panelHeader}><h2>What happens next</h2><span className={styles.pill}>{action.category}</span></header>
             <div className={styles.compactSectionGrid}>

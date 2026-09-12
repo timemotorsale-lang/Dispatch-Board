@@ -151,6 +151,7 @@ describe("CRM Next pages", () => {
     expect(customer).toContain('href="/crm-next/actions/log-call?customerId=michael-johnson"');
     expect(customer).toContain('href="/crm-next/actions/send-email?customerId=michael-johnson"');
     expect(customer).toContain('href="/crm-next/actions/new-task?customerId=michael-johnson"');
+    expect(customer).toContain('href="/crm-next/actions/add-note?customerId=michael-johnson"');
     expect(customer).toContain('href="/crm-next/actions/new-case?customerId=michael-johnson"');
     expect(customer).toContain('href="/appointments?action=new&amp;customerReference=Michael+Johnson');
     expect(customer).toContain("crmCustomerId=michael-johnson");
@@ -345,11 +346,15 @@ describe("CRM Next pages", () => {
     expect(review).toContain("Review ready");
     expect(logCallAction).toContain("Log Call");
     expect(logCallAction).toContain("Open the call workflow");
+    expect(logCallAction).toContain("Log customer call");
+    expect(logCallAction).toContain("Phone logging is not wired yet");
     expect(logCallAction).toContain("What happens next");
     expect(newTaskAction).toContain("CRM customer task list");
     expect(newTaskAction).toContain("Create a CRM task");
+    expect(newTaskAction).toContain("Save CRM Task");
     expect(newTaskAction).toContain("Keep this task in the customer CRM record");
     expect(emailAction).toContain("Use approved workspace");
+    expect(emailAction).toContain("Send customer email");
     expect(emailAction).toContain("approved email workflow");
   });
 
@@ -400,5 +405,7 @@ describe("CRM Next pages", () => {
     expect(markup).toContain("Ainanshe Bashir");
     expect(markup).not.toContain("Ibrahim Adam");
     expect(markup).toContain('href="/crm-next/actions/new-task?customerId=ainanshe-bashir"');
+    expect(markup).toContain("Create CRM task");
+    expect(markup).toContain("Review customer relationship");
   });
 });

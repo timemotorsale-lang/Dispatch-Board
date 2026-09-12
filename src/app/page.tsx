@@ -1,176 +1,208 @@
 import Link from "next/link";
+import {
+  Activity,
+  Bell,
+  BriefcaseBusiness,
+  CalendarDays,
+  CarFront,
+  ClipboardCheck,
+  ClipboardList,
+  ContactRound,
+  FileText,
+  Gauge,
+  Menu,
+  MessageSquare,
+  PackageCheck,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  UserPlus,
+  Users,
+  Wrench,
+  type LucideIcon
+} from "lucide-react";
 
 import { CRM_NEXT_CUSTOMERS_HREF, LEGACY_CUSTOMER_ARCHIVE_HREF } from "@/features/crm/crm-route-authority";
+import { getCurrentUser } from "@/server/auth/current-user";
+import { getPermittedWorkspaces, getWorkspaceKey, type WorkspaceKey } from "@/server/auth/navigation";
+import { isManager } from "@/server/policies/access";
 
 import { APP_NAME } from "./config";
+import styles from "./home.module.css";
 
-const workspaceLinks = [
+type MobileCard = {
+  accent: "blue" | "green" | "gold" | "red" | "violet" | "slate";
+  count?: string;
+  description: string;
+  href: string;
+  icon: LucideIcon;
+  label: string;
+  managerOnly?: boolean;
+  permissions?: WorkspaceKey[];
+};
+
+type MobileSection = {
+  actionHref?: string;
+  actionLabel?: string;
+  cards: MobileCard[];
+  eyebrow?: string;
+  title: string;
+};
+
+const sections: MobileSection[] = [
   {
-    description: "Open the daily command center for active dispatch work, queues, and team execution.",
-    href: "/board",
-    label: "Open Dispatch Board",
-    title: "Dispatch Board",
-    tone: "primary"
+    actionHref: "/board",
+    actionLabel: "Dashboard",
+    eyebrow: "Start here",
+    title: "My Day",
+    cards: [
+      { accent: "blue", count: "Open", description: "Assigned work and next actions.", href: "/my-tasks", icon: ClipboardCheck, label: "My Tasks" },
+      { accent: "gold", count: "Today", description: "Appointments and promises due today.", href: "/appointments", icon: CalendarDays, label: "Appointments" },
+      { accent: "red", count: "Live", description: "Active board work and operating pressure.", href: "/board", icon: Gauge, label: "Today's Board" },
+      { accent: "green", description: "Log a quick update or route a new action.", href: "/tasks/intake", icon: ClipboardList, label: "Quick Ops Log" },
+      { accent: "violet", description: "Signals, updates, and recent movement.", href: "/activity", icon: Activity, label: "Activity" },
+      { accent: "slate", description: "Approvals and stuck work needing help.", href: "/manager-review", icon: ShieldCheck, label: "Manager Review", managerOnly: true }
+    ]
   },
   {
-    description: "Work customers, prospects, leads, follow-ups, appointments, and CRM actions.",
-    href: "/crm-next",
-    label: "Open CRM Next",
-    title: "CRM Next",
-    tone: "primary"
+    actionHref: "/crm-next",
+    actionLabel: "CRM",
+    title: "Customers & Sales",
+    cards: [
+      { accent: "blue", description: "CRM Next command center.", href: "/crm-next", icon: ContactRound, label: "CRM Next", permissions: ["SALES", "MANAGEMENT", "OPERATIONS_COORDINATOR", "OFFICE"] },
+      { accent: "green", description: "Find records, Customer 360, and leads.", href: CRM_NEXT_CUSTOMERS_HREF, icon: Users, label: "Customers", permissions: ["SALES", "MANAGEMENT", "OPERATIONS_COORDINATOR", "OFFICE", "ADVISOR"] },
+      { accent: "gold", count: "Due", description: "Follow-ups and next customer actions.", href: "/crm-next/needs-attention", icon: Bell, label: "Follow-Ups", permissions: ["SALES", "MANAGEMENT", "OPERATIONS_COORDINATOR"] },
+      { accent: "violet", description: "Customer conversations and history.", href: "/crm-next/timeline", icon: MessageSquare, label: "Communications", permissions: ["SALES", "MANAGEMENT", "OPERATIONS_COORDINATOR", "OFFICE"] },
+      { accent: "red", description: "Active opportunities and deal work.", href: "/crm-next/deals", icon: BriefcaseBusiness, label: "Deals", permissions: ["SALES", "MANAGEMENT"] },
+      { accent: "slate", description: "Fallback archive for legacy records.", href: LEGACY_CUSTOMER_ARCHIVE_HREF, icon: FileText, label: "Legacy Archive", permissions: ["SALES", "MANAGEMENT", "OPERATIONS_COORDINATOR", "OFFICE"] }
+    ]
   },
   {
-    description: "Open CRM Next customer records, Customer 360, search, and relationship work.",
-    href: CRM_NEXT_CUSTOMERS_HREF,
-    label: "Open CRM Next Customers",
-    title: "Customers",
-    tone: "primary"
+    actionHref: "/vehicles",
+    actionLabel: "Inventory",
+    title: "Inventory",
+    cards: [
+      { accent: "blue", description: "Inventory operating home.", href: "/vehicles", icon: CarFront, label: "Inventory", permissions: ["INVENTORY", "MANAGEMENT", "VEHICLE_OPERATIONS_LEAD", "SALES"] },
+      { accent: "green", description: "Start vehicle intake and custody.", href: "/vehicles/workflows/add-vehicle", icon: UserPlus, label: "Vehicle Intake", permissions: ["INVENTORY", "MANAGEMENT", "VEHICLE_OPERATIONS_LEAD", "OPERATIONS_COORDINATOR"] },
+      { accent: "gold", description: "Recon flow, status, and bottlenecks.", href: "/vehicles/shop-recon", icon: Wrench, label: "Recon", permissions: ["INVENTORY", "SERVICE", "MANAGEMENT", "VEHICLE_OPERATIONS_LEAD"] },
+      { accent: "violet", description: "Photos, listing, and sale readiness.", href: "/tasks?department=ADVERTISING", icon: Sparkles, label: "Photos / Listings", permissions: ["INVENTORY", "MARKETING", "MANAGEMENT", "VEHICLE_OPERATIONS_LEAD"] }
+    ]
   },
   {
-    description: "Legacy fallback access for historical customer records when CRM Next cannot complete the workflow yet.",
-    href: LEGACY_CUSTOMER_ARCHIVE_HREF,
-    label: "Open Legacy Archive",
-    title: "Legacy Customer Archive",
-    tone: "secondary"
+    actionHref: "/vehicles/shop-recon",
+    actionLabel: "Shop",
+    title: "Service / Shop",
+    cards: [
+      { accent: "blue", description: "Open repair orders and governed work.", href: "/vehicles/repair-workbench", icon: ClipboardCheck, label: "Work Orders", permissions: ["SERVICE", "TECHNICIAN", "ADVISOR", "MANAGEMENT", "VEHICLE_OPERATIONS_LEAD"] },
+      { accent: "gold", description: "Parts constraints and demand.", href: "/vehicles/parts-operations", icon: PackageCheck, label: "Waiting on Parts", permissions: ["PARTS", "SERVICE", "TECHNICIAN", "MANAGEMENT", "VEHICLE_OPERATIONS_LEAD"] },
+      { accent: "green", description: "Quality, release, and rework decisions.", href: "/vehicles/quality-control", icon: ShieldCheck, label: "Ready for Review", permissions: ["QUALITY", "SERVICE", "MANAGEMENT", "VEHICLE_OPERATIONS_LEAD"] },
+      { accent: "violet", description: "Diagnostic cases and advisor review.", href: "/diagnostics", icon: Wrench, label: "Diagnostics", permissions: ["TECHNICIAN", "ADVISOR", "SERVICE", "MANAGEMENT"] }
+    ]
   },
   {
-    description: "See assigned work and complete the next action for your role.",
-    href: "/my-tasks",
-    label: "Open My Tasks",
-    title: "My Tasks",
-    tone: "secondary"
-  },
-  {
-    description: "Create, review, and manage formal tasks that need ownership and tracking.",
-    href: "/tasks",
-    label: "Open Tasks",
-    title: "Tasks",
-    tone: "secondary"
-  },
-  {
-    description: "Sign in or switch staff session before entering protected workspaces.",
-    href: "/login",
-    label: "Open Login",
-    title: "Login",
-    tone: "secondary"
+    actionHref: "/operations-coordinator",
+    actionLabel: "Ops",
+    title: "Operations",
+    cards: [
+      { accent: "blue", description: "Front-door coordination workspace.", href: "/operations-coordinator", icon: BriefcaseBusiness, label: "Coordinator", permissions: ["OPERATIONS_COORDINATOR", "OFFICE", "MANAGEMENT"] },
+      { accent: "green", description: "Create, search, and route task work.", href: "/tasks", icon: ClipboardList, label: "Tasks" },
+      { accent: "gold", description: "Projects and operational ownership.", href: "/projects", icon: FileText, label: "Projects" },
+      { accent: "slate", description: "Staff, duties, and workspace setup.", href: "/settings/team", icon: Users, label: "Staff / Roles", managerOnly: true }
+    ]
   }
 ];
 
-export default function HomePage() {
+const desktopLinks = [
+  { description: "Open the daily command center for active dispatch work, queues, and team execution.", href: "/board", label: "Open Dispatch Board", title: "Dispatch Board", tone: "primary" },
+  { description: "Work customers, prospects, leads, follow-ups, appointments, and CRM actions.", href: "/crm-next", label: "Open CRM Next", title: "CRM Next", tone: "primary" },
+  { description: "Open CRM Next customer records, Customer 360, search, and relationship work.", href: CRM_NEXT_CUSTOMERS_HREF, label: "Open CRM Next Customers", title: "Customers", tone: "primary" },
+  { description: "Legacy fallback access for historical customer records when CRM Next cannot complete the workflow yet.", href: LEGACY_CUSTOMER_ARCHIVE_HREF, label: "Open Legacy Archive", title: "Legacy Customer Archive", tone: "secondary" },
+  { description: "See assigned work and complete the next action for your role.", href: "/my-tasks", label: "Open My Tasks", title: "My Tasks", tone: "secondary" },
+  { description: "Create, review, and manage formal tasks that need ownership and tracking.", href: "/tasks", label: "Open Tasks", title: "Tasks", tone: "secondary" },
+  { description: "Sign in or switch staff session before entering protected workspaces.", href: "/login", label: "Open Login", title: "Login", tone: "secondary" }
+];
+
+function canShowCard(card: MobileCard, workspace: WorkspaceKey | null, permittedWorkspaces: WorkspaceKey[], manager: boolean) {
+  if (card.managerOnly) return manager;
+  if (!card.permissions?.length) return true;
+  if (workspace && card.permissions.includes(workspace)) return true;
+  return card.permissions.some((permission) => permittedWorkspaces.includes(permission));
+}
+
+export default async function HomePage() {
+  const user = await getCurrentUser();
+  const currentWorkspace = user ? getWorkspaceKey(user) : null;
+  const permittedWorkspaces = user ? getPermittedWorkspaces(user).map((workspace) => workspace.key) : [];
+  const manager = user ? isManager(user) : false;
+  const displayName = user?.name?.split(" ")[0] ?? "Team";
+  const visibleSections = sections
+    .map((section) => ({
+      ...section,
+      cards: section.cards.filter((card) => canShowCard(card, currentWorkspace, permittedWorkspaces, manager))
+    }))
+    .filter((section) => section.cards.length > 0);
+
   return (
-    <main
-      aria-labelledby="home-launcher-title"
-      style={{
-        background: "linear-gradient(135deg, #edf3fb 0%, #f8fbff 48%, #eef4ff 100%)",
-        color: "#071735",
-        minHeight: "100vh",
-        padding: 24
-      }}
-    >
-      <section
-        style={{
-          display: "grid",
-          gap: 18,
-          margin: "0 auto",
-          maxWidth: 1180
-        }}
-      >
-        <header
-          style={{
-            alignItems: "end",
-            background: "linear-gradient(125deg, #07182c, #0a2948)",
-            border: "1px solid #183a5d",
-            borderRadius: 18,
-            boxShadow: "0 22px 50px rgba(6,20,38,.16)",
-            color: "#fff",
-            display: "flex",
-            gap: 24,
-            justifyContent: "space-between",
-            padding: "26px 28px"
-          }}
-        >
+    <main aria-labelledby="home-launcher-title" className={styles.page}>
+      <section className={styles.mobileShell} aria-label="Mobile operational launcher">
+        <header className={styles.mobileTopbar}>
+          <button aria-label="Open navigation" type="button"><Menu size={21} /></button>
           <div>
-            <p style={{ color: "#7fb3ff", fontSize: 12, fontWeight: 900, letterSpacing: ".16em", margin: "0 0 8px", textTransform: "uppercase" }}>
-              Workspace launcher
-            </p>
-            <h1 id="home-launcher-title" style={{ fontSize: "clamp(30px, 4vw, 48px)", letterSpacing: "-.04em", lineHeight: 1, margin: 0 }}>
-              {APP_NAME}
-            </h1>
-            <p style={{ color: "#c2d2e5", fontSize: 15, lineHeight: 1.55, margin: "12px 0 0", maxWidth: 720 }}>
-              Choose the workspace you need and continue working from a safe, protected route.
-            </p>
+            <strong>{APP_NAME}</strong>
+            <span>{displayName} workspace</span>
           </div>
-          <span
-            style={{
-              alignItems: "center",
-              background: "rgba(13,91,47,.45)",
-              border: "1px solid rgba(85,208,122,.34)",
-              borderRadius: 999,
-              color: "#c8f8d6",
-              display: "inline-flex",
-              fontSize: 12,
-              fontWeight: 900,
-              gap: 8,
-              minHeight: 38,
-              padding: "0 14px",
-              textTransform: "uppercase",
-              whiteSpace: "nowrap"
-            }}
-          >
-            <i style={{ background: "#55dc7e", borderRadius: "50%", display: "inline-block", height: 8, width: 8 }} />
-            System ready
-          </span>
+          <Link aria-label="Search" href="/crm-next/search"><Search size={21} /></Link>
         </header>
 
-        <nav
-          aria-label="Primary workspace links"
-          style={{
-            display: "grid",
-            gap: 12,
-            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))"
-          }}
-        >
-          {workspaceLinks.map((link) => (
-            <Link
-              href={link.href}
-              key={link.href}
-              style={{
-                background: "#fff",
-                border: link.tone === "primary" ? "1px solid #b8d1ff" : "1px solid #dbe6f5",
-                borderRadius: 16,
-                boxShadow: "0 12px 30px rgba(15, 23, 42, .08)",
-                color: "#10233f",
-                display: "grid",
-                gap: 10,
-                minHeight: 150,
-                padding: 20,
-                textDecoration: "none"
-              }}
-            >
-              <span style={{ color: "#2563eb", fontSize: 12, fontWeight: 900, letterSpacing: ".12em", textTransform: "uppercase" }}>
-                {link.title}
-              </span>
-              <strong style={{ fontSize: 23, letterSpacing: "-.03em" }}>{link.label}</strong>
-              <small style={{ color: "#61758d", fontSize: 14, lineHeight: 1.45 }}>{link.description}</small>
-              <b
-                style={{
-                  alignItems: "center",
-                  background: link.tone === "primary" ? "#2563eb" : "#eef4ff",
-                  border: link.tone === "primary" ? "1px solid #2563eb" : "1px solid #cfe0ff",
-                  borderRadius: 10,
-                  color: link.tone === "primary" ? "#fff" : "#143163",
-                  display: "inline-flex",
-                  fontSize: 13,
-                  fontWeight: 900,
-                  justifyContent: "center",
-                  marginTop: "auto",
-                  minHeight: 38,
-                  padding: "0 13px",
-                  width: "max-content"
-                }}
-              >
-                Continue
-              </b>
+        <section className={styles.mobileHero}>
+          <span>Operational home</span>
+          <h1>What needs attention now?</h1>
+          <p>Start with today’s work, then jump into customers, inventory, shop, or management without hunting through menus.</p>
+        </section>
+
+        {visibleSections.map((section) => (
+          <section className={styles.mobileSection} key={section.title}>
+            <header>
+              <div>
+                {section.eyebrow ? <span>{section.eyebrow}</span> : null}
+                <h2>{section.title}</h2>
+              </div>
+              {section.actionHref ? <Link href={section.actionHref}>{section.actionLabel ?? "Open"}</Link> : null}
+            </header>
+            <div className={styles.mobileGrid}>
+              {section.cards.map((card) => {
+                const Icon = card.icon;
+                return (
+                  <Link className={styles.mobileCard} data-accent={card.accent} href={card.href} key={`${section.title}-${card.href}-${card.label}`}>
+                    <span><Icon size={23} /></span>
+                    {card.count ? <strong>{card.count}</strong> : null}
+                    <b>{card.label}</b>
+                    <small>{card.description}</small>
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
+        ))}
+      </section>
+
+      <section className={styles.desktopShell}>
+        <header className={styles.desktopHero}>
+          <div>
+            <p>Workspace launcher</p>
+            <h1 id="home-launcher-title">{APP_NAME}</h1>
+            <span>Choose the workspace you need and continue working from a safe, protected route.</span>
+          </div>
+          <strong><i /> System ready</strong>
+        </header>
+
+        <nav aria-label="Primary workspace links" className={styles.desktopGrid}>
+          {desktopLinks.map((link) => (
+            <Link className={styles.desktopCard} data-tone={link.tone} href={link.href} key={link.href}>
+              <span>{link.title}</span>
+              <strong>{link.label}</strong>
+              <small>{link.description}</small>
+              <b>Continue</b>
             </Link>
           ))}
         </nav>

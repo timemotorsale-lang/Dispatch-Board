@@ -255,9 +255,9 @@ export type CrmNextPilotReleaseGate = {
 };
 
 export type CrmNextOperatingAction = {
-  id: "log-call" | "send-email" | "new-task" | "new-case" | "schedule-appointment" | "upload-document" | "send-text";
+  id: "log-call" | "send-email" | "new-task" | "add-note" | "new-case" | "schedule-appointment" | "upload-document" | "send-text";
   label: string;
-  category: "Communication" | "Task" | "Case" | "Appointment" | "Document";
+  category: "Communication" | "Task" | "Note" | "Case" | "Appointment" | "Document";
   state: "SAFE_ROUTE" | "PREVIEW_ONLY" | "HELD";
   href: string;
   sourceAuthority: string;
@@ -1443,6 +1443,17 @@ const operatingActions: CrmNextOperatingAction[] = [
     response: "Create a CRM task that stays attached to this customer record.",
     auditPosture: "Requires actor, assignee, due date, source customer, task type, outcome expectation, and timeline entry.",
     pilotRequirement: "Approve CRM task fields, ownership rules, completion outcomes, and escalation-to-dispatch boundary."
+  },
+  {
+    id: "add-note",
+    label: "Add Note",
+    category: "Note",
+    state: "PREVIEW_ONLY",
+    href: "/crm-next/actions/add-note",
+    sourceAuthority: "CRM customer activity timeline",
+    response: "Add a customer note directly to this CRM record.",
+    auditPosture: "Requires actor, customer, note body, timestamp, and timeline source link.",
+    pilotRequirement: "Approve note visibility, retention, edit policy, and activity timeline placement."
   },
   {
     id: "new-case",

@@ -237,6 +237,10 @@
 /* Customer Command Center */
 .app-topbar.app-topbar-customers { display: none; }
 .app-topbar-customers + .app-content { padding: 0; }
+.app-content:has(.crm-next-shell) {
+  background: #eef3fb;
+  padding: 0;
+}
 
 .crm-mode-switch {
   align-items: center;
@@ -23725,5 +23729,46 @@ html[data-app-theme="dark"] :where(.rowb-daily-command,.rowb-daily-status div,.r
 .parts-ro-notice{margin-top:6px!important;border:1px solid #bfd0f5;border-radius:8px;padding:8px 10px;background:#fff;color:#244a8a!important;font-size:11.5px!important;font-weight:800}
 @media(max-width:1120px){.parts-ro-action-panel{grid-template-columns:1fr}.parts-ro-actions{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:720px){.parts-ro-actions{grid-template-columns:1fr}.parts-ro-action-panel{padding:13px}.parts-ro-add-needed{grid-template-columns:1fr}}
+
+@media (max-width: 760px) {
+  :root {
+    --muted: #405169;
+    --line: rgba(100, 116, 139, 0.34);
+    --line-strong: rgba(100, 116, 139, 0.46);
+  }
+
+  .app-content {
+    color: #10233f;
+  }
+
+  .app-content :where(p, li, dt, dd, th, td, label, small) {
+    color: #334155;
+  }
+
+  .app-content :where([class*="muted"], [class*="sub"], [class*="meta"], [class*="hint"], [class*="empty"], [class*="caption"]) {
+    color: #405169;
+  }
+
+  .app-content :where(input, textarea, select) {
+    color: #10233f;
+  }
+
+  .app-content :where(input, textarea)::placeholder {
+    color: #64748b;
+    opacity: 1;
+  }
+
+  .app-content :where(button, a, [role="button"], [class*="badge"], [class*="pill"], [class*="status"], [class*="priority"]) {
+    color: inherit;
+  }
+
+  .app-content :where(button, a, [role="button"], [class*="badge"], [class*="pill"], [class*="status"], [class*="priority"]) :where(p, span, small, strong, em) {
+    color: inherit;
+  }
+
+  .app-content :where(.hero-panel, .panel-card, .notice, article, section, fieldset) {
+    border-color: var(--line);
+  }
+}
 
 
