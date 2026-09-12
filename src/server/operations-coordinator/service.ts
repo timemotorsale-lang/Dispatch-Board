@@ -261,7 +261,7 @@ export async function getOperationsCoordinatorWorkspace(actor: AuthenticatedUser
   const quickActions = [
     { label: "New Appointment", href: "/appointments", mode: "PREPARE_CANONICAL_WORKFLOW" },
     { label: "Check In Vehicle", href: "/vehicles/repair-orders?intakeSource=WALK_IN", mode: "PREPARE_CANONICAL_WORKFLOW" },
-    { label: "Add Customer / Vehicle", href: "/customers", mode: "PREPARE_CANONICAL_WORKFLOW" },
+    { label: "Add Customer / Vehicle", href: "/crm-next/new", mode: "PREPARE_CANONICAL_WORKFLOW" },
     { label: "Start Service Intake", href: "/vehicles/repair-orders?intakeSource=WALK_IN", mode: "PREPARE_CANONICAL_WORKFLOW" },
     { label: "Receive Parts", href: "/vehicles/parts-receiving", mode: "COMPLETE_SAFELY" },
     { label: "Upload Document", href: "/tasks?department=OFFICE", mode: "COMPLETE_SAFELY" },
@@ -303,7 +303,7 @@ export async function getOperationsCoordinatorWorkspace(actor: AuthenticatedUser
     universalSearch: {
       placeholder: "Search customer, vehicle, VIN, appointment, RO, part, payment, document, or task...",
       noResultActions: [
-        { label: "Add customer", href: "/customers?action=new" },
+        { label: "Add customer", href: "/crm-next/new" },
         { label: "Add vehicle", href: "/vehicles/workflows/add-vehicle" },
         { label: "Create appointment", href: "/appointments?action=new" },
         { label: "Route to manager", href: "/manager-review?scope=operations-coordinator" }
@@ -326,7 +326,7 @@ export async function getOperationsCoordinatorWorkspace(actor: AuthenticatedUser
       {
         label: "Find customer / vehicle",
         detail: "Search canonical records first and prepare missing customer or vehicle information if needed.",
-        href: "/customers",
+        href: "/crm-next/search",
         mode: "PREPARE_CANONICAL_WORKFLOW" as ActionResolverOutcome
       },
       {

@@ -60,6 +60,44 @@ describe("customer console read service", () => {
 
   it("returns the complete dashboard read model", async () => {
     const model = await getCustomerDashboardReadModel(manager, {
+      customerReader: async () => ({
+        contractVersion: "ucrm.customer-list/v1",
+        state: "READY",
+        visibility: "organization",
+        generatedAt: "2026-07-12T19:00:00.000Z",
+        source: {
+          authority: "CUSTOMERS",
+          href: "/customers",
+          label: "Customers",
+          observedAt: "2026-07-12T19:00:00.000Z",
+          readMode: "LIVE_CANONICAL"
+        },
+        freshness: {
+          newestRecordUpdatedAt: "2026-07-12T19:30:00.000Z",
+          observedAt: "2026-07-12T19:00:00.000Z",
+          status: "CURRENT"
+        },
+        query: { owner: "all", q: "", status: "all" },
+        items: [{
+          id: "customer-asmaa",
+          contactCompleteness: "partial",
+          customerNumber: "CUS-ASMAA",
+          displayName: "Asmaa Mohamed Salah",
+          duplicateRisk: false,
+          hasNextAction: false,
+          lastInteractionAt: null,
+          maskedEmail: "a•••@e•••.com",
+          maskedPhone: "••••3073",
+          nextActionAt: null,
+          ownerName: "Eli Aswan",
+          preferredContactMethod: null,
+          sourceCode: "WALK_IN",
+          sourceHref: "/customers/customer-asmaa",
+          status: "active",
+          updatedAt: "2026-07-12T19:30:00.000Z"
+        }],
+        page: { hasMore: false, limit: 12, nextCursor: null }
+      }),
       leadReader: async () => Array.from({ length: 5 }, (_, index) => ({
         id: `lead-${index + 1}`,
         leadNumber: `LEAD-${index + 1}`,
@@ -83,6 +121,15 @@ describe("customer console read service", () => {
     expect(model.viewerName).toBe("Eli Aswan");
     expect(model.metrics).toHaveLength(5);
     expect(model.recentLeads).toHaveLength(5);
+    expect(model.recentLeads[0]).toMatchObject({
+      href: "/crm-next/customers/customer-asmaa",
+      name: "Asmaa Mohamed Salah",
+      source: "Walk In"
+    });
+    expect(model.activity[0]).toMatchObject({
+      detail: "Asmaa Mohamed Salah - Eli Aswan",
+      href: "/crm-next/customers/customer-asmaa"
+    });
     expect(model.topDeals).toHaveLength(5);
   });
 

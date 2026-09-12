@@ -21,10 +21,12 @@ const INLINE_ACTIONS = [
 type InlineActionId = typeof INLINE_ACTIONS[number]["id"];
 
 export function CrmNextInlineTaskComposer({
+  appointmentHref,
   customerName,
   nextAction,
   owner
 }: {
+  appointmentHref: string;
   customerName: string;
   nextAction: string;
   owner: string;
@@ -62,7 +64,7 @@ export function CrmNextInlineTaskComposer({
             </button>
           );
         })}
-        <Link className={styles.appointmentInlineAction} href="/crm-next/appointments">
+        <Link className={styles.appointmentInlineAction} href={appointmentHref}>
           <CalendarDays size={16} />
           Schedule Appt
         </Link>

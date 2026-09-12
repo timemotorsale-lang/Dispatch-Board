@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { CRM_NEXT_CUSTOMERS_HREF, LEGACY_CUSTOMER_ARCHIVE_HREF } from "@/features/crm/crm-route-authority";
+
 import { APP_NAME } from "./config";
 
 const workspaceLinks = [
@@ -18,10 +20,17 @@ const workspaceLinks = [
     tone: "primary"
   },
   {
-    description: "Fallback access for historical customer records when CRM Next cannot complete the workflow yet.",
-    href: "/customers",
-    label: "Open Customer Archive",
-    title: "Customer Archive",
+    description: "Open CRM Next customer records, Customer 360, search, and relationship work.",
+    href: CRM_NEXT_CUSTOMERS_HREF,
+    label: "Open CRM Next Customers",
+    title: "Customers",
+    tone: "primary"
+  },
+  {
+    description: "Legacy fallback access for historical customer records when CRM Next cannot complete the workflow yet.",
+    href: LEGACY_CUSTOMER_ARCHIVE_HREF,
+    label: "Open Legacy Archive",
+    title: "Legacy Customer Archive",
     tone: "secondary"
   },
   {

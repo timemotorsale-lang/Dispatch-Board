@@ -10,6 +10,7 @@ import { type FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useAppearance } from "@/components/layout/appearance";
+import { CRM_NEXT_CUSTOMERS_HREF, CRM_NEXT_SEARCH_HREF, crmNextCustomer360Href, crmNextCustomerSearchHref } from "@/features/crm/crm-route-authority";
 import type { Customer360ReadModel, Customer360Tab } from "@/server/services/customer-console-read-service";
 const tabs: Array<{ label: string; value: Customer360Tab }> = [
   { label: "Overview", value: "overview" }, { label: "Timeline", value: "timeline" },
@@ -114,10 +115,8 @@ export function CustomerCommandCenter({
 
   const goToCustomerSearch = (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
-    const parameters = new URLSearchParams();
     const query = searchQuery.trim();
-    if (query) parameters.set("q", query);
-    void safeNavigate(parameters.size ? `/customers/customer-360?${parameters.toString()}` : "/customers/customer-360");
+    void safeNavigate(query ? crmNextCustomerSearchHref(query) : CRM_NEXT_SEARCH_HREF, "CRM Next customer search is not available yet.");
   };
 
   const guardedCommunicationAction = async (action: keyof typeof guardedActionEndpoints, successMessage: string) => {
@@ -145,7 +144,7 @@ export function CustomerCommandCenter({
     <section className="customer-console" data-theme={theme} aria-label="Customer 360 Console">
       <header className="customer-console-toolbar">
         <form className="customer-console-search" onSubmit={goToCustomerSearch} role="search"><Search size={17} /><input aria-label="Search Customer 360" onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search customers, leads, vehicles, cases, appointments..." type="search" value={searchQuery} /><kbd>Ctrl K</kbd></form>
-        <nav className="customer-module-switcher" aria-label="Customer console sections"><Link href="/customers">Overview</Link><Link aria-current="page" className="active" href="/customers/customer-360">Customer 360</Link><Link href="/customers/resolutions">Resolution</Link></nav>
+        <nav className="customer-module-switcher" aria-label="Customer console sections"><Link href={CRM_NEXT_CUSTOMERS_HREF}>CRM Next Customers</Link><Link aria-current="page" className="active" href={customerId ? crmNextCustomer360Href(customerId) : CRM_NEXT_SEARCH_HREF}>Customer 360</Link><Link href="/customers/resolutions">Legacy Resolution</Link></nav>
         <div className="customer-theme-switch" aria-label="Customer console appearance" role="group"><button aria-label="Use light background" aria-pressed={theme === "light"} className={theme === "light" ? "customer-theme-option active" : "customer-theme-option"} onClick={() => setAppearance("light")} type="button"><Sun size={15} /> Light</button><button aria-label="Use dark background" aria-pressed={theme === "dark"} className={theme === "dark" ? "customer-theme-option active" : "customer-theme-option"} onClick={() => setAppearance("dark")} type="button"><Moon size={15} /> Dark</button></div>
         <button className="customer-quick-action" onClick={() => goToTab("communications", "Quick actions are ready. Choose call, email, task, case, appointment, or document.")} type="button"><Plus size={16} /> Quick Action</button>
       </header>
@@ -168,7 +167,7 @@ export function CustomerCommandCenter({
             <header><div><p>Customer workspace</p><h2>{readError ? "Customer workspace needs attention" : readModel?.panel.title ?? "Loading..."}</h2><small>{readError ? "The tab responded, but the customer read model could not be loaded. Use the safe source workspaces below." : readModel?.panel.summary}</small></div><span>{readModel?.panel.items.length ?? 0} items</span></header>
             {readError ? (
               <div className="customer-tab-fallback">
-                <article><span className="customer-item-marker" /><div><strong>Open safe customer source</strong><small>Customer Overview, Resolutions, Tasks, Appointments, and CRM search are still available while this tab is blocked.</small></div><Link href="/customers">Overview</Link></article>
+                <article><span className="customer-item-marker" /><div><strong>Open CRM Next customer source</strong><small>CRM Next Customers, Customer 360, and search are the default customer workspace.</small></div><Link href={CRM_NEXT_CUSTOMERS_HREF}>CRM Next Customers</Link></article>
                 <article><span className="customer-item-marker" /><div><strong>Continue with connected work</strong><small>Use the source console so staff can keep working without waiting on CRM rollout flags.</small></div><Link href="/customers/resolutions">Resolution</Link></article>
               </div>
             ) : (

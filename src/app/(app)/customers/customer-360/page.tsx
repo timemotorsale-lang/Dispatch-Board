@@ -1,23 +1,6 @@
-import { CustomerCommandCenter } from "@/features/customers/customer-command-center";
-import type { Customer360Tab } from "@/server/services/customer-console-read-service";
+import { redirect } from "next/navigation";
 
-const customer360Tabs = new Set<Customer360Tab>([
-  "overview",
-  "timeline",
-  "deals",
-  "cases",
-  "appointments",
-  "documents",
-  "vehicles",
-  "communications",
-  "collections",
-  "notes"
-]);
-
-function safeCustomer360Tab(value: string | string[] | undefined): Customer360Tab {
-  const candidate = Array.isArray(value) ? value[0] : value;
-  return customer360Tabs.has(candidate as Customer360Tab) ? candidate as Customer360Tab : "overview";
-}
+import { CRM_NEXT_SEARCH_HREF, crmNextCustomer360Href, crmNextCustomerSearchHref } from "@/features/crm/crm-route-authority";
 
 export default async function Customer360Page({
   searchParams
@@ -25,5 +8,10 @@ export default async function Customer360Page({
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
-  return <CustomerCommandCenter initialTab={safeCustomer360Tab(params?.tab)} />;
+  const customerId = Array.isArray(params?.customerId) ? params?.customerId[0] : params?.customerId;
+  const customerQuery = Array.isArray(params?.customer) ? params?.customer[0] : params?.customer;
+
+  if (customerId) redirect(crmNextCustomer360Href(customerId));
+  if (customerQuery) redirect(crmNextCustomerSearchHref(customerQuery));
+  redirect(CRM_NEXT_SEARCH_HREF);
 }

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import {
+  ArrowLeft,
   Bell,
   Brain,
   CalendarDays,
@@ -23,6 +24,13 @@ import {
 import { CrmNextIntakeForm } from "@/features/crm-next/crm-next-intake-form";
 import { CrmNextInlineTaskComposer } from "@/features/crm-next/crm-next-inline-task-composer";
 import { CrmNextWorkbenchSections } from "@/features/crm-next/crm-next-workbench-sections";
+import {
+  CRM_CUSTOMER_LANDING_HREF,
+  CRM_NEXT_CUSTOMERS_HREF,
+  LEGACY_CRM_FALLBACK_HREF,
+  LEGACY_CUSTOMER_ARCHIVE_HREF,
+  crmNextCustomerAppointmentHref
+} from "@/features/crm/crm-route-authority";
 import type { CrmNextAccessReason } from "@/server/crm-next/access";
 import type { CrmNextActionBridgePreview } from "@/server/crm-next/action-bridge";
 import type { CrmNextAttentionItem, CrmNextCommandCenter, CrmNextCustomer360, CrmNextMilestoneStatus, CrmNextOperatingAction, CrmNextSalesRecord } from "@/server/crm-next/read-model";
@@ -105,8 +113,8 @@ export function CrmNextUnavailable({ fallbackHref, reason }: { fallbackHref: str
       <p>{message}</p>
       <div className={styles.buttonRow}>
         <Link className={styles.primaryButton} href={fallbackHref}>Return to my workspace</Link>
-        <Link className={styles.secondaryButton} href="/customers">Customer archive</Link>
-        <Link className={styles.secondaryButton} href="/crm">Current CRM fallback</Link>
+        <Link className={styles.secondaryButton} href={LEGACY_CUSTOMER_ARCHIVE_HREF}>Legacy customer archive</Link>
+        <Link className={styles.secondaryButton} href={LEGACY_CRM_FALLBACK_HREF}>Legacy CRM fallback</Link>
       </div>
     </section>
   );
@@ -132,6 +140,9 @@ function CrmNextFrame({ active, children, userName }: { active: "command" | "new
       <div className={styles.frame}>
         <aside className={styles.sidebar} aria-label="CRM Next navigation">
           <div className={styles.brand}>Time Motor Sales</div>
+          <Link className={styles.consoleReturn} href={CRM_CUSTOMER_LANDING_HREF}>
+            <ArrowLeft size={16} /> Customers console
+          </Link>
           <nav className={styles.nav}>
             {links.slice(0, 1).map(({ id, href, label, icon: Icon }) => (
               <Link aria-current={active === id ? "page" : undefined} href={href} key={id}>
@@ -139,11 +150,11 @@ function CrmNextFrame({ active, children, userName }: { active: "command" | "new
               </Link>
             ))}
             <div className={styles.navGroup} data-active={active === "customers" || active === "customer" || active === "new" ? "true" : undefined}>
-              <Link aria-current={active === "customers" || active === "customer" ? "page" : undefined} href="/crm-next/customers">
+              <Link aria-current={active === "customers" || active === "customer" ? "page" : undefined} href={CRM_NEXT_CUSTOMERS_HREF}>
                 <Users size={17} /> Customers
               </Link>
               <div className={styles.navChildren}>
-                <Link aria-current={active === "customers" ? "page" : undefined} href="/crm-next/customers">Customer List</Link>
+                <Link aria-current={active === "customers" ? "page" : undefined} href={CRM_NEXT_CUSTOMERS_HREF}>Customer List</Link>
                 <Link aria-current={active === "new" ? "page" : undefined} href="/crm-next/new">Add Customer</Link>
                 <Link href="/crm-next/pipeline">Leads</Link>
               </div>
@@ -153,8 +164,8 @@ function CrmNextFrame({ active, children, userName }: { active: "command" | "new
                 <Icon size={17} /> {label}
               </Link>
             ))}
-            <Link href="/crm"><ChevronRight size={17} /> Current CRM fallback</Link>
-            <Link href="/customers"><ChevronRight size={17} /> Customer archive</Link>
+            <Link href={LEGACY_CRM_FALLBACK_HREF}><ChevronRight size={17} /> Legacy CRM fallback</Link>
+            <Link href={LEGACY_CUSTOMER_ARCHIVE_HREF}><ChevronRight size={17} /> Legacy customer archive</Link>
           </nav>
           <div className={styles.operator}>
             <strong>{userName}</strong>
@@ -494,8 +505,8 @@ export function CrmNextProgressView({ model }: { model: CrmNextCommandCenter }) 
         </div>
         <div className={styles.quickActions}>
           <Link className={styles.primaryButton} href="/crm-next">Open CRM Next</Link>
-          <Link className={styles.secondaryButton} href="/crm">Current CRM fallback</Link>
-          <Link className={styles.secondaryButton} href="/customers">Customer archive</Link>
+          <Link className={styles.secondaryButton} href={LEGACY_CRM_FALLBACK_HREF}>Legacy CRM fallback</Link>
+          <Link className={styles.secondaryButton} href={LEGACY_CUSTOMER_ARCHIVE_HREF}>Legacy customer archive</Link>
         </div>
       </section>
 
@@ -567,7 +578,7 @@ export function CrmNextReviewCenterView({ model }: { model: CrmNextCommandCenter
     {
       href: "/crm-next/coexistence",
       label: "Coexistence",
-      detail: "Customer archive/current CRM fallback protection, migration rules, and switchback posture."
+      detail: "Legacy customer archive and legacy CRM fallback protection, migration rules, and switchback posture."
     },
     {
       href: "/crm-next/pilot-release",
@@ -587,7 +598,7 @@ export function CrmNextReviewCenterView({ model }: { model: CrmNextCommandCenter
     {
       href: "/crm-next/system/rollback",
       label: "Rollback Review",
-      detail: "How CRM Next fails closed while the customer archive/current CRM fallback remain available."
+      detail: "How CRM Next fails closed while the legacy customer archive and legacy CRM fallback remain available."
     }
   ];
 
@@ -603,8 +614,8 @@ export function CrmNextReviewCenterView({ model }: { model: CrmNextCommandCenter
         </div>
         <div className={styles.quickActions}>
           <Link className={styles.primaryButton} href="/crm-next">Return to operating CRM</Link>
-          <Link className={styles.secondaryButton} href="/crm">Current CRM fallback</Link>
-          <Link className={styles.secondaryButton} href="/customers">Customer archive</Link>
+          <Link className={styles.secondaryButton} href={LEGACY_CRM_FALLBACK_HREF}>Legacy CRM fallback</Link>
+          <Link className={styles.secondaryButton} href={LEGACY_CUSTOMER_ARCHIVE_HREF}>Legacy customer archive</Link>
         </div>
       </section>
 
@@ -987,6 +998,90 @@ export function CrmNextSharedExecutionView({ model }: { model: CrmNextCommandCen
   );
 }
 
+function LeadSourcePerformanceReport({ model }: { model: CrmNextCommandCenter }) {
+  return (
+    <article className={styles.card}>
+      <header>
+        <div>
+          <h2>Lead source performance report</h2>
+          <p className={styles.muted}>{model.leadSourceReport.summary}</p>
+        </div>
+        <span className={styles.pill}>{model.leadSourceReport.generatedFrom}</span>
+      </header>
+      <div className={styles.sourceReportLayout}>
+        <div className={styles.sourceReportTable} aria-label="Lead source funnel performance">
+          <div className={styles.sourceReportHead}>
+            <span>Source</span>
+            <span>Leads</span>
+            <span>Contacted</span>
+            <span>Appts</span>
+            <span>Deals</span>
+            <span>Sold</span>
+            <span>Leak</span>
+            <span>Action</span>
+          </div>
+          {model.leadSourceReport.sources.map((source) => (
+            <Link className={styles.sourceReportRow} href={source.href} key={source.id}>
+              <span><strong>{source.label}</strong><small>{source.health} · {source.conversionRate} sold</small></span>
+              <b>{source.leads}</b>
+              <b>{source.contacted}</b>
+              <b>{source.appointments}</b>
+              <b>{source.deals}</b>
+              <b>{source.sold}</b>
+              <span>{source.leak}</span>
+              <span>{source.nextAction}</span>
+            </Link>
+          ))}
+        </div>
+        <aside className={styles.sourceActionQueue} aria-label="Lead source action queue">
+          <h3>Work these first</h3>
+          {model.leadSourceReport.actionQueue.length ? model.leadSourceReport.actionQueue.map((action) => (
+            <Link href={action.href} key={action.id}>
+              <strong>{action.label}</strong>
+              <span>{action.customer}</span>
+              <small>{action.source} · {action.reason}</small>
+            </Link>
+          )) : <p className={styles.muted}>No stale or uncontacted source work is exposed by the current read.</p>}
+        </aside>
+      </div>
+      <div className={styles.sourceWorkflowStrip} aria-label="Lead source optimization workflow">
+        {model.leadSourceReport.workflow.map((step) => (
+          <span key={step.step}><strong>{step.step}</strong><small>{step.goal}</small></span>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+export function CrmNextLeadSourceReportView({ model }: { model: CrmNextCommandCenter }) {
+  return (
+    <CrmNextFrame active="intelligence" userName={model.userName}>
+      <Topbar />
+      <section className={styles.hero}>
+        <div>
+          <span className={styles.eyebrow}>Lead Source Report</span>
+          <h1>Lead Source Performance</h1>
+          <p>See which lead sources are creating real work, where the funnel is leaking, and what staff should do next.</p>
+        </div>
+        <div className={styles.quickActions}>
+          <Link className={styles.primaryButton} href="/crm-next/pipeline">Open pipeline</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/intelligence-foundation">Intelligence</Link>
+        </div>
+      </section>
+
+      <section className={styles.summaryGrid} aria-label="Lead source report summary">
+        <article className={styles.summaryCard} data-tone="blue"><small>Sources</small><strong>{model.leadSourceReport.sources.length}</strong><p>classified</p></article>
+        <article className={styles.summaryCard}><small>Total Leads</small><strong>{model.leadSourceReport.sources.reduce((total, source) => total + source.leads, 0)}</strong><p>in report</p></article>
+        <article className={styles.summaryCard}><small>Stale Work</small><strong>{model.leadSourceReport.sources.reduce((total, source) => total + source.stale, 0)}</strong><p>needs action</p></article>
+        <article className={styles.summaryCard}><small>Action Queue</small><strong>{model.leadSourceReport.actionQueue.length}</strong><p>work first</p></article>
+        <article className={styles.summaryCard}><small>Mode</small><strong>Assist</strong><p>staff executes</p></article>
+      </section>
+
+      <LeadSourcePerformanceReport model={model} />
+    </CrmNextFrame>
+  );
+}
+
 export function CrmNextIntelligenceFoundationView({ model }: { model: CrmNextCommandCenter }) {
   return (
     <CrmNextFrame active="intelligence" userName={model.userName}>
@@ -1010,6 +1105,8 @@ export function CrmNextIntelligenceFoundationView({ model }: { model: CrmNextCom
         <article className={styles.summaryCard}><small>Risk items</small><strong>12</strong><p>need review</p></article>
         <article className={styles.summaryCard}><small>Actions</small><strong>23</strong><p>recommended</p></article>
       </section>
+
+      <LeadSourcePerformanceReport model={model} />
 
       <article className={styles.card}>
         <header>
@@ -1160,8 +1257,8 @@ export function CrmNextCoexistenceView({ model }: { model: CrmNextCommandCenter 
         </div>
         <div className={styles.quickActions}>
           <Link className={styles.primaryButton} href="/crm-next">CRM Next</Link>
-          <Link className={styles.secondaryButton} href="/customers">Customer archive</Link>
-          <Link className={styles.secondaryButton} href="/crm">Current CRM fallback</Link>
+          <Link className={styles.secondaryButton} href={LEGACY_CUSTOMER_ARCHIVE_HREF}>Legacy customer archive</Link>
+          <Link className={styles.secondaryButton} href={LEGACY_CRM_FALLBACK_HREF}>Legacy CRM fallback</Link>
         </div>
       </section>
 
@@ -1270,7 +1367,7 @@ export function CrmNextSafetyView({ kind, model }: { kind: "states" | "permissio
     permissions: {
       eyebrow: "Permission Safety",
       title: "Denied users fail closed",
-      body: "CRM Next only opens for approved roles and workspaces. Otherwise users are routed back to the customer archive/current CRM fallback."
+      body: "CRM Next only opens for approved roles and workspaces. Otherwise users are routed back to the legacy customer archive or legacy CRM fallback."
     },
     rollback: {
       eyebrow: "Rollback Proof",
@@ -1303,6 +1400,12 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
   const activeAttentionItem = model.attention.find((item) => item.customerId === customer.id);
   const attendHref = activeAttentionItem?.workHref ?? `/crm-next/work/customer-read-${encodeURIComponent(customer.id)}`;
   const currentJourneyStage = customerJourneyStage(customer, activeAttentionItem);
+  const appointmentHref = crmNextCustomerAppointmentHref({
+    customerId: customer.id,
+    customerName: customer.name,
+    reason: customer.nextAction,
+    returnTo: `/crm-next/customers/${customer.id}`
+  });
   const customerMetrics = [
     { label: "Open Leads", value: customer.openDeals, detail: "Active", tone: "green" },
     { label: "Open Cases", value: customer.openCases, detail: "Active", tone: "red" },
@@ -1404,7 +1507,7 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
               <article id="appointments" className={styles.compactSectionCard}>
                 <strong>Appointments</strong>
                 <span>{customer.glance.find((item) => item.label === "Appointments")?.value ?? "0"} upcoming · open calendar flow</span>
-                <Link href="/crm-next/appointments">Open appointments</Link>
+                <Link href={appointmentHref}>Schedule appointment</Link>
               </article>
               <article id="documents-held" className={styles.compactSectionCard}>
                 <strong>Documents</strong>
@@ -1440,7 +1543,7 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
               <Link href={crmNextActionHref("new-task", customer.id)}><ClipboardCheck size={22} />CRM Task</Link>
               <Link href="#timeline"><MessageSquare size={22} />Add Note</Link>
               <Link href={crmNextActionHref("new-case", customer.id)}><FileText size={22} />New Case</Link>
-              <Link href={crmNextActionHref("schedule-appointment", customer.id)}><CalendarDays size={22} />Schedule Appt</Link>
+              <Link href={appointmentHref}><CalendarDays size={22} />Schedule Appt</Link>
               <Link href={crmNextActionHref("upload-document", customer.id)}><FileSearch size={22} />Upload Doc</Link>
             </div>
           </article>
@@ -1501,7 +1604,12 @@ export function CrmNextActionReadinessView({ action, customerId, model }: { acti
       ? "Open the customer context before using the approved live workspace"
       : "Use the approved workspace for this action";
   const primaryHref = action.id === "schedule-appointment"
-    ? "/appointments"
+    ? crmNextCustomerAppointmentHref({
+        customerId: relatedCustomer?.id,
+        customerName: relatedCustomer?.name ?? "Customer",
+        reason: relatedCustomer?.nextAction ?? action.response,
+        returnTo: backHref
+      })
     : backHref;
   const isCrmTaskAction = action.id === "new-task";
 
@@ -1565,13 +1673,13 @@ export function CrmNextActionReadinessView({ action, customerId, model }: { acti
             <ul className={styles.signalList}>
               <li>Customer context stays visible</li>
               <li>Next step stays clear</li>
-              <li>Customer archive and current CRM fallback remain available</li>
+              <li>Legacy customer archive and legacy CRM fallback remain available</li>
             </ul>
           </article>
           <article className={styles.sidePanel}>
             <header><h2>Need the old view?</h2></header>
             <p className={styles.muted}>Open the customer archive only when a workflow is not yet available here.</p>
-            <Link className={styles.secondaryButton} href="/customers">Open customer archive</Link>
+            <Link className={styles.secondaryButton} href={LEGACY_CUSTOMER_ARCHIVE_HREF}>Open legacy customer archive</Link>
           </article>
         </aside>
       </section>
@@ -1664,7 +1772,17 @@ export function CrmNextWorkCustomerView({
 
             <CrmNextWorkbenchSections currentNeed={item.nextAction} doneMeaning={issue.done} />
 
-            <CrmNextInlineTaskComposer customerName={item.customerName} nextAction={item.nextAction} owner={item.owner} />
+            <CrmNextInlineTaskComposer
+              appointmentHref={crmNextCustomerAppointmentHref({
+                customerId: item.customerId,
+                customerName: item.customerName,
+                reason: item.nextAction,
+                returnTo: item.workHref
+              })}
+              customerName={item.customerName}
+              nextAction={item.nextAction}
+              owner={item.owner}
+            />
           </section>
 
           <section className={styles.activityWorkbenchGrid} id="customer-activity">

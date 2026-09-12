@@ -14,6 +14,7 @@ import {
   Sparkles
 } from "lucide-react";
 
+import { CRM_NEXT_SEARCH_HREF } from "@/features/crm/crm-route-authority";
 import type { BoardReadTask } from "@/server/services/board-read";
 
 type TodayActionCenterProps = {
@@ -251,7 +252,7 @@ export function TodayActionCenter({
             <Link href="/vehicles/coo-workbook/effectiveness-pilot"><CheckCircle2 size={18} />Daily focus</Link>
             <Link href="/appointments"><CalendarDays size={18} />Appointment</Link>
             <Link href="/vehicles/workflows"><CarFront size={18} />Inventory workflow</Link>
-            <Link href="/customers"><ContactRound size={18} />Find customer</Link>
+            <Link href={CRM_NEXT_SEARCH_HREF}><ContactRound size={18} />Find customer</Link>
           </div>
         </article>
       </section>

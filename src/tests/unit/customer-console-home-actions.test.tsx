@@ -7,9 +7,10 @@ vi.mock("@/components/layout/appearance", () => ({
 }));
 
 import { CustomerConsoleHome } from "@/features/customers/customer-console-home";
+import { CRM_NEXT_LEAD_SOURCE_REPORT_HREF } from "@/features/crm/crm-route-authority";
 
 describe("Customer console home actions", () => {
-  it("keeps quick actions guarded instead of exposing CRM-gated routes that can 404", () => {
+  it("keeps quick actions guarded and sends default customer routes into CRM Next", () => {
     const markup = renderToStaticMarkup(<CustomerConsoleHome />);
 
     expect(markup).toContain("Add Lead");
@@ -18,10 +19,13 @@ describe("Customer console home actions", () => {
     expect(markup).toContain("Add Deal");
     expect(markup).toContain("Add Vehicle");
     expect(markup).toContain("Send Message");
-    expect(markup).not.toContain('href="/crm');
+    expect(markup).toContain('href="/crm-next/customers"');
+    expect(markup).toContain('href="/crm-next/search"');
+    expect(markup).toContain('href="/crm-next/reports/lead-sources"');
+    expect(CRM_NEXT_LEAD_SOURCE_REPORT_HREF).toBe("/crm-next/reports/lead-sources");
     expect(markup).not.toContain("/tasks?source=customers");
     expect(markup).not.toContain("/vehicles/workflows/add-vehicle");
+    expect(markup).not.toContain('href="/customers/customer-360"');
     expect(markup).toContain('type="button"');
-    expect(markup).toContain('href="/customers/customer-360"');
   });
 });

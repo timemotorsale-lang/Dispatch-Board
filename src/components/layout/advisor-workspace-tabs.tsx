@@ -3,6 +3,8 @@
 import { CalendarClock, ClipboardCheck, ClipboardList, House, MessageSquareText, Search, UserRound } from "lucide-react";
 import Link from "next/link";
 
+import { CRM_NEXT_CUSTOMERS_HREF } from "@/features/crm/crm-route-authority";
+
 type AdvisorTab = {
   href: string;
   icon: typeof House;
@@ -60,10 +62,10 @@ const tabs: AdvisorTab[] = [
     active: (pathname, searchParams) => pathname === "/vehicles/advisor" && searchParams.get("queue") === "authorization",
   },
   {
-    href: "/customers",
+    href: CRM_NEXT_CUSTOMERS_HREF,
     icon: UserRound,
     label: "Customers",
-    active: (pathname) => pathname.startsWith("/customers"),
+    active: (pathname) => pathname.startsWith("/crm-next/customers") || pathname.startsWith("/customers"),
   },
 ];
 

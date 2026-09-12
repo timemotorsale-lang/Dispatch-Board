@@ -1,4 +1,5 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
+import { CRM_NEXT_CUSTOMERS_HREF } from "@/features/crm/crm-route-authority";
 import { getInitialMinneapolisLocation } from "@/server/appointments/location-foundation";
 import {
   getLocationLocalDate,
@@ -159,6 +160,39 @@ export type CrmNextIntelligenceRecord = {
   href: string;
 };
 
+export type CrmNextLeadSourcePerformance = {
+  id: string;
+  label: string;
+  leads: number;
+  contacted: number;
+  appointments: number;
+  deals: number;
+  sold: number;
+  stale: number;
+  conversionRate: string;
+  health: "Strong" | "Needs work" | "At risk";
+  leak: string;
+  nextAction: string;
+  href: string;
+};
+
+export type CrmNextLeadSourceAction = {
+  id: string;
+  label: string;
+  customer: string;
+  source: string;
+  reason: string;
+  href: string;
+};
+
+export type CrmNextLeadSourceReport = {
+  generatedFrom: "Live CRM lead/customer source" | "CRM Next review sources";
+  summary: string;
+  sources: CrmNextLeadSourcePerformance[];
+  actionQueue: CrmNextLeadSourceAction[];
+  workflow: Array<{ step: string; goal: string }>;
+};
+
 export type CrmNextCommandCenterMode = {
   id: string;
   milestone: "CRMN-068" | "CRMN-069" | "CRMN-070" | "CRMN-071" | "CRMN-072" | "CRMN-073" | "CRMN-074";
@@ -264,6 +298,7 @@ export type CrmNextCommandCenter = {
   ownershipSupport: CrmNextOwnershipSupportRecord[];
   sharedExecution: CrmNextSharedExecutionRecord[];
   intelligence: CrmNextIntelligenceRecord[];
+  leadSourceReport: CrmNextLeadSourceReport;
   commandCenter: {
     headline: string;
     guidance: string;
@@ -1555,6 +1590,134 @@ const salesRecords: CrmNextSalesRecord[] = [
   }
 ];
 
+type LeadSourceReportSeed = {
+  customer: string;
+  href: string;
+  nextAction: string;
+  source: string;
+  stage: string;
+  stale: boolean;
+};
+
+function normalizeLeadSource(source: string | null | undefined) {
+  const raw = (source ?? "Unknown").trim().toLowerCase().replaceAll("_", " ");
+  if (!raw || raw === "unknown") return "Unknown";
+  if (raw.includes("walk")) return "Walk-in";
+  if (raw.includes("referral")) return "Referral";
+  if (raw.includes("website") || raw.includes("web")) return "Website";
+  if (raw.includes("facebook")) return "Facebook";
+  if (raw.includes("google")) return "Google Ads";
+  if (raw.includes("phone") || raw.includes("call")) return "Phone";
+  if (raw.includes("repeat")) return "Repeat Customer";
+  if (raw.includes("campaign")) return "Campaign";
+  if (raw.includes("workbook")) return "Workbook Import";
+  if (raw.includes("crm next") || raw.includes("crm")) return "CRM Next";
+  return raw.replace(/(^|\s)\S/g, (value) => value.toUpperCase());
+}
+
+function stageBucket(stage: string) {
+  const normalized = stage.toLowerCase().replaceAll("_", " ");
+  return {
+    appointment: normalized.includes("appointment") || normalized.includes("onsite") || normalized.includes("on site") || normalized.includes("test drive"),
+    contacted: !normalized.includes("new"),
+    deal: normalized.includes("qualified") || normalized.includes("proposal") || normalized.includes("negotiation") || normalized.includes("deal") || normalized.includes("won"),
+    sold: normalized.includes("won") || normalized.includes("sold")
+  };
+}
+
+function sourceLeak(input: { appointments: number; contacted: number; deals: number; leads: number; sold: number; stale: number }) {
+  if (input.stale > 0) return "Follow-up is aging before staff completes the next contact.";
+  if (input.contacted < input.leads) return "New leads are not being contacted fast enough.";
+  if (input.appointments < input.contacted) return "Contacts are not turning into appointments.";
+  if (input.deals < input.appointments) return "Appointments are not turning into deal work.";
+  if (input.sold < input.deals) return "Deals need outcome follow-through.";
+  return "Source is moving cleanly through the funnel.";
+}
+
+function sourceNextAction(input: { appointments: number; contacted: number; deals: number; leads: number; sold: number; stale: number }) {
+  if (input.stale > 0) return "Work stale follow-ups first.";
+  if (input.contacted < input.leads) return "Call or text uncontacted leads.";
+  if (input.appointments < input.contacted) return "Schedule appointments from contacted leads.";
+  if (input.deals < input.appointments) return "Open deal work for appointment-ready customers.";
+  if (input.sold < input.deals) return "Review deal blockers and outcomes.";
+  return "Keep source cadence steady.";
+}
+
+function buildLeadSourceReportFromSeeds(
+  seeds: LeadSourceReportSeed[],
+  generatedFrom: CrmNextLeadSourceReport["generatedFrom"]
+): CrmNextLeadSourceReport {
+  const groups = new Map<string, LeadSourceReportSeed[]>();
+  for (const seed of seeds) {
+    const label = normalizeLeadSource(seed.source);
+    groups.set(label, [...(groups.get(label) ?? []), seed]);
+  }
+  const sources = [...groups.entries()].map(([label, rows]) => {
+    const counts = rows.reduce((acc, row) => {
+      const bucket = stageBucket(row.stage);
+      return {
+        appointments: acc.appointments + (bucket.appointment ? 1 : 0),
+        contacted: acc.contacted + (bucket.contacted ? 1 : 0),
+        deals: acc.deals + (bucket.deal ? 1 : 0),
+        sold: acc.sold + (bucket.sold ? 1 : 0),
+        stale: acc.stale + (row.stale ? 1 : 0)
+      };
+    }, { appointments: 0, contacted: 0, deals: 0, sold: 0, stale: 0 });
+    const conversion = rows.length ? Math.round((counts.sold / rows.length) * 100) : 0;
+    const health: CrmNextLeadSourcePerformance["health"] = counts.stale > 0 ? "At risk" : conversion >= 20 || counts.deals >= Math.max(1, Math.floor(rows.length / 2)) ? "Strong" : "Needs work";
+    return {
+      id: label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "unknown",
+      label,
+      leads: rows.length,
+      contacted: counts.contacted,
+      appointments: counts.appointments,
+      deals: counts.deals,
+      sold: counts.sold,
+      stale: counts.stale,
+      conversionRate: `${conversion}%`,
+      health,
+      leak: sourceLeak({ leads: rows.length, ...counts }),
+      nextAction: sourceNextAction({ leads: rows.length, ...counts }),
+      href: `/crm-next/pipeline?source=${encodeURIComponent(label)}`
+    };
+  }).sort((left, right) => right.stale - left.stale || right.leads - left.leads || left.label.localeCompare(right.label));
+  const actionQueue = seeds
+    .filter((seed) => seed.stale || !stageBucket(seed.stage).contacted)
+    .slice(0, 6)
+    .map((seed, index) => ({
+      id: `source-action-${index + 1}`,
+      customer: seed.customer,
+      href: seed.href,
+      label: seed.stale ? "Recover stale lead" : "Make first contact",
+      reason: seed.stale ? seed.nextAction : "No completed contact recorded yet.",
+      source: normalizeLeadSource(seed.source)
+    }));
+  return {
+    generatedFrom,
+    summary: "Source performance combines source normalization, funnel movement, stale-work detection, and the next action staff should take.",
+    sources,
+    actionQueue,
+    workflow: [
+      { step: "Classify", goal: "Normalize each customer or lead into one clean source category." },
+      { step: "Measure", goal: "Compare leads, contacts, appointments, deals, sold outcomes, and stale follow-ups." },
+      { step: "Diagnose", goal: "Show where the source is leaking before staff waste time guessing." },
+      { step: "Act", goal: "Open the customer, follow up, schedule, or move the lead to the right stage." }
+    ]
+  };
+}
+
+function buildLeadSourceReportFromSales(records: CrmNextSalesRecord[]): CrmNextLeadSourceReport {
+  const sourceByIndex = ["Referral", "Workbook Import", "Walk-in", "Website", "Facebook"];
+  return buildLeadSourceReportFromSeeds(records.map((record, index) => ({
+    customer: record.customerName,
+    href: record.href,
+    nextAction: record.nextAction,
+    source: sourceByIndex[index % sourceByIndex.length],
+    stage: record.stage,
+    stale: index === 1
+  })), "CRM Next review sources");
+}
+
 const ownershipSupportRecords: CrmNextOwnershipSupportRecord[] = [
   {
     id: "ownership-vehicle-rav4",
@@ -2572,7 +2735,7 @@ export async function getCrmNextOperationalCommandCenter(
       state: "FALLBACK_READ",
       sourceOfTruth: "Existing Customers / Unified CRM customer list",
       detail: "Customer source is unavailable, gated, or inaccessible; CRM Next is showing protected preview data.",
-      href: "/customers"
+      href: CRM_NEXT_CUSTOMERS_HREF
     }, observedAt));
   }
 
@@ -2620,6 +2783,14 @@ export async function getCrmNextOperationalCommandCenter(
     const activeLeadCount = leads.filter((lead) => !["WON", "LOST"].includes(String(lead.stage))).length;
     model = {
       ...model,
+      leadSourceReport: buildLeadSourceReportFromSeeds(leads.map((lead) => ({
+        customer: lead.customer.displayName,
+        href: `/crm-next/customers/${encodeURIComponent(lead.customer.id)}`,
+        nextAction: lead.nextActionCode.replaceAll("_", " ").toLowerCase().replace(/(^|\s)\S/g, (value) => value.toUpperCase()),
+        source: lead.sourceCode,
+        stage: String(lead.stage),
+        stale: !["WON", "LOST"].includes(String(lead.stage)) && new Date(lead.nextActionAt).getTime() < now.getTime()
+      })), "Live CRM lead/customer source"),
       summary: updateSummaryMetric(model.summary, "Hot Leads", {
         source: "Lead engine",
         trend: "active lead records",
@@ -2760,7 +2931,7 @@ export async function getCrmNextOperationalCustomer360(
             state: "FALLBACK_READ",
             sourceOfTruth: "Existing Unified CRM Customer 360",
             detail: "Customer details are unavailable or the record was not found. CRM Next is showing a safe fallback.",
-            href: "/customers"
+            href: CRM_NEXT_CUSTOMERS_HREF
           }, observedAt)
         ]),
         sources: [
@@ -2771,7 +2942,7 @@ export async function getCrmNextOperationalCustomer360(
             state: "FALLBACK_READ",
             sourceOfTruth: "Existing Unified CRM Customer 360",
             detail: "Customer details are unavailable or the record was not found. CRM Next is showing a safe fallback.",
-            href: "/customers"
+            href: CRM_NEXT_CUSTOMERS_HREF
           }, observedAt)
         ]
       }
@@ -2832,6 +3003,7 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
     ownershipSupport: ownershipSupportRecords,
     sharedExecution: sharedExecutionRecords,
     intelligence: intelligenceRecords,
+    leadSourceReport: buildLeadSourceReportFromSales(salesRecords),
     commandCenter: {
       headline: "Who needs attention?",
       guidance: "A compact command center for reviewing customer pressure, next actions, team load, pipeline context, and safe handoffs.",
@@ -2866,7 +3038,7 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
           sourceOfTruth: "Existing Customers / Unified CRM customer list",
           detail: "Protected preview data is displayed by the base CRM Next read model.",
           observedAt: now.toISOString(),
-          href: "/customers"
+          href: CRM_NEXT_CUSTOMERS_HREF
         }
       ]
     },

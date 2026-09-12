@@ -14,6 +14,7 @@ import Link from "next/link";
 import { QuickUpdateReminders } from "./quick-update-reminders";
 import { CategoryBadge, categoryRowStyle } from "./category-badge";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { CRM_NEXT_SEARCH_HREF } from "@/features/crm/crm-route-authority";
 
 type AppointmentConsoleSection = "today" | "planning" | "operations" | "follow-up" | "intelligence" | "exceptions";
 
@@ -549,7 +550,7 @@ export function AppointmentConsoleTodayFlow({ section = "today", initialDate }: 
           <nav aria-label="Appointment console primary actions">
             <Link className="primary" href="/appointments?action=new">+ New Appointment</Link>
             <Link href="/appointments?section=planning">Check Capacity</Link>
-            <Link href="/customers">Find Customer</Link>
+            <Link href={CRM_NEXT_SEARCH_HREF}>Find Customer</Link>
           </nav>
         </header>
 

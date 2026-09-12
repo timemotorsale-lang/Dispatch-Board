@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
+import { CRM_NEXT_CUSTOMERS_HREF } from "@/features/crm/crm-route-authority";
 import type { ActivityFeedEvent } from "@/server/services/activity-feed";
 import type { ActiveUserSummary } from "@/server/services/user-summary";
 import type { TaskReadModel } from "@/server/services/task-read";
@@ -371,7 +372,7 @@ export function TaskDetailWorkspace({
           <Link href="/manager-review"><CheckCircle2 size={15} />Approvals</Link>
           <Link href="/appointments"><CalendarDays size={15} />Calendar</Link>
           <Link href="/activity"><Activity size={15} />Activity Feed</Link>
-          <Link href="/customers"><UsersRound size={15} />Customers</Link>
+          <Link href={CRM_NEXT_CUSTOMERS_HREF}><UsersRound size={15} />Customers</Link>
           <Link href="/vehicles"><CarFront size={15} />Vehicles</Link>
           <Link href="/reports"><ChartNoAxesCombined size={15} />Reports</Link>
         </nav>
@@ -394,7 +395,7 @@ export function TaskDetailWorkspace({
       </header>
 
       <nav className="etw-module-nav" aria-label="Workbench modules">
-        <Link href="/board"><Home size={15} />Home</Link><Link href="/board"><Grid3X3 size={15} />Dispatch Board</Link><Link className="active" href="/tasks"><ClipboardCheck size={15} />Cases &amp; Tasks</Link><Link href="/vehicles"><CarFront size={15} />Inventory</Link><Link href="/tasks?department=SALES"><BadgeDollarSign size={15} />Sales</Link><Link href="/customers"><UsersRound size={15} />Customers</Link><Link href="/tasks?department=ADVERTISING"><Megaphone size={15} />Marketing</Link><Link href="/tasks?department=COLLECTIONS"><WalletCards size={15} />Collections</Link><Link href="/tasks?department=SHOP"><Wrench size={15} />Repair Shop</Link><Link href="/reports"><ChartNoAxesCombined size={15} />Reports</Link><Link href="/admin"><Settings size={15} />Admin</Link>
+        <Link href="/board"><Home size={15} />Home</Link><Link href="/board"><Grid3X3 size={15} />Dispatch Board</Link><Link className="active" href="/tasks"><ClipboardCheck size={15} />Cases &amp; Tasks</Link><Link href="/vehicles"><CarFront size={15} />Inventory</Link><Link href="/tasks?department=SALES"><BadgeDollarSign size={15} />Sales</Link><Link href={CRM_NEXT_CUSTOMERS_HREF}><UsersRound size={15} />Customers</Link><Link href="/tasks?department=ADVERTISING"><Megaphone size={15} />Marketing</Link><Link href="/tasks?department=COLLECTIONS"><WalletCards size={15} />Collections</Link><Link href="/tasks?department=SHOP"><Wrench size={15} />Repair Shop</Link><Link href="/reports"><ChartNoAxesCombined size={15} />Reports</Link><Link href="/admin"><Settings size={15} />Admin</Link>
       </nav>
 
       <div className="etw-breadcrumb"><Link href={returnTo}>Cases &amp; Tasks</Link><ChevronRight size={13} /><span>Case #{recordNumber}</span></div>

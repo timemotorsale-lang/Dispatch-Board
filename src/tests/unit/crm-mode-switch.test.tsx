@@ -9,9 +9,9 @@ describe("CRM mode switch", () => {
 
     expect(markup).toContain("Default CRM");
     expect(markup).toContain("CRM Next");
-    expect(markup).toContain("Older tools");
-    expect(markup).toContain("Customer Archive");
-    expect(markup).toContain("Current CRM Fallback");
+    expect(markup).toContain("Legacy fallbacks");
+    expect(markup).toContain("Legacy customer archive");
+    expect(markup).toContain("Legacy CRM fallback");
     expect(markup).toContain('href="/crm-next"');
     expect(markup).toContain('href="/customers"');
     expect(markup).toContain('href="/crm"');

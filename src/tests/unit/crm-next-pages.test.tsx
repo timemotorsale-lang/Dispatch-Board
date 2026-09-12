@@ -19,6 +19,7 @@ import CrmNextCustomerPage from "@/app/(app)/crm-next/customers/[customerId]/pag
 import CrmNextDealsPage from "@/app/(app)/crm-next/deals/page";
 import CrmNextIntelligenceFoundationPage from "@/app/(app)/crm-next/intelligence-foundation/page";
 import CrmNextHardeningPage from "@/app/(app)/crm-next/hardening/page";
+import CrmNextLeadSourceReportPage from "@/app/(app)/crm-next/reports/lead-sources/page";
 import CrmNextNeedsAttentionPage from "@/app/(app)/crm-next/needs-attention/page";
 import CrmNextNewCustomerPage from "@/app/(app)/crm-next/new/page";
 import CrmNextOwnershipSupportPage from "@/app/(app)/crm-next/ownership-support/page";
@@ -69,8 +70,8 @@ describe("CRM Next pages", () => {
 
     expect(markup).toContain("CRM Next is protected right now");
     expect(markup).toContain("CRM Next is safely turned off");
-    expect(markup).toContain("Customer archive");
-    expect(markup).toContain("Current CRM fallback");
+    expect(markup).toContain("Legacy customer archive");
+    expect(markup).toContain("Legacy CRM fallback");
     expect(markup).toContain('href="/customers"');
     expect(markup).toContain('href="/crm"');
     expect(markup).not.toContain('href="/crm-next"');
@@ -88,6 +89,7 @@ describe("CRM Next pages", () => {
     const ownershipSupport = renderToStaticMarkup(await CrmNextOwnershipSupportPage());
     const sharedExecution = renderToStaticMarkup(await CrmNextSharedExecutionPage());
     const intelligence = renderToStaticMarkup(await CrmNextIntelligenceFoundationPage());
+    const leadSourceReport = renderToStaticMarkup(await CrmNextLeadSourceReportPage());
     const pilot = renderToStaticMarkup(await CrmNextPilotReadinessPage());
     const hardening = renderToStaticMarkup(await CrmNextHardeningPage());
     const coexistence = renderToStaticMarkup(await CrmNextCoexistencePage());
@@ -110,6 +112,8 @@ describe("CRM Next pages", () => {
 
     expect(command).toContain("Who needs attention?");
     expect(command).toContain("CRM Next active");
+    expect(command).toContain("Customers console");
+    expect(command).toContain('href="/customers"');
     expect(command).toContain("Add Customer / Prospect");
     expect(command).toContain("View attention queue");
     expect(command).toContain("Work customer");
@@ -148,7 +152,8 @@ describe("CRM Next pages", () => {
     expect(customer).toContain('href="/crm-next/actions/send-email?customerId=michael-johnson"');
     expect(customer).toContain('href="/crm-next/actions/new-task?customerId=michael-johnson"');
     expect(customer).toContain('href="/crm-next/actions/new-case?customerId=michael-johnson"');
-    expect(customer).toContain('href="/crm-next/actions/schedule-appointment?customerId=michael-johnson"');
+    expect(customer).toContain('href="/appointments?action=new&amp;customerReference=Michael+Johnson');
+    expect(customer).toContain("crmCustomerId=michael-johnson");
     expect(customer).toContain('href="/crm-next/actions/upload-document?customerId=michael-johnson"');
     expect(customer).toContain("Next Best Action");
     expect(customer).toContain("Linked Vehicles");
@@ -156,7 +161,7 @@ describe("CRM Next pages", () => {
     expect(customer).toContain("Open fallback CRM");
     expect(customer).toContain("Add Customer");
     expect(customer).toContain("Open deal board");
-    expect(customer).toContain("Open appointments");
+    expect(customer).toContain("Schedule appointment");
     expect(customer).toContain("Supporting Parties");
     expect(customer).toContain("Warranty company");
     expect(work).toContain("Michael Johnson");
@@ -167,7 +172,8 @@ describe("CRM Next pages", () => {
     expect(work).toContain("Phone Call");
     expect(work).toContain("Send SMS");
     expect(work).toContain("Schedule Appt");
-    expect(work).toContain('href="/crm-next/appointments"');
+    expect(work).toContain('href="/appointments?action=new&amp;customerReference=Michael+Johnson');
+    expect(work).toContain("returnTo=%2Fcrm-next%2Fwork%2Fattn-michael-overdue-follow-up");
     expect(work).not.toContain("Not wired yet");
     expect(work).not.toContain("Open appointment console");
     expect(work).not.toContain("will connect here once the live communication provider is ready");
@@ -229,7 +235,9 @@ describe("CRM Next pages", () => {
     expect(newCustomer).toContain("Prospect");
     expect(newCustomer).toContain("Save customer");
     expect(newCustomer).toContain("Shared customer record");
-    for (const staffMarkup of [command, attention, customer, search, timeline, pipeline, appointments, testDrives, deals, ownershipSupport, sharedExecution, intelligence, work, logCallAction, newTaskAction, emailAction, newCustomer]) {
+    for (const staffMarkup of [command, attention, customer, search, timeline, pipeline, appointments, testDrives, deals, ownershipSupport, sharedExecution, intelligence, leadSourceReport, work, logCallAction, newTaskAction, emailAction, newCustomer]) {
+      expect(staffMarkup).toContain("Customers console");
+      expect(staffMarkup).toContain('href="/customers"');
       expect(staffMarkup).not.toContain("CRMN-");
       expect(staffMarkup).not.toContain("IMPLEMENTED_UNVERIFIED");
       expect(staffMarkup).not.toContain("build cockpit");
@@ -253,10 +261,24 @@ describe("CRM Next pages", () => {
     expect(sharedExecution).toContain("Team execution");
     expect(sharedExecution).toContain("Manager customer-work queue");
     expect(intelligence).toContain("Recommendations that explain themselves");
+    expect(intelligence).toContain("Lead source performance report");
+    expect(intelligence).toContain("Source");
+    expect(intelligence).toContain("Contacted");
+    expect(intelligence).toContain("Leak");
+    expect(intelligence).toContain("Work these first");
+    expect(intelligence).toContain("Classify");
+    expect(intelligence).toContain("Measure");
+    expect(intelligence).toContain("Diagnose");
+    expect(intelligence).toContain("Act");
     expect(intelligence).toContain("Automation");
     expect(intelligence).toContain("Human decides");
     expect(intelligence).toContain("Manager intelligence cockpit");
     expect(intelligence).toContain("Recommended customer actions");
+    expect(leadSourceReport).toContain("Lead Source Performance");
+    expect(leadSourceReport).toContain("See which lead sources are creating real work");
+    expect(leadSourceReport).toContain("Lead source performance report");
+    expect(leadSourceReport).toContain("Work these first");
+    expect(leadSourceReport).toContain("Open pipeline");
     expect(pilot).toContain("Enough substance to review before we turn anything live");
     expect(pilot).toContain("CRMN-075 → CRMN-079 pilot scenario expansion");
     expect(pilot).toContain("Multiple customer records ready for pilot review");

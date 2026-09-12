@@ -94,6 +94,7 @@ describe("enterprise shell navigation", () => {
       "Customers",
       "CRM",
       "Sales",
+      "Growth",
       "Marketing",
       "Advertising",
       "Manager Review",
@@ -122,6 +123,7 @@ describe("enterprise shell navigation", () => {
       "Customers",
       "CRM",
       "Sales",
+      "Growth",
       "Marketing",
       "Advertising",
       "Manager Review",
@@ -178,7 +180,10 @@ describe("enterprise shell navigation", () => {
     expect(isDispatchConsolePath("/board")).toBe(true);
     expect(isDispatchConsolePath("/tasks/task-1")).toBe(true);
     expect(isDispatchConsolePath("/vehicles/360/unit-1")).toBe(true);
+    expect(isDispatchConsolePath("/customers/customer-360")).toBe(true);
     expect(isDispatchConsolePath("/crm")).toBe(false);
+    expect(isDispatchConsolePath("/crm-next")).toBe(false);
+    expect(isDispatchConsolePath("/crm-next/customers/customer-1")).toBe(false);
     expect(isDispatchConsolePath("/command-center")).toBe(false);
     expect(isDispatchConsolePath("/administration")).toBe(false);
   });

@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { CRM_NEXT_CUSTOMERS_HREF, CRM_NEXT_SEARCH_HREF, LEGACY_CRM_FALLBACK_HREF, LEGACY_CUSTOMER_ARCHIVE_HREF } from "@/features/crm/crm-route-authority";
+
 export default function NotFoundPage() {
   return (
     <main
@@ -35,9 +37,10 @@ export default function NotFoundPage() {
         </span>
         <nav aria-label="Safe workspace recovery links" style={{ display: "flex", flexWrap: "wrap", gap: 10, paddingTop: 8 }}>
           <Link href="/crm-next" style={{ alignItems: "center", background: "#2563eb", borderRadius: 10, color: "#fff", display: "inline-flex", fontWeight: 800, justifyContent: "center", minHeight: 40, padding: "0 16px", textDecoration: "none" }}>Open CRM Next</Link>
-          <Link href="/customers" style={{ alignItems: "center", background: "#2563eb", borderRadius: 10, color: "#fff", display: "inline-flex", fontWeight: 800, justifyContent: "center", minHeight: 40, padding: "0 16px", textDecoration: "none" }}>Open Customers</Link>
-          <Link href="/customers/customer-360" style={{ alignItems: "center", background: "#eef4ff", border: "1px solid #cfe0ff", borderRadius: 10, color: "#143163", display: "inline-flex", fontWeight: 800, justifyContent: "center", minHeight: 40, padding: "0 16px", textDecoration: "none" }}>Open Customer 360</Link>
-          <Link href="/crm" style={{ alignItems: "center", background: "#eef4ff", border: "1px solid #cfe0ff", borderRadius: 10, color: "#143163", display: "inline-flex", fontWeight: 800, justifyContent: "center", minHeight: 40, padding: "0 16px", textDecoration: "none" }}>Open CRM</Link>
+          <Link href={CRM_NEXT_CUSTOMERS_HREF} style={{ alignItems: "center", background: "#2563eb", borderRadius: 10, color: "#fff", display: "inline-flex", fontWeight: 800, justifyContent: "center", minHeight: 40, padding: "0 16px", textDecoration: "none" }}>Open CRM Next Customers</Link>
+          <Link href={CRM_NEXT_SEARCH_HREF} style={{ alignItems: "center", background: "#eef4ff", border: "1px solid #cfe0ff", borderRadius: 10, color: "#143163", display: "inline-flex", fontWeight: 800, justifyContent: "center", minHeight: 40, padding: "0 16px", textDecoration: "none" }}>Find Customer 360</Link>
+          <Link href={LEGACY_CUSTOMER_ARCHIVE_HREF} style={{ alignItems: "center", background: "#eef4ff", border: "1px solid #cfe0ff", borderRadius: 10, color: "#143163", display: "inline-flex", fontWeight: 800, justifyContent: "center", minHeight: 40, padding: "0 16px", textDecoration: "none" }}>Legacy Customer Archive</Link>
+          <Link href={LEGACY_CRM_FALLBACK_HREF} style={{ alignItems: "center", background: "#eef4ff", border: "1px solid #cfe0ff", borderRadius: 10, color: "#143163", display: "inline-flex", fontWeight: 800, justifyContent: "center", minHeight: 40, padding: "0 16px", textDecoration: "none" }}>Legacy CRM</Link>
           <Link href="/board" style={{ alignItems: "center", background: "#eef4ff", border: "1px solid #cfe0ff", borderRadius: 10, color: "#143163", display: "inline-flex", fontWeight: 800, justifyContent: "center", minHeight: 40, padding: "0 16px", textDecoration: "none" }}>Open Dispatch Board</Link>
         </nav>
       </section>

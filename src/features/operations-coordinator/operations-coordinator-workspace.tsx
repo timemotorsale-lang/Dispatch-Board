@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
+import { CRM_NEXT_INTAKE_HREF } from "@/features/crm/crm-route-authority";
 import type { OperationsCoordinatorWorkspaceModel } from "@/server/operations-coordinator/service";
 
 function stateLabel(state: string) {
@@ -56,7 +57,7 @@ export function OperationsCoordinatorWorkspace({ model }: { model: OperationsCoo
   const dock = [
     { icon: CalendarDays, label: "New Appointment", href: "/appointments" },
     { icon: ClipboardCheck, label: "Check In Vehicle", href: "/vehicles/repair-orders?intakeSource=WALK_IN" },
-    { icon: UserRoundPlus, label: "Add Customer / Vehicle", href: "/customers" },
+    { icon: UserRoundPlus, label: "Add Customer / Vehicle", href: CRM_NEXT_INTAKE_HREF },
     { icon: PackageCheck, label: "Receive Parts", href: "/vehicles/parts-receiving" },
     { icon: FileText, label: "Upload Document", href: "/tasks?department=OFFICE" },
     { icon: CarFront, label: "Upload Photos", href: "/tasks?department=ADVERTISING" },

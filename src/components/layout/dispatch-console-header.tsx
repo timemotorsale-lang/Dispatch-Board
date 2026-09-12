@@ -11,6 +11,7 @@ import {
   type WorkspaceKey
 } from "@/server/auth/navigation";
 import { isManager } from "@/server/policies/access";
+import { CRM_NEXT_CUSTOMERS_HREF } from "@/features/crm/crm-route-authority";
 
 import { getNavigationItemsForPath } from "./navigation";
 
@@ -26,7 +27,7 @@ const consoleCopy: Array<{ description: string; path: string; title: string }> =
   { path: "/appointments", title: "Appointments", description: "Manage the appointment schedule and commitments" },
   { path: "/vehicles", title: "Vehicles", description: "Operate vehicle records and readiness workflows" },
   { path: "/diagnostics", title: "Diagnostics", description: "Prioritize and execute technician diagnostic cases" },
-  { path: "/customers", title: "Customers", description: "Manage customer records and connected work" },
+  { path: CRM_NEXT_CUSTOMERS_HREF, title: "Customers", description: "Manage CRM Next customer records and connected work" },
   { path: "/manager-review", title: "Manager Review", description: "Review approvals, exceptions, and escalations" },
   { path: "/staff", title: "Team", description: "Manage team duties and execution context" },
   { path: "/activity", title: "Activity", description: "Review recorded Dispatch events and updates" }
