@@ -22,8 +22,7 @@ import {
 
 import { CrmNextIntakeForm } from "@/features/crm-next/crm-next-intake-form";
 import { CrmNextInlineTaskComposer } from "@/features/crm-next/crm-next-inline-task-composer";
-import { CrmNextTaskBridgeControl } from "@/features/crm-next/crm-next-task-bridge-control";
-import { CrmNextWorkbenchProgressControl } from "@/features/crm-next/crm-next-workbench-progress-control";
+import { CrmNextWorkbenchSections } from "@/features/crm-next/crm-next-workbench-sections";
 import type { CrmNextAccessReason } from "@/server/crm-next/access";
 import type { CrmNextActionBridgePreview } from "@/server/crm-next/action-bridge";
 import type { CrmNextAttentionItem, CrmNextCommandCenter, CrmNextCustomer360, CrmNextMilestoneStatus, CrmNextOperatingAction, CrmNextSalesRecord } from "@/server/crm-next/read-model";
@@ -45,8 +44,7 @@ function crmNextActionHref(actionId: string, customerId?: string) {
   return customerId ? `${baseHref}?customerId=${encodeURIComponent(customerId)}` : baseHref;
 }
 
-const CUSTOMER_JOURNEY_STAGES = ["New", "Contact Attempt", "Contacted", "Appointment Scheduled", "Working Deal", "Sold", "Lost"] as const;
-const CRM_WORKBENCH_TABS = ["Lead", "Credit App", "Pre-Qual", "Vehicle", "Deals", "Files", "Compliance", "Duplicates", "Journal Entries", "Logs"] as const;
+const CUSTOMER_JOURNEY_STAGES = ["New", "Contact Attempt", "Contacted", "Appointment Scheduled", "Working Deal", "Missed Appt.", "Visit Follow-up", "Sold", "Lost"] as const;
 const CRM_ACTIVITY_FILTERS = ["All", "Notes", "Appt", "Phone", "SMS", "Email", "Tasks", "Chat", "Other"] as const;
 
 function customerJourneyStage(customer: CrmNextCustomer360, activeAttentionItem?: CrmNextAttentionItem) {
@@ -761,24 +759,6 @@ export function CrmNextIntakeView({ model }: { model: CrmNextCommandCenter }) {
 
       <section className={styles.intakeLayout}>
         <CrmNextIntakeForm />
-        <aside className={styles.intakeAside}>
-          <article className={styles.sidePanel}>
-            <header><h2>How this works</h2></header>
-            <ul className={styles.signalList}>
-              <li>Enter the person once.</li>
-              <li>CRM Next checks the shared customer source.</li>
-              <li>If this is a sales prospect, add interest and priority notes.</li>
-              <li>After saving, continue from Customer 360.</li>
-            </ul>
-          </article>
-          <article className={styles.sidePanel}>
-            <header><h2>Need another mode?</h2></header>
-            <div className={styles.verticalActions}>
-              <Link className={styles.secondaryButton} href="/customers">Customer archive</Link>
-              <Link className={styles.secondaryButton} href="/crm">Current CRM fallback</Link>
-            </div>
-          </article>
-        </aside>
       </section>
     </CrmNextFrame>
   );
@@ -1608,9 +1588,9 @@ export function CrmNextWorkCustomerView({
   item: CrmNextAttentionItem;
   model: CrmNextCommandCenter;
 }) {
-  const dispatchPreview = bridgePreview?.dispatchPreview;
   const issue = customerWorkIssue(item);
   const recentActivity = model.timeline.slice(0, 5);
+  const pendingTasks = bridgePreview?.dispatchPreview ? "1 due" : "None";
 
   return (
     <CrmNextFrame active="work" userName={model.userName}>
@@ -1625,14 +1605,13 @@ export function CrmNextWorkCustomerView({
           </div>
           <div className={styles.workHeroBody}>
             <div>
-              <h1 className={styles.workTitle}>Attend: {item.customerName}</h1>
+              <h1 className={styles.workTitle}>{item.customerName}</h1>
               <p className={styles.muted}>{issue.issue} · {item.area} · Owner: {item.owner}</p>
             </div>
             <div className={styles.workActions}>
-              <Link className={styles.primaryButton} href="#lead"><Phone size={16} /> Log Call</Link>
-              <Link className={styles.secondaryButton} href="#lead"><Mail size={16} /> Send Message</Link>
+              <Link className={styles.secondaryButton} href="#lead">Check - In</Link>
+              <Link className={styles.secondaryButton} href="/crm-next/deals">Start Deal</Link>
               <Link className={styles.secondaryButton} href={item.customerHref}>Customer 360</Link>
-              <Link className={styles.secondaryButton} href="/crm-next/deals">Estimate / Deal</Link>
             </div>
           </div>
         </header>
@@ -1644,15 +1623,8 @@ export function CrmNextWorkCustomerView({
                 <h2>{item.customerName}</h2>
                 <p>{issue.issue}</p>
               </div>
-              <dl className={styles.crmWorkbenchFacts}>
-                <div><dt>Status</dt><dd>Contacted</dd></div>
-                <div><dt>Owner</dt><dd>{item.owner}</dd></div>
-                <div><dt>Area</dt><dd>{item.area}</dd></div>
-                <div><dt>Priority</dt><dd>{item.level}</dd></div>
-              </dl>
+              <Link className={styles.secondaryButton} href="#customer-sections">Update Status</Link>
             </header>
-
-            <CrmNextInlineTaskComposer customerName={item.customerName} nextAction={item.nextAction} owner={item.owner} />
 
             <ol className={styles.dealerJourneyStrip} aria-label="Customer journey">
               {CUSTOMER_JOURNEY_STAGES.map((stage) => (
@@ -1660,32 +1632,43 @@ export function CrmNextWorkCustomerView({
               ))}
             </ol>
 
-            <nav className={styles.dealerTabs} aria-label="Customer work sections">
-              {CRM_WORKBENCH_TABS.map((tab, index) => (
-                <Link className={index === 0 ? styles.activeTab : undefined} href={index === 0 ? "#lead" : "#customer-activity"} key={tab}>
-                  {tab}
-                </Link>
-              ))}
-            </nav>
+            <section className={styles.dealerCustomerSnapshot} aria-label="Customer status summary">
+              <div><span>Next Appt.</span><strong>Not Scheduled</strong></div>
+              <div><span>Last Appt.</span><strong>None</strong></div>
+              <div><span>Pending Tasks</span><strong>{pendingTasks}</strong></div>
+              <div><span>Deposit</span><strong>None</strong></div>
+              <div><span>Deals</span><strong>None</strong></div>
+              <div><span>Last Contacted</span><strong>Today</strong></div>
+              <div><span>Days Old</span><strong>0</strong></div>
+              <div><span>Days Since Activity</span><strong>0</strong></div>
+            </section>
 
-            <section className={styles.customerWorkSummary} id="lead">
+            <section className={styles.dealerCustomerDetails} aria-label="Customer source details">
               <div>
-                <span className={styles.eyebrow}>Next CRM step</span>
-                <h3>{item.nextAction}</h3>
-                <p>{issue.done}</p>
+                <span>Lead Source</span>
+                <strong>Walk-in / CRM next action</strong>
               </div>
-              <div className={styles.customerWorkSummaryActions}>
-                <Link className={styles.primaryButton} href="#lead">Use quick action box</Link>
-                <Link className={styles.secondaryButton} href={item.customerHref}>Customer 360</Link>
-                <Link className={styles.secondaryButton} href="#dispatch-task">Dispatch handoff</Link>
+              <div>
+                <span>Inquiry Type</span>
+                <strong>{item.area}</strong>
+              </div>
+              <div>
+                <span>Sales Rep</span>
+                <strong>{item.owner}</strong>
+              </div>
+              <div>
+                <span>Current Need</span>
+                <strong>{item.nextAction}</strong>
               </div>
             </section>
 
-            <CrmNextWorkbenchProgressControl initialStage="Contacted" nextAction={item.nextAction} />
+            <CrmNextWorkbenchSections currentNeed={item.nextAction} doneMeaning={issue.done} />
+
+            <CrmNextInlineTaskComposer customerName={item.customerName} nextAction={item.nextAction} owner={item.owner} />
           </section>
 
-          <section className={styles.activityWorkbenchGrid}>
-            <article className={styles.card} id="customer-activity">
+          <section className={styles.activityWorkbenchGrid} id="customer-activity">
+            <article className={styles.card}>
               <header>
                 <div>
                   <h2>Activity</h2>
@@ -1708,35 +1691,6 @@ export function CrmNextWorkCustomerView({
                 ))}
               </div>
             </article>
-
-            <aside className={styles.workbenchSideRail}>
-              <article className={styles.sidePanel} id="work-disposition">
-                <header><h2>Disposition</h2></header>
-                <p className={styles.muted}>Record the customer outcome before moving the journey stage.</p>
-                <div className={styles.dispositionActions}>
-                  <Link className={styles.secondaryButton} href="#lead">Use quick action box</Link>
-                  <Link className={styles.primaryButton} href="#customer-activity">Review activity</Link>
-                </div>
-              </article>
-              <article className={styles.sidePanel} id="dispatch-task">
-                <header>
-                  <div>
-                    <h2>Dispatch handoff</h2>
-                    <p className={styles.muted}>Use only when operations must execute work outside CRM.</p>
-                  </div>
-                  <span className={styles.pill}>{model.bridge.liveTaskCreationEnabled ? "Ready" : "Unavailable"}</span>
-                </header>
-                {dispatchPreview ? (
-                  <dl className={styles.bridgeReceipt}>
-                    <div><dt>Task title</dt><dd>{dispatchPreview.title}</dd></div>
-                    <div><dt>Assigned to</dt><dd>{dispatchPreview.assignedTo}</dd></div>
-                    <div><dt>Due</dt><dd>{dispatchPreview.due}</dd></div>
-                    <div><dt>Source</dt><dd>{dispatchPreview.source}</dd></div>
-                  </dl>
-                ) : null}
-                <CrmNextTaskBridgeControl attentionItemId={item.id} enabled={bridgePreview?.state === "DOGFOOD_READY"} />
-              </article>
-            </aside>
           </section>
         </main>
       </section>

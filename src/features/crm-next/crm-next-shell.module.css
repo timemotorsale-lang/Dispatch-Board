@@ -1827,7 +1827,7 @@
   align-items: start;
   display: grid;
   gap: 16px;
-  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .intakeCard {
@@ -2365,11 +2365,6 @@
   opacity: .72;
 }
 
-.intakeAside {
-  display: grid;
-  gap: 12px;
-}
-
 .verticalActions {
   display: grid;
   gap: 10px;
@@ -2731,10 +2726,10 @@
 }
 
 .crmWorkbenchHeader {
-  align-items: start;
+  align-items: center;
   display: grid;
   gap: 16px;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, .9fr);
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .crmWorkbenchHeader h2 {
@@ -2751,14 +2746,19 @@
   margin: 0;
 }
 
-.crmWorkbenchFacts {
+.crmWorkbenchHeader .secondaryButton {
+  justify-content: center;
+  min-width: 170px;
+}
+
+.dealerCustomerSnapshot {
   display: grid;
   gap: 8px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   margin: 0;
 }
 
-.crmWorkbenchFacts div {
+.dealerCustomerSnapshot div {
   background: #f8fbff;
   border: 1px solid #dbe6f6;
   border-radius: 8px;
@@ -2766,15 +2766,17 @@
   padding: 8px 10px;
 }
 
-.crmWorkbenchFacts dt {
+.dealerCustomerSnapshot span {
   color: #64748b;
+  display: block;
   font-size: 11px;
   font-weight: 900;
   text-transform: uppercase;
 }
 
-.crmWorkbenchFacts dd {
+.dealerCustomerSnapshot strong {
   color: #071a3a;
+  display: block;
   font-weight: 900;
   margin: 3px 0 0;
   overflow: hidden;
@@ -2782,28 +2784,32 @@
   white-space: nowrap;
 }
 
-.dealerActionBar {
+.dealerCustomerDetails {
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(7, minmax(118px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-.dealerActionBar .primaryButton,
-.dealerActionBar .secondaryButton {
-  border-radius: 8px;
-  justify-content: center;
-  min-height: 42px;
-  padding: 8px 10px;
+.dealerCustomerDetails div {
+  border-bottom: 1px solid #e2e8f0;
+  min-width: 0;
+  padding: 10px 4px;
+}
+
+.dealerCustomerDetails span {
+  color: #64748b;
+  display: block;
+  font-size: 12px;
+  font-weight: 850;
+  margin-bottom: 4px;
+}
+
+.dealerCustomerDetails strong {
+  color: #071a3a;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.inlineTaskComposer {
-  background: #f8fbff;
-  border: 1px solid #dbe6f6;
-  border-radius: 8px;
-  display: grid;
-  gap: 10px;
-  padding: 10px;
 }
 
 .inlineActionBar {
@@ -3021,6 +3027,11 @@
   color: #064e3b;
 }
 
+.dealerSectionWorkspace {
+  display: grid;
+  gap: 10px;
+}
+
 .dealerTabs,
 .activityFilters {
   align-items: center;
@@ -3029,6 +3040,7 @@
   gap: 8px;
 }
 
+.dealerTabs button,
 .dealerTabs a,
 .activityFilters a {
   background: #eaf2ff;
@@ -3042,12 +3054,68 @@
   text-decoration: none;
 }
 
+.dealerTabs button {
+  cursor: pointer;
+  font: inherit;
+}
+
+.dealerTabs button[aria-pressed="true"],
 .dealerTabs .activeTab,
 .activityFilters .activeTab {
   background: #ffffff;
   border-color: #8fb1f7;
   box-shadow: inset 0 3px 0 #3f63df;
   color: #071a3a;
+}
+
+.dealerTabPanel {
+  background: #ffffff;
+  border: 1px solid #dbe6f6;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.dealerSectionGrid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.dealerSectionGrid div {
+  background: #f8fbff;
+  border: 1px solid #dbe6f6;
+  border-radius: 8px;
+  min-width: 0;
+  padding: 10px;
+}
+
+.dealerSectionGrid span {
+  color: #64748b;
+  display: block;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.dealerSectionGrid strong {
+  color: #071a3a;
+  display: block;
+  font-size: 14px;
+  line-height: 1.3;
+  margin-top: 4px;
+}
+
+.dealerTabPanel h3 {
+  color: #071a3a;
+  font-size: 18px;
+  margin: 0;
+}
+
+.dealerTabPanel p {
+  color: #52637a;
+  margin: 0;
 }
 
 .customerWorkSummary {
@@ -3095,7 +3163,7 @@
   align-items: start;
   display: grid;
   gap: 12px;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .activityFilters {
@@ -3587,17 +3655,21 @@
   }
 
   .crmWorkbenchHeader,
-  .customerWorkSummary,
+  .dealerCustomerDetails,
   .activityWorkbenchGrid {
     grid-template-columns: 1fr;
   }
 
-  .dealerActionBar {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .dealerCustomerSnapshot {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .inlineActionBar {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .dealerSectionGrid {
+    grid-template-columns: 1fr;
   }
 
   .dealerJourneyStrip {
@@ -3609,10 +3681,6 @@
   .dealerJourneyStrip li:last-child {
     border: 1px solid #ffffff;
     border-radius: 8px;
-  }
-
-  .customerWorkSummaryActions {
-    justify-content: flex-start;
   }
 
   .issueSummary,
@@ -3742,8 +3810,8 @@
     grid-template-columns: 1fr;
   }
 
-  .crmWorkbenchFacts,
-  .dealerActionBar,
+  .dealerCustomerSnapshot,
+  .dealerCustomerDetails,
   .inlineActionBar,
   .inlineTaskComposerRow,
   .dealerJourneyStrip {
@@ -3755,7 +3823,6 @@
     flex: 1 1 135px;
   }
 
-  .customerWorkSummaryActions,
   .dispositionActions {
     align-items: stretch;
     flex-direction: column;

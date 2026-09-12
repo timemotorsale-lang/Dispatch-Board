@@ -1513,12 +1513,12 @@ const timelineEvents: CrmNextTimelineEvent[] = [
     href: "/crm-next/appointments"
   },
   {
-    id: "timeline-dispatch",
-    source: "Dispatch",
-    label: "Dispatch handoff available",
-    detail: "Operational work can be sent to Dispatch from Attend Mode when it must leave CRM.",
+    id: "timeline-crm-task",
+    source: "Customer",
+    label: "Customer follow-up task open",
+    detail: "Staff can finish the next customer step from the CRM workbench before creating any outside handoff.",
     occurredAt: "Today",
-    href: "/crm-next/work/attn-michael-overdue-follow-up#dispatch-task"
+    href: "/crm-next/work/attn-michael-overdue-follow-up#lead"
   }
 ];
 
