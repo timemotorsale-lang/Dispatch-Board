@@ -20,7 +20,40 @@ The implementation must move one milestone at a time:
 
 The goal is to keep the Sales Console simple for staff while building enterprise-grade workflows, algorithms, source truth, and business logic underneath.
 
-## 2. Revenue Lane Coverage
+## 2. UI/UX Simplification Rule
+
+Sales Console must feel like a guided sales workspace, not a dashboard or page-hopping portal.
+
+Staff should see the fewest tabs, buttons, and panels needed for the current intent, customer, lifecycle stage, and revenue lane. Advanced tools can exist, but they should stay hidden, collapsed, or secondary until the staff action requires them.
+
+An Enterprise Dashboard may always exist as an optional view for managers, owners, and authorized users. It must not replace the default staff workflow. Staff should land in the guided intent/workspace experience; leaders may open the Enterprise Dashboard when they need full operating visibility.
+
+Every visible control must answer:
+
+> What can staff do with this right now?
+
+Implementation must prefer:
+
+- context-based navigation over broad always-visible navigation;
+- progressive unfolding over exposing every capability at once;
+- one active customer, deal, or revenue lane context at a time;
+- direct action wiring over sending staff to another page to find the same action;
+- simple staff-facing language over internal system language;
+- source-backed empty states over decorative or sample content.
+
+Complexity is allowed underneath. The staff-facing workflow must stay simple, readable, and easy to execute.
+
+Enterprise Dashboard rules:
+
+- It is optional, not the default staff landing experience.
+- It is role-aware and may expose more information to managers, owners, and admins than to front-line staff.
+- It shows cross-lane visibility across sales, BHPH, lease-to-own, public repair, rental, warranty, and financing products.
+- Every metric, chart, queue, or card must drill into the real filtered source list behind it.
+- If source truth is missing, the dashboard must show "No source data available," "Source not wired," or an equivalent unavailable state.
+- It must highlight leadership action: stuck revenue, lane performance, staff load, stale work, manager escalations, forecast risk, source health, and audit exceptions.
+- It must never reintroduce fake numbers, decorative sample charts, or page-hopping as the normal staff workflow.
+
+## 3. Revenue Lane Coverage
 
 Yes, these milestones must cover the known revenue avenues.
 
@@ -49,7 +82,7 @@ Every milestone must answer:
 
 If a lane cannot be supported yet, the UI must say so clearly instead of showing fake metrics, fake activity, or fake recommendations.
 
-## 3. Stage 1 Completed For Review: Sales Intent Home
+## 4. Stage 1 Completed For Review: Sales Intent Home
 
 Purpose:
 
@@ -79,7 +112,7 @@ Approval criteria:
 - It does not fabricate data, metrics, or recommendations.
 - It preserves access to the existing deeper Sales workspaces.
 
-## 4. Milestone 2: Revenue Work Queue
+## 5. Milestone 2: Revenue Work Queue
 
 ### Objective
 
@@ -150,7 +183,7 @@ The queue must include lane labels and lane-specific source links:
 - Empty states say "No source data available" or "No matching records" instead of showing samples.
 - Tests prove fabricated queue records are blocked.
 
-## 5. Milestone 3: Guided Sales Path
+## 6. Milestone 3: Guided Sales Path
 
 ### Objective
 
@@ -215,7 +248,7 @@ The guided path must adapt by lane:
 - The user can return to the Sales Intent Home and Revenue Work Queue.
 - Tests prove the guided path does not render canned customer activity.
 
-## 6. Milestone 4: Next Best Action Engine
+## 7. Milestone 4: Next Best Action Engine
 
 ### Objective
 
@@ -269,7 +302,7 @@ Every recommendation must state the revenue lane it applies to and the source sy
 - Missing data produces no fake action.
 - Tests cover at least one positive and one blocked recommendation per lane group.
 
-## 7. Milestone 5: Outcome Capture
+## 8. Milestone 5: Outcome Capture
 
 ### Objective
 
@@ -326,7 +359,7 @@ Outcome reason lists must differ where needed:
 - Customer 360 timeline reflects verified outcomes.
 - Tests prove outcomes are not shown when the write-back fails.
 
-## 8. Milestone 6: Manager Escalation
+## 9. Milestone 6: Manager Escalation
 
 ### Objective
 
@@ -380,7 +413,7 @@ Each lane must define:
 - Decisions are auditable.
 - Tests prove non-escalation cases do not enter the manager queue.
 
-## 9. Milestone 7: Sales Metrics
+## 10. Milestone 7: Sales Metrics
 
 ### Objective
 
@@ -437,7 +470,7 @@ Introduce trusted metrics only after source truth is reliable.
 - Metrics are segmented by lifecycle and revenue lane where applicable.
 - Tests block fabricated dashboard numbers.
 
-## 10. Sequential Implementation Prompt
+## 11. Sequential Implementation Prompt
 
 Use this prompt for each milestone from 2 through 7.
 
@@ -473,14 +506,16 @@ Implementation rules:
    - next step;
    - write-back behavior.
 7. Keep the staff experience simple and progressive.
-8. Avoid page hopping. Buttons should take staff directly to the intended work context.
-9. Add or update tests that prove:
+8. Show the fewest tabs, buttons, and panels needed for the current intent, customer, lifecycle stage, and revenue lane.
+9. Preserve the Enterprise Dashboard as an optional role-aware view, not the default staff workflow.
+10. Avoid page hopping. Buttons should take staff directly to the intended work context.
+11. Add or update tests that prove:
    - the new milestone renders;
    - unsupported or missing source data does not produce fake records;
    - the milestone remains lane-aware;
    - existing approved Sales Intent Home behavior still works.
-10. Run focused tests and targeted lint for changed files.
-11. Stop for review before commit unless the user explicitly approves committing.
+12. Run focused tests and targeted lint for changed files.
+13. Stop for review before commit unless the user explicitly approves committing.
 
 Review output required:
 - what changed;
@@ -490,7 +525,7 @@ Review output required:
 - what the user should review in the app.
 ```
 
-## 11. Review And Approval Rule
+## 12. Review And Approval Rule
 
 No milestone should be adopted simply because it was implemented.
 
