@@ -147,13 +147,13 @@ describe("customer console read service", () => {
         }],
         page: { hasMore: false, limit: 12, nextCursor: null }
       }),
-      leadReader: async () => Array.from({ length: 5 }, (_, index) => ({
+      leadReader: async () => ["NEW", "ENGAGED", "QUALIFIED", "NEGOTIATION", "WON"].map((stage, index) => ({
         id: `lead-${index + 1}`,
         leadNumber: `LEAD-${index + 1}`,
         customer: { id: `customer-${index + 1}`, customerNumber: `CUS-${index + 1}`, displayName: `Customer ${index + 1}`, phoneNumber: null, email: null },
         owner: { id: "user-sales", name: "Sales User", email: "sales@local.test" },
         sourceCode: "WEBSITE",
-        stage: "NEW",
+        stage,
         vehicleInterest: "Toyota Camry",
         nextActionCode: "FOLLOW_UP_LEAD",
         nextActionAt: "2026-07-12T20:00:00.000Z",
@@ -162,8 +162,9 @@ describe("customer console read service", () => {
         confidence: "HIGH",
         task: null,
         createdAt: "2026-07-12T19:00:00.000Z",
-        updatedAt: "2026-07-12T19:00:00.000Z"
-      }))
+        updatedAt: stage === "WON" ? "2026-07-12T19:05:00.000Z" : "2026-07-12T19:00:00.000Z"
+      })),
+      now: () => new Date("2026-07-12T19:30:00.000Z")
     });
 
     expect(model.source).toBe("HYBRID_READ_MODEL");
@@ -180,15 +181,19 @@ describe("customer console read service", () => {
       href: "/crm-next/customers/customer-1",
       title: "New lead received"
     });
-    expect(model.topDeals).toHaveLength(5);
+    expect(model.topDeals).toHaveLength(2);
     expect(model.appointments).toEqual([{
       customer: "Asmaa Mohamed Salah",
       detail: "Sales follow-up",
       time: "3:00 PM"
     }]);
+    expect(model.metrics.find((metric) => metric.label === "New Leads")).toMatchObject({
+      sourceStatus: "Live",
+      value: "2"
+    });
     expect(model.metrics.find((metric) => metric.label === "Open Deals")).toMatchObject({
       sourceStatus: "Live",
-      value: "5"
+      value: "2"
     });
     expect(model.metrics.find((metric) => metric.label === "Appointments")).toMatchObject({
       sourceStatus: "Live",
@@ -196,7 +201,7 @@ describe("customer console read service", () => {
     });
     expect(model.metrics.find((metric) => metric.label === "Sales This Month")).toMatchObject({
       sourceStatus: "Read-only",
-      value: "0"
+      value: "1"
     });
   });
 

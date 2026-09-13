@@ -11,7 +11,11 @@ import {
   locationLocalDateMinuteToInstant
 } from "@/server/appointments/location-time-service";
 import { listAppointmentReadModels } from "@/server/services/appointment-read-service";
-import { crmDashboardSourceTruth, type CrmSourceTruthStatus } from "@/lib/crm-source-of-truth-registry";
+import {
+  crmDashboardSourceTruth,
+  isCustomerLeadStageInLifecycle,
+  type CrmSourceTruthStatus
+} from "@/lib/crm-source-of-truth-registry";
 import { canViewCustomerContact } from "@/server/policies/access";
 import { createCustomer360Repository, type Customer360Repository } from "@/server/repositories/customer-360-repository";
 
@@ -173,7 +177,8 @@ function noSourceValue() {
 
 function sourceDetail(id: string) {
   const entry = crmDashboardSourceTruth(id);
-  return `${entry.status} · ${entry.source}`;
+  const scope = entry.lifecycleScope?.counts.map((stage) => stage.replaceAll("_", " ").toLowerCase()).join(", ");
+  return scope ? `${entry.status} · ${entry.source} · Counts ${scope}` : `${entry.status} · ${entry.source}`;
 }
 
 function customerDashboardAppointmentWindow(now: Date) {
@@ -291,10 +296,11 @@ export async function getCustomerDashboardReadModel(
   const sourceRows = leadSourceBreakdown(recentLeadRows.map((row) => row.source));
   const pipelineRows = pipelineFromRows(recentLeadRows);
   const customerCountValue = measuredCount(customers.items.length, customers.page.hasMore);
-  const leadCountValue = measuredCount(durableLeads.length);
-  const openDealLeads = durableLeads.filter((lead) => !["WON", "LOST"].includes(String(lead.stage).toUpperCase()));
+  const newLeadRows = durableLeads.filter((lead) => isCustomerLeadStageInLifecycle(String(lead.stage), ["LEAD"]));
+  const leadCountValue = measuredCount(newLeadRows.length);
+  const openDealLeads = durableLeads.filter((lead) => isCustomerLeadStageInLifecycle(String(lead.stage), ["QUALIFIED_OPPORTUNITY"]));
   const wonThisMonthLeads = durableLeads.filter((lead) => {
-    if (String(lead.stage).toUpperCase() !== "WON") return false;
+    if (!isCustomerLeadStageInLifecycle(String(lead.stage), ["SOLD"])) return false;
     const wonAt = new Date(lead.updatedAt ?? lead.createdAt);
     return wonAt.getFullYear() === now.getFullYear() && wonAt.getMonth() === now.getMonth();
   });
