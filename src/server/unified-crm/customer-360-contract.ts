@@ -95,7 +95,7 @@ export type UnifiedCrmCustomer360OpportunityLens = {
 export type UnifiedCrmCustomer360TimelineItem = {
   id: string;
   correlationKey: string;
-  kind: "interaction" | "task-event" | "appointment-event" | "lead-event" | "case-event" | "promise-event" | "commitment-event";
+  kind: "interaction" | "note-event" | "task-event" | "appointment-event" | "lead-event" | "case-event" | "promise-event" | "commitment-event";
   title: string;
   detail: string;
   occurredAt: string;

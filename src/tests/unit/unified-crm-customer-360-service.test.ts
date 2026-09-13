@@ -285,7 +285,7 @@ describe("Unified CRM Customer 360 service", () => {
       appointments: [{ id: "appointment-a", sourceHref: "/appointments" }],
       timeline: {
         state: "READY",
-        itemCount: 7,
+        itemCount: 8,
         emptyMessage: "No permitted customer activity has been recorded in this timeline yet.",
         freshness: {
           observedAt: now.toISOString(),
@@ -371,10 +371,19 @@ describe("Unified CRM Customer 360 service", () => {
       sourceRecordId: "interaction-a",
       title: "Phone Outbound"
     });
+    expect(model.timeline.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: "note:note-internal",
+        kind: "note-event",
+        sourceLabel: "Customer notes",
+        sourceRecordId: "note-internal",
+        title: "Internal note recorded"
+      })
+    ]));
   });
 
   it("lists manual communication channels and follow-up completion in the Customer 360 timeline", async () => {
-    const setup = dependencies(record());
+    const setup = dependencies(record({ notes: [] }));
     const model = await getUnifiedCrmCustomer360(manager, "customer-a", {
       ...setup.deps,
       timelineRepository: {
@@ -434,7 +443,7 @@ describe("Unified CRM Customer 360 service", () => {
   });
 
   it("shows a verified appointment record even before appointment history events exist", async () => {
-    const setup = dependencies(record());
+    const setup = dependencies(record({ notes: [] }));
     setup.deps.timelineRepository = {
       async listTimeline() {
         return {
@@ -611,7 +620,7 @@ describe("Unified CRM Customer 360 service", () => {
   });
 
   it("returns an explicit empty timeline state and has-more metadata when no permitted activity exists", async () => {
-    const setup = dependencies(record({ appointmentParticipants: [] }));
+    const setup = dependencies(record({ appointmentParticipants: [], notes: [] }));
     setup.deps.timelineRepository = {
       async listTimeline() {
         return {
@@ -655,7 +664,7 @@ describe("Unified CRM Customer 360 service", () => {
   });
 
   it("preserves merged timeline hasMore when multiple bounded sources exceed the visible global limit", async () => {
-    const setup = dependencies(record({ appointmentParticipants: [] }));
+    const setup = dependencies(record({ appointmentParticipants: [], notes: [] }));
     setup.deps.timelineRepository = {
       async listTimeline() {
         return {
@@ -750,7 +759,7 @@ describe("Unified CRM Customer 360 service", () => {
   });
 
   it("orders correlated activity deterministically and omits uncontracted source fields", async () => {
-    const setup = dependencies(record({ appointmentParticipants: [] }));
+    const setup = dependencies(record({ appointmentParticipants: [], notes: [] }));
     const source = await timelineRepository().listTimeline({} as never);
     setup.deps.timelineRepository = {
       async listTimeline() {

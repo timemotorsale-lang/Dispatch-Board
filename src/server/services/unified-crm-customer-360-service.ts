@@ -240,9 +240,22 @@ function opportunityLensObservation(
 function timelineItems(input: {
   appointments: UnifiedCrmCustomer360Appointment[];
   model: Awaited<ReturnType<UnifiedCrmCustomerTimelineRepository["listTimeline"]>>;
+  notes: UnifiedCrmCustomer360Note[];
 }): UnifiedCrmCustomer360TimelineItem[] {
   const appointmentHistoryAppointmentIds = new Set(input.model.appointmentHistoryEvents.map((event) => event.appointment.id));
   const items: UnifiedCrmCustomer360TimelineItem[] = [
+    ...input.notes.map((note) => ({
+      id: `note:${note.id}`,
+      correlationKey: `note:${note.id}`,
+      kind: "note-event" as const,
+      title: `${label(note.visibility)} note recorded`,
+      detail: note.body,
+      occurredAt: note.createdAt,
+      actorName: note.authorName,
+      sourceLabel: "Customer notes",
+      sourceHref: "/customers",
+      sourceRecordId: note.id
+    })),
     ...input.model.interactions.map((interaction) => ({
       id: `interaction:${interaction.id}`,
       correlationKey: `interaction:${interaction.id}`,
@@ -572,7 +585,8 @@ export async function getUnifiedCrmCustomer360(
     shellMode: dependencies.shellMode ?? process.env.UNIFIED_CRM_SHELL_MODE
   });
   const appointmentView = appointments(record);
-  const timelineView = timelineItems({ appointments: appointmentView, model: timeline });
+  const noteView = notes(record, canViewRestricted);
+  const timelineView = timelineItems({ appointments: appointmentView, model: timeline, notes: noteView });
   const newestTimelineItem = timelineView[0]?.occurredAt ?? null;
   const visibility = recordScope.kind === "ORGANIZATION" ? "organization" : "owned";
   const dispatchLinksByOpportunity = new Map<string, UnifiedCrmCustomer360OpportunityDispatchLinkRecord[]>();
@@ -642,7 +656,7 @@ export async function getUnifiedCrmCustomer360(
       sourceHref: `/vehicles/360/${encodeURIComponent(vehicle.id)}`
     })),
     appointments: appointmentView,
-    notes: notes(record, canViewRestricted),
+    notes: noteView,
     timeline: {
       state: timelineView.length ? "READY" : "EMPTY",
       itemCount: timelineView.length,

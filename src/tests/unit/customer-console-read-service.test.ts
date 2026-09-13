@@ -130,7 +130,11 @@ describe("customer console read service", () => {
       detail: "Asmaa Mohamed Salah - Eli Aswan",
       href: "/crm-next/customers/customer-asmaa"
     });
-    expect(model.topDeals).toHaveLength(5);
+    expect(model.topDeals).toHaveLength(0);
+    expect(model.metrics.find((metric) => metric.label === "Open Deals")).toMatchObject({
+      sourceStatus: "Not wired",
+      value: "No source data"
+    });
   });
 
   it.each<[CustomerResolutionQueue, number]>([

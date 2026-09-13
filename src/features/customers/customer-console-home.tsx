@@ -37,6 +37,7 @@ import {
   CRM_NEXT_SEARCH_HREF,
   crmNextCustomerSearchHref
 } from "@/features/crm/crm-route-authority";
+import { crmDashboardSourceTruth } from "@/lib/crm-source-of-truth-registry";
 import type { CustomerDashboardReadModel } from "@/server/services/customer-console-read-service";
 
 const dashboardMetricIcons = {
@@ -78,6 +79,10 @@ export function CustomerConsoleHome({ showAdvisorReturn = false }: { showAdvisor
     setActionNotice("Opening CRM Next...");
     router.push(href);
   };
+
+  const topDealsTruth = crmDashboardSourceTruth("top-deals");
+  const tasksTruth = crmDashboardSourceTruth("my-tasks");
+  const activityTruth = crmDashboardSourceTruth("recent-activity");
 
   const openSearch = (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
@@ -149,24 +154,25 @@ export function CustomerConsoleHome({ showAdvisorReturn = false }: { showAdvisor
           <div className={readError ? "customer-live-status error" : "customer-live-status"} aria-live="polite">{readError || actionNotice || (readModel ? `Live dashboard refreshed ${new Date(readModel.generatedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "Loading live customer dashboard...")}</div>
 
           <section className="customer-home-metrics" aria-label="Customer business summary">
-            {(readModel?.metrics ?? []).map(({ label, value, trend, tone }) => { const Icon = dashboardMetricIcons[label as keyof typeof dashboardMetricIcons] ?? Users; return <button className="customer-home-metric-card" key={label} onClick={() => openCrmNext(dashboardMetricRoutes[label] ?? CRM_NEXT_HOME_HREF)} type="button"><span className={`customer-home-metric-icon ${tone}`}><Icon size={21} /></span><div><small>{label}</small><strong>{value}</strong><p><TrendingUp size={11} /> {trend} <span>vs last month</span></p></div></button>; })}
+            {(readModel?.metrics ?? []).map(({ label, sourceDetail, sourceStatus, value, tone }) => { const Icon = dashboardMetricIcons[label as keyof typeof dashboardMetricIcons] ?? Users; return <button className="customer-home-metric-card" data-source-status={sourceStatus} key={label} onClick={() => openCrmNext(dashboardMetricRoutes[label] ?? CRM_NEXT_HOME_HREF)} type="button"><span className={`customer-home-metric-icon ${tone}`}><Icon size={21} /></span><div><small>{label} · {sourceStatus}</small><strong>{value}</strong><p><TrendingUp size={11} /> {sourceDetail}</p></div></button>; })}
           </section>
 
           <section className="customer-home-analytics">
             <article className="customer-home-card customer-pipeline-card">
               <header><strong>Sales Pipeline</strong><button onClick={() => openCrmNext(CRM_NEXT_PIPELINE_HREF)} type="button">This Month <ChevronDown size={12} /></button></header>
-              <div className="customer-pipeline-content">
-                <div className="customer-funnel">{(readModel?.pipeline ?? []).map((item) => <div key={item.label}>{item.value}</div>)}</div>
-                <ul>{(readModel?.pipeline ?? []).map((item) => <li key={item.label}><i className={item.tone} />{item.label}</li>)}</ul>
-              </div>
-              <footer>Conversion Rate: <strong>10.7%</strong><span>+ 2.3%</span></footer>
+              {(readModel?.pipeline ?? []).length ? (
+                <div className="customer-pipeline-content">
+                  <div className="customer-funnel">{(readModel?.pipeline ?? []).map((item) => <div key={item.label}>{item.value}</div>)}</div>
+                  <ul>{(readModel?.pipeline ?? []).map((item) => <li key={item.label}><i className={item.tone} />{item.label}</li>)}</ul>
+                </div>
+              ) : <p className="customer-empty-source">No source data available for pipeline stages yet.</p>}
+              <footer>Source: <strong>{crmDashboardSourceTruth("new-leads").status}</strong><span>{crmDashboardSourceTruth("new-leads").source}</span></footer>
             </article>
 
             <article className="customer-home-card customer-performance-card">
               <header><strong>Sales Performance</strong><button onClick={() => openCrmNext(CRM_NEXT_DEALS_HREF)} type="button">This Month <ChevronDown size={12} /></button></header>
-              <div className="customer-chart-legend"><span><i />This Month</span><span><i />Last Month</span></div>
-              <div className="customer-line-chart" aria-label="Sales performance chart"><span className="customer-chart-value">$487,620</span><i className="current-line" /><i className="previous-line" /></div>
-              <footer><span>Goal<strong>$500,000</strong></span><span>Achieved<strong className="green-text">97.5%</strong></span><span>Remaining<strong>$12,380</strong></span></footer>
+              <p className="customer-empty-source">No source data available for sales performance yet.</p>
+              <footer><span>Status<strong>{crmDashboardSourceTruth("sales-this-month").status}</strong></span><span>Source<strong>{crmDashboardSourceTruth("sales-this-month").source}</strong></span></footer>
             </article>
 
             <article className="customer-home-card customer-sources-card">
@@ -183,7 +189,7 @@ export function CustomerConsoleHome({ showAdvisorReturn = false }: { showAdvisor
             </article>
             <article className="customer-home-card">
               <header><strong>Top Deals</strong><button onClick={() => openCrmNext(CRM_NEXT_DEALS_HREF)} type="button">View all</button></header>
-              <div className="customer-data-table customer-deal-table"><div className="customer-table-head"><span>Customer</span><span>Vehicle</span><span>Amount</span><span>Stage</span></div>{(readModel?.topDeals ?? []).map(({ customer, vehicle, amount, stage }) => <button className="customer-table-row" key={customer} onClick={() => openCrmNext(crmNextCustomerSearchHref(customer))} type="button"><span>{customer}</span><span>{vehicle}</span><span>{amount}</span><span><b className={`customer-stage ${stage.toLowerCase()}`}>{stage}</b></span></button>)}</div>
+              {(readModel?.topDeals ?? []).length ? <div className="customer-data-table customer-deal-table"><div className="customer-table-head"><span>Customer</span><span>Vehicle</span><span>Amount</span><span>Stage</span></div>{(readModel?.topDeals ?? []).map(({ customer, vehicle, amount, stage }) => <button className="customer-table-row" key={customer} onClick={() => openCrmNext(crmNextCustomerSearchHref(customer))} type="button"><span>{customer}</span><span>{vehicle}</span><span>{amount}</span><span><b className={`customer-stage ${stage.toLowerCase()}`}>{stage}</b></span></button>)}</div> : <p className="customer-empty-source">{topDealsTruth.staffMessage}</p>}
             </article>
           </section>
 
@@ -198,9 +204,9 @@ export function CustomerConsoleHome({ showAdvisorReturn = false }: { showAdvisor
         </main>
 
         <aside className="customer-home-rail" aria-label="Customer operations summary">
-          <section className="customer-home-card customer-home-tasks"><header><strong>My Tasks <b>{readModel?.tasks.length ?? 0}</b></strong><button onClick={() => openCrmNext(CRM_NEXT_NEEDS_ATTENTION_HREF)} type="button">View all</button></header>{(readModel?.tasks ?? []).map(({ title, detail, priority }) => <button className="customer-home-task" key={title} onClick={() => openCrmNext(crmNextCustomerSearchHref(title))} type="button"><i /><span><strong>{title}</strong><small>{detail}</small></span><b className={priority.toLowerCase()}>{priority}</b></button>)}</section>
-          <section className="customer-home-card customer-home-appointments"><header><strong>Today&apos;s Appointments</strong><button onClick={() => openCrmNext(CRM_NEXT_APPOINTMENTS_HREF)} type="button">View calendar</button></header>{(readModel?.appointments ?? []).map(({ time, customer, detail }, index) => <button key={time} onClick={() => openCrmNext(crmNextCustomerSearchHref(customer))} type="button"><i className={`tone-${index}`} /><time>{time}</time><span><strong>{customer}</strong><small>{detail}</small></span></button>)}</section>
-          <section className="customer-home-card customer-home-activity"><header><strong>Recent Activity</strong><button onClick={() => openCrmNext(CRM_NEXT_CUSTOMERS_HREF)} type="button">View all</button></header>{(readModel?.activity ?? []).map(({ title, detail, time, href }, index) => <button key={`${title}-${detail}`} onClick={() => openCrmNext(href)} type="button"><span className={`tone-${index}`}><CheckSquare size={13} /></span><p><strong>{title}</strong><small>{detail}</small></p><time>{time}</time></button>)}</section>
+          <section className="customer-home-card customer-home-tasks"><header><strong>My Tasks <b>{readModel?.tasks.length ?? 0}</b></strong><button onClick={() => openCrmNext(CRM_NEXT_NEEDS_ATTENTION_HREF)} type="button">View all</button></header>{(readModel?.tasks ?? []).length ? (readModel?.tasks ?? []).map(({ title, detail, priority }) => <button className="customer-home-task" key={title} onClick={() => openCrmNext(crmNextCustomerSearchHref(title))} type="button"><i /><span><strong>{title}</strong><small>{detail}</small></span><b className={priority.toLowerCase()}>{priority}</b></button>) : <p className="customer-empty-source">{tasksTruth.staffMessage}</p>}</section>
+          <section className="customer-home-card customer-home-appointments"><header><strong>Today&apos;s Appointments</strong><button onClick={() => openCrmNext(CRM_NEXT_APPOINTMENTS_HREF)} type="button">View calendar</button></header>{(readModel?.appointments ?? []).length ? (readModel?.appointments ?? []).map(({ time, customer, detail }, index) => <button key={time} onClick={() => openCrmNext(crmNextCustomerSearchHref(customer))} type="button"><i className={`tone-${index}`} /><time>{time}</time><span><strong>{customer}</strong><small>{detail}</small></span></button>) : <p className="customer-empty-source">Open the appointment console for the live schedule until this dashboard rollup is wired.</p>}</section>
+          <section className="customer-home-card customer-home-activity"><header><strong>Recent Activity <b>{activityTruth.status}</b></strong><button onClick={() => openCrmNext(CRM_NEXT_CUSTOMERS_HREF)} type="button">View all</button></header>{(readModel?.activity ?? []).length ? (readModel?.activity ?? []).map(({ title, detail, time, href }, index) => <button key={`${title}-${detail}`} onClick={() => openCrmNext(href)} type="button"><span className={`tone-${index}`}><CheckSquare size={13} /></span><p><strong>{title}</strong><small>{detail}</small></p><time>{time}</time></button>) : <p className="customer-empty-source">No source-backed customer activity yet.</p>}</section>
         </aside>
       </div>
     </section>

@@ -3,6 +3,7 @@ import { listRecentCustomerLeads } from "@/server/services/customer-lead-service
 import { listConcernResolutionPackages } from "@/server/services/concern-resolution-service";
 import { getUnifiedCrmCustomerList } from "@/server/services/unified-crm-customer-read-service";
 import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
+import { crmDashboardSourceTruth, type CrmSourceTruthStatus } from "@/lib/crm-source-of-truth-registry";
 import { canViewCustomerContact } from "@/server/policies/access";
 import { createCustomer360Repository, type Customer360Repository } from "@/server/repositories/customer-360-repository";
 
@@ -13,7 +14,7 @@ export type CustomerConsoleReadMeta = {
 };
 
 export type CustomerDashboardReadModel = CustomerConsoleReadMeta & {
-  metrics: Array<{ label: string; value: string; trend: string; tone: string }>;
+  metrics: Array<{ label: string; sourceDetail: string; sourceStatus: CrmSourceTruthStatus; value: string; tone: string }>;
   pipeline: Array<{ label: string; value: number; tone: string }>;
   leadSources: Array<{ label: string; value: number; tone: string }>;
   recentLeads: Array<{ initial: string; name: string; source: string; vehicle: string; date: string; status: string; href: string }>;
@@ -145,6 +146,33 @@ function leadSourceBreakdown(sources: string[]) {
   }));
 }
 
+function measuredCount(count: number, hasMore = false) {
+  return hasMore ? `${count}+` : String(count);
+}
+
+function noSourceValue() {
+  return "No source data";
+}
+
+function sourceDetail(id: string) {
+  const entry = crmDashboardSourceTruth(id);
+  return `${entry.status} · ${entry.source}`;
+}
+
+function pipelineFromRows(rows: Array<{ status: string }>) {
+  const tones = ["blue", "green", "yellow", "purple", "red"];
+  const counts = rows.reduce<Record<string, number>>((acc, row) => {
+    const label = row.status || "Unknown";
+    acc[label] = (acc[label] ?? 0) + 1;
+    return acc;
+  }, {});
+  return Object.entries(counts).slice(0, 5).map(([label, value], index) => ({
+    label,
+    tone: tones[index] ?? "blue",
+    value
+  }));
+}
+
 const detailPanels: Record<CustomerResolutionDetail, (item: CustomerResolutionCase) => CustomerResolutionReadModel["detailPanel"]> = {
   details: (item) => ({
     title: "Case Details",
@@ -212,11 +240,20 @@ export async function getCustomerDashboardReadModel(
     }))
   ].sort((left, right) => right.sortAt - left.sortAt).filter((row, index, rows) => rows.findIndex((candidate) => `${candidate.title}:${candidate.href}` === `${row.title}:${row.href}`) === index).slice(0, 5);
   const sourceRows = leadSourceBreakdown(recentLeadRows.map((row) => row.source));
+  const pipelineRows = pipelineFromRows(recentLeadRows);
+  const customerCountValue = measuredCount(customers.items.length, customers.page.hasMore);
+  const leadCountValue = measuredCount(durableLeads.length);
   return {
     ...meta(actor),
     source: "HYBRID_READ_MODEL",
-    metrics: [{ label: "Total Customers", value: "2,842", trend: "12.5%", tone: "blue" }, { label: "New Leads", value: "168", trend: "8.3%", tone: "green" }, { label: "Open Deals", value: "74", trend: "15.2%", tone: "purple" }, { label: "Appointments", value: "28", trend: "5.7%", tone: "orange" }, { label: "Sales This Month", value: "$487,620", trend: "18.6%", tone: "cyan" }],
-    pipeline: [{ label: "New Leads", value: 168, tone: "blue" }, { label: "Contacted", value: 98, tone: "green" }, { label: "Qualified", value: 74, tone: "yellow" }, { label: "Proposal Sent", value: 42, tone: "purple" }, { label: "Won", value: 18, tone: "red" }],
+    metrics: [
+      { label: "Total Customers", sourceDetail: sourceDetail("total-customers"), sourceStatus: "Live", value: customerCountValue, tone: "blue" },
+      { label: "New Leads", sourceDetail: sourceDetail("new-leads"), sourceStatus: "Live", value: leadCountValue, tone: "green" },
+      { label: "Open Deals", sourceDetail: sourceDetail("open-deals"), sourceStatus: "Not wired", value: noSourceValue(), tone: "purple" },
+      { label: "Appointments", sourceDetail: sourceDetail("appointments"), sourceStatus: "Read-only", value: "Open console", tone: "orange" },
+      { label: "Sales This Month", sourceDetail: sourceDetail("sales-this-month"), sourceStatus: "Not wired", value: noSourceValue(), tone: "cyan" }
+    ],
+    pipeline: pipelineRows,
     leadSources: sourceRows.length ? sourceRows : [{ label: "Customer Intake", value: 100, tone: "blue" }],
     recentLeads: recentLeadRows.map((row) => ({
       date: row.date,
@@ -227,9 +264,9 @@ export async function getCustomerDashboardReadModel(
       status: row.status,
       vehicle: row.vehicle
     })),
-    topDeals: [{ customer: "Ahmed H.", vehicle: "2018 Toyota Camry", amount: "$15,500", stage: "Proposal" }, { customer: "Fardowsa A.", vehicle: "2019 Honda Accord", amount: "$18,900", stage: "Proposal" }, { customer: "Mustafa K.", vehicle: "2020 Toyota RAV4", amount: "$22,750", stage: "Qualified" }, { customer: "Ibrahim D.", vehicle: "2017 Nissan Rogue", amount: "$14,800", stage: "Negotiation" }, { customer: "Mohamed A.", vehicle: "2019 Ford Escape", amount: "$13,200", stage: "Qualified" }],
-    tasks: [{ title: "Follow up with Ahmed H.", detail: "2018 Toyota Camry", priority: "High" }, { title: "Call Elmi M. about financing", detail: "2019 Honda Accord", priority: "Medium" }, { title: "Confirm appointment", detail: "With Fardowsa A.", priority: "Medium" }, { title: "Send insurance documents", detail: "To Ibrahim D.", priority: "Low" }, { title: "Prepare vehicle for test drive", detail: "2017 RAV4", priority: "Low" }],
-    appointments: [{ time: "10:00 AM", customer: "Ahmed H.", detail: "2018 Toyota Camry" }, { time: "1:00 PM", customer: "Fardowsa A.", detail: "Financing Discussion" }, { time: "3:30 PM", customer: "Mustafa K.", detail: "Test Drive" }],
+    topDeals: [],
+    tasks: [],
+    appointments: [],
     activity: activityRows.map((row) => ({
       detail: row.detail,
       href: row.href,

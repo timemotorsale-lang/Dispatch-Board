@@ -360,7 +360,7 @@ describe("CRM Next pages", () => {
     expect(newTaskAction).toContain("Create a CRM task");
     expect(newTaskAction).toContain("Save CRM Task");
     expect(newTaskAction).toContain("Keep this task in the customer CRM record");
-    expect(emailAction).toContain("Use approved workspace");
+    expect(emailAction).toContain("Use the approved workspace");
     expect(emailAction).toContain("Send customer email");
     expect(emailAction).toContain("approved email workflow");
     expect(caseAction).toContain("Create customer case");

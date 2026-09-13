@@ -33,6 +33,7 @@ import {
   LEGACY_CUSTOMER_ARCHIVE_HREF,
   crmNextCustomerAppointmentHref
 } from "@/features/crm/crm-route-authority";
+import { crmActionSourceTruth } from "@/lib/crm-source-of-truth-registry";
 import type { CrmNextAccessReason } from "@/server/crm-next/access";
 import type { CrmNextActionBridgePreview } from "@/server/crm-next/action-bridge";
 import type { CrmNextAttentionItem, CrmNextCommandCenter, CrmNextCustomer360, CrmNextMilestoneStatus, CrmNextOperatingAction, CrmNextSalesRecord } from "@/server/crm-next/read-model";
@@ -1730,9 +1731,11 @@ export function CrmNextActionReadinessView({ action, customerId, model }: { acti
       })
     : backHref;
   const workspace = directActionWorkspace(action, relatedCustomer?.name ?? "Customer", relatedCustomer?.nextAction ?? action.response);
+  const actionTruth = crmActionSourceTruth(action.id);
   const isCrmTaskAction = action.id === "new-task";
   const isCaseAction = action.id === "new-case";
-  const isHeldProviderAction = action.id === "log-call" || action.id === "send-email" || action.id === "upload-document";
+  const isHeldProviderAction = actionTruth.status === "Not wired" || actionTruth.status === "Hidden";
+  const isLiveAction = actionTruth.status === "Live";
   const successMessage = action.id === "add-note"
     ? `Note saved to ${relatedCustomer?.name ?? "this customer"}'s CRM timeline.`
     : action.id === "new-case"
@@ -1756,7 +1759,7 @@ export function CrmNextActionReadinessView({ action, customerId, model }: { acti
             </div>
           </div>
           <dl className={styles.customerFacts}>
-            <div><dt>Status</dt><dd>{action.state === "HELD" ? "Use approved workspace" : "Available"}</dd></div>
+            <div><dt>Status</dt><dd>{actionTruth.status}</dd></div>
             <div><dt>Action type</dt><dd>{action.category}</dd></div>
             <div><dt>Customer</dt><dd>{relatedCustomer?.name ?? "Available from CRM Next"}</dd></div>
             <div><dt>Next step</dt><dd>{isCrmTaskAction ? "Create CRM task" : "Continue"}</dd></div>
@@ -1777,13 +1780,17 @@ export function CrmNextActionReadinessView({ action, customerId, model }: { acti
                   <p>{workspace.status}</p>
                 </div>
                 <span className={isHeldProviderAction ? styles.levelMedium : styles.levelLow}>
-                  {isHeldProviderAction ? "Not wired yet" : "CRM record"}
+                  {actionTruth.status}
                 </span>
               </header>
               <CrmNextDirectActionForm
+                actionId={action.id}
                 cancelHref={backHref}
-                disabled={isHeldProviderAction}
+                customerId={relatedCustomer?.id}
+                customerName={relatedCustomer?.name ?? "Customer"}
+                disabled={!isLiveAction}
                 fields={workspace.fields}
+                nextAction={relatedCustomer?.nextAction ?? action.response}
                 saveLabel={workspace.button}
                 successMessage={successMessage}
               >
@@ -1834,9 +1841,9 @@ export function CrmNextActionReadinessView({ action, customerId, model }: { acti
             <header className={styles.panelHeader}><h2>What happens next</h2><span className={styles.pill}>{action.category}</span></header>
             <div className={styles.compactSectionGrid}>
               <article className={styles.compactSectionCard}><strong>Customer step</strong><span>{action.response}</span></article>
-              <article className={styles.compactSectionCard}><strong>Work area</strong><span>{action.sourceAuthority}</span></article>
+              <article className={styles.compactSectionCard}><strong>Work area</strong><span>{actionTruth.source}</span></article>
               <article className={styles.compactSectionCard}><strong>Follow-up</strong><span>{isCrmTaskAction ? "Keep this task in the customer CRM record unless an operational handoff is required." : "Return to Customer 360 after completing the step."}</span></article>
-              <article className={styles.compactSectionCard}><strong>Availability</strong><span>{action.state === "HELD" ? "This action continues in its approved workspace." : "This action can be opened from CRM Next."}</span></article>
+              <article className={styles.compactSectionCard}><strong>Availability</strong><span>{actionTruth.staffMessage}</span></article>
             </div>
           </section>
 
@@ -1858,7 +1865,7 @@ export function CrmNextActionReadinessView({ action, customerId, model }: { acti
           <article className={styles.sidePanel}>
             <header><h2>Action status</h2></header>
             <strong className={action.state === "SAFE_ROUTE" ? styles.levelLow : action.state === "PREVIEW_ONLY" ? styles.levelMedium : styles.levelHigh}>
-              {action.state === "HELD" ? "Use workspace" : "Available"}
+              {actionTruth.status}
             </strong>
             <ul className={styles.signalList}>
               <li>Customer context stays visible</li>
