@@ -17,13 +17,14 @@ The console is not a second customer database, a replacement accounting ledger, 
 
 Read in this order:
 
-1. [ENTERPRISE_SALES_ARCHITECTURE.md](ENTERPRISE_SALES_ARCHITECTURE.md) — product boundaries, domains, services, commands, read models, events, permissions, integrations, and reliability.
-2. [SELLING_OPERATING_MODEL.md](SELLING_OPERATING_MODEL.md) — roles, daily cadence, queue discipline, handoffs, controls, and performance system.
-3. [SALES_WORKFLOW_CATALOG.md](SALES_WORKFLOW_CATALOG.md) — end-to-end and exception workflows from lead intake through retention.
-4. [SALES_ALGORITHMS_AND_DECISION_LOGIC.md](SALES_ALGORITHMS_AND_DECISION_LOGIC.md) — deterministic scores, ranking, matching, risk, forecast, and governance logic.
-5. [ENTERPRISE_SALES_ROADMAP.md](ENTERPRISE_SALES_ROADMAP.md) — phased product path and rollout gates.
-6. [SALES_IMPLEMENTATION_MILESTONES.md](SALES_IMPLEMENTATION_MILESTONES.md) — vertical slices, dependencies, evidence, and exit criteria.
-7. [TRACEABILITY_MATRIX.md](TRACEABILITY_MATRIX.md) — mapping from operating outcomes to workflows, algorithms, services, milestones, and proof.
+1. [SALES_WORKFLOWS_ALGORITHMS_AND_BUSINESS_LOGIC.md](SALES_WORKFLOWS_ALGORITHMS_AND_BUSINESS_LOGIC.md) — official source of truth for Sales Console intent, workflows, algorithms, business logic, and implementation guardrails.
+2. [ENTERPRISE_SALES_ARCHITECTURE.md](ENTERPRISE_SALES_ARCHITECTURE.md) — product boundaries, domains, services, commands, read models, events, permissions, integrations, and reliability.
+3. [SELLING_OPERATING_MODEL.md](SELLING_OPERATING_MODEL.md) — roles, daily cadence, queue discipline, handoffs, controls, and performance system.
+4. [SALES_WORKFLOW_CATALOG.md](SALES_WORKFLOW_CATALOG.md) — end-to-end and exception workflows from lead intake through retention.
+5. [SALES_ALGORITHMS_AND_DECISION_LOGIC.md](SALES_ALGORITHMS_AND_DECISION_LOGIC.md) — deterministic scores, ranking, matching, risk, forecast, and governance logic.
+6. [ENTERPRISE_SALES_ROADMAP.md](ENTERPRISE_SALES_ROADMAP.md) — phased product path and rollout gates.
+7. [SALES_IMPLEMENTATION_MILESTONES.md](SALES_IMPLEMENTATION_MILESTONES.md) — vertical slices, dependencies, evidence, and exit criteria.
+8. [TRACEABILITY_MATRIX.md](TRACEABILITY_MATRIX.md) — mapping from operating outcomes to workflows, algorithms, services, milestones, and proof.
 
 Build-ready additions for the next implementation pass:
 
