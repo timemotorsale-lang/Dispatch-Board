@@ -399,16 +399,36 @@ describe("workday workbook service", () => {
     const user = usersByEmail.get("morgan.manager@local.test")!;
     const harness = repositoryHarness(user.id);
 
-    await createCooWorkbookQuickUpdate(user, "2026-09-08", {
-      category: "CUSTOMER_ISSUE",
-      person: "Furgasa Bertola",
-      text: "Customer needs towing support after vehicle would not restart."
-    }, { repository: harness.repository });
+    await Promise.all([
+      createCooWorkbookQuickUpdate(user, "2026-09-08", {
+        category: "CUSTOMER_ISSUE",
+        person: "Furgasa Bertola",
+        text: "Customer needs towing support after vehicle would not restart."
+      }, { repository: harness.repository }),
+      createCooWorkbookQuickUpdate(user, "2026-09-08", {
+        category: "INSURANCE",
+        person: "Carrier rep",
+        text: "Insurance binder must be confirmed before the customer appointment."
+      }, { repository: harness.repository }),
+      createCooWorkbookQuickUpdate(user, "2026-09-08", {
+        category: "PERMIT",
+        person: "City clerk",
+        text: "Permit renewal needs manager review before the deadline."
+      }, { repository: harness.repository })
+    ]);
 
     expect(harness.createdQuickUpdates).toContainEqual(expect.objectContaining({
       category: WorkdayQuickUpdateCategory.CUSTOMER_ISSUE,
       person: "Furgasa Bertola",
       text: "Customer needs towing support after vehicle would not restart."
+    }));
+    expect(harness.createdQuickUpdates).toContainEqual(expect.objectContaining({
+      category: WorkdayQuickUpdateCategory.INSURANCE,
+      text: "Insurance binder must be confirmed before the customer appointment."
+    }));
+    expect(harness.createdQuickUpdates).toContainEqual(expect.objectContaining({
+      category: WorkdayQuickUpdateCategory.PERMIT,
+      text: "Permit renewal needs manager review before the deadline."
     }));
   });
 

@@ -105,25 +105,25 @@ export const CRM_DASHBOARD_SOURCE_TRUTH = [
     id: "open-deals",
     label: "Open Deals",
     owner: "Sales",
-    source: "Deal/opportunity source",
-    staffMessage: "Deal totals are hidden until the live opportunity count is wired.",
-    status: "Not wired"
+    source: "Durable lead/opportunity records",
+    staffMessage: "Open deal counts are measured from active customer lead and opportunity stages.",
+    status: "Live"
   },
   {
     id: "appointments",
     label: "Appointments",
     owner: "Appointment Console",
     source: "Appointments",
-    staffMessage: "Appointment detail is live in the appointment console; dashboard count needs its direct live rollup.",
-    status: "Read-only"
+    staffMessage: "Appointment counts and today rail come from the live appointment console reader.",
+    status: "Live"
   },
   {
     id: "sales-this-month",
     label: "Sales This Month",
     owner: "Sales",
-    source: "Completed sale records",
-    staffMessage: "Sales totals are hidden until completed sale rollup is wired.",
-    status: "Not wired"
+    source: "Won lead records in the recent customer window",
+    staffMessage: "Monthly sales visibility is source-limited until completed-sale accounting is connected.",
+    status: "Read-only"
   },
   {
     id: "recent-leads",
@@ -145,9 +145,9 @@ export const CRM_DASHBOARD_SOURCE_TRUTH = [
     id: "top-deals",
     label: "Top Deals",
     owner: "Sales",
-    source: "Deal/opportunity source",
-    staffMessage: "Top deals are hidden until live deal ranking is wired.",
-    status: "Not wired"
+    source: "Durable lead/opportunity records",
+    staffMessage: "Top deal rows show active customer lead opportunities; amounts stay empty unless a trusted amount source exists.",
+    status: "Read-only"
   },
   {
     id: "my-tasks",

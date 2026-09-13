@@ -2,7 +2,15 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { listRecentCustomerLeads } from "@/server/services/customer-lead-service";
 import { listConcernResolutionPackages } from "@/server/services/concern-resolution-service";
 import { getUnifiedCrmCustomerList } from "@/server/services/unified-crm-customer-read-service";
-import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
+import {
+  getInitialMinneapolisLocation,
+  INITIAL_ORGANIZATION
+} from "@/server/appointments/location-foundation";
+import {
+  getLocationLocalDate,
+  locationLocalDateMinuteToInstant
+} from "@/server/appointments/location-time-service";
+import { listAppointmentReadModels } from "@/server/services/appointment-read-service";
 import { crmDashboardSourceTruth, type CrmSourceTruthStatus } from "@/lib/crm-source-of-truth-registry";
 import { canViewCustomerContact } from "@/server/policies/access";
 import { createCustomer360Repository, type Customer360Repository } from "@/server/repositories/customer-360-repository";
@@ -116,6 +124,15 @@ function formatDashboardDate(value: string | Date) {
   });
 }
 
+function formatDashboardTime(value: string | Date | null | undefined) {
+  if (!value) return "Unscheduled";
+  return new Date(value).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/Chicago"
+  });
+}
+
 function formatAgo(value: string | Date, now = new Date()) {
   const elapsed = Math.max(0, now.getTime() - new Date(value).getTime());
   const minutes = Math.floor(elapsed / 60000);
@@ -159,6 +176,24 @@ function sourceDetail(id: string) {
   return `${entry.status} · ${entry.source}`;
 }
 
+function customerDashboardAppointmentWindow(now: Date) {
+  const location = getInitialMinneapolisLocation();
+  const localDate = getLocationLocalDate(now, location.timezone);
+  return {
+    location,
+    windowEnd: locationLocalDateMinuteToInstant({
+      localDate,
+      minuteOfDay: 1440,
+      timezone: location.timezone
+    }),
+    windowStart: locationLocalDateMinuteToInstant({
+      localDate,
+      minuteOfDay: 0,
+      timezone: location.timezone
+    })
+  };
+}
+
 function pipelineFromRows(rows: Array<{ status: string }>) {
   const tones = ["blue", "green", "yellow", "purple", "red"];
   const counts = rows.reduce<Record<string, number>>((acc, row) => {
@@ -191,16 +226,30 @@ const detailPanels: Record<CustomerResolutionDetail, (item: CustomerResolutionCa
 
 export async function getCustomerDashboardReadModel(
   user: AuthenticatedUser | null,
-  dependencies: { customerReader?: typeof getUnifiedCrmCustomerList; leadReader?: typeof listRecentCustomerLeads; now?: () => Date } = {}
+  dependencies: {
+    appointmentReader?: typeof listAppointmentReadModels;
+    customerReader?: typeof getUnifiedCrmCustomerList;
+    leadReader?: typeof listRecentCustomerLeads;
+    now?: () => Date;
+  } = {}
 ): Promise<CustomerDashboardReadModel> {
   const actor = assertAuthenticated(user);
+  const appointmentReader = dependencies.appointmentReader ?? listAppointmentReadModels;
   const leadReader = dependencies.leadReader ?? listRecentCustomerLeads;
   const customerReader = dependencies.customerReader ?? getUnifiedCrmCustomerList;
   const now = dependencies.now?.() ?? new Date();
-  const [durableLeads, customers] = await Promise.all([
+  const appointmentWindow = customerDashboardAppointmentWindow(now);
+  const [durableLeads, customers, appointmentResult] = await Promise.all([
     leadReader(actor, 8),
-    customerReader(actor, { limit: 12, owner: "all", status: "all" })
+    customerReader(actor, { limit: 12, owner: "all", status: "all" }),
+    appointmentReader(actor, {
+      includeCancelled: false,
+      locationId: appointmentWindow.location.id,
+      windowEnd: appointmentWindow.windowEnd,
+      windowStart: appointmentWindow.windowStart
+    }).then((result) => ({ ok: true as const, result })).catch(() => ({ ok: false as const }))
   ]);
+  const appointments = appointmentResult.ok ? appointmentResult.result : null;
   const recentLeadRows = [
     ...durableLeads.map((lead) => ({
       initial: initials(lead.customer.displayName),
@@ -243,15 +292,21 @@ export async function getCustomerDashboardReadModel(
   const pipelineRows = pipelineFromRows(recentLeadRows);
   const customerCountValue = measuredCount(customers.items.length, customers.page.hasMore);
   const leadCountValue = measuredCount(durableLeads.length);
+  const openDealLeads = durableLeads.filter((lead) => !["WON", "LOST"].includes(String(lead.stage).toUpperCase()));
+  const wonThisMonthLeads = durableLeads.filter((lead) => {
+    if (String(lead.stage).toUpperCase() !== "WON") return false;
+    const wonAt = new Date(lead.updatedAt ?? lead.createdAt);
+    return wonAt.getFullYear() === now.getFullYear() && wonAt.getMonth() === now.getMonth();
+  });
   return {
     ...meta(actor),
     source: "HYBRID_READ_MODEL",
     metrics: [
       { label: "Total Customers", sourceDetail: sourceDetail("total-customers"), sourceStatus: "Live", value: customerCountValue, tone: "blue" },
       { label: "New Leads", sourceDetail: sourceDetail("new-leads"), sourceStatus: "Live", value: leadCountValue, tone: "green" },
-      { label: "Open Deals", sourceDetail: sourceDetail("open-deals"), sourceStatus: "Not wired", value: noSourceValue(), tone: "purple" },
-      { label: "Appointments", sourceDetail: sourceDetail("appointments"), sourceStatus: "Read-only", value: noSourceValue(), tone: "orange" },
-      { label: "Sales This Month", sourceDetail: sourceDetail("sales-this-month"), sourceStatus: "Not wired", value: noSourceValue(), tone: "cyan" }
+      { label: "Open Deals", sourceDetail: sourceDetail("open-deals"), sourceStatus: "Live", value: String(openDealLeads.length), tone: "purple" },
+      { label: "Appointments", sourceDetail: sourceDetail("appointments"), sourceStatus: appointments ? "Live" : "Read-only", value: appointments ? String(appointments.appointmentCount) : noSourceValue(), tone: "orange" },
+      { label: "Sales This Month", sourceDetail: sourceDetail("sales-this-month"), sourceStatus: "Read-only", value: String(wonThisMonthLeads.length), tone: "cyan" }
     ],
     pipeline: pipelineRows,
     leadSources: sourceRows,
@@ -264,9 +319,18 @@ export async function getCustomerDashboardReadModel(
       status: row.status,
       vehicle: row.vehicle
     })),
-    topDeals: [],
+    topDeals: openDealLeads.slice(0, 5).map((lead) => ({
+      amount: "No source data",
+      customer: lead.customer.displayName,
+      stage: titleCase(String(lead.stage)),
+      vehicle: lead.vehicleInterest ?? "No vehicle selected"
+    })),
     tasks: [],
-    appointments: [],
+    appointments: (appointments?.appointments ?? []).slice(0, 5).map((appointment) => ({
+      customer: appointment.customer?.displayName ?? appointment.sourceReference ?? "Customer",
+      detail: appointment.title,
+      time: formatDashboardTime(appointment.startsAt)
+    })),
     activity: activityRows.map((row) => ({
       detail: row.detail,
       href: row.href,

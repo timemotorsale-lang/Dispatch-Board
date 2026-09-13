@@ -60,6 +60,55 @@ describe("customer console read service", () => {
 
   it("returns the complete dashboard read model", async () => {
     const model = await getCustomerDashboardReadModel(manager, {
+      appointmentReader: async () => ({
+        appointmentCount: 1,
+        appointments: [{
+          appointmentNumber: "APT-1",
+          attendanceStatus: "EXPECTED",
+          automationExecutions: [],
+          bookingStatus: "SCHEDULED",
+          category: "sales",
+          confirmationStatus: "PENDING",
+          createdAt: "2026-07-12T18:00:00.000Z",
+          customer: {
+            customerId: "customer-asmaa",
+            customerNumber: "CUS-ASMAA",
+            displayName: "Asmaa Mohamed Salah",
+            email: null,
+            phoneNumber: null
+          },
+          endsAt: "2026-07-12T21:00:00.000Z",
+          executionStatus: "NOT_STARTED",
+          followUpDispositionCode: null,
+          followUpNotes: null,
+          id: "appointment-1",
+          locationId: "loc-time-motor-sales-minneapolis",
+          organizationId: "org-time-motor-sales",
+          outcomeCode: null,
+          outcomeNotes: null,
+          owner: { id: manager.id, name: manager.name, email: manager.email },
+          participants: [],
+          resourceReservations: [],
+          schedulingTimezone: "America/Chicago",
+          sourceReference: "customer-asmaa",
+          sourceType: "CUSTOMER",
+          startsAt: "2026-07-12T20:00:00.000Z",
+          taskLinks: [],
+          title: "Sales follow-up",
+          updatedAt: "2026-07-12T18:00:00.000Z",
+          vehicles: [],
+          version: 1,
+          visibility: {
+            canMutate: true,
+            canViewSensitiveContact: true,
+            dataAccessLevel: "LIMITED_DETAIL",
+            relationship: "MANAGER"
+          }
+        }],
+        locationId: "loc-time-motor-sales-minneapolis",
+        windowEnd: "2026-07-13T05:00:00.000Z",
+        windowStart: "2026-07-12T05:00:00.000Z"
+      }),
       customerReader: async () => ({
         contractVersion: "ucrm.customer-list/v1",
         state: "READY",
@@ -131,10 +180,23 @@ describe("customer console read service", () => {
       href: "/crm-next/customers/customer-1",
       title: "New lead received"
     });
-    expect(model.topDeals).toHaveLength(0);
+    expect(model.topDeals).toHaveLength(5);
+    expect(model.appointments).toEqual([{
+      customer: "Asmaa Mohamed Salah",
+      detail: "Sales follow-up",
+      time: "3:00 PM"
+    }]);
     expect(model.metrics.find((metric) => metric.label === "Open Deals")).toMatchObject({
-      sourceStatus: "Not wired",
-      value: "No source data available"
+      sourceStatus: "Live",
+      value: "5"
+    });
+    expect(model.metrics.find((metric) => metric.label === "Appointments")).toMatchObject({
+      sourceStatus: "Live",
+      value: "1"
+    });
+    expect(model.metrics.find((metric) => metric.label === "Sales This Month")).toMatchObject({
+      sourceStatus: "Read-only",
+      value: "0"
     });
   });
 
