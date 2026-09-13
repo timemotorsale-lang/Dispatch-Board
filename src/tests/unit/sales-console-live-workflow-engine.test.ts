@@ -25,6 +25,24 @@ describe("Sales Console live workflow engine", () => {
     );
   });
 
+  it("keeps the revenue work queue source-backed and lane-aware", () => {
+    const lanes = new Set(salesConsoleLiveWorkItems.map((item) => item.contractLane));
+
+    expect(salesConsoleLiveWorkItems.length).toBeGreaterThan(0);
+    expect([...lanes]).toEqual(
+      expect.arrayContaining([
+        "Inventory Cash Sale",
+        "Inventory BHPH Sale",
+        "Inventory Lease-to-Own",
+        "Public Auto Repair",
+        "Financing Product"
+      ])
+    );
+    expect(salesConsoleLiveWorkItems.every((item) => item.source && item.reason && item.nextAction)).toBe(true);
+    expect(salesConsoleLiveWorkItems.every((item) => item.algorithmReasons.length > 0)).toBe(true);
+    expect(salesConsoleLiveWorkItems.some((item) => item.blockers.length > 0)).toBe(true);
+  });
+
   it("unifies source domains into the revenue command queue while preserving guardrails", () => {
     expect(salesConsoleUnifiedQueueCoversOperatingBrain()).toBe(true);
     expect(salesConsoleUnifiedRevenueCommandQueueHealth.sourceDomains).toEqual(

@@ -87,22 +87,17 @@ type SalesIntent = {
 };
 
 const salesIntentHomeNav = "Sales Intent Home";
+const revenueWorkQueueNav = "Revenue Work Queue";
+const guidedWorkspaceNav = "Guided Workspace";
+const enterpriseDashboardNav = "Enterprise Dashboard";
+const sourceHealthNav = "Source Health";
 
 const navigation = [
   salesIntentHomeNav,
-  "Today",
-  "Leads",
-  "Pipeline",
-  "Customers",
-  "Revenue Desk",
-  "Inventory Intelligence",
-  "Appointments",
-  "Tasks & Promises",
-  "Finance Handoff",
-  "Delivery Readiness",
-  "Manager Command",
-  "Reports & Forecast",
-  "Admin / Source Health"
+  revenueWorkQueueNav,
+  guidedWorkspaceNav,
+  enterpriseDashboardNav,
+  sourceHealthNav
 ];
 
 const roleLanding: Record<StaffRole, string> = {
@@ -119,6 +114,34 @@ const workspaceSummaries: Record<string, WorkspaceSummary> = {
     primaryMetric: "7 guided sales intents",
     allowed: "Choose intent, see required facts, open the correct Sales workspace.",
     governed: "No fabricated recommendations; every action must be tied to source-backed customer, lead, deal, or appointment context."
+  },
+  [revenueWorkQueueNav]: {
+    title: "Revenue Work Queue",
+    description: "Ranked by urgency, value, readiness, blockers, source truth, and next action.",
+    primaryMetric: "Source-backed ranked work",
+    allowed: "Filter work, open source context, and start the selected customer or lane workspace.",
+    governed: "Queue items must come from source-shaped work records; no sample work is allowed."
+  },
+  [guidedWorkspaceNav]: {
+    title: "Guided Workspace",
+    description: "One selected customer, deal, or revenue lane at a time.",
+    primaryMetric: "1 active context",
+    allowed: "Review selected customer context, source links, blockers, and governed next steps.",
+    governed: "Outcome writes and source-system actions stay controlled until approved workflow exists."
+  },
+  [enterpriseDashboardNav]: {
+    title: "Enterprise Dashboard",
+    description: "Optional manager and owner visibility across revenue lanes, source health, risk, and performance.",
+    primaryMetric: "Optional leadership view",
+    allowed: "Inspect cross-lane signals, source-backed queues, and leadership action areas.",
+    governed: "Dashboard metrics must drill into source-backed details or show an unavailable state."
+  },
+  [sourceHealthNav]: {
+    title: "Source Health",
+    description: "Implementation readiness, source wiring, rollout evidence, and audit guardrails.",
+    primaryMetric: "Source health",
+    allowed: "Review source readiness and release evidence.",
+    governed: "Admin policy changes require explicit future workflow."
   },
   "Today": {
     title: "My Team's Work Queue",
@@ -306,6 +329,8 @@ export function SalesConsoleEliteOperatingConsole() {
   const [activeIntentId, setActiveIntentId] = useState<SalesIntentId>("work-todays-leads");
   const [query, setQuery] = useState("");
   const [laneFilter, setLaneFilter] = useState("All Lanes");
+  const [queueGroupFilter, setQueueGroupFilter] = useState("All Priorities");
+  const [queueSourceFilter, setQueueSourceFilter] = useState("All Sources");
   const [selectedCustomer, setSelectedCustomer] = useState(salesConsoleLiveWorkItems[0]);
   const [selectedLane, setSelectedLane] = useState(salesConsoleLiveRevenueLanes[0]);
   const [selectedLead, setSelectedLead] = useState(salesConsoleLiveLeadRecords[0]);
@@ -313,7 +338,7 @@ export function SalesConsoleEliteOperatingConsole() {
   const [selectedManagerQueue, setSelectedManagerQueue] = useState<(typeof salesConsoleLiveManagerQueues)[number]>(salesConsoleLiveManagerQueues[0]);
   const [recordSaleStatus, setRecordSaleStatus] = useState<string | null>(null);
   const [isRecordSalePending, startRecordSaleTransition] = useTransition();
-  const activeWorkspace = workspaceSummaries[activeNav];
+  const activeWorkspace = workspaceSummaries[activeNav] ?? workspaceSummaries[revenueWorkQueueNav];
   const activeIntent = salesIntents.find((intent) => intent.id === activeIntentId) ?? salesIntents[0];
   const selectedLaneContract = getRevenueLaneContract(selectedLane.contractLane);
   const selectedLaneLinks = getSalesConsoleCrossConsoleLinksForLane(selectedLane.contractLane, activeRole);
@@ -352,19 +377,30 @@ export function SalesConsoleEliteOperatingConsole() {
     const normalized = query.trim().toLowerCase();
     return salesConsoleLiveWorkItems.filter((item) => {
       const matchesLane = laneFilter === "All Lanes" || item.lane === laneFilter;
+      const matchesGroup = queueGroupFilter === "All Priorities" || item.group === queueGroupFilter;
+      const matchesSource = queueSourceFilter === "All Sources" || item.source === queueSourceFilter;
       const matchesSearch =
         !normalized ||
-        [item.customer, item.contact, item.vehicle, item.stock, item.lane, item.stage, item.source]
+        [item.customer, item.contact, item.vehicle, item.stock, item.lane, item.stage, item.source, item.group]
           .join(" ")
           .toLowerCase()
           .includes(normalized);
 
-      return matchesLane && matchesSearch;
+      return matchesLane && matchesGroup && matchesSource && matchesSearch;
     });
-  }, [laneFilter, query]);
+  }, [laneFilter, query, queueGroupFilter, queueSourceFilter]);
 
   const searchExperience = useMemo(() => searchSalesConsoleLiveExperience(query, activeRole), [activeRole, query]);
   const searchResults = searchExperience.results;
+  const queueGroups = useMemo(() => [...new Set(salesConsoleLiveWorkItems.map((item) => item.group))], []);
+  const queueSources = useMemo(() => [...new Set(salesConsoleLiveWorkItems.map((item) => item.source))], []);
+  const queueStats = useMemo(() => ([
+    { label: "Ranked Work", value: salesConsoleLiveWorkItems.length.toString(), filter: "All Priorities", detail: "Source-backed work records" },
+    { label: "Do Now", value: salesConsoleLiveWorkItems.filter((item) => item.group === "Must Do Now").length.toString(), filter: "Must Do Now", detail: "Urgency and value signals" },
+    { label: "Manager Review", value: salesConsoleLiveWorkItems.filter((item) => item.group === "Manager Review").length.toString(), filter: "Manager Review", detail: "Rule-triggered review" },
+    { label: "Blocked", value: salesConsoleLiveWorkItems.filter((item) => item.group === "Blocked").length.toString(), filter: "Blocked", detail: "Needs source or staff action" },
+    { label: "Revenue Lanes", value: new Set(salesConsoleLiveWorkItems.map((item) => item.contractLane)).size.toString(), filter: "All Priorities", detail: "Cross-lane coverage" }
+  ]), []);
   const groupedWork = useMemo(() => {
     const groups: WorkItem["group"][] = ["Must Do Now", "Today", "Waiting", "Manager Review", "Blocked", "Watch"];
 
@@ -375,13 +411,9 @@ export function SalesConsoleEliteOperatingConsole() {
   }, [filteredWork]);
 
   function openSearchResult(result: SalesFederatedSearchResult) {
-    if (result.category === "appointment") setActiveNav("Appointments");
-    else if (result.category === "task-promise") setActiveNav("Tasks & Promises");
-    else if (result.category === "stock-vin") setActiveNav("Inventory Intelligence");
-    else if (result.category === "manager-review") setActiveNav("Manager Command");
-    else if (result.category === "evidence") setActiveNav("Admin / Source Health");
-    else if (result.category === "customer" || result.category === "phone-email") setActiveNav("Customers");
-    else setActiveNav("Revenue Desk");
+    if (result.category === "manager-review" || result.category === "evidence") setActiveNav(enterpriseDashboardNav);
+    else if (result.category === "appointment" || result.category === "task-promise" || result.category === "stock-vin" || result.category === "customer" || result.category === "phone-email") setActiveNav(guidedWorkspaceNav);
+    else setActiveNav(revenueWorkQueueNav);
 
     const matchedWork = salesConsoleLiveWorkItems.find((item) => result.tokens.some((token) => token.includes(item.customer) || token.includes(item.stock)));
     const matchedLane = salesConsoleLiveRevenueLanes.find((lane) => result.tokens.some((token) => token.includes(lane.name) || token.includes(lane.contractLane)));
@@ -392,7 +424,15 @@ export function SalesConsoleEliteOperatingConsole() {
 
   function openSalesIntent(intent: SalesIntent) {
     setActiveIntentId(intent.id);
-    setActiveNav(intent.workspace);
+    setActiveNav(revenueWorkQueueNav);
+    setQueueGroupFilter(intent.id === "recover-stalled-opportunity" || intent.id === "review-manager-priorities" ? "Manager Review" : "All Priorities");
+  }
+
+  function openQueueItem(item: WorkItem) {
+    setSelectedCustomer(item);
+    const matchedLane = salesConsoleLiveRevenueLanes.find((lane) => lane.contractLane === item.contractLane);
+    if (matchedLane) setSelectedLane(matchedLane);
+    setActiveNav(guidedWorkspaceNav);
   }
 
   function submitSelectedSaleRecord() {
@@ -499,7 +539,7 @@ export function SalesConsoleEliteOperatingConsole() {
               <option key={role}>{role}</option>
             ))}
           </select>
-          <button type="button" onClick={() => setActiveNav("Admin / Source Health")}>
+          <button type="button" onClick={() => setActiveNav(sourceHealthNav)}>
             Source Health 98%
           </button>
         </header>
@@ -599,25 +639,33 @@ export function SalesConsoleEliteOperatingConsole() {
           </section>
         ) : (
           <>
-        <section className={styles.kpis} aria-label="Sales Console KPI strip">
-          {[
-            ["Opportunities", "128", "12% vs yesterday"],
-            ["Gross Profit", "$184,650", "8% vs yesterday"],
-            ["Units Sold (MTD)", "42", "5 vs last month"],
-            ["Show Rate", "24.7%", "1.6pp vs yesterday"],
-            ["Appt. Show Rate", "63.3%", "3.8pp vs yesterday"],
-            ["First Response", "5m 22s", "1m 05s faster"]
-          ].map(([label, value, trend]) => (
-            <article key={label} className={styles.kpi}>
-              <span>{label}</span>
-              <strong>{value}</strong>
-              <em>{trend}</em>
-            </article>
-          ))}
-        </section>
+        {activeNav === revenueWorkQueueNav || activeNav === enterpriseDashboardNav ? (
+          <section className={styles.queueStats} aria-label="Revenue Work Queue source-backed summary">
+            {queueStats.map((stat) => (
+              <button
+                key={stat.label}
+                type="button"
+                onClick={() => {
+                  setQueueGroupFilter(stat.filter);
+                  setActiveNav(revenueWorkQueueNav);
+                }}
+              >
+                <span>{stat.label}</span>
+                <strong>{stat.value}</strong>
+                <em>{stat.detail}</em>
+              </button>
+            ))}
+            <button type="button" onClick={() => setActiveNav(enterpriseDashboardNav)}>
+              <span>Enterprise Dashboard</span>
+              <strong>Open</strong>
+              <em>Optional leadership view</em>
+            </button>
+          </section>
+        ) : null}
 
-        <div className={styles.workspace}>
+        <div className={activeNav === enterpriseDashboardNav ? styles.workspace : styles.focusWorkspace}>
           <section className={styles.operatingArea}>
+            {activeNav === revenueWorkQueueNav || activeNav === enterpriseDashboardNav ? (
             <section className={styles.workQueue}>
               <div className={styles.sectionHeader}>
                 <div>
@@ -625,14 +673,41 @@ export function SalesConsoleEliteOperatingConsole() {
                   <p>{query ? `Filtered by "${query}"` : activeWorkspace.description}</p>
                 </div>
                 <div className={styles.filters}>
+                  <select value={queueGroupFilter} onChange={(event) => setQueueGroupFilter(event.target.value)} aria-label="Priority filter">
+                    <option>All Priorities</option>
+                    {queueGroups.map((group) => (
+                      <option key={group}>{group}</option>
+                    ))}
+                  </select>
                   <select value={laneFilter} onChange={(event) => setLaneFilter(event.target.value)} aria-label="Lane filter">
                     <option>All Lanes</option>
                     {salesConsoleLiveRevenueLanes.map((lane) => (
                       <option key={lane.name}>{lane.name}</option>
                     ))}
                   </select>
-                  <button type="button" onClick={() => setQuery("")}>Reset</button>
+                  <select value={queueSourceFilter} onChange={(event) => setQueueSourceFilter(event.target.value)} aria-label="Source filter">
+                    <option>All Sources</option>
+                    {queueSources.map((source) => (
+                      <option key={source}>{source}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuery("");
+                      setLaneFilter("All Lanes");
+                      setQueueGroupFilter("All Priorities");
+                      setQueueSourceFilter("All Sources");
+                    }}
+                  >
+                    Reset
+                  </button>
                 </div>
+              </div>
+              <div className={styles.queueTruth} aria-label="Revenue Work Queue source truth">
+                <strong>{filteredWork.length} source-backed record{filteredWork.length === 1 ? "" : "s"}</strong>
+                <span>Ranked by urgency, value, readiness, blocker risk, freshness, and next action.</span>
+                <span>Every row opens the selected customer/deal workspace.</span>
               </div>
               {activeNav === "Leads" ? (
                 <section className={styles.leadOperations} aria-label="Lead Operations workspace">
@@ -843,6 +918,9 @@ export function SalesConsoleEliteOperatingConsole() {
                           <em className={styles.sourceLinkRow}>
                             <a href={getSalesConsoleCustomer360Href(item.customer)}>Customer 360</a>
                             <a href={getSalesConsoleVehicle360Href(item.stock)}>Vehicle 360</a>
+                            {getSalesConsoleCrossConsoleLinksForLane(item.contractLane, activeRole).slice(0, 3).map((link) => (
+                              <a key={`${item.stock}-${link.destination}`} href={link.href}>{link.label}</a>
+                            ))}
                           </em>
                         </span>
                         <span className={styles.laneChip}>{item.lane}</span>
@@ -851,7 +929,7 @@ export function SalesConsoleEliteOperatingConsole() {
                         <span>{item.blockers.length ? item.blockers.join(", ") : "Clear"}</span>
                         <span>{item.nextAction}</span>
                         <span>
-                          <button type="button" className={actionTone[item.actionState]} onClick={() => setSelectedCustomer(item)}>{item.action}</button>
+                          <button type="button" className={actionTone[item.actionState]} onClick={() => openQueueItem(item)}>{item.action}</button>
                         </span>
                       </article>
                     )) : (
@@ -861,7 +939,10 @@ export function SalesConsoleEliteOperatingConsole() {
                 ))}
               </div>
             </section>
+            ) : null}
 
+            {activeNav === enterpriseDashboardNav ? (
+              <>
             <section className={styles.revenueDesk} aria-label="Revenue Desk lanes">
               <div className={styles.sectionHeader}>
                 <div>
@@ -969,7 +1050,10 @@ export function SalesConsoleEliteOperatingConsole() {
                 ))}
               </div>
             </section>
+              </>
+            ) : null}
 
+            {activeNav === guidedWorkspaceNav || activeNav === enterpriseDashboardNav ? (
             <section className={styles.customer360} aria-label="Customer 360">
               <div>
                 <h2>Customer 360</h2>
@@ -1044,8 +1128,67 @@ export function SalesConsoleEliteOperatingConsole() {
                 </article>
               </div>
             </section>
+            ) : null}
+
+            {activeNav === sourceHealthNav ? (
+              <section className={styles.releasePanel} aria-label="Source Health">
+                <div>
+                  <h2>Source Health</h2>
+                  <p>
+                    Admin-only connected MVP gate: {salesConsoleM64ReadyCount()} of {salesConsoleM64ConnectedMvpGate.length} areas
+                    are ready, guarded, or source-controlled; {salesConsoleRolloutHardeningPassCount()} rollout checks pass;
+                    final MVP gate {salesConsoleMvpRolloutGatePassCount()} of {salesConsoleMvpRolloutGateItems.length}.
+                  </p>
+                </div>
+                <div className={styles.releaseGrid}>
+                  {salesConsoleMvpAcceptanceChecklist.map((item) => (
+                    <span key={item}>✓ {item}</span>
+                  ))}
+                </div>
+                <div className={styles.sourceGrid}>
+                  {salesConsoleM64ConnectedMvpGate.map((item) => (
+                    <article key={item.area}>
+                      <strong>{item.area}</strong>
+                      <span>{item.status}</span>
+                      <em>{item.owner}: {item.evidence}</em>
+                    </article>
+                  ))}
+                  {salesConsoleSourceHealthSummary.map((source) => (
+                    <article key={source.source}>
+                      <strong>{source.source}</strong>
+                      <span>{source.status}</span>
+                      <em>{source.owner}</em>
+                    </article>
+                  ))}
+                  {salesConsoleCrossConsoleNavigationTargets.map((target) => (
+                    <article key={target.destination}>
+                      <strong>{target.destination}</strong>
+                      <span>{target.behavior}</span>
+                      <em>
+                        <a href={target.href}>{target.label}</a> · {target.writeAuthority}
+                      </em>
+                    </article>
+                  ))}
+                  {salesConsoleRolloutHardeningChecks.map((check) => (
+                    <article key={check.id}>
+                      <strong>{check.label}</strong>
+                      <span>{check.status}</span>
+                      <em>{check.evidence}</em>
+                    </article>
+                  ))}
+                  {salesConsoleMvpRolloutGateItems.map((item) => (
+                    <article key={item.id}>
+                      <strong>{item.label}</strong>
+                      <span>{item.passed ? "pass" : "blocked"}</span>
+                      <em>{item.evidence}</em>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            ) : null}
           </section>
 
+          {activeNav === enterpriseDashboardNav ? (
           <aside className={styles.managerRail} aria-label="Manager Command Center">
             <h2>Manager Command Center</h2>
             {salesConsoleLiveManagerQueues.map((signal) => (
@@ -1082,6 +1225,7 @@ export function SalesConsoleEliteOperatingConsole() {
               <p>{selectedManagerQueue.drilldowns.join(" · ")}</p>
             </section>
           </aside>
+          ) : null}
         </div>
           </>
         )}

@@ -90,9 +90,10 @@ describe("Sales Console", () => {
 
     expect(markup).toContain("Elite enterprise Sales Console operational MVP");
     expect(markup).toContain("Sales Intent Home");
+    expect(markup).toContain("Revenue Work Queue");
+    expect(markup).toContain("Guided Workspace");
+    expect(markup).toContain("Enterprise Dashboard");
     expect(markup).toContain("What are you trying to do?");
-    expect(markup).toContain("Revenue Desk");
-    expect(markup).toContain("Manager Command");
   });
 
   it("keeps the M38 staff shell lean, role-aware, and free of prototype review language", () => {
@@ -113,7 +114,7 @@ describe("Sales Console", () => {
   it("renders M41 salesperson today as an intent-led work start", () => {
     const markup = renderToStaticMarkup(<SalesPage />);
 
-    expect(markup).toContain("Today");
+    expect(markup).toContain("Revenue Work Queue");
     expect(markup).toContain("Work today&#x27;s leads");
     expect(markup).toContain("Review ranked lead");
     expect(markup).toContain("Record outcome");
@@ -123,7 +124,7 @@ describe("Sales Console", () => {
   it("renders M42 lead operations states and guarded assignment behavior", () => {
     const markup = renderToStaticMarkup(<SalesPage />);
 
-    expect(markup).toContain("Leads");
+    expect(markup).toContain("Revenue Work Queue");
   });
 
   it("renders the official enterprise navigation and sales intent home", () => {
@@ -131,19 +132,10 @@ describe("Sales Console", () => {
 
     for (const label of [
       "Sales Intent Home",
-      "Today",
-      "Leads",
-      "Pipeline",
-      "Customers",
-      "Revenue Desk",
-      "Inventory Intelligence",
-      "Appointments",
-      "Tasks &amp; Promises",
-      "Finance Handoff",
-      "Delivery Readiness",
-      "Manager Command",
-      "Reports &amp; Forecast",
-      "Admin / Source Health"
+      "Revenue Work Queue",
+      "Guided Workspace",
+      "Enterprise Dashboard",
+      "Source Health"
     ]) {
       expect(markup).toContain(label);
     }
@@ -169,6 +161,7 @@ describe("Sales Console", () => {
     expect(markup).toContain("Begin guided path");
     expect(markup).toContain("No fabricated activity, metrics, or recommendations.");
     expect(markup).not.toContain("My Team&#x27;s Work Queue");
+    expect(markup).not.toContain("$184,650");
   });
 
   it("renders the first sales console slice with the required operating surfaces", () => {

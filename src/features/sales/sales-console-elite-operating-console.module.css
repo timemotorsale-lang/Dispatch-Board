@@ -530,10 +530,61 @@
   font-size: 19px;
 }
 
+.queueStats {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(120px, 1fr));
+  gap: 8px;
+  margin: 10px 10px 0;
+}
+
+.queueStats button {
+  border: 1px solid #dbe3ef;
+  border-radius: 10px;
+  background: #fff;
+  color: #0f172a;
+  cursor: pointer;
+  padding: 12px 13px;
+  text-align: left;
+  font: inherit;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+}
+
+.queueStats button:hover,
+.queueStats button:focus-visible {
+  border-color: #3157d5;
+  background: #eef4ff;
+  outline: none;
+}
+
+.queueStats span,
+.queueStats em {
+  display: block;
+  color: #475569;
+  font-size: 11.5px;
+  font-style: normal;
+  line-height: 1.35;
+}
+
+.queueStats strong {
+  display: block;
+  margin: 4px 0;
+  font-size: 20px;
+}
+
 .workspace {
   min-width: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 270px;
+  gap: 12px;
+  padding: 10px;
+  align-items: start;
+  overflow: hidden;
+}
+
+.focusWorkspace {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   padding: 10px;
   align-items: start;
@@ -573,6 +624,27 @@
   align-items: flex-start;
   gap: 9px;
   margin-bottom: 9px;
+}
+
+.queueTruth {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 8px 9px;
+}
+
+.queueTruth strong {
+  color: #166534;
+}
+
+.queueTruth span {
+  color: #475569;
+  font-size: 11.5px;
 }
 
 .sectionHeader h1,
@@ -1277,6 +1349,7 @@
   .nav,
   .workspaceContract,
   .kpis,
+  .queueStats,
   .intentGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1330,6 +1403,7 @@
   }
 
   .kpis,
+  .queueStats,
   .workspaceContract,
   .laneGrid,
   .inventoryGrid,
