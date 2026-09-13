@@ -45,16 +45,16 @@ export function getAppBreadcrumb(
                 : "Home";
     const middle = crmView === "pipeline" ? { label: "Opportunities", href: "/crm?view=pipeline" } : undefined;
     return middle
-      ? [{ label: "Unified CRM", href: "/crm" }, middle, { label: current }]
-      : [{ label: "Unified CRM", href: "/crm" }, { label: current }];
+      ? [{ label: "Customer Console", href: "/crm" }, middle, { label: current }]
+      : [{ label: "Customer Console", href: "/crm" }, { label: current }];
   }
-  if (pathname === "/crm/opportunities") return [{ label: "Unified CRM", href: "/crm" }, { label: "Opportunities", href: "/crm?view=pipeline" }, { label: "Review Hub" }];
-  if (pathname === "/crm/opportunities/guided") return [{ label: "Unified CRM", href: "/crm" }, { label: "Opportunities", href: "/crm?view=pipeline" }, { label: "Guided Journey" }];
-  if (pathname === "/crm/opportunities/queue") return [{ label: "Unified CRM", href: "/crm" }, { label: "Opportunities", href: "/crm?view=pipeline" }, { label: "Queue Review" }];
-  if (pathname === "/crm/opportunities/new") return [{ label: "Unified CRM", href: "/crm" }, { label: "Opportunities", href: "/crm?view=pipeline" }, { label: "Create Review" }];
-  if (/^\/crm\/opportunities\/[^/]+\/transition$/.test(pathname)) return [{ label: "Unified CRM", href: "/crm" }, { label: "Opportunities", href: "/crm?view=pipeline" }, { label: "Transition Review" }];
-  if (/^\/crm\/opportunities\/[^/]+$/.test(pathname)) return [{ label: "Unified CRM", href: "/crm" }, { label: "Opportunities", href: "/crm?view=pipeline" }, { label: "Detail Review" }];
-  if (/^\/crm\/customers\/[^/]+$/.test(pathname)) return [{ label: "Unified CRM", href: "/crm" }, { label: "Customers", href: "/crm?view=customers" }, { label: "Customer 360" }];
+  if (pathname === "/crm/opportunities") return [{ label: "Customer Console", href: "/crm" }, { label: "Opportunities", href: "/crm?view=pipeline" }, { label: "Review Hub" }];
+  if (pathname === "/crm/opportunities/guided") return [{ label: "Customer Console", href: "/crm" }, { label: "Opportunities", href: "/crm?view=pipeline" }, { label: "Guided Journey" }];
+  if (pathname === "/crm/opportunities/queue") return [{ label: "Customer Console", href: "/crm" }, { label: "Opportunities", href: "/crm?view=pipeline" }, { label: "Queue Review" }];
+  if (pathname === "/crm/opportunities/new") return [{ label: "Customer Console", href: "/crm" }, { label: "Opportunities", href: "/crm?view=pipeline" }, { label: "Create Review" }];
+  if (/^\/crm\/opportunities\/[^/]+\/transition$/.test(pathname)) return [{ label: "Customer Console", href: "/crm" }, { label: "Opportunities", href: "/crm?view=pipeline" }, { label: "Transition Review" }];
+  if (/^\/crm\/opportunities\/[^/]+$/.test(pathname)) return [{ label: "Customer Console", href: "/crm" }, { label: "Opportunities", href: "/crm?view=pipeline" }, { label: "Detail Review" }];
+  if (/^\/crm\/customers\/[^/]+$/.test(pathname)) return [{ label: "Customer Console", href: "/crm" }, { label: "Customers", href: "/crm?view=customers" }, { label: "Customer 360" }];
   if (pathname === "/vehicles") return [{ label: "Command Control Center", href: "/command-center" }, { label: "Inventory Console" }, { label: "Home" }];
   if (pathname.startsWith("/vehicles/control-tower")) return [{ label: "Command Control Center", href: "/command-center" }, { label: "Inventory Console" }, { label: "Inventory Lifecycle" }, { label: "Control Tower" }];
   if (pathname.startsWith("/vehicles/disposition-wholesale")) return [{ label: "Command Control Center", href: "/command-center" }, { label: "Inventory Console" }, { label: "Inventory Lifecycle" }, { label: "Disposition & Wholesale" }];

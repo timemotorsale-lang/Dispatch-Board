@@ -60,7 +60,7 @@ export function previewCrmNextActionToTaskBridge(
     return {
       contractVersion: "crm-next-action-bridge/v1",
       liveTaskCreated: false,
-      reason: "CRM Next is not enabled for this user, so the bridge fails closed.",
+      reason: "Customer Console is not enabled for this user, so the bridge fails closed.",
       state: "DENIED"
     };
   }
@@ -72,14 +72,14 @@ export function previewCrmNextActionToTaskBridge(
     contractVersion: "crm-next-action-bridge/v1",
     liveTaskCreated: false,
     reason: dogfoodReady
-      ? "CRM Next can create an internal Dispatch task when you confirm the operation."
+      ? "Customer Console can create an internal Dispatch task when you confirm the operation."
       : "Task creation is not available in this mode.",
     state: dogfoodReady ? "DOGFOOD_READY" : "PREVIEW_ONLY",
     dispatchPreview: {
       title: item.nextAction,
       assignedTo: item.owner,
       due: "Today 3:00 PM",
-      source: `CRM Next · ${item.customerName} · ${item.reason}`,
+      source: `Customer Console · ${item.customerName} · ${item.reason}`,
       customer360Update: "Customer 360 would receive a timeline event after the Dispatch task is completed."
     }
   };
@@ -91,10 +91,10 @@ export async function createCrmNextDispatchTaskFromAttention(
 ) {
   const access = resolveCrmNextAccess(actor);
   if (!access.allowed) {
-    throw new Error("CRM Next is not enabled for this user.");
+    throw new Error("Customer Console is not enabled for this user.");
   }
   if (access.mode !== "DOGFOOD") {
-    throw new Error("CRM Next task creation is not enabled for this user.");
+    throw new Error("Customer Console task creation is not enabled for this user.");
   }
   if (!actor) {
     throw new Error("Authentication required.");
@@ -111,15 +111,15 @@ export async function createCrmNextDispatchTaskFromAttention(
     boardDate,
     customerReference: item.customerName,
     description: [
-      `CRM Next task for ${item.customerName}.`,
+      `Customer Console task for ${item.customerName}.`,
       `Reason: ${item.reason}.`,
       `Area: ${item.area}.`,
-      `Original owner shown in CRM Next: ${item.owner}.`,
+      `Original owner shown in Customer Console: ${item.owner}.`,
       input.idempotencyKey ? `Idempotency key: ${input.idempotencyKey}.` : ""
     ].filter(Boolean).join(" "),
     dueAt: dueAt.toISOString(),
     intakeMetadata: {
-      channel: "CRM Next",
+      channel: "Customer Console",
       expectedOutcome: "Complete the next customer action and record the result in the customer workspace.",
       intakeType: "Customer Follow-up",
       requiredUpdates: ["Customer outcome", "Next customer step", "Source record updated"]

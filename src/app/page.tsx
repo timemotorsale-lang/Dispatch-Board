@@ -69,12 +69,12 @@ const sections: MobileSection[] = [
     actionLabel: "CRM",
     title: "Customers & Sales",
     cards: [
-      { accent: "blue", description: "CRM Next command center.", href: "/crm-next", icon: ContactRound, label: "CRM Next", permissions: ["SALES", "MANAGEMENT", "OPERATIONS_COORDINATOR", "OFFICE"] },
+      { accent: "blue", description: "Customer command center.", href: "/crm-next", icon: ContactRound, label: "Customer Console", permissions: ["SALES", "MANAGEMENT", "OPERATIONS_COORDINATOR", "OFFICE"] },
       { accent: "green", description: "Find records, Customer 360, and leads.", href: CRM_NEXT_CUSTOMERS_HREF, icon: Users, label: "Customers", permissions: ["SALES", "MANAGEMENT", "OPERATIONS_COORDINATOR", "OFFICE", "ADVISOR"] },
       { accent: "gold", count: "Due", description: "Follow-ups and next customer actions.", href: "/crm-next/needs-attention", icon: Bell, label: "Follow-Ups", permissions: ["SALES", "MANAGEMENT", "OPERATIONS_COORDINATOR"] },
       { accent: "violet", description: "Customer conversations and history.", href: "/crm-next/timeline", icon: MessageSquare, label: "Communications", permissions: ["SALES", "MANAGEMENT", "OPERATIONS_COORDINATOR", "OFFICE"] },
       { accent: "red", description: "Active opportunities and deal work.", href: "/crm-next/deals", icon: BriefcaseBusiness, label: "Deals", permissions: ["SALES", "MANAGEMENT"] },
-      { accent: "slate", description: "Fallback archive for legacy records.", href: LEGACY_CUSTOMER_ARCHIVE_HREF, icon: FileText, label: "Legacy Archive", permissions: ["SALES", "MANAGEMENT", "OPERATIONS_COORDINATOR", "OFFICE"] }
+      { accent: "slate", description: "Fallback archive for legacy records.", href: LEGACY_CUSTOMER_ARCHIVE_HREF, icon: FileText, label: "Customer Archive", permissions: ["SALES", "MANAGEMENT", "OPERATIONS_COORDINATOR", "OFFICE"] }
     ]
   },
   {
@@ -114,9 +114,9 @@ const sections: MobileSection[] = [
 
 const desktopLinks = [
   { description: "Open the daily command center for active dispatch work, queues, and team execution.", href: "/board", label: "Open Dispatch Board", title: "Dispatch Board", tone: "primary" },
-  { description: "Work customers, prospects, leads, follow-ups, appointments, and CRM actions.", href: "/crm-next", label: "Open CRM Next", title: "CRM Next", tone: "primary" },
-  { description: "Open CRM Next customer records, Customer 360, search, and relationship work.", href: CRM_NEXT_CUSTOMERS_HREF, label: "Open CRM Next Customers", title: "Customers", tone: "primary" },
-  { description: "Legacy fallback access for historical customer records when CRM Next cannot complete the workflow yet.", href: LEGACY_CUSTOMER_ARCHIVE_HREF, label: "Open Legacy Archive", title: "Legacy Customer Archive", tone: "secondary" },
+  { description: "Work customers, prospects, leads, follow-ups, appointments, and CRM actions.", href: "/crm-next", label: "Open Customer Console", title: "Customer Console", tone: "primary" },
+  { description: "Open Customer records, Customer 360, search, and relationship work.", href: CRM_NEXT_CUSTOMERS_HREF, label: "Open Customer Records", title: "Customers", tone: "primary" },
+  { description: "Legacy fallback access for historical customer records when Customer Console cannot complete the workflow yet.", href: LEGACY_CUSTOMER_ARCHIVE_HREF, label: "Open Customer Archive", title: "Legacy Customer Archive", tone: "secondary" },
   { description: "See assigned work and complete the next action for your role.", href: "/my-tasks", label: "Open My Tasks", title: "My Tasks", tone: "secondary" },
   { description: "Create, review, and manage formal tasks that need ownership and tracking.", href: "/tasks", label: "Open Tasks", title: "Tasks", tone: "secondary" },
   { description: "Sign in or switch staff session before entering protected workspaces.", href: "/login", label: "Open Login", title: "Login", tone: "secondary" }

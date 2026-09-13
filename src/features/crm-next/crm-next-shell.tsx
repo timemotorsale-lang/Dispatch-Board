@@ -134,7 +134,7 @@ function directActionWorkspace(action: CrmNextOperatingAction, customerName: str
   return {
     button: "Continue",
     fields: [{ label: "Next step", placeholder: action.response }],
-    status: "This action is available from CRM Next.",
+    status: "This action is available from Customer Console.",
     title: action.label
   };
 }
@@ -192,18 +192,18 @@ function verifiedTimelineEvents(events: CrmNextCommandCenter["timeline"]) {
 
 export function CrmNextUnavailable({ fallbackHref, reason }: { fallbackHref: string; reason: CrmNextAccessReason }) {
   const message = reason === "CRM_NEXT_OFF"
-    ? "CRM Next is safely turned off. Customer Archive and the current CRM fallback remain available."
-    : "CRM Next is not enabled for your current workspace.";
+    ? "Customer Console is safely turned off. Customer Archive and the older customer tools remain available."
+    : "Customer Console is not enabled for your current workspace.";
 
   return (
-    <section className={styles.blocked} aria-label="CRM Next unavailable">
+    <section className={styles.blocked} aria-label="Customer Console unavailable">
       <small>CRM NEXT</small>
-      <h1>CRM Next is protected right now.</h1>
+      <h1>Customer Console is protected right now.</h1>
       <p>{message}</p>
       <div className={styles.buttonRow}>
         <Link className={styles.primaryButton} href={fallbackHref}>Return to my workspace</Link>
-        <Link className={styles.secondaryButton} href={LEGACY_CUSTOMER_ARCHIVE_HREF}>Legacy customer archive</Link>
-        <Link className={styles.secondaryButton} href={LEGACY_CRM_FALLBACK_HREF}>Legacy CRM fallback</Link>
+        <Link className={styles.secondaryButton} href={LEGACY_CUSTOMER_ARCHIVE_HREF}>Customer Archive</Link>
+        <Link className={styles.secondaryButton} href={LEGACY_CRM_FALLBACK_HREF}>Older Customer Tools</Link>
       </div>
     </section>
   );
@@ -227,7 +227,7 @@ function CrmNextFrame({ active, children, userName }: { active: "command" | "new
   return (
     <section className={`${styles.shell} crm-next-shell`}>
       <div className={styles.frame}>
-        <aside className={styles.sidebar} aria-label="CRM Next navigation">
+        <aside className={styles.sidebar} aria-label="Customer Console navigation">
           <div className={styles.brand}>Time Motor Sales</div>
           <Link className={styles.consoleReturn} href={CRM_CUSTOMER_LANDING_HREF}>
             <ArrowLeft size={16} /> Customers console
@@ -253,8 +253,8 @@ function CrmNextFrame({ active, children, userName }: { active: "command" | "new
                 <Icon size={17} /> {label}
               </Link>
             ))}
-            <Link href={LEGACY_CRM_FALLBACK_HREF}><ChevronRight size={17} /> Legacy CRM fallback</Link>
-            <Link href={LEGACY_CUSTOMER_ARCHIVE_HREF}><ChevronRight size={17} /> Legacy customer archive</Link>
+            <Link href={LEGACY_CRM_FALLBACK_HREF}><ChevronRight size={17} /> Older Customer Tools</Link>
+            <Link href={LEGACY_CUSTOMER_ARCHIVE_HREF}><ChevronRight size={17} /> Customer Archive</Link>
           </nav>
           <div className={styles.operator}>
             <strong>{userName}</strong>
@@ -273,7 +273,7 @@ function Topbar({ defaultQuery = "" }: { defaultQuery?: string }) {
       <form action="/crm-next/search" className={styles.search} role="search">
         <Search size={20} aria-hidden="true" />
         <input
-          aria-label="Search CRM Next"
+          aria-label="Search customer records"
           defaultValue={defaultQuery}
           name="q"
           placeholder="Search customers, vehicles, deals, stock #, RO..."
@@ -283,7 +283,7 @@ function Topbar({ defaultQuery = "" }: { defaultQuery?: string }) {
       </form>
       <div className={styles.topActions}>
         <Link className={styles.secondaryButton} href="/crm-next/new"><UserPlus size={16} /> Add Customer / Prospect</Link>
-        <div className={styles.governance}><ShieldCheck size={16} /> CRM Next active</div>
+        <div className={styles.governance}><ShieldCheck size={16} /> Customer Console active</div>
       </div>
     </div>
   );
@@ -291,7 +291,7 @@ function Topbar({ defaultQuery = "" }: { defaultQuery?: string }) {
 
 function OperationalSourceStrip({ model }: { model: CrmNextCommandCenter }) {
   return (
-    <section className={styles.sourceStrip} aria-label="CRM Next source status">
+    <section className={styles.sourceStrip} aria-label="Customer source status">
       <div>
         <span className={styles.eyebrow}>Operational read status</span>
         <strong>{model.operationalRead.state.replaceAll("_", " ")}</strong>
@@ -312,7 +312,7 @@ function OperationalSourceStrip({ model }: { model: CrmNextCommandCenter }) {
 
 function CompactSourceStatus({ model }: { model: CrmNextCommandCenter }) {
   return (
-    <div className={styles.compactSourceStatus} aria-label="CRM Next compact source status">
+    <div className={styles.compactSourceStatus} aria-label="Customer source status">
       <span>Source status: <strong>{model.operationalRead.state.replaceAll("_", " ")}</strong></span>
       {model.operationalRead.sources.slice(0, 4).map((source) => (
         <Link data-state={source.state} href={source.href} key={`${source.id}-${source.label}`}>
@@ -339,7 +339,7 @@ function CrmNextRecommendedWork({ model }: { model: CrmNextCommandCenter }) {
       <header>
         <div>
           <h2>Recommended by system</h2>
-          <p className={styles.muted}>CRM Next is surfacing the next safest customer work from the signals already visible to the team.</p>
+          <p className={styles.muted}>Customer Console is surfacing the next safest customer work from the signals already visible to the team.</p>
         </div>
         <span className={styles.pill}>{recommendations.length} ready</span>
       </header>
@@ -439,14 +439,14 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
         <div className={styles.quickActions}>
           <Link className={styles.primaryButton} href="/crm-next/new"><UserPlus size={16} /> Add Customer / Prospect</Link>
           <Link className={styles.primaryButton} href="/crm-next/needs-attention"><Bell size={16} /> View attention queue</Link>
-          <Link className={styles.secondaryButton} href="/crm-next/search"><Search size={16} /> Search CRM Next</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/search"><Search size={16} /> Search customer records</Link>
           <Link className={styles.secondaryButton} href="/crm-next/customers/michael-johnson"><Users size={16} /> Open Customer 360</Link>
           <Link className={styles.secondaryButton} href="/crm-next/work/attn-michael-overdue-follow-up"><ClipboardCheck size={16} /> Work customer</Link>
           <Link className={styles.secondaryButton} href="/crm-next/pipeline"><Target size={16} /> Pipeline</Link>
         </div>
       </section>
 
-      <section className={styles.summaryGrid} aria-label="CRM Next summary">
+      <section className={styles.summaryGrid} aria-label="Customer Console summary">
         {model.summary.map((item) => (
           <Link className={styles.summaryCard} data-tone={item.tone} href={item.href} key={item.label}>
             <small>{item.label}</small>
@@ -457,7 +457,7 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
         ))}
       </section>
 
-      <section className={styles.enterpriseSurfaceGrid} aria-label="CRM Next operating intelligence">
+      <section className={styles.enterpriseSurfaceGrid} aria-label="Customer Console operating intelligence">
         <CrmNextRecommendedWork model={model} />
         <CrmNextReportReadiness model={model} />
       </section>
@@ -515,7 +515,7 @@ export function CrmNextCustomersListView({ model }: { model: CrmNextCommandCente
         </div>
         <div className={styles.quickActions}>
           <Link className={styles.primaryButton} href="/crm-next/new"><UserPlus size={16} /> Add Customer / Prospect</Link>
-          <Link className={styles.secondaryButton} href="/crm-next/search"><Search size={16} /> Search CRM Next</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/search"><Search size={16} /> Search customer records</Link>
           <Link className={styles.secondaryButton} href="/crm-next/pipeline"><Target size={16} /> Leads</Link>
         </div>
       </section>
@@ -562,7 +562,7 @@ export function CrmNextCustomersListView({ model }: { model: CrmNextCommandCente
               <Link href="/crm-next/new"><UserPlus size={16} /> Add a customer or prospect</Link>
               <Link href="/crm-next/pipeline"><Target size={16} /> Open leads and pipeline</Link>
               <Link href="/crm-next/needs-attention"><Bell size={16} /> View customers needing attention</Link>
-              <Link href="/crm-next/search"><Search size={16} /> Search all CRM Next records</Link>
+              <Link href="/crm-next/search"><Search size={16} /> Search all customer records</Link>
             </div>
           </article>
         </aside>
@@ -589,17 +589,17 @@ export function CrmNextProgressView({ model }: { model: CrmNextCommandCenter }) 
       <section className={styles.hero}>
         <div>
           <span className={styles.eyebrow}>Implementation Progress</span>
-          <h1>CRM Next build cockpit</h1>
+          <h1>Customer Console build cockpit</h1>
           <p>Review what is implemented, what is next, and what remains safely gated.</p>
         </div>
         <div className={styles.quickActions}>
-          <Link className={styles.primaryButton} href="/crm-next">Open CRM Next</Link>
-          <Link className={styles.secondaryButton} href={LEGACY_CRM_FALLBACK_HREF}>Legacy CRM fallback</Link>
-          <Link className={styles.secondaryButton} href={LEGACY_CUSTOMER_ARCHIVE_HREF}>Legacy customer archive</Link>
+          <Link className={styles.primaryButton} href="/crm-next">Open Customer Console</Link>
+          <Link className={styles.secondaryButton} href={LEGACY_CRM_FALLBACK_HREF}>Older Customer Tools</Link>
+          <Link className={styles.secondaryButton} href={LEGACY_CUSTOMER_ARCHIVE_HREF}>Customer Archive</Link>
         </div>
       </section>
 
-      <section className={styles.summaryGrid} aria-label="CRM Next implementation scorecard">
+      <section className={styles.summaryGrid} aria-label="Customer Console implementation scorecard">
         <article className={styles.summaryCard} data-tone="blue"><small>Envelope</small><strong>{model.progress.envelopeCount}</strong><p>next milestones staged</p></article>
         <article className={styles.summaryCard}><small>Implemented</small><strong>{model.progress.completedCount}</strong><p>not yet promoted</p></article>
         <article className={styles.summaryCard}><small>Verified</small><strong>{model.progress.verifiedCount}</strong><p>release-grade proof later</p></article>
@@ -610,7 +610,7 @@ export function CrmNextProgressView({ model }: { model: CrmNextCommandCenter }) 
       <article className={styles.card} id="crm-next-envelope">
         <header>
           <div>
-            <h2>CRM Next milestone envelope</h2>
+            <h2>Customer Console milestone envelope</h2>
             <p className={styles.muted}>Built sequentially. Each slice gets checks, honest status, and a commit checkpoint before the next one.</p>
           </div>
           <span className={styles.pill}>CRMN-016 → CRMN-119</span>
@@ -636,11 +636,11 @@ export function CrmNextProgressView({ model }: { model: CrmNextCommandCenter }) 
         </article>
         <article className={styles.card}>
           <header><h2>Safety promise</h2></header>
-          <p>CRM Next is available for internal use. Operational Dispatch handoff creation is enabled; customer communications, payments, documents, and route replacement remain controlled.</p>
+          <p>Customer Console is available for internal use. Operational Dispatch handoff creation is enabled; customer communications, payments, documents, and route replacement remain controlled.</p>
         </article>
         <article className={styles.card}>
           <header><h2>Rollback posture</h2></header>
-          <p>Turn off `CRM_NEXT` and CRM Next fails closed while Customer Archive and the current CRM fallback remain available.</p>
+          <p>Turn off `CRM_NEXT` and Customer Console fails closed while Customer Archive and the older customer tools remain available.</p>
         </article>
       </section>
     </CrmNextFrame>
@@ -667,7 +667,7 @@ export function CrmNextReviewCenterView({ model }: { model: CrmNextCommandCenter
     {
       href: "/crm-next/coexistence",
       label: "Coexistence",
-      detail: "Legacy customer archive and legacy CRM fallback protection, migration rules, and switchback posture."
+      detail: "Customer Archive and older customer tools protection, migration rules, and switchback posture."
     },
     {
       href: "/crm-next/pilot-release",
@@ -677,7 +677,7 @@ export function CrmNextReviewCenterView({ model }: { model: CrmNextCommandCenter
     {
       href: "/crm-next/system/permissions",
       label: "Permissions Review",
-      detail: "Who can access CRM Next and what remains blocked."
+      detail: "Who can access Customer Console and what remains blocked."
     },
     {
       href: "/crm-next/system/states",
@@ -687,7 +687,7 @@ export function CrmNextReviewCenterView({ model }: { model: CrmNextCommandCenter
     {
       href: "/crm-next/system/rollback",
       label: "Rollback Review",
-      detail: "How CRM Next fails closed while the legacy customer archive and legacy CRM fallback remain available."
+      detail: "How Customer Console fails closed while the customer archive and older customer tools remain available."
     }
   ];
 
@@ -703,12 +703,12 @@ export function CrmNextReviewCenterView({ model }: { model: CrmNextCommandCenter
         </div>
         <div className={styles.quickActions}>
           <Link className={styles.primaryButton} href="/crm-next">Return to operating CRM</Link>
-          <Link className={styles.secondaryButton} href={LEGACY_CRM_FALLBACK_HREF}>Legacy CRM fallback</Link>
-          <Link className={styles.secondaryButton} href={LEGACY_CUSTOMER_ARCHIVE_HREF}>Legacy customer archive</Link>
+          <Link className={styles.secondaryButton} href={LEGACY_CRM_FALLBACK_HREF}>Older Customer Tools</Link>
+          <Link className={styles.secondaryButton} href={LEGACY_CUSTOMER_ARCHIVE_HREF}>Customer Archive</Link>
         </div>
       </section>
 
-      <section className={styles.searchGroups} aria-label="CRM Next hidden review pages">
+      <section className={styles.searchGroups} aria-label="Customer Console review pages">
         {reviewLinks.map((link) => (
           <Link className={styles.card} href={link.href} key={link.href}>
             <header>
@@ -729,7 +729,7 @@ export function CrmNextReviewCenterView({ model }: { model: CrmNextCommandCenter
           </div>
           <span className={styles.pill}>Hidden from staff nav</span>
         </header>
-        <section className={styles.commandModeGrid} aria-label="CRM Next command center review modes">
+        <section className={styles.commandModeGrid} aria-label="Customer command center review modes">
           {model.commandCenter.modes.map((mode) => (
             <Link className={styles.commandModeCard} href={mode.href} id={mode.id} key={mode.id}>
               <span className={styles.eyebrow}>{mode.milestone} · {mode.audience}</span>
@@ -756,12 +756,12 @@ export function CrmNextReviewCenterView({ model }: { model: CrmNextCommandCenter
           </div>
           <span className={styles.pill}>{model.bridge.liveTaskCreationEnabled ? "Task creation enabled" : "Review only"}</span>
         </header>
-        <section className={styles.handoffGrid} aria-label="CRM Next dispatch bridge proof">
+        <section className={styles.handoffGrid} aria-label="Customer dispatch bridge proof">
           <article className={styles.handoffCard}>
             <span>Backend contract</span>
             <strong>CRM action prepared</strong>
             <b>Customer follow-up</b>
-            <small>CRM Next prepares the task payload from attention/customer context.</small>
+            <small>Customer Console prepares the task payload from attention/customer context.</small>
           </article>
           <article className={styles.handoffCard}>
             <span>Dispatch Board</span>
@@ -828,7 +828,7 @@ export function CrmNextSearchView({ model }: { model: CrmNextCommandCenter }) {
           <Link className={styles.secondaryButton} href="/crm-next">Back to Command Center</Link>
         </div>
       </section>
-      <section className={styles.searchGroups} aria-label="CRM Next grouped search results">
+      <section className={styles.searchGroups} aria-label="Customer record search results">
         {model.search.groups.map((group) => (
           <Link className={styles.card} href={group.href} key={group.id}>
             <header><h2>{group.label}</h2><span className={styles.pill}>{group.count}</span></header>
@@ -846,9 +846,9 @@ export function CrmNextIntakeView({ model }: { model: CrmNextCommandCenter }) {
       <Topbar />
       <section className={styles.intakeHero}>
         <div>
-          <span className={styles.eyebrow}>CRM Next Intake</span>
+          <span className={styles.eyebrow}>Customer Intake</span>
           <h1>Add a customer or prospect</h1>
-          <p>Create the shared customer record once, then continue the sales or service workflow from CRM Next.</p>
+          <p>Create the shared customer record once, then continue the sales or service workflow from Customer Console.</p>
         </div>
         <div className={styles.intakeHeroFacts}>
           <span><strong>Shared customer record</strong><small>Visible across CRM modes</small></span>
@@ -891,7 +891,7 @@ export function CrmNextTimelineView({ model }: { model: CrmNextCommandCenter }) 
         ) : (
           <div className={styles.activityTimelineEmpty}>
             <strong>No recorded activity yet</strong>
-            <span>There are no verified customer activity records available from CRM Next sources yet.</span>
+            <span>There are no verified customer activity records available from customer sources yet.</span>
           </div>
         )}
       </article>
@@ -1080,7 +1080,7 @@ export function CrmNextSharedExecutionView({ model }: { model: CrmNextCommandCen
               <h3>{record.title}</h3>
               <p>{record.description}</p>
               <div className={styles.surfacePair}>
-                <span><small>CRM Next</small><strong>{record.crmNextSurface}</strong></span>
+                <span><small>Customer Console</small><strong>{record.crmNextSurface}</strong></span>
                 <span><small>Dispatch</small><strong>{record.dispatchSurface}</strong></span>
               </div>
               <div className={styles.metaLine}>
@@ -1195,7 +1195,7 @@ export function CrmNextIntelligenceFoundationView({ model }: { model: CrmNextCom
         </div>
       </section>
 
-      <section className={styles.summaryGrid} aria-label="CRM Next intelligence summary">
+      <section className={styles.summaryGrid} aria-label="Customer Console intelligence summary">
         <article className={styles.summaryCard} data-tone="blue"><small>Mode</small><strong>Assist</strong><p>human decides</p></article>
         <article className={styles.summaryCard}><small>Signals</small><strong>{model.intelligence.length}</strong><p>explainable inputs</p></article>
         <article className={styles.summaryCard}><small>Automation</small><strong>Manual</strong><p>staff confirms</p></article>
@@ -1254,7 +1254,7 @@ export function CrmNextPilotReadinessView({ model }: { model: CrmNextCommandCent
         </div>
       </section>
 
-      <section className={styles.summaryGrid} aria-label="CRM Next pilot scenario summary">
+      <section className={styles.summaryGrid} aria-label="Customer Console pilot scenario summary">
         <article className={styles.summaryCard} data-tone="blue"><small>Pilot scenarios</small><strong>{model.pilotScenarios.length}</strong><p>review records</p></article>
         <article className={styles.summaryCard}><small>Writes</small><strong>0</strong><p>still disabled</p></article>
         <article className={styles.summaryCard}><small>Live comms</small><strong>0</strong><p>not enabled</p></article>
@@ -1297,7 +1297,7 @@ export function CrmNextHardeningView({ model }: { model: CrmNextCommandCenter })
         <div>
           <span className={styles.eyebrow}>Release Hardening</span>
           <h1>Controls before pilot promotion</h1>
-          <p>CRM Next can be reviewed with richer scenarios, but migration, live communication, customer writes, manager overrides, and route replacement remain gated.</p>
+          <p>Customer Console can be reviewed with richer scenarios, but migration, live communication, customer writes, manager overrides, and route replacement remain gated.</p>
         </div>
         <div className={styles.quickActions}>
           <Link className={styles.primaryButton} href="/crm-next/pilot-readiness">Pilot readiness</Link>
@@ -1306,7 +1306,7 @@ export function CrmNextHardeningView({ model }: { model: CrmNextCommandCenter })
         </div>
       </section>
 
-      <section className={styles.summaryGrid} aria-label="CRM Next hardening summary">
+      <section className={styles.summaryGrid} aria-label="Customer Console hardening summary">
         <article className={styles.summaryCard} data-tone="blue"><small>Hardening gates</small><strong>{model.hardeningGates.length}</strong><p>review controls</p></article>
         <article className={styles.summaryCard}><small>Held gate</small><strong>CRMN-080</strong><p>migration approval</p></article>
         <article className={styles.summaryCard}><small>Customer writes</small><strong>0</strong><p>still disabled</p></article>
@@ -1349,17 +1349,17 @@ export function CrmNextCoexistenceView({ model }: { model: CrmNextCommandCenter 
       <section className={styles.hero}>
         <div>
           <span className={styles.eyebrow}>Fallback Coexistence</span>
-          <h1>CRM Next can be reviewed without replacing today’s CRM</h1>
-          <p>Customer Archive and the current CRM fallback remain operational while CRM Next proves whether it is ready to become the replacement experience.</p>
+          <h1>Customer Console can be reviewed without replacing today’s CRM</h1>
+          <p>Customer Archive and the older customer tools remain operational while Customer Console proves whether it is ready to become the replacement experience.</p>
         </div>
         <div className={styles.quickActions}>
-          <Link className={styles.primaryButton} href="/crm-next">CRM Next</Link>
-          <Link className={styles.secondaryButton} href={LEGACY_CUSTOMER_ARCHIVE_HREF}>Legacy customer archive</Link>
-          <Link className={styles.secondaryButton} href={LEGACY_CRM_FALLBACK_HREF}>Legacy CRM fallback</Link>
+          <Link className={styles.primaryButton} href="/crm-next">Customer Console</Link>
+          <Link className={styles.secondaryButton} href={LEGACY_CUSTOMER_ARCHIVE_HREF}>Customer Archive</Link>
+          <Link className={styles.secondaryButton} href={LEGACY_CRM_FALLBACK_HREF}>Older Customer Tools</Link>
         </div>
       </section>
 
-      <section className={styles.summaryGrid} aria-label="CRM Next coexistence summary">
+      <section className={styles.summaryGrid} aria-label="Customer Console coexistence summary">
         <article className={styles.summaryCard} data-tone="blue"><small>Coexistence gates</small><strong>{model.coexistenceGates.length}</strong><p>review controls</p></article>
         <article className={styles.summaryCard}><small>Fallback routes</small><strong>Open</strong><p>protected</p></article>
         <article className={styles.summaryCard}><small>Default route</small><strong>No</strong><p>not replaced</p></article>
@@ -1406,7 +1406,7 @@ export function CrmNextPilotReleaseView({ model }: { model: CrmNextCommandCenter
         <div>
           <span className={styles.eyebrow}>Pilot Release Gates</span>
           <h1>Ready for review, not ready for launch without approval</h1>
-          <p>The final CRM Next pilot gates show what must be reviewed before any broader rollout, live command, or fallback replacement is allowed.</p>
+          <p>The final Customer Console pilot gates show what must be reviewed before any broader rollout, live command, or fallback replacement is allowed.</p>
         </div>
         <div className={styles.quickActions}>
           <Link className={styles.primaryButton} href="/crm-next/progress">Progress cockpit</Link>
@@ -1415,7 +1415,7 @@ export function CrmNextPilotReleaseView({ model }: { model: CrmNextCommandCenter
         </div>
       </section>
 
-      <section className={styles.summaryGrid} aria-label="CRM Next pilot release summary">
+      <section className={styles.summaryGrid} aria-label="Customer Console pilot release summary">
         <article className={styles.summaryCard} data-tone="blue"><small>Release gates</small><strong>{model.pilotReleaseGates.length}</strong><p>final checks</p></article>
         <article className={styles.summaryCard}><small>Launch</small><strong>Held</strong><p>approval needed</p></article>
         <article className={styles.summaryCard}><small>Live commands</small><strong>0</strong><p>not enabled</p></article>
@@ -1427,7 +1427,7 @@ export function CrmNextPilotReleaseView({ model }: { model: CrmNextCommandCenter
         <header>
           <div>
             <h2>CRMN-091 → CRMN-094 pilot release packet</h2>
-            <p className={styles.muted}>This is the review checklist before CRM Next can become a controlled pilot instead of a protected preview.</p>
+            <p className={styles.muted}>This is the review checklist before Customer Console can become a controlled pilot instead of a protected preview.</p>
           </div>
           <span className={styles.pill}>launch held</span>
         </header>
@@ -1464,11 +1464,11 @@ export function CrmNextSafetyView({ kind, model }: { kind: "states" | "permissio
     permissions: {
       eyebrow: "Permission Safety",
       title: "Denied users fail closed",
-      body: "CRM Next only opens for approved roles and workspaces. Otherwise users are routed back to the legacy customer archive or legacy CRM fallback."
+      body: "Customer Console only opens for approved roles and workspaces. Otherwise users are routed back to the customer archive or older customer tools."
     },
     rollback: {
       eyebrow: "Rollback Proof",
-      title: "CRM Next can be turned off safely",
+      title: "Customer Console can be turned off safely",
       body: "When CRM_NEXT is disabled, /crm-next shows the protected fallback and existing Dispatch Board routes continue working."
     }
   }[kind];
@@ -1486,7 +1486,7 @@ export function CrmNextSafetyView({ kind, model }: { kind: "states" | "permissio
       </section>
       <section className={styles.dashboardGrid}>
         <article className={styles.card}><header><h2>Feature flag</h2></header><p>CRM_NEXT controls access to the new experience and fails closed by default.</p></article>
-        <article className={styles.card}><header><h2>Fallback</h2></header><p>Customer Archive and the current CRM fallback remain available during pilot review.</p></article>
+        <article className={styles.card}><header><h2>Fallback</h2></header><p>Customer Archive and the older customer tools remain available during pilot review.</p></article>
         <article className={styles.card}><header><h2>Activation boundary</h2></header><p>Operational Dispatch handoff creation is enabled. Calls, texts, emails, payments, documents, and deal/customer writes remain protected.</p></article>
       </section>
     </CrmNextFrame>
@@ -1539,7 +1539,7 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
               <Link className={styles.secondaryButton} href="/crm-next/new"><UserPlus size={16} /> Add Customer</Link>
               <Link className={styles.primaryButton} href={attendHref}>Attend</Link>
               <Link className={styles.secondaryButton} href={crmNextActionHref("send-text", customer.id)}><MessageSquare size={16} /> Message</Link>
-              <Link className={styles.secondaryButton} href="/crm">Open fallback CRM</Link>
+              <Link className={styles.secondaryButton} href="/crm">Open older customer tools</Link>
             </div>
           </section>
 
@@ -1632,7 +1632,7 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
             ) : (
               <div className={styles.activityTimelineEmpty}>
                 <strong>No verified communication yet</strong>
-                <span>No calls, texts, emails, or appointments have been recorded for {customer.name} in CRM Next sources yet.</span>
+                <span>No calls, texts, emails, or appointments have been recorded for {customer.name} in customer sources yet.</span>
               </div>
             )}
           </section>
@@ -1750,7 +1750,7 @@ export function CrmNextActionReadinessView({ action, customerId, model }: { acti
       <section className={styles.customerWorkspace}>
         <section className={`${styles.customerHeroCard} ${styles.actionCustomerHero}`}>
           <div className={styles.actionCustomerIdentity}>
-            <span className={styles.avatar}>{initials(relatedCustomer?.name ?? "CRM Next")}</span>
+            <span className={styles.avatar}>{initials(relatedCustomer?.name ?? "Customer Console")}</span>
             <div>
               <span className={styles.eyebrow}>Customer action</span>
               <h1 className={styles.customerName}>{relatedCustomer?.name ?? "Customer"}</h1>
@@ -1761,13 +1761,13 @@ export function CrmNextActionReadinessView({ action, customerId, model }: { acti
           <dl className={styles.customerFacts}>
             <div><dt>Status</dt><dd>{actionTruth.status}</dd></div>
             <div><dt>Action type</dt><dd>{action.category}</dd></div>
-            <div><dt>Customer</dt><dd>{relatedCustomer?.name ?? "Available from CRM Next"}</dd></div>
+            <div><dt>Customer</dt><dd>{relatedCustomer?.name ?? "Available from Customer Console"}</dd></div>
             <div><dt>Next step</dt><dd>{isCrmTaskAction ? "Create CRM task" : "Continue"}</dd></div>
           </dl>
           <div className={styles.customerHeroActions}>
             {action.id === "schedule-appointment" ? <Link className={styles.primaryButton} href={primaryHref}>Open appointment console</Link> : null}
             <Link className={styles.secondaryButton} href={backHref}>Back to Customer 360</Link>
-            <Link className={styles.secondaryButton} href="/crm">Open fallback CRM</Link>
+            <Link className={styles.secondaryButton} href="/crm">Open older customer tools</Link>
           </div>
         </section>
         <main className={styles.customerMain}>
@@ -1870,13 +1870,13 @@ export function CrmNextActionReadinessView({ action, customerId, model }: { acti
             <ul className={styles.signalList}>
               <li>Customer context stays visible</li>
               <li>Next step stays clear</li>
-              <li>Legacy customer archive and legacy CRM fallback remain available</li>
+              <li>Customer Archive and older customer tools remain available</li>
             </ul>
           </article>
           <article className={styles.sidePanel}>
             <header><h2>Need the old view?</h2></header>
             <p className={styles.muted}>Open the customer archive only when a workflow is not yet available here.</p>
-            <Link className={styles.secondaryButton} href={LEGACY_CUSTOMER_ARCHIVE_HREF}>Open legacy customer archive</Link>
+            <Link className={styles.secondaryButton} href={LEGACY_CUSTOMER_ARCHIVE_HREF}>Open customer archive</Link>
           </article>
         </aside>
       </section>
@@ -1951,7 +1951,7 @@ export function CrmNextWorkCustomerView({
             <section className={styles.dealerCustomerDetails} aria-label="Customer source details">
               <div>
                 <span>Lead Source</span>
-                <strong>Walk-in / CRM next action</strong>
+                <strong>Walk-in / customer next action</strong>
               </div>
               <div>
                 <span>Inquiry Type</span>

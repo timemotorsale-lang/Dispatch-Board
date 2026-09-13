@@ -116,7 +116,7 @@ export function CrmNextDirectActionForm({
         const task = fieldValue(fields, values, "Task") || nextAction;
         response = await fetch(`/api/crm/v1/customers/${encodeURIComponent(customerId)}/tasks`, {
           body: JSON.stringify({
-            brief: `${task}\n\nCustomer: ${customerName}\nSource: CRM Next customer action.`,
+            brief: `${task}\n\nCustomer: ${customerName}\nSource: Customer Console action.`,
             dueAt: dueDateToIso(dateFieldValue(fields, dateValues, "Due")),
             idempotencyKey,
             title: task

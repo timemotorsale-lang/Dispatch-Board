@@ -168,7 +168,7 @@ const salesItems: NavigationItem[] = [
   {
     href: CRM_NEXT_CUSTOMERS_HREF,
     title: "Customers",
-    description: "CRM Next Customer 360 and permitted relationship context.",
+    description: "Customer 360 and permitted relationship context.",
     icon: ContactRound,
     activePaths: ["/customers"]
   },
@@ -333,7 +333,7 @@ export function getConsoleNavigation(
       homeHref: "/crm",
       items: unifiedCrmItems,
       subtitle: "Customer Operations",
-      title: "Unified CRM"
+      title: "Customer Console"
     };
   }
 

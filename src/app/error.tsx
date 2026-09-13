@@ -64,7 +64,7 @@ export default function RootErrorPage({ error, reset }: RootErrorPageProps) {
           >
             Retry
           </button>
-          <Link href="/crm-next" style={{ alignItems: "center", background: "#eef4ff", border: "1px solid #cfe0ff", borderRadius: 10, color: "#143163", display: "inline-flex", fontWeight: 800, justifyContent: "center", minHeight: 40, padding: "0 16px", textDecoration: "none" }}>Open CRM Next</Link>
+          <Link href="/crm-next" style={{ alignItems: "center", background: "#eef4ff", border: "1px solid #cfe0ff", borderRadius: 10, color: "#143163", display: "inline-flex", fontWeight: 800, justifyContent: "center", minHeight: 40, padding: "0 16px", textDecoration: "none" }}>Open Customer Console</Link>
           <Link href="/board" style={{ alignItems: "center", background: "#eef4ff", border: "1px solid #cfe0ff", borderRadius: 10, color: "#143163", display: "inline-flex", fontWeight: 800, justifyContent: "center", minHeight: 40, padding: "0 16px", textDecoration: "none" }}>Open Dispatch Board</Link>
           <Link href="/vehicles/coo-workbook/checklist" style={{ alignItems: "center", background: "#eef4ff", border: "1px solid #cfe0ff", borderRadius: 10, color: "#143163", display: "inline-flex", fontWeight: 800, justifyContent: "center", minHeight: 40, padding: "0 16px", textDecoration: "none" }}>Open Daily Checklist</Link>
         </nav>

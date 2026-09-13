@@ -20,7 +20,7 @@ export async function POST(request: Request) {
         headers: { "cache-control": "no-store" }
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "CRM Next could not create the Dispatch task.";
+      const message = error instanceof Error ? error.message : "Customer Console could not create the Dispatch task.";
       return NextResponse.json({ error: message }, {
         status: message.includes("DOGFOOD") ? 409 : message === "Authentication required." ? 401 : 400,
         headers: { "cache-control": "no-store" }

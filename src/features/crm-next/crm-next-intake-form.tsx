@@ -233,7 +233,7 @@ export function CrmNextIntakeForm() {
       setState({
         kind: "success",
         customerHref,
-        message: `${customer.displayName} is ready in CRM Next.`
+        message: `${customer.displayName} is ready in Customer Console.`
       });
       window.location.assign(customerHref);
     } catch (error) {

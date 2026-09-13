@@ -187,7 +187,7 @@ export type CrmNextLeadSourceAction = {
 };
 
 export type CrmNextLeadSourceReport = {
-  generatedFrom: "Live CRM lead/customer source" | "CRM Next review sources";
+  generatedFrom: "Live CRM lead/customer source" | "Customer Console review sources";
   summary: string;
   sources: CrmNextLeadSourcePerformance[];
   actionQueue: CrmNextLeadSourceAction[];
@@ -339,9 +339,9 @@ export type CrmNextCommandCenter = {
 const progressMilestones: CrmNextMilestoneProgress[] = [
   {
     id: "CRMN-010",
-    title: "CRM Next shell and feature flag",
+    title: "Customer Console shell and feature flag",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Open CRM Next at /crm-next only when CRM_NEXT is enabled.",
+    objective: "Open Customer Console at /crm-next only when CRM_NEXT is enabled.",
     reviewHref: "/crm-next",
     evidence: "Route, feature flag access guard, fail-closed fallback, and archive/fallback links are implemented.",
     safety: "No fallback route replacement and no customer writes."
@@ -371,7 +371,7 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     objective: "Show customer, vehicle, opportunity, communication, and next-action context in one place.",
     reviewHref: "/crm-next/customers/michael-johnson",
     evidence: "Customer 360 page renders the approved overview pattern.",
-    safety: "Customer profile is review-only and links back to Customer Archive/current CRM fallback."
+    safety: "Customer profile is review-only and links back to Customer Archive/older customer tools."
   },
   {
     id: "CRMN-014",
@@ -386,7 +386,7 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     id: "CRMN-015",
     title: "Dispatch handoff bridge",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Let CRM Next create operational Dispatch handoffs only when customer work must leave the CRM workbench.",
+    objective: "Let Customer Console create operational Dispatch handoffs only when customer work must leave the CRM workbench.",
     reviewHref: "/crm-next/work/attn-michael-overdue-follow-up#dispatch-preview",
     evidence: "Bridge contract returns a preview shape in review mode and creates a Dispatch handoff only when enabled after user confirmation.",
     safety: "Ordinary CRM tasks stay inside CRM; live communications, payments, documents, customer writes, and route replacement remain held."
@@ -395,7 +395,7 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     id: "CRMN-016",
     title: "Visible implementation progress",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Show the build status and next 20-milestone envelope in CRM Next itself.",
+    objective: "Show the build status and next 20-milestone envelope in Customer Console itself.",
     reviewHref: "/crm-next/progress",
     evidence: "Progress board is available at /crm-next/progress as the review cockpit.",
     safety: "Status uses approved vocabulary and does not overstate completion."
@@ -404,9 +404,9 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     id: "CRMN-017",
     title: "UX baseline navigation polish",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Make CRM Next navigation obvious across Command Center, Customer 360, Work Customer, and Progress.",
+    objective: "Make Customer Console navigation obvious across Command Center, Customer 360, Work Customer, and Progress.",
     reviewHref: "/crm-next",
-    evidence: "Primary navigation, search entry, Customer Archive/current CRM fallback links, and progress review links are wired.",
+    evidence: "Primary navigation, search entry, Customer Archive/older customer tools links, and progress review links are wired.",
     safety: "Navigation-only; no writes."
   },
   {
@@ -424,7 +424,7 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     status: "IMPLEMENTED_UNVERIFIED",
     objective: "Group results by customer, vehicle, deal, communication, and work.",
     reviewHref: "/crm-next/search",
-    evidence: "Customer, vehicle, deal, communication, and work result groups are visible in CRM Next review mode.",
+    evidence: "Customer, vehicle, deal, communication, and work result groups are visible in Customer Console review mode.",
     safety: "Permission filtering required before real data."
   },
   {
@@ -478,7 +478,7 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     status: "IMPLEMENTED_UNVERIFIED",
     objective: "Make the review flow usable on tablet/mobile.",
     reviewHref: "/crm-next",
-    evidence: "CRM Next grids, rows, action cards, and progress cockpit collapse for smaller screens.",
+    evidence: "Customer Console grids, rows, action cards, and progress cockpit collapse for smaller screens.",
     safety: "No horizontal overflow or buried primary actions."
   },
   {
@@ -503,16 +503,16 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     id: "CRMN-028",
     title: "Archive and fallback links",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Make switchback between CRM Next and archive/current CRM fallback obvious during pilot.",
+    objective: "Make switchback between Customer Console and archive/older customer tools obvious during pilot.",
     reviewHref: "/crm-next",
-    evidence: "CRM Next sidebar, unavailable state, progress cockpit, and work views include archive/current CRM fallback exits.",
+    evidence: "Customer Console sidebar, unavailable state, progress cockpit, and work views include archive/older customer tools exits.",
     safety: "Fallback routes remain operational."
   },
   {
     id: "CRMN-029",
     title: "Route and rollback proof",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Prove CRM Next can be disabled without harming existing workspaces.",
+    objective: "Prove Customer Console can be disabled without harming existing workspaces.",
     reviewHref: "/crm-next/system/rollback",
     evidence: "Rollback review page and access tests cover CRM_NEXT off behavior.",
     safety: "CRM_NEXT off returns to safe workspaces."
@@ -521,9 +521,9 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     id: "CRMN-030",
     title: "Lead/opportunity read adapters",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Prepare lead and opportunity read models for CRM Next.",
+    objective: "Prepare lead and opportunity read models for Customer Console.",
     reviewHref: "/crm-next/pipeline",
-    evidence: "Sales read-model sections expose leads and opportunities for review-safe CRM Next pages.",
+    evidence: "Sales read-model sections expose leads and opportunities for review-safe Customer Console pages.",
     safety: "Read-only until lifecycle approvals."
   },
   {
@@ -541,7 +541,7 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     status: "IMPLEMENTED_UNVERIFIED",
     objective: "Surface appointment context from the existing appointment workspace.",
     reviewHref: "/crm-next/appointments",
-    evidence: "Appointments review surface links CRM Next context back to the existing appointment workspace.",
+    evidence: "Appointments review surface links Customer Console context back to the existing appointment workspace.",
     safety: "Appointment source remains authoritative."
   },
   {
@@ -578,7 +578,7 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     objective: "Show customer vehicle relationships without creating a second vehicle master.",
     reviewHref: "/crm-next/ownership-support",
     evidence: "Ownership/support surface includes source-linked vehicle relationship cards and vehicle workspace fallback.",
-    safety: "Vehicle workspace remains authoritative; CRM Next is read-only."
+    safety: "Vehicle workspace remains authoritative; Customer Console is read-only."
   },
   {
     id: "CRMN-041",
@@ -665,7 +665,7 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     id: "CRMN-051",
     title: "Dispatch Board customer context",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Show how Dispatch Board work can retain customer context from CRM Next.",
+    objective: "Show how Dispatch Board work can retain customer context from Customer Console.",
     reviewHref: "/crm-next/shared-execution#dispatch-context",
     evidence: "Dispatch customer-context bridge is represented with CRM and Dispatch source links.",
     safety: "Dispatch Board routes and task ownership remain unchanged."
@@ -773,7 +773,7 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     id: "CRMN-068",
     title: "Review UX completion",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Make CRM Next review pages feel like a compact enterprise console instead of a prototype.",
+    objective: "Make Customer Console review pages feel like a compact enterprise console instead of a prototype.",
     reviewHref: "/crm-next",
     evidence: "Command Center includes compact direction, review state, and navigation to safe work surfaces.",
     safety: "No operational behavior is enabled."
@@ -811,7 +811,7 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     status: "IMPLEMENTED_UNVERIFIED",
     objective: "Summarize appointment and work obligations without replacing owning systems.",
     reviewHref: "/crm-next#appointments-work-summary",
-    evidence: "Appointments/work summary card links to CRM Next appointment and task bridge surfaces.",
+    evidence: "Appointments/work summary card links to Customer Console appointment and task bridge surfaces.",
     safety: "Appointments and tasks remain source-owned."
   },
   {
@@ -836,7 +836,7 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     id: "CRMN-075",
     title: "Pilot customer scenario expansion",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Add realistic customer scenarios so pilot reviewers can judge CRM Next substance.",
+    objective: "Add realistic customer scenarios so pilot reviewers can judge Customer Console substance.",
     reviewHref: "/crm-next/pilot-readiness#pilot-customers",
     evidence: "Pilot readiness surface includes multi-customer review scenarios with source labels.",
     safety: "Scenario data is read-only and does not create customer records."
@@ -908,9 +908,9 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     id: "CRMN-083",
     title: "Performance budget review",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Set review expectations for fast CRM Next navigation and read-model rendering.",
+    objective: "Set review expectations for fast Customer Console navigation and read-model rendering.",
     reviewHref: "/crm-next/hardening#performance",
-    evidence: "Hardening surface captures performance guardrails for read-only CRM Next pages.",
+    evidence: "Hardening surface captures performance guardrails for read-only Customer Console pages.",
     safety: "No additional polling, live sync, or background mutation."
   },
   {
@@ -929,7 +929,7 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     objective: "Show the rollback path and archive/fallback expectations before pilot.",
     reviewHref: "/crm-next/hardening#rollback",
     evidence: "Hardening surface describes the CRM_NEXT-off rollback posture.",
-    safety: "CRM Next remains isolated from fallback routes."
+    safety: "Customer Console remains isolated from fallback routes."
   },
   {
     id: "CRMN-086",
@@ -944,9 +944,9 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     id: "CRMN-087",
     title: "Fallback coexistence map",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Make archive/current CRM fallback coexistence rules visible before pilot.",
+    objective: "Make archive/older customer tools coexistence rules visible before pilot.",
     reviewHref: "/crm-next/coexistence#legacy-coexistence",
-    evidence: "Coexistence surface maps fallback owners, CRM Next review roles, cutover rules, and rollback rules.",
+    evidence: "Coexistence surface maps fallback owners, Customer Console review roles, cutover rules, and rollback rules.",
     safety: "No fallback route replacement."
   },
   {
@@ -962,7 +962,7 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     id: "CRMN-089",
     title: "Pilot switchback rules",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Give reviewers clear switchback paths from CRM Next to current CRM fallback and Customer Archive.",
+    objective: "Give reviewers clear switchback paths from Customer Console to older customer tools and Customer Archive.",
     reviewHref: "/crm-next/coexistence#switchback",
     evidence: "Coexistence surface documents safe fallback and switchback rules.",
     safety: "Users can return to current operational routes during pilot."
@@ -983,7 +983,7 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     objective: "Create a visible checklist for pilot promotion review.",
     reviewHref: "/crm-next/pilot-release#promotion-checklist",
     evidence: "Pilot release surface lists promotion requirements and proof expectations.",
-    safety: "Checklist does not promote CRM Next by itself."
+    safety: "Checklist does not promote Customer Console by itself."
   },
   {
     id: "CRMN-092",
@@ -1016,34 +1016,34 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     id: "CRMN-095",
     title: "Existing customer read adapter",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Let CRM Next consume the existing Unified CRM customer read service when it is safely available.",
+    objective: "Let Customer Console consume the existing Customer Console customer read service when it is safely available.",
     reviewHref: "/crm-next",
-    evidence: "Operational read adapter overlays Customer source-of-truth data on the CRM Next preview model.",
+    evidence: "Operational read adapter overlays Customer source-of-truth data on the Customer Console preview model.",
     safety: "No new customer master and no customer writes."
   },
   {
     id: "CRMN-096",
     title: "Customer identity normalization",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Normalize display name, masked phone, masked email, status, owner, and next-action state for CRM Next.",
+    objective: "Normalize display name, masked phone, masked email, status, owner, and next-action state for Customer Console.",
     reviewHref: "/crm-next/customers/michael-johnson",
-    evidence: "Customer list and Customer 360 records map into the CRM Next identity contract with masked contacts.",
+    evidence: "Customer list and Customer 360 records map into the Customer Console identity contract with masked contacts.",
     safety: "Source-owned customer identity remains read-only."
   },
   {
     id: "CRMN-097",
     title: "Vehicle relationship read model",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Display existing vehicle relationships in CRM Next Customer 360 when the customer source exposes them.",
+    objective: "Display existing vehicle relationships in Customer 360 when the customer source exposes them.",
     reviewHref: "/crm-next/customers/michael-johnson",
-    evidence: "Customer 360 vehicle relationships are mapped to CRM Next vehicle cards with source links preserved.",
-    safety: "CRM Next does not create or modify vehicle relationships."
+    evidence: "Customer 360 vehicle relationships are mapped to Customer Console vehicle cards with source links preserved.",
+    safety: "Customer Console does not create or modify vehicle relationships."
   },
   {
     id: "CRMN-098",
     title: "Partial and inaccessible customer fallback states",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Keep CRM Next reviewable when customer, search, or timeline sources are empty, unavailable, or permission-blocked.",
+    objective: "Keep Customer Console reviewable when customer, search, or timeline sources are empty, unavailable, or permission-blocked.",
     reviewHref: "/crm-next",
     evidence: "Operational read source statuses expose LIVE_READ, PARTIAL_READ, EMPTY_READ, or FALLBACK_READ without crashing pages.",
     safety: "Fallback is explicit and keeps Customer Archive/current CRM switchback links available."
@@ -1052,7 +1052,7 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     id: "CRMN-099",
     title: "Customer source-of-truth proof",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Prove CRM Next reuses the existing customer read model and does not create another customer system.",
+    objective: "Prove Customer Console reuses the existing customer read model and does not create another customer system.",
     reviewHref: "/crm-next/progress#crm-next-envelope",
     evidence: "Unit tests cover live customer overlay, fallback, and no-write bridge posture.",
     safety: "Customer reads only; no create/update/delete path is introduced."
@@ -1061,19 +1061,19 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     id: "CRMN-100",
     title: "Existing CRM search adapter",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Wire CRM Next search to the existing Unified CRM global search service where available.",
+    objective: "Wire Customer Console search to the existing Customer search service where available.",
     reviewHref: "/crm-next/search",
-    evidence: "Search groups are hydrated from source-owned Unified CRM result groups with safe fallback.",
+    evidence: "Search groups are hydrated from source-owned Customer Console result groups with safe fallback.",
     safety: "Read-only lookup; no source record is changed."
   },
   {
     id: "CRMN-101",
     title: "Grouped operational search results",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Group customer, vehicle, opportunity, quote, task, appointment, and dispatch results in CRM Next.",
+    objective: "Group customer, vehicle, opportunity, quote, task, appointment, and dispatch results in Customer Console.",
     reviewHref: "/crm-next/search",
-    evidence: "Unified CRM grouped results are mapped into CRM Next search cards with source links.",
-    safety: "CRM Next links to source-owned routes instead of creating a second record store."
+    evidence: "Customer grouped results are mapped into Customer Console search cards with source links.",
+    safety: "Customer Console links to source-owned routes instead of creating a second record store."
   },
   {
     id: "CRMN-102",
@@ -1082,16 +1082,16 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     objective: "Keep search usable when source data is empty, gated, partial, or unavailable.",
     reviewHref: "/crm-next/search",
     evidence: "Operational read source statuses show LIVE_READ, EMPTY_READ, PARTIAL_READ, or FALLBACK_READ.",
-    safety: "Safe navigation remains available to Customer Archive and current CRM fallback."
+    safety: "Safe navigation remains available to Customer Archive and older customer tools."
   },
   {
     id: "CRMN-103",
     title: "Search permissions and feature-flag proof",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Prove search respects CRM_NEXT access and Unified CRM read permissions.",
+    objective: "Prove search respects CRM_NEXT access and Customer read permissions.",
     reviewHref: "/crm-next/progress#crm-next-envelope",
     evidence: "Focused tests cover enabled access, fail-closed access, and mocked search source outcomes.",
-    safety: "Denied users never reach CRM Next operational search."
+    safety: "Denied users never reach Customer Console operational search."
   },
   {
     id: "CRMN-104",
@@ -1109,7 +1109,7 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     objective: "Make priority explainable using due/overdue next-action state rather than opaque automation.",
     reviewHref: "/crm-next/needs-attention",
     evidence: "Priority is derived deterministically from source next-action dates and displayed as High/Medium/Low.",
-    safety: "Human staff decide execution; CRM Next only explains read-only priority."
+    safety: "Human staff decide execution; Customer Console only explains read-only priority."
   },
   {
     id: "CRMN-106",
@@ -1142,10 +1142,10 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     id: "CRMN-109",
     title: "Customer 360 tasks/cases context",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Map existing Customer 360 source lenses into CRM Next context where available.",
+    objective: "Map existing Customer 360 source lenses into Customer Console context where available.",
     reviewHref: "/crm-next/customers/michael-johnson",
     evidence: "Cases and source lenses contribute open-case counts and source-linked glance data.",
-    safety: "CRM Next does not create, close, or edit cases."
+    safety: "Customer Console does not create, close, or edit cases."
   },
   {
     id: "CRMN-110",
@@ -1160,9 +1160,9 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     id: "CRMN-111",
     title: "Customer 360 deal/opportunity context",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Show existing opportunity visibility in CRM Next Customer 360.",
+    objective: "Show existing opportunity visibility in Customer 360.",
     reviewHref: "/crm-next/customers/michael-johnson",
-    evidence: "Opportunity lens counts are mapped into CRM Next open-deal/glance context.",
+    evidence: "Opportunity lens counts are mapped into Customer Console open-deal/glance context.",
     safety: "No deal movement, quote approval, payment, or estimate mutation."
   },
   {
@@ -1171,7 +1171,7 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     status: "IMPLEMENTED_UNVERIFIED",
     objective: "Keep documents, title, ownership, finance, and support context source-owned and review-only.",
     reviewHref: "/crm-next/ownership-support",
-    evidence: "CRM Next Customer 360 and Ownership & Support surfaces preserve source links and held-state messaging.",
+    evidence: "Customer 360 and Ownership & Support surfaces preserve source links and held-state messaging.",
     safety: "No document send/upload or payment action is enabled."
   },
   {
@@ -1189,7 +1189,7 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     status: "IMPLEMENTED_UNVERIFIED",
     objective: "Reuse existing customer timeline/activity read infrastructure where available.",
     reviewHref: "/crm-next/timeline",
-    evidence: "Customer 360 timeline items map into CRM Next timeline events with source labels.",
+    evidence: "Customer 360 timeline items map into Customer timeline events with source labels.",
     safety: "No duplicate ActivityEvent write path."
   },
   {
@@ -1205,7 +1205,7 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     id: "CRMN-116",
     title: "Timeline no-duplicate-write proof",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Prove CRM Next timeline rendering does not create or duplicate activity records.",
+    objective: "Prove Customer timeline rendering does not create or duplicate activity records.",
     reviewHref: "/crm-next/progress#crm-next-envelope",
     evidence: "Operational tests exercise timeline mapping through mocked read services only.",
     safety: "No activity creation API is called."
@@ -1214,10 +1214,10 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     id: "CRMN-117",
     title: "Operational read progress cockpit",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Update CRM Next progress with CRMN-095 through CRMN-119.",
+    objective: "Update Customer Console progress with CRMN-095 through CRMN-119.",
     reviewHref: "/crm-next/progress#crm-next-envelope",
     evidence: "Progress surface includes the operational read envelope and source-status strip.",
-    safety: "Progress is evidence-only and does not promote CRM Next."
+    safety: "Progress is evidence-only and does not promote Customer Console."
   },
   {
     id: "CRMN-118",
@@ -1232,7 +1232,7 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     id: "CRMN-119",
     title: "Final operational read proof bundle",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Run focused CRM Next tests, typecheck, scoped lint, and git status before handoff.",
+    objective: "Run focused Customer Console tests, typecheck, scoped lint, and git status before handoff.",
     reviewHref: "/crm-next/progress#crm-next-envelope",
     evidence: "Final proof bundle is run after implementation and recorded in the handoff.",
     safety: "Envelope remains read-only until later explicit approval."
@@ -1241,7 +1241,7 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     id: "CRMN-120",
     title: "Operating CRM navigation conversion",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Convert CRM Next from a build-review cockpit into a usable operating CRM navigation model.",
+    objective: "Convert Customer Console from a build-review cockpit into a usable operating CRM navigation model.",
     reviewHref: "/crm-next/review",
     evidence: "Staff navigation now emphasizes operating CRM work while governance/proof pages move behind Review Center.",
     safety: "Review pages remain available for approval checks without cluttering regular staff workflows."
@@ -1250,7 +1250,7 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
     id: "CRMN-121",
     title: "Compact enterprise Customer 360 redesign",
     status: "IMPLEMENTED_UNVERIFIED",
-    objective: "Redesign CRM Next Customer 360 using the compact customer archive landing page as the review baseline.",
+    objective: "Redesign Customer 360 using the compact customer archive landing page as the review baseline.",
     reviewHref: "/crm-next/customers/michael-johnson",
     evidence: "Customer 360 now leads with the customer profile, compact metrics, tabs, right-side quick actions, next-best-action, risk, and linked vehicles.",
     safety: "Layout-only redesign; source reads remain read-only and live writes/communications stay gated."
@@ -1259,12 +1259,12 @@ const progressMilestones: CrmNextMilestoneProgress[] = [
 
 const pilotOperatingMilestones: CrmNextMilestoneProgress[] = [
   ["CRMN-122", "Customer 360 production-quality recovery", "/crm-next/customers/michael-johnson", "Customer 360 is stabilized as a compact operating page with complete section navigation and no intentional dead controls."],
-  ["CRMN-123", "Operating Customer List", "/crm-next/search", "CRM Next customer discovery uses source-owned customer/search reads with honest fallback states."],
+  ["CRMN-123", "Operating Customer List", "/crm-next/search", "Customer discovery uses source-owned customer/search reads with honest fallback states."],
   ["CRMN-124", "Needs Attention operating queue", "/crm-next/needs-attention", "Needs Attention rows explain priority, owner, reason, customer, and next safe work path."],
   ["CRMN-125", "Attend Mode usable workflow", "/crm-next/work/attn-michael-overdue-follow-up", "Attend Mode guides staff from context to safe action preview and source-owned follow-up."],
   ["CRMN-126", "Quick Actions wired to safe backend paths", "/crm-next/actions/log-call", "Visible quick actions route to safe action readiness pages or existing source-owned workspaces instead of dead anchors."],
-  ["CRMN-127", "Dispatch Board task bridge pilot readiness", "/crm-next/actions/new-task", "CRM Next creates internal Dispatch Board tasks when task creation is enabled and preserves a controlled fallback otherwise."],
-  ["CRMN-128", "Activity/timeline integration", "/crm-next/timeline", "Timeline stays source-linked and avoids duplicate CRM Next activity writes."],
+  ["CRMN-127", "Dispatch Board task bridge pilot readiness", "/crm-next/actions/new-task", "Customer Console creates internal Dispatch Board tasks when task creation is enabled and preserves a controlled fallback otherwise."],
+  ["CRMN-128", "Activity/timeline integration", "/crm-next/timeline", "Timeline stays source-linked and avoids duplicate Customer Console activity writes."],
   ["CRMN-129", "Cases/issues operating surface", "/crm-next/actions/new-case", "Case intake is represented as a safe readiness path with common case fields and source ownership."],
   ["CRMN-130", "Appointments operating surface", "/crm-next/actions/schedule-appointment", "Appointment action routes through the existing appointment workspace authority."],
   ["CRMN-131", "Deals/opportunities operating surface", "/crm-next/deals", "Deals and opportunities remain read-only with valid source/work destinations."],
@@ -1272,29 +1272,29 @@ const pilotOperatingMilestones: CrmNextMilestoneProgress[] = [
   ["CRMN-133", "Communications readiness and manual outcome capture", "/crm-next/actions/send-email", "Communication actions expose consent/provider/audit readiness without live provider traffic."],
   ["CRMN-134", "Risk and next-best-action rules", "/crm-next/intelligence-foundation", "Risk and next actions remain deterministic, explainable, and human-operated."],
   ["CRMN-135", "Manager queue and oversight", "/crm-next/shared-execution#manager-queue", "Manager oversight shows customer-work pressure without reassignment or override mutation."],
-  ["CRMN-136", "Employee command center refinement", "/crm-next", "Staff-facing CRM Next navigation emphasizes daily customer work and keeps review pages hidden under Review Center."],
+  ["CRMN-136", "Employee command center refinement", "/crm-next", "Staff-facing Customer Console navigation emphasizes daily customer work and keeps review pages hidden under Review Center."],
   ["CRMN-137", "Search refinement", "/crm-next/search", "Search groups route to safe Customer 360, work, timeline, vehicle, deal, appointment, and source-owned destinations."],
   ["CRMN-138", "Permission and role polish", "/crm-next/system/permissions", "Feature flag and role gating remain fail-closed and visible in review evidence."],
   ["CRMN-139", "Error, empty, loading, and fallback states", "/crm-next/system/states", "Expected missing or held capabilities render useful states instead of raw 404/dead ends."],
-  ["CRMN-140", "Responsive and overflow proof", "/crm-next/customers/michael-johnson", "CRM Next pages receive containment and compact layout rules to prevent known overflow regressions."],
+  ["CRMN-140", "Responsive and overflow proof", "/crm-next/customers/michael-johnson", "Customer Console pages receive containment and compact layout rules to prevent known overflow regressions."],
   ["CRMN-141", "Performance/read-model hygiene", "/crm-next/review", "Read models stay server-side and source-owned without live polling or duplicate business rules."],
   ["CRMN-142", "Audit/event posture", "/crm-next/review", "Every future live-capable action identifies required audit posture before activation."],
   ["CRMN-143", "Release-readiness documentation update", "/crm-next/progress", "Readiness documentation records this envelope, held capabilities, review routes, and blockers."],
-  ["CRMN-144", "Route map and no-dead-button proof", "/crm-next/actions/new-task", "Focused tests verify visible CRM Next action destinations render safe pages."],
+  ["CRMN-144", "Route map and no-dead-button proof", "/crm-next/actions/new-task", "Focused tests verify visible Customer Console action destinations render safe pages."],
   ["CRMN-145", "Accessibility/readability pass", "/crm-next", "Normal staff pages use stronger contrast, complete labels, and keyboard-reachable links."],
-  ["CRMN-146", "Security and source ownership check", "/crm-next/system/permissions", "CRM Next keeps source-owned services authoritative and does not create a duplicate customer master."],
+  ["CRMN-146", "Security and source ownership check", "/crm-next/system/permissions", "Customer Console keeps source-owned services authoritative and does not create a duplicate customer master."],
   ["CRMN-147", "Pilot workflow proof", "/crm-next/needs-attention", "Pilot workflow proof covers Command Center, queue, Customer 360, Attend Mode, action readiness, and switchback."],
-  ["CRMN-148", "Rollback/fallback proof", "/crm-next/system/rollback", "CRM_NEXT-off rollback remains route-level because CRM Next does not own source data."],
-  ["CRMN-149", "Pilot readiness gate", "/crm-next/pilot-release", "CRM Next is positioned as an internal pilot candidate, not a full release or default CRM."],
+  ["CRMN-148", "Rollback/fallback proof", "/crm-next/system/rollback", "CRM_NEXT-off rollback remains route-level because Customer Console does not own source data."],
+  ["CRMN-149", "Pilot readiness gate", "/crm-next/pilot-release", "Customer Console is positioned as an internal pilot candidate, not a full release or default CRM."],
   ["CRMN-150", "Final envelope proof bundle", "/crm-next/progress", "Focused tests, lint, typecheck, route proof, and documentation proof are required before handoff."]
 ].map(([id, title, reviewHref, evidence]) => ({
   id,
   title,
   status: id === "CRMN-150" ? "IN_PROGRESS" : "IMPLEMENTED_UNVERIFIED",
-  objective: `Complete ${title.toLowerCase()} as part of the CRM Next pilot-readiness operating envelope.`,
+  objective: `Complete ${title.toLowerCase()} as part of the Customer Console pilot-readiness operating envelope.`,
   reviewHref,
   evidence,
-  safety: "CRM Next remains behind /crm-next and CRM_NEXT; Customer Archive/current CRM fallback stay operational; live communications, customer writes, migration, route replacement, and pilot launch remain held unless separately approved."
+  safety: "Customer Console remains behind /crm-next and CRM_NEXT; Customer Archive/older customer tools stay operational; live communications, customer writes, migration, route replacement, and pilot launch remain held unless separately approved."
 }));
 
 const allProgressMilestones = [...progressMilestones, ...pilotOperatingMilestones];
@@ -1469,7 +1469,7 @@ const operatingActions: CrmNextOperatingAction[] = [
     state: "SAFE_ROUTE",
     href: "/crm-next/actions/schedule-appointment",
     sourceAuthority: "Existing appointment workspace",
-    response: "Routes staff to the existing appointment workspace with CRM Next context.",
+    response: "Routes staff to the existing appointment workspace with Customer Console context.",
     auditPosture: "Appointment mutations remain owned by the appointment workspace.",
     pilotRequirement: "Confirm appointment return path and customer context handoff."
   },
@@ -1585,7 +1585,7 @@ function normalizeLeadSource(source: string | null | undefined) {
   if (raw.includes("repeat")) return "Repeat Customer";
   if (raw.includes("campaign")) return "Campaign";
   if (raw.includes("workbook")) return "Workbook Import";
-  if (raw.includes("crm next") || raw.includes("crm")) return "CRM Next";
+  if (raw.includes("crm next") || raw.includes("crm")) return "Customer Console";
   return raw.replace(/(^|\s)\S/g, (value) => value.toUpperCase());
 }
 
@@ -1689,7 +1689,7 @@ function buildLeadSourceReportFromSales(records: CrmNextSalesRecord[]): CrmNextL
     source: sourceByIndex[index % sourceByIndex.length],
     stage: record.stage,
     stale: index === 1
-  })), "CRM Next review sources");
+  })), "Customer Console review sources");
 }
 
 const ownershipSupportRecords: CrmNextOwnershipSupportRecord[] = [
@@ -1715,7 +1715,7 @@ const ownershipSupportRecords: CrmNextOwnershipSupportRecord[] = [
     nextAction: "Manager or finance user reviews account context before any payment action.",
     href: "#finance",
     permission: "Restricted",
-    sourceOfTruth: "Finance/accounting source; CRM Next shows context only"
+    sourceOfTruth: "Finance/accounting source; Customer Console shows context only"
   },
   {
     id: "ownership-payment-due",
@@ -1727,7 +1727,7 @@ const ownershipSupportRecords: CrmNextOwnershipSupportRecord[] = [
     nextAction: "Send approved reminder after communication/payment policy is enabled.",
     href: "#payment",
     permission: "Held",
-    sourceOfTruth: "Payment source; no payment processing in CRM Next"
+    sourceOfTruth: "Payment source; no payment processing in Customer Console"
   },
   {
     id: "support-case-title",
@@ -1833,7 +1833,7 @@ const sharedExecutionRecords: CrmNextSharedExecutionRecord[] = [
     milestone: "CRMN-052",
     title: "Comments, blockers, and review sync",
     state: "Read-only",
-    description: "CRM Next displays shared comments, blocker reason, review state, and status without copying those records.",
+    description: "Customer Console displays shared comments, blocker reason, review state, and status without copying those records.",
     sourceSystem: "Task comments, blockers, and review fields",
     crmNextSurface: "Attend Mode context rail",
     dispatchSurface: "Task detail",
@@ -1858,7 +1858,7 @@ const sharedExecutionRecords: CrmNextSharedExecutionRecord[] = [
     title: "Manager customer-work queue",
     state: "Manager review",
     description: "Managers can review unassigned, blocked, overdue, escalated, and approval-needed CRM/customer work.",
-    sourceSystem: "Manager review + Unified CRM exception queues",
+    sourceSystem: "Manager review + Customer exception queues",
     crmNextSurface: "Manager intelligence queue",
     dispatchSurface: "Manager workspace",
     safety: "Reassignment, escalation, and override actions remain held.",
@@ -1941,7 +1941,7 @@ const intelligenceRecords: CrmNextIntelligenceRecord[] = [
     signal: "Customer reason, owner, area, and recommended next action are bundled for review.",
     recommendation: "Open one customer, finish the safe next step, then return to the queue.",
     explanation: "The queue is designed to reduce hunting around the app.",
-    sourceSystem: "CRM Next attention read model",
+    sourceSystem: "Customer attention read model",
     safety: "Queue rows do not create or complete work by themselves.",
     href: "/crm-next/needs-attention"
   },
@@ -2031,7 +2031,7 @@ const commandCenterModes: CrmNextCommandCenterMode[] = [
     objective: "Show today’s appointments and task-linked customer work without replacing source systems.",
     primaryMetric: "12 appointments",
     secondaryMetric: "task bridge preview",
-    guidance: "CRM Next points staff to the right context while appointments and tasks remain authoritative elsewhere.",
+    guidance: "Customer Console points staff to the right context while appointments and tasks remain authoritative elsewhere.",
     href: "/crm-next/appointments"
   },
   {
@@ -2079,7 +2079,7 @@ const pilotScenarios: CrmNextPilotScenario[] = [
     title: "Needs Attention spans sales, finance, service, and support",
     reviewState: "Read-only",
     summary: "The queue now has realistic pressure patterns: overdue follow-up, payment reminder, title review, service due, and insurance update.",
-    sourceOfTruth: "CRM Next attention read model linked to source-owned work",
+    sourceOfTruth: "Customer attention read model linked to source-owned work",
     nextReviewStep: "Review whether staff can understand who to call first without needing a manager to explain the queue.",
     href: "/crm-next/needs-attention"
   },
@@ -2150,7 +2150,7 @@ const hardeningGates: CrmNextHardeningGate[] = [
     reviewState: "Proof required",
     proof: "Keyboard navigation, visible labels, contrast, compact layouts, and mobile/tablet collapse behavior are tracked as promotion checks.",
     riskControl: "No pilot promotion if key navigation or review surfaces are hard to use.",
-    nextStep: "Run manual keyboard and screen-size review on the CRM Next routes."
+    nextStep: "Run manual keyboard and screen-size review on the Customer Console routes."
   },
   {
     id: "performance",
@@ -2159,7 +2159,7 @@ const hardeningGates: CrmNextHardeningGate[] = [
     title: "Performance budget is stated before live data",
     status: "IMPLEMENTED_UNVERIFIED",
     reviewState: "Implemented for review",
-    proof: "CRM Next pages use server-side read models and static review data in this envelope to avoid live polling pressure.",
+    proof: "Customer Console pages use server-side read models and static review data in this envelope to avoid live polling pressure.",
     riskControl: "No background sync, no live communications, and no high-frequency operational polling are enabled.",
     nextStep: "Add measured budgets when live read adapters are connected."
   },
@@ -2171,7 +2171,7 @@ const hardeningGates: CrmNextHardeningGate[] = [
     status: "IMPLEMENTED_UNVERIFIED",
     reviewState: "Proof required",
     proof: "Restricted finance, payment, document, insurance, communication, and manager actions remain gated with source-of-truth labels.",
-    riskControl: "No sensitive write or communication command can be triggered from CRM Next.",
+    riskControl: "No sensitive write or communication command can be triggered from Customer Console.",
     nextStep: "Review permission matrix and audit-event requirements before enabling any command."
   },
   {
@@ -2192,7 +2192,7 @@ const hardeningGates: CrmNextHardeningGate[] = [
     title: "One evidence page for pilot hardening",
     status: "IMPLEMENTED_UNVERIFIED",
     reviewState: "Implemented for review",
-    proof: "Hardening gates are visible from CRM Next navigation and from the progress cockpit.",
+    proof: "Hardening gates are visible from Customer Console navigation and from the progress cockpit.",
     riskControl: "Evidence package is informational and cannot promote, migrate, or enable operations by itself.",
     nextStep: "Use this page as the reviewer checklist before CRMN-087 coexistence planning."
   }
@@ -2202,11 +2202,11 @@ const coexistenceGates: CrmNextCoexistenceGate[] = [
   {
     id: "legacy-coexistence",
     milestone: "CRMN-087",
-    title: "Fallback routes and CRM Next coexist during pilot",
+    title: "Fallback routes and Customer Console coexist during pilot",
     status: "IMPLEMENTED_UNVERIFIED",
     legacyOwner: "Customer Archive and current /crm stay operational for active customer work.",
-    crmNextRole: "CRM Next provides the review experience at /crm-next without becoming the default CRM.",
-    cutoverRule: "No traffic moves to CRM Next by default until pilot gates are approved.",
+    crmNextRole: "Customer Console provides the review experience at /crm-next without becoming the default CRM.",
+    cutoverRule: "No traffic moves to Customer Console by default until pilot gates are approved.",
     rollbackRule: "Disable CRM_NEXT and users return to current operational routes.",
     safety: "Parallel replacement strategy, not uncontrolled hybridization."
   },
@@ -2216,9 +2216,9 @@ const coexistenceGates: CrmNextCoexistenceGate[] = [
     title: "Capability migration remains deliberate",
     status: "IMPLEMENTED_UNVERIFIED",
     legacyOwner: "Existing backend models, services, APIs, permissions, and integrations remain source-owned.",
-    crmNextRole: "CRM Next reuses read models and displays migration decisions before any replacement.",
+    crmNextRole: "Customer Console reuses read models and displays migration decisions before any replacement.",
     cutoverRule: "A capability can move only after source ownership, writes, audit, rollback, and support are approved.",
-    rollbackRule: "Retain fallback capability until CRM Next has proof and a fallback.",
+    rollbackRule: "Retain fallback capability until Customer Console has proof and a fallback.",
     safety: "Replacing the UX does not automatically replace the backend."
   },
   {
@@ -2226,10 +2226,10 @@ const coexistenceGates: CrmNextCoexistenceGate[] = [
     milestone: "CRMN-089",
     title: "Users always have a switchback path",
     status: "IMPLEMENTED_UNVERIFIED",
-    legacyOwner: "Fallback routes remain available for real work while CRM Next is reviewed.",
-    crmNextRole: "CRM Next includes links back to /customers, /crm, progress, hardening, and source workspaces.",
-    cutoverRule: "Pilot users can inspect CRM Next but must use approved operational routes for live execution.",
-    rollbackRule: "Switchback is route-level and does not require data rollback because CRM Next does not write.",
+    legacyOwner: "Fallback routes remain available for real work while Customer Console is reviewed.",
+    crmNextRole: "Customer Console includes links back to /customers, /crm, progress, hardening, and source workspaces.",
+    cutoverRule: "Pilot users can inspect Customer Console but must use approved operational routes for live execution.",
+    rollbackRule: "Switchback is route-level and does not require data rollback because Customer Console does not write.",
     safety: "No reviewer gets trapped in a preview surface."
   },
   {
@@ -2237,8 +2237,8 @@ const coexistenceGates: CrmNextCoexistenceGate[] = [
     milestone: "CRMN-090",
     title: "Fallback retirement is not approved",
     status: "HELD",
-    legacyOwner: "Customer Archive and current CRM fallback remain the operating fallback and source of truth where applicable.",
-    crmNextRole: "CRM Next can demonstrate replacement readiness, but cannot retire fallback routes by itself.",
+    legacyOwner: "Customer Archive and older customer tools remain the operating fallback and source of truth where applicable.",
+    crmNextRole: "Customer Console can demonstrate replacement readiness, but cannot retire fallback routes by itself.",
     cutoverRule: "Retirement requires an explicit promotion and cutover approval after pilot evidence is reviewed.",
     rollbackRule: "Keep fallback routes available until a tested rollback plan exists.",
     safety: "No redirect, removal, archive, or deprecation is included in this envelope."
@@ -2253,7 +2253,7 @@ const pilotReleaseGates: CrmNextPilotReleaseGate[] = [
     status: "IMPLEMENTED_UNVERIFIED",
     owner: "Product",
     decision: "Ready for review",
-    requirement: "Review CRM Next command center, queues, Customer 360, Attend Mode, hardening, coexistence, and progress cockpit.",
+    requirement: "Review Customer command center, queues, Customer 360, Attend Mode, hardening, coexistence, and progress cockpit.",
     proof: "Every implemented review route is linked and covered by focused page-render tests.",
     cannotProceedUntil: "Product accepts the review scope and documents any UX blockers."
   },
@@ -2264,8 +2264,8 @@ const pilotReleaseGates: CrmNextPilotReleaseGate[] = [
     status: "IMPLEMENTED_UNVERIFIED",
     owner: "Operations",
     decision: "Proof required",
-    requirement: "Define who pilots CRM Next, which actions stay in Customer Archive/current CRM fallback, and where staff go when they hit a held command.",
-    proof: "Pilot release page states the training and switchback expectations before CRM Next is promoted.",
+    requirement: "Define who pilots Customer Console, which actions stay in Customer Archive/older customer tools, and where staff go when they hit a held command.",
+    proof: "Pilot release page states the training and switchback expectations before Customer Console is promoted.",
     cannotProceedUntil: "Operations signs off on pilot users, support path, and daily workflow instructions."
   },
   {
@@ -2275,8 +2275,8 @@ const pilotReleaseGates: CrmNextPilotReleaseGate[] = [
     status: "IMPLEMENTED_UNVERIFIED",
     owner: "Engineering",
     decision: "Proof required",
-    requirement: "Run focused CRM Next tests, typecheck, scoped lint, route review, rollback review, and safety review.",
-    proof: "Proof requirements are visible in CRM Next and recorded in readiness docs.",
+    requirement: "Run focused Customer Console tests, typecheck, scoped lint, route review, rollback review, and safety review.",
+    proof: "Proof requirements are visible in Customer Console and recorded in readiness docs.",
     cannotProceedUntil: "The final proof bundle passes on the release candidate branch."
   },
   {
@@ -2287,7 +2287,7 @@ const pilotReleaseGates: CrmNextPilotReleaseGate[] = [
     owner: "Leadership",
     decision: "Held for approval",
     requirement: "Leadership must approve pilot scope, rollout audience, communication policy, rollback plan, and fallback coexistence posture.",
-    proof: "CRM Next shows launch as held and does not broaden CRM_NEXT or replace existing routes.",
+    proof: "Customer Console shows launch as held and does not broaden CRM_NEXT or replace existing routes.",
     cannotProceedUntil: "Leadership explicitly approves pilot launch."
   }
 ];
@@ -2467,7 +2467,7 @@ function searchGroupsFromUnifiedCrm(search: UnifiedCrmGlobalSearchReadModel): Cr
     description: group.results.slice(0, 3).map((result) => result.label).join(" · ") || "No matching source records.",
     href: group.results[0]?.href ?? "/crm-next/search",
     count: group.count,
-    safety: "Live read-only result from existing Unified CRM search. Open the source record to execute approved work."
+    safety: "Live read-only result from existing Customer search. Open the source record to execute approved work."
   }));
 }
 
@@ -2610,7 +2610,7 @@ function buildCrmNextEnterpriseLayer(model: CrmNextCommandCenter, now: Date): Cr
         href: action.href,
         id: action.id,
         kind: "crm_action" as const,
-        ownerName: "CRM Next",
+        ownerName: "Customer Console",
         reportTypes: action.targetQueue === "COMPLIANCE_TASK" ? ["compliance" as const] : undefined,
         status: action.severity.toUpperCase(),
         title: action.title,
@@ -2691,7 +2691,7 @@ export async function getCrmNextOperationalCommandCenter(
       id: "customers",
       label: "Customer source",
       state: customerList.state === "EMPTY" ? "EMPTY_READ" : "LIVE_READ",
-      sourceOfTruth: "Existing Customers / Unified CRM customer list",
+      sourceOfTruth: "Existing customer records",
       detail: customerList.state === "EMPTY" ? "No customer records are visible right now." : `${customerList.items.length} customer records are available.`,
       href: customerList.source.href
     }, customerList.freshness.observedAt));
@@ -2708,8 +2708,8 @@ export async function getCrmNextOperationalCommandCenter(
       id: "customers",
       label: "Customer source",
       state: "FALLBACK_READ",
-      sourceOfTruth: "Existing Customers / Unified CRM customer list",
-      detail: "Customer source is unavailable, gated, or inaccessible; CRM Next is showing protected preview data.",
+      sourceOfTruth: "Existing customer records",
+      detail: "Customer source is unavailable, gated, or inaccessible; Customer Console is showing protected preview data.",
       href: CRM_NEXT_CUSTOMERS_HREF
     }, observedAt));
   }
@@ -2736,19 +2736,19 @@ export async function getCrmNextOperationalCommandCenter(
     };
     statuses.push(readStatus({
       id: "search",
-      label: "Unified CRM search",
+      label: "Customer search",
       state: search.state === "EMPTY" ? "EMPTY_READ" : "LIVE_READ",
-      sourceOfTruth: "Existing Unified CRM global search",
+      sourceOfTruth: "Existing customer search",
       detail: search.state === "EMPTY" ? "No matching records were found." : `${search.resultCount} grouped results are available.`,
       href: "/crm-next/search"
     }, search.freshness.observedAt));
   } catch {
     statuses.push(readStatus({
       id: "search",
-      label: "Unified CRM search",
+      label: "Customer search",
       state: "FALLBACK_READ",
-      sourceOfTruth: "Existing Unified CRM global search",
-      detail: "Search source is unavailable, gated, or inaccessible; CRM Next keeps safe search group fallbacks.",
+      sourceOfTruth: "Existing customer search",
+      detail: "Search source is unavailable, gated, or inaccessible; Customer Console keeps safe search group fallbacks.",
       href: "/crm-next/search"
     }, observedAt));
   }
@@ -2841,8 +2841,8 @@ export async function getCrmNextOperationalCommandCenter(
     operationalRead: {
       state,
       safety: model.mode === "DOGFOOD"
-        ? "CRM Next can use existing customer data and create operational Dispatch handoffs. Customer communications, payments, documents, and route replacement stay controlled."
-        : "CRM Next can use existing customer data. Customer communications, payments, documents, task creation, and route replacement stay controlled.",
+        ? "Customer Console can use existing customer data and create operational Dispatch handoffs. Customer communications, payments, documents, and route replacement stay controlled."
+        : "Customer Console can use existing customer data. Customer communications, payments, documents, task creation, and route replacement stay controlled.",
       sources: statuses
     }
   };
@@ -2863,7 +2863,7 @@ export async function getCrmNextOperationalCustomer360(
       id: "customer-360",
       label: "Customer 360 detail",
       state: "LIVE_READ",
-      sourceOfTruth: "Existing Unified CRM Customer 360",
+      sourceOfTruth: "Existing Customer 360",
       detail: "Customer detail, vehicles, appointments, opportunities, cases, and timeline records are available.",
       href: customer360.source.href
     }, customer360.freshness.observedAt);
@@ -2904,8 +2904,8 @@ export async function getCrmNextOperationalCustomer360(
             id: "customer-360",
             label: "Customer 360 detail",
             state: "FALLBACK_READ",
-            sourceOfTruth: "Existing Unified CRM Customer 360",
-            detail: "Customer details are unavailable or the record was not found. CRM Next is showing a safe fallback.",
+            sourceOfTruth: "Existing Customer 360",
+            detail: "Customer details are unavailable or the record was not found. Customer Console is showing a safe fallback.",
             href: CRM_NEXT_CUSTOMERS_HREF
           }, observedAt)
         ]),
@@ -2915,8 +2915,8 @@ export async function getCrmNextOperationalCustomer360(
             id: "customer-360",
             label: "Customer 360 detail",
             state: "FALLBACK_READ",
-            sourceOfTruth: "Existing Unified CRM Customer 360",
-            detail: "Customer details are unavailable or the record was not found. CRM Next is showing a safe fallback.",
+            sourceOfTruth: "Existing Customer 360",
+            detail: "Customer details are unavailable or the record was not found. Customer Console is showing a safe fallback.",
             href: CRM_NEXT_CUSTOMERS_HREF
           }, observedAt)
         ]
@@ -2929,7 +2929,7 @@ export async function getCrmNextOperationalCustomer360(
 export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Date = new Date()): CrmNextCommandCenter {
   const access = resolveCrmNextAccess(actor);
   if (!access.allowed) {
-    throw Object.assign(new Error("CRM Next is not enabled for this user."), { code: access.reason });
+    throw Object.assign(new Error("Customer Console is not enabled for this user."), { code: access.reason });
   }
   const activeMode: Exclude<CrmNextMode, "OFF"> = access.mode === "DOGFOOD" ? "DOGFOOD" : "REVIEW";
   const dogfoodMode = activeMode === "DOGFOOD";
@@ -2999,19 +2999,19 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
       liveTaskCreationEnabled: dogfoodMode,
       previewEnabled: true,
       message: dogfoodMode
-        ? "CRM Next can create operational Dispatch handoffs."
+        ? "Customer Console can create operational Dispatch handoffs."
         : "Task creation is not available in this mode."
     },
     operationalRead: {
       state: "FALLBACK_READ",
-      safety: "CRM Next is showing fallback customer data until live records are available for this user.",
+      safety: "Customer Console is showing fallback customer data until live records are available for this user.",
       sources: [
         {
           id: "customers",
           label: "Customer source",
           state: "FALLBACK_READ",
-          sourceOfTruth: "Existing Customers / Unified CRM customer list",
-          detail: "Protected preview data is displayed by the base CRM Next read model.",
+          sourceOfTruth: "Existing Customers / Customer records",
+          detail: "Protected preview data is displayed by the base Customer Console read model.",
           observedAt: now.toISOString(),
           href: CRM_NEXT_CUSTOMERS_HREF
         }

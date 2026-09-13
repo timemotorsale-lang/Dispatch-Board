@@ -14,7 +14,7 @@ export const CRM_ACTION_SOURCE_TRUTH = [
     id: "log-call",
     label: "Phone Call",
     owner: "Communications provider",
-    source: "Unified CRM customer interactions",
+    source: "Customer interactions",
     staffMessage: "Phone calling is not wired yet. Staff should not see a fake call workflow.",
     status: "Not wired"
   },
@@ -22,7 +22,7 @@ export const CRM_ACTION_SOURCE_TRUTH = [
     id: "send-text",
     label: "Send SMS",
     owner: "Communications provider",
-    source: "Unified CRM messaging",
+    source: "Customer messaging",
     staffMessage: "SMS is not wired yet. Staff should get a clear not-wired state.",
     status: "Not wired"
   },
@@ -30,7 +30,7 @@ export const CRM_ACTION_SOURCE_TRUTH = [
     id: "send-email",
     label: "Send Email",
     owner: "Email provider",
-    source: "Unified CRM email",
+    source: "Customer email",
     staffMessage: "Email is not wired yet. Staff should get a clear not-wired state.",
     status: "Not wired"
   },
@@ -45,7 +45,7 @@ export const CRM_ACTION_SOURCE_TRUTH = [
   {
     id: "new-task",
     label: "CRM Task",
-    owner: "Unified CRM task bridge",
+    owner: "Customer task bridge",
     source: "CRM customer task list and staff queue",
     staffMessage: "CRM tasks save to the customer record and staff task queue.",
     status: "Live"
@@ -53,7 +53,7 @@ export const CRM_ACTION_SOURCE_TRUTH = [
   {
     id: "add-note",
     label: "Add Note",
-    owner: "Unified CRM notes",
+    owner: "Customer notes",
     source: "Customer notes and timeline",
     staffMessage: "Notes save to the customer CRM timeline.",
     status: "Live"
@@ -89,7 +89,7 @@ export const CRM_DASHBOARD_SOURCE_TRUTH = [
     id: "total-customers",
     label: "Total Customers",
     owner: "Customers",
-    source: "Unified CRM customer list",
+    source: "Customer records",
     staffMessage: "Measured from authorized live customer records.",
     status: "Live"
   },
@@ -161,10 +161,10 @@ export const CRM_DASHBOARD_SOURCE_TRUTH = [
 
 export function crmActionSourceTruth(id: string): CrmSourceTruthEntry {
   return CRM_ACTION_SOURCE_TRUTH.find((entry) => entry.id === id) ??
-    { id, label: id, owner: "CRM Next", source: "Unknown", staffMessage: "This CRM action has no source-of-truth registry entry.", status: "Hidden" };
+    { id, label: id, owner: "Customer Console", source: "Unknown", staffMessage: "This customer action has no source-of-truth registry entry.", status: "Hidden" };
 }
 
 export function crmDashboardSourceTruth(id: string): CrmSourceTruthEntry {
   return CRM_DASHBOARD_SOURCE_TRUTH.find((entry) => entry.id === id) ??
-    { id, label: id, owner: "CRM Next", source: "Unknown", staffMessage: "This dashboard section has no source-of-truth registry entry.", status: "Hidden" };
+    { id, label: id, owner: "Customer Console", source: "Unknown", staffMessage: "This dashboard section has no source-of-truth registry entry.", status: "Hidden" };
 }

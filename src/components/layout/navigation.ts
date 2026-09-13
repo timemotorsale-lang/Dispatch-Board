@@ -226,7 +226,7 @@ export const dispatchNavigationItems: NavigationItem[] = [
   {
     href: CRM_CUSTOMER_LANDING_HREF,
     title: "Customers",
-    description: "Customer landing dashboard wired into CRM Next.",
+    description: "Customer landing dashboard wired into Customer Console.",
     icon: ContactRound,
     parentHref: "/board",
     activePaths: ["/customers"]
@@ -234,7 +234,7 @@ export const dispatchNavigationItems: NavigationItem[] = [
   {
     href: CRM_NEXT_HOME_HREF,
     title: "CRM",
-    description: "CRM Next customer relationships, work, pipeline, conversations, and insight.",
+    description: "Customer relationships, work, pipeline, conversations, and insight.",
     icon: ContactRound,
     parentHref: "/board",
     activePaths: ["/crm", "/crm-next"],
@@ -361,7 +361,7 @@ const workspaceNavigationItems: Partial<Record<WorkspaceKey, NavigationItem[]>> 
     { href: "/vehicles/recon-repair-advisor", title: "Recon/Repair Advisor", description: "Prototype cockpit for recon and repair execution.", icon: Stethoscope },
     { href: "/vehicles/repair-orders?intakeSource=WALK_IN", title: "Check In Vehicle", description: "Receive a vehicle and create governed shop work.", icon: ClipboardCheck },
     { href: "/appointments?view=board", title: "Appointment Board", description: "Review schedule commitments and appointment context.", icon: CalendarDays },
-    { href: CRM_NEXT_CUSTOMERS_HREF, title: "Customers", description: "CRM Next customer records and connected service work.", icon: ContactRound, activePaths: ["/customers"] },
+    { href: CRM_NEXT_CUSTOMERS_HREF, title: "Customers", description: "Customer records and connected service work.", icon: ContactRound, activePaths: ["/customers"] },
     { href: "/vehicles/repair-workbench", title: "Repair Orders", description: "Open estimates, authorizations, and customer handoffs.", icon: Wrench },
     { href: "/diagnostics/advisor-review", title: "Diagnostic Review", description: "Review findings and estimate handoffs.", icon: FileText },
     { href: "/my-tasks", title: "My Work", description: "Advisor follow-up and assigned actions.", icon: UserRoundCheck }
@@ -380,11 +380,11 @@ const workspaceNavigationItems: Partial<Record<WorkspaceKey, NavigationItem[]>> 
     { href: "/vehicles/repair-workbench", title: "Repair Orders", description: "Read repair scope and completion evidence.", icon: ClipboardCheck }
   ],
   SALES: [
-    { href: CRM_NEXT_HOME_HREF, title: "CRM", description: "CRM Next customer relationships, work, pipeline, conversations, and insight.", icon: ContactRound, activePaths: ["/crm", "/crm-next"] },
+    { href: CRM_NEXT_HOME_HREF, title: "CRM", description: "Customer relationships, work, pipeline, conversations, and insight.", icon: ContactRound, activePaths: ["/crm", "/crm-next"] },
     { href: "/my-tasks", title: "My Work", description: "Assigned follow-up and delivery actions.", icon: UserRoundCheck },
     { href: "/tasks?department=SALES", title: "Sales Tasks", description: "Task-level lead, negotiation, and delivery work.", icon: BadgeDollarSign, activeQuery: { department: "SALES" } },
     { href: "/appointments", title: "Appointments", description: "Customer appointments and commitments.", icon: CalendarDays },
-    { href: CRM_NEXT_CUSTOMERS_HREF, title: "Customers", description: "CRM Next customer and lead context.", icon: ContactRound, activePaths: ["/customers"] },
+    { href: CRM_NEXT_CUSTOMERS_HREF, title: "Customers", description: "Customer and lead context.", icon: ContactRound, activePaths: ["/customers"] },
     { href: "/vehicles", title: "Vehicles", description: "Permitted inventory and delivery context.", icon: CarFront }
   ],
   MARKETING: [
@@ -399,7 +399,7 @@ const workspaceNavigationItems: Partial<Record<WorkspaceKey, NavigationItem[]>> 
     { href: "/appointments", title: "Appointment Console", description: "Today flow, calendar booking, capacity, follow-up, and appointment exceptions.", icon: CalendarDays, matchExact: true },
     { href: "/vehicles/repair-orders?intakeSource=WALK_IN", title: "Check In Vehicle", description: "Start governed service intake without duplicating customer or vehicle records.", icon: ClipboardCheck },
     { href: "/vehicles/parts-receiving", title: "Receive Parts", description: "Record arrivals, exceptions, and accountable part placement.", icon: PackageCheck },
-    { href: CRM_NEXT_CUSTOMERS_HREF, title: "Customers", description: "Find or prepare customer records in CRM Next.", icon: ContactRound, activePaths: ["/customers"] },
+    { href: CRM_NEXT_CUSTOMERS_HREF, title: "Customers", description: "Find or prepare customer records in Customer Console.", icon: ContactRound, activePaths: ["/customers"] },
     { href: "/operations-coordinator#paperwork-command-center", title: "Paperwork Center", description: "Prepare sales, finance, insurance, rental, payment, and document packets.", icon: SquareCheckBig },
     { href: "/tasks?department=SALES", title: "Sales Paperwork", description: "Support sales, finance, insurance, rental, and delivery paperwork.", icon: BadgeDollarSign },
     { href: "/my-tasks", title: "My Work", description: "Assigned coordination tasks and follow-up.", icon: UserRoundCheck }
@@ -407,13 +407,13 @@ const workspaceNavigationItems: Partial<Record<WorkspaceKey, NavigationItem[]>> 
   OFFICE: [
     { href: "/my-tasks", title: "My Work", description: "Assigned office and documentation actions.", icon: UserRoundCheck },
     { href: "/appointments", title: "Appointments", description: "Permitted appointment support.", icon: CalendarDays },
-    { href: CRM_NEXT_CUSTOMERS_HREF, title: "Customers", description: "CRM Next customer and documentation context.", icon: ContactRound, activePaths: ["/customers"] },
+    { href: CRM_NEXT_CUSTOMERS_HREF, title: "Customers", description: "Customer and documentation context.", icon: ContactRound, activePaths: ["/customers"] },
     { href: "/tasks", title: "Team Tasks", description: "Authorized operational task search.", icon: SquareCheckBig }
   ],
   COLLECTIONS: [
     { href: "/my-tasks?workspace=collections", title: "My Collections", description: "Assigned payment follow-up and account actions.", icon: UserRoundCheck },
     { href: "/tasks?department=COLLECTIONS", title: "Collections Queue", description: "Authorized collections work.", icon: BadgeDollarSign },
-    { href: CRM_NEXT_CUSTOMERS_HREF, title: "Account Context", description: "Minimum permitted CRM Next customer and account context.", icon: ContactRound, activePaths: ["/customers"] }
+    { href: CRM_NEXT_CUSTOMERS_HREF, title: "Account Context", description: "Minimum permitted Customer Console customer and account context.", icon: ContactRound, activePaths: ["/customers"] }
   ],
   GENERAL_STAFF: [
     { href: "/my-tasks", title: "My Work", description: "Assigned work and next actions.", icon: UserRoundCheck },

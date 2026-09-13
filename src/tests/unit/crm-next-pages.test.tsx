@@ -37,6 +37,7 @@ import CrmNextTestDrivesPage from "@/app/(app)/crm-next/test-drives/page";
 import CrmNextTimelinePage from "@/app/(app)/crm-next/timeline/page";
 import CrmNextWorkPage from "@/app/(app)/crm-next/work/[itemId]/page";
 import { CrmNextActionReadinessView, CrmNextTimelineView, CrmNextWorkCustomerView } from "@/features/crm-next/crm-next-shell";
+import { CRM_STAFF_FACING_BANNED_TERMS } from "@/lib/crm-staff-language";
 import type { CrmNextAttentionItem, CrmNextCommandCenter, CrmNextCustomer360, CrmNextOperatingAction, CrmNextTimelineEvent } from "@/server/crm-next/read-model";
 
 const originalFlag = process.env.CRM_NEXT;
@@ -44,7 +45,7 @@ const originalFlag = process.env.CRM_NEXT;
 function user(roles: string[]): AuthenticatedUser {
   return {
     id: `user-${roles.join("-").toLowerCase()}`,
-    name: "CRM Next Page User",
+    name: "Customer Console Page User",
     email: "crm-next-page@example.test",
     isActive: true,
     roles,
@@ -68,10 +69,10 @@ describe("CRM Next pages", () => {
 
     const markup = renderToStaticMarkup(await CrmNextPage());
 
-    expect(markup).toContain("CRM Next is protected right now");
-    expect(markup).toContain("CRM Next is safely turned off");
-    expect(markup).toContain("Legacy customer archive");
-    expect(markup).toContain("Legacy CRM fallback");
+    expect(markup).toContain("Customer Console is protected right now");
+    expect(markup).toContain("Customer Console is safely turned off");
+    expect(markup).toContain("Customer Archive");
+    expect(markup).toContain("Older Customer Tools");
     expect(markup).toContain('href="/customers"');
     expect(markup).toContain('href="/crm"');
     expect(markup).not.toContain('href="/crm-next"');
@@ -112,7 +113,7 @@ describe("CRM Next pages", () => {
     const newCustomer = renderToStaticMarkup(await CrmNextNewCustomerPage());
 
     expect(command).toContain("Who needs attention?");
-    expect(command).toContain("CRM Next active");
+    expect(command).toContain("Customer Console active");
     expect(command).toContain("Customers console");
     expect(command).toContain('href="/customers"');
     expect(command).toContain("Add Customer / Prospect");
@@ -160,7 +161,7 @@ describe("CRM Next pages", () => {
     expect(customer).toContain("Next Best Action");
     expect(customer).toContain("Linked Vehicles");
     expect(customer).toContain("Source status");
-    expect(customer).toContain("Open fallback CRM");
+    expect(customer).toContain("Open older customer tools");
     expect(customer).toContain("Add Customer");
     expect(customer).toContain("Open deal board");
     expect(customer).toContain("Schedule appointment");
@@ -189,7 +190,7 @@ describe("CRM Next pages", () => {
     expect(work).toContain("Last Contacted");
     expect(work).toContain("Days Since Activity");
     expect(work).toContain("Lead Source");
-    expect(work).toContain("Walk-in / CRM next action");
+    expect(work).toContain("Walk-in / customer next action");
     expect(work).toContain("Activity");
     expect(work).toContain("Notes");
     expect(work).toContain("Phone");
@@ -256,6 +257,9 @@ describe("CRM Next pages", () => {
       expect(staffMarkup).not.toContain("preview-only");
       expect(staffMarkup).not.toContain("source-owned");
       expect(staffMarkup).not.toContain("source drift");
+      for (const term of CRM_STAFF_FACING_BANNED_TERMS) {
+        expect(staffMarkup).not.toContain(term);
+      }
     }
     expect(ownershipSupport).toContain("Ownership &amp; Support");
     expect(ownershipSupport).toContain("Everything important");
@@ -296,7 +300,7 @@ describe("CRM Next pages", () => {
     expect(hardening).toContain("Migration and reconciliation stay held");
     expect(hardening).toContain("Security, consent, and audit boundaries are explicit");
     expect(hardening).toContain("CRMN-087");
-    expect(coexistence).toContain("CRM Next can be reviewed without replacing today’s CRM");
+    expect(coexistence).toContain("Customer Console can be reviewed without replacing today’s CRM");
     expect(coexistence).toContain("CRMN-087 → CRMN-090 coexistence packet");
     expect(coexistence).toContain("Capability migration remains deliberate");
     expect(coexistence).toContain("Fallback retirement is not approved");
@@ -317,8 +321,8 @@ describe("CRM Next pages", () => {
     expect(deals).toContain("Deals in progress");
     expect(states).toContain("Clear states instead of confusing dead ends");
     expect(permissions).toContain("Denied users fail closed");
-    expect(rollback).toContain("CRM Next can be turned off safely");
-    expect(progress).toContain("CRM Next build cockpit");
+    expect(rollback).toContain("Customer Console can be turned off safely");
+    expect(progress).toContain("Customer Console build cockpit");
     expect(progress).toContain("CRMN-016 → CRMN-119");
     expect(progress).toContain("CRMN-035");
     expect(progress).toContain("CRMN-048");
@@ -422,7 +426,7 @@ describe("CRM Next pages", () => {
       attention: [],
       customers: [defaultCustomer, selectedCustomer],
       operatingActions: [action],
-      userName: "CRM Next Page User"
+      userName: "Customer Console Page User"
     } as CrmNextCommandCenter;
 
     const markup = renderToStaticMarkup(<CrmNextActionReadinessView action={action} customerId={selectedCustomer.id} model={model} />);
@@ -460,7 +464,7 @@ describe("CRM Next pages", () => {
     ];
     const model = {
       timeline,
-      userName: "CRM Next Page User"
+      userName: "Customer Console Page User"
     } as CrmNextCommandCenter;
 
     const markup = renderToStaticMarkup(<CrmNextWorkCustomerView item={item} model={model} />);
@@ -505,7 +509,7 @@ describe("CRM Next pages", () => {
     ];
     const model = {
       timeline,
-      userName: "CRM Next Page User"
+      userName: "Customer Console Page User"
     } as CrmNextCommandCenter;
 
     const workMarkup = renderToStaticMarkup(<CrmNextWorkCustomerView item={item} model={model} />);

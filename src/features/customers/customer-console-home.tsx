@@ -76,7 +76,7 @@ export function CustomerConsoleHome({ showAdvisorReturn = false }: { showAdvisor
   const [actionNotice, setActionNotice] = useState("");
 
   const openCrmNext = (href: string) => {
-    setActionNotice("Opening CRM Next...");
+    setActionNotice("Opening Customer Console...");
     router.push(href);
   };
 
@@ -127,9 +127,9 @@ export function CustomerConsoleHome({ showAdvisorReturn = false }: { showAdvisor
           <kbd>Ctrl K</kbd>
         </form>
         <nav className="customer-module-switcher" aria-label="Customer console sections">
-          <Link href={CRM_NEXT_CUSTOMERS_HREF}>CRM Next Customers</Link>
+          <Link href={CRM_NEXT_CUSTOMERS_HREF}>Customer Records</Link>
           <Link href={CRM_NEXT_SEARCH_HREF}>Customer 360</Link>
-          <Link href="/customers/resolutions">Legacy Resolution</Link>
+          <Link href="/customers/resolutions">Resolution</Link>
         </nav>
         <CrmModeSwitch />
         <button className="customer-quick-action" onClick={() => openCrmNext(CRM_NEXT_INTAKE_HREF)} type="button"><Plus size={16} /> New <ChevronDown size={13} /></button>

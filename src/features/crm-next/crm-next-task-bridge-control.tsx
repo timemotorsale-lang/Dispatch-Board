@@ -27,7 +27,7 @@ export function CrmNextTaskBridgeControl({ attentionItemId, enabled }: { attenti
 
     if (!response.ok || !payload?.task?.id) {
       setState("error");
-      setMessage(payload?.error ?? "CRM Next could not create the Dispatch handoff.");
+      setMessage(payload?.error ?? "Customer Console could not create the Dispatch handoff.");
       return;
     }
 
