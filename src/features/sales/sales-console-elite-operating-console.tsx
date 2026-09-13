@@ -57,6 +57,14 @@ type ActionState = SalesConsoleLiveActionState;
 type WorkItem = SalesConsoleLiveWorkItem;
 
 type StaffRole = "Salesperson" | "BDC / Lead Coordinator" | "Sales Manager" | "Admin / Owner";
+type SalesIntentId =
+  | "sell-new-customer"
+  | "work-todays-leads"
+  | "continue-active-deal"
+  | "recover-stalled-opportunity"
+  | "prepare-appointment"
+  | "close-ready-opportunity"
+  | "review-manager-priorities";
 
 type WorkspaceSummary = {
   title: string;
@@ -66,7 +74,22 @@ type WorkspaceSummary = {
   governed: string;
 };
 
+type SalesIntent = {
+  id: SalesIntentId;
+  title: string;
+  purpose: string;
+  startsWith: string;
+  workspace: string;
+  nextAction: string;
+  sourceTruth: string;
+  requiredFacts: string[];
+  workflow: string[];
+};
+
+const salesIntentHomeNav = "Sales Intent Home";
+
 const navigation = [
+  salesIntentHomeNav,
   "Today",
   "Leads",
   "Pipeline",
@@ -83,13 +106,20 @@ const navigation = [
 ];
 
 const roleLanding: Record<StaffRole, string> = {
-  "Salesperson": "Today",
-  "BDC / Lead Coordinator": "Leads",
-  "Sales Manager": "Manager Command",
-  "Admin / Owner": "Admin / Source Health"
+  "Salesperson": salesIntentHomeNav,
+  "BDC / Lead Coordinator": salesIntentHomeNav,
+  "Sales Manager": salesIntentHomeNav,
+  "Admin / Owner": salesIntentHomeNav
 };
 
 const workspaceSummaries: Record<string, WorkspaceSummary> = {
+  [salesIntentHomeNav]: {
+    title: "Sales Intent Home",
+    description: "Start with what staff is trying to accomplish, then unfold the exact guided workflow.",
+    primaryMetric: "7 guided sales intents",
+    allowed: "Choose intent, see required facts, open the correct Sales workspace.",
+    governed: "No fabricated recommendations; every action must be tied to source-backed customer, lead, deal, or appointment context."
+  },
   "Today": {
     title: "My Team's Work Queue",
     description: "Ranked by next best action, freshness, source, blockers, and revenue lane.",
@@ -183,6 +213,86 @@ const workspaceSummaries: Record<string, WorkspaceSummary> = {
   }
 };
 
+const salesIntents: SalesIntent[] = [
+  {
+    id: "sell-new-customer",
+    title: "Sell to a new customer",
+    purpose: "Create the selling path only after the person and intent are captured.",
+    startsWith: "Customer or prospect intake",
+    workspace: "Leads",
+    nextAction: "Capture person, source, contact consent, vehicle interest, and urgency.",
+    sourceTruth: "Customer and lead records",
+    requiredFacts: ["Customer identity", "Contact method", "Buying intent", "Vehicle interest"],
+    workflow: ["Confirm customer record", "Check duplicate risk", "Create lead", "Recommend first contact"]
+  },
+  {
+    id: "work-todays-leads",
+    title: "Work today's leads",
+    purpose: "Rank live leads by urgency, SLA risk, and revenue opportunity.",
+    startsWith: "Lead Operations",
+    workspace: "Leads",
+    nextAction: "Open the highest-priority lead and complete the recommended contact step.",
+    sourceTruth: "Durable lead and customer records",
+    requiredFacts: ["Lead source", "SLA age", "Owner", "Next action"],
+    workflow: ["Review ranked lead", "Open Customer 360", "Contact or schedule", "Record outcome"]
+  },
+  {
+    id: "continue-active-deal",
+    title: "Continue an active deal",
+    purpose: "Move a real opportunity forward without losing the customer context.",
+    startsWith: "Pipeline",
+    workspace: "Pipeline",
+    nextAction: "Open the active opportunity and remove the next blocker.",
+    sourceTruth: "Opportunity, vehicle, and customer records",
+    requiredFacts: ["Stage", "Vehicle", "Blocker", "Owner"],
+    workflow: ["Open opportunity", "Check blocker", "Pick next best action", "Capture decision"]
+  },
+  {
+    id: "recover-stalled-opportunity",
+    title: "Recover a stalled opportunity",
+    purpose: "Bring back deals that have gone quiet before they become lost.",
+    startsWith: "Manager Command",
+    workspace: "Manager Command",
+    nextAction: "Review stale work, last touch, and manager intervention options.",
+    sourceTruth: "Activity, task, appointment, and opportunity history",
+    requiredFacts: ["Days since activity", "Last promise", "Blocker", "Manager review need"],
+    workflow: ["Identify stall reason", "Choose recovery play", "Assign follow-up", "Track response"]
+  },
+  {
+    id: "prepare-appointment",
+    title: "Prepare for an appointment or visit",
+    purpose: "Make staff ready before the customer arrives or receives a follow-up.",
+    startsWith: "Appointments",
+    workspace: "Appointments",
+    nextAction: "Open appointment context and confirm readiness, reminders, and vehicle prep.",
+    sourceTruth: "Appointment console and Customer 360",
+    requiredFacts: ["Appointment time", "Purpose", "Customer", "Owner"],
+    workflow: ["Confirm appointment", "Review Customer 360", "Check readiness", "Set reminder"]
+  },
+  {
+    id: "close-ready-opportunity",
+    title: "Close a ready opportunity",
+    purpose: "Guide the final steps only when the deal has the required proof and approvals.",
+    startsWith: "Revenue Desk",
+    workspace: "Revenue Desk",
+    nextAction: "Verify lane requirements, manager approvals, and source-owned write steps.",
+    sourceTruth: "Revenue lane, deal, finance, and document records",
+    requiredFacts: ["Revenue lane", "Approval status", "Missing documents", "Delivery readiness"],
+    workflow: ["Validate requirements", "Request approval if needed", "Record sale packet", "Plan delivery"]
+  },
+  {
+    id: "review-manager-priorities",
+    title: "Review manager priorities",
+    purpose: "Give leaders one place to choose the next revenue-impacting action.",
+    startsWith: "Manager Command",
+    workspace: "Manager Command",
+    nextAction: "Open risk queues for stalled revenue, SLA exposure, approvals, and coaching.",
+    sourceTruth: "Manager queues and source health",
+    requiredFacts: ["Queue count", "Risk reason", "Owner", "Recommended action"],
+    workflow: ["Open risk queue", "Review source evidence", "Assign action", "Monitor outcome"]
+  }
+];
+
 const actionTone: Record<ActionState, string> = {
   "Live Action": styles.live,
   "Controlled Action": styles.controlled,
@@ -191,8 +301,9 @@ const actionTone: Record<ActionState, string> = {
 };
 
 export function SalesConsoleEliteOperatingConsole() {
-  const [activeNav, setActiveNav] = useState("Today");
+  const [activeNav, setActiveNav] = useState(salesIntentHomeNav);
   const [activeRole, setActiveRole] = useState<StaffRole>("Sales Manager");
+  const [activeIntentId, setActiveIntentId] = useState<SalesIntentId>("work-todays-leads");
   const [query, setQuery] = useState("");
   const [laneFilter, setLaneFilter] = useState("All Lanes");
   const [selectedCustomer, setSelectedCustomer] = useState(salesConsoleLiveWorkItems[0]);
@@ -203,6 +314,7 @@ export function SalesConsoleEliteOperatingConsole() {
   const [recordSaleStatus, setRecordSaleStatus] = useState<string | null>(null);
   const [isRecordSalePending, startRecordSaleTransition] = useTransition();
   const activeWorkspace = workspaceSummaries[activeNav];
+  const activeIntent = salesIntents.find((intent) => intent.id === activeIntentId) ?? salesIntents[0];
   const selectedLaneContract = getRevenueLaneContract(selectedLane.contractLane);
   const selectedLaneLinks = getSalesConsoleCrossConsoleLinksForLane(selectedLane.contractLane, activeRole);
   const sourceBackedTabStates = useMemo(() => buildSalesConsoleSourceBackedTabStates(), []);
@@ -419,6 +531,68 @@ export function SalesConsoleEliteOperatingConsole() {
           </section>
         ) : null}
 
+        {activeNav === salesIntentHomeNav ? (
+          <section className={styles.intentHome} aria-labelledby="sales-intent-title">
+            <section className={styles.intentHero}>
+              <span>Sales intent home</span>
+              <h1 id="sales-intent-title">What are you trying to do?</h1>
+              <p>
+                Choose the selling intent first. The console will then show the customer context, required facts,
+                lifecycle stage, recommended next action, and the correct workspace without making staff hunt
+                through pages.
+              </p>
+            </section>
+
+            <section className={styles.intentGrid} aria-label="Sales starting intents">
+              {salesIntents.map((intent) => (
+                <button
+                  key={intent.id}
+                  type="button"
+                  className={intent.id === activeIntent.id ? styles.activeIntent : undefined}
+                  onClick={() => setActiveIntentId(intent.id)}
+                  aria-pressed={intent.id === activeIntent.id}
+                >
+                  <strong>{intent.title}</strong>
+                  <span>{intent.purpose}</span>
+                  <em>Starts in {intent.startsWith}</em>
+                </button>
+              ))}
+            </section>
+
+            <section className={styles.intentDetail} aria-label="Selected sales intent workflow">
+              <div className={styles.intentSummary}>
+                <span>Selected intent</span>
+                <h2>{activeIntent.title}</h2>
+                <p>{activeIntent.nextAction}</p>
+                <button type="button" onClick={() => setActiveNav(activeIntent.workspace)}>
+                  Begin guided path
+                </button>
+              </div>
+              <div className={styles.intentFacts}>
+                <h3>Required facts before action</h3>
+                <ul>
+                  {activeIntent.requiredFacts.map((fact) => (
+                    <li key={fact}>{fact}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className={styles.intentSteps}>
+                <h3>Workflow that unfolds next</h3>
+                <ol>
+                  {activeIntent.workflow.map((step) => (
+                    <li key={step}>{step}</li>
+                  ))}
+                </ol>
+              </div>
+              <div className={styles.intentGuardrail}>
+                <h3>Source of truth</h3>
+                <p>{activeIntent.sourceTruth}</p>
+                <strong>No fabricated activity, metrics, or recommendations.</strong>
+              </div>
+            </section>
+          </section>
+        ) : (
+          <>
         <section className={styles.kpis} aria-label="Sales Console KPI strip">
           {[
             ["Opportunities", "128", "12% vs yesterday"],
@@ -903,6 +1077,8 @@ export function SalesConsoleEliteOperatingConsole() {
             </section>
           </aside>
         </div>
+          </>
+        )}
       </section>
     </main>
   );

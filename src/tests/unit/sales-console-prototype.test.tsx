@@ -89,9 +89,10 @@ describe("Sales Console", () => {
     const markup = renderToStaticMarkup(<SalesPage />);
 
     expect(markup).toContain("Elite enterprise Sales Console operational MVP");
-    expect(markup).toContain("My Team&#x27;s Work Queue");
+    expect(markup).toContain("Sales Intent Home");
+    expect(markup).toContain("What are you trying to do?");
     expect(markup).toContain("Revenue Desk");
-    expect(markup).toContain("Manager Command Center");
+    expect(markup).toContain("Manager Command");
   });
 
   it("keeps the M38 staff shell lean, role-aware, and free of prototype review language", () => {
@@ -102,23 +103,20 @@ describe("Sales Console", () => {
     expect(markup).toContain("Salesperson");
     expect(markup).toContain("BDC / Lead Coordinator");
     expect(markup).toContain("Admin / Owner");
-    expect(markup).toContain("Active workspace operating contract");
-    expect(markup).toContain("Customer messages and quote submission stay controlled.");
+    expect(markup).toContain("Begin guided path");
+    expect(markup).toContain("No fabricated activity, metrics, or recommendations.");
     expect(markup).not.toContain("dogfood");
     expect(markup).not.toContain("release gate");
     expect(markup).not.toContain("Prototype");
   });
 
-  it("renders M41 salesperson today as grouped operating work", () => {
+  it("renders M41 salesperson today as an intent-led work start", () => {
     const markup = renderToStaticMarkup(<SalesPage />);
 
-    expect(markup).toContain("Must Do Now");
     expect(markup).toContain("Today");
-    expect(markup).toContain("Waiting");
-    expect(markup).toContain("Watch");
-    expect(markup).toContain("High-intent cash sale");
-    expect(markup).toContain("BHPH compliance is blocked");
-    expect(markup).toContain("Open Revenue Desk");
+    expect(markup).toContain("Work today&#x27;s leads");
+    expect(markup).toContain("Review ranked lead");
+    expect(markup).toContain("Record outcome");
     expect(markup).toContain("Controlled Action");
   });
 
@@ -128,10 +126,11 @@ describe("Sales Console", () => {
     expect(markup).toContain("Leads");
   });
 
-  it("renders the official enterprise navigation and revenue lanes", () => {
+  it("renders the official enterprise navigation and sales intent home", () => {
     const markup = renderToStaticMarkup(<SalesConsoleEliteOperatingConsole />);
 
     for (const label of [
+      "Sales Intent Home",
       "Today",
       "Leads",
       "Pipeline",
@@ -149,16 +148,17 @@ describe("Sales Console", () => {
       expect(markup).toContain(label);
     }
 
-    for (const lane of [
-      "Cash Sale",
-      "BHPH",
-      "Lease-to-Own",
-      "Public Repair",
-      "Daily Rental",
-      "Warranty",
-      "Financing Products"
+    for (const intent of [
+      "What are you trying to do?",
+      "Sell to a new customer",
+      "Work today&#x27;s leads",
+      "Continue an active deal",
+      "Recover a stalled opportunity",
+      "Prepare for an appointment or visit",
+      "Close a ready opportunity",
+      "Review manager priorities"
     ]) {
-      expect(markup).toContain(lane);
+      expect(markup).toContain(intent);
     }
 
     expect(markup).toContain("Search customer, stock #, VIN, phone, deal...");
@@ -166,10 +166,9 @@ describe("Sales Console", () => {
     expect(markup).toContain("Controlled Action");
     expect(markup).toContain("Source-System Action");
     expect(markup).toContain("Future / Governed");
-    expect(markup).toContain("Selected Revenue Desk lane detail");
-    expect(markup).toContain("Required fields");
-    expect(markup).toContain("Governed actions");
-    expect(markup).toContain("Admin / Source Health");
+    expect(markup).toContain("Begin guided path");
+    expect(markup).toContain("No fabricated activity, metrics, or recommendations.");
+    expect(markup).not.toContain("My Team&#x27;s Work Queue");
   });
 
   it("renders the first sales console slice with the required operating surfaces", () => {

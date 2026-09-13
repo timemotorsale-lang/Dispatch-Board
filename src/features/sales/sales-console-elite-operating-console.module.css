@@ -315,6 +315,168 @@
   font-style: normal;
 }
 
+.intentHome {
+  display: grid;
+  gap: 12px;
+  padding: 10px;
+}
+
+.intentHero,
+.intentDetail {
+  border: 1px solid #dbe3ef;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.intentHero {
+  padding: 22px;
+  border-left: 6px solid #3157d5;
+}
+
+.intentHero span,
+.intentSummary span {
+  display: inline-flex;
+  width: fit-content;
+  color: #3157d5;
+  font-size: 11.5px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.intentHero h1 {
+  max-width: 760px;
+  margin: 8px 0;
+  font-size: clamp(30px, 4vw, 48px);
+  line-height: 1.02;
+}
+
+.intentHero p {
+  max-width: 920px;
+  margin: 0;
+  color: #475569;
+  font-size: 18px;
+  line-height: 1.45;
+}
+
+.intentGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.intentGrid button {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 148px;
+  border: 1px solid #dbe3ef;
+  border-radius: 12px;
+  background: #fff;
+  color: #0f172a;
+  padding: 16px;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+}
+
+.intentGrid button:hover,
+.intentGrid button:focus-visible,
+.activeIntent {
+  border-color: #3157d5 !important;
+  background: #eef4ff !important;
+  outline: none;
+}
+
+.intentGrid strong {
+  font-size: 18px;
+  line-height: 1.15;
+}
+
+.intentGrid span,
+.intentGrid em {
+  color: #475569;
+  font-size: 13px;
+  font-style: normal;
+  line-height: 1.35;
+}
+
+.intentGrid em {
+  margin-top: auto;
+  color: #1d4ed8;
+  font-weight: 900;
+}
+
+.intentDetail {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.2fr) repeat(3, minmax(180px, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  background: #dbe3ef;
+}
+
+.intentSummary,
+.intentFacts,
+.intentSteps,
+.intentGuardrail {
+  background: #fff;
+  padding: 18px;
+}
+
+.intentSummary h2,
+.intentFacts h3,
+.intentSteps h3,
+.intentGuardrail h3 {
+  margin: 0 0 8px;
+}
+
+.intentSummary p,
+.intentGuardrail p {
+  margin: 0 0 14px;
+  color: #475569;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.intentSummary button {
+  border: 0;
+  border-radius: 999px;
+  background: #3157d5;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+  padding: 10px 14px;
+}
+
+.intentSummary button:hover,
+.intentSummary button:focus-visible {
+  background: #2444b9;
+  outline: none;
+}
+
+.intentFacts ul,
+.intentSteps ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 18px;
+  color: #334155;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.intentGuardrail strong {
+  display: block;
+  border-radius: 10px;
+  background: #dcfce7;
+  color: #166534;
+  padding: 10px 12px;
+  line-height: 1.35;
+}
+
 .kpis {
   display: grid;
   grid-template-columns: repeat(6, minmax(108px, 1fr));
@@ -1103,7 +1265,8 @@
 
   .nav,
   .workspaceContract,
-  .kpis {
+  .kpis,
+  .intentGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -1130,7 +1293,8 @@
   }
 
   .revenueLaneDetail,
-  .revenueLaneDetail dl {
+  .revenueLaneDetail dl,
+  .intentDetail {
     grid-template-columns: 1fr;
   }
 
@@ -1158,7 +1322,16 @@
   .workspaceContract,
   .laneGrid,
   .inventoryGrid,
-  .customerCards {
+  .customerCards,
+  .intentGrid {
     grid-template-columns: 1fr;
+  }
+
+  .intentHero {
+    padding: 18px;
+  }
+
+  .intentHero p {
+    font-size: 15px;
   }
 }
