@@ -97,6 +97,7 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
   const workspaceHome = activeWorkspaceDefinition.landingRoute;
   const inventoryConsole = isInventoryConsolePath(pathname);
   const dispatchConsole = isDispatchConsolePath(pathname) && !inventoryConsole;
+  const showDispatchBoardSwitch = !commandCenterHome && (!dispatchConsole || isAppointmentConsolePath(pathname)) && canOpenManagementWorkspace;
   const actionsRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const roleNavigationItems = getNavigationItemsForPath(user, pathname, preferredWorkspace);
@@ -185,14 +186,14 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
         </Link>
       ) : null}
       {!commandCenterHome && roleWorkspace && canOpenManagementWorkspace ? (
-        <>
-          <Link aria-label="Open Command Control Center home" className="ccc-home-link ccc-global-exit-link" href="/command-center">
-            <House size={15} /><span>CCC Home</span>
-          </Link>
-          <Link aria-label="Open Dispatch Board console" className="ccc-home-link ccc-dispatch-link ccc-global-exit-link" href="/board">
-            <Columns3 size={15} /><span>Dispatch</span>
-          </Link>
-        </>
+        <Link aria-label="Open Command Control Center home" className="ccc-home-link ccc-global-exit-link" href="/command-center">
+          <House size={15} /><span>CCC Home</span>
+        </Link>
+      ) : null}
+      {showDispatchBoardSwitch ? (
+        <Link aria-label="Open Dispatch Board console" className="ccc-home-link ccc-dispatch-link ccc-global-exit-link" href="/board">
+          <Columns3 size={15} /><span>Dispatch Board</span>
+        </Link>
       ) : null}
       {explicitSourceReturnVisible ? (
         <Link aria-label="Return to source workspace" className="ccc-home-link oc-topbar-return" href={sourceReturnTo!}>
@@ -215,12 +216,6 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
         </Link>
       ) : null}
       <WorkspaceSwitcher preferredWorkspace={preferredWorkspace} user={user} />
-      {inventoryConsole && activeWorkspace === "MANAGEMENT" && !containedWorkspace ? (
-        <Link aria-label="Open Dispatch Board console" className="ccc-home-link ccc-dispatch-link" href="/board">
-          <Columns3 size={15} /><span>Dispatch</span>
-        </Link>
-      ) : null}
-
       <nav aria-label="Workspace breadcrumb" className="ccc-breadcrumb">
         {breadcrumb.map((part, index) => {
           const item = typeof part === "string" ? { label: part } : part;

@@ -95,6 +95,7 @@ export type CrmNextTimelineEvent = {
   detail: string;
   occurredAt: string;
   href: string;
+  sourceRecordId?: string;
 };
 
 export type CrmNextOperationalReadState = "LIVE_READ" | "PARTIAL_READ" | "FALLBACK_READ" | "EMPTY_READ";
@@ -1390,12 +1391,7 @@ const customers: CrmNextCustomer360[] = [
       { label: "Next payment due", value: "May 20, 2025 · $487.32", href: "/crm-next#finance-held" },
       { label: "Current opportunity", value: "Vehicle upgrade", href: "/crm-next#pipeline" }
     ],
-    communications: [
-      { id: "comm-phone-1", channel: "Phone", detail: "Spoke with customer about title status.", occurredAt: "May 12, 2025" },
-      { id: "comm-text-1", channel: "Text", detail: "Sent payment reminder.", occurredAt: "May 10, 2025" },
-      { id: "comm-email-1", channel: "Email", detail: "Sent insurance documents.", occurredAt: "May 8, 2025" },
-      { id: "comm-appt-1", channel: "Appointment", detail: "Test drove 2021 Toyota RAV4.", occurredAt: "May 2, 2025" }
-    ]
+    communications: []
   }
 ];
 
@@ -1462,9 +1458,9 @@ const operatingActions: CrmNextOperatingAction[] = [
     state: "PREVIEW_ONLY",
     href: "/crm-next/actions/new-case",
     sourceAuthority: "Common case/support framework",
-    response: "Open case intake with the customer context already attached.",
-    auditPosture: "Requires actor, case type, priority, owner, related customer/vehicle/deal, and source link.",
-    pilotRequirement: "Approve case types, ownership rules, SLA policy, and close/escalation workflow."
+    response: "Create a customer case with owner, priority, reminder, escalation, due date, CRM task routing, staff queue placement, notification, and resolution criteria.",
+    auditPosture: "Requires actor, case type, priority, owner, reminder, escalation trigger, SLA due date, generated CRM task, staff queue entry, notification target, related customer/vehicle/deal, resolution criteria, and source link.",
+    pilotRequirement: "Approve case types, ownership rules, reminder and appointment routing, staff queue routing, notification policy, SLA policy, escalation triggers, and close/resolution workflow."
   },
   {
     id: "schedule-appointment",
@@ -1533,40 +1529,7 @@ const searchGroups: CrmNextSearchGroup[] = [
   }
 ];
 
-const timelineEvents: CrmNextTimelineEvent[] = [
-  {
-    id: "timeline-opportunity-proposal",
-    source: "Opportunity",
-    label: "Opportunity moved to proposal",
-    detail: "Michael Johnson has an active vehicle upgrade opportunity.",
-    occurredAt: "Today · 8:10 PM",
-    href: "/crm-next/deals"
-  },
-  {
-    id: "timeline-call",
-    source: "Communication",
-    label: "Phone follow-up recorded",
-    detail: "Spoke with customer about title status and next appointment.",
-    occurredAt: "May 12, 2025",
-    href: "/crm-next/work/attn-michael-overdue-follow-up"
-  },
-  {
-    id: "timeline-appointment",
-    source: "Appointment",
-    label: "Appointment scheduled",
-    detail: "Next visit is ready for staff follow-up.",
-    occurredAt: "May 16, 2025 · 10:00 AM",
-    href: "/crm-next/appointments"
-  },
-  {
-    id: "timeline-crm-task",
-    source: "Customer",
-    label: "Customer follow-up task open",
-    detail: "Staff can finish the next customer step from the CRM workbench before creating any outside handoff.",
-    occurredAt: "Today",
-    href: "/crm-next/work/attn-michael-overdue-follow-up#lead"
-  }
-];
+const timelineEvents: CrmNextTimelineEvent[] = [];
 
 const salesRecords: CrmNextSalesRecord[] = [
   {
@@ -2492,7 +2455,8 @@ function timelineFrom360(model: UnifiedCrmCustomer360ReadModel): CrmNextTimeline
     label: item.title,
     detail: `${item.detail} · Source: ${item.sourceLabel}`,
     occurredAt: item.occurredAt,
-    href: item.sourceHref
+    href: item.sourceHref,
+    sourceRecordId: item.sourceRecordId
   }));
 }
 
@@ -2918,9 +2882,9 @@ export async function getCrmNextOperationalCustomer360(
       enterpriseLayer: buildCrmNextEnterpriseLayer({
         ...model,
         customers: [customer, ...model.customers.filter((record) => record.id !== customer.id)],
-        timeline: timeline.length ? timeline : model.timeline,
+        timeline,
       }, now),
-      timeline: timeline.length ? timeline : model.timeline,
+      timeline,
       operationalRead: {
         ...model.operationalRead,
         state: operationalState([...model.operationalRead.sources, sourceStatus, timelineStatus]),

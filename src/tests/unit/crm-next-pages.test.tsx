@@ -36,8 +36,8 @@ import CrmNextStateReviewPage from "@/app/(app)/crm-next/system/states/page";
 import CrmNextTestDrivesPage from "@/app/(app)/crm-next/test-drives/page";
 import CrmNextTimelinePage from "@/app/(app)/crm-next/timeline/page";
 import CrmNextWorkPage from "@/app/(app)/crm-next/work/[itemId]/page";
-import { CrmNextActionReadinessView } from "@/features/crm-next/crm-next-shell";
-import type { CrmNextCommandCenter, CrmNextCustomer360, CrmNextOperatingAction } from "@/server/crm-next/read-model";
+import { CrmNextActionReadinessView, CrmNextTimelineView, CrmNextWorkCustomerView } from "@/features/crm-next/crm-next-shell";
+import type { CrmNextAttentionItem, CrmNextCommandCenter, CrmNextCustomer360, CrmNextOperatingAction, CrmNextTimelineEvent } from "@/server/crm-next/read-model";
 
 const originalFlag = process.env.CRM_NEXT;
 
@@ -95,7 +95,7 @@ describe("CRM Next pages", () => {
     const coexistence = renderToStaticMarkup(await CrmNextCoexistencePage());
     const pilotRelease = renderToStaticMarkup(await CrmNextPilotReleasePage());
     const search = renderToStaticMarkup(await CrmNextSearchPage({ searchParams: Promise.resolve({}) }));
-    const timeline = renderToStaticMarkup(await CrmNextTimelinePage());
+    const timeline = renderToStaticMarkup(await CrmNextTimelinePage({ searchParams: Promise.resolve({}) }));
     const pipeline = renderToStaticMarkup(await CrmNextPipelinePage());
     const appointments = renderToStaticMarkup(await CrmNextAppointmentsPage());
     const testDrives = renderToStaticMarkup(await CrmNextTestDrivesPage());
@@ -108,6 +108,7 @@ describe("CRM Next pages", () => {
     const logCallAction = renderToStaticMarkup(await CrmNextActionPage({ params: Promise.resolve({ actionId: "log-call" }) }));
     const newTaskAction = renderToStaticMarkup(await CrmNextActionPage({ params: Promise.resolve({ actionId: "new-task" }) }));
     const emailAction = renderToStaticMarkup(await CrmNextActionPage({ params: Promise.resolve({ actionId: "send-email" }) }));
+    const caseAction = renderToStaticMarkup(await CrmNextActionPage({ params: Promise.resolve({ actionId: "new-case" }), searchParams: Promise.resolve({ customerId: "michael-johnson" }) }));
     const newCustomer = renderToStaticMarkup(await CrmNextNewCustomerPage());
 
     expect(command).toContain("Who needs attention?");
@@ -197,14 +198,19 @@ describe("CRM Next pages", () => {
     expect(work).toContain("Add CRM Task");
     expect(work).toContain("Add Note");
     expect(work).toContain("Disposition");
+    expect(work).toContain('aria-pressed="true"');
+    expect(work).toContain("<button");
     expect(work).not.toContain("Save CRM Task");
     expect(work).not.toContain("Keep it on Michael Johnson");
     expect(work).not.toContain("Dispatch handoff");
     expect(work).not.toContain("Connected to the CRM Next action-to-task bridge contract");
     expect(work).not.toContain("Backend wired · writes held");
     expect(work).toContain("Call Michael Johnson");
-    expect(work).toContain("Customer follow-up task open");
-    expect(work).toContain("before creating any outside handoff");
+    expect(work).toContain("No recorded activity yet");
+    expect(work).toContain("There are no verified notes, calls, appointments, tasks, or updates recorded for Michael Johnson yet.");
+    expect(work).not.toContain('href="#customer-activity"');
+    expect(work).not.toContain("Customer follow-up task open");
+    expect(work).not.toContain("before creating any outside handoff");
     expect(work).toContain('href="#lead"');
     expect(work).not.toContain('href="/crm-next/actions/log-call?customerId=michael-johnson"');
     expect(work).not.toContain('href="/crm-next/actions/send-text?customerId=michael-johnson"');
@@ -303,7 +309,8 @@ describe("CRM Next pages", () => {
     expect(search).toContain("Find the customer");
     expect(search).toContain("Deals and Opportunities");
     expect(timeline).toContain("Customer activity timeline");
-    expect(timeline).toContain("Opportunity moved to proposal");
+    expect(timeline).toContain("No recorded activity yet");
+    expect(timeline).not.toContain("Opportunity moved to proposal");
     expect(pipeline).toContain("Pipeline board");
     expect(appointments).toContain("Appointments");
     expect(testDrives).toContain("Test drives");
@@ -356,6 +363,24 @@ describe("CRM Next pages", () => {
     expect(emailAction).toContain("Use approved workspace");
     expect(emailAction).toContain("Send customer email");
     expect(emailAction).toContain("approved email workflow");
+    expect(caseAction).toContain("Create customer case");
+    expect(caseAction).toContain("Reminder");
+    expect(caseAction).toContain("Escalation trigger");
+    expect(caseAction).toContain("Customer note");
+    expect(caseAction).toContain("Resolution needed");
+    expect(caseAction).toContain("Case reminder and escalation controls");
+    expect(caseAction).toContain("Open appointment link");
+    expect(caseAction).toContain("Preview CRM task");
+    expect(caseAction).toContain("Open staff queue");
+    expect(caseAction).toContain("Open escalation queue");
+    expect(caseAction).toContain("Notification control");
+    expect(caseAction).toContain("Add customer note");
+    expect(caseAction).toContain("Tag staff in note");
+    expect(caseAction).toContain("/crm-next/actions/add-note?customerId=michael-johnson");
+    expect(caseAction).toContain("crm-case");
+    expect(caseAction).toContain("Case+reminder+%2F+SLA+follow-up");
+    expect(caseAction).toContain("Manager review is triggered");
+    expect(caseAction).toContain('data-success-message="Case prepared for Michael Johnson');
   });
 
   it("keeps the selected customer attached when opening an action", () => {
@@ -407,5 +432,88 @@ describe("CRM Next pages", () => {
     expect(markup).toContain('href="/crm-next/actions/new-task?customerId=ainanshe-bashir"');
     expect(markup).toContain("Create CRM task");
     expect(markup).toContain("Review customer relationship");
+    expect(markup).toContain('data-success-message="CRM task saved for Ainanshe Bashir');
+  });
+
+  it("does not show seeded activity details as customer-specific workbench activity", () => {
+    const item: CrmNextAttentionItem = {
+      area: "Sales",
+      customerHref: "/crm-next/customers/wil-johns",
+      customerId: "wil-johns",
+      customerName: "Wil Johns",
+      id: "attn-wil-johns",
+      level: "Medium",
+      nextAction: "Review next customer action",
+      owner: "Eli Manager",
+      reason: "Customer record needs review",
+      workHref: "/crm-next/work/attn-wil-johns"
+    };
+    const timeline: CrmNextTimelineEvent[] = [
+      {
+        detail: "Michael Johnson has an active vehicle upgrade opportunity.",
+        href: "/crm-next/deals",
+        id: "timeline-opportunity-proposal",
+        label: "Opportunity moved to proposal",
+        occurredAt: "Today · 8:10 PM",
+        source: "Opportunity"
+      }
+    ];
+    const model = {
+      timeline,
+      userName: "CRM Next Page User"
+    } as CrmNextCommandCenter;
+
+    const markup = renderToStaticMarkup(<CrmNextWorkCustomerView item={item} model={model} />);
+
+    expect(markup).toContain("No recorded activity yet");
+    expect(markup).toContain("There are no verified notes, calls, appointments, tasks, or updates recorded for Wil Johns yet.");
+    expect(markup).not.toContain("Wil Johns has an active vehicle upgrade opportunity.");
+    expect(markup).not.toContain("Michael Johnson has an active vehicle upgrade opportunity.");
+  });
+
+  it("shows verified customer timeline records while blocking unsourced seeded activity", () => {
+    const item: CrmNextAttentionItem = {
+      area: "Sales",
+      customerHref: "/crm-next/customers/wil-johns",
+      customerId: "wil-johns",
+      customerName: "Wil Johns",
+      id: "attn-wil-johns",
+      level: "Medium",
+      nextAction: "Review next customer action",
+      owner: "Eli Manager",
+      reason: "Customer record needs review",
+      workHref: "/crm-next/work/attn-wil-johns"
+    };
+    const timeline: CrmNextTimelineEvent[] = [
+      {
+        detail: "Real note from CRM source · Source: Customer interactions",
+        href: "/customers",
+        id: "interaction:note-1",
+        label: "Internal Note Internal",
+        occurredAt: "2026-09-11T19:54:05.739Z",
+        source: "Communication",
+        sourceRecordId: "note-1"
+      },
+      {
+        detail: "Seeded placeholder should not render.",
+        href: "/crm-next/deals",
+        id: "timeline-placeholder",
+        label: "Opportunity moved to proposal",
+        occurredAt: "Today",
+        source: "Opportunity"
+      }
+    ];
+    const model = {
+      timeline,
+      userName: "CRM Next Page User"
+    } as CrmNextCommandCenter;
+
+    const workMarkup = renderToStaticMarkup(<CrmNextWorkCustomerView item={item} model={model} />);
+    const timelineMarkup = renderToStaticMarkup(<CrmNextTimelineView model={model} />);
+
+    expect(workMarkup).toContain("Internal Note Internal");
+    expect(timelineMarkup).toContain("Internal Note Internal");
+    expect(workMarkup).not.toContain("Seeded placeholder should not render.");
+    expect(timelineMarkup).not.toContain("Seeded placeholder should not render.");
   });
 });

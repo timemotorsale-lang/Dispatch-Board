@@ -44,7 +44,7 @@ describe("application top bar console switching", () => {
     expect(markup).toContain('href="/command-center"');
     expect(markup).toContain('aria-label="Open Dispatch Board console"');
     expect(markup).toContain('href="/board"');
-    expect(markup).toContain("Dispatch</span>");
+    expect(markup).toContain("Dispatch Board</span>");
     expect(markup).toContain('aria-label="Application appearance"');
     expect(markup).toContain('aria-label="Use light appearance"');
     expect(markup).toContain('aria-label="Use dark appearance"');
@@ -103,6 +103,26 @@ describe("application top bar console switching", () => {
 
     expect(markup).toContain("Operations Coordinator");
     expect(markup).toContain('aria-haspopup="menu"');
+  });
+
+  it("provides a direct Dispatch Board switch from the Appointment Console", () => {
+    currentPathname = "/appointments";
+
+    const markup = renderToStaticMarkup(
+      <AppearanceProvider>
+        <AppTopbar
+          commandCenterHome={false}
+          onMenuOpen={() => undefined}
+          showNavigationMenu
+          user={testUser}
+        />
+      </AppearanceProvider>
+    );
+
+    expect(markup).toContain('aria-label="Command Center Home"');
+    expect(markup).toContain('aria-label="Open Dispatch Board console"');
+    expect(markup).toContain('href="/board"');
+    expect(markup).toContain("Dispatch Board</span>");
   });
 
   it("honors the server-validated workspace preference on a shared landing route", () => {

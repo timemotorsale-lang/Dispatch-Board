@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 
 import { CrmNextIntakeForm } from "@/features/crm-next/crm-next-intake-form";
+import { CrmNextActivityFilterTabs } from "@/features/crm-next/crm-next-activity-filter-tabs";
+import { CrmNextDirectActionForm } from "@/features/crm-next/crm-next-direct-action-form";
 import { CrmNextInlineTaskComposer } from "@/features/crm-next/crm-next-inline-task-composer";
 import { CrmNextWorkbenchSections } from "@/features/crm-next/crm-next-workbench-sections";
 import {
@@ -50,6 +52,10 @@ function initials(name: string) {
 function crmNextActionHref(actionId: string, customerId?: string) {
   const baseHref = `/crm-next/actions/${actionId}`;
   return customerId ? `${baseHref}?customerId=${encodeURIComponent(customerId)}` : baseHref;
+}
+
+function crmNextTimelineHref(customerId?: string) {
+  return customerId ? `/crm-next/timeline?customerId=${encodeURIComponent(customerId)}` : "/crm-next/timeline";
 }
 
 function directActionWorkspace(action: CrmNextOperatingAction, customerName: string, nextAction: string) {
@@ -98,12 +104,18 @@ function directActionWorkspace(action: CrmNextOperatingAction, customerName: str
   }
   if (action.id === "new-case") {
     return {
-      button: "Open Case",
+      button: "Create Case",
       fields: [
         { label: "Case summary", placeholder: "What customer issue needs ownership?" },
-        { label: "Priority", placeholder: "Low, Medium, or High" }
+        { label: "Owner", placeholder: "Eli Manager" },
+        { label: "Priority", placeholder: "Low, Medium, High, or Urgent" },
+        { label: "Due / SLA", placeholder: "Resolve by today, tomorrow, or a specific date." },
+        { label: "Reminder", placeholder: "When should staff be reminded to follow up?" },
+        { label: "Escalation trigger", placeholder: "Escalate if overdue, blocked, high-risk, or customer complaint is unresolved." },
+        { label: "Customer note", placeholder: "Record the customer context, promise, complaint, or update that explains why this case exists." },
+        { label: "Resolution needed", placeholder: "What must be true before this case can be closed?" }
       ],
-      status: `This opens a CRM case tied to ${customerName}, not a generic support page.`,
+      status: `This creates a tracked CRM case for ${customerName} with reminder, escalation, and resolution ownership.`,
       title: "Create customer case"
     };
   }
@@ -127,8 +139,6 @@ function directActionWorkspace(action: CrmNextOperatingAction, customerName: str
 }
 
 const CUSTOMER_JOURNEY_STAGES = ["New", "Contact Attempt", "Contacted", "Appointment Scheduled", "Working Deal", "Missed Appt.", "Visit Follow-up", "Sold", "Lost"] as const;
-const CRM_ACTIVITY_FILTERS = ["All", "Notes", "Appt", "Phone", "SMS", "Email", "Tasks", "Chat", "Other"] as const;
-
 function customerJourneyStage(customer: CrmNextCustomer360, activeAttentionItem?: CrmNextAttentionItem) {
   const nextAction = `${customer.nextAction} ${activeAttentionItem?.nextAction ?? ""}`.toLowerCase();
   if (customer.openDeals > 0 || nextAction.includes("deal")) return "Working Deal";
@@ -173,6 +183,10 @@ function customerWorkIssue(item: CrmNextAttentionItem) {
     issue: item.reason || "Customer record needs review",
     why: "The customer record needs enough clarity for staff to take the next safe step."
   };
+}
+
+function verifiedTimelineEvents(events: CrmNextCommandCenter["timeline"]) {
+  return events.filter((event) => Boolean(event.sourceRecordId));
 }
 
 export function CrmNextUnavailable({ fallbackHref, reason }: { fallbackHref: string; reason: CrmNextAccessReason }) {
@@ -850,6 +864,7 @@ export function CrmNextIntakeView({ model }: { model: CrmNextCommandCenter }) {
 }
 
 export function CrmNextTimelineView({ model }: { model: CrmNextCommandCenter }) {
+  const events = verifiedTimelineEvents(model.timeline);
   return (
     <CrmNextFrame active="timeline" userName={model.userName}>
       <Topbar />
@@ -862,15 +877,22 @@ export function CrmNextTimelineView({ model }: { model: CrmNextCommandCenter }) 
         <Link className={styles.secondaryButton} href="/crm-next/customers/michael-johnson">Open Customer 360</Link>
       </section>
       <article className={styles.card}>
-        <div className={styles.commList}>
-          {model.timeline.map((event) => (
-            <Link className={styles.communicationItem} href={event.href} key={event.id}>
-              <strong>{event.source}</strong>
-              <span>{event.label}<small>{event.detail}</small></span>
-              <small>{event.occurredAt}</small>
-            </Link>
-          ))}
-        </div>
+        {events.length > 0 ? (
+          <div className={styles.commList}>
+            {events.map((event) => (
+              <Link className={styles.communicationItem} href={event.href} key={event.id}>
+                <strong>{event.source}</strong>
+                <span>{event.label}<small>{event.detail}</small></span>
+                <small>{event.occurredAt}</small>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className={styles.activityTimelineEmpty}>
+            <strong>No recorded activity yet</strong>
+            <span>There are no verified customer activity records available from CRM Next sources yet.</span>
+          </div>
+        )}
       </article>
     </CrmNextFrame>
   );
@@ -1597,14 +1619,21 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
           </section>
 
           <section className={`${styles.timeline} ${styles.wide}`} id="timeline">
-            <header className={styles.panelHeader}><h2>Communication (Last 5)</h2><Link className={styles.textLink} href="/crm-next/timeline">View all</Link></header>
-            <div className={styles.commList}>
-              {customer.communications.map((item) => (
-                <article className={styles.communicationItem} key={item.id}>
-                  <strong>{item.channel}</strong><span>{item.detail}</span><small>{item.occurredAt}</small>
-                </article>
-              ))}
-            </div>
+            <header className={styles.panelHeader}><h2>Communication (Last 5)</h2><Link className={styles.textLink} href={crmNextTimelineHref(customer.id)}>View all</Link></header>
+            {customer.communications.length > 0 ? (
+              <div className={styles.commList}>
+                {customer.communications.map((item) => (
+                  <article className={styles.communicationItem} key={item.id}>
+                    <strong>{item.channel}</strong><span>{item.detail}</span><small>{item.occurredAt}</small>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className={styles.activityTimelineEmpty}>
+                <strong>No verified communication yet</strong>
+                <span>No calls, texts, emails, or appointments have been recorded for {customer.name} in CRM Next sources yet.</span>
+              </div>
+            )}
           </section>
         </main>
 
@@ -1672,6 +1701,21 @@ export function CrmNextActionReadinessView({ action, customerId, model }: { acti
   const backHref = relatedCustomer ? `/crm-next/customers/${relatedCustomer.id}` : "/crm-next";
   const activeAttentionItem = relatedCustomer ? model.attention.find((item) => item.customerId === relatedCustomer.id) : undefined;
   const workbenchHref = activeAttentionItem?.workHref ?? backHref;
+  const caseReturnHref = relatedCustomer ? crmNextActionHref("new-case", relatedCustomer.id) : "/crm-next/actions/new-case";
+  const caseReminderHref = crmNextCustomerAppointmentHref({
+    customerId: relatedCustomer?.id,
+    customerName: relatedCustomer?.name ?? "Customer",
+    reason: `Case reminder / SLA follow-up: ${relatedCustomer?.nextAction ?? action.response}`,
+    returnTo: caseReturnHref
+  });
+  const caseTaskHref = crmNextActionHref("new-task", relatedCustomer?.id);
+  const caseNoteHref = crmNextActionHref("add-note", relatedCustomer?.id);
+  const caseQueueHref = relatedCustomer
+    ? `/my-tasks?source=crm-case&customerId=${encodeURIComponent(relatedCustomer.id)}&owner=${encodeURIComponent(activeAttentionItem?.owner ?? "Unassigned")}`
+    : "/my-tasks?source=crm-case";
+  const caseEscalationHref = relatedCustomer
+    ? `/manager-review?source=crm-case&customerId=${encodeURIComponent(relatedCustomer.id)}`
+    : "/manager-review?source=crm-case";
   const stateCopy = action.state === "SAFE_ROUTE"
     ? "Ready to continue"
     : action.state === "PREVIEW_ONLY"
@@ -1687,7 +1731,15 @@ export function CrmNextActionReadinessView({ action, customerId, model }: { acti
     : backHref;
   const workspace = directActionWorkspace(action, relatedCustomer?.name ?? "Customer", relatedCustomer?.nextAction ?? action.response);
   const isCrmTaskAction = action.id === "new-task";
+  const isCaseAction = action.id === "new-case";
   const isHeldProviderAction = action.id === "log-call" || action.id === "send-email" || action.id === "upload-document";
+  const successMessage = action.id === "add-note"
+    ? `Note saved to ${relatedCustomer?.name ?? "this customer"}'s CRM timeline.`
+    : action.id === "new-case"
+      ? `Case prepared for ${relatedCustomer?.name ?? "this customer"} with reminder, task, queue, and escalation routing.`
+      : action.id === "new-task"
+        ? `CRM task saved for ${relatedCustomer?.name ?? "this customer"}.`
+        : `${action.label} saved for ${relatedCustomer?.name ?? "this customer"}.`;
 
   return (
     <CrmNextFrame active="work" userName={model.userName}>
@@ -1728,18 +1780,53 @@ export function CrmNextActionReadinessView({ action, customerId, model }: { acti
                   {isHeldProviderAction ? "Not wired yet" : "CRM record"}
                 </span>
               </header>
-              <div className={styles.directActionForm}>
-                {workspace.fields.map((field) => (
-                  <label key={field.label}>
-                    <span>{field.label}</span>
-                    <textarea defaultValue={field.placeholder} rows={field.label === "Due" || field.label === "Priority" ? 1 : 4} />
-                  </label>
-                ))}
-                <div className={styles.directActionFooter}>
-                  <button disabled={isHeldProviderAction} type="button">{workspace.button}</button>
-                  <Link href={backHref}>Cancel</Link>
-                </div>
-              </div>
+              <CrmNextDirectActionForm
+                cancelHref={backHref}
+                disabled={isHeldProviderAction}
+                fields={workspace.fields}
+                saveLabel={workspace.button}
+                successMessage={successMessage}
+              >
+                {isCaseAction ? (
+                  <div className={styles.caseControlGrid} aria-label="Case reminder and escalation controls">
+                    <article>
+                      <strong>Reminder control</strong>
+                      <span>Reminder and due dates route to the appointment console so the promised follow-up is visible on the operating schedule.</span>
+                      <Link href={caseReminderHref}>Open appointment link</Link>
+                    </article>
+                    <article>
+                      <strong>Owner CRM task</strong>
+                      <span>Assigned staff gets a CRM task tied to this customer, with the case summary and due date attached.</span>
+                      <Link href={caseTaskHref}>Preview CRM task</Link>
+                    </article>
+                    <article>
+                      <strong>Staff queue</strong>
+                      <span>The customer is added to the owner&apos;s queue until the reminder, task, or case resolution is completed.</span>
+                      <Link href={caseQueueHref}>Open staff queue</Link>
+                    </article>
+                    <article>
+                      <strong>Escalation control</strong>
+                      <span>Manager review is triggered when the case is overdue, blocked, urgent, or customer-impacting.</span>
+                      <Link href={caseEscalationHref}>Open escalation queue</Link>
+                    </article>
+                    <article>
+                      <strong>Customer note</strong>
+                      <span>Add the case context directly to this customer&apos;s CRM timeline without leaving the customer record.</span>
+                      <Link href={caseNoteHref}>Add customer note</Link>
+                    </article>
+                    <article>
+                      <strong>Notification control</strong>
+                      <span>The assigned staff member is tagged on the case activity and notified when ownership changes or the reminder becomes due.</span>
+                      <Link href={caseNoteHref}>Tag staff in note</Link>
+                    </article>
+                    <article>
+                      <strong>Resolution control</strong>
+                      <span>Case cannot close until the final outcome is recorded on the customer timeline.</span>
+                      <Link href={backHref}>Return to customer record</Link>
+                    </article>
+                  </div>
+                ) : null}
+              </CrmNextDirectActionForm>
             </section>
           )}
 
@@ -1800,7 +1887,7 @@ export function CrmNextWorkCustomerView({
   model: CrmNextCommandCenter;
 }) {
   const issue = customerWorkIssue(item);
-  const recentActivity = model.timeline.slice(0, 5);
+  const verifiedCustomerActivity = verifiedTimelineEvents(model.timeline);
   const pendingTasks = bridgePreview?.dispatchPreview ? "1 due" : "None";
 
   return (
@@ -1895,22 +1982,9 @@ export function CrmNextWorkCustomerView({
                   <h2>Activity</h2>
                   <p className={styles.muted}>Everything staff needs to understand what happened and decide the next customer step.</p>
                 </div>
-                <Link className={styles.textLink} href="/crm-next/timeline">Open full timeline</Link>
+                <Link className={styles.textLink} href={crmNextTimelineHref(item.customerId)}>Open full timeline</Link>
               </header>
-              <nav className={styles.activityFilters} aria-label="Activity filters">
-                {CRM_ACTIVITY_FILTERS.map((filter, index) => (
-                  <Link className={index === 0 ? styles.activeTab : undefined} href="#customer-activity" key={filter}>{filter}</Link>
-                ))}
-              </nav>
-              <div className={styles.activityTimelineList}>
-                {recentActivity.map((event) => (
-                  <Link className={styles.activityTimelineItem} href={event.href} key={event.id}>
-                    <strong>{event.label}</strong>
-                    <span>{event.detail}</span>
-                    <small>{event.source} · {event.occurredAt}</small>
-                  </Link>
-                ))}
-              </div>
+              <CrmNextActivityFilterTabs customerName={item.customerName} events={verifiedCustomerActivity} />
             </article>
           </section>
         </main>

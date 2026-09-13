@@ -39,16 +39,25 @@ export default async function CrmNextWorkPage({ params }: CrmNextWorkPageProps) 
   }
 
   const { itemId } = await params;
-  const model = await getCrmNextOperationalCommandCenter(user);
+  let model = await getCrmNextOperationalCommandCenter(user);
   let item = model.attention.find((attentionItem) => attentionItem.id === itemId);
 
   if (!item && itemId.startsWith("customer-read-")) {
     const customerId = decodeURIComponent(itemId.slice("customer-read-".length));
-    const { customer } = await getCrmNextOperationalCustomer360(user, customerId);
+    const hydrated = await getCrmNextOperationalCustomer360(user, customerId);
+    const { customer } = hydrated;
+    model = hydrated.model;
     item = attentionItemFromCustomer(customer, itemId);
   }
 
   item ??= getCrmNextAttentionItem(user, itemId);
+  if (item.customerId && !itemId.startsWith("customer-read-")) {
+    try {
+      model = (await getCrmNextOperationalCustomer360(user, item.customerId)).model;
+    } catch {
+      // Keep the command-center model if the live customer timeline source is unavailable.
+    }
+  }
   const bridgePreview = previewCrmNextActionToTaskBridge(user, { attentionItemId: item.id, itemOverride: item });
 
   return (

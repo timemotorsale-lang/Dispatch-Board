@@ -238,8 +238,10 @@ function opportunityLensObservation(
 }
 
 function timelineItems(input: {
+  appointments: UnifiedCrmCustomer360Appointment[];
   model: Awaited<ReturnType<UnifiedCrmCustomerTimelineRepository["listTimeline"]>>;
 }): UnifiedCrmCustomer360TimelineItem[] {
+  const appointmentHistoryAppointmentIds = new Set(input.model.appointmentHistoryEvents.map((event) => event.appointment.id));
   const items: UnifiedCrmCustomer360TimelineItem[] = [
     ...input.model.interactions.map((interaction) => ({
       id: `interaction:${interaction.id}`,
@@ -277,6 +279,24 @@ function timelineItems(input: {
       sourceHref: `/appointments?view=board&appointment=${encodeURIComponent(event.appointment.appointmentNumber)}`,
       sourceRecordId: event.appointment.id
     })),
+    ...input.appointments
+      .filter((appointment) => appointment.startsAt && !appointmentHistoryAppointmentIds.has(appointment.id))
+      .map((appointment) => ({
+        id: `appointment-record:${appointment.id}`,
+        correlationKey: `appointment:${appointment.id}`,
+        kind: "appointment-event" as const,
+        title: `Appointment scheduled · ${appointment.title}`,
+        detail: [
+          label(appointment.bookingStatus),
+          label(appointment.confirmationStatus),
+          label(appointment.attendanceStatus)
+        ].join(" · "),
+        occurredAt: appointment.startsAt as string,
+        actorName: null,
+        sourceLabel: "Appointments",
+        sourceHref: appointment.sourceHref,
+        sourceRecordId: appointment.id
+      })),
     ...input.model.leadEvents.map((lead) => ({
       id: `lead:${lead.id}`,
       correlationKey: `lead:${lead.id}`,
@@ -551,7 +571,8 @@ export async function getUnifiedCrmCustomer360(
     readMode: dependencies.readMode ?? process.env.UNIFIED_CRM_CUSTOMER_READ_MODE,
     shellMode: dependencies.shellMode ?? process.env.UNIFIED_CRM_SHELL_MODE
   });
-  const timelineView = timelineItems({ model: timeline });
+  const appointmentView = appointments(record);
+  const timelineView = timelineItems({ appointments: appointmentView, model: timeline });
   const newestTimelineItem = timelineView[0]?.occurredAt ?? null;
   const visibility = recordScope.kind === "ORGANIZATION" ? "organization" : "owned";
   const dispatchLinksByOpportunity = new Map<string, UnifiedCrmCustomer360OpportunityDispatchLinkRecord[]>();
@@ -620,7 +641,7 @@ export async function getUnifiedCrmCustomer360(
       effectiveTo: relationship.effectiveTo?.toISOString() ?? null,
       sourceHref: `/vehicles/360/${encodeURIComponent(vehicle.id)}`
     })),
-    appointments: appointments(record),
+    appointments: appointmentView,
     notes: notes(record, canViewRestricted),
     timeline: {
       state: timelineView.length ? "READY" : "EMPTY",

@@ -1443,6 +1443,63 @@
   outline: none;
 }
 
+.directDateField {
+  background: #fff;
+  border: 1px solid #cbd8ea;
+  border-radius: 12px;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.directDateField:focus-within {
+  border-color: #4161f4;
+  box-shadow: 0 0 0 3px rgb(65 97 244 / 13%);
+}
+
+.directDateField input {
+  background: #f8fbff;
+  border: 1px solid #dbe6f6;
+  border-radius: 10px;
+  color: #071a3a;
+  font: inherit;
+  min-height: 44px;
+  padding: 0 12px;
+}
+
+.directDateField input:focus {
+  outline: none;
+}
+
+.directDateField small {
+  color: #52637a;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.directDateQuickActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.directDateQuickActions button {
+  background: #eef4ff;
+  border: 1px solid #cfe0ff;
+  border-radius: 999px;
+  color: #2458dc;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 950;
+  min-height: 30px;
+  padding: 0 10px;
+}
+
+.directDateQuickActions button:hover {
+  background: #dfeaff;
+  border-color: #b8caff;
+}
+
 .directActionFooter {
   align-items: center;
   display: flex;
@@ -1479,6 +1536,65 @@
   background: #fff;
   border: 1px solid #cbd8ea;
   color: #071a3a;
+}
+
+.directActionSaved {
+  background: #ecfdf3;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  color: #166534;
+  font-size: 14px;
+  font-weight: 850;
+  line-height: 1.4;
+  margin: 0;
+  padding: 11px 12px;
+}
+
+.caseControlGrid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.caseControlGrid article {
+  background: #f8fbff;
+  border: 1px solid #dbe6f6;
+  border-radius: 12px;
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+}
+
+.caseControlGrid strong {
+  color: #071a3a;
+  font-size: 13px;
+}
+
+.caseControlGrid span {
+  color: #405169;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.caseControlGrid a {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #cbd8ea;
+  border-radius: 10px;
+  color: #2458dc;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 950;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 10px;
+  text-decoration: none;
+  width: fit-content;
+}
+
+.caseControlGrid a:hover {
+  background: #eef4ff;
+  border-color: #b8caff;
 }
 
 .pill,
@@ -3304,7 +3420,8 @@
 
 .dealerTabs button,
 .dealerTabs a,
-.activityFilters a {
+.activityFilters a,
+.activityFilters button {
   background: #eaf2ff;
   border: 1px solid #d8e6fb;
   border-radius: 6px;
@@ -3316,12 +3433,14 @@
   text-decoration: none;
 }
 
-.dealerTabs button {
+.dealerTabs button,
+.activityFilters button {
   cursor: pointer;
   font: inherit;
 }
 
 .dealerTabs button[aria-pressed="true"],
+.activityFilters button[aria-pressed="true"],
 .dealerTabs .activeTab,
 .activityFilters .activeTab {
   background: #ffffff;
@@ -3433,7 +3552,8 @@
   padding-bottom: 10px;
 }
 
-.activityFilters a {
+.activityFilters a,
+.activityFilters button {
   min-height: 32px;
   padding: 7px 12px;
 }
@@ -3760,6 +3880,24 @@
   color: #64748b;
 }
 
+.activityTimelineEmpty {
+  background: #f8fbff;
+  border: 1px dashed #b9c9df;
+  border-radius: 14px;
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+}
+
+.activityTimelineEmpty strong {
+  color: #071a3a;
+}
+
+.activityTimelineEmpty span {
+  color: #52637a;
+  line-height: 1.45;
+}
+
 .safeNotice {
   background: #eff6ff;
   border: 1px solid #bfdbfe;
@@ -4049,6 +4187,7 @@
   .capturePurposeGrid,
   .captureSteps,
   .mobileCaptureGrid,
+  .caseControlGrid,
   .captureWorkflowCard dl,
   .supportGrid,
   .executionGrid,
