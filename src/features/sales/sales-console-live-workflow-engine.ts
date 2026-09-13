@@ -149,6 +149,7 @@ export type SalesConsoleGuidedPath = {
   };
   executionTools: Array<{
     label: string;
+    category: "Action" | "Source";
     purpose: string;
     source: string;
     state: SalesConsoleLiveActionState;
@@ -156,8 +157,19 @@ export type SalesConsoleGuidedPath = {
     enabled: boolean;
     disabledReason?: string;
   }>;
-  outcomeOptions: string[];
+  outcomeOptions: Array<{
+    label: string;
+    result: string;
+  }>;
   outcomeWriteBackTarget: string;
+  returnLinks: Array<{
+    label: string;
+    href: string;
+  }>;
+  truthStatus: Array<{
+    label: string;
+    status: string;
+  }>;
   collapsedTools: string[];
   writeBackBehavior: string;
   activityPolicy: string;
@@ -451,12 +463,36 @@ function salesWorkbenchCustomer360Href(customerId: string) {
   return `/customers/customer-360?customer=${encodeURIComponent(customerId)}&returnTo=%2Fsales`;
 }
 
+function salesWorkbenchCrmCustomerHref(customerId: string) {
+  return `/crm-next/customers/${encodeURIComponent(customerId)}`;
+}
+
 function salesWorkbenchVehicleHref(stock: string) {
   return `/vehicles/360/${encodeURIComponent(stock)}?returnTo=%2Fsales`;
 }
 
 function salesWorkbenchManagerReviewHref(item: SalesConsoleLiveWorkItem) {
   return `/manager-review?source=sales-workbench&customerId=${encodeURIComponent(item.customerId)}&dealId=${encodeURIComponent(item.stock)}&returnTo=%2Fsales`;
+}
+
+function describeOutcomeResult(option: string) {
+  const normalized = option.toLowerCase();
+  if (normalized.includes("follow-up") || normalized.includes("reminder")) {
+    return "Writes the outcome to Customer 360, then staff can create the needed CRM task or reminder.";
+  }
+  if (normalized.includes("blocker") || normalized.includes("proof") || normalized.includes("documents")) {
+    return "Writes the blocker to Customer 360 and keeps the record in review until the missing item is handled.";
+  }
+  if (normalized.includes("manager") || normalized.includes("close review")) {
+    return "Writes the readiness note to Customer 360 and opens the path for manager or revenue review.";
+  }
+  if (normalized.includes("appointment") || normalized.includes("availability")) {
+    return "Writes the confirmed customer step to Customer 360 and keeps appointment context available.";
+  }
+  if (normalized.includes("declined")) {
+    return "Writes the declined result to Customer 360 so the next staff member does not chase a made-up open item.";
+  }
+  return "Writes the verified result to Customer 360 activity.";
 }
 
 export function buildSalesConsoleGuidedPath(item: SalesConsoleLiveWorkItem): SalesConsoleGuidedPath {
@@ -508,16 +544,18 @@ export function buildSalesConsoleGuidedPath(item: SalesConsoleLiveWorkItem): Sal
       href: `/sales?workspace=revenue-desk&lane=${encodeURIComponent(item.contractLane)}&customerId=${encodeURIComponent(item.customerId)}`
     },
     executionTools: [
-      { label: "Call", purpose: "Reach the customer now.", source: "CRM contact record", state: "Controlled Action", href: salesWorkbenchCrmActionHref("log-call", item.customerId), enabled: true },
-      { label: "SMS", purpose: "Send a short follow-up where consent permits.", source: "CRM consent and contact record", state: "Controlled Action", href: salesWorkbenchCrmActionHref("send-text", item.customerId), enabled: true },
-      { label: "Email", purpose: "Send documents or appointment details where available.", source: "CRM consent and contact record", state: "Controlled Action", href: salesWorkbenchCrmActionHref("send-email", item.customerId), enabled: true },
-      { label: "Appointment", purpose: "Open appointment context and readiness.", source: "Appointment Console", state: "Source-System Action", href: salesWorkbenchCrmActionHref("schedule-appointment", item.customerId), enabled: true },
-      { label: "Customer 360", purpose: "Review history, notes, and activity truth.", source: "Customer 360", state: "Source-System Action", href: salesWorkbenchCustomer360Href(item.customerId), enabled: true },
-      { label: "Vehicle", purpose: "Check vehicle readiness and inventory context.", source: "Vehicle 360 / Inventory", state: "Source-System Action", href: salesWorkbenchVehicleHref(item.stock), enabled: true },
-      { label: "Task", purpose: "Create or review follow-up work when outcome capture requires it.", source: "Tasks", state: "Controlled Action", href: salesWorkbenchCrmActionHref("new-task", item.customerId), enabled: true },
-      { label: "Docs", purpose: "Collect evidence or missing proof for this lane.", source: "Document / evidence intake", state: item.blockers.length ? "Controlled Action" : "Future / Governed", href: salesWorkbenchCrmActionHref("upload-document", item.customerId), enabled: true },
+      { label: "Call", category: "Action", purpose: "Reach the customer now.", source: "CRM contact record", state: "Controlled Action", href: salesWorkbenchCrmActionHref("log-call", item.customerId), enabled: true },
+      { label: "SMS", category: "Action", purpose: "Send a short follow-up where consent permits.", source: "CRM consent and contact record", state: "Controlled Action", href: salesWorkbenchCrmActionHref("send-text", item.customerId), enabled: true },
+      { label: "Email", category: "Action", purpose: "Send documents or appointment details where available.", source: "CRM consent and contact record", state: "Controlled Action", href: salesWorkbenchCrmActionHref("send-email", item.customerId), enabled: true },
+      { label: "Note", category: "Action", purpose: "Add a staff update to the customer timeline.", source: "Customer 360 notes", state: "Controlled Action", href: salesWorkbenchCrmActionHref("add-note", item.customerId), enabled: true },
+      { label: "Task", category: "Action", purpose: "Create or review follow-up work when outcome capture requires it.", source: "Tasks", state: "Controlled Action", href: salesWorkbenchCrmActionHref("new-task", item.customerId), enabled: true },
+      { label: "Docs", category: "Action", purpose: "Collect evidence or missing proof for this lane.", source: "Document / evidence intake", state: item.blockers.length ? "Controlled Action" : "Future / Governed", href: salesWorkbenchCrmActionHref("upload-document", item.customerId), enabled: true },
+      { label: "Appointment", category: "Source", purpose: "Open appointment context and readiness.", source: "Appointment Console", state: "Source-System Action", href: salesWorkbenchCrmActionHref("schedule-appointment", item.customerId), enabled: true },
+      { label: "Customer 360", category: "Source", purpose: "Review history, notes, and activity truth.", source: "Customer 360", state: "Source-System Action", href: salesWorkbenchCustomer360Href(item.customerId), enabled: true },
+      { label: "Vehicle", category: "Source", purpose: "Check vehicle readiness and inventory context.", source: "Vehicle 360 / Inventory", state: "Source-System Action", href: salesWorkbenchVehicleHref(item.stock), enabled: true },
       {
         label: "Manager Review",
+        category: "Source",
         purpose: "Use only when rules or blockers require manager help.",
         source: "Manager review rules",
         state: managerReviewEnabled ? "Controlled Action" : "Future / Governed",
@@ -526,8 +564,19 @@ export function buildSalesConsoleGuidedPath(item: SalesConsoleLiveWorkItem): Sal
         disabledReason: managerReviewEnabled ? undefined : "Manager Review opens only when blockers or manager-review rules require it."
       }
     ],
-    outcomeOptions: laneOutcomeOptions[item.contractLane],
+    outcomeOptions: laneOutcomeOptions[item.contractLane].map((option) => ({ label: option, result: describeOutcomeResult(option) })),
     outcomeWriteBackTarget: `/api/crm/v1/customers/${encodeURIComponent(item.customerId)}/notes`,
+    returnLinks: [
+      { label: "Back to Customer 360", href: salesWorkbenchCustomer360Href(item.customerId) },
+      { label: "Back to CRM Workspace", href: salesWorkbenchCrmCustomerHref(item.customerId) },
+      { label: "Back to Sales Home", href: "/sales" }
+    ],
+    truthStatus: [
+      { label: "Customer 360", status: "live" },
+      { label: "Task write-back", status: "live" },
+      { label: "Outcome write-back", status: "live" },
+      { label: "Manager review", status: managerReviewEnabled ? "available" : "rule-gated" }
+    ],
     collapsedTools: [
       "Customer 360",
       "Vehicle 360",

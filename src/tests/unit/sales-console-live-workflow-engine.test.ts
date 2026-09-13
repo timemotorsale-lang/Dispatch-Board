@@ -64,16 +64,30 @@ describe("Sales Console live workflow engine", () => {
     expect(guidedPath.primaryTool.label).toBe("Open Revenue Desk");
     expect(guidedPath.primaryTool.href).toContain("/sales?workspace=revenue-desk");
     expect(guidedPath.executionTools.map((tool) => tool.label)).toEqual(
-      expect.arrayContaining(["Call", "SMS", "Email", "Appointment", "Customer 360", "Vehicle", "Task", "Docs", "Manager Review"])
+      expect.arrayContaining(["Call", "SMS", "Email", "Note", "Appointment", "Customer 360", "Vehicle", "Task", "Docs", "Manager Review"])
+    );
+    expect(guidedPath.executionTools.filter((tool) => tool.category === "Action").map((tool) => tool.label)).toEqual(
+      expect.arrayContaining(["Call", "SMS", "Email", "Note", "Task", "Docs"])
+    );
+    expect(guidedPath.executionTools.filter((tool) => tool.category === "Source").map((tool) => tool.label)).toEqual(
+      expect.arrayContaining(["Appointment", "Customer 360", "Vehicle", "Manager Review"])
     );
     expect(guidedPath.executionTools.every((tool) => tool.href.length > 0)).toBe(true);
     expect(guidedPath.executionTools.filter((tool) => tool.enabled).every((tool) => !tool.disabledReason)).toBe(true);
     expect(guidedPath.executionTools.find((tool) => tool.label === "Call")?.href).toContain("/crm-next/actions/log-call");
+    expect(guidedPath.executionTools.find((tool) => tool.label === "Note")?.href).toContain("/crm-next/actions/add-note");
     expect(guidedPath.executionTools.find((tool) => tool.label === "Task")?.href).toContain("/crm-next/actions/new-task");
     expect(guidedPath.executionTools.find((tool) => tool.label === "Docs")?.href).toContain("/crm-next/actions/upload-document");
     expect(guidedPath.executionTools.find((tool) => tool.label === "Customer 360")?.href).toContain("/customers/customer-360");
     expect(guidedPath.outcomeWriteBackTarget).toContain("/api/crm/v1/customers/");
-    expect(guidedPath.outcomeOptions).toContain("Appointment confirmed");
+    expect(guidedPath.outcomeOptions.map((option) => option.label)).toContain("Appointment confirmed");
+    expect(guidedPath.outcomeOptions.every((option) => option.result.includes("Customer 360"))).toBe(true);
+    expect(guidedPath.returnLinks.map((link) => link.label)).toEqual(
+      expect.arrayContaining(["Back to Customer 360", "Back to CRM Workspace", "Back to Sales Home"])
+    );
+    expect(guidedPath.truthStatus.map((item) => item.label)).toEqual(
+      expect.arrayContaining(["Customer 360", "Task write-back", "Outcome write-back", "Manager review"])
+    );
     expect(guidedPath.writeBackBehavior).toContain("only after an approved outcome command succeeds");
   });
 

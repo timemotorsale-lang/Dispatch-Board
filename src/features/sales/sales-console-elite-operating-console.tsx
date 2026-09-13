@@ -1125,6 +1125,16 @@ export function SalesConsoleEliteOperatingConsole() {
                     {selectedGuidedPath.workbenchInstruction} · {selectedGuidedPath.revenueLane} · Source: {selectedGuidedPath.sourceSystem}
                   </p>
                 </header>
+                <nav className={styles.workbenchReturnLinks} aria-label="Sales Workbench return paths">
+                  {selectedGuidedPath.returnLinks.map((link) => (
+                    <a key={link.label} href={link.href}>{link.label}</a>
+                  ))}
+                </nav>
+                <div className={styles.workbenchTruthStatus} aria-label="Sales Workbench truth status">
+                  {selectedGuidedPath.truthStatus.map((item) => (
+                    <span key={item.label}><strong>{item.label}</strong> {item.status}</span>
+                  ))}
+                </div>
                 <section className={styles.workspaceRelationship} aria-label="How Sales Workbench and Customer 360 work together">
                   <article>
                     <strong>Customer 360</strong>
@@ -1158,9 +1168,24 @@ export function SalesConsoleEliteOperatingConsole() {
                     <small>{selectedGuidedPath.primaryTool.behavior} · {selectedGuidedPath.writeBackBehavior}</small>
                   </div>
                   <div className={styles.workbenchToolBelt} aria-label="Execution tools">
-                    <h4>Tools for this step</h4>
+                    <h4>Action tools</h4>
                     <div>
-                      {selectedGuidedPath.executionTools.map((tool) => (
+                      {selectedGuidedPath.executionTools.filter((tool) => tool.category === "Action").map((tool) => (
+                        <button
+                          key={tool.label}
+                          type="button"
+                          className={actionTone[tool.state]}
+                          disabled={!tool.enabled}
+                          onClick={() => openWorkbenchHref(tool.href)}
+                          title={tool.disabledReason ?? `${tool.purpose} Source: ${tool.source}`}
+                        >
+                          <strong>{tool.label}</strong>
+                        </button>
+                      ))}
+                    </div>
+                    <h4>Source checks</h4>
+                    <div>
+                      {selectedGuidedPath.executionTools.filter((tool) => tool.category === "Source").map((tool) => (
                         <button
                           key={tool.label}
                           type="button"
@@ -1180,12 +1205,14 @@ export function SalesConsoleEliteOperatingConsole() {
                     <div>
                       {selectedGuidedPath.outcomeOptions.map((option) => (
                         <button
-                          key={option}
+                          key={option.label}
                           type="button"
                           disabled={isWorkbenchOutcomePending}
-                          onClick={() => saveWorkbenchOutcome(option)}
+                          onClick={() => saveWorkbenchOutcome(option.label)}
+                          title={option.result}
                         >
-                          {option}
+                          <strong>{option.label}</strong>
+                          <small>{option.result}</small>
                         </button>
                       ))}
                     </div>
