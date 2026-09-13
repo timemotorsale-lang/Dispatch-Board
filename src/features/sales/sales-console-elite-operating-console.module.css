@@ -360,6 +360,17 @@
   line-height: 1.45;
 }
 
+.intentHero > strong {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 16px;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #1d4ed8;
+  padding: 9px 13px;
+  font-size: 13px;
+}
+
 .intentGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

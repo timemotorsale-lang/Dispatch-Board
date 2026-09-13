@@ -390,6 +390,11 @@ export function SalesConsoleEliteOperatingConsole() {
     if (matchedLane) setSelectedLane(matchedLane);
   }
 
+  function openSalesIntent(intent: SalesIntent) {
+    setActiveIntentId(intent.id);
+    setActiveNav(intent.workspace);
+  }
+
   function submitSelectedSaleRecord() {
     setRecordSaleStatus(null);
     startRecordSaleTransition(async () => {
@@ -541,6 +546,7 @@ export function SalesConsoleEliteOperatingConsole() {
                 lifecycle stage, recommended next action, and the correct workspace without making staff hunt
                 through pages.
               </p>
+              <strong>Click any intent to open that guided workspace.</strong>
             </section>
 
             <section className={styles.intentGrid} aria-label="Sales starting intents">
@@ -549,12 +555,12 @@ export function SalesConsoleEliteOperatingConsole() {
                   key={intent.id}
                   type="button"
                   className={intent.id === activeIntent.id ? styles.activeIntent : undefined}
-                  onClick={() => setActiveIntentId(intent.id)}
+                  onClick={() => openSalesIntent(intent)}
                   aria-pressed={intent.id === activeIntent.id}
                 >
                   <strong>{intent.title}</strong>
                   <span>{intent.purpose}</span>
-                  <em>Starts in {intent.startsWith}</em>
+                  <em>Open {intent.startsWith}</em>
                 </button>
               ))}
             </section>
@@ -564,7 +570,7 @@ export function SalesConsoleEliteOperatingConsole() {
                 <span>Selected intent</span>
                 <h2>{activeIntent.title}</h2>
                 <p>{activeIntent.nextAction}</p>
-                <button type="button" onClick={() => setActiveNav(activeIntent.workspace)}>
+                <button type="button" onClick={() => openSalesIntent(activeIntent)}>
                   Begin guided path
                 </button>
               </div>
