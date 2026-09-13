@@ -1387,8 +1387,8 @@
 .workbenchToolBelt,
 .workbenchFinish {
   border: 1px solid #dbe3ef;
-  border-radius: 14px;
-  padding: 14px;
+  border-radius: 12px;
+  padding: 12px;
   background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
   box-shadow: 0 18px 40px rgb(15 42 84 / 7%);
 }
@@ -1396,7 +1396,7 @@
 .workbenchNow {
   display: grid;
   align-content: start;
-  gap: 12px;
+  gap: 10px;
   border-color: #3157d5;
   box-shadow: inset 4px 0 0 #3157d5, 0 18px 40px rgb(49 87 213 / 10%);
 }
@@ -1432,9 +1432,9 @@
   justify-content: center;
   width: fit-content;
   border: 0;
-  border-radius: 10px;
-  min-height: 44px;
-  padding: 11px 16px;
+  border-radius: 9px;
+  min-height: 40px;
+  padding: 10px 14px;
   font-weight: 900;
   box-shadow: 0 12px 24px rgb(22 101 52 / 12%);
 }
@@ -1448,7 +1448,7 @@
 .workbenchToolBelt {
   display: grid;
   align-content: start;
-  gap: 10px;
+  gap: 8px;
 }
 
 .workbenchToolBelt h4:not(:first-child) {
@@ -1463,12 +1463,12 @@
 
 .workbenchToolBelt button {
   width: 100%;
-  min-height: 58px;
+  min-height: 50px;
   display: grid;
   align-content: center;
   border: 1px solid #dbe3ef;
-  border-radius: 12px;
-  padding: 10px;
+  border-radius: 10px;
+  padding: 9px;
   text-align: center;
   background: #f8fbff;
   box-shadow: inset 0 -1px 0 rgb(15 42 84 / 4%);
@@ -1491,7 +1491,7 @@
 .workbenchFinish {
   display: grid;
   align-content: start;
-  gap: 10px;
+  gap: 8px;
 }
 
 .workbenchFinish div {
@@ -1502,12 +1502,12 @@
 
 .workbenchFinish button {
   border: 1px solid #cbd5e1;
-  border-radius: 12px;
+  border-radius: 10px;
   display: grid;
   gap: 4px;
   max-width: 100%;
-  min-height: 64px;
-  padding: 10px 12px;
+  min-height: 58px;
+  padding: 9px 11px;
   background: #fff;
   color: #0f172a;
   font-size: 12px;
@@ -1522,6 +1522,19 @@
   line-height: 1.25;
 }
 
+.workbenchFinish button em {
+  width: fit-content;
+  border-radius: 999px;
+  background: #3157d5;
+  color: #fff;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  text-transform: uppercase;
+}
+
 .workbenchFinish button:hover,
 .workbenchFinish button:focus-visible,
 .workbenchToolBelt button:hover,
@@ -1533,8 +1546,37 @@
 
 .workbenchFinish button[aria-pressed="true"] {
   border-color: #3157d5;
-  background: #eef4ff;
-  box-shadow: inset 4px 0 0 #3157d5;
+  background: linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%);
+  box-shadow: inset 4px 0 0 #3157d5, 0 12px 24px rgb(49 87 213 / 10%);
+}
+
+.outcomeRequirementStrip {
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #dbe3ef;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 7px;
+}
+
+.outcomeRequirementStrip strong,
+.outcomeRequirementStrip span {
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 900;
+  padding: 4px 7px;
+}
+
+.outcomeRequirementStrip strong {
+  color: #102548;
+}
+
+.outcomeRequirementStrip span {
+  background: #fff;
+  border: 1px solid #dbe3ef;
+  color: #475569;
 }
 
 .outcomeField {

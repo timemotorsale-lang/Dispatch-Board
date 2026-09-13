@@ -471,7 +471,7 @@ export function SalesConsoleEliteOperatingConsole() {
   function saveWorkbenchOutcome() {
     setWorkbenchOutcomeStatus(null);
     if (!selectedWorkbenchOutcome) {
-      setWorkbenchOutcomeStatus("Choose an outcome before saving.");
+      setWorkbenchOutcomeStatus("Outcome not saved: select an outcome, write what happened, then add the next step when required.");
       return;
     }
 
@@ -498,7 +498,7 @@ export function SalesConsoleEliteOperatingConsole() {
     });
 
     if (!decision.allowed) {
-      setWorkbenchOutcomeStatus(`Outcome not saved: ${decision.reasons.join("; ")}.`);
+      setWorkbenchOutcomeStatus("Outcome not saved: select an outcome, write what happened, then add the next step when required.");
       return;
     }
 
@@ -1227,7 +1227,7 @@ export function SalesConsoleEliteOperatingConsole() {
                         </button>
                       ))}
                     </div>
-                    <h4>Source checks</h4>
+                    <h4>Reference tools</h4>
                     <div>
                       {selectedGuidedPath.executionTools.filter((tool) => tool.category === "Source").map((tool) => (
                         <button
@@ -1246,6 +1246,12 @@ export function SalesConsoleEliteOperatingConsole() {
                   <div className={styles.workbenchFinish} aria-label="Finish the action">
                     <h4>Finish before moving on</h4>
                     <p>Capture what happened and what must happen next so Customer 360 stays truthful.</p>
+                    <div className={styles.outcomeRequirementStrip}>
+                      <strong>Required to save</strong>
+                      <span>Outcome selected</span>
+                      <span>What happened</span>
+                      <span>Next step when required</span>
+                    </div>
                     <div>
                       {selectedGuidedPath.outcomeOptions.map((option) => (
                         <button
@@ -1258,6 +1264,7 @@ export function SalesConsoleEliteOperatingConsole() {
                           }}
                           title={option.result}
                         >
+                          {selectedOutcomeLabel === option.label ? <em>Selected</em> : null}
                           <strong>{option.label}</strong>
                           <small>{option.result}</small>
                         </button>
