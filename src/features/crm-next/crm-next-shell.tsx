@@ -1726,16 +1726,17 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
 }
 
 export function CrmNextActionReadinessView({ action, customerId, model }: { action: CrmNextOperatingAction; customerId?: string; model: CrmNextCommandCenter }) {
-  const relatedCustomer = customerId
-    ? model.customers.find((customer) => customer.id === customerId) ?? model.customers[0]
-    : model.customers[0];
-  const backHref = relatedCustomer ? `/crm-next/customers/${relatedCustomer.id}` : "/crm-next";
+  const requestedCustomer = customerId ? model.customers.find((customer) => customer.id === customerId) : undefined;
+  const relatedCustomer = customerId ? requestedCustomer : model.customers[0];
+  const missingRequestedCustomer = Boolean(customerId && !requestedCustomer);
+  const customerDisplayName = relatedCustomer?.name ?? "Customer record unavailable";
+  const backHref = relatedCustomer ? `/crm-next/customers/${relatedCustomer.id}` : "/crm-next/search";
   const activeAttentionItem = relatedCustomer ? model.attention.find((item) => item.customerId === relatedCustomer.id) : undefined;
   const workbenchHref = activeAttentionItem?.workHref ?? backHref;
   const caseReturnHref = relatedCustomer ? crmNextActionHref("new-case", relatedCustomer.id) : "/crm-next/actions/new-case";
   const caseReminderHref = crmNextCustomerAppointmentHref({
     customerId: relatedCustomer?.id,
-    customerName: relatedCustomer?.name ?? "Customer",
+    customerName: customerDisplayName,
     reason: `Case reminder / SLA follow-up: ${relatedCustomer?.nextAction ?? action.response}`,
     returnTo: caseReturnHref
   });
@@ -1755,24 +1756,31 @@ export function CrmNextActionReadinessView({ action, customerId, model }: { acti
   const primaryHref = action.id === "schedule-appointment"
     ? crmNextCustomerAppointmentHref({
         customerId: relatedCustomer?.id,
-        customerName: relatedCustomer?.name ?? "Customer",
+        customerName: customerDisplayName,
         reason: relatedCustomer?.nextAction ?? action.response,
         returnTo: backHref
       })
     : backHref;
-  const workspace = directActionWorkspace(action, relatedCustomer?.name ?? "Customer", relatedCustomer?.nextAction ?? action.response);
+  const workspace = directActionWorkspace(action, customerDisplayName, relatedCustomer?.nextAction ?? action.response);
   const actionTruth = crmActionSourceTruth(action.id);
   const isCrmTaskAction = action.id === "new-task";
   const isCaseAction = action.id === "new-case";
   const isHeldProviderAction = actionTruth.status === "Not wired" || actionTruth.status === "Hidden";
   const isLiveAction = actionTruth.status === "Live";
   const successMessage = action.id === "add-note"
-    ? `Note saved to ${relatedCustomer?.name ?? "this customer"}'s CRM timeline.`
+    ? `Note saved to ${customerDisplayName}'s CRM timeline.`
     : action.id === "new-case"
-      ? `Case prepared for ${relatedCustomer?.name ?? "this customer"} with reminder, task, queue, and escalation routing.`
+      ? `Case prepared for ${customerDisplayName} with reminder, task, queue, and escalation routing.`
       : action.id === "new-task"
-        ? `CRM task saved for ${relatedCustomer?.name ?? "this customer"}.`
-        : `${action.label} saved for ${relatedCustomer?.name ?? "this customer"}.`;
+        ? `CRM task saved for ${customerDisplayName}.`
+        : `${action.label} saved for ${customerDisplayName}.`;
+  const canUseDirectAction = isLiveAction && Boolean(relatedCustomer);
+  const actionStatusLabel = missingRequestedCustomer ? "Needs customer context" : actionTruth.status;
+  const actionStatusClass = missingRequestedCustomer
+    ? styles.levelMedium
+    : action.state === "SAFE_ROUTE"
+      ? styles.levelLow
+      : action.state === "PREVIEW_ONLY" ? styles.levelMedium : styles.levelHigh;
 
   return (
     <CrmNextFrame active="work" userName={model.userName}>
@@ -1780,19 +1788,19 @@ export function CrmNextActionReadinessView({ action, customerId, model }: { acti
       <section className={styles.customerWorkspace}>
         <section className={`${styles.customerHeroCard} ${styles.actionCustomerHero}`}>
           <div className={styles.actionCustomerIdentity}>
-            <span className={styles.avatar}>{initials(relatedCustomer?.name ?? "Customer Console")}</span>
+            <span className={styles.avatar}>{initials(customerDisplayName)}</span>
             <div>
               <span className={styles.eyebrow}>Customer action</span>
-              <h1 className={styles.customerName}>{relatedCustomer?.name ?? "Customer"}</h1>
+              <h1 className={styles.customerName}>{customerDisplayName}</h1>
               <span className={styles.customerBadge}>{action.label}</span>
-              <p>{stateCopy}</p>
+              <p>{missingRequestedCustomer ? "Open this action from a verified Customer 360 record before saving work." : stateCopy}</p>
             </div>
           </div>
           <dl className={styles.customerFacts}>
-            <div><dt>Status</dt><dd>{actionTruth.status}</dd></div>
+            <div><dt>Status</dt><dd>{actionStatusLabel}</dd></div>
             <div><dt>Action type</dt><dd>{action.category}</dd></div>
-            <div><dt>Customer</dt><dd>{relatedCustomer?.name ?? "Available from Customer Console"}</dd></div>
-            <div><dt>Next step</dt><dd>{isCrmTaskAction ? "Create CRM task" : "Continue"}</dd></div>
+            <div><dt>Customer</dt><dd>{customerDisplayName}</dd></div>
+            <div><dt>Next step</dt><dd>{missingRequestedCustomer ? "Find verified customer" : isCrmTaskAction ? "Create CRM task" : "Continue"}</dd></div>
           </dl>
           <div className={styles.customerHeroActions}>
             {action.id === "schedule-appointment" ? <Link className={styles.primaryButton} href={primaryHref}>Open appointment console</Link> : null}
@@ -1810,15 +1818,15 @@ export function CrmNextActionReadinessView({ action, customerId, model }: { acti
                   <p>{workspace.status}</p>
                 </div>
                 <span className={isHeldProviderAction ? styles.levelMedium : styles.levelLow}>
-                  {actionTruth.status}
+                  {actionStatusLabel}
                 </span>
               </header>
               <CrmNextDirectActionForm
                 actionId={action.id}
                 cancelHref={backHref}
                 customerId={relatedCustomer?.id}
-                customerName={relatedCustomer?.name ?? "Customer"}
-                disabled={!isLiveAction}
+                customerName={customerDisplayName}
+                disabled={!canUseDirectAction}
                 fields={workspace.fields}
                 nextAction={relatedCustomer?.nextAction ?? action.response}
                 saveLabel={workspace.button}
@@ -1894,8 +1902,8 @@ export function CrmNextActionReadinessView({ action, customerId, model }: { acti
         <aside className={styles.customerAside}>
           <article className={styles.sidePanel}>
             <header><h2>Action status</h2></header>
-            <strong className={action.state === "SAFE_ROUTE" ? styles.levelLow : action.state === "PREVIEW_ONLY" ? styles.levelMedium : styles.levelHigh}>
-              {actionTruth.status}
+            <strong className={actionStatusClass}>
+              {actionStatusLabel}
             </strong>
             <ul className={styles.signalList}>
               <li>Customer context stays visible</li>

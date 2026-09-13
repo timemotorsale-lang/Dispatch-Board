@@ -33,6 +33,12 @@ export type SalesOutcomeRecordingDecision = {
   reasons: string[];
 };
 
+export type SalesWorkbenchOutcomeCaptureIntent = SalesOutcomeRecordingIntent & {
+  customerId: string;
+  outcomeNote: string;
+  selectedOutcomeLabel: string;
+};
+
 const terminalOutcomes: SalesOutcomeKind[] = ["won", "lost", "disqualified", "duplicate"];
 const evidenceRequiredOutcomes: SalesOutcomeKind[] = ["won", "duplicate", "disqualified"];
 
@@ -55,6 +61,21 @@ export function evaluateSalesOutcomeRecording(intent: SalesOutcomeRecordingInten
     allowed: reasons.length === 0,
     terminal,
     sourceSystemCloseWriteEnabled: false,
+    reasons
+  };
+}
+
+export function evaluateSalesWorkbenchOutcomeCapture(intent: SalesWorkbenchOutcomeCaptureIntent): SalesOutcomeRecordingDecision {
+  const decision = evaluateSalesOutcomeRecording(intent);
+  const reasons = [...decision.reasons];
+
+  if (!intent.customerId) reasons.push("customer is required");
+  if (!intent.selectedOutcomeLabel) reasons.push("selected outcome is required");
+  if (intent.outcomeNote.trim().length < 8) reasons.push("outcome note is required");
+
+  return {
+    ...decision,
+    allowed: reasons.length === 0,
     reasons
   };
 }

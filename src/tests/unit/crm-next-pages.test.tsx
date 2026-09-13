@@ -386,7 +386,7 @@ describe("CRM Next pages", () => {
     expect(caseAction).toContain("crm-case");
     expect(caseAction).toContain("Case+reminder+%2F+SLA+follow-up");
     expect(caseAction).toContain("Manager review is triggered");
-    expect(caseAction).toContain('data-success-message="Case prepared for this customer');
+    expect(caseAction).toContain('data-success-message="Case prepared for Customer record unavailable');
   });
 
   it("keeps the selected customer attached when opening an action", () => {
@@ -439,6 +439,52 @@ describe("CRM Next pages", () => {
     expect(markup).toContain("Create CRM task");
     expect(markup).toContain("Review customer relationship");
     expect(markup).toContain('data-success-message="CRM task saved for Ainanshe Bashir');
+  });
+
+  it("does not fall back to another customer when an action receives an unknown customer id", () => {
+    const action: CrmNextOperatingAction = {
+      auditPosture: "Audit the task creation request.",
+      category: "Task",
+      href: "/crm-next/actions/new-task",
+      id: "new-task",
+      label: "Create CRM Task",
+      pilotRequirement: "Task creation scope approved.",
+      response: "Create a CRM task that stays attached to this customer record.",
+      sourceAuthority: "CRM customer task list",
+      state: "PREVIEW_ONLY"
+    };
+    const defaultCustomer: CrmNextCustomer360 = {
+      address: "Address available in Customers",
+      communications: [],
+      customerSince: "2026-09-09",
+      email: "max@example.test",
+      glance: [],
+      id: "max-auto-transport",
+      lifetimeValue: "Open customer record",
+      name: "Max Auto Transport",
+      openCases: 0,
+      openDeals: 0,
+      phone: "555-1111",
+      riskLevel: "Low",
+      status: "Active",
+      nextAction: "Review customer relationship",
+      vehicles: [],
+      vehiclesOwned: 0
+    };
+    const model = {
+      attention: [],
+      customers: [defaultCustomer],
+      operatingActions: [action],
+      userName: "Customer Console Page User"
+    } as CrmNextCommandCenter;
+
+    const markup = renderToStaticMarkup(<CrmNextActionReadinessView action={action} customerId="john-smith" model={model} />);
+
+    expect(markup).toContain("Customer record unavailable");
+    expect(markup).toContain("Needs customer context");
+    expect(markup).toContain("Find verified customer");
+    expect(markup).not.toContain("Max Auto Transport");
+    expect(markup).not.toContain("customerId=max-auto-transport");
   });
 
   it("does not show seeded activity details as customer-specific workbench activity", () => {

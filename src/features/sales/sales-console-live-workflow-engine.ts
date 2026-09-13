@@ -45,8 +45,8 @@ import {
   buildSalesManagerCommandQueues,
   type SalesManagerCommandInput
 } from "./sales-console-m62-manager-command-algorithms";
-import { evaluateSalesOutcomeRecording } from "./sales-console-m63-sales-outcome-recording";
-import type { SalesConsoleAuditMetadata } from "./sales-console-m50-record-command-contract";
+import { evaluateSalesOutcomeRecording, salesOutcomeReasonCodes } from "./sales-console-m63-sales-outcome-recording";
+import type { SalesConsoleAuditMetadata, SalesOutcomeKind } from "./sales-console-m50-record-command-contract";
 
 export type SalesConsoleLiveActionState =
   | "Live Action"
@@ -160,6 +160,10 @@ export type SalesConsoleGuidedPath = {
   outcomeOptions: Array<{
     label: string;
     result: string;
+    outcome: SalesOutcomeKind;
+    reasonCode: (typeof salesOutcomeReasonCodes)[number];
+    nextStepRequired: boolean;
+    terminal: boolean;
   }>;
   outcomeWriteBackTarget: string;
   returnLinks: Array<{
@@ -495,6 +499,25 @@ function describeOutcomeResult(option: string) {
   return "Writes the verified result to Customer 360 activity.";
 }
 
+function classifyOutcomeOption(option: string): Pick<SalesConsoleGuidedPath["outcomeOptions"][number], "outcome" | "reasonCode" | "nextStepRequired" | "terminal"> {
+  const normalized = option.toLowerCase();
+  if (normalized.includes("declined")) return { outcome: "lost", reasonCode: "bought-elsewhere", nextStepRequired: false, terminal: true };
+  if (normalized.includes("won") || normalized.includes("sold")) return { outcome: "won", reasonCode: "completed", nextStepRequired: false, terminal: true };
+  if (normalized.includes("duplicate")) return { outcome: "duplicate", reasonCode: "duplicate", nextStepRequired: false, terminal: true };
+  if (normalized.includes("blocker") || normalized.includes("proof") || normalized.includes("requested") || normalized.includes("follow-up") || normalized.includes("reminder")) {
+    return {
+      outcome: "delayed",
+      reasonCode: normalized.includes("vehicle") ? "vehicle-fit" : "source-verification-needed",
+      nextStepRequired: true,
+      terminal: false
+    };
+  }
+  if (normalized.includes("manager") || normalized.includes("review")) {
+    return { outcome: "delayed", reasonCode: "source-verification-needed", nextStepRequired: true, terminal: false };
+  }
+  return { outcome: "nurture", reasonCode: "future-interest", nextStepRequired: true, terminal: false };
+}
+
 export function buildSalesConsoleGuidedPath(item: SalesConsoleLiveWorkItem): SalesConsoleGuidedPath {
   const laneContract = getRevenueLaneContract(item.contractLane);
   const lifecycleStage = getLifecycleStage(item);
@@ -564,7 +587,11 @@ export function buildSalesConsoleGuidedPath(item: SalesConsoleLiveWorkItem): Sal
         disabledReason: managerReviewEnabled ? undefined : "Manager Review opens only when blockers or manager-review rules require it."
       }
     ],
-    outcomeOptions: laneOutcomeOptions[item.contractLane].map((option) => ({ label: option, result: describeOutcomeResult(option) })),
+    outcomeOptions: laneOutcomeOptions[item.contractLane].map((option) => ({
+      label: option,
+      result: describeOutcomeResult(option),
+      ...classifyOutcomeOption(option)
+    })),
     outcomeWriteBackTarget: `/api/crm/v1/customers/${encodeURIComponent(item.customerId)}/notes`,
     returnLinks: [
       { label: "Back to Customer 360", href: salesWorkbenchCustomer360Href(item.customerId) },

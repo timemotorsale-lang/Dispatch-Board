@@ -82,6 +82,8 @@ describe("Sales Console live workflow engine", () => {
     expect(guidedPath.outcomeWriteBackTarget).toContain("/api/crm/v1/customers/");
     expect(guidedPath.outcomeOptions.map((option) => option.label)).toContain("Appointment confirmed");
     expect(guidedPath.outcomeOptions.every((option) => option.result.includes("Customer 360"))).toBe(true);
+    expect(guidedPath.outcomeOptions.every((option) => option.outcome && option.reasonCode)).toBe(true);
+    expect(guidedPath.outcomeOptions.some((option) => option.nextStepRequired)).toBe(true);
     expect(guidedPath.returnLinks.map((link) => link.label)).toEqual(
       expect.arrayContaining(["Back to Customer 360", "Back to CRM Workspace", "Back to Sales Home"])
     );

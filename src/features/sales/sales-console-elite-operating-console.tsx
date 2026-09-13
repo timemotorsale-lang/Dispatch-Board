@@ -52,6 +52,7 @@ import {
   salesConsoleSampleSalesBookRecords
 } from "./sales-console-m70-sales-book-ledger-view";
 import { salesConsoleSampleReconciliationQueue } from "./sales-console-m71-source-reconciliation-foundation";
+import { evaluateSalesWorkbenchOutcomeCapture } from "./sales-console-m63-sales-outcome-recording";
 import type { SalesFederatedSearchResult } from "./sales-console-m57-federated-search";
 import styles from "./sales-console-elite-operating-console.module.css";
 
@@ -347,6 +348,9 @@ export function SalesConsoleEliteOperatingConsole() {
   const [selectedManagerQueue, setSelectedManagerQueue] = useState<(typeof salesConsoleLiveManagerQueues)[number]>(salesConsoleLiveManagerQueues[0]);
   const [recordSaleStatus, setRecordSaleStatus] = useState<string | null>(null);
   const [workbenchOutcomeStatus, setWorkbenchOutcomeStatus] = useState<string | null>(null);
+  const [selectedOutcomeLabel, setSelectedOutcomeLabel] = useState<string | null>(null);
+  const [workbenchOutcomeNote, setWorkbenchOutcomeNote] = useState("");
+  const [workbenchOutcomeNextStep, setWorkbenchOutcomeNextStep] = useState("");
   const [isRecordSalePending, startRecordSaleTransition] = useTransition();
   const [isWorkbenchOutcomePending, startWorkbenchOutcomeTransition] = useTransition();
   const activeWorkspace = workspaceSummaries[activeNav] ?? workspaceSummaries[revenueWorkQueueNav];
@@ -354,6 +358,7 @@ export function SalesConsoleEliteOperatingConsole() {
   const selectedLaneContract = getRevenueLaneContract(selectedLane.contractLane);
   const selectedLaneLinks = getSalesConsoleCrossConsoleLinksForLane(selectedLane.contractLane, activeRole);
   const selectedGuidedPath = useMemo(() => buildSalesConsoleGuidedPath(selectedCustomer), [selectedCustomer]);
+  const selectedWorkbenchOutcome = selectedGuidedPath.outcomeOptions.find((option) => option.label === selectedOutcomeLabel) ?? null;
   const sourceBackedTabStates = useMemo(() => buildSalesConsoleSourceBackedTabStates(), []);
   const activeSourceBackedState = sourceBackedTabStates.find((state) => state.tab === activeNav);
   const recordSaleWorkflowState = useMemo(
@@ -446,6 +451,9 @@ export function SalesConsoleEliteOperatingConsole() {
     if (matchedLane) setSelectedLane(matchedLane);
     setActiveNav(guidedWorkspaceNav);
     setWorkbenchOutcomeStatus(null);
+    setSelectedOutcomeLabel(null);
+    setWorkbenchOutcomeNote("");
+    setWorkbenchOutcomeNextStep("");
   }
 
   function openWorkbenchHref(href: string) {
@@ -460,20 +468,56 @@ export function SalesConsoleEliteOperatingConsole() {
     globalThis.location.assign(href);
   }
 
-  function saveWorkbenchOutcome(option: string) {
+  function saveWorkbenchOutcome() {
     setWorkbenchOutcomeStatus(null);
+    if (!selectedWorkbenchOutcome) {
+      setWorkbenchOutcomeStatus("Choose an outcome before saving.");
+      return;
+    }
+
+    const decision = evaluateSalesWorkbenchOutcomeCapture({
+      audit: {
+        actorId: "demo-staff-user",
+        actorRole: activeRole,
+        commandId: "SALES-WORKBENCH-OUTCOME",
+        correlationId: `sales-workbench-${selectedCustomer.customerId}`,
+        idempotencyKey: `sales-workbench-outcome-${selectedCustomer.customerId}-${selectedCustomer.stock}-${selectedWorkbenchOutcome.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+        occurredAt: new Date().toISOString(),
+        sourceLink: `/sales?workspace=guided&customerId=${encodeURIComponent(selectedCustomer.customerId)}`,
+        storeId: "TMS-001"
+      },
+      customerId: selectedCustomer.customerId,
+      evidenceIds: [],
+      nextAction: selectedWorkbenchOutcome.nextStepRequired ? workbenchOutcomeNextStep.trim() : workbenchOutcomeNextStep.trim() || undefined,
+      opportunityId: `SO-${selectedCustomer.stock}`,
+      outcome: selectedWorkbenchOutcome.outcome,
+      outcomeNote: workbenchOutcomeNote,
+      reasonCode: selectedWorkbenchOutcome.reasonCode,
+      selectedOutcomeLabel: selectedWorkbenchOutcome.label,
+      sourceLink: `/sales?workspace=guided&customerId=${encodeURIComponent(selectedCustomer.customerId)}`
+    });
+
+    if (!decision.allowed) {
+      setWorkbenchOutcomeStatus(`Outcome not saved: ${decision.reasons.join("; ")}.`);
+      return;
+    }
+
     startWorkbenchOutcomeTransition(async () => {
       const response = await fetch(selectedGuidedPath.outcomeWriteBackTarget, {
         body: JSON.stringify({
           body: [
-            `Sales Workbench outcome: ${option}`,
+            `Sales Workbench outcome: ${selectedWorkbenchOutcome.label}`,
             `Customer: ${selectedCustomer.customer}`,
             `Revenue lane: ${selectedGuidedPath.revenueLane}`,
             `Lifecycle stage: ${selectedGuidedPath.lifecycleStage}`,
+            `Outcome type: ${selectedWorkbenchOutcome.outcome}`,
+            `Reason: ${selectedWorkbenchOutcome.reasonCode}`,
+            `What happened: ${workbenchOutcomeNote.trim()}`,
+            workbenchOutcomeNextStep.trim() ? `Next step: ${workbenchOutcomeNextStep.trim()}` : "Next step: no further action recorded",
             `Next step before outcome: ${selectedGuidedPath.nextStep}`,
             `Source: Sales Workbench`
           ].join("\n"),
-          idempotencyKey: `sales-workbench-outcome-${selectedCustomer.customerId}-${selectedCustomer.stock}-${option.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+          idempotencyKey: `sales-workbench-outcome-${selectedCustomer.customerId}-${selectedCustomer.stock}-${selectedWorkbenchOutcome.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${workbenchOutcomeNote.trim().length}`,
           visibility: "INTERNAL"
         }),
         headers: { "Content-Type": "application/json" },
@@ -486,7 +530,7 @@ export function SalesConsoleEliteOperatingConsole() {
         return;
       }
 
-      setWorkbenchOutcomeStatus(`${option} saved to Customer 360 activity.`);
+      setWorkbenchOutcomeStatus(`${selectedWorkbenchOutcome.label} saved to Customer 360 activity.`);
     });
   }
 
@@ -1201,14 +1245,17 @@ export function SalesConsoleEliteOperatingConsole() {
                   </div>
                   <div className={styles.workbenchFinish} aria-label="Finish the action">
                     <h4>Finish before moving on</h4>
-                    <p>Capture what happened so the next step is clear and Customer 360 stays truthful.</p>
+                    <p>Capture what happened and what must happen next so Customer 360 stays truthful.</p>
                     <div>
                       {selectedGuidedPath.outcomeOptions.map((option) => (
                         <button
                           key={option.label}
                           type="button"
-                          disabled={isWorkbenchOutcomePending}
-                          onClick={() => saveWorkbenchOutcome(option.label)}
+                          aria-pressed={selectedOutcomeLabel === option.label}
+                          onClick={() => {
+                            setSelectedOutcomeLabel(option.label);
+                            setWorkbenchOutcomeStatus(null);
+                          }}
                           title={option.result}
                         >
                           <strong>{option.label}</strong>
@@ -1216,7 +1263,45 @@ export function SalesConsoleEliteOperatingConsole() {
                         </button>
                       ))}
                     </div>
-                    {workbenchOutcomeStatus ? <small role="status">{workbenchOutcomeStatus}</small> : null}
+                    <label className={styles.outcomeField}>
+                      <span>What happened?</span>
+                      <textarea
+                        onChange={(event) => {
+                          setWorkbenchOutcomeNote(event.target.value);
+                          setWorkbenchOutcomeStatus(null);
+                        }}
+                        placeholder="Example: Customer confirmed appointment, asked for final numbers, and needs trade value reviewed."
+                        rows={3}
+                        value={workbenchOutcomeNote}
+                      />
+                    </label>
+                    <label className={styles.outcomeField}>
+                      <span>Next step {selectedWorkbenchOutcome?.nextStepRequired ? "required" : "optional"}</span>
+                      <input
+                        onChange={(event) => {
+                          setWorkbenchOutcomeNextStep(event.target.value);
+                          setWorkbenchOutcomeStatus(null);
+                        }}
+                        placeholder={selectedWorkbenchOutcome?.nextStepRequired ? "Example: Call customer tomorrow with final approval path." : "No further action, or optional follow-up."}
+                        value={workbenchOutcomeNextStep}
+                      />
+                    </label>
+                    <button
+                      className={styles.outcomeSaveButton}
+                      disabled={isWorkbenchOutcomePending}
+                      onClick={saveWorkbenchOutcome}
+                      type="button"
+                    >
+                      Save Outcome
+                    </button>
+                    {workbenchOutcomeStatus ? (
+                      <small
+                        data-tone={workbenchOutcomeStatus.startsWith("Outcome not saved") || workbenchOutcomeStatus.startsWith("Choose") ? "warning" : "success"}
+                        role="status"
+                      >
+                        {workbenchOutcomeStatus}
+                      </small>
+                    ) : null}
                   </div>
                 </section>
                 <section className={styles.lifecycleWorkbench} aria-label="Sales lifecycle movement">
