@@ -52,7 +52,8 @@ describe("CRM Next access and safe bridge", () => {
       expect.arrayContaining(["Vehicle", "Finance", "Payment", "Case", "Title/Document", "Service", "Rental/Loaner", "Customer Issue", "Insurance"])
     );
     expect(model.ownershipSupport.find((record) => record.domain === "Payment")?.permission).toBe("Held");
-    expect(model.timeline.map((event) => event.source)).toContain("Opportunity");
+    expect(model.timeline).toEqual([]);
+    expect(model.summary.every((metric) => metric.value === "No source data available")).toBe(true);
     const implementedEnvelope = model.progress.milestones.filter((milestone) =>
       /^CRMN-0(1[7-9]|2[0-9]|3[0-5])$/.test(milestone.id)
     );
@@ -146,6 +147,7 @@ describe("CRM Next access and safe bridge", () => {
       "send-email",
       "send-text",
       "new-task",
+      "add-note",
       "new-case",
       "schedule-appointment",
       "upload-document"
@@ -157,7 +159,7 @@ describe("CRM Next access and safe bridge", () => {
     const dogfoodModel = getCrmNextCommandCenter(user(["General Manager"]));
     expect(dogfoodModel.mode).toBe("DOGFOOD");
     expect(dogfoodModel.bridge.liveTaskCreationEnabled).toBe(true);
-    expect(dogfoodModel.bridge.message).toContain("internal Dispatch tasks");
+    expect(dogfoodModel.bridge.message).toContain("operational Dispatch handoffs");
   });
 
   it("rejects ineligible users and does not create a dispatch task from the bridge", () => {

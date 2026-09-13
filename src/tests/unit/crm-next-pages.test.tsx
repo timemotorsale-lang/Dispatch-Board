@@ -144,8 +144,8 @@ describe("CRM Next pages", () => {
     expect(command).not.toContain("CRMN-068");
     expect(command).not.toContain("Review ready");
     expect(attention).toContain("Prioritized customers that need action");
-    expect(customer).toContain("Michael Johnson");
-    expect(customer).toContain("Preferred Customer");
+    expect(customer).toContain("Customer record unavailable");
+    expect(customer).toContain("No source data available");
     expect(customer).toContain("Customer Since");
     expect(customer).toContain("Customer journey");
     expect(customer).toContain("Work the customer from first contact to outcome.");
@@ -155,7 +155,7 @@ describe("CRM Next pages", () => {
     expect(customer).toContain('href="/crm-next/actions/new-task?customerId=michael-johnson"');
     expect(customer).toContain('href="/crm-next/actions/add-note?customerId=michael-johnson"');
     expect(customer).toContain('href="/crm-next/actions/new-case?customerId=michael-johnson"');
-    expect(customer).toContain('href="/appointments?action=new&amp;customerReference=Michael+Johnson');
+    expect(customer).toContain('href="/appointments?action=new&amp;customerReference=Customer+record+unavailable');
     expect(customer).toContain("crmCustomerId=michael-johnson");
     expect(customer).toContain('href="/crm-next/actions/upload-document?customerId=michael-johnson"');
     expect(customer).toContain("Next Best Action");
@@ -167,7 +167,7 @@ describe("CRM Next pages", () => {
     expect(customer).toContain("Schedule appointment");
     expect(customer).toContain("Supporting Parties");
     expect(customer).toContain("Warranty company");
-    expect(work).toContain("Michael Johnson");
+    expect(work).toContain("Customer record unavailable");
     expect(work).toContain("Customer file");
     expect(work).toContain("Check - In");
     expect(work).toContain("Start Deal");
@@ -175,8 +175,8 @@ describe("CRM Next pages", () => {
     expect(work).toContain("Phone Call");
     expect(work).toContain("Send SMS");
     expect(work).toContain("Schedule Appt");
-    expect(work).toContain('href="/appointments?action=new&amp;customerReference=Michael+Johnson');
-    expect(work).toContain("returnTo=%2Fcrm-next%2Fwork%2Fattn-michael-overdue-follow-up");
+    expect(work).toContain('href="/appointments?action=new&amp;customerReference=Customer+record+unavailable');
+    expect(work).toContain("returnTo=%2Fcrm-next%2Fneeds-attention");
     expect(work).not.toContain("Not wired yet");
     expect(work).not.toContain("Open appointment console");
     expect(work).not.toContain("will connect here once the live communication provider is ready");
@@ -206,9 +206,9 @@ describe("CRM Next pages", () => {
     expect(work).not.toContain("Dispatch handoff");
     expect(work).not.toContain("Connected to the CRM Next action-to-task bridge contract");
     expect(work).not.toContain("Backend wired · writes held");
-    expect(work).toContain("Call Michael Johnson");
+    expect(work).toContain("Open Customer 360 from a verified customer record.");
     expect(work).toContain("No recorded activity yet");
-    expect(work).toContain("There are no verified notes, calls, appointments, tasks, or updates recorded for Michael Johnson yet.");
+    expect(work).toContain("There are no verified notes, calls, appointments, tasks, or updates recorded for Customer record unavailable yet.");
     expect(work).not.toContain('href="#customer-activity"');
     expect(work).not.toContain("Customer follow-up task open");
     expect(work).not.toContain("before creating any outside handoff");
@@ -264,9 +264,9 @@ describe("CRM Next pages", () => {
     expect(ownershipSupport).toContain("Ownership &amp; Support");
     expect(ownershipSupport).toContain("Everything important");
     expect(ownershipSupport).toContain("BHPH / finance context");
-    expect(ownershipSupport).toContain("Payment due May 20");
+    expect(ownershipSupport).toContain("Payment status unavailable");
     expect(ownershipSupport).toContain("Common support case framework");
-    expect(ownershipSupport).toContain("Insurance claim update requested");
+    expect(ownershipSupport).toContain("Insurance claim status unavailable");
     expect(sharedExecution).toContain("Shared customer execution");
     expect(sharedExecution).toContain("CRM task → Dispatch handoff only when needed");
     expect(sharedExecution).toContain("Team execution");
@@ -380,11 +380,11 @@ describe("CRM Next pages", () => {
     expect(caseAction).toContain("Notification control");
     expect(caseAction).toContain("Add customer note");
     expect(caseAction).toContain("Tag staff in note");
-    expect(caseAction).toContain("/crm-next/actions/add-note?customerId=michael-johnson");
+    expect(caseAction).toContain("/crm-next/actions/add-note");
     expect(caseAction).toContain("crm-case");
     expect(caseAction).toContain("Case+reminder+%2F+SLA+follow-up");
     expect(caseAction).toContain("Manager review is triggered");
-    expect(caseAction).toContain('data-success-message="Case prepared for Michael Johnson');
+    expect(caseAction).toContain('data-success-message="Case prepared for this customer');
   });
 
   it("keeps the selected customer attached when opening an action", () => {

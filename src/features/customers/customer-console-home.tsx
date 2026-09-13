@@ -177,7 +177,9 @@ export function CustomerConsoleHome({ showAdvisorReturn = false }: { showAdvisor
 
             <article className="customer-home-card customer-sources-card">
               <header><strong>Lead Sources</strong><button onClick={() => openCrmNext(CRM_NEXT_INTELLIGENCE_HREF)} type="button">This Month <ChevronDown size={12} /></button></header>
-              <div className="customer-source-content"><div className="customer-donut"><span><strong>{readModel?.metrics.find((item) => item.label === "New Leads")?.value ?? "--"}</strong><small>Total Leads</small></span></div><ul>{(readModel?.leadSources ?? []).map((item) => <li key={item.label}><i />{item.label} <b>{item.value}%</b></li>)}</ul></div>
+              {(readModel?.leadSources ?? []).length ? (
+                <div className="customer-source-content"><div className="customer-donut"><span><strong>{readModel?.metrics.find((item) => item.label === "New Leads")?.value ?? "--"}</strong><small>Total Leads</small></span></div><ul>{(readModel?.leadSources ?? []).map((item) => <li key={item.label}><i />{item.label} <b>{item.value}%</b></li>)}</ul></div>
+              ) : <p className="customer-empty-source">No source data available for lead sources yet.</p>}
               <Link className="customer-card-link" href={CRM_NEXT_LEAD_SOURCE_REPORT_HREF}>View full report &gt;</Link>
             </article>
           </section>
@@ -185,7 +187,9 @@ export function CustomerConsoleHome({ showAdvisorReturn = false }: { showAdvisor
           <section className="customer-home-tables">
             <article className="customer-home-card" id="recent-leads">
               <header><strong>Recent Leads</strong><button onClick={() => openCrmNext(CRM_NEXT_PIPELINE_HREF)} type="button">View all</button></header>
-              <div className="customer-data-table customer-lead-table"><div className="customer-table-head"><span>Name</span><span>Source</span><span>Vehicle Interest</span><span>Date</span><span>Status</span></div>{(readModel?.recentLeads ?? []).map(({ initial, name, source, vehicle, date, status, href }) => <button className="customer-table-row" key={`${name}-${href}`} onClick={() => openCrmNext(href)} type="button"><span><i>{initial}</i>{name}</span><span>{source}</span><span>{vehicle}</span><span>{date}</span><span><b className={`customer-stage ${status.toLowerCase()}`}>{status}</b></span></button>)}</div>
+              {(readModel?.recentLeads ?? []).length ? (
+                <div className="customer-data-table customer-lead-table"><div className="customer-table-head"><span>Name</span><span>Source</span><span>Vehicle Interest</span><span>Date</span><span>Status</span></div>{(readModel?.recentLeads ?? []).map(({ initial, name, source, vehicle, date, status, href }) => <button className="customer-table-row" key={`${name}-${href}`} onClick={() => openCrmNext(href)} type="button"><span><i>{initial}</i>{name}</span><span>{source}</span><span>{vehicle}</span><span>{date}</span><span><b className={`customer-stage ${status.toLowerCase()}`}>{status}</b></span></button>)}</div>
+              ) : <p className="customer-empty-source">No source data available for recent leads yet.</p>}
             </article>
             <article className="customer-home-card">
               <header><strong>Top Deals</strong><button onClick={() => openCrmNext(CRM_NEXT_DEALS_HREF)} type="button">View all</button></header>

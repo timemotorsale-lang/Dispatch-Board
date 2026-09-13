@@ -427,6 +427,8 @@ function CrmNextAdminGuardrails({ model }: { model: CrmNextCommandCenter }) {
 }
 
 export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCenter }) {
+  const firstVerifiedCustomerHref = model.customers[0] ? `/crm-next/customers/${encodeURIComponent(model.customers[0].id)}` : "/crm-next/search";
+  const firstVerifiedWorkHref = model.attention[0]?.workHref ?? "/crm-next/needs-attention";
   return (
     <CrmNextFrame active="command" userName={model.userName}>
       <Topbar />
@@ -440,8 +442,8 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
           <Link className={styles.primaryButton} href="/crm-next/new"><UserPlus size={16} /> Add Customer / Prospect</Link>
           <Link className={styles.primaryButton} href="/crm-next/needs-attention"><Bell size={16} /> View attention queue</Link>
           <Link className={styles.secondaryButton} href="/crm-next/search"><Search size={16} /> Search customer records</Link>
-          <Link className={styles.secondaryButton} href="/crm-next/customers/michael-johnson"><Users size={16} /> Open Customer 360</Link>
-          <Link className={styles.secondaryButton} href="/crm-next/work/attn-michael-overdue-follow-up"><ClipboardCheck size={16} /> Work customer</Link>
+          <Link className={styles.secondaryButton} href={firstVerifiedCustomerHref}><Users size={16} /> Open Customer 360</Link>
+          <Link className={styles.secondaryButton} href={firstVerifiedWorkHref}><ClipboardCheck size={16} /> Work customer</Link>
           <Link className={styles.secondaryButton} href="/crm-next/pipeline"><Target size={16} /> Pipeline</Link>
         </div>
       </section>
@@ -466,30 +468,45 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
         <article className={`${styles.card} ${styles.wide}`}>
           <header><h2>Needs Attention (Top 5)</h2><Link className={styles.textLink} href="/crm-next/needs-attention">View all</Link></header>
           <div className={styles.attentionList}>
-            {model.attention.map((item) => <AttentionRow item={item} key={item.id} />)}
+            {model.attention.length ? model.attention.map((item) => <AttentionRow item={item} key={item.id} />) : (
+              <div className={styles.activityTimelineEmpty}>
+                <strong>No source data available</strong>
+                <span>No verified customer attention records are available yet.</span>
+              </div>
+            )}
           </div>
         </article>
         <article className={styles.card}>
           <header><h2>Intelligence & Next Action</h2><span className={styles.pill}>Today</span></header>
           <div className={styles.nextList}>
-            {model.nextActions.map((action) => (
+            {model.nextActions.length ? model.nextActions.map((action) => (
               <Link className={styles.nextItem} href={action.href} key={action.id}>
                 <CheckCircle2 size={20} />
                 <span><strong>{action.label}</strong><small>{action.detail}</small></span>
                 <b className={levelClass(action.impact)}>{action.impact}</b>
               </Link>
-            ))}
+            )) : (
+              <div className={styles.activityTimelineEmpty}>
+                <strong>No source data available</strong>
+                <span>No verified next-action recommendations are available yet.</span>
+              </div>
+            )}
           </div>
         </article>
         <CrmNextSupportingParties model={model} />
         <article className={styles.card} id="pipeline">
           <header><h2>Pipeline Overview</h2><Link className={styles.textLink} href="/crm-next/pipeline">Open board</Link></header>
           <div className={styles.pipelineRows}>
-            {model.pipeline.map((row) => (
+            {model.pipeline.length ? model.pipeline.map((row) => (
               <div className={styles.pipelineRow} key={row.label}>
                 <span>{row.label}</span><span className={styles.bar}><i style={{ width: `${Math.max(12, row.value)}%` }} /></span><strong>{row.value}</strong>
               </div>
-            ))}
+            )) : (
+              <div className={styles.activityTimelineEmpty}>
+                <strong>No source data available</strong>
+                <span>No verified pipeline stages are available yet.</span>
+              </div>
+            )}
           </div>
         </article>
         <article className={styles.card}>
@@ -866,16 +883,17 @@ export function CrmNextIntakeView({ model }: { model: CrmNextCommandCenter }) {
 
 export function CrmNextTimelineView({ model }: { model: CrmNextCommandCenter }) {
   const events = verifiedTimelineEvents(model.timeline);
+  const customer360Href = model.customers?.[0] ? `/crm-next/customers/${encodeURIComponent(model.customers[0].id)}` : "/crm-next/search";
   return (
     <CrmNextFrame active="timeline" userName={model.userName}>
       <Topbar />
       <section className={styles.hero}>
         <div>
-          <span className={styles.eyebrow}>Unified Timeline</span>
+          <span className={styles.eyebrow}>Customer Timeline</span>
           <h1>Customer activity timeline</h1>
           <p>See recent customer activity, appointments, opportunities, and Dispatch work in one place.</p>
         </div>
-        <Link className={styles.secondaryButton} href="/crm-next/customers/michael-johnson">Open Customer 360</Link>
+        <Link className={styles.secondaryButton} href={customer360Href}>Open Customer 360</Link>
       </section>
       <article className={styles.card}>
         {events.length > 0 ? (
@@ -910,7 +928,7 @@ function SalesTable({ records, title, summary }: { records: CrmNextSalesRecord[]
         <span className={styles.pill}>Open</span>
       </header>
       <div className={styles.salesRows}>
-        {records.map((record) => (
+        {records.length ? records.map((record) => (
           <Link className={styles.salesRow} href={record.href} key={record.id}>
             <span><strong>{record.customerName}</strong><small>{record.vehicle}</small></span>
             <span>{record.amount}</span>
@@ -918,7 +936,12 @@ function SalesTable({ records, title, summary }: { records: CrmNextSalesRecord[]
             <span>{record.owner}</span>
             <span>{record.nextAction}</span>
           </Link>
-        ))}
+        )) : (
+          <div className={styles.activityTimelineEmpty}>
+            <strong>No source data available</strong>
+            <span>No verified records are available for this section yet.</span>
+          </div>
+        )}
       </div>
     </article>
   );

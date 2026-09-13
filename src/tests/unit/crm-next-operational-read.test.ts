@@ -268,9 +268,27 @@ describe("CRM Next operational read model", () => {
       appointmentReader: vi.fn().mockResolvedValue({ appointmentCount: 3 }),
       customerListReader: vi.fn().mockResolvedValue(customerList()),
       leadReader: vi.fn().mockResolvedValue([
-        { stage: "NEW" },
-        { stage: "QUALIFIED" },
-        { stage: "WON" }
+        {
+          customer: { displayName: "Amina Yusuf", id: "customer-amina" },
+          nextActionAt: "2026-09-12T19:00:00.000Z",
+          nextActionCode: "FOLLOW_UP",
+          sourceCode: "WEBSITE",
+          stage: "NEW"
+        },
+        {
+          customer: { displayName: "Nadia Omar", id: "customer-nadia" },
+          nextActionAt: "2026-09-12T20:00:00.000Z",
+          nextActionCode: "QUALIFY",
+          sourceCode: "REFERRAL",
+          stage: "QUALIFIED"
+        },
+        {
+          customer: { displayName: "Sold Customer", id: "customer-sold" },
+          nextActionAt: "2026-09-12T21:00:00.000Z",
+          nextActionCode: "CLOSE",
+          sourceCode: "WEBSITE",
+          stage: "WON"
+        }
       ]),
       now: () => fixedNow,
       salesReader: vi.fn().mockResolvedValue({
@@ -283,8 +301,8 @@ describe("CRM Next operational read model", () => {
     expect(model.operationalRead.safety).toContain("Customer communications");
     expect(model.operationalRead.sources.map((source) => source.sourceOfTruth)).toEqual(
       expect.arrayContaining([
-        "Existing Customers / Unified CRM customer list",
-        "Existing Unified CRM global search"
+        "Existing customer records",
+        "Existing customer search"
       ])
     );
     expect(model.customers[0]).toMatchObject({
@@ -325,14 +343,19 @@ describe("CRM Next operational read model", () => {
   it("falls back honestly when existing read sources are unavailable", async () => {
     process.env.CRM_NEXT = "REVIEW";
     const model = await getCrmNextOperationalCommandCenter(user(), {
+      appointmentReader: vi.fn().mockRejectedValue(new Error("appointment gated")),
       customerListReader: vi.fn().mockRejectedValue(new Error("source gated")),
+      leadReader: vi.fn().mockRejectedValue(new Error("lead gated")),
       now: () => fixedNow,
+      salesReader: vi.fn().mockRejectedValue(new Error("sales gated")),
       searchReader: vi.fn().mockRejectedValue(new Error("search gated"))
     });
 
     expect(model.operationalRead.state).toBe("FALLBACK_READ");
     expect(model.operationalRead.sources.every((source) => source.state === "FALLBACK_READ")).toBe(true);
-    expect(model.customers[0]?.name).toBe("Michael Johnson");
+    expect(model.customers).toEqual([]);
+    expect(model.summary.every((metric) => metric.value === "No source data available")).toBe(true);
+    expect(model.timeline).toEqual([]);
     expect(model.bridge.liveTaskCreationEnabled).toBe(false);
   });
 

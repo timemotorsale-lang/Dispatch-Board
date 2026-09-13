@@ -1299,102 +1299,6 @@ const pilotOperatingMilestones: CrmNextMilestoneProgress[] = [
 
 const allProgressMilestones = [...progressMilestones, ...pilotOperatingMilestones];
 
-const attentionItems: CrmNextAttentionItem[] = [
-  {
-    id: "attn-michael-overdue-follow-up",
-    customerId: "michael-johnson",
-    customerName: "Michael Johnson",
-    reason: "Overdue follow-up",
-    age: "2h",
-    area: "Sales",
-    owner: "John Smith",
-    level: "High",
-    nextAction: "Call Michael Johnson",
-    workHref: "/crm-next/work/attn-michael-overdue-follow-up",
-    customerHref: "/crm-next/customers/michael-johnson"
-  },
-  {
-    id: "attn-sarah-payment",
-    customerId: "sarah-williams",
-    customerName: "Sarah Williams",
-    reason: "Payment overdue",
-    age: "4h",
-    area: "Finance",
-    owner: "Lisa Jones",
-    level: "High",
-    nextAction: "Send payment reminder",
-    workHref: "/crm-next/work/attn-sarah-payment",
-    customerHref: "/crm-next/customers/sarah-williams"
-  },
-  {
-    id: "attn-david-title",
-    customerId: "david-brown",
-    customerName: "David Brown",
-    reason: "Title pending",
-    age: "1d",
-    area: "Sales",
-    owner: "Mark Davis",
-    level: "Medium",
-    nextAction: "Review title status",
-    workHref: "/crm-next/work/attn-david-title",
-    customerHref: "/crm-next/customers/david-brown"
-  },
-  {
-    id: "attn-jessica-service",
-    customerId: "jessica-davis",
-    customerName: "Jessica Davis",
-    reason: "Service due",
-    age: "1d",
-    area: "Service",
-    owner: "Tom Wilson",
-    level: "Medium",
-    nextAction: "Schedule service",
-    workHref: "/crm-next/work/attn-jessica-service",
-    customerHref: "/crm-next/customers/jessica-davis"
-  },
-  {
-    id: "attn-robert-insurance",
-    customerId: "robert-miller",
-    customerName: "Robert Miller",
-    reason: "Insurance claim update",
-    age: "2d",
-    area: "Support",
-    owner: "John Smith",
-    level: "Low",
-    nextAction: "Send insurance follow-up",
-    workHref: "/crm-next/work/attn-robert-insurance",
-    customerHref: "/crm-next/customers/robert-miller"
-  }
-];
-
-const customers: CrmNextCustomer360[] = [
-  {
-    id: "michael-johnson",
-    name: "Michael Johnson",
-    status: "Active",
-    phone: "(817) 555-0198",
-    email: "michael.johnson@email.com",
-    address: "1234 Maple St, Fort Worth, TX 76107",
-    customerSince: "Jan 15, 2022",
-    lifetimeValue: "$38,650",
-    vehiclesOwned: 2,
-    openDeals: 1,
-    openCases: 2,
-    riskLevel: "Medium",
-    nextAction: "Call Michael about overdue follow-up.",
-    vehicles: [
-      { id: "veh-rav4", label: "2021 Toyota RAV4 XLE", vin: "2T3P1RFV0LW123456", status: "Owned" },
-      { id: "veh-f150", label: "2018 Ford F-150 XLT", vin: "1FTEW1CPXJKD12345", status: "Owned" }
-    ],
-    glance: [
-      { label: "Next appointment", value: "May 16, 2025 · 10:00 AM", href: "/appointments" },
-      { label: "Next payment due", value: "May 20, 2025 · $487.32", href: "/crm-next#finance-held" },
-      { label: "Current opportunity", value: "Vehicle upgrade", href: "/crm-next#pipeline" }
-    ],
-    communications: []
-  }
-];
-
 const operatingActions: CrmNextOperatingAction[] = [
   {
     id: "log-call",
@@ -1491,16 +1395,16 @@ const searchGroups: CrmNextSearchGroup[] = [
     id: "search-customers",
     label: "Customers",
     description: "Find the customer profile, open Customer 360, and continue into Attend Mode.",
-    href: "/crm-next/customers/michael-johnson",
-    count: 1,
-    safety: "Open Customer 360 before taking the next step."
+    href: "/crm-next/search",
+    count: 0,
+    safety: "Search live customer records before taking the next step."
   },
   {
     id: "search-vehicles",
     label: "Vehicles",
     description: "Connect vehicle ownership, service, and inventory context.",
     href: "/vehicles",
-    count: 2,
+    count: 0,
     safety: "Open the vehicle workspace when deeper inventory or service detail is needed."
   },
   {
@@ -1508,7 +1412,7 @@ const searchGroups: CrmNextSearchGroup[] = [
     label: "Deals and Opportunities",
     description: "Review deal value, stage, owner, and next customer action.",
     href: "/crm-next/deals",
-    count: 3,
+    count: 0,
     safety: "Open the deal workspace before changing deal status."
   },
   {
@@ -1516,53 +1420,20 @@ const searchGroups: CrmNextSearchGroup[] = [
     label: "Communications",
     description: "Review recent phone, text, email, and appointment history.",
     href: "/crm-next/timeline",
-    count: 4,
+    count: 0,
     safety: "Use approved contact workflows for customer outreach."
   },
   {
     id: "search-work",
     label: "Connected Work",
     description: "Jump to Dispatch Board tasks, appointments, cases, and customer work surfaces.",
-    href: "/crm-next/work/attn-michael-overdue-follow-up",
-    count: 5,
-    safety: "Open Attend Mode to create or continue assigned customer work."
+    href: "/crm-next/needs-attention",
+    count: 0,
+    safety: "Open verified customer work from the attention queue."
   }
 ];
 
 const timelineEvents: CrmNextTimelineEvent[] = [];
-
-const salesRecords: CrmNextSalesRecord[] = [
-  {
-    id: "sales-michael-upgrade",
-    customerName: "Michael Johnson",
-    vehicle: "2021 Toyota RAV4 XLE",
-    amount: "$248,500",
-    stage: "Proposal Review",
-    owner: "John Smith",
-    nextAction: "Call customer and confirm upgrade interest.",
-    href: "/crm-next/work/attn-michael-overdue-follow-up"
-  },
-  {
-    id: "sales-sarah-trade",
-    customerName: "Sarah Williams",
-    vehicle: "Trade-in + upgrade",
-    amount: "$18,500",
-    stage: "Qualified",
-    owner: "Lisa Jones",
-    nextAction: "Send payment reminder before deal review.",
-    href: "/crm-next/work/attn-sarah-payment"
-  },
-  {
-    id: "sales-david-test-drive",
-    customerName: "David Brown",
-    vehicle: "2021 Toyota RAV4",
-    amount: "$22,750",
-    stage: "Test Drive",
-    owner: "Mark Davis",
-    nextAction: "Schedule test drive and prepare vehicle.",
-    href: "/crm-next/test-drives"
-  }
-];
 
 type LeadSourceReportSeed = {
   customer: string;
@@ -1696,8 +1567,8 @@ const ownershipSupportRecords: CrmNextOwnershipSupportRecord[] = [
   {
     id: "ownership-vehicle-rav4",
     domain: "Vehicle",
-    title: "2021 Toyota RAV4 XLE · owned vehicle relationship",
-    status: "Active ownership relationship",
+    title: "Vehicle relationship unavailable",
+    status: "No source data available",
     priority: "Low",
     owner: "Sales",
     nextAction: "Open the vehicle workspace if deeper inventory/service context is needed.",
@@ -1720,11 +1591,11 @@ const ownershipSupportRecords: CrmNextOwnershipSupportRecord[] = [
   {
     id: "ownership-payment-due",
     domain: "Payment",
-    title: "Payment due May 20 · $487.32",
-    status: "Due soon",
-    priority: "High",
-    owner: "Lisa Jones",
-    nextAction: "Send approved reminder after communication/payment policy is enabled.",
+    title: "Payment status unavailable",
+    status: "No source data available",
+    priority: "Medium",
+    owner: "Finance",
+    nextAction: "Open the finance source before taking any payment action.",
     href: "#payment",
     permission: "Held",
     sourceOfTruth: "Payment source; no payment processing in Customer Console"
@@ -1744,11 +1615,11 @@ const ownershipSupportRecords: CrmNextOwnershipSupportRecord[] = [
   {
     id: "support-title-document",
     domain: "Title/Document",
-    title: "Title document pending",
-    status: "Open case",
+    title: "Title document status unavailable",
+    status: "No source data available",
     priority: "Medium",
-    owner: "Mark Davis",
-    nextAction: "Verify title status and record the source workspace update.",
+    owner: "Support",
+    nextAction: "Open the document source before recording a title update.",
     href: "#documents",
     permission: "Restricted",
     sourceOfTruth: "CustomerDocumentRequirement / title workflow"
@@ -1756,10 +1627,10 @@ const ownershipSupportRecords: CrmNextOwnershipSupportRecord[] = [
   {
     id: "support-service-open",
     domain: "Service",
-    title: "Service follow-up due",
-    status: "Open support context",
+    title: "Service follow-up status unavailable",
+    status: "No source data available",
     priority: "Medium",
-    owner: "Tom Wilson",
+    owner: "Service",
     nextAction: "Open repair/service workspace for authoritative repair action.",
     href: "/vehicles/repair-orders",
     permission: "Open",
@@ -1768,8 +1639,8 @@ const ownershipSupportRecords: CrmNextOwnershipSupportRecord[] = [
   {
     id: "support-rental-loaner",
     domain: "Rental/Loaner",
-    title: "Loaner due-back check",
-    status: "Review needed",
+    title: "Loaner status unavailable",
+    status: "No source data available",
     priority: "Low",
     owner: "Support",
     nextAction: "Confirm due-back plan with the assigned owner.",
@@ -1780,8 +1651,8 @@ const ownershipSupportRecords: CrmNextOwnershipSupportRecord[] = [
   {
     id: "support-customer-issue",
     domain: "Customer Issue",
-    title: "Customer complaint follow-up",
-    status: "Open common case",
+    title: "Customer issue status unavailable",
+    status: "No source data available",
     priority: "High",
     owner: "Manager Review",
     nextAction: "Attend the customer and record the resolution outcome.",
@@ -1792,11 +1663,11 @@ const ownershipSupportRecords: CrmNextOwnershipSupportRecord[] = [
   {
     id: "support-insurance-claim",
     domain: "Insurance",
-    title: "Insurance claim update requested",
-    status: "Waiting on document confirmation",
+    title: "Insurance claim status unavailable",
+    status: "No source data available",
     priority: "Low",
-    owner: "John Smith",
-    nextAction: "Review claim status and confirm next document requirement.",
+    owner: "Support",
+    nextAction: "Open the insurance source before recording a claim update.",
     href: "#insurance",
     permission: "Restricted",
     sourceOfTruth: "Insurance claim source / document case"
@@ -1884,11 +1755,11 @@ const intelligenceRecords: CrmNextIntelligenceRecord[] = [
     id: "risk-posture",
     milestone: "CRMN-061",
     kind: "Risk",
-    title: "Medium risk explained",
+    title: "Risk source readiness",
     confidence: "Needs review",
-    signal: "Payment due, open support case, and overdue customer follow-up are present.",
-    recommendation: "Review the customer before moving work forward.",
-    explanation: "Risk is shown as a review prompt, not as an automatic customer restriction.",
+    signal: "No source data available.",
+    recommendation: "Open a verified customer record before showing risk-specific guidance.",
+    explanation: "Risk is shown only when source-backed customer signals exist.",
     sourceSystem: "Customer 360 risk inputs and support case context",
     safety: "No hidden customer classification, finance action, or account hold is created.",
     href: "#risk"
@@ -1897,14 +1768,14 @@ const intelligenceRecords: CrmNextIntelligenceRecord[] = [
     id: "next-best-action",
     milestone: "CRMN-062",
     kind: "Next Action",
-    title: "Call Michael Johnson",
+    title: "No source-backed next action available",
     confidence: "Human decides",
-    signal: "Overdue follow-up and high-value opportunity are both visible.",
-    recommendation: "Open Attend Mode and prepare a call/task preview.",
-    explanation: "The recommendation is useful because the customer is overdue and has active purchase context.",
+    signal: "No source data available.",
+    recommendation: "Open a verified customer record before preparing outreach or task work.",
+    explanation: "Next actions are withheld until the queue or customer record provides source-backed context.",
     sourceSystem: "Needs Attention + opportunity read model",
     safety: "No live call, text, email, or task is created.",
-    href: "/crm-next/work/attn-michael-overdue-follow-up"
+    href: "/crm-next/needs-attention"
   },
   {
     id: "opportunity-intelligence",
@@ -1912,9 +1783,9 @@ const intelligenceRecords: CrmNextIntelligenceRecord[] = [
     kind: "Opportunity",
     title: "Opportunity value signal",
     confidence: "Explainable",
-    signal: "Open proposal, vehicle interest, and recent customer activity are connected.",
-    recommendation: "Review pipeline context before the next outreach.",
-    explanation: "The system can highlight value without changing deal stage.",
+    signal: "No source data available.",
+    recommendation: "Open source-backed pipeline records before showing opportunity guidance.",
+    explanation: "Opportunity guidance is withheld until a durable lead or deal source supports it.",
     sourceSystem: "Lead/opportunity read adapters",
     safety: "Pipeline remains read-only and stage movement remains disabled.",
     href: "/crm-next/pipeline"
@@ -2777,8 +2648,8 @@ export async function getCrmNextOperationalCommandCenter(
       ...model,
       summary: updateSummaryMetric(model.summary, "Hot Leads", {
         source: "Lead workspace",
-        trend: "open lead view",
-        value: String(model.sales.leads.length)
+        trend: "No verified lead source",
+        value: "No source data available"
       })
     };
   }
@@ -2804,8 +2675,8 @@ export async function getCrmNextOperationalCommandCenter(
       ...model,
       summary: updateSummaryMetric(model.summary, "Appointments Today", {
         source: "Appointment board",
-        trend: "open schedule",
-        value: String(model.sales.appointments.length)
+        trend: "No verified appointment rollup",
+        value: "No source data available"
       })
     };
   }
@@ -2828,8 +2699,8 @@ export async function getCrmNextOperationalCommandCenter(
       ...model,
       summary: updateSummaryMetric(model.summary, "Deals in Progress", {
         source: "Sales workspace",
-        trend: "open deal view",
-        value: String(model.sales.deals.length)
+        trend: "No verified deal source",
+        value: "No source data available"
       })
     };
   }
@@ -2893,7 +2764,7 @@ export async function getCrmNextOperationalCustomer360(
     };
     return { customer, model };
   } catch {
-    const fallbackCustomer = model.customers.find((customer) => customer.id === customerId) ?? model.customers[0];
+    const fallbackCustomer = model.customers.find((customer) => customer.id === customerId) ?? unavailableCustomer(customerId);
     model = {
       ...model,
       operationalRead: {
@@ -2926,6 +2797,44 @@ export async function getCrmNextOperationalCustomer360(
   }
 }
 
+function unavailableCustomer(customerId: string): CrmNextCustomer360 {
+  return {
+    id: customerId || "customer-record-unavailable",
+    name: "Customer record unavailable",
+    status: "Active",
+    phone: "No source data available",
+    email: "No source data available",
+    address: "No source data available",
+    customerSince: "No source data available",
+    lifetimeValue: "No source data available",
+    vehiclesOwned: 0,
+    openDeals: 0,
+    openCases: 0,
+    riskLevel: "Low",
+    nextAction: "Open Customer 360 from a verified customer record.",
+    vehicles: [],
+    glance: [],
+    communications: []
+  };
+}
+
+function unavailableAttentionItem(itemId: string): CrmNextAttentionItem {
+  const customerId = itemId || "customer-record-unavailable";
+  return {
+    id: itemId || "attention-record-unavailable",
+    customerId,
+    customerName: "Customer record unavailable",
+    reason: "No source data available",
+    age: "Unknown",
+    area: "Support",
+    owner: "Unassigned",
+    level: "Low",
+    nextAction: "Open Customer 360 from a verified customer record.",
+    workHref: "/crm-next/needs-attention",
+    customerHref: `/crm-next/customers/${encodeURIComponent(customerId)}`
+  };
+}
+
 export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Date = new Date()): CrmNextCommandCenter {
   const access = resolveCrmNextAccess(actor);
   if (!access.allowed) {
@@ -2940,28 +2849,17 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
     userName: actor?.name ?? "CRM user",
     mode: activeMode,
     summary: [
-      { href: "/crm-next/needs-attention", label: "Needs Attention", source: "Customer next actions", value: "48", trend: "open customer work", tone: "blue" },
-      { href: "/crm-next/pipeline", label: "Hot Leads", source: "Lead engine", value: "26", trend: "active lead records", tone: "red" },
-      { href: "/crm-next/appointments", label: "Appointments Today", source: "Appointment schedule", value: "12", trend: "scheduled today", tone: "green" },
-      { href: "/crm-next/deals", label: "Deals in Progress", source: "Deal visibility", value: "37", trend: "active deal records", tone: "green" },
-      { href: "/crm-next/needs-attention", label: "Overdue Follow-ups", source: "Customer next actions", value: "19", trend: "require attention", tone: "red" }
+      { href: "/crm-next/needs-attention", label: "Needs Attention", source: "Customer next actions", value: "No source data available", trend: "No verified customer work source", tone: "blue" },
+      { href: "/crm-next/pipeline", label: "Hot Leads", source: "Lead engine", value: "No source data available", trend: "No verified lead source", tone: "red" },
+      { href: "/crm-next/appointments", label: "Appointments Today", source: "Appointment schedule", value: "No source data available", trend: "Open appointment console", tone: "green" },
+      { href: "/crm-next/deals", label: "Deals in Progress", source: "Deal visibility", value: "No source data available", trend: "No verified deal source", tone: "green" },
+      { href: "/crm-next/needs-attention", label: "Overdue Follow-ups", source: "Customer next actions", value: "No source data available", trend: "No verified overdue source", tone: "red" }
     ],
-    attention: attentionItems,
-    pipeline: [
-      { label: "Leads", value: 76 },
-      { label: "Contacted", value: 42 },
-      { label: "Qualified", value: 24 },
-      { label: "Proposal", value: 15 },
-      { label: "Negotiation", value: 10 },
-      { label: "Won", value: 7 }
-    ],
-    revenue: { monthToDate: "$1,245,800", trend: "18% vs last month" },
-    nextActions: [
-      { id: "nba-call-michael", label: "Call Michael Johnson", detail: "Overdue follow-up. High conversion likelihood.", impact: "High", href: "/crm-next/work/attn-michael-overdue-follow-up" },
-      { id: "nba-payment-sarah", label: "Send payment reminder to Sarah Williams", detail: "Payment due in 5 days.", impact: "High", href: "/crm-next/work/attn-sarah-payment" },
-      { id: "nba-test-drive-david", label: "Schedule test drive with David Brown", detail: "Interested in 2021 Toyota RAV4.", impact: "Medium", href: "/crm-next/work/attn-david-title" }
-    ],
-    customers,
+    attention: [],
+    pipeline: [],
+    revenue: { monthToDate: "No source data available", trend: "No verified revenue source" },
+    nextActions: [],
+    customers: [],
     search: {
       activeQuery: "",
       queryPlaceholder: "Search customers, vehicles, deals, communications, work...",
@@ -2969,16 +2867,16 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
     },
     timeline: timelineEvents,
     sales: {
-      leads: salesRecords.filter((record) => record.stage === "Qualified"),
-      opportunities: salesRecords,
-      appointments: salesRecords.filter((record) => record.id !== "sales-sarah-trade"),
-      testDrives: salesRecords.filter((record) => record.stage === "Test Drive"),
-      deals: salesRecords
+      leads: [],
+      opportunities: [],
+      appointments: [],
+      testDrives: [],
+      deals: []
     },
     ownershipSupport: ownershipSupportRecords,
     sharedExecution: sharedExecutionRecords,
     intelligence: intelligenceRecords,
-    leadSourceReport: buildLeadSourceReportFromSales(salesRecords),
+    leadSourceReport: buildLeadSourceReportFromSales([]),
     commandCenter: {
       headline: "Who needs attention?",
       guidance: "A compact command center for reviewing customer pressure, next actions, team load, pipeline context, and safe handoffs.",
@@ -3030,12 +2928,12 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
 
 export function getCrmNextCustomer360(actor: AuthenticatedUser | null, customerId: string) {
   const model = getCrmNextCommandCenter(actor);
-  return model.customers.find((customer) => customer.id === customerId) ?? model.customers[0];
+  return model.customers.find((customer) => customer.id === customerId) ?? unavailableCustomer(customerId);
 }
 
 export function getCrmNextAttentionItem(actor: AuthenticatedUser | null, itemId: string) {
   const model = getCrmNextCommandCenter(actor);
-  return model.attention.find((item) => item.id === itemId) ?? model.attention[0];
+  return model.attention.find((item) => item.id === itemId) ?? unavailableAttentionItem(itemId);
 }
 
 export function getCrmNextOperatingAction(actor: AuthenticatedUser | null, actionId: string) {

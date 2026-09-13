@@ -127,13 +127,14 @@ describe("customer console read service", () => {
       source: "Walk In"
     });
     expect(model.activity[0]).toMatchObject({
-      detail: "Asmaa Mohamed Salah - Eli Aswan",
-      href: "/crm-next/customers/customer-asmaa"
+      detail: "Customer 1 via Website",
+      href: "/crm-next/customers/customer-1",
+      title: "New lead received"
     });
     expect(model.topDeals).toHaveLength(0);
     expect(model.metrics.find((metric) => metric.label === "Open Deals")).toMatchObject({
       sourceStatus: "Not wired",
-      value: "No source data"
+      value: "No source data available"
     });
   });
 

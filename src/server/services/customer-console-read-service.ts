@@ -151,7 +151,7 @@ function measuredCount(count: number, hasMore = false) {
 }
 
 function noSourceValue() {
-  return "No source data";
+  return "No source data available";
 }
 
 function sourceDetail(id: string) {
@@ -178,15 +178,15 @@ const detailPanels: Record<CustomerResolutionDetail, (item: CustomerResolutionCa
     title: "Case Details",
     summary: `Operational facts and SLA context for ${item.id}.`,
     sections: [
-      { title: "Case Information", rows: [{ label: "Type", value: item.category }, { label: "Channel", value: "Phone" }, { label: "Source", value: "Inbound Call" }, { label: "SLA", value: `${item.sla}% remaining`, tone: item.sla <= 50 ? "danger" : "success" }] },
-      { title: "Customer Information", rows: [{ label: "Customer", value: item.customer }, { label: "Phone", value: item.phone }, { label: "Open Cases", value: "1" }, { label: "Lifetime Value", value: "$28,450" }] },
-      { title: "Next Steps", rows: [{ label: "Completed", value: "Verify financing documents" }, { label: "Due today", value: "Check status with current owner" }, { label: "Tomorrow", value: "Update customer with resolution" }] }
+      { title: "Case Information", rows: [{ label: "Type", value: item.category }, { label: "Status", value: item.status }, { label: "Priority", value: item.priority }, { label: "SLA", value: `${item.sla}% remaining`, tone: item.sla <= 50 ? "danger" : "success" }] },
+      { title: "Customer Information", rows: [{ label: "Customer", value: item.customer }, { label: "Phone", value: item.phone }, { label: "Vehicle", value: item.vehicle }, { label: "Owner", value: item.owner || "Unassigned" }] },
+      { title: "Next Steps", rows: [{ label: "Current state", value: item.subject }, { label: "Due source", value: "No additional verified next-step records available" }] }
     ]
   }),
-  timeline: (item) => ({ title: "Case Timeline", summary: `Chronological case activity for ${item.customer}.`, sections: [{ title: "Today", rows: [{ label: "10:45 AM", value: "Required documents verified" }, { label: "10:23 AM", value: "Inbound customer call recorded" }, { label: "9:50 AM", value: `Case assigned to ${item.owner || "Unassigned queue"}` }] }, { title: "Yesterday", rows: [{ label: "4:10 PM", value: "SLA warning generated" }, { label: "2:35 PM", value: "Customer requested status update" }] }] }),
-  customer: (item) => ({ title: "Customer Context", summary: `Customer 360 summary for ${item.customer}.`, sections: [{ title: "Identity", rows: [{ label: "Customer", value: item.customer }, { label: "Phone", value: item.phone }, { label: "Customer Since", value: "Feb 18, 2023" }] }, { title: "Relationship", rows: [{ label: "Lifetime Value", value: "$28,450" }, { label: "Purchases", value: "2" }, { label: "Preferred Contact", value: "Phone" }] }] }),
-  vehicle: (item) => ({ title: "Vehicle Context", summary: `Vehicle facts linked to ${item.id}.`, sections: [{ title: item.vehicle, rows: [{ label: "Relationship", value: "Customer vehicle" }, { label: "VIN", value: "4T1B11HKXJU045678" }, { label: "Service Status", value: "No active repair order" }, { label: "Last Visit", value: "May 12, 2025" }] }] }),
-  related: (item) => ({ title: "Related Work", summary: `Tasks, appointments, and documents correlated to ${item.id}.`, sections: [{ title: "Tasks", rows: [{ label: "TMS-1048", value: "Financing follow-up - In Progress" }, { label: "TMS-1051", value: "Customer status update - Not Started" }] }, { title: "Appointments", rows: [{ label: "APT-10245", value: "Financing discussion - May 31, 10:00 AM" }] }, { title: "Documents", rows: [{ label: "Proof of income", value: "Received" }, { label: "Lender decision", value: "Pending" }] }] })
+  timeline: (item) => ({ title: "Case Timeline", summary: `Chronological case activity for ${item.customer}.`, sections: [{ title: "Verified case source", rows: [{ label: "Updated", value: item.updated }, { label: "Current status", value: item.status }, { label: "Activity", value: "No additional verified case timeline records available" }] }] }),
+  customer: (item) => ({ title: "Customer Context", summary: `Customer 360 summary for ${item.customer}.`, sections: [{ title: "Identity", rows: [{ label: "Customer", value: item.customer }, { label: "Phone", value: item.phone }, { label: "Owner", value: item.owner || "Unassigned" }] }, { title: "Relationship", rows: [{ label: "Lifetime Value", value: "No source data available" }, { label: "Purchases", value: "No source data available" }, { label: "Preferred Contact", value: "No source data available" }] }] }),
+  vehicle: (item) => ({ title: "Vehicle Context", summary: `Vehicle facts linked to ${item.id}.`, sections: [{ title: item.vehicle, rows: [{ label: "Relationship", value: item.vehicle === "No linked vehicle" ? "No linked vehicle" : "Linked to case source" }, { label: "VIN", value: "No source data available" }, { label: "Service Status", value: "No source data available" }, { label: "Last Visit", value: "No source data available" }] }] }),
+  related: (item) => ({ title: "Related Work", summary: `Tasks, appointments, and documents correlated to ${item.id}.`, sections: [{ title: "Tasks", rows: [{ label: "CRM tasks", value: "No verified related tasks available" }] }, { title: "Appointments", rows: [{ label: "Appointments", value: "No verified related appointments available" }] }, { title: "Documents", rows: [{ label: "Documents", value: "No verified related documents available" }] }] })
 };
 
 export async function getCustomerDashboardReadModel(
@@ -231,8 +231,8 @@ export async function getCustomerDashboardReadModel(
       href: crmNextCustomerHref(lead.customer.id),
       sortAt: new Date(lead.createdAt).getTime()
     })),
-    ...customers.items.map((customer) => ({
-      title: customer.hasNextAction ? "Customer next action due" : "Customer record updated",
+    ...customers.items.filter((customer) => customer.hasNextAction).map((customer) => ({
+      title: "Customer next action due",
       detail: `${customer.displayName} - ${customer.ownerName}`,
       time: formatAgo(customer.updatedAt, now),
       href: crmNextCustomerHref(customer.id),
@@ -250,11 +250,11 @@ export async function getCustomerDashboardReadModel(
       { label: "Total Customers", sourceDetail: sourceDetail("total-customers"), sourceStatus: "Live", value: customerCountValue, tone: "blue" },
       { label: "New Leads", sourceDetail: sourceDetail("new-leads"), sourceStatus: "Live", value: leadCountValue, tone: "green" },
       { label: "Open Deals", sourceDetail: sourceDetail("open-deals"), sourceStatus: "Not wired", value: noSourceValue(), tone: "purple" },
-      { label: "Appointments", sourceDetail: sourceDetail("appointments"), sourceStatus: "Read-only", value: "Open console", tone: "orange" },
+      { label: "Appointments", sourceDetail: sourceDetail("appointments"), sourceStatus: "Read-only", value: noSourceValue(), tone: "orange" },
       { label: "Sales This Month", sourceDetail: sourceDetail("sales-this-month"), sourceStatus: "Not wired", value: noSourceValue(), tone: "cyan" }
     ],
     pipeline: pipelineRows,
-    leadSources: sourceRows.length ? sourceRows : [{ label: "Customer Intake", value: 100, tone: "blue" }],
+    leadSources: sourceRows,
     recentLeads: recentLeadRows.map((row) => ({
       date: row.date,
       href: row.href,
