@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildSalesConsoleGuidedPath,
   salesConsoleLiveActivityDecision,
   salesConsoleLiveEvidenceRecord,
   salesConsoleLiveEvidenceValidation,
@@ -38,9 +39,61 @@ describe("Sales Console live workflow engine", () => {
         "Financing Product"
       ])
     );
-    expect(salesConsoleLiveWorkItems.every((item) => item.source && item.reason && item.nextAction)).toBe(true);
+    expect(salesConsoleLiveWorkItems.every((item) => item.customerId && item.source && item.reason && item.nextAction)).toBe(true);
     expect(salesConsoleLiveWorkItems.every((item) => item.algorithmReasons.length > 0)).toBe(true);
     expect(salesConsoleLiveWorkItems.some((item) => item.blockers.length > 0)).toBe(true);
+  });
+
+  it("builds a progressive guided sales path from the selected source-backed work item", () => {
+    const guidedPath = buildSalesConsoleGuidedPath(salesConsoleLiveWorkItems[0]);
+
+    expect(guidedPath.customer).toBe(salesConsoleLiveWorkItems[0].customer);
+    expect(guidedPath.revenueLane).toBe(salesConsoleLiveWorkItems[0].contractLane);
+    expect(guidedPath.lifecycleStage).toBe("Qualified Opportunity / Deal");
+    expect(guidedPath.lifecycleSteps.filter((step) => step.status === "Current")).toHaveLength(1);
+    expect(guidedPath.lifecycleSteps).toHaveLength(5);
+    expect(guidedPath.lifecycleSteps.every((step) => step.meaning && step.unlocks)).toBe(true);
+    expect(guidedPath.requiredFacts.length).toBeGreaterThanOrEqual(8);
+    expect(guidedPath.requiredFacts.every((fact) => fact.source && fact.value)).toBe(true);
+    expect(guidedPath.emphasizedAction).toBe(salesConsoleLiveWorkItems[0].nextAction);
+    expect(guidedPath.workbenchTitle).toContain(salesConsoleLiveWorkItems[0].customer);
+    expect(guidedPath.relationshipContract.truthWorkspace).toContain("Customer 360 is the customer record");
+    expect(guidedPath.relationshipContract.executionWorkspace).toContain("Sales Workbench is the selling action space");
+    expect(guidedPath.relationshipContract.integrationPattern).toContain("reads Customer 360 truth");
+    expect(guidedPath.relationshipContract.writeBackRule).toContain("Do not create Customer 360 activity");
+    expect(guidedPath.primaryTool.label).toBe("Open Revenue Desk");
+    expect(guidedPath.primaryTool.href).toContain("/sales?workspace=revenue-desk");
+    expect(guidedPath.executionTools.map((tool) => tool.label)).toEqual(
+      expect.arrayContaining(["Call", "SMS", "Email", "Appointment", "Customer 360", "Vehicle", "Task", "Docs", "Manager Review"])
+    );
+    expect(guidedPath.executionTools.every((tool) => tool.href.length > 0)).toBe(true);
+    expect(guidedPath.executionTools.filter((tool) => tool.enabled).every((tool) => !tool.disabledReason)).toBe(true);
+    expect(guidedPath.executionTools.find((tool) => tool.label === "Call")?.href).toContain("/crm-next/actions/log-call");
+    expect(guidedPath.executionTools.find((tool) => tool.label === "Task")?.href).toContain("/crm-next/actions/new-task");
+    expect(guidedPath.executionTools.find((tool) => tool.label === "Docs")?.href).toContain("/crm-next/actions/upload-document");
+    expect(guidedPath.executionTools.find((tool) => tool.label === "Customer 360")?.href).toContain("/customers/customer-360");
+    expect(guidedPath.outcomeWriteBackTarget).toContain("/api/crm/v1/customers/");
+    expect(guidedPath.outcomeOptions).toContain("Appointment confirmed");
+    expect(guidedPath.writeBackBehavior).toContain("only after an approved outcome command succeeds");
+  });
+
+  it("keeps manager review rule gated instead of making every workbench tool look live", () => {
+    const paths = salesConsoleLiveWorkItems.map((item) => buildSalesConsoleGuidedPath(item));
+    const managerTools = paths.map((path) => path.executionTools.find((tool) => tool.label === "Manager Review"));
+
+    expect(managerTools.some((tool) => tool?.enabled)).toBe(true);
+    expect(managerTools.some((tool) => tool && !tool.enabled && tool.disabledReason)).toBe(true);
+  });
+
+  it("blocks canned activity in the guided path contract", () => {
+    const guidedPaths = salesConsoleLiveWorkItems.map((item) => buildSalesConsoleGuidedPath(item));
+    const serialized = JSON.stringify(guidedPaths);
+
+    expect(guidedPaths.every((path) => path.activityPolicy.includes("Do not show canned activity"))).toBe(true);
+    expect(serialized).not.toContain("Lead captured");
+    expect(serialized).not.toContain("Vehicle matched");
+    expect(serialized).not.toContain("Revenue Desk opened");
+    expect(serialized).not.toContain("Manager guidance available");
   });
 
   it("unifies source domains into the revenue command queue while preserving guardrails", () => {

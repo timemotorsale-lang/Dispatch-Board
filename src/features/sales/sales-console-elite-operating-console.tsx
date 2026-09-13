@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { salesConsoleMvpAcceptanceChecklist, salesConsoleSourceHealthSummary } from "./sales-console-mvp-release-hardening";
 import { salesConsoleM64ConnectedMvpGate, salesConsoleM64ReadyCount } from "./sales-console-m64-connected-mvp-deployment-gate";
@@ -32,6 +33,7 @@ import {
   salesConsoleLiveRevenueLanes,
   salesConsoleLiveTasksAndPromises,
   salesConsoleLiveWorkItems,
+  buildSalesConsoleGuidedPath,
   searchSalesConsoleLiveExperience,
   type SalesConsoleLiveActionState,
   type SalesConsoleLiveWorkItem
@@ -324,24 +326,34 @@ const actionTone: Record<ActionState, string> = {
 };
 
 export function SalesConsoleEliteOperatingConsole() {
-  const [activeNav, setActiveNav] = useState(salesIntentHomeNav);
+  const searchParams = useSearchParams();
+  const initialCustomerId = searchParams?.get("customerId") ?? null;
+  const initialWorkspace = searchParams?.get("workspace") ?? null;
+  const initialSelectedCustomer = salesConsoleLiveWorkItems.find((item) => item.customerId === initialCustomerId) ?? salesConsoleLiveWorkItems[0];
+  const initialSelectedLane =
+    salesConsoleLiveRevenueLanes.find((lane) => lane.contractLane === initialSelectedCustomer.contractLane) ??
+    salesConsoleLiveRevenueLanes[0];
+  const [activeNav, setActiveNav] = useState(initialWorkspace === "guided" ? guidedWorkspaceNav : salesIntentHomeNav);
   const [activeRole, setActiveRole] = useState<StaffRole>("Sales Manager");
   const [activeIntentId, setActiveIntentId] = useState<SalesIntentId>("work-todays-leads");
   const [query, setQuery] = useState("");
   const [laneFilter, setLaneFilter] = useState("All Lanes");
   const [queueGroupFilter, setQueueGroupFilter] = useState("All Priorities");
   const [queueSourceFilter, setQueueSourceFilter] = useState("All Sources");
-  const [selectedCustomer, setSelectedCustomer] = useState(salesConsoleLiveWorkItems[0]);
-  const [selectedLane, setSelectedLane] = useState(salesConsoleLiveRevenueLanes[0]);
+  const [selectedCustomer, setSelectedCustomer] = useState(initialSelectedCustomer);
+  const [selectedLane, setSelectedLane] = useState(initialSelectedLane);
   const [selectedLead, setSelectedLead] = useState(salesConsoleLiveLeadRecords[0]);
   const [selectedInventory, setSelectedInventory] = useState(salesConsoleLiveInventoryMatches[0]);
   const [selectedManagerQueue, setSelectedManagerQueue] = useState<(typeof salesConsoleLiveManagerQueues)[number]>(salesConsoleLiveManagerQueues[0]);
   const [recordSaleStatus, setRecordSaleStatus] = useState<string | null>(null);
+  const [workbenchOutcomeStatus, setWorkbenchOutcomeStatus] = useState<string | null>(null);
   const [isRecordSalePending, startRecordSaleTransition] = useTransition();
+  const [isWorkbenchOutcomePending, startWorkbenchOutcomeTransition] = useTransition();
   const activeWorkspace = workspaceSummaries[activeNav] ?? workspaceSummaries[revenueWorkQueueNav];
   const activeIntent = salesIntents.find((intent) => intent.id === activeIntentId) ?? salesIntents[0];
   const selectedLaneContract = getRevenueLaneContract(selectedLane.contractLane);
   const selectedLaneLinks = getSalesConsoleCrossConsoleLinksForLane(selectedLane.contractLane, activeRole);
+  const selectedGuidedPath = useMemo(() => buildSalesConsoleGuidedPath(selectedCustomer), [selectedCustomer]);
   const sourceBackedTabStates = useMemo(() => buildSalesConsoleSourceBackedTabStates(), []);
   const activeSourceBackedState = sourceBackedTabStates.find((state) => state.tab === activeNav);
   const recordSaleWorkflowState = useMemo(
@@ -433,6 +445,49 @@ export function SalesConsoleEliteOperatingConsole() {
     const matchedLane = salesConsoleLiveRevenueLanes.find((lane) => lane.contractLane === item.contractLane);
     if (matchedLane) setSelectedLane(matchedLane);
     setActiveNav(guidedWorkspaceNav);
+    setWorkbenchOutcomeStatus(null);
+  }
+
+  function openWorkbenchHref(href: string) {
+    if (href.startsWith("/sales?workspace=revenue-desk")) {
+      const matchedLane = salesConsoleLiveRevenueLanes.find((lane) => lane.contractLane === selectedCustomer.contractLane);
+      if (matchedLane) setSelectedLane(matchedLane);
+      setActiveNav(enterpriseDashboardNav);
+      setWorkbenchOutcomeStatus(`Revenue Desk opened for ${selectedCustomer.customer}.`);
+      return;
+    }
+
+    globalThis.location.assign(href);
+  }
+
+  function saveWorkbenchOutcome(option: string) {
+    setWorkbenchOutcomeStatus(null);
+    startWorkbenchOutcomeTransition(async () => {
+      const response = await fetch(selectedGuidedPath.outcomeWriteBackTarget, {
+        body: JSON.stringify({
+          body: [
+            `Sales Workbench outcome: ${option}`,
+            `Customer: ${selectedCustomer.customer}`,
+            `Revenue lane: ${selectedGuidedPath.revenueLane}`,
+            `Lifecycle stage: ${selectedGuidedPath.lifecycleStage}`,
+            `Next step before outcome: ${selectedGuidedPath.nextStep}`,
+            `Source: Sales Workbench`
+          ].join("\n"),
+          idempotencyKey: `sales-workbench-outcome-${selectedCustomer.customerId}-${selectedCustomer.stock}-${option.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+          visibility: "INTERNAL"
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST"
+      });
+      const result = await response.json().catch(() => null) as { error?: string; noteId?: string } | null;
+
+      if (!response.ok || !result?.noteId) {
+        setWorkbenchOutcomeStatus(result?.error ?? "Outcome could not be written to Customer 360 activity.");
+        return;
+      }
+
+      setWorkbenchOutcomeStatus(`${option} saved to Customer 360 activity.`);
+    });
   }
 
   function submitSelectedSaleRecord() {
@@ -1055,11 +1110,147 @@ export function SalesConsoleEliteOperatingConsole() {
 
             {activeNav === guidedWorkspaceNav || activeNav === enterpriseDashboardNav ? (
             <section className={styles.customer360} aria-label="Customer 360">
-              <div>
+              <div className={styles.truthHeader}>
+                <span>Customer Truth Source</span>
                 <h2>Customer 360</h2>
                 <strong>{selectedCustomer.customer}</strong>
                 <p>{selectedCustomer.contact} · {salesConsoleLiveCustomer360.consentLabel} · Source: {salesConsoleLiveCustomer360.sourceLink}</p>
+                <p>Customer 360 remains the record and history. Sales Workbench below is where staff executes the next revenue action.</p>
               </div>
+              <section className={styles.guidedPath} aria-label="Sales Workbench">
+                <header>
+                  <span>Sales Workbench</span>
+                  <h3>{selectedGuidedPath.workbenchTitle}</h3>
+                  <p>
+                    {selectedGuidedPath.workbenchInstruction} · {selectedGuidedPath.revenueLane} · Source: {selectedGuidedPath.sourceSystem}
+                  </p>
+                </header>
+                <section className={styles.workspaceRelationship} aria-label="How Sales Workbench and Customer 360 work together">
+                  <article>
+                    <strong>Customer 360</strong>
+                    <span>{selectedGuidedPath.relationshipContract.truthWorkspace}</span>
+                  </article>
+                  <article>
+                    <strong>Sales Workbench</strong>
+                    <span>{selectedGuidedPath.relationshipContract.executionWorkspace}</span>
+                  </article>
+                  <article>
+                    <strong>Integration</strong>
+                    <span>{selectedGuidedPath.relationshipContract.integrationPattern}</span>
+                  </article>
+                  <article>
+                    <strong>Write-back rule</strong>
+                    <span>{selectedGuidedPath.relationshipContract.writeBackRule}</span>
+                  </article>
+                </section>
+                <section className={styles.workbenchActionPanel} aria-label="What staff should do now">
+                  <div className={styles.workbenchNow}>
+                    <span>Do this now</span>
+                    <h4>{selectedGuidedPath.emphasizedAction}</h4>
+                    <p>{selectedGuidedPath.staffDecision}</p>
+                    <button
+                      type="button"
+                      className={actionTone[selectedGuidedPath.primaryTool.state]}
+                      onClick={() => openWorkbenchHref(selectedGuidedPath.primaryTool.href)}
+                    >
+                      {selectedGuidedPath.primaryTool.label}
+                    </button>
+                    <small>{selectedGuidedPath.primaryTool.behavior} · {selectedGuidedPath.writeBackBehavior}</small>
+                  </div>
+                  <div className={styles.workbenchToolBelt} aria-label="Execution tools">
+                    <h4>Tools for this step</h4>
+                    <div>
+                      {selectedGuidedPath.executionTools.map((tool) => (
+                        <button
+                          key={tool.label}
+                          type="button"
+                          className={actionTone[tool.state]}
+                          disabled={!tool.enabled}
+                          onClick={() => openWorkbenchHref(tool.href)}
+                          title={tool.disabledReason ?? `${tool.purpose} Source: ${tool.source}`}
+                        >
+                          <strong>{tool.label}</strong>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className={styles.workbenchFinish} aria-label="Finish the action">
+                    <h4>Finish before moving on</h4>
+                    <p>Capture what happened so the next step is clear and Customer 360 stays truthful.</p>
+                    <div>
+                      {selectedGuidedPath.outcomeOptions.map((option) => (
+                        <button
+                          key={option}
+                          type="button"
+                          disabled={isWorkbenchOutcomePending}
+                          onClick={() => saveWorkbenchOutcome(option)}
+                        >
+                          {option}
+                        </button>
+                      ))}
+                    </div>
+                    {workbenchOutcomeStatus ? <small role="status">{workbenchOutcomeStatus}</small> : null}
+                  </div>
+                </section>
+                <section className={styles.lifecycleWorkbench} aria-label="Sales lifecycle movement">
+                  <div>
+                    <span>Lifecycle</span>
+                    <h4>{selectedGuidedPath.lifecycleStage}</h4>
+                    <p>Move this record forward only when the required facts and outcome are captured.</p>
+                  </div>
+                  <ol className={styles.lifecyclePath} aria-label="CRM lifecycle stage">
+                    {selectedGuidedPath.lifecycleSteps.map((step) => (
+                      <li key={step.label} className={styles[`lifecycle${step.status.replaceAll(" ", "")}`]}>
+                        <strong>{step.label}</strong>
+                        <span>{step.status}</span>
+                        <em>{step.meaning}</em>
+                        <small>{step.unlocks}</small>
+                      </li>
+                    ))}
+                  </ol>
+                </section>
+                <div className={styles.guidedPathBody}>
+                  <section className={styles.requiredFacts} aria-label="Required facts before action">
+                    <h4>Required facts before action</h4>
+                    {selectedGuidedPath.requiredFacts.map((fact) => (
+                      <article key={fact.label}>
+                        <strong>{fact.label}</strong>
+                        <span>{fact.value}</span>
+                        <em>{fact.status} · {fact.source}</em>
+                      </article>
+                    ))}
+                  </section>
+                  <section className={styles.nextGuidedAction} aria-label="Current guided action">
+                    <span>Why this is next</span>
+                    <h4>{selectedGuidedPath.nextStep}</h4>
+                    <p>{selectedGuidedPath.reason}</p>
+                    <dl>
+                      <div>
+                        <dt>Staff decision</dt>
+                        <dd>{selectedGuidedPath.staffDecision}</dd>
+                      </div>
+                      <div>
+                        <dt>Next step</dt>
+                        <dd>{selectedGuidedPath.nextStep}</dd>
+                      </div>
+                      <div>
+                        <dt>Write-back behavior</dt>
+                        <dd>{selectedGuidedPath.writeBackBehavior}</dd>
+                      </div>
+                    </dl>
+                    <button type="button" className={actionTone[selectedCustomer.actionState]}>{selectedGuidedPath.nextStep}</button>
+                    <small>{selectedGuidedPath.activityPolicy}</small>
+                  </section>
+                </div>
+                <details className={styles.deeperTools}>
+                  <summary>Show deeper tools only when needed</summary>
+                  <div>
+                    {selectedGuidedPath.collapsedTools.map((tool) => (
+                      <span key={tool}>{tool}</span>
+                    ))}
+                  </div>
+                </details>
+              </section>
               <div className={styles.customerCards}>
                 <article>
                   <strong>Active Opportunity</strong>

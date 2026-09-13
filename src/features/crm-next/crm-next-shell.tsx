@@ -59,6 +59,10 @@ function crmNextTimelineHref(customerId?: string) {
   return customerId ? `/crm-next/timeline?customerId=${encodeURIComponent(customerId)}` : "/crm-next/timeline";
 }
 
+function salesWorkbenchHref(customerId: string) {
+  return `/sales?workspace=guided&customerId=${encodeURIComponent(customerId)}&returnTo=${encodeURIComponent(`/crm-next/customers/${customerId}`)}`;
+}
+
 function directActionWorkspace(action: CrmNextOperatingAction, customerName: string, nextAction: string) {
   if (action.id === "log-call") {
     return {
@@ -1526,6 +1530,7 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
     reason: customer.nextAction,
     returnTo: `/crm-next/customers/${customer.id}`
   });
+  const customerSalesWorkbenchHref = salesWorkbenchHref(customer.id);
   const customerMetrics = [
     { label: "Open Leads", value: customer.openDeals, detail: "Active", tone: "green" },
     { label: "Open Cases", value: customer.openCases, detail: "Active", tone: "red" },
@@ -1561,6 +1566,7 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
             <div className={styles.customerHeroActions}>
               <Link className={styles.secondaryButton} href="/crm-next/new"><UserPlus size={16} /> Add Customer</Link>
               <Link className={styles.primaryButton} href={attendHref}>Attend</Link>
+              <Link className={styles.secondaryButton} href={customerSalesWorkbenchHref}><Target size={16} /> Sales Workbench</Link>
               <Link className={styles.secondaryButton} href={crmNextActionHref("send-text", customer.id)}><MessageSquare size={16} /> Message</Link>
               <Link className={styles.secondaryButton} href="/crm">Open older customer tools</Link>
             </div>
@@ -1672,6 +1678,7 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
               <Link href={crmNextActionHref("new-case", customer.id)}><FileText size={22} />New Case</Link>
               <Link href={appointmentHref}><CalendarDays size={22} />Schedule Appt</Link>
               <Link href={crmNextActionHref("upload-document", customer.id)}><FileSearch size={22} />Upload Doc</Link>
+              <Link href={customerSalesWorkbenchHref}><Target size={22} />Sales Workbench</Link>
             </div>
           </article>
 

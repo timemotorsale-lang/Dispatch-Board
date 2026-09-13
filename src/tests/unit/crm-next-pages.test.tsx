@@ -155,6 +155,8 @@ describe("CRM Next pages", () => {
     expect(customer).toContain('href="/crm-next/actions/new-task?customerId=michael-johnson"');
     expect(customer).toContain('href="/crm-next/actions/add-note?customerId=michael-johnson"');
     expect(customer).toContain('href="/crm-next/actions/new-case?customerId=michael-johnson"');
+    expect(customer).toContain('href="/sales?workspace=guided&amp;customerId=michael-johnson');
+    expect(customer).toContain("Sales Workbench");
     expect(customer).toContain('href="/appointments?action=new&amp;customerReference=Customer+record+unavailable');
     expect(customer).toContain("crmCustomerId=michael-johnson");
     expect(customer).toContain('href="/crm-next/actions/upload-document?customerId=michael-johnson"');

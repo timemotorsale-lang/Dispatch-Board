@@ -57,6 +57,7 @@ export type SalesConsoleLiveActionState =
 export type SalesConsoleLiveWorkItem = {
   rank: number;
   group: SalesWorkQueueGroup;
+  customerId: string;
   customer: string;
   contact: string;
   vehicle: string;
@@ -105,6 +106,63 @@ export type SalesConsoleLiveManagerQueue = {
   algorithmSource: string;
 };
 
+export type SalesConsoleGuidedPathFactStatus = "Ready" | "Needs Review" | "Blocked" | "Source Missing";
+
+export type SalesConsoleGuidedPathStepStatus = "Complete" | "Current" | "Locked";
+
+export type SalesConsoleLifecycleStage = "Customer" | "Prospect" | "Lead" | "Qualified Opportunity / Deal" | "Sold / Lost";
+
+export type SalesConsoleGuidedPath = {
+  customer: string;
+  revenueLane: SalesConsoleRevenueLaneName;
+  lifecycleStage: SalesConsoleLifecycleStage;
+  sourceSystem: string;
+  relationshipContract: {
+    truthWorkspace: string;
+    executionWorkspace: string;
+    integrationPattern: string;
+    writeBackRule: string;
+  };
+  workbenchTitle: string;
+  workbenchInstruction: string;
+  requiredFacts: Array<{
+    label: string;
+    value: string;
+    status: SalesConsoleGuidedPathFactStatus;
+    source: string;
+  }>;
+  lifecycleSteps: Array<{
+    label: SalesConsoleLifecycleStage;
+    status: SalesConsoleGuidedPathStepStatus;
+    meaning: string;
+    unlocks: string;
+  }>;
+  emphasizedAction: string;
+  reason: string;
+  staffDecision: string;
+  nextStep: string;
+  primaryTool: {
+    label: string;
+    behavior: string;
+    state: SalesConsoleLiveActionState;
+    href: string;
+  };
+  executionTools: Array<{
+    label: string;
+    purpose: string;
+    source: string;
+    state: SalesConsoleLiveActionState;
+    href: string;
+    enabled: boolean;
+    disabledReason?: string;
+  }>;
+  outcomeOptions: string[];
+  outcomeWriteBackTarget: string;
+  collapsedTools: string[];
+  writeBackBehavior: string;
+  activityPolicy: string;
+};
+
 const liveAudit: SalesConsoleAuditMetadata = {
   actorId: "demo-staff-user",
   actorRole: "Sales Manager",
@@ -119,6 +177,7 @@ const liveAudit: SalesConsoleAuditMetadata = {
 const baseWorkItems = [
   {
     id: "REV-1001",
+    customerId: "john-smith",
     customer: "John Smith",
     contact: "(555) 123-4567",
     vehicle: "2022 Toyota RAV4 XLE",
@@ -150,6 +209,7 @@ const baseWorkItems = [
   },
   {
     id: "REV-1002",
+    customerId: "maria-garcia",
     customer: "Maria Garcia",
     contact: "(555) 987-6543",
     vehicle: "2019 Honda CR-V EX",
@@ -180,6 +240,7 @@ const baseWorkItems = [
   },
   {
     id: "REV-1003",
+    customerId: "alex-johnson",
     customer: "Alex Johnson",
     contact: "(555) 246-8101",
     vehicle: "2021 Ford F-150 XLT",
@@ -210,6 +271,7 @@ const baseWorkItems = [
   },
   {
     id: "REV-1004",
+    customerId: "samantha-lee",
     customer: "Samantha Lee",
     contact: "(555) 369-8520",
     vehicle: "2020 Chevy Malibu LT",
@@ -239,6 +301,7 @@ const baseWorkItems = [
   },
   {
     id: "REV-1005",
+    customerId: "david-brown",
     customer: "David Brown",
     contact: "(555) 741-9630",
     vehicle: "2018 Nissan Altima S",
@@ -280,6 +343,7 @@ export const salesConsoleLiveWorkItems: SalesConsoleLiveWorkItem[] = rankSalesWo
   return {
     rank: index + 1,
     group: ranking.group,
+    customerId: source.customerId,
     customer: source.customer,
     contact: source.contact,
     vehicle: source.vehicle,
@@ -299,6 +363,183 @@ export const salesConsoleLiveWorkItems: SalesConsoleLiveWorkItem[] = rankSalesWo
     componentScores: ranking.componentScores
   };
 });
+
+const lifecycleOrder: SalesConsoleLifecycleStage[] = [
+  "Customer",
+  "Prospect",
+  "Lead",
+  "Qualified Opportunity / Deal",
+  "Sold / Lost"
+];
+
+const lifecycleDefinitions: Record<SalesConsoleLifecycleStage, { meaning: string; unlocks: string }> = {
+  "Customer": {
+    meaning: "Person or business exists in the customer source of truth.",
+    unlocks: "Customer 360, contact methods, notes, and activity timeline."
+  },
+  "Prospect": {
+    meaning: "Customer has buying or revenue intent but is not yet qualified.",
+    unlocks: "Lead source, interest, urgency, and first follow-up."
+  },
+  "Lead": {
+    meaning: "There is active staff work to qualify need, timing, and next step.",
+    unlocks: "Appointment, task, quote preparation, or lane-specific checklist."
+  },
+  "Qualified Opportunity / Deal": {
+    meaning: "Required facts support a real revenue opportunity.",
+    unlocks: "Revenue Desk, deal tools, manager review, source-owned handoffs."
+  },
+  "Sold / Lost": {
+    meaning: "The opportunity is closed with a verified outcome.",
+    unlocks: "Delivery, post-sale execution, lost reason, or reactivation path."
+  }
+};
+
+const laneSpecificFactLabels: Record<SalesConsoleRevenueLaneName, string[]> = {
+  "Inventory Cash Sale": ["Vehicle fit", "Trade or payment readiness", "Price path", "Closing blocker"],
+  "Inventory BHPH Sale": ["Proof checklist", "Compliance blocker", "Finance readiness", "Manager review"],
+  "Inventory Lease-to-Own": ["Term structure", "Payment structure", "Approval readiness", "Contract blocker"],
+  "Public Auto Repair": ["Estimate status", "Authorization status", "Appointment readiness", "Repair follow-up"],
+  "Daily Rental": ["Rental window", "Vehicle availability", "Checkout readiness", "Return follow-up"],
+  "Warranty Product": ["Eligibility", "Authorization", "Required documents", "Product review"],
+  "Financing Product": ["Credit application", "Missing finance facts", "Document handoff", "Product readiness"]
+};
+
+const lanePrimaryTools: Record<SalesConsoleRevenueLaneName, string> = {
+  "Inventory Cash Sale": "Open Revenue Desk",
+  "Inventory BHPH Sale": "Collect Proof",
+  "Inventory Lease-to-Own": "Review Terms",
+  "Public Auto Repair": "Open Repair Follow-up",
+  "Daily Rental": "Check Rental Availability",
+  "Warranty Product": "Check Warranty Eligibility",
+  "Financing Product": "Continue Finance App"
+};
+
+const laneOutcomeOptions: Record<SalesConsoleRevenueLaneName, string[]> = {
+  "Inventory Cash Sale": ["Appointment confirmed", "Customer needs follow-up", "Vehicle blocker found", "Ready for close review"],
+  "Inventory BHPH Sale": ["Proof requested", "Proof received", "Compliance blocker", "Manager review needed"],
+  "Inventory Lease-to-Own": ["Terms reviewed", "Customer needs follow-up", "Approval blocker", "Ready for manager review"],
+  "Public Auto Repair": ["Estimate reviewed", "Appointment set", "Customer declined", "Needs repair follow-up"],
+  "Daily Rental": ["Availability confirmed", "Reservation follow-up", "Checkout blocker", "Return reminder needed"],
+  "Warranty Product": ["Eligibility confirmed", "Documents requested", "Authorization blocker", "Customer declined"],
+  "Financing Product": ["Application continued", "Documents requested", "Finance blocker", "Product declined"]
+};
+
+function getLifecycleStage(item: SalesConsoleLiveWorkItem): SalesConsoleLifecycleStage {
+  if (["Proposal", "Structure", "Compliance"].includes(item.stage)) return "Qualified Opportunity / Deal";
+  if (["Credit App", "Estimate"].includes(item.stage)) return "Lead";
+  if (item.source === "Walk-in" || item.source === "Referral") return "Prospect";
+  return "Customer";
+}
+
+function buildLifecycleSteps(stage: SalesConsoleLifecycleStage) {
+  const currentIndex = lifecycleOrder.indexOf(stage);
+
+  return lifecycleOrder.map((label, index) => ({
+    label,
+    status: index < currentIndex ? "Complete" as const : index === currentIndex ? "Current" as const : "Locked" as const,
+    meaning: lifecycleDefinitions[label].meaning,
+    unlocks: lifecycleDefinitions[label].unlocks
+  }));
+}
+
+function salesWorkbenchCrmActionHref(actionId: string, customerId: string) {
+  return `/crm-next/actions/${actionId}?customerId=${encodeURIComponent(customerId)}`;
+}
+
+function salesWorkbenchCustomer360Href(customerId: string) {
+  return `/customers/customer-360?customer=${encodeURIComponent(customerId)}&returnTo=%2Fsales`;
+}
+
+function salesWorkbenchVehicleHref(stock: string) {
+  return `/vehicles/360/${encodeURIComponent(stock)}?returnTo=%2Fsales`;
+}
+
+function salesWorkbenchManagerReviewHref(item: SalesConsoleLiveWorkItem) {
+  return `/manager-review?source=sales-workbench&customerId=${encodeURIComponent(item.customerId)}&dealId=${encodeURIComponent(item.stock)}&returnTo=%2Fsales`;
+}
+
+export function buildSalesConsoleGuidedPath(item: SalesConsoleLiveWorkItem): SalesConsoleGuidedPath {
+  const laneContract = getRevenueLaneContract(item.contractLane);
+  const lifecycleStage = getLifecycleStage(item);
+  const laneFacts = laneSpecificFactLabels[item.contractLane];
+  const blockerLabel = item.blockers.length ? item.blockers.join(", ") : "Clear";
+  const sourceSystem = laneContract?.sourceOwners.join(", ") ?? item.source;
+  const managerReviewEnabled =
+    item.actionState === "Controlled Action" ||
+    item.blockers.length > 0 ||
+    item.algorithmReasons.some((reason) => /manager/i.test(reason));
+
+  const requiredFacts: SalesConsoleGuidedPath["requiredFacts"] = [
+    { label: "Customer context", value: item.customer, status: "Ready", source: "Customer 360" },
+    { label: "Contact method", value: item.contact, status: "Ready", source: "CRM contact record" },
+    { label: "Revenue lane", value: item.contractLane, status: "Ready", source: "Sales Console lane registry" },
+    { label: "Lifecycle stage", value: lifecycleStage, status: "Ready", source: "CRM lifecycle dictionary" },
+    { label: "Selected product", value: item.vehicle, status: "Ready", source: "Inventory / opportunity source" },
+    { label: laneFacts[0], value: item.stage, status: item.stage ? "Ready" : "Source Missing", source: sourceSystem },
+    { label: laneFacts[1], value: blockerLabel, status: item.blockers.length ? "Needs Review" : "Ready", source: sourceSystem },
+    { label: laneFacts[2], value: item.nextAction, status: item.nextAction ? "Ready" : "Source Missing", source: "Sales work queue algorithm" },
+    { label: laneFacts[3], value: item.actionState, status: item.actionState === "Future / Governed" ? "Blocked" : "Ready", source: "Action registry" }
+  ];
+
+  return {
+    customer: item.customer,
+    revenueLane: item.contractLane,
+    lifecycleStage,
+    sourceSystem,
+    relationshipContract: {
+      truthWorkspace: "Customer 360 is the customer record, history, notes, tasks, appointments, documents, consent, and activity truth.",
+      executionWorkspace: "Sales Workbench is the selling action space: choose the next revenue step, use the tools, and finish with an outcome.",
+      integrationPattern: "Sales Workbench reads Customer 360 truth before action and sends verified outcomes back after action.",
+      writeBackRule: "Do not create Customer 360 activity until the selected outcome command succeeds or is clearly marked pending."
+    },
+    workbenchTitle: `${item.customer} Sales Workbench`,
+    workbenchInstruction: "Do the current step here, use only the tools needed, then capture the result before moving on.",
+    requiredFacts,
+    lifecycleSteps: buildLifecycleSteps(lifecycleStage),
+    emphasizedAction: item.nextAction,
+    reason: item.algorithmReasons.join("; "),
+    staffDecision: item.blockers.length ? `Resolve or acknowledge ${blockerLabel} before advancing.` : "Confirm the customer result before moving forward.",
+    nextStep: item.action,
+    primaryTool: {
+      label: lanePrimaryTools[item.contractLane],
+      behavior: item.action,
+      state: item.actionState,
+      href: `/sales?workspace=revenue-desk&lane=${encodeURIComponent(item.contractLane)}&customerId=${encodeURIComponent(item.customerId)}`
+    },
+    executionTools: [
+      { label: "Call", purpose: "Reach the customer now.", source: "CRM contact record", state: "Controlled Action", href: salesWorkbenchCrmActionHref("log-call", item.customerId), enabled: true },
+      { label: "SMS", purpose: "Send a short follow-up where consent permits.", source: "CRM consent and contact record", state: "Controlled Action", href: salesWorkbenchCrmActionHref("send-text", item.customerId), enabled: true },
+      { label: "Email", purpose: "Send documents or appointment details where available.", source: "CRM consent and contact record", state: "Controlled Action", href: salesWorkbenchCrmActionHref("send-email", item.customerId), enabled: true },
+      { label: "Appointment", purpose: "Open appointment context and readiness.", source: "Appointment Console", state: "Source-System Action", href: salesWorkbenchCrmActionHref("schedule-appointment", item.customerId), enabled: true },
+      { label: "Customer 360", purpose: "Review history, notes, and activity truth.", source: "Customer 360", state: "Source-System Action", href: salesWorkbenchCustomer360Href(item.customerId), enabled: true },
+      { label: "Vehicle", purpose: "Check vehicle readiness and inventory context.", source: "Vehicle 360 / Inventory", state: "Source-System Action", href: salesWorkbenchVehicleHref(item.stock), enabled: true },
+      { label: "Task", purpose: "Create or review follow-up work when outcome capture requires it.", source: "Tasks", state: "Controlled Action", href: salesWorkbenchCrmActionHref("new-task", item.customerId), enabled: true },
+      { label: "Docs", purpose: "Collect evidence or missing proof for this lane.", source: "Document / evidence intake", state: item.blockers.length ? "Controlled Action" : "Future / Governed", href: salesWorkbenchCrmActionHref("upload-document", item.customerId), enabled: true },
+      {
+        label: "Manager Review",
+        purpose: "Use only when rules or blockers require manager help.",
+        source: "Manager review rules",
+        state: managerReviewEnabled ? "Controlled Action" : "Future / Governed",
+        href: salesWorkbenchManagerReviewHref(item),
+        enabled: managerReviewEnabled,
+        disabledReason: managerReviewEnabled ? undefined : "Manager Review opens only when blockers or manager-review rules require it."
+      }
+    ],
+    outcomeOptions: laneOutcomeOptions[item.contractLane],
+    outcomeWriteBackTarget: `/api/crm/v1/customers/${encodeURIComponent(item.customerId)}/notes`,
+    collapsedTools: [
+      "Customer 360",
+      "Vehicle 360",
+      "Source record links",
+      "Evidence intake",
+      "Outcome capture",
+      "Manager review when rules require it"
+    ],
+    writeBackBehavior: "Customer 360 activity is written only after an approved outcome command succeeds.",
+    activityPolicy: "Do not show canned activity. If no verified activity exists, show a no-recorded-activity message."
+  };
+}
 
 export const salesConsoleUnifiedRevenueCommandQueueHealth = {
   sourceDomains: [

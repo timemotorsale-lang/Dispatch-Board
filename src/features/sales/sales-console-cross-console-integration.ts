@@ -41,7 +41,7 @@ export function withSalesConsoleReturnTo(href: string) {
 export const salesConsoleCrossConsoleNavigationTargets: SalesConsoleCrossConsoleLink[] = [
   {
     destination: "Customer 360",
-    label: "Open Customer 360",
+    label: "Customer 360",
     href: withSalesConsoleReturnTo("/customers/customer-360"),
     behavior: "open-source-console",
     writeAuthority: "Source System",
@@ -49,7 +49,7 @@ export const salesConsoleCrossConsoleNavigationTargets: SalesConsoleCrossConsole
   },
   {
     destination: "Appointments",
-    label: "Open Appointment Board",
+    label: "Appointment Board",
     href: withSalesConsoleReturnTo("/appointments"),
     behavior: "open-source-console",
     writeAuthority: "Source System",
@@ -57,7 +57,7 @@ export const salesConsoleCrossConsoleNavigationTargets: SalesConsoleCrossConsole
   },
   {
     destination: "Tasks",
-    label: "Open Task Console",
+    label: "Task Console",
     href: withSalesConsoleReturnTo("/tasks"),
     behavior: "open-source-console",
     writeAuthority: "Source System",
@@ -65,7 +65,7 @@ export const salesConsoleCrossConsoleNavigationTargets: SalesConsoleCrossConsole
   },
   {
     destination: "Inventory / Vehicle 360",
-    label: "Open Vehicle 360",
+    label: "Vehicle 360",
     href: withSalesConsoleReturnTo("/vehicles/360"),
     behavior: "open-source-console",
     writeAuthority: "Source System",
@@ -73,7 +73,7 @@ export const salesConsoleCrossConsoleNavigationTargets: SalesConsoleCrossConsole
   },
   {
     destination: "Inventory Control Tower",
-    label: "Open Inventory Control Tower",
+    label: "Inventory Control Tower",
     href: withSalesConsoleReturnTo("/vehicles/control-tower"),
     behavior: "open-source-console",
     writeAuthority: "Source System",
@@ -81,7 +81,7 @@ export const salesConsoleCrossConsoleNavigationTargets: SalesConsoleCrossConsole
   },
   {
     destination: "Finance Handoff",
-    label: "Open Finance Handoff Context",
+    label: "Finance Handoff",
     href: "/sales?workspace=finance-handoff",
     behavior: "source-controlled",
     writeAuthority: "Source System",
@@ -89,7 +89,7 @@ export const salesConsoleCrossConsoleNavigationTargets: SalesConsoleCrossConsole
   },
   {
     destination: "Service / Repair Orders",
-    label: "Open Repair Orders",
+    label: "Repair Orders",
     href: withSalesConsoleReturnTo("/vehicles/repair-orders"),
     behavior: "open-source-console",
     writeAuthority: "Source System",
@@ -97,7 +97,7 @@ export const salesConsoleCrossConsoleNavigationTargets: SalesConsoleCrossConsole
   },
   {
     destination: "Rental Operations",
-    label: "Open Rental Context",
+    label: "Rental",
     href: "/sales?workspace=rental",
     behavior: "source-controlled",
     writeAuthority: "Source System",
@@ -105,7 +105,7 @@ export const salesConsoleCrossConsoleNavigationTargets: SalesConsoleCrossConsole
   },
   {
     destination: "Warranty Operations",
-    label: "Open Warranty Context",
+    label: "Warranty",
     href: "/sales?workspace=warranty",
     behavior: "source-controlled",
     writeAuthority: "Source System",
@@ -113,7 +113,7 @@ export const salesConsoleCrossConsoleNavigationTargets: SalesConsoleCrossConsole
   },
   {
     destination: "Sales Console",
-    label: "Open Sales Context",
+    label: "Sales Console",
     href: "/sales",
     behavior: "open-sales-context",
     writeAuthority: "Sales Console",
