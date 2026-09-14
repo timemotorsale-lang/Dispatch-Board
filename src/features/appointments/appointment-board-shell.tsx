@@ -5948,6 +5948,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
   const [conflictsOnly, setConflictsOnly] = useState(false);
   const [includeCancelledAppointments, setIncludeCancelledAppointments] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("day");
+  const [dayBoardExpanded, setDayBoardExpanded] = useState(false);
   const [boardDateKey, setBoardDateKey] = useState(todayDateKey);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [boardLaneMode, setBoardLaneMode] = useState<AppointmentBoardLaneMode>("staff");
@@ -15810,72 +15811,158 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
                   {mode.label}
                 </button>
               ))}
+              {viewMode === "day" && dayScheduledAppointments.length > 0 ? (
+                <button
+                  className={
+                    dayBoardExpanded
+                      ? "appointment-day-board-toggle appointment-day-board-toggle-active"
+                      : "appointment-day-board-toggle"
+                  }
+                  onClick={() => setDayBoardExpanded((current) => !current)}
+                  type="button"
+                >
+                  {dayBoardExpanded ? "Compact board" : `Show all ${dayScheduledAppointments.length}`}
+                </button>
+              ) : null}
             </div>
           </div>
 
           {viewMode === "day" ? (
-            <div className="appointment-calendar-shell">
-              <div className="appointment-calendar-header">
-                <div className="appointment-all-day">All Day</div>
-                {boardLanes.map((lane) => (
-                  <div className="appointment-staff-header" key={lane}>
-                    <span className="appointment-avatar">
-                      {lane
-                        .split(" ")
-                        .filter(Boolean)
-                        .slice(0, 2)
-                        .map((part) => part[0]?.toUpperCase())
-                        .join("")}
-                    </span>
-                    <div>
-                      <strong>{lane}</strong>
-                      <small>{boardLaneMode[0].toUpperCase() + boardLaneMode.slice(1)} lane</small>
-                    </div>
+            dayBoardExpanded ? (
+              <section className="appointment-day-card-board" aria-label="Expanded appointment day board">
+                <div className="appointment-section-heading">
+                  <div>
+                    <strong>All scheduled appointments</strong>
+                    <p>Every appointment for this day is visible as a board card. Select any card to work the detail rail.</p>
                   </div>
-                ))}
-              </div>
-              <div className="appointment-calendar-body">
-                <div className="appointment-time-column">
-                  {hourLabels.map((hour, index) => (
-                    <span key={hour} style={{ top: `calc(var(--appointment-calendar-hour-height) * ${index})` }}>{hour}</span>
+                  <button type="button" onClick={() => setDayBoardExpanded(false)}>
+                    Return to compact board
+                  </button>
+                </div>
+                <div className="appointment-day-card-lanes">
+                  {boardLanes.map((lane) => {
+                    const laneAppointments = dayScheduledAppointments.filter(
+                      (appointment) => appointmentBoardLaneLabel(appointment, boardLaneMode) === lane
+                    );
+
+                    return (
+                      <section className="appointment-day-card-lane" key={lane}>
+                        <header>
+                          <span className="appointment-avatar">
+                            {lane
+                              .split(" ")
+                              .filter(Boolean)
+                              .slice(0, 2)
+                              .map((part) => part[0]?.toUpperCase())
+                              .join("")}
+                          </span>
+                          <div>
+                            <strong>{lane}</strong>
+                            <small>{laneAppointments.length} appointment{laneAppointments.length === 1 ? "" : "s"}</small>
+                          </div>
+                        </header>
+                        <div className="appointment-day-card-list">
+                          {laneAppointments.length > 0 ? (
+                            laneAppointments.map((appointment) => {
+                              const meta = categoryMeta[appointment.category];
+
+                              return (
+                                <button
+                                  className={
+                                    selectedAppointment.id === appointment.id
+                                      ? `appointment-day-card ${meta.className} appointment-day-card-active`
+                                      : `appointment-day-card ${meta.className}`
+                                  }
+                                  key={appointment.id}
+                                  onClick={() => selectAppointmentForDetail(appointment)}
+                                  type="button"
+                                >
+                                  <span>{appointmentTimeRangeLabel(appointment)}</span>
+                                  <strong>{appointment.title}</strong>
+                                  <small>{appointment.customer}</small>
+                                  <small>{appointment.location}</small>
+                                  <em>{categoryMeta[appointment.category].label}</em>
+                                  {appointment.conflict ? <b>Conflict warning</b> : null}
+                                </button>
+                              );
+                            })
+                          ) : (
+                            <p>No appointments in this lane.</p>
+                          )}
+                        </div>
+                      </section>
+                    );
+                  })}
+                </div>
+              </section>
+            ) : (
+              <div
+                className="appointment-calendar-shell"
+                onClick={() => setDayBoardExpanded(true)}
+                onFocusCapture={() => setDayBoardExpanded(true)}
+              >
+                <div className="appointment-calendar-header">
+                  <div className="appointment-all-day">All Day</div>
+                  {boardLanes.map((lane) => (
+                    <div className="appointment-staff-header" key={lane}>
+                      <span className="appointment-avatar">
+                        {lane
+                          .split(" ")
+                          .filter(Boolean)
+                          .slice(0, 2)
+                          .map((part) => part[0]?.toUpperCase())
+                          .join("")}
+                      </span>
+                      <div>
+                        <strong>{lane}</strong>
+                        <small>{boardLaneMode[0].toUpperCase() + boardLaneMode.slice(1)} lane</small>
+                      </div>
+                    </div>
                   ))}
                 </div>
-                {boardLanes.map((lane) => (
-                  <div className="appointment-staff-column" key={lane}>
-                    {dayScheduledAppointments.filter((appointment) => appointmentBoardLaneLabel(appointment, boardLaneMode) === lane).map((appointment) => {
-                      const meta = categoryMeta[appointment.category];
-                      const hourOffset = Math.max(0, (appointment.startMinutes - 540) / 60);
-                      const durationHours = appointment.durationMinutes / 60;
-                      return (
-                        <button
-                          className={selectedAppointment.id === appointment.id ? `appointment-calendar-item ${meta.className} appointment-calendar-item-active` : `appointment-calendar-item ${meta.className}`}
-                          key={appointment.id}
-                          onClick={() => selectAppointmentForDetail(appointment)}
-                          style={{
-                            top: `calc(var(--appointment-calendar-hour-height) * ${hourOffset})`,
-                            minHeight: `max(36px, calc(var(--appointment-calendar-hour-height) * ${durationHours}))`
-                          }}
-                          type="button"
-                        >
-                          <span>{formatTime(appointment.startMinutes)}</span>
-                          <strong>{appointment.title}</strong>
-                          <small>{appointment.customer}</small>
-                          <small>
-                            {boardLaneMode === "staff"
-                              ? appointment.location
-                              : appointment.staffName ?? "Unassigned"}
-                          </small>
-                          {appointment.conflict ? <b>Conflict warning</b> : null}
-                        </button>
-                      );
-                    })}
+                <div className="appointment-calendar-body">
+                  <div className="appointment-time-column">
+                    {hourLabels.map((hour, index) => (
+                      <span key={hour} style={{ top: `calc(var(--appointment-calendar-hour-height) * ${index})` }}>{hour}</span>
+                    ))}
                   </div>
-                ))}
-                <div className="appointment-now-line" aria-hidden="true">
-                  <span>10:15 AM</span>
+                  {boardLanes.map((lane) => (
+                    <div className="appointment-staff-column" key={lane}>
+                      {dayScheduledAppointments.filter((appointment) => appointmentBoardLaneLabel(appointment, boardLaneMode) === lane).map((appointment) => {
+                        const meta = categoryMeta[appointment.category];
+                        const hourOffset = Math.max(0, (appointment.startMinutes - 540) / 60);
+                        const durationHours = appointment.durationMinutes / 60;
+                        return (
+                          <button
+                            className={selectedAppointment.id === appointment.id ? `appointment-calendar-item ${meta.className} appointment-calendar-item-active` : `appointment-calendar-item ${meta.className}`}
+                            key={appointment.id}
+                            onClick={() => selectAppointmentForDetail(appointment)}
+                            style={{
+                              top: `calc(var(--appointment-calendar-hour-height) * ${hourOffset})`,
+                              minHeight: `max(36px, calc(var(--appointment-calendar-hour-height) * ${durationHours}))`
+                            }}
+                            type="button"
+                          >
+                            <span>{formatTime(appointment.startMinutes)}</span>
+                            <strong>{appointment.title}</strong>
+                            <small>{appointment.customer}</small>
+                            <small>
+                              {boardLaneMode === "staff"
+                                ? appointment.location
+                                : appointment.staffName ?? "Unassigned"}
+                            </small>
+                            {appointment.conflict ? <b>Conflict warning</b> : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))}
+                  <div className="appointment-now-line" aria-hidden="true">
+                    <span>10:15 AM</span>
+                  </div>
                 </div>
               </div>
-            </div>
+            )
           ) : viewMode === "week" ? (
             <section className="appointment-week-view" aria-labelledby="appointment-week-view">
               <div className="appointment-section-heading">

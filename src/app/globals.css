@@ -17388,6 +17388,23 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
   border-color: #0f766e;
 }
 
+.appointment-day-board-toggle {
+  min-height: 26px;
+  padding: 0 9px;
+  color: #1d5eed;
+  background: #f8fbff;
+  border: 1px solid #bfd0e5;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.appointment-day-board-toggle-active {
+  color: #fff;
+  background: #1d5eed;
+  border-color: #1d5eed;
+}
+
 .appointment-calendar-shell {
   min-width: 620px;
   overflow: auto;
@@ -17395,6 +17412,127 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
 
 .appointment-mockup-aligned .appointment-calendar-shell {
   min-height: 0;
+}
+
+.appointment-day-card-board {
+  display: grid;
+  gap: 10px;
+  min-width: 620px;
+  padding: 10px;
+  background: #f8fbff;
+}
+
+.appointment-day-card-lanes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.appointment-day-card-lane {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 270px;
+  padding: 10px;
+  background: #fff;
+  border: 1px solid #d7e2ef;
+  border-radius: 12px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+}
+
+.appointment-day-card-lane > header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e8eef6;
+}
+
+.appointment-day-card-lane > header strong {
+  display: block;
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.appointment-day-card-lane > header small {
+  color: #64748b;
+  font-size: 11.5px;
+}
+
+.appointment-day-card-list {
+  display: grid;
+  gap: 8px;
+}
+
+.appointment-day-card-list p {
+  margin: 0;
+  border: 1px dashed #cbd8e8;
+  border-radius: 10px;
+  padding: 12px;
+  color: #64748b;
+  background: #fbfdff;
+  font-size: 12px;
+}
+
+.appointment-day-card {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  min-height: 118px;
+  padding: 11px 12px;
+  color: #10233f;
+  background: #fff;
+  border: 1px solid #d7e2ef;
+  border-left: 4px solid #1d5eed;
+  border-radius: 10px;
+  text-align: left;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+}
+
+.appointment-day-card-active {
+  border-color: #1d5eed;
+  background: #f4f8ff;
+  box-shadow: 0 0 0 2px rgba(29, 94, 237, 0.12), 0 8px 22px rgba(15, 23, 42, 0.08);
+}
+
+.appointment-day-card span {
+  color: #1d5eed;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.appointment-day-card strong {
+  color: #0f172a;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.appointment-day-card small {
+  color: #526176;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.appointment-day-card em {
+  width: max-content;
+  margin-top: 3px;
+  border-radius: 999px;
+  padding: 3px 7px;
+  color: #334155;
+  background: #eef2f7;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 850;
+}
+
+.appointment-day-card b {
+  width: max-content;
+  margin-top: 3px;
+  border-radius: 999px;
+  padding: 3px 7px;
+  color: #b4232f;
+  background: #fff0f3;
+  font-size: 11px;
 }
 
 .appointment-calendar-header {
