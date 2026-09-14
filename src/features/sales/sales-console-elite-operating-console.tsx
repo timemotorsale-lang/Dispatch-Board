@@ -643,13 +643,15 @@ export function SalesConsoleEliteOperatingConsole() {
           </button>
         </header>
         <section className={styles.integrationStrip} aria-label="Dispatch Board source links">
+          <span className={styles.sourceCheckCue} aria-hidden="true">
+            Source checks before action
+          </span>
           {salesConsoleCrossConsoleNavigationTargets
             .filter((target) => target.visibleToRoles.includes(activeRole))
             .slice(0, 5)
             .map((target) => (
               <a key={target.destination} href={target.href}>
                 <strong>{target.label}</strong>
-                <span>{target.writeAuthority}</span>
               </a>
             ))}
         </section>
@@ -1310,6 +1312,36 @@ export function SalesConsoleEliteOperatingConsole() {
                       </small>
                     ) : null}
                   </div>
+                </section>
+                <section className={styles.managerEscalationGate} data-state={selectedGuidedPath.managerEscalation.required ? "required" : "clear"}>
+                  <div>
+                    <span>Manager escalation</span>
+                    <h4>{selectedGuidedPath.managerEscalation.status}</h4>
+                    <p>{selectedGuidedPath.managerEscalation.decision}</p>
+                  </div>
+                  <div className={styles.managerEscalationRules}>
+                    {selectedGuidedPath.managerEscalation.rules.length ? selectedGuidedPath.managerEscalation.rules.map((rule) => (
+                      <article key={rule.label}>
+                        <strong>{rule.label}</strong>
+                        <span>{rule.reason}</span>
+                        <em>{rule.source}</em>
+                      </article>
+                    )) : (
+                      <article>
+                        <strong>No escalation rule active</strong>
+                        <span>Continue the guided step and capture the outcome before moving forward.</span>
+                        <em>Sales workbench rules</em>
+                      </article>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className={actionTone[selectedGuidedPath.managerEscalation.required ? "Controlled Action" : "Future / Governed"]}
+                    disabled={!selectedGuidedPath.managerEscalation.required}
+                    onClick={() => openWorkbenchHref(selectedGuidedPath.managerEscalation.href)}
+                  >
+                    Open Manager Review
+                  </button>
                 </section>
                 <section className={styles.lifecycleWorkbench} aria-label="Sales lifecycle movement">
                   <div>

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildSalesConsoleGuidedPath,
+  evaluateSalesWorkbenchManagerEscalation,
   salesConsoleLiveActivityDecision,
   salesConsoleLiveEvidenceRecord,
   salesConsoleLiveEvidenceValidation,
@@ -79,6 +80,11 @@ describe("Sales Console live workflow engine", () => {
     expect(guidedPath.executionTools.find((tool) => tool.label === "Task")?.href).toContain("/crm-next/actions/new-task");
     expect(guidedPath.executionTools.find((tool) => tool.label === "Docs")?.href).toContain("/crm-next/actions/upload-document");
     expect(guidedPath.executionTools.find((tool) => tool.label === "Customer 360")?.href).toContain("/customers/customer-360");
+    expect(guidedPath.managerEscalation.status).toBe("Rule triggered");
+    expect(guidedPath.managerEscalation.rules.map((rule) => rule.label)).toEqual(
+      expect.arrayContaining(["Active blocker", "Manager priority signal"])
+    );
+    expect(guidedPath.managerEscalation.href).toContain("/manager-review");
     expect(guidedPath.outcomeWriteBackTarget).toContain("/api/crm/v1/customers/");
     expect(guidedPath.outcomeOptions.map((option) => option.label)).toContain("Appointment confirmed");
     expect(guidedPath.outcomeOptions.every((option) => option.result.includes("Customer 360"))).toBe(true);
@@ -99,6 +105,24 @@ describe("Sales Console live workflow engine", () => {
 
     expect(managerTools.some((tool) => tool?.enabled)).toBe(true);
     expect(managerTools.some((tool) => tool && !tool.enabled && tool.disabledReason)).toBe(true);
+  });
+
+  it("explains manager escalation only when source-backed rules require it", () => {
+    const needsEscalation = salesConsoleLiveWorkItems.find((item) => item.blockers.length > 0 || item.algorithmReasons.some((reason) => /manager/i.test(reason)));
+    const clearItem = salesConsoleLiveWorkItems.find((item) => item.blockers.length === 0 && !item.algorithmReasons.some((reason) => /manager/i.test(reason)) && item.actionState !== "Controlled Action");
+
+    expect(needsEscalation).toBeDefined();
+    expect(clearItem).toBeDefined();
+
+    const required = evaluateSalesWorkbenchManagerEscalation(needsEscalation!);
+    const clear = evaluateSalesWorkbenchManagerEscalation(clearItem!);
+
+    expect(required.required).toBe(true);
+    expect(required.rules.length).toBeGreaterThan(0);
+    expect(required.decision).toContain("source-backed rule");
+    expect(clear.required).toBe(false);
+    expect(clear.rules).toHaveLength(0);
+    expect(clear.decision).toContain("continue without manager escalation");
   });
 
   it("blocks canned activity in the guided path contract", () => {

@@ -20,7 +20,7 @@ describe("Sales Console cross-console integration wiring", () => {
         expect.objectContaining({ destination: "Customer 360", href: "/customers/customer-360?returnTo=%2Fsales" }),
         expect.objectContaining({ destination: "Appointments", href: "/appointments?returnTo=%2Fsales" }),
         expect.objectContaining({ destination: "Tasks", href: "/tasks?returnTo=%2Fsales" }),
-        expect.objectContaining({ destination: "Inventory / Vehicle 360", href: "/vehicles/360?returnTo=%2Fsales" })
+        expect.objectContaining({ destination: "Inventory / Vehicle 360", href: "/vehicles/registry?returnTo=%2Fsales" })
       ])
     );
   });
@@ -36,7 +36,7 @@ describe("Sales Console cross-console integration wiring", () => {
   });
 
   it("builds concrete deep links for source records", () => {
-    expect(getSalesConsoleVehicle360Href("TMS22145")).toBe("/vehicles/360/TMS22145?returnTo=%2Fsales");
+    expect(getSalesConsoleVehicle360Href("TMS22145")).toBe("/vehicles/registry?query=TMS22145&returnTo=%2Fsales");
     expect(getSalesConsoleTaskHref("TASK-1")).toBe("/tasks/TASK-1?returnTo=%2Fsales");
     expect(getSalesConsoleAppointmentHref("APT-1")).toBe("/appointments?appointmentId=APT-1&returnTo=%2Fsales");
     expect(getSalesConsoleCustomer360Href("John Smith")).toBe("/customers/customer-360?customer=John+Smith&returnTo=%2Fsales");

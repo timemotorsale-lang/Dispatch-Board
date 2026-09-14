@@ -66,7 +66,7 @@ export const salesConsoleCrossConsoleNavigationTargets: SalesConsoleCrossConsole
   {
     destination: "Inventory / Vehicle 360",
     label: "Vehicle 360",
-    href: withSalesConsoleReturnTo("/vehicles/360"),
+    href: withSalesConsoleReturnTo("/vehicles/registry"),
     behavior: "open-source-console",
     writeAuthority: "Source System",
     visibleToRoles: ["Salesperson", "Sales Manager", "Admin / Owner"]
@@ -142,7 +142,7 @@ export function getSalesConsoleCrossConsoleLinksForLane(lane: SalesConsoleRevenu
 }
 
 export function getSalesConsoleVehicle360Href(stockNumber: string) {
-  return withSalesConsoleReturnTo(`/vehicles/360/${encodeURIComponent(stockNumber)}`);
+  return withSalesConsoleReturnTo(`/vehicles/registry?query=${encodeURIComponent(stockNumber)}`);
 }
 
 export function getSalesConsoleTaskHref(taskId: string) {

@@ -147,6 +147,17 @@ export type SalesConsoleGuidedPath = {
     state: SalesConsoleLiveActionState;
     href: string;
   };
+  managerEscalation: {
+    required: boolean;
+    status: "Rule triggered" | "Not required";
+    decision: string;
+    href: string;
+    rules: Array<{
+      label: string;
+      reason: string;
+      source: string;
+    }>;
+  };
   executionTools: Array<{
     label: string;
     category: "Action" | "Source";
@@ -472,11 +483,52 @@ function salesWorkbenchCrmCustomerHref(customerId: string) {
 }
 
 function salesWorkbenchVehicleHref(stock: string) {
-  return `/vehicles/360/${encodeURIComponent(stock)}?returnTo=%2Fsales`;
+  return `/vehicles/registry?query=${encodeURIComponent(stock)}&returnTo=%2Fsales`;
 }
 
 function salesWorkbenchManagerReviewHref(item: SalesConsoleLiveWorkItem) {
   return `/manager-review?source=sales-workbench&customerId=${encodeURIComponent(item.customerId)}&dealId=${encodeURIComponent(item.stock)}&returnTo=%2Fsales`;
+}
+
+export function evaluateSalesWorkbenchManagerEscalation(item: SalesConsoleLiveWorkItem): SalesConsoleGuidedPath["managerEscalation"] {
+  const href = salesWorkbenchManagerReviewHref(item);
+  const rules: SalesConsoleGuidedPath["managerEscalation"]["rules"] = [];
+
+  if (item.blockers.length > 0) {
+    rules.push({
+      label: "Active blocker",
+      reason: `${item.blockers.join(", ")} must be resolved or acknowledged before advancing.`,
+      source: "Sales workbench required facts"
+    });
+  }
+
+  if (item.actionState === "Controlled Action") {
+    rules.push({
+      label: "Controlled action",
+      reason: "The next step is governed and should stay visible to a manager.",
+      source: "Sales action registry"
+    });
+  }
+
+  if (item.group === "Manager Review" || item.algorithmReasons.some((reason) => /manager/i.test(reason))) {
+    rules.push({
+      label: "Manager priority signal",
+      reason: "The queue algorithm marked this opportunity for manager attention.",
+      source: "Sales work queue algorithm"
+    });
+  }
+
+  const required = rules.length > 0;
+
+  return {
+    required,
+    status: required ? "Rule triggered" : "Not required",
+    decision: required
+      ? "Manager review can open because at least one source-backed rule requires help."
+      : "Staff can continue without manager escalation unless a new blocker, approval, or risk signal appears.",
+    href,
+    rules
+  };
 }
 
 function describeOutcomeResult(option: string) {
@@ -524,10 +576,7 @@ export function buildSalesConsoleGuidedPath(item: SalesConsoleLiveWorkItem): Sal
   const laneFacts = laneSpecificFactLabels[item.contractLane];
   const blockerLabel = item.blockers.length ? item.blockers.join(", ") : "Clear";
   const sourceSystem = laneContract?.sourceOwners.join(", ") ?? item.source;
-  const managerReviewEnabled =
-    item.actionState === "Controlled Action" ||
-    item.blockers.length > 0 ||
-    item.algorithmReasons.some((reason) => /manager/i.test(reason));
+  const managerEscalation = evaluateSalesWorkbenchManagerEscalation(item);
 
   const requiredFacts: SalesConsoleGuidedPath["requiredFacts"] = [
     { label: "Customer context", value: item.customer, status: "Ready", source: "Customer 360" },
@@ -566,6 +615,7 @@ export function buildSalesConsoleGuidedPath(item: SalesConsoleLiveWorkItem): Sal
       state: item.actionState,
       href: `/sales?workspace=revenue-desk&lane=${encodeURIComponent(item.contractLane)}&customerId=${encodeURIComponent(item.customerId)}`
     },
+    managerEscalation,
     executionTools: [
       { label: "Call", category: "Action", purpose: "Reach the customer now.", source: "CRM contact record", state: "Controlled Action", href: salesWorkbenchCrmActionHref("log-call", item.customerId), enabled: true },
       { label: "SMS", category: "Action", purpose: "Send a short follow-up where consent permits.", source: "CRM consent and contact record", state: "Controlled Action", href: salesWorkbenchCrmActionHref("send-text", item.customerId), enabled: true },
@@ -581,10 +631,10 @@ export function buildSalesConsoleGuidedPath(item: SalesConsoleLiveWorkItem): Sal
         category: "Source",
         purpose: "Use only when rules or blockers require manager help.",
         source: "Manager review rules",
-        state: managerReviewEnabled ? "Controlled Action" : "Future / Governed",
+        state: managerEscalation.required ? "Controlled Action" : "Future / Governed",
         href: salesWorkbenchManagerReviewHref(item),
-        enabled: managerReviewEnabled,
-        disabledReason: managerReviewEnabled ? undefined : "Manager Review opens only when blockers or manager-review rules require it."
+        enabled: managerEscalation.required,
+        disabledReason: managerEscalation.required ? undefined : "Manager Review opens only when blockers or manager-review rules require it."
       }
     ],
     outcomeOptions: laneOutcomeOptions[item.contractLane].map((option) => ({
@@ -602,7 +652,7 @@ export function buildSalesConsoleGuidedPath(item: SalesConsoleLiveWorkItem): Sal
       { label: "Customer 360", status: "live" },
       { label: "Task write-back", status: "live" },
       { label: "Outcome write-back", status: "live" },
-      { label: "Manager review", status: managerReviewEnabled ? "available" : "rule-gated" }
+      { label: "Manager review", status: managerEscalation.required ? "available" : "rule-gated" }
     ],
     collapsedTools: [
       "Customer 360",
