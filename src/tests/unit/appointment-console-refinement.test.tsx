@@ -27,6 +27,7 @@ describe("Appointment Console refinement", () => {
     expect(markup).toContain("New Appointment");
     expect(markup).toContain("Back to Appointment Console");
     expect(markup).toContain("Appointment Setup");
+    expect(markup).not.toContain("Expand calendar");
     expect(markup).toContain("Customer search");
     expect(markup).toContain("Vehicle search");
     expect(markup).toContain("Search name, phone, email, or customer #");
@@ -36,6 +37,11 @@ describe("Appointment Console refinement", () => {
     expect(markup).toContain("Title / Documentation Issue");
     expect(markup).toContain("Daily Rental / Loaner");
     expect(markup).toContain("Photos / Marketing / Advertising");
+    expect(markup).toContain("Business Appointment");
+    expect(markup).toContain("Banker / Lender Appointment");
+    expect(markup).toContain("Licensing / Permit Appointment");
+    expect(markup).toContain("Phone Company / Utility Appointment");
+    expect(markup).toContain("Managerial Appointment");
     expect(markup).toContain("2:30 PM");
     expect(markup).toContain("8:00 AM");
     expect(markup).toContain("5:00 PM");

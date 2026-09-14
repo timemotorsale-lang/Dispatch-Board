@@ -72,22 +72,89 @@ const defaultOrganizationId = "org-time-motor-sales";
 const defaultLocationId = "loc-time-motor-sales-minneapolis";
 const defaultTimezone = "America/Chicago";
 
-const purposeOptions = [
-  { value: "CUSTOMER_ISSUE", label: "Customer Issue / Resolution", duration: 60, category: "customer" },
-  { value: "SERVICE_REPAIR", label: "Service / Repair Appointment", duration: 60, category: "service" },
-  { value: "SALES_CONSULTATION", label: "Sales Consultation", duration: 60, category: "sales" },
-  { value: "TEST_DRIVE", label: "Test Drive", duration: 45, category: "sales" },
-  { value: "TITLE_DOCUMENTATION", label: "Title / Documentation Issue", duration: 45, category: "dmv" },
-  { value: "FINANCE_PAPERWORK", label: "Finance Paperwork", duration: 60, category: "sales" },
-  { value: "INSURANCE_VERIFICATION", label: "Insurance Verification", duration: 30, category: "customer" },
-  { value: "DAILY_RENTAL", label: "Daily Rental / Loaner", duration: 30, category: "general" },
-  { value: "PAYMENT_COLLECTION", label: "Payment / Collections", duration: 30, category: "collections" },
-  { value: "VEHICLE_DELIVERY", label: "Vehicle Delivery / Selling Paperwork", duration: 60, category: "delivery" },
-  { value: "PHOTO_MARKETING", label: "Photos / Marketing / Advertising", duration: 45, category: "marketing" },
-  { value: "INVENTORY_OPERATION", label: "Inventory / Lot / Vehicle Operation", duration: 45, category: "inventory" },
-  { value: "DMV_TITLE", label: "DMV / Title Follow-up", duration: 45, category: "dmv" },
-  { value: "GENERAL_FOLLOW_UP", label: "General Follow-up", duration: 30, category: "general" }
+const appointmentPurposeGroups = [
+  {
+    label: "Customer & Follow-up",
+    options: [
+      { value: "CUSTOMER_ISSUE", label: "Customer Issue / Resolution", duration: 60, category: "customer" },
+      { value: "CUSTOMER_FOLLOW_UP", label: "Customer Follow-up", duration: 30, category: "customer" },
+      { value: "GENERAL_FOLLOW_UP", label: "General Follow-up", duration: 30, category: "general" },
+      { value: "COMPLAINT_RESOLUTION", label: "Complaint / Concern Resolution", duration: 60, category: "customer" }
+    ]
+  },
+  {
+    label: "Sales & Revenue",
+    options: [
+      { value: "SALES_CONSULTATION", label: "Sales Consultation", duration: 60, category: "sales" },
+      { value: "TEST_DRIVE", label: "Test Drive", duration: 45, category: "sales" },
+      { value: "DEAL_REVIEW", label: "Deal Review / Closing", duration: 60, category: "sales" },
+      { value: "TRADE_APPRAISAL", label: "Trade Appraisal", duration: 45, category: "sales" },
+      { value: "BUSINESS_SALES_APPOINTMENT", label: "Business Sales Appointment", duration: 60, category: "business" }
+    ]
+  },
+  {
+    label: "Finance, Banking & Payments",
+    options: [
+      { value: "FINANCE_PAPERWORK", label: "Finance Paperwork", duration: 60, category: "finance" },
+      { value: "BANKER_APPOINTMENT", label: "Banker / Lender Appointment", duration: 60, category: "banking" },
+      { value: "CREDIT_APPLICATION", label: "Credit Application / Approval", duration: 45, category: "finance" },
+      { value: "PAYMENT_COLLECTION", label: "Payment / Collections", duration: 30, category: "collections" },
+      { value: "ACCOUNTING_RECONCILIATION", label: "Accounting / Reconciliation", duration: 45, category: "finance" }
+    ]
+  },
+  {
+    label: "Insurance, Title, Licensing & Permits",
+    options: [
+      { value: "INSURANCE_VERIFICATION", label: "Insurance Verification", duration: 30, category: "insurance" },
+      { value: "INSURANCE_BINDER", label: "Insurance Binder / Coverage Review", duration: 45, category: "insurance" },
+      { value: "TITLE_DOCUMENTATION", label: "Title / Documentation Issue", duration: 45, category: "dmv" },
+      { value: "DMV_TITLE", label: "DMV / Title Follow-up", duration: 45, category: "dmv" },
+      { value: "LICENSING_PERMIT", label: "Licensing / Permit Appointment", duration: 45, category: "licensing" },
+      { value: "REGISTRATION_PLATES", label: "Registration / Plates", duration: 45, category: "dmv" }
+    ]
+  },
+  {
+    label: "Service, Warranty & Vehicle Care",
+    options: [
+      { value: "SERVICE_REPAIR", label: "Service / Repair Appointment", duration: 60, category: "service" },
+      { value: "WARRANTY_REVIEW", label: "Warranty Review / Claim", duration: 45, category: "warranty" },
+      { value: "INSPECTION_DIAGNOSTIC", label: "Inspection / Diagnostic", duration: 60, category: "service" },
+      { value: "PARTS_ACCESSORY", label: "Parts / Accessory Appointment", duration: 45, category: "inventory" }
+    ]
+  },
+  {
+    label: "Rental, Leasing & Delivery",
+    options: [
+      { value: "DAILY_RENTAL", label: "Daily Rental / Loaner", duration: 30, category: "rental" },
+      { value: "LEASE_REVIEW", label: "Lease Review / Renewal", duration: 60, category: "leasing" },
+      { value: "VEHICLE_DELIVERY", label: "Vehicle Delivery / Selling Paperwork", duration: 60, category: "delivery" },
+      { value: "TRANSPORTATION_LOGISTICS", label: "Transportation / Logistics", duration: 45, category: "delivery" }
+    ]
+  },
+  {
+    label: "Business, Vendor & Operations",
+    options: [
+      { value: "BUSINESS_APPOINTMENT", label: "Business Appointment", duration: 60, category: "business" },
+      { value: "VENDOR_APPOINTMENT", label: "Vendor / Partner Appointment", duration: 45, category: "vendor" },
+      { value: "INVENTORY_OPERATION", label: "Inventory / Lot / Vehicle Operation", duration: 45, category: "inventory" },
+      { value: "PHOTO_MARKETING", label: "Photos / Marketing / Advertising", duration: 45, category: "marketing" },
+      { value: "FACILITY_APPOINTMENT", label: "Facility / Property Appointment", duration: 45, category: "facility" }
+    ]
+  },
+  {
+    label: "Administration, Management & Compliance",
+    options: [
+      { value: "ADMINISTRATIVE_APPOINTMENT", label: "Administrative Appointment", duration: 45, category: "administration" },
+      { value: "MANAGERIAL_APPOINTMENT", label: "Managerial Appointment", duration: 45, category: "administration" },
+      { value: "PHONE_COMPANY_MANAGERIAL", label: "Phone Company / Utility Appointment", duration: 45, category: "utilities" },
+      { value: "LEGAL_COMPLIANCE", label: "Legal / Compliance Appointment", duration: 60, category: "compliance" },
+      { value: "STAFF_TRAINING", label: "Staff / Training Appointment", duration: 45, category: "staff" },
+      { value: "OTHER_APPOINTMENT", label: "Other Appointment", duration: 30, category: "general" }
+    ]
+  }
 ] as const;
+
+const purposeOptions = appointmentPurposeGroups.flatMap((group) => group.options);
 
 function todayDateKey() {
   return new Intl.DateTimeFormat("en-CA", {
@@ -799,6 +866,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
   });
   const [calendarView, setCalendarView] = useState<"day" | "week" | "month">("day");
   const [quickSlotsOpen, setQuickSlotsOpen] = useState(true);
+  const [expandedWorkspace, setExpandedWorkspace] = useState<"calendar" | "setup" | "date" | "reason" | null>(null);
   const [notice, setNotice] = useState("Ready to create appointment.");
   const [isSaving, setIsSaving] = useState(false);
   const [createdAppointmentNumber, setCreatedAppointmentNumber] = useState<string | null>(null);
@@ -1015,7 +1083,13 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
 
   return (
     <AppointmentConsoleShell>
-      <form className="appointment-new-calendar" onSubmit={(event) => void createAppointment(event)}>
+      <form
+        className={[
+          "appointment-new-calendar",
+          expandedWorkspace ? `appointment-new-expanded-${expandedWorkspace}` : ""
+        ].filter(Boolean).join(" ")}
+        onSubmit={(event) => void createAppointment(event)}
+      >
         <header className="appointment-new-header">
           <div>
             <h1>New Appointment</h1>
@@ -1041,7 +1115,11 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
 
         <div className="appointment-new-layout">
           <aside className="appointment-booking-rail">
-            <section className="mini-calendar">
+            <section
+              className={expandedWorkspace === "date" ? "mini-calendar appointment-workspace-expanded" : "mini-calendar"}
+              onClick={() => setExpandedWorkspace("date")}
+              onFocusCapture={() => setExpandedWorkspace("date")}
+            >
               <header>
                 <button aria-label="Previous month" onClick={() => updateField("localDate", addMonths(form.localDate, -1))} type="button"><ChevronLeft /></button>
                 <strong>{monthLabel(form.localDate)}</strong>
@@ -1050,7 +1128,11 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
               <div className="weekdays">{["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day) => <span key={day}>{day}</span>)}</div>
               <div className="days">{monthCells.map((cell) => <button className={[cell.selected ? "selected" : "", cell.muted ? "muted" : ""].filter(Boolean).join(" ")} key={cell.dateKey} onClick={() => updateField("localDate", cell.dateKey)} type="button">{cell.day}</button>)}</div>
             </section>
-            <section className="appointment-setup">
+            <section
+              className={expandedWorkspace === "setup" ? "appointment-setup appointment-workspace-expanded" : "appointment-setup"}
+              onClick={() => setExpandedWorkspace("setup")}
+              onFocusCapture={() => setExpandedWorkspace("setup")}
+            >
               <h2>Appointment Setup</h2>
               <label>
                 <span>Customer search</span>
@@ -1083,7 +1165,11 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
               <label>
                 <span>Purpose</span>
                 <select onChange={(event) => changePurpose(event.target.value)} value={selectedPurposeCode}>
-                  {purposeOptions.map((purpose) => <option key={purpose.value} value={purpose.value}>{purpose.label}</option>)}
+                  {appointmentPurposeGroups.map((group) => (
+                    <optgroup key={group.label} label={group.label}>
+                      {group.options.map((purpose) => <option key={purpose.value} value={purpose.value}>{purpose.label}</option>)}
+                    </optgroup>
+                  ))}
                 </select>
               </label>
               <label>
@@ -1102,7 +1188,12 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
               </label>
               <label>
                 <span>Reason / notes</span>
-                <textarea onChange={(event) => updateField("reason", event.target.value)} placeholder="Example: customer called about title paperwork, daily rental, repair status, sales visit, payment, or another issue." value={form.reason} />
+                <textarea
+                  onFocus={() => setExpandedWorkspace("reason")}
+                  onChange={(event) => updateField("reason", event.target.value)}
+                  placeholder="Example: customer called about title paperwork, daily rental, repair status, sales visit, payment, or another issue."
+                  value={form.reason}
+                />
               </label>
               <div className="setup-capacity">
                 <strong>Capacity: check before committing</strong>
@@ -1113,7 +1204,11 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
             </section>
           </aside>
 
-          <section className="appointment-calendar-surface">
+          <section
+            className={expandedWorkspace === "calendar" ? "appointment-calendar-surface appointment-workspace-expanded" : "appointment-calendar-surface"}
+            onClick={() => setExpandedWorkspace("calendar")}
+            onFocusCapture={() => setExpandedWorkspace("calendar")}
+          >
             <header>
               <div>{(["day", "week", "month"] as const).map((view) => <button className={calendarView === view ? "active" : ""} key={view} onClick={() => setCalendarView(view)} type="button">{view[0].toUpperCase() + view.slice(1)}</button>)}</div>
               <nav>
@@ -1225,7 +1320,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
             )}
           </section>
 
-          <aside className="appointment-summary">
+          <aside className={expandedWorkspace === "reason" ? "appointment-summary appointment-workspace-expanded" : "appointment-summary"}>
             <section className="appointment-panel">
               <header><strong>Appointment Summary</strong><b>Recommended</b></header>
               <dl>
@@ -1236,7 +1331,10 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
                 <div><dt>Advisor / Owner</dt><dd>{form.advisor}</dd></div>
                 <div><dt>Transportation</dt><dd>{form.transportation}</dd></div>
               </dl>
-              <label className="appointment-summary-reason">
+              <label
+                className={expandedWorkspace === "reason" ? "appointment-summary-reason appointment-summary-reason-expanded" : "appointment-summary-reason"}
+                onFocusCapture={() => setExpandedWorkspace("reason")}
+              >
                 <span>Appointment reason</span>
                 <textarea onChange={(event) => updateField("reason", event.target.value)} placeholder="Example: customer called about title paperwork, repair status, sales visit, payment, or another issue." value={form.reason} />
               </label>

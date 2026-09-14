@@ -82,6 +82,15 @@ describe("appointment board shell", () => {
     expect(markup).toContain("New Appointment");
     expect(markup).toContain("Total Appointments");
     expect(markup).toContain("Service / Repair");
+    expect(markup).toContain("Business Appointment");
+    expect(markup).toContain("Banker / Lender");
+    expect(markup).toContain("Insurance");
+    expect(markup).toContain("Licensing / Permit");
+    expect(markup).toContain("Phone / Utility Company");
+    expect(markup).toContain("Administrative / Managerial");
+    expect(markup).toContain("Edit appointment");
+    expect(markup).toContain("Cancel appointment");
+    expect(markup).toContain("Show Cancelled");
     expect(markup).toContain("Linked Tasks");
     expect(markup).toContain("Enterprise Controls");
     expect(markup).toContain("Upcoming Appointments");
@@ -112,7 +121,8 @@ describe("appointment board shell", () => {
     expect(markup).toContain("Export preview");
     expect(markup).toContain("Review snapshot");
     expect(markup).toContain("Review freshness");
-    expect(markup).toContain("Cross-Appointment Search");
+    expect(markup).toContain("Appointment Activity Log");
+    expect(markup).toContain("Activity Log");
     expect(markup).toContain("Search scope");
     expect(markup).toContain("Saved Views &amp; Subscriptions");
     expect(markup).toContain("Save current view");

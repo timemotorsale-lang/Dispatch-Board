@@ -42,13 +42,28 @@ type AppointmentCategory =
   | "customer"
   | "dmv"
   | "collections"
+  | "finance"
+  | "banking"
+  | "insurance"
+  | "licensing"
   | "inventory"
   | "marketing"
+  | "rental"
+  | "leasing"
+  | "warranty"
+  | "business"
+  | "vendor"
+  | "facility"
+  | "administration"
+  | "utilities"
+  | "compliance"
+  | "staff"
   | "general";
 
 type AppointmentStatus =
   | "draft"
   | "confirmed"
+  | "cancelled"
   | "checked-in"
   | "in-progress"
   | "no-show"
@@ -68,6 +83,14 @@ type DraftAppointmentForm = {
   localDate: string;
   startTime: string;
   durationMinutes: number;
+  reason: string;
+};
+
+type EditAppointmentForm = {
+  category: AppointmentCategory;
+  title: string;
+  customer: string;
+  vehicle: string;
   reason: string;
 };
 
@@ -300,6 +323,7 @@ type AppointmentReportingReadModel = {
 
 type AppointmentCommandCenterSearchPreset =
   | "all"
+  | "activity-log"
   | "breached-sla"
   | "escalated"
   | "snoozed"
@@ -860,6 +884,7 @@ type AppointmentReadModel = {
   id: string;
   appointmentNumber: string;
   title: string;
+  category: string | null;
   sourceReference: string | null;
   schedulingTimezone: string;
   startsAt: string | null;
@@ -1590,10 +1615,35 @@ const categoryMeta: Record<AppointmentCategory, { label: string; className: stri
   customer: { label: "Customer Issue", className: "appointment-kind-customer" },
   dmv: { label: "Documentation / DMV", className: "appointment-kind-dmv" },
   collections: { label: "Collections / Payment", className: "appointment-kind-collections" },
+  finance: { label: "Finance / Credit", className: "appointment-kind-collections" },
+  banking: { label: "Banker / Lender", className: "appointment-kind-collections" },
+  insurance: { label: "Insurance", className: "appointment-kind-customer" },
+  licensing: { label: "Licensing / Permit", className: "appointment-kind-dmv" },
   inventory: { label: "Inventory / Vendor", className: "appointment-kind-inventory" },
   marketing: { label: "Marketing / Listing", className: "appointment-kind-marketing" },
+  rental: { label: "Rental / Loaner", className: "appointment-kind-delivery" },
+  leasing: { label: "Leasing", className: "appointment-kind-sales" },
+  warranty: { label: "Warranty", className: "appointment-kind-service" },
+  business: { label: "Business Appointment", className: "appointment-kind-general" },
+  vendor: { label: "Vendor / Partner", className: "appointment-kind-inventory" },
+  facility: { label: "Facility / Property", className: "appointment-kind-inventory" },
+  administration: { label: "Administrative / Managerial", className: "appointment-kind-general" },
+  utilities: { label: "Phone / Utility Company", className: "appointment-kind-general" },
+  compliance: { label: "Legal / Compliance", className: "appointment-kind-dmv" },
+  staff: { label: "Staff / Training", className: "appointment-kind-general" },
   general: { label: "Other / General", className: "appointment-kind-general" }
 };
+
+const appointmentCategoryGroups: Array<{ label: string; categories: AppointmentCategory[] }> = [
+  { label: "Customer & Follow-up", categories: ["customer", "general"] },
+  { label: "Sales & Revenue", categories: ["sales", "business"] },
+  { label: "Finance, Banking & Payments", categories: ["finance", "banking", "collections"] },
+  { label: "Insurance, Title, Licensing & Permits", categories: ["insurance", "dmv", "licensing"] },
+  { label: "Service, Warranty & Vehicle Care", categories: ["service", "warranty"] },
+  { label: "Rental, Leasing & Delivery", categories: ["rental", "leasing", "delivery"] },
+  { label: "Business, Vendor & Operations", categories: ["vendor", "inventory", "marketing", "facility"] },
+  { label: "Administration, Management & Compliance", categories: ["administration", "utilities", "compliance", "staff"] }
+];
 
 function buildEmptyAppointment(dateKey: string, timezone: string): Appointment {
   return {
@@ -2412,6 +2462,91 @@ export function buildAppointmentAuditTimeline(input: {
     occurredAtLabel: appointmentAuditTimestampLabel(appointment, -45)
   });
 
+  if (appointment.status === "cancelled" || appointment.bookingStatus === "CANCELLED") {
+    events.push({
+      id: `${appointment.id}-cancelled`,
+      appointmentId: appointment.id,
+      lane: "appointment",
+      tone: "red",
+      title: "Appointment cancelled",
+      detail: `${appointment.title} for ${appointment.customer} was removed from the active schedule without deleting the appointment record.`,
+      actor: appointment.staffName ?? "Appointment staff",
+      occurredAtLabel: appointmentAuditTimestampLabel(appointment, 0)
+    });
+  } else if (appointment.bookingStatus === "COMPLETED") {
+    events.push({
+      id: `${appointment.id}-completed`,
+      appointmentId: appointment.id,
+      lane: "appointment",
+      tone: "green",
+      title: "Appointment completed",
+      detail: appointment.outcomeNotes?.trim()
+        ? `Completed with outcome: ${appointment.outcomeNotes.trim()}`
+        : `${appointment.title} was completed and remains visible for activity review.`,
+      actor: appointment.staffName ?? "Appointment staff",
+      occurredAtLabel: appointmentAuditTimestampLabel(appointment, appointment.durationMinutes)
+    });
+  } else if (appointment.status === "no-show" || appointment.attendanceStatus === "NO_SHOW") {
+    events.push({
+      id: `${appointment.id}-no-show`,
+      appointmentId: appointment.id,
+      lane: "appointment",
+      tone: "red",
+      title: "No-show recorded",
+      detail: `${appointment.customer} was marked no-show and should be reviewed for recovery or follow-up.`,
+      actor: appointment.staffName ?? "Appointment staff",
+      occurredAtLabel: appointmentAuditTimestampLabel(appointment, appointment.durationMinutes)
+    });
+  } else if (appointment.status === "in-progress" || appointment.executionStatus === "IN_PROGRESS" || appointment.executionStatus === "WAITING") {
+    events.push({
+      id: `${appointment.id}-in-progress`,
+      appointmentId: appointment.id,
+      lane: "appointment",
+      tone: "amber",
+      title: "Appointment in progress",
+      detail: `${appointment.title} is actively being worked and remains visible in the appointment activity log.`,
+      actor: appointment.staffName ?? "Appointment staff",
+      occurredAtLabel: appointmentAuditTimestampLabel(appointment, 10)
+    });
+  } else if (appointment.status === "checked-in" || appointment.attendanceStatus === "CHECKED_IN") {
+    events.push({
+      id: `${appointment.id}-checked-in`,
+      appointmentId: appointment.id,
+      lane: "appointment",
+      tone: "blue",
+      title: "Customer checked in",
+      detail: `${appointment.customer} checked in for ${appointment.title}.`,
+      actor: appointment.staffName ?? "Appointment staff",
+      occurredAtLabel: appointmentAuditTimestampLabel(appointment, 0)
+    });
+  } else if (appointment.status === "confirmed" || appointment.confirmation.toLowerCase() === "confirmed") {
+    events.push({
+      id: `${appointment.id}-confirmed`,
+      appointmentId: appointment.id,
+      lane: "appointment",
+      tone: "green",
+      title: "Appointment confirmed",
+      detail: `${appointment.title} for ${appointment.customer} is confirmed on the active schedule.`,
+      actor: appointment.staffName ?? "Appointment staff",
+      occurredAtLabel: appointmentAuditTimestampLabel(appointment, -20)
+    });
+  }
+
+  if (appointment.needsFollowUp || appointment.status === "follow-up") {
+    events.push({
+      id: `${appointment.id}-follow-up`,
+      appointmentId: appointment.id,
+      lane: "appointment",
+      tone: "purple",
+      title: "Follow-up required",
+      detail: appointment.followUpNotes?.trim()
+        ? `Follow-up note: ${appointment.followUpNotes.trim()}`
+        : `${appointment.customer} needs an appointment follow-up or next-step owner.`,
+      actor: appointment.staffName ?? "Appointment staff",
+      occurredAtLabel: appointmentAuditTimestampLabel(appointment, appointment.durationMinutes)
+    });
+  }
+
   if (appointment.automationExecutions && appointment.automationExecutions.length > 0) {
     for (const execution of appointment.automationExecutions.slice(0, 2)) {
       events.push({
@@ -2902,7 +3037,7 @@ export function buildAppointmentCommandCenterSearchResults(input: {
   );
 
   const appointmentResults =
-    scope === "timeline"
+    scope === "timeline" || preset === "activity-log"
       ? []
       : workbenchItems
           .filter((item) => {
@@ -2975,6 +3110,22 @@ export function buildAppointmentCommandCenterSearchResults(input: {
       ? []
       : allTimelineEvents
           .filter((event) => {
+            if (preset === "activity-log") {
+              const activityText = `${event.title} ${event.detail}`.toLowerCase();
+              return [
+                "cancel",
+                "restore",
+                "edit",
+                "reschedul",
+                "schedule",
+                "confirm",
+                "check",
+                "no-show",
+                "complete",
+                "outcome"
+              ].some((keyword) => activityText.includes(keyword));
+            }
+
             if (preset === "manager-activity") {
               return event.lane === "manager";
             }
@@ -5041,6 +5192,7 @@ function firstDateOfMonthKey(dateKey: string) {
 
 function buildAppointmentReadQuery(input: {
   dateKey: string;
+  includeCancelled?: boolean;
   locationId: string;
   timezone: string;
   viewMode: ViewMode;
@@ -5057,6 +5209,10 @@ function buildAppointmentReadQuery(input: {
     windowStart: localDateTimeToMinneapolisIso(windowStartDateKey, "00:00", input.timezone),
     windowEnd: localDateTimeToMinneapolisIso(windowEndDateKey, "00:00", input.timezone)
   });
+
+  if (input.includeCancelled) {
+    params.set("includeCancelled", "true");
+  }
 
   return params.toString();
 }
@@ -5306,6 +5462,10 @@ function getMinutesInTimezone(value: string | null, timezone: string) {
 }
 
 function resolveStatus(appointment: AppointmentReadModel): AppointmentStatus {
+  if (appointment.bookingStatus === "CANCELLED") {
+    return "cancelled";
+  }
+
   if (appointment.bookingStatus === "DRAFT" || appointment.bookingStatus === "PENDING_APPROVAL") {
     return "draft";
   }
@@ -5333,25 +5493,63 @@ function resolveStatus(appointment: AppointmentReadModel): AppointmentStatus {
 }
 
 function resolveCategory(appointment: AppointmentReadModel): AppointmentCategory {
+  const savedCategory = appointment.category?.toLowerCase().trim();
+
+  if (savedCategory && savedCategory in categoryMeta) {
+    return savedCategory as AppointmentCategory;
+  }
+
   const title = appointment.title.toLowerCase();
 
   if (title.includes("service") || title.includes("repair") || title.includes("oil")) {
     return "service";
   }
 
+  if (title.includes("warranty")) {
+    return "warranty";
+  }
+
   if (title.includes("delivery")) {
     return "delivery";
+  }
+
+  if (title.includes("rental") || title.includes("loaner")) {
+    return "rental";
+  }
+
+  if (title.includes("lease") || title.includes("leasing")) {
+    return "leasing";
   }
 
   if (title.includes("dmv") || title.includes("title") || title.includes("registration") || title.includes("document")) {
     return "dmv";
   }
 
+  if (title.includes("license") || title.includes("licensing") || title.includes("permit")) {
+    return "licensing";
+  }
+
+  if (title.includes("insurance") || title.includes("binder")) {
+    return "insurance";
+  }
+
+  if (title.includes("bank") || title.includes("banker") || title.includes("lender")) {
+    return "banking";
+  }
+
+  if (title.includes("finance") || title.includes("credit") || title.includes("accounting")) {
+    return "finance";
+  }
+
   if (title.includes("collection") || title.includes("payment")) {
     return "collections";
   }
 
-  if (title.includes("inventory") || title.includes("vendor")) {
+  if (title.includes("vendor") || title.includes("partner")) {
+    return "vendor";
+  }
+
+  if (title.includes("inventory") || title.includes("parts")) {
     return "inventory";
   }
 
@@ -5359,11 +5557,35 @@ function resolveCategory(appointment: AppointmentReadModel): AppointmentCategory
     return "marketing";
   }
 
+  if (title.includes("facility") || title.includes("property")) {
+    return "facility";
+  }
+
+  if (title.includes("phone company") || title.includes("utility")) {
+    return "utilities";
+  }
+
+  if (title.includes("admin") || title.includes("managerial") || title.includes("manager")) {
+    return "administration";
+  }
+
+  if (title.includes("legal") || title.includes("compliance")) {
+    return "compliance";
+  }
+
+  if (title.includes("staff") || title.includes("training")) {
+    return "staff";
+  }
+
   if (title.includes("issue") || title.includes("complaint")) {
     return "customer";
   }
 
-  if (title.includes("test drive") || title.includes("sales")) {
+  if (title.includes("business")) {
+    return "business";
+  }
+
+  if (title.includes("test drive") || title.includes("sales") || title.includes("deal")) {
     return "sales";
   }
 
@@ -5724,6 +5946,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
   const [staffFilter, setStaffFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<AppointmentStatus | "all">("all");
   const [conflictsOnly, setConflictsOnly] = useState(false);
+  const [includeCancelledAppointments, setIncludeCancelledAppointments] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("day");
   const [boardDateKey, setBoardDateKey] = useState(todayDateKey);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
@@ -5734,6 +5957,9 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
   const workspaceDrawerRef = useRef<HTMLElement | null>(null);
   const initialFocusAppliedRef = useRef(false);
   const [draftOpen, setDraftOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [operationalCommandOpen, setOperationalCommandOpen] = useState<OperationalCommand | null>(null);
   const [noShowOpen, setNoShowOpen] = useState(false);
   const [isCommandPending, setIsCommandPending] = useState(false);
   const [appointmentStatusOverrides, setAppointmentStatusOverrides] = useState<Record<string, AppointmentStatus>>({});
@@ -5760,6 +5986,15 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
     durationMinutes: 60,
     reason: ""
   });
+  const [editAppointment, setEditAppointment] = useState<EditAppointmentForm>({
+    category: "service",
+    title: "Service / Repair",
+    customer: "",
+    vehicle: "",
+    reason: ""
+  });
+  const [cancelAppointmentReason, setCancelAppointmentReason] = useState("");
+  const [cancelAppointmentConfirmed, setCancelAppointmentConfirmed] = useState(false);
   const [scheduleDraft, setScheduleDraft] = useState<ScheduleDraftForm>({
     localDate: todayDateKey,
     startTime: "10:00",
@@ -5769,6 +6004,8 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
   const [liveAppointments, setLiveAppointments] = useState<Appointment[]>([]);
   const [isLiveLoading, setIsLiveLoading] = useState(true);
   const [isDraftSaving, setIsDraftSaving] = useState(false);
+  const [isEditSaving, setIsEditSaving] = useState(false);
+  const [isCancelSaving, setIsCancelSaving] = useState(false);
   const [scheduleReadiness, setScheduleReadiness] = useState<AppointmentScheduleReadiness | null>(null);
   const [isReadinessLoading, setIsReadinessLoading] = useState(false);
   const [staffConflictPreview, setStaffConflictPreview] = useState<AppointmentStaffConflictPreview | null>(null);
@@ -5879,6 +6116,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
       const response = await fetch(
         `/api/appointments?${buildAppointmentReadQuery({
           dateKey: boardDateKey,
+          includeCancelled: includeCancelledAppointments,
           locationId: boardLocationId,
           timezone: boardTimezone,
           viewMode
@@ -6015,7 +6253,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
     return () => {
       isActive = false;
     };
-  }, [boardDateKey, boardLocationId, boardTimezone, viewMode]);
+  }, [boardDateKey, boardLocationId, boardTimezone, includeCancelledAppointments, viewMode]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -7254,14 +7492,20 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
       case "schedule-draft":
         void submitOperationalCommand("SCHEDULE");
         return;
-      case "check-in":
-        void submitOperationalCommand("CHECK_IN");
+        case "check-in":
+        setOperationalCommandOpen("CHECK_IN");
+        setEditOpen(false);
+        setCancelOpen(false);
         return;
       case "start":
-        void submitOperationalCommand("START");
+        setOperationalCommandOpen("START");
+        setEditOpen(false);
+        setCancelOpen(false);
         return;
       case "finish":
-        void submitOperationalCommand("FINISH");
+        setOperationalCommandOpen("FINISH");
+        setEditOpen(false);
+        setCancelOpen(false);
         return;
       case "outcome":
         focusAppointmentDetailSection("appointment-detail-outcome");
@@ -8998,7 +9242,10 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
 
   function applyCommandCenterSearchPreset(preset: AppointmentCommandCenterSearchPreset) {
     setCommandCenterSearchPreset(preset);
-    if (preset === "manager-activity") {
+    if (preset === "activity-log") {
+      setCommandCenterSearchScope("timeline");
+      setAuditTimelineFilter("all");
+    } else if (preset === "manager-activity") {
       setCommandCenterSearchScope("timeline");
       setAuditTimelineFilter("manager");
     } else {
@@ -9017,6 +9264,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
       if (eventMatch) {
         setAuditTimelineFilter(eventMatch.lane);
       }
+      focusAppointmentDetailSection("appointment-audit-timeline");
     } else {
       setAuditTimelineFilter("all");
     }
@@ -9711,6 +9959,16 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
     { label: "Checked In", value: dayScheduledAppointments.filter((appointment) => appointment.status === "checked-in").length, status: "checked-in" as const, tone: "blue" },
     { label: "In Progress", value: dayScheduledAppointments.filter((appointment) => appointment.status === "in-progress").length, status: "in-progress" as const, tone: "orange" },
     { label: "No Show", value: dayScheduledAppointments.filter((appointment) => appointment.status === "no-show").length, status: "no-show" as const, tone: "red" },
+    ...(includeCancelledAppointments
+      ? [
+          {
+            label: "Cancelled",
+            value: dayScheduledAppointments.filter((appointment) => appointment.status === "cancelled").length,
+            status: "cancelled" as const,
+            tone: "red"
+          }
+        ]
+      : []),
     { label: "Needs Follow-Up", value: dayScheduledAppointments.filter((appointment) => appointment.needsFollowUp || appointment.status === "follow-up").length, status: "follow-up" as const, tone: "purple" }
   ];
   const activeBusinessDate = formatDateKeyLabel(boardDateKey, boardTimezone, {
@@ -10027,6 +10285,208 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
       );
     } finally {
       setIsDraftSaving(false);
+    }
+  }
+
+  function openSelectedAppointmentEdit() {
+    if (selectedAppointment.dataSource !== "live" || !selectedAppointment.recordId) {
+      setActionNotice("Only persisted live appointments can be edited.");
+      return;
+    }
+
+    setEditAppointment({
+      category: selectedAppointment.category,
+      title: selectedAppointment.title,
+      customer: selectedAppointment.customer === "Internal / No customer" ? "" : selectedAppointment.customer,
+      vehicle: selectedAppointment.vehicle === "No vehicle attached" ? "" : selectedAppointment.vehicle,
+      reason: `Update appointment details for ${selectedAppointment.id}.`
+    });
+    setEditOpen(true);
+    setCancelOpen(false);
+  }
+
+  async function submitAppointmentEdit() {
+    if (!selectedAppointment.recordId || !selectedAppointment.recordVersion) {
+      setActionNotice("Only persisted live appointments can be edited.");
+      return;
+    }
+
+    if (!editAppointment.title.trim()) {
+      setActionNotice("Appointment title is required before saving edits.");
+      return;
+    }
+
+    if (!editAppointment.reason.trim()) {
+      setActionNotice("Appointment edits require a documented reason.");
+      return;
+    }
+
+    setIsEditSaving(true);
+
+    try {
+      const idempotencyKey = createAppointmentActionIdentifier("edit", selectedAppointment.recordId);
+      const response = await fetch("/api/appointments/commands", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          appointmentId: selectedAppointment.recordId,
+          commandType: "EDIT",
+          expectedAppointmentVersion: selectedAppointment.recordVersion,
+          idempotencyKey,
+          correlationId: idempotencyKey,
+          payload: {
+            title: editAppointment.title.trim(),
+            purposeSnapshot: {
+              category: editAppointment.category,
+              categoryLabel: categoryMeta[editAppointment.category].label,
+              reason: editAppointment.reason.trim()
+            },
+            customerSnapshot: editAppointment.customer.trim()
+              ? {
+                  displayName: editAppointment.customer.trim()
+                }
+              : null,
+            vehicleSnapshot: editAppointment.vehicle.trim()
+              ? {
+                  displayName: editAppointment.vehicle.trim(),
+                  vehicleNumber: editAppointment.vehicle.trim()
+                }
+              : null,
+            reasonCode: "DETAILS_EDITED",
+            reasonNotes: editAppointment.reason.trim()
+          }
+        })
+      });
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok || !result?.accepted) {
+        throw new Error(result?.error || "Unable to save appointment edits.");
+      }
+
+      setEditOpen(false);
+      setSelectedId(selectedAppointment.id);
+      setActionNotice(`Appointment ${selectedAppointment.id} was edited. Reloading the live board...`);
+      await loadLiveAppointments();
+    } catch (error) {
+      setActionNotice(error instanceof Error ? error.message : "Unable to save appointment edits.");
+    } finally {
+      setIsEditSaving(false);
+    }
+  }
+
+  async function submitAppointmentCancel() {
+    if (!selectedAppointment.recordId || !selectedAppointment.recordVersion) {
+      setActionNotice("Only persisted live appointments can be cancelled.");
+      return;
+    }
+
+    if (!cancelAppointmentReason.trim()) {
+      setActionNotice("Cancelling an appointment requires a reason.");
+      return;
+    }
+
+    if (!cancelAppointmentConfirmed) {
+      setActionNotice("Confirm that this is the exact appointment you want to cancel.");
+      return;
+    }
+
+    setIsCancelSaving(true);
+
+    try {
+      const idempotencyKey = createAppointmentActionIdentifier("cancel", selectedAppointment.recordId);
+      const response = await fetch("/api/appointments/commands", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          appointmentId: selectedAppointment.recordId,
+          commandType: "CANCEL",
+          expectedAppointmentVersion: selectedAppointment.recordVersion,
+          idempotencyKey,
+          correlationId: idempotencyKey,
+          payload: {
+            reasonCode: "DUPLICATE_OR_NO_LONGER_NEEDED",
+            reasonNotes: cancelAppointmentReason.trim(),
+            followUpDispositionCode: "NO_FOLLOW_UP_REQUIRED"
+          }
+        })
+      });
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok || !result?.accepted) {
+        throw new Error(result?.error || "Unable to cancel the appointment.");
+      }
+
+      setCancelOpen(false);
+      setCancelAppointmentReason("");
+      setCancelAppointmentConfirmed(false);
+      setSelectedId("");
+      setActionNotice(`Appointment ${selectedAppointment.id} was cancelled and removed from the active schedule.`);
+      await loadLiveAppointments();
+    } catch (error) {
+      setActionNotice(error instanceof Error ? error.message : "Unable to cancel the appointment.");
+    } finally {
+      setIsCancelSaving(false);
+    }
+  }
+
+  async function submitAppointmentRestore() {
+    if (!selectedAppointment.recordId || !selectedAppointment.recordVersion) {
+      setActionNotice("Only persisted live appointments can be restored.");
+      return;
+    }
+
+    if (selectedAppointment.bookingStatus !== "CANCELLED") {
+      setActionNotice("Only cancelled appointments can be restored.");
+      return;
+    }
+
+    if (!selectedAppointment.startsAtIso || !selectedAppointment.endsAtIso) {
+      setActionNotice("This cancelled appointment has no saved time window to restore.");
+      return;
+    }
+
+    setIsCancelSaving(true);
+
+    try {
+      const idempotencyKey = createAppointmentActionIdentifier("restore", selectedAppointment.recordId);
+      const response = await fetch("/api/appointments/commands", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          appointmentId: selectedAppointment.recordId,
+          commandType: "SCHEDULE",
+          expectedAppointmentVersion: selectedAppointment.recordVersion,
+          idempotencyKey,
+          correlationId: idempotencyKey,
+          payload: {
+            startsAt: selectedAppointment.startsAtIso,
+            endsAt: selectedAppointment.endsAtIso,
+            schedulingTimezone: selectedAppointment.schedulingTimezone ?? boardTimezone,
+            reasonCode: "CANCELLATION_REVERSED",
+            reasonNotes: "Restore appointment that was cancelled by mistake."
+          }
+        })
+      });
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok || !result?.accepted) {
+        throw new Error(result?.error || "Unable to restore the cancelled appointment.");
+      }
+
+      setActionNotice(`Appointment ${selectedAppointment.id} was restored to the active schedule.`);
+      await loadLiveAppointments();
+    } catch (error) {
+      setActionNotice(
+        error instanceof Error ? error.message : "Unable to restore the cancelled appointment."
+      );
+    } finally {
+      setIsCancelSaving(false);
     }
   }
 
@@ -11951,14 +12411,15 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
                       focusWorkspaceSurface({
                         tab: "intelligence",
                         targetId: "appointment-command-search",
-                        notice: "Opened cross-appointment search."
+                        notice: "Opened the appointment activity log.",
+                        onFocus: () => applyCommandCenterSearchPreset("activity-log")
                       })
                     }
                     type="button"
                   >
-                    <strong>Cross-Board Search</strong>
-                    <small>Find appointments, timeline events, and queue work</small>
-                    <span>Saved enterprise presets</span>
+                    <strong>Activity Log</strong>
+                    <small>Find cancellations, restores, edits, and queue work</small>
+                    <span>{allCommandCenterAuditTimelineEvents.length} indexed events</span>
                   </button>
                   <button
                     className="appointment-workspace-action"
@@ -12166,6 +12627,18 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
           >
             <Filter size={15} aria-hidden="true" />
             Exceptions
+          </button>
+          <button
+            aria-label={includeCancelledAppointments ? "Hide cancelled appointments" : "Show cancelled appointments"}
+            className={includeCancelledAppointments ? "appointment-filter-toggle appointment-filter-toggle-active" : "appointment-filter-toggle"}
+            type="button"
+            onClick={() => {
+              setIncludeCancelledAppointments((value) => !value);
+              setStatusFilter("all");
+              setSelectedId("");
+            }}
+          >
+            {includeCancelledAppointments ? "Hide Cancelled" : "Show Cancelled"}
           </button>
         </div>
       </div>
@@ -14549,10 +15022,10 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
           <section className="appointment-command-search-card" aria-labelledby="appointment-command-search">
             <div className="appointment-section-heading">
               <div>
-                <strong id="appointment-command-search">Cross-Appointment Search</strong>
+                <strong id="appointment-command-search">Appointment Activity Log</strong>
                 <p>
-                  Search queue items, manager actions, and timeline history across the full visible
-                  command-center scope.
+                  Search appointment actions, cancellations, restores, edits, manager actions, and
+                  timeline history across the visible board scope.
                 </p>
               </div>
               <span>{commandCenterSearchResultCountLabel}</span>
@@ -14565,6 +15038,13 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
                 onClick={() => applyCommandCenterSearchPreset("all")}
               >
                 All
+              </button>
+              <button
+                className={commandCenterSearchPreset === "activity-log" ? "appointment-command-search-preset appointment-command-search-preset-active" : "appointment-command-search-preset"}
+                type="button"
+                onClick={() => applyCommandCenterSearchPreset("activity-log")}
+              >
+                Activity Log
               </button>
               <button
                 className={commandCenterSearchPreset === "breached-sla" ? "appointment-command-search-preset appointment-command-search-preset-active" : "appointment-command-search-preset"}
@@ -14608,7 +15088,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
                 <Search size={16} aria-hidden="true" />
                 <input
                   aria-label="Search command center items"
-                  placeholder="Search appointment ID, customer, vehicle, owner, queue, or timeline event..."
+                  placeholder="Search cancelled, restored, edited, customer, vehicle, staff, reason, or timeline event..."
                   type="search"
                   value={commandCenterSearchQuery}
                   onChange={(event) => setCommandCenterSearchQuery(event.target.value)}
@@ -14633,6 +15113,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
             <div className="appointment-command-search-summary">
               <span>{resolutionWorkbenchItems.length} indexed queue items</span>
               <span>{allCommandCenterAuditTimelineEvents.length} indexed timeline events</span>
+              <span>{dayScheduledAppointments.filter((appointment) => appointment.status === "cancelled").length} visible cancelled</span>
               <span>{selectedAppointment.id} currently focused</span>
             </div>
 
@@ -14650,7 +15131,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
                     <p>{result.detail}</p>
                     <div className="appointment-command-search-result-actions">
                       <button type="button" onClick={() => focusCommandCenterSearchResult(result)}>
-                        Open appointment
+                        {result.kind === "timeline" ? "Open activity" : "Open appointment"}
                       </button>
                     </div>
                   </article>
@@ -15559,7 +16040,15 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
 
         </div>
 
-        <aside className="appointment-detail-panel" aria-label="Appointment details">
+        <aside
+          className={
+            editOpen || cancelOpen
+              || operationalCommandOpen
+              ? "appointment-detail-panel appointment-detail-panel-expanded"
+              : "appointment-detail-panel"
+          }
+          aria-label="Appointment details"
+        >
           <div className="appointment-detail-header">
             <div className={`appointment-detail-icon ${categoryMeta[selectedAppointment.category].className}`}>
               <Users size={22} aria-hidden="true" />
@@ -15586,6 +16075,161 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
             <p><MessageCircle size={16} aria-hidden="true" />{selectedAppointment.complaint}</p>
           </div>
 
+          <div className="appointment-detail-actions">
+            <button
+              disabled={selectedAppointment.dataSource !== "live" || isEditSaving || isCancelSaving}
+              onClick={openSelectedAppointmentEdit}
+              type="button"
+            >
+              Edit appointment
+            </button>
+            {selectedAppointment.bookingStatus === "CANCELLED" ? (
+              <button
+                disabled={selectedAppointment.dataSource !== "live" || isEditSaving || isCancelSaving}
+                onClick={() => void submitAppointmentRestore()}
+                type="button"
+              >
+                {isCancelSaving ? "Restoring..." : "Restore appointment"}
+              </button>
+            ) : (
+              <button
+                className="appointment-danger-outline"
+                disabled={selectedAppointment.dataSource !== "live" || isEditSaving || isCancelSaving}
+                onClick={() => {
+                  setCancelOpen((current) => {
+                    const nextOpen = !current;
+                    if (nextOpen) {
+                      setCancelAppointmentConfirmed(false);
+                    }
+                    return nextOpen;
+                  });
+                  setEditOpen(false);
+                }}
+                type="button"
+              >
+                Cancel appointment
+              </button>
+            )}
+          </div>
+
+          {editOpen ? (
+            <div className="appointment-detail-section appointment-action-workspace" aria-label="Edit selected appointment">
+              <div className="appointment-action-workspace-heading">
+                <div>
+                  <span>Edit selected appointment</span>
+                  <strong>{selectedAppointment.title}</strong>
+                  <p>{appointmentTimeRangeLabel(selectedAppointment)} · {selectedAppointment.customer}</p>
+                </div>
+                <button disabled={isEditSaving} onClick={() => setEditOpen(false)} type="button">Close</button>
+              </div>
+              <div className="appointment-action-field-grid">
+                <label className="appointment-outcome-label">
+                  Category
+                  <select
+                    disabled={isEditSaving}
+                    onChange={(event) => {
+                      const category = event.target.value as AppointmentCategory;
+                      setEditAppointment((current) => ({
+                        ...current,
+                        category,
+                        title: current.title.trim() ? current.title : categoryMeta[category].label
+                      }));
+                    }}
+                    value={editAppointment.category}
+                  >
+                    {appointmentCategoryGroups.map((group) => (
+                      <optgroup key={group.label} label={group.label}>
+                        {group.categories.map((category) => (
+                          <option key={category} value={category}>{categoryMeta[category].label}</option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                </label>
+                <label className="appointment-outcome-label">
+                  Title
+                  <input
+                    disabled={isEditSaving}
+                    onChange={(event) => setEditAppointment((current) => ({ ...current, title: event.target.value }))}
+                    value={editAppointment.title}
+                  />
+                </label>
+                <label className="appointment-outcome-label">
+                  Customer
+                  <input
+                    disabled={isEditSaving}
+                    onChange={(event) => setEditAppointment((current) => ({ ...current, customer: event.target.value }))}
+                    value={editAppointment.customer}
+                  />
+                </label>
+                <label className="appointment-outcome-label">
+                  Vehicle / context
+                  <input
+                    disabled={isEditSaving}
+                    onChange={(event) => setEditAppointment((current) => ({ ...current, vehicle: event.target.value }))}
+                    value={editAppointment.vehicle}
+                  />
+                </label>
+              </div>
+              <label className="appointment-outcome-label">
+                Reason for edit
+                <textarea
+                  disabled={isEditSaving}
+                  onChange={(event) => setEditAppointment((current) => ({ ...current, reason: event.target.value }))}
+                  value={editAppointment.reason}
+                />
+              </label>
+              <div className="appointment-action-footer">
+                <p className="appointment-readiness-copy">
+                  This edit updates appointment category, title, customer, vehicle/context, and reason while keeping the audit trail.
+                </p>
+                <button disabled={isEditSaving} onClick={() => void submitAppointmentEdit()} type="button">
+                  {isEditSaving ? "Saving..." : "Save appointment changes"}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {cancelOpen ? (
+            <div className="appointment-detail-section appointment-action-workspace appointment-action-workspace-danger" aria-label="Cancel selected appointment">
+              <div className="appointment-action-workspace-heading">
+                <div>
+                  <span>Cancel selected appointment</span>
+                  <strong>{selectedAppointment.title}</strong>
+                  <p>{appointmentTimeRangeLabel(selectedAppointment)} · {selectedAppointment.customer}</p>
+                </div>
+                <button disabled={isCancelSaving} onClick={() => setCancelOpen(false)} type="button">Close</button>
+              </div>
+              <p className="appointment-readiness-copy">
+                Cancelling removes only this appointment from the active schedule while keeping the audit trail. Use Show Cancelled to restore it if cancelled by mistake.
+              </p>
+              <label className="appointment-outcome-label">
+                Cancellation reason
+                <textarea
+                  disabled={isCancelSaving}
+                  onChange={(event) => setCancelAppointmentReason(event.target.value)}
+                  placeholder="Example: Duplicate appointment for the same event."
+                  value={cancelAppointmentReason}
+                />
+              </label>
+              <label className="appointment-cancel-confirmation">
+                <input
+                  checked={cancelAppointmentConfirmed}
+                  disabled={isCancelSaving}
+                  onChange={(event) => setCancelAppointmentConfirmed(event.target.checked)}
+                  type="checkbox"
+                />
+                <span>I confirm this is the exact appointment to cancel.</span>
+              </label>
+              <div className="appointment-action-footer">
+                <span className="appointment-action-warning">This will not delete the record. It only moves this appointment into cancelled status.</span>
+                <button className="appointment-danger-action" disabled={isCancelSaving} onClick={() => void submitAppointmentCancel()} type="button">
+                  {isCancelSaving ? "Cancelling..." : "Cancel appointment"}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           {selectedAppointment.dataSource === "live" || selectedAppointment.dataSource === "empty" ? (
             <div className={`appointment-next-action-card appointment-next-action-${selectedAppointmentNextSafeAction.tone}`}>
               <span>{selectedAppointmentNextSafeAction.eyebrow}</span>
@@ -15598,6 +16242,52 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
               >
                 {isCommandPending || isOutcomeSaving ? "Working..." : selectedAppointmentNextSafeAction.actionLabel}
               </button>
+            </div>
+          ) : null}
+
+          {operationalCommandOpen ? (
+            <div className="appointment-detail-section appointment-action-workspace" aria-label="Execute selected appointment command">
+              <div className="appointment-action-workspace-heading">
+                <div>
+                  <span>Ready action</span>
+                  <strong>{operationalCommandLabel(operationalCommandOpen)}</strong>
+                  <p>{selectedAppointment.title} · {appointmentTimeRangeLabel(selectedAppointment)} · {selectedAppointment.customer}</p>
+                </div>
+                <button disabled={isCommandPending} onClick={() => setOperationalCommandOpen(null)} type="button">Close</button>
+              </div>
+              <div className="appointment-command-confirm-grid">
+                <article>
+                  <span>Appointment</span>
+                  <strong>{selectedAppointment.id}</strong>
+                  <p>{selectedAppointment.vehicle}</p>
+                </article>
+                <article>
+                  <span>Owner</span>
+                  <strong>{selectedStaff.name}</strong>
+                  <p>{selectedStaff.role}</p>
+                </article>
+                <article>
+                  <span>Status now</span>
+                  <strong>{statusLabel(selectedAppointment.status)}</strong>
+                  <p>{selectedAppointment.confirmation}</p>
+                </article>
+              </div>
+              <p className="appointment-readiness-copy">
+                Review this context before executing the command. The action is written through the live appointment command bridge and keeps appointment history auditable.
+              </p>
+              <div className="appointment-action-footer">
+                <span>Only execute this if the staff member is working the selected appointment.</span>
+                <button
+                  disabled={isCommandPending}
+                  onClick={() => {
+                    void submitOperationalCommand(operationalCommandOpen);
+                    setOperationalCommandOpen(null);
+                  }}
+                  type="button"
+                >
+                  {isCommandPending ? "Working..." : operationalCommandLabel(operationalCommandOpen)}
+                </button>
+              </div>
             </div>
           ) : null}
 
@@ -16660,8 +17350,12 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
                     }));
                   }}
                 >
-                  {Object.entries(categoryMeta).map(([key, value]) => (
-                    <option key={key} value={key}>{value.label}</option>
+                  {appointmentCategoryGroups.map((group) => (
+                    <optgroup key={group.label} label={group.label}>
+                      {group.categories.map((category) => (
+                        <option key={category} value={category}>{categoryMeta[category].label}</option>
+                      ))}
+                    </optgroup>
                   ))}
                 </select>
               </label>
