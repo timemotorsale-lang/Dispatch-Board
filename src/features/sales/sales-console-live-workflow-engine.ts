@@ -62,6 +62,7 @@ export type SalesConsoleLiveWorkItem = {
   contact: string;
   vehicle: string;
   stock: string;
+  revenueAmount: number;
   lane: string;
   contractLane: SalesConsoleRevenueLaneName;
   stage: string;
@@ -104,6 +105,17 @@ export type SalesConsoleLiveManagerQueue = {
   count: string;
   drilldowns: string[];
   algorithmSource: string;
+};
+
+export type SalesConsoleTrustedMetric = {
+  label: string;
+  value: string;
+  status: "Live" | "Read-only" | "Not wired";
+  source: string;
+  detail: string;
+  filter?: SalesWorkQueueGroup | "All Priorities";
+  lane?: SalesConsoleRevenueLaneName;
+  href: string;
 };
 
 export type SalesConsoleGuidedPathFactStatus = "Ready" | "Needs Review" | "Blocked" | "Source Missing";
@@ -152,6 +164,10 @@ export type SalesConsoleGuidedPath = {
     status: "Rule triggered" | "Not required";
     decision: string;
     href: string;
+    approvingRole: string;
+    requiredEvidence: string[];
+    allowedOutcomes: string[];
+    writeBack: string;
     rules: Array<{
       label: string;
       reason: string;
@@ -375,6 +391,7 @@ export const salesConsoleLiveWorkItems: SalesConsoleLiveWorkItem[] = rankSalesWo
     contact: source.contact,
     vehicle: source.vehicle,
     stock: source.stock,
+    revenueAmount: source.queueInput.revenueAmount,
     lane: source.lane,
     contractLane: source.contractLane,
     stage: source.stage,
@@ -422,6 +439,10 @@ const lifecycleDefinitions: Record<SalesConsoleLifecycleStage, { meaning: string
   }
 };
 
+function formatDollars(value: number) {
+  return `$${value.toLocaleString("en-US")}`;
+}
+
 const laneSpecificFactLabels: Record<SalesConsoleRevenueLaneName, string[]> = {
   "Inventory Cash Sale": ["Vehicle fit", "Trade or payment readiness", "Price path", "Closing blocker"],
   "Inventory BHPH Sale": ["Proof checklist", "Compliance blocker", "Finance readiness", "Manager review"],
@@ -430,6 +451,110 @@ const laneSpecificFactLabels: Record<SalesConsoleRevenueLaneName, string[]> = {
   "Daily Rental": ["Rental window", "Vehicle availability", "Checkout readiness", "Return follow-up"],
   "Warranty Product": ["Eligibility", "Authorization", "Required documents", "Product review"],
   "Financing Product": ["Credit application", "Missing finance facts", "Document handoff", "Product readiness"]
+};
+
+const laneEscalationContracts: Record<SalesConsoleRevenueLaneName, {
+  approvingRole: string;
+  requiredEvidence: string[];
+  outcomeWrittenBack: string;
+  triggers: Array<{
+    label: string;
+    matches(item: SalesConsoleLiveWorkItem): boolean;
+    reason(item: SalesConsoleLiveWorkItem): string;
+    source: string;
+  }>;
+}> = {
+  "Inventory Cash Sale": {
+    approvingRole: "Sales Manager",
+    requiredEvidence: ["Customer identity verified", "Trade/payment readiness", "Vehicle availability", "Proposed price path"],
+    outcomeWrittenBack: "Manager decision, blocker disposition, and next sales step are written to Customer 360 and the sales opportunity.",
+    triggers: [
+      {
+        label: "High-value opportunity with blocker",
+        matches: (item) => item.revenueAmount >= 25000 && item.blockers.length > 0,
+        reason: (item) => `${item.customer} has a ${formatDollars(item.revenueAmount)} opportunity with ${item.blockers.join(", ")} still unresolved.`,
+        source: "Revenue work queue + Sales workbench required facts"
+      }
+    ]
+  },
+  "Inventory BHPH Sale": {
+    approvingRole: "Sales Manager + Finance Owner",
+    requiredEvidence: ["Proof checklist", "Compliance blocker status", "Finance readiness", "Customer next step"],
+    outcomeWrittenBack: "Compliance disposition and approved next step are written to Customer 360 and the finance handoff record.",
+    triggers: [
+      {
+        label: "BHPH compliance blocker",
+        matches: (item) => item.blockers.length > 0 || /compliance|proof|pay stub/i.test(`${item.stage} ${item.nextAction}`),
+        reason: (item) => `${item.contractLane} cannot advance until proof/compliance blockers are reviewed.`,
+        source: "Revenue lane contract + Finance source context"
+      }
+    ]
+  },
+  "Inventory Lease-to-Own": {
+    approvingRole: "Sales Manager + Finance Owner",
+    requiredEvidence: ["Term structure", "Payment structure", "Approval readiness", "Contract blocker"],
+    outcomeWrittenBack: "Lease-to-own approval, redirect, or missing-info decision is written to Customer 360 and the lane record.",
+    triggers: [
+      {
+        label: "LTO structure blocker",
+        matches: (item) => item.blockers.length > 0 || /terms|payment|contract/i.test(`${item.stage} ${item.nextAction}`),
+        reason: () => "Lease-to-own terms require manager review before staff presents or advances structure.",
+        source: "Revenue lane contract"
+      }
+    ]
+  },
+  "Public Auto Repair": {
+    approvingRole: "Service Manager",
+    requiredEvidence: ["Estimate status", "Authorization status", "Appointment readiness", "Customer concern"],
+    outcomeWrittenBack: "Repair estimate decision or follow-up requirement is written to Customer 360 and service context.",
+    triggers: [
+      {
+        label: "Repair estimate aging",
+        matches: (item) => item.blockers.length > 0 || item.group === "Manager Review" || /disputed/i.test(item.reason),
+        reason: () => "Repair estimate or authorization needs manager attention before the customer follow-up ages further.",
+        source: "Repair lane source context"
+      }
+    ]
+  },
+  "Daily Rental": {
+    approvingRole: "Rental Manager",
+    requiredEvidence: ["Rental window", "Vehicle availability", "Checkout readiness", "Return follow-up"],
+    outcomeWrittenBack: "Rental exception decision is written to Customer 360 and rental operations context.",
+    triggers: [
+      {
+        label: "Rental availability exception",
+        matches: (item) => item.blockers.length > 0 || /availability|checkout|return/i.test(`${item.stage} ${item.nextAction}`),
+        reason: () => "Rental availability or checkout exception needs manager review before staff promises availability.",
+        source: "Rental lane source context"
+      }
+    ]
+  },
+  "Warranty Product": {
+    approvingRole: "Warranty Manager",
+    requiredEvidence: ["Eligibility status", "Authorization status", "Required documents", "Customer next step"],
+    outcomeWrittenBack: "Warranty eligibility or authorization decision is written to Customer 360 and warranty context.",
+    triggers: [
+      {
+        label: "Warranty authorization blocker",
+        matches: (item) => item.blockers.length > 0 || /authorization|eligibility|warranty/i.test(`${item.stage} ${item.nextAction}`),
+        reason: () => "Warranty eligibility or authorization must be reviewed before staff communicates approval language.",
+        source: "Warranty lane source context"
+      }
+    ]
+  },
+  "Financing Product": {
+    approvingRole: "Sales Manager + Finance Owner",
+    requiredEvidence: ["Credit application status", "Finance handoff blocker", "Customer consent", "Next required document"],
+    outcomeWrittenBack: "Finance blocker disposition and customer next step are written to Customer 360 and finance handoff context.",
+    triggers: [
+      {
+        label: "Finance handoff blocked",
+        matches: (item) => item.blockers.length > 0 || /credit|finance|bureau|app/i.test(`${item.stage} ${item.nextAction}`),
+        reason: (item) => `${item.customer}'s finance path is blocked by ${item.blockers.join(", ") || item.stage}.`,
+        source: "Finance handoff source context"
+      }
+    ]
+  }
 };
 
 const lanePrimaryTools: Record<SalesConsoleRevenueLaneName, string> = {
@@ -492,7 +617,18 @@ function salesWorkbenchManagerReviewHref(item: SalesConsoleLiveWorkItem) {
 
 export function evaluateSalesWorkbenchManagerEscalation(item: SalesConsoleLiveWorkItem): SalesConsoleGuidedPath["managerEscalation"] {
   const href = salesWorkbenchManagerReviewHref(item);
+  const laneContract = laneEscalationContracts[item.contractLane];
   const rules: SalesConsoleGuidedPath["managerEscalation"]["rules"] = [];
+
+  for (const trigger of laneContract.triggers) {
+    if (trigger.matches(item)) {
+      rules.push({
+        label: trigger.label,
+        reason: trigger.reason(item),
+        source: trigger.source
+      });
+    }
+  }
 
   if (item.blockers.length > 0) {
     rules.push({
@@ -505,7 +641,7 @@ export function evaluateSalesWorkbenchManagerEscalation(item: SalesConsoleLiveWo
   if (item.actionState === "Controlled Action") {
     rules.push({
       label: "Controlled action",
-      reason: "The next step is governed and should stay visible to a manager.",
+      reason: "The next step is governed and should stay visible for manager review only when paired with a lane rule or blocker.",
       source: "Sales action registry"
     });
   }
@@ -524,11 +660,113 @@ export function evaluateSalesWorkbenchManagerEscalation(item: SalesConsoleLiveWo
     required,
     status: required ? "Rule triggered" : "Not required",
     decision: required
-      ? "Manager review can open because at least one source-backed rule requires help."
-      : "Staff can continue without manager escalation unless a new blocker, approval, or risk signal appears.",
+      ? `${laneContract.approvingRole} review can open because at least one source-backed rule requires help.`
+      : `Staff can continue without manager escalation unless a new blocker, approval, or ${item.contractLane} risk signal appears.`,
     href,
+    approvingRole: laneContract.approvingRole,
+    requiredEvidence: laneContract.requiredEvidence,
+    allowedOutcomes: ["Approve next step", "Redirect work", "Deny escalation", "Request more information"],
+    writeBack: laneContract.outcomeWrittenBack,
     rules
   };
+}
+
+export function buildSalesConsoleTrustedMetrics(): SalesConsoleTrustedMetric[] {
+  const uniqueCustomers = new Set(salesConsoleLiveWorkItems.map((item) => item.customerId));
+  const liveLeads = salesConsoleLiveLeadRecords.length;
+  const qualifiedOpportunities = salesConsoleLiveWorkItems.length;
+  const openDeals = salesConsoleLiveWorkItems.filter((item) => item.group !== "Blocked").length;
+  const stalledWork = salesConsoleLiveWorkItems.filter((item) => item.group === "Manager Review" || item.group === "Blocked" || item.freshness !== "15m").length;
+  const sourceBackedRevenue = salesConsoleLiveWorkItems.reduce((total, item) => total + item.revenueAmount, 0);
+
+  return [
+    {
+      label: "Customers",
+      value: uniqueCustomers.size.toString(),
+      status: "Live",
+      source: "Customer 360 source-shaped records",
+      detail: "Unique customer records represented in the live sales work queue.",
+      filter: "All Priorities",
+      href: "/sales?workspace=queue&metric=customers"
+    },
+    {
+      label: "Prospects",
+      value: "No source data available",
+      status: "Not wired",
+      source: "Prospect source not wired",
+      detail: "Prospect records require durable prospect classification before this metric can be trusted.",
+      href: "/sales?workspace=source-health&metric=prospects"
+    },
+    {
+      label: "Leads",
+      value: liveLeads.toString(),
+      status: "Live",
+      source: "Durable lead read model",
+      detail: "Lead records from Lead Operations.",
+      filter: "All Priorities",
+      href: "/sales?workspace=leads&metric=leads"
+    },
+    {
+      label: "Qualified opportunities",
+      value: qualifiedOpportunities.toString(),
+      status: "Live",
+      source: "Revenue Work Queue",
+      detail: "Source-backed work items at qualified opportunity/deal stage.",
+      filter: "All Priorities",
+      href: "/sales?workspace=queue&metric=qualified-opportunities"
+    },
+    {
+      label: "Open deals",
+      value: openDeals.toString(),
+      status: "Read-only",
+      source: "Revenue Work Queue",
+      detail: "Open source-backed deal work excluding blocked-only views.",
+      filter: "All Priorities",
+      href: "/sales?workspace=queue&metric=open-deals"
+    },
+    {
+      label: "Sold",
+      value: "No source data available",
+      status: "Not wired",
+      source: "Completed-sale source not wired",
+      detail: "Sold counts require trusted completed-sale or won-outcome evidence.",
+      href: "/sales?workspace=source-health&metric=sold"
+    },
+    {
+      label: "Lost",
+      value: "No source data available",
+      status: "Not wired",
+      source: "Closed-lost source not wired",
+      detail: "Lost counts require closed-lost outcome reason evidence.",
+      href: "/sales?workspace=source-health&metric=lost"
+    },
+    {
+      label: "Stale work",
+      value: stalledWork.toString(),
+      status: "Live",
+      source: "Revenue Work Queue freshness and group signals",
+      detail: "Manager-review, blocked, or stale source-backed records.",
+      filter: "Manager Review",
+      href: "/sales?workspace=queue&metric=stale-work"
+    },
+    {
+      label: "Revenue opportunity",
+      value: formatDollars(sourceBackedRevenue),
+      status: "Read-only",
+      source: "Source-backed opportunity amounts",
+      detail: "Read-only opportunity value, not booked sales or gross.",
+      filter: "All Priorities",
+      href: "/sales?workspace=queue&metric=revenue-opportunity"
+    },
+    {
+      label: "Gross / booked revenue",
+      value: "Source not wired",
+      status: "Not wired",
+      source: "Accounting/DMS source not wired",
+      detail: "Gross and booked revenue stay hidden until trusted source authority exists.",
+      href: "/sales?workspace=source-health&metric=gross"
+    }
+  ];
 }
 
 function describeOutcomeResult(option: string) {

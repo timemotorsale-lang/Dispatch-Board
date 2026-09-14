@@ -33,6 +33,7 @@ import {
   salesConsoleLiveRevenueLanes,
   salesConsoleLiveTasksAndPromises,
   salesConsoleLiveWorkItems,
+  buildSalesConsoleTrustedMetrics,
   buildSalesConsoleGuidedPath,
   searchSalesConsoleLiveExperience,
   type SalesConsoleLiveActionState,
@@ -411,6 +412,7 @@ export function SalesConsoleEliteOperatingConsole() {
   const searchResults = searchExperience.results;
   const queueGroups = useMemo(() => [...new Set(salesConsoleLiveWorkItems.map((item) => item.group))], []);
   const queueSources = useMemo(() => [...new Set(salesConsoleLiveWorkItems.map((item) => item.source))], []);
+  const trustedMetrics = useMemo(() => buildSalesConsoleTrustedMetrics(), []);
   const queueStats = useMemo(() => ([
     { label: "Ranked Work", value: salesConsoleLiveWorkItems.length.toString(), filter: "All Priorities", detail: "Source-backed work records" },
     { label: "Do Now", value: salesConsoleLiveWorkItems.filter((item) => item.group === "Must Do Now").length.toString(), filter: "Must Do Now", detail: "Urgency and value signals" },
@@ -454,6 +456,18 @@ export function SalesConsoleEliteOperatingConsole() {
     setSelectedOutcomeLabel(null);
     setWorkbenchOutcomeNote("");
     setWorkbenchOutcomeNextStep("");
+  }
+
+  function openTrustedMetric(metric: ReturnType<typeof buildSalesConsoleTrustedMetrics>[number]) {
+    if (metric.status === "Not wired") {
+      setActiveNav(sourceHealthNav);
+      return;
+    }
+
+    setQueueGroupFilter(metric.filter ?? "All Priorities");
+    setLaneFilter(metric.lane ?? "All Lanes");
+    setQueueSourceFilter("All Sources");
+    setActiveNav(revenueWorkQueueNav);
   }
 
   function openWorkbenchHref(href: string) {
@@ -761,6 +775,34 @@ export function SalesConsoleEliteOperatingConsole() {
               <strong>Open</strong>
               <em>Optional leadership view</em>
             </button>
+          </section>
+        ) : null}
+
+        {activeNav === revenueWorkQueueNav || activeNav === enterpriseDashboardNav ? (
+          <section className={styles.trustedMetrics} aria-label="Trusted sales metrics">
+            <header>
+              <div>
+                <span>Milestone 7</span>
+                <h2>Trusted Sales Metrics</h2>
+                <p>Only source-backed counts are shown. Untrusted metrics stay unavailable until their source authority is wired.</p>
+                <small>Live metrics open the filtered work queue. Not-wired metrics open Source Health.</small>
+              </div>
+            </header>
+            <div>
+              {trustedMetrics.map((metric) => (
+                <button
+                  data-status={metric.status}
+                  key={metric.label}
+                  type="button"
+                  onClick={() => openTrustedMetric(metric)}
+                >
+                  <span>{metric.label}</span>
+                  <strong>{metric.value}</strong>
+                  <em>{metric.status} · {metric.source}</em>
+                  <small>{metric.detail}</small>
+                </button>
+              ))}
+            </div>
           </section>
         ) : null}
 
@@ -1318,6 +1360,7 @@ export function SalesConsoleEliteOperatingConsole() {
                     <span>Manager escalation</span>
                     <h4>{selectedGuidedPath.managerEscalation.status}</h4>
                     <p>{selectedGuidedPath.managerEscalation.decision}</p>
+                    <small>Approver: {selectedGuidedPath.managerEscalation.approvingRole}</small>
                   </div>
                   <div className={styles.managerEscalationRules}>
                     {selectedGuidedPath.managerEscalation.rules.length ? selectedGuidedPath.managerEscalation.rules.map((rule) => (
@@ -1334,13 +1377,24 @@ export function SalesConsoleEliteOperatingConsole() {
                       </article>
                     )}
                   </div>
+                  <div className={styles.managerEscalationEvidence}>
+                    <strong>Required evidence</strong>
+                    {selectedGuidedPath.managerEscalation.requiredEvidence.map((item) => (
+                      <span key={item}>{item}</span>
+                    ))}
+                    <strong>Manager outcomes</strong>
+                    {selectedGuidedPath.managerEscalation.allowedOutcomes.map((item) => (
+                      <span key={item}>{item}</span>
+                    ))}
+                    <em>{selectedGuidedPath.managerEscalation.writeBack}</em>
+                  </div>
                   <button
                     type="button"
                     className={actionTone[selectedGuidedPath.managerEscalation.required ? "Controlled Action" : "Future / Governed"]}
                     disabled={!selectedGuidedPath.managerEscalation.required}
                     onClick={() => openWorkbenchHref(selectedGuidedPath.managerEscalation.href)}
                   >
-                    Open Manager Review
+                    {selectedGuidedPath.managerEscalation.required ? "Open Manager Review" : "No Manager Review Needed"}
                   </button>
                 </section>
                 <section className={styles.lifecycleWorkbench} aria-label="Sales lifecycle movement">

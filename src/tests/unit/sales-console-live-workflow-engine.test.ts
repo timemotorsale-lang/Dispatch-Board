@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildSalesConsoleGuidedPath,
+  buildSalesConsoleTrustedMetrics,
   evaluateSalesWorkbenchManagerEscalation,
   salesConsoleLiveActivityDecision,
   salesConsoleLiveEvidenceRecord,
@@ -81,8 +82,16 @@ describe("Sales Console live workflow engine", () => {
     expect(guidedPath.executionTools.find((tool) => tool.label === "Docs")?.href).toContain("/crm-next/actions/upload-document");
     expect(guidedPath.executionTools.find((tool) => tool.label === "Customer 360")?.href).toContain("/customers/customer-360");
     expect(guidedPath.managerEscalation.status).toBe("Rule triggered");
+    expect(guidedPath.managerEscalation.approvingRole).toBe("Sales Manager");
+    expect(guidedPath.managerEscalation.requiredEvidence).toEqual(
+      expect.arrayContaining(["Customer identity verified", "Trade/payment readiness"])
+    );
+    expect(guidedPath.managerEscalation.allowedOutcomes).toEqual(
+      expect.arrayContaining(["Approve next step", "Redirect work", "Deny escalation", "Request more information"])
+    );
+    expect(guidedPath.managerEscalation.writeBack).toContain("Customer 360");
     expect(guidedPath.managerEscalation.rules.map((rule) => rule.label)).toEqual(
-      expect.arrayContaining(["Active blocker", "Manager priority signal"])
+      expect.arrayContaining(["High-value opportunity with blocker", "Active blocker", "Manager priority signal"])
     );
     expect(guidedPath.managerEscalation.href).toContain("/manager-review");
     expect(guidedPath.outcomeWriteBackTarget).toContain("/api/crm/v1/customers/");
@@ -120,9 +129,25 @@ describe("Sales Console live workflow engine", () => {
     expect(required.required).toBe(true);
     expect(required.rules.length).toBeGreaterThan(0);
     expect(required.decision).toContain("source-backed rule");
+    expect(required.approvingRole.length).toBeGreaterThan(0);
+    expect(required.requiredEvidence.length).toBeGreaterThan(0);
+    expect(required.allowedOutcomes).toContain("Request more information");
     expect(clear.required).toBe(false);
     expect(clear.rules).toHaveLength(0);
     expect(clear.decision).toContain("continue without manager escalation");
+  });
+
+  it("builds trusted sales metrics without hiding unavailable source authority", () => {
+    const metrics = buildSalesConsoleTrustedMetrics();
+    const byLabel = new Map(metrics.map((metric) => [metric.label, metric]));
+
+    expect(byLabel.get("Customers")?.status).toBe("Live");
+    expect(byLabel.get("Leads")?.value).toBe(salesConsoleLiveLeadRecords.length.toString());
+    expect(byLabel.get("Qualified opportunities")?.value).toBe(salesConsoleLiveWorkItems.length.toString());
+    expect(byLabel.get("Sold")?.value).toBe("No source data available");
+    expect(byLabel.get("Lost")?.status).toBe("Not wired");
+    expect(byLabel.get("Gross / booked revenue")?.value).toBe("Source not wired");
+    expect(metrics.every((metric) => metric.source && metric.detail && metric.href.startsWith("/sales"))).toBe(true);
   });
 
   it("blocks canned activity in the guided path contract", () => {
