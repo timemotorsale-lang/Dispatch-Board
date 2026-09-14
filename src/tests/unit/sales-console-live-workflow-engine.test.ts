@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildSalesConsoleGuidedPath,
+  buildSalesConsoleRevenueDeskDecision,
   buildSalesConsoleTrustedMetrics,
   evaluateSalesWorkbenchManagerEscalation,
   salesConsoleLiveActivityDecision,
@@ -106,6 +107,24 @@ describe("Sales Console live workflow engine", () => {
       expect.arrayContaining(["Customer 360", "Task write-back", "Outcome write-back", "Manager review"])
     );
     expect(guidedPath.writeBackBehavior).toContain("only after an approved outcome command succeeds");
+  });
+
+  it("builds a dedicated Revenue Desk decision from source-backed opportunity facts", () => {
+    const decision = buildSalesConsoleRevenueDeskDecision(salesConsoleLiveWorkItems[0]);
+
+    expect(decision.customer).toBe(salesConsoleLiveWorkItems[0].customer);
+    expect(decision.lane).toBe(salesConsoleLiveWorkItems[0].contractLane);
+    expect(decision.commercialQuestion).toContain("best approved path");
+    expect(decision.readinessScore).toBeGreaterThanOrEqual(0);
+    expect(decision.readinessScore).toBeLessThanOrEqual(100);
+    expect(decision.proofChecklist.length).toBeGreaterThanOrEqual(8);
+    expect(decision.proofChecklist.every((proof) => proof.label && proof.source)).toBe(true);
+    expect(decision.approvedTools.map((tool) => tool.label)).toEqual(
+      expect.arrayContaining(["Call", "SMS", "Email", "Note", "Task"])
+    );
+    expect(decision.sourceChecks).toEqual(expect.arrayContaining(["Customer 360", "Sales work queue"]));
+    expect(decision.outcomeRequirement).toContain("Every Revenue Desk action");
+    expect(decision.writeBackRule).toContain("approved outcome command");
   });
 
   it("keeps manager review rule gated instead of making every workbench tool look live", () => {

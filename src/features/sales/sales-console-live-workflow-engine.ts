@@ -206,6 +206,36 @@ export type SalesConsoleGuidedPath = {
   activityPolicy: string;
 };
 
+export type SalesConsoleRevenueDeskDecision = {
+  customer: string;
+  customerId: string;
+  lane: SalesConsoleRevenueLaneName;
+  lifecycleStage: SalesConsoleLifecycleStage;
+  readinessScore: number;
+  readinessStatus: "Ready to advance" | "Needs proof" | "Manager review required" | "Blocked";
+  commercialQuestion: string;
+  recommendedAction: string;
+  missingProof: string[];
+  proofChecklist: Array<{
+    label: string;
+    status: "Ready" | "Missing" | "Review";
+    source: string;
+  }>;
+  approvedTools: Array<{
+    label: string;
+    state: SalesConsoleLiveActionState;
+    href: string;
+  }>;
+  sourceChecks: string[];
+  managerRule: {
+    required: boolean;
+    decision: string;
+    evidence: string[];
+  };
+  outcomeRequirement: string;
+  writeBackRule: string;
+};
+
 const liveAudit: SalesConsoleAuditMetadata = {
   actorId: "demo-staff-user",
   actorRole: "Sales Manager",
@@ -902,6 +932,80 @@ export function buildSalesConsoleGuidedPath(item: SalesConsoleLiveWorkItem): Sal
     ],
     writeBackBehavior: "Customer 360 activity is written only after an approved outcome command succeeds.",
     activityPolicy: "Do not show canned activity. If no verified activity exists, show a no-recorded-activity message."
+  };
+}
+
+export function buildSalesConsoleRevenueDeskDecision(item: SalesConsoleLiveWorkItem): SalesConsoleRevenueDeskDecision {
+  const guidedPath = buildSalesConsoleGuidedPath(item);
+  const laneContract = getRevenueLaneContract(item.contractLane);
+  const laneDecision = evaluateSalesRevenueDeskWorkflow({
+    lane: item.contractLane,
+    stage: item.stage,
+    completedFields: item.blockers.length ? [] : laneContract?.requiredFields ?? [],
+    blockerCodes: item.blockers,
+    customerReady: item.blockers.length === 0,
+    sourceVerified: item.actionState !== "Future / Governed",
+    managerReviewOpen: guidedPath.managerEscalation.required
+  });
+  const missingProof = [
+    ...item.blockers,
+    ...laneDecision.missingFields,
+    ...guidedPath.requiredFacts
+      .filter((fact) => fact.status !== "Ready")
+      .map((fact) => fact.label)
+  ].filter((value, index, values) => value && values.indexOf(value) === index);
+  const readinessScore = Math.max(
+    0,
+    Math.min(
+      100,
+      100 -
+        item.blockers.length * 14 -
+        laneDecision.missingFields.length * 12 -
+        (guidedPath.managerEscalation.required ? 12 : 0) -
+        (item.freshness === "15m" ? 0 : 8) -
+        (item.actionState === "Future / Governed" ? 20 : 0)
+    )
+  );
+  const readinessStatus =
+    item.actionState === "Future / Governed"
+      ? "Blocked"
+      : guidedPath.managerEscalation.required
+        ? "Manager review required"
+        : missingProof.length
+          ? "Needs proof"
+          : "Ready to advance";
+
+  return {
+    customer: item.customer,
+    customerId: item.customerId,
+    lane: item.contractLane,
+    lifecycleStage: guidedPath.lifecycleStage,
+    readinessScore,
+    readinessStatus,
+    commercialQuestion: `What is the best approved path to turn ${item.customer}'s ${item.contractLane.toLowerCase()} into revenue?`,
+    recommendedAction: laneDecision.nextAction || item.nextAction,
+    missingProof,
+    proofChecklist: guidedPath.requiredFacts.map((fact) => ({
+      label: fact.label,
+      status: fact.status === "Ready" ? "Ready" : fact.status === "Blocked" || fact.status === "Needs Review" ? "Review" : "Missing",
+      source: fact.source
+    })),
+    approvedTools: guidedPath.executionTools
+      .filter((tool) => tool.enabled && (tool.category === "Action" || tool.label === "Manager Review"))
+      .map((tool) => ({ label: tool.label, state: tool.state, href: tool.href })),
+    sourceChecks: [
+      "Customer 360",
+      ...(laneContract?.sourceOwners ?? []),
+      item.source,
+      "Sales work queue"
+    ].filter((value, index, values) => value && values.indexOf(value) === index),
+    managerRule: {
+      required: guidedPath.managerEscalation.required,
+      decision: guidedPath.managerEscalation.decision,
+      evidence: guidedPath.managerEscalation.requiredEvidence
+    },
+    outcomeRequirement: "Every Revenue Desk action must end with what happened, result, next step, owner, and due date when needed.",
+    writeBackRule: guidedPath.writeBackBehavior
   };
 }
 

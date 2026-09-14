@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 import { salesConsoleMvpAcceptanceChecklist, salesConsoleSourceHealthSummary } from "./sales-console-mvp-release-hardening";
@@ -33,6 +34,7 @@ import {
   salesConsoleLiveRevenueLanes,
   salesConsoleLiveTasksAndPromises,
   salesConsoleLiveWorkItems,
+  buildSalesConsoleRevenueDeskDecision,
   buildSalesConsoleTrustedMetrics,
   buildSalesConsoleGuidedPath,
   searchSalesConsoleLiveExperience,
@@ -93,6 +95,7 @@ type SalesIntent = {
 const salesIntentHomeNav = "Sales Intent Home";
 const revenueWorkQueueNav = "Revenue Work Queue";
 const guidedWorkspaceNav = "Guided Workspace";
+const revenueDeskNav = "Revenue Desk";
 const enterpriseDashboardNav = "Enterprise Dashboard";
 const sourceHealthNav = "Source Health";
 
@@ -100,6 +103,7 @@ const navigation = [
   salesIntentHomeNav,
   revenueWorkQueueNav,
   guidedWorkspaceNav,
+  revenueDeskNav,
   enterpriseDashboardNav,
   sourceHealthNav
 ];
@@ -175,12 +179,12 @@ const workspaceSummaries: Record<string, WorkspaceSummary> = {
     allowed: "Open selected customer context and source-labeled sales history.",
     governed: "CRM remains the customer system of record."
   },
-  "Revenue Desk": {
+  [revenueDeskNav]: {
     title: "Revenue Desk",
-    description: "Lane-aware commercial workspace across cash, BHPH, lease-to-own, repair, rental, warranty, and finance products.",
-    primaryMetric: "7 revenue lanes",
-    allowed: "Switch lanes, inspect required fields, open manager review.",
-    governed: "Quotes, discounts, finance decisions, and holds remain governed."
+    description: "Commercial command workspace for the selected customer, lane, proof, next best action, and governed outcome.",
+    primaryMetric: "Selected revenue path",
+    allowed: "Review readiness, missing proof, approved tools, manager rule, and outcome requirement.",
+    governed: "Revenue actions must be source-backed and written back only through the approved outcome path."
   },
   "Inventory Intelligence": {
     title: "Inventory Intelligence",
@@ -335,7 +339,13 @@ export function SalesConsoleEliteOperatingConsole() {
   const initialSelectedLane =
     salesConsoleLiveRevenueLanes.find((lane) => lane.contractLane === initialSelectedCustomer.contractLane) ??
     salesConsoleLiveRevenueLanes[0];
-  const [activeNav, setActiveNav] = useState(initialWorkspace === "guided" ? guidedWorkspaceNav : salesIntentHomeNav);
+  const [activeNav, setActiveNav] = useState(
+    initialWorkspace === "guided"
+      ? guidedWorkspaceNav
+      : initialWorkspace === "revenue-desk"
+        ? revenueDeskNav
+        : salesIntentHomeNav
+  );
   const [activeRole, setActiveRole] = useState<StaffRole>("Sales Manager");
   const [activeIntentId, setActiveIntentId] = useState<SalesIntentId>("work-todays-leads");
   const [query, setQuery] = useState("");
@@ -359,6 +369,7 @@ export function SalesConsoleEliteOperatingConsole() {
   const selectedLaneContract = getRevenueLaneContract(selectedLane.contractLane);
   const selectedLaneLinks = getSalesConsoleCrossConsoleLinksForLane(selectedLane.contractLane, activeRole);
   const selectedGuidedPath = useMemo(() => buildSalesConsoleGuidedPath(selectedCustomer), [selectedCustomer]);
+  const selectedRevenueDeskDecision = useMemo(() => buildSalesConsoleRevenueDeskDecision(selectedCustomer), [selectedCustomer]);
   const selectedWorkbenchOutcome = selectedGuidedPath.outcomeOptions.find((option) => option.label === selectedOutcomeLabel) ?? null;
   const sourceBackedTabStates = useMemo(() => buildSalesConsoleSourceBackedTabStates(), []);
   const activeSourceBackedState = sourceBackedTabStates.find((state) => state.tab === activeNav);
@@ -474,7 +485,7 @@ export function SalesConsoleEliteOperatingConsole() {
     if (href.startsWith("/sales?workspace=revenue-desk")) {
       const matchedLane = salesConsoleLiveRevenueLanes.find((lane) => lane.contractLane === selectedCustomer.contractLane);
       if (matchedLane) setSelectedLane(matchedLane);
-      setActiveNav(enterpriseDashboardNav);
+      setActiveNav(revenueDeskNav);
       setWorkbenchOutcomeStatus(`Revenue Desk opened for ${selectedCustomer.customer}.`);
       return;
     }
@@ -628,6 +639,8 @@ export function SalesConsoleEliteOperatingConsole() {
 
       <section className={styles.main}>
         <header className={styles.topbar}>
+          <Link className={styles.topbarReturnLink} href="/command-center">CCC Home</Link>
+          <Link className={styles.topbarReturnLink} href="/board">Dispatch Board</Link>
           <label className={styles.search}>
             <span>Search</span>
             <input
@@ -1084,72 +1097,109 @@ export function SalesConsoleEliteOperatingConsole() {
             </section>
             ) : null}
 
-            {activeNav === enterpriseDashboardNav ? (
+            {activeNav === revenueDeskNav || activeNav === enterpriseDashboardNav ? (
               <>
             <section className={styles.revenueDesk} aria-label="Revenue Desk lanes">
               <div className={styles.sectionHeader}>
                 <div>
                   <h2>Revenue Desk</h2>
-                  <p>Lane-aware selling workflows for every Time Motor Sales revenue stream.</p>
+                  <p>Commercial command workspace for the selected customer, source proof, manager rule, and next revenue action.</p>
                 </div>
+                <button type="button" onClick={() => setActiveNav(guidedWorkspaceNav)}>
+                  Capture outcome
+                </button>
               </div>
-              <div className={styles.laneGrid}>
-                {salesConsoleLiveRevenueLanes.map((lane) => (
-                  <article
-                    key={lane.name}
-                    className={`${styles.laneCard} ${selectedLane.name === lane.name ? styles.selectedLane : ""}`}
-                  >
-                    <strong>{lane.name}</strong>
-                    <span>Stage: {lane.stage}</span>
-                    <span>Owner: {lane.owner}</span>
-                    <span>Next: {lane.workflowDecision.nextAction}</span>
-                    <span>Manager review: {lane.workflowDecision.managerReviewRequired ? "required" : "not required"}</span>
-                    <span>Sources: {getSalesConsoleCrossConsoleLinksForLane(lane.contractLane, activeRole).map((link) => link.destination).join(", ")}</span>
-                    <button type="button" className={actionTone[lane.status]} onClick={() => setSelectedLane(lane)}>{lane.status}</button>
-                  </article>
-                ))}
+              <div className={styles.revenueDeskHero}>
+                <div>
+                  <span>Commercial question</span>
+                  <h3>{selectedRevenueDeskDecision.commercialQuestion}</h3>
+                  <p>{selectedRevenueDeskDecision.writeBackRule}</p>
+                </div>
+                <strong data-status={selectedRevenueDeskDecision.readinessStatus}>
+                  {selectedRevenueDeskDecision.readinessScore}%
+                  <span>{selectedRevenueDeskDecision.readinessStatus}</span>
+                </strong>
               </div>
+              <section className={styles.revenueDeskCommand} aria-label="Revenue Desk command decision">
+                <article>
+                  <span>Current lane</span>
+                  <strong>{selectedRevenueDeskDecision.lane}</strong>
+                  <small>{selectedRevenueDeskDecision.lifecycleStage} · {selectedLane.stage} · Owner {selectedLane.owner}</small>
+                </article>
+                <article>
+                  <span>Next best commercial action</span>
+                  <strong>{selectedRevenueDeskDecision.recommendedAction}</strong>
+                  <small>{selectedCustomer.reason}</small>
+                </article>
+                <article>
+                  <span>Missing proof</span>
+                  <strong>{selectedRevenueDeskDecision.missingProof.length ? selectedRevenueDeskDecision.missingProof.join(", ") : "None"}</strong>
+                  <small>{selectedRevenueDeskDecision.outcomeRequirement}</small>
+                </article>
+                <article>
+                  <span>Manager rule</span>
+                  <strong>{selectedRevenueDeskDecision.managerRule.required ? "Manager review required" : "No manager review required"}</strong>
+                  <small>{selectedRevenueDeskDecision.managerRule.decision}</small>
+                </article>
+              </section>
+              <section className={styles.revenueDeskBody} aria-label="Revenue Desk proof and tools">
+                <div className={styles.proofChecklist}>
+                  <h3>Required proof before action</h3>
+                  {selectedRevenueDeskDecision.proofChecklist.map((proof) => (
+                    <span key={proof.label} data-status={proof.status}>
+                      <strong>{proof.label}</strong>
+                      <em>{proof.status} · {proof.source}</em>
+                    </span>
+                  ))}
+                </div>
+                <div className={styles.approvedToolGrid}>
+                  <h3>Approved tools for this lane</h3>
+                  {selectedRevenueDeskDecision.approvedTools.map((tool) => (
+                    <button
+                      key={tool.label}
+                      type="button"
+                      className={actionTone[tool.state]}
+                      onClick={() => openWorkbenchHref(tool.href)}
+                    >
+                      {tool.label}
+                    </button>
+                  ))}
+                  <button type="button" onClick={() => setActiveNav(guidedWorkspaceNav)}>
+                    Finish with outcome
+                  </button>
+                </div>
+                <div className={styles.sourceCheckList}>
+                  <h3>Source checks before action</h3>
+                  {selectedLaneLinks.map((link) => (
+                    <a key={link.destination} href={link.href}>{link.label}</a>
+                  ))}
+                  {selectedRevenueDeskDecision.sourceChecks.map((source) => (
+                    <span key={source}>{source}</span>
+                  ))}
+                </div>
+              </section>
               {selectedLaneContract ? (
                 <section className={styles.revenueLaneDetail} aria-label="Selected Revenue Desk lane detail">
                   <div>
                     <h3>{selectedLaneContract.lane}</h3>
-                    <p>{selectedLane.stage} · Owner {selectedLane.owner} · Next: {selectedLane.nextAction}</p>
-                    <p>Workflow engine: {selectedLane.workflowDecision.nextAction}</p>
+                    <p>{selectedLane.workflowDecision.nextAction}</p>
                   </div>
                   <dl>
-                    <div>
-                      <dt>Dispatch Board links</dt>
-                      <dd>
-                        <span className={styles.sourceLinkRow}>
-                          {selectedLaneLinks.map((link) => (
-                            <a key={link.destination} href={link.href}>{link.label}</a>
-                          ))}
-                        </span>
-                      </dd>
-                    </div>
                     <div>
                       <dt>Required fields</dt>
                       <dd>{selectedLaneContract.requiredFields.join(", ")}</dd>
                     </div>
                     <div>
-                      <dt>Source systems</dt>
-                      <dd>{selectedLaneContract.sourceOwners.join(", ")}</dd>
-                    </div>
-                    <div>
-                      <dt>Allowed MVP actions</dt>
+                      <dt>Allowed actions</dt>
                       <dd>{selectedLaneContract.allowedMvpActions.join(", ")}</dd>
-                    </div>
-                    <div>
-                      <dt>Workflow decision</dt>
-                      <dd>
-                        Missing: {selectedLane.workflowDecision.missingFields.join(", ") || "none"} ·
-                        Review: {selectedLane.workflowDecision.managerReviewRequired ? "required" : "not required"} ·
-                        Advance inside console: {selectedLane.workflowDecision.canAdvanceInsideSalesConsole ? "yes" : "no"}
-                      </dd>
                     </div>
                     <div>
                       <dt>Governed actions</dt>
                       <dd>{selectedLaneContract.governedActions.join(", ")}</dd>
+                    </div>
+                    <div>
+                      <dt>Advance inside console</dt>
+                      <dd>{selectedLane.workflowDecision.canAdvanceInsideSalesConsole ? "Yes" : "No, source proof or manager rule still applies"}</dd>
                     </div>
                   </dl>
                 </section>
