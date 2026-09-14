@@ -39,6 +39,9 @@ describe("Appointment Console refinement", () => {
     expect(markup).toContain("2:30 PM");
     expect(markup).toContain("8:00 AM");
     expect(markup).toContain("5:00 PM");
+    expect(markup).toContain("5:30 PM");
+    expect(markup).toContain("Quick appointment slots");
+    expect(markup).toContain("selected");
     expect(markup).toContain("Appointment Summary");
     expect(markup).toContain("Appointment reason");
     expect(markup).toContain("Add appointment reason");

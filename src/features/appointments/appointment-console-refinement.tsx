@@ -345,7 +345,8 @@ const appointmentTimeSlots = [
   "15:30",
   "16:00",
   "16:30",
-  "17:00"
+  "17:00",
+  "17:30"
 ];
 
 function useAppointmentConsoleData(date: string) {
@@ -797,6 +798,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
     reason: initialContext?.reason ?? ""
   });
   const [calendarView, setCalendarView] = useState<"day" | "week" | "month">("day");
+  const [quickSlotsOpen, setQuickSlotsOpen] = useState(true);
   const [notice, setNotice] = useState("Ready to create appointment.");
   const [isSaving, setIsSaving] = useState(false);
   const [createdAppointmentNumber, setCreatedAppointmentNumber] = useState<string | null>(null);
@@ -837,6 +839,11 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
 
   function updateField(field: keyof typeof form, value: string | number) {
     setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function chooseTimeSlot(slot: string, source: "quick" | "timeline") {
+    updateField("startTime", slot);
+    setNotice(`${formatTime(localDateTimeToIso(form.localDate, slot))} selected from the ${source === "timeline" ? "day timeline" : "quick slots"}.`);
   }
 
   useEffect(() => {
@@ -1118,19 +1125,45 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
             </header>
             {calendarView === "day" ? (
               <>
-                <div className="appointment-time-picker" aria-label="Available appointment times">
-                  {appointmentTimeSlots.map((slot) => (
-                    <button className={form.startTime === slot ? "active" : ""} key={slot} onClick={() => updateField("startTime", slot)} type="button">
-                      {formatTime(localDateTimeToIso(form.localDate, slot))}
-                    </button>
-                  ))}
-                </div>
+                <section className={quickSlotsOpen ? "appointment-time-picker open" : "appointment-time-picker"} aria-label="Available appointment times">
+                  <button
+                    aria-expanded={quickSlotsOpen}
+                    className="time-picker-toggle"
+                    onClick={() => setQuickSlotsOpen((current) => !current)}
+                    type="button"
+                  >
+                    <span>Quick appointment slots</span>
+                    <strong>{formatTime(startsAtIso)} selected</strong>
+                    <em>{quickSlotsOpen ? "Collapse" : "Open"}</em>
+                  </button>
+                  {quickSlotsOpen ? (
+                    <div className="time-picker-options">
+                      {appointmentTimeSlots.map((slot) => (
+                        <button className={form.startTime === slot ? "active" : ""} key={slot} onClick={() => chooseTimeSlot(slot, "quick")} type="button">
+                          {formatTime(localDateTimeToIso(form.localDate, slot))}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </section>
                 <div className="calendar-stage">
                   {["8 AM","9 AM","10 AM","11 AM","12 PM","1 PM","2 PM","3 PM","4 PM","5 PM","6 PM"].map((hour) => <span className="time-label" key={hour}>{hour}</span>)}
                   <div className="availability good top" />
                   <div className="availability constrained mid" />
                   <div className="availability good lower" />
                   <div className="availability constrained bottom" />
+                  {appointmentTimeSlots.map((slot) => (
+                    <button
+                      aria-label={`Pick ${formatTime(localDateTimeToIso(form.localDate, slot))}`}
+                      className={form.startTime === slot ? "timeline-slot-target active" : "timeline-slot-target"}
+                      key={`timeline-${slot}`}
+                      onClick={() => chooseTimeSlot(slot, "timeline")}
+                      style={{ top: timeSlotTop(slot) }}
+                      type="button"
+                    >
+                      {formatTime(localDateTimeToIso(form.localDate, slot))}
+                    </button>
+                  ))}
                   {visibleAppointments.map((appointment) => (
                     <Link className="calendar-event blue" href={boardFocusHref(appointment)} key={appointment.id} style={{ top: appointmentTop(appointment), height: 58 }}>
                       <span>{formatTime(appointment.startsAt)} - {formatTime(appointment.endsAt)}</span>
@@ -1138,7 +1171,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
                       <small>{appointment.customer?.displayName ?? appointment.owner?.name ?? "Unassigned"}</small>
                     </Link>
                   ))}
-                  <button className="selected-slot" style={{ top: selectedSlotTop }} type="button">{formatTime(startsAtIso)} - {formatTime(endsAtIso)}</button>
+                  <button className="selected-slot" onClick={() => setQuickSlotsOpen(true)} style={{ top: selectedSlotTop }} type="button">{formatTime(startsAtIso)} - {formatTime(endsAtIso)}</button>
                 </div>
               </>
             ) : calendarView === "week" ? (
