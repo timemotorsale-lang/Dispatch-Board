@@ -21516,10 +21516,14 @@ html[data-app-theme="dark"] :where(.rowb-evidence-review,.rowb-evidence-review f
 .appointment-refinement-rail a.active{color:#075ed8;background:#eef5ff;box-shadow:inset 3px 0 0 #075ed8}
 .appointment-refinement-rail svg{width:18px}
 .appointment-refinement-rail b{display:grid;place-items:center;min-width:20px;height:20px;border-radius:999px;color:#fff;background:#f05a45;font-size:11.5px}
-.appointment-console-home,.appointment-new-calendar{display:grid;gap:10px;padding:14px 16px 16px}
+.appointment-console-home,.appointment-new-calendar{display:grid;max-width:100%;overflow-x:hidden;gap:10px;padding:14px 16px 16px}
 .appointment-console-hero,.appointment-new-header{display:flex;align-items:center;justify-content:space-between;gap:18px;border-bottom:1px solid #dde6f2;padding-bottom:14px}
 .appointment-console-hero h1,.appointment-new-header h1{margin:0;color:#10233f;font-size:31px;line-height:1.04;letter-spacing:-.035em}
 .appointment-console-hero p,.appointment-new-header p{margin:5px 0 0;color:#5f6f85;font-size:14px}
+.appointment-new-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+.appointment-layout-switcher{display:inline-flex;align-items:center;border:1px solid #cbd8e8;border-radius:8px;padding:3px;background:#f8fbff}
+.appointment-layout-switcher button{min-height:32px;border:0;border-radius:6px;padding:0 11px;color:#4d5f78;background:transparent;font:inherit;font-size:12px;font-weight:900}
+.appointment-layout-switcher button.active{color:#fff;background:#075ed8;box-shadow:0 6px 14px rgb(7 94 216 / 16%)}
 .appointment-console-hero nav{display:flex;gap:10px}
 .appointment-console-hero a,.appointment-new-header a,.appointment-console-tabs a,.appointment-panel header a,.appointment-panel .panel-action{display:inline-flex;align-items:center;justify-content:center;min-height:38px;border:1px solid #bfd0e5;border-radius:7px;padding:0 14px;color:#075ed8;background:#fff;text-decoration:none;font-size:13px;font-weight:900}
 .appointment-active-context-card{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,.85fr);gap:14px;border:1px solid #314369;border-left:5px solid #5b74ff;border-radius:12px;padding:14px 16px;color:#fff;background:linear-gradient(135deg,#101d35,#172849 58%,#203461);box-shadow:0 16px 34px rgba(12,28,55,.18)}
@@ -21557,22 +21561,27 @@ html[data-app-theme="dark"] :where(.rowb-evidence-review,.rowb-evidence-review f
 .appointment-capacity-confidence dl,.appointment-summary dl{display:grid;margin:0 16px}.appointment-capacity-confidence div,.appointment-summary div{display:grid;grid-template-columns:1fr auto;gap:12px;border-bottom:1px solid #e7edf5;padding:9px 0}.appointment-capacity-confidence dt,.appointment-summary dt{color:#66758b;font-size:12px;font-weight:850}.appointment-capacity-confidence dd,.appointment-summary dd{margin:0;text-align:right;font-size:13px;font-weight:850}.appointment-capacity-confidence span,.appointment-capacity-confidence em{display:block;color:#11844d;font-size:11.5px;font-style:normal}.appointment-capacity-confidence em{color:#d8750a}
 .appointment-capacity-confidence footer{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:14px 16px 0;border:1px solid #a9d8b9;border-radius:7px;padding:10px;background:#f6fff8}.appointment-capacity-confidence footer span{display:grid;gap:3px;color:#52647b;font-size:12px}.appointment-capacity-confidence footer a{min-height:34px;border:1px solid #075ed8;border-radius:6px;padding:0 10px;color:#075ed8;background:#fff;text-decoration:none;font-size:12px;font-weight:900}
 .appointment-console-lower article>p{display:flex;justify-content:space-between;gap:12px;margin:0;border-bottom:1px solid #edf2f8;padding:10px 14px}.appointment-console-lower span{font-size:13px;font-weight:850}.appointment-console-lower small{color:#607087}.appointment-panel .panel-action{margin:10px 14px}
-.appointment-new-layout{display:grid;grid-template-columns:250px minmax(480px,1fr) 300px;gap:10px}
-.appointment-new-expanded-calendar .appointment-new-layout{grid-template-columns:220px minmax(760px,1.7fr) 260px}
-.appointment-new-expanded-setup .appointment-new-layout{grid-template-columns:380px minmax(430px,1fr) 270px}
-.appointment-new-expanded-date .appointment-new-layout{grid-template-columns:340px minmax(460px,1fr) 280px}
-.appointment-new-expanded-reason .appointment-new-layout{grid-template-columns:220px minmax(480px,1fr) 420px}
-.appointment-booking-rail,.appointment-calendar-surface,.appointment-summary{display:grid;gap:10px}
+.appointment-new-layout{display:grid;grid-template-columns:minmax(340px,.9fr) minmax(0,1.38fr) minmax(280px,.78fr);align-items:start;gap:14px}
+.appointment-new-expanded-calendar .appointment-new-layout{grid-template-columns:minmax(260px,.72fr) minmax(0,1.72fr) minmax(260px,.72fr)}
+.appointment-new-expanded-setup .appointment-new-layout{grid-template-columns:minmax(330px,1fr) minmax(0,1.26fr) minmax(260px,.76fr)}
+.appointment-new-expanded-date .appointment-new-layout{grid-template-columns:minmax(310px,.94fr) minmax(0,1.34fr) minmax(260px,.76fr)}
+.appointment-new-expanded-reason .appointment-new-layout{grid-template-columns:minmax(260px,.72fr) minmax(0,1.26fr) minmax(330px,1fr)}
+.appointment-booking-rail,.appointment-calendar-surface,.appointment-summary{display:grid;align-self:start;min-width:0;gap:10px}
+.appointment-booking-rail{overflow:hidden}
+.appointment-workspace-expanded{max-width:100%;overflow:auto}
 .mini-calendar,.appointment-setup,.appointment-calendar-surface,.appointment-summary .appointment-panel{border:1px solid #d7e1ee;border-radius:9px;background:#fff;box-shadow:0 6px 18px rgb(26 52 84 / 5%)}
 .appointment-workspace-expanded{border-color:#8db7ea!important;box-shadow:0 18px 42px rgb(20 45 84 / 14%)!important}
-.mini-calendar{padding:12px}.mini-calendar header{display:flex;align-items:center;justify-content:space-between}.mini-calendar header button{display:grid;place-items:center;width:30px;height:30px;border:1px solid #d7e1ee;border-radius:7px;color:#243850;background:#fff}.mini-calendar svg{width:17px}.mini-calendar strong{font-size:16px}
-.weekdays,.days{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-top:10px;text-align:center}.weekdays span{color:#728198;font-size:11.5px}.days button{height:28px;border:0;border-radius:50%;background:transparent;color:#1b2f49;font-weight:750}.days button.muted{color:#a4afbf}.days button.selected{color:#fff;background:#075ed8}
+.mini-calendar{width:100%;min-width:0;overflow:hidden;padding:12px}.mini-calendar header{display:grid;grid-template-columns:32px minmax(0,1fr) 32px auto;align-items:center;gap:8px}.mini-calendar header button{display:grid;place-items:center;width:30px;height:30px;border:1px solid #d7e1ee;border-radius:7px;color:#243850;background:#fff}.mini-calendar svg{width:17px}.mini-calendar strong{overflow:hidden;font-size:16px;text-align:center;white-space:nowrap;text-overflow:ellipsis}
+.weekdays,.days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;margin-top:10px;text-align:center}.weekdays span{min-width:0;color:#728198;font-size:11.5px}.days button{width:100%;min-width:0;height:28px;border:0;border-radius:50%;background:transparent;color:#1b2f49;font-size:15px;font-weight:750}.days button.muted{color:#a4afbf}.days button.selected{color:#fff;background:#075ed8}
 .appointment-setup{display:grid;gap:8px;padding:12px}.appointment-setup h2{margin:0 0 2px;font-size:16px}.appointment-setup label{display:grid;gap:3px}.appointment-setup label span{color:#4c5f77;font-size:12px;font-weight:850}.appointment-setup input{height:38px;border:1px solid #cbd8e8;border-radius:7px;padding:0 10px;color:#172c46;background:#fff;font:inherit;font-size:13px}
 .appointment-setup select{height:38px;border:1px solid #cbd8e8;border-radius:7px;padding:0 10px;color:#172c46;background:#fff;font:inherit;font-size:13px}
 .appointment-setup textarea{min-height:76px;resize:vertical;border:1px solid #cbd8e8;border-radius:7px;padding:9px 10px;color:#172c46;background:#fff;font:inherit;font-size:13px}
 .appointment-identity-results{display:grid;gap:5px;border:1px solid #d7e1ee;border-radius:8px;padding:6px;background:#f8fbff}.appointment-identity-results button{display:grid;grid-template-columns:22px minmax(0,1fr);align-items:center;gap:7px;min-height:42px;border:1px solid transparent;border-radius:7px;padding:6px 7px;color:#10233f;background:#fff;text-align:left}.appointment-identity-results button.selected{border-color:#075ed8;background:#eef6ff}.appointment-identity-results svg{width:17px;color:#075ed8}.appointment-identity-results strong{display:block;font-size:12px}.appointment-identity-results small{display:block;overflow:hidden;color:#607087;font-size:11.5px;white-space:nowrap;text-overflow:ellipsis}.appointment-identity-results p{margin:0;padding:6px;color:#607087;font-size:12px}
 .setup-capacity{display:grid;gap:7px;border:1px solid #a9d8b9;border-radius:8px;padding:10px;background:#fbfffc}.setup-capacity strong{color:#10844d}.setup-capacity p{display:flex;justify-content:space-between;margin:0;color:#62728a;font-size:12px}.setup-capacity b{color:#10844d}
-.appointment-calendar-surface{padding:12px}.appointment-calendar-surface>header{display:grid;grid-template-columns:auto auto minmax(0,1fr);align-items:center;gap:12px}.appointment-calendar-surface button{min-height:34px;border:1px solid #cbd8e8;border-radius:6px;padding:0 12px;background:#fff;color:#243850;font-weight:850}.appointment-calendar-surface button.active{border-color:#075ed8;color:#fff;background:#075ed8}.appointment-calendar-surface header strong{text-align:center;font-size:16px}
+.appointment-calendar-surface{padding:12px}.appointment-calendar-surface>header{display:grid;grid-template-columns:auto auto minmax(100px,1fr);align-items:center;gap:10px}.appointment-calendar-surface button{min-height:34px;border:1px solid #cbd8e8;border-radius:6px;padding:0 10px;background:#fff;color:#243850;font-weight:850}.appointment-calendar-surface button.active{border-color:#075ed8;color:#fff;background:#075ed8}.appointment-calendar-surface header strong{text-align:center;font-size:16px}
+.appointment-setup-heading{display:flex;align-items:center;justify-content:space-between;gap:10px}.appointment-setup-heading h2{margin:0}
+.appointment-compact-control{display:inline-flex!important;align-items:center!important;justify-content:center!important;width:auto!important;min-width:max-content!important;min-height:30px!important;border:1px solid #a9c2e5!important;border-radius:7px!important;padding:0 10px!important;color:#075ed8!important;background:#f8fbff!important;font-size:12px!important;font-weight:900!important;white-space:nowrap!important}
+.appointment-calendar-surface>header:has(.appointment-compact-control){grid-template-columns:auto auto minmax(0,1fr) auto}
 .calendar-stage{position:relative;height:650px;margin-top:12px;border-left:58px solid transparent;background:#fff}.time-label{display:block;height:59px;color:#53647b;font-size:12px}.calendar-stage:before{content:"";position:absolute;inset:0 0 0 58px;border:1px solid #d7e1ee;background:repeating-linear-gradient(to bottom,#fff 0,#fff 58px,#e9eff7 59px)}
 .availability{position:absolute;left:58px;right:0}.availability.good{background:rgb(24 135 82 / 8%)}.availability.constrained{background:rgb(216 117 10 / 10%)}.availability.top{top:0;height:175px}.availability.mid{top:175px;height:70px}.availability.lower{top:245px;height:175px}.availability.bottom{top:420px;bottom:0}
 .calendar-event{position:absolute;z-index:4;left:68px;right:10px;display:grid;align-content:center;gap:3px;border:1px solid #075ed8;border-left-width:4px;border-radius:7px;padding:0 14px;background:#eef6ff;text-decoration:none}.calendar-event.purple{border-color:#7a40c8;background:#f7f2ff}.calendar-event.green{border-color:#10844d;background:#eefbf3}.calendar-event span,.calendar-event small{color:#52647b;font-size:12px}.calendar-event strong{color:#10233f;font-size:14px}
@@ -21732,17 +21741,22 @@ html[data-app-theme="dark"] :where(.rowb-evidence-review,.rowb-evidence-review f
 .appointment-capacity-confidence footer{margin:11px 13px 0;padding:8px}
 .appointment-console-lower article>p{padding:8px 12px}
 .appointment-panel .panel-action{margin:8px 12px}
-.appointment-new-layout{grid-template-columns:242px minmax(480px,1fr) 292px;gap:8px}
+.appointment-new-layout{grid-template-columns:minmax(320px,.9fr) minmax(0,1.38fr) minmax(270px,.78fr);gap:12px}
+.appointment-new-expanded-calendar .appointment-new-layout{grid-template-columns:minmax(250px,.72fr) minmax(0,1.72fr) minmax(250px,.72fr)}
+.appointment-new-expanded-setup .appointment-new-layout{grid-template-columns:minmax(315px,1fr) minmax(0,1.26fr) minmax(250px,.76fr)}
+.appointment-new-expanded-date .appointment-new-layout{grid-template-columns:minmax(300px,.94fr) minmax(0,1.34fr) minmax(250px,.76fr)}
+.appointment-new-expanded-reason .appointment-new-layout{grid-template-columns:minmax(250px,.72fr) minmax(0,1.26fr) minmax(315px,1fr)}
 .appointment-booking-rail,.appointment-calendar-surface,.appointment-summary{gap:8px}
 .mini-calendar{padding:9px}
+.mini-calendar header{grid-template-columns:32px minmax(0,1fr) 32px auto;gap:6px}
 .weekdays,.days{gap:3px;margin-top:8px}
-.days button{height:25px}
+.days button{height:25px;font-size:14px}
 .appointment-setup{gap:6px;padding:9px}
 .appointment-setup input{height:34px}
 .setup-capacity{gap:5px;padding:8px}
 .appointment-calendar-surface{padding:9px}
 .appointment-calendar-surface>header{gap:9px}
-.appointment-calendar-surface button{min-height:31px;padding:0 10px}
+.appointment-calendar-surface button{min-height:31px;padding:0 8px}
 .calendar-stage{height:585px;margin-top:9px}
 .time-label{height:53px}
 .calendar-stage:before{background:repeating-linear-gradient(to bottom,#fff 0,#fff 52px,#e9eff7 53px)}

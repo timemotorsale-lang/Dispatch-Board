@@ -13,7 +13,7 @@ import {
 import Link from "next/link";
 import { QuickUpdateReminders } from "./quick-update-reminders";
 import { CategoryBadge, categoryRowStyle } from "./category-badge";
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type MouseEvent, type ReactNode } from "react";
 import { CRM_NEXT_SEARCH_HREF } from "@/features/crm/crm-route-authority";
 
 type AppointmentConsoleSection = "today" | "planning" | "operations" | "follow-up" | "intelligence" | "exceptions";
@@ -867,6 +867,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
   const [calendarView, setCalendarView] = useState<"day" | "week" | "month">("day");
   const [quickSlotsOpen, setQuickSlotsOpen] = useState(true);
   const [expandedWorkspace, setExpandedWorkspace] = useState<"calendar" | "setup" | "date" | "reason" | null>(null);
+  const [layoutMode, setLayoutMode] = useState<"compact" | "expandable">("compact");
   const [notice, setNotice] = useState("Ready to create appointment.");
   const [isSaving, setIsSaving] = useState(false);
   const [createdAppointmentNumber, setCreatedAppointmentNumber] = useState<string | null>(null);
@@ -904,6 +905,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
   const returnHref = initialContext?.returnTo || "/appointments";
   const sourceTaskLabel = initialContext?.sourceTaskTitle || initialContext?.sourceTaskId || "";
   const hasHandoffContext = Boolean(initialContext?.customerReference || initialContext?.vehicleReference || sourceTaskLabel);
+  const activeWorkspace = layoutMode === "expandable" ? expandedWorkspace : null;
 
   function updateField(field: keyof typeof form, value: string | number) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -982,6 +984,38 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
     setCalendarView("day");
     updateField("localDate", todayDateKey());
     setNotice("Showing today's live appointment window.");
+  }
+
+  function focusAppointmentPanel(panel: typeof expandedWorkspace) {
+    if (layoutMode === "compact") {
+      return;
+    }
+    setExpandedWorkspace(panel);
+    if (panel !== "calendar") {
+      setQuickSlotsOpen(false);
+    }
+  }
+
+  function setCalendarMode(view: typeof calendarView) {
+    setCalendarView(view);
+    focusAppointmentPanel("calendar");
+  }
+
+  function returnToCompactLayout(event?: MouseEvent<HTMLButtonElement>) {
+    event?.stopPropagation();
+    setQuickSlotsOpen(false);
+    setExpandedWorkspace(null);
+  }
+
+  function chooseLayoutMode(mode: typeof layoutMode) {
+    setLayoutMode(mode);
+    if (mode === "compact") {
+      setQuickSlotsOpen(false);
+      setExpandedWorkspace(null);
+      setNotice("Compact appointment layout is active.");
+    } else {
+      setNotice("Expandable appointment layout is active.");
+    }
   }
 
   async function createAppointment(event: FormEvent<HTMLFormElement>) {
@@ -1086,7 +1120,8 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
       <form
         className={[
           "appointment-new-calendar",
-          expandedWorkspace ? `appointment-new-expanded-${expandedWorkspace}` : ""
+          activeWorkspace ? `appointment-new-expanded-${activeWorkspace}` : "",
+          `appointment-layout-${layoutMode}`
         ].filter(Boolean).join(" ")}
         onSubmit={(event) => void createAppointment(event)}
       >
@@ -1095,7 +1130,22 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
             <h1>New Appointment</h1>
             <p>Choose a date and time, then add customer, vehicle, and purpose.</p>
           </div>
-          <Link href={returnHref}>Back to {initialContext?.returnTo ? "source workspace" : "Appointment Console"}</Link>
+          <div className="appointment-new-actions">
+            <div className="appointment-layout-switcher" aria-label="Appointment layout mode">
+              {(["compact", "expandable"] as const).map((mode) => (
+                <button
+                  aria-pressed={layoutMode === mode}
+                  className={layoutMode === mode ? "active" : ""}
+                  key={mode}
+                  onClick={() => chooseLayoutMode(mode)}
+                  type="button"
+                >
+                  {mode === "compact" ? "Compact" : "Expandable"}
+                </button>
+              ))}
+            </div>
+            <Link href={returnHref}>Back to {initialContext?.returnTo ? "source workspace" : "Appointment Console"}</Link>
+          </div>
         </header>
 
         {hasHandoffContext ? (
@@ -1113,27 +1163,31 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
           </section>
         ) : null}
 
-        <div className="appointment-new-layout">
+        <div className={activeWorkspace ? "appointment-new-layout appointment-single-panel-expanded" : "appointment-new-layout"}>
           <aside className="appointment-booking-rail">
             <section
-              className={expandedWorkspace === "date" ? "mini-calendar appointment-workspace-expanded" : "mini-calendar"}
-              onClick={() => setExpandedWorkspace("date")}
-              onFocusCapture={() => setExpandedWorkspace("date")}
+              className={activeWorkspace === "date" ? "mini-calendar appointment-workspace-expanded" : "mini-calendar"}
+              onClick={() => focusAppointmentPanel("date")}
+              onFocusCapture={() => focusAppointmentPanel("date")}
             >
               <header>
                 <button aria-label="Previous month" onClick={() => updateField("localDate", addMonths(form.localDate, -1))} type="button"><ChevronLeft /></button>
                 <strong>{monthLabel(form.localDate)}</strong>
                 <button aria-label="Next month" onClick={() => updateField("localDate", addMonths(form.localDate, 1))} type="button"><ChevronRight /></button>
+                {activeWorkspace === "date" ? <button className="appointment-compact-control" onClick={returnToCompactLayout} type="button">Compact layout</button> : null}
               </header>
               <div className="weekdays">{["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day) => <span key={day}>{day}</span>)}</div>
               <div className="days">{monthCells.map((cell) => <button className={[cell.selected ? "selected" : "", cell.muted ? "muted" : ""].filter(Boolean).join(" ")} key={cell.dateKey} onClick={() => updateField("localDate", cell.dateKey)} type="button">{cell.day}</button>)}</div>
             </section>
             <section
-              className={expandedWorkspace === "setup" ? "appointment-setup appointment-workspace-expanded" : "appointment-setup"}
-              onClick={() => setExpandedWorkspace("setup")}
-              onFocusCapture={() => setExpandedWorkspace("setup")}
+              className={activeWorkspace === "setup" ? "appointment-setup appointment-workspace-expanded" : "appointment-setup"}
+              onClick={() => focusAppointmentPanel("setup")}
+              onFocusCapture={() => focusAppointmentPanel("setup")}
             >
-              <h2>Appointment Setup</h2>
+              <header className="appointment-setup-heading">
+                <h2>Appointment Setup</h2>
+                {activeWorkspace === "setup" ? <button className="appointment-compact-control" onClick={returnToCompactLayout} type="button">Compact layout</button> : null}
+              </header>
               <label>
                 <span>Customer search</span>
                 <input onChange={(event) => { setSelectedCustomer(null); setCustomerQuery(event.target.value); updateField("customer", event.target.value); }} placeholder="Search name, phone, email, or customer #" value={customerQuery} />
@@ -1189,7 +1243,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
               <label>
                 <span>Reason / notes</span>
                 <textarea
-                  onFocus={() => setExpandedWorkspace("reason")}
+                  onFocus={() => focusAppointmentPanel("reason")}
                   onChange={(event) => updateField("reason", event.target.value)}
                   placeholder="Example: customer called about title paperwork, daily rental, repair status, sales visit, payment, or another issue."
                   value={form.reason}
@@ -1205,18 +1259,19 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
           </aside>
 
           <section
-            className={expandedWorkspace === "calendar" ? "appointment-calendar-surface appointment-workspace-expanded" : "appointment-calendar-surface"}
-            onClick={() => setExpandedWorkspace("calendar")}
-            onFocusCapture={() => setExpandedWorkspace("calendar")}
+            className={activeWorkspace === "calendar" ? "appointment-calendar-surface appointment-workspace-expanded" : "appointment-calendar-surface"}
+            onClick={() => focusAppointmentPanel("calendar")}
+            onFocusCapture={() => focusAppointmentPanel("calendar")}
           >
             <header>
-              <div>{(["day", "week", "month"] as const).map((view) => <button className={calendarView === view ? "active" : ""} key={view} onClick={() => setCalendarView(view)} type="button">{view[0].toUpperCase() + view.slice(1)}</button>)}</div>
+              <div>{(["day", "week", "month"] as const).map((view) => <button className={calendarView === view ? "active" : ""} key={view} onClick={() => setCalendarMode(view)} type="button">{view[0].toUpperCase() + view.slice(1)}</button>)}</div>
               <nav>
                 <button onClick={goToToday} type="button">Today</button>
                 <button onClick={() => updateField("localDate", calendarView === "month" ? addMonths(form.localDate, -1) : addDays(form.localDate, calendarView === "week" ? -7 : -1))} type="button">‹</button>
                 <button onClick={() => updateField("localDate", calendarView === "month" ? addMonths(form.localDate, 1) : addDays(form.localDate, calendarView === "week" ? 7 : 1))} type="button">›</button>
               </nav>
               <strong>{calendarView === "month" ? monthLabel(form.localDate) : calendarView === "week" ? `Week of ${new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: defaultTimezone }).format(noonDate(weekStart(form.localDate)))}` : appointmentDateLabel}</strong>
+              {activeWorkspace === "calendar" ? <button className="appointment-compact-control" onClick={returnToCompactLayout} type="button">Compact layout</button> : null}
             </header>
             {calendarView === "day" ? (
               <>
@@ -1224,7 +1279,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
                   <button
                     aria-expanded={quickSlotsOpen}
                     className="time-picker-toggle"
-                    onClick={() => setQuickSlotsOpen((current) => !current)}
+                    onClick={(event) => { event.stopPropagation(); focusAppointmentPanel("calendar"); setQuickSlotsOpen((current) => !current); }}
                     type="button"
                   >
                     <span>Quick appointment slots</span>
@@ -1266,7 +1321,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
                       <small>{appointment.customer?.displayName ?? appointment.owner?.name ?? "Unassigned"}</small>
                     </Link>
                   ))}
-                  <button className="selected-slot" onClick={() => setQuickSlotsOpen(true)} style={{ top: selectedSlotTop }} type="button">{formatTime(startsAtIso)} - {formatTime(endsAtIso)}</button>
+                  <button className="selected-slot" onClick={() => { focusAppointmentPanel("calendar"); setQuickSlotsOpen(true); }} style={{ top: selectedSlotTop }} type="button">{formatTime(startsAtIso)} - {formatTime(endsAtIso)}</button>
                 </div>
               </>
             ) : calendarView === "week" ? (
@@ -1320,9 +1375,13 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
             )}
           </section>
 
-          <aside className={expandedWorkspace === "reason" ? "appointment-summary appointment-workspace-expanded" : "appointment-summary"}>
+          <aside className={activeWorkspace === "reason" ? "appointment-summary appointment-workspace-expanded" : "appointment-summary"}>
             <section className="appointment-panel">
-              <header><strong>Appointment Summary</strong><b>Recommended</b></header>
+              <header>
+                <strong>Appointment Summary</strong>
+                <b>Recommended</b>
+                {activeWorkspace === "reason" ? <button className="appointment-compact-control" onClick={returnToCompactLayout} type="button">Compact layout</button> : null}
+              </header>
               <dl>
                 <div><dt>Date & Time</dt><dd>{appointmentDateLabel}<br /><strong>{formatTime(startsAtIso)} - {formatTime(endsAtIso)}</strong></dd></div>
                 <div><dt>Purpose</dt><dd>{selectedPurpose.label}</dd></div>
@@ -1332,8 +1391,8 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
                 <div><dt>Transportation</dt><dd>{form.transportation}</dd></div>
               </dl>
               <label
-                className={expandedWorkspace === "reason" ? "appointment-summary-reason appointment-summary-reason-expanded" : "appointment-summary-reason"}
-                onFocusCapture={() => setExpandedWorkspace("reason")}
+                className={activeWorkspace === "reason" ? "appointment-summary-reason appointment-summary-reason-expanded" : "appointment-summary-reason"}
+                onFocusCapture={() => focusAppointmentPanel("reason")}
               >
                 <span>Appointment reason</span>
                 <textarea onChange={(event) => updateField("reason", event.target.value)} placeholder="Example: customer called about title paperwork, repair status, sales visit, payment, or another issue." value={form.reason} />
