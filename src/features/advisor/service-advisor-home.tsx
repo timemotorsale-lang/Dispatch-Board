@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useId, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useId, useRef, useState } from "react";
 
 import { buildCrmWorkbookPlan } from "@/lib/workday-workbook-crm-integration";
 import type { ServiceAdvisorWorkspaceModel } from "@/server/advisor-workspace/service";
@@ -264,6 +264,29 @@ type WorkflowPhaseAction = { detail: string; href: string; icon: typeof Clipboar
 type ContextRecommendation = { description: string; href: string; onSelect?: never; phase: WorkflowPhaseKey; title: string } | { description: string; href?: never; onSelect: () => void; phase: WorkflowPhaseKey; title: string };
 type StaffExecutionCard = { action: string; detail: string; href: string; icon: typeof ClipboardCheck; title: string; tone: "blue" | "green" | "red" | "yellow" };
 type WorkbookResumeSource = "checklist" | "quick" | "focus" | "reportSeed";
+type ReviewActionPlanStatus = "DRAFT" | "ACTIVE" | "REVIEW" | "DONE";
+type ReviewActionStep = {
+  children: ReviewActionStep[];
+  comments: string[];
+  done: boolean;
+  id: string;
+  lastUpdatedAt?: string;
+  title: string;
+};
+type ReviewActionPlan = {
+  comments: string[];
+  dueWindow?: string;
+  implementedAt?: string;
+  id: string;
+  lastSavedAt: string;
+  outcome: string;
+  owner: string;
+  planDate: string;
+  priority: DailyFocusPriority;
+  status: ReviewActionPlanStatus;
+  steps: ReviewActionStep[];
+  title: string;
+};
 type WorkbookSearchResume = {
   boardDate?: string;
   description: string;
@@ -510,6 +533,69 @@ function dailyFocusSuggestionTone(suggestion: DailyFocusSuggestion) {
   return "blue";
 }
 
+function makeReviewActionId(prefix: string) {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function newReviewActionStep(title: string): ReviewActionStep {
+  return { children: [], comments: [], done: false, id: makeReviewActionId("step"), title };
+}
+
+function countReviewActionSteps(steps: ReviewActionStep[]): { done: number; total: number } {
+  return steps.reduce((summary, step) => {
+    const childSummary = countReviewActionSteps(step.children);
+    return {
+      done: summary.done + (step.done ? 1 : 0) + childSummary.done,
+      total: summary.total + 1 + childSummary.total
+    };
+  }, { done: 0, total: 0 });
+}
+
+function updateReviewActionStepTree(steps: ReviewActionStep[], stepId: string, updater: (step: ReviewActionStep) => ReviewActionStep): ReviewActionStep[] {
+  return steps.map((step) => {
+    if (step.id === stepId) return updater(step);
+    return { ...step, children: updateReviewActionStepTree(step.children, stepId, updater) };
+  });
+}
+
+function removeReviewActionStep(steps: ReviewActionStep[], stepId: string): ReviewActionStep[] {
+  return steps
+    .filter((step) => step.id !== stepId)
+    .map((step) => ({ ...step, children: removeReviewActionStep(step.children, stepId) }));
+}
+
+function reviewActionPlanDate(plan: ReviewActionPlan, fallbackDate: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(plan.planDate) ? plan.planDate : fallbackDate;
+}
+
+function normalizeReviewActionStep(step: Partial<ReviewActionStep>): ReviewActionStep {
+  return {
+    children: Array.isArray(step.children) ? step.children.map((child) => normalizeReviewActionStep(child)) : [],
+    comments: Array.isArray(step.comments) ? step.comments.filter((comment): comment is string => typeof comment === "string") : [],
+    done: Boolean(step.done),
+    id: typeof step.id === "string" ? step.id : makeReviewActionId("step"),
+    lastUpdatedAt: typeof step.lastUpdatedAt === "string" ? step.lastUpdatedAt : undefined,
+    title: typeof step.title === "string" ? step.title : ""
+  };
+}
+
+function normalizeReviewActionPlan(plan: Partial<ReviewActionPlan>, fallbackDate: string): ReviewActionPlan {
+  return {
+    comments: Array.isArray(plan.comments) ? plan.comments.filter((comment): comment is string => typeof comment === "string") : [],
+    dueWindow: typeof plan.dueWindow === "string" ? plan.dueWindow : undefined,
+    implementedAt: typeof plan.implementedAt === "string" ? plan.implementedAt : undefined,
+    id: typeof plan.id === "string" ? plan.id : makeReviewActionId("plan"),
+    lastSavedAt: typeof plan.lastSavedAt === "string" ? plan.lastSavedAt : new Date().toISOString(),
+    outcome: typeof plan.outcome === "string" ? plan.outcome : "",
+    owner: typeof plan.owner === "string" ? plan.owner : "",
+    planDate: typeof plan.planDate === "string" ? plan.planDate : fallbackDate,
+    priority: ["LOW", "MEDIUM", "HIGH", "CRITICAL"].includes(String(plan.priority)) ? plan.priority as DailyFocusPriority : "HIGH",
+    status: ["DRAFT", "ACTIVE", "REVIEW", "DONE"].includes(String(plan.status)) ? plan.status as ReviewActionPlanStatus : "DRAFT",
+    steps: Array.isArray(plan.steps) ? plan.steps.map((step) => normalizeReviewActionStep(step)) : [],
+    title: typeof plan.title === "string" ? plan.title : ""
+  };
+}
+
 export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, initialTool = null, model }: { compact?: boolean; closedRepairOrderId?: string | null; initialTool?: CooWorkbookTool | null; model: ServiceAdvisorWorkspaceModel }) {
   const searchParams = useSearchParams() ?? new URLSearchParams();
   const [workbook, setWorkbook] = useState<WorkdayWorkbookModel>(model.workbook);
@@ -546,6 +632,18 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
   const [bringForwardType, setBringForwardType] = useState<BringForwardCandidate["sourceType"] | "ALL">("ALL");
   const [saving, setSaving] = useState(false);
   const [purchaseCaptureType, setPurchaseCaptureType] = useState("TRADE_IN");
+  const [reviewActionPlans, setReviewActionPlans] = useState<ReviewActionPlan[]>([]);
+  const [reviewPlannerLoadedKey, setReviewPlannerLoadedKey] = useState("");
+  const [actionPlanTitle, setActionPlanTitle] = useState("");
+  const [actionPlanOutcome, setActionPlanOutcome] = useState("");
+  const [actionPlanOwner, setActionPlanOwner] = useState("");
+  const [actionPlanDate, setActionPlanDate] = useState(model.boardDate);
+  const [actionPlanPriority, setActionPlanPriority] = useState<DailyFocusPriority>("HIGH");
+  const [firstActionStep, setFirstActionStep] = useState("");
+  const [actionStepDrafts, setActionStepDrafts] = useState<Record<string, string>>({});
+  const [actionCommentDrafts, setActionCommentDrafts] = useState<Record<string, string>>({});
+  const [expandedReviewPlanIds, setExpandedReviewPlanIds] = useState<Record<string, boolean>>({});
+  const [reviewPlanFeedback, setReviewPlanFeedback] = useState<Record<string, { at: string; message: string; tone: "active" | "done" | "saved" }>>({});
   function openEndDayReview() {
     if (!reviewingEndDay) {
       setReviewingEndDay(true);
@@ -579,6 +677,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
   const effectiveWorkbookView = automaticWorkbookView(canUseManagementWorkbook, searchParams);
   const activeWorkbook = effectiveWorkbookView === "MY" ? staffWorkbook : workbook;
   const activeWorkbookLabel = effectiveWorkbookView === "MY" ? staffWorkbookLabel : managementWorkbookLabel;
+  const reviewPlannerStorageKey = `coo-review-action-planner:${activeWorkbook.id}:${model.boardDate}:v1`;
   const sourceReturnTo = searchParams.get("returnTo");
   const scopedWorkbookHref = (href: string) => href.startsWith("/vehicles/coo-workbook") ? workbookScopeHref(href, effectiveWorkbookView, sourceReturnTo) : href;
   const workbookExitHref = sourceReturnTo?.startsWith("/") && !sourceReturnTo.startsWith("//") ? sourceReturnTo : scopedWorkbookHref("/vehicles/coo-workbook");
@@ -646,6 +745,35 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
     support: staffWorkbookSummaries.filter((item) => item.closeReadinessTone === "SUPPORT").length,
     total: staffWorkbookSummaries.length
   };
+  const reviewActionPlanRollup = reviewActionPlans.reduce((summary, plan) => {
+    const stepSummary = countReviewActionSteps(plan.steps);
+    return {
+      done: summary.done + stepSummary.done,
+      plans: summary.plans + 1,
+      steps: summary.steps + stepSummary.total
+    };
+  }, { done: 0, plans: 0, steps: 0 });
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      try {
+        const stored = window.localStorage.getItem(reviewPlannerStorageKey);
+        if (stored) {
+          const parsed = JSON.parse(stored) as ReviewActionPlan[];
+          setReviewActionPlans(Array.isArray(parsed) ? parsed.map((plan) => normalizeReviewActionPlan(plan, model.boardDate)) : []);
+        } else {
+          setReviewActionPlans([]);
+        }
+      } catch {
+        setReviewActionPlans([]);
+      }
+      setReviewPlannerLoadedKey(reviewPlannerStorageKey);
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  }, [model.boardDate, reviewPlannerStorageKey]);
+  useEffect(() => {
+    if (reviewPlannerLoadedKey !== reviewPlannerStorageKey) return;
+    window.localStorage.setItem(reviewPlannerStorageKey, JSON.stringify(reviewActionPlans));
+  }, [reviewActionPlans, reviewPlannerLoadedKey, reviewPlannerStorageKey]);
   const planTaskHref = cooTaskIntakeHref({
     brief: `Create the ${activeWorkbookLabel} daily action plan from ${actionQueue.length} active repair order signal(s), ${approvalCount} approval review item(s), and ${reportExceptions} unresolved risk/carryover item(s).`,
     dueAt: model.generatedAt,
@@ -2057,6 +2185,210 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
     }
   }
 
+  function addReviewActionPlan() {
+    const title = actionPlanTitle.trim();
+    if (!title) return;
+    const firstStep = firstActionStep.trim();
+    const planDate = /^\d{4}-\d{2}-\d{2}$/.test(actionPlanDate) ? actionPlanDate : model.boardDate;
+    const plan: ReviewActionPlan = {
+      comments: [],
+      id: makeReviewActionId("plan"),
+      lastSavedAt: new Date().toISOString(),
+      outcome: actionPlanOutcome.trim(),
+      owner: actionPlanOwner.trim(),
+      planDate,
+      priority: actionPlanPriority,
+      status: "DRAFT",
+      steps: firstStep ? [newReviewActionStep(firstStep)] : [],
+      title
+    };
+    setReviewActionPlans((items) => [plan, ...items]);
+    setExpandedReviewPlanIds((items) => ({ ...items, [plan.id]: false }));
+    setActionPlanTitle("");
+    setActionPlanOutcome("");
+    setActionPlanOwner("");
+    setActionPlanDate(model.boardDate);
+    setActionPlanPriority("HIGH");
+    setFirstActionStep("");
+    setWorkspaceNotice(`Draft action plan saved for ${planDate}.`);
+  }
+
+  function updateReviewActionPlan(planId: string, patch: Partial<ReviewActionPlan>) {
+    setReviewActionPlans((items) => items.map((item) => item.id === planId ? { ...item, ...patch } : item));
+  }
+
+  function showReviewPlanFeedback(planId: string, message: string, tone: "active" | "done" | "saved" = "saved") {
+    setReviewPlanFeedback((items) => ({ ...items, [planId]: { at: new Date().toISOString(), message, tone } }));
+  }
+
+  function deleteReviewActionPlan(planId: string) {
+    setReviewActionPlans((items) => items.filter((item) => item.id !== planId));
+    setExpandedReviewPlanIds((items) => {
+      const next = { ...items };
+      delete next[planId];
+      return next;
+    });
+    setWorkspaceNotice("Draft action plan removed.");
+  }
+
+  function saveReviewActionPlanDraft(planId: string) {
+    const savedAt = new Date().toISOString();
+    updateReviewActionPlan(planId, { lastSavedAt: savedAt, status: "DRAFT" });
+    showReviewPlanFeedback(planId, "Saved", "saved");
+    setWorkspaceNotice(`Draft saved inside Daily Action Plan at ${timeLabel(savedAt)}.`);
+  }
+
+  function workReviewActionPlan(planId: string) {
+    const savedAt = new Date().toISOString();
+    updateReviewActionPlan(planId, { lastSavedAt: savedAt, status: "ACTIVE" });
+    showReviewPlanFeedback(planId, "Working", "active");
+    setWorkspaceNotice(`Action plan is ready to work from this space as of ${timeLabel(savedAt)}.`);
+  }
+
+  function markReviewActionPlanImplemented(planId: string, implemented: boolean) {
+    const savedAt = new Date().toISOString();
+    updateReviewActionPlan(planId, {
+      implementedAt: implemented ? savedAt : undefined,
+      lastSavedAt: savedAt,
+      status: implemented ? "DONE" : "ACTIVE"
+    });
+    showReviewPlanFeedback(planId, implemented ? "Implemented" : "Working", implemented ? "done" : "active");
+    setWorkspaceNotice(implemented ? `Action plan marked implemented at ${timeLabel(savedAt)}.` : `Action plan moved back to working at ${timeLabel(savedAt)}.`);
+  }
+
+  function addReviewActionPlanComment(planId: string) {
+    const draftKey = `plan:${planId}`;
+    const comment = (actionCommentDrafts[draftKey] ?? "").trim();
+    if (!comment) return;
+    const timestampedComment = `${dateLabel(new Date().toISOString())}: ${comment}`;
+    setReviewActionPlans((items) => items.map((plan) => plan.id === planId ? {
+      ...plan,
+      comments: [...plan.comments, timestampedComment],
+      lastSavedAt: new Date().toISOString()
+    } : plan));
+    setActionCommentDrafts((drafts) => ({ ...drafts, [draftKey]: "" }));
+    showReviewPlanFeedback(planId, "Update saved", "saved");
+    setWorkspaceNotice(`Action plan update saved at ${timeLabel(new Date().toISOString())}.`);
+  }
+
+  function addReviewActionStepComment(planId: string, stepId: string) {
+    const draftKey = `step:${stepId}`;
+    const comment = (actionCommentDrafts[draftKey] ?? "").trim();
+    if (!comment) return;
+    const timestampedComment = `${dateLabel(new Date().toISOString())}: ${comment}`;
+    setReviewActionPlans((items) => items.map((plan) => {
+      if (plan.id !== planId) return plan;
+      return {
+        ...plan,
+        lastSavedAt: new Date().toISOString(),
+        steps: updateReviewActionStepTree(plan.steps, stepId, (step) => ({
+          ...step,
+          comments: [...step.comments, timestampedComment],
+          lastUpdatedAt: new Date().toISOString()
+        }))
+      };
+    }));
+    setActionCommentDrafts((drafts) => ({ ...drafts, [draftKey]: "" }));
+    showReviewPlanFeedback(planId, "Subtask update saved", "saved");
+  }
+
+  function addReviewActionStep(planId: string, parentStepId: string | null = null) {
+    const draftKey = `${planId}:${parentStepId ?? "root"}`;
+    const title = (actionStepDrafts[draftKey] ?? "").trim();
+    if (!title) return;
+    const step = newReviewActionStep(title);
+    setReviewActionPlans((items) => items.map((plan) => {
+      if (plan.id !== planId) return plan;
+      if (!parentStepId) return { ...plan, steps: [...plan.steps, step] };
+      return {
+        ...plan,
+        steps: updateReviewActionStepTree(plan.steps, parentStepId, (item) => ({ ...item, children: [...item.children, step] }))
+      };
+    }));
+    setActionStepDrafts((drafts) => ({ ...drafts, [draftKey]: "" }));
+    showReviewPlanFeedback(planId, parentStepId ? "Nested subtask added" : "Subtask added", "saved");
+  }
+
+  function updateReviewActionStep(planId: string, stepId: string, patch: Partial<ReviewActionStep>) {
+    setReviewActionPlans((items) => items.map((plan) => {
+      if (plan.id !== planId) return plan;
+      return {
+        ...plan,
+        lastSavedAt: new Date().toISOString(),
+        steps: updateReviewActionStepTree(plan.steps, stepId, (step) => ({ ...step, ...patch, lastUpdatedAt: new Date().toISOString() }))
+      };
+    }));
+  }
+
+  function deleteReviewActionStep(planId: string, stepId: string) {
+    setReviewActionPlans((items) => items.map((plan) => plan.id === planId ? { ...plan, steps: removeReviewActionStep(plan.steps, stepId) } : plan));
+  }
+
+  async function promoteReviewActionPlan(plan: ReviewActionPlan) {
+    const summary = countReviewActionSteps(plan.steps);
+    const planDate = reviewActionPlanDate(plan, model.boardDate);
+    setSaving(true);
+    setWorkspaceNotice(null);
+    try {
+      const response = await fetch(`/api/coo-workbook/daily-focus?date=${encodeURIComponent(model.boardDate)}&scope=${effectiveWorkbookView === "MY" ? "STAFF" : "COO"}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mustCloseToday: planDate === model.boardDate,
+          outcome: plan.outcome || plan.title,
+          priority: plan.priority,
+          riskLevel: "NONE",
+          sortOrder: activeWorkbook.dailyFocusItems.length,
+          supportNeeded: "",
+          riskNote: summary.total ? `${summary.total} draft subtask${summary.total === 1 ? "" : "s"} reviewed in the action planner for ${planDate}.` : `Planned for ${planDate}.`
+        })
+      });
+      const payload = await response.json().catch(() => null) as { duplicate?: boolean; error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error ?? "Unable to promote this action plan.");
+      await refreshActiveWorkbook();
+      updateReviewActionPlan(plan.id, { status: "ACTIVE" });
+      setWorkspaceNotice(payload?.duplicate ? "This action plan is already in Today’s Focus." : "Action plan promoted to Today’s Focus for adoption review.");
+    } catch (error) {
+      setWorkspaceNotice(error instanceof Error ? error.message : "Unable to promote this action plan.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function renderReviewActionStep(planId: string, step: ReviewActionStep, depth = 0) {
+    const draftKey = `${planId}:${step.id}`;
+    const commentDraftKey = `step:${step.id}`;
+    return <div className="advisor-action-step" key={step.id} style={{ "--step-depth": depth } as CSSProperties}>
+      <div className="advisor-action-step-main">
+        <button aria-label={`Mark ${step.title} ${step.done ? "not done" : "done"}`} className={step.done ? "complete" : ""} onClick={() => updateReviewActionStep(planId, step.id, { done: !step.done })} type="button"><CheckSquare /></button>
+        <input aria-label={`Subtask ${step.title}`} onChange={(event) => updateReviewActionStep(planId, step.id, { title: event.target.value })} value={step.title} />
+        <button aria-label={`Remove ${step.title}`} onClick={() => deleteReviewActionStep(planId, step.id)} type="button"><X /></button>
+      </div>
+      <div className="advisor-action-comments">
+        {step.comments.length ? <div className="advisor-action-comment-list">{step.comments.map((comment, index) => <small key={`${step.id}-comment-${index}`}>{comment}</small>)}</div> : null}
+        <div className="advisor-action-comment-entry">
+          <input aria-label={`Update for subtask ${step.title}`} onChange={(event) => setActionCommentDrafts((drafts) => ({ ...drafts, [commentDraftKey]: event.target.value }))} onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              addReviewActionStepComment(planId, step.id);
+            }
+          }} placeholder="Add update/comment..." value={actionCommentDrafts[commentDraftKey] ?? ""} />
+          <button disabled={!(actionCommentDrafts[commentDraftKey] ?? "").trim()} onClick={() => addReviewActionStepComment(planId, step.id)} type="button"><MessageSquareText /> Save update</button>
+        </div>
+      </div>
+      <div className="advisor-action-step-add">
+        <input aria-label={`Add subtask under ${step.title}`} onChange={(event) => setActionStepDrafts((drafts) => ({ ...drafts, [draftKey]: event.target.value }))} onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            addReviewActionStep(planId, step.id);
+          }
+        }} placeholder="Add nested subtask..." value={actionStepDrafts[draftKey] ?? ""} />
+        <button disabled={!(actionStepDrafts[draftKey] ?? "").trim()} onClick={() => addReviewActionStep(planId, step.id)} type="button"><Plus /> Subtask</button>
+      </div>
+      {step.children.length ? <div className="advisor-action-step-children">{step.children.map((child) => renderReviewActionStep(planId, child, depth + 1))}</div> : null}
+    </div>;
+  }
+
   if (initialTool) {
     const toolLabels: Record<CooWorkbookTool, string> = {
       ACTION_PLAN: "Daily Action Plan",
@@ -2245,13 +2577,115 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
       </section> : null}
 
       {initialTool === "ACTION_PLAN" ? <section className="advisor-coo-focused-tool advisor-coo-action-plan" aria-label="Daily Action Plan tool">
-        <header><strong>Daily Action Plan</strong><small>Turn operating signals into clear next actions without forcing everything into task tracking.</small></header>
-        <div>
-          {attentionItems.length ? attentionItems.map((item) => <article key={item.id}>
-            <h2>{item.title}</h2>
-            <p>{item.context}</p>
-            <Link href={scopedWorkbookHref(item.href)}>{item.action}</Link>
-          </article>) : <p><CheckCircle2 /> No urgent operating actions are waiting.</p>}
+        <header>
+          <div><strong>Daily Action Plan Review</strong><small>Design and save draft action plans for today or a future day. Staff can work from this space before deciding whether anything becomes a formal task.</small></div>
+          <span>{reviewActionPlanRollup.plans} plans · {reviewActionPlanRollup.done}/{reviewActionPlanRollup.steps} steps</span>
+        </header>
+        <div className="advisor-action-planner-shell">
+          <section className="advisor-action-plan-composer" aria-label="Add review action plan">
+            <input aria-label="Action plan title" onChange={(event) => setActionPlanTitle(event.target.value)} onKeyDown={(event) => {
+              if (event.key === "Enter" && actionPlanTitle.trim()) {
+                event.preventDefault();
+                addReviewActionPlan();
+              }
+            }} placeholder="Action plan name..." value={actionPlanTitle} />
+            <input aria-label="Action plan outcome" onChange={(event) => setActionPlanOutcome(event.target.value)} placeholder="Target outcome..." value={actionPlanOutcome} />
+            <input aria-label="Action plan owner" onChange={(event) => setActionPlanOwner(event.target.value)} placeholder="Owner..." value={actionPlanOwner} />
+            <input aria-label="Action plan date" onChange={(event) => setActionPlanDate(event.target.value)} type="date" value={actionPlanDate} />
+            <select aria-label="Action plan priority" onChange={(event) => setActionPlanPriority(event.target.value as DailyFocusPriority)} value={actionPlanPriority}>{focusPriorities.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select>
+            <input aria-label="First action plan subtask" onChange={(event) => setFirstActionStep(event.target.value)} placeholder="First subtask..." value={firstActionStep} />
+            <button disabled={!actionPlanTitle.trim()} onClick={addReviewActionPlan} type="button"><Save /> Save Draft</button>
+          </section>
+
+          <section className="advisor-action-plan-review-grid" aria-label="Draft action plans for review">
+            {reviewActionPlans.length ? reviewActionPlans.map((plan) => {
+              const summary = countReviewActionSteps(plan.steps);
+              const rootDraftKey = `${plan.id}:root`;
+              const planCommentDraftKey = `plan:${plan.id}`;
+              const planDate = reviewActionPlanDate(plan, model.boardDate);
+              const isFuturePlan = planDate !== model.boardDate;
+              const expanded = Boolean(expandedReviewPlanIds[plan.id]);
+              const feedback = reviewPlanFeedback[plan.id];
+              return <article className={`advisor-action-plan-review-card ${plan.status.toLocaleLowerCase()} ${expanded ? "expanded" : "collapsed"}`} key={plan.id}>
+                <div className="advisor-action-plan-summary">
+                  <button aria-expanded={expanded} aria-label={`${expanded ? "Collapse" : "Expand"} ${plan.title}`} onClick={() => setExpandedReviewPlanIds((items) => ({ ...items, [plan.id]: !expanded }))} type="button"><ChevronDown /></button>
+                  <span>
+                    <strong>{plan.title || "Untitled action plan"}</strong>
+                    <small>{planDate} · {plan.status.toLocaleLowerCase()} · {summary.done}/{summary.total} steps · {plan.owner || "No owner"}{plan.comments.length ? ` · ${plan.comments.length} update${plan.comments.length === 1 ? "" : "s"}` : ""}</small>
+                  </span>
+                  <em>{plan.implementedAt ? "Implemented" : plan.priority.toLocaleLowerCase()}</em>
+                  {feedback ? <b className={`advisor-action-feedback ${feedback.tone}`}>{feedback.message} · {timeLabel(feedback.at)}</b> : <b className="advisor-action-feedback saved">Saved · {timeLabel(plan.lastSavedAt)}</b>}
+                  <button onClick={() => saveReviewActionPlanDraft(plan.id)} type="button"><Save /> Save</button>
+                  <button onClick={() => workReviewActionPlan(plan.id)} type="button"><ClipboardCheck /> Work</button>
+                </div>
+                {expanded ? <>
+                  <header>
+                    <div>
+                      <input aria-label={`Action plan title ${plan.title}`} onChange={(event) => updateReviewActionPlan(plan.id, { title: event.target.value })} value={plan.title} />
+                      <small>{summary.done}/{summary.total} steps · {plan.priority.toLocaleLowerCase()} priority · {plan.status.toLocaleLowerCase()} · saved {plan.lastSavedAt ? dateLabel(plan.lastSavedAt) : "as draft"}</small>
+                    </div>
+                    <select aria-label={`Status for ${plan.title}`} onChange={(event) => updateReviewActionPlan(plan.id, { status: event.target.value as ReviewActionPlanStatus })} value={plan.status}>
+                      <option value="DRAFT">Draft</option>
+                      <option value="ACTIVE">Working</option>
+                      <option value="REVIEW">Review</option>
+                      <option value="DONE">Done</option>
+                    </select>
+                  </header>
+                  <div className="advisor-action-plan-fields">
+                    <input aria-label={`Outcome for ${plan.title}`} onChange={(event) => updateReviewActionPlan(plan.id, { outcome: event.target.value })} placeholder="Outcome" value={plan.outcome} />
+                    <input aria-label={`Owner for ${plan.title}`} onChange={(event) => updateReviewActionPlan(plan.id, { owner: event.target.value })} placeholder="Owner" value={plan.owner} />
+                    <input aria-label={`Plan date for ${plan.title}`} onChange={(event) => updateReviewActionPlan(plan.id, { planDate: event.target.value })} type="date" value={planDate} />
+                    <select aria-label={`Priority for ${plan.title}`} onChange={(event) => updateReviewActionPlan(plan.id, { priority: event.target.value as DailyFocusPriority })} value={plan.priority}>{focusPriorities.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select>
+                  </div>
+                  <div className="advisor-action-review-row">
+                    <button aria-pressed={Boolean(plan.implementedAt)} className={plan.implementedAt ? "implemented" : ""} onClick={() => markReviewActionPlanImplemented(plan.id, !plan.implementedAt)} type="button"><CheckSquare /> {plan.implementedAt ? "Implemented" : "Mark Implemented"}</button>
+                    <small>{plan.implementedAt ? `Implemented ${dateLabel(plan.implementedAt)}` : "Staff can work and close this plan here without creating a task."}</small>
+                  </div>
+                  <div className="advisor-action-comments">
+                    {plan.comments.length ? <div className="advisor-action-comment-list">{plan.comments.map((comment, index) => <small key={`${plan.id}-comment-${index}`}>{comment}</small>)}</div> : null}
+                    <div className="advisor-action-comment-entry">
+                      <input aria-label={`Update for action plan ${plan.title}`} onChange={(event) => setActionCommentDrafts((drafts) => ({ ...drafts, [planCommentDraftKey]: event.target.value }))} onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          addReviewActionPlanComment(plan.id);
+                        }
+                      }} placeholder="Add plan comment/update..." value={actionCommentDrafts[planCommentDraftKey] ?? ""} />
+                      <button disabled={!(actionCommentDrafts[planCommentDraftKey] ?? "").trim()} onClick={() => addReviewActionPlanComment(plan.id)} type="button"><MessageSquareText /> Save update</button>
+                    </div>
+                  </div>
+                  <div className="advisor-action-step-add root">
+                    <input aria-label={`Add subtask to ${plan.title}`} onChange={(event) => setActionStepDrafts((drafts) => ({ ...drafts, [rootDraftKey]: event.target.value }))} onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        addReviewActionStep(plan.id);
+                      }
+                    }} placeholder="Add subtask..." value={actionStepDrafts[rootDraftKey] ?? ""} />
+                    <button disabled={!(actionStepDrafts[rootDraftKey] ?? "").trim()} onClick={() => addReviewActionStep(plan.id)} type="button"><Plus /> Subtask</button>
+                  </div>
+                  <div className="advisor-action-step-list">
+                    {plan.steps.length ? plan.steps.map((step) => renderReviewActionStep(plan.id, step)) : <p><ListChecks /> Add subtasks only where they help clarify the plan.</p>}
+                  </div>
+                  <footer>
+                    <button onClick={() => saveReviewActionPlanDraft(plan.id)} type="button"><Save /> Save Draft</button>
+                    <button onClick={() => workReviewActionPlan(plan.id)} type="button"><ClipboardCheck /> Work Here</button>
+                    <button className="advisor-action-promote" disabled={saving || isClosed || isFuturePlan} onClick={() => void promoteReviewActionPlan(plan)} title={isFuturePlan ? "Future-day plans can stay saved here or become a future-dated task." : undefined} type="button"><CheckCircle2 /> Promote to Focus</button>
+                    <Link href={cooTaskIntakeHref({ brief: [plan.outcome, `Owner: ${plan.owner || "TBD"}`, `Plan date: ${planDate}`, `Draft steps: ${summary.total}`].filter(Boolean).join("\n"), dueAt: `${planDate}T17:00:00`, expectedOutcome: plan.outcome || `${plan.title} is completed with clear next actions and review notes.`, returnTo: scopedWorkbookHref("/vehicles/coo-workbook/action-plan"), title: plan.title })}>Create Task</Link>
+                    <button onClick={() => deleteReviewActionPlan(plan.id)} type="button"><X /> Remove</button>
+                  </footer>
+                </> : null}
+              </article>;
+            }) : <p className="advisor-action-empty"><ClipboardList /> Save the first draft action plan above. It will stay in this workspace for the selected date until staff work it here, promote it, or create a formal task.</p>}
+          </section>
+          <section className="advisor-action-signal-strip" aria-label="Suggested operating signals">
+            <header><strong>Operating Signals</strong><small>Optional starting points from today’s workbook intelligence.</small></header>
+            <div>
+              {attentionItems.length ? attentionItems.slice(0, 6).map((item) => <article key={item.id}>
+                <h2>{item.title}</h2>
+                <p>{item.context}</p>
+                <Link href={scopedWorkbookHref(item.href)}>{item.action}</Link>
+              </article>) : <p><CheckCircle2 /> No urgent operating actions are waiting.</p>}
+            </div>
+          </section>
         </div>
         <Link className="advisor-coo-primary-link" href={planTaskHref}>Create overall action plan task</Link>
       </section> : null}
