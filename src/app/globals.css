@@ -2032,6 +2032,10 @@ textarea {
   align-items: start;
 }
 
+.settings-admin-grid > .notice {
+  grid-column: 1 / -1;
+}
+
 .team-admin-command-strip {
   grid-column: 1 / -1;
   display: grid;
@@ -2126,6 +2130,17 @@ textarea {
   background: #f8fbff;
   border: 1px solid #dce6f2;
   border-radius: 10px;
+}
+
+.team-admin-empty {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  color: #617189;
+  background: #f8fafc;
+  border: 1px dashed #cfd9e7;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  line-height: 1.45;
 }
 
 .settings-summary-grid {
