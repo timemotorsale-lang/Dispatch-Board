@@ -555,12 +555,42 @@ export function TeamManagementPanel({
     return matchesStatus && matchesText;
   });
 
+  const activeUserCount = users.filter((user) => user.isActive).length;
+  const managerPowerCount = users.filter((user) => user.duties.some(isDelegatedManagerDuty)).length;
+  const activeTemplateCount = templateOptions.filter((template) => template.isActive).length;
+
   return (
     <div className="settings-admin-grid">
       {editMessage.error ? <div className="notice notice-danger"><p>{editMessage.error}</p></div> : null}
       {editMessage.success ? <div className="notice"><p>{editMessage.success}</p></div> : null}
 
-      <article className="panel-card">
+      <section className="team-admin-command-strip">
+        <div>
+          <span className="eyebrow">Team operations</span>
+          <h2>Roster first. Coverage second.</h2>
+          <p>Make the common move fast: add a person, adjust access, and confirm daily work coverage.</p>
+        </div>
+        <dl>
+          <div>
+            <dt>Active staff</dt>
+            <dd>{activeUserCount}</dd>
+          </div>
+          <div>
+            <dt>Manager powers</dt>
+            <dd>{managerPowerCount}</dd>
+          </div>
+          <div>
+            <dt>Roles</dt>
+            <dd>{roleOptions.length}</dd>
+          </div>
+          <div>
+            <dt>Active templates</dt>
+            <dd>{activeTemplateCount}</dd>
+          </div>
+        </dl>
+      </section>
+
+      <article className="panel-card team-admin-card team-admin-duty-card">
         <strong>Duty library</strong>
         <h2>Create and edit duties</h2>
         <p>Duties define the work responsibility units managers can assign directly or through role defaults.</p>
@@ -643,7 +673,7 @@ export function TeamManagementPanel({
         </div>
       </article>
 
-      <article className="panel-card">
+      <article className="panel-card team-admin-card team-admin-role-card">
         <strong>Role coverage</strong>
         <h2>Create and edit roles</h2>
         <p>Roles carry permission coverage and default-duty fallbacks when staff do not have direct-duty overrides.</p>
@@ -736,7 +766,7 @@ export function TeamManagementPanel({
         </div>
       </article>
 
-      <article className="panel-card">
+      <article className="panel-card team-admin-card team-admin-template-card">
         <strong>Task templates</strong>
         <h2>Create and optimize daily work generation</h2>
         <p>Templates define what the board generates each day, which workflow it belongs to, and whether it needs manager approval.</p>
@@ -828,7 +858,7 @@ export function TeamManagementPanel({
         </div>
       </article>
 
-      <article className="panel-card">
+      <article className="panel-card team-admin-card team-admin-staff-card">
         <strong>Manager workflow</strong>
         <h2>Add and manage staff accounts</h2>
         <p>Create staff logins, assign roles, and control who is active on the team roster.</p>

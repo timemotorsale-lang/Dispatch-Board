@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 import { SettingsWorkspaceNav } from "@/features/settings/settings-workspace-nav";
 import { TeamManagementPanel } from "@/features/settings/team-management-panel";
 import { requireCurrentUser } from "@/server/auth/current-user";
@@ -90,8 +88,8 @@ export default async function TeamManagementSettingsPage() {
           <span className="eyebrow">Protected settings</span>
           <h1>Team management</h1>
           <p>
-            This admin workspace keeps staff accounts, roles, duties, templates, and delegated
-            manager powers together without crowding the board settings area.
+            Keep staff access, role coverage, duty ownership, and daily work templates clean enough
+            for managers to update in one pass.
           </p>
         </div>
 
@@ -99,36 +97,6 @@ export default async function TeamManagementSettingsPage() {
           <span>Admin</span>
           <strong>Team management</strong>
         </div>
-
-        <section className="settings-overview-grid">
-          <article className="panel-card settings-callout-card">
-            <strong>Admin workspace</strong>
-            <h2>What you can manage here</h2>
-            <div className="settings-checklist">
-              <p>Users: create logins, activate staff, and keep the roster current.</p>
-              <p>Roles and duties: align coverage with the actual workflow and daily ownership.</p>
-              <p>Templates: control what work appears automatically on each new board.</p>
-              <p>Manager powers: only the General Manager can delegate elevated access.</p>
-            </div>
-          </article>
-
-          <article className="panel-card settings-callout-card">
-            <strong>Quick links</strong>
-            <h2>Move between admin and settings</h2>
-            <p>
-              Keep operational settings separate from staffing administration so each page stays
-              easier to scan.
-            </p>
-            <div className="form-actions">
-              <Link className="pill pill-secondary" href="/settings">
-                Open board settings
-              </Link>
-              <Link className="pill pill-primary" href="/staff">
-                Open team view
-              </Link>
-            </div>
-          </article>
-        </section>
 
         <TeamManagementPanel
           canGrantManagerPowers={canGrantManagerPowers(user)}
