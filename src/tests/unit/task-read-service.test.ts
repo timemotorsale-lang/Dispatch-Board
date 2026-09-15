@@ -173,6 +173,13 @@ describe("task read service", () => {
         nextCheckpointAt: null,
         lastProgressNote: null,
         blockerPlan: null,
+        planReview: {
+          status: "DRAFT_GENERATED",
+          note: null,
+          reviewedAt: null,
+          reviewedByUserId: null,
+          reviewedByName: null
+        },
         state: "CHECK_IN_DUE"
       },
       workflowArea: "SALES",

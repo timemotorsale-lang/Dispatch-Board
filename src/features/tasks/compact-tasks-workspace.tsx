@@ -26,11 +26,13 @@ export function compactTaskTitle(title: string, vehicleReference?: string | null
   return context || instruction;
 }
 
-function matchesQueue(task: BoardReadTask, queue: string, currentUserId: string, now: number) {
+function matchesQueue(task: BoardReadTask, queue: string, currentUserId: string, now: number, boardDate?: string) {
+  if (queue === "MY_URGENT") return isMyTaskOrCollaboration(task, currentUserId) && !isCompleted(task) && (task.priority === "CRITICAL" || isOverdue(task, now));
   if (queue === "MY_TASKS") return isMyTaskOrCollaboration(task, currentUserId) && task.status !== "COMPLETED";
   if (queue === "ALL") return true;
   if (queue === "WAITING") return task.status.startsWith("WAITING_");
   if (queue === "OVERDUE") return task.status !== "COMPLETED" && new Date(task.dueAt).getTime() < now;
+  if (queue === "DUE_TODAY") return boardDate ? isDueToday(task, boardDate) : false;
   if (queue === "UNASSIGNED") return !task.assignedUser?.id;
   return task.status === queue;
 }
@@ -63,6 +65,13 @@ function executionSignal(task: BoardReadTask, now = Date.now()) {
   return formatTaskEnumLabel(task.priority);
 }
 
+function compactQueueLabel(value: string) {
+  if (value === "ALL") return "All tasks";
+  if (value === "MY_URGENT") return "My urgent";
+  if (value === "DUE_TODAY") return "Due today";
+  return formatTaskEnumLabel(value);
+}
+
 function isMyTaskOrCollaboration(task: BoardReadTask, currentUserId: string) {
   return task.assignedUser?.id === currentUserId || task.collaborators?.some(collaborator => collaborator.id === currentUserId) === true;
 }
@@ -71,9 +80,9 @@ function getCollaborationForUser(task: BoardReadTask, currentUserId: string) {
   return task.collaborators?.find(collaborator => collaborator.id === currentUserId) ?? null;
 }
 
-export function filterCompactTasks(tasks: BoardReadTask[], filters: CompactTaskFilters, currentUserId: string, now = Date.now()) {
+export function filterCompactTasks(tasks: BoardReadTask[], filters: CompactTaskFilters, currentUserId: string, now = Date.now(), boardDate?: string) {
   const query = filters.query.trim().toLocaleLowerCase();
-  return tasks.filter(task => matchesQueue(task, filters.queue, currentUserId, now)
+  return tasks.filter(task => matchesQueue(task, filters.queue, currentUserId, now, boardDate)
     && (!filters.owner || task.assignedUser?.id === filters.owner)
     && (!filters.department || task.workflowArea === filters.department)
     && (!query || [task.title, task.description, task.vehicleReference, task.customerReference, task.assignedUser?.name,
@@ -153,7 +162,7 @@ export function CompactTasksList(props: TasksConsoleScreenProps & { onAdvanced: 
   const allCheckbox = useRef<HTMLInputElement>(null);
   const deferredQuery = useDeferredValue(filters.query);
   const now = Date.now();
-  const visible = filterCompactTasks(tasks, { ...filters, query: deferredQuery }, props.currentUserId, now);
+  const visible = filterCompactTasks(tasks, { ...filters, query: deferredQuery }, props.currentUserId, now, props.boardDate);
   const size = pageSize === "all" ? Math.max(1, visible.length) : Number(pageSize);
   const pages = Math.max(1, Math.ceil(visible.length / size));
   const activePage = Math.min(page, pages);
@@ -169,23 +178,26 @@ export function CompactTasksList(props: TasksConsoleScreenProps & { onAdvanced: 
   const returnTo = `${base}?date=${encodeURIComponent(props.boardDate)}&queue=${encodeURIComponent(filters.queue)}&department=${encodeURIComponent(filters.department)}&page=${activePage}&view=${view}`;
   const boardGroups = [...new Set(rows.map(task => task.status))];
   const activeFilterCount = [filters.queue !== "ALL", filters.owner, filters.department, filters.query].filter(Boolean).length;
-  const overdueCount = tasks.filter(task => isOverdue(task, now)).length;
-  const blockedCount = tasks.filter(task => task.status === "BLOCKED").length;
+  const overdueTasks = tasks.filter(task => isOverdue(task, now));
+  const blockedTasks = tasks.filter(task => task.status === "BLOCKED");
+  const overdueCount = overdueTasks.length;
+  const blockedCount = blockedTasks.length;
+  const atRiskCount = new Set([...overdueTasks, ...blockedTasks].map(task => task.id)).size;
   const reviewCount = tasks.filter(task => task.status === "READY_FOR_REVIEW").length;
   const dueTodayCount = tasks.filter(task => isDueToday(task, props.boardDate)).length;
   const unassignedCount = tasks.filter(task => !task.assignedUser?.id && !isCompleted(task)).length;
   const myUrgentCount = tasks.filter(task => isMyTaskOrCollaboration(task, props.currentUserId) && !isCompleted(task) && (task.priority === "CRITICAL" || isOverdue(task, now))).length;
   const generatedLabel = props.board?.generatedAt ? dueLabel(props.board.generatedAt) : "No generation timestamp";
   const focusCards = [
-    { label: "At risk", value: overdueCount + blockedCount, helper: "Overdue or blocked", queue: overdueCount ? "OVERDUE" : "BLOCKED", icon: AlertTriangle },
-    { label: "Due today", value: dueTodayCount, helper: "Ready to schedule", queue: "ALL", sort: "due", icon: TimerReset },
+    { label: "At risk", value: atRiskCount, helper: "Overdue or blocked", queue: overdueCount ? "OVERDUE" : "BLOCKED", icon: AlertTriangle },
+    { label: "Due today", value: dueTodayCount, helper: "Ready to schedule", queue: "DUE_TODAY", sort: "due", icon: TimerReset },
     { label: "Needs review", value: reviewCount, helper: "Manager attention", queue: "READY_FOR_REVIEW", icon: CheckCircle2 },
     { label: "Unassigned", value: unassignedCount, helper: "Needs an owner", queue: "UNASSIGNED", icon: Users }
   ];
   const executionViews = [
-    { label: "My urgent", queue: "MY_TASKS", count: myUrgentCount, sort: "priority" },
+    { label: "My urgent", queue: "MY_URGENT", count: myUrgentCount, sort: "priority" },
     { label: "Blocked", queue: "BLOCKED", count: blockedCount, sort: "priority" },
-    { label: "Due today", queue: "ALL", count: dueTodayCount, sort: "due" },
+    { label: "Due today", queue: "DUE_TODAY", count: dueTodayCount, sort: "due" },
     { label: "Needs review", queue: "READY_FOR_REVIEW", count: reviewCount, sort: "due" },
     { label: "Unassigned", queue: "UNASSIGNED", count: unassignedCount, sort: "due" }
   ];
@@ -226,7 +238,7 @@ export function CompactTasksList(props: TasksConsoleScreenProps & { onAdvanced: 
   if (props.errorMessage) return <ErrorStateCard title="Tasks could not load" message={props.errorMessage} actions={[{ label: "Open Dispatch Board", href: "/board" }]} />;
   return <section className={`${styles.workspace} ${comfortable ? styles.comfortable : ""}`} aria-label="Compact task workspace">
     <header className={styles.heading}><div><h1>Tasks</h1><span>{tasks.length} tasks · {props.boardDate}</span></div><div className={styles.headingActions}><Link className={styles.primary} href={`/tasks/intake?returnTo=${encodeURIComponent(returnTo)}`}><Plus size={15} /> Task intake</Link><button onClick={() => props.onAdvanced(filters)} type="button">Operations tools</button></div></header>
-    <nav className={styles.tabs} aria-label="Task queues">{([['ALL', 'All tasks'], ['MY_TASKS', 'My tasks'], ['BLOCKED', 'Blocked'], ['READY_FOR_REVIEW', 'Needs review']] as const).map(([queue, label]) => <button key={queue} aria-pressed={filters.queue === queue} onClick={() => changeFilter("queue", queue)} type="button">{label}<span>{tasks.filter(task => matchesQueue(task, queue, props.currentUserId, Date.now())).length}</span></button>)}</nav>
+    <nav className={styles.tabs} aria-label="Task queues">{([['ALL', 'All tasks'], ['MY_TASKS', 'My tasks'], ['BLOCKED', 'Blocked'], ['READY_FOR_REVIEW', 'Needs review']] as const).map(([queue, label]) => <button key={queue} aria-pressed={filters.queue === queue} onClick={() => changeFilter("queue", queue)} type="button">{label}<span>{tasks.filter(task => matchesQueue(task, queue, props.currentUserId, Date.now(), props.boardDate)).length}</span></button>)}</nav>
     <section className={styles.healthStrip} aria-label="Task work health">
       {focusCards.map(card => {
         const Icon = card.icon;
@@ -244,14 +256,14 @@ export function CompactTasksList(props: TasksConsoleScreenProps & { onAdvanced: 
       <select aria-label="Filter owner" value={filters.owner} onChange={event => changeFilter("owner", event.target.value)}><option value="">All owners</option>{owners.map(owner => <option key={owner.id} value={owner.id}>{owner.name}</option>)}</select>
       <select aria-label="Sort tasks" value={filters.sort} onChange={event => changeFilter("sort", event.target.value)}><option value="priority">Priority first</option><option value="description">Description A–Z</option><option value="due">Due date</option></select>
       <details className={styles.options}><summary>Bulk / display</summary><div>
-        <label>Status<select aria-label="Filter status" value={filters.queue} onChange={event => changeFilter("queue", event.target.value)}>{executionQueueOptions.map(value => <option key={value} value={value}>{value === "ALL" ? "All tasks" : formatTaskEnumLabel(value)}</option>)}</select></label>
+        <label>Status<select aria-label="Filter status" value={filters.queue} onChange={event => changeFilter("queue", event.target.value)}>{["MY_URGENT", "DUE_TODAY", ...executionQueueOptions].map(value => <option key={value} value={value}>{compactQueueLabel(value)}</option>)}</select></label>
         <label><input type="checkbox" checked={contextVisible} onChange={event => setContextVisible(event.target.checked)} /> Show vehicle / RO context</label><label><input type="checkbox" checked={comfortable} onChange={event => setComfortable(event.target.checked)} /> Comfortable row spacing</label>
         <button onClick={exportTasks} type="button"><Download size={14} /> {checkedTasks.length ? `Export ${checkedTasks.length} selected` : "Export filtered tasks"}</button><button onClick={() => router.refresh()} type="button"><RefreshCw size={14} /> Refresh tasks</button><button onClick={() => { setFilters({ queue: base === "/my-tasks" ? "MY_TASKS" : "ALL", query: "", department: "", owner: "", sort: "priority" }); setPage(1); setSelected(null); }} type="button">Reset filters</button>
       </div></details>
     </div>
     <div className={styles.freshness}><span>Live board</span><strong>Updated {generatedLabel}</strong><em>{activeFilterCount ? `${activeFilterCount} filter${activeFilterCount === 1 ? "" : "s"} active` : "No filters active"} · {visible.length} visible</em></div>
-    {filters.queue !== "ALL" || filters.owner || filters.department || filters.query ? <div className={styles.filterSummary}>View: {formatTaskEnumLabel(filters.queue)}{filters.owner ? ` · ${owners.find(owner => owner.id === filters.owner)?.name ?? "Selected owner"}` : ""}{filters.department ? ` · ${departmentLabel(filters.department)}` : ""}{filters.query ? ` · “${filters.query}”` : ""}</div> : null}
-    {checkedTasks.length ? <div className={styles.bulkBar} role="region" aria-label="Bulk actions"><strong>{checkedTasks.length} selected</strong><span>Bulk execution</span><button onClick={() => props.onAdvanced(filters)} type="button">Assign</button><button onClick={() => props.onAdvanced(filters)} type="button">Update status</button><button onClick={exportTasks} type="button">Export</button><button onClick={() => setChecked(new Set())} type="button">Clear</button></div> : null}
+    {filters.queue !== "ALL" || filters.owner || filters.department || filters.query ? <div className={styles.filterSummary}>View: {compactQueueLabel(filters.queue)}{filters.owner ? ` · ${owners.find(owner => owner.id === filters.owner)?.name ?? "Selected owner"}` : ""}{filters.department ? ` · ${departmentLabel(filters.department)}` : ""}{filters.query ? ` · “${filters.query}”` : ""}</div> : null}
+    {checkedTasks.length ? <div className={styles.bulkBar} role="region" aria-label="Bulk actions"><strong>{checkedTasks.length} selected</strong><span>Bulk execution</span>{props.isManager ? <button onClick={() => props.onAdvanced(filters)} type="button">Assign in tools</button> : null}<button onClick={() => props.onAdvanced(filters)} type="button">Update in tools</button><button onClick={exportTasks} type="button">Export</button><button onClick={() => setChecked(new Set())} type="button">Clear</button></div> : null}
     {view === "board" ? <div className={styles.cardBoard} aria-label="Task board">
       {boardGroups.map(status => <details key={status} open className={styles.boardGroup}>
         <summary><ClipboardList size={18} /><span>{status === "READY_FOR_REVIEW" ? "Needs review" : formatTaskEnumLabel(status)}</span><span className={styles.groupCount}>{rows.filter(task => task.status === status).length} on this page</span></summary>
@@ -260,7 +272,7 @@ export function CompactTasksList(props: TasksConsoleScreenProps & { onAdvanced: 
           <div className={styles.cardMeta}><span>{task.assignedUser?.name ?? "Unassigned"}</span><span>{getCollaborationForUser(task, props.currentUserId) ? "Collaboration" : departmentLabel(task.workflowArea)}</span><span>Due {dueLabel(task.dueAt)}</span><strong>{executionSignal(task, now)}</strong></div>
           {contextVisible ? <p className={styles.cardContext}>{[task.title.match(/^RO-[A-Z0-9]+/i)?.[0], task.vehicleReference, task.customerReference].filter(Boolean).join(" · ")}</p> : null}
           <div className={styles.cardFooter}><span className={task.priority === "CRITICAL" ? styles.urgent : undefined}>{task.priority === "CRITICAL" ? "Urgent" : formatTaskEnumLabel(task.priority)}</span><label><input type="checkbox" aria-label={`Select ${compactTaskTitle(task.title, task.vehicleReference)}`} checked={checked.has(task.id)} onChange={() => toggleCheck(task.id)} /> Select</label></div>
-          <div className={styles.cardActions}><Link className={styles.primary} href={`/tasks/${encodeURIComponent(task.id)}?returnTo=${encodeURIComponent(returnTo)}`}>Open</Link><button onClick={() => setSelected(selected === task.id ? null : task.id)} type="button">Update</button><button onClick={() => props.onAdvanced(filters)} type="button">Assign</button></div>
+          <div className={styles.cardActions}><Link className={styles.primary} href={`/tasks/${encodeURIComponent(task.id)}?returnTo=${encodeURIComponent(returnTo)}`}>Open</Link><button onClick={() => setSelected(selected === task.id ? null : task.id)} type="button">Update</button>{props.isManager ? <button onClick={() => props.onAdvanced(filters)} type="button">Assign</button> : null}</div>
           <Link className={styles.cardNumber} href={`/tasks/${encodeURIComponent(task.id)}?returnTo=${encodeURIComponent(returnTo)}`}>{formatTaskDisplayNumber(task.id)}</Link>
           {selected === task.id ? <CompactTaskDetails task={task} currentUserId={props.currentUserId} returnTo={returnTo} onClose={() => closeDetails(task.id)} /> : null}
         </article>)}</div>
@@ -269,7 +281,7 @@ export function CompactTasksList(props: TasksConsoleScreenProps & { onAdvanced: 
     </div> : <div className={styles.tableWrap}><table><thead><tr><th className={styles.check}><input ref={allCheckbox} aria-label="Select all visible tasks" type="checkbox" checked={allChecked} onChange={event => { const value = event.target.checked; setChecked(current => { const next = new Set(current); rows.forEach(task => { if (value) next.add(task.id); else next.delete(task.id); }); return next; }); }} /></th><th>Task description</th><th className={styles.priority}>Priority</th><th className={styles.status}>Status</th><th className={styles.owner}>Owner</th><th className={styles.due}>Due</th><th className={styles.number}>Task #</th></tr></thead><tbody>
       {rows.map(task => <Fragment key={task.id}><tr className={[selected === task.id ? styles.selected : "", styles[`risk-${riskClass(task, now)}`] ?? ""].filter(Boolean).join(" ")} data-task-row={task.id}>
         <td className={styles.check}><input type="checkbox" aria-label={`Select ${compactTaskTitle(task.title, task.vehicleReference)}`} checked={checked.has(task.id)} onChange={() => toggleCheck(task.id)} /></td>
-        <td><div className={styles.descriptionCell}><div><button id={`task-open-${task.id}`} className={styles.title} title={compactTaskTitle(task.title, task.vehicleReference)} aria-expanded={selected === task.id} aria-controls={selected === task.id ? `task-details-${task.id}` : undefined} onClick={() => setSelected(selected === task.id ? null : task.id)} type="button">{compactTaskTitle(task.title, task.vehicleReference)}</button><span className={styles.rowMeta}>{task.assignedUser?.name ?? "Unassigned"} · Due {dueLabel(task.dueAt)} · {executionSignal(task, now)}</span>{getCollaborationForUser(task, props.currentUserId) ? <span className={styles.context}>Collaboration requested</span> : null}{contextVisible ? <span className={styles.context}>{[task.title.match(/^RO-[A-Z0-9]+/i)?.[0], task.vehicleReference, task.customerReference, departmentLabel(task.workflowArea)].filter(Boolean).join(" · ")}</span> : null}<span className={styles.mobileMeta}>{task.assignedUser?.name ?? "Unassigned"} · {dueLabel(task.dueAt)} · {formatTaskEnumLabel(task.priority)}</span></div><div className={styles.quickActions} aria-label={`Quick actions for ${compactTaskTitle(task.title, task.vehicleReference)}`}><Link href={`/tasks/${encodeURIComponent(task.id)}?returnTo=${encodeURIComponent(returnTo)}`}>Open</Link><button onClick={() => setSelected(selected === task.id ? null : task.id)} type="button">Update</button><button onClick={() => props.onAdvanced(filters)} type="button">Assign</button></div></div></td>
+        <td><div className={styles.descriptionCell}><div><button id={`task-open-${task.id}`} className={styles.title} title={compactTaskTitle(task.title, task.vehicleReference)} aria-expanded={selected === task.id} aria-controls={selected === task.id ? `task-details-${task.id}` : undefined} onClick={() => setSelected(selected === task.id ? null : task.id)} type="button">{compactTaskTitle(task.title, task.vehicleReference)}</button><span className={styles.rowMeta}>{task.assignedUser?.name ?? "Unassigned"} · Due {dueLabel(task.dueAt)} · {executionSignal(task, now)}</span>{getCollaborationForUser(task, props.currentUserId) ? <span className={styles.context}>Collaboration requested</span> : null}{contextVisible ? <span className={styles.context}>{[task.title.match(/^RO-[A-Z0-9]+/i)?.[0], task.vehicleReference, task.customerReference, departmentLabel(task.workflowArea)].filter(Boolean).join(" · ")}</span> : null}<span className={styles.mobileMeta}>{task.assignedUser?.name ?? "Unassigned"} · {dueLabel(task.dueAt)} · {formatTaskEnumLabel(task.priority)}</span></div><div className={styles.quickActions} aria-label={`Quick actions for ${compactTaskTitle(task.title, task.vehicleReference)}`}><Link href={`/tasks/${encodeURIComponent(task.id)}?returnTo=${encodeURIComponent(returnTo)}`}>Open</Link><button onClick={() => setSelected(selected === task.id ? null : task.id)} type="button">Update</button>{props.isManager ? <button onClick={() => props.onAdvanced(filters)} type="button">Assign</button> : null}</div></div></td>
         <td className={`${styles.priority} ${task.priority === "CRITICAL" ? styles.urgent : ""}`}>{task.priority === "CRITICAL" ? "Urgent" : formatTaskEnumLabel(task.priority)}</td><td className={styles.status}><span className={`${styles.badge} ${task.status === "BLOCKED" ? styles.blocked : task.status === "IN_PROGRESS" ? styles.progress : task.status === "READY_FOR_REVIEW" ? styles.review : ""}`}>{task.status === "READY_FOR_REVIEW" ? "Needs review" : formatTaskEnumLabel(task.status)}</span></td>
         <td className={styles.owner} title={task.assignedUser?.name}>{task.assignedUser?.name ?? "Unassigned"}</td><td className={styles.due} title={dueLabel(task.dueAt)}>{dueLabel(task.dueAt)}</td><td className={styles.number}><Link href={`/tasks/${encodeURIComponent(task.id)}?returnTo=${encodeURIComponent(returnTo)}`}>{formatTaskDisplayNumber(task.id)}</Link></td>
       </tr>{selected === task.id ? <tr><td colSpan={7} className={styles.detailCell}><CompactTaskDetails task={task} currentUserId={props.currentUserId} returnTo={returnTo} onClose={() => closeDetails(task.id)} /></td></tr> : null}</Fragment>)}

@@ -3,7 +3,7 @@ import { resolve, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 import { validateInventoryConsoleProgram } from "@/server/program-integration-validation/conformance";
 
-const root = process.cwd(), ignored = new Set([".git", ".next", "node_modules"]);
+const root = process.cwd(), ignored = new Set([".codex-runtime", ".git", ".next", "node_modules"]);
 function walk(directory: string, paths: string[] = []) { for (const entry of readdirSync(directory, { withFileTypes: true })) { if (ignored.has(entry.name)) continue; const absolute = resolve(directory, entry.name); if (entry.isDirectory()) walk(absolute, paths); else paths.push(relative(root, absolute).replaceAll("\\", "/")); } return paths; }
 function fixture() {
   const paths = new Set(walk(root)), sources = ["src/app/(app)/vehicles/inventory/page.tsx", "src/features/inventory/inventory-console-home.tsx", "src/features/inventory/inventory-lifecycle-landing.tsx", "src/features/inventory/shop-recon-landing.tsx", "src/features/inventory/governance-administration-workspace.tsx", "src/features/inventory/integration-ecosystem-workspace.tsx"];

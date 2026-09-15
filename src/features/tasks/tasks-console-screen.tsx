@@ -84,6 +84,8 @@ type QueueFilter =
   | "WAITING_ON_PARTS"
   | "WAITING_ON_APPROVAL"
   | "READY_FOR_REVIEW"
+  | "DUE_TODAY"
+  | "MY_URGENT"
   | "OVERDUE"
   | "COMPLETED"
   | "UNASSIGNED";
@@ -169,6 +171,8 @@ const TASKS_CONSOLE_QUEUE_FILTERS: QueueFilter[] = [
   "WAITING_ON_PARTS",
   "WAITING_ON_APPROVAL",
   "READY_FOR_REVIEW",
+  "DUE_TODAY",
+  "MY_URGENT",
   "OVERDUE",
   "COMPLETED",
   "UNASSIGNED"
@@ -581,6 +585,10 @@ function getQueueFilterLabel(filter: QueueFilter) {
     return "My Tasks";
   }
 
+  if (filter === "MY_URGENT") {
+    return "My Urgent";
+  }
+
   if (filter === "NOT_STARTED") {
     return "Not Started";
   }
@@ -607,6 +615,10 @@ function getQueueFilterLabel(filter: QueueFilter) {
 
   if (filter === "READY_FOR_REVIEW") {
     return "Ready for Review";
+  }
+
+  if (filter === "DUE_TODAY") {
+    return "Due Today";
   }
 
   if (filter === "OVERDUE") {
@@ -662,6 +674,12 @@ function matchesQueueFilter(task: BoardReadTask, filter: QueueFilter, now: Date,
     return isTaskOwnedByOrCollaborating(task, currentUserId) && task.status !== TaskStatus.COMPLETED;
   }
 
+  if (filter === "MY_URGENT") {
+    return isTaskOwnedByOrCollaborating(task, currentUserId) && task.status !== TaskStatus.COMPLETED && (
+      task.priority === "CRITICAL" || task.priority === "HIGH" || isTaskOverdue(task, now)
+    );
+  }
+
   if (filter === "WAITING") {
     return (
       task.status === TaskStatus.WAITING_ON_PARTS || task.status === TaskStatus.WAITING_ON_APPROVAL
@@ -678,6 +696,10 @@ function matchesQueueFilter(task: BoardReadTask, filter: QueueFilter, now: Date,
 
   if (filter === "OVERDUE") {
     return isTaskOverdue(task, now);
+  }
+
+  if (filter === "DUE_TODAY") {
+    return task.status !== TaskStatus.COMPLETED && task.dueAt.startsWith(boardDate);
   }
 
   if (filter === "COMPLETED") {
@@ -712,7 +734,7 @@ function getMetricCardTone(filter: QueueFilter) {
     return "tasks-console-metric-danger";
   }
 
-  if (filter === "WAITING") {
+  if (filter === "WAITING" || filter === "DUE_TODAY") {
     return "tasks-console-metric-warning";
   }
 
@@ -1049,6 +1071,7 @@ export function TasksConsoleScreen({
   const myTasksCount = allTasks.filter(
     (task) => isTaskOwnedByOrCollaborating(task, currentUserId) && task.status !== TaskStatus.COMPLETED
   ).length;
+  const myUrgentCount = getQueueCount(allTasks, "MY_URGENT", now, boardDate, currentUserId);
   const activeFilterChips = [
     activeQueueFilter !== "ALL" ? `Queue: ${getQueueFilterLabel(activeQueueFilter)}` : null,
     activeDepartmentFilter ? `Department: ${getDepartmentLabel(activeDepartmentFilter)}` : null,
@@ -1063,13 +1086,13 @@ export function TasksConsoleScreen({
     { filter: "OVERDUE" as const, label: "Urgent overdue", value: overdueTasks.length, detail: "Past due or SLA risk" },
     { filter: "BLOCKED" as const, label: "Blocked", value: blockedTasks.length, detail: "Needs intervention" },
     { filter: "READY_FOR_REVIEW" as const, label: "Needs review", value: readyForReviewTasks.length, detail: "Manager pass pending" },
-    { filter: "ALL" as const, label: "Due today", value: dueTodayTasks.length, detail: formatBoardDateLabel(boardDate) },
+    { filter: "DUE_TODAY" as const, label: "Due today", value: dueTodayTasks.length, detail: formatBoardDateLabel(boardDate) },
     { filter: "UNASSIGNED" as const, label: "Unassigned", value: unassignedTasks.length, detail: "Needs owner" }
   ];
   const executionViews = [
-    { filter: "MY_TASKS" as const, label: "My urgent", count: myTasksCount },
+    { filter: "MY_URGENT" as const, label: "My urgent", count: myUrgentCount },
     { filter: "BLOCKED" as const, label: "Blocked", count: blockedTasks.length },
-    { filter: "ALL" as const, label: "Due today", count: dueTodayTasks.length },
+    { filter: "DUE_TODAY" as const, label: "Due today", count: dueTodayTasks.length },
     { filter: "READY_FOR_REVIEW" as const, label: "Needs review", count: readyForReviewTasks.length },
     { filter: "UNASSIGNED" as const, label: "Unassigned", count: unassignedTasks.length }
   ];
@@ -1293,6 +1316,18 @@ export function TasksConsoleScreen({
 
       return [...new Set([...current, ...selectedVisibleTaskIds])];
     });
+  }
+
+  function handleOpenSelectedTaskForExecution(tab: TasksConsoleTab = "details") {
+    const firstSelectedTask = selectedTasks[0];
+    if (!firstSelectedTask) return;
+    setSelectedTaskId(firstSelectedTask.id);
+    setActiveTab(tab);
+    setRightRailMode("open");
+    setWorkflowError(null);
+    setWorkflowMessage(selectedTasks.length === 1
+      ? "Selected task is ready in the detail rail."
+      : `Opened the first of ${selectedTasks.length} selected tasks. Export keeps the full selected set intact.`);
   }
 
   function getTaskAcquisitionDecision(taskId: string) {
@@ -1800,9 +1835,9 @@ export function TasksConsoleScreen({
     });
   }
 
-  function handleExportVisibleTasks() {
+  function exportTasksCsv(tasksToExport: BoardReadTask[], fileSuffix: string) {
     const header = ["Task #", "Title", "Status", "Priority", "Owner", "Department", "Due Time", "Vehicle / Customer"];
-    const rows = visibleTasks.map((task) => {
+    const rows = tasksToExport.map((task) => {
       const priority = getPriorityLabel(task, now);
 
       return [
@@ -1824,12 +1859,20 @@ export function TasksConsoleScreen({
     const link = document.createElement("a");
 
     link.href = url;
-    link.download = `tasks-${boardDate}.csv`;
+    link.download = `tasks-${fileSuffix}-${boardDate}.csv`;
     document.body.append(link);
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
     setActiveMenu(null);
+  }
+
+  function handleExportVisibleTasks() {
+    exportTasksCsv(visibleTasks, "visible");
+  }
+
+  function handleExportSelectedTasks() {
+    exportTasksCsv(selectedTasks, "selected");
   }
 
   const statusSidebarItems: SidebarItem[] = [
@@ -2208,7 +2251,7 @@ export function TasksConsoleScreen({
         <section className="tasks-console-command-strip" aria-label="Task work health">
           {commandMetrics.map((metric) => (
             <button
-              className={`tasks-console-command-card ${metric.value > 0 && metric.filter !== "ALL" ? "attention" : ""}`}
+              className={`tasks-console-command-card ${metric.value > 0 ? "attention" : ""}`}
               key={metric.label}
               onClick={() => handleQueueFilterChange(metric.filter)}
               type="button"
@@ -2675,10 +2718,9 @@ export function TasksConsoleScreen({
                     <div className="tasks-console-bulk-bar" role="status">
                       <strong>{selectedTasks.length} selected</strong>
                       <span>Bulk execution</span>
-                      <button type="button">Assign</button>
-                      <button type="button">Update status</button>
-                      <button type="button">Set priority</button>
-                      <button type="button">Move due date</button>
+                      {isManager ? <button onClick={() => handleOpenSelectedTaskForExecution("details")} type="button">Assign first</button> : null}
+                      <button onClick={() => handleOpenSelectedTaskForExecution("details")} type="button">Update first</button>
+                      <button onClick={handleExportSelectedTasks} type="button">Export selected</button>
                       <button onClick={() => setSelectedTaskIds([])} type="button">Clear</button>
                     </div>
                   ) : null}

@@ -233,7 +233,7 @@ describe("enterprise shell navigation", () => {
       badge: "Controlled",
       homeHref: "/crm",
       subtitle: "Customer Operations",
-      title: "Unified CRM"
+      title: "Customer Console"
     });
     expect(getConsoleNavigation("/crm", manager)?.items.map((item) => [item.title, item.href])).toEqual([
       ["Home", "/crm"],
