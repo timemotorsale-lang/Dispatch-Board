@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { loginWithPassword } from "@/server/auth/service";
+import { AUTH_PASSWORD_CHANGE_REQUIRED_ROUTE, loginWithPassword } from "@/server/auth/service";
 import { isOperationsCoordinatorDefaultUser, resolvePostLoginRoute } from "@/server/auth/navigation";
 import { buildSessionCookie } from "@/server/auth/session";
 import { createPrismaAuthStore } from "@/server/auth/store";
@@ -72,11 +72,14 @@ export async function POST(request: Request) {
   cookieStore.set(sessionCookie.name, sessionCookie.value, sessionCookie.options);
 
   return NextResponse.json({
-    redirectTo: resolvePostLoginRoute(
-      result.user,
-      coordinatorDefault ? null : payload.returnTo,
-      coordinatorDefault ? null : preferredWorkspace
-    ),
+    redirectTo: result.requiresPasswordChange
+      ? AUTH_PASSWORD_CHANGE_REQUIRED_ROUTE
+      : resolvePostLoginRoute(
+          result.user,
+          coordinatorDefault ? null : payload.returnTo,
+          coordinatorDefault ? null : preferredWorkspace
+        ),
+    requiresPasswordChange: result.requiresPasswordChange,
     user: result.user
   });
 }

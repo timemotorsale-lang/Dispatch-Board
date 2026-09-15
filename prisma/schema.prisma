@@ -1908,6 +1908,12 @@ model User {
   name                                         String
   email                                        String                                 @unique
   passwordHash                                 String
+  mustChangePassword                           Boolean                                @default(false)
+  passwordChangedAt                            DateTime?
+  passwordResetAt                              DateTime?
+  failedLoginCount                             Int                                    @default(0)
+  lockedUntil                                  DateTime?
+  lastLoginAt                                  DateTime?
   isActive                                     Boolean                                @default(true)
   createdAt                                    DateTime                               @default(now())
   updatedAt                                    DateTime                               @updatedAt

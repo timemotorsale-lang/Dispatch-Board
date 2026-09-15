@@ -28,6 +28,9 @@ function buildSeedUserRecord(definition: (typeof developmentUserDefinitions)[num
     email: definition.email,
     passwordHash,
     isActive: definition.isActive,
+    mustChangePassword: false,
+    failedLoginCount: 0,
+    lockedUntil: null,
     roles: uniqueSorted([...definition.roleNames]),
     duties: {
       direct: directDuties,
@@ -73,6 +76,7 @@ export async function createTestAuthStore() {
         name: user.name,
         email: user.email,
         isActive: user.isActive,
+        mustChangePassword: user.mustChangePassword,
         roles: user.roles,
         duties: user.duties
       };
@@ -87,6 +91,32 @@ export async function createTestAuthStore() {
     },
     async deleteSessionByTokenHash(tokenHash) {
       sessionsByTokenHash.delete(tokenHash);
+    },
+    async recordFailedLogin(userId, failedLoginCount, lockedUntil) {
+      const user = [...usersByEmail.values()].find((candidateUser) => candidateUser.id === userId);
+
+      if (user) {
+        user.failedLoginCount = failedLoginCount;
+        user.lockedUntil = lockedUntil;
+      }
+    },
+    async recordSuccessfulLogin(userId) {
+      const user = [...usersByEmail.values()].find((candidateUser) => candidateUser.id === userId);
+
+      if (user) {
+        user.failedLoginCount = 0;
+        user.lockedUntil = null;
+      }
+    },
+    async updateUserPassword(userId, passwordHash) {
+      const user = [...usersByEmail.values()].find((candidateUser) => candidateUser.id === userId);
+
+      if (user) {
+        user.passwordHash = passwordHash;
+        user.mustChangePassword = false;
+        user.failedLoginCount = 0;
+        user.lockedUntil = null;
+      }
     }
   };
 

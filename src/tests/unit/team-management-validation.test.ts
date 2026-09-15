@@ -12,7 +12,7 @@ describe("team management validation", () => {
       normalizeTeamMemberCreateInput({
         name: "  Alex Staff ",
         email: "  Alex.Staff@Local.Test ",
-        password: "dispatch123!",
+        password: "StrongTemp123!",
         roleIds: ["role-sales", " role-sales ", "role-admin"],
         dutyIds: ["duty-follow-up", " duty-follow-up "],
         isActive: true
@@ -20,7 +20,7 @@ describe("team management validation", () => {
     ).toEqual({
       name: "Alex Staff",
       email: "alex.staff@local.test",
-      password: "dispatch123!",
+      password: "StrongTemp123!",
       roleIds: ["role-sales", "role-admin"],
       dutyIds: ["duty-follow-up"],
       isActive: true
@@ -32,13 +32,13 @@ describe("team management validation", () => {
       normalizeTeamMemberCreateInput({
         name: "Alex Staff",
         email: "alex.staff@local.test",
-        password: "dispatch123!",
+        password: "StrongTemp123!",
         roleIds: []
       })
     ).toThrow("At least one role must be assigned.");
   });
 
-  it("requires a minimum password length", () => {
+  it("requires a stronger temporary password", () => {
     expect(() =>
       normalizeTeamMemberCreateInput({
         name: "Alex Staff",
@@ -46,7 +46,7 @@ describe("team management validation", () => {
         password: "short",
         roleIds: ["role-sales"]
       })
-    ).toThrow("Temporary password must be at least 8 characters.");
+    ).toThrow("Temporary password must be at least 12 characters.");
   });
 
   it("normalizes a role with optional default duties", () => {

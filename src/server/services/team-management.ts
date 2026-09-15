@@ -1,5 +1,9 @@
+import type { Prisma } from "@prisma/client";
+
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { hashPassword } from "@/server/auth/password";
+import { INITIAL_ORGANIZATION } from "@/server/appointments/location-foundation";
+import { prisma } from "@/server/db/client";
 import {
   canGrantManagerPowers,
   canManageUsers,
@@ -17,8 +21,7 @@ import {
   normalizeManagedDutyUpdateInput,
   normalizeManagedRoleCreateInput,
   normalizeManagedRoleUpdateInput,
-  normalizeTeamMemberCreateInput
-  ,
+  normalizeTeamMemberCreateInput,
   normalizeTeamMemberUpdateInput
 } from "@/server/validation/team-management";
 
@@ -30,6 +33,7 @@ export type ManagedTeamUser = {
   email: string;
   isActive: boolean;
   createdAt: Date;
+  updatedAt: Date;
   roles: Array<{ id: string; name: string }>;
   duties: Array<{ id: string; name: string }>;
 };
@@ -64,6 +68,7 @@ function toManagedTeamUser(user: ManagedUserRecord): ManagedTeamUser {
     email: user.email,
     isActive: user.isActive,
     createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
     roles: user.userRoles.map((assignment) => assignment.role),
     duties: user.userDuties.map((assignment) => assignment.duty)
   };
@@ -156,6 +161,28 @@ async function assertCanCreateOrRenameDelegatedManagerDuty(
   }
 }
 
+async function recordTeamSecurityAudit(input: {
+  actorUserId: string;
+  eventType: string;
+  reason: string;
+  subjectId: string;
+  metadata?: Record<string, unknown>;
+}) {
+  await prisma.enterpriseAuditEvent.create({
+    data: {
+      organizationId: INITIAL_ORGANIZATION.id,
+      actorUserId: input.actorUserId,
+      domain: "TEAM_SECURITY",
+      subjectType: "USER",
+      subjectId: input.subjectId,
+      eventType: input.eventType,
+      reason: input.reason,
+      metadata: (input.metadata ?? {}) as Prisma.InputJsonObject,
+      correlationId: `team-security:${input.eventType.toLowerCase()}:${input.subjectId}:${Date.now()}`
+    }
+  });
+}
+
 export async function getTeamManagementSnapshotForManager(
   user: AuthenticatedUser | null,
   repository: TeamManagementRepository = createTeamManagementRepository()
@@ -185,7 +212,7 @@ export async function createManagedTeamUser(
   input: unknown,
   repository: TeamManagementRepository = createTeamManagementRepository()
 ) {
-  assertCanManageTeam(user);
+  const manager = assertCanManageTeam(user);
 
   const normalizedInput = normalizeTeamMemberCreateInput(input);
   await assertCanAssignManagerPowers(user, normalizedInput.dutyIds, repository);
@@ -212,6 +239,14 @@ export async function createManagedTeamUser(
     dutyIds: normalizedInput.dutyIds
   });
 
+  await recordTeamSecurityAudit({
+    actorUserId: manager.id,
+    eventType: "STAFF_USER_CREATED",
+    reason: "Manager created a staff login with a temporary password that must be changed.",
+    subjectId: createdUser.id,
+    metadata: { isActive: createdUser.isActive, roleIds: normalizedInput.roleIds, dutyIds: normalizedInput.dutyIds }
+  });
+
   return toManagedTeamUser(createdUser);
 }
 
@@ -221,7 +256,7 @@ export async function updateManagedTeamUser(
   input: unknown,
   repository: TeamManagementRepository = createTeamManagementRepository()
 ) {
-  assertCanManageTeam(user);
+  const manager = assertCanManageTeam(user);
 
   const normalizedTeamUserId = teamUserId.trim();
 
@@ -231,6 +266,11 @@ export async function updateManagedTeamUser(
 
   const normalizedInput = normalizeTeamMemberUpdateInput(input);
   await assertCanAssignManagerPowers(user, normalizedInput.dutyIds, repository);
+  const passwordResetRequested = Boolean(normalizedInput.temporaryPassword);
+
+  if (normalizedInput.temporaryPassword) {
+    normalizedInput.temporaryPassword = await hashPassword(normalizedInput.temporaryPassword);
+  }
 
   if (normalizedInput.roleIds) {
     const roles = await repository.findRolesByIds(normalizedInput.roleIds);
@@ -253,6 +293,19 @@ export async function updateManagedTeamUser(
   if (!updatedUser) {
     throw new Error("Team member not found.");
   }
+
+  await recordTeamSecurityAudit({
+    actorUserId: manager.id,
+    eventType: passwordResetRequested ? "STAFF_PASSWORD_RESET" : "STAFF_USER_UPDATED",
+    reason: passwordResetRequested
+      ? "Manager reset a staff password and required the staff member to change it."
+      : "Manager updated staff account settings.",
+    subjectId: updatedUser.id,
+    metadata: {
+      changedFields: Object.keys(normalizedInput).filter((key) => key !== "temporaryPassword"),
+      passwordResetRequested
+    }
+  });
 
   return toManagedTeamUser(updatedUser);
 }

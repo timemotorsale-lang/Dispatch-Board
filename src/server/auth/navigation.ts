@@ -158,6 +158,7 @@ function hasOperationsCoordinatorDefaultRoles(user: AuthenticatedUser) {
 const ROUTE_WORKSPACES: Array<{ prefix: string; workspaces: WorkspaceKey[] }> = [
   { prefix: "/manager-workspace", workspaces: ["MANAGEMENT"] },
   { prefix: "/administration", workspaces: ["MANAGEMENT"] },
+  { prefix: "/settings/password", workspaces: [...WORKSPACE_KEYS] },
   { prefix: "/settings", workspaces: ["MANAGEMENT"] },
   { prefix: "/integrations", workspaces: ["MANAGEMENT"] },
   { prefix: "/reports", workspaces: ["MANAGEMENT", "VEHICLE_OPERATIONS_LEAD", "INVENTORY", "SERVICE"] },
@@ -346,6 +347,10 @@ export function getLoginRouteRedirect(
   user: AuthenticatedUser | null,
   preferredWorkspace?: WorkspaceKey | null
 ) {
+  if (user?.mustChangePassword) {
+    return "/settings/password";
+  }
+
   return user ? getDefaultLandingRoute(user, preferredWorkspace) : null;
 }
 
@@ -369,6 +374,10 @@ export function resolvePostLoginRoute(
   returnTo: string | null | undefined,
   preferredWorkspace?: WorkspaceKey | null
 ) {
+  if (user.mustChangePassword) {
+    return "/settings/password";
+  }
+
   const fallback = getDefaultLandingRoute(user, preferredWorkspace);
   const safe = getSafePostLoginRedirect(returnTo, fallback);
   return safe !== fallback && isRoutePermittedForUser(user, safe) ? safe : fallback;
