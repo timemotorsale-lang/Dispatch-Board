@@ -142,6 +142,84 @@ const FIELD_LABELS = {
   note: "Start note"
 };
 
+const MN_DMV_FEE_ITEMS = [
+  { amountCents: 825, code: "title-transfer", label: "Title transfer" },
+  { amountCents: 1200, code: "filing-fee", label: "Filing fee" },
+  { amountCents: 200, code: "lien-notation", label: "Lien notation" },
+  { amountCents: 850, code: "plate-transfer", label: "Plate transfer" },
+  { amountCents: 225, code: "technology-surcharge", label: "DVS technology surcharge" },
+  { amountCents: 0, code: "registration-tabs", label: "Registration / tabs estimate" },
+  { amountCents: 0, code: "wheelage-tax", label: "Wheelage tax by county" },
+  { amountCents: 0, code: "motor-vehicle-sales-tax", label: "Motor vehicle sales tax" },
+  { amountCents: 0, code: "custom-dvs-fee", label: "Custom MN DMV / DVS fee" }
+];
+
+type RetailFeeLine = {
+  amountCents: number;
+  id: string;
+  label: string;
+};
+
+type VehicleDecodeResult = {
+  bodyType: string;
+  make: string;
+  stockNumber: string;
+  valid: boolean;
+  year: string;
+};
+
+const VIN_YEAR_CODES: Record<string, number> = {
+  A: 2010,
+  B: 2011,
+  C: 2012,
+  D: 2013,
+  E: 2014,
+  F: 2015,
+  G: 2016,
+  H: 2017,
+  J: 2018,
+  K: 2019,
+  L: 2020,
+  M: 2021,
+  N: 2022,
+  P: 2023,
+  R: 2024,
+  S: 2025,
+  T: 2026,
+  V: 2027,
+  W: 2028,
+  X: 2029,
+  Y: 2030
+};
+
+const VIN_MAKE_PREFIXES: Record<string, string> = {
+  "1C": "Chrysler",
+  "1F": "Ford",
+  "1G": "General Motors",
+  "1H": "Honda",
+  "1N": "Nissan",
+  "2C": "Chrysler",
+  "2F": "Ford",
+  "2G": "General Motors",
+  "2H": "Honda",
+  "2T": "Toyota",
+  "3C": "Chrysler",
+  "3F": "Ford",
+  "3G": "General Motors",
+  "3H": "Honda",
+  "3N": "Nissan",
+  "4T": "Toyota",
+  "5N": "Hyundai",
+  "5Y": "Tesla",
+  JH: "Honda",
+  JT: "Toyota",
+  KM: "Hyundai",
+  KN: "Kia",
+  WB: "BMW",
+  WD: "Mercedes-Benz",
+  WV: "Volkswagen"
+};
+
 function dollarsToCents(value: string) {
   const normalized = value.trim().replace(/[$,]/g, "");
   if (!normalized) return null;
@@ -149,11 +227,77 @@ function dollarsToCents(value: string) {
   return Math.round(Number(normalized) * 100);
 }
 
+function formatCurrency(cents: number) {
+  return new Intl.NumberFormat("en-US", { currency: "USD", style: "currency" }).format(cents / 100);
+}
+
+function normalizeVin(value: string) {
+  return value.toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, "").slice(0, 17);
+}
+
+function getStockNumberFromVin(vin: string) {
+  return vin.length >= 6 ? vin.slice(-6) : "";
+}
+
+function decodeVin(vin: string): VehicleDecodeResult {
+  const normalizedVin = normalizeVin(vin);
+  const makePrefix = normalizedVin.slice(0, 2);
+  const yearCode = normalizedVin.charAt(9);
+  return {
+    bodyType: "Auto",
+    make: VIN_MAKE_PREFIXES[makePrefix] ?? "",
+    stockNumber: getStockNumberFromVin(normalizedVin),
+    valid: normalizedVin.length === 17,
+    year: yearCode ? String(VIN_YEAR_CODES[yearCode] ?? "") : ""
+  };
+}
+
 function tomorrowIso() {
   const date = new Date();
   date.setDate(date.getDate() + 1);
   date.setHours(10, 0, 0, 0);
   return date.toISOString();
+}
+
+function ExecutionSummary({
+  completedCount,
+  ready,
+  statusKind,
+  workflow,
+  onStart
+}: {
+  completedCount: number;
+  ready: boolean;
+  statusKind: "idle" | "saving" | "success" | "error";
+  workflow: DealWorkflow;
+  onStart: () => void;
+}) {
+  return (
+    <>
+      <div>
+        <h2>Execute next</h2>
+        <p>{workflow.intent}</p>
+      </div>
+      <dl>
+        <div><dt>Revenue channel</dt><dd>{workflow.label}</dd></div>
+        <div><dt>Execution desk</dt><dd>{workflow.nextWorkspace}</dd></div>
+        <div><dt>Readiness</dt><dd>{ready ? "Ready to execute" : `${completedCount}/3 required facts`}</dd></div>
+      </dl>
+      <div className={styles.dealStartChecklist}>
+        <strong>Facts needed now</strong>
+        {workflow.required.map((item) => <span key={item}>{item}</span>)}
+      </div>
+      <div className={styles.dealStartChecklist}>
+        <strong>Execution path</strong>
+        {workflow.executionSteps.map((item) => <span key={item}>{item}</span>)}
+      </div>
+      <details className={styles.dealStartDisclosure}>
+        <summary>Source checks</summary>
+        <div>{workflow.sourceChecks.map((item) => <span key={item}>{item}</span>)}</div>
+      </details>
+      <button disabled={!ready || statusKind === "saving"} onClick={onStart} type="button">{statusKind === "saving" ? "Opening..." : ready ? "Open execution path" : "Complete required facts"}</button>
+    </>
+  );
 }
 
 function RetailSaleExecutionDesk({
@@ -167,9 +311,78 @@ function RetailSaleExecutionDesk({
   onVehicleChange: (value: string) => void;
   vehicle: string;
 }) {
+  const [selectedFeeCode, setSelectedFeeCode] = useState(MN_DMV_FEE_ITEMS[0]?.code ?? "");
+  const selectedFee = MN_DMV_FEE_ITEMS.find((item) => item.code === selectedFeeCode) ?? MN_DMV_FEE_ITEMS[0];
+  const [feeAmount, setFeeAmount] = useState(selectedFee ? formatCurrency(selectedFee.amountCents) : "$0.00");
+  const [feeLines, setFeeLines] = useState<RetailFeeLine[]>([]);
+  const feeTotalCents = useMemo(() => feeLines.reduce((total, line) => total + line.amountCents, 0), [feeLines]);
+  const feeFormula = feeLines.length > 0 ? `${feeLines.map((line) => formatCurrency(line.amountCents)).join(" + ")} = ${formatCurrency(feeTotalCents)}` : "$0.00 = $0.00";
+  const [vehicleFacts, setVehicleFacts] = useState({
+    bodyType: "Auto",
+    color: "",
+    driveTrain: "",
+    engine: "",
+    make: "",
+    model: "",
+    stockNumber: "",
+    transmission: "",
+    trim: "",
+    vin: "",
+    year: ""
+  });
+  const [decodeStatus, setDecodeStatus] = useState("Enter a 17-character VIN to decode vehicle facts.");
+
+  function selectFee(code: string) {
+    const nextFee = MN_DMV_FEE_ITEMS.find((item) => item.code === code) ?? MN_DMV_FEE_ITEMS[0];
+    setSelectedFeeCode(code);
+    setFeeAmount(formatCurrency(nextFee.amountCents));
+  }
+
+  function addFeeLine() {
+    if (!selectedFee) return;
+    const parsedAmount = dollarsToCents(feeAmount);
+    if (parsedAmount === null || Number.isNaN(parsedAmount)) return;
+    setFeeLines((current) => [
+      ...current,
+      {
+        amountCents: parsedAmount,
+        id: `${selectedFee.code}-${crypto.randomUUID()}`,
+        label: selectedFee.label
+      }
+    ]);
+  }
+
+  function removeFeeLine(id: string) {
+    setFeeLines((current) => current.filter((line) => line.id !== id));
+  }
+
+  function updateVin(value: string) {
+    const vin = normalizeVin(value);
+    const stockNumber = getStockNumberFromVin(vin);
+    setVehicleFacts((current) => ({ ...current, stockNumber, vin }));
+    onVehicleChange(stockNumber || vin || vehicle);
+  }
+
+  function updateVehicleFact(key: keyof typeof vehicleFacts, value: string) {
+    setVehicleFacts((current) => ({ ...current, [key]: value }));
+  }
+
+  function runVinDecode() {
+    const decoded = decodeVin(vehicleFacts.vin);
+    setVehicleFacts((current) => ({
+      ...current,
+      bodyType: decoded.bodyType || current.bodyType,
+      make: decoded.make || current.make,
+      stockNumber: decoded.stockNumber,
+      year: decoded.year || current.year
+    }));
+    setDecodeStatus(decoded.valid ? "VIN decoded. Confirm make, model, trim, and book values before delivery." : "VIN must be 17 characters before decoding is complete.");
+    if (decoded.stockNumber) onVehicleChange(decoded.stockNumber);
+  }
+
   return (
     <div className={styles.retailExecutionDesk}>
-      <section className={styles.retailSection}>
+      <section className={styles.retailSection} id="retail-applicant">
         <header>
           <span>Applicant info</span>
           <strong>Find or capture the buyer</strong>
@@ -177,7 +390,10 @@ function RetailSaleExecutionDesk({
         <div className={styles.retailActionRow}>
           <button type="button">Add co-buyer</button>
           <button type="button">Print credit application</button>
+          <button type="button">Text credit application</button>
+          <button type="button">Email credit application</button>
         </div>
+        <p className={styles.retailDeliveryNote}>Text and email delivery use the approved CRM communications provider and stay attached to the customer record.</p>
         <label className={styles.retailSearch}>
           <span>Search existing customer</span>
           <input placeholder="Name, phone, email, or customer #" />
@@ -196,7 +412,7 @@ function RetailSaleExecutionDesk({
         </div>
       </section>
 
-      <section className={styles.retailSection}>
+      <section className={styles.retailSection} id="retail-contact">
         <header>
           <span>Residence & contact</span>
           <strong>Keep the deal reachable</strong>
@@ -216,24 +432,29 @@ function RetailSaleExecutionDesk({
         </div>
       </section>
 
-      <section className={styles.retailSection}>
+      <section className={styles.retailSection} id="retail-vehicle">
         <header>
           <span>Vehicle info</span>
           <strong>Confirm the unit and book values</strong>
         </header>
         <div className={styles.retailFieldGrid}>
           <label><span>Search inventory</span><input value={vehicle} onChange={(event) => onVehicleChange(event.target.value)} placeholder="Stock, VIN, or vehicle" /></label>
-          <label><span>Vehicle type</span><select><option>Auto</option><option>Truck</option><option>SUV</option><option>Van</option></select></label>
+          <label><span>Vehicle type</span><select value={vehicleFacts.bodyType} onChange={(event) => updateVehicleFact("bodyType", event.target.value)}><option>Auto</option><option>Truck</option><option>SUV</option><option>Van</option></select></label>
           <label><span>New / used</span><select><option>Used</option><option>New</option></select></label>
-          <label><span>VIN</span><input /></label>
-          <label><span>Stock no.</span><input /></label>
-          <label><span>Year</span><input /></label>
-          <label><span>Make</span><input /></label>
-          <label><span>Model</span><input /></label>
-          <label><span>Trim</span><input /></label>
-          <label><span>Engine</span><input /></label>
-          <label><span>Transmission</span><input /></label>
-          <label><span>Drive train</span><input /></label>
+          <label><span>VIN</span><input value={vehicleFacts.vin} onChange={(event) => updateVin(event.target.value)} placeholder="17-character VIN" /></label>
+          <label><span>Stock no.</span><input readOnly value={vehicleFacts.stockNumber} placeholder="Last 6 of VIN" /></label>
+          <label><span>Year</span><input value={vehicleFacts.year} onChange={(event) => updateVehicleFact("year", event.target.value)} /></label>
+          <div className={styles.retailDecodeRow}>
+            <button type="button" onClick={runVinDecode}>Decode VIN</button>
+            <span>{decodeStatus}</span>
+          </div>
+          <label><span>Make</span><input value={vehicleFacts.make} onChange={(event) => updateVehicleFact("make", event.target.value)} /></label>
+          <label><span>Model</span><input value={vehicleFacts.model} onChange={(event) => updateVehicleFact("model", event.target.value)} /></label>
+          <label><span>Trim</span><input value={vehicleFacts.trim} onChange={(event) => updateVehicleFact("trim", event.target.value)} /></label>
+          <label><span>Color</span><input value={vehicleFacts.color} onChange={(event) => updateVehicleFact("color", event.target.value)} placeholder="Exterior color" /></label>
+          <label><span>Engine</span><input value={vehicleFacts.engine} onChange={(event) => updateVehicleFact("engine", event.target.value)} /></label>
+          <label><span>Transmission</span><input value={vehicleFacts.transmission} onChange={(event) => updateVehicleFact("transmission", event.target.value)} /></label>
+          <label><span>Drive train</span><input value={vehicleFacts.driveTrain} onChange={(event) => updateVehicleFact("driveTrain", event.target.value)} /></label>
           <label><span>Mileage</span><input /></label>
           <label><span>Title readiness</span><select><option>Check before delivery</option><option>Ready</option><option>Needs work</option></select></label>
           <label><span>Title brand</span><select><option>Clean</option><option>Prior salvage</option><option>Rebuilt</option><option>Unknown</option></select></label>
@@ -246,7 +467,7 @@ function RetailSaleExecutionDesk({
         </div>
       </section>
 
-      <section className={styles.retailSection}>
+      <section className={styles.retailSection} id="retail-trade">
         <header>
           <span>Trade-in info</span>
           <strong>Capture payoff and allowance before numbers move</strong>
@@ -265,14 +486,14 @@ function RetailSaleExecutionDesk({
         </div>
       </section>
 
-      <section className={styles.retailSection}>
+      <section className={styles.retailSection} id="retail-deal">
         <header>
           <span>Deal info</span>
           <strong>Build the first working numbers</strong>
         </header>
         <div className={styles.retailFieldGrid}>
           <label><span>Price</span><input value={amount} onChange={(event) => onAmountChange(event.target.value)} placeholder="$0.00" /></label>
-          <label><span>Fees</span><input placeholder="$0.00" /></label>
+          <label><span>Fees</span><input readOnly value={formatCurrency(feeTotalCents)} /></label>
           <label><span>Insurance / GAP / VSI</span><input placeholder="$0.00" /></label>
           <label><span>Accessories</span><input placeholder="$0.00" /></label>
           <label><span>VSC / products</span><input placeholder="$0.00" /></label>
@@ -287,26 +508,51 @@ function RetailSaleExecutionDesk({
           <label><span>Payment / funding</span><select><option>Cash / certified funds</option><option>Outside finance</option><option>One pay</option><option>To be confirmed</option></select></label>
           <label><span>Delivery target</span><input placeholder="Today, tomorrow, or date" /></label>
         </div>
+        <div className={styles.retailFeeTool} aria-label="MN DMV fee calculator">
+          <header>
+            <span>MN DMV fees</span>
+            <strong>Fee worksheet</strong>
+            <small>Formula: Total fees = sum of selected MN DMV fee items. Confirm against the current Minnesota DVS schedule before delivery.</small>
+          </header>
+          <div className={styles.retailFeeControls}>
+            <label>
+              <span>Fee item</span>
+              <select value={selectedFeeCode} onChange={(event) => selectFee(event.target.value)}>
+                {MN_DMV_FEE_ITEMS.map((item) => (
+                  <option key={item.code} value={item.code}>{item.label}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Amount</span>
+              <input value={feeAmount} onChange={(event) => setFeeAmount(event.target.value)} placeholder="$0.00" />
+            </label>
+            <button type="button" onClick={addFeeLine}>Add fee</button>
+          </div>
+          <div className={styles.retailFeeRows}>
+            {feeLines.length > 0 ? feeLines.map((line) => (
+              <div key={line.id}>
+                <span>{line.label}</span>
+                <strong>{formatCurrency(line.amountCents)}</strong>
+                <button type="button" onClick={() => removeFeeLine(line.id)}>Remove</button>
+              </div>
+            )) : <p>No MN DMV / DVS fees added yet.</p>}
+          </div>
+          <div className={styles.retailFeeFormula}>
+            <span>Total fees</span>
+            <strong>{formatCurrency(feeTotalCents)}</strong>
+            <small>{feeFormula}</small>
+          </div>
+        </div>
       </section>
 
-      <aside className={styles.retailFundingPanel} aria-label="Retail sale execution checks">
-        <header>
-          <span>Execution checks</span>
-          <strong>Before staff promises delivery</strong>
-        </header>
-        <dl>
-          <div><dt>Identity</dt><dd>Applicant and ID captured</dd></div>
-          <div><dt>Vehicle</dt><dd>Stock/VIN confirmed</dd></div>
-          <div><dt>Funding</dt><dd>Payment path selected</dd></div>
-          <div><dt>Delivery</dt><dd>Title and release checked</dd></div>
-        </dl>
-      </aside>
     </div>
   );
 }
 
 export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter }) {
   const [workflowId, setWorkflowId] = useState<DealWorkflowId>("retail-sale");
+  const [summaryOpen, setSummaryOpen] = useState(false);
   const [form, setForm] = useState({
     amount: "",
     customerId: model.customers[0]?.id ?? "",
@@ -320,9 +566,14 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
   const estimatedValueCents = useMemo(() => dollarsToCents(form.amount), [form.amount]);
   const completedCount = useMemo(() => [form.customerId, form.vehicle, form.amount].filter((value) => value.trim()).length, [form]);
   const ready = completedCount === 3 && Boolean(form.ownerUserId) && Number.isFinite(estimatedValueCents);
+  const readinessLabel = ready ? "Ready to execute" : `${completedCount}/3 ready`;
 
   function update(key: keyof typeof form, value: string) {
     setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function saveDraft() {
+    setStatus({ kind: "success", message: "Draft saved. Complete intake when the required facts are ready." });
   }
 
   async function startDeal() {
@@ -365,6 +616,29 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
         <Link className={styles.secondaryButton} href={CRM_NEXT_DEALS_HREF}>Back to deals</Link>
       </header>
 
+      <section className={styles.executionCommandStrip} aria-label="Revenue execution command">
+        <div>
+          <span>{workflow.label}</span>
+          <strong>{readinessLabel}</strong>
+          <small>{workflow.nextWorkspace}</small>
+        </div>
+        <div className={styles.executionStatusChips} aria-label="Retail execution checks">
+          {["Identity", "Vehicle", "Funding", "Delivery"].map((item) => <span key={item}>{item}</span>)}
+        </div>
+        <button type="button" onClick={() => setSummaryOpen(true)}>Execution Summary</button>
+        <button disabled={!ready || status.kind === "saving"} onClick={() => void startDeal()} type="button">
+          {status.kind === "saving" ? "Opening..." : "Open execution path"}
+        </button>
+      </section>
+
+      <nav className={styles.retailSectionJumps} aria-label="Retail sale section jumps">
+        <a href="#retail-applicant">Applicant</a>
+        <a href="#retail-vehicle">Vehicle</a>
+        <a href="#retail-trade">Trade-In</a>
+        <a href="#retail-deal">Deal</a>
+        <button type="button" onClick={() => setSummaryOpen(true)}>Checks</button>
+      </nav>
+
       <main className={styles.dealStartLayout}>
         <section className={styles.dealStartStep}>
           <span>1</span>
@@ -396,6 +670,16 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
                 vehicle={form.vehicle}
               />
               <label className={`${styles.dealStartWide} ${styles.retailNote}`}><span>{FIELD_LABELS.note}</span><textarea value={form.note} onChange={(event) => update("note", event.target.value)} placeholder="Optional context staff needs before working this retail sale" rows={3} /></label>
+              <div className={styles.retailNextActionBar} aria-label="Retail sale next actions">
+                <div>
+                  <span>Next action</span>
+                  <strong>{ready ? "Ready to complete intake" : "Save now, complete when required facts are ready"}</strong>
+                </div>
+                <button type="button" onClick={saveDraft}>Save draft</button>
+                <button disabled={!ready || status.kind === "saving"} onClick={() => void startDeal()} type="button">
+                  {status.kind === "saving" ? "Completing..." : "Complete intake"}
+                </button>
+              </div>
             </>
           ) : (
             <div className={styles.dealStartForm}>
@@ -408,34 +692,23 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
           )}
         </section>
 
-        <section className={styles.dealStartReview}>
-          <span>3</span>
-          <div>
-            <h2>Execute next</h2>
-            <p>{workflow.intent}</p>
-          </div>
-          <dl>
-            <div><dt>Revenue channel</dt><dd>{workflow.label}</dd></div>
-            <div><dt>Execution desk</dt><dd>{workflow.nextWorkspace}</dd></div>
-            <div><dt>Readiness</dt><dd>{ready ? "Ready to execute" : `${completedCount}/3 required facts`}</dd></div>
-          </dl>
-          <div className={styles.dealStartChecklist}>
-            <strong>Facts needed now</strong>
-            {workflow.required.map((item) => <span key={item}>{item}</span>)}
-          </div>
-          <div className={styles.dealStartChecklist}>
-            <strong>Execution path</strong>
-            {workflow.executionSteps.map((item) => <span key={item}>{item}</span>)}
-          </div>
-          <details className={styles.dealStartDisclosure}>
-            <summary>Source checks</summary>
-            <div>{workflow.sourceChecks.map((item) => <span key={item}>{item}</span>)}</div>
-          </details>
-          <button disabled={!ready || status.kind === "saving"} onClick={() => void startDeal()} type="button">{status.kind === "saving" ? "Opening..." : ready ? "Open execution path" : "Complete required facts"}</button>
-          {status.kind !== "idle" ? <p className={status.kind === "error" ? styles.dealStartError : styles.dealStartStatus}>{status.message}{status.href ? <> <Link href={status.href}>Open opportunity</Link></> : null}</p> : null}
-          <small>Opens a Unified CRM opportunity through the governed backend command with idempotency, audit, and source checks.</small>
-        </section>
       </main>
+      {status.kind !== "idle" ? <p className={status.kind === "error" ? styles.dealStartError : styles.dealStartStatus}>{status.message}{status.href ? <> <Link href={status.href}>Open opportunity</Link></> : null}</p> : null}
+      {summaryOpen ? (
+        <div className={styles.executionDrawerBackdrop} role="presentation">
+          <aside className={styles.executionDrawer} aria-label="Execution summary drawer">
+            <header>
+              <div>
+                <span className={styles.eyebrow}>Execution Summary</span>
+                <h2>{workflow.label}</h2>
+              </div>
+              <button type="button" onClick={() => setSummaryOpen(false)}>Close</button>
+            </header>
+            <ExecutionSummary completedCount={completedCount} onStart={() => void startDeal()} ready={ready} statusKind={status.kind} workflow={workflow} />
+            <small>Opens a Unified CRM opportunity through the governed backend command with idempotency, audit, and source checks.</small>
+          </aside>
+        </div>
+      ) : null}
     </section>
   );
 }
