@@ -59,6 +59,7 @@ export function TaskWorkbenchSearch({ currentTaskId, returnTo, view }: TaskWorkb
     searchAbort.current?.abort();
 
     if (!open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- closing the search should immediately clear the transient result panel.
       setResults([]);
       setStatus("idle");
       setActiveIndex(0);
@@ -134,6 +135,7 @@ export function TaskWorkbenchSearch({ currentTaskId, returnTo, view }: TaskWorkb
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Search status, customer, vehicle, task, VIN..."
+          role="combobox"
           type="search"
           value={query}
         />

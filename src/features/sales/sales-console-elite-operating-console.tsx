@@ -339,7 +339,7 @@ export function SalesConsoleEliteOperatingConsole() {
   const initialSelectedLane =
     salesConsoleLiveRevenueLanes.find((lane) => lane.contractLane === initialSelectedCustomer.contractLane) ??
     salesConsoleLiveRevenueLanes[0];
-  const [activeNav, setActiveNav] = useState(
+  const [activeNav, setActiveNav] = useState<string>(
     initialWorkspace === "guided"
       ? guidedWorkspaceNav
       : initialWorkspace === "revenue-desk"
@@ -373,6 +373,18 @@ export function SalesConsoleEliteOperatingConsole() {
   const selectedWorkbenchOutcome = selectedGuidedPath.outcomeOptions.find((option) => option.label === selectedOutcomeLabel) ?? null;
   const sourceBackedTabStates = useMemo(() => buildSalesConsoleSourceBackedTabStates(), []);
   const activeSourceBackedState = sourceBackedTabStates.find((state) => state.tab === activeNav);
+  const showsOperatingAreaWorkspace = [
+    revenueWorkQueueNav,
+    enterpriseDashboardNav,
+    "Leads",
+    "Pipeline",
+    "Customers",
+    "Appointments",
+    "Tasks & Promises",
+    "Delivery Readiness",
+    "Admin / Source Health",
+    "Reports & Forecast"
+  ].includes(activeNav);
   const recordSaleWorkflowState = useMemo(
     () => buildSalesRecordWorkflowState({
       ...salesConsoleSampleRecordSaleDraft,
@@ -821,7 +833,7 @@ export function SalesConsoleEliteOperatingConsole() {
 
         <div className={activeNav === enterpriseDashboardNav ? styles.workspace : styles.focusWorkspace}>
           <section className={styles.operatingArea}>
-            {activeNav === revenueWorkQueueNav || activeNav === enterpriseDashboardNav ? (
+            {showsOperatingAreaWorkspace ? (
             <section className={styles.workQueue}>
               <div className={styles.sectionHeader}>
                 <div>

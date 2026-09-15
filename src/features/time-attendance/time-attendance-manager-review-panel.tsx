@@ -1,8 +1,8 @@
 "use client";
 
-import { AlertTriangle, FileWarning, ShieldAlert, UserRoundCheck } from "lucide-react";
+import { AlertTriangle, FileWarning, ShieldAlert, UserRoundCheck, X } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { TimeAttendanceManagerReviewQueue } from "@/server/time-attendance/manager-review";
 
@@ -45,6 +45,33 @@ function categoryIcon(category: string) {
 
 export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManagerReviewPanelProps) {
   const [decisions, setDecisions] = useState<Record<string, DecisionState>>({});
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkReason, setBulkReason] = useState("");
+  const [bulkMessage, setBulkMessage] = useState<{ text: string; tone: "good" | "danger" } | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [auditItemId, setAuditItemId] = useState<string | null>(null);
+  const auditButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const cleanApprovalItems = useMemo(() => queue.items.filter((item) =>
+    item.category === "CARD_APPROVAL" && item.severity === "info" && item.cardChecksum && typeof item.timeCardVersion === "number"
+  ), [queue.items]);
+  const auditItem = auditItemId ? queue.items.find((item) => item.id === auditItemId) ?? null : null;
+
+  const closeAuditDrawer = useCallback(() => {
+    const sourceId = auditItemId;
+    setAuditItemId(null);
+    window.setTimeout(() => {
+      if (sourceId) auditButtonRefs.current[sourceId]?.focus();
+    }, 0);
+  }, [auditItemId]);
+
+  useEffect(() => {
+    if (!auditItemId) return;
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") closeAuditDrawer();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [auditItemId, closeAuditDrawer]);
 
   function stateFor(id: string) {
     return decisions[id] ?? defaultDecisionState;
@@ -55,6 +82,48 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
       ...current,
       [id]: { ...defaultDecisionState, ...current[id], ...patch }
     }));
+  }
+
+  function toggleSelected(id: string) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAllCleanCards() {
+    setSelectedIds((current) => current.size === cleanApprovalItems.length
+      ? new Set()
+      : new Set(cleanApprovalItems.map((item) => item.id)));
+  }
+
+  async function submitBulkApproval() {
+    setBulkBusy(true);
+    setBulkMessage(null);
+    try {
+      const response = await fetch("/api/time-attendance/manager-cards", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          command: "BULK_APPROVE_CLEAN",
+          reason: bulkReason,
+          timeCardIds: Array.from(selectedIds)
+        })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(typeof payload.error === "string" ? payload.error : "Bulk approval failed.");
+      }
+      setBulkMessage({ text: `${payload.approved ?? 0} clean card${payload.approved === 1 ? "" : "s"} approved.`, tone: "good" });
+      setSelectedIds(new Set());
+      setBulkReason("");
+    } catch (error) {
+      setBulkMessage({ text: error instanceof Error ? error.message : "Bulk approval failed.", tone: "danger" });
+    } finally {
+      setBulkBusy(false);
+    }
   }
 
   async function submitDecision(item: TimeAttendanceManagerReviewQueue["items"][number]) {
@@ -122,7 +191,7 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
   }
 
   return (
-    <article className={styles.panel}>
+    <article className={styles.panel} id="manager-review">
       <div className={styles.panelHeader}>
         <div>
           <span className={styles.sectionEyebrow}>Exception-first manager console</span>
@@ -141,7 +210,44 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
         <div><span>Time off</span><strong>{queue.totals.timeOff}</strong></div>
       </div>
 
-      <div className={styles.managerReviewList}>
+      {cleanApprovalItems.length ? (
+        <div className={styles.bulkReviewBar} aria-label="Bulk review controls">
+          <div>
+            <span className={styles.sectionEyebrow}>Bulk approval</span>
+            <strong>{selectedIds.size} of {cleanApprovalItems.length} clean cards selected</strong>
+            <p>Only attested cards with no blocking exceptions or open corrections can be bulk approved.</p>
+          </div>
+          <button disabled={bulkBusy} onClick={toggleAllCleanCards} type="button">
+            {selectedIds.size === cleanApprovalItems.length ? "Clear selected" : "Select clean cards"}
+          </button>
+          <input
+            aria-label="Bulk approval reason"
+            disabled={bulkBusy}
+            onChange={(event) => setBulkReason(event.target.value)}
+            placeholder="Bulk approval reason"
+            value={bulkReason}
+          />
+          <button
+            disabled={bulkBusy || selectedIds.size === 0 || bulkReason.trim().length < 15}
+            onClick={() => void submitBulkApproval()}
+            type="button"
+          >
+            Approve selected
+          </button>
+          {bulkMessage ? <p className={bulkMessage.tone === "good" ? styles.inlineSuccess : styles.inlineError}>{bulkMessage.text}</p> : null}
+        </div>
+      ) : null}
+
+      <div className={styles.managerReviewTable}>
+        {queue.items.length ? (
+          <div className={styles.managerReviewTableHeader} aria-hidden="true">
+            <span>Staff</span>
+            <span>Issue</span>
+            <span>Severity</span>
+            <span>Age</span>
+            <span>Action</span>
+          </div>
+        ) : null}
         {queue.unavailableReason ? (
           <div className={styles.managerReviewEmpty}>
             <AlertTriangle size={20} aria-hidden="true" />
@@ -150,12 +256,42 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
           </div>
         ) : queue.items.length ? queue.items.map((item) => (
           ["CORRECTION_REQUEST", "CARD_APPROVAL", "TIME_OFF_REQUEST"].includes(item.category) ? (
-            <div className={`${styles.managerReviewItem} ${severityClass(item.severity)}`} key={`${item.category}-${item.id}`}>
-              <span className={styles.managerReviewIcon}>{categoryIcon(item.category)}</span>
-              <span className={styles.managerReviewContent}>
+            <div className={`${styles.managerReviewTableRow} ${severityClass(item.severity)}`} key={`${item.category}-${item.id}`}>
+              <div className={styles.managerReviewPerson}>
+                {cleanApprovalItems.some((cleanItem) => cleanItem.id === item.id) ? (
+                  <input
+                    aria-label={`Select ${item.title} for bulk approval`}
+                    checked={selectedIds.has(item.id)}
+                    disabled={bulkBusy}
+                    onChange={() => toggleSelected(item.id)}
+                    type="checkbox"
+                  />
+                ) : null}
+                <span className={styles.managerReviewIcon}>{categoryIcon(item.category)}</span>
+                <div>
+                  <strong>{item.staffName}</strong>
+                  <small>{item.status}</small>
+                </div>
+              </div>
+              <div className={styles.managerReviewIssue}>
                 <strong>{item.title}</strong>
-                <small>{item.staffName} · {item.status} · age {item.ageLabel}</small>
                 <p>{item.detail}</p>
+              </div>
+              <span className={item.severity === "danger" ? styles.chipDanger : item.severity === "warning" ? styles.chipWarning : styles.chipNeutral}>
+                {item.severity}
+              </span>
+              <strong className={styles.managerReviewAge}>{item.ageLabel}</strong>
+              <div className={styles.managerReviewAction}>
+                <button
+                  className={styles.auditAction}
+                  onClick={() => setAuditItemId(item.id)}
+                  ref={(node) => {
+                    auditButtonRefs.current[item.id] = node;
+                  }}
+                  type="button"
+                >
+                  Audit
+                </button>
                 <div className={styles.managerDecisionForm}>
                   <select
                     aria-label={`Decision for ${item.title}`}
@@ -198,17 +334,39 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
                     {stateFor(item.id).message}
                   </p>
                 ) : null}
-              </span>
+              </div>
             </div>
           ) : (
-            <Link className={`${styles.managerReviewItem} ${severityClass(item.severity)}`} href={item.href} key={`${item.category}-${item.id}`}>
-              <span className={styles.managerReviewIcon}>{categoryIcon(item.category)}</span>
-              <span>
+            <div className={`${styles.managerReviewTableRow} ${severityClass(item.severity)}`} key={`${item.category}-${item.id}`}>
+              <div className={styles.managerReviewPerson}>
+                <span className={styles.managerReviewIcon}>{categoryIcon(item.category)}</span>
+                <div>
+                  <strong>{item.staffName}</strong>
+                  <small>{item.status}</small>
+                </div>
+              </div>
+              <div className={styles.managerReviewIssue}>
                 <strong>{item.title}</strong>
-                <small>{item.staffName} · {item.status} · age {item.ageLabel}</small>
                 <p>{item.detail}</p>
+              </div>
+              <span className={item.severity === "danger" ? styles.chipDanger : item.severity === "warning" ? styles.chipWarning : styles.chipNeutral}>
+                {item.severity}
               </span>
-            </Link>
+              <strong className={styles.managerReviewAge}>{item.ageLabel}</strong>
+              <div className={styles.managerReviewActionCompact}>
+                <button
+                  className={styles.auditAction}
+                  onClick={() => setAuditItemId(item.id)}
+                  ref={(node) => {
+                    auditButtonRefs.current[item.id] = node;
+                  }}
+                  type="button"
+                >
+                  Audit
+                </button>
+                <Link className={styles.managerReviewOpen} href={item.href}>Open</Link>
+              </div>
+            </div>
           )
         )) : (
           <div className={styles.managerReviewEmpty}>
@@ -218,6 +376,30 @@ export function TimeAttendanceManagerReviewPanel({ queue }: TimeAttendanceManage
           </div>
         )}
       </div>
+
+      {auditItem ? (
+        <aside className={styles.auditDrawer} aria-label="Review evidence drawer">
+          <div className={styles.auditDrawerHeader}>
+            <div>
+              <span className={styles.sectionEyebrow}>Audit evidence</span>
+              <h3>{auditItem.title}</h3>
+            </div>
+            <button aria-label="Close audit drawer" onClick={closeAuditDrawer} type="button">
+              <X size={16} aria-hidden="true" />
+            </button>
+          </div>
+          <dl className={styles.auditFacts}>
+            <div><dt>Staff</dt><dd>{auditItem.staffName}</dd></div>
+            <div><dt>Status</dt><dd>{auditItem.status}</dd></div>
+            <div><dt>Age</dt><dd>{auditItem.ageLabel}</dd></div>
+            <div><dt>Severity</dt><dd>{auditItem.severity}</dd></div>
+            {typeof auditItem.timeCardVersion === "number" ? <div><dt>Card version</dt><dd>v{auditItem.timeCardVersion}</dd></div> : null}
+            {auditItem.cardChecksum ? <div><dt>Checksum</dt><dd>{auditItem.cardChecksum}</dd></div> : null}
+          </dl>
+          <p>{auditItem.detail}</p>
+          <Link className={styles.ghostAction} href={auditItem.href}>Open source record</Link>
+        </aside>
+      ) : null}
     </article>
   );
 }

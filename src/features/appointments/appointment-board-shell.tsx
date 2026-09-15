@@ -16337,7 +16337,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
               <div className="appointment-action-workspace-heading">
                 <div>
                   <span>Ready action</span>
-                  <strong>{operationalCommandLabel(operationalCommandOpen)}</strong>
+                  <strong>{commandLabel(operationalCommandOpen)}</strong>
                   <p>{selectedAppointment.title} · {appointmentTimeRangeLabel(selectedAppointment)} · {selectedAppointment.customer}</p>
                 </div>
                 <button disabled={isCommandPending} onClick={() => setOperationalCommandOpen(null)} type="button">Close</button>
@@ -16372,7 +16372,7 @@ export function AppointmentBoardShell({ boardSettings, initialFocus, showAdvisor
                   }}
                   type="button"
                 >
-                  {isCommandPending ? "Working..." : operationalCommandLabel(operationalCommandOpen)}
+                  {isCommandPending ? "Working..." : commandLabel(operationalCommandOpen)}
                 </button>
               </div>
             </div>

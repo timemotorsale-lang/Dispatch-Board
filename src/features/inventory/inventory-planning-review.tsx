@@ -160,17 +160,6 @@ function taskRequirementMet(item: CheckItem, evidenceIds: string[], context?: { 
   if (item.state === "PENDING") return false;
   return taskMissingRequirements(item, evidenceIds, context).length === 0;
 }
-function taskOperationalStatus(item: CheckItem, evidenceIds: string[], context?: { keyCount?: string; mileage?: string }) {
-  const missing = taskMissingRequirements(item, evidenceIds, context);
-  if (item.state === "PASS") return missing.length ? "Incomplete - more details required" : "Complete - Pass";
-  if (item.state === "CONCERN") return missing.length ? "Incomplete - concern details required" : "Complete - Concern";
-  if (item.state === "DEFERRED") return missing.length ? "Incomplete - deferred reason required" : "Deferred - Follow-up recorded";
-  if (item.state === "NOT_APPLICABLE") return "Complete - N/A";
-  if (item.requiresEvidence && !evidenceIds.length && !item.evidenceObjectIds?.length) return "Evidence required";
-  if (item.requiresNotes && !item.notes?.trim()) return "Work details required";
-  return "Ready for result";
-}
-
 function taskAnswerLabel(state: CheckState) {
   if (state === "PASS") return "Complete";
   if (state === "DEFERRED") return "Unable to complete now";
@@ -599,16 +588,6 @@ function RapidReconUpdateCard({ blocker, busy, completedWork, nextAction, remain
     <div className={styles.inlineActions}><button className={styles.primaryButton} disabled={busy || !completedWork.trim() || !nextAction.trim()} onClick={() => void save()} type="button">{busy ? "Saving..." : "Save recon update"}</button><Link className={styles.secondaryButton} href="/vehicles/shop-recon">Open Shop Recon</Link></div>
     {latest ? <p className={styles.good}>Latest: {latest.status.replaceAll("_", " ").toLowerCase()} by {latest.actorName} — {latest.completedWork}{latest.remainingWork ? ` Remaining: ${latest.remainingWork}` : ""}</p> : <p className={styles.warning}>No saved recon update yet for this vehicle.</p>}
   </section>;
-}
-
-function GuidedTaskDetails({ damageSummary, evidenceIds, item, keyCount, mileage, ownerUserId, setDamageSummary, setKeyCount, setMileage, setOwnerUserId, updateCheckDetails, users, workflow }: { damageSummary: string; evidenceIds: string[]; item: CheckItem; keyCount: string; mileage: string; ownerUserId: string; setDamageSummary: (value: string) => void; setKeyCount: (value: string) => void; setMileage: (value: string) => void; setOwnerUserId: (value: string) => void; updateCheckDetails: (id: string, values: Partial<Pick<CheckItem, "notes" | "evidenceObjectIds">>) => void; users: FrontlineUser[]; workflow: FrontlineWorkflow | null }) {
-  const prompt = item.id === "arrival" ? "Record documents received, fuel/charge level, releasing party, custody exception, what you know remotely, and who must add missing onsite evidence." : item.id === "photos" ? "Describe why photos are unavailable now, who should capture them, and which views are needed when the vehicle is accessible." : item.id === "condition" ? "Describe damage, missing equipment, odors, leaks, wear, and the exact areas recon must address." : item.id === "safety" ? "Record tire/brake measurements, warning conditions, safe-to-move restrictions, and any immediate hazard." : item.id === "scan" ? "State whether diagnosis is required now. For bodywork/cosmetic repair, document why scan or diagnosis is N/A or deferred for later." : item.id === "nhtsa" ? "Record the source reviewed, VIN-verification outcome, potentially applicable campaigns, and whether any item relates to the planned repair." : "Record safe-to-move status, hold decision, recon priority, target, and the first expected next action.";
-  return <div className={styles.checkDetails}>
-    {item.id === "arrival" ? <div className="inventory-planning-task-fields"><Field label="Odometer"><input min="0" onChange={event => setMileage(event.target.value)} type="number" value={mileage} /></Field><Field label="Keys / fobs"><input min="0" onChange={event => setKeyCount(event.target.value)} type="number" value={keyCount} /></Field><Field label="Visible damage"><input onChange={event => setDamageSummary(event.target.value)} placeholder="None observed, or describe" value={damageSummary} /></Field></div> : null}
-    {item.id === "move" ? <div className="inventory-planning-task-fields"><Field label="Accountable owner"><select disabled={Boolean(workflow)} onChange={event => setOwnerUserId(event.target.value)} value={workflow?.ownerUser.id ?? ownerUserId}>{users.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}</select></Field><div><span>Workflow target</span><strong>{workflow ? new Date(workflow.targetAt).toLocaleString() : "Set when the governed lifecycle starts"}</strong></div></div> : null}
-    <label><span>Work performed, observation, and outcome context</span><textarea maxLength={1000} onChange={event => updateCheckDetails(item.id, { notes: event.target.value })} placeholder={prompt} value={item.notes ?? ""} /></label>
-    {evidenceIds.length ? <fieldset><legend>Link governed evidence to this task</legend>{evidenceIds.map(id => <label key={id}><input checked={(item.evidenceObjectIds ?? []).includes(id)} onChange={event => updateCheckDetails(item.id, { evidenceObjectIds: event.target.checked ? [...new Set([...(item.evidenceObjectIds ?? []), id])] : (item.evidenceObjectIds ?? []).filter(value => value !== id) })} type="checkbox" /> {id}</label>)}</fieldset> : <p>No governed evidence is available yet. If you cannot get photos, scans, or onsite proof now, choose Deferred and write the follow-up owner/reason above.</p>}
-  </div>;
 }
 
 function LifecycleReview({ act, busy, completed, concerns, evidenceIds, identity, initial, initialRepairOrderId, onAdvanceReceiving, receivingChecklist, setView, users, workflow }: { act: (action: string, values: Record<string, unknown>, success: string) => Promise<FrontlineWorkflow | null>; busy: boolean; completed: number; concerns: number; evidenceIds: string[]; identity: Record<string, unknown>; initial: VehicleExecutionWorkbenchProjection; initialRepairOrderId: string; onAdvanceReceiving: () => Promise<void>; receivingChecklist: Array<{ id: string; label: string; complete: boolean; detail: string }>; setView: (view: View) => void; users: FrontlineUser[]; workflow: FrontlineWorkflow | null }) {
