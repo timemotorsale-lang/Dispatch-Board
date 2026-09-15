@@ -1295,6 +1295,92 @@ enum TaskStatus {
   COMPLETED
 }
 
+enum VendorCategory {
+  LENDER_BANK
+  BUSINESS_BANKING
+  WARRANTY_COMPANY
+  INSURANCE_AGENCY
+  TRANSPORT_PROVIDER
+  TOWING_ROADSIDE
+  PARTS_SUPPLIER
+  TIRE_VENDOR
+  GLASS_VENDOR
+  RECON_REPAIR_VENDOR
+  BODY_PAINT_VENDOR
+  DETAIL_VENDOR
+  INSPECTION_EMISSIONS
+  KEY_LOCKSMITH
+  AUCTION_WHOLESALE_PARTNER
+  DMV_TITLE_REGISTRATION
+  GOVERNMENT_AGENCY
+  UTILITY_TELECOM
+  SOFTWARE_TECHNOLOGY
+  MARKETING_ADVERTISING
+  PAYMENT_PROCESSOR
+  ACCOUNTING_TAX
+  LEGAL_COMPLIANCE
+  PAYROLL_HR
+  OFFICE_SUPPLIES
+  FACILITY_LANDLORD
+  FACILITY_MAINTENANCE
+  SECURITY_PROVIDER
+  WASTE_RECYCLING
+  FUEL_ENERGY
+  COLLECTIONS_REPOSSESSION
+  PROFESSIONAL_SERVICES
+  INTERNAL_CONTACT
+  OTHER
+}
+
+enum VendorStatus {
+  PREFERRED
+  ACTIVE
+  PENDING_REVIEW
+  INACTIVE
+  DO_NOT_USE
+}
+
+enum VendorActivityType {
+  VENDOR_CREATED
+  VENDOR_UPDATED
+  STATUS_CHANGED
+  NOTE_ADDED
+  PROTECTED_NOTE_ADDED
+  TASK_CREATED
+  RECORD_LINKED
+  DOCUMENT_UPLOADED
+  JOB_RECORDED
+  BATCH_OPENED
+  BATCH_CLOSED
+}
+
+enum VendorRecordType {
+  VEHICLE
+  TASK
+  APPOINTMENT
+  REPAIR_ORDER
+  DEAL
+  DOCUMENT
+  CASE
+  OTHER
+}
+
+enum VendorWorkJobStatus {
+  OPEN
+  READY_FOR_BATCH
+  BATCHED
+  INVOICED
+  CANCELLED
+}
+
+enum VendorInvoiceBatchStatus {
+  OPEN
+  CLOSED
+  INVOICED
+  PAID
+  VOID
+}
+
 enum InventoryWorkPacketState {
   PLANNED
   CURRENT
@@ -1866,6 +1952,18 @@ model User {
   ownedCustomers                               Customer[]                             @relation("CustomerOwner")
   authoredCustomerInteractions                 CustomerInteraction[]                  @relation("CustomerInteractionActor")
   authoredCustomerNotes                        CustomerNote[]                         @relation("CustomerNoteAuthor")
+  ownedVendors                                 Vendor[]                               @relation("VendorOwner")
+  createdVendors                               Vendor[]                               @relation("VendorCreatedBy")
+  updatedVendors                               Vendor[]                               @relation("VendorUpdatedBy")
+  archivedVendors                              Vendor[]                               @relation("VendorArchivedBy")
+  authoredVendorNotes                          VendorNote[]                           @relation("VendorNoteAuthor")
+  authoredVendorProtectedNotes                 VendorProtectedNote[]                  @relation("VendorProtectedNoteAuthor")
+  vendorActivities                             VendorActivity[]                       @relation("VendorActivityActor")
+  createdVendorRecordLinks                     VendorRecordLink[]                     @relation("VendorRecordLinkCreatedBy")
+  uploadedVendorDocuments                      VendorDocument[]                       @relation("VendorDocumentUploadedBy")
+  createdVendorWorkJobs                        VendorWorkJob[]                        @relation("VendorWorkJobCreatedBy")
+  createdVendorInvoiceBatches                  VendorInvoiceBatch[]                   @relation("VendorInvoiceBatchCreatedBy")
+  closedVendorInvoiceBatches                   VendorInvoiceBatch[]                   @relation("VendorInvoiceBatchClosedBy")
   completedChecklistItems                      TaskChecklistItem[]                    @relation("TaskChecklistCompletedByUser")
   staffDays                                    StaffDay[]
   completedStaffDayDutyItems                   StaffDayDutyItem[]                     @relation("StaffDayDutyCompletedByUser")
@@ -2111,6 +2209,14 @@ model Organization {
   appointments                          Appointment[]
   appointmentCommandLedgerEntries       AppointmentCommandLedger[]
   customers                             Customer[]
+  vendors                               Vendor[]
+  vendorNotes                           VendorNote[]
+  vendorProtectedNotes                  VendorProtectedNote[]
+  vendorActivities                      VendorActivity[]
+  vendorRecordLinks                     VendorRecordLink[]
+  vendorDocuments                       VendorDocument[]
+  vendorWorkJobs                        VendorWorkJob[]
+  vendorInvoiceBatches                  VendorInvoiceBatch[]
   vehicles                              Vehicle[]
   vehicleRelationships                  VehicleRelationship[]
   vehicleExternalIdentities             VehicleExternalIdentity[]
@@ -2747,6 +2853,192 @@ model CustomerDocumentRequirement {
   customer    Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   @@index([customerId, status, dueAt])
+}
+
+model Vendor {
+  id                  String             @id @default(cuid())
+  organizationId      String
+  vendorNumber        String
+  name                String
+  normalizedName      String
+  category            VendorCategory
+  status              VendorStatus       @default(ACTIVE)
+  primaryContactName  String?
+  primaryPhone        String?
+  primaryEmail        String?
+  addressSummary      String?
+  websiteOrPortalUrl  String?
+  accountReference    String?
+  ownerUserId         String?
+  notes               String?
+  archivedAt          DateTime?
+  archivedByUserId    String?
+  createdByUserId     String?
+  updatedByUserId     String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  organization        Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  ownerUser           User?              @relation("VendorOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  archivedByUser      User?              @relation("VendorArchivedBy", fields: [archivedByUserId], references: [id], onDelete: SetNull)
+  createdByUser       User?              @relation("VendorCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  updatedByUser       User?              @relation("VendorUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  vendorNotes         VendorNote[]
+  protectedNotes      VendorProtectedNote[]
+  activities          VendorActivity[]
+  recordLinks         VendorRecordLink[]
+  documents           VendorDocument[]
+  workJobs            VendorWorkJob[]
+  invoiceBatches      VendorInvoiceBatch[]
+
+  @@unique([organizationId, vendorNumber])
+  @@index([organizationId, normalizedName])
+  @@index([organizationId, category])
+  @@index([organizationId, status])
+  @@index([organizationId, ownerUserId])
+  @@index([organizationId, updatedAt])
+}
+
+model VendorNote {
+  id             String       @id @default(cuid())
+  organizationId String
+  vendorId       String
+  authorUserId   String?
+  body           String
+  visibility     String       @default("INTERNAL")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vendor         Vendor       @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  authorUser     User?        @relation("VendorNoteAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, vendorId, createdAt])
+  @@index([organizationId, authorUserId])
+}
+
+model VendorProtectedNote {
+  id             String       @id @default(cuid())
+  organizationId String
+  vendorId       String
+  authorUserId   String?
+  body           String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vendor         Vendor       @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  authorUser     User?        @relation("VendorProtectedNoteAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, vendorId, createdAt])
+  @@index([organizationId, authorUserId])
+}
+
+model VendorActivity {
+  id             String             @id @default(cuid())
+  organizationId String
+  vendorId       String
+  actorUserId    String?
+  type           VendorActivityType
+  message        String
+  metadata       Json?
+  createdAt      DateTime           @default(now())
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vendor         Vendor             @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  actorUser      User?              @relation("VendorActivityActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, vendorId, createdAt])
+  @@index([organizationId, type, createdAt])
+}
+
+model VendorRecordLink {
+  id               String           @id @default(cuid())
+  organizationId   String
+  vendorId         String
+  recordType       VendorRecordType
+  recordId         String
+  labelSnapshot    String
+  relationshipType String           @default("RELATED")
+  createdByUserId  String?
+  createdAt        DateTime         @default(now())
+  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vendor           Vendor           @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  createdByUser    User?            @relation("VendorRecordLinkCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, vendorId, recordType, recordId])
+  @@index([organizationId, recordType, recordId])
+  @@index([organizationId, vendorId, createdAt])
+}
+
+model VendorDocument {
+  id               String       @id @default(cuid())
+  organizationId   String
+  vendorId         String
+  uploadedByUserId String?
+  title            String
+  documentType     String       @default("GENERAL")
+  fileName         String
+  contentType      String
+  fileSizeBytes    Int
+  fileData         Bytes
+  notes            String?
+  createdAt        DateTime     @default(now())
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vendor           Vendor       @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  uploadedByUser   User?        @relation("VendorDocumentUploadedBy", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, vendorId, createdAt])
+  @@index([organizationId, documentType, createdAt])
+}
+
+model VendorInvoiceBatch {
+  id              String                   @id @default(cuid())
+  organizationId  String
+  vendorId        String
+  batchNumber     String
+  title           String
+  status          VendorInvoiceBatchStatus @default(OPEN)
+  openedAt        DateTime                 @default(now())
+  closedAt        DateTime?
+  invoiceNumber   String?
+  invoiceDate     DateTime?                @db.Date
+  totalAmount     Decimal?                 @db.Decimal(12, 2)
+  notes           String?
+  createdByUserId String?
+  closedByUserId  String?
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+  organization    Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vendor          Vendor                   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  createdByUser   User?                    @relation("VendorInvoiceBatchCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  closedByUser    User?                    @relation("VendorInvoiceBatchClosedBy", fields: [closedByUserId], references: [id], onDelete: SetNull)
+  jobs            VendorWorkJob[]
+
+  @@unique([organizationId, batchNumber])
+  @@index([organizationId, vendorId, status, openedAt])
+}
+
+model VendorWorkJob {
+  id              String              @id @default(cuid())
+  organizationId  String
+  vendorId        String
+  batchId         String?
+  jobNumber       String
+  vehicleReference String
+  workType        String
+  workDescription String?
+  serviceDate     DateTime            @db.Date
+  amount          Decimal?            @db.Decimal(12, 2)
+  status          VendorWorkJobStatus @default(OPEN)
+  notes           String?
+  createdByUserId String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  organization    Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vendor          Vendor              @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  batch           VendorInvoiceBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  createdByUser   User?               @relation("VendorWorkJobCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, jobNumber])
+  @@index([organizationId, vendorId, status, serviceDate])
+  @@index([organizationId, batchId])
 }
 
 model CrmDecisionRecord {

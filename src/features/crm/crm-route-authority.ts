@@ -11,6 +11,7 @@ export const CRM_NEXT_PIPELINE_HREF = "/crm-next/pipeline";
 export const CRM_NEXT_TIMELINE_HREF = "/crm-next/timeline";
 
 export const CRM_CUSTOMER_LANDING_HREF = "/customers";
+export const CRM_VENDOR_REGISTRY_HREF = "/customers/vendors";
 export const LEGACY_CUSTOMER_ARCHIVE_HREF = "/customers";
 export const LEGACY_CUSTOMER_360_HREF = "/customers/customer-360";
 export const LEGACY_CRM_FALLBACK_HREF = "/crm";
