@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Clock3,
   FileCheck2,
+  Gauge,
   ShieldCheck,
   TimerReset,
   UsersRound
@@ -22,6 +23,8 @@ import { PayrollHandoffPanel } from "./payroll-handoff-panel";
 import { OperationalHealthPanel } from "./operational-health-panel";
 import { PolicyAdministrationPanel } from "./policy-administration-panel";
 import { TimeAttendanceCapturePanel } from "./time-attendance-capture-panel";
+import { TimeAttendanceCommandBar, type TimeAttendanceCommandItem } from "./time-attendance-command-bar";
+import { TimeAttendanceInboxDrawer } from "./time-attendance-inbox-drawer";
 import { TimeCardAttestationPanel } from "./time-card-attestation-panel";
 import { TimeCardCorrectionPanel } from "./time-card-correction-panel";
 import { TimeAttendanceManagerReviewPanel } from "./time-attendance-manager-review-panel";
@@ -60,15 +63,81 @@ function dotClass(tone: "good" | "warning" | "neutral") {
 }
 
 export function TimeAttendanceConsole({ activeView, captureState, density, managerReviewQueue, model, payrollReadiness, hardeningReadiness }: TimeAttendanceConsoleProps) {
+  const isEmployeeView = activeView === "today" || activeView === "my-time";
+  const primaryException = model.exceptions[0] ?? null;
+  const blockingExceptionCount = model.exceptions.filter((exception) => exception.blocking).length;
+  const cardReadiness = !model.employeeCard.available
+    ? { detail: "A live card has not been created for this period yet.", label: "Awaiting live card", tone: styles.chipWarning }
+    : blockingExceptionCount > 0
+      ? { detail: `${blockingExceptionCount} blocking issue${blockingExceptionCount === 1 ? "" : "s"} must be cleared before payroll handoff.`, label: "Blocked before payroll", tone: styles.chipDanger }
+      : model.exceptions.length > 0
+        ? { detail: `${model.exceptions.length} issue${model.exceptions.length === 1 ? "" : "s"} need review before the card is clean.`, label: "Needs review", tone: styles.chipWarning }
+        : model.employeeCard.payrollReady
+          ? { detail: "No open exceptions are recorded for this card version.", label: "Ready for payroll", tone: styles.chipGood }
+          : { detail: "Review and attestation are still required before payroll handoff.", label: "Review required", tone: styles.chipWarning };
+  const quickStats = [
+    { label: "Paid time", value: model.headline.paidHours },
+    { label: "Regular", value: model.headline.regularHours },
+    { label: "Overtime", value: model.headline.overtimeHours },
+    { label: "ESST", value: model.headline.esstAccrued }
+  ];
+  const workflowLinks = [
+    { href: "#command-summary", label: "Now" },
+    ...(isEmployeeView ? [
+      { href: "#capture-actions", label: "Actions" },
+      { href: "#time-card-summary", label: "Time card" },
+      { href: "#exceptions", label: "Exceptions" },
+      { href: "#punch-timeline", label: "Evidence" }
+    ] : []),
+    ...(activeView === "my-time" ? [
+      { href: "#correction-request", label: "Requests" },
+      { href: "#card-attestation", label: "Attest" }
+    ] : []),
+    ...(activeView === "manager" ? [
+      { href: "#manager-review", label: "Review" },
+      { href: "#team-status", label: "Team" }
+    ] : []),
+    ...(activeView === "payroll" ? [
+      { href: "#payroll-handoff", label: "Payroll" },
+      { href: "#operational-health", label: "Health" }
+    ] : [])
+  ];
+  const commandItems: TimeAttendanceCommandItem[] = [
+    { detail: model.nextAction.detail, href: model.nextAction.href, label: model.nextAction.label, scope: "Next action" },
+    ...workflowLinks.map((link) => ({
+      detail: "Jump to this section",
+      href: link.href,
+      label: link.label,
+      scope: "Page"
+    })),
+    ...model.exceptions.map((exception) => ({
+      detail: exception.message,
+      href: "#exceptions",
+      label: exception.code.replaceAll("_", " "),
+      scope: exception.blocking ? "Payroll blocker" : "Exception"
+    })),
+    ...model.team.slice(0, 8).map((staff) => ({
+      detail: `${staff.statusLabel} · ${minutesLabel(staff.paidMinutes)} paid`,
+      href: "#team-status",
+      label: staff.name,
+      scope: "Staff"
+    })),
+    ...managerReviewQueue.items.slice(0, 8).map((item) => ({
+      detail: `${item.staffName} · ${item.status} · ${item.ageLabel}`,
+      href: "#manager-review",
+      label: item.title,
+      scope: "Manager queue"
+    }))
+  ];
+
   return (
     <section className={`${styles.console} ${density === "high" ? styles.consoleHighVolume : ""}`} aria-label="Time and Attendance CCC console">
       <header className={styles.hero}>
         <div>
-          <span className={styles.eyebrow}>My governed workspace · Time & Attendance</span>
-          <h1>Record time. Resolve the next issue. Keep payroll evidence clear.</h1>
+          <span className={styles.eyebrow}>Protected workspace · Time & Attendance</span>
+          <h1>Time card command center</h1>
           <p>
-            Exact punches remain immutable. Cards, reviews, and handoff actions use live persisted records
-            and stay separated by role.
+            Record exact time, clear card issues, and keep payroll evidence ready without hunting through separate tools.
           </p>
           <div className={styles.chips} aria-label="Console readiness">
             <span className={styles.chipGood}><ShieldCheck size={14} /> Governed policy controls</span>
@@ -76,20 +145,10 @@ export function TimeAttendanceConsole({ activeView, captureState, density, manag
             <span className={styles.chipWarning}><AlertTriangle size={14} /> Review before payroll</span>
           </div>
         </div>
-        <div className={styles.heroMetrics}>
-          <div className={styles.heroActions}>
-            <Link className={styles.secondaryAction} href="/command-center">Return to My Workspace</Link>
-            <Link className={styles.primaryAction} href={model.nextAction.href}><FileCheck2 size={16} /> {model.nextAction.label}</Link>
-          </div>
-          <div className={styles.heroMetric}>
-            <span>Current reviewer</span>
-            <strong>{model.currentUserName}</strong>
-          </div>
-          <div className={styles.heroMetric}>
-            <span>As of</span>
-            <strong>{model.asOfLabel}</strong>
-            <small>{model.sourceLabel}</small>
-          </div>
+        <div className={styles.heroCompactMeta}>
+          <span>{model.currentUserName}</span>
+          <span>{model.asOfLabel}</span>
+          <Link className={styles.secondaryAction} href="/command-center">Return to workspace</Link>
         </div>
       </header>
 
@@ -105,89 +164,148 @@ export function TimeAttendanceConsole({ activeView, captureState, density, manag
         <div className={styles.captureError} role="alert"><AlertTriangle size={16} />Live card data is unavailable: {model.unavailableReason}. Punch capture reports its availability separately.</div>
       ) : null}
 
-      <article className={styles.panel} aria-label="Recommended next action">
-        <div className={styles.panelHeader}>
-          <div><span className={styles.sectionEyebrow}>Recommended next action</span><h2>{model.nextAction.label}</h2><p>{model.nextAction.detail}</p></div>
-          <Link className={styles.ghostAction} href={model.nextAction.href}>Open</Link>
+      <TimeAttendanceCommandBar items={commandItems} />
+
+      <section className={styles.commandPanel} id="command-summary" aria-label="Time card command summary">
+        <div className={styles.commandCopy}>
+          <span className={styles.sectionEyebrow}>Next best action</span>
+          <h2>{model.nextAction.label}</h2>
+          <p>{model.nextAction.detail}</p>
+          {primaryException ? (
+            <span className={primaryException.blocking ? styles.chipDanger : styles.chipWarning}>
+              {primaryException.blocking ? "Payroll blocker" : "Needs review"}
+            </span>
+          ) : (
+            <span className={styles.chipGood}>No open exception</span>
+          )}
         </div>
-      </article>
+        <div className={styles.commandActions}>
+          <Link className={styles.primaryActionDark} href={model.nextAction.href}><FileCheck2 size={16} /> Open next action</Link>
+          <Link className={styles.ghostAction} href="/time-attendance?view=my-time">Review my card</Link>
+        </div>
+        <dl className={styles.commandMetrics}>
+          {quickStats.map((stat) => (
+            <div key={stat.label}>
+              <dt>{stat.label}</dt>
+              <dd>{stat.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
 
-      <div className={styles.metricGrid} aria-label="Time card totals">
-        <div className={styles.metric}><span>Paid time</span><strong>{model.headline.paidHours}</strong></div>
-        <div className={styles.metric}><span>Regular</span><strong>{model.headline.regularHours}</strong></div>
-        <div className={styles.metric}><span>Overtime</span><strong>{model.headline.overtimeHours}</strong></div>
-        <div className={styles.metric}><span>ESST accrued</span><strong>{model.headline.esstAccrued}</strong></div>
-      </div>
+      <nav className={styles.mobileJumpRail} aria-label="Jump to time card section">
+        <span>Jump to</span>
+        {workflowLinks.map((link) => <a href={link.href} key={link.href}>{link.label}</a>)}
+      </nav>
 
-      <div className={styles.bodyGrid}>
-        <div className={styles.mainStack}>
+      <div className={styles.workspaceGrid}>
+        <nav className={styles.workflowRail} aria-label="Time card workflow">
+          <span>Workflow</span>
+          {workflowLinks.map((link) => <a href={link.href} key={link.href}>{link.label}</a>)}
+        </nav>
+
+        <div className={styles.bodyGrid}>
+          <div className={styles.mainStack}>
           {activeView === "policies" ? <PolicyAdministrationPanel /> : null}
-          {activeView === "today" || activeView === "my-time" ? <TimeAttendanceCapturePanel initialState={captureState} /> : null}
+          {isEmployeeView ? <div id="capture-actions"><TimeAttendanceCapturePanel initialState={captureState} /></div> : null}
 
-          {activeView === "today" || activeView === "my-time" ? <article className={styles.panel}>
+          {isEmployeeView ? <article className={styles.panel} id="time-card-summary">
             <div className={styles.panelHeader}>
               <div>
                 <span className={styles.sectionEyebrow}>My time card</span>
-                <h2>Current pay-period card</h2>
-                <p>{model.employeeCard.shiftLabel} · {model.employeeCard.policyLabel}</p>
+                <h2>{cardReadiness.label}</h2>
+                <p>{cardReadiness.detail}</p>
               </div>
-              <span className={model.employeeCard.payrollReady ? styles.chipGood : styles.chipWarning}>
-                {model.employeeCard.statusLabel}
-              </span>
+              <span className={cardReadiness.tone}>{model.employeeCard.statusLabel}</span>
+            </div>
+            <div className={styles.cardContextLine}>
+              <span>{model.employeeCard.shiftLabel}</span>
+              <span>{model.employeeCard.policyLabel}</span>
+              <span>Version {model.employeeCard.timeCardVersion}</span>
             </div>
             <div className={styles.timeSummary}>
               <div><span>Total span</span><strong>{minutesLabel(model.employeeCard.attendanceMinutes)}</strong></div>
               <div><span>Meal time</span><strong>{minutesLabel(model.employeeCard.mealMinutes)}</strong></div>
               <div><span>Paid time</span><strong>{minutesLabel(model.employeeCard.paidMinutes)}</strong></div>
             </div>
+            <div className={styles.cardExecutionRow}>
+              <Link className={styles.ghostAction} href="#punch-timeline"><Clock3 size={15} /> View punch trail</Link>
+              <Link className={styles.ghostAction} href="/time-attendance?view=my-time#correction-request">Request correction</Link>
+              <Link className={styles.ghostAction} href="/time-attendance?view=my-time#card-attestation">Confirm card</Link>
+            </div>
           </article> : null}
 
-          {activeView === "my-time" ? <TimeCardCorrectionPanel /> : null}
+          {activeView === "my-time" ? (
+            <details className={styles.workflowDisclosure} id="correction-request">
+              <summary><span>Request correction</span><small>Create a manager-reviewed change without altering original punches.</small></summary>
+              <TimeCardCorrectionPanel />
+            </details>
+          ) : null}
 
-          {activeView === "my-time" && model.corrections.length ? <article className={styles.panel}>
-            <div className={styles.panelHeader}><div><span className={styles.sectionEyebrow}>Correction history</span><h2>Requests and decisions</h2><p>Original punches remain unchanged; approved adjustments create new evidence.</p></div></div>
-            <div className={styles.timeline}>{model.corrections.map((request) => <div className={styles.timelineItem} key={request.id}><div className={styles.timelineLeft}><span className={styles.dotNeutral} aria-hidden="true" /><div><strong>{request.changeType}</strong><p>{request.managerReason ?? "Awaiting a documented decision."}</p></div></div><span className={styles.timelineTime}>{request.statusLabel}</span></div>)}</div>
-          </article> : null}
+          {activeView === "my-time" && model.corrections.length ? (
+            <details className={styles.workflowDisclosure}>
+              <summary><span>Correction history</span><small>Review submitted requests and documented decisions.</small></summary>
+              <article className={styles.panel}>
+                <div className={styles.panelHeader}><div><span className={styles.sectionEyebrow}>Correction history</span><h2>Requests and decisions</h2><p>Original punches remain unchanged; approved adjustments create new evidence.</p></div></div>
+                <div className={styles.timeline}>{model.corrections.map((request) => <div className={styles.timelineItem} key={request.id}><div className={styles.timelineLeft}><span className={styles.dotNeutral} aria-hidden="true" /><div><strong>{request.changeType}</strong><p>{request.managerReason ?? "Awaiting a documented decision."}</p></div></div><span className={styles.timelineTime}>{request.statusLabel}</span></div>)}</div>
+              </article>
+            </details>
+          ) : null}
 
-          {activeView === "my-time" ? <TimeCardAttestationPanel card={model.employeeCard} /> : null}
+          {activeView === "my-time" ? (
+            <details className={styles.workflowDisclosure} id="card-attestation">
+              <summary><span>Confirm or dispute card</span><small>Bind your review to the current card version and checksum.</small></summary>
+              <TimeCardAttestationPanel card={model.employeeCard} />
+            </details>
+          ) : null}
 
-          {activeView === "my-time" ? <TimeOffRequestPanel /> : null}
+          {activeView === "my-time" ? (
+            <details className={styles.workflowDisclosure}>
+              <summary><span>Request time off</span><small>Submit leave requests with manager coverage review.</small></summary>
+              <TimeOffRequestPanel />
+            </details>
+          ) : null}
 
           {activeView === "manager" ? <TimeAttendanceManagerReviewPanel queue={managerReviewQueue} /> : null}
 
-          {activeView === "payroll" ? <PayrollHandoffPanel initialReadiness={payrollReadiness} /> : null}
+          {activeView === "payroll" ? <div id="payroll-handoff"><PayrollHandoffPanel initialReadiness={payrollReadiness} /></div> : null}
 
           {activeView === "payroll" ? <HardeningPilotPanel readiness={hardeningReadiness} /> : null}
 
-          {activeView === "manager" || activeView === "payroll" ? <OperationalHealthPanel /> : null}
+          {activeView === "manager" || activeView === "payroll" ? <div id="operational-health"><OperationalHealthPanel /></div> : null}
 
-          {activeView === "today" || activeView === "my-time" ? <article className={styles.panel}>
-            <div className={styles.panelHeader}>
-              <div>
-                <span className={styles.sectionEyebrow}>Punch timeline</span>
-                <h2>Exact events with policy interpretation</h2>
-                <p>Recorded times remain exact. Any adjustment must be a documented correction.</p>
-              </div>
-              <Clock3 aria-hidden="true" />
-            </div>
-            <div className={styles.timeline}>
-              {model.timeline.map((item) => (
-                <div className={styles.timelineItem} key={item.id}>
-                  <div className={styles.timelineLeft}>
-                    <span className={dotClass(item.tone)} aria-hidden="true" />
-                    <div>
-                      <strong>{item.label}</strong>
-                      <p>{item.detail}</p>
-                    </div>
+          {isEmployeeView ? (
+            <details className={styles.workflowDisclosure} id="punch-timeline">
+              <summary><span>Punch trail and policy interpretation</span><small>Inspect exact events and card calculations.</small></summary>
+              <article className={styles.panel}>
+                <div className={styles.panelHeader}>
+                  <div>
+                    <span className={styles.sectionEyebrow}>Punch timeline</span>
+                    <h2>Exact events with policy interpretation</h2>
+                    <p>Recorded times remain exact. Any adjustment must be a documented correction.</p>
                   </div>
-                  <span className={styles.timelineTime}>{item.time}</span>
+                  <Gauge aria-hidden="true" />
                 </div>
-              ))}
-              {model.timeline.length === 0 ? <p className={styles.mvpNote}>No persisted punch or correction events are available for the recent period.</p> : null}
-            </div>
-          </article> : null}
+                <div className={styles.timeline}>
+                  {model.timeline.map((item) => (
+                    <div className={styles.timelineItem} key={item.id}>
+                      <div className={styles.timelineLeft}>
+                        <span className={dotClass(item.tone)} aria-hidden="true" />
+                        <div>
+                          <strong>{item.label}</strong>
+                          <p>{item.detail}</p>
+                        </div>
+                      </div>
+                      <span className={styles.timelineTime}>{item.time}</span>
+                    </div>
+                  ))}
+                  {model.timeline.length === 0 ? <p className={styles.mvpNote}>No persisted punch or correction events are available for the recent period.</p> : null}
+                </div>
+              </article>
+            </details>
+          ) : null}
 
-          {activeView === "manager" ? <article className={styles.teamPanel}>
+          {activeView === "manager" ? <article className={styles.teamPanel} id="team-status">
             <div className={styles.teamHeader}>
               <div>
                 <span className={styles.sectionEyebrow}>CCC team view</span>
@@ -217,9 +335,9 @@ export function TimeAttendanceConsole({ activeView, captureState, density, manag
               {model.team.length === 0 ? <p className={styles.mvpNote}>No active staff sessions or current cards requiring review.</p> : null}
             </div>
           </article> : null}
-        </div>
+          </div>
 
-        <aside className={styles.sideStack} aria-label="Time attendance review rail">
+          <aside className={styles.sideStack} aria-label="Time attendance review rail">
           {activeView === "manager" ? <article className={styles.reviewRail}>
             <div className={styles.panelHeader}>
               <div>
@@ -280,14 +398,11 @@ export function TimeAttendanceConsole({ activeView, captureState, density, manag
             </div>
             <div className={styles.exceptionList}>
               {model.exceptions.length > 0 ? model.exceptions.map((exception, index) => (
-                <div className={styles.exceptionRow} key={`${exception.code}-${index}`}>
-                  <div>
-                    <strong>{exception.code.replaceAll("_", " ")}</strong>
-                    <p>{exception.message}</p>
-                  </div>
-                  <span className={exception.blocking ? styles.chipDanger : styles.chipWarning}>
-                    {exception.blocking ? "Blocks payroll" : "Review"}
-                  </span>
+                <div className={styles.exceptionChecklistRow} key={`${exception.code}-${index}`}>
+                  <div><span>Issue</span><strong>{exception.code.replaceAll("_", " ")}</strong><p>{exception.message}</p></div>
+                  <div><span>Owner</span><strong>{exception.blocking ? "Manager" : "Employee / manager"}</strong></div>
+                  <div><span>Required action</span><strong>{exception.blocking ? "Resolve before payroll" : "Review and document"}</strong></div>
+                  <div><span>Status</span><em className={exception.blocking ? styles.chipDanger : styles.chipWarning}>{exception.blocking ? "Blocks payroll" : "Review"}</em></div>
                 </div>
               )) : (
                 <div className={styles.exceptionRow}>
@@ -301,15 +416,13 @@ export function TimeAttendanceConsole({ activeView, captureState, density, manag
             </div>
           </article> : null}
 
-          {model.notifications.length ? <article className={styles.panel}>
-            <div className={styles.panelHeader}><div><span className={styles.sectionEyebrow}>Internal inbox</span><h2>Time & Attendance notices</h2><p>Recorded in the workspace only; no email or text delivery is claimed.</p></div></div>
-            <div className={styles.exceptionList}>{model.notifications.map((notice) => <div className={styles.exceptionRow} key={notice.id}><div><strong>{notice.title}</strong><p>{notice.body}</p></div><span className={notice.severity === "CRITICAL" ? styles.chipDanger : notice.unread ? styles.chipWarning : styles.chipNeutral}>{notice.unread ? "Unread" : "Read"}</span></div>)}</div>
-          </article> : null}
+          <TimeAttendanceInboxDrawer notifications={model.notifications} />
 
           <p className={styles.mvpNote}>
             Live source generated {new Date(model.generatedAt).toLocaleString()}. Pilot and production eligibility remain blocked until required external reviews and evidence are supplied.
           </p>
-        </aside>
+          </aside>
+        </div>
       </div>
     </section>
   );

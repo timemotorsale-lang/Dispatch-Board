@@ -22,12 +22,6 @@ type CleanupResult = {
   repairOrderSamples: string[];
 };
 
-function containsPilotText(value: string | null | undefined) {
-  if (!value) return false;
-  const normalized = value.toUpperCase();
-  return normalized.includes("PILOT-") || normalized.includes("JORDAN PILOT") || normalized.includes("SHOP_RECON_PILOT");
-}
-
 async function findPilotTasks() {
   const tasks = await prisma.task.findMany({
     where: {

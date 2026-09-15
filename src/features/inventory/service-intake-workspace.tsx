@@ -314,6 +314,7 @@ export function ServiceIntakeWorkspace({ currentUserId, initialArrivalQuery = ""
   const selectedInventoryUnit = inventoryUnitRecords.find((unit) => unit.id === form.inventoryUnitId);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- vehicle color is a local editable draft reset when the selected vehicle changes.
     setVehicleColorDraft(selectedVehicle?.color ?? "");
   }, [selectedVehicle?.color, selectedVehicle?.id]);
   const assignableTechnicians = technicianOptions(options.users);

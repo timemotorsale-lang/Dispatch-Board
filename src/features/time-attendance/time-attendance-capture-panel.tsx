@@ -88,6 +88,7 @@ export function TimeAttendanceCapturePanel({ initialState }: CapturePanelProps) 
       : state.allowedActions[0],
     [state.allowedActions, state.nextPrimaryAction]
   );
+  const secondaryActions = state.allowedActions.filter((action) => action !== primaryAction);
   const unavailable = Boolean(state.unavailableReason);
   const elapsedMinutes = state.session ? Math.max(0, Math.floor((now - new Date(state.session.openedAt).getTime()) / 60_000)) : 0;
 
@@ -134,7 +135,7 @@ export function TimeAttendanceCapturePanel({ initialState }: CapturePanelProps) 
       <div className={styles.panelHeader}>
         <div>
           <span className={styles.sectionEyebrow}>My time actions</span>
-          <h2>Record today’s time</h2>
+          <h2>Record today&apos;s time</h2>
           <p>Use exact time. Corrections are handled separately so the original punch trail stays intact.</p>
         </div>
         <span className={state.state === "NONE" ? styles.chipNeutral : state.state === "ON_MEAL" ? styles.chipWarning : styles.chipGood}>
@@ -153,24 +154,48 @@ export function TimeAttendanceCapturePanel({ initialState }: CapturePanelProps) 
         </div>
       </div>
 
-      <div className={styles.captureActions} aria-label="Time capture actions">
-        {state.allowedActions.map((action) => (
+      <div className={styles.captureCommand} aria-label="Time capture actions">
+        {primaryAction ? (
           <button
-            className={action === primaryAction ? styles.capturePrimary : styles.captureSecondary}
+            className={styles.capturePrimary}
             disabled={isPending}
-            key={action}
-            onClick={() => submitAction(action)}
+            onClick={() => submitAction(primaryAction)}
             type="button"
           >
-            {iconFor(action)}
-            {actionLabels[action]}
+            {iconFor(primaryAction)}
+            {actionLabels[primaryAction]}
           </button>
-        ))}
+        ) : (
+          <p className={styles.captureError}>
+            <AlertTriangle size={16} aria-hidden="true" />
+            No time action is currently available.
+          </p>
+        )}
         <button className={styles.captureRefresh} disabled={isPending} onClick={() => startTransition(() => { void refreshState(); })} type="button">
           <RefreshCw size={16} aria-hidden="true" />
           Refresh
         </button>
       </div>
+
+      {secondaryActions.length ? (
+        <details className={styles.captureMoreActions}>
+          <summary>Other available actions</summary>
+          <div className={styles.captureActions}>
+            {secondaryActions.map((action) => (
+              <button
+                className={styles.captureSecondary}
+                disabled={isPending}
+                key={action}
+                onClick={() => submitAction(action)}
+                type="button"
+              >
+                {iconFor(action)}
+                {actionLabels[action]}
+              </button>
+            ))}
+          </div>
+        </details>
+      ) : null}
 
       {unavailable ? (
         <p className={styles.captureError}>

@@ -42,6 +42,11 @@
     ".next-runtime/dev/types/**/*.ts"
   ],
   "exclude": [
+    ".next",
+    ".next-*",
+    ".next-local*",
+    ".next-runtime",
+    ".worktrees",
     "node_modules",
     "src/tests/**/*",
     "src/features/activity/**/*",

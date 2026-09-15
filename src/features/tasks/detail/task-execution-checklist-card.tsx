@@ -85,6 +85,7 @@ export function TaskExecutionChecklistCard({
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- checklist rows are a local editable projection of refreshed server props.
     setItems(dedupeChecklistItems(initialItems));
   }, [initialItems]);
 

@@ -72,7 +72,19 @@ const defaultOrganizationId = "org-time-motor-sales";
 const defaultLocationId = "loc-time-motor-sales-minneapolis";
 const defaultTimezone = "America/Chicago";
 
-const appointmentPurposeGroups = [
+type AppointmentPurposeOption = {
+  category: string;
+  duration: number;
+  label: string;
+  value: string;
+};
+
+type AppointmentPurposeGroup = {
+  label: string;
+  options: AppointmentPurposeOption[];
+};
+
+const appointmentPurposeGroups: AppointmentPurposeGroup[] = [
   {
     label: "Customer & Follow-up",
     options: [
@@ -152,7 +164,7 @@ const appointmentPurposeGroups = [
       { value: "OTHER_APPOINTMENT", label: "Other Appointment", duration: 30, category: "general" }
     ]
   }
-] as const;
+] ;
 
 const purposeOptions = appointmentPurposeGroups.flatMap((group) => group.options);
 

@@ -390,7 +390,7 @@ export async function getTimeAttendanceConsoleModel(
           ? { label: "Resolve card exception", detail: "A blocking exception must be corrected or reviewed before this card can advance.", href: "/time-attendance?view=my-time#exceptions" }
           : latestAttestation
             ? { label: "Review current status", detail: "Your attestation is recorded for this exact card version.", href: "/time-attendance?view=my-time" }
-            : { label: "Review and attest", detail: "Confirm this exact card version or dispute it for manager review.", href: "/time-attendance?view=my-time#attestation" }
+            : { label: "Review and attest", detail: "Confirm this exact card version or dispute it for manager review.", href: "/time-attendance?view=my-time#card-attestation" }
         : assignment
           ? { label: "Record your next punch", detail: "Accepted punches will build your first live pay-period card.", href: "/time-attendance?view=today" }
           : { label: "Policy setup required", detail: "An authorized policy administrator must assign an active policy before a card can be projected.", href: manager ? "/time-attendance?view=policies" : "/time-attendance?view=my-time" },
