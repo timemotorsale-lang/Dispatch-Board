@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 
 import { CRM_NEXT_DEALS_HREF } from "@/features/crm/crm-route-authority";
+import { MN_SALE_FORM_PACKET } from "@/lib/mn-vehicle-sale-form-packet";
 import type { CrmNextCommandCenter } from "@/server/crm-next/read-model";
 
 import styles from "./crm-next-shell.module.css";
@@ -160,6 +161,28 @@ type RetailFeeLine = {
   label: string;
 };
 
+type GeneratedContractPacket = {
+  auditTrail: Array<{ action: string; actorUserId: string; at: string; detail: string }>;
+  delivery: {
+    downloadReady: boolean;
+    emailReady: boolean;
+    eSignatureReady: boolean;
+    printReady: boolean;
+    providerHoldReason: string;
+    textReady: boolean;
+  };
+  documents: Array<{
+    downloadFileName: string;
+    formId: string;
+    html: string;
+    label: string;
+  }>;
+  generatedAt: string;
+  packetId: string;
+  packetNumber: string;
+  status: "ARCHIVED";
+};
+
 type VehicleDecodeResult = {
   bodyType: string;
   make: string;
@@ -302,11 +325,13 @@ function ExecutionSummary({
 
 function RetailSaleExecutionDesk({
   amount,
+  customerName,
   onAmountChange,
   onVehicleChange,
   vehicle
 }: {
   amount: string;
+  customerName: string;
   onAmountChange: (value: string) => void;
   onVehicleChange: (value: string) => void;
   vehicle: string;
@@ -315,8 +340,15 @@ function RetailSaleExecutionDesk({
   const selectedFee = MN_DMV_FEE_ITEMS.find((item) => item.code === selectedFeeCode) ?? MN_DMV_FEE_ITEMS[0];
   const [feeAmount, setFeeAmount] = useState(selectedFee ? formatCurrency(selectedFee.amountCents) : "$0.00");
   const [feeLines, setFeeLines] = useState<RetailFeeLine[]>([]);
+  const [preparedForms, setPreparedForms] = useState<string[]>([]);
+  const [contractPacket, setContractPacket] = useState<GeneratedContractPacket | null>(null);
+  const [packetStatus, setPacketStatus] = useState<{ kind: "idle" | "generating" | "ready" | "error"; message: string }>({ kind: "idle", message: "" });
+  const [packetPreviewOpen, setPacketPreviewOpen] = useState(false);
+  const [previewFormId, setPreviewFormId] = useState<string | null>(null);
   const feeTotalCents = useMemo(() => feeLines.reduce((total, line) => total + line.amountCents, 0), [feeLines]);
   const feeFormula = feeLines.length > 0 ? `${feeLines.map((line) => formatCurrency(line.amountCents)).join(" + ")} = ${formatCurrency(feeTotalCents)}` : "$0.00 = $0.00";
+  const requiredFormCount = MN_SALE_FORM_PACKET.filter((form) => form.category === "Required").length;
+  const preparedRequiredCount = MN_SALE_FORM_PACKET.filter((form) => form.category === "Required" && preparedForms.includes(form.id)).length;
   const [vehicleFacts, setVehicleFacts] = useState({
     bodyType: "Auto",
     color: "",
@@ -354,6 +386,83 @@ function RetailSaleExecutionDesk({
 
   function removeFeeLine(id: string) {
     setFeeLines((current) => current.filter((line) => line.id !== id));
+  }
+
+  function togglePreparedForm(id: string) {
+    setPreparedForms((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  }
+
+  function prepareRequiredForms() {
+    setPreparedForms((current) => Array.from(new Set([...current, ...MN_SALE_FORM_PACKET.filter((form) => form.category === "Required").map((form) => form.id)])));
+  }
+
+  async function generateContractPacket() {
+    setPacketStatus({ kind: "generating", message: "Generating and archiving contract packet..." });
+    const response = await fetch("/api/crm/v1/contract-packets", {
+      body: JSON.stringify({
+        customerName,
+        dealNumber: vehicleFacts.stockNumber || vehicle || undefined,
+        dealType: "Retail Sale",
+        feeTotal: formatCurrency(feeTotalCents),
+        idempotencyKey: crypto.randomUUID(),
+        paymentFunding: "To be confirmed",
+        preparedFormIds: preparedForms,
+        salePrice: amount || "$0.00",
+        vehicle: vehicleFacts
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST"
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setPacketStatus({ kind: "error", message: typeof payload.error === "string" ? payload.error : "Contract packet could not be generated." });
+      return;
+    }
+    const generatedPacket = payload as GeneratedContractPacket;
+    setContractPacket(generatedPacket);
+    setPreviewFormId(generatedPacket.documents[0]?.formId ?? null);
+    setPacketStatus({ kind: "ready", message: `Archived packet ${generatedPacket.packetNumber}.` });
+  }
+
+  const previewDocument = contractPacket?.documents.find((document) => document.formId === previewFormId) ?? contractPacket?.documents[0] ?? null;
+
+  function packetHtml() {
+    if (!contractPacket) return "";
+    return `<!doctype html><html><head><meta charset="utf-8"><title>${contractPacket.packetNumber}</title></head><body>${contractPacket.documents.map((document) => document.html).join("<hr />")}</body></html>`;
+  }
+
+  function downloadPacket() {
+    if (!contractPacket) return;
+    const url = URL.createObjectURL(new Blob([packetHtml()], { type: "text/html" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${contractPacket.packetNumber}.html`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function printPacket() {
+    if (!contractPacket) return;
+    const printWindow = window.open("", "_blank", "noopener,noreferrer");
+    if (!printWindow) {
+      setPacketStatus({ kind: "error", message: "Print window was blocked. Download the packet instead." });
+      return;
+    }
+    printWindow.document.write(packetHtml());
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  }
+
+  function queuePacketDelivery(channel: "email" | "text") {
+    if (!contractPacket) return;
+    setPacketStatus({ kind: "ready", message: `${channel === "email" ? "Email" : "Text"} delivery link queued for ${contractPacket.packetNumber}; signed provider delivery remains governed by CRM communications controls.` });
+  }
+
+  function openPacketPreview() {
+    if (!contractPacket) return;
+    setPreviewFormId((current) => current ?? contractPacket.documents[0]?.formId ?? null);
+    setPacketPreviewOpen(true);
   }
 
   function updateVin(value: string) {
@@ -546,6 +655,91 @@ function RetailSaleExecutionDesk({
         </div>
       </section>
 
+      <section className={styles.retailSection} id="retail-contracts">
+        <header>
+          <span>Contracted forms</span>
+          <strong>Minnesota sale packet</strong>
+        </header>
+        <div className={styles.retailFormsCommand}>
+          <div>
+            <span>Required forms ready</span>
+            <strong>{preparedRequiredCount}/{requiredFormCount}</strong>
+            <small>Prepare the baseline packet first, then add conditional forms based on finance, trade, products, and delivery.</small>
+          </div>
+          <button type="button" onClick={prepareRequiredForms}>Prepare required forms</button>
+          <button disabled={packetStatus.kind === "generating"} type="button" onClick={() => void generateContractPacket()}>
+            {packetStatus.kind === "generating" ? "Generating..." : "Generate contract packet"}
+          </button>
+          <button disabled={!contractPacket} type="button" onClick={openPacketPreview}>Preview generated packet</button>
+        </div>
+        {packetStatus.kind !== "idle" ? <p className={packetStatus.kind === "error" ? styles.retailPacketError : styles.retailPacketStatus}>{packetStatus.message}</p> : null}
+        {contractPacket ? (
+          <div className={styles.retailPacketArchive} aria-label="Generated contract packet archive">
+            <div>
+              <span>Archived packet</span>
+              <strong>{contractPacket.packetNumber}</strong>
+              <small>{contractPacket.documents.length} document(s) generated · {new Date(contractPacket.generatedAt).toLocaleString()}</small>
+            </div>
+            <button type="button" onClick={openPacketPreview}>Preview packet</button>
+            <button disabled={!contractPacket.delivery.downloadReady} type="button" onClick={downloadPacket}>Download packet</button>
+            <button disabled={!contractPacket.delivery.printReady} type="button" onClick={printPacket}>Print packet</button>
+            <button disabled={!contractPacket.delivery.textReady} type="button" onClick={() => queuePacketDelivery("text")}>Text link</button>
+            <button disabled={!contractPacket.delivery.emailReady} type="button" onClick={() => queuePacketDelivery("email")}>Email link</button>
+            <small>{contractPacket.delivery.providerHoldReason}</small>
+          </div>
+        ) : null}
+        <div className={styles.retailFormsGrid}>
+          {MN_SALE_FORM_PACKET.map((form) => {
+            const prepared = preparedForms.includes(form.id);
+            return (
+              <label className={prepared ? styles.retailFormReady : undefined} key={form.id}>
+                <input checked={prepared} onChange={() => togglePreparedForm(form.id)} type="checkbox" />
+                <span>{form.category}</span>
+                <strong>{form.label}</strong>
+                <small>{form.description}</small>
+                <em>{form.trigger}</em>
+                <b>{form.basis}</b>
+              </label>
+            );
+          })}
+        </div>
+        {packetPreviewOpen && contractPacket ? (
+          <div className={styles.retailPacketPreviewBackdrop} role="presentation">
+            <aside className={styles.retailPacketPreviewDrawer} aria-label="Contract packet preview">
+              <header>
+                <div>
+                  <span>Packet preview</span>
+                  <strong>{contractPacket.packetNumber}</strong>
+                  <small>Review generated forms before download, print, text, or email.</small>
+                </div>
+                <button type="button" onClick={() => setPacketPreviewOpen(false)}>Close</button>
+              </header>
+              <div className={styles.retailPacketPreviewBody}>
+                <nav aria-label="Generated forms">
+                  {contractPacket.documents.map((document) => (
+                    <button
+                      className={document.formId === previewDocument?.formId ? styles.retailPacketPreviewActive : undefined}
+                      key={document.formId}
+                      onClick={() => setPreviewFormId(document.formId)}
+                      type="button"
+                    >
+                      {document.label}
+                    </button>
+                  ))}
+                </nav>
+                <section>
+                  <div>
+                    <span>Reviewing</span>
+                    <strong>{previewDocument?.label ?? "Generated form"}</strong>
+                  </div>
+                  <iframe srcDoc={previewDocument?.html ?? ""} title={previewDocument?.label ?? "Generated contract form preview"} />
+                </section>
+              </div>
+            </aside>
+          </div>
+        ) : null}
+      </section>
+
     </div>
   );
 }
@@ -636,6 +830,7 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
         <a href="#retail-vehicle">Vehicle</a>
         <a href="#retail-trade">Trade-In</a>
         <a href="#retail-deal">Deal</a>
+        <a href="#retail-contracts">Forms</a>
         <button type="button" onClick={() => setSummaryOpen(true)}>Checks</button>
       </nav>
 
@@ -665,6 +860,7 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
               </div>
               <RetailSaleExecutionDesk
                 amount={form.amount}
+                customerName={selectedCustomer?.name ?? "Customer not selected"}
                 onAmountChange={(value) => update("amount", value)}
                 onVehicleChange={(value) => update("vehicle", value)}
                 vehicle={form.vehicle}
