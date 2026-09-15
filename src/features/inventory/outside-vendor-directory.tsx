@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState, useTransition } from "react";
-import { ArrowRight, Building2, CheckCircle2, Clock3, FileText, Mail, MapPin, Phone, Plus, ReceiptText, Save, ShieldCheck, Wrench } from "lucide-react";
+import { ArrowRight, Building2, CheckCircle2, Clock3, ExternalLink, FileText, Mail, MapPin, Phone, Plus, ReceiptText, Save, ShieldCheck, Wrench } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supportingPartyTypeForVendorType, supportingPartyTypeLabel } from "@/lib/supporting-party-context";
@@ -52,6 +52,13 @@ export type OutsideVendorRecord = {
   address: string | null;
   code: string;
   contactName: string | null;
+  crmVendor?: {
+    categoryLabel: string;
+    id: string;
+    statusLabel: string;
+    vendorNumber: string;
+    warning: boolean;
+  } | null;
   defaultLeadDays: number;
   email: string | null;
   id: string;
@@ -100,10 +107,11 @@ export function OutsideVendorDirectory({ vendors }: { vendors: OutsideVendorReco
     const stats = vendorStats(vendor);
     result.active += stats.active.length;
     result.billingReady += stats.billingReady.length;
+    result.crmConnected += vendor.crmVendor ? 1 : 0;
     result.openBalanceCents += stats.openBalanceCents;
     result.pendingApproval += stats.pendingApproval.length;
     return result;
-  }, { active: 0, billingReady: 0, openBalanceCents: 0, pendingApproval: 0 }), [vendors]);
+  }, { active: 0, billingReady: 0, crmConnected: 0, openBalanceCents: 0, pendingApproval: 0 }), [vendors]);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -152,13 +160,13 @@ export function OutsideVendorDirectory({ vendors }: { vendors: OutsideVendorReco
       <button onClick={() => setOpen(true)} type="button"><Plus /> Add outside vendor</button>
     </header>
 
-    <section className="outside-vendor-guidance"><Building2 /><div><strong>Supporting parties stay connected, not mixed into Customer CRM</strong><span>Vendors, towing companies, suppliers, agencies, lenders, warranty companies, and contractors appear beside the customer, vehicle, task, or repair order where they matter.</span></div></section>
+    <section className="outside-vendor-guidance"><Building2 /><div><strong>Supporting parties connect to the CRM Vendor Registry</strong><span>This workspace keeps repair execution, billing follow-up, and QC history close to each RO while the CRM profile remains the master record for documents, notes, status, and vendor controls.</span></div></section>
 
     <section className="outside-vendor-kpis" aria-label="Outside vendor operating summary">
       <article><Wrench /><span>Active vendor jobs</span><strong>{workspaceStats.active}</strong><small>Offsite or waiting for vendor QC/return</small></article>
       <article><ShieldCheck /><span>Approval follow-up</span><strong>{workspaceStats.pendingApproval}</strong><small>Pending or needs documentation</small></article>
       <article><ReceiptText /><span>Billing ready</span><strong>{workspaceStats.billingReady}</strong><small>Returned, QC required, or completed</small></article>
-      <article><FileText /><span>Open balance proxy</span><strong>{money(workspaceStats.openBalanceCents)}</strong><small>Recorded vendor amounts awaiting invoice/payment controls</small></article>
+      <article><FileText /><span>CRM connected</span><strong>{workspaceStats.crmConnected}/{vendors.length}</strong><small>{money(workspaceStats.openBalanceCents)} in open balance proxy</small></article>
     </section>
 
     {open ? <form onSubmit={submit}><header><strong>Add outside vendor</strong><span>This vendor becomes reusable in Service Advisor and Shop &amp; Recon workflows.</span></header><label><span>Vendor name</span><input name="name" placeholder="Simba Collision" required /></label><label><span>Vendor type</span><select name="vendorType"><option value="BODY_SHOP">Body shop</option><option value="MECHANICAL_SUBLET">Mechanical sublet</option><option value="GLASS">Glass</option><option value="CALIBRATION">Calibration</option><option value="DETAIL">Detail</option><option value="TRANSPORT">Transport</option><option value="OTHER">Other</option></select></label><label><span>Default lead time</span><input min="0" name="defaultLeadDays" type="number" defaultValue="1" /></label><label><span>Contact name</span><input name="contactName" /></label><label><span>Phone</span><input name="phoneNumber" type="tel" /></label><label><span>Email</span><input name="email" type="email" /></label><label className="wide"><span>Address</span><input name="address" /></label><label className="wide"><span>Operating notes</span><textarea name="notes" placeholder="Pickup hours, towing instructions, preferred estimate method, billing contact, payment terms, or escalation contact" /></label>{error ? <p className="advisor-response-error wide">{error}</p> : null}<button disabled={pending} type="submit"><Save /> {pending ? "Saving..." : "Save outside vendor"}</button></form> : null}
@@ -166,11 +174,11 @@ export function OutsideVendorDirectory({ vendors }: { vendors: OutsideVendorReco
 
     <div className="outside-vendor-ops-grid">
       <aside className="outside-vendor-list" aria-label="Outside vendor list">
-        <header><strong>Vendor ledger</strong><span>{vendors.length} partner(s)</span></header>
+        <header><strong>Vendor ledger</strong><span>{workspaceStats.crmConnected} of {vendors.length} CRM-connected</span></header>
         {vendors.length ? vendors.map((vendor) => {
           const stats = vendorStats(vendor);
           return <button aria-pressed={selectedVendor?.id === vendor.id} key={vendor.id} onClick={() => setSelectedVendorId(vendor.id)} type="button">
-            <Building2 /><span><strong>{vendor.name}</strong><small>{vendor.code} · {vendorPartyLabel(vendor.vendorType)} · {format(vendor.vendorType)}</small></span><b>{stats.works.length}</b>
+            <Building2 /><span><strong>{vendor.name}</strong><small>{vendor.code} · {vendor.crmVendor ? `${vendor.crmVendor.vendorNumber} CRM master` : "Needs CRM master"} · {format(vendor.vendorType)}</small></span><b>{stats.works.length}</b>
           </button>;
         }) : <div className="outside-vendor-empty"><Building2 /><strong>No outside vendors added yet</strong><span>Add Simba Collision or another partner once, then select it from any repair order.</span></div>}
       </aside>
@@ -178,8 +186,15 @@ export function OutsideVendorDirectory({ vendors }: { vendors: OutsideVendorReco
       <main className="outside-vendor-detail">
         {selectedVendor && selectedStats ? <>
           <section className="outside-vendor-profile">
-            <header><Building2 /><div><span>Supporting party · {vendorPartyLabel(selectedVendor.vendorType)} · {selectedVendor.code} · {format(selectedVendor.vendorType)}</span><h2>{selectedVendor.name}</h2><p>{selectedVendor.notes ?? "No operating notes recorded yet."}</p></div><b>{format(selectedVendor.status)}</b></header>
+            <header><Building2 /><div><span>Supporting party · {vendorPartyLabel(selectedVendor.vendorType)} · {selectedVendor.code} · {format(selectedVendor.vendorType)}</span><h2>{selectedVendor.name}</h2><p>{selectedVendor.notes ?? "No operating notes recorded yet."}</p></div><div className="outside-vendor-profile-actions"><b>{format(selectedVendor.status)}</b>{selectedVendor.crmVendor ? <Link href={`/customers/vendors/${selectedVendor.crmVendor.id}`}><ExternalLink /> Open CRM profile</Link> : <Link href={`/customers/vendors?q=${encodeURIComponent(selectedVendor.name)}`}><ExternalLink /> Find in CRM</Link>}</div></header>
             <dl><div><dt>Contact</dt><dd>{selectedVendor.contactName ?? "Not recorded"}</dd></div><div><dt>Lead time</dt><dd>{selectedVendor.defaultLeadDays} day(s)</dd></div><div><dt>Total completed spend</dt><dd>{money(selectedStats.totalSpendCents)}</dd></div><div><dt>Open billing proxy</dt><dd>{money(selectedStats.openBalanceCents)}</dd></div></dl>
+            <section className={selectedVendor.crmVendor ? "outside-vendor-crm-bridge connected" : "outside-vendor-crm-bridge"}>
+              <Building2 />
+              <span>
+                <strong>{selectedVendor.crmVendor ? `CRM master connected · ${selectedVendor.crmVendor.vendorNumber}` : "CRM master record not matched yet"}</strong>
+                <small>{selectedVendor.crmVendor ? `${selectedVendor.crmVendor.categoryLabel} · ${selectedVendor.crmVendor.statusLabel}. Use the CRM profile for documents, protected notes, owner, and invoice batches.` : "Create or locate the matching CRM vendor so operating work and vendor governance stay tied together."}</small>
+              </span>
+            </section>
             <div className="outside-vendor-contact">{selectedVendor.phoneNumber ? <a href={`tel:${selectedVendor.phoneNumber}`}><Phone /> {selectedVendor.phoneNumber}</a> : null}{selectedVendor.email ? <a href={`mailto:${selectedVendor.email}`}><Mail /> {selectedVendor.email}</a> : null}{selectedVendor.address ? <span><MapPin /> {selectedVendor.address}</span> : null}</div>
           </section>
 

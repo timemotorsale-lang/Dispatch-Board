@@ -25277,7 +25277,18 @@ html[data-app-theme="dark"] :where(.rowb-daily-command,.rowb-daily-status div,.r
 .outside-vendor-correction button{min-height:38px;border:1px solid #2f65c8;border-radius:7px;padding:0 11px;color:#fff;background:#2f65c8;font:inherit;font-size:12px;font-weight:900;cursor:pointer}
 .outside-vendor-correction button:disabled{cursor:not-allowed;opacity:.55}
 .outside-vendor-correction small{grid-column:1/-1;color:#66798f;font-size:11.5px}
+.outside-vendor-profile-actions{display:grid;justify-items:end;gap:7px}
+.outside-vendor-profile-actions a{display:inline-flex;align-items:center;gap:6px;border:1px solid #b6c8df;border-radius:8px;padding:8px 10px;color:#164f92;background:#fff;font-size:12px;font-weight:900;text-decoration:none;white-space:nowrap}
+.outside-vendor-profile-actions a svg{width:14px}
+.outside-vendor-crm-bridge{display:flex;align-items:center;gap:10px;border:1px solid #d8e3ef;border-radius:9px;padding:10px 11px;background:#fbfdff}
+.outside-vendor-crm-bridge.connected{border-color:#b8ddca;background:#f4fbf7}
+.outside-vendor-crm-bridge>svg{width:17px;color:#315d9b}
+.outside-vendor-crm-bridge.connected>svg{color:#17633e}
+.outside-vendor-crm-bridge span{display:grid;gap:2px}
+.outside-vendor-crm-bridge strong{color:#14304d;font-size:12.5px}
+.outside-vendor-crm-bridge small{color:#61758b;font-size:11.5px;line-height:1.35}
 @media(max-width:760px){.outside-vendor-correction{grid-template-columns:1fr}.outside-vendor-correction button{width:100%}}
+@media(max-width:760px){.outside-vendor-profile-actions{justify-items:start}.outside-vendor-profile-actions a{width:100%;justify-content:center}.outside-vendor-crm-bridge{align-items:flex-start}}
 
 /* COO Workbook: simple daily close guidance from saved workday activity. */
 .advisor-coo-close-readiness{display:grid;gap:10px;border:1px solid #d5e0ec;border-left:4px solid #2f65c8;border-radius:8px;padding:12px;background:#fff}

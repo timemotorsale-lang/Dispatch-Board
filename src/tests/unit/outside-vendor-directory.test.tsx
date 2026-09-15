@@ -7,14 +7,25 @@ import { OutsideVendorDirectory } from "@/features/inventory/outside-vendor-dire
 
 describe("outside vendor directory", () => {
   it("keeps reusable vendors in their own operating ledger workspace", () => {
-    const html = renderToStaticMarkup(<OutsideVendorDirectory vendors={[{ id: "vendor-1", code: "DIEGO-AUTO-BODY", name: "Diego Auto Body", vendorType: "BODY_SHOP", contactName: "Diego", phoneNumber: "555-0199", email: null, address: "Body Shop Road", defaultLeadDays: 2, notes: null, status: "ACTIVE" }]} />);
+    const html = renderToStaticMarkup(<OutsideVendorDirectory vendors={[{ id: "vendor-1", code: "DIEGO-AUTO-BODY", name: "Diego Auto Body", vendorType: "BODY_SHOP", contactName: "Diego", phoneNumber: "555-0199", email: null, address: "Body Shop Road", defaultLeadDays: 2, notes: null, status: "ACTIVE", crmVendor: { categoryLabel: "Body / paint vendor", id: "crm-vendor-1", statusLabel: "Active", vendorNumber: "V-00042", warning: false } }]} />);
     expect(html).toContain("Operations · Outside vendor workspace");
     expect(html).toContain("Diego Auto Body");
     expect(html).toContain("Supporting party · Vendor");
-    expect(html).toContain("Supporting parties stay connected");
+    expect(html).toContain("Supporting parties connect to the CRM Vendor Registry");
+    expect(html).toContain("CRM master connected");
+    expect(html).toContain("Open CRM profile");
+    expect(html).toContain("/customers/vendors/crm-vendor-1");
     expect(html).toContain("Vendor work ledger");
     expect(html).toContain("Billing and invoice control");
     expect(html).toContain("Add outside vendor");
+  });
+
+  it("shows a CRM matching path when the operating vendor has no CRM master yet", () => {
+    const html = renderToStaticMarkup(<OutsideVendorDirectory vendors={[{ id: "vendor-1", code: "GIL-TIRES", name: "Gil Tires", vendorType: "MECHANICAL_SUBLET", contactName: null, phoneNumber: null, email: null, address: null, defaultLeadDays: 2, notes: null, status: "ACTIVE", crmVendor: null }]} />);
+    expect(html).toContain("Needs CRM master");
+    expect(html).toContain("CRM master record not matched yet");
+    expect(html).toContain("Find in CRM");
+    expect(html).toContain("/customers/vendors?q=Gil%20Tires");
   });
 
   it("shows total ledger records and a correction path for misassigned vendor work", () => {
