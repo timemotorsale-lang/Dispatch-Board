@@ -4,39 +4,76 @@ import {
   AlertTriangle,
   ArrowLeft,
   BadgeCheck,
+  Boxes,
+  Building2,
+  CalendarCheck,
   CarFront,
   Check,
   CirclePlus,
   ChevronRight,
   CircleDollarSign,
   ClipboardCheck,
+  ClipboardList,
+  CreditCard,
   FileText,
   Gauge,
+  Handshake,
+  KeyRound,
+  MapPinned,
   Megaphone,
+  MessageSquareWarning,
+  PackageCheck,
   RotateCcw,
   Save,
-  Sparkles,
+  ShieldCheck,
+  Truck,
   UserRound,
   UsersRound,
   Wrench
 } from "lucide-react";
 import Link from "next/link";
-import { type CSSProperties, useEffect, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import type { ActiveUserSummary } from "@/server/services/user-summary";
 
 type IntakeMode = "quick" | "guided";
 type IntakeStage = "Capture" | "Shape" | "Outcome" | "Ownership" | "Controls" | "Preview" | "Review";
-type IntakeType =
-  | "Quick Task"
-  | "Vehicle / Service"
-  | "Customer Issue"
-  | "Service Advisor"
-  | "Sales Lead / Appointment"
-  | "Inventory Movement"
-  | "Marketing / Listing"
-  | "Admin / Documentation"
-  | "Collections"
-  | "Manager Decision";
+const intakeTypeLabels = [
+  "Quick Task",
+  "Manager Decision",
+  "Sales Lead / Appointment",
+  "Sales Deal / Delivery",
+  "Finance / Funding",
+  "Customer Issue",
+  "Service Advisor",
+  "Repair Order / Authorization",
+  "Diagnostics / Estimate",
+  "Shop Dispatch / Technician",
+  "Parts Request / Backorder",
+  "Sublet / Vendor",
+  "Quality Control / Comeback",
+  "Inventory Acquisition",
+  "Inventory Movement",
+  "Recon / Detail",
+  "Photos / Merchandising",
+  "Marketing / Listing",
+  "Title / Registration",
+  "Admin / Documentation",
+  "Accounting / Payables",
+  "Collections",
+  "Compliance / Risk",
+  "Facilities / Supplies"
+] as const;
+type IntakeType = typeof intakeTypeLabels[number];
+type IntakeWorkflowArea = "INVENTORY" | "ADVERTISING" | "MARKETING" | "SALES" | "SERVICE_ADVISOR" | "ADMIN" | "COLLECTIONS" | "SHOP" | "GENERAL_MANAGER";
+type IntakeCategoryGroup = "Start Here" | "Sales & Customer" | "Service & Shop" | "Inventory & Merchandising" | "Back Office & Controls";
+type IntakeTypeOption = {
+  group: IntakeCategoryGroup;
+  icon: typeof ClipboardCheck;
+  label: IntakeType;
+  workflow: IntakeWorkflowArea;
+  outcome: string;
+};
+type ReadinessField = "title" | "brief" | "workflowArea" | "dueDate" | "dueTime" | "expectedOutcome" | "assignedUserId" | "context";
 
 type IntakeDraft = {
   assignedUserId: string;
@@ -66,18 +103,34 @@ const fallbackCollaboratorOptions = [
 
 const stages: IntakeStage[] = ["Capture", "Shape", "Outcome", "Ownership", "Controls", "Preview", "Review"];
 const updateOptions = ["Next step", "ETA", "Finding / result", "Customer contacted", "Photo evidence", "Final note"];
-const typeOptions: Array<{ icon: typeof ClipboardCheck; label: IntakeType; workflow: string; outcome: string }> = [
-  { icon: ClipboardCheck, label: "Quick Task", workflow: "GENERAL_MANAGER", outcome: "The requested work is completed and the next operational step is recorded." },
-  { icon: Wrench, label: "Vehicle / Service", workflow: "SHOP", outcome: "The vehicle condition, work performed, blockers, parts, ETA, and QC readiness are documented." },
-  { icon: UserRound, label: "Customer Issue", workflow: "ADMIN", outcome: "The customer receives a clear resolution or a documented next step with ownership and follow-up timing." },
-  { icon: UserRound, label: "Service Advisor", workflow: "SERVICE_ADVISOR", outcome: "The customer concern, authorization, promise, and advisor handoff are documented with the next follow-up owned." },
-  { icon: UsersRound, label: "Sales Lead / Appointment", workflow: "SALES", outcome: "The lead receives timely follow-up and the next sales or appointment action is recorded." },
-  { icon: CarFront, label: "Inventory Movement", workflow: "INVENTORY", outcome: "The vehicle reaches its target stage or the movement blocker and ETA are visible." },
-  { icon: Megaphone, label: "Marketing / Listing", workflow: "ADVERTISING", outcome: "The listing or campaign is complete, accurate, and ready for customer visibility." },
-  { icon: FileText, label: "Admin / Documentation", workflow: "ADMIN", outcome: "The required document is obtained, processed, or escalated with a clear deadline." },
-  { icon: CircleDollarSign, label: "Collections", workflow: "COLLECTIONS", outcome: "The payment outcome, promise, follow-up date, and escalation status are documented." },
-  { icon: BadgeCheck, label: "Manager Decision", workflow: "GENERAL_MANAGER", outcome: "A manager decision is recorded and the affected work has an executable next step." }
+const typeOptions: IntakeTypeOption[] = [
+  { group: "Start Here", icon: ClipboardCheck, label: "Quick Task", workflow: "GENERAL_MANAGER", outcome: "The requested work is completed and the next operational step is recorded." },
+  { group: "Start Here", icon: BadgeCheck, label: "Manager Decision", workflow: "GENERAL_MANAGER", outcome: "A manager decision is recorded and the affected work has an executable next step." },
+  { group: "Sales & Customer", icon: UsersRound, label: "Sales Lead / Appointment", workflow: "SALES", outcome: "The lead receives timely follow-up and the next sales or appointment action is recorded." },
+  { group: "Sales & Customer", icon: Handshake, label: "Sales Deal / Delivery", workflow: "SALES", outcome: "The deal, delivery promise, customer handoff, and remaining blockers are ready for execution." },
+  { group: "Sales & Customer", icon: CreditCard, label: "Finance / Funding", workflow: "SALES", outcome: "The finance package, stipulations, funding blocker, or lender follow-up is completed or escalated." },
+  { group: "Sales & Customer", icon: MessageSquareWarning, label: "Customer Issue", workflow: "ADMIN", outcome: "The customer receives a clear resolution or a documented next step with ownership and follow-up timing." },
+  { group: "Service & Shop", icon: UserRound, label: "Service Advisor", workflow: "SERVICE_ADVISOR", outcome: "The customer concern, authorization, promise, and advisor handoff are documented with the next follow-up owned." },
+  { group: "Service & Shop", icon: ClipboardList, label: "Repair Order / Authorization", workflow: "SERVICE_ADVISOR", outcome: "The repair order scope, customer authorization, stop rules, and next promise are clear." },
+  { group: "Service & Shop", icon: Gauge, label: "Diagnostics / Estimate", workflow: "SHOP", outcome: "The diagnostic finding, estimate need, evidence, and approval path are documented." },
+  { group: "Service & Shop", icon: Wrench, label: "Shop Dispatch / Technician", workflow: "SHOP", outcome: "The technician-ready work, blockers, parts, ETA, and completion evidence are visible." },
+  { group: "Service & Shop", icon: PackageCheck, label: "Parts Request / Backorder", workflow: "SHOP", outcome: "The part need, source, ETA, backorder risk, and affected work are documented." },
+  { group: "Service & Shop", icon: Building2, label: "Sublet / Vendor", workflow: "SHOP", outcome: "The vendor assignment, quote, pickup or delivery timing, and return requirement are clear." },
+  { group: "Service & Shop", icon: ShieldCheck, label: "Quality Control / Comeback", workflow: "SHOP", outcome: "The QC result, comeback concern, corrective action, and release decision are recorded." },
+  { group: "Inventory & Merchandising", icon: CarFront, label: "Inventory Acquisition", workflow: "INVENTORY", outcome: "The acquisition step, appraisal need, transport, title, or stocking blocker has a clear owner." },
+  { group: "Inventory & Merchandising", icon: Truck, label: "Inventory Movement", workflow: "INVENTORY", outcome: "The vehicle reaches its target stage or the movement blocker and ETA are visible." },
+  { group: "Inventory & Merchandising", icon: Boxes, label: "Recon / Detail", workflow: "INVENTORY", outcome: "The recon, detail, cleanup, lot-ready, or frontline readiness step is completed or blocked with ETA." },
+  { group: "Inventory & Merchandising", icon: MapPinned, label: "Photos / Merchandising", workflow: "MARKETING", outcome: "Photos, merchandising data, vehicle highlights, and listing readiness are complete." },
+  { group: "Inventory & Merchandising", icon: Megaphone, label: "Marketing / Listing", workflow: "ADVERTISING", outcome: "The listing or campaign is complete, accurate, and ready for customer visibility." },
+  { group: "Back Office & Controls", icon: KeyRound, label: "Title / Registration", workflow: "ADMIN", outcome: "The title, registration, lien, plate, or DMV step is obtained, processed, or escalated." },
+  { group: "Back Office & Controls", icon: FileText, label: "Admin / Documentation", workflow: "ADMIN", outcome: "The required document is obtained, processed, or escalated with a clear deadline." },
+  { group: "Back Office & Controls", icon: CircleDollarSign, label: "Accounting / Payables", workflow: "ADMIN", outcome: "The invoice, payable, receivable, reconciliation, or posting issue is completed or escalated." },
+  { group: "Back Office & Controls", icon: CircleDollarSign, label: "Collections", workflow: "COLLECTIONS", outcome: "The payment outcome, promise, follow-up date, and escalation status are documented." },
+  { group: "Back Office & Controls", icon: ShieldCheck, label: "Compliance / Risk", workflow: "GENERAL_MANAGER", outcome: "The policy, audit, legal, safety, or compliance risk has a documented decision and next step." },
+  { group: "Back Office & Controls", icon: CalendarCheck, label: "Facilities / Supplies", workflow: "ADMIN", outcome: "The facility, equipment, supply, or internal operating need is assigned and resolved." }
 ];
+const categoryGroups: IntakeCategoryGroup[] = ["Start Here", "Sales & Customer", "Service & Shop", "Inventory & Merchandising", "Back Office & Controls"];
+const recommendedCategoryLabels: IntakeType[] = ["Quick Task", "Repair Order / Authorization", "Sales Lead / Appointment", "Inventory Movement", "Marketing / Listing"];
 
 function createEmptyDraft(assignedUserId = "", dueDate = new Date().toISOString().slice(0, 10)): IntakeDraft {
   return {
@@ -114,6 +167,31 @@ export function calculateTaskIntakeReadiness(draft: IntakeDraft) {
   ];
   const score = checks.reduce((total, check) => total + (check.ready ? check.weight : 0), 0);
   return { checks, score };
+}
+
+function detailsTemplateFor(option: IntakeTypeOption) {
+  const common = `Category: ${option.label}\nOutcome: ${option.outcome}\n\n`;
+  if (option.group === "Sales & Customer") {
+    return `${common}Customer / deal context:\nNext promise:\nBlocker or decision needed:\nFollow-up timing:`;
+  }
+  if (option.group === "Service & Shop") {
+    return `${common}Vehicle / RO context:\nConcern or work requested:\nParts / authorization status:\nETA or release condition:`;
+  }
+  if (option.group === "Inventory & Merchandising") {
+    return `${common}Vehicle / stock context:\nCurrent stage:\nNext location or listing step:\nBlocker / evidence needed:`;
+  }
+  if (option.group === "Back Office & Controls") {
+    return `${common}Record / account context:\nDocument or control needed:\nDeadline / risk:\nEscalation path:`;
+  }
+  return `${common}Work request:\nOwner instruction:\nCompletion evidence:\nNext update needed:`;
+}
+
+function categoryEvidenceFor(option: IntakeTypeOption) {
+  if (option.group === "Sales & Customer") return "Customer promise, next contact, and deal blocker.";
+  if (option.group === "Service & Shop") return "Vehicle, RO, authorization, ETA, and completion evidence.";
+  if (option.group === "Inventory & Merchandising") return "Stock number, current stage, target state, and listing or lot-ready evidence.";
+  if (option.group === "Back Office & Controls") return "Document, account, deadline, risk, and escalation note.";
+  return "Owner, next action, completion evidence, and final note.";
 }
 
 function acquisitionPolicy(draft: IntakeDraft) {
@@ -163,10 +241,60 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
   const [submitError, setSubmitError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [detailsExpanded, setDetailsExpanded] = useState(false);
+  const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false);
+  const [categorySearch, setCategorySearch] = useState("");
+  const [recentCategories, setRecentCategories] = useState<IntakeType[]>([]);
   const detailsAutoClearRef = useRef(false);
   const submitLock = useRef(false);
+  const assignedUserRef = useRef<HTMLSelectElement>(null);
+  const briefRef = useRef<HTMLTextAreaElement>(null);
+  const contextRef = useRef<HTMLInputElement>(null);
+  const dueDateRef = useRef<HTMLInputElement>(null);
+  const dueTimeRef = useRef<HTMLInputElement>(null);
+  const expectedOutcomeRef = useRef<HTMLTextAreaElement>(null);
+  const titleRef = useRef<HTMLInputElement>(null);
+  const workflowAreaRef = useRef<HTMLSelectElement>(null);
+  const fieldRefs = {
+    assignedUserId: assignedUserRef,
+    brief: briefRef,
+    context: contextRef,
+    dueDate: dueDateRef,
+    dueTime: dueTimeRef,
+    expectedOutcome: expectedOutcomeRef,
+    title: titleRef,
+    workflowArea: workflowAreaRef
+  };
   const readiness = calculateTaskIntakeReadiness(draft);
   const policy = acquisitionPolicy(draft);
+  const selectedType = typeOptions.find((item) => item.label === draft.intakeType) ?? typeOptions[0];
+  const SelectedTypeIcon = selectedType.icon;
+  const needsVehicleContext = Boolean(draft.vehicleReference.trim())
+    || selectedType.group === "Service & Shop"
+    || selectedType.group === "Inventory & Merchandising"
+    || draft.intakeType === "Sales Deal / Delivery";
+  const needsCustomerContext = Boolean(draft.customerReference.trim())
+    || selectedType.group === "Sales & Customer"
+    || draft.intakeType === "Service Advisor"
+    || draft.intakeType === "Repair Order / Authorization"
+    || draft.intakeType === "Collections";
+  const filteredCategoryGroups = useMemo(() => {
+    const search = categorySearch.trim().toLocaleLowerCase();
+    return categoryGroups.map((group) => ({
+      group,
+      options: typeOptions.filter((option) => {
+        if (option.group !== group) return false;
+        if (!search) return true;
+        return `${option.label} ${option.workflow} ${option.outcome} ${categoryEvidenceFor(option)}`.toLocaleLowerCase().includes(search);
+      })
+    })).filter((group) => group.options.length);
+  }, [categorySearch]);
+  const recentCategoryOptions = recentCategories
+    .map((label) => typeOptions.find((option) => option.label === label))
+    .filter((option): option is IntakeTypeOption => Boolean(option));
+  const recommendedCategoryOptions = recommendedCategoryLabels
+    .map((label) => typeOptions.find((option) => option.label === label))
+    .filter((option): option is IntakeTypeOption => Boolean(option))
+    .filter((option) => !recentCategories.includes(option.label));
 
   useEffect(() => {
     const hasIncomingSourceDraft = Boolean(
@@ -200,6 +328,26 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
       window.localStorage.removeItem(draftStorageKey);
     }
   }, [canAssignOthers, currentUserId, initialDraft]);
+
+  useEffect(() => {
+    if (!categoryDrawerOpen) return;
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setCategoryDrawerOpen(false);
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [categoryDrawerOpen]);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("dispatch-board.task-intake-recent-categories.v1");
+      if (!saved) return;
+      const parsed = JSON.parse(saved) as IntakeType[];
+      setRecentCategories(parsed.filter((label) => typeOptions.some((option) => option.label === label)).slice(0, 5));
+    } catch {
+      window.localStorage.removeItem("dispatch-board.task-intake-recent-categories.v1");
+    }
+  }, []);
 
   function saveDraft() {
     window.localStorage.setItem(draftStorageKey, JSON.stringify(draft));
@@ -266,6 +414,39 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
       workflowArea: definition.workflow,
       expectedOutcome: current.expectedOutcome || definition.outcome
     }));
+    setRecentCategories((current) => {
+      const next = [nextType, ...current.filter((label) => label !== nextType)].slice(0, 5);
+      window.localStorage.setItem("dispatch-board.task-intake-recent-categories.v1", JSON.stringify(next));
+      return next;
+    });
+    setCategorySearch("");
+    setCategoryDrawerOpen(false);
+  }
+
+  function applyDetailsTemplate() {
+    setDetailsExpanded(true);
+    setDraft((current) => ({
+      ...current,
+      brief: current.brief.trim() ? current.brief : detailsTemplateFor(selectedType),
+      expectedOutcome: current.expectedOutcome || selectedType.outcome
+    }));
+    window.setTimeout(() => fieldRefs.brief.current?.focus(), 0);
+  }
+
+  function focusReadinessField(label: string) {
+    const target: ReadinessField | undefined = {
+      "Accountable owner": "assignedUserId",
+      "Clear task details": "brief",
+      "Context linked or intentionally omitted": "context",
+      "Due date and time": draft.dueDate ? "dueTime" : "dueDate",
+      "Executable title": "title",
+      "Expected outcome": "expectedOutcome",
+      "Required updates": undefined,
+      "Workflow selected": "workflowArea"
+    }[label] as ReadinessField | undefined;
+    if (!target) return;
+    if (target === "brief") expandTaskDetails();
+    window.setTimeout(() => fieldRefs[target].current?.focus(), 0);
   }
 
   function toggleRequiredUpdate(label: string) {
@@ -336,33 +517,26 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
       ) : null}
 
       <div className={mode === "quick" ? "task-intake-layout task-intake-layout-quick" : "task-intake-layout"}>
-        {mode === "guided" ? (
-          <aside className="task-intake-type-rail">
-            <div><p>Intake Type</p><span>Choose the work pattern. Fields and defaults adapt automatically.</span></div>
-            <nav>
-              {typeOptions.map((option) => {
-                const Icon = option.icon;
-                return <button className={draft.intakeType === option.label ? "active" : undefined} disabled={!canAssignOthers && option.label === "Manager Decision"} key={option.label} onClick={() => selectType(option.label)} type="button"><Icon size={15} /><span>{option.label}</span><ChevronRight size={13} /></button>;
-              })}
-            </nav>
-          </aside>
-        ) : null}
-
         <main className="task-intake-form-panel">
           <div className="task-intake-section-heading">
-            <div><p>{mode === "quick" ? "Quick capture" : activeStage}</p><h2>{draft.intakeType}</h2></div>
-            <span><Sparkles size={13} />Shared draft contract</span>
+            <div><p>{mode === "quick" ? "Quick capture" : activeStage}</p><h2>{draft.intakeType}</h2><span>{selectedType.workflow.replaceAll("_", " ")} · {categoryEvidenceFor(selectedType)}</span></div>
+            <button className="task-intake-category-trigger" onClick={() => setCategoryDrawerOpen(true)} type="button">
+              <SelectedTypeIcon size={14} />
+              <span>Change category</span>
+              <ChevronRight size={13} />
+            </button>
           </div>
 
           <div className="task-intake-form-grid">
-            <label className="task-intake-span-2"><span>Task title *</span><input onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Example: Diagnose 2014 Acura MDX A/C issue" value={draft.title} /></label>
+            <label className="task-intake-span-2"><span>Task title *</span><input ref={fieldRefs.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Example: Diagnose 2014 Acura MDX A/C issue" value={draft.title} /></label>
             <div className={`task-intake-details task-intake-span-2${detailsExpanded ? " task-intake-details-expanded" : ""}`}>
               <div className="task-intake-details-header">
                 <span>Task details *</span>
-                {!detailsExpanded ? <small>Click to expand</small> : null}
+                <button onClick={applyDetailsTemplate} type="button">Use {draft.intakeType} template</button>
               </div>
               <textarea
                 aria-label="Task details"
+                ref={fieldRefs.brief}
                 onClick={expandTaskDetails}
                 onFocus={expandTaskDetails}
                 onChange={(event) => setDraft((current) => ({ ...current, brief: event.target.value }))}
@@ -371,15 +545,15 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
               />
               {detailsExpanded ? <p className="task-intake-details-help">Use this space like the staff instruction note. These details help the system generate better subtasks, checklist items, ownership, and follow-up context.</p> : null}
             </div>
-            <label><span>Workflow area *</span><select onChange={(event) => setDraft((current) => ({ ...current, workflowArea: event.target.value }))} value={draft.workflowArea}><option value="INVENTORY">Inventory</option><option value="SHOP">Service / Recon</option><option value="SALES">Sales</option><option value="ADVERTISING">Marketing / Advertising</option><option value="ADMIN">Admin / Documentation</option><option value="COLLECTIONS">Collections</option><option value="GENERAL_MANAGER">Management</option></select></label>
+            <label><span>Workflow area *</span><select ref={fieldRefs.workflowArea} onChange={(event) => setDraft((current) => ({ ...current, workflowArea: event.target.value }))} value={draft.workflowArea}><option value="INVENTORY">Inventory</option><option value="SHOP">Service / Recon</option><option value="SERVICE_ADVISOR">Service Advisor</option><option value="SALES">Sales</option><option value="MARKETING">Marketing</option><option value="ADVERTISING">Advertising</option><option value="ADMIN">Admin / Documentation</option><option value="COLLECTIONS">Collections</option><option value="GENERAL_MANAGER">Management</option></select></label>
             <label><span>Priority *</span><select onChange={(event) => setDraft((current) => ({ ...current, priority: event.target.value as IntakeDraft["priority"], requiresManagerApproval: event.target.value === "CRITICAL" ? true : current.requiresManagerApproval }))} value={draft.priority}><option value="LOW">Low</option><option value="MEDIUM">Normal</option><option value="HIGH">High</option><option disabled={!canAssignOthers} value="CRITICAL">Critical</option></select></label>
-            <label><span>Accountable owner *</span><select disabled={!canAssignOthers} onChange={(event) => setDraft((current) => ({ ...current, assignedUserId: event.target.value, collaboratorRequests: current.collaboratorRequests.filter((request) => request.userId !== event.target.value) }))} value={draft.assignedUserId}><option value="">Choose task owner</option>{collaboratorOptions.map((option) => <option key={option.id} value={option.id}>{option.name} · {option.role}</option>)}</select></label>
+            <label><span>Accountable owner *</span><select ref={fieldRefs.assignedUserId} disabled={!canAssignOthers} onChange={(event) => setDraft((current) => ({ ...current, assignedUserId: event.target.value, collaboratorRequests: current.collaboratorRequests.filter((request) => request.userId !== event.target.value) }))} value={draft.assignedUserId}><option value="">Choose task owner</option>{collaboratorOptions.map((option) => <option key={option.id} value={option.id}>{option.name} · {option.role}</option>)}</select></label>
             <label className="task-intake-approval"><span>Manager control</span><span><input checked={draft.requiresManagerApproval} disabled={!canAssignOthers} onChange={(event) => setDraft((current) => ({ ...current, requiresManagerApproval: event.target.checked }))} type="checkbox" />Require approval before completion</span></label>
-            <label><span>Due date *</span><input onChange={(event) => setDraft((current) => ({ ...current, dueDate: event.target.value }))} type="date" value={draft.dueDate} /></label>
-            <label><span>Due time *</span><input onChange={(event) => setDraft((current) => ({ ...current, dueTime: event.target.value }))} type="time" value={draft.dueTime} /></label>
+            <label><span>Due date *</span><input ref={fieldRefs.dueDate} onChange={(event) => setDraft((current) => ({ ...current, dueDate: event.target.value }))} type="date" value={draft.dueDate} /></label>
+            <label><span>Due time *</span><input ref={fieldRefs.dueTime} onChange={(event) => setDraft((current) => ({ ...current, dueTime: event.target.value }))} type="time" value={draft.dueTime} /></label>
             <label><span>Intake channel</span><select onChange={(event) => setDraft((current) => ({ ...current, channel: event.target.value }))} value={draft.channel}><option>Internal observation</option><option>Phone</option><option>Text / message</option><option>Email</option><option>Walk-in</option><option>Inspection</option><option>Vendor update</option></select></label>
-            <label><span>Customer / concern</span><input onChange={(event) => setDraft((current) => ({ ...current, customerReference: event.target.value }))} placeholder="Customer name, case, or concern" value={draft.customerReference} /></label>
-            <label><span>Vehicle / stock</span><input onChange={(event) => setDraft((current) => ({ ...current, vehicleReference: event.target.value }))} placeholder="Vehicle, VIN, or stock number" value={draft.vehicleReference} /></label>
+            {needsCustomerContext ? <label><span>Customer / concern</span><input ref={fieldRefs.context} onChange={(event) => setDraft((current) => ({ ...current, customerReference: event.target.value }))} placeholder="Customer name, case, or concern" value={draft.customerReference} /></label> : null}
+            {needsVehicleContext ? <label><span>Vehicle / stock</span><input ref={needsCustomerContext ? undefined : fieldRefs.context} onChange={(event) => setDraft((current) => ({ ...current, vehicleReference: event.target.value }))} placeholder="Vehicle, VIN, or stock number" value={draft.vehicleReference} /></label> : null}
             <div className="task-intake-collaborators task-intake-span-2">
               <span>Collaborators</span>
               <p>Add staff who should contribute, receive updates, and retain visibility without becoming the owner.</p>
@@ -399,7 +573,7 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
                 }) : <em>No collaborators added. The task will begin with owner-only visibility.</em>}
               </div>
             </div>
-            <label className="task-intake-span-2"><span>Expected outcome *</span><textarea onChange={(event) => setDraft((current) => ({ ...current, expectedOutcome: event.target.value }))} placeholder="What must be true when this work is finished?" rows={3} value={draft.expectedOutcome} /></label>
+            <label className="task-intake-span-2"><span>Expected outcome *</span><textarea ref={fieldRefs.expectedOutcome} onChange={(event) => setDraft((current) => ({ ...current, expectedOutcome: event.target.value }))} placeholder="What must be true when this work is finished?" rows={3} value={draft.expectedOutcome} /></label>
           </div>
 
           <fieldset className="task-intake-required-updates"><legend>Required updates</legend><p>The owner must submit these before completion.</p><div>{updateOptions.map((option) => <label key={option}><input checked={draft.requiredUpdates.includes(option)} onChange={() => toggleRequiredUpdate(option)} type="checkbox" /><span>{option}</span></label>)}</div></fieldset>
@@ -433,12 +607,98 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
 
           <section className="task-intake-checks">
             <p>Creation gate</p>
-            {readiness.checks.map((check) => <div className={check.ready ? "ready" : "missing"} key={check.label}>{check.ready ? <Check size={13} /> : <AlertTriangle size={13} />}<span>{check.label}</span><small>{check.weight}%</small></div>)}
+            {readiness.checks.map((check) => (
+              <button className={check.ready ? "ready" : "missing"} disabled={check.ready || check.label === "Required updates"} key={check.label} onClick={() => focusReadinessField(check.label)} type="button">
+                {check.ready ? <Check size={13} /> : <AlertTriangle size={13} />}
+                <span>{check.label}</span>
+                <small>{check.ready ? "Ready" : "Fix"}</small>
+              </button>
+            ))}
           </section>
 
           <div className="task-intake-prototype-note"><Gauge size={15} /><span>Creation is permission checked. The task, adaptive checklist, collaborators, priority, and intake instructions are saved together.</span></div>
         </aside>
       </div>
+
+      {categoryDrawerOpen ? (
+        <div className="task-intake-category-shell" role="presentation">
+          <button aria-label="Close category drawer" className="task-intake-category-backdrop" onClick={() => setCategoryDrawerOpen(false)} type="button" />
+          <aside aria-label="Dealership task categories" className="task-intake-category-drawer">
+            <header>
+              <div>
+                <p>Task category</p>
+                <h2>Choose the dealership work pattern</h2>
+                <span>Fields, workflow, owner policy, and default outcome adapt from the category.</span>
+              </div>
+              <button aria-label="Close category drawer" onClick={() => setCategoryDrawerOpen(false)} type="button">×</button>
+            </header>
+            <div className="task-intake-category-search">
+              <input aria-label="Search task categories" onChange={(event) => setCategorySearch(event.target.value)} placeholder="Search categories, workflow, or evidence..." value={categorySearch} />
+            </div>
+            <section className="task-intake-category-impact">
+              <p>Current selection</p>
+              <strong>{draft.intakeType}</strong>
+              <span>{selectedType.workflow.replaceAll("_", " ")} · {categoryEvidenceFor(selectedType)}</span>
+            </section>
+            <div className="task-intake-category-list">
+              {!categorySearch.trim() && (recentCategoryOptions.length || recommendedCategoryOptions.length) ? (
+                <section>
+                  <h3>{recentCategoryOptions.length ? "Recent" : "Recommended"}</h3>
+                  <div>
+                    {[...recentCategoryOptions, ...recommendedCategoryOptions].slice(0, 6).map((option) => {
+                      const Icon = option.icon;
+                      const disabled = !canAssignOthers && option.label === "Manager Decision";
+                      return (
+                        <button
+                          className={draft.intakeType === option.label ? "active" : undefined}
+                          disabled={disabled}
+                          key={option.label}
+                          onClick={() => selectType(option.label)}
+                          type="button"
+                        >
+                          <Icon size={16} />
+                          <span>
+                            <strong>{option.label}</strong>
+                            <small>{option.workflow.replaceAll("_", " ")}</small>
+                          </span>
+                          {draft.intakeType === option.label ? <Check size={15} /> : <ChevronRight size={14} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              ) : null}
+              {filteredCategoryGroups.map(({ group, options }) => (
+                <section key={group}>
+                  <h3>{group}</h3>
+                  <div>
+                    {options.map((option) => {
+                      const Icon = option.icon;
+                      const disabled = !canAssignOthers && option.label === "Manager Decision";
+                      return (
+                        <button
+                          className={draft.intakeType === option.label ? "active" : undefined}
+                          disabled={disabled}
+                          key={option.label}
+                          onClick={() => selectType(option.label)}
+                          type="button"
+                        >
+                          <Icon size={16} />
+                          <span>
+                            <strong>{option.label}</strong>
+                            <small>{option.workflow.replaceAll("_", " ")}</small>
+                          </span>
+                          {draft.intakeType === option.label ? <Check size={15} /> : <ChevronRight size={14} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
+            </div>
+          </aside>
+        </div>
+      ) : null}
     </section>
   );
 }

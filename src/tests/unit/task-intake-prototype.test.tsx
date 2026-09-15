@@ -10,7 +10,8 @@ describe("EnterpriseTaskIntakePrototype", () => {
     expect(markup).toContain("Enterprise Task Intake");
     expect(markup).toContain("Quick Intake");
     expect(markup).toContain("Guided Intake");
-    expect(markup).toContain("Vehicle / Service");
+    expect(markup).toContain("Change category");
+    expect(markup).toContain("Quick Task");
     expect(markup).toContain("Task Readiness");
     expect(markup).toContain("Collaborators");
     expect(markup).toContain("Choose a staff member");

@@ -36,7 +36,9 @@ describe("compact task workspace", () => {
     expect(markup).toContain("Blocked");
     expect(markup.indexOf("2018 Ford Escape")).toBeLessThan(markup.indexOf("TMS-TASK1"));
     expect(markup).toContain("view%3Dboard");
-    expect(markup).toContain("Open task");
+    expect(markup).toContain("Open");
+    expect(markup).toContain("Update");
+    expect(markup).toContain("Assign");
   });
   it("applies My Tasks ownership to cards and retains empty and paginated states", () => {
     const rows = [task(1), task(2, { assignedUser: { id: "other", name: "Other" } })];
@@ -52,7 +54,11 @@ describe("compact task workspace", () => {
     expect(header.indexOf("Task description")).toBeLessThan(header.indexOf("Priority"));
     expect(header).toMatch(/Task #<\/th><\/tr>$/);
     expect(markup).toContain('aria-label="Rows per page"');
-    expect(markup).toContain("Advanced tools");
+    expect(markup).toContain("Operations tools");
+    expect(markup).toContain('aria-label="Task work health"');
+    expect(markup).toContain('aria-label="Saved execution views"');
+    expect(markup).toContain("Live board");
+    expect(markup).toContain("Quick actions for");
     expect(markup).not.toContain("tasks-console-rail");
     expect(markup).not.toContain("Open task workbench");
   });

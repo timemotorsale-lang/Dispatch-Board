@@ -550,6 +550,32 @@ function getPriorityToneClass(priority: string) {
   return "tasks-console-priority tasks-console-priority-low";
 }
 
+function getTaskRiskClass(task: BoardReadTask, now: Date) {
+  if (task.status === TaskStatus.BLOCKED || isTaskOverdue(task, now)) {
+    return "tasks-console-row-risk-danger";
+  }
+
+  if (task.status === TaskStatus.WAITING_ON_APPROVAL || task.status === TaskStatus.WAITING_ON_PARTS || task.priority === "HIGH" || task.priority === "CRITICAL") {
+    return "tasks-console-row-risk-warning";
+  }
+
+  if (task.status === TaskStatus.READY_FOR_REVIEW || task.requiresManagerApproval) {
+    return "tasks-console-row-risk-review";
+  }
+
+  return "tasks-console-row-risk-neutral";
+}
+
+function getTaskExecutionSignal(task: BoardReadTask, now: Date) {
+  if (task.status === TaskStatus.BLOCKED) return task.blockerReason ? `Blocked: ${task.blockerReason}` : "Blocked: needs recovery owner";
+  if (isTaskOverdue(task, now)) return "Overdue: needs same-day decision";
+  if (task.status === TaskStatus.READY_FOR_REVIEW) return "Ready for manager review";
+  if (task.status === TaskStatus.WAITING_ON_APPROVAL) return "Waiting on approval";
+  if (task.status === TaskStatus.WAITING_ON_PARTS) return "Waiting on parts";
+  if (isTaskDueSoon(task, now)) return "Due soon";
+  return getTaskReference(task);
+}
+
 function getQueueFilterLabel(filter: QueueFilter) {
   if (filter === "MY_TASKS") {
     return "My Tasks";
@@ -912,6 +938,7 @@ export function TasksConsoleScreen({
   const [searchText, setSearchText] = useState("");
   const [currentPage, setCurrentPage] = useState(Math.max(1, initialPage));
   const [pageSize, setPageSize] = useState<TasksPageSize>(DEFAULT_TASKS_PER_PAGE);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(
     initialTask?.id ?? board?.tasks[0]?.id ?? null
   );
@@ -1011,15 +1038,17 @@ export function TasksConsoleScreen({
   const boardHref = `/board?date=${encodeURIComponent(boardDate)}`;
   const isTodayBoard = boardDate === todayBoardDate;
   const dueSoonTasks = allTasks.filter((task) => isTaskDueSoon(task, now));
+  const overdueTasks = allTasks.filter((task) => isTaskOverdue(task, now));
+  const dueTodayTasks = allTasks.filter((task) => task.dueAt.startsWith(boardDate) && task.status !== TaskStatus.COMPLETED);
   const blockedTasks = allTasks.filter((task) => task.status === TaskStatus.BLOCKED);
   const waitingOnPartsTasks = allTasks.filter((task) => task.status === TaskStatus.WAITING_ON_PARTS);
   const waitingOnApprovalTasks = allTasks.filter((task) => task.status === TaskStatus.WAITING_ON_APPROVAL);
   const readyForReviewTasks = allTasks.filter((task) => task.status === TaskStatus.READY_FOR_REVIEW);
   const unassignedTasks = allTasks.filter((task) => !task.assignedUser?.id);
   const completedTodayTasks = allTasks.filter((task) => isTaskCompletedOnBoardDate(task, boardDate));
-  const defaultQuickCreateAssigneeId = selectedBoardTask
-    ? (getTaskOwnerId(selectedBoardTask) || assigneeOptions[0]?.id || "")
-    : (assigneeOptions[0]?.id ?? "");
+  const myTasksCount = allTasks.filter(
+    (task) => isTaskOwnedByOrCollaborating(task, currentUserId) && task.status !== TaskStatus.COMPLETED
+  ).length;
   const activeFilterChips = [
     activeQueueFilter !== "ALL" ? `Queue: ${getQueueFilterLabel(activeQueueFilter)}` : null,
     activeDepartmentFilter ? `Department: ${getDepartmentLabel(activeDepartmentFilter)}` : null,
@@ -1027,9 +1056,28 @@ export function TasksConsoleScreen({
     searchText.trim() ? `Search: ${searchText.trim()}` : null,
     activeView === "board" ? "Board lanes" : null
   ].filter((chip): chip is string => Boolean(chip));
-  const myTasksCount = allTasks.filter(
-    (task) => isTaskOwnedByOrCollaborating(task, currentUserId) && task.status !== TaskStatus.COMPLETED
-  ).length;
+  const selectedVisibleTaskIds = pagedTasks.map((task) => task.id);
+  const selectedTasks = allTasks.filter((task) => selectedTaskIds.includes(task.id));
+  const allVisibleSelected = pagedTasks.length > 0 && selectedVisibleTaskIds.every((taskId) => selectedTaskIds.includes(taskId));
+  const commandMetrics = [
+    { filter: "OVERDUE" as const, label: "Urgent overdue", value: overdueTasks.length, detail: "Past due or SLA risk" },
+    { filter: "BLOCKED" as const, label: "Blocked", value: blockedTasks.length, detail: "Needs intervention" },
+    { filter: "READY_FOR_REVIEW" as const, label: "Needs review", value: readyForReviewTasks.length, detail: "Manager pass pending" },
+    { filter: "ALL" as const, label: "Due today", value: dueTodayTasks.length, detail: formatBoardDateLabel(boardDate) },
+    { filter: "UNASSIGNED" as const, label: "Unassigned", value: unassignedTasks.length, detail: "Needs owner" }
+  ];
+  const executionViews = [
+    { filter: "MY_TASKS" as const, label: "My urgent", count: myTasksCount },
+    { filter: "BLOCKED" as const, label: "Blocked", count: blockedTasks.length },
+    { filter: "ALL" as const, label: "Due today", count: dueTodayTasks.length },
+    { filter: "READY_FOR_REVIEW" as const, label: "Needs review", count: readyForReviewTasks.length },
+    { filter: "UNASSIGNED" as const, label: "Unassigned", count: unassignedTasks.length }
+  ];
+  const generatedLabel = board?.generatedAt ? formatDateTime(board.generatedAt) : "Not generated";
+  const activeFilterCount = activeFilterChips.length;
+  const defaultQuickCreateAssigneeId = selectedBoardTask
+    ? (getTaskOwnerId(selectedBoardTask) || assigneeOptions[0]?.id || "")
+    : (assigneeOptions[0]?.id ?? "");
   const inventoryCount = getDepartmentCount(allTasks, "INVENTORY");
   const serviceAdvisorCount = getDepartmentCount(allTasks, "SERVICE_ADVISOR");
   const serviceReconCount = getDepartmentCount(allTasks, "SHOP");
@@ -1227,6 +1275,24 @@ export function TasksConsoleScreen({
     setCommentDraft("");
     setActiveTab("details");
     setRightRailMode("open");
+  }
+
+  function handleToggleTaskSelection(taskId: string) {
+    setSelectedTaskIds((current) =>
+      current.includes(taskId)
+        ? current.filter((id) => id !== taskId)
+        : [...current, taskId]
+    );
+  }
+
+  function handleToggleVisibleTaskSelection() {
+    setSelectedTaskIds((current) => {
+      if (allVisibleSelected) {
+        return current.filter((taskId) => !selectedVisibleTaskIds.includes(taskId));
+      }
+
+      return [...new Set([...current, ...selectedVisibleTaskIds])];
+    });
   }
 
   function getTaskAcquisitionDecision(taskId: string) {
@@ -2083,16 +2149,20 @@ export function TasksConsoleScreen({
           <div className="tasks-console-menu-host">
             <button
               aria-expanded={activeMenu === "more"}
-              className="pill pill-secondary tasks-console-icon-pill"
+              className="pill pill-secondary"
               onClick={() => handleMenuToggle("more")}
               type="button"
-              aria-label="More actions"
+              aria-label="Advanced tools"
             >
               <MoreHorizontal size={16} />
+              Advanced tools
             </button>
             {activeMenu === "more" ? (
               <div className="tasks-console-popover tasks-console-popover-right">
+                <strong>Advanced tools</strong>
                 <button onClick={handleResetBoardView} type="button">Reset board view</button>
+                <button onClick={() => handleMenuToggle("columns")} type="button">Configure columns</button>
+                <button onClick={handleExportVisibleTasks} type="button">Export visible tasks</button>
                 <button onClick={() => { setActiveView("list"); setActiveMenu(null); }} type="button">Open list view</button>
                 <button onClick={() => { setActiveView("board"); setActiveMenu(null); }} type="button">Open board view</button>
                 <Link href={boardHref}>Open full board</Link>
@@ -2124,7 +2194,32 @@ export function TasksConsoleScreen({
             })}
           </div>
         ) : null}
+
+        {board ? (
+          <div className="tasks-console-freshness" aria-label="Board freshness">
+            <span>Live board</span>
+            <strong>Last generated {generatedLabel}</strong>
+            <em>{activeFilterCount ? `${activeFilterCount} filter${activeFilterCount === 1 ? "" : "s"} active` : "No filters active"}</em>
+          </div>
+        ) : null}
       </div>
+
+      {board ? (
+        <section className="tasks-console-command-strip" aria-label="Task work health">
+          {commandMetrics.map((metric) => (
+            <button
+              className={`tasks-console-command-card ${metric.value > 0 && metric.filter !== "ALL" ? "attention" : ""}`}
+              key={metric.label}
+              onClick={() => handleQueueFilterChange(metric.filter)}
+              type="button"
+            >
+              <span>{metric.label}</span>
+              <strong>{metric.value}</strong>
+              <small>{metric.detail}</small>
+            </button>
+          ))}
+        </section>
+      ) : null}
 
       {board ? (
         <nav className="tasks-console-context-nav" aria-label="Task board navigation">
@@ -2201,6 +2296,22 @@ export function TasksConsoleScreen({
             ) : null}
           </div>
           <button onClick={handleExportVisibleTasks} type="button"><Download size={13} /> Export</button>
+        </nav>
+      ) : null}
+
+      {board ? (
+        <nav className="tasks-console-execution-views" aria-label="Saved execution views">
+          {executionViews.map((view) => (
+            <button
+              className={activeQueueFilter === view.filter ? "active" : undefined}
+              key={view.label}
+              onClick={() => handleQueueFilterChange(view.filter)}
+              type="button"
+            >
+              <span>{view.label}</span>
+              <strong>{view.count}</strong>
+            </button>
+          ))}
         </nav>
       ) : null}
 
@@ -2560,12 +2671,23 @@ export function TasksConsoleScreen({
 
               {activeView === "list" ? (
                 <div className="tasks-console-table-shell">
+                  {selectedTasks.length ? (
+                    <div className="tasks-console-bulk-bar" role="status">
+                      <strong>{selectedTasks.length} selected</strong>
+                      <span>Bulk execution</span>
+                      <button type="button">Assign</button>
+                      <button type="button">Update status</button>
+                      <button type="button">Set priority</button>
+                      <button type="button">Move due date</button>
+                      <button onClick={() => setSelectedTaskIds([])} type="button">Clear</button>
+                    </div>
+                  ) : null}
                   <div className="tasks-console-table-scroll">
                     <table className="tasks-console-table">
                       <thead>
                         <tr>
                           <th className="tasks-console-checkbox-column">
-                            <input aria-label="Select visible tasks" type="checkbox" />
+                            <input aria-label="Select visible tasks" checked={allVisibleSelected} onChange={handleToggleVisibleTaskSelection} type="checkbox" />
                           </th>
                           {visibleColumnSet.has("title") ? <th className="tasks-console-column-title">Task description</th> : null}
                           {visibleColumnSet.has("priority") ? <th className="tasks-console-column-priority">Priority</th> : null}
@@ -2593,13 +2715,17 @@ export function TasksConsoleScreen({
                             const active = task.id === effectiveSelectedTaskId;
                             const updating = active && isWorkflowPending;
                             const taskReference = getTaskReference(task);
+                            const executionSignal = getTaskExecutionSignal(task, now);
                             const acquisitionDecision = getTaskAcquisitionDecision(task.id);
                             const canStartTask = getTaskOwnerId(task) === currentUserId && task.status === TaskStatus.NOT_STARTED;
+                            const rowSelected = selectedTaskIds.includes(task.id);
 
                             return (
                               <tr
                                 className={[
                                   "tasks-console-row",
+                                  getTaskRiskClass(task, now),
+                                  rowSelected ? "tasks-console-row-selected" : "",
                                   active ? "tasks-console-row-active" : "",
                                   updating ? "tasks-console-row-updating" : ""
                                 ]
@@ -2610,7 +2736,13 @@ export function TasksConsoleScreen({
                                 onDoubleClick={() => router.push(createTaskDetailHref(task.id, consoleReturnHref))}
                               >
                                 <td className="tasks-console-checkbox-column">
-                                  <input aria-label={`Select ${task.title}`} type="checkbox" />
+                                  <input
+                                    aria-label={`Select ${task.title}`}
+                                    checked={rowSelected}
+                                    onChange={() => handleToggleTaskSelection(task.id)}
+                                    onClick={(event) => event.stopPropagation()}
+                                    type="checkbox"
+                                  />
                                 </td>
                                 {visibleColumnSet.has("title") ? (
                                   <td className="tasks-console-column-title">
@@ -2618,6 +2750,7 @@ export function TasksConsoleScreen({
                                       <Link href={createTaskDetailHref(task.id, consoleReturnHref)} onClick={(event) => event.stopPropagation()} title="Open task workbench">
                                         <strong>{task.title}</strong>
                                       </Link>
+                                      <small>{executionSignal}</small>
                                       {task.requiresManagerApproval ? (
                                         <span className="tasks-console-row-review-chip">Review</span>
                                       ) : null}
@@ -2628,6 +2761,11 @@ export function TasksConsoleScreen({
                                       ) : acquisitionDecision?.policy === "APPROVAL_REQUIRED" || acquisitionDecision?.policy === "MANAGER_ASSIGN_ONLY" ? (
                                         <button className="tasks-console-row-acquisition" disabled={isAcquisitionPending} onClick={(event) => { event.stopPropagation(); handleTaskAcquisition(task.id, "REQUEST"); }} title={acquisitionDecision.explanation} type="button">Request</button>
                                       ) : null}
+                                      <div className="tasks-console-row-quick-actions" aria-label={`Quick actions for ${task.title}`}>
+                                        <Link href={createTaskDetailHref(task.id, consoleReturnHref)} onClick={(event) => event.stopPropagation()}>Open</Link>
+                                        <button onClick={(event) => { event.stopPropagation(); handleSelectTask(task.id); setActiveTab("details"); }} type="button">Update</button>
+                                        {isManager ? <button onClick={(event) => { event.stopPropagation(); handleSelectTask(task.id); setActiveTab("details"); }} type="button">Assign</button> : null}
+                                      </div>
                                     </div>
                                   </td>
                                 ) : null}

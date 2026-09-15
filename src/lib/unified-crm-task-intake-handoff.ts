@@ -1,14 +1,28 @@
 const TASK_INTAKE_TYPES = [
   "Quick Task",
-  "Vehicle / Service",
+  "Manager Decision",
+  "Sales Lead / Appointment",
+  "Sales Deal / Delivery",
+  "Finance / Funding",
   "Customer Issue",
   "Service Advisor",
-  "Sales Lead / Appointment",
+  "Repair Order / Authorization",
+  "Diagnostics / Estimate",
+  "Shop Dispatch / Technician",
+  "Parts Request / Backorder",
+  "Sublet / Vendor",
+  "Quality Control / Comeback",
+  "Inventory Acquisition",
   "Inventory Movement",
+  "Recon / Detail",
+  "Photos / Merchandising",
   "Marketing / Listing",
+  "Title / Registration",
   "Admin / Documentation",
+  "Accounting / Payables",
   "Collections",
-  "Manager Decision"
+  "Compliance / Risk",
+  "Facilities / Supplies"
 ] as const;
 
 const TASK_WORKFLOW_AREAS = [
@@ -16,6 +30,7 @@ const TASK_WORKFLOW_AREAS = [
   "SERVICE_ADVISOR",
   "SHOP",
   "SALES",
+  "MARKETING",
   "ADVERTISING",
   "ADMIN",
   "COLLECTIONS",
@@ -27,6 +42,10 @@ const TASK_WORKFLOW_AREA_SET = new Set<string>(TASK_WORKFLOW_AREAS);
 
 type UnifiedCrmTaskIntakeType = typeof TASK_INTAKE_TYPES[number];
 type UnifiedCrmTaskWorkflowArea = typeof TASK_WORKFLOW_AREAS[number];
+
+const LEGACY_TASK_INTAKE_TYPE_ALIASES: Record<string, UnifiedCrmTaskIntakeType> = {
+  "Vehicle / Service": "Repair Order / Authorization"
+};
 
 export type UnifiedCrmTaskIntakeDefaults = {
   brief?: string;
@@ -103,6 +122,7 @@ export function buildUnifiedCrmTaskIntakeHref(input: {
 
 export function normalizeUnifiedCrmTaskIntakeDefaults(input: Record<string, string | undefined>): UnifiedCrmTaskIntakeDefaults {
   const intakeType = text(input.intakeType, 80);
+  const normalizedIntakeType = intakeType ? (LEGACY_TASK_INTAKE_TYPE_ALIASES[intakeType] ?? intakeType) : undefined;
   const workflowArea = text(input.workflowArea, 40)?.toUpperCase();
   const sourceTitle = text(input.sourceTitle, 240);
   const sourceDetail = text(input.sourceDetail, 1200);
@@ -115,7 +135,7 @@ export function normalizeUnifiedCrmTaskIntakeDefaults(input: Record<string, stri
     dueDate: dateValue(input.dueDate),
     dueTime: timeValue(input.dueTime),
     expectedOutcome: text(input.expectedOutcome, 500),
-    intakeType: intakeType && TASK_INTAKE_TYPE_SET.has(intakeType) ? intakeType as UnifiedCrmTaskIntakeType : undefined,
+    intakeType: normalizedIntakeType && TASK_INTAKE_TYPE_SET.has(normalizedIntakeType) ? normalizedIntakeType as UnifiedCrmTaskIntakeType : undefined,
     sourceDetail,
     sourceTitle,
     title: text(input.title, 240) ?? sourceTitle,
