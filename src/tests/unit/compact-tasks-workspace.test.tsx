@@ -8,9 +8,9 @@ const filters: CompactTaskFilters = { queue: "ALL", owner: "", department: "", q
 function task(index: number, extra: Partial<BoardReadTask> = {}): BoardReadTask {
   return { id: `task-${index}`, title: `Review assigned repair ${index}`, description: "Verify parts and record findings.", status: "NOT_STARTED", priority: "HIGH", dueAt: "2026-09-03T15:00:00Z", updatedAt: "2026-09-03T12:00:00Z", workflowArea: "SHOP", sourceType: "REPAIR_ORDER", requiresManagerApproval: true, requiredUpdateFields: [], updateFieldValues: {}, assignedUser: { id: "staff-1", name: "Ancilla Ops" }, recommendedUser: null, recommendation: null, vehicleReference: "2018 Ford Escape", customerReference: null, blockerReason: null, readyForReviewAt: null, completedAt: null, ...extra };
 }
-function render(tasks: BoardReadTask[], queue = "ALL", view: "list" | "board" = "list") {
+function render(tasks: BoardReadTask[], queue = "ALL", view: "list" | "board" = "list", isManager = false) {
   const board: BoardReadModel = { id: "board-1", date: "2026-09-03", generatedAt: null, generationStatus: "GENERATED", latestGeneration: null, taskCount: tasks.length, statusCounts: {}, sourceCounts: { template: 0, manager: 0, staff: 0 }, tasks };
-  return renderToStaticMarkup(<CompactTasksList board={board} boardDate={board.date} currentUserId="staff-1" assignableUsers={[]} initialTask={null} initialSavedViews={[]} isManager={false} errorMessage={null} todayBoardDate={board.date} initialQueueFilter={queue} initialView={view} onAdvanced={vi.fn()} />);
+  return renderToStaticMarkup(<CompactTasksList board={board} boardDate={board.date} currentUserId="staff-1" assignableUsers={[]} initialTask={null} initialSavedViews={[]} isManager={isManager} errorMessage={null} todayBoardDate={board.date} initialQueueFilter={queue} initialView={view} onAdvanced={vi.fn()} />);
 }
 describe("compact task workspace", () => {
   it("names tasks using only RO and vehicle context in both views", () => {
@@ -29,14 +29,16 @@ describe("compact task workspace", () => {
     expect(compactTaskTitle("Review intake", "2017 ACURA TLX")).toBe("2017 ACURA TLX");
   });
   it("renders the board as status-grouped cards with descriptions first and task links", () => {
-    const markup = render([task(1), task(2, { status: "BLOCKED" })], "ALL", "board");
+    const markup = render([task(1), task(2, { status: "BLOCKED" })], "ALL", "board", true);
     expect(markup).toContain('aria-label="Task board"');
     expect((markup.match(/data-task-card=/g) ?? []).length).toBe(2);
     expect(markup).not.toContain("<table");
     expect(markup).toContain("Blocked");
     expect(markup.indexOf("2018 Ford Escape")).toBeLessThan(markup.indexOf("TMS-TASK1"));
     expect(markup).toContain("view%3Dboard");
-    expect(markup).toContain("Open task");
+    expect(markup).toContain("Open");
+    expect(markup).toContain("Update");
+    expect(markup).toContain("Assign");
   });
   it("applies My Tasks ownership to cards and retains empty and paginated states", () => {
     const rows = [task(1), task(2, { assignedUser: { id: "other", name: "Other" } })];
@@ -52,7 +54,11 @@ describe("compact task workspace", () => {
     expect(header.indexOf("Task description")).toBeLessThan(header.indexOf("Priority"));
     expect(header).toMatch(/Task #<\/th><\/tr>$/);
     expect(markup).toContain('aria-label="Rows per page"');
-    expect(markup).toContain("Advanced tools");
+    expect(markup).toContain("Operations tools");
+    expect(markup).toContain('aria-label="Task work health"');
+    expect(markup).toContain('aria-label="Saved execution views"');
+    expect(markup).toContain("Live board");
+    expect(markup).toContain("Quick actions for");
     expect(markup).not.toContain("tasks-console-rail");
     expect(markup).not.toContain("Open task workbench");
   });
@@ -60,6 +66,17 @@ describe("compact task workspace", () => {
     const rows = [task(1), task(2, { status: "COMPLETED" }), task(3, { assignedUser: { id: "other", name: "Other" } })];
     expect(filterCompactTasks(rows, { ...filters, queue: "MY_TASKS" }, "staff-1").map(row => row.id)).toEqual(["task-1"]);
     expect((render(rows, "MY_TASKS").match(/data-task-row=/g) ?? []).length).toBe(1);
+  });
+  it("keeps execution views truthful and assignment actions manager scoped", () => {
+    const rows = [
+      task(1, { priority: "CRITICAL" }),
+      task(2, { dueAt: "2026-09-04T15:00:00Z" }),
+      task(3, { assignedUser: { id: "other", name: "Other" }, priority: "CRITICAL" })
+    ];
+    expect(filterCompactTasks(rows, { ...filters, queue: "DUE_TODAY" }, "staff-1", Date.parse("2026-09-03"), "2026-09-03").map(row => row.id)).toEqual(["task-1", "task-3"]);
+    expect(filterCompactTasks(rows, { ...filters, queue: "MY_URGENT" }, "staff-1", Date.parse("2026-09-03"), "2026-09-03").map(row => row.id)).toEqual(["task-1"]);
+    expect(render([task(1)], "ALL", "list", false)).not.toContain(">Assign</button>");
+    expect(render([task(1)], "ALL", "list", true)).toContain(">Assign</button>");
   });
   it("searches RO and vehicle references while showing the instruction first", () => {
     const row = task(1, { title: "RO-0691C247 · Complete intake review" });

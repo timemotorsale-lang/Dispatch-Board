@@ -215,9 +215,14 @@ describe("tasks console screen", () => {
     expect(markup).toContain("Search tasks, vehicles, customers...");
     expect(markup).toContain("Task Intake");
     expect(markup).toContain("Generate Today&#x27;s Board");
+    expect(markup).toContain("Live board");
+    expect(markup).toContain("Urgent overdue");
+    expect(markup).toContain("Due today");
+    expect(markup).toContain("Saved execution views");
     expect(markup).toContain("Saved Views");
     expect(markup).toContain("Filters");
     expect(markup).toContain("Export");
+    expect(markup).toContain("Advanced tools");
     expect(markup).toContain("Total Tasks");
     expect(markup).toContain("Ready for Review");
     expect(markup).toContain("Team Queue");
@@ -236,6 +241,8 @@ describe("tasks console screen", () => {
     expect(markup).toContain("Blocked Tasks");
     expect(markup).toContain("Due Next 2 Hours");
     expect(markup).toContain("Unassigned Queue");
+    expect(markup).toContain("Update</button>");
+    expect(markup).toContain("Open</a>");
     expect(countClass(markup, "tasks-console-row")).toBe(8);
     const header = markup.match(/<thead>([\s\S]*?)<\/thead>/)?.[1] ?? "";
     expect(header.indexOf("Task description")).toBeLessThan(header.indexOf("Priority"));

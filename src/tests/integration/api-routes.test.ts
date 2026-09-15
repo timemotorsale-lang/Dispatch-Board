@@ -913,7 +913,14 @@ describe("API route integration", () => {
           lastProgressAt: null,
           nextCheckpointAt: null,
           lastProgressNote: null,
-          blockerPlan: null
+          blockerPlan: null,
+          planReview: {
+            status: "DRAFT_GENERATED",
+            note: null,
+            reviewedAt: null,
+            reviewedByUserId: null,
+            reviewedByName: null
+          }
         },
         updateFieldValues: {},
         updatedAt: "2026-06-18T15:30:00.000Z"
@@ -969,7 +976,14 @@ describe("API route integration", () => {
           lastProgressAt: null,
           nextCheckpointAt: null,
           lastProgressNote: null,
-          blockerPlan: null
+          blockerPlan: null,
+          planReview: {
+            status: "DRAFT_GENERATED",
+            note: null,
+            reviewedAt: null,
+            reviewedByUserId: null,
+            reviewedByName: null
+          }
         },
         updateFieldValues: {},
         updatedAt: "2026-06-18T15:30:00.000Z"
@@ -1000,7 +1014,14 @@ describe("API route integration", () => {
           lastProgressAt: null,
           nextCheckpointAt: null,
           lastProgressNote: null,
-          blockerPlan: null
+          blockerPlan: null,
+          planReview: {
+            status: "DRAFT_GENERATED",
+            note: null,
+            reviewedAt: null,
+            reviewedByUserId: null,
+            reviewedByName: null
+          }
         },
         updateFieldValues: {},
         updatedAt: "2026-06-18T15:30:00.000Z"
