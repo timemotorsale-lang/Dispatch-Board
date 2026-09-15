@@ -35,6 +35,7 @@ import {
   CRM_NEXT_NEEDS_ATTENTION_HREF,
   CRM_NEXT_PIPELINE_HREF,
   CRM_NEXT_SEARCH_HREF,
+  CRM_VENDOR_REGISTRY_HREF,
   crmNextCustomerSearchHref
 } from "@/features/crm/crm-route-authority";
 import { crmDashboardSourceTruth } from "@/lib/crm-source-of-truth-registry";
@@ -130,6 +131,7 @@ export function CustomerConsoleHome({ showAdvisorReturn = false }: { showAdvisor
           <Link href={CRM_NEXT_CUSTOMERS_HREF}>Customer Records</Link>
           <Link href={CRM_NEXT_SEARCH_HREF}>Customer 360</Link>
           <Link href="/customers/resolutions">Resolution</Link>
+          <Link href={CRM_VENDOR_REGISTRY_HREF}>Vendors</Link>
         </nav>
         <CrmModeSwitch />
         <button className="customer-quick-action" onClick={() => openCrmNext(CRM_NEXT_INTAKE_HREF)} type="button"><Plus size={16} /> New <ChevronDown size={13} /></button>

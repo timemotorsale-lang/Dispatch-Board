@@ -1,5 +1,13 @@
 # Current Implementation Status
 
+## 2026-09-14 — Vendor Registry v1 review slice implemented
+
+The CRM Vendor Registry review slice is now implemented behind the existing authenticated app shell. It adds vendor master records for lenders/banks, warranty companies, transport providers, parts suppliers, recon/repair vendors, auction/wholesale partners, and internal contacts; controlled vendor status/category rules; vendor profile notes; activity history; linked work records; and a simple create-task handoff into the universal Task ledger.
+
+The front end keeps the workflow simple: `/customers/vendors` lists and filters vendors with an add-vendor panel, while `/customers/vendors/[vendorId]` supports profile review, manager-controlled record edits, staff comments, and vendor follow-up task creation. Database migration source is included, but production adoption still requires migration deployment, seed/backfill decisions, browser review, and broader regression before staff rollout.
+
+Vendor Registry now also includes vendor document uploads on each vendor profile. Staff can attach vendor files such as utility bills, contracts, W-9/tax documents, account setup records, insurance documents, compliance files, and portal screenshots, then download them from the vendor profile later. The local database migration for vendor documents has been applied for review.
+
 ## 2026-08-28 — Unified CRM final release-candidate proof bundle run
 
 The final local CRM release-candidate proof bundle was run. The isolated scripted production build passed with `NEXT_DIST_DIR=.next-release-candidate npm run build`; TypeScript typecheck passed; the CRM pilot browser proof harness passed with 2 browser tests; the impacted Dispatch/repair smoke suite passed with 10 files and 92 tests; the focused CRM release/readiness gate suite passed with 15 files and 30 tests; and full unit regression passed with 722 files and 3,315 tests.
