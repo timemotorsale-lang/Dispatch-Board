@@ -4,6 +4,7 @@ export const CRM_NEXT_INTAKE_HREF = "/crm-next/new";
 export const CRM_NEXT_SEARCH_HREF = "/crm-next/search";
 export const CRM_NEXT_APPOINTMENTS_HREF = "/crm-next/appointments";
 export const CRM_NEXT_DEALS_HREF = "/crm-next/deals";
+export const CRM_NEXT_DEAL_START_HREF = "/crm-next/deals/start";
 export const CRM_NEXT_INTELLIGENCE_HREF = "/crm-next/intelligence-foundation";
 export const CRM_NEXT_LEAD_SOURCE_REPORT_HREF = "/crm-next/reports/lead-sources";
 export const CRM_NEXT_NEEDS_ATTENTION_HREF = "/crm-next/needs-attention";

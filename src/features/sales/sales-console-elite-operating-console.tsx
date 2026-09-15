@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
+import { CRM_NEXT_DEAL_START_HREF } from "@/features/crm/crm-route-authority";
 import { salesConsoleMvpAcceptanceChecklist, salesConsoleSourceHealthSummary } from "./sales-console-mvp-release-hardening";
 import { salesConsoleM64ConnectedMvpGate, salesConsoleM64ReadyCount } from "./sales-console-m64-connected-mvp-deployment-gate";
 import {
@@ -70,7 +71,8 @@ type SalesIntentId =
   | "recover-stalled-opportunity"
   | "prepare-appointment"
   | "close-ready-opportunity"
-  | "review-manager-priorities";
+  | "review-manager-priorities"
+  | "start-desk-deal";
 
 type WorkspaceSummary = {
   title: string;
@@ -90,6 +92,7 @@ type SalesIntent = {
   sourceTruth: string;
   requiredFacts: string[];
   workflow: string[];
+  href?: string;
 };
 
 const salesIntentHomeNav = "Sales Intent Home";
@@ -321,6 +324,18 @@ const salesIntents: SalesIntent[] = [
     sourceTruth: "Manager queues and source health",
     requiredFacts: ["Queue count", "Risk reason", "Owner", "Recommended action"],
     workflow: ["Open risk queue", "Review source evidence", "Assign action", "Monitor outcome"]
+  },
+  {
+    id: "start-desk-deal",
+    title: "Start / desk a deal",
+    purpose: "Open the executable starter for retail sale, BHPH, lease-to-own, repairs, rental, warranty, finance products, or wholesale work.",
+    startsWith: "Deal Starter",
+    workspace: "Revenue Desk",
+    nextAction: "Choose the revenue workflow, select the customer, enter the required facts, and create the governed opportunity.",
+    sourceTruth: "Unified CRM opportunity command and customer records",
+    requiredFacts: ["Revenue workflow", "Customer", "Vehicle or stock #", "Price / estimate / reserve"],
+    workflow: ["Choose workflow", "Enter start facts", "Create opportunity", "Open deal workspace"],
+    href: CRM_NEXT_DEAL_START_HREF
   }
 ];
 
@@ -451,6 +466,10 @@ export function SalesConsoleEliteOperatingConsole() {
       items: filteredWork.filter((item) => item.group === group)
     }));
   }, [filteredWork]);
+  const executionWork = filteredWork[0] ?? salesConsoleLiveWorkItems[0];
+  const sourceReadyMetrics = trustedMetrics.filter((metric) => metric.status !== "Not wired").length;
+  const blockedWorkCount = salesConsoleLiveWorkItems.filter((item) => item.group === "Blocked").length;
+  const managerReviewCount = salesConsoleLiveWorkItems.filter((item) => item.group === "Manager Review").length;
 
   function openSearchResult(result: SalesFederatedSearchResult) {
     if (result.category === "manager-review" || result.category === "evidence") setActiveNav(enterpriseDashboardNav);
@@ -731,17 +750,25 @@ export function SalesConsoleEliteOperatingConsole() {
 
             <section className={styles.intentGrid} aria-label="Sales starting intents">
               {salesIntents.map((intent) => (
-                <button
-                  key={intent.id}
-                  type="button"
-                  className={intent.id === activeIntent.id ? styles.activeIntent : undefined}
-                  onClick={() => openSalesIntent(intent)}
-                  aria-pressed={intent.id === activeIntent.id}
-                >
-                  <strong>{intent.title}</strong>
-                  <span>{intent.purpose}</span>
-                  <em>Open {intent.startsWith}</em>
-                </button>
+                intent.href ? (
+                  <Link key={intent.id} href={intent.href}>
+                    <strong>{intent.title}</strong>
+                    <span>{intent.purpose}</span>
+                    <em>Open {intent.startsWith}</em>
+                  </Link>
+                ) : (
+                  <button
+                    key={intent.id}
+                    type="button"
+                    className={intent.id === activeIntent.id ? styles.activeIntent : undefined}
+                    onClick={() => openSalesIntent(intent)}
+                    aria-pressed={intent.id === activeIntent.id}
+                  >
+                    <strong>{intent.title}</strong>
+                    <span>{intent.purpose}</span>
+                    <em>Open {intent.startsWith}</em>
+                  </button>
+                )
               ))}
             </section>
 
@@ -780,55 +807,83 @@ export function SalesConsoleEliteOperatingConsole() {
         ) : (
           <>
         {activeNav === revenueWorkQueueNav || activeNav === enterpriseDashboardNav ? (
-          <section className={styles.queueStats} aria-label="Revenue Work Queue source-backed summary">
-            {queueStats.map((stat) => (
-              <button
-                key={stat.label}
-                type="button"
-                onClick={() => {
-                  setQueueGroupFilter(stat.filter);
-                  setActiveNav(revenueWorkQueueNav);
-                }}
-              >
-                <span>{stat.label}</span>
-                <strong>{stat.value}</strong>
-                <em>{stat.detail}</em>
+          <section className={styles.executionCommand} aria-label="Staff execution command">
+            <div className={styles.executionPrimary}>
+              <span>Execute next</span>
+              <h1>{executionWork.nextAction}</h1>
+              <p>{executionWork.customer} · {executionWork.vehicle} · {executionWork.stage}</p>
+              <button type="button" onClick={() => openQueueItem(executionWork)}>
+                Open guided workspace
               </button>
-            ))}
-            <button type="button" onClick={() => setActiveNav(enterpriseDashboardNav)}>
-              <span>Enterprise Dashboard</span>
-              <strong>Open</strong>
-              <em>Optional leadership view</em>
-            </button>
+            </div>
+            <div className={styles.executionFacts} aria-label="Execution facts">
+              <span><strong>{filteredWork.length}</strong> ready work item{filteredWork.length === 1 ? "" : "s"}</span>
+              <span><strong>{managerReviewCount}</strong> manager review</span>
+              <span><strong>{blockedWorkCount}</strong> blocked</span>
+              <span><strong>{sourceReadyMetrics}</strong> trusted source views</span>
+            </div>
+            <details className={styles.progressivePanel}>
+              <summary>Show queue controls and source proof</summary>
+              <div className={styles.progressiveContent}>
+                <div className={styles.queueStats} aria-label="Revenue Work Queue source-backed summary">
+                  {queueStats.map((stat) => (
+                    <button
+                      key={stat.label}
+                      type="button"
+                      onClick={() => {
+                        setQueueGroupFilter(stat.filter);
+                        setActiveNav(revenueWorkQueueNav);
+                      }}
+                    >
+                      <span>{stat.label}</span>
+                      <strong>{stat.value}</strong>
+                      <em>{stat.detail}</em>
+                    </button>
+                  ))}
+                  <button type="button" onClick={() => setActiveNav(enterpriseDashboardNav)}>
+                    <span>Enterprise Dashboard</span>
+                    <strong>Open</strong>
+                    <em>Optional leadership view</em>
+                  </button>
+                </div>
+              </div>
+            </details>
           </section>
         ) : null}
 
         {activeNav === revenueWorkQueueNav || activeNav === enterpriseDashboardNav ? (
-          <section className={styles.trustedMetrics} aria-label="Trusted sales metrics">
-            <header>
+          <details className={styles.trustedMetrics} aria-label="Trusted sales metrics">
+            <summary>
+              <span>Source proof</span>
+              <strong>Trusted Sales Metrics</strong>
+              <em>{sourceReadyMetrics} live/read-only · {trustedMetrics.length - sourceReadyMetrics} not wired</em>
+            </summary>
+            <section>
+              <header>
+                <div>
+                  <span>Milestone 7</span>
+                  <h2>Trusted Sales Metrics</h2>
+                  <p>Only source-backed counts are shown. Untrusted metrics stay unavailable until their source authority is wired.</p>
+                  <small>Live metrics open the filtered work queue. Not-wired metrics open Source Health.</small>
+                </div>
+              </header>
               <div>
-                <span>Milestone 7</span>
-                <h2>Trusted Sales Metrics</h2>
-                <p>Only source-backed counts are shown. Untrusted metrics stay unavailable until their source authority is wired.</p>
-                <small>Live metrics open the filtered work queue. Not-wired metrics open Source Health.</small>
+                {trustedMetrics.map((metric) => (
+                  <button
+                    data-status={metric.status}
+                    key={metric.label}
+                    type="button"
+                    onClick={() => openTrustedMetric(metric)}
+                  >
+                    <span>{metric.label}</span>
+                    <strong>{metric.value}</strong>
+                    <em>{metric.status} · {metric.source}</em>
+                    <small>{metric.detail}</small>
+                  </button>
+                ))}
               </div>
-            </header>
-            <div>
-              {trustedMetrics.map((metric) => (
-                <button
-                  data-status={metric.status}
-                  key={metric.label}
-                  type="button"
-                  onClick={() => openTrustedMetric(metric)}
-                >
-                  <span>{metric.label}</span>
-                  <strong>{metric.value}</strong>
-                  <em>{metric.status} · {metric.source}</em>
-                  <small>{metric.detail}</small>
-                </button>
-              ))}
-            </div>
-          </section>
+            </section>
+          </details>
         ) : null}
 
         <div className={activeNav === enterpriseDashboardNav ? styles.workspace : styles.focusWorkspace}>

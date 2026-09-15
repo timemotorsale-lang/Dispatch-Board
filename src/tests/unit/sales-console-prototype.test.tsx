@@ -148,11 +148,13 @@ describe("Sales Console", () => {
       "Recover a stalled opportunity",
       "Prepare for an appointment or visit",
       "Close a ready opportunity",
-      "Review manager priorities"
+      "Review manager priorities",
+      "Start / desk a deal"
     ]) {
       expect(markup).toContain(intent);
     }
 
+    expect(markup).toContain('href="/crm-next/deals/start"');
     expect(markup).toContain("Search customer, stock #, VIN, phone, deal...");
     expect(markup).toContain("Live Action");
     expect(markup).toContain("Controlled Action");

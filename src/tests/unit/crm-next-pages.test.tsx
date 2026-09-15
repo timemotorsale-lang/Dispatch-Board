@@ -16,6 +16,7 @@ import CrmNextAppointmentsPage from "@/app/(app)/crm-next/appointments/page";
 import CrmNextActionPage from "@/app/(app)/crm-next/actions/[actionId]/page";
 import CrmNextCoexistencePage from "@/app/(app)/crm-next/coexistence/page";
 import CrmNextCustomerPage from "@/app/(app)/crm-next/customers/[customerId]/page";
+import CrmNextDealStartPage from "@/app/(app)/crm-next/deals/start/page";
 import CrmNextDealsPage from "@/app/(app)/crm-next/deals/page";
 import CrmNextIntelligenceFoundationPage from "@/app/(app)/crm-next/intelligence-foundation/page";
 import CrmNextHardeningPage from "@/app/(app)/crm-next/hardening/page";
@@ -387,6 +388,40 @@ describe("CRM Next pages", () => {
     expect(caseAction).toContain("Case+reminder+%2F+SLA+follow-up");
     expect(caseAction).toContain("Manager review is triggered");
     expect(caseAction).toContain('data-success-message="Case prepared for Customer record unavailable');
+  });
+
+  it("renders the executable revenue desk without staff review workflow language", async () => {
+    process.env.CRM_NEXT = "REVIEW";
+    mocks.requireCurrentUser.mockResolvedValue(user(["General Manager"]));
+
+    const markup = renderToStaticMarkup(await CrmNextDealStartPage());
+
+    expect(markup).toContain("Work the revenue path");
+    expect(markup).toContain("Finance");
+    expect(markup).toContain("BHPH");
+    expect(markup).toContain("Retail Sale");
+    expect(markup).toContain("Lease-to-Own");
+    expect(markup).toContain("Repairs");
+    expect(markup).toContain("Daily Rental");
+    expect(markup).toContain("Warranty Products");
+    expect(markup).toContain("Financing Products");
+    expect(markup).toContain("Outside Finance / One Pay");
+    expect(markup).toContain("Applicant info");
+    expect(markup).toContain("Add co-buyer");
+    expect(markup).toContain("Print credit application");
+    expect(markup).toContain("Vehicle info");
+    expect(markup).toContain("KBB retail");
+    expect(markup).toContain("Trade-in info");
+    expect(markup).toContain("Trade payoff");
+    expect(markup).toContain("Deal info");
+    expect(markup).toContain("Amount financed");
+    expect(markup).toContain("Monthly payment");
+    expect(markup).toContain("Execution checks");
+    expect(markup).toContain("Payment / funding");
+    expect(markup).toContain("Execute next");
+    expect(markup).toContain("governed backend command");
+    expect(markup).not.toContain("Review shell");
+    expect(markup).not.toContain("review mode");
   });
 
   it("keeps the selected customer attached when opening an action", () => {

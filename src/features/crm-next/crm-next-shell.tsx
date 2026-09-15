@@ -23,11 +23,13 @@ import {
 
 import { CrmNextIntakeForm } from "@/features/crm-next/crm-next-intake-form";
 import { CrmNextActivityFilterTabs } from "@/features/crm-next/crm-next-activity-filter-tabs";
+import { CrmNextDealStartTool } from "@/features/crm-next/crm-next-deal-start-tool";
 import { CrmNextDirectActionForm } from "@/features/crm-next/crm-next-direct-action-form";
 import { CrmNextInlineTaskComposer } from "@/features/crm-next/crm-next-inline-task-composer";
 import { CrmNextWorkbenchSections } from "@/features/crm-next/crm-next-workbench-sections";
 import {
   CRM_CUSTOMER_LANDING_HREF,
+  CRM_NEXT_DEAL_START_HREF,
   CRM_NEXT_CUSTOMERS_HREF,
   LEGACY_CRM_FALLBACK_HREF,
   LEGACY_CUSTOMER_ARCHIVE_HREF,
@@ -1016,9 +1018,21 @@ export function CrmNextDealsView({ model }: { model: CrmNextCommandCenter }) {
           <h1>Deals in progress</h1>
           <p>Deal value, stage, owner, and next action for active sales work.</p>
         </div>
-        <Link className={styles.secondaryButton} href="/crm-next/pipeline">Back to pipeline</Link>
+        <div className={styles.quickActions}>
+          <Link className={styles.primaryButton} href={CRM_NEXT_DEAL_START_HREF}>Start Deal</Link>
+          <Link className={styles.secondaryButton} href="/crm-next/pipeline">Back to pipeline</Link>
+        </div>
       </section>
       <SalesTable records={model.sales.deals} title="Deals in progress" summary="A compact operating view for sales staff." />
+    </CrmNextFrame>
+  );
+}
+
+export function CrmNextDealStartView({ model }: { model: CrmNextCommandCenter }) {
+  return (
+    <CrmNextFrame active="deals" userName={model.userName}>
+      <Topbar />
+      <CrmNextDealStartTool model={model} />
     </CrmNextFrame>
   );
 }
@@ -1953,7 +1967,7 @@ export function CrmNextWorkCustomerView({
             </div>
             <div className={styles.workActions}>
               <Link className={styles.secondaryButton} href="#lead">Check - In</Link>
-              <Link className={styles.secondaryButton} href="/crm-next/deals">Start Deal</Link>
+              <Link className={styles.secondaryButton} href={CRM_NEXT_DEAL_START_HREF}>Start Deal</Link>
               <Link className={styles.secondaryButton} href={item.customerHref}>Customer 360</Link>
             </div>
           </div>

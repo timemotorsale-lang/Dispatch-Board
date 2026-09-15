@@ -27,6 +27,7 @@ import { CrmModeSwitch } from "@/features/crm/crm-mode-switch";
 import {
   CRM_NEXT_APPOINTMENTS_HREF,
   CRM_NEXT_CUSTOMERS_HREF,
+  CRM_NEXT_DEAL_START_HREF,
   CRM_NEXT_DEALS_HREF,
   CRM_NEXT_HOME_HREF,
   CRM_NEXT_INTAKE_HREF,
@@ -203,7 +204,7 @@ export function CustomerConsoleHome({ showAdvisorReturn = false }: { showAdvisor
             <button onClick={() => openCrmNext(CRM_NEXT_PIPELINE_HREF)} type="button"><Plus size={14} />Add Lead</button>
             <button onClick={() => openCrmNext(CRM_NEXT_INTAKE_HREF)} type="button"><Plus size={14} />Add Customer</button>
             <button onClick={() => openCrmNext(CRM_NEXT_APPOINTMENTS_HREF)} type="button"><Plus size={14} />Schedule Appointment</button>
-            <button onClick={() => openCrmNext(CRM_NEXT_DEALS_HREF)} type="button"><Plus size={14} />Add Deal</button>
+            <button onClick={() => openCrmNext(CRM_NEXT_DEAL_START_HREF)} type="button"><Plus size={14} />Add Deal</button>
             <button onClick={() => openCrmNext(CRM_NEXT_SEARCH_HREF)} type="button"><Plus size={14} />Add Vehicle</button>
             <button onClick={() => openCrmNext(CRM_NEXT_SEARCH_HREF)} type="button"><MessageSquare size={14} />Send Message</button>
           </footer>

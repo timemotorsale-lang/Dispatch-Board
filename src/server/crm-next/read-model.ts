@@ -279,6 +279,7 @@ export type CrmNextSummaryMetric = {
 export type CrmNextCommandCenter = {
   contractVersion: "crm-next-command-center/v1";
   generatedAt: string;
+  userId: string;
   userName: string;
   mode: Exclude<CrmNextMode, "OFF">;
   summary: CrmNextSummaryMetric[];
@@ -2846,6 +2847,7 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
   return {
     contractVersion: "crm-next-command-center/v1",
     generatedAt: now.toISOString(),
+    userId: actor?.id ?? "",
     userName: actor?.name ?? "CRM user",
     mode: activeMode,
     summary: [

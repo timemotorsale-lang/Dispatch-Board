@@ -423,7 +423,8 @@
   gap: 10px;
 }
 
-.intentGrid button {
+.intentGrid button,
+.intentGrid a {
   display: grid;
   align-content: start;
   gap: 8px;
@@ -437,10 +438,13 @@
   font: inherit;
   cursor: pointer;
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+  text-decoration: none;
 }
 
 .intentGrid button:hover,
 .intentGrid button:focus-visible,
+.intentGrid a:hover,
+.intentGrid a:focus-visible,
 .activeIntent {
   border-color: #3157d5 !important;
   background: #eef4ff !important;
@@ -617,6 +621,119 @@
   font-size: 20px;
 }
 
+.executionCommand {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.42fr);
+  gap: 10px;
+  margin: 10px 10px 0;
+  border: 1px solid #dbe3ef;
+  border-radius: 14px;
+  background: #fff;
+  padding: 12px;
+  box-shadow: 0 14px 34px rgb(15 23 42 / 6%);
+}
+
+.executionPrimary {
+  display: grid;
+  align-content: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.executionPrimary > span {
+  color: #3157d5;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.executionPrimary h1 {
+  margin: 0;
+  color: #071a3a;
+  font-size: 24px;
+  line-height: 1.12;
+}
+
+.executionPrimary p {
+  margin: 0;
+  color: #55657d;
+}
+
+.executionPrimary button {
+  width: fit-content;
+  border: 1px solid #3157d5;
+  border-radius: 10px;
+  background: #3157d5;
+  color: #fff;
+  cursor: pointer;
+  padding: 10px 14px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.executionFacts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.executionFacts span {
+  display: grid;
+  gap: 2px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 10px;
+  color: #55657d;
+  font-size: 11.5px;
+}
+
+.executionFacts strong {
+  color: #071a3a;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.progressivePanel {
+  grid-column: 1 / -1;
+  border-top: 1px solid #edf2f7;
+  padding-top: 9px;
+}
+
+.progressivePanel summary,
+.trustedMetrics summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: fit-content;
+  border: 1px solid #cfe0ff;
+  border-radius: 999px;
+  background: #f8fbff;
+  color: #1d4ed8;
+  cursor: pointer;
+  padding: 7px 11px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.progressivePanel summary:hover,
+.progressivePanel summary:focus-visible,
+.trustedMetrics summary:hover,
+.trustedMetrics summary:focus-visible {
+  border-color: #3157d5;
+  outline: none;
+}
+
+.progressiveContent {
+  margin-top: 10px;
+}
+
+.executionCommand .queueStats {
+  margin: 0;
+}
+
 .trustedMetrics {
   display: grid;
   gap: 10px;
@@ -626,6 +743,23 @@
   background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
   padding: 12px;
   box-shadow: 0 14px 34px rgb(15 23 42 / 6%);
+}
+
+.trustedMetrics summary span,
+.trustedMetrics summary em {
+  color: #55657d;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.trustedMetrics summary strong {
+  color: #071a3a;
+}
+
+.trustedMetrics > section {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
 }
 
 .trustedMetrics header span {
@@ -654,7 +788,7 @@
   font-weight: 850;
 }
 
-.trustedMetrics > div {
+.trustedMetrics > section > div {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
   gap: 8px;
@@ -2468,6 +2602,7 @@
   .revenueLaneDetail dl,
   .revenueDeskBody,
   .revenueDeskCommand,
+  .executionCommand,
   .intentDetail,
   .workspaceRelationship,
   .workbenchActionPanel,
@@ -2506,7 +2641,8 @@
 
   .kpis,
   .queueStats,
-  .trustedMetrics > div,
+  .executionFacts,
+  .trustedMetrics > section > div,
   .workspaceContract,
   .proofChecklist,
   .approvedToolGrid,
