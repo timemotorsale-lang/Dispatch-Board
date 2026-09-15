@@ -77,6 +77,7 @@ describe("users route", () => {
       email: "alex.staff@local.test",
       isActive: true,
       createdAt: new Date("2026-07-03T12:00:00.000Z"),
+      updatedAt: new Date("2026-07-03T12:00:00.000Z"),
       roles: [{ id: "role-sales", name: "Salesperson" }],
       duties: []
     });
@@ -87,7 +88,7 @@ describe("users route", () => {
         body: JSON.stringify({
           name: "Alex Staff",
           email: "alex.staff@local.test",
-          password: "dispatch123!",
+          password: "StrongTemp123!",
           roleIds: ["role-sales"],
           dutyIds: []
         })
@@ -105,7 +106,7 @@ describe("users route", () => {
     expect(mocks.createManagedTeamUser).toHaveBeenCalledWith(managerUser, {
       name: "Alex Staff",
       email: "alex.staff@local.test",
-      password: "dispatch123!",
+      password: "StrongTemp123!",
       roleIds: ["role-sales"],
       dutyIds: []
     });
@@ -135,6 +136,7 @@ describe("users route", () => {
       email: "alex.staff@local.test",
       isActive: false,
       createdAt: new Date("2026-07-03T12:00:00.000Z"),
+      updatedAt: new Date("2026-07-03T12:00:00.000Z"),
       roles: [{ id: "role-sales", name: "Salesperson" }],
       duties: []
     });
@@ -174,7 +176,7 @@ describe("users route", () => {
         body: JSON.stringify({
           name: "Alex Staff",
           email: "alex.staff@local.test",
-          password: "dispatch123!",
+          password: "StrongTemp123!",
           roleIds: ["role-sales"],
           dutyIds: ["duty-delegated-manager"]
         })

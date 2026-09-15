@@ -1,10 +1,12 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma as PrismaNamespace } from "@prisma/client";
 
 export type AuthenticatedUser = {
   id: string;
   name: string;
   email: string;
   isActive: boolean;
+  mustChangePassword?: boolean;
   roles: string[];
   duties: {
     direct: string[];
@@ -15,6 +17,8 @@ export type AuthenticatedUser = {
 
 export type AuthUserRecord = AuthenticatedUser & {
   passwordHash: string;
+  failedLoginCount: number;
+  lockedUntil: Date | null;
 };
 
 export type AuthSessionRecord = {
@@ -36,6 +40,9 @@ export interface AuthStore {
   createSession(input: CreateSessionInput): Promise<void>;
   findSessionByTokenHash(tokenHash: string, now: Date): Promise<AuthSessionRecord | null>;
   deleteSessionByTokenHash(tokenHash: string): Promise<void>;
+  recordFailedLogin(userId: string, failedLoginCount: number, lockedUntil: Date | null): Promise<void>;
+  recordSuccessfulLogin(userId: string, now: Date): Promise<void>;
+  updateUserPassword(userId: string, passwordHash: string, now: Date): Promise<void>;
 }
 
 type UserWithAssignments = Prisma.UserGetPayload<{
@@ -88,6 +95,12 @@ type SessionWithUser = Prisma.SessionGetPayload<{
   };
 }>;
 
+type AuthSecurityRow = {
+  mustChangePassword: boolean;
+  failedLoginCount: number;
+  lockedUntil: Date | null;
+};
+
 function uniqueSorted(values: string[]) {
   return [...new Set(values)].sort((left, right) => left.localeCompare(right));
 }
@@ -105,6 +118,7 @@ export function toAuthenticatedUser(user: UserWithAssignments): AuthenticatedUse
     name: user.name,
     email: user.email,
     isActive: user.isActive,
+    mustChangePassword: false,
     roles: uniqueSorted(user.userRoles.map((assignment) => assignment.role.name)),
     duties: {
       direct: directDuties,
@@ -115,6 +129,24 @@ export function toAuthenticatedUser(user: UserWithAssignments): AuthenticatedUse
 }
 
 export function createPrismaAuthStore(prisma: PrismaClient): AuthStore {
+  async function readSecurityState(userId: string): Promise<AuthSecurityRow> {
+    const rows = await prisma.$queryRaw<AuthSecurityRow[]>(PrismaNamespace.sql`
+      SELECT
+        "mustChangePassword" AS "mustChangePassword",
+        "failedLoginCount" AS "failedLoginCount",
+        "lockedUntil" AS "lockedUntil"
+      FROM "User"
+      WHERE "id" = ${userId}
+      LIMIT 1
+    `);
+
+    return rows[0] ?? {
+      mustChangePassword: false,
+      failedLoginCount: 0,
+      lockedUntil: null
+    };
+  }
+
   return {
     async findUserByEmail(email) {
       const user = await prisma.user.findUnique({
@@ -145,9 +177,14 @@ export function createPrismaAuthStore(prisma: PrismaClient): AuthStore {
         return null;
       }
 
+      const securityState = await readSecurityState(user.id);
+
       return {
         ...toAuthenticatedUser(user),
-        passwordHash: user.passwordHash
+        mustChangePassword: securityState.mustChangePassword,
+        passwordHash: user.passwordHash,
+        failedLoginCount: securityState.failedLoginCount,
+        lockedUntil: securityState.lockedUntil
       };
     },
     async createSession(input) {
@@ -193,7 +230,9 @@ export function createPrismaAuthStore(prisma: PrismaClient): AuthStore {
         return null;
       }
 
-      return sessionToAuthSessionRecord(session);
+      const securityState = await readSecurityState(session.user.id);
+
+      return sessionToAuthSessionRecord(session, securityState.mustChangePassword);
     },
     async deleteSessionByTokenHash(tokenHash) {
       await prisma.session.deleteMany({
@@ -201,16 +240,47 @@ export function createPrismaAuthStore(prisma: PrismaClient): AuthStore {
           tokenHash
         }
       });
+    },
+    async recordFailedLogin(userId, failedLoginCount, lockedUntil) {
+      await prisma.$executeRaw`
+        UPDATE "User"
+        SET "failedLoginCount" = ${failedLoginCount},
+            "lockedUntil" = ${lockedUntil}
+        WHERE "id" = ${userId}
+      `;
+    },
+    async recordSuccessfulLogin(userId, now) {
+      await prisma.$executeRaw`
+        UPDATE "User"
+        SET "failedLoginCount" = 0,
+            "lockedUntil" = null,
+            "lastLoginAt" = ${now}
+        WHERE "id" = ${userId}
+      `;
+    },
+    async updateUserPassword(userId, passwordHash, now) {
+      await prisma.$executeRaw`
+        UPDATE "User"
+        SET "passwordHash" = ${passwordHash},
+            "mustChangePassword" = false,
+            "passwordChangedAt" = ${now},
+            "failedLoginCount" = 0,
+            "lockedUntil" = null
+        WHERE "id" = ${userId}
+      `;
     }
   };
 }
 
-function sessionToAuthSessionRecord(session: SessionWithUser): AuthSessionRecord {
+function sessionToAuthSessionRecord(session: SessionWithUser, mustChangePassword = false): AuthSessionRecord {
   return {
     id: session.id,
     tokenHash: session.tokenHash,
     userId: session.userId,
     expiresAt: session.expiresAt,
-    user: toAuthenticatedUser(session.user)
+    user: {
+      ...toAuthenticatedUser(session.user),
+      mustChangePassword
+    }
   };
 }
