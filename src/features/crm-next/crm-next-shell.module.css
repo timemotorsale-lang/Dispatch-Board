@@ -5256,6 +5256,20 @@
   gap: 8px;
 }
 
+.retailFieldGrid label button {
+  background: #eef4ff;
+  border: 1px solid #bfd0ef;
+  border-radius: 10px;
+  color: #1f4bc4;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  justify-self: start;
+  min-height: 34px;
+  padding: 7px 10px;
+}
+
 .retailWide {
   grid-column: span 2;
 }

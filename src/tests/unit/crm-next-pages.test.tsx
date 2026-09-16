@@ -424,7 +424,14 @@ describe("CRM Next pages", () => {
     expect(markup).toContain("Trade payoff");
     expect(markup).toContain("Deal info");
     expect(markup).toContain("Amount financed");
+    expect(markup).toContain("Down payment");
+    expect(markup).toContain("Price + fees + tax - down payment");
+    expect(markup).toContain("MN sales tax: 6.85% of selling price");
+    expect(markup).toContain("Manual tax override");
     expect(markup).toContain("Monthly payment");
+    expect(markup).toContain("36 months");
+    expect(markup).toContain("Calculated from amount financed, term, and APR");
+    expect(markup).toContain("Manual payment override");
     expect(markup).toContain("MN DMV fees");
     expect(markup).toContain("Fee worksheet");
     expect(markup).toContain("Title transfer");

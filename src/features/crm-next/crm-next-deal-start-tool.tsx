@@ -157,6 +157,8 @@ const MN_DMV_FEE_ITEMS = [
   { amountCents: 0, code: "custom-dvs-fee", label: "Custom MN DMV / DVS fee" }
 ];
 
+const MN_VEHICLE_SALES_TAX_BASIS_POINTS = 685;
+
 type RetailFeeLine = {
   amountCents: number;
   id: string;
@@ -258,6 +260,22 @@ function dollarsToCents(value: string) {
 
 function formatCurrency(cents: number) {
   return new Intl.NumberFormat("en-US", { currency: "USD", style: "currency" }).format(cents / 100);
+}
+
+function parsePercent(value: string) {
+  const normalized = value.trim().replace("%", "");
+  if (!normalized) return 0;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function calculateMonthlyPayment(principalCents: number, termMonths: number, aprPercent: number) {
+  if (principalCents <= 0 || termMonths <= 0) return 0;
+  const principal = principalCents / 100;
+  const monthlyRate = aprPercent / 100 / 12;
+  if (monthlyRate <= 0) return Math.round((principal / termMonths) * 100);
+  const payment = principal * monthlyRate / (1 - (1 + monthlyRate) ** -termMonths);
+  return Math.round(payment * 100);
 }
 
 function documentDataUrl(document: GeneratedContractPacket["documents"][number]) {
@@ -373,6 +391,13 @@ function RetailSaleExecutionDesk({
   const selectedFee = MN_DMV_FEE_ITEMS.find((item) => item.code === selectedFeeCode) ?? MN_DMV_FEE_ITEMS[0];
   const [feeAmount, setFeeAmount] = useState(selectedFee ? formatCurrency(selectedFee.amountCents) : "$0.00");
   const [feeLines, setFeeLines] = useState<RetailFeeLine[]>([]);
+  const [manualSalesTax, setManualSalesTax] = useState(false);
+  const [manualSalesTaxAmount, setManualSalesTaxAmount] = useState("");
+  const [downPayment, setDownPayment] = useState("$0.00");
+  const [termMonths, setTermMonths] = useState("36");
+  const [interestRate, setInterestRate] = useState("0.00%");
+  const [manualMonthlyPayment, setManualMonthlyPayment] = useState(false);
+  const [manualMonthlyPaymentAmount, setManualMonthlyPaymentAmount] = useState("");
   const [preparedForms, setPreparedForms] = useState<string[]>([]);
   const [contractPacket, setContractPacket] = useState<GeneratedContractPacket | null>(null);
   const [packetStatus, setPacketStatus] = useState<{ kind: "idle" | "generating" | "ready" | "error"; message: string }>({ kind: "idle", message: "" });
@@ -380,6 +405,20 @@ function RetailSaleExecutionDesk({
   const [packetPreviewOpen, setPacketPreviewOpen] = useState(false);
   const [previewFormId, setPreviewFormId] = useState<string | null>(null);
   const feeTotalCents = useMemo(() => feeLines.reduce((total, line) => total + line.amountCents, 0), [feeLines]);
+  const saleAmountCents = useMemo(() => dollarsToCents(amount), [amount]);
+  const mnSalesTaxCents = typeof saleAmountCents === "number" && Number.isFinite(saleAmountCents)
+    ? Math.round((saleAmountCents * MN_VEHICLE_SALES_TAX_BASIS_POINTS) / 10000)
+    : 0;
+  const displayedSalesTax = manualSalesTax ? manualSalesTaxAmount : formatCurrency(mnSalesTaxCents);
+  const manualSalesTaxCents = dollarsToCents(manualSalesTaxAmount);
+  const effectiveSalesTaxCents = manualSalesTax && typeof manualSalesTaxCents === "number" && Number.isFinite(manualSalesTaxCents) ? manualSalesTaxCents : mnSalesTaxCents;
+  const downPaymentCents = dollarsToCents(downPayment);
+  const safeDownPaymentCents = typeof downPaymentCents === "number" && Number.isFinite(downPaymentCents) ? downPaymentCents : 0;
+  const amountFinancedCents = Math.max(0, (typeof saleAmountCents === "number" && Number.isFinite(saleAmountCents) ? saleAmountCents : 0) + feeTotalCents + effectiveSalesTaxCents - safeDownPaymentCents);
+  const parsedTermMonths = Number.parseInt(termMonths, 10);
+  const safeTermMonths = Number.isFinite(parsedTermMonths) ? parsedTermMonths : 0;
+  const calculatedMonthlyPaymentCents = calculateMonthlyPayment(amountFinancedCents, safeTermMonths, parsePercent(interestRate));
+  const displayedMonthlyPayment = manualMonthlyPayment ? manualMonthlyPaymentAmount : formatCurrency(calculatedMonthlyPaymentCents);
   const feeFormula = feeLines.length > 0 ? `${feeLines.map((line) => formatCurrency(line.amountCents)).join(" + ")} = ${formatCurrency(feeTotalCents)}` : "$0.00 = $0.00";
   const requiredFormCount = MN_SALE_FORM_PACKET.filter((form) => form.category === "Required").length;
   const preparedRequiredCount = MN_SALE_FORM_PACKET.filter((form) => form.category === "Required" && preparedForms.includes(form.id)).length;
@@ -663,13 +702,31 @@ function RetailSaleExecutionDesk({
           <label><span>Insurance / GAP / VSI</span><input placeholder="$0.00" /></label>
           <label><span>Accessories</span><input placeholder="$0.00" /></label>
           <label><span>VSC / products</span><input placeholder="$0.00" /></label>
-          <label><span>Total tax</span><input placeholder="$0.00" /></label>
-          <label><span>Cash received</span><input placeholder="$0.00" /></label>
+          <label>
+            <span>Total tax</span>
+            <input
+              onChange={(event) => setManualSalesTaxAmount(event.target.value)}
+              readOnly={!manualSalesTax}
+              value={displayedSalesTax}
+            />
+            <small>{manualSalesTax ? "Manual tax override enabled. Confirm against the final DVS calculation." : "MN sales tax: 6.85% of selling price"}</small>
+            <button type="button" onClick={() => setManualSalesTax((current) => !current)}>{manualSalesTax ? "Use 6.85% auto tax" : "Manual tax override"}</button>
+          </label>
+          <label><span>Down payment</span><input value={downPayment} onChange={(event) => setDownPayment(event.target.value)} placeholder="$0.00" /></label>
           <label><span>Trade in</span><input placeholder="$0.00" /></label>
-          <label><span>Amount financed</span><input placeholder="$0.00" /></label>
-          <label><span>Term</span><input placeholder="0 months" /></label>
-          <label><span>Interest rate</span><input placeholder="0.000%" /></label>
-          <label><span>Monthly payment</span><input placeholder="$0.00" /></label>
+          <label><span>Amount financed</span><input readOnly value={formatCurrency(amountFinancedCents)} /><small>Price + fees + tax - down payment</small></label>
+          <label><span>Term</span><select value={termMonths} onChange={(event) => setTermMonths(event.target.value)}><option value="12">12 months</option><option value="24">24 months</option><option value="36">36 months</option><option value="48">48 months</option><option value="60">60 months</option><option value="72">72 months</option><option value="84">84 months</option></select></label>
+          <label><span>Interest rate</span><input value={interestRate} onChange={(event) => setInterestRate(event.target.value)} placeholder="0.000%" /></label>
+          <label>
+            <span>Monthly payment</span>
+            <input
+              onChange={(event) => setManualMonthlyPaymentAmount(event.target.value)}
+              readOnly={!manualMonthlyPayment}
+              value={displayedMonthlyPayment}
+            />
+            <small>{manualMonthlyPayment ? "Manual payment override enabled. Confirm against lender approval." : "Calculated from amount financed, term, and APR"}</small>
+            <button type="button" onClick={() => setManualMonthlyPayment((current) => !current)}>{manualMonthlyPayment ? "Use calculated payment" : "Manual payment override"}</button>
+          </label>
           <label><span>First payment</span><input placeholder="30 days" /></label>
           <label><span>Payment / funding</span><select><option>Cash / certified funds</option><option>Outside finance</option><option>One pay</option><option>To be confirmed</option></select></label>
           <label><span>Delivery target</span><input placeholder="Today, tomorrow, or date" /></label>
