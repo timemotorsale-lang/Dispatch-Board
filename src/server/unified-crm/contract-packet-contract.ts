@@ -24,6 +24,8 @@ export type UnifiedCrmContractPacketInput = {
   dealType?: unknown;
   feeTotal?: unknown;
   idempotencyKey?: unknown;
+  leaseCalculator?: unknown;
+  packetType?: unknown;
   paymentFunding?: unknown;
   preparedFormIds?: unknown;
   salePrice?: unknown;
@@ -33,10 +35,14 @@ export type UnifiedCrmContractPacketInput = {
 export type UnifiedCrmGeneratedContractDocument = {
   archiveStatus: "ARCHIVED";
   category: "Required" | "Conditional";
+  contentBase64?: string;
+  contentType?: "text/html" | "application/pdf";
   downloadFileName: string;
+  fieldValues?: Record<string, string>;
   formId: string;
   html: string;
   label: string;
+  templatePath?: string;
   signatureStatus: "UNSIGNED";
   sourceBasis: string;
   trigger: string;

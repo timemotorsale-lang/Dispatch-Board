@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 
 import { CRM_NEXT_DEALS_HREF } from "@/features/crm/crm-route-authority";
+import { allLeaseToOwnFormIds, calculateLeaseToOwn, LEASE_TO_OWN_FORM_PACKET, type LeasePaymentFrequency, type LeaseToOwnCalculatorInput } from "@/lib/lease-to-own-form-packet";
 import { MN_SALE_FORM_PACKET } from "@/lib/mn-vehicle-sale-form-packet";
 import type { CrmNextCommandCenter } from "@/server/crm-next/read-model";
 
@@ -172,10 +173,14 @@ type GeneratedContractPacket = {
     textReady: boolean;
   };
   documents: Array<{
+    contentBase64?: string;
+    contentType?: "text/html" | "application/pdf";
     downloadFileName: string;
+    fieldValues?: Record<string, string>;
     formId: string;
     html: string;
     label: string;
+    templatePath?: string;
   }>;
   generatedAt: string;
   packetId: string;
@@ -254,12 +259,22 @@ function formatCurrency(cents: number) {
   return new Intl.NumberFormat("en-US", { currency: "USD", style: "currency" }).format(cents / 100);
 }
 
+function documentDataUrl(document: GeneratedContractPacket["documents"][number]) {
+  if (!document.contentBase64 || document.contentType !== "application/pdf") return "";
+  return `data:application/pdf;base64,${document.contentBase64}`;
+}
+
 function normalizeVin(value: string) {
   return value.toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, "").slice(0, 17);
 }
 
 function getStockNumberFromVin(vin: string) {
   return vin.length >= 6 ? vin.slice(-6) : "";
+}
+
+function getVinFromVehicleInput(value: string) {
+  const normalized = normalizeVin(value);
+  return normalized.length === 17 ? normalized : "";
 }
 
 function decodeVin(vin: string): VehicleDecodeResult {
@@ -434,6 +449,15 @@ function RetailSaleExecutionDesk({
 
   function downloadPacket() {
     if (!contractPacket) return;
+    const selectedDocument = previewDocument ?? contractPacket.documents[0];
+    if (selectedDocument?.contentBase64 && selectedDocument.contentType === "application/pdf") {
+      const url = documentDataUrl(selectedDocument);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = selectedDocument.downloadFileName;
+      link.click();
+      return;
+    }
     const url = URL.createObjectURL(new Blob([packetHtml()], { type: "text/html" }));
     const link = document.createElement("a");
     link.href = url;
@@ -444,6 +468,11 @@ function RetailSaleExecutionDesk({
 
   function printPacket() {
     if (!contractPacket) return;
+    const selectedDocument = previewDocument ?? contractPacket.documents[0];
+    if (selectedDocument?.contentBase64 && selectedDocument.contentType === "application/pdf") {
+      window.open(documentDataUrl(selectedDocument), "_blank", "noopener,noreferrer");
+      return;
+    }
     const printWindow = window.open("", "_blank", "noopener,noreferrer");
     if (!printWindow) {
       setPacketStatus({ kind: "error", message: "Print window was blocked. Download the packet instead." });
@@ -473,20 +502,29 @@ function RetailSaleExecutionDesk({
     onVehicleChange(stockNumber || vin || vehicle);
   }
 
+  function updateVehicleSearch(value: string) {
+    onVehicleChange(value);
+    const vin = getVinFromVehicleInput(value);
+    if (!vin) return;
+    setVehicleFacts((current) => ({ ...current, stockNumber: getStockNumberFromVin(vin), vin }));
+  }
+
   function updateVehicleFact(key: keyof typeof vehicleFacts, value: string) {
     setVehicleFacts((current) => ({ ...current, [key]: value }));
   }
 
   function runVinDecode() {
-    const decoded = decodeVin(vehicleFacts.vin);
+    const vin = vehicleFacts.vin || getVinFromVehicleInput(vehicle);
+    const decoded = decodeVin(vin);
     setVehicleFacts((current) => ({
       ...current,
       bodyType: decoded.bodyType || current.bodyType,
       make: decoded.make || current.make,
       stockNumber: decoded.stockNumber,
+      vin: vin || current.vin,
       year: decoded.year || current.year
     }));
-    setDecodeStatus(decoded.valid ? "VIN decoded. Confirm make, model, trim, and book values before delivery." : "VIN must be 17 characters before decoding is complete.");
+    setDecodeStatus(decoded.valid ? "VIN decoded. Confirm make, model, trim, and book values before delivery." : "Enter a full 17-character VIN in Search inventory or VIN before decoding.");
     if (decoded.stockNumber) onVehicleChange(decoded.stockNumber);
   }
 
@@ -548,7 +586,7 @@ function RetailSaleExecutionDesk({
           <strong>Confirm the unit and book values</strong>
         </header>
         <div className={styles.retailFieldGrid}>
-          <label><span>Search inventory</span><input value={vehicle} onChange={(event) => onVehicleChange(event.target.value)} placeholder="Stock, VIN, or vehicle" /></label>
+          <label><span>Search inventory</span><input value={vehicle} onChange={(event) => updateVehicleSearch(event.target.value)} placeholder="Stock, VIN, or vehicle" /></label>
           <label><span>Vehicle type</span><select value={vehicleFacts.bodyType} onChange={(event) => updateVehicleFact("bodyType", event.target.value)}><option>Auto</option><option>Truck</option><option>SUV</option><option>Van</option></select></label>
           <label><span>New / used</span><select><option>Used</option><option>New</option></select></label>
           <label><span>VIN</span><input value={vehicleFacts.vin} onChange={(event) => updateVin(event.target.value)} placeholder="17-character VIN" /></label>
@@ -770,6 +808,438 @@ function RetailSaleExecutionDesk({
   );
 }
 
+function percentToBasisPoints(value: string) {
+  const normalized = value.trim().replace("%", "");
+  if (!normalized) return 0;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? Math.round(parsed * 100) : 0;
+}
+
+function basisPointsFromMultiplier(value: string) {
+  const parsed = Number(value.trim());
+  return Number.isFinite(parsed) ? Math.round(parsed * 10000) : 10000;
+}
+
+function LeaseToOwnExecutionDesk({
+  customerName,
+  onAmountChange,
+  onVehicleChange,
+  vehicle
+}: {
+  customerName: string;
+  onAmountChange: (value: string) => void;
+  onVehicleChange: (value: string) => void;
+  vehicle: string;
+}) {
+  const [preparedForms, setPreparedForms] = useState<string[]>([]);
+  const [contractPacket, setContractPacket] = useState<GeneratedContractPacket | null>(null);
+  const [packetStatus, setPacketStatus] = useState<{ kind: "idle" | "generating" | "ready" | "error"; message: string }>({ kind: "idle", message: "" });
+  const [packetDrawerOpen, setPacketDrawerOpen] = useState(false);
+  const [packetPreviewOpen, setPacketPreviewOpen] = useState(false);
+  const [previewFormId, setPreviewFormId] = useState<string | null>(null);
+  const [vehicleFacts, setVehicleFacts] = useState({
+    bodyStyle: "",
+    color: "",
+    license: "",
+    make: "",
+    mileage: "",
+    model: "",
+    stockNumber: "",
+    trim: "",
+    vin: "",
+    year: ""
+  });
+  const [leaseInputs, setLeaseInputs] = useState({
+    additionalItems: "$0.00",
+    capitalizedCostReduction: "$0.00",
+    contractLength: "36",
+    documentPreparationFee: "$375.00",
+    downPayment: "$0.00",
+    gpsCost: "$0.00",
+    multiplier: "2.00",
+    originationFee: "$0.00",
+    otherRoadWorthyCost: "$0.00",
+    paymentFrequency: "Monthly" as LeasePaymentFrequency,
+    registrationFee: "$516.00",
+    salesTaxRate: "6.875",
+    titleFee: "$102.80",
+    warrantyCost: "$0.00",
+    wholesaleCost: "$0.00"
+  });
+  const [leaseFacts, setLeaseFacts] = useState({
+    agentName: "",
+    coLesseeName: "",
+    effectiveDate: "",
+    insuranceCompany: "",
+    insurancePhone: "",
+    lesseeEmail: "",
+    lesseePhone: "",
+    serviceFacility: "KAP Fleet",
+    serviceFacilityPhone: ""
+  });
+  const [decodeStatus, setDecodeStatus] = useState("Enter a 17-character VIN to decode stock, year, and make.");
+
+  const calculatorInput = useMemo<LeaseToOwnCalculatorInput>(() => ({
+    additionalItemsCents: dollarsToCents(leaseInputs.additionalItems) || 0,
+    capitalizedCostReductionCents: 0,
+    contractLength: Number(leaseInputs.contractLength) || 0,
+    documentPreparationFeeCents: dollarsToCents(leaseInputs.documentPreparationFee) || 0,
+    downPaymentCents: dollarsToCents(leaseInputs.downPayment) || 0,
+    gpsCostCents: dollarsToCents(leaseInputs.gpsCost) || 0,
+    multiplierBasisPoints: basisPointsFromMultiplier(leaseInputs.multiplier),
+    originationFeeCents: dollarsToCents(leaseInputs.originationFee) || 0,
+    otherRoadWorthyCostCents: dollarsToCents(leaseInputs.otherRoadWorthyCost) || 0,
+    paymentFrequency: leaseInputs.paymentFrequency,
+    registrationFeeCents: dollarsToCents(leaseInputs.registrationFee) || 0,
+    salesTaxRateBasisPoints: percentToBasisPoints(leaseInputs.salesTaxRate),
+    titleFeeCents: dollarsToCents(leaseInputs.titleFee) || 0,
+    warrantyCostCents: dollarsToCents(leaseInputs.warrantyCost) || 0,
+    wholesaleCostCents: dollarsToCents(leaseInputs.wholesaleCost) || 0
+  }), [leaseInputs]);
+  const calculator = useMemo(() => calculateLeaseToOwn(calculatorInput), [calculatorInput]);
+  const packetFormCount = LEASE_TO_OWN_FORM_PACKET.length;
+  const preparedPacketCount = LEASE_TO_OWN_FORM_PACKET.filter((form) => preparedForms.includes(form.id)).length;
+  const previewDocument = contractPacket?.documents.find((document) => document.formId === previewFormId) ?? contractPacket?.documents[0] ?? null;
+
+  function updateLeaseInput(key: keyof typeof leaseInputs, value: string) {
+    setLeaseInputs((current) => ({ ...current, [key]: key === "paymentFrequency" ? value as LeasePaymentFrequency : value }));
+  }
+
+  function updateVehicleFact(key: keyof typeof vehicleFacts, value: string) {
+    setVehicleFacts((current) => ({ ...current, [key]: value }));
+  }
+
+  function updateLeaseFact(key: keyof typeof leaseFacts, value: string) {
+    setLeaseFacts((current) => ({ ...current, [key]: value }));
+  }
+
+  function updateVin(value: string) {
+    const vin = normalizeVin(value);
+    const stockNumber = getStockNumberFromVin(vin);
+    setVehicleFacts((current) => ({ ...current, stockNumber, vin }));
+    onVehicleChange(stockNumber || vin || vehicle);
+  }
+
+  function updateVehicleSearch(value: string) {
+    onVehicleChange(value);
+    const vin = getVinFromVehicleInput(value);
+    if (!vin) return;
+    setVehicleFacts((current) => ({ ...current, stockNumber: getStockNumberFromVin(vin), vin }));
+  }
+
+  function runVinDecode() {
+    const vin = vehicleFacts.vin || getVinFromVehicleInput(vehicle);
+    const decoded = decodeVin(vin);
+    setVehicleFacts((current) => ({
+      ...current,
+      make: decoded.make || current.make,
+      stockNumber: decoded.stockNumber,
+      vin: vin || current.vin,
+      year: decoded.year || current.year
+    }));
+    setDecodeStatus(decoded.valid ? "VIN decoded. Confirm model, color, mileage, and lease values before delivery." : "Enter a full 17-character VIN in Search inventory or VIN before decoding.");
+    if (decoded.stockNumber) onVehicleChange(decoded.stockNumber);
+  }
+
+  function togglePreparedForm(id: string) {
+    setPreparedForms((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  }
+
+  function prepareRequiredForms() {
+    setPreparedForms((current) => Array.from(new Set([...current, ...allLeaseToOwnFormIds()])));
+  }
+
+  async function generateLeasePacket() {
+    setPacketStatus({ kind: "generating", message: "Generating and archiving lease-to-own packet..." });
+    const response = await fetch("/api/crm/v1/contract-packets", {
+      body: JSON.stringify({
+        customerName,
+        dealNumber: vehicleFacts.stockNumber || vehicle || undefined,
+        dealType: "Lease-to-Own",
+        feeTotal: formatCurrency(calculator.estimatedFeesAndTaxesOverTermCents),
+        idempotencyKey: crypto.randomUUID(),
+        leaseCalculator: calculatorInput,
+        packetType: "LEASE_TO_OWN",
+        paymentFunding: `${leaseInputs.paymentFrequency} payments`,
+        preparedFormIds: preparedForms.length > 0 ? preparedForms : allLeaseToOwnFormIds(),
+        salePrice: formatCurrency(calculator.grossCapitalizedCostCents),
+        vehicle: {
+          color: vehicleFacts.color,
+          make: vehicleFacts.make,
+          model: vehicleFacts.model,
+          stockNumber: vehicleFacts.stockNumber,
+          trim: vehicleFacts.trim,
+          vin: vehicleFacts.vin,
+          year: vehicleFacts.year
+        }
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST"
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setPacketStatus({ kind: "error", message: typeof payload.error === "string" ? payload.error : "Lease packet could not be generated." });
+      return;
+    }
+    const generatedPacket = payload as GeneratedContractPacket;
+    setContractPacket(generatedPacket);
+    setPreviewFormId(generatedPacket.documents[0]?.formId ?? null);
+    setPacketStatus({ kind: "ready", message: `Archived lease packet ${generatedPacket.packetNumber}.` });
+    onAmountChange(formatCurrency(calculator.grossCapitalizedCostCents));
+  }
+
+  function packetHtml() {
+    if (!contractPacket) return "";
+    return `<!doctype html><html><head><meta charset="utf-8"><title>${contractPacket.packetNumber}</title></head><body>${contractPacket.documents.map((document) => document.html).join("<hr />")}</body></html>`;
+  }
+
+  function downloadPacket() {
+    if (!contractPacket) return;
+    const selectedDocument = previewDocument ?? contractPacket.documents[0];
+    if (selectedDocument?.contentBase64 && selectedDocument.contentType === "application/pdf") {
+      const link = document.createElement("a");
+      link.href = documentDataUrl(selectedDocument);
+      link.download = selectedDocument.downloadFileName;
+      link.click();
+      return;
+    }
+    const url = URL.createObjectURL(new Blob([packetHtml()], { type: "text/html" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${contractPacket.packetNumber}.html`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function printPacket() {
+    if (!contractPacket) return;
+    const selectedDocument = previewDocument ?? contractPacket.documents[0];
+    if (selectedDocument?.contentBase64 && selectedDocument.contentType === "application/pdf") {
+      window.open(documentDataUrl(selectedDocument), "_blank", "noopener,noreferrer");
+      return;
+    }
+    const printWindow = window.open("", "_blank", "noopener,noreferrer");
+    if (!printWindow) {
+      setPacketStatus({ kind: "error", message: "Print window was blocked. Download the packet instead." });
+      return;
+    }
+    printWindow.document.write(packetHtml());
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  }
+
+  function queuePacketDelivery(channel: "email" | "text") {
+    if (!contractPacket) return;
+    setPacketStatus({ kind: "ready", message: `${channel === "email" ? "Email" : "Text"} delivery link queued for ${contractPacket.packetNumber}; signed provider delivery remains governed by CRM communications controls.` });
+  }
+
+  function openPacketPreview() {
+    if (!contractPacket) return;
+    setPreviewFormId((current) => current ?? contractPacket.documents[0]?.formId ?? null);
+    setPacketPreviewOpen(true);
+  }
+
+  return (
+    <div className={styles.retailExecutionDesk}>
+      <section className={styles.retailSection} id="lease-applicant">
+        <header>
+          <span>Lease applicant</span>
+          <strong>Capture who will sign and stay reachable</strong>
+        </header>
+        <div className={styles.retailActionRow}>
+          <button type="button">Add co-lessee</button>
+          <button type="button">Print lease application</button>
+          <button type="button">Text lease application</button>
+          <button type="button">Email lease application</button>
+        </div>
+        <p className={styles.retailDeliveryNote}>Text and email delivery use the approved CRM communications provider and stay attached to the customer record.</p>
+        <div className={styles.retailFieldGrid}>
+          <label><span>Lessee</span><input readOnly value={customerName} /></label>
+          <label><span>Co-lessee</span><input value={leaseFacts.coLesseeName} onChange={(event) => updateLeaseFact("coLesseeName", event.target.value)} /></label>
+          <label><span>Cell phone</span><input value={leaseFacts.lesseePhone} onChange={(event) => updateLeaseFact("lesseePhone", event.target.value)} /></label>
+          <label><span>Email</span><input value={leaseFacts.lesseeEmail} onChange={(event) => updateLeaseFact("lesseeEmail", event.target.value)} /></label>
+          <label><span>Insurance company</span><input value={leaseFacts.insuranceCompany} onChange={(event) => updateLeaseFact("insuranceCompany", event.target.value)} /></label>
+          <label><span>Insurance agent</span><input value={leaseFacts.agentName} onChange={(event) => updateLeaseFact("agentName", event.target.value)} /></label>
+          <label><span>Insurance phone</span><input value={leaseFacts.insurancePhone} onChange={(event) => updateLeaseFact("insurancePhone", event.target.value)} /></label>
+          <label><span>Effective date</span><input value={leaseFacts.effectiveDate} onChange={(event) => updateLeaseFact("effectiveDate", event.target.value)} placeholder="MM/DD/YYYY" /></label>
+        </div>
+      </section>
+
+      <section className={styles.retailSection} id="lease-vehicle">
+        <header>
+          <span>Lease vehicle</span>
+          <strong>Confirm the unit before numbers move</strong>
+        </header>
+        <div className={styles.retailFieldGrid}>
+          <label><span>Search inventory</span><input value={vehicle} onChange={(event) => updateVehicleSearch(event.target.value)} placeholder="Stock, VIN, or vehicle" /></label>
+          <label><span>VIN</span><input value={vehicleFacts.vin} onChange={(event) => updateVin(event.target.value)} placeholder="17-character VIN" /></label>
+          <label><span>Stock no.</span><input readOnly value={vehicleFacts.stockNumber} placeholder="Last 6 of VIN" /></label>
+          <div className={styles.retailDecodeRow}>
+            <button type="button" onClick={runVinDecode}>Decode VIN</button>
+            <span>{decodeStatus}</span>
+          </div>
+          <label><span>Year</span><input value={vehicleFacts.year} onChange={(event) => updateVehicleFact("year", event.target.value)} /></label>
+          <label><span>Make</span><input value={vehicleFacts.make} onChange={(event) => updateVehicleFact("make", event.target.value)} /></label>
+          <label><span>Model</span><input value={vehicleFacts.model} onChange={(event) => updateVehicleFact("model", event.target.value)} /></label>
+          <label><span>Trim</span><input value={vehicleFacts.trim} onChange={(event) => updateVehicleFact("trim", event.target.value)} /></label>
+          <label><span>Body style</span><input value={vehicleFacts.bodyStyle} onChange={(event) => updateVehicleFact("bodyStyle", event.target.value)} /></label>
+          <label><span>Color</span><input value={vehicleFacts.color} onChange={(event) => updateVehicleFact("color", event.target.value)} /></label>
+          <label><span>Odometer</span><input value={vehicleFacts.mileage} onChange={(event) => updateVehicleFact("mileage", event.target.value)} /></label>
+          <label><span>Plate / license</span><input value={vehicleFacts.license} onChange={(event) => updateVehicleFact("license", event.target.value)} /></label>
+        </div>
+      </section>
+
+      <section className={styles.retailSection} id="lease-calculator">
+        <header>
+          <span>Lease calculator</span>
+          <strong>Use the dealership W2 calculator structure</strong>
+        </header>
+        <div className={styles.retailFieldGrid}>
+          <label><span>Wholesale cost</span><input value={leaseInputs.wholesaleCost} onChange={(event) => updateLeaseInput("wholesaleCost", event.target.value)} /></label>
+          <label><span>GPS cost</span><input value={leaseInputs.gpsCost} onChange={(event) => updateLeaseInput("gpsCost", event.target.value)} /></label>
+          <label><span>Warranty cost</span><input value={leaseInputs.warrantyCost} onChange={(event) => updateLeaseInput("warrantyCost", event.target.value)} /></label>
+          <label><span>Other roadworthy cost</span><input value={leaseInputs.otherRoadWorthyCost} onChange={(event) => updateLeaseInput("otherRoadWorthyCost", event.target.value)} /></label>
+          <label><span>Multiplier</span><input value={leaseInputs.multiplier} onChange={(event) => updateLeaseInput("multiplier", event.target.value)} /></label>
+          <label><span>Added items over term</span><input value={leaseInputs.additionalItems} onChange={(event) => updateLeaseInput("additionalItems", event.target.value)} /></label>
+          <label><span>Sales tax rate</span><input value={leaseInputs.salesTaxRate} onChange={(event) => updateLeaseInput("salesTaxRate", event.target.value)} /></label>
+          <label><span>Title fee</span><input value={leaseInputs.titleFee} onChange={(event) => updateLeaseInput("titleFee", event.target.value)} /></label>
+          <label><span>Registration fee</span><input value={leaseInputs.registrationFee} onChange={(event) => updateLeaseInput("registrationFee", event.target.value)} /></label>
+          <label><span>Document prep fee</span><input value={leaseInputs.documentPreparationFee} onChange={(event) => updateLeaseInput("documentPreparationFee", event.target.value)} /></label>
+          <label><span>Down payment</span><input value={leaseInputs.downPayment} onChange={(event) => updateLeaseInput("downPayment", event.target.value)} /></label>
+          <label><span>Frequency</span><select value={leaseInputs.paymentFrequency} onChange={(event) => updateLeaseInput("paymentFrequency", event.target.value)}><option>Weekly</option><option>BiWeekly</option><option>Monthly</option></select></label>
+          <label><span>Contract length</span><input value={leaseInputs.contractLength} onChange={(event) => updateLeaseInput("contractLength", event.target.value)} /></label>
+          <label><span>Capitalized cost reduction</span><input readOnly value={formatCurrency(calculator.capitalizedCostReductionCents)} /></label>
+          <label><span>Origination fee</span><input value={leaseInputs.originationFee} onChange={(event) => updateLeaseInput("originationFee", event.target.value)} /></label>
+          <label><span>Service facility</span><input value={leaseFacts.serviceFacility} onChange={(event) => updateLeaseFact("serviceFacility", event.target.value)} /></label>
+          <label><span>Facility phone</span><input value={leaseFacts.serviceFacilityPhone} onChange={(event) => updateLeaseFact("serviceFacilityPhone", event.target.value)} /></label>
+        </div>
+        <div className={styles.leaseCalculatorSummary}>
+          <div><span>Gross cap cost</span><strong>{formatCurrency(calculator.grossCapitalizedCostCents)}</strong></div>
+          <div><span>Base payment</span><strong>{formatCurrency(calculator.basePeriodicPaymentCents)}</strong></div>
+          <div><span>Due at signing</span><strong>{formatCurrency(calculator.amountDueAtSigningCents)}</strong></div>
+          <div><span>Costs / taxes / fees</span><strong>{formatCurrency(calculator.costsTaxesFeesCents)}</strong></div>
+          <div><span>Total payments</span><strong>{formatCurrency(calculator.totalOfPaymentsCents)}</strong></div>
+          <div><span>Dealer gross</span><strong>{formatCurrency(calculator.dealerGrossProfitCents)}</strong></div>
+          <button type="button" onClick={() => onAmountChange(formatCurrency(calculator.grossCapitalizedCostCents))}>Use calculated amount</button>
+        </div>
+      </section>
+
+      <section className={styles.retailSection} id="lease-contracts">
+        <header>
+          <span>Lease forms</span>
+          <strong>Lease-to-own packet</strong>
+        </header>
+        <div className={styles.retailPacketLauncher}>
+          <div>
+            <span>Packet readiness</span>
+            <strong>{contractPacket ? `${contractPacket.packetNumber} archived` : `${preparedPacketCount}/${packetFormCount} packet forms ready`}</strong>
+            <small>Open the drawer to prepare the lease agreement, binder, Exhibit A, all addenda, and inspection form.</small>
+          </div>
+          <button type="button" onClick={() => setPacketDrawerOpen(true)}>Open lease packet</button>
+        </div>
+
+        {packetDrawerOpen ? (
+          <div className={styles.retailPacketDrawerBackdrop} role="presentation">
+            <aside className={styles.retailPacketDrawer} aria-label="Lease-to-own packet drawer">
+              <header>
+                <div>
+                  <span>Lease-to-own packet</span>
+                  <strong>Prepare, generate, and review lease documents</strong>
+                  <small>Lease forms stay out of the main workspace until staff needs to review, send, print, or archive them.</small>
+                </div>
+                <button type="button" onClick={() => setPacketDrawerOpen(false)}>Close</button>
+              </header>
+              <div className={styles.retailFormsCommand}>
+                <div>
+                  <span>Packet forms ready</span>
+                  <strong>{preparedPacketCount}/{packetFormCount}</strong>
+                  <small>Prepare the full lease-to-own packet, then remove any addendum that does not apply before generation.</small>
+                </div>
+                <button type="button" onClick={prepareRequiredForms}>Prepare full packet</button>
+                <button disabled={packetStatus.kind === "generating"} type="button" onClick={() => void generateLeasePacket()}>
+                  {packetStatus.kind === "generating" ? "Generating..." : "Generate lease packet"}
+                </button>
+                <button disabled={!contractPacket} type="button" onClick={openPacketPreview}>Preview generated packet</button>
+              </div>
+              {packetStatus.kind !== "idle" ? <p className={packetStatus.kind === "error" ? styles.retailPacketError : styles.retailPacketStatus}>{packetStatus.message}</p> : null}
+              {contractPacket ? (
+                <div className={styles.retailPacketArchive} aria-label="Generated lease packet archive">
+                  <div>
+                    <span>Archived packet</span>
+                    <strong>{contractPacket.packetNumber}</strong>
+                    <small>{contractPacket.documents.length} document(s) generated · {new Date(contractPacket.generatedAt).toLocaleString()}</small>
+                  </div>
+                  <button type="button" onClick={openPacketPreview}>Preview packet</button>
+                  <button disabled={!contractPacket.delivery.downloadReady} type="button" onClick={downloadPacket}>Download form</button>
+                  <button disabled={!contractPacket.delivery.printReady} type="button" onClick={printPacket}>Print form</button>
+                  <button disabled={!contractPacket.delivery.textReady} type="button" onClick={() => queuePacketDelivery("text")}>Text link</button>
+                  <button disabled={!contractPacket.delivery.emailReady} type="button" onClick={() => queuePacketDelivery("email")}>Email link</button>
+                  <small>{contractPacket.delivery.providerHoldReason}</small>
+                </div>
+              ) : null}
+              <div className={styles.retailFormsGrid}>
+                {LEASE_TO_OWN_FORM_PACKET.map((form) => {
+                  const prepared = preparedForms.includes(form.id);
+                  return (
+                    <label className={prepared ? styles.retailFormReady : undefined} key={form.id}>
+                      <input checked={prepared} onChange={() => togglePreparedForm(form.id)} type="checkbox" />
+                      <span>{form.category}</span>
+                      <strong>{form.label}</strong>
+                      <small>{form.description}</small>
+                      <em>{form.trigger}</em>
+                      <b>{form.sourceFileName}</b>
+                    </label>
+                  );
+                })}
+              </div>
+              {packetPreviewOpen && contractPacket ? (
+                <div className={styles.retailPacketPreviewBackdrop} role="presentation">
+                  <aside className={styles.retailPacketPreviewDrawer} aria-label="Lease packet preview">
+                    <header>
+                      <div>
+                        <span>Packet preview</span>
+                        <strong>{contractPacket.packetNumber}</strong>
+                        <small>Review generated lease forms before download, print, text, or email.</small>
+                      </div>
+                      <button type="button" onClick={() => setPacketPreviewOpen(false)}>Close</button>
+                    </header>
+                    <div className={styles.retailPacketPreviewBody}>
+                      <nav aria-label="Generated lease forms">
+                        {contractPacket.documents.map((document) => (
+                          <button
+                            className={document.formId === previewDocument?.formId ? styles.retailPacketPreviewActive : undefined}
+                            key={document.formId}
+                            onClick={() => setPreviewFormId(document.formId)}
+                            type="button"
+                          >
+                            {document.label}
+                          </button>
+                        ))}
+                      </nav>
+                      <section>
+                        <div>
+                          <span>Reviewing</span>
+                          <strong>{previewDocument?.label ?? "Generated lease form"}</strong>
+                        </div>
+                        {previewDocument?.contentBase64 && previewDocument.contentType === "application/pdf" ? (
+                          <iframe src={documentDataUrl(previewDocument)} title={previewDocument.label} />
+                        ) : (
+                          <iframe srcDoc={previewDocument?.html ?? ""} title={previewDocument?.label ?? "Generated lease form preview"} />
+                        )}
+                      </section>
+                    </div>
+                  </aside>
+                </div>
+              ) : null}
+            </aside>
+          </div>
+        ) : null}
+      </section>
+    </div>
+  );
+}
+
 export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter }) {
   const [workflowId, setWorkflowId] = useState<DealWorkflowId>("retail-sale");
   const [summaryOpen, setSummaryOpen] = useState(false);
@@ -852,11 +1322,22 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
       </section>
 
       <nav className={styles.retailSectionJumps} aria-label="Retail sale section jumps">
-        <a href="#retail-applicant">Applicant</a>
-        <a href="#retail-vehicle">Vehicle</a>
-        <a href="#retail-trade">Trade-In</a>
-        <a href="#retail-deal">Deal</a>
-        <a href="#retail-contracts">Forms</a>
+        {workflow.id === "lease-to-own" ? (
+          <>
+            <a href="#lease-applicant">Applicant</a>
+            <a href="#lease-vehicle">Vehicle</a>
+            <a href="#lease-calculator">Calculator</a>
+            <a href="#lease-contracts">Forms</a>
+          </>
+        ) : (
+          <>
+            <a href="#retail-applicant">Applicant</a>
+            <a href="#retail-vehicle">Vehicle</a>
+            <a href="#retail-trade">Trade-In</a>
+            <a href="#retail-deal">Deal</a>
+            <a href="#retail-contracts">Forms</a>
+          </>
+        )}
         <button type="button" onClick={() => setSummaryOpen(true)}>Checks</button>
       </nav>
 
@@ -893,6 +1374,30 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
               />
               <label className={`${styles.dealStartWide} ${styles.retailNote}`}><span>{FIELD_LABELS.note}</span><textarea value={form.note} onChange={(event) => update("note", event.target.value)} placeholder="Optional context staff needs before working this retail sale" rows={3} /></label>
               <div className={styles.retailNextActionBar} aria-label="Retail sale next actions">
+                <div>
+                  <span>Next action</span>
+                  <strong>{ready ? "Ready to complete intake" : "Save now, complete when required facts are ready"}</strong>
+                </div>
+                <button type="button" onClick={saveDraft}>Save draft</button>
+                <button disabled={!ready || status.kind === "saving"} onClick={() => void startDeal()} type="button">
+                  {status.kind === "saving" ? "Completing..." : "Complete intake"}
+                </button>
+              </div>
+            </>
+          ) : workflow.id === "lease-to-own" ? (
+            <>
+              <div className={styles.dealStartForm}>
+                <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => update("customerId", event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+                <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
+              </div>
+              <LeaseToOwnExecutionDesk
+                customerName={selectedCustomer?.name ?? "Customer not selected"}
+                onAmountChange={(value) => update("amount", value)}
+                onVehicleChange={(value) => update("vehicle", value)}
+                vehicle={form.vehicle}
+              />
+              <label className={`${styles.dealStartWide} ${styles.retailNote}`}><span>{FIELD_LABELS.note}</span><textarea value={form.note} onChange={(event) => update("note", event.target.value)} placeholder="Optional context staff needs before working this lease-to-own deal" rows={3} /></label>
+              <div className={styles.retailNextActionBar} aria-label="Lease-to-own next actions">
                 <div>
                   <span>Next action</span>
                   <strong>{ready ? "Ready to complete intake" : "Save now, complete when required facts are ready"}</strong>
