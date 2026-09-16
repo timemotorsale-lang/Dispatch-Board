@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { DAILY_RENTAL_FORM_PACKET, requiredDailyRentalFormIds, type DailyRentalFormItem } from "@/lib/daily-rental-form-packet";
 import { allLeaseToOwnFormIds, calculateLeaseToOwn, LEASE_TO_OWN_FORM_PACKET, type LeasePaymentFrequency, type LeaseToOwnCalculatorInput } from "@/lib/lease-to-own-form-packet";
 import { MN_SALE_FORM_PACKET, requiredMinnesotaSaleFormIds, type MinnesotaSaleFormItem } from "@/lib/mn-vehicle-sale-form-packet";
 import { PDFDocument, StandardFonts } from "pdf-lib";
@@ -24,7 +25,7 @@ function text(value: unknown, fallback: string, max = 240) {
   return result.slice(0, max);
 }
 
-type PacketFormItem = MinnesotaSaleFormItem | typeof LEASE_TO_OWN_FORM_PACKET[number];
+type PacketFormItem = DailyRentalFormItem | MinnesotaSaleFormItem | typeof LEASE_TO_OWN_FORM_PACKET[number];
 
 function formIds(value: unknown, forms: PacketFormItem[], requiredIds: string[]) {
   if (!Array.isArray(value)) return requiredIds;
@@ -43,6 +44,37 @@ function vehicleFacts(value: unknown) {
     trim: text(vehicle.trim, "Not captured"),
     vin: text(vehicle.vin, "Not captured"),
     year: text(vehicle.year, "Not captured")
+  };
+}
+
+function dailyRentalFacts(value: unknown) {
+  const rental = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  return {
+    additionalDriverName: text(rental.additionalDriverName, "None"),
+    additionalDriverStatus: text(rental.additionalDriverStatus, "None"),
+    cardLast4: text(rental.cardLast4, "Not captured"),
+    depositHold: text(rental.depositHold, "$0.00"),
+    dropoffDate: text(rental.dropoffDate, "Not captured"),
+    dropoffTime: text(rental.dropoffTime, "Not captured"),
+    estimatedAuthorization: text(rental.estimatedAuthorization, "$0.00"),
+    estimatedRentalCharges: text(rental.estimatedRentalCharges, "$0.00"),
+    fuelOut: text(rental.fuelOut, "Not captured"),
+    insuranceCarrier: text(rental.insuranceCarrier, "Not captured"),
+    insurancePolicy: text(rental.insurancePolicy, "Not captured"),
+    licenseNumber: text(rental.licenseNumber, "Not captured"),
+    licenseState: text(rental.licenseState, "Not captured"),
+    licenseStatus: text(rental.licenseStatus, "Not captured"),
+    mileageOut: text(rental.mileageOut, "Not captured"),
+    mileagePlan: text(rental.mileagePlan, "Not captured"),
+    paymentMethod: text(rental.paymentMethod, "Not captured"),
+    pickupDate: text(rental.pickupDate, "Not captured"),
+    pickupTime: text(rental.pickupTime, "Not captured"),
+    protectionPlan: text(rental.protectionPlan, "Not captured"),
+    ratePerDay: text(rental.ratePerDay, "$0.00"),
+    rentalDays: text(rental.rentalDays, "1"),
+    returnFuel: text(rental.returnFuel, "Not captured"),
+    secondaryId: text(rental.secondaryId, "Not captured"),
+    useRestriction: text(rental.useRestriction, "Not captured")
   };
 }
 
@@ -346,6 +378,312 @@ function buildDocumentHtml(input: {
 </html>`;
 }
 
+const MINNESOTA_RENTAL_COVERAGE_NOTICE = "Under Minnesota law, a personal automobile insurance policy must: (1) cover the rental of this motor vehicle against damage to the vehicle and against loss of use of the vehicle; and (2) extend the policy's basic economic loss benefits, residual liability insurance, and uninsured and underinsured motorist coverages to the operation or use of a rented motor vehicle. Therefore, purchase of any collision damage waiver or similar insurance affected in this rental contract is not necessary. In addition, purchase of any additional liability insurance is not necessary if your policy was issued in Minnesota unless you wish to have coverage for liability that exceeds the amount specified in your personal automobile insurance policy.";
+
+function rentalDocumentSections(formId: string, input: {
+  customerName: string;
+  dealNumber: string;
+  generatedAt: string;
+  rental: ReturnType<typeof dailyRentalFacts>;
+  vehicle: ReturnType<typeof vehicleFacts>;
+}) {
+  const vehicleLine = `${input.vehicle.year} ${input.vehicle.make} ${input.vehicle.model} ${input.vehicle.color}`.replace(/\s+/g, " ").trim();
+  const commonRows: Array<[string, string]> = [
+    ["Renter", input.customerName],
+    ["Rental agreement #", input.dealNumber],
+    ["Vehicle", vehicleLine || "Not captured"],
+    ["VIN", input.vehicle.vin],
+    ["Stock #", input.vehicle.stockNumber],
+    ["Pickup", `${input.rental.pickupDate} ${input.rental.pickupTime}`],
+    ["Return due", `${input.rental.dropoffDate} ${input.rental.dropoffTime}`],
+    ["Daily rate", input.rental.ratePerDay],
+    ["Estimated rental charges", input.rental.estimatedRentalCharges],
+    ["Deposit / hold", input.rental.depositHold],
+    ["Estimated authorization", input.rental.estimatedAuthorization]
+  ];
+
+  const sectionsByForm: Record<string, Array<{ heading: string; rows?: Array<[string, string]>; bullets?: string[] }>> = {
+    "daily-rental-agreement": [
+      {
+        heading: "Minnesota daily rental agreement",
+        rows: [
+          ["Owner / rental company", "Time Motor Sales, Inc."],
+          ["Renter", input.customerName],
+          ["Agreement date", input.generatedAt],
+          ["Rental agreement #", input.dealNumber],
+          ["Governing law", "Minnesota law applies unless a nonwaivable law requires otherwise."]
+        ]
+      },
+      { heading: "Rental facts", rows: commonRows },
+      {
+        heading: "Minnesota insurance and coverage notice",
+        bullets: [
+          MINNESOTA_RENTAL_COVERAGE_NOTICE,
+          "Renter acknowledges that this notice must be read and understood before any collision damage waiver, additional liability product, or similar rental coverage is accepted.",
+          "If damage to the rented vehicle is covered by a Minnesota plan of reparation security, payment by the reparation obligor within the time allowed by Minnesota law is acceptable, and prior payment by the renter is not required.",
+          "Loss-of-use compensation for a damaged rented motor vehicle is limited by Minnesota law to a period no longer than 14 days."
+        ]
+      },
+      {
+        heading: "Eligibility, identity, and authorized drivers",
+        rows: [
+          ["License status", input.rental.licenseStatus],
+          ["License state", input.rental.licenseState],
+          ["License number", input.rental.licenseNumber],
+          ["Secondary ID", input.rental.secondaryId],
+          ["Additional driver status", input.rental.additionalDriverStatus],
+          ["Additional driver name", input.rental.additionalDriverName]
+        ]
+      },
+      {
+        heading: "Core promises by renter",
+        bullets: [
+          "Renter represents that every driver is properly licensed, legally eligible to drive, not impaired, and listed as an authorized driver before operating the vehicle.",
+          "Renter accepts possession only for the rental period, vehicle, rate, return duties, geographic limits, and use restrictions shown in this agreement.",
+          "Renter will return the vehicle on time, to the agreed location, with all keys, fobs, plates, registration items, equipment, accessories, and the required fuel level.",
+          "Renter will keep the vehicle locked, safeguarded, and used only in a careful, lawful, and reasonable manner.",
+          "Renter will immediately stop using the vehicle and notify Time Motor Sales if a warning light, mechanical concern, unsafe condition, accident, theft, impound, citation, insurance issue, or loss event occurs.",
+          "Renter will not transfer, subrent, pledge, conceal, abandon, sell, or claim ownership of the vehicle.",
+          "Renter authorizes Time Motor Sales to contact law enforcement, insurers, lienholders, card issuers, employers, additional drivers, emergency contacts, and claim administrators as reasonably necessary to protect the vehicle, collect amounts owed, recover the vehicle, or process claims."
+        ]
+      },
+      {
+        heading: "Charges, payment, hold, and collection",
+        bullets: [
+          "Renter is responsible for all rental charges, deposits, extensions, late return charges, mileage charges, fuel, cleaning, smoking/odor treatment, tolls, parking, traffic or camera citations, impound, towing, recovery, missing keys, missing equipment, damage, theft, loss, administrative costs, and other amounts allowed by this agreement and Minnesota law.",
+          "Renter authorizes Time Motor Sales to place and maintain the payment hold shown in the agreement and to charge the authorized payment method for amounts owed under the rental agreement, including post-return charges supported by the rental record.",
+          "Renter remains responsible for amounts not paid by personal insurance, employer insurance, card benefits, a third-party payer, or another responsible party.",
+          "Returned payments, chargebacks, payment reversals, false payment information, or failure to maintain an available payment method are material defaults.",
+          "Amounts not paid when due may be sent to collection, reported as permitted by law, and recovered with lawful collection costs, court costs, and attorney fees where allowed."
+        ]
+      },
+      {
+        heading: "Condition, damage, loss, and claims cooperation",
+        bullets: [
+          "The checkout condition report, return report, photos, videos, odometer, fuel reading, keys, equipment checklist, and staff notes are part of this agreement.",
+          "Renter must inspect the vehicle before leaving and request written notation of any visible pre-existing damage.",
+          "Renter is responsible for new loss or damage occurring during the rental period to the extent allowed by Minnesota law and subject to any valid, non-voided waiver or insurance payment.",
+          "Renter must preserve evidence, identify drivers and witnesses, obtain police or incident reports when required, and cooperate with Time Motor Sales and insurers.",
+          "Renter may not authorize repairs, dispose of parts, continue driving an unsafe vehicle, leave the scene unlawfully, or settle claims involving the vehicle without Time Motor Sales approval.",
+          "If the vehicle is damaged and a Minnesota reparation obligor covers the damage, payment by that obligor within the statutory timing is accepted; Time Motor Sales will not require prior renter payment in that covered circumstance."
+        ]
+      },
+      {
+        heading: "Default, recovery, and repossession right",
+        bullets: [
+          "Renter is in default if the vehicle is not returned when due, payment fails, the vehicle is used by an unauthorized driver, renter breaches a prohibited-use term, renter provides false information, the vehicle is abandoned or concealed, or Time Motor Sales reasonably believes the vehicle or public is at risk.",
+          "Upon default, Time Motor Sales may terminate the rental, demand immediate return, remotely disable or locate the vehicle where lawful and disclosed, recover the vehicle peacefully, notify law enforcement, and charge lawful recovery costs.",
+          "Renter releases Time Motor Sales from claims arising from lawful recovery of the vehicle from public property, dealership property, or any place where recovery may legally occur, except to the extent caused by Time Motor Sales' own nonwaivable legal fault."
+        ]
+      },
+      {
+        heading: "Indemnity and liability allocation",
+        bullets: [
+          "To the fullest extent permitted by Minnesota law, renter agrees to indemnify and hold Time Motor Sales harmless from claims, losses, damages, fines, penalties, citations, tolls, injuries, property damage, expenses, and attorney fees arising from renter's breach, prohibited use, unauthorized driver, false information, negligence, intentional misconduct, illegal use, or failure to cooperate.",
+          "This indemnity does not waive any duty, coverage, or liability that Minnesota law does not permit Time Motor Sales to waive or shift.",
+          "Nothing in this agreement limits liability for Time Motor Sales' own nonwaivable negligence, statutory duties, or obligations under Minnesota compulsory insurance law.",
+          "If any term is unenforceable, the remaining terms remain effective and the unenforceable term will be limited to the maximum lawful scope."
+        ]
+      },
+      {
+        heading: "Signature acknowledgement",
+        bullets: [
+          "Renter has read this agreement, received an opportunity to inspect the vehicle, understands optional coverage choices, and accepts the listed charges and obligations.",
+          "Renter acknowledges that the agreement is a rental only, with no purchase option and no ownership interest transferred.",
+          "Electronic signature, scanned signature, text/email delivery acknowledgement, or wet signature may be used as permitted by applicable law and dealership policy."
+        ]
+      }
+    ],
+    "rental-terms-conditions": [
+      {
+        heading: "Minnesota legal framework",
+        bullets: [
+          "This rental is intended to be a short-term Minnesota motor vehicle rental and not a lease-to-own, purchase, installment sale, bailment for repair, or transfer of title.",
+          "The agreement must be read together with the Minnesota insurance and optional-coverage notice supplied in the Daily Rental Agreement.",
+          "Any optional coverage, waiver, or insurance product must be accepted in writing and may not be treated as mandatory unless Minnesota law and an approved program allow it."
+        ]
+      },
+      {
+        heading: "Authorized and prohibited use",
+        bullets: [
+          "No unauthorized driver may operate the vehicle.",
+          "No rideshare, delivery, racing, towing, pushing, off-road use, illegal activity, impaired driving, or use outside the approved geographic restriction unless approved in writing.",
+          "The dealership may demand immediate return or recover the vehicle when the agreement is violated, the vehicle appears abandoned, payment fails, or the vehicle is not returned as agreed.",
+          "Renter must not repair, alter, disable, remove GPS/telematics, remove plates, modify equipment, or abandon the vehicle without dealership approval.",
+          "Renter may not use the vehicle while impaired, to commit a crime, to carry hazardous materials, to transport persons or property for hire, to tow or push anything, in a speed contest, in driver training, outside the approved territory, or on roads unsuitable for ordinary passenger vehicles.",
+          "Renter may not permit smoking, vaping, pets, commercial signage, weapons transport except as legally permitted, or any use that creates an unusual cleaning, odor, safety, impound, or forfeiture risk unless expressly approved in writing."
+        ]
+      },
+      {
+        heading: "Return duties",
+        rows: [
+          ["Use restriction", input.rental.useRestriction],
+          ["Mileage plan", input.rental.mileagePlan],
+          ["Fuel return rule", input.rental.returnFuel]
+        ]
+      },
+      {
+        heading: "Fees and enforcement",
+        bullets: [
+          "Time Motor Sales may assess lawful charges for late return, unauthorized extension, excess mileage, fuel shortage, cleaning, smoke/odor treatment, tolls, tickets, parking, storage, towing, impound, recovery, lost keys, missing equipment, and administrative handling.",
+          "Renter must promptly provide updated contact, location, payment, insurance, and claim information upon request.",
+          "No delay by Time Motor Sales in enforcing a right is a waiver of that right."
+        ]
+      }
+    ],
+    "damage-loss-responsibility": [
+      {
+        heading: "Damage and loss responsibility",
+        bullets: [
+          "Unless a valid protection option applies and is not voided, renter is responsible for loss of or damage to the vehicle during the rental period to the extent allowed by law.",
+          "Responsibility may include repair or replacement cost, theft, loss of use, towing, storage, impound, administrative costs, diminished value, missing equipment, keys, and recovery costs where allowed by law.",
+          "Renter must immediately report damage, theft, accident, impound, or police contact and cooperate with the dealership, insurers, and law enforcement.",
+          "Protection options do not apply to prohibited use, unauthorized drivers, intentional damage, intoxicated driving, illegal use, misrepresentation, or failure to report an incident."
+        ]
+      }
+    ],
+    "protection-election": [
+      {
+        heading: "Minnesota optional coverage notice",
+        bullets: [
+          MINNESOTA_RENTAL_COVERAGE_NOTICE,
+          "Renter must initial or otherwise acknowledge this notice before any collision damage waiver, added liability product, personal accident product, personal effects product, or similar rental coverage is sold."
+        ]
+      },
+      {
+        heading: "Protection election",
+        rows: [
+          ["Selected option", input.rental.protectionPlan],
+          ["Customer insurance carrier", input.rental.insuranceCarrier],
+          ["Policy number", input.rental.insurancePolicy]
+        ]
+      },
+      {
+        heading: "Disclosure",
+        bullets: [
+          "Loss damage waiver or similar protection is optional unless a separate written program requirement approved for this transaction applies.",
+          "A collision damage waiver is not insurance and may duplicate protection available through Minnesota personal automobile insurance or a payment card benefit.",
+          "The renter should verify coverage, deductibles, exclusions, and claim requirements before declining any optional protection.",
+          "Accepted protection can be voided by prohibited use, unauthorized driver, misrepresentation, late return without approval, failure to report an incident, intentional damage, illegal use, intoxicated driving, or other exclusions approved for the applicable product.",
+          "Renter acknowledges the selected option above and confirms that no employee represented optional coverage as mandatory unless expressly required by a written, lawful, and applicable program rule."
+        ]
+      }
+    ],
+    "insurance-payment-authorization": [
+      {
+        heading: "Insurance and payment authorization",
+        rows: [
+          ["Payment method", input.rental.paymentMethod],
+          ["Card last 4", input.rental.cardLast4],
+          ["Deposit / hold", input.rental.depositHold],
+          ["Estimated authorization", input.rental.estimatedAuthorization],
+          ["Insurance carrier", input.rental.insuranceCarrier],
+          ["Policy number", input.rental.insurancePolicy]
+        ]
+      },
+      {
+        heading: "Charge authorization",
+        bullets: [
+          "Renter authorizes the dealership to place the stated authorization hold and charge amounts owed under the rental agreement.",
+          "Authorized charges may include rental charges, extensions, late return, fuel, mileage, tolls, tickets, citations, cleaning, smoking, lost keys, damage, recovery, towing, storage, and administrative fees where allowed by law.",
+          "Renter remains responsible for charges not paid by an insurer, payment card benefit, or other third party.",
+          "If an insurer or reparation obligor covers vehicle damage under Minnesota law, Time Motor Sales will accept payment by that obligor within the statutory claims timing and will not require prior renter payment for that covered damage.",
+          "Payment authorization survives return of the vehicle for charges discovered, received, or documented after return, including tolls, citations, damage estimates, insurance deductibles, and claim expenses."
+        ]
+      }
+    ],
+    "vehicle-condition-report": [
+      {
+        heading: "Checkout condition",
+        rows: [
+          ["Mileage out", input.rental.mileageOut],
+          ["Fuel out", input.rental.fuelOut],
+          ["Return fuel rule", input.rental.returnFuel],
+          ["Existing damage", "Document photos and notes before release"],
+          ["Keys / equipment", "Confirm with renter at checkout and return"]
+        ]
+      },
+      {
+        heading: "Return inspection",
+        bullets: [
+          "Staff should compare return condition to checkout photos and notes.",
+          "New damage, missing equipment, fuel shortage, cleaning issue, odor, late return, or mileage overage should be recorded before closing the rental.",
+          "Renter may request a copy of damage estimates, photos, and charge support where required by law."
+        ]
+      }
+    ],
+    "additional-driver-addendum": [
+      {
+        heading: "Additional driver",
+        rows: [
+          ["Driver status", input.rental.additionalDriverStatus],
+          ["Driver name", input.rental.additionalDriverName],
+          ["Required control", "Additional driver must meet license, age, eligibility, and signature requirements before operating the vehicle."]
+        ]
+      }
+    ],
+    "incident-reporting-instructions": [
+      {
+        heading: "Accident, theft, impound, or police contact",
+        bullets: [
+          "Stop safely, call emergency services when needed, and contact law enforcement when required by law.",
+          "Notify the dealership as soon as safely possible and provide a written incident report.",
+          "Collect other driver, witness, insurance, police report, and location information.",
+          "Do not admit fault, abandon the vehicle, authorize repairs, or continue driving an unsafe vehicle without dealership instruction.",
+          "Cooperate with the dealership, insurers, claims administrators, and law enforcement until the claim is closed."
+        ]
+      }
+    ]
+  };
+
+  return sectionsByForm[formId] ?? [{ heading: "Rental document", rows: commonRows }];
+}
+
+function buildRentalDocumentHtml(input: {
+  customerName: string;
+  dealNumber: string;
+  form: DailyRentalFormItem;
+  generatedAt: string;
+  rental: ReturnType<typeof dailyRentalFacts>;
+  vehicle: ReturnType<typeof vehicleFacts>;
+}) {
+  const sections = rentalDocumentSections(input.form.id, input);
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(input.form.label)}</title>
+  <style>
+    body { color: #061735; font-family: Arial, sans-serif; margin: 32px; }
+    h1 { font-size: 28px; margin: 0 0 6px; }
+    h2 { border-bottom: 1px solid #dbe6f8; font-size: 18px; margin: 26px 0 10px; padding-bottom: 8px; }
+    p, li { color: #34445d; line-height: 1.45; }
+    .meta { color: #52647d; margin: 0 0 20px; }
+    table { border-collapse: collapse; margin-top: 12px; width: 100%; }
+    th, td { border: 1px solid #dbe6f8; padding: 10px; text-align: left; vertical-align: top; }
+    th { background: #f6f9ff; color: #34445d; width: 34%; }
+    .notice { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; color: #7c2d12; margin: 18px 0; padding: 12px; }
+    .signature { display: grid; gap: 24px; grid-template-columns: 1fr 1fr; margin-top: 42px; }
+    .line { border-top: 1px solid #061735; padding-top: 8px; }
+  </style>
+</head>
+<body>
+  <h1>${escapeHtml(input.form.label)}</h1>
+  <p class="meta">Generated ${escapeHtml(input.generatedAt)} · ${escapeHtml(input.form.basis)} · ${escapeHtml(input.form.trigger)}</p>
+  <p class="notice">Operational template for Time Motor Sales review. Final customer-facing language should be reviewed by dealership counsel for Minnesota rental law, insurance, waiver, and consumer disclosure requirements.</p>
+  ${sections.map((section) => `
+    <h2>${escapeHtml(section.heading)}</h2>
+    ${section.rows ? `<table><tbody>${section.rows.map(([label, value]) => `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`).join("")}</tbody></table>` : ""}
+    ${section.bullets ? `<ul>${section.bullets.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}
+  `).join("")}
+  <div class="signature">
+    <div class="line">Renter signature / date</div>
+    <div class="line">Dealer representative / date</div>
+  </div>
+</body>
+</html>`;
+}
+
 export async function generateUnifiedCrmContractPacket(
   actor: AuthenticatedUser | null,
   input: UnifiedCrmContractPacketInput,
@@ -357,9 +695,17 @@ export async function generateUnifiedCrmContractPacket(
 
   const now = dependencies.now?.() ?? new Date();
   const generatedAt = now.toISOString();
-  const packetType = input.packetType === "LEASE_TO_OWN" ? "LEASE_TO_OWN" : "MINNESOTA_RETAIL_SALE";
-  const packetForms: PacketFormItem[] = packetType === "LEASE_TO_OWN" ? LEASE_TO_OWN_FORM_PACKET : MN_SALE_FORM_PACKET;
-  const requiredIds = packetType === "LEASE_TO_OWN" ? allLeaseToOwnFormIds() : requiredMinnesotaSaleFormIds();
+  const packetType = input.packetType === "LEASE_TO_OWN" ? "LEASE_TO_OWN" : input.packetType === "DAILY_RENTAL" ? "DAILY_RENTAL" : "MINNESOTA_RETAIL_SALE";
+  const packetForms: PacketFormItem[] = packetType === "LEASE_TO_OWN"
+    ? LEASE_TO_OWN_FORM_PACKET
+    : packetType === "DAILY_RENTAL"
+      ? DAILY_RENTAL_FORM_PACKET
+      : MN_SALE_FORM_PACKET;
+  const requiredIds = packetType === "LEASE_TO_OWN"
+    ? allLeaseToOwnFormIds()
+    : packetType === "DAILY_RENTAL"
+      ? requiredDailyRentalFormIds()
+      : requiredMinnesotaSaleFormIds();
   const selectedIds = formIds(input.preparedFormIds, packetForms, requiredIds);
   const selectedForms = packetForms.filter((form) => selectedIds.includes(form.id));
   if (selectedForms.length === 0) {
@@ -375,6 +721,7 @@ export async function generateUnifiedCrmContractPacket(
   const feeTotal = text(input.feeTotal, "$0.00");
   const paymentFunding = text(input.paymentFunding, "To be confirmed");
   const packetId = `contract-packet-${crypto.randomUUID()}`;
+  const rentalInput = dailyRentalFacts(input.dailyRental);
   const leaseInput = leaseCalculatorInput(input.leaseCalculator);
   const leaseOutput = calculateLeaseToOwn(leaseInput);
   const leaseRows: Array<[string, string]> = packetType === "LEASE_TO_OWN" ? [
@@ -417,23 +764,32 @@ export async function generateUnifiedCrmContractPacket(
       category: form.category,
       downloadFileName: `${form.id}-${packet}.${packetType === "LEASE_TO_OWN" ? "pdf" : "html"}`,
       formId: form.id,
-      html: buildDocumentHtml({
-        customerName,
-        dealNumber,
-        dealType,
-        feeTotal,
-        generatedAt,
-        label: form.label,
-        paymentFunding,
-        salePrice,
-        sourceBasis: form.basis,
-        trigger: form.trigger,
-        vehicle,
-        extraRows: leaseRows,
-        packetIntro: packetType === "LEASE_TO_OWN"
-          ? "Generated lease-to-own packet preview from dealership source templates and calculator inputs. Confirm current legal/compliance language before customer signature."
-          : undefined
-      }),
+      html: packetType === "DAILY_RENTAL"
+        ? buildRentalDocumentHtml({
+            customerName,
+            dealNumber,
+            form: form as DailyRentalFormItem,
+            generatedAt,
+            rental: rentalInput,
+            vehicle
+          })
+        : buildDocumentHtml({
+            customerName,
+            dealNumber,
+            dealType,
+            feeTotal,
+            generatedAt,
+            label: form.label,
+            paymentFunding,
+            salePrice,
+            sourceBasis: form.basis,
+            trigger: form.trigger,
+            vehicle,
+            extraRows: leaseRows,
+            packetIntro: packetType === "LEASE_TO_OWN"
+              ? "Generated lease-to-own packet preview from dealership source templates and calculator inputs. Confirm current legal/compliance language before customer signature."
+              : undefined
+          }),
       label: form.label,
       signatureStatus: "UNSIGNED" as const,
       sourceBasis: form.basis,
@@ -450,7 +806,9 @@ export async function generateUnifiedCrmContractPacket(
         at: generatedAt,
         detail: packetType === "LEASE_TO_OWN"
           ? `${documents.length} lease-to-own form(s) generated and archived.`
-          : `${documents.length} Minnesota sale form(s) generated and archived.`
+          : packetType === "DAILY_RENTAL"
+            ? `${documents.length} daily rental form(s) generated and archived.`
+            : `${documents.length} Minnesota sale form(s) generated and archived.`
       }
     ],
     contractVersion: UNIFIED_CRM_CONTRACT_PACKET_CONTRACT_VERSION,

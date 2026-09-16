@@ -206,4 +206,73 @@ describe("Unified CRM contract packet route", () => {
     ]);
     expect(packet.documents.every((document: { contentType: string }) => document.contentType === "application/pdf")).toBe(true);
   });
+
+  it("generates a daily rental signing packet with rental agreement controls", async () => {
+    const created = await POST(new Request("http://crm.local/api/crm/v1/contract-packets", {
+      body: JSON.stringify({
+        customerName: "Rental Customer",
+        dailyRental: {
+          cardLast4: "4242",
+          depositHold: "$300.00",
+          dropoffDate: "2026-09-16",
+          dropoffTime: "10:00",
+          estimatedAuthorization: "$349.00",
+          estimatedRentalCharges: "$49.00",
+          fuelOut: "Full",
+          insuranceCarrier: "State Farm",
+          insurancePolicy: "POL-123",
+          licenseNumber: "D123456789",
+          licenseState: "MN",
+          licenseStatus: "Valid",
+          mileageOut: "104,210",
+          mileagePlan: "Local use / daily mileage cap",
+          paymentMethod: "Credit card",
+          pickupDate: "2026-09-15",
+          pickupTime: "10:00",
+          protectionPlan: "Customer insurance on file",
+          ratePerDay: "$49.00",
+          rentalDays: "1",
+          returnFuel: "Return full",
+          secondaryId: "Not needed",
+          useRestriction: "Minnesota local use"
+        },
+        dealNumber: "B93182",
+        dealType: "Daily Rental",
+        packetType: "DAILY_RENTAL",
+        vehicle: {
+          color: "White",
+          make: "Ford",
+          model: "Escape",
+          stockNumber: "B93182",
+          vin: "1FMCU9G66LUB93182",
+          year: "2020"
+        }
+      }),
+      method: "POST"
+    }));
+
+    expect(created.status).toBe(201);
+    const packet = await created.json();
+    expect(packet.documents.map((document: { formId: string }) => document.formId)).toEqual([
+      "daily-rental-agreement",
+      "rental-terms-conditions",
+      "damage-loss-responsibility",
+      "protection-election",
+      "insurance-payment-authorization",
+      "vehicle-condition-report",
+      "incident-reporting-instructions"
+    ]);
+    expect(packet.documents[0].contentType).toBe("text/html");
+    expect(packet.documents[0].html).toContain("Rental Customer");
+    expect(packet.documents[0].html).toContain("Estimated authorization");
+    expect(packet.documents[0].html).toContain("Minnesota daily rental agreement");
+    expect(packet.documents[0].html).toContain("Minnesota insurance and coverage notice");
+    expect(packet.documents[0].html).toContain("Default, recovery, and repossession right");
+    expect(packet.documents[0].html).toContain("Indemnity and liability allocation");
+    expect(packet.documents[2].html).toContain("Damage and loss responsibility");
+    expect(packet.documents[3].html).toContain("Minnesota optional coverage notice");
+    expect(packet.documents[4].html).toContain("Card last 4");
+    expect(packet.delivery).toMatchObject({ downloadReady: true, emailReady: true, printReady: true, textReady: true });
+    expect(packet.auditTrail[0].detail).toContain("daily rental form");
+  });
 });

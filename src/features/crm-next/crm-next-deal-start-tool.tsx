@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 
 import { CRM_NEXT_DEALS_HREF } from "@/features/crm/crm-route-authority";
+import { DAILY_RENTAL_FORM_PACKET, requiredDailyRentalFormIds } from "@/lib/daily-rental-form-packet";
 import { allLeaseToOwnFormIds, calculateLeaseToOwn, LEASE_TO_OWN_FORM_PACKET, type LeasePaymentFrequency, type LeaseToOwnCalculatorInput } from "@/lib/lease-to-own-form-packet";
 import { MN_SALE_FORM_PACKET } from "@/lib/mn-vehicle-sale-form-packet";
 import type { CrmNextCommandCenter } from "@/server/crm-next/read-model";
@@ -851,6 +852,12 @@ function DailyRentalExecutionDesk({
   statusKind: "idle" | "saving" | "success" | "error";
   vehicle: string;
 }) {
+  const [preparedForms, setPreparedForms] = useState<string[]>([]);
+  const [contractPacket, setContractPacket] = useState<GeneratedContractPacket | null>(null);
+  const [packetStatus, setPacketStatus] = useState<{ kind: "idle" | "generating" | "ready" | "error"; message: string }>({ kind: "idle", message: "" });
+  const [packetDrawerOpen, setPacketDrawerOpen] = useState(false);
+  const [packetPreviewOpen, setPacketPreviewOpen] = useState(false);
+  const [previewFormId, setPreviewFormId] = useState<string | null>(null);
   const [vehicleFacts, setVehicleFacts] = useState({
     color: "",
     licensePlate: "",
@@ -901,6 +908,9 @@ function DailyRentalExecutionDesk({
     rentalFacts.cardLast4,
     rentalFacts.insuranceCarrier || rentalFacts.protectionPlan !== "Customer insurance on file"
   ].filter(Boolean).length;
+  const requiredRentalForms = requiredDailyRentalFormIds();
+  const preparedRequiredCount = requiredRentalForms.filter((id) => preparedForms.includes(id)).length;
+  const previewDocument = contractPacket?.documents.find((document) => document.formId === previewFormId) ?? contractPacket?.documents[0] ?? null;
 
   function updateRentalFact(key: keyof typeof rentalFacts, value: string) {
     const nextFacts = { ...rentalFacts, [key]: value };
@@ -945,6 +955,98 @@ function DailyRentalExecutionDesk({
   }
 
   function useAuthorizationTotal() {
+    onAmountChange(formatCurrency(authorizationCents));
+  }
+
+  function togglePreparedForm(id: string) {
+    setPreparedForms((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  }
+
+  function prepareRequiredForms() {
+    setPreparedForms((current) => Array.from(new Set([...current, ...requiredRentalForms])));
+  }
+
+  function packetHtml() {
+    if (!contractPacket) return "";
+    return `<!doctype html><html><head><meta charset="utf-8"><title>${contractPacket.packetNumber}</title></head><body>${contractPacket.documents.map((document) => document.html).join("<hr />")}</body></html>`;
+  }
+
+  function openPacketPreview() {
+    if (!contractPacket) return;
+    setPreviewFormId((current) => current ?? contractPacket.documents[0]?.formId ?? null);
+    setPacketPreviewOpen(true);
+  }
+
+  function downloadPacket() {
+    if (!contractPacket) return;
+    const url = URL.createObjectURL(new Blob([packetHtml()], { type: "text/html" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${contractPacket.packetNumber}.html`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function printPacket() {
+    if (!contractPacket) return;
+    const printWindow = window.open("", "_blank", "noopener,noreferrer");
+    if (!printWindow) {
+      setPacketStatus({ kind: "error", message: "Print window was blocked. Download the rental packet instead." });
+      return;
+    }
+    printWindow.document.write(packetHtml());
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  }
+
+  function queuePacketDelivery(channel: "email" | "text") {
+    if (!contractPacket) return;
+    setPacketStatus({ kind: "ready", message: `${channel === "email" ? "Email" : "Text"} delivery link queued for ${contractPacket.packetNumber}; signed provider delivery remains governed by CRM communications controls.` });
+  }
+
+  async function generateRentalPacket() {
+    setPacketStatus({ kind: "generating", message: "Generating and archiving daily rental packet..." });
+    const response = await fetch("/api/crm/v1/contract-packets", {
+      body: JSON.stringify({
+        customerName,
+        dailyRental: {
+          ...rentalFacts,
+          estimatedAuthorization: formatCurrency(authorizationCents),
+          estimatedRentalCharges: formatCurrency(estimatedRentalCents),
+          mileageOut: vehicleFacts.mileageOut,
+          rentalDays: String(rentalDays)
+        },
+        dealNumber: vehicleFacts.stockNumber || vehicle || undefined,
+        dealType: "Daily Rental",
+        feeTotal: rentalFacts.depositHold,
+        idempotencyKey: crypto.randomUUID(),
+        packetType: "DAILY_RENTAL",
+        paymentFunding: `${rentalFacts.paymentMethod} hold ${rentalFacts.cardLast4 ? `ending ${rentalFacts.cardLast4}` : "not captured"}`,
+        preparedFormIds: preparedForms.length > 0 ? preparedForms : requiredRentalForms,
+        salePrice: formatCurrency(estimatedRentalCents),
+        vehicle: {
+          color: vehicleFacts.color,
+          make: vehicleFacts.make,
+          model: vehicleFacts.model,
+          stockNumber: vehicleFacts.stockNumber,
+          trim: vehicleFacts.trim,
+          vin: vehicleFacts.vin,
+          year: vehicleFacts.year
+        }
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST"
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setPacketStatus({ kind: "error", message: typeof payload.error === "string" ? payload.error : "Daily rental packet could not be generated." });
+      return;
+    }
+    const generatedPacket = payload as GeneratedContractPacket;
+    setContractPacket(generatedPacket);
+    setPreviewFormId(generatedPacket.documents[0]?.formId ?? null);
+    setPacketStatus({ kind: "ready", message: `Archived rental packet ${generatedPacket.packetNumber}.` });
     onAmountChange(formatCurrency(authorizationCents));
   }
 
@@ -1068,6 +1170,115 @@ function DailyRentalExecutionDesk({
             {statusKind === "saving" ? "Completing..." : "Complete checkout"}
           </button>
         </div>
+      </section>
+
+      <section className={styles.retailSection} id="rental-forms">
+        <header>
+          <span>Rental forms</span>
+          <strong>Daily rental signing packet</strong>
+        </header>
+        <div className={styles.retailPacketLauncher}>
+          <div>
+            <span>Packet readiness</span>
+            <strong>{contractPacket ? `${contractPacket.packetNumber} archived` : `${preparedRequiredCount}/${requiredRentalForms.length} required forms ready`}</strong>
+            <small>Open the drawer to prepare the agreement, terms, damage responsibility, protection election, payment authorization, condition report, and incident instructions.</small>
+          </div>
+          <button type="button" onClick={() => setPacketDrawerOpen(true)}>Open rental packet</button>
+        </div>
+
+        {packetDrawerOpen ? (
+          <div className={styles.retailPacketDrawerBackdrop} role="presentation">
+            <aside className={styles.retailPacketDrawer} aria-label="Daily rental packet drawer">
+              <header>
+                <div>
+                  <span>Daily rental packet</span>
+                  <strong>Prepare, generate, and review rental documents</strong>
+                  <small>Rental agreements stay out of the main workspace until staff needs signing, print, text, email, or archive controls.</small>
+                </div>
+                <button type="button" onClick={() => setPacketDrawerOpen(false)}>Close</button>
+              </header>
+              <div className={styles.retailFormsCommand}>
+                <div>
+                  <span>Required forms ready</span>
+                  <strong>{preparedRequiredCount}/{requiredRentalForms.length}</strong>
+                  <small>Prepare the baseline packet first, then add the additional driver addendum only when it applies.</small>
+                </div>
+                <button type="button" onClick={prepareRequiredForms}>Prepare required forms</button>
+                <button disabled={packetStatus.kind === "generating"} type="button" onClick={() => void generateRentalPacket()}>
+                  {packetStatus.kind === "generating" ? "Generating..." : "Generate rental packet"}
+                </button>
+                <button disabled={!contractPacket} type="button" onClick={openPacketPreview}>Preview generated packet</button>
+              </div>
+              {packetStatus.kind !== "idle" ? <p className={packetStatus.kind === "error" ? styles.retailPacketError : styles.retailPacketStatus}>{packetStatus.message}</p> : null}
+              {contractPacket ? (
+                <div className={styles.retailPacketArchive} aria-label="Generated rental packet archive">
+                  <div>
+                    <span>Archived packet</span>
+                    <strong>{contractPacket.packetNumber}</strong>
+                    <small>{contractPacket.documents.length} document(s) generated · {new Date(contractPacket.generatedAt).toLocaleString()}</small>
+                  </div>
+                  <button type="button" onClick={openPacketPreview}>Preview packet</button>
+                  <button disabled={!contractPacket.delivery.downloadReady} type="button" onClick={downloadPacket}>Download packet</button>
+                  <button disabled={!contractPacket.delivery.printReady} type="button" onClick={printPacket}>Print packet</button>
+                  <button disabled={!contractPacket.delivery.textReady} type="button" onClick={() => queuePacketDelivery("text")}>Text link</button>
+                  <button disabled={!contractPacket.delivery.emailReady} type="button" onClick={() => queuePacketDelivery("email")}>Email link</button>
+                  <small>{contractPacket.delivery.providerHoldReason}</small>
+                </div>
+              ) : null}
+              <div className={styles.retailFormsGrid}>
+                {DAILY_RENTAL_FORM_PACKET.map((form) => {
+                  const prepared = preparedForms.includes(form.id);
+                  return (
+                    <label className={prepared ? styles.retailFormReady : undefined} key={form.id}>
+                      <input checked={prepared} onChange={() => togglePreparedForm(form.id)} type="checkbox" />
+                      <span>{form.category}</span>
+                      <strong>{form.label}</strong>
+                      <small>{form.description}</small>
+                      <em>{form.trigger}</em>
+                      <b>{form.basis}</b>
+                    </label>
+                  );
+                })}
+              </div>
+
+              {packetPreviewOpen && contractPacket ? (
+                <div className={styles.retailPacketPreviewBackdrop} role="presentation">
+                  <aside className={styles.retailPacketPreviewDrawer} aria-label="Rental packet preview">
+                    <header>
+                      <div>
+                        <span>Packet preview</span>
+                        <strong>{contractPacket.packetNumber}</strong>
+                        <small>Review generated rental forms before download, print, text, or email.</small>
+                      </div>
+                      <button type="button" onClick={() => setPacketPreviewOpen(false)}>Close</button>
+                    </header>
+                    <div className={styles.retailPacketPreviewBody}>
+                      <nav aria-label="Generated rental forms">
+                        {contractPacket.documents.map((document) => (
+                          <button
+                            className={document.formId === previewDocument?.formId ? styles.retailPacketPreviewActive : undefined}
+                            key={document.formId}
+                            onClick={() => setPreviewFormId(document.formId)}
+                            type="button"
+                          >
+                            {document.label}
+                          </button>
+                        ))}
+                      </nav>
+                      <section>
+                        <div>
+                          <span>Reviewing</span>
+                          <strong>{previewDocument?.label ?? "Generated rental form"}</strong>
+                        </div>
+                        <iframe srcDoc={previewDocument?.html ?? ""} title={previewDocument?.label ?? "Generated rental form preview"} />
+                      </section>
+                    </div>
+                  </aside>
+                </div>
+              ) : null}
+            </aside>
+          </div>
+        ) : null}
       </section>
     </div>
   );
@@ -1594,6 +1805,7 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
             <a href="#rental-unit">Unit</a>
             <a href="#rental-protection">Payment</a>
             <a href="#rental-checkout">Checkout</a>
+            <a href="#rental-forms">Forms</a>
           </>
         ) : (
           <>
