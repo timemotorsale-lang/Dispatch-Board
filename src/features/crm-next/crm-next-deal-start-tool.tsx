@@ -343,6 +343,7 @@ function RetailSaleExecutionDesk({
   const [preparedForms, setPreparedForms] = useState<string[]>([]);
   const [contractPacket, setContractPacket] = useState<GeneratedContractPacket | null>(null);
   const [packetStatus, setPacketStatus] = useState<{ kind: "idle" | "generating" | "ready" | "error"; message: string }>({ kind: "idle", message: "" });
+  const [packetDrawerOpen, setPacketDrawerOpen] = useState(false);
   const [packetPreviewOpen, setPacketPreviewOpen] = useState(false);
   const [previewFormId, setPreviewFormId] = useState<string | null>(null);
   const feeTotalCents = useMemo(() => feeLines.reduce((total, line) => total + line.amountCents, 0), [feeLines]);
@@ -660,81 +661,106 @@ function RetailSaleExecutionDesk({
           <span>Contracted forms</span>
           <strong>Minnesota sale packet</strong>
         </header>
-        <div className={styles.retailFormsCommand}>
+        <div className={styles.retailPacketLauncher}>
           <div>
-            <span>Required forms ready</span>
-            <strong>{preparedRequiredCount}/{requiredFormCount}</strong>
-            <small>Prepare the baseline packet first, then add conditional forms based on finance, trade, products, and delivery.</small>
+            <span>Packet readiness</span>
+            <strong>{contractPacket ? `${contractPacket.packetNumber} archived` : `${preparedRequiredCount}/${requiredFormCount} required forms ready`}</strong>
+            <small>Open the drawer to prepare forms, generate the packet, preview documents, and send or print.</small>
           </div>
-          <button type="button" onClick={prepareRequiredForms}>Prepare required forms</button>
-          <button disabled={packetStatus.kind === "generating"} type="button" onClick={() => void generateContractPacket()}>
-            {packetStatus.kind === "generating" ? "Generating..." : "Generate contract packet"}
-          </button>
-          <button disabled={!contractPacket} type="button" onClick={openPacketPreview}>Preview generated packet</button>
+          <button type="button" onClick={() => setPacketDrawerOpen(true)}>Open MN sale packet</button>
         </div>
-        {packetStatus.kind !== "idle" ? <p className={packetStatus.kind === "error" ? styles.retailPacketError : styles.retailPacketStatus}>{packetStatus.message}</p> : null}
-        {contractPacket ? (
-          <div className={styles.retailPacketArchive} aria-label="Generated contract packet archive">
-            <div>
-              <span>Archived packet</span>
-              <strong>{contractPacket.packetNumber}</strong>
-              <small>{contractPacket.documents.length} document(s) generated · {new Date(contractPacket.generatedAt).toLocaleString()}</small>
-            </div>
-            <button type="button" onClick={openPacketPreview}>Preview packet</button>
-            <button disabled={!contractPacket.delivery.downloadReady} type="button" onClick={downloadPacket}>Download packet</button>
-            <button disabled={!contractPacket.delivery.printReady} type="button" onClick={printPacket}>Print packet</button>
-            <button disabled={!contractPacket.delivery.textReady} type="button" onClick={() => queuePacketDelivery("text")}>Text link</button>
-            <button disabled={!contractPacket.delivery.emailReady} type="button" onClick={() => queuePacketDelivery("email")}>Email link</button>
-            <small>{contractPacket.delivery.providerHoldReason}</small>
-          </div>
-        ) : null}
-        <div className={styles.retailFormsGrid}>
-          {MN_SALE_FORM_PACKET.map((form) => {
-            const prepared = preparedForms.includes(form.id);
-            return (
-              <label className={prepared ? styles.retailFormReady : undefined} key={form.id}>
-                <input checked={prepared} onChange={() => togglePreparedForm(form.id)} type="checkbox" />
-                <span>{form.category}</span>
-                <strong>{form.label}</strong>
-                <small>{form.description}</small>
-                <em>{form.trigger}</em>
-                <b>{form.basis}</b>
-              </label>
-            );
-          })}
-        </div>
-        {packetPreviewOpen && contractPacket ? (
-          <div className={styles.retailPacketPreviewBackdrop} role="presentation">
-            <aside className={styles.retailPacketPreviewDrawer} aria-label="Contract packet preview">
+
+        {packetDrawerOpen ? (
+          <div className={styles.retailPacketDrawerBackdrop} role="presentation">
+            <aside className={styles.retailPacketDrawer} aria-label="MN sale packet drawer">
               <header>
                 <div>
-                  <span>Packet preview</span>
-                  <strong>{contractPacket.packetNumber}</strong>
-                  <small>Review generated forms before download, print, text, or email.</small>
+                  <span>MN sale packet</span>
+                  <strong>Prepare, generate, and review selling documents</strong>
+                  <small>Required and conditional Minnesota sale forms stay out of the main workspace until staff needs them.</small>
                 </div>
-                <button type="button" onClick={() => setPacketPreviewOpen(false)}>Close</button>
+                <button type="button" onClick={() => setPacketDrawerOpen(false)}>Close</button>
               </header>
-              <div className={styles.retailPacketPreviewBody}>
-                <nav aria-label="Generated forms">
-                  {contractPacket.documents.map((document) => (
-                    <button
-                      className={document.formId === previewDocument?.formId ? styles.retailPacketPreviewActive : undefined}
-                      key={document.formId}
-                      onClick={() => setPreviewFormId(document.formId)}
-                      type="button"
-                    >
-                      {document.label}
-                    </button>
-                  ))}
-                </nav>
-                <section>
-                  <div>
-                    <span>Reviewing</span>
-                    <strong>{previewDocument?.label ?? "Generated form"}</strong>
-                  </div>
-                  <iframe srcDoc={previewDocument?.html ?? ""} title={previewDocument?.label ?? "Generated contract form preview"} />
-                </section>
+
+              <div className={styles.retailFormsCommand}>
+                <div>
+                  <span>Required forms ready</span>
+                  <strong>{preparedRequiredCount}/{requiredFormCount}</strong>
+                  <small>Prepare the baseline packet first, then add conditional forms based on finance, trade, products, and delivery.</small>
+                </div>
+                <button type="button" onClick={prepareRequiredForms}>Prepare required forms</button>
+                <button disabled={packetStatus.kind === "generating"} type="button" onClick={() => void generateContractPacket()}>
+                  {packetStatus.kind === "generating" ? "Generating..." : "Generate contract packet"}
+                </button>
+                <button disabled={!contractPacket} type="button" onClick={openPacketPreview}>Preview generated packet</button>
               </div>
+              {packetStatus.kind !== "idle" ? <p className={packetStatus.kind === "error" ? styles.retailPacketError : styles.retailPacketStatus}>{packetStatus.message}</p> : null}
+              {contractPacket ? (
+                <div className={styles.retailPacketArchive} aria-label="Generated contract packet archive">
+                  <div>
+                    <span>Archived packet</span>
+                    <strong>{contractPacket.packetNumber}</strong>
+                    <small>{contractPacket.documents.length} document(s) generated · {new Date(contractPacket.generatedAt).toLocaleString()}</small>
+                  </div>
+                  <button type="button" onClick={openPacketPreview}>Preview packet</button>
+                  <button disabled={!contractPacket.delivery.downloadReady} type="button" onClick={downloadPacket}>Download packet</button>
+                  <button disabled={!contractPacket.delivery.printReady} type="button" onClick={printPacket}>Print packet</button>
+                  <button disabled={!contractPacket.delivery.textReady} type="button" onClick={() => queuePacketDelivery("text")}>Text link</button>
+                  <button disabled={!contractPacket.delivery.emailReady} type="button" onClick={() => queuePacketDelivery("email")}>Email link</button>
+                  <small>{contractPacket.delivery.providerHoldReason}</small>
+                </div>
+              ) : null}
+              <div className={styles.retailFormsGrid}>
+                {MN_SALE_FORM_PACKET.map((form) => {
+                  const prepared = preparedForms.includes(form.id);
+                  return (
+                    <label className={prepared ? styles.retailFormReady : undefined} key={form.id}>
+                      <input checked={prepared} onChange={() => togglePreparedForm(form.id)} type="checkbox" />
+                      <span>{form.category}</span>
+                      <strong>{form.label}</strong>
+                      <small>{form.description}</small>
+                      <em>{form.trigger}</em>
+                      <b>{form.basis}</b>
+                    </label>
+                  );
+                })}
+              </div>
+
+              {packetPreviewOpen && contractPacket ? (
+                <div className={styles.retailPacketPreviewBackdrop} role="presentation">
+                  <aside className={styles.retailPacketPreviewDrawer} aria-label="Contract packet preview">
+                    <header>
+                      <div>
+                        <span>Packet preview</span>
+                        <strong>{contractPacket.packetNumber}</strong>
+                        <small>Review generated forms before download, print, text, or email.</small>
+                      </div>
+                      <button type="button" onClick={() => setPacketPreviewOpen(false)}>Close</button>
+                    </header>
+                    <div className={styles.retailPacketPreviewBody}>
+                      <nav aria-label="Generated forms">
+                        {contractPacket.documents.map((document) => (
+                          <button
+                            className={document.formId === previewDocument?.formId ? styles.retailPacketPreviewActive : undefined}
+                            key={document.formId}
+                            onClick={() => setPreviewFormId(document.formId)}
+                            type="button"
+                          >
+                            {document.label}
+                          </button>
+                        ))}
+                      </nav>
+                      <section>
+                        <div>
+                          <span>Reviewing</span>
+                          <strong>{previewDocument?.label ?? "Generated form"}</strong>
+                        </div>
+                        <iframe srcDoc={previewDocument?.html ?? ""} title={previewDocument?.label ?? "Generated contract form preview"} />
+                      </section>
+                    </div>
+                  </aside>
+                </div>
+              ) : null}
             </aside>
           </div>
         ) : null}

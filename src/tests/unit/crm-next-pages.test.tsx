@@ -433,16 +433,8 @@ describe("CRM Next pages", () => {
     expect(markup).toContain("Formula: Total fees = sum of selected MN DMV fee items");
     expect(markup).toContain("Contracted forms");
     expect(markup).toContain("Minnesota sale packet");
-    expect(markup).toContain("Prepare required forms");
-    expect(markup).toContain("Generate contract packet");
-    expect(markup).toContain("Preview generated packet");
-    expect(markup).toContain("Sales agreement / purchase agreement");
-    expect(markup).toContain("Binding contract disclosure");
-    expect(markup).toContain("Odometer disclosure");
-    expect(markup).toContain("Application to title and register");
-    expect(markup).toContain("Power of attorney");
-    expect(markup).toContain("Retail installment contract");
-    expect(markup).toContain("Trade-in documents");
+    expect(markup).toContain("Packet readiness");
+    expect(markup).toContain("Open MN sale packet");
     expect(markup).toContain("Save draft");
     expect(markup).toContain("Complete intake");
     expect(markup).toContain("Execution Summary");
