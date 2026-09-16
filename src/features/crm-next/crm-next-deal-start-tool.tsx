@@ -36,6 +36,30 @@ type DealWorkflow = {
   nextWorkspace: string;
 };
 
+type DealStartPreset = {
+  id: string;
+  label: string;
+  helper: string;
+  workflowId: DealWorkflowId;
+};
+
+type EnterpriseFormTemplate = {
+  id: string;
+  label: string;
+  owner: string;
+  signatureRequired: boolean;
+  storage: string;
+  trigger: string;
+};
+
+type DealPacketRule = {
+  conditionalFormIds: string[];
+  defaultFormIds: string[];
+  jacketSections: string[];
+  managerTriggers: string[];
+  packetName: string;
+};
+
 const DEAL_WORKFLOWS: DealWorkflow[] = [
   {
     id: "finance",
@@ -158,6 +182,116 @@ const DEAL_WORKFLOWS: DealWorkflow[] = [
     nextWorkspace: "Outside finance deal desk"
   }
 ];
+
+const DEAL_START_PRESETS: DealStartPreset[] = [
+  { id: "retail-cash-one-pay", label: "Retail Cash / One Pay", helper: "Sale price, title readiness, payment proof, and delivery packet.", workflowId: "retail-sale" },
+  { id: "retail-outside-finance", label: "Retail Outside Finance", helper: "Outside lender, stipulations, funding proof, and lienholder controls.", workflowId: "outside-finance-one-pay" },
+  { id: "retail-dealer-finance", label: "Retail Dealer Finance", helper: "Credit path, lender status, stipulations, and financed-sale forms.", workflowId: "finance" },
+  { id: "bhph-payment-sale", label: "BHPH", helper: "In-house account setup, references, payment schedule, and servicing handoff.", workflowId: "bhph" },
+  { id: "lease-to-own-payment", label: "Lease-to-Own", helper: "Lease calculator, source templates, references, and title authority.", workflowId: "lease-to-own" },
+  { id: "wholesale-release", label: "Wholesale", helper: "Buyer authority, funding, title release, and transport handoff.", workflowId: "wholesale" },
+  { id: "courtesy-loaner", label: "Loaner", helper: "Rental-style checkout with courtesy waiver and return evidence.", workflowId: "vehicle-loaner" },
+  { id: "daily-rental", label: "Daily Rental", helper: "Rental agreement, payment hold, checkout photos, and return evidence.", workflowId: "daily-rental" },
+  { id: "test-drive", label: "Test Drive", helper: "Driver proof, signed release, checkout photos, and receiving plan.", workflowId: "test-drive" }
+];
+
+const ENTERPRISE_FORM_TEMPLATES: EnterpriseFormTemplate[] = [
+  { id: "sales-agreement", label: "Sales agreement / purchase agreement", owner: "Sales", signatureRequired: true, storage: "Deal jacket + Library", trigger: "Every retail vehicle sale" },
+  { id: "retail-installment-contract", label: "Retail installment contract", owner: "Finance", signatureRequired: true, storage: "Deal jacket + Library", trigger: "Financed sale / BHPH" },
+  { id: "personal-references", label: "Personal references and verification form", owner: "Finance", signatureRequired: true, storage: "Deal jacket + Library", trigger: "Vehicle purchase on credit" },
+  { id: "power-of-attorney", label: "Power of attorney / title authority", owner: "Title", signatureRequired: true, storage: "Deal jacket + Library", trigger: "Dealer handles title, lien, correction, or DVS paperwork" },
+  { id: "funding-proof", label: "Funding proof", owner: "Finance", signatureRequired: false, storage: "Deal jacket + Library", trigger: "Outside finance, one-pay, lender draft, wire, or certified funds" },
+  { id: "insurance-binder", label: "Insurance binder", owner: "Finance", signatureRequired: false, storage: "Deal jacket + Library", trigger: "Credit, lease, BHPH, loaner, or delivery condition" },
+  { id: "vehicle-condition-report", label: "Vehicle checkout and return condition report", owner: "Operations", signatureRequired: true, storage: "Deal jacket + Library", trigger: "Rental, loaner, test drive, delivery, or custody release" },
+  { id: "wholesale-bill-of-sale", label: "Wholesale bill of sale", owner: "Sales", signatureRequired: true, storage: "Deal jacket + Library", trigger: "Wholesale release" }
+];
+
+const DEAL_PACKET_RULES: Record<DealWorkflowId, DealPacketRule> = {
+  finance: {
+    conditionalFormIds: ["power-of-attorney", "insurance-binder"],
+    defaultFormIds: ["sales-agreement", "retail-installment-contract", "personal-references", "funding-proof"],
+    jacketSections: ["Customer", "Vehicle", "Credit", "Funding", "Title", "Delivery"],
+    managerTriggers: ["Delivery before funding", "Open stipulations", "Missing insurance", "Title not ready"],
+    packetName: "Dealer finance packet"
+  },
+  bhph: {
+    conditionalFormIds: ["insurance-binder"],
+    defaultFormIds: ["sales-agreement", "retail-installment-contract", "personal-references", "power-of-attorney"],
+    jacketSections: ["Buyer proof", "Vehicle", "Payment terms", "References", "Title", "Servicing handoff"],
+    managerTriggers: ["Down payment exception", "Terms exception", "Missing references", "Title not ready"],
+    packetName: "BHPH account packet"
+  },
+  "retail-sale": {
+    conditionalFormIds: ["retail-installment-contract", "personal-references", "power-of-attorney", "funding-proof", "insurance-binder"],
+    defaultFormIds: ["sales-agreement"],
+    jacketSections: ["Customer", "Vehicle", "Price", "Fees", "Forms", "Delivery"],
+    managerTriggers: ["Manual tax/payment override", "Title not ready", "Missing payment proof", "Delivery exception"],
+    packetName: "Retail sale packet"
+  },
+  "lease-to-own": {
+    conditionalFormIds: ["insurance-binder"],
+    defaultFormIds: ["personal-references", "power-of-attorney", "vehicle-condition-report"],
+    jacketSections: ["Lessee", "Vehicle", "Calculator", "Lease forms", "References", "Title"],
+    managerTriggers: ["Lease value exception", "Missing insurance", "Title authority missing", "Delivery hold"],
+    packetName: "Lease-to-own packet"
+  },
+  repairs: {
+    conditionalFormIds: ["funding-proof"],
+    defaultFormIds: [],
+    jacketSections: ["Customer", "Vehicle", "Concern", "Estimate", "Authorization", "Handoff"],
+    managerTriggers: ["Estimate authorization missing", "Payment exception", "Customer promise conflict"],
+    packetName: "Repair authorization packet"
+  },
+  "test-drive": {
+    conditionalFormIds: [],
+    defaultFormIds: ["vehicle-condition-report"],
+    jacketSections: ["Driver", "Vehicle", "Signed release", "Checkout photos", "Return photos"],
+    managerTriggers: ["Missing license", "Missing insurance", "Extended route", "Vehicle not received"],
+    packetName: "Test-drive release packet"
+  },
+  "daily-rental": {
+    conditionalFormIds: ["insurance-binder"],
+    defaultFormIds: ["vehicle-condition-report"],
+    jacketSections: ["Renter", "Dates", "Payment hold", "Checkout photos", "Return photos", "Signed packet"],
+    managerTriggers: ["Payment hold missing", "Insurance/protection gap", "Late return", "Damage exception"],
+    packetName: "Daily rental packet"
+  },
+  "vehicle-loaner": {
+    conditionalFormIds: ["insurance-binder"],
+    defaultFormIds: ["vehicle-condition-report"],
+    jacketSections: ["Customer", "Interested vehicle", "Courtesy waiver", "Checkout photos", "Return photos", "Signed packet"],
+    managerTriggers: ["No interested vehicle", "Courtesy waiver missing", "Insurance/protection gap", "Damage exception"],
+    packetName: "Courtesy loaner packet"
+  },
+  "warranty-products": {
+    conditionalFormIds: ["funding-proof"],
+    defaultFormIds: [],
+    jacketSections: ["Customer", "Deal context", "Eligibility", "Menu", "Signed product form"],
+    managerTriggers: ["Eligibility conflict", "Product disclosure missing", "Cancellation-risk review"],
+    packetName: "Warranty product packet"
+  },
+  "financing-products": {
+    conditionalFormIds: ["personal-references", "funding-proof"],
+    defaultFormIds: [],
+    jacketSections: ["Customer", "Credit path", "Menu", "Lender", "Signed product form"],
+    managerTriggers: ["Lender status missing", "Menu exception", "Unsigned disclosure"],
+    packetName: "Finance product packet"
+  },
+  wholesale: {
+    conditionalFormIds: ["power-of-attorney"],
+    defaultFormIds: ["wholesale-bill-of-sale", "funding-proof"],
+    jacketSections: ["Buyer", "Vehicle", "Funding", "Title", "Release", "Transport"],
+    managerTriggers: ["Below reserve", "Release before funds", "Title exception", "Transport exception"],
+    packetName: "Wholesale release packet"
+  },
+  "outside-finance-one-pay": {
+    conditionalFormIds: ["personal-references", "power-of-attorney", "insurance-binder"],
+    defaultFormIds: ["sales-agreement", "funding-proof"],
+    jacketSections: ["Customer", "Vehicle", "Outside lender / one-pay", "Stipulations", "Title", "Delivery"],
+    managerTriggers: ["Delivery before funding", "Open stipulations", "Lienholder mismatch", "Title authority needed"],
+    packetName: "Outside finance / one-pay packet"
+  }
+};
 
 const FIELD_LABELS = {
   customer: "Customer / buyer",
@@ -393,6 +527,92 @@ function ExecutionSummary({
       </details>
       <button disabled={!ready || statusKind === "saving"} onClick={onStart} type="button">{statusKind === "saving" ? "Opening..." : ready ? "Open execution path" : "Complete required facts"}</button>
     </>
+  );
+}
+
+function formTemplateLabel(formId: string) {
+  return ENTERPRISE_FORM_TEMPLATES.find((form) => form.id === formId)?.label ?? formId;
+}
+
+function EnterpriseDealControlPanel({
+  amount,
+  customerName,
+  ownerName,
+  ready,
+  vehicle,
+  workflow
+}: {
+  amount: string;
+  customerName: string;
+  ownerName: string;
+  ready: boolean;
+  vehicle: string;
+  workflow: DealWorkflow;
+}) {
+  const rules = DEAL_PACKET_RULES[workflow.id];
+  const activeTemplateIds = Array.from(new Set([...rules.defaultFormIds, ...rules.conditionalFormIds]));
+  const activeTemplates = activeTemplateIds.map((id) => ENTERPRISE_FORM_TEMPLATES.find((form) => form.id === id)).filter((form): form is EnterpriseFormTemplate => Boolean(form));
+  const readinessChecks = [
+    { label: "Customer", ready: customerName !== "Customer not selected", value: customerName },
+    { label: "Vehicle", ready: Boolean(vehicle.trim()), value: vehicle.trim() || "Not selected" },
+    { label: "Value / amount", ready: Boolean(amount.trim()), value: amount.trim() || "Not captured" },
+    { label: "Owner", ready: Boolean(ownerName.trim()), value: ownerName },
+    { label: "Packet rules", ready: rules.defaultFormIds.length + rules.conditionalFormIds.length > 0, value: rules.packetName },
+    { label: "Manager triggers", ready: rules.managerTriggers.length > 0, value: `${rules.managerTriggers.length} trigger(s) monitored` }
+  ];
+  const readyCount = readinessChecks.filter((item) => item.ready).length;
+  const readinessScore = Math.round((readyCount / readinessChecks.length) * 100);
+
+  return (
+    <section className={styles.enterpriseDealPanel} aria-label="Enterprise desking controls">
+      <header>
+        <div>
+          <span className={styles.eyebrow}>Enterprise deal controls</span>
+          <h2>{rules.packetName}</h2>
+          <p>Rules, readiness, deal jacket, approvals, customer preview, and form governance stay attached to the selected workflow.</p>
+        </div>
+        <strong>{readinessScore}% ready</strong>
+      </header>
+
+      <div className={styles.enterpriseDealGrid}>
+        <article>
+          <span>Deal packet rules engine</span>
+          <strong>{workflow.label}</strong>
+          <p>{rules.defaultFormIds.length} default form(s), {rules.conditionalFormIds.length} conditional form(s)</p>
+          <div>{[...rules.defaultFormIds, ...rules.conditionalFormIds].map((formId) => <em key={formId}>{formTemplateLabel(formId)}</em>)}</div>
+        </article>
+        <article>
+          <span>Packet readiness score</span>
+          <strong>{ready ? "Ready to open" : `${readyCount}/${readinessChecks.length} checks`}</strong>
+          <p>{ready ? "The required starting facts are ready for the execution path." : "Resolve blockers before delivery, funding, or release."}</p>
+          <div>{readinessChecks.map((item) => <em key={item.label}>{item.ready ? "Clear" : "Needs"}: {item.label}</em>)}</div>
+        </article>
+        <article>
+          <span>Unified deal jacket</span>
+          <strong>One working home</strong>
+          <p>Documents are recorded once in the deal jacket and mirrored to the document library for search, audit, and customer history.</p>
+          <div>{rules.jacketSections.map((section) => <em key={section}>{section}</em>)}</div>
+        </article>
+        <article>
+          <span>Conditional manager approval</span>
+          <strong>{rules.managerTriggers.length} trigger(s)</strong>
+          <p>Only exception paths go to a manager, so clean deals keep moving.</p>
+          <div>{rules.managerTriggers.map((trigger) => <em key={trigger}>{trigger}</em>)}</div>
+        </article>
+        <article>
+          <span>Customer-facing packet preview</span>
+          <strong>Before signing</strong>
+          <p>Staff can explain which documents the customer will sign, why each is included, and whether a form is required or conditional.</p>
+          <div>{activeTemplates.slice(0, 5).map((form) => <em key={form.id}>{form.signatureRequired ? "Signature" : "Proof"}: {form.label}</em>)}</div>
+        </article>
+        <article>
+          <span>Form template governance</span>
+          <strong>Versioned records</strong>
+          <p>Each form carries owner, trigger, signature need, and storage destination so templates can be reviewed like enterprise assets.</p>
+          <div>{activeTemplates.slice(0, 5).map((form) => <em key={form.id}>{form.owner} · {form.storage}</em>)}</div>
+        </article>
+      </div>
+    </section>
   );
 }
 
@@ -2938,6 +3158,7 @@ function OutsideFinanceExecutionDesk({
 
 export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter }) {
   const [workflowId, setWorkflowId] = useState<DealWorkflowId>("retail-sale");
+  const [selectedPresetId, setSelectedPresetId] = useState("retail-cash-one-pay");
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [form, setForm] = useState({
     amount: "",
@@ -2961,9 +3182,16 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
   const completedCount = useMemo(() => [form.customerId, form.vehicle, effectiveAmount].filter((value) => value.trim()).length, [effectiveAmount, form.customerId, form.vehicle]);
   const ready = completedCount === 3 && Boolean(form.ownerUserId) && Number.isFinite(effectiveEstimatedValueCents);
   const readinessLabel = ready ? "Ready to execute" : `${completedCount}/3 ready`;
+  const selectedPreset = DEAL_START_PRESETS.find((preset) => preset.id === selectedPresetId) ?? DEAL_START_PRESETS[0];
 
   function update(key: keyof typeof form, value: string) {
     setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function applyPreset(preset: DealStartPreset) {
+    setSelectedPresetId(preset.id);
+    setWorkflowId(preset.workflowId);
+    setStatus({ kind: "idle", message: "" });
   }
 
   function saveDraft() {
@@ -3009,6 +3237,26 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
         </div>
         <Link className={styles.secondaryButton} href={CRM_NEXT_DEALS_HREF}>Back to deals</Link>
       </header>
+
+      <section className={styles.dealPresetRail} aria-label="Start Deal presets">
+        <header>
+          <span className={styles.eyebrow}>Start Deal presets</span>
+          <strong>Choose the common path first</strong>
+        </header>
+        <div>
+          {DEAL_START_PRESETS.map((preset) => (
+            <button
+              aria-pressed={selectedPresetId === preset.id}
+              key={preset.id}
+              onClick={() => applyPreset(preset)}
+              type="button"
+            >
+              <span>{preset.label}</span>
+              <small>{preset.helper}</small>
+            </button>
+          ))}
+        </div>
+      </section>
 
       <section className={styles.executionCommandStrip} aria-label="Revenue execution command">
         <div>
@@ -3089,6 +3337,15 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
         <button type="button" onClick={() => setSummaryOpen(true)}>Checks</button>
       </nav>
 
+      <EnterpriseDealControlPanel
+        amount={effectiveAmount}
+        customerName={selectedCustomer?.name ?? "Customer not selected"}
+        ownerName={model.userName}
+        ready={ready}
+        vehicle={form.vehicle}
+        workflow={workflow}
+      />
+
       <main className={styles.dealStartLayout}>
         <section className={styles.dealStartStep}>
           <span>1</span>
@@ -3096,9 +3353,15 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
             <h2>Choose channel</h2>
             <p>Channel controls the next facts, source checks, and execution desk.</p>
           </div>
-          <select aria-label="Select revenue channel" value={workflowId} onChange={(event) => setWorkflowId(event.target.value as DealWorkflowId)}>
+          <select aria-label="Select revenue channel" value={workflowId} onChange={(event) => {
+            const nextWorkflowId = event.target.value as DealWorkflowId;
+            setWorkflowId(nextWorkflowId);
+            const matchingPreset = DEAL_START_PRESETS.find((preset) => preset.workflowId === nextWorkflowId);
+            if (matchingPreset) setSelectedPresetId(matchingPreset.id);
+          }}>
             {DEAL_WORKFLOWS.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
           </select>
+          <small className={styles.dealPresetSelected}>Preset: {selectedPreset?.label}</small>
         </section>
 
         <section className={styles.dealStartStep}>

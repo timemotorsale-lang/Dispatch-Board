@@ -397,6 +397,20 @@ describe("CRM Next pages", () => {
     const markup = renderToStaticMarkup(await CrmNextDealStartPage());
 
     expect(markup).toContain("Work the revenue path");
+    expect(markup).toContain("Start Deal presets");
+    expect(markup).toContain("Retail Cash / One Pay");
+    expect(markup).toContain("Retail Outside Finance");
+    expect(markup).toContain("Retail Dealer Finance");
+    expect(markup).toContain("Choose the common path first");
+    expect(markup).toContain("Enterprise deal controls");
+    expect(markup).toContain("Deal packet rules engine");
+    expect(markup).toContain("Packet readiness score");
+    expect(markup).toContain("Unified deal jacket");
+    expect(markup).toContain("Conditional manager approval");
+    expect(markup).toContain("Customer-facing packet preview");
+    expect(markup).toContain("Form template governance");
+    expect(markup).toContain("Versioned records");
+    expect(markup).toContain("Deal jacket + Library");
     expect(markup).toContain("Finance");
     expect(markup).toContain("BHPH");
     expect(markup).toContain("Retail Sale");
