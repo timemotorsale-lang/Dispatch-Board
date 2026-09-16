@@ -4727,10 +4727,103 @@
   padding: 9px 14px;
 }
 
+.rentalEvidenceSummary {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.rentalEvidenceSummary div {
+  background: #ffffff;
+  border: 1px solid #dbe6f8;
+  border-radius: 14px;
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+}
+
+.rentalEvidenceSummary span,
+.rentalEvidenceGrid span {
+  color: #52647d;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rentalEvidenceSummary strong {
+  color: #061735;
+  font-size: 20px;
+}
+
+.rentalEvidenceSummary small,
+.rentalEvidenceBoard p,
+.rentalEvidenceGrid small {
+  color: #60728b;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.rentalEvidenceBoard {
+  display: grid;
+  gap: 14px;
+}
+
+.rentalEvidenceBoard section {
+  background: #ffffff;
+  border: 1px solid #dbe6f8;
+  border-radius: 14px;
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
+.rentalEvidenceBoard h3 {
+  color: #061735;
+  font-size: 16px;
+  margin: 0;
+}
+
+.rentalEvidenceBoard p {
+  margin: 0;
+}
+
+.rentalEvidenceGrid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.rentalEvidenceGrid label {
+  background: #f8fbff;
+  border: 1px solid #dbe6f8;
+  border-radius: 12px;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px;
+}
+
+.rentalEvidenceGrid strong {
+  color: #061735;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.rentalEvidenceGrid input {
+  font-size: 12px;
+  max-width: 100%;
+}
+
+.rentalEvidenceCaptured {
+  background: #edfff5 !important;
+  border-color: #41d788 !important;
+}
+
 .rentalReadinessGrid {
   display: grid;
   gap: 10px;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
 .rentalReadinessGrid div {
@@ -5500,6 +5593,8 @@
   .retailDecodeRow,
   .leaseCalculatorSummary,
   .rentalSummaryStrip,
+  .rentalEvidenceSummary,
+  .rentalEvidenceGrid,
   .rentalReadinessGrid,
   .retailPacketLauncher,
   .retailFormsCommand,

@@ -403,6 +403,7 @@ describe("CRM Next pages", () => {
     expect(markup).toContain("Lease-to-Own");
     expect(markup).toContain("Repairs");
     expect(markup).toContain("Daily Rental");
+    expect(markup).toContain("Vehicle Loaner");
     expect(markup).toContain("Warranty Products");
     expect(markup).toContain("Financing Products");
     expect(markup).toContain("Outside Finance / One Pay");

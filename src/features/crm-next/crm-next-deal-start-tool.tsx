@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { type SetStateAction, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { CRM_NEXT_DEALS_HREF } from "@/features/crm/crm-route-authority";
@@ -18,6 +18,7 @@ type DealWorkflowId =
   | "lease-to-own"
   | "repairs"
   | "daily-rental"
+  | "vehicle-loaner"
   | "warranty-products"
   | "financing-products"
   | "wholesale"
@@ -94,6 +95,16 @@ const DEAL_WORKFLOWS: DealWorkflow[] = [
     sourceChecks: ["Customer 360", "Rental availability", "Payment authorization", "Return condition"],
     executionSteps: ["Confirm date window", "Check availability", "Prepare checkout", "Move to rental desk"],
     nextWorkspace: "Daily rental desk"
+  },
+  {
+    id: "vehicle-loaner",
+    label: "Vehicle Loaner",
+    intent: "Courtesy loaner workflow with the same rental checkout controls, but fees are deferred and waived if the customer buys the interested vehicle.",
+    startsWith: "Customer, interested vehicle, loaner unit, dates, approval reason, checkout readiness",
+    required: ["Customer", "Interested vehicle", "Loaner unit", "Approval reason"],
+    sourceChecks: ["Customer 360", "Loaner availability", "Interested vehicle status", "Return condition"],
+    executionSteps: ["Confirm interested vehicle", "Check loaner availability", "Record courtesy waiver", "Move to loaner desk"],
+    nextWorkspace: "Vehicle loaner desk"
   },
   {
     id: "warranty-products",
@@ -353,7 +364,7 @@ function ExecutionSummary({
         <p>{workflow.intent}</p>
       </div>
       <dl>
-        <div><dt>Revenue channel</dt><dd>{workflow.label}</dd></div>
+        <div><dt>{workflow.id === "vehicle-loaner" ? "Workflow" : "Revenue channel"}</dt><dd>{workflow.label}</dd></div>
         <div><dt>Execution desk</dt><dd>{workflow.nextWorkspace}</dd></div>
         <div><dt>Readiness</dt><dd>{ready ? "Ready to execute" : `${completedCount}/3 required facts`}</dd></div>
       </dl>
@@ -890,9 +901,41 @@ function percentToBasisPoints(value: string) {
   return Number.isFinite(parsed) ? Math.round(parsed * 100) : 0;
 }
 
+type RentalEvidenceRequirement = {
+  id: string;
+  label: string;
+  helper: string;
+};
+
+const RENTAL_RELEASE_PHOTO_REQUIREMENTS: RentalEvidenceRequirement[] = [
+  { id: "front", label: "Front", helper: "Front bumper, hood, windshield, and plate." },
+  { id: "rear", label: "Rear", helper: "Rear bumper, trunk/hatch, plate, and tail lamps." },
+  { id: "driver-side", label: "Driver side", helper: "Full driver-side body line and wheels." },
+  { id: "passenger-side", label: "Passenger side", helper: "Full passenger-side body line and wheels." },
+  { id: "interior", label: "Interior", helper: "Seats, dash, center console, and visible cleanliness." },
+  { id: "odometer-fuel", label: "Odometer + fuel", helper: "Mileage and fuel level before keys leave." },
+  { id: "existing-damage", label: "Existing damage", helper: "Any dents, scratches, glass, wheel, tire, or trim issue." }
+];
+
+const RENTAL_RETURN_PHOTO_REQUIREMENTS: RentalEvidenceRequirement[] = [
+  { id: "return-front", label: "Return front", helper: "Front condition when received back." },
+  { id: "return-rear", label: "Return rear", helper: "Rear condition when received back." },
+  { id: "return-sides", label: "Return sides", helper: "Both sides or a clear combined return view." },
+  { id: "return-interior", label: "Return interior", helper: "Interior condition, belongings, and cleanliness." },
+  { id: "return-odometer-fuel", label: "Return odometer + fuel", helper: "Mileage and fuel level at receiving." },
+  { id: "return-damage", label: "Return damage review", helper: "New damage, no-damage proof, or exception photo." }
+];
+
+const RENTAL_SIGNED_DOCUMENT_REQUIREMENTS: RentalEvidenceRequirement[] = [
+  { id: "signed-agreement", label: "Signed agreement", helper: "Final signed daily rental or vehicle loaner agreement." },
+  { id: "license-insurance", label: "License / insurance proof", helper: "Driver license, insurance card, or approved protection proof." },
+  { id: "condition-report", label: "Condition report", helper: "Signed condition report or staff-verified exception record." }
+];
+
 function DailyRentalExecutionDesk({
   amount,
   customerName,
+  mode = "daily-rental",
   onComplete,
   onAmountChange,
   onSaveDraft,
@@ -902,6 +945,7 @@ function DailyRentalExecutionDesk({
 }: {
   amount: string;
   customerName: string;
+  mode?: "daily-rental" | "vehicle-loaner";
   onComplete: () => void;
   onAmountChange: (value: string) => void;
   onSaveDraft: () => void;
@@ -909,12 +953,21 @@ function DailyRentalExecutionDesk({
   statusKind: "idle" | "saving" | "success" | "error";
   vehicle: string;
 }) {
+  const isLoaner = mode === "vehicle-loaner";
+  const workflowNoun = isLoaner ? "loaner" : "rental";
+  const workflowTitle = isLoaner ? "Vehicle loaner" : "Daily rental";
+  const workflowUnitLabel = isLoaner ? "Loaner unit" : "Rental unit";
+  const feeStatusLabel = isLoaner ? "Deferred - waived if purchase completes" : "Due at checkout";
   const [preparedForms, setPreparedForms] = useState<string[]>([]);
   const [contractPacket, setContractPacket] = useState<GeneratedContractPacket | null>(null);
   const [packetStatus, setPacketStatus] = useState<{ kind: "idle" | "generating" | "ready" | "error"; message: string }>({ kind: "idle", message: "" });
   const [packetDrawerOpen, setPacketDrawerOpen] = useState(false);
   const [packetPreviewOpen, setPacketPreviewOpen] = useState(false);
   const [previewFormId, setPreviewFormId] = useState<string | null>(null);
+  const [releasePhotos, setReleasePhotos] = useState<Record<string, string>>({});
+  const [returnPhotos, setReturnPhotos] = useState<Record<string, string>>({});
+  const [signedDocuments, setSignedDocuments] = useState<Record<string, string>>({});
+  const [returnReceived, setReturnReceived] = useState(false);
   const [vehicleFacts, setVehicleFacts] = useState({
     color: "",
     licensePlate: "",
@@ -939,11 +992,12 @@ function DailyRentalExecutionDesk({
     fuelOut: "Full",
     insuranceCarrier: "",
     insurancePolicy: "",
+    interestedVehicle: "",
     licenseNumber: "",
     licenseState: "MN",
     licenseStatus: "Valid",
     mileagePlan: "Local use / daily mileage cap",
-    paymentMethod: "Credit card",
+    paymentMethod: isLoaner ? "Courtesy loaner - deferred" : "Credit card",
     pickupDate: todayInputValue(),
     pickupTime: "10:00",
     protectionPlan: "Customer insurance on file",
@@ -962,12 +1016,19 @@ function DailyRentalExecutionDesk({
     customerName !== "Customer not selected",
     vehicleFacts.stockNumber || vehicleFacts.vin || vehicle,
     rentalFacts.licenseNumber,
-    rentalFacts.cardLast4,
+    isLoaner ? rentalFacts.interestedVehicle : rentalFacts.cardLast4,
     rentalFacts.insuranceCarrier || rentalFacts.protectionPlan !== "Customer insurance on file"
   ].filter(Boolean).length;
   const requiredRentalForms = requiredDailyRentalFormIds();
   const preparedRequiredCount = requiredRentalForms.filter((id) => preparedForms.includes(id)).length;
   const previewDocument = contractPacket?.documents.find((document) => document.formId === previewFormId) ?? contractPacket?.documents[0] ?? null;
+  const releasePhotoCount = RENTAL_RELEASE_PHOTO_REQUIREMENTS.filter((item) => releasePhotos[item.id]).length;
+  const returnPhotoCount = RENTAL_RETURN_PHOTO_REQUIREMENTS.filter((item) => returnPhotos[item.id]).length;
+  const signedDocumentCount = RENTAL_SIGNED_DOCUMENT_REQUIREMENTS.filter((item) => signedDocuments[item.id]).length;
+  const releasePhotosReady = releasePhotoCount === RENTAL_RELEASE_PHOTO_REQUIREMENTS.length;
+  const returnPhotosReady = returnPhotoCount === RENTAL_RETURN_PHOTO_REQUIREMENTS.length;
+  const signedDocumentsReady = signedDocumentCount === RENTAL_SIGNED_DOCUMENT_REQUIREMENTS.length;
+  const releaseEvidenceReady = releasePhotosReady && signedDocumentsReady;
 
   function updateRentalFact(key: keyof typeof rentalFacts, value: string) {
     const nextFacts = { ...rentalFacts, [key]: value };
@@ -975,7 +1036,8 @@ function DailyRentalExecutionDesk({
     const nextDays = daysBetween(nextFacts.pickupDate, nextFacts.dropoffDate);
     const nextRate = dollarsToCents(nextFacts.ratePerDay);
     const nextDeposit = dollarsToCents(nextFacts.depositHold);
-    const nextEstimate = (Number.isFinite(nextRate) && nextRate !== null ? nextRate : 0) * nextDays + (Number.isFinite(nextDeposit) && nextDeposit !== null ? nextDeposit : 0);
+    const nextRentalCharges = (Number.isFinite(nextRate) && nextRate !== null ? nextRate : 0) * nextDays;
+    const nextEstimate = isLoaner ? nextRentalCharges : nextRentalCharges + (Number.isFinite(nextDeposit) && nextDeposit !== null ? nextDeposit : 0);
     onAmountChange(formatCurrency(nextEstimate));
   }
 
@@ -1007,12 +1069,12 @@ function DailyRentalExecutionDesk({
       vin: vin || current.vin,
       year: decoded.year || current.year
     }));
-    setDecodeStatus(decoded.valid ? "VIN decoded. Confirm model, color, mileage, and plate before checkout." : "Enter a full 17-character VIN in Search inventory or VIN before decoding.");
+    setDecodeStatus(decoded.valid ? `VIN decoded. Confirm model, color, mileage, and plate before ${workflowNoun} checkout.` : "Enter a full 17-character VIN in Search inventory or VIN before decoding.");
     if (decoded.stockNumber) onVehicleChange(decoded.stockNumber);
   }
 
   function useAuthorizationTotal() {
-    onAmountChange(formatCurrency(authorizationCents));
+    onAmountChange(formatCurrency(isLoaner ? estimatedRentalCents : authorizationCents));
   }
 
   function togglePreparedForm(id: string) {
@@ -1021,6 +1083,15 @@ function DailyRentalExecutionDesk({
 
   function prepareRequiredForms() {
     setPreparedForms((current) => Array.from(new Set([...current, ...requiredRentalForms])));
+  }
+
+  function captureEvidence(
+    setter: (value: SetStateAction<Record<string, string>>) => void,
+    id: string,
+    file?: File
+  ) {
+    if (!file) return;
+    setter((current) => ({ ...current, [id]: file.name }));
   }
 
   function packetHtml() {
@@ -1063,7 +1134,7 @@ function DailyRentalExecutionDesk({
   }
 
   async function generateRentalPacket() {
-    setPacketStatus({ kind: "generating", message: "Generating and archiving daily rental packet..." });
+    setPacketStatus({ kind: "generating", message: `Generating and archiving ${workflowNoun} packet...` });
     const response = await fetch("/api/crm/v1/contract-packets", {
       body: JSON.stringify({
         customerName,
@@ -1075,11 +1146,13 @@ function DailyRentalExecutionDesk({
           rentalDays: String(rentalDays)
         },
         dealNumber: vehicleFacts.stockNumber || vehicle || undefined,
-        dealType: "Daily Rental",
+        dealType: workflowTitle,
         feeTotal: rentalFacts.depositHold,
         idempotencyKey: crypto.randomUUID(),
         packetType: "DAILY_RENTAL",
-        paymentFunding: `${rentalFacts.paymentMethod} hold ${rentalFacts.cardLast4 ? `ending ${rentalFacts.cardLast4}` : "not captured"}`,
+        paymentFunding: isLoaner
+          ? `Courtesy loaner fee waiver; ${formatCurrency(estimatedRentalCents)} daily use fee deferred and waived if the interested vehicle purchase completes.`
+          : `${rentalFacts.paymentMethod} hold ${rentalFacts.cardLast4 ? `ending ${rentalFacts.cardLast4}` : "not captured"}`,
         preparedFormIds: preparedForms.length > 0 ? preparedForms : requiredRentalForms,
         salePrice: formatCurrency(estimatedRentalCents),
         vehicle: {
@@ -1097,32 +1170,32 @@ function DailyRentalExecutionDesk({
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      setPacketStatus({ kind: "error", message: typeof payload.error === "string" ? payload.error : "Daily rental packet could not be generated." });
+      setPacketStatus({ kind: "error", message: typeof payload.error === "string" ? payload.error : `${workflowTitle} packet could not be generated.` });
       return;
     }
     const generatedPacket = payload as GeneratedContractPacket;
     setContractPacket(generatedPacket);
     setPreviewFormId(generatedPacket.documents[0]?.formId ?? null);
-    setPacketStatus({ kind: "ready", message: `Archived rental packet ${generatedPacket.packetNumber}.` });
-    onAmountChange(formatCurrency(authorizationCents));
+    setPacketStatus({ kind: "ready", message: `Archived ${workflowNoun} packet ${generatedPacket.packetNumber}.` });
+    onAmountChange(formatCurrency(isLoaner ? estimatedRentalCents : authorizationCents));
   }
 
   return (
     <div className={styles.retailExecutionDesk}>
       <section className={styles.retailSection} id="rental-renter">
         <header>
-          <span>Renter eligibility</span>
+          <span>{isLoaner ? "Loaner driver eligibility" : "Renter eligibility"}</span>
           <strong>Confirm who can legally take the vehicle</strong>
         </header>
         <div className={styles.retailActionRow}>
           <button type="button">Scan driver license</button>
           <button type="button">Add additional driver</button>
-          <button type="button">Text rental agreement</button>
-          <button type="button">Email rental agreement</button>
+          <button type="button">Text {workflowNoun} agreement</button>
+          <button type="button">Email {workflowNoun} agreement</button>
         </div>
-        <p className={styles.retailDeliveryNote}>Most U.S. rental operators require a valid driver license, age eligibility, acceptable payment, and any needed secondary ID before release.</p>
+        <p className={styles.retailDeliveryNote}>{isLoaner ? "Vehicle loaners still require a valid driver license, age eligibility, insurance/protection review, approved dates, and a signed courtesy waiver before release." : "Most U.S. rental operators require a valid driver license, age eligibility, acceptable payment, and any needed secondary ID before release."}</p>
         <div className={styles.retailFieldGrid}>
-          <label><span>Primary renter</span><input readOnly value={customerName} /></label>
+          <label><span>{isLoaner ? "Primary loaner driver" : "Primary renter"}</span><input readOnly value={customerName} /></label>
           <label><span>Date of birth</span><input value={rentalFacts.dob} onChange={(event) => updateRentalFact("dob", event.target.value)} placeholder="MM/DD/YYYY" /></label>
           <label><span>License status</span><select value={rentalFacts.licenseStatus} onChange={(event) => updateRentalFact("licenseStatus", event.target.value)}><option>Valid</option><option>Needs review</option><option>Expired</option><option>Suspended / not eligible</option></select></label>
           <label><span>License number</span><input value={rentalFacts.licenseNumber} onChange={(event) => updateRentalFact("licenseNumber", event.target.value)} /></label>
@@ -1135,10 +1208,11 @@ function DailyRentalExecutionDesk({
 
       <section className={styles.retailSection} id="rental-window">
         <header>
-          <span>Rental window</span>
+          <span>{isLoaner ? "Loaner window" : "Rental window"}</span>
           <strong>Set pickup, return, and use limits</strong>
         </header>
         <div className={styles.retailFieldGrid}>
+          {isLoaner ? <label><span>Interested vehicle</span><input value={rentalFacts.interestedVehicle} onChange={(event) => updateRentalFact("interestedVehicle", event.target.value)} placeholder="Stock, VIN, or vehicle customer may buy" /></label> : null}
           <label><span>Pickup date</span><input type="date" value={rentalFacts.pickupDate} onChange={(event) => updateRentalFact("pickupDate", event.target.value)} /></label>
           <label><span>Pickup time</span><input type="time" value={rentalFacts.pickupTime} onChange={(event) => updateRentalFact("pickupTime", event.target.value)} /></label>
           <label><span>Return date</span><input type="date" value={rentalFacts.dropoffDate} onChange={(event) => updateRentalFact("dropoffDate", event.target.value)} /></label>
@@ -1150,7 +1224,7 @@ function DailyRentalExecutionDesk({
 
       <section className={styles.retailSection} id="rental-unit">
         <header>
-          <span>Rental unit</span>
+          <span>{workflowUnitLabel}</span>
           <strong>Assign a ready vehicle before checkout</strong>
         </header>
         <div className={styles.retailFieldGrid}>
@@ -1176,11 +1250,11 @@ function DailyRentalExecutionDesk({
 
       <section className={styles.retailSection} id="rental-protection">
         <header>
-          <span>Payment and protection</span>
-          <strong>Secure the hold before keys leave</strong>
+          <span>{isLoaner ? "Fee waiver and protection" : "Payment and protection"}</span>
+          <strong>{isLoaner ? "Keep fees visible while deferring customer charge" : "Secure the hold before keys leave"}</strong>
         </header>
         <div className={styles.retailFieldGrid}>
-          <label><span>Payment method</span><select value={rentalFacts.paymentMethod} onChange={(event) => updateRentalFact("paymentMethod", event.target.value)}><option>Credit card</option><option>Debit card</option><option>Insurance direct bill</option><option>Company account</option><option>Cash not accepted for hold</option></select></label>
+          <label><span>{isLoaner ? "Fee handling" : "Payment method"}</span><select value={rentalFacts.paymentMethod} onChange={(event) => updateRentalFact("paymentMethod", event.target.value)}>{isLoaner ? <option>Courtesy loaner - deferred</option> : null}<option>Credit card</option><option>Debit card</option><option>Insurance direct bill</option><option>Company account</option><option>Cash not accepted for hold</option></select></label>
           <label><span>Card last 4</span><input value={rentalFacts.cardLast4} onChange={(event) => updateRentalFact("cardLast4", event.target.value.slice(0, 4))} placeholder="1234" /></label>
           <label><span>Deposit / hold</span><input value={rentalFacts.depositHold} onChange={(event) => updateRentalFact("depositHold", event.target.value)} /></label>
           <label><span>Daily rate</span><input value={rentalFacts.ratePerDay} onChange={(event) => updateRentalFact("ratePerDay", event.target.value)} /></label>
@@ -1191,10 +1265,81 @@ function DailyRentalExecutionDesk({
         </div>
         <div className={styles.rentalSummaryStrip}>
           <div><span>Rental days</span><strong>{rentalDays}</strong></div>
-          <div><span>Rental charges</span><strong>{formatCurrency(estimatedRentalCents)}</strong></div>
+          <div><span>{isLoaner ? "Loaner fee exposure" : "Rental charges"}</span><strong>{formatCurrency(estimatedRentalCents)}</strong></div>
           <div><span>Deposit / hold</span><strong>{formatCurrency(Number.isFinite(depositHoldCents) && depositHoldCents !== null ? depositHoldCents : 0)}</strong></div>
-          <div><span>Authorization</span><strong>{formatCurrency(authorizationCents)}</strong></div>
-          <button type="button" onClick={useAuthorizationTotal}>Use authorization total</button>
+          <div><span>{isLoaner ? "Customer fee status" : "Authorization"}</span><strong>{isLoaner ? feeStatusLabel : formatCurrency(authorizationCents)}</strong></div>
+          <button type="button" onClick={useAuthorizationTotal}>{isLoaner ? "Use fee exposure total" : "Use authorization total"}</button>
+        </div>
+        {isLoaner ? (
+          <div className={styles.retailDeliveryNote}>
+            <strong>Courtesy Loaner Purchase Waiver</strong>
+            <p>Customer acknowledges that standard daily rental rates, mileage limits, late return charges, fuel charges, cleaning charges, damage responsibility, insurance requirements, and other use conditions remain applicable to this loaner unless expressly waived in writing.</p>
+            <p>Dealer will waive the standard daily rental/use fee for the approved loaner period if Customer completes the purchase of the interested vehicle from Dealer. This waiver does not waive responsibility for damage, loss, fuel shortage, excessive cleaning, tickets, tolls, unauthorized use, late return after the approved due-back time, or other applicable charges.</p>
+            <p>If Customer does not complete the purchase, cancels the purchase process, fails to return the loaner when requested, exceeds the approved loaner period, or otherwise violates this agreement, Dealer may charge the standard daily rental/use fee and any other applicable charges for the loaner period.</p>
+          </div>
+        ) : null}
+      </section>
+
+      <section className={styles.retailSection} id="rental-evidence">
+        <header>
+          <span>Release & return evidence</span>
+          <strong>Photos and signed documents are required before custody changes</strong>
+        </header>
+        <div className={styles.rentalEvidenceSummary}>
+          <div><span>Release photos</span><strong>{releasePhotoCount}/{RENTAL_RELEASE_PHOTO_REQUIREMENTS.length}</strong><small>{releasePhotosReady ? "Ready for checkout" : "Required before keys leave"}</small></div>
+          <div><span>Signed documents</span><strong>{signedDocumentCount}/{RENTAL_SIGNED_DOCUMENT_REQUIREMENTS.length}</strong><small>{signedDocumentsReady ? "Recorded" : "Required before checkout"}</small></div>
+          <div><span>Return photos</span><strong>{returnPhotoCount}/{RENTAL_RETURN_PHOTO_REQUIREMENTS.length}</strong><small>{returnPhotosReady ? "Ready to receive" : "Required before receiving complete"}</small></div>
+        </div>
+        <div className={styles.rentalEvidenceBoard}>
+          <section>
+            <h3>Release photos</h3>
+            <p>Use a phone camera when available. These photo slots document condition before staff releases the {workflowNoun} vehicle.</p>
+            <div className={styles.rentalEvidenceGrid}>
+              {RENTAL_RELEASE_PHOTO_REQUIREMENTS.map((item) => (
+                <label className={releasePhotos[item.id] ? styles.rentalEvidenceCaptured : undefined} key={item.id}>
+                  <span>{item.label}</span>
+                  <strong>{releasePhotos[item.id] ?? "Photo required"}</strong>
+                  <small>{item.helper}</small>
+                  <input accept="image/*" capture="environment" onChange={(event) => captureEvidence(setReleasePhotos, item.id, event.currentTarget.files?.[0])} type="file" />
+                </label>
+              ))}
+            </div>
+          </section>
+          <section>
+            <h3>Signed document recording</h3>
+            <p>Record the signed packet and proof documents against this {workflowNoun} workflow. These are the documents that should be stored in the governed evidence archive once backend storage is connected here.</p>
+            <div className={styles.rentalEvidenceGrid}>
+              {RENTAL_SIGNED_DOCUMENT_REQUIREMENTS.map((item) => (
+                <label className={signedDocuments[item.id] ? styles.rentalEvidenceCaptured : undefined} key={item.id}>
+                  <span>{item.label}</span>
+                  <strong>{signedDocuments[item.id] ?? "Document required"}</strong>
+                  <small>{item.helper}</small>
+                  <input accept="application/pdf,image/*" capture={item.id === "signed-agreement" ? undefined : "environment"} onChange={(event) => captureEvidence(setSignedDocuments, item.id, event.currentTarget.files?.[0])} type="file" />
+                </label>
+              ))}
+            </div>
+          </section>
+          <section>
+            <h3>Return / receiving photos</h3>
+            <p>Receiving cannot be completed until staff records the return condition, mileage, fuel, interior, and damage review.</p>
+            <div className={styles.rentalEvidenceGrid}>
+              {RENTAL_RETURN_PHOTO_REQUIREMENTS.map((item) => (
+                <label className={returnPhotos[item.id] ? styles.rentalEvidenceCaptured : undefined} key={item.id}>
+                  <span>{item.label}</span>
+                  <strong>{returnPhotos[item.id] ?? "Photo required"}</strong>
+                  <small>{item.helper}</small>
+                  <input accept="image/*" capture="environment" onChange={(event) => captureEvidence(setReturnPhotos, item.id, event.currentTarget.files?.[0])} type="file" />
+                </label>
+              ))}
+            </div>
+            <div className={styles.retailNextActionBar} aria-label={`${workflowTitle} receiving next actions`}>
+              <div>
+                <span>Receiving readiness</span>
+                <strong>{returnReceived ? "Return received with evidence" : returnPhotosReady ? "Ready to receive vehicle" : `${returnPhotoCount}/${RENTAL_RETURN_PHOTO_REQUIREMENTS.length} return photos ready`}</strong>
+              </div>
+              <button disabled={!returnPhotosReady || returnReceived} onClick={() => setReturnReceived(true)} type="button">{returnReceived ? "Return received" : "Complete receiving"}</button>
+            </div>
+          </section>
         </div>
       </section>
 
@@ -1206,10 +1351,11 @@ function DailyRentalExecutionDesk({
         <div className={styles.rentalReadinessGrid}>
           {[
             ["Identity", rentalFacts.licenseNumber ? "Captured" : "Needs license"],
-            ["Payment hold", rentalFacts.cardLast4 ? "Ready" : "Needs card"],
+            [isLoaner ? "Courtesy waiver" : "Payment hold", isLoaner ? (rentalFacts.interestedVehicle ? "Ready" : "Needs interested vehicle") : (rentalFacts.cardLast4 ? "Ready" : "Needs card")],
             ["Protection", rentalFacts.insuranceCarrier || rentalFacts.protectionPlan !== "Customer insurance on file" ? "Ready" : "Needs insurance"],
-            ["Vehicle", vehicleFacts.stockNumber || vehicleFacts.vin || vehicle ? "Assigned" : "Needs unit"],
-            ["Return plan", rentalFacts.dropoffDate ? "Scheduled" : "Needs date"]
+            [isLoaner ? "Loaner unit" : "Vehicle", vehicleFacts.stockNumber || vehicleFacts.vin || vehicle ? "Assigned" : "Needs unit"],
+            ["Return plan", rentalFacts.dropoffDate ? "Scheduled" : "Needs date"],
+            ["Release evidence", releaseEvidenceReady ? "Ready" : "Needs photos/docs"]
           ].map(([label, value]) => (
             <div key={label}>
               <span>{label}</span>
@@ -1217,13 +1363,13 @@ function DailyRentalExecutionDesk({
             </div>
           ))}
         </div>
-        <div className={styles.retailNextActionBar} aria-label="Daily rental next actions">
+        <div className={styles.retailNextActionBar} aria-label={`${workflowTitle} next actions`}>
           <div>
-            <span>Rental readiness</span>
-            <strong>{rentalReadyFacts >= 5 ? "Ready to complete rental checkout" : `${rentalReadyFacts}/5 counter facts ready`}</strong>
+            <span>{workflowTitle} readiness</span>
+            <strong>{rentalReadyFacts >= 5 && releaseEvidenceReady ? `Ready to complete ${workflowNoun} checkout` : releaseEvidenceReady ? `${rentalReadyFacts}/5 counter facts ready` : "Release photos and signed documents required"}</strong>
           </div>
-          <button type="button" onClick={onSaveDraft}>Save rental draft</button>
-          <button disabled={rentalReadyFacts < 5 || !amount.trim() || statusKind === "saving"} onClick={onComplete} type="button">
+          <button type="button" onClick={onSaveDraft}>Save {workflowNoun} draft</button>
+          <button disabled={rentalReadyFacts < 5 || !releaseEvidenceReady || !amount.trim() || statusKind === "saving"} onClick={onComplete} type="button">
             {statusKind === "saving" ? "Completing..." : "Complete checkout"}
           </button>
         </div>
@@ -1231,8 +1377,8 @@ function DailyRentalExecutionDesk({
 
       <section className={styles.retailSection} id="rental-forms">
         <header>
-          <span>Rental forms</span>
-          <strong>Daily rental signing packet</strong>
+          <span>{isLoaner ? "Loaner forms" : "Rental forms"}</span>
+          <strong>{isLoaner ? "Vehicle loaner signing packet" : "Daily rental signing packet"}</strong>
         </header>
         <div className={styles.retailPacketLauncher}>
           <div>
@@ -1240,17 +1386,17 @@ function DailyRentalExecutionDesk({
             <strong>{contractPacket ? `${contractPacket.packetNumber} archived` : `${preparedRequiredCount}/${requiredRentalForms.length} required forms ready`}</strong>
             <small>Open the drawer to prepare the agreement, terms, damage responsibility, protection election, payment authorization, condition report, and incident instructions.</small>
           </div>
-          <button type="button" onClick={() => setPacketDrawerOpen(true)}>Open rental packet</button>
+          <button type="button" onClick={() => setPacketDrawerOpen(true)}>Open {workflowNoun} packet</button>
         </div>
 
         {packetDrawerOpen ? (
           <div className={styles.retailPacketDrawerBackdrop} role="presentation">
-            <aside className={styles.retailPacketDrawer} aria-label="Daily rental packet drawer">
+            <aside className={styles.retailPacketDrawer} aria-label={`${workflowTitle} packet drawer`}>
               <header>
                 <div>
-                  <span>Daily rental packet</span>
-                  <strong>Prepare, generate, and review rental documents</strong>
-                  <small>Rental agreements stay out of the main workspace until staff needs signing, print, text, email, or archive controls.</small>
+                  <span>{workflowTitle} packet</span>
+                  <strong>Prepare, generate, and review {workflowNoun} documents</strong>
+                  <small>{workflowTitle} agreements stay out of the main workspace until staff needs signing, print, text, email, or archive controls.</small>
                 </div>
                 <button type="button" onClick={() => setPacketDrawerOpen(false)}>Close</button>
               </header>
@@ -1262,7 +1408,7 @@ function DailyRentalExecutionDesk({
                 </div>
                 <button type="button" onClick={prepareRequiredForms}>Prepare required forms</button>
                 <button disabled={packetStatus.kind === "generating"} type="button" onClick={() => void generateRentalPacket()}>
-                  {packetStatus.kind === "generating" ? "Generating..." : "Generate rental packet"}
+                  {packetStatus.kind === "generating" ? "Generating..." : `Generate ${workflowNoun} packet`}
                 </button>
                 <button disabled={!contractPacket} type="button" onClick={openPacketPreview}>Preview generated packet</button>
               </div>
@@ -1778,6 +1924,7 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
   });
   const [status, setStatus] = useState<{ kind: "idle" | "saving" | "success" | "error"; message: string; href?: string }>({ kind: "idle", message: "" });
   const workflow = DEAL_WORKFLOWS.find((item) => item.id === workflowId) ?? DEAL_WORKFLOWS[0];
+  const rentalLikeWorkflow = workflow.id === "daily-rental" || workflow.id === "vehicle-loaner";
   const selectedCustomer = model.customers.find((customer) => customer.id === form.customerId) ?? model.customers[0] ?? null;
   const estimatedValueCents = useMemo(() => dollarsToCents(form.amount), [form.amount]);
   const completedCount = useMemo(() => [form.customerId, form.vehicle, form.amount].filter((value) => value.trim()).length, [form]);
@@ -1804,7 +1951,7 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
         nextActionLabel: `Execute ${workflow.label} workflow for ${selectedCustomer.name}`,
         ownerUserId: form.ownerUserId,
         summary: [
-          `Revenue channel: ${workflow.label}`,
+          `${workflow.id === "vehicle-loaner" ? "Workflow" : "Revenue channel"}: ${workflow.label}`,
           `Vehicle/reference: ${form.vehicle}`,
           form.note ? `Staff note: ${form.note}` : null
         ].filter(Boolean).join("\n"),
@@ -1839,7 +1986,7 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
           <small>{workflow.nextWorkspace}</small>
         </div>
         <div className={styles.executionStatusChips} aria-label="Retail execution checks">
-          {(workflow.id === "daily-rental" ? ["License", "Payment hold", "Vehicle", "Return plan"] : ["Identity", "Vehicle", "Funding", "Delivery"]).map((item) => <span key={item}>{item}</span>)}
+          {(rentalLikeWorkflow ? ["License", workflow.id === "vehicle-loaner" ? "Courtesy waiver" : "Payment hold", workflow.id === "vehicle-loaner" ? "Loaner unit" : "Vehicle", "Return plan"] : ["Identity", "Vehicle", "Funding", "Delivery"]).map((item) => <span key={item}>{item}</span>)}
         </div>
         <button type="button" onClick={() => setSummaryOpen(true)}>Execution Summary</button>
         <button disabled={!ready || status.kind === "saving"} onClick={() => void startDeal()} type="button">
@@ -1855,12 +2002,13 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
             <a href="#lease-calculator">Calculator</a>
             <a href="#lease-contracts">Forms</a>
           </>
-        ) : workflow.id === "daily-rental" ? (
+        ) : rentalLikeWorkflow ? (
           <>
             <a href="#rental-renter">Renter</a>
             <a href="#rental-window">Dates</a>
             <a href="#rental-unit">Unit</a>
             <a href="#rental-protection">Payment</a>
+            <a href="#rental-evidence">Evidence</a>
             <a href="#rental-checkout">Checkout</a>
             <a href="#rental-forms">Forms</a>
           </>
@@ -1943,7 +2091,7 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
                 </button>
               </div>
             </>
-          ) : workflow.id === "daily-rental" ? (
+          ) : rentalLikeWorkflow ? (
             <>
               <div className={styles.dealStartForm}>
                 <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => update("customerId", event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
@@ -1952,6 +2100,8 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
               <DailyRentalExecutionDesk
                 amount={form.amount}
                 customerName={selectedCustomer?.name ?? "Customer not selected"}
+                key={workflow.id}
+                mode={workflow.id === "vehicle-loaner" ? "vehicle-loaner" : "daily-rental"}
                 onAmountChange={(value) => update("amount", value)}
                 onComplete={() => void startDeal()}
                 onSaveDraft={saveDraft}
@@ -1959,7 +2109,7 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
                 statusKind={status.kind}
                 vehicle={form.vehicle}
               />
-              <label className={`${styles.dealStartWide} ${styles.retailNote}`}><span>{FIELD_LABELS.note}</span><textarea value={form.note} onChange={(event) => update("note", event.target.value)} placeholder="Optional context staff needs before working this daily rental" rows={3} /></label>
+              <label className={`${styles.dealStartWide} ${styles.retailNote}`}><span>{FIELD_LABELS.note}</span><textarea value={form.note} onChange={(event) => update("note", event.target.value)} placeholder={`Optional context staff needs before working this ${workflow.label.toLowerCase()}`} rows={3} /></label>
             </>
           ) : (
             <div className={styles.dealStartForm}>
