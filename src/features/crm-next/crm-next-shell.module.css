@@ -4679,6 +4679,80 @@
   padding: 9px 14px;
 }
 
+.rentalSummaryStrip {
+  background: #061735;
+  border-radius: 16px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  padding: 14px;
+}
+
+.rentalSummaryStrip div,
+.rentalReadinessGrid div {
+  display: grid;
+  gap: 4px;
+}
+
+.rentalSummaryStrip div {
+  background: rgb(255 255 255 / 8%);
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.rentalSummaryStrip span {
+  color: #b9c6dc;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rentalSummaryStrip strong {
+  color: #ffffff;
+  font-size: 18px;
+}
+
+.rentalSummaryStrip button {
+  align-self: stretch;
+  background: #41d788;
+  border: 1px solid #41d788;
+  border-radius: 12px;
+  color: #061735;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+  min-height: 42px;
+  padding: 9px 14px;
+}
+
+.rentalReadinessGrid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.rentalReadinessGrid div {
+  background: #ffffff;
+  border: 1px solid #dbe6f8;
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.rentalReadinessGrid span {
+  color: #52647d;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rentalReadinessGrid strong {
+  color: #061735;
+  font-size: 16px;
+}
+
 .retailPacketLauncher {
   align-items: center;
   background: #ffffff;
@@ -5411,6 +5485,8 @@
   .retailFeeControls,
   .retailDecodeRow,
   .leaseCalculatorSummary,
+  .rentalSummaryStrip,
+  .rentalReadinessGrid,
   .retailPacketLauncher,
   .retailFormsCommand,
   .retailPacketArchive,

@@ -277,6 +277,23 @@ function getVinFromVehicleInput(value: string) {
   return normalized.length === 17 ? normalized : "";
 }
 
+function todayInputValue() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function tomorrowInputValue() {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  return date.toISOString().slice(0, 10);
+}
+
+function daysBetween(startDate: string, endDate: string) {
+  const start = Date.parse(`${startDate}T00:00:00`);
+  const end = Date.parse(`${endDate}T00:00:00`);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 1;
+  return Math.max(1, Math.ceil((end - start) / 86_400_000));
+}
+
 function decodeVin(vin: string): VehicleDecodeResult {
   const normalizedVin = normalizeVin(vin);
   const makePrefix = normalizedVin.slice(0, 2);
@@ -815,6 +832,247 @@ function percentToBasisPoints(value: string) {
   return Number.isFinite(parsed) ? Math.round(parsed * 100) : 0;
 }
 
+function DailyRentalExecutionDesk({
+  amount,
+  customerName,
+  onComplete,
+  onAmountChange,
+  onSaveDraft,
+  onVehicleChange,
+  statusKind,
+  vehicle
+}: {
+  amount: string;
+  customerName: string;
+  onComplete: () => void;
+  onAmountChange: (value: string) => void;
+  onSaveDraft: () => void;
+  onVehicleChange: (value: string) => void;
+  statusKind: "idle" | "saving" | "success" | "error";
+  vehicle: string;
+}) {
+  const [vehicleFacts, setVehicleFacts] = useState({
+    color: "",
+    licensePlate: "",
+    make: "",
+    mileageOut: "",
+    model: "",
+    parkingLocation: "",
+    stockNumber: "",
+    trim: "",
+    vin: "",
+    year: ""
+  });
+  const [decodeStatus, setDecodeStatus] = useState("Enter a 17-character VIN to decode the rental unit.");
+  const [rentalFacts, setRentalFacts] = useState({
+    additionalDriverName: "",
+    additionalDriverStatus: "None",
+    cardLast4: "",
+    depositHold: "$300.00",
+    dob: "",
+    dropoffDate: tomorrowInputValue(),
+    dropoffTime: "10:00",
+    fuelOut: "Full",
+    insuranceCarrier: "",
+    insurancePolicy: "",
+    licenseNumber: "",
+    licenseState: "MN",
+    licenseStatus: "Valid",
+    mileagePlan: "Local use / daily mileage cap",
+    paymentMethod: "Credit card",
+    pickupDate: todayInputValue(),
+    pickupTime: "10:00",
+    protectionPlan: "Customer insurance on file",
+    ratePerDay: "$49.00",
+    returnFuel: "Return full",
+    secondaryId: "Not needed",
+    useRestriction: "Minnesota local use"
+  });
+
+  const rentalDays = daysBetween(rentalFacts.pickupDate, rentalFacts.dropoffDate);
+  const dailyRateCents = dollarsToCents(rentalFacts.ratePerDay);
+  const depositHoldCents = dollarsToCents(rentalFacts.depositHold);
+  const estimatedRentalCents = (Number.isFinite(dailyRateCents) && dailyRateCents !== null ? dailyRateCents : 0) * rentalDays;
+  const authorizationCents = estimatedRentalCents + (Number.isFinite(depositHoldCents) && depositHoldCents !== null ? depositHoldCents : 0);
+  const rentalReadyFacts = [
+    customerName !== "Customer not selected",
+    vehicleFacts.stockNumber || vehicleFacts.vin || vehicle,
+    rentalFacts.licenseNumber,
+    rentalFacts.cardLast4,
+    rentalFacts.insuranceCarrier || rentalFacts.protectionPlan !== "Customer insurance on file"
+  ].filter(Boolean).length;
+
+  function updateRentalFact(key: keyof typeof rentalFacts, value: string) {
+    const nextFacts = { ...rentalFacts, [key]: value };
+    setRentalFacts(nextFacts);
+    const nextDays = daysBetween(nextFacts.pickupDate, nextFacts.dropoffDate);
+    const nextRate = dollarsToCents(nextFacts.ratePerDay);
+    const nextDeposit = dollarsToCents(nextFacts.depositHold);
+    const nextEstimate = (Number.isFinite(nextRate) && nextRate !== null ? nextRate : 0) * nextDays + (Number.isFinite(nextDeposit) && nextDeposit !== null ? nextDeposit : 0);
+    onAmountChange(formatCurrency(nextEstimate));
+  }
+
+  function updateVehicleFact(key: keyof typeof vehicleFacts, value: string) {
+    setVehicleFacts((current) => ({ ...current, [key]: value }));
+  }
+
+  function updateVin(value: string) {
+    const vin = normalizeVin(value);
+    const stockNumber = getStockNumberFromVin(vin);
+    setVehicleFacts((current) => ({ ...current, stockNumber, vin }));
+    onVehicleChange(stockNumber || vin || vehicle);
+  }
+
+  function updateVehicleSearch(value: string) {
+    onVehicleChange(value);
+    const vin = getVinFromVehicleInput(value);
+    if (!vin) return;
+    setVehicleFacts((current) => ({ ...current, stockNumber: getStockNumberFromVin(vin), vin }));
+  }
+
+  function runVinDecode() {
+    const vin = vehicleFacts.vin || getVinFromVehicleInput(vehicle);
+    const decoded = decodeVin(vin);
+    setVehicleFacts((current) => ({
+      ...current,
+      make: decoded.make || current.make,
+      stockNumber: decoded.stockNumber,
+      vin: vin || current.vin,
+      year: decoded.year || current.year
+    }));
+    setDecodeStatus(decoded.valid ? "VIN decoded. Confirm model, color, mileage, and plate before checkout." : "Enter a full 17-character VIN in Search inventory or VIN before decoding.");
+    if (decoded.stockNumber) onVehicleChange(decoded.stockNumber);
+  }
+
+  function useAuthorizationTotal() {
+    onAmountChange(formatCurrency(authorizationCents));
+  }
+
+  return (
+    <div className={styles.retailExecutionDesk}>
+      <section className={styles.retailSection} id="rental-renter">
+        <header>
+          <span>Renter eligibility</span>
+          <strong>Confirm who can legally take the vehicle</strong>
+        </header>
+        <div className={styles.retailActionRow}>
+          <button type="button">Scan driver license</button>
+          <button type="button">Add additional driver</button>
+          <button type="button">Text rental agreement</button>
+          <button type="button">Email rental agreement</button>
+        </div>
+        <p className={styles.retailDeliveryNote}>Most U.S. rental operators require a valid driver license, age eligibility, acceptable payment, and any needed secondary ID before release.</p>
+        <div className={styles.retailFieldGrid}>
+          <label><span>Primary renter</span><input readOnly value={customerName} /></label>
+          <label><span>Date of birth</span><input value={rentalFacts.dob} onChange={(event) => updateRentalFact("dob", event.target.value)} placeholder="MM/DD/YYYY" /></label>
+          <label><span>License status</span><select value={rentalFacts.licenseStatus} onChange={(event) => updateRentalFact("licenseStatus", event.target.value)}><option>Valid</option><option>Needs review</option><option>Expired</option><option>Suspended / not eligible</option></select></label>
+          <label><span>License number</span><input value={rentalFacts.licenseNumber} onChange={(event) => updateRentalFact("licenseNumber", event.target.value)} /></label>
+          <label><span>License state</span><select value={rentalFacts.licenseState} onChange={(event) => updateRentalFact("licenseState", event.target.value)}><option>MN</option><option>WI</option><option>IA</option><option>ND</option><option>SD</option><option>Other</option></select></label>
+          <label><span>Secondary ID</span><select value={rentalFacts.secondaryId} onChange={(event) => updateRentalFact("secondaryId", event.target.value)}><option>Not needed</option><option>Passport</option><option>Utility / bank statement</option><option>Military ID</option><option>Travel itinerary</option><option>Manager review</option></select></label>
+          <label><span>Additional driver</span><select value={rentalFacts.additionalDriverStatus} onChange={(event) => updateRentalFact("additionalDriverStatus", event.target.value)}><option>None</option><option>Spouse / domestic partner</option><option>Paid additional driver</option><option>Business authorized driver</option><option>Needs approval</option></select></label>
+          <label><span>Additional driver name</span><input value={rentalFacts.additionalDriverName} onChange={(event) => updateRentalFact("additionalDriverName", event.target.value)} /></label>
+        </div>
+      </section>
+
+      <section className={styles.retailSection} id="rental-window">
+        <header>
+          <span>Rental window</span>
+          <strong>Set pickup, return, and use limits</strong>
+        </header>
+        <div className={styles.retailFieldGrid}>
+          <label><span>Pickup date</span><input type="date" value={rentalFacts.pickupDate} onChange={(event) => updateRentalFact("pickupDate", event.target.value)} /></label>
+          <label><span>Pickup time</span><input type="time" value={rentalFacts.pickupTime} onChange={(event) => updateRentalFact("pickupTime", event.target.value)} /></label>
+          <label><span>Return date</span><input type="date" value={rentalFacts.dropoffDate} onChange={(event) => updateRentalFact("dropoffDate", event.target.value)} /></label>
+          <label><span>Return time</span><input type="time" value={rentalFacts.dropoffTime} onChange={(event) => updateRentalFact("dropoffTime", event.target.value)} /></label>
+          <label><span>Mileage plan</span><select value={rentalFacts.mileagePlan} onChange={(event) => updateRentalFact("mileagePlan", event.target.value)}><option>Local use / daily mileage cap</option><option>Unlimited local miles</option><option>Out-of-state approved</option><option>Insurance replacement</option><option>Manager exception</option></select></label>
+          <label><span>Use restriction</span><select value={rentalFacts.useRestriction} onChange={(event) => updateRentalFact("useRestriction", event.target.value)}><option>Minnesota local use</option><option>MN / WI / IA / Dakotas</option><option>No rideshare or commercial use</option><option>Insurance claim rental</option><option>Manager-approved exception</option></select></label>
+        </div>
+      </section>
+
+      <section className={styles.retailSection} id="rental-unit">
+        <header>
+          <span>Rental unit</span>
+          <strong>Assign a ready vehicle before checkout</strong>
+        </header>
+        <div className={styles.retailFieldGrid}>
+          <label><span>Search inventory</span><input value={vehicle} onChange={(event) => updateVehicleSearch(event.target.value)} placeholder="Stock, VIN, plate, or unit" /></label>
+          <label><span>VIN</span><input value={vehicleFacts.vin} onChange={(event) => updateVin(event.target.value)} placeholder="17-character VIN" /></label>
+          <label><span>Stock no.</span><input readOnly value={vehicleFacts.stockNumber} placeholder="Last 6 of VIN" /></label>
+          <div className={styles.retailDecodeRow}>
+            <button type="button" onClick={runVinDecode}>Decode VIN</button>
+            <span>{decodeStatus}</span>
+          </div>
+          <label><span>Year</span><input value={vehicleFacts.year} onChange={(event) => updateVehicleFact("year", event.target.value)} /></label>
+          <label><span>Make</span><input value={vehicleFacts.make} onChange={(event) => updateVehicleFact("make", event.target.value)} /></label>
+          <label><span>Model</span><input value={vehicleFacts.model} onChange={(event) => updateVehicleFact("model", event.target.value)} /></label>
+          <label><span>Trim</span><input value={vehicleFacts.trim} onChange={(event) => updateVehicleFact("trim", event.target.value)} /></label>
+          <label><span>Color</span><input value={vehicleFacts.color} onChange={(event) => updateVehicleFact("color", event.target.value)} /></label>
+          <label><span>Plate</span><input value={vehicleFacts.licensePlate} onChange={(event) => updateVehicleFact("licensePlate", event.target.value)} /></label>
+          <label><span>Mileage out</span><input value={vehicleFacts.mileageOut} onChange={(event) => updateVehicleFact("mileageOut", event.target.value)} /></label>
+          <label><span>Parking location</span><input value={vehicleFacts.parkingLocation} onChange={(event) => updateVehicleFact("parkingLocation", event.target.value)} placeholder="Front line, bay, lot row" /></label>
+          <label><span>Fuel out</span><select value={rentalFacts.fuelOut} onChange={(event) => updateRentalFact("fuelOut", event.target.value)}><option>Full</option><option>3/4</option><option>1/2</option><option>1/4</option><option>Empty</option></select></label>
+          <label><span>Fuel return rule</span><select value={rentalFacts.returnFuel} onChange={(event) => updateRentalFact("returnFuel", event.target.value)}><option>Return full</option><option>Return same level</option><option>Prepaid fuel</option><option>Manager exception</option></select></label>
+        </div>
+      </section>
+
+      <section className={styles.retailSection} id="rental-protection">
+        <header>
+          <span>Payment and protection</span>
+          <strong>Secure the hold before keys leave</strong>
+        </header>
+        <div className={styles.retailFieldGrid}>
+          <label><span>Payment method</span><select value={rentalFacts.paymentMethod} onChange={(event) => updateRentalFact("paymentMethod", event.target.value)}><option>Credit card</option><option>Debit card</option><option>Insurance direct bill</option><option>Company account</option><option>Cash not accepted for hold</option></select></label>
+          <label><span>Card last 4</span><input value={rentalFacts.cardLast4} onChange={(event) => updateRentalFact("cardLast4", event.target.value.slice(0, 4))} placeholder="1234" /></label>
+          <label><span>Deposit / hold</span><input value={rentalFacts.depositHold} onChange={(event) => updateRentalFact("depositHold", event.target.value)} /></label>
+          <label><span>Daily rate</span><input value={rentalFacts.ratePerDay} onChange={(event) => updateRentalFact("ratePerDay", event.target.value)} /></label>
+          <label><span>Protection choice</span><select value={rentalFacts.protectionPlan} onChange={(event) => updateRentalFact("protectionPlan", event.target.value)}><option>Customer insurance on file</option><option>Dealer collision damage waiver</option><option>Liability supplement</option><option>Declined protection</option><option>Manager review</option></select></label>
+          <label><span>Insurance carrier</span><input value={rentalFacts.insuranceCarrier} onChange={(event) => updateRentalFact("insuranceCarrier", event.target.value)} /></label>
+          <label><span>Policy number</span><input value={rentalFacts.insurancePolicy} onChange={(event) => updateRentalFact("insurancePolicy", event.target.value)} /></label>
+          <label><span>Estimated authorization</span><input readOnly value={formatCurrency(authorizationCents)} /></label>
+        </div>
+        <div className={styles.rentalSummaryStrip}>
+          <div><span>Rental days</span><strong>{rentalDays}</strong></div>
+          <div><span>Rental charges</span><strong>{formatCurrency(estimatedRentalCents)}</strong></div>
+          <div><span>Deposit / hold</span><strong>{formatCurrency(Number.isFinite(depositHoldCents) && depositHoldCents !== null ? depositHoldCents : 0)}</strong></div>
+          <div><span>Authorization</span><strong>{formatCurrency(authorizationCents)}</strong></div>
+          <button type="button" onClick={useAuthorizationTotal}>Use authorization total</button>
+        </div>
+      </section>
+
+      <section className={styles.retailSection} id="rental-checkout">
+        <header>
+          <span>Checkout controls</span>
+          <strong>Release only when the counter facts are clean</strong>
+        </header>
+        <div className={styles.rentalReadinessGrid}>
+          {[
+            ["Identity", rentalFacts.licenseNumber ? "Captured" : "Needs license"],
+            ["Payment hold", rentalFacts.cardLast4 ? "Ready" : "Needs card"],
+            ["Protection", rentalFacts.insuranceCarrier || rentalFacts.protectionPlan !== "Customer insurance on file" ? "Ready" : "Needs insurance"],
+            ["Vehicle", vehicleFacts.stockNumber || vehicleFacts.vin || vehicle ? "Assigned" : "Needs unit"],
+            ["Return plan", rentalFacts.dropoffDate ? "Scheduled" : "Needs date"]
+          ].map(([label, value]) => (
+            <div key={label}>
+              <span>{label}</span>
+              <strong>{value}</strong>
+            </div>
+          ))}
+        </div>
+        <div className={styles.retailNextActionBar} aria-label="Daily rental next actions">
+          <div>
+            <span>Rental readiness</span>
+            <strong>{rentalReadyFacts >= 5 ? "Ready to complete rental checkout" : `${rentalReadyFacts}/5 counter facts ready`}</strong>
+          </div>
+          <button type="button" onClick={onSaveDraft}>Save rental draft</button>
+          <button disabled={rentalReadyFacts < 5 || !amount.trim() || statusKind === "saving"} onClick={onComplete} type="button">
+            {statusKind === "saving" ? "Completing..." : "Complete checkout"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function basisPointsFromMultiplier(value: string) {
   const parsed = Number(value.trim());
   return Number.isFinite(parsed) ? Math.round(parsed * 10000) : 10000;
@@ -1313,7 +1571,7 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
           <small>{workflow.nextWorkspace}</small>
         </div>
         <div className={styles.executionStatusChips} aria-label="Retail execution checks">
-          {["Identity", "Vehicle", "Funding", "Delivery"].map((item) => <span key={item}>{item}</span>)}
+          {(workflow.id === "daily-rental" ? ["License", "Payment hold", "Vehicle", "Return plan"] : ["Identity", "Vehicle", "Funding", "Delivery"]).map((item) => <span key={item}>{item}</span>)}
         </div>
         <button type="button" onClick={() => setSummaryOpen(true)}>Execution Summary</button>
         <button disabled={!ready || status.kind === "saving"} onClick={() => void startDeal()} type="button">
@@ -1328,6 +1586,14 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
             <a href="#lease-vehicle">Vehicle</a>
             <a href="#lease-calculator">Calculator</a>
             <a href="#lease-contracts">Forms</a>
+          </>
+        ) : workflow.id === "daily-rental" ? (
+          <>
+            <a href="#rental-renter">Renter</a>
+            <a href="#rental-window">Dates</a>
+            <a href="#rental-unit">Unit</a>
+            <a href="#rental-protection">Payment</a>
+            <a href="#rental-checkout">Checkout</a>
           </>
         ) : (
           <>
@@ -1407,6 +1673,24 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
                   {status.kind === "saving" ? "Completing..." : "Complete intake"}
                 </button>
               </div>
+            </>
+          ) : workflow.id === "daily-rental" ? (
+            <>
+              <div className={styles.dealStartForm}>
+                <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => update("customerId", event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+                <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
+              </div>
+              <DailyRentalExecutionDesk
+                amount={form.amount}
+                customerName={selectedCustomer?.name ?? "Customer not selected"}
+                onAmountChange={(value) => update("amount", value)}
+                onComplete={() => void startDeal()}
+                onSaveDraft={saveDraft}
+                onVehicleChange={(value) => update("vehicle", value)}
+                statusKind={status.kind}
+                vehicle={form.vehicle}
+              />
+              <label className={`${styles.dealStartWide} ${styles.retailNote}`}><span>{FIELD_LABELS.note}</span><textarea value={form.note} onChange={(event) => update("note", event.target.value)} placeholder="Optional context staff needs before working this daily rental" rows={3} /></label>
             </>
           ) : (
             <div className={styles.dealStartForm}>
