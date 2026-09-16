@@ -965,6 +965,60 @@ const TEST_DRIVE_DOCUMENT_REQUIREMENTS: RentalEvidenceRequirement[] = [
   { id: "td-insurance-proof", label: "Insurance proof", helper: "Insurance card or manager-approved protection proof." }
 ];
 
+const BHPH_PAPERWORK_REQUIREMENTS: RentalEvidenceRequirement[] = [
+  { id: "retail-installment-contract", label: "Retail installment contract", helper: "Signed BHPH finance contract with final payment schedule." },
+  { id: "buyers-order", label: "Buyer order", helper: "Final buyer order with sale price, fees, taxes, down payment, and balance." },
+  { id: "odometer-disclosure", label: "Odometer disclosure", helper: "Signed odometer statement tied to the exact vehicle." },
+  { id: "title-application", label: "Title application", helper: "Title and registration paperwork ready for processing." },
+  { id: "gps-disclosure", label: "GPS / starter interrupt disclosure", helper: "Required only if the vehicle has GPS or payment assurance equipment." },
+  { id: "payment-authorization", label: "Payment authorization", helper: "ACH/card/autopay or payment method authorization." },
+  { id: "arbitration-addenda", label: "Arbitration / addenda", helper: "Signed arbitration, as-is/warranty, and dealership addenda when applicable." }
+];
+
+const BHPH_EVIDENCE_REQUIREMENTS: RentalEvidenceRequirement[] = [
+  { id: "driver-license", label: "Driver license / ID", helper: "Government ID for buyer and co-buyer when applicable." },
+  { id: "insurance-proof", label: "Insurance proof", helper: "Active insurance binder or approved proof before delivery." },
+  { id: "income-proof", label: "Income proof", helper: "Paystub, bank statement, award letter, or approved income verification." },
+  { id: "residence-proof", label: "Residence proof", helper: "Utility bill, lease, mail, or approved residence verification." },
+  { id: "references", label: "References", helper: "Required references or skip-tracing contact sheet." },
+  { id: "vehicle-condition", label: "Vehicle condition photos", helper: "Delivery condition photos tied to the sale record." }
+];
+
+const BHPH_HANDOFF_REQUIREMENTS = [
+  "Account setup",
+  "Payment schedule",
+  "Insurance tracking",
+  "GPS / servicing handoff",
+  "Document archive"
+] as const;
+
+const WHOLESALE_PACKET_REQUIREMENTS: RentalEvidenceRequirement[] = [
+  { id: "wholesale-bill-of-sale", label: "Wholesale bill of sale", helper: "Signed wholesale bill of sale with buyer, vehicle, amount, and date." },
+  { id: "purchase-agreement", label: "Dealer purchase agreement", helper: "Wholesale buyer agreement or dealer-to-dealer sale terms." },
+  { id: "odometer-statement", label: "Odometer statement", helper: "Signed mileage disclosure tied to the exact VIN." },
+  { id: "title-transfer", label: "Title / reassignment", helper: "Title, reassignment, or title-processing packet ready for release." },
+  { id: "as-is-disclosure", label: "As-is / no warranty", helper: "Wholesale as-is and no warranty acknowledgement." },
+  { id: "buyer-credentials", label: "Buyer credentials", helper: "Dealer license, resale certificate, or buyer authority proof." },
+  { id: "payment-receipt", label: "Payment receipt", helper: "Wire, certified funds, floorplan, or approved payment proof." },
+  { id: "release-authorization", label: "Release authorization", helper: "Manager-approved vehicle, title, key, and transport release." }
+];
+
+const WHOLESALE_EVIDENCE_REQUIREMENTS: RentalEvidenceRequirement[] = [
+  { id: "buyer-id", label: "Buyer / dealer ID", helper: "Buyer identity or dealer license proof." },
+  { id: "funding-proof", label: "Funding proof", helper: "Payment, floorplan, wire, or settlement evidence." },
+  { id: "condition-photos", label: "Condition photos", helper: "Exterior, interior, odometer, and known damage photos." },
+  { id: "title-proof", label: "Title proof", helper: "Title status, lien release, reassignment, or title exception evidence." },
+  { id: "transport-proof", label: "Transport / pickup proof", helper: "Pickup appointment, driver, carrier, or gate release evidence." }
+];
+
+const WHOLESALE_HANDOFF_REQUIREMENTS = [
+  "Funds verified",
+  "Title packet ready",
+  "Keys released",
+  "Transport scheduled",
+  "Document archive"
+] as const;
+
 function DailyRentalExecutionDesk({
   amount,
   customerName,
@@ -1945,6 +1999,242 @@ function LeaseToOwnExecutionDesk({
   );
 }
 
+function BhphExecutionDesk({
+  amount,
+  customerName,
+  onAmountChange,
+  onComplete,
+  onSaveDraft,
+  onVehicleChange,
+  statusKind,
+  vehicle
+}: {
+  amount: string;
+  customerName: string;
+  onAmountChange: (value: string) => void;
+  onComplete: () => void;
+  onSaveDraft: () => void;
+  onVehicleChange: (value: string) => void;
+  statusKind: "idle" | "saving" | "success" | "error";
+  vehicle: string;
+}) {
+  const [paperwork, setPaperwork] = useState<Record<string, string>>({});
+  const [evidence, setEvidence] = useState<Record<string, string>>({});
+  const [handoff, setHandoff] = useState<Record<string, boolean>>({});
+  const [terms, setTerms] = useState({
+    apr: "24.00%",
+    downPayment: "$0.00",
+    firstPaymentDate: "",
+    lateFee: "$10.00",
+    paymentAmount: "",
+    paymentFrequency: "Weekly",
+    salePrice: amount,
+    termMonths: "24"
+  });
+  const [proof, setProof] = useState({
+    coBuyer: "",
+    employer: "",
+    income: "",
+    references: "",
+    residence: "",
+    stipulations: ""
+  });
+  const [approval, setApproval] = useState({
+    downPaymentException: false,
+    insuranceException: false,
+    stipulationOpen: false,
+    titleException: false,
+    termsException: false
+  });
+
+  const salePriceCents = dollarsToCents(terms.salePrice);
+  const downPaymentCents = dollarsToCents(terms.downPayment);
+  const amountFinancedCents = Math.max(0, (Number.isFinite(salePriceCents) && salePriceCents !== null ? salePriceCents : 0) - (Number.isFinite(downPaymentCents) && downPaymentCents !== null ? downPaymentCents : 0));
+  const paperworkCount = BHPH_PAPERWORK_REQUIREMENTS.filter((item) => paperwork[item.id]).length;
+  const evidenceCount = BHPH_EVIDENCE_REQUIREMENTS.filter((item) => evidence[item.id]).length;
+  const handoffCount = BHPH_HANDOFF_REQUIREMENTS.filter((item) => handoff[item]).length;
+  const approvalTriggers = Object.values(approval).filter(Boolean).length;
+  const paperworkReady = paperworkCount === BHPH_PAPERWORK_REQUIREMENTS.length;
+  const evidenceReady = evidenceCount === BHPH_EVIDENCE_REQUIREMENTS.length;
+  const handoffReady = handoffCount === BHPH_HANDOFF_REQUIREMENTS.length;
+  const proofReady = Boolean(proof.income.trim() && proof.residence.trim() && proof.references.trim());
+  const termsReady = Boolean(terms.salePrice.trim() && terms.downPayment.trim() && terms.paymentAmount.trim() && terms.firstPaymentDate.trim());
+  const bhphReady = Boolean(customerName !== "Customer not selected" && vehicle.trim() && termsReady && proofReady && paperworkReady && evidenceReady && handoffReady && approvalTriggers === 0);
+
+  function updateTerms(key: keyof typeof terms, value: string) {
+    const next = { ...terms, [key]: value };
+    setTerms(next);
+    const nextSalePrice = dollarsToCents(next.salePrice);
+    const nextDownPayment = dollarsToCents(next.downPayment);
+    const nextAmountFinanced = Math.max(0, (Number.isFinite(nextSalePrice) && nextSalePrice !== null ? nextSalePrice : 0) - (Number.isFinite(nextDownPayment) && nextDownPayment !== null ? nextDownPayment : 0));
+    onAmountChange(formatCurrency(nextAmountFinanced));
+  }
+
+  function captureEvidence(
+    setter: (value: SetStateAction<Record<string, string>>) => void,
+    id: string,
+    file?: File
+  ) {
+    if (!file) return;
+    setter((current) => ({ ...current, [id]: file.name }));
+  }
+
+  return (
+    <div className={styles.retailExecutionDesk}>
+      <section className={styles.retailSection} id="bhph-buyer">
+        <header>
+          <span>Buyer eligibility</span>
+          <strong>Confirm buyer, proof, references, and stipulations</strong>
+        </header>
+        <div className={styles.retailFieldGrid}>
+          <label><span>Buyer</span><input readOnly value={customerName} /></label>
+          <label><span>Co-buyer</span><input value={proof.coBuyer} onChange={(event) => setProof((current) => ({ ...current, coBuyer: event.target.value }))} /></label>
+          <label><span>Employer / income source</span><input value={proof.employer} onChange={(event) => setProof((current) => ({ ...current, employer: event.target.value }))} /></label>
+          <label><span>Income proof</span><input value={proof.income} onChange={(event) => setProof((current) => ({ ...current, income: event.target.value }))} placeholder="Paystub, bank statement, award letter" /></label>
+          <label><span>Residence proof</span><input value={proof.residence} onChange={(event) => setProof((current) => ({ ...current, residence: event.target.value }))} placeholder="Utility, lease, mail, or verified reference" /></label>
+          <label><span>References</span><input value={proof.references} onChange={(event) => setProof((current) => ({ ...current, references: event.target.value }))} placeholder="Reference count or verified sheet" /></label>
+          <label className={styles.retailWide}><span>Open stipulations</span><textarea value={proof.stipulations} onChange={(event) => setProof((current) => ({ ...current, stipulations: event.target.value }))} placeholder="Any open proof, insurance, title, down payment, or manager condition" rows={3} /></label>
+        </div>
+      </section>
+
+      <section className={styles.retailSection} id="bhph-vehicle">
+        <header>
+          <span>Vehicle</span>
+          <strong>Bind the BHPH paperwork to the exact unit</strong>
+        </header>
+        <div className={styles.retailFieldGrid}>
+          <label><span>Vehicle / stock #</span><input value={vehicle} onChange={(event) => onVehicleChange(event.target.value)} placeholder="Stock, VIN, or vehicle" /></label>
+          <label><span>Title status</span><select onChange={(event) => setApproval((current) => ({ ...current, titleException: event.target.value !== "Ready" }))}><option>Ready</option><option>Needs manager review</option><option>Title work pending</option></select></label>
+          <label><span>Warranty / as-is posture</span><select><option>As-is disclosure required</option><option>Limited warranty included</option><option>Service contract offered</option><option>Manager review</option></select></label>
+          <label><span>Insurance status</span><select onChange={(event) => setApproval((current) => ({ ...current, insuranceException: event.target.value !== "Verified" }))}><option>Verified</option><option>Binder pending</option><option>Needs manager review</option></select></label>
+        </div>
+      </section>
+
+      <section className={styles.retailSection} id="bhph-terms">
+        <header>
+          <span>Deal terms</span>
+          <strong>Structure the BHPH payment schedule before paperwork</strong>
+        </header>
+        <div className={styles.retailFieldGrid}>
+          <label><span>Sale price</span><input value={terms.salePrice} onChange={(event) => updateTerms("salePrice", event.target.value)} placeholder="$0.00" /></label>
+          <label><span>Down payment</span><input value={terms.downPayment} onChange={(event) => updateTerms("downPayment", event.target.value)} /></label>
+          <label><span>Amount financed</span><input readOnly value={formatCurrency(amountFinancedCents)} /></label>
+          <label><span>APR</span><input value={terms.apr} onChange={(event) => updateTerms("apr", event.target.value)} /></label>
+          <label><span>Payment amount</span><input value={terms.paymentAmount} onChange={(event) => updateTerms("paymentAmount", event.target.value)} placeholder="$0.00" /></label>
+          <label><span>Payment frequency</span><select value={terms.paymentFrequency} onChange={(event) => updateTerms("paymentFrequency", event.target.value)}><option>Weekly</option><option>Biweekly</option><option>Semimonthly</option><option>Monthly</option></select></label>
+          <label><span>Term</span><select value={terms.termMonths} onChange={(event) => updateTerms("termMonths", event.target.value)}><option value="12">12 months</option><option value="18">18 months</option><option value="24">24 months</option><option value="30">30 months</option><option value="36">36 months</option><option value="42">42 months</option></select></label>
+          <label><span>First payment date</span><input type="date" value={terms.firstPaymentDate} onChange={(event) => updateTerms("firstPaymentDate", event.target.value)} /></label>
+          <label><span>Late fee</span><input value={terms.lateFee} onChange={(event) => updateTerms("lateFee", event.target.value)} /></label>
+        </div>
+        <div className={styles.rentalSummaryStrip}>
+          <div><span>Amount financed</span><strong>{formatCurrency(amountFinancedCents)}</strong></div>
+          <div><span>Payment</span><strong>{terms.paymentAmount || "$0.00"}</strong></div>
+          <div><span>Frequency</span><strong>{terms.paymentFrequency}</strong></div>
+          <div><span>Term</span><strong>{terms.termMonths} mo.</strong></div>
+          <button type="button" onClick={() => onAmountChange(formatCurrency(amountFinancedCents))}>Use financed amount</button>
+        </div>
+      </section>
+
+      <section className={styles.retailSection} id="bhph-paperwork">
+        <header>
+          <span>BHPH paperwork</span>
+          <strong>Required documents, proof, and signed packet recording</strong>
+        </header>
+        <div className={styles.rentalEvidenceSummary}>
+          <div><span>Paperwork</span><strong>{paperworkCount}/{BHPH_PAPERWORK_REQUIREMENTS.length}</strong><small>{paperworkReady ? "Ready" : "Required before delivery"}</small></div>
+          <div><span>Proof evidence</span><strong>{evidenceCount}/{BHPH_EVIDENCE_REQUIREMENTS.length}</strong><small>{evidenceReady ? "Recorded" : "Required before approval"}</small></div>
+          <div><span>Handoff</span><strong>{handoffCount}/{BHPH_HANDOFF_REQUIREMENTS.length}</strong><small>{handoffReady ? "Ready" : "Required after signing"}</small></div>
+        </div>
+        <div className={styles.rentalEvidenceBoard}>
+          <section>
+            <h3>Required paperwork</h3>
+            <p>Record every signed BHPH document once. These should later store in the central document library and show here as the deal-jacket view.</p>
+            <div className={styles.rentalEvidenceGrid}>
+              {BHPH_PAPERWORK_REQUIREMENTS.map((item) => (
+                <label className={paperwork[item.id] ? styles.rentalEvidenceCaptured : undefined} key={item.id}>
+                  <span>{item.label}</span>
+                  <strong>{paperwork[item.id] ?? "Document required"}</strong>
+                  <small>{item.helper}</small>
+                  <input accept="application/pdf,image/*" onChange={(event) => captureEvidence(setPaperwork, item.id, event.currentTarget.files?.[0])} type="file" />
+                </label>
+              ))}
+            </div>
+          </section>
+          <section>
+            <h3>Evidence gates</h3>
+            <p>ID, insurance, income, residence, references, and delivery condition evidence must be recorded before completion.</p>
+            <div className={styles.rentalEvidenceGrid}>
+              {BHPH_EVIDENCE_REQUIREMENTS.map((item) => (
+                <label className={evidence[item.id] ? styles.rentalEvidenceCaptured : undefined} key={item.id}>
+                  <span>{item.label}</span>
+                  <strong>{evidence[item.id] ?? "Evidence required"}</strong>
+                  <small>{item.helper}</small>
+                  <input accept="application/pdf,image/*" capture="environment" onChange={(event) => captureEvidence(setEvidence, item.id, event.currentTarget.files?.[0])} type="file" />
+                </label>
+              ))}
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section className={styles.retailSection} id="bhph-approval">
+        <header>
+          <span>Manager approval</span>
+          <strong>Exceptions must be cleared before BHPH delivery</strong>
+        </header>
+        <div className={styles.rentalReadinessGrid}>
+          {[
+            ["Down payment", approval.downPaymentException],
+            ["Terms", approval.termsException],
+            ["Insurance", approval.insuranceException],
+            ["Title", approval.titleException],
+            ["Stipulations", approval.stipulationOpen]
+          ].map(([label, flagged]) => (
+            <div key={String(label)}>
+              <span>{label}</span>
+              <strong>{flagged ? "Manager review" : "Clear"}</strong>
+            </div>
+          ))}
+          <div>
+            <span>Approval status</span>
+            <strong>{approvalTriggers === 0 ? "Clear" : `${approvalTriggers} review trigger(s)`}</strong>
+          </div>
+        </div>
+        <div className={styles.retailActionRow}>
+          <button type="button" onClick={() => setApproval((current) => ({ ...current, downPaymentException: !current.downPaymentException }))}>Toggle down payment review</button>
+          <button type="button" onClick={() => setApproval((current) => ({ ...current, termsException: !current.termsException }))}>Toggle terms review</button>
+          <button type="button" onClick={() => setApproval((current) => ({ ...current, stipulationOpen: !current.stipulationOpen }))}>Toggle stipulation review</button>
+        </div>
+      </section>
+
+      <section className={styles.retailSection} id="bhph-handoff">
+        <header>
+          <span>Post-sale handoff</span>
+          <strong>Account setup and servicing handoff must be ready</strong>
+        </header>
+        <div className={styles.rentalEvidenceGrid}>
+          {BHPH_HANDOFF_REQUIREMENTS.map((item) => (
+            <label className={handoff[item] ? styles.rentalEvidenceCaptured : undefined} key={item}>
+              <span>Handoff gate</span>
+              <strong>{item}</strong>
+              <small>{handoff[item] ? "Ready" : "Required before completion"}</small>
+              <input checked={Boolean(handoff[item])} onChange={(event) => setHandoff((current) => ({ ...current, [item]: event.target.checked }))} type="checkbox" />
+            </label>
+          ))}
+        </div>
+        <div className={styles.retailNextActionBar} aria-label="BHPH paperwork next actions">
+          <div>
+            <span>BHPH readiness</span>
+            <strong>{bhphReady ? "Ready to complete BHPH paperwork" : "Complete terms, proof, paperwork, approval, and handoff gates"}</strong>
+          </div>
+          <button type="button" onClick={onSaveDraft}>Save BHPH draft</button>
+          <button disabled={!bhphReady || statusKind === "saving"} onClick={onComplete} type="button">{statusKind === "saving" ? "Completing..." : "Complete BHPH paperwork"}</button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function TestDriveExecutionDesk({
   customerName,
   onAmountChange,
@@ -2130,6 +2420,242 @@ function TestDriveExecutionDesk({
   );
 }
 
+function WholesaleExecutionDesk({
+  amount,
+  customerName,
+  onAmountChange,
+  onComplete,
+  onSaveDraft,
+  onVehicleChange,
+  statusKind,
+  vehicle
+}: {
+  amount: string;
+  customerName: string;
+  onAmountChange: (value: string) => void;
+  onComplete: () => void;
+  onSaveDraft: () => void;
+  onVehicleChange: (value: string) => void;
+  statusKind: "idle" | "saving" | "success" | "error";
+  vehicle: string;
+}) {
+  const [packet, setPacket] = useState<Record<string, string>>({});
+  const [evidence, setEvidence] = useState<Record<string, string>>({});
+  const [handoff, setHandoff] = useState<Record<string, boolean>>({});
+  const [buyer, setBuyer] = useState({
+    buyerName: customerName === "Customer not selected" ? "" : customerName,
+    contactName: "",
+    dealerLicense: "",
+    paymentMethod: "Certified funds",
+    resaleTaxId: "",
+    transportMethod: "Buyer pickup"
+  });
+  const [terms, setTerms] = useState({
+    balanceDue: "",
+    deposit: "$0.00",
+    releaseDate: todayInputValue(),
+    salePrice: amount,
+    titleStatus: "Ready",
+    wholesaleChannel: "Dealer-to-dealer"
+  });
+  const [approval, setApproval] = useState({
+    belowReserve: false,
+    fundingException: false,
+    titleException: false,
+    transportException: false
+  });
+
+  const salePriceCents = dollarsToCents(terms.salePrice);
+  const depositCents = dollarsToCents(terms.deposit);
+  const balanceDueCents = Math.max(0, (Number.isFinite(salePriceCents) && salePriceCents !== null ? salePriceCents : 0) - (Number.isFinite(depositCents) && depositCents !== null ? depositCents : 0));
+  const packetCount = WHOLESALE_PACKET_REQUIREMENTS.filter((item) => packet[item.id]).length;
+  const evidenceCount = WHOLESALE_EVIDENCE_REQUIREMENTS.filter((item) => evidence[item.id]).length;
+  const handoffCount = WHOLESALE_HANDOFF_REQUIREMENTS.filter((item) => handoff[item]).length;
+  const approvalTriggers = Object.values(approval).filter(Boolean).length;
+  const packetReady = packetCount === WHOLESALE_PACKET_REQUIREMENTS.length;
+  const evidenceReady = evidenceCount === WHOLESALE_EVIDENCE_REQUIREMENTS.length;
+  const handoffReady = handoffCount === WHOLESALE_HANDOFF_REQUIREMENTS.length;
+  const buyerReady = Boolean((buyer.buyerName || customerName).trim() && buyer.contactName.trim() && buyer.dealerLicense.trim());
+  const termsReady = Boolean(terms.salePrice.trim() && terms.balanceDue.trim() && terms.releaseDate.trim());
+  const wholesaleReady = Boolean(buyerReady && vehicle.trim() && termsReady && packetReady && evidenceReady && handoffReady && approvalTriggers === 0);
+
+  function updateTerms(key: keyof typeof terms, value: string) {
+    const next = { ...terms, [key]: value };
+    setTerms(next);
+    if (key === "salePrice" || key === "deposit") {
+      const nextSalePrice = dollarsToCents(next.salePrice);
+      const nextDeposit = dollarsToCents(next.deposit);
+      const nextBalance = Math.max(0, (Number.isFinite(nextSalePrice) && nextSalePrice !== null ? nextSalePrice : 0) - (Number.isFinite(nextDeposit) && nextDeposit !== null ? nextDeposit : 0));
+      setTerms({ ...next, balanceDue: formatCurrency(nextBalance) });
+      onAmountChange(formatCurrency(Number.isFinite(nextSalePrice) && nextSalePrice !== null ? nextSalePrice : 0));
+      return;
+    }
+    if (key === "titleStatus") {
+      setApproval((current) => ({ ...current, titleException: value !== "Ready" }));
+    }
+  }
+
+  function captureEvidence(
+    setter: (value: SetStateAction<Record<string, string>>) => void,
+    id: string,
+    file?: File
+  ) {
+    if (!file) return;
+    setter((current) => ({ ...current, [id]: file.name }));
+  }
+
+  return (
+    <div className={styles.retailExecutionDesk}>
+      <section className={styles.retailSection} id="wholesale-buyer">
+        <header>
+          <span>Wholesale buyer</span>
+          <strong>Confirm buyer authority before packet release</strong>
+        </header>
+        <div className={styles.retailFieldGrid}>
+          <label><span>Buyer / dealer</span><input value={buyer.buyerName} onChange={(event) => setBuyer((current) => ({ ...current, buyerName: event.target.value }))} placeholder="Dealer, wholesaler, or buyer name" /></label>
+          <label><span>Contact name</span><input value={buyer.contactName} onChange={(event) => setBuyer((current) => ({ ...current, contactName: event.target.value }))} /></label>
+          <label><span>Dealer license / buyer ID</span><input value={buyer.dealerLicense} onChange={(event) => setBuyer((current) => ({ ...current, dealerLicense: event.target.value }))} /></label>
+          <label><span>Resale tax ID</span><input value={buyer.resaleTaxId} onChange={(event) => setBuyer((current) => ({ ...current, resaleTaxId: event.target.value }))} /></label>
+          <label><span>Payment method</span><select value={buyer.paymentMethod} onChange={(event) => setBuyer((current) => ({ ...current, paymentMethod: event.target.value }))}><option>Certified funds</option><option>Wire transfer</option><option>Floorplan / dealer draft</option><option>ACH</option><option>Manager-approved terms</option></select></label>
+          <label><span>Transport method</span><select value={buyer.transportMethod} onChange={(event) => setBuyer((current) => ({ ...current, transportMethod: event.target.value }))}><option>Buyer pickup</option><option>Carrier pickup</option><option>Dealer delivery</option><option>Auction / lane transfer</option><option>Manager exception</option></select></label>
+        </div>
+      </section>
+
+      <section className={styles.retailSection} id="wholesale-vehicle">
+        <header>
+          <span>Vehicle and title</span>
+          <strong>Bind wholesale paperwork to the exact unit and release status</strong>
+        </header>
+        <div className={styles.retailFieldGrid}>
+          <label><span>Vehicle / stock #</span><input value={vehicle} onChange={(event) => onVehicleChange(event.target.value)} placeholder="Stock, VIN, or vehicle" /></label>
+          <label><span>Wholesale channel</span><select value={terms.wholesaleChannel} onChange={(event) => updateTerms("wholesaleChannel", event.target.value)}><option>Dealer-to-dealer</option><option>Auction / lane sale</option><option>Outside wholesaler</option><option>Export / broker</option><option>Manager-approved disposition</option></select></label>
+          <label><span>Title status</span><select value={terms.titleStatus} onChange={(event) => updateTerms("titleStatus", event.target.value)}><option>Ready</option><option>Title pending</option><option>Lien release pending</option><option>Duplicate title needed</option><option>Manager exception</option></select></label>
+          <label><span>Release date</span><input type="date" value={terms.releaseDate} onChange={(event) => updateTerms("releaseDate", event.target.value)} /></label>
+        </div>
+      </section>
+
+      <section className={styles.retailSection} id="wholesale-terms">
+        <header>
+          <span>Wholesale terms</span>
+          <strong>Capture price, deposit, balance, and funding readiness</strong>
+        </header>
+        <div className={styles.retailFieldGrid}>
+          <label><span>Wholesale price</span><input value={terms.salePrice} onChange={(event) => updateTerms("salePrice", event.target.value)} placeholder="$0.00" /></label>
+          <label><span>Deposit / partial payment</span><input value={terms.deposit} onChange={(event) => updateTerms("deposit", event.target.value)} /></label>
+          <label><span>Balance due</span><input value={terms.balanceDue || formatCurrency(balanceDueCents)} onChange={(event) => updateTerms("balanceDue", event.target.value)} /></label>
+          <label><span>Funding status</span><select onChange={(event) => setApproval((current) => ({ ...current, fundingException: event.target.value !== "Verified" }))}><option>Verified</option><option>Pending wire</option><option>Pending floorplan</option><option>Manager-approved release before funds</option></select></label>
+        </div>
+        <div className={styles.rentalSummaryStrip}>
+          <div><span>Wholesale price</span><strong>{terms.salePrice || "$0.00"}</strong></div>
+          <div><span>Deposit</span><strong>{terms.deposit}</strong></div>
+          <div><span>Balance</span><strong>{terms.balanceDue || formatCurrency(balanceDueCents)}</strong></div>
+          <div><span>Release</span><strong>{terms.releaseDate || "Not set"}</strong></div>
+          <button type="button" onClick={() => onAmountChange(formatCurrency(Number.isFinite(salePriceCents) && salePriceCents !== null ? salePriceCents : 0))}>Use wholesale price</button>
+        </div>
+      </section>
+
+      <section className={styles.retailSection} id="wholesale-packet">
+        <header>
+          <span>Wholesale packet</span>
+          <strong>Signed packet and release evidence</strong>
+        </header>
+        <div className={styles.rentalEvidenceSummary}>
+          <div><span>Packet docs</span><strong>{packetCount}/{WHOLESALE_PACKET_REQUIREMENTS.length}</strong><small>{packetReady ? "Ready" : "Required before release"}</small></div>
+          <div><span>Evidence</span><strong>{evidenceCount}/{WHOLESALE_EVIDENCE_REQUIREMENTS.length}</strong><small>{evidenceReady ? "Recorded" : "Required before release"}</small></div>
+          <div><span>Handoff</span><strong>{handoffCount}/{WHOLESALE_HANDOFF_REQUIREMENTS.length}</strong><small>{handoffReady ? "Ready" : "Required before completion"}</small></div>
+        </div>
+        <div className={styles.rentalEvidenceBoard}>
+          <section>
+            <h3>Required wholesale documents</h3>
+            <p>Record the official wholesale packet once, then show it here as the deal-jacket view from the future document library.</p>
+            <div className={styles.rentalEvidenceGrid}>
+              {WHOLESALE_PACKET_REQUIREMENTS.map((item) => (
+                <label className={packet[item.id] ? styles.rentalEvidenceCaptured : undefined} key={item.id}>
+                  <span>{item.label}</span>
+                  <strong>{packet[item.id] ?? "Document required"}</strong>
+                  <small>{item.helper}</small>
+                  <input accept="application/pdf,image/*" onChange={(event) => captureEvidence(setPacket, item.id, event.currentTarget.files?.[0])} type="file" />
+                </label>
+              ))}
+            </div>
+          </section>
+          <section>
+            <h3>Release evidence</h3>
+            <p>Buyer authority, funding, title, condition, and transport proof must be attached before the unit leaves custody.</p>
+            <div className={styles.rentalEvidenceGrid}>
+              {WHOLESALE_EVIDENCE_REQUIREMENTS.map((item) => (
+                <label className={evidence[item.id] ? styles.rentalEvidenceCaptured : undefined} key={item.id}>
+                  <span>{item.label}</span>
+                  <strong>{evidence[item.id] ?? "Evidence required"}</strong>
+                  <small>{item.helper}</small>
+                  <input accept="application/pdf,image/*" capture="environment" onChange={(event) => captureEvidence(setEvidence, item.id, event.currentTarget.files?.[0])} type="file" />
+                </label>
+              ))}
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section className={styles.retailSection} id="wholesale-approval">
+        <header>
+          <span>Release approval</span>
+          <strong>Wholesale exceptions must clear before release</strong>
+        </header>
+        <div className={styles.rentalReadinessGrid}>
+          {[
+            ["Below reserve", approval.belowReserve],
+            ["Funding", approval.fundingException],
+            ["Title", approval.titleException],
+            ["Transport", approval.transportException]
+          ].map(([label, flagged]) => (
+            <div key={String(label)}>
+              <span>{label}</span>
+              <strong>{flagged ? "Manager review" : "Clear"}</strong>
+            </div>
+          ))}
+          <div>
+            <span>Approval status</span>
+            <strong>{approvalTriggers === 0 ? "Clear" : `${approvalTriggers} review trigger(s)`}</strong>
+          </div>
+          <div>
+            <span>Buyer authority</span>
+            <strong>{buyerReady ? "Verified" : "Needs buyer proof"}</strong>
+          </div>
+        </div>
+        <div className={styles.retailActionRow}>
+          <button type="button" onClick={() => setApproval((current) => ({ ...current, belowReserve: !current.belowReserve }))}>Toggle below reserve</button>
+          <button type="button" onClick={() => setApproval((current) => ({ ...current, transportException: !current.transportException }))}>Toggle transport review</button>
+        </div>
+      </section>
+
+      <section className={styles.retailSection} id="wholesale-handoff">
+        <header>
+          <span>Wholesale release</span>
+          <strong>Confirm funds, title, keys, transport, and archive</strong>
+        </header>
+        <div className={styles.rentalEvidenceGrid}>
+          {WHOLESALE_HANDOFF_REQUIREMENTS.map((item) => (
+            <label className={handoff[item] ? styles.rentalEvidenceCaptured : undefined} key={item}>
+              <span>Release gate</span>
+              <strong>{item}</strong>
+              <small>{handoff[item] ? "Ready" : "Required before completion"}</small>
+              <input checked={Boolean(handoff[item])} onChange={(event) => setHandoff((current) => ({ ...current, [item]: event.target.checked }))} type="checkbox" />
+            </label>
+          ))}
+        </div>
+        <div className={styles.retailNextActionBar} aria-label="Wholesale packet next actions">
+          <div>
+            <span>Wholesale readiness</span>
+            <strong>{wholesaleReady ? "Ready to complete wholesale packet" : "Complete buyer, terms, packet, evidence, approval, and release gates"}</strong>
+          </div>
+          <button type="button" onClick={onSaveDraft}>Save wholesale draft</button>
+          <button disabled={!wholesaleReady || statusKind === "saving"} onClick={onComplete} type="button">{statusKind === "saving" ? "Completing..." : "Complete wholesale packet"}</button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter }) {
   const [workflowId, setWorkflowId] = useState<DealWorkflowId>("retail-sale");
   const [summaryOpen, setSummaryOpen] = useState(false);
@@ -2142,8 +2668,10 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
   });
   const [status, setStatus] = useState<{ kind: "idle" | "saving" | "success" | "error"; message: string; href?: string }>({ kind: "idle", message: "" });
   const workflow = DEAL_WORKFLOWS.find((item) => item.id === workflowId) ?? DEAL_WORKFLOWS[0];
+  const bhphWorkflow = workflow.id === "bhph";
   const rentalLikeWorkflow = workflow.id === "daily-rental" || workflow.id === "vehicle-loaner";
   const testDriveWorkflow = workflow.id === "test-drive";
+  const wholesaleWorkflow = workflow.id === "wholesale";
   const nonRevenueWorkflow = workflow.id === "vehicle-loaner" || testDriveWorkflow;
   const selectedCustomer = model.customers.find((customer) => customer.id === form.customerId) ?? model.customers[0] ?? null;
   const estimatedValueCents = useMemo(() => dollarsToCents(form.amount), [form.amount]);
@@ -2208,7 +2736,7 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
           <small>{workflow.nextWorkspace}</small>
         </div>
         <div className={styles.executionStatusChips} aria-label="Retail execution checks">
-          {(testDriveWorkflow ? ["License", "Signed form", "Vehicle", "Return plan"] : rentalLikeWorkflow ? ["License", workflow.id === "vehicle-loaner" ? "Courtesy waiver" : "Payment hold", workflow.id === "vehicle-loaner" ? "Loaner unit" : "Vehicle", "Return plan"] : ["Identity", "Vehicle", "Funding", "Delivery"]).map((item) => <span key={item}>{item}</span>)}
+          {(wholesaleWorkflow ? ["Buyer", "Funding", "Title", "Release"] : bhphWorkflow ? ["Proof", "Terms", "Paperwork", "Handoff"] : testDriveWorkflow ? ["License", "Signed form", "Vehicle", "Return plan"] : rentalLikeWorkflow ? ["License", workflow.id === "vehicle-loaner" ? "Courtesy waiver" : "Payment hold", workflow.id === "vehicle-loaner" ? "Loaner unit" : "Vehicle", "Return plan"] : ["Identity", "Vehicle", "Funding", "Delivery"]).map((item) => <span key={item}>{item}</span>)}
         </div>
         <button type="button" onClick={() => setSummaryOpen(true)}>Execution Summary</button>
         <button disabled={!ready || status.kind === "saving"} onClick={() => void startDeal()} type="button">
@@ -2224,12 +2752,30 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
             <a href="#lease-calculator">Calculator</a>
             <a href="#lease-contracts">Forms</a>
           </>
+        ) : bhphWorkflow ? (
+          <>
+            <a href="#bhph-buyer">Buyer</a>
+            <a href="#bhph-vehicle">Vehicle</a>
+            <a href="#bhph-terms">Terms</a>
+            <a href="#bhph-paperwork">Paperwork</a>
+            <a href="#bhph-approval">Approval</a>
+            <a href="#bhph-handoff">Handoff</a>
+          </>
         ) : testDriveWorkflow ? (
           <>
             <a href="#test-drive-driver">Driver</a>
             <a href="#test-drive-vehicle">Vehicle</a>
             <a href="#test-drive-evidence">Evidence</a>
             <a href="#test-drive-checkout">Checkout</a>
+          </>
+        ) : wholesaleWorkflow ? (
+          <>
+            <a href="#wholesale-buyer">Buyer</a>
+            <a href="#wholesale-vehicle">Vehicle</a>
+            <a href="#wholesale-terms">Terms</a>
+            <a href="#wholesale-packet">Packet</a>
+            <a href="#wholesale-approval">Approval</a>
+            <a href="#wholesale-handoff">Release</a>
           </>
         ) : rentalLikeWorkflow ? (
           <>
@@ -2296,6 +2842,24 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
                 </button>
               </div>
             </>
+          ) : bhphWorkflow ? (
+            <>
+              <div className={styles.dealStartForm}>
+                <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => update("customerId", event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+                <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
+              </div>
+              <BhphExecutionDesk
+                amount={form.amount}
+                customerName={selectedCustomer?.name ?? "Customer not selected"}
+                onAmountChange={(value) => update("amount", value)}
+                onComplete={() => void startDeal()}
+                onSaveDraft={saveDraft}
+                onVehicleChange={(value) => update("vehicle", value)}
+                statusKind={status.kind}
+                vehicle={form.vehicle}
+              />
+              <label className={`${styles.dealStartWide} ${styles.retailNote}`}><span>{FIELD_LABELS.note}</span><textarea value={form.note} onChange={(event) => update("note", event.target.value)} placeholder="Optional context staff needs before working this BHPH deal" rows={3} /></label>
+            </>
           ) : workflow.id === "lease-to-own" ? (
             <>
               <div className={styles.dealStartForm}>
@@ -2336,6 +2900,24 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
                 vehicle={form.vehicle}
               />
               <label className={`${styles.dealStartWide} ${styles.retailNote}`}><span>{FIELD_LABELS.note}</span><textarea value={form.note} onChange={(event) => update("note", event.target.value)} placeholder="Optional context staff needs before working this test drive" rows={3} /></label>
+            </>
+          ) : wholesaleWorkflow ? (
+            <>
+              <div className={styles.dealStartForm}>
+                <label><span>Wholesale buyer</span><select value={form.customerId} onChange={(event) => update("customerId", event.target.value)}><option value="">Select buyer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+                <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
+              </div>
+              <WholesaleExecutionDesk
+                amount={form.amount}
+                customerName={selectedCustomer?.name ?? "Customer not selected"}
+                onAmountChange={(value) => update("amount", value)}
+                onComplete={() => void startDeal()}
+                onSaveDraft={saveDraft}
+                onVehicleChange={(value) => update("vehicle", value)}
+                statusKind={status.kind}
+                vehicle={form.vehicle}
+              />
+              <label className={`${styles.dealStartWide} ${styles.retailNote}`}><span>{FIELD_LABELS.note}</span><textarea value={form.note} onChange={(event) => update("note", event.target.value)} placeholder="Optional context staff needs before working this wholesale packet" rows={3} /></label>
             </>
           ) : rentalLikeWorkflow ? (
             <>
