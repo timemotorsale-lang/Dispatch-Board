@@ -17,6 +17,7 @@ type DealWorkflowId =
   | "retail-sale"
   | "lease-to-own"
   | "repairs"
+  | "test-drive"
   | "daily-rental"
   | "vehicle-loaner"
   | "warranty-products"
@@ -85,6 +86,16 @@ const DEAL_WORKFLOWS: DealWorkflow[] = [
     sourceChecks: ["Customer 360", "Vehicle 360", "Service intake", "Estimate controls"],
     executionSteps: ["Capture concern", "Confirm vehicle", "Prepare estimate path", "Move to repair desk"],
     nextWorkspace: "Repair revenue desk"
+  },
+  {
+    id: "test-drive",
+    label: "Test Drive",
+    intent: "Customer test-drive workflow with driver eligibility, vehicle assignment, signed release, checkout evidence, and return controls.",
+    startsWith: "Customer, vehicle, driver license, insurance/protection proof, test-drive window",
+    required: ["Customer", "Vehicle", "Driver license", "Signed test-drive form"],
+    sourceChecks: ["Customer 360", "Vehicle 360", "Inventory status", "Return condition"],
+    executionSteps: ["Confirm driver eligibility", "Assign vehicle", "Capture release evidence", "Receive vehicle back"],
+    nextWorkspace: "Test drive desk"
   },
   {
     id: "daily-rental",
@@ -364,7 +375,7 @@ function ExecutionSummary({
         <p>{workflow.intent}</p>
       </div>
       <dl>
-        <div><dt>{workflow.id === "vehicle-loaner" ? "Workflow" : "Revenue channel"}</dt><dd>{workflow.label}</dd></div>
+        <div><dt>{workflow.id === "vehicle-loaner" || workflow.id === "test-drive" ? "Workflow" : "Revenue channel"}</dt><dd>{workflow.label}</dd></div>
         <div><dt>Execution desk</dt><dd>{workflow.nextWorkspace}</dd></div>
         <div><dt>Readiness</dt><dd>{ready ? "Ready to execute" : `${completedCount}/3 required facts`}</dd></div>
       </dl>
@@ -930,6 +941,28 @@ const RENTAL_SIGNED_DOCUMENT_REQUIREMENTS: RentalEvidenceRequirement[] = [
   { id: "signed-agreement", label: "Signed agreement", helper: "Final signed daily rental or vehicle loaner agreement." },
   { id: "license-insurance", label: "License / insurance proof", helper: "Driver license, insurance card, or approved protection proof." },
   { id: "condition-report", label: "Condition report", helper: "Signed condition report or staff-verified exception record." }
+];
+
+const TEST_DRIVE_RELEASE_REQUIREMENTS: RentalEvidenceRequirement[] = [
+  { id: "td-front", label: "Front", helper: "Front condition before the test drive." },
+  { id: "td-rear", label: "Rear", helper: "Rear condition before the test drive." },
+  { id: "td-sides", label: "Sides", helper: "Driver and passenger side body condition." },
+  { id: "td-interior", label: "Interior", helper: "Interior, dash, and cleanliness before departure." },
+  { id: "td-odometer", label: "Odometer + fuel", helper: "Mileage and fuel level before the test drive." }
+];
+
+const TEST_DRIVE_RETURN_REQUIREMENTS: RentalEvidenceRequirement[] = [
+  { id: "td-return-front", label: "Return front", helper: "Front condition when the vehicle returns." },
+  { id: "td-return-rear", label: "Return rear", helper: "Rear condition when the vehicle returns." },
+  { id: "td-return-interior", label: "Return interior", helper: "Interior condition when the vehicle returns." },
+  { id: "td-return-odometer", label: "Return odometer + fuel", helper: "Mileage and fuel level at return." },
+  { id: "td-return-damage", label: "Damage review", helper: "New damage, no-damage proof, or manager exception." }
+];
+
+const TEST_DRIVE_DOCUMENT_REQUIREMENTS: RentalEvidenceRequirement[] = [
+  { id: "td-signed-release", label: "Signed test-drive form", helper: "Signed test-drive release and responsibility form." },
+  { id: "td-driver-license", label: "Driver license", helper: "Valid license for every approved driver." },
+  { id: "td-insurance-proof", label: "Insurance proof", helper: "Insurance card or manager-approved protection proof." }
 ];
 
 function DailyRentalExecutionDesk({
@@ -1912,6 +1945,191 @@ function LeaseToOwnExecutionDesk({
   );
 }
 
+function TestDriveExecutionDesk({
+  customerName,
+  onAmountChange,
+  onComplete,
+  onSaveDraft,
+  onVehicleChange,
+  statusKind,
+  vehicle
+}: {
+  customerName: string;
+  onAmountChange: (value: string) => void;
+  onComplete: () => void;
+  onSaveDraft: () => void;
+  onVehicleChange: (value: string) => void;
+  statusKind: "idle" | "saving" | "success" | "error";
+  vehicle: string;
+}) {
+  const [facts, setFacts] = useState({
+    approvedRoute: "Local test drive route",
+    driverLicense: "",
+    driverPhone: "",
+    insuranceCarrier: "",
+    insurancePolicy: "",
+    notes: "",
+    returnTime: "",
+    salesperson: "",
+    startTime: "",
+    testDriveDate: todayInputValue()
+  });
+  const [releasePhotos, setReleasePhotos] = useState<Record<string, string>>({});
+  const [returnPhotos, setReturnPhotos] = useState<Record<string, string>>({});
+  const [documents, setDocuments] = useState<Record<string, string>>({});
+  const [returnReceived, setReturnReceived] = useState(false);
+
+  const releasePhotoCount = TEST_DRIVE_RELEASE_REQUIREMENTS.filter((item) => releasePhotos[item.id]).length;
+  const returnPhotoCount = TEST_DRIVE_RETURN_REQUIREMENTS.filter((item) => returnPhotos[item.id]).length;
+  const documentCount = TEST_DRIVE_DOCUMENT_REQUIREMENTS.filter((item) => documents[item.id]).length;
+  const releasePhotosReady = releasePhotoCount === TEST_DRIVE_RELEASE_REQUIREMENTS.length;
+  const returnPhotosReady = returnPhotoCount === TEST_DRIVE_RETURN_REQUIREMENTS.length;
+  const documentsReady = documentCount === TEST_DRIVE_DOCUMENT_REQUIREMENTS.length;
+  const driverReady = Boolean(facts.driverLicense.trim() && facts.insuranceCarrier.trim());
+  const releaseReady = Boolean(customerName !== "Customer not selected" && vehicle.trim() && driverReady && releasePhotosReady && documentsReady);
+
+  function update(key: keyof typeof facts, value: string) {
+    setFacts((current) => ({ ...current, [key]: value }));
+    onAmountChange("$0.00");
+  }
+
+  function captureEvidence(
+    setter: (value: SetStateAction<Record<string, string>>) => void,
+    id: string,
+    file?: File
+  ) {
+    if (!file) return;
+    setter((current) => ({ ...current, [id]: file.name }));
+  }
+
+  return (
+    <div className={styles.retailExecutionDesk}>
+      <section className={styles.retailSection} id="test-drive-driver">
+        <header>
+          <span>Driver eligibility</span>
+          <strong>Confirm the customer can take the vehicle on a test drive</strong>
+        </header>
+        <div className={styles.retailFieldGrid}>
+          <label><span>Customer</span><input readOnly value={customerName} /></label>
+          <label><span>Driver license</span><input value={facts.driverLicense} onChange={(event) => update("driverLicense", event.target.value)} placeholder="License number or verified reference" /></label>
+          <label><span>Driver phone</span><input value={facts.driverPhone} onChange={(event) => update("driverPhone", event.target.value)} /></label>
+          <label><span>Insurance carrier</span><input value={facts.insuranceCarrier} onChange={(event) => update("insuranceCarrier", event.target.value)} /></label>
+          <label><span>Insurance policy</span><input value={facts.insurancePolicy} onChange={(event) => update("insurancePolicy", event.target.value)} /></label>
+          <label><span>Salesperson</span><input value={facts.salesperson} onChange={(event) => update("salesperson", event.target.value)} /></label>
+        </div>
+      </section>
+
+      <section className={styles.retailSection} id="test-drive-vehicle">
+        <header>
+          <span>Vehicle and route</span>
+          <strong>Assign the unit and set the test-drive window</strong>
+        </header>
+        <div className={styles.retailFieldGrid}>
+          <label><span>Vehicle / stock #</span><input value={vehicle} onChange={(event) => onVehicleChange(event.target.value)} placeholder="Stock, VIN, or vehicle" /></label>
+          <label><span>Date</span><input type="date" value={facts.testDriveDate} onChange={(event) => update("testDriveDate", event.target.value)} /></label>
+          <label><span>Start time</span><input type="time" value={facts.startTime} onChange={(event) => update("startTime", event.target.value)} /></label>
+          <label><span>Expected return</span><input type="time" value={facts.returnTime} onChange={(event) => update("returnTime", event.target.value)} /></label>
+          <label><span>Approved route</span><select value={facts.approvedRoute} onChange={(event) => update("approvedRoute", event.target.value)}><option>Local test drive route</option><option>Highway route approved</option><option>Manager-approved extended route</option><option>Staff rides with customer</option></select></label>
+          <label className={styles.retailWide}><span>Notes</span><textarea value={facts.notes} onChange={(event) => update("notes", event.target.value)} placeholder="Trade-in interest, requested vehicle, route exception, or manager note" rows={3} /></label>
+        </div>
+      </section>
+
+      <section className={styles.retailSection} id="test-drive-evidence">
+        <header>
+          <span>Test-drive evidence</span>
+          <strong>Signed form and photos are required before release</strong>
+        </header>
+        <div className={styles.rentalEvidenceSummary}>
+          <div><span>Release photos</span><strong>{releasePhotoCount}/{TEST_DRIVE_RELEASE_REQUIREMENTS.length}</strong><small>{releasePhotosReady ? "Ready" : "Required before departure"}</small></div>
+          <div><span>Documents</span><strong>{documentCount}/{TEST_DRIVE_DOCUMENT_REQUIREMENTS.length}</strong><small>{documentsReady ? "Recorded" : "Required before departure"}</small></div>
+          <div><span>Return photos</span><strong>{returnPhotoCount}/{TEST_DRIVE_RETURN_REQUIREMENTS.length}</strong><small>{returnPhotosReady ? "Ready to receive" : "Required at return"}</small></div>
+        </div>
+        <div className={styles.rentalEvidenceBoard}>
+          <section>
+            <h3>Signed form and proof</h3>
+            <p>Attach the signed test-drive form, license proof, and insurance proof. These records should later live in the central document library and link back to customer, vehicle, and opportunity.</p>
+            <div className={styles.rentalEvidenceGrid}>
+              {TEST_DRIVE_DOCUMENT_REQUIREMENTS.map((item) => (
+                <label className={documents[item.id] ? styles.rentalEvidenceCaptured : undefined} key={item.id}>
+                  <span>{item.label}</span>
+                  <strong>{documents[item.id] ?? "Document required"}</strong>
+                  <small>{item.helper}</small>
+                  <input accept="application/pdf,image/*" capture={item.id === "td-signed-release" ? undefined : "environment"} onChange={(event) => captureEvidence(setDocuments, item.id, event.currentTarget.files?.[0])} type="file" />
+                </label>
+              ))}
+            </div>
+          </section>
+          <section>
+            <h3>Release photos</h3>
+            <p>Capture the vehicle condition before the test drive begins.</p>
+            <div className={styles.rentalEvidenceGrid}>
+              {TEST_DRIVE_RELEASE_REQUIREMENTS.map((item) => (
+                <label className={releasePhotos[item.id] ? styles.rentalEvidenceCaptured : undefined} key={item.id}>
+                  <span>{item.label}</span>
+                  <strong>{releasePhotos[item.id] ?? "Photo required"}</strong>
+                  <small>{item.helper}</small>
+                  <input accept="image/*" capture="environment" onChange={(event) => captureEvidence(setReleasePhotos, item.id, event.currentTarget.files?.[0])} type="file" />
+                </label>
+              ))}
+            </div>
+          </section>
+          <section>
+            <h3>Return / receiving photos</h3>
+            <p>Complete receiving after the customer returns with mileage, fuel, interior, and damage review recorded.</p>
+            <div className={styles.rentalEvidenceGrid}>
+              {TEST_DRIVE_RETURN_REQUIREMENTS.map((item) => (
+                <label className={returnPhotos[item.id] ? styles.rentalEvidenceCaptured : undefined} key={item.id}>
+                  <span>{item.label}</span>
+                  <strong>{returnPhotos[item.id] ?? "Photo required"}</strong>
+                  <small>{item.helper}</small>
+                  <input accept="image/*" capture="environment" onChange={(event) => captureEvidence(setReturnPhotos, item.id, event.currentTarget.files?.[0])} type="file" />
+                </label>
+              ))}
+            </div>
+            <div className={styles.retailNextActionBar} aria-label="Test drive receiving next actions">
+              <div>
+                <span>Receiving readiness</span>
+                <strong>{returnReceived ? "Test drive received with evidence" : returnPhotosReady ? "Ready to receive vehicle" : `${returnPhotoCount}/${TEST_DRIVE_RETURN_REQUIREMENTS.length} return photos ready`}</strong>
+              </div>
+              <button disabled={!returnPhotosReady || returnReceived} onClick={() => setReturnReceived(true)} type="button">{returnReceived ? "Return received" : "Complete receiving"}</button>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section className={styles.retailSection} id="test-drive-checkout">
+        <header>
+          <span>Checkout controls</span>
+          <strong>Release only after driver, document, and photo gates are ready</strong>
+        </header>
+        <div className={styles.rentalReadinessGrid}>
+          {[
+            ["Customer", customerName !== "Customer not selected" ? "Selected" : "Needs customer"],
+            ["Vehicle", vehicle.trim() ? "Assigned" : "Needs vehicle"],
+            ["Driver", driverReady ? "Verified" : "Needs license / insurance"],
+            ["Signed form", documentsReady ? "Recorded" : "Needs documents"],
+            ["Release photos", releasePhotosReady ? "Captured" : "Needs photos"],
+            ["Return plan", facts.returnTime ? "Scheduled" : "Needs return time"]
+          ].map(([label, value]) => (
+            <div key={label}>
+              <span>{label}</span>
+              <strong>{value}</strong>
+            </div>
+          ))}
+        </div>
+        <div className={styles.retailNextActionBar} aria-label="Test drive next actions">
+          <div>
+            <span>Test-drive readiness</span>
+            <strong>{releaseReady ? "Ready to start test drive" : "Complete driver, signed form, and release photos"}</strong>
+          </div>
+          <button type="button" onClick={onSaveDraft}>Save test-drive draft</button>
+          <button disabled={!releaseReady || statusKind === "saving"} onClick={onComplete} type="button">{statusKind === "saving" ? "Completing..." : "Start test drive"}</button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter }) {
   const [workflowId, setWorkflowId] = useState<DealWorkflowId>("retail-sale");
   const [summaryOpen, setSummaryOpen] = useState(false);
@@ -1925,10 +2143,14 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
   const [status, setStatus] = useState<{ kind: "idle" | "saving" | "success" | "error"; message: string; href?: string }>({ kind: "idle", message: "" });
   const workflow = DEAL_WORKFLOWS.find((item) => item.id === workflowId) ?? DEAL_WORKFLOWS[0];
   const rentalLikeWorkflow = workflow.id === "daily-rental" || workflow.id === "vehicle-loaner";
+  const testDriveWorkflow = workflow.id === "test-drive";
+  const nonRevenueWorkflow = workflow.id === "vehicle-loaner" || testDriveWorkflow;
   const selectedCustomer = model.customers.find((customer) => customer.id === form.customerId) ?? model.customers[0] ?? null;
   const estimatedValueCents = useMemo(() => dollarsToCents(form.amount), [form.amount]);
-  const completedCount = useMemo(() => [form.customerId, form.vehicle, form.amount].filter((value) => value.trim()).length, [form]);
-  const ready = completedCount === 3 && Boolean(form.ownerUserId) && Number.isFinite(estimatedValueCents);
+  const effectiveAmount = testDriveWorkflow && !form.amount.trim() ? "$0.00" : form.amount;
+  const effectiveEstimatedValueCents = testDriveWorkflow && !form.amount.trim() ? 0 : estimatedValueCents;
+  const completedCount = useMemo(() => [form.customerId, form.vehicle, effectiveAmount].filter((value) => value.trim()).length, [effectiveAmount, form.customerId, form.vehicle]);
+  const ready = completedCount === 3 && Boolean(form.ownerUserId) && Number.isFinite(effectiveEstimatedValueCents);
   const readinessLabel = ready ? "Ready to execute" : `${completedCount}/3 ready`;
 
   function update(key: keyof typeof form, value: string) {
@@ -1940,18 +2162,18 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
   }
 
   async function startDeal() {
-    if (!ready || !selectedCustomer || typeof estimatedValueCents !== "number") return;
+    if (!ready || !selectedCustomer || typeof effectiveEstimatedValueCents !== "number") return;
     setStatus({ kind: "saving", message: "Starting deal..." });
     const response = await fetch("/api/crm/v1/opportunities", {
       body: JSON.stringify({
         customerId: selectedCustomer.id,
-        estimatedValueCents,
+        estimatedValueCents: effectiveEstimatedValueCents,
         idempotencyKey: crypto.randomUUID(),
         nextActionDueAt: tomorrowIso(),
         nextActionLabel: `Execute ${workflow.label} workflow for ${selectedCustomer.name}`,
         ownerUserId: form.ownerUserId,
         summary: [
-          `${workflow.id === "vehicle-loaner" ? "Workflow" : "Revenue channel"}: ${workflow.label}`,
+          `${nonRevenueWorkflow ? "Workflow" : "Revenue channel"}: ${workflow.label}`,
           `Vehicle/reference: ${form.vehicle}`,
           form.note ? `Staff note: ${form.note}` : null
         ].filter(Boolean).join("\n"),
@@ -1986,7 +2208,7 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
           <small>{workflow.nextWorkspace}</small>
         </div>
         <div className={styles.executionStatusChips} aria-label="Retail execution checks">
-          {(rentalLikeWorkflow ? ["License", workflow.id === "vehicle-loaner" ? "Courtesy waiver" : "Payment hold", workflow.id === "vehicle-loaner" ? "Loaner unit" : "Vehicle", "Return plan"] : ["Identity", "Vehicle", "Funding", "Delivery"]).map((item) => <span key={item}>{item}</span>)}
+          {(testDriveWorkflow ? ["License", "Signed form", "Vehicle", "Return plan"] : rentalLikeWorkflow ? ["License", workflow.id === "vehicle-loaner" ? "Courtesy waiver" : "Payment hold", workflow.id === "vehicle-loaner" ? "Loaner unit" : "Vehicle", "Return plan"] : ["Identity", "Vehicle", "Funding", "Delivery"]).map((item) => <span key={item}>{item}</span>)}
         </div>
         <button type="button" onClick={() => setSummaryOpen(true)}>Execution Summary</button>
         <button disabled={!ready || status.kind === "saving"} onClick={() => void startDeal()} type="button">
@@ -2001,6 +2223,13 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
             <a href="#lease-vehicle">Vehicle</a>
             <a href="#lease-calculator">Calculator</a>
             <a href="#lease-contracts">Forms</a>
+          </>
+        ) : testDriveWorkflow ? (
+          <>
+            <a href="#test-drive-driver">Driver</a>
+            <a href="#test-drive-vehicle">Vehicle</a>
+            <a href="#test-drive-evidence">Evidence</a>
+            <a href="#test-drive-checkout">Checkout</a>
           </>
         ) : rentalLikeWorkflow ? (
           <>
@@ -2090,6 +2319,23 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
                   {status.kind === "saving" ? "Completing..." : "Complete intake"}
                 </button>
               </div>
+            </>
+          ) : testDriveWorkflow ? (
+            <>
+              <div className={styles.dealStartForm}>
+                <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => update("customerId", event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+                <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
+              </div>
+              <TestDriveExecutionDesk
+                customerName={selectedCustomer?.name ?? "Customer not selected"}
+                onAmountChange={(value) => update("amount", value)}
+                onComplete={() => void startDeal()}
+                onSaveDraft={saveDraft}
+                onVehicleChange={(value) => update("vehicle", value)}
+                statusKind={status.kind}
+                vehicle={form.vehicle}
+              />
+              <label className={`${styles.dealStartWide} ${styles.retailNote}`}><span>{FIELD_LABELS.note}</span><textarea value={form.note} onChange={(event) => update("note", event.target.value)} placeholder="Optional context staff needs before working this test drive" rows={3} /></label>
             </>
           ) : rentalLikeWorkflow ? (
             <>
