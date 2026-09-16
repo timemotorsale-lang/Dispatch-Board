@@ -7,7 +7,7 @@ export type LeaseToOwnFormItem = {
   fieldMappings: string[];
   id: string;
   label: string;
-  templatePath: string;
+  templatePath?: string;
   sourceFileName: string;
   trigger: string;
 };
@@ -119,6 +119,26 @@ export const LEASE_TO_OWN_FORM_PACKET: LeaseToOwnFormItem[] = [
     sourceFileName: "02-Vehicle Inspection Form 09-2013.pdf",
     templatePath: "/forms/lease-to-own/vehicle-inspection.pdf",
     trigger: "Before delivery"
+  },
+  {
+    basis: "Minnesota DVS title and registration support",
+    category: "Required",
+    description: "Authorization for the dealership to complete title, registration, correction, lien, or related vehicle paperwork for the lessee/customer when needed.",
+    fieldMappings: ["Lessee", "Co-lessee", "Vehicle", "VIN", "Title/registration authority", "Date"],
+    id: "power-of-attorney",
+    label: "Power of attorney / title authority",
+    sourceFileName: "Generated power of attorney / title authority form",
+    trigger: "Dealer handles title, registration, correction, lien, or DVS paperwork"
+  },
+  {
+    basis: "Dealership credit underwriting and account servicing control",
+    category: "Required",
+    description: "Customer-provided personal references for buyers or lessees purchasing on payments, including contact details, relationship, contact consent, and verification notes.",
+    fieldMappings: ["Lessee", "Co-lessee", "Reference names", "Reference phone numbers", "Relationship", "Permission to contact", "Verification notes"],
+    id: "personal-references",
+    label: "Personal references and verification form",
+    sourceFileName: "Generated personal references and verification form",
+    trigger: "Every lease-to-own or vehicle payment purchase"
   },
   {
     basis: "GPS disclosure addendum template",

@@ -20,7 +20,7 @@ describe("Unified CRM contract packet route", () => {
       body: JSON.stringify({
         customerName: "Alex Buyer",
         feeTotal: "$22.25",
-        preparedFormIds: ["sales-agreement", "odometer-disclosure", "power-of-attorney"],
+        preparedFormIds: ["sales-agreement", "odometer-disclosure", "power-of-attorney", "personal-references"],
         salePrice: "$12,500.00",
         vehicle: {
           color: "Black",
@@ -38,9 +38,17 @@ describe("Unified CRM contract packet route", () => {
     expect(created.status).toBe(201);
     const packet = await created.json();
     expect(packet.status).toBe("ARCHIVED");
-    expect(packet.documents).toHaveLength(3);
+    expect(packet.documents).toHaveLength(4);
     expect(packet.documents[0].html).toContain("Alex Buyer");
     expect(packet.documents[0].html).toContain("Black");
+    const referenceForm = packet.documents.find((document: { formId: string }) => document.formId === "personal-references");
+    expect(referenceForm).toMatchObject({
+      contentType: "application/pdf",
+      downloadFileName: expect.stringMatching(/^personal-references-.*\.pdf$/),
+      label: "Personal references and verification form"
+    });
+    expect(referenceForm.contentBase64).toMatch(/^JVBER/);
+    expect(referenceForm.html).toContain("Reference 1");
     expect(packet.delivery).toMatchObject({ downloadReady: true, emailReady: true, printReady: true, textReady: true });
     expect(packet.auditTrail[0].action).toBe("CONTRACT_PACKET_GENERATED");
 
@@ -201,10 +209,19 @@ describe("Unified CRM contract packet route", () => {
       "binding-arbitration",
       "excluded-driver",
       "vehicle-inspection",
+      "power-of-attorney",
+      "personal-references",
       "gps-disclosure",
       "kap-warranty"
     ]);
-    expect(packet.documents.every((document: { contentType: string }) => document.contentType === "application/pdf")).toBe(true);
+    expect(packet.documents.find((document: { formId: string }) => document.formId === "power-of-attorney")).toMatchObject({
+      contentType: "text/html",
+      label: "Power of attorney / title authority"
+    });
+    expect(packet.documents.find((document: { formId: string }) => document.formId === "personal-references")).toMatchObject({
+      contentType: "application/pdf",
+      label: "Personal references and verification form"
+    });
   });
 
   it("generates a daily rental signing packet with rental agreement controls", async () => {

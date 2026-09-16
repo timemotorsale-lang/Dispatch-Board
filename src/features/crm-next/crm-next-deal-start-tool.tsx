@@ -418,6 +418,7 @@ function RetailSaleExecutionDesk({
   const [downPayment, setDownPayment] = useState("$0.00");
   const [termMonths, setTermMonths] = useState("36");
   const [interestRate, setInterestRate] = useState("0.00%");
+  const [paymentFunding, setPaymentFunding] = useState("To be confirmed");
   const [manualMonthlyPayment, setManualMonthlyPayment] = useState(false);
   const [manualMonthlyPaymentAmount, setManualMonthlyPaymentAmount] = useState("");
   const [preparedForms, setPreparedForms] = useState<string[]>([]);
@@ -442,6 +443,8 @@ function RetailSaleExecutionDesk({
   const calculatedMonthlyPaymentCents = calculateMonthlyPayment(amountFinancedCents, safeTermMonths, parsePercent(interestRate));
   const displayedMonthlyPayment = manualMonthlyPayment ? manualMonthlyPaymentAmount : formatCurrency(calculatedMonthlyPaymentCents);
   const feeFormula = feeLines.length > 0 ? `${feeLines.map((line) => formatCurrency(line.amountCents)).join(" + ")} = ${formatCurrency(feeTotalCents)}` : "$0.00 = $0.00";
+  const creditPaymentFunding = ["Dealer financing", "Outside finance", "BHPH / in-house financing"].includes(paymentFunding);
+  const packetPreparedFormIds = creditPaymentFunding ? Array.from(new Set([...preparedForms, "personal-references"])) : preparedForms;
   const requiredFormCount = MN_SALE_FORM_PACKET.filter((form) => form.category === "Required").length;
   const preparedRequiredCount = MN_SALE_FORM_PACKET.filter((form) => form.category === "Required" && preparedForms.includes(form.id)).length;
   const [vehicleFacts, setVehicleFacts] = useState({
@@ -500,8 +503,8 @@ function RetailSaleExecutionDesk({
         dealType: "Retail Sale",
         feeTotal: formatCurrency(feeTotalCents),
         idempotencyKey: crypto.randomUUID(),
-        paymentFunding: "To be confirmed",
-        preparedFormIds: preparedForms,
+        paymentFunding,
+        preparedFormIds: packetPreparedFormIds,
         salePrice: amount || "$0.00",
         vehicle: vehicleFacts
       }),
@@ -750,7 +753,7 @@ function RetailSaleExecutionDesk({
             <button type="button" onClick={() => setManualMonthlyPayment((current) => !current)}>{manualMonthlyPayment ? "Use calculated payment" : "Manual payment override"}</button>
           </label>
           <label><span>First payment</span><input placeholder="30 days" /></label>
-          <label><span>Payment / funding</span><select><option>Cash / certified funds</option><option>Outside finance</option><option>One pay</option><option>To be confirmed</option></select></label>
+          <label><span>Payment / funding</span><select value={paymentFunding} onChange={(event) => setPaymentFunding(event.target.value)}><option>Cash / certified funds</option><option>Dealer financing</option><option>Outside finance</option><option>BHPH / in-house financing</option><option>One pay</option><option>To be confirmed</option></select></label>
           <label><span>Delivery target</span><input placeholder="Today, tomorrow, or date" /></label>
         </div>
         <div className={styles.retailFeeTool} aria-label="MN DMV fee calculator">
@@ -821,7 +824,7 @@ function RetailSaleExecutionDesk({
                 <div>
                   <span>Required forms ready</span>
                   <strong>{preparedRequiredCount}/{requiredFormCount}</strong>
-                  <small>Prepare the baseline packet first, then add conditional forms based on finance, trade, products, and delivery.</small>
+                  <small>{creditPaymentFunding ? "Credit payment selected; personal references PDF will be included automatically." : "Prepare the baseline packet first, then add conditional forms based on finance, trade, products, and delivery."}</small>
                 </div>
                 <button type="button" onClick={prepareRequiredForms}>Prepare required forms</button>
                 <button disabled={packetStatus.kind === "generating"} type="button" onClick={() => void generateContractPacket()}>
@@ -968,8 +971,10 @@ const TEST_DRIVE_DOCUMENT_REQUIREMENTS: RentalEvidenceRequirement[] = [
 const BHPH_PAPERWORK_REQUIREMENTS: RentalEvidenceRequirement[] = [
   { id: "retail-installment-contract", label: "Retail installment contract", helper: "Signed BHPH finance contract with final payment schedule." },
   { id: "buyers-order", label: "Buyer order", helper: "Final buyer order with sale price, fees, taxes, down payment, and balance." },
+  { id: "personal-references", label: "Personal references", helper: "Signed personal references and verification form for the payment account." },
   { id: "odometer-disclosure", label: "Odometer disclosure", helper: "Signed odometer statement tied to the exact vehicle." },
   { id: "title-application", label: "Title application", helper: "Title and registration paperwork ready for processing." },
+  { id: "power-of-attorney", label: "Power of attorney / title authority", helper: "Authority for title, registration, lien, correction, or DVS paperwork handled by the dealership." },
   { id: "gps-disclosure", label: "GPS / starter interrupt disclosure", helper: "Required only if the vehicle has GPS or payment assurance equipment." },
   { id: "payment-authorization", label: "Payment authorization", helper: "ACH/card/autopay or payment method authorization." },
   { id: "arbitration-addenda", label: "Arbitration / addenda", helper: "Signed arbitration, as-is/warranty, and dealership addenda when applicable." }
@@ -997,6 +1002,7 @@ const WHOLESALE_PACKET_REQUIREMENTS: RentalEvidenceRequirement[] = [
   { id: "purchase-agreement", label: "Dealer purchase agreement", helper: "Wholesale buyer agreement or dealer-to-dealer sale terms." },
   { id: "odometer-statement", label: "Odometer statement", helper: "Signed mileage disclosure tied to the exact VIN." },
   { id: "title-transfer", label: "Title / reassignment", helper: "Title, reassignment, or title-processing packet ready for release." },
+  { id: "power-of-attorney", label: "Power of attorney / title authority", helper: "Required when title correction, duplicate title, lien release, reassignment, or release authority is needed." },
   { id: "as-is-disclosure", label: "As-is / no warranty", helper: "Wholesale as-is and no warranty acknowledgement." },
   { id: "buyer-credentials", label: "Buyer credentials", helper: "Dealer license, resale certificate, or buyer authority proof." },
   { id: "payment-receipt", label: "Payment receipt", helper: "Wire, certified funds, floorplan, or approved payment proof." },
@@ -1016,6 +1022,34 @@ const WHOLESALE_HANDOFF_REQUIREMENTS = [
   "Title packet ready",
   "Keys released",
   "Transport scheduled",
+  "Document archive"
+] as const;
+
+const OUTSIDE_FINANCE_PACKET_REQUIREMENTS: RentalEvidenceRequirement[] = [
+  { id: "buyers-order", label: "Buyer order", helper: "Final buyer order matching lender or one-pay funding." },
+  { id: "funding-instructions", label: "Funding instructions", helper: "Lender funding sheet, wire instructions, or one-pay proof path." },
+  { id: "retail-contract-copy", label: "Retail contract copy", helper: "Contract or buyer-facing agreement retained for the deal jacket." },
+  { id: "personal-references", label: "Personal references", helper: "Signed personal references and verification form when the customer is buying on credit." },
+  { id: "odometer-disclosure", label: "Odometer disclosure", helper: "Signed mileage disclosure tied to the exact VIN." },
+  { id: "title-application", label: "Title application", helper: "Title, registration, lienholder, and release paperwork." },
+  { id: "power-of-attorney", label: "Power of attorney / title authority", helper: "Authority for dealership title, registration, lienholder, correction, or DVS work when needed." },
+  { id: "insurance-binder", label: "Insurance binder", helper: "Insurance binder with required lienholder/loss-payee when applicable." },
+  { id: "payoff-or-lienholder", label: "Payoff / lienholder proof", helper: "Trade payoff, outside lienholder, or lien placement evidence when applicable." }
+];
+
+const OUTSIDE_FINANCE_EVIDENCE_REQUIREMENTS: RentalEvidenceRequirement[] = [
+  { id: "lender-approval", label: "Lender approval", helper: "Approval, callback, or lender authorization evidence." },
+  { id: "stipulations", label: "Stipulations", helper: "All lender stipulations or one-pay conditions satisfied." },
+  { id: "funding-proof", label: "Funding proof", helper: "Wire, check, one-pay receipt, lender draft, or cashier's check proof." },
+  { id: "identity-proof", label: "Identity proof", helper: "Driver license or customer identity proof." },
+  { id: "delivery-condition", label: "Delivery condition", helper: "Vehicle delivery photos and mileage/fuel proof." }
+];
+
+const OUTSIDE_FINANCE_HANDOFF_REQUIREMENTS = [
+  "Funding verified",
+  "Lienholder recorded",
+  "Title packet ready",
+  "Insurance verified",
   "Document archive"
 ] as const;
 
@@ -2468,11 +2502,12 @@ function WholesaleExecutionDesk({
   const salePriceCents = dollarsToCents(terms.salePrice);
   const depositCents = dollarsToCents(terms.deposit);
   const balanceDueCents = Math.max(0, (Number.isFinite(salePriceCents) && salePriceCents !== null ? salePriceCents : 0) - (Number.isFinite(depositCents) && depositCents !== null ? depositCents : 0));
-  const packetCount = WHOLESALE_PACKET_REQUIREMENTS.filter((item) => packet[item.id]).length;
+  const packetRequirements = WHOLESALE_PACKET_REQUIREMENTS.filter((item) => item.id !== "power-of-attorney" || terms.titleStatus !== "Ready");
+  const packetCount = packetRequirements.filter((item) => packet[item.id]).length;
   const evidenceCount = WHOLESALE_EVIDENCE_REQUIREMENTS.filter((item) => evidence[item.id]).length;
   const handoffCount = WHOLESALE_HANDOFF_REQUIREMENTS.filter((item) => handoff[item]).length;
   const approvalTriggers = Object.values(approval).filter(Boolean).length;
-  const packetReady = packetCount === WHOLESALE_PACKET_REQUIREMENTS.length;
+  const packetReady = packetCount === packetRequirements.length;
   const evidenceReady = evidenceCount === WHOLESALE_EVIDENCE_REQUIREMENTS.length;
   const handoffReady = handoffCount === WHOLESALE_HANDOFF_REQUIREMENTS.length;
   const buyerReady = Boolean((buyer.buyerName || customerName).trim() && buyer.contactName.trim() && buyer.dealerLicense.trim());
@@ -2560,7 +2595,7 @@ function WholesaleExecutionDesk({
           <strong>Signed packet and release evidence</strong>
         </header>
         <div className={styles.rentalEvidenceSummary}>
-          <div><span>Packet docs</span><strong>{packetCount}/{WHOLESALE_PACKET_REQUIREMENTS.length}</strong><small>{packetReady ? "Ready" : "Required before release"}</small></div>
+          <div><span>Packet docs</span><strong>{packetCount}/{packetRequirements.length}</strong><small>{packetReady ? "Ready" : "Required before release"}</small></div>
           <div><span>Evidence</span><strong>{evidenceCount}/{WHOLESALE_EVIDENCE_REQUIREMENTS.length}</strong><small>{evidenceReady ? "Recorded" : "Required before release"}</small></div>
           <div><span>Handoff</span><strong>{handoffCount}/{WHOLESALE_HANDOFF_REQUIREMENTS.length}</strong><small>{handoffReady ? "Ready" : "Required before completion"}</small></div>
         </div>
@@ -2569,7 +2604,7 @@ function WholesaleExecutionDesk({
             <h3>Required wholesale documents</h3>
             <p>Record the official wholesale packet once, then show it here as the deal-jacket view from the future document library.</p>
             <div className={styles.rentalEvidenceGrid}>
-              {WHOLESALE_PACKET_REQUIREMENTS.map((item) => (
+              {packetRequirements.map((item) => (
                 <label className={packet[item.id] ? styles.rentalEvidenceCaptured : undefined} key={item.id}>
                   <span>{item.label}</span>
                   <strong>{packet[item.id] ?? "Document required"}</strong>
@@ -2656,6 +2691,251 @@ function WholesaleExecutionDesk({
   );
 }
 
+function OutsideFinanceExecutionDesk({
+  amount,
+  customerName,
+  onAmountChange,
+  onComplete,
+  onSaveDraft,
+  onVehicleChange,
+  statusKind,
+  vehicle
+}: {
+  amount: string;
+  customerName: string;
+  onAmountChange: (value: string) => void;
+  onComplete: () => void;
+  onSaveDraft: () => void;
+  onVehicleChange: (value: string) => void;
+  statusKind: "idle" | "saving" | "success" | "error";
+  vehicle: string;
+}) {
+  const [packet, setPacket] = useState<Record<string, string>>({});
+  const [evidence, setEvidence] = useState<Record<string, string>>({});
+  const [handoff, setHandoff] = useState<Record<string, boolean>>({});
+  const [funding, setFunding] = useState({
+    approvalNumber: "",
+    fundingPath: "Outside finance",
+    lenderName: "",
+    lienholderAddress: "",
+    onePayReference: "",
+    stipulations: ""
+  });
+  const [terms, setTerms] = useState({
+    amountDueAtDelivery: "$0.00",
+    downPayment: "$0.00",
+    expectedFundingDate: todayInputValue(),
+    salePrice: amount,
+    tradePayoff: "$0.00"
+  });
+  const [approval, setApproval] = useState({
+    deliveryBeforeFunding: false,
+    insuranceException: false,
+    lienholderException: false,
+    stipulationOpen: false,
+    titleException: false
+  });
+  const [titleAuthorityNeeded, setTitleAuthorityNeeded] = useState(false);
+
+  const packetRequirements = OUTSIDE_FINANCE_PACKET_REQUIREMENTS.filter((item) => (
+    (item.id !== "personal-references" || !["Cashier's check", "One pay"].includes(funding.fundingPath))
+    && (item.id !== "power-of-attorney" || titleAuthorityNeeded || approval.titleException)
+  ));
+  const salePriceCents = dollarsToCents(terms.salePrice);
+  const downPaymentCents = dollarsToCents(terms.downPayment);
+  const tradePayoffCents = dollarsToCents(terms.tradePayoff);
+  const fundedAmountCents = Math.max(0, (Number.isFinite(salePriceCents) && salePriceCents !== null ? salePriceCents : 0) - (Number.isFinite(downPaymentCents) && downPaymentCents !== null ? downPaymentCents : 0) + (Number.isFinite(tradePayoffCents) && tradePayoffCents !== null ? tradePayoffCents : 0));
+  const packetCount = packetRequirements.filter((item) => packet[item.id]).length;
+  const evidenceCount = OUTSIDE_FINANCE_EVIDENCE_REQUIREMENTS.filter((item) => evidence[item.id]).length;
+  const handoffCount = OUTSIDE_FINANCE_HANDOFF_REQUIREMENTS.filter((item) => handoff[item]).length;
+  const approvalTriggers = Object.values(approval).filter(Boolean).length;
+  const packetReady = packetCount === packetRequirements.length;
+  const evidenceReady = evidenceCount === OUTSIDE_FINANCE_EVIDENCE_REQUIREMENTS.length;
+  const handoffReady = handoffCount === OUTSIDE_FINANCE_HANDOFF_REQUIREMENTS.length;
+  const fundingReady = funding.fundingPath === "One pay"
+    ? Boolean(funding.onePayReference.trim())
+    : Boolean(funding.lenderName.trim() && funding.approvalNumber.trim());
+  const termsReady = Boolean(terms.salePrice.trim() && terms.expectedFundingDate.trim());
+  const outsideFinanceReady = Boolean(customerName !== "Customer not selected" && vehicle.trim() && fundingReady && termsReady && packetReady && evidenceReady && handoffReady && approvalTriggers === 0);
+
+  function updateTerms(key: keyof typeof terms, value: string) {
+    const next = { ...terms, [key]: value };
+    setTerms(next);
+    if (key === "salePrice" || key === "downPayment" || key === "tradePayoff") {
+      const nextSalePrice = dollarsToCents(next.salePrice);
+      const nextDownPayment = dollarsToCents(next.downPayment);
+      const nextTradePayoff = dollarsToCents(next.tradePayoff);
+      const nextFundedAmount = Math.max(0, (Number.isFinite(nextSalePrice) && nextSalePrice !== null ? nextSalePrice : 0) - (Number.isFinite(nextDownPayment) && nextDownPayment !== null ? nextDownPayment : 0) + (Number.isFinite(nextTradePayoff) && nextTradePayoff !== null ? nextTradePayoff : 0));
+      onAmountChange(formatCurrency(nextFundedAmount));
+    }
+  }
+
+  function captureEvidence(
+    setter: (value: SetStateAction<Record<string, string>>) => void,
+    id: string,
+    file?: File
+  ) {
+    if (!file) return;
+    setter((current) => ({ ...current, [id]: file.name }));
+  }
+
+  return (
+    <div className={styles.retailExecutionDesk}>
+      <section className={styles.retailSection} id="outside-funding">
+        <header>
+          <span>Funding path</span>
+          <strong>Confirm lender, one-pay, and stipulation authority</strong>
+        </header>
+        <div className={styles.retailFieldGrid}>
+          <label><span>Customer</span><input readOnly value={customerName} /></label>
+          <label><span>Funding path</span><select value={funding.fundingPath} onChange={(event) => setFunding((current) => ({ ...current, fundingPath: event.target.value }))}><option>Outside finance</option><option>One pay</option><option>Credit union</option><option>Bank draft</option><option>Cashier's check</option></select></label>
+          <label><span>Lender / bank</span><input value={funding.lenderName} onChange={(event) => setFunding((current) => ({ ...current, lenderName: event.target.value }))} /></label>
+          <label><span>Approval / draft #</span><input value={funding.approvalNumber} onChange={(event) => setFunding((current) => ({ ...current, approvalNumber: event.target.value }))} /></label>
+          <label><span>One-pay reference</span><input value={funding.onePayReference} onChange={(event) => setFunding((current) => ({ ...current, onePayReference: event.target.value }))} placeholder="Wire, receipt, cashier check, or full-pay proof" /></label>
+          <label><span>Lienholder address</span><input value={funding.lienholderAddress} onChange={(event) => setFunding((current) => ({ ...current, lienholderAddress: event.target.value }))} /></label>
+          <label className={styles.retailWide}><span>Stipulations</span><textarea value={funding.stipulations} onChange={(event) => setFunding((current) => ({ ...current, stipulations: event.target.value }))} placeholder="Open lender stipulations, one-pay conditions, callback notes, or funding holds" rows={3} /></label>
+        </div>
+      </section>
+
+      <section className={styles.retailSection} id="outside-vehicle">
+        <header>
+          <span>Vehicle and title</span>
+          <strong>Bind funding proof to the exact vehicle and lienholder path</strong>
+        </header>
+        <div className={styles.retailFieldGrid}>
+          <label><span>Vehicle / stock #</span><input value={vehicle} onChange={(event) => onVehicleChange(event.target.value)} placeholder="Stock, VIN, or vehicle" /></label>
+          <label><span>Title status</span><select onChange={(event) => setApproval((current) => ({ ...current, titleException: event.target.value !== "Ready" }))}><option>Ready</option><option>Title work pending</option><option>Lien release pending</option><option>Manager exception</option></select></label>
+          <label><span>Insurance status</span><select onChange={(event) => setApproval((current) => ({ ...current, insuranceException: event.target.value !== "Verified" }))}><option>Verified</option><option>Binder pending</option><option>Needs lienholder correction</option><option>Manager exception</option></select></label>
+          <label><span>Lienholder status</span><select onChange={(event) => setApproval((current) => ({ ...current, lienholderException: event.target.value !== "Recorded" }))}><option>Recorded</option><option>Needs address</option><option>Needs lender confirmation</option><option>Not applicable - one pay</option></select></label>
+          <label><span>Title authority</span><select value={titleAuthorityNeeded ? "Needed" : "Not needed"} onChange={(event) => setTitleAuthorityNeeded(event.target.value === "Needed")}><option>Not needed</option><option>Needed</option></select></label>
+        </div>
+      </section>
+
+      <section className={styles.retailSection} id="outside-terms">
+        <header>
+          <span>Funding terms</span>
+          <strong>Track funded amount and amount due at delivery</strong>
+        </header>
+        <div className={styles.retailFieldGrid}>
+          <label><span>Sale price</span><input value={terms.salePrice} onChange={(event) => updateTerms("salePrice", event.target.value)} placeholder="$0.00" /></label>
+          <label><span>Down payment</span><input value={terms.downPayment} onChange={(event) => updateTerms("downPayment", event.target.value)} /></label>
+          <label><span>Trade payoff</span><input value={terms.tradePayoff} onChange={(event) => updateTerms("tradePayoff", event.target.value)} /></label>
+          <label><span>Funded amount</span><input readOnly value={formatCurrency(fundedAmountCents)} /></label>
+          <label><span>Amount due at delivery</span><input value={terms.amountDueAtDelivery} onChange={(event) => updateTerms("amountDueAtDelivery", event.target.value)} /></label>
+          <label><span>Expected funding date</span><input type="date" value={terms.expectedFundingDate} onChange={(event) => updateTerms("expectedFundingDate", event.target.value)} /></label>
+        </div>
+        <div className={styles.rentalSummaryStrip}>
+          <div><span>Funded amount</span><strong>{formatCurrency(fundedAmountCents)}</strong></div>
+          <div><span>Due at delivery</span><strong>{terms.amountDueAtDelivery}</strong></div>
+          <div><span>Funding path</span><strong>{funding.fundingPath}</strong></div>
+          <div><span>Funding date</span><strong>{terms.expectedFundingDate || "Not set"}</strong></div>
+          <button type="button" onClick={() => onAmountChange(formatCurrency(fundedAmountCents))}>Use funded amount</button>
+        </div>
+      </section>
+
+      <section className={styles.retailSection} id="outside-packet">
+        <header>
+          <span>Outside finance packet</span>
+          <strong>Funding documents, stipulations, and delivery evidence</strong>
+        </header>
+        <div className={styles.rentalEvidenceSummary}>
+          <div><span>Packet docs</span><strong>{packetCount}/{packetRequirements.length}</strong><small>{packetReady ? "Ready" : "Required before delivery"}</small></div>
+          <div><span>Evidence</span><strong>{evidenceCount}/{OUTSIDE_FINANCE_EVIDENCE_REQUIREMENTS.length}</strong><small>{evidenceReady ? "Recorded" : "Required before funding release"}</small></div>
+          <div><span>Handoff</span><strong>{handoffCount}/{OUTSIDE_FINANCE_HANDOFF_REQUIREMENTS.length}</strong><small>{handoffReady ? "Ready" : "Required before completion"}</small></div>
+        </div>
+        <div className={styles.rentalEvidenceBoard}>
+          <section>
+            <h3>Required packet documents</h3>
+            <p>Record the outside finance or one-pay packet once. These records should later store in the central document library and show here as the deal-jacket view.</p>
+            <div className={styles.rentalEvidenceGrid}>
+              {packetRequirements.map((item) => (
+                <label className={packet[item.id] ? styles.rentalEvidenceCaptured : undefined} key={item.id}>
+                  <span>{item.label}</span>
+                  <strong>{packet[item.id] ?? "Document required"}</strong>
+                  <small>{item.helper}</small>
+                  <input accept="application/pdf,image/*" onChange={(event) => captureEvidence(setPacket, item.id, event.currentTarget.files?.[0])} type="file" />
+                </label>
+              ))}
+            </div>
+          </section>
+          <section>
+            <h3>Funding evidence</h3>
+            <p>Approval, stipulations, funding proof, identity, and delivery condition must be recorded before completion.</p>
+            <div className={styles.rentalEvidenceGrid}>
+              {OUTSIDE_FINANCE_EVIDENCE_REQUIREMENTS.map((item) => (
+                <label className={evidence[item.id] ? styles.rentalEvidenceCaptured : undefined} key={item.id}>
+                  <span>{item.label}</span>
+                  <strong>{evidence[item.id] ?? "Evidence required"}</strong>
+                  <small>{item.helper}</small>
+                  <input accept="application/pdf,image/*" capture="environment" onChange={(event) => captureEvidence(setEvidence, item.id, event.currentTarget.files?.[0])} type="file" />
+                </label>
+              ))}
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section className={styles.retailSection} id="outside-approval">
+        <header>
+          <span>Approval and funding exceptions</span>
+          <strong>Clear holds before delivery or funded completion</strong>
+        </header>
+        <div className={styles.rentalReadinessGrid}>
+          {[
+            ["Delivery before funding", approval.deliveryBeforeFunding],
+            ["Insurance", approval.insuranceException],
+            ["Lienholder", approval.lienholderException],
+            ["Stipulations", approval.stipulationOpen],
+            ["Title", approval.titleException]
+          ].map(([label, flagged]) => (
+            <div key={String(label)}>
+              <span>{label}</span>
+              <strong>{flagged ? "Manager review" : "Clear"}</strong>
+            </div>
+          ))}
+          <div>
+            <span>Approval status</span>
+            <strong>{approvalTriggers === 0 ? "Clear" : `${approvalTriggers} review trigger(s)`}</strong>
+          </div>
+          <div>
+            <span>POA / title authority</span>
+            <strong>{titleAuthorityNeeded || approval.titleException ? "Required in packet" : "Not required"}</strong>
+          </div>
+        </div>
+        <div className={styles.retailActionRow}>
+          <button type="button" onClick={() => setApproval((current) => ({ ...current, deliveryBeforeFunding: !current.deliveryBeforeFunding }))}>Toggle delivery before funding</button>
+          <button type="button" onClick={() => setApproval((current) => ({ ...current, stipulationOpen: !current.stipulationOpen }))}>Toggle stipulation review</button>
+        </div>
+      </section>
+
+      <section className={styles.retailSection} id="outside-handoff">
+        <header>
+          <span>Funding handoff</span>
+          <strong>Confirm funding, lienholder, title, insurance, and archive</strong>
+        </header>
+        <div className={styles.rentalEvidenceGrid}>
+          {OUTSIDE_FINANCE_HANDOFF_REQUIREMENTS.map((item) => (
+            <label className={handoff[item] ? styles.rentalEvidenceCaptured : undefined} key={item}>
+              <span>Handoff gate</span>
+              <strong>{item}</strong>
+              <small>{handoff[item] ? "Ready" : "Required before completion"}</small>
+              <input checked={Boolean(handoff[item])} onChange={(event) => setHandoff((current) => ({ ...current, [item]: event.target.checked }))} type="checkbox" />
+            </label>
+          ))}
+        </div>
+        <div className={styles.retailNextActionBar} aria-label="Outside finance next actions">
+          <div>
+            <span>Outside finance readiness</span>
+            <strong>{outsideFinanceReady ? "Ready to complete outside finance packet" : "Complete funding, packet, evidence, approval, and handoff gates"}</strong>
+          </div>
+          <button type="button" onClick={onSaveDraft}>Save outside finance draft</button>
+          <button disabled={!outsideFinanceReady || statusKind === "saving"} onClick={onComplete} type="button">{statusKind === "saving" ? "Completing..." : "Complete outside finance packet"}</button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter }) {
   const [workflowId, setWorkflowId] = useState<DealWorkflowId>("retail-sale");
   const [summaryOpen, setSummaryOpen] = useState(false);
@@ -2672,6 +2952,7 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
   const rentalLikeWorkflow = workflow.id === "daily-rental" || workflow.id === "vehicle-loaner";
   const testDriveWorkflow = workflow.id === "test-drive";
   const wholesaleWorkflow = workflow.id === "wholesale";
+  const outsideFinanceWorkflow = workflow.id === "outside-finance-one-pay";
   const nonRevenueWorkflow = workflow.id === "vehicle-loaner" || testDriveWorkflow;
   const selectedCustomer = model.customers.find((customer) => customer.id === form.customerId) ?? model.customers[0] ?? null;
   const estimatedValueCents = useMemo(() => dollarsToCents(form.amount), [form.amount]);
@@ -2736,7 +3017,7 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
           <small>{workflow.nextWorkspace}</small>
         </div>
         <div className={styles.executionStatusChips} aria-label="Retail execution checks">
-          {(wholesaleWorkflow ? ["Buyer", "Funding", "Title", "Release"] : bhphWorkflow ? ["Proof", "Terms", "Paperwork", "Handoff"] : testDriveWorkflow ? ["License", "Signed form", "Vehicle", "Return plan"] : rentalLikeWorkflow ? ["License", workflow.id === "vehicle-loaner" ? "Courtesy waiver" : "Payment hold", workflow.id === "vehicle-loaner" ? "Loaner unit" : "Vehicle", "Return plan"] : ["Identity", "Vehicle", "Funding", "Delivery"]).map((item) => <span key={item}>{item}</span>)}
+          {(outsideFinanceWorkflow ? ["Funding", "Stips", "Title", "Handoff"] : wholesaleWorkflow ? ["Buyer", "Funding", "Title", "Release"] : bhphWorkflow ? ["Proof", "Terms", "Paperwork", "Handoff"] : testDriveWorkflow ? ["License", "Signed form", "Vehicle", "Return plan"] : rentalLikeWorkflow ? ["License", workflow.id === "vehicle-loaner" ? "Courtesy waiver" : "Payment hold", workflow.id === "vehicle-loaner" ? "Loaner unit" : "Vehicle", "Return plan"] : ["Identity", "Vehicle", "Funding", "Delivery"]).map((item) => <span key={item}>{item}</span>)}
         </div>
         <button type="button" onClick={() => setSummaryOpen(true)}>Execution Summary</button>
         <button disabled={!ready || status.kind === "saving"} onClick={() => void startDeal()} type="button">
@@ -2776,6 +3057,15 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
             <a href="#wholesale-packet">Packet</a>
             <a href="#wholesale-approval">Approval</a>
             <a href="#wholesale-handoff">Release</a>
+          </>
+        ) : outsideFinanceWorkflow ? (
+          <>
+            <a href="#outside-funding">Funding</a>
+            <a href="#outside-vehicle">Vehicle</a>
+            <a href="#outside-terms">Terms</a>
+            <a href="#outside-packet">Packet</a>
+            <a href="#outside-approval">Approval</a>
+            <a href="#outside-handoff">Handoff</a>
           </>
         ) : rentalLikeWorkflow ? (
           <>
@@ -2918,6 +3208,24 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
                 vehicle={form.vehicle}
               />
               <label className={`${styles.dealStartWide} ${styles.retailNote}`}><span>{FIELD_LABELS.note}</span><textarea value={form.note} onChange={(event) => update("note", event.target.value)} placeholder="Optional context staff needs before working this wholesale packet" rows={3} /></label>
+            </>
+          ) : outsideFinanceWorkflow ? (
+            <>
+              <div className={styles.dealStartForm}>
+                <label><span>Customer / buyer</span><select value={form.customerId} onChange={(event) => update("customerId", event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+                <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
+              </div>
+              <OutsideFinanceExecutionDesk
+                amount={form.amount}
+                customerName={selectedCustomer?.name ?? "Customer not selected"}
+                onAmountChange={(value) => update("amount", value)}
+                onComplete={() => void startDeal()}
+                onSaveDraft={saveDraft}
+                onVehicleChange={(value) => update("vehicle", value)}
+                statusKind={status.kind}
+                vehicle={form.vehicle}
+              />
+              <label className={`${styles.dealStartWide} ${styles.retailNote}`}><span>{FIELD_LABELS.note}</span><textarea value={form.note} onChange={(event) => update("note", event.target.value)} placeholder="Optional context staff needs before working this outside finance or one-pay deal" rows={3} /></label>
             </>
           ) : rentalLikeWorkflow ? (
             <>

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { DAILY_RENTAL_FORM_PACKET, requiredDailyRentalFormIds, type DailyRentalFormItem } from "@/lib/daily-rental-form-packet";
 import { allLeaseToOwnFormIds, calculateLeaseToOwn, LEASE_TO_OWN_FORM_PACKET, type LeasePaymentFrequency, type LeaseToOwnCalculatorInput } from "@/lib/lease-to-own-form-packet";
 import { MN_SALE_FORM_PACKET, requiredMinnesotaSaleFormIds, type MinnesotaSaleFormItem } from "@/lib/mn-vehicle-sale-form-packet";
-import { PDFDocument, StandardFonts } from "pdf-lib";
+import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import type { AuthenticatedUser } from "@/server/auth/store";
 import {
   UNIFIED_CRM_CONTRACT_PACKET_CONTRACT_VERSION,
@@ -26,6 +26,10 @@ function text(value: unknown, fallback: string, max = 240) {
 }
 
 type PacketFormItem = DailyRentalFormItem | MinnesotaSaleFormItem | typeof LEASE_TO_OWN_FORM_PACKET[number];
+
+function hasPdfTemplate(form: PacketFormItem): form is PacketFormItem & { templatePath: string } {
+  return "templatePath" in form && typeof form.templatePath === "string" && form.templatePath.length > 0;
+}
 
 function formIds(value: unknown, forms: PacketFormItem[], requiredIds: string[]) {
   if (!Array.isArray(value)) return requiredIds;
@@ -156,6 +160,88 @@ async function filledPdfBase64(templatePath: string, fieldValues: Record<string,
     }
   }
   const font = await pdf.embedFont(StandardFonts.Helvetica);
+  form.updateFieldAppearances(font);
+  return Buffer.from(await pdf.save()).toString("base64");
+}
+
+async function personalReferencesPdfBase64(input: {
+  customerName: string;
+  dealNumber: string;
+  dealType: string;
+  generatedAt: string;
+  paymentFunding: string;
+  salePrice: string;
+  vehicle: ReturnType<typeof vehicleFacts>;
+}) {
+  const pdf = await PDFDocument.create();
+  const page = pdf.addPage([612, 792]);
+  const form = pdf.getForm();
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const boldFont = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const ink = rgb(0.04, 0.09, 0.2);
+  const muted = rgb(0.32, 0.39, 0.49);
+  const rule = rgb(0.82, 0.87, 0.94);
+  const fieldBorder = rgb(0.63, 0.7, 0.8);
+  const vehicleLine = `${input.vehicle.year} ${input.vehicle.make} ${input.vehicle.model} ${input.vehicle.trim}`.replace(/\s+/g, " ").trim();
+
+  function draw(value: string, x: number, y: number, size = 9, bold = false, color = ink) {
+    page.drawText(value, { color, font: bold ? boldFont : font, size, x, y });
+  }
+
+  function field(label: string, name: string, x: number, y: number, width: number, height = 16, value = "") {
+    draw(label, x, y + height + 4, 7.5, true, muted);
+    const textField = form.createTextField(name);
+    textField.addToPage(page, { borderColor: fieldBorder, borderWidth: 0.8, height, textColor: ink, width, x, y });
+    textField.setFontSize(8);
+    if (value) textField.setText(value);
+  }
+
+  draw("Personal References and Verification Form", 36, 746, 18, true);
+  draw("Required for customers purchasing a vehicle on credit or payments.", 36, 728, 9, false, muted);
+  page.drawLine({ color: rule, end: { x: 576, y: 716 }, start: { x: 36, y: 716 }, thickness: 1 });
+
+  field("Customer / buyer", "customer_name", 36, 686, 185, 16, input.customerName);
+  field("Deal", "deal_number", 235, 686, 110, 16, input.dealNumber);
+  field("Deal type", "deal_type", 359, 686, 95, 16, input.dealType);
+  field("Generated", "generated_at", 468, 686, 108, 16, input.generatedAt.slice(0, 10));
+  field("Vehicle", "vehicle", 36, 651, 220, 16, vehicleLine || "Not captured");
+  field("VIN", "vin", 270, 651, 150, 16, input.vehicle.vin);
+  field("Stock #", "stock_number", 434, 651, 68, 16, input.vehicle.stockNumber);
+  field("Sale price / value", "sale_price", 516, 651, 60, 16, input.salePrice);
+  field("Payment / funding", "payment_funding", 36, 616, 240, 16, input.paymentFunding);
+  field("Customer phone", "customer_phone", 290, 616, 125);
+  field("Customer address", "customer_address", 429, 616, 147);
+
+  draw("References", 36, 587, 13, true);
+  draw("Collect at least three reachable personal references unless a manager approves an exception.", 36, 573, 8.5, false, muted);
+
+  [
+    { label: "Reference 1", prefix: "ref_1", y: 500 },
+    { label: "Reference 2", prefix: "ref_2", y: 389 },
+    { label: "Reference 3", prefix: "ref_3", y: 278 }
+  ].forEach((block) => {
+    draw(block.label, 36, block.y + 62, 10.5, true);
+    field("Full name", `${block.prefix}_name`, 36, block.y + 34, 160);
+    field("Relationship", `${block.prefix}_relationship`, 210, block.y + 34, 110);
+    field("Phone", `${block.prefix}_phone`, 334, block.y + 34, 105);
+    field("Alternate phone / email", `${block.prefix}_alternate`, 453, block.y + 34, 123);
+    field("Address", `${block.prefix}_address`, 36, block.y, 235);
+    field("Best time to contact", `${block.prefix}_best_time`, 285, block.y, 135);
+    field("Staff verification notes", `${block.prefix}_notes`, 434, block.y, 142);
+  });
+
+  draw("Customer authorization", 36, 228, 13, true);
+  [
+    "Customer confirms these references are accurate and may be contacted by Time Motor Sales for underwriting, account servicing, payment follow-up, title, insurance, or vehicle recovery purposes where allowed by law.",
+    "Customer agrees to update Time Motor Sales if phone number, address, residence, employment, or reference information changes during the payment term.",
+    "False, incomplete, or unreachable reference information may delay approval, delivery, or account setup."
+  ].forEach((item, index) => draw(`- ${item}`, 42, 212 - index * 18, 7.5, false, muted));
+
+  field("Customer signature", "customer_signature", 36, 96, 230, 20);
+  field("Date", "customer_signature_date", 280, 96, 90, 20);
+  field("Dealer representative", "dealer_representative", 384, 96, 192, 20);
+  field("Manager exception / notes", "manager_exception_notes", 36, 44, 540, 24);
+
   form.updateFieldAppearances(font);
   return Buffer.from(await pdf.save()).toString("base64");
 }
@@ -372,6 +458,91 @@ function buildDocumentHtml(input: {
   </table>
   <div class="signature">
     <div class="line">Buyer signature / date</div>
+    <div class="line">Dealer representative / date</div>
+  </div>
+</body>
+</html>`;
+}
+
+function buildPersonalReferencesDocumentHtml(input: {
+  customerName: string;
+  dealNumber: string;
+  dealType: string;
+  generatedAt: string;
+  label: string;
+  paymentFunding: string;
+  salePrice: string;
+  sourceBasis: string;
+  trigger: string;
+  vehicle: ReturnType<typeof vehicleFacts>;
+}) {
+  const vehicleLine = `${input.vehicle.year} ${input.vehicle.make} ${input.vehicle.model} ${input.vehicle.trim}`.replace(/\s+/g, " ").trim();
+  const references = [1, 2, 3].map((index) => `
+    <section>
+      <h2>Reference ${index}</h2>
+      <table>
+        <tbody>
+          <tr><th>Full name</th><td></td></tr>
+          <tr><th>Relationship to customer</th><td></td></tr>
+          <tr><th>Phone number</th><td></td></tr>
+          <tr><th>Alternate phone / email</th><td></td></tr>
+          <tr><th>Address</th><td></td></tr>
+          <tr><th>Best time to contact</th><td></td></tr>
+          <tr><th>Staff verification notes</th><td></td></tr>
+        </tbody>
+      </table>
+    </section>
+  `).join("");
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(input.label)}</title>
+  <style>
+    body { color: #061735; font-family: Arial, sans-serif; margin: 32px; }
+    h1 { font-size: 26px; margin: 0 0 6px; }
+    h2 { border-bottom: 1px solid #dbe6f8; font-size: 18px; margin: 26px 0 10px; padding-bottom: 8px; }
+    p, li { color: #34445d; line-height: 1.45; }
+    .meta, .notice { color: #52647d; margin: 0 0 18px; }
+    .notice { background: #f6f9ff; border: 1px solid #dbe6f8; border-radius: 10px; padding: 12px; }
+    table { border-collapse: collapse; margin-top: 12px; width: 100%; }
+    th, td { border: 1px solid #dbe6f8; min-height: 28px; padding: 10px; text-align: left; vertical-align: top; }
+    th { background: #f6f9ff; color: #34445d; width: 34%; }
+    .signature { display: grid; gap: 24px; grid-template-columns: 1fr 1fr; margin-top: 42px; }
+    .line { border-top: 1px solid #061735; padding-top: 8px; }
+  </style>
+</head>
+<body>
+  <h1>${escapeHtml(input.label)}</h1>
+  <p class="meta">Generated ${escapeHtml(input.generatedAt)} · ${escapeHtml(input.sourceBasis)} · ${escapeHtml(input.trigger)}</p>
+  <p class="notice">Use this form when a customer is purchasing a vehicle on credit or payments. References are collected for underwriting, account servicing, locating the customer, and verifying contact information. Staff should follow dealership policy and applicable law before contacting any reference.</p>
+  <section>
+    <h2>Deal and customer</h2>
+    <table>
+      <tbody>
+        <tr><th>Customer / buyer</th><td>${escapeHtml(input.customerName)}</td></tr>
+        <tr><th>Deal</th><td>${escapeHtml(input.dealNumber)}</td></tr>
+        <tr><th>Deal type</th><td>${escapeHtml(input.dealType)}</td></tr>
+        <tr><th>Vehicle</th><td>${escapeHtml(vehicleLine || "Not captured")}</td></tr>
+        <tr><th>VIN</th><td>${escapeHtml(input.vehicle.vin)}</td></tr>
+        <tr><th>Stock #</th><td>${escapeHtml(input.vehicle.stockNumber)}</td></tr>
+        <tr><th>Sale price / value</th><td>${escapeHtml(input.salePrice)}</td></tr>
+        <tr><th>Payment / funding</th><td>${escapeHtml(input.paymentFunding)}</td></tr>
+      </tbody>
+    </table>
+  </section>
+  ${references}
+  <section>
+    <h2>Customer authorization</h2>
+    <ul>
+      <li>Customer confirms the references listed are accurate and may be contacted by Time Motor Sales for verification, underwriting, account servicing, payment follow-up, skipped-account location, insurance, title, or vehicle recovery purposes where allowed by law.</li>
+      <li>Customer agrees to update Time Motor Sales if any phone number, address, employment, residence, or reference information changes during the payment term.</li>
+      <li>Customer understands that false, incomplete, or unreachable reference information may delay approval, delivery, or account setup.</li>
+    </ul>
+  </section>
+  <div class="signature">
+    <div class="line">Customer signature / date</div>
     <div class="line">Dealer representative / date</div>
   </div>
 </body>
@@ -737,7 +908,9 @@ export async function generateUnifiedCrmContractPacket(
   ] : [];
 
   const documents = await Promise.all(selectedForms.map(async (form) => {
-    const leaseFieldValues = "templatePath" in form && packetType === "LEASE_TO_OWN"
+    const isPersonalReferencesForm = form.id === "personal-references";
+    const isPdfDocument = isPersonalReferencesForm || (hasPdfTemplate(form) && packetType === "LEASE_TO_OWN");
+    const leaseFieldValues = hasPdfTemplate(form) && packetType === "LEASE_TO_OWN"
       ? leaseTemplateFieldValues({
           calculator: leaseOutput,
           customerName,
@@ -752,17 +925,28 @@ export async function generateUnifiedCrmContractPacket(
         })
       : {};
     return {
-      ...("templatePath" in form && packetType === "LEASE_TO_OWN" ? {
+      ...(hasPdfTemplate(form) && packetType === "LEASE_TO_OWN" ? {
         contentBase64: await filledPdfBase64(form.templatePath, leaseFieldValues),
         contentType: "application/pdf" as const,
         fieldValues: leaseFieldValues,
         templatePath: form.templatePath
+      } : isPersonalReferencesForm ? {
+        contentBase64: await personalReferencesPdfBase64({
+          customerName,
+          dealNumber,
+          dealType,
+          generatedAt,
+          paymentFunding,
+          salePrice,
+          vehicle
+        }),
+        contentType: "application/pdf" as const
       } : {
         contentType: "text/html" as const
       }),
       archiveStatus: "ARCHIVED" as const,
       category: form.category,
-      downloadFileName: `${form.id}-${packet}.${packetType === "LEASE_TO_OWN" ? "pdf" : "html"}`,
+      downloadFileName: `${form.id}-${packet}.${isPdfDocument ? "pdf" : "html"}`,
       formId: form.id,
       html: packetType === "DAILY_RENTAL"
         ? buildRentalDocumentHtml({
@@ -773,6 +957,19 @@ export async function generateUnifiedCrmContractPacket(
             rental: rentalInput,
             vehicle
           })
+        : form.id === "personal-references"
+          ? buildPersonalReferencesDocumentHtml({
+              customerName,
+              dealNumber,
+              dealType,
+              generatedAt,
+              label: form.label,
+              paymentFunding,
+              salePrice,
+              sourceBasis: form.basis,
+              trigger: form.trigger,
+              vehicle
+            })
         : buildDocumentHtml({
             customerName,
             dealNumber,

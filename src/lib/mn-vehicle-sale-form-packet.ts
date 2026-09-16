@@ -83,6 +83,14 @@ export const MN_SALE_FORM_PACKET: MinnesotaSaleFormItem[] = [
     trigger: "Financed sale / BHPH"
   },
   {
+    basis: "Dealership credit underwriting and account servicing control",
+    category: "Conditional",
+    description: "Customer-provided personal references for buyers purchasing on credit, including contact details, relationship, contact consent, and verification notes.",
+    id: "personal-references",
+    label: "Personal references and verification form",
+    trigger: "Financed sale, BHPH, lease-to-own, or other vehicle purchase on credit"
+  },
+  {
     basis: "Minn. Stat. 53C.08, subd. 1a",
     category: "Conditional",
     description: "Separate signed disclosure for service contracts, insurance products, debt cancellation, theft deterrent, surface protection, and GPS starter interrupt.",
