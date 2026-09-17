@@ -228,6 +228,51 @@
   overflow: hidden;
 }
 
+.filterBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px;
+  border-bottom: 1px solid #d6e0f0;
+  background: #fbfdff;
+}
+
+.filterBar button {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #c5d2e7;
+  border-radius: 999px;
+  background: #fff;
+  color: #0c2a61;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 850;
+  padding: 6px 10px;
+}
+
+.filterBar button strong {
+  min-width: 22px;
+  border-radius: 999px;
+  background: #eaf0ff;
+  color: #284bd0;
+  font-size: 0.72rem;
+  line-height: 1;
+  padding: 5px 6px;
+}
+
+.filterBar .activeFilter {
+  border-color: #284bd0;
+  background: #284bd0;
+  color: #fff;
+}
+
+.filterBar .activeFilter strong {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
 .queueHead,
 .claimRow {
   display: grid;
@@ -246,6 +291,14 @@
   padding: 10px;
   border-top: 1px solid #e4ebf5;
   background: #fff;
+}
+
+.emptyQueue {
+  padding: 14px;
+  color: #526481;
+  font-size: 0.84rem;
+  font-weight: 850;
+  text-align: center;
 }
 
 .claimRow strong,

@@ -11,6 +11,7 @@ import {
 function statusForCode(code: string | undefined) {
   if (code === "AUTHENTICATION_REQUIRED") return 401;
   if (code === "CLAIM_NOT_FOUND") return 404;
+  if (code === "CLAIM_MANAGER_APPROVAL_REQUIRED") return 403;
   if (code === "CLAIM_HANDOFF_BLOCKED") return 409;
   if (code === "CLAIM_INVALID") return 400;
   return 500;

@@ -9,6 +9,7 @@ vi.mock("@/server/auth/current-user", () => ({ getCurrentUser: mocks.getCurrentU
 import { POST as CREATE_CLAIM } from "@/app/api/claims-workspace/claims/route";
 import { PATCH as UPDATE_CLAIM } from "@/app/api/claims-workspace/claims/[claimId]/route";
 import { POST as ATTACH_EVIDENCE } from "@/app/api/claims-workspace/claims/[claimId]/evidence/route";
+import { POST as REQUEST_HANDOFF } from "@/app/api/claims-workspace/claims/[claimId]/handoff/route";
 import { setClaimsWorkspaceRepositoryForTesting } from "@/server/claims-workspace/repository-factory";
 import { createInMemoryClaimsWorkspaceRepository } from "@/server/claims-workspace/service";
 
@@ -98,6 +99,33 @@ describe("claims workspace API routes", () => {
     await expect(response.json()).resolves.toMatchObject({
       claim: { adjusterName: "Pat Adjuster" },
       carrierTracker: { nextContact: "Request estimate or approval" }
+    });
+  });
+
+  it("requires manager approval for blocked handoff exceptions at the API boundary", async () => {
+    const createResponse = await CREATE_CLAIM(new Request("http://local/api/claims-workspace/claims", {
+      body: JSON.stringify({
+        carrierName: "State Farm",
+        claimNumber: "API-30003",
+        customerName: "Exception API Customer",
+        description: "Needs emergency repair handoff.",
+        vehicleVin: "API-VIN-30003"
+      }),
+      method: "POST"
+    }));
+    const created = await createResponse.json();
+    const claimId = created.readModel.claim.id;
+
+    const response = await REQUEST_HANDOFF(new Request(`http://local/api/claims-workspace/claims/${claimId}/handoff`, {
+      body: JSON.stringify({ exceptionReason: "Advisor wants to bypass missing authorization." }),
+      method: "POST"
+    }), {
+      params: Promise.resolve({ claimId })
+    });
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "CLAIM_MANAGER_APPROVAL_REQUIRED"
     });
   });
 });

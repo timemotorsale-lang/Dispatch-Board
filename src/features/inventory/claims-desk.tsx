@@ -8,6 +8,8 @@ import type { ClaimsDeskReadModel } from "@/server/claims-workspace/service";
 
 import styles from "./claims-desk.module.css";
 
+type DeskClaimCandidate = ClaimsDeskReadModel["claims"][number];
+
 const startPaths = [
   {
     action: "Find existing",
@@ -26,7 +28,7 @@ const startPaths = [
   }
 ] as const;
 
-const claimCandidates = [
+const claimCandidates: Array<Omit<DeskClaimCandidate, "href">> = [
   {
     action: "Open",
     blocker: "Adjuster needed",
@@ -34,7 +36,8 @@ const claimCandidates = [
     claim: "MN-48291",
     customer: "Deqo Roble",
     detail: "2018 Toyota Camry - 4T1B11HK",
-    provider: "State Farm"
+    provider: "State Farm",
+    queueTags: ["waitingCarrier"]
   },
   {
     action: "Resume",
@@ -43,7 +46,8 @@ const claimCandidates = [
     claim: "Draft",
     customer: "Abdi Hassan",
     detail: "2016 Honda Accord - plate HJA-221",
-    provider: "Carrier unknown"
+    provider: "Carrier unknown",
+    queueTags: ["blocked"]
   },
   {
     action: "Open",
@@ -52,7 +56,8 @@ const claimCandidates = [
     claim: "IL-22804",
     customer: "Maria Lopez",
     detail: "2020 Nissan Rogue - RO-10482",
-    provider: "Progressive"
+    provider: "Progressive",
+    queueTags: ["readyHandoff"]
   }
 ] as const;
 
@@ -84,8 +89,18 @@ function Badge({ children, tone = "info" }: { children: ReactNode; tone?: "info"
 
 export function ClaimsDesk({ model }: { model?: ClaimsDeskReadModel }) {
   const [error, setError] = useState("");
+  const [activeFilter, setActiveFilter] = useState<ClaimsDeskReadModel["filters"][number]["id"]>("all");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const candidates = model?.claims ?? claimCandidates.map((candidate) => ({ ...candidate, href: "/vehicles/claims-workspace" }));
+  const filters = model?.filters ?? [
+    { count: candidates.length, id: "all", label: "All" },
+    { count: candidates.filter((candidate) => candidate.queueTags.includes("blocked")).length, id: "blocked", label: "Blocked" },
+    { count: candidates.filter((candidate) => candidate.queueTags.includes("waitingCarrier")).length, id: "waitingCarrier", label: "Waiting carrier" },
+    { count: candidates.filter((candidate) => candidate.queueTags.includes("readyHandoff")).length, id: "readyHandoff", label: "Ready handoff" },
+    { count: 0, id: "paymentWatch", label: "Payment watch" },
+    { count: 0, id: "aging", label: "Aging" }
+  ] satisfies ClaimsDeskReadModel["filters"];
+  const visibleCandidates = activeFilter === "all" ? candidates : candidates.filter((candidate) => candidate.queueTags.includes(activeFilter));
   const metrics = model?.metrics ?? fallbackMetrics;
   const deskSignals = [
     ["Open claims", String(metrics.openClaims), "Across service and repair."],
@@ -174,13 +189,27 @@ export function ClaimsDesk({ model }: { model?: ClaimsDeskReadModel }) {
               <Badge tone="warning">{candidates.filter((candidate) => candidate.blocker !== "Ready for repair order").length} need action</Badge>
             </div>
             <div className={styles.queue}>
+              <div className={styles.filterBar}>
+                {filters.map((filter) => (
+                  <button
+                    aria-pressed={activeFilter === filter.id}
+                    className={activeFilter === filter.id ? styles.activeFilter : undefined}
+                    key={filter.id}
+                    onClick={() => setActiveFilter(filter.id)}
+                    type="button"
+                  >
+                    <span>{filter.label}</span>
+                    <strong>{filter.count}</strong>
+                  </button>
+                ))}
+              </div>
               <div className={styles.queueHead}>
                 <span>Customer / vehicle</span>
                 <span>Claim</span>
                 <span>Blocker</span>
                 <span>Action</span>
               </div>
-              {candidates.map((candidate) => (
+              {visibleCandidates.map((candidate) => (
                 <div className={styles.claimRow} key={`${candidate.customer}-${candidate.claim}`}>
                   <div>
                     <strong>{candidate.customer}</strong>
@@ -198,6 +227,7 @@ export function ClaimsDesk({ model }: { model?: ClaimsDeskReadModel }) {
                   </Link>
                 </div>
               ))}
+              {visibleCandidates.length === 0 ? <div className={styles.emptyQueue}>No claims in this view.</div> : null}
             </div>
           </section>
 

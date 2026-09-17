@@ -196,8 +196,14 @@ export type ClaimsDeskReadModel = {
     detail: string;
     href: string;
     provider: string;
+    queueTags: Array<"blocked" | "waitingCarrier" | "readyHandoff" | "paymentWatch" | "aging">;
   }>;
   contractVersion: typeof CLAIMS_WORKSPACE_CONTRACT_VERSION;
+  filters: Array<{
+    count: number;
+    id: "all" | "blocked" | "waitingCarrier" | "readyHandoff" | "paymentWatch" | "aging";
+    label: string;
+  }>;
   intakeForms: typeof INSURANCE_CLAIM_INTAKE_FORM_PACKET;
   metrics: {
     agingClaims: number;
@@ -276,7 +282,7 @@ export type ClaimExecutionUpdateInput = {
 };
 
 export class ClaimsWorkspaceError extends Error {
-  code: "AUTHENTICATION_REQUIRED" | "CLAIM_INVALID" | "CLAIM_NOT_FOUND" | "CLAIM_HANDOFF_BLOCKED";
+  code: "AUTHENTICATION_REQUIRED" | "CLAIM_INVALID" | "CLAIM_NOT_FOUND" | "CLAIM_HANDOFF_BLOCKED" | "CLAIM_MANAGER_APPROVAL_REQUIRED";
   retryable: boolean;
 
   constructor(code: ClaimsWorkspaceError["code"], message: string, options: { retryable?: boolean } = {}) {
@@ -296,12 +302,22 @@ const allowedRoles = new Set([
   "Front Desk Operations Coordinator"
 ]);
 
+const managerRoles = new Set([
+  "General Manager",
+  "Vehicle Operations Lead",
+  "Service Department Manager"
+]);
+
 function assertUser(actor: AuthenticatedUser | null): AuthenticatedUser {
   if (!actor) throw new ClaimsWorkspaceError("AUTHENTICATION_REQUIRED", "Sign in before working insurance claims.");
   if (!actor.roles.some((role) => allowedRoles.has(role))) {
     throw new ClaimsWorkspaceError("CLAIM_INVALID", "This user is not authorized to work insurance claims.");
   }
   return actor;
+}
+
+function canApproveClaimException(actor: AuthenticatedUser) {
+  return actor.roles.some((role) => managerRoles.has(role));
 }
 
 const seedOpenedAt = "2026-09-17T14:00:00.000Z";
@@ -491,12 +507,21 @@ export async function getClaimsDeskReadModel(actor: AuthenticatedUser | null, in
       customer: model.claim.customerName,
       detail: vehicleSummary(model.claim),
       href: `/vehicles/claims-workspace?claimId=${encodeURIComponent(model.claim.id)}`,
-      provider: model.claim.carrierName || "Carrier unknown"
+      provider: model.claim.carrierName || "Carrier unknown",
+      queueTags: queueTags(model)
     })),
     contractVersion: CLAIMS_WORKSPACE_CONTRACT_VERSION,
+    filters: [
+      { count: readModels.length, id: "all", label: "All" },
+      { count: readModels.filter((model) => queueTags(model).includes("blocked")).length, id: "blocked", label: "Blocked" },
+      { count: readModels.filter((model) => queueTags(model).includes("waitingCarrier")).length, id: "waitingCarrier", label: "Waiting carrier" },
+      { count: readModels.filter((model) => queueTags(model).includes("readyHandoff")).length, id: "readyHandoff", label: "Ready handoff" },
+      { count: readModels.filter((model) => queueTags(model).includes("paymentWatch")).length, id: "paymentWatch", label: "Payment watch" },
+      { count: readModels.filter((model) => queueTags(model).includes("aging")).length, id: "aging", label: "Aging" }
+    ],
     intakeForms: INSURANCE_CLAIM_INTAKE_FORM_PACKET,
     metrics: {
-      agingClaims: readModels.filter((model) => model.summary.ageLabel.includes("day") && Number.parseInt(model.summary.ageLabel, 10) >= 3).length,
+      agingClaims: readModels.filter((model) => claimAgeDays(model.claim) >= 3).length,
       blockedClaims: readModels.filter((model) => model.primaryBlocker.startsWith("Missing") || model.primaryBlocker.includes("blocked")).length,
       openClaims: readModels.filter((model) => model.claim.status === "OPEN").length,
       paymentWatch: readModels.filter((model) => model.claim.stage === "PAYMENT_FOLLOW_UP").length,
@@ -504,6 +529,21 @@ export async function getClaimsDeskReadModel(actor: AuthenticatedUser | null, in
       waitingCarrier: readModels.filter((model) => model.primaryBlocker.includes("carrier") || model.primaryBlocker.includes("adjuster")).length
     }
   };
+}
+
+function queueTags(model: ClaimReadModel): Array<"blocked" | "waitingCarrier" | "readyHandoff" | "paymentWatch" | "aging"> {
+  const tags: Array<"blocked" | "waitingCarrier" | "readyHandoff" | "paymentWatch" | "aging"> = [];
+  if (model.primaryBlocker.startsWith("Missing") || model.primaryBlocker.includes("blocked")) tags.push("blocked");
+  if (model.primaryBlocker.includes("carrier") || model.primaryBlocker.includes("adjuster") || model.carrierTracker.approvalStatus === "needs_adjuster") tags.push("waitingCarrier");
+  if (model.handoff.allowed) tags.push("readyHandoff");
+  if (model.claim.stage === "PAYMENT_FOLLOW_UP") tags.push("paymentWatch");
+  if (claimAgeDays(model.claim) >= 3) tags.push("aging");
+  return tags;
+}
+
+function claimAgeDays(claim: InsuranceClaimRecord) {
+  const openedAt = new Date(claim.openedAt).getTime();
+  return Number.isFinite(openedAt) ? Math.max(0, Math.floor((Date.now() - openedAt) / 86_400_000)) : 0;
 }
 
 export async function getClaimWorkspaceReadModel(
@@ -629,22 +669,27 @@ export async function requestClaimHandoff(
   if (!readModel.handoff.allowed && !exceptionReason) {
     throw new ClaimsWorkspaceError("CLAIM_HANDOFF_BLOCKED", `Repair handoff is blocked: ${readModel.handoff.blockers.join("; ")}.`);
   }
+  if (!readModel.handoff.allowed && !canApproveClaimException(user)) {
+    throw new ClaimsWorkspaceError("CLAIM_MANAGER_APPROVAL_REQUIRED", "Manager approval is required to approve a blocked claim handoff exception.");
+  }
   const now = context.now().toISOString();
-  const nextStage: ClaimStage = readModel.handoff.allowed ? "REPAIR_HANDOFF" : "ESTIMATE_READY";
-  const updated = await context.repository.updateClaim(claimId, {
-    blockerReason: readModel.handoff.allowed ? undefined : readModel.handoff.blockers.join("; "),
+  const exceptionApproved = !readModel.handoff.allowed && Boolean(exceptionReason);
+  await context.repository.updateClaim(claimId, {
+    blockerReason: exceptionApproved ? `Exception approved: ${exceptionReason}. Blockers: ${readModel.handoff.blockers.join("; ")}` : undefined,
     lastActivityAt: now,
-    nextAction: readModel.handoff.allowed ? "Open or link repair order" : "Manager exception review",
-    stage: nextStage
+    nextAction: "Open or link repair order",
+    stage: "REPAIR_HANDOFF"
   });
   await context.repository.addActivity(claimId, {
-    action: readModel.handoff.allowed ? "CLAIM_HANDOFF_READY" : "CLAIM_HANDOFF_EXCEPTION_REQUESTED",
+    action: exceptionApproved ? "CLAIM_HANDOFF_EXCEPTION_APPROVED" : "CLAIM_HANDOFF_READY",
     actorUserId: user.id,
     at: now,
-    detail: readModel.handoff.allowed ? "Repair handoff gate passed." : `Exception requested: ${exceptionReason}`,
+    detail: exceptionApproved ? `Manager exception approved: ${exceptionReason}` : "Repair handoff gate passed.",
     id: `claim-activity-${randomUUID()}`
   });
-  return toClaimReadModel(updated);
+  const refreshed = await context.repository.findClaimById(claimId);
+  if (!refreshed) throw new ClaimsWorkspaceError("CLAIM_NOT_FOUND", "Insurance claim was not found.");
+  return toClaimReadModel(refreshed);
 }
 
 function toClaimReadModel(aggregate: ClaimWorkspaceAggregate, allClaims: ClaimWorkspaceAggregate[] = [aggregate]): ClaimReadModel {

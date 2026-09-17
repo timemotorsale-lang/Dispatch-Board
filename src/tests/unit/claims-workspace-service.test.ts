@@ -20,6 +20,13 @@ const actor: AuthenticatedUser = {
   roles: ["Service Advisor"]
 };
 
+const manager: AuthenticatedUser = {
+  ...actor,
+  id: "manager-1",
+  name: "Claims Manager",
+  roles: ["Service Department Manager"]
+};
+
 describe("claims workspace service", () => {
   it("builds the claims desk read model from governed claim workflow records", async () => {
     const model = await getClaimsDeskReadModel(actor, { repository: createInMemoryClaimsWorkspaceRepository() });
@@ -28,6 +35,7 @@ describe("claims workspace service", () => {
     expect(model.metrics.openClaims).toBe(3);
     expect(model.claims.map((claim) => claim.claim)).toContain("MN-48291");
     expect(model.claims[0].href).toContain("/vehicles/claims-workspace?claimId=");
+    expect(model.filters.map((filter) => filter.id)).toEqual(["all", "blocked", "waitingCarrier", "readyHandoff", "paymentWatch", "aging"]);
     expect(model.intakeForms.map((form) => form.id)).toContain("insurance-claim-intake");
   });
 
@@ -109,6 +117,28 @@ describe("claims workspace service", () => {
     const handedOff = await requestClaimHandoff(actor, claimId, {}, { repository });
     expect(handedOff.claim.stage).toBe("REPAIR_HANDOFF");
     expect(handedOff.claim.nextAction).toBe("Open or link repair order");
+  });
+
+  it("requires manager authority before approving a blocked repair handoff exception", async () => {
+    const repository = createInMemoryClaimsWorkspaceRepository([]);
+    const created = await createInsuranceClaim(actor, {
+      carrierName: "Progressive",
+      claimNumber: "MN-65002",
+      customerName: "Exception Customer",
+      description: "Vehicle needs emergency handoff.",
+      ownerUserId: "advisor-1",
+      vehicleVin: "VIN-EXCEPTION-001"
+    }, { repository });
+    const claimId = created.readModel.claim.id;
+
+    await expect(requestClaimHandoff(actor, claimId, { exceptionReason: "Customer authorized by phone." }, { repository })).rejects.toMatchObject({ code: "CLAIM_MANAGER_APPROVAL_REQUIRED" });
+
+    const exceptionApproved = await requestClaimHandoff(manager, claimId, { exceptionReason: "Manager approved repair handoff while odometer photo is pending." }, { repository });
+    expect(exceptionApproved.claim.stage).toBe("REPAIR_HANDOFF");
+    expect(exceptionApproved.claim.blockerReason).toContain("Exception approved");
+    expect(exceptionApproved.activities[0]).toMatchObject({
+      action: "CLAIM_HANDOFF_EXCEPTION_APPROVED"
+    });
   });
 
   it("records carrier execution details and writes an activity trail entry", async () => {
