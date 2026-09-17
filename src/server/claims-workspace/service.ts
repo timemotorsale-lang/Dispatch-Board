@@ -112,13 +112,61 @@ export type ClaimReadiness = {
   title: string;
 };
 
+export type ClaimDocumentPlanItem = {
+  category: ClaimEvidenceCategory;
+  detail: string;
+  label: string;
+  libraryTarget: "Claim jacket" | "Customer file" | "Vehicle file" | "Repair order";
+  requiredBefore: "Intake" | "Repair handoff" | "Payment follow-up" | "Closeout";
+  state: ClaimEvidenceStatus;
+};
+
+export type ClaimPhotoPlanItem = {
+  category: ClaimEvidenceCategory;
+  label: string;
+  required: boolean;
+  state: ClaimEvidenceStatus;
+  uploadTarget: "Claim evidence" | "Vehicle evidence" | "Repair handoff";
+};
+
+export type ClaimCarrierTracker = {
+  adjuster: string;
+  approvalStatus: "not_started" | "needs_adjuster" | "carrier_pending" | "estimate_ready" | "handoff_ready";
+  carrier: string;
+  claimNumber: string;
+  nextContact: string;
+  policyNumber: string;
+  statusLabel: string;
+};
+
+export type ClaimWorkspaceSummary = {
+  ageLabel: string;
+  assignedOwner: string;
+  documentCount: number;
+  photoCount: number;
+  stageLabel: string;
+};
+
+export type ClaimExecutionTask = {
+  actionLabel: string;
+  detail: string;
+  dueLabel: string;
+  id: string;
+  ownerRole: string;
+  status: "ready" | "blocked" | "done";
+  title: string;
+};
+
 export type ClaimReadModel = {
   activities: ClaimActivityRecord[];
   checklist: ClaimChecklistItem[];
   claim: InsuranceClaimRecord;
+  carrierTracker: ClaimCarrierTracker;
   contractVersion: typeof CLAIMS_WORKSPACE_CONTRACT_VERSION;
+  documentPlan: ClaimDocumentPlanItem[];
   duplicateWarnings: ClaimDuplicateWarning[];
   evidence: ClaimEvidenceRecord[];
+  executionTasks: ClaimExecutionTask[];
   handoff: {
     allowed: boolean;
     blockers: string[];
@@ -132,8 +180,10 @@ export type ClaimReadModel = {
     ownerRole: string;
     reason: string;
   };
+  photoPlan: ClaimPhotoPlanItem[];
   primaryBlocker: string;
   readiness: ClaimReadiness[];
+  summary: ClaimWorkspaceSummary;
 };
 
 export type ClaimsDeskReadModel = {
@@ -150,6 +200,8 @@ export type ClaimsDeskReadModel = {
   contractVersion: typeof CLAIMS_WORKSPACE_CONTRACT_VERSION;
   intakeForms: typeof INSURANCE_CLAIM_INTAKE_FORM_PACKET;
   metrics: {
+    agingClaims: number;
+    blockedClaims: number;
     openClaims: number;
     paymentWatch: number;
     readyHandoff: number;
@@ -210,6 +262,17 @@ export type ClaimEvidenceInput = {
 export type ClaimHandoffInput = {
   target?: unknown;
   exceptionReason?: unknown;
+};
+
+export type ClaimExecutionUpdateInput = {
+  adjusterEmail?: unknown;
+  adjusterName?: unknown;
+  adjusterPhone?: unknown;
+  carrierName?: unknown;
+  claimNumber?: unknown;
+  deductible?: unknown;
+  note?: unknown;
+  policyNumber?: unknown;
 };
 
 export class ClaimsWorkspaceError extends Error {
@@ -433,6 +496,8 @@ export async function getClaimsDeskReadModel(actor: AuthenticatedUser | null, in
     contractVersion: CLAIMS_WORKSPACE_CONTRACT_VERSION,
     intakeForms: INSURANCE_CLAIM_INTAKE_FORM_PACKET,
     metrics: {
+      agingClaims: readModels.filter((model) => model.summary.ageLabel.includes("day") && Number.parseInt(model.summary.ageLabel, 10) >= 3).length,
+      blockedClaims: readModels.filter((model) => model.primaryBlocker.startsWith("Missing") || model.primaryBlocker.includes("blocked")).length,
       openClaims: readModels.filter((model) => model.claim.status === "OPEN").length,
       paymentWatch: readModels.filter((model) => model.claim.stage === "PAYMENT_FOLLOW_UP").length,
       readyHandoff: readModels.filter((model) => model.handoff.allowed).length,
@@ -520,6 +585,35 @@ export async function attachClaimEvidence(
   return toClaimReadModel(aggregate);
 }
 
+export async function updateClaimExecutionDetails(
+  actor: AuthenticatedUser | null,
+  claimId: string,
+  raw: ClaimExecutionUpdateInput,
+  input: Dependencies = {}
+) {
+  const user = assertUser(actor);
+  const context = deps(input);
+  const prior = await context.repository.findClaimById(claimId);
+  if (!prior) throw new ClaimsWorkspaceError("CLAIM_NOT_FOUND", "Insurance claim was not found.");
+  const now = context.now().toISOString();
+  const normalized = normalizeExecutionUpdate(raw);
+  await context.repository.updateClaim(claimId, {
+    ...normalized,
+    lastActivityAt: now,
+    nextAction: normalized.adjusterName || normalized.adjusterPhone || normalized.adjusterEmail ? "Review estimate or approval status" : prior.claim.nextAction
+  });
+  await context.repository.addActivity(claimId, {
+    action: "CLAIM_EXECUTION_UPDATED",
+    actorUserId: user.id,
+    at: now,
+    detail: text(raw.note) || executionUpdateDetail(normalized),
+    id: `claim-activity-${randomUUID()}`
+  });
+  const refreshed = await context.repository.findClaimById(claimId);
+  if (!refreshed) throw new ClaimsWorkspaceError("CLAIM_NOT_FOUND", "Insurance claim was not found.");
+  return toClaimReadModel(refreshed);
+}
+
 export async function requestClaimHandoff(
   actor: AuthenticatedUser | null,
   claimId: string,
@@ -558,13 +652,18 @@ function toClaimReadModel(aggregate: ClaimWorkspaceAggregate, allClaims: ClaimWo
   const handoffBlockers = repairHandoffBlockers(aggregate, checklist);
   const primaryBlocker = classifyPrimaryBlocker(aggregate, checklist, handoffBlockers);
   const readiness = buildReadiness(aggregate, checklist, handoffBlockers);
+  const documentPlan = buildDocumentPlan(checklist);
+  const photoPlan = buildPhotoPlan(checklist);
   return {
     activities: aggregate.activities,
+    carrierTracker: buildCarrierTracker(aggregate),
     checklist,
     claim: aggregate.claim,
     contractVersion: CLAIMS_WORKSPACE_CONTRACT_VERSION,
+    documentPlan,
     duplicateWarnings: detectDuplicates(aggregate.claim, allClaims.filter((item) => item.claim.id !== aggregate.claim.id)),
     evidence: aggregate.evidence,
+    executionTasks: buildExecutionTasks(aggregate, checklist, handoffBlockers, primaryBlocker),
     handoff: {
       allowed: handoffBlockers.length === 0,
       blockers: handoffBlockers,
@@ -573,9 +672,213 @@ function toClaimReadModel(aggregate: ClaimWorkspaceAggregate, allClaims: ClaimWo
     },
     intakeForms: INSURANCE_CLAIM_INTAKE_FORM_PACKET,
     nextAction: nextBestAction(aggregate, checklist, primaryBlocker),
+    photoPlan,
     primaryBlocker,
-    readiness
+    readiness,
+    summary: buildWorkspaceSummary(aggregate)
   };
+}
+
+function buildDocumentPlan(checklist: ClaimChecklistItem[]): ClaimDocumentPlanItem[] {
+  const state = (category: ClaimEvidenceCategory) => checklist.find((item) => item.category === category)?.state ?? "MISSING";
+  return [
+    {
+      category: "CLAIM_IDENTITY",
+      detail: "Claim number, carrier confirmation, or documented duplicate/manual exception.",
+      label: "Claim identity record",
+      libraryTarget: "Claim jacket",
+      requiredBefore: "Intake",
+      state: state("CLAIM_IDENTITY")
+    },
+    {
+      category: "INSURANCE_CARD",
+      detail: "Insurance card, policy detail, or carrier coverage confirmation.",
+      label: "Insurance coverage proof",
+      libraryTarget: "Customer file",
+      requiredBefore: "Intake",
+      state: state("INSURANCE_CARD")
+    },
+    {
+      category: "AUTHORIZATION",
+      detail: "Signed customer authorization allowing claim, estimate, repair, and carrier communication.",
+      label: "Customer repair authorization",
+      libraryTarget: "Claim jacket",
+      requiredBefore: "Repair handoff",
+      state: state("AUTHORIZATION")
+    },
+    {
+      category: "ESTIMATE",
+      detail: "Carrier estimate, internal appraisal, or supplement decision.",
+      label: "Estimate and supplement packet",
+      libraryTarget: "Repair order",
+      requiredBefore: "Repair handoff",
+      state: state("ESTIMATE")
+    },
+    {
+      category: "PAYMENT",
+      detail: "Deductible status, insurance payment, short-pay note, or accounting follow-up.",
+      label: "Payment recovery record",
+      libraryTarget: "Claim jacket",
+      requiredBefore: "Payment follow-up",
+      state: state("PAYMENT")
+    },
+    {
+      category: "CLOSEOUT",
+      detail: "Final release, final invoice, payment reconciliation, and closeout note.",
+      label: "Closeout packet",
+      libraryTarget: "Claim jacket",
+      requiredBefore: "Closeout",
+      state: state("CLOSEOUT")
+    }
+  ];
+}
+
+function buildPhotoPlan(checklist: ClaimChecklistItem[]): ClaimPhotoPlanItem[] {
+  const state = (category: ClaimEvidenceCategory) => checklist.find((item) => item.category === category)?.state ?? "MISSING";
+  return [
+    {
+      category: "DAMAGE_PHOTO",
+      label: "Damage overview and closeups",
+      required: true,
+      state: state("DAMAGE_PHOTO"),
+      uploadTarget: "Claim evidence"
+    },
+    {
+      category: "VIN_PHOTO",
+      label: "VIN plate or verified VIN",
+      required: true,
+      state: state("VIN_PHOTO"),
+      uploadTarget: "Vehicle evidence"
+    },
+    {
+      category: "ODOMETER_PHOTO",
+      label: "Odometer photo",
+      required: true,
+      state: state("ODOMETER_PHOTO"),
+      uploadTarget: "Vehicle evidence"
+    },
+    {
+      category: "REPAIR_HANDOFF",
+      label: "Repair handoff / release condition",
+      required: false,
+      state: state("REPAIR_HANDOFF"),
+      uploadTarget: "Repair handoff"
+    }
+  ];
+}
+
+function buildCarrierTracker(aggregate: ClaimWorkspaceAggregate): ClaimCarrierTracker {
+  const { claim } = aggregate;
+  const hasEstimate = aggregate.evidence.some((item) => item.category === "ESTIMATE" && item.status !== "BLOCKED");
+  const hasHandoff = claim.stage === "REPAIR_HANDOFF" || aggregate.evidence.some((item) => item.category === "REPAIR_HANDOFF" && item.status !== "BLOCKED");
+  const approvalStatus = hasHandoff
+    ? "handoff_ready"
+    : hasEstimate
+      ? "estimate_ready"
+      : claim.adjusterName
+        ? "carrier_pending"
+        : claim.carrierName
+          ? "needs_adjuster"
+          : "not_started";
+  return {
+    adjuster: claim.adjusterName || claim.adjusterPhone || claim.adjusterEmail || "Needed",
+    approvalStatus,
+    carrier: claim.carrierName || "Carrier pending",
+    claimNumber: claim.claimNumber || "Draft",
+    nextContact: approvalStatus === "not_started" ? "Capture carrier and policy" : approvalStatus === "needs_adjuster" ? "Call carrier for adjuster" : approvalStatus === "carrier_pending" ? "Request estimate or approval" : "Confirm repair handoff",
+    policyNumber: claim.policyNumber || "Pending",
+    statusLabel: approvalStatus.replaceAll("_", " ")
+  };
+}
+
+function buildWorkspaceSummary(aggregate: ClaimWorkspaceAggregate): ClaimWorkspaceSummary {
+  const openedAt = new Date(aggregate.claim.openedAt).getTime();
+  const ageDays = Number.isFinite(openedAt) ? Math.max(0, Math.floor((Date.now() - openedAt) / 86_400_000)) : 0;
+  return {
+    ageLabel: ageDays === 0 ? "Opened today" : `${ageDays} day${ageDays === 1 ? "" : "s"} open`,
+    assignedOwner: aggregate.claim.ownerUserId || "Unassigned",
+    documentCount: aggregate.evidence.filter((item) => !item.category.includes("PHOTO")).length,
+    photoCount: aggregate.evidence.filter((item) => item.category.includes("PHOTO")).length,
+    stageLabel: aggregate.claim.stage.toLowerCase().replaceAll("_", " ")
+  };
+}
+
+function buildExecutionTasks(
+  aggregate: ClaimWorkspaceAggregate,
+  checklist: ClaimChecklistItem[],
+  handoffBlockers: string[],
+  primaryBlocker: string
+): ClaimExecutionTask[] {
+  const tasks: ClaimExecutionTask[] = [];
+  const pushMissing = (category: ClaimEvidenceCategory, title: string, actionLabel: string, ownerRole = "Intake staff") => {
+    const item = checklist.find((candidate) => candidate.category === category);
+    if (item?.state === "MISSING" || item?.state === "BLOCKED") {
+      tasks.push({
+        actionLabel,
+        detail: item.detail,
+        dueLabel: "Today",
+        id: `task-${category.toLowerCase()}`,
+        ownerRole,
+        status: item.state === "BLOCKED" ? "blocked" : "ready",
+        title
+      });
+    }
+  };
+
+  if (!handoffBlockers.length) {
+    return [{
+      actionLabel: "Open repair order",
+      detail: "Required gates are complete. Link or open the repair order and continue execution in service.",
+      dueLabel: "Now",
+      id: "task-repair-handoff",
+      ownerRole: "Service advisor",
+      status: "ready",
+      title: "Move to repair handoff"
+    }];
+  }
+
+  if (!aggregate.claim.claimNumber && !aggregate.claim.duplicateExceptionReason) {
+    tasks.push({
+      actionLabel: "Capture claim #",
+      detail: "Record claim number or document why this claim is moving as a controlled draft.",
+      dueLabel: "Now",
+      id: "task-claim-number",
+      ownerRole: "Intake staff",
+      status: "ready",
+      title: "Complete claim identity"
+    });
+  }
+
+  if (aggregate.claim.carrierName && !aggregate.claim.adjusterName) {
+    tasks.push({
+      actionLabel: "Record carrier call",
+      detail: "Call the carrier, capture adjuster name, phone, email, and approval status.",
+      dueLabel: "Today",
+      id: "task-adjuster",
+      ownerRole: "Service advisor",
+      status: "ready",
+      title: "Find adjuster contact"
+    });
+  }
+
+  pushMissing("AUTHORIZATION", "Get customer authorization", "Send / upload authorization", "Service advisor");
+  pushMissing("DAMAGE_PHOTO", "Take damage photos", "Upload photos");
+  pushMissing("VIN_PHOTO", "Verify VIN photo", "Upload VIN photo");
+  pushMissing("ODOMETER_PHOTO", "Capture odometer", "Upload odometer");
+
+  if (!tasks.length) {
+    tasks.push({
+      actionLabel: "Review claim",
+      detail: primaryBlocker,
+      dueLabel: "Today",
+      id: "task-review",
+      ownerRole: "Service advisor",
+      status: "ready",
+      title: "Review next claim action"
+    });
+  }
+
+  return tasks.slice(0, 5);
 }
 
 function buildChecklist(aggregate: ClaimWorkspaceAggregate): ClaimChecklistItem[] {
@@ -730,6 +1033,36 @@ function normalizeEvidence(raw: ClaimEvidenceInput): Omit<ClaimEvidenceRecord, "
     status,
     title
   };
+}
+
+function normalizeExecutionUpdate(raw: ClaimExecutionUpdateInput): Partial<InsuranceClaimRecord> {
+  const update: Partial<InsuranceClaimRecord> = {};
+  for (const [field, value] of [
+    ["adjusterEmail", text(raw.adjusterEmail)],
+    ["adjusterName", text(raw.adjusterName)],
+    ["adjusterPhone", text(raw.adjusterPhone)],
+    ["carrierName", text(raw.carrierName)],
+    ["claimNumber", text(raw.claimNumber)],
+    ["deductible", text(raw.deductible)],
+    ["policyNumber", text(raw.policyNumber)]
+  ] as const) {
+    if (value) update[field] = value;
+  }
+  if (Object.keys(update).length === 0 && !text(raw.note)) {
+    throw new ClaimsWorkspaceError("CLAIM_INVALID", "Record at least one carrier, adjuster, claim, payment, or note detail.");
+  }
+  return update;
+}
+
+function executionUpdateDetail(update: Partial<InsuranceClaimRecord>) {
+  const fields = [
+    update.carrierName ? "carrier" : "",
+    update.claimNumber ? "claim number" : "",
+    update.policyNumber ? "policy" : "",
+    update.adjusterName || update.adjusterPhone || update.adjusterEmail ? "adjuster" : "",
+    update.deductible ? "deductible" : ""
+  ].filter(Boolean);
+  return fields.length ? `Updated ${fields.join(", ")} details.` : "Claim execution note recorded.";
 }
 
 function relationshipTargets(value: unknown): ClaimEvidenceRecord["relationshipTargets"] {

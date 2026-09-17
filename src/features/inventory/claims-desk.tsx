@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { useState } from "react";
 
 import type { ClaimsDeskReadModel } from "@/server/claims-workspace/service";
 
@@ -53,14 +56,9 @@ const claimCandidates = [
   }
 ] as const;
 
-const intakeFacts = [
-  ["Required first", "4 facts", "Customer, vehicle, loss date, owner."],
-  ["Duplicate check", "Before save", "Claim #, VIN, phone, open RO."],
-  ["Draft allowed", "Yes", "With reason and next owner."],
-  ["Opens to", "Workspace", "Once claim/account context exists."]
-] as const;
-
 const fallbackMetrics = {
+  agingClaims: 4,
+  blockedClaims: 3,
   openClaims: 14,
   paymentWatch: 2,
   readyHandoff: 3,
@@ -85,14 +83,38 @@ function Badge({ children, tone = "info" }: { children: ReactNode; tone?: "info"
 }
 
 export function ClaimsDesk({ model }: { model?: ClaimsDeskReadModel }) {
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const candidates = model?.claims ?? claimCandidates.map((candidate) => ({ ...candidate, href: "/vehicles/claims-workspace" }));
   const metrics = model?.metrics ?? fallbackMetrics;
   const deskSignals = [
     ["Open claims", String(metrics.openClaims), "Across service and repair."],
     ["Waiting carrier", String(metrics.waitingCarrier), "Adjuster or approval pending."],
     ["Ready handoff", String(metrics.readyHandoff), "Can move to repair order."],
-    ["Payment watch", String(metrics.paymentWatch), "Deductible or short-pay."]
+    ["Payment watch", String(metrics.paymentWatch), "Deductible or short-pay."],
+    ["Blocked", String(metrics.blockedClaims), "Needs exception or missing required facts."],
+    ["Aging", String(metrics.agingClaims), "Open at least 3 days."]
   ] as const;
+
+  async function startClaim(formData: FormData) {
+    setError("");
+    setIsSubmitting(true);
+    try {
+      const response = await fetch("/api/claims-workspace/claims", {
+        body: JSON.stringify(Object.fromEntries(formData.entries())),
+        headers: { "Content-Type": "application/json" },
+        method: "POST"
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(payload?.error ?? "Claim could not be started.");
+      const claimId = payload?.readModel?.claim?.id;
+      window.location.assign(claimId ? `/vehicles/claims-workspace?claimId=${encodeURIComponent(claimId)}` : "/vehicles/claims-workspace");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Claim could not be started.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
   return (
     <section className={styles.page}>
@@ -187,15 +209,40 @@ export function ClaimsDesk({ model }: { model?: ClaimsDeskReadModel }) {
               </div>
               <Badge>Progressive form</Badge>
             </div>
-            <div className={styles.metricGrid}>
-              {intakeFacts.map(([label, value, detail]) => (
-                <article className={styles.metric} key={label}>
-                  <span>{label}</span>
-                  <strong>{value}</strong>
-                  <p>{detail}</p>
-                </article>
-              ))}
-            </div>
+            <form action={startClaim} className={styles.intakeForm}>
+              <label>
+                <span>Customer name</span>
+                <input name="customerName" placeholder="Customer full name" required />
+              </label>
+              <label>
+                <span>Phone</span>
+                <input name="customerPhone" placeholder="Phone number" />
+              </label>
+              <label>
+                <span>VIN or vehicle identity</span>
+                <input name="vehicleVin" placeholder="VIN, plate, or stock" required />
+              </label>
+              <label>
+                <span>Carrier</span>
+                <input name="carrierName" placeholder="Insurance carrier" />
+              </label>
+              <label>
+                <span>Claim number</span>
+                <input name="claimNumber" placeholder="Claim number or leave draft" />
+              </label>
+              <label>
+                <span>Loss date</span>
+                <input name="lossDate" type="date" />
+              </label>
+              <label className={styles.fullField}>
+                <span>First loss summary</span>
+                <textarea name="description" placeholder="Short description of loss, damage, and customer needs" rows={3} />
+              </label>
+              <div className={styles.formFooter}>
+                {error ? <strong>{error}</strong> : <span>Creates a controlled claim record and opens the workspace.</span>}
+                <button disabled={isSubmitting} type="submit">{isSubmitting ? "Starting..." : "Start claim workspace"}</button>
+              </div>
+            </form>
           </section>
         </div>
 

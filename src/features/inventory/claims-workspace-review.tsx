@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { useState } from "react";
 
 import type { ClaimChecklistItem, ClaimReadModel } from "@/server/claims-workspace/service";
 
@@ -45,6 +48,25 @@ const tools = [
   { title: "Payment recovery", detail: "Hidden until repair or payment issue.", active: false },
 ] as const;
 
+const fallbackDocuments = [
+  { label: "Claim identity record", detail: "Claim number and carrier confirmation.", state: "RECEIVED", requiredBefore: "Intake", libraryTarget: "Claim jacket" },
+  { label: "Customer repair authorization", detail: "Signed authorization before repair handoff.", state: "MISSING", requiredBefore: "Repair handoff", libraryTarget: "Claim jacket" },
+  { label: "Estimate and supplement packet", detail: "Carrier estimate or internal appraisal.", state: "MISSING", requiredBefore: "Repair handoff", libraryTarget: "Repair order" }
+] as const;
+
+const fallbackPhotos = [
+  { label: "Damage overview and closeups", state: "MISSING", uploadTarget: "Claim evidence" },
+  { label: "VIN plate or verified VIN", state: "RECEIVED", uploadTarget: "Vehicle evidence" },
+  { label: "Odometer photo", state: "MISSING", uploadTarget: "Vehicle evidence" },
+  { label: "Repair handoff / release condition", state: "MISSING", uploadTarget: "Repair handoff" }
+] as const;
+
+const fallbackTasks = [
+  { actionLabel: "Record carrier call", detail: "Call the carrier, capture adjuster name, phone, email, and approval status.", dueLabel: "Today", ownerRole: "Service advisor", status: "ready", title: "Find adjuster contact" },
+  { actionLabel: "Send authorization", detail: "Repair handoff is blocked until authorization is complete.", dueLabel: "Today", ownerRole: "Service advisor", status: "ready", title: "Get customer authorization" },
+  { actionLabel: "Upload photos", detail: "Visible damage photos and closeups.", dueLabel: "Today", ownerRole: "Intake staff", status: "ready", title: "Take damage photos" }
+] as const;
+
 function StatusBadge({ tone = "info", children }: { tone?: "good" | "warning" | "danger" | "info"; children: ReactNode }) {
   return <span className={`${styles.badge} ${styles[tone]}`}>{children}</span>;
 }
@@ -82,7 +104,18 @@ function evidenceTone(status: string): "good" | "warning" | "danger" | "info" {
   return "info";
 }
 
+function evidenceLabel(status: string) {
+  if (status === "RECEIVED") return "Ready";
+  if (status === "BLOCKED") return "Blocked";
+  if (status === "EXCEPTION_ACCEPTED") return "Exception";
+  if (status === "NOT_APPLICABLE") return "N/A";
+  return "Missing";
+}
+
 export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
+  const [actionError, setActionError] = useState("");
+  const [actionMessage, setActionMessage] = useState("");
+  const [isWorking, setIsWorking] = useState(false);
   const snapshotRows = model ? [
     ["Customer", model.claim.customerName],
     ["Vehicle", [model.claim.vehicleYear, model.claim.vehicleMake, model.claim.vehicleModel].filter(Boolean).join(" ") || "Not captured"],
@@ -112,6 +145,69 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
     tone: readinessTone(item.status)
   })) : readiness;
   const completedNeeds = model?.checklist.filter((item) => item.state === "RECEIVED" || item.state === "EXCEPTION_ACCEPTED" || item.state === "NOT_APPLICABLE").length;
+  const documentRows = model?.documentPlan ?? fallbackDocuments;
+  const photoRows = model?.photoPlan ?? fallbackPhotos;
+  const activityRows = model?.activities.length ? model.activities.slice(0, 5) : [
+    { action: "CLAIM_CREATED", at: "2026-09-17T14:00:00.000Z", detail: "Insurance claim workspace opened from Claims Desk.", actorUserId: "advisor", id: "fallback-activity" }
+  ];
+  const taskRows = model?.executionTasks ?? fallbackTasks;
+  const carrier = model?.carrierTracker ?? {
+    adjuster: "Needed",
+    approvalStatus: "needs_adjuster",
+    carrier: "State Farm",
+    claimNumber: "MN-48291",
+    nextContact: "Call carrier for adjuster",
+    policyNumber: "Pending",
+    statusLabel: "needs adjuster"
+  };
+  const claimId = model?.claim.id;
+
+  async function submitJson(path: string, body: Record<string, unknown>, method = "POST") {
+    setActionError("");
+    setActionMessage("");
+    setIsWorking(true);
+    try {
+      const response = await fetch(path, {
+        body: JSON.stringify(body),
+        headers: { "Content-Type": "application/json" },
+        method
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(payload?.error ?? "The claim action could not be recorded.");
+      setActionMessage("Action recorded. Refreshing workspace...");
+      window.location.reload();
+    } catch (caught) {
+      setActionError(caught instanceof Error ? caught.message : "The claim action could not be recorded.");
+    } finally {
+      setIsWorking(false);
+    }
+  }
+
+  async function recordCarrierCall(formData: FormData) {
+    if (!claimId) return;
+    await submitJson(`/api/claims-workspace/claims/${encodeURIComponent(claimId)}`, Object.fromEntries(formData.entries()), "PATCH");
+  }
+
+  async function recordEvidence(formData: FormData) {
+    if (!claimId) return;
+    const file = formData.get("file");
+    const fileName = file && typeof file === "object" && "name" in file ? String(file.name) : "";
+    await submitJson(`/api/claims-workspace/claims/${encodeURIComponent(claimId)}/evidence`, {
+      category: formData.get("category"),
+      fileName,
+      notes: formData.get("notes"),
+      relationshipTargets: ["CLAIM", "CUSTOMER", "VEHICLE"],
+      status: "RECEIVED",
+      title: formData.get("title") || fileName
+    });
+  }
+
+  async function requestHandoff(formData: FormData) {
+    if (!claimId) return;
+    await submitJson(`/api/claims-workspace/claims/${encodeURIComponent(claimId)}/handoff`, {
+      exceptionReason: formData.get("exceptionReason")
+    });
+  }
 
   return (
     <section className={styles.page}>
@@ -141,6 +237,69 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
 
       <div className={styles.workspace}>
         <div className={styles.mainStack}>
+          <section className={styles.panel}>
+            <div className={styles.panelHeader}>
+              <div>
+                <h2>Execute Next Tasks</h2>
+                <p>The workspace stays simple: do the next task, record the result, and let the claim unfold only when needed.</p>
+              </div>
+              <StatusBadge tone={model?.handoff.allowed ? "good" : "warning"}>{model?.handoff.allowed ? "Ready for handoff" : "Execution active"}</StatusBadge>
+            </div>
+            <div className={styles.taskList}>
+              {taskRows.map((task) => (
+                <article className={styles.taskItem} key={task.title}>
+                  <div>
+                    <strong>{task.title}</strong>
+                    <span>{task.detail}</span>
+                    <small>{task.ownerRole} - {task.dueLabel}</small>
+                  </div>
+                  <button type="button">{task.actionLabel}</button>
+                </article>
+              ))}
+            </div>
+            <div className={styles.actionForms}>
+              <form action={recordCarrierCall} className={styles.executionForm}>
+                <strong>Record carrier / adjuster call</strong>
+                <div>
+                  <input name="carrierName" placeholder="Carrier" defaultValue={model?.claim.carrierName ?? ""} />
+                  <input name="claimNumber" placeholder="Claim #" defaultValue={model?.claim.claimNumber ?? ""} />
+                  <input name="policyNumber" placeholder="Policy #" defaultValue={model?.claim.policyNumber ?? ""} />
+                  <input name="adjusterName" placeholder="Adjuster name" defaultValue={model?.claim.adjusterName ?? ""} />
+                  <input name="adjusterPhone" placeholder="Adjuster phone" defaultValue={model?.claim.adjusterPhone ?? ""} />
+                  <input name="adjusterEmail" placeholder="Adjuster email" defaultValue={model?.claim.adjusterEmail ?? ""} />
+                </div>
+                <textarea name="note" placeholder="Short call note or promise from carrier" rows={2} />
+                <button disabled={!claimId || isWorking} type="submit">Record carrier call</button>
+              </form>
+              <form action={recordEvidence} className={styles.executionForm}>
+                <strong>Record evidence / photo</strong>
+                <div>
+                  <select name="category" defaultValue="DAMAGE_PHOTO">
+                    <option value="AUTHORIZATION">Customer authorization</option>
+                    <option value="DAMAGE_PHOTO">Damage photos</option>
+                    <option value="VIN_PHOTO">VIN photo</option>
+                    <option value="ODOMETER_PHOTO">Odometer photo</option>
+                    <option value="INSURANCE_CARD">Insurance card</option>
+                    <option value="ESTIMATE">Estimate</option>
+                    <option value="PAYMENT">Payment proof</option>
+                    <option value="REPAIR_HANDOFF">Repair handoff</option>
+                  </select>
+                  <input name="title" placeholder="Evidence title" />
+                  <input name="file" type="file" />
+                </div>
+                <textarea name="notes" placeholder="Evidence note" rows={2} />
+                <button disabled={!claimId || isWorking} type="submit">Record evidence</button>
+              </form>
+              <form action={requestHandoff} className={styles.executionForm}>
+                <strong>Move to repair handoff</strong>
+                <textarea name="exceptionReason" placeholder="Optional manager exception reason if a gate is blocked" rows={2} />
+                <button disabled={!claimId || isWorking} type="submit">{model?.handoff.allowed ? "Open repair handoff" : "Request exception handoff"}</button>
+              </form>
+              {actionError ? <p className={styles.actionError}>{actionError}</p> : null}
+              {actionMessage ? <p className={styles.actionMessage}>{actionMessage}</p> : null}
+            </div>
+          </section>
+
           <section className={styles.panel}>
             <div className={styles.panelHeader}>
               <div>
@@ -211,9 +370,68 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
               ))}
             </div>
           </section>
+
+          <section className={styles.panel}>
+            <div className={styles.panelHeader}>
+              <div>
+                <h2>Documents and Forced Photos</h2>
+                <p>Required evidence is broken into short execution slots with a clear storage target.</p>
+              </div>
+              <StatusBadge tone="info">{model?.summary.documentCount ?? 2} docs / {model?.summary.photoCount ?? 3} photos</StatusBadge>
+            </div>
+            <div className={styles.executionGrid}>
+              <div className={styles.miniList}>
+                {documentRows.map((item) => (
+                  <article className={styles.documentItem} key={item.label}>
+                    <div>
+                      <strong>{item.label}</strong>
+                      <span>{item.detail}</span>
+                      <small>{item.libraryTarget} - before {item.requiredBefore}</small>
+                    </div>
+                    <StatusBadge tone={evidenceTone(item.state)}>{evidenceLabel(item.state)}</StatusBadge>
+                  </article>
+                ))}
+              </div>
+              <div className={styles.miniList}>
+                {photoRows.map((item) => (
+                  <article className={styles.documentItem} key={item.label}>
+                    <div>
+                      <strong>{item.label}</strong>
+                      <span>{item.uploadTarget}</span>
+                    </div>
+                    <StatusBadge tone={evidenceTone(item.state)}>{evidenceLabel(item.state)}</StatusBadge>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </section>
         </div>
 
         <aside className={styles.sideStack}>
+          <section className={styles.panel}>
+            <div className={styles.panelHeader}>
+              <div>
+                <h2>Carrier Tracker</h2>
+                <p>Claim, policy, adjuster, approval, and next contact stay visible.</p>
+              </div>
+            </div>
+            <div className={styles.carrierGrid}>
+              {[
+                ["Carrier", carrier.carrier],
+                ["Claim", carrier.claimNumber],
+                ["Policy", carrier.policyNumber],
+                ["Adjuster", carrier.adjuster],
+                ["Status", carrier.statusLabel],
+                ["Next", carrier.nextContact]
+              ].map(([label, value]) => (
+                <div className={styles.fact} key={label}>
+                  <span>{label}</span>
+                  <strong>{value}</strong>
+                </div>
+              ))}
+            </div>
+          </section>
+
           <section className={styles.panel}>
             <div className={styles.panelHeader}>
               <div>
@@ -275,6 +493,24 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
               ))}
             </div>
             <p className={styles.note}>Review implementation: a short execution workspace, not a long insurance form.</p>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.panelHeader}>
+              <div>
+                <h2>Activity Timeline</h2>
+                <p>Every claim movement should leave a lightweight audit trail.</p>
+              </div>
+            </div>
+            <div className={styles.timeline}>
+              {activityRows.map((activity) => (
+                <article key={activity.id}>
+                  <strong>{activity.action.replaceAll("_", " ")}</strong>
+                  <span>{activity.detail}</span>
+                  <small>{new Date(activity.at).toLocaleString()} - {activity.actorUserId}</small>
+                </article>
+              ))}
+            </div>
           </section>
         </aside>
       </div>

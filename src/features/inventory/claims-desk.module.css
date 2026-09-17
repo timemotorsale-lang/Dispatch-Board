@@ -274,6 +274,78 @@
   gap: 8px;
 }
 
+.intakeForm {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.intakeForm label {
+  display: grid;
+  gap: 5px;
+}
+
+.intakeForm label span,
+.formFooter span,
+.formFooter strong {
+  color: #526481;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.intakeForm input,
+.intakeForm textarea {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid #c5d2e7;
+  border-radius: 8px;
+  background: #fff;
+  color: #07132d;
+  font: inherit;
+  font-size: 0.88rem;
+  padding: 8px 10px;
+}
+
+.intakeForm textarea {
+  resize: vertical;
+}
+
+.fullField,
+.formFooter {
+  grid-column: 1 / -1;
+}
+
+.formFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 2px;
+}
+
+.formFooter strong {
+  color: #a82626;
+}
+
+.formFooter button {
+  min-height: 40px;
+  border: 1px solid #284bd0;
+  border-radius: 8px;
+  background: #284bd0;
+  color: #fff;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 900;
+  padding: 8px 12px;
+}
+
+.formFooter button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
 .metric {
   min-height: 78px;
   padding: 10px;
@@ -357,8 +429,14 @@
   }
 
   .startGrid,
-  .metricGrid {
+  .metricGrid,
+  .intakeForm {
     grid-template-columns: 1fr;
+  }
+
+  .formFooter {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .queueHead {

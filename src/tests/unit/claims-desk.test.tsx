@@ -15,6 +15,8 @@ describe("claims desk", () => {
     expect(html).toContain("Unknown or walk-in claim");
     expect(html).toContain("Active claim candidates");
     expect(html).toContain("Start claim intake");
+    expect(html).toContain("Start claim workspace");
+    expect(html).toContain("Customer name");
     expect(html).toContain("Desk signals");
     expect(html).toContain("Handoff lanes");
     expect(html).toContain("Desk guardrails");

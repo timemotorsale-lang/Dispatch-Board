@@ -8,9 +8,13 @@ describe("claims workspace review", () => {
     const html = renderToStaticMarkup(<ClaimsWorkspaceReview />);
 
     expect(html).toContain("Claims Workspace");
+    expect(html).toContain("Execute Next Tasks");
     expect(html).toContain("Claim Snapshot");
     expect(html).toContain("What We Need");
     expect(html).toContain("Evidence and Documents");
+    expect(html).toContain("Documents and Forced Photos");
+    expect(html).toContain("Carrier Tracker");
+    expect(html).toContain("Activity Timeline");
     expect(html).toContain("Next Action");
     expect(html).toContain("Handoff Readiness");
     expect(html).toContain("Progressive Tools");

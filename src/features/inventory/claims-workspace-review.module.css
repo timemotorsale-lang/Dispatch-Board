@@ -35,7 +35,8 @@
 .topActions a,
 .topActions button,
 .secondaryButton,
-.nextAction button {
+.nextAction button,
+.taskItem button {
   min-height: 40px;
   border: 1px solid #bdcbe4;
   border-radius: 8px;
@@ -49,7 +50,8 @@
 }
 
 .topActions button,
-.nextAction button {
+.nextAction button,
+.taskItem button {
   border-color: #284bd0;
   background: #284bd0;
   color: #fff;
@@ -202,6 +204,125 @@
   gap: 8px;
 }
 
+.taskList {
+  display: grid;
+  gap: 8px;
+}
+
+.actionForms {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.executionForm {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #dce5f3;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.executionForm > strong {
+  color: #07132d;
+  font-size: 0.9rem;
+  line-height: 1.2;
+}
+
+.executionForm > div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.executionForm input,
+.executionForm select,
+.executionForm textarea {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid #c5d2e7;
+  border-radius: 8px;
+  background: #fff;
+  color: #07132d;
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 8px 10px;
+}
+
+.executionForm textarea {
+  resize: vertical;
+}
+
+.executionForm button {
+  justify-self: end;
+  min-height: 38px;
+  border: 1px solid #284bd0;
+  border-radius: 8px;
+  background: #284bd0;
+  color: #fff;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 900;
+  padding: 8px 12px;
+}
+
+.executionForm button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.actionError,
+.actionMessage {
+  margin: 0;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 850;
+  padding: 8px 10px;
+}
+
+.actionError {
+  background: #fff0f0;
+  color: #a82626;
+}
+
+.actionMessage {
+  background: #e7f7f3;
+  color: #0f766e;
+}
+
+.taskItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-height: 70px;
+  padding: 10px;
+  border: 1px solid #cbd8ef;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.taskItem strong {
+  display: block;
+  color: #07132d;
+  font-size: 0.94rem;
+  line-height: 1.2;
+}
+
+.taskItem span,
+.taskItem small {
+  display: block;
+  margin-top: 3px;
+  color: #526481;
+  font-size: 0.78rem;
+  line-height: 1.3;
+}
+
+.taskItem button {
+  white-space: nowrap;
+}
+
 .need {
   display: flex;
   gap: 8px;
@@ -258,6 +379,51 @@
 
 .evidenceList {
   display: grid;
+}
+
+.executionGrid,
+.carrierGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.miniList,
+.timeline {
+  display: grid;
+  gap: 8px;
+}
+
+.documentItem,
+.timeline article {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 58px;
+  padding: 10px;
+  border: 1px solid #dce5f3;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.documentItem strong,
+.timeline strong {
+  display: block;
+  color: #07132d;
+  font-size: 0.86rem;
+  line-height: 1.25;
+}
+
+.documentItem span,
+.documentItem small,
+.timeline span,
+.timeline small {
+  display: block;
+  margin-top: 3px;
+  color: #526481;
+  font-size: 0.76rem;
+  line-height: 1.3;
 }
 
 .evidenceRow {
@@ -379,6 +545,8 @@
 
   .snapshotGrid,
   .needGrid,
+  .executionGrid,
+  .carrierGrid,
   .ownerGrid,
   .toolGrid {
     grid-template-columns: 1fr;
@@ -391,5 +559,21 @@
   .evidenceRow {
     grid-template-columns: 1fr;
     padding: 12px 0;
+  }
+
+  .taskItem {
+    grid-template-columns: 1fr;
+  }
+
+  .executionForm > div {
+    grid-template-columns: 1fr;
+  }
+
+  .taskItem button {
+    width: 100%;
+  }
+
+  .executionForm button {
+    justify-self: stretch;
   }
 }

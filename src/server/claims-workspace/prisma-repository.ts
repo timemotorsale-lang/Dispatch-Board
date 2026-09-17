@@ -223,9 +223,16 @@ export function createPrismaClaimsWorkspaceRepository(input: {
     async updateClaim(claimId, update) {
       return toAggregate(await prisma.insuranceClaim.update({
         data: {
+          adjusterEmail: update.adjusterEmail,
+          adjusterName: update.adjusterName,
+          adjusterPhone: update.adjusterPhone,
           blockerReason: update.blockerReason,
+          carrierName: update.carrierName,
+          claimNumber: update.claimNumber,
+          deductible: update.deductible,
           lastActivityAt: update.lastActivityAt ? new Date(update.lastActivityAt) : undefined,
           nextAction: update.nextAction,
+          policyNumber: update.policyNumber,
           stage: update.stage,
           version: { increment: 1 }
         },

@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/server/auth/current-user", () => ({ getCurrentUser: mocks.getCurrentUser }));
 
 import { POST as CREATE_CLAIM } from "@/app/api/claims-workspace/claims/route";
+import { PATCH as UPDATE_CLAIM } from "@/app/api/claims-workspace/claims/[claimId]/route";
 import { POST as ATTACH_EVIDENCE } from "@/app/api/claims-workspace/claims/[claimId]/evidence/route";
 import { setClaimsWorkspaceRepositoryForTesting } from "@/server/claims-workspace/repository-factory";
 import { createInMemoryClaimsWorkspaceRepository } from "@/server/claims-workspace/service";
@@ -66,6 +67,37 @@ describe("claims workspace API routes", () => {
     await expect(response.json()).resolves.toMatchObject({
       code: "AUTHENTICATION_REQUIRED",
       contractVersion: "claims-workspace-error/v1"
+    });
+  });
+
+  it("records carrier execution details through the API boundary", async () => {
+    const createResponse = await CREATE_CLAIM(new Request("http://local/api/claims-workspace/claims", {
+      body: JSON.stringify({
+        carrierName: "Progressive",
+        claimNumber: "API-20002",
+        customerName: "Patch Customer",
+        description: "Rear damage.",
+        vehicleVin: "API-VIN-20002"
+      }),
+      method: "POST"
+    }));
+    const created = await createResponse.json();
+    const claimId = created.readModel.claim.id;
+
+    const response = await UPDATE_CLAIM(new Request(`http://local/api/claims-workspace/claims/${claimId}`, {
+      body: JSON.stringify({
+        adjusterName: "Pat Adjuster",
+        note: "Adjuster promised estimate callback."
+      }),
+      method: "PATCH"
+    }), {
+      params: Promise.resolve({ claimId })
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      claim: { adjusterName: "Pat Adjuster" },
+      carrierTracker: { nextContact: "Request estimate or approval" }
     });
   });
 });

@@ -7,7 +7,8 @@ import {
   createInsuranceClaim,
   getClaimWorkspaceReadModel,
   getClaimsDeskReadModel,
-  requestClaimHandoff
+  requestClaimHandoff,
+  updateClaimExecutionDetails
 } from "@/server/claims-workspace/service";
 
 const actor: AuthenticatedUser = {
@@ -52,6 +53,10 @@ describe("claims workspace service", () => {
     });
     expect(created.readModel.primaryBlocker).toBe("Missing authorization");
     expect(created.readModel.handoff.allowed).toBe(false);
+    expect(created.readModel.executionTasks.map((task) => task.title)).toContain("Get customer authorization");
+    expect(created.readModel.documentPlan.map((item) => item.label)).toContain("Customer repair authorization");
+    expect(created.readModel.photoPlan.map((item) => item.label)).toContain("Damage overview and closeups");
+    expect(created.readModel.carrierTracker.nextContact).toBe("Call carrier for adjuster");
 
     await expect(createInsuranceClaim(actor, {
       carrierName: "State Farm",
@@ -99,9 +104,36 @@ describe("claims workspace service", () => {
     const ready = await getClaimWorkspaceReadModel(actor, claimId, { repository });
     expect(ready.handoff.allowed).toBe(true);
     expect(ready.primaryBlocker).toBe("Ready for repair order");
+    expect(ready.executionTasks[0].title).toBe("Move to repair handoff");
 
     const handedOff = await requestClaimHandoff(actor, claimId, {}, { repository });
     expect(handedOff.claim.stage).toBe("REPAIR_HANDOFF");
     expect(handedOff.claim.nextAction).toBe("Open or link repair order");
+  });
+
+  it("records carrier execution details and writes an activity trail entry", async () => {
+    const repository = createInMemoryClaimsWorkspaceRepository([]);
+    const created = await createInsuranceClaim(actor, {
+      carrierName: "State Farm",
+      claimNumber: "MN-70003",
+      customerName: "Carrier Customer",
+      description: "Right rear damage.",
+      vehicleVin: "VIN-CARRIER-001"
+    }, { repository });
+
+    const updated = await updateClaimExecutionDetails(actor, created.readModel.claim.id, {
+      adjusterEmail: "adjuster@example.com",
+      adjusterName: "Alex Adjuster",
+      adjusterPhone: "612-555-0199",
+      note: "Carrier confirmed estimate review by tomorrow.",
+      policyNumber: "POL-123"
+    }, { repository });
+
+    expect(updated.claim.adjusterName).toBe("Alex Adjuster");
+    expect(updated.carrierTracker.nextContact).toBe("Request estimate or approval");
+    expect(updated.activities[0]).toMatchObject({
+      action: "CLAIM_EXECUTION_UPDATED",
+      detail: "Carrier confirmed estimate review by tomorrow."
+    });
   });
 });
