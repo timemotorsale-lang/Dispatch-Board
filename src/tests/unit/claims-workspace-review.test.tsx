@@ -8,6 +8,7 @@ describe("claims workspace review", () => {
     const html = renderToStaticMarkup(<ClaimsWorkspaceReview />);
 
     expect(html).toContain("Claims Workspace");
+    expect(html).toContain("Save claim");
     expect(html).toContain("Execute Next Tasks");
     expect(html).toContain("Claim Snapshot");
     expect(html).toContain("What We Need");

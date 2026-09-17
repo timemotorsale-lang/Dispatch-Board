@@ -136,7 +136,7 @@ export function ClaimsDesk({ model }: { model?: ClaimsDeskReadModel }) {
       <div className={styles.topbar}>
         <span className={styles.eyebrow}>Service Console / Desk a Claim</span>
         <div className={styles.topActions}>
-          <Link href="/vehicles/claims-workspace">Open claim queue</Link>
+          <a href="#active-claim-queue">Open claim queue</a>
           <Link href="/operations-coordinator#paperwork-command-center">Document library</Link>
           <button type="button">Start new claim</button>
         </div>
@@ -159,7 +159,7 @@ export function ClaimsDesk({ model }: { model?: ClaimsDeskReadModel }) {
 
       <div className={styles.workspace}>
         <div className={styles.mainStack}>
-          <section className={styles.panel}>
+          <section className={styles.panel} id="active-claim-queue">
             <div className={styles.panelHeader}>
               <div>
                 <h2>Choose how this claim starts</h2>
@@ -240,34 +240,107 @@ export function ClaimsDesk({ model }: { model?: ClaimsDeskReadModel }) {
               <Badge>Progressive form</Badge>
             </div>
             <form action={startClaim} className={styles.intakeForm}>
-              <label>
-                <span>Customer name</span>
-                <input name="customerName" placeholder="Customer full name" required />
-              </label>
-              <label>
-                <span>Phone</span>
-                <input name="customerPhone" placeholder="Phone number" />
-              </label>
-              <label>
-                <span>VIN or vehicle identity</span>
-                <input name="vehicleVin" placeholder="VIN, plate, or stock" required />
-              </label>
-              <label>
-                <span>Carrier</span>
-                <input name="carrierName" placeholder="Insurance carrier" />
-              </label>
-              <label>
-                <span>Claim number</span>
-                <input name="claimNumber" placeholder="Claim number or leave draft" />
-              </label>
-              <label>
-                <span>Loss date</span>
-                <input name="lossDate" type="date" />
-              </label>
-              <label className={styles.fullField}>
-                <span>First loss summary</span>
-                <textarea name="description" placeholder="Short description of loss, damage, and customer needs" rows={3} />
-              </label>
+              <fieldset>
+                <legend>Customer</legend>
+                <label>
+                  <span>Customer name</span>
+                  <input name="customerName" placeholder="Customer full name" required />
+                </label>
+                <label>
+                  <span>Phone</span>
+                  <input name="customerPhone" placeholder="Phone number" />
+                </label>
+                <label>
+                  <span>Email</span>
+                  <input name="customerEmail" placeholder="Email address" type="email" />
+                </label>
+                <label className={styles.fullField}>
+                  <span>Address line 1</span>
+                  <input name="customerAddressLine1" placeholder="Street address" />
+                </label>
+                <label>
+                  <span>Address line 2</span>
+                  <input name="customerAddressLine2" placeholder="Apt, suite, unit" />
+                </label>
+                <label>
+                  <span>City</span>
+                  <input name="customerCity" placeholder="City" />
+                </label>
+                <label>
+                  <span>State</span>
+                  <input name="customerState" placeholder="State" />
+                </label>
+                <label>
+                  <span>ZIP</span>
+                  <input name="customerPostalCode" placeholder="ZIP code" />
+                </label>
+              </fieldset>
+              <fieldset>
+                <legend>Vehicle</legend>
+                <label>
+                  <span>VIN</span>
+                  <input name="vehicleVin" placeholder="VIN" required />
+                </label>
+                <label>
+                  <span>Year</span>
+                  <input name="vehicleYear" placeholder="Year" />
+                </label>
+                <label>
+                  <span>Make</span>
+                  <input name="vehicleMake" placeholder="Make" />
+                </label>
+                <label>
+                  <span>Model</span>
+                  <input name="vehicleModel" placeholder="Model" />
+                </label>
+                <label>
+                  <span>Color</span>
+                  <input name="vehicleColor" placeholder="Color" />
+                </label>
+                <label>
+                  <span>Mileage</span>
+                  <input name="vehicleMileage" placeholder="Mileage" />
+                </label>
+                <label>
+                  <span>Plate</span>
+                  <input name="vehiclePlate" placeholder="Plate" />
+                </label>
+                <label>
+                  <span>Stock #</span>
+                  <input name="vehicleStockNumber" placeholder="Stock number" />
+                </label>
+              </fieldset>
+              <fieldset>
+                <legend>Claim and loss</legend>
+                <label>
+                  <span>Carrier</span>
+                  <input name="carrierName" placeholder="Insurance carrier" />
+                </label>
+                <label>
+                  <span>Claim number</span>
+                  <input name="claimNumber" placeholder="Claim number or leave draft" />
+                </label>
+                <label>
+                  <span>Policy #</span>
+                  <input name="policyNumber" placeholder="Policy number" />
+                </label>
+                <label>
+                  <span>Deductible</span>
+                  <input name="deductible" placeholder="Deductible" />
+                </label>
+                <label>
+                  <span>Loss date</span>
+                  <input name="lossDate" type="date" />
+                </label>
+                <label>
+                  <span>Loss location</span>
+                  <input name="lossLocation" placeholder="Where loss happened" />
+                </label>
+                <label className={styles.fullField}>
+                  <span>First loss summary</span>
+                  <textarea name="description" placeholder="Short description of loss, damage, drivability, tow/storage, and customer needs" rows={3} />
+                </label>
+              </fieldset>
               <div className={styles.formFooter}>
                 {error ? <strong>{error}</strong> : <span>Creates a controlled claim record and opens the workspace.</span>}
                 <button disabled={isSubmitting} type="submit">{isSubmitting ? "Starting..." : "Start claim workspace"}</button>

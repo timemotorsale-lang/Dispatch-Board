@@ -19,9 +19,14 @@ type InsuranceClaimRow = {
   closedAt: Date | null;
   createdByUserId: string;
   customerEmail: string | null;
+  customerAddressLine1: string | null;
+  customerAddressLine2: string | null;
+  customerCity: string | null;
   customerId: string | null;
   customerName: string;
   customerPhone: string | null;
+  customerPostalCode: string | null;
+  customerState: string | null;
   deductible: string | null;
   description: string | null;
   duplicateExceptionReason: string | null;
@@ -37,8 +42,10 @@ type InsuranceClaimRow = {
   policyNumber: string | null;
   stage: string;
   status: string;
+  vehicleColor: string | null;
   vehicleId: string | null;
   vehicleMake: string | null;
+  vehicleMileage: string | null;
   vehicleModel: string | null;
   vehiclePlate: string | null;
   vehicleStockNumber: string | null;
@@ -174,10 +181,15 @@ export function createPrismaClaimsWorkspaceRepository(input: {
           claimNumber: claim.claimNumber || null,
           closedAt: claim.closedAt ? new Date(claim.closedAt) : null,
           createdByUserId: claim.createdByUserId,
+          customerAddressLine1: claim.customerAddressLine1 || null,
+          customerAddressLine2: claim.customerAddressLine2 || null,
+          customerCity: claim.customerCity || null,
           customerEmail: claim.customerEmail || null,
           customerId: claim.customerId || null,
           customerName: claim.customerName,
           customerPhone: claim.customerPhone || null,
+          customerPostalCode: claim.customerPostalCode || null,
+          customerState: claim.customerState || null,
           deductible: claim.deductible || null,
           description: claim.description || null,
           duplicateExceptionReason: claim.duplicateExceptionReason || null,
@@ -193,8 +205,10 @@ export function createPrismaClaimsWorkspaceRepository(input: {
           policyNumber: claim.policyNumber || null,
           stage: claim.stage,
           status: claim.status,
+          vehicleColor: claim.vehicleColor || null,
           vehicleId: claim.vehicleId || null,
           vehicleMake: claim.vehicleMake || null,
+          vehicleMileage: claim.vehicleMileage || null,
           vehicleModel: claim.vehicleModel || null,
           vehiclePlate: claim.vehiclePlate || null,
           vehicleStockNumber: claim.vehicleStockNumber || null,
@@ -255,10 +269,15 @@ function toAggregate(row: InsuranceClaimRow): ClaimWorkspaceAggregate {
       claimNumber: row.claimNumber ?? undefined,
       closedAt: row.closedAt?.toISOString(),
       createdByUserId: row.createdByUserId,
+      customerAddressLine1: row.customerAddressLine1 ?? undefined,
+      customerAddressLine2: row.customerAddressLine2 ?? undefined,
+      customerCity: row.customerCity ?? undefined,
       customerEmail: row.customerEmail ?? undefined,
       customerId: row.customerId ?? undefined,
       customerName: row.customerName,
       customerPhone: row.customerPhone ?? undefined,
+      customerPostalCode: row.customerPostalCode ?? undefined,
+      customerState: row.customerState ?? undefined,
       deductible: row.deductible ?? undefined,
       description: row.description ?? undefined,
       duplicateExceptionReason: row.duplicateExceptionReason ?? undefined,
@@ -273,8 +292,10 @@ function toAggregate(row: InsuranceClaimRow): ClaimWorkspaceAggregate {
       policyNumber: row.policyNumber ?? undefined,
       stage: row.stage as ClaimStage,
       status: row.status === "CLOSED" ? "CLOSED" : "OPEN",
+      vehicleColor: row.vehicleColor ?? undefined,
       vehicleId: row.vehicleId ?? undefined,
       vehicleMake: row.vehicleMake ?? undefined,
+      vehicleMileage: row.vehicleMileage ?? undefined,
       vehicleModel: row.vehicleModel ?? undefined,
       vehiclePlate: row.vehiclePlate ?? undefined,
       vehicleStockNumber: row.vehicleStockNumber ?? undefined,

@@ -41,6 +41,11 @@ export type InsuranceClaimRecord = {
   claimNumber?: string;
   closedAt?: string;
   createdByUserId: string;
+  customerAddressLine1?: string;
+  customerAddressLine2?: string;
+  customerCity?: string;
+  customerPostalCode?: string;
+  customerState?: string;
   customerEmail?: string;
   customerId?: string;
   customerName: string;
@@ -59,8 +64,10 @@ export type InsuranceClaimRecord = {
   policyNumber?: string;
   stage: ClaimStage;
   status: "OPEN" | "CLOSED";
+  vehicleColor?: string;
   vehicleId?: string;
   vehicleMake?: string;
+  vehicleMileage?: string;
   vehicleModel?: string;
   vehiclePlate?: string;
   vehicleStockNumber?: string;
@@ -237,8 +244,13 @@ export type ClaimCreateInput = {
   carrierName?: unknown;
   claimNumber?: unknown;
   customerEmail?: unknown;
+  customerAddressLine1?: unknown;
+  customerAddressLine2?: unknown;
+  customerCity?: unknown;
   customerName?: unknown;
   customerPhone?: unknown;
+  customerPostalCode?: unknown;
+  customerState?: unknown;
   deductible?: unknown;
   description?: unknown;
   duplicateExceptionReason?: unknown;
@@ -247,7 +259,9 @@ export type ClaimCreateInput = {
   lossLocation?: unknown;
   ownerUserId?: unknown;
   policyNumber?: unknown;
+  vehicleColor?: unknown;
   vehicleMake?: unknown;
+  vehicleMileage?: unknown;
   vehicleModel?: unknown;
   vehiclePlate?: unknown;
   vehicleStockNumber?: unknown;
@@ -1045,9 +1059,14 @@ function normalizeClaimCreate(raw: ClaimCreateInput): Omit<InsuranceClaimRecord,
     adjusterPhone: text(raw.adjusterPhone),
     carrierName: text(raw.carrierName),
     claimNumber: text(raw.claimNumber),
+    customerAddressLine1: text(raw.customerAddressLine1),
+    customerAddressLine2: text(raw.customerAddressLine2),
+    customerCity: text(raw.customerCity),
     customerEmail: text(raw.customerEmail),
     customerName,
     customerPhone: text(raw.customerPhone),
+    customerPostalCode: text(raw.customerPostalCode),
+    customerState: text(raw.customerState),
     deductible: text(raw.deductible),
     description: text(raw.description),
     duplicateExceptionReason: text(raw.duplicateExceptionReason),
@@ -1055,7 +1074,9 @@ function normalizeClaimCreate(raw: ClaimCreateInput): Omit<InsuranceClaimRecord,
     lossLocation: text(raw.lossLocation),
     ownerUserId: text(raw.ownerUserId),
     policyNumber: text(raw.policyNumber),
+    vehicleColor: text(raw.vehicleColor),
     vehicleMake: text(raw.vehicleMake),
+    vehicleMileage: text(raw.vehicleMileage),
     vehicleModel: text(raw.vehicleModel),
     vehiclePlate: text(raw.vehiclePlate),
     vehicleStockNumber: text(raw.vehicleStockNumber),

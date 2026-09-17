@@ -9204,9 +9204,16 @@ model InsuranceClaim {
   customerName             String
   customerPhone            String?
   customerEmail            String?
+  customerAddressLine1     String?
+  customerAddressLine2     String?
+  customerCity             String?
+  customerState            String?
+  customerPostalCode       String?
   vehicleYear              String?
   vehicleMake              String?
   vehicleModel             String?
+  vehicleColor             String?
+  vehicleMileage           String?
   vehicleVin               String?
   vehiclePlate             String?
   vehicleStockNumber       String?

@@ -329,8 +329,26 @@
 
 .intakeForm {
   display: grid;
+  gap: 10px;
+}
+
+.intakeForm fieldset {
+  display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 9px;
+  min-width: 0;
+  margin: 0;
+  border: 1px solid #dce5f3;
+  border-radius: 8px;
+  background: #fbfdff;
+  padding: 12px;
+}
+
+.intakeForm legend {
+  color: #07132d;
+  font-size: 0.9rem;
+  font-weight: 950;
+  padding: 0 6px;
 }
 
 .intakeForm label {
@@ -483,7 +501,7 @@
 
   .startGrid,
   .metricGrid,
-  .intakeForm {
+  .intakeForm fieldset {
     grid-template-columns: 1fr;
   }
 

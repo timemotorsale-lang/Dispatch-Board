@@ -118,8 +118,11 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
   const [isWorking, setIsWorking] = useState(false);
   const snapshotRows = model ? [
     ["Customer", model.claim.customerName],
+    ["Address", [model.claim.customerAddressLine1, model.claim.customerAddressLine2, model.claim.customerCity, model.claim.customerState, model.claim.customerPostalCode].filter(Boolean).join(", ") || "Pending"],
     ["Vehicle", [model.claim.vehicleYear, model.claim.vehicleMake, model.claim.vehicleModel].filter(Boolean).join(" ") || "Not captured"],
+    ["Color / mileage", [model.claim.vehicleColor, model.claim.vehicleMileage].filter(Boolean).join(" / ") || "Pending"],
     ["VIN", model.claim.vehicleVin || "Pending"],
+    ["Plate / stock", [model.claim.vehiclePlate, model.claim.vehicleStockNumber].filter(Boolean).join(" / ") || "Pending"],
     ["Owner", model.claim.ownerUserId || "Unassigned"],
     ["Carrier", model.claim.carrierName || "Pending"],
     ["Adjuster", model.claim.adjusterName || "Needed"],
@@ -209,6 +212,13 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
     });
   }
 
+  async function saveClaim() {
+    if (!claimId) return;
+    await submitJson(`/api/claims-workspace/claims/${encodeURIComponent(claimId)}`, {
+      note: "Claim workspace reviewed and saved."
+    }, "PATCH");
+  }
+
   return (
     <section className={styles.page}>
       <div className={styles.topbar}>
@@ -216,7 +226,7 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
         <div className={styles.topActions}>
           <Link href="/crm-next/customers">Customer 360</Link>
           <Link href="/vehicles/360/demo">Vehicle 360</Link>
-          <button type="button">Save claim</button>
+          <button disabled={!claimId || isWorking} onClick={saveClaim} type="button">{isWorking ? "Saving..." : "Save claim"}</button>
         </div>
       </div>
 

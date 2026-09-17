@@ -1,7 +1,9 @@
+import { redirect } from "next/navigation";
+
 import { ClaimsWorkspaceReview } from "@/features/inventory/claims-workspace-review";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { claimsWorkspaceDependencies } from "@/server/claims-workspace/repository-factory";
-import { getClaimWorkspaceReadModel } from "@/server/claims-workspace/service";
+import { ClaimsWorkspaceError, getClaimWorkspaceReadModel } from "@/server/claims-workspace/service";
 
 export default async function ClaimsWorkspacePage({
   searchParams
@@ -10,7 +12,15 @@ export default async function ClaimsWorkspacePage({
 }) {
   const user = await requireCurrentUser();
   const params = await searchParams;
-  const model = await getClaimWorkspaceReadModel(user, params?.claimId, await claimsWorkspaceDependencies());
+  if (!params?.claimId) redirect("/vehicles/claims-desk");
+
+  let model;
+  try {
+    model = await getClaimWorkspaceReadModel(user, params.claimId, await claimsWorkspaceDependencies());
+  } catch (error) {
+    if (error instanceof ClaimsWorkspaceError && error.code === "CLAIM_NOT_FOUND") redirect("/vehicles/claims-desk");
+    throw error;
+  }
 
   return <ClaimsWorkspaceReview model={model} />;
 }

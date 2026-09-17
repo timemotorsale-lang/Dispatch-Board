@@ -44,10 +44,17 @@ describe("claims workspace service", () => {
     const created = await createInsuranceClaim(actor, {
       carrierName: "State Farm",
       claimNumber: "MN-50001",
+      customerAddressLine1: "1101 E Lake St",
+      customerCity: "Minneapolis",
       customerName: "New Customer",
+      customerPostalCode: "55407",
+      customerState: "MN",
       description: "Rear bumper damage after parking lot loss.",
       lossDate: "2026-09-17",
+      policyNumber: "POL-50001",
+      vehicleColor: "Silver",
       vehicleMake: "Toyota",
+      vehicleMileage: "104500",
       vehicleModel: "Camry",
       vehicleVin: "VIN-NEW-001",
       vehicleYear: "2018"
@@ -55,8 +62,11 @@ describe("claims workspace service", () => {
 
     expect(created.readModel.claim).toMatchObject({
       claimNumber: "MN-50001",
+      customerAddressLine1: "1101 E Lake St",
       customerName: "New Customer",
       stage: "INTAKE",
+      vehicleColor: "Silver",
+      vehicleMileage: "104500",
       status: "OPEN"
     });
     expect(created.readModel.primaryBlocker).toBe("Missing authorization");
