@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/server/auth/current-user";
+import { claimsWorkspaceDependencies } from "@/server/claims-workspace/repository-factory";
 import {
   attachClaimEvidence,
   CLAIMS_WORKSPACE_ERROR_CONTRACT_VERSION,
@@ -18,7 +19,10 @@ export async function POST(request: Request, context: { params: Promise<{ claimI
   const payload = await request.json().catch(() => null);
   const { claimId } = await context.params;
   try {
-    return NextResponse.json(await attachClaimEvidence(await getCurrentUser(), claimId, payload ?? {}), { status: 201 });
+    return NextResponse.json(
+      await attachClaimEvidence(await getCurrentUser(), claimId, payload ?? {}, await claimsWorkspaceDependencies()),
+      { status: 201 }
+    );
   } catch (error) {
     const code = error instanceof ClaimsWorkspaceError ? error.code : undefined;
     return NextResponse.json({

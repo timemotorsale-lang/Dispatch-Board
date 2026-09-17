@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   getCurrentUser: vi.fn()
@@ -8,10 +8,13 @@ vi.mock("@/server/auth/current-user", () => ({ getCurrentUser: mocks.getCurrentU
 
 import { POST as CREATE_CLAIM } from "@/app/api/claims-workspace/claims/route";
 import { POST as ATTACH_EVIDENCE } from "@/app/api/claims-workspace/claims/[claimId]/evidence/route";
+import { setClaimsWorkspaceRepositoryForTesting } from "@/server/claims-workspace/repository-factory";
+import { createInMemoryClaimsWorkspaceRepository } from "@/server/claims-workspace/service";
 
 describe("claims workspace API routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    setClaimsWorkspaceRepositoryForTesting(createInMemoryClaimsWorkspaceRepository());
     mocks.getCurrentUser.mockResolvedValue({
       duties: { all: [], direct: [], roleDefaults: [] },
       email: "advisor@example.com",
@@ -20,6 +23,10 @@ describe("claims workspace API routes", () => {
       name: "Advisor Route",
       roles: ["Service Advisor"]
     });
+  });
+
+  afterEach(() => {
+    setClaimsWorkspaceRepositoryForTesting(null);
   });
 
   it("creates a claim through the API boundary", async () => {

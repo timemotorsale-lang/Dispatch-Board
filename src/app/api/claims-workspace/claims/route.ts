@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/server/auth/current-user";
+import { claimsWorkspaceDependencies } from "@/server/claims-workspace/repository-factory";
 import {
   CLAIMS_WORKSPACE_ERROR_CONTRACT_VERSION,
   ClaimsWorkspaceError,
@@ -26,7 +27,7 @@ function errorResponse(error: unknown) {
 
 export async function GET() {
   try {
-    return NextResponse.json(await getClaimsDeskReadModel(await getCurrentUser()));
+    return NextResponse.json(await getClaimsDeskReadModel(await getCurrentUser(), await claimsWorkspaceDependencies()));
   } catch (error) {
     return errorResponse(error);
   }
@@ -35,7 +36,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const payload = await request.json().catch(() => null);
   try {
-    const result = await createInsuranceClaim(await getCurrentUser(), payload ?? {});
+    const result = await createInsuranceClaim(await getCurrentUser(), payload ?? {}, await claimsWorkspaceDependencies());
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     return errorResponse(error);
