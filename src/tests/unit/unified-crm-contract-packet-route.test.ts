@@ -41,6 +41,17 @@ describe("Unified CRM contract packet route", () => {
     expect(packet.documents).toHaveLength(4);
     expect(packet.documents[0].html).toContain("Alex Buyer");
     expect(packet.documents[0].html).toContain("Black");
+    expect(packet.documents[0]).toMatchObject({
+      contentType: "application/pdf",
+      downloadFileName: expect.stringMatching(/^sales-agreement-.*\.pdf$/),
+      fieldValues: expect.objectContaining({
+        customer_name: "Alex Buyer",
+        sale_price: "$12,500.00",
+        vin: "1NXBR32E85Z123456"
+      }),
+      templatePath: "/forms/minnesota-retail-sale/sales-agreement.pdf"
+    });
+    expect(packet.documents[0].contentBase64).toMatch(/^JVBER/);
     const referenceForm = packet.documents.find((document: { formId: string }) => document.formId === "personal-references");
     expect(referenceForm).toMatchObject({
       contentType: "application/pdf",

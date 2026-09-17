@@ -389,6 +389,31 @@ function leaseTemplateFieldValues(input: {
   return common;
 }
 
+function retailSaleTemplateFieldValues(input: {
+  customerName: string;
+  dealNumber: string;
+  dealType: string;
+  feeTotal: string;
+  generatedAt: string;
+  paymentFunding: string;
+  salePrice: string;
+  vehicle: ReturnType<typeof vehicleFacts>;
+}) {
+  const vehicleDescription = `${input.vehicle.year} ${input.vehicle.make} ${input.vehicle.model} ${input.vehicle.trim}`.replace(/\s+/g, " ").trim();
+  return {
+    customer_name: input.customerName,
+    deal_number: input.dealNumber,
+    deal_type: input.dealType,
+    fee_total: input.feeTotal,
+    generated_at: input.generatedAt.slice(0, 10),
+    payment_funding: input.paymentFunding,
+    sale_price: input.salePrice,
+    stock_number: input.vehicle.stockNumber,
+    vehicle: vehicleDescription || "Not captured",
+    vin: input.vehicle.vin
+  };
+}
+
 function escapeHtml(value: string) {
   return value
     .replaceAll("&", "&amp;")
@@ -909,7 +934,8 @@ export async function generateUnifiedCrmContractPacket(
 
   const documents = await Promise.all(selectedForms.map(async (form) => {
     const isPersonalReferencesForm = form.id === "personal-references";
-    const isPdfDocument = isPersonalReferencesForm || (hasPdfTemplate(form) && packetType === "LEASE_TO_OWN");
+    const pdfTemplate = hasPdfTemplate(form);
+    const isPdfDocument = isPersonalReferencesForm || pdfTemplate;
     const leaseFieldValues = hasPdfTemplate(form) && packetType === "LEASE_TO_OWN"
       ? leaseTemplateFieldValues({
           calculator: leaseOutput,
@@ -924,13 +950,20 @@ export async function generateUnifiedCrmContractPacket(
           vehicle
         })
       : {};
+    const retailFieldValues = hasPdfTemplate(form) && packetType === "MINNESOTA_RETAIL_SALE"
+      ? retailSaleTemplateFieldValues({
+          customerName,
+          dealNumber,
+          dealType,
+          feeTotal,
+          generatedAt,
+          paymentFunding,
+          salePrice,
+          vehicle
+        })
+      : {};
     return {
-      ...(hasPdfTemplate(form) && packetType === "LEASE_TO_OWN" ? {
-        contentBase64: await filledPdfBase64(form.templatePath, leaseFieldValues),
-        contentType: "application/pdf" as const,
-        fieldValues: leaseFieldValues,
-        templatePath: form.templatePath
-      } : isPersonalReferencesForm ? {
+      ...(isPersonalReferencesForm ? {
         contentBase64: await personalReferencesPdfBase64({
           customerName,
           dealNumber,
@@ -941,6 +974,16 @@ export async function generateUnifiedCrmContractPacket(
           vehicle
         }),
         contentType: "application/pdf" as const
+      } : hasPdfTemplate(form) && packetType === "LEASE_TO_OWN" ? {
+        contentBase64: await filledPdfBase64(form.templatePath, leaseFieldValues),
+        contentType: "application/pdf" as const,
+        fieldValues: leaseFieldValues,
+        templatePath: form.templatePath
+      } : hasPdfTemplate(form) && packetType === "MINNESOTA_RETAIL_SALE" ? {
+        contentBase64: await filledPdfBase64(form.templatePath, retailFieldValues),
+        contentType: "application/pdf" as const,
+        fieldValues: retailFieldValues,
+        templatePath: form.templatePath
       } : {
         contentType: "text/html" as const
       }),

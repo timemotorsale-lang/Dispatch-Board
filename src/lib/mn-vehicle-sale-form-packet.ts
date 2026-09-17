@@ -6,6 +6,7 @@ export type MinnesotaSaleFormItem = {
   description: string;
   id: string;
   label: string;
+  templatePath?: string;
   trigger: string;
 };
 
@@ -16,6 +17,7 @@ export const MN_SALE_FORM_PACKET: MinnesotaSaleFormItem[] = [
     description: "Purchase terms with dealer, buyer, vehicle, sale price, trade allowance, itemized taxes/fees, date, and signatures.",
     id: "sales-agreement",
     label: "Sales agreement / purchase agreement",
+    templatePath: "/forms/minnesota-retail-sale/sales-agreement.pdf",
     trigger: "Every Minnesota dealer sale"
   },
   {
@@ -24,6 +26,7 @@ export const MN_SALE_FORM_PACKET: MinnesotaSaleFormItem[] = [
     description: "Bold buyer signature notice that the agreement may be binding and deposits may be at risk.",
     id: "binding-contract-disclosure",
     label: "Binding contract disclosure",
+    templatePath: "/forms/minnesota-retail-sale/binding-contract-disclosure.pdf",
     trigger: "Every retail sale contract"
   },
   {
@@ -32,6 +35,7 @@ export const MN_SALE_FORM_PACKET: MinnesotaSaleFormItem[] = [
     description: "Mileage disclosure on the title or separate compliant odometer statement.",
     id: "odometer-disclosure",
     label: "Odometer disclosure",
+    templatePath: "/forms/minnesota-retail-sale/odometer-disclosure.pdf",
     trigger: "Vehicle transfer unless exempt"
   },
   {
@@ -40,6 +44,7 @@ export const MN_SALE_FORM_PACKET: MinnesotaSaleFormItem[] = [
     description: "Application prepared for Minnesota title and registration submission through DVS.",
     id: "title-registration-application",
     label: "Application to title and register",
+    templatePath: "/forms/minnesota-retail-sale/title-registration-application.pdf",
     trigger: "Minnesota retail customer"
   },
   {
@@ -48,6 +53,7 @@ export const MN_SALE_FORM_PACKET: MinnesotaSaleFormItem[] = [
     description: "Itemized taxes and fees collected from customer and paid to the registrar.",
     id: "tax-fee-receipt",
     label: "Taxes and fees receipt",
+    templatePath: "/forms/minnesota-retail-sale/tax-fee-receipt.pdf",
     trigger: "Minnesota retail customer"
   },
   {
@@ -56,6 +62,7 @@ export const MN_SALE_FORM_PACKET: MinnesotaSaleFormItem[] = [
     description: "Assigned title or manufacturer certificate of origin completed for ownership transfer.",
     id: "title-assignment",
     label: "Title assignment / MCO",
+    templatePath: "/forms/minnesota-retail-sale/title-assignment.pdf",
     trigger: "Every titled vehicle sale"
   },
   {
@@ -64,6 +71,7 @@ export const MN_SALE_FORM_PACKET: MinnesotaSaleFormItem[] = [
     description: "Authorization for the dealership to complete title, registration, correction, or related vehicle paperwork on behalf of the customer when needed.",
     id: "power-of-attorney",
     label: "Power of attorney",
+    templatePath: "/forms/minnesota-retail-sale/power-of-attorney.pdf",
     trigger: "Dealer signs or submits vehicle paperwork for customer"
   },
   {
@@ -72,6 +80,7 @@ export const MN_SALE_FORM_PACKET: MinnesotaSaleFormItem[] = [
     description: "Used vehicle buyer disclosure displayed and delivered with warranty/as-is terms.",
     id: "buyers-guide",
     label: "Used vehicle buyer's guide",
+    templatePath: "/forms/minnesota-retail-sale/buyers-guide.pdf",
     trigger: "Used retail vehicle"
   },
   {
@@ -80,6 +89,7 @@ export const MN_SALE_FORM_PACKET: MinnesotaSaleFormItem[] = [
     description: "Retail installment contract with required finance, payment, fee, tax, and charge disclosures.",
     id: "retail-installment-contract",
     label: "Retail installment contract",
+    templatePath: "/forms/minnesota-retail-sale/retail-installment-contract.pdf",
     trigger: "Financed sale / BHPH"
   },
   {
@@ -88,6 +98,7 @@ export const MN_SALE_FORM_PACKET: MinnesotaSaleFormItem[] = [
     description: "Customer-provided personal references for buyers purchasing on credit, including contact details, relationship, contact consent, and verification notes.",
     id: "personal-references",
     label: "Personal references and verification form",
+    templatePath: "/forms/minnesota-retail-sale/personal-references.pdf",
     trigger: "Financed sale, BHPH, lease-to-own, or other vehicle purchase on credit"
   },
   {
@@ -96,6 +107,7 @@ export const MN_SALE_FORM_PACKET: MinnesotaSaleFormItem[] = [
     description: "Separate signed disclosure for service contracts, insurance products, debt cancellation, theft deterrent, surface protection, and GPS starter interrupt.",
     id: "product-gps-disclosure",
     label: "Products and GPS disclosure",
+    templatePath: "/forms/minnesota-retail-sale/product-gps-disclosure.pdf",
     trigger: "Add-on products or GPS installed"
   },
   {
@@ -104,6 +116,7 @@ export const MN_SALE_FORM_PACKET: MinnesotaSaleFormItem[] = [
     description: "Lender approval, stipulations, funding proof, or certified funds evidence attached to the deal.",
     id: "funding-proof",
     label: "Funding proof",
+    templatePath: "/forms/minnesota-retail-sale/funding-proof.pdf",
     trigger: "Outside finance, lender finance, or one-pay"
   },
   {
@@ -112,6 +125,7 @@ export const MN_SALE_FORM_PACKET: MinnesotaSaleFormItem[] = [
     description: "Trade title, payoff quote, lienholder authorization, and allowance evidence.",
     id: "trade-documents",
     label: "Trade-in documents",
+    templatePath: "/forms/minnesota-retail-sale/trade-documents.pdf",
     trigger: "Trade-in present"
   },
   {
@@ -120,6 +134,7 @@ export const MN_SALE_FORM_PACKET: MinnesotaSaleFormItem[] = [
     description: "Delivery confirmation, insurance proof, temporary permit, and plate/registration handling evidence.",
     id: "delivery-documents",
     label: "Delivery and registration support",
+    templatePath: "/forms/minnesota-retail-sale/delivery-documents.pdf",
     trigger: "Vehicle delivery"
   }
 ];

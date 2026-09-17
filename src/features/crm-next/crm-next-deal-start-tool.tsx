@@ -1,6 +1,6 @@
 "use client";
 
-import { type SetStateAction, useMemo, useState } from "react";
+import { type ReactNode, type SetStateAction, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { CRM_NEXT_DEALS_HREF } from "@/features/crm/crm-route-authority";
@@ -532,6 +532,91 @@ function ExecutionSummary({
 
 function formTemplateLabel(formId: string) {
   return ENTERPRISE_FORM_TEMPLATES.find((form) => form.id === formId)?.label ?? formId;
+}
+
+function StorageDestination({ children }: { children: ReactNode }) {
+  return <em className={styles.evidenceStorageDestination}>Stores in {children}</em>;
+}
+
+function CompletionGateList({ missing }: { missing: string[] }) {
+  if (missing.length === 0) {
+    return <small className={styles.completionGateList}>All completion gates are clear.</small>;
+  }
+  return (
+    <small className={styles.completionGateList}>
+      Missing: {missing.join(", ")}
+    </small>
+  );
+}
+
+function CustomerIdentityDetails({
+  includeCreditFields = false,
+  includePhoneEmail = true
+}: {
+  includeCreditFields?: boolean;
+  includePhoneEmail?: boolean;
+}) {
+  return (
+    <>
+      <label><span>Date of birth</span><input placeholder="MM/DD/YYYY" /></label>
+      {includeCreditFields ? <label><span>SSN / ITIN</span><input /></label> : null}
+      <label><span>ID type</span><select><option>Driver license</option><option>State ID</option><option>Passport</option><option>Military ID</option></select></label>
+      <label><span>ID state</span><select><option>MN</option><option>WI</option><option>IA</option><option>ND</option><option>SD</option><option>Other</option></select></label>
+      <label><span>ID number</span><input /></label>
+      <label className={styles.retailWide}><span>Street address</span><input /></label>
+      <label><span>City</span><input /></label>
+      <label><span>State</span><select><option>MN</option><option>WI</option><option>IA</option><option>ND</option><option>SD</option><option>Other</option></select></label>
+      <label><span>Zip</span><input /></label>
+      {includePhoneEmail ? <label><span>Cell phone</span><input /></label> : null}
+      {includePhoneEmail ? <label><span>Email</span><input /></label> : null}
+    </>
+  );
+}
+
+function VehicleIdentityDetails({
+  onVehicleChange,
+  vehicle
+}: {
+  onVehicleChange: (value: string) => void;
+  vehicle: string;
+}) {
+  return (
+    <>
+      <label><span>Vehicle / stock #</span><input value={vehicle} onChange={(event) => onVehicleChange(event.target.value)} placeholder="Stock, VIN, plate, or vehicle" /></label>
+      <label><span>VIN</span><input placeholder="17-character VIN" /></label>
+      <label><span>Stock no.</span><input placeholder="Stock number" /></label>
+      <label><span>Year</span><input /></label>
+      <label><span>Make</span><input /></label>
+      <label><span>Model</span><input /></label>
+      <label><span>Trim</span><input /></label>
+      <label><span>Color</span><input /></label>
+      <label><span>Plate</span><input /></label>
+      <label><span>Mileage</span><input /></label>
+      <label><span>Odometer status</span><select><option>Actual miles</option><option>Not actual</option><option>Exceeds mechanical limits</option><option>Exempt</option></select></label>
+      <label><span>Lot / key location</span><input placeholder="Front line, bay, row, key tag" /></label>
+    </>
+  );
+}
+
+function TradeInDetails() {
+  return (
+    <div className={styles.retailFieldGrid}>
+      <label><span>Trade vehicle search</span><input placeholder="VIN, plate, or customer vehicle" /></label>
+      <label><span>Trade VIN</span><input placeholder="17-character VIN" /></label>
+      <label><span>Year</span><input /></label>
+      <label><span>Make</span><input /></label>
+      <label><span>Model</span><input /></label>
+      <label><span>Trim</span><input /></label>
+      <label><span>Mileage</span><input /></label>
+      <label><span>Title status</span><select><option>Title in hand</option><option>Lien payoff needed</option><option>Duplicate title needed</option><option>Co-owner signature needed</option><option>Manager review</option></select></label>
+      <label><span>Trade allowance</span><input placeholder="$0.00" /></label>
+      <label><span>Trade ACV</span><input placeholder="$0.00" /></label>
+      <label><span>Trade payoff</span><input placeholder="$0.00" /></label>
+      <label><span>Lienholder</span><input /></label>
+      <label><span>Payoff good through</span><input type="date" /></label>
+      <label><span>Equity status</span><select><option>Positive equity</option><option>Negative equity</option><option>Payoff pending</option><option>No trade</option></select></label>
+    </div>
+  );
 }
 
 function EnterpriseDealControlPanel({
@@ -1399,6 +1484,17 @@ function DailyRentalExecutionDesk({
   const returnPhotosReady = returnPhotoCount === RENTAL_RETURN_PHOTO_REQUIREMENTS.length;
   const signedDocumentsReady = signedDocumentCount === RENTAL_SIGNED_DOCUMENT_REQUIREMENTS.length;
   const releaseEvidenceReady = releasePhotosReady && signedDocumentsReady;
+  const rentalCompletionGates = [
+    { label: "Customer selected", ready: customerName !== "Customer not selected" },
+    { label: `${workflowUnitLabel} assigned`, ready: Boolean(vehicleFacts.stockNumber || vehicleFacts.vin || vehicle) },
+    { label: "Driver license captured", ready: Boolean(rentalFacts.licenseNumber) },
+    { label: isLoaner ? "Interested vehicle recorded" : "Payment hold recorded", ready: Boolean(isLoaner ? rentalFacts.interestedVehicle : rentalFacts.cardLast4) },
+    { label: "Protection or insurance recorded", ready: Boolean(rentalFacts.insuranceCarrier || rentalFacts.protectionPlan !== "Customer insurance on file") },
+    { label: "Release photos captured", ready: releasePhotosReady },
+    { label: "Signed documents recorded", ready: signedDocumentsReady },
+    { label: "Amount confirmed", ready: Boolean(amount.trim()) }
+  ];
+  const rentalMissingGates = rentalCompletionGates.filter((gate) => !gate.ready).map((gate) => gate.label);
 
   function updateRentalFact(key: keyof typeof rentalFacts, value: string) {
     const nextFacts = { ...rentalFacts, [key]: value };
@@ -1567,12 +1663,19 @@ function DailyRentalExecutionDesk({
         <div className={styles.retailFieldGrid}>
           <label><span>{isLoaner ? "Primary loaner driver" : "Primary renter"}</span><input readOnly value={customerName} /></label>
           <label><span>Date of birth</span><input value={rentalFacts.dob} onChange={(event) => updateRentalFact("dob", event.target.value)} placeholder="MM/DD/YYYY" /></label>
+          <label><span>SSN / ITIN</span><input placeholder="Only if manager-required" /></label>
           <label><span>License status</span><select value={rentalFacts.licenseStatus} onChange={(event) => updateRentalFact("licenseStatus", event.target.value)}><option>Valid</option><option>Needs review</option><option>Expired</option><option>Suspended / not eligible</option></select></label>
           <label><span>License number</span><input value={rentalFacts.licenseNumber} onChange={(event) => updateRentalFact("licenseNumber", event.target.value)} /></label>
           <label><span>License state</span><select value={rentalFacts.licenseState} onChange={(event) => updateRentalFact("licenseState", event.target.value)}><option>MN</option><option>WI</option><option>IA</option><option>ND</option><option>SD</option><option>Other</option></select></label>
           <label><span>Secondary ID</span><select value={rentalFacts.secondaryId} onChange={(event) => updateRentalFact("secondaryId", event.target.value)}><option>Not needed</option><option>Passport</option><option>Utility / bank statement</option><option>Military ID</option><option>Travel itinerary</option><option>Manager review</option></select></label>
           <label><span>Additional driver</span><select value={rentalFacts.additionalDriverStatus} onChange={(event) => updateRentalFact("additionalDriverStatus", event.target.value)}><option>None</option><option>Spouse / domestic partner</option><option>Paid additional driver</option><option>Business authorized driver</option><option>Needs approval</option></select></label>
           <label><span>Additional driver name</span><input value={rentalFacts.additionalDriverName} onChange={(event) => updateRentalFact("additionalDriverName", event.target.value)} /></label>
+          <label className={styles.retailWide}><span>Street address</span><input /></label>
+          <label><span>City</span><input /></label>
+          <label><span>State</span><select><option>MN</option><option>WI</option><option>IA</option><option>ND</option><option>SD</option><option>Other</option></select></label>
+          <label><span>Zip</span><input /></label>
+          <label><span>Cell phone</span><input /></label>
+          <label><span>Email</span><input /></label>
         </div>
       </section>
 
@@ -1670,6 +1773,7 @@ function DailyRentalExecutionDesk({
                   <span>{item.label}</span>
                   <strong>{releasePhotos[item.id] ?? "Photo required"}</strong>
                   <small>{item.helper}</small>
+                  <StorageDestination>vehicle file and {workflowNoun} deal jacket</StorageDestination>
                   <input accept="image/*" capture="environment" onChange={(event) => captureEvidence(setReleasePhotos, item.id, event.currentTarget.files?.[0])} type="file" />
                 </label>
               ))}
@@ -1684,6 +1788,7 @@ function DailyRentalExecutionDesk({
                   <span>{item.label}</span>
                   <strong>{signedDocuments[item.id] ?? "Document required"}</strong>
                   <small>{item.helper}</small>
+                  <StorageDestination>customer library and {workflowNoun} deal jacket</StorageDestination>
                   <input accept="application/pdf,image/*" capture={item.id === "signed-agreement" ? undefined : "environment"} onChange={(event) => captureEvidence(setSignedDocuments, item.id, event.currentTarget.files?.[0])} type="file" />
                 </label>
               ))}
@@ -1698,6 +1803,7 @@ function DailyRentalExecutionDesk({
                   <span>{item.label}</span>
                   <strong>{returnPhotos[item.id] ?? "Photo required"}</strong>
                   <small>{item.helper}</small>
+                  <StorageDestination>vehicle file and {workflowNoun} receiving record</StorageDestination>
                   <input accept="image/*" capture="environment" onChange={(event) => captureEvidence(setReturnPhotos, item.id, event.currentTarget.files?.[0])} type="file" />
                 </label>
               ))}
@@ -1737,6 +1843,7 @@ function DailyRentalExecutionDesk({
           <div>
             <span>{workflowTitle} readiness</span>
             <strong>{rentalReadyFacts >= 5 && releaseEvidenceReady ? `Ready to complete ${workflowNoun} checkout` : releaseEvidenceReady ? `${rentalReadyFacts}/5 counter facts ready` : "Release photos and signed documents required"}</strong>
+            <CompletionGateList missing={rentalMissingGates} />
           </div>
           <button type="button" onClick={onSaveDraft}>Save {workflowNoun} draft</button>
           <button disabled={rentalReadyFacts < 5 || !releaseEvidenceReady || !amount.trim() || statusKind === "saving"} onClick={onComplete} type="button">
@@ -2099,6 +2206,7 @@ function LeaseToOwnExecutionDesk({
         <div className={styles.retailFieldGrid}>
           <label><span>Lessee</span><input readOnly value={customerName} /></label>
           <label><span>Co-lessee</span><input value={leaseFacts.coLesseeName} onChange={(event) => updateLeaseFact("coLesseeName", event.target.value)} /></label>
+          <CustomerIdentityDetails includeCreditFields includePhoneEmail={false} />
           <label><span>Cell phone</span><input value={leaseFacts.lesseePhone} onChange={(event) => updateLeaseFact("lesseePhone", event.target.value)} /></label>
           <label><span>Email</span><input value={leaseFacts.lesseeEmail} onChange={(event) => updateLeaseFact("lesseeEmail", event.target.value)} /></label>
           <label><span>Insurance company</span><input value={leaseFacts.insuranceCompany} onChange={(event) => updateLeaseFact("insuranceCompany", event.target.value)} /></label>
@@ -2343,6 +2451,16 @@ function BhphExecutionDesk({
   const proofReady = Boolean(proof.income.trim() && proof.residence.trim() && proof.references.trim());
   const termsReady = Boolean(terms.salePrice.trim() && terms.downPayment.trim() && terms.paymentAmount.trim() && terms.firstPaymentDate.trim());
   const bhphReady = Boolean(customerName !== "Customer not selected" && vehicle.trim() && termsReady && proofReady && paperworkReady && evidenceReady && handoffReady && approvalTriggers === 0);
+  const bhphMissingGates = [
+    { label: "Customer selected", ready: customerName !== "Customer not selected" },
+    { label: "Vehicle assigned", ready: Boolean(vehicle.trim()) },
+    { label: "Terms complete", ready: termsReady },
+    { label: "Proof and references complete", ready: proofReady },
+    { label: "Signed paperwork stored", ready: paperworkReady },
+    { label: "Evidence stored", ready: evidenceReady },
+    { label: "Manager reviews clear", ready: approvalTriggers === 0 },
+    { label: "Servicing handoff complete", ready: handoffReady }
+  ].filter((gate) => !gate.ready).map((gate) => gate.label);
 
   function updateTerms(key: keyof typeof terms, value: string) {
     const next = { ...terms, [key]: value };
@@ -2372,6 +2490,7 @@ function BhphExecutionDesk({
         <div className={styles.retailFieldGrid}>
           <label><span>Buyer</span><input readOnly value={customerName} /></label>
           <label><span>Co-buyer</span><input value={proof.coBuyer} onChange={(event) => setProof((current) => ({ ...current, coBuyer: event.target.value }))} /></label>
+          <CustomerIdentityDetails includeCreditFields />
           <label><span>Employer / income source</span><input value={proof.employer} onChange={(event) => setProof((current) => ({ ...current, employer: event.target.value }))} /></label>
           <label><span>Income proof</span><input value={proof.income} onChange={(event) => setProof((current) => ({ ...current, income: event.target.value }))} placeholder="Paystub, bank statement, award letter" /></label>
           <label><span>Residence proof</span><input value={proof.residence} onChange={(event) => setProof((current) => ({ ...current, residence: event.target.value }))} placeholder="Utility, lease, mail, or verified reference" /></label>
@@ -2386,7 +2505,7 @@ function BhphExecutionDesk({
           <strong>Bind the BHPH paperwork to the exact unit</strong>
         </header>
         <div className={styles.retailFieldGrid}>
-          <label><span>Vehicle / stock #</span><input value={vehicle} onChange={(event) => onVehicleChange(event.target.value)} placeholder="Stock, VIN, or vehicle" /></label>
+          <VehicleIdentityDetails vehicle={vehicle} onVehicleChange={onVehicleChange} />
           <label><span>Title status</span><select onChange={(event) => setApproval((current) => ({ ...current, titleException: event.target.value !== "Ready" }))}><option>Ready</option><option>Needs manager review</option><option>Title work pending</option></select></label>
           <label><span>Warranty / as-is posture</span><select><option>As-is disclosure required</option><option>Limited warranty included</option><option>Service contract offered</option><option>Manager review</option></select></label>
           <label><span>Insurance status</span><select onChange={(event) => setApproval((current) => ({ ...current, insuranceException: event.target.value !== "Verified" }))}><option>Verified</option><option>Binder pending</option><option>Needs manager review</option></select></label>
@@ -2438,6 +2557,7 @@ function BhphExecutionDesk({
                   <span>{item.label}</span>
                   <strong>{paperwork[item.id] ?? "Document required"}</strong>
                   <small>{item.helper}</small>
+                  <StorageDestination>BHPH deal jacket and customer library</StorageDestination>
                   <input accept="application/pdf,image/*" onChange={(event) => captureEvidence(setPaperwork, item.id, event.currentTarget.files?.[0])} type="file" />
                 </label>
               ))}
@@ -2452,6 +2572,7 @@ function BhphExecutionDesk({
                   <span>{item.label}</span>
                   <strong>{evidence[item.id] ?? "Evidence required"}</strong>
                   <small>{item.helper}</small>
+                  <StorageDestination>customer library, vehicle file, and BHPH deal jacket</StorageDestination>
                   <input accept="application/pdf,image/*" capture="environment" onChange={(event) => captureEvidence(setEvidence, item.id, event.currentTarget.files?.[0])} type="file" />
                 </label>
               ))}
@@ -2484,9 +2605,9 @@ function BhphExecutionDesk({
           </div>
         </div>
         <div className={styles.retailActionRow}>
-          <button type="button" onClick={() => setApproval((current) => ({ ...current, downPaymentException: !current.downPaymentException }))}>Toggle down payment review</button>
-          <button type="button" onClick={() => setApproval((current) => ({ ...current, termsException: !current.termsException }))}>Toggle terms review</button>
-          <button type="button" onClick={() => setApproval((current) => ({ ...current, stipulationOpen: !current.stipulationOpen }))}>Toggle stipulation review</button>
+          <button aria-pressed={approval.downPaymentException} type="button" onClick={() => setApproval((current) => ({ ...current, downPaymentException: !current.downPaymentException }))}>{approval.downPaymentException ? "Down payment review active" : "Mark down payment review"}</button>
+          <button aria-pressed={approval.termsException} type="button" onClick={() => setApproval((current) => ({ ...current, termsException: !current.termsException }))}>{approval.termsException ? "Terms review active" : "Mark terms review"}</button>
+          <button aria-pressed={approval.stipulationOpen} type="button" onClick={() => setApproval((current) => ({ ...current, stipulationOpen: !current.stipulationOpen }))}>{approval.stipulationOpen ? "Stipulation review active" : "Mark stipulation review"}</button>
         </div>
       </section>
 
@@ -2509,6 +2630,7 @@ function BhphExecutionDesk({
           <div>
             <span>BHPH readiness</span>
             <strong>{bhphReady ? "Ready to complete BHPH paperwork" : "Complete terms, proof, paperwork, approval, and handoff gates"}</strong>
+            <CompletionGateList missing={bhphMissingGates} />
           </div>
           <button type="button" onClick={onSaveDraft}>Save BHPH draft</button>
           <button disabled={!bhphReady || statusKind === "saving"} onClick={onComplete} type="button">{statusKind === "saving" ? "Completing..." : "Complete BHPH paperwork"}</button>
@@ -2589,6 +2711,16 @@ function DealerFinanceExecutionDesk({
   const lenderReady = Boolean(lender.lenderName.trim() && lender.approvalNumber.trim() && lender.decision === "Approved");
   const termsReady = Boolean(terms.salePrice.trim() && terms.downPayment.trim() && terms.firstPaymentDate.trim());
   const financeReady = Boolean(vehicle.trim() && applicantReady && lenderReady && termsReady && packetReady && evidenceReady && handoffReady && approvalTriggers === 0);
+  const financeMissingGates = [
+    { label: "Vehicle assigned", ready: Boolean(vehicle.trim()) },
+    { label: "Applicant facts complete", ready: applicantReady },
+    { label: "Approved lender decision recorded", ready: lenderReady },
+    { label: "Deal structure complete", ready: termsReady },
+    { label: "Finance packet stored", ready: packetReady },
+    { label: "Funding evidence stored", ready: evidenceReady },
+    { label: "Manager reviews clear", ready: approvalTriggers === 0 },
+    { label: "Funding handoff complete", ready: handoffReady }
+  ].filter((gate) => !gate.ready).map((gate) => gate.label);
 
   function updateTerms(key: keyof typeof terms, value: string) {
     const next = { ...terms, [key]: value };
@@ -2620,6 +2752,7 @@ function DealerFinanceExecutionDesk({
         <div className={styles.retailFieldGrid}>
           <label><span>Buyer</span><input readOnly value={customerName} /></label>
           <label><span>Co-buyer</span><input value={applicant.coBuyer} onChange={(event) => setApplicant((current) => ({ ...current, coBuyer: event.target.value }))} /></label>
+          <CustomerIdentityDetails includeCreditFields />
           <label><span>Income / employment</span><input value={applicant.income} onChange={(event) => setApplicant((current) => ({ ...current, income: event.target.value }))} placeholder="Employer, income source, or proof reference" /></label>
           <label><span>Residence</span><input value={applicant.residence} onChange={(event) => setApplicant((current) => ({ ...current, residence: event.target.value }))} placeholder="Address or residence proof reference" /></label>
           <label><span>Credit tier</span><select value={applicant.creditTier} onChange={(event) => setApplicant((current) => ({ ...current, creditTier: event.target.value }))}><option>Application pending</option><option>Prime</option><option>Near prime</option><option>Subprime</option><option>Manual review</option></select></label>
@@ -2633,11 +2766,19 @@ function DealerFinanceExecutionDesk({
           <strong>Bind lender approval to the exact unit and lienholder path</strong>
         </header>
         <div className={styles.retailFieldGrid}>
-          <label><span>Vehicle / stock #</span><input value={vehicle} onChange={(event) => onVehicleChange(event.target.value)} placeholder="Stock, VIN, or vehicle" /></label>
+          <VehicleIdentityDetails vehicle={vehicle} onVehicleChange={onVehicleChange} />
           <label><span>Title status</span><select onChange={(event) => setApproval((current) => ({ ...current, titleException: event.target.value !== "Ready" }))}><option>Ready</option><option>Title work pending</option><option>Lien release pending</option><option>Manager exception</option></select></label>
           <label><span>Insurance status</span><select onChange={(event) => setApproval((current) => ({ ...current, insuranceException: event.target.value !== "Verified" }))}><option>Verified</option><option>Binder pending</option><option>Needs lienholder correction</option><option>Manager exception</option></select></label>
           <label><span>Delivery status</span><select onChange={(event) => setApproval((current) => ({ ...current, deliveryBeforeFunding: event.target.value !== "After funding" }))}><option>After funding</option><option>Before funding request</option><option>Spot delivery review</option></select></label>
         </div>
+      </section>
+
+      <section className={styles.retailSection} id="finance-trade">
+        <header>
+          <span>Trade-in info</span>
+          <strong>Capture trade identity, payoff, title status, and equity before funding</strong>
+        </header>
+        <TradeInDetails />
       </section>
 
       <section className={styles.retailSection} id="finance-structure">
@@ -2721,6 +2862,7 @@ function DealerFinanceExecutionDesk({
                   <span>{item.label}</span>
                   <strong>{packet[item.id] ?? "Document required"}</strong>
                   <small>{item.helper}</small>
+                  <StorageDestination>finance packet, deal jacket, and customer library</StorageDestination>
                   <input accept="application/pdf,image/*" onChange={(event) => captureEvidence(setPacket, item.id, event.currentTarget.files?.[0])} type="file" />
                 </label>
               ))}
@@ -2735,6 +2877,7 @@ function DealerFinanceExecutionDesk({
                   <span>{item.label}</span>
                   <strong>{evidence[item.id] ?? "Evidence required"}</strong>
                   <small>{item.helper}</small>
+                  <StorageDestination>funding packet, vehicle file, and deal jacket</StorageDestination>
                   <input accept="application/pdf,image/*" capture="environment" onChange={(event) => captureEvidence(setEvidence, item.id, event.currentTarget.files?.[0])} type="file" />
                 </label>
               ))}
@@ -2777,6 +2920,7 @@ function DealerFinanceExecutionDesk({
           <div>
             <span>Dealer finance readiness</span>
             <strong>{financeReady ? "Ready to complete dealer finance packet" : "Complete applicant, lender, packet, evidence, approval, and funding gates"}</strong>
+            <CompletionGateList missing={financeMissingGates} />
           </div>
           <button type="button" onClick={onSaveDraft}>Save finance draft</button>
           <button disabled={!financeReady || statusKind === "saving"} onClick={onComplete} type="button">{statusKind === "saving" ? "Completing..." : "Complete dealer finance packet"}</button>
@@ -2828,6 +2972,14 @@ function TestDriveExecutionDesk({
   const documentsReady = documentCount === TEST_DRIVE_DOCUMENT_REQUIREMENTS.length;
   const driverReady = Boolean(facts.driverLicense.trim() && facts.insuranceCarrier.trim());
   const releaseReady = Boolean(customerName !== "Customer not selected" && vehicle.trim() && driverReady && releasePhotosReady && documentsReady);
+  const testDriveMissingGates = [
+    { label: "Customer selected", ready: customerName !== "Customer not selected" },
+    { label: "Vehicle assigned", ready: Boolean(vehicle.trim()) },
+    { label: "Driver license and insurance captured", ready: driverReady },
+    { label: "Signed form and proof stored", ready: documentsReady },
+    { label: "Release photos captured", ready: releasePhotosReady },
+    { label: "Expected return time set", ready: Boolean(facts.returnTime) }
+  ].filter((gate) => !gate.ready).map((gate) => gate.label);
 
   function update(key: keyof typeof facts, value: string) {
     setFacts((current) => ({ ...current, [key]: value }));
@@ -2854,6 +3006,7 @@ function TestDriveExecutionDesk({
           <label><span>Customer</span><input readOnly value={customerName} /></label>
           <label><span>Driver license</span><input value={facts.driverLicense} onChange={(event) => update("driverLicense", event.target.value)} placeholder="License number or verified reference" /></label>
           <label><span>Driver phone</span><input value={facts.driverPhone} onChange={(event) => update("driverPhone", event.target.value)} /></label>
+          <CustomerIdentityDetails />
           <label><span>Insurance carrier</span><input value={facts.insuranceCarrier} onChange={(event) => update("insuranceCarrier", event.target.value)} /></label>
           <label><span>Insurance policy</span><input value={facts.insurancePolicy} onChange={(event) => update("insurancePolicy", event.target.value)} /></label>
           <label><span>Salesperson</span><input value={facts.salesperson} onChange={(event) => update("salesperson", event.target.value)} /></label>
@@ -2866,7 +3019,7 @@ function TestDriveExecutionDesk({
           <strong>Assign the unit and set the test-drive window</strong>
         </header>
         <div className={styles.retailFieldGrid}>
-          <label><span>Vehicle / stock #</span><input value={vehicle} onChange={(event) => onVehicleChange(event.target.value)} placeholder="Stock, VIN, or vehicle" /></label>
+          <VehicleIdentityDetails vehicle={vehicle} onVehicleChange={onVehicleChange} />
           <label><span>Date</span><input type="date" value={facts.testDriveDate} onChange={(event) => update("testDriveDate", event.target.value)} /></label>
           <label><span>Start time</span><input type="time" value={facts.startTime} onChange={(event) => update("startTime", event.target.value)} /></label>
           <label><span>Expected return</span><input type="time" value={facts.returnTime} onChange={(event) => update("returnTime", event.target.value)} /></label>
@@ -2895,6 +3048,7 @@ function TestDriveExecutionDesk({
                   <span>{item.label}</span>
                   <strong>{documents[item.id] ?? "Document required"}</strong>
                   <small>{item.helper}</small>
+                  <StorageDestination>customer library, vehicle file, and test-drive record</StorageDestination>
                   <input accept="application/pdf,image/*" capture={item.id === "td-signed-release" ? undefined : "environment"} onChange={(event) => captureEvidence(setDocuments, item.id, event.currentTarget.files?.[0])} type="file" />
                 </label>
               ))}
@@ -2909,6 +3063,7 @@ function TestDriveExecutionDesk({
                   <span>{item.label}</span>
                   <strong>{releasePhotos[item.id] ?? "Photo required"}</strong>
                   <small>{item.helper}</small>
+                  <StorageDestination>vehicle file and test-drive record</StorageDestination>
                   <input accept="image/*" capture="environment" onChange={(event) => captureEvidence(setReleasePhotos, item.id, event.currentTarget.files?.[0])} type="file" />
                 </label>
               ))}
@@ -2923,6 +3078,7 @@ function TestDriveExecutionDesk({
                   <span>{item.label}</span>
                   <strong>{returnPhotos[item.id] ?? "Photo required"}</strong>
                   <small>{item.helper}</small>
+                  <StorageDestination>vehicle file and receiving record</StorageDestination>
                   <input accept="image/*" capture="environment" onChange={(event) => captureEvidence(setReturnPhotos, item.id, event.currentTarget.files?.[0])} type="file" />
                 </label>
               ))}
@@ -2962,6 +3118,7 @@ function TestDriveExecutionDesk({
           <div>
             <span>Test-drive readiness</span>
             <strong>{releaseReady ? "Ready to start test drive" : "Complete driver, signed form, and release photos"}</strong>
+            <CompletionGateList missing={testDriveMissingGates} />
           </div>
           <button type="button" onClick={onSaveDraft}>Save test-drive draft</button>
           <button disabled={!releaseReady || statusKind === "saving"} onClick={onComplete} type="button">{statusKind === "saving" ? "Completing..." : "Start test drive"}</button>
@@ -3030,6 +3187,15 @@ function WholesaleExecutionDesk({
   const buyerReady = Boolean((buyer.buyerName || customerName).trim() && buyer.contactName.trim() && buyer.dealerLicense.trim());
   const termsReady = Boolean(terms.salePrice.trim() && terms.balanceDue.trim() && terms.releaseDate.trim());
   const wholesaleReady = Boolean(buyerReady && vehicle.trim() && termsReady && packetReady && evidenceReady && handoffReady && approvalTriggers === 0);
+  const wholesaleMissingGates = [
+    { label: "Buyer authority verified", ready: buyerReady },
+    { label: "Vehicle assigned", ready: Boolean(vehicle.trim()) },
+    { label: "Wholesale terms complete", ready: termsReady },
+    { label: "Wholesale packet stored", ready: packetReady },
+    { label: "Release evidence stored", ready: evidenceReady },
+    { label: "Manager reviews clear", ready: approvalTriggers === 0 },
+    { label: "Release handoff complete", ready: handoffReady }
+  ].filter((gate) => !gate.ready).map((gate) => gate.label);
 
   function updateTerms(key: keyof typeof terms, value: string) {
     const next = { ...terms, [key]: value };
@@ -3079,7 +3245,7 @@ function WholesaleExecutionDesk({
           <strong>Bind wholesale paperwork to the exact unit and release status</strong>
         </header>
         <div className={styles.retailFieldGrid}>
-          <label><span>Vehicle / stock #</span><input value={vehicle} onChange={(event) => onVehicleChange(event.target.value)} placeholder="Stock, VIN, or vehicle" /></label>
+          <VehicleIdentityDetails vehicle={vehicle} onVehicleChange={onVehicleChange} />
           <label><span>Wholesale channel</span><select value={terms.wholesaleChannel} onChange={(event) => updateTerms("wholesaleChannel", event.target.value)}><option>Dealer-to-dealer</option><option>Auction / lane sale</option><option>Outside wholesaler</option><option>Export / broker</option><option>Manager-approved disposition</option></select></label>
           <label><span>Title status</span><select value={terms.titleStatus} onChange={(event) => updateTerms("titleStatus", event.target.value)}><option>Ready</option><option>Title pending</option><option>Lien release pending</option><option>Duplicate title needed</option><option>Manager exception</option></select></label>
           <label><span>Release date</span><input type="date" value={terms.releaseDate} onChange={(event) => updateTerms("releaseDate", event.target.value)} /></label>
@@ -3126,6 +3292,7 @@ function WholesaleExecutionDesk({
                   <span>{item.label}</span>
                   <strong>{packet[item.id] ?? "Document required"}</strong>
                   <small>{item.helper}</small>
+                  <StorageDestination>wholesale packet, deal jacket, and customer library</StorageDestination>
                   <input accept="application/pdf,image/*" onChange={(event) => captureEvidence(setPacket, item.id, event.currentTarget.files?.[0])} type="file" />
                 </label>
               ))}
@@ -3140,6 +3307,7 @@ function WholesaleExecutionDesk({
                   <span>{item.label}</span>
                   <strong>{evidence[item.id] ?? "Evidence required"}</strong>
                   <small>{item.helper}</small>
+                  <StorageDestination>vehicle file, release record, and wholesale deal jacket</StorageDestination>
                   <input accept="application/pdf,image/*" capture="environment" onChange={(event) => captureEvidence(setEvidence, item.id, event.currentTarget.files?.[0])} type="file" />
                 </label>
               ))}
@@ -3175,8 +3343,8 @@ function WholesaleExecutionDesk({
           </div>
         </div>
         <div className={styles.retailActionRow}>
-          <button type="button" onClick={() => setApproval((current) => ({ ...current, belowReserve: !current.belowReserve }))}>Toggle below reserve</button>
-          <button type="button" onClick={() => setApproval((current) => ({ ...current, transportException: !current.transportException }))}>Toggle transport review</button>
+          <button aria-pressed={approval.belowReserve} type="button" onClick={() => setApproval((current) => ({ ...current, belowReserve: !current.belowReserve }))}>{approval.belowReserve ? "Below-reserve review active" : "Mark below-reserve review"}</button>
+          <button aria-pressed={approval.transportException} type="button" onClick={() => setApproval((current) => ({ ...current, transportException: !current.transportException }))}>{approval.transportException ? "Transport review active" : "Mark transport review"}</button>
         </div>
       </section>
 
@@ -3199,6 +3367,7 @@ function WholesaleExecutionDesk({
           <div>
             <span>Wholesale readiness</span>
             <strong>{wholesaleReady ? "Ready to complete wholesale packet" : "Complete buyer, terms, packet, evidence, approval, and release gates"}</strong>
+            <CompletionGateList missing={wholesaleMissingGates} />
           </div>
           <button type="button" onClick={onSaveDraft}>Save wholesale draft</button>
           <button disabled={!wholesaleReady || statusKind === "saving"} onClick={onComplete} type="button">{statusKind === "saving" ? "Completing..." : "Complete wholesale packet"}</button>
@@ -3274,6 +3443,16 @@ function OutsideFinanceExecutionDesk({
     : Boolean(funding.lenderName.trim() && funding.approvalNumber.trim());
   const termsReady = Boolean(terms.salePrice.trim() && terms.expectedFundingDate.trim());
   const outsideFinanceReady = Boolean(customerName !== "Customer not selected" && vehicle.trim() && fundingReady && termsReady && packetReady && evidenceReady && handoffReady && approvalTriggers === 0);
+  const outsideFinanceMissingGates = [
+    { label: "Customer selected", ready: customerName !== "Customer not selected" },
+    { label: "Vehicle assigned", ready: Boolean(vehicle.trim()) },
+    { label: "Funding path verified", ready: fundingReady },
+    { label: "Funding terms complete", ready: termsReady },
+    { label: "Outside finance packet stored", ready: packetReady },
+    { label: "Funding evidence stored", ready: evidenceReady },
+    { label: "Manager reviews clear", ready: approvalTriggers === 0 },
+    { label: "Funding handoff complete", ready: handoffReady }
+  ].filter((gate) => !gate.ready).map((gate) => gate.label);
 
   function updateTerms(key: keyof typeof terms, value: string) {
     const next = { ...terms, [key]: value };
@@ -3305,6 +3484,7 @@ function OutsideFinanceExecutionDesk({
         </header>
         <div className={styles.retailFieldGrid}>
           <label><span>Customer</span><input readOnly value={customerName} /></label>
+          <CustomerIdentityDetails includeCreditFields />
           <label><span>Funding path</span><select value={funding.fundingPath} onChange={(event) => setFunding((current) => ({ ...current, fundingPath: event.target.value }))}><option>Outside finance</option><option>One pay</option><option>Credit union</option><option>Bank draft</option><option>Cashier's check</option></select></label>
           <label><span>Lender / bank</span><input value={funding.lenderName} onChange={(event) => setFunding((current) => ({ ...current, lenderName: event.target.value }))} /></label>
           <label><span>Approval / draft #</span><input value={funding.approvalNumber} onChange={(event) => setFunding((current) => ({ ...current, approvalNumber: event.target.value }))} /></label>
@@ -3320,12 +3500,20 @@ function OutsideFinanceExecutionDesk({
           <strong>Bind funding proof to the exact vehicle and lienholder path</strong>
         </header>
         <div className={styles.retailFieldGrid}>
-          <label><span>Vehicle / stock #</span><input value={vehicle} onChange={(event) => onVehicleChange(event.target.value)} placeholder="Stock, VIN, or vehicle" /></label>
+          <VehicleIdentityDetails vehicle={vehicle} onVehicleChange={onVehicleChange} />
           <label><span>Title status</span><select onChange={(event) => setApproval((current) => ({ ...current, titleException: event.target.value !== "Ready" }))}><option>Ready</option><option>Title work pending</option><option>Lien release pending</option><option>Manager exception</option></select></label>
           <label><span>Insurance status</span><select onChange={(event) => setApproval((current) => ({ ...current, insuranceException: event.target.value !== "Verified" }))}><option>Verified</option><option>Binder pending</option><option>Needs lienholder correction</option><option>Manager exception</option></select></label>
           <label><span>Lienholder status</span><select onChange={(event) => setApproval((current) => ({ ...current, lienholderException: event.target.value !== "Recorded" }))}><option>Recorded</option><option>Needs address</option><option>Needs lender confirmation</option><option>Not applicable - one pay</option></select></label>
           <label><span>Title authority</span><select value={titleAuthorityNeeded ? "Needed" : "Not needed"} onChange={(event) => setTitleAuthorityNeeded(event.target.value === "Needed")}><option>Not needed</option><option>Needed</option></select></label>
         </div>
+      </section>
+
+      <section className={styles.retailSection} id="outside-trade">
+        <header>
+          <span>Trade-in info</span>
+          <strong>Capture payoff and title context before outside funding release</strong>
+        </header>
+        <TradeInDetails />
       </section>
 
       <section className={styles.retailSection} id="outside-terms">
@@ -3370,6 +3558,7 @@ function OutsideFinanceExecutionDesk({
                   <span>{item.label}</span>
                   <strong>{packet[item.id] ?? "Document required"}</strong>
                   <small>{item.helper}</small>
+                  <StorageDestination>outside finance packet, deal jacket, and customer library</StorageDestination>
                   <input accept="application/pdf,image/*" onChange={(event) => captureEvidence(setPacket, item.id, event.currentTarget.files?.[0])} type="file" />
                 </label>
               ))}
@@ -3384,6 +3573,7 @@ function OutsideFinanceExecutionDesk({
                   <span>{item.label}</span>
                   <strong>{evidence[item.id] ?? "Evidence required"}</strong>
                   <small>{item.helper}</small>
+                  <StorageDestination>funding packet, vehicle file, and deal jacket</StorageDestination>
                   <input accept="application/pdf,image/*" capture="environment" onChange={(event) => captureEvidence(setEvidence, item.id, event.currentTarget.files?.[0])} type="file" />
                 </label>
               ))}
@@ -3420,8 +3610,8 @@ function OutsideFinanceExecutionDesk({
           </div>
         </div>
         <div className={styles.retailActionRow}>
-          <button type="button" onClick={() => setApproval((current) => ({ ...current, deliveryBeforeFunding: !current.deliveryBeforeFunding }))}>Toggle delivery before funding</button>
-          <button type="button" onClick={() => setApproval((current) => ({ ...current, stipulationOpen: !current.stipulationOpen }))}>Toggle stipulation review</button>
+          <button aria-pressed={approval.deliveryBeforeFunding} type="button" onClick={() => setApproval((current) => ({ ...current, deliveryBeforeFunding: !current.deliveryBeforeFunding }))}>{approval.deliveryBeforeFunding ? "Delivery review active" : "Mark delivery-before-funding review"}</button>
+          <button aria-pressed={approval.stipulationOpen} type="button" onClick={() => setApproval((current) => ({ ...current, stipulationOpen: !current.stipulationOpen }))}>{approval.stipulationOpen ? "Stipulation review active" : "Mark stipulation review"}</button>
         </div>
       </section>
 
@@ -3444,6 +3634,7 @@ function OutsideFinanceExecutionDesk({
           <div>
             <span>Outside finance readiness</span>
             <strong>{outsideFinanceReady ? "Ready to complete outside finance packet" : "Complete funding, packet, evidence, approval, and handoff gates"}</strong>
+            <CompletionGateList missing={outsideFinanceMissingGates} />
           </div>
           <button type="button" onClick={onSaveDraft}>Save outside finance draft</button>
           <button disabled={!outsideFinanceReady || statusKind === "saving"} onClick={onComplete} type="button">{statusKind === "saving" ? "Completing..." : "Complete outside finance packet"}</button>
@@ -3581,6 +3772,10 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
             <span className={styles.eyebrow}>Execution desk</span>
             <h2>{workflow.label}</h2>
             <p>{workflow.nextWorkspace} · {DEAL_PACKET_RULES[workflow.id].packetName}</p>
+            <div className={styles.dealExecutionMeta}>
+              <span>{ready ? "Open facts ready" : `${completedCount}/3 open facts ready`}</span>
+              <span>Complete gates inside desk</span>
+            </div>
           </div>
           <div className={styles.executionStatusChips} aria-label="Open execution checks">
             {(financeWorkflow ? ["Applicant", "Lender", "Stips", "Funding"] : outsideFinanceWorkflow ? ["Funding", "Stips", "Title", "Handoff"] : wholesaleWorkflow ? ["Buyer", "Funding", "Title", "Release"] : bhphWorkflow ? ["Proof", "Terms", "Paperwork", "Handoff"] : testDriveWorkflow ? ["License", "Signed form", "Vehicle", "Return plan"] : rentalLikeWorkflow ? ["License", workflow.id === "vehicle-loaner" ? "Courtesy waiver" : "Payment hold", workflow.id === "vehicle-loaner" ? "Loaner unit" : "Vehicle", "Return plan"] : ["Identity", "Vehicle", "Funding", "Delivery"]).map((item) => <span key={item}>{item}</span>)}
@@ -3603,6 +3798,7 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
             <>
               <a href="#finance-applicant">Applicant</a>
               <a href="#finance-vehicle">Vehicle</a>
+              <a href="#finance-trade">Trade-In</a>
               <a href="#finance-structure">Structure</a>
               <a href="#finance-lender">Lender</a>
               <a href="#finance-packet">Packet</a>
@@ -3637,6 +3833,7 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
             <>
               <a href="#outside-funding">Funding</a>
               <a href="#outside-vehicle">Vehicle</a>
+              <a href="#outside-trade">Trade-In</a>
               <a href="#outside-terms">Terms</a>
               <a href="#outside-packet">Packet</a>
               <a href="#outside-approval">Approval</a>
