@@ -178,6 +178,7 @@ const ROUTE_WORKSPACES: Array<{ prefix: string; workspaces: WorkspaceKey[] }> = 
   { prefix: "/vehicles/shop-metrics", workspaces: ["VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "MANAGEMENT"] },
   { prefix: "/vehicles/shop", workspaces: ["VEHICLE_OPERATIONS_LEAD", "SERVICE", "INVENTORY", "MANAGEMENT"] },
   { prefix: "/vehicles/repair-jobs", workspaces: ["TECHNICIAN", "SERVICE", "ADVISOR", "QUALITY", "PARTS", "MANAGEMENT"] },
+  { prefix: "/vehicles/claims-desk", workspaces: ["VEHICLE_OPERATIONS_LEAD", "SERVICE", "ADVISOR", "OPERATIONS_COORDINATOR", "MANAGEMENT"] },
   { prefix: "/vehicles/claims-workspace", workspaces: ["VEHICLE_OPERATIONS_LEAD", "SERVICE", "ADVISOR", "OPERATIONS_COORDINATOR", "MANAGEMENT"] },
   { prefix: "/vehicles/repair-workbench", workspaces: ["VEHICLE_OPERATIONS_LEAD", "SERVICE", "ADVISOR", "QUALITY", "PARTS", "INVENTORY", "MANAGEMENT"] },
   { prefix: "/vehicles/repair-orders", workspaces: ["VEHICLE_OPERATIONS_LEAD", "SERVICE", "ADVISOR", "QUALITY", "PARTS", "INVENTORY", "MANAGEMENT"] },

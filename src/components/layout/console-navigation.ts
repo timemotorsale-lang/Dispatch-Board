@@ -70,7 +70,7 @@ const inventoryItems: NavigationItem[] = [
     icon: Building2
   },
   {
-    activePaths: ["/vehicles/shop-recon", "/vehicles/parts-operations", "/vehicles/parts", "/vehicles/parts-counter", "/vehicles/service-close-parts", "/vehicles/shop-planning", "/vehicles/shop-dispatch", "/vehicles/shop-production", "/vehicles/shop-metrics", "/vehicles/quality-control", "/vehicles/advisor", "/vehicles/recon-repair-advisor", "/vehicles/claims-workspace", "/vehicles/comebacks"],
+    activePaths: ["/vehicles/shop-recon", "/vehicles/parts-operations", "/vehicles/parts", "/vehicles/parts-counter", "/vehicles/service-close-parts", "/vehicles/shop-planning", "/vehicles/shop-dispatch", "/vehicles/shop-production", "/vehicles/shop-metrics", "/vehicles/quality-control", "/vehicles/advisor", "/vehicles/recon-repair-advisor", "/vehicles/claims-desk", "/vehicles/claims-workspace", "/vehicles/comebacks"],
     href: "/vehicles/shop-recon",
     title: "Shop & Recon",
     description: "Daily production, capacity, constraints, and parts readiness.",
@@ -90,9 +90,10 @@ const inventoryItems: NavigationItem[] = [
     icon: ClipboardList
   },
   {
-    href: "/vehicles/claims-workspace",
-    title: "Claims Workspace",
-    description: "Guide insurance claims from first contact to evidence, next action, and handoff readiness.",
+    activePaths: ["/vehicles/claims-desk", "/vehicles/claims-workspace"],
+    href: "/vehicles/claims-desk",
+    title: "Claims Desk",
+    description: "Start, find, or resume insurance claims before opening the claim workspace.",
     icon: ClipboardList
   },
   {

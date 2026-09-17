@@ -1,0 +1,655 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Claims Desk v1 Mockup</title>
+    <style>
+      :root {
+        --ink: #07132d;
+        --muted: #526481;
+        --quiet: #728099;
+        --line: #d7e1f0;
+        --surface: #f4f7fb;
+        --panel: #ffffff;
+        --blue: #284bd0;
+        --blue-soft: #eaf0ff;
+        --green: #0f766e;
+        --green-soft: #e7f7f3;
+        --amber: #a15c00;
+        --amber-soft: #fff4da;
+        --red: #a82626;
+        --red-soft: #fff0f0;
+        --shadow: 0 18px 50px rgba(17, 39, 83, 0.08);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: #e9eef7;
+        color: var(--ink);
+        font-family:
+          Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+
+      .frame {
+        width: 1600px;
+        min-height: 1080px;
+        margin: 0 auto;
+        background: var(--surface);
+        display: grid;
+        grid-template-columns: 244px 1fr;
+      }
+
+      .sidebar {
+        background: #0b1733;
+        color: #dbe6fb;
+        padding: 28px 20px;
+      }
+
+      .brand {
+        font-size: 18px;
+        font-weight: 850;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin-bottom: 34px;
+      }
+
+      .nav-group {
+        margin-bottom: 26px;
+      }
+
+      .nav-label {
+        margin: 0 0 10px;
+        color: #8292b1;
+        font-size: 11px;
+        font-weight: 850;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+      }
+
+      .nav-item {
+        height: 42px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 12px;
+        border-radius: 7px;
+        color: #c9d6f0;
+        font-size: 14px;
+        font-weight: 700;
+        margin-bottom: 4px;
+      }
+
+      .nav-item.active {
+        background: #eef3ff;
+        color: #0d1c40;
+      }
+
+      .dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 999px;
+        background: currentColor;
+        opacity: 0.75;
+      }
+
+      main {
+        padding: 28px;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 18px;
+      }
+
+      .crumb {
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .top-actions {
+        display: flex;
+        gap: 10px;
+      }
+
+      button {
+        height: 42px;
+        border: 1px solid #b9c7df;
+        background: #fff;
+        color: #18315f;
+        border-radius: 7px;
+        font-size: 14px;
+        font-weight: 850;
+        padding: 0 16px;
+      }
+
+      button.primary {
+        border-color: var(--blue);
+        background: var(--blue);
+        color: #fff;
+      }
+
+      .hero {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        box-shadow: var(--shadow);
+        padding: 24px;
+        margin-bottom: 16px;
+      }
+
+      .hero-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 440px;
+        gap: 24px;
+        align-items: start;
+      }
+
+      h1 {
+        font-size: 36px;
+        line-height: 1.08;
+        margin: 0 0 8px;
+        letter-spacing: 0;
+      }
+
+      .subtitle {
+        margin: 0;
+        color: var(--muted);
+        font-size: 16px;
+        line-height: 1.45;
+      }
+
+      .search-panel {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 16px;
+        background: #fbfdff;
+      }
+
+      .search-label {
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+      }
+
+      .search-box {
+        height: 50px;
+        border: 1px solid #c5d2e7;
+        border-radius: 8px;
+        background: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 14px;
+        color: var(--quiet);
+        font-size: 15px;
+      }
+
+      .search-box strong {
+        color: var(--ink);
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: 1.32fr 0.8fr;
+        gap: 16px;
+      }
+
+      .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        box-shadow: var(--shadow);
+        padding: 18px;
+      }
+
+      .panel-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+
+      h2 {
+        margin: 0;
+        font-size: 20px;
+        letter-spacing: 0;
+      }
+
+      .caption {
+        margin: 4px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.45;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        min-height: 26px;
+        padding: 0 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 850;
+        white-space: nowrap;
+      }
+
+      .badge.blue {
+        color: #1c3fb6;
+        background: var(--blue-soft);
+        border: 1px solid #c8d6ff;
+      }
+
+      .badge.green {
+        color: var(--green);
+        background: var(--green-soft);
+        border: 1px solid #bfe7dc;
+      }
+
+      .badge.amber {
+        color: var(--amber);
+        background: var(--amber-soft);
+        border: 1px solid #ffd98b;
+      }
+
+      .badge.red {
+        color: var(--red);
+        background: var(--red-soft);
+        border: 1px solid #ffcaca;
+      }
+
+      .start-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .start-card {
+        min-height: 164px;
+        border: 1px solid #dce5f3;
+        border-radius: 8px;
+        padding: 16px;
+        background: #fbfdff;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+
+      .start-card strong {
+        display: block;
+        font-size: 18px;
+        line-height: 1.2;
+      }
+
+      .start-card p {
+        margin: 8px 0 14px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.4;
+      }
+
+      .mini-action {
+        width: max-content;
+        min-height: 34px;
+        border-radius: 7px;
+        padding: 7px 10px;
+        background: var(--blue-soft);
+        color: #1c3fb6;
+        font-size: 13px;
+        font-weight: 850;
+      }
+
+      .queue {
+        display: grid;
+        gap: 0;
+        overflow: hidden;
+        border: 1px solid #dce5f3;
+        border-radius: 8px;
+      }
+
+      .queue-head,
+      .claim-row {
+        display: grid;
+        grid-template-columns: minmax(220px, 1fr) 130px 150px 130px;
+        gap: 12px;
+        align-items: center;
+      }
+
+      .queue-head {
+        padding: 10px 12px;
+        background: #f3f7fb;
+        color: var(--quiet);
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .claim-row {
+        min-height: 76px;
+        padding: 12px;
+        border-top: 1px solid #edf1f8;
+        background: #fff;
+      }
+
+      .claim-row strong {
+        display: block;
+        font-size: 15px;
+      }
+
+      .claim-row span,
+      .claim-row small {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.35;
+      }
+
+      .workbench {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .metric {
+        min-height: 94px;
+        padding: 14px;
+        border: 1px solid #dce5f3;
+        border-radius: 8px;
+        background: #fbfdff;
+      }
+
+      .metric span {
+        display: block;
+        color: var(--quiet);
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 0.11em;
+        text-transform: uppercase;
+      }
+
+      .metric strong {
+        display: block;
+        margin-top: 8px;
+        font-size: 26px;
+        line-height: 1;
+      }
+
+      .metric p {
+        margin: 6px 0 0;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .handoff-list,
+      .decision-list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .handoff,
+      .decision {
+        border: 1px solid #dce5f3;
+        border-radius: 8px;
+        background: #fbfdff;
+        padding: 12px;
+      }
+
+      .handoff {
+        display: grid;
+        grid-template-columns: 34px minmax(0, 1fr);
+        gap: 10px;
+      }
+
+      .icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 999px;
+        display: grid;
+        place-items: center;
+        background: var(--blue-soft);
+        color: #1c3fb6;
+        font-weight: 900;
+      }
+
+      .handoff strong,
+      .decision strong {
+        display: block;
+        font-size: 14px;
+      }
+
+      .handoff span,
+      .decision span {
+        display: block;
+        margin-top: 3px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.35;
+      }
+
+      .decision {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .footer-note {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.4;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="frame">
+      <aside class="sidebar">
+        <div class="brand">Time Motor</div>
+        <div class="nav-group">
+          <p class="nav-label">Command</p>
+          <div class="nav-item"><span class="dot"></span>Dispatch Board</div>
+          <div class="nav-item"><span class="dot"></span>Customers</div>
+          <div class="nav-item"><span class="dot"></span>Vehicles</div>
+        </div>
+        <div class="nav-group">
+          <p class="nav-label">Service</p>
+          <div class="nav-item"><span class="dot"></span>Service Intake</div>
+          <div class="nav-item active"><span class="dot"></span>Claims Desk</div>
+          <div class="nav-item"><span class="dot"></span>Claims Workspace</div>
+          <div class="nav-item"><span class="dot"></span>Repair Orders</div>
+          <div class="nav-item"><span class="dot"></span>Documents</div>
+        </div>
+        <div class="nav-group">
+          <p class="nav-label">Operations</p>
+          <div class="nav-item"><span class="dot"></span>Tasks</div>
+          <div class="nav-item"><span class="dot"></span>Manager Review</div>
+          <div class="nav-item"><span class="dot"></span>Reports</div>
+        </div>
+      </aside>
+
+      <main>
+        <div class="topbar">
+          <div class="crumb">Service Console / Desk a Claim</div>
+          <div class="top-actions">
+            <button>Open claim queue</button>
+            <button>Document library</button>
+            <button class="primary">Start new claim</button>
+          </div>
+        </div>
+
+        <section class="hero">
+          <div class="hero-row">
+            <div>
+              <h1>Desk an insurance claim</h1>
+              <p class="subtitle">Start with the customer, vehicle, or claim number. The desk keeps intake short, checks for duplicates, and opens the right claim workspace when enough context exists.</p>
+            </div>
+            <div class="search-panel">
+              <div class="search-label">Find before creating</div>
+              <div class="search-box"><span>Customer, VIN, plate, phone, claim #, RO #</span><strong>Search</strong></div>
+              <p class="caption">Search prevents duplicate claims and routes staff to an existing workspace when one is already open.</p>
+            </div>
+          </div>
+        </section>
+
+        <div class="workspace">
+          <div class="stack">
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>Choose how this claim starts</h2>
+                  <p class="caption">Three short paths keep the desk clean while preserving the enterprise record underneath.</p>
+                </div>
+                <span class="badge blue">Intake desk</span>
+              </div>
+              <div class="start-grid">
+                <article class="start-card">
+                  <div>
+                    <strong>Existing claim or RO</strong>
+                    <p>Open an active insurance claim, repair order, or prior estimate and continue work without creating another record.</p>
+                  </div>
+                  <span class="mini-action">Find existing</span>
+                </article>
+                <article class="start-card">
+                  <div>
+                    <strong>Known customer / vehicle</strong>
+                    <p>Select a customer and vehicle first, then capture claim number, carrier, loss date, and first evidence.</p>
+                  </div>
+                  <span class="mini-action">Start from record</span>
+                </article>
+                <article class="start-card">
+                  <div>
+                    <strong>Unknown or walk-in claim</strong>
+                    <p>Create a controlled draft when staff has incomplete identity details but needs to preserve the first contact.</p>
+                  </div>
+                  <span class="mini-action">Create draft</span>
+                </article>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>Active claim candidates</h2>
+                  <p class="caption">Picking a row opens the already-started claim workspace. The desk should make duplicate risk obvious.</p>
+                </div>
+                <span class="badge amber">3 need action</span>
+              </div>
+              <div class="queue">
+                <div class="queue-head">
+                  <span>Customer / vehicle</span>
+                  <span>Claim</span>
+                  <span>Blocker</span>
+                  <span>Action</span>
+                </div>
+                <div class="claim-row">
+                  <div><strong>Deqo Roble</strong><span>2018 Toyota Camry · 4T1B11HK</span></div>
+                  <div><strong>MN-48291</strong><small>State Farm</small></div>
+                  <div><span class="badge amber">Adjuster needed</span></div>
+                  <button class="primary">Open</button>
+                </div>
+                <div class="claim-row">
+                  <div><strong>Abdi Hassan</strong><span>2016 Honda Accord · plate HJA-221</span></div>
+                  <div><strong>Draft</strong><small>Carrier unknown</small></div>
+                  <div><span class="badge red">Identity gap</span></div>
+                  <button>Resume</button>
+                </div>
+                <div class="claim-row">
+                  <div><strong>Maria Lopez</strong><span>2020 Nissan Rogue · RO-10482</span></div>
+                  <div><strong>IL-22804</strong><small>Progressive</small></div>
+                  <div><span class="badge green">Ready for RO</span></div>
+                  <button>Open</button>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>Start claim intake</h2>
+                  <p class="caption">This area appears after staff chooses a path. It captures only the facts needed to open the workspace.</p>
+                </div>
+                <span class="badge blue">Progressive form</span>
+              </div>
+              <div class="workbench">
+                <div class="metric"><span>Required first</span><strong>4 facts</strong><p>Customer, vehicle, loss date, owner.</p></div>
+                <div class="metric"><span>Duplicate check</span><strong>Before save</strong><p>Claim #, VIN, phone, open RO.</p></div>
+                <div class="metric"><span>Draft allowed</span><strong>Yes</strong><p>With reason and next owner.</p></div>
+                <div class="metric"><span>Opens to</span><strong>Workspace</strong><p>Once claim/account context exists.</p></div>
+              </div>
+            </section>
+          </div>
+
+          <div class="stack">
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>Desk signals</h2>
+                  <p class="caption">Lightweight operations view for the front desk and service advisor.</p>
+                </div>
+              </div>
+              <div class="workbench">
+                <div class="metric"><span>Open claims</span><strong>14</strong><p>Across service and repair.</p></div>
+                <div class="metric"><span>Waiting carrier</span><strong>5</strong><p>Adjuster or approval pending.</p></div>
+                <div class="metric"><span>Ready handoff</span><strong>3</strong><p>Can move to repair order.</p></div>
+                <div class="metric"><span>Payment watch</span><strong>2</strong><p>Deductible or short-pay.</p></div>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>Handoff lanes</h2>
+                  <p class="caption">The desk should route work, not bury staff in claim administration.</p>
+                </div>
+              </div>
+              <div class="handoff-list">
+                <article class="handoff"><span class="icon">1</span><div><strong>Evidence intake</strong><span>Photos, insurance card, signed authorization, tow/storage docs.</span></div></article>
+                <article class="handoff"><span class="icon">2</span><div><strong>Estimate / supplement</strong><span>Route to estimator or mark carrier estimate received.</span></div></article>
+                <article class="handoff"><span class="icon">3</span><div><strong>Repair order</strong><span>Open the claim workspace and hand off to service execution.</span></div></article>
+                <article class="handoff"><span class="icon">4</span><div><strong>Payment recovery</strong><span>Deductible, insurance payment, short-pay, or accounting follow-up.</span></div></article>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>Desk guardrails</h2>
+                  <p class="caption">Enterprise controls stay underneath the simple start page.</p>
+                </div>
+              </div>
+              <div class="decision-list">
+                <article class="decision"><div><strong>Duplicate warning</strong><span>Exact claim number or same VIN/open claim.</span></div><span class="badge amber">Before create</span></article>
+                <article class="decision"><div><strong>Draft reason required</strong><span>Unknown identity requires owner and follow-up.</span></div><span class="badge blue">Controlled</span></article>
+                <article class="decision"><div><strong>Workspace opens after context</strong><span>Claim workspace is not the landing page.</span></div><span class="badge green">Routing</span></article>
+              </div>
+              <p class="footer-note">Mockup intent: a short claim desk that starts, finds, or resumes the correct claim before opening the detailed workspace.</p>
+            </section>
+          </div>
+        </div>
+      </main>
+    </div>
+  </body>
+</html>

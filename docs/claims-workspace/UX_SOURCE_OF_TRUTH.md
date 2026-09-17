@@ -18,6 +18,33 @@ The implementation may adapt spacing, exact copy, and responsive layout to the a
 5. Handoff Readiness
 6. Progressive Tools
 
+## Desk / Start Claim Mockup
+
+![Claims Desk v1 mockup](../ui-mockups/claims-desk-v1.png)
+
+This image is the official visual source of truth for the claim landing page and the selected implementation direction.
+
+### Enterprise Refinement Reference
+
+![Claims Desk Enterprise v2 mockup](../ui-mockups/claims-desk-enterprise-v2.png)
+
+This v2 mockup is retained only as a reference for background enterprise capabilities. It is not the selected primary UI direction because the v1 desk is cleaner and better suited to daily staff execution.
+
+- command-center signals for open claims, SLA risk, unassigned work, duplicate alerts, and ready handoffs;
+- smarter search results grouped by duplicate risk, customer match, and open repair order;
+- role lanes for intake, estimator, service, and accounting ownership;
+- visible guardrails for duplicate detection, authorization, retention, and escalation;
+- desk intelligence for routing confidence, next best action, payment exposure, and manager review.
+
+The desk page is intentionally separate from the opened claim workspace. Its job is to help staff:
+
+1. search before creating a duplicate claim;
+2. resume an existing claim, repair order, or estimate;
+3. start from a known customer / vehicle record;
+4. create a controlled draft when the customer, vehicle, or carrier details are incomplete.
+
+The desk page should stay short. It should gather only the minimum facts needed to open or route the correct claim workspace.
+
 ## Primary Anchor
 
 Claims Workspace starts from:
