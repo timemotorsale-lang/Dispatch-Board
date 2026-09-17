@@ -56,6 +56,12 @@ const tabs: AdvisorTab[] = [
     active: (pathname) => pathname.startsWith("/vehicles/repair-workbench"),
   },
   {
+    href: "/vehicles/claims-workspace",
+    icon: ClipboardList,
+    label: "Claims",
+    active: (pathname) => pathname.startsWith("/vehicles/claims-workspace"),
+  },
+  {
     href: "/vehicles/advisor?queue=authorization",
     icon: ClipboardCheck,
     label: "Approvals",

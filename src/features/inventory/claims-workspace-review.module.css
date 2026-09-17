@@ -1,0 +1,395 @@
+.page {
+  display: grid;
+  gap: 16px;
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 18px 18px 28px;
+}
+
+.topbar,
+.topActions,
+.statusLine,
+.panelHeader,
+.gate > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.eyebrow,
+.cardEyebrow,
+.fact span {
+  color: #526481;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.topActions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.topActions a,
+.topActions button,
+.secondaryButton,
+.nextAction button {
+  min-height: 40px;
+  border: 1px solid #bdcbe4;
+  border-radius: 10px;
+  background: #fff;
+  color: #0c2a61;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 850;
+  text-decoration: none;
+  padding: 9px 14px;
+}
+
+.topActions button,
+.nextAction button {
+  border-color: #284bd0;
+  background: #284bd0;
+  color: #fff;
+}
+
+.hero,
+.panel {
+  border: 1px solid #d6e0f0;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 18px 50px rgba(17, 39, 83, 0.08);
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.55fr);
+  gap: 26px;
+  align-items: center;
+  padding: 24px;
+}
+
+.hero h1 {
+  margin: 0 0 8px;
+  color: #07132d;
+  font-size: clamp(2rem, 3vw, 2.8rem);
+  line-height: 1.05;
+  letter-spacing: 0;
+}
+
+.hero p,
+.panelHeader p,
+.currentClaim p,
+.nextAction p,
+.note {
+  margin: 0;
+  color: #526481;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.currentClaim {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid #d6e0f0;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.currentClaim strong {
+  color: #07132d;
+  font-size: 1.25rem;
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.34fr) minmax(360px, 0.78fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.mainStack,
+.sideStack {
+  display: grid;
+  gap: 16px;
+}
+
+.panel {
+  padding: 18px;
+}
+
+.panelHeader {
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.panelHeader h2 {
+  margin: 0 0 4px;
+  color: #07132d;
+  font-size: 1.28rem;
+  line-height: 1.15;
+  letter-spacing: 0;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.info {
+  border: 1px solid #c8d6ff;
+  background: #eaf0ff;
+  color: #1c3fb6;
+}
+
+.good {
+  border: 1px solid #bfe7dc;
+  background: #e7f7f3;
+  color: #0f766e;
+}
+
+.warning {
+  border: 1px solid #ffd98b;
+  background: #fff4da;
+  color: #a15c00;
+}
+
+.danger {
+  border: 1px solid #ffcaca;
+  background: #fff0f0;
+  color: #a82626;
+}
+
+.snapshotGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.fact {
+  display: grid;
+  gap: 7px;
+  min-height: 76px;
+  padding: 12px;
+  border: 1px solid #dce5f3;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.fact strong {
+  color: #07132d;
+  font-size: 0.96rem;
+  line-height: 1.25;
+}
+
+.wide {
+  grid-column: span 2;
+}
+
+.needGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.need {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-height: 58px;
+  padding: 10px 12px;
+  border: 1px solid #dce5f3;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.needIcon {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 950;
+}
+
+.done {
+  border: 1px solid #bfe7dc;
+  background: #e7f7f3;
+  color: #0f766e;
+}
+
+.blocked {
+  border: 1px solid #ffcaca;
+  background: #fff0f0;
+  color: #a82626;
+}
+
+.need strong,
+.evidenceRow strong,
+.gate strong,
+.tool strong {
+  display: block;
+  color: #07132d;
+  font-size: 0.93rem;
+  line-height: 1.25;
+}
+
+.need span,
+.evidenceRow span,
+.tool span {
+  display: block;
+  margin-top: 3px;
+  color: #526481;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.evidenceList {
+  display: grid;
+}
+
+.evidenceRow {
+  display: grid;
+  grid-template-columns: 124px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-height: 66px;
+  border-top: 1px solid #edf1f8;
+}
+
+.evidenceRow:first-child {
+  border-top: 0;
+}
+
+.thumbs {
+  display: flex;
+  gap: 6px;
+}
+
+.thumbs span {
+  width: 34px;
+  height: 34px;
+  border: 1px solid #bfcae0;
+  border-radius: 6px;
+  background: linear-gradient(135deg, rgba(38, 73, 199, 0.16), rgba(15, 118, 110, 0.12)), #f8fbff;
+}
+
+.nextAction {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #c9d7f2;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.nextAction > strong {
+  color: #07132d;
+  font-size: 1.55rem;
+  line-height: 1.15;
+}
+
+.nextAction button {
+  width: max-content;
+}
+
+.ownerGrid,
+.toolGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.gateList {
+  display: grid;
+  gap: 10px;
+}
+
+.gate {
+  display: grid;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid #dce5f3;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.progress {
+  display: block;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e4ebf7;
+}
+
+.progress i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #284bd0;
+}
+
+.tool {
+  min-height: 78px;
+  padding: 12px;
+  border: 1px solid #dce5f3;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.muted {
+  opacity: 0.64;
+}
+
+.note {
+  margin-top: 14px;
+  font-size: 0.8rem;
+}
+
+@media (max-width: 1180px) {
+  .hero,
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .currentClaim {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .topbar,
+  .topActions,
+  .panelHeader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .snapshotGrid,
+  .needGrid,
+  .ownerGrid,
+  .toolGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .wide {
+    grid-column: auto;
+  }
+
+  .evidenceRow {
+    grid-template-columns: 1fr;
+    padding: 12px 0;
+  }
+}

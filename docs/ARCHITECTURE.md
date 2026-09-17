@@ -38,6 +38,8 @@
 
 > **Enterprise Diagnostics Console planning package:** The independent diagnostic-domain boundary, evidence/reasoning architecture, algorithm and consistency specifications, ontology/knowledge graph, integrated diagnostic lab suite, mastery/verification controls, phased roadmap, and implementation milestone IDs live in [`docs/diagnostics/README.md`](diagnostics/README.md). Diagnostics is a first-class console inside Dispatch Board, not part of Inventory, not a separate deployment, and not a parallel vehicle or repair-order system. This package is planned architecture and does not by itself activate diagnostic behavior.
 
+> **Claims Workspace planning package:** The insurance-claim execution workspace boundary, architecture, progressive UX model, workflow catalog, and staged implementation milestones live in [`docs/claims-workspace/README.md`](claims-workspace/README.md). Claims Workspace is anchored under Service / Repair Operations with visibility from Customer 360, Vehicle 360, Repair Order, and the central Document Library. It is a planning baseline only and does not by itself activate claim intake, carrier communication, repair-order creation, payments, or document mutation.
+
 ---
 
 ## 1. Purpose
