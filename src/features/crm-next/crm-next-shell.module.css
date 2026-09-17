@@ -4468,6 +4468,133 @@
   padding: 5px 7px;
 }
 
+.dealLaunchDecision {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #c9d7ea;
+  border-radius: 18px;
+  box-shadow: 0 14px 34px rgb(15 42 84 / 7%);
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(240px, 1.1fr) minmax(280px, 1.4fr) auto;
+  padding: 16px;
+}
+
+.dealLaunchDecision h2 {
+  color: #061735;
+  font-size: 24px;
+  margin: 2px 0 6px;
+}
+
+.dealLaunchDecision p {
+  color: #52647d;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.dealLaunchDecision dl {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+}
+
+.dealLaunchDecision dl div {
+  background: #f8fbff;
+  border: 1px solid #dbe6f8;
+  border-radius: 12px;
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px;
+}
+
+.dealLaunchDecision dt {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dealLaunchDecision dd {
+  color: #061735;
+  font-size: 13px;
+  font-weight: 900;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.dealLaunchDecision button {
+  background: #1f4bc4;
+  border: 1px solid #1f4bc4;
+  border-radius: 12px;
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+  min-height: 46px;
+  padding: 10px 16px;
+  white-space: nowrap;
+}
+
+.dealExecutionHeader {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #c9d7ea;
+  border-radius: 16px;
+  box-shadow: 0 14px 34px rgb(15 42 84 / 7%);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(220px, 1fr) minmax(260px, 1fr) auto auto;
+  padding: 14px 16px;
+}
+
+.dealExecutionHeader h2 {
+  color: #061735;
+  font-size: 22px;
+  margin: 2px 0 4px;
+}
+
+.dealExecutionHeader p {
+  color: #52647d;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.dealExecutionHeader button {
+  border: 1px solid #bfd0ef;
+  border-radius: 12px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+  min-height: 42px;
+  padding: 9px 14px;
+}
+
+.dealExecutionHeader button:first-of-type {
+  background: #f8fbff;
+  color: #1f4bc4;
+}
+
+.dealExecutionHeader button:last-child {
+  background: #061735;
+  border-color: #061735;
+  color: #ffffff;
+}
+
+.dealExecutionBody {
+  background: #ffffff;
+  border: 1px solid #c9d7ea;
+  border-radius: 16px;
+  box-shadow: 0 14px 34px rgb(15 42 84 / 7%);
+  display: grid;
+  gap: 18px;
+  padding: 28px;
+}
+
 .executionStatusChips {
   display: flex;
   flex-wrap: wrap;
@@ -4620,6 +4747,12 @@
   background: #eef4ff;
   border-color: #bfd0ef;
   color: #1f4bc4;
+}
+
+.retailActionRow button[aria-pressed="true"] {
+  background: #061735;
+  border-color: #061735;
+  color: #ffffff;
 }
 
 .retailDeliveryNote {
@@ -5646,8 +5779,17 @@
   }
 
   .dealPresetRail > div,
-  .enterpriseDealGrid {
+  .enterpriseDealGrid,
+  .dealLaunchDecision,
+  .dealExecutionHeader {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dealLaunchDecision > div,
+  .dealLaunchDecision dl,
+  .dealExecutionHeader > div:first-child,
+  .dealExecutionHeader .executionStatusChips {
+    grid-column: 1 / -1;
   }
 
   .dealerSectionGrid {
@@ -5987,7 +6129,10 @@
   }
 
   .dealPresetRail > div,
-  .enterpriseDealGrid {
+  .enterpriseDealGrid,
+  .dealLaunchDecision,
+  .dealLaunchDecision dl,
+  .dealExecutionHeader {
     grid-template-columns: 1fr;
   }
 
@@ -5995,6 +6140,10 @@
   .dealPresetRail header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .dealExecutionBody {
+    padding: 18px;
   }
 
   .dealerCustomerSnapshot,

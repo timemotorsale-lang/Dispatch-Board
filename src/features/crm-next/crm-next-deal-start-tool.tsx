@@ -1217,6 +1217,35 @@ const BHPH_HANDOFF_REQUIREMENTS = [
   "Document archive"
 ] as const;
 
+const DEALER_FINANCE_PACKET_REQUIREMENTS: RentalEvidenceRequirement[] = [
+  { id: "credit-application", label: "Credit application", helper: "Signed credit application or verified lender application record." },
+  { id: "lender-approval", label: "Lender approval", helper: "Approval, callback, or lender decision notice tied to the buyer and vehicle." },
+  { id: "retail-installment-contract", label: "Retail installment contract", helper: "Final finance contract matching lender-approved terms." },
+  { id: "buyers-order", label: "Buyer order", helper: "Final buyer order with price, taxes, fees, products, down payment, and amount financed." },
+  { id: "personal-references", label: "Personal references", helper: "Signed personal references and verification form for the credit purchase." },
+  { id: "power-of-attorney", label: "Power of attorney / title authority", helper: "Authority for title, lien, registration, correction, or DVS paperwork handled by the dealership." },
+  { id: "product-disclosures", label: "Product disclosures", helper: "Signed VSC, GAP, GPS, VSI, warranty, or menu acceptance/decline disclosures when applicable." },
+  { id: "insurance-binder", label: "Insurance binder", helper: "Insurance proof with lienholder/loss-payee when required by the lender." }
+];
+
+const DEALER_FINANCE_EVIDENCE_REQUIREMENTS: RentalEvidenceRequirement[] = [
+  { id: "driver-license", label: "Driver license / ID", helper: "Government ID for buyer and co-buyer when applicable." },
+  { id: "income-proof", label: "Income / employment proof", helper: "Paystub, bank statement, award letter, or lender-accepted proof." },
+  { id: "residence-proof", label: "Residence proof", helper: "Utility bill, lease, mail, or approved residence verification." },
+  { id: "stipulations", label: "Stipulations", helper: "All lender stipulations satisfied or manager-approved hold recorded." },
+  { id: "down-payment-proof", label: "Down payment proof", helper: "Receipt, payment reference, or accounting handoff for cash due at signing." },
+  { id: "delivery-condition", label: "Delivery condition", helper: "Vehicle delivery photos, odometer, fuel, keys, and accessories evidence." }
+];
+
+const DEALER_FINANCE_HANDOFF_REQUIREMENTS = [
+  "Lender contract ready",
+  "Stipulations cleared",
+  "Down payment posted",
+  "Lienholder recorded",
+  "Funding follow-up scheduled",
+  "Document archive"
+] as const;
+
 const WHOLESALE_PACKET_REQUIREMENTS: RentalEvidenceRequirement[] = [
   { id: "wholesale-bill-of-sale", label: "Wholesale bill of sale", helper: "Signed wholesale bill of sale with buyer, vehicle, amount, and date." },
   { id: "purchase-agreement", label: "Dealer purchase agreement", helper: "Wholesale buyer agreement or dealer-to-dealer sale terms." },
@@ -2489,6 +2518,274 @@ function BhphExecutionDesk({
   );
 }
 
+function DealerFinanceExecutionDesk({
+  amount,
+  customerName,
+  onAmountChange,
+  onComplete,
+  onSaveDraft,
+  onVehicleChange,
+  statusKind,
+  vehicle
+}: {
+  amount: string;
+  customerName: string;
+  onAmountChange: (value: string) => void;
+  onComplete: () => void;
+  onSaveDraft: () => void;
+  onVehicleChange: (value: string) => void;
+  statusKind: "idle" | "saving" | "success" | "error";
+  vehicle: string;
+}) {
+  const [packet, setPacket] = useState<Record<string, string>>({});
+  const [evidence, setEvidence] = useState<Record<string, string>>({});
+  const [handoff, setHandoff] = useState<Record<string, boolean>>({});
+  const [applicant, setApplicant] = useState({
+    coBuyer: "",
+    creditTier: "Application pending",
+    income: "",
+    residence: "",
+    stipulations: ""
+  });
+  const [lender, setLender] = useState({
+    approvalNumber: "",
+    buyRate: "",
+    contractRate: "0.00%",
+    decision: "Application pending",
+    lenderName: "",
+    lienholderAddress: ""
+  });
+  const [terms, setTerms] = useState({
+    amountFinanced: amount,
+    cashDue: "$0.00",
+    downPayment: "$0.00",
+    firstPaymentDate: "",
+    salePrice: amount,
+    termMonths: "60",
+    tradeAllowance: "$0.00",
+    tradePayoff: "$0.00"
+  });
+  const [approval, setApproval] = useState({
+    deliveryBeforeFunding: false,
+    insuranceException: false,
+    rateException: false,
+    stipulationOpen: false,
+    titleException: false
+  });
+
+  const salePriceCents = dollarsToCents(terms.salePrice);
+  const downPaymentCents = dollarsToCents(terms.downPayment);
+  const tradeAllowanceCents = dollarsToCents(terms.tradeAllowance);
+  const tradePayoffCents = dollarsToCents(terms.tradePayoff);
+  const amountFinancedCents = Math.max(0, (Number.isFinite(salePriceCents) && salePriceCents !== null ? salePriceCents : 0) - (Number.isFinite(downPaymentCents) && downPaymentCents !== null ? downPaymentCents : 0) - (Number.isFinite(tradeAllowanceCents) && tradeAllowanceCents !== null ? tradeAllowanceCents : 0) + (Number.isFinite(tradePayoffCents) && tradePayoffCents !== null ? tradePayoffCents : 0));
+  const packetCount = DEALER_FINANCE_PACKET_REQUIREMENTS.filter((item) => packet[item.id]).length;
+  const evidenceCount = DEALER_FINANCE_EVIDENCE_REQUIREMENTS.filter((item) => evidence[item.id]).length;
+  const handoffCount = DEALER_FINANCE_HANDOFF_REQUIREMENTS.filter((item) => handoff[item]).length;
+  const approvalTriggers = Object.values(approval).filter(Boolean).length;
+  const packetReady = packetCount === DEALER_FINANCE_PACKET_REQUIREMENTS.length;
+  const evidenceReady = evidenceCount === DEALER_FINANCE_EVIDENCE_REQUIREMENTS.length;
+  const handoffReady = handoffCount === DEALER_FINANCE_HANDOFF_REQUIREMENTS.length;
+  const applicantReady = Boolean(customerName !== "Customer not selected" && applicant.income.trim() && applicant.residence.trim());
+  const lenderReady = Boolean(lender.lenderName.trim() && lender.approvalNumber.trim() && lender.decision === "Approved");
+  const termsReady = Boolean(terms.salePrice.trim() && terms.downPayment.trim() && terms.firstPaymentDate.trim());
+  const financeReady = Boolean(vehicle.trim() && applicantReady && lenderReady && termsReady && packetReady && evidenceReady && handoffReady && approvalTriggers === 0);
+
+  function updateTerms(key: keyof typeof terms, value: string) {
+    const next = { ...terms, [key]: value };
+    const nextSalePrice = dollarsToCents(next.salePrice);
+    const nextDownPayment = dollarsToCents(next.downPayment);
+    const nextTradeAllowance = dollarsToCents(next.tradeAllowance);
+    const nextTradePayoff = dollarsToCents(next.tradePayoff);
+    const nextAmountFinanced = Math.max(0, (Number.isFinite(nextSalePrice) && nextSalePrice !== null ? nextSalePrice : 0) - (Number.isFinite(nextDownPayment) && nextDownPayment !== null ? nextDownPayment : 0) - (Number.isFinite(nextTradeAllowance) && nextTradeAllowance !== null ? nextTradeAllowance : 0) + (Number.isFinite(nextTradePayoff) && nextTradePayoff !== null ? nextTradePayoff : 0));
+    setTerms({ ...next, amountFinanced: formatCurrency(nextAmountFinanced) });
+    if (["salePrice", "downPayment", "tradeAllowance", "tradePayoff"].includes(key)) onAmountChange(formatCurrency(nextAmountFinanced));
+  }
+
+  function captureEvidence(
+    setter: (value: SetStateAction<Record<string, string>>) => void,
+    id: string,
+    file?: File
+  ) {
+    if (!file) return;
+    setter((current) => ({ ...current, [id]: file.name }));
+  }
+
+  return (
+    <div className={styles.retailExecutionDesk}>
+      <section className={styles.retailSection} id="finance-applicant">
+        <header>
+          <span>Finance applicant</span>
+          <strong>Confirm buyer, co-buyer, income, residence, and credit path</strong>
+        </header>
+        <div className={styles.retailFieldGrid}>
+          <label><span>Buyer</span><input readOnly value={customerName} /></label>
+          <label><span>Co-buyer</span><input value={applicant.coBuyer} onChange={(event) => setApplicant((current) => ({ ...current, coBuyer: event.target.value }))} /></label>
+          <label><span>Income / employment</span><input value={applicant.income} onChange={(event) => setApplicant((current) => ({ ...current, income: event.target.value }))} placeholder="Employer, income source, or proof reference" /></label>
+          <label><span>Residence</span><input value={applicant.residence} onChange={(event) => setApplicant((current) => ({ ...current, residence: event.target.value }))} placeholder="Address or residence proof reference" /></label>
+          <label><span>Credit tier</span><select value={applicant.creditTier} onChange={(event) => setApplicant((current) => ({ ...current, creditTier: event.target.value }))}><option>Application pending</option><option>Prime</option><option>Near prime</option><option>Subprime</option><option>Manual review</option></select></label>
+          <label className={styles.retailWide}><span>Stipulations / notes</span><textarea value={applicant.stipulations} onChange={(event) => setApplicant((current) => ({ ...current, stipulations: event.target.value }))} placeholder="Income, residence, insurance, references, or lender conditions" rows={3} /></label>
+        </div>
+      </section>
+
+      <section className={styles.retailSection} id="finance-vehicle">
+        <header>
+          <span>Vehicle and title</span>
+          <strong>Bind lender approval to the exact unit and lienholder path</strong>
+        </header>
+        <div className={styles.retailFieldGrid}>
+          <label><span>Vehicle / stock #</span><input value={vehicle} onChange={(event) => onVehicleChange(event.target.value)} placeholder="Stock, VIN, or vehicle" /></label>
+          <label><span>Title status</span><select onChange={(event) => setApproval((current) => ({ ...current, titleException: event.target.value !== "Ready" }))}><option>Ready</option><option>Title work pending</option><option>Lien release pending</option><option>Manager exception</option></select></label>
+          <label><span>Insurance status</span><select onChange={(event) => setApproval((current) => ({ ...current, insuranceException: event.target.value !== "Verified" }))}><option>Verified</option><option>Binder pending</option><option>Needs lienholder correction</option><option>Manager exception</option></select></label>
+          <label><span>Delivery status</span><select onChange={(event) => setApproval((current) => ({ ...current, deliveryBeforeFunding: event.target.value !== "After funding" }))}><option>After funding</option><option>Before funding request</option><option>Spot delivery review</option></select></label>
+        </div>
+      </section>
+
+      <section className={styles.retailSection} id="finance-structure">
+        <header>
+          <span>Deal structure</span>
+          <strong>Structure sale price, trade, cash due, and amount financed</strong>
+        </header>
+        <div className={styles.retailFieldGrid}>
+          <label><span>Sale price</span><input value={terms.salePrice} onChange={(event) => updateTerms("salePrice", event.target.value)} placeholder="$0.00" /></label>
+          <label><span>Down payment</span><input value={terms.downPayment} onChange={(event) => updateTerms("downPayment", event.target.value)} /></label>
+          <label><span>Trade allowance</span><input value={terms.tradeAllowance} onChange={(event) => updateTerms("tradeAllowance", event.target.value)} /></label>
+          <label><span>Trade payoff</span><input value={terms.tradePayoff} onChange={(event) => updateTerms("tradePayoff", event.target.value)} /></label>
+          <label><span>Cash due at signing</span><input value={terms.cashDue} onChange={(event) => updateTerms("cashDue", event.target.value)} /></label>
+          <label><span>Amount financed</span><input readOnly value={formatCurrency(amountFinancedCents)} /></label>
+          <label><span>Term</span><select value={terms.termMonths} onChange={(event) => updateTerms("termMonths", event.target.value)}><option value="36">36 months</option><option value="48">48 months</option><option value="60">60 months</option><option value="72">72 months</option><option value="84">84 months</option></select></label>
+          <label><span>First payment date</span><input type="date" value={terms.firstPaymentDate} onChange={(event) => updateTerms("firstPaymentDate", event.target.value)} /></label>
+        </div>
+        <div className={styles.rentalSummaryStrip}>
+          <div><span>Amount financed</span><strong>{formatCurrency(amountFinancedCents)}</strong></div>
+          <div><span>Cash due</span><strong>{terms.cashDue}</strong></div>
+          <div><span>Term</span><strong>{terms.termMonths} mo.</strong></div>
+          <div><span>First payment</span><strong>{terms.firstPaymentDate || "Not set"}</strong></div>
+          <button type="button" onClick={() => onAmountChange(formatCurrency(amountFinancedCents))}>Use amount financed</button>
+        </div>
+      </section>
+
+      <section className={styles.retailSection} id="finance-lender">
+        <header>
+          <span>Lender decision</span>
+          <strong>Track approval, rate, lienholder, and stipulation status</strong>
+        </header>
+        <div className={styles.retailFieldGrid}>
+          <label><span>Lender</span><input value={lender.lenderName} onChange={(event) => setLender((current) => ({ ...current, lenderName: event.target.value }))} /></label>
+          <label><span>Approval / app #</span><input value={lender.approvalNumber} onChange={(event) => setLender((current) => ({ ...current, approvalNumber: event.target.value }))} /></label>
+          <label><span>Decision</span><select value={lender.decision} onChange={(event) => setLender((current) => ({ ...current, decision: event.target.value }))}><option>Application pending</option><option>Approved</option><option>Approved with stipulations</option><option>Counter offer</option><option>Declined</option></select></label>
+          <label><span>Buy rate</span><input value={lender.buyRate} onChange={(event) => setLender((current) => ({ ...current, buyRate: event.target.value }))} placeholder="Optional internal rate" /></label>
+          <label><span>Contract rate</span><input value={lender.contractRate} onChange={(event) => setLender((current) => ({ ...current, contractRate: event.target.value }))} /></label>
+          <label><span>Lienholder address</span><input value={lender.lienholderAddress} onChange={(event) => setLender((current) => ({ ...current, lienholderAddress: event.target.value }))} /></label>
+        </div>
+        <div className={styles.retailActionRow}>
+          <button
+            aria-pressed={approval.rateException}
+            type="button"
+            onClick={() => setApproval((current) => ({ ...current, rateException: !current.rateException }))}
+          >
+            {approval.rateException ? "Rate review active" : "Mark rate review"}
+          </button>
+          <button
+            aria-pressed={approval.stipulationOpen}
+            type="button"
+            onClick={() => setApproval((current) => ({ ...current, stipulationOpen: !current.stipulationOpen }))}
+          >
+            {approval.stipulationOpen ? "Stipulation review active" : "Mark stipulation review"}
+          </button>
+        </div>
+        <div className={styles.rentalReadinessGrid}>
+          <div><span>Rate review</span><strong>{approval.rateException ? "Manager review" : "Clear"}</strong></div>
+          <div><span>Stipulations</span><strong>{approval.stipulationOpen ? "Manager review" : "Clear"}</strong></div>
+          <div><span>Lender decision</span><strong>{lender.decision}</strong></div>
+          <div><span>Approval / app #</span><strong>{lender.approvalNumber.trim() ? "Recorded" : "Needed"}</strong></div>
+        </div>
+      </section>
+
+      <section className={styles.retailSection} id="finance-packet">
+        <header>
+          <span>Dealer finance packet</span>
+          <strong>Contracts, disclosures, proof, and delivery evidence</strong>
+        </header>
+        <div className={styles.rentalEvidenceSummary}>
+          <div><span>Packet docs</span><strong>{packetCount}/{DEALER_FINANCE_PACKET_REQUIREMENTS.length}</strong><small>{packetReady ? "Ready" : "Required before funding"}</small></div>
+          <div><span>Evidence</span><strong>{evidenceCount}/{DEALER_FINANCE_EVIDENCE_REQUIREMENTS.length}</strong><small>{evidenceReady ? "Recorded" : "Required before delivery"}</small></div>
+          <div><span>Handoff</span><strong>{handoffCount}/{DEALER_FINANCE_HANDOFF_REQUIREMENTS.length}</strong><small>{handoffReady ? "Ready" : "Required before completion"}</small></div>
+        </div>
+        <div className={styles.rentalEvidenceBoard}>
+          <section>
+            <h3>Required finance documents</h3>
+            <p>Record the signed finance packet and product disclosures once. These should later store in the central deal jacket and document library.</p>
+            <div className={styles.rentalEvidenceGrid}>
+              {DEALER_FINANCE_PACKET_REQUIREMENTS.map((item) => (
+                <label className={packet[item.id] ? styles.rentalEvidenceCaptured : undefined} key={item.id}>
+                  <span>{item.label}</span>
+                  <strong>{packet[item.id] ?? "Document required"}</strong>
+                  <small>{item.helper}</small>
+                  <input accept="application/pdf,image/*" onChange={(event) => captureEvidence(setPacket, item.id, event.currentTarget.files?.[0])} type="file" />
+                </label>
+              ))}
+            </div>
+          </section>
+          <section>
+            <h3>Funding evidence</h3>
+            <p>ID, income, residence, stipulations, down payment, and delivery condition evidence must be recorded before funded completion.</p>
+            <div className={styles.rentalEvidenceGrid}>
+              {DEALER_FINANCE_EVIDENCE_REQUIREMENTS.map((item) => (
+                <label className={evidence[item.id] ? styles.rentalEvidenceCaptured : undefined} key={item.id}>
+                  <span>{item.label}</span>
+                  <strong>{evidence[item.id] ?? "Evidence required"}</strong>
+                  <small>{item.helper}</small>
+                  <input accept="application/pdf,image/*" capture="environment" onChange={(event) => captureEvidence(setEvidence, item.id, event.currentTarget.files?.[0])} type="file" />
+                </label>
+              ))}
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section className={styles.retailSection} id="finance-funding">
+        <header>
+          <span>Funding handoff</span>
+          <strong>Confirm contract, stipulations, cash due, lienholder, and archive</strong>
+        </header>
+        <div className={styles.rentalReadinessGrid}>
+          {[
+            ["Lender", lenderReady],
+            ["Applicant", applicantReady],
+            ["Terms", termsReady],
+            ["Packet", packetReady],
+            ["Evidence", evidenceReady],
+            ["Approvals", approvalTriggers === 0]
+          ].map(([label, clear]) => (
+            <div key={String(label)}>
+              <span>{label}</span>
+              <strong>{clear ? "Clear" : "Needs work"}</strong>
+            </div>
+          ))}
+        </div>
+        <div className={styles.rentalEvidenceGrid}>
+          {DEALER_FINANCE_HANDOFF_REQUIREMENTS.map((item) => (
+            <label className={handoff[item] ? styles.rentalEvidenceCaptured : undefined} key={item}>
+              <span>Funding gate</span>
+              <strong>{item}</strong>
+              <small>{handoff[item] ? "Ready" : "Required before completion"}</small>
+              <input checked={Boolean(handoff[item])} onChange={(event) => setHandoff((current) => ({ ...current, [item]: event.target.checked }))} type="checkbox" />
+            </label>
+          ))}
+        </div>
+        <div className={styles.retailNextActionBar} aria-label="Dealer finance next actions">
+          <div>
+            <span>Dealer finance readiness</span>
+            <strong>{financeReady ? "Ready to complete dealer finance packet" : "Complete applicant, lender, packet, evidence, approval, and funding gates"}</strong>
+          </div>
+          <button type="button" onClick={onSaveDraft}>Save finance draft</button>
+          <button disabled={!financeReady || statusKind === "saving"} onClick={onComplete} type="button">{statusKind === "saving" ? "Completing..." : "Complete dealer finance packet"}</button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function TestDriveExecutionDesk({
   customerName,
   onAmountChange,
@@ -3159,6 +3456,7 @@ function OutsideFinanceExecutionDesk({
 export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter }) {
   const [workflowId, setWorkflowId] = useState<DealWorkflowId>("retail-sale");
   const [selectedPresetId, setSelectedPresetId] = useState("retail-cash-one-pay");
+  const [executionOpen, setExecutionOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [form, setForm] = useState({
     amount: "",
@@ -3169,6 +3467,7 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
   });
   const [status, setStatus] = useState<{ kind: "idle" | "saving" | "success" | "error"; message: string; href?: string }>({ kind: "idle", message: "" });
   const workflow = DEAL_WORKFLOWS.find((item) => item.id === workflowId) ?? DEAL_WORKFLOWS[0];
+  const financeWorkflow = workflow.id === "finance";
   const bhphWorkflow = workflow.id === "bhph";
   const rentalLikeWorkflow = workflow.id === "daily-rental" || workflow.id === "vehicle-loaner";
   const testDriveWorkflow = workflow.id === "test-drive";
@@ -3191,6 +3490,7 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
   function applyPreset(preset: DealStartPreset) {
     setSelectedPresetId(preset.id);
     setWorkflowId(preset.workflowId);
+    setExecutionOpen(false);
     setStatus({ kind: "idle", message: "" });
   }
 
@@ -3238,139 +3538,180 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
         <Link className={styles.secondaryButton} href={CRM_NEXT_DEALS_HREF}>Back to deals</Link>
       </header>
 
-      <section className={styles.dealPresetRail} aria-label="Start Deal presets">
-        <header>
-          <span className={styles.eyebrow}>Start Deal presets</span>
-          <strong>Choose the common path first</strong>
-        </header>
-        <div>
-          {DEAL_START_PRESETS.map((preset) => (
-            <button
-              aria-pressed={selectedPresetId === preset.id}
-              key={preset.id}
-              onClick={() => applyPreset(preset)}
-              type="button"
-            >
-              <span>{preset.label}</span>
-              <small>{preset.helper}</small>
+      {!executionOpen ? (
+        <>
+          <section className={styles.dealPresetRail} aria-label="Start Deal presets">
+            <header>
+              <span className={styles.eyebrow}>Start Deal presets</span>
+              <strong>Choose the common path first</strong>
+            </header>
+            <div>
+              {DEAL_START_PRESETS.map((preset) => (
+                <button
+                  aria-pressed={selectedPresetId === preset.id}
+                  key={preset.id}
+                  onClick={() => applyPreset(preset)}
+                  type="button"
+                >
+                  <span>{preset.label}</span>
+                  <small>{preset.helper}</small>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className={styles.executionCommandStrip} aria-label="Revenue execution command">
+            <div>
+              <span>{workflow.label}</span>
+              <strong>{readinessLabel}</strong>
+              <small>{workflow.nextWorkspace}</small>
+            </div>
+            <div className={styles.executionStatusChips} aria-label="Retail execution checks">
+              {(financeWorkflow ? ["Applicant", "Lender", "Stips", "Funding"] : outsideFinanceWorkflow ? ["Funding", "Stips", "Title", "Handoff"] : wholesaleWorkflow ? ["Buyer", "Funding", "Title", "Release"] : bhphWorkflow ? ["Proof", "Terms", "Paperwork", "Handoff"] : testDriveWorkflow ? ["License", "Signed form", "Vehicle", "Return plan"] : rentalLikeWorkflow ? ["License", workflow.id === "vehicle-loaner" ? "Courtesy waiver" : "Payment hold", workflow.id === "vehicle-loaner" ? "Loaner unit" : "Vehicle", "Return plan"] : ["Identity", "Vehicle", "Funding", "Delivery"]).map((item) => <span key={item}>{item}</span>)}
+            </div>
+            <button type="button" onClick={() => setSummaryOpen(true)}>Execution Summary</button>
+            <button onClick={() => setExecutionOpen(true)} type="button">
+              Open execution path
             </button>
-          ))}
-        </div>
-      </section>
-
-      <section className={styles.executionCommandStrip} aria-label="Revenue execution command">
-        <div>
-          <span>{workflow.label}</span>
-          <strong>{readinessLabel}</strong>
-          <small>{workflow.nextWorkspace}</small>
-        </div>
-        <div className={styles.executionStatusChips} aria-label="Retail execution checks">
-          {(outsideFinanceWorkflow ? ["Funding", "Stips", "Title", "Handoff"] : wholesaleWorkflow ? ["Buyer", "Funding", "Title", "Release"] : bhphWorkflow ? ["Proof", "Terms", "Paperwork", "Handoff"] : testDriveWorkflow ? ["License", "Signed form", "Vehicle", "Return plan"] : rentalLikeWorkflow ? ["License", workflow.id === "vehicle-loaner" ? "Courtesy waiver" : "Payment hold", workflow.id === "vehicle-loaner" ? "Loaner unit" : "Vehicle", "Return plan"] : ["Identity", "Vehicle", "Funding", "Delivery"]).map((item) => <span key={item}>{item}</span>)}
-        </div>
-        <button type="button" onClick={() => setSummaryOpen(true)}>Execution Summary</button>
-        <button disabled={!ready || status.kind === "saving"} onClick={() => void startDeal()} type="button">
-          {status.kind === "saving" ? "Opening..." : "Open execution path"}
-        </button>
-      </section>
-
-      <nav className={styles.retailSectionJumps} aria-label="Retail sale section jumps">
-        {workflow.id === "lease-to-own" ? (
-          <>
-            <a href="#lease-applicant">Applicant</a>
-            <a href="#lease-vehicle">Vehicle</a>
-            <a href="#lease-calculator">Calculator</a>
-            <a href="#lease-contracts">Forms</a>
-          </>
-        ) : bhphWorkflow ? (
-          <>
-            <a href="#bhph-buyer">Buyer</a>
-            <a href="#bhph-vehicle">Vehicle</a>
-            <a href="#bhph-terms">Terms</a>
-            <a href="#bhph-paperwork">Paperwork</a>
-            <a href="#bhph-approval">Approval</a>
-            <a href="#bhph-handoff">Handoff</a>
-          </>
-        ) : testDriveWorkflow ? (
-          <>
-            <a href="#test-drive-driver">Driver</a>
-            <a href="#test-drive-vehicle">Vehicle</a>
-            <a href="#test-drive-evidence">Evidence</a>
-            <a href="#test-drive-checkout">Checkout</a>
-          </>
-        ) : wholesaleWorkflow ? (
-          <>
-            <a href="#wholesale-buyer">Buyer</a>
-            <a href="#wholesale-vehicle">Vehicle</a>
-            <a href="#wholesale-terms">Terms</a>
-            <a href="#wholesale-packet">Packet</a>
-            <a href="#wholesale-approval">Approval</a>
-            <a href="#wholesale-handoff">Release</a>
-          </>
-        ) : outsideFinanceWorkflow ? (
-          <>
-            <a href="#outside-funding">Funding</a>
-            <a href="#outside-vehicle">Vehicle</a>
-            <a href="#outside-terms">Terms</a>
-            <a href="#outside-packet">Packet</a>
-            <a href="#outside-approval">Approval</a>
-            <a href="#outside-handoff">Handoff</a>
-          </>
-        ) : rentalLikeWorkflow ? (
-          <>
-            <a href="#rental-renter">Renter</a>
-            <a href="#rental-window">Dates</a>
-            <a href="#rental-unit">Unit</a>
-            <a href="#rental-protection">Payment</a>
-            <a href="#rental-evidence">Evidence</a>
-            <a href="#rental-checkout">Checkout</a>
-            <a href="#rental-forms">Forms</a>
-          </>
-        ) : (
-          <>
-            <a href="#retail-applicant">Applicant</a>
-            <a href="#retail-vehicle">Vehicle</a>
-            <a href="#retail-trade">Trade-In</a>
-            <a href="#retail-deal">Deal</a>
-            <a href="#retail-contracts">Forms</a>
-          </>
-        )}
-        <button type="button" onClick={() => setSummaryOpen(true)}>Checks</button>
-      </nav>
-
-      <EnterpriseDealControlPanel
-        amount={effectiveAmount}
-        customerName={selectedCustomer?.name ?? "Customer not selected"}
-        ownerName={model.userName}
-        ready={ready}
-        vehicle={form.vehicle}
-        workflow={workflow}
-      />
-
-      <main className={styles.dealStartLayout}>
-        <section className={styles.dealStartStep}>
-          <span>1</span>
+          </section>
+        </>
+      ) : (
+        <section className={styles.dealExecutionHeader} aria-label="Open execution desk">
           <div>
-            <h2>Choose channel</h2>
-            <p>Channel controls the next facts, source checks, and execution desk.</p>
+            <span className={styles.eyebrow}>Execution desk</span>
+            <h2>{workflow.label}</h2>
+            <p>{workflow.nextWorkspace} · {DEAL_PACKET_RULES[workflow.id].packetName}</p>
           </div>
-          <select aria-label="Select revenue channel" value={workflowId} onChange={(event) => {
-            const nextWorkflowId = event.target.value as DealWorkflowId;
-            setWorkflowId(nextWorkflowId);
-            const matchingPreset = DEAL_START_PRESETS.find((preset) => preset.workflowId === nextWorkflowId);
-            if (matchingPreset) setSelectedPresetId(matchingPreset.id);
-          }}>
-            {DEAL_WORKFLOWS.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
-          </select>
-          <small className={styles.dealPresetSelected}>Preset: {selectedPreset?.label}</small>
+          <div className={styles.executionStatusChips} aria-label="Open execution checks">
+            {(financeWorkflow ? ["Applicant", "Lender", "Stips", "Funding"] : outsideFinanceWorkflow ? ["Funding", "Stips", "Title", "Handoff"] : wholesaleWorkflow ? ["Buyer", "Funding", "Title", "Release"] : bhphWorkflow ? ["Proof", "Terms", "Paperwork", "Handoff"] : testDriveWorkflow ? ["License", "Signed form", "Vehicle", "Return plan"] : rentalLikeWorkflow ? ["License", workflow.id === "vehicle-loaner" ? "Courtesy waiver" : "Payment hold", workflow.id === "vehicle-loaner" ? "Loaner unit" : "Vehicle", "Return plan"] : ["Identity", "Vehicle", "Funding", "Delivery"]).map((item) => <span key={item}>{item}</span>)}
+          </div>
+          <button type="button" onClick={() => setSummaryOpen(true)}>Checks</button>
+          <button type="button" onClick={() => setExecutionOpen(false)}>Change path</button>
         </section>
+      )}
 
-        <section className={styles.dealStartStep}>
-          <span>2</span>
+      {executionOpen ? (
+        <nav className={styles.retailSectionJumps} aria-label="Retail sale section jumps">
+          {workflow.id === "lease-to-own" ? (
+            <>
+              <a href="#lease-applicant">Applicant</a>
+              <a href="#lease-vehicle">Vehicle</a>
+              <a href="#lease-calculator">Calculator</a>
+              <a href="#lease-contracts">Forms</a>
+            </>
+          ) : financeWorkflow ? (
+            <>
+              <a href="#finance-applicant">Applicant</a>
+              <a href="#finance-vehicle">Vehicle</a>
+              <a href="#finance-structure">Structure</a>
+              <a href="#finance-lender">Lender</a>
+              <a href="#finance-packet">Packet</a>
+              <a href="#finance-funding">Funding</a>
+            </>
+          ) : bhphWorkflow ? (
+            <>
+              <a href="#bhph-buyer">Buyer</a>
+              <a href="#bhph-vehicle">Vehicle</a>
+              <a href="#bhph-terms">Terms</a>
+              <a href="#bhph-paperwork">Paperwork</a>
+              <a href="#bhph-approval">Approval</a>
+              <a href="#bhph-handoff">Handoff</a>
+            </>
+          ) : testDriveWorkflow ? (
+            <>
+              <a href="#test-drive-driver">Driver</a>
+              <a href="#test-drive-vehicle">Vehicle</a>
+              <a href="#test-drive-evidence">Evidence</a>
+              <a href="#test-drive-checkout">Checkout</a>
+            </>
+          ) : wholesaleWorkflow ? (
+            <>
+              <a href="#wholesale-buyer">Buyer</a>
+              <a href="#wholesale-vehicle">Vehicle</a>
+              <a href="#wholesale-terms">Terms</a>
+              <a href="#wholesale-packet">Packet</a>
+              <a href="#wholesale-approval">Approval</a>
+              <a href="#wholesale-handoff">Release</a>
+            </>
+          ) : outsideFinanceWorkflow ? (
+            <>
+              <a href="#outside-funding">Funding</a>
+              <a href="#outside-vehicle">Vehicle</a>
+              <a href="#outside-terms">Terms</a>
+              <a href="#outside-packet">Packet</a>
+              <a href="#outside-approval">Approval</a>
+              <a href="#outside-handoff">Handoff</a>
+            </>
+          ) : rentalLikeWorkflow ? (
+            <>
+              <a href="#rental-renter">Renter</a>
+              <a href="#rental-window">Dates</a>
+              <a href="#rental-unit">Unit</a>
+              <a href="#rental-protection">Payment</a>
+              <a href="#rental-evidence">Evidence</a>
+              <a href="#rental-checkout">Checkout</a>
+              <a href="#rental-forms">Forms</a>
+            </>
+          ) : (
+            <>
+              <a href="#retail-applicant">Applicant</a>
+              <a href="#retail-vehicle">Vehicle</a>
+              <a href="#retail-trade">Trade-In</a>
+              <a href="#retail-deal">Deal</a>
+              <a href="#retail-contracts">Forms</a>
+            </>
+          )}
+          <button type="button" onClick={() => setSummaryOpen(true)}>Checks</button>
+          <button type="button" onClick={() => setExecutionOpen(false)}>Change path</button>
+        </nav>
+      ) : null}
+
+      {!executionOpen ? (
+        <EnterpriseDealControlPanel
+          amount={effectiveAmount}
+          customerName={selectedCustomer?.name ?? "Customer not selected"}
+          ownerName={model.userName}
+          ready={ready}
+          vehicle={form.vehicle}
+          workflow={workflow}
+        />
+      ) : null}
+
+      {!executionOpen ? (
+        <section className={styles.dealLaunchDecision} aria-label="Selected execution path">
           <div>
-            <h2>Capture working facts</h2>
-            <p>{workflow.startsWith}</p>
+            <span className={styles.eyebrow}>Selected path</span>
+            <h2>{selectedPreset?.label ?? workflow.label}</h2>
+            <p>{selectedPreset?.helper ?? workflow.intent}</p>
           </div>
-          {workflow.id === "retail-sale" ? (
+          <dl>
+            <div><dt>Execution desk</dt><dd>{workflow.nextWorkspace}</dd></div>
+            <div><dt>Packet</dt><dd>{DEAL_PACKET_RULES[workflow.id].packetName}</dd></div>
+            <div><dt>First required facts</dt><dd>{workflow.required.join(", ")}</dd></div>
+          </dl>
+          <button type="button" onClick={() => setExecutionOpen(true)}>Open selected desk</button>
+        </section>
+      ) : (
+      <main className={styles.dealExecutionBody}>
+          {financeWorkflow ? (
+            <>
+              <div className={styles.dealStartForm}>
+                <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => update("customerId", event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+                <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
+              </div>
+              <DealerFinanceExecutionDesk
+                amount={form.amount}
+                customerName={selectedCustomer?.name ?? "Customer not selected"}
+                onAmountChange={(value) => update("amount", value)}
+                onComplete={() => void startDeal()}
+                onSaveDraft={saveDraft}
+                onVehicleChange={(value) => update("vehicle", value)}
+                statusKind={status.kind}
+                vehicle={form.vehicle}
+              />
+              <label className={`${styles.dealStartWide} ${styles.retailNote}`}><span>{FIELD_LABELS.note}</span><textarea value={form.note} onChange={(event) => update("note", event.target.value)} placeholder="Optional context staff needs before working this dealer finance deal" rows={3} /></label>
+            </>
+          ) : workflow.id === "retail-sale" ? (
             <>
               <div className={styles.dealStartForm}>
                 <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => update("customerId", event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
@@ -3519,9 +3860,8 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
               <label className={styles.dealStartWide}><span>{FIELD_LABELS.note}</span><textarea value={form.note} onChange={(event) => update("note", event.target.value)} placeholder="Optional context staff needs before working this channel" rows={3} /></label>
             </div>
           )}
-        </section>
-
       </main>
+      )}
       {status.kind !== "idle" ? <p className={status.kind === "error" ? styles.dealStartError : styles.dealStartStatus}>{status.message}{status.href ? <> <Link href={status.href}>Open opportunity</Link></> : null}</p> : null}
       {summaryOpen ? (
         <div className={styles.executionDrawerBackdrop} role="presentation">
