@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import type { ClaimsDeskReadModel } from "@/server/claims-workspace/service";
+
 import styles from "./claims-desk.module.css";
 
 const startPaths = [
@@ -58,12 +60,12 @@ const intakeFacts = [
   ["Opens to", "Workspace", "Once claim/account context exists."]
 ] as const;
 
-const deskSignals = [
-  ["Open claims", "14", "Across service and repair."],
-  ["Waiting carrier", "5", "Adjuster or approval pending."],
-  ["Ready handoff", "3", "Can move to repair order."],
-  ["Payment watch", "2", "Deductible or short-pay."]
-] as const;
+const fallbackMetrics = {
+  openClaims: 14,
+  paymentWatch: 2,
+  readyHandoff: 3,
+  waitingCarrier: 5
+};
 
 const handoffLanes = [
   ["1", "Evidence intake", "Photos, insurance card, signed authorization, tow/storage docs."],
@@ -82,7 +84,16 @@ function Badge({ children, tone = "info" }: { children: ReactNode; tone?: "info"
   return <span className={`${styles.badge} ${styles[tone]}`}>{children}</span>;
 }
 
-export function ClaimsDesk() {
+export function ClaimsDesk({ model }: { model?: ClaimsDeskReadModel }) {
+  const candidates = model?.claims ?? claimCandidates.map((candidate) => ({ ...candidate, href: "/vehicles/claims-workspace" }));
+  const metrics = model?.metrics ?? fallbackMetrics;
+  const deskSignals = [
+    ["Open claims", String(metrics.openClaims), "Across service and repair."],
+    ["Waiting carrier", String(metrics.waitingCarrier), "Adjuster or approval pending."],
+    ["Ready handoff", String(metrics.readyHandoff), "Can move to repair order."],
+    ["Payment watch", String(metrics.paymentWatch), "Deductible or short-pay."]
+  ] as const;
+
   return (
     <section className={styles.page}>
       <div className={styles.topbar}>
@@ -138,7 +149,7 @@ export function ClaimsDesk() {
                 <h2>Active claim candidates</h2>
                 <p>Picking a row opens the already-started claim workspace. The desk should make duplicate risk obvious.</p>
               </div>
-              <Badge tone="warning">3 need action</Badge>
+              <Badge tone="warning">{candidates.filter((candidate) => candidate.blocker !== "Ready for repair order").length} need action</Badge>
             </div>
             <div className={styles.queue}>
               <div className={styles.queueHead}>
@@ -147,7 +158,7 @@ export function ClaimsDesk() {
                 <span>Blocker</span>
                 <span>Action</span>
               </div>
-              {claimCandidates.map((candidate) => (
+              {candidates.map((candidate) => (
                 <div className={styles.claimRow} key={`${candidate.customer}-${candidate.claim}`}>
                   <div>
                     <strong>{candidate.customer}</strong>
@@ -160,7 +171,7 @@ export function ClaimsDesk() {
                   <div>
                     <Badge tone={candidate.blockerTone}>{candidate.blocker}</Badge>
                   </div>
-                  <Link className={candidate.action === "Open" ? styles.primaryAction : styles.secondaryAction} href="/vehicles/claims-workspace">
+                  <Link className={candidate.action === "Open" ? styles.primaryAction : styles.secondaryAction} href={candidate.href}>
                     {candidate.action}
                   </Link>
                 </div>

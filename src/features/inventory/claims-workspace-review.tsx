@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import type { ClaimChecklistItem, ClaimReadModel } from "@/server/claims-workspace/service";
+
 import styles from "./claims-workspace-review.module.css";
 
 const snapshot = [
@@ -47,12 +49,70 @@ function StatusBadge({ tone = "info", children }: { tone?: "good" | "warning" | 
   return <span className={`${styles.badge} ${styles[tone]}`}>{children}</span>;
 }
 
-function NeedIcon({ state }: { state: (typeof needs)[number]["state"] }) {
+type NeedState = "done" | "warning" | "blocked";
+
+function NeedIcon({ state }: { state: NeedState }) {
   const symbol = state === "done" ? "✓" : state === "warning" ? "?" : "!";
   return <span className={`${styles.needIcon} ${styles[state]}`}>{symbol}</span>;
 }
 
-export function ClaimsWorkspaceReview() {
+function checklistState(item: ClaimChecklistItem): NeedState {
+  if (item.state === "RECEIVED" || item.state === "EXCEPTION_ACCEPTED" || item.state === "NOT_APPLICABLE") return "done";
+  if (item.state === "BLOCKED") return "blocked";
+  return "warning";
+}
+
+function readinessTone(status: string): "good" | "warning" | "danger" | "info" {
+  if (status === "ready" || status === "exception_ready") return "good";
+  if (status === "blocked") return "warning";
+  return "info";
+}
+
+function readinessLabel(status: string) {
+  if (status === "ready") return "Ready";
+  if (status === "blocked") return "Blocked";
+  if (status === "exception_ready") return "Exception ready";
+  return "Not yet";
+}
+
+function evidenceTone(status: string): "good" | "warning" | "danger" | "info" {
+  if (status === "RECEIVED") return "good";
+  if (status === "BLOCKED") return "danger";
+  if (status === "EXCEPTION_ACCEPTED") return "warning";
+  return "info";
+}
+
+export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
+  const snapshotRows = model ? [
+    ["Customer", model.claim.customerName],
+    ["Vehicle", [model.claim.vehicleYear, model.claim.vehicleMake, model.claim.vehicleModel].filter(Boolean).join(" ") || "Not captured"],
+    ["VIN", model.claim.vehicleVin || "Pending"],
+    ["Owner", model.claim.ownerUserId || "Unassigned"],
+    ["Carrier", model.claim.carrierName || "Pending"],
+    ["Adjuster", model.claim.adjusterName || "Needed"],
+    ["Loss date", model.claim.lossDate || "Pending"],
+    ["Deductible", model.claim.deductible || "Pending"]
+  ] : snapshot;
+  const needRows = model ? model.checklist.map((item) => ({
+    detail: item.detail,
+    label: item.label,
+    state: checklistState(item)
+  })) : needs;
+  const evidenceRows = model ? model.evidence.map((item) => ({
+    detail: item.notes || "Stored once and linked to the claim record.",
+    status: item.status === "RECEIVED" ? "Complete" : item.status === "BLOCKED" ? "Blocked" : item.status === "EXCEPTION_ACCEPTED" ? "Exception" : "Recorded",
+    thumbs: item.category.includes("PHOTO") ? 3 : 1,
+    title: item.title,
+    tone: evidenceTone(item.status)
+  })) : evidence;
+  const readinessRows = model ? model.readiness.map((item) => ({
+    label: item.title,
+    percent: item.percent,
+    status: readinessLabel(item.status),
+    tone: readinessTone(item.status)
+  })) : readiness;
+  const completedNeeds = model?.checklist.filter((item) => item.state === "RECEIVED" || item.state === "EXCEPTION_ACCEPTED" || item.state === "NOT_APPLICABLE").length;
+
   return (
     <section className={styles.page}>
       <div className={styles.topbar}>
@@ -73,9 +133,9 @@ export function ClaimsWorkspaceReview() {
           <span className={styles.cardEyebrow}>Current claim</span>
           <div className={styles.statusLine}>
             <strong>Waiting on adjuster</strong>
-            <StatusBadge tone="warning">2 days open</StatusBadge>
+            <StatusBadge tone="warning">{model?.primaryBlocker ?? "2 days open"}</StatusBadge>
           </div>
-          <p>Next action is assigned to service advisor. Repair handoff is blocked until authorization and damage photos are complete.</p>
+          <p>{model?.nextAction.reason ?? "Next action is assigned to service advisor. Repair handoff is blocked until authorization and damage photos are complete."}</p>
         </aside>
       </header>
 
@@ -87,10 +147,10 @@ export function ClaimsWorkspaceReview() {
                 <h2>Claim Snapshot</h2>
                 <p>Enough context to work the claim without making staff complete every advanced field up front.</p>
               </div>
-              <StatusBadge>Claim # MN-48291</StatusBadge>
+              <StatusBadge>Claim # {model?.claim.claimNumber ?? "MN-48291"}</StatusBadge>
             </div>
             <div className={styles.snapshotGrid}>
-              {snapshot.map(([label, value]) => (
+              {snapshotRows.map(([label, value]) => (
                 <div className={styles.fact} key={label}>
                   <span>{label}</span>
                   <strong>{value}</strong>
@@ -98,11 +158,11 @@ export function ClaimsWorkspaceReview() {
               ))}
               <div className={`${styles.fact} ${styles.wide}`}>
                 <span>Incident summary</span>
-                <strong>Front bumper and left fender damage. Customer reports vehicle was driveable after loss.</strong>
+                <strong>{model?.claim.description ?? "Front bumper and left fender damage. Customer reports vehicle was driveable after loss."}</strong>
               </div>
               <div className={`${styles.fact} ${styles.wide}`}>
                 <span>Current blocker</span>
-                <strong>Missing adjuster contact and signed repair authorization.</strong>
+                <strong>{model?.primaryBlocker ?? "Missing adjuster contact and signed repair authorization."}</strong>
               </div>
             </div>
           </section>
@@ -113,10 +173,10 @@ export function ClaimsWorkspaceReview() {
                 <h2>What We Need</h2>
                 <p>A focused checklist replaces a long intake form. Staff can mark items complete, blocked, or not applicable.</p>
               </div>
-              <StatusBadge tone="warning">5/9 ready</StatusBadge>
+              <StatusBadge tone="warning">{completedNeeds ?? 5}/{model?.checklist.length ?? 9} ready</StatusBadge>
             </div>
             <div className={styles.needGrid}>
-              {needs.map((item) => (
+              {needRows.map((item) => (
                 <article className={styles.need} key={item.label}>
                   <NeedIcon state={item.state} />
                   <div>
@@ -137,7 +197,7 @@ export function ClaimsWorkspaceReview() {
               <button className={styles.secondaryButton} type="button">Add evidence</button>
             </div>
             <div className={styles.evidenceList}>
-              {evidence.map((item) => (
+              {evidenceRows.map((item) => (
                 <article className={styles.evidenceRow} key={item.title}>
                   <div className={styles.thumbs} aria-hidden="true">
                     {Array.from({ length: item.thumbs }).map((_, index) => <span key={index} />)}
@@ -163,17 +223,17 @@ export function ClaimsWorkspaceReview() {
             </div>
             <div className={styles.nextAction}>
               <span className={styles.cardEyebrow}>Recommended now</span>
-              <strong>Contact adjuster</strong>
-              <p>Carrier is captured, but adjuster contact and approval status are missing. Repair handoff remains blocked until authorization and required photos are complete.</p>
+              <strong>{model?.nextAction.label ?? "Contact adjuster"}</strong>
+              <p>{model?.nextAction.reason ?? "Carrier is captured, but adjuster contact and approval status are missing. Repair handoff remains blocked until authorization and required photos are complete."}</p>
               <button type="button">Record carrier call</button>
               <div className={styles.ownerGrid}>
                 <div className={styles.fact}>
                   <span>Owner</span>
-                  <strong>Service advisor</strong>
+                  <strong>{model?.nextAction.ownerRole ?? "Service advisor"}</strong>
                 </div>
                 <div className={styles.fact}>
                   <span>Due</span>
-                  <strong>Today, 4:00 PM</strong>
+                  <strong>{model?.nextAction.dueLabel ?? "Today, 4:00 PM"}</strong>
                 </div>
               </div>
             </div>
@@ -187,7 +247,7 @@ export function ClaimsWorkspaceReview() {
               </div>
             </div>
             <div className={styles.gateList}>
-              {readiness.map((gate) => (
+              {readinessRows.map((gate) => (
                 <article className={styles.gate} key={gate.label}>
                   <div>
                     <strong>{gate.label}</strong>

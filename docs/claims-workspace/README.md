@@ -1,7 +1,7 @@
 # Claims Workspace Planning Pack
 
 **Product area:** Service / Repair Operations  
-**Status:** Planning baseline, pre-implementation  
+**Status:** Planning baseline with CLM-010 through CLM-050 workflow foundation underway  
 **Primary anchor:** Service Console / Repair Intake  
 **Secondary visibility:** Customer 360, Vehicle 360, Repair Order, Document Library  
 
@@ -33,6 +33,7 @@ The interface should not expose claim complexity until the work requires it. A s
 3. [Workflow Catalog](WORKFLOW_CATALOG.md)
 4. [Algorithms and Decision Logic](ALGORITHMS_AND_DECISION_LOGIC.md)
 5. [Roadmap and Milestones](ROADMAP_AND_MILESTONES.md)
+6. [Implementation Status](IMPLEMENTATION_STATUS.md)
 
 ## Non-Negotiables
 
