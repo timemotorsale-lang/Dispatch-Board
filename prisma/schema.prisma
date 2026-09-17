@@ -2317,6 +2317,9 @@ model Organization {
   unifiedCrmQuoteVersions               UnifiedCrmQuoteVersion[]
   unifiedCrmCommercialApprovalRequests  UnifiedCrmCommercialApprovalRequest[]
   unifiedCrmCommercialApprovalDecisions UnifiedCrmCommercialApprovalDecision[]
+  insuranceClaims                       InsuranceClaim[]
+  insuranceClaimEvidence                InsuranceClaimEvidence[]
+  insuranceClaimActivities              InsuranceClaimActivity[]
   concernCases                          ConcernCase[]
   customerSlaPolicies                   CustomerSlaPolicy[]
   crmFeatureFlags                       CustomerCrmFeatureFlag[]
@@ -2774,6 +2777,7 @@ model Customer {
   workdayQuickUpdates             WorkdayQuickUpdate[]
   unifiedCrmOpportunities         UnifiedCrmOpportunityRecord[]    @relation("UnifiedCrmOpportunityCustomer")
   unifiedCrmQuotes                UnifiedCrmQuoteRecord[]          @relation("UnifiedCrmQuoteCustomer")
+  insuranceClaims                 InsuranceClaim[]
 
   @@unique([organizationId, customerNumber])
   @@unique([id, organizationId])
@@ -3494,6 +3498,7 @@ model Vehicle {
   evidenceLinks                   VehicleEvidenceLink[]
   controlledOutputs               VehicleControlledOutput[]
   diagnosticCases                 DiagnosticCase[]
+  insuranceClaims                 InsuranceClaim[]
 
   @@unique([organizationId, vehicleNumber])
   @@unique([id, organizationId])
@@ -4171,6 +4176,7 @@ model RepairOrder {
   diagnosticVerifications      DiagnosticVerificationVersion[]
   shopReconLifecycle           ShopReconLifecycle?
   taskLinks                    RepairOrderTaskLink[]
+  insuranceClaims              InsuranceClaim[]
 
   @@unique([organizationId, repairOrderNumber])
   @@unique([id, organizationId])
@@ -9175,6 +9181,99 @@ model VehicleWarrantyClaim {
   @@unique([organizationId, claimNumber])
   @@index([repairOrderId, status])
   @@index([coverageId, status])
+}
+
+model InsuranceClaim {
+  id                       String                    @id @default(cuid())
+  organizationId           String
+  customerId               String?
+  vehicleId                String?
+  linkedRepairOrderId      String?
+  claimNumber              String?
+  status                   String                    @default("OPEN")
+  stage                    String                    @default("INTAKE")
+  lossDate                 String?
+  lossLocation             String?
+  description              String?
+  deductible               String?
+  carrierName              String?
+  policyNumber             String?
+  adjusterName             String?
+  adjusterPhone            String?
+  adjusterEmail            String?
+  customerName             String
+  customerPhone            String?
+  customerEmail            String?
+  vehicleYear              String?
+  vehicleMake              String?
+  vehicleModel             String?
+  vehicleVin               String?
+  vehiclePlate             String?
+  vehicleStockNumber       String?
+  ownerUserId              String
+  createdByUserId          String
+  duplicateExceptionReason String?
+  blockerReason            String?
+  nextAction               String?
+  openedAt                 DateTime                  @default(now())
+  lastActivityAt           DateTime                  @default(now())
+  closedAt                 DateTime?
+  version                  Int                       @default(1)
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  organization             Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  customer                 Customer?                 @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  vehicle                  Vehicle?                  @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  linkedRepairOrder        RepairOrder?              @relation(fields: [linkedRepairOrderId], references: [id], onDelete: SetNull)
+  evidence                 InsuranceClaimEvidence[]
+  activities               InsuranceClaimActivity[]
+
+  @@unique([organizationId, claimNumber])
+  @@unique([id, organizationId])
+  @@index([organizationId, status, stage, lastActivityAt])
+  @@index([organizationId, ownerUserId, lastActivityAt])
+  @@index([organizationId, customerId])
+  @@index([organizationId, vehicleId])
+  @@index([organizationId, linkedRepairOrderId])
+  @@index([organizationId, carrierName])
+}
+
+model InsuranceClaimEvidence {
+  id                  String         @id @default(cuid())
+  organizationId      String
+  claimId             String
+  category            String
+  title               String
+  status              String
+  documentLibraryId   String?
+  fileName            String?
+  notes               String?
+  relationshipTargets Json           @default("[]")
+  createdByUserId     String
+  createdAt           DateTime       @default(now())
+  organization        Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  claim               InsuranceClaim @relation(fields: [claimId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, claimId, category])
+  @@index([organizationId, documentLibraryId])
+  @@index([organizationId, status])
+}
+
+model InsuranceClaimActivity {
+  id             String         @id @default(cuid())
+  organizationId String
+  claimId        String
+  action         String
+  actorUserId    String
+  detail         String
+  at             DateTime
+  createdAt      DateTime       @default(now())
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  claim          InsuranceClaim @relation(fields: [claimId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, claimId, at])
+  @@index([organizationId, actorUserId, at])
+  @@index([organizationId, action, at])
 }
 
 model ServiceInvoiceReconciliation {

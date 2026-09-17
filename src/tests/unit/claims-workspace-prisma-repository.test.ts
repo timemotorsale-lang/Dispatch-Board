@@ -1,0 +1,112 @@
+import { describe, expect, it } from "vitest";
+
+import { createPrismaClaimsWorkspaceRepository } from "@/server/claims-workspace/prisma-repository";
+import type { InsuranceClaimRecord } from "@/server/claims-workspace/service";
+
+function fakePrisma() {
+  const claims: any[] = [];
+  const evidence: any[] = [];
+  const activities: any[] = [];
+  const hydrate = (claim: any) => ({
+    ...claim,
+    activities: activities.filter((item) => item.claimId === claim.id).sort((left, right) => right.at.getTime() - left.at.getTime()),
+    evidence: evidence.filter((item) => item.claimId === claim.id).sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime())
+  });
+
+  const prisma = {
+    $transaction: async <T>(callback: (tx: any) => Promise<T>) => callback(prisma),
+    insuranceClaim: {
+      create: async ({ data }: any) => {
+        const row = {
+          ...data,
+          activities: [],
+          createdAt: new Date("2026-09-17T20:00:00.000Z"),
+          evidence: [],
+          updatedAt: new Date("2026-09-17T20:00:00.000Z")
+        };
+        claims.push(row);
+        return hydrate(row);
+      },
+      findFirst: async ({ where }: any) => {
+        const row = claims.find((claim) => claim.id === where.id && claim.organizationId === where.organizationId);
+        return row ? hydrate(row) : null;
+      },
+      findMany: async ({ where }: any) => claims.filter((claim) => claim.organizationId === where.organizationId).map(hydrate),
+      update: async ({ data, where }: any) => {
+        const row = claims.find((claim) => claim.id === where.id);
+        if (!row) throw new Error("missing claim");
+        Object.assign(row, {
+          ...data,
+          lastActivityAt: data.lastActivityAt ?? row.lastActivityAt,
+          version: data.version?.increment ? row.version + data.version.increment : row.version
+        });
+        return hydrate(row);
+      }
+    },
+    insuranceClaimActivity: {
+      create: async ({ data }: any) => {
+        activities.push(data);
+        return data;
+      }
+    },
+    insuranceClaimEvidence: {
+      create: async ({ data }: any) => {
+        evidence.push(data);
+        return data;
+      }
+    }
+  };
+  return prisma;
+}
+
+describe("Prisma claims workspace repository", () => {
+  it("persists and rehydrates claim aggregates with evidence and activity", async () => {
+    const prisma = fakePrisma();
+    const repository = createPrismaClaimsWorkspaceRepository({ organizationId: "org-1", prisma });
+    const claim: InsuranceClaimRecord = {
+      carrierName: "State Farm",
+      claimNumber: "DB-10001",
+      createdByUserId: "advisor-1",
+      customerName: "Database Customer",
+      description: "Front damage.",
+      id: "claim-db-1",
+      lastActivityAt: "2026-09-17T20:00:00.000Z",
+      openedAt: "2026-09-17T20:00:00.000Z",
+      ownerUserId: "advisor-1",
+      stage: "INTAKE",
+      status: "OPEN",
+      vehicleMake: "Toyota",
+      vehicleModel: "Camry",
+      vehicleVin: "VIN-DB-1",
+      vehicleYear: "2018",
+      version: 1
+    };
+
+    const created = await repository.createClaim(claim);
+    expect(created.claim).toMatchObject({ claimNumber: "DB-10001", customerName: "Database Customer" });
+
+    const withEvidence = await repository.addEvidence(claim.id, {
+      category: "DAMAGE_PHOTO",
+      createdAt: "2026-09-17T20:05:00.000Z",
+      createdByUserId: "advisor-1",
+      id: "evidence-db-1",
+      relationshipTargets: ["CLAIM", "CUSTOMER", "VEHICLE"],
+      status: "RECEIVED",
+      title: "Damage photos"
+    });
+    expect(withEvidence.evidence).toHaveLength(1);
+    expect(withEvidence.evidence[0]).toMatchObject({ category: "DAMAGE_PHOTO", relationshipTargets: ["CLAIM", "CUSTOMER", "VEHICLE"] });
+
+    await repository.addActivity(claim.id, {
+      action: "CLAIM_NOTE",
+      actorUserId: "advisor-1",
+      at: "2026-09-17T20:06:00.000Z",
+      detail: "Customer called with claim number.",
+      id: "activity-db-1"
+    });
+
+    const reloaded = await repository.findClaimById(claim.id);
+    expect(reloaded?.activities[0]).toMatchObject({ action: "CLAIM_NOTE" });
+    expect((await repository.listClaims())[0].claim.version).toBeGreaterThan(1);
+  });
+});
