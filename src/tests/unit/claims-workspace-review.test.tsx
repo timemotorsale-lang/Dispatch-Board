@@ -10,15 +10,15 @@ describe("claims workspace review", () => {
     expect(html).toContain("Claims Workspace");
     expect(html).toContain("Save claim");
     expect(html).toContain("Execute Next Tasks");
+    expect(html).toContain("Record / view activity progress");
+    expect(html).toContain("Teardown / reinspection");
+    expect(html).toContain("One place to record all progress");
     expect(html).toContain("Claim Snapshot");
     expect(html).toContain("What We Need");
-    expect(html).toContain("Evidence and Documents");
-    expect(html).toContain("Documents and Forced Photos");
     expect(html).toContain("Carrier Tracker");
     expect(html).toContain("Activity Timeline");
     expect(html).toContain("Next Action");
     expect(html).toContain("Handoff Readiness");
-    expect(html).toContain("Progressive Tools");
     expect(html).toContain("Contact adjuster");
     expect(html).toContain("Repair order handoff");
   });

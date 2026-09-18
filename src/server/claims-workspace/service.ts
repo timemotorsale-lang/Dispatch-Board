@@ -291,8 +291,10 @@ export type ClaimExecutionUpdateInput = {
   carrierName?: unknown;
   claimNumber?: unknown;
   deductible?: unknown;
+  nextAction?: unknown;
   note?: unknown;
   policyNumber?: unknown;
+  updateType?: unknown;
 };
 
 export class ClaimsWorkspaceError extends Error {
@@ -654,13 +656,13 @@ export async function updateClaimExecutionDetails(
   await context.repository.updateClaim(claimId, {
     ...normalized,
     lastActivityAt: now,
-    nextAction: normalized.adjusterName || normalized.adjusterPhone || normalized.adjusterEmail ? "Review estimate or approval status" : prior.claim.nextAction
+    nextAction: text(raw.nextAction) || (normalized.adjusterName || normalized.adjusterPhone || normalized.adjusterEmail ? "Review estimate or approval status" : prior.claim.nextAction)
   });
   await context.repository.addActivity(claimId, {
     action: "CLAIM_EXECUTION_UPDATED",
     actorUserId: user.id,
     at: now,
-    detail: text(raw.note) || executionUpdateDetail(normalized),
+    detail: activityUpdateDetail(raw, normalized),
     id: `claim-activity-${randomUUID()}`
   });
   const refreshed = await context.repository.findClaimById(claimId);
@@ -1129,6 +1131,15 @@ function executionUpdateDetail(update: Partial<InsuranceClaimRecord>) {
     update.deductible ? "deductible" : ""
   ].filter(Boolean);
   return fields.length ? `Updated ${fields.join(", ")} details.` : "Claim execution note recorded.";
+}
+
+function activityUpdateDetail(raw: ClaimExecutionUpdateInput, update: Partial<InsuranceClaimRecord>) {
+  const updateType = text(raw.updateType);
+  const note = text(raw.note);
+  const nextAction = text(raw.nextAction);
+  const prefix = updateType ? `${updateType}: ` : "";
+  const suffix = nextAction ? ` Next action: ${nextAction}.` : "";
+  return `${prefix}${note || executionUpdateDetail(update)}${suffix}`;
 }
 
 function relationshipTargets(value: unknown): ClaimEvidenceRecord["relationshipTargets"] {

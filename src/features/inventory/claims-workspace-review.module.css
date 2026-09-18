@@ -215,13 +215,38 @@
   margin-top: 10px;
 }
 
+.activityDrawer {
+  border: 1px solid #cbd8ef;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.activityDrawer summary {
+  cursor: pointer;
+  color: #07132d;
+  font-size: 0.92rem;
+  font-weight: 950;
+  list-style-position: inside;
+  padding: 10px 12px;
+}
+
+.activityDrawer[open] summary {
+  border-bottom: 1px solid #dce5f3;
+}
+
+.activityDrawer .timeline {
+  margin-top: 8px;
+  padding: 0 10px 10px;
+}
+
 .executionForm {
   display: grid;
   gap: 8px;
+  margin: 0;
   padding: 10px;
-  border: 1px solid #dce5f3;
-  border-radius: 8px;
-  background: #fff;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .executionForm > strong {

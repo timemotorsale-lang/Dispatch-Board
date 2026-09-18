@@ -28,37 +28,11 @@ const needs = [
   { label: "Deductible", detail: "$500 confirmed", state: "done" },
 ] as const;
 
-const evidence = [
-  { title: "Initial damage photos", detail: "3 attached. Missing left-front closeup and VIN photo.", status: "Partial", tone: "warning", thumbs: 3 },
-  { title: "Insurance card", detail: "Stored in document library and linked to customer and claim.", status: "Complete", tone: "good", thumbs: 1 },
-  { title: "Repair authorization", detail: "Prepared but not signed. E-sign can be added later.", status: "Needed", tone: "danger", thumbs: 1 },
-] as const;
-
 const readiness = [
   { label: "Estimate readiness", percent: 88, status: "Ready", tone: "good" },
   { label: "Repair order handoff", percent: 56, status: "Blocked", tone: "warning" },
   { label: "Payment follow-up", percent: 32, status: "Later", tone: "info" },
   { label: "Closeout", percent: 18, status: "Not yet", tone: "info" },
-] as const;
-
-const tools = [
-  { title: "Adjuster details", detail: "Visible because carrier claim is active.", active: true },
-  { title: "Estimate", detail: "Ready to upload or link appraisal.", active: true },
-  { title: "Supplement", detail: "Hidden until estimate exists.", active: false },
-  { title: "Payment recovery", detail: "Hidden until repair or payment issue.", active: false },
-] as const;
-
-const fallbackDocuments = [
-  { label: "Claim identity record", detail: "Claim number and carrier confirmation.", state: "RECEIVED", requiredBefore: "Intake", libraryTarget: "Claim jacket" },
-  { label: "Customer repair authorization", detail: "Signed authorization before repair handoff.", state: "MISSING", requiredBefore: "Repair handoff", libraryTarget: "Claim jacket" },
-  { label: "Estimate and supplement packet", detail: "Carrier estimate or internal appraisal.", state: "MISSING", requiredBefore: "Repair handoff", libraryTarget: "Repair order" }
-] as const;
-
-const fallbackPhotos = [
-  { label: "Damage overview and closeups", state: "MISSING", uploadTarget: "Claim evidence" },
-  { label: "VIN plate or verified VIN", state: "RECEIVED", uploadTarget: "Vehicle evidence" },
-  { label: "Odometer photo", state: "MISSING", uploadTarget: "Vehicle evidence" },
-  { label: "Repair handoff / release condition", state: "MISSING", uploadTarget: "Repair handoff" }
 ] as const;
 
 const fallbackTasks = [
@@ -97,21 +71,6 @@ function readinessLabel(status: string) {
   return "Not yet";
 }
 
-function evidenceTone(status: string): "good" | "warning" | "danger" | "info" {
-  if (status === "RECEIVED") return "good";
-  if (status === "BLOCKED") return "danger";
-  if (status === "EXCEPTION_ACCEPTED") return "warning";
-  return "info";
-}
-
-function evidenceLabel(status: string) {
-  if (status === "RECEIVED") return "Ready";
-  if (status === "BLOCKED") return "Blocked";
-  if (status === "EXCEPTION_ACCEPTED") return "Exception";
-  if (status === "NOT_APPLICABLE") return "N/A";
-  return "Missing";
-}
-
 export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
   const [actionError, setActionError] = useState("");
   const [actionMessage, setActionMessage] = useState("");
@@ -134,13 +93,6 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
     label: item.label,
     state: checklistState(item)
   })) : needs;
-  const evidenceRows = model ? model.evidence.map((item) => ({
-    detail: item.notes || "Stored once and linked to the claim record.",
-    status: item.status === "RECEIVED" ? "Complete" : item.status === "BLOCKED" ? "Blocked" : item.status === "EXCEPTION_ACCEPTED" ? "Exception" : "Recorded",
-    thumbs: item.category.includes("PHOTO") ? 3 : 1,
-    title: item.title,
-    tone: evidenceTone(item.status)
-  })) : evidence;
   const readinessRows = model ? model.readiness.map((item) => ({
     label: item.title,
     percent: item.percent,
@@ -148,8 +100,6 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
     tone: readinessTone(item.status)
   })) : readiness;
   const completedNeeds = model?.checklist.filter((item) => item.state === "RECEIVED" || item.state === "EXCEPTION_ACCEPTED" || item.state === "NOT_APPLICABLE").length;
-  const documentRows = model?.documentPlan ?? fallbackDocuments;
-  const photoRows = model?.photoPlan ?? fallbackPhotos;
   const activityRows = model?.activities.length ? model.activities.slice(0, 5) : [
     { action: "CLAIM_CREATED", at: "2026-09-17T14:00:00.000Z", detail: "Insurance claim workspace opened from Claims Desk.", actorUserId: "advisor", id: "fallback-activity" }
   ];
@@ -203,6 +153,34 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
       status: "RECEIVED",
       title: formData.get("title") || fileName
     });
+  }
+
+  async function recordActivityUpdate(formData: FormData) {
+    if (!claimId) return;
+    const category = String(formData.get("category") ?? "ACTIVITY_ONLY");
+    const file = formData.get("file");
+    const fileName = file && typeof file === "object" && "name" in file ? String(file.name) : "";
+    const title = String(formData.get("title") ?? "").trim();
+    const note = String(formData.get("note") ?? "").trim();
+    const updateType = String(formData.get("updateType") ?? "").trim();
+
+    if (category !== "ACTIVITY_ONLY" && (title || fileName)) {
+      await submitJson(`/api/claims-workspace/claims/${encodeURIComponent(claimId)}/evidence`, {
+        category,
+        fileName,
+        notes: note,
+        relationshipTargets: ["CLAIM", "CUSTOMER", "VEHICLE"],
+        status: "RECEIVED",
+        title: title || fileName || updateType
+      });
+      return;
+    }
+
+    await submitJson(`/api/claims-workspace/claims/${encodeURIComponent(claimId)}`, {
+      nextAction: formData.get("nextAction"),
+      note,
+      updateType
+    }, "PATCH");
   }
 
   async function requestHandoff(formData: FormData) {
@@ -268,45 +246,27 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
               ))}
             </div>
             <div className={styles.actionForms}>
-              <form action={recordCarrierCall} className={styles.executionForm}>
-                <strong>Record carrier / adjuster call</strong>
-                <div>
-                  <input name="carrierName" placeholder="Carrier" defaultValue={model?.claim.carrierName ?? ""} />
-                  <input name="claimNumber" placeholder="Claim #" defaultValue={model?.claim.claimNumber ?? ""} />
-                  <input name="policyNumber" placeholder="Policy #" defaultValue={model?.claim.policyNumber ?? ""} />
-                  <input name="adjusterName" placeholder="Adjuster name" defaultValue={model?.claim.adjusterName ?? ""} />
-                  <input name="adjusterPhone" placeholder="Adjuster phone" defaultValue={model?.claim.adjusterPhone ?? ""} />
-                  <input name="adjusterEmail" placeholder="Adjuster email" defaultValue={model?.claim.adjusterEmail ?? ""} />
-                </div>
-                <textarea name="note" placeholder="Short call note or promise from carrier" rows={2} />
-                <button disabled={!claimId || isWorking} type="submit">Record carrier call</button>
-              </form>
-              <form action={recordEvidence} className={styles.executionForm}>
-                <strong>Record evidence / photo</strong>
-                <div>
-                  <select name="category" defaultValue="DAMAGE_PHOTO">
-                    <option value="AUTHORIZATION">Customer authorization</option>
-                    <option value="DAMAGE_PHOTO">Damage photos</option>
-                    <option value="VIN_PHOTO">VIN photo</option>
-                    <option value="ODOMETER_PHOTO">Odometer photo</option>
-                    <option value="INSURANCE_CARD">Insurance card</option>
-                    <option value="ESTIMATE">Estimate</option>
-                    <option value="PAYMENT">Payment proof</option>
-                    <option value="REPAIR_HANDOFF">Repair handoff</option>
-                  </select>
-                  <input name="title" placeholder="Evidence title" />
-                  <input name="file" type="file" />
-                </div>
-                <textarea name="notes" placeholder="Evidence note" rows={2} />
-                <button disabled={!claimId || isWorking} type="submit">Record evidence</button>
-              </form>
-              <form action={requestHandoff} className={styles.executionForm}>
-                <strong>Move to repair handoff</strong>
-                <textarea name="exceptionReason" placeholder="Optional manager exception reason if a gate is blocked" rows={2} />
-                <button disabled={!claimId || isWorking} type="submit">{model?.handoff.allowed ? "Open repair handoff" : "Request exception handoff"}</button>
-              </form>
-              {actionError ? <p className={styles.actionError}>{actionError}</p> : null}
-              {actionMessage ? <p className={styles.actionMessage}>{actionMessage}</p> : null}
+              <details className={styles.activityDrawer}>
+                <summary>Advanced carrier and handoff actions</summary>
+                <form action={recordCarrierCall} className={styles.executionForm}>
+                  <strong>Carrier / adjuster details</strong>
+                  <div>
+                    <input name="carrierName" placeholder="Carrier" defaultValue={model?.claim.carrierName ?? ""} />
+                    <input name="claimNumber" placeholder="Claim #" defaultValue={model?.claim.claimNumber ?? ""} />
+                    <input name="policyNumber" placeholder="Policy #" defaultValue={model?.claim.policyNumber ?? ""} />
+                    <input name="adjusterName" placeholder="Adjuster name" defaultValue={model?.claim.adjusterName ?? ""} />
+                    <input name="adjusterPhone" placeholder="Adjuster phone" defaultValue={model?.claim.adjusterPhone ?? ""} />
+                    <input name="adjusterEmail" placeholder="Adjuster email" defaultValue={model?.claim.adjusterEmail ?? ""} />
+                  </div>
+                  <textarea name="note" placeholder="Short call note or promise from carrier" rows={2} />
+                  <button disabled={!claimId || isWorking} type="submit">Record carrier call</button>
+                </form>
+                <form action={requestHandoff} className={styles.executionForm}>
+                  <strong>Move to repair handoff</strong>
+                  <textarea name="exceptionReason" placeholder="Optional manager exception reason if a gate is blocked" rows={2} />
+                  <button disabled={!claimId || isWorking} type="submit">{model?.handoff.allowed ? "Open repair handoff" : "Request exception handoff"}</button>
+                </form>
+              </details>
             </div>
           </section>
 
@@ -357,64 +317,6 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
             </div>
           </section>
 
-          <section className={styles.panel}>
-            <div className={styles.panelHeader}>
-              <div>
-                <h2>Evidence and Documents</h2>
-                <p>Documents store once in the library, then link to claim, customer, vehicle, and repair order when available.</p>
-              </div>
-              <button className={styles.secondaryButton} type="button">Add evidence</button>
-            </div>
-            <div className={styles.evidenceList}>
-              {evidenceRows.map((item) => (
-                <article className={styles.evidenceRow} key={item.title}>
-                  <div className={styles.thumbs} aria-hidden="true">
-                    {Array.from({ length: item.thumbs }).map((_, index) => <span key={index} />)}
-                  </div>
-                  <div>
-                    <strong>{item.title}</strong>
-                    <span>{item.detail}</span>
-                  </div>
-                  <StatusBadge tone={item.tone}>{item.status}</StatusBadge>
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <section className={styles.panel}>
-            <div className={styles.panelHeader}>
-              <div>
-                <h2>Documents and Forced Photos</h2>
-                <p>Required evidence is broken into short execution slots with a clear storage target.</p>
-              </div>
-              <StatusBadge tone="info">{model?.summary.documentCount ?? 2} docs / {model?.summary.photoCount ?? 3} photos</StatusBadge>
-            </div>
-            <div className={styles.executionGrid}>
-              <div className={styles.miniList}>
-                {documentRows.map((item) => (
-                  <article className={styles.documentItem} key={item.label}>
-                    <div>
-                      <strong>{item.label}</strong>
-                      <span>{item.detail}</span>
-                      <small>{item.libraryTarget} - before {item.requiredBefore}</small>
-                    </div>
-                    <StatusBadge tone={evidenceTone(item.state)}>{evidenceLabel(item.state)}</StatusBadge>
-                  </article>
-                ))}
-              </div>
-              <div className={styles.miniList}>
-                {photoRows.map((item) => (
-                  <article className={styles.documentItem} key={item.label}>
-                    <div>
-                      <strong>{item.label}</strong>
-                      <span>{item.uploadTarget}</span>
-                    </div>
-                    <StatusBadge tone={evidenceTone(item.state)}>{evidenceLabel(item.state)}</StatusBadge>
-                  </article>
-                ))}
-              </div>
-            </div>
-          </section>
         </div>
 
         <aside className={styles.sideStack}>
@@ -490,37 +392,52 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
           <section className={styles.panel}>
             <div className={styles.panelHeader}>
               <div>
-                <h2>Progressive Tools</h2>
-                <p>Advanced panels appear only when claim complexity requires them.</p>
-              </div>
-            </div>
-            <div className={styles.toolGrid}>
-              {tools.map((tool) => (
-                <article className={tool.active ? styles.tool : `${styles.tool} ${styles.muted}`} key={tool.title}>
-                  <strong>{tool.title}</strong>
-                  <span>{tool.detail}</span>
-                </article>
-              ))}
-            </div>
-            <p className={styles.note}>Review implementation: a short execution workspace, not a long insurance form.</p>
-          </section>
-
-          <section className={styles.panel}>
-            <div className={styles.panelHeader}>
-              <div>
                 <h2>Activity Timeline</h2>
-                <p>Every claim movement should leave a lightweight audit trail.</p>
+                <p>Record progress here. Every claim movement should leave a lightweight audit trail.</p>
               </div>
             </div>
-            <div className={styles.timeline}>
-              {activityRows.map((activity) => (
-                <article key={activity.id}>
-                  <strong>{activity.action.replaceAll("_", " ")}</strong>
-                  <span>{activity.detail}</span>
-                  <small>{new Date(activity.at).toLocaleString()} - {activity.actorUserId}</small>
-                </article>
-              ))}
-            </div>
+            <details className={styles.activityDrawer} open>
+              <summary>Record / view activity progress</summary>
+              <form action={recordActivityUpdate} className={styles.executionForm}>
+                <strong>One place to record all progress</strong>
+                <div>
+                  <select name="updateType" defaultValue="Teardown / reinspection">
+                    <option>Teardown / reinspection</option>
+                    <option>Inspector visit</option>
+                    <option>Carrier call</option>
+                    <option>Customer authorization</option>
+                    <option>Photos taken</option>
+                    <option>Estimate / supplement</option>
+                    <option>Payment follow-up</option>
+                    <option>General note</option>
+                  </select>
+                  <select name="category" defaultValue="ACTIVITY_ONLY">
+                    <option value="ACTIVITY_ONLY">Activity only</option>
+                    <option value="DAMAGE_PHOTO">Attach damage photos</option>
+                    <option value="AUTHORIZATION">Attach authorization</option>
+                    <option value="ESTIMATE">Attach estimate / supplement</option>
+                    <option value="REPAIR_HANDOFF">Attach handoff evidence</option>
+                    <option value="PAYMENT">Attach payment proof</option>
+                  </select>
+                  <input name="title" placeholder="Optional evidence title" />
+                  <input name="nextAction" placeholder="Next action, e.g. Reinspection by Spencer" />
+                  <input name="file" type="file" />
+                </div>
+                <textarea name="note" placeholder="Example: Vehicle torn down today and ready for reinspection by Spencer. Estimate remains pending reinspect after teardown." rows={3} />
+                <button disabled={!claimId || isWorking} type="submit">Record progress</button>
+              </form>
+              <div className={styles.timeline}>
+                {activityRows.map((activity) => (
+                  <article key={activity.id}>
+                    <strong>{activity.action.replaceAll("_", " ")}</strong>
+                    <span>{activity.detail}</span>
+                    <small>{new Date(activity.at).toLocaleString()} - {activity.actorUserId}</small>
+                  </article>
+                ))}
+              </div>
+            </details>
+            {actionError ? <p className={styles.actionError}>{actionError}</p> : null}
+            {actionMessage ? <p className={styles.actionMessage}>{actionMessage}</p> : null}
           </section>
         </aside>
       </div>
