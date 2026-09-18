@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { useState } from "react";
 
+import { INSURANCE_CLAIM_INTAKE_FORM_PACKET } from "@/lib/insurance-claim-intake-form-packet";
 import type { ClaimsDeskReadModel } from "@/server/claims-workspace/service";
 
 import styles from "./claims-desk.module.css";
@@ -137,7 +138,7 @@ export function ClaimsDesk({ model }: { model?: ClaimsDeskReadModel }) {
         <span className={styles.eyebrow}>Service Console / Desk a Claim</span>
         <div className={styles.topActions}>
           <a href="#active-claim-queue">Open claim queue</a>
-          <Link href="/operations-coordinator#paperwork-command-center">Document library</Link>
+          <a href="#claim-intake-documents">Claim documents</a>
           <button type="button">Start new claim</button>
         </div>
       </div>
@@ -350,6 +351,28 @@ export function ClaimsDesk({ model }: { model?: ClaimsDeskReadModel }) {
         </div>
 
         <aside className={styles.sideStack}>
+          <section className={styles.panel} id="claim-intake-documents">
+            <div className={styles.panelHeader}>
+              <div>
+                <h2>Claim documents</h2>
+                <p>Review the insurance claim packet without leaving the Claims Desk.</p>
+              </div>
+              <Badge>Packet</Badge>
+            </div>
+            <div className={styles.documentList}>
+              {INSURANCE_CLAIM_INTAKE_FORM_PACKET.map((form) => (
+                <article className={styles.documentCard} key={form.id}>
+                  <div>
+                    <strong>{form.label}</strong>
+                    <small>{form.description}</small>
+                  </div>
+                  <Badge tone={form.category === "Required" ? "info" : "warning"}>{form.category}</Badge>
+                </article>
+              ))}
+            </div>
+            <p className={styles.note}>Next refinement: open these as printable packet previews from this claims page and the selected claim workspace.</p>
+          </section>
+
           <section className={styles.panel}>
             <div className={styles.panelHeader}>
               <div>

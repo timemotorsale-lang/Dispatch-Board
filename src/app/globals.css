@@ -25785,4 +25785,30 @@ html[data-app-theme="dark"] :where(.rowb-daily-command,.rowb-daily-status div,.r
   }
 }
 
+/* Operations coordinator layout guardrail: keep desktop workspaces full-width. */
+.app-frame-operations-coordinator,
+.app-frame-operations-coordinator .app-workspace,
+.app-content:has(.operations-coordinator-home),
+.operations-coordinator-home {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+}
+
+.app-frame-operations-coordinator .app-workspace,
+.app-frame-operations-coordinator .app-content {
+  justify-self: stretch;
+}
+
+@media (min-width: 761px) {
+  .operations-coordinator-home {
+    display: grid !important;
+    align-content: start;
+  }
+
+  .oc-paperwork > div {
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  }
+}
+
 
