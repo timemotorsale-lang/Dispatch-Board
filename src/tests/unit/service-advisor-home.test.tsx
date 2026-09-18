@@ -804,6 +804,7 @@ describe("ServiceAdvisorHome", () => {
     expect(html).not.toContain("Review what must be cleaned up before the day is closed.");
     expect(html).toContain("Ready");
     expect(html).toContain("Review now");
+    expect(html).toContain("Focus Compass");
     expect(html).toContain("Daily Checklist");
     expect(html).toContain("To-Do List");
     expect(html).toContain("Quick Update");
@@ -822,6 +823,7 @@ describe("ServiceAdvisorHome", () => {
     expect(html).toContain("Generate Report");
     expect(html).toContain("All workspace sources connected");
     expect(html).toContain("Finish customer callbacks");
+    expect(html).toContain("/vehicles/coo-workbook/focus-compass");
     expect(html).toContain("/vehicles/coo-workbook/checklist");
     expect(html).toContain("/vehicles/coo-workbook/to-do-list");
     expect(html).toContain("/vehicles/coo-workbook/quick-update");
@@ -946,6 +948,7 @@ describe("ServiceAdvisorHome", () => {
     const draftsHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="DRAFTS" model={toolModel} />);
     const bringForwardHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="BRING_FORWARD" model={toolModel} />);
     const purchaseCaptureHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="PURCHASE_APPRAISAL_CAPTURE" model={toolModel} />);
+    const focusCompassHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="FOCUS_COMPASS" model={toolModel} />);
     const moreToolsHtml = renderToStaticMarkup(<CooDailyWorkbook initialTool="MORE_TOOLS" model={toolModel} />);
 
     expect(checklistHtml).toContain("Add Daily Checklist item");
@@ -992,9 +995,21 @@ describe("ServiceAdvisorHome", () => {
     expect(purchaseCaptureHtml).toContain("Photo or document proof");
     expect(purchaseCaptureHtml).toContain("Send to TAI review");
     expect(purchaseCaptureHtml).toContain("No customer, inventory, quote, invoice, or appraisal records were changed");
+    expect(focusCompassHtml).toContain("Focus Compass");
+    expect(focusCompassHtml).toContain("Now Focus");
+    expect(focusCompassHtml).toContain("Today’s Must-Wins");
+    expect(focusCompassHtml).toContain("Risk Radar");
+    expect(focusCompassHtml).toContain("Distraction Filter");
+    expect(focusCompassHtml).toContain("Carryover &amp; Reset");
+    expect(focusCompassHtml).toContain("Company Focus Alignment");
+    expect(focusCompassHtml).toContain("Week");
+    expect(focusCompassHtml).toContain("Month");
+    expect(focusCompassHtml).toContain("Quarter");
+    expect(focusCompassHtml).toContain("Year");
     expect(moreToolsHtml).toContain("Service Advisor Workbook More Tools");
     expect(moreToolsHtml).toContain("Each tool opens a real workbook area");
-    expect(moreToolsHtml).toContain("12 tools");
+    expect(moreToolsHtml).toContain("13 tools");
+    expect(moreToolsHtml).toContain("Focus Compass");
     expect(moreToolsHtml).toContain("Bring Forward Work");
     expect(moreToolsHtml).toContain("Purchase / Appraisal Capture");
     expect(moreToolsHtml).toContain("Priority Triage");
@@ -1004,6 +1019,7 @@ describe("ServiceAdvisorHome", () => {
     expect(moreToolsHtml).toContain("Training Moment Capture");
     expect(moreToolsHtml).toContain("End-of-Day Assistant");
     expect(moreToolsHtml).toContain("/vehicles/coo-workbook/action-plan");
+    expect(moreToolsHtml).toContain("/vehicles/coo-workbook/focus-compass");
     expect(moreToolsHtml).toContain("/vehicles/coo-workbook/purchase-appraisal-capture");
     expect(moreToolsHtml).toContain("/vehicles/coo-workbook/report-seeds");
   });

@@ -314,7 +314,8 @@ type SearchableWorkItem = {
   title: string;
   tone: string;
 };
-export type CooWorkbookTool = "CHECKLIST" | "TO_DO_LIST" | "QUICK_UPDATE" | "ACTION_PLAN" | "CARRYOVER" | "REPORT_SEEDS" | "STAFF_SUPPORT" | "DRAFTS" | "BRING_FORWARD" | "PURCHASE_APPRAISAL_CAPTURE" | "MORE_TOOLS";
+export type CooWorkbookTool = "CHECKLIST" | "TO_DO_LIST" | "QUICK_UPDATE" | "ACTION_PLAN" | "CARRYOVER" | "REPORT_SEEDS" | "STAFF_SUPPORT" | "DRAFTS" | "BRING_FORWARD" | "PURCHASE_APPRAISAL_CAPTURE" | "FOCUS_COMPASS" | "MORE_TOOLS";
+type FocusCompassHorizon = "TODAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR";
 
 const quickUpdateCategories: QuickUpdateCategoryOption[] = [
   { group: "People", label: "Customer", value: "CUSTOMER" },
@@ -613,6 +614,8 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
   const [quickUpdateFollowUp, setQuickUpdateFollowUp] = useState(false);
   const [quickUpdateDueWindow, setQuickUpdateDueWindow] = useState("");
   const [quickUpdateSaveNotice, setQuickUpdateSaveNotice] = useState("");
+  const [focusCompassHorizon, setFocusCompassHorizon] = useState<FocusCompassHorizon>("TODAY");
+  const [focusCompassRole, setFocusCompassRole] = useState("All Roles");
   const [supportNote, setSupportNote] = useState("");
   const [supportUpdateRequested, setSupportUpdateRequested] = useState(true);
   const [workspaceNotice, setWorkspaceNotice] = useState<string | null>(null);
@@ -677,6 +680,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
   const effectiveWorkbookView = automaticWorkbookView(canUseManagementWorkbook, searchParams);
   const activeWorkbook = effectiveWorkbookView === "MY" ? staffWorkbook : workbook;
   const activeWorkbookLabel = effectiveWorkbookView === "MY" ? staffWorkbookLabel : managementWorkbookLabel;
+  const activeWorkbookOwner = effectiveWorkbookView === "MY" ? model.advisor.name.split(" ")[0] ?? "Staff" : "Manager";
   const reviewPlannerStorageKey = `coo-review-action-planner:${activeWorkbook.id}:${model.boardDate}:v1`;
   const sourceReturnTo = searchParams.get("returnTo");
   const scopedWorkbookHref = (href: string) => href.startsWith("/vehicles/coo-workbook") ? workbookScopeHref(href, effectiveWorkbookView, sourceReturnTo) : href;
@@ -1254,7 +1258,191 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
       return rightSupport - leftSupport || left.closeReadinessScore - right.closeReadinessScore || left.staffName.localeCompare(right.staffName);
     })
     .slice(0, 5);
+  const focusCompassHorizons: Array<{ label: string; value: FocusCompassHorizon }> = [
+    { label: "Today", value: "TODAY" },
+    { label: "Week", value: "WEEK" },
+    { label: "Month", value: "MONTH" },
+    { label: "Quarter", value: "QUARTER" },
+    { label: "Year", value: "YEAR" }
+  ];
+  const focusCompassRoles = ["All Roles", "CEO", "Manager", "Sales", "Service", "Office", "Collections"];
+  const focusScoreBase = Math.round((activeWorkbook.planning.score + activeWorkbook.execution.score + activeWorkbook.risk.score) / 3);
+  const focusScoreByHorizon: Record<FocusCompassHorizon, number> = {
+    TODAY: Math.max(0, Math.min(100, activeWorkbook.effectiveness.overallScore || focusScoreBase)),
+    WEEK: Math.max(0, Math.min(100, focusScoreBase + 6)),
+    MONTH: Math.max(0, Math.min(100, focusScoreBase + 10)),
+    QUARTER: Math.max(0, Math.min(100, focusScoreBase + 4)),
+    YEAR: Math.max(0, Math.min(100, focusScoreBase + 8))
+  };
+  const focusCompassPrimary = activeDailyFocusItems.find((item) => item.status !== "DONE" && item.status !== "CARRY_OVER") ?? activeDailyFocusItems[0] ?? null;
+  const focusCompassContent: Record<FocusCompassHorizon, {
+    alignment: Array<{ label: string; value: string }>;
+    carryover: Array<{ label: string; value: string }>;
+    focus: { badge: string; detail: string; title: string; why: string };
+    mustWins: Array<{ impact: string; owner: string; status: string; title: string }>;
+    radar: Array<{ detail: string; severity: "High" | "Med" | "Low"; title: string }>;
+    scoreLabel: string;
+    timeline: string[];
+    title: string;
+  }> = {
+    TODAY: {
+      alignment: [
+        { label: "Customer promises", value: `${activeWorkbook.risk.watchCount} watch` },
+        { label: "Daily execution", value: `${todayWorkRollup.done}/${todayWorkRollup.total} done` },
+        { label: "Close readiness", value: `${closeReadiness.score}/100` }
+      ],
+      carryover: [
+        { label: "Ready for reset", value: `${protectedCarryoverCount} carryover` },
+        { label: "Unresolved", value: `${unresolvedEndDayCount} item(s)` }
+      ],
+      focus: {
+        badge: "Recommended now",
+        detail: focusCompassPrimary?.progressUpdate || focusCompassPrimary?.supportNeeded || focusCompassPrimary?.riskNote || "Start with the highest-value item that protects a promise, revenue, or close readiness.",
+        title: focusCompassPrimary?.outcome ?? activeWorkbook.planning.suggestedFirstAction ?? "Choose the next highest-impact action",
+        why: "Today’s view keeps staff on one next action, the must-wins, and the risks that can block a clean close."
+      },
+      mustWins: [
+        ...activeDailyFocusItems.slice(0, 3).map((item) => ({ impact: item.priority, owner: activeWorkbookOwner, status: item.status.replaceAll("_", " "), title: item.outcome })),
+        ...checklistItems.filter((item) => !item.done).slice(0, 2).map((item) => ({ impact: item.priority, owner: activeWorkbookOwner, status: checklistStatusLabel(item), title: item.text }))
+      ].slice(0, 5),
+      radar: [
+        { detail: `${activeWorkbook.risk.watchCount} watch signal(s)`, severity: activeWorkbook.risk.watchCount ? "Med" : "Low", title: "Watch items" },
+        { detail: `${quickUpdateRollup.followUp} follow-up update(s)`, severity: quickUpdateRollup.followUp ? "High" : "Low", title: "Follow-up drift" },
+        { detail: `${protectedCarryoverCount} item(s)`, severity: protectedCarryoverCount ? "Med" : "Low", title: "Carryover pressure" }
+      ],
+      scoreLabel: "Focus score",
+      timeline: ["Now", "Next", "Close"],
+      title: "Now Focus"
+    },
+    WEEK: {
+      alignment: [
+        { label: "Customer promises", value: `${supportSignals} need attention` },
+        { label: "Revenue blockers", value: `${reportExceptions} exception(s)` },
+        { label: "Key processes", value: closeReadiness.tone === "READY" ? "On track" : "Needs focus" }
+      ],
+      carryover: [
+        { label: "From last week", value: `${protectedCarryoverCount} item(s)` },
+        { label: "Weekly report inputs", value: `${activeWorkbook.reporting.weeklyRollupInputs.length} source(s)` }
+      ],
+      focus: {
+        badge: "Recommended this week",
+        detail: "Keep the most important customer, revenue, and process outcomes visible before the week gets noisy.",
+        title: "Protect weekly outcomes and close the highest-risk promises",
+        why: "Weekly focus turns daily work into an operating rhythm: owners, deadlines, blockers, and carryover all stay visible."
+      },
+      mustWins: [
+        { impact: "Customer", owner: "Service", status: "In progress", title: "Close customer promise risks" },
+        { impact: "Revenue", owner: "Sales", status: "In progress", title: "Move pending sales blockers" },
+        { impact: "Process", owner: "Office", status: "Needs focus", title: "Review report seeds before weekly rollup" },
+        { impact: "People", owner: "Manager", status: "Open", title: "Support staff with blocked workbook items" }
+      ],
+      radar: [
+        { detail: `${supportSignals} signal(s) from workbook`, severity: supportSignals ? "High" : "Low", title: "Customer promises" },
+        { detail: `${reportExceptions} report exception(s)`, severity: reportExceptions ? "Med" : "Low", title: "Revenue blockers" },
+        { detail: `${activeWorkbook.reporting.weeklyRollupInputs.length} weekly input(s)`, severity: "Med", title: "Upcoming deadlines" }
+      ],
+      scoreLabel: "Weekly focus score",
+      timeline: ["Mon", "Tue", "Wed", "Thu", "Fri"],
+      title: "Week Focus"
+    },
+    MONTH: {
+      alignment: [
+        { label: "Revenue pace", value: "Protect" },
+        { label: "Collection pace", value: "Watch" },
+        { label: "Inventory readiness", value: "Improve" }
+      ],
+      carryover: [
+        { label: "Monthly carryover", value: `${protectedCarryoverCount} active` },
+        { label: "Monthly report inputs", value: `${activeWorkbook.reporting.monthlyRollupInputs.length} source(s)` }
+      ],
+      focus: {
+        badge: "Recommended this month",
+        detail: "Finish the month with clear revenue, collection, inventory, and customer-experience priorities.",
+        title: "Protect monthly goals",
+        why: "Monthly focus keeps pace and gap visible so staff can act before the month-end scramble."
+      },
+      mustWins: [
+        { impact: "Sales", owner: "Sales", status: "At risk", title: "Protect retail unit pace" },
+        { impact: "Cash", owner: "Collections", status: "Watch", title: "Reduce past-due receivables" },
+        { impact: "Inventory", owner: "Service", status: "In progress", title: "Improve inventory readiness" },
+        { impact: "Office", owner: "Office", status: "On track", title: "Keep document packets current" }
+      ],
+      radar: [
+        { detail: "Gap to monthly target", severity: "High", title: "Revenue pace" },
+        { detail: "A/R and promise follow-up", severity: "Med", title: "Collection pace" },
+        { detail: "Aging units and photo/document gaps", severity: "Med", title: "Inventory readiness" }
+      ],
+      scoreLabel: "Monthly focus score",
+      timeline: ["Week 1", "Week 2", "Week 3", "Week 4"],
+      title: "Month Focus"
+    },
+    QUARTER: {
+      alignment: [
+        { label: "Growth", value: "Active" },
+        { label: "Process discipline", value: "Build" },
+        { label: "Team capability", value: "Coach" }
+      ],
+      carryover: [
+        { label: "Quarter carryover", value: "Review" },
+        { label: "Milestone reset", value: "Monthly" }
+      ],
+      focus: {
+        badge: "Recommended this quarter",
+        detail: "Translate the quarterly plan into monthly milestones and weekly execution habits.",
+        title: "Convert strategy into visible milestones",
+        why: "Quarter focus gives leadership a clean bridge between the annual plan and month-by-month execution."
+      },
+      mustWins: [
+        { impact: "Growth", owner: "CEO", status: "In progress", title: "Increase profitable sales consistency" },
+        { impact: "Process", owner: "Manager", status: "Open", title: "Standardize workflow adoption" },
+        { impact: "People", owner: "Manager", status: "Watch", title: "Coach recurring execution gaps" },
+        { impact: "Cash", owner: "Office", status: "In progress", title: "Strengthen cash-flow discipline" }
+      ],
+      radar: [
+        { detail: "Ideas not tied to milestones", severity: "Med", title: "Scope drift" },
+        { detail: "Repeated blockers across workbooks", severity: "High", title: "Execution drag" },
+        { detail: "Staff support patterns", severity: "Med", title: "Training need" }
+      ],
+      scoreLabel: "Quarter focus score",
+      timeline: ["Month 1", "Month 2", "Month 3"],
+      title: "Quarter Focus"
+    },
+    YEAR: {
+      alignment: [
+        { label: "Growth", value: "Profitable" },
+        { label: "Cash flow", value: "Resilient" },
+        { label: "Customer experience", value: "Trusted" },
+        { label: "Operational discipline", value: "Consistent" }
+      ],
+      carryover: [
+        { label: "Annual carryover", value: "Separate noise" },
+        { label: "Not pursuing", value: "Protect focus" }
+      ],
+      focus: {
+        badge: "Recommended this year",
+        detail: "Stay disciplined on the few priorities that make the dealership stronger in profit, people, process, and customer trust.",
+        title: "Protect the annual plan",
+        why: "Year focus keeps the big picture visible without making staff manage a second strategic system."
+      },
+      mustWins: [
+        { impact: "Growth", owner: "CEO", status: "On track", title: "Grow profitable sales" },
+        { impact: "Cash flow", owner: "Office", status: "Watch", title: "Improve collection and expense discipline" },
+        { impact: "Experience", owner: "Manager", status: "On track", title: "Raise customer promise reliability" },
+        { impact: "Discipline", owner: "All roles", status: "In progress", title: "Make the workbook operating rhythm stick" }
+      ],
+      radar: [
+        { detail: "Market, pricing, and inventory pressure", severity: "High", title: "Economic conditions" },
+        { detail: "Hiring, retention, training", severity: "Med", title: "Talent and capability" },
+        { detail: "Process drift across departments", severity: "Med", title: "Operational discipline" }
+      ],
+      scoreLabel: "Annual focus score",
+      timeline: ["Q1", "Q2", "Q3", "Q4"],
+      title: "Year Focus"
+    }
+  };
+  const activeFocusCompass = focusCompassContent[focusCompassHorizon];
   const toolCards = [
+    { description: "Stay focused across today, week, month, quarter, and year", href: "/vehicles/coo-workbook/focus-compass", icon: Gauge, title: "Focus Compass" },
     { description: `${checklistRollup.open} open · ${checklistRollup.done} done`, href: "/vehicles/coo-workbook/checklist", icon: CheckSquare, title: "Daily Checklist" },
     { description: "Light list that can become tasks", href: "/vehicles/coo-workbook/to-do-list", icon: ClipboardList, title: "To-Do List" },
     { description: `${quickUpdateRollup.total} captured today`, href: "/vehicles/coo-workbook/quick-update", icon: MessageSquareText, title: "Quick Update" },
@@ -1267,6 +1455,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
     { description: latestReportDraft ? `Saved ${dateLabel(latestReportDraft.generatedAt)}` : "No draft saved yet", href: "/vehicles/coo-workbook/drafts", icon: Clock3, title: "Drafts" }
   ];
   const moreToolCards: MoreToolCard[] = [
+    { description: "One simple compass for Now, Next, Risk, Reset, and Alignment across today, week, month, quarter, and year.", href: "/vehicles/coo-workbook/focus-compass", icon: Gauge, outcome: "Staff see what matters most without learning five different tools.", title: "Focus Compass", whenToUse: "Use at the start of the day, weekly planning, month review, or when the team is scattered." },
     { description: "Search prior unfinished work and restore the right item to today’s focus, checklist, or action plan without duplicating it.", href: "/vehicles/coo-workbook/bring-forward", icon: ClipboardList, outcome: "Older work keeps its source trail while becoming visible in Today’s Work again.", title: "Bring Forward Work", whenToUse: "Use during Start The Day or anytime an older customer, vehicle, or task resurfaces." },
     { description: "Capture VIN, mileage, condition, seller, price, and document proof before TAI makes a purchase or appraisal recommendation.", href: "/vehicles/coo-workbook/purchase-appraisal-capture", icon: CarFront, outcome: "TAI receives a clean review packet without changing inventory, customer, quote, invoice, or appraisal records.", title: "Purchase / Appraisal Capture", whenToUse: "Use before auction bids, outside purchases, trade-in appraisals, wholesale reviews, or manager buy decisions." },
     { description: "Rank urgent promises, blockers, and follow-ups before the day gets crowded.", href: "/vehicles/coo-workbook/action-plan", icon: AlertTriangle, outcome: "A short ordered action list for the work that matters most.", title: "Priority Triage", whenToUse: "Use when several issues are competing for attention." },
@@ -2401,6 +2590,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
       TO_DO_LIST: "To-Do List",
       BRING_FORWARD: "Bring Forward Work",
       PURCHASE_APPRAISAL_CAPTURE: "Purchase / Appraisal Capture",
+      FOCUS_COMPASS: "Focus Compass",
       MORE_TOOLS: "More Tools"
     };
 
@@ -2832,6 +3022,109 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
               <button onClick={() => setWorkspaceNotice("Purchase/appraisal packet staged for TAI review. Review-only mode is active; no customer, inventory, quote, invoice, or appraisal records were changed.")} type="button"><Send /> Send to TAI review</button>
             </div>
           </aside>
+        </div>
+      </section> : null}
+
+      {initialTool === "FOCUS_COMPASS" ? <section className="advisor-coo-focused-tool advisor-focus-compass" aria-label="Focus Compass">
+        <header>
+          <div>
+            <strong>Focus Compass</strong>
+            <small>One simple tool for Now, Next, Risk, Reset, and Alignment across every planning horizon.</small>
+          </div>
+          <span>{activeFocusCompass.title}</span>
+        </header>
+
+        <div className="advisor-focus-compass-controls" aria-label="Focus Compass controls">
+          <div>
+            {focusCompassHorizons.map((horizon) => (
+              <button aria-pressed={focusCompassHorizon === horizon.value} key={horizon.value} onClick={() => setFocusCompassHorizon(horizon.value)} type="button">
+                {horizon.label}
+              </button>
+            ))}
+          </div>
+          <div>
+            {focusCompassRoles.map((role) => (
+              <button aria-pressed={focusCompassRole === role} key={role} onClick={() => setFocusCompassRole(role)} type="button">
+                {role}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="advisor-focus-compass-hero">
+          <article className="advisor-focus-now">
+            <small>{activeFocusCompass.focus.badge}</small>
+            <h2>{activeFocusCompass.focus.title}</h2>
+            <p>{activeFocusCompass.focus.detail}</p>
+            <div>
+              <strong>Why it matters</strong>
+              <span>{activeFocusCompass.focus.why}</span>
+            </div>
+            <Link href={scopedWorkbookHref("/vehicles/coo-workbook/action-plan")}>Open action plan</Link>
+          </article>
+          <article className="advisor-focus-score" style={{ "--focus-score": `${focusScoreByHorizon[focusCompassHorizon] * 3.6}deg` } as CSSProperties}>
+            <small>{activeFocusCompass.scoreLabel}</small>
+            <div><strong>{focusScoreByHorizon[focusCompassHorizon]}</strong><span>of 100</span></div>
+            <p>{focusScoreByHorizon[focusCompassHorizon] >= 80 ? "On track" : focusScoreByHorizon[focusCompassHorizon] >= 65 ? "Needs focus" : "Needs support"}</p>
+          </article>
+          <article className="advisor-focus-timeline">
+            <small>{focusCompassHorizon === "TODAY" ? "Simple path" : "Timeline"}</small>
+            <div>
+              {activeFocusCompass.timeline.map((item, index) => (
+                <span className={index === 0 ? "done" : index === 1 ? "active" : ""} key={item}>{item}</span>
+              ))}
+            </div>
+          </article>
+        </div>
+
+        <div className="advisor-focus-compass-grid">
+          <section className="advisor-focus-panel advisor-focus-must">
+            <header><strong>{focusCompassHorizon === "TODAY" ? "Today’s Must-Wins" : focusCompassHorizon === "WEEK" ? "Weekly Must-Wins" : focusCompassHorizon === "MONTH" ? "Monthly Must-Wins" : focusCompassHorizon === "QUARTER" ? "Quarterly Must-Wins" : "Annual Must-Wins"}</strong><small>{focusCompassRole}</small></header>
+            <div>
+              {activeFocusCompass.mustWins.length ? activeFocusCompass.mustWins.map((item, index) => (
+                <article key={`${item.title}-${index}`}>
+                  <b>{index + 1}</b>
+                  <span><strong>{item.title}</strong><small>{item.owner} · {item.impact}</small></span>
+                  <em>{item.status}</em>
+                </article>
+              )) : <p><CheckCircle2 /> No must-win items are currently visible.</p>}
+            </div>
+          </section>
+
+          <section className="advisor-focus-panel advisor-focus-risk">
+            <header><strong>{focusCompassHorizon === "TODAY" ? "Risk Radar" : focusCompassHorizon === "WEEK" ? "Promise & Deadline Radar" : focusCompassHorizon === "MONTH" ? "Pace & Gap Radar" : "Strategic Risk Radar"}</strong><small>Protect focus</small></header>
+            <div>
+              {activeFocusCompass.radar.map((item) => (
+                <article className={item.severity.toLocaleLowerCase()} key={item.title}>
+                  <em>{item.severity}</em>
+                  <span><strong>{item.title}</strong><small>{item.detail}</small></span>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className="advisor-focus-panel advisor-focus-distractions">
+            <header><strong>Distraction Filter</strong><small>Minimize noise</small></header>
+            <label><input defaultChecked type="checkbox" /> Low-priority internal requests</label>
+            <label><input defaultChecked type="checkbox" /> Work not tied to {focusCompassHorizon.toLocaleLowerCase()} focus</label>
+            <label><input type="checkbox" /> Meetings without a decision</label>
+            <label><input type="checkbox" /> Deep dives before must-wins move</label>
+          </section>
+
+          <section className="advisor-focus-panel advisor-focus-reset">
+            <header><strong>Carryover & Reset</strong><small>Close the loop</small></header>
+            <div>
+              {activeFocusCompass.carryover.map((item) => <p key={item.label}><span>{item.label}</span><strong>{item.value}</strong></p>)}
+            </div>
+            <Link href={scopedWorkbookHref("/vehicles/coo-workbook/carryover")}>Review reset</Link>
+          </section>
+
+          <section className="advisor-focus-panel advisor-focus-alignment">
+            <header><strong>Company Focus Alignment</strong><small>Why the work matters</small></header>
+            <div>
+              {activeFocusCompass.alignment.map((item) => <p key={item.label}><span>{item.label}</span><strong>{item.value}</strong></p>)}
+            </div>
+          </section>
         </div>
       </section> : null}
 
