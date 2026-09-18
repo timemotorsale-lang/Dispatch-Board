@@ -79,6 +79,43 @@ function timeLabel(value: string | null) {
   return value ? new Date(value).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "Walk-in";
 }
 
+function clampFocusScore(value: number) {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function focusProofItemsFor(item: FocusCompassMustWin, horizon: FocusCompassHorizon): FocusCompassProofItem[] {
+  if (horizon === "TODAY") {
+    return [
+      { id: "owner", label: "Owner confirmed", weight: 4 },
+      { id: "next-action", label: "Next action scheduled", weight: 5 },
+      { id: "blocker", label: item.status.toLocaleLowerCase().includes("risk") ? "Risk named" : "Blocker checked", weight: 3 },
+      { id: "close-condition", label: "Close condition clear", weight: 4 }
+    ];
+  }
+
+  if (horizon === "WEEK") {
+    return [
+      { id: "owner", label: "Owner and due window set", weight: 4 },
+      { id: "milestone", label: "Weekly milestone defined", weight: 5 },
+      { id: "risk", label: "Promise or deadline risk reviewed", weight: 4 }
+    ];
+  }
+
+  return [
+    { id: "owner", label: "Accountable role named", weight: 4 },
+    { id: "measure", label: "Progress measure selected", weight: 5 },
+    { id: "review", label: "Review rhythm set", weight: 4 }
+  ];
+}
+
+function focusProofKey(horizon: FocusCompassHorizon, item: FocusCompassMustWin, proof: FocusCompassProofItem) {
+  return `${horizon}:${item.owner}:${item.title}:${proof.id}`;
+}
+
+function focusMustWinKey(horizon: FocusCompassHorizon, item: FocusCompassMustWin) {
+  return `${horizon}:${item.owner}:${item.title}`;
+}
+
 function dateLabel(value: string) {
   return new Date(value).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
@@ -316,6 +353,9 @@ type SearchableWorkItem = {
 };
 export type CooWorkbookTool = "CHECKLIST" | "TO_DO_LIST" | "QUICK_UPDATE" | "ACTION_PLAN" | "CARRYOVER" | "REPORT_SEEDS" | "STAFF_SUPPORT" | "DRAFTS" | "BRING_FORWARD" | "PURCHASE_APPRAISAL_CAPTURE" | "FOCUS_COMPASS" | "MORE_TOOLS";
 type FocusCompassHorizon = "TODAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR";
+type FocusCompassMustWin = { impact: string; owner: string; status: string; title: string };
+type FocusCompassProofItem = { id: string; label: string; weight: number };
+type FocusCompassExecutionItem = { done: boolean; id: string; label: string };
 
 const quickUpdateCategories: QuickUpdateCategoryOption[] = [
   { group: "People", label: "Customer", value: "CUSTOMER" },
@@ -616,6 +656,17 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
   const [quickUpdateSaveNotice, setQuickUpdateSaveNotice] = useState("");
   const [focusCompassHorizon, setFocusCompassHorizon] = useState<FocusCompassHorizon>("TODAY");
   const [focusCompassRole, setFocusCompassRole] = useState("All Roles");
+  const [activeFocusProofDrawerKey, setActiveFocusProofDrawerKey] = useState<string | null>(null);
+  const [focusProofChecked, setFocusProofChecked] = useState<Record<string, boolean>>({});
+  const [focusExecutionDrafts, setFocusExecutionDrafts] = useState<Record<string, string>>({});
+  const [focusExecutionItems, setFocusExecutionItems] = useState<Record<string, FocusCompassExecutionItem[]>>({});
+  const [focusBlockers, setFocusBlockers] = useState<Record<string, string>>({});
+  const [focusDistractionChecked, setFocusDistractionChecked] = useState<Record<string, boolean>>({
+    "deep-dives": false,
+    "decisionless-meetings": false,
+    "low-priority": true,
+    "unfocused-work": true
+  });
   const [supportNote, setSupportNote] = useState("");
   const [supportUpdateRequested, setSupportUpdateRequested] = useState(true);
   const [workspaceNotice, setWorkspaceNotice] = useState<string | null>(null);
@@ -1279,7 +1330,7 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
     alignment: Array<{ label: string; value: string }>;
     carryover: Array<{ label: string; value: string }>;
     focus: { badge: string; detail: string; title: string; why: string };
-    mustWins: Array<{ impact: string; owner: string; status: string; title: string }>;
+    mustWins: FocusCompassMustWin[];
     radar: Array<{ detail: string; severity: "High" | "Med" | "Low"; title: string }>;
     scoreLabel: string;
     timeline: string[];
@@ -1441,6 +1492,36 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
     }
   };
   const activeFocusCompass = focusCompassContent[focusCompassHorizon];
+  const roleFilteredFocusMustWins = focusCompassRole === "All Roles"
+    ? activeFocusCompass.mustWins
+    : activeFocusCompass.mustWins.filter((item) => {
+      const role = focusCompassRole.toLocaleLowerCase();
+      return item.owner.toLocaleLowerCase().includes(role) || item.impact.toLocaleLowerCase().includes(role) || item.title.toLocaleLowerCase().includes(role);
+    });
+  const activeFocusMustWins = roleFilteredFocusMustWins.length ? roleFilteredFocusMustWins : activeFocusCompass.mustWins;
+  const activeFocusProofEntries = activeFocusMustWins.flatMap((item) => focusProofItemsFor(item, focusCompassHorizon).map((proof) => ({ item, key: focusProofKey(focusCompassHorizon, item, proof), proof })));
+  const focusProofEarned = activeFocusProofEntries.reduce((total, entry) => total + (focusProofChecked[entry.key] ? entry.proof.weight : 0), 0);
+  const focusProofPossible = activeFocusProofEntries.reduce((total, entry) => total + entry.proof.weight, 0);
+  const focusExecutionDone = activeFocusMustWins.reduce((total, item) => total + (focusExecutionItems[focusMustWinKey(focusCompassHorizon, item)] ?? []).filter((step) => step.done).length, 0);
+  const focusExecutionScoreLift = Math.min(6, focusExecutionDone);
+  const focusNoiseCleared = Object.values(focusDistractionChecked).filter(Boolean).length;
+  const activeFocusBaseScore = focusScoreByHorizon[focusCompassHorizon];
+  const activeFocusScore = clampFocusScore(activeFocusBaseScore + focusProofEarned + focusExecutionScoreLift + focusNoiseCleared);
+  const activeFocusProgressText = activeFocusScore === activeFocusBaseScore ? `0/${focusProofPossible} proof points captured` : `Up ${activeFocusScore - activeFocusBaseScore}; ${focusProofEarned}/${focusProofPossible} proof points captured`;
+  const nextFocusProof = activeFocusProofEntries.find((entry) => !focusProofChecked[entry.key]);
+  const nextBestFocusMove = nextFocusProof
+    ? `${nextFocusProof.proof.label} for ${nextFocusProof.item.title}`
+    : activeFocusMustWins.length
+      ? "All visible proof checks are complete. Prepare carryover or closeout evidence."
+      : "Add a must-win item before scoring execution proof.";
+  const focusScoreBreakdown = [
+    { label: "Clarity", value: clampFocusScore(activeWorkbook.planning.score + Math.min(12, focusProofEarned)) },
+    { label: "Ownership", value: clampFocusScore(55 + activeFocusMustWins.filter((item) => item.owner !== "All roles").length * 8 + Math.min(12, focusProofEarned)) },
+    { label: "Momentum", value: clampFocusScore(activeWorkbook.execution.score + Math.min(10, focusProofEarned) + focusExecutionScoreLift) },
+    { label: "Risk control", value: clampFocusScore(activeWorkbook.risk.score + Math.min(10, focusProofEarned)) },
+    { label: "Noise", value: clampFocusScore(45 + focusNoiseCleared * 10) }
+  ];
+  const focusBlockerChoices = ["No owner", "Waiting on customer", "Waiting on vendor", "Missing info", "Decision needed", "Too many priorities"];
   const toolCards = [
     { description: "Stay focused across today, week, month, quarter, and year", href: "/vehicles/coo-workbook/focus-compass", icon: Gauge, title: "Focus Compass" },
     { description: `${checklistRollup.open} open · ${checklistRollup.done} done`, href: "/vehicles/coo-workbook/checklist", icon: CheckSquare, title: "Daily Checklist" },
@@ -3060,12 +3141,20 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
               <strong>Why it matters</strong>
               <span>{activeFocusCompass.focus.why}</span>
             </div>
+            <div>
+              <strong>Next best move</strong>
+              <span>{nextBestFocusMove}</span>
+            </div>
             <Link href={scopedWorkbookHref("/vehicles/coo-workbook/action-plan")}>Open action plan</Link>
           </article>
-          <article className="advisor-focus-score" style={{ "--focus-score": `${focusScoreByHorizon[focusCompassHorizon] * 3.6}deg` } as CSSProperties}>
+          <article className="advisor-focus-score" style={{ "--focus-score": `${activeFocusScore * 3.6}deg` } as CSSProperties}>
             <small>{activeFocusCompass.scoreLabel}</small>
-            <div><strong>{focusScoreByHorizon[focusCompassHorizon]}</strong><span>of 100</span></div>
-            <p>{focusScoreByHorizon[focusCompassHorizon] >= 80 ? "On track" : focusScoreByHorizon[focusCompassHorizon] >= 65 ? "Needs focus" : "Needs support"}</p>
+            <div><strong>{activeFocusScore}</strong><span>of 100</span></div>
+            <p>{activeFocusScore >= 80 ? "On track" : activeFocusScore >= 65 ? "Needs focus" : "Needs support"}</p>
+            <em>{activeFocusProgressText}</em>
+            <dl>
+              {focusScoreBreakdown.map((item) => <div key={item.label}><dt>{item.label}</dt><dd>{item.value}</dd></div>)}
+            </dl>
           </article>
           <article className="advisor-focus-timeline">
             <small>{focusCompassHorizon === "TODAY" ? "Simple path" : "Timeline"}</small>
@@ -3081,11 +3170,70 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
           <section className="advisor-focus-panel advisor-focus-must">
             <header><strong>{focusCompassHorizon === "TODAY" ? "Today’s Must-Wins" : focusCompassHorizon === "WEEK" ? "Weekly Must-Wins" : focusCompassHorizon === "MONTH" ? "Monthly Must-Wins" : focusCompassHorizon === "QUARTER" ? "Quarterly Must-Wins" : "Annual Must-Wins"}</strong><small>{focusCompassRole}</small></header>
             <div>
-              {activeFocusCompass.mustWins.length ? activeFocusCompass.mustWins.map((item, index) => (
+              {activeFocusMustWins.length ? activeFocusMustWins.map((item, index) => (
                 <article key={`${item.title}-${index}`}>
-                  <b>{index + 1}</b>
-                  <span><strong>{item.title}</strong><small>{item.owner} · {item.impact}</small></span>
-                  <em>{item.status}</em>
+                  <div className="advisor-focus-must-row">
+                    <b>{index + 1}</b>
+                    <span><strong>{item.title}</strong><small>{item.owner} · {item.impact}</small></span>
+                    <em>{item.status}</em>
+                  </div>
+                  {(() => {
+                    const drawerKey = focusMustWinKey(focusCompassHorizon, item);
+                    const proofItems = focusProofItemsFor(item, focusCompassHorizon);
+                    const proofDone = proofItems.filter((proof) => focusProofChecked[focusProofKey(focusCompassHorizon, item, proof)]).length;
+                    const executionItems = focusExecutionItems[drawerKey] ?? [];
+                    const executionDone = executionItems.filter((step) => step.done).length;
+                    const drawerOpen = activeFocusProofDrawerKey === drawerKey;
+
+                    return <>
+                      <button className="advisor-focus-proof-toggle" aria-expanded={drawerOpen} onClick={() => setActiveFocusProofDrawerKey(drawerOpen ? null : drawerKey)} type="button">
+                        <span><strong>Proof checklist</strong><small>{proofDone}/{proofItems.length} proof · {executionDone}/{executionItems.length} execution</small></span>
+                        <ChevronDown />
+                      </button>
+                      {drawerOpen ? <div className="advisor-focus-proof-drawer">
+                        <header>
+                          <div><strong>Proof checklist</strong><small>Evidence that this focus is controlled and moving.</small></div>
+                          <button aria-label="Close proof checklist drawer" onClick={() => setActiveFocusProofDrawerKey(null)} type="button"><X /></button>
+                        </header>
+                        <fieldset>
+                          <legend>Required proof</legend>
+                          {proofItems.map((proof) => {
+                            const key = focusProofKey(focusCompassHorizon, item, proof);
+                            return <label key={key}>
+                              <input checked={Boolean(focusProofChecked[key])} onChange={(event) => setFocusProofChecked((current) => ({ ...current, [key]: event.target.checked }))} type="checkbox" />
+                              <span>{proof.label}</span>
+                              <strong>+{proof.weight}</strong>
+                            </label>;
+                          })}
+                        </fieldset>
+                        <section>
+                          <header><strong>My execution checklist</strong><small>Staff-added steps that help finish the focus.</small></header>
+                          <form onSubmit={(event) => {
+                            event.preventDefault();
+                            const label = focusExecutionDrafts[drawerKey]?.trim();
+                            if (!label) return;
+                            setFocusExecutionItems((current) => ({
+                              ...current,
+                              [drawerKey]: [...(current[drawerKey] ?? []), { done: false, id: `${Date.now()}-${label}`, label }]
+                            }));
+                            setFocusExecutionDrafts((current) => ({ ...current, [drawerKey]: "" }));
+                          }}>
+                            <input aria-label={`Add execution checklist item for ${item.title}`} onChange={(event) => setFocusExecutionDrafts((current) => ({ ...current, [drawerKey]: event.target.value }))} placeholder="Add a step that keeps this focus moving" value={focusExecutionDrafts[drawerKey] ?? ""} />
+                            <button type="submit">Add</button>
+                          </form>
+                          {executionItems.length ? <div>
+                            {executionItems.map((step) => <div key={step.id}>
+                              <label>
+                                <input checked={step.done} onChange={(event) => setFocusExecutionItems((current) => ({ ...current, [drawerKey]: (current[drawerKey] ?? []).map((currentStep) => currentStep.id === step.id ? { ...currentStep, done: event.target.checked } : currentStep) }))} type="checkbox" />
+                                <span>{step.label}</span>
+                              </label>
+                              <button aria-label={`Remove ${step.label}`} onClick={() => setFocusExecutionItems((current) => ({ ...current, [drawerKey]: (current[drawerKey] ?? []).filter((currentStep) => currentStep.id !== step.id) }))} type="button"><X /></button>
+                            </div>)}
+                          </div> : <p>No custom execution steps yet.</p>}
+                        </section>
+                      </div> : null}
+                    </>;
+                  })()}
                 </article>
               )) : <p><CheckCircle2 /> No must-win items are currently visible.</p>}
             </div>
@@ -3105,16 +3253,33 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
 
           <section className="advisor-focus-panel advisor-focus-distractions">
             <header><strong>Distraction Filter</strong><small>Minimize noise</small></header>
-            <label><input defaultChecked type="checkbox" /> Low-priority internal requests</label>
-            <label><input defaultChecked type="checkbox" /> Work not tied to {focusCompassHorizon.toLocaleLowerCase()} focus</label>
-            <label><input type="checkbox" /> Meetings without a decision</label>
-            <label><input type="checkbox" /> Deep dives before must-wins move</label>
+            <label><input checked={focusDistractionChecked["low-priority"]} onChange={(event) => setFocusDistractionChecked((current) => ({ ...current, "low-priority": event.target.checked }))} type="checkbox" /> Low-priority internal requests</label>
+            <label><input checked={focusDistractionChecked["unfocused-work"]} onChange={(event) => setFocusDistractionChecked((current) => ({ ...current, "unfocused-work": event.target.checked }))} type="checkbox" /> Work not tied to {focusCompassHorizon.toLocaleLowerCase()} focus</label>
+            <label><input checked={focusDistractionChecked["decisionless-meetings"]} onChange={(event) => setFocusDistractionChecked((current) => ({ ...current, "decisionless-meetings": event.target.checked }))} type="checkbox" /> Meetings without a decision</label>
+            <label><input checked={focusDistractionChecked["deep-dives"]} onChange={(event) => setFocusDistractionChecked((current) => ({ ...current, "deep-dives": event.target.checked }))} type="checkbox" /> Deep dives before must-wins move</label>
+            <p>{focusNoiseCleared} noise filter(s) active</p>
+          </section>
+
+          <section className="advisor-focus-panel advisor-focus-blockers">
+            <header><strong>Blocker Capture</strong><small>Explain stalled focus</small></header>
+            <div>
+              {activeFocusMustWins.slice(0, 3).map((item) => (
+                <label key={item.title}>
+                  <span>{item.title}</span>
+                  <select aria-label={`Blocker for ${item.title}`} value={focusBlockers[item.title] ?? ""} onChange={(event) => setFocusBlockers((current) => ({ ...current, [item.title]: event.target.value }))}>
+                    <option value="">No blocker captured</option>
+                    {focusBlockerChoices.map((choice) => <option key={choice} value={choice}>{choice}</option>)}
+                  </select>
+                </label>
+              ))}
+            </div>
           </section>
 
           <section className="advisor-focus-panel advisor-focus-reset">
             <header><strong>Carryover & Reset</strong><small>Close the loop</small></header>
             <div>
               {activeFocusCompass.carryover.map((item) => <p key={item.label}><span>{item.label}</span><strong>{item.value}</strong></p>)}
+              {protectedCarryoverCount >= 3 ? <p><span>Repeated carryover</span><strong>Convert to action plan</strong></p> : null}
             </div>
             <Link href={scopedWorkbookHref("/vehicles/coo-workbook/carryover")}>Review reset</Link>
           </section>
