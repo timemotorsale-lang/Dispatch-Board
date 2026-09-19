@@ -26718,6 +26718,19 @@ html[data-app-theme="dark"] :where(.appointment-calendar-header,.appointment-cal
   color: var(--app-dark-ink) !important;
 }
 
+html[data-app-theme="dark"] :where(
+  .appointment-week-view,
+  .appointment-month-view,
+  .appointment-agenda-view,
+  .appointment-alt-view,
+  .appointment-board-simplified .appointment-week-view,
+  .appointment-board-simplified .appointment-month-view
+) {
+  background: var(--app-dark-surface) !important;
+  border-color: var(--app-dark-line) !important;
+  color: var(--app-dark-ink) !important;
+}
+
 html[data-app-theme="dark"] :where(.appointment-all-day,.appointment-staff-header,.appointment-time-column,.appointment-staff-column) {
   background-color: #3f2c28 !important;
   border-color: #6c493d !important;
@@ -26737,6 +26750,75 @@ html[data-app-theme="dark"] .appointment-staff-column {
 
 html[data-app-theme="dark"] :where(.appointment-all-day,.appointment-time-column span,.appointment-staff-header strong,.appointment-staff-header small) {
   color: var(--app-dark-ink) !important;
+}
+
+html[data-app-theme="dark"] :where(
+  .appointment-week-column,
+  .appointment-month-cell,
+  .appointment-agenda-section,
+  .appointment-board-simplified .appointment-week-column,
+  .appointment-board-simplified .appointment-month-cell,
+  .appointment-workspace-month-cell
+) {
+  background-color: #3f2c28 !important;
+  border-color: #6c493d !important;
+  color: var(--app-dark-ink) !important;
+  box-shadow: none !important;
+}
+
+html[data-app-theme="dark"] :where(
+  .appointment-week-item,
+  .appointment-month-item,
+  .appointment-agenda-item,
+  .appointment-board-simplified .appointment-week-item,
+  .appointment-board-simplified .appointment-month-item,
+  .appointment-week-empty,
+  .appointment-month-more
+) {
+  background-color: var(--app-dark-surface-soft) !important;
+  border-color: var(--app-dark-line-strong) !important;
+  color: var(--app-dark-ink) !important;
+}
+
+html[data-app-theme="dark"] :where(
+  .appointment-week-column-heading,
+  .appointment-month-cell-top,
+  .appointment-agenda-section-heading,
+  .appointment-week-column-heading strong,
+  .appointment-month-cell-top strong,
+  .appointment-agenda-section-heading strong,
+  .appointment-week-item strong,
+  .appointment-month-item strong,
+  .appointment-agenda-item strong,
+  .appointment-week-empty,
+  .appointment-alt-view > strong
+) {
+  color: var(--app-dark-ink) !important;
+}
+
+html[data-app-theme="dark"] :where(
+  .appointment-week-column-heading span,
+  .appointment-week-column small,
+  .appointment-month-cell-top span,
+  .appointment-month-more,
+  .appointment-agenda-section-heading span,
+  .appointment-week-item span,
+  .appointment-month-item span,
+  .appointment-agenda-item span,
+  .appointment-week-item small,
+  .appointment-agenda-item small,
+  .appointment-alt-view p
+) {
+  color: var(--app-dark-muted) !important;
+}
+
+html[data-app-theme="dark"] :where(.appointment-month-cell-active,.appointment-workspace-month-cell-active) {
+  border-color: var(--app-dark-primary-strong) !important;
+  box-shadow: inset 0 0 0 1px rgba(114, 167, 255, .38) !important;
+}
+
+html[data-app-theme="dark"] :where(.appointment-month-cell-muted,.appointment-workspace-month-cell-muted) {
+  opacity: .74 !important;
 }
 
 html[data-app-theme="dark"] .availability.good {
