@@ -29,6 +29,208 @@
   --radius-md: 18px;
 }
 
+/* Dark mode review hardening: keep operational workspaces on one readable surface system. */
+html[data-app-theme="dark"] .app-content:has(.dispatch-board-page),
+html[data-app-theme="dark"] .app-content:has(.tasks-console-page),
+html[data-app-theme="dark"] .app-content:has(.advisor-coo-workbook.full),
+html[data-app-theme="dark"] .app-content:has(.advisor-coo-tool-page.full) {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+html[data-app-theme="dark"] .dispatch-board-page,
+html[data-app-theme="dark"] .tasks-console-page,
+html[data-app-theme="dark"] .advisor-coo-workbook.full,
+html[data-app-theme="dark"] .advisor-coo-tool-page.full {
+  color: var(--ink);
+}
+
+html[data-app-theme="dark"] .dispatch-board-page :where(h1,h2,h3,h4,strong,dt,dd,label,th,td),
+html[data-app-theme="dark"] .tasks-console-page :where(h1,h2,h3,h4,strong,dt,dd,label,th,td),
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(h1,h2,h3,h4,strong,dt,dd,label,th,td),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(h1,h2,h3,h4,strong,dt,dd,label,th,td) {
+  color: var(--ink);
+}
+
+html[data-app-theme="dark"] .dispatch-board-page :where(p,span,small,li,em),
+html[data-app-theme="dark"] .tasks-console-page :where(p,span,small,li,em),
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(p,span,small,li,em),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(p,span,small,li,em) {
+  color: var(--muted);
+}
+
+html[data-app-theme="dark"] .operations-strip article,
+html[data-app-theme="dark"] .metric-card,
+html[data-app-theme="dark"] .projects-entry-panel,
+html[data-app-theme="dark"] .board-controls,
+html[data-app-theme="dark"] .task-board,
+html[data-app-theme="dark"] .rail-card,
+html[data-app-theme="dark"] .board-primary-column,
+html[data-app-theme="dark"] .board-rail,
+html[data-app-theme="dark"] .tasks-console-toolbar,
+html[data-app-theme="dark"] .tasks-console-command-strip,
+html[data-app-theme="dark"] .tasks-console-stage,
+html[data-app-theme="dark"] .tasks-console-summary-card,
+html[data-app-theme="dark"] .tasks-console-quick-create,
+html[data-app-theme="dark"] .tasks-console-rail,
+html[data-app-theme="dark"] .tasks-console-rail-panel,
+html[data-app-theme="dark"] .tasks-console-popover,
+html[data-app-theme="dark"] .tasks-console-context-menu,
+html[data-app-theme="dark"] .tasks-console-workspace-popover,
+html[data-app-theme="dark"] .tasks-console-table-shell,
+html[data-app-theme="dark"] .tasks-console-board-view,
+html[data-app-theme="dark"] .advisor-coo-workbook.full > header,
+html[data-app-theme="dark"] .advisor-coo-workbook.full > section,
+html[data-app-theme="dark"] .advisor-coo-landing-header,
+html[data-app-theme="dark"] .advisor-coo-workflow-guide,
+html[data-app-theme="dark"] .advisor-coo-command-detail,
+html[data-app-theme="dark"] .advisor-coo-work-search,
+html[data-app-theme="dark"] .advisor-coo-attention-now,
+html[data-app-theme="dark"] .advisor-coo-tool-launcher,
+html[data-app-theme="dark"] .advisor-coo-focused-tool,
+html[data-app-theme="dark"] .advisor-coo-action-plan,
+html[data-app-theme="dark"] .advisor-coo-report-draft,
+html[data-app-theme="dark"] .advisor-coo-staff-reports,
+html[data-app-theme="dark"] .advisor-coo-purchase-hero,
+html[data-app-theme="dark"] .advisor-coo-purchase-form,
+html[data-app-theme="dark"] .advisor-coo-purchase-review {
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--ink);
+  box-shadow: none;
+}
+
+html[data-app-theme="dark"] .projects-entry-metrics div,
+html[data-app-theme="dark"] .team-load-chip,
+html[data-app-theme="dark"] .context-count,
+html[data-app-theme="dark"] .board-tabs,
+html[data-app-theme="dark"] .filter-row,
+html[data-app-theme="dark"] .tasks-console-enterprise-nav,
+html[data-app-theme="dark"] .tasks-console-context-nav,
+html[data-app-theme="dark"] .tasks-console-execution-views,
+html[data-app-theme="dark"] .tasks-console-header-metric,
+html[data-app-theme="dark"] .tasks-console-metric-card,
+html[data-app-theme="dark"] .tasks-console-summary-item,
+html[data-app-theme="dark"] .tasks-console-rail-field,
+html[data-app-theme="dark"] .tasks-console-rail-insights,
+html[data-app-theme="dark"] .tasks-console-rail-insights > div,
+html[data-app-theme="dark"] .tasks-console-rail-block,
+html[data-app-theme="dark"] .tasks-console-feed-item,
+html[data-app-theme="dark"] .tasks-console-lane,
+html[data-app-theme="dark"] .tasks-console-lane-card,
+html[data-app-theme="dark"] .advisor-coo-summary article,
+html[data-app-theme="dark"] .advisor-coo-lanes a,
+html[data-app-theme="dark"] .advisor-coo-action-plan article,
+html[data-app-theme="dark"] .advisor-coo-live-workspace > article,
+html[data-app-theme="dark"] .advisor-coo-updates-seeds > article,
+html[data-app-theme="dark"] .advisor-coo-checklist-item,
+html[data-app-theme="dark"] .advisor-coo-update-item,
+html[data-app-theme="dark"] .advisor-coo-seed-item,
+html[data-app-theme="dark"] .advisor-coo-staff-reports article,
+html[data-app-theme="dark"] .advisor-coo-purchase-steps article,
+html[data-app-theme="dark"] .advisor-coo-saved-draft,
+html[data-app-theme="dark"] .advisor-coo-saved-draft article {
+  background: var(--surface-soft);
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+html[data-app-theme="dark"] .desktop-task-table,
+html[data-app-theme="dark"] .desktop-task-table thead,
+html[data-app-theme="dark"] .tasks-console-table,
+html[data-app-theme="dark"] .tasks-console-table thead,
+html[data-app-theme="dark"] .tasks-console-table-footer {
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+html[data-app-theme="dark"] .desktop-task-table th,
+html[data-app-theme="dark"] .tasks-console-table th {
+  background: #1a2a3f;
+  border-color: var(--line);
+  color: #bfcee0;
+}
+
+html[data-app-theme="dark"] .desktop-task-table td,
+html[data-app-theme="dark"] .tasks-console-table td,
+html[data-app-theme="dark"] .tasks-console-table-empty {
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+html[data-app-theme="dark"] .board-search,
+html[data-app-theme="dark"] .tasks-console-search,
+html[data-app-theme="dark"] .advisor-coo-search-box,
+html[data-app-theme="dark"] .dispatch-board-page :where(input,select,textarea),
+html[data-app-theme="dark"] .tasks-console-page :where(input,select,textarea),
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(input,select,textarea),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(input,select,textarea) {
+  background: #101c2d;
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+html[data-app-theme="dark"] .board-search input::placeholder,
+html[data-app-theme="dark"] .tasks-console-search input::placeholder,
+html[data-app-theme="dark"] .advisor-coo-search-box input::placeholder,
+html[data-app-theme="dark"] .dispatch-board-page :where(input,textarea)::placeholder,
+html[data-app-theme="dark"] .tasks-console-page :where(input,textarea)::placeholder,
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(input,textarea)::placeholder,
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(input,textarea)::placeholder {
+  color: #9aa9bd;
+  opacity: 1;
+}
+
+html[data-app-theme="dark"] .tasks-console-context-nav,
+html[data-app-theme="dark"] .tasks-console-execution-views,
+html[data-app-theme="dark"] .board-tabs,
+html[data-app-theme="dark"] .advisor-coo-command-strip {
+  background: #0b1828;
+  border-color: var(--line);
+}
+
+html[data-app-theme="dark"] .tasks-console-context-nav :where(button,a),
+html[data-app-theme="dark"] .tasks-console-execution-views button,
+html[data-app-theme="dark"] .board-tabs button,
+html[data-app-theme="dark"] .filter-row :where(button,select),
+html[data-app-theme="dark"] .advisor-coo-command-strip button,
+html[data-app-theme="dark"] .advisor-coo-header-actions :where(a,button),
+html[data-app-theme="dark"] .advisor-coo-seed-actions :where(a,button) {
+  background: var(--surface);
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+html[data-app-theme="dark"] .tasks-console-context-nav :where(button,a)[aria-pressed="true"],
+html[data-app-theme="dark"] .tasks-console-execution-views button[aria-pressed="true"],
+html[data-app-theme="dark"] .board-tabs button[aria-pressed="true"],
+html[data-app-theme="dark"] .advisor-coo-command-strip button[aria-pressed="true"],
+html[data-app-theme="dark"] .tasks-console-page .pill-primary,
+html[data-app-theme="dark"] .tasks-console-create,
+html[data-app-theme="dark"] .advisor-coo-primary-link {
+  background: #4f6df5;
+  border-color: #4f6df5;
+  color: #fff;
+}
+
+html[data-app-theme="dark"] .tasks-console-date-pill,
+html[data-app-theme="dark"] .tasks-console-freshness,
+html[data-app-theme="dark"] .tasks-console-bulk-bar,
+html[data-app-theme="dark"] .advisor-coo-workbook-switcher,
+html[data-app-theme="dark"] .advisor-coo-landing-status,
+html[data-app-theme="dark"] .advisor-coo-workspace-notice,
+html[data-app-theme="dark"] .tasks-console-rail-state,
+html[data-app-theme="dark"] .tasks-console-lane-empty,
+html[data-app-theme="dark"] .advisor-coo-search-empty,
+html[data-app-theme="dark"] .advisor-coo-tool-guidance,
+html[data-app-theme="dark"] .advisor-coo-close-step-notice {
+  background: #101c2d;
+  border-color: var(--line);
+  color: var(--muted);
+}
+
 .app-route-recovery {
   display: grid;
   min-height: 100vh;
@@ -25818,4 +26020,858 @@ html[data-app-theme="dark"] :where(.rowb-daily-command,.rowb-daily-status div,.r
 
 .advisor-focus-proof-toggle{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-left:39px;border:1px solid #d8e5f3;border-radius:8px;padding:8px 10px;background:#f8fbff;color:#29435f;font:inherit;text-align:left;cursor:pointer}.advisor-focus-proof-toggle:hover,.advisor-focus-proof-toggle:focus-visible{border-color:#9fc1e9;outline:3px solid rgba(7,94,216,.1)}.advisor-focus-proof-toggle>span{display:grid;gap:1px;min-width:0}.advisor-focus-proof-toggle strong{font-size:12px}.advisor-focus-proof-toggle small{color:#64788d;font-size:11.5px}.advisor-focus-proof-toggle svg{width:15px;transition:transform .15s ease}.advisor-focus-proof-toggle[aria-expanded=true] svg{transform:rotate(180deg)}.advisor-focus-proof-drawer{display:grid;gap:10px;margin-left:39px;border:1px solid #cbdced;border-radius:8px;padding:10px;background:#fff}.advisor-focus-proof-drawer>header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;border-bottom:1px solid #edf2f8;padding:0 0 8px}.advisor-focus-proof-drawer>header div{display:grid;gap:2px}.advisor-focus-proof-drawer>header strong,.advisor-focus-proof-drawer section header strong{color:#10233f;font-size:12.5px}.advisor-focus-proof-drawer>header small,.advisor-focus-proof-drawer section header small{color:#60758c;font-size:11.5px}.advisor-focus-proof-drawer>header button{display:grid;place-items:center;width:28px;height:28px;border:1px solid #d7e3f0;border-radius:7px;background:#fff;color:#526a82}.advisor-focus-proof-drawer>header button svg{width:14px}.advisor-focus-proof-drawer fieldset{margin:0}.advisor-focus-proof-drawer section{display:grid;gap:8px;border-top:1px solid #edf2f8;padding-top:10px}.advisor-focus-proof-drawer section header{display:grid;gap:1px}.advisor-focus-proof-drawer form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px}.advisor-focus-proof-drawer form input{min-height:32px;border:1px solid #cfdbea;border-radius:7px;padding:0 9px;color:#10233f;font:inherit;font-size:12px}.advisor-focus-proof-drawer form button{border:1px solid #075ed8;border-radius:7px;padding:0 12px;background:#075ed8;color:#fff;font-size:12px;font-weight:900}.advisor-focus-proof-drawer section>div{display:grid;gap:6px}.advisor-focus-proof-drawer section>div>div{display:grid;grid-template-columns:minmax(0,1fr) 28px;align-items:center;gap:7px;border:1px solid #dce7f3;border-radius:7px;padding:6px 7px;background:#fbfdff}.advisor-focus-proof-drawer section>div>div label{display:flex;align-items:center;gap:7px;min-width:0}.advisor-focus-proof-drawer section>div>div label span{overflow:hidden;color:#334b65;font-size:11.5px;font-weight:800;text-overflow:ellipsis;white-space:nowrap}.advisor-focus-proof-drawer section>div>div button{display:grid;place-items:center;width:24px;height:24px;border:1px solid #e0e8f1;border-radius:6px;background:#fff;color:#64788d}.advisor-focus-proof-drawer section>div>div button svg{width:12px}.advisor-focus-proof-drawer section>p{margin:0;color:#6b7f94;font-size:11.5px}@media(max-width:700px){.advisor-focus-proof-toggle,.advisor-focus-proof-drawer{margin-left:35px}.advisor-focus-proof-drawer form{grid-template-columns:1fr}.advisor-focus-proof-drawer form button{min-height:32px}}
 
+/* App-wide dark mode safety rail. Keep this late so route-level light styles cannot win the cascade. */
+html[data-app-theme="dark"] .app-content {
+  background: var(--bg) !important;
+  color: var(--ink);
+}
+
+html[data-app-theme="dark"] .app-content :where(
+  [class*="workspace" i],
+  [class*="console" i],
+  [class*="page" i],
+  [class*="screen" i]
+) {
+  color: var(--ink);
+}
+
+html[data-app-theme="dark"] .app-content :where(
+  [class*="card" i],
+  [class*="panel" i],
+  [class*="tile" i],
+  [class*="shell" i],
+  [class*="drawer" i],
+  [class*="module" i],
+  [class*="section" i],
+  [class*="strip" i],
+  [class*="rail" i],
+  [class*="queue" i],
+  [class*="list" i],
+  [class*="row" i],
+  [class*="item" i],
+  [class*="hero" i],
+  [class*="header" i],
+  [class*="toolbar" i],
+  [class*="sidebar" i],
+  [class*="nav" i],
+  [class*="tabs" i],
+  [class*="metric" i],
+  [class*="summary" i],
+  [class*="form" i],
+  [class*="field" i],
+  [class*="search" i],
+  [class*="empty" i],
+  article,
+  fieldset
+) {
+  border-color: var(--line) !important;
+  color: var(--ink);
+}
+
+html[data-app-theme="dark"] .app-content :where(
+  [class*="card" i],
+  [class*="panel" i],
+  [class*="tile" i],
+  [class*="drawer" i],
+  [class*="module" i],
+  [class*="rail" i],
+  [class*="queue" i],
+  [class*="item" i],
+  [class*="hero" i],
+  [class*="sidebar" i],
+  [class*="toolbar" i],
+  [class*="stage" i],
+  [class*="context" i],
+  [class*="summary" i],
+  [class*="detail" i],
+  [class*="empty" i],
+  article,
+  fieldset
+) {
+  background: var(--surface) !important;
+  box-shadow: none !important;
+}
+
+html[data-app-theme="dark"] .app-content :where(
+  [class*="row" i],
+  [class*="cell" i],
+  [class*="line" i],
+  [class*="strip" i],
+  [class*="tabs" i],
+  [class*="tab" i],
+  [class*="filter" i],
+  [class*="chip" i],
+  [class*="pill" i],
+  [class*="badge" i],
+  [class*="button" i],
+  [class*="link" i],
+  [class*="search" i],
+  [class*="field" i],
+  [class*="input" i],
+  [class*="select" i],
+  [class*="control" i],
+  [class*="nav" i],
+  [class*="menu" i],
+  [class*="popover" i],
+  [class*="metric" i] > div,
+  [class*="summary" i] > div,
+  li
+) {
+  border-color: var(--line) !important;
+}
+
+html[data-app-theme="dark"] .app-content :where(
+  input,
+  select,
+  textarea,
+  [contenteditable="true"]
+) {
+  background: #101c2d !important;
+  border-color: var(--line-strong) !important;
+  color: var(--ink) !important;
+  color-scheme: dark;
+}
+
+html[data-app-theme="dark"] .app-content :where(input, textarea)::placeholder {
+  color: #9aa9bd !important;
+  opacity: 1;
+}
+
+html[data-app-theme="dark"] .app-content :where(h1,h2,h3,h4,h5,h6,strong,b,dt,dd,th,td,label) {
+  color: var(--ink);
+}
+
+html[data-app-theme="dark"] .app-content :where(p,small,span,li,em,figcaption,legend) {
+  color: var(--muted);
+}
+
+html[data-app-theme="dark"] .app-content :where(a,[role="button"],button,.button,.pill,.badge) {
+  color: inherit;
+}
+
+html[data-app-theme="dark"] .app-content :where(
+  button,
+  a[class*="button" i],
+  [class*="button" i],
+  [class*="pill" i],
+  [class*="tab" i]
+) {
+  background-color: var(--surface-soft);
+  border-color: var(--line-strong) !important;
+}
+
+html[data-app-theme="dark"] .app-content :where(
+  button[aria-pressed="true"],
+  button[aria-current="page"],
+  a[aria-current="page"],
+  [class*="active" i],
+  [class*="selected" i],
+  [class*="primary" i]
+) {
+  border-color: #5b7dff !important;
+}
+
+html[data-app-theme="dark"] .app-content :where(
+  .button-primary,
+  .pill-primary,
+  [class*="primary" i]
+) {
+  color: #fff;
+}
+
+html[data-app-theme="dark"] .app-content :where(
+  [class*="success" i],
+  [class*="ready" i],
+  [class*="complete" i],
+  [class*="live" i]
+) {
+  border-color: rgba(34, 197, 94, .34) !important;
+}
+
+html[data-app-theme="dark"] .app-content :where(
+  [class*="warning" i],
+  [class*="attention" i],
+  [class*="overdue" i],
+  [class*="risk" i]
+) {
+  border-color: rgba(249, 115, 22, .36) !important;
+}
+
+html[data-app-theme="dark"] .app-content :where(
+  [class*="danger" i],
+  [class*="blocked" i],
+  [class*="error" i]
+) {
+  border-color: rgba(239, 68, 68, .38) !important;
+}
+
+html[data-app-theme="dark"] .app-content :where(table, thead, tbody, tr, th, td) {
+  border-color: var(--line) !important;
+}
+
+html[data-app-theme="dark"] .app-content :where(th, thead td) {
+  background: #1a2a3f !important;
+  color: #bfcee0 !important;
+}
+
+html[data-app-theme="dark"] .app-content :where(td) {
+  background: var(--surface) !important;
+}
+
+/* COO workbook contrast pass: override later light-card rules and keep status accents readable. */
+html[data-app-theme="dark"] .advisor-coo-workbook.full,
+html[data-app-theme="dark"] .advisor-coo-tool-page.full {
+  background: #071321 !important;
+  color: #eef4fb !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-coo-landing-header,
+  .advisor-coo-tool-page-header,
+  .advisor-coo-workflow-guide,
+  .advisor-coo-command-detail,
+  .advisor-coo-work-search,
+  .advisor-coo-landing-grid,
+  .advisor-coo-attention-now,
+  .advisor-coo-tool-launcher,
+  .advisor-coo-focused-tool,
+  .advisor-coo-action-plan,
+  .advisor-coo-report-draft,
+  .advisor-coo-staff-reports,
+  .advisor-coo-live-workspace > article,
+  .advisor-coo-updates-seeds > article,
+  .advisor-coo-summary article,
+  .advisor-coo-lanes a,
+  .advisor-coo-saved-draft,
+  .advisor-coo-purchase-hero,
+  .advisor-coo-purchase-form,
+  .advisor-coo-purchase-review,
+  .advisor-focus-panel,
+  .advisor-focus-now,
+  .advisor-focus-score,
+  .advisor-focus-timeline
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-coo-tool-page-header,
+  .advisor-coo-focused-tool,
+  .advisor-coo-action-plan,
+  .advisor-coo-report-draft,
+  .advisor-coo-staff-reports,
+  .advisor-coo-purchase-hero,
+  .advisor-coo-purchase-form,
+  .advisor-coo-purchase-review,
+  .advisor-focus-panel,
+  .advisor-focus-now,
+  .advisor-focus-score,
+  .advisor-focus-timeline
+) {
+  background: #101f31 !important;
+  border-color: #26384e !important;
+  color: #eef4fb !important;
+  box-shadow: none !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-coo-tool-grid a,
+  .advisor-coo-execution-list article,
+  .advisor-coo-other-attention article,
+  .advisor-coo-action-plan article,
+  .advisor-coo-action-plan .advisor-action-plan-review-card,
+  .advisor-action-plan-composer,
+  .advisor-action-signal-strip,
+  .advisor-action-signal-strip article,
+  .advisor-coo-checklist-item,
+  .advisor-coo-update-item,
+  .advisor-coo-seed-item,
+  .advisor-coo-staff-reports article,
+  .advisor-coo-staff-reports details section,
+  .advisor-coo-report-draft dl > div,
+  .advisor-coo-saved-draft article,
+  .advisor-coo-purchase-steps article,
+  .advisor-coo-purchase-hero dl div,
+  .advisor-coo-purchase-review li,
+  .advisor-focus-now div,
+  .advisor-focus-score dl div,
+  .advisor-focus-must article,
+  .advisor-focus-risk article,
+  .advisor-focus-proof-toggle,
+  .advisor-focus-proof-drawer,
+  .advisor-focus-proof-drawer section > div > div
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-coo-tool-grid a,
+  .advisor-coo-action-plan article,
+  .advisor-coo-action-plan .advisor-action-plan-review-card,
+  .advisor-action-plan-composer,
+  .advisor-action-signal-strip,
+  .advisor-action-signal-strip article,
+  .advisor-coo-checklist-item,
+  .advisor-coo-update-item,
+  .advisor-coo-seed-item,
+  .advisor-coo-staff-reports article,
+  .advisor-coo-staff-reports details section,
+  .advisor-coo-report-draft dl > div,
+  .advisor-coo-saved-draft article,
+  .advisor-coo-purchase-steps article,
+  .advisor-coo-purchase-hero dl div,
+  .advisor-coo-purchase-review li,
+  .advisor-focus-now div,
+  .advisor-focus-score dl div,
+  .advisor-focus-must article,
+  .advisor-focus-risk article,
+  .advisor-focus-proof-toggle,
+  .advisor-focus-proof-drawer,
+  .advisor-focus-proof-drawer section > div > div
+) {
+  background: #14253a !important;
+  border-color: #344a64 !important;
+  color: #eef4fb !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(h1,h2,h3,h4,strong,b,dt,dd,label),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(h1,h2,h3,h4,strong,b,dt,dd,label) {
+  color: #eef4fb !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(p,span,small,li,em),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(p,span,small,li,em) {
+  color: #bfcee0 !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-coo-action-plan p,
+  .advisor-coo-staff-reports p,
+  .advisor-coo-checklist-items > p,
+  .advisor-coo-updates-seeds article > div > p,
+  .advisor-action-step-list > p,
+  .advisor-action-empty,
+  .advisor-coo-tool-guidance,
+  .advisor-coo-close-step-notice,
+  .advisor-coo-workspace-notice
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-coo-action-plan p,
+  .advisor-coo-staff-reports p,
+  .advisor-coo-checklist-items > p,
+  .advisor-coo-updates-seeds article > div > p,
+  .advisor-action-step-list > p,
+  .advisor-action-empty,
+  .advisor-coo-tool-guidance,
+  .advisor-coo-close-step-notice,
+  .advisor-coo-workspace-notice
+) {
+  background: #0b1828 !important;
+  border-color: #26384e !important;
+  color: #bfcee0 !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(input,select,textarea),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(input,select,textarea) {
+  background: #101c2d !important;
+  border-color: #344a64 !important;
+  color: #eef4fb !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(button,a),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(button,a) {
+  color: #eef4fb !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-coo-header-actions button,
+  .advisor-coo-inline-form button,
+  .advisor-coo-followup-row button,
+  .advisor-coo-report-draft > header button,
+  .advisor-coo-purchase-review .advisor-coo-seed-actions button,
+  .advisor-action-plan-review-card footer button:first-child
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-coo-header-actions button,
+  .advisor-coo-inline-form button,
+  .advisor-coo-followup-row button,
+  .advisor-coo-report-draft > header button,
+  .advisor-coo-purchase-review .advisor-coo-seed-actions button,
+  .advisor-action-plan-review-card footer button:first-child
+) {
+  background: #4f6df5 !important;
+  border-color: #5b7dff !important;
+  color: #fff !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-coo-checklist-item.yellow,
+  .advisor-coo-checklist-status.yellow,
+  .advisor-coo-seed-item.yellow,
+  .advisor-coo-action-plan .advisor-action-plan-review-card.review
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-coo-checklist-item.yellow,
+  .advisor-coo-checklist-status.yellow,
+  .advisor-coo-seed-item.yellow,
+  .advisor-coo-action-plan .advisor-action-plan-review-card.review
+) {
+  background: rgba(249, 115, 22, .14) !important;
+  border-color: rgba(249, 115, 22, .42) !important;
+  color: #fed7aa !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-coo-checklist-item.red,
+  .advisor-coo-checklist-status.red,
+  .advisor-coo-seed-item.red
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-coo-checklist-item.red,
+  .advisor-coo-checklist-status.red,
+  .advisor-coo-seed-item.red
+) {
+  background: rgba(239, 68, 68, .14) !important;
+  border-color: rgba(239, 68, 68, .42) !important;
+  color: #fecaca !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-coo-checklist-item.green,
+  .advisor-coo-checklist-status.green,
+  .advisor-coo-seed-item.green,
+  .advisor-action-plan-review-card.active
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-coo-checklist-item.green,
+  .advisor-coo-checklist-status.green,
+  .advisor-coo-seed-item.green,
+  .advisor-action-plan-review-card.active
+) {
+  background: rgba(34, 197, 94, .13) !important;
+  border-color: rgba(34, 197, 94, .38) !important;
+  color: #bbf7d0 !important;
+}
+
+/* Global dark-mode contrast policy. This is the app-wide default, not a page patch. */
+html[data-app-theme="dark"] {
+  --app-dark-page: #071321;
+  --app-dark-surface: #101f31;
+  --app-dark-surface-soft: #14253a;
+  --app-dark-surface-raised: #17283c;
+  --app-dark-ink: #eef4fb;
+  --app-dark-muted: #bfcee0;
+  --app-dark-subtle: #9aa9bd;
+  --app-dark-line: #26384e;
+  --app-dark-line-strong: #344a64;
+  --app-dark-primary: #4f6df5;
+  --app-dark-primary-strong: #72a7ff;
+  --app-dark-success: #bbf7d0;
+  --app-dark-warning: #fed7aa;
+  --app-dark-danger: #fecaca;
+}
+
+html[data-app-theme="dark"] .app-content,
+html[data-app-theme="dark"] .app-workspace {
+  background-color: var(--app-dark-page) !important;
+  color: var(--app-dark-ink) !important;
+}
+
+html[data-app-theme="dark"] .app-content :where(
+  section,
+  article,
+  aside,
+  form,
+  fieldset,
+  details,
+  dialog,
+  table,
+  thead,
+  tbody,
+  tfoot,
+  tr,
+  th,
+  td,
+  [class*="card" i],
+  [class*="panel" i],
+  [class*="tile" i],
+  [class*="box" i],
+  [class*="shell" i],
+  [class*="drawer" i],
+  [class*="module" i],
+  [class*="section" i],
+  [class*="workspace" i],
+  [class*="console" i],
+  [class*="surface" i],
+  [class*="paper" i],
+  [class*="hero" i],
+  [class*="summary" i],
+  [class*="metric" i],
+  [class*="rail" i],
+  [class*="queue" i],
+  [class*="list" i],
+  [class*="row" i],
+  [class*="item" i],
+  [class*="empty" i],
+  [class*="popover" i],
+  [class*="menu" i]
+) {
+  border-color: var(--app-dark-line) !important;
+  color: var(--app-dark-ink) !important;
+}
+
+html[data-app-theme="dark"] .app-content :where(
+  section,
+  article,
+  aside,
+  form,
+  fieldset,
+  details,
+  dialog,
+  table,
+  [class*="card" i],
+  [class*="panel" i],
+  [class*="tile" i],
+  [class*="box" i],
+  [class*="drawer" i],
+  [class*="module" i],
+  [class*="surface" i],
+  [class*="paper" i],
+  [class*="hero" i],
+  [class*="summary" i],
+  [class*="metric" i],
+  [class*="rail" i],
+  [class*="queue" i],
+  [class*="item" i],
+  [class*="empty" i],
+  [class*="popover" i],
+  [class*="menu" i]
+) {
+  background-color: var(--app-dark-surface) !important;
+  box-shadow: none !important;
+}
+
+html[data-app-theme="dark"] .app-content :where(
+  [class*="row" i],
+  [class*="cell" i],
+  [class*="strip" i],
+  [class*="toolbar" i],
+  [class*="header" i],
+  [class*="footer" i],
+  [class*="nav" i],
+  [class*="tab" i],
+  [class*="chip" i],
+  [class*="pill" i],
+  [class*="badge" i],
+  [class*="field" i],
+  [class*="control" i],
+  [class*="search" i],
+  [class*="filter" i],
+  li,
+  summary,
+  dl > div
+) {
+  border-color: var(--app-dark-line) !important;
+}
+
+html[data-app-theme="dark"] .app-content :where(
+  [class*="row" i],
+  [class*="strip" i],
+  [class*="toolbar" i],
+  [class*="nav" i],
+  [class*="tab" i],
+  [class*="field" i],
+  [class*="control" i],
+  [class*="search" i],
+  [class*="filter" i],
+  dl > div
+) {
+  background-color: var(--app-dark-surface-soft) !important;
+}
+
+html[data-app-theme="dark"] .app-content :where(h1,h2,h3,h4,h5,h6,strong,b,dt,dd,th,td,label,legend) {
+  color: var(--app-dark-ink) !important;
+}
+
+html[data-app-theme="dark"] .app-content :where(p,span,small,li,em,time,figcaption) {
+  color: var(--app-dark-muted) !important;
+}
+
+html[data-app-theme="dark"] .app-content :where(a) {
+  color: var(--app-dark-primary-strong) !important;
+}
+
+html[data-app-theme="dark"] .app-content :where(input,select,textarea,[contenteditable="true"]) {
+  background-color: #101c2d !important;
+  border-color: var(--app-dark-line-strong) !important;
+  color: var(--app-dark-ink) !important;
+  color-scheme: dark;
+}
+
+html[data-app-theme="dark"] .app-content :where(input,textarea)::placeholder {
+  color: var(--app-dark-subtle) !important;
+  opacity: 1;
+}
+
+html[data-app-theme="dark"] .app-content :where(button,[role="button"],.button,[class*="button" i]) {
+  border-color: var(--app-dark-line-strong) !important;
+}
+
+html[data-app-theme="dark"] .app-content :where(
+  button:not(:disabled),
+  [role="button"],
+  .button,
+  [class*="button" i]
+) :where(span,small,strong) {
+  color: inherit !important;
+}
+
+html[data-app-theme="dark"] .app-content :where(
+  [class*="primary" i],
+  [class*="active" i],
+  [class*="selected" i],
+  [aria-current="page"],
+  [aria-pressed="true"]
+) {
+  border-color: var(--app-dark-primary-strong) !important;
+}
+
+html[data-app-theme="dark"] .app-content :where(
+  [class*="primary" i],
+  button[aria-pressed="true"],
+  a[aria-current="page"]
+) {
+  color: #fff !important;
+}
+
+html[data-app-theme="dark"] .app-content :where(
+  [class*="success" i],
+  [class*="ready" i],
+  [class*="complete" i],
+  [class*="done" i],
+  [class*="live" i]
+) {
+  background-color: rgba(34, 197, 94, .13) !important;
+  border-color: rgba(34, 197, 94, .38) !important;
+  color: var(--app-dark-success) !important;
+}
+
+html[data-app-theme="dark"] .app-content :where(
+  [class*="warning" i],
+  [class*="attention" i],
+  [class*="overdue" i],
+  [class*="risk" i],
+  [class*="review" i]
+) {
+  background-color: rgba(249, 115, 22, .13) !important;
+  border-color: rgba(249, 115, 22, .38) !important;
+  color: var(--app-dark-warning) !important;
+}
+
+html[data-app-theme="dark"] .app-content :where(
+  [class*="danger" i],
+  [class*="blocked" i],
+  [class*="error" i],
+  [class*="failed" i]
+) {
+  background-color: rgba(239, 68, 68, .13) !important;
+  border-color: rgba(239, 68, 68, .4) !important;
+  color: var(--app-dark-danger) !important;
+}
+
+/* Appointment Console dark-mode rescue: keep the page navy, brown only for isolated light islands. */
+html[data-app-theme="dark"] :where(.appointment-new-calendar,.appointment-console-home) :where(
+  .appointment-layout-switcher,
+  .appointment-return-home-link,
+  .appointment-new-header a:not(.primary),
+  .appointment-panel header a,
+  .appointment-panel .panel-action,
+  .appointment-compact-control,
+  .appointment-flow-group h3 b,
+  .capacity-pill,
+  .appointment-summary header b
+),
+html[data-app-theme="dark"] :where(.appointment-topbar-return),
+html[data-app-theme="dark"] :where(.appointment-category-badge) {
+  background-color: #3f2c28 !important;
+  border-color: #6c493d !important;
+  color: var(--app-dark-ink) !important;
+  box-shadow: none !important;
+}
+
+html[data-app-theme="dark"] .appointment-layout-switcher button:not(.active) {
+  color: var(--app-dark-ink) !important;
+}
+
+html[data-app-theme="dark"] .appointment-layout-switcher button.active {
+  background-color: var(--app-dark-primary) !important;
+  border-color: var(--app-dark-primary) !important;
+  color: #fff !important;
+}
+
+html[data-app-theme="dark"] .calendar-stage {
+  background-color: var(--app-dark-surface) !important;
+}
+
+html[data-app-theme="dark"] .calendar-stage::before {
+  border-color: var(--app-dark-line) !important;
+  background: repeating-linear-gradient(to bottom, var(--app-dark-surface) 0, var(--app-dark-surface) 58px, var(--app-dark-line) 59px) !important;
+}
+
+html[data-app-theme="dark"] .availability.good {
+  background-color: rgba(34, 197, 94, .12) !important;
+}
+
+html[data-app-theme="dark"] .availability.constrained {
+  background-color: rgba(249, 115, 22, .14) !important;
+}
+
+html[data-app-theme="dark"] :where(.calendar-event,.selected-slot) {
+  background-color: #3f2c28 !important;
+  border-color: #6c493d !important;
+  color: var(--app-dark-ink) !important;
+}
+
+html[data-app-theme="dark"] .calendar-event :where(span,small) {
+  color: var(--app-dark-muted) !important;
+}
+
+html[data-app-theme="dark"] .calendar-event strong {
+  color: var(--app-dark-ink) !important;
+}
+
+html[data-app-theme="dark"] :where(
+  .appointment-time-picker,
+  .appointment-time-picker .time-picker-toggle,
+  .time-picker-options button:not(.active)
+) {
+  background-color: var(--app-dark-surface-soft) !important;
+  border-color: var(--app-dark-line-strong) !important;
+  color: var(--app-dark-ink) !important;
+}
+
+html[data-app-theme="dark"] .appointment-capacity-confidence footer {
+  background-color: #3f2c28 !important;
+  border-color: #6c493d !important;
+  color: var(--app-dark-ink) !important;
+}
+
+html[data-app-theme="dark"] .appointment-capacity-confidence footer :where(span,strong) {
+  color: var(--app-dark-ink) !important;
+}
+
+html[data-app-theme="dark"] .appointment-capacity-confidence footer a,
+html[data-app-theme="dark"] .appointment-summary :where(button:not(.primary),footer a) {
+  background-color: var(--app-dark-surface-soft) !important;
+  border-color: #6c493d !important;
+  color: var(--app-dark-ink) !important;
+}
+
+/* Command Center dark-mode rescue for pale icon tiles and state capsules. */
+html[data-app-theme="dark"] :where(.ccc-home-console-icon,.ccc-home-console-state) {
+  background-color: #3f2c28 !important;
+  border-color: #6c493d !important;
+  color: var(--app-dark-ink) !important;
+}
+
+html[data-app-theme="dark"] .ccc-home-console-card-disabled :where(.ccc-home-console-icon,.ccc-home-console-state) {
+  background-color: #332521 !important;
+  border-color: #594036 !important;
+  color: var(--app-dark-muted) !important;
+}
+
+/* Advisor and COO rescue surfaces: brown catches escaped light cards without recoloring the page shell. */
+html[data-app-theme="dark"] :where(.advisor-focus-counters>a,.advisor-focus-counters>button),
+html[data-app-theme="dark"] :where(.advisor-action-type,.advisor-action-card b),
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-coo-workflow-guide article,
+  .advisor-coo-workflow-guide nav a,
+  .advisor-coo-workflow-guide nav button,
+  .advisor-staff-execution-home>div a,
+  .advisor-staff-execution-home>footer a,
+  .advisor-staff-execution-home>footer button,
+  .advisor-staff-execution-home>header span,
+  .advisor-coo-command-strip article,
+  .advisor-coo-command-strip button,
+  .advisor-coo-landing-status,
+  .advisor-coo-landing-status b,
+  .advisor-coo-landing-status strong
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-coo-workflow-guide article,
+  .advisor-coo-workflow-guide nav a,
+  .advisor-coo-workflow-guide nav button,
+  .advisor-staff-execution-home>div a,
+  .advisor-staff-execution-home>footer a,
+  .advisor-staff-execution-home>footer button,
+  .advisor-staff-execution-home>header span,
+  .advisor-coo-command-strip article,
+  .advisor-coo-command-strip button,
+  .advisor-coo-landing-status,
+  .advisor-coo-landing-status b,
+  .advisor-coo-landing-status strong
+) {
+  background-color: #3f2c28 !important;
+  border-color: #6c493d !important;
+  color: var(--app-dark-ink) !important;
+  box-shadow: none !important;
+}
+
+html[data-app-theme="dark"] :where(.advisor-focus-counters>a,.advisor-focus-counters>button) :where(span,small,strong),
+html[data-app-theme="dark"] :where(.advisor-action-type,.advisor-action-card b) :where(span,small,strong),
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-coo-workflow-guide article,
+  .advisor-coo-workflow-guide nav a,
+  .advisor-coo-workflow-guide nav button,
+  .advisor-staff-execution-home>div a,
+  .advisor-staff-execution-home>footer a,
+  .advisor-staff-execution-home>footer button,
+  .advisor-staff-execution-home>header span,
+  .advisor-coo-command-strip article,
+  .advisor-coo-command-strip button,
+  .advisor-coo-landing-status
+) :where(span,small,strong,em,b),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-coo-workflow-guide article,
+  .advisor-coo-workflow-guide nav a,
+  .advisor-coo-workflow-guide nav button,
+  .advisor-staff-execution-home>div a,
+  .advisor-staff-execution-home>footer a,
+  .advisor-staff-execution-home>footer button,
+  .advisor-staff-execution-home>header span,
+  .advisor-coo-command-strip article,
+  .advisor-coo-command-strip button,
+  .advisor-coo-landing-status
+) :where(span,small,strong,em,b) {
+  color: var(--app-dark-ink) !important;
+}
+
+html[data-app-theme="dark"] :where(.advisor-focus-counters svg),
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-coo-workflow-guide nav svg,
+  .advisor-staff-execution-home>div svg,
+  .advisor-coo-command-strip svg
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-coo-workflow-guide nav svg,
+  .advisor-staff-execution-home>div svg,
+  .advisor-coo-command-strip svg
+) {
+  background-color: var(--app-dark-surface-soft) !important;
+  border-color: var(--app-dark-line-strong) !important;
+  color: var(--app-dark-primary-strong) !important;
+}
+
+/* Warm fallback only for light islands that escape dark mode. This must stay narrow:
+   the app remains navy; brown is a rescue surface for failed white panels/fields. */
+html[data-app-theme="dark"] .app-content :where(
+  [style*="background: #fff"],
+  [style*="background:#fff"],
+  [style*="background-color: #fff"],
+  [style*="background-color:#fff"],
+  [style*="background: white"],
+  [style*="background:white"],
+  [style*="background-color: white"],
+  [style*="background-color:white"],
+  [class~="white" i],
+  [class~="light" i]
+) {
+  background-color: #3f2c28 !important;
+  border-color: #6c493d !important;
+  color: var(--app-dark-ink) !important;
+}
 
