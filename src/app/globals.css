@@ -26280,6 +26280,9 @@ html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
   .advisor-action-plan-composer,
   .advisor-action-signal-strip,
   .advisor-action-signal-strip article,
+  .advisor-coo-other-attention > a,
+  .advisor-coo-related-attention a,
+  .advisor-coo-tool-grid svg,
   .advisor-coo-checklist-item,
   .advisor-coo-update-item,
   .advisor-coo-seed-item,
@@ -26296,10 +26299,20 @@ html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
   .advisor-focus-risk article,
   .advisor-focus-proof-toggle,
   .advisor-focus-proof-drawer,
-  .advisor-focus-proof-drawer section > div > div
+  .advisor-focus-proof-drawer section > div > div,
+  .advisor-start-day-heading > strong,
+  .advisor-start-day-section > header > div > span,
+  .advisor-start-day-section > header > small,
+  .advisor-start-day-carryover header a,
+  .advisor-start-day-selected > article,
+  .advisor-start-day-selected > article > b,
+  .advisor-start-day-capacity-options > label,
+  .advisor-start-day-empty,
+  .advisor-start-day-confirm
 ),
 html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
   .advisor-coo-tool-grid a,
+  .advisor-coo-tool-grid svg,
   .advisor-coo-action-plan article,
   .advisor-coo-action-plan .advisor-action-plan-review-card,
   .advisor-action-plan-composer,
@@ -26321,9 +26334,187 @@ html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
   .advisor-focus-risk article,
   .advisor-focus-proof-toggle,
   .advisor-focus-proof-drawer,
-  .advisor-focus-proof-drawer section > div > div
+  .advisor-focus-proof-drawer section > div > div,
+  .advisor-start-day-heading > strong,
+  .advisor-start-day-section > header > div > span,
+  .advisor-start-day-section > header > small,
+  .advisor-start-day-carryover header a,
+  .advisor-start-day-selected > article,
+  .advisor-start-day-selected > article > b,
+  .advisor-start-day-capacity-options > label,
+  .advisor-start-day-empty,
+  .advisor-start-day-confirm
 ) {
   background: #14253a !important;
+  border-color: #344a64 !important;
+  color: #eef4fb !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-coo-tool-grid svg,
+  .advisor-start-day-section > header > div > span,
+  .advisor-start-day-selected > article > b
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-coo-tool-grid svg,
+  .advisor-start-day-section > header > div > span,
+  .advisor-start-day-selected > article > b
+) {
+  color: #72a7ff !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full .advisor-focus-score > div,
+html[data-app-theme="dark"] .advisor-coo-tool-page.full .advisor-focus-score > div {
+  background: conic-gradient(#4ade80 var(--focus-score), #3f2c28 0) !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full .advisor-focus-score > div::before,
+html[data-app-theme="dark"] .advisor-coo-tool-page.full .advisor-focus-score > div::before {
+  background: #14253a !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-coo-other-attention > a,
+  .advisor-coo-related-attention a,
+  .advisor-start-day-selected > article,
+  .advisor-start-day-capacity-options > label,
+  .advisor-start-day-confirm
+) :where(span,small,strong,p,b,em,svg),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-coo-other-attention > a,
+  .advisor-coo-related-attention a,
+  .advisor-start-day-selected > article,
+  .advisor-start-day-capacity-options > label,
+  .advisor-start-day-confirm
+) :where(span,small,strong,p,b,em,svg) {
+  color: #eef4fb !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-start-day-capacity-options > label.selected,
+  .advisor-start-day-confirm a,
+  .advisor-start-day-confirm button:not(.secondary)
+) {
+  background: #4f6df5 !important;
+  border-color: #72a7ff !important;
+  color: #fff !important;
+}
+
+/* Task execution contrast pass: suppress escaped light workbench islands in dark mode. */
+html[data-app-theme="dark"] .enterprise-task-workbench.etw-simple-workbench,
+html[data-app-theme="dark"] .enterprise-task-workbench .etw-simple-shell {
+  background: #071321 !important;
+  color: #eef4fb !important;
+}
+
+html[data-app-theme="dark"] .enterprise-task-workbench :where(
+  .etw-simple-header,
+  .etw-simple-summary-card,
+  .etw-compact-task-card,
+  .etw-compact-expanded-panel,
+  .etw-compact-calendar-planner,
+  .etw-inline-delivery-planner,
+  .etw-compact-next-action,
+  .etw-compact-task-links
+) {
+  background: #101f31 !important;
+  border-color: #26384e !important;
+  color: #eef4fb !important;
+  box-shadow: none !important;
+}
+
+html[data-app-theme="dark"] .enterprise-task-workbench :where(
+  .etw-simple-chip-row b,
+  .etw-compact-title-row span,
+  .etw-compact-title-row em,
+  .etw-compact-title-row b,
+  .etw-compact-state-active,
+  .etw-compact-state-pending,
+  .etw-compact-state-elevated,
+  .etw-compact-state-priority,
+  .etw-compact-state-danger,
+  .etw-compact-state-complete,
+  .etw-compact-calendar-hide,
+  .etw-compact-calendar-restore,
+  .etw-compact-calendar-actions a,
+  .etw-compact-calendar-actions button,
+  .etw-compact-task-links button,
+  .etw-compact-next-action nav a,
+  .etw-compact-next-action nav button:not(:first-child)
+) {
+  background: #3f2c28 !important;
+  border-color: rgba(249, 115, 22, .38) !important;
+  color: #fed7aa !important;
+}
+
+html[data-app-theme="dark"] .enterprise-task-workbench :where(
+  .etw-view-switcher,
+  .etw-simple-header .etw-view-switcher,
+  .etw-compact-task-header .etw-view-switcher,
+  .etw-simple-summary-topline .etw-view-switcher
+) {
+  background: #0b1828 !important;
+  border-color: #344a64 !important;
+}
+
+html[data-app-theme="dark"] .enterprise-task-workbench :where(
+  .etw-view-switcher a,
+  .etw-simple-header .etw-view-switcher a,
+  .etw-compact-task-header .etw-view-switcher a,
+  .etw-simple-summary-topline .etw-view-switcher a
+) {
+  color: #bfcee0 !important;
+}
+
+html[data-app-theme="dark"] .enterprise-task-workbench :where(
+  .etw-view-switcher a[aria-current="page"],
+  .etw-simple-header .etw-view-switcher a[aria-current="page"],
+  .etw-compact-task-header .etw-view-switcher a[aria-current="page"],
+  .etw-simple-summary-topline .etw-view-switcher a[aria-current="page"],
+  .etw-compact-next-action nav button:first-child
+) {
+  background: #4f6df5 !important;
+  border-color: #72a7ff !important;
+  color: #fff !important;
+}
+
+html[data-app-theme="dark"] .enterprise-task-workbench :where(
+  .etw-simple-header h1,
+  .etw-simple-summary-card h1,
+  .etw-simple-summary-action > strong,
+  .etw-simple-summary-facts strong,
+  .etw-compact-task-header h1,
+  .etw-compact-title-row strong,
+  .etw-compact-task-fields dd,
+  .etw-compact-next-action span,
+  .etw-compact-next-action strong,
+  .etw-compact-calendar-planner strong,
+  .etw-inline-delivery-planner > header strong,
+  .etw-compact-signals header strong
+) {
+  color: #eef4fb !important;
+}
+
+html[data-app-theme="dark"] .enterprise-task-workbench :where(
+  .etw-simple-header p,
+  .etw-simple-summary-card p,
+  .etw-simple-summary-action small,
+  .etw-compact-task-description,
+  .etw-compact-task-description b,
+  .etw-compact-task-fields dt,
+  .etw-compact-calendar-planner > strong + span,
+  .etw-compact-signals p,
+  .etw-compact-path-switch small
+) {
+  color: #bfcee0 !important;
+}
+
+html[data-app-theme="dark"] .enterprise-task-workbench :where(
+  .etw-compact-path-switch select,
+  .etw-compact-status-menu select,
+  .etw-compact-due-editor input
+) {
+  background: #101c2d !important;
   border-color: #344a64 !important;
   color: #eef4fb !important;
 }
@@ -27268,5 +27459,600 @@ html[data-app-theme="dark"] .app-content :where(
   background-color: #3f2c28 !important;
   border-color: #6c493d !important;
   color: var(--app-dark-ink) !important;
+}
+
+html[data-app-theme="dark"] ::selection {
+  background: rgba(79, 109, 245, .38);
+  color: #fff;
+}
+
+/* COO workbook end-of-day and update surfaces: keep review strips, disabled links, and report rows dark. */
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-end-day-orientation,
+  .advisor-end-day-section,
+  .advisor-end-day-final-review,
+  .advisor-end-day-confirm,
+  .advisor-end-day-manual-report > div,
+  .advisor-end-day-report-drawer,
+  .advisor-end-day-comment-editor,
+  .advisor-coo-update-list article,
+  .advisor-coo-report-seeds article,
+  .advisor-coo-update-item,
+  .advisor-coo-seed-item
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-end-day-orientation,
+  .advisor-end-day-section,
+  .advisor-end-day-final-review,
+  .advisor-end-day-confirm,
+  .advisor-end-day-manual-report > div,
+  .advisor-end-day-report-drawer,
+  .advisor-end-day-comment-editor,
+  .advisor-coo-update-list article,
+  .advisor-coo-report-seeds article,
+  .advisor-coo-update-item,
+  .advisor-coo-seed-item
+) {
+  background: #101f31 !important;
+  border-color: #26384e !important;
+  color: #eef4fb !important;
+  box-shadow: none !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-end-day-orientation > div,
+  .advisor-end-day-section > header > div > span,
+  .advisor-end-day-section > header > small,
+  .advisor-end-day-section nav,
+  .advisor-end-day-section nav a,
+  .advisor-end-day-list article,
+  .advisor-end-day-empty,
+  .advisor-end-day-evidence > div,
+  .advisor-end-day-draft,
+  .advisor-end-day-draft-items > section,
+  .advisor-end-day-final-review > header > div > span,
+  .advisor-end-day-final-review > header small,
+  .advisor-end-day-final-review > div > p,
+  .advisor-end-day-heading > strong,
+  .advisor-end-day-manual-report > button,
+  .advisor-end-day-manual-report > button small,
+  .advisor-end-day-manual-list article,
+  .advisor-end-day-report-drawer > header,
+  .advisor-end-day-report-drawer > footer,
+  .advisor-end-day-drawer-assurance,
+  .advisor-end-day-add-row,
+  .advisor-end-day-comment-editor > header,
+  .advisor-end-day-comment-editor > footer,
+  .advisor-coo-focused-tool a,
+  .advisor-coo-focused-tool button,
+  .advisor-coo-update-item a,
+  .advisor-coo-update-item button,
+  .advisor-coo-seed-item a,
+  .advisor-coo-seed-item button
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-end-day-orientation > div,
+  .advisor-end-day-section > header > div > span,
+  .advisor-end-day-section > header > small,
+  .advisor-end-day-section nav,
+  .advisor-end-day-section nav a,
+  .advisor-end-day-list article,
+  .advisor-end-day-empty,
+  .advisor-end-day-evidence > div,
+  .advisor-end-day-draft,
+  .advisor-end-day-draft-items > section,
+  .advisor-end-day-final-review > header > div > span,
+  .advisor-end-day-final-review > header small,
+  .advisor-end-day-final-review > div > p,
+  .advisor-end-day-heading > strong,
+  .advisor-end-day-manual-report > button,
+  .advisor-end-day-manual-report > button small,
+  .advisor-end-day-manual-list article,
+  .advisor-end-day-report-drawer > header,
+  .advisor-end-day-report-drawer > footer,
+  .advisor-end-day-drawer-assurance,
+  .advisor-end-day-add-row,
+  .advisor-end-day-comment-editor > header,
+  .advisor-end-day-comment-editor > footer,
+  .advisor-coo-focused-tool a,
+  .advisor-coo-focused-tool button,
+  .advisor-coo-update-item a,
+  .advisor-coo-update-item button,
+  .advisor-coo-seed-item a,
+  .advisor-coo-seed-item button
+) {
+  background: #14253a !important;
+  border-color: #344a64 !important;
+  color: #eef4fb !important;
+  box-shadow: none !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-end-day-heading > strong:not(.ready):not(.closed),
+  .advisor-end-day-list article.open,
+  .advisor-end-day-list article.carry,
+  .advisor-end-day-list button.selected.carry,
+  .advisor-coo-update-list article,
+  .advisor-coo-report-seeds article.yellow,
+  .advisor-coo-update-item,
+  .advisor-coo-seed-item.yellow
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-end-day-heading > strong:not(.ready):not(.closed),
+  .advisor-end-day-list article.open,
+  .advisor-end-day-list article.carry,
+  .advisor-end-day-list button.selected.carry,
+  .advisor-coo-update-list article,
+  .advisor-coo-report-seeds article.yellow,
+  .advisor-coo-update-item,
+  .advisor-coo-seed-item.yellow
+) {
+  background: #3f2c28 !important;
+  border-color: rgba(249, 115, 22, .42) !important;
+  color: #fed7aa !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-end-day-section > footer button,
+  .advisor-end-day-confirm button,
+  .advisor-end-day-final-review button:not(.secondary),
+  .advisor-end-day-manual-report footer span button:last-child,
+  .advisor-coo-inline-form button:not(:disabled),
+  .advisor-coo-followup-row button:not(:disabled)
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-end-day-section > footer button,
+  .advisor-end-day-confirm button,
+  .advisor-end-day-final-review button:not(.secondary),
+  .advisor-end-day-manual-report footer span button:last-child,
+  .advisor-coo-inline-form button:not(:disabled),
+  .advisor-coo-followup-row button:not(:disabled)
+) {
+  background: #4f6df5 !important;
+  border-color: #72a7ff !important;
+  color: #fff !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  button:disabled,
+  a[aria-disabled="true"],
+  .advisor-end-day-section nav a:not([aria-current="page"])
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  button:disabled,
+  a[aria-disabled="true"],
+  .advisor-end-day-section nav a:not([aria-current="page"])
+) {
+  background: #1b2b40 !important;
+  border-color: #344a64 !important;
+  color: #9aa9bd !important;
+  opacity: .72 !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-end-day-shell,
+  .advisor-end-day-shell h1,
+  .advisor-end-day-shell h2,
+  .advisor-end-day-shell h3,
+  .advisor-end-day-shell strong,
+  .advisor-end-day-shell b,
+  .advisor-end-day-shell dt,
+  .advisor-end-day-shell dd,
+  .advisor-end-day-shell label,
+  .advisor-coo-update-item strong,
+  .advisor-coo-seed-item strong
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-end-day-shell,
+  .advisor-end-day-shell h1,
+  .advisor-end-day-shell h2,
+  .advisor-end-day-shell h3,
+  .advisor-end-day-shell strong,
+  .advisor-end-day-shell b,
+  .advisor-end-day-shell dt,
+  .advisor-end-day-shell dd,
+  .advisor-end-day-shell label,
+  .advisor-coo-update-item strong,
+  .advisor-coo-seed-item strong
+) {
+  color: #eef4fb !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-end-day-shell p,
+  .advisor-end-day-shell span,
+  .advisor-end-day-shell small,
+  .advisor-end-day-shell em,
+  .advisor-coo-update-item p,
+  .advisor-coo-seed-item p
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-end-day-shell p,
+  .advisor-end-day-shell span,
+  .advisor-end-day-shell small,
+  .advisor-end-day-shell em,
+  .advisor-coo-update-item p,
+  .advisor-coo-seed-item p
+) {
+  color: #bfcee0 !important;
+}
+
+/* Late dark-mode rescue for operational workspaces that still own older light cards. */
+html[data-app-theme="dark"] .app-content:has(.ict-exact),
+html[data-app-theme="dark"] .ict-exact {
+  color: #eef4fb !important;
+  background: #071321 !important;
+}
+
+html[data-app-theme="dark"] .ict-exact :where(
+  .ict-exact-tabs,
+  .ict-exact-kpis,
+  .ict-exact-health,
+  .ict-flow-map,
+  .ict-exact-panel,
+  .ict-exact-footer,
+  .ict-command-rail-exact,
+  .ict-command-rail-exact > header,
+  .ict-command-rail-exact > section,
+  .ict-command-rail-exact > footer,
+  .ict-flow-node-wrap > a,
+  .ict-flow-node-wrap > a.attention,
+  .ict-exact-table > .head,
+  .ict-exact-table > a,
+  .ict-exact-table > div,
+  .ict-exact-portfolio .market > div,
+  .ict-command-rail-exact .financial span,
+  .ict-command-rail-exact .execution i,
+  .ict-exact-primary-action,
+  .ict-exact-secondary-action
+) {
+  background: #101d2e !important;
+  border-color: #283a51 !important;
+  color: #eaf1fb !important;
+  box-shadow: none !important;
+}
+
+html[data-app-theme="dark"] .ict-exact :where(
+  .ict-exact-header button,
+  .ict-command-rail-exact > footer a,
+  .ict-command-rail-exact > footer button,
+  .ict-exact-panel > header a
+) {
+  background: #14243a !important;
+  border-color: #3b5574 !important;
+  color: #9dbbff !important;
+}
+
+html[data-app-theme="dark"] .ict-exact :where(
+  .ict-exact-primary-action,
+  .ict-command-rail-exact > footer a:first-child,
+  .ict-exact-panel > header a
+) {
+  background: #4f6df5 !important;
+  border-color: #72a7ff !important;
+  color: #fff !important;
+}
+
+html[data-app-theme="dark"] .ict-exact :where(
+  h1,
+  h2,
+  h3,
+  strong,
+  b,
+  dd,
+  .ict-exact-table > a strong,
+  .ict-exact-kpis strong,
+  .ict-command-rail-exact .financial strong
+) {
+  color: #f4f8ff !important;
+}
+
+html[data-app-theme="dark"] .ict-exact :where(
+  p,
+  span,
+  small,
+  dt,
+  em,
+  .ict-exact-table small,
+  .ict-command-rail-exact section > small
+) {
+  color: #bfcee0 !important;
+}
+
+html[data-app-theme="dark"] .ict-exact :where(
+  .ict-exact-table > a:hover,
+  .ict-flow-node-wrap > a:hover,
+  .ict-flow-node-wrap > a.attention,
+  .ict-exact-table > a > b,
+  .ict-command-rail-exact .constraint
+) {
+  background: #271f18 !important;
+  border-color: #8b5b23 !important;
+  color: #ffd89a !important;
+}
+
+html[data-app-theme="dark"] .ict-exact :where(
+  .ict-command-rail-exact .next,
+  .ict-command-rail-exact > header em.healthy
+) {
+  background: #10281f !important;
+  border-color: #357a57 !important;
+  color: #9ee6bc !important;
+}
+
+html[data-app-theme="dark"] .ict-exact :where(button:disabled, a[aria-disabled="true"]) {
+  background: #1b2b40 !important;
+  border-color: #344a64 !important;
+  color: #9aa9bd !important;
+  opacity: .72 !important;
+}
+
+html[data-app-theme="dark"] .ict-exact :where(
+  .vehicle-card,
+  .vehicle-card > header,
+  .vehicle-card.expanded > section,
+  .vehicle-card.expanded > footer,
+  .vehicle-card-image,
+  .vehicle-card-clocks p,
+  .vehicle-card-alert,
+  .vehicle-card-next,
+  .vehicle-card-readiness li,
+  .vehicle-card-financial > div,
+  .vehicle-card-empty,
+  .vehicle-card.expanded > footer a,
+  .vehicle-card.expanded > footer button
+) {
+  background: #101d2e !important;
+  border-color: #283a51 !important;
+  color: #eaf1fb !important;
+  box-shadow: none !important;
+}
+
+html[data-app-theme="dark"] .ict-exact :where(
+  .vehicle-card h2,
+  .vehicle-card h3,
+  .vehicle-card strong,
+  .vehicle-card dd,
+  .vehicle-card b
+) {
+  color: #f4f8ff !important;
+}
+
+html[data-app-theme="dark"] .ict-exact :where(
+  .vehicle-card p,
+  .vehicle-card span,
+  .vehicle-card small,
+  .vehicle-card dt
+) {
+  color: #bfcee0 !important;
+}
+
+html[data-app-theme="dark"] .ict-exact :where(
+  .vehicle-card-alert.blocked,
+  .vehicle-card-alert.waiting,
+  .vehicle-card-constraint,
+  .vehicle-card-readiness li:not([data-state="READY"]),
+  .vehicle-card.expanded > footer .critical
+) {
+  background: #271f18 !important;
+  border-color: #8b5b23 !important;
+  color: #ffd89a !important;
+}
+
+html[data-app-theme="dark"] .ict-exact :where(
+  .vehicle-card-next,
+  .vehicle-card-clocks p[data-state="ACTIVE"],
+  .vehicle-card-readiness li[data-state="READY"]
+) {
+  background: #10281f !important;
+  border-color: #357a57 !important;
+  color: #9ee6bc !important;
+}
+
+html[data-app-theme="dark"] .ict-exact :where(
+  .vehicle-card.expanded > footer .primary,
+  .vehicle-card-primary
+) {
+  background: #4f6df5 !important;
+  border-color: #72a7ff !important;
+  color: #fff !important;
+}
+
+html[data-app-theme="dark"] .ict-exact .vehicle-card.expanded > footer button:disabled {
+  background: #1b2b40 !important;
+  border-color: #344a64 !important;
+  color: #9aa9bd !important;
+  opacity: .72 !important;
+}
+
+html[data-app-theme="dark"] .app-content:has(.rra-prototype),
+html[data-app-theme="dark"] .rra-prototype {
+  color: #eef4fb !important;
+  background: #071321 !important;
+}
+
+html[data-app-theme="dark"] .rra-prototype :where(
+  .rra-hero > div,
+  .rra-hero > aside,
+  .rra-command-strip article,
+  .rra-search,
+  .rra-main,
+  .rra-side section,
+  .rra-lanes,
+  .rra-lanes button,
+  .rra-work-card,
+  .rra-empty,
+  .rra-next-best,
+  .rra-reality div,
+  .rra-bottlenecks span,
+  .rra-side section > a
+) {
+  background: #101d2e !important;
+  border-color: #283a51 !important;
+  color: #eaf1fb !important;
+  box-shadow: none !important;
+}
+
+html[data-app-theme="dark"] .rra-prototype :where(
+  .rra-work-card.risk,
+  .rra-work-card.vendor,
+  .rra-next-best.risk,
+  .rra-next-best.vendor
+) {
+  background: #271f18 !important;
+  border-color: #8b5b23 !important;
+}
+
+html[data-app-theme="dark"] .rra-prototype :where(
+  .rra-work-card.ready,
+  .rra-next-best.ready
+) {
+  background: #10281f !important;
+  border-color: #357a57 !important;
+}
+
+html[data-app-theme="dark"] .rra-prototype :where(
+  h1,
+  h2,
+  h3,
+  strong,
+  b,
+  dt,
+  dd
+) {
+  color: #f4f8ff !important;
+}
+
+html[data-app-theme="dark"] .rra-prototype :where(
+  p,
+  span,
+  small,
+  input,
+  li
+) {
+  color: #bfcee0 !important;
+}
+
+html[data-app-theme="dark"] .rra-prototype :where(
+  .rra-search button,
+  .rra-work-card a,
+  .rra-next-best a
+) {
+  background: #4f6df5 !important;
+  border-color: #72a7ff !important;
+  color: #fff !important;
+}
+
+/* COO workbook final polish: badges, empty states, and lightweight tool tiles. */
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-coo-attention-now > header > span,
+  .advisor-coo-tool-launcher > header > span,
+  .advisor-coo-focused-tool > header > span,
+  .advisor-coo-carryover-center > header > span,
+  .advisor-coo-work-search header span,
+  .advisor-coo-command-detail header span
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-coo-attention-now > header > span,
+  .advisor-coo-tool-launcher > header > span,
+  .advisor-coo-focused-tool > header > span,
+  .advisor-coo-carryover-center > header > span,
+  .advisor-coo-work-search header span,
+  .advisor-coo-command-detail header span
+) {
+  background: #1b2b40 !important;
+  border: 1px solid #344a64 !important;
+  color: #bfcee0 !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-coo-attention-now b,
+  .advisor-coo-execution-list > article b,
+  .advisor-coo-other-attention > a b,
+  .advisor-coo-related-attention a b
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-coo-attention-now b,
+  .advisor-coo-execution-list > article b,
+  .advisor-coo-other-attention > a b,
+  .advisor-coo-related-attention a b
+) {
+  background: #1b2b40 !important;
+  border: 1px solid #344a64 !important;
+  color: #eef4fb !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-coo-execution-actions a:not(.primary),
+  .advisor-coo-other-attention > a em,
+  .advisor-coo-related-attention a em
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-coo-execution-actions a:not(.primary),
+  .advisor-coo-other-attention > a em,
+  .advisor-coo-related-attention a em
+) {
+  background: #14253a !important;
+  border-color: #344a64 !important;
+  color: #9dbbff !important;
+  box-shadow: none !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-coo-execution-actions button:disabled,
+  .advisor-coo-focused-tool button:disabled,
+  .advisor-coo-focused-tool a[aria-disabled="true"],
+  .advisor-coo-seed-actions button:disabled,
+  .advisor-coo-inline-form button:disabled,
+  .advisor-coo-followup-row button:disabled
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-coo-execution-actions button:disabled,
+  .advisor-coo-focused-tool button:disabled,
+  .advisor-coo-focused-tool a[aria-disabled="true"],
+  .advisor-coo-seed-actions button:disabled,
+  .advisor-coo-inline-form button:disabled,
+  .advisor-coo-followup-row button:disabled
+) {
+  background: #1b2b40 !important;
+  border-color: #344a64 !important;
+  color: #9aa9bd !important;
+  opacity: .72 !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-coo-close-flow span,
+  .advisor-coo-close-flow button,
+  .advisor-coo-action-plan article,
+  .advisor-coo-carryover-center p,
+  .advisor-coo-checklist-items > p,
+  .advisor-coo-empty-state
+),
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-coo-close-flow span,
+  .advisor-coo-close-flow button,
+  .advisor-coo-action-plan article,
+  .advisor-coo-carryover-center p,
+  .advisor-coo-checklist-items > p,
+  .advisor-coo-empty-state
+) {
+  background: #101f31 !important;
+  border-color: #26384e !important;
+  color: #eef4fb !important;
+  box-shadow: none !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-coo-close-flow svg,
+  .advisor-coo-carryover-center p svg,
+  .advisor-coo-checklist-items > p svg
+),
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-coo-close-flow svg,
+  .advisor-coo-carryover-center p svg,
+  .advisor-coo-checklist-items > p svg
+) {
+  background: #1b2b40 !important;
+  color: #72a7ff !important;
 }
 

@@ -2662,3 +2662,272 @@
     font-size: 15px;
   }
 }
+
+/* Dark-mode escape surface pass. Keep the console navy; convert only pale cards/pills to readable dark or warm status surfaces. */
+.console {
+  background: #071321;
+  color: #eef4fb;
+}
+
+.integrationStrip,
+.intentHero,
+.intentDetail,
+.intentSummary,
+.intentFacts,
+.intentSteps,
+.intentGuardrail,
+.executionCommand,
+.trustedMetrics,
+.workQueue,
+.revenueDesk,
+.inventory,
+.customer360,
+.managerRail,
+.leadDetail,
+.pipelinePanel article,
+.supportPanel article,
+.releasePanel,
+.guidedPath,
+.workspaceRelationship article,
+.queueTruth,
+.sourceBackedState,
+.sourceGrid article,
+.releaseGrid span,
+.revenueDeskHero,
+.revenueDeskCommand article,
+.proofChecklist,
+.approvedToolGrid,
+.sourceCheckList,
+.workbenchNow,
+.workbenchToolBelt,
+.workbenchFinish {
+  background: #101f31;
+  border-color: #26384e;
+  color: #eef4fb;
+  box-shadow: none;
+}
+
+.intentGrid button,
+.intentGrid a,
+.queueStats button,
+.executionFacts span,
+.trustedMetrics > section > div,
+.trustedMetrics button,
+.workspaceContract span,
+.proofChecklist span,
+.sourceCheckList span,
+.sourceCheckList a,
+.laneCard,
+.workbenchReturnLinks a,
+.workbenchTruthStatus span,
+.workbenchToolBelt button,
+.workbenchFinish button,
+.sectionHeader button,
+.sourceLinkRow a,
+.railActionRow a,
+.filters select,
+.filters button {
+  background: #14253a;
+  border-color: #344a64;
+  color: #eef4fb;
+  box-shadow: none;
+}
+
+.intentGrid button:hover,
+.intentGrid button:focus-visible,
+.intentGrid a:hover,
+.intentGrid a:focus-visible,
+.activeIntent,
+.queueStats button:hover,
+.queueStats button:focus-visible,
+.sectionHeader button:hover,
+.sectionHeader button:focus-visible,
+.workbenchFinish button:hover,
+.workbenchFinish button:focus-visible,
+.workbenchToolBelt button:hover,
+.workbenchToolBelt button:focus-visible {
+  background: #1d3350 !important;
+  border-color: #72a7ff !important;
+  color: #fff !important;
+}
+
+.sourceCheckCue,
+.intentHero span,
+.intentSummary span,
+.guidedPath header span,
+.truthHeader > span,
+.workbenchNow > span {
+  color: #bfdbfe;
+}
+
+.intentHero h1,
+.intentGrid strong,
+.intentSummary h2,
+.intentFacts h3,
+.intentSteps h3,
+.intentGuardrail h3,
+.executionPrimary h1,
+.executionFacts strong,
+.trustedMetrics summary strong,
+.trustedMetrics h2,
+.trustedMetrics strong,
+.workspaceContract strong,
+.leadDetail strong,
+.pipelinePanel strong,
+.supportPanel strong,
+.revenueDeskHero h1,
+.revenueDeskCommand strong,
+.proofChecklist h3,
+.proofChecklist strong,
+.approvedToolGrid h3,
+.sourceCheckList h3,
+.sectionHeader h1,
+.sectionHeader h2,
+.managerRail h2,
+.customer360 h2,
+.truthHeader h2,
+.guidedPath h3,
+.guidedPath h4,
+.workspaceRelationship strong,
+.queueStats strong,
+.sourceGrid strong,
+.workbenchNow h4,
+.workbenchToolBelt button strong {
+  color: #eef4fb;
+}
+
+.intentHero p,
+.intentGrid span,
+.intentGrid em,
+.intentSummary p,
+.intentGuardrail p,
+.intentFacts ul,
+.intentSteps ol,
+.intentFacts li,
+.intentSteps li,
+.executionPrimary p,
+.executionFacts span,
+.trustedMetrics summary span,
+.trustedMetrics summary em,
+.trustedMetrics p,
+.trustedMetrics em,
+.trustedMetrics small,
+.workspaceContract span,
+.leadGrid span,
+.leadDetail span,
+.pipelinePanel span,
+.supportPanel span,
+.revenueDeskCommand span,
+.revenueDeskCommand small,
+.proofChecklist em,
+.sourceCheckList span,
+.queueStats span,
+.queueStats em,
+.queueTruth span,
+.sourceBackedState span,
+.sourceBackedState a,
+.sourceGrid span,
+.sourceGrid em,
+.workspaceRelationship span,
+.truthHeader p,
+.guidedPath header p,
+.workbenchNow p,
+.workbenchNow small,
+.workbenchFinish p,
+.workbenchFinish button small,
+.nextGuidedAction p,
+.nextGuidedAction small,
+.releasePanel p,
+.revenueDeskHero span,
+.revenueDeskHero p {
+  color: #bfcee0;
+}
+
+.intentHero > strong,
+.integrationStrip a,
+.sourceBackedState strong,
+.laneChip,
+.freshness,
+.live,
+.controlled,
+.source,
+.future,
+.workbenchTruthStatus span,
+.intentGuardrail strong,
+.trustedMetrics summary,
+.executionFacts span,
+.workspaceContract span,
+.proofChecklist span[data-status="Ready"],
+.proofChecklist span[data-status="Review"],
+.proofChecklist span[data-status="Missing"],
+.workbenchFinish button em {
+  background: #3f2c28;
+  border-color: rgba(249, 115, 22, .38);
+  color: #fed7aa;
+}
+
+.executionCommand .queueStats button,
+.trustedMetrics button[data-status="Not wired"],
+.sourceBackedState,
+.trustedMetrics,
+.table,
+.tableHead,
+.workGroupHeader,
+.emptyGroup,
+.tableRow {
+  background: #14253a;
+  border-color: #344a64;
+  color: #eef4fb;
+}
+
+.table {
+  background: #101b2c;
+  box-shadow: inset 0 0 0 1px #26384e;
+}
+
+.tableHead {
+  box-shadow: inset 0 -1px 0 #344a64;
+}
+
+.tableHead span,
+.workGroupHeader,
+.emptyGroup,
+.tableRow strong,
+.tableRow em,
+.tableRow span {
+  color: #eef4fb;
+}
+
+.tableRow:hover,
+.selectedRow {
+  background: #1e3350;
+}
+
+.trustedMetrics button > span,
+.trustedMetrics button[data-status="Not wired"] > span {
+  color: #bfdbfe;
+}
+
+.revenueDeskHero > strong,
+.revenueDeskHero > strong[data-status="Needs proof"],
+.revenueDeskHero > strong[data-status="Manager review required"],
+.revenueDeskHero > strong[data-status="Blocked"] {
+  background: #3f2c28;
+  border-color: rgba(249, 115, 22, .45);
+  color: #fed7aa;
+}
+
+.workbenchNow button,
+.workbenchFinish button[aria-pressed="true"] {
+  background: #4f6df5;
+  border-color: #72a7ff;
+  color: #fff;
+}
+
+.workbenchToolBelt button:disabled,
+.workbenchFinish button:disabled {
+  background: #253549;
+  border-color: #344a64;
+  color: #94a3b8;
+  opacity: .78;
+}

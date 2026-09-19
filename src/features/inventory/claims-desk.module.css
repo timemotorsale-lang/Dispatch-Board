@@ -547,3 +547,82 @@
     width: 100%;
   }
 }
+
+:global(html[data-app-theme="dark"]) .page {
+  color: #eef4fb;
+}
+
+:global(html[data-app-theme="dark"]) .hero,
+:global(html[data-app-theme="dark"]) .panel,
+:global(html[data-app-theme="dark"]) .searchPanel,
+:global(html[data-app-theme="dark"]) .searchBox,
+:global(html[data-app-theme="dark"]) .startCard,
+:global(html[data-app-theme="dark"]) .queue,
+:global(html[data-app-theme="dark"]) .filterBar,
+:global(html[data-app-theme="dark"]) .filterBar button,
+:global(html[data-app-theme="dark"]) .queueHead,
+:global(html[data-app-theme="dark"]) .claimRow,
+:global(html[data-app-theme="dark"]) .intakeForm fieldset,
+:global(html[data-app-theme="dark"]) .intakeForm input,
+:global(html[data-app-theme="dark"]) .intakeForm textarea,
+:global(html[data-app-theme="dark"]) .metric,
+:global(html[data-app-theme="dark"]) .lane,
+:global(html[data-app-theme="dark"]) .documentCard,
+:global(html[data-app-theme="dark"]) .guardrail,
+:global(html[data-app-theme="dark"]) .topActions a,
+:global(html[data-app-theme="dark"]) .topActions button,
+:global(html[data-app-theme="dark"]) .secondaryAction {
+  background: #101d2e;
+  border-color: #283a51;
+  color: #eaf1fb;
+  box-shadow: none;
+}
+
+:global(html[data-app-theme="dark"]) .hero h1,
+:global(html[data-app-theme="dark"]) .panelHeader h2,
+:global(html[data-app-theme="dark"]) .startCard h3,
+:global(html[data-app-theme="dark"]) .searchBox strong,
+:global(html[data-app-theme="dark"]) .claimRow strong,
+:global(html[data-app-theme="dark"]) .lane strong,
+:global(html[data-app-theme="dark"]) .guardrail strong,
+:global(html[data-app-theme="dark"]) .documentCard strong,
+:global(html[data-app-theme="dark"]) .metric strong,
+:global(html[data-app-theme="dark"]) .intakeForm legend {
+  color: #f4f8ff;
+}
+
+:global(html[data-app-theme="dark"]) .hero p,
+:global(html[data-app-theme="dark"]) .panelHeader p,
+:global(html[data-app-theme="dark"]) .searchPanel p,
+:global(html[data-app-theme="dark"]) .startCard p,
+:global(html[data-app-theme="dark"]) .metric p,
+:global(html[data-app-theme="dark"]) .note,
+:global(html[data-app-theme="dark"]) .claimRow span,
+:global(html[data-app-theme="dark"]) .claimRow small,
+:global(html[data-app-theme="dark"]) .lane small,
+:global(html[data-app-theme="dark"]) .guardrail small,
+:global(html[data-app-theme="dark"]) .documentCard small,
+:global(html[data-app-theme="dark"]) .emptyQueue,
+:global(html[data-app-theme="dark"]) .eyebrow,
+:global(html[data-app-theme="dark"]) .cardEyebrow,
+:global(html[data-app-theme="dark"]) .metric span,
+:global(html[data-app-theme="dark"]) .queueHead span,
+:global(html[data-app-theme="dark"]) .intakeForm label span,
+:global(html[data-app-theme="dark"]) .formFooter span {
+  color: #bfcee0;
+}
+
+:global(html[data-app-theme="dark"]) .topActions button,
+:global(html[data-app-theme="dark"]) .primaryAction,
+:global(html[data-app-theme="dark"]) .formFooter button {
+  background: #4f6df5;
+  border-color: #72a7ff;
+  color: #fff;
+}
+
+:global(html[data-app-theme="dark"]) :where(.topActions button, .primaryAction, .secondaryAction, .formFooter button):disabled {
+  background: #1b2b40;
+  border-color: #344a64;
+  color: #9aa9bd;
+  opacity: .72;
+}

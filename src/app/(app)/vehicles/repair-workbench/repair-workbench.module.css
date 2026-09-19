@@ -280,3 +280,49 @@
   .orderActions { grid-column: 1 / -1; }
   .orderActions span { width: 100%; min-height: 42px; }
 }
+
+:global(html[data-app-theme="dark"]) .directory {
+  color: #eef4fb;
+}
+
+:global(html[data-app-theme="dark"]) .hero h1,
+:global(html[data-app-theme="dark"]) .searchCardHeader h2,
+:global(html[data-app-theme="dark"]) .queueHeader h2,
+:global(html[data-app-theme="dark"]) .orderIdentity strong,
+:global(html[data-app-theme="dark"]) .orderMeta b,
+:global(html[data-app-theme="dark"]) .orderConcern b {
+  color: #f4f8ff;
+}
+
+:global(html[data-app-theme="dark"]) .hero p,
+:global(html[data-app-theme="dark"]) .queueHeader p,
+:global(html[data-app-theme="dark"]) .searchField span,
+:global(html[data-app-theme="dark"]) .orderIdentity small,
+:global(html[data-app-theme="dark"]) .orderMeta small,
+:global(html[data-app-theme="dark"]) .orderConcern small,
+:global(html[data-app-theme="dark"]) .orderListHeader,
+:global(html[data-app-theme="dark"]) .sectionEyebrow {
+  color: #bfcee0;
+}
+
+:global(html[data-app-theme="dark"]) .orderList,
+:global(html[data-app-theme="dark"]) .orderListHeader,
+:global(html[data-app-theme="dark"]) .order,
+:global(html[data-app-theme="dark"]) .orderActions span {
+  background: #101d2e;
+  border-color: #283a51;
+  color: #eaf1fb;
+  box-shadow: none;
+}
+
+:global(html[data-app-theme="dark"]) .order:hover,
+:global(html[data-app-theme="dark"]) .order:focus-visible {
+  background: #14243a;
+  border-color: #416088;
+}
+
+:global(html[data-app-theme="dark"]) .orderActions span {
+  background: #4f6df5;
+  border-color: #72a7ff;
+  color: #fff;
+}
