@@ -28056,3 +28056,12 @@ html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
   color: #72a7ff !important;
 }
 
+html[data-app-theme="dark"] .customer-console .customer-home-metric-card p,
+html[data-app-theme="dark"] .customer-console .customer-home-metric-card p span {
+  color: #22c55e !important;
+}
+
+html[data-app-theme="dark"] .customer-console .customer-home-metric-card p svg {
+  color: #eef4fb !important;
+}
+
