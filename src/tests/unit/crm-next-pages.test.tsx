@@ -1020,6 +1020,41 @@ describe("CRM Next pages", () => {
     expect(timelineMarkup).toContain("No recorded activity yet");
   });
 
+  it("shows matching customer records on CRM Next search", () => {
+    const model = {
+      customers: [{
+        address: "Address available in Customers",
+        communications: [],
+        customerSince: "CUS-ASMAA",
+        email: "a•••@e•••.com",
+        glance: [],
+        id: "customer-asmaa",
+        lifetimeValue: "Open customer record",
+        name: "Asmaa Mohamed Salah",
+        nextAction: "Review customer record",
+        openCases: 0,
+        openDeals: 0,
+        phone: "••••3073",
+        riskLevel: "Low",
+        status: "Active",
+        vehicles: [],
+        vehiclesOwned: 0
+      }],
+      search: {
+        activeQuery: "asmaa",
+        groups: [{ count: 1, description: "Asmaa Mohamed Salah", href: "/crm-next/customers/customer-asmaa", id: "live-customer", label: "Customers", safety: "Live read-only result." }],
+        queryPlaceholder: "Search customers, vehicles, deals, communications, or work."
+      },
+      userName: "Customer Console Page User"
+    } as CrmNextCommandCenter;
+
+    const markup = renderToStaticMarkup(<CrmNextSearchView model={model} />);
+
+    expect(markup).toContain("Asmaa Mohamed Salah");
+    expect(markup).toContain('href="/crm-next/customers/customer-asmaa"');
+    expect(markup).toContain("Review customer record");
+  });
+
   it("reflects a saved terminal workbench outcome on Customer 360", () => {
     installLocalStorageWindow();
     if (typeof window !== "undefined") {

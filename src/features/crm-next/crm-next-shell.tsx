@@ -1370,8 +1370,17 @@ export function CrmNextSearchView({ model, returnAction }: { model: CrmNextComma
   const actionId = validReturnAction(returnAction);
   const actionLabel = crmNextActionLabel(actionId ?? "");
   const customers = model.customers ?? [];
+  const attention = model.attention ?? [];
   const search = model.search ?? { activeQuery: "", groups: [], queryPlaceholder: "Search customers, vehicles, deals, communications, or work." };
   const hasVerifiedCustomers = customers.length > 0;
+  const searchTokens = search.activeQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const matchingCustomers = searchTokens.length
+    ? customers.filter((customer) => {
+      const attentionItem = attention.find((item) => item.customerId === customer.id);
+      const searchText = customerSearchKeywords(customer, attentionItem).toLowerCase();
+      return searchTokens.every((token) => searchText.includes(token));
+    })
+    : [];
   return (
     <CrmNextFrame active="search" userName={model.userName}>
       <Topbar defaultQuery={search.activeQuery} returnAction={actionId} />
@@ -1427,6 +1436,16 @@ export function CrmNextSearchView({ model, returnAction }: { model: CrmNextComma
             <Link className={styles.card} href={href} key={group.id}>
               <header><h2>{group.label}</h2><span className={styles.pill}>{count}</span></header>
               <p>{description}</p>
+            </Link>
+          );
+        })}
+        {matchingCustomers.map((customer) => {
+          const attentionItem = attention.find((item) => item.customerId === customer.id);
+          return (
+            <Link className={styles.card} href={actionId ? crmNextActionHref(actionId, customer.id) : customer360Href(customer.id)} key={`customer-${customer.id}`}>
+              <header><h2>{customer.name}</h2><span className={styles.pill}>Customer</span></header>
+              <p>{customer.phone} · {customer.email}</p>
+              <p>{attentionItem?.nextAction ?? customer.nextAction}</p>
             </Link>
           );
         })}
