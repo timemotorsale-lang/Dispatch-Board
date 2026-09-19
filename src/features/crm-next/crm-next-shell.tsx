@@ -75,7 +75,7 @@ function crmNextActionLabel(actionId: string) {
 }
 
 function validReturnAction(actionId?: string) {
-  return ["add-note", "new-task", "new-case", "log-call", "schedule-appointment"].includes(actionId ?? "") ? actionId : undefined;
+  return ["add-note", "new-task", "new-case", "log-call", "schedule-appointment", "upload-document"].includes(actionId ?? "") ? actionId : undefined;
 }
 
 function crmNextTimelineHref(customerId?: string) {
@@ -149,12 +149,12 @@ function directActionWorkspace(action: CrmNextOperatingAction, customerName: str
   }
   if (action.id === "upload-document") {
     return {
-      button: "Upload when document storage is wired",
+      button: "Save Document Record",
       fields: [
         { label: "Document type", placeholder: "Insurance, ID, title, proof, or other customer document" },
-        { label: "Notes", placeholder: "Document storage is not wired yet. Upload context will stay attached here." }
+        { label: "Notes", placeholder: "What is this file proving or supporting?" }
       ],
-      status: "Document upload is not wired yet. This action remains customer-specific and ready for the approved document workflow.",
+      status: "Choose the file, classify it, and save the document record to the customer timeline.",
       title: "Upload customer document"
     };
   }
@@ -340,6 +340,15 @@ function readCustomerWorkbenchProgress(customerId: string) {
   } catch {
     return null;
   }
+}
+
+function isAttentionClosedLocally(item: CrmNextAttentionItem) {
+  const savedStage = readCustomerWorkbenchProgress(item.customerId)?.stage;
+  return Boolean(savedStage && isTerminalJourneyStage(savedStage));
+}
+
+function openAttentionItems(items: CrmNextAttentionItem[]) {
+  return items.filter((item) => !isAttentionClosedLocally(item));
 }
 
 function customer360Href(customerId: string) {
@@ -744,22 +753,60 @@ function CrmNextRecommendedWork({ model }: { model: CrmNextCommandCenter }) {
   );
 }
 
+function supportingPartySignalText(model: CrmNextCommandCenter) {
+  return [
+    ...(model.attention ?? []).map((item) => `${item.customerName} ${item.reason} ${item.nextAction} ${item.area}`),
+    ...(model.customers ?? []).map((customer) => `${customer.name} ${customer.nextAction} ${customer.vehicles.map((vehicle) => vehicle.label).join(" ")}`),
+    ...safeEnterpriseLayer(model).automationRecommendations.map((item) => `${item.title} ${item.explanation} ${item.actionLabel}`)
+  ].join(" ").toLowerCase();
+}
+
+function isSupportingPartyRelevant(context: CrmNextCommandCenter["enterpriseLayer"]["supportingParties"][number], signalText: string) {
+  const partyText = `${context.party.name} ${context.party.typeLabel} ${context.associations.map((item) => item.label).join(" ")} ${context.openFollowUps.map((item) => item.summary).join(" ")}`.toLowerCase();
+  if (/dmv|government|title|registration|document|paperwork|proof|license/.test(partyText)) return /dmv|title|registration|document|paperwork|proof|license/.test(signalText);
+  if (/tow|towing|transport|pickup|delivery|vehicle movement|dispatch/.test(partyText)) return /tow|towing|transport|pickup|delivery|delivered|vehicle movement|dispatch/.test(signalText);
+  if (/warranty|claim|repair proof|authorization/.test(partyText)) return /warranty|claim|repair|authorization|service/.test(signalText);
+  return context.openFollowUps.length > 0 && /vendor|partner|outside|support|blocker|follow/.test(signalText);
+}
+
+function supportingPartyStatus(context: CrmNextCommandCenter["enterpriseLayer"]["supportingParties"][number]) {
+  if (context.openFollowUps.length > 0) return "Follow-up due";
+  if (context.workbookCandidates.length > 0) return "Ready to task";
+  if (context.associations.length > 0) return "Linked context";
+  return "No open blocker";
+}
+
+function supportingPartyHref(context: CrmNextCommandCenter["enterpriseLayer"]["supportingParties"][number]) {
+  return context.openFollowUps[0]?.sourceHref ?? context.workbookCandidates[0]?.sourceHref ?? context.associations[0]?.href ?? "/crm-next/ownership-support";
+}
+
+function supportingPartyAction(context: CrmNextCommandCenter["enterpriseLayer"]["supportingParties"][number]) {
+  if (context.openFollowUps[0]) return context.openFollowUps[0].summary;
+  if (context.workbookCandidates[0]) return context.workbookCandidates[0].title;
+  return context.associations[0]?.label ?? "Open supporting context";
+}
+
 function CrmNextSupportingParties({ model, compact = false }: { compact?: boolean; model: CrmNextCommandCenter }) {
-  const parties = safeEnterpriseLayer(model).supportingParties.slice(0, compact ? 3 : 3);
+  const signalText = supportingPartySignalText(model);
+  const parties = safeEnterpriseLayer(model).supportingParties
+    .filter((context) => context.openFollowUps.length || context.workbookCandidates.length || context.associations.length)
+    .filter((context) => !signalText || isSupportingPartyRelevant(context, signalText))
+    .slice(0, compact ? 3 : 3);
   if (parties.length === 0) return null;
 
   return (
     <article className={styles.sidePanel}>
       <header>
-        <h2>Supporting Parties</h2>
+        <h2>Outside-party blockers</h2>
         <span className={styles.pill}>{parties.length}</span>
       </header>
       <div className={styles.partyList}>
         {parties.map((context) => (
-          <Link className={styles.partyItem} href={context.associations[0]?.href ?? "/crm-next/ownership-support"} key={context.party.id}>
+          <Link className={styles.partyItem} href={supportingPartyHref(context)} key={context.party.id}>
+            <span className={styles.partyStatus}>{supportingPartyStatus(context)}</span>
             <strong>{context.party.name}</strong>
-            <small>{context.party.typeLabel} · {context.openFollowUps.length} follow-up</small>
-            <span>{context.workbookCandidates[0]?.title ?? context.associations[0]?.label ?? "Open supporting context"}</span>
+            <small>{context.party.typeLabel} · {context.associations[0]?.label ?? "Linked work context"}</small>
+            <b>{supportingPartyAction(context)}</b>
           </Link>
         ))}
       </div>
@@ -814,7 +861,7 @@ function CrmNextAdminGuardrails({ model }: { model: CrmNextCommandCenter }) {
 
 export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCenter }) {
   const customers = model.customers ?? [];
-  const attention = model.attention ?? [];
+  const attention = openAttentionItems(model.attention ?? []);
   const nextActions = model.nextActions ?? [];
   const pipeline = model.pipeline ?? [];
   const summary = model.summary ?? [];
@@ -1292,6 +1339,8 @@ function AttentionRow({ item }: { item: CrmNextAttentionItem }) {
 }
 
 export function CrmNextNeedsAttentionView({ model }: { model: CrmNextCommandCenter }) {
+  const attention = openAttentionItems(model.attention ?? []);
+
   return (
     <CrmNextFrame active="attention" userName={model.userName}>
       <Topbar />
@@ -1305,7 +1354,12 @@ export function CrmNextNeedsAttentionView({ model }: { model: CrmNextCommandCent
       </section>
       <article className={styles.card}>
         <div className={styles.attentionList}>
-          {(model.attention ?? []).map((item) => <AttentionRow item={item} key={item.id} />)}
+          {attention.length ? attention.map((item) => <AttentionRow item={item} key={item.id} />) : (
+            <div className={styles.activityTimelineEmpty}>
+              <strong>No open attention records</strong>
+              <span>Closed or resolved workbench items are hidden from this queue.</span>
+            </div>
+          )}
         </div>
       </article>
     </CrmNextFrame>
@@ -2512,6 +2566,8 @@ export function CrmNextActionReadinessView({ action, customerId, model }: { acti
       ? `Case prepared for ${customerDisplayName} with reminder, task, queue, and escalation routing.`
       : action.id === "new-task"
         ? `CRM task saved for ${customerDisplayName}.`
+        : action.id === "upload-document"
+          ? `Document record saved to ${customerDisplayName}'s CRM timeline.`
         : `${action.label} saved for ${customerDisplayName}.`;
   const canUseDirectAction = isLiveAction && Boolean(relatedCustomer);
   const actionStatusLabel = missingRequestedCustomer ? "Needs customer context" : actionTruth.status;
@@ -2985,7 +3041,14 @@ export function CrmNextWorkCustomerView({
               </div>
             </section>
 
-            <CrmNextWorkbenchSections currentNeed={item.nextAction} dealEvidence={dealEvidence} doneMeaning={issue.done} />
+            <CrmNextWorkbenchSections
+              currentNeed={item.nextAction}
+              customerId={item.customerId}
+              customerName={item.customerName}
+              dealEvidence={dealEvidence}
+              documentActionHref={crmNextActionHref("upload-document", item.customerId)}
+              doneMeaning={issue.done}
+            />
 
             <CrmNextInlineTaskComposer
               appointmentHref={crmNextCustomerAppointmentHref({

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 
 import styles from "./crm-next-shell.module.css";
 
@@ -18,6 +19,7 @@ const CRM_WORKBENCH_SECTIONS = [
 ] as const;
 
 type CrmWorkbenchSection = typeof CRM_WORKBENCH_SECTIONS[number];
+type StagedWorkbenchFile = { id: string; name: string; previewUrl: string; size: number; type: string };
 
 const SECTION_HELP: Record<CrmWorkbenchSection, { title: string; detail: string; primary: string; secondary: string }> = {
   Lead: {
@@ -84,15 +86,49 @@ const SECTION_HELP: Record<CrmWorkbenchSection, { title: string; detail: string;
 
 export function CrmNextWorkbenchSections({
   currentNeed,
+  customerId,
+  customerName,
   dealEvidence,
-  doneMeaning
+  doneMeaning,
+  documentActionHref
 }: {
   currentNeed: string;
+  customerId: string;
+  customerName: string;
   dealEvidence?: { detail: string; started: boolean; vehicle?: string };
+  documentActionHref: string;
   doneMeaning: string;
 }) {
   const [activeSection, setActiveSection] = useState<CrmWorkbenchSection>("Lead");
+  const [fileNote, setFileNote] = useState("");
+  const [fileType, setFileType] = useState("Proof / supporting document");
+  const [selectedFiles, setSelectedFiles] = useState<StagedWorkbenchFile[]>([]);
   const section = SECTION_HELP[activeSection];
+  const selectedFileSummary = selectedFiles.length
+    ? `${selectedFiles.length} file${selectedFiles.length === 1 ? "" : "s"} selected for ${customerName}`
+    : "No files selected yet";
+
+  function stageSelectedFiles(files: FileList | null) {
+    selectedFiles.forEach((file) => URL.revokeObjectURL(file.previewUrl));
+    const nextFiles = Array.from(files ?? []).map((file) => ({
+      id: `${file.name}-${file.lastModified}-${file.size}`,
+      name: file.name,
+      previewUrl: URL.createObjectURL(file),
+      size: file.size,
+      type: file.type || "Unknown"
+    }));
+    setSelectedFiles(nextFiles);
+  }
+
+  useEffect(() => () => {
+    selectedFiles.forEach((file) => URL.revokeObjectURL(file.previewUrl));
+  }, [selectedFiles]);
+
+  function formatFileSize(size: number) {
+    if (size < 1024) return `${size} B`;
+    if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
+    return `${(size / 1024 / 1024).toFixed(1)} MB`;
+  }
 
   return (
     <section className={styles.dealerSectionWorkspace} id="customer-sections">
@@ -133,6 +169,55 @@ export function CrmNextWorkbenchSections({
             <strong>{section.secondary}</strong>
           </div>
         </div>
+        <section className={styles.workbenchFileUpload} aria-label="Customer file upload">
+          <header>
+            <div>
+              <span className={styles.eyebrow}>File upload</span>
+              <h4>Attach customer files to this workbench</h4>
+              <p>Use this for IDs, insurance, title paperwork, proof, signed forms, photos, or other customer documents.</p>
+            </div>
+            <Link href={documentActionHref}>Open document workflow</Link>
+          </header>
+          <div className={styles.workbenchFileControls}>
+            <label>
+              <span>Document type</span>
+              <select value={fileType} onChange={(event) => setFileType(event.target.value)}>
+                <option>Proof / supporting document</option>
+                <option>Driver license / ID</option>
+                <option>Insurance</option>
+                <option>Title / registration</option>
+                <option>Signed form</option>
+                <option>Vehicle photo</option>
+                <option>Other customer file</option>
+              </select>
+            </label>
+            <label>
+              <span>Choose files</span>
+              <input accept="application/pdf,image/*,.doc,.docx,.xls,.xlsx,.txt" multiple onChange={(event) => stageSelectedFiles(event.currentTarget.files)} type="file" />
+            </label>
+            <label>
+              <span>Staff note</span>
+              <input value={fileNote} onChange={(event) => setFileNote(event.target.value)} placeholder="What is this file proving or supporting?" />
+            </label>
+          </div>
+          <div className={styles.workbenchFileSummary}>
+            <strong>{selectedFileSummary}</strong>
+            <small>{customerId} · {fileType}{fileNote ? ` · ${fileNote}` : ""}</small>
+            {selectedFiles.length ? (
+              <ul>
+                {selectedFiles.map((file) => (
+                  <li key={file.id}>
+                    <div>
+                      <span>{file.name}</span>
+                      <small>{formatFileSize(file.size)} · {file.type}</small>
+                    </div>
+                    <a href={file.previewUrl} rel="noreferrer" target="_blank">View file</a>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        </section>
       </section>
     </section>
   );

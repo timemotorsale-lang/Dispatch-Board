@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import styles from "./crm-next-shell.module.css";
 
@@ -17,6 +17,8 @@ type DirectActionResult = {
   noteId?: string;
   task?: { href?: string; title?: string };
 };
+
+type StagedActionFile = { id: string; name: string; previewUrl: string; size: number; type: string };
 
 function dateOffset(days: number) {
   const date = new Date();
@@ -58,6 +60,12 @@ function makeIdempotencyKey(actionId: string, customerId: string) {
   return globalThis.crypto?.randomUUID?.() ?? `crm-next-${actionId}-${customerId}-${Date.now()}`;
 }
 
+function formatFileSize(size: number) {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
+  return `${(size / 1024 / 1024).toFixed(1)} MB`;
+}
+
 export function CrmNextDirectActionForm({
   actionId,
   cancelHref,
@@ -83,14 +91,34 @@ export function CrmNextDirectActionForm({
 }) {
   const [values, setValues] = useState(() => fields.map(() => ""));
   const [dateValues, setDateValues] = useState(() => fields.map(() => ""));
+  const [selectedFiles, setSelectedFiles] = useState<StagedActionFile[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [savedHref, setSavedHref] = useState<string | null>(null);
+  const isDocumentUpload = actionId === "upload-document";
   const canSave = useMemo(
-    () => values.some((value) => value.trim().length > 2) || dateValues.some((value) => value.trim().length > 0),
-    [dateValues, values]
+    () => values.some((value) => value.trim().length > 2) || dateValues.some((value) => value.trim().length > 0) || (isDocumentUpload && selectedFiles.length > 0),
+    [dateValues, isDocumentUpload, selectedFiles.length, values]
   );
   const needsCustomerContext = disabled || !customerId;
+
+  function stageSelectedFiles(files: FileList | null) {
+    selectedFiles.forEach((file) => URL.revokeObjectURL(file.previewUrl));
+    const nextFiles = Array.from(files ?? []).map((file) => ({
+      id: `${file.name}-${file.lastModified}-${file.size}`,
+      name: file.name,
+      previewUrl: URL.createObjectURL(file),
+      size: file.size,
+      type: file.type || "Unknown"
+    }));
+    setSelectedFiles(nextFiles);
+    setSavedMessage(null);
+    setSavedHref(null);
+  }
+
+  useEffect(() => () => {
+    selectedFiles.forEach((file) => URL.revokeObjectURL(file.previewUrl));
+  }, [selectedFiles]);
 
   async function saveAction() {
     if (needsCustomerContext) {
@@ -144,6 +172,26 @@ export function CrmNextDirectActionForm({
             title: summary
           }),
           headers: { "content-type": "application/json", "Idempotency-Key": idempotencyKey },
+          method: "POST"
+        });
+      } else if (actionId === "upload-document") {
+        const documentType = fieldValue(fields, values, "Document type") || "Customer document";
+        const notes = fieldValue(fields, values, "Notes");
+        const fileSummary = selectedFiles.length
+          ? selectedFiles.map((file) => `${file.name} (${formatFileSize(file.size)}, ${file.type})`).join("\n")
+          : "No file selected.";
+        response = await fetch(`/api/crm/v1/customers/${encodeURIComponent(customerId)}/notes`, {
+          body: JSON.stringify({
+            body: [
+              "Document intake recorded.",
+              `Document type: ${documentType}`,
+              `Selected file(s):\n${fileSummary}`,
+              notes ? `Staff note: ${notes}` : ""
+            ].filter(Boolean).join("\n\n"),
+            idempotencyKey,
+            visibility: "INTERNAL"
+          }),
+          headers: { "content-type": "application/json" },
           method: "POST"
         });
       } else {
@@ -244,6 +292,27 @@ export function CrmNextDirectActionForm({
         </label>
       ))}
       {children}
+      {isDocumentUpload ? (
+        <div className={styles.directFileUpload} aria-label="Document file selection">
+          <label>
+            <span>Choose files</span>
+            <input accept="application/pdf,image/*,.doc,.docx,.xls,.xlsx,.txt" multiple onChange={(event) => stageSelectedFiles(event.currentTarget.files)} type="file" />
+          </label>
+          {selectedFiles.length ? (
+            <ul>
+              {selectedFiles.map((file) => (
+                <li key={file.id}>
+                  <div>
+                    <strong>{file.name}</strong>
+                    <small>{formatFileSize(file.size)} · {file.type}</small>
+                  </div>
+                  <a href={file.previewUrl} rel="noreferrer" target="_blank">View file</a>
+                </li>
+              ))}
+            </ul>
+          ) : <small>No files selected yet.</small>}
+        </div>
+      ) : null}
       <div className={styles.directActionFooter}>
         <button
           data-success-message={successMessage}

@@ -38,7 +38,7 @@ import CrmNextStateReviewPage from "@/app/(app)/crm-next/system/states/page";
 import CrmNextTestDrivesPage from "@/app/(app)/crm-next/test-drives/page";
 import CrmNextTimelinePage from "@/app/(app)/crm-next/timeline/page";
 import CrmNextWorkPage from "@/app/(app)/crm-next/work/[itemId]/page";
-import { CrmNextActionReadinessView, CrmNextCommandCenterView, CrmNextCustomer360View, CrmNextCustomersListView, CrmNextSearchView, CrmNextTimelineView, CrmNextWorkCustomerView } from "@/features/crm-next/crm-next-shell";
+import { CrmNextActionReadinessView, CrmNextCommandCenterView, CrmNextCustomer360View, CrmNextCustomersListView, CrmNextNeedsAttentionView, CrmNextSearchView, CrmNextTimelineView, CrmNextWorkCustomerView } from "@/features/crm-next/crm-next-shell";
 import { CRM_STAFF_FACING_BANNED_TERMS } from "@/lib/crm-staff-language";
 import type { CrmNextActionBridgePreview } from "@/server/crm-next/action-bridge";
 import type { CrmNextAttentionItem, CrmNextCommandCenter, CrmNextCustomer360, CrmNextOperatingAction, CrmNextTimelineEvent } from "@/server/crm-next/read-model";
@@ -136,6 +136,7 @@ describe("CRM Next pages", () => {
     const newTaskAction = renderToStaticMarkup(await CrmNextActionPage({ params: Promise.resolve({ actionId: "new-task" }) }));
     const emailAction = renderToStaticMarkup(await CrmNextActionPage({ params: Promise.resolve({ actionId: "send-email" }) }));
     const caseAction = renderToStaticMarkup(await CrmNextActionPage({ params: Promise.resolve({ actionId: "new-case" }), searchParams: Promise.resolve({ customerId: "michael-johnson" }) }));
+    const uploadAction = renderToStaticMarkup(await CrmNextActionPage({ params: Promise.resolve({ actionId: "upload-document" }), searchParams: Promise.resolve({ customerId: "michael-johnson" }) }));
     const newCustomer = renderToStaticMarkup(await CrmNextNewCustomerPage());
 
     expect(command).toContain("Who needs attention?");
@@ -154,10 +155,11 @@ describe("CRM Next pages", () => {
     expect(command).toContain("Appointment board");
     expect(command).toContain("Recommended by system");
     expect(command).toContain("Report readiness");
-    expect(command).toContain("Supporting Parties");
+    expect(command).toContain("Outside-party blockers");
     expect(command).toContain("Admin guardrails");
     expect(command).toContain("Minnesota DMV");
-    expect(command).toContain("Northside Towing");
+    expect(command).toContain("Follow-up due");
+    expect(command).toContain("Confirm whether the title packet is ready or needs correction.");
     expect(command).not.toContain("Operational read status");
     expect(command).not.toContain("Review Center");
     expect(command).not.toContain("Compact review cockpit");
@@ -213,7 +215,7 @@ describe("CRM Next pages", () => {
     expect(customer).toContain("Add Customer");
     expect(customer).toContain("Open deal board");
     expect(customer).toContain("Schedule appointment");
-    expect(customer).toContain("Supporting Parties");
+    expect(customer).toContain("Outside-party blockers");
     expect(customer).toContain("Warranty company");
     expect(work).toContain("Customer record unavailable");
     expect(work).toContain("Customer file");
@@ -242,6 +244,11 @@ describe("CRM Next pages", () => {
     expect(work).toContain("Credit App");
     expect(work).toContain("Journal Entries");
     expect(work).toContain("Logs");
+    expect(work).toContain("File upload");
+    expect(work).toContain("Attach customer files to this workbench");
+    expect(work).toContain("Choose files");
+    expect(work).toContain("Open document workflow");
+    expect(work).toContain('href="/crm-next/actions/upload-document?customerId=attn-michael-overdue-follow-up"');
     expect(work).toContain("Next Appt.");
     expect(work).toContain("Last Contacted");
     expect(work).toContain("Days Since Activity");
@@ -325,7 +332,7 @@ describe("CRM Next pages", () => {
     expect(newCustomer).toContain("Prospect");
     expect(newCustomer).toContain("Save customer");
     expect(newCustomer).toContain("Shared customer record");
-    for (const staffMarkup of [command, attention, customer, search, timeline, pipeline, appointments, testDrives, deals, ownershipSupport, sharedExecution, intelligence, leadSourceReport, work, logCallAction, newTaskAction, emailAction, newCustomer]) {
+    for (const staffMarkup of [command, attention, customer, search, timeline, pipeline, appointments, testDrives, deals, ownershipSupport, sharedExecution, intelligence, leadSourceReport, work, logCallAction, newTaskAction, emailAction, uploadAction, newCustomer]) {
       expect(staffMarkup).toContain("Customers console");
       expect(staffMarkup).toContain('href="/customers"');
       expect(staffMarkup).not.toContain("CRMN-");
@@ -471,6 +478,11 @@ describe("CRM Next pages", () => {
     expect(caseAction).toContain("Case+reminder+%2F+SLA+follow-up");
     expect(caseAction).toContain("Manager review is triggered");
     expect(caseAction).toContain('data-success-message="Case prepared for Customer record unavailable');
+    expect(uploadAction).toContain("Upload customer document");
+    expect(uploadAction).toContain("Choose files");
+    expect(uploadAction).toContain("Save Document Record");
+    expect(uploadAction).toContain("Document context saves to the customer timeline");
+    expect(uploadAction).toContain('data-success-message="Document record saved to Customer record unavailable');
   });
 
   it("renders the executable revenue desk without staff review workflow language", async () => {
@@ -897,6 +909,55 @@ describe("CRM Next pages", () => {
     expect(markup).not.toContain("Vendor / Partner");
     expect(markup).toContain("Possible duplicate");
     expect(markup).toContain("Needs owner");
+  });
+
+  it("removes locally closed workbench outcomes from attention queues", () => {
+    installLocalStorageWindow();
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("crm-next:workbench:max-auto-transport:progress", JSON.stringify({
+        notice: "Delivered saved on this workbench.",
+        stage: "Delivered"
+      }));
+    }
+    const model = {
+      attention: [
+        {
+          area: "Sales",
+          customerHref: "/crm-next/customers/max-auto-transport",
+          customerId: "max-auto-transport",
+          customerName: "Max Auto Transport",
+          id: "customer-read-max-auto-transport",
+          level: "High",
+          nextAction: "Review overdue customer follow-up",
+          owner: "Eli Manager",
+          reason: "Overdue customer follow-up",
+          workHref: "/crm-next/work/customer-read-max-auto-transport"
+        },
+        {
+          area: "Sales",
+          customerHref: "/crm-next/customers/ardo-abdi",
+          customerId: "ardo-abdi",
+          customerName: "Ardo Abdi",
+          id: "customer-read-ardo-abdi",
+          level: "High",
+          nextAction: "Review overdue customer follow-up",
+          owner: "Eli Manager",
+          reason: "Overdue customer follow-up",
+          workHref: "/crm-next/work/customer-read-ardo-abdi"
+        }
+      ],
+      customers: [],
+      summary: [],
+      userName: "Customer Console Page User"
+    } as CrmNextCommandCenter;
+
+    const commandMarkup = renderToStaticMarkup(<CrmNextCommandCenterView model={model} />);
+    const queueMarkup = renderToStaticMarkup(<CrmNextNeedsAttentionView model={model} />);
+
+    expect(commandMarkup).toContain("Ardo Abdi");
+    expect(commandMarkup).not.toContain("Max Auto Transport");
+    expect(queueMarkup).toContain("Ardo Abdi");
+    expect(queueMarkup).not.toContain("Max Auto Transport");
   });
 
   it("uses the sales work area as the customer list category when the next action is generic", () => {
