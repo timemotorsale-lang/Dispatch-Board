@@ -38,7 +38,7 @@ import CrmNextStateReviewPage from "@/app/(app)/crm-next/system/states/page";
 import CrmNextTestDrivesPage from "@/app/(app)/crm-next/test-drives/page";
 import CrmNextTimelinePage from "@/app/(app)/crm-next/timeline/page";
 import CrmNextWorkPage from "@/app/(app)/crm-next/work/[itemId]/page";
-import { CrmNextActionReadinessView, CrmNextTimelineView, CrmNextWorkCustomerView } from "@/features/crm-next/crm-next-shell";
+import { CrmNextActionReadinessView, CrmNextCustomer360View, CrmNextCustomersListView, CrmNextTimelineView, CrmNextWorkCustomerView } from "@/features/crm-next/crm-next-shell";
 import { CRM_STAFF_FACING_BANNED_TERMS } from "@/lib/crm-staff-language";
 import type { CrmNextActionBridgePreview } from "@/server/crm-next/action-bridge";
 import type { CrmNextAttentionItem, CrmNextCommandCenter, CrmNextCustomer360, CrmNextOperatingAction, CrmNextTimelineEvent } from "@/server/crm-next/read-model";
@@ -56,6 +56,20 @@ function user(roles: string[]): AuthenticatedUser {
   };
 }
 
+function installLocalStorageWindow() {
+  const store = new Map<string, string>();
+  vi.stubGlobal("window", {
+    localStorage: {
+      clear: () => store.clear(),
+      getItem: (key: string) => store.get(key) ?? null,
+      removeItem: (key: string) => store.delete(key),
+      setItem: (key: string, value: string) => store.set(key, value)
+    },
+    location: { assign: vi.fn() },
+    setTimeout: globalThis.setTimeout
+  });
+}
+
 describe("CRM Next pages", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -64,6 +78,7 @@ describe("CRM Next pages", () => {
 
   afterEach(() => {
     if (typeof window !== "undefined") window.localStorage.clear();
+    vi.unstubAllGlobals();
     if (originalFlag === undefined) delete process.env.CRM_NEXT;
     else process.env.CRM_NEXT = originalFlag;
   });
@@ -805,5 +820,182 @@ describe("CRM Next pages", () => {
     expect(markup).toContain("Delivery / Transport is not a sales funnel");
     expect(markup).not.toContain(">Sold<");
     expect(markup).not.toContain(">Lost<");
+  });
+
+  it("hardens the customer list with source health, duplicate, owner, and closed outcome checks", () => {
+    installLocalStorageWindow();
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("crm-next:workbench:max auto transport:progress", JSON.stringify({
+        notice: "Delivered saved on this workbench.",
+        stage: "Delivered"
+      }));
+    }
+    const customers: CrmNextCustomer360[] = [
+      {
+        address: "Address available in Customers",
+        communications: [],
+        customerSince: "Sep 18, 2026",
+        email: "Not recorded",
+        glance: [],
+        id: "max auto transport",
+        lifetimeValue: "Open customer record",
+        name: "Max Auto Transport",
+        nextAction: "Confirm transporter delivered the vehicle",
+        openCases: 0,
+        openDeals: 0,
+        phone: "555-5898",
+        riskLevel: "Low",
+        status: "Active",
+        vehicles: [],
+        vehiclesOwned: 0
+      },
+      {
+        address: "Address available in Customers",
+        communications: [],
+        customerSince: "Sep 18, 2026",
+        email: "Not recorded",
+        glance: [],
+        id: "max-auto-transport-copy",
+        lifetimeValue: "Open customer record",
+        name: "Max Auto Transport",
+        nextAction: "Review overdue customer follow-up",
+        openCases: 0,
+        openDeals: 0,
+        phone: "555-5898",
+        riskLevel: "High",
+        status: "Active",
+        vehicles: [],
+        vehiclesOwned: 0
+      }
+    ];
+    const model = {
+      attention: [{
+        area: "Support",
+        customerHref: "/crm-next/customers/max%20auto%20transport",
+        customerId: "max auto transport",
+        customerName: "Max Auto Transport",
+        id: "attn-max-auto-transport",
+        level: "Low",
+        nextAction: "Close delivery",
+        owner: "Eli Manager",
+        reason: "Transporter delivered vehicle",
+        workHref: "/crm-next/work/attn-max-auto-transport"
+      }],
+      customers,
+      userName: "Customer Console Page User"
+    } as CrmNextCommandCenter;
+
+    const markup = renderToStaticMarkup(<CrmNextCustomersListView model={model} />);
+
+    expect(markup).toContain("Visible records");
+    expect(markup).toContain("Need owner");
+    expect(markup).toContain("Possible duplicates");
+    expect(markup).toContain("Closed locally");
+    expect(markup).toContain('href="/crm-next/customers/max%20auto%20transport"');
+    expect(markup).toContain("Delivered");
+    expect(markup).toContain("Vendor");
+    expect(markup).not.toContain("Vendor / Partner");
+    expect(markup).toContain("Possible duplicate");
+    expect(markup).toContain("Needs owner");
+  });
+
+  it("uses the sales work area as the customer list category when the next action is generic", () => {
+    const customer: CrmNextCustomer360 = {
+      address: "Address available in Customers",
+      communications: [],
+      customerSince: "Sep 18, 2026",
+      email: "wil@example.test",
+      glance: [],
+      id: "wil-johns",
+      lifetimeValue: "Open customer record",
+      name: "Wil Johns",
+      nextAction: "Review customer record",
+      openCases: 0,
+      openDeals: 0,
+      phone: "555-3671",
+      riskLevel: "High",
+      status: "Active",
+      vehicles: [],
+      vehiclesOwned: 0
+    };
+    const model = {
+      attention: [{
+        area: "Sales",
+        customerHref: "/crm-next/customers/wil-johns",
+        customerId: "wil-johns",
+        customerName: "Wil Johns",
+        id: "attn-wil-johns",
+        level: "High",
+        nextAction: "Review overdue customer follow-up",
+        owner: "Eli Manager",
+        reason: "Overdue customer follow-up",
+        workHref: "/crm-next/work/attn-wil-johns"
+      }],
+      customers: [customer],
+      userName: "Customer Console Page User"
+    } as CrmNextCommandCenter;
+
+    const markup = renderToStaticMarkup(<CrmNextCustomersListView model={model} />);
+
+    expect(markup).toContain("<dd>Sales</dd>");
+    expect(markup).not.toContain("<dd>General</dd>");
+  });
+
+  it("reflects a saved terminal workbench outcome on Customer 360", () => {
+    installLocalStorageWindow();
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("crm-next:workbench:max-auto-transport:progress", JSON.stringify({
+        notice: "Delivered saved on this workbench.",
+        stage: "Delivered"
+      }));
+    }
+    const customer: CrmNextCustomer360 = {
+      address: "Address available in Customers",
+      communications: [],
+      customerSince: "Sep 18, 2026",
+      email: "Not recorded",
+      glance: [],
+      id: "max-auto-transport",
+      lifetimeValue: "Open customer record",
+      name: "Max Auto Transport",
+      nextAction: "Confirm transporter delivered the vehicle",
+      openCases: 0,
+      openDeals: 0,
+      phone: "555-5898",
+      riskLevel: "Low",
+      status: "Active",
+      vehicles: [],
+      vehiclesOwned: 0
+    };
+    const model = {
+      attention: [],
+      customers: [customer],
+      enterpriseLayer: {
+        adminGuardrails: [],
+        automationRecommendations: [],
+        reportingBrief: {} as CrmNextCommandCenter["enterpriseLayer"]["reportingBrief"],
+        supportingParties: []
+      },
+      operationalRead: {
+        state: "LIVE_READ",
+        sources: [{
+          detail: "Customer 360 detail is available.",
+          href: "/crm-next/customers/max-auto-transport",
+          id: "customer-360",
+          label: "Customer 360 detail",
+          observedAt: "Now",
+          sourceOfTruth: "Customers",
+          state: "LIVE_READ"
+        }]
+      },
+      timeline: [],
+      userName: "Customer Console Page User"
+    } as CrmNextCommandCenter;
+
+    const markup = renderToStaticMarkup(<CrmNextCustomer360View customer={customer} model={model} />);
+
+    expect(markup).toContain("<dd>Delivered</dd>");
+    expect(markup).toContain("Workbench outcome reflected");
+    expect(markup).toContain("Delivered recorded. Confirm note, owner, and any follow-up before archiving.");
   });
 });

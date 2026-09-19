@@ -928,14 +928,51 @@
   padding: 12px;
 }
 
+.customerConsoleGuardrails {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.customerConsoleGuardrails article {
+  background: #ffffff;
+  border: 1px solid #dbe6f6;
+  border-radius: 10px;
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 11px 12px;
+}
+
+.customerConsoleGuardrails span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.customerConsoleGuardrails strong {
+  color: #071a3a;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.customerConsoleGuardrails small {
+  color: #52637a;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .directoryCard {
   display: grid;
   gap: 10px;
+  min-width: 0;
 }
 
 .directoryRows {
   display: grid;
   gap: 8px;
+  min-width: 0;
 }
 
 .directoryRow {
@@ -945,7 +982,8 @@
   border-radius: 14px;
   display: grid;
   gap: 12px;
-  grid-template-columns: minmax(240px, 1.1fr) minmax(360px, 1.4fr) auto;
+  grid-template-columns: minmax(230px, 1.15fr) minmax(0, 2.2fr) minmax(116px, .55fr) minmax(148px, auto);
+  min-width: 0;
   padding: 10px;
 }
 
@@ -959,7 +997,7 @@
   color: #334155;
 }
 
-.directoryRow[data-status="closed"] dl div:nth-child(3) dd {
+.directoryRow[data-status="closed"] dl div:nth-child(4) dd {
   background: #ecfdf5;
   border: 1px solid #bbf7d0;
   border-radius: 999px;
@@ -1004,7 +1042,8 @@
 .directoryRow dl {
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: minmax(0, .7fr) minmax(0, .95fr) minmax(0, .55fr) minmax(0, .75fr) minmax(0, 1.55fr);
+  min-width: 0;
   margin: 0;
 }
 
@@ -1027,9 +1066,36 @@
   white-space: nowrap;
 }
 
+.directoryIssueList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+.directoryIssueList span {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 999px;
+  color: #9a3412;
+  font-size: 11px;
+  font-weight: 850;
+  padding: 4px 7px;
+  white-space: nowrap;
+}
+
+.directoryIssueList span[data-empty="true"] {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #94a3b8;
+}
+
 .directoryActions {
   display: flex;
   gap: 8px;
+  justify-content: flex-end;
+  min-width: 0;
 }
 
 .directoryActions .primaryButton,
@@ -1039,6 +1105,11 @@
   font-size: 13px;
   min-height: 36px;
   padding: 7px 11px;
+}
+
+.directoryActions .primaryButton,
+.directoryActions .secondaryButton {
+  min-width: 0;
 }
 
 .directorySide {
@@ -6584,6 +6655,10 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .customerConsoleGuardrails {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .dealerCustomerSnapshot {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -6929,8 +7004,17 @@
     flex-wrap: wrap;
   }
 
+  .customerConsoleGuardrails,
+  .customerToolsDrawer .miniActionList {
+    grid-template-columns: 1fr;
+  }
+
   .directoryRow dl {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .directoryIssueList {
+    justify-content: flex-start;
   }
 
   .customerIdentity {

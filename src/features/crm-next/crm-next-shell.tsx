@@ -322,6 +322,48 @@ function customerWorkbenchProgressStorageKey(customerId: string) {
   return `crm-next:workbench:${customerId}:progress`;
 }
 
+function isKnownJourneyStage(stage: string | undefined): stage is CustomerJourneyStage {
+  if (!stage) return false;
+  return Object.values(CRM_WORK_PATHS).some((path) => (path.stages as readonly string[]).includes(stage));
+}
+
+function readCustomerWorkbenchProgress(customerId: string) {
+  if (!customerId || typeof window === "undefined") return null;
+  try {
+    const stored = window.localStorage.getItem(customerWorkbenchProgressStorageKey(customerId));
+    if (!stored) return null;
+    const parsed = JSON.parse(stored) as { notice?: string; stage?: string };
+    return {
+      notice: typeof parsed.notice === "string" ? parsed.notice : "",
+      stage: isKnownJourneyStage(parsed.stage) ? parsed.stage : undefined
+    };
+  } catch {
+    return null;
+  }
+}
+
+function customer360Href(customerId: string) {
+  return `/crm-next/customers/${encodeURIComponent(customerId)}`;
+}
+
+function customerDisplayStatus(customer: CrmNextCustomer360, savedStage?: CustomerJourneyStage) {
+  return savedStage && isTerminalJourneyStage(savedStage) ? savedStage : customer.status;
+}
+
+function normalizedCustomerIdentityValue(value: string) {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized || normalized === "not recorded" || normalized.includes("not recorded")) return "";
+  return normalized;
+}
+
+function customerDuplicateKeys(customer: CrmNextCustomer360) {
+  return [
+    normalizedCustomerIdentityValue(customer.name),
+    normalizedCustomerIdentityValue(customer.phone),
+    normalizedCustomerIdentityValue(customer.email)
+  ].filter(Boolean);
+}
+
 function isAppointmentStage(stage: CustomerJourneyStage) {
   return ["Appointment Scheduled", "Missed Appt.", "Scheduled", "Visit Follow-up"].includes(stage);
 }
@@ -346,6 +388,20 @@ function customerRelationshipType(customer: CrmNextCustomer360, attentionItem?: 
   if (/\b(title|document|paperwork|registration)\b/.test(text)) return "Customer / Document";
   if (/\b(payment|finance|deposit|collections)\b/.test(text)) return "Customer / Finance";
   return "Customer / General";
+}
+
+function customerDirectoryCategory(customer: CrmNextCustomer360, attentionItem?: CrmNextAttentionItem) {
+  const text = `${customer.name} ${customer.nextAction} ${attentionItem?.reason ?? ""} ${attentionItem?.nextAction ?? ""}`.toLowerCase();
+  if (/\b(transport|transporter|tow|towing|vendor|warranty|lender|auction)\b/.test(text)) return "Vendor";
+  if (/\b(service|repair|ro\b|appointment)\b/.test(text)) return "Service";
+  if (/\b(title|document|paperwork|registration|proof|upload)\b/.test(text)) return "Docs";
+  if (/\b(payment|finance|deposit|collections)\b/.test(text)) return "Finance";
+  if (customer.openDeals > 0 || attentionItem?.area === "Sales" || /\b(deal|sale|sold|vehicle interest|retail)\b/.test(text)) return "Sales";
+  if (attentionItem?.area === "Service") return "Service";
+  if (attentionItem?.area === "Finance") return "Finance";
+  if (attentionItem?.area === "Support") return "Support";
+  if (/\b(overdue|follow[- ]?up|call back|check in|contact)\b/.test(text)) return "Follow-up";
+  return "General";
 }
 
 function customerSearchKeywords(customer: CrmNextCustomer360, attentionItem?: CrmNextAttentionItem) {
@@ -827,21 +883,38 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
 
 export function CrmNextCustomersListView({ model }: { model: CrmNextCommandCenter }) {
   const hasVerifiedCustomers = model.customers.length > 0;
-  const [savedCustomerStages] = useState<Record<string, string>>(() => {
-    const nextStages: Record<string, string> = {};
-    if (typeof window === "undefined") return nextStages;
+  const [savedCustomerProgress] = useState<Record<string, { notice: string; stage?: CustomerJourneyStage }>>(() => {
+    const nextProgress: Record<string, { notice: string; stage?: CustomerJourneyStage }> = {};
+    if (typeof window === "undefined") return nextProgress;
     for (const customer of model.customers) {
-      try {
-        const stored = window.localStorage.getItem(customerWorkbenchProgressStorageKey(customer.id));
-        if (!stored) continue;
-        const parsed = JSON.parse(stored) as { stage?: string };
-        if (parsed.stage) nextStages[customer.id] = parsed.stage;
-      } catch {
-        // The list still renders from live customer source data when local workbench state is unavailable.
-      }
+      const storedProgress = readCustomerWorkbenchProgress(customer.id);
+      if (storedProgress?.stage) nextProgress[customer.id] = storedProgress;
     }
-    return nextStages;
+    return nextProgress;
   });
+  const duplicateBuckets = new Map<string, string[]>();
+  for (const customer of model.customers) {
+    for (const key of customerDuplicateKeys(customer)) {
+      duplicateBuckets.set(key, [...(duplicateBuckets.get(key) ?? []), customer.id]);
+    }
+  }
+  const duplicateCustomerIds = new Set(
+    [...duplicateBuckets.values()]
+      .filter((ids) => ids.length > 1)
+      .flat()
+  );
+  const customerHealth = {
+    closed: model.customers.filter((customer) => {
+      const savedStage = savedCustomerProgress[customer.id]?.stage;
+      return Boolean(savedStage && isTerminalJourneyStage(savedStage));
+    }).length,
+    duplicates: duplicateCustomerIds.size,
+    missingOwner: model.customers.filter((customer) => {
+      const attentionItem = model.attention.find((item) => item.customerId === customer.id);
+      return !attentionItem?.owner || attentionItem.owner === "Unassigned";
+    }).length,
+    visible: model.customers.length
+  };
 
   return (
     <CrmNextFrame active="customers" userName={model.userName}>
@@ -875,6 +948,12 @@ export function CrmNextCustomersListView({ model }: { model: CrmNextCommandCente
             <Link href="/crm-next/search"><Search size={16} /> Search all customer records</Link>
           </div>
         </details>
+        <section className={styles.customerConsoleGuardrails} aria-label="Customer console hardening checks">
+          <article><span>Visible records</span><strong>{customerHealth.visible}</strong><small>Live customer source</small></article>
+          <article><span>Need owner</span><strong>{customerHealth.missingOwner}</strong><small>Assign before handoff</small></article>
+          <article><span>Possible duplicates</span><strong>{customerHealth.duplicates}</strong><small>Name, phone, or email match</small></article>
+          <article><span>Closed locally</span><strong>{customerHealth.closed}</strong><small>Workbench outcome saved</small></article>
+        </section>
         <article className={`${styles.card} ${styles.directoryCard}`}>
           <header>
             <h2>Customer List</h2>
@@ -884,12 +963,18 @@ export function CrmNextCustomersListView({ model }: { model: CrmNextCommandCente
             {hasVerifiedCustomers ? model.customers.map((customer) => {
               const activeAttentionItem = model.attention.find((item) => item.customerId === customer.id);
               const attendHref = activeAttentionItem?.workHref ?? `/crm-next/work/customer-read-${encodeURIComponent(customer.id)}`;
-              const savedStage = savedCustomerStages[customer.id];
-              const displayStatus = savedStage && isTerminalJourneyStage(savedStage as CustomerJourneyStage) ? savedStage : customer.status;
+              const savedStage = savedCustomerProgress[customer.id]?.stage;
+              const displayStatus = customerDisplayStatus(customer, savedStage);
               const statusTone = displayStatus === "Active" ? "active" : "closed";
+              const customerCategory = customerDirectoryCategory(customer, activeAttentionItem);
+              const rowIssues = [
+                !activeAttentionItem?.owner || activeAttentionItem.owner === "Unassigned" ? "Needs owner" : "",
+                duplicateCustomerIds.has(customer.id) ? "Possible duplicate" : "",
+                statusTone === "closed" ? "Closed locally" : ""
+              ].filter(Boolean);
               return (
                 <article className={styles.directoryRow} data-status={statusTone} key={customer.id}>
-                  <Link className={styles.directoryIdentity} href={`/crm-next/customers/${customer.id}`}>
+                  <Link className={styles.directoryIdentity} href={customer360Href(customer.id)}>
                     <span className={styles.avatar}>{initials(customer.name)}</span>
                     <span>
                       <strong>{customer.name}</strong>
@@ -897,13 +982,17 @@ export function CrmNextCustomersListView({ model }: { model: CrmNextCommandCente
                     </span>
                   </Link>
                   <dl>
+                    <div><dt>Category</dt><dd>{customerCategory}</dd></div>
                     <div><dt>Owner</dt><dd>{activeAttentionItem?.owner ?? "Unassigned"}</dd></div>
                     <div><dt>Risk</dt><dd>{customer.riskLevel}</dd></div>
                     <div><dt>Status</dt><dd>{displayStatus}</dd></div>
                     <div><dt>Next</dt><dd>{customer.nextAction}</dd></div>
                   </dl>
+                  <div className={styles.directoryIssueList} aria-label={`${customer.name} data checks`}>
+                    {rowIssues.length ? rowIssues.map((issue) => <span key={issue}>{issue}</span>) : <span data-empty="true">Clear</span>}
+                  </div>
                   <div className={styles.directoryActions}>
-                    <Link className={styles.secondaryButton} href={`/crm-next/customers/${customer.id}`}>Open</Link>
+                    <Link className={styles.secondaryButton} href={customer360Href(customer.id)}>Open</Link>
                     <Link className={styles.primaryButton} href={attendHref}>Attend</Link>
                   </div>
                 </article>
@@ -1963,17 +2052,9 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
     returnTo: `/crm-next/customers/${customer.id}`
   });
   const customerSalesWorkbenchHref = salesWorkbenchHref(customer);
-  const [savedCustomerStage] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
-    try {
-      const stored = window.localStorage.getItem(customerWorkbenchProgressStorageKey(customer.id));
-      if (!stored) return null;
-      const parsed = JSON.parse(stored) as { stage?: string };
-      return parsed.stage ?? null;
-    } catch {
-      return null;
-    }
-  });
+  const [savedCustomerProgress] = useState(() => readCustomerWorkbenchProgress(customer.id));
+  const savedCustomerStage = savedCustomerProgress?.stage;
+  const displayCustomerStatus = customerDisplayStatus(customer, savedCustomerStage);
   const customerMetrics = [
     { label: "Open Leads", value: customer.openDeals, detail: "Active", tone: "green" },
     { label: "Open Cases", value: customer.openCases, detail: "Active", tone: "red" },
@@ -2003,7 +2084,7 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
               <div><dt>Customer Since</dt><dd>{customer.customerSince}</dd></div>
               <div><dt>Lifetime Value</dt><dd>{customer.lifetimeValue}</dd></div>
               <div><dt>Owner</dt><dd>Unassigned</dd></div>
-              <div><dt>Status</dt><dd>{customer.status}</dd></div>
+              <div><dt>Status</dt><dd>{displayCustomerStatus}</dd></div>
               <div><dt>Risk</dt><dd><b className={levelClass(customer.riskLevel)}>{customer.riskLevel}</b></dd></div>
             </dl>
             <div className={styles.customerHeroActions}>
@@ -2212,7 +2293,7 @@ function CustomerOperatingLedger({
   activeAttentionItem?: CrmNextAttentionItem;
   customer: CrmNextCustomer360;
   model: CrmNextCommandCenter;
-  savedStage: string | null;
+  savedStage?: CustomerJourneyStage;
 }) {
   const customerTimelineEvents = verifiedTimelineEvents(model.timeline)
     .filter((event) => event.detail.toLowerCase().includes(customer.name.toLowerCase()) || event.label.toLowerCase().includes(customer.name.toLowerCase()))
@@ -2241,13 +2322,13 @@ function CustomerOperatingLedger({
     .filter((record) => record.name.toLowerCase() === customer.name.toLowerCase() || record.phone === customer.phone || record.email === customer.email)
     .slice(0, 3);
   const relationshipType = customerRelationshipType(customer, activeAttentionItem);
-  const currentStatus = savedStage && isTerminalJourneyStage(savedStage as CustomerJourneyStage) ? savedStage : customer.status;
+  const currentStatus = customerDisplayStatus(customer, savedStage);
   const nextOwner = activeAttentionItem?.owner ?? "Unassigned";
   const dueWindow = activeAttentionItem?.age ?? "No due date visible";
   const hasOwnerException = nextOwner === "Unassigned";
   const hasOverdueException = /overdue|missed|due/i.test(`${activeAttentionItem?.reason ?? ""} ${activeAttentionItem?.age ?? ""}`);
   const hasDuplicateException = duplicateCandidates.length > 0;
-  const hasCloseoutException = savedStage && isTerminalJourneyStage(savedStage as CustomerJourneyStage) ? false : /delivered|resolved|closed|no action/i.test(customer.nextAction);
+  const hasCloseoutException = savedStage && isTerminalJourneyStage(savedStage) ? false : /delivered|resolved|closed|no action/i.test(customer.nextAction);
   const managerExceptions = [
     hasOwnerException ? "No owner assigned" : "",
     hasOverdueException ? "Overdue or missed follow-up" : "",
@@ -2260,7 +2341,7 @@ function CustomerOperatingLedger({
     { label: "Finance", value: /payment|finance|deposit/i.test(customer.nextAction) ? "Finance attention" : "No finance blocker" },
     { label: "Manager", value: managerExceptions.length ? `${managerExceptions.length} exception(s)` : "No exception" }
   ];
-  const closeoutCopy = savedStage && isTerminalJourneyStage(savedStage as CustomerJourneyStage)
+  const closeoutCopy = savedStage && isTerminalJourneyStage(savedStage)
     ? `${savedStage} recorded. Confirm note, owner, and any follow-up before archiving.`
     : "Not closed yet. Record outcome, note, owner, and whether follow-up is required.";
 
@@ -2308,7 +2389,7 @@ function CustomerOperatingLedger({
         <article>
           <h3>Duplicates & Relationships</h3>
           {duplicateCandidates.length ? duplicateCandidates.map((record) => (
-            <Link href={`/crm-next/customers/${record.id}`} key={record.id}>
+            <Link href={customer360Href(record.id)} key={record.id}>
               <strong>{record.name}</strong>
               <small>{record.phone} · {record.email}</small>
             </Link>
