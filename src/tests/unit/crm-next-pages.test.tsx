@@ -201,7 +201,8 @@ describe("CRM Next pages", () => {
     expect(work).toContain("Update issue");
     expect(work).toContain("Resolve issue");
     expect(work).toContain("Close the work cleanly");
-    expect(work).toContain("Log Activity");
+    expect(work).toContain("Check-In");
+    expect(work).toContain("<button");
     expect(work).toContain("Update Status");
     expect(work).toContain("Phone Call");
     expect(work).toContain("Send SMS");
@@ -269,6 +270,9 @@ describe("CRM Next pages", () => {
     expect(search).toContain('href="/customers"');
     expect(customersList).toContain("Customer List");
     expect(customersList).toContain("0 visible");
+    expect(customersList).toContain("Customer tools");
+    expect(customersList).toContain("Add, search, review attention, or open pipeline without narrowing the list.");
+    expect(customersList).toContain("Open leads and pipeline");
     expect(customersList).toContain("No verified Customer 360 records are visible here yet");
     expect(customersList).toContain("Open older customer tools");
     expect(newCustomer).toContain("Add a customer or prospect");

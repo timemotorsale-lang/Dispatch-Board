@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ArrowLeft,
   Bell,
@@ -316,6 +316,10 @@ function normalizeJourneyStage(stage: string | undefined, path: CrmWorkPathId): 
 
 function isTerminalJourneyStage(stage: CustomerJourneyStage) {
   return ["Closed", "Completed", "Delivered", "Lost", "No Action Needed", "Resolved", "Sold"].includes(stage);
+}
+
+function customerWorkbenchProgressStorageKey(customerId: string) {
+  return `crm-next:workbench:${customerId}:progress`;
 }
 
 function isAppointmentStage(stage: CustomerJourneyStage) {
@@ -801,6 +805,22 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
 
 export function CrmNextCustomersListView({ model }: { model: CrmNextCommandCenter }) {
   const hasVerifiedCustomers = model.customers.length > 0;
+  const [savedCustomerStages] = useState<Record<string, string>>(() => {
+    const nextStages: Record<string, string> = {};
+    if (typeof window === "undefined") return nextStages;
+    for (const customer of model.customers) {
+      try {
+        const stored = window.localStorage.getItem(customerWorkbenchProgressStorageKey(customer.id));
+        if (!stored) continue;
+        const parsed = JSON.parse(stored) as { stage?: string };
+        if (parsed.stage) nextStages[customer.id] = parsed.stage;
+      } catch {
+        // The list still renders from live customer source data when local workbench state is unavailable.
+      }
+    }
+    return nextStages;
+  });
+
   return (
     <CrmNextFrame active="customers" userName={model.userName}>
       <Topbar />
@@ -818,6 +838,21 @@ export function CrmNextCustomersListView({ model }: { model: CrmNextCommandCente
       </section>
 
       <section className={styles.customerDirectoryGrid}>
+        <details className={styles.customerToolsDrawer}>
+          <summary>
+            <span>
+              <strong>Customer tools</strong>
+              <small>Add, search, review attention, or open pipeline without narrowing the list.</small>
+            </span>
+            <ChevronRight size={18} />
+          </summary>
+          <div className={styles.miniActionList}>
+            <Link href="/crm-next/new"><UserPlus size={16} /> Add a customer or prospect</Link>
+            <Link href="/crm-next/pipeline"><Target size={16} /> Open leads and pipeline</Link>
+            <Link href="/crm-next/needs-attention"><Bell size={16} /> View customers needing attention</Link>
+            <Link href="/crm-next/search"><Search size={16} /> Search all customer records</Link>
+          </div>
+        </details>
         <article className={`${styles.card} ${styles.directoryCard}`}>
           <header>
             <h2>Customer List</h2>
@@ -827,8 +862,11 @@ export function CrmNextCustomersListView({ model }: { model: CrmNextCommandCente
             {hasVerifiedCustomers ? model.customers.map((customer) => {
               const activeAttentionItem = model.attention.find((item) => item.customerId === customer.id);
               const attendHref = activeAttentionItem?.workHref ?? `/crm-next/work/customer-read-${encodeURIComponent(customer.id)}`;
+              const savedStage = savedCustomerStages[customer.id];
+              const displayStatus = savedStage && isTerminalJourneyStage(savedStage as CustomerJourneyStage) ? savedStage : customer.status;
+              const statusTone = displayStatus === "Active" ? "active" : "closed";
               return (
-                <article className={styles.directoryRow} key={customer.id}>
+                <article className={styles.directoryRow} data-status={statusTone} key={customer.id}>
                   <Link className={styles.directoryIdentity} href={`/crm-next/customers/${customer.id}`}>
                     <span className={styles.avatar}>{initials(customer.name)}</span>
                     <span>
@@ -839,7 +877,7 @@ export function CrmNextCustomersListView({ model }: { model: CrmNextCommandCente
                   <dl>
                     <div><dt>Owner</dt><dd>{activeAttentionItem?.owner ?? "Unassigned"}</dd></div>
                     <div><dt>Risk</dt><dd>{customer.riskLevel}</dd></div>
-                    <div><dt>Status</dt><dd>{customer.status}</dd></div>
+                    <div><dt>Status</dt><dd>{displayStatus}</dd></div>
                     <div><dt>Next</dt><dd>{customer.nextAction}</dd></div>
                   </dl>
                   <div className={styles.directoryActions}>
@@ -853,18 +891,6 @@ export function CrmNextCustomersListView({ model }: { model: CrmNextCommandCente
             )}
           </div>
         </article>
-
-        <aside className={styles.directorySide}>
-          <article className={styles.sidePanel}>
-            <h2>Customer tools</h2>
-            <div className={styles.miniActionList}>
-              <Link href="/crm-next/new"><UserPlus size={16} /> Add a customer or prospect</Link>
-              <Link href="/crm-next/pipeline"><Target size={16} /> Open leads and pipeline</Link>
-              <Link href="/crm-next/needs-attention"><Bell size={16} /> View customers needing attention</Link>
-              <Link href="/crm-next/search"><Search size={16} /> Search all customer records</Link>
-            </div>
-          </article>
-        </aside>
       </section>
     </CrmNextFrame>
   );
@@ -2350,9 +2376,10 @@ export function CrmNextWorkCustomerView({
   const verifiedCustomerActivity = verifiedTimelineEvents(model.timeline);
   const dueTask = bridgePreview?.dispatchPreview;
   const pendingTasks = dueTask ? "1 due" : "None";
+  const workPathSelectRef = useRef<HTMLSelectElement | null>(null);
   const [workPath, setWorkPath] = useState<CrmWorkPathId>(() => readCrmWorkPath(item, initialWorkPath));
   const workPathConfig = CRM_WORK_PATHS[workPath];
-  const progressStorageKey = `crm-next:workbench:${item.customerId}:progress`;
+  const progressStorageKey = customerWorkbenchProgressStorageKey(item.customerId);
   const [progressState, setProgressState] = useState<{ notice: string; stage: CustomerJourneyStage }>(() => {
     const resolvedInitialWorkPath = readCrmWorkPath(item, initialWorkPath);
     const initialPathConfig = CRM_WORK_PATHS[resolvedInitialWorkPath];
@@ -2441,6 +2468,10 @@ export function CrmNextWorkCustomerView({
       // The visible workbench still updates even if local persistence is unavailable.
     }
   }
+  function focusCheckInPathSelector() {
+    workPathSelectRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    window.setTimeout(() => workPathSelectRef.current?.focus(), 220);
+  }
   const progressSteps = [
     { label: "Customer opened", state: "complete" },
     { label: "Contact made", state: "complete" },
@@ -2500,7 +2531,7 @@ export function CrmNextWorkCustomerView({
               <p className={styles.muted}>{issue.issue} · {workPathConfig.label} · Owner: {item.owner}</p>
             </div>
             <div className={styles.workActions}>
-              <Link className={styles.secondaryButton} href="#lead">Log Activity</Link>
+              <button className={styles.secondaryButton} onClick={focusCheckInPathSelector} type="button">Check-In</button>
               {salesPath ? <Link className={styles.secondaryButton} href={startDealHref}>{dealStarted ? "Continue Deal" : "Start Deal"}</Link> : null}
               <Link className={styles.secondaryButton} href={item.customerHref}>Customer 360</Link>
             </div>
@@ -2585,10 +2616,10 @@ export function CrmNextWorkCustomerView({
               <p>{issue.issue}</p>
               <small className={styles.statusUpdateNotice}>{statusNotice}</small>
               </div>
-              <div className={styles.workPathControl}>
+              <div className={styles.workPathControl} id="work-path">
                 <label>
                   <span>Work Path</span>
-                  <select value={workPath} onChange={(event) => updateWorkPath(event.target.value as CrmWorkPathId)}>
+                  <select ref={workPathSelectRef} value={workPath} onChange={(event) => updateWorkPath(event.target.value as CrmWorkPathId)}>
                     {Object.entries(CRM_WORK_PATHS).map(([id, path]) => (
                       <option key={id} value={id}>{path.label}</option>
                     ))}
