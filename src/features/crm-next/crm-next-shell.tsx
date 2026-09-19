@@ -650,16 +650,40 @@ function Topbar({ defaultQuery = "", returnAction }: { defaultQuery?: string; re
   );
 }
 
+function safeOperationalRead(model: CrmNextCommandCenter): CrmNextCommandCenter["operationalRead"] {
+  return model.operationalRead ?? {
+    safety: "Customer Console is using a protected fallback while source status refreshes.",
+    sources: [],
+    state: "FALLBACK_READ"
+  };
+}
+
+function safeEnterpriseLayer(model: CrmNextCommandCenter): CrmNextCommandCenter["enterpriseLayer"] {
+  return model.enterpriseLayer ?? {
+    adminGuardrails: [],
+    automationRecommendations: [],
+    reportingBrief: {
+      generatedAt: new Date(0).toISOString(),
+      managerSummary: "Report readiness is unavailable while enterprise signals refresh.",
+      reviewableSeedCount: 0,
+      sections: [],
+      sourceCount: 0
+    },
+    supportingParties: []
+  };
+}
+
 function OperationalSourceStrip({ model }: { model: CrmNextCommandCenter }) {
+  const operationalRead = safeOperationalRead(model);
   return (
     <section className={styles.sourceStrip} aria-label="Customer source status">
       <div>
         <span className={styles.eyebrow}>Operational read status</span>
-        <strong>{model.operationalRead.state.replaceAll("_", " ")}</strong>
-        <p>{model.operationalRead.safety}</p>
+        <strong>{operationalRead.state.replaceAll("_", " ")}</strong>
+        <p>{operationalRead.safety}</p>
       </div>
       <div className={styles.sourcePills}>
-        {model.operationalRead.sources.map((source) => (
+        {operationalRead.sources.map((source) => (
           <Link className={styles.sourcePill} data-state={source.state} href={source.href} key={`${source.id}-${source.observedAt}`}>
             <span>{source.label}</span>
             <b>{source.state.replaceAll("_", " ")}</b>
@@ -672,10 +696,11 @@ function OperationalSourceStrip({ model }: { model: CrmNextCommandCenter }) {
 }
 
 function CompactSourceStatus({ model }: { model: CrmNextCommandCenter }) {
+  const operationalRead = safeOperationalRead(model);
   return (
     <div className={styles.compactSourceStatus} aria-label="Customer source status">
-      <span>Source status: <strong>{model.operationalRead.state.replaceAll("_", " ")}</strong></span>
-      {model.operationalRead.sources.slice(0, 4).map((source) => (
+      <span>Source status: <strong>{operationalRead.state.replaceAll("_", " ")}</strong></span>
+      {operationalRead.sources.slice(0, 4).map((source) => (
         <Link data-state={source.state} href={source.href} key={`${source.id}-${source.label}`}>
           {source.label}: {source.state.replaceAll("_", " ")}
         </Link>
@@ -692,7 +717,7 @@ function automationLevelClass(severity: string) {
 }
 
 function CrmNextRecommendedWork({ model }: { model: CrmNextCommandCenter }) {
-  const recommendations = model.enterpriseLayer.automationRecommendations.slice(0, 4);
+  const recommendations = safeEnterpriseLayer(model).automationRecommendations.slice(0, 4);
   if (recommendations.length === 0) return null;
 
   return (
@@ -720,7 +745,7 @@ function CrmNextRecommendedWork({ model }: { model: CrmNextCommandCenter }) {
 }
 
 function CrmNextSupportingParties({ model, compact = false }: { compact?: boolean; model: CrmNextCommandCenter }) {
-  const parties = model.enterpriseLayer.supportingParties.slice(0, compact ? 3 : 3);
+  const parties = safeEnterpriseLayer(model).supportingParties.slice(0, compact ? 3 : 3);
   if (parties.length === 0) return null;
 
   return (
@@ -743,7 +768,7 @@ function CrmNextSupportingParties({ model, compact = false }: { compact?: boolea
 }
 
 function CrmNextReportReadiness({ model }: { model: CrmNextCommandCenter }) {
-  const brief = model.enterpriseLayer.reportingBrief;
+  const brief = safeEnterpriseLayer(model).reportingBrief;
   return (
     <article className={styles.card}>
       <header>
@@ -766,7 +791,7 @@ function CrmNextReportReadiness({ model }: { model: CrmNextCommandCenter }) {
 }
 
 function CrmNextAdminGuardrails({ model }: { model: CrmNextCommandCenter }) {
-  const controls = model.enterpriseLayer.adminGuardrails.slice(0, 4);
+  const controls = safeEnterpriseLayer(model).adminGuardrails.slice(0, 4);
   if (controls.length === 0) return null;
 
   return (
@@ -788,16 +813,26 @@ function CrmNextAdminGuardrails({ model }: { model: CrmNextCommandCenter }) {
 }
 
 export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCenter }) {
-  const firstVerifiedCustomerHref = model.customers[0] ? `/crm-next/customers/${encodeURIComponent(model.customers[0].id)}` : "/crm-next/search";
-  const firstVerifiedWorkHref = model.attention[0]?.workHref ?? "/crm-next/needs-attention";
+  const customers = model.customers ?? [];
+  const attention = model.attention ?? [];
+  const nextActions = model.nextActions ?? [];
+  const pipeline = model.pipeline ?? [];
+  const summary = model.summary ?? [];
+  const revenue = model.revenue ?? { monthToDate: "No source data available", trend: "Revenue source is unavailable right now." };
+  const commandCenter = model.commandCenter ?? {
+    guidance: "Open Customer Console tools while customer source status refreshes.",
+    headline: "Who needs attention?"
+  };
+  const firstVerifiedCustomerHref = customers[0] ? `/crm-next/customers/${encodeURIComponent(customers[0].id)}` : "/crm-next/search";
+  const firstVerifiedWorkHref = attention[0]?.workHref ?? "/crm-next/needs-attention";
   return (
     <CrmNextFrame active="command" userName={model.userName}>
       <Topbar />
       <section className={styles.hero}>
         <div>
           <span className={styles.eyebrow}>Command Center Dashboard</span>
-          <h1>{model.commandCenter.headline}</h1>
-          <p>{model.commandCenter.guidance}</p>
+          <h1>{commandCenter.headline}</h1>
+          <p>{commandCenter.guidance}</p>
         </div>
         <div className={styles.quickActions}>
           <Link className={styles.primaryButton} href="/crm-next/new"><UserPlus size={16} /> Add Customer / Prospect</Link>
@@ -810,7 +845,7 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
       </section>
 
       <section className={styles.summaryGrid} aria-label="Customer Console summary">
-        {model.summary.map((item) => (
+        {summary.map((item) => (
           <Link className={styles.summaryCard} data-tone={item.tone} href={item.href} key={item.label}>
             <small>{item.label}</small>
             <strong>{item.value}</strong>
@@ -829,7 +864,7 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
         <article className={`${styles.card} ${styles.wide}`}>
           <header><h2>Needs Attention (Top 5)</h2><Link className={styles.textLink} href="/crm-next/needs-attention">View all</Link></header>
           <div className={styles.attentionList}>
-            {model.attention.length ? model.attention.map((item) => <AttentionRow item={item} key={item.id} />) : (
+            {attention.length ? attention.map((item) => <AttentionRow item={item} key={item.id} />) : (
               <div className={styles.activityTimelineEmpty}>
                 <strong>No source data available</strong>
                 <span>No verified customer attention records are available yet.</span>
@@ -840,7 +875,7 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
         <article className={styles.card}>
           <header><h2>Intelligence & Next Action</h2><span className={styles.pill}>Today</span></header>
           <div className={styles.nextList}>
-            {model.nextActions.length ? model.nextActions.map((action) => (
+            {nextActions.length ? nextActions.map((action) => (
               <Link className={styles.nextItem} href={action.href} key={action.id}>
                 <CheckCircle2 size={20} />
                 <span><strong>{action.label}</strong><small>{action.detail}</small></span>
@@ -858,7 +893,7 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
         <article className={styles.card} id="pipeline">
           <header><h2>Pipeline Overview</h2><Link className={styles.textLink} href="/crm-next/pipeline">Open board</Link></header>
           <div className={styles.pipelineRows}>
-            {model.pipeline.length ? model.pipeline.map((row) => (
+            {pipeline.length ? pipeline.map((row) => (
               <div className={styles.pipelineRow} key={row.label}>
                 <span>{row.label}</span><span className={styles.bar}><i style={{ width: `${Math.max(12, row.value)}%` }} /></span><strong>{row.value}</strong>
               </div>
@@ -872,8 +907,8 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
         </article>
         <article className={styles.card}>
           <header><h2>Revenue (MTD)</h2><Link className={styles.textLink} href="/crm-next/deals"><DollarSign size={18} /></Link></header>
-          <div className={styles.revenueValue}>{model.revenue.monthToDate}</div>
-          <p className={styles.muted}>{model.revenue.trend}</p>
+          <div className={styles.revenueValue}>{revenue.monthToDate}</div>
+          <p className={styles.muted}>{revenue.trend}</p>
         </article>
         <CrmNextAdminGuardrails model={model} />
       </section>
@@ -882,18 +917,20 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
 }
 
 export function CrmNextCustomersListView({ model }: { model: CrmNextCommandCenter }) {
-  const hasVerifiedCustomers = model.customers.length > 0;
+  const customers = model.customers ?? [];
+  const attention = model.attention ?? [];
+  const hasVerifiedCustomers = customers.length > 0;
   const [savedCustomerProgress] = useState<Record<string, { notice: string; stage?: CustomerJourneyStage }>>(() => {
     const nextProgress: Record<string, { notice: string; stage?: CustomerJourneyStage }> = {};
     if (typeof window === "undefined") return nextProgress;
-    for (const customer of model.customers) {
+    for (const customer of customers) {
       const storedProgress = readCustomerWorkbenchProgress(customer.id);
       if (storedProgress?.stage) nextProgress[customer.id] = storedProgress;
     }
     return nextProgress;
   });
   const duplicateBuckets = new Map<string, string[]>();
-  for (const customer of model.customers) {
+  for (const customer of customers) {
     for (const key of customerDuplicateKeys(customer)) {
       duplicateBuckets.set(key, [...(duplicateBuckets.get(key) ?? []), customer.id]);
     }
@@ -904,16 +941,16 @@ export function CrmNextCustomersListView({ model }: { model: CrmNextCommandCente
       .flat()
   );
   const customerHealth = {
-    closed: model.customers.filter((customer) => {
+    closed: customers.filter((customer) => {
       const savedStage = savedCustomerProgress[customer.id]?.stage;
       return Boolean(savedStage && isTerminalJourneyStage(savedStage));
     }).length,
     duplicates: duplicateCustomerIds.size,
-    missingOwner: model.customers.filter((customer) => {
-      const attentionItem = model.attention.find((item) => item.customerId === customer.id);
+    missingOwner: customers.filter((customer) => {
+      const attentionItem = attention.find((item) => item.customerId === customer.id);
       return !attentionItem?.owner || attentionItem.owner === "Unassigned";
     }).length,
-    visible: model.customers.length
+    visible: customers.length
   };
 
   return (
@@ -957,11 +994,11 @@ export function CrmNextCustomersListView({ model }: { model: CrmNextCommandCente
         <article className={`${styles.card} ${styles.directoryCard}`}>
           <header>
             <h2>Customer List</h2>
-            <span className={styles.pill}>{model.customers.length} visible</span>
+            <span className={styles.pill}>{customers.length} visible</span>
           </header>
           <div className={styles.directoryRows}>
-            {hasVerifiedCustomers ? model.customers.map((customer) => {
-              const activeAttentionItem = model.attention.find((item) => item.customerId === customer.id);
+            {hasVerifiedCustomers ? customers.map((customer) => {
+              const activeAttentionItem = attention.find((item) => item.customerId === customer.id);
               const attendHref = activeAttentionItem?.workHref ?? `/crm-next/work/customer-read-${encodeURIComponent(customer.id)}`;
               const savedStage = savedCustomerProgress[customer.id]?.stage;
               const displayStatus = customerDisplayStatus(customer, savedStage);
@@ -1192,7 +1229,7 @@ export function CrmNextReviewCenterView({ model }: { model: CrmNextCommandCenter
           <span className={styles.pill}>Hidden from staff nav</span>
         </header>
         <section className={styles.commandModeGrid} aria-label="Customer command center review modes">
-          {model.commandCenter.modes.map((mode) => (
+          {(model.commandCenter?.modes ?? []).map((mode) => (
             <Link className={styles.commandModeCard} href={mode.href} id={mode.id} key={mode.id}>
               <span className={styles.eyebrow}>{mode.milestone} · {mode.audience}</span>
               <div>
@@ -1268,7 +1305,7 @@ export function CrmNextNeedsAttentionView({ model }: { model: CrmNextCommandCent
       </section>
       <article className={styles.card}>
         <div className={styles.attentionList}>
-          {model.attention.map((item) => <AttentionRow item={item} key={item.id} />)}
+          {(model.attention ?? []).map((item) => <AttentionRow item={item} key={item.id} />)}
         </div>
       </article>
     </CrmNextFrame>
@@ -1278,15 +1315,17 @@ export function CrmNextNeedsAttentionView({ model }: { model: CrmNextCommandCent
 export function CrmNextSearchView({ model, returnAction }: { model: CrmNextCommandCenter; returnAction?: string }) {
   const actionId = validReturnAction(returnAction);
   const actionLabel = crmNextActionLabel(actionId ?? "");
-  const hasVerifiedCustomers = model.customers.length > 0;
+  const customers = model.customers ?? [];
+  const search = model.search ?? { activeQuery: "", groups: [], queryPlaceholder: "Search customers, vehicles, deals, communications, or work." };
+  const hasVerifiedCustomers = customers.length > 0;
   return (
     <CrmNextFrame active="search" userName={model.userName}>
-      <Topbar defaultQuery={model.search.activeQuery} returnAction={actionId} />
+      <Topbar defaultQuery={search.activeQuery} returnAction={actionId} />
       <section className={styles.hero}>
         <div>
           <span className={styles.eyebrow}>Global Search</span>
           <h1>{actionId ? `Find the customer, then continue ${actionLabel}` : "Find the customer, then take the next safe action"}</h1>
-          <p>{actionId ? "Choose a verified Customer 360 record so the pending action saves to the right timeline." : model.search.queryPlaceholder}</p>
+          <p>{actionId ? "Choose a verified Customer 360 record so the pending action saves to the right timeline." : search.queryPlaceholder}</p>
         </div>
         <div className={styles.quickActions}>
           <Link className={styles.primaryButton} href={actionId ? `/crm-next/new?returnAction=${encodeURIComponent(actionId)}` : "/crm-next/new"}><UserPlus size={16} /> Add Customer / Prospect</Link>
@@ -1303,7 +1342,7 @@ export function CrmNextSearchView({ model, returnAction }: { model: CrmNextComma
             </div>
           </header>
           <div>
-            {hasVerifiedCustomers ? model.customers.slice(0, 6).map((customer) => (
+            {hasVerifiedCustomers ? customers.slice(0, 6).map((customer) => (
               <Link className={styles.returnActionCustomer} href={crmNextActionHref(actionId, customer.id)} key={customer.id}>
                 <strong>{customer.name}</strong>
                 <span>{customer.nextAction}</span>
@@ -1317,18 +1356,18 @@ export function CrmNextSearchView({ model, returnAction }: { model: CrmNextComma
       ) : null}
       {!actionId && !hasVerifiedCustomers ? <CrmNextEmptyCustomerSourcePanel /> : null}
       <section className={styles.searchGroups} aria-label="Customer record search results">
-        {model.search.groups.map((group) => {
+        {search.groups.map((group) => {
           const isCustomerGroup = group.id.includes("customer");
           const href = actionId && isCustomerGroup
-            ? model.customers[0]
-              ? crmNextActionHref(actionId, model.customers[0].id)
+            ? customers[0]
+              ? crmNextActionHref(actionId, customers[0].id)
               : `/crm-next/new?returnAction=${encodeURIComponent(actionId)}`
             : isCustomerGroup
               ? CRM_NEXT_CUSTOMERS_HREF
               : group.href;
-          const count = isCustomerGroup && hasVerifiedCustomers ? model.customers.length : group.count;
+          const count = isCustomerGroup && hasVerifiedCustomers ? customers.length : group.count;
           const description = isCustomerGroup && hasVerifiedCustomers
-            ? `Open the customer list. Latest visible records include ${model.customers.slice(0, 3).map((customer) => customer.name).join(", ")}.`
+            ? `Open the customer list. Latest visible records include ${customers.slice(0, 3).map((customer) => customer.name).join(", ")}.`
             : group.description;
           return (
             <Link className={styles.card} href={href} key={group.id}>
@@ -1367,7 +1406,7 @@ export function CrmNextIntakeView({ model }: { model: CrmNextCommandCenter }) {
 }
 
 export function CrmNextTimelineView({ model }: { model: CrmNextCommandCenter }) {
-  const events = verifiedTimelineEvents(model.timeline);
+  const events = verifiedTimelineEvents(model.timeline ?? []);
   const customer360Href = model.customers?.[0] ? `/crm-next/customers/${encodeURIComponent(model.customers[0].id)}` : "/crm-next/search";
   return (
     <CrmNextFrame active="timeline" userName={model.userName}>
@@ -2020,7 +2059,8 @@ export function CrmNextSafetyView({ kind, model }: { kind: "states" | "permissio
 }
 
 export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextCustomer360; model: CrmNextCommandCenter }) {
-  const activeAttentionItem = model.attention.find((item) => item.customerId === customer.id);
+  const attention = model.attention ?? [];
+  const activeAttentionItem = attention.find((item) => item.customerId === customer.id);
   const attendHref = activeAttentionItem?.workHref ?? `/crm-next/work/customer-read-${encodeURIComponent(customer.id)}`;
   const [selectedWorkCategory, setSelectedWorkCategory] = useState<CrmWorkCategoryId>(() => {
     if (typeof window !== "undefined") {
@@ -2059,7 +2099,7 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
     { label: "Open Leads", value: customer.openDeals, detail: "Active", tone: "green" },
     { label: "Open Cases", value: customer.openCases, detail: "Active", tone: "red" },
     { label: "Appointments", value: customer.glance.find((item) => item.label === "Appointments")?.value ?? "0", detail: "Upcoming", tone: "blue" },
-    { label: "Tasks", value: model.attention.filter((item) => item.customerId === customer.id).length, detail: "Open", tone: "blue" },
+    { label: "Tasks", value: attention.filter((item) => item.customerId === customer.id).length, detail: "Open", tone: "blue" },
     { label: "Documents", value: "0", detail: "Missing", tone: "amber" },
     { label: "SLA Risk", value: customer.riskLevel, detail: "Current", tone: customer.riskLevel === "High" ? "red" : customer.riskLevel === "Medium" ? "amber" : "green" }
   ];
@@ -2295,7 +2335,7 @@ function CustomerOperatingLedger({
   model: CrmNextCommandCenter;
   savedStage?: CustomerJourneyStage;
 }) {
-  const customerTimelineEvents = verifiedTimelineEvents(model.timeline)
+  const customerTimelineEvents = verifiedTimelineEvents(model.timeline ?? [])
     .filter((event) => event.detail.toLowerCase().includes(customer.name.toLowerCase()) || event.label.toLowerCase().includes(customer.name.toLowerCase()))
     .slice(0, 4);
   const fallbackEvents = [
@@ -2317,7 +2357,7 @@ function CustomerOperatingLedger({
     }] : [])
   ].slice(0, 4);
   const ledgerEvents = customerTimelineEvents.length ? customerTimelineEvents : fallbackEvents;
-  const duplicateCandidates = model.customers
+  const duplicateCandidates = (model.customers ?? [])
     .filter((record) => record.id !== customer.id)
     .filter((record) => record.name.toLowerCase() === customer.name.toLowerCase() || record.phone === customer.phone || record.email === customer.email)
     .slice(0, 3);
@@ -2422,13 +2462,15 @@ function CustomerOperatingLedger({
 }
 
 export function CrmNextActionReadinessView({ action, customerId, model }: { action: CrmNextOperatingAction; customerId?: string; model: CrmNextCommandCenter }) {
-  const requestedCustomer = customerId ? model.customers.find((customer) => customer.id === customerId) : undefined;
-  const relatedCustomer = customerId ? requestedCustomer : model.customers[0];
+  const customers = model.customers ?? [];
+  const attention = model.attention ?? [];
+  const requestedCustomer = customerId ? customers.find((customer) => customer.id === customerId) : undefined;
+  const relatedCustomer = customerId ? requestedCustomer : customers[0];
   const missingRequestedCustomer = Boolean(customerId && !requestedCustomer);
   const customerDisplayName = relatedCustomer?.name ?? "Customer record unavailable";
   const findCustomerHref = crmNextActionSearchHref(action.id);
   const backHref = relatedCustomer ? `/crm-next/customers/${relatedCustomer.id}` : findCustomerHref;
-  const activeAttentionItem = relatedCustomer ? model.attention.find((item) => item.customerId === relatedCustomer.id) : undefined;
+  const activeAttentionItem = relatedCustomer ? attention.find((item) => item.customerId === relatedCustomer.id) : undefined;
   const workbenchHref = activeAttentionItem?.workHref ?? backHref;
   const caseReturnHref = relatedCustomer ? crmNextActionHref("new-case", relatedCustomer.id) : "/crm-next/actions/new-case";
   const caseReminderHref = crmNextCustomerAppointmentHref({
@@ -2631,7 +2673,7 @@ export function CrmNextWorkCustomerView({
   model: CrmNextCommandCenter;
 }) {
   const issue = customerWorkIssue(item);
-  const verifiedCustomerActivity = verifiedTimelineEvents(model.timeline);
+  const verifiedCustomerActivity = verifiedTimelineEvents(model.timeline ?? []);
   const dueTask = bridgePreview?.dispatchPreview;
   const pendingTasks = dueTask ? "1 due" : "None";
   const workPathSelectRef = useRef<HTMLSelectElement | null>(null);

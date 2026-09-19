@@ -38,7 +38,7 @@ import CrmNextStateReviewPage from "@/app/(app)/crm-next/system/states/page";
 import CrmNextTestDrivesPage from "@/app/(app)/crm-next/test-drives/page";
 import CrmNextTimelinePage from "@/app/(app)/crm-next/timeline/page";
 import CrmNextWorkPage from "@/app/(app)/crm-next/work/[itemId]/page";
-import { CrmNextActionReadinessView, CrmNextCustomer360View, CrmNextCustomersListView, CrmNextTimelineView, CrmNextWorkCustomerView } from "@/features/crm-next/crm-next-shell";
+import { CrmNextActionReadinessView, CrmNextCommandCenterView, CrmNextCustomer360View, CrmNextCustomersListView, CrmNextSearchView, CrmNextTimelineView, CrmNextWorkCustomerView } from "@/features/crm-next/crm-next-shell";
 import { CRM_STAFF_FACING_BANNED_TERMS } from "@/lib/crm-staff-language";
 import type { CrmNextActionBridgePreview } from "@/server/crm-next/action-bridge";
 import type { CrmNextAttentionItem, CrmNextCommandCenter, CrmNextCustomer360, CrmNextOperatingAction, CrmNextTimelineEvent } from "@/server/crm-next/read-model";
@@ -939,6 +939,24 @@ describe("CRM Next pages", () => {
 
     expect(markup).toContain("<dd>Sales</dd>");
     expect(markup).not.toContain("<dd>General</dd>");
+  });
+
+  it("keeps CRM Next consoles open when live source envelopes are partial", () => {
+    const partialModel = {
+      userName: "Customer Console Page User"
+    } as CrmNextCommandCenter;
+
+    const commandMarkup = renderToStaticMarkup(<CrmNextCommandCenterView model={partialModel} />);
+    const customerListMarkup = renderToStaticMarkup(<CrmNextCustomersListView model={partialModel} />);
+    const searchMarkup = renderToStaticMarkup(<CrmNextSearchView model={partialModel} />);
+    const timelineMarkup = renderToStaticMarkup(<CrmNextTimelineView model={partialModel} />);
+
+    expect(commandMarkup).toContain("Who needs attention?");
+    expect(commandMarkup).toContain("No source data available");
+    expect(commandMarkup).toContain("Report readiness is unavailable while enterprise signals refresh.");
+    expect(customerListMarkup).toContain("0 visible");
+    expect(searchMarkup).toContain("Search customers, vehicles, deals, communications, or work.");
+    expect(timelineMarkup).toContain("No recorded activity yet");
   });
 
   it("reflects a saved terminal workbench outcome on Customer 360", () => {
