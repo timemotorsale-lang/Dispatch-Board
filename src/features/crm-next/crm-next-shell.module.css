@@ -2216,6 +2216,173 @@
   color: #1d4ed8;
 }
 
+.customerLedger {
+  background: #ffffff;
+  border: 1px solid #dbe6f6;
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgb(15 42 84 / 7%);
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.customerLedger > header {
+  align-items: center;
+  border-bottom: 1px solid #e5edf8;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding-bottom: 12px;
+}
+
+.customerLedger h2,
+.customerLedger h3,
+.customerLedger p {
+  margin: 0;
+}
+
+.customerLedger h2 {
+  color: #071a3a;
+  font-size: 20px;
+  line-height: 1.2;
+  margin-top: 3px;
+}
+
+.customerLedger h3 {
+  color: #071a3a;
+  font-size: 15px;
+}
+
+.customerLedger p {
+  color: #52637a;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.ledgerStateGrid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.ledgerStateGrid article {
+  background: #f8fbff;
+  border: 1px solid #dbe6f6;
+  border-radius: 10px;
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px;
+}
+
+.ledgerStateGrid span,
+.customerLedger dt {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.ledgerStateGrid strong {
+  color: #071a3a;
+  font-size: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ledgerStateGrid small {
+  color: #52637a;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.ledgerColumns {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ledgerColumns > article {
+  align-content: start;
+  background: #fbfdff;
+  border: 1px solid #dbe6f6;
+  border-radius: 10px;
+  display: grid;
+  gap: 9px;
+  min-height: 150px;
+  min-width: 0;
+  padding: 11px;
+}
+
+.ledgerTimeline,
+.ledgerColumns dl {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+}
+
+.ledgerTimeline a,
+.ledgerColumns > article > a {
+  background: #ffffff;
+  border: 1px solid #e0e8f3;
+  border-radius: 8px;
+  color: #071a3a;
+  display: grid;
+  gap: 3px;
+  padding: 8px;
+  text-decoration: none;
+}
+
+.ledgerTimeline span {
+  color: #155dfc;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.ledgerTimeline strong,
+.ledgerColumns > article > a strong {
+  font-size: 13px;
+}
+
+.ledgerTimeline small,
+.ledgerColumns > article > a small {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.ledgerColumns dl div {
+  background: #ffffff;
+  border: 1px solid #e0e8f3;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.customerLedger dd {
+  color: #071a3a;
+  font-size: 13px;
+  font-weight: 850;
+  margin: 3px 0 0;
+}
+
+.ledgerExceptionList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ledgerExceptionList span {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 999px;
+  color: #9a3412;
+  font-size: 12px;
+  font-weight: 850;
+  padding: 5px 8px;
+}
+
 .nextBestAction {
   align-items: flex-start;
   background: #eef6ff;
@@ -6466,6 +6633,11 @@
   .customerJourneyRail,
   .journeyStageRail,
   .progressOutcomeBox {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ledgerStateGrid,
+  .ledgerColumns {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

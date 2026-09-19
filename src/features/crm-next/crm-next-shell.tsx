@@ -338,6 +338,28 @@ function customerJourneyStage(customer: CrmNextCustomer360, activeAttentionItem?
   return "New";
 }
 
+function customerRelationshipType(customer: CrmNextCustomer360, attentionItem?: CrmNextAttentionItem) {
+  const text = `${customer.name} ${customer.nextAction} ${attentionItem?.reason ?? ""} ${attentionItem?.nextAction ?? ""}`.toLowerCase();
+  if (/\b(transport|transporter|tow|towing|vendor|warranty|lender|auction)\b/.test(text)) return "Vendor / Partner";
+  if (customer.openDeals > 0 || /\b(deal|sale|sold|vehicle interest|retail)\b/.test(text)) return "Customer / Sales";
+  if (/\b(service|repair|ro\b|appointment)\b/.test(text)) return "Customer / Service";
+  if (/\b(title|document|paperwork|registration)\b/.test(text)) return "Customer / Document";
+  if (/\b(payment|finance|deposit|collections)\b/.test(text)) return "Customer / Finance";
+  return "Customer / General";
+}
+
+function customerSearchKeywords(customer: CrmNextCustomer360, attentionItem?: CrmNextAttentionItem) {
+  return [
+    customer.name,
+    customer.phone,
+    customer.email,
+    customer.vehicles.map((vehicle) => `${vehicle.label} ${vehicle.vin}`).join(" "),
+    customer.nextAction,
+    attentionItem?.reason,
+    attentionItem?.nextAction
+  ].filter(Boolean).join(" · ");
+}
+
 function customerWorkIssue(item: CrmNextAttentionItem) {
   const reason = item.reason.toLowerCase();
   const nextAction = item.nextAction || "Review customer record";
@@ -1941,6 +1963,17 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
     returnTo: `/crm-next/customers/${customer.id}`
   });
   const customerSalesWorkbenchHref = salesWorkbenchHref(customer);
+  const [savedCustomerStage] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const stored = window.localStorage.getItem(customerWorkbenchProgressStorageKey(customer.id));
+      if (!stored) return null;
+      const parsed = JSON.parse(stored) as { stage?: string };
+      return parsed.stage ?? null;
+    } catch {
+      return null;
+    }
+  });
   const customerMetrics = [
     { label: "Open Leads", value: customer.openDeals, detail: "Active", tone: "green" },
     { label: "Open Cases", value: customer.openCases, detail: "Active", tone: "red" },
@@ -2027,6 +2060,13 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
             </ol>
             <p className={styles.muted}>Stage changes should come from staff actions: calls, texts, appointments, CRM tasks, deal work, or a sold/lost decision.</p>
           </section>
+
+          <CustomerOperatingLedger
+            activeAttentionItem={activeAttentionItem}
+            customer={customer}
+            model={model}
+            savedStage={savedCustomerStage}
+          />
 
           <section className={styles.customerMetricGrid} aria-label="Customer operating metrics">
             {customerMetrics.map((metric) => (
@@ -2160,6 +2200,143 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
         </aside>
       </section>
     </CrmNextFrame>
+  );
+}
+
+function CustomerOperatingLedger({
+  activeAttentionItem,
+  customer,
+  model,
+  savedStage
+}: {
+  activeAttentionItem?: CrmNextAttentionItem;
+  customer: CrmNextCustomer360;
+  model: CrmNextCommandCenter;
+  savedStage: string | null;
+}) {
+  const customerTimelineEvents = verifiedTimelineEvents(model.timeline)
+    .filter((event) => event.detail.toLowerCase().includes(customer.name.toLowerCase()) || event.label.toLowerCase().includes(customer.name.toLowerCase()))
+    .slice(0, 4);
+  const fallbackEvents = [
+    ...customer.communications.map((item) => ({
+      detail: item.detail,
+      href: crmNextTimelineHref(customer.id),
+      id: item.id,
+      label: item.channel,
+      occurredAt: item.occurredAt,
+      source: "Communication" as const
+    })),
+    ...(activeAttentionItem ? [{
+      detail: activeAttentionItem.reason,
+      href: activeAttentionItem.workHref,
+      id: `${activeAttentionItem.id}-attention`,
+      label: activeAttentionItem.nextAction,
+      occurredAt: activeAttentionItem.age,
+      source: "Support" as const
+    }] : [])
+  ].slice(0, 4);
+  const ledgerEvents = customerTimelineEvents.length ? customerTimelineEvents : fallbackEvents;
+  const duplicateCandidates = model.customers
+    .filter((record) => record.id !== customer.id)
+    .filter((record) => record.name.toLowerCase() === customer.name.toLowerCase() || record.phone === customer.phone || record.email === customer.email)
+    .slice(0, 3);
+  const relationshipType = customerRelationshipType(customer, activeAttentionItem);
+  const currentStatus = savedStage && isTerminalJourneyStage(savedStage as CustomerJourneyStage) ? savedStage : customer.status;
+  const nextOwner = activeAttentionItem?.owner ?? "Unassigned";
+  const dueWindow = activeAttentionItem?.age ?? "No due date visible";
+  const hasOwnerException = nextOwner === "Unassigned";
+  const hasOverdueException = /overdue|missed|due/i.test(`${activeAttentionItem?.reason ?? ""} ${activeAttentionItem?.age ?? ""}`);
+  const hasDuplicateException = duplicateCandidates.length > 0;
+  const hasCloseoutException = savedStage && isTerminalJourneyStage(savedStage as CustomerJourneyStage) ? false : /delivered|resolved|closed|no action/i.test(customer.nextAction);
+  const managerExceptions = [
+    hasOwnerException ? "No owner assigned" : "",
+    hasOverdueException ? "Overdue or missed follow-up" : "",
+    hasDuplicateException ? "Possible duplicate record" : "",
+    hasCloseoutException ? "Closeout status may be missing" : ""
+  ].filter(Boolean);
+  const roleViews = [
+    { label: "Sales", value: customer.openDeals > 0 ? `${customer.openDeals} open deal(s)` : "No open deal" },
+    { label: "Service", value: customer.vehiclesOwned > 0 ? `${customer.vehiclesOwned} linked vehicle(s)` : "No linked vehicle" },
+    { label: "Finance", value: /payment|finance|deposit/i.test(customer.nextAction) ? "Finance attention" : "No finance blocker" },
+    { label: "Manager", value: managerExceptions.length ? `${managerExceptions.length} exception(s)` : "No exception" }
+  ];
+  const closeoutCopy = savedStage && isTerminalJourneyStage(savedStage as CustomerJourneyStage)
+    ? `${savedStage} recorded. Confirm note, owner, and any follow-up before archiving.`
+    : "Not closed yet. Record outcome, note, owner, and whether follow-up is required.";
+
+  return (
+    <section className={styles.customerLedger} aria-label="Customer operating ledger">
+      <header>
+        <div>
+          <span className={styles.eyebrow}>Customer Operating Ledger</span>
+          <h2>One record for status, next action, timeline, exceptions, and closeout.</h2>
+        </div>
+        <Link className={styles.secondaryButton} href={activeAttentionItem?.workHref ?? `/crm-next/work/customer-read-${encodeURIComponent(customer.id)}`}>Open workbench</Link>
+      </header>
+
+      <div className={styles.ledgerStateGrid}>
+        <article><span>Identity type</span><strong>{relationshipType}</strong><small>Customer/vendor path separated early.</small></article>
+        <article><span>Status</span><strong>{currentStatus}</strong><small>{savedStage ? "Workbench outcome reflected" : "Live customer source"}</small></article>
+        <article><span>Next owner</span><strong>{nextOwner}</strong><small>{activeAttentionItem?.nextAction ?? customer.nextAction}</small></article>
+        <article><span>Due / SLA</span><strong>{dueWindow}</strong><small>{hasOverdueException ? "Manager review signal" : "No overdue signal"}</small></article>
+      </div>
+
+      <div className={styles.ledgerColumns}>
+        <article>
+          <h3>Unified Timeline</h3>
+          <div className={styles.ledgerTimeline}>
+            {ledgerEvents.length ? ledgerEvents.map((event) => (
+              <Link href={event.href} key={event.id}>
+                <span>{event.source}</span>
+                <strong>{event.label}</strong>
+                <small>{event.detail} · {event.occurredAt}</small>
+              </Link>
+            )) : <p>No verified activity yet. Start with Check-In, note, task, appointment, or outcome.</p>}
+          </div>
+        </article>
+
+        <article>
+          <h3>Closeout Framework</h3>
+          <p>{closeoutCopy}</p>
+          <dl>
+            <div><dt>Outcome</dt><dd>{savedStage ?? "Open"}</dd></div>
+            <div><dt>Evidence</dt><dd>{ledgerEvents.length ? `${ledgerEvents.length} visible event(s)` : "Needs note or event"}</dd></div>
+            <div><dt>Follow-up</dt><dd>{activeAttentionItem ? activeAttentionItem.nextAction : "No open follow-up"}</dd></div>
+          </dl>
+        </article>
+
+        <article>
+          <h3>Duplicates & Relationships</h3>
+          {duplicateCandidates.length ? duplicateCandidates.map((record) => (
+            <Link href={`/crm-next/customers/${record.id}`} key={record.id}>
+              <strong>{record.name}</strong>
+              <small>{record.phone} · {record.email}</small>
+            </Link>
+          )) : <p>No matching name, phone, or email duplicate found in the visible list.</p>}
+        </article>
+
+        <article>
+          <h3>Role Views</h3>
+          <dl>
+            {roleViews.map((role) => <div key={role.label}><dt>{role.label}</dt><dd>{role.value}</dd></div>)}
+          </dl>
+        </article>
+
+        <article>
+          <h3>Search Coverage</h3>
+          <p>{customerSearchKeywords(customer, activeAttentionItem)}</p>
+          <Link className={styles.textLink} href={`/crm-next/search?q=${encodeURIComponent(customer.name)}`}>Search this record</Link>
+        </article>
+
+        <article>
+          <h3>Audit & Manager Exceptions</h3>
+          <p>Every future live update should record actor, source record, previous value, new value, reason, and timestamp.</p>
+          <div className={styles.ledgerExceptionList}>
+            {managerExceptions.length ? managerExceptions.map((exception) => <span key={exception}>{exception}</span>) : <span>No manager exception visible</span>}
+          </div>
+        </article>
+      </div>
+    </section>
   );
 }
 

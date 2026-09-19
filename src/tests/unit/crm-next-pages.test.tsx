@@ -169,6 +169,17 @@ describe("CRM Next pages", () => {
     expect(customer).toContain("Start Sales / Deal");
     expect(customer).toContain("workPath=sales-deal");
     expect(customer).toContain("category=retail-sale");
+    expect(customer).toContain("Customer Operating Ledger");
+    expect(customer).toContain("One record for status, next action, timeline, exceptions, and closeout.");
+    expect(customer).toContain("Identity type");
+    expect(customer).toContain("Next owner");
+    expect(customer).toContain("Due / SLA");
+    expect(customer).toContain("Unified Timeline");
+    expect(customer).toContain("Closeout Framework");
+    expect(customer).toContain("Duplicates &amp; Relationships");
+    expect(customer).toContain("Role Views");
+    expect(customer).toContain("Search Coverage");
+    expect(customer).toContain("Audit &amp; Manager Exceptions");
     expect(customer).toContain("Quick Actions");
     expect(customer).toContain('href="/crm-next/actions/log-call?customerId=michael-johnson"');
     expect(customer).toContain('href="/crm-next/actions/send-email?customerId=michael-johnson"');
