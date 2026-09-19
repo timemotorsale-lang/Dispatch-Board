@@ -155,10 +155,10 @@ export const CRM_ACTION_SOURCE_TRUTH = [
   {
     id: "upload-document",
     label: "Upload Doc",
-    owner: "Document storage",
-    source: "Customer documents",
-    staffMessage: "Document storage is not wired yet.",
-    status: "Not wired"
+    owner: "Customer document intake",
+    source: "Customer notes and document intake",
+    staffMessage: "Document context saves to the customer timeline; binary archive storage remains a future document-library layer.",
+    status: "Live"
   },
   {
     id: "disposition",

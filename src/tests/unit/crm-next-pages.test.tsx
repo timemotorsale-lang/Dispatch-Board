@@ -136,6 +136,7 @@ describe("CRM Next pages", () => {
     const newTaskAction = renderToStaticMarkup(await CrmNextActionPage({ params: Promise.resolve({ actionId: "new-task" }) }));
     const emailAction = renderToStaticMarkup(await CrmNextActionPage({ params: Promise.resolve({ actionId: "send-email" }) }));
     const caseAction = renderToStaticMarkup(await CrmNextActionPage({ params: Promise.resolve({ actionId: "new-case" }), searchParams: Promise.resolve({ customerId: "michael-johnson" }) }));
+    const uploadAction = renderToStaticMarkup(await CrmNextActionPage({ params: Promise.resolve({ actionId: "upload-document" }), searchParams: Promise.resolve({ customerId: "michael-johnson" }) }));
     const newCustomer = renderToStaticMarkup(await CrmNextNewCustomerPage());
 
     expect(command).toContain("Who needs attention?");
@@ -242,6 +243,11 @@ describe("CRM Next pages", () => {
     expect(work).toContain("Credit App");
     expect(work).toContain("Journal Entries");
     expect(work).toContain("Logs");
+    expect(work).toContain("File upload");
+    expect(work).toContain("Attach customer files to this workbench");
+    expect(work).toContain("Choose files");
+    expect(work).toContain("Open document workflow");
+    expect(work).toContain('href="/crm-next/actions/upload-document?customerId=attn-michael-overdue-follow-up"');
     expect(work).toContain("Next Appt.");
     expect(work).toContain("Last Contacted");
     expect(work).toContain("Days Since Activity");
@@ -325,7 +331,7 @@ describe("CRM Next pages", () => {
     expect(newCustomer).toContain("Prospect");
     expect(newCustomer).toContain("Save customer");
     expect(newCustomer).toContain("Shared customer record");
-    for (const staffMarkup of [command, attention, customer, search, timeline, pipeline, appointments, testDrives, deals, ownershipSupport, sharedExecution, intelligence, leadSourceReport, work, logCallAction, newTaskAction, emailAction, newCustomer]) {
+    for (const staffMarkup of [command, attention, customer, search, timeline, pipeline, appointments, testDrives, deals, ownershipSupport, sharedExecution, intelligence, leadSourceReport, work, logCallAction, newTaskAction, emailAction, uploadAction, newCustomer]) {
       expect(staffMarkup).toContain("Customers console");
       expect(staffMarkup).toContain('href="/customers"');
       expect(staffMarkup).not.toContain("CRMN-");
@@ -471,6 +477,11 @@ describe("CRM Next pages", () => {
     expect(caseAction).toContain("Case+reminder+%2F+SLA+follow-up");
     expect(caseAction).toContain("Manager review is triggered");
     expect(caseAction).toContain('data-success-message="Case prepared for Customer record unavailable');
+    expect(uploadAction).toContain("Upload customer document");
+    expect(uploadAction).toContain("Choose files");
+    expect(uploadAction).toContain("Save Document Record");
+    expect(uploadAction).toContain("Document context saves to the customer timeline");
+    expect(uploadAction).toContain('data-success-message="Document record saved to Customer record unavailable');
   });
 
   it("renders the executable revenue desk without staff review workflow language", async () => {

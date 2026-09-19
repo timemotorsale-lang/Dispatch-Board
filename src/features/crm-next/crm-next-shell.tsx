@@ -75,7 +75,7 @@ function crmNextActionLabel(actionId: string) {
 }
 
 function validReturnAction(actionId?: string) {
-  return ["add-note", "new-task", "new-case", "log-call", "schedule-appointment"].includes(actionId ?? "") ? actionId : undefined;
+  return ["add-note", "new-task", "new-case", "log-call", "schedule-appointment", "upload-document"].includes(actionId ?? "") ? actionId : undefined;
 }
 
 function crmNextTimelineHref(customerId?: string) {
@@ -149,12 +149,12 @@ function directActionWorkspace(action: CrmNextOperatingAction, customerName: str
   }
   if (action.id === "upload-document") {
     return {
-      button: "Upload when document storage is wired",
+      button: "Save Document Record",
       fields: [
         { label: "Document type", placeholder: "Insurance, ID, title, proof, or other customer document" },
-        { label: "Notes", placeholder: "Document storage is not wired yet. Upload context will stay attached here." }
+        { label: "Notes", placeholder: "What is this file proving or supporting?" }
       ],
-      status: "Document upload is not wired yet. This action remains customer-specific and ready for the approved document workflow.",
+      status: "Choose the file, classify it, and save the document record to the customer timeline.",
       title: "Upload customer document"
     };
   }
@@ -2512,6 +2512,8 @@ export function CrmNextActionReadinessView({ action, customerId, model }: { acti
       ? `Case prepared for ${customerDisplayName} with reminder, task, queue, and escalation routing.`
       : action.id === "new-task"
         ? `CRM task saved for ${customerDisplayName}.`
+        : action.id === "upload-document"
+          ? `Document record saved to ${customerDisplayName}'s CRM timeline.`
         : `${action.label} saved for ${customerDisplayName}.`;
   const canUseDirectAction = isLiveAction && Boolean(relatedCustomer);
   const actionStatusLabel = missingRequestedCustomer ? "Needs customer context" : actionTruth.status;
@@ -2985,7 +2987,14 @@ export function CrmNextWorkCustomerView({
               </div>
             </section>
 
-            <CrmNextWorkbenchSections currentNeed={item.nextAction} dealEvidence={dealEvidence} doneMeaning={issue.done} />
+            <CrmNextWorkbenchSections
+              currentNeed={item.nextAction}
+              customerId={item.customerId}
+              customerName={item.customerName}
+              dealEvidence={dealEvidence}
+              documentActionHref={crmNextActionHref("upload-document", item.customerId)}
+              doneMeaning={issue.done}
+            />
 
             <CrmNextInlineTaskComposer
               appointmentHref={crmNextCustomerAppointmentHref({
