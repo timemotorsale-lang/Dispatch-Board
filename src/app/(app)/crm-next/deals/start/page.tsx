@@ -3,7 +3,11 @@ import { requireCurrentUser } from "@/server/auth/current-user";
 import { resolveCrmNextAccess } from "@/server/crm-next/access";
 import { getCrmNextOperationalCommandCenter } from "@/server/crm-next/read-model";
 
-export default async function CrmNextDealStartPage() {
+type CrmNextDealStartPageProps = {
+  searchParams?: Promise<{ customerId?: string }>;
+};
+
+export default async function CrmNextDealStartPage({ searchParams }: CrmNextDealStartPageProps = {}) {
   const user = await requireCurrentUser();
   const access = resolveCrmNextAccess(user);
 
@@ -11,5 +15,6 @@ export default async function CrmNextDealStartPage() {
     return <CrmNextUnavailable fallbackHref={access.fallbackHref} reason={access.reason} />;
   }
 
-  return <CrmNextDealStartView model={await getCrmNextOperationalCommandCenter(user)} />;
+  const resolvedSearchParams = await searchParams;
+  return <CrmNextDealStartView initialCustomerId={resolvedSearchParams?.customerId} model={await getCrmNextOperationalCommandCenter(user)} />;
 }

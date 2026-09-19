@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useRef, useState } from "react";
 import {
   ArrowLeft,
   Bell,
@@ -23,10 +26,11 @@ import {
 
 import { CrmNextIntakeForm } from "@/features/crm-next/crm-next-intake-form";
 import { CrmNextActivityFilterTabs } from "@/features/crm-next/crm-next-activity-filter-tabs";
-import { CrmNextDealStartTool } from "@/features/crm-next/crm-next-deal-start-tool";
+import { CrmNextDealStartTool, crmNextDealDraftStorageKey, type CrmNextDealDraft } from "@/features/crm-next/crm-next-deal-start-tool";
 import { CrmNextDirectActionForm } from "@/features/crm-next/crm-next-direct-action-form";
 import { CrmNextInlineTaskComposer } from "@/features/crm-next/crm-next-inline-task-composer";
 import { CrmNextWorkbenchSections } from "@/features/crm-next/crm-next-workbench-sections";
+import { normalizeCrmWorkPathId, type CrmWorkPathId } from "@/features/crm-next/crm-next-work-paths";
 import {
   CRM_CUSTOMER_LANDING_HREF,
   CRM_NEXT_DEAL_START_HREF,
@@ -57,12 +61,29 @@ function crmNextActionHref(actionId: string, customerId?: string) {
   return customerId ? `${baseHref}?customerId=${encodeURIComponent(customerId)}` : baseHref;
 }
 
+function crmNextActionSearchHref(actionId: string) {
+  return `/crm-next/search?returnAction=${encodeURIComponent(actionId)}`;
+}
+
+function crmNextActionLabel(actionId: string) {
+  if (actionId === "add-note") return "Add Note";
+  if (actionId === "new-task") return "Create CRM Task";
+  if (actionId === "new-case") return "New Case";
+  if (actionId === "log-call") return "Log Call";
+  if (actionId === "schedule-appointment") return "Schedule Appointment";
+  return "CRM action";
+}
+
+function validReturnAction(actionId?: string) {
+  return ["add-note", "new-task", "new-case", "log-call", "schedule-appointment"].includes(actionId ?? "") ? actionId : undefined;
+}
+
 function crmNextTimelineHref(customerId?: string) {
   return customerId ? `/crm-next/timeline?customerId=${encodeURIComponent(customerId)}` : "/crm-next/timeline";
 }
 
-function salesWorkbenchHref(customerId: string) {
-  return `/sales?workspace=guided&customerId=${encodeURIComponent(customerId)}&returnTo=${encodeURIComponent(`/crm-next/customers/${customerId}`)}`;
+function salesWorkbenchHref(customer: CrmNextCustomer360) {
+  return `/sales?workspace=guided&customerId=${encodeURIComponent(customer.id)}&customerName=${encodeURIComponent(customer.name)}&returnTo=${encodeURIComponent(`/crm-next/customers/${customer.id}`)}`;
 }
 
 function directActionWorkspace(action: CrmNextOperatingAction, customerName: string, nextAction: string) {
@@ -145,13 +166,254 @@ function directActionWorkspace(action: CrmNextOperatingAction, customerName: str
   };
 }
 
-const CUSTOMER_JOURNEY_STAGES = ["New", "Contact Attempt", "Contacted", "Appointment Scheduled", "Working Deal", "Missed Appt.", "Visit Follow-up", "Sold", "Lost"] as const;
+const CRM_WORK_PATHS = {
+  "customer-follow-up": {
+    completeStage: "Resolved",
+    detailLabel: "Follow-up Evidence",
+    label: "Customer Follow-up",
+    primaryAction: "Update follow-up",
+    progressActive: "Review follow-up",
+    summaryLabel: "Issue",
+    stages: ["New", "Contact Attempt", "Contacted", "Follow-up Needed", "Resolved", "Closed", "No Action Needed"]
+  },
+  "delivery-transport": {
+    completeStage: "Delivered",
+    detailLabel: "Delivery Evidence",
+    label: "Delivery / Transport",
+    primaryAction: "Record delivery",
+    progressActive: "Complete delivery",
+    summaryLabel: "Delivery",
+    stages: ["Requested", "Assigned", "Scheduled", "In Transit", "Delivered", "Resolved", "Closed", "No Action Needed"]
+  },
+  "finance-payment": {
+    completeStage: "Resolved",
+    detailLabel: "Payment Evidence",
+    label: "Finance / Payment",
+    primaryAction: "Update payment issue",
+    progressActive: "Resolve payment",
+    summaryLabel: "Payment",
+    stages: ["New", "Reviewed", "Promise Made", "Waiting Payment", "Resolved", "Closed", "No Action Needed"]
+  },
+  "general-issue": {
+    completeStage: "Resolved",
+    detailLabel: "Issue Evidence",
+    label: "General Issue",
+    primaryAction: "Update issue",
+    progressActive: "Resolve issue",
+    summaryLabel: "Issue",
+    stages: ["Open", "Reviewed", "Waiting", "Resolved", "Closed", "No Action Needed"]
+  },
+  "sales-deal": {
+    completeStage: "Sold",
+    detailLabel: "Deal Evidence",
+    label: "Sales / Deal",
+    primaryAction: "Start deal",
+    progressActive: "Start deal",
+    summaryLabel: "Deals",
+    stages: ["New", "Contact Attempt", "Contacted", "Appointment Scheduled", "Working Deal", "Missed Appt.", "Visit Follow-up", "Sold", "Lost"]
+  },
+  "service-repair": {
+    completeStage: "Completed",
+    detailLabel: "Service Evidence",
+    label: "Service / Repair",
+    primaryAction: "Update service",
+    progressActive: "Complete service",
+    summaryLabel: "Service",
+    stages: ["Intake", "Diagnosed", "Waiting Approval", "In Progress", "Ready", "Completed", "Resolved", "Closed", "No Action Needed"]
+  },
+  "title-document": {
+    completeStage: "Resolved",
+    detailLabel: "Document Evidence",
+    label: "Title / Document",
+    primaryAction: "Update document issue",
+    progressActive: "Resolve document",
+    summaryLabel: "Documents",
+    stages: ["Open", "Reviewed", "Waiting Document", "Ready", "Resolved", "Closed", "No Action Needed"]
+  },
+  "vendor-partner": {
+    completeStage: "Resolved",
+    detailLabel: "Vendor Evidence",
+    label: "Vendor / Partner",
+    primaryAction: "Update vendor issue",
+    progressActive: "Resolve vendor issue",
+    summaryLabel: "Vendor Work",
+    stages: ["Open", "Assigned", "Waiting Vendor", "Completed", "Resolved", "Closed", "No Action Needed"]
+  }
+} as const;
+
+type CustomerJourneyStage = typeof CRM_WORK_PATHS[CrmWorkPathId]["stages"][number];
+
+const CRM_DEALERSHIP_WORK_CATEGORIES = [
+  { id: "retail-sale", label: "Retail sale / purchase", path: "sales-deal", summary: "Shopping, working numbers, deal creation, or sold/lost decision." },
+  { id: "lead-follow-up", label: "Lead follow-up", path: "customer-follow-up", summary: "Follow up with a lead, prospect, or previous conversation." },
+  { id: "appointment-follow-up", label: "Appointment follow-up", path: "customer-follow-up", summary: "Confirm, reschedule, or follow through after an appointment." },
+  { id: "vehicle-delivery", label: "Vehicle delivery / transport", path: "delivery-transport", summary: "Transporter, pickup, drop-off, delivery promise, or handoff close-out." },
+  { id: "service-repair", label: "Service / repair", path: "service-repair", summary: "Repair order, service visit, diagnosis, approval, or vehicle-ready update." },
+  { id: "title-registration", label: "Title / registration", path: "title-document", summary: "Title, lien, registration, plates, paperwork, or document blocker." },
+  { id: "finance-payment", label: "Finance / payment", path: "finance-payment", summary: "Deposit, down payment, collections, promise-to-pay, or lender issue." },
+  { id: "document-upload", label: "Document / proof collection", path: "title-document", summary: "Collect ID, insurance, proof, signed form, or other required document." },
+  { id: "customer-issue", label: "Customer issue / complaint", path: "general-issue", summary: "Complaint, support case, blocker, or customer concern needing resolution." },
+  { id: "vendor-partner", label: "Vendor / partner", path: "vendor-partner", summary: "Tow company, warranty company, transporter, auction, or outside party work." },
+  { id: "ownership-support", label: "Ownership support", path: "customer-follow-up", summary: "Post-sale ownership help, customer care, or continuity follow-up." },
+  { id: "general-work", label: "General work / other", path: "general-issue", summary: "Use when the customer or vendor needs help but no specific category fits." }
+] as const satisfies Array<{ id: string; label: string; path: CrmWorkPathId; summary: string }>;
+
+type CrmWorkCategoryId = typeof CRM_DEALERSHIP_WORK_CATEGORIES[number]["id"];
+
+function normalizeCrmWorkCategoryId(value: string | null | undefined): CrmWorkCategoryId | null {
+  return CRM_DEALERSHIP_WORK_CATEGORIES.some((category) => category.id === value) ? value as CrmWorkCategoryId : null;
+}
+
+function crmWorkCategoryStorageKey(customerId: string) {
+  return `crm-next:work-category:${customerId}`;
+}
+
+function crmWorkCategoryById(categoryId: CrmWorkCategoryId) {
+  return CRM_DEALERSHIP_WORK_CATEGORIES.find((category) => category.id === categoryId) ?? CRM_DEALERSHIP_WORK_CATEGORIES[0];
+}
+
+function crmWorkPathStorageKey(customerId: string) {
+  return `crm-next:work-path:${customerId}`;
+}
+
+function workbenchCheckInHref(baseHref: string, path: CrmWorkPathId, categoryId?: CrmWorkCategoryId) {
+  const joiner = baseHref.includes("?") ? "&" : "?";
+  const query = new URLSearchParams({ workPath: path });
+  if (categoryId) query.set("category", categoryId);
+  return `${baseHref}${joiner}${query.toString()}`;
+}
+
+function inferCrmWorkPath(item: Pick<CrmNextAttentionItem, "area" | "customerName" | "nextAction" | "reason">): CrmWorkPathId {
+  const text = `${item.customerName} ${item.reason} ${item.nextAction} ${item.area}`.toLowerCase();
+  if (/\b(transport|transporter|tow|towing|delivery|delivered|pickup|pick up|drop[- ]?off|vendor)\b/.test(text)) return "delivery-transport";
+  if (/\b(service|repair|diagnos|appointment|ro\b|mechanic)\b/.test(text)) return "service-repair";
+  if (/\b(payment|promise|finance|collections|down payment|deposit)\b/.test(text)) return "finance-payment";
+  if (/\b(title|document|paperwork|registration|lien|license)\b/.test(text)) return "title-document";
+  if (/\b(case|issue|complaint|support|problem|resolved)\b/.test(text)) return "general-issue";
+  return "sales-deal";
+}
+
+function readCrmWorkPath(item: CrmNextAttentionItem, preferredPath?: CrmWorkPathId): CrmWorkPathId {
+  if (preferredPath) return preferredPath;
+  if (typeof window !== "undefined") {
+    try {
+      const stored = normalizeCrmWorkPathId(window.localStorage.getItem(crmWorkPathStorageKey(item.customerId)));
+      if (stored) return stored;
+    } catch {
+      // Path inference still keeps the workbench usable when local storage is unavailable.
+    }
+  }
+  return inferCrmWorkPath(item);
+}
+
+function normalizeJourneyStage(stage: string | undefined, path: CrmWorkPathId): CustomerJourneyStage {
+  const stages = CRM_WORK_PATHS[path].stages;
+  if (stage && (stages as readonly string[]).includes(stage)) return stage as CustomerJourneyStage;
+  if (path !== "sales-deal" && stage === "Sold") return CRM_WORK_PATHS[path].completeStage as CustomerJourneyStage;
+  if (path !== "sales-deal" && stage === "Lost") return "Closed" as CustomerJourneyStage;
+  return stages[Math.min(2, stages.length - 1)] as CustomerJourneyStage;
+}
+
+function isTerminalJourneyStage(stage: CustomerJourneyStage) {
+  return ["Closed", "Completed", "Delivered", "Lost", "No Action Needed", "Resolved", "Sold"].includes(stage);
+}
+
+function customerWorkbenchProgressStorageKey(customerId: string) {
+  return `crm-next:workbench:${customerId}:progress`;
+}
+
+function isKnownJourneyStage(stage: string | undefined): stage is CustomerJourneyStage {
+  if (!stage) return false;
+  return Object.values(CRM_WORK_PATHS).some((path) => (path.stages as readonly string[]).includes(stage));
+}
+
+function readCustomerWorkbenchProgress(customerId: string) {
+  if (!customerId || typeof window === "undefined") return null;
+  try {
+    const stored = window.localStorage.getItem(customerWorkbenchProgressStorageKey(customerId));
+    if (!stored) return null;
+    const parsed = JSON.parse(stored) as { notice?: string; stage?: string };
+    return {
+      notice: typeof parsed.notice === "string" ? parsed.notice : "",
+      stage: isKnownJourneyStage(parsed.stage) ? parsed.stage : undefined
+    };
+  } catch {
+    return null;
+  }
+}
+
+function customer360Href(customerId: string) {
+  return `/crm-next/customers/${encodeURIComponent(customerId)}`;
+}
+
+function customerDisplayStatus(customer: CrmNextCustomer360, savedStage?: CustomerJourneyStage) {
+  return savedStage && isTerminalJourneyStage(savedStage) ? savedStage : customer.status;
+}
+
+function normalizedCustomerIdentityValue(value: string) {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized || normalized === "not recorded" || normalized.includes("not recorded")) return "";
+  return normalized;
+}
+
+function customerDuplicateKeys(customer: CrmNextCustomer360) {
+  return [
+    normalizedCustomerIdentityValue(customer.name),
+    normalizedCustomerIdentityValue(customer.phone),
+    normalizedCustomerIdentityValue(customer.email)
+  ].filter(Boolean);
+}
+
+function isAppointmentStage(stage: CustomerJourneyStage) {
+  return ["Appointment Scheduled", "Missed Appt.", "Scheduled", "Visit Follow-up"].includes(stage);
+}
+
+function isDealStage(stage: CustomerJourneyStage) {
+  return ["Lost", "Sold", "Working Deal"].includes(stage);
+}
+
 function customerJourneyStage(customer: CrmNextCustomer360, activeAttentionItem?: CrmNextAttentionItem) {
   const nextAction = `${customer.nextAction} ${activeAttentionItem?.nextAction ?? ""}`.toLowerCase();
   if (customer.openDeals > 0 || nextAction.includes("deal")) return "Working Deal";
   if (nextAction.includes("appointment") || nextAction.includes("schedule")) return "Appointment Scheduled";
   if (customer.communications.length > 0 || nextAction.includes("call") || nextAction.includes("contact")) return "Contacted";
   return "New";
+}
+
+function customerRelationshipType(customer: CrmNextCustomer360, attentionItem?: CrmNextAttentionItem) {
+  const text = `${customer.name} ${customer.nextAction} ${attentionItem?.reason ?? ""} ${attentionItem?.nextAction ?? ""}`.toLowerCase();
+  if (/\b(transport|transporter|tow|towing|vendor|warranty|lender|auction)\b/.test(text)) return "Vendor / Partner";
+  if (customer.openDeals > 0 || /\b(deal|sale|sold|vehicle interest|retail)\b/.test(text)) return "Customer / Sales";
+  if (/\b(service|repair|ro\b|appointment)\b/.test(text)) return "Customer / Service";
+  if (/\b(title|document|paperwork|registration)\b/.test(text)) return "Customer / Document";
+  if (/\b(payment|finance|deposit|collections)\b/.test(text)) return "Customer / Finance";
+  return "Customer / General";
+}
+
+function customerDirectoryCategory(customer: CrmNextCustomer360, attentionItem?: CrmNextAttentionItem) {
+  const text = `${customer.name} ${customer.nextAction} ${attentionItem?.reason ?? ""} ${attentionItem?.nextAction ?? ""}`.toLowerCase();
+  if (/\b(transport|transporter|tow|towing|vendor|warranty|lender|auction)\b/.test(text)) return "Vendor";
+  if (/\b(service|repair|ro\b|appointment)\b/.test(text)) return "Service";
+  if (/\b(title|document|paperwork|registration|proof|upload)\b/.test(text)) return "Docs";
+  if (/\b(payment|finance|deposit|collections)\b/.test(text)) return "Finance";
+  if (customer.openDeals > 0 || attentionItem?.area === "Sales" || /\b(deal|sale|sold|vehicle interest|retail)\b/.test(text)) return "Sales";
+  if (attentionItem?.area === "Service") return "Service";
+  if (attentionItem?.area === "Finance") return "Finance";
+  if (attentionItem?.area === "Support") return "Support";
+  if (/\b(overdue|follow[- ]?up|call back|check in|contact)\b/.test(text)) return "Follow-up";
+  return "General";
+}
+
+function customerSearchKeywords(customer: CrmNextCustomer360, attentionItem?: CrmNextAttentionItem) {
+  return [
+    customer.name,
+    customer.phone,
+    customer.email,
+    customer.vehicles.map((vehicle) => `${vehicle.label} ${vehicle.vin}`).join(" "),
+    customer.nextAction,
+    attentionItem?.reason,
+    attentionItem?.nextAction
+  ].filter(Boolean).join(" · ");
 }
 
 function customerWorkIssue(item: CrmNextAttentionItem) {
@@ -194,6 +456,98 @@ function customerWorkIssue(item: CrmNextAttentionItem) {
 
 function verifiedTimelineEvents(events: CrmNextCommandCenter["timeline"]) {
   return events.filter((event) => Boolean(event.sourceRecordId));
+}
+
+type WorkbenchDealEvidence = {
+  detail: string;
+  label: string;
+  source: string;
+  started: boolean;
+  vehicle?: string;
+};
+
+function readWorkbenchDealDraft(customerId: string): CrmNextDealDraft | null {
+  if (!customerId || typeof window === "undefined") return null;
+  try {
+    const stored = window.localStorage.getItem(crmNextDealDraftStorageKey(customerId));
+    return stored ? JSON.parse(stored) as CrmNextDealDraft : null;
+  } catch {
+    return null;
+  }
+}
+
+function vehicleFromTimeline(events: CrmNextCommandCenter["timeline"]) {
+  const vehicleLike = events.find((event) =>
+    Boolean(event.sourceRecordId) &&
+    (
+      event.source === "Vehicle" ||
+      event.source === "Opportunity" ||
+      /\b(19|20)\d{2}\b.*\b(vehicle|jeep|ford|chevrolet|toyota|honda|hyundai|nissan|kia|cherokee|elantra|camry|accord|suv|sedan|truck)\b/i.test(`${event.label} ${event.detail}`)
+    )
+  );
+  return vehicleLike ? `${vehicleLike.label}: ${vehicleLike.detail}` : "";
+}
+
+function salesRecordForCustomer(records: CrmNextSalesRecord[], item: CrmNextAttentionItem) {
+  return records.find((record) =>
+    record.customerName.toLowerCase() === item.customerName.toLowerCase() ||
+    record.href.includes(encodeURIComponent(item.customerId))
+  );
+}
+
+function sourceDealEvidence(model: CrmNextCommandCenter, item: CrmNextAttentionItem): WorkbenchDealEvidence {
+  const customers = model.customers ?? [];
+  const sales = model.sales ?? { deals: [], opportunities: [] };
+  const customer = customers.find((record) => record.id === item.customerId || record.name === item.customerName);
+  const dealRecord = salesRecordForCustomer(sales.deals ?? [], item) ?? salesRecordForCustomer(sales.opportunities ?? [], item);
+  const linkedVehicle = customer?.vehicles[0]?.label;
+  const timelineVehicle = vehicleFromTimeline(model.timeline ?? []);
+
+  if (dealRecord) {
+    return {
+      detail: `${dealRecord.stage} · ${dealRecord.vehicle || "Vehicle pending"}`,
+      label: "Deal started",
+      source: "Deal workspace",
+      started: true,
+      vehicle: dealRecord.vehicle
+    };
+  }
+
+  if ((customer?.openDeals ?? 0) > 0) {
+    return {
+      detail: `${customer?.openDeals ?? 0} open deal${customer?.openDeals === 1 ? "" : "s"} on Customer 360`,
+      label: "Deal started",
+      source: "Customer 360",
+      started: true,
+      vehicle: linkedVehicle
+    };
+  }
+
+  if (linkedVehicle) {
+    return {
+      detail: `Vehicle selected: ${linkedVehicle}`,
+      label: "Vehicle selected",
+      source: "Customer 360",
+      started: true,
+      vehicle: linkedVehicle
+    };
+  }
+
+  if (timelineVehicle) {
+    return {
+      detail: timelineVehicle,
+      label: "Vehicle selected",
+      source: "Customer timeline",
+      started: true
+    };
+  }
+
+  return {
+    detail: "No deal or vehicle evidence is visible on this workbench yet.",
+    label: "Start deal",
+    source: "Workbench",
+    started: false
+  };
 }
 
 export function CrmNextUnavailable({ fallbackHref, reason }: { fallbackHref: string; reason: CrmNextAccessReason }) {
@@ -273,11 +627,12 @@ function CrmNextFrame({ active, children, userName }: { active: "command" | "new
   );
 }
 
-function Topbar({ defaultQuery = "" }: { defaultQuery?: string }) {
+function Topbar({ defaultQuery = "", returnAction }: { defaultQuery?: string; returnAction?: string }) {
   return (
     <div className={styles.topbar}>
       <form action="/crm-next/search" className={styles.search} role="search">
         <Search size={20} aria-hidden="true" />
+        {returnAction ? <input name="returnAction" type="hidden" value={returnAction} /> : null}
         <input
           aria-label="Search customer records"
           defaultValue={defaultQuery}
@@ -527,6 +882,40 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
 }
 
 export function CrmNextCustomersListView({ model }: { model: CrmNextCommandCenter }) {
+  const hasVerifiedCustomers = model.customers.length > 0;
+  const [savedCustomerProgress] = useState<Record<string, { notice: string; stage?: CustomerJourneyStage }>>(() => {
+    const nextProgress: Record<string, { notice: string; stage?: CustomerJourneyStage }> = {};
+    if (typeof window === "undefined") return nextProgress;
+    for (const customer of model.customers) {
+      const storedProgress = readCustomerWorkbenchProgress(customer.id);
+      if (storedProgress?.stage) nextProgress[customer.id] = storedProgress;
+    }
+    return nextProgress;
+  });
+  const duplicateBuckets = new Map<string, string[]>();
+  for (const customer of model.customers) {
+    for (const key of customerDuplicateKeys(customer)) {
+      duplicateBuckets.set(key, [...(duplicateBuckets.get(key) ?? []), customer.id]);
+    }
+  }
+  const duplicateCustomerIds = new Set(
+    [...duplicateBuckets.values()]
+      .filter((ids) => ids.length > 1)
+      .flat()
+  );
+  const customerHealth = {
+    closed: model.customers.filter((customer) => {
+      const savedStage = savedCustomerProgress[customer.id]?.stage;
+      return Boolean(savedStage && isTerminalJourneyStage(savedStage));
+    }).length,
+    duplicates: duplicateCustomerIds.size,
+    missingOwner: model.customers.filter((customer) => {
+      const attentionItem = model.attention.find((item) => item.customerId === customer.id);
+      return !attentionItem?.owner || attentionItem.owner === "Unassigned";
+    }).length,
+    visible: model.customers.length
+  };
+
   return (
     <CrmNextFrame active="customers" userName={model.userName}>
       <Topbar />
@@ -544,18 +933,48 @@ export function CrmNextCustomersListView({ model }: { model: CrmNextCommandCente
       </section>
 
       <section className={styles.customerDirectoryGrid}>
+        <details className={styles.customerToolsDrawer}>
+          <summary>
+            <span>
+              <strong>Customer tools</strong>
+              <small>Add, search, review attention, or open pipeline without narrowing the list.</small>
+            </span>
+            <ChevronRight size={18} />
+          </summary>
+          <div className={styles.miniActionList}>
+            <Link href="/crm-next/new"><UserPlus size={16} /> Add a customer or prospect</Link>
+            <Link href="/crm-next/pipeline"><Target size={16} /> Open leads and pipeline</Link>
+            <Link href="/crm-next/needs-attention"><Bell size={16} /> View customers needing attention</Link>
+            <Link href="/crm-next/search"><Search size={16} /> Search all customer records</Link>
+          </div>
+        </details>
+        <section className={styles.customerConsoleGuardrails} aria-label="Customer console hardening checks">
+          <article><span>Visible records</span><strong>{customerHealth.visible}</strong><small>Live customer source</small></article>
+          <article><span>Need owner</span><strong>{customerHealth.missingOwner}</strong><small>Assign before handoff</small></article>
+          <article><span>Possible duplicates</span><strong>{customerHealth.duplicates}</strong><small>Name, phone, or email match</small></article>
+          <article><span>Closed locally</span><strong>{customerHealth.closed}</strong><small>Workbench outcome saved</small></article>
+        </section>
         <article className={`${styles.card} ${styles.directoryCard}`}>
           <header>
             <h2>Customer List</h2>
             <span className={styles.pill}>{model.customers.length} visible</span>
           </header>
           <div className={styles.directoryRows}>
-            {model.customers.map((customer) => {
+            {hasVerifiedCustomers ? model.customers.map((customer) => {
               const activeAttentionItem = model.attention.find((item) => item.customerId === customer.id);
               const attendHref = activeAttentionItem?.workHref ?? `/crm-next/work/customer-read-${encodeURIComponent(customer.id)}`;
+              const savedStage = savedCustomerProgress[customer.id]?.stage;
+              const displayStatus = customerDisplayStatus(customer, savedStage);
+              const statusTone = displayStatus === "Active" ? "active" : "closed";
+              const customerCategory = customerDirectoryCategory(customer, activeAttentionItem);
+              const rowIssues = [
+                !activeAttentionItem?.owner || activeAttentionItem.owner === "Unassigned" ? "Needs owner" : "",
+                duplicateCustomerIds.has(customer.id) ? "Possible duplicate" : "",
+                statusTone === "closed" ? "Closed locally" : ""
+              ].filter(Boolean);
               return (
-                <article className={styles.directoryRow} key={customer.id}>
-                  <Link className={styles.directoryIdentity} href={`/crm-next/customers/${customer.id}`}>
+                <article className={styles.directoryRow} data-status={statusTone} key={customer.id}>
+                  <Link className={styles.directoryIdentity} href={customer360Href(customer.id)}>
                     <span className={styles.avatar}>{initials(customer.name)}</span>
                     <span>
                       <strong>{customer.name}</strong>
@@ -563,34 +982,54 @@ export function CrmNextCustomersListView({ model }: { model: CrmNextCommandCente
                     </span>
                   </Link>
                   <dl>
+                    <div><dt>Category</dt><dd>{customerCategory}</dd></div>
                     <div><dt>Owner</dt><dd>{activeAttentionItem?.owner ?? "Unassigned"}</dd></div>
                     <div><dt>Risk</dt><dd>{customer.riskLevel}</dd></div>
-                    <div><dt>Status</dt><dd>{customer.status}</dd></div>
+                    <div><dt>Status</dt><dd>{displayStatus}</dd></div>
                     <div><dt>Next</dt><dd>{customer.nextAction}</dd></div>
                   </dl>
+                  <div className={styles.directoryIssueList} aria-label={`${customer.name} data checks`}>
+                    {rowIssues.length ? rowIssues.map((issue) => <span key={issue}>{issue}</span>) : <span data-empty="true">Clear</span>}
+                  </div>
                   <div className={styles.directoryActions}>
-                    <Link className={styles.secondaryButton} href={`/crm-next/customers/${customer.id}`}>Open</Link>
+                    <Link className={styles.secondaryButton} href={customer360Href(customer.id)}>Open</Link>
                     <Link className={styles.primaryButton} href={attendHref}>Attend</Link>
                   </div>
                 </article>
               );
-            })}
+            }) : (
+              <CrmNextEmptyCustomerSourcePanel />
+            )}
           </div>
         </article>
-
-        <aside className={styles.directorySide}>
-          <article className={styles.sidePanel}>
-            <h2>Customer tools</h2>
-            <div className={styles.miniActionList}>
-              <Link href="/crm-next/new"><UserPlus size={16} /> Add a customer or prospect</Link>
-              <Link href="/crm-next/pipeline"><Target size={16} /> Open leads and pipeline</Link>
-              <Link href="/crm-next/needs-attention"><Bell size={16} /> View customers needing attention</Link>
-              <Link href="/crm-next/search"><Search size={16} /> Search all customer records</Link>
-            </div>
-          </article>
-        </aside>
       </section>
     </CrmNextFrame>
+  );
+}
+
+function CrmNextEmptyCustomerSourcePanel({ actionId }: { actionId?: string }) {
+  const actionLabel = crmNextActionLabel(actionId ?? "");
+  const newCustomerHref = actionId
+    ? `/crm-next/new?returnAction=${encodeURIComponent(actionId)}`
+    : "/crm-next/new";
+
+  return (
+    <article className={styles.emptyCustomerSource}>
+      <div>
+        <span className={styles.eyebrow}>Customer source</span>
+        <h2>No verified Customer 360 records are visible here yet</h2>
+        <p>
+          Customer Console is waiting on the live customer source. The existing customer list is still available in Customer Archive while this view has no verified records.
+        </p>
+      </div>
+      <div className={styles.emptyCustomerActions}>
+        <Link className={styles.primaryButton} href={LEGACY_CUSTOMER_ARCHIVE_HREF}>Open Customer Archive</Link>
+        <Link className={styles.secondaryButton} href={LEGACY_CRM_FALLBACK_HREF}>Open older customer tools</Link>
+        <Link className={styles.secondaryButton} href={newCustomerHref}>
+          {actionId ? `Add customer, then continue ${actionLabel}` : "Add Customer / Prospect"}
+        </Link>
+      </div>
+    </article>
   );
 }
 
@@ -836,28 +1275,68 @@ export function CrmNextNeedsAttentionView({ model }: { model: CrmNextCommandCent
   );
 }
 
-export function CrmNextSearchView({ model }: { model: CrmNextCommandCenter }) {
+export function CrmNextSearchView({ model, returnAction }: { model: CrmNextCommandCenter; returnAction?: string }) {
+  const actionId = validReturnAction(returnAction);
+  const actionLabel = crmNextActionLabel(actionId ?? "");
+  const hasVerifiedCustomers = model.customers.length > 0;
   return (
     <CrmNextFrame active="search" userName={model.userName}>
-      <Topbar defaultQuery={model.search.activeQuery} />
+      <Topbar defaultQuery={model.search.activeQuery} returnAction={actionId} />
       <section className={styles.hero}>
         <div>
           <span className={styles.eyebrow}>Global Search</span>
-          <h1>Find the customer, then take the next safe action</h1>
-          <p>{model.search.queryPlaceholder}</p>
+          <h1>{actionId ? `Find the customer, then continue ${actionLabel}` : "Find the customer, then take the next safe action"}</h1>
+          <p>{actionId ? "Choose a verified Customer 360 record so the pending action saves to the right timeline." : model.search.queryPlaceholder}</p>
         </div>
         <div className={styles.quickActions}>
-          <Link className={styles.primaryButton} href="/crm-next/new"><UserPlus size={16} /> Add Customer / Prospect</Link>
+          <Link className={styles.primaryButton} href={actionId ? `/crm-next/new?returnAction=${encodeURIComponent(actionId)}` : "/crm-next/new"}><UserPlus size={16} /> Add Customer / Prospect</Link>
           <Link className={styles.secondaryButton} href="/crm-next">Back to Command Center</Link>
         </div>
       </section>
+      {actionId ? (
+        <section className={styles.returnActionPanel} aria-label={`Continue ${actionLabel}`}>
+          <header>
+            <div>
+              <span className={styles.eyebrow}>Pending action</span>
+              <h2>{actionLabel}</h2>
+              <p>Select a customer below to return to the action with verified context.</p>
+            </div>
+          </header>
+          <div>
+            {hasVerifiedCustomers ? model.customers.slice(0, 6).map((customer) => (
+              <Link className={styles.returnActionCustomer} href={crmNextActionHref(actionId, customer.id)} key={customer.id}>
+                <strong>{customer.name}</strong>
+                <span>{customer.nextAction}</span>
+                <small>Continue {actionLabel}</small>
+              </Link>
+            )) : (
+              <CrmNextEmptyCustomerSourcePanel actionId={actionId} />
+            )}
+          </div>
+        </section>
+      ) : null}
+      {!actionId && !hasVerifiedCustomers ? <CrmNextEmptyCustomerSourcePanel /> : null}
       <section className={styles.searchGroups} aria-label="Customer record search results">
-        {model.search.groups.map((group) => (
-          <Link className={styles.card} href={group.href} key={group.id}>
-            <header><h2>{group.label}</h2><span className={styles.pill}>{group.count}</span></header>
-            <p>{group.description}</p>
-          </Link>
-        ))}
+        {model.search.groups.map((group) => {
+          const isCustomerGroup = group.id.includes("customer");
+          const href = actionId && isCustomerGroup
+            ? model.customers[0]
+              ? crmNextActionHref(actionId, model.customers[0].id)
+              : `/crm-next/new?returnAction=${encodeURIComponent(actionId)}`
+            : isCustomerGroup
+              ? CRM_NEXT_CUSTOMERS_HREF
+              : group.href;
+          const count = isCustomerGroup && hasVerifiedCustomers ? model.customers.length : group.count;
+          const description = isCustomerGroup && hasVerifiedCustomers
+            ? `Open the customer list. Latest visible records include ${model.customers.slice(0, 3).map((customer) => customer.name).join(", ")}.`
+            : group.description;
+          return (
+            <Link className={styles.card} href={href} key={group.id}>
+              <header><h2>{group.label}</h2><span className={styles.pill}>{count}</span></header>
+              <p>{description}</p>
+            </Link>
+          );
+        })}
       </section>
     </CrmNextFrame>
   );
@@ -1028,11 +1507,17 @@ export function CrmNextDealsView({ model }: { model: CrmNextCommandCenter }) {
   );
 }
 
-export function CrmNextDealStartView({ model }: { model: CrmNextCommandCenter }) {
+export function CrmNextDealStartView({
+  initialCustomerId,
+  model
+}: {
+  initialCustomerId?: string;
+  model: CrmNextCommandCenter;
+}) {
   return (
     <CrmNextFrame active="deals" userName={model.userName}>
       <Topbar />
-      <CrmNextDealStartTool model={model} />
+      <CrmNextDealStartTool initialCustomerId={initialCustomerId} model={model} />
     </CrmNextFrame>
   );
 }
@@ -1537,6 +2022,28 @@ export function CrmNextSafetyView({ kind, model }: { kind: "states" | "permissio
 export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextCustomer360; model: CrmNextCommandCenter }) {
   const activeAttentionItem = model.attention.find((item) => item.customerId === customer.id);
   const attendHref = activeAttentionItem?.workHref ?? `/crm-next/work/customer-read-${encodeURIComponent(customer.id)}`;
+  const [selectedWorkCategory, setSelectedWorkCategory] = useState<CrmWorkCategoryId>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = normalizeCrmWorkCategoryId(window.localStorage.getItem(crmWorkCategoryStorageKey(customer.id)));
+        if (stored) return stored;
+      } catch {
+        // A fresh category can still be selected when local storage is unavailable.
+      }
+    }
+    return customer.name.toLowerCase().includes("transport") ? "vehicle-delivery" : "retail-sale";
+  });
+  const selectedCategoryConfig = crmWorkCategoryById(selectedWorkCategory);
+  const checkInHref = workbenchCheckInHref(attendHref, selectedCategoryConfig.path, selectedWorkCategory);
+  function startCheckedInWorkbench() {
+    try {
+      window.localStorage.setItem(crmWorkCategoryStorageKey(customer.id), selectedWorkCategory);
+      window.localStorage.setItem(crmWorkPathStorageKey(customer.id), selectedCategoryConfig.path);
+    } catch {
+      // The URL still carries the selected work path into the workbench.
+    }
+    window.location.assign(checkInHref);
+  }
   const currentJourneyStage = customerJourneyStage(customer, activeAttentionItem);
   const appointmentHref = crmNextCustomerAppointmentHref({
     customerId: customer.id,
@@ -1544,7 +2051,10 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
     reason: customer.nextAction,
     returnTo: `/crm-next/customers/${customer.id}`
   });
-  const customerSalesWorkbenchHref = salesWorkbenchHref(customer.id);
+  const customerSalesWorkbenchHref = salesWorkbenchHref(customer);
+  const [savedCustomerProgress] = useState(() => readCustomerWorkbenchProgress(customer.id));
+  const savedCustomerStage = savedCustomerProgress?.stage;
+  const displayCustomerStatus = customerDisplayStatus(customer, savedCustomerStage);
   const customerMetrics = [
     { label: "Open Leads", value: customer.openDeals, detail: "Active", tone: "green" },
     { label: "Open Cases", value: customer.openCases, detail: "Active", tone: "red" },
@@ -1574,16 +2084,44 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
               <div><dt>Customer Since</dt><dd>{customer.customerSince}</dd></div>
               <div><dt>Lifetime Value</dt><dd>{customer.lifetimeValue}</dd></div>
               <div><dt>Owner</dt><dd>Unassigned</dd></div>
-              <div><dt>Status</dt><dd>{customer.status}</dd></div>
+              <div><dt>Status</dt><dd>{displayCustomerStatus}</dd></div>
               <div><dt>Risk</dt><dd><b className={levelClass(customer.riskLevel)}>{customer.riskLevel}</b></dd></div>
             </dl>
             <div className={styles.customerHeroActions}>
               <Link className={styles.secondaryButton} href="/crm-next/new"><UserPlus size={16} /> Add Customer</Link>
-              <Link className={styles.primaryButton} href={attendHref}>Attend</Link>
+              <button
+                className={styles.primaryButton}
+                onClick={startCheckedInWorkbench}
+                type="button"
+              >
+                Check-In
+              </button>
               <Link className={styles.secondaryButton} href={customerSalesWorkbenchHref}><Target size={16} /> Sales Workbench</Link>
               <Link className={styles.secondaryButton} href={crmNextActionHref("send-text", customer.id)}><MessageSquare size={16} /> Message</Link>
               <Link className={styles.secondaryButton} href="/crm">Open older customer tools</Link>
             </div>
+            <section className={styles.customerCheckInPanel} aria-label="Customer check-in">
+              <div>
+                <span className={styles.eyebrow}>Check-In</span>
+                <h2>Choose why this customer or vendor is here.</h2>
+                <p>{selectedCategoryConfig.summary}</p>
+              </div>
+              <label>
+                <span>Work category</span>
+                <select value={selectedWorkCategory} onChange={(event) => setSelectedWorkCategory(event.target.value as CrmWorkCategoryId)}>
+                  {CRM_DEALERSHIP_WORK_CATEGORIES.map((category) => (
+                    <option key={category.id} value={category.id}>{category.label}</option>
+                  ))}
+                </select>
+              </label>
+              <button
+                className={styles.secondaryButton}
+                onClick={startCheckedInWorkbench}
+                type="button"
+              >
+                Start {CRM_WORK_PATHS[selectedCategoryConfig.path].label}
+              </button>
+            </section>
           </section>
 
           <section className={styles.customerJourneyPanel} aria-label="Customer journey">
@@ -1592,10 +2130,10 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
                 <span className={styles.eyebrow}>Customer journey</span>
                 <h2>Work the customer from first contact to outcome.</h2>
               </div>
-              <Link className={styles.secondaryButton} href={attendHref}>Update progress</Link>
+              <Link className={styles.secondaryButton} href={checkInHref}>Update progress</Link>
             </header>
             <ol className={styles.customerJourneyRail}>
-              {CUSTOMER_JOURNEY_STAGES.map((stage) => (
+              {CRM_WORK_PATHS["sales-deal"].stages.map((stage) => (
                 <li data-state={stage === currentJourneyStage ? "active" : "pending"} key={stage}>
                   <span>{stage}</span>
                 </li>
@@ -1603,6 +2141,13 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
             </ol>
             <p className={styles.muted}>Stage changes should come from staff actions: calls, texts, appointments, CRM tasks, deal work, or a sold/lost decision.</p>
           </section>
+
+          <CustomerOperatingLedger
+            activeAttentionItem={activeAttentionItem}
+            customer={customer}
+            model={model}
+            savedStage={savedCustomerStage}
+          />
 
           <section className={styles.customerMetricGrid} aria-label="Customer operating metrics">
             {customerMetrics.map((metric) => (
@@ -1705,7 +2250,7 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
                 <p>Open Attend Mode to complete the next safe customer step.</p>
               </div>
             </div>
-            <Link className={styles.primaryButton} href={attendHref}>Work Customer</Link>
+            <Link className={styles.primaryButton} href={checkInHref}>Work Customer</Link>
           </article>
 
           <div id="supporting-parties">
@@ -1739,12 +2284,150 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
   );
 }
 
+function CustomerOperatingLedger({
+  activeAttentionItem,
+  customer,
+  model,
+  savedStage
+}: {
+  activeAttentionItem?: CrmNextAttentionItem;
+  customer: CrmNextCustomer360;
+  model: CrmNextCommandCenter;
+  savedStage?: CustomerJourneyStage;
+}) {
+  const customerTimelineEvents = verifiedTimelineEvents(model.timeline)
+    .filter((event) => event.detail.toLowerCase().includes(customer.name.toLowerCase()) || event.label.toLowerCase().includes(customer.name.toLowerCase()))
+    .slice(0, 4);
+  const fallbackEvents = [
+    ...customer.communications.map((item) => ({
+      detail: item.detail,
+      href: crmNextTimelineHref(customer.id),
+      id: item.id,
+      label: item.channel,
+      occurredAt: item.occurredAt,
+      source: "Communication" as const
+    })),
+    ...(activeAttentionItem ? [{
+      detail: activeAttentionItem.reason,
+      href: activeAttentionItem.workHref,
+      id: `${activeAttentionItem.id}-attention`,
+      label: activeAttentionItem.nextAction,
+      occurredAt: activeAttentionItem.age,
+      source: "Support" as const
+    }] : [])
+  ].slice(0, 4);
+  const ledgerEvents = customerTimelineEvents.length ? customerTimelineEvents : fallbackEvents;
+  const duplicateCandidates = model.customers
+    .filter((record) => record.id !== customer.id)
+    .filter((record) => record.name.toLowerCase() === customer.name.toLowerCase() || record.phone === customer.phone || record.email === customer.email)
+    .slice(0, 3);
+  const relationshipType = customerRelationshipType(customer, activeAttentionItem);
+  const currentStatus = customerDisplayStatus(customer, savedStage);
+  const nextOwner = activeAttentionItem?.owner ?? "Unassigned";
+  const dueWindow = activeAttentionItem?.age ?? "No due date visible";
+  const hasOwnerException = nextOwner === "Unassigned";
+  const hasOverdueException = /overdue|missed|due/i.test(`${activeAttentionItem?.reason ?? ""} ${activeAttentionItem?.age ?? ""}`);
+  const hasDuplicateException = duplicateCandidates.length > 0;
+  const hasCloseoutException = savedStage && isTerminalJourneyStage(savedStage) ? false : /delivered|resolved|closed|no action/i.test(customer.nextAction);
+  const managerExceptions = [
+    hasOwnerException ? "No owner assigned" : "",
+    hasOverdueException ? "Overdue or missed follow-up" : "",
+    hasDuplicateException ? "Possible duplicate record" : "",
+    hasCloseoutException ? "Closeout status may be missing" : ""
+  ].filter(Boolean);
+  const roleViews = [
+    { label: "Sales", value: customer.openDeals > 0 ? `${customer.openDeals} open deal(s)` : "No open deal" },
+    { label: "Service", value: customer.vehiclesOwned > 0 ? `${customer.vehiclesOwned} linked vehicle(s)` : "No linked vehicle" },
+    { label: "Finance", value: /payment|finance|deposit/i.test(customer.nextAction) ? "Finance attention" : "No finance blocker" },
+    { label: "Manager", value: managerExceptions.length ? `${managerExceptions.length} exception(s)` : "No exception" }
+  ];
+  const closeoutCopy = savedStage && isTerminalJourneyStage(savedStage)
+    ? `${savedStage} recorded. Confirm note, owner, and any follow-up before archiving.`
+    : "Not closed yet. Record outcome, note, owner, and whether follow-up is required.";
+
+  return (
+    <section className={styles.customerLedger} aria-label="Customer operating ledger">
+      <header>
+        <div>
+          <span className={styles.eyebrow}>Customer Operating Ledger</span>
+          <h2>One record for status, next action, timeline, exceptions, and closeout.</h2>
+        </div>
+        <Link className={styles.secondaryButton} href={activeAttentionItem?.workHref ?? `/crm-next/work/customer-read-${encodeURIComponent(customer.id)}`}>Open workbench</Link>
+      </header>
+
+      <div className={styles.ledgerStateGrid}>
+        <article><span>Identity type</span><strong>{relationshipType}</strong><small>Customer/vendor path separated early.</small></article>
+        <article><span>Status</span><strong>{currentStatus}</strong><small>{savedStage ? "Workbench outcome reflected" : "Live customer source"}</small></article>
+        <article><span>Next owner</span><strong>{nextOwner}</strong><small>{activeAttentionItem?.nextAction ?? customer.nextAction}</small></article>
+        <article><span>Due / SLA</span><strong>{dueWindow}</strong><small>{hasOverdueException ? "Manager review signal" : "No overdue signal"}</small></article>
+      </div>
+
+      <div className={styles.ledgerColumns}>
+        <article>
+          <h3>Unified Timeline</h3>
+          <div className={styles.ledgerTimeline}>
+            {ledgerEvents.length ? ledgerEvents.map((event) => (
+              <Link href={event.href} key={event.id}>
+                <span>{event.source}</span>
+                <strong>{event.label}</strong>
+                <small>{event.detail} · {event.occurredAt}</small>
+              </Link>
+            )) : <p>No verified activity yet. Start with Check-In, note, task, appointment, or outcome.</p>}
+          </div>
+        </article>
+
+        <article>
+          <h3>Closeout Framework</h3>
+          <p>{closeoutCopy}</p>
+          <dl>
+            <div><dt>Outcome</dt><dd>{savedStage ?? "Open"}</dd></div>
+            <div><dt>Evidence</dt><dd>{ledgerEvents.length ? `${ledgerEvents.length} visible event(s)` : "Needs note or event"}</dd></div>
+            <div><dt>Follow-up</dt><dd>{activeAttentionItem ? activeAttentionItem.nextAction : "No open follow-up"}</dd></div>
+          </dl>
+        </article>
+
+        <article>
+          <h3>Duplicates & Relationships</h3>
+          {duplicateCandidates.length ? duplicateCandidates.map((record) => (
+            <Link href={customer360Href(record.id)} key={record.id}>
+              <strong>{record.name}</strong>
+              <small>{record.phone} · {record.email}</small>
+            </Link>
+          )) : <p>No matching name, phone, or email duplicate found in the visible list.</p>}
+        </article>
+
+        <article>
+          <h3>Role Views</h3>
+          <dl>
+            {roleViews.map((role) => <div key={role.label}><dt>{role.label}</dt><dd>{role.value}</dd></div>)}
+          </dl>
+        </article>
+
+        <article>
+          <h3>Search Coverage</h3>
+          <p>{customerSearchKeywords(customer, activeAttentionItem)}</p>
+          <Link className={styles.textLink} href={`/crm-next/search?q=${encodeURIComponent(customer.name)}`}>Search this record</Link>
+        </article>
+
+        <article>
+          <h3>Audit & Manager Exceptions</h3>
+          <p>Every future live update should record actor, source record, previous value, new value, reason, and timestamp.</p>
+          <div className={styles.ledgerExceptionList}>
+            {managerExceptions.length ? managerExceptions.map((exception) => <span key={exception}>{exception}</span>) : <span>No manager exception visible</span>}
+          </div>
+        </article>
+      </div>
+    </section>
+  );
+}
+
 export function CrmNextActionReadinessView({ action, customerId, model }: { action: CrmNextOperatingAction; customerId?: string; model: CrmNextCommandCenter }) {
   const requestedCustomer = customerId ? model.customers.find((customer) => customer.id === customerId) : undefined;
   const relatedCustomer = customerId ? requestedCustomer : model.customers[0];
   const missingRequestedCustomer = Boolean(customerId && !requestedCustomer);
   const customerDisplayName = relatedCustomer?.name ?? "Customer record unavailable";
-  const backHref = relatedCustomer ? `/crm-next/customers/${relatedCustomer.id}` : "/crm-next/search";
+  const findCustomerHref = crmNextActionSearchHref(action.id);
+  const backHref = relatedCustomer ? `/crm-next/customers/${relatedCustomer.id}` : findCustomerHref;
   const activeAttentionItem = relatedCustomer ? model.attention.find((item) => item.customerId === relatedCustomer.id) : undefined;
   const workbenchHref = activeAttentionItem?.workHref ?? backHref;
   const caseReturnHref = relatedCustomer ? crmNextActionHref("new-case", relatedCustomer.id) : "/crm-next/actions/new-case";
@@ -1818,7 +2501,7 @@ export function CrmNextActionReadinessView({ action, customerId, model }: { acti
           </dl>
           <div className={styles.customerHeroActions}>
             {action.id === "schedule-appointment" ? <Link className={styles.primaryButton} href={primaryHref}>Open appointment console</Link> : null}
-            <Link className={styles.secondaryButton} href={backHref}>Back to Customer 360</Link>
+            <Link className={styles.secondaryButton} href={backHref}>{relatedCustomer ? "Back to Customer 360" : `Find customer for ${action.label}`}</Link>
             <Link className={styles.secondaryButton} href="/crm">Open older customer tools</Link>
           </div>
         </section>
@@ -1938,16 +2621,156 @@ export function CrmNextActionReadinessView({ action, customerId, model }: { acti
 
 export function CrmNextWorkCustomerView({
   bridgePreview,
+  initialWorkPath,
   item,
   model
 }: {
   bridgePreview?: CrmNextActionBridgePreview;
+  initialWorkPath?: CrmWorkPathId;
   item: CrmNextAttentionItem;
   model: CrmNextCommandCenter;
 }) {
   const issue = customerWorkIssue(item);
   const verifiedCustomerActivity = verifiedTimelineEvents(model.timeline);
-  const pendingTasks = bridgePreview?.dispatchPreview ? "1 due" : "None";
+  const dueTask = bridgePreview?.dispatchPreview;
+  const pendingTasks = dueTask ? "1 due" : "None";
+  const workPathSelectRef = useRef<HTMLSelectElement | null>(null);
+  const [workPath, setWorkPath] = useState<CrmWorkPathId>(() => readCrmWorkPath(item, initialWorkPath));
+  const workPathConfig = CRM_WORK_PATHS[workPath];
+  const progressStorageKey = customerWorkbenchProgressStorageKey(item.customerId);
+  const [progressState, setProgressState] = useState<{ notice: string; stage: CustomerJourneyStage }>(() => {
+    const resolvedInitialWorkPath = readCrmWorkPath(item, initialWorkPath);
+    const initialPathConfig = CRM_WORK_PATHS[resolvedInitialWorkPath];
+    const fallback = {
+      notice: `${initialPathConfig.label} work is ready for staff follow-through.`,
+      stage: normalizeJourneyStage(undefined, resolvedInitialWorkPath)
+    };
+    if (typeof window === "undefined") return fallback;
+    try {
+      const stored = window.localStorage.getItem(progressStorageKey);
+      if (!stored) return fallback;
+      const parsed = JSON.parse(stored) as { notice?: string; stage?: string };
+      return {
+        notice: parsed.notice || fallback.notice,
+        stage: normalizeJourneyStage(parsed.stage, resolvedInitialWorkPath)
+      };
+    } catch {
+      return fallback;
+    }
+  });
+  const [dueTaskOpen, setDueTaskOpen] = useState(false);
+  const sourceEvidence = sourceDealEvidence(model, item);
+  const [draftDealEvidence] = useState<WorkbenchDealEvidence>(() => {
+    const draft = readWorkbenchDealDraft(item.customerId);
+    return draft?.vehicle?.trim()
+      ? {
+        detail: `Vehicle selected: ${draft.vehicle}`,
+        label: "Vehicle selected",
+        source: "Saved deal draft",
+        started: true,
+        vehicle: draft.vehicle
+      }
+      : sourceEvidence;
+  });
+  const dealEvidence = draftDealEvidence.started ? draftDealEvidence : sourceEvidence;
+  const journeyStage = progressState.stage;
+  const statusNotice = progressState.notice;
+  const activeStageIndex = workPathConfig.stages.indexOf(journeyStage as never);
+  const salesPath = workPath === "sales-deal";
+  const dealStarted = salesPath && (dealEvidence.started || isDealStage(journeyStage));
+  const appointmentScheduled = isAppointmentStage(journeyStage) || (salesPath && isDealStage(journeyStage)) || isTerminalJourneyStage(journeyStage);
+  const terminalOutcome = isTerminalJourneyStage(journeyStage);
+  const currentNeed = terminalOutcome
+    ? `${journeyStage} recorded for ${workPathConfig.label.toLowerCase()}.`
+    : journeyStage === "Appointment Scheduled" || journeyStage === "Scheduled"
+      ? "Prepare appointment and keep the customer confirmed"
+      : journeyStage === "Working Deal"
+        ? "Work deal details and next customer commitment"
+        : item.nextAction;
+  const stageStatusText = terminalOutcome ? "Completed" : journeyStage;
+  const appointmentSummary = appointmentScheduled ? "Scheduled" : "Not Scheduled";
+  const startDealHref = `${CRM_NEXT_DEAL_START_HREF}?customerId=${encodeURIComponent(item.customerId)}&returnTo=${encodeURIComponent(item.workHref)}`;
+  const appointmentHref = crmNextCustomerAppointmentHref({
+    customerId: item.customerId,
+    customerName: item.customerName,
+    reason: item.nextAction,
+    returnTo: item.workHref
+  });
+  const primaryExecutionHref = salesPath && !dealStarted ? startDealHref : !appointmentScheduled && salesPath ? appointmentHref : "#lead";
+  const primaryExecutionLabel = salesPath && !dealStarted ? "Start deal" : !appointmentScheduled && salesPath ? "Schedule appointment" : workPathConfig.primaryAction;
+  function updateJourneyStage(stage: string, summary?: string) {
+    const nextStage = normalizeJourneyStage(stage, workPath);
+    const nextProgressState = {
+      notice: summary ?? `${nextStage} saved on this workbench.`,
+      stage: nextStage
+    };
+    setProgressState(nextProgressState);
+    try {
+      window.localStorage.setItem(progressStorageKey, JSON.stringify(nextProgressState));
+    } catch {
+      // The visible workbench still updates even if local persistence is unavailable.
+    }
+  }
+  function updateWorkPath(nextPath: CrmWorkPathId) {
+    setWorkPath(nextPath);
+    const nextStage = normalizeJourneyStage(progressState.stage, nextPath);
+    const nextProgressState = {
+      notice: `${CRM_WORK_PATHS[nextPath].label} path selected for this workbench.`,
+      stage: nextStage
+    };
+    setProgressState(nextProgressState);
+    try {
+      window.localStorage.setItem(crmWorkPathStorageKey(item.customerId), nextPath);
+      window.localStorage.setItem(progressStorageKey, JSON.stringify(nextProgressState));
+    } catch {
+      // The visible workbench still updates even if local persistence is unavailable.
+    }
+  }
+  function focusCheckInPathSelector() {
+    workPathSelectRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    window.setTimeout(() => workPathSelectRef.current?.focus(), 220);
+  }
+  const progressSteps = [
+    { label: "Customer opened", state: "complete" },
+    { label: "Contact made", state: "complete" },
+    { label: salesPath ? (dealStarted ? dealEvidence.label : "Start deal") : workPathConfig.progressActive, state: salesPath ? (dealStarted ? "complete" : "active") : (terminalOutcome ? "complete" : "active") },
+    { label: terminalOutcome ? journeyStage : "Outcome", state: terminalOutcome ? "complete" : "waiting" }
+  ];
+  const executionSteps = [
+    ...(salesPath ? [{
+      href: startDealHref,
+      label: "Next",
+      title: dealStarted ? "Continue the deal" : "Start or update the deal",
+      detail: dealStarted ? `${dealEvidence.detail}. Keep price, customer commitment, and delivery path current.` : "No deal is recorded on this workbench yet. Start the deal, attach vehicle interest, and return here.",
+      state: dealStarted ? dealEvidence.source : "Needed"
+    }] : [{
+      href: "#lead",
+      label: "Next",
+      title: workPathConfig.primaryAction,
+      detail: `${workPathConfig.label} is not a sales funnel. Use the status strip to mark delivered, resolved, closed, or no action needed.`,
+      state: terminalOutcome ? stageStatusText : "Ready"
+    }]),
+    ...(salesPath ? [{
+      href: appointmentHref,
+      label: "Then",
+      title: "Schedule the appointment",
+      detail: appointmentScheduled ? "Appointment is marked scheduled. Keep confirmation and arrival follow-through visible." : "Next appointment is not scheduled. Put the customer on the calendar before this leaves the queue.",
+      state: appointmentScheduled ? "Scheduled" : "Open"
+    }] : []),
+    {
+      href: "#lead",
+      label: "Record",
+      title: salesPath ? "Log the customer outcome" : "Close the work cleanly",
+      detail: terminalOutcome ? "Outcome is marked. Add the note or close-loop task the next staff member needs." : "Capture what happened, the promise made, and the next staff owner so the work does not reset.",
+      state: terminalOutcome ? stageStatusText : "Ready"
+    }
+  ];
+  const completionSignals = [
+    { label: "Contact", value: "Done today", tone: "complete" },
+    { label: salesPath ? "Deal" : "Path", value: salesPath ? (dealStarted ? "Started" : "Missing") : workPathConfig.label, tone: salesPath ? (dealStarted ? "complete" : "attention") : "complete" },
+    { label: "Status", value: terminalOutcome ? String(journeyStage) : "Open", tone: terminalOutcome ? "complete" : "attention" },
+    { label: "Task", value: pendingTasks, tone: pendingTasks === "None" ? "quiet" : "attention" }
+  ];
 
   return (
     <CrmNextFrame active="work" userName={model.userName}>
@@ -1963,38 +2786,135 @@ export function CrmNextWorkCustomerView({
           <div className={styles.workHeroBody}>
             <div>
               <h1 className={styles.workTitle}>{item.customerName}</h1>
-              <p className={styles.muted}>{issue.issue} · {item.area} · Owner: {item.owner}</p>
+              <p className={styles.muted}>{issue.issue} · {workPathConfig.label} · Owner: {item.owner}</p>
             </div>
             <div className={styles.workActions}>
-              <Link className={styles.secondaryButton} href="#lead">Check - In</Link>
-              <Link className={styles.secondaryButton} href={CRM_NEXT_DEAL_START_HREF}>Start Deal</Link>
+              <button className={styles.secondaryButton} onClick={focusCheckInPathSelector} type="button">Check-In</button>
+              {salesPath ? <Link className={styles.secondaryButton} href={startDealHref}>{dealStarted ? "Continue Deal" : "Start Deal"}</Link> : null}
               <Link className={styles.secondaryButton} href={item.customerHref}>Customer 360</Link>
             </div>
           </div>
         </header>
         <main>
+          <section className={styles.executionFunnel} aria-labelledby="execution-funnel-heading">
+            <header>
+              <div>
+                <span className={styles.eyebrow}>Execution funnel</span>
+                <h2 id="execution-funnel-heading">What has happened, what is missing, and what to do next</h2>
+                <p>Open this workbench and move from contact to deal, appointment, and recorded outcome without guessing.</p>
+              </div>
+              <Link className={styles.primaryButton} href={primaryExecutionHref}>{primaryExecutionLabel}</Link>
+            </header>
+            <ol className={styles.executionProgress} aria-label="Customer execution progress">
+              {progressSteps.map((step) => (
+                <li data-state={step.state} key={step.label}>{step.label}</li>
+              ))}
+            </ol>
+            <div className={styles.executionSignalGrid} aria-label="Workbench completion signals">
+              {completionSignals.map((signal) => (
+                dueTask && signal.label === "Task" ? (
+                  <button
+                    aria-controls="workbench-due-task"
+                    aria-expanded={dueTaskOpen}
+                    data-tone={signal.tone}
+                    key={signal.label}
+                    onClick={() => setDueTaskOpen((open) => !open)}
+                    type="button"
+                  >
+                    <span>{signal.label}</span>
+                    <strong>{signal.value}</strong>
+                    <small>{dueTaskOpen ? "Hide details" : "View details"}</small>
+                  </button>
+                ) : (
+                  <article data-tone={signal.tone} key={signal.label}>
+                    <span>{signal.label}</span>
+                    <strong>{signal.value}</strong>
+                  </article>
+                )
+              ))}
+            </div>
+            {dueTask && dueTaskOpen ? (
+              <section className={styles.dueTaskPanel} id="workbench-due-task" aria-label="Due customer task">
+                <header>
+                  <div>
+                    <span className={styles.eyebrow}>Due task</span>
+                    <h3>{dueTask.title}</h3>
+                    <p>{dueTask.source}</p>
+                  </div>
+                  <strong>{dueTask.due}</strong>
+                </header>
+                <dl>
+                  <div><dt>Owner</dt><dd>{dueTask.assignedTo}</dd></div>
+                  <div><dt>Customer 360 update</dt><dd>{dueTask.customer360Update}</dd></div>
+                </dl>
+                <div className={styles.dueTaskActions}>
+                  <Link href="#lead">Work task on this page</Link>
+                  <Link href={crmNextActionHref("new-task", item.customerId)}>Open CRM task action</Link>
+                  <Link href={crmNextTimelineHref(item.customerId)}>Open customer timeline</Link>
+                </div>
+              </section>
+            ) : null}
+            <div className={styles.executionStepGrid}>
+              {executionSteps.map((step) => (
+                <Link className={styles.executionStepCard} href={step.href} key={step.title}>
+                  <span>{step.label}</span>
+                  <strong>{step.title}</strong>
+                  <small>{step.detail}</small>
+                  <em>{step.state}</em>
+                </Link>
+              ))}
+            </div>
+          </section>
+
           <section className={styles.crmWorkbenchBoard} aria-label="CRM customer workbench">
             <header className={styles.crmWorkbenchHeader}>
               <div>
                 <span className={styles.eyebrow}>Customer file</span>
                 <h2>{item.customerName}</h2>
-                <p>{issue.issue}</p>
+              <p>{issue.issue}</p>
+              <small className={styles.statusUpdateNotice}>{statusNotice}</small>
               </div>
-              <Link className={styles.secondaryButton} href="#customer-sections">Update Status</Link>
+              <div className={styles.workPathControl} id="work-path">
+                <label>
+                  <span>Work Path</span>
+                  <select ref={workPathSelectRef} value={workPath} onChange={(event) => updateWorkPath(event.target.value as CrmWorkPathId)}>
+                    {Object.entries(CRM_WORK_PATHS).map(([id, path]) => (
+                      <option key={id} value={id}>{path.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <Link className={styles.secondaryButton} href="#customer-sections">Update Status</Link>
+              </div>
             </header>
 
             <ol className={styles.dealerJourneyStrip} aria-label="Customer journey">
-              {CUSTOMER_JOURNEY_STAGES.map((stage) => (
-                <li data-state={stage === "Contacted" ? "active" : "idle"} key={stage}>{stage}</li>
-              ))}
+              {workPathConfig.stages.map((stage, index) => {
+                const state = stage === journeyStage
+                  ? "active"
+                  : index < activeStageIndex && !isTerminalJourneyStage(stage as CustomerJourneyStage)
+                    ? "complete"
+                    : "idle";
+                return (
+                  <li data-state={state} key={stage}>
+                    <button onClick={() => updateJourneyStage(stage)} type="button">{stage}</button>
+                  </li>
+                );
+              })}
             </ol>
 
             <section className={styles.dealerCustomerSnapshot} aria-label="Customer status summary">
-              <div><span>Next Appt.</span><strong>Not Scheduled</strong></div>
-              <div><span>Last Appt.</span><strong>None</strong></div>
-              <div><span>Pending Tasks</span><strong>{pendingTasks}</strong></div>
+              <div><span>Next Appt.</span><strong>{appointmentSummary}</strong></div>
+              <div><span>Last Appt.</span><strong>{journeyStage === "Missed Appt." ? "Missed" : "None"}</strong></div>
+              {dueTask ? (
+                <button aria-controls="workbench-due-task" aria-expanded={dueTaskOpen} onClick={() => setDueTaskOpen((open) => !open)} type="button">
+                  <span>Pending Tasks</span>
+                  <strong>{pendingTasks}</strong>
+                </button>
+              ) : (
+                <div><span>Pending Tasks</span><strong>{pendingTasks}</strong></div>
+              )}
               <div><span>Deposit</span><strong>None</strong></div>
-              <div><span>Deals</span><strong>None</strong></div>
+              <div><span>{workPathConfig.summaryLabel}</span><strong>{salesPath ? (dealStarted ? (terminalOutcome ? stageStatusText : dealEvidence.label) : "None") : stageStatusText}</strong></div>
               <div><span>Last Contacted</span><strong>Today</strong></div>
               <div><span>Days Old</span><strong>0</strong></div>
               <div><span>Days Since Activity</span><strong>0</strong></div>
@@ -2007,7 +2927,7 @@ export function CrmNextWorkCustomerView({
               </div>
               <div>
                 <span>Inquiry Type</span>
-                <strong>{item.area}</strong>
+                <strong>{workPathConfig.label}</strong>
               </div>
               <div>
                 <span>Sales Rep</span>
@@ -2015,11 +2935,15 @@ export function CrmNextWorkCustomerView({
               </div>
               <div>
                 <span>Current Need</span>
-                <strong>{item.nextAction}</strong>
+                <strong>{currentNeed}</strong>
+              </div>
+              <div>
+                <span>{workPathConfig.detailLabel}</span>
+                <strong>{salesPath ? dealEvidence.detail : `${workPathConfig.label} status is ${journeyStage}.`}</strong>
               </div>
             </section>
 
-            <CrmNextWorkbenchSections currentNeed={item.nextAction} doneMeaning={issue.done} />
+            <CrmNextWorkbenchSections currentNeed={item.nextAction} dealEvidence={dealEvidence} doneMeaning={issue.done} />
 
             <CrmNextInlineTaskComposer
               appointmentHref={crmNextCustomerAppointmentHref({
@@ -2030,6 +2954,7 @@ export function CrmNextWorkCustomerView({
               })}
               customerName={item.customerName}
               nextAction={item.nextAction}
+              onProgressUpdate={updateJourneyStage}
               owner={item.owner}
             />
           </section>

@@ -2,6 +2,7 @@
 
 import { AlertTriangle, ArrowLeft, ExternalLink, RefreshCw, ShieldCheck } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
 import type { UnifiedCrmOpportunityCreateReviewModel } from "@/server/unified-crm/opportunity-create-contract";
@@ -38,9 +39,29 @@ function createIdempotencyKey() {
 }
 
 function OpportunityCreateForm() {
+  const searchParams = useSearchParams();
   const [message, setMessage] = useState<string | null>(null);
   const [messageHref, setMessageHref] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const customerId = searchParams.get("customerId") ?? "";
+  const customerName = searchParams.get("customerName") ?? "";
+  const vehicleInterest = searchParams.get("vehicleInterest") ?? "";
+  const stockOrVin = searchParams.get("stockOrVin") ?? "";
+  const budget = searchParams.get("budget") ?? "";
+  const trade = searchParams.get("trade") ?? "";
+  const dealNote = searchParams.get("dealNote") ?? "";
+  const titleDefault = vehicleInterest
+    ? `${customerName || "Customer"} - ${vehicleInterest}`
+    : customerName
+      ? `${customerName} opportunity`
+      : "";
+  const summaryDefault = [
+    vehicleInterest ? `Interested vehicle: ${vehicleInterest}` : "",
+    stockOrVin ? `Manual stock/VIN reference: ${stockOrVin}` : "",
+    budget ? `Budget/payment target: ${budget}` : "",
+    trade ? `Trade/payoff context: ${trade}` : "",
+    dealNote
+  ].filter(Boolean).join("\n");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -82,15 +103,15 @@ function OpportunityCreateForm() {
     <form className={styles.createForm} onSubmit={submit}>
       <p className={styles.formIntro}>Create a governed opportunity at NEW_INQUIRY. Stage changes happen later through the UCRM-031 transition command.</p>
       {message ? <p className={messageHref ? styles.formSuccess : styles.formError} role={messageHref ? "status" : "alert"}>{message} {messageHref ? <Link href={messageHref}>Open opportunity</Link> : null}</p> : null}
-      <label><span>Title</span><input name="title" placeholder="Example: 2019 Honda Accord buyer follow-up" required maxLength={160} /></label>
-      <label><span>Customer ID</span><input name="customerId" placeholder="Existing customer record id" maxLength={200} /></label>
+      <label><span>Title</span><input name="title" placeholder="Example: 2019 Honda Accord buyer follow-up" required maxLength={160} defaultValue={titleDefault} /></label>
+      <label><span>Customer ID</span><input name="customerId" placeholder="Existing customer record id" maxLength={200} defaultValue={customerId} /></label>
       <label><span>Source lead ID</span><input name="sourceLeadId" placeholder="Optional source lead id" maxLength={200} /></label>
       <label><span>Owner user ID</span><input name="ownerUserId" placeholder="Assigned CRM owner user id" required maxLength={200} /></label>
       <label><span>Next action</span><input name="nextActionLabel" placeholder="Call customer with vehicle options" required maxLength={240} /></label>
       <label><span>Next action due</span><input name="nextActionDueAt" type="datetime-local" required defaultValue={localDateTimeValue()} /></label>
       <label><span>Estimated value in cents</span><input min={0} name="estimatedValueCents" placeholder="Example: 1850000" type="number" /></label>
       <label><span>Expected close</span><input name="expectedCloseAt" type="datetime-local" /></label>
-      <label className={styles.formWide}><span>Summary</span><textarea name="summary" placeholder="Record the customer need, source context, and first follow-up plan." maxLength={1000} /></label>
+      <label className={styles.formWide}><span>Summary</span><textarea name="summary" placeholder="Record the customer need, source context, and first follow-up plan." maxLength={1000} defaultValue={summaryDefault} /></label>
       <div className={styles.formActions}>
         <button disabled={pending} type="submit">{pending ? "Creating opportunity..." : "Create opportunity"}</button>
         <small>No quote, appointment, dispatch job, or external message is created from this action.</small>

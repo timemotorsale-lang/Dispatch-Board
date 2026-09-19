@@ -1396,7 +1396,7 @@ const searchGroups: CrmNextSearchGroup[] = [
     id: "search-customers",
     label: "Customers",
     description: "Find the customer profile, open Customer 360, and continue into Attend Mode.",
-    href: "/crm-next/search",
+    href: "/crm-next/customers",
     count: 0,
     safety: "Search live customer records before taking the next step."
   },
@@ -2175,6 +2175,8 @@ type CrmNextOperationalReadDependencies = {
   searchReader?: typeof searchUnifiedCrm;
 };
 
+const CRM_NEXT_CUSTOMER_LIST_LIMIT = 50;
+
 function readStatus(
   status: Omit<CrmNextSourceReadStatus, "observedAt">,
   observedAt: string
@@ -2190,6 +2192,18 @@ function operationalState(sources: CrmNextSourceReadStatus[]): CrmNextOperationa
   if (states.some((state) => state === "LIVE_READ")) return "LIVE_READ";
   if (states.some((state) => state === "EMPTY_READ")) return "EMPTY_READ";
   return "FALLBACK_READ";
+}
+
+function crmNextCustomerListReadOptions(now?: () => Date) {
+  return { now, readMode: "REVIEW" as const };
+}
+
+function crmNextCustomer360ReadOptions(now?: () => Date) {
+  return { now, readMode: "REVIEW" as const, shellMode: "REVIEW" as const };
+}
+
+function crmNextSearchReadOptions(now?: () => Date) {
+  return { mode: "REVIEW" as const, now };
 }
 
 function riskFromNextAction(nextActionAt: string | null, now: Date): CrmNextAttentionLevel {
@@ -2520,6 +2534,7 @@ function withCustomerListOverlay(
   const operationalCustomers = customerList.items.map((item) => crmNextCustomerFromListItem(item, now));
   const operationalAttention = attentionFromCustomerList(customerList.items, now);
   const overdueCount = operationalAttention.filter((item) => item.level === "High").length;
+  const customerNames = operationalCustomers.slice(0, 3).map((customer) => customer.name).join(", ");
   let summary = updateSummaryMetric(model.summary, "Needs Attention", {
     source: "Customer next actions",
     trend: "from customer records",
@@ -2535,6 +2550,15 @@ function withCustomerListOverlay(
     ...model,
     attention: operationalAttention.length ? operationalAttention : model.attention,
     customers: operationalCustomers.length ? operationalCustomers : model.customers,
+    search: {
+      ...model.search,
+      groups: model.search.groups.map((group) => group.id === "search-customers" ? {
+        ...group,
+        count: operationalCustomers.length,
+        description: customerNames ? `Open the customer list. Latest visible records include ${customerNames}.` : group.description,
+        href: CRM_NEXT_CUSTOMERS_HREF
+      } : group)
+    },
     summary
   };
 }
@@ -2557,7 +2581,11 @@ export async function getCrmNextOperationalCommandCenter(
   const observedAt = now.toISOString();
 
   try {
-    const customerList = await (dependencies.customerListReader ?? getUnifiedCrmCustomerList)(actor, { limit: 8 });
+    const customerList = await (dependencies.customerListReader ?? getUnifiedCrmCustomerList)(
+      actor,
+      { limit: CRM_NEXT_CUSTOMER_LIST_LIMIT },
+      crmNextCustomerListReadOptions(dependencies.now)
+    );
     model = withCustomerListOverlay(model, customerList, now);
     statuses.push(readStatus({
       id: "customers",
@@ -2587,10 +2615,14 @@ export async function getCrmNextOperationalCommandCenter(
   }
 
   try {
-    const search = await (dependencies.searchReader ?? searchUnifiedCrm)(actor, {
-      limit: 12,
-      q: searchQuery || "customer"
-    });
+    const search = await (dependencies.searchReader ?? searchUnifiedCrm)(
+      actor,
+      {
+        limit: 12,
+        q: searchQuery || "customer"
+      },
+      crmNextSearchReadOptions(dependencies.now)
+    );
     const opportunityCount = search.groups.find((group) => group.entity === "opportunity")?.count;
     model = {
       ...model,
@@ -2729,7 +2761,11 @@ export async function getCrmNextOperationalCustomer360(
   const now = dependencies.now?.() ?? new Date();
   const observedAt = now.toISOString();
   try {
-    const customer360 = await (dependencies.customer360Reader ?? getUnifiedCrmCustomer360)(actor, customerId);
+    const customer360 = await (dependencies.customer360Reader ?? getUnifiedCrmCustomer360)(
+      actor,
+      customerId,
+      crmNextCustomer360ReadOptions(dependencies.now)
+    );
     const customer = crmNextCustomerFrom360(customer360);
     const sourceStatus = readStatus({
       id: "customer-360",
@@ -2853,7 +2889,7 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
     summary: [
       { href: "/crm-next/needs-attention", label: "Needs Attention", source: "Customer next actions", value: "No source data available", trend: "No verified customer work source", tone: "blue" },
       { href: "/crm-next/pipeline", label: "Hot Leads", source: "Lead engine", value: "No source data available", trend: "No verified lead source", tone: "red" },
-      { href: "/crm-next/appointments", label: "Appointments Today", source: "Appointment schedule", value: "No source data available", trend: "Open appointment console", tone: "green" },
+      { href: "/appointments", label: "Appointments Today", source: "Appointment schedule", value: "No source data available", trend: "Open appointment console", tone: "green" },
       { href: "/crm-next/deals", label: "Deals in Progress", source: "Deal visibility", value: "No source data available", trend: "No verified deal source", tone: "green" },
       { href: "/crm-next/needs-attention", label: "Overdue Follow-ups", source: "Customer next actions", value: "No source data available", trend: "No verified overdue source", tone: "red" }
     ],

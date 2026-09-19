@@ -16,6 +16,7 @@ import CrmNextAppointmentsPage from "@/app/(app)/crm-next/appointments/page";
 import CrmNextActionPage from "@/app/(app)/crm-next/actions/[actionId]/page";
 import CrmNextCoexistencePage from "@/app/(app)/crm-next/coexistence/page";
 import CrmNextCustomerPage from "@/app/(app)/crm-next/customers/[customerId]/page";
+import CrmNextCustomersPage from "@/app/(app)/crm-next/customers/page";
 import CrmNextDealStartPage from "@/app/(app)/crm-next/deals/start/page";
 import CrmNextDealsPage from "@/app/(app)/crm-next/deals/page";
 import CrmNextIntelligenceFoundationPage from "@/app/(app)/crm-next/intelligence-foundation/page";
@@ -37,8 +38,9 @@ import CrmNextStateReviewPage from "@/app/(app)/crm-next/system/states/page";
 import CrmNextTestDrivesPage from "@/app/(app)/crm-next/test-drives/page";
 import CrmNextTimelinePage from "@/app/(app)/crm-next/timeline/page";
 import CrmNextWorkPage from "@/app/(app)/crm-next/work/[itemId]/page";
-import { CrmNextActionReadinessView, CrmNextTimelineView, CrmNextWorkCustomerView } from "@/features/crm-next/crm-next-shell";
+import { CrmNextActionReadinessView, CrmNextCustomer360View, CrmNextCustomersListView, CrmNextTimelineView, CrmNextWorkCustomerView } from "@/features/crm-next/crm-next-shell";
 import { CRM_STAFF_FACING_BANNED_TERMS } from "@/lib/crm-staff-language";
+import type { CrmNextActionBridgePreview } from "@/server/crm-next/action-bridge";
 import type { CrmNextAttentionItem, CrmNextCommandCenter, CrmNextCustomer360, CrmNextOperatingAction, CrmNextTimelineEvent } from "@/server/crm-next/read-model";
 
 const originalFlag = process.env.CRM_NEXT;
@@ -54,12 +56,29 @@ function user(roles: string[]): AuthenticatedUser {
   };
 }
 
+function installLocalStorageWindow() {
+  const store = new Map<string, string>();
+  vi.stubGlobal("window", {
+    localStorage: {
+      clear: () => store.clear(),
+      getItem: (key: string) => store.get(key) ?? null,
+      removeItem: (key: string) => store.delete(key),
+      setItem: (key: string, value: string) => store.set(key, value)
+    },
+    location: { assign: vi.fn() },
+    setTimeout: globalThis.setTimeout
+  });
+}
+
 describe("CRM Next pages", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    if (typeof window !== "undefined") window.localStorage.clear();
   });
 
   afterEach(() => {
+    if (typeof window !== "undefined") window.localStorage.clear();
+    vi.unstubAllGlobals();
     if (originalFlag === undefined) delete process.env.CRM_NEXT;
     else process.env.CRM_NEXT = originalFlag;
   });
@@ -88,6 +107,10 @@ describe("CRM Next pages", () => {
     const attention = renderToStaticMarkup(await CrmNextNeedsAttentionPage());
     const customer = renderToStaticMarkup(await CrmNextCustomerPage({ params: Promise.resolve({ customerId: "michael-johnson" }) }));
     const work = renderToStaticMarkup(await CrmNextWorkPage({ params: Promise.resolve({ itemId: "attn-michael-overdue-follow-up" }) }));
+    const deliveryWork = renderToStaticMarkup(await CrmNextWorkPage({
+      params: Promise.resolve({ itemId: "attn-michael-overdue-follow-up" }),
+      searchParams: Promise.resolve({ workPath: "delivery-transport" })
+    }));
     const ownershipSupport = renderToStaticMarkup(await CrmNextOwnershipSupportPage());
     const sharedExecution = renderToStaticMarkup(await CrmNextSharedExecutionPage());
     const intelligence = renderToStaticMarkup(await CrmNextIntelligenceFoundationPage());
@@ -96,7 +119,9 @@ describe("CRM Next pages", () => {
     const hardening = renderToStaticMarkup(await CrmNextHardeningPage());
     const coexistence = renderToStaticMarkup(await CrmNextCoexistencePage());
     const pilotRelease = renderToStaticMarkup(await CrmNextPilotReleasePage());
+    const customersList = renderToStaticMarkup(await CrmNextCustomersPage());
     const search = renderToStaticMarkup(await CrmNextSearchPage({ searchParams: Promise.resolve({}) }));
+    const noteSearch = renderToStaticMarkup(await CrmNextSearchPage({ searchParams: Promise.resolve({ returnAction: "add-note" }) }));
     const timeline = renderToStaticMarkup(await CrmNextTimelinePage({ searchParams: Promise.resolve({}) }));
     const pipeline = renderToStaticMarkup(await CrmNextPipelinePage());
     const appointments = renderToStaticMarkup(await CrmNextAppointmentsPage());
@@ -123,6 +148,7 @@ describe("CRM Next pages", () => {
     expect(command).toContain("Open Customer 360");
     expect(command).toContain('href="/crm-next/needs-attention"');
     expect(command).toContain('href="/crm-next/appointments"');
+    expect(command).toContain('href="/appointments"');
     expect(command).toContain('href="/crm-next/deals"');
     expect(command).toContain("Customer next actions");
     expect(command).toContain("Appointment board");
@@ -150,6 +176,25 @@ describe("CRM Next pages", () => {
     expect(customer).toContain("Customer Since");
     expect(customer).toContain("Customer journey");
     expect(customer).toContain("Work the customer from first contact to outcome.");
+    expect(customer).toContain("Check-In");
+    expect(customer).toContain("Choose why this customer or vendor is here.");
+    expect(customer).toContain("Work category");
+    expect(customer).toContain("Retail sale / purchase");
+    expect(customer).toContain("Vehicle delivery / transport");
+    expect(customer).toContain("Start Sales / Deal");
+    expect(customer).toContain("workPath=sales-deal");
+    expect(customer).toContain("category=retail-sale");
+    expect(customer).toContain("Customer Operating Ledger");
+    expect(customer).toContain("One record for status, next action, timeline, exceptions, and closeout.");
+    expect(customer).toContain("Identity type");
+    expect(customer).toContain("Next owner");
+    expect(customer).toContain("Due / SLA");
+    expect(customer).toContain("Unified Timeline");
+    expect(customer).toContain("Closeout Framework");
+    expect(customer).toContain("Duplicates &amp; Relationships");
+    expect(customer).toContain("Role Views");
+    expect(customer).toContain("Search Coverage");
+    expect(customer).toContain("Audit &amp; Manager Exceptions");
     expect(customer).toContain("Quick Actions");
     expect(customer).toContain('href="/crm-next/actions/log-call?customerId=michael-johnson"');
     expect(customer).toContain('href="/crm-next/actions/send-email?customerId=michael-johnson"');
@@ -172,8 +217,18 @@ describe("CRM Next pages", () => {
     expect(customer).toContain("Warranty company");
     expect(work).toContain("Customer record unavailable");
     expect(work).toContain("Customer file");
-    expect(work).toContain("Check - In");
-    expect(work).toContain("Start Deal");
+    expect(work).toContain("Execution funnel");
+    expect(work).toContain("What has happened, what is missing, and what to do next");
+    expect(work).toContain("General Issue");
+    expect(work).toContain("Work Path");
+    expect(work).toContain("Path");
+    expect(work).toContain("Status");
+    expect(work).toContain("Issue");
+    expect(work).toContain("Update issue");
+    expect(work).toContain("Resolve issue");
+    expect(work).toContain("Close the work cleanly");
+    expect(work).toContain("Check-In");
+    expect(work).toContain("<button");
     expect(work).toContain("Update Status");
     expect(work).toContain("Phone Call");
     expect(work).toContain("Send SMS");
@@ -187,8 +242,6 @@ describe("CRM Next pages", () => {
     expect(work).toContain("Credit App");
     expect(work).toContain("Journal Entries");
     expect(work).toContain("Logs");
-    expect(work).toContain("Missed Appt.");
-    expect(work).toContain("Visit Follow-up");
     expect(work).toContain("Next Appt.");
     expect(work).toContain("Last Contacted");
     expect(work).toContain("Days Since Activity");
@@ -204,6 +257,13 @@ describe("CRM Next pages", () => {
     expect(work).toContain("Disposition");
     expect(work).toContain('aria-pressed="true"');
     expect(work).toContain("<button");
+    expect(work).toContain("Reviewed");
+    expect(work).toContain("Waiting");
+    expect(work).toContain("Resolved");
+    expect(work).toContain("Closed");
+    expect(work).toContain("No Action Needed");
+    expect(work).not.toContain("Missed Appt.");
+    expect(work).not.toContain("Visit Follow-up");
     expect(work).not.toContain("Save CRM Task");
     expect(work).not.toContain("Keep it on Michael Johnson");
     expect(work).not.toContain("Dispatch handoff");
@@ -224,13 +284,32 @@ describe("CRM Next pages", () => {
     expect(work).not.toContain('href="#dispatch-task"');
     expect(work).not.toContain("Choose the next customer action");
     expect(work).not.toContain("Resolve the customer issue");
+    expect(deliveryWork).toContain("Delivery / Transport");
+    expect(deliveryWork).toContain("Record delivery");
+    expect(deliveryWork).toContain("Complete delivery");
+    expect(deliveryWork).toContain("Delivered");
+    expect(deliveryWork).toContain("No Action Needed");
+    expect(deliveryWork).not.toContain("Start deal");
     expect(search).toContain("Add Customer / Prospect");
+    expect(search).toContain("No verified Customer 360 records are visible here yet");
+    expect(search).toContain("Open Customer Archive");
+    expect(search).toContain('href="/customers"');
+    expect(customersList).toContain("Customer List");
+    expect(customersList).toContain("0 visible");
+    expect(customersList).toContain("Customer tools");
+    expect(customersList).toContain("Add, search, review attention, or open pipeline without narrowing the list.");
+    expect(customersList).toContain("Open leads and pipeline");
+    expect(customersList).toContain("No verified Customer 360 records are visible here yet");
+    expect(customersList).toContain("Open older customer tools");
     expect(newCustomer).toContain("Add a customer or prospect");
     expect(newCustomer).toContain("Customer details");
     expect(newCustomer).toContain("Detailed customer intake");
     expect(newCustomer).toContain("Buyer Info");
     expect(newCustomer).toContain("Customer type");
     expect(newCustomer).toContain("Lead and assignment");
+    expect(newCustomer).toContain("Work category");
+    expect(newCustomer).toContain("Vehicle delivery / transport");
+    expect(newCustomer).toContain("Customer issue / complaint");
     expect(newCustomer).toContain("Interested Vehicle");
     expect(newCustomer).toContain("Customer Wishlist");
     expect(newCustomer).toContain("Referrer");
@@ -315,6 +394,10 @@ describe("CRM Next pages", () => {
     expect(pilotRelease).toContain("CRMN-150 proof bundle");
     expect(search).toContain("Find the customer");
     expect(search).toContain("Deals and Opportunities");
+    expect(noteSearch).toContain("Find the customer, then continue Add Note");
+    expect(noteSearch).toContain("Continue Add Note");
+    expect(noteSearch).toContain("/crm-next/new?returnAction=add-note");
+    expect(noteSearch).toContain('name="returnAction"');
     expect(timeline).toContain("Customer activity timeline");
     expect(timeline).toContain("No recorded activity yet");
     expect(timeline).not.toContain("Opportunity moved to proposal");
@@ -614,5 +697,305 @@ describe("CRM Next pages", () => {
     expect(timelineMarkup).toContain("Internal Note Internal");
     expect(workMarkup).not.toContain("Seeded placeholder should not render.");
     expect(timelineMarkup).not.toContain("Seeded placeholder should not render.");
+  });
+
+  it("keeps the due task signal collapsed until staff asks for details", () => {
+    const item: CrmNextAttentionItem = {
+      area: "Sales",
+      customerHref: "/crm-next/customers/naomi-nyambura-githongo",
+      customerId: "naomi-nyambura-githongo",
+      customerName: "Naomi Nyambura Githongo",
+      id: "attn-naomi-follow-up",
+      level: "Low",
+      nextAction: "Work retail deal for selected vehicle",
+      owner: "Sales Team",
+      reason: "Customer is working a vehicle deal",
+      workHref: "/crm-next/work/attn-naomi-follow-up"
+    };
+    const bridgePreview: CrmNextActionBridgePreview = {
+      contractVersion: "crm-next-action-bridge/v1",
+      liveTaskCreated: false,
+      reason: "Task preview is available for this customer.",
+      state: "DOGFOOD_READY",
+      dispatchPreview: {
+        assignedTo: "Sales Team",
+        customer360Update: "Customer 360 will show the completed follow-up after the task is finished.",
+        due: "Today 3:00 PM",
+        source: "Customer Console · Naomi Nyambura Githongo · Delivery appointment needs completion",
+        title: "Confirm delivery appointment follow-through"
+      }
+    };
+    const model = {
+      timeline: [],
+      userName: "Customer Console Page User"
+    } as CrmNextCommandCenter;
+
+    const markup = renderToStaticMarkup(<CrmNextWorkCustomerView bridgePreview={bridgePreview} item={item} model={model} />);
+
+    expect(markup).toContain('aria-controls="workbench-due-task"');
+    expect(markup).toContain('aria-expanded="false"');
+    expect(markup).toContain("Task");
+    expect(markup).toContain("1 due");
+    expect(markup).toContain("View details");
+    expect(markup).not.toContain("Due task");
+    expect(markup).not.toContain("Today 3:00 PM");
+    expect(markup).not.toContain("Work task on this page");
+  });
+
+  it("treats a linked vehicle as deal progress on the customer workbench", () => {
+    const item: CrmNextAttentionItem = {
+      area: "Sales",
+      customerHref: "/crm-next/customers/naomi-nyambura-githongo",
+      customerId: "naomi-nyambura-githongo",
+      customerName: "Naomi Nyambura Githongo",
+      id: "attn-naomi-follow-up",
+      level: "Low",
+      nextAction: "Work retail deal for selected vehicle",
+      owner: "Sales Team",
+      reason: "Customer is working a vehicle deal",
+      workHref: "/crm-next/work/attn-naomi-follow-up"
+    };
+    const model = {
+      customers: [
+        {
+          address: "Address available in Customers",
+          communications: [],
+          customerSince: "Sep 18, 2026",
+          email: "Not recorded",
+          glance: [],
+          id: "naomi-nyambura-githongo",
+          lifetimeValue: "Open customer record",
+          name: "Naomi Nyambura Githongo",
+          nextAction: "Work retail deal for selected vehicle",
+          openCases: 0,
+          openDeals: 0,
+          phone: "Not recorded",
+          riskLevel: "Low",
+          status: "Active",
+          vehicles: [{ id: "vehicle-jeep-cherokee", label: "2019 Jeep Cherokee Maroon", status: "Interested vehicle", vin: "Manual link" }],
+          vehiclesOwned: 1
+        }
+      ],
+      sales: { appointments: [], deals: [], leads: [], opportunities: [], testDrives: [] },
+      timeline: [],
+      userName: "Customer Console Page User"
+    } as CrmNextCommandCenter;
+
+    const markup = renderToStaticMarkup(<CrmNextWorkCustomerView item={item} model={model} />);
+
+    expect(markup).toContain("Vehicle selected");
+    expect(markup).toContain("2019 Jeep Cherokee Maroon");
+    expect(markup).toContain("Continue the deal");
+    expect(markup).toContain("Schedule appointment");
+    expect(markup).not.toContain("No deal is recorded on this workbench yet");
+  });
+
+  it("uses delivery close-out language for transport work instead of sales sold/lost", () => {
+    const item: CrmNextAttentionItem = {
+      area: "Sales",
+      customerHref: "/crm-next/customers/max-auto-transport",
+      customerId: "max-auto-transport",
+      customerName: "Max Auto Transport",
+      id: "attn-max-auto-transport",
+      level: "Low",
+      nextAction: "Confirm transporter delivered the vehicle",
+      owner: "Eli Manager",
+      reason: "Transporter delivered vehicle",
+      workHref: "/crm-next/work/attn-max-auto-transport"
+    };
+    const model = {
+      customers: [],
+      sales: { appointments: [], deals: [], leads: [], opportunities: [], testDrives: [] },
+      timeline: [],
+      userName: "Customer Console Page User"
+    } as CrmNextCommandCenter;
+
+    const markup = renderToStaticMarkup(<CrmNextWorkCustomerView item={item} model={model} />);
+
+    expect(markup).toContain("Delivery / Transport");
+    expect(markup).toContain("Delivered");
+    expect(markup).toContain("Resolved");
+    expect(markup).toContain("Closed");
+    expect(markup).toContain("No Action Needed");
+    expect(markup).toContain("Delivery / Transport is not a sales funnel");
+    expect(markup).not.toContain(">Sold<");
+    expect(markup).not.toContain(">Lost<");
+  });
+
+  it("hardens the customer list with source health, duplicate, owner, and closed outcome checks", () => {
+    installLocalStorageWindow();
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("crm-next:workbench:max auto transport:progress", JSON.stringify({
+        notice: "Delivered saved on this workbench.",
+        stage: "Delivered"
+      }));
+    }
+    const customers: CrmNextCustomer360[] = [
+      {
+        address: "Address available in Customers",
+        communications: [],
+        customerSince: "Sep 18, 2026",
+        email: "Not recorded",
+        glance: [],
+        id: "max auto transport",
+        lifetimeValue: "Open customer record",
+        name: "Max Auto Transport",
+        nextAction: "Confirm transporter delivered the vehicle",
+        openCases: 0,
+        openDeals: 0,
+        phone: "555-5898",
+        riskLevel: "Low",
+        status: "Active",
+        vehicles: [],
+        vehiclesOwned: 0
+      },
+      {
+        address: "Address available in Customers",
+        communications: [],
+        customerSince: "Sep 18, 2026",
+        email: "Not recorded",
+        glance: [],
+        id: "max-auto-transport-copy",
+        lifetimeValue: "Open customer record",
+        name: "Max Auto Transport",
+        nextAction: "Review overdue customer follow-up",
+        openCases: 0,
+        openDeals: 0,
+        phone: "555-5898",
+        riskLevel: "High",
+        status: "Active",
+        vehicles: [],
+        vehiclesOwned: 0
+      }
+    ];
+    const model = {
+      attention: [{
+        area: "Support",
+        customerHref: "/crm-next/customers/max%20auto%20transport",
+        customerId: "max auto transport",
+        customerName: "Max Auto Transport",
+        id: "attn-max-auto-transport",
+        level: "Low",
+        nextAction: "Close delivery",
+        owner: "Eli Manager",
+        reason: "Transporter delivered vehicle",
+        workHref: "/crm-next/work/attn-max-auto-transport"
+      }],
+      customers,
+      userName: "Customer Console Page User"
+    } as CrmNextCommandCenter;
+
+    const markup = renderToStaticMarkup(<CrmNextCustomersListView model={model} />);
+
+    expect(markup).toContain("Visible records");
+    expect(markup).toContain("Need owner");
+    expect(markup).toContain("Possible duplicates");
+    expect(markup).toContain("Closed locally");
+    expect(markup).toContain('href="/crm-next/customers/max%20auto%20transport"');
+    expect(markup).toContain("Delivered");
+    expect(markup).toContain("Vendor");
+    expect(markup).not.toContain("Vendor / Partner");
+    expect(markup).toContain("Possible duplicate");
+    expect(markup).toContain("Needs owner");
+  });
+
+  it("uses the sales work area as the customer list category when the next action is generic", () => {
+    const customer: CrmNextCustomer360 = {
+      address: "Address available in Customers",
+      communications: [],
+      customerSince: "Sep 18, 2026",
+      email: "wil@example.test",
+      glance: [],
+      id: "wil-johns",
+      lifetimeValue: "Open customer record",
+      name: "Wil Johns",
+      nextAction: "Review customer record",
+      openCases: 0,
+      openDeals: 0,
+      phone: "555-3671",
+      riskLevel: "High",
+      status: "Active",
+      vehicles: [],
+      vehiclesOwned: 0
+    };
+    const model = {
+      attention: [{
+        area: "Sales",
+        customerHref: "/crm-next/customers/wil-johns",
+        customerId: "wil-johns",
+        customerName: "Wil Johns",
+        id: "attn-wil-johns",
+        level: "High",
+        nextAction: "Review overdue customer follow-up",
+        owner: "Eli Manager",
+        reason: "Overdue customer follow-up",
+        workHref: "/crm-next/work/attn-wil-johns"
+      }],
+      customers: [customer],
+      userName: "Customer Console Page User"
+    } as CrmNextCommandCenter;
+
+    const markup = renderToStaticMarkup(<CrmNextCustomersListView model={model} />);
+
+    expect(markup).toContain("<dd>Sales</dd>");
+    expect(markup).not.toContain("<dd>General</dd>");
+  });
+
+  it("reflects a saved terminal workbench outcome on Customer 360", () => {
+    installLocalStorageWindow();
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("crm-next:workbench:max-auto-transport:progress", JSON.stringify({
+        notice: "Delivered saved on this workbench.",
+        stage: "Delivered"
+      }));
+    }
+    const customer: CrmNextCustomer360 = {
+      address: "Address available in Customers",
+      communications: [],
+      customerSince: "Sep 18, 2026",
+      email: "Not recorded",
+      glance: [],
+      id: "max-auto-transport",
+      lifetimeValue: "Open customer record",
+      name: "Max Auto Transport",
+      nextAction: "Confirm transporter delivered the vehicle",
+      openCases: 0,
+      openDeals: 0,
+      phone: "555-5898",
+      riskLevel: "Low",
+      status: "Active",
+      vehicles: [],
+      vehiclesOwned: 0
+    };
+    const model = {
+      attention: [],
+      customers: [customer],
+      enterpriseLayer: {
+        adminGuardrails: [],
+        automationRecommendations: [],
+        reportingBrief: {} as CrmNextCommandCenter["enterpriseLayer"]["reportingBrief"],
+        supportingParties: []
+      },
+      operationalRead: {
+        state: "LIVE_READ",
+        sources: [{
+          detail: "Customer 360 detail is available.",
+          href: "/crm-next/customers/max-auto-transport",
+          id: "customer-360",
+          label: "Customer 360 detail",
+          observedAt: "Now",
+          sourceOfTruth: "Customers",
+          state: "LIVE_READ"
+        }]
+      },
+      timeline: [],
+      userName: "Customer Console Page User"
+    } as CrmNextCommandCenter;
+
+    const markup = renderToStaticMarkup(<CrmNextCustomer360View customer={customer} model={model} />);
+
+    expect(markup).toContain("<dd>Delivered</dd>");
+    expect(markup).toContain("Workbench outcome reflected");
+    expect(markup).toContain("Delivered recorded. Confirm note, owner, and any follow-up before archiving.");
   });
 });

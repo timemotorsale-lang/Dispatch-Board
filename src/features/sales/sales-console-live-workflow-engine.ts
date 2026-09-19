@@ -438,6 +438,46 @@ export const salesConsoleLiveWorkItems: SalesConsoleLiveWorkItem[] = rankSalesWo
   };
 });
 
+function displayCustomerFromId(customerId: string) {
+  return customerId
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((part) => part.slice(0, 1).toUpperCase() + part.slice(1))
+    .join(" ") || "Customer";
+}
+
+export function buildSalesConsoleExternalCustomerWorkItem(input: {
+  customerId: string;
+  customerName?: string | null;
+}): SalesConsoleLiveWorkItem {
+  const template = salesConsoleLiveWorkItems[0];
+  const customerName = input.customerName?.trim() || displayCustomerFromId(input.customerId);
+
+  return {
+    ...template,
+    rank: 1,
+    group: "Today",
+    customerId: input.customerId,
+    customer: customerName,
+    contact: "Open Customer 360 for contact details",
+    vehicle: "Select vehicle or deal context",
+    stock: `CRM-${input.customerId.slice(0, 8).toUpperCase()}`,
+    revenueAmount: 0,
+    lane: "Customer Context",
+    contractLane: "Inventory Cash Sale",
+    stage: "Customer 360",
+    freshness: "Live",
+    source: "Customer 360",
+    blockers: [],
+    nextAction: "Choose the sales action for this customer",
+    reason: "Opened from a Customer 360 bench. Sales Workbench is scoped to this customer instead of the default queue.",
+    action: "Choose Sales Action",
+    actionState: "Source-System Action",
+    algorithmScore: 0,
+    algorithmReasons: ["Customer context was supplied by Customer 360."],
+  };
+}
+
 const lifecycleOrder: SalesConsoleLifecycleStage[] = [
   "Customer",
   "Prospect",

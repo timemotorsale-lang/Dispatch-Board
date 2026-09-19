@@ -32,6 +32,29 @@ const EMPTY_CUSTOMER_FIELDS: CustomerFields = {
   preferredContactMethod: "PHONE"
 };
 
+const CRM_INTAKE_WORK_CATEGORIES = [
+  { id: "retail-sale", label: "Retail sale / purchase", path: "sales-deal" },
+  { id: "lead-follow-up", label: "Lead follow-up", path: "customer-follow-up" },
+  { id: "appointment-follow-up", label: "Appointment follow-up", path: "customer-follow-up" },
+  { id: "vehicle-delivery", label: "Vehicle delivery / transport", path: "delivery-transport" },
+  { id: "service-repair", label: "Service / repair", path: "service-repair" },
+  { id: "title-registration", label: "Title / registration", path: "title-document" },
+  { id: "finance-payment", label: "Finance / payment", path: "finance-payment" },
+  { id: "document-upload", label: "Document / proof collection", path: "title-document" },
+  { id: "customer-issue", label: "Customer issue / complaint", path: "general-issue" },
+  { id: "vendor-partner", label: "Vendor / partner", path: "vendor-partner" },
+  { id: "ownership-support", label: "Ownership support", path: "customer-follow-up" },
+  { id: "general-work", label: "General work / other", path: "general-issue" }
+] as const;
+
+function crmWorkPathStorageKey(customerId: string) {
+  return `crm-next:work-path:${customerId}`;
+}
+
+function crmWorkCategoryStorageKey(customerId: string) {
+  return `crm-next:work-category:${customerId}`;
+}
+
 const CAPTURE_PURPOSES: Array<{
   id: CapturePurpose;
   label: string;
@@ -200,6 +223,15 @@ export function CrmNextIntakeForm() {
       if (!customer) throw new Error("Customer saved, but the customer record could not be opened.");
 
       const customerHref = `/crm-next/customers/${customer.id}`;
+      const selectedWorkCategory = formText(data, "workCategory") || "retail-sale";
+      const selectedCategoryConfig = CRM_INTAKE_WORK_CATEGORIES.find((category) => category.id === selectedWorkCategory) ?? CRM_INTAKE_WORK_CATEGORIES[0];
+      const selectedWorkPath = selectedCategoryConfig.path;
+      try {
+        window.localStorage.setItem(crmWorkCategoryStorageKey(customer.id), selectedCategoryConfig.id);
+        window.localStorage.setItem(crmWorkPathStorageKey(customer.id), selectedWorkPath);
+      } catch {
+        // The saved customer still opens even when local workbench preferences are unavailable.
+      }
       if (mode === "prospect") {
         setState({ kind: "saving", message: "Creating prospect lead..." });
         const leadResponse = await fetch("/api/customers/leads", {
@@ -210,7 +242,7 @@ export function CrmNextIntakeForm() {
               budget: formText(data, "budget"),
               customerNeed: formText(data, "customerNeed"),
               desiredTimeline: formText(data, "desiredTimeline"),
-              notes: formText(data, "notes"),
+              notes: [formText(data, "notes"), `Work category: ${selectedCategoryConfig.label}`, `Work path: ${selectedWorkPath}`].filter(Boolean).join("\n"),
               preferredContactMethod: customerPayload.preferredContactMethod
             },
             sourceCode: "CRM_NEXT",
@@ -384,6 +416,14 @@ export function CrmNextIntakeForm() {
                 <option>Working deal</option>
                 <option>Sold</option>
                 <option>Lost</option>
+              </select>
+            </label>
+            <label>
+              <span>Work category</span>
+              <select name="workCategory" defaultValue="retail-sale">
+                {CRM_INTAKE_WORK_CATEGORIES.map((category) => (
+                  <option key={category.id} value={category.id}>{category.label}</option>
+                ))}
               </select>
             </label>
             <label>

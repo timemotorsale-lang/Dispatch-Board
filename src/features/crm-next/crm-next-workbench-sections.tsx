@@ -84,9 +84,11 @@ const SECTION_HELP: Record<CrmWorkbenchSection, { title: string; detail: string;
 
 export function CrmNextWorkbenchSections({
   currentNeed,
+  dealEvidence,
   doneMeaning
 }: {
   currentNeed: string;
+  dealEvidence?: { detail: string; started: boolean; vehicle?: string };
   doneMeaning: string;
 }) {
   const [activeSection, setActiveSection] = useState<CrmWorkbenchSection>("Lead");
@@ -116,7 +118,15 @@ export function CrmNextWorkbenchSections({
         <div className={styles.dealerSectionGrid}>
           <div>
             <span>Current state</span>
-            <strong>{activeSection === "Lead" ? "Ready for staff action" : section.primary}</strong>
+            <strong>
+              {activeSection === "Lead"
+                ? "Ready for staff action"
+                : activeSection === "Vehicle" && dealEvidence?.started
+                  ? dealEvidence.vehicle || dealEvidence.detail
+                  : activeSection === "Deals" && dealEvidence?.started
+                    ? dealEvidence.detail
+                    : section.primary}
+            </strong>
           </div>
           <div>
             <span>How staff works it</span>
