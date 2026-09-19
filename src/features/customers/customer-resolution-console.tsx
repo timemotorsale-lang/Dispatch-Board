@@ -9,7 +9,7 @@ import Link from "next/link";
 import { useDeferredValue, useEffect, useState } from "react";
 
 import { useAppearance } from "@/components/layout/appearance";
-import { CRM_NEXT_CUSTOMERS_HREF, CRM_NEXT_SEARCH_HREF } from "@/features/crm/crm-route-authority";
+import { CRM_NEXT_CUSTOMERS_HREF } from "@/features/crm/crm-route-authority";
 import type { CustomerResolutionReadModel } from "@/server/services/customer-console-read-service";
 type ResolutionTab = "All Cases" | "My Cases" | "Unassigned" | "Overdue" | "Escalated" | "Resolved";
 type DetailTab = "Details" | "Timeline" | "Customer" | "Vehicle" | "Related";
@@ -86,7 +86,7 @@ export function CustomerResolutionConsole() {
     <section className="customer-console customer-resolution" data-theme={theme} aria-label="Customer Resolution Console">
       <header className="customer-console-toolbar customer-resolution-toolbar">
         <label className="customer-console-search"><Search size={16} /><input aria-label="Search customers and cases" placeholder="Search customers, tickets, vehicles, orders..." type="search" /><kbd>Ctrl K</kbd></label>
-        <nav className="customer-module-switcher" aria-label="Customer console sections"><Link href={CRM_NEXT_CUSTOMERS_HREF}>Customer Records</Link><Link href={CRM_NEXT_SEARCH_HREF}>Customer 360</Link><Link aria-current="page" className="active" href="/customers/resolutions">Resolution</Link></nav>
+        <nav className="customer-module-switcher" aria-label="Customer console sections"><Link href={CRM_NEXT_CUSTOMERS_HREF}>Customer Records</Link><Link href={CRM_NEXT_CUSTOMERS_HREF}>Customer 360</Link><Link aria-current="page" className="active" href="/customers/resolutions">Resolution</Link></nav>
         <div className="customer-theme-switch" aria-label="Customer console appearance" role="group"><button aria-label="Use light background" aria-pressed={theme === "light"} className={theme === "light" ? "customer-theme-option active" : "customer-theme-option"} onClick={() => setAppearance("light")} type="button"><Sun size={14} /> Light</button><button aria-label="Use dark background" aria-pressed={theme === "dark"} className={theme === "dark" ? "customer-theme-option active" : "customer-theme-option"} onClick={() => setAppearance("dark")} type="button"><Moon size={14} /> Dark</button></div>
         <button className="customer-quick-action" type="button"><Plus size={15} /> New <ChevronDown size={12} /></button>
         <button className="customer-resolution-icon" aria-label="Notifications" type="button"><Bell size={17} /><span>6</span></button><button className="customer-resolution-icon" aria-label="Messages" type="button"><Mail size={17} /></button>

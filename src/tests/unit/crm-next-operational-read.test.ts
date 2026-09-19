@@ -264,9 +264,11 @@ describe("CRM Next operational read model", () => {
 
   it("overlays existing customer and search read sources without creating a new customer master", async () => {
     process.env.CRM_NEXT = "REVIEW";
+    const customerListReader = vi.fn().mockResolvedValue(customerList());
+    const searchReader = vi.fn().mockResolvedValue(globalSearch());
     const model = await getCrmNextOperationalCommandCenter(user(), {
       appointmentReader: vi.fn().mockResolvedValue({ appointmentCount: 3 }),
-      customerListReader: vi.fn().mockResolvedValue(customerList()),
+      customerListReader,
       leadReader: vi.fn().mockResolvedValue([
         {
           customer: { displayName: "Amina Yusuf", id: "customer-amina" },
@@ -294,7 +296,7 @@ describe("CRM Next operational read model", () => {
       salesReader: vi.fn().mockResolvedValue({
         dataSources: [{ source: "Deal visibility", status: "mapped", usedRecords: 2 }]
       }),
-      searchReader: vi.fn().mockResolvedValue(globalSearch())
+      searchReader
     });
 
     expect(model.operationalRead.state).toBe("LIVE_READ");
@@ -338,6 +340,16 @@ describe("CRM Next operational read model", () => {
     expect(model.enterpriseLayer.adminGuardrails.map((control) => control.title)).toEqual(
       expect.arrayContaining(["Roles", "Permissions"])
     );
+    expect(customerListReader).toHaveBeenCalledWith(
+      expect.anything(),
+      { limit: 50 },
+      expect.objectContaining({ readMode: "REVIEW" })
+    );
+    expect(searchReader).toHaveBeenCalledWith(
+      expect.anything(),
+      { limit: 12, q: "customer" },
+      expect.objectContaining({ mode: "REVIEW" })
+    );
   });
 
   it("falls back honestly when existing read sources are unavailable", async () => {
@@ -361,8 +373,9 @@ describe("CRM Next operational read model", () => {
 
   it("maps Customer 360 detail, vehicles, and timeline from the existing read-only service", async () => {
     process.env.CRM_NEXT = "REVIEW";
+    const customer360Reader = vi.fn().mockResolvedValue(customer360());
     const result = await getCrmNextOperationalCustomer360(user(), "customer-amina", {
-      customer360Reader: vi.fn().mockResolvedValue(customer360()),
+      customer360Reader,
       customerListReader: vi.fn().mockResolvedValue(customerList()),
       now: () => fixedNow,
       searchReader: vi.fn().mockResolvedValue(globalSearch())
@@ -379,6 +392,11 @@ describe("CRM Next operational read model", () => {
     });
     expect(result.model.operationalRead.sources.map((source) => source.id)).toEqual(
       expect.arrayContaining(["customer-360", "timeline"])
+    );
+    expect(customer360Reader).toHaveBeenCalledWith(
+      expect.anything(),
+      "customer-amina",
+      expect.objectContaining({ readMode: "REVIEW", shellMode: "REVIEW" })
     );
   });
 });

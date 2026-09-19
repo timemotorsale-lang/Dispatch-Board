@@ -644,6 +644,96 @@
   margin-top: 2px;
 }
 
+.returnActionPanel {
+  background: #ffffff;
+  border: 1px solid #d3e1f5;
+  border-radius: 16px;
+  box-shadow: 0 14px 32px rgb(15 42 84 / 7%);
+  display: grid;
+  gap: 14px;
+  padding: 18px 20px;
+}
+
+.returnActionPanel h2 {
+  color: #071a3a;
+  font-size: 24px;
+  margin: 2px 0;
+}
+
+.returnActionPanel p {
+  color: #64748b;
+  margin: 0;
+}
+
+.returnActionPanel > div {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.returnActionCustomer {
+  border: 1px solid #d8e4f5;
+  border-radius: 12px;
+  color: #071a3a;
+  display: grid;
+  gap: 5px;
+  min-height: 104px;
+  padding: 14px;
+  text-decoration: none;
+}
+
+.returnActionCustomer:hover,
+.returnActionCustomer:focus-visible {
+  border-color: #4161f4;
+  box-shadow: 0 12px 22px rgb(65 97 244 / 12%);
+  outline: none;
+}
+
+.returnActionCustomer strong {
+  font-size: 18px;
+}
+
+.returnActionCustomer span {
+  color: #53647d;
+  font-size: 14px;
+}
+
+.returnActionCustomer small {
+  color: #4161f4;
+  font-weight: 950;
+}
+
+.emptyCustomerSource {
+  background: #fbfdff;
+  border: 1px solid #d8e4f5;
+  border-radius: 14px;
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.emptyCustomerSource h2 {
+  color: #071a3a;
+  font-size: 22px;
+  margin: 4px 0 6px;
+}
+
+.emptyCustomerSource p {
+  color: #53647d;
+  margin: 0;
+}
+
+.emptyCustomerActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.emptyCustomerActions .primaryButton,
+.emptyCustomerActions .secondaryButton {
+  min-height: 40px;
+}
+
 .sourceReportLayout {
   align-items: start;
   display: grid;
@@ -3101,6 +3191,166 @@
   gap: 12px;
   margin-bottom: 12px;
   padding: 14px;
+}
+
+.executionFunnel {
+  background: #ffffff;
+  border: 1px solid #dbe6f6;
+  border-radius: 10px;
+  box-shadow: 0 12px 30px rgb(15 42 84 / 7%);
+  display: grid;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 14px;
+}
+
+.executionFunnel > header {
+  align-items: center;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.executionFunnel h2,
+.executionFunnel p {
+  margin: 0;
+}
+
+.executionFunnel h2 {
+  color: #071a3a;
+  font-size: 22px;
+  line-height: 1.15;
+  margin-top: 3px;
+}
+
+.executionFunnel p {
+  color: #52637a;
+  font-size: 14px;
+  line-height: 1.45;
+  margin-top: 4px;
+}
+
+.executionProgress {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.executionProgress li {
+  align-items: center;
+  background: #f8fbff;
+  border: 1px solid #dbe6f6;
+  border-radius: 999px;
+  color: #64748b;
+  display: flex;
+  font-size: 12px;
+  font-weight: 900;
+  justify-content: center;
+  min-height: 34px;
+  padding: 7px 8px;
+  text-align: center;
+}
+
+.executionProgress li[data-state="complete"] {
+  background: #ecfdf5;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+
+.executionProgress li[data-state="active"] {
+  background: #eef4ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.executionSignalGrid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.executionSignalGrid article {
+  background: #f8fbff;
+  border: 1px solid #dbe6f6;
+  border-radius: 10px;
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+}
+
+.executionSignalGrid article[data-tone="complete"] {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.executionSignalGrid article[data-tone="attention"] {
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
+.executionSignalGrid span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.executionSignalGrid strong {
+  color: #071a3a;
+  font-size: 15px;
+}
+
+.executionStepGrid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.executionStepCard {
+  background: #f8fbff;
+  border: 1px solid #dbe6f6;
+  border-radius: 12px;
+  color: #071a3a;
+  display: grid;
+  gap: 5px;
+  min-height: 128px;
+  padding: 12px;
+  text-decoration: none;
+}
+
+.executionStepCard:hover,
+.executionStepCard:focus-visible {
+  border-color: #93c5fd;
+  outline: 3px solid rgb(37 99 235 / 16%);
+  outline-offset: 2px;
+}
+
+.executionStepCard span {
+  color: #155dfc;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.executionStepCard strong {
+  font-size: 15px;
+}
+
+.executionStepCard small {
+  color: #52637a;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.executionStepCard em {
+  align-self: end;
+  color: #155dfc;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
 }
 
 .crmWorkbenchHeader {
@@ -5806,9 +6056,19 @@
   }
 
   .crmWorkbenchHeader,
+  .executionFunnel > header,
   .dealerCustomerDetails,
   .activityWorkbenchGrid {
     grid-template-columns: 1fr;
+  }
+
+  .executionProgress,
+  .executionStepGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .executionSignalGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .dealerCustomerSnapshot {

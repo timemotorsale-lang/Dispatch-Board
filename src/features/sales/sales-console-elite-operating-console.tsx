@@ -35,6 +35,7 @@ import {
   salesConsoleLiveRevenueLanes,
   salesConsoleLiveTasksAndPromises,
   salesConsoleLiveWorkItems,
+  buildSalesConsoleExternalCustomerWorkItem,
   buildSalesConsoleRevenueDeskDecision,
   buildSalesConsoleTrustedMetrics,
   buildSalesConsoleGuidedPath,
@@ -346,11 +347,14 @@ const actionTone: Record<ActionState, string> = {
   "Future / Governed": styles.future
 };
 
-export function SalesConsoleEliteOperatingConsole() {
-  const searchParams = useSearchParams();
+export function SalesConsoleEliteOperatingConsole({ initialSearchParams }: { initialSearchParams?: URLSearchParams } = {}) {
+  const routeSearchParams = useSearchParams();
+  const searchParams = initialSearchParams ?? routeSearchParams;
   const initialCustomerId = searchParams?.get("customerId") ?? null;
+  const initialCustomerName = searchParams?.get("customerName") ?? null;
   const initialWorkspace = searchParams?.get("workspace") ?? null;
-  const initialSelectedCustomer = salesConsoleLiveWorkItems.find((item) => item.customerId === initialCustomerId) ?? salesConsoleLiveWorkItems[0];
+  const initialSelectedCustomer = salesConsoleLiveWorkItems.find((item) => item.customerId === initialCustomerId) ??
+    (initialCustomerId ? buildSalesConsoleExternalCustomerWorkItem({ customerId: initialCustomerId, customerName: initialCustomerName }) : salesConsoleLiveWorkItems[0]);
   const initialSelectedLane =
     salesConsoleLiveRevenueLanes.find((lane) => lane.contractLane === initialSelectedCustomer.contractLane) ??
     salesConsoleLiveRevenueLanes[0];

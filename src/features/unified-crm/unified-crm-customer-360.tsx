@@ -2,7 +2,7 @@
 
 import { AlertTriangle, ArrowLeft, ArrowRight, CalendarDays, CarFront, ExternalLink, History, RefreshCw, ShieldCheck, UserRound, UsersRound } from "lucide-react";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 
 import { buildUnifiedCrmTaskIntakeHref } from "@/lib/unified-crm-task-intake-handoff";
 import type { UnifiedCrmCustomer360ReadModel } from "@/server/unified-crm/customer-360-contract";
@@ -24,6 +24,16 @@ type Customer360Props = {
   model?: UnifiedCrmCustomer360ReadModel;
   opportunityDiscovery?: UnifiedCrmCustomerOpportunityDiscoveryModel;
   returnHref: string;
+};
+
+type ManualVehicleInterest = {
+  budget: string;
+  createdAt: string;
+  id: string;
+  note: string;
+  stockOrVin: string;
+  trade: string;
+  vehicle: string;
 };
 
 function customerReturnContext(returnHref: string) {
@@ -319,21 +329,36 @@ function CustomerExecutionBrief({
     <section className={styles.executionBrief} aria-labelledby="customer-execution-brief-heading">
       <header>
         <div>
-          <span className={styles.eyebrow}>Execution brief</span>
-          <h2 id="customer-execution-brief-heading">What matters right now</h2>
+          <span className={styles.eyebrow}>Start here</span>
+          <h2 id="customer-execution-brief-heading">Choose the useful tab for this customer</h2>
         </div>
-        <small>Customer 360 should answer who, what, owner, due, and next action first.</small>
+        <small>Jump straight to the work area instead of landing on a read-only summary.</small>
       </header>
       <div className={styles.executionBriefGrid}>
-        <article>
-          <span>Who</span>
+        <Link href="#customer-details-form-heading">
+          <span>Customer</span>
           <strong>{model.identity.displayName}</strong>
           <small>{model.identity.customerNumber} · {label(model.identity.status)}</small>
-        </article>
+        </Link>
         <Link href={activeWork.href}>
-          <span>Active work</span>
+          <span>Work context</span>
           <strong>{activeWork.title}</strong>
           <small>{activeWork.detail}</small>
+        </Link>
+        <Link href={model.permissions.canManageNextAction ? "#next-action-form-heading" : "#task-bridge-heading"}>
+          <span>Recommended</span>
+          <strong>{model.permissions.canManageNextAction ? "Update next action" : "Create governed task"}</strong>
+          <small>{nextActionGuidance(model)}</small>
+        </Link>
+        <Link href="#customer-opportunity-lenses-heading">
+          <span>Deals</span>
+          <strong>{model.opportunityLenses.length ? "Review linked opportunities" : "No linked deal yet"}</strong>
+          <small>{model.opportunityLenses.length ? `${model.opportunityLenses.length} opportunity view available` : "Open the deal tab before leaving Customer 360."}</small>
+        </Link>
+        <Link href="#timeline-heading">
+          <span>Timeline</span>
+          <strong>Review recent activity</strong>
+          <small>{model.timeline.items.length ? `${model.timeline.items.length} visible events` : "No permitted timeline events yet"}</small>
         </Link>
         <article>
           <span>Owner</span>
@@ -345,11 +370,229 @@ function CustomerExecutionBrief({
           <strong>{model.relationship.nextActionAt ? formatDate(model.relationship.nextActionAt, "Not scheduled") : "No date set"}</strong>
           <small>{nextActionEyebrow(model.relationship.nextActionState)}</small>
         </article>
-        <Link href={model.permissions.canManageNextAction ? "#next-action-form-heading" : "#task-bridge-heading"}>
-          <span>Next button</span>
-          <strong>{model.permissions.canManageNextAction ? "Update next action" : "Create governed task"}</strong>
-          <small>{nextActionGuidance(model)}</small>
-        </Link>
+      </div>
+    </section>
+  );
+}
+
+function StaffExecutionWorkspace({
+  customerSourceHref,
+  model,
+  returnHref,
+  taskBridgeHref
+}: {
+  customerSourceHref: string;
+  model: UnifiedCrmCustomer360ReadModel;
+  returnHref: string;
+  taskBridgeHref: string;
+}) {
+  const activeWork = activeRelationshipWork(model, returnHref);
+  const primaryOpportunity = model.opportunityLenses[0];
+  const primaryAppointment = model.appointments[0];
+  const primaryVehicle = model.vehicles[0];
+  const followUpHref = model.permissions.canManageNextAction ? "#next-action-form-heading" : taskBridgeHref;
+  const followUpLabel = model.permissions.canManageNextAction ? "Update next action" : "Create governed task";
+  const followUpStatus = model.relationship.nextActionAt
+    ? formatDate(model.relationship.nextActionAt, "No date set")
+    : "No date set";
+  const contextHref = primaryOpportunity
+    ? withUnifiedCrmOpportunityReturn(primaryOpportunity.href, buildUnifiedCrmCustomerReturn(model.identity.id, returnHref))
+    : activeWork.href;
+  const executionLanes = [
+    {
+      href: followUpHref,
+      label: "1",
+      title: followUpLabel,
+      detail: nextActionGuidance(model),
+      meta: followUpStatus,
+      primary: true
+    },
+    {
+      href: model.permissions.canLogInteraction ? "#interaction-form-heading" : customerSourceHref,
+      label: "2",
+      title: model.permissions.canLogInteraction ? "Record activity outcome" : "Review source activity",
+      detail: model.permissions.canLogInteraction ? "Log the customer touchpoint after staff calls, texts, emails, or meets." : "Manual outcome entry is unavailable here; use the source record.",
+      meta: model.communicationActionReadiness.posture === "NO_CONTACT" ? "No contact ready" : label(model.communicationActionReadiness.posture)
+    },
+    {
+      href: contextHref,
+      label: "3",
+      title: primaryOpportunity ? "Review sales/deal context" : "Review active work context",
+      detail: primaryOpportunity?.summary ?? activeWork.detail,
+      meta: primaryOpportunity ? label(primaryOpportunity.stage) : "Customer context"
+    },
+    {
+      href: "#deal-support-heading",
+      label: "4",
+      title: "Add vehicle interest",
+      detail: primaryVehicle ? `Linked vehicle: ${primaryVehicle.label}` : "Manually attach the vehicle the customer wants before deal creation.",
+      meta: primaryAppointment?.startsAt ? `Appointment ${formatDate(primaryAppointment.startsAt, "Not scheduled")}` : "Manual linkage"
+    },
+    {
+      href: model.permissions.canCreateNote ? "#note-form-heading" : customerSourceHref,
+      label: "5",
+      title: model.permissions.canCreateNote ? "Capture staff note" : "Review team notes",
+      detail: model.permissions.canCreateNote ? "Record the decision, promise, blocker, or customer preference before leaving." : "Note entry is unavailable here; review source context instead.",
+      meta: `${model.notes.length} visible note${model.notes.length === 1 ? "" : "s"}`
+    }
+  ];
+
+  return (
+    <section className={styles.staffWorkspace} aria-labelledby="staff-execution-workspace-heading">
+      <header>
+        <div>
+          <span className={styles.eyebrow}>Staff execution tool</span>
+          <h2 id="staff-execution-workspace-heading">Work this customer from here</h2>
+          <p>Pick the lane, complete the staff action, then record the outcome before moving on.</p>
+        </div>
+        <Link href={customerSourceHref}>Open source record<ExternalLink aria-hidden="true" size={13} /></Link>
+      </header>
+      <div className={styles.staffWorkspaceBody}>
+        <div className={styles.executionLaneGrid}>
+          {executionLanes.map((lane) => (
+            <Link className={`${styles.executionLane} ${lane.primary ? styles.executionLanePrimary : ""}`} href={lane.href} key={lane.label}>
+              <span>{lane.label}</span>
+              <strong>{lane.title}</strong>
+              <small>{lane.detail}</small>
+              <em>{lane.meta}</em>
+            </Link>
+          ))}
+        </div>
+        <aside className={styles.executionChecklist} aria-label="Staff execution checklist">
+          <strong>Execution checklist</strong>
+          <Link href="#customer-details-form-heading">Confirm customer identity and contact preferences</Link>
+          <Link href={followUpHref}>Set or renew the next dated follow-up</Link>
+          <Link href="#interaction-form-heading">Record the customer outcome after the action</Link>
+          <Link href="#deal-support-heading">Attach interested vehicle before preparing the deal</Link>
+          <Link href="#note-form-heading">Leave the internal note the next staff member needs</Link>
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+function manualVehicleStorageKey(customerId: string) {
+  return `ucrm:customer:${customerId}:manual-vehicle-interests`;
+}
+
+function encodeDealSupportHref(model: UnifiedCrmCustomer360ReadModel, returnHref: string, interest?: ManualVehicleInterest) {
+  const params = new URLSearchParams({
+    crmReturnTo: buildUnifiedCrmCustomerReturn(model.identity.id, returnHref),
+    customerId: model.identity.id,
+    customerName: model.identity.displayName
+  });
+  if (interest?.vehicle) params.set("vehicleInterest", interest.vehicle);
+  if (interest?.stockOrVin) params.set("stockOrVin", interest.stockOrVin);
+  if (interest?.budget) params.set("budget", interest.budget);
+  if (interest?.trade) params.set("trade", interest.trade);
+  if (interest?.note) params.set("dealNote", interest.note);
+  return `/crm/opportunities/new?${params.toString()}`;
+}
+
+function ManualDealSupportWorkspace({
+  model,
+  returnHref
+}: {
+  model: UnifiedCrmCustomer360ReadModel;
+  returnHref: string;
+}) {
+  const storageKey = manualVehicleStorageKey(model.identity.id);
+  const [interests, setInterests] = useState<ManualVehicleInterest[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const stored = window.localStorage.getItem(manualVehicleStorageKey(model.identity.id));
+      return stored ? JSON.parse(stored) as ManualVehicleInterest[] : [];
+    } catch {
+      return [];
+    }
+  });
+  const [message, setMessage] = useState<string | null>(null);
+
+  function save(nextInterests: ManualVehicleInterest[]) {
+    setInterests(nextInterests);
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify(nextInterests));
+    } catch {
+      // Local persistence is a convenience only; the visible workpad remains usable.
+    }
+  }
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const vehicle = String(form.get("vehicle") ?? "").trim();
+    if (!vehicle) {
+      setMessage("Enter the interested vehicle before adding it to deal support.");
+      return;
+    }
+    const nextInterest: ManualVehicleInterest = {
+      budget: String(form.get("budget") ?? "").trim(),
+      createdAt: new Date().toISOString(),
+      id: `vehicle-interest-${Date.now()}`,
+      note: String(form.get("note") ?? "").trim(),
+      stockOrVin: String(form.get("stockOrVin") ?? "").trim(),
+      trade: String(form.get("trade") ?? "").trim(),
+      vehicle
+    };
+    save([nextInterest, ...interests].slice(0, 5));
+    setMessage(`${vehicle} added to deal support for ${model.identity.displayName}.`);
+    event.currentTarget.reset();
+  }
+
+  const primaryInterest = interests[0];
+  const prepareDealHref = encodeDealSupportHref(model, returnHref, primaryInterest);
+
+  return (
+    <section className={styles.dealSupportWorkspace} aria-labelledby="deal-support-heading">
+      <header>
+        <div>
+          <span className={styles.eyebrow}>Deal support</span>
+          <h2 id="deal-support-heading">Manually link interested vehicles</h2>
+          <p>Use this when inventory is not connected. Capture the vehicle the customer wants, then carry it into opportunity creation.</p>
+        </div>
+        <Link href={prepareDealHref}>Prepare deal<ExternalLink aria-hidden="true" size={13} /></Link>
+      </header>
+      <div className={styles.dealSupportBody}>
+        <form className={styles.manualVehicleForm} onSubmit={submit}>
+          <label>
+            <span>Interested vehicle</span>
+            <input name="vehicle" placeholder="Example: 2019 Jeep Cherokee Maroon" required maxLength={160} />
+          </label>
+          <label>
+            <span>Stock # or VIN if known</span>
+            <input name="stockOrVin" placeholder="Optional manual reference" maxLength={80} />
+          </label>
+          <label>
+            <span>Budget / payment target</span>
+            <input name="budget" placeholder="Optional" maxLength={80} />
+          </label>
+          <label>
+            <span>Trade or payoff</span>
+            <input name="trade" placeholder="Optional trade context" maxLength={120} />
+          </label>
+          <label className={styles.manualVehicleWide}>
+            <span>Deal note</span>
+            <textarea name="note" placeholder="What should the salesperson remember when working this deal?" maxLength={500} />
+          </label>
+          <div className={styles.manualVehicleActions}>
+            <button type="submit">Add vehicle interest</button>
+            <small>Manual support only. This does not reserve inventory, create a quote, or write to an inventory source.</small>
+          </div>
+          {message ? <p className={styles.formSuccess} role="status">{message}</p> : null}
+        </form>
+        <aside className={styles.vehicleInterestList} aria-label="Manual interested vehicles">
+          <strong>Interested vehicles</strong>
+          {interests.length ? interests.map((interest) => (
+            <article key={interest.id}>
+              <span>{interest.vehicle}</span>
+              <small>{[interest.stockOrVin, interest.budget, interest.trade].filter(Boolean).join(" · ") || "Manual vehicle interest"}</small>
+              {interest.note ? <p>{interest.note}</p> : null}
+              <Link href={encodeDealSupportHref(model, returnHref, interest)}>Prepare deal with this vehicle</Link>
+            </article>
+          )) : (
+            <p>No manual vehicle interest has been added for this customer yet.</p>
+          )}
+        </aside>
       </div>
     </section>
   );
@@ -358,7 +601,7 @@ function CustomerExecutionBrief({
 function CustomerDetailJumpRail({ canEditCustomerDetails }: { canEditCustomerDetails: boolean }) {
   const links = [
     { href: canEditCustomerDetails ? "#customer-details-form-heading" : "#customer-name-heading", label: "Contact" },
-    { href: "#relationship-work-heading", label: "Vehicles & appointments" },
+    { href: "#deal-support-heading", label: "Vehicle interest" },
     { href: "#customer-opportunity-lenses-heading", label: "Deals" },
     { href: "#task-bridge-heading", label: "Tasks" },
     { href: "#customer-notes-heading", label: "Notes" },
@@ -394,35 +637,51 @@ function QuickActions({
     <section aria-labelledby="customer-quick-actions-heading" className={styles.quickActionsCard}>
       <header>
         <div>
-          <span className={styles.eyebrow}>Ready actions</span>
-          <h2 id="customer-quick-actions-heading">Do the next safe thing in one click</h2>
+          <span className={styles.eyebrow}>Useful tabs</span>
+          <h2 id="customer-quick-actions-heading">Go straight to the customer work area</h2>
         </div>
-        <small>Live links only · governed actions stay labeled</small>
+        <small>Each tile jumps to a real section or governed workflow.</small>
       </header>
       <div className={styles.quickActionsGrid}>
-        <Link className={`${styles.quickActionLink} ${styles.quickActionPrimary}`} href={customerSourceHref}>
-          <strong>Open existing customer record</strong>
-          <small>Go straight to the governed source-of-truth record.</small>
-        </Link>
-        <Link className={styles.quickActionLink} href={editAvailable ? "#customer-details-form-heading" : customerSourceHref}>
-          <strong>{editAvailable ? "Edit customer details" : "Open source details"}</strong>
-          <small>{editAvailable ? "Add missing name, contact, address, or preference details here." : "Customer detail edits are unavailable here, so use the source record."}</small>
+        <Link className={`${styles.quickActionLink} ${styles.quickActionPrimary}`} href={nextActionAvailable ? "#next-action-form-heading" : taskBridgeHref}>
+          <strong>{nextActionAvailable ? "Update next action" : "Create governed task"}</strong>
+          <small>{nextActionAvailable ? "Set the next dated follow-up for this customer." : "Continue into the governed task workflow with this customer attached."}</small>
         </Link>
         <Link className={styles.quickActionLink} href="#interaction-form-heading">
-          <strong>Log manual outcome</strong>
-          <small>Jump to the live touchpoint form on this page.</small>
-        </Link>
-        <Link className={styles.quickActionLink} href={nextActionAvailable ? "#next-action-form-heading" : taskBridgeHref}>
-          <strong>{nextActionAvailable ? "Update next action" : "Create governed task"}</strong>
-          <small>{nextActionAvailable ? "Jump to the live follow-up form without leaving Customer 360." : "Next-action changes are unavailable here, so continue in the governed task workflow."}</small>
+          <strong>Activity outcome</strong>
+          <small>Record a call, visit, text, email, or manual touchpoint.</small>
         </Link>
         <Link className={styles.quickActionLink} href="#note-form-heading">
-          <strong>Add internal note</strong>
-          <small>Jump to the live team-note form on this page.</small>
+          <strong>Notes</strong>
+          <small>Add internal customer context for the team.</small>
         </Link>
         <Link className={styles.quickActionLink} href={taskBridgeAvailable ? "#task-bridge-heading" : taskBridgeHref}>
-          <strong>Create governed task</strong>
-          <small>{taskBridgeAvailable ? "Open the protected CRM task handoff form on this page." : "CRM handoff is unavailable here, so continue into the existing task intake workflow."}</small>
+          <strong>Tasks</strong>
+          <small>{taskBridgeAvailable ? "Create a protected CRM task from this customer." : "Open the task intake workflow with this customer attached."}</small>
+        </Link>
+        <Link className={styles.quickActionLink} href="#customer-opportunity-lenses-heading">
+          <strong>Deals</strong>
+          <small>Review linked opportunities before choosing the next sales move.</small>
+        </Link>
+        <Link className={styles.quickActionLink} href="#deal-support-heading">
+          <strong>Vehicle interest</strong>
+          <small>Manually attach interested vehicles before creating or working the deal.</small>
+        </Link>
+        <Link className={styles.quickActionLink} href={editAvailable ? "#customer-details-form-heading" : customerSourceHref}>
+          <strong>Customer details</strong>
+          <small>{editAvailable ? "Edit contact, address, preference, or identity details." : "Open the source record for customer details."}</small>
+        </Link>
+        <Link className={styles.quickActionLink} href="#communication-timeline-lens-heading">
+          <strong>Communication</strong>
+          <small>Review safe touchpoint history and available communication actions.</small>
+        </Link>
+        <Link className={styles.quickActionLink} href="#timeline-heading">
+          <strong>Timeline</strong>
+          <small>See the customer relationship timeline in order.</small>
+        </Link>
+        <Link className={styles.quickActionLink} href={customerSourceHref}>
+          <strong>Source record</strong>
+          <small>Open the governed source-of-truth customer record.</small>
         </Link>
         {primaryOpportunityAction ? (
           <Link className={styles.quickActionLink} href={withUnifiedCrmOpportunityReturn(primaryOpportunityAction.link.href, opportunityDiscovery.customer.href)}>
@@ -707,6 +966,8 @@ export function UnifiedCrmCustomer360({ errorMessage, failureKind = "error", mod
       </section>
       <section className={styles.trustBar} aria-label="Customer source and freshness"><span><ShieldCheck aria-hidden="true" size={15} /><strong>{model.source.label}</strong> · canonical identity</span><span><ShieldCheck aria-hidden="true" size={14} />Current · observed {formatDate(model.freshness.observedAt, "time unavailable")}</span><span><ShieldCheck aria-hidden="true" size={14} />{returnContext.continuityLabel}</span><Link href={customerSourceHref}>Open existing customer record<ExternalLink aria-hidden="true" size={13} /></Link></section>
       <CustomerExecutionBrief model={model} returnHref={returnHref} />
+      <StaffExecutionWorkspace customerSourceHref={customerSourceHref} model={model} returnHref={returnHref} taskBridgeHref={taskBridgeHref} />
+      <ManualDealSupportWorkspace model={model} returnHref={returnHref} />
       <QuickActions
         customerSourceHref={customerSourceHref}
         editAvailable={model.permissions.canEditCustomerDetails}

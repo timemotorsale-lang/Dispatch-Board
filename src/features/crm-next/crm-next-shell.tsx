@@ -57,12 +57,29 @@ function crmNextActionHref(actionId: string, customerId?: string) {
   return customerId ? `${baseHref}?customerId=${encodeURIComponent(customerId)}` : baseHref;
 }
 
+function crmNextActionSearchHref(actionId: string) {
+  return `/crm-next/search?returnAction=${encodeURIComponent(actionId)}`;
+}
+
+function crmNextActionLabel(actionId: string) {
+  if (actionId === "add-note") return "Add Note";
+  if (actionId === "new-task") return "Create CRM Task";
+  if (actionId === "new-case") return "New Case";
+  if (actionId === "log-call") return "Log Call";
+  if (actionId === "schedule-appointment") return "Schedule Appointment";
+  return "CRM action";
+}
+
+function validReturnAction(actionId?: string) {
+  return ["add-note", "new-task", "new-case", "log-call", "schedule-appointment"].includes(actionId ?? "") ? actionId : undefined;
+}
+
 function crmNextTimelineHref(customerId?: string) {
   return customerId ? `/crm-next/timeline?customerId=${encodeURIComponent(customerId)}` : "/crm-next/timeline";
 }
 
-function salesWorkbenchHref(customerId: string) {
-  return `/sales?workspace=guided&customerId=${encodeURIComponent(customerId)}&returnTo=${encodeURIComponent(`/crm-next/customers/${customerId}`)}`;
+function salesWorkbenchHref(customer: CrmNextCustomer360) {
+  return `/sales?workspace=guided&customerId=${encodeURIComponent(customer.id)}&customerName=${encodeURIComponent(customer.name)}&returnTo=${encodeURIComponent(`/crm-next/customers/${customer.id}`)}`;
 }
 
 function directActionWorkspace(action: CrmNextOperatingAction, customerName: string, nextAction: string) {
@@ -273,11 +290,12 @@ function CrmNextFrame({ active, children, userName }: { active: "command" | "new
   );
 }
 
-function Topbar({ defaultQuery = "" }: { defaultQuery?: string }) {
+function Topbar({ defaultQuery = "", returnAction }: { defaultQuery?: string; returnAction?: string }) {
   return (
     <div className={styles.topbar}>
       <form action="/crm-next/search" className={styles.search} role="search">
         <Search size={20} aria-hidden="true" />
+        {returnAction ? <input name="returnAction" type="hidden" value={returnAction} /> : null}
         <input
           aria-label="Search customer records"
           defaultValue={defaultQuery}
@@ -527,6 +545,7 @@ export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCente
 }
 
 export function CrmNextCustomersListView({ model }: { model: CrmNextCommandCenter }) {
+  const hasVerifiedCustomers = model.customers.length > 0;
   return (
     <CrmNextFrame active="customers" userName={model.userName}>
       <Topbar />
@@ -550,7 +569,7 @@ export function CrmNextCustomersListView({ model }: { model: CrmNextCommandCente
             <span className={styles.pill}>{model.customers.length} visible</span>
           </header>
           <div className={styles.directoryRows}>
-            {model.customers.map((customer) => {
+            {hasVerifiedCustomers ? model.customers.map((customer) => {
               const activeAttentionItem = model.attention.find((item) => item.customerId === customer.id);
               const attendHref = activeAttentionItem?.workHref ?? `/crm-next/work/customer-read-${encodeURIComponent(customer.id)}`;
               return (
@@ -574,7 +593,9 @@ export function CrmNextCustomersListView({ model }: { model: CrmNextCommandCente
                   </div>
                 </article>
               );
-            })}
+            }) : (
+              <CrmNextEmptyCustomerSourcePanel />
+            )}
           </div>
         </article>
 
@@ -591,6 +612,32 @@ export function CrmNextCustomersListView({ model }: { model: CrmNextCommandCente
         </aside>
       </section>
     </CrmNextFrame>
+  );
+}
+
+function CrmNextEmptyCustomerSourcePanel({ actionId }: { actionId?: string }) {
+  const actionLabel = crmNextActionLabel(actionId ?? "");
+  const newCustomerHref = actionId
+    ? `/crm-next/new?returnAction=${encodeURIComponent(actionId)}`
+    : "/crm-next/new";
+
+  return (
+    <article className={styles.emptyCustomerSource}>
+      <div>
+        <span className={styles.eyebrow}>Customer source</span>
+        <h2>No verified Customer 360 records are visible here yet</h2>
+        <p>
+          Customer Console is waiting on the live customer source. The existing customer list is still available in Customer Archive while this view has no verified records.
+        </p>
+      </div>
+      <div className={styles.emptyCustomerActions}>
+        <Link className={styles.primaryButton} href={LEGACY_CUSTOMER_ARCHIVE_HREF}>Open Customer Archive</Link>
+        <Link className={styles.secondaryButton} href={LEGACY_CRM_FALLBACK_HREF}>Open older customer tools</Link>
+        <Link className={styles.secondaryButton} href={newCustomerHref}>
+          {actionId ? `Add customer, then continue ${actionLabel}` : "Add Customer / Prospect"}
+        </Link>
+      </div>
+    </article>
   );
 }
 
@@ -836,28 +883,68 @@ export function CrmNextNeedsAttentionView({ model }: { model: CrmNextCommandCent
   );
 }
 
-export function CrmNextSearchView({ model }: { model: CrmNextCommandCenter }) {
+export function CrmNextSearchView({ model, returnAction }: { model: CrmNextCommandCenter; returnAction?: string }) {
+  const actionId = validReturnAction(returnAction);
+  const actionLabel = crmNextActionLabel(actionId ?? "");
+  const hasVerifiedCustomers = model.customers.length > 0;
   return (
     <CrmNextFrame active="search" userName={model.userName}>
-      <Topbar defaultQuery={model.search.activeQuery} />
+      <Topbar defaultQuery={model.search.activeQuery} returnAction={actionId} />
       <section className={styles.hero}>
         <div>
           <span className={styles.eyebrow}>Global Search</span>
-          <h1>Find the customer, then take the next safe action</h1>
-          <p>{model.search.queryPlaceholder}</p>
+          <h1>{actionId ? `Find the customer, then continue ${actionLabel}` : "Find the customer, then take the next safe action"}</h1>
+          <p>{actionId ? "Choose a verified Customer 360 record so the pending action saves to the right timeline." : model.search.queryPlaceholder}</p>
         </div>
         <div className={styles.quickActions}>
-          <Link className={styles.primaryButton} href="/crm-next/new"><UserPlus size={16} /> Add Customer / Prospect</Link>
+          <Link className={styles.primaryButton} href={actionId ? `/crm-next/new?returnAction=${encodeURIComponent(actionId)}` : "/crm-next/new"}><UserPlus size={16} /> Add Customer / Prospect</Link>
           <Link className={styles.secondaryButton} href="/crm-next">Back to Command Center</Link>
         </div>
       </section>
+      {actionId ? (
+        <section className={styles.returnActionPanel} aria-label={`Continue ${actionLabel}`}>
+          <header>
+            <div>
+              <span className={styles.eyebrow}>Pending action</span>
+              <h2>{actionLabel}</h2>
+              <p>Select a customer below to return to the action with verified context.</p>
+            </div>
+          </header>
+          <div>
+            {hasVerifiedCustomers ? model.customers.slice(0, 6).map((customer) => (
+              <Link className={styles.returnActionCustomer} href={crmNextActionHref(actionId, customer.id)} key={customer.id}>
+                <strong>{customer.name}</strong>
+                <span>{customer.nextAction}</span>
+                <small>Continue {actionLabel}</small>
+              </Link>
+            )) : (
+              <CrmNextEmptyCustomerSourcePanel actionId={actionId} />
+            )}
+          </div>
+        </section>
+      ) : null}
+      {!actionId && !hasVerifiedCustomers ? <CrmNextEmptyCustomerSourcePanel /> : null}
       <section className={styles.searchGroups} aria-label="Customer record search results">
-        {model.search.groups.map((group) => (
-          <Link className={styles.card} href={group.href} key={group.id}>
-            <header><h2>{group.label}</h2><span className={styles.pill}>{group.count}</span></header>
-            <p>{group.description}</p>
-          </Link>
-        ))}
+        {model.search.groups.map((group) => {
+          const isCustomerGroup = group.id.includes("customer");
+          const href = actionId && isCustomerGroup
+            ? model.customers[0]
+              ? crmNextActionHref(actionId, model.customers[0].id)
+              : `/crm-next/new?returnAction=${encodeURIComponent(actionId)}`
+            : isCustomerGroup
+              ? CRM_NEXT_CUSTOMERS_HREF
+              : group.href;
+          const count = isCustomerGroup && hasVerifiedCustomers ? model.customers.length : group.count;
+          const description = isCustomerGroup && hasVerifiedCustomers
+            ? `Open the customer list. Latest visible records include ${model.customers.slice(0, 3).map((customer) => customer.name).join(", ")}.`
+            : group.description;
+          return (
+            <Link className={styles.card} href={href} key={group.id}>
+              <header><h2>{group.label}</h2><span className={styles.pill}>{count}</span></header>
+              <p>{description}</p>
+            </Link>
+          );
+        })}
       </section>
     </CrmNextFrame>
   );
@@ -1544,7 +1631,7 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
     reason: customer.nextAction,
     returnTo: `/crm-next/customers/${customer.id}`
   });
-  const customerSalesWorkbenchHref = salesWorkbenchHref(customer.id);
+  const customerSalesWorkbenchHref = salesWorkbenchHref(customer);
   const customerMetrics = [
     { label: "Open Leads", value: customer.openDeals, detail: "Active", tone: "green" },
     { label: "Open Cases", value: customer.openCases, detail: "Active", tone: "red" },
@@ -1744,7 +1831,8 @@ export function CrmNextActionReadinessView({ action, customerId, model }: { acti
   const relatedCustomer = customerId ? requestedCustomer : model.customers[0];
   const missingRequestedCustomer = Boolean(customerId && !requestedCustomer);
   const customerDisplayName = relatedCustomer?.name ?? "Customer record unavailable";
-  const backHref = relatedCustomer ? `/crm-next/customers/${relatedCustomer.id}` : "/crm-next/search";
+  const findCustomerHref = crmNextActionSearchHref(action.id);
+  const backHref = relatedCustomer ? `/crm-next/customers/${relatedCustomer.id}` : findCustomerHref;
   const activeAttentionItem = relatedCustomer ? model.attention.find((item) => item.customerId === relatedCustomer.id) : undefined;
   const workbenchHref = activeAttentionItem?.workHref ?? backHref;
   const caseReturnHref = relatedCustomer ? crmNextActionHref("new-case", relatedCustomer.id) : "/crm-next/actions/new-case";
@@ -1818,7 +1906,7 @@ export function CrmNextActionReadinessView({ action, customerId, model }: { acti
           </dl>
           <div className={styles.customerHeroActions}>
             {action.id === "schedule-appointment" ? <Link className={styles.primaryButton} href={primaryHref}>Open appointment console</Link> : null}
-            <Link className={styles.secondaryButton} href={backHref}>Back to Customer 360</Link>
+            <Link className={styles.secondaryButton} href={backHref}>{relatedCustomer ? "Back to Customer 360" : `Find customer for ${action.label}`}</Link>
             <Link className={styles.secondaryButton} href="/crm">Open older customer tools</Link>
           </div>
         </section>
@@ -1948,6 +2036,49 @@ export function CrmNextWorkCustomerView({
   const issue = customerWorkIssue(item);
   const verifiedCustomerActivity = verifiedTimelineEvents(model.timeline);
   const pendingTasks = bridgePreview?.dispatchPreview ? "1 due" : "None";
+  const dealStarted = false;
+  const appointmentScheduled = false;
+  const progressSteps = [
+    { label: "Customer opened", state: "complete" },
+    { label: "Contact made", state: "complete" },
+    { label: dealStarted ? "Deal started" : "Start deal", state: dealStarted ? "complete" : "active" },
+    { label: appointmentScheduled ? "Appointment set" : "Schedule appt.", state: appointmentScheduled ? "complete" : "waiting" },
+    { label: "Outcome", state: "waiting" }
+  ];
+  const executionSteps = [
+    {
+      href: CRM_NEXT_DEAL_START_HREF,
+      label: "Next",
+      title: "Start or update the deal",
+      detail: "No deal is recorded on this workbench yet. Start the deal, attach vehicle interest, and return here.",
+      state: "Needed"
+    },
+    {
+      href: crmNextCustomerAppointmentHref({
+        customerId: item.customerId,
+        customerName: item.customerName,
+        reason: item.nextAction,
+        returnTo: item.workHref
+      }),
+      label: "Then",
+      title: "Schedule the appointment",
+      detail: "Next appointment is not scheduled. Put the customer on the calendar before this leaves the queue.",
+      state: "Open"
+    },
+    {
+      href: "#lead",
+      label: "Record",
+      title: "Log the customer outcome",
+      detail: "Capture what happened, the promise made, and the next staff owner so the work does not reset.",
+      state: "Ready"
+    }
+  ];
+  const completionSignals = [
+    { label: "Contact", value: "Done today", tone: "complete" },
+    { label: "Deal", value: dealStarted ? "Started" : "Missing", tone: dealStarted ? "complete" : "attention" },
+    { label: "Appointment", value: appointmentScheduled ? "Scheduled" : "Missing", tone: appointmentScheduled ? "complete" : "attention" },
+    { label: "Task", value: pendingTasks, tone: pendingTasks === "None" ? "quiet" : "attention" }
+  ];
 
   return (
     <CrmNextFrame active="work" userName={model.userName}>
@@ -1973,6 +2104,40 @@ export function CrmNextWorkCustomerView({
           </div>
         </header>
         <main>
+          <section className={styles.executionFunnel} aria-labelledby="execution-funnel-heading">
+            <header>
+              <div>
+                <span className={styles.eyebrow}>Execution funnel</span>
+                <h2 id="execution-funnel-heading">What has happened, what is missing, and what to do next</h2>
+                <p>Open this workbench and move from contact to deal, appointment, and recorded outcome without guessing.</p>
+              </div>
+              <Link className={styles.primaryButton} href={CRM_NEXT_DEAL_START_HREF}>Continue execution</Link>
+            </header>
+            <ol className={styles.executionProgress} aria-label="Customer execution progress">
+              {progressSteps.map((step) => (
+                <li data-state={step.state} key={step.label}>{step.label}</li>
+              ))}
+            </ol>
+            <div className={styles.executionSignalGrid} aria-label="Workbench completion signals">
+              {completionSignals.map((signal) => (
+                <article data-tone={signal.tone} key={signal.label}>
+                  <span>{signal.label}</span>
+                  <strong>{signal.value}</strong>
+                </article>
+              ))}
+            </div>
+            <div className={styles.executionStepGrid}>
+              {executionSteps.map((step) => (
+                <Link className={styles.executionStepCard} href={step.href} key={step.title}>
+                  <span>{step.label}</span>
+                  <strong>{step.title}</strong>
+                  <small>{step.detail}</small>
+                  <em>{step.state}</em>
+                </Link>
+              ))}
+            </div>
+          </section>
+
           <section className={styles.crmWorkbenchBoard} aria-label="CRM customer workbench">
             <header className={styles.crmWorkbenchHeader}>
               <div>

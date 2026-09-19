@@ -130,7 +130,7 @@ export function CustomerConsoleHome({ showAdvisorReturn = false }: { showAdvisor
         </form>
         <nav className="customer-module-switcher" aria-label="Customer console sections">
           <Link href={CRM_NEXT_CUSTOMERS_HREF}>Customer Records</Link>
-          <Link href={CRM_NEXT_SEARCH_HREF}>Customer 360</Link>
+          <Link href={CRM_NEXT_CUSTOMERS_HREF}>Customer 360</Link>
           <Link href="/customers/resolutions">Resolution</Link>
           <Link href={CRM_VENDOR_REGISTRY_HREF}>Vendors</Link>
         </nav>

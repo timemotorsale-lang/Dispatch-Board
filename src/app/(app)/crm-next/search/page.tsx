@@ -4,7 +4,7 @@ import { resolveCrmNextAccess } from "@/server/crm-next/access";
 import { getCrmNextOperationalCommandCenter } from "@/server/crm-next/read-model";
 
 type CrmNextSearchPageProps = {
-  searchParams?: Promise<{ q?: string }>;
+  searchParams?: Promise<{ q?: string; returnAction?: string }>;
 };
 
 export default async function CrmNextSearchPage({ searchParams }: CrmNextSearchPageProps) {
@@ -16,5 +16,5 @@ export default async function CrmNextSearchPage({ searchParams }: CrmNextSearchP
   }
 
   const params = await searchParams;
-  return <CrmNextSearchView model={await getCrmNextOperationalCommandCenter(user, { searchQuery: params?.q })} />;
+  return <CrmNextSearchView model={await getCrmNextOperationalCommandCenter(user, { searchQuery: params?.q })} returnAction={params?.returnAction} />;
 }

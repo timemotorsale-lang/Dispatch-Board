@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import { CRM_NEXT_SEARCH_HREF, crmNextCustomer360Href, crmNextCustomerSearchHref } from "@/features/crm/crm-route-authority";
+import { CRM_NEXT_CUSTOMERS_HREF, crmNextCustomer360Href, crmNextCustomerSearchHref } from "@/features/crm/crm-route-authority";
 
 export default async function Customer360Page({
   searchParams
@@ -13,5 +13,5 @@ export default async function Customer360Page({
 
   if (customerId) redirect(crmNextCustomer360Href(customerId));
   if (customerQuery) redirect(crmNextCustomerSearchHref(customerQuery));
-  redirect(CRM_NEXT_SEARCH_HREF);
+  redirect(CRM_NEXT_CUSTOMERS_HREF);
 }

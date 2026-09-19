@@ -90,10 +90,11 @@ export function CrmNextDirectActionForm({
     () => values.some((value) => value.trim().length > 2) || dateValues.some((value) => value.trim().length > 0),
     [dateValues, values]
   );
+  const needsCustomerContext = disabled || !customerId;
 
   async function saveAction() {
-    if (!customerId) {
-      setSavedMessage("Open a customer record before saving this CRM action.");
+    if (needsCustomerContext) {
+      setSavedMessage("This action needs a verified Customer 360 record before it can save. Open the customer record, then use Add Note from that customer.");
       return;
     }
     setIsSaving(true);
@@ -246,7 +247,7 @@ export function CrmNextDirectActionForm({
       <div className={styles.directActionFooter}>
         <button
           data-success-message={successMessage}
-          disabled={disabled || !canSave || isSaving}
+          disabled={!canSave || isSaving}
           onClick={() => void saveAction()}
           type="button"
         >

@@ -226,6 +226,22 @@ describe("Sales Console", () => {
     }
   });
 
+  it("opens guided Sales Workbench in the supplied Customer 360 context instead of defaulting to Smith", () => {
+    const markup = renderToStaticMarkup(
+      <SalesConsoleEliteOperatingConsole
+        initialSearchParams={new URLSearchParams({
+          customerId: "69bde137-481f-443e-abba-f038c5441358",
+          customerName: "Naomi Nyambura Githongo",
+          workspace: "guided"
+        })}
+      />
+    );
+
+    expect(markup).toContain("Naomi Nyambura Githongo");
+    expect(markup).toContain("Customer context was supplied by Customer 360.");
+    expect(markup).toContain("69bde137-481f-443e-abba-f038c5441358");
+  });
+
   it("renders the MVP milestone roadmap for implementation planning", () => {
     const markup = renderToStaticMarkup(<SalesConsolePrototype />);
 
