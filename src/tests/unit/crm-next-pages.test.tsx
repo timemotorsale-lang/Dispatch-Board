@@ -155,10 +155,11 @@ describe("CRM Next pages", () => {
     expect(command).toContain("Appointment board");
     expect(command).toContain("Recommended by system");
     expect(command).toContain("Report readiness");
-    expect(command).toContain("Supporting Parties");
+    expect(command).toContain("Outside-party blockers");
     expect(command).toContain("Admin guardrails");
     expect(command).toContain("Minnesota DMV");
-    expect(command).toContain("Northside Towing");
+    expect(command).toContain("Follow-up due");
+    expect(command).toContain("Confirm whether the title packet is ready or needs correction.");
     expect(command).not.toContain("Operational read status");
     expect(command).not.toContain("Review Center");
     expect(command).not.toContain("Compact review cockpit");
@@ -214,7 +215,7 @@ describe("CRM Next pages", () => {
     expect(customer).toContain("Add Customer");
     expect(customer).toContain("Open deal board");
     expect(customer).toContain("Schedule appointment");
-    expect(customer).toContain("Supporting Parties");
+    expect(customer).toContain("Outside-party blockers");
     expect(customer).toContain("Warranty company");
     expect(work).toContain("Customer record unavailable");
     expect(work).toContain("Customer file");

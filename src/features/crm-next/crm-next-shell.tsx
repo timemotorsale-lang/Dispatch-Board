@@ -753,22 +753,60 @@ function CrmNextRecommendedWork({ model }: { model: CrmNextCommandCenter }) {
   );
 }
 
+function supportingPartySignalText(model: CrmNextCommandCenter) {
+  return [
+    ...(model.attention ?? []).map((item) => `${item.customerName} ${item.reason} ${item.nextAction} ${item.area}`),
+    ...(model.customers ?? []).map((customer) => `${customer.name} ${customer.nextAction} ${customer.vehicles.map((vehicle) => vehicle.label).join(" ")}`),
+    ...safeEnterpriseLayer(model).automationRecommendations.map((item) => `${item.title} ${item.explanation} ${item.actionLabel}`)
+  ].join(" ").toLowerCase();
+}
+
+function isSupportingPartyRelevant(context: CrmNextCommandCenter["enterpriseLayer"]["supportingParties"][number], signalText: string) {
+  const partyText = `${context.party.name} ${context.party.typeLabel} ${context.associations.map((item) => item.label).join(" ")} ${context.openFollowUps.map((item) => item.summary).join(" ")}`.toLowerCase();
+  if (/dmv|government|title|registration|document|paperwork|proof|license/.test(partyText)) return /dmv|title|registration|document|paperwork|proof|license/.test(signalText);
+  if (/tow|towing|transport|pickup|delivery|vehicle movement|dispatch/.test(partyText)) return /tow|towing|transport|pickup|delivery|delivered|vehicle movement|dispatch/.test(signalText);
+  if (/warranty|claim|repair proof|authorization/.test(partyText)) return /warranty|claim|repair|authorization|service/.test(signalText);
+  return context.openFollowUps.length > 0 && /vendor|partner|outside|support|blocker|follow/.test(signalText);
+}
+
+function supportingPartyStatus(context: CrmNextCommandCenter["enterpriseLayer"]["supportingParties"][number]) {
+  if (context.openFollowUps.length > 0) return "Follow-up due";
+  if (context.workbookCandidates.length > 0) return "Ready to task";
+  if (context.associations.length > 0) return "Linked context";
+  return "No open blocker";
+}
+
+function supportingPartyHref(context: CrmNextCommandCenter["enterpriseLayer"]["supportingParties"][number]) {
+  return context.openFollowUps[0]?.sourceHref ?? context.workbookCandidates[0]?.sourceHref ?? context.associations[0]?.href ?? "/crm-next/ownership-support";
+}
+
+function supportingPartyAction(context: CrmNextCommandCenter["enterpriseLayer"]["supportingParties"][number]) {
+  if (context.openFollowUps[0]) return context.openFollowUps[0].summary;
+  if (context.workbookCandidates[0]) return context.workbookCandidates[0].title;
+  return context.associations[0]?.label ?? "Open supporting context";
+}
+
 function CrmNextSupportingParties({ model, compact = false }: { compact?: boolean; model: CrmNextCommandCenter }) {
-  const parties = safeEnterpriseLayer(model).supportingParties.slice(0, compact ? 3 : 3);
+  const signalText = supportingPartySignalText(model);
+  const parties = safeEnterpriseLayer(model).supportingParties
+    .filter((context) => context.openFollowUps.length || context.workbookCandidates.length || context.associations.length)
+    .filter((context) => !signalText || isSupportingPartyRelevant(context, signalText))
+    .slice(0, compact ? 3 : 3);
   if (parties.length === 0) return null;
 
   return (
     <article className={styles.sidePanel}>
       <header>
-        <h2>Supporting Parties</h2>
+        <h2>Outside-party blockers</h2>
         <span className={styles.pill}>{parties.length}</span>
       </header>
       <div className={styles.partyList}>
         {parties.map((context) => (
-          <Link className={styles.partyItem} href={context.associations[0]?.href ?? "/crm-next/ownership-support"} key={context.party.id}>
+          <Link className={styles.partyItem} href={supportingPartyHref(context)} key={context.party.id}>
+            <span className={styles.partyStatus}>{supportingPartyStatus(context)}</span>
             <strong>{context.party.name}</strong>
-            <small>{context.party.typeLabel} · {context.openFollowUps.length} follow-up</small>
-            <span>{context.workbookCandidates[0]?.title ?? context.associations[0]?.label ?? "Open supporting context"}</span>
+            <small>{context.party.typeLabel} · {context.associations[0]?.label ?? "Linked work context"}</small>
+            <b>{supportingPartyAction(context)}</b>
           </Link>
         ))}
       </div>
