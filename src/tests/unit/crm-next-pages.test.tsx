@@ -38,7 +38,7 @@ import CrmNextStateReviewPage from "@/app/(app)/crm-next/system/states/page";
 import CrmNextTestDrivesPage from "@/app/(app)/crm-next/test-drives/page";
 import CrmNextTimelinePage from "@/app/(app)/crm-next/timeline/page";
 import CrmNextWorkPage from "@/app/(app)/crm-next/work/[itemId]/page";
-import { CrmNextActionReadinessView, CrmNextCommandCenterView, CrmNextCustomer360View, CrmNextCustomersListView, CrmNextSearchView, CrmNextTimelineView, CrmNextWorkCustomerView } from "@/features/crm-next/crm-next-shell";
+import { CrmNextActionReadinessView, CrmNextCommandCenterView, CrmNextCustomer360View, CrmNextCustomersListView, CrmNextNeedsAttentionView, CrmNextSearchView, CrmNextTimelineView, CrmNextWorkCustomerView } from "@/features/crm-next/crm-next-shell";
 import { CRM_STAFF_FACING_BANNED_TERMS } from "@/lib/crm-staff-language";
 import type { CrmNextActionBridgePreview } from "@/server/crm-next/action-bridge";
 import type { CrmNextAttentionItem, CrmNextCommandCenter, CrmNextCustomer360, CrmNextOperatingAction, CrmNextTimelineEvent } from "@/server/crm-next/read-model";
@@ -908,6 +908,55 @@ describe("CRM Next pages", () => {
     expect(markup).not.toContain("Vendor / Partner");
     expect(markup).toContain("Possible duplicate");
     expect(markup).toContain("Needs owner");
+  });
+
+  it("removes locally closed workbench outcomes from attention queues", () => {
+    installLocalStorageWindow();
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("crm-next:workbench:max-auto-transport:progress", JSON.stringify({
+        notice: "Delivered saved on this workbench.",
+        stage: "Delivered"
+      }));
+    }
+    const model = {
+      attention: [
+        {
+          area: "Sales",
+          customerHref: "/crm-next/customers/max-auto-transport",
+          customerId: "max-auto-transport",
+          customerName: "Max Auto Transport",
+          id: "customer-read-max-auto-transport",
+          level: "High",
+          nextAction: "Review overdue customer follow-up",
+          owner: "Eli Manager",
+          reason: "Overdue customer follow-up",
+          workHref: "/crm-next/work/customer-read-max-auto-transport"
+        },
+        {
+          area: "Sales",
+          customerHref: "/crm-next/customers/ardo-abdi",
+          customerId: "ardo-abdi",
+          customerName: "Ardo Abdi",
+          id: "customer-read-ardo-abdi",
+          level: "High",
+          nextAction: "Review overdue customer follow-up",
+          owner: "Eli Manager",
+          reason: "Overdue customer follow-up",
+          workHref: "/crm-next/work/customer-read-ardo-abdi"
+        }
+      ],
+      customers: [],
+      summary: [],
+      userName: "Customer Console Page User"
+    } as CrmNextCommandCenter;
+
+    const commandMarkup = renderToStaticMarkup(<CrmNextCommandCenterView model={model} />);
+    const queueMarkup = renderToStaticMarkup(<CrmNextNeedsAttentionView model={model} />);
+
+    expect(commandMarkup).toContain("Ardo Abdi");
+    expect(commandMarkup).not.toContain("Max Auto Transport");
+    expect(queueMarkup).toContain("Ardo Abdi");
+    expect(queueMarkup).not.toContain("Max Auto Transport");
   });
 
   it("uses the sales work area as the customer list category when the next action is generic", () => {

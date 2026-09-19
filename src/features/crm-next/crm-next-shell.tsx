@@ -342,6 +342,15 @@ function readCustomerWorkbenchProgress(customerId: string) {
   }
 }
 
+function isAttentionClosedLocally(item: CrmNextAttentionItem) {
+  const savedStage = readCustomerWorkbenchProgress(item.customerId)?.stage;
+  return Boolean(savedStage && isTerminalJourneyStage(savedStage));
+}
+
+function openAttentionItems(items: CrmNextAttentionItem[]) {
+  return items.filter((item) => !isAttentionClosedLocally(item));
+}
+
 function customer360Href(customerId: string) {
   return `/crm-next/customers/${encodeURIComponent(customerId)}`;
 }
@@ -814,7 +823,7 @@ function CrmNextAdminGuardrails({ model }: { model: CrmNextCommandCenter }) {
 
 export function CrmNextCommandCenterView({ model }: { model: CrmNextCommandCenter }) {
   const customers = model.customers ?? [];
-  const attention = model.attention ?? [];
+  const attention = openAttentionItems(model.attention ?? []);
   const nextActions = model.nextActions ?? [];
   const pipeline = model.pipeline ?? [];
   const summary = model.summary ?? [];
@@ -1292,6 +1301,8 @@ function AttentionRow({ item }: { item: CrmNextAttentionItem }) {
 }
 
 export function CrmNextNeedsAttentionView({ model }: { model: CrmNextCommandCenter }) {
+  const attention = openAttentionItems(model.attention ?? []);
+
   return (
     <CrmNextFrame active="attention" userName={model.userName}>
       <Topbar />
@@ -1305,7 +1316,12 @@ export function CrmNextNeedsAttentionView({ model }: { model: CrmNextCommandCent
       </section>
       <article className={styles.card}>
         <div className={styles.attentionList}>
-          {(model.attention ?? []).map((item) => <AttentionRow item={item} key={item.id} />)}
+          {attention.length ? attention.map((item) => <AttentionRow item={item} key={item.id} />) : (
+            <div className={styles.activityTimelineEmpty}>
+              <strong>No open attention records</strong>
+              <span>Closed or resolved workbench items are hidden from this queue.</span>
+            </div>
+          )}
         </div>
       </article>
     </CrmNextFrame>
