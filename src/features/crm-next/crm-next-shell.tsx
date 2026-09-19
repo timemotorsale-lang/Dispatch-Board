@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
 import {
   ArrowLeft,
   Bell,
@@ -163,6 +166,7 @@ function directActionWorkspace(action: CrmNextOperatingAction, customerName: str
 }
 
 const CUSTOMER_JOURNEY_STAGES = ["New", "Contact Attempt", "Contacted", "Appointment Scheduled", "Working Deal", "Missed Appt.", "Visit Follow-up", "Sold", "Lost"] as const;
+type CustomerJourneyStage = typeof CUSTOMER_JOURNEY_STAGES[number];
 function customerJourneyStage(customer: CrmNextCustomer360, activeAttentionItem?: CrmNextAttentionItem) {
   const nextAction = `${customer.nextAction} ${activeAttentionItem?.nextAction ?? ""}`.toLowerCase();
   if (customer.openDeals > 0 || nextAction.includes("deal")) return "Working Deal";
@@ -2036,8 +2040,55 @@ export function CrmNextWorkCustomerView({
   const issue = customerWorkIssue(item);
   const verifiedCustomerActivity = verifiedTimelineEvents(model.timeline);
   const pendingTasks = bridgePreview?.dispatchPreview ? "1 due" : "None";
-  const dealStarted = false;
-  const appointmentScheduled = false;
+  const progressStorageKey = `crm-next:workbench:${item.customerId}:progress`;
+  const [progressState, setProgressState] = useState<{ notice: string; stage: CustomerJourneyStage }>(() => {
+    const fallback = {
+      notice: "Contact was recorded today. Deal and appointment still need staff follow-through.",
+      stage: "Contacted" as CustomerJourneyStage
+    };
+    if (typeof window === "undefined") return fallback;
+    try {
+      const stored = window.localStorage.getItem(progressStorageKey);
+      if (!stored) return fallback;
+      const parsed = JSON.parse(stored) as { notice?: string; stage?: string };
+      if (!CUSTOMER_JOURNEY_STAGES.includes(parsed.stage as CustomerJourneyStage)) return fallback;
+      return {
+        notice: parsed.notice || fallback.notice,
+        stage: parsed.stage as CustomerJourneyStage
+      };
+    } catch {
+      return fallback;
+    }
+  });
+  const journeyStage = progressState.stage;
+  const statusNotice = progressState.notice;
+  const activeStageIndex = CUSTOMER_JOURNEY_STAGES.indexOf(journeyStage);
+  const dealStarted = ["Working Deal", "Sold", "Lost"].includes(journeyStage);
+  const appointmentScheduled = ["Appointment Scheduled", "Working Deal", "Missed Appt.", "Visit Follow-up", "Sold", "Lost"].includes(journeyStage);
+  const terminalOutcome = journeyStage === "Sold" || journeyStage === "Lost";
+  const currentNeed = journeyStage === "Sold"
+    ? "Record sold outcome and delivery follow-through"
+    : journeyStage === "Lost"
+      ? "Record lost reason and close the follow-up loop"
+      : journeyStage === "Appointment Scheduled"
+        ? "Prepare appointment and keep the customer confirmed"
+        : journeyStage === "Working Deal"
+          ? "Work deal details and next customer commitment"
+          : item.nextAction;
+  const stageStatusText = terminalOutcome ? "Completed" : journeyStage;
+  function updateJourneyStage(stage: string, summary?: string) {
+    const nextStage = CUSTOMER_JOURNEY_STAGES.includes(stage as CustomerJourneyStage) ? stage as CustomerJourneyStage : "Visit Follow-up";
+    const nextProgressState = {
+      notice: summary ?? `${nextStage} saved on this workbench.`,
+      stage: nextStage
+    };
+    setProgressState(nextProgressState);
+    try {
+      window.localStorage.setItem(progressStorageKey, JSON.stringify(nextProgressState));
+    } catch {
+      // The visible workbench still updates even if local persistence is unavailable.
+    }
+  }
   const progressSteps = [
     { label: "Customer opened", state: "complete" },
     { label: "Contact made", state: "complete" },
@@ -2050,8 +2101,8 @@ export function CrmNextWorkCustomerView({
       href: CRM_NEXT_DEAL_START_HREF,
       label: "Next",
       title: "Start or update the deal",
-      detail: "No deal is recorded on this workbench yet. Start the deal, attach vehicle interest, and return here.",
-      state: "Needed"
+      detail: dealStarted ? "Deal work is marked in progress. Keep vehicle, price, and customer commitment current." : "No deal is recorded on this workbench yet. Start the deal, attach vehicle interest, and return here.",
+      state: dealStarted ? "In progress" : "Needed"
     },
     {
       href: crmNextCustomerAppointmentHref({
@@ -2062,15 +2113,15 @@ export function CrmNextWorkCustomerView({
       }),
       label: "Then",
       title: "Schedule the appointment",
-      detail: "Next appointment is not scheduled. Put the customer on the calendar before this leaves the queue.",
-      state: "Open"
+      detail: appointmentScheduled ? "Appointment is marked scheduled. Keep confirmation and arrival follow-through visible." : "Next appointment is not scheduled. Put the customer on the calendar before this leaves the queue.",
+      state: appointmentScheduled ? "Scheduled" : "Open"
     },
     {
       href: "#lead",
       label: "Record",
       title: "Log the customer outcome",
-      detail: "Capture what happened, the promise made, and the next staff owner so the work does not reset.",
-      state: "Ready"
+      detail: terminalOutcome ? "Outcome is marked. Add the note or close-loop task the next staff member needs." : "Capture what happened, the promise made, and the next staff owner so the work does not reset.",
+      state: terminalOutcome ? stageStatusText : "Ready"
     }
   ];
   const completionSignals = [
@@ -2143,23 +2194,33 @@ export function CrmNextWorkCustomerView({
               <div>
                 <span className={styles.eyebrow}>Customer file</span>
                 <h2>{item.customerName}</h2>
-                <p>{issue.issue}</p>
+              <p>{issue.issue}</p>
+              <small className={styles.statusUpdateNotice}>{statusNotice}</small>
               </div>
               <Link className={styles.secondaryButton} href="#customer-sections">Update Status</Link>
             </header>
 
             <ol className={styles.dealerJourneyStrip} aria-label="Customer journey">
-              {CUSTOMER_JOURNEY_STAGES.map((stage) => (
-                <li data-state={stage === "Contacted" ? "active" : "idle"} key={stage}>{stage}</li>
-              ))}
+              {CUSTOMER_JOURNEY_STAGES.map((stage, index) => {
+                const state = stage === journeyStage
+                  ? "active"
+                  : index < activeStageIndex && !["Sold", "Lost"].includes(stage)
+                    ? "complete"
+                    : "idle";
+                return (
+                  <li data-state={state} key={stage}>
+                    <button onClick={() => updateJourneyStage(stage)} type="button">{stage}</button>
+                  </li>
+                );
+              })}
             </ol>
 
             <section className={styles.dealerCustomerSnapshot} aria-label="Customer status summary">
-              <div><span>Next Appt.</span><strong>Not Scheduled</strong></div>
-              <div><span>Last Appt.</span><strong>None</strong></div>
+              <div><span>Next Appt.</span><strong>{appointmentScheduled && !terminalOutcome ? "Scheduled" : "Not Scheduled"}</strong></div>
+              <div><span>Last Appt.</span><strong>{journeyStage === "Missed Appt." ? "Missed" : "None"}</strong></div>
               <div><span>Pending Tasks</span><strong>{pendingTasks}</strong></div>
               <div><span>Deposit</span><strong>None</strong></div>
-              <div><span>Deals</span><strong>None</strong></div>
+              <div><span>Deals</span><strong>{dealStarted ? stageStatusText : "None"}</strong></div>
               <div><span>Last Contacted</span><strong>Today</strong></div>
               <div><span>Days Old</span><strong>0</strong></div>
               <div><span>Days Since Activity</span><strong>0</strong></div>
@@ -2180,7 +2241,7 @@ export function CrmNextWorkCustomerView({
               </div>
               <div>
                 <span>Current Need</span>
-                <strong>{item.nextAction}</strong>
+                <strong>{currentNeed}</strong>
               </div>
             </section>
 
@@ -2195,6 +2256,7 @@ export function CrmNextWorkCustomerView({
               })}
               customerName={item.customerName}
               nextAction={item.nextAction}
+              onProgressUpdate={updateJourneyStage}
               owner={item.owner}
             />
           </section>

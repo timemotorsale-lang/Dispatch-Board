@@ -24,11 +24,13 @@ export function CrmNextInlineTaskComposer({
   appointmentHref,
   customerName,
   nextAction,
+  onProgressUpdate,
   owner
 }: {
   appointmentHref: string;
   customerName: string;
   nextAction: string;
+  onProgressUpdate?: (stage: string, summary: string) => void;
   owner: string;
 }) {
   const [activeAction, setActiveAction] = useState<InlineActionId | null>(null);
@@ -64,7 +66,11 @@ export function CrmNextInlineTaskComposer({
             </button>
           );
         })}
-        <Link className={styles.appointmentInlineAction} href={appointmentHref}>
+        <Link
+          className={styles.appointmentInlineAction}
+          href={appointmentHref}
+          onClick={() => onProgressUpdate?.("Appointment Scheduled", "Appointment scheduling opened from this workbench.")}
+        >
           <CalendarDays size={16} />
           Schedule Appt
         </Link>
@@ -109,7 +115,15 @@ export function CrmNextInlineTaskComposer({
                 <option>Next visit</option>
               </select>
             </label>
-            <button disabled={!canSave} onClick={() => setSavedTask({ action: action.label, note: taskNote.trim() })} type="button">
+            <button
+              disabled={!canSave}
+              onClick={() => {
+                const note = taskNote.trim();
+                setSavedTask({ action: action.label, note });
+                if (action.id === "disposition") onProgressUpdate?.("Visit Follow-up", note || "Customer outcome recorded.");
+              }}
+              type="button"
+            >
               Save {saveLabel}
             </button>
           </div>
