@@ -26,7 +26,7 @@ import {
 
 import { CrmNextIntakeForm } from "@/features/crm-next/crm-next-intake-form";
 import { CrmNextActivityFilterTabs } from "@/features/crm-next/crm-next-activity-filter-tabs";
-import { CrmNextDealStartTool } from "@/features/crm-next/crm-next-deal-start-tool";
+import { CrmNextDealStartTool, crmNextDealDraftStorageKey, type CrmNextDealDraft } from "@/features/crm-next/crm-next-deal-start-tool";
 import { CrmNextDirectActionForm } from "@/features/crm-next/crm-next-direct-action-form";
 import { CrmNextInlineTaskComposer } from "@/features/crm-next/crm-next-inline-task-composer";
 import { CrmNextWorkbenchSections } from "@/features/crm-next/crm-next-workbench-sections";
@@ -215,6 +215,98 @@ function customerWorkIssue(item: CrmNextAttentionItem) {
 
 function verifiedTimelineEvents(events: CrmNextCommandCenter["timeline"]) {
   return events.filter((event) => Boolean(event.sourceRecordId));
+}
+
+type WorkbenchDealEvidence = {
+  detail: string;
+  label: string;
+  source: string;
+  started: boolean;
+  vehicle?: string;
+};
+
+function readWorkbenchDealDraft(customerId: string): CrmNextDealDraft | null {
+  if (!customerId || typeof window === "undefined") return null;
+  try {
+    const stored = window.localStorage.getItem(crmNextDealDraftStorageKey(customerId));
+    return stored ? JSON.parse(stored) as CrmNextDealDraft : null;
+  } catch {
+    return null;
+  }
+}
+
+function vehicleFromTimeline(events: CrmNextCommandCenter["timeline"]) {
+  const vehicleLike = events.find((event) =>
+    Boolean(event.sourceRecordId) &&
+    (
+      event.source === "Vehicle" ||
+      event.source === "Opportunity" ||
+      /\b(19|20)\d{2}\b.*\b(vehicle|jeep|ford|chevrolet|toyota|honda|hyundai|nissan|kia|cherokee|elantra|camry|accord|suv|sedan|truck)\b/i.test(`${event.label} ${event.detail}`)
+    )
+  );
+  return vehicleLike ? `${vehicleLike.label}: ${vehicleLike.detail}` : "";
+}
+
+function salesRecordForCustomer(records: CrmNextSalesRecord[], item: CrmNextAttentionItem) {
+  return records.find((record) =>
+    record.customerName.toLowerCase() === item.customerName.toLowerCase() ||
+    record.href.includes(encodeURIComponent(item.customerId))
+  );
+}
+
+function sourceDealEvidence(model: CrmNextCommandCenter, item: CrmNextAttentionItem): WorkbenchDealEvidence {
+  const customers = model.customers ?? [];
+  const sales = model.sales ?? { deals: [], opportunities: [] };
+  const customer = customers.find((record) => record.id === item.customerId || record.name === item.customerName);
+  const dealRecord = salesRecordForCustomer(sales.deals ?? [], item) ?? salesRecordForCustomer(sales.opportunities ?? [], item);
+  const linkedVehicle = customer?.vehicles[0]?.label;
+  const timelineVehicle = vehicleFromTimeline(model.timeline ?? []);
+
+  if (dealRecord) {
+    return {
+      detail: `${dealRecord.stage} · ${dealRecord.vehicle || "Vehicle pending"}`,
+      label: "Deal started",
+      source: "Deal workspace",
+      started: true,
+      vehicle: dealRecord.vehicle
+    };
+  }
+
+  if ((customer?.openDeals ?? 0) > 0) {
+    return {
+      detail: `${customer?.openDeals ?? 0} open deal${customer?.openDeals === 1 ? "" : "s"} on Customer 360`,
+      label: "Deal started",
+      source: "Customer 360",
+      started: true,
+      vehicle: linkedVehicle
+    };
+  }
+
+  if (linkedVehicle) {
+    return {
+      detail: `Vehicle selected: ${linkedVehicle}`,
+      label: "Vehicle selected",
+      source: "Customer 360",
+      started: true,
+      vehicle: linkedVehicle
+    };
+  }
+
+  if (timelineVehicle) {
+    return {
+      detail: timelineVehicle,
+      label: "Vehicle selected",
+      source: "Customer timeline",
+      started: true
+    };
+  }
+
+  return {
+    detail: "No deal or vehicle evidence is visible on this workbench yet.",
+    label: "Start deal",
+    source: "Workbench",
+    started: false
+  };
 }
 
 export function CrmNextUnavailable({ fallbackHref, reason }: { fallbackHref: string; reason: CrmNextAccessReason }) {
@@ -1119,11 +1211,17 @@ export function CrmNextDealsView({ model }: { model: CrmNextCommandCenter }) {
   );
 }
 
-export function CrmNextDealStartView({ model }: { model: CrmNextCommandCenter }) {
+export function CrmNextDealStartView({
+  initialCustomerId,
+  model
+}: {
+  initialCustomerId?: string;
+  model: CrmNextCommandCenter;
+}) {
   return (
     <CrmNextFrame active="deals" userName={model.userName}>
       <Topbar />
-      <CrmNextDealStartTool model={model} />
+      <CrmNextDealStartTool initialCustomerId={initialCustomerId} model={model} />
     </CrmNextFrame>
   );
 }
@@ -2062,10 +2160,24 @@ export function CrmNextWorkCustomerView({
     }
   });
   const [dueTaskOpen, setDueTaskOpen] = useState(false);
+  const sourceEvidence = sourceDealEvidence(model, item);
+  const [draftDealEvidence] = useState<WorkbenchDealEvidence>(() => {
+    const draft = readWorkbenchDealDraft(item.customerId);
+    return draft?.vehicle?.trim()
+      ? {
+        detail: `Vehicle selected: ${draft.vehicle}`,
+        label: "Vehicle selected",
+        source: "Saved deal draft",
+        started: true,
+        vehicle: draft.vehicle
+      }
+      : sourceEvidence;
+  });
+  const dealEvidence = draftDealEvidence.started ? draftDealEvidence : sourceEvidence;
   const journeyStage = progressState.stage;
   const statusNotice = progressState.notice;
   const activeStageIndex = CUSTOMER_JOURNEY_STAGES.indexOf(journeyStage);
-  const dealStarted = ["Working Deal", "Sold", "Lost"].includes(journeyStage);
+  const dealStarted = dealEvidence.started || ["Working Deal", "Sold", "Lost"].includes(journeyStage);
   const appointmentScheduled = ["Appointment Scheduled", "Working Deal", "Missed Appt.", "Visit Follow-up", "Sold", "Lost"].includes(journeyStage);
   const terminalOutcome = journeyStage === "Sold" || journeyStage === "Lost";
   const currentNeed = journeyStage === "Sold"
@@ -2079,6 +2191,15 @@ export function CrmNextWorkCustomerView({
           : item.nextAction;
   const stageStatusText = terminalOutcome ? "Completed" : journeyStage;
   const appointmentSummary = appointmentScheduled ? "Scheduled" : "Not Scheduled";
+  const startDealHref = `${CRM_NEXT_DEAL_START_HREF}?customerId=${encodeURIComponent(item.customerId)}&returnTo=${encodeURIComponent(item.workHref)}`;
+  const appointmentHref = crmNextCustomerAppointmentHref({
+    customerId: item.customerId,
+    customerName: item.customerName,
+    reason: item.nextAction,
+    returnTo: item.workHref
+  });
+  const primaryExecutionHref = !dealStarted ? startDealHref : !appointmentScheduled ? appointmentHref : "#lead";
+  const primaryExecutionLabel = !dealStarted ? "Start deal" : !appointmentScheduled ? "Schedule appointment" : "Record outcome";
   function updateJourneyStage(stage: string, summary?: string) {
     const nextStage = CUSTOMER_JOURNEY_STAGES.includes(stage as CustomerJourneyStage) ? stage as CustomerJourneyStage : "Visit Follow-up";
     const nextProgressState = {
@@ -2095,25 +2216,20 @@ export function CrmNextWorkCustomerView({
   const progressSteps = [
     { label: "Customer opened", state: "complete" },
     { label: "Contact made", state: "complete" },
-    { label: dealStarted ? "Deal started" : "Start deal", state: dealStarted ? "complete" : "active" },
+    { label: dealStarted ? dealEvidence.label : "Start deal", state: dealStarted ? "complete" : "active" },
     { label: appointmentScheduled ? "Appointment set" : "Schedule appt.", state: appointmentScheduled ? "complete" : "waiting" },
     { label: "Outcome", state: "waiting" }
   ];
   const executionSteps = [
     {
-      href: CRM_NEXT_DEAL_START_HREF,
+      href: startDealHref,
       label: "Next",
-      title: "Start or update the deal",
-      detail: dealStarted ? "Deal work is marked in progress. Keep vehicle, price, and customer commitment current." : "No deal is recorded on this workbench yet. Start the deal, attach vehicle interest, and return here.",
-      state: dealStarted ? "In progress" : "Needed"
+      title: dealStarted ? "Continue the deal" : "Start or update the deal",
+      detail: dealStarted ? `${dealEvidence.detail}. Keep price, customer commitment, and delivery path current.` : "No deal is recorded on this workbench yet. Start the deal, attach vehicle interest, and return here.",
+      state: dealStarted ? dealEvidence.source : "Needed"
     },
     {
-      href: crmNextCustomerAppointmentHref({
-        customerId: item.customerId,
-        customerName: item.customerName,
-        reason: item.nextAction,
-        returnTo: item.workHref
-      }),
+      href: appointmentHref,
       label: "Then",
       title: "Schedule the appointment",
       detail: appointmentScheduled ? "Appointment is marked scheduled. Keep confirmation and arrival follow-through visible." : "Next appointment is not scheduled. Put the customer on the calendar before this leaves the queue.",
@@ -2151,8 +2267,8 @@ export function CrmNextWorkCustomerView({
               <p className={styles.muted}>{issue.issue} · {item.area} · Owner: {item.owner}</p>
             </div>
             <div className={styles.workActions}>
-              <Link className={styles.secondaryButton} href="#lead">Check - In</Link>
-              <Link className={styles.secondaryButton} href={CRM_NEXT_DEAL_START_HREF}>Start Deal</Link>
+              <Link className={styles.secondaryButton} href="#lead">Log Activity</Link>
+              <Link className={styles.secondaryButton} href={startDealHref}>{dealStarted ? "Continue Deal" : "Start Deal"}</Link>
               <Link className={styles.secondaryButton} href={item.customerHref}>Customer 360</Link>
             </div>
           </div>
@@ -2165,7 +2281,7 @@ export function CrmNextWorkCustomerView({
                 <h2 id="execution-funnel-heading">What has happened, what is missing, and what to do next</h2>
                 <p>Open this workbench and move from contact to deal, appointment, and recorded outcome without guessing.</p>
               </div>
-              <Link className={styles.primaryButton} href={CRM_NEXT_DEAL_START_HREF}>Continue execution</Link>
+              <Link className={styles.primaryButton} href={primaryExecutionHref}>{primaryExecutionLabel}</Link>
             </header>
             <ol className={styles.executionProgress} aria-label="Customer execution progress">
               {progressSteps.map((step) => (
@@ -2266,7 +2382,7 @@ export function CrmNextWorkCustomerView({
                 <div><span>Pending Tasks</span><strong>{pendingTasks}</strong></div>
               )}
               <div><span>Deposit</span><strong>None</strong></div>
-              <div><span>Deals</span><strong>{dealStarted ? stageStatusText : "None"}</strong></div>
+              <div><span>Deals</span><strong>{dealStarted ? (terminalOutcome ? stageStatusText : dealEvidence.label) : "None"}</strong></div>
               <div><span>Last Contacted</span><strong>Today</strong></div>
               <div><span>Days Old</span><strong>0</strong></div>
               <div><span>Days Since Activity</span><strong>0</strong></div>
@@ -2289,9 +2405,13 @@ export function CrmNextWorkCustomerView({
                 <span>Current Need</span>
                 <strong>{currentNeed}</strong>
               </div>
+              <div>
+                <span>Deal Evidence</span>
+                <strong>{dealEvidence.detail}</strong>
+              </div>
             </section>
 
-            <CrmNextWorkbenchSections currentNeed={item.nextAction} doneMeaning={issue.done} />
+            <CrmNextWorkbenchSections currentNeed={item.nextAction} dealEvidence={dealEvidence} doneMeaning={issue.done} />
 
             <CrmNextInlineTaskComposer
               appointmentHref={crmNextCustomerAppointmentHref({

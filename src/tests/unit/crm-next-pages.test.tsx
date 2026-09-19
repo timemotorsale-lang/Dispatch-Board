@@ -183,8 +183,8 @@ describe("CRM Next pages", () => {
     expect(work).toContain("Start or update the deal");
     expect(work).toContain("Schedule the appointment");
     expect(work).toContain("Log the customer outcome");
-    expect(work).toContain("Continue execution");
-    expect(work).toContain("Check - In");
+    expect(work).toContain("Start deal");
+    expect(work).toContain("Log Activity");
     expect(work).toContain("Start Deal");
     expect(work).toContain("Update Status");
     expect(work).toContain("Phone Call");
@@ -680,5 +680,53 @@ describe("CRM Next pages", () => {
     expect(markup).not.toContain("Due task");
     expect(markup).not.toContain("Today 3:00 PM");
     expect(markup).not.toContain("Work task on this page");
+  });
+
+  it("treats a linked vehicle as deal progress on the customer workbench", () => {
+    const item: CrmNextAttentionItem = {
+      area: "Sales",
+      customerHref: "/crm-next/customers/naomi-nyambura-githongo",
+      customerId: "naomi-nyambura-githongo",
+      customerName: "Naomi Nyambura Githongo",
+      id: "attn-naomi-follow-up",
+      level: "Low",
+      nextAction: "Confirm delivery appointment follow-through",
+      owner: "Sales Team",
+      reason: "Delivery appointment needs completion",
+      workHref: "/crm-next/work/attn-naomi-follow-up"
+    };
+    const model = {
+      customers: [
+        {
+          address: "Address available in Customers",
+          communications: [],
+          customerSince: "Sep 18, 2026",
+          email: "Not recorded",
+          glance: [],
+          id: "naomi-nyambura-githongo",
+          lifetimeValue: "Open customer record",
+          name: "Naomi Nyambura Githongo",
+          nextAction: "Confirm delivery appointment follow-through",
+          openCases: 0,
+          openDeals: 0,
+          phone: "Not recorded",
+          riskLevel: "Low",
+          status: "Active",
+          vehicles: [{ id: "vehicle-jeep-cherokee", label: "2019 Jeep Cherokee Maroon", status: "Interested vehicle", vin: "Manual link" }],
+          vehiclesOwned: 1
+        }
+      ],
+      sales: { appointments: [], deals: [], leads: [], opportunities: [], testDrives: [] },
+      timeline: [],
+      userName: "Customer Console Page User"
+    } as CrmNextCommandCenter;
+
+    const markup = renderToStaticMarkup(<CrmNextWorkCustomerView item={item} model={model} />);
+
+    expect(markup).toContain("Vehicle selected");
+    expect(markup).toContain("2019 Jeep Cherokee Maroon");
+    expect(markup).toContain("Continue the deal");
+    expect(markup).toContain("Schedule appointment");
+    expect(markup).not.toContain("No deal is recorded on this workbench yet");
   });
 });

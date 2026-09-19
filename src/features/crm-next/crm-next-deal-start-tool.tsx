@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, type SetStateAction, useMemo, useState } from "react";
+import { type ReactNode, type SetStateAction, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { CRM_NEXT_DEALS_HREF } from "@/features/crm/crm-route-authority";
@@ -10,6 +10,19 @@ import { MN_SALE_FORM_PACKET } from "@/lib/mn-vehicle-sale-form-packet";
 import type { CrmNextCommandCenter } from "@/server/crm-next/read-model";
 
 import styles from "./crm-next-shell.module.css";
+
+export type CrmNextDealDraft = {
+  amount: string;
+  customerId: string;
+  note: string;
+  ownerUserId: string;
+  vehicle: string;
+  workflowId: string;
+};
+
+export function crmNextDealDraftStorageKey(customerId: string) {
+  return `crm-next:deal-draft:${customerId}`;
+}
 
 type DealWorkflowId =
   | "finance"
@@ -3485,7 +3498,7 @@ function OutsideFinanceExecutionDesk({
         <div className={styles.retailFieldGrid}>
           <label><span>Customer</span><input readOnly value={customerName} /></label>
           <CustomerIdentityDetails includeCreditFields />
-          <label><span>Funding path</span><select value={funding.fundingPath} onChange={(event) => setFunding((current) => ({ ...current, fundingPath: event.target.value }))}><option>Outside finance</option><option>One pay</option><option>Credit union</option><option>Bank draft</option><option>Cashier's check</option></select></label>
+          <label><span>Funding path</span><select value={funding.fundingPath} onChange={(event) => setFunding((current) => ({ ...current, fundingPath: event.target.value }))}><option>Outside finance</option><option>One pay</option><option>Credit union</option><option>Bank draft</option><option>Cashier&apos;s check</option></select></label>
           <label><span>Lender / bank</span><input value={funding.lenderName} onChange={(event) => setFunding((current) => ({ ...current, lenderName: event.target.value }))} /></label>
           <label><span>Approval / draft #</span><input value={funding.approvalNumber} onChange={(event) => setFunding((current) => ({ ...current, approvalNumber: event.target.value }))} /></label>
           <label><span>One-pay reference</span><input value={funding.onePayReference} onChange={(event) => setFunding((current) => ({ ...current, onePayReference: event.target.value }))} placeholder="Wire, receipt, cashier check, or full-pay proof" /></label>
@@ -3644,17 +3657,44 @@ function OutsideFinanceExecutionDesk({
   );
 }
 
-export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter }) {
-  const [workflowId, setWorkflowId] = useState<DealWorkflowId>("retail-sale");
+function readDealDraft(customerId: string): CrmNextDealDraft | null {
+  if (!customerId || typeof window === "undefined") return null;
+  try {
+    const stored = window.localStorage.getItem(crmNextDealDraftStorageKey(customerId));
+    if (!stored) return null;
+    const parsed = JSON.parse(stored) as Partial<CrmNextDealDraft>;
+    return {
+      amount: parsed.amount ?? "",
+      customerId,
+      note: parsed.note ?? "",
+      ownerUserId: parsed.ownerUserId ?? "",
+      vehicle: parsed.vehicle ?? "",
+      workflowId: parsed.workflowId ?? "retail-sale"
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function CrmNextDealStartTool({
+  initialCustomerId,
+  model
+}: {
+  initialCustomerId?: string;
+  model: CrmNextCommandCenter;
+}) {
+  const preferredCustomer = model.customers.find((customer) => customer.id === initialCustomerId) ?? model.customers[0] ?? null;
+  const initialDraft = preferredCustomer ? readDealDraft(preferredCustomer.id) : null;
+  const [workflowId, setWorkflowId] = useState<DealWorkflowId>((initialDraft?.workflowId as DealWorkflowId) || "retail-sale");
   const [selectedPresetId, setSelectedPresetId] = useState("retail-cash-one-pay");
   const [executionOpen, setExecutionOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [form, setForm] = useState({
-    amount: "",
-    customerId: model.customers[0]?.id ?? "",
-    note: "",
-    ownerUserId: model.userId,
-    vehicle: ""
+    amount: initialDraft?.amount ?? "",
+    customerId: preferredCustomer?.id ?? "",
+    note: initialDraft?.note ?? "",
+    ownerUserId: initialDraft?.ownerUserId || model.userId,
+    vehicle: initialDraft?.vehicle ?? ""
   });
   const [status, setStatus] = useState<{ kind: "idle" | "saving" | "success" | "error"; message: string; href?: string }>({ kind: "idle", message: "" });
   const workflow = DEAL_WORKFLOWS.find((item) => item.id === workflowId) ?? DEAL_WORKFLOWS[0];
@@ -3678,6 +3718,19 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
     setForm((current) => ({ ...current, [key]: value }));
   }
 
+  function updateCustomer(customerId: string) {
+    const draft = readDealDraft(customerId);
+    setForm((current) => ({
+      ...current,
+      amount: draft?.amount ?? "",
+      customerId,
+      note: draft?.note ?? "",
+      ownerUserId: draft?.ownerUserId || current.ownerUserId || model.userId,
+      vehicle: draft?.vehicle ?? ""
+    }));
+    if (draft?.workflowId) setWorkflowId(draft.workflowId as DealWorkflowId);
+  }
+
   function applyPreset(preset: DealStartPreset) {
     setSelectedPresetId(preset.id);
     setWorkflowId(preset.workflowId);
@@ -3688,6 +3741,16 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
   function saveDraft() {
     setStatus({ kind: "success", message: "Draft saved. Complete intake when the required facts are ready." });
   }
+
+  useEffect(() => {
+    if (!form.customerId || typeof window === "undefined") return;
+    if (![form.amount, form.note, form.vehicle].some((value) => value.trim())) return;
+    const draft: CrmNextDealDraft = {
+      ...form,
+      workflowId
+    };
+    window.localStorage.setItem(crmNextDealDraftStorageKey(form.customerId), JSON.stringify(draft));
+  }, [form, workflowId]);
 
   async function startDeal() {
     if (!ready || !selectedCustomer || typeof effectiveEstimatedValueCents !== "number") return;
@@ -3893,7 +3956,7 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
           {financeWorkflow ? (
             <>
               <div className={styles.dealStartForm}>
-                <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => update("customerId", event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+                <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => updateCustomer(event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
                 <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
               </div>
               <DealerFinanceExecutionDesk
@@ -3911,7 +3974,7 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
           ) : workflow.id === "retail-sale" ? (
             <>
               <div className={styles.dealStartForm}>
-                <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => update("customerId", event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+                <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => updateCustomer(event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
                 <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
               </div>
               <RetailSaleExecutionDesk
@@ -3936,7 +3999,7 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
           ) : bhphWorkflow ? (
             <>
               <div className={styles.dealStartForm}>
-                <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => update("customerId", event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+                <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => updateCustomer(event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
                 <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
               </div>
               <BhphExecutionDesk
@@ -3954,7 +4017,7 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
           ) : workflow.id === "lease-to-own" ? (
             <>
               <div className={styles.dealStartForm}>
-                <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => update("customerId", event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+                <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => updateCustomer(event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
                 <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
               </div>
               <LeaseToOwnExecutionDesk
@@ -3978,7 +4041,7 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
           ) : testDriveWorkflow ? (
             <>
               <div className={styles.dealStartForm}>
-                <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => update("customerId", event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+                <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => updateCustomer(event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
                 <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
               </div>
               <TestDriveExecutionDesk
@@ -3995,7 +4058,7 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
           ) : wholesaleWorkflow ? (
             <>
               <div className={styles.dealStartForm}>
-                <label><span>Wholesale buyer</span><select value={form.customerId} onChange={(event) => update("customerId", event.target.value)}><option value="">Select buyer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+                <label><span>Wholesale buyer</span><select value={form.customerId} onChange={(event) => updateCustomer(event.target.value)}><option value="">Select buyer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
                 <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
               </div>
               <WholesaleExecutionDesk
@@ -4013,7 +4076,7 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
           ) : outsideFinanceWorkflow ? (
             <>
               <div className={styles.dealStartForm}>
-                <label><span>Customer / buyer</span><select value={form.customerId} onChange={(event) => update("customerId", event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+                <label><span>Customer / buyer</span><select value={form.customerId} onChange={(event) => updateCustomer(event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
                 <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
               </div>
               <OutsideFinanceExecutionDesk
@@ -4031,7 +4094,7 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
           ) : rentalLikeWorkflow ? (
             <>
               <div className={styles.dealStartForm}>
-                <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => update("customerId", event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+                <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => updateCustomer(event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
                 <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
               </div>
               <DailyRentalExecutionDesk
@@ -4050,7 +4113,7 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
             </>
           ) : (
             <div className={styles.dealStartForm}>
-              <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => update("customerId", event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+              <label><span>{FIELD_LABELS.customer}</span><select value={form.customerId} onChange={(event) => updateCustomer(event.target.value)}><option value="">Select customer</option>{model.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
               <label><span>{FIELD_LABELS.vehicle}</span><input value={form.vehicle} onChange={(event) => update("vehicle", event.target.value)} placeholder="Stock, VIN, or vehicle" /></label>
               <label><span>{FIELD_LABELS.amount}</span><input value={form.amount} onChange={(event) => update("amount", event.target.value)} placeholder="$0.00" /></label>
               <label><span>{FIELD_LABELS.owner}</span><input disabled value={model.userName} /></label>
@@ -4078,3 +4141,4 @@ export function CrmNextDealStartTool({ model }: { model: CrmNextCommandCenter })
     </section>
   );
 }
+
