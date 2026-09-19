@@ -92,6 +92,10 @@ describe("CRM Next pages", () => {
     const attention = renderToStaticMarkup(await CrmNextNeedsAttentionPage());
     const customer = renderToStaticMarkup(await CrmNextCustomerPage({ params: Promise.resolve({ customerId: "michael-johnson" }) }));
     const work = renderToStaticMarkup(await CrmNextWorkPage({ params: Promise.resolve({ itemId: "attn-michael-overdue-follow-up" }) }));
+    const deliveryWork = renderToStaticMarkup(await CrmNextWorkPage({
+      params: Promise.resolve({ itemId: "attn-michael-overdue-follow-up" }),
+      searchParams: Promise.resolve({ workPath: "delivery-transport" })
+    }));
     const ownershipSupport = renderToStaticMarkup(await CrmNextOwnershipSupportPage());
     const sharedExecution = renderToStaticMarkup(await CrmNextSharedExecutionPage());
     const intelligence = renderToStaticMarkup(await CrmNextIntelligenceFoundationPage());
@@ -157,6 +161,14 @@ describe("CRM Next pages", () => {
     expect(customer).toContain("Customer Since");
     expect(customer).toContain("Customer journey");
     expect(customer).toContain("Work the customer from first contact to outcome.");
+    expect(customer).toContain("Check-In");
+    expect(customer).toContain("Choose why this customer or vendor is here.");
+    expect(customer).toContain("Work category");
+    expect(customer).toContain("Retail sale / purchase");
+    expect(customer).toContain("Vehicle delivery / transport");
+    expect(customer).toContain("Start Sales / Deal");
+    expect(customer).toContain("workPath=sales-deal");
+    expect(customer).toContain("category=retail-sale");
     expect(customer).toContain("Quick Actions");
     expect(customer).toContain('href="/crm-next/actions/log-call?customerId=michael-johnson"');
     expect(customer).toContain('href="/crm-next/actions/send-email?customerId=michael-johnson"');
@@ -245,6 +257,12 @@ describe("CRM Next pages", () => {
     expect(work).not.toContain('href="#dispatch-task"');
     expect(work).not.toContain("Choose the next customer action");
     expect(work).not.toContain("Resolve the customer issue");
+    expect(deliveryWork).toContain("Delivery / Transport");
+    expect(deliveryWork).toContain("Record delivery");
+    expect(deliveryWork).toContain("Complete delivery");
+    expect(deliveryWork).toContain("Delivered");
+    expect(deliveryWork).toContain("No Action Needed");
+    expect(deliveryWork).not.toContain("Start deal");
     expect(search).toContain("Add Customer / Prospect");
     expect(search).toContain("No verified Customer 360 records are visible here yet");
     expect(search).toContain("Open Customer Archive");
@@ -259,6 +277,9 @@ describe("CRM Next pages", () => {
     expect(newCustomer).toContain("Buyer Info");
     expect(newCustomer).toContain("Customer type");
     expect(newCustomer).toContain("Lead and assignment");
+    expect(newCustomer).toContain("Work category");
+    expect(newCustomer).toContain("Vehicle delivery / transport");
+    expect(newCustomer).toContain("Customer issue / complaint");
     expect(newCustomer).toContain("Interested Vehicle");
     expect(newCustomer).toContain("Customer Wishlist");
     expect(newCustomer).toContain("Referrer");

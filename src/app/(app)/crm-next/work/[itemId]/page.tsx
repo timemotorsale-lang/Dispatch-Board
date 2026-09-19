@@ -1,4 +1,5 @@
 import { CrmNextUnavailable, CrmNextWorkCustomerView } from "@/features/crm-next/crm-next-shell";
+import { normalizeCrmWorkPathId } from "@/features/crm-next/crm-next-work-paths";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { resolveCrmNextAccess } from "@/server/crm-next/access";
 import { previewCrmNextActionToTaskBridge } from "@/server/crm-next/action-bridge";
@@ -12,6 +13,7 @@ import {
 
 type CrmNextWorkPageProps = {
   params: Promise<{ itemId: string }>;
+  searchParams?: Promise<{ workPath?: string }>;
 };
 
 function attentionItemFromCustomer(customer: CrmNextCustomer360, itemId: string): CrmNextAttentionItem {
@@ -30,7 +32,7 @@ function attentionItemFromCustomer(customer: CrmNextCustomer360, itemId: string)
   };
 }
 
-export default async function CrmNextWorkPage({ params }: CrmNextWorkPageProps) {
+export default async function CrmNextWorkPage({ params, searchParams }: CrmNextWorkPageProps) {
   const user = await requireCurrentUser();
   const access = resolveCrmNextAccess(user);
 
@@ -39,6 +41,8 @@ export default async function CrmNextWorkPage({ params }: CrmNextWorkPageProps) 
   }
 
   const { itemId } = await params;
+  const query = searchParams ? await searchParams : {};
+  const initialWorkPath = normalizeCrmWorkPathId(query.workPath);
   let model = await getCrmNextOperationalCommandCenter(user);
   let item = model.attention.find((attentionItem) => attentionItem.id === itemId);
 
@@ -63,6 +67,7 @@ export default async function CrmNextWorkPage({ params }: CrmNextWorkPageProps) 
   return (
     <CrmNextWorkCustomerView
       bridgePreview={bridgePreview}
+      initialWorkPath={initialWorkPath ?? undefined}
       item={item}
       model={model}
     />

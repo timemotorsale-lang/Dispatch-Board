@@ -30,6 +30,7 @@ import { CrmNextDealStartTool, crmNextDealDraftStorageKey, type CrmNextDealDraft
 import { CrmNextDirectActionForm } from "@/features/crm-next/crm-next-direct-action-form";
 import { CrmNextInlineTaskComposer } from "@/features/crm-next/crm-next-inline-task-composer";
 import { CrmNextWorkbenchSections } from "@/features/crm-next/crm-next-workbench-sections";
+import { normalizeCrmWorkPathId, type CrmWorkPathId } from "@/features/crm-next/crm-next-work-paths";
 import {
   CRM_CUSTOMER_LANDING_HREF,
   CRM_NEXT_DEAL_START_HREF,
@@ -240,15 +241,46 @@ const CRM_WORK_PATHS = {
   }
 } as const;
 
-type CrmWorkPathId = keyof typeof CRM_WORK_PATHS;
 type CustomerJourneyStage = typeof CRM_WORK_PATHS[CrmWorkPathId]["stages"][number];
+
+const CRM_DEALERSHIP_WORK_CATEGORIES = [
+  { id: "retail-sale", label: "Retail sale / purchase", path: "sales-deal", summary: "Shopping, working numbers, deal creation, or sold/lost decision." },
+  { id: "lead-follow-up", label: "Lead follow-up", path: "customer-follow-up", summary: "Follow up with a lead, prospect, or previous conversation." },
+  { id: "appointment-follow-up", label: "Appointment follow-up", path: "customer-follow-up", summary: "Confirm, reschedule, or follow through after an appointment." },
+  { id: "vehicle-delivery", label: "Vehicle delivery / transport", path: "delivery-transport", summary: "Transporter, pickup, drop-off, delivery promise, or handoff close-out." },
+  { id: "service-repair", label: "Service / repair", path: "service-repair", summary: "Repair order, service visit, diagnosis, approval, or vehicle-ready update." },
+  { id: "title-registration", label: "Title / registration", path: "title-document", summary: "Title, lien, registration, plates, paperwork, or document blocker." },
+  { id: "finance-payment", label: "Finance / payment", path: "finance-payment", summary: "Deposit, down payment, collections, promise-to-pay, or lender issue." },
+  { id: "document-upload", label: "Document / proof collection", path: "title-document", summary: "Collect ID, insurance, proof, signed form, or other required document." },
+  { id: "customer-issue", label: "Customer issue / complaint", path: "general-issue", summary: "Complaint, support case, blocker, or customer concern needing resolution." },
+  { id: "vendor-partner", label: "Vendor / partner", path: "vendor-partner", summary: "Tow company, warranty company, transporter, auction, or outside party work." },
+  { id: "ownership-support", label: "Ownership support", path: "customer-follow-up", summary: "Post-sale ownership help, customer care, or continuity follow-up." },
+  { id: "general-work", label: "General work / other", path: "general-issue", summary: "Use when the customer or vendor needs help but no specific category fits." }
+] as const satisfies Array<{ id: string; label: string; path: CrmWorkPathId; summary: string }>;
+
+type CrmWorkCategoryId = typeof CRM_DEALERSHIP_WORK_CATEGORIES[number]["id"];
+
+function normalizeCrmWorkCategoryId(value: string | null | undefined): CrmWorkCategoryId | null {
+  return CRM_DEALERSHIP_WORK_CATEGORIES.some((category) => category.id === value) ? value as CrmWorkCategoryId : null;
+}
+
+function crmWorkCategoryStorageKey(customerId: string) {
+  return `crm-next:work-category:${customerId}`;
+}
+
+function crmWorkCategoryById(categoryId: CrmWorkCategoryId) {
+  return CRM_DEALERSHIP_WORK_CATEGORIES.find((category) => category.id === categoryId) ?? CRM_DEALERSHIP_WORK_CATEGORIES[0];
+}
 
 function crmWorkPathStorageKey(customerId: string) {
   return `crm-next:work-path:${customerId}`;
 }
 
-function normalizeCrmWorkPathId(value: string | null | undefined): CrmWorkPathId | null {
-  return value && value in CRM_WORK_PATHS ? value as CrmWorkPathId : null;
+function workbenchCheckInHref(baseHref: string, path: CrmWorkPathId, categoryId?: CrmWorkCategoryId) {
+  const joiner = baseHref.includes("?") ? "&" : "?";
+  const query = new URLSearchParams({ workPath: path });
+  if (categoryId) query.set("category", categoryId);
+  return `${baseHref}${joiner}${query.toString()}`;
 }
 
 function inferCrmWorkPath(item: Pick<CrmNextAttentionItem, "area" | "customerName" | "nextAction" | "reason">): CrmWorkPathId {
@@ -261,7 +293,8 @@ function inferCrmWorkPath(item: Pick<CrmNextAttentionItem, "area" | "customerNam
   return "sales-deal";
 }
 
-function readCrmWorkPath(item: CrmNextAttentionItem): CrmWorkPathId {
+function readCrmWorkPath(item: CrmNextAttentionItem, preferredPath?: CrmWorkPathId): CrmWorkPathId {
+  if (preferredPath) return preferredPath;
   if (typeof window !== "undefined") {
     try {
       const stored = normalizeCrmWorkPathId(window.localStorage.getItem(crmWorkPathStorageKey(item.customerId)));
@@ -1852,6 +1885,28 @@ export function CrmNextSafetyView({ kind, model }: { kind: "states" | "permissio
 export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextCustomer360; model: CrmNextCommandCenter }) {
   const activeAttentionItem = model.attention.find((item) => item.customerId === customer.id);
   const attendHref = activeAttentionItem?.workHref ?? `/crm-next/work/customer-read-${encodeURIComponent(customer.id)}`;
+  const [selectedWorkCategory, setSelectedWorkCategory] = useState<CrmWorkCategoryId>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = normalizeCrmWorkCategoryId(window.localStorage.getItem(crmWorkCategoryStorageKey(customer.id)));
+        if (stored) return stored;
+      } catch {
+        // A fresh category can still be selected when local storage is unavailable.
+      }
+    }
+    return customer.name.toLowerCase().includes("transport") ? "vehicle-delivery" : "retail-sale";
+  });
+  const selectedCategoryConfig = crmWorkCategoryById(selectedWorkCategory);
+  const checkInHref = workbenchCheckInHref(attendHref, selectedCategoryConfig.path, selectedWorkCategory);
+  function startCheckedInWorkbench() {
+    try {
+      window.localStorage.setItem(crmWorkCategoryStorageKey(customer.id), selectedWorkCategory);
+      window.localStorage.setItem(crmWorkPathStorageKey(customer.id), selectedCategoryConfig.path);
+    } catch {
+      // The URL still carries the selected work path into the workbench.
+    }
+    window.location.assign(checkInHref);
+  }
   const currentJourneyStage = customerJourneyStage(customer, activeAttentionItem);
   const appointmentHref = crmNextCustomerAppointmentHref({
     customerId: customer.id,
@@ -1894,11 +1949,39 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
             </dl>
             <div className={styles.customerHeroActions}>
               <Link className={styles.secondaryButton} href="/crm-next/new"><UserPlus size={16} /> Add Customer</Link>
-              <Link className={styles.primaryButton} href={attendHref}>Attend</Link>
+              <button
+                className={styles.primaryButton}
+                onClick={startCheckedInWorkbench}
+                type="button"
+              >
+                Check-In
+              </button>
               <Link className={styles.secondaryButton} href={customerSalesWorkbenchHref}><Target size={16} /> Sales Workbench</Link>
               <Link className={styles.secondaryButton} href={crmNextActionHref("send-text", customer.id)}><MessageSquare size={16} /> Message</Link>
               <Link className={styles.secondaryButton} href="/crm">Open older customer tools</Link>
             </div>
+            <section className={styles.customerCheckInPanel} aria-label="Customer check-in">
+              <div>
+                <span className={styles.eyebrow}>Check-In</span>
+                <h2>Choose why this customer or vendor is here.</h2>
+                <p>{selectedCategoryConfig.summary}</p>
+              </div>
+              <label>
+                <span>Work category</span>
+                <select value={selectedWorkCategory} onChange={(event) => setSelectedWorkCategory(event.target.value as CrmWorkCategoryId)}>
+                  {CRM_DEALERSHIP_WORK_CATEGORIES.map((category) => (
+                    <option key={category.id} value={category.id}>{category.label}</option>
+                  ))}
+                </select>
+              </label>
+              <button
+                className={styles.secondaryButton}
+                onClick={startCheckedInWorkbench}
+                type="button"
+              >
+                Start {CRM_WORK_PATHS[selectedCategoryConfig.path].label}
+              </button>
+            </section>
           </section>
 
           <section className={styles.customerJourneyPanel} aria-label="Customer journey">
@@ -1907,7 +1990,7 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
                 <span className={styles.eyebrow}>Customer journey</span>
                 <h2>Work the customer from first contact to outcome.</h2>
               </div>
-              <Link className={styles.secondaryButton} href={attendHref}>Update progress</Link>
+              <Link className={styles.secondaryButton} href={checkInHref}>Update progress</Link>
             </header>
             <ol className={styles.customerJourneyRail}>
               {CRM_WORK_PATHS["sales-deal"].stages.map((stage) => (
@@ -2020,7 +2103,7 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
                 <p>Open Attend Mode to complete the next safe customer step.</p>
               </div>
             </div>
-            <Link className={styles.primaryButton} href={attendHref}>Work Customer</Link>
+            <Link className={styles.primaryButton} href={checkInHref}>Work Customer</Link>
           </article>
 
           <div id="supporting-parties">
@@ -2254,10 +2337,12 @@ export function CrmNextActionReadinessView({ action, customerId, model }: { acti
 
 export function CrmNextWorkCustomerView({
   bridgePreview,
+  initialWorkPath,
   item,
   model
 }: {
   bridgePreview?: CrmNextActionBridgePreview;
+  initialWorkPath?: CrmWorkPathId;
   item: CrmNextAttentionItem;
   model: CrmNextCommandCenter;
 }) {
@@ -2265,15 +2350,15 @@ export function CrmNextWorkCustomerView({
   const verifiedCustomerActivity = verifiedTimelineEvents(model.timeline);
   const dueTask = bridgePreview?.dispatchPreview;
   const pendingTasks = dueTask ? "1 due" : "None";
-  const [workPath, setWorkPath] = useState<CrmWorkPathId>(() => readCrmWorkPath(item));
+  const [workPath, setWorkPath] = useState<CrmWorkPathId>(() => readCrmWorkPath(item, initialWorkPath));
   const workPathConfig = CRM_WORK_PATHS[workPath];
   const progressStorageKey = `crm-next:workbench:${item.customerId}:progress`;
   const [progressState, setProgressState] = useState<{ notice: string; stage: CustomerJourneyStage }>(() => {
-    const initialWorkPath = readCrmWorkPath(item);
-    const initialPathConfig = CRM_WORK_PATHS[initialWorkPath];
+    const resolvedInitialWorkPath = readCrmWorkPath(item, initialWorkPath);
+    const initialPathConfig = CRM_WORK_PATHS[resolvedInitialWorkPath];
     const fallback = {
       notice: `${initialPathConfig.label} work is ready for staff follow-through.`,
-      stage: normalizeJourneyStage(undefined, initialWorkPath)
+      stage: normalizeJourneyStage(undefined, resolvedInitialWorkPath)
     };
     if (typeof window === "undefined") return fallback;
     try {
@@ -2282,7 +2367,7 @@ export function CrmNextWorkCustomerView({
       const parsed = JSON.parse(stored) as { notice?: string; stage?: string };
       return {
         notice: parsed.notice || fallback.notice,
-        stage: normalizeJourneyStage(parsed.stage, initialWorkPath)
+        stage: normalizeJourneyStage(parsed.stage, resolvedInitialWorkPath)
       };
     } catch {
       return fallback;
