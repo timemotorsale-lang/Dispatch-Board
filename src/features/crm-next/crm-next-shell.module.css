@@ -3507,6 +3507,37 @@
   min-width: 170px;
 }
 
+.workPathControl {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: end;
+}
+
+.workPathControl label {
+  color: #52637a;
+  display: grid;
+  font-size: 11px;
+  font-weight: 900;
+  gap: 5px;
+  text-transform: uppercase;
+}
+
+.workPathControl select {
+  background: #ffffff;
+  border: 1px solid #c7d5eb;
+  border-radius: 8px;
+  color: #071a3a;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 850;
+  min-height: 40px;
+  min-width: 210px;
+  padding: 8px 10px;
+  text-transform: none;
+}
+
 .dealerCustomerSnapshot {
   display: grid;
   gap: 8px;

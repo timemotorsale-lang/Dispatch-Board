@@ -165,8 +165,134 @@ function directActionWorkspace(action: CrmNextOperatingAction, customerName: str
   };
 }
 
-const CUSTOMER_JOURNEY_STAGES = ["New", "Contact Attempt", "Contacted", "Appointment Scheduled", "Working Deal", "Missed Appt.", "Visit Follow-up", "Sold", "Lost"] as const;
-type CustomerJourneyStage = typeof CUSTOMER_JOURNEY_STAGES[number];
+const CRM_WORK_PATHS = {
+  "customer-follow-up": {
+    completeStage: "Resolved",
+    detailLabel: "Follow-up Evidence",
+    label: "Customer Follow-up",
+    primaryAction: "Update follow-up",
+    progressActive: "Review follow-up",
+    summaryLabel: "Issue",
+    stages: ["New", "Contact Attempt", "Contacted", "Follow-up Needed", "Resolved", "Closed", "No Action Needed"]
+  },
+  "delivery-transport": {
+    completeStage: "Delivered",
+    detailLabel: "Delivery Evidence",
+    label: "Delivery / Transport",
+    primaryAction: "Record delivery",
+    progressActive: "Complete delivery",
+    summaryLabel: "Delivery",
+    stages: ["Requested", "Assigned", "Scheduled", "In Transit", "Delivered", "Resolved", "Closed", "No Action Needed"]
+  },
+  "finance-payment": {
+    completeStage: "Resolved",
+    detailLabel: "Payment Evidence",
+    label: "Finance / Payment",
+    primaryAction: "Update payment issue",
+    progressActive: "Resolve payment",
+    summaryLabel: "Payment",
+    stages: ["New", "Reviewed", "Promise Made", "Waiting Payment", "Resolved", "Closed", "No Action Needed"]
+  },
+  "general-issue": {
+    completeStage: "Resolved",
+    detailLabel: "Issue Evidence",
+    label: "General Issue",
+    primaryAction: "Update issue",
+    progressActive: "Resolve issue",
+    summaryLabel: "Issue",
+    stages: ["Open", "Reviewed", "Waiting", "Resolved", "Closed", "No Action Needed"]
+  },
+  "sales-deal": {
+    completeStage: "Sold",
+    detailLabel: "Deal Evidence",
+    label: "Sales / Deal",
+    primaryAction: "Start deal",
+    progressActive: "Start deal",
+    summaryLabel: "Deals",
+    stages: ["New", "Contact Attempt", "Contacted", "Appointment Scheduled", "Working Deal", "Missed Appt.", "Visit Follow-up", "Sold", "Lost"]
+  },
+  "service-repair": {
+    completeStage: "Completed",
+    detailLabel: "Service Evidence",
+    label: "Service / Repair",
+    primaryAction: "Update service",
+    progressActive: "Complete service",
+    summaryLabel: "Service",
+    stages: ["Intake", "Diagnosed", "Waiting Approval", "In Progress", "Ready", "Completed", "Resolved", "Closed", "No Action Needed"]
+  },
+  "title-document": {
+    completeStage: "Resolved",
+    detailLabel: "Document Evidence",
+    label: "Title / Document",
+    primaryAction: "Update document issue",
+    progressActive: "Resolve document",
+    summaryLabel: "Documents",
+    stages: ["Open", "Reviewed", "Waiting Document", "Ready", "Resolved", "Closed", "No Action Needed"]
+  },
+  "vendor-partner": {
+    completeStage: "Resolved",
+    detailLabel: "Vendor Evidence",
+    label: "Vendor / Partner",
+    primaryAction: "Update vendor issue",
+    progressActive: "Resolve vendor issue",
+    summaryLabel: "Vendor Work",
+    stages: ["Open", "Assigned", "Waiting Vendor", "Completed", "Resolved", "Closed", "No Action Needed"]
+  }
+} as const;
+
+type CrmWorkPathId = keyof typeof CRM_WORK_PATHS;
+type CustomerJourneyStage = typeof CRM_WORK_PATHS[CrmWorkPathId]["stages"][number];
+
+function crmWorkPathStorageKey(customerId: string) {
+  return `crm-next:work-path:${customerId}`;
+}
+
+function normalizeCrmWorkPathId(value: string | null | undefined): CrmWorkPathId | null {
+  return value && value in CRM_WORK_PATHS ? value as CrmWorkPathId : null;
+}
+
+function inferCrmWorkPath(item: Pick<CrmNextAttentionItem, "area" | "customerName" | "nextAction" | "reason">): CrmWorkPathId {
+  const text = `${item.customerName} ${item.reason} ${item.nextAction} ${item.area}`.toLowerCase();
+  if (/\b(transport|transporter|tow|towing|delivery|delivered|pickup|pick up|drop[- ]?off|vendor)\b/.test(text)) return "delivery-transport";
+  if (/\b(service|repair|diagnos|appointment|ro\b|mechanic)\b/.test(text)) return "service-repair";
+  if (/\b(payment|promise|finance|collections|down payment|deposit)\b/.test(text)) return "finance-payment";
+  if (/\b(title|document|paperwork|registration|lien|license)\b/.test(text)) return "title-document";
+  if (/\b(case|issue|complaint|support|problem|resolved)\b/.test(text)) return "general-issue";
+  return "sales-deal";
+}
+
+function readCrmWorkPath(item: CrmNextAttentionItem): CrmWorkPathId {
+  if (typeof window !== "undefined") {
+    try {
+      const stored = normalizeCrmWorkPathId(window.localStorage.getItem(crmWorkPathStorageKey(item.customerId)));
+      if (stored) return stored;
+    } catch {
+      // Path inference still keeps the workbench usable when local storage is unavailable.
+    }
+  }
+  return inferCrmWorkPath(item);
+}
+
+function normalizeJourneyStage(stage: string | undefined, path: CrmWorkPathId): CustomerJourneyStage {
+  const stages = CRM_WORK_PATHS[path].stages;
+  if (stage && (stages as readonly string[]).includes(stage)) return stage as CustomerJourneyStage;
+  if (path !== "sales-deal" && stage === "Sold") return CRM_WORK_PATHS[path].completeStage as CustomerJourneyStage;
+  if (path !== "sales-deal" && stage === "Lost") return "Closed" as CustomerJourneyStage;
+  return stages[Math.min(2, stages.length - 1)] as CustomerJourneyStage;
+}
+
+function isTerminalJourneyStage(stage: CustomerJourneyStage) {
+  return ["Closed", "Completed", "Delivered", "Lost", "No Action Needed", "Resolved", "Sold"].includes(stage);
+}
+
+function isAppointmentStage(stage: CustomerJourneyStage) {
+  return ["Appointment Scheduled", "Missed Appt.", "Scheduled", "Visit Follow-up"].includes(stage);
+}
+
+function isDealStage(stage: CustomerJourneyStage) {
+  return ["Lost", "Sold", "Working Deal"].includes(stage);
+}
+
 function customerJourneyStage(customer: CrmNextCustomer360, activeAttentionItem?: CrmNextAttentionItem) {
   const nextAction = `${customer.nextAction} ${activeAttentionItem?.nextAction ?? ""}`.toLowerCase();
   if (customer.openDeals > 0 || nextAction.includes("deal")) return "Working Deal";
@@ -1784,7 +1910,7 @@ export function CrmNextCustomer360View({ customer, model }: { customer: CrmNextC
               <Link className={styles.secondaryButton} href={attendHref}>Update progress</Link>
             </header>
             <ol className={styles.customerJourneyRail}>
-              {CUSTOMER_JOURNEY_STAGES.map((stage) => (
+              {CRM_WORK_PATHS["sales-deal"].stages.map((stage) => (
                 <li data-state={stage === currentJourneyStage ? "active" : "pending"} key={stage}>
                   <span>{stage}</span>
                 </li>
@@ -2139,21 +2265,24 @@ export function CrmNextWorkCustomerView({
   const verifiedCustomerActivity = verifiedTimelineEvents(model.timeline);
   const dueTask = bridgePreview?.dispatchPreview;
   const pendingTasks = dueTask ? "1 due" : "None";
+  const [workPath, setWorkPath] = useState<CrmWorkPathId>(() => readCrmWorkPath(item));
+  const workPathConfig = CRM_WORK_PATHS[workPath];
   const progressStorageKey = `crm-next:workbench:${item.customerId}:progress`;
   const [progressState, setProgressState] = useState<{ notice: string; stage: CustomerJourneyStage }>(() => {
+    const initialWorkPath = readCrmWorkPath(item);
+    const initialPathConfig = CRM_WORK_PATHS[initialWorkPath];
     const fallback = {
-      notice: "Contact was recorded today. Deal and appointment still need staff follow-through.",
-      stage: "Contacted" as CustomerJourneyStage
+      notice: `${initialPathConfig.label} work is ready for staff follow-through.`,
+      stage: normalizeJourneyStage(undefined, initialWorkPath)
     };
     if (typeof window === "undefined") return fallback;
     try {
       const stored = window.localStorage.getItem(progressStorageKey);
       if (!stored) return fallback;
       const parsed = JSON.parse(stored) as { notice?: string; stage?: string };
-      if (!CUSTOMER_JOURNEY_STAGES.includes(parsed.stage as CustomerJourneyStage)) return fallback;
       return {
         notice: parsed.notice || fallback.notice,
-        stage: parsed.stage as CustomerJourneyStage
+        stage: normalizeJourneyStage(parsed.stage, initialWorkPath)
       };
     } catch {
       return fallback;
@@ -2176,19 +2305,18 @@ export function CrmNextWorkCustomerView({
   const dealEvidence = draftDealEvidence.started ? draftDealEvidence : sourceEvidence;
   const journeyStage = progressState.stage;
   const statusNotice = progressState.notice;
-  const activeStageIndex = CUSTOMER_JOURNEY_STAGES.indexOf(journeyStage);
-  const dealStarted = dealEvidence.started || ["Working Deal", "Sold", "Lost"].includes(journeyStage);
-  const appointmentScheduled = ["Appointment Scheduled", "Working Deal", "Missed Appt.", "Visit Follow-up", "Sold", "Lost"].includes(journeyStage);
-  const terminalOutcome = journeyStage === "Sold" || journeyStage === "Lost";
-  const currentNeed = journeyStage === "Sold"
-    ? "Record sold outcome and delivery follow-through"
-    : journeyStage === "Lost"
-      ? "Record lost reason and close the follow-up loop"
-      : journeyStage === "Appointment Scheduled"
-        ? "Prepare appointment and keep the customer confirmed"
-        : journeyStage === "Working Deal"
-          ? "Work deal details and next customer commitment"
-          : item.nextAction;
+  const activeStageIndex = workPathConfig.stages.indexOf(journeyStage as never);
+  const salesPath = workPath === "sales-deal";
+  const dealStarted = salesPath && (dealEvidence.started || isDealStage(journeyStage));
+  const appointmentScheduled = isAppointmentStage(journeyStage) || (salesPath && isDealStage(journeyStage)) || isTerminalJourneyStage(journeyStage);
+  const terminalOutcome = isTerminalJourneyStage(journeyStage);
+  const currentNeed = terminalOutcome
+    ? `${journeyStage} recorded for ${workPathConfig.label.toLowerCase()}.`
+    : journeyStage === "Appointment Scheduled" || journeyStage === "Scheduled"
+      ? "Prepare appointment and keep the customer confirmed"
+      : journeyStage === "Working Deal"
+        ? "Work deal details and next customer commitment"
+        : item.nextAction;
   const stageStatusText = terminalOutcome ? "Completed" : journeyStage;
   const appointmentSummary = appointmentScheduled ? "Scheduled" : "Not Scheduled";
   const startDealHref = `${CRM_NEXT_DEAL_START_HREF}?customerId=${encodeURIComponent(item.customerId)}&returnTo=${encodeURIComponent(item.workHref)}`;
@@ -2198,10 +2326,10 @@ export function CrmNextWorkCustomerView({
     reason: item.nextAction,
     returnTo: item.workHref
   });
-  const primaryExecutionHref = !dealStarted ? startDealHref : !appointmentScheduled ? appointmentHref : "#lead";
-  const primaryExecutionLabel = !dealStarted ? "Start deal" : !appointmentScheduled ? "Schedule appointment" : "Record outcome";
+  const primaryExecutionHref = salesPath && !dealStarted ? startDealHref : !appointmentScheduled && salesPath ? appointmentHref : "#lead";
+  const primaryExecutionLabel = salesPath && !dealStarted ? "Start deal" : !appointmentScheduled && salesPath ? "Schedule appointment" : workPathConfig.primaryAction;
   function updateJourneyStage(stage: string, summary?: string) {
-    const nextStage = CUSTOMER_JOURNEY_STAGES.includes(stage as CustomerJourneyStage) ? stage as CustomerJourneyStage : "Visit Follow-up";
+    const nextStage = normalizeJourneyStage(stage, workPath);
     const nextProgressState = {
       notice: summary ?? `${nextStage} saved on this workbench.`,
       stage: nextStage
@@ -2213,40 +2341,60 @@ export function CrmNextWorkCustomerView({
       // The visible workbench still updates even if local persistence is unavailable.
     }
   }
+  function updateWorkPath(nextPath: CrmWorkPathId) {
+    setWorkPath(nextPath);
+    const nextStage = normalizeJourneyStage(progressState.stage, nextPath);
+    const nextProgressState = {
+      notice: `${CRM_WORK_PATHS[nextPath].label} path selected for this workbench.`,
+      stage: nextStage
+    };
+    setProgressState(nextProgressState);
+    try {
+      window.localStorage.setItem(crmWorkPathStorageKey(item.customerId), nextPath);
+      window.localStorage.setItem(progressStorageKey, JSON.stringify(nextProgressState));
+    } catch {
+      // The visible workbench still updates even if local persistence is unavailable.
+    }
+  }
   const progressSteps = [
     { label: "Customer opened", state: "complete" },
     { label: "Contact made", state: "complete" },
-    { label: dealStarted ? dealEvidence.label : "Start deal", state: dealStarted ? "complete" : "active" },
-    { label: appointmentScheduled ? "Appointment set" : "Schedule appt.", state: appointmentScheduled ? "complete" : "waiting" },
-    { label: "Outcome", state: "waiting" }
+    { label: salesPath ? (dealStarted ? dealEvidence.label : "Start deal") : workPathConfig.progressActive, state: salesPath ? (dealStarted ? "complete" : "active") : (terminalOutcome ? "complete" : "active") },
+    { label: terminalOutcome ? journeyStage : "Outcome", state: terminalOutcome ? "complete" : "waiting" }
   ];
   const executionSteps = [
-    {
+    ...(salesPath ? [{
       href: startDealHref,
       label: "Next",
       title: dealStarted ? "Continue the deal" : "Start or update the deal",
       detail: dealStarted ? `${dealEvidence.detail}. Keep price, customer commitment, and delivery path current.` : "No deal is recorded on this workbench yet. Start the deal, attach vehicle interest, and return here.",
       state: dealStarted ? dealEvidence.source : "Needed"
-    },
-    {
+    }] : [{
+      href: "#lead",
+      label: "Next",
+      title: workPathConfig.primaryAction,
+      detail: `${workPathConfig.label} is not a sales funnel. Use the status strip to mark delivered, resolved, closed, or no action needed.`,
+      state: terminalOutcome ? stageStatusText : "Ready"
+    }]),
+    ...(salesPath ? [{
       href: appointmentHref,
       label: "Then",
       title: "Schedule the appointment",
       detail: appointmentScheduled ? "Appointment is marked scheduled. Keep confirmation and arrival follow-through visible." : "Next appointment is not scheduled. Put the customer on the calendar before this leaves the queue.",
       state: appointmentScheduled ? "Scheduled" : "Open"
-    },
+    }] : []),
     {
       href: "#lead",
       label: "Record",
-      title: "Log the customer outcome",
+      title: salesPath ? "Log the customer outcome" : "Close the work cleanly",
       detail: terminalOutcome ? "Outcome is marked. Add the note or close-loop task the next staff member needs." : "Capture what happened, the promise made, and the next staff owner so the work does not reset.",
       state: terminalOutcome ? stageStatusText : "Ready"
     }
   ];
   const completionSignals = [
     { label: "Contact", value: "Done today", tone: "complete" },
-    { label: "Deal", value: dealStarted ? "Started" : "Missing", tone: dealStarted ? "complete" : "attention" },
-    { label: "Appointment", value: appointmentScheduled ? "Scheduled" : "Missing", tone: appointmentScheduled ? "complete" : "attention" },
+    { label: salesPath ? "Deal" : "Path", value: salesPath ? (dealStarted ? "Started" : "Missing") : workPathConfig.label, tone: salesPath ? (dealStarted ? "complete" : "attention") : "complete" },
+    { label: "Status", value: terminalOutcome ? String(journeyStage) : "Open", tone: terminalOutcome ? "complete" : "attention" },
     { label: "Task", value: pendingTasks, tone: pendingTasks === "None" ? "quiet" : "attention" }
   ];
 
@@ -2264,11 +2412,11 @@ export function CrmNextWorkCustomerView({
           <div className={styles.workHeroBody}>
             <div>
               <h1 className={styles.workTitle}>{item.customerName}</h1>
-              <p className={styles.muted}>{issue.issue} · {item.area} · Owner: {item.owner}</p>
+              <p className={styles.muted}>{issue.issue} · {workPathConfig.label} · Owner: {item.owner}</p>
             </div>
             <div className={styles.workActions}>
               <Link className={styles.secondaryButton} href="#lead">Log Activity</Link>
-              <Link className={styles.secondaryButton} href={startDealHref}>{dealStarted ? "Continue Deal" : "Start Deal"}</Link>
+              {salesPath ? <Link className={styles.secondaryButton} href={startDealHref}>{dealStarted ? "Continue Deal" : "Start Deal"}</Link> : null}
               <Link className={styles.secondaryButton} href={item.customerHref}>Customer 360</Link>
             </div>
           </div>
@@ -2352,14 +2500,24 @@ export function CrmNextWorkCustomerView({
               <p>{issue.issue}</p>
               <small className={styles.statusUpdateNotice}>{statusNotice}</small>
               </div>
-              <Link className={styles.secondaryButton} href="#customer-sections">Update Status</Link>
+              <div className={styles.workPathControl}>
+                <label>
+                  <span>Work Path</span>
+                  <select value={workPath} onChange={(event) => updateWorkPath(event.target.value as CrmWorkPathId)}>
+                    {Object.entries(CRM_WORK_PATHS).map(([id, path]) => (
+                      <option key={id} value={id}>{path.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <Link className={styles.secondaryButton} href="#customer-sections">Update Status</Link>
+              </div>
             </header>
 
             <ol className={styles.dealerJourneyStrip} aria-label="Customer journey">
-              {CUSTOMER_JOURNEY_STAGES.map((stage, index) => {
+              {workPathConfig.stages.map((stage, index) => {
                 const state = stage === journeyStage
                   ? "active"
-                  : index < activeStageIndex && !["Sold", "Lost"].includes(stage)
+                  : index < activeStageIndex && !isTerminalJourneyStage(stage as CustomerJourneyStage)
                     ? "complete"
                     : "idle";
                 return (
@@ -2382,7 +2540,7 @@ export function CrmNextWorkCustomerView({
                 <div><span>Pending Tasks</span><strong>{pendingTasks}</strong></div>
               )}
               <div><span>Deposit</span><strong>None</strong></div>
-              <div><span>Deals</span><strong>{dealStarted ? (terminalOutcome ? stageStatusText : dealEvidence.label) : "None"}</strong></div>
+              <div><span>{workPathConfig.summaryLabel}</span><strong>{salesPath ? (dealStarted ? (terminalOutcome ? stageStatusText : dealEvidence.label) : "None") : stageStatusText}</strong></div>
               <div><span>Last Contacted</span><strong>Today</strong></div>
               <div><span>Days Old</span><strong>0</strong></div>
               <div><span>Days Since Activity</span><strong>0</strong></div>
@@ -2395,7 +2553,7 @@ export function CrmNextWorkCustomerView({
               </div>
               <div>
                 <span>Inquiry Type</span>
-                <strong>{item.area}</strong>
+                <strong>{workPathConfig.label}</strong>
               </div>
               <div>
                 <span>Sales Rep</span>
@@ -2406,8 +2564,8 @@ export function CrmNextWorkCustomerView({
                 <strong>{currentNeed}</strong>
               </div>
               <div>
-                <span>Deal Evidence</span>
-                <strong>{dealEvidence.detail}</strong>
+                <span>{workPathConfig.detailLabel}</span>
+                <strong>{salesPath ? dealEvidence.detail : `${workPathConfig.label} status is ${journeyStage}.`}</strong>
               </div>
             </section>
 

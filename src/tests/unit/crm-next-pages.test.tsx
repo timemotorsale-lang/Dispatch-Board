@@ -59,9 +59,11 @@ function user(roles: string[]): AuthenticatedUser {
 describe("CRM Next pages", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    if (typeof window !== "undefined") window.localStorage.clear();
   });
 
   afterEach(() => {
+    if (typeof window !== "undefined") window.localStorage.clear();
     if (originalFlag === undefined) delete process.env.CRM_NEXT;
     else process.env.CRM_NEXT = originalFlag;
   });
@@ -179,14 +181,15 @@ describe("CRM Next pages", () => {
     expect(work).toContain("Customer file");
     expect(work).toContain("Execution funnel");
     expect(work).toContain("What has happened, what is missing, and what to do next");
-    expect(work).toContain("Deal");
-    expect(work).toContain("Missing");
-    expect(work).toContain("Start or update the deal");
-    expect(work).toContain("Schedule the appointment");
-    expect(work).toContain("Log the customer outcome");
-    expect(work).toContain("Start deal");
+    expect(work).toContain("General Issue");
+    expect(work).toContain("Work Path");
+    expect(work).toContain("Path");
+    expect(work).toContain("Status");
+    expect(work).toContain("Issue");
+    expect(work).toContain("Update issue");
+    expect(work).toContain("Resolve issue");
+    expect(work).toContain("Close the work cleanly");
     expect(work).toContain("Log Activity");
-    expect(work).toContain("Start Deal");
     expect(work).toContain("Update Status");
     expect(work).toContain("Phone Call");
     expect(work).toContain("Send SMS");
@@ -200,8 +203,6 @@ describe("CRM Next pages", () => {
     expect(work).toContain("Credit App");
     expect(work).toContain("Journal Entries");
     expect(work).toContain("Logs");
-    expect(work).toContain("Missed Appt.");
-    expect(work).toContain("Visit Follow-up");
     expect(work).toContain("Next Appt.");
     expect(work).toContain("Last Contacted");
     expect(work).toContain("Days Since Activity");
@@ -217,6 +218,13 @@ describe("CRM Next pages", () => {
     expect(work).toContain("Disposition");
     expect(work).toContain('aria-pressed="true"');
     expect(work).toContain("<button");
+    expect(work).toContain("Reviewed");
+    expect(work).toContain("Waiting");
+    expect(work).toContain("Resolved");
+    expect(work).toContain("Closed");
+    expect(work).toContain("No Action Needed");
+    expect(work).not.toContain("Missed Appt.");
+    expect(work).not.toContain("Visit Follow-up");
     expect(work).not.toContain("Save CRM Task");
     expect(work).not.toContain("Keep it on Michael Johnson");
     expect(work).not.toContain("Dispatch handoff");
@@ -648,9 +656,9 @@ describe("CRM Next pages", () => {
       customerName: "Naomi Nyambura Githongo",
       id: "attn-naomi-follow-up",
       level: "Low",
-      nextAction: "Confirm delivery appointment follow-through",
+      nextAction: "Work retail deal for selected vehicle",
       owner: "Sales Team",
-      reason: "Delivery appointment needs completion",
+      reason: "Customer is working a vehicle deal",
       workHref: "/crm-next/work/attn-naomi-follow-up"
     };
     const bridgePreview: CrmNextActionBridgePreview = {
@@ -691,9 +699,9 @@ describe("CRM Next pages", () => {
       customerName: "Naomi Nyambura Githongo",
       id: "attn-naomi-follow-up",
       level: "Low",
-      nextAction: "Confirm delivery appointment follow-through",
+      nextAction: "Work retail deal for selected vehicle",
       owner: "Sales Team",
-      reason: "Delivery appointment needs completion",
+      reason: "Customer is working a vehicle deal",
       workHref: "/crm-next/work/attn-naomi-follow-up"
     };
     const model = {
@@ -707,7 +715,7 @@ describe("CRM Next pages", () => {
           id: "naomi-nyambura-githongo",
           lifetimeValue: "Open customer record",
           name: "Naomi Nyambura Githongo",
-          nextAction: "Confirm delivery appointment follow-through",
+          nextAction: "Work retail deal for selected vehicle",
           openCases: 0,
           openDeals: 0,
           phone: "Not recorded",
@@ -729,5 +737,37 @@ describe("CRM Next pages", () => {
     expect(markup).toContain("Continue the deal");
     expect(markup).toContain("Schedule appointment");
     expect(markup).not.toContain("No deal is recorded on this workbench yet");
+  });
+
+  it("uses delivery close-out language for transport work instead of sales sold/lost", () => {
+    const item: CrmNextAttentionItem = {
+      area: "Sales",
+      customerHref: "/crm-next/customers/max-auto-transport",
+      customerId: "max-auto-transport",
+      customerName: "Max Auto Transport",
+      id: "attn-max-auto-transport",
+      level: "Low",
+      nextAction: "Confirm transporter delivered the vehicle",
+      owner: "Eli Manager",
+      reason: "Transporter delivered vehicle",
+      workHref: "/crm-next/work/attn-max-auto-transport"
+    };
+    const model = {
+      customers: [],
+      sales: { appointments: [], deals: [], leads: [], opportunities: [], testDrives: [] },
+      timeline: [],
+      userName: "Customer Console Page User"
+    } as CrmNextCommandCenter;
+
+    const markup = renderToStaticMarkup(<CrmNextWorkCustomerView item={item} model={model} />);
+
+    expect(markup).toContain("Delivery / Transport");
+    expect(markup).toContain("Delivered");
+    expect(markup).toContain("Resolved");
+    expect(markup).toContain("Closed");
+    expect(markup).toContain("No Action Needed");
+    expect(markup).toContain("Delivery / Transport is not a sales funnel");
+    expect(markup).not.toContain(">Sold<");
+    expect(markup).not.toContain(">Lost<");
   });
 });

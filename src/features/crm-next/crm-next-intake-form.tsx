@@ -32,6 +32,21 @@ const EMPTY_CUSTOMER_FIELDS: CustomerFields = {
   preferredContactMethod: "PHONE"
 };
 
+const CRM_INTAKE_WORK_PATHS = [
+  { id: "sales-deal", label: "Sales / Deal" },
+  { id: "delivery-transport", label: "Delivery / Transport" },
+  { id: "service-repair", label: "Service / Repair" },
+  { id: "finance-payment", label: "Finance / Payment" },
+  { id: "title-document", label: "Title / Document" },
+  { id: "customer-follow-up", label: "Customer Follow-up" },
+  { id: "vendor-partner", label: "Vendor / Partner" },
+  { id: "general-issue", label: "General Issue" }
+] as const;
+
+function crmWorkPathStorageKey(customerId: string) {
+  return `crm-next:work-path:${customerId}`;
+}
+
 const CAPTURE_PURPOSES: Array<{
   id: CapturePurpose;
   label: string;
@@ -200,6 +215,12 @@ export function CrmNextIntakeForm() {
       if (!customer) throw new Error("Customer saved, but the customer record could not be opened.");
 
       const customerHref = `/crm-next/customers/${customer.id}`;
+      const selectedWorkPath = formText(data, "workPath") || "sales-deal";
+      try {
+        window.localStorage.setItem(crmWorkPathStorageKey(customer.id), selectedWorkPath);
+      } catch {
+        // The saved customer still opens even when local workbench preferences are unavailable.
+      }
       if (mode === "prospect") {
         setState({ kind: "saving", message: "Creating prospect lead..." });
         const leadResponse = await fetch("/api/customers/leads", {
@@ -210,7 +231,7 @@ export function CrmNextIntakeForm() {
               budget: formText(data, "budget"),
               customerNeed: formText(data, "customerNeed"),
               desiredTimeline: formText(data, "desiredTimeline"),
-              notes: formText(data, "notes"),
+              notes: [formText(data, "notes"), `Work path: ${selectedWorkPath}`].filter(Boolean).join("\n"),
               preferredContactMethod: customerPayload.preferredContactMethod
             },
             sourceCode: "CRM_NEXT",
@@ -384,6 +405,14 @@ export function CrmNextIntakeForm() {
                 <option>Working deal</option>
                 <option>Sold</option>
                 <option>Lost</option>
+              </select>
+            </label>
+            <label>
+              <span>Work path</span>
+              <select name="workPath" defaultValue="sales-deal">
+                {CRM_INTAKE_WORK_PATHS.map((path) => (
+                  <option key={path.id} value={path.id}>{path.label}</option>
+                ))}
               </select>
             </label>
             <label>
