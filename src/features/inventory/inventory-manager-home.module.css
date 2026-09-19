@@ -9,3 +9,32 @@
 .volumeSignals{border:1px solid #d1ddea;border-radius:11px;background:#fff}.volumeSignals>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 15px}.volumeSignals header p{margin:0;color:#315f9e;font-size:11.5px;font-weight:850;letter-spacing:.09em;text-transform:uppercase}.volumeSignals h2{margin:2px 0 0;font-size:17px}.volumeSignals header span{color:#6a7d93;font-size:11.5px}.volumeSignals>div{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-top:1px solid #e2e8f0}.volumeSignals>div>a{display:flex;align-items:center;gap:10px;min-height:74px;border-right:1px solid #e6ebf1;padding:10px 13px;color:#203d59;text-decoration:none}.volumeSignals>div>a:last-child{border:0}.volumeSignals>div>a>svg{box-sizing:content-box;width:17px;border-radius:7px;padding:8px;color:#1765c7;background:#eaf2fc}.volumeSignals>div>a>span{display:grid;gap:1px;color:#64788e;font-size:11.5px}.volumeSignals>div>a strong{color:#17334f;font-size:18px}.volumeSignals>div>a small{font-size:11.5px}
 @media(max-width:1400px){.highVolume .metrics{grid-template-columns:repeat(4,minmax(0,1fr))}}@media(max-width:1200px){.highVolume .mainGrid{grid-template-columns:1fr}}@media(max-width:820px){.modeSwitch{position:sticky;right:0;flex:0 0 auto}.metrics,.highVolume .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.volumeSignals>div{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:520px){.metrics,.highVolume .metrics,.volumeSignals>div{grid-template-columns:1fr}}
 :global(html[data-app-theme="dark"]) .volumeSignals{border-color:var(--line);color:var(--ink);background:var(--surface)}:global(html[data-app-theme="dark"]) .modeSwitch{background:var(--surface-soft)}
+
+:global(html[data-app-theme="dark"]) .rank,
+:global(html[data-app-theme="dark"]) .vehicle>svg,
+:global(html[data-app-theme="dark"]) .issue>span b,
+:global(html[data-app-theme="dark"]) .queue li>a,
+:global(html[data-app-theme="dark"]) .rail section>header>svg,
+:global(html[data-app-theme="dark"]) .inbox>a>i,
+:global(html[data-app-theme="dark"]) .volumeSignals>div>a>svg {
+  background:#3f2c28!important;
+  border:1px solid #6c493d!important;
+  color:#eef4fb!important;
+  box-shadow:none!important;
+}
+
+:global(html[data-app-theme="dark"]) .queue li>a span,
+:global(html[data-app-theme="dark"]) .queue li>a svg {
+  color:#eef4fb!important;
+}
+
+:global(html[data-app-theme="dark"]) .p0,
+:global(html[data-app-theme="dark"]) .p1,
+:global(html[data-app-theme="dark"]) .p2,
+:global(html[data-app-theme="dark"]) .decision,
+:global(html[data-app-theme="dark"]) .dependency,
+:global(html[data-app-theme="dark"]) .urgent {
+  background:#3f2c28!important;
+  border:1px solid #6c493d!important;
+  color:#fed7aa!important;
+}

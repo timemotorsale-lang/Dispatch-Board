@@ -7314,3 +7314,468 @@
     white-space: normal;
   }
 }
+
+:global(html[data-app-theme="dark"]) .shell {
+  --crm-next-bg: #071321;
+  --crm-next-bg-strong: #0b1828;
+  --crm-next-surface: #101f31;
+  --crm-next-surface-soft: #14253a;
+  --crm-next-surface-strong: #17283c;
+  --crm-next-ink: #eef4fb;
+  --crm-next-muted: #9aa9bd;
+  --crm-next-line: #26384e;
+  --crm-next-line-strong: #344a64;
+  --crm-next-blue: #72a7ff;
+  --crm-next-blue-soft: rgba(59, 130, 246, .18);
+  --crm-next-green: #86efac;
+  --crm-next-green-soft: rgba(34, 197, 94, .16);
+  --crm-next-amber: #fbbf24;
+  --crm-next-amber-soft: rgba(249, 115, 22, .16);
+  --crm-next-red: #fca5a5;
+  --crm-next-red-soft: rgba(239, 68, 68, .16);
+  background:
+    radial-gradient(circle at 42% -14%, rgba(37, 99, 235, .18), transparent 36%),
+    linear-gradient(180deg, var(--crm-next-bg) 0%, #081827 100%);
+  color: var(--crm-next-ink);
+}
+
+:global(html[data-app-theme="dark"]) .frame {
+  background: linear-gradient(90deg, #061426 0 250px, transparent 250px);
+}
+
+:global(html[data-app-theme="dark"]) .content {
+  color: var(--crm-next-ink);
+}
+
+:global(html[data-app-theme="dark"]) .topbar,
+:global(html[data-app-theme="dark"]) .hero,
+:global(html[data-app-theme="dark"]) .compactHero,
+:global(html[data-app-theme="dark"]) .sourceStrip,
+:global(html[data-app-theme="dark"]) .blocked,
+:global(html[data-app-theme="dark"]) .returnActionPanel,
+:global(html[data-app-theme="dark"]) .emptyCustomerSource,
+:global(html[data-app-theme="dark"]) .customerToolsDrawer,
+:global(html[data-app-theme="dark"]) .customerConsoleGuardrails article,
+:global(html[data-app-theme="dark"]) .attentionItem,
+:global(html[data-app-theme="dark"]) .nextItem,
+:global(html[data-app-theme="dark"]) .communicationItem,
+:global(html[data-app-theme="dark"]) .glanceItem,
+:global(html[data-app-theme="dark"]) .compactSectionCard,
+:global(html[data-app-theme="dark"]) .directoryRow,
+:global(html[data-app-theme="dark"]) .card,
+:global(html[data-app-theme="dark"]) .summaryCard,
+:global(html[data-app-theme="dark"]) .commandModeCard,
+:global(html[data-app-theme="dark"]) .pilotScenarioCard,
+:global(html[data-app-theme="dark"]) .panel,
+:global(html[data-app-theme="dark"]) .timeline,
+:global(html[data-app-theme="dark"]) .contextCard,
+:global(html[data-app-theme="dark"]) .intelligenceCard,
+:global(html[data-app-theme="dark"]) .handoffCard,
+:global(html[data-app-theme="dark"]) .searchGroups a,
+:global(html[data-app-theme="dark"]) .supportCard,
+:global(html[data-app-theme="dark"]) .executionCard,
+:global(html[data-app-theme="dark"]) .enterpriseActionRow,
+:global(html[data-app-theme="dark"]) .guardrailList a,
+:global(html[data-app-theme="dark"]) .customerHeroCard,
+:global(html[data-app-theme="dark"]) .customerMetricGrid article,
+:global(html[data-app-theme="dark"]) .quickActionTiles a,
+:global(html[data-app-theme="dark"]) .ledgerStateGrid article,
+:global(html[data-app-theme="dark"]) .ledgerColumns > article,
+:global(html[data-app-theme="dark"]) .ledgerTimeline a,
+:global(html[data-app-theme="dark"]) .issueWorkbench,
+:global(html[data-app-theme="dark"]) .issueDefinitionGrid article,
+:global(html[data-app-theme="dark"]) .executionFunnel,
+:global(html[data-app-theme="dark"]) .executionSignalGrid article,
+:global(html[data-app-theme="dark"]) .executionSignalGrid button,
+:global(html[data-app-theme="dark"]) .executionStepCard,
+:global(html[data-app-theme="dark"]) .dealerCustomerSnapshot div,
+:global(html[data-app-theme="dark"]) .dealerCustomerSnapshot button,
+:global(html[data-app-theme="dark"]) .activityWorkbenchGrid,
+:global(html[data-app-theme="dark"]) .workbenchSideRail,
+:global(html[data-app-theme="dark"]) .workbenchProgressControl,
+:global(html[data-app-theme="dark"]) .suggested,
+:global(html[data-app-theme="dark"]) .workContextStrip div,
+:global(html[data-app-theme="dark"]) .dealStartHeader,
+:global(html[data-app-theme="dark"]) .dealStartStep,
+:global(html[data-app-theme="dark"]) .dealStartReview,
+:global(html[data-app-theme="dark"]) .dealPresetRail,
+:global(html[data-app-theme="dark"]) .dealLaunchDecision,
+:global(html[data-app-theme="dark"]) .dealExecutionHeader,
+:global(html[data-app-theme="dark"]) .dealExecutionBody,
+:global(html[data-app-theme="dark"]) .enterpriseDealPanel,
+:global(html[data-app-theme="dark"]) .enterpriseDealGrid article,
+:global(html[data-app-theme="dark"]) .executionCommandStrip,
+:global(html[data-app-theme="dark"]) .executionDrawer,
+:global(html[data-app-theme="dark"]) .activityTimelineItem,
+:global(html[data-app-theme="dark"]) .activityTimelineEmpty,
+:global(html[data-app-theme="dark"]) .progressRow,
+:global(html[data-app-theme="dark"]) .sourceReportTable,
+:global(html[data-app-theme="dark"]) .sourceReportRow,
+:global(html[data-app-theme="dark"]) .sourceReportHead,
+:global(html[data-app-theme="dark"]) .dealerTabPanel,
+:global(html[data-app-theme="dark"]) .workbenchFileUpload,
+:global(html[data-app-theme="dark"]) .workbenchFileSummary {
+  background: var(--crm-next-surface);
+  border-color: var(--crm-next-line);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, .18);
+  color: var(--crm-next-ink);
+}
+
+:global(html[data-app-theme="dark"]) .dealerSectionGrid div {
+  background: #3f2c28;
+  border-color: #6c493d;
+  color: var(--crm-next-ink);
+  box-shadow: none;
+}
+
+:global(html[data-app-theme="dark"]) .partyStatus,
+:global(html[data-app-theme="dark"]) .inlineActionBar .appointmentInlineAction {
+  background: #3f2c28;
+  border-color: #6c493d;
+  color: var(--crm-next-ink);
+}
+
+:global(html[data-app-theme="dark"]) .inlineActionBar .appointmentInlineAction:not(:disabled):hover {
+  background: #4a332e;
+  border-color: #865d4d;
+  color: #ffffff;
+}
+
+:global(html[data-app-theme="dark"]) .topbar {
+  background: transparent;
+  box-shadow: none;
+}
+
+:global(html[data-app-theme="dark"]) .hero,
+:global(html[data-app-theme="dark"]) .compactHero,
+:global(html[data-app-theme="dark"]) .workHero,
+:global(html[data-app-theme="dark"]) .customerHeroCard,
+:global(html[data-app-theme="dark"]) .dealStartHeader {
+  background:
+    linear-gradient(145deg, rgba(20, 37, 58, .96), rgba(13, 28, 46, .98)),
+    var(--crm-next-surface);
+}
+
+:global(html[data-app-theme="dark"]) .search,
+:global(html[data-app-theme="dark"]) .avatar,
+:global(html[data-app-theme="dark"]) .compactSourceStatus,
+:global(html[data-app-theme="dark"]) .sourcePill,
+:global(html[data-app-theme="dark"]) .miniActionList a,
+:global(html[data-app-theme="dark"]) .operatorActionCard,
+:global(html[data-app-theme="dark"]) .returnActionCustomer,
+:global(html[data-app-theme="dark"]) .inlineActionBar button,
+:global(html[data-app-theme="dark"]) .inlineActionBar a,
+:global(html[data-app-theme="dark"]) .dealerTabs,
+:global(html[data-app-theme="dark"]) .activityFilters,
+:global(html[data-app-theme="dark"]) .dealerTabs a,
+:global(html[data-app-theme="dark"]) .dealerTabs button,
+:global(html[data-app-theme="dark"]) .activityFilters a,
+:global(html[data-app-theme="dark"]) .activityFilters button,
+:global(html[data-app-theme="dark"]) .journeyStageRail button,
+:global(html[data-app-theme="dark"]) .customerJourneyRail li,
+:global(html[data-app-theme="dark"]) .issueProgress li,
+:global(html[data-app-theme="dark"]) .executionProgress li,
+:global(html[data-app-theme="dark"]) .captureRoutePreview,
+:global(html[data-app-theme="dark"]) .recommendationBox,
+:global(html[data-app-theme="dark"]) .safeNotice,
+:global(html[data-app-theme="dark"]) .dueTaskPanel,
+:global(html[data-app-theme="dark"]) .dueTaskPanel dl div,
+:global(html[data-app-theme="dark"]) .dueTaskPanel > header > strong,
+:global(html[data-app-theme="dark"]) .dueTaskActions a,
+:global(html[data-app-theme="dark"]) .dealPresetRail button,
+:global(html[data-app-theme="dark"]) .dealLaunchDecision dl div,
+:global(html[data-app-theme="dark"]) .dealExecutionMeta span,
+:global(html[data-app-theme="dark"]) .executionStatusChips span,
+:global(html[data-app-theme="dark"]) .retailSectionJumps a,
+:global(html[data-app-theme="dark"]) .retailSectionJumps button,
+:global(html[data-app-theme="dark"]) .workbenchFileUpload header a,
+:global(html[data-app-theme="dark"]) .workbenchFileSummary li,
+:global(html[data-app-theme="dark"]) .directoryIssueList span[data-empty="true"] {
+  background: var(--crm-next-surface-soft);
+  border-color: var(--crm-next-line-strong);
+  color: var(--crm-next-ink);
+}
+
+:global(html[data-app-theme="dark"]) .search input,
+:global(html[data-app-theme="dark"]) .workPathControl select,
+:global(html[data-app-theme="dark"]) .content :where(input, select, textarea) {
+  background: var(--crm-next-surface-soft);
+  border-color: var(--crm-next-line-strong);
+  color: var(--crm-next-ink);
+  color-scheme: dark;
+}
+
+:global(html[data-app-theme="dark"]) .search input::placeholder,
+:global(html[data-app-theme="dark"]) .content :where(input, textarea)::placeholder {
+  color: #8293a8;
+  opacity: 1;
+}
+
+:global(html[data-app-theme="dark"]) .shell :where(h1, h2, h3, h4),
+:global(html[data-app-theme="dark"]) .blocked h1,
+:global(html[data-app-theme="dark"]) .hero h1,
+:global(html[data-app-theme="dark"]) .compactHero h1,
+:global(html[data-app-theme="dark"]) .customerName,
+:global(html[data-app-theme="dark"]) .workTitle,
+:global(html[data-app-theme="dark"]) .customerToolsDrawer summary strong,
+:global(html[data-app-theme="dark"]) .directoryIdentity strong,
+:global(html[data-app-theme="dark"]) .attentionItem strong,
+:global(html[data-app-theme="dark"]) .nextItem strong,
+:global(html[data-app-theme="dark"]) .communicationItem strong,
+:global(html[data-app-theme="dark"]) .glanceItem strong,
+:global(html[data-app-theme="dark"]) .salesRow strong,
+:global(html[data-app-theme="dark"]) .compactSectionCard,
+:global(html[data-app-theme="dark"]) .directoryRow dd,
+:global(html[data-app-theme="dark"]) .summaryCard,
+:global(html[data-app-theme="dark"]) .summaryCard strong,
+:global(html[data-app-theme="dark"]) .commandModeCard h2,
+:global(html[data-app-theme="dark"]) .commandModeCard dd,
+:global(html[data-app-theme="dark"]) .pilotScenarioCard h3,
+:global(html[data-app-theme="dark"]) .enterpriseActionRow strong,
+:global(html[data-app-theme="dark"]) .guardrailList strong,
+:global(html[data-app-theme="dark"]) .ledgerStateGrid strong,
+:global(html[data-app-theme="dark"]) .ledgerTimeline strong,
+:global(html[data-app-theme="dark"]) .ledgerColumns > article > a strong,
+:global(html[data-app-theme="dark"]) .executionStepCard strong,
+:global(html[data-app-theme="dark"]) .dealerCustomerSnapshot strong,
+:global(html[data-app-theme="dark"]) .dealerCustomerDetails strong,
+:global(html[data-app-theme="dark"]) .dealerSectionGrid strong,
+:global(html[data-app-theme="dark"]) .workContextStrip strong,
+:global(html[data-app-theme="dark"]) .activityTimelineItem strong,
+:global(html[data-app-theme="dark"]) .activityTimelineEmpty strong,
+:global(html[data-app-theme="dark"]) .workbenchFileSummary strong,
+:global(html[data-app-theme="dark"]) .workbenchFileSummary span,
+:global(html[data-app-theme="dark"]) .dealStartHeader h1,
+:global(html[data-app-theme="dark"]) .dealStartStep h2,
+:global(html[data-app-theme="dark"]) .dealStartReview h2,
+:global(html[data-app-theme="dark"]) .dealStartReview dd,
+:global(html[data-app-theme="dark"]) .dealPresetRail header strong,
+:global(html[data-app-theme="dark"]) .dealPresetRail button span,
+:global(html[data-app-theme="dark"]) .dealLaunchDecision h2,
+:global(html[data-app-theme="dark"]) .dealLaunchDecision dd,
+:global(html[data-app-theme="dark"]) .dealExecutionHeader h2,
+:global(html[data-app-theme="dark"]) .executionCommandStrip > div:first-child strong {
+  color: var(--crm-next-ink);
+}
+
+:global(html[data-app-theme="dark"]) .shell :where(p, small, dt, label, li),
+:global(html[data-app-theme="dark"]) .muted,
+:global(html[data-app-theme="dark"]) .hero p,
+:global(html[data-app-theme="dark"]) .compactHero p,
+:global(html[data-app-theme="dark"]) .blocked p,
+:global(html[data-app-theme="dark"]) .directoryIdentity small,
+:global(html[data-app-theme="dark"]) .attentionItem small,
+:global(html[data-app-theme="dark"]) .nextItem small,
+:global(html[data-app-theme="dark"]) .communicationItem small,
+:global(html[data-app-theme="dark"]) .glanceItem small,
+:global(html[data-app-theme="dark"]) .salesRow small,
+:global(html[data-app-theme="dark"]) .directoryRow dt,
+:global(html[data-app-theme="dark"]) .summaryCard small,
+:global(html[data-app-theme="dark"]) .summaryCard p,
+:global(html[data-app-theme="dark"]) .summaryCard span,
+:global(html[data-app-theme="dark"]) .commandModeCard p,
+:global(html[data-app-theme="dark"]) .commandModeCard small,
+:global(html[data-app-theme="dark"]) .pilotScenarioCard p,
+:global(html[data-app-theme="dark"]) .customerToolsDrawer summary small,
+:global(html[data-app-theme="dark"]) .customerConsoleGuardrails span,
+:global(html[data-app-theme="dark"]) .customerConsoleGuardrails small,
+:global(html[data-app-theme="dark"]) .enterpriseActionRow small,
+:global(html[data-app-theme="dark"]) .guardrailList small,
+:global(html[data-app-theme="dark"]) .ledgerStateGrid span,
+:global(html[data-app-theme="dark"]) .ledgerStateGrid small,
+:global(html[data-app-theme="dark"]) .ledgerTimeline span,
+:global(html[data-app-theme="dark"]) .ledgerTimeline small,
+:global(html[data-app-theme="dark"]) .ledgerColumns > article > a small,
+:global(html[data-app-theme="dark"]) .issueSummary p,
+:global(html[data-app-theme="dark"]) .issueSummary dt,
+:global(html[data-app-theme="dark"]) .issueDefinitionGrid span,
+:global(html[data-app-theme="dark"]) .executionFunnel p,
+:global(html[data-app-theme="dark"]) .executionSignalGrid span,
+:global(html[data-app-theme="dark"]) .executionSignalGrid small,
+:global(html[data-app-theme="dark"]) .executionStepCard small,
+:global(html[data-app-theme="dark"]) .dealerCustomerSnapshot span,
+:global(html[data-app-theme="dark"]) .dealerCustomerDetails span,
+:global(html[data-app-theme="dark"]) .dealerSectionGrid span,
+:global(html[data-app-theme="dark"]) .workContextStrip span,
+:global(html[data-app-theme="dark"]) .activityTimelineItem span,
+:global(html[data-app-theme="dark"]) .activityTimelineItem small,
+:global(html[data-app-theme="dark"]) .activityTimelineEmpty span,
+:global(html[data-app-theme="dark"]) .workbenchFileControls span,
+:global(html[data-app-theme="dark"]) .workbenchFileSummary small,
+:global(html[data-app-theme="dark"]) .dealStartHeader p,
+:global(html[data-app-theme="dark"]) .dealStartStep p,
+:global(html[data-app-theme="dark"]) .dealStartReview p,
+:global(html[data-app-theme="dark"]) .dealStartStep > span,
+:global(html[data-app-theme="dark"]) .dealStartReview > span,
+:global(html[data-app-theme="dark"]) .dealStartForm label,
+:global(html[data-app-theme="dark"]) .dealStartForm label span,
+:global(html[data-app-theme="dark"]) .dealStartReview dt,
+:global(html[data-app-theme="dark"]) .dealStartChecklist span,
+:global(html[data-app-theme="dark"]) .dealStartDisclosure span,
+:global(html[data-app-theme="dark"]) .dealStartReview small,
+:global(html[data-app-theme="dark"]) .dealPresetRail button small,
+:global(html[data-app-theme="dark"]) .dealPresetSelected,
+:global(html[data-app-theme="dark"]) .dealLaunchDecision p,
+:global(html[data-app-theme="dark"]) .dealLaunchDecision dt,
+:global(html[data-app-theme="dark"]) .dealExecutionHeader p,
+:global(html[data-app-theme="dark"]) .dealExecutionMeta span,
+:global(html[data-app-theme="dark"]) .executionCommandStrip > div:first-child span,
+:global(html[data-app-theme="dark"]) .executionCommandStrip > div:first-child small {
+  color: var(--crm-next-muted);
+}
+
+:global(html[data-app-theme="dark"]) .secondaryButton,
+:global(html[data-app-theme="dark"]) .softButton {
+  background: linear-gradient(180deg, var(--crm-next-surface-soft), #101f31);
+  border-color: var(--crm-next-line-strong);
+  color: var(--crm-next-ink);
+  box-shadow: none;
+}
+
+:global(html[data-app-theme="dark"]) .dangerSoftButton {
+  background: var(--crm-next-amber-soft);
+  border-color: rgba(251, 191, 36, .36);
+  color: #fed7aa;
+}
+
+:global(html[data-app-theme="dark"]) .primaryButton {
+  background: linear-gradient(135deg, #4161f4, #2458dc);
+  border-color: #5b7dff;
+  color: #ffffff;
+  box-shadow: 0 18px 36px rgba(37, 99, 235, .2);
+}
+
+:global(html[data-app-theme="dark"]) .search button {
+  background: var(--crm-next-blue-soft);
+  border-color: rgba(114, 167, 255, .34);
+  color: var(--crm-next-blue);
+}
+
+:global(html[data-app-theme="dark"]) .governance,
+:global(html[data-app-theme="dark"]) .compactSourceStatus a[data-state="LIVE_READ"],
+:global(html[data-app-theme="dark"]) .levelLow,
+:global(html[data-app-theme="dark"]) .statusVerified,
+:global(html[data-app-theme="dark"]) .directoryRow[data-status="closed"] dl div:nth-child(4) dd,
+:global(html[data-app-theme="dark"]) .executionSignalGrid article[data-tone="complete"],
+:global(html[data-app-theme="dark"]) .executionSignalGrid button[data-tone="complete"],
+:global(html[data-app-theme="dark"]) .customerJourneyRail li[data-state="active"],
+:global(html[data-app-theme="dark"]) .issueProgress li[data-state="complete"],
+:global(html[data-app-theme="dark"]) .executionProgress li[data-state="complete"],
+:global(html[data-app-theme="dark"]) .journeyStageRail button[aria-pressed="true"] {
+  background: var(--crm-next-green-soft);
+  border-color: rgba(134, 239, 172, .36);
+  color: var(--crm-next-green);
+}
+
+:global(html[data-app-theme="dark"]) .governance svg {
+  color: var(--crm-next-green);
+}
+
+:global(html[data-app-theme="dark"]) .compactSourceStatus a[data-state="FALLBACK_READ"],
+:global(html[data-app-theme="dark"]) .compactSourceStatus a[data-state="EMPTY_READ"],
+:global(html[data-app-theme="dark"]) .compactSourceStatus a[data-state="PARTIAL_READ"],
+:global(html[data-app-theme="dark"]) .levelMedium,
+:global(html[data-app-theme="dark"]) .statusProgress,
+:global(html[data-app-theme="dark"]) .executionSignalGrid article[data-tone="attention"],
+:global(html[data-app-theme="dark"]) .executionSignalGrid button[data-tone="attention"],
+:global(html[data-app-theme="dark"]) .dueTaskPanel {
+  background: var(--crm-next-amber-soft);
+  border-color: rgba(251, 191, 36, .36);
+  color: #fcd34d;
+}
+
+:global(html[data-app-theme="dark"]) .levelHigh,
+:global(html[data-app-theme="dark"]) .statusHeld {
+  background: var(--crm-next-red-soft);
+  color: var(--crm-next-red);
+}
+
+:global(html[data-app-theme="dark"]) .statusImplemented,
+:global(html[data-app-theme="dark"]) .statusContracted,
+:global(html[data-app-theme="dark"]) .statusDeferred,
+:global(html[data-app-theme="dark"]) .statusPlanned,
+:global(html[data-app-theme="dark"]) .pill {
+  background: var(--crm-next-blue-soft);
+  color: var(--crm-next-blue);
+}
+
+:global(html[data-app-theme="dark"]) .directoryRow[data-status="closed"] {
+  background: rgba(16, 31, 49, .72);
+  border-color: var(--crm-next-line);
+}
+
+:global(html[data-app-theme="dark"]) .directoryRow[data-status="closed"] .directoryIdentity strong,
+:global(html[data-app-theme="dark"]) .directoryRow[data-status="closed"] dd {
+  color: #cbd7e6;
+}
+
+:global(html[data-app-theme="dark"]) .directoryIssueList span {
+  background: var(--crm-next-amber-soft);
+  border-color: rgba(251, 191, 36, .34);
+  color: #fed7aa;
+}
+
+:global(html[data-app-theme="dark"]) .dealerTabs button[aria-pressed="true"],
+:global(html[data-app-theme="dark"]) .activityFilters button[aria-pressed="true"],
+:global(html[data-app-theme="dark"]) .dealerTabs .activeTab,
+:global(html[data-app-theme="dark"]) .activityFilters .activeTab,
+:global(html[data-app-theme="dark"]) .issueProgress li[data-state="active"],
+:global(html[data-app-theme="dark"]) .executionProgress li[data-state="active"] {
+  background: var(--crm-next-blue-soft);
+  border-color: rgba(114, 167, 255, .4);
+  color: var(--crm-next-blue);
+}
+
+:global(html[data-app-theme="dark"]) .hero::before,
+:global(html[data-app-theme="dark"]) .customerHeroCard::before {
+  background: linear-gradient(180deg, #5b7dff, #22c55e);
+}
+
+:global(html[data-app-theme="dark"]) .summaryCard[data-tone="blue"] {
+  background: linear-gradient(135deg, #2146ba, #142f72);
+  border-color: rgba(147, 197, 253, .34);
+}
+
+:global(html[data-app-theme="dark"]) .dealPresetRail button[aria-pressed="true"] {
+  background: var(--crm-next-blue-soft);
+  border-color: rgba(114, 167, 255, .55);
+  box-shadow: inset 0 0 0 1px rgba(114, 167, 255, .5);
+}
+
+:global(html[data-app-theme="dark"]) .dealStartStep input:disabled,
+:global(html[data-app-theme="dark"]) .executionCommandStrip button:disabled {
+  background: rgba(148, 163, 184, .12);
+  border-color: var(--crm-next-line);
+  color: #64748b;
+}
+
+:global(html[data-app-theme="dark"]) .dealLaunchDecision button,
+:global(html[data-app-theme="dark"]) .dealExecutionHeader button:last-child,
+:global(html[data-app-theme="dark"]) .executionCommandStrip button:last-child {
+  background: linear-gradient(135deg, #4161f4, #2458dc);
+  border-color: #5b7dff;
+  color: #ffffff;
+}
+
+:global(html[data-app-theme="dark"]) .dealExecutionHeader button:first-of-type,
+:global(html[data-app-theme="dark"]) .executionCommandStrip button:first-of-type,
+:global(html[data-app-theme="dark"]) .retailSectionJumps button {
+  background: var(--crm-next-surface-soft);
+  border-color: var(--crm-next-line-strong);
+  color: var(--crm-next-blue);
+}
+
+:global(html[data-app-theme="dark"]) .summaryCard[data-tone="green"] strong,
+:global(html[data-app-theme="dark"]) .success-text {
+  color: var(--crm-next-green);
+}
+
+:global(html[data-app-theme="dark"]) .summaryCard[data-tone="red"] strong,
+:global(html[data-app-theme="dark"]) .danger-text {
+  color: var(--crm-next-red);
+}
+
+:global(html[data-app-theme="dark"]) .bar,
+:global(html[data-app-theme="dark"]) .case-sla {
+  background: var(--crm-next-line);
+}

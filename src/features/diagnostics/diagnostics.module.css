@@ -39,6 +39,177 @@
 @media(max-width:700px){.commandLanding{grid-template-columns:1fr}.commandPrimaryCard{grid-template-columns:1fr}.commandPrimaryCard>strong{font-size:2rem}}
 .laborGuideSearch select{width:100%;border:0;outline:0;background:transparent;font:inherit;font-weight:800;color:#1d2c3c;cursor:pointer}
 
+:global(html[data-app-theme="dark"]) .console,
+:global(html[data-app-theme="dark"]) .workspace,
+:global(html[data-app-theme="dark"]) .commandCenter,
+:global(html[data-app-theme="dark"]) .laborGuideConsole,
+:global(html[data-app-theme="dark"]) .reviewConsole,
+:global(html[data-app-theme="dark"]) .bodyConsole {
+  background: #071321;
+  color: #eef4fb;
+}
+
+:global(html[data-app-theme="dark"]) .console :where(h1,h2,h3,strong,b,dt,dd,label,th,td),
+:global(html[data-app-theme="dark"]) .workspace :where(h1,h2,h3,strong,b,dt,dd,label,th,td),
+:global(html[data-app-theme="dark"]) .commandCenter :where(h1,h2,h3,strong,b,dt,dd,label,th,td),
+:global(html[data-app-theme="dark"]) .laborGuideConsole :where(h1,h2,h3,strong,b,dt,dd,label,th,td),
+:global(html[data-app-theme="dark"]) .reviewConsole :where(h1,h2,h3,strong,b,dt,dd,label,th,td),
+:global(html[data-app-theme="dark"]) .bodyConsole :where(h1,h2,h3,strong,b,dt,dd,label,th,td) {
+  color: #eef4fb;
+}
+
+:global(html[data-app-theme="dark"]) .console :where(p,span,small,li,em),
+:global(html[data-app-theme="dark"]) .workspace :where(p,span,small,li,em),
+:global(html[data-app-theme="dark"]) .commandCenter :where(p,span,small,li,em),
+:global(html[data-app-theme="dark"]) .laborGuideConsole :where(p,span,small,li,em),
+:global(html[data-app-theme="dark"]) .reviewConsole :where(p,span,small,li,em),
+:global(html[data-app-theme="dark"]) .bodyConsole :where(p,span,small,li,em) {
+  color: #9aa9bd;
+}
+
+:global(html[data-app-theme="dark"]) .hero,
+:global(html[data-app-theme="dark"]) .caseHeader,
+:global(html[data-app-theme="dark"]) .commandHeader,
+:global(html[data-app-theme="dark"]) .simpleHeader,
+:global(html[data-app-theme="dark"]) .reviewHero,
+:global(html[data-app-theme="dark"]) .bodyHero,
+:global(html[data-app-theme="dark"]) .queuePanel,
+:global(html[data-app-theme="dark"]) .priorityQueue,
+:global(html[data-app-theme="dark"]) .concernCard,
+:global(html[data-app-theme="dark"]) .primaryAction,
+:global(html[data-app-theme="dark"]) .evidenceGrid > section,
+:global(html[data-app-theme="dark"]) .labShell,
+:global(html[data-app-theme="dark"]) .caseRail > section,
+:global(html[data-app-theme="dark"]) .masterStart,
+:global(html[data-app-theme="dark"]) .masterSurface,
+:global(html[data-app-theme="dark"]) .masterPanel,
+:global(html[data-app-theme="dark"]) .operationNavigator,
+:global(html[data-app-theme="dark"]) .laborEnginePanel,
+:global(html[data-app-theme="dark"]) .advisorDraftPanel,
+:global(html[data-app-theme="dark"]) .vehicleDiagramCard,
+:global(html[data-app-theme="dark"]) .operationName,
+:global(html[data-app-theme="dark"]) .complexityBand,
+:global(html[data-app-theme="dark"]) .draftCard,
+:global(html[data-app-theme="dark"]) .marginSafeguard,
+:global(html[data-app-theme="dark"]) .reviewStagePanel,
+:global(html[data-app-theme="dark"]) .reviewPacketPanel,
+:global(html[data-app-theme="dark"]) .reviewRail > section,
+:global(html[data-app-theme="dark"]) .photoIntakePanel,
+:global(html[data-app-theme="dark"]) .damageMapPanel,
+:global(html[data-app-theme="dark"]) .bodyEstimatePanel,
+:global(html[data-app-theme="dark"]) .bodyRail > section,
+:global(html[data-app-theme="dark"]) .coolingShadowPanel,
+:global(html[data-app-theme="dark"]) .coolingManagerCard {
+  background: #101f31;
+  border-color: #26384e;
+  box-shadow: none;
+  color: #eef4fb;
+}
+
+:global(html[data-app-theme="dark"]) .metrics article,
+:global(html[data-app-theme="dark"]) .commandMetrics button,
+:global(html[data-app-theme="dark"]) .filters,
+:global(html[data-app-theme="dark"]) .search,
+:global(html[data-app-theme="dark"]) .caseRow,
+:global(html[data-app-theme="dark"]) .stages,
+:global(html[data-app-theme="dark"]) .labShell article,
+:global(html[data-app-theme="dark"]) .caseRail p i,
+:global(html[data-app-theme="dark"]) .commandModuleCard,
+:global(html[data-app-theme="dark"]) .commandPrimaryCard,
+:global(html[data-app-theme="dark"]) .readinessStrip,
+:global(html[data-app-theme="dark"]) .queueToolbar,
+:global(html[data-app-theme="dark"]) .queueChips button,
+:global(html[data-app-theme="dark"]) .bulkControl > button,
+:global(html[data-app-theme="dark"]) .filterButton,
+:global(html[data-app-theme="dark"]) .bulkMenu,
+:global(html[data-app-theme="dark"]) .vehicleDiagramCard button,
+:global(html[data-app-theme="dark"]) .createDraftButton,
+:global(html[data-app-theme="dark"]) .advisorDraftPanel footer button,
+:global(html[data-app-theme="dark"]) .laborSourceGrid article,
+:global(html[data-app-theme="dark"]) .complexityBand article,
+:global(html[data-app-theme="dark"]) .laborDetailGrid section,
+:global(html[data-app-theme="dark"]) .laborFinancialGrid article,
+:global(html[data-app-theme="dark"]) .draftCard p,
+:global(html[data-app-theme="dark"]) .reviewSteps li,
+:global(html[data-app-theme="dark"]) .reviewPacketGrid article,
+:global(html[data-app-theme="dark"]) .photoSlots article,
+:global(html[data-app-theme="dark"]) .bodyEstimateLines article,
+:global(html[data-app-theme="dark"]) .coolingShadowGrid article,
+:global(html[data-app-theme="dark"]) .coolingBlockedList,
+:global(html[data-app-theme="dark"]) .coolingAcknowledgement,
+:global(html[data-app-theme="dark"]) .coolingManagerMetrics article,
+:global(html[data-app-theme="dark"]) .coolingManagerItems {
+  background: #14253a;
+  border-color: #344a64;
+  color: #eef4fb;
+}
+
+:global(html[data-app-theme="dark"]) .queueTable th {
+  background: #1a2a3f;
+  border-color: #26384e;
+  color: #bfcee0;
+}
+
+:global(html[data-app-theme="dark"]) .queueTable td,
+:global(html[data-app-theme="dark"]) .queueTable tbody tr:hover {
+  background: #101f31;
+  border-color: #26384e;
+  color: #eef4fb;
+}
+
+:global(html[data-app-theme="dark"]) .console :where(input,select,textarea),
+:global(html[data-app-theme="dark"]) .workspace :where(input,select,textarea),
+:global(html[data-app-theme="dark"]) .commandCenter :where(input,select,textarea),
+:global(html[data-app-theme="dark"]) .laborGuideConsole :where(input,select,textarea),
+:global(html[data-app-theme="dark"]) .reviewConsole :where(input,select,textarea),
+:global(html[data-app-theme="dark"]) .bodyConsole :where(input,select,textarea) {
+  background: #101c2d;
+  border-color: #344a64;
+  color: #eef4fb;
+  color-scheme: dark;
+}
+
+:global(html[data-app-theme="dark"]) .console :where(input,textarea)::placeholder,
+:global(html[data-app-theme="dark"]) .workspace :where(input,textarea)::placeholder,
+:global(html[data-app-theme="dark"]) .commandCenter :where(input,textarea)::placeholder,
+:global(html[data-app-theme="dark"]) .laborGuideConsole :where(input,textarea)::placeholder,
+:global(html[data-app-theme="dark"]) .reviewConsole :where(input,textarea)::placeholder,
+:global(html[data-app-theme="dark"]) .bodyConsole :where(input,textarea)::placeholder {
+  color: #9aa9bd;
+  opacity: 1;
+}
+
+:global(html[data-app-theme="dark"]) .primaryCommand,
+:global(html[data-app-theme="dark"]) .primaryAction button,
+:global(html[data-app-theme="dark"]) .caseRail button,
+:global(html[data-app-theme="dark"]) .rowAction,
+:global(html[data-app-theme="dark"]) .masterStart form button,
+:global(html[data-app-theme="dark"]) .conclusionForm button,
+:global(html[data-app-theme="dark"]) .handoffForm button {
+  background: #4f6df5;
+  border-color: #5b7dff;
+  color: #fff;
+}
+
+:global(html[data-app-theme="dark"]) .notice,
+:global(html[data-app-theme="dark"]) .systemStatus,
+:global(html[data-app-theme="dark"]) .diagnosticIntelligenceCard,
+:global(html[data-app-theme="dark"]) .rapidReconPath {
+  background: rgba(34, 197, 94, .12);
+  border-color: rgba(34, 197, 94, .34);
+  color: #bff4d1;
+}
+
+:global(html[data-app-theme="dark"]) .hold,
+:global(html[data-app-theme="dark"]) .rolloutNotice,
+:global(html[data-app-theme="dark"]) .authorityWarning,
+:global(html[data-app-theme="dark"]) .managerReviewCard,
+:global(html[data-app-theme="dark"]) .bodyWarning {
+  background: rgba(249, 115, 22, .12);
+  border-color: rgba(249, 115, 22, .36);
+  color: #fed7aa;
+}
+
 .troubleshootingLink{display:inline-flex!important;align-items:center;justify-content:center;width:max-content;margin-top:10px;border:1px solid #81c9c0;border-radius:999px;background:#ffffff12;color:#d7fffb!important;padding:8px 12px;text-decoration:none!important;font-size:.78rem;font-weight:850}.troubleshootingLink:hover{background:#ffffff20}
 
 /* Technician Troubleshooting Console */
