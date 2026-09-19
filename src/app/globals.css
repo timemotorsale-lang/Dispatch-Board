@@ -26972,6 +26972,21 @@ html[data-app-theme="dark"] :where(
 }
 
 html[data-app-theme="dark"] :where(
+  .appointment-board-simplified .appointment-month-cell-top span,
+  .appointment-board-simplified .appointment-month-item strong,
+  .appointment-board-simplified .appointment-month-item span
+) {
+  background-color: #20324a !important;
+  border-color: var(--app-dark-line-strong) !important;
+  color: var(--app-dark-ink) !important;
+}
+
+html[data-app-theme="dark"] .appointment-board-simplified .appointment-month-item {
+  background-color: #17263a !important;
+  border-color: var(--app-dark-primary-strong) !important;
+}
+
+html[data-app-theme="dark"] :where(
   .appointment-week-column-heading,
   .appointment-month-cell-top,
   .appointment-agenda-section-heading,
@@ -27001,6 +27016,20 @@ html[data-app-theme="dark"] :where(
   .appointment-alt-view p
 ) {
   color: var(--app-dark-muted) !important;
+}
+
+html[data-app-theme="dark"] .appointment-board-simplified .appointment-month-cell-top strong {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 28px !important;
+  height: 28px !important;
+  border: 1px solid rgba(74, 222, 128, .55) !important;
+  border-radius: 999px !important;
+  background-color: rgba(34, 197, 94, .16) !important;
+  color: #4ade80 !important;
+  font-size: 13px !important;
+  font-weight: 950 !important;
 }
 
 html[data-app-theme="dark"] :where(.appointment-month-cell-active,.appointment-workspace-month-cell-active) {
@@ -28063,5 +28092,49 @@ html[data-app-theme="dark"] .customer-console .customer-home-metric-card p span 
 
 html[data-app-theme="dark"] .customer-console .customer-home-metric-card p svg {
   color: #eef4fb !important;
+}
+
+/* Global dark-mode rescue for nested cards/chips/actions that still carry light surfaces. */
+html[data-app-theme="dark"] .app-content :where(
+  [class*="badge" i],
+  [class*="pill" i],
+  [class*="chip" i],
+  [class*="tag" i],
+  [class*="status" i],
+  [class*="item" i],
+  [class*="row" i],
+  [class*="summary" i],
+  [class*="detail" i],
+  [class*="result" i],
+  [class*="option" i],
+  [class*="tile" i],
+  [class*="action" i],
+  [class*="button" i],
+  [class*="link" i]
+):not([class*="primary" i]):not([class*="active" i]):not([class*="selected" i]):not([class*="success" i]):not([class*="ready" i]):not([class*="complete" i]):not([class*="live" i]):not([class*="warning" i]):not([class*="attention" i]):not([class*="danger" i]):not([class*="error" i]) {
+  background-color: var(--surface-soft) !important;
+  border-color: var(--line-strong) !important;
+  color: var(--ink) !important;
+  box-shadow: none !important;
+}
+
+html[data-app-theme="dark"] .app-content :where(
+  [class*="badge" i],
+  [class*="pill" i],
+  [class*="chip" i],
+  [class*="tag" i],
+  [class*="status" i],
+  [class*="item" i],
+  [class*="row" i],
+  [class*="summary" i],
+  [class*="detail" i],
+  [class*="result" i],
+  [class*="option" i],
+  [class*="tile" i],
+  [class*="action" i],
+  [class*="button" i],
+  [class*="link" i]
+):not([class*="primary" i]):not([class*="active" i]):not([class*="selected" i]):not([class*="success" i]):not([class*="ready" i]):not([class*="complete" i]):not([class*="live" i]):not([class*="warning" i]):not([class*="attention" i]):not([class*="danger" i]):not([class*="error" i]) :where(p, span, small, strong, b, em, dt, dd, label) {
+  color: inherit !important;
 }
 
