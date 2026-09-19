@@ -3272,23 +3272,41 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-.executionSignalGrid article {
+.executionSignalGrid article,
+.executionSignalGrid button {
   background: #f8fbff;
   border: 1px solid #dbe6f6;
   border-radius: 10px;
+  color: #071a3a;
   display: grid;
+  font: inherit;
   gap: 3px;
   padding: 10px 12px;
+  text-align: left;
+  text-decoration: none;
 }
 
-.executionSignalGrid article[data-tone="complete"] {
+.executionSignalGrid article[data-tone="complete"],
+.executionSignalGrid button[data-tone="complete"] {
   background: #f0fdf4;
   border-color: #bbf7d0;
 }
 
-.executionSignalGrid article[data-tone="attention"] {
+.executionSignalGrid article[data-tone="attention"],
+.executionSignalGrid button[data-tone="attention"] {
   background: #fff7ed;
   border-color: #fed7aa;
+}
+
+.executionSignalGrid button {
+  cursor: pointer;
+}
+
+.executionSignalGrid button:hover,
+.executionSignalGrid button:focus-visible {
+  border-color: #fb923c;
+  outline: 3px solid rgb(251 146 60 / 18%);
+  outline-offset: 2px;
 }
 
 .executionSignalGrid span {
@@ -3301,6 +3319,12 @@
 .executionSignalGrid strong {
   color: #071a3a;
   font-size: 15px;
+}
+
+.executionSignalGrid small {
+  color: #9a3412;
+  font-size: 11px;
+  font-weight: 900;
 }
 
 .executionStepGrid {
@@ -3353,6 +3377,102 @@
   font-weight: 900;
 }
 
+.dueTaskPanel {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 12px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.dueTaskPanel > header {
+  align-items: start;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.dueTaskPanel h3,
+.dueTaskPanel p {
+  margin: 0;
+}
+
+.dueTaskPanel h3 {
+  color: #071a3a;
+  font-size: 18px;
+}
+
+.dueTaskPanel p {
+  color: #52637a;
+  font-size: 13px;
+  line-height: 1.4;
+  margin-top: 3px;
+}
+
+.dueTaskPanel > header > strong {
+  background: #ffffff;
+  border: 1px solid #fed7aa;
+  border-radius: 999px;
+  color: #9a3412;
+  padding: 7px 10px;
+  white-space: nowrap;
+}
+
+.dueTaskPanel dl {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(160px, .35fr) minmax(0, 1fr);
+  margin: 0;
+}
+
+.dueTaskPanel dl div {
+  background: #ffffff;
+  border: 1px solid #fed7aa;
+  border-radius: 10px;
+  padding: 9px 10px;
+}
+
+.dueTaskPanel dt {
+  color: #9a3412;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.dueTaskPanel dd {
+  color: #071a3a;
+  font-weight: 850;
+  margin: 3px 0 0;
+}
+
+.dueTaskActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dueTaskActions a {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #fed7aa;
+  border-radius: 9px;
+  color: #102548;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 900;
+  min-height: 38px;
+  padding: 8px 11px;
+  text-decoration: none;
+}
+
+.dueTaskActions a:hover,
+.dueTaskActions a:focus-visible {
+  border-color: #fb923c;
+  outline: 3px solid rgb(251 146 60 / 18%);
+  outline-offset: 2px;
+}
+
 .crmWorkbenchHeader {
   align-items: center;
   display: grid;
@@ -3394,12 +3514,28 @@
   margin: 0;
 }
 
-.dealerCustomerSnapshot div {
+.dealerCustomerSnapshot div,
+.dealerCustomerSnapshot button {
   background: #f8fbff;
   border: 1px solid #dbe6f6;
   border-radius: 8px;
+  color: #071a3a;
+  font: inherit;
   min-width: 0;
   padding: 8px 10px;
+  text-align: left;
+  text-decoration: none;
+}
+
+.dealerCustomerSnapshot button {
+  cursor: pointer;
+}
+
+.dealerCustomerSnapshot button:hover,
+.dealerCustomerSnapshot button:focus-visible {
+  border-color: #93c5fd;
+  outline: 3px solid rgb(37 99 235 / 16%);
+  outline-offset: 2px;
 }
 
 .dealerCustomerSnapshot span {
@@ -3492,7 +3628,7 @@
   color: #2454d6;
 }
 
-.inlineActionBar .appointmentInlineAction:hover {
+.inlineActionBar .appointmentInlineAction:not(:disabled):hover {
   background: #eef4ff;
   border-color: #3f63df;
 }

@@ -2039,7 +2039,8 @@ export function CrmNextWorkCustomerView({
 }) {
   const issue = customerWorkIssue(item);
   const verifiedCustomerActivity = verifiedTimelineEvents(model.timeline);
-  const pendingTasks = bridgePreview?.dispatchPreview ? "1 due" : "None";
+  const dueTask = bridgePreview?.dispatchPreview;
+  const pendingTasks = dueTask ? "1 due" : "None";
   const progressStorageKey = `crm-next:workbench:${item.customerId}:progress`;
   const [progressState, setProgressState] = useState<{ notice: string; stage: CustomerJourneyStage }>(() => {
     const fallback = {
@@ -2060,6 +2061,7 @@ export function CrmNextWorkCustomerView({
       return fallback;
     }
   });
+  const [dueTaskOpen, setDueTaskOpen] = useState(false);
   const journeyStage = progressState.stage;
   const statusNotice = progressState.notice;
   const activeStageIndex = CUSTOMER_JOURNEY_STAGES.indexOf(journeyStage);
@@ -2076,6 +2078,7 @@ export function CrmNextWorkCustomerView({
           ? "Work deal details and next customer commitment"
           : item.nextAction;
   const stageStatusText = terminalOutcome ? "Completed" : journeyStage;
+  const appointmentSummary = appointmentScheduled ? "Scheduled" : "Not Scheduled";
   function updateJourneyStage(stage: string, summary?: string) {
     const nextStage = CUSTOMER_JOURNEY_STAGES.includes(stage as CustomerJourneyStage) ? stage as CustomerJourneyStage : "Visit Follow-up";
     const nextProgressState = {
@@ -2171,12 +2174,48 @@ export function CrmNextWorkCustomerView({
             </ol>
             <div className={styles.executionSignalGrid} aria-label="Workbench completion signals">
               {completionSignals.map((signal) => (
-                <article data-tone={signal.tone} key={signal.label}>
-                  <span>{signal.label}</span>
-                  <strong>{signal.value}</strong>
-                </article>
+                dueTask && signal.label === "Task" ? (
+                  <button
+                    aria-controls="workbench-due-task"
+                    aria-expanded={dueTaskOpen}
+                    data-tone={signal.tone}
+                    key={signal.label}
+                    onClick={() => setDueTaskOpen((open) => !open)}
+                    type="button"
+                  >
+                    <span>{signal.label}</span>
+                    <strong>{signal.value}</strong>
+                    <small>{dueTaskOpen ? "Hide details" : "View details"}</small>
+                  </button>
+                ) : (
+                  <article data-tone={signal.tone} key={signal.label}>
+                    <span>{signal.label}</span>
+                    <strong>{signal.value}</strong>
+                  </article>
+                )
               ))}
             </div>
+            {dueTask && dueTaskOpen ? (
+              <section className={styles.dueTaskPanel} id="workbench-due-task" aria-label="Due customer task">
+                <header>
+                  <div>
+                    <span className={styles.eyebrow}>Due task</span>
+                    <h3>{dueTask.title}</h3>
+                    <p>{dueTask.source}</p>
+                  </div>
+                  <strong>{dueTask.due}</strong>
+                </header>
+                <dl>
+                  <div><dt>Owner</dt><dd>{dueTask.assignedTo}</dd></div>
+                  <div><dt>Customer 360 update</dt><dd>{dueTask.customer360Update}</dd></div>
+                </dl>
+                <div className={styles.dueTaskActions}>
+                  <Link href="#lead">Work task on this page</Link>
+                  <Link href={crmNextActionHref("new-task", item.customerId)}>Open CRM task action</Link>
+                  <Link href={crmNextTimelineHref(item.customerId)}>Open customer timeline</Link>
+                </div>
+              </section>
+            ) : null}
             <div className={styles.executionStepGrid}>
               {executionSteps.map((step) => (
                 <Link className={styles.executionStepCard} href={step.href} key={step.title}>
@@ -2216,9 +2255,16 @@ export function CrmNextWorkCustomerView({
             </ol>
 
             <section className={styles.dealerCustomerSnapshot} aria-label="Customer status summary">
-              <div><span>Next Appt.</span><strong>{appointmentScheduled && !terminalOutcome ? "Scheduled" : "Not Scheduled"}</strong></div>
+              <div><span>Next Appt.</span><strong>{appointmentSummary}</strong></div>
               <div><span>Last Appt.</span><strong>{journeyStage === "Missed Appt." ? "Missed" : "None"}</strong></div>
-              <div><span>Pending Tasks</span><strong>{pendingTasks}</strong></div>
+              {dueTask ? (
+                <button aria-controls="workbench-due-task" aria-expanded={dueTaskOpen} onClick={() => setDueTaskOpen((open) => !open)} type="button">
+                  <span>Pending Tasks</span>
+                  <strong>{pendingTasks}</strong>
+                </button>
+              ) : (
+                <div><span>Pending Tasks</span><strong>{pendingTasks}</strong></div>
+              )}
               <div><span>Deposit</span><strong>None</strong></div>
               <div><span>Deals</span><strong>{dealStarted ? stageStatusText : "None"}</strong></div>
               <div><span>Last Contacted</span><strong>Today</strong></div>

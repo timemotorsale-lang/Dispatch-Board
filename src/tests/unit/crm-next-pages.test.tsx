@@ -40,6 +40,7 @@ import CrmNextTimelinePage from "@/app/(app)/crm-next/timeline/page";
 import CrmNextWorkPage from "@/app/(app)/crm-next/work/[itemId]/page";
 import { CrmNextActionReadinessView, CrmNextTimelineView, CrmNextWorkCustomerView } from "@/features/crm-next/crm-next-shell";
 import { CRM_STAFF_FACING_BANNED_TERMS } from "@/lib/crm-staff-language";
+import type { CrmNextActionBridgePreview } from "@/server/crm-next/action-bridge";
 import type { CrmNextAttentionItem, CrmNextCommandCenter, CrmNextCustomer360, CrmNextOperatingAction, CrmNextTimelineEvent } from "@/server/crm-next/read-model";
 
 const originalFlag = process.env.CRM_NEXT;
@@ -636,5 +637,48 @@ describe("CRM Next pages", () => {
     expect(timelineMarkup).toContain("Internal Note Internal");
     expect(workMarkup).not.toContain("Seeded placeholder should not render.");
     expect(timelineMarkup).not.toContain("Seeded placeholder should not render.");
+  });
+
+  it("keeps the due task signal collapsed until staff asks for details", () => {
+    const item: CrmNextAttentionItem = {
+      area: "Sales",
+      customerHref: "/crm-next/customers/naomi-nyambura-githongo",
+      customerId: "naomi-nyambura-githongo",
+      customerName: "Naomi Nyambura Githongo",
+      id: "attn-naomi-follow-up",
+      level: "Low",
+      nextAction: "Confirm delivery appointment follow-through",
+      owner: "Sales Team",
+      reason: "Delivery appointment needs completion",
+      workHref: "/crm-next/work/attn-naomi-follow-up"
+    };
+    const bridgePreview: CrmNextActionBridgePreview = {
+      contractVersion: "crm-next-action-bridge/v1",
+      liveTaskCreated: false,
+      reason: "Task preview is available for this customer.",
+      state: "DOGFOOD_READY",
+      dispatchPreview: {
+        assignedTo: "Sales Team",
+        customer360Update: "Customer 360 will show the completed follow-up after the task is finished.",
+        due: "Today 3:00 PM",
+        source: "Customer Console · Naomi Nyambura Githongo · Delivery appointment needs completion",
+        title: "Confirm delivery appointment follow-through"
+      }
+    };
+    const model = {
+      timeline: [],
+      userName: "Customer Console Page User"
+    } as CrmNextCommandCenter;
+
+    const markup = renderToStaticMarkup(<CrmNextWorkCustomerView bridgePreview={bridgePreview} item={item} model={model} />);
+
+    expect(markup).toContain('aria-controls="workbench-due-task"');
+    expect(markup).toContain('aria-expanded="false"');
+    expect(markup).toContain("Task");
+    expect(markup).toContain("1 due");
+    expect(markup).toContain("View details");
+    expect(markup).not.toContain("Due task");
+    expect(markup).not.toContain("Today 3:00 PM");
+    expect(markup).not.toContain("Work task on this page");
   });
 });
