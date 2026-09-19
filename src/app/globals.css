@@ -26712,6 +26712,33 @@ html[data-app-theme="dark"] .calendar-stage::before {
   background: repeating-linear-gradient(to bottom, var(--app-dark-surface) 0, var(--app-dark-surface) 58px, var(--app-dark-line) 59px) !important;
 }
 
+html[data-app-theme="dark"] :where(.appointment-calendar-header,.appointment-calendar-body) {
+  background-color: var(--app-dark-surface) !important;
+  border-color: var(--app-dark-line) !important;
+  color: var(--app-dark-ink) !important;
+}
+
+html[data-app-theme="dark"] :where(.appointment-all-day,.appointment-staff-header,.appointment-time-column,.appointment-staff-column) {
+  background-color: #3f2c28 !important;
+  border-color: #6c493d !important;
+  color: var(--app-dark-ink) !important;
+}
+
+html[data-app-theme="dark"] .appointment-staff-column {
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      #3f2c28 0,
+      #3f2c28 calc(var(--appointment-calendar-hour-height) - 1px),
+      #6c493d var(--appointment-calendar-hour-height)
+    ),
+    linear-gradient(#3f2c28, #3f2c28) !important;
+}
+
+html[data-app-theme="dark"] :where(.appointment-all-day,.appointment-time-column span,.appointment-staff-header strong,.appointment-staff-header small) {
+  color: var(--app-dark-ink) !important;
+}
+
 html[data-app-theme="dark"] .availability.good {
   background-color: rgba(34, 197, 94, .12) !important;
 }
@@ -26754,10 +26781,86 @@ html[data-app-theme="dark"] .appointment-capacity-confidence footer :where(span,
   color: var(--app-dark-ink) !important;
 }
 
+html[data-app-theme="dark"] :where(.setup-capacity,.appointment-command-notice) {
+  background-color: #3f2c28 !important;
+  border-color: #6c493d !important;
+  color: var(--app-dark-ink) !important;
+  box-shadow: none !important;
+}
+
+html[data-app-theme="dark"] :where(.setup-capacity,.appointment-command-notice) :where(span,strong,b,p) {
+  color: var(--app-dark-ink) !important;
+}
+
 html[data-app-theme="dark"] .appointment-capacity-confidence footer a,
 html[data-app-theme="dark"] .appointment-summary :where(button:not(.primary),footer a) {
   background-color: var(--app-dark-surface-soft) !important;
   border-color: #6c493d !important;
+  color: var(--app-dark-ink) !important;
+}
+
+html[data-app-theme="dark"] :where(.appointment-catalog-detail-grid > div,.appointment-catalog-simulation > div) {
+  background-color: #3f2c28 !important;
+  border-color: #6c493d !important;
+  color: var(--app-dark-ink) !important;
+  box-shadow: none !important;
+}
+
+html[data-app-theme="dark"] :where(.appointment-catalog-detail-grid,.appointment-catalog-simulation) :where(span,strong,small) {
+  color: var(--app-dark-ink) !important;
+}
+
+/* Projects dark-mode rescue for pale pills, badges, icon tiles, and empty-state cards. */
+html[data-app-theme="dark"] :where(.project-page,.projects-hub-page) :where(
+  .project-header-metrics span,
+  .project-shell-icon,
+  .project-switch:not(.project-switch-active),
+  .project-tab:not(.project-tab-active),
+  .project-note-list p,
+  .project-column-empty,
+  .project-workflow-step span,
+  .project-workflow-preview-item,
+  .project-owner-row,
+  .project-calendar-column-top span,
+  .project-health-spotlight,
+  .projects-hub-priority,
+  .projects-hub-card-icon,
+  .projects-hub-health-ring-inner,
+  .projects-hub-attention-item,
+  .projects-hub-support-item,
+  .projects-hub-empty-copy,
+  .projects-hub-filter-chip:not(.projects-hub-filter-chip-active),
+  .projects-hub-view-pill:not(.projects-hub-view-pill-active),
+  .projects-hub-rail-icon,
+  .projects-hub-summary-list div
+) {
+  background-color: #3f2c28 !important;
+  border-color: #6c493d !important;
+  color: var(--app-dark-ink) !important;
+  box-shadow: none !important;
+}
+
+html[data-app-theme="dark"] :where(.project-page,.projects-hub-page) :where(
+  .project-header-metrics span,
+  .project-shell-icon,
+  .project-switch:not(.project-switch-active),
+  .project-tab:not(.project-tab-active),
+  .project-note-list p,
+  .project-column-empty,
+  .project-workflow-preview-item,
+  .project-owner-row,
+  .project-health-spotlight,
+  .projects-hub-priority,
+  .projects-hub-card-icon,
+  .projects-hub-health-ring-inner,
+  .projects-hub-attention-item,
+  .projects-hub-support-item,
+  .projects-hub-empty-copy,
+  .projects-hub-filter-chip:not(.projects-hub-filter-chip-active),
+  .projects-hub-view-pill:not(.projects-hub-view-pill-active),
+  .projects-hub-rail-icon,
+  .projects-hub-summary-list div
+) :where(span,strong,small,p,dt,dd,svg) {
   color: var(--app-dark-ink) !important;
 }
 
@@ -26772,6 +26875,216 @@ html[data-app-theme="dark"] .ccc-home-console-card-disabled :where(.ccc-home-con
   background-color: #332521 !important;
   border-color: #594036 !important;
   color: var(--app-dark-muted) !important;
+}
+
+/* Tasks Console dark-mode rescue for count bubbles, filter chips, and rail status pills. */
+html[data-app-theme="dark"] .tasks-console-page :where(
+  .tasks-console-context-nav span,
+  .tasks-console-execution-views strong,
+  .tasks-console-active-filters span,
+  .tasks-console-active-filters button,
+  .tasks-console-row-review-chip,
+  .tasks-console-freshness em,
+  .tasks-console-priority,
+  .tasks-console-status,
+  .tasks-console-rail-field,
+  .tasks-console-rail-empty-state,
+  .tasks-console-row-quick-actions a,
+  .tasks-console-row-quick-actions button,
+  .status-pill
+) {
+  background-color: #3f2c28 !important;
+  border-color: #6c493d !important;
+  color: var(--app-dark-ink) !important;
+  box-shadow: none !important;
+}
+
+html[data-app-theme="dark"] .tasks-console-page :where(
+  .tasks-console-context-nav span,
+  .tasks-console-execution-views strong,
+  .tasks-console-active-filters span,
+  .tasks-console-active-filters button,
+  .tasks-console-row-review-chip,
+  .tasks-console-priority,
+  .tasks-console-status,
+  .tasks-console-rail-field,
+  .tasks-console-rail-empty-state,
+  .tasks-console-row-quick-actions a,
+  .tasks-console-row-quick-actions button,
+  .status-pill
+) :where(span,small,strong,b,em) {
+  color: var(--app-dark-ink) !important;
+}
+
+html[data-app-theme="dark"] .tasks-console-page :where(
+  .tasks-console-priority-high,
+  .tasks-console-priority-medium,
+  .tasks-console-status-danger,
+  .tasks-console-status-warning,
+  .status-danger,
+  .status-warning
+) {
+  color: var(--app-dark-warning) !important;
+}
+
+html[data-app-theme="dark"] .tasks-console-page :where(
+  .tasks-console-status-review,
+  .status-review
+) {
+  color: #ddd6fe !important;
+}
+
+html[data-app-theme="dark"] .tasks-console-page :where(
+  .tasks-console-priority-low,
+  .tasks-console-status-success,
+  .status-success
+) {
+  color: var(--app-dark-success) !important;
+}
+
+html[data-app-theme="dark"] .tasks-console-page :where(
+  .tasks-console-context-nav > button.active,
+  .tasks-console-context-nav > a[aria-current="page"],
+  .tasks-console-execution-views button.active,
+  .tasks-console-execution-views button:hover
+) {
+  background-color: var(--app-dark-surface-soft) !important;
+  border-color: var(--app-dark-primary-strong) !important;
+  color: var(--app-dark-ink) !important;
+}
+
+/* Task Intake dark-mode rescue: the shell stays navy; escaped white/peach cards use warm brown. */
+html[data-app-theme="dark"] .task-intake-prototype {
+  --intake-ink: var(--app-dark-ink);
+  --intake-muted: var(--app-dark-muted);
+  --intake-line: var(--app-dark-line);
+  --intake-blue: var(--app-dark-primary-strong);
+  background: var(--app-dark-page) !important;
+  color: var(--app-dark-ink) !important;
+}
+
+html[data-app-theme="dark"] .task-intake-prototype :where(
+  .task-intake-header,
+  .task-intake-stages,
+  .task-intake-form-panel,
+  .task-intake-form-grid,
+  .task-intake-form-footer,
+  .task-intake-preview-rail,
+  .task-intake-readiness
+) {
+  background: var(--app-dark-surface) !important;
+  border-color: var(--app-dark-line) !important;
+  color: var(--app-dark-ink) !important;
+  box-shadow: none !important;
+}
+
+html[data-app-theme="dark"] .task-intake-prototype :where(
+  .task-intake-section-heading,
+  .task-intake-mode-switch,
+  .task-intake-stages button,
+  .task-intake-required-updates,
+  .task-intake-collaborators,
+  .task-intake-category-drawer,
+  .task-intake-category-impact
+) {
+  background: var(--app-dark-surface-soft) !important;
+  border-color: var(--app-dark-line-strong) !important;
+  color: var(--app-dark-ink) !important;
+}
+
+html[data-app-theme="dark"] .task-intake-prototype :where(
+  .task-intake-card-preview,
+  .task-intake-inspector-preview,
+  .task-intake-inspector-preview>div,
+  .task-intake-prototype-note,
+  .task-intake-required-updates label,
+  .task-intake-collaborator-list>div,
+  .task-intake-approval>span:last-child,
+  .task-intake-category-list button,
+  .task-intake-details-header button,
+  .task-intake-form-footer button:not(.primary),
+  .task-intake-reset
+) {
+  background: #3f2c28 !important;
+  border-color: #6c493d !important;
+  color: var(--app-dark-ink) !important;
+  box-shadow: none !important;
+}
+
+html[data-app-theme="dark"] .task-intake-prototype :where(
+  .task-intake-mode-switch button.active,
+  .task-intake-stages button.active,
+  .task-intake-form-footer button.primary:not(:disabled)
+) {
+  background: var(--app-dark-primary) !important;
+  border-color: var(--app-dark-primary-strong) !important;
+  color: #fff !important;
+}
+
+html[data-app-theme="dark"] .task-intake-prototype :where(
+  input,
+  select,
+  textarea,
+  .task-intake-collaborator-picker input,
+  .task-intake-collaborator-picker textarea,
+  .task-intake-category-search input
+) {
+  background: #101c2d !important;
+  border-color: var(--app-dark-line-strong) !important;
+  color: var(--app-dark-ink) !important;
+}
+
+html[data-app-theme="dark"] .task-intake-prototype :where(input,textarea)::placeholder {
+  color: var(--app-dark-subtle) !important;
+  opacity: 1;
+}
+
+html[data-app-theme="dark"] .task-intake-prototype :where(
+  h1,
+  h2,
+  h3,
+  strong,
+  b,
+  label,
+  legend,
+  button
+) {
+  color: var(--app-dark-ink) !important;
+}
+
+html[data-app-theme="dark"] .task-intake-prototype :where(
+  p,
+  span,
+  small,
+  li,
+  em
+) {
+  color: var(--app-dark-muted) !important;
+}
+
+html[data-app-theme="dark"] .task-intake-prototype :where(
+  a,
+  .task-intake-header a
+) {
+  color: var(--app-dark-primary-strong) !important;
+}
+
+html[data-app-theme="dark"] .task-intake-prototype :where(
+  .task-intake-stages button span,
+  .task-intake-score>span,
+  .task-intake-card-preview header span,
+  .task-intake-card-preview>div span,
+  .task-intake-checks>button.ready svg,
+  .task-intake-checks>button.missing svg,
+  .task-intake-collaborator-list>div>span
+) {
+  background: var(--app-dark-surface-soft) !important;
+  border-color: var(--app-dark-line-strong) !important;
+  color: var(--app-dark-ink) !important;
+}
+
+html[data-app-theme="dark"] .task-intake-score {
+  background: conic-gradient(var(--app-dark-primary) var(--score), #3f2c28 0) !important;
 }
 
 /* Advisor and COO rescue surfaces: brown catches escaped light cards without recoloring the page shell. */

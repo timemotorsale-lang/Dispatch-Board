@@ -12,7 +12,12 @@
 
 :global(html[data-app-theme="dark"]) .rank,
 :global(html[data-app-theme="dark"]) .vehicle>svg,
+:global(html[data-app-theme="dark"]) .metrics>a>svg:first-child,
 :global(html[data-app-theme="dark"]) .issue>span b,
+:global(html[data-app-theme="dark"]) .nav b,
+:global(html[data-app-theme="dark"]) .modeSwitch a,
+:global(html[data-app-theme="dark"]) .heroActions a:not(.primary),
+:global(html[data-app-theme="dark"]) .queue header>b,
 :global(html[data-app-theme="dark"]) .queue li>a,
 :global(html[data-app-theme="dark"]) .rail section>header>svg,
 :global(html[data-app-theme="dark"]) .inbox>a>i,
@@ -24,8 +29,16 @@
 }
 
 :global(html[data-app-theme="dark"]) .queue li>a span,
+:global(html[data-app-theme="dark"]) .heroActions a:not(.primary) svg,
 :global(html[data-app-theme="dark"]) .queue li>a svg {
   color:#eef4fb!important;
+}
+
+:global(html[data-app-theme="dark"]) .modeSwitch a[aria-current=page],
+:global(html[data-app-theme="dark"]) .nav a[aria-current=page] b {
+  background:#4f6df5!important;
+  border-color:#72a7ff!important;
+  color:#fff!important;
 }
 
 :global(html[data-app-theme="dark"]) .p0,
