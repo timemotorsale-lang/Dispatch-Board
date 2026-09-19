@@ -7671,6 +7671,21 @@
   color: var(--crm-next-green);
 }
 
+:global(html[data-app-theme="dark"]) .customerBadge,
+:global(html[data-app-theme="dark"]) .nextBestAction {
+  background: var(--crm-next-surface-soft);
+  border-color: var(--crm-next-line-strong);
+  color: var(--crm-next-ink);
+}
+
+:global(html[data-app-theme="dark"]) .nextBestAction svg {
+  color: var(--crm-next-blue);
+}
+
+:global(html[data-app-theme="dark"]) .nextBestAction p {
+  color: var(--crm-next-muted);
+}
+
 :global(html[data-app-theme="dark"]) .compactSourceStatus a[data-state="FALLBACK_READ"],
 :global(html[data-app-theme="dark"]) .compactSourceStatus a[data-state="EMPTY_READ"],
 :global(html[data-app-theme="dark"]) .compactSourceStatus a[data-state="PARTIAL_READ"],

@@ -69,6 +69,13 @@ async function readCustomerJson(response: Response) {
   return response.json() as Promise<Record<string, unknown>>;
 }
 
+function todayInputValue() {
+  const today = new Date();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${today.getFullYear()}-${month}-${day}`;
+}
+
 export function CustomerConsoleHome({ showAdvisorReturn = false }: { showAdvisorReturn?: boolean }) {
   const router = useRouter();
   const { appearance: theme, setAppearance } = useAppearance();
@@ -76,6 +83,7 @@ export function CustomerConsoleHome({ showAdvisorReturn = false }: { showAdvisor
   const [readError, setReadError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [actionNotice, setActionNotice] = useState("");
+  const [dashboardDate] = useState(todayInputValue);
 
   const openCrmNext = (href: string) => {
     setActionNotice("Opening Customer Console...");
@@ -146,7 +154,7 @@ export function CustomerConsoleHome({ showAdvisorReturn = false }: { showAdvisor
           <section className="customer-home-welcome">
             <div><h1>Welcome back, Eli <span aria-hidden="true">&#128075;</span></h1><p>Here&apos;s what&apos;s happening with your business today.</p></div>
             <div className="customer-home-welcome-actions">
-              <label><span>Date</span><input aria-label="Dashboard date" type="date" defaultValue="2025-05-30" /></label>
+              <label><span>Date</span><input aria-label="Dashboard date" type="date" defaultValue={dashboardDate} /></label>
               <div className="customer-theme-switch" aria-label="Customer console appearance" role="group">
                 <button aria-label="Use light background" aria-pressed={theme === "light"} className={theme === "light" ? "customer-theme-option active" : "customer-theme-option"} onClick={() => setAppearance("light")} type="button"><Sun size={14} /> Light</button>
                 <button aria-label="Use dark background" aria-pressed={theme === "dark"} className={theme === "dark" ? "customer-theme-option active" : "customer-theme-option"} onClick={() => setAppearance("dark")} type="button"><Moon size={14} /> Dark</button>
