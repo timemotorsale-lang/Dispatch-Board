@@ -127,6 +127,7 @@ describe("CRM Next pages", () => {
     expect(command).toContain("Open Customer 360");
     expect(command).toContain('href="/crm-next/needs-attention"');
     expect(command).toContain('href="/crm-next/appointments"');
+    expect(command).toContain('href="/appointments"');
     expect(command).toContain('href="/crm-next/deals"');
     expect(command).toContain("Customer next actions");
     expect(command).toContain("Appointment board");

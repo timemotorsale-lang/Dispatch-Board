@@ -2889,7 +2889,7 @@ export function getCrmNextCommandCenter(actor: AuthenticatedUser | null, now: Da
     summary: [
       { href: "/crm-next/needs-attention", label: "Needs Attention", source: "Customer next actions", value: "No source data available", trend: "No verified customer work source", tone: "blue" },
       { href: "/crm-next/pipeline", label: "Hot Leads", source: "Lead engine", value: "No source data available", trend: "No verified lead source", tone: "red" },
-      { href: "/crm-next/appointments", label: "Appointments Today", source: "Appointment schedule", value: "No source data available", trend: "Open appointment console", tone: "green" },
+      { href: "/appointments", label: "Appointments Today", source: "Appointment schedule", value: "No source data available", trend: "Open appointment console", tone: "green" },
       { href: "/crm-next/deals", label: "Deals in Progress", source: "Deal visibility", value: "No source data available", trend: "No verified deal source", tone: "green" },
       { href: "/crm-next/needs-attention", label: "Overdue Follow-ups", source: "Customer next actions", value: "No source data available", trend: "No verified overdue source", tone: "red" }
     ],

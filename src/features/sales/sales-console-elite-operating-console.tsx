@@ -389,7 +389,8 @@ export function SalesConsoleEliteOperatingConsole({ initialSearchParams }: { ini
   const selectedLaneLinks = getSalesConsoleCrossConsoleLinksForLane(selectedLane.contractLane, activeRole);
   const selectedGuidedPath = useMemo(() => buildSalesConsoleGuidedPath(selectedCustomer), [selectedCustomer]);
   const selectedRevenueDeskDecision = useMemo(() => buildSalesConsoleRevenueDeskDecision(selectedCustomer), [selectedCustomer]);
-  const selectedWorkbenchOutcome = selectedGuidedPath.outcomeOptions.find((option) => option.label === selectedOutcomeLabel) ?? null;
+  const defaultWorkbenchOutcome = selectedGuidedPath.outcomeOptions[0] ?? null;
+  const selectedWorkbenchOutcome = selectedGuidedPath.outcomeOptions.find((option) => option.label === selectedOutcomeLabel) ?? defaultWorkbenchOutcome;
   const sourceBackedTabStates = useMemo(() => buildSalesConsoleSourceBackedTabStates(), []);
   const activeSourceBackedState = sourceBackedTabStates.find((state) => state.tab === activeNav);
   const showsOperatingAreaWorkspace = [
@@ -530,7 +531,13 @@ export function SalesConsoleEliteOperatingConsole({ initialSearchParams }: { ini
 
   function saveWorkbenchOutcome() {
     setWorkbenchOutcomeStatus(null);
-    if (!selectedWorkbenchOutcome) {
+    const outcomeToSave = selectedOutcomeLabel
+      ? selectedWorkbenchOutcome
+      : workbenchOutcomeNextStep.trim()
+        ? selectedGuidedPath.outcomeOptions.find((option) => option.nextStepRequired) ?? selectedWorkbenchOutcome
+        : selectedWorkbenchOutcome;
+
+    if (!outcomeToSave) {
       setWorkbenchOutcomeStatus("Outcome not saved: select an outcome, write what happened, then add the next step when required.");
       return;
     }
@@ -541,19 +548,19 @@ export function SalesConsoleEliteOperatingConsole({ initialSearchParams }: { ini
         actorRole: activeRole,
         commandId: "SALES-WORKBENCH-OUTCOME",
         correlationId: `sales-workbench-${selectedCustomer.customerId}`,
-        idempotencyKey: `sales-workbench-outcome-${selectedCustomer.customerId}-${selectedCustomer.stock}-${selectedWorkbenchOutcome.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+        idempotencyKey: `sales-workbench-outcome-${selectedCustomer.customerId}-${selectedCustomer.stock}-${outcomeToSave.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
         occurredAt: new Date().toISOString(),
         sourceLink: `/sales?workspace=guided&customerId=${encodeURIComponent(selectedCustomer.customerId)}`,
         storeId: "TMS-001"
       },
       customerId: selectedCustomer.customerId,
       evidenceIds: [],
-      nextAction: selectedWorkbenchOutcome.nextStepRequired ? workbenchOutcomeNextStep.trim() : workbenchOutcomeNextStep.trim() || undefined,
+      nextAction: outcomeToSave.nextStepRequired ? workbenchOutcomeNextStep.trim() : workbenchOutcomeNextStep.trim() || undefined,
       opportunityId: `SO-${selectedCustomer.stock}`,
-      outcome: selectedWorkbenchOutcome.outcome,
+      outcome: outcomeToSave.outcome,
       outcomeNote: workbenchOutcomeNote,
-      reasonCode: selectedWorkbenchOutcome.reasonCode,
-      selectedOutcomeLabel: selectedWorkbenchOutcome.label,
+      reasonCode: outcomeToSave.reasonCode,
+      selectedOutcomeLabel: outcomeToSave.label,
       sourceLink: `/sales?workspace=guided&customerId=${encodeURIComponent(selectedCustomer.customerId)}`
     });
 
@@ -566,18 +573,18 @@ export function SalesConsoleEliteOperatingConsole({ initialSearchParams }: { ini
       const response = await fetch(selectedGuidedPath.outcomeWriteBackTarget, {
         body: JSON.stringify({
           body: [
-            `Sales Workbench outcome: ${selectedWorkbenchOutcome.label}`,
+            `Sales Workbench outcome: ${outcomeToSave.label}`,
             `Customer: ${selectedCustomer.customer}`,
             `Revenue lane: ${selectedGuidedPath.revenueLane}`,
             `Lifecycle stage: ${selectedGuidedPath.lifecycleStage}`,
-            `Outcome type: ${selectedWorkbenchOutcome.outcome}`,
-            `Reason: ${selectedWorkbenchOutcome.reasonCode}`,
+            `Outcome type: ${outcomeToSave.outcome}`,
+            `Reason: ${outcomeToSave.reasonCode}`,
             `What happened: ${workbenchOutcomeNote.trim()}`,
             workbenchOutcomeNextStep.trim() ? `Next step: ${workbenchOutcomeNextStep.trim()}` : "Next step: no further action recorded",
             `Next step before outcome: ${selectedGuidedPath.nextStep}`,
             `Source: Sales Workbench`
           ].join("\n"),
-          idempotencyKey: `sales-workbench-outcome-${selectedCustomer.customerId}-${selectedCustomer.stock}-${selectedWorkbenchOutcome.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${workbenchOutcomeNote.trim().length}`,
+          idempotencyKey: `sales-workbench-outcome-${selectedCustomer.customerId}-${selectedCustomer.stock}-${outcomeToSave.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${workbenchOutcomeNote.trim().length}`,
           visibility: "INTERNAL"
         }),
         headers: { "Content-Type": "application/json" },
@@ -1422,14 +1429,14 @@ export function SalesConsoleEliteOperatingConsole({ initialSearchParams }: { ini
                         <button
                           key={option.label}
                           type="button"
-                          aria-pressed={selectedOutcomeLabel === option.label}
+                          aria-pressed={selectedWorkbenchOutcome?.label === option.label}
                           onClick={() => {
                             setSelectedOutcomeLabel(option.label);
                             setWorkbenchOutcomeStatus(null);
                           }}
                           title={option.result}
                         >
-                          {selectedOutcomeLabel === option.label ? <em>Selected</em> : null}
+                          {selectedWorkbenchOutcome?.label === option.label ? <em>{selectedOutcomeLabel ? "Selected" : "Default"}</em> : null}
                           <strong>{option.label}</strong>
                           <small>{option.result}</small>
                         </button>
