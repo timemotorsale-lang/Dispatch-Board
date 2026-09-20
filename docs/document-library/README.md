@@ -35,6 +35,7 @@ The physical file can live in an internal storage provider first, then later in 
 - `SOURCE_OF_TRUTH.md` defines ownership, authority, and provider boundaries.
 - `WORKFLOWS_AND_ALGORITHMS.md` defines packet completion, review, missing-doc, archive, and optimization logic.
 - `GOVERNANCE_SECURITY_RETENTION.md` defines permissions, sensitivity, retention, legal hold, and audit posture.
+- `UI_UX_DESIGN_TOKENS.md` defines light/dark mode UI rules and semantic color variables.
 - `ROADMAP_AND_MILESTONES.md` defines progressive implementation phases.
 - `IMPLEMENTATION_BACKLOG.md` defines the first practical build sequence.
 
@@ -51,4 +52,3 @@ Start simple:
 - search by customer, vehicle, repair order, claim, stock, VIN, vendor, or packet.
 
 Do not start with OCR, AI classification, automatic workflow completion, e-signature automation, or external sync. Those come later after the library is reliable and staff understands the workflow.
-
