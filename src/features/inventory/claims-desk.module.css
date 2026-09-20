@@ -549,7 +549,7 @@
 }
 
 :global(html[data-app-theme="dark"]) .page {
-  color: #eef4fb;
+  color: var(--app-text);
 }
 
 :global(html[data-app-theme="dark"]) .hero,
@@ -572,10 +572,43 @@
 :global(html[data-app-theme="dark"]) .topActions a,
 :global(html[data-app-theme="dark"]) .topActions button,
 :global(html[data-app-theme="dark"]) .secondaryAction {
-  background: #101d2e;
-  border-color: #283a51;
-  color: #eaf1fb;
+  background: var(--app-surface);
+  border-color: var(--app-border);
+  color: var(--app-text);
   box-shadow: none;
+}
+
+:global(html[data-app-theme="dark"]) .startCard > span,
+:global(html[data-app-theme="dark"]) .badge,
+:global(html[data-app-theme="dark"]) .filterBar button strong,
+:global(html[data-app-theme="dark"]) .lane > span {
+  background: var(--app-surface-soft);
+  border-color: var(--app-border-strong);
+  color: var(--app-text);
+}
+
+:global(html[data-app-theme="dark"]) .warning {
+  background: var(--app-warning-soft);
+  border-color: rgba(249, 115, 22, .38);
+  color: var(--app-warning);
+}
+
+:global(html[data-app-theme="dark"]) .danger {
+  background: var(--app-danger-soft);
+  border-color: rgba(239, 68, 68, .38);
+  color: var(--app-danger);
+}
+
+:global(html[data-app-theme="dark"]) .good {
+  background: var(--app-success-soft);
+  border-color: rgba(34, 197, 94, .38);
+  color: var(--app-success);
+}
+
+:global(html[data-app-theme="dark"]) .info {
+  background: var(--app-primary-soft);
+  border-color: var(--app-border-strong);
+  color: var(--app-text);
 }
 
 :global(html[data-app-theme="dark"]) .hero h1,
@@ -588,7 +621,7 @@
 :global(html[data-app-theme="dark"]) .documentCard strong,
 :global(html[data-app-theme="dark"]) .metric strong,
 :global(html[data-app-theme="dark"]) .intakeForm legend {
-  color: #f4f8ff;
+  color: var(--app-text);
 }
 
 :global(html[data-app-theme="dark"]) .hero p,
@@ -609,20 +642,20 @@
 :global(html[data-app-theme="dark"]) .queueHead span,
 :global(html[data-app-theme="dark"]) .intakeForm label span,
 :global(html[data-app-theme="dark"]) .formFooter span {
-  color: #bfcee0;
+  color: var(--app-text-muted);
 }
 
 :global(html[data-app-theme="dark"]) .topActions button,
 :global(html[data-app-theme="dark"]) .primaryAction,
 :global(html[data-app-theme="dark"]) .formFooter button {
-  background: #4f6df5;
-  border-color: #72a7ff;
-  color: #fff;
+  background: var(--app-primary);
+  border-color: var(--app-primary-strong);
+  color: var(--app-primary-text);
 }
 
 :global(html[data-app-theme="dark"]) :where(.topActions button, .primaryAction, .secondaryAction, .formFooter button):disabled {
-  background: #1b2b40;
-  border-color: #344a64;
-  color: #9aa9bd;
-  opacity: .72;
+  background: var(--app-surface-soft);
+  border-color: var(--app-border-strong);
+  color: var(--app-text-muted);
+  opacity: .92;
 }
