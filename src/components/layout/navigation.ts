@@ -297,7 +297,7 @@ export const dispatchNavigationItems: NavigationItem[] = [
     description: "Recorded Dispatch events and updates.",
     icon: Activity,
     parentHref: "/board"
-  }
+  },
 ];
 
 const technicianNavigationItems: NavigationItem[] = [
@@ -404,11 +404,13 @@ const workspaceNavigationItems: Partial<Record<WorkspaceKey, NavigationItem[]>> 
     { href: "/vehicles/parts-receiving", title: "Receive Parts", description: "Record arrivals, exceptions, and accountable part placement.", icon: PackageCheck },
     { href: CRM_NEXT_CUSTOMERS_HREF, title: "Customers", description: "Find or prepare customer records in Customer Console.", icon: ContactRound, activePaths: ["/customers"] },
     { href: "/operations-coordinator#paperwork-command-center", title: "Paperwork Center", description: "Prepare sales, finance, insurance, rental, payment, and document packets.", icon: SquareCheckBig },
+    { href: "/documents", title: "Document Library", description: "Source-of-truth packets, requirements, review, and document archive.", icon: FileText, activePaths: ["/documents"] },
     { href: "/tasks?department=SALES", title: "Sales Paperwork", description: "Support sales, finance, insurance, rental, and delivery paperwork.", icon: BadgeDollarSign },
     { href: "/my-tasks", title: "My Work", description: "Assigned coordination tasks and follow-up.", icon: UserRoundCheck }
   ],
   OFFICE: [
     { href: "/my-tasks", title: "My Work", description: "Assigned office and documentation actions.", icon: UserRoundCheck },
+    { href: "/documents", title: "Document Library", description: "Source-of-truth packets, requirements, review, and document archive.", icon: FileText, activePaths: ["/documents"] },
     { href: "/appointments", title: "Appointments", description: "Permitted appointment support.", icon: CalendarDays },
     { href: CRM_NEXT_CUSTOMERS_HREF, title: "Customers", description: "Customer and documentation context.", icon: ContactRound, activePaths: ["/customers"] },
     { href: "/tasks", title: "Team Tasks", description: "Authorized operational task search.", icon: SquareCheckBig }
@@ -463,6 +465,12 @@ export const navigationGroups: NavigationGroup[] = [
         description: "Time cards, corrections, review, and payroll handoff.",
         icon: Clock3,
         badge: "MVP"
+      },
+      {
+        href: "/documents",
+        title: "Document Library",
+        description: "Source-of-truth packets, requirements, review, and archive.",
+        icon: FileText
       }
     ]
   },
