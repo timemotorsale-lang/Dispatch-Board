@@ -87,19 +87,6 @@ const statusFilters = [
   ["Received", "20", "info"]
 ] as const;
 
-const queueMetrics = [
-  { detail: "Workable by staff", label: "Ready for review", tone: "info", value: "14" },
-  { detail: "Missing or rejected", label: "Blocked packets", tone: "danger", value: "8" },
-  { detail: "Carrier, lender, warranty", label: "Provider waiting", tone: "warning", value: "11" },
-  { detail: "Accepted this week", label: "Archived", tone: "success", value: "32" }
-] as const;
-
-const queueLanes = [
-  { count: "9", label: "Intake queue", text: "New uploads, portal submissions, scanned forms, and unlinked files." },
-  { count: "12", label: "Review queue", text: "Packets with every required item present and ready for staff decision." },
-  { count: "8", label: "Blocker queue", text: "Missing, conflicted, expired, or provider-held packets needing ownership." }
-];
-
 const packetFacts = [
   ["Owner", "Maria Lopez"],
   ["Department", "Service / Claims"],
@@ -144,7 +131,7 @@ export function DocumentLibraryLanding() {
       <header className={styles.hero}>
         <div>
           <h1 id="document-library-title">Document Library</h1>
-          <p>Store, review, and organize operational documents.</p>
+          <p>Add, link, review, request, and archive documents from one working surface.</p>
         </div>
         <form className={styles.searchBar} role="search">
           <Search size={18} />
@@ -176,35 +163,8 @@ export function DocumentLibraryLanding() {
         </aside>
 
         <main className={styles.workspace}>
-          <section className={styles.dashboardPanel} aria-labelledby="document-dashboard-title">
-            <header>
-              <div>
-                <span className={styles.sectionEyebrow}>Staff queue</span>
-                <h2 id="document-dashboard-title">Document work dashboard</h2>
-              </div>
-              <button type="button"><RefreshCw size={16} />Refresh</button>
-            </header>
-            <div className={styles.metricGrid}>
-              {queueMetrics.map((metric) => (
-                <article key={metric.label}>
-                  <span>{metric.label}</span>
-                  <strong>{metric.value}</strong>
-                  <small className={styles[metric.tone]}>{metric.detail}</small>
-                </article>
-              ))}
-            </div>
-            <div className={styles.queueGrid}>
-              {queueLanes.map((lane) => (
-                <article key={lane.label}>
-                  <strong>{lane.count}</strong>
-                  <div><span>{lane.label}</span><p>{lane.text}</p></div>
-                </article>
-              ))}
-            </div>
-          </section>
-
           <section className={styles.categoryPanel} aria-labelledby="document-categories">
-            <header><h2 id="document-categories">Document Categories</h2><span>12 Categories</span><button type="button">View All</button></header>
+            <header><h2 id="document-categories">Choose Document Type</h2><span>12 types</span><button type="button">View All</button></header>
             <div className={styles.categoryGrid}>
               {categories.map(({ icon: Icon, label }) => (
                 <button key={label} type="button"><Icon size={25} /><span>{label}</span></button>

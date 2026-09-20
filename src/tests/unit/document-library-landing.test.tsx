@@ -9,10 +9,7 @@ describe("document library landing", () => {
     const markup = renderToStaticMarkup(<DocumentLibraryLanding />);
 
     expect(markup).toContain("Document Library");
-    expect(markup).toContain("Document Categories");
-    expect(markup).toContain("Document work dashboard");
-    expect(markup).toContain("Ready for review");
-    expect(markup).toContain("Provider waiting");
+    expect(markup).toContain("Choose Document Type");
     expect(markup).toContain("Customer");
     expect(markup).toContain("Vehicle");
     expect(markup).toContain("Repair Order");

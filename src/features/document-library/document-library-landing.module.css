@@ -898,6 +898,367 @@
   text-decoration: none;
 }
 
+/* Enterprise review surface refinement */
+.page {
+  --document-bg: #f3f6fb;
+  --document-surface-soft: #f8fafd;
+  --document-surface-raised: #eef4fb;
+  --document-line: #d4deeb;
+  --document-line-strong: #b9c7d8;
+  --document-text: #08162d;
+  --document-muted: #4d5d75;
+  --document-faint: #7b8798;
+  --document-accent: #345fd6;
+  --document-accent-soft: #eef3ff;
+  gap: 16px;
+  padding: 22px 24px 28px;
+  background: linear-gradient(180deg, #f6f8fc 0%, var(--document-bg) 48%, #eef3f9 100%);
+}
+
+.hero {
+  grid-template-columns: minmax(260px, 1fr) minmax(420px, 680px) auto;
+  align-items: center;
+  border: 1px solid var(--document-line);
+  border-radius: 8px;
+  padding: 16px;
+  background: rgba(255, 255, 255, .88);
+  box-shadow: 0 14px 36px rgba(20, 32, 54, .07);
+}
+
+.hero h1 {
+  font-size: 34px;
+  letter-spacing: 0;
+}
+
+.hero p {
+  margin-top: 6px;
+  font-size: 15px;
+}
+
+.searchBar {
+  min-height: 46px;
+  border-color: var(--document-line);
+  background: #fdfefe;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .7);
+}
+
+.heroActions {
+  justify-content: flex-end;
+}
+
+.heroActions button,
+.intakePanel footer button,
+.reviewPanel button {
+  min-height: 42px;
+}
+
+.primaryAction {
+  background: #365bd8;
+  border-color: #365bd8;
+  box-shadow: 0 8px 18px rgba(52, 95, 214, .18);
+}
+
+.secondaryAction {
+  background: #ffffff;
+  border-color: #9db2ee;
+  color: #365bd8;
+}
+
+.layout {
+  grid-template-columns: minmax(248px, 280px) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.filters,
+.dashboardPanel,
+.categoryPanel,
+.intakePanel,
+.packetList,
+.packetDetail,
+.reviewPanel {
+  border-color: var(--document-line);
+  border-radius: 8px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, .055);
+}
+
+.filters {
+  gap: 22px;
+  padding: 18px;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
+}
+
+.filterHeader {
+  border-bottom: 1px solid var(--document-line);
+  padding-bottom: 14px;
+}
+
+.filterHeader strong,
+.dashboardPanel h2,
+.categoryPanel h2,
+.intakePanel h2,
+.packetList h2,
+.packetDetail h2,
+.reviewPanel h2 {
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.filterGroup {
+  gap: 10px;
+}
+
+.filterGroup > span,
+.selectField {
+  font-size: 12px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.filterGroup label {
+  min-height: 34px;
+  border-radius: 6px;
+  padding: 0 4px;
+  font-size: 13px;
+}
+
+.filterGroup input {
+  width: 16px;
+  height: 16px;
+}
+
+.selectField select {
+  min-height: 40px;
+  background: #fff;
+  font-weight: 720;
+}
+
+.workspace {
+  gap: 16px;
+}
+
+.dashboardPanel,
+.categoryPanel,
+.intakePanel {
+  padding: 18px 20px;
+}
+
+.dashboardPanel header,
+.categoryPanel header,
+.intakePanel header,
+.packetList header {
+  border-bottom: 1px solid var(--document-line);
+  padding-bottom: 12px;
+}
+
+.sectionEyebrow {
+  margin-bottom: 3px;
+  color: #51627b;
+  font-size: 11px;
+  letter-spacing: .13em;
+}
+
+.metricGrid {
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.metricGrid article {
+  border-color: #d9e2ee;
+  background: linear-gradient(180deg, #ffffff 0%, #f7f9fd 100%);
+  padding: 15px 16px;
+}
+
+.metricGrid strong {
+  font-size: 31px;
+  letter-spacing: 0;
+}
+
+.metricGrid small {
+  border-radius: 6px;
+  padding: 5px 9px;
+  font-size: 12px;
+}
+
+.queueGrid {
+  gap: 12px;
+}
+
+.queueGrid article {
+  min-height: 86px;
+  border-color: #d9e2ee;
+  background: #fbfcff;
+  padding: 14px;
+}
+
+.queueGrid strong {
+  min-height: 54px;
+  border-radius: 6px;
+  background: #edf3ff;
+}
+
+.categoryGrid {
+  grid-template-columns: repeat(auto-fit, minmax(116px, 1fr));
+  gap: 10px;
+}
+
+.categoryGrid button {
+  min-height: 82px;
+  border-color: #d5dfec;
+  background: linear-gradient(180deg, #fbfdff 0%, #f2f6fb 100%);
+  font-size: 12px;
+  font-weight: 820;
+}
+
+.categoryGrid button:hover {
+  border-color: #9eb4ee;
+  background: #f5f8ff;
+}
+
+.categoryGrid svg {
+  color: #446be0;
+}
+
+.contentGrid {
+  grid-template-columns: minmax(300px, .86fr) minmax(0, 1.42fr) minmax(280px, .82fr);
+  gap: 16px;
+}
+
+.intakePanel {
+  gap: 14px;
+}
+
+.formGrid {
+  grid-template-columns: repeat(4, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.formGrid label {
+  font-size: 12px;
+  letter-spacing: .02em;
+}
+
+.formGrid input,
+.formGrid select {
+  min-height: 42px;
+  background: #fff;
+  font-weight: 720;
+}
+
+.packetList {
+  background: #ffffff;
+}
+
+.packetList header,
+.packetDetail,
+.reviewPanel {
+  padding: 18px;
+}
+
+.packetList article {
+  min-height: 82px;
+  padding: 13px 16px;
+}
+
+.packetList .selectedPacket {
+  border-left-width: 4px;
+  background: #eef4ff;
+}
+
+.packetList strong,
+.requirements strong,
+.documentsPanel strong {
+  font-size: 14px;
+}
+
+.packetDetail {
+  gap: 14px;
+}
+
+.packetDetail h2 {
+  font-size: 25px;
+  line-height: 1.13;
+}
+
+.packetDetail nav {
+  gap: 22px;
+}
+
+.packetDetail nav a {
+  padding-bottom: 9px;
+  font-size: 14px;
+}
+
+.overviewPanel,
+.documentsPanel,
+.blockerPanel,
+.advisoryPanel,
+.providerPanel,
+.providerActions,
+.archivePanel,
+.auditBox {
+  border-color: #d8e1ed;
+  border-radius: 7px;
+  background: #f8fafd;
+}
+
+.requirements {
+  gap: 9px;
+}
+
+.requirements article,
+.documentsPanel article {
+  min-height: 64px;
+  background: #ffffff;
+}
+
+.reviewPanel {
+  gap: 10px;
+  background: #ffffff;
+}
+
+.reviewPanel header {
+  border-bottom: 1px solid var(--document-line);
+  padding-bottom: 12px;
+}
+
+.reviewPanel textarea {
+  min-height: 82px;
+  background: #fff;
+}
+
+.bottomRail {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.blockerPanel,
+.advisoryPanel,
+.providerPanel,
+.providerActions,
+.archivePanel,
+.auditBox {
+  align-content: start;
+  padding: 14px;
+}
+
+.blockerPanel h3,
+.advisoryPanel h3,
+.providerPanel h3,
+.archivePanel h3,
+.providerActions h3 {
+  font-size: 14px;
+}
+
+.providerActions button {
+  border-color: #d7e0ec;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.auditBox div {
+  grid-template-columns: minmax(86px, .7fr) minmax(0, 1.3fr);
+}
+
 @media (max-width: 1380px) {
   .hero {
     grid-template-columns: 1fr;
@@ -917,10 +1278,22 @@
   }
 
   .contentGrid {
-    grid-template-columns: minmax(320px, .9fr) minmax(430px, 1.1fr);
+    grid-template-columns: minmax(300px, .85fr) minmax(0, 1.15fr);
+    grid-template-areas:
+      "intake intake"
+      "packets detail"
+      "review review"
+      "bottom bottom";
   }
 
   .reviewPanel {
+    grid-area: review;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .reviewPanel header,
+  .reviewPanel label {
     grid-column: 1 / -1;
   }
 
@@ -937,6 +1310,15 @@
   .layout,
   .contentGrid {
     grid-template-columns: 1fr;
+  }
+
+  .contentGrid {
+    grid-template-areas:
+      "intake"
+      "packets"
+      "detail"
+      "review"
+      "bottom";
   }
 
   .filters {
@@ -957,6 +1339,10 @@
 
   .packetList article {
     grid-template-columns: 28px minmax(0, 1fr);
+  }
+
+  .reviewPanel {
+    grid-template-columns: 1fr;
   }
 
   .packetList article > time,
