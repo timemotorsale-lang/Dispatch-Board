@@ -7,6 +7,7 @@ import {
   DocumentLibraryError,
   type DocumentRecord,
   type DocumentLibraryActionKind,
+  type DocumentLibraryCommand,
   type ProviderActionKind,
   type ReviewDecision,
   type PacketRecord,
@@ -17,6 +18,7 @@ import {
   previewReviewDecision,
   resolvePacket
 } from "./domain";
+import { executeDocumentLibraryCommand, type DocumentLibraryState } from "./repository";
 
 type Dependencies = {
   now?: () => Date;
@@ -138,6 +140,111 @@ function requireManager(actor: AuthenticatedUser | null) {
   return user;
 }
 
+function demoState(): DocumentLibraryState {
+  return {
+    auditEvents: documents.flatMap((document) => document.auditTrail.map((event) => ({
+      action: event.action,
+      actorId: event.actor,
+      at: event.at,
+      idempotencyKey: `seed-${document.id}-${event.at}`,
+      note: event.note,
+      subjectId: document.id
+    }))),
+    documents,
+    idempotencyKeys: [],
+    packets
+  };
+}
+
+function stringField(input: Record<string, unknown>, key: string) {
+  const value = input[key];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function parseOwner(input: unknown): DocumentRecord["owner"] {
+  if (!input || typeof input !== "object") throw new DocumentLibraryError("DOCUMENT_LIBRARY_INVALID_ACTION", "Document owner is required.");
+  const owner = input as Record<string, unknown>;
+  const type = stringField(owner, "type");
+  const allowedTypes = new Set<DocumentRecord["owner"]["type"]>(["CUSTOMER", "VEHICLE", "REPAIR_ORDER", "CLAIM", "TASK", "VENDOR", "SALE"]);
+  if (!stringField(owner, "id") || !stringField(owner, "label") || !allowedTypes.has(type as DocumentRecord["owner"]["type"])) {
+    throw new DocumentLibraryError("DOCUMENT_LIBRARY_INVALID_ACTION", "Document owner must include id, label, and a supported type.");
+  }
+  return { id: stringField(owner, "id"), label: stringField(owner, "label"), type: type as DocumentRecord["owner"]["type"] };
+}
+
+function parseStorage(input: unknown): DocumentRecord["storage"] {
+  if (!input || typeof input !== "object") throw new DocumentLibraryError("DOCUMENT_LIBRARY_INVALID_ACTION", "Document storage reference is required.");
+  const storage = input as Record<string, unknown>;
+  const provider = stringField(storage, "provider");
+  const allowedProviders = new Set<DocumentRecord["storage"]["provider"]>(["INTERNAL", "EXTERNAL_LINK", "PROVIDER"]);
+  const version = typeof storage.version === "number" && Number.isInteger(storage.version) && storage.version > 0 ? storage.version : 1;
+  if (!allowedProviders.has(provider as DocumentRecord["storage"]["provider"]) || !stringField(storage, "reference")) {
+    throw new DocumentLibraryError("DOCUMENT_LIBRARY_INVALID_ACTION", "Document storage must include a supported provider and reference.");
+  }
+  return { provider: provider as DocumentRecord["storage"]["provider"], reference: stringField(storage, "reference"), version };
+}
+
+function parseDocumentLibraryCommand(input: Record<string, unknown>): DocumentLibraryCommand | null {
+  const action = input.action;
+  if (action === "CREATE_DOCUMENT") {
+    const sensitivity = stringField(input, "sensitivity") || "INTERNAL";
+    const source = stringField(input, "source") || "MANUAL_UPLOAD";
+    const allowedSensitivity = new Set<DocumentRecord["sensitivity"]>(["PUBLIC", "INTERNAL", "CONFIDENTIAL", "RESTRICTED", "SECURITY_AUDIT"]);
+    const allowedSource = new Set<DocumentRecord["source"]>(["MANUAL_UPLOAD", "CUSTOMER_PORTAL", "GENERATED", "EXTERNAL_LINK", "PROVIDER_REFERENCE"]);
+    if (!allowedSensitivity.has(sensitivity as DocumentRecord["sensitivity"]) || !allowedSource.has(source as DocumentRecord["source"])) {
+      throw new DocumentLibraryError("DOCUMENT_LIBRARY_INVALID_ACTION", "Document sensitivity and source must be supported values.");
+    }
+    return {
+      action,
+      documentType: stringField(input, "documentType"),
+      fileName: stringField(input, "fileName"),
+      idempotencyKey: stringField(input, "idempotencyKey"),
+      owner: parseOwner(input.owner),
+      packetId: stringField(input, "packetId") || undefined,
+      reason: stringField(input, "reason"),
+      sensitivity: sensitivity as DocumentRecord["sensitivity"],
+      source: source as DocumentRecord["source"],
+      storage: parseStorage(input.storage)
+    };
+  }
+  if (action === "LINK_DOCUMENT_TO_PACKET") {
+    return {
+      action,
+      documentId: stringField(input, "documentId"),
+      idempotencyKey: stringField(input, "idempotencyKey"),
+      packetId: stringField(input, "packetId"),
+      reason: stringField(input, "reason")
+    };
+  }
+  if (action === "REVIEW_DOCUMENT") {
+    return {
+      action,
+      decision: stringField(input, "decision") as ReviewDecision,
+      documentId: stringField(input, "documentId") || stringField(input, "subjectId"),
+      idempotencyKey: stringField(input, "idempotencyKey"),
+      reason: stringField(input, "reason") || undefined
+    };
+  }
+  if (action === "WAIVE_REQUIREMENT") {
+    return {
+      action,
+      idempotencyKey: stringField(input, "idempotencyKey"),
+      packetId: stringField(input, "packetId"),
+      reason: stringField(input, "reason"),
+      requirementId: stringField(input, "requirementId")
+    };
+  }
+  if (action === "ARCHIVE_DOCUMENT" || action === "RESTORE_DOCUMENT" || action === "SET_LEGAL_HOLD" || action === "RELEASE_LEGAL_HOLD") {
+    return {
+      action,
+      documentId: stringField(input, "documentId") || stringField(input, "subjectId"),
+      idempotencyKey: stringField(input, "idempotencyKey"),
+      reason: stringField(input, "reason")
+    };
+  }
+  return null;
+}
+
 export async function getDocumentLibrary(actor: AuthenticatedUser | null, dependencies: Dependencies = {}) {
   requireDocumentLibraryAccess(actor);
   const generatedAt = (dependencies.now?.() ?? new Date(GENERATED_AT)).toISOString();
@@ -181,18 +288,45 @@ export async function getDocumentLibrary(actor: AuthenticatedUser | null, depend
   };
 }
 
-export async function previewDocumentLibraryProviderAction(actor: AuthenticatedUser | null, value: unknown) {
-  const user = requireManager(actor);
+export async function executeDocumentLibraryAction(actor: AuthenticatedUser | null, value: unknown, dependencies: Dependencies = {}) {
   const input = value && typeof value === "object" ? value as Record<string, unknown> : {};
   const action = input.action;
   const subjectId = typeof input.subjectId === "string" ? input.subjectId.trim() : "";
   const idempotencyKey = typeof input.idempotencyKey === "string" ? input.idempotencyKey.trim() : "";
   const providerActions = new Set<ProviderActionKind>(["EXPORT_PACKET", "UPLOAD_TO_PROVIDER", "REQUEST_ESIGNATURE", "IMPORT_SIGNED_DOCUMENT", "RECONCILE_PROVIDER_STATUS"]);
   const reviewDecisions = new Set<ReviewDecision>(["ACCEPT", "REJECT", "NEEDS_CORRECTION", "WAIVE_REQUIREMENT"]);
-  const documentActionKinds = new Set<DocumentLibraryActionKind>(["REVIEW_DOCUMENT", "PREVIEW_ARCHIVE", "SET_LEGAL_HOLD", "RELEASE_LEGAL_HOLD"]);
+  const documentActionKinds = new Set<DocumentLibraryActionKind>(["REVIEW_DOCUMENT", "PREVIEW_ARCHIVE", "SET_LEGAL_HOLD", "RELEASE_LEGAL_HOLD", "ARCHIVE_DOCUMENT", "RESTORE_DOCUMENT", "CREATE_DOCUMENT", "LINK_DOCUMENT_TO_PACKET", "WAIVE_REQUIREMENT"]);
   const knownActions = new Set<DocumentLibraryActionKind>([...providerActions, ...documentActionKinds]);
 
-  if (!knownActions.has(action as DocumentLibraryActionKind) || !subjectId) {
+  if (!knownActions.has(action as DocumentLibraryActionKind)) {
+    throw new DocumentLibraryError("DOCUMENT_LIBRARY_INVALID_ACTION", "Choose a supported provider action and subject.");
+  }
+
+  const command = parseDocumentLibraryCommand(input);
+  if (command) {
+    const elevatedActions = new Set<DocumentLibraryCommand["action"]>(["ARCHIVE_DOCUMENT", "RESTORE_DOCUMENT", "SET_LEGAL_HOLD", "RELEASE_LEGAL_HOLD", "WAIVE_REQUIREMENT"]);
+    const user = elevatedActions.has(command.action) ? requireManager(actor) : requireDocumentLibraryAccess(actor);
+    const result = executeDocumentLibraryCommand({
+      actorId: user.id,
+      command,
+      now: dependencies.now?.(),
+      state: demoState()
+    });
+    return {
+      auditEvent: result.auditEvent,
+      command: result.document || result.packet ? {
+        action: command.action,
+        document: result.document,
+        packet: result.packet
+      } : { action: command.action },
+      contractVersion: DOCUMENT_LIBRARY_CONTRACT_VERSION,
+      executedBy: user.id,
+      liveProviderWriteEnabled: false
+    };
+  }
+
+  const user = requireManager(actor);
+  if (!subjectId) {
     throw new DocumentLibraryError("DOCUMENT_LIBRARY_INVALID_ACTION", "Choose a supported provider action and subject.");
   }
   const document = documents.find((item) => item.id === subjectId) ?? null;
@@ -234,3 +368,5 @@ export async function previewDocumentLibraryProviderAction(actor: AuthenticatedU
     legalHoldAction: previewLegalHoldAction({ documentId: document.id, legalHold: action === "SET_LEGAL_HOLD" })
   };
 }
+
+export const previewDocumentLibraryProviderAction = executeDocumentLibraryAction;

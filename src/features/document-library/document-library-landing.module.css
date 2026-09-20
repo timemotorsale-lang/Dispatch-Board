@@ -29,6 +29,11 @@
   overflow-x: hidden;
 }
 
+.page,
+.page * {
+  box-sizing: border-box;
+}
+
 :global(html[data-app-theme="dark"]) .page {
   --document-bg: #07111f;
   --document-surface: #111d2d;
@@ -115,7 +120,6 @@
 
 .heroActions button,
 .filterHeader button,
-.dashboardPanel header button,
 .categoryPanel header button,
 .packetList header button,
 .reviewPanel button {
@@ -153,7 +157,6 @@
 }
 
 .filters,
-.dashboardPanel,
 .categoryPanel,
 .intakePanel,
 .packetList,
@@ -166,7 +169,6 @@
 }
 
 :global(html[data-app-theme="dark"]) .filters,
-:global(html[data-app-theme="dark"]) .dashboardPanel,
 :global(html[data-app-theme="dark"]) .categoryPanel,
 :global(html[data-app-theme="dark"]) .intakePanel,
 :global(html[data-app-theme="dark"]) .packetList,
@@ -184,7 +186,6 @@
 }
 
 .filterHeader,
-.dashboardPanel header,
 .categoryPanel header,
 .intakePanel header,
 .packetList header,
@@ -198,7 +199,6 @@
 }
 
 .filterHeader strong,
-.dashboardPanel h2,
 .categoryPanel h2,
 .intakePanel h2,
 .packetList h2,
@@ -210,7 +210,6 @@
 }
 
 .filterHeader button,
-.dashboardPanel header button,
 .categoryPanel header button,
 .packetList header button {
   border: 0;
@@ -287,90 +286,12 @@
   text-transform: uppercase;
 }
 
-.dashboardPanel {
-  display: grid;
-  gap: 14px;
-  padding: 16px;
-}
-
-.dashboardPanel header button,
 .intakePanel footer button,
 .providerActions button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-}
-
-.metricGrid,
-.queueGrid {
-  display: grid;
-  gap: 10px;
-}
-
-.metricGrid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.metricGrid article,
-.queueGrid article {
-  border: 1px solid var(--document-line);
-  border-radius: 7px;
-  background: var(--document-surface-soft);
-}
-
-.metricGrid article {
-  display: grid;
-  gap: 6px;
-  padding: 13px;
-}
-
-.metricGrid span,
-.queueGrid span {
-  color: var(--document-muted);
-  font-size: 13px;
-  font-weight: 850;
-}
-
-.metricGrid strong {
-  color: var(--document-text);
-  font-size: 28px;
-  line-height: 1;
-}
-
-.metricGrid small {
-  justify-self: start;
-  border-radius: 999px;
-  padding: 4px 8px;
-  font-weight: 850;
-}
-
-.queueGrid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.queueGrid article {
-  display: grid;
-  grid-template-columns: 52px minmax(0, 1fr);
-  gap: 12px;
-  padding: 12px;
-}
-
-.queueGrid strong {
-  display: grid;
-  place-items: center;
-  min-height: 48px;
-  border-radius: 7px;
-  background: var(--document-accent-soft);
-  color: var(--document-accent);
-  font-size: 22px;
-}
-
-.queueGrid p {
-  margin: 4px 0 0;
-  color: var(--document-muted);
-  font-size: 13px;
-  line-height: 1.4;
 }
 
 .categoryPanel {
@@ -775,10 +696,38 @@
 .bottomRail {
   grid-area: bottom;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-template-areas:
+    "blockers blockers blockers blockers advisory advisory advisory advisory provider provider provider provider"
+    "actions actions actions actions actions actions audit audit audit archive archive archive";
   gap: 14px;
   align-items: stretch;
   min-width: 0;
+}
+
+.blockerPanel {
+  grid-area: blockers;
+}
+
+.advisoryPanel {
+  grid-area: advisory;
+}
+
+.providerPanel {
+  grid-area: provider;
+}
+
+.providerActions {
+  grid-area: actions;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.auditBox {
+  grid-area: audit;
+}
+
+.archivePanel {
+  grid-area: archive;
 }
 
 .blockerPanel,
@@ -844,6 +793,7 @@
 }
 
 .providerActions button {
+  align-content: start;
   justify-content: flex-start;
   min-height: auto;
   border: 1px solid var(--document-line);
@@ -970,7 +920,6 @@
 }
 
 .filters,
-.dashboardPanel,
 .categoryPanel,
 .intakePanel,
 .packetList,
@@ -993,7 +942,6 @@
 }
 
 .filterHeader strong,
-.dashboardPanel h2,
 .categoryPanel h2,
 .intakePanel h2,
 .packetList h2,
@@ -1036,13 +984,11 @@
   gap: 16px;
 }
 
-.dashboardPanel,
 .categoryPanel,
 .intakePanel {
   padding: 18px 20px;
 }
 
-.dashboardPanel header,
 .categoryPanel header,
 .intakePanel header,
 .packetList header {
@@ -1055,45 +1001,6 @@
   color: #51627b;
   font-size: 11px;
   letter-spacing: .13em;
-}
-
-.metricGrid {
-  grid-template-columns: repeat(4, minmax(150px, 1fr));
-  gap: 12px;
-}
-
-.metricGrid article {
-  border-color: #d9e2ee;
-  background: linear-gradient(180deg, #ffffff 0%, #f7f9fd 100%);
-  padding: 15px 16px;
-}
-
-.metricGrid strong {
-  font-size: 31px;
-  letter-spacing: 0;
-}
-
-.metricGrid small {
-  border-radius: 6px;
-  padding: 5px 9px;
-  font-size: 12px;
-}
-
-.queueGrid {
-  gap: 12px;
-}
-
-.queueGrid article {
-  min-height: 86px;
-  border-color: #d9e2ee;
-  background: #fbfcff;
-  padding: 14px;
-}
-
-.queueGrid strong {
-  min-height: 54px;
-  border-radius: 6px;
-  background: #edf3ff;
 }
 
 .categoryGrid {
@@ -1227,7 +1134,6 @@
 }
 
 .bottomRail {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
 }
 
@@ -1273,10 +1179,6 @@
     grid-template-columns: repeat(6, minmax(100px, 1fr));
   }
 
-  .metricGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .contentGrid {
     grid-template-columns: minmax(300px, .85fr) minmax(0, 1.15fr);
     grid-template-areas:
@@ -1299,6 +1201,14 @@
 
   .bottomRail {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "blockers advisory"
+      "provider actions"
+      "audit archive";
+  }
+
+  .providerActions {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -1329,12 +1239,20 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .metricGrid,
-  .queueGrid,
   .formGrid,
   .bottomRail,
   .overviewPanel dl {
     grid-template-columns: 1fr;
+  }
+
+  .bottomRail {
+    grid-template-areas:
+      "blockers"
+      "advisory"
+      "provider"
+      "actions"
+      "audit"
+      "archive";
   }
 
   .packetList article {

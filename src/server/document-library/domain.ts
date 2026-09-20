@@ -5,7 +5,8 @@ export type DocumentLibraryFailureCode =
   | "AUTHENTICATION_REQUIRED"
   | "DOCUMENT_LIBRARY_NOT_AUTHORIZED"
   | "DOCUMENT_LIBRARY_INVALID_ACTION"
-  | "DOCUMENT_LIBRARY_NOT_FOUND";
+  | "DOCUMENT_LIBRARY_NOT_FOUND"
+  | "DOCUMENT_LIBRARY_IDEMPOTENCY_CONFLICT";
 
 export class DocumentLibraryError extends Error {
   constructor(
@@ -23,7 +24,17 @@ export type DocumentSensitivity = "PUBLIC" | "INTERNAL" | "CONFIDENTIAL" | "REST
 export type PacketStatus = "MISSING" | "PENDING_REVIEW" | "NEEDS_CORRECTION" | "BLOCKED" | "COMPLETE";
 export type ProviderActionKind = "EXPORT_PACKET" | "UPLOAD_TO_PROVIDER" | "REQUEST_ESIGNATURE" | "IMPORT_SIGNED_DOCUMENT" | "RECONCILE_PROVIDER_STATUS";
 export type ReviewDecision = "ACCEPT" | "REJECT" | "NEEDS_CORRECTION" | "WAIVE_REQUIREMENT";
-export type DocumentLibraryActionKind = ProviderActionKind | "REVIEW_DOCUMENT" | "PREVIEW_ARCHIVE" | "SET_LEGAL_HOLD" | "RELEASE_LEGAL_HOLD";
+export type DocumentLibraryActionKind =
+  | ProviderActionKind
+  | "ARCHIVE_DOCUMENT"
+  | "CREATE_DOCUMENT"
+  | "LINK_DOCUMENT_TO_PACKET"
+  | "RESTORE_DOCUMENT"
+  | "REVIEW_DOCUMENT"
+  | "PREVIEW_ARCHIVE"
+  | "SET_LEGAL_HOLD"
+  | "RELEASE_LEGAL_HOLD"
+  | "WAIVE_REQUIREMENT";
 
 export type DocumentRecord = {
   auditTrail: Array<{ action: string; actor: string; at: string; note: string }>;
@@ -39,6 +50,15 @@ export type DocumentRecord = {
   source: "MANUAL_UPLOAD" | "CUSTOMER_PORTAL" | "GENERATED" | "EXTERNAL_LINK" | "PROVIDER_REFERENCE";
   status: DocumentStatus;
   storage: { provider: "INTERNAL" | "EXTERNAL_LINK" | "PROVIDER"; reference: string; version: number };
+};
+
+export type DocumentAuditEvent = {
+  action: string;
+  actorId: string;
+  at: string;
+  idempotencyKey: string;
+  note: string;
+  subjectId: string;
 };
 
 export type PacketRequirement = {
@@ -74,6 +94,47 @@ export type ProviderReference = {
   readOnly: boolean;
   url: string | null;
 };
+
+export type DocumentLibraryCommand =
+  | {
+      action: "ARCHIVE_DOCUMENT" | "RESTORE_DOCUMENT" | "SET_LEGAL_HOLD" | "RELEASE_LEGAL_HOLD";
+      documentId: string;
+      idempotencyKey: string;
+      reason: string;
+    }
+  | {
+      action: "CREATE_DOCUMENT";
+      documentType: string;
+      fileName: string;
+      idempotencyKey: string;
+      owner: DocumentRecord["owner"];
+      packetId?: string;
+      reason: string;
+      sensitivity: DocumentSensitivity;
+      source: DocumentRecord["source"];
+      storage: DocumentRecord["storage"];
+    }
+  | {
+      action: "LINK_DOCUMENT_TO_PACKET";
+      documentId: string;
+      idempotencyKey: string;
+      packetId: string;
+      reason: string;
+    }
+  | {
+      action: "REVIEW_DOCUMENT";
+      decision: ReviewDecision;
+      documentId: string;
+      idempotencyKey: string;
+      reason?: string;
+    }
+  | {
+      action: "WAIVE_REQUIREMENT";
+      idempotencyKey: string;
+      packetId: string;
+      reason: string;
+      requirementId: string;
+    };
 
 export type ProviderActionPreview = {
   action: ProviderActionKind;
@@ -169,7 +230,7 @@ export function previewArchiveEligibility(document: DocumentRecord, packets: Pac
   const activePackets = packets.filter((packet) => packet.documents.includes(document.id));
   const reasons = [
     ...(document.legalHold ? ["Document is under legal hold."] : []),
-    ...(activePackets.length > 0 && document.status === "ACCEPTED" ? ["Accepted evidence is still linked to active packet requirements."] : [])
+    ...(activePackets.length > 0 ? ["Document is still linked to active packet work."] : [])
   ];
 
   return {

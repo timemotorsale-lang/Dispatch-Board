@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { previewProviderAction, resolvePacket, type DocumentRecord, type PacketRecord } from "@/server/document-library/domain";
-import { getDocumentLibrary, previewDocumentLibraryProviderAction } from "@/server/document-library/service";
+import { executeDocumentLibraryAction, getDocumentLibrary, previewDocumentLibraryProviderAction } from "@/server/document-library/service";
 
 const manager = {
   duties: { all: [], direct: [], roleDefaults: [] },
@@ -91,17 +91,22 @@ describe("document library backend service", () => {
     expect(() => previewProviderAction({ action: "EXPORT_PACKET", idempotencyKey: "", subjectId: "packet-1" })).toThrow("idempotency key");
   });
 
-  it("previews review, archive, and legal hold actions without mutating source records", async () => {
-    await expect(previewDocumentLibraryProviderAction(manager, {
+  it("executes review and legal-hold commands with audit/idempotency while leaving provider writes disabled", async () => {
+    await expect(executeDocumentLibraryAction(manager, {
       action: "REVIEW_DOCUMENT",
       decision: "NEEDS_CORRECTION",
-      subjectId: "doc-claim-intake-1"
+      documentId: "doc-claim-intake-1",
+      idempotencyKey: "review-correction-1",
+      reason: "Photos do not match the claim packet."
     })).resolves.toMatchObject({
-      reviewAction: {
-        nextStatus: "NEEDS_CORRECTION",
-        packetRecalculationRequired: true,
-        reasonRequired: true,
-        state: "READY_FOR_REVIEW_AUDIT"
+      auditEvent: {
+        action: "DOCUMENT_REVIEW_NEEDS_CORRECTION",
+        idempotencyKey: "review-correction-1"
+      },
+      command: {
+        document: {
+          status: "NEEDS_CORRECTION"
+        }
       }
     });
 
@@ -115,14 +120,73 @@ describe("document library backend service", () => {
       }
     });
 
-    await expect(previewDocumentLibraryProviderAction(manager, {
+    await expect(executeDocumentLibraryAction(manager, {
       action: "SET_LEGAL_HOLD",
-      subjectId: "doc-claim-intake-1"
+      documentId: "doc-claim-intake-1",
+      idempotencyKey: "hold-claim-intake-1",
+      reason: "Claim is under legal review."
     })).resolves.toMatchObject({
-      legalHoldAction: {
-        legalHold: true,
-        packetRecalculationRequired: true,
-        state: "READY_FOR_HOLD_AUDIT"
+      command: {
+        document: {
+          legalHold: true,
+          id: "doc-claim-intake-1"
+        }
+      }
+    });
+  });
+
+  it("supports manual document creation and packet linking through the command boundary", async () => {
+    await expect(executeDocumentLibraryAction(manager, {
+      action: "CREATE_DOCUMENT",
+      documentType: "DAMAGE_PHOTOS",
+      fileName: "damage-photos-gada-ahmed-jamal.zip",
+      idempotencyKey: "create-damage-photos-1",
+      owner: { id: "claim-10421", label: "Claim #CLM-10421", type: "CLAIM" },
+      packetId: "packet-claim-10421",
+      reason: "Customer uploaded damage photos.",
+      sensitivity: "CONFIDENTIAL",
+      source: "CUSTOMER_PORTAL",
+      storage: { provider: "EXTERNAL_LINK", reference: "https://storage.example.test/damage-photos", version: 1 }
+    })).resolves.toMatchObject({
+      auditEvent: {
+        action: "DOCUMENT_CREATED",
+        idempotencyKey: "create-damage-photos-1"
+      },
+      command: {
+        document: {
+          documentType: "DAMAGE_PHOTOS",
+          status: "RECEIVED"
+        },
+        packet: {
+          completion: { accepted: 2, required: 4 },
+          status: "MISSING"
+        }
+      },
+      liveProviderWriteEnabled: false
+    });
+  });
+
+  it("waives packet requirements only with manager authority and a reason", async () => {
+    await expect(executeDocumentLibraryAction(manager, {
+      action: "WAIVE_REQUIREMENT",
+      idempotencyKey: "waive-tow-storage-1",
+      packetId: "packet-claim-10421",
+      reason: "Tow vendor confirmed no tow/storage charge applies.",
+      requirementId: "req-tow-storage"
+    })).resolves.toMatchObject({
+      auditEvent: {
+        action: "DOCUMENT_REQUIREMENT_WAIVED",
+        idempotencyKey: "waive-tow-storage-1"
+      },
+      command: {
+        packet: {
+          requirements: expect.arrayContaining([
+            expect.objectContaining({
+              id: "req-tow-storage",
+              state: "WAIVED"
+            })
+          ])
+        }
       }
     });
   });

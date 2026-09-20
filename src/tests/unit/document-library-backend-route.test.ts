@@ -64,20 +64,63 @@ describe("document library backend routes", () => {
     });
   });
 
-  it("returns a review action preview for managers", async () => {
+  it("executes a review action command for managers", async () => {
     mocks.getCurrentUser.mockResolvedValueOnce({ duties: { all: [], direct: [], roleDefaults: [] }, email: "manager@example.test", id: "manager-1", isActive: true, name: "Manager", roles: ["General Manager"] });
 
     const response = await POST(new Request("http://dispatch.local/api/document-library/actions", {
-      body: JSON.stringify({ action: "REVIEW_DOCUMENT", decision: "ACCEPT", subjectId: "doc-claim-intake-1" }),
+      body: JSON.stringify({
+        action: "REVIEW_DOCUMENT",
+        decision: "ACCEPT",
+        documentId: "doc-claim-intake-1",
+        idempotencyKey: "route-review-accept-1",
+        reason: "Manager accepted the reviewed document."
+      }),
       method: "POST"
     }));
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
-      reviewAction: {
-        nextStatus: "ACCEPTED",
-        state: "READY_FOR_REVIEW_AUDIT"
+      auditEvent: {
+        action: "DOCUMENT_REVIEW_ACCEPT",
+        idempotencyKey: "route-review-accept-1"
+      },
+      command: {
+        document: {
+          status: "ACCEPTED"
+        }
       }
+    });
+  });
+
+  it("executes a manual create document command for document-library staff", async () => {
+    mocks.getCurrentUser.mockResolvedValueOnce({ duties: { all: [], direct: [], roleDefaults: [] }, email: "advisor@example.test", id: "staff-1", isActive: true, name: "Advisor", roles: ["Service Advisor"] });
+
+    const response = await POST(new Request("http://dispatch.local/api/document-library/actions", {
+      body: JSON.stringify({
+        action: "CREATE_DOCUMENT",
+        documentType: "DAMAGE_PHOTOS",
+        fileName: "damage-photos.zip",
+        idempotencyKey: "route-create-damage-photos-1",
+        owner: { id: "claim-10421", label: "Claim #CLM-10421", type: "CLAIM" },
+        packetId: "packet-claim-10421",
+        reason: "Customer portal upload.",
+        sensitivity: "CONFIDENTIAL",
+        source: "CUSTOMER_PORTAL",
+        storage: { provider: "EXTERNAL_LINK", reference: "https://storage.example.test/damage-photos", version: 1 }
+      }),
+      method: "POST"
+    }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      command: {
+        action: "CREATE_DOCUMENT",
+        document: {
+          documentType: "DAMAGE_PHOTOS",
+          status: "RECEIVED"
+        }
+      },
+      liveProviderWriteEnabled: false
     });
   });
 
