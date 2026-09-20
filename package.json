@@ -28,9 +28,6 @@
     "diagnostics:trial": "tsx scripts/configure-diagnostics-trial.ts",
     "db:validate": "prisma validate"
   },
-  "prisma": {
-    "seed": "tsx prisma/seed.ts"
-  },
   "dependencies": {
     "@prisma/client": "^6.19.3",
     "lucide-react": "^1.21.0",

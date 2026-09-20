@@ -123,9 +123,19 @@ export const dayOneDutyDefinitions = [
     description: "Support parts pickup, receiving, return, and constrained repair movement when assigned."
   },
   {
+    name: "Support authorized repair execution",
+    workflowArea: "Service",
+    description: "Support approved repair work, repair-bay handoffs, and execution blockers when assigned."
+  },
+  {
     name: "Support lot readiness and vehicle movement",
     workflowArea: "Inventory",
     description: "Support vehicle movement, keys, lot placement, cleanup, and readiness handoffs when assigned."
+  },
+  {
+    name: "Support vehicle detail and merchandising readiness",
+    workflowArea: "Inventory",
+    description: "Support detail, photos, listing readiness, and merchandising handoffs when assigned."
   },
   {
     name: "Review assigned repair and diagnostic tasks",

@@ -122,9 +122,10 @@ Current local workflow highlights:
 
 ## Scheduled generation
 
-The app exposes a protected scheduled-generation route at:
+The app exposes protected scheduler routes at:
 
 - `/api/cron/generate-board`
+- `/api/cron/evaluate-concerns`
 
 Expected scheduled attempt states, skip reasons, and manager-safe operational meanings are defined in [docs/SCHEDULER_VERIFICATION_CONTRACT.md](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/docs/SCHEDULER_VERIFICATION_CONTRACT.md).
 
@@ -142,12 +143,13 @@ The route uses the configured app timezone, waits until the configured `dailyGen
 
 ### Vercel cron setup
 
-This repo now includes [vercel.json](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/vercel.json), which schedules `/api/cron/generate-board` every 15 minutes in production.
+This repo now includes [vercel.json](/C:/Users/timem/OneDrive/Documents/GitHub/Dispatch%20Board/vercel.json), which schedules `/api/cron/generate-board` and `/api/cron/evaluate-concerns` every 15 minutes in production.
 
 Why every 15 minutes instead of once per day:
 
 - The manager-controlled generation time lives in app settings, not in `vercel.json`.
-- The scheduled route now checks the configured timezone and `dailyGenerationTime` before generating.
+- The board-generation route checks the configured timezone and `dailyGenerationTime` before generating.
+- The concern-evaluation route keeps operational concern signals fresh on the same protected scheduler cadence.
 - Once a board has already been generated for the day, later cron pings skip cleanly instead of creating duplicate scheduled runs.
 
 Production checklist for auto-generation:
@@ -155,7 +157,7 @@ Production checklist for auto-generation:
 1. Deploy the app with `vercel.json` included.
 2. Set `CRON_SECRET` in the deployment environment.
 3. Set the desired generation time, timezone, and business days in `/settings`.
-4. Follow the scheduler deployment runbook before relying on autonomous generation.
+4. Follow the scheduler deployment runbook before relying on autonomous generation or concern evaluation.
 5. Record the first live validation using the first-live validation workflow after the configured local generation time.
 
 Use the scheduler verification contract as the meaning baseline for what you should expect to see:
@@ -169,7 +171,7 @@ For release gating, do not stop at a casual spot-check. Use the release checklis
 
 ### Non-Vercel hosting
 
-If you deploy somewhere other than Vercel, configure any scheduler to call `/api/cron/generate-board` at least every 15 minutes with one of the supported secret headers. The route itself handles timezone checks, business-day checks, and duplicate-safe generation.
+If you deploy somewhere other than Vercel, configure a scheduler to call `/api/cron/generate-board` and `/api/cron/evaluate-concerns` at least every 15 minutes with one of the supported secret headers. The board-generation route handles timezone checks, business-day checks, and duplicate-safe generation.
 
 ## Quality and verification commands
 

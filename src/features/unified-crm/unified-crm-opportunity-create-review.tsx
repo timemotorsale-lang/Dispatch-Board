@@ -43,13 +43,14 @@ function OpportunityCreateForm() {
   const [message, setMessage] = useState<string | null>(null);
   const [messageHref, setMessageHref] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const customerId = searchParams.get("customerId") ?? "";
-  const customerName = searchParams.get("customerName") ?? "";
-  const vehicleInterest = searchParams.get("vehicleInterest") ?? "";
-  const stockOrVin = searchParams.get("stockOrVin") ?? "";
-  const budget = searchParams.get("budget") ?? "";
-  const trade = searchParams.get("trade") ?? "";
-  const dealNote = searchParams.get("dealNote") ?? "";
+  const getParam = (name: string) => searchParams?.get(name) ?? "";
+  const customerId = getParam("customerId");
+  const customerName = getParam("customerName");
+  const vehicleInterest = getParam("vehicleInterest");
+  const stockOrVin = getParam("stockOrVin");
+  const budget = getParam("budget");
+  const trade = getParam("trade");
+  const dealNote = getParam("dealNote");
   const titleDefault = vehicleInterest
     ? `${customerName || "Customer"} - ${vehicleInterest}`
     : customerName

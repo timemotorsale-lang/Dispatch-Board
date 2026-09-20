@@ -8378,21 +8378,27 @@ html[data-app-theme="dark"] .my-task-guided-field-heading > small[data-state="co
   display: grid;
   place-items: center;
   padding: 18px;
+  overflow-x: clip;
   background: rgb(13 23 42 / 44%);
 }
+.operating-rhythm-lock * {
+  box-sizing: border-box;
+}
 .operating-rhythm-card {
+  box-sizing: border-box;
   display: grid;
   gap: 12px;
   border: 1px solid #c9d8ea;
   border-radius: 10px;
   padding: 14px;
+  max-width: 100%;
   color: #10233f;
   background: #fff;
   box-shadow: 0 18px 45px rgb(15 35 70 / 18%);
   pointer-events: auto;
 }
 .operating-rhythm-lock .operating-rhythm-card {
-  width: min(560px, 100%);
+  width: min(560px, calc(100vw - 36px));
   border-left: 5px solid #d1921d;
 }
 .operating-rhythm-card header {
@@ -8470,6 +8476,8 @@ html[data-app-theme="dark"] .my-task-guided-field-heading > small[data-state="co
   border: 1px solid #cbd8e8;
   border-radius: 8px;
   padding: 10px;
+  width: 100%;
+  min-width: 0;
   color: #10233f;
   background: #fbfdff;
   font: inherit;
@@ -29545,6 +29553,19 @@ body,
   max-width: 180px;
 }
 
+.app-content:has(.unified-crm-shell),
+.app-content:has(.unified-crm-shell) .unified-crm-shell,
+.app-frame:has(.unified-crm-shell) .ccc-topbar,
+.app-frame:has(.unified-crm-shell) .topbar-actions,
+.app-frame:has(.unified-crm-shell) .operating-rhythm-lock {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.app-frame:has(.unified-crm-shell) .operating-rhythm-lock {
+  max-width: 100vw;
+}
+
 @media (max-width: 1500px) {
   .ccc-breadcrumb {
     max-width: 240px;
@@ -29584,6 +29605,22 @@ body,
   .ccc-search-shell {
     flex: 0 0 auto;
     width: 44px;
+  }
+}
+
+@media (max-width: 640px) {
+  .ccc-topbar > .crm-mode-switch {
+    max-width: min(180px, 46vw);
+    overflow: hidden;
+  }
+
+  .ccc-topbar > .crm-mode-switch span,
+  .ccc-topbar > .crm-mode-switch details {
+    display: none;
+  }
+
+  .ccc-topbar > .crm-mode-switch a {
+    padding-inline: 8px;
   }
 }
 

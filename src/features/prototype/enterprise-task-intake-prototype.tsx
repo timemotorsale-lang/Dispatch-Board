@@ -37,33 +37,7 @@ import type { ActiveUserSummary } from "@/server/services/user-summary";
 
 type IntakeMode = "quick" | "guided";
 type IntakeStage = "Capture" | "Shape" | "Outcome" | "Ownership" | "Controls" | "Preview" | "Review";
-const intakeTypeLabels = [
-  "Quick Task",
-  "Manager Decision",
-  "Sales Lead / Appointment",
-  "Sales Deal / Delivery",
-  "Finance / Funding",
-  "Customer Issue",
-  "Service Advisor",
-  "Repair Order / Authorization",
-  "Diagnostics / Estimate",
-  "Shop Dispatch / Technician",
-  "Parts Request / Backorder",
-  "Sublet / Vendor",
-  "Quality Control / Comeback",
-  "Inventory Acquisition",
-  "Inventory Movement",
-  "Recon / Detail",
-  "Photos / Merchandising",
-  "Marketing / Listing",
-  "Title / Registration",
-  "Admin / Documentation",
-  "Accounting / Payables",
-  "Collections",
-  "Compliance / Risk",
-  "Facilities / Supplies"
-] as const;
-type IntakeType = typeof intakeTypeLabels[number];
+type IntakeType = "Quick Task" | "Manager Decision" | "Sales Lead / Appointment" | "Sales Deal / Delivery" | "Finance / Funding" | "Customer Issue" | "Service Advisor" | "Repair Order / Authorization" | "Diagnostics / Estimate" | "Shop Dispatch / Technician" | "Parts Request / Backorder" | "Sublet / Vendor" | "Quality Control / Comeback" | "Inventory Acquisition" | "Inventory Movement" | "Recon / Detail" | "Photos / Merchandising" | "Marketing / Listing" | "Title / Registration" | "Admin / Documentation" | "Accounting / Payables" | "Collections" | "Compliance / Risk" | "Facilities / Supplies";
 type IntakeWorkflowArea = "INVENTORY" | "ADVERTISING" | "MARKETING" | "SALES" | "SERVICE_ADVISOR" | "ADMIN" | "COLLECTIONS" | "SHOP" | "GENERAL_MANAGER";
 type IntakeCategoryGroup = "Start Here" | "Sales & Customer" | "Service & Shop" | "Inventory & Merchandising" | "Back Office & Controls";
 type IntakeTypeOption = {
@@ -254,16 +228,6 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
   const expectedOutcomeRef = useRef<HTMLTextAreaElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const workflowAreaRef = useRef<HTMLSelectElement>(null);
-  const fieldRefs = {
-    assignedUserId: assignedUserRef,
-    brief: briefRef,
-    context: contextRef,
-    dueDate: dueDateRef,
-    dueTime: dueTimeRef,
-    expectedOutcome: expectedOutcomeRef,
-    title: titleRef,
-    workflowArea: workflowAreaRef
-  };
   const readiness = calculateTaskIntakeReadiness(draft);
   const policy = acquisitionPolicy(draft);
   const selectedType = typeOptions.find((item) => item.label === draft.intakeType) ?? typeOptions[0];
@@ -343,7 +307,10 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
       const saved = window.localStorage.getItem("dispatch-board.task-intake-recent-categories.v1");
       if (!saved) return;
       const parsed = JSON.parse(saved) as IntakeType[];
-      setRecentCategories(parsed.filter((label) => typeOptions.some((option) => option.label === label)).slice(0, 5));
+      const restoreTimer = window.setTimeout(() => {
+        setRecentCategories(parsed.filter((label) => typeOptions.some((option) => option.label === label)).slice(0, 5));
+      }, 0);
+      return () => window.clearTimeout(restoreTimer);
     } catch {
       window.localStorage.removeItem("dispatch-board.task-intake-recent-categories.v1");
     }
@@ -430,7 +397,18 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
       brief: current.brief.trim() ? current.brief : detailsTemplateFor(selectedType),
       expectedOutcome: current.expectedOutcome || selectedType.outcome
     }));
-    window.setTimeout(() => fieldRefs.brief.current?.focus(), 0);
+    window.setTimeout(() => briefRef.current?.focus(), 0);
+  }
+
+  function refForReadinessField(field: ReadinessField) {
+    if (field === "assignedUserId") return assignedUserRef;
+    if (field === "brief") return briefRef;
+    if (field === "context") return contextRef;
+    if (field === "dueDate") return dueDateRef;
+    if (field === "dueTime") return dueTimeRef;
+    if (field === "expectedOutcome") return expectedOutcomeRef;
+    if (field === "title") return titleRef;
+    return workflowAreaRef;
   }
 
   function focusReadinessField(label: string) {
@@ -446,7 +424,7 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
     }[label] as ReadinessField | undefined;
     if (!target) return;
     if (target === "brief") expandTaskDetails();
-    window.setTimeout(() => fieldRefs[target].current?.focus(), 0);
+    window.setTimeout(() => refForReadinessField(target).current?.focus(), 0);
   }
 
   function toggleRequiredUpdate(label: string) {
@@ -528,7 +506,7 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
           </div>
 
           <div className="task-intake-form-grid">
-            <label className="task-intake-span-2"><span>Task title *</span><input ref={fieldRefs.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Example: Diagnose 2014 Acura MDX A/C issue" value={draft.title} /></label>
+            <label className="task-intake-span-2"><span>Task title *</span><input ref={titleRef} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} placeholder="Example: Diagnose 2014 Acura MDX A/C issue" value={draft.title} /></label>
             <div className={`task-intake-details task-intake-span-2${detailsExpanded ? " task-intake-details-expanded" : ""}`}>
               <div className="task-intake-details-header">
                 <span>Task details *</span>
@@ -536,7 +514,7 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
               </div>
               <textarea
                 aria-label="Task details"
-                ref={fieldRefs.brief}
+                ref={briefRef}
                 onClick={expandTaskDetails}
                 onFocus={expandTaskDetails}
                 onChange={(event) => setDraft((current) => ({ ...current, brief: event.target.value }))}
@@ -545,15 +523,15 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
               />
               {detailsExpanded ? <p className="task-intake-details-help">Use this space like the staff instruction note. These details help the system generate better subtasks, checklist items, ownership, and follow-up context.</p> : null}
             </div>
-            <label><span>Workflow area *</span><select ref={fieldRefs.workflowArea} onChange={(event) => setDraft((current) => ({ ...current, workflowArea: event.target.value }))} value={draft.workflowArea}><option value="INVENTORY">Inventory</option><option value="SHOP">Service / Recon</option><option value="SERVICE_ADVISOR">Service Advisor</option><option value="SALES">Sales</option><option value="MARKETING">Marketing</option><option value="ADVERTISING">Advertising</option><option value="ADMIN">Admin / Documentation</option><option value="COLLECTIONS">Collections</option><option value="GENERAL_MANAGER">Management</option></select></label>
+            <label><span>Workflow area *</span><select ref={workflowAreaRef} onChange={(event) => setDraft((current) => ({ ...current, workflowArea: event.target.value }))} value={draft.workflowArea}><option value="INVENTORY">Inventory</option><option value="SHOP">Service / Recon</option><option value="SERVICE_ADVISOR">Service Advisor</option><option value="SALES">Sales</option><option value="MARKETING">Marketing</option><option value="ADVERTISING">Advertising</option><option value="ADMIN">Admin / Documentation</option><option value="COLLECTIONS">Collections</option><option value="GENERAL_MANAGER">Management</option></select></label>
             <label><span>Priority *</span><select onChange={(event) => setDraft((current) => ({ ...current, priority: event.target.value as IntakeDraft["priority"], requiresManagerApproval: event.target.value === "CRITICAL" ? true : current.requiresManagerApproval }))} value={draft.priority}><option value="LOW">Low</option><option value="MEDIUM">Normal</option><option value="HIGH">High</option><option disabled={!canAssignOthers} value="CRITICAL">Critical</option></select></label>
-            <label><span>Accountable owner *</span><select ref={fieldRefs.assignedUserId} disabled={!canAssignOthers} onChange={(event) => setDraft((current) => ({ ...current, assignedUserId: event.target.value, collaboratorRequests: current.collaboratorRequests.filter((request) => request.userId !== event.target.value) }))} value={draft.assignedUserId}><option value="">Choose task owner</option>{collaboratorOptions.map((option) => <option key={option.id} value={option.id}>{option.name} · {option.role}</option>)}</select></label>
+            <label><span>Accountable owner *</span><select ref={assignedUserRef} disabled={!canAssignOthers} onChange={(event) => setDraft((current) => ({ ...current, assignedUserId: event.target.value, collaboratorRequests: current.collaboratorRequests.filter((request) => request.userId !== event.target.value) }))} value={draft.assignedUserId}><option value="">Choose task owner</option>{collaboratorOptions.map((option) => <option key={option.id} value={option.id}>{option.name} · {option.role}</option>)}</select></label>
             <label className="task-intake-approval"><span>Manager control</span><span><input checked={draft.requiresManagerApproval} disabled={!canAssignOthers} onChange={(event) => setDraft((current) => ({ ...current, requiresManagerApproval: event.target.checked }))} type="checkbox" />Require approval before completion</span></label>
-            <label><span>Due date *</span><input ref={fieldRefs.dueDate} onChange={(event) => setDraft((current) => ({ ...current, dueDate: event.target.value }))} type="date" value={draft.dueDate} /></label>
-            <label><span>Due time *</span><input ref={fieldRefs.dueTime} onChange={(event) => setDraft((current) => ({ ...current, dueTime: event.target.value }))} type="time" value={draft.dueTime} /></label>
+            <label><span>Due date *</span><input ref={dueDateRef} onChange={(event) => setDraft((current) => ({ ...current, dueDate: event.target.value }))} type="date" value={draft.dueDate} /></label>
+            <label><span>Due time *</span><input ref={dueTimeRef} onChange={(event) => setDraft((current) => ({ ...current, dueTime: event.target.value }))} type="time" value={draft.dueTime} /></label>
             <label><span>Intake channel</span><select onChange={(event) => setDraft((current) => ({ ...current, channel: event.target.value }))} value={draft.channel}><option>Internal observation</option><option>Phone</option><option>Text / message</option><option>Email</option><option>Walk-in</option><option>Inspection</option><option>Vendor update</option></select></label>
-            {needsCustomerContext ? <label><span>Customer / concern</span><input ref={fieldRefs.context} onChange={(event) => setDraft((current) => ({ ...current, customerReference: event.target.value }))} placeholder="Customer name, case, or concern" value={draft.customerReference} /></label> : null}
-            {needsVehicleContext ? <label><span>Vehicle / stock</span><input ref={needsCustomerContext ? undefined : fieldRefs.context} onChange={(event) => setDraft((current) => ({ ...current, vehicleReference: event.target.value }))} placeholder="Vehicle, VIN, or stock number" value={draft.vehicleReference} /></label> : null}
+            {needsCustomerContext ? <label><span>Customer / concern</span><input ref={contextRef} onChange={(event) => setDraft((current) => ({ ...current, customerReference: event.target.value }))} placeholder="Customer name, case, or concern" value={draft.customerReference} /></label> : null}
+            {needsVehicleContext ? <label><span>Vehicle / stock</span><input ref={needsCustomerContext ? undefined : contextRef} onChange={(event) => setDraft((current) => ({ ...current, vehicleReference: event.target.value }))} placeholder="Vehicle, VIN, or stock number" value={draft.vehicleReference} /></label> : null}
             <div className="task-intake-collaborators task-intake-span-2">
               <span>Collaborators</span>
               <p>Add staff who should contribute, receive updates, and retain visibility without becoming the owner.</p>
@@ -573,7 +551,7 @@ export function EnterpriseTaskIntakePrototype({ canAssignOthers = false, current
                 }) : <em>No collaborators added. The task will begin with owner-only visibility.</em>}
               </div>
             </div>
-            <label className="task-intake-span-2"><span>Expected outcome *</span><textarea ref={fieldRefs.expectedOutcome} onChange={(event) => setDraft((current) => ({ ...current, expectedOutcome: event.target.value }))} placeholder="What must be true when this work is finished?" rows={3} value={draft.expectedOutcome} /></label>
+            <label className="task-intake-span-2"><span>Expected outcome *</span><textarea ref={expectedOutcomeRef} onChange={(event) => setDraft((current) => ({ ...current, expectedOutcome: event.target.value }))} placeholder="What must be true when this work is finished?" rows={3} value={draft.expectedOutcome} /></label>
           </div>
 
           <fieldset className="task-intake-required-updates"><legend>Required updates</legend><p>The owner must submit these before completion.</p><div>{updateOptions.map((option) => <label key={option}><input checked={draft.requiredUpdates.includes(option)} onChange={() => toggleRequiredUpdate(option)} type="checkbox" /><span>{option}</span></label>)}</div></fieldset>

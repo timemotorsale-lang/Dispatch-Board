@@ -10,6 +10,7 @@ const config = [{
     ".next-local*/**",
     ".next-review/**",
     ".next-runtime/**",
+    "test-results/**",
     ".worktrees/**"
   ]
 }, ...nextCoreWebVitals, ...nextTypeScript];

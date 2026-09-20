@@ -3,20 +3,45 @@ import { describe, expect, it } from "vitest";
 import { createPrismaClaimsWorkspaceRepository } from "@/server/claims-workspace/prisma-repository";
 import type { InsuranceClaimRecord } from "@/server/claims-workspace/service";
 
+type ClaimRow = InsuranceClaimRecord & {
+  activities: ActivityRow[];
+  createdAt: Date;
+  evidence: EvidenceRow[];
+  organizationId: string;
+  updatedAt: Date;
+};
+type ActivityRow = { action: string; actorUserId: string; at: Date; claimId: string; detail: string; id: string };
+type EvidenceRow = {
+  category: string;
+  claimId: string;
+  createdAt: Date;
+  createdByUserId: string;
+  id: string;
+  relationshipTargets: string[];
+  status: string;
+  title: string;
+};
+type ClaimCreateInput = { data: InsuranceClaimRecord & { organizationId: string } };
+type ClaimFindInput = { where: { id?: string; organizationId: string } };
+type ClaimUpdateInput = { data: Partial<ClaimRow> & { version?: { increment: number } }; where: { id: string } };
+type ActivityCreateInput = { data: ActivityRow };
+type EvidenceCreateInput = { data: EvidenceRow };
+type FakePrisma = ReturnType<typeof fakePrisma>;
+
 function fakePrisma() {
-  const claims: any[] = [];
-  const evidence: any[] = [];
-  const activities: any[] = [];
-  const hydrate = (claim: any) => ({
+  const claims: ClaimRow[] = [];
+  const evidence: EvidenceRow[] = [];
+  const activities: ActivityRow[] = [];
+  const hydrate = (claim: ClaimRow) => ({
     ...claim,
     activities: activities.filter((item) => item.claimId === claim.id).sort((left, right) => right.at.getTime() - left.at.getTime()),
     evidence: evidence.filter((item) => item.claimId === claim.id).sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime())
   });
 
   const prisma = {
-    $transaction: async <T>(callback: (tx: any) => Promise<T>) => callback(prisma),
+    $transaction: async <T>(callback: (tx: FakePrisma) => Promise<T>) => callback(prisma),
     insuranceClaim: {
-      create: async ({ data }: any) => {
+      create: async ({ data }: ClaimCreateInput) => {
         const row = {
           ...data,
           activities: [],
@@ -27,12 +52,12 @@ function fakePrisma() {
         claims.push(row);
         return hydrate(row);
       },
-      findFirst: async ({ where }: any) => {
+      findFirst: async ({ where }: ClaimFindInput) => {
         const row = claims.find((claim) => claim.id === where.id && claim.organizationId === where.organizationId);
         return row ? hydrate(row) : null;
       },
-      findMany: async ({ where }: any) => claims.filter((claim) => claim.organizationId === where.organizationId).map(hydrate),
-      update: async ({ data, where }: any) => {
+      findMany: async ({ where }: ClaimFindInput) => claims.filter((claim) => claim.organizationId === where.organizationId).map(hydrate),
+      update: async ({ data, where }: ClaimUpdateInput) => {
         const row = claims.find((claim) => claim.id === where.id);
         if (!row) throw new Error("missing claim");
         Object.assign(row, {
@@ -44,13 +69,13 @@ function fakePrisma() {
       }
     },
     insuranceClaimActivity: {
-      create: async ({ data }: any) => {
+      create: async ({ data }: ActivityCreateInput) => {
         activities.push(data);
         return data;
       }
     },
     insuranceClaimEvidence: {
-      create: async ({ data }: any) => {
+      create: async ({ data }: EvidenceCreateInput) => {
         evidence.push(data);
         return data;
       }

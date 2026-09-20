@@ -121,4 +121,4 @@ CREATE FUNCTION prevent_readiness_evaluation_mutation() RETURNS trigger AS $$ BE
 CREATE TRIGGER "RepairReadinessEvaluation_prevent_update" BEFORE UPDATE OR DELETE ON "RepairReadinessEvaluation" FOR EACH ROW EXECUTE FUNCTION prevent_readiness_evaluation_mutation();
 
 INSERT INTO "VehicleOperationsFeatureFlag" ("id","organizationId","locationId","code","mode","rolloutPercent","allowedUserIds","version","updatedAt")
-SELECT 'vo-flag-parts-' || "id", "id", NULL, 'PARTS_OPERATIONS', 'OFF', 0, '[]'::jsonb, 1, CURRENT_TIMESTAMP FROM "Organization" ON CONFLICT DO NOTHING;
+SELECT 'vo-flag-parts-' || "id", "id", NULL, 'PARTS_OPERATIONS', 'OFF'::"VehicleOperationsRolloutMode", 0, '[]'::jsonb, 1, CURRENT_TIMESTAMP FROM "Organization" ON CONFLICT DO NOTHING;

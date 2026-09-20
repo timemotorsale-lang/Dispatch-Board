@@ -327,7 +327,7 @@ describe("CRM Next operational read model", () => {
       expect.arrayContaining([
         expect.objectContaining({ href: "/crm-next/needs-attention", label: "Needs Attention", source: "Customer next actions", value: "2" }),
         expect.objectContaining({ href: "/crm-next/pipeline", label: "Hot Leads", source: "Lead engine", value: "2" }),
-        expect.objectContaining({ href: "/crm-next/appointments", label: "Appointments Today", source: "Appointment schedule", value: "3" }),
+        expect.objectContaining({ href: "/appointments", label: "Appointments Today", source: "Appointment schedule", value: "3" }),
         expect.objectContaining({ href: "/crm-next/deals", label: "Deals in Progress", source: "Deal visibility", value: "2" }),
         expect.objectContaining({ href: "/crm-next/needs-attention", label: "Overdue Follow-ups", value: "1" })
       ])

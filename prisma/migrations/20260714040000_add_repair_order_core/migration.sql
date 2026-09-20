@@ -103,5 +103,5 @@ CREATE FUNCTION prevent_repair_order_state_event_mutation() RETURNS trigger AS $
 CREATE TRIGGER "RepairOrderStateEvent_prevent_update" BEFORE UPDATE OR DELETE ON "RepairOrderStateEvent" FOR EACH ROW EXECUTE FUNCTION prevent_repair_order_state_event_mutation();
 
 INSERT INTO "VehicleOperationsFeatureFlag" ("id","organizationId","locationId","code","mode","rolloutPercent","allowedUserIds","version","updatedAt")
-SELECT 'vo-flag-shop-' || "id", "id", NULL, 'SHOP_OPERATIONS', 'OFF', 0, '[]'::jsonb, 1, CURRENT_TIMESTAMP FROM "Organization"
+SELECT 'vo-flag-shop-' || "id", "id", NULL, 'SHOP_OPERATIONS', 'OFF'::"VehicleOperationsRolloutMode", 0, '[]'::jsonb, 1, CURRENT_TIMESTAMP FROM "Organization"
 ON CONFLICT DO NOTHING;

@@ -20,8 +20,8 @@ describe("Customer console home actions", () => {
     expect(markup).toContain("Add Vehicle");
     expect(markup).toContain("Send Message");
     expect(markup).toContain('href="/crm-next/customers"');
-    expect(markup).toContain('href="/crm-next/search"');
     expect(markup).toContain('href="/crm-next/reports/lead-sources"');
+    expect(markup).toContain('placeholder="Search customers, leads, vehicles, deals..."');
     expect(CRM_NEXT_LEAD_SOURCE_REPORT_HREF).toBe("/crm-next/reports/lead-sources");
     expect(markup).not.toContain("/tasks?source=customers");
     expect(markup).not.toContain("/vehicles/workflows/add-vehicle");

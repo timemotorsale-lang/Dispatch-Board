@@ -128,4 +128,4 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER "VehicleEvidenceLink_prevent_update" BEFORE UPDATE OR DELETE ON "VehicleEvidenceLink" FOR EACH ROW EXECUTE FUNCTION prevent_vehicle_evidence_link_mutation();
 
 INSERT INTO "VehicleOperationsFeatureFlag" ("id", "organizationId", "locationId", "code", "mode", "rolloutPercent", "allowedUserIds", "version", "updatedAt")
-SELECT 'vo-flag-vehicle-360-' || "id", "id", NULL, 'VEHICLE_360', 'OFF', 0, '[]'::jsonb, 1, CURRENT_TIMESTAMP FROM "Organization" ON CONFLICT DO NOTHING;
+SELECT 'vo-flag-vehicle-360-' || "id", "id", NULL, 'VEHICLE_360', 'OFF'::"VehicleOperationsRolloutMode", 0, '[]'::jsonb, 1, CURRENT_TIMESTAMP FROM "Organization" ON CONFLICT DO NOTHING;

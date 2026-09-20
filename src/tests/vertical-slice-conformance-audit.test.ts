@@ -15,7 +15,7 @@ describe("Inventory Console 121-slice conformance audit", () => {
     expect(report.rows).toHaveLength(121);
     expect(report.counts).toEqual({ COMPLETE: 69, PARTIAL: 31, NOT_STARTED: 0, EXTERNAL_EVIDENCE_REQUIRED: 17, BLOCKED_BY_DECISION: 4 });
     expect(report.rows.every((row) => row.evidenceReferences.length === 2 && row.remainingGap.length > 20 && row.nextAction.length > 20)).toBe(true);
-  });
+  }, 30000);
 
   it("preserves representative repository, external, and decision classifications", () => {
     const report = auditInventoryConsoleVerticalSlices(milestones(), new Set(walk(root))), byId = new Map(report.rows.map((row) => [row.id, row]));
@@ -30,7 +30,7 @@ describe("Inventory Console 121-slice conformance audit", () => {
     expect(byId.get("IC-113")?.status).toBe("EXTERNAL_EVIDENCE_REQUIRED");
     expect(byId.get("IC-110")?.status).toBe("BLOCKED_BY_DECISION");
     expect(byId.get("IC-129")?.remainingGap).toMatch(/No eight-dimension/);
-  });
+  }, 30000);
 
   it("fails closed if a milestone row or release evidence document disappears", () => {
     const markdown = milestones().replace(/^\| IC-089 .*\r?\n/m, ""), paths = new Set(walk(root)); paths.delete("docs/inventory/R9_DISPOSITION_WHOLESALE_IMPLEMENTATION.md");

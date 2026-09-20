@@ -1,5 +1,9 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@/components/layout/appearance", () => ({
+  useAppearance: () => ({ appearance: "light", setAppearance: vi.fn() })
+}));
 
 import SalesConsoleError from "@/app/(app)/sales/error";
 import SalesConsoleLoading from "@/app/(app)/sales/loading";

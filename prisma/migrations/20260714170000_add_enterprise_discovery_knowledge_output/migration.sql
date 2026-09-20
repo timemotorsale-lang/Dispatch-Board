@@ -92,22 +92,22 @@ END; $$ LANGUAGE plpgsql;
 CREATE TRIGGER "WorkKnowledgeLink_govern_update" BEFORE UPDATE ON "WorkKnowledgeLink" FOR EACH ROW EXECUTE FUNCTION govern_work_knowledge_mutation();
 
 -- Trigram indexes keep capped cross-domain discovery responsive while every query remains organization-scoped.
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
-CREATE INDEX "Vehicle_vehicleNumber_trgm_idx" ON "Vehicle" USING GIN ("vehicleNumber" gin_trgm_ops);
-CREATE INDEX "Vehicle_vin_trgm_idx" ON "Vehicle" USING GIN ("vin" gin_trgm_ops);
-CREATE INDEX "Vehicle_stockNumber_trgm_idx" ON "Vehicle" USING GIN ("stockNumber" gin_trgm_ops);
-CREATE INDEX "Vehicle_licensePlate_trgm_idx" ON "Vehicle" USING GIN ("licensePlate" gin_trgm_ops);
-CREATE INDEX "Customer_customerNumber_trgm_idx" ON "Customer" USING GIN ("customerNumber" gin_trgm_ops);
-CREATE INDEX "Customer_displayName_trgm_idx" ON "Customer" USING GIN ("displayName" gin_trgm_ops);
-CREATE INDEX "RepairOrder_repairOrderNumber_trgm_idx" ON "RepairOrder" USING GIN ("repairOrderNumber" gin_trgm_ops);
-CREATE INDEX "RepairJob_jobNumber_trgm_idx" ON "RepairJob" USING GIN ("jobNumber" gin_trgm_ops);
-CREATE INDEX "RepairJob_description_trgm_idx" ON "RepairJob" USING GIN ("description" gin_trgm_ops);
-CREATE INDEX "Appointment_appointmentNumber_trgm_idx" ON "Appointment" USING GIN ("appointmentNumber" gin_trgm_ops);
-CREATE INDEX "Appointment_title_trgm_idx" ON "Appointment" USING GIN ("title" gin_trgm_ops);
-CREATE INDEX "Part_partNumber_trgm_idx" ON "Part" USING GIN ("partNumber" gin_trgm_ops);
-CREATE INDEX "Part_description_trgm_idx" ON "Part" USING GIN ("description" gin_trgm_ops);
-CREATE INDEX "PartPurchaseOrder_purchaseOrderNumber_trgm_idx" ON "PartPurchaseOrder" USING GIN ("purchaseOrderNumber" gin_trgm_ops);
-CREATE INDEX "VehicleEvidenceObject_fileName_trgm_idx" ON "VehicleEvidenceObject" USING GIN ("fileName" gin_trgm_ops);
+CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;
+CREATE INDEX "Vehicle_vehicleNumber_trgm_idx" ON "Vehicle" USING GIN ("vehicleNumber" public.gin_trgm_ops);
+CREATE INDEX "Vehicle_vin_trgm_idx" ON "Vehicle" USING GIN ("vin" public.gin_trgm_ops);
+CREATE INDEX "Vehicle_stockNumber_trgm_idx" ON "Vehicle" USING GIN ("stockNumber" public.gin_trgm_ops);
+CREATE INDEX "Vehicle_licensePlate_trgm_idx" ON "Vehicle" USING GIN ("licensePlate" public.gin_trgm_ops);
+CREATE INDEX "Customer_customerNumber_trgm_idx" ON "Customer" USING GIN ("customerNumber" public.gin_trgm_ops);
+CREATE INDEX "Customer_displayName_trgm_idx" ON "Customer" USING GIN ("displayName" public.gin_trgm_ops);
+CREATE INDEX "RepairOrder_repairOrderNumber_trgm_idx" ON "RepairOrder" USING GIN ("repairOrderNumber" public.gin_trgm_ops);
+CREATE INDEX "RepairJob_jobNumber_trgm_idx" ON "RepairJob" USING GIN ("jobNumber" public.gin_trgm_ops);
+CREATE INDEX "RepairJob_description_trgm_idx" ON "RepairJob" USING GIN ("description" public.gin_trgm_ops);
+CREATE INDEX "Appointment_appointmentNumber_trgm_idx" ON "Appointment" USING GIN ("appointmentNumber" public.gin_trgm_ops);
+CREATE INDEX "Appointment_title_trgm_idx" ON "Appointment" USING GIN ("title" public.gin_trgm_ops);
+CREATE INDEX "Part_partNumber_trgm_idx" ON "Part" USING GIN ("partNumber" public.gin_trgm_ops);
+CREATE INDEX "Part_description_trgm_idx" ON "Part" USING GIN ("description" public.gin_trgm_ops);
+CREATE INDEX "PartPurchaseOrder_purchaseOrderNumber_trgm_idx" ON "PartPurchaseOrder" USING GIN ("purchaseOrderNumber" public.gin_trgm_ops);
+CREATE INDEX "VehicleEvidenceObject_fileName_trgm_idx" ON "VehicleEvidenceObject" USING GIN ("fileName" public.gin_trgm_ops);
 
 INSERT INTO "VehicleOperationsFeatureFlag" ("id","organizationId","locationId","code","mode","rolloutPercent","allowedUserIds","version","updatedAt")
-SELECT 'vo-flag-discovery-' || "id", "id", NULL, 'VEHICLE_DISCOVERY', 'OFF', 0, '[]'::jsonb, 1, CURRENT_TIMESTAMP FROM "Organization" ON CONFLICT DO NOTHING;
+SELECT 'vo-flag-discovery-' || "id", "id", NULL, 'VEHICLE_DISCOVERY', 'OFF'::"VehicleOperationsRolloutMode", 0, '[]'::jsonb, 1, CURRENT_TIMESTAMP FROM "Organization" ON CONFLICT DO NOTHING;

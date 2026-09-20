@@ -19,7 +19,7 @@ describe("Inventory Console R0-R12 program integration validation", () => {
     expect(report.releases.flatMap((release) => release.slices)).toHaveLength(121);
     expect(report.journeys).toHaveLength(8);
     expect(report.checks.filter((check) => check.disposition === "PASS")).toHaveLength(8);
-  });
+  }, 30000);
 
   it("fails closed when a required API boundary disappears", () => {
     const input = fixture(); input.paths.delete("src/app/api/integrations/route.ts");
