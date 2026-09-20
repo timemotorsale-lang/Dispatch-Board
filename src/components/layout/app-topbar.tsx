@@ -112,6 +112,10 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
   const breadcrumb = roleWorkspace && !technicianOnly
     ? [activeWorkspaceDefinition.label, activeNavigationItem?.title ?? "Workspace"]
     : getAppBreadcrumb(pathname, dispatchView, technicianOnly, crmView);
+  const firstBreadcrumb = typeof breadcrumb[0] === "string" ? { label: breadcrumb[0] } : breadcrumb[0];
+  const visibleBreadcrumb = firstBreadcrumb?.label === "Command Control Center"
+    ? breadcrumb.slice(1)
+    : breadcrumb;
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
@@ -217,12 +221,12 @@ export function AppTopbar({ commandCenterHome, containedWorkspace = false, onMen
       ) : null}
       <WorkspaceSwitcher preferredWorkspace={preferredWorkspace} user={user} />
       <nav aria-label="Workspace breadcrumb" className="ccc-breadcrumb">
-        {breadcrumb.map((part, index) => {
+        {visibleBreadcrumb.map((part, index) => {
           const item = typeof part === "string" ? { label: part } : part;
           return (
-          <span className={index === breadcrumb.length - 1 ? "ccc-breadcrumb-current" : ""} key={`${item.label}-${index}`}>
-            {item.href && index < breadcrumb.length ? <Link href={item.href}>{item.label}</Link> : item.label}
-            {index < breadcrumb.length - 1 ? <i aria-hidden="true">/</i> : null}
+          <span className={index === visibleBreadcrumb.length - 1 ? "ccc-breadcrumb-current" : ""} key={`${item.label}-${index}`}>
+            {item.href && index < visibleBreadcrumb.length ? <Link href={item.href}>{item.label}</Link> : item.label}
+            {index < visibleBreadcrumb.length - 1 ? <i aria-hidden="true">/</i> : null}
           </span>
         )})}
       </nav>

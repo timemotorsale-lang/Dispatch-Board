@@ -8614,8 +8614,6 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
 .ccc-breadcrumb i { color: #5f7187; font-style: normal; }
 .ccc-breadcrumb-current { color: #fff; font-weight: 800; }
 .ccc-breadcrumb a { color: inherit; }
-.ccc-breadcrumb span:first-child { display: none; }
-.ccc-breadcrumb span:first-child + span i { display: none; }
 .ccc-breadcrumb span { min-width: 0; }
 .ccc-breadcrumb span a,
 .ccc-breadcrumb-current {
@@ -28476,6 +28474,28 @@ html[data-app-theme="dark"] .customer-console .customer-home-metric-card p svg {
 
 .customer-console .customer-home-layout {
   grid-template-columns: minmax(0, 1fr) minmax(280px, 22vw);
+}
+
+@media (max-width: 1280px) {
+  .customer-console .customer-home-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 24vw);
+  }
+}
+
+@media (max-width: 1050px) {
+  .customer-console .customer-home-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .customer-console .customer-home-rail {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .customer-console .customer-home-rail {
+    grid-template-columns: 1fr;
+  }
 }
 
 .customer-home-metrics {
