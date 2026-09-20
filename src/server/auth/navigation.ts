@@ -1,4 +1,5 @@
 import type { AuthenticatedUser } from "./store";
+import { canOpenDocumentLibrary } from "@/server/document-library/permission-policy";
 
 const TECHNICIAN_ROLE_NAMES = new Set(["Mechanic", "Technician"]);
 
@@ -161,6 +162,7 @@ const ROUTE_WORKSPACES: Array<{ prefix: string; workspaces: WorkspaceKey[] }> = 
   { prefix: "/settings/password", workspaces: [...WORKSPACE_KEYS] },
   { prefix: "/settings", workspaces: ["MANAGEMENT"] },
   { prefix: "/integrations", workspaces: ["MANAGEMENT"] },
+  { prefix: "/documents", workspaces: [...WORKSPACE_KEYS] },
   { prefix: "/reports", workspaces: ["MANAGEMENT", "VEHICLE_OPERATIONS_LEAD", "INVENTORY", "SERVICE"] },
   { prefix: "/manager-review", workspaces: ["MANAGEMENT", "VEHICLE_OPERATIONS_LEAD", "INVENTORY", "SERVICE"] },
   { prefix: "/staff", workspaces: ["MANAGEMENT", "VEHICLE_OPERATIONS_LEAD", "SERVICE"] },
@@ -335,6 +337,9 @@ export function isRoutePermittedForUser(user: AuthenticatedUser, route: string) 
   const safe = getSafePostLoginRedirect(route, "");
   if (!safe) return false;
   const pathname = normalizedPath(safe);
+  if (hasRoutePrefix(pathname, "/documents")) {
+    return canOpenDocumentLibrary(user);
+  }
   const contract = ROUTE_WORKSPACES.find((candidate) => hasRoutePrefix(pathname, candidate.prefix));
   if (!contract) return false;
   const permittedKeys = new Set(getPermittedWorkspaces(user).map((workspace) => workspace.key));
