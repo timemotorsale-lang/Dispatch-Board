@@ -3,7 +3,9 @@
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { Moon, Sun } from "lucide-react";
 
+import { useAppearance } from "@/components/layout/appearance";
 import { CRM_NEXT_DEAL_START_HREF } from "@/features/crm/crm-route-authority";
 import { salesConsoleMvpAcceptanceChecklist, salesConsoleSourceHealthSummary } from "./sales-console-mvp-release-hardening";
 import { salesConsoleM64ConnectedMvpGate, salesConsoleM64ReadyCount } from "./sales-console-m64-connected-mvp-deployment-gate";
@@ -349,6 +351,7 @@ const actionTone: Record<ActionState, string> = {
 
 export function SalesConsoleEliteOperatingConsole({ initialSearchParams }: { initialSearchParams?: URLSearchParams } = {}) {
   const routeSearchParams = useSearchParams();
+  const { appearance, setAppearance } = useAppearance();
   const searchParams = initialSearchParams ?? routeSearchParams;
   const initialCustomerId = searchParams?.get("customerId") ?? null;
   const initialCustomerName = searchParams?.get("customerName") ?? null;
@@ -638,7 +641,11 @@ export function SalesConsoleEliteOperatingConsole({ initialSearchParams }: { ini
   }
 
   return (
-    <main className={styles.console} aria-label="Elite enterprise Sales Console operational MVP">
+    <main
+      className={`${styles.console} ${appearance === "dark" ? styles.consoleDark : styles.consoleLight}`}
+      data-theme={appearance}
+      aria-label="Elite enterprise Sales Console operational MVP"
+    >
       <aside className={styles.sidebar}>
         <div className={styles.brand}>
           <div className={styles.brandMark}>TMS</div>
@@ -693,6 +700,28 @@ export function SalesConsoleEliteOperatingConsole({ initialSearchParams }: { ini
             />
           </label>
           <button type="button">TMS-001</button>
+          <div className={styles.themeSwitch} aria-label="Sales console appearance" role="group">
+            <button
+              aria-label="Use light background"
+              aria-pressed={appearance === "light"}
+              className={appearance === "light" ? styles.activeTheme : undefined}
+              onClick={() => setAppearance("light")}
+              type="button"
+            >
+              <Sun size={14} />
+              Light
+            </button>
+            <button
+              aria-label="Use dark background"
+              aria-pressed={appearance === "dark"}
+              className={appearance === "dark" ? styles.activeTheme : undefined}
+              onClick={() => setAppearance("dark")}
+              type="button"
+            >
+              <Moon size={14} />
+              Dark
+            </button>
+          </div>
           <select
             aria-label="Role context"
             className={styles.roleSelect}

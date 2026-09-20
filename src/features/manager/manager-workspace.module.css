@@ -10,11 +10,11 @@
 
 /* Reading comfort: the manager home is a decision surface, so core copy needs to read larger than dense chrome. */
 .workspace {
-  --manager-readable: 15px;
-  --manager-copy: 14px;
+  --manager-readable: var(--text-readable);
+  --manager-copy: 15px;
   --manager-compact: 13px;
   --manager-meta: 12.5px;
-  --manager-leading-readable: 1.48;
+  --manager-leading-readable: var(--leading-readable);
   --manager-leading-compact: 1.35;
 }
 

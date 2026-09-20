@@ -203,6 +203,39 @@
   min-height: 36px;
 }
 
+.themeSwitch {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 36px;
+  border: 1px solid #344667;
+  border-radius: 10px;
+  padding: 3px;
+  background: #111d34;
+}
+
+.themeSwitch button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  border: 0;
+  border-radius: 7px;
+  padding: 0 9px;
+  background: transparent;
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.themeSwitch button:hover,
+.themeSwitch button:focus-visible,
+.activeTheme {
+  background: #3157d5 !important;
+  color: #fff !important;
+  outline: none;
+}
+
 .integrationStrip {
   display: flex;
   flex-wrap: wrap;
@@ -1428,6 +1461,8 @@
   display: grid;
   place-items: center;
   align-content: center;
+  justify-items: center;
+  min-width: 0;
   min-height: 120px;
   border: 1px solid #bbf7d0;
   border-radius: 12px;
@@ -1454,6 +1489,10 @@
   margin-top: 7px;
   color: inherit;
   font-size: 11px;
+  line-height: 1.2;
+  max-width: 100%;
+  overflow-wrap: normal;
+  word-break: normal;
   text-align: center;
 }
 
@@ -2930,4 +2969,357 @@
   border-color: #344a64;
   color: #94a3b8;
   opacity: .78;
+}
+
+.consoleLight {
+  background: #f4f7fb;
+  color: #0f172a;
+}
+
+.consoleDark {
+  color-scheme: dark;
+}
+
+.consoleLight .sidebar {
+  background: linear-gradient(180deg, #ffffff, #eef4ff);
+  color: #10213d;
+  border-right: 1px solid #d9e3f2;
+}
+
+.consoleLight .brand {
+  border-bottom-color: #d9e3f2;
+}
+
+.consoleLight .brandMark {
+  background: #1d4ed8;
+  color: #fff;
+}
+
+.consoleLight .brand span {
+  color: #34445b;
+  font-weight: 750;
+}
+
+.consoleLight .salesMode,
+.consoleLight .actionKey {
+  background: #f8fbff;
+  border-color: #cbd8ea;
+  color: #10213d;
+}
+
+.consoleLight .salesMode em,
+.consoleLight .actionKey h2 {
+  color: #3c7253;
+}
+
+.consoleLight .nav button {
+  color: #1f3657;
+}
+
+.consoleLight .main {
+  background: #f4f7fb;
+}
+
+.consoleLight .topbar {
+  background: #ffffff;
+  border-bottom: 1px solid #d9e3f2;
+  color: #10213d;
+}
+
+.consoleLight .topbar button,
+.consoleLight .roleSelect,
+.consoleLight .filters button,
+.consoleLight .filters select,
+.consoleLight .topbarReturnLink,
+.consoleLight .themeSwitch {
+  background: #f8fbff;
+  border-color: #c7d5ea;
+  color: #10213d;
+}
+
+.consoleLight .topbarReturnLink:hover,
+.consoleLight .topbarReturnLink:focus-visible,
+.consoleLight .themeSwitch button:hover,
+.consoleLight .themeSwitch button:focus-visible {
+  background: #edf4ff;
+  border-color: #7ea7ed;
+  color: #0f48a7;
+}
+
+.consoleLight .themeSwitch button {
+  color: #263a55;
+  font-weight: 900;
+}
+
+.consoleLight .activeTheme {
+  background: #3157d5 !important;
+  color: #fff !important;
+}
+
+.consoleLight .search {
+  background: #f8fbff;
+  border-color: #c7d5ea;
+  color: #10213d;
+}
+
+.consoleLight .search span {
+  color: #3157d5;
+}
+
+.consoleLight .search input {
+  color: #10213d;
+}
+
+.consoleLight .search input::placeholder {
+  color: #3e5068;
+}
+
+.consoleLight .sourceCheckCue {
+  color: #3157d5;
+  font-weight: 950;
+}
+
+.consoleLight .integrationStrip,
+.consoleLight .intentHero,
+.consoleLight .intentDetail,
+.consoleLight .intentSummary,
+.consoleLight .intentFacts,
+.consoleLight .intentSteps,
+.consoleLight .intentGuardrail,
+.consoleLight .executionCommand,
+.consoleLight .trustedMetrics,
+.consoleLight .workQueue,
+.consoleLight .revenueDesk,
+.consoleLight .inventory,
+.consoleLight .customer360,
+.consoleLight .managerRail,
+.consoleLight .leadDetail,
+.consoleLight .pipelinePanel article,
+.consoleLight .supportPanel article,
+.consoleLight .releasePanel,
+.consoleLight .guidedPath,
+.consoleLight .workspaceRelationship article,
+.consoleLight .queueTruth,
+.consoleLight .sourceBackedState,
+.consoleLight .sourceGrid article,
+.consoleLight .releaseGrid span,
+.consoleLight .revenueDeskHero,
+.consoleLight .revenueDeskCommand article,
+.consoleLight .proofChecklist,
+.consoleLight .approvedToolGrid,
+.consoleLight .sourceCheckList,
+.consoleLight .workbenchNow,
+.consoleLight .workbenchToolBelt,
+.consoleLight .workbenchFinish,
+.consoleLight .table,
+.consoleLight .tableRow,
+.consoleLight .emptyGroup {
+  background: #ffffff;
+  border-color: #d8e2ef;
+  color: #10213d;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, .045);
+}
+
+.consoleLight .intentGrid button,
+.consoleLight .intentGrid a,
+.consoleLight .queueStats button,
+.consoleLight .executionFacts span,
+.consoleLight .trustedMetrics > section > div,
+.consoleLight .trustedMetrics button,
+.consoleLight .workspaceContract span,
+.consoleLight .proofChecklist span,
+.consoleLight .sourceCheckList span,
+.consoleLight .sourceCheckList a,
+.consoleLight .laneCard,
+.consoleLight .workbenchReturnLinks a,
+.consoleLight .workbenchTruthStatus span,
+.consoleLight .workbenchToolBelt button,
+.consoleLight .workbenchFinish button,
+.consoleLight .sectionHeader button,
+.consoleLight .sourceLinkRow a,
+.consoleLight .railActionRow a,
+.consoleLight .filters select,
+.consoleLight .filters button {
+  background: #f8fbff;
+  border-color: #d5e0ef;
+  color: #10213d;
+  box-shadow: none;
+}
+
+.consoleLight .intentGrid button:hover,
+.consoleLight .intentGrid button:focus-visible,
+.consoleLight .intentGrid a:hover,
+.consoleLight .intentGrid a:focus-visible,
+.consoleLight .activeIntent,
+.consoleLight .queueStats button:hover,
+.consoleLight .queueStats button:focus-visible,
+.consoleLight .sectionHeader button:hover,
+.consoleLight .sectionHeader button:focus-visible,
+.consoleLight .workbenchFinish button:hover,
+.consoleLight .workbenchFinish button:focus-visible,
+.consoleLight .workbenchToolBelt button:hover,
+.consoleLight .workbenchToolBelt button:focus-visible {
+  background: #edf4ff !important;
+  border-color: #3157d5 !important;
+  color: #10213d !important;
+}
+
+.consoleLight .intentHero h1,
+.consoleLight .intentGrid strong,
+.consoleLight .intentSummary h2,
+.consoleLight .intentFacts h3,
+.consoleLight .intentSteps h3,
+.consoleLight .intentGuardrail h3,
+.consoleLight .executionPrimary h1,
+.consoleLight .executionFacts strong,
+.consoleLight .trustedMetrics summary strong,
+.consoleLight .trustedMetrics h2,
+.consoleLight .trustedMetrics strong,
+.consoleLight .workspaceContract strong,
+.consoleLight .leadDetail strong,
+.consoleLight .pipelinePanel strong,
+.consoleLight .supportPanel strong,
+.consoleLight .revenueDeskHero h1,
+.consoleLight .revenueDeskCommand strong,
+.consoleLight .proofChecklist h3,
+.consoleLight .proofChecklist strong,
+.consoleLight .approvedToolGrid h3,
+.consoleLight .sourceCheckList h3,
+.consoleLight .sectionHeader h1,
+.consoleLight .sectionHeader h2,
+.consoleLight .managerRail h2,
+.consoleLight .customer360 h2,
+.consoleLight .truthHeader h2,
+.consoleLight .guidedPath h3,
+.consoleLight .guidedPath h4,
+.consoleLight .workspaceRelationship strong,
+.consoleLight .queueStats strong,
+.consoleLight .sourceGrid strong,
+.consoleLight .workbenchNow h4,
+.consoleLight .workbenchToolBelt button strong,
+.consoleLight .tableRow strong {
+  color: #10213d;
+}
+
+.consoleLight .intentHero p,
+.consoleLight .intentGrid span,
+.consoleLight .intentGrid em,
+.consoleLight .intentSummary p,
+.consoleLight .intentGuardrail p,
+.consoleLight .intentFacts ul,
+.consoleLight .intentSteps ol,
+.consoleLight .intentFacts li,
+.consoleLight .intentSteps li,
+.consoleLight .executionPrimary p,
+.consoleLight .executionFacts span,
+.consoleLight .trustedMetrics summary span,
+.consoleLight .trustedMetrics summary em,
+.consoleLight .trustedMetrics p,
+.consoleLight .trustedMetrics em,
+.consoleLight .trustedMetrics small,
+.consoleLight .workspaceContract span,
+.consoleLight .leadGrid span,
+.consoleLight .leadDetail span,
+.consoleLight .pipelinePanel span,
+.consoleLight .supportPanel span,
+.consoleLight .revenueDeskCommand span,
+.consoleLight .revenueDeskCommand small,
+.consoleLight .proofChecklist em,
+.consoleLight .sourceCheckList span,
+.consoleLight .queueStats span,
+.consoleLight .queueStats em,
+.consoleLight .queueTruth span,
+.consoleLight .sourceBackedState span,
+.consoleLight .sourceBackedState a,
+.consoleLight .sourceGrid span,
+.consoleLight .sourceGrid em,
+.consoleLight .workspaceRelationship span,
+.consoleLight .truthHeader p,
+.consoleLight .guidedPath header p,
+.consoleLight .workbenchNow p,
+.consoleLight .workbenchNow small,
+.consoleLight .workbenchFinish p,
+.consoleLight .workbenchFinish button small,
+.consoleLight .nextGuidedAction p,
+.consoleLight .nextGuidedAction small,
+.consoleLight .releasePanel p,
+.consoleLight .revenueDeskHero span,
+.consoleLight .revenueDeskHero p,
+.consoleLight .tableRow span,
+.consoleLight .tableRow em {
+  color: #34445b;
+  font-weight: 650;
+}
+
+.consoleLight .revenueDeskHero > strong {
+  flex: none;
+  overflow: hidden;
+  padding: 12px;
+  font-size: 34px !important;
+}
+
+.consoleLight .revenueDeskHero > strong span {
+  display: block;
+  font-size: 11px !important;
+  font-weight: 950;
+  letter-spacing: 0.06em;
+  line-height: 1.2 !important;
+}
+
+.consoleLight .intentHero > strong,
+.consoleLight .integrationStrip a,
+.consoleLight .sourceBackedState strong,
+.consoleLight .laneChip,
+.consoleLight .freshness,
+.consoleLight .live,
+.consoleLight .controlled,
+.consoleLight .source,
+.consoleLight .future,
+.consoleLight .workbenchTruthStatus span,
+.consoleLight .intentGuardrail strong,
+.consoleLight .trustedMetrics summary,
+.consoleLight .executionFacts span,
+.consoleLight .workspaceContract span,
+.consoleLight .proofChecklist span[data-status="Ready"],
+.consoleLight .proofChecklist span[data-status="Review"],
+.consoleLight .proofChecklist span[data-status="Missing"],
+.consoleLight .workbenchFinish button em,
+.consoleLight .revenueDeskHero > strong,
+.consoleLight .revenueDeskHero > strong[data-status="Needs proof"],
+.consoleLight .revenueDeskHero > strong[data-status="Manager review required"],
+.consoleLight .revenueDeskHero > strong[data-status="Blocked"] {
+  background: #fff7ed;
+  border-color: #fed7aa;
+  color: #9a3412;
+}
+
+.consoleLight .tableHead,
+.consoleLight .workGroupHeader {
+  background: #edf4ff;
+  border-color: #d5e0ef;
+  color: #334963;
+}
+
+.consoleLight .tableRow:hover,
+.consoleLight .selectedRow {
+  background: #eef4ff !important;
+}
+
+.consoleLight .trustedMetrics button > span,
+.consoleLight .trustedMetrics button[data-status="Not wired"] > span {
+  color: #3157d5;
+}
+
+.consoleLight .workbenchNow button,
+.consoleLight .workbenchFinish button[aria-pressed="true"] {
+  background: #3157d5;
+  border-color: #3157d5;
+  color: #fff;
+}
+
+.consoleLight .workbenchToolBelt button:disabled,
+.consoleLight .workbenchFinish button:disabled {
+  background: #eef2f7;
+  border-color: #d6e0ec;
+  color: #7a8aa0;
 }

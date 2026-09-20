@@ -28383,6 +28383,127 @@ html[data-app-theme="dark"] .customer-console .customer-home-metric-card p svg {
   line-height: var(--leading-compact);
 }
 
+/* Review comfort pass: make reading surfaces visibly calmer without zooming chrome. */
+.app-content :is(
+  [class*="page" i],
+  [class*="console" i],
+  [class*="workspace" i],
+  [class*="home" i],
+  [class*="board" i],
+  [class*="detail" i],
+  [class*="panel" i],
+  [class*="card" i],
+  [class*="rail" i],
+  [class*="feed" i],
+  [class*="activity" i],
+  [class*="timeline" i],
+  [class*="comment" i],
+  [class*="note" i],
+  [class*="empty" i]
+) :is(
+  p,
+  li,
+  dd,
+  blockquote,
+  [class*="copy" i],
+  [class*="description" i],
+  [class*="subtitle" i],
+  [class*="helper" i],
+  [class*="hint" i],
+  [class*="notice" i],
+  [class*="empty" i],
+  [class*="comment" i],
+  [class*="message" i],
+  [class*="note" i],
+  [class*="reason" i],
+  [class*="guidance" i],
+  [class*="excerpt" i]
+) {
+  color: var(--muted-readable);
+  font-size: var(--text-readable) !important;
+  line-height: var(--leading-readable) !important;
+  overflow-wrap: anywhere;
+}
+
+.app-content :is(
+  [class*="card" i],
+  [class*="panel" i],
+  [class*="rail" i],
+  [class*="tile" i],
+  [class*="item" i],
+  [class*="summary" i],
+  [class*="metric" i],
+  [class*="stat" i]
+) {
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.app-content :is(
+  [class*="card" i],
+  [class*="panel" i],
+  [class*="rail" i],
+  [class*="tile" i],
+  [class*="item" i],
+  [class*="summary" i]
+) :is(span, small, em, dd) {
+  overflow-wrap: anywhere;
+}
+
+.app-content :is(
+  button,
+  input,
+  select,
+  nav,
+  table,
+  thead,
+  tbody,
+  tfoot,
+  th,
+  td,
+  [role="tab"],
+  [role="tablist"],
+  [class*="badge" i],
+  [class*="pill" i],
+  [class*="chip" i],
+  [class*="tag" i],
+  [class*="status" i],
+  [class*="toolbar" i],
+  [class*="switcher" i],
+  [class*="tabs" i],
+  [class*="actions" i],
+  [class*="button" i],
+  [class*="icon" i]
+) :is(p, span, small, strong, b, em, dt, dd, label),
+.app-content :is(
+  button,
+  input,
+  select,
+  nav,
+  table,
+  thead,
+  tbody,
+  tfoot,
+  th,
+  td,
+  [role="tab"],
+  [role="tablist"],
+  [class*="badge" i],
+  [class*="pill" i],
+  [class*="chip" i],
+  [class*="tag" i],
+  [class*="status" i],
+  [class*="toolbar" i],
+  [class*="switcher" i],
+  [class*="tabs" i],
+  [class*="actions" i],
+  [class*="button" i],
+  [class*="icon" i]
+) {
+  font-size: inherit;
+  line-height: var(--leading-compact);
+}
+
 .advisor-coo-workbook.full .advisor-coo-landing-header span,
 .advisor-coo-workbook.full .advisor-coo-workflow-guide article span,
 .advisor-coo-workbook.full .advisor-staff-execution-home > header small,
