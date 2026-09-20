@@ -29646,3 +29646,214 @@ html[data-app-theme="dark"] .app-content .outside-vendor-directory .outside-vend
   color: var(--muted) !important;
 }
 
+/* Global color-variable hardening: make older feature CSS inherit the app theme system. */
+html[data-app-theme="dark"] .app-content {
+  --blue: var(--app-primary);
+  --navy: var(--app-bg-strong);
+  --ink: var(--app-text);
+  --muted: var(--app-text-muted);
+  --line: var(--app-border);
+  --surface: var(--app-surface);
+  --surface-soft: var(--app-surface-soft);
+  --surface-strong: var(--app-surface-strong);
+  --success: var(--app-success);
+  --success-soft: var(--app-success-soft);
+  --warning: var(--app-warning);
+  --warning-soft: var(--app-warning-soft);
+  --danger: var(--app-danger);
+  --danger-soft: var(--app-danger-soft);
+}
+
+html[data-app-theme="dark"] .app-content :where(
+  [class*="workspace" i],
+  [class*="console" i],
+  [class*="page" i],
+  [class*="shell" i],
+  [class*="desk" i],
+  [class*="hub" i],
+  [class*="portal" i],
+  [class*="registry" i],
+  [class*="library" i]
+) {
+  --blue: var(--app-primary);
+  --navy: var(--app-bg-strong);
+  --ink: var(--app-text);
+  --muted: var(--app-text-muted);
+  --line: var(--app-border);
+  --surface: var(--app-surface);
+  --surface-soft: var(--app-surface-soft);
+  --surface-strong: var(--app-surface-strong);
+  --success: var(--app-success);
+  --success-soft: var(--app-success-soft);
+  --warning: var(--app-warning);
+  --warning-soft: var(--app-warning-soft);
+  --danger: var(--app-danger);
+  --danger-soft: var(--app-danger-soft);
+  --document-bg: var(--app-bg);
+  --document-surface: var(--app-surface);
+  --document-surface-soft: var(--app-surface-soft);
+  --document-surface-raised: var(--app-surface-strong);
+  --document-line: var(--app-border);
+  --document-line-strong: var(--app-border-strong);
+  --document-text: var(--app-text);
+  --document-muted: var(--app-text-muted);
+  --document-faint: var(--app-text-subtle);
+  --document-accent: var(--app-primary);
+  --document-accent-soft: var(--app-primary-soft);
+  --document-success: var(--app-success);
+  --document-success-soft: var(--app-success-soft);
+  --document-warning: var(--app-warning);
+  --document-warning-soft: var(--app-warning-soft);
+  --document-danger: var(--app-danger);
+  --document-danger-soft: var(--app-danger-soft);
+  --document-info: var(--app-primary);
+  --document-info-soft: var(--app-primary-soft);
+}
+
+html[data-app-theme="dark"] .app-content :where(
+  .panel-card,
+  .hero-panel,
+  [class*="card" i],
+  [class*="panel" i],
+  [class*="tile" i],
+  [class*="box" i],
+  [class*="drawer" i],
+  [class*="module" i],
+  [class*="surface" i],
+  [class*="paper" i],
+  [class*="summary" i],
+  [class*="metric" i],
+  [class*="fact" i],
+  [class*="record" i],
+  [class*="ledger" i],
+  [class*="queue" i],
+  [class*="list" i],
+  [class*="empty" i],
+  [class*="popover" i],
+  [class*="menu" i],
+  [class*="modal" i],
+  [class*="dialog" i]
+):not([class*="primary" i]):not([class*="active" i]):not([class*="selected" i]):not([class*="success" i]):not([class*="ready" i]):not([class*="complete" i]):not([class*="live" i]):not([class*="warning" i]):not([class*="attention" i]):not([class*="danger" i]):not([class*="error" i]):not([class*="photo" i]):not([class*="chart" i]) {
+  background: var(--surface) !important;
+  background-color: var(--surface) !important;
+  border-color: var(--line) !important;
+  color: var(--ink) !important;
+  box-shadow: none !important;
+}
+
+html[data-app-theme="dark"] .app-content :where(
+  [class*="row" i],
+  [class*="item" i],
+  [class*="cell" i],
+  [class*="strip" i],
+  [class*="toolbar" i],
+  [class*="header" i],
+  [class*="footer" i],
+  [class*="nav" i],
+  [class*="tab" i],
+  [class*="field" i],
+  [class*="control" i],
+  [class*="search" i],
+  [class*="filter" i],
+  [class*="option" i],
+  [class*="result" i],
+  [class*="link" i],
+  [class*="action" i],
+  [class*="button" i],
+  [class*="pill" i],
+  [class*="chip" i],
+  [class*="badge" i],
+  [class*="tag" i],
+  [class*="token" i],
+  [class*="count" i],
+  [class*="counter" i],
+  [class*="indicator" i],
+  li,
+  summary,
+  dl > div
+):not([class*="primary" i]):not([class*="active" i]):not([class*="selected" i]):not([class*="success" i]):not([class*="ready" i]):not([class*="complete" i]):not([class*="live" i]):not([class*="warning" i]):not([class*="attention" i]):not([class*="danger" i]):not([class*="error" i]):not([class*="photo" i]):not([class*="chart" i]) {
+  background: var(--surface-soft) !important;
+  background-color: var(--surface-soft) !important;
+  border-color: var(--line-strong) !important;
+  color: var(--ink) !important;
+  box-shadow: none !important;
+}
+
+html[data-app-theme="dark"] .app-content :where(
+  input,
+  select,
+  textarea,
+  [contenteditable="true"],
+  [class*="input" i],
+  [class*="select" i],
+  [class*="textarea" i]
+) {
+  background: var(--surface-soft) !important;
+  background-color: var(--surface-soft) !important;
+  border-color: var(--line-strong) !important;
+  color: var(--ink) !important;
+  color-scheme: dark;
+}
+
+html[data-app-theme="dark"] .app-content :where(
+  h1,h2,h3,h4,h5,h6,strong,b,dt,dd,th,td,label,legend,
+  .title,
+  [class*="title" i],
+  [class*="heading" i]
+) {
+  color: var(--ink) !important;
+}
+
+html[data-app-theme="dark"] .app-content :where(
+  p,span,small,li,em,time,figcaption,
+  [class*="copy" i],
+  [class*="description" i],
+  [class*="subtitle" i],
+  [class*="meta" i],
+  [class*="muted" i],
+  [class*="hint" i],
+  [class*="help" i]
+) {
+  color: var(--muted) !important;
+}
+
+html[data-app-theme="dark"] .app-content :where(
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  a[class],
+  .button,
+  [class*="button" i]
+) :where(span,small,strong,b,em) {
+  color: inherit !important;
+}
+
+html[data-app-theme="dark"] .app-content :where(
+  [class*="primary" i],
+  [class*="active" i],
+  [class*="selected" i],
+  [aria-current="page"],
+  [aria-pressed="true"]
+) {
+  border-color: var(--app-primary-strong) !important;
+}
+
+html[data-app-theme="dark"] .app-content :where(
+  button:disabled,
+  [aria-disabled="true"],
+  [class*="disabled" i]
+) {
+  background: var(--surface-soft) !important;
+  background-color: var(--surface-soft) !important;
+  border-color: var(--line-strong) !important;
+  color: var(--muted) !important;
+  opacity: .94 !important;
+}
+
+html[data-app-theme="dark"] .app-content :where(
+  button:disabled,
+  [aria-disabled="true"],
+  [class*="disabled" i]
+) :where(span,small,strong,b,em) {
+  color: inherit !important;
+}
+
