@@ -152,6 +152,69 @@
 .evidenceCard header>svg { color:#4261a2; }
 .evidenceCard header small { color:#6f8096; font-size:.72rem; font-weight:800; text-transform:uppercase; }
 .cardActions { margin-top:12px; }
+
+/* Reading comfort: make inventory detail copy easier to scan without changing the grids. */
+.identityCopy p,
+.sectionHeading p,
+.panel p,
+.truthCard p,
+.safetyPreview p,
+.timeline p,
+.nextPanel p,
+.empty p,
+.safetyBoundary p,
+.recallCard p,
+.recallCard details,
+.intelligenceNote p,
+.recordCard p,
+.photoPlaceholder p,
+.angleChecklist p,
+.photoStats span {
+  color:#52657d;
+  font-size:var(--text-readable);
+  line-height:var(--leading-readable);
+}
+
+.factGrid dd,
+.originGrid dd,
+.sideFacts dd,
+.sourceList dd,
+.factList dd,
+.recordCard dd,
+.evidenceCard dd,
+.photoMeta dd,
+.timeline strong,
+.truthCard strong,
+.nextAction strong,
+.safetyBoundary strong,
+.intelligenceNote strong,
+.recordCard h3,
+.evidenceCard h3 {
+  font-size:var(--text-compact);
+  line-height:var(--leading-compact);
+}
+
+.identityCopy small,
+.sectionHeading small,
+.nextPanel>small,
+.recordCard>small,
+.factGrid dt,
+.originGrid dt,
+.sideFacts dt,
+.sourceList dt,
+.factList dt,
+.recordCard dt,
+.evidenceCard dt,
+.originGrid small,
+.factList small,
+.timeline small,
+.timeline time,
+.photoStats small,
+.photoMeta dt,
+.evidenceCard header small {
+  font-size:var(--text-meta);
+  line-height:var(--leading-compact);
+}
 @media(max-width:1180px){.truthGrid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:1050px){.identityRow{grid-template-columns:70px 1fr}.heroActions{grid-column:1/-1;justify-content:flex-start;max-width:none}.overviewLayout{grid-template-columns:1fr}.sideRail{grid-template-columns:repeat(2,minmax(0,1fr))}.nextPanel{grid-column:1/-1}}
 @media(max-width:900px){.walkaroundLayout,.photoStats{grid-template-columns:1fr}.angleRail{grid-template-columns:repeat(3,minmax(0,1fr))}.truthGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}

@@ -27,6 +27,13 @@
   --radius-xl: 28px;
   --radius-lg: 22px;
   --radius-md: 18px;
+  --text-readable: 16px;
+  --text-readable-lg: 17px;
+  --text-compact: 14px;
+  --text-meta: 13px;
+  --leading-readable: 1.56;
+  --leading-compact: 1.42;
+  --muted-readable: #52657d;
 }
 
 /* Dark mode review hardening: keep operational workspaces on one readable surface system. */
@@ -8607,6 +8614,14 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
 .ccc-breadcrumb i { color: #5f7187; font-style: normal; }
 .ccc-breadcrumb-current { color: #fff; font-weight: 800; }
 .ccc-breadcrumb a { color: inherit; }
+.ccc-breadcrumb span:first-child { display: none; }
+.ccc-breadcrumb span:first-child + span i { display: none; }
+.ccc-breadcrumb span { min-width: 0; }
+.ccc-breadcrumb span a,
+.ccc-breadcrumb-current {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .ccc-home-link { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; margin-right: 12px; padding: 0 9px; color: #dce7f4; background: #0b2139; border: 1px solid #29415d; border-radius: 6px; font-size:11.5px; font-weight: 800; white-space: nowrap; }
 .ccc-home-link:hover { color: #fff; background: #102b48; border-color: #3a5c80; }
 .appointment-topbar-return{border-color:#3869a9;color:#eff6ff;background:#123c68}
@@ -10084,7 +10099,7 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
 .projects-hub-card-grid {
   display: grid;
   gap: 10px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
 }
 
 .projects-hub-card {
@@ -10120,11 +10135,13 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
   justify-content: space-between;
   gap: 10px;
   align-items: flex-start;
+  min-width: 0;
 }
 
 .projects-hub-card-title {
   display: flex;
   gap: 10px;
+  flex: 1 1 150px;
   min-width: 0;
 }
 
@@ -10155,6 +10172,7 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
   color: #12233a;
   font-size: 12px;
   line-height: 1.15;
+  overflow-wrap: anywhere;
 }
 
 .projects-hub-card-title p,
@@ -10168,7 +10186,11 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
 .projects-hub-card-actions {
   display: flex;
   align-items: center;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
   gap: 8px;
+  justify-content: flex-end;
+  min-width: 0;
 }
 
 .projects-hub-card-menu {
@@ -10189,11 +10211,15 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
 .projects-hub-priority {
   display: inline-flex;
   align-items: center;
+  max-width: 100%;
+  min-width: 0;
   min-height: 24px;
   padding: 0 8px;
   border-radius: 999px;
   font-size:11.5px;
   font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -13449,6 +13475,89 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
 .etw-note-composer .rich-text-composer-footer,
 .tasks-console-comment-form .rich-text-composer-footer {
   font-size:11.5px;
+}
+
+/* Reading comfort: lift dense operational copy without changing layout chrome. */
+.board-task-copy p,
+.my-task-copy p,
+.board-task-alert,
+.task-comment-card,
+.task-comment-card p,
+.task-detail-page .panel-card p,
+.task-detail-page .notice p,
+.task-workspace-rail-card p,
+.task-workspace-rail-card textarea,
+.tasks-console-feed-item p,
+.tasks-console-feed-item .rich-text-content,
+.tasks-console-feed-item .rich-text-content p,
+.tasks-console-feed-item .rich-text-content li,
+.tasks-console-rail-block p,
+.tasks-console-rail-insights p,
+.tasks-console-status-guidance p,
+.tasks-console-rail-state p,
+.tasks-console-rail-title p,
+.tasks-console-workflow-notice p,
+.tasks-console-comment-form .rich-text-composer textarea,
+.tasks-console-update-fields textarea,
+.rich-text-preview,
+.rich-text-content,
+.empty-board p,
+.board-empty p,
+.board-loading p,
+.rail-card .activity-feed-item p,
+.rail-card .activity-feed-item small,
+.attention-row-shell p {
+  color: var(--muted-readable);
+  font-size: var(--text-readable);
+  line-height: var(--leading-readable);
+}
+
+.board-task-reference,
+.board-status-copy,
+.board-status-meta,
+.board-task-meta-grid strong,
+.my-task-meta-grid strong,
+.task-detail-list dd,
+.tasks-console-rail-field strong,
+.tasks-console-rail-block strong,
+.tasks-console-feed-meta strong,
+.mobile-task-card dd {
+  font-size: var(--text-compact);
+  line-height: var(--leading-compact);
+}
+
+.tasks-console-rail-field span,
+.tasks-console-rail-block span,
+.tasks-console-feed-meta span,
+.tasks-console-checklist-item span,
+.tasks-console-vehicle-placeholder,
+.mobile-task-card dt {
+  font-size: var(--text-meta);
+  line-height: var(--leading-compact);
+}
+
+.tasks-console-lane-card small,
+.tasks-console-summary-list p,
+.tasks-console-summary-item small,
+.tasks-console-table-empty {
+  color: var(--muted-readable);
+  line-height: var(--leading-readable);
+}
+
+.tasks-console-table th,
+.tasks-console-table td,
+.tasks-console-status,
+.tasks-console-priority,
+.status-pill,
+.pill,
+.board-notice,
+.task-board-header span,
+.task-board-header small,
+.task-board-footer,
+.rail-card header a,
+.rail-card header span,
+.rail-header-action {
+  line-height: var(--leading-compact);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -22682,6 +22791,7 @@ html[data-app-theme="dark"] {
   --review-soft: rgba(139,92,246,.16);
   --shadow-lg: 0 24px 56px rgba(0,0,0,.24);
   --shadow-md: 0 14px 34px rgba(0,0,0,.2);
+  --muted-readable: #bfcee0;
 }
 html[data-app-theme="dark"] body {
   color: var(--ink);
@@ -28092,6 +28202,476 @@ html[data-app-theme="dark"] .customer-console .customer-home-metric-card p span 
 
 html[data-app-theme="dark"] .customer-console .customer-home-metric-card p svg {
   color: #eef4fb !important;
+}
+
+/* App-wide reading comfort baseline: lift content copy while preserving dense chrome. */
+.app-content {
+  --readability-body-size: var(--text-readable);
+  --readability-support-size: var(--text-compact);
+  --readability-meta-size: var(--text-meta);
+}
+
+.app-content :where(
+  p,
+  li,
+  dd,
+  blockquote,
+  textarea,
+  [class*="body" i],
+  [class*="copy" i],
+  [class*="description" i],
+  [class*="subtitle" i],
+  [class*="helper" i],
+  [class*="hint" i],
+  [class*="notice" i],
+  [class*="empty" i],
+  [class*="comment" i],
+  [class*="message" i],
+  [class*="note" i],
+  [class*="reason" i]
+) {
+  font-size: max(var(--readability-body-size), 1em);
+  line-height: var(--leading-readable);
+}
+
+.app-content :where(
+  [class*="header" i],
+  [class*="heading" i],
+  [class*="hero" i],
+  [class*="intro" i],
+  [class*="summary" i],
+  [class*="detail" i],
+  [class*="panel" i],
+  [class*="card" i],
+  [class*="rail" i],
+  [class*="workspace" i]
+) > :where(p, span, small),
+.app-content :where(
+  [class*="header" i],
+  [class*="heading" i],
+  [class*="hero" i],
+  [class*="intro" i],
+  [class*="summary" i],
+  [class*="detail" i],
+  [class*="panel" i],
+  [class*="card" i],
+  [class*="rail" i],
+  [class*="workspace" i]
+) :where(header p, header small, header span) {
+  font-size: max(var(--readability-support-size), 1em);
+  line-height: var(--leading-compact);
+}
+
+.app-content :where(
+  button,
+  input,
+  select,
+  nav,
+  table,
+  thead,
+  tbody,
+  tfoot,
+  th,
+  td,
+  [role="tab"],
+  [role="tablist"],
+  [class*="badge" i],
+  [class*="pill" i],
+  [class*="chip" i],
+  [class*="tag" i],
+  [class*="status" i],
+  [class*="metric" i],
+  [class*="toolbar" i],
+  [class*="switcher" i],
+  [class*="tabs" i],
+  [class*="actions" i],
+  [class*="button" i],
+  [class*="icon" i]
+),
+.app-content :where(
+  button,
+  input,
+  select,
+  nav,
+  table,
+  thead,
+  tbody,
+  tfoot,
+  th,
+  td,
+  [role="tab"],
+  [role="tablist"],
+  [class*="badge" i],
+  [class*="pill" i],
+  [class*="chip" i],
+  [class*="tag" i],
+  [class*="status" i],
+  [class*="metric" i],
+  [class*="toolbar" i],
+  [class*="switcher" i],
+  [class*="tabs" i],
+  [class*="actions" i],
+  [class*="button" i],
+  [class*="icon" i]
+) :where(p, span, small, strong, b, em, dt, dd, label) {
+  font-size: inherit;
+  line-height: var(--leading-compact);
+}
+
+/* Stronger app-wide comfort layer for legacy modules with hardcoded 10-12px copy. */
+.app-content :is(p, li, dd, blockquote, textarea),
+.app-content :is(
+  [class*="copy" i],
+  [class*="description" i],
+  [class*="subtitle" i],
+  [class*="helper" i],
+  [class*="hint" i],
+  [class*="notice" i],
+  [class*="empty" i],
+  [class*="comment" i],
+  [class*="message" i],
+  [class*="note" i],
+  [class*="reason" i],
+  [class*="guidance" i]
+) {
+  font-size: max(var(--readability-body-size), 1em);
+  line-height: var(--leading-readable);
+}
+
+.app-content :is(
+  header,
+  [class*="header" i],
+  [class*="heading" i],
+  [class*="hero" i],
+  [class*="intro" i],
+  [class*="summary" i],
+  [class*="detail" i],
+  [class*="panel" i],
+  [class*="card" i],
+  [class*="rail" i],
+  [class*="workspace" i]
+) :is(p, span, small, em, dd) {
+  font-size: max(var(--readability-support-size), 1em);
+  line-height: var(--leading-compact);
+}
+
+.app-content :is(
+  button,
+  input,
+  select,
+  nav,
+  table,
+  thead,
+  tbody,
+  tfoot,
+  th,
+  td,
+  [role="tab"],
+  [role="tablist"],
+  [class*="badge" i],
+  [class*="pill" i],
+  [class*="chip" i],
+  [class*="tag" i],
+  [class*="status" i],
+  [class*="metric" i],
+  [class*="toolbar" i],
+  [class*="switcher" i],
+  [class*="tabs" i],
+  [class*="actions" i],
+  [class*="button" i],
+  [class*="icon" i]
+) :is(p, span, small, strong, b, em, dt, dd, label) {
+  font-size: inherit;
+  line-height: var(--leading-compact);
+}
+
+.advisor-coo-workbook.full .advisor-coo-landing-header span,
+.advisor-coo-workbook.full .advisor-coo-workflow-guide article span,
+.advisor-coo-workbook.full .advisor-staff-execution-home > header small,
+.advisor-coo-workbook.full .advisor-staff-execution-home > div em,
+.advisor-coo-workbook.full .advisor-coo-command-strip small,
+.advisor-coo-workbook.full .advisor-coo-command-detail header small,
+.advisor-coo-workbook.full .advisor-coo-command-detail a small,
+.advisor-coo-workbook.full .advisor-coo-work-search header small,
+.advisor-coo-workbook.full .advisor-coo-search-results small,
+.advisor-coo-workbook.full .advisor-coo-attention-now header small,
+.advisor-coo-workbook.full .advisor-coo-attention-now a small,
+.advisor-coo-workbook.full .advisor-coo-execution-list > article small,
+.advisor-coo-workbook.full .advisor-coo-execution-list > article i,
+.advisor-coo-workbook.full .advisor-coo-other-attention header small,
+.advisor-coo-workbook.full .advisor-coo-other-attention > a small,
+.advisor-coo-workbook.full .advisor-coo-tool-launcher header small,
+.advisor-coo-workbook.full .advisor-coo-tool-grid small,
+.advisor-coo-tool-page.full .advisor-coo-focused-tool header small,
+.advisor-coo-tool-page.full .advisor-coo-focused-tool p,
+.advisor-coo-tool-page.full .advisor-coo-checklist-item small,
+.advisor-coo-tool-page.full .advisor-coo-update-item p,
+.advisor-coo-tool-page.full .advisor-coo-seed-item p,
+.advisor-coo-tool-page.full .advisor-end-day-section header p,
+.advisor-coo-tool-page.full .advisor-end-day-empty {
+  font-size: var(--text-readable);
+  line-height: var(--leading-readable);
+}
+
+/* Customer/dispatch console comfort pass: older console CSS hardcodes dense 11.5px text. */
+.dispatch-console-title p {
+  font-size: var(--text-readable) !important;
+  line-height: var(--leading-readable) !important;
+}
+
+.dispatch-console-tabs a,
+.dispatch-workspace-launcher strong,
+.dispatch-workspace-launcher small,
+.dispatch-console-root small {
+  font-size: var(--text-meta) !important;
+  line-height: var(--leading-compact) !important;
+}
+
+.customer-console {
+  --customer-readable: var(--text-readable);
+  --customer-support: var(--text-compact);
+  --customer-meta: var(--text-meta);
+}
+
+.customer-console :is(
+  .customer-home-welcome p,
+  .customer-live-status,
+  .customer-empty-source,
+  .customer-home-card p,
+  .customer-home-task small,
+  .customer-home-appointments small,
+  .customer-home-activity small,
+  .customer-next-action p small,
+  .customer-vehicles-card p small,
+  .customer-risk-card ul,
+  .customer-panel p,
+  .customer-rail-card p,
+  .customer-360-live-workspace article small,
+  .customer-360-live-workspace article time,
+  .customer-selected-workspace small
+) {
+  font-size: var(--customer-readable) !important;
+  line-height: var(--leading-readable) !important;
+}
+
+.customer-console,
+.customer-home-layout,
+.customer-home-main,
+.customer-home-metrics,
+.customer-home-metric-card,
+.customer-home-card,
+.customer-home-rail {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.customer-console {
+  overflow-x: visible;
+}
+
+.customer-home-layout {
+  overflow-x: visible;
+}
+
+.customer-console .customer-home-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 22vw);
+}
+
+.customer-home-metrics {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.customer-home-metric-card {
+  overflow: hidden;
+}
+
+.customer-home-metric-card > div,
+.customer-home-card > *,
+.customer-home-rail > * {
+  min-width: 0;
+}
+
+.customer-home-metric-card :where(small, p, p span) {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.customer-home-metric-card p {
+  align-items: flex-start;
+}
+
+.customer-home-metric-card p,
+.customer-home-metric-card p span,
+.customer-home-metrics small {
+  font-size: var(--customer-support) !important;
+  line-height: var(--leading-compact) !important;
+}
+
+.customer-console :is(
+  .customer-home-metrics small,
+  .customer-home-card > header strong,
+  .customer-home-card > header button,
+  .customer-home-card > header a,
+  .customer-card-link,
+  .customer-table-head,
+  .customer-table-row,
+  .customer-table-row span,
+  .customer-home-appointments time,
+  .customer-home-appointments strong,
+  .customer-home-task strong,
+  .customer-panel header strong,
+  .customer-rail-card header strong,
+  .customer-profile-facts dd,
+  .customer-snapshot dd,
+  .customer-open-items strong,
+  .customer-timeline strong,
+  .customer-360-live-workspace article strong,
+  .customer-360-live-workspace header small,
+  .customer-action-grid span
+) {
+  font-size: var(--customer-support) !important;
+  line-height: var(--leading-compact) !important;
+}
+
+.customer-console :is(
+  .customer-console-search kbd,
+  .customer-module-switcher a,
+  .customer-theme-option,
+  .customer-customize-button,
+  .customer-quick-action,
+  .customer-home-toolbar-icon span,
+  .customer-stage,
+  .customer-home-tasks header strong b,
+  .customer-home-task > b,
+  .customer-panel-footer,
+  .customer-rail-link-button,
+  .customer-home-quick-actions strong,
+  .customer-home-quick-actions button,
+  .customer-home-quick-actions a,
+  .customer-chart-legend,
+  .customer-chart-legend *,
+  .customer-console-user strong,
+  .customer-console-user small
+) {
+  font-size: var(--customer-meta) !important;
+  line-height: var(--leading-compact) !important;
+}
+
+/* Customer console simplification: remove duplicate action/profile controls that crowd the right side. */
+body.customer-console-shell .app-topbar .topbar-actions,
+body.customer-console-shell .customer-home-toolbar .customer-quick-action,
+body.customer-console-shell .customer-home-toolbar .customer-home-toolbar-icon,
+body.customer-console-shell .customer-home-toolbar .customer-home-user {
+  display: none !important;
+}
+
+/* Appointment console simplification: keep CCC/Dispatch, remove duplicate page return and global breadcrumbs. */
+.app-frame:has(.appointment-console-home) .appointment-topbar-return,
+.app-frame:has(.appointment-console-home) .ccc-breadcrumb,
+.app-frame:has(.appointment-new-calendar) .appointment-topbar-return,
+.app-frame:has(.appointment-new-calendar) .ccc-breadcrumb {
+  display: none !important;
+}
+
+/* Shell containment: prevent topbar controls from widening customer/dispatch pages. */
+html,
+body,
+.app-frame,
+.app-workspace,
+.app-content {
+  max-width: 100%;
+  overflow-x: visible;
+}
+
+.app-topbar,
+.ccc-topbar {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.ccc-topbar > *,
+.topbar-actions,
+.topbar-actions > *,
+.ccc-search-shell,
+.ccc-search-trigger {
+  min-width: 0;
+}
+
+.topbar-actions {
+  flex: 1 1 auto;
+  justify-content: flex-end;
+  overflow: hidden;
+}
+
+.ccc-search-shell {
+  flex: 1 1 220px;
+  max-width: min(430px, 28vw);
+}
+
+.ccc-search-trigger {
+  width: 100%;
+  max-width: 100%;
+}
+
+.ccc-search-trigger span,
+.ccc-store-context,
+.ccc-business-date,
+.topbar-profile {
+  white-space: nowrap;
+}
+
+.ccc-breadcrumb {
+  flex: 1 1 140px;
+  max-width: min(360px, 24vw);
+  overflow: hidden;
+}
+
+.ccc-breadcrumb-current {
+  max-width: 180px;
+}
+
+@media (max-width: 1500px) {
+  .ccc-breadcrumb {
+    max-width: 240px;
+  }
+
+  .ccc-breadcrumb-current {
+    max-width: 132px;
+  }
+}
+
+@media (max-width: 1500px) {
+  .ccc-search-shell {
+    max-width: 330px;
+  }
+
+  .ccc-business-date {
+    display: none;
+  }
+}
+
+@media (max-width: 1320px) {
+  .ccc-search-shell {
+    max-width: 260px;
+  }
+
+  .ccc-store-context {
+    display: none;
+  }
+}
+
+@media (max-width: 1180px) {
+  .ccc-search-trigger span,
+  .topbar-profile {
+    display: none;
+  }
+
+  .ccc-search-shell {
+    flex: 0 0 auto;
+    width: 44px;
+  }
 }
 
 /* Global dark-mode rescue for nested cards/chips/actions that still carry light surfaces. */

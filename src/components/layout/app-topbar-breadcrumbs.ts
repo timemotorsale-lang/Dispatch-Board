@@ -22,13 +22,13 @@ export function getAppBreadcrumb(
 
   if (pathname === "/command-center") return [{ label: "Command Control Center" }];
   if (pathname === "/manager-workspace") return [{ label: "Manager Workspace" }];
-  if (pathname === "/board") return [{ label: "Command Control Center", href: "/command-center" }, { label: "Dispatch" }, { label: dispatchView === "live" ? "Live Board" : "Overview" }];
-  if (pathname === "/activity") return [{ label: "Command Control Center", href: "/command-center" }, { label: "Dispatch" }, { label: "Activity" }];
-  if (pathname === "/staff") return [{ label: "Command Control Center", href: "/command-center" }, { label: "Dispatch" }, { label: "Team" }];
-  if (pathname === "/my-tasks") return [{ label: "Command Control Center", href: "/command-center" }, { label: "Dispatch" }, { label: "My Tasks" }];
-  if (pathname.startsWith("/tasks")) return [{ label: "Command Control Center", href: "/command-center" }, { label: "Dispatch" }, { label: "Tasks" }];
-  if (pathname.startsWith("/projects")) return [{ label: "Command Control Center", href: "/command-center" }, { label: "Dispatch" }, { label: "Projects" }];
-  if (pathname.startsWith("/appointments")) return [{ label: "Command Control Center", href: "/command-center" }, { label: "Dispatch" }, { label: "Appointments" }];
+  if (pathname === "/board") return [{ label: "Command Control Center", href: "/command-center" }, { label: "Dispatch", href: "/board" }, { label: dispatchView === "live" ? "Live Board" : "Overview" }];
+  if (pathname === "/activity") return [{ label: "Command Control Center", href: "/command-center" }, { label: "Dispatch", href: "/board" }, { label: "Activity" }];
+  if (pathname === "/staff") return [{ label: "Command Control Center", href: "/command-center" }, { label: "Dispatch", href: "/board" }, { label: "Team" }];
+  if (pathname === "/my-tasks") return [{ label: "Command Control Center", href: "/command-center" }, { label: "Dispatch", href: "/board" }, { label: "My Tasks" }];
+  if (pathname.startsWith("/tasks")) return [{ label: "Command Control Center", href: "/command-center" }, { label: "Dispatch", href: "/board" }, { label: "Tasks" }];
+  if (pathname.startsWith("/projects")) return [{ label: "Command Control Center", href: "/command-center" }, { label: "Dispatch", href: "/board" }, { label: "Projects" }];
+  if (pathname.startsWith("/appointments")) return [{ label: "Command Control Center", href: "/command-center" }, { label: "Dispatch", href: "/board" }, { label: "Appointments" }];
   if (pathname === "/crm") {
     const current = crmView === "pipeline"
       ? "Pipeline Review"
@@ -61,9 +61,9 @@ export function getAppBreadcrumb(
   if (pathname.startsWith("/vehicles/workflow-operations")) return [{ label: "Command Control Center", href: "/command-center" }, { label: "Inventory Console" }, { label: "Workflow Operations" }];
   if (pathname.startsWith("/vehicles/workflows")) return [{ label: "Command Control Center", href: "/command-center" }, { label: "Inventory Console" }, { label: "Start Workflow" }];
   if (pathname.startsWith("/vehicles")) return [{ label: "Command Control Center", href: "/command-center" }, { label: "Inventory Console" }, { label: pathname.startsWith("/vehicles/parts-operations") ? "Parts Operations" : "Vehicles" }];
-  if (pathname.startsWith("/customers")) return [{ label: "Command Control Center", href: "/command-center" }, { label: "Dispatch" }, { label: "Customers" }];
-  if (pathname.startsWith("/manager-review")) return [{ label: "Command Control Center", href: "/command-center" }, { label: "Dispatch" }, { label: "Manager Review" }];
+  if (pathname.startsWith("/customers")) return [{ label: "Command Control Center", href: "/command-center" }, { label: "Dispatch", href: "/board" }, { label: "Customers" }];
+  if (pathname.startsWith("/manager-review")) return [{ label: "Command Control Center", href: "/command-center" }, { label: "Dispatch", href: "/board" }, { label: "Manager Review" }];
   if (pathname.startsWith("/administration")) return [{ label: "Command Control Center", href: "/command-center" }, { label: "Administration" }];
   if (pathname.startsWith("/settings")) return [{ label: "Command Control Center", href: "/command-center" }, { label: "Settings" }];
-  return [{ label: "Command Control Center", href: "/command-center" }, { label: "Dispatch" }, { label: "Workspace" }];
+  return [{ label: "Command Control Center", href: "/command-center" }, { label: "Dispatch", href: "/board" }, { label: "Workspace" }];
 }

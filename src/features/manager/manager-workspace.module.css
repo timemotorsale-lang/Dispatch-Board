@@ -8,6 +8,84 @@
 @media(max-width:1100px){.exceptionBrief>div{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.exceptionBrief>header{align-items:flex-start;flex-direction:column}.exceptionBrief>div{grid-template-columns:1fr}}
 
+/* Reading comfort: the manager home is a decision surface, so core copy needs to read larger than dense chrome. */
+.workspace {
+  --manager-readable: 15px;
+  --manager-copy: 14px;
+  --manager-compact: 13px;
+  --manager-meta: 12.5px;
+  --manager-leading-readable: 1.48;
+  --manager-leading-compact: 1.35;
+}
+
+.hero p,
+.modeIntro small,
+.focus small,
+.queue>header small,
+.brief>header small,
+.inbox>header small,
+.exceptionBrief>header small,
+.queue>article div small,
+.controls>span {
+  font-size: var(--manager-meta);
+  line-height: var(--manager-leading-compact);
+}
+
+.hero>div>span,
+.search label span,
+.modeIntro p,
+.focus p,
+.focus span,
+.metrics em,
+.queue>article div span,
+.queue>article div p,
+.brief>div>a small,
+.inbox>div>a small,
+.inbox>div>a p,
+.exceptionBrief article small,
+.controls small,
+.boundary span,
+.empty {
+  font-size: var(--manager-copy);
+  line-height: var(--manager-leading-readable);
+}
+
+.search label strong,
+.hero nav button strong,
+.hero nav button small,
+.fastRouteTabs a,
+.modeIntro h2,
+.focus h2,
+.queue>header strong,
+.brief>header strong,
+.inbox>header strong,
+.exceptionBrief>header strong,
+.queue>article div strong,
+.brief>div>a strong,
+.inbox>div>a strong,
+.exceptionBrief article strong,
+.brief dl div,
+.brief>a,
+.queue time,
+.queue article>a,
+.inbox>header>a,
+.exceptionBrief>header a,
+.exceptionBrief article b,
+.controls button,
+.workControls button,
+.inbox nav button,
+.boundary>b {
+  font-size: var(--manager-compact);
+  line-height: var(--manager-leading-compact);
+}
+
+.focus>a,
+.focus>a small,
+.search button {
+  font-size: var(--manager-compact);
+  line-height: var(--manager-leading-compact);
+}
+
 :global(html[data-app-theme="dark"]) .workspace{color:#eef4fb;background:#071321}
 :global(html[data-app-theme="dark"]) .hero h1,
 :global(html[data-app-theme="dark"]) .modeIntro h2,

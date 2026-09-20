@@ -329,6 +329,73 @@
 .unavailable h1 { margin: 6px 0; font-size: 24px; }
 .unavailable p { max-width: 520px; margin: 0 0 16px; color: var(--crm-muted); font-size: 12px; line-height: 1.5; }
 
+/* Reading comfort: raise descriptive CRM copy while preserving compact controls and badges. */
+.hero p,
+.queueReason,
+.contextReason,
+.contextPanel header p,
+.history li,
+.contextHint,
+.railEmpty,
+.opportunityPreviewHeader p,
+.opportunityPreviewCard p,
+.pipelinePreviewItem p,
+.pipelineListItem p,
+.opportunityConstraints ul,
+.opportunityNextSteps p,
+.customerCard em,
+.pipeline article p,
+.sectionDetail,
+.sourceCoverageCard p,
+.sourceCoverageCard small,
+.discoveryCard p,
+.discoveryCard small,
+.insights article p,
+.moreGrid article p,
+.stateCard p,
+.shell :global(.ucrm-opportunity-actions__item p),
+.unavailable p {
+  color: var(--crm-muted);
+  font-size: var(--text-readable);
+  line-height: var(--leading-readable);
+}
+
+.queueIdentity strong,
+.queueMeta strong,
+.contextFacts dd,
+.opportunityPreviewCard header strong,
+.pipelinePreviewColumn > header strong,
+.pipelineListItem strong,
+.pipelinePreviewItem strong,
+.customerCard strong,
+.listCard article strong,
+.sourceCoverageHeader strong,
+.discoveryCard strong,
+.moreGrid article strong,
+.shell :global(.ucrm-opportunity-actions__item strong) {
+  font-size: var(--text-compact);
+  line-height: var(--leading-compact);
+}
+
+.queueIdentity small,
+.queueMeta small,
+.contextFacts dt,
+.freshness,
+.todayCard article small,
+.attentionCard button span,
+.pipelinePreviewColumn > header span,
+.pipelinePreviewColumn > small,
+.pipelineListItem span,
+.pipelineListPreview > header span,
+.customerCard small,
+.listCard article small,
+.listCard time,
+.sourceCoverage > header span,
+.sourceCoverageHeader span {
+  font-size: var(--text-meta);
+  line-height: var(--leading-compact);
+}
+
 .srOnly,.srOnly:not(:focus):not(:active) { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 :global(html[data-app-theme="dark"]) .shell {
