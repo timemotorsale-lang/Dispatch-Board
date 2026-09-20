@@ -8605,6 +8605,56 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
 .console-sidebar-navigation .sidebar-link { min-height: 34px; }
 .console-sidebar .sidebar-account { margin-top: 0; }
 
+/* Global sidebar readability: lift navigation labels to match the main board comfort pass. */
+.app-sidebar,
+.console-sidebar {
+  --sidebar-label-size: 13px;
+  --sidebar-child-label-size: 12.5px;
+  --sidebar-meta-size: 12px;
+  --sidebar-leading: 1.35;
+}
+
+.sidebar-link,
+.sidebar-link-module,
+.console-sidebar-navigation .sidebar-link {
+  min-height: 40px;
+  font-size: var(--sidebar-label-size);
+  font-weight: 800;
+  line-height: var(--sidebar-leading);
+}
+
+.sidebar-link-child {
+  min-height: 34px;
+  font-size: var(--sidebar-child-label-size);
+  font-weight: 750;
+}
+
+.sidebar-group-label,
+.sidebar-brand small,
+.sidebar-badge,
+.sidebar-badge-planned,
+.console-sidebar-status span,
+.console-sidebar-status small,
+.sidebar-store {
+  font-size: var(--sidebar-meta-size);
+  line-height: var(--sidebar-leading);
+}
+
+.sidebar-account-copy strong {
+  font-size: var(--sidebar-label-size);
+  line-height: var(--sidebar-leading);
+}
+
+.sidebar-account-copy span {
+  font-size: var(--sidebar-meta-size);
+  line-height: var(--sidebar-leading);
+}
+
+.app-sidebar-compact .sidebar-link,
+.app-sidebar-compact .sidebar-link-child {
+  min-height: 40px;
+}
+
 .ccc-topbar { min-height: 58px; padding: 0 16px; color: #dce7f4; background: #061426; border-bottom-color: #19314c; backdrop-filter: none; }
 .ccc-topbar-brand { display: inline-flex; align-items: center; flex: 0 0 auto; width: 132px; height: 38px; margin-right: 14px; padding-right: 14px; border-right: 1px solid #29415d; }
 .ccc-topbar-brand img { display: block; width: 100%; height: auto; object-fit: contain; }
