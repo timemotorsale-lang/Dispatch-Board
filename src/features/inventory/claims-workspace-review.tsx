@@ -141,20 +141,6 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
     await submitJson(`/api/claims-workspace/claims/${encodeURIComponent(claimId)}`, Object.fromEntries(formData.entries()), "PATCH");
   }
 
-  async function recordEvidence(formData: FormData) {
-    if (!claimId) return;
-    const file = formData.get("file");
-    const fileName = file && typeof file === "object" && "name" in file ? String(file.name) : "";
-    await submitJson(`/api/claims-workspace/claims/${encodeURIComponent(claimId)}/evidence`, {
-      category: formData.get("category"),
-      fileName,
-      notes: formData.get("notes"),
-      relationshipTargets: ["CLAIM", "CUSTOMER", "VEHICLE"],
-      status: "RECEIVED",
-      title: formData.get("title") || fileName
-    });
-  }
-
   async function recordActivityUpdate(formData: FormData) {
     if (!claimId) return;
     const category = String(formData.get("category") ?? "ACTIVITY_ONLY");

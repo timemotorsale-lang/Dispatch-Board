@@ -5,8 +5,7 @@ import type {
   ClaimEvidenceStatus,
   ClaimsWorkspaceRepository,
   ClaimStage,
-  ClaimWorkspaceAggregate,
-  InsuranceClaimRecord
+  ClaimWorkspaceAggregate
 } from "./service";
 
 type InsuranceClaimRow = {

@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import nextEnv from "@next/env";
 
@@ -12,7 +12,10 @@ const baseUrlDetails = new URL(baseURL);
 const serverPort = baseUrlDetails.port || (baseUrlDetails.protocol === "https:" ? "443" : "80");
 const nextCli = path.join(root, "node_modules", "next", "dist", "bin", "next");
 const playwrightCli = path.join(root, "node_modules", "@playwright", "test", "cli.js");
+const e2eTempDir = path.join(root, "test-results", ".tmp");
+mkdirSync(e2eTempDir, { recursive: true });
 const playwrightArguments = process.argv.slice(2);
+const runScopedDatabaseSchema = `dispatch_board_e2e_${process.pid}_${Date.now()}`;
 const generatedTypeFiles = ["next-env.d.ts", "tsconfig.json"].map((fileName) => ({
   path: path.join(root, fileName),
   contents: readFileSync(path.join(root, fileName), "utf8")
@@ -39,7 +42,7 @@ function buildE2EDatabaseUrl() {
 
   parsedDatabaseUrl.searchParams.set(
     "schema",
-    process.env.E2E_DATABASE_SCHEMA ?? "dispatch_board_e2e"
+    process.env.E2E_DATABASE_SCHEMA ?? runScopedDatabaseSchema
   );
 
   return parsedDatabaseUrl.toString();
@@ -50,7 +53,10 @@ const e2eEnvironment = {
   DATABASE_URL: buildE2EDatabaseUrl(),
   NEXT_DIST_DIR: process.env.E2E_NEXT_DIST_DIR ?? ".next-e2e",
   PLAYWRIGHT_BASE_URL: baseURL,
-  PLAYWRIGHT_SKIP_WEB_SERVER: "1"
+  PLAYWRIGHT_SKIP_WEB_SERVER: "1",
+  TEMP: e2eTempDir,
+  TMP: e2eTempDir,
+  TMPDIR: e2eTempDir
 };
 
 function run(command, args, options = {}) {

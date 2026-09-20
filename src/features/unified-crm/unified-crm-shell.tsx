@@ -1031,7 +1031,7 @@ export function UnifiedCrmShell({
         : "review";
 
   return (
-    <main className={styles.shell} data-review-capabilities={Object.entries(capabilities).filter(([, enabled]) => enabled).map(([capability]) => capability).join(",")}>
+    <main className={`${styles.shell} unified-crm-shell`} data-review-capabilities={Object.entries(capabilities).filter(([, enabled]) => enabled).map(([capability]) => capability).join(",")}>
       <ReviewNotice mode={noticeMode} />
       <header className={styles.hero}>
         <div>

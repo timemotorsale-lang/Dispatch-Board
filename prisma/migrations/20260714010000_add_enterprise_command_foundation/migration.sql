@@ -133,7 +133,11 @@ ALTER TABLE "VehicleOperationsRolloutEvent" ADD CONSTRAINT "VehicleOperationsRol
 ALTER TABLE "EnterpriseProjectionCheckpoint" ADD CONSTRAINT "EnterpriseProjectionCheckpoint_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "EnterpriseProjectionCheckpoint" ADD CONSTRAINT "EnterpriseProjectionCheckpoint_location_tenant_fkey" FOREIGN KEY ("locationId","organizationId") REFERENCES "Location"("id","organizationId") ON DELETE RESTRICT ON UPDATE CASCADE;
 
-INSERT INTO "VehicleOperationsFeatureFlag" ("id","organizationId","locationId","code","mode","rolloutPercent","allowedUserIds","version","updatedAt") VALUES
+INSERT INTO "VehicleOperationsFeatureFlag" ("id","organizationId","locationId","code","mode","rolloutPercent","allowedUserIds","version","updatedAt")
+SELECT "id","organizationId","locationId","code","mode"::"VehicleOperationsRolloutMode","rolloutPercent","allowedUserIds","version","updatedAt"
+FROM (VALUES
 ('vo-flag-master','org-time-motor-sales',NULL,'VEHICLE_OPERATIONS_MASTER','OFF',0,'[]'::jsonb,1,CURRENT_TIMESTAMP),
 ('vo-flag-command','org-time-motor-sales',NULL,'ENTERPRISE_COMMANDS','SHADOW',100,'[]'::jsonb,1,CURRENT_TIMESTAMP),
-('vo-flag-registry','org-time-motor-sales',NULL,'VEHICLE_REGISTRY','OFF',0,'[]'::jsonb,1,CURRENT_TIMESTAMP);
+('vo-flag-registry','org-time-motor-sales',NULL,'VEHICLE_REGISTRY','OFF',0,'[]'::jsonb,1,CURRENT_TIMESTAMP)
+) AS flags("id","organizationId","locationId","code","mode","rolloutPercent","allowedUserIds","version","updatedAt")
+WHERE EXISTS (SELECT 1 FROM "Organization" WHERE "id" = 'org-time-motor-sales');

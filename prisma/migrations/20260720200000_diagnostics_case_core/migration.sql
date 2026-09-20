@@ -139,7 +139,8 @@ CREATE TRIGGER "DiagnosticCaseStateEvent_immutable"
 
 INSERT INTO "VehicleOperationsFeatureFlag"
   ("id", "organizationId", "locationId", "code", "mode", "rolloutPercent", "allowedUserIds", "version", "updatedAt")
-VALUES
+SELECT "id", "organizationId", "locationId", "code", "mode"::"VehicleOperationsRolloutMode", "rolloutPercent", "allowedUserIds", "version", "updatedAt"
+FROM (VALUES
   ('diag-flag-master', 'org-time-motor-sales', NULL, 'DIAGNOSTICS_MASTER', 'OFF', 0, '[]'::jsonb, 1, CURRENT_TIMESTAMP),
   ('diag-flag-cases', 'org-time-motor-sales', NULL, 'DIAGNOSTIC_CASES', 'OFF', 0, '[]'::jsonb, 1, CURRENT_TIMESTAMP),
   ('diag-flag-evidence', 'org-time-motor-sales', NULL, 'DIAGNOSTIC_EVIDENCE', 'OFF', 0, '[]'::jsonb, 1, CURRENT_TIMESTAMP),
@@ -147,4 +148,6 @@ VALUES
   ('diag-flag-publishing', 'org-time-motor-sales', NULL, 'DIAGNOSTIC_PUBLISHING', 'OFF', 0, '[]'::jsonb, 1, CURRENT_TIMESTAMP),
   ('diag-flag-knowledge', 'org-time-motor-sales', NULL, 'DIAGNOSTIC_KNOWLEDGE', 'OFF', 0, '[]'::jsonb, 1, CURRENT_TIMESTAMP),
   ('diag-flag-ai', 'org-time-motor-sales', NULL, 'DIAGNOSTIC_AI', 'OFF', 0, '[]'::jsonb, 1, CURRENT_TIMESTAMP)
+) AS flags("id", "organizationId", "locationId", "code", "mode", "rolloutPercent", "allowedUserIds", "version", "updatedAt")
+WHERE EXISTS (SELECT 1 FROM "Organization" WHERE "id" = 'org-time-motor-sales')
 ON CONFLICT DO NOTHING;

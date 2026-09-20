@@ -86,5 +86,5 @@ CREATE TRIGGER "InventoryUnitStateEvent_prevent_update" BEFORE UPDATE ON "Invent
 CREATE TRIGGER "InventoryUnitStateEvent_prevent_delete" BEFORE DELETE ON "InventoryUnitStateEvent" FOR EACH ROW EXECUTE FUNCTION prevent_inventory_unit_state_event_mutation();
 
 INSERT INTO "VehicleOperationsFeatureFlag" ("id","organizationId","locationId","code","mode","rolloutPercent","allowedUserIds","version","updatedAt")
-SELECT 'vo-flag-retail-' || "id", "id", NULL, 'RETAIL_INVENTORY', 'OFF', 0, '[]'::jsonb, 1, CURRENT_TIMESTAMP FROM "Organization"
+SELECT 'vo-flag-retail-' || "id", "id", NULL, 'RETAIL_INVENTORY', 'OFF'::"VehicleOperationsRolloutMode", 0, '[]'::jsonb, 1, CURRENT_TIMESTAMP FROM "Organization"
 ON CONFLICT DO NOTHING;

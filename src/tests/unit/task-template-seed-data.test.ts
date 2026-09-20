@@ -35,6 +35,16 @@ describe("task template seed definitions", () => {
     }
   });
 
+  it("references only seeded duties from role default duty lists", () => {
+    const dutyNames = new Set<string>(dayOneDutyDefinitions.map((dutyDefinition) => dutyDefinition.name));
+
+    for (const roleDefinition of dayOneRoleDefinitions) {
+      for (const dutyName of roleDefinition.defaultDutyNames) {
+        expect(dutyNames.has(dutyName)).toBe(true);
+      }
+    }
+  });
+
   it("includes both role-based and duty-based template examples", () => {
     expect(dayOneTaskTemplateDefinitions.some((templateDefinition) => Boolean(templateDefinition.dutyName))).toBe(true);
     expect(dayOneTaskTemplateDefinitions.some((templateDefinition) => Boolean(templateDefinition.roleName))).toBe(true);

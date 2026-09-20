@@ -125,4 +125,4 @@ CREATE INDEX "VehiclePolicyEvent_policyVersionId_occurredAt_idx" ON "VehiclePoli
 CREATE INDEX "VehiclePolicyEvent_organizationId_occurredAt_idx" ON "VehiclePolicyEvent"("organizationId", "occurredAt");
 
 INSERT INTO "VehicleOperationsFeatureFlag" ("id", "organizationId", "locationId", "code", "mode", "rolloutPercent", "allowedUserIds", "version", "createdAt", "updatedAt")
-SELECT 'vo-flag-customer-lifecycle-' || "id", "id", NULL, 'CUSTOMER_LIFECYCLE', 'OFF', 0, '[]'::jsonb, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP FROM "Organization" ON CONFLICT DO NOTHING;
+SELECT 'vo-flag-customer-lifecycle-' || "id", "id", NULL, 'CUSTOMER_LIFECYCLE', 'OFF'::"VehicleOperationsRolloutMode", 0, '[]'::jsonb, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP FROM "Organization" ON CONFLICT DO NOTHING;

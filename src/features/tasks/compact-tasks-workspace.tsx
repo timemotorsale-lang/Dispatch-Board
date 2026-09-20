@@ -159,9 +159,9 @@ export function CompactTasksList(props: TasksConsoleScreenProps & { onAdvanced: 
   const [contextVisible, setContextVisible] = useState(false);
   const [comfortable, setComfortable] = useState(false);
   const [view, setView] = useState(props.initialView === "board" ? "board" : "list");
+  const [now] = useState(() => Date.now());
   const allCheckbox = useRef<HTMLInputElement>(null);
   const deferredQuery = useDeferredValue(filters.query);
-  const now = Date.now();
   const visible = filterCompactTasks(tasks, { ...filters, query: deferredQuery }, props.currentUserId, now, props.boardDate);
   const size = pageSize === "all" ? Math.max(1, visible.length) : Number(pageSize);
   const pages = Math.max(1, Math.ceil(visible.length / size));

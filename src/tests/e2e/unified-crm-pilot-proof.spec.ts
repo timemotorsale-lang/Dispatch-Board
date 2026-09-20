@@ -1,7 +1,17 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import { disconnectDailyWorkflowDatabase, resetDailyWorkflowState } from "./daily-workflow.setup";
+
 const managerEmail = "morgan.manager@local.test";
 const password = "dispatch123!";
+
+test.beforeEach(async () => {
+  await resetDailyWorkflowState();
+});
+
+test.afterAll(async () => {
+  await disconnectDailyWorkflowDatabase();
+});
 
 async function login(page: Page) {
   await page.goto("/login");
@@ -24,10 +34,23 @@ async function login(page: Page) {
 async function expectNoHorizontalOverflow(page: Page) {
   const overflow = await page.evaluate(() => ({
     clientWidth: document.documentElement.clientWidth,
-    scrollWidth: document.documentElement.scrollWidth
+    scrollWidth: document.documentElement.scrollWidth,
+    wideElements: Array.from(document.querySelectorAll<HTMLElement>("body *"))
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          className: element.className.toString(),
+          tagName: element.tagName.toLowerCase(),
+          text: element.textContent?.replace(/\s+/g, " ").trim().slice(0, 80) ?? "",
+          width: Math.ceil(rect.width),
+          x: Math.floor(rect.x)
+        };
+      })
+      .filter((element) => element.width + Math.max(0, element.x) > document.documentElement.clientWidth + 1)
+      .slice(0, 8)
   }));
 
-  expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth + 1);
+  expect(overflow.scrollWidth, JSON.stringify(overflow.wideElements, null, 2)).toBeLessThanOrEqual(overflow.clientWidth + 1);
 }
 
 async function expectCrmMainContent(page: Page) {

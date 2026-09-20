@@ -32,7 +32,7 @@ describe("enterprise shell navigation", () => {
 
     expect(dispatch?.href).toBe("/board");
     expect(dispatch?.badge).toBe("Live");
-    expect(liveItems.map((item) => item.title)).toEqual(["Dispatch Board", "Time & Attendance"]);
+    expect(liveItems.map((item) => item.title)).toEqual(["Dispatch Board", "Time & Attendance", "Document Library"]);
   });
 
   it("marks future Command Control Center modules as planned and unavailable", () => {
@@ -341,6 +341,7 @@ describe("enterprise shell navigation", () => {
       "Receive Parts",
       "Customers",
       "Paperwork Center",
+      "Document Library",
       "Sales Paperwork",
       "My Work"
     ]);
@@ -363,6 +364,7 @@ describe("enterprise shell navigation", () => {
     ]);
     expect(getConsoleNavigation("/my-tasks", user({ roles: ["Office Manager"] }))?.items.map((item) => item.title)).toEqual([
       "My Work",
+      "Document Library",
       "Appointments",
       "Customers",
       "Team Tasks"
