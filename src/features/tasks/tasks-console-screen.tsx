@@ -51,6 +51,7 @@ export type TasksConsoleScreenProps = {
   initialConcernIntakeOpen?: boolean;
   initialDepartmentFilter?: string;
   initialGroupBy?: string;
+  initialOwnerFilter?: string;
   initialPage?: number;
   initialQueueFilter?: string;
   initialView?: string;
@@ -664,6 +665,14 @@ function getTaskOwnerName(task: Pick<BoardReadTask, "assignedUser">) {
   return task.assignedUser?.name ?? "Unassigned";
 }
 
+function getOwnerFilterLabel(tasks: BoardReadTask[], ownerId: string) {
+  if (ownerId === "unassigned") {
+    return "Unassigned";
+  }
+
+  return tasks.find((task) => task.assignedUser?.id === ownerId)?.assignedUser?.name ?? "Selected owner";
+}
+
 function getTaskOwnerInitials(task: Pick<BoardReadTask, "assignedUser">) {
   return getTaskOwnerName(task)
     .split(/\s+/)
@@ -939,6 +948,7 @@ export function TasksConsoleScreen({
   initialConcernIntakeOpen = false,
   initialDepartmentFilter,
   initialGroupBy,
+  initialOwnerFilter,
   initialPage = 1,
   initialQueueFilter,
   initialView,
@@ -961,6 +971,14 @@ export function TasksConsoleScreen({
     initialDepartmentFilter && ["INVENTORY", "SERVICE_ADVISOR", "SHOP", "SALES", "ADVERTISING", "ADMIN", "COLLECTIONS"].includes(initialDepartmentFilter)
       ? initialDepartmentFilter as DepartmentFilter
       : null
+  );
+  const [activeOwnerFilter, setActiveOwnerFilter] = useState(
+    initialOwnerFilter && (
+      initialOwnerFilter === "unassigned" ||
+      board?.tasks.some((task) => task.assignedUser?.id === initialOwnerFilter)
+    )
+      ? initialOwnerFilter
+      : ""
   );
   const [activeMenu, setActiveMenu] = useState<TasksConsoleMenu>(null);
   const [groupBy, setGroupBy] = useState<TasksConsoleGroupBy>(
@@ -1035,6 +1053,14 @@ export function TasksConsoleScreen({
         return false;
       }
 
+      if (activeOwnerFilter === "unassigned" && task.assignedUser?.id) {
+        return false;
+      }
+
+      if (activeOwnerFilter && activeOwnerFilter !== "unassigned" && task.assignedUser?.id !== activeOwnerFilter) {
+        return false;
+      }
+
       if (!deferredSearchText) {
         return true;
       }
@@ -1096,6 +1122,7 @@ export function TasksConsoleScreen({
     activeQueueFilter !== "ALL" ? `Queue: ${getQueueFilterLabel(activeQueueFilter)}` : null,
     acquisitionView !== "all" ? `View: ${getAcquisitionViewLabel(acquisitionView)}` : null,
     activeDepartmentFilter ? `Department: ${getDepartmentLabel(activeDepartmentFilter)}` : null,
+    activeOwnerFilter ? `Owner: ${getOwnerFilterLabel(allTasks, activeOwnerFilter)}` : null,
     groupBy !== "none" ? `Grouped by ${getGroupByLabel(groupBy)}` : null,
     searchText.trim() ? `Search: ${searchText.trim()}` : null,
     activeView === "board" ? "Board lanes" : null
@@ -1129,7 +1156,7 @@ export function TasksConsoleScreen({
   const marketingCount = getDepartmentCount(allTasks, "ADVERTISING");
   const adminCount = getDepartmentCount(allTasks, "ADMIN");
   const collectionsCount = getDepartmentCount(allTasks, "COLLECTIONS");
-  const consoleReturnHref = `${consoleBaseHref}?date=${encodeURIComponent(boardDate)}&queue=${encodeURIComponent(activeQueueFilter)}&department=${encodeURIComponent(activeDepartmentFilter ?? "")}&view=${activeView}&group=${groupBy}&page=${activePage}&task=${encodeURIComponent(effectiveSelectedTaskId ?? "")}`;
+  const consoleReturnHref = `${consoleBaseHref}?date=${encodeURIComponent(boardDate)}&queue=${encodeURIComponent(activeQueueFilter)}&department=${encodeURIComponent(activeDepartmentFilter ?? "")}&owner=${encodeURIComponent(activeOwnerFilter)}&view=${activeView}&group=${groupBy}&page=${activePage}&task=${encodeURIComponent(effectiveSelectedTaskId ?? "")}`;
   const effectiveRightRailMode: TasksConsoleRailMode = workspaceMode === "focus" ? "collapsed" : rightRailMode;
   const taskMetrics = [
     { label: "Total Tasks", value: allTasks.length, filter: "ALL" as const },
@@ -1298,6 +1325,7 @@ export function TasksConsoleScreen({
   function handleQueueFilterChange(filter: QueueFilter) {
     setActiveQueueFilter(filter);
     setActiveDepartmentFilter(null);
+    setActiveOwnerFilter("");
     setAcquisitionView("all");
     setCurrentPage(1);
     setActiveMenu(null);
@@ -1306,6 +1334,7 @@ export function TasksConsoleScreen({
   function handleDepartmentFilterChange(filter: DepartmentFilter) {
     setActiveDepartmentFilter(filter);
     setActiveQueueFilter("ALL");
+    setActiveOwnerFilter("");
     setAcquisitionView("all");
     setCurrentPage(1);
     setActiveMenu(null);
@@ -1315,6 +1344,7 @@ export function TasksConsoleScreen({
     setAcquisitionView((currentView) => currentView === view ? "all" : view);
     setActiveQueueFilter("ALL");
     setActiveDepartmentFilter(null);
+    setActiveOwnerFilter("");
     setCurrentPage(1);
     setActiveMenu(null);
   }
@@ -1473,6 +1503,7 @@ export function TasksConsoleScreen({
   function handleResetBoardView() {
     setActiveQueueFilter("ALL");
     setActiveDepartmentFilter(null);
+    setActiveOwnerFilter("");
     setAcquisitionView("all");
     setSearchText("");
     setGroupBy("none");

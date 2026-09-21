@@ -15,6 +15,7 @@ type TasksPageProps = {
     date?: string | string[];
     department?: string | string[];
     group?: string | string[];
+    owner?: string | string[];
     page?: string | string[];
     queue?: string | string[];
     task?: string | string[];
@@ -109,6 +110,7 @@ export default async function TasksPage({ searchParams }: TasksPageProps) {
       initialConcernIntakeOpen={manager && requestedConcern === "1"}
       initialDepartmentFilter={readParam(resolvedSearchParams?.department)}
       initialGroupBy={readParam(resolvedSearchParams?.group)}
+      initialOwnerFilter={readParam(resolvedSearchParams?.owner)}
       initialPage={Number.parseInt(readParam(resolvedSearchParams?.page) ?? "1", 10) || 1}
       initialQueueFilter={readParam(resolvedSearchParams?.queue)}
       initialView={readParam(resolvedSearchParams?.view)}

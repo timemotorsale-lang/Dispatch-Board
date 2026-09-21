@@ -9517,7 +9517,7 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
 .operations-strip header > span { display: inline-flex; align-items: center; gap: 7px; color: #1e293b; font-size: 14px; font-weight: 800; }
 .operations-strip header small { color: #1558c9; font-size: 12px; }
 .team-load { display: flex; flex-wrap: wrap; gap: 16px; overflow: hidden; }
-.team-load-chip { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 8px 10px; color: inherit; background: #f8fbff; border: 1px solid transparent; border-radius: 12px; cursor: pointer; transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease; }
+.team-load-chip { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 8px 10px; color: inherit; text-decoration: none; background: #f8fbff; border: 1px solid transparent; border-radius: 12px; cursor: pointer; transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease; }
 .team-load-chip > span:last-child { display: grid; gap: 3px; color: #374151; font-size: 12px; text-align: left; }
 .team-load-chip:hover { border-color: #cfe0fb; background: #ffffff; transform: translateY(-1px); }
 .team-load-chip:focus-visible { outline: 2px solid #1558c9; outline-offset: 3px; border-radius: 999px; }

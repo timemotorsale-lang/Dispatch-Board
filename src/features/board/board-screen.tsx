@@ -482,6 +482,7 @@ export function BoardScreen({
           {initialView === "overview" ? (
             <OperationsStrip
               activeAssigneeId={filters.assigneeId}
+              boardDate={loadState.date}
               onAssigneeSelect={handleAssigneeSelect}
               tasks={board.tasks}
             />

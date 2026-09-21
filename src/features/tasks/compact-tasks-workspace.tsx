@@ -151,7 +151,7 @@ function CompactTaskDetails({ task, currentUserId, returnTo, onClose }: {
 export function CompactTasksList(props: TasksConsoleScreenProps & { onAdvanced: (filters: CompactTaskFilters) => void }) {
   const router = useRouter();
   const tasks = props.board?.tasks ?? [];
-  const [filters, setFilters] = useState<CompactTaskFilters>({ queue: props.initialQueueFilter ?? (props.consoleBaseHref === "/my-tasks" ? "MY_TASKS" : "ALL"), query: "", owner: "", department: props.initialDepartmentFilter ?? "", sort: "priority" });
+  const [filters, setFilters] = useState<CompactTaskFilters>({ queue: props.initialQueueFilter ?? (props.consoleBaseHref === "/my-tasks" ? "MY_TASKS" : "ALL"), query: "", owner: props.initialOwnerFilter ?? "", department: props.initialDepartmentFilter ?? "", sort: "priority" });
   const [page, setPage] = useState(Math.max(1, props.initialPage ?? 1));
   const [pageSize, setPageSize] = useState("25");
   const [selected, setSelected] = useState<string | null>(null);
@@ -175,7 +175,7 @@ export function CompactTasksList(props: TasksConsoleScreenProps & { onAdvanced: 
   const departments = [...new Set(tasks.map(task => task.workflowArea))].sort();
   const owners = [...new Map(tasks.filter(task => task.assignedUser?.id).map(task => [task.assignedUser.id, task.assignedUser])).values()].sort((a, b) => a.name.localeCompare(b.name));
   const base = props.consoleBaseHref ?? "/tasks";
-  const returnTo = `${base}?date=${encodeURIComponent(props.boardDate)}&queue=${encodeURIComponent(filters.queue)}&department=${encodeURIComponent(filters.department)}&page=${activePage}&view=${view}`;
+  const returnTo = `${base}?date=${encodeURIComponent(props.boardDate)}&queue=${encodeURIComponent(filters.queue)}&department=${encodeURIComponent(filters.department)}&owner=${encodeURIComponent(filters.owner)}&page=${activePage}&view=${view}`;
   const boardGroups = [...new Set(rows.map(task => task.status))];
   const activeFilterCount = [filters.queue !== "ALL", filters.owner, filters.department, filters.query].filter(Boolean).length;
   const overdueTasks = tasks.filter(task => isOverdue(task, now));
@@ -210,7 +210,7 @@ export function CompactTasksList(props: TasksConsoleScreenProps & { onAdvanced: 
   function changeFilter(key: keyof CompactTaskFilters, value: string) {
     setFilters(current => ({ ...current, [key]: value })); setPage(1); setSelected(null);
     // Native history updates keep the shared sidebar in sync without reloading the list.
-    if (key === "queue" || key === "department") {
+    if (key === "queue" || key === "department" || key === "owner") {
       const url = new URL(window.location.href);
       if (value) url.searchParams.set(key, value); else url.searchParams.delete(key);
       url.searchParams.delete("page");
@@ -294,6 +294,6 @@ export function CompactTasksList(props: TasksConsoleScreenProps & { onAdvanced: 
 export function TasksWorkspace(props: TasksConsoleScreenProps) {
   const [advanced, setAdvanced] = useState(Boolean(props.initialView && ["advanced", "available", "my-requests", "needs-help", "manager-requests"].includes(props.initialView) || props.initialQuickCreateOpen || props.initialConcernIntakeOpen || props.initialGroupBy && props.initialGroupBy !== "none"));
   const [advancedFilters, setAdvancedFilters] = useState<CompactTaskFilters | null>(null);
-  if (advanced) return <><div className={styles.back}><button onClick={() => setAdvanced(false)} type="button">← Compact task list</button><span>Advanced tools · Board, assignment requests, saved views, and automation</span></div><TasksConsoleScreen {...props} initialQueueFilter={advancedFilters?.queue ?? props.initialQueueFilter} initialDepartmentFilter={advancedFilters?.department ?? props.initialDepartmentFilter} /></>;
+  if (advanced) return <><div className={styles.back}><button onClick={() => setAdvanced(false)} type="button">← Compact task list</button><span>Advanced tools · Board, assignment requests, saved views, and automation</span></div><TasksConsoleScreen {...props} initialQueueFilter={advancedFilters?.queue ?? props.initialQueueFilter} initialDepartmentFilter={advancedFilters?.department ?? props.initialDepartmentFilter} initialOwnerFilter={advancedFilters?.owner ?? props.initialOwnerFilter} /></>;
   return <CompactTasksList {...props} onAdvanced={filters => { setAdvancedFilters(filters); setAdvanced(true); }} />;
 }

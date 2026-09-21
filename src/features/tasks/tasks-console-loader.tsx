@@ -36,5 +36,5 @@ function TasksConsoleLoadingState() {
 }
 
 export function TasksConsoleLoader(props: TasksConsoleScreenProps) {
-  return <TasksConsoleScreen key={[props.consoleBaseHref, props.initialQueueFilter, props.initialDepartmentFilter, props.initialView, props.initialPage].join(":")} {...props} />;
+  return <TasksConsoleScreen key={[props.consoleBaseHref, props.initialQueueFilter, props.initialDepartmentFilter, props.initialOwnerFilter, props.initialView, props.initialPage].join(":")} {...props} />;
 }
