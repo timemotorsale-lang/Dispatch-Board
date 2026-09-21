@@ -27089,6 +27089,62 @@ html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
 }
 
 html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-focus-proof-drawer > header,
+  .advisor-focus-proof-drawer section
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-focus-proof-drawer > header,
+  .advisor-focus-proof-drawer section
+) {
+  border-color: var(--line-strong) !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-focus-proof-drawer legend,
+  .advisor-focus-proof-drawer > header strong,
+  .advisor-focus-proof-drawer section header strong,
+  .advisor-focus-proof-drawer section > div > div label span,
+  .advisor-focus-proof-drawer section > div > div strong
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-focus-proof-drawer legend,
+  .advisor-focus-proof-drawer > header strong,
+  .advisor-focus-proof-drawer section header strong,
+  .advisor-focus-proof-drawer section > div > div label span,
+  .advisor-focus-proof-drawer section > div > div strong
+) {
+  color: var(--ink) !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-focus-proof-toggle small,
+  .advisor-focus-proof-drawer > header small,
+  .advisor-focus-proof-drawer section header small,
+  .advisor-focus-proof-drawer section > p
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-focus-proof-toggle small,
+  .advisor-focus-proof-drawer > header small,
+  .advisor-focus-proof-drawer section header small,
+  .advisor-focus-proof-drawer section > p
+) {
+  color: var(--muted) !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-focus-proof-drawer > header button,
+  .advisor-focus-proof-drawer section > div > div button
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-focus-proof-drawer > header button,
+  .advisor-focus-proof-drawer section > div > div button
+) {
+  background: var(--surface-soft) !important;
+  border-color: var(--line-strong) !important;
+  color: var(--ink) !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
   .advisor-focus-must em
 ),
 html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
@@ -29130,12 +29186,112 @@ html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
 }
 
 html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-coo-attention-now > div > a,
+  .advisor-coo-execution-list > article,
+  .advisor-coo-other-attention > a,
+  .advisor-coo-related-attention a
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-coo-attention-now > div > a,
+  .advisor-coo-execution-list > article,
+  .advisor-coo-other-attention > a,
+  .advisor-coo-related-attention a
+) {
+  background: #14253a !important;
+  border-color: #344a64 !important;
+  color: #edf4ff !important;
+  box-shadow: none !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-coo-attention-now > div > a.red,
+  .advisor-coo-execution-list > article.red,
+  .advisor-coo-other-attention > a.red,
+  .advisor-coo-related-attention a.red
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-coo-attention-now > div > a.red,
+  .advisor-coo-execution-list > article.red,
+  .advisor-coo-other-attention > a.red,
+  .advisor-coo-related-attention a.red
+) {
+  border-left-color: #f87171 !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-coo-attention-now > div > a.yellow,
+  .advisor-coo-execution-list > article.yellow,
+  .advisor-coo-other-attention > a.yellow,
+  .advisor-coo-related-attention a.yellow
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-coo-attention-now > div > a.yellow,
+  .advisor-coo-execution-list > article.yellow,
+  .advisor-coo-other-attention > a.yellow,
+  .advisor-coo-related-attention a.yellow
+) {
+  border-left-color: #fbbf24 !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-coo-attention-now > div > a:hover,
+  .advisor-coo-execution-list > article:hover,
+  .advisor-coo-other-attention > a:hover,
+  .advisor-coo-related-attention a:hover
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-coo-attention-now > div > a:hover,
+  .advisor-coo-execution-list > article:hover,
+  .advisor-coo-other-attention > a:hover,
+  .advisor-coo-related-attention a:hover
+) {
+  background: #1b2b40 !important;
+  border-color: #4b6380 !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-coo-attention-now a strong,
+  .advisor-coo-execution-list > article strong,
+  .advisor-coo-other-attention > a strong,
+  .advisor-coo-related-attention a strong
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-coo-attention-now a strong,
+  .advisor-coo-execution-list > article strong,
+  .advisor-coo-other-attention > a strong,
+  .advisor-coo-related-attention a strong
+) {
+  color: #edf4ff !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-coo-attention-now a small,
+  .advisor-coo-execution-list > article small,
+  .advisor-coo-execution-list > article i,
+  .advisor-coo-other-attention > a small,
+  .advisor-coo-related-attention a small,
+  .advisor-coo-related-attention a i
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-coo-attention-now a small,
+  .advisor-coo-execution-list > article small,
+  .advisor-coo-execution-list > article i,
+  .advisor-coo-other-attention > a small,
+  .advisor-coo-related-attention a small,
+  .advisor-coo-related-attention a i
+) {
+  color: #bfcee0 !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
   .advisor-coo-execution-actions a:not(.primary),
+  .advisor-coo-attention-now > div > a em,
   .advisor-coo-other-attention > a em,
   .advisor-coo-related-attention a em
 ),
 html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
   .advisor-coo-execution-actions a:not(.primary),
+  .advisor-coo-attention-now > div > a em,
   .advisor-coo-other-attention > a em,
   .advisor-coo-related-attention a em
 ) {
