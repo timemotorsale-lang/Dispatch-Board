@@ -636,6 +636,26 @@ function getQueueFilterLabel(filter: QueueFilter) {
   return "All Tasks";
 }
 
+function getAcquisitionViewLabel(view: AcquisitionView) {
+  if (view === "available") {
+    return "Available Work";
+  }
+
+  if (view === "my-requests") {
+    return "My Requests";
+  }
+
+  if (view === "needs-help") {
+    return "Needs Help";
+  }
+
+  if (view === "manager-requests") {
+    return "Assignment Requests";
+  }
+
+  return "Team Queue";
+}
+
 function getTaskOwnerId(task: Pick<BoardReadTask, "assignedUser">) {
   return task.assignedUser?.id ?? "";
 }
@@ -1074,6 +1094,7 @@ export function TasksConsoleScreen({
   const myUrgentCount = getQueueCount(allTasks, "MY_URGENT", now, boardDate, currentUserId);
   const activeFilterChips = [
     activeQueueFilter !== "ALL" ? `Queue: ${getQueueFilterLabel(activeQueueFilter)}` : null,
+    acquisitionView !== "all" ? `View: ${getAcquisitionViewLabel(acquisitionView)}` : null,
     activeDepartmentFilter ? `Department: ${getDepartmentLabel(activeDepartmentFilter)}` : null,
     groupBy !== "none" ? `Grouped by ${getGroupByLabel(groupBy)}` : null,
     searchText.trim() ? `Search: ${searchText.trim()}` : null,
@@ -1277,6 +1298,7 @@ export function TasksConsoleScreen({
   function handleQueueFilterChange(filter: QueueFilter) {
     setActiveQueueFilter(filter);
     setActiveDepartmentFilter(null);
+    setAcquisitionView("all");
     setCurrentPage(1);
     setActiveMenu(null);
   }
@@ -1284,6 +1306,15 @@ export function TasksConsoleScreen({
   function handleDepartmentFilterChange(filter: DepartmentFilter) {
     setActiveDepartmentFilter(filter);
     setActiveQueueFilter("ALL");
+    setAcquisitionView("all");
+    setCurrentPage(1);
+    setActiveMenu(null);
+  }
+
+  function handleAcquisitionViewChange(view: AcquisitionView) {
+    setAcquisitionView((currentView) => currentView === view ? "all" : view);
+    setActiveQueueFilter("ALL");
+    setActiveDepartmentFilter(null);
     setCurrentPage(1);
     setActiveMenu(null);
   }
@@ -1442,6 +1473,7 @@ export function TasksConsoleScreen({
   function handleResetBoardView() {
     setActiveQueueFilter("ALL");
     setActiveDepartmentFilter(null);
+    setAcquisitionView("all");
     setSearchText("");
     setGroupBy("none");
     setActiveView("list");
@@ -2273,17 +2305,17 @@ export function TasksConsoleScreen({
           <button className={activeQueueFilter === "ALL" ? "active" : undefined} onClick={() => handleQueueFilterChange("ALL")} type="button">
             Team Queue <span>{allTasks.length}</span>
           </button>
-          <button className={acquisitionView === "available" ? "active" : undefined} onClick={() => setAcquisitionView(acquisitionView === "available" ? "all" : "available")} type="button">
+          <button className={acquisitionView === "available" ? "active" : undefined} onClick={() => handleAcquisitionViewChange("available")} type="button">
             Available Work <span>{acquisitionOverview?.counts.available ?? 0}</span>
           </button>
-          <button className={acquisitionView === "my-requests" ? "active" : undefined} onClick={() => setAcquisitionView(acquisitionView === "my-requests" ? "all" : "my-requests")} type="button">
+          <button className={acquisitionView === "my-requests" ? "active" : undefined} onClick={() => handleAcquisitionViewChange("my-requests")} type="button">
             My Requests <span>{acquisitionOverview?.counts.pendingRequests ?? 0}</span>
           </button>
-          <button className={acquisitionView === "needs-help" ? "active" : undefined} onClick={() => setAcquisitionView(acquisitionView === "needs-help" ? "all" : "needs-help")} type="button">
+          <button className={acquisitionView === "needs-help" ? "active" : undefined} onClick={() => handleAcquisitionViewChange("needs-help")} type="button">
             Needs Help
           </button>
           {isManager ? (
-            <button className={acquisitionView === "manager-requests" ? "active" : undefined} onClick={() => setAcquisitionView(acquisitionView === "manager-requests" ? "all" : "manager-requests")} type="button">
+            <button className={acquisitionView === "manager-requests" ? "active" : undefined} onClick={() => handleAcquisitionViewChange("manager-requests")} type="button">
               Assignment Requests <span>{managerRequests.length}</span>
             </button>
           ) : null}
