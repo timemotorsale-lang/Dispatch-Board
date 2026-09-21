@@ -26099,6 +26099,407 @@ html[data-app-theme="dark"] :where(.rowb-daily-command,.rowb-daily-status div,.r
 @media(max-width:1350px){.rowb-layout{grid-template-columns:minmax(210px,230px) minmax(0,1fr)}.rowb-command{grid-column:2;grid-template-columns:repeat(2,minmax(0,1fr))}.rowb-workflow-gate,.rowb-next{grid-column:auto}}
 @media(max-width:1050px){.rowb-layout{grid-template-columns:1fr}.rowb-context,.rowb-command{grid-column:1;grid-template-columns:1fr}.rowb-plan-head,.rowb-plan article{min-width:680px}}
 
+/* Repair Order Workbench theme refinement: keep every console surface readable in dark and light mode. */
+.rowb-shell {
+  --rowb-action-bg: var(--surface-strong);
+  --rowb-action-ink: var(--brand-strong);
+  --rowb-action-line: color-mix(in srgb, var(--brand) 34%, var(--line-strong));
+  --rowb-disabled-bg: var(--surface-soft);
+  --rowb-disabled-ink: color-mix(in srgb, var(--muted) 84%, var(--ink));
+  --rowb-status-bg: var(--success-soft);
+  --rowb-status-ink: var(--success);
+  --rowb-warning-bg: var(--warning-soft);
+  --rowb-warning-ink: var(--warning);
+}
+
+html[data-app-theme="dark"] .app-content:has(.rowb-shell) {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+html[data-app-theme="dark"] .rowb-shell {
+  --rowb-ink: var(--ink);
+  --rowb-muted: var(--muted);
+  --rowb-line: var(--line);
+  --rowb-action-bg: var(--surface-soft);
+  --rowb-action-ink: var(--ink);
+  --rowb-action-line: var(--line-strong);
+  --rowb-disabled-bg: color-mix(in srgb, var(--surface-soft) 78%, var(--bg));
+  --rowb-disabled-ink: var(--muted);
+  --rowb-status-bg: var(--success-soft);
+  --rowb-status-ink: #bbf7d0;
+  --rowb-warning-bg: var(--warning-soft);
+  --rowb-warning-ink: #fed7aa;
+  background: var(--bg) !important;
+  color: var(--ink) !important;
+}
+
+html[data-app-theme="dark"] .rowb-shell :where(
+  .rowb-header,
+  .rowb-lifecycle,
+  .rowb-summary-card,
+  .rowb-summary-nav,
+  .rowb-summary-top,
+  .rowb-summary-facts div,
+  .rowb-summary-drawer-stack,
+  .rowb-summary-drawer-panel,
+  .rowb-summary-drawer-list p,
+  .rowb-summary-drawer-tools a,
+  .rowb-summary-drawer-tools button,
+  .rowb-summary-details,
+  .rowb-summary-details article,
+  .rowb-summary-details-panel article,
+  .rowb-recon-path-selector,
+  .rowb-recon-path-selector button,
+  .rowb-recon-report,
+  .rowb-report-kpis div,
+  .rowb-report-focus article,
+  .rowb-report-stages article,
+  .rowb-print-document,
+  .rowb-document-grid dl > div,
+  .rowb-location-workflow,
+  .rowb-print-document article,
+  .rowb-daily-command,
+  .rowb-daily-status div,
+  .rowb-daily-path li,
+  .rowb-advanced-detail > summary,
+  .rowb-close-panel,
+  .rowb-context-note,
+  .rowb-transition-strip,
+  .rowb-transition-grid > a,
+  .rowb-context > section,
+  .rowb-command > section,
+  .rowb-concern,
+  .rowb-finding,
+  .rowb-stage-cards article,
+  .rowb-tabs,
+  .rowb-actions
+) {
+  background: var(--surface) !important;
+  border-color: var(--line) !important;
+  box-shadow: none !important;
+  color: var(--ink) !important;
+}
+
+html[data-app-theme="dark"] .rowb-shell :where(
+  .rowb-summary-card,
+  .rowb-recon-report,
+  .rowb-daily-command,
+  .rowb-print-document
+) {
+  border-left-color: var(--brand) !important;
+}
+
+html[data-app-theme="dark"] .rowb-shell :where(
+  .rowb-summary-facts div,
+  .rowb-summary-drawer-panel,
+  .rowb-summary-drawer-list p,
+  .rowb-summary-details article,
+  .rowb-recon-path-selector button,
+  .rowb-report-kpis div,
+  .rowb-report-focus article,
+  .rowb-report-stages article,
+  .rowb-document-grid dl > div,
+  .rowb-location-workflow,
+  .rowb-print-document article,
+  .rowb-daily-status div,
+  .rowb-daily-path li,
+  .rowb-transition-grid > a,
+  .rowb-vehicle-tool-links a
+) {
+  background: var(--surface-soft) !important;
+}
+
+html[data-app-theme="dark"] .rowb-shell :where(
+  h1,
+  h2,
+  h3,
+  h4,
+  strong,
+  b,
+  dt,
+  dd,
+  label,
+  summary,
+  .rowb-summary-vehicle h2,
+  .rowb-summary-status strong,
+  .rowb-summary-facts dd,
+  .rowb-summary-details summary span,
+  .rowb-summary-details article strong,
+  .rowb-summary-details article dd,
+  .rowb-recon-path-selector header strong,
+  .rowb-recon-path-selector button strong,
+  .rowb-recon-report h3,
+  .rowb-report-kpis b,
+  .rowb-report-focus strong,
+  .rowb-report-stages b,
+  .rowb-report-events > strong,
+  .rowb-report-events b,
+  .rowb-daily-primary h2,
+  .rowb-daily-status dd,
+  .rowb-daily-path strong,
+  .rowb-print-document h2,
+  .rowb-document-grid dd,
+  .rowb-print-document article p,
+  .rowb-advanced-detail > summary span
+) {
+  color: var(--ink) !important;
+}
+
+html[data-app-theme="dark"] .rowb-shell :where(
+  p,
+  span,
+  small,
+  em,
+  li,
+  .rowb-summary-vehicle p,
+  .rowb-summary-status p,
+  .rowb-summary-details span,
+  .rowb-summary-details summary strong,
+  .rowb-summary-details article dt,
+  .rowb-recon-path-selector header small,
+  .rowb-recon-path-selector button span,
+  .rowb-recon-report p,
+  .rowb-recon-report small,
+  .rowb-report-kpis span,
+  .rowb-report-focus small,
+  .rowb-report-stages span,
+  .rowb-report-events span,
+  .rowb-daily-primary p,
+  .rowb-daily-status dt,
+  .rowb-daily-path span,
+  .rowb-print-document > header span,
+  .rowb-document-grid dt,
+  .rowb-print-document article small,
+  .rowb-advanced-detail > summary small
+) {
+  color: var(--muted) !important;
+}
+
+.rowb-shell :where(
+  .rowb-document-actions a,
+  .rowb-document-actions button,
+  .rowb-print-actions a,
+  .rowb-print-actions button,
+  .rowb-summary-nav > div:last-child a,
+  .rowb-summary-nav > div:last-child button,
+  .rowb-summary-actions a,
+  .rowb-summary-actions button,
+  .rowb-daily-primary a,
+  .rowb-daily-primary button,
+  .rowb-actions > a,
+  .rowb-actions > button,
+  .rowb-next > a,
+  .rowb-summary-drawer-tools a,
+  .rowb-summary-drawer-tools button,
+  .rowb-summary-comment-actions button,
+  .rowb-vehicle-tool-links a,
+  .rowb-close-panel button
+) {
+  background: var(--rowb-action-bg);
+  border-color: var(--rowb-action-line);
+  color: var(--rowb-action-ink);
+}
+
+.rowb-shell :where(
+  .rowb-document-actions a,
+  .rowb-document-actions button,
+  .rowb-print-actions a,
+  .rowb-print-actions button,
+  .rowb-summary-nav > div:last-child a,
+  .rowb-summary-nav > div:last-child button,
+  .rowb-summary-actions a,
+  .rowb-summary-actions button,
+  .rowb-daily-primary a,
+  .rowb-daily-primary button,
+  .rowb-actions > a,
+  .rowb-actions > button,
+  .rowb-next > a,
+  .rowb-summary-drawer-tools a,
+  .rowb-summary-drawer-tools button,
+  .rowb-summary-comment-actions button,
+  .rowb-vehicle-tool-links a,
+  .rowb-close-panel button
+):disabled,
+.rowb-shell :where(
+  .rowb-document-actions a,
+  .rowb-document-actions button,
+  .rowb-print-actions a,
+  .rowb-print-actions button,
+  .rowb-summary-nav > div:last-child a,
+  .rowb-summary-nav > div:last-child button,
+  .rowb-summary-actions a,
+  .rowb-summary-actions button,
+  .rowb-daily-primary a,
+  .rowb-daily-primary button,
+  .rowb-actions > a,
+  .rowb-actions > button,
+  .rowb-next > a,
+  .rowb-summary-drawer-tools a,
+  .rowb-summary-drawer-tools button,
+  .rowb-summary-comment-actions button,
+  .rowb-vehicle-tool-links a,
+  .rowb-close-panel button
+)[aria-disabled="true"] {
+  background: var(--rowb-disabled-bg) !important;
+  border-color: var(--line) !important;
+  color: var(--rowb-disabled-ink) !important;
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+html[data-app-theme="dark"] .rowb-shell :where(
+  .rowb-document-actions a,
+  .rowb-document-actions button,
+  .rowb-print-actions a,
+  .rowb-print-actions button,
+  .rowb-summary-nav > div:last-child a,
+  .rowb-summary-nav > div:last-child button,
+  .rowb-summary-actions a,
+  .rowb-summary-actions button,
+  .rowb-daily-primary a,
+  .rowb-daily-primary button,
+  .rowb-actions > a,
+  .rowb-actions > button,
+  .rowb-next > a,
+  .rowb-summary-drawer-tools a,
+  .rowb-summary-drawer-tools button,
+  .rowb-vehicle-tool-links a,
+  .rowb-close-panel button
+) {
+  background: var(--rowb-action-bg) !important;
+  border-color: var(--rowb-action-line) !important;
+  color: var(--rowb-action-ink) !important;
+}
+
+.rowb-shell :where(
+  .rowb-summary-actions a.primary,
+  .rowb-daily-primary a.primary,
+  .rowb-actions > a.primary,
+  .rowb-next > a,
+  .rowb-summary-comment-actions button,
+  .rowb-workflow-gate .rowb-gate-action
+) {
+  background: var(--brand) !important;
+  border-color: var(--brand-strong) !important;
+  color: #fff !important;
+}
+
+.rowb-shell :where(
+  .rowb-summary-status > span,
+  .rowb-recon-report > header > strong,
+  .rowb-daily-primary > span,
+  .rowb-summary-rail span.done
+) {
+  background: var(--rowb-status-bg) !important;
+  border-color: color-mix(in srgb, var(--success) 36%, transparent) !important;
+  color: var(--rowb-status-ink) !important;
+}
+
+.rowb-shell :where(
+  .rowb-summary-rail span.next,
+  .rowb-close-panel,
+  .rowb-plan > footer
+) {
+  background: var(--rowb-warning-bg) !important;
+  border-color: color-mix(in srgb, var(--warning) 40%, var(--line)) !important;
+  color: var(--rowb-warning-ink) !important;
+}
+
+html[data-app-theme="dark"] .rowb-shell :where(
+  input,
+  select,
+  textarea,
+  .rowb-vehicle-color-editor input,
+  .rowb-summary-comments textarea,
+  .rowb-close-panel textarea
+) {
+  background: var(--surface-soft) !important;
+  border-color: var(--line-strong) !important;
+  color: var(--ink) !important;
+}
+
+html[data-app-theme="dark"] .rowb-shell :where(input::placeholder, textarea::placeholder) {
+  color: var(--muted) !important;
+  opacity: 1;
+}
+
+html[data-app-theme="dark"] .rowb-shell :where(
+  .rowb-recon-path-selector button[aria-pressed=true],
+  .rowb-summary-drawer-tabs button[aria-pressed="true"],
+  .rowb-summary-rail span.current,
+  .rowb-daily-path li.current,
+  .rowb-transition-grid > a.recommended
+) {
+  background: var(--brand-soft) !important;
+  border-color: var(--brand) !important;
+  color: var(--ink) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 44%, transparent) !important;
+}
+
+html[data-app-theme="dark"] .rowb-shell :where(
+  .rowb-recon-path-selector button[aria-pressed=true] strong,
+  .rowb-summary-drawer-tabs button[aria-pressed="true"],
+  .rowb-summary-rail span.current,
+  .rowb-transition-grid > a.recommended strong
+) {
+  color: var(--ink) !important;
+}
+
+html[data-app-theme="dark"] .rowb-shell :where(
+  .rowb-summary-rail span,
+  .rowb-summary-rail i,
+  .rowb-summary-drawer-tabs button,
+  .rowb-summary-drawer-tabs span
+) {
+  background: var(--surface-soft) !important;
+  border-color: var(--line-strong) !important;
+  color: var(--ink) !important;
+}
+
+html[data-app-theme="dark"] .rowb-shell :where(
+  .rowb-summary-rail span.upcoming,
+  .rowb-summary-rail span.upcoming i,
+  .rowb-summary-drawer-tabs button:not([aria-pressed="true"]) span
+) {
+  background: color-mix(in srgb, var(--surface-soft) 78%, var(--bg)) !important;
+  color: var(--muted) !important;
+}
+
+html[data-app-theme="dark"] .rowb-shell :where(
+  .rowb-summary-rail span.done,
+  .rowb-summary-rail span.done i
+) {
+  background: var(--success-soft) !important;
+  border-color: color-mix(in srgb, var(--success) 42%, var(--line)) !important;
+  color: var(--rowb-status-ink) !important;
+}
+
+html[data-app-theme="dark"] .rowb-shell :where(
+  .rowb-summary-rail span.current,
+  .rowb-summary-rail span.current i
+) {
+  background: var(--brand-soft) !important;
+  border-color: var(--brand) !important;
+  color: var(--ink) !important;
+}
+
+html[data-app-theme="dark"] .rowb-shell :where(
+  .rowb-summary-rail span.next,
+  .rowb-summary-rail span.next i
+) {
+  background: var(--warning-soft) !important;
+  border-color: color-mix(in srgb, var(--warning) 42%, var(--line)) !important;
+  color: var(--rowb-warning-ink) !important;
+}
+
+html[data-app-theme="dark"] .rowb-shell :where(
+  .rowb-summary-rail span.done i,
+  .rowb-summary-rail span.current i
+) {
+  color: #fff !important;
+}
+
 /* Global enterprise readability baseline. Approved after the Repair Order Workbench pass. */
 :where(.app-frame,.app-content) :where(textarea,p,li,dd,td,small){line-height:1.45}:where(.app-frame,.app-content) :where(h1,h2,h3,h4,h5,h6){line-height:1.15}:where(.app-frame,.app-content) :where(input,select,textarea,button){font-size:max(12px,1em)}
 
