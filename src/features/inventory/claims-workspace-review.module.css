@@ -215,6 +215,19 @@
   margin-top: 10px;
 }
 
+.extraToolsButton {
+  justify-self: start;
+  min-height: 40px;
+  border: 1px solid #284bd0;
+  border-radius: 8px;
+  background: #284bd0;
+  color: #fff;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 900;
+  padding: 8px 12px;
+}
+
 .activityDrawer {
   border: 1px solid #cbd8ef;
   border-radius: 8px;
@@ -239,6 +252,163 @@
   padding: 0 10px 10px;
 }
 
+.activitySummary {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #dce5f3;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.activitySummary strong {
+  color: #07132d;
+  font-size: 0.92rem;
+  line-height: 1.25;
+}
+
+.activitySummary span {
+  color: #526481;
+  font-size: 0.82rem;
+  line-height: 1.38;
+}
+
+.activitySummary button {
+  justify-self: start;
+  min-height: 38px;
+  border: 1px solid #284bd0;
+  border-radius: 8px;
+  background: #284bd0;
+  color: #fff;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 900;
+  padding: 8px 12px;
+}
+
+.drawerBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  justify-items: end;
+  background: rgba(7, 19, 45, 0.36);
+}
+
+.timelineDrawer {
+  display: grid;
+  grid-template-rows: auto minmax(0, auto) minmax(0, 1fr) auto;
+  gap: 12px;
+  width: min(1040px, calc(100vw - 32px));
+  height: 100%;
+  overflow: auto;
+  padding: 20px;
+  border-left: 1px solid #cbd8ef;
+  background: #f8fbff;
+  box-shadow: -24px 0 54px rgba(7, 19, 45, 0.22);
+}
+
+.timelineDrawer > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 2px 0 4px;
+}
+
+.timelineDrawer h2,
+.timelineDrawer p {
+  margin: 0;
+}
+
+.timelineDrawer h2 {
+  margin-top: 4px;
+  color: #07132d;
+  font-size: 1.5rem;
+  line-height: 1.1;
+}
+
+.timelineDrawer p {
+  margin-top: 5px;
+  color: #526481;
+  font-size: 0.86rem;
+  line-height: 1.42;
+}
+
+.timelineDrawer > header button {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border: 1px solid #bdcbe4;
+  border-radius: 8px;
+  background: #fff;
+  color: #07132d;
+  font: inherit;
+  font-size: 1.35rem;
+  cursor: pointer;
+}
+
+.extraToolsDrawer {
+  width: min(1040px, calc(100vw - 32px));
+}
+
+.toolWorkbench {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.toolGridPanel {
+  display: grid;
+  gap: 8px;
+}
+
+.toolGridPanel button {
+  display: grid;
+  gap: 6px;
+  min-height: 74px;
+  padding: 12px;
+  border: 1px solid #dce5f3;
+  border-radius: 8px;
+  background: #fff;
+  color: #07132d;
+  font: inherit;
+  text-align: left;
+}
+
+.toolGridPanel button[aria-pressed="true"] {
+  border-color: #284bd0;
+  background: #eef3ff;
+  box-shadow: inset 4px 0 #284bd0;
+}
+
+.toolGridPanel strong {
+  font-size: 0.98rem;
+  line-height: 1.2;
+}
+
+.toolGridPanel span {
+  color: #526481;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.toolWorkArea {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.toolHint {
+  margin: 0;
+  color: #526481;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
 .executionForm {
   display: grid;
   gap: 8px;
@@ -249,16 +419,81 @@
   background: transparent;
 }
 
+.timelineForm {
+  padding: 14px;
+  border: 1px solid #dce5f3;
+  border-radius: 8px;
+  background: #fff;
+}
+
 .executionForm > strong {
   color: #07132d;
   font-size: 0.9rem;
   line-height: 1.2;
 }
 
+.appointmentToolHeader {
+  display: grid;
+  gap: 5px;
+}
+
+.appointmentToolHeader a {
+  color: #07132d;
+  font-size: 0.95rem;
+  font-weight: 950;
+  line-height: 1.2;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.appointmentToolHeader span {
+  color: #526481;
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.appointmentToolActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.appointmentToolActions a {
+  min-height: 38px;
+  border: 1px solid #284bd0;
+  border-radius: 8px;
+  background: #284bd0;
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 900;
+  line-height: 1.2;
+  padding: 10px 12px;
+  text-decoration: none;
+}
+
+.appointmentToolActions a:last-child {
+  background: #fff;
+  color: #284bd0;
+}
+
 .executionForm > div {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
+}
+
+.timelineForm > div {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.executionForm > .appointmentToolHeader {
+  grid-template-columns: 1fr;
+}
+
+.executionForm > .appointmentToolActions {
+  display: flex;
+  grid-template-columns: none;
 }
 
 .executionForm input,
@@ -277,6 +512,25 @@
 
 .executionForm textarea {
   resize: vertical;
+}
+
+.noteField {
+  display: grid;
+  gap: 5px;
+}
+
+.noteField span {
+  color: #526481;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.noteField textarea {
+  min-height: 148px;
+  font-size: 0.92rem;
+  line-height: 1.5;
 }
 
 .executionForm button {
@@ -419,17 +673,49 @@
   gap: 8px;
 }
 
+.timelineReport {
+  display: grid;
+  gap: 10px;
+  min-height: 0;
+}
+
+.timelineReport > header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 0;
+}
+
+.timelineReport h3 {
+  margin: 3px 0 0;
+  color: #07132d;
+  font-size: 1.1rem;
+  line-height: 1.15;
+}
+
+.timelineReport > header > span {
+  color: #526481;
+  font-size: 0.8rem;
+  font-weight: 850;
+}
+
 .documentItem,
 .timeline article {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-  min-height: 58px;
-  padding: 10px;
+  display: grid;
+  gap: 8px;
+  min-height: 0;
+  padding: 14px;
   border: 1px solid #dce5f3;
   border-radius: 8px;
   background: #fbfdff;
+}
+
+.timeline article header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
 }
 
 .documentItem strong,
@@ -440,6 +726,21 @@
   line-height: 1.25;
 }
 
+.timeline time {
+  flex: 0 0 auto;
+  color: #526481;
+  font-size: 0.78rem;
+  font-weight: 850;
+  line-height: 1.25;
+}
+
+.timeline p {
+  margin: 0;
+  color: #17253c;
+  font-size: 0.94rem;
+  line-height: 1.55;
+}
+
 .documentItem span,
 .documentItem small,
 .timeline span,
@@ -447,7 +748,7 @@
   display: block;
   margin-top: 3px;
   color: #526481;
-  font-size: 0.76rem;
+  font-size: 0.78rem;
   line-height: 1.3;
 }
 
@@ -549,6 +850,76 @@
   font-size: 0.76rem;
 }
 
+:global(html[data-app-theme="dark"]) .drawerBackdrop {
+  background: rgba(0, 0, 0, 0.45);
+}
+
+:global(html[data-app-theme="dark"]) .timelineDrawer {
+  border-left-color: #304058;
+  background: #121c2d;
+  box-shadow: -24px 0 54px rgba(0, 0, 0, 0.42);
+}
+
+:global(html[data-app-theme="dark"]) .timelineDrawer h2,
+:global(html[data-app-theme="dark"]) .timelineReport h3,
+:global(html[data-app-theme="dark"]) .timeline strong,
+:global(html[data-app-theme="dark"]) .timeline p,
+:global(html[data-app-theme="dark"]) .activitySummary strong {
+  color: #e4ebf7;
+}
+
+:global(html[data-app-theme="dark"]) .timelineDrawer p,
+:global(html[data-app-theme="dark"]) .activitySummary span,
+:global(html[data-app-theme="dark"]) .timelineReport > header > span,
+:global(html[data-app-theme="dark"]) .timeline time,
+:global(html[data-app-theme="dark"]) .timeline small,
+:global(html[data-app-theme="dark"]) .noteField span {
+  color: #a9b8ce;
+}
+
+:global(html[data-app-theme="dark"]) .timelineDrawer > header button,
+:global(html[data-app-theme="dark"]) .timelineForm,
+:global(html[data-app-theme="dark"]) .timeline article,
+:global(html[data-app-theme="dark"]) .toolGridPanel button,
+:global(html[data-app-theme="dark"]) .activitySummary {
+  border-color: #304058;
+  background: #1b293e;
+}
+
+:global(html[data-app-theme="dark"]) .timelineDrawer > header button,
+:global(html[data-app-theme="dark"]) .toolGridPanel strong {
+  color: #e4ebf7;
+}
+
+:global(html[data-app-theme="dark"]) .toolGridPanel span {
+  color: #a9b8ce;
+}
+
+:global(html[data-app-theme="dark"]) .toolGridPanel button[aria-pressed="true"] {
+  border-color: #8aa7ff;
+  background: #22385c;
+  box-shadow: inset 4px 0 #8aa7ff;
+}
+
+:global(html[data-app-theme="dark"]) .appointmentToolHeader a {
+  color: #f8fbff;
+}
+
+:global(html[data-app-theme="dark"]) .appointmentToolHeader span {
+  color: #d7e3f8;
+}
+
+:global(html[data-app-theme="dark"]) .appointmentToolActions a {
+  border-color: #8aa7ff;
+  background: #5d75e9;
+  color: #fff;
+}
+
+:global(html[data-app-theme="dark"]) .appointmentToolActions a:last-child {
+  background: #18263d;
+  color: #f8fbff;
+}
+
 @media (max-width: 1180px) {
   .hero,
   .workspace {
@@ -591,6 +962,14 @@
   }
 
   .executionForm > div {
+    grid-template-columns: 1fr;
+  }
+
+  .toolWorkbench {
+    grid-template-columns: 1fr;
+  }
+
+  .toolGridPanel {
     grid-template-columns: 1fr;
   }
 

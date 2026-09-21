@@ -1,5 +1,5 @@
-.workspace { --surface: #fff; --ink: #17253c; --muted: #617088; --line: #e5eaf1; --soft: #f4f7fc; --blue: #315dcc; --selected: #edf3ff; --danger: #c33b32; --warning: #b76b16; --active: #236a8e; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; min-width: 0; font-size: 13px; line-height: 1.4; }
-:global(html[data-app-theme="dark"]) .workspace { --surface: #121c2d; --ink: #e4ebf7; --muted: #a9b8ce; --line: #304058; --soft: #1b293e; --blue: #9db9ff; --selected: #22385c; --danger: #ffaaa2; --warning: #f2b466; --active: #8dd2ef; }
+.workspace { --surface: #fff; --ink: #17253c; --muted: #617088; --line: #e5eaf1; --soft: #f4f7fc; --blue: #315dcc; --selected: #edf3ff; --danger: #c33b32; --warning: #b76b16; --active: #236a8e; --success-text: #16643d; --success-surface: #eaf8ef; --success-line: #caead7; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; min-width: 0; font-size: 13px; line-height: 1.4; }
+:global(html[data-app-theme="dark"]) .workspace { --surface: #121c2d; --ink: #e4ebf7; --muted: #a9b8ce; --line: #304058; --soft: #1b293e; --blue: #9db9ff; --selected: #22385c; --danger: #ffaaa2; --warning: #f2b466; --active: #8dd2ef; --success-text: #9be7bb; --success-surface: #143425; --success-line: #275d41; }
 .workspace button, .workspace input, .workspace select { font: inherit; color: inherit; }
 .workspace button, .detailActions a { display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; background: var(--surface); text-decoration: none; }
 .workspace button:disabled { opacity: .45; cursor: default; }
@@ -37,7 +37,7 @@
 .options label { display: flex; align-items: center; gap: 8px; }
 .options label:first-child { justify-content: space-between; }
 .freshness { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 18px 8px; color: var(--muted); font-size: 12px; }
-.freshness span { color: #1f7a4b; background: #eaf8ef; border: 1px solid #caead7; border-radius: 999px; padding: 2px 8px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+.freshness span { color: var(--success-text); background: var(--success-surface); border: 1px solid var(--success-line); border-radius: 999px; padding: 2px 8px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
 .freshness strong { color: var(--ink); font-weight: 600; }
 .freshness em { font-style: normal; }
 .filterSummary { padding: 0 18px 8px; font-size: 12px; color: var(--muted); }

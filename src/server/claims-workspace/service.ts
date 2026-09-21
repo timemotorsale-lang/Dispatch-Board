@@ -92,6 +92,7 @@ export type ClaimEvidenceRecord = {
 export type ClaimActivityRecord = {
   action: string;
   actorUserId: string;
+  actorUserName?: string;
   at: string;
   detail: string;
   id: string;
@@ -377,6 +378,7 @@ function seededAggregates(): ClaimWorkspaceAggregate[] {
         {
           action: "CLAIM_CREATED",
           actorUserId: "seed",
+          actorUserName: "System",
           at: seedOpenedAt,
           detail: "Insurance claim workspace opened from Claims Desk.",
           id: "activity-demo-1"
@@ -607,6 +609,7 @@ export async function createInsuranceClaim(
   await context.repository.addActivity(claim.id, {
     action: "CLAIM_CREATED",
     actorUserId: user.id,
+    actorUserName: user.name,
     at: now,
     detail: "Insurance claim created from Claims Desk intake.",
     id: `claim-activity-${randomUUID()}`
@@ -634,6 +637,7 @@ export async function attachClaimEvidence(
   await context.repository.addActivity(claimId, {
     action: "CLAIM_EVIDENCE_ATTACHED",
     actorUserId: user.id,
+    actorUserName: user.name,
     at: now,
     detail: `${evidence.title} attached as ${evidence.category.toLowerCase().replaceAll("_", " ")}.`,
     id: `claim-activity-${randomUUID()}`
@@ -661,6 +665,7 @@ export async function updateClaimExecutionDetails(
   await context.repository.addActivity(claimId, {
     action: "CLAIM_EXECUTION_UPDATED",
     actorUserId: user.id,
+    actorUserName: user.name,
     at: now,
     detail: activityUpdateDetail(raw, normalized),
     id: `claim-activity-${randomUUID()}`
@@ -699,6 +704,7 @@ export async function requestClaimHandoff(
   await context.repository.addActivity(claimId, {
     action: exceptionApproved ? "CLAIM_HANDOFF_EXCEPTION_APPROVED" : "CLAIM_HANDOFF_READY",
     actorUserId: user.id,
+    actorUserName: user.name,
     at: now,
     detail: exceptionApproved ? `Manager exception approved: ${exceptionReason}` : "Repair handoff gate passed.",
     id: `claim-activity-${randomUUID()}`

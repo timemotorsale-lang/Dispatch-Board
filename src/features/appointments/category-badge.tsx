@@ -50,5 +50,16 @@ export function categoryRowStyle(category?: string | null): CSSProperties {
 }
 export function CategoryBadge({ category }: { category?: string | null }) {
   const appearance = categoryAppearance(category);
-  return <span className={`${styles.badge} appointment-category-badge`} style={{ color: appearance.color, backgroundColor: appearance.background, borderColor: appearance.color }}>{appearance.label}</span>;
+  return (
+    <span
+      className={`${styles.badge} appointment-category-badge`}
+      style={{
+        "--appointment-category-accent": appearance.color,
+        "--appointment-category-bg-light": appearance.background,
+        "--appointment-category-text-light": appearance.color
+      } as CSSProperties}
+    >
+      {appearance.label}
+    </span>
+  );
 }

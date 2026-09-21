@@ -41,6 +41,25 @@ const fallbackTasks = [
   { actionLabel: "Upload photos", detail: "Visible damage photos and closeups.", dueLabel: "Today", ownerRole: "Intake staff", status: "ready", title: "Take damage photos" }
 ] as const;
 
+type ExtraActionTool = "text" | "call" | "email" | "appointment" | "file" | "repair";
+
+const extraActionTools: Array<{ id: ExtraActionTool; label: string; detail: string }> = [
+  { id: "text", label: "Text", detail: "Send a customer or carrier text update." },
+  { id: "call", label: "Call", detail: "Log a phone call and capture the promise or result." },
+  { id: "email", label: "Email", detail: "Send or document an email follow-up." },
+  { id: "appointment", label: "Appointment", detail: "Schedule inspection, reinspect, drop-off, or follow-up." },
+  { id: "file", label: "File upload", detail: "Attach authorization, photos, estimates, or payment proof." },
+  { id: "repair", label: "Repair workflow", detail: "Move toward handoff, repair order, or exception review." }
+];
+
+function toolForTask(task: { actionLabel: string; title: string }): ExtraActionTool {
+  const text = `${task.actionLabel} ${task.title}`.toLowerCase();
+  if (text.includes("call") || text.includes("adjuster") || text.includes("carrier")) return "call";
+  if (text.includes("authorization") || text.includes("photo") || text.includes("upload") || text.includes("odometer") || text.includes("vin")) return "file";
+  if (text.includes("handoff") || text.includes("repair order")) return "repair";
+  return "text";
+}
+
 function StatusBadge({ tone = "info", children }: { tone?: "good" | "warning" | "danger" | "info"; children: ReactNode }) {
   return <span className={`${styles.badge} ${styles[tone]}`}>{children}</span>;
 }
@@ -71,9 +90,19 @@ function readinessLabel(status: string) {
   return "Not yet";
 }
 
+function activityActorName(activity: ClaimReadModel["activities"][number]) {
+  if (activity.actorUserName) return activity.actorUserName;
+  if (activity.actorUserId === "seed") return "System";
+  if (activity.actorUserId === "advisor") return "Eli Manager";
+  return "Eli Manager";
+}
+
 export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
   const [actionError, setActionError] = useState("");
   const [actionMessage, setActionMessage] = useState("");
+  const [activityDrawerOpen, setActivityDrawerOpen] = useState(false);
+  const [activeExtraTool, setActiveExtraTool] = useState<ExtraActionTool>("call");
+  const [extraToolsOpen, setExtraToolsOpen] = useState(false);
   const [isWorking, setIsWorking] = useState(false);
   const snapshotRows = model ? [
     ["Customer", model.claim.customerName],
@@ -101,7 +130,7 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
   })) : readiness;
   const completedNeeds = model?.checklist.filter((item) => item.state === "RECEIVED" || item.state === "EXCEPTION_ACCEPTED" || item.state === "NOT_APPLICABLE").length;
   const activityRows = model?.activities.length ? model.activities.slice(0, 5) : [
-    { action: "CLAIM_CREATED", at: "2026-09-17T14:00:00.000Z", detail: "Insurance claim workspace opened from Claims Desk.", actorUserId: "advisor", id: "fallback-activity" }
+    { action: "CLAIM_CREATED", actorUserName: "Eli Manager", at: "2026-09-17T14:00:00.000Z", detail: "Insurance claim workspace opened from Claims Desk.", actorUserId: "advisor", id: "fallback-activity" }
   ];
   const taskRows = model?.executionTasks ?? fallbackTasks;
   const carrier = model?.carrierTracker ?? {
@@ -114,6 +143,19 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
     statusLabel: "needs adjuster"
   };
   const claimId = model?.claim.id;
+  const claimReturnHref = claimId ? `/vehicles/claims-workspace?claimId=${encodeURIComponent(claimId)}` : "/vehicles/claims-workspace";
+  const appointmentContext = new URLSearchParams({
+    action: "new",
+    reason: model?.nextAction.reason ?? "Claim follow-up from Claims Workspace.",
+    returnTo: claimReturnHref,
+    title: "Claim appointment / reminder"
+  });
+  const appointmentCustomer = model?.claim.customerName;
+  const appointmentVehicle = [model?.claim.vehicleYear, model?.claim.vehicleMake, model?.claim.vehicleModel].filter(Boolean).join(" ");
+  if (appointmentCustomer) appointmentContext.set("customerReference", appointmentCustomer);
+  if (appointmentVehicle) appointmentContext.set("vehicleReference", appointmentVehicle);
+  const newAppointmentHref = `/appointments?${appointmentContext.toString()}`;
+  const appointmentRemindersHref = `/appointments?section=follow-up&returnTo=${encodeURIComponent(claimReturnHref)}`;
 
   async function submitJson(path: string, body: Record<string, unknown>, method = "POST") {
     setActionError("");
@@ -183,6 +225,11 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
     }, "PATCH");
   }
 
+  function openExtraTool(tool: ExtraActionTool) {
+    setActiveExtraTool(tool);
+    setExtraToolsOpen(true);
+  }
+
   return (
     <section className={styles.page}>
       <div className={styles.topbar}>
@@ -227,32 +274,12 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
                     <span>{task.detail}</span>
                     <small>{task.ownerRole} - {task.dueLabel}</small>
                   </div>
-                  <button type="button">{task.actionLabel}</button>
+                  <button onClick={() => openExtraTool(toolForTask(task))} type="button">{task.actionLabel}</button>
                 </article>
               ))}
             </div>
             <div className={styles.actionForms}>
-              <details className={styles.activityDrawer}>
-                <summary>Advanced carrier and handoff actions</summary>
-                <form action={recordCarrierCall} className={styles.executionForm}>
-                  <strong>Carrier / adjuster details</strong>
-                  <div>
-                    <input name="carrierName" placeholder="Carrier" defaultValue={model?.claim.carrierName ?? ""} />
-                    <input name="claimNumber" placeholder="Claim #" defaultValue={model?.claim.claimNumber ?? ""} />
-                    <input name="policyNumber" placeholder="Policy #" defaultValue={model?.claim.policyNumber ?? ""} />
-                    <input name="adjusterName" placeholder="Adjuster name" defaultValue={model?.claim.adjusterName ?? ""} />
-                    <input name="adjusterPhone" placeholder="Adjuster phone" defaultValue={model?.claim.adjusterPhone ?? ""} />
-                    <input name="adjusterEmail" placeholder="Adjuster email" defaultValue={model?.claim.adjusterEmail ?? ""} />
-                  </div>
-                  <textarea name="note" placeholder="Short call note or promise from carrier" rows={2} />
-                  <button disabled={!claimId || isWorking} type="submit">Record carrier call</button>
-                </form>
-                <form action={requestHandoff} className={styles.executionForm}>
-                  <strong>Move to repair handoff</strong>
-                  <textarea name="exceptionReason" placeholder="Optional manager exception reason if a gate is blocked" rows={2} />
-                  <button disabled={!claimId || isWorking} type="submit">{model?.handoff.allowed ? "Open repair handoff" : "Request exception handoff"}</button>
-                </form>
-              </details>
+              <button className={styles.extraToolsButton} onClick={() => setExtraToolsOpen(true)} type="button">Extra Action Tools</button>
             </div>
           </section>
 
@@ -379,54 +406,219 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
             <div className={styles.panelHeader}>
               <div>
                 <h2>Activity Timeline</h2>
-                <p>Record progress here. Every claim movement should leave a lightweight audit trail.</p>
+                <p>Keep progress recording and audit history close without crowding the claim workspace.</p>
               </div>
+              <StatusBadge>{activityRows.length} update{activityRows.length === 1 ? "" : "s"}</StatusBadge>
             </div>
-            <details className={styles.activityDrawer} open>
-              <summary>Record / view activity progress</summary>
-              <form action={recordActivityUpdate} className={styles.executionForm}>
-                <strong>One place to record all progress</strong>
-                <div>
-                  <select name="updateType" defaultValue="Teardown / reinspection">
-                    <option>Teardown / reinspection</option>
-                    <option>Inspector visit</option>
-                    <option>Carrier call</option>
-                    <option>Customer authorization</option>
-                    <option>Photos taken</option>
-                    <option>Estimate / supplement</option>
-                    <option>Payment follow-up</option>
-                    <option>General note</option>
-                  </select>
-                  <select name="category" defaultValue="ACTIVITY_ONLY">
-                    <option value="ACTIVITY_ONLY">Activity only</option>
-                    <option value="DAMAGE_PHOTO">Attach damage photos</option>
-                    <option value="AUTHORIZATION">Attach authorization</option>
-                    <option value="ESTIMATE">Attach estimate / supplement</option>
-                    <option value="REPAIR_HANDOFF">Attach handoff evidence</option>
-                    <option value="PAYMENT">Attach payment proof</option>
-                  </select>
-                  <input name="title" placeholder="Optional evidence title" />
-                  <input name="nextAction" placeholder="Next action, e.g. Reinspection by Spencer" />
-                  <input name="file" type="file" />
-                </div>
-                <textarea name="note" placeholder="Example: Vehicle torn down today and ready for reinspection by Spencer. Estimate remains pending reinspect after teardown." rows={3} />
-                <button disabled={!claimId || isWorking} type="submit">Record progress</button>
-              </form>
-              <div className={styles.timeline}>
-                {activityRows.map((activity) => (
-                  <article key={activity.id}>
-                    <strong>{activity.action.replaceAll("_", " ")}</strong>
-                    <span>{activity.detail}</span>
-                    <small>{new Date(activity.at).toLocaleString()} - {activity.actorUserId}</small>
-                  </article>
-                ))}
-              </div>
-            </details>
+            <div className={styles.activitySummary}>
+              <strong>{activityRows[0]?.action.replaceAll("_", " ") ?? "No activity yet"}</strong>
+              <span>{activityRows[0]?.detail ?? "Record the first claim movement when work starts."}</span>
+              <button onClick={() => setActivityDrawerOpen(true)} type="button">Add progress note / view timeline</button>
+            </div>
             {actionError ? <p className={styles.actionError}>{actionError}</p> : null}
             {actionMessage ? <p className={styles.actionMessage}>{actionMessage}</p> : null}
           </section>
         </aside>
       </div>
+
+      {activityDrawerOpen ? (
+        <div className={styles.drawerBackdrop} role="presentation">
+          <aside aria-label="Activity Timeline" aria-modal="true" className={styles.timelineDrawer} role="dialog">
+            <header>
+              <div>
+                <span className={styles.cardEyebrow}>Claim audit trail</span>
+                <h2>Activity Timeline</h2>
+                <p>Record progress here. Every claim movement should leave a lightweight audit trail.</p>
+              </div>
+              <button aria-label="Close Activity Timeline" onClick={() => setActivityDrawerOpen(false)} type="button">x</button>
+            </header>
+            <form action={recordActivityUpdate} className={`${styles.executionForm} ${styles.timelineForm}`}>
+              <strong>Add progress note</strong>
+              <div>
+                <select name="updateType" defaultValue="Teardown / reinspection">
+                  <option>Teardown / reinspection</option>
+                  <option>Inspector visit</option>
+                  <option>Carrier call</option>
+                  <option>Customer authorization</option>
+                  <option>Photos taken</option>
+                  <option>Estimate / supplement</option>
+                  <option>Payment follow-up</option>
+                  <option>General note</option>
+                </select>
+                <select name="category" defaultValue="ACTIVITY_ONLY">
+                  <option value="ACTIVITY_ONLY">Activity only</option>
+                  <option value="DAMAGE_PHOTO">Attach damage photos</option>
+                  <option value="AUTHORIZATION">Attach authorization</option>
+                  <option value="ESTIMATE">Attach estimate / supplement</option>
+                  <option value="REPAIR_HANDOFF">Attach handoff evidence</option>
+                  <option value="PAYMENT">Attach payment proof</option>
+                </select>
+                <input name="title" placeholder="Optional evidence title" />
+                <input name="nextAction" placeholder="Next action, e.g. Reinspection by Spencer" />
+                <input name="file" type="file" />
+              </div>
+              <label className={styles.noteField}>
+                <span>Progress note</span>
+                <textarea name="note" placeholder="Example: Vehicle torn down today and ready for reinspection by Spencer. Estimate remains pending reinspect after teardown." rows={4} />
+              </label>
+              <button disabled={!claimId || isWorking} type="submit">Record progress</button>
+            </form>
+            <section className={styles.timelineReport} aria-label="Progress reports">
+              <header>
+                <div>
+                  <span className={styles.cardEyebrow}>Progress reports</span>
+                  <h3>Activity updates</h3>
+                </div>
+                <span>{activityRows.length} total</span>
+              </header>
+            <div className={styles.timeline}>
+              {activityRows.map((activity) => (
+                <article key={activity.id}>
+                  <header>
+                    <strong>{activity.action.replaceAll("_", " ")}</strong>
+                    <time dateTime={activity.at}>{new Date(activity.at).toLocaleString()}</time>
+                  </header>
+                  <p>{activity.detail}</p>
+                  <small>Recorded by {activityActorName(activity)}</small>
+                </article>
+              ))}
+            </div>
+            </section>
+            {actionError ? <p className={styles.actionError}>{actionError}</p> : null}
+            {actionMessage ? <p className={styles.actionMessage}>{actionMessage}</p> : null}
+          </aside>
+        </div>
+      ) : null}
+
+      {extraToolsOpen ? (
+        <div className={styles.drawerBackdrop} role="presentation">
+          <aside aria-label="Extra Action Tools" aria-modal="true" className={`${styles.timelineDrawer} ${styles.extraToolsDrawer}`} role="dialog">
+            <header>
+              <div>
+                <span className={styles.cardEyebrow}>Execution support</span>
+                <h2>Extra Action Tools</h2>
+                <p>Pick the tool that matches the task, complete the action, then record the result back to the claim.</p>
+              </div>
+              <button aria-label="Close Extra Action Tools" onClick={() => setExtraToolsOpen(false)} type="button">x</button>
+            </header>
+            <section className={styles.toolWorkbench} aria-label="Extra action tools workbench">
+              <nav className={styles.toolGridPanel} aria-label="Communication and execution tools">
+                {extraActionTools.map((tool) => (
+                  <button aria-pressed={activeExtraTool === tool.id} key={tool.id} onClick={() => setActiveExtraTool(tool.id)} type="button">
+                    <strong>{tool.label}</strong>
+                    <span>{tool.detail}</span>
+                  </button>
+                ))}
+              </nav>
+              <div className={styles.toolWorkArea}>
+                {activeExtraTool === "text" ? (
+                  <form action={recordActivityUpdate} className={`${styles.executionForm} ${styles.timelineForm}`}>
+                    <strong>Text update</strong>
+                    <input name="updateType" type="hidden" value="Text update" />
+                    <input name="category" type="hidden" value="ACTIVITY_ONLY" />
+                    <input name="nextAction" placeholder="Next action after text, if any" />
+                    <label className={styles.noteField}>
+                      <span>Message / outcome</span>
+                      <textarea name="note" placeholder="Example: Texted customer for authorization signature. Waiting on reply before repair handoff." rows={5} />
+                    </label>
+                    <button disabled={!claimId || isWorking} type="submit">Record text update</button>
+                  </form>
+                ) : null}
+                {activeExtraTool === "call" ? (
+                  <form action={recordCarrierCall} className={`${styles.executionForm} ${styles.timelineForm}`}>
+                    <strong>Call / carrier follow-up</strong>
+                    <div>
+                      <input name="carrierName" placeholder="Carrier" defaultValue={model?.claim.carrierName ?? ""} />
+                      <input name="claimNumber" placeholder="Claim #" defaultValue={model?.claim.claimNumber ?? ""} />
+                      <input name="policyNumber" placeholder="Policy #" defaultValue={model?.claim.policyNumber ?? ""} />
+                      <input name="adjusterName" placeholder="Adjuster name" defaultValue={model?.claim.adjusterName ?? ""} />
+                      <input name="adjusterPhone" placeholder="Adjuster phone" defaultValue={model?.claim.adjusterPhone ?? ""} />
+                      <input name="adjusterEmail" placeholder="Adjuster email" defaultValue={model?.claim.adjusterEmail ?? ""} />
+                    </div>
+                    <label className={styles.noteField}>
+                      <span>Call result</span>
+                      <textarea name="note" placeholder="Short call note, carrier promise, estimate status, or next follow-up." rows={5} />
+                    </label>
+                    <button disabled={!claimId || isWorking} type="submit">Record call result</button>
+                  </form>
+                ) : null}
+                {activeExtraTool === "email" ? (
+                  <form action={recordActivityUpdate} className={`${styles.executionForm} ${styles.timelineForm}`}>
+                    <strong>Email follow-up</strong>
+                    <input name="updateType" type="hidden" value="Email follow-up" />
+                    <input name="category" type="hidden" value="ACTIVITY_ONLY" />
+                    <input name="title" placeholder="Email subject or reference" />
+                    <input name="nextAction" placeholder="Next action after email, if any" />
+                    <label className={styles.noteField}>
+                      <span>Email summary</span>
+                      <textarea name="note" placeholder="Example: Emailed Progressive for supplement approval and requested adjuster ETA." rows={5} />
+                    </label>
+                    <button disabled={!claimId || isWorking} type="submit">Record email follow-up</button>
+                  </form>
+                ) : null}
+                {activeExtraTool === "appointment" ? (
+                  <form action={recordActivityUpdate} className={`${styles.executionForm} ${styles.timelineForm}`}>
+                    <div className={styles.appointmentToolHeader}>
+                      <Link href={newAppointmentHref}>Appointment / inspection scheduling</Link>
+                      <span>Open Appointment Console to create appointments or reminders, then record the result here.</span>
+                    </div>
+                    <div className={styles.appointmentToolActions}>
+                      <Link href={newAppointmentHref}>Create appointment</Link>
+                      <Link href={appointmentRemindersHref}>Open reminders</Link>
+                    </div>
+                    <input name="updateType" type="hidden" value="Appointment scheduled" />
+                    <input name="category" type="hidden" value="ACTIVITY_ONLY" />
+                    <input name="title" placeholder="Appointment type, e.g. Reinspection" />
+                    <input name="nextAction" placeholder="Next action after appointment" />
+                    <label className={styles.noteField}>
+                      <span>Appointment details</span>
+                      <textarea name="note" placeholder="Example: Scheduled Spencer for Friday reinspect. Staff should call if he has not arrived by noon." rows={5} />
+                    </label>
+                    <button disabled={!claimId || isWorking} type="submit">Record appointment plan</button>
+                  </form>
+                ) : null}
+                {activeExtraTool === "file" ? (
+                  <form action={recordActivityUpdate} className={`${styles.executionForm} ${styles.timelineForm}`}>
+                    <strong>File upload / evidence</strong>
+                    <div>
+                      <select name="category" defaultValue="AUTHORIZATION">
+                        <option value="AUTHORIZATION">Authorization</option>
+                        <option value="DAMAGE_PHOTO">Damage photos</option>
+                        <option value="VIN_PHOTO">VIN photo</option>
+                        <option value="ODOMETER_PHOTO">Odometer photo</option>
+                        <option value="ESTIMATE">Estimate / supplement</option>
+                        <option value="REPAIR_HANDOFF">Repair handoff evidence</option>
+                        <option value="PAYMENT">Payment proof</option>
+                      </select>
+                      <input name="title" placeholder="Evidence title" />
+                      <input name="nextAction" placeholder="Next action after upload" />
+                      <input name="file" type="file" />
+                    </div>
+                    <label className={styles.noteField}>
+                      <span>Evidence note</span>
+                      <textarea name="note" placeholder="Explain what was uploaded and how it moves the claim forward." rows={5} />
+                    </label>
+                    <button disabled={!claimId || isWorking} type="submit">Attach / record file</button>
+                  </form>
+                ) : null}
+                {activeExtraTool === "repair" ? (
+                  <form action={requestHandoff} className={`${styles.executionForm} ${styles.timelineForm}`}>
+                    <strong>Repair workflow</strong>
+                    <label className={styles.noteField}>
+                      <span>Handoff or exception reason</span>
+                      <textarea name="exceptionReason" placeholder="Optional manager exception reason if repair handoff is blocked" rows={5} />
+                    </label>
+                    <button disabled={!claimId || isWorking} type="submit">{model?.handoff.allowed ? "Open repair handoff" : "Request exception handoff"}</button>
+                  </form>
+                ) : null}
+                <p className={styles.toolHint}>This workbench records the action against the claim so the Activity Timeline stays clear and complete.</p>
+              </div>
+            </section>
+            {actionError ? <p className={styles.actionError}>{actionError}</p> : null}
+            {actionMessage ? <p className={styles.actionMessage}>{actionMessage}</p> : null}
+          </aside>
+        </div>
+      ) : null}
     </section>
   );
 }

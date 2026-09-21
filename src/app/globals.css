@@ -19372,10 +19372,11 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
 .appointment-day-card em {
   width: max-content;
   margin-top: 3px;
+  border: 1px solid var(--appointment-kind-accent, #94a3b8);
   border-radius: 999px;
   padding: 3px 7px;
-  color: #334155;
-  background: #eef2f7;
+  color: var(--appointment-kind-text, #334155);
+  background: var(--appointment-kind-label-bg, #eef2f7);
   font-size: 11px;
   font-style: normal;
   font-weight: 850;
@@ -19579,15 +19580,15 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
   font-weight: 900;
 }
 
-.appointment-kind-sales { background-color: #eaf8ea; border-color: #22a35a; }
-.appointment-kind-service { background-color: #fff0df; border-color: #f47b0b; }
-.appointment-kind-delivery { background-color: #e6f3ff; border-color: #2f80ed; }
-.appointment-kind-customer { background-color: #fff0f3; border-color: #ef233c; }
-.appointment-kind-dmv { background-color: #f1e5ff; border-color: #8b4bd8; }
-.appointment-kind-collections { background-color: #fff4bf; border-color: #f4c430; }
-.appointment-kind-inventory { background-color: #e5fbff; border-color: #35b9c8; }
-.appointment-kind-marketing { background-color: #ffe7f4; border-color: #ec5fa4; }
-.appointment-kind-general { background-color: #f1f5f9; border-color: #94a3b8; }
+.appointment-kind-sales { --appointment-kind-bg-light: #eaf8ea; --appointment-kind-accent: #22a35a; background-color: var(--appointment-kind-bg, var(--appointment-kind-bg-light)); border-color: var(--appointment-kind-accent); }
+.appointment-kind-service { --appointment-kind-bg-light: #fff0df; --appointment-kind-accent: #f47b0b; background-color: var(--appointment-kind-bg, var(--appointment-kind-bg-light)); border-color: var(--appointment-kind-accent); }
+.appointment-kind-delivery { --appointment-kind-bg-light: #e6f3ff; --appointment-kind-accent: #2f80ed; background-color: var(--appointment-kind-bg, var(--appointment-kind-bg-light)); border-color: var(--appointment-kind-accent); }
+.appointment-kind-customer { --appointment-kind-bg-light: #fff0f3; --appointment-kind-accent: #ef233c; background-color: var(--appointment-kind-bg, var(--appointment-kind-bg-light)); border-color: var(--appointment-kind-accent); }
+.appointment-kind-dmv { --appointment-kind-bg-light: #f1e5ff; --appointment-kind-accent: #8b4bd8; background-color: var(--appointment-kind-bg, var(--appointment-kind-bg-light)); border-color: var(--appointment-kind-accent); }
+.appointment-kind-collections { --appointment-kind-bg-light: #fff4bf; --appointment-kind-accent: #f4c430; background-color: var(--appointment-kind-bg, var(--appointment-kind-bg-light)); border-color: var(--appointment-kind-accent); }
+.appointment-kind-inventory { --appointment-kind-bg-light: #e5fbff; --appointment-kind-accent: #35b9c8; background-color: var(--appointment-kind-bg, var(--appointment-kind-bg-light)); border-color: var(--appointment-kind-accent); }
+.appointment-kind-marketing { --appointment-kind-bg-light: #ffe7f4; --appointment-kind-accent: #ec5fa4; background-color: var(--appointment-kind-bg, var(--appointment-kind-bg-light)); border-color: var(--appointment-kind-accent); }
+.appointment-kind-general { --appointment-kind-bg-light: #f1f5f9; --appointment-kind-accent: #94a3b8; background-color: var(--appointment-kind-bg, var(--appointment-kind-bg-light)); border-color: var(--appointment-kind-accent); }
 
 .appointment-legend {
   display: flex;
@@ -27326,6 +27327,53 @@ html[data-app-theme="dark"] .app-workspace {
   color: var(--app-dark-ink) !important;
 }
 
+html[data-app-theme="dark"] :where(.appointment-category-badge) {
+  --appointment-category-bg: rgba(96, 165, 250, 0.16);
+  --appointment-category-text: var(--app-dark-ink);
+  background-color: var(--appointment-category-bg) !important;
+  border-color: var(--appointment-category-accent, var(--app-dark-line-strong)) !important;
+  color: var(--appointment-category-text) !important;
+}
+
+html[data-app-theme="dark"] :where(
+  .appointment-kind-sales,
+  .appointment-kind-service,
+  .appointment-kind-delivery,
+  .appointment-kind-customer,
+  .appointment-kind-dmv,
+  .appointment-kind-collections,
+  .appointment-kind-inventory,
+  .appointment-kind-marketing,
+  .appointment-kind-general
+) {
+  --appointment-kind-bg: var(--app-dark-surface-soft);
+  --appointment-kind-label-bg: rgba(96, 165, 250, 0.18);
+  --appointment-kind-text: var(--app-dark-ink);
+  background-color: var(--appointment-kind-bg) !important;
+  border-color: var(--appointment-kind-accent, var(--app-dark-line-strong)) !important;
+  color: var(--appointment-kind-text) !important;
+}
+
+html[data-app-theme="dark"] :where(
+  .appointment-kind-sales,
+  .appointment-kind-service,
+  .appointment-kind-delivery,
+  .appointment-kind-customer,
+  .appointment-kind-dmv,
+  .appointment-kind-collections,
+  .appointment-kind-inventory,
+  .appointment-kind-marketing,
+  .appointment-kind-general
+) :where(span,strong,small,em) {
+  color: var(--appointment-kind-text) !important;
+}
+
+html[data-app-theme="dark"] .appointment-day-card em {
+  background: var(--appointment-kind-label-bg) !important;
+  border-color: var(--appointment-kind-accent, var(--app-dark-line-strong)) !important;
+  color: var(--appointment-kind-text) !important;
+}
+
 html[data-app-theme="dark"] .app-content :where(
   section,
   article,
@@ -27726,8 +27774,7 @@ html[data-app-theme="dark"] :where(.appointment-new-calendar,.appointment-consol
   .capacity-pill,
   .appointment-summary header b
 ),
-html[data-app-theme="dark"] :where(.appointment-topbar-return),
-html[data-app-theme="dark"] :where(.appointment-category-badge) {
+html[data-app-theme="dark"] :where(.appointment-topbar-return) {
   background-color: #3f2c28 !important;
   border-color: #6c493d !important;
   color: var(--app-dark-ink) !important;
