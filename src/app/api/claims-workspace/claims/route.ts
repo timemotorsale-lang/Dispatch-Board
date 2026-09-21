@@ -9,6 +9,13 @@ import {
   getClaimsDeskReadModel
 } from "@/server/claims-workspace/service";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const liveClaimsHeaders = {
+  "Cache-Control": "no-store, max-age=0"
+};
+
 function statusForCode(code: string | undefined) {
   if (code === "AUTHENTICATION_REQUIRED") return 401;
   if (code === "CLAIM_INVALID") return 400;
@@ -27,7 +34,9 @@ function errorResponse(error: unknown) {
 
 export async function GET() {
   try {
-    return NextResponse.json(await getClaimsDeskReadModel(await getCurrentUser(), await claimsWorkspaceDependencies()));
+    return NextResponse.json(await getClaimsDeskReadModel(await getCurrentUser(), await claimsWorkspaceDependencies()), {
+      headers: liveClaimsHeaders
+    });
   } catch (error) {
     return errorResponse(error);
   }
@@ -37,7 +46,7 @@ export async function POST(request: Request) {
   const payload = await request.json().catch(() => null);
   try {
     const result = await createInsuranceClaim(await getCurrentUser(), payload ?? {}, await claimsWorkspaceDependencies());
-    return NextResponse.json(result, { status: 201 });
+    return NextResponse.json(result, { headers: liveClaimsHeaders, status: 201 });
   } catch (error) {
     return errorResponse(error);
   }

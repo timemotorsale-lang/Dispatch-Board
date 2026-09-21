@@ -3,6 +3,9 @@ import { requireCurrentUser } from "@/server/auth/current-user";
 import { claimsWorkspaceDependencies } from "@/server/claims-workspace/repository-factory";
 import { getClaimsDeskReadModel } from "@/server/claims-workspace/service";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function ClaimsDeskPage() {
   const user = await requireCurrentUser();
   const model = await getClaimsDeskReadModel(user, await claimsWorkspaceDependencies());

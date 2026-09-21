@@ -178,6 +178,99 @@
   gap: 8px;
 }
 
+.snapshotActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.snapshotActions button,
+.snapshotEditFooter button {
+  min-height: 32px;
+  border: 1px solid #284bd0;
+  border-radius: 8px;
+  background: #fff;
+  color: #284bd0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  line-height: 1.2;
+  padding: 7px 10px;
+}
+
+.snapshotEditForm {
+  display: grid;
+  gap: 12px;
+}
+
+.snapshotEditForm fieldset {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid #dce5f3;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.snapshotEditForm legend {
+  padding: 0 6px;
+  color: #526481;
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.snapshotEditForm label {
+  display: grid;
+  gap: 5px;
+}
+
+.snapshotEditForm label span {
+  color: #526481;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.snapshotEditForm input,
+.snapshotEditForm textarea {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid #c5d2e7;
+  border-radius: 8px;
+  background: #fff;
+  color: #07132d;
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 8px 10px;
+}
+
+.snapshotEditForm textarea {
+  resize: vertical;
+}
+
+.fullField {
+  grid-column: span 2;
+}
+
+.snapshotEditFooter {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.snapshotEditFooter button:first-child {
+  background: #284bd0;
+  color: #fff;
+}
+
 .fact {
   display: grid;
   gap: 5px;
@@ -779,6 +872,115 @@
   color: #17253c;
   font-size: 0.94rem;
   line-height: 1.55;
+}
+
+.timeline .evidenceActivity {
+  gap: 10px;
+}
+
+.timeline .evidenceActivity p strong {
+  color: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.timelineActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.timelineActions button,
+.printPreview > header button,
+.printPreview > button {
+  min-height: 34px;
+  border: 1px solid #284bd0;
+  border-radius: 8px;
+  background: #fff;
+  color: #284bd0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  line-height: 1.2;
+  padding: 8px 11px;
+}
+
+.timelineActions button:first-child,
+.printPreview > button {
+  background: #284bd0;
+  color: #fff;
+}
+
+.printPreview {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #cbd8ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.printPreview > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.printPreview h3 {
+  margin: 3px 0 0;
+  color: #07132d;
+  font-size: 1.05rem;
+  line-height: 1.2;
+}
+
+.printDocument {
+  display: grid;
+  gap: 12px;
+  color: #111827;
+  font-family: Arial, sans-serif;
+  line-height: 1.45;
+}
+
+.printDocument header {
+  border-bottom: 2px solid #111827;
+  padding-bottom: 12px;
+}
+
+.printDocument h1 {
+  margin: 0 0 4px;
+  font-size: 1.4rem;
+}
+
+.printDocument h2 {
+  margin: 8px 0 0;
+  font-size: 1rem;
+}
+
+.printDocument table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.printDocument th,
+.printDocument td {
+  border: 1px solid #d1d5db;
+  padding: 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.printDocument th {
+  width: 190px;
+  background: #f3f4f6;
+}
+
+.printDocument .note {
+  border: 1px solid #d1d5db;
+  padding: 12px;
+  white-space: pre-wrap;
 }
 
 .documentItem span,

@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-const mocks = vi.hoisted(() => ({ user: vi.fn(), findMany: vi.fn(), checklist: vi.fn() }));
+const mocks = vi.hoisted(() => ({ user: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), update: vi.fn(), checklist: vi.fn() }));
 vi.mock("@/server/auth/current-user", () => ({ getCurrentUser: mocks.user }));
-vi.mock("@/server/db/client", () => ({ prisma: { workdayQuickUpdate: { findMany: mocks.findMany }, workdayChecklistItem: { findMany: mocks.checklist } } }));
-import { GET } from "@/app/api/appointments/reminders/route";
+vi.mock("@/server/db/client", () => ({ prisma: { workdayQuickUpdate: { findFirst: mocks.findFirst, findMany: mocks.findMany, update: mocks.update }, workdayChecklistItem: { findMany: mocks.checklist } } }));
+import { GET, PATCH } from "@/app/api/appointments/reminders/route";
 
 describe("Quick Update schedule reminders", () => {
-  beforeEach(() => { vi.clearAllMocks(); mocks.user.mockResolvedValue({ id: "staff-1" }); mocks.findMany.mockResolvedValue([]); mocks.checklist.mockResolvedValue([]); });
+  beforeEach(() => { vi.clearAllMocks(); mocks.user.mockResolvedValue({ id: "staff-1" }); mocks.findMany.mockResolvedValue([]); mocks.findFirst.mockResolvedValue({ id: "note-1" }); mocks.update.mockResolvedValue({ category: "INSURANCE", company: "Progressive", convertedTaskId: null, dueWindow: "2026-09-08", id: "note-1", person: "Gada", phoneNumber: "", text: "Call adjuster" }); mocks.checklist.mockResolvedValue([]); });
   it("includes incomplete checklist reminders for their owner on the chosen date", async () => {
     mocks.checklist.mockResolvedValue([{ id: "item-1", text: "Solicit junk vehicle bids", convertedTaskId: null }]);
     const response = await GET(new Request("http://localhost/api/appointments/reminders?date=2026-09-04"));
@@ -45,5 +45,25 @@ describe("Quick Update schedule reminders", () => {
   it("reports read failures instead of a misleading empty schedule", async () => {
     mocks.findMany.mockRejectedValue(new Error("Database unavailable"));
     expect((await GET(new Request("http://localhost/api/appointments/reminders?date=2026-09-08"))).status).toBe(500);
+  });
+  it("updates a staff-owned Quick Update reminder category and reason", async () => {
+    const response = await PATCH(new Request("http://localhost/api/appointments/reminders", {
+      body: JSON.stringify({ category: "INSURANCE", id: "note-1", text: "Call adjuster" }),
+      method: "PATCH"
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "note-1", workbook: { userId: "staff-1" } } }));
+    expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({ data: { category: "INSURANCE", text: "Call adjuster" }, where: { id: "note-1" } }));
+    expect((await response.json()).reminder).toMatchObject({ category: "INSURANCE", text: "Call adjuster" });
+  });
+  it("does not edit checklist reminders from the Quick Update endpoint", async () => {
+    const response = await PATCH(new Request("http://localhost/api/appointments/reminders", {
+      body: JSON.stringify({ category: "OTHER", id: "checklist:item-1", text: "Review" }),
+      method: "PATCH"
+    }));
+
+    expect(response.status).toBe(400);
+    expect(mocks.update).not.toHaveBeenCalled();
   });
 });

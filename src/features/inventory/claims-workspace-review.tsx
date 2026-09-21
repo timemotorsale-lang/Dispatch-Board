@@ -108,6 +108,15 @@ function claimOwnerName(ownerUserId?: string) {
   return knownOwners[ownerUserId] ?? "Eli Manager";
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
 function todayInputDate() {
   const date = new Date();
   date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
@@ -121,9 +130,11 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
   const [activeExtraTool, setActiveExtraTool] = useState<ExtraActionTool>("call");
   const [extraToolsOpen, setExtraToolsOpen] = useState(false);
   const [isWorking, setIsWorking] = useState(false);
+  const [printDocument, setPrintDocument] = useState<{ html: string; title: string } | null>(null);
   const [reminderDate, setReminderDate] = useState("");
   const [reminderPickerOpen, setReminderPickerOpen] = useState(false);
   const [reminderStatus, setReminderStatus] = useState("");
+  const [snapshotEditing, setSnapshotEditing] = useState(false);
   const reminderDateInputRef = useRef<HTMLInputElement>(null);
   const snapshotRows = model ? [
     ["Customer", model.claim.customerName],
@@ -153,6 +164,12 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
   const activityRows = model?.activities.length ? model.activities.slice(0, 5) : [
     { action: "CLAIM_CREATED", actorUserName: "Eli Manager", at: "2026-09-17T14:00:00.000Z", detail: "Insurance claim workspace opened from Claims Desk.", actorUserId: "advisor", id: "fallback-activity" }
   ];
+  const evidenceByActivityId = new Map(
+    activityRows.map((activity) => [
+      activity.id,
+      model?.evidence.find((evidence) => activity.action === "CLAIM_EVIDENCE_ATTACHED" && activity.detail.startsWith(`${evidence.title} attached as `))
+    ])
+  );
   const taskRows = model?.executionTasks ?? fallbackTasks;
   const carrier = model?.carrierTracker ?? {
     adjuster: "Needed",
@@ -244,6 +261,87 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
     await submitJson(`/api/claims-workspace/claims/${encodeURIComponent(claimId)}`, {
       note: "Claim workspace reviewed and saved."
     }, "PATCH");
+  }
+
+  async function saveSnapshot(formData: FormData) {
+    if (!claimId) return;
+    await submitJson(`/api/claims-workspace/claims/${encodeURIComponent(claimId)}`, Object.fromEntries(formData.entries()), "PATCH");
+  }
+
+  function buildEvidenceDocument(activity: ClaimReadModel["activities"][number]) {
+    if (!model) return;
+    const evidence = evidenceByActivityId.get(activity.id);
+    if (!evidence) return;
+    const printedAt = new Date().toLocaleString();
+    const rows = [
+      ["Customer", model.claim.customerName],
+      ["Claim #", model.claim.claimNumber || "Draft"],
+      ["Carrier", model.claim.carrierName || "Pending"],
+      ["Vehicle", [model.claim.vehicleYear, model.claim.vehicleMake, model.claim.vehicleModel].filter(Boolean).join(" ") || "Not captured"],
+      ["VIN", model.claim.vehicleVin || "Pending"],
+      ["Evidence category", evidence.category.replaceAll("_", " ")],
+      ["Evidence title", evidence.title],
+      ["File name", evidence.fileName || "No file name captured"],
+      ["Status", evidence.status.replaceAll("_", " ")],
+      ["Attached at", new Date(evidence.createdAt).toLocaleString()],
+      ["Recorded by", activityActorName(activity)]
+    ];
+    const notes = evidence.notes || activity.detail;
+    return {
+      html: `
+        <header>
+          <h1>Claim Evidence Document</h1>
+          <small>Prepared ${escapeHtml(printedAt)} from the Claims Workspace audit trail.</small>
+        </header>
+        <table>
+          <tbody>
+            ${rows.map(([label, value]) => `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`).join("")}
+          </tbody>
+        </table>
+        <h2>Evidence note</h2>
+        <div class="note">${escapeHtml(notes)}</div>
+      `,
+      title: evidence.title
+    };
+  }
+
+  function openEvidenceDocument(activity: ClaimReadModel["activities"][number]) {
+    const document = buildEvidenceDocument(activity);
+    if (!document) return;
+    setPrintDocument(document);
+  }
+
+  function printEvidenceDocument(activity: ClaimReadModel["activities"][number]) {
+    const document = buildEvidenceDocument(activity);
+    if (!document) return;
+    const documentWindow = window.open("", "_blank");
+    if (!documentWindow) {
+      setPrintDocument(document);
+      setActionError("The print window was blocked. The document is open in this panel, and you can use Print from here.");
+      return;
+    }
+    documentWindow.document.write(`<!doctype html>
+      <html>
+        <head>
+          <title>${escapeHtml(document.title)} - Claim Evidence</title>
+          <style>
+            body { color: #111827; font-family: Arial, sans-serif; line-height: 1.45; margin: 32px; }
+            header { border-bottom: 2px solid #111827; margin-bottom: 24px; padding-bottom: 16px; }
+            h1 { font-size: 24px; margin: 0 0 6px; }
+            h2 { font-size: 18px; margin: 24px 0 8px; }
+            small { color: #4b5563; }
+            table { border-collapse: collapse; width: 100%; }
+            th, td { border: 1px solid #d1d5db; padding: 10px; text-align: left; vertical-align: top; }
+            th { background: #f3f4f6; width: 220px; }
+            .note { border: 1px solid #d1d5db; padding: 14px; white-space: pre-wrap; }
+            @media print { body { margin: 18mm; } }
+          </style>
+        </head>
+        <body>${document.html}</body>
+      </html>`);
+    documentWindow.document.close();
+    documentWindow.focus();
+    documentWindow.print();
   }
 
   function openExtraTool(tool: ExtraActionTool) {
@@ -362,24 +460,69 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
                 <h2>Claim Snapshot</h2>
                 <p>Enough context to work the claim without making staff complete every advanced field up front.</p>
               </div>
-              <StatusBadge>Claim # {model?.claim.claimNumber ?? "MN-48291"}</StatusBadge>
+              <div className={styles.snapshotActions}>
+                <StatusBadge>Claim # {model?.claim.claimNumber ?? "MN-48291"}</StatusBadge>
+                {model ? <button onClick={() => setSnapshotEditing((value) => !value)} type="button">{snapshotEditing ? "Close edit" : "Edit snapshot"}</button> : null}
+              </div>
             </div>
-            <div className={styles.snapshotGrid}>
-              {snapshotRows.map(([label, value]) => (
-                <div className={styles.fact} key={label}>
-                  <span>{label}</span>
-                  <strong>{value}</strong>
+            {snapshotEditing && model ? (
+              <form action={saveSnapshot} className={styles.snapshotEditForm}>
+                <fieldset>
+                  <legend>Customer</legend>
+                  <label><span>Customer name</span><input name="customerName" defaultValue={model.claim.customerName} /></label>
+                  <label><span>Phone</span><input name="customerPhone" defaultValue={model.claim.customerPhone ?? ""} /></label>
+                  <label><span>Email</span><input name="customerEmail" defaultValue={model.claim.customerEmail ?? ""} type="email" /></label>
+                  <label className={styles.fullField}><span>Address line 1</span><input name="customerAddressLine1" defaultValue={model.claim.customerAddressLine1 ?? ""} /></label>
+                  <label><span>Address line 2</span><input name="customerAddressLine2" defaultValue={model.claim.customerAddressLine2 ?? ""} /></label>
+                  <label><span>City</span><input name="customerCity" defaultValue={model.claim.customerCity ?? ""} /></label>
+                  <label><span>State</span><input name="customerState" defaultValue={model.claim.customerState ?? ""} /></label>
+                  <label><span>ZIP</span><input name="customerPostalCode" defaultValue={model.claim.customerPostalCode ?? ""} /></label>
+                </fieldset>
+                <fieldset>
+                  <legend>Vehicle</legend>
+                  <label><span>VIN</span><input name="vehicleVin" defaultValue={model.claim.vehicleVin ?? ""} /></label>
+                  <label><span>Year</span><input name="vehicleYear" defaultValue={model.claim.vehicleYear ?? ""} /></label>
+                  <label><span>Make</span><input name="vehicleMake" defaultValue={model.claim.vehicleMake ?? ""} /></label>
+                  <label><span>Model</span><input name="vehicleModel" defaultValue={model.claim.vehicleModel ?? ""} /></label>
+                  <label><span>Color</span><input name="vehicleColor" defaultValue={model.claim.vehicleColor ?? ""} /></label>
+                  <label><span>Mileage</span><input name="vehicleMileage" defaultValue={model.claim.vehicleMileage ?? ""} /></label>
+                  <label><span>Plate</span><input name="vehiclePlate" defaultValue={model.claim.vehiclePlate ?? ""} /></label>
+                  <label><span>Stock #</span><input name="vehicleStockNumber" defaultValue={model.claim.vehicleStockNumber ?? ""} /></label>
+                </fieldset>
+                <fieldset>
+                  <legend>Claim details</legend>
+                  <label><span>Carrier</span><input name="carrierName" defaultValue={model.claim.carrierName ?? ""} /></label>
+                  <label><span>Claim #</span><input name="claimNumber" defaultValue={model.claim.claimNumber ?? ""} /></label>
+                  <label><span>Adjuster</span><input name="adjusterName" defaultValue={model.claim.adjusterName ?? ""} /></label>
+                  <label><span>Policy #</span><input name="policyNumber" defaultValue={model.claim.policyNumber ?? ""} /></label>
+                  <label><span>Deductible</span><input name="deductible" defaultValue={model.claim.deductible ?? ""} /></label>
+                  <label><span>Loss date</span><input name="lossDate" defaultValue={model.claim.lossDate ?? ""} type="date" /></label>
+                  <label className={styles.fullField}><span>Loss location</span><input name="lossLocation" defaultValue={model.claim.lossLocation ?? ""} /></label>
+                  <label className={styles.fullField}><span>Incident summary</span><textarea name="description" defaultValue={model.claim.description ?? ""} rows={4} /></label>
+                </fieldset>
+                <div className={styles.snapshotEditFooter}>
+                  <button disabled={!claimId || isWorking} type="submit">{isWorking ? "Saving..." : "Save snapshot"}</button>
+                  <button disabled={isWorking} onClick={() => setSnapshotEditing(false)} type="button">Cancel</button>
                 </div>
-              ))}
-              <div className={`${styles.fact} ${styles.wide}`}>
-                <span>Incident summary</span>
-                <strong>{model?.claim.description ?? "Front bumper and left fender damage. Customer reports vehicle was driveable after loss."}</strong>
+              </form>
+            ) : (
+              <div className={styles.snapshotGrid}>
+                {snapshotRows.map(([label, value]) => (
+                  <div className={styles.fact} key={label}>
+                    <span>{label}</span>
+                    <strong>{value}</strong>
+                  </div>
+                ))}
+                <div className={`${styles.fact} ${styles.wide}`}>
+                  <span>Incident summary</span>
+                  <strong>{model?.claim.description ?? "Front bumper and left fender damage. Customer reports vehicle was driveable after loss."}</strong>
+                </div>
+                <div className={`${styles.fact} ${styles.wide}`}>
+                  <span>Current blocker</span>
+                  <strong>{model?.primaryBlocker ?? "Missing adjuster contact and signed repair authorization."}</strong>
+                </div>
               </div>
-              <div className={`${styles.fact} ${styles.wide}`}>
-                <span>Current blocker</span>
-                <strong>{model?.primaryBlocker ?? "Missing adjuster contact and signed repair authorization."}</strong>
-              </div>
-            </div>
+            )}
           </section>
 
           <section className={styles.panel}>
@@ -546,17 +689,39 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
               </header>
             <div className={styles.timeline}>
               {activityRows.map((activity) => (
-                <article key={activity.id}>
+                <article className={evidenceByActivityId.get(activity.id) ? styles.evidenceActivity : undefined} key={activity.id}>
                   <header>
                     <strong>{activity.action.replaceAll("_", " ")}</strong>
                     <time dateTime={activity.at}>{new Date(activity.at).toLocaleString()}</time>
                   </header>
-                  <p>{activity.detail}</p>
+                  {evidenceByActivityId.get(activity.id) ? (
+                    <>
+                      <p><strong>{evidenceByActivityId.get(activity.id)?.title}</strong></p>
+                      <span>{evidenceByActivityId.get(activity.id)?.category.replaceAll("_", " ")} evidence attached{evidenceByActivityId.get(activity.id)?.fileName ? ` - ${evidenceByActivityId.get(activity.id)?.fileName}` : ""}</span>
+                      <div className={styles.timelineActions}>
+                        <button onClick={() => openEvidenceDocument(activity)} type="button">View document</button>
+                        <button onClick={() => printEvidenceDocument(activity)} type="button">Print</button>
+                      </div>
+                    </>
+                  ) : <p>{activity.detail}</p>}
                   <small>Recorded by {activityActorName(activity)}</small>
                 </article>
               ))}
             </div>
             </section>
+            {printDocument ? (
+              <section className={styles.printPreview} aria-label="Evidence document preview">
+                <header>
+                  <div>
+                    <span className={styles.cardEyebrow}>Document preview</span>
+                    <h3>{printDocument.title}</h3>
+                  </div>
+                  <button onClick={() => setPrintDocument(null)} type="button">Close preview</button>
+                </header>
+                <div className={styles.printDocument} dangerouslySetInnerHTML={{ __html: printDocument.html }} />
+                <button onClick={() => window.print()} type="button">Print this document</button>
+              </section>
+            ) : null}
             {actionError ? <p className={styles.actionError}>{actionError}</p> : null}
             {actionMessage ? <p className={styles.actionMessage}>{actionMessage}</p> : null}
           </aside>

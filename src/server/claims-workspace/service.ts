@@ -291,11 +291,30 @@ export type ClaimExecutionUpdateInput = {
   adjusterPhone?: unknown;
   carrierName?: unknown;
   claimNumber?: unknown;
+  customerAddressLine1?: unknown;
+  customerAddressLine2?: unknown;
+  customerCity?: unknown;
+  customerEmail?: unknown;
+  customerName?: unknown;
+  customerPhone?: unknown;
+  customerPostalCode?: unknown;
+  customerState?: unknown;
   deductible?: unknown;
+  description?: unknown;
+  lossDate?: unknown;
+  lossLocation?: unknown;
   nextAction?: unknown;
   note?: unknown;
   policyNumber?: unknown;
   updateType?: unknown;
+  vehicleColor?: unknown;
+  vehicleMake?: unknown;
+  vehicleMileage?: unknown;
+  vehicleModel?: unknown;
+  vehiclePlate?: unknown;
+  vehicleStockNumber?: unknown;
+  vehicleVin?: unknown;
+  vehicleYear?: unknown;
 };
 
 export class ClaimsWorkspaceError extends Error {
@@ -1117,8 +1136,27 @@ function normalizeExecutionUpdate(raw: ClaimExecutionUpdateInput): Partial<Insur
     ["adjusterPhone", text(raw.adjusterPhone)],
     ["carrierName", text(raw.carrierName)],
     ["claimNumber", text(raw.claimNumber)],
+    ["customerAddressLine1", text(raw.customerAddressLine1)],
+    ["customerAddressLine2", text(raw.customerAddressLine2)],
+    ["customerCity", text(raw.customerCity)],
+    ["customerEmail", text(raw.customerEmail)],
+    ["customerName", text(raw.customerName)],
+    ["customerPhone", text(raw.customerPhone)],
+    ["customerPostalCode", text(raw.customerPostalCode)],
+    ["customerState", text(raw.customerState)],
     ["deductible", text(raw.deductible)],
-    ["policyNumber", text(raw.policyNumber)]
+    ["description", text(raw.description)],
+    ["lossDate", text(raw.lossDate)],
+    ["lossLocation", text(raw.lossLocation)],
+    ["policyNumber", text(raw.policyNumber)],
+    ["vehicleColor", text(raw.vehicleColor)],
+    ["vehicleMake", text(raw.vehicleMake)],
+    ["vehicleMileage", text(raw.vehicleMileage)],
+    ["vehicleModel", text(raw.vehicleModel)],
+    ["vehiclePlate", text(raw.vehiclePlate)],
+    ["vehicleStockNumber", text(raw.vehicleStockNumber)],
+    ["vehicleVin", text(raw.vehicleVin)],
+    ["vehicleYear", text(raw.vehicleYear)]
   ] as const) {
     if (value) update[field] = value;
   }

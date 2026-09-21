@@ -11,6 +11,7 @@ import {
   Gauge,
   ImagePlus,
   PackageCheck,
+  Printer,
   RotateCcw,
   ShieldCheck,
   Wrench
@@ -134,6 +135,7 @@ const workbenchHref = (order: Order) => `/vehicles/repair-workbench?repairOrderI
 const manageRepairHref = (order: Order) => `/vehicles/shop-planning?${new URLSearchParams({ repairOrderId: order.id, returnTo: `/vehicles/quality-control?repairOrderId=${order.id}` })}`;
 const vendorFollowUpHref = (order: Order) => `/vehicles/shop-planning?${new URLSearchParams({ repairOrderId: order.id, returnTo: `/vehicles/quality-control?repairOrderId=${order.id}`, vendorFollowUp: "1" })}#repair-planning-step-2`;
 const code = (value: string) => value.replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "").toUpperCase().slice(0, 80) || "QC_CHECK";
+const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[character] ?? character);
 const hasOpenLabor = (job: Job) => job.laborClocks.some((clock) => clock.state === "RUNNING" || clock.state === "PAUSED");
 const hasPartsBlock = (job: Job) => (job.partDemands ?? []).some((demand) => demand.quantityReserved < demand.quantityRequired || ["OPEN", "PARTIALLY_RESERVED", "REQUESTED"].includes(demand.status));
 const hasPartsActivity = (job: Job) => Boolean(job.partDemands?.length);
@@ -484,6 +486,76 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
     }
   }
 
+  function printFrontlineChecklist() {
+    if (!order || !job) return;
+    const printedAt = new Date().toLocaleString();
+    const statusLabel = (result?: FrontlineResult) => result ? `${result[0]}${result.slice(1).toLowerCase()}` : "Not inspected";
+    const sections = frontlineQcSections.map((section, sectionIndex) => `
+      <section>
+        <h2>${sectionIndex + 1}. ${escapeHtml(section.title)}</h2>
+        <table>
+          <thead><tr><th>Item</th><th>Expectation</th><th>Result</th><th>Note</th></tr></thead>
+          <tbody>
+            ${section.items.map((item, itemIndex) => `
+              <tr>
+                <td><strong>${sectionIndex + 1}.${itemIndex + 1} ${escapeHtml(item.label)}</strong></td>
+                <td>${escapeHtml(item.hint)}</td>
+                <td>${escapeHtml(statusLabel(frontlineResults[item.code]))}</td>
+                <td>${escapeHtml(frontlineNotes[item.code]?.trim() || "-")}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </section>
+    `).join("");
+    const printWindow = window.open("", "_blank", "noopener,noreferrer");
+    if (!printWindow) {
+      setNotice("The print window was blocked. Allow pop-ups for this app, then choose Print QC checklist again.");
+      return;
+    }
+    printWindow.document.write(`<!doctype html>
+      <html>
+        <head>
+          <title>Final Frontline QC Checklist</title>
+          <style>
+            body { margin: 28px; color: #111827; font-family: Arial, sans-serif; }
+            header { border-bottom: 2px solid #111827; margin-bottom: 18px; padding-bottom: 12px; }
+            h1 { margin: 0 0 6px; font-size: 26px; }
+            p { margin: 4px 0; color: #374151; font-size: 13px; }
+            .meta { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+            .meta div { border: 1px solid #d1d5db; border-radius: 6px; padding: 8px; }
+            .meta b { display: block; color: #4b5563; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+            .meta span { display: block; margin-top: 3px; font-weight: 700; }
+            section { break-inside: avoid; margin-top: 16px; }
+            h2 { margin: 0 0 8px; font-size: 17px; }
+            table { width: 100%; border-collapse: collapse; font-size: 12px; }
+            th, td { border: 1px solid #d1d5db; padding: 7px; text-align: left; vertical-align: top; }
+            th { background: #f3f4f6; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+            footer { border-top: 1px solid #d1d5db; margin-top: 18px; padding-top: 10px; color: #4b5563; font-size: 12px; }
+            @media print { body { margin: 14mm; } }
+          </style>
+        </head>
+        <body>
+          <header>
+            <h1>Final Frontline QC Checklist</h1>
+            <p>${escapeHtml(vehicleName(order))} · ${escapeHtml(order.repairOrderNumber)} · ${escapeHtml(order.inventoryUnit?.inventoryNumber ?? order.vehicle.vehicleNumber)}</p>
+            <p>Repair QC passed: ${escapeHtml(job.description)}</p>
+            <div class="meta">
+              <div><b>Failed</b><span>${frontlineCounts.FAIL}</span></div>
+              <div><b>Needs review</b><span>${frontlineCounts.REVIEW}</span></div>
+              <div><b>Passed</b><span>${frontlineCounts.PASS}</span></div>
+              <div><b>Remaining</b><span>${frontlineRemaining}</span></div>
+            </div>
+          </header>
+          ${sections}
+          <footer>Printed ${escapeHtml(printedAt)} from the Quality Control Workspace.</footer>
+        </body>
+      </html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  }
+
   function setFrontlineResult(codeValue: string, result: FrontlineResult) {
     const next = { ...frontlineResults, [codeValue]: result };
     setFrontlineResults(next);
@@ -654,7 +726,10 @@ export function QualityControlWorkspace({ initial, initialRepairOrderId, returnL
               <span>Inspect the whole vehicle before marking it Frontline Ready.</span>
               <strong>{vehicleName(order)} · {order.repairOrderNumber} · {order.inventoryUnit?.inventoryNumber ?? order.vehicle.vehicleNumber}</strong>
             </div>
-            <Link className="frontline-return" href={manageRepairHref(order)}>← Return to repair</Link>
+            <div className="frontline-header-actions">
+              <button className="frontline-print" onClick={printFrontlineChecklist} type="button"><Printer /> Print QC checklist</button>
+              <Link className="frontline-return" href={manageRepairHref(order)}>← Return to repair</Link>
+            </div>
           </header>
 
           <div className="frontline-progress-row">
