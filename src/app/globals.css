@@ -26691,6 +26691,15 @@ html[data-app-theme="dark"] :where(.rowb-daily-command,.rowb-daily-status div,.r
 
 .advisor-focus-proof-toggle{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-left:39px;border:1px solid #d8e5f3;border-radius:8px;padding:8px 10px;background:#f8fbff;color:#29435f;font:inherit;text-align:left;cursor:pointer}.advisor-focus-proof-toggle:hover,.advisor-focus-proof-toggle:focus-visible{border-color:#9fc1e9;outline:3px solid rgba(7,94,216,.1)}.advisor-focus-proof-toggle>span{display:grid;gap:1px;min-width:0}.advisor-focus-proof-toggle strong{font-size:12px}.advisor-focus-proof-toggle small{color:#64788d;font-size:11.5px}.advisor-focus-proof-toggle svg{width:15px;transition:transform .15s ease}.advisor-focus-proof-toggle[aria-expanded=true] svg{transform:rotate(180deg)}.advisor-focus-proof-drawer{display:grid;gap:10px;margin-left:39px;border:1px solid #cbdced;border-radius:8px;padding:10px;background:#fff}.advisor-focus-proof-drawer>header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;border-bottom:1px solid #edf2f8;padding:0 0 8px}.advisor-focus-proof-drawer>header div{display:grid;gap:2px}.advisor-focus-proof-drawer>header strong,.advisor-focus-proof-drawer section header strong{color:#10233f;font-size:12.5px}.advisor-focus-proof-drawer>header small,.advisor-focus-proof-drawer section header small{color:#60758c;font-size:11.5px}.advisor-focus-proof-drawer>header button{display:grid;place-items:center;width:28px;height:28px;border:1px solid #d7e3f0;border-radius:7px;background:#fff;color:#526a82}.advisor-focus-proof-drawer>header button svg{width:14px}.advisor-focus-proof-drawer fieldset{margin:0}.advisor-focus-proof-drawer section{display:grid;gap:8px;border-top:1px solid #edf2f8;padding-top:10px}.advisor-focus-proof-drawer section header{display:grid;gap:1px}.advisor-focus-proof-drawer form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px}.advisor-focus-proof-drawer form input{min-height:32px;border:1px solid #cfdbea;border-radius:7px;padding:0 9px;color:#10233f;font:inherit;font-size:12px}.advisor-focus-proof-drawer form button{border:1px solid #075ed8;border-radius:7px;padding:0 12px;background:#075ed8;color:#fff;font-size:12px;font-weight:900}.advisor-focus-proof-drawer section>div{display:grid;gap:6px}.advisor-focus-proof-drawer section>div>div{display:grid;grid-template-columns:minmax(0,1fr) 28px;align-items:center;gap:7px;border:1px solid #dce7f3;border-radius:7px;padding:6px 7px;background:#fbfdff}.advisor-focus-proof-drawer section>div>div label{display:flex;align-items:center;gap:7px;min-width:0}.advisor-focus-proof-drawer section>div>div label span{overflow:hidden;color:#334b65;font-size:11.5px;font-weight:800;text-overflow:ellipsis;white-space:nowrap}.advisor-focus-proof-drawer section>div>div button{display:grid;place-items:center;width:24px;height:24px;border:1px solid #e0e8f1;border-radius:6px;background:#fff;color:#64788d}.advisor-focus-proof-drawer section>div>div button svg{width:12px}.advisor-focus-proof-drawer section>p{margin:0;color:#6b7f94;font-size:11.5px}@media(max-width:700px){.advisor-focus-proof-toggle,.advisor-focus-proof-drawer{margin-left:35px}.advisor-focus-proof-drawer form{grid-template-columns:1fr}.advisor-focus-proof-drawer form button{min-height:32px}}
 
+.advisor-focus-view-switch{display:flex;flex-wrap:wrap;gap:6px;border:1px solid #d3deeb;border-radius:9px;padding:5px;background:#f8fbff}.advisor-focus-view-switch button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:34px;flex:1 1 120px;border:1px solid transparent;border-radius:7px;padding:0 10px;background:transparent;color:#29435f;font:inherit;font-size:12px;font-weight:900;cursor:pointer}.advisor-focus-view-switch button svg{width:14px}.advisor-focus-view-switch button[aria-pressed=true]{border-color:#075ed8;background:#075ed8;color:#fff;box-shadow:0 5px 12px rgba(7,94,216,.14)}
+.advisor-focus-visual{display:grid;gap:10px;border:1px solid #d5e0ec;border-radius:9px;padding:12px;background:#fff;box-shadow:0 7px 18px rgba(26,52,84,.05)}.advisor-focus-visual>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;border-bottom:1px solid #e5edf6;padding-bottom:10px}.advisor-focus-visual>header div{display:grid;gap:2px}.advisor-focus-visual>header strong{color:#10233f;font-size:15px}.advisor-focus-visual>header small{color:#5f7188;font-size:11.5px;font-weight:900;text-transform:uppercase;letter-spacing:.08em}.advisor-focus-visual>header span{border:1px solid #d6e3f1;border-radius:999px;padding:5px 8px;color:#315a93;background:#f4f8ff;font-size:11px;font-weight:900;white-space:nowrap}
+.advisor-focus-timeline-review{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}.advisor-focus-timeline-review button,.advisor-focus-calendar-grid button{display:grid;gap:6px;border:1px solid #dce7f3;border-left:4px solid #2f65c8;border-radius:8px;padding:9px;background:#fbfdff;color:#10233f;font:inherit;text-align:left;cursor:pointer}.advisor-focus-timeline-review button{grid-template-columns:28px minmax(0,1fr) auto;align-items:center}.advisor-focus-timeline-review button b{display:grid;place-items:center;width:24px;height:24px;border-radius:999px;background:#eef5ff;color:#075ed8;font-size:12px}.advisor-focus-timeline-review span,.advisor-focus-calendar-grid button span{display:grid;gap:2px;min-width:0}.advisor-focus-timeline-review strong,.advisor-focus-calendar-grid button strong{overflow:hidden;color:#10233f;font-size:12px;text-overflow:ellipsis;white-space:nowrap}.advisor-focus-timeline-review small,.advisor-focus-calendar-grid button small{overflow:hidden;color:#60758c;font-size:11.5px;text-overflow:ellipsis;white-space:nowrap}.advisor-focus-timeline-review em,.advisor-focus-calendar-grid button em{border-radius:999px;padding:4px 7px;color:#315a93;background:#eef6ff;font-size:11px;font-style:normal;font-weight:900;white-space:nowrap}.advisor-focus-timeline-review button.risk,.advisor-focus-calendar-grid button.risk{border-left-color:#c63637}.advisor-focus-timeline-review button.carryover,.advisor-focus-calendar-grid button.carryover{border-left-color:#c48a13}.advisor-focus-timeline-review button.done,.advisor-focus-calendar-grid button.done{border-left-color:#168653}
+.advisor-focus-calendar-controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.advisor-focus-calendar-controls button{min-height:30px;border:1px solid #d3deeb;border-radius:999px;padding:0 10px;background:#fff;color:#29435f;font:inherit;font-size:11.5px;font-weight:900;cursor:pointer}.advisor-focus-calendar-controls button[aria-pressed=true]{border-color:#075ed8;background:#075ed8;color:#fff}.advisor-focus-calendar-controls span{margin-left:auto;color:#536980;font-size:12px;font-weight:900}
+.advisor-focus-calendar-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px}.advisor-focus-calendar-grid.week{grid-template-columns:repeat(7,minmax(130px,1fr));overflow:auto}.advisor-focus-calendar-grid.month{grid-template-columns:repeat(7,minmax(112px,1fr));overflow:auto}.advisor-focus-calendar-grid.day{grid-template-columns:minmax(0,1fr)}.advisor-focus-calendar-grid article{display:grid;align-content:start;gap:8px;min-height:160px;border:1px solid #dce7f3;border-radius:8px;padding:9px;background:#fbfdff}.advisor-focus-calendar-grid.month article{min-height:128px}.advisor-focus-calendar-grid.day article{min-height:260px}.advisor-focus-calendar-grid article.outside-month{opacity:.62}.advisor-focus-calendar-grid article>header{display:flex;align-items:center;justify-content:space-between;gap:8px;border-bottom:1px solid #e7eef7;padding-bottom:7px}.advisor-focus-calendar-grid article>header strong{color:#10233f;font-size:12.5px}.advisor-focus-calendar-grid article>header small{color:#60758c;font-size:11px;font-weight:900}.advisor-focus-calendar-grid article>div{display:grid;gap:7px}.advisor-focus-calendar-grid article.empty{background:#f8fafc}.advisor-focus-calendar-grid article p{margin:0;color:#7a8ca2;font-size:11.5px;font-weight:850}.advisor-focus-calendar-grid button{grid-template-columns:minmax(0,1fr) auto}.advisor-focus-calendar-grid button em{align-self:start}.advisor-focus-calendar-undated{display:flex;align-items:center;gap:6px;flex-wrap:wrap;border:1px dashed #d3deeb;border-radius:8px;padding:8px;background:#f8fbff}.advisor-focus-calendar-undated strong{color:#10233f;font-size:12px}.advisor-focus-calendar-undated button{border:1px solid #dce7f3;border-radius:999px;padding:6px 9px;background:#fff;color:#29435f;font:inherit;font-size:11.5px;font-weight:900;cursor:pointer}
+.advisor-focus-calendar-grid article.selected{border-color:#075ed8;box-shadow:inset 0 0 0 1px #075ed8}.advisor-focus-calendar-day-trigger{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}.advisor-focus-calendar-day-trigger:focus-visible{border-radius:6px;outline:3px solid rgba(7,94,216,.18);outline-offset:2px}.advisor-focus-day-planner{display:grid;gap:10px;border:1px solid #d5e0ec;border-radius:9px;padding:12px;background:#f8fbff}.advisor-focus-day-planner>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;border-bottom:1px solid #e5edf6;padding-bottom:10px}.advisor-focus-day-planner>header div{display:grid;gap:2px}.advisor-focus-day-planner>header strong{color:#10233f;font-size:14px}.advisor-focus-day-planner>header small{color:#60758c;font-size:11.5px;font-weight:900}.advisor-focus-day-planner>header span{border:1px solid #d6e3f1;border-radius:999px;padding:5px 8px;background:#fff;color:#315a93;font-size:11px;font-weight:900;white-space:nowrap}.advisor-focus-day-layout{display:grid;grid-template-columns:minmax(220px,.8fr) minmax(280px,1fr) minmax(260px,.9fr);gap:10px}.advisor-focus-day-list,.advisor-focus-slot-form,.advisor-focus-slot-list{display:grid;align-content:start;gap:8px;border:1px solid #dce7f3;border-radius:8px;padding:10px;background:#fff}.advisor-focus-day-list>strong,.advisor-focus-slot-form header strong,.advisor-focus-slot-list>strong{color:#10233f;font-size:12.5px}.advisor-focus-slot-form header{display:grid;gap:2px}.advisor-focus-slot-form header small{color:#60758c;font-size:11.5px;font-weight:850}.advisor-focus-day-list>button{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;border:1px solid #dce7f3;border-left:4px solid #2f65c8;border-radius:8px;padding:8px;background:#fbfdff;color:#10233f;font:inherit;text-align:left;cursor:pointer}.advisor-focus-day-list>button.risk{border-left-color:#c63637}.advisor-focus-day-list>button.carryover{border-left-color:#c48a13}.advisor-focus-day-list>button.done{border-left-color:#168653}.advisor-focus-day-list>button span{display:grid;gap:2px;min-width:0}.advisor-focus-day-list>button strong{overflow:hidden;color:#10233f;font-size:12px;text-overflow:ellipsis;white-space:nowrap}.advisor-focus-day-list>button small{overflow:hidden;color:#60758c;font-size:11.5px;text-overflow:ellipsis;white-space:nowrap}.advisor-focus-day-list>button em{align-self:start;border-radius:999px;padding:4px 7px;background:#eef6ff;color:#315a93;font-size:11px;font-style:normal;font-weight:900;white-space:nowrap}.advisor-focus-day-list>p,.advisor-focus-slot-list>p{margin:0;color:#7a8ca2;font-size:11.5px;font-weight:850}.advisor-focus-slot-form{grid-template-columns:repeat(2,minmax(0,1fr))}.advisor-focus-slot-form header,.advisor-focus-slot-form .wide{grid-column:1/-1}.advisor-focus-slot-form label{display:grid;gap:5px;color:#304862;font-size:11.5px;font-weight:900}.advisor-focus-slot-form input,.advisor-focus-slot-form select,.advisor-focus-slot-form textarea{width:100%;min-height:34px;border:1px solid #cfdbea;border-radius:7px;padding:0 9px;background:#fff;color:#10233f;font:inherit;font-size:12px}.advisor-focus-slot-form textarea{min-height:72px;padding:8px 9px;resize:vertical}.advisor-focus-slot-form>button{grid-column:1/-1;justify-self:end;min-height:34px;border:1px solid #075ed8;border-radius:8px;padding:0 12px;background:#075ed8;color:#fff;font:inherit;font-size:12px;font-weight:900;cursor:pointer}.advisor-focus-slot-list article{display:grid;grid-template-columns:52px minmax(0,1fr) 28px;align-items:start;gap:8px;border:1px solid #dce7f3;border-radius:8px;padding:8px;background:#fbfdff}.advisor-focus-slot-list time{color:#075ed8;font-size:12px;font-weight:950}.advisor-focus-slot-list article span{display:grid;gap:2px;min-width:0}.advisor-focus-slot-list article strong{overflow:hidden;color:#10233f;font-size:12px;text-overflow:ellipsis;white-space:nowrap}.advisor-focus-slot-list article small{overflow:hidden;color:#60758c;font-size:11.5px;text-overflow:ellipsis;white-space:nowrap}.advisor-focus-slot-list article p{margin:2px 0 0;color:#53677f;font-size:11.5px;line-height:1.35}.advisor-focus-slot-list article button{display:grid;place-items:center;width:26px;height:26px;border:1px solid #d7e3f0;border-radius:7px;background:#fff;color:#526a82;cursor:pointer}.advisor-focus-slot-list article button svg{width:13px}
+@media(max-width:720px){.advisor-focus-visual>header{display:grid}.advisor-focus-timeline-review button{grid-template-columns:28px minmax(0,1fr)}.advisor-focus-timeline-review em{grid-column:2;width:max-content}}
+@media(max-width:1050px){.advisor-focus-day-layout{grid-template-columns:1fr}.advisor-focus-slot-form{grid-template-columns:1fr}.advisor-focus-slot-form>button{justify-self:stretch}}
+
 /* App-wide dark mode safety rail. Keep this late so route-level light styles cannot win the cascade. */
 html[data-app-theme="dark"] .app-content {
   background: var(--bg) !important;
@@ -27142,6 +27151,164 @@ html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
   background: var(--surface-soft) !important;
   border-color: var(--line-strong) !important;
   color: var(--ink) !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-focus-view-switch,
+  .advisor-focus-visual,
+  .advisor-focus-calendar-controls button,
+  .advisor-focus-calendar-undated,
+  .advisor-focus-calendar-undated button,
+  .advisor-focus-calendar-grid article,
+  .advisor-focus-day-planner,
+  .advisor-focus-day-planner > header span,
+  .advisor-focus-day-list,
+  .advisor-focus-day-list > button,
+  .advisor-focus-slot-form,
+  .advisor-focus-slot-form input,
+  .advisor-focus-slot-form select,
+  .advisor-focus-slot-form textarea,
+  .advisor-focus-slot-list,
+  .advisor-focus-slot-list article,
+  .advisor-focus-slot-list article button,
+  .advisor-focus-timeline-review button,
+  .advisor-focus-calendar-grid button
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-focus-view-switch,
+  .advisor-focus-visual,
+  .advisor-focus-calendar-controls button,
+  .advisor-focus-calendar-undated,
+  .advisor-focus-calendar-undated button,
+  .advisor-focus-calendar-grid article,
+  .advisor-focus-day-planner,
+  .advisor-focus-day-planner > header span,
+  .advisor-focus-day-list,
+  .advisor-focus-day-list > button,
+  .advisor-focus-slot-form,
+  .advisor-focus-slot-form input,
+  .advisor-focus-slot-form select,
+  .advisor-focus-slot-form textarea,
+  .advisor-focus-slot-list,
+  .advisor-focus-slot-list article,
+  .advisor-focus-slot-list article button,
+  .advisor-focus-timeline-review button,
+  .advisor-focus-calendar-grid button
+) {
+  background: var(--surface-soft) !important;
+  border-color: var(--line-strong) !important;
+  color: var(--ink) !important;
+  box-shadow: none !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-focus-visual > header,
+  .advisor-focus-calendar-grid article > header,
+  .advisor-focus-day-planner > header
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-focus-visual > header,
+  .advisor-focus-calendar-grid article > header,
+  .advisor-focus-day-planner > header
+) {
+  border-color: var(--line-strong) !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-focus-view-switch button,
+  .advisor-focus-calendar-controls button,
+  .advisor-focus-calendar-undated strong,
+  .advisor-focus-calendar-undated button,
+  .advisor-focus-visual > header strong,
+  .advisor-focus-calendar-grid article > header strong,
+  .advisor-focus-day-planner > header strong,
+  .advisor-focus-day-planner > header span,
+  .advisor-focus-day-list > strong,
+  .advisor-focus-day-list > button strong,
+  .advisor-focus-slot-form header strong,
+  .advisor-focus-slot-form label,
+  .advisor-focus-slot-list > strong,
+  .advisor-focus-slot-list article strong,
+  .advisor-focus-slot-list time,
+  .advisor-focus-timeline-review strong,
+  .advisor-focus-calendar-grid button strong
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-focus-view-switch button,
+  .advisor-focus-calendar-controls button,
+  .advisor-focus-calendar-undated strong,
+  .advisor-focus-calendar-undated button,
+  .advisor-focus-visual > header strong,
+  .advisor-focus-calendar-grid article > header strong,
+  .advisor-focus-day-planner > header strong,
+  .advisor-focus-day-planner > header span,
+  .advisor-focus-day-list > strong,
+  .advisor-focus-day-list > button strong,
+  .advisor-focus-slot-form header strong,
+  .advisor-focus-slot-form label,
+  .advisor-focus-slot-list > strong,
+  .advisor-focus-slot-list article strong,
+  .advisor-focus-slot-list time,
+  .advisor-focus-timeline-review strong,
+  .advisor-focus-calendar-grid button strong
+) {
+  color: var(--ink) !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-focus-visual > header small,
+  .advisor-focus-calendar-controls span,
+  .advisor-focus-calendar-grid article > header small,
+  .advisor-focus-day-planner > header small,
+  .advisor-focus-day-list > button small,
+  .advisor-focus-day-list > p,
+  .advisor-focus-slot-form header small,
+  .advisor-focus-slot-list article small,
+  .advisor-focus-slot-list article p,
+  .advisor-focus-slot-list > p,
+  .advisor-focus-timeline-review small,
+  .advisor-focus-calendar-grid button small,
+  .advisor-focus-calendar-grid article p
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-focus-visual > header small,
+  .advisor-focus-calendar-controls span,
+  .advisor-focus-calendar-grid article > header small,
+  .advisor-focus-day-planner > header small,
+  .advisor-focus-day-list > button small,
+  .advisor-focus-day-list > p,
+  .advisor-focus-slot-form header small,
+  .advisor-focus-slot-list article small,
+  .advisor-focus-slot-list article p,
+  .advisor-focus-slot-list > p,
+  .advisor-focus-timeline-review small,
+  .advisor-focus-calendar-grid button small,
+  .advisor-focus-calendar-grid article p
+) {
+  color: var(--muted) !important;
+}
+
+html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
+  .advisor-focus-view-switch button[aria-pressed=true],
+  .advisor-focus-calendar-controls button[aria-pressed=true],
+  .advisor-focus-timeline-review button b,
+  .advisor-focus-timeline-review em,
+  .advisor-focus-calendar-grid button em,
+  .advisor-focus-day-list > button em,
+  .advisor-focus-visual > header span
+),
+html[data-app-theme="dark"] .advisor-coo-tool-page.full :where(
+  .advisor-focus-view-switch button[aria-pressed=true],
+  .advisor-focus-calendar-controls button[aria-pressed=true],
+  .advisor-focus-timeline-review button b,
+  .advisor-focus-timeline-review em,
+  .advisor-focus-calendar-grid button em,
+  .advisor-focus-day-list > button em,
+  .advisor-focus-visual > header span
+) {
+  background: var(--brand) !important;
+  border-color: var(--brand-strong) !important;
+  color: #fff !important;
 }
 
 html[data-app-theme="dark"] .advisor-coo-workbook.full :where(
