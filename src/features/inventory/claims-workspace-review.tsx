@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import type { ClaimChecklistItem, ClaimReadModel } from "@/server/claims-workspace/service";
 
@@ -97,6 +97,23 @@ function activityActorName(activity: ClaimReadModel["activities"][number]) {
   return "Eli Manager";
 }
 
+function claimOwnerName(ownerUserId?: string) {
+  if (!ownerUserId) return "Unassigned";
+  const knownOwners: Record<string, string> = {
+    "advisor-1": "Eli Manager",
+    "advisor-2": "Service Advisor",
+    advisor: "Eli Manager",
+    seed: "System"
+  };
+  return knownOwners[ownerUserId] ?? "Eli Manager";
+}
+
+function todayInputDate() {
+  const date = new Date();
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 10);
+}
+
 export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
   const [actionError, setActionError] = useState("");
   const [actionMessage, setActionMessage] = useState("");
@@ -104,6 +121,10 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
   const [activeExtraTool, setActiveExtraTool] = useState<ExtraActionTool>("call");
   const [extraToolsOpen, setExtraToolsOpen] = useState(false);
   const [isWorking, setIsWorking] = useState(false);
+  const [reminderDate, setReminderDate] = useState("");
+  const [reminderPickerOpen, setReminderPickerOpen] = useState(false);
+  const [reminderStatus, setReminderStatus] = useState("");
+  const reminderDateInputRef = useRef<HTMLInputElement>(null);
   const snapshotRows = model ? [
     ["Customer", model.claim.customerName],
     ["Address", [model.claim.customerAddressLine1, model.claim.customerAddressLine2, model.claim.customerCity, model.claim.customerState, model.claim.customerPostalCode].filter(Boolean).join(", ") || "Pending"],
@@ -111,7 +132,7 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
     ["Color / mileage", [model.claim.vehicleColor, model.claim.vehicleMileage].filter(Boolean).join(" / ") || "Pending"],
     ["VIN", model.claim.vehicleVin || "Pending"],
     ["Plate / stock", [model.claim.vehiclePlate, model.claim.vehicleStockNumber].filter(Boolean).join(" / ") || "Pending"],
-    ["Owner", model.claim.ownerUserId || "Unassigned"],
+    ["Owner", claimOwnerName(model.claim.ownerUserId)],
     ["Carrier", model.claim.carrierName || "Pending"],
     ["Adjuster", model.claim.adjusterName || "Needed"],
     ["Loss date", model.claim.lossDate || "Pending"],
@@ -155,7 +176,7 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
   if (appointmentCustomer) appointmentContext.set("customerReference", appointmentCustomer);
   if (appointmentVehicle) appointmentContext.set("vehicleReference", appointmentVehicle);
   const newAppointmentHref = `/appointments?${appointmentContext.toString()}`;
-  const appointmentRemindersHref = `/appointments?section=follow-up&returnTo=${encodeURIComponent(claimReturnHref)}`;
+  const minimumReminderDate = todayInputDate();
 
   async function submitJson(path: string, body: Record<string, unknown>, method = "POST") {
     setActionError("");
@@ -228,6 +249,58 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
   function openExtraTool(tool: ExtraActionTool) {
     setActiveExtraTool(tool);
     setExtraToolsOpen(true);
+  }
+
+  function openReminderPicker() {
+    setReminderPickerOpen(true);
+    window.setTimeout(() => {
+      const picker = reminderDateInputRef.current as (HTMLInputElement & { showPicker?: () => void }) | null;
+      picker?.focus();
+      picker?.showPicker?.();
+    }, 0);
+  }
+
+  async function createAppointmentReminder(date: string) {
+    if (!date) return;
+    setActionError("");
+    setReminderStatus("Saving reminder...");
+    setIsWorking(true);
+    const reminderText = [
+      "Claim appointment reminder",
+      model?.nextAction.label ?? model?.nextAction.reason ?? "Follow up on claim",
+      model?.claim.claimNumber ? `Claim # ${model.claim.claimNumber}` : "",
+      model?.claim.customerName ? `Customer: ${model.claim.customerName}` : "",
+      appointmentVehicle ? `Vehicle: ${appointmentVehicle}` : ""
+    ].filter(Boolean).join(" - ");
+
+    try {
+      const response = await fetch(`/api/coo-workbook/staff/quick-updates?date=${encodeURIComponent(minimumReminderDate)}`, {
+        body: JSON.stringify({
+          category: "APPOINTMENT",
+          company: model?.claim.carrierName ?? "Claims workspace",
+          dueWindow: date,
+          followUpNeeded: true,
+          person: model?.claim.customerName ?? "",
+          phoneNumber: model?.claim.customerPhone ?? "",
+          text: reminderText
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST"
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(payload?.error ?? "The reminder could not be saved.");
+      setActionMessage(`Reminder saved for ${date}.`);
+      setReminderStatus(`Reminder saved for ${date}. Opening the Appointment Console reminders now...`);
+      window.setTimeout(() => {
+        window.location.assign(`/appointments?section=follow-up&localDate=${encodeURIComponent(date)}`);
+      }, 350);
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "The reminder could not be saved.";
+      setActionError(message);
+      setReminderStatus(message);
+    } finally {
+      setIsWorking(false);
+    }
   }
 
   return (
@@ -560,12 +633,31 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
                   <form action={recordActivityUpdate} className={`${styles.executionForm} ${styles.timelineForm}`}>
                     <div className={styles.appointmentToolHeader}>
                       <Link href={newAppointmentHref}>Appointment / inspection scheduling</Link>
-                      <span>Open Appointment Console to create appointments or reminders, then record the result here.</span>
+                      <span>Create appointments in the Appointment Console, or pick a reminder date here and open the saved reminder in the Appointment Console.</span>
                     </div>
                     <div className={styles.appointmentToolActions}>
                       <Link href={newAppointmentHref}>Create appointment</Link>
-                      <Link href={appointmentRemindersHref}>Open reminders</Link>
+                      <button onClick={openReminderPicker} type="button">Pick reminder date</button>
                     </div>
+                    {reminderPickerOpen ? (
+                      <div className={styles.reminderPicker}>
+                        <label>
+                          <span>Reminder date</span>
+                          <input
+                            ref={reminderDateInputRef}
+                            min={minimumReminderDate}
+                            onChange={(event) => {
+                              const selectedDate = event.target.value;
+                              setReminderDate(selectedDate);
+                              void createAppointmentReminder(selectedDate);
+                            }}
+                            type="date"
+                            value={reminderDate}
+                          />
+                        </label>
+                        <p aria-live="polite">{reminderStatus || "Pick a date to create the reminder."}</p>
+                      </div>
+                    ) : null}
                     <input name="updateType" type="hidden" value="Appointment scheduled" />
                     <input name="category" type="hidden" value="ACTIVITY_ONLY" />
                     <input name="title" placeholder="Appointment type, e.g. Reinspection" />

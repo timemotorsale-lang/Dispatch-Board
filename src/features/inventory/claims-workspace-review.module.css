@@ -459,12 +459,14 @@
   gap: 8px;
 }
 
-.appointmentToolActions a {
+.appointmentToolActions a,
+.appointmentToolActions button {
   min-height: 38px;
   border: 1px solid #284bd0;
   border-radius: 8px;
   background: #284bd0;
   color: #fff;
+  cursor: pointer;
   font-size: 0.82rem;
   font-weight: 900;
   line-height: 1.2;
@@ -472,9 +474,43 @@
   text-decoration: none;
 }
 
-.appointmentToolActions a:last-child {
+.appointmentToolActions a:last-child,
+.appointmentToolActions button:last-child {
   background: #fff;
   color: #284bd0;
+}
+
+.reminderPicker {
+  display: grid;
+  grid-template-columns: minmax(180px, 260px) minmax(0, 1fr);
+  gap: 10px;
+  align-items: end;
+  border: 1px solid #d8e3f5;
+  border-radius: 8px;
+  background: #f8fbff;
+  color: #07132d;
+  padding: 10px;
+}
+
+.reminderPicker label {
+  display: grid;
+  gap: 5px;
+}
+
+.reminderPicker span {
+  color: #526481;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.reminderPicker p {
+  margin: 0;
+  color: #263750;
+  font-size: 0.82rem;
+  font-weight: 850;
+  line-height: 1.4;
 }
 
 .executionForm > div {
@@ -494,6 +530,10 @@
 .executionForm > .appointmentToolActions {
   display: flex;
   grid-template-columns: none;
+}
+
+.executionForm > .reminderPicker {
+  grid-template-columns: minmax(180px, 260px) minmax(0, 1fr);
 }
 
 .executionForm input,
@@ -909,14 +949,30 @@
   color: #d7e3f8;
 }
 
-:global(html[data-app-theme="dark"]) .appointmentToolActions a {
+:global(html[data-app-theme="dark"]) .appointmentToolActions a,
+:global(html[data-app-theme="dark"]) .appointmentToolActions button {
   border-color: #8aa7ff;
   background: #5d75e9;
   color: #fff;
 }
 
-:global(html[data-app-theme="dark"]) .appointmentToolActions a:last-child {
+:global(html[data-app-theme="dark"]) .appointmentToolActions a:last-child,
+:global(html[data-app-theme="dark"]) .appointmentToolActions button:last-child {
   background: #18263d;
+  color: #f8fbff;
+}
+
+:global(html[data-app-theme="dark"]) .reminderPicker {
+  border-color: #344a64;
+  background: #132139;
+  color: #f8fbff;
+}
+
+:global(html[data-app-theme="dark"]) .reminderPicker span {
+  color: #d7e3f8;
+}
+
+:global(html[data-app-theme="dark"]) .reminderPicker p {
   color: #f8fbff;
 }
 

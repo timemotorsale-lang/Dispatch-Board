@@ -2,6 +2,17 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { ClaimsWorkspaceReview } from "@/features/inventory/claims-workspace-review";
+import type { AuthenticatedUser } from "@/server/auth/store";
+import { createInMemoryClaimsWorkspaceRepository, getClaimWorkspaceReadModel } from "@/server/claims-workspace/service";
+
+const actor: AuthenticatedUser = {
+  duties: { all: [], direct: [], roleDefaults: [] },
+  email: "advisor@example.com",
+  id: "advisor-1",
+  isActive: true,
+  name: "Eli Manager",
+  roles: ["Service Advisor"]
+};
 
 describe("claims workspace review", () => {
   it("renders the adopted claims workspace sections and handoff guidance", () => {
@@ -21,5 +32,15 @@ describe("claims workspace review", () => {
     expect(html).toContain("Handoff Readiness");
     expect(html).toContain("Contact adjuster");
     expect(html).toContain("Repair order handoff");
+  });
+
+  it("shows a staff name instead of the internal owner id", async () => {
+    const model = await getClaimWorkspaceReadModel(actor, "claim-demo-1", {
+      repository: createInMemoryClaimsWorkspaceRepository()
+    });
+    const html = renderToStaticMarkup(<ClaimsWorkspaceReview model={model} />);
+
+    expect(html).toContain("Eli Manager");
+    expect(html).not.toContain("advisor-1");
   });
 });

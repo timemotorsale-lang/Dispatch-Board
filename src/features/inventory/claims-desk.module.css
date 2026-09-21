@@ -58,6 +58,10 @@
   color: #fff;
 }
 
+.topActions button[aria-pressed="true"] {
+  box-shadow: inset 0 -3px rgba(255, 255, 255, 0.35);
+}
+
 .hero,
 .panel {
   border: 1px solid #d6e0f0;
@@ -68,7 +72,7 @@
 
 .hero {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.55fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 20px;
   align-items: start;
   padding: 18px;
@@ -122,10 +126,16 @@
 }
 
 .workspace {
-  display: grid;
-  grid-template-columns: minmax(0, 1.32fr) minmax(360px, 0.8fr);
-  gap: 12px;
+  display: block;
   align-items: start;
+}
+
+.workbench {
+  min-height: 420px;
+}
+
+.workbenchContent {
+  min-width: 0;
 }
 
 .mainStack,
@@ -151,41 +161,6 @@
   letter-spacing: 0;
 }
 
-.startGrid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.startCard {
-  min-height: 126px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 10px;
-  border: 1px solid #d6e0f0;
-  border-radius: 8px;
-  background: #fbfdff;
-  padding: 12px;
-}
-
-.startCard h3 {
-  margin: 0 0 6px;
-  color: #07132d;
-  font-size: 1rem;
-  line-height: 1.16;
-}
-
-.startCard > span {
-  align-self: flex-start;
-  border-radius: 7px;
-  background: #eaf0ff;
-  color: #284bd0;
-  padding: 7px 10px;
-  font-size: 0.78rem;
-  font-weight: 900;
-}
-
 .badge {
   display: inline-flex;
   align-items: center;
@@ -196,6 +171,19 @@
   font-size: 0.72rem;
   font-weight: 900;
   white-space: nowrap;
+}
+
+.badgeButton {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  cursor: pointer;
+}
+
+.badgeButton[aria-pressed="true"] .badge {
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.18);
 }
 
 .info {
@@ -299,6 +287,13 @@
   font-size: 0.84rem;
   font-weight: 850;
   text-align: center;
+}
+
+.queueSummary {
+  margin: 8px 0 0;
+  color: #526481;
+  font-size: 0.78rem;
+  font-weight: 850;
 }
 
 .claimRow strong,
@@ -418,11 +413,23 @@
 }
 
 .metric {
+  display: grid;
+  width: 100%;
   min-height: 78px;
   padding: 10px;
   border: 1px solid #dce5f3;
   border-radius: 8px;
   background: #fbfdff;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.metric[aria-pressed="true"] {
+  border-color: #284bd0;
+  background: #eef3ff;
+  box-shadow: inset 4px 0 #284bd0;
 }
 
 .metric strong {
@@ -522,8 +529,6 @@
     flex-direction: column;
   }
 
-  .startGrid,
-  .metricGrid,
   .intakeForm fieldset {
     grid-template-columns: 1fr;
   }
@@ -556,7 +561,6 @@
 :global(html[data-app-theme="dark"]) .panel,
 :global(html[data-app-theme="dark"]) .searchPanel,
 :global(html[data-app-theme="dark"]) .searchBox,
-:global(html[data-app-theme="dark"]) .startCard,
 :global(html[data-app-theme="dark"]) .queue,
 :global(html[data-app-theme="dark"]) .filterBar,
 :global(html[data-app-theme="dark"]) .filterBar button,
@@ -578,13 +582,20 @@
   box-shadow: none;
 }
 
-:global(html[data-app-theme="dark"]) .startCard > span,
 :global(html[data-app-theme="dark"]) .badge,
 :global(html[data-app-theme="dark"]) .filterBar button strong,
 :global(html[data-app-theme="dark"]) .lane > span {
   background: var(--app-surface-soft);
   border-color: var(--app-border-strong);
   color: var(--app-text);
+}
+
+:global(html[data-app-theme="dark"]) .metric[aria-pressed="true"],
+:global(html[data-app-theme="dark"]) .badgeButton[aria-pressed="true"] .badge {
+  border-color: var(--app-primary);
+  background: var(--app-primary-soft);
+  color: var(--app-text);
+  box-shadow: inset 4px 0 var(--app-primary);
 }
 
 :global(html[data-app-theme="dark"]) .warning {
@@ -613,7 +624,6 @@
 
 :global(html[data-app-theme="dark"]) .hero h1,
 :global(html[data-app-theme="dark"]) .panelHeader h2,
-:global(html[data-app-theme="dark"]) .startCard h3,
 :global(html[data-app-theme="dark"]) .searchBox strong,
 :global(html[data-app-theme="dark"]) .claimRow strong,
 :global(html[data-app-theme="dark"]) .lane strong,
@@ -627,7 +637,6 @@
 :global(html[data-app-theme="dark"]) .hero p,
 :global(html[data-app-theme="dark"]) .panelHeader p,
 :global(html[data-app-theme="dark"]) .searchPanel p,
-:global(html[data-app-theme="dark"]) .startCard p,
 :global(html[data-app-theme="dark"]) .metric p,
 :global(html[data-app-theme="dark"]) .note,
 :global(html[data-app-theme="dark"]) .claimRow span,

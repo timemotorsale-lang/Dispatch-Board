@@ -7,26 +7,24 @@ describe("claims desk", () => {
   it("renders the v1 claim desk landing flow before opening the workspace", () => {
     const html = renderToStaticMarkup(<ClaimsDesk />);
 
-    expect(html).toContain("Desk an insurance claim");
-    expect(html).toContain("Find before creating");
-    expect(html).toContain("Choose how this claim starts");
-    expect(html).toContain("Existing claim or RO");
-    expect(html).toContain("Known customer / vehicle");
-    expect(html).toContain("Unknown or walk-in claim");
-    expect(html).toContain("Active claim candidates");
-    expect(html).toContain("Waiting carrier");
-    expect(html).toContain("Ready handoff");
-    expect(html).toContain("Payment watch");
+    expect(html).toContain("Claim Desk Workbench");
+    expect(html).toContain("Find existing");
     expect(html).toContain("Start claim intake");
+    expect(html).toContain("Start claim");
+    expect(html).toContain("Claim documents");
+    expect(html).toContain("Start claim intake");
+    expect(html).not.toContain("Existing claim or RO");
+    expect(html).not.toContain("Known customer / vehicle");
+    expect(html).not.toContain("Unknown or walk-in claim");
     expect(html).toContain("Start claim workspace");
     expect(html).toContain("Customer name");
     expect(html).toContain("Address line 1");
     expect(html).toContain("Vehicle");
     expect(html).toContain("Mileage");
     expect(html).toContain("Policy #");
-    expect(html).toContain("Desk signals");
-    expect(html).toContain("Handoff lanes");
-    expect(html).toContain("Desk guardrails");
-    expect(html).toContain("/vehicles/claims-workspace");
+    expect(html).not.toContain("Workbench guide");
+    expect(html).not.toContain("Desk signals");
+    expect(html).not.toContain("Handoff lanes");
+    expect(html).toContain("opens the workspace");
   });
 });
