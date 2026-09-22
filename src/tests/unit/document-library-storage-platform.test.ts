@@ -135,7 +135,10 @@ describe("document library storage platform", () => {
       "title.standard",
       "vendor.onboarding"
     ]);
-    expect(defaultDocumentPacketTemplates.flatMap((template) => template.requirements).filter((requirement) => requirement.required)).toHaveLength(9);
+    expect(defaultDocumentPacketTemplates.flatMap((template) => template.requirements).filter((requirement) => requirement.required)).toHaveLength(10);
+    expect(defaultDocumentPacketTemplates.find((template) => template.templateKey === "claims.standard")?.requirements).toEqual(expect.arrayContaining([
+      expect.objectContaining({ documentType: "INSURANCE_ESTIMATE", label: "Insurance estimate", required: true })
+    ]));
   });
 
   it("keeps provider writes audited and held behind confirmation posture", () => {

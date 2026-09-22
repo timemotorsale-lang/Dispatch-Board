@@ -2,6 +2,7 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { canOpenDocumentLibrary } from "@/server/document-library/permission-policy";
 
 import { DOCUMENT_LIBRARY_CONTRACT_VERSION, DocumentLibraryError } from "./domain";
+import { resolveDocumentStoragePolicy, type DispatchDocumentStorageContext } from "./storage-policy";
 import { validateDocumentUpload, type DocumentUploadCandidate } from "./storage-platform";
 
 function requireUploadAccess(actor: AuthenticatedUser | null) {
@@ -30,6 +31,22 @@ function parseUploadCandidate(value: unknown): DocumentUploadCandidate {
   };
 }
 
+function parseStorageContext(value: unknown): DispatchDocumentStorageContext {
+  const input = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const context = input.context && typeof input.context === "object" ? input.context as Record<string, unknown> : input;
+  return {
+    console: (stringField(context, "console") || "DOCUMENT_LIBRARY") as DispatchDocumentStorageContext["console"],
+    documentType: stringField(context, "documentType") || stringField(input, "documentType") || undefined,
+    intent: stringField(context, "intent") as DispatchDocumentStorageContext["intent"] || undefined,
+    ownerId: stringField(context, "ownerId") || undefined,
+    ownerLabel: stringField(context, "ownerLabel") || undefined,
+    ownerType: stringField(context, "ownerType") as DispatchDocumentStorageContext["ownerType"] || undefined,
+    packetId: stringField(context, "packetId") || undefined,
+    purpose: stringField(context, "purpose") || undefined,
+    reason: stringField(context, "reason") || stringField(input, "reason") || undefined
+  };
+}
+
 export async function stageDocumentLibraryUpload(actor: AuthenticatedUser | null, value: unknown) {
   const user = requireUploadAccess(actor);
   const candidate = parseUploadCandidate(value);
@@ -38,6 +55,10 @@ export async function stageDocumentLibraryUpload(actor: AuthenticatedUser | null
     throw new DocumentLibraryError("DOCUMENT_LIBRARY_INVALID_ACTION", validation.blockers.join(" "));
   }
   const checksum = candidate.checksumSha256 ?? "checksum-pending";
+  const storagePolicy = resolveDocumentStoragePolicy({
+    context: parseStorageContext(value),
+    upload: candidate
+  });
 
   return {
     contractVersion: DOCUMENT_LIBRARY_CONTRACT_VERSION,
@@ -51,6 +72,7 @@ export async function stageDocumentLibraryUpload(actor: AuthenticatedUser | null
       sizeBytes: validation.normalized.sizeBytes,
       version: 1
     },
+    storagePolicy,
     validation
   };
 }
