@@ -12,8 +12,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { QuickUpdateReminders } from "./quick-update-reminders";
-import { CategoryBadge, categoryRowStyle } from "./category-badge";
-import { useEffect, useMemo, useState, type FormEvent, type MouseEvent, type ReactNode } from "react";
+import { CategoryBadge, categoryAppearance, categoryRowStyle } from "./category-badge";
+import { useEffect, useMemo, useState, type CSSProperties, type FormEvent, type MouseEvent, type ReactNode } from "react";
 import { CRM_NEXT_SEARCH_HREF } from "@/features/crm/crm-route-authority";
 
 type AppointmentConsoleSection = "today" | "planning" | "operations" | "follow-up" | "intelligence" | "exceptions";
@@ -21,6 +21,7 @@ type AppointmentConsoleSection = "today" | "planning" | "operations" | "follow-u
 type LiveAppointment = {
   category?: string | null;
   id: string;
+  version: number;
   appointmentNumber: string;
   title: string;
   startsAt: string | null;
@@ -167,6 +168,16 @@ const appointmentPurposeGroups: AppointmentPurposeGroup[] = [
 ] ;
 
 const purposeOptions = appointmentPurposeGroups.flatMap((group) => group.options);
+const appointmentCategories = Array.from(new Set(purposeOptions.map((purpose) => purpose.category)));
+
+function calendarCategoryStyle(category?: string | null) {
+  const appearance = categoryAppearance(category);
+  return {
+    "--appointment-category-accent": appearance.color,
+    "--appointment-category-bg-light": appearance.background,
+    "--appointment-category-text-light": appearance.color
+  } as CSSProperties;
+}
 
 function todayDateKey() {
   return new Intl.DateTimeFormat("en-CA", {
@@ -351,6 +362,24 @@ function timeSlotTop(time: string) {
   return Math.max(0, ((hour * 60 + minute) - 8 * 60) * (53 / 60));
 }
 
+function fullCalendarTimeTop(time: string) {
+  return `calc(((100vh - 47px) / 11) * ${Math.max(0, (slotMinutes(time) - 8 * 60) / 60)})`;
+}
+
+function fullCalendarAppointmentTop(appointment: LiveAppointment) {
+  if (!appointment.startsAt) return 0;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit",
+    hour12: false,
+    minute: "2-digit",
+    numberingSystem: "latn",
+    timeZone: defaultTimezone
+  }).formatToParts(new Date(appointment.startsAt));
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? "0");
+  return `calc(((100vh - 47px) / 11) * ${Math.max(0, ((hour * 60 + minute) - 8 * 60) / 60)})`;
+}
+
 function appointmentDateKey(appointment: LiveAppointment) {
   if (!appointment.startsAt) return null;
   return dateKeyFromDate(new Date(appointment.startsAt));
@@ -427,6 +456,74 @@ const appointmentTimeSlots = [
   "17:00",
   "17:30"
 ];
+
+type CalendarIntelligenceMode = "best" | "soonest" | "advisor" | "capacity";
+type CalendarInsightCard = "recommendations" | "resources" | "advisor" | "categories" | "draft" | null;
+
+const enterpriseCalendarModes: Array<{ value: CalendarIntelligenceMode; label: string }> = [
+  { value: "best", label: "Best fit" },
+  { value: "soonest", label: "Soonest" },
+  { value: "advisor", label: "Advisor match" },
+  { value: "capacity", label: "Capacity safe" }
+];
+
+const calendarAdvisorOptions = [
+  { name: "Any Advisor", load: 68, available: true },
+  { name: "Sarah Mitchell", load: 74, available: true },
+  { name: "David Ramirez", load: 82, available: true },
+  { name: "James Walker", load: 58, available: true },
+  { name: "Manager Review", load: 91, available: false }
+];
+
+const calendarResourceLanes = [
+  { label: "Advisor desk", status: "Open", value: "4 seats", tone: "good" },
+  { label: "Service intake", status: "Watch", value: "2 bays", tone: "watch" },
+  { label: "Loaner / rental", status: "Tight", value: "1 unit", tone: "risk" },
+  { label: "Shuttle", status: "Open", value: "3 windows", tone: "good" }
+];
+
+function slotMinutes(slot: string) {
+  const [hourText, minuteText] = slot.split(":");
+  return Number(hourText) * 60 + Number(minuteText);
+}
+
+function appointmentMinuteRange(appointment: LiveAppointment) {
+  if (!appointment.startsAt || !appointment.endsAt) return null;
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit",
+    hour12: false,
+    minute: "2-digit",
+    numberingSystem: "latn",
+    timeZone: defaultTimezone
+  });
+  const startParts = formatter.formatToParts(new Date(appointment.startsAt));
+  const endParts = formatter.formatToParts(new Date(appointment.endsAt));
+  const startHour = Number(startParts.find((part) => part.type === "hour")?.value ?? "0");
+  const startMinute = Number(startParts.find((part) => part.type === "minute")?.value ?? "0");
+  const endHour = Number(endParts.find((part) => part.type === "hour")?.value ?? "0");
+  const endMinute = Number(endParts.find((part) => part.type === "minute")?.value ?? "0");
+
+  return { end: endHour * 60 + endMinute, start: startHour * 60 + startMinute };
+}
+
+function appointmentOverlapsSlot(appointment: LiveAppointment, slot: string, durationMinutes: number) {
+  const range = appointmentMinuteRange(appointment);
+  if (!range) return false;
+  const start = slotMinutes(slot);
+  const end = start + durationMinutes;
+  return start < range.end && end > range.start;
+}
+
+function slotCapacityScore(slot: string, appointments: LiveAppointment[], durationMinutes: number, mode: CalendarIntelligenceMode) {
+  const start = slotMinutes(slot);
+  const overlapping = appointments.filter((appointment) => appointmentOverlapsSlot(appointment, slot, durationMinutes)).length;
+  const middayPenalty = start >= 11 * 60 && start < 13 * 60 ? 6 : 0;
+  const latePenalty = start >= 16 * 60 ? 8 : 0;
+  const soonestBonus = mode === "soonest" ? Math.max(0, 18 - Math.floor((start - 8 * 60) / 30)) : 0;
+  const advisorBonus = mode === "advisor" ? 5 : 0;
+  const capacityBonus = mode === "capacity" && overlapping === 0 ? 9 : 0;
+  return Math.max(48, Math.min(99, 94 - overlapping * 18 - middayPenalty - latePenalty + soonestBonus + advisorBonus + capacityBonus));
+}
 
 function useAppointmentConsoleData(date: string) {
   const [data, setData] = useState<AppointmentApiResponse | null>(null);
@@ -877,7 +974,10 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
     reason: initialContext?.reason ?? ""
   });
   const [calendarView, setCalendarView] = useState<"day" | "week" | "month">("day");
+  const [calendarIntelligenceMode, setCalendarIntelligenceMode] = useState<CalendarIntelligenceMode>("best");
+  const [calendarInsightCard, setCalendarInsightCard] = useState<CalendarInsightCard>(null);
   const [quickSlotsOpen, setQuickSlotsOpen] = useState(true);
+  const [fullPageCalendarOpen, setFullPageCalendarOpen] = useState(false);
   const [expandedWorkspace, setExpandedWorkspace] = useState<"calendar" | "setup" | "date" | "reason" | null>(null);
   const [layoutMode, setLayoutMode] = useState<"compact" | "expandable">("compact");
   const [notice, setNotice] = useState("Ready to create appointment.");
@@ -898,6 +998,36 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
   const selectedSlotTop = useMemo(() => timeSlotTop(form.startTime), [form.startTime]);
   const monthCells = useMemo(() => buildMonthCells(form.localDate), [form.localDate]);
   const visibleAppointments = useMemo(() => appointmentWindow.data?.appointments ?? [], [appointmentWindow.data?.appointments]);
+  const liveCapacity = useMemo(() => {
+    const scheduled = visibleAppointments.filter((appointment) => appointment.startsAt && appointment.endsAt).length;
+    const exceptions = visibleAppointments.filter(hasException).length;
+    const openSlots = appointmentTimeSlots.filter((slot) => !visibleAppointments.some((appointment) => appointmentOverlapsSlot(appointment, slot, form.durationMinutes))).length;
+    const score = Math.max(52, Math.min(98, 96 - scheduled * 3 - exceptions * 7 + Math.min(openSlots, 8)));
+
+    return {
+      exceptions,
+      openSlots,
+      scheduled,
+      score,
+      state: score >= 82 ? "Healthy" : score >= 68 ? "Watch" : "Constrained"
+    };
+  }, [form.durationMinutes, visibleAppointments]);
+  const smartSlotRecommendations = useMemo(() => appointmentTimeSlots
+    .map((slot) => {
+      const conflicts = visibleAppointments.filter((appointment) => appointmentOverlapsSlot(appointment, slot, form.durationMinutes));
+      const score = slotCapacityScore(slot, visibleAppointments, form.durationMinutes, calendarIntelligenceMode);
+      const reason = conflicts.length > 0
+        ? `${conflicts.length} visible overlap${conflicts.length === 1 ? "" : "s"} to review`
+        : score >= 88
+          ? "Clean capacity with strong fit"
+          : score >= 76
+            ? "Usable slot with light constraints"
+            : "Available, but needs review";
+
+      return { conflicts, reason, score, slot };
+    })
+    .sort((left, right) => right.score - left.score || slotMinutes(left.slot) - slotMinutes(right.slot))
+    .slice(0, 5), [calendarIntelligenceMode, form.durationMinutes, visibleAppointments]);
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(weekStart(form.localDate), index)), [form.localDate]);
   const appointmentsByDate = useMemo(() => {
     const grouped = new Map<string, LiveAppointment[]>();
@@ -926,6 +1056,24 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
   function chooseTimeSlot(slot: string, source: "quick" | "timeline") {
     updateField("startTime", slot);
     setNotice(`${formatTime(localDateTimeToIso(form.localDate, slot))} selected from the ${source === "timeline" ? "day timeline" : "quick slots"}.`);
+    if (fullPageCalendarOpen) {
+      setCalendarInsightCard("draft");
+    }
+  }
+
+  function chooseCalendarDate(dateKey: string, openDay = false) {
+    updateField("localDate", dateKey);
+    setCalendarInsightCard("draft");
+    if (openDay) {
+      setCalendarView("day");
+    }
+    setNotice(`${new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: defaultTimezone }).format(noonDate(dateKey))} selected for a new appointment.`);
+  }
+
+  function chooseCalendarCategory(category: string) {
+    const nextPurpose = purposeOptions.find((purpose) => purpose.category === category) ?? selectedPurpose;
+    changePurpose(nextPurpose.value);
+    setNotice(`${category} category selected.`);
   }
 
   useEffect(() => {
@@ -1011,6 +1159,17 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
   function setCalendarMode(view: typeof calendarView) {
     setCalendarView(view);
     focusAppointmentPanel("calendar");
+  }
+
+  function expandCalendarWorkspace() {
+    setFullPageCalendarOpen(true);
+    setQuickSlotsOpen(true);
+    setNotice("Full-page enterprise calendar workspace is active for review.");
+  }
+
+  function closeFullPageCalendar() {
+    setFullPageCalendarOpen(false);
+    setNotice("Returned to the standard appointment setup workspace.");
   }
 
   function returnToCompactLayout(event?: MouseEvent<HTMLButtonElement>) {
@@ -1127,6 +1286,218 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
     }
   }
 
+  if (fullPageCalendarOpen) {
+    return (
+      <AppointmentConsoleShell>
+        <form className="appointment-full-calendar-workspace" onSubmit={(event) => void createAppointment(event)}>
+          <section className="appointment-full-calendar-main" aria-label="Full-page appointment calendar">
+            <header className="appointment-full-calendar-chrome">
+              <div className="appointment-full-calendar-view-tabs">
+                {(["day", "week", "month"] as const).map((view) => <button className={calendarView === view ? "active" : ""} key={view} onClick={() => setCalendarView(view)} type="button">{view[0].toUpperCase() + view.slice(1)}</button>)}
+              </div>
+              <nav>
+                <button onClick={closeFullPageCalendar} type="button">Back</button>
+                <button onClick={goToToday} type="button">Today</button>
+                <button onClick={() => updateField("localDate", calendarView === "month" ? addMonths(form.localDate, -1) : addDays(form.localDate, calendarView === "week" ? -7 : -1))} type="button">‹</button>
+                <button onClick={() => updateField("localDate", calendarView === "month" ? addMonths(form.localDate, 1) : addDays(form.localDate, calendarView === "week" ? 7 : 1))} type="button">›</button>
+              </nav>
+              <strong>{calendarView === "month" ? monthLabel(form.localDate) : calendarView === "week" ? `Week of ${new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: defaultTimezone }).format(noonDate(weekStart(form.localDate)))}` : appointmentDateLabel}</strong>
+              <div className="appointment-full-calendar-smart-strip">
+                <span>{liveCapacity.state} · {liveCapacity.score}%</span>
+                <button className={calendarInsightCard === "categories" ? "active" : ""} onClick={() => setCalendarInsightCard((current) => current === "categories" ? null : "categories")} type="button">Categories</button>
+                <button className={calendarInsightCard === "recommendations" ? "active" : ""} onClick={() => setCalendarInsightCard((current) => current === "recommendations" ? null : "recommendations")} type="button">Openings</button>
+                <button className={calendarInsightCard === "resources" ? "active" : ""} onClick={() => setCalendarInsightCard((current) => current === "resources" ? null : "resources")} type="button">Resources</button>
+                <button className={calendarInsightCard === "advisor" ? "active" : ""} onClick={() => setCalendarInsightCard((current) => current === "advisor" ? null : "advisor")} type="button">Advisor</button>
+                <button className={calendarInsightCard === "draft" ? "active" : ""} onClick={() => setCalendarInsightCard((current) => current === "draft" ? null : "draft")} type="button">Draft</button>
+                {enterpriseCalendarModes.map((mode) => (
+                  <button
+                    className={calendarIntelligenceMode === mode.value ? "active" : ""}
+                    key={mode.value}
+                    onClick={() => { setCalendarIntelligenceMode(mode.value); setNotice(`${mode.label} calendar intelligence is active.`); }}
+                    type="button"
+                  >
+                    {mode.label}
+                  </button>
+                ))}
+                {smartSlotRecommendations.slice(0, 3).map((recommendation) => (
+                  <button
+                    className={form.startTime === recommendation.slot ? "active" : ""}
+                    key={recommendation.slot}
+                    onClick={() => chooseTimeSlot(recommendation.slot, "timeline")}
+                    type="button"
+                  >
+                    {formatTime(localDateTimeToIso(form.localDate, recommendation.slot))} · {recommendation.score}%
+                  </button>
+                ))}
+              </div>
+            </header>
+              {calendarView === "day" ? (
+                <>
+                  <div className="calendar-stage">
+                    {["8 AM","9 AM","10 AM","11 AM","12 PM","1 PM","2 PM","3 PM","4 PM","5 PM","6 PM"].map((hour) => <span className="time-label" key={hour}>{hour}</span>)}
+                    <div className="availability good top" />
+                    <div className="availability constrained mid" />
+                    <div className="availability good lower" />
+                    <div className="availability constrained bottom" />
+                    {calendarInsightCard ? (
+                      <aside className="calendar-enterprise-popover" aria-label="Enterprise calendar detail">
+                        <header>
+                          <strong>
+                            {calendarInsightCard === "recommendations" ? "Recommended openings" :
+                              calendarInsightCard === "resources" ? "Resource depth" :
+                                calendarInsightCard === "advisor" ? "Advisor routing" :
+                                  calendarInsightCard === "categories" ? "Categories" : "Draft context"}
+                          </strong>
+                          <button onClick={() => setCalendarInsightCard(null)} type="button">Close</button>
+                        </header>
+                        {calendarInsightCard === "categories" ? (
+                          <div className="calendar-category-picker">
+                            {appointmentCategories.map((category) => (
+                              <button
+                                className={selectedPurpose.category === category ? "active" : ""}
+                                key={category}
+                                onClick={() => chooseCalendarCategory(category)}
+                                style={calendarCategoryStyle(category)}
+                                type="button"
+                              >
+                                <strong>{category}</strong>
+                                <span>{purposeOptions.filter((purpose) => purpose.category === category).length} purpose{purposeOptions.filter((purpose) => purpose.category === category).length === 1 ? "" : "s"}</span>
+                              </button>
+                            ))}
+                          </div>
+                        ) : calendarInsightCard === "recommendations" ? (
+                          <div className="calendar-enterprise-list">
+                            {smartSlotRecommendations.map((recommendation, index) => (
+                              <button
+                                className={form.startTime === recommendation.slot ? "active" : ""}
+                                key={`card-${recommendation.slot}`}
+                                onClick={() => chooseTimeSlot(recommendation.slot, "timeline")}
+                                type="button"
+                              >
+                                <b>#{index + 1}</b>
+                                <span><strong>{formatTime(localDateTimeToIso(form.localDate, recommendation.slot))}</strong><small>{recommendation.reason}</small></span>
+                                <em>{recommendation.score}%</em>
+                              </button>
+                            ))}
+                          </div>
+                        ) : calendarInsightCard === "resources" ? (
+                          <div className="calendar-enterprise-resource-grid">
+                            {calendarResourceLanes.map((resource) => (
+                              <article className={resource.tone} key={`card-${resource.label}`}>
+                                <strong>{resource.label}</strong>
+                                <span>{resource.status}</span>
+                                <b>{resource.value}</b>
+                              </article>
+                            ))}
+                          </div>
+                        ) : calendarInsightCard === "advisor" ? (
+                          <div className="calendar-enterprise-list">
+                            {calendarAdvisorOptions.map((advisor) => (
+                              <button
+                                className={form.advisor === advisor.name ? "active" : ""}
+                                disabled={!advisor.available}
+                                key={`card-${advisor.name}`}
+                                onClick={() => { updateField("advisor", advisor.name); setNotice(`${advisor.name} is assigned as appointment owner.`); }}
+                                type="button"
+                              >
+                                <span><strong>{advisor.name}</strong><small>{advisor.available ? "Available for routing" : "Blocked for review"}</small></span>
+                                <em>{advisor.load}%</em>
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="calendar-enterprise-draft-form" style={calendarCategoryStyle(selectedPurpose.category)}>
+                            <label><span>Customer</span><input onChange={(event) => { setSelectedCustomer(null); setCustomerQuery(event.target.value); updateField("customer", event.target.value); }} placeholder="Customer name" value={customerQuery} /></label>
+                            <label><span>Vehicle</span><input onChange={(event) => { setSelectedVehicle(null); setVehicleQuery(event.target.value); updateField("vehicle", event.target.value); }} placeholder="VIN, stock #, plate, or vehicle" value={vehicleQuery} /></label>
+                            <label><span>Purpose</span><select onChange={(event) => changePurpose(event.target.value)} value={selectedPurposeCode}>{appointmentPurposeGroups.map((group) => <optgroup key={group.label} label={group.label}>{group.options.map((purpose) => <option key={purpose.value} value={purpose.value}>{purpose.label}</option>)}</optgroup>)}</select></label>
+                            <div className="calendar-enterprise-draft-row">
+                              <label><span>Date</span><input onChange={(event) => updateField("localDate", event.target.value)} type="date" value={form.localDate} /></label>
+                              <label><span>Time</span><input onChange={(event) => updateField("startTime", event.target.value)} type="time" value={form.startTime} /></label>
+                              <label><span>Duration</span><select onChange={(event) => updateField("durationMinutes", Number(event.target.value))} value={form.durationMinutes}>{[30, 45, 60, 75, 90, 120].map((duration) => <option key={duration} value={duration}>{duration} min</option>)}</select></label>
+                            </div>
+                            <div className="calendar-enterprise-draft-row">
+                              <label><span>Advisor</span><select onChange={(event) => updateField("advisor", event.target.value)} value={form.advisor}>{calendarAdvisorOptions.map((advisor) => <option disabled={!advisor.available} key={advisor.name} value={advisor.name}>{advisor.name}</option>)}</select></label>
+                              <label><span>Transportation</span><select onChange={(event) => updateField("transportation", event.target.value)} value={form.transportation}>{["Customer Drive", "Loaner / Rental", "Shuttle", "Tow-in", "Pickup / Delivery"].map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+                            </div>
+                            <label><span>Reason</span><textarea onChange={(event) => updateField("reason", event.target.value)} placeholder="Document why this appointment exists." value={form.reason} /></label>
+                            <footer>
+                              <span>{formatTime(startsAtIso)} - {formatTime(endsAtIso)}</span>
+                              <button className="primary" disabled={isSaving} type="submit">{isSaving ? "Creating..." : "Create appointment"}</button>
+                            </footer>
+                          </div>
+                        )}
+                      </aside>
+                    ) : null}
+                    {appointmentTimeSlots.map((slot) => (
+                      <button
+                        aria-label={`Pick ${formatTime(localDateTimeToIso(form.localDate, slot))}`}
+                        className={form.startTime === slot ? "timeline-slot-target active" : "timeline-slot-target"}
+                        key={`expanded-timeline-${slot}`}
+                        onClick={() => chooseTimeSlot(slot, "timeline")}
+                        style={{ top: fullCalendarTimeTop(slot) }}
+                        type="button"
+                      >
+                        {formatTime(localDateTimeToIso(form.localDate, slot))}
+                      </button>
+                    ))}
+                    {visibleAppointments.map((appointment) => (
+                      <Link
+                        className="calendar-event calendar-event-category"
+                        href={boardFocusHref(appointment)}
+                        key={appointment.id}
+                        style={{ ...calendarCategoryStyle(appointment.category), top: fullCalendarAppointmentTop(appointment), height: "calc((100vh - 47px) / 11)" }}
+                      >
+                        <span>{formatTime(appointment.startsAt)} - {formatTime(appointment.endsAt)}</span>
+                        <strong>{appointment.title}</strong>
+                        <small>{appointment.customer?.displayName ?? appointment.owner?.name ?? "Unassigned"}</small>
+                      </Link>
+                    ))}
+                    <button className="selected-slot selected-slot-category" onClick={() => setCalendarInsightCard("draft")} style={{ ...calendarCategoryStyle(selectedPurpose.category), top: fullCalendarTimeTop(form.startTime), height: `calc(((100vh - 47px) / 11) * ${form.durationMinutes / 60})` }} type="button">{formatTime(startsAtIso)} - {formatTime(endsAtIso)}</button>
+                  </div>
+                </>
+              ) : calendarView === "week" ? (
+                <div className="appointment-week-view">
+                  {weekDays.map((dateKey) => {
+                    const dayAppointments = appointmentsByDate.get(dateKey) ?? [];
+
+                    return (
+                      <section className={dateKey === form.localDate ? "active" : ""} key={dateKey}>
+                        <button onClick={() => chooseCalendarDate(dateKey)} onDoubleClick={() => chooseCalendarDate(dateKey, true)} type="button">
+                          <span>{new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: defaultTimezone }).format(noonDate(dateKey))}</span>
+                          <strong>{new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", timeZone: defaultTimezone }).format(noonDate(dateKey))}</strong>
+                        </button>
+                        {dayAppointments.length > 0 ? dayAppointments.slice(0, 4).map((appointment) => (
+                          <Link href={boardFocusHref(appointment)} key={appointment.id}>
+                            <span>{formatTime(appointment.startsAt)}</span>
+                            <strong>{appointment.title}</strong>
+                            <small>{appointment.customer?.displayName ?? "No customer"}</small>
+                          </Link>
+                        )) : <p>No appointments</p>}
+                      </section>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="appointment-month-view">
+                  {monthCells.map((cell) => {
+                    const dayAppointments = appointmentsByDate.get(cell.dateKey) ?? [];
+
+                    return (
+                      <button className={[cell.selected ? "selected" : "", cell.muted ? "muted" : ""].filter(Boolean).join(" ")} key={cell.dateKey} onClick={() => chooseCalendarDate(cell.dateKey)} onDoubleClick={() => chooseCalendarDate(cell.dateKey, true)} type="button">
+                        <span>{cell.day}</span>
+                        {dayAppointments.length > 0 ? <strong>{dayAppointments.length}</strong> : null}
+                        {dayAppointments.slice(0, 2).map((appointment) => <small key={appointment.id}>{appointment.title}</small>)}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+          </section>
+        </form>
+      </AppointmentConsoleShell>
+    );
+  }
+
   return (
     <AppointmentConsoleShell>
       <form
@@ -1180,6 +1551,7 @@ export function AppointmentConsoleNewAppointment({ initialContext }: { initialCo
             <section
               className={activeWorkspace === "date" ? "mini-calendar appointment-workspace-expanded" : "mini-calendar"}
               onClick={() => focusAppointmentPanel("date")}
+              onDoubleClick={expandCalendarWorkspace}
               onFocusCapture={() => focusAppointmentPanel("date")}
             >
               <header>
