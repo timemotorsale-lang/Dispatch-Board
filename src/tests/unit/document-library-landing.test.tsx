@@ -37,6 +37,19 @@ describe("document library landing", () => {
     expect(markup).toContain("Signed Forms");
   });
 
+  it("renders preset document worklists with row reason labels", async () => {
+    const markup = await renderLoadedLibrary();
+
+    expect(markup).toContain("Worklists");
+    expect(markup).toContain("Needs review");
+    expect(markup).toContain("Legal holds");
+    expect(markup).toContain("Provider refs");
+    expect(markup).toContain("Archive candidates");
+    expect(markup).toContain("1 provider reference");
+    expect(markup).toContain("Legal hold active");
+    expect(markup).toContain("1 linked packet");
+  });
+
   it("renders governed intake, selected document controls, and audit provenance", async () => {
     const markup = await renderLoadedLibrary();
 

@@ -102,6 +102,8 @@ type DocumentLibraryActionResponse = {
   };
 };
 
+type WorklistKey = "ALL" | "NEEDS_REVIEW" | "LEGAL_HOLD" | "PROVIDER_REFS" | "ARCHIVE_CANDIDATES";
+
 const documentCategories = [
   { icon: UserRound, key: "CUSTOMER", label: "Customer", match: ["CUSTOMER", "CUSTOMER_AUTHORIZATION"] },
   { icon: Car, key: "VEHICLE", label: "Vehicle", match: ["VEHICLE", "TITLE_DOCUMENT", "ODOMETER"] },
@@ -121,6 +123,13 @@ const documentStatuses: DocumentStatus[] = ["RECEIVED", "PENDING_REVIEW", "ACCEP
 const ownerTypes: DocumentRecord["owner"]["type"][] = ["CUSTOMER", "VEHICLE", "REPAIR_ORDER", "CLAIM", "TASK", "VENDOR", "SALE"];
 const sensitivities: DocumentSensitivity[] = ["PUBLIC", "INTERNAL", "CONFIDENTIAL", "RESTRICTED", "SECURITY_AUDIT"];
 const sources: DocumentRecord["source"][] = ["MANUAL_UPLOAD", "CUSTOMER_PORTAL", "GENERATED", "EXTERNAL_LINK", "PROVIDER_REFERENCE"];
+const worklists: Array<{ description: string; key: WorklistKey; label: string }> = [
+  { description: "Every active document in the library.", key: "ALL", label: "All documents" },
+  { description: "Received, pending, rejected, or correction work.", key: "NEEDS_REVIEW", label: "Needs review" },
+  { description: "Documents blocked by legal hold.", key: "LEGAL_HOLD", label: "Legal holds" },
+  { description: "Documents connected to external references.", key: "PROVIDER_REFS", label: "Provider refs" },
+  { description: "Unlinked, unheld documents ready for archive.", key: "ARCHIVE_CANDIDATES", label: "Archive candidates" }
+];
 
 function formatLabel(value: string) {
   return value.toLowerCase().replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -148,6 +157,7 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
+  const [worklistFilter, setWorklistFilter] = useState<WorklistKey>("ALL");
   const [queueFilter, setQueueFilter] = useState("ALL");
   const [selectedDocumentId, setSelectedDocumentId] = useState(initialLibrary?.documents[0]?.id ?? "");
   const [selectedPacketId, setSelectedPacketId] = useState(initialLibrary?.packets[0]?.id ?? "");
@@ -223,11 +233,30 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
   const queueStates = useMemo(() => Array.from(new Set(reviewQueue.map((item) => item.state))), [reviewQueue]);
   const selectedPacketBlocker = selectedPacket?.requirements.find((requirement) => requirement.state !== "ACCEPTED" && requirement.state !== "WAIVED") ?? null;
 
+  const documentInsights = useMemo(() => {
+    if (!library) return new Map<string, { archiveEligible: boolean; linkedPacketCount: number; worklistReason: string }>();
+    return new Map(library.documents.map((document) => {
+      const linkedPacketCount = library.packets.filter((packet) => packet.documents.includes(document.id)).length;
+      const archiveEligible = !document.legalHold && linkedPacketCount === 0 && document.status !== "ARCHIVED";
+      const worklistReason = document.legalHold
+        ? "Legal hold active"
+        : document.providerReferences.length > 0
+          ? `${document.providerReferences.length} provider reference${document.providerReferences.length === 1 ? "" : "s"}`
+          : archiveEligible
+            ? "Archive candidate"
+            : linkedPacketCount > 0
+              ? `${linkedPacketCount} linked packet${linkedPacketCount === 1 ? "" : "s"}`
+              : formatLabel(document.status);
+      return [document.id, { archiveEligible, linkedPacketCount, worklistReason }];
+    }));
+  }, [library]);
+
   const filteredDocuments = useMemo(() => {
     if (!library) return [];
     const normalized = query.trim().toLowerCase();
     return library.documents.filter((document) => {
       const category = documentCategory(document);
+      const insights = documentInsights.get(document.id);
       const searchable = [
         document.fileName,
         document.documentType,
@@ -238,11 +267,17 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
         document.source,
         document.status
       ].join(" ").toLowerCase();
+      const matchesWorklist = worklistFilter === "ALL" ||
+        (worklistFilter === "NEEDS_REVIEW" && document.status !== "ACCEPTED" && document.status !== "ARCHIVED") ||
+        (worklistFilter === "LEGAL_HOLD" && document.legalHold) ||
+        (worklistFilter === "PROVIDER_REFS" && document.providerReferences.length > 0) ||
+        (worklistFilter === "ARCHIVE_CANDIDATES" && Boolean(insights?.archiveEligible));
       return (!normalized || searchable.includes(normalized)) &&
         (statusFilter === "ALL" || document.status === statusFilter) &&
-        (categoryFilter === "ALL" || category.key === categoryFilter);
+        (categoryFilter === "ALL" || category.key === categoryFilter) &&
+        matchesWorklist;
     });
-  }, [categoryFilter, library, query, statusFilter]);
+  }, [categoryFilter, documentInsights, library, query, statusFilter, worklistFilter]);
 
   function reconcileAction(result: DocumentLibraryActionResponse) {
     setLibraryState((current) => {
@@ -487,7 +522,16 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
 
       <div className={styles.docConsoleLayout}>
         <aside className={styles.docFilterRail} aria-label="Document filters">
-          <header><strong>Filters</strong><button onClick={() => { setQuery(""); setStatusFilter("ALL"); setCategoryFilter("ALL"); }} type="button">Reset</button></header>
+          <header><strong>Filters</strong><button onClick={() => { setQuery(""); setStatusFilter("ALL"); setCategoryFilter("ALL"); setWorklistFilter("ALL"); }} type="button">Reset</button></header>
+          <div className={styles.docWorklistFilters}>
+            <strong>Worklists</strong>
+            {worklists.map((worklist) => (
+              <button className={worklistFilter === worklist.key ? styles.activeWorklist : ""} key={worklist.key} onClick={() => setWorklistFilter(worklist.key)} type="button">
+                <span>{worklist.label}</span>
+                <small>{worklist.description}</small>
+              </button>
+            ))}
+          </div>
           <label>Status<select onChange={(event) => setStatusFilter(event.target.value)} value={statusFilter}><option value="ALL">All statuses</option>{documentStatuses.map((status) => <option key={status} value={status}>{formatLabel(status)}</option>)}</select></label>
           <label>Category<select onChange={(event) => setCategoryFilter(event.target.value)} value={categoryFilter}><option value="ALL">All categories</option>{documentCategories.map((category) => <option key={category.key} value={category.key}>{category.label}</option>)}</select></label>
           <div className={styles.docCategoryList}>
@@ -527,10 +571,11 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
                 {filteredDocuments.map((document) => {
                   const category = documentCategory(document);
                   const Icon = category.icon;
+                  const insight = documentInsights.get(document.id);
                   return (
                     <button className={selectedDocument?.id === document.id ? styles.selectedDocumentRow : ""} key={document.id} onClick={() => setSelectedDocumentId(document.id)} type="button">
                       <Icon size={19} />
-                      <span><strong>{document.fileName}</strong><small>{formatLabel(document.documentType)} · {document.owner.label}</small></span>
+                      <span><strong>{document.fileName}</strong><small>{formatLabel(document.documentType)} · {document.owner.label}</small><em>{insight?.worklistReason ?? formatLabel(document.status)}</em></span>
                       <StatusBadge label={document.status} />
                     </button>
                   );
