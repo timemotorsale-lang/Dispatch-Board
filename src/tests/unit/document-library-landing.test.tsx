@@ -65,6 +65,21 @@ describe("document library landing", () => {
     expect(markup).toContain("Waive");
   });
 
+  it("renders provider references and governed handoff previews", async () => {
+    const markup = await renderLoadedLibrary();
+
+    expect(markup).toContain("Provider exchange");
+    expect(markup).toContain("Preview external handoffs with audit, permission, and rollback posture");
+    expect(markup).toContain("Selected source references");
+    expect(markup).toContain("External storage placeholder");
+    expect(markup).toContain("Governed handoffs");
+    expect(markup).toContain("Export packet");
+    expect(markup).toContain("Request e-sign");
+    expect(markup).toContain("Upload copy");
+    expect(markup).toContain("Reconcile status");
+    expect(markup).toContain("Live provider writes remain disabled");
+  });
+
   it("renders a direct unavailable state when the document model is not available", () => {
     const markup = renderToStaticMarkup(
       <DocumentLibraryLanding error="Document Library is temporarily unavailable." initialLibrary={null} />

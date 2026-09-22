@@ -308,7 +308,7 @@ export async function executeDocumentLibraryAction(actor: AuthenticatedUser | nu
   const input = value && typeof value === "object" ? value as Record<string, unknown> : {};
   const action = input.action;
   const subjectId = typeof input.subjectId === "string" ? input.subjectId.trim() : "";
-  const idempotencyKey = typeof input.idempotencyKey === "string" ? input.idempotencyKey.trim() : "";
+  const idempotencyKey = commandIdempotencyKey(input);
   const providerActions = new Set<ProviderActionKind>(["EXPORT_PACKET", "UPLOAD_TO_PROVIDER", "REQUEST_ESIGNATURE", "IMPORT_SIGNED_DOCUMENT", "RECONCILE_PROVIDER_STATUS"]);
   const reviewDecisions = new Set<ReviewDecision>(["ACCEPT", "REJECT", "NEEDS_CORRECTION", "WAIVE_REQUIREMENT"]);
   const documentActionKinds = new Set<DocumentLibraryActionKind>(["REVIEW_DOCUMENT", "PREVIEW_ARCHIVE", "SET_LEGAL_HOLD", "RELEASE_LEGAL_HOLD", "ARCHIVE_DOCUMENT", "RESTORE_DOCUMENT", "CREATE_DOCUMENT", "LINK_DOCUMENT_TO_PACKET", "WAIVE_REQUIREMENT"]);

@@ -1814,6 +1814,7 @@
 }
 
 .docPacketWorkspace,
+.docProviderExchange,
 .docAuditTimeline {
   display: grid;
   gap: 12px;
@@ -1900,6 +1901,121 @@
   color: var(--document-accent);
 }
 
+.docProviderExchange {
+  padding: 0 0 14px;
+}
+
+.docProviderExchange header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px 10px;
+}
+
+.docProviderExchange header p {
+  margin: 4px 0 0;
+  color: var(--document-muted);
+  font-size: 12px;
+}
+
+.docProviderGrid {
+  display: grid;
+  grid-template-columns: minmax(280px, .9fr) minmax(0, 1.1fr);
+  gap: 14px;
+  padding: 0 14px;
+}
+
+.docProviderReferences,
+.docProviderActions {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--document-line);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--document-surface-soft);
+}
+
+.docProviderReferences h3,
+.docProviderActions h3 {
+  margin: 0;
+  color: var(--document-text);
+  font-size: 14px;
+}
+
+.docProviderReferences article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px 10px;
+  border: 1px solid var(--document-line);
+  border-radius: 7px;
+  padding: 9px;
+  background: #fff;
+}
+
+.docProviderReferences article > small {
+  grid-column: 1 / -1;
+  color: var(--document-muted);
+  font-size: 11px;
+}
+
+.docProviderReferences strong {
+  display: block;
+  color: var(--document-text);
+  font-size: 13px;
+}
+
+.docProviderReferences span small {
+  color: var(--document-muted);
+  font-size: 12px;
+}
+
+.docProviderActions > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.docProviderActions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  border: 1px solid var(--document-line-strong);
+  border-radius: 7px;
+  padding: 0 10px;
+  background: #fff;
+  color: var(--document-text);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.docProviderActions button:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+.docProviderActions aside {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--document-line-strong);
+  border-radius: 8px;
+  padding: 10px;
+  background: #fff;
+}
+
+.docProviderActions aside strong {
+  color: var(--document-text);
+  font-size: 13px;
+}
+
+.docProviderActions aside span,
+.docProviderActions aside small {
+  color: var(--document-muted);
+  font-size: 12px;
+}
+
 .docAuditTimeline {
   padding: 0 0 14px;
 }
@@ -1927,7 +2043,8 @@
   .docConsoleHero,
   .docConsoleLayout,
   .docWorkGrid,
-  .docPacketGrid {
+  .docPacketGrid,
+  .docProviderGrid {
     grid-template-columns: 1fr;
   }
 

@@ -57,7 +57,17 @@ type DocumentLibraryModel = {
   documents: DocumentRecord[];
   generatedAt: string;
   packets: LibraryPacket[];
-  providerReferences: Array<{ documentId: string; documentType: string; family: string; health: string; provider: string; readOnly: boolean }>;
+  providerReferences: Array<{
+    documentId: string;
+    documentType: string;
+    externalId?: string;
+    family: string;
+    health: string;
+    lastVerifiedAt: string | null;
+    provider: string;
+    readOnly: boolean;
+    url: string | null;
+  }>;
   reviewQueue: Array<{ blocker: string | null; documentId: string | null; packetId: string; packetTitle: string; requirementId: string; state: string }>;
   summary: {
     documents: number;
@@ -81,6 +91,15 @@ type DocumentLibraryActionResponse = {
     packet?: LibraryPacket;
   };
   error?: string;
+  providerAction?: {
+    action: string;
+    auditRequired: true;
+    liveProviderWriteEnabled: false;
+    permission: string;
+    rollbackPosture: string;
+    state: string;
+    subjectId: string;
+  };
 };
 
 const documentCategories = [
@@ -134,6 +153,7 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
   const [notice, setNotice] = useState(error ?? "Document console ready.");
   const [actionReason, setActionReason] = useState("");
   const [actionBusy, setActionBusy] = useState(false);
+  const [providerPreview, setProviderPreview] = useState<DocumentLibraryActionResponse["providerAction"] | null>(null);
   const [intake, setIntake] = useState({
     documentType: "CUSTOMER_AUTHORIZATION",
     fileName: "",
@@ -177,6 +197,11 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
       reviewItems: packets.flatMap((packet) => packet.requirements).filter((requirement) => requirement.state !== "ACCEPTED" && requirement.state !== "WAIVED").length
     };
   }, [library]);
+
+  const selectedProviderReferences = useMemo(() => {
+    if (!library || !selectedDocument) return [];
+    return library.providerReferences.filter((reference) => reference.documentId === selectedDocument.id);
+  }, [library, selectedDocument]);
 
   const filteredDocuments = useMemo(() => {
     if (!library) return [];
@@ -241,6 +266,28 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
     } catch {
       setNotice("Document action could not reach the console service.");
       return false;
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function previewProviderAction(action: string, subjectId: string, label: string) {
+    setActionBusy(true);
+    try {
+      const response = await fetch("/api/document-library/actions", {
+        body: JSON.stringify({ action, subjectId }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST"
+      });
+      const result = await response.json().catch(() => null) as DocumentLibraryActionResponse | null;
+      if (!response.ok) {
+        setNotice(result?.error ?? "Provider action preview could not be prepared.");
+        return;
+      }
+      setProviderPreview(result?.providerAction ?? null);
+      setNotice(`${label} is held for governed confirmation; no provider write was sent.`);
+    } catch {
+      setNotice("Provider action preview could not reach the console service.");
     } finally {
       setActionBusy(false);
     }
@@ -526,6 +573,44 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
                     </div>
                   </>
                 ) : null}
+              </div>
+            </div>
+          </section>
+
+          <section className={styles.docProviderExchange} aria-label="Provider exchange">
+            <header>
+              <div><h2>Provider exchange</h2><p>Preview external handoffs with audit, permission, and rollback posture before any live provider write.</p></div>
+              <StatusBadge label={providerPreview?.state ?? "HELD_FOR_CONFIRMATION"} tone="info" />
+            </header>
+            <div className={styles.docProviderGrid}>
+              <div className={styles.docProviderReferences}>
+                <h3>Selected source references</h3>
+                {selectedProviderReferences.length > 0 ? selectedProviderReferences.map((reference) => (
+                  <article key={`${reference.provider}-${reference.documentId}-${reference.externalId ?? reference.family}`}>
+                    <span><strong>{reference.provider}</strong><small>{formatLabel(reference.family)} · {reference.externalId ?? "internal reference"}</small></span>
+                    <StatusBadge label={reference.health} tone={reference.health === "HELD" ? "warning" : "success"} />
+                    <small>{reference.readOnly ? "Read-only pointer" : "Write capable"} · {reference.lastVerifiedAt ? `Verified ${new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(new Date(reference.lastVerifiedAt))}` : "Not verified"}</small>
+                  </article>
+                )) : (
+                  <article>
+                    <span><strong>No external references yet</strong><small>Internal documents can still be exported, uploaded, or sent for signature after review.</small></span>
+                    <StatusBadge label="INTERNAL" />
+                  </article>
+                )}
+              </div>
+              <div className={styles.docProviderActions}>
+                <h3>Governed handoffs</h3>
+                <div>
+                  <button disabled={actionBusy || !selectedPacket} onClick={() => selectedPacket ? void previewProviderAction("EXPORT_PACKET", selectedPacket.id, "Packet export") : undefined} type="button"><ExternalLink size={15} />Export packet</button>
+                  <button disabled={actionBusy || !selectedDocument} onClick={() => selectedDocument ? void previewProviderAction("REQUEST_ESIGNATURE", selectedDocument.id, "E-signature request") : undefined} type="button"><FileSignature size={15} />Request e-sign</button>
+                  <button disabled={actionBusy || !selectedDocument} onClick={() => selectedDocument ? void previewProviderAction("UPLOAD_TO_PROVIDER", selectedDocument.id, "Provider upload") : undefined} type="button"><FilePlus2 size={15} />Upload copy</button>
+                  <button disabled={actionBusy || !selectedDocument} onClick={() => selectedDocument ? void previewProviderAction("RECONCILE_PROVIDER_STATUS", selectedDocument.id, "Provider status check") : undefined} type="button"><FileSearch size={15} />Reconcile status</button>
+                </div>
+                <aside>
+                  <strong>{providerPreview ? formatLabel(providerPreview.action) : "No provider preview selected"}</strong>
+                  <span>{providerPreview ? `${formatLabel(providerPreview.permission)} · ${formatLabel(providerPreview.state)}` : "Choose a handoff to preview the controlled action."}</span>
+                  <small>{providerPreview?.rollbackPosture ?? "Live provider writes remain disabled in this review workspace."}</small>
+                </aside>
               </div>
             </div>
           </section>
