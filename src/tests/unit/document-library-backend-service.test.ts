@@ -37,6 +37,40 @@ describe("document library backend service", () => {
       legalHold: true
     });
     expect(result.providerReferences.every((reference) => reference.readOnly)).toBe(true);
+    expect(result.intelligence).toMatchObject({
+      generatedBy: "document-library.intelligence/v1",
+      recommendations: expect.arrayContaining([
+        expect.objectContaining({
+          kind: "LEGAL_HOLD_BLOCKER",
+          priority: "CRITICAL"
+        }),
+        expect.objectContaining({
+          kind: "MISSING_REQUIREMENT"
+        })
+      ])
+    });
+    expect(result.storageRollout).toMatchObject({
+      gate: {
+        readyForRelease: false
+      },
+      durableRepository: {
+        enabled: false,
+        mode: "IN_MEMORY_REVIEW",
+        version: "document-library.durable-repository/v1"
+      },
+      persistencePlan: {
+        documents: 3,
+        packets: 2,
+        providerReferences: 2
+      },
+      platformVersion: "document-library.storage-platform/v1"
+    });
+    expect(result.storageRollout.gate.blockers.map((blocker) => blocker.key)).toEqual(["DURABLE_REPOSITORY"]);
+    expect(result.storageRollout.packetTemplates.map((template) => template.templateKey)).toEqual([
+      "claims.standard",
+      "title.standard",
+      "vendor.onboarding"
+    ]);
   });
 
   it("denies the read model to signed-in users without document workflow access", async () => {
@@ -93,6 +127,21 @@ describe("document library backend service", () => {
     });
 
     expect(() => previewProviderAction({ action: "EXPORT_PACKET", idempotencyKey: "", subjectId: "packet-1" })).toThrow("idempotency key");
+  });
+
+  it("confirms provider execution posture without enabling live external writes", async () => {
+    await expect(executeDocumentLibraryAction(manager, {
+      action: "REQUEST_ESIGNATURE",
+      confirmationToken: "confirm:REQUEST_ESIGNATURE:doc-customer-authorization-1",
+      idempotencyKey: "esign-confirm-1",
+      subjectId: "doc-customer-authorization-1"
+    })).resolves.toMatchObject({
+      liveProviderWriteEnabled: false,
+      providerExecution: {
+        auditAction: "PROVIDER_REQUEST_ESIGNATURE_CONFIRMED",
+        state: "CONFIRMED_WRITE_HELD_FOR_ADAPTER"
+      }
+    });
   });
 
   it("executes review and legal-hold commands with audit/idempotency while leaving provider writes disabled", async () => {

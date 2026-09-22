@@ -1384,6 +1384,440 @@
   background: #fff;
 }
 
+.docAssistantQueue {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--document-line);
+  border-radius: 8px;
+  padding: 14px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, .055);
+}
+
+.docIntelligenceCenter {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--document-line);
+  border-radius: 8px;
+  padding: 14px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, .055);
+}
+
+.docRolloutPanel {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--document-line);
+  border-radius: 8px;
+  padding: 14px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, .055);
+}
+
+.docAssistantQueue header,
+.docIntelligenceCenter header,
+.docRolloutPanel header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  border-bottom: 1px solid var(--document-line);
+  padding-bottom: 12px;
+}
+
+.docAssistantQueue header span,
+.docIntelligenceCenter header span,
+.docRolloutPanel header span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--document-accent);
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.docAssistantQueue h2,
+.docAssistantCards h3,
+.docIntelligenceCenter h2,
+.docRecommendationGrid h3,
+.docRolloutPanel h2,
+.docRolloutEvidence h3 {
+  margin: 0;
+  color: var(--document-text);
+}
+
+.docAssistantQueue h2,
+.docIntelligenceCenter h2,
+.docRolloutPanel h2 {
+  margin-top: 4px;
+  font-size: 20px;
+}
+
+.docAssistantQueue p,
+.docIntelligenceCenter p,
+.docRolloutPanel p {
+  margin: 5px 0 0;
+  color: var(--document-muted);
+  font-size: 13px;
+}
+
+.docAssistantCards {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.docAssistantCards article {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 9px;
+  min-width: 0;
+  border: 1px solid var(--document-line);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--document-surface-soft);
+}
+
+.docAssistantRank {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: var(--document-accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.docAssistantCards article > div:nth-child(2) {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.docAssistantCards article > div:nth-child(2) > span {
+  color: var(--document-accent);
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.docAssistantCards h3 {
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docAssistantCards p {
+  display: -webkit-box;
+  overflow: hidden;
+  min-height: 34px;
+  margin: 0;
+  color: var(--document-muted);
+  font-size: 12px;
+  line-height: 1.42;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.docAssistantCards small {
+  overflow: hidden;
+  color: var(--document-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docAssistantCards footer {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--document-line);
+  padding-top: 9px;
+}
+
+.docAssistantCards footer button {
+  min-height: 34px;
+  border: 1px solid var(--document-accent);
+  border-radius: 7px;
+  background: var(--document-accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.docAssistantCards footer button:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+.docAssistantEmpty {
+  grid-column: 1 / -1;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto;
+  align-items: center;
+}
+
+.docIntelligenceScore {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+  min-width: 128px;
+}
+
+.docIntelligenceScore strong {
+  color: var(--document-text);
+  font-size: 38px;
+  line-height: 1;
+}
+
+.docIntelligenceScore span {
+  color: var(--document-muted);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.docRiskFlags {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.docRiskFlags article {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--document-line);
+  border-radius: 8px;
+  padding: 9px;
+  background: var(--document-surface-soft);
+}
+
+.docRiskFlags svg {
+  color: var(--document-warning);
+}
+
+.docRiskFlags span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.docRiskFlags strong {
+  color: var(--document-text);
+  font-size: 17px;
+  line-height: 1;
+}
+
+.docRiskFlags small,
+.docRecommendationGrid small {
+  color: var(--document-muted);
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.docRecommendationGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.docRecommendationGrid article {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 10px;
+  border: 1px solid var(--document-line);
+  border-radius: 8px;
+  padding: 11px;
+  background: var(--document-surface-soft);
+  min-width: 0;
+}
+
+.docRecommendationGrid article > div {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.docRecommendationGrid article > div > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--document-accent);
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.docRecommendationGrid h3 {
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docRecommendationGrid p {
+  display: -webkit-box;
+  overflow: hidden;
+  min-height: 34px;
+  margin: 0;
+  color: var(--document-muted);
+  font-size: 12px;
+  line-height: 1.42;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.docRecommendationGrid ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 16px;
+  color: var(--document-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.docRecommendationGrid li {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docRecommendationGrid footer {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  border-top: 1px solid var(--document-line);
+  padding-top: 9px;
+}
+
+.docRecommendationGrid footer button {
+  grid-column: 1 / -1;
+  min-height: 34px;
+  border: 1px solid var(--document-accent);
+  border-radius: 7px;
+  background: var(--document-accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.docRecommendationGrid footer small {
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docRolloutGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(280px, .75fr);
+  gap: 12px;
+}
+
+.docRolloutMilestones {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.docRolloutMilestones article {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--document-line);
+  border-radius: 8px;
+  padding: 9px;
+  background: var(--document-surface-soft);
+}
+
+.docRolloutMilestones span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.docRolloutMilestones strong {
+  overflow: hidden;
+  color: var(--document-text);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docRolloutMilestones small {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--document-muted);
+  font-size: 11px;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.docRolloutEvidence {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--document-line);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--document-surface-soft);
+}
+
+.docRolloutEvidence h3 {
+  font-size: 14px;
+}
+
+.docRolloutEvidence dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.docRolloutEvidence dl div {
+  display: grid;
+  gap: 2px;
+  border: 1px solid var(--document-line);
+  border-radius: 7px;
+  padding: 7px;
+  background: #fff;
+}
+
+.docRolloutEvidence dt {
+  color: var(--document-muted);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.docRolloutEvidence dd {
+  margin: 0;
+  color: var(--document-text);
+  font-size: 16px;
+  font-weight: 950;
+}
+
+.docRolloutEvidence ul {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding-left: 17px;
+  color: var(--document-muted);
+  font-size: 12px;
+}
+
 .docReviewCommandCenter header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(190px, 260px);
@@ -2349,6 +2783,14 @@
     grid-template-columns: 1fr;
   }
 
+  .docAssistantCards,
+  .docRiskFlags,
+  .docRecommendationGrid,
+  .docRolloutGrid,
+  .docRolloutMilestones {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .docHeroActions {
     justify-content: flex-start;
   }
@@ -2363,8 +2805,24 @@
   .docIntakeGrid,
   .docMetrics,
   .docMetaGrid,
+  .docAssistantCards,
+  .docRiskFlags,
+  .docRecommendationGrid,
+  .docRolloutGrid,
+  .docRolloutMilestones,
+  .docRolloutEvidence dl,
   .docAuditTimeline article {
     grid-template-columns: 1fr;
+  }
+
+  .docAssistantQueue header,
+  .docIntelligenceCenter header,
+  .docRolloutPanel header {
+    grid-template-columns: 1fr;
+  }
+
+  .docIntelligenceScore {
+    justify-items: start;
   }
 
   .docHeroActions {

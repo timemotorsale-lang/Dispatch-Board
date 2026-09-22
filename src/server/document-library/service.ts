@@ -1,6 +1,11 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { isManager } from "@/server/policies/access";
 import { canOpenDocumentLibrary } from "@/server/document-library/permission-policy";
+import { buildDocumentLibraryIntelligence } from "@/server/document-library/intelligence";
+import {
+  DOCUMENT_LIBRARY_DURABLE_REPOSITORY_VERSION,
+  isDocumentLibraryDurableRepositoryEnabled
+} from "@/server/document-library/durable-repository";
 
 import {
   DOCUMENT_LIBRARY_CONTRACT_VERSION,
@@ -19,8 +24,18 @@ import {
   resolvePacket
 } from "./domain";
 import { executeDocumentLibraryCommand, type DocumentLibraryState } from "./repository";
+import {
+  buildDocumentStorageRolloutEvidence,
+  buildDocumentLibraryPersistencePlan,
+  buildProviderWriteConfirmation,
+  defaultDocumentPacketTemplates,
+  DOCUMENT_LIBRARY_STORAGE_PLATFORM_VERSION
+} from "./storage-platform";
+import { evaluateDocumentStorageReleaseGate } from "./storage-rollout";
+import { syncDocumentLibraryDurableRollout, type DocumentLibraryLiveRolloutDependencies } from "./live-rollout";
 
 type Dependencies = {
+  liveRollout?: DocumentLibraryLiveRolloutDependencies;
   now?: () => Date;
 };
 
@@ -261,7 +276,7 @@ function parseDocumentLibraryCommand(input: Record<string, unknown>): DocumentLi
 }
 
 export async function getDocumentLibrary(actor: AuthenticatedUser | null, dependencies: Dependencies = {}) {
-  requireDocumentLibraryAccess(actor);
+  const user = requireDocumentLibraryAccess(actor);
   const state = getCurrentLibraryState();
   const generatedAt = (dependencies.now?.() ?? new Date(GENERATED_AT)).toISOString();
   const resolvedPackets = state.packets.map((packet) => resolvePacket(packet, state.documents));
@@ -271,12 +286,20 @@ export async function getDocumentLibrary(actor: AuthenticatedUser | null, depend
     documentId: document.id,
     documentType: document.documentType
   })));
+  const persistencePlan = buildDocumentLibraryPersistencePlan(state);
+  const durableRepositoryEnabled = dependencies.liveRollout?.durableRepositoryEnabled ?? isDocumentLibraryDurableRepositoryEnabled();
+  const liveRollout = await syncDocumentLibraryDurableRollout({
+    actor: user,
+    dependencies: { ...dependencies.liveRollout, durableRepositoryEnabled },
+    state
+  });
 
   return {
     archivePreviews,
     contractVersion: DOCUMENT_LIBRARY_CONTRACT_VERSION,
     documents: state.documents,
     generatedAt,
+    intelligence: buildDocumentLibraryIntelligence(state),
     packets: resolvedPackets,
     providerActions: [
       previewProviderAction({ action: "EXPORT_PACKET", idempotencyKey: "read-model-preview", subjectId: "packet-claim-10421" }),
@@ -293,6 +316,33 @@ export async function getDocumentLibrary(actor: AuthenticatedUser | null, depend
         requirementId: requirement.id,
         state: requirement.state
       }))),
+    storageRollout: {
+      gate: evaluateDocumentStorageReleaseGate(buildDocumentStorageRolloutEvidence({
+        actor: user,
+        durableRepositoryEnabled,
+        state
+      })),
+      durableRepository: {
+        enabled: liveRollout.enabled,
+        mode: liveRollout.mode,
+        sync: liveRollout.enabled ? {
+          gateReady: liveRollout.gate.readyForRelease,
+          snapshot: liveRollout.snapshot,
+          templates: liveRollout.templates.templates
+        } : null,
+        version: DOCUMENT_LIBRARY_DURABLE_REPOSITORY_VERSION
+      },
+      packetTemplates: defaultDocumentPacketTemplates,
+      persistencePlan: {
+        auditEvents: persistencePlan.auditEvents.length,
+        documents: persistencePlan.documents.length,
+        packetDocuments: persistencePlan.packetDocuments.length,
+        packetRequirements: persistencePlan.packetRequirements.length,
+        packets: persistencePlan.packets.length,
+        providerReferences: persistencePlan.providerReferences.length
+      },
+      platformVersion: DOCUMENT_LIBRARY_STORAGE_PLATFORM_VERSION
+    },
     summary: {
       documents: state.documents.length,
       legalHold: state.documents.filter((document) => document.legalHold).length,
@@ -329,6 +379,11 @@ export async function executeDocumentLibraryAction(actor: AuthenticatedUser | nu
       state: getCurrentLibraryState()
     });
     currentLibraryState = result.state;
+    await syncDocumentLibraryDurableRollout({
+      actor: user,
+      dependencies: dependencies.liveRollout,
+      state: currentLibraryState
+    });
     return {
       auditEvent: result.auditEvent,
       command: result.document || result.packet ? {
@@ -353,6 +408,20 @@ export async function executeDocumentLibraryAction(actor: AuthenticatedUser | nu
     throw new DocumentLibraryError("DOCUMENT_LIBRARY_NOT_FOUND", "Document Library subject was not found.");
   }
   if (providerActions.has(action as ProviderActionKind)) {
+    const confirmationToken = stringField(input, "confirmationToken");
+    if (confirmationToken) {
+      return {
+        contractVersion: DOCUMENT_LIBRARY_CONTRACT_VERSION,
+        executedBy: user.id,
+        liveProviderWriteEnabled: false,
+        providerExecution: buildProviderWriteConfirmation({
+          action: action as ProviderActionKind,
+          confirmationToken,
+          idempotencyKey,
+          subjectId
+        })
+      };
+    }
     return {
       contractVersion: DOCUMENT_LIBRARY_CONTRACT_VERSION,
       previewedBy: user.id,

@@ -8,6 +8,7 @@ vi.mock("@/server/auth/current-user", () => ({ getCurrentUser: mocks.getCurrentU
 
 import { POST } from "@/app/api/document-library/actions/route";
 import { GET } from "@/app/api/document-library/route";
+import { POST as UPLOAD_POST } from "@/app/api/document-library/uploads/route";
 
 describe("document library backend routes", () => {
   it("returns the document library read model", async () => {
@@ -121,6 +122,32 @@ describe("document library backend routes", () => {
         }
       },
       liveProviderWriteEnabled: false
+    });
+  });
+
+  it("stages governed upload metadata for document-library staff", async () => {
+    mocks.getCurrentUser.mockResolvedValueOnce({ duties: { all: [], direct: [], roleDefaults: [] }, email: "advisor@example.test", id: "staff-1", isActive: true, name: "Advisor", roles: ["Service Advisor"] });
+
+    const response = await UPLOAD_POST(new Request("http://dispatch.local/api/document-library/uploads", {
+      body: JSON.stringify({
+        checksumSha256: "upload-checksum-1",
+        contentType: "application/pdf",
+        fileName: "authorization.pdf",
+        sizeBytes: 1024
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST"
+    }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      storageDraft: {
+        provider: "INTERNAL",
+        reference: "internal://documents/staged/upload-checksum-1/authorization.pdf"
+      },
+      validation: {
+        accepted: true
+      }
     });
   });
 

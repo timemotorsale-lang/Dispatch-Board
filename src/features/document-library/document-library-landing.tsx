@@ -2,7 +2,9 @@
 
 import {
   Archive,
+  AlertTriangle,
   BadgeDollarSign,
+  Brain,
   Camera,
   Car,
   CheckCircle2,
@@ -17,6 +19,7 @@ import {
   LockKeyhole,
   Search,
   ShieldCheck,
+  Sparkles,
   Truck,
   UserRound,
   Wrench
@@ -56,6 +59,25 @@ type DocumentLibraryModel = {
   contractVersion: string;
   documents: DocumentRecord[];
   generatedAt: string;
+  intelligence?: {
+    confidence: number;
+    generatedBy: string;
+    recommendations: Array<{
+      actionLabel: string;
+      confidence: number;
+      evidence: string[];
+      id: string;
+      kind: string;
+      priority: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+      rationale: string;
+      targetDocumentId: string | null;
+      targetPacketId: string | null;
+      title: string;
+    }>;
+    riskFlags: Array<{ count: number; label: string; priority: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" }>;
+    score: number;
+    summary: string;
+  };
   packets: LibraryPacket[];
   providerReferences: Array<{
     documentId: string;
@@ -69,6 +91,40 @@ type DocumentLibraryModel = {
     url: string | null;
   }>;
   reviewQueue: Array<{ blocker: string | null; documentId: string | null; packetId: string; packetTitle: string; requirementId: string; state: string }>;
+  storageRollout?: {
+    durableRepository?: {
+      enabled: boolean;
+      mode: string;
+      sync: null | {
+        gateReady: boolean;
+        snapshot: {
+          auditEvents: number;
+          documents: number;
+          packetDocuments: number;
+          packetRequirements: number;
+          packets: number;
+          providerReferences: number;
+        };
+        templates: number;
+      };
+      version: string;
+    };
+    gate: {
+      blockers: Array<{ key: string; label: string; reason: string }>;
+      milestones: Array<{ key: string; label: string; reason: string; status: "COMPLETE" | "BLOCKED" }>;
+      readyForRelease: boolean;
+    };
+    packetTemplates: Array<{ templateKey: string; title: string; workflow: string }>;
+    persistencePlan: {
+      auditEvents: number;
+      documents: number;
+      packetDocuments: number;
+      packetRequirements: number;
+      packets: number;
+      providerReferences: number;
+    };
+    platformVersion: string;
+  };
   summary: {
     documents: number;
     legalHold: number;
@@ -96,6 +152,14 @@ type DocumentLibraryActionResponse = {
     auditRequired: true;
     liveProviderWriteEnabled: false;
     permission: string;
+    rollbackPosture: string;
+    state: string;
+    subjectId: string;
+  };
+  providerExecution?: {
+    action: string;
+    auditAction: string;
+    idempotencyKey: string;
     rollbackPosture: string;
     state: string;
     subjectId: string;
@@ -141,6 +205,34 @@ function statusTone(status: string): StatusTone {
   if (status === "NEEDS_CORRECTION" || status === "MISSING" || status === "BLOCKED") return "warning";
   if (status === "REJECTED") return "danger";
   return "neutral";
+}
+
+function priorityTone(priority: string): StatusTone {
+  if (priority === "CRITICAL") return "danger";
+  if (priority === "HIGH" || priority === "MEDIUM") return "warning";
+  return "info";
+}
+
+function assistantVerb(kind: string) {
+  if (kind === "MISSING_REQUIREMENT") return "Collect document";
+  if (kind === "LEGAL_HOLD_BLOCKER") return "Resolve hold";
+  if (kind === "CORRECTION_REQUIRED") return "Fix correction";
+  if (kind === "PACKET_HANDOFF_READY") return "Preview handoff";
+  if (kind === "PROVIDER_REFERENCE_STALE") return "Check provider";
+  if (kind === "ARCHIVE_READY") return "Review archive";
+  if (kind === "DUPLICATE_CANDIDATE") return "Compare files";
+  return "Open task";
+}
+
+function assistantPlainState(kind: string) {
+  if (kind === "MISSING_REQUIREMENT") return "Missing";
+  if (kind === "LEGAL_HOLD_BLOCKER") return "Blocked";
+  if (kind === "CORRECTION_REQUIRED") return "Needs correction";
+  if (kind === "PACKET_HANDOFF_READY") return "Ready";
+  if (kind === "PROVIDER_REFERENCE_STALE") return "Needs check";
+  if (kind === "ARCHIVE_READY") return "Cleanup";
+  if (kind === "DUPLICATE_CANDIDATE") return "Possible duplicate";
+  return "Task";
 }
 
 function documentCategory(document: DocumentRecord) {
@@ -290,6 +382,41 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
         matchesWorklist;
     });
   }, [categoryFilter, documentInsights, library, query, statusFilter, worklistFilter]);
+  const assistantWorkQueue = useMemo(() => library?.intelligence?.recommendations.slice(0, 5) ?? [], [library]);
+
+  function runAssistantTask(recommendation: NonNullable<DocumentLibraryModel["intelligence"]>["recommendations"][number]) {
+    openIntelligenceRecommendation(recommendation);
+    if (recommendation.kind === "MISSING_REQUIREMENT") {
+      setWorklistFilter("NEEDS_REVIEW");
+      setNotice(`${recommendation.title}: use intake to add or link the missing document.`);
+      return;
+    }
+    if (recommendation.kind === "LEGAL_HOLD_BLOCKER") {
+      setWorklistFilter("LEGAL_HOLD");
+      setNotice(`${recommendation.title}: add a reason, then release or keep the hold.`);
+      return;
+    }
+    if (recommendation.kind === "PACKET_HANDOFF_READY" && recommendation.targetPacketId) {
+      void previewProviderAction("EXPORT_PACKET", recommendation.targetPacketId, "Packet export");
+      return;
+    }
+    if (recommendation.kind === "PROVIDER_REFERENCE_STALE" && recommendation.targetDocumentId) {
+      void previewProviderAction("RECONCILE_PROVIDER_STATUS", recommendation.targetDocumentId, "Provider status check");
+      return;
+    }
+    if (recommendation.kind === "ARCHIVE_READY") {
+      setWorklistFilter("ARCHIVE_CANDIDATES");
+      setNotice(`${recommendation.title}: add a reason before archiving.`);
+      return;
+    }
+    setNotice(`${recommendation.title}: ${recommendation.rationale}`);
+  }
+
+  function openIntelligenceRecommendation(recommendation: NonNullable<DocumentLibraryModel["intelligence"]>["recommendations"][number]) {
+    if (recommendation.targetDocumentId) setSelectedDocumentId(recommendation.targetDocumentId);
+    if (recommendation.targetPacketId) setSelectedPacketId(recommendation.targetPacketId);
+    setNotice(`${recommendation.title}: ${recommendation.rationale}`);
+  }
 
   function reconcileAction(result: DocumentLibraryActionResponse) {
     setLibraryState((current) => {
@@ -496,6 +623,128 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
         <article><strong>{summary.legalHold}</strong><span>Legal holds</span></article>
         <article><strong>{summary.providerReferences}</strong><span>Provider refs</span></article>
       </section>
+
+      <section className={styles.docAssistantQueue} aria-label="Document assistant work queue">
+        <header>
+          <div>
+            <span><Sparkles size={16} />Assistant work queue</span>
+            <h2>Do this next</h2>
+            <p>Plain-language document tasks ranked by urgency, packet impact, and release risk.</p>
+          </div>
+          <StatusBadge label={assistantWorkQueue.length > 0 ? `${assistantWorkQueue.length} TASKS` : "CLEAR"} tone={assistantWorkQueue.length > 0 ? "info" : "success"} />
+        </header>
+        <div className={styles.docAssistantCards}>
+          {assistantWorkQueue.length > 0 ? assistantWorkQueue.map((recommendation, index) => (
+            <article key={recommendation.id}>
+              <div className={styles.docAssistantRank}>{index + 1}</div>
+              <div>
+                <span>{assistantPlainState(recommendation.kind)}</span>
+                <h3>{recommendation.title}</h3>
+                <p>{recommendation.rationale}</p>
+                <small>{recommendation.evidence[0]}</small>
+              </div>
+              <footer>
+                <StatusBadge label={recommendation.priority} tone={priorityTone(recommendation.priority)} />
+                <button disabled={actionBusy} onClick={() => runAssistantTask(recommendation)} type="button">{assistantVerb(recommendation.kind)}</button>
+              </footer>
+            </article>
+          )) : (
+            <article className={styles.docAssistantEmpty}>
+              <div className={styles.docAssistantRank}><CheckCircle2 size={18} /></div>
+              <div>
+                <span>Clear</span>
+                <h3>No document tasks need attention</h3>
+                <p>New uploads, packet gaps, holds, or provider checks will appear here automatically.</p>
+                <small>Keep working from packet handoff or archive cleanup as needed.</small>
+              </div>
+            </article>
+          )}
+        </div>
+      </section>
+
+      {library.intelligence ? (
+        <section className={styles.docIntelligenceCenter} aria-label="Document intelligence">
+          <header>
+            <div>
+              <span><Brain size={16} />Intelligence</span>
+              <h2>Document command intelligence</h2>
+              <p>{library.intelligence.summary}</p>
+            </div>
+            <div className={styles.docIntelligenceScore}>
+              <strong>{library.intelligence.score}</strong>
+              <span>{library.intelligence.confidence}% confidence</span>
+            </div>
+          </header>
+          <div className={styles.docRiskFlags}>
+            {library.intelligence.riskFlags.map((flag) => (
+              <article key={flag.label}>
+                <AlertTriangle size={15} />
+                <span><strong>{flag.count}</strong><small>{flag.label}</small></span>
+                <StatusBadge label={flag.priority} tone={priorityTone(flag.priority)} />
+              </article>
+            ))}
+          </div>
+          <div className={styles.docRecommendationGrid}>
+            {library.intelligence.recommendations.map((recommendation) => (
+              <article key={recommendation.id}>
+                <div>
+                  <span><Sparkles size={15} />{formatLabel(recommendation.kind)}</span>
+                  <h3>{recommendation.title}</h3>
+                  <p>{recommendation.rationale}</p>
+                  <ul>
+                    {recommendation.evidence.slice(0, 2).map((evidence) => <li key={evidence}>{evidence}</li>)}
+                  </ul>
+                </div>
+                <footer>
+                  <StatusBadge label={recommendation.priority} tone={priorityTone(recommendation.priority)} />
+                  <small>{recommendation.confidence}% confidence</small>
+                  <button onClick={() => openIntelligenceRecommendation(recommendation)} type="button">{recommendation.actionLabel}</button>
+                </footer>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {library.storageRollout ? (
+        <section className={styles.docRolloutPanel} aria-label="Document release rollout readiness">
+          <header>
+            <div>
+              <span><ShieldCheck size={16} />Release rollout</span>
+              <h2>{library.storageRollout.gate.readyForRelease ? "Ready for rollout" : "Release gate in review"}</h2>
+              <p>{library.storageRollout.gate.blockers.length > 0
+                ? `${library.storageRollout.gate.blockers.length} blocker remains before adoption.`
+                : "All release milestones have evidence."}</p>
+            </div>
+            <StatusBadge label={library.storageRollout.durableRepository?.mode ?? "IN_MEMORY_REVIEW"} tone={library.storageRollout.durableRepository?.enabled ? "success" : "warning"} />
+          </header>
+          <div className={styles.docRolloutGrid}>
+            <div className={styles.docRolloutMilestones}>
+              {library.storageRollout.gate.milestones.map((milestone) => (
+                <article key={milestone.key}>
+                  <span><strong>{milestone.label}</strong><small>{milestone.reason}</small></span>
+                  <StatusBadge label={milestone.status} tone={milestone.status === "COMPLETE" ? "success" : "warning"} />
+                </article>
+              ))}
+            </div>
+            <aside className={styles.docRolloutEvidence}>
+              <h3>Persistence evidence</h3>
+              <dl>
+                <div><dt>Documents</dt><dd>{library.storageRollout.persistencePlan.documents}</dd></div>
+                <div><dt>Packets</dt><dd>{library.storageRollout.persistencePlan.packets}</dd></div>
+                <div><dt>Requirements</dt><dd>{library.storageRollout.persistencePlan.packetRequirements}</dd></div>
+                <div><dt>Packet links</dt><dd>{library.storageRollout.persistencePlan.packetDocuments}</dd></div>
+                <div><dt>Provider refs</dt><dd>{library.storageRollout.persistencePlan.providerReferences}</dd></div>
+                <div><dt>Audit events</dt><dd>{library.storageRollout.persistencePlan.auditEvents}</dd></div>
+              </dl>
+              <h3>Packet templates</h3>
+              <ul>
+                {library.storageRollout.packetTemplates.map((template) => <li key={template.templateKey}>{template.title} · {template.workflow}</li>)}
+              </ul>
+            </aside>
+          </div>
+        </section>
+      ) : null}
 
       <section className={styles.docReviewCommandCenter} aria-label="Review queue command center">
         <header>
