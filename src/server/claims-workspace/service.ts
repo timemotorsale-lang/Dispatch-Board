@@ -24,6 +24,7 @@ export type ClaimEvidenceCategory =
   | "ODOMETER_PHOTO"
   | "INSURANCE_CARD"
   | "ESTIMATE"
+  | "RENTAL"
   | "TOW_STORAGE"
   | "PAYMENT"
   | "REPAIR_HANDOFF"
@@ -147,6 +148,48 @@ export type ClaimCarrierTracker = {
   statusLabel: string;
 };
 
+export type ClaimBillingRecovery = {
+  blockers: string[];
+  invoicePacket: {
+    missing: string[];
+    ready: boolean;
+    required: string[];
+    status: "BLOCKED" | "READY_TO_SEND" | "SENT" | "PAID";
+    title: string;
+  };
+  nextAction: {
+    dueLabel: string;
+    label: string;
+    ownerRole: string;
+    reason: string;
+  };
+  payerSplit: Array<{
+    amountLabel: string;
+    payer: "INSURANCE" | "WARRANTY" | "CUSTOMER" | "INTERNAL";
+    status: "PENDING" | "READY" | "BILLED" | "PAID" | "BLOCKED";
+    title: string;
+  }>;
+  rental: {
+    approvedDaysLabel: string;
+    overageRisk: "NONE" | "NEEDS_EXTENSION" | "OVER_LIMIT";
+    payer: "INSURANCE" | "WARRANTY" | "CUSTOMER" | "INTERNAL";
+    status: "NOT_STARTED" | "ACTIVE" | "EXTENSION_NEEDED" | "READY_TO_BILL";
+    summary: string;
+    usedDaysLabel: string;
+  };
+  shortPayWatch: {
+    active: boolean;
+    reason: string;
+  };
+  summary: {
+    approvedAmountLabel: string;
+    balanceLabel: string;
+    billedAmountLabel: string;
+    deductibleLabel: string;
+    paidAmountLabel: string;
+  };
+};
+
 export type ClaimWorkspaceSummary = {
   ageLabel: string;
   assignedOwner: string;
@@ -167,6 +210,7 @@ export type ClaimExecutionTask = {
 
 export type ClaimReadModel = {
   activities: ClaimActivityRecord[];
+  billingRecovery: ClaimBillingRecovery;
   checklist: ClaimChecklistItem[];
   claim: InsuranceClaimRecord;
   carrierTracker: ClaimCarrierTracker;
@@ -742,6 +786,7 @@ function toClaimReadModel(aggregate: ClaimWorkspaceAggregate, allClaims: ClaimWo
   const photoPlan = buildPhotoPlan(checklist);
   return {
     activities: aggregate.activities,
+    billingRecovery: buildBillingRecovery(aggregate, checklist),
     carrierTracker: buildCarrierTracker(aggregate),
     checklist,
     claim: aggregate.claim,
@@ -799,6 +844,14 @@ function buildDocumentPlan(checklist: ClaimChecklistItem[]): ClaimDocumentPlanIt
       libraryTarget: "Repair order",
       requiredBefore: "Repair handoff",
       state: state("ESTIMATE")
+    },
+    {
+      category: "RENTAL",
+      detail: "Rental agreement, approved days, extension approval, or no-rental note.",
+      label: "Rental support",
+      libraryTarget: "Claim jacket",
+      requiredBefore: "Payment follow-up",
+      state: state("RENTAL")
     },
     {
       category: "PAYMENT",
@@ -886,6 +939,137 @@ function buildWorkspaceSummary(aggregate: ClaimWorkspaceAggregate): ClaimWorkspa
     documentCount: aggregate.evidence.filter((item) => !item.category.includes("PHOTO")).length,
     photoCount: aggregate.evidence.filter((item) => item.category.includes("PHOTO")).length,
     stageLabel: aggregate.claim.stage.toLowerCase().replaceAll("_", " ")
+  };
+}
+
+function moneyStatus(ready: boolean, paid: boolean): "PENDING" | "READY" | "BILLED" | "PAID" | "BLOCKED" {
+  if (paid) return "PAID";
+  return ready ? "READY" : "BLOCKED";
+}
+
+function buildBillingRecovery(aggregate: ClaimWorkspaceAggregate, checklist: ClaimChecklistItem[]): ClaimBillingRecovery {
+  const claim = aggregate.claim;
+  const evidence = aggregate.evidence;
+  const hasAuthorization = checklist.some((item) => item.category === "AUTHORIZATION" && (item.state === "RECEIVED" || item.state === "EXCEPTION_ACCEPTED"));
+  const hasEstimate = checklist.some((item) => item.category === "ESTIMATE" && (item.state === "RECEIVED" || item.state === "EXCEPTION_ACCEPTED"));
+  const hasPayment = evidence.some((item) => item.category === "PAYMENT" && item.status === "RECEIVED");
+  const hasRental = evidence.some((item) => item.category === "RENTAL" && item.status === "RECEIVED");
+  const hasRentalExtension = evidence.some((item) => item.category === "RENTAL" && /extension|extra day|additional day|approved through|approved until/i.test(`${item.title} ${item.notes ?? ""}`));
+  const carrierReady = Boolean(claim.carrierName && (claim.adjusterName || claim.adjusterPhone || claim.adjusterEmail));
+  const finalInvoiceReady = ["REPAIR_HANDOFF", "PAYMENT_FOLLOW_UP", "CLOSEOUT", "CLOSED"].includes(claim.stage);
+  const required = ["Claim number", "Carrier / adjuster", "Signed authorization", "Approved estimate or supplement", "Final invoice / repair order"];
+  const missing = [
+    ...(!claim.claimNumber && !claim.duplicateExceptionReason ? ["Claim number"] : []),
+    ...(!carrierReady ? ["Carrier / adjuster"] : []),
+    ...(!hasAuthorization ? ["Signed authorization"] : []),
+    ...(!hasEstimate ? ["Approved estimate or supplement"] : []),
+    ...(!finalInvoiceReady ? ["Final invoice / repair order"] : [])
+  ];
+  const ready = missing.length === 0;
+  const rentalStatus: ClaimBillingRecovery["rental"]["status"] = hasRentalExtension
+    ? "READY_TO_BILL"
+    : hasRental
+      ? "EXTENSION_NEEDED"
+      : "NOT_STARTED";
+  const blockers = [
+    ...missing.map((item) => `${item} missing`),
+    ...(hasRental && !hasRentalExtension ? ["Rental extension or approved-days support is needed before billing rental overage."] : [])
+  ];
+  const nextAction = hasRental && !hasRentalExtension
+    ? {
+      dueLabel: "Today",
+      label: "Request rental extension",
+      ownerRole: "Service advisor",
+      reason: "Rental support exists, but approved days or extension approval is not documented."
+    }
+    : !carrierReady
+      ? {
+        dueLabel: "Today",
+        label: "Confirm payer contact",
+        ownerRole: "Service advisor",
+        reason: "Carrier, adjuster, or warranty payer contact must be complete before billing."
+      }
+      : !hasAuthorization
+        ? {
+          dueLabel: "Today",
+          label: "Get billing authorization",
+          ownerRole: "Service advisor",
+          reason: "Billing is blocked until signed customer authorization is attached."
+        }
+        : !hasEstimate
+          ? {
+            dueLabel: "Today",
+            label: "Attach approved estimate",
+            ownerRole: "Service advisor",
+            reason: "Carrier or warranty invoice requires approved estimate, supplement, or authorization support."
+          }
+          : ready && !hasPayment
+            ? {
+              dueLabel: "Today",
+              label: "Send carrier invoice",
+              ownerRole: "Service advisor",
+              reason: "Recovery packet is ready. Send invoice and begin payment follow-up."
+            }
+            : {
+              dueLabel: "Today",
+              label: "Post payment proof",
+              ownerRole: "Office",
+              reason: "Payment evidence closes the recovery loop and supports claim closeout."
+            };
+
+  return {
+    blockers,
+    invoicePacket: {
+      missing,
+      ready,
+      required,
+      status: hasPayment ? "PAID" : ready ? "READY_TO_SEND" : "BLOCKED",
+      title: claim.carrierName ? "Carrier invoice packet" : "Recovery packet"
+    },
+    nextAction,
+    payerSplit: [
+      {
+        amountLabel: ready ? "Ready to calculate from final invoice" : "Pending packet",
+        payer: "INSURANCE",
+        status: moneyStatus(ready, hasPayment),
+        title: claim.carrierName || "Insurance carrier"
+      },
+      {
+        amountLabel: claim.deductible || "Deductible pending",
+        payer: "CUSTOMER",
+        status: claim.deductible ? "READY" : "PENDING",
+        title: "Customer deductible"
+      },
+      {
+        amountLabel: hasRental ? "Rental support attached" : "No rental active",
+        payer: "INSURANCE",
+        status: hasRental ? hasRentalExtension ? "READY" : "BLOCKED" : "PENDING",
+        title: "Rental recovery"
+      }
+    ],
+    rental: {
+      approvedDaysLabel: hasRentalExtension ? "Extension documented" : hasRental ? "Approval needed" : "Not started",
+      overageRisk: hasRental && !hasRentalExtension ? "NEEDS_EXTENSION" : "NONE",
+      payer: "INSURANCE",
+      status: rentalStatus,
+      summary: hasRental
+        ? hasRentalExtension
+          ? "Rental support is documented and ready for recovery review."
+          : "Rental support is attached; document approved days or extension before billing."
+        : "No active rental evidence is attached to this claim.",
+      usedDaysLabel: hasRental ? "Active rental evidence" : "0 days"
+    },
+    shortPayWatch: {
+      active: hasPayment && !ready,
+      reason: hasPayment && !ready ? "Payment proof exists before the recovery packet is complete; review for short-pay or misapplied payment." : "No short-pay issue detected."
+    },
+    summary: {
+      approvedAmountLabel: hasEstimate ? "Estimate attached" : "Pending approval",
+      balanceLabel: hasPayment ? "Review paid balance" : ready ? "Carrier balance pending" : "Blocked",
+      billedAmountLabel: ready ? "Ready for invoice" : "Not ready",
+      deductibleLabel: claim.deductible || "Pending",
+      paidAmountLabel: hasPayment ? "Payment proof attached" : "No payment posted"
+    }
   };
 }
 
@@ -1113,7 +1297,7 @@ function normalizeClaimCreate(raw: ClaimCreateInput): Omit<InsuranceClaimRecord,
 }
 
 function normalizeEvidence(raw: ClaimEvidenceInput): Omit<ClaimEvidenceRecord, "createdAt" | "createdByUserId" | "id"> {
-  const category = choice(raw.category, ["AUTHORIZATION", "CLAIM_IDENTITY", "DAMAGE_PHOTO", "VIN_PHOTO", "ODOMETER_PHOTO", "INSURANCE_CARD", "ESTIMATE", "TOW_STORAGE", "PAYMENT", "REPAIR_HANDOFF", "CLOSEOUT"] as const, "Evidence category");
+  const category = choice(raw.category, ["AUTHORIZATION", "CLAIM_IDENTITY", "DAMAGE_PHOTO", "VIN_PHOTO", "ODOMETER_PHOTO", "INSURANCE_CARD", "ESTIMATE", "RENTAL", "TOW_STORAGE", "PAYMENT", "REPAIR_HANDOFF", "CLOSEOUT"] as const, "Evidence category");
   const title = text(raw.title);
   if (!title) throw new ClaimsWorkspaceError("CLAIM_INVALID", "Evidence title is required.");
   const status = choice(raw.status ?? "RECEIVED", ["RECEIVED", "NOT_APPLICABLE", "BLOCKED", "EXCEPTION_ACCEPTED"] as const, "Evidence status");

@@ -41,6 +41,47 @@ const fallbackTasks = [
   { actionLabel: "Upload photos", detail: "Visible damage photos and closeups.", dueLabel: "Today", ownerRole: "Intake staff", status: "ready", title: "Take damage photos" }
 ] as const;
 
+const fallbackBillingRecovery: ClaimReadModel["billingRecovery"] = {
+  blockers: ["Carrier / adjuster missing", "Signed authorization missing", "Approved estimate or supplement missing"],
+  invoicePacket: {
+    missing: ["Carrier / adjuster", "Signed authorization", "Approved estimate or supplement"],
+    ready: false,
+    required: ["Claim number", "Carrier / adjuster", "Signed authorization", "Approved estimate or supplement", "Final invoice / repair order"],
+    status: "BLOCKED",
+    title: "Carrier invoice packet"
+  },
+  nextAction: {
+    dueLabel: "Today",
+    label: "Confirm payer contact",
+    ownerRole: "Service advisor",
+    reason: "Carrier, adjuster, or warranty payer contact must be complete before billing."
+  },
+  payerSplit: [
+    { amountLabel: "Pending packet", payer: "INSURANCE", status: "BLOCKED", title: "Insurance carrier" },
+    { amountLabel: "Deductible pending", payer: "CUSTOMER", status: "PENDING", title: "Customer deductible" },
+    { amountLabel: "No rental active", payer: "INSURANCE", status: "PENDING", title: "Rental recovery" }
+  ],
+  rental: {
+    approvedDaysLabel: "Not started",
+    overageRisk: "NONE",
+    payer: "INSURANCE",
+    status: "NOT_STARTED",
+    summary: "No active rental evidence is attached to this claim.",
+    usedDaysLabel: "0 days"
+  },
+  shortPayWatch: {
+    active: false,
+    reason: "No short-pay issue detected."
+  },
+  summary: {
+    approvedAmountLabel: "Pending approval",
+    balanceLabel: "Blocked",
+    billedAmountLabel: "Not ready",
+    deductibleLabel: "Pending",
+    paidAmountLabel: "No payment posted"
+  }
+};
+
 type ExtraActionTool = "text" | "call" | "email" | "appointment" | "file" | "repair";
 
 const extraActionTools: Array<{ id: ExtraActionTool; label: string; detail: string }> = [
@@ -123,7 +164,7 @@ function todayInputDate() {
   return date.toISOString().slice(0, 10);
 }
 
-export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
+export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string; model?: ClaimReadModel }) {
   const [actionError, setActionError] = useState("");
   const [actionMessage, setActionMessage] = useState("");
   const [activityDrawerOpen, setActivityDrawerOpen] = useState(false);
@@ -171,6 +212,7 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
     ])
   );
   const taskRows = model?.executionTasks ?? fallbackTasks;
+  const billingRecovery = model?.billingRecovery ?? fallbackBillingRecovery;
   const carrier = model?.carrierTracker ?? {
     adjuster: "Needed",
     approvalStatus: "needs_adjuster",
@@ -427,6 +469,17 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
         </aside>
       </header>
 
+      {loadError ? (
+        <section className={`${styles.panel} ${styles.safeModeNotice}`}>
+          <div>
+            <span className={styles.cardEyebrow}>Safe mode</span>
+            <strong>Claim details are temporarily limited</strong>
+            <p>{loadError}</p>
+          </div>
+          <StatusBadge tone="warning">Retry from Claim Desk</StatusBadge>
+        </section>
+      ) : null}
+
       <div className={styles.workspace}>
         <div className={styles.mainStack}>
           <section className={styles.panel}>
@@ -601,6 +654,73 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
           <section className={styles.panel}>
             <div className={styles.panelHeader}>
               <div>
+                <h2>Money & Recovery</h2>
+                <p>Billing, payer split, rental risk, and payment follow-up stay execution-ready.</p>
+              </div>
+              <StatusBadge tone={billingRecovery.invoicePacket.ready ? "good" : "warning"}>{billingRecovery.invoicePacket.status.replaceAll("_", " ").toLowerCase()}</StatusBadge>
+            </div>
+            <div className={styles.recoveryPanel}>
+              <div className={styles.recoverySummary}>
+                {[
+                  ["Billed", billingRecovery.summary.billedAmountLabel],
+                  ["Approved", billingRecovery.summary.approvedAmountLabel],
+                  ["Deductible", billingRecovery.summary.deductibleLabel],
+                  ["Paid", billingRecovery.summary.paidAmountLabel],
+                  ["Balance", billingRecovery.summary.balanceLabel]
+                ].map(([label, value]) => (
+                  <div className={styles.fact} key={label}>
+                    <span>{label}</span>
+                    <strong>{value}</strong>
+                  </div>
+                ))}
+              </div>
+              <article className={styles.recoveryAction}>
+                <span className={styles.cardEyebrow}>Money action</span>
+                <strong>{billingRecovery.nextAction.label}</strong>
+                <p>{billingRecovery.nextAction.reason}</p>
+                <div className={styles.ownerGrid}>
+                  <div className={styles.fact}>
+                    <span>Owner</span>
+                    <strong>{billingRecovery.nextAction.ownerRole}</strong>
+                  </div>
+                  <div className={styles.fact}>
+                    <span>Due</span>
+                    <strong>{billingRecovery.nextAction.dueLabel}</strong>
+                  </div>
+                </div>
+              </article>
+              <div className={styles.recoveryGrid}>
+                <article>
+                  <span className={styles.cardEyebrow}>{billingRecovery.invoicePacket.title}</span>
+                  <strong>{billingRecovery.invoicePacket.ready ? "Ready to send" : "Missing packet items"}</strong>
+                  <p>{billingRecovery.invoicePacket.ready ? "Packet is ready for billing follow-up." : billingRecovery.invoicePacket.missing.slice(0, 3).join(", ")}</p>
+                </article>
+                <article>
+                  <span className={styles.cardEyebrow}>Rental tracker</span>
+                  <strong>{billingRecovery.rental.status.replaceAll("_", " ").toLowerCase()}</strong>
+                  <p>{billingRecovery.rental.summary}</p>
+                </article>
+                <article>
+                  <span className={styles.cardEyebrow}>Short-pay watch</span>
+                  <strong>{billingRecovery.shortPayWatch.active ? "Review needed" : "Clear"}</strong>
+                  <p>{billingRecovery.shortPayWatch.reason}</p>
+                </article>
+              </div>
+              <div className={styles.payerSplit}>
+                {billingRecovery.payerSplit.map((payer) => (
+                  <div key={`${payer.payer}-${payer.title}`}>
+                    <span>{payer.payer.replaceAll("_", " ")}</span>
+                    <strong>{payer.title}</strong>
+                    <small>{payer.amountLabel} - {payer.status.toLowerCase()}</small>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.panelHeader}>
+              <div>
                 <h2>Handoff Readiness</h2>
                 <p>Clear gates prevent premature handoff while allowing approved exceptions.</p>
               </div>
@@ -666,6 +786,7 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
                   <option value="DAMAGE_PHOTO">Attach damage photos</option>
                   <option value="AUTHORIZATION">Attach authorization</option>
                   <option value="ESTIMATE">Attach estimate / supplement</option>
+                  <option value="RENTAL">Attach rental support</option>
                   <option value="REPAIR_HANDOFF">Attach handoff evidence</option>
                   <option value="PAYMENT">Attach payment proof</option>
                 </select>
@@ -844,6 +965,7 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
                         <option value="VIN_PHOTO">VIN photo</option>
                         <option value="ODOMETER_PHOTO">Odometer photo</option>
                         <option value="ESTIMATE">Estimate / supplement</option>
+                        <option value="RENTAL">Rental support</option>
                         <option value="REPAIR_HANDOFF">Repair handoff evidence</option>
                         <option value="PAYMENT">Payment proof</option>
                       </select>

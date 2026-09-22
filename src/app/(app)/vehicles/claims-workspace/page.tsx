@@ -19,7 +19,7 @@ export default async function ClaimsWorkspacePage({
     model = await getClaimWorkspaceReadModel(user, params.claimId, await claimsWorkspaceDependencies());
   } catch (error) {
     if (error instanceof ClaimsWorkspaceError && error.code === "CLAIM_NOT_FOUND") redirect("/vehicles/claims-desk");
-    throw error;
+    return <ClaimsWorkspaceReview loadError="Claim data could not be loaded. The workspace opened in safe mode so staff can continue with general claim tasks." />;
   }
 
   return <ClaimsWorkspaceReview model={model} />;

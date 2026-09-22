@@ -29,6 +29,8 @@ describe("claims workspace review", () => {
     expect(html).toContain("Carrier Tracker");
     expect(html).toContain("Activity Timeline");
     expect(html).toContain("Next Action");
+    expect(html).toContain("Money &amp; Recovery");
+    expect(html).toContain("Rental tracker");
     expect(html).toContain("Handoff Readiness");
     expect(html).toContain("Contact adjuster");
     expect(html).toContain("Repair order handoff");
@@ -42,5 +44,16 @@ describe("claims workspace review", () => {
 
     expect(html).toContain("Eli Manager");
     expect(html).not.toContain("advisor-1");
+  });
+
+  it("opens in safe mode when claim details are temporarily limited", () => {
+    const html = renderToStaticMarkup(
+      <ClaimsWorkspaceReview loadError="Claim data could not be loaded. The workspace opened in safe mode." />
+    );
+
+    expect(html).toContain("Safe mode");
+    expect(html).toContain("Claim details are temporarily limited");
+    expect(html).toContain("Retry from Claim Desk");
+    expect(html).toContain("Execute Next Tasks");
   });
 });

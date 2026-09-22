@@ -73,8 +73,21 @@ describe("claims workspace service", () => {
     expect(created.readModel.handoff.allowed).toBe(false);
     expect(created.readModel.executionTasks.map((task) => task.title)).toContain("Get customer authorization");
     expect(created.readModel.documentPlan.map((item) => item.label)).toContain("Customer repair authorization");
+    expect(created.readModel.documentPlan.map((item) => item.label)).toContain("Rental support");
     expect(created.readModel.photoPlan.map((item) => item.label)).toContain("Damage overview and closeups");
     expect(created.readModel.carrierTracker.nextContact).toBe("Call carrier for adjuster");
+    expect(created.readModel.billingRecovery).toMatchObject({
+      invoicePacket: {
+        ready: false,
+        status: "BLOCKED"
+      },
+      nextAction: {
+        label: "Confirm payer contact"
+      },
+      rental: {
+        status: "NOT_STARTED"
+      }
+    });
 
     await expect(createInsuranceClaim(actor, {
       carrierName: "State Farm",
@@ -127,6 +140,46 @@ describe("claims workspace service", () => {
     const handedOff = await requestClaimHandoff(actor, claimId, {}, { repository });
     expect(handedOff.claim.stage).toBe("REPAIR_HANDOFF");
     expect(handedOff.claim.nextAction).toBe("Open or link repair order");
+  });
+
+  it("surfaces billing recovery and rental extension work as simple next actions", async () => {
+    const repository = createInMemoryClaimsWorkspaceRepository([]);
+    const created = await createInsuranceClaim(actor, {
+      adjusterName: "Pat Adjuster",
+      carrierName: "Progressive",
+      claimNumber: "MN-66002",
+      customerName: "Rental Customer",
+      deductible: "$500",
+      description: "Left front damage.",
+      ownerUserId: "advisor-1",
+      vehicleVin: "VIN-RENTAL-001"
+    }, { repository });
+    const claimId = created.readModel.claim.id;
+
+    for (const [category, title, notes] of [
+      ["AUTHORIZATION", "Signed authorization", ""],
+      ["ESTIMATE", "Carrier estimate", ""],
+      ["RENTAL", "Rental agreement", "Daily rental started; approved days not captured yet."]
+    ] as const) {
+      await attachClaimEvidence(actor, claimId, {
+        category,
+        notes,
+        relationshipTargets: ["CLAIM"],
+        status: "RECEIVED",
+        title
+      }, { repository });
+    }
+
+    const model = await getClaimWorkspaceReadModel(actor, claimId, { repository });
+    expect(model.billingRecovery.nextAction).toMatchObject({
+      label: "Request rental extension",
+      ownerRole: "Service advisor"
+    });
+    expect(model.billingRecovery.rental).toMatchObject({
+      overageRisk: "NEEDS_EXTENSION",
+      status: "EXTENSION_NEEDED"
+    });
+    expect(model.billingRecovery.payerSplit.some((payer) => payer.title === "Rental recovery" && payer.status === "BLOCKED")).toBe(true);
   });
 
   it("requires manager authority before approving a blocked repair handoff exception", async () => {

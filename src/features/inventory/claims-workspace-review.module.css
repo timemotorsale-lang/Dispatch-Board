@@ -123,6 +123,30 @@
   padding: 14px;
 }
 
+.safeModeNotice {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border-color: #ffd98b;
+  background: #fffaf0;
+}
+
+.safeModeNotice strong {
+  display: block;
+  margin-top: 3px;
+  color: #07132d;
+  font-size: 0.98rem;
+  line-height: 1.25;
+}
+
+.safeModeNotice p {
+  margin: 5px 0 0;
+  color: #526481;
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
 .panelHeader {
   align-items: flex-start;
   margin-bottom: 10px;
@@ -377,6 +401,69 @@
   font-size: 0.82rem;
   font-weight: 900;
   padding: 8px 12px;
+}
+
+.recoveryPanel {
+  display: grid;
+  gap: 10px;
+}
+
+.recoverySummary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.recoveryAction,
+.recoveryGrid article,
+.payerSplit div {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid #dce5f3;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.recoveryAction strong,
+.recoveryGrid strong,
+.payerSplit strong {
+  color: #07132d;
+  line-height: 1.22;
+}
+
+.recoveryAction p,
+.recoveryGrid p {
+  margin: 0;
+  color: #526481;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.recoveryGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.payerSplit {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.payerSplit span,
+.payerSplit small {
+  color: #526481;
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.payerSplit small {
+  font-size: 0.76rem;
+  text-transform: none;
 }
 
 .drawerBackdrop {
