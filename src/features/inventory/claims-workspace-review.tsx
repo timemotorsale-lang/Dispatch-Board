@@ -131,6 +131,24 @@ function readinessLabel(status: string) {
   return "Not yet";
 }
 
+type ManualFieldTone = "filled" | "pending" | "missing";
+
+const manualFieldToneClass: Record<ManualFieldTone, string> = {
+  filled: styles.manualFilled,
+  pending: styles.manualPending,
+  missing: styles.manualMissing
+};
+
+function hasManualValue(value: unknown) {
+  if (value === null || value === undefined) return false;
+  return String(value).trim().length > 0;
+}
+
+function manualFieldClassName(value: unknown, options: { required?: boolean; wide?: boolean } = {}) {
+  const tone: ManualFieldTone = hasManualValue(value) ? "filled" : options.required ? "missing" : "pending";
+  return [manualFieldToneClass[tone], options.wide ? styles.fullField : null].filter(Boolean).join(" ");
+}
+
 function activityActorName(activity: ClaimReadModel["activities"][number]) {
   if (activity.actorUserName) return activity.actorUserName;
   if (activity.actorUserId === "seed") return "System";
@@ -585,36 +603,36 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
               <form action={saveSnapshot} className={styles.snapshotEditForm}>
                 <fieldset>
                   <legend>Customer</legend>
-                  <label><span>Customer name</span><input name="customerName" defaultValue={model.claim.customerName} /></label>
-                  <label><span>Phone</span><input name="customerPhone" defaultValue={model.claim.customerPhone ?? ""} /></label>
-                  <label><span>Email</span><input name="customerEmail" defaultValue={model.claim.customerEmail ?? ""} type="email" /></label>
-                  <label className={styles.fullField}><span>Address line 1</span><input name="customerAddressLine1" defaultValue={model.claim.customerAddressLine1 ?? ""} /></label>
-                  <label><span>Address line 2</span><input name="customerAddressLine2" defaultValue={model.claim.customerAddressLine2 ?? ""} /></label>
-                  <label><span>City</span><input name="customerCity" defaultValue={model.claim.customerCity ?? ""} /></label>
-                  <label><span>State</span><input name="customerState" defaultValue={model.claim.customerState ?? ""} /></label>
-                  <label><span>ZIP</span><input name="customerPostalCode" defaultValue={model.claim.customerPostalCode ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.customerName, { required: true })}><span>Customer name</span><input name="customerName" defaultValue={model.claim.customerName} /></label>
+                  <label className={manualFieldClassName(model.claim.customerPhone)}><span>Phone</span><input name="customerPhone" defaultValue={model.claim.customerPhone ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.customerEmail)}><span>Email</span><input name="customerEmail" defaultValue={model.claim.customerEmail ?? ""} type="email" /></label>
+                  <label className={manualFieldClassName(model.claim.customerAddressLine1, { wide: true })}><span>Address line 1</span><input name="customerAddressLine1" defaultValue={model.claim.customerAddressLine1 ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.customerAddressLine2)}><span>Address line 2</span><input name="customerAddressLine2" defaultValue={model.claim.customerAddressLine2 ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.customerCity)}><span>City</span><input name="customerCity" defaultValue={model.claim.customerCity ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.customerState)}><span>State</span><input name="customerState" defaultValue={model.claim.customerState ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.customerPostalCode)}><span>ZIP</span><input name="customerPostalCode" defaultValue={model.claim.customerPostalCode ?? ""} /></label>
                 </fieldset>
                 <fieldset>
                   <legend>Vehicle</legend>
-                  <label><span>VIN</span><input name="vehicleVin" defaultValue={model.claim.vehicleVin ?? ""} /></label>
-                  <label><span>Year</span><input name="vehicleYear" defaultValue={model.claim.vehicleYear ?? ""} /></label>
-                  <label><span>Make</span><input name="vehicleMake" defaultValue={model.claim.vehicleMake ?? ""} /></label>
-                  <label><span>Model</span><input name="vehicleModel" defaultValue={model.claim.vehicleModel ?? ""} /></label>
-                  <label><span>Color</span><input name="vehicleColor" defaultValue={model.claim.vehicleColor ?? ""} /></label>
-                  <label><span>Mileage</span><input name="vehicleMileage" defaultValue={model.claim.vehicleMileage ?? ""} /></label>
-                  <label><span>Plate</span><input name="vehiclePlate" defaultValue={model.claim.vehiclePlate ?? ""} /></label>
-                  <label><span>Stock #</span><input name="vehicleStockNumber" defaultValue={model.claim.vehicleStockNumber ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.vehicleVin, { required: true })}><span>VIN</span><input name="vehicleVin" defaultValue={model.claim.vehicleVin ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.vehicleYear)}><span>Year</span><input name="vehicleYear" defaultValue={model.claim.vehicleYear ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.vehicleMake)}><span>Make</span><input name="vehicleMake" defaultValue={model.claim.vehicleMake ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.vehicleModel)}><span>Model</span><input name="vehicleModel" defaultValue={model.claim.vehicleModel ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.vehicleColor)}><span>Color</span><input name="vehicleColor" defaultValue={model.claim.vehicleColor ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.vehicleMileage)}><span>Mileage</span><input name="vehicleMileage" defaultValue={model.claim.vehicleMileage ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.vehiclePlate)}><span>Plate</span><input name="vehiclePlate" defaultValue={model.claim.vehiclePlate ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.vehicleStockNumber)}><span>Stock #</span><input name="vehicleStockNumber" defaultValue={model.claim.vehicleStockNumber ?? ""} /></label>
                 </fieldset>
                 <fieldset>
                   <legend>Claim details</legend>
-                  <label><span>Carrier</span><input name="carrierName" defaultValue={model.claim.carrierName ?? ""} /></label>
-                  <label><span>Claim #</span><input name="claimNumber" defaultValue={model.claim.claimNumber ?? ""} /></label>
-                  <label><span>Adjuster</span><input name="adjusterName" defaultValue={model.claim.adjusterName ?? ""} /></label>
-                  <label><span>Policy #</span><input name="policyNumber" defaultValue={model.claim.policyNumber ?? ""} /></label>
-                  <label><span>Deductible</span><input name="deductible" defaultValue={model.claim.deductible ?? ""} /></label>
-                  <label><span>Loss date</span><input name="lossDate" defaultValue={model.claim.lossDate ?? ""} type="date" /></label>
-                  <label className={styles.fullField}><span>Loss location</span><input name="lossLocation" defaultValue={model.claim.lossLocation ?? ""} /></label>
-                  <label className={styles.fullField}><span>Incident summary</span><textarea name="description" defaultValue={model.claim.description ?? ""} rows={4} /></label>
+                  <label className={manualFieldClassName(model.claim.carrierName, { required: true })}><span>Carrier</span><input name="carrierName" defaultValue={model.claim.carrierName ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.claimNumber, { required: true })}><span>Claim #</span><input name="claimNumber" defaultValue={model.claim.claimNumber ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.adjusterName, { required: true })}><span>Adjuster</span><input name="adjusterName" defaultValue={model.claim.adjusterName ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.policyNumber, { required: true })}><span>Policy #</span><input name="policyNumber" defaultValue={model.claim.policyNumber ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.deductible, { required: true })}><span>Deductible</span><input name="deductible" defaultValue={model.claim.deductible ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.lossDate, { required: true })}><span>Loss date</span><input name="lossDate" defaultValue={model.claim.lossDate ?? ""} type="date" /></label>
+                  <label className={manualFieldClassName(model.claim.lossLocation, { wide: true })}><span>Loss location</span><input name="lossLocation" defaultValue={model.claim.lossLocation ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.description, { required: true, wide: true })}><span>Incident summary</span><textarea name="description" defaultValue={model.claim.description ?? ""} rows={4} /></label>
                 </fieldset>
                 <div className={styles.snapshotEditFooter}>
                   <button disabled={!claimId || isWorking} type="submit">{isWorking ? "Saving..." : "Save snapshot"}</button>
