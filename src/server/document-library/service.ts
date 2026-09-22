@@ -19,6 +19,13 @@ import {
   resolvePacket
 } from "./domain";
 import { executeDocumentLibraryCommand, type DocumentLibraryState } from "./repository";
+import {
+  buildDocumentStorageRolloutEvidence,
+  buildDocumentLibraryPersistencePlan,
+  defaultDocumentPacketTemplates,
+  DOCUMENT_LIBRARY_STORAGE_PLATFORM_VERSION
+} from "./storage-platform";
+import { evaluateDocumentStorageReleaseGate } from "./storage-rollout";
 
 type Dependencies = {
   now?: () => Date;
@@ -261,7 +268,7 @@ function parseDocumentLibraryCommand(input: Record<string, unknown>): DocumentLi
 }
 
 export async function getDocumentLibrary(actor: AuthenticatedUser | null, dependencies: Dependencies = {}) {
-  requireDocumentLibraryAccess(actor);
+  const user = requireDocumentLibraryAccess(actor);
   const state = getCurrentLibraryState();
   const generatedAt = (dependencies.now?.() ?? new Date(GENERATED_AT)).toISOString();
   const resolvedPackets = state.packets.map((packet) => resolvePacket(packet, state.documents));
@@ -271,6 +278,7 @@ export async function getDocumentLibrary(actor: AuthenticatedUser | null, depend
     documentId: document.id,
     documentType: document.documentType
   })));
+  const persistencePlan = buildDocumentLibraryPersistencePlan(state);
 
   return {
     archivePreviews,
@@ -293,6 +301,23 @@ export async function getDocumentLibrary(actor: AuthenticatedUser | null, depend
         requirementId: requirement.id,
         state: requirement.state
       }))),
+    storageRollout: {
+      gate: evaluateDocumentStorageReleaseGate(buildDocumentStorageRolloutEvidence({
+        actor: user,
+        durableRepositoryEnabled: false,
+        state
+      })),
+      packetTemplates: defaultDocumentPacketTemplates,
+      persistencePlan: {
+        auditEvents: persistencePlan.auditEvents.length,
+        documents: persistencePlan.documents.length,
+        packetDocuments: persistencePlan.packetDocuments.length,
+        packetRequirements: persistencePlan.packetRequirements.length,
+        packets: persistencePlan.packets.length,
+        providerReferences: persistencePlan.providerReferences.length
+      },
+      platformVersion: DOCUMENT_LIBRARY_STORAGE_PLATFORM_VERSION
+    },
     summary: {
       documents: state.documents.length,
       legalHold: state.documents.filter((document) => document.legalHold).length,

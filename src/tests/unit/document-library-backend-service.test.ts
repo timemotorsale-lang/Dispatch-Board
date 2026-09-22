@@ -37,6 +37,23 @@ describe("document library backend service", () => {
       legalHold: true
     });
     expect(result.providerReferences.every((reference) => reference.readOnly)).toBe(true);
+    expect(result.storageRollout).toMatchObject({
+      gate: {
+        readyForRelease: false
+      },
+      persistencePlan: {
+        documents: 3,
+        packets: 2,
+        providerReferences: 2
+      },
+      platformVersion: "document-library.storage-platform/v1"
+    });
+    expect(result.storageRollout.gate.blockers.map((blocker) => blocker.key)).toEqual(["DURABLE_REPOSITORY"]);
+    expect(result.storageRollout.packetTemplates.map((template) => template.templateKey)).toEqual([
+      "claims.standard",
+      "title.standard",
+      "vendor.onboarding"
+    ]);
   });
 
   it("denies the read model to signed-in users without document workflow access", async () => {
