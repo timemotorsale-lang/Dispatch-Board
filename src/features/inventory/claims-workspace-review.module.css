@@ -409,6 +409,86 @@
   gap: 10px;
 }
 
+.estimateCard,
+.estimateHeroCard,
+.estimateSourceCard {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #dce5f3;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.estimateCard > strong,
+.estimateHeroCard > strong {
+  color: #07132d;
+  font-size: 1.35rem;
+  line-height: 1.1;
+}
+
+.estimateCard p,
+.estimateHeroCard p,
+.estimateSourceCard p {
+  margin: 0;
+  color: #526481;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.estimateCard button {
+  justify-self: start;
+  min-height: 38px;
+  border: 1px solid #284bd0;
+  border-radius: 8px;
+  background: #284bd0;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 900;
+  padding: 8px 12px;
+}
+
+.estimateFacts,
+.estimateReviewGrid {
+  display: grid;
+  gap: 8px;
+}
+
+.estimateFacts {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.estimateReviewGrid {
+  grid-template-columns: minmax(280px, 0.7fr) minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.estimateDrawer {
+  width: min(980px, calc(100vw - 24px));
+}
+
+.estimateSourceCard > strong {
+  color: #07132d;
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.inlineDocumentLink {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  color: #0c2a61;
+  font-size: 0.82rem;
+  font-weight: 950;
+  line-height: 1.25;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+
 .recoveryCompact {
   display: grid;
   gap: 10px;
@@ -916,6 +996,99 @@
   display: grid;
 }
 
+.uploadedEvidenceList {
+  display: grid;
+  gap: 8px;
+}
+
+.uploadedEvidenceItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid #dce5f3;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.uploadedEvidenceItem span {
+  display: block;
+  color: #526481;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.uploadedEvidenceItem strong {
+  display: block;
+  margin-top: 3px;
+  color: #07132d;
+  font-size: 0.9rem;
+  line-height: 1.22;
+}
+
+.uploadedEvidenceItem small,
+.emptyEvidence {
+  color: #526481;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.uploadedEvidenceItem button {
+  min-height: 36px;
+  border: 1px solid #284bd0;
+  border-radius: 8px;
+  background: #284bd0;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  padding: 8px 12px;
+}
+
+.uploadedEvidenceActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.uploadedEvidenceActions a,
+.timelineActions a {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #284bd0;
+  border-radius: 8px;
+  background: #284bd0;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 900;
+  line-height: 1.2;
+  padding: 8px 11px;
+  text-decoration: none;
+}
+
+.uploadedEvidenceActions span {
+  align-self: center;
+  color: #526481;
+  font-size: 0.74rem;
+  font-weight: 850;
+}
+
+.emptyEvidence {
+  margin: 0;
+  padding: 10px;
+  border: 1px solid #dce5f3;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
 .executionGrid,
 .carrierGrid {
   display: grid;
@@ -1270,6 +1443,10 @@
   color: #f8fbff;
 }
 
+:global(html[data-app-theme="dark"]) .inlineDocumentLink {
+  color: #dbe6ff;
+}
+
 :global(html[data-app-theme="dark"]) .appointmentToolHeader span {
   color: #d7e3f8;
 }
@@ -1330,6 +1507,8 @@
   .recoveryCompactFacts,
   .recoveryGrid,
   .recoverySummary,
+  .estimateFacts,
+  .estimateReviewGrid,
   .toolGrid {
     grid-template-columns: 1fr;
   }
@@ -1341,6 +1520,16 @@
   .evidenceRow {
     grid-template-columns: 1fr;
     padding: 12px 0;
+  }
+
+  .uploadedEvidenceItem {
+    grid-template-columns: 1fr;
+  }
+
+  .uploadedEvidenceActions,
+  .uploadedEvidenceItem button,
+  .uploadedEvidenceActions a {
+    width: 100%;
   }
 
   .taskItem {

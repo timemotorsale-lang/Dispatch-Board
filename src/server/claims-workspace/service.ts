@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 
 import { INSURANCE_CLAIM_INTAKE_FORM_PACKET } from "@/lib/insurance-claim-intake-form-packet";
 import type { AuthenticatedUser } from "@/server/auth/store";
+import { resolveDocumentStorageRuntimeFromEnv } from "@/server/document-library/storage-config";
 
 export const CLAIMS_WORKSPACE_CONTRACT_VERSION = "claims-workspace/v1";
 export const CLAIMS_WORKSPACE_ERROR_CONTRACT_VERSION = "claims-workspace-error/v1";
@@ -190,6 +191,19 @@ export type ClaimBillingRecovery = {
   };
 };
 
+export type ClaimEstimateReview = {
+  approvedAmountCents: number | null;
+  approvedAmountLabel: string;
+  confidence: "HIGH" | "MEDIUM" | "NEEDS_REVIEW";
+  detail: string;
+  documentLibraryId?: string;
+  evidenceId?: string;
+  fileName?: string;
+  receivedAt?: string;
+  sourceTitle?: string;
+  status: "MISSING" | "AMOUNT_FOUND" | "REVIEW_NEEDED";
+};
+
 export type ClaimWorkspaceSummary = {
   ageLabel: string;
   assignedOwner: string;
@@ -217,6 +231,8 @@ export type ClaimReadModel = {
   contractVersion: typeof CLAIMS_WORKSPACE_CONTRACT_VERSION;
   documentPlan: ClaimDocumentPlanItem[];
   duplicateWarnings: ClaimDuplicateWarning[];
+  documentStorageReady: boolean;
+  estimateReview: ClaimEstimateReview;
   evidence: ClaimEvidenceRecord[];
   executionTasks: ClaimExecutionTask[];
   handoff: {
@@ -991,15 +1007,18 @@ function toClaimReadModel(aggregate: ClaimWorkspaceAggregate, allClaims: ClaimWo
   const readiness = buildReadiness(aggregate, checklist, handoffBlockers);
   const documentPlan = buildDocumentPlan(checklist);
   const photoPlan = buildPhotoPlan(checklist);
+  const estimateReview = buildEstimateReview(aggregate);
   return {
     activities: aggregate.activities,
-    billingRecovery: buildBillingRecovery(aggregate, checklist),
+    billingRecovery: buildBillingRecovery(aggregate, checklist, estimateReview),
     carrierTracker: buildCarrierTracker(aggregate),
     checklist,
     claim: aggregate.claim,
     contractVersion: CLAIMS_WORKSPACE_CONTRACT_VERSION,
     documentPlan,
+    documentStorageReady: resolveDocumentStorageRuntimeFromEnv().readiness.readyForByteStorage,
     duplicateWarnings: detectDuplicates(aggregate.claim, allClaims.filter((item) => item.claim.id !== aggregate.claim.id)),
+    estimateReview,
     evidence: aggregate.evidence,
     executionTasks: buildExecutionTasks(aggregate, checklist, handoffBlockers, primaryBlocker),
     handoff: {
@@ -1154,7 +1173,7 @@ function moneyStatus(ready: boolean, paid: boolean): "PENDING" | "READY" | "BILL
   return ready ? "READY" : "BLOCKED";
 }
 
-function buildBillingRecovery(aggregate: ClaimWorkspaceAggregate, checklist: ClaimChecklistItem[]): ClaimBillingRecovery {
+function buildBillingRecovery(aggregate: ClaimWorkspaceAggregate, checklist: ClaimChecklistItem[], estimateReview: ClaimEstimateReview): ClaimBillingRecovery {
   const claim = aggregate.claim;
   const evidence = aggregate.evidence;
   const hasAuthorization = checklist.some((item) => item.category === "AUTHORIZATION" && (item.state === "RECEIVED" || item.state === "EXCEPTION_ACCEPTED"));
@@ -1236,7 +1255,7 @@ function buildBillingRecovery(aggregate: ClaimWorkspaceAggregate, checklist: Cla
     nextAction,
     payerSplit: [
       {
-        amountLabel: ready ? "Ready to calculate from final invoice" : "Pending packet",
+        amountLabel: estimateReview.approvedAmountLabel,
         payer: "INSURANCE",
         status: moneyStatus(ready, hasPayment),
         title: claim.carrierName || "Insurance carrier"
@@ -1271,13 +1290,75 @@ function buildBillingRecovery(aggregate: ClaimWorkspaceAggregate, checklist: Cla
       reason: hasPayment && !ready ? "Payment proof exists before the recovery packet is complete; review for short-pay or misapplied payment." : "No short-pay issue detected."
     },
     summary: {
-      approvedAmountLabel: hasEstimate ? "Estimate attached" : "Pending approval",
+      approvedAmountLabel: estimateReview.approvedAmountLabel,
       balanceLabel: hasPayment ? "Review paid balance" : ready ? "Carrier balance pending" : "Blocked",
       billedAmountLabel: ready ? "Ready for invoice" : "Not ready",
       deductibleLabel: claim.deductible || "Pending",
       paidAmountLabel: hasPayment ? "Payment proof attached" : "No payment posted"
     }
   };
+}
+
+function buildEstimateReview(aggregate: ClaimWorkspaceAggregate): ClaimEstimateReview {
+  const estimate = [...aggregate.evidence]
+    .filter((item) => isEstimateEvidence(item) && item.status !== "BLOCKED")
+    .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())[0];
+  if (!estimate) {
+    return {
+      approvedAmountCents: null,
+      approvedAmountLabel: "Pending approval",
+      confidence: "NEEDS_REVIEW",
+      detail: "No carrier estimate or supplement has been attached to this claim yet.",
+      status: "MISSING"
+    };
+  }
+
+  const evidenceText = [estimate.title, estimate.fileName, estimate.notes].filter(Boolean).join(" ");
+  const approvedAmountCents = extractApprovedAmountCents(evidenceText);
+  const amountFound = approvedAmountCents !== null;
+
+  return {
+    approvedAmountCents,
+    approvedAmountLabel: amountFound ? formatMoneyCents(approvedAmountCents) : "Estimate attached - amount review needed",
+    confidence: amountFound ? /approved|allowed|net|total|estimate|repair/i.test(evidenceText) ? "HIGH" : "MEDIUM" : "NEEDS_REVIEW",
+    detail: amountFound
+      ? "Approved repair amount was read from the uploaded estimate evidence text and should be verified in review before billing."
+      : "Estimate evidence is attached, but the approved repair amount was not found in the title, file name, or note.",
+    documentLibraryId: estimate.documentLibraryId,
+    evidenceId: estimate.id,
+    fileName: estimate.fileName,
+    receivedAt: estimate.createdAt,
+    sourceTitle: estimate.title,
+    status: amountFound ? "AMOUNT_FOUND" : "REVIEW_NEEDED"
+  };
+}
+
+function isEstimateEvidence(item: ClaimEvidenceRecord) {
+  if (item.category === "ESTIMATE") return true;
+  return /estimate|supplement|approved repair|repair amount|carrier total|net claim|preliminary/i.test(evidenceSearchText(item));
+}
+
+function extractApprovedAmountCents(value: string) {
+  const normalized = value.replace(/\s+/g, " ");
+  const targeted = normalized.match(/(?:approved|allowed|net|total|estimate|repair|supplement)[^$0-9]{0,40}\$?\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?|[0-9]+(?:\.[0-9]{2})?)/i);
+  const amountText = targeted?.[1] ?? [...normalized.matchAll(/\$?\s*([0-9]{1,3}(?:,[0-9]{3})+(?:\.[0-9]{2})?|[0-9]+(?:\.[0-9]{2})?)/g)]
+    .map((match) => match[1])
+    .map((candidate) => moneyTextToCents(candidate))
+    .filter((candidate) => candidate >= 100_00)
+    .sort((left, right) => right - left)[0];
+  if (typeof amountText === "number") return amountText;
+  if (!amountText) return null;
+  const cents = moneyTextToCents(amountText);
+  return cents > 0 ? cents : null;
+}
+
+function moneyTextToCents(value: string) {
+  const parsed = Number(value.replaceAll(",", ""));
+  return Number.isFinite(parsed) ? Math.round(parsed * 100) : 0;
+}
+
+function formatMoneyCents(value: number) {
+  return new Intl.NumberFormat("en-US", { currency: "USD", style: "currency" }).format(value / 100);
 }
 
 function buildExecutionTasks(
@@ -1379,7 +1460,7 @@ function checklistItem(
   factComplete: boolean,
   evidence: ClaimEvidenceRecord[]
 ): ClaimChecklistItem {
-  const existing = evidence.find((item) => item.category === category);
+  const existing = evidence.find((item) => category === "ESTIMATE" ? isEstimateEvidence(item) : item.category === category);
   return {
     category,
     detail,
@@ -1504,12 +1585,17 @@ function normalizeClaimCreate(raw: ClaimCreateInput): Omit<InsuranceClaimRecord,
 }
 
 function normalizeEvidence(raw: ClaimEvidenceInput): Omit<ClaimEvidenceRecord, "createdAt" | "createdByUserId" | "id"> {
-  const category = choice(raw.category, ["AUTHORIZATION", "CLAIM_IDENTITY", "DAMAGE_PHOTO", "VIN_PHOTO", "ODOMETER_PHOTO", "INSURANCE_CARD", "ESTIMATE", "RENTAL", "TOW_STORAGE", "PAYMENT", "REPAIR_HANDOFF", "CLOSEOUT"] as const, "Evidence category");
+  const selectedCategory = choice(raw.category, ["AUTHORIZATION", "CLAIM_IDENTITY", "DAMAGE_PHOTO", "VIN_PHOTO", "ODOMETER_PHOTO", "INSURANCE_CARD", "ESTIMATE", "RENTAL", "TOW_STORAGE", "PAYMENT", "REPAIR_HANDOFF", "CLOSEOUT"] as const, "Evidence category");
   const title = text(raw.title);
   if (!title) throw new ClaimsWorkspaceError("CLAIM_INVALID", "Evidence title is required.");
   const status = choice(raw.status ?? "RECEIVED", ["RECEIVED", "NOT_APPLICABLE", "BLOCKED", "EXCEPTION_ACCEPTED"] as const, "Evidence status");
+  const inferredCategory = inferEvidenceCategory(selectedCategory, {
+    fileName: text(raw.fileName),
+    notes: text(raw.notes),
+    title
+  });
   return {
-    category,
+    category: inferredCategory,
     documentLibraryId: text(raw.documentLibraryId),
     fileName: text(raw.fileName),
     notes: text(raw.notes),
@@ -1517,6 +1603,22 @@ function normalizeEvidence(raw: ClaimEvidenceInput): Omit<ClaimEvidenceRecord, "
     status,
     title
   };
+}
+
+function inferEvidenceCategory(
+  selectedCategory: ClaimEvidenceCategory,
+  evidence: Pick<ClaimEvidenceRecord, "fileName" | "notes" | "title">
+): ClaimEvidenceCategory {
+  const haystack = evidenceSearchText(evidence);
+  if (/estimate|supplement|approved repair|repair amount|carrier total|net claim|preliminary estimate/i.test(haystack)) return "ESTIMATE";
+  if (/rental|loaner|daily rate|approved days|extension/i.test(haystack)) return "RENTAL";
+  if (/payment|paid|check|eft|deductible|short-pay|short pay/i.test(haystack)) return "PAYMENT";
+  if (/authorization|signed auth|repair auth|signature/i.test(haystack)) return "AUTHORIZATION";
+  return selectedCategory;
+}
+
+function evidenceSearchText(evidence: Pick<ClaimEvidenceRecord, "fileName" | "notes" | "title">) {
+  return [evidence.title, evidence.fileName, evidence.notes].filter(Boolean).join(" ");
 }
 
 function normalizeExecutionUpdate(raw: ClaimExecutionUpdateInput): Partial<InsuranceClaimRecord> {

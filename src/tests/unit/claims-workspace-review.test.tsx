@@ -3,7 +3,11 @@ import { describe, expect, it } from "vitest";
 
 import { ClaimsWorkspaceReview } from "@/features/inventory/claims-workspace-review";
 import type { AuthenticatedUser } from "@/server/auth/store";
-import { createInMemoryClaimsWorkspaceRepository, getClaimWorkspaceReadModel } from "@/server/claims-workspace/service";
+import {
+  attachClaimEvidence,
+  createInMemoryClaimsWorkspaceRepository,
+  getClaimWorkspaceReadModel
+} from "@/server/claims-workspace/service";
 
 const actor: AuthenticatedUser = {
   duties: { all: [], direct: [], roleDefaults: [] },
@@ -44,6 +48,46 @@ describe("claims workspace review", () => {
 
     expect(html).toContain("Eli Manager");
     expect(html).not.toContain("advisor-1");
+  });
+
+  it("shows uploaded carrier estimates as reviewable approved repair amounts", async () => {
+    const repository = createInMemoryClaimsWorkspaceRepository();
+    const model = await attachClaimEvidence(actor, "claim-demo-1", {
+      category: "ESTIMATE",
+      documentLibraryId: "doc-state-farm-estimate",
+      fileName: "state-farm-estimate.pdf",
+      notes: "State Farm estimate total approved repairs $5,344.16.",
+      relationshipTargets: ["CLAIM", "REPAIR_ORDER"],
+      status: "RECEIVED",
+      title: "State Farm approved repair estimate"
+    }, { repository });
+    const html = renderToStaticMarkup(<ClaimsWorkspaceReview model={{ ...model, documentStorageReady: true }} />);
+
+    expect(html).toContain("Carrier Estimate");
+    expect(html).toContain("Uploaded Files");
+    expect(html).toContain("$5,344.16");
+    expect(html).toContain("Review estimate");
+    expect(html).toContain("View document");
+    expect(html).toContain(">View summary</button>");
+    expect(html).toContain("Claim evidence / Document library");
+    expect(html).toContain("state-farm-estimate.pdf");
+  });
+
+  it("keeps original file links available for document-backed evidence", async () => {
+    const repository = createInMemoryClaimsWorkspaceRepository();
+    const model = await attachClaimEvidence(actor, "claim-demo-1", {
+      category: "ESTIMATE",
+      documentLibraryId: "doc-state-farm-estimate",
+      fileName: "state-farm-estimate.pdf",
+      notes: "State Farm estimate total approved repairs $5,344.16.",
+      relationshipTargets: ["CLAIM", "REPAIR_ORDER"],
+      status: "RECEIVED",
+      title: "State Farm approved repair estimate"
+    }, { repository });
+    const html = renderToStaticMarkup(<ClaimsWorkspaceReview model={{ ...model, documentStorageReady: false }} />);
+
+    expect(html).toContain("View document");
+    expect(html).toContain(`/api/claims-workspace/claims/${model.claim.id}/evidence/`);
   });
 
   it("opens in safe mode when claim details are temporarily limited", () => {

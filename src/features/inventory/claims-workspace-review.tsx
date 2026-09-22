@@ -170,6 +170,7 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
   const [activityDrawerOpen, setActivityDrawerOpen] = useState(false);
   const [activeExtraTool, setActiveExtraTool] = useState<ExtraActionTool>("call");
   const [extraToolsOpen, setExtraToolsOpen] = useState(false);
+  const [estimateDrawerOpen, setEstimateDrawerOpen] = useState(false);
   const [isWorking, setIsWorking] = useState(false);
   const [moneyDrawerOpen, setMoneyDrawerOpen] = useState(false);
   const [printDocument, setPrintDocument] = useState<{ html: string; title: string } | null>(null);
@@ -212,8 +213,24 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
       model?.evidence.find((evidence) => activity.action === "CLAIM_EVIDENCE_ATTACHED" && activity.detail.startsWith(`${evidence.title} attached as `))
     ])
   );
+  const evidenceRows = model ? [...model.evidence].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()) : [];
   const taskRows = model?.executionTasks ?? fallbackTasks;
   const billingRecovery = model?.billingRecovery ?? fallbackBillingRecovery;
+  const estimateReview: ClaimReadModel["estimateReview"] = model?.estimateReview ?? {
+    approvedAmountCents: null,
+    approvedAmountLabel: "Pending approval",
+    confidence: "NEEDS_REVIEW" as const,
+    detail: "No carrier estimate or supplement has been attached to this claim yet.",
+    status: "MISSING" as const
+  };
+  const estimateEvidence = estimateReview.sourceTitle
+    ? evidenceRows.find((evidence) =>
+      evidence.id === estimateReview.evidenceId ||
+      evidence.documentLibraryId === estimateReview.documentLibraryId ||
+      (evidence.fileName && evidence.fileName === estimateReview.fileName) ||
+      evidence.title === estimateReview.sourceTitle
+    )
+    : undefined;
   const carrier = model?.carrierTracker ?? {
     adjuster: "Needed",
     approvalStatus: "needs_adjuster",
@@ -259,6 +276,32 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
     }
   }
 
+  async function submitEvidenceForm(path: string, formData: FormData) {
+    setActionError("");
+    setActionMessage("");
+    setIsWorking(true);
+    try {
+      const file = formData.get("file");
+      const hasFile = file instanceof File && file.size > 0;
+      const response = await fetch(path, hasFile ? {
+        body: formData,
+        method: "POST"
+      } : {
+        body: JSON.stringify(Object.fromEntries(formData.entries())),
+        headers: { "Content-Type": "application/json" },
+        method: "POST"
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(payload?.error ?? "The claim evidence could not be recorded.");
+      setActionMessage(hasFile ? "File uploaded and linked to the claim. Refreshing workspace..." : "Evidence recorded. Refreshing workspace...");
+      window.location.reload();
+    } catch (caught) {
+      setActionError(caught instanceof Error ? caught.message : "The claim evidence could not be recorded.");
+    } finally {
+      setIsWorking(false);
+    }
+  }
+
   async function recordCarrierCall(formData: FormData) {
     if (!claimId) return;
     await submitJson(`/api/claims-workspace/claims/${encodeURIComponent(claimId)}`, Object.fromEntries(formData.entries()), "PATCH");
@@ -274,14 +317,11 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
     const updateType = String(formData.get("updateType") ?? "").trim();
 
     if (category !== "ACTIVITY_ONLY" && (title || fileName)) {
-      await submitJson(`/api/claims-workspace/claims/${encodeURIComponent(claimId)}/evidence`, {
-        category,
-        fileName,
-        notes: note,
-        relationshipTargets: ["CLAIM", "CUSTOMER", "VEHICLE"],
-        status: "RECEIVED",
-        title: title || fileName || updateType
-      });
+      formData.set("notes", note);
+      formData.set("relationshipTargets", "CLAIM,CUSTOMER,VEHICLE,REPAIR_ORDER");
+      formData.set("status", "RECEIVED");
+      if (!title) formData.set("title", fileName || updateType);
+      await submitEvidenceForm(`/api/claims-workspace/claims/${encodeURIComponent(claimId)}/evidence`, formData);
       return;
     }
 
@@ -315,6 +355,11 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
     if (!model) return;
     const evidence = evidenceByActivityId.get(activity.id);
     if (!evidence) return;
+    return buildEvidenceDocumentFromEvidence(evidence, activityActorName(activity), activity.detail);
+  }
+
+  function buildEvidenceDocumentFromEvidence(evidence: ClaimReadModel["evidence"][number], actorName = "Claim workspace", fallbackDetail = "") {
+    if (!model) return;
     const printedAt = new Date().toLocaleString();
     const rows = [
       ["Customer", model.claim.customerName],
@@ -327,9 +372,9 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
       ["File name", evidence.fileName || "No file name captured"],
       ["Status", evidence.status.replaceAll("_", " ")],
       ["Attached at", new Date(evidence.createdAt).toLocaleString()],
-      ["Recorded by", activityActorName(activity)]
+      ["Recorded by", actorName]
     ];
-    const notes = evidence.notes || activity.detail;
+    const notes = evidence.notes || fallbackDetail || "No additional evidence note was captured.";
     return {
       html: `
         <header>
@@ -352,6 +397,23 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
     const document = buildEvidenceDocument(activity);
     if (!document) return;
     setPrintDocument(document);
+  }
+
+  function openUploadedEvidenceDocument(evidence: ClaimReadModel["evidence"][number]) {
+    const document = buildEvidenceDocumentFromEvidence(evidence);
+    if (!document) return;
+    setPrintDocument(document);
+    setActivityDrawerOpen(true);
+  }
+
+  function originalEvidenceHref(evidence: ClaimReadModel["evidence"][number]) {
+    return claimId && evidence.documentLibraryId
+      ? `/api/claims-workspace/claims/${encodeURIComponent(claimId)}/evidence/${encodeURIComponent(evidence.id)}/content`
+      : null;
+  }
+
+  function originalEvidenceUnavailableLabel(evidence: ClaimReadModel["evidence"][number]) {
+    return evidence.documentLibraryId ? "Original source unavailable" : "Original file not captured";
   }
 
   function printEvidenceDocument(activity: ClaimReadModel["activities"][number]) {
@@ -600,6 +662,42 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
             </div>
           </section>
 
+          <section className={styles.panel}>
+            <div className={styles.panelHeader}>
+              <div>
+                <h2>Uploaded Files</h2>
+                <p>Every upload port feeds this same evidence list, so files can be found, reviewed, and used by the claim desk.</p>
+              </div>
+              <StatusBadge>{evidenceRows.length} file{evidenceRows.length === 1 ? "" : "s"}</StatusBadge>
+            </div>
+            {evidenceRows.length ? (
+              <div className={styles.uploadedEvidenceList}>
+                {evidenceRows.map((evidence) => (
+                  <article className={styles.uploadedEvidenceItem} key={evidence.id}>
+                    <div>
+                      <span>{evidence.category.replaceAll("_", " ")}</span>
+                      <strong>{evidence.title}</strong>
+                      <small>{evidence.fileName || "No file name captured"} - {new Date(evidence.createdAt).toLocaleString()}</small>
+                    </div>
+                    {originalEvidenceHref(evidence) ? (
+                      <div className={styles.uploadedEvidenceActions}>
+                        <a href={originalEvidenceHref(evidence) ?? "#"} rel="noreferrer" target="_blank">View document</a>
+                        <button onClick={() => openUploadedEvidenceDocument(evidence)} type="button">View summary</button>
+                      </div>
+                    ) : (
+                      <div className={styles.uploadedEvidenceActions}>
+                        <button onClick={() => openUploadedEvidenceDocument(evidence)} type="button">View summary</button>
+                        <span>{originalEvidenceUnavailableLabel(evidence)}</span>
+                      </div>
+                    )}
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className={styles.emptyEvidence}>No uploaded files yet. Attach authorization, photos, estimates, rental support, or payment proof from any action tool.</p>
+            )}
+          </section>
+
         </div>
 
         <aside className={styles.sideStack}>
@@ -668,6 +766,10 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
               </article>
               <div className={styles.recoveryCompactFacts}>
                 <div className={styles.fact}>
+                  <span>Approved repairs</span>
+                  <strong>{estimateReview.approvedAmountLabel}</strong>
+                </div>
+                <div className={styles.fact}>
                   <span>Balance</span>
                   <strong>{billingRecovery.summary.balanceLabel}</strong>
                 </div>
@@ -678,6 +780,44 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
               </div>
               <button className={styles.recoveryOpenButton} onClick={() => setMoneyDrawerOpen(true)} type="button">Open recovery workspace</button>
             </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.panelHeader}>
+              <div>
+                <h2>Carrier Estimate</h2>
+                <p>Uploaded estimates live in claim evidence, feed the approved repair amount, and remain reviewable before billing.</p>
+              </div>
+              <StatusBadge tone={estimateReview.status === "AMOUNT_FOUND" ? "good" : estimateReview.status === "REVIEW_NEEDED" ? "warning" : "info"}>
+                {estimateReview.status.replaceAll("_", " ").toLowerCase()}
+              </StatusBadge>
+            </div>
+            <article className={styles.estimateCard}>
+              <span className={styles.cardEyebrow}>Approved repairs</span>
+              <strong>{estimateReview.approvedAmountLabel}</strong>
+              <p>{estimateReview.detail}</p>
+              <div className={styles.estimateFacts}>
+                <div className={styles.fact}>
+                  <span>Source</span>
+                  <strong>{estimateReview.sourceTitle ?? "No estimate uploaded"}</strong>
+                </div>
+                <div className={styles.fact}>
+                  <span>File</span>
+                  {estimateEvidence && originalEvidenceHref(estimateEvidence) ? (
+                    <a className={styles.inlineDocumentLink} href={originalEvidenceHref(estimateEvidence) ?? "#"} rel="noreferrer" target="_blank">
+                      {estimateReview.fileName ?? "Open uploaded estimate"}
+                    </a>
+                  ) : (
+                    <strong>{estimateReview.fileName ?? "No file captured"}</strong>
+                  )}
+                </div>
+                <div className={styles.fact}>
+                  <span>Stored in</span>
+                  <strong>Claim evidence / Document library</strong>
+                </div>
+              </div>
+              <button onClick={() => setEstimateDrawerOpen(true)} type="button">Review estimate</button>
+            </article>
           </section>
 
           <section className={styles.panel}>
@@ -820,6 +960,75 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
         </div>
       ) : null}
 
+      {estimateDrawerOpen ? (
+        <div className={styles.drawerBackdrop} role="presentation">
+          <aside aria-label="Carrier Estimate Review" aria-modal="true" className={`${styles.timelineDrawer} ${styles.estimateDrawer}`} role="dialog">
+            <header>
+              <div>
+                <span className={styles.cardEyebrow}>Estimate intelligence</span>
+                <h2>Carrier Estimate Review</h2>
+                <p>Verify the uploaded estimate, approved repair amount, and where this amount flows before relying on it for billing.</p>
+              </div>
+              <button aria-label="Close Carrier Estimate Review" onClick={() => setEstimateDrawerOpen(false)} type="button">x</button>
+            </header>
+            <section className={styles.estimateReviewGrid}>
+              <article className={styles.estimateHeroCard}>
+                <span className={styles.cardEyebrow}>Approved repair amount</span>
+                <strong>{estimateReview.approvedAmountLabel}</strong>
+                <p>{estimateReview.detail}</p>
+                <StatusBadge tone={estimateReview.confidence === "HIGH" ? "good" : estimateReview.confidence === "MEDIUM" ? "info" : "warning"}>
+                  {estimateReview.confidence.replaceAll("_", " ").toLowerCase()}
+                </StatusBadge>
+              </article>
+              <article className={styles.estimateSourceCard}>
+                <strong>Where it goes</strong>
+                <p>The uploaded estimate is recorded as ESTIMATE evidence, appears in the claim activity timeline, updates Money & Recovery approved amount, and supports the invoice packet.</p>
+                <div className={styles.estimateFacts}>
+                  <div className={styles.fact}>
+                    <span>Evidence title</span>
+                    <strong>{estimateReview.sourceTitle ?? "Pending upload"}</strong>
+                  </div>
+                  <div className={styles.fact}>
+                    <span>File</span>
+                    {estimateEvidence && originalEvidenceHref(estimateEvidence) ? (
+                      <a className={styles.inlineDocumentLink} href={originalEvidenceHref(estimateEvidence) ?? "#"} rel="noreferrer" target="_blank">
+                        {estimateReview.fileName ?? "Open uploaded estimate"}
+                      </a>
+                    ) : (
+                      <strong>{estimateReview.fileName ?? "No file captured"}</strong>
+                    )}
+                  </div>
+                  <div className={styles.fact}>
+                    <span>Received</span>
+                    <strong>{estimateReview.receivedAt ? new Date(estimateReview.receivedAt).toLocaleString() : "Not received"}</strong>
+                  </div>
+                  <div className={styles.fact}>
+                    <span>Library link</span>
+                    <strong>{estimateReview.documentLibraryId ?? "Pending document object"}</strong>
+                  </div>
+                </div>
+              </article>
+            </section>
+            <form action={recordActivityUpdate} className={`${styles.executionForm} ${styles.timelineForm}`}>
+              <strong>Attach carrier estimate or supplement</strong>
+              <input name="category" type="hidden" value="ESTIMATE" />
+              <div>
+                <input name="title" placeholder="Evidence title, e.g. Progressive estimate approved $4,812.44" />
+                <input name="nextAction" placeholder="Next action after estimate review" />
+                <input name="file" type="file" />
+              </div>
+              <label className={styles.noteField}>
+                <span>Estimate note</span>
+                <textarea name="note" placeholder="Paste or summarize the estimate total, approved repair amount, supplement amount, deductible, and any carrier conditions." rows={5} />
+              </label>
+              <button disabled={!claimId || isWorking} type="submit">{isWorking ? "Recording..." : "Attach / read estimate"}</button>
+            </form>
+            {actionError ? <p className={styles.actionError}>{actionError}</p> : null}
+            {actionMessage ? <p className={styles.actionMessage}>{actionMessage}</p> : null}
+          </aside>
+        </div>
+      ) : null}
+
       {activityDrawerOpen ? (
         <div className={styles.drawerBackdrop} role="presentation">
           <aside aria-label="Activity Timeline" aria-modal="true" className={styles.timelineDrawer} role="dialog">
@@ -883,7 +1092,10 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
                       <p><strong>{evidenceByActivityId.get(activity.id)?.title}</strong></p>
                       <span>{evidenceByActivityId.get(activity.id)?.category.replaceAll("_", " ")} evidence attached{evidenceByActivityId.get(activity.id)?.fileName ? ` - ${evidenceByActivityId.get(activity.id)?.fileName}` : ""}</span>
                       <div className={styles.timelineActions}>
-                        <button onClick={() => openEvidenceDocument(activity)} type="button">View document</button>
+                        {originalEvidenceHref(evidenceByActivityId.get(activity.id)!) ? (
+                          <a href={originalEvidenceHref(evidenceByActivityId.get(activity.id)!) ?? "#"} rel="noreferrer" target="_blank">View document</a>
+                        ) : null}
+                        <button onClick={() => openEvidenceDocument(activity)} type="button">View summary</button>
                         <button onClick={() => printEvidenceDocument(activity)} type="button">Print</button>
                       </div>
                     </>
@@ -1038,7 +1250,7 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
                     </div>
                     <label className={styles.noteField}>
                       <span>Evidence note</span>
-                      <textarea name="note" placeholder="Explain what was uploaded and how it moves the claim forward." rows={5} />
+                      <textarea name="note" placeholder="Explain what was uploaded and how it moves the claim forward. For estimates, include the approved repair amount or paste the estimate total so the workspace can read it." rows={5} />
                     </label>
                     <button disabled={!claimId || isWorking} type="submit">Attach / record file</button>
                   </form>
