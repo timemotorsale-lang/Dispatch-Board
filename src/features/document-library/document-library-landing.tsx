@@ -1,12 +1,12 @@
+"use client";
+
 import {
   Archive,
-  AlertTriangle,
   BadgeDollarSign,
   Camera,
   Car,
   CheckCircle2,
   ClipboardCheck,
-  Clock3,
   ExternalLink,
   FileCheck2,
   FilePlus2,
@@ -14,301 +14,783 @@ import {
   FileSignature,
   FileText,
   FolderPlus,
-  Link2,
-  MailCheck,
-  MoreHorizontal,
-  RefreshCw,
+  LockKeyhole,
   Search,
   ShieldCheck,
   Truck,
+  UserRound,
   Wrench
 } from "lucide-react";
+import { useMemo, useState, type FormEvent } from "react";
 
-import { buildAdvisorySuggestions, documentLibraryDemoPacket, evaluatePacket } from "@/server/document-library/read-model";
+import type { DocumentRecord, DocumentSensitivity, DocumentStatus, ReviewDecision } from "@/server/document-library/domain";
 
 import styles from "./document-library-landing.module.css";
 
-type StatusTone = "success" | "warning" | "danger" | "info";
+type StatusTone = "success" | "warning" | "danger" | "info" | "neutral";
 
-type Packet = {
-  age: string;
-  customer: string;
-  date: string;
-  nextAction: string;
+type LibraryPacket = {
+  blockers: string[];
+  completion: { accepted: number; required: number };
+  documents: string[];
   id: string;
+  owner: DocumentRecord["owner"];
   packetType: string;
+  requirements: Array<{
+    blocker: string | null;
+    documentId: string | null;
+    documentType: string;
+    id: string;
+    label: string;
+    required: boolean;
+    state: string;
+    waived?: { by: string; reason: string; waivedAt: string };
+  }>;
   status: string;
-  tone: StatusTone;
+  title: string;
+  workflow: string;
 };
 
-type Requirement = {
-  description: string;
-  name: string;
-  status: string;
-  tone: StatusTone;
+type DocumentLibraryModel = {
+  archivePreviews: Array<{ documentId: string; eligible: boolean; legalHold: boolean; reasons: string[]; retentionCategory: string }>;
+  contractVersion: string;
+  documents: DocumentRecord[];
+  generatedAt: string;
+  packets: LibraryPacket[];
+  providerReferences: Array<{
+    documentId: string;
+    documentType: string;
+    externalId?: string;
+    family: string;
+    health: string;
+    lastVerifiedAt: string | null;
+    provider: string;
+    readOnly: boolean;
+    url: string | null;
+  }>;
+  reviewQueue: Array<{ blocker: string | null; documentId: string | null; packetId: string; packetTitle: string; requirementId: string; state: string }>;
+  summary: {
+    documents: number;
+    legalHold: number;
+    packets: number;
+    providerReferences: number;
+    readyPackets: number;
+    reviewItems: number;
+  };
 };
 
-const categories = [
-  { icon: FileText, label: "Customer" },
-  { icon: Car, label: "Vehicle" },
-  { icon: ClipboardCheck, label: "Repair Order" },
-  { icon: ShieldCheck, label: "Claim" },
-  { icon: Archive, label: "Title" },
-  { icon: BadgeDollarSign, label: "Sale / Finance" },
-  { icon: FileSearch, label: "Purchase / Appraisal" },
-  { icon: Wrench, label: "Warranty" },
-  { icon: Truck, label: "Vendor" },
-  { icon: FolderPlus, label: "Parts" },
-  { icon: Camera, label: "Photos" },
-  { icon: FileSignature, label: "Signed Forms" }
+type DocumentLibraryLandingProps = {
+  error?: string | null;
+  initialLibrary: DocumentLibraryModel | null;
+};
+
+type DocumentLibraryActionResponse = {
+  command?: {
+    action: string;
+    document?: DocumentRecord;
+    packet?: LibraryPacket;
+  };
+  error?: string;
+  providerAction?: {
+    action: string;
+    auditRequired: true;
+    liveProviderWriteEnabled: false;
+    permission: string;
+    rollbackPosture: string;
+    state: string;
+    subjectId: string;
+  };
+};
+
+type WorklistKey = "ALL" | "NEEDS_REVIEW" | "LEGAL_HOLD" | "PROVIDER_REFS" | "ARCHIVE_CANDIDATES";
+
+const documentCategories = [
+  { icon: UserRound, key: "CUSTOMER", label: "Customer", match: ["CUSTOMER", "CUSTOMER_AUTHORIZATION"] },
+  { icon: Car, key: "VEHICLE", label: "Vehicle", match: ["VEHICLE", "TITLE_DOCUMENT", "ODOMETER"] },
+  { icon: ClipboardCheck, key: "REPAIR_ORDER", label: "Repair Order", match: ["REPAIR", "ESTIMATE", "AUTHORIZATION"] },
+  { icon: ShieldCheck, key: "CLAIM", label: "Claim", match: ["CLAIM", "INSURANCE", "DAMAGE", "TOW"] },
+  { icon: Archive, key: "TITLE_DMV", label: "Title / DMV", match: ["TITLE", "DMV", "REGISTRATION", "ODOMETER"] },
+  { icon: BadgeDollarSign, key: "SALE_FINANCE", label: "Sale / Finance", match: ["SALE", "FINANCE", "FUNDING", "BANK"] },
+  { icon: FileSearch, key: "PURCHASE_APPRAISAL", label: "Purchase / Appraisal", match: ["PURCHASE", "APPRAISAL"] },
+  { icon: Wrench, key: "WARRANTY", label: "Warranty", match: ["WARRANTY"] },
+  { icon: Truck, key: "VENDOR", label: "Vendor", match: ["VENDOR"] },
+  { icon: FolderPlus, key: "ACCOUNTING", label: "Accounting", match: ["ACCOUNTING", "INVOICE", "PAYMENT"] },
+  { icon: Camera, key: "PHOTOS", label: "Photos", match: ["PHOTO", "DAMAGE"] },
+  { icon: FileSignature, key: "SIGNED_FORMS", label: "Signed Forms", match: ["SIGNED", "SIGNATURE", "AUTHORIZATION"] }
 ];
 
-const packets: Packet[] = [
-  { age: "52m", customer: "Gada Ahmed Jamal", date: "Oct 14, 2024", id: "#CLM-10421", nextAction: "Request damage photos", packetType: "Claim Packet", status: "Missing", tone: "warning" },
-  { age: "1h", customer: "Michael Torres", date: "Oct 13, 2024", id: "#RO-88317", nextAction: "Review signed estimate", packetType: "Repair Order Packet", status: "Received", tone: "info" },
-  { age: "3h", customer: "Sarah Kim", date: "Oct 12, 2024", id: "#TTL-55091", nextAction: "Resolve lienholder name mismatch", packetType: "Vehicle Title Packet", status: "In Review", tone: "warning" },
-  { age: "5h", customer: "David Kim", date: "Oct 11, 2024", id: "#FIN-77102", nextAction: "Archive funding approval", packetType: "Sale / Finance Packet", status: "Accepted", tone: "success" },
-  { age: "1d", customer: "Renee Carter", date: "Oct 10, 2024", id: "#PUR-66120", nextAction: "Link appraisal photos", packetType: "Purchase / Appraisal Packet", status: "Received", tone: "info" },
-  { age: "1d", customer: "James Peterson", date: "Oct 10, 2024", id: "#WAR-33418", nextAction: "Send provider authorization", packetType: "Warranty Packet", status: "In Review", tone: "warning" }
+const documentStatuses: DocumentStatus[] = ["RECEIVED", "PENDING_REVIEW", "ACCEPTED", "NEEDS_CORRECTION", "REJECTED", "ARCHIVED"];
+const ownerTypes: DocumentRecord["owner"]["type"][] = ["CUSTOMER", "VEHICLE", "REPAIR_ORDER", "CLAIM", "TASK", "VENDOR", "SALE"];
+const sensitivities: DocumentSensitivity[] = ["PUBLIC", "INTERNAL", "CONFIDENTIAL", "RESTRICTED", "SECURITY_AUDIT"];
+const sources: DocumentRecord["source"][] = ["MANUAL_UPLOAD", "CUSTOMER_PORTAL", "GENERATED", "EXTERNAL_LINK", "PROVIDER_REFERENCE"];
+const worklists: Array<{ description: string; key: WorklistKey; label: string }> = [
+  { description: "Every active document in the library.", key: "ALL", label: "All documents" },
+  { description: "Received, pending, rejected, or correction work.", key: "NEEDS_REVIEW", label: "Needs review" },
+  { description: "Documents blocked by legal hold.", key: "LEGAL_HOLD", label: "Legal holds" },
+  { description: "Documents connected to external references.", key: "PROVIDER_REFS", label: "Provider refs" },
+  { description: "Unlinked, unheld documents ready for archive.", key: "ARCHIVE_CANDIDATES", label: "Archive candidates" }
 ];
 
-const requirements: Requirement[] = [
-  { description: "Completed insurance claim intake form.", name: "Insurance claim intake form", status: "Received", tone: "success" },
-  { description: "Signed authorization to release information.", name: "Customer authorization", status: "Received", tone: "success" },
-  { description: "Photos of all vehicle damage, multiple angles.", name: "Damage photos", status: "Missing", tone: "warning" },
-  { description: "Tow and storage authorization form, if applicable.", name: "Tow / storage form", status: "Missing", tone: "warning" }
-];
-
-const statusFilters = [
-  ["Accepted", "28", "success"],
-  ["In Review", "12", "warning"],
-  ["Missing", "18", "danger"],
-  ["Needs Correction", "6", "danger"],
-  ["Received", "20", "info"]
-] as const;
-
-const packetFacts = [
-  ["Owner", "Maria Lopez"],
-  ["Department", "Service / Claims"],
-  ["Promise impact", "Customer update due today"],
-  ["Retention", "Claim evidence + 7 years"]
-] as const;
-
-const linkedDocuments = [
-  { name: "Claim intake form.pdf", source: "Customer Portal", status: "Accepted", tone: "success" },
-  { name: "Signed authorization.pdf", source: "Front desk scan", status: "Accepted", tone: "success" },
-  { name: "damage-photos.zip", source: "Provider link", status: "Missing", tone: "warning" }
-] as const;
-
-const blockers = [
-  "Damage photos are missing from the customer portal upload.",
-  "Tow / storage form is required before supplement submission.",
-  "Provider claim number is not yet linked to the repair order."
-];
-
-const archiveItems = [
-  { label: "Retention status", value: "Hold until claim closes" },
-  { label: "Archive folder", value: "Claims / 2024 / CLM-10421" },
-  { label: "Export set", value: "Customer, provider, repair order" }
-] as const;
-
-const providerActions = [
-  { icon: MailCheck, label: "Request e-signature", text: "Human-confirmed only; requires permission, audit, idempotency key, purpose, and rollback posture." },
-  { icon: Link2, label: "Upload to provider", text: "Held until user confirmation and legal-hold checks pass; provider never owns document meaning." },
-  { icon: RefreshCw, label: "Reconcile provider status", text: "Read provider status without changing packet decisions or bypassing review authority." }
-];
-
-function StatusBadge({ label, tone }: { label: string; tone: StatusTone }) {
-  return <span className={`${styles.statusBadge} ${styles[tone]}`}><CheckCircle2 size={13} />{label}</span>;
+function formatLabel(value: string) {
+  return value.toLowerCase().replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-export function DocumentLibraryLanding() {
-  const packetEvaluation = evaluatePacket(documentLibraryDemoPacket);
-  const advisorySuggestions = buildAdvisorySuggestions(documentLibraryDemoPacket);
+function statusTone(status: string): StatusTone {
+  if (status === "ACCEPTED" || status === "COMPLETE") return "success";
+  if (status === "PENDING_REVIEW" || status === "RECEIVED") return "info";
+  if (status === "NEEDS_CORRECTION" || status === "MISSING" || status === "BLOCKED") return "warning";
+  if (status === "REJECTED") return "danger";
+  return "neutral";
+}
+
+function documentCategory(document: DocumentRecord) {
+  const text = `${document.documentType} ${document.owner.type} ${document.fileName}`.toUpperCase();
+  return documentCategories.find((category) => category.match.some((term) => text.includes(term))) ?? documentCategories[0];
+}
+
+function StatusBadge({ label, tone = statusTone(label) }: { label: string; tone?: StatusTone }) {
+  return <span className={`${styles.statusBadge} ${styles[tone]}`}><CheckCircle2 size={13} />{formatLabel(label)}</span>;
+}
+
+export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibraryLandingProps) {
+  const [libraryState, setLibraryState] = useState(initialLibrary);
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [categoryFilter, setCategoryFilter] = useState("ALL");
+  const [worklistFilter, setWorklistFilter] = useState<WorklistKey>("ALL");
+  const [queueFilter, setQueueFilter] = useState("ALL");
+  const [selectedDocumentId, setSelectedDocumentId] = useState(initialLibrary?.documents[0]?.id ?? "");
+  const [selectedPacketId, setSelectedPacketId] = useState(initialLibrary?.packets[0]?.id ?? "");
+  const [notice, setNotice] = useState(error ?? "Document console ready.");
+  const [actionReason, setActionReason] = useState("");
+  const [actionBusy, setActionBusy] = useState(false);
+  const [providerPreview, setProviderPreview] = useState<DocumentLibraryActionResponse["providerAction"] | null>(null);
+  const [intake, setIntake] = useState({
+    documentType: "CUSTOMER_AUTHORIZATION",
+    fileName: "",
+    ownerId: "",
+    ownerLabel: "",
+    ownerType: "CUSTOMER" as DocumentRecord["owner"]["type"],
+    reason: "",
+    reference: "",
+    sensitivity: "INTERNAL" as DocumentSensitivity,
+    source: "MANUAL_UPLOAD" as DocumentRecord["source"]
+  });
+
+  const library = libraryState;
+  const selectedDocument = library?.documents.find((document) => document.id === selectedDocumentId) ?? library?.documents[0] ?? null;
+  const selectedPacket = library?.packets.find((packet) => packet.id === selectedPacketId) ?? library?.packets[0] ?? null;
+  const selectedArchivePreview = useMemo(() => {
+    if (!selectedDocument || !library) return null;
+    const activePackets = library.packets.filter((packet) => packet.documents.includes(selectedDocument.id));
+    const reasons = [
+      ...(selectedDocument.legalHold ? ["Document is under legal hold."] : []),
+      ...(activePackets.length > 0 ? ["Document is still linked to active packet work."] : [])
+    ];
+    return {
+      documentId: selectedDocument.id,
+      eligible: reasons.length === 0,
+      legalHold: selectedDocument.legalHold,
+      reasons,
+      retentionCategory: selectedDocument.retentionCategory
+    };
+  }, [library, selectedDocument]);
+
+  const summary = useMemo(() => {
+    const packets = library?.packets ?? [];
+    const documents = library?.documents ?? [];
+    return {
+      documents: documents.length,
+      legalHold: documents.filter((document) => document.legalHold).length,
+      packets: packets.length,
+      providerReferences: documents.reduce((count, document) => count + document.providerReferences.length, 0),
+      readyPackets: packets.filter((packet) => packet.status === "COMPLETE").length,
+      reviewItems: packets.flatMap((packet) => packet.requirements).filter((requirement) => requirement.state !== "ACCEPTED" && requirement.state !== "WAIVED").length
+    };
+  }, [library]);
+
+  const selectedProviderReferences = useMemo(() => {
+    if (!library || !selectedDocument) return [];
+    return library.providerReferences.filter((reference) => reference.documentId === selectedDocument.id);
+  }, [library, selectedDocument]);
+
+  const reviewQueue = useMemo(() => {
+    if (!library) return [];
+    return library.packets.flatMap((packet) => packet.requirements
+      .filter((requirement) => requirement.state !== "ACCEPTED" && requirement.state !== "WAIVED")
+      .map((requirement) => ({
+        blocker: requirement.blocker,
+        documentId: requirement.documentId,
+        packetId: packet.id,
+        packetTitle: packet.title,
+        requirementId: requirement.id,
+        requirementLabel: requirement.label,
+        state: requirement.state
+      })));
+  }, [library]);
+
+  const filteredReviewQueue = useMemo(() => reviewQueue.filter((item) => queueFilter === "ALL" || item.state === queueFilter), [queueFilter, reviewQueue]);
+  const queueStates = useMemo(() => Array.from(new Set(reviewQueue.map((item) => item.state))), [reviewQueue]);
+  const selectedPacketBlocker = selectedPacket?.requirements.find((requirement) => requirement.state !== "ACCEPTED" && requirement.state !== "WAIVED") ?? null;
+  const selectedPacketReadiness = useMemo(() => {
+    if (!selectedPacket) return null;
+    const blockers = selectedPacket.requirements.filter((requirement) => requirement.state !== "ACCEPTED" && requirement.state !== "WAIVED");
+    const percent = selectedPacket.completion.required > 0
+      ? Math.round((selectedPacket.completion.accepted / selectedPacket.completion.required) * 100)
+      : 100;
+    return {
+      blockers,
+      nextRequirement: blockers[0] ?? null,
+      percent
+    };
+  }, [selectedPacket]);
+
+  const documentInsights = useMemo(() => {
+    if (!library) return new Map<string, { archiveEligible: boolean; linkedPacketCount: number; worklistReason: string }>();
+    return new Map(library.documents.map((document) => {
+      const linkedPacketCount = library.packets.filter((packet) => packet.documents.includes(document.id)).length;
+      const archiveEligible = !document.legalHold && linkedPacketCount === 0 && document.status !== "ARCHIVED";
+      const worklistReason = document.legalHold
+        ? "Legal hold active"
+        : document.providerReferences.length > 0
+          ? `${document.providerReferences.length} provider reference${document.providerReferences.length === 1 ? "" : "s"}`
+          : archiveEligible
+            ? "Archive candidate"
+            : linkedPacketCount > 0
+              ? `${linkedPacketCount} linked packet${linkedPacketCount === 1 ? "" : "s"}`
+              : formatLabel(document.status);
+      return [document.id, { archiveEligible, linkedPacketCount, worklistReason }];
+    }));
+  }, [library]);
+
+  const filteredDocuments = useMemo(() => {
+    if (!library) return [];
+    const normalized = query.trim().toLowerCase();
+    return library.documents.filter((document) => {
+      const category = documentCategory(document);
+      const insights = documentInsights.get(document.id);
+      const searchable = [
+        document.fileName,
+        document.documentType,
+        document.owner.label,
+        document.owner.type,
+        document.retentionCategory,
+        document.sensitivity,
+        document.source,
+        document.status
+      ].join(" ").toLowerCase();
+      const matchesWorklist = worklistFilter === "ALL" ||
+        (worklistFilter === "NEEDS_REVIEW" && document.status !== "ACCEPTED" && document.status !== "ARCHIVED") ||
+        (worklistFilter === "LEGAL_HOLD" && document.legalHold) ||
+        (worklistFilter === "PROVIDER_REFS" && document.providerReferences.length > 0) ||
+        (worklistFilter === "ARCHIVE_CANDIDATES" && Boolean(insights?.archiveEligible));
+      return (!normalized || searchable.includes(normalized)) &&
+        (statusFilter === "ALL" || document.status === statusFilter) &&
+        (categoryFilter === "ALL" || category.key === categoryFilter) &&
+        matchesWorklist;
+    });
+  }, [categoryFilter, documentInsights, library, query, statusFilter, worklistFilter]);
+
+  function reconcileAction(result: DocumentLibraryActionResponse) {
+    setLibraryState((current) => {
+      if (!current) return current;
+      const document = result.command?.document;
+      const packet = result.command?.packet;
+      return {
+        ...current,
+        documents: document
+          ? current.documents.some((item) => item.id === document.id)
+            ? current.documents.map((item) => item.id === document.id ? document : item)
+            : [document, ...current.documents]
+          : current.documents,
+        packets: packet
+          ? current.packets.some((item) => item.id === packet.id)
+            ? current.packets.map((item) => item.id === packet.id ? packet : item)
+            : [packet, ...current.packets]
+          : current.packets
+      };
+    });
+    if (result.command?.document) setSelectedDocumentId(result.command.document.id);
+    if (result.command?.packet) setSelectedPacketId(result.command.packet.id);
+  }
+
+  async function runDocumentAction(payload: Record<string, unknown>, successMessage: string) {
+    setActionBusy(true);
+    try {
+      const response = await fetch("/api/document-library/actions", {
+        body: JSON.stringify(payload),
+        headers: { "Content-Type": "application/json" },
+        method: "POST"
+      });
+      const result = await response.json().catch(() => null) as DocumentLibraryActionResponse | null;
+      if (!response.ok) {
+        setNotice(result?.error ?? "Document action could not be completed.");
+        return false;
+      }
+      if (result) reconcileAction(result);
+      setNotice(successMessage);
+      return true;
+    } catch {
+      setNotice("Document action could not reach the console service.");
+      return false;
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function previewProviderAction(action: string, subjectId: string, label: string) {
+    setActionBusy(true);
+    try {
+      const response = await fetch("/api/document-library/actions", {
+        body: JSON.stringify({ action, subjectId }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST"
+      });
+      const result = await response.json().catch(() => null) as DocumentLibraryActionResponse | null;
+      if (!response.ok) {
+        setNotice(result?.error ?? "Provider action preview could not be prepared.");
+        return;
+      }
+      setProviderPreview(result?.providerAction ?? null);
+      setNotice(`${label} is held for governed confirmation; no provider write was sent.`);
+    } catch {
+      setNotice("Provider action preview could not reach the console service.");
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function reviewSelectedDocument(decision: ReviewDecision) {
+    if (!selectedDocument) return;
+    const reason = actionReason.trim() || (decision === "ACCEPT" ? "Accepted from document console." : "");
+    if (!reason) {
+      setNotice("Add a reason before requesting correction or rejecting a document.");
+      return;
+    }
+    const complete = await runDocumentAction({
+      action: "REVIEW_DOCUMENT",
+      decision,
+      documentId: selectedDocument.id,
+      reason
+    }, `${selectedDocument.fileName} marked ${formatLabel(decision)}.`);
+    if (complete) setActionReason("");
+  }
+
+  async function toggleLegalHold() {
+    if (!selectedDocument) return;
+    const reason = actionReason.trim();
+    if (!reason) {
+      setNotice("Add a reason before changing legal hold.");
+      return;
+    }
+    const action = selectedDocument.legalHold ? "RELEASE_LEGAL_HOLD" : "SET_LEGAL_HOLD";
+    const complete = await runDocumentAction({
+      action,
+      documentId: selectedDocument.id,
+      reason
+    }, selectedDocument.legalHold ? "Legal hold released." : "Legal hold applied.");
+    if (complete) setActionReason("");
+  }
+
+  async function toggleArchive() {
+    if (!selectedDocument) return;
+    const reason = actionReason.trim();
+    if (!reason) {
+      setNotice("Add a reason before archiving or restoring.");
+      return;
+    }
+    const action = selectedDocument.status === "ARCHIVED" ? "RESTORE_DOCUMENT" : "ARCHIVE_DOCUMENT";
+    const complete = await runDocumentAction({
+      action,
+      documentId: selectedDocument.id,
+      reason
+    }, selectedDocument.status === "ARCHIVED" ? "Document restored to review." : "Document archived.");
+    if (complete) setActionReason("");
+  }
+
+  async function linkSelectedDocumentToPacket() {
+    if (!selectedDocument || !selectedPacket) return;
+    const reason = actionReason.trim() || `Linked ${selectedDocument.fileName} to ${selectedPacket.title}.`;
+    const complete = await runDocumentAction({
+      action: "LINK_DOCUMENT_TO_PACKET",
+      documentId: selectedDocument.id,
+      packetId: selectedPacket.id,
+      reason
+    }, `${selectedDocument.fileName} linked to ${selectedPacket.title}.`);
+    if (complete) setActionReason("");
+  }
+
+  async function waiveRequirement(requirementId: string, requirementLabel: string) {
+    if (!selectedPacket) return;
+    const reason = actionReason.trim();
+    if (!reason) {
+      setNotice(`Add a reason before waiving ${requirementLabel}.`);
+      return;
+    }
+    const complete = await runDocumentAction({
+      action: "WAIVE_REQUIREMENT",
+      packetId: selectedPacket.id,
+      reason,
+      requirementId
+    }, `${requirementLabel} waived for ${selectedPacket.title}.`);
+    if (complete) setActionReason("");
+  }
+
+  async function submitIntake(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!intake.fileName.trim() || !intake.documentType.trim() || !intake.ownerId.trim() || !intake.ownerLabel.trim() || !intake.reference.trim() || !intake.reason.trim()) {
+      setNotice("Complete document type, file/reference, owner, storage reference, and reason before adding.");
+      return;
+    }
+
+    const complete = await runDocumentAction({
+      action: "CREATE_DOCUMENT",
+      documentType: intake.documentType,
+      fileName: intake.fileName,
+      owner: { id: intake.ownerId, label: intake.ownerLabel, type: intake.ownerType },
+      packetId: selectedPacket?.id,
+      reason: intake.reason,
+      sensitivity: intake.sensitivity,
+      source: intake.source,
+      storage: { provider: intake.source === "EXTERNAL_LINK" ? "EXTERNAL_LINK" : "INTERNAL", reference: intake.reference, version: 1 }
+    }, `Document ${intake.fileName} accepted into governed intake.`);
+    if (complete) {
+      setIntake((current) => ({ ...current, fileName: "", reason: "", reference: "" }));
+    }
+  }
+
+  if (!library) {
+    return (
+      <section className={styles.page} aria-labelledby="document-library-title">
+        <header className={styles.hero}>
+          <div>
+            <h1 id="document-library-title">Document Library</h1>
+            <p>{error ?? "Document Library is unavailable."}</p>
+          </div>
+        </header>
+      </section>
+    );
+  }
 
   return (
     <section className={styles.page} aria-labelledby="document-library-title">
-      <header className={styles.hero}>
+      <header className={styles.docConsoleHero}>
         <div>
           <h1 id="document-library-title">Document Library</h1>
-          <p>Add, link, review, request, and archive documents from one working surface.</p>
+          <p>Ingest, classify, link, review, preview, and govern documents from one operational workspace.</p>
         </div>
-        <form className={styles.searchBar} role="search">
+        <label className={styles.docSearch}>
           <Search size={18} />
-          <input aria-label="Search documents" placeholder="Search customer, VIN, RO, claim, document..." type="search" />
-        </form>
-        <div className={styles.heroActions}>
-          <button className={styles.primaryAction} type="button"><FilePlus2 size={18} />Add Document</button>
-          <button className={styles.secondaryAction} type="button"><FolderPlus size={18} />Create Packet</button>
+          <input onChange={(event) => setQuery(event.target.value)} placeholder="Search file, customer, VIN, RO, claim, type, owner..." type="search" value={query} />
+        </label>
+        <div className={styles.docHeroActions}>
+          <a href="#document-intake"><FilePlus2 size={17} />Add document</a>
+          <a href="#document-preview"><FileSearch size={17} />Preview selected</a>
         </div>
       </header>
 
-      <div className={styles.layout}>
-        <aside className={styles.filters} aria-label="Document filters">
-          <div className={styles.filterHeader}><strong>Filters</strong><button type="button">Reset</button></div>
-          <div className={styles.filterGroup}>
-            <span>Status</span>
-            {statusFilters.map(([label, count, tone]) => (
-              <label key={label}>
-                <input type="checkbox" />
-                <i className={styles[tone]} />
-                <b>{label}</b>
-                <em>{count}</em>
-              </label>
+      <section className={styles.docMetrics} aria-label="Document library summary">
+        <article><strong>{summary.documents}</strong><span>Documents</span></article>
+        <article><strong>{summary.packets}</strong><span>Packets</span></article>
+        <article><strong>{summary.reviewItems}</strong><span>Review items</span></article>
+        <article><strong>{summary.legalHold}</strong><span>Legal holds</span></article>
+        <article><strong>{summary.providerReferences}</strong><span>Provider refs</span></article>
+      </section>
+
+      <section className={styles.docReviewCommandCenter} aria-label="Review queue command center">
+        <header>
+          <div>
+            <h2>Review queue</h2>
+            <p>Prioritize missing, blocked, legal-hold, and correction items across every governed packet.</p>
+          </div>
+          <label>Queue filter<select onChange={(event) => setQueueFilter(event.target.value)} value={queueFilter}><option value="ALL">All blockers</option>{queueStates.map((state) => <option key={state} value={state}>{formatLabel(state)}</option>)}</select></label>
+        </header>
+        <div className={styles.docReviewQueueGrid}>
+          {filteredReviewQueue.length > 0 ? filteredReviewQueue.map((item) => (
+            <article key={`${item.packetId}-${item.requirementId}`}>
+              <div>
+                <strong>{item.requirementLabel}</strong>
+                <span>{item.packetTitle}</span>
+                <small>{item.blocker ?? "Needs staff review before completion."}</small>
+              </div>
+              <StatusBadge label={item.state} />
+              <button onClick={() => {
+                setSelectedPacketId(item.packetId);
+                if (item.documentId) setSelectedDocumentId(item.documentId);
+              }} type="button">Open</button>
+            </article>
+          )) : (
+            <article className={styles.docReviewQueueEmpty}>
+              <div>
+                <strong>No active blockers</strong>
+                <span>Every required packet item is accepted or waived.</span>
+                <small>New intake or corrections will appear here automatically.</small>
+              </div>
+              <StatusBadge label="COMPLETE" />
+            </article>
+          )}
+        </div>
+      </section>
+
+      <div className={styles.docConsoleLayout}>
+        <aside className={styles.docFilterRail} aria-label="Document filters">
+          <header><strong>Filters</strong><button onClick={() => { setQuery(""); setStatusFilter("ALL"); setCategoryFilter("ALL"); setWorklistFilter("ALL"); }} type="button">Reset</button></header>
+          <div className={styles.docWorklistFilters}>
+            <strong>Worklists</strong>
+            {worklists.map((worklist) => (
+              <button className={worklistFilter === worklist.key ? styles.activeWorklist : ""} key={worklist.key} onClick={() => setWorklistFilter(worklist.key)} type="button">
+                <span>{worklist.label}</span>
+                <small>{worklist.description}</small>
+              </button>
             ))}
           </div>
-          <label className={styles.selectField}>Packet Type<select defaultValue="all"><option value="all">All Packet Types</option></select></label>
-          <label className={styles.selectField}>Owner<select defaultValue="all"><option value="all">All Owners</option></select></label>
-          <label className={styles.selectField}>Date Range<select defaultValue="30"><option value="30">Last 30 days</option></select></label>
+          <label>Status<select onChange={(event) => setStatusFilter(event.target.value)} value={statusFilter}><option value="ALL">All statuses</option>{documentStatuses.map((status) => <option key={status} value={status}>{formatLabel(status)}</option>)}</select></label>
+          <label>Category<select onChange={(event) => setCategoryFilter(event.target.value)} value={categoryFilter}><option value="ALL">All categories</option>{documentCategories.map((category) => <option key={category.key} value={category.key}>{category.label}</option>)}</select></label>
+          <div className={styles.docCategoryList}>
+            {documentCategories.map(({ icon: Icon, key, label }) => (
+              <button className={categoryFilter === key ? styles.activeCategory : ""} key={key} onClick={() => setCategoryFilter(key)} type="button"><Icon size={16} />{label}</button>
+            ))}
+          </div>
         </aside>
 
-        <main className={styles.workspace}>
-          <section className={styles.categoryPanel} aria-labelledby="document-categories">
-            <header><h2 id="document-categories">Choose Document Type</h2><span>12 types</span><button type="button">View All</button></header>
-            <div className={styles.categoryGrid}>
-              {categories.map(({ icon: Icon, label }) => (
-                <button key={label} type="button"><Icon size={25} /><span>{label}</span></button>
-              ))}
+        <main className={styles.docConsoleMain}>
+          <form className={styles.docIntakePanel} id="document-intake" onSubmit={(event) => void submitIntake(event)}>
+            <header>
+              <div><span>Document intake</span><h2>Add or link document</h2></div>
+              <StatusBadge label="RECEIVED" />
+            </header>
+            <div className={styles.docIntakeGrid}>
+              <label>Document type<input onChange={(event) => setIntake((current) => ({ ...current, documentType: event.target.value }))} placeholder="TITLE_DOCUMENT" value={intake.documentType} /></label>
+              <label>File / title<input onChange={(event) => setIntake((current) => ({ ...current, fileName: event.target.value }))} placeholder="title-scan.pdf" value={intake.fileName} /></label>
+              <label>Source<select onChange={(event) => setIntake((current) => ({ ...current, source: event.target.value as DocumentRecord["source"] }))} value={intake.source}>{sources.map((source) => <option key={source} value={source}>{formatLabel(source)}</option>)}</select></label>
+              <label>Sensitivity<select onChange={(event) => setIntake((current) => ({ ...current, sensitivity: event.target.value as DocumentSensitivity }))} value={intake.sensitivity}>{sensitivities.map((sensitivity) => <option key={sensitivity} value={sensitivity}>{formatLabel(sensitivity)}</option>)}</select></label>
+              <label>Owner type<select onChange={(event) => setIntake((current) => ({ ...current, ownerType: event.target.value as DocumentRecord["owner"]["type"] }))} value={intake.ownerType}>{ownerTypes.map((type) => <option key={type} value={type}>{formatLabel(type)}</option>)}</select></label>
+              <label>Owner id<input onChange={(event) => setIntake((current) => ({ ...current, ownerId: event.target.value }))} placeholder="customer-123" value={intake.ownerId} /></label>
+              <label>Owner label<input onChange={(event) => setIntake((current) => ({ ...current, ownerLabel: event.target.value }))} placeholder="Rid Moustapha" value={intake.ownerLabel} /></label>
+              <label>Storage reference<input onChange={(event) => setIntake((current) => ({ ...current, reference: event.target.value }))} placeholder="internal://documents/new-file" value={intake.reference} /></label>
+              <label className={styles.wideField}>Reason<textarea onChange={(event) => setIntake((current) => ({ ...current, reason: event.target.value }))} placeholder="Why is this document being added or linked?" value={intake.reason} /></label>
+            </div>
+            <footer>
+              <button type="submit"><FilePlus2 size={16} />Add to library</button>
+              <span>{notice}</span>
+            </footer>
+          </form>
+
+          <div className={styles.docWorkGrid}>
+            <section className={styles.docLibraryList} aria-label="Document library">
+              <header><h2>Library</h2><span>{filteredDocuments.length} shown</span></header>
+              <div>
+                {filteredDocuments.map((document) => {
+                  const category = documentCategory(document);
+                  const Icon = category.icon;
+                  const insight = documentInsights.get(document.id);
+                  return (
+                    <button className={selectedDocument?.id === document.id ? styles.selectedDocumentRow : ""} key={document.id} onClick={() => setSelectedDocumentId(document.id)} type="button">
+                      <Icon size={19} />
+                      <span><strong>{document.fileName}</strong><small>{formatLabel(document.documentType)} · {document.owner.label}</small><em>{insight?.worklistReason ?? formatLabel(document.status)}</em></span>
+                      <StatusBadge label={document.status} />
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section className={styles.docPreviewPanel} id="document-preview" aria-label="Document preview">
+              {selectedDocument ? (
+                <>
+                  <header>
+                    <div><span>{formatLabel(selectedDocument.documentType)}</span><h2>{selectedDocument.fileName}</h2><p>{selectedDocument.owner.label} · {formatLabel(selectedDocument.owner.type)}</p></div>
+                    <StatusBadge label={selectedDocument.status} />
+                  </header>
+                  <div className={styles.docPreviewCanvas}>
+                    <FileText size={54} />
+                    <strong>{selectedDocument.fileName}</strong>
+                    <span>{selectedDocument.storage.provider} · v{selectedDocument.storage.version}</span>
+                    <a href={selectedDocument.storage.reference.startsWith("http") ? selectedDocument.storage.reference : "#document-preview"}><ExternalLink size={14} />Open source</a>
+                  </div>
+                  <dl className={styles.docMetaGrid}>
+                    <div><dt>Category</dt><dd>{documentCategory(selectedDocument).label}</dd></div>
+                    <div><dt>Sensitivity</dt><dd>{formatLabel(selectedDocument.sensitivity)}</dd></div>
+                    <div><dt>Retention</dt><dd>{selectedDocument.retentionCategory}</dd></div>
+                    <div><dt>Source</dt><dd>{formatLabel(selectedDocument.source)}</dd></div>
+                    <div><dt>Legal hold</dt><dd>{selectedDocument.legalHold ? "Active" : "None"}</dd></div>
+                    <div><dt>Archive eligibility</dt><dd>{selectedArchivePreview?.eligible ? "Eligible" : selectedArchivePreview?.reasons.join(" ") || "Review required"}</dd></div>
+                  </dl>
+                </>
+              ) : <p>No document selected.</p>}
+            </section>
+
+            <aside className={styles.docReadinessPanel} aria-label="Enterprise readiness">
+              <header><h2>Readiness</h2><p>Enterprise controls before adoption or archive.</p></header>
+              {selectedDocument ? (
+                <>
+                  <p className={selectedDocument.legalHold ? styles.readinessRisk : styles.readinessGood}><LockKeyhole size={15} />{selectedDocument.legalHold ? "Legal hold active" : "No legal hold"}</p>
+                  <p className={selectedDocument.sensitivity === "RESTRICTED" || selectedDocument.sensitivity === "SECURITY_AUDIT" ? styles.readinessRisk : styles.readinessGood}><ShieldCheck size={15} />{formatLabel(selectedDocument.sensitivity)}</p>
+                  <p className={selectedDocument.status === "ACCEPTED" ? styles.readinessGood : styles.readinessWatch}><FileCheck2 size={15} />{formatLabel(selectedDocument.status)}</p>
+                  <div className={styles.docGuidedActions}>
+                    <header><strong>Recommended next actions</strong><small>Based on the selected document and packet.</small></header>
+                    {selectedDocument.status !== "ACCEPTED" && selectedDocument.status !== "ARCHIVED" ? (
+                      <article>
+                        <span><strong>Review selected document</strong><small>Accept it if complete, or request correction before it can satisfy packet requirements.</small></span>
+                        <button disabled={actionBusy} onClick={() => void reviewSelectedDocument("ACCEPT")} type="button">Accept</button>
+                      </article>
+                    ) : null}
+                    {selectedDocument.legalHold ? (
+                      <article>
+                        <span><strong>Resolve legal hold</strong><small>This document cannot satisfy a packet while the hold is active.</small></span>
+                        <button disabled={actionBusy} onClick={() => void toggleLegalHold()} type="button">Release hold</button>
+                      </article>
+                    ) : null}
+                    {selectedPacket && !selectedPacket.documents.includes(selectedDocument.id) ? (
+                      <article>
+                        <span><strong>Link to selected packet</strong><small>Add this document to {selectedPacket.title} for requirement matching.</small></span>
+                        <button disabled={actionBusy} onClick={() => void linkSelectedDocumentToPacket()} type="button">Link</button>
+                      </article>
+                    ) : null}
+                    {selectedPacketBlocker ? (
+                      <article>
+                        <span><strong>Clear next packet blocker</strong><small>{selectedPacketBlocker.blocker ?? `${selectedPacketBlocker.label} needs review.`}</small></span>
+                        <button disabled={actionBusy} onClick={() => void waiveRequirement(selectedPacketBlocker.id, selectedPacketBlocker.label)} type="button">Waive</button>
+                      </article>
+                    ) : (
+                      <article>
+                        <span><strong>Packet ready for handoff</strong><small>Preview export or e-signature when the packet has no open blockers.</small></span>
+                        <button disabled={actionBusy || !selectedPacket} onClick={() => selectedPacket ? void previewProviderAction("EXPORT_PACKET", selectedPacket.id, "Packet export") : undefined} type="button">Preview export</button>
+                      </article>
+                    )}
+                  </div>
+                  <label className={styles.docReasonBox}>Action reason<textarea onChange={(event) => setActionReason(event.target.value)} placeholder="Reason for review, hold, archive, link, or waiver" value={actionReason} /></label>
+                  <div className={styles.docActionPanel}>
+                    <strong>Review decision</strong>
+                    <div className={styles.docActionGrid}>
+                      <button disabled={actionBusy} onClick={() => void reviewSelectedDocument("ACCEPT")} type="button">Accept</button>
+                      <button disabled={actionBusy} onClick={() => void reviewSelectedDocument("NEEDS_CORRECTION")} type="button">Needs correction</button>
+                      <button disabled={actionBusy} onClick={() => void reviewSelectedDocument("REJECT")} type="button">Reject</button>
+                    </div>
+                  </div>
+                  <div className={styles.docActionPanel}>
+                    <strong>Governance</strong>
+                    <div className={styles.docActionGrid}>
+                      <button disabled={actionBusy} onClick={() => void toggleLegalHold()} type="button">{selectedDocument.legalHold ? "Release hold" : "Set hold"}</button>
+                      <button disabled={actionBusy || (!selectedArchivePreview?.eligible && selectedDocument.status !== "ARCHIVED")} onClick={() => void toggleArchive()} type="button">{selectedDocument.status === "ARCHIVED" ? "Restore" : "Archive"}</button>
+                    </div>
+                    <small>{selectedArchivePreview?.eligible ? "Archive eligible." : selectedArchivePreview?.reasons.join(" ") || "Archive requires review."}</small>
+                  </div>
+                </>
+              ) : null}
+            </aside>
+          </div>
+
+          <section className={styles.docPacketWorkspace} aria-label="Packet workspace">
+            <header><h2>Packets</h2><span>{library.packets.length} governed packets</span></header>
+            <div className={styles.docPacketGrid}>
+              <div className={styles.docPacketList}>
+                {library.packets.map((packet) => (
+                  <button className={selectedPacket?.id === packet.id ? styles.selectedPacketButton : ""} key={packet.id} onClick={() => setSelectedPacketId(packet.id)} type="button">
+                    <span><strong>{packet.title}</strong><small>{packet.workflow} · {packet.owner.label}</small></span>
+                    <StatusBadge label={packet.status} />
+                  </button>
+                ))}
+              </div>
+              <div className={styles.docPacketDetail}>
+                {selectedPacket ? (
+                  <>
+                    <h3>{selectedPacket.title}</h3>
+                    <p>{selectedPacket.completion.accepted} of {selectedPacket.completion.required} required accepted.</p>
+                    {selectedPacketReadiness ? (
+                      <div className={styles.docPacketReadiness}>
+                        <div>
+                          <strong>{selectedPacketReadiness.percent}% packet ready</strong>
+                          <span>{selectedPacketReadiness.blockers.length} open blocker{selectedPacketReadiness.blockers.length === 1 ? "" : "s"}</span>
+                        </div>
+                        <div className={styles.docPacketProgress} aria-label={`${selectedPacketReadiness.percent}% packet ready`}>
+                          <span style={{ width: `${selectedPacketReadiness.percent}%` }} />
+                        </div>
+                        {selectedPacketReadiness.nextRequirement ? (
+                          <article>
+                            <span><strong>Next requirement</strong><small>{selectedPacketReadiness.nextRequirement.blocker ?? `${selectedPacketReadiness.nextRequirement.label} needs review.`}</small></span>
+                            <button disabled={actionBusy} onClick={() => void waiveRequirement(selectedPacketReadiness.nextRequirement!.id, selectedPacketReadiness.nextRequirement!.label)} type="button">Waive</button>
+                          </article>
+                        ) : (
+                          <article>
+                            <span><strong>Ready for handoff</strong><small>All required packet documents are accepted or waived.</small></span>
+                            <button disabled={actionBusy} onClick={() => void previewProviderAction("EXPORT_PACKET", selectedPacket.id, "Packet export")} type="button">Preview export</button>
+                          </article>
+                        )}
+                      </div>
+                    ) : null}
+                    {selectedDocument ? (
+                      <div className={styles.docPacketActionBar}>
+                        <span>{selectedPacket.documents.includes(selectedDocument.id) ? "Selected document is already linked." : `Link ${selectedDocument.fileName} to this packet.`}</span>
+                        <button disabled={actionBusy || selectedPacket.documents.includes(selectedDocument.id)} onClick={() => void linkSelectedDocumentToPacket()} type="button">Link selected</button>
+                      </div>
+                    ) : null}
+                    <div className={styles.docRequirementList}>
+                      {selectedPacket.requirements.map((requirement) => (
+                        <article key={requirement.id}>
+                          <FileCheck2 size={17} />
+                          <span><strong>{requirement.label}</strong><small>{requirement.blocker ?? "Requirement satisfied or waived."}</small></span>
+                          <StatusBadge label={requirement.state} />
+                          {requirement.state !== "ACCEPTED" && requirement.state !== "WAIVED" ? (
+                            <button disabled={actionBusy} onClick={() => void waiveRequirement(requirement.id, requirement.label)} type="button">Waive</button>
+                          ) : null}
+                        </article>
+                      ))}
+                    </div>
+                  </>
+                ) : null}
+              </div>
             </div>
           </section>
 
-          <div className={styles.contentGrid}>
-            <section className={styles.intakePanel} aria-labelledby="document-intake-title">
-              <header>
+          <section className={styles.docProviderExchange} aria-label="Provider exchange">
+            <header>
+              <div><h2>Provider exchange</h2><p>Preview external handoffs with audit, permission, and rollback posture before any live provider write.</p></div>
+              <StatusBadge label={providerPreview?.state ?? "HELD_FOR_CONFIRMATION"} tone="info" />
+            </header>
+            <div className={styles.docProviderGrid}>
+              <div className={styles.docProviderReferences}>
+                <h3>Selected source references</h3>
+                {selectedProviderReferences.length > 0 ? selectedProviderReferences.map((reference) => (
+                  <article key={`${reference.provider}-${reference.documentId}-${reference.externalId ?? reference.family}`}>
+                    <span><strong>{reference.provider}</strong><small>{formatLabel(reference.family)} · {reference.externalId ?? "internal reference"}</small></span>
+                    <StatusBadge label={reference.health} tone={reference.health === "HELD" ? "warning" : "success"} />
+                    <small>{reference.readOnly ? "Read-only pointer" : "Write capable"} · {reference.lastVerifiedAt ? `Verified ${new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(new Date(reference.lastVerifiedAt))}` : "Not verified"}</small>
+                  </article>
+                )) : (
+                  <article>
+                    <span><strong>No external references yet</strong><small>Internal documents can still be exported, uploaded, or sent for signature after review.</small></span>
+                    <StatusBadge label="INTERNAL" />
+                  </article>
+                )}
+              </div>
+              <div className={styles.docProviderActions}>
+                <h3>Governed handoffs</h3>
                 <div>
-                  <span className={styles.sectionEyebrow}>Add / link</span>
-                  <h2 id="document-intake-title">Add or link document</h2>
+                  <button disabled={actionBusy || !selectedPacket} onClick={() => selectedPacket ? void previewProviderAction("EXPORT_PACKET", selectedPacket.id, "Packet export") : undefined} type="button"><ExternalLink size={15} />Export packet</button>
+                  <button disabled={actionBusy || !selectedDocument} onClick={() => selectedDocument ? void previewProviderAction("REQUEST_ESIGNATURE", selectedDocument.id, "E-signature request") : undefined} type="button"><FileSignature size={15} />Request e-sign</button>
+                  <button disabled={actionBusy || !selectedDocument} onClick={() => selectedDocument ? void previewProviderAction("UPLOAD_TO_PROVIDER", selectedDocument.id, "Provider upload") : undefined} type="button"><FilePlus2 size={15} />Upload copy</button>
+                  <button disabled={actionBusy || !selectedDocument} onClick={() => selectedDocument ? void previewProviderAction("RECONCILE_PROVIDER_STATUS", selectedDocument.id, "Provider status check") : undefined} type="button"><FileSearch size={15} />Reconcile status</button>
                 </div>
-                <StatusBadge label="Draft" tone="info" />
-              </header>
-              <div className={styles.formGrid}>
-                <label>Packet<select defaultValue="claim"><option value="claim">Claim Packet #CLM-10421</option></select></label>
-                <label>Document type<select defaultValue="photos"><option value="photos">Damage photos</option></select></label>
-                <label>Source<select defaultValue="portal"><option value="portal">Customer Portal</option><option value="provider">Provider Link</option><option value="scan">Front desk scan</option></select></label>
-                <label>Reference<input placeholder="Paste URL, file name, scan batch, or provider ID" /></label>
+                <aside>
+                  <strong>{providerPreview ? formatLabel(providerPreview.action) : "No provider preview selected"}</strong>
+                  <span>{providerPreview ? `${formatLabel(providerPreview.permission)} · ${formatLabel(providerPreview.state)}` : "Choose a handoff to preview the controlled action."}</span>
+                  <small>{providerPreview?.rollbackPosture ?? "Live provider writes remain disabled in this review workspace."}</small>
+                </aside>
               </div>
-              <footer>
-                <button className={styles.primaryAction} type="button"><FilePlus2 size={16} />Add to packet</button>
-                <button className={styles.secondaryAction} type="button"><Link2 size={16} />Link existing</button>
-              </footer>
-            </section>
+            </div>
+          </section>
 
-            <section className={styles.packetList} aria-labelledby="packet-list-title">
-              <header><h2 id="packet-list-title">Packets (24)</h2><button type="button">Sort by: Last Updated</button></header>
-              <div>
-                {packets.map((packet, index) => (
-                  <article className={index === 0 ? styles.selectedPacket : undefined} key={packet.id}>
-                    <FileText size={22} />
-                    <div><strong>{packet.packetType}</strong><span>{packet.id} - {packet.age}</span><small>{packet.customer}</small><small>{packet.nextAction}</small></div>
-                    <StatusBadge label={packet.status} tone={packet.tone} />
-                    <time>{packet.date}</time>
-                    <span aria-hidden="true">›</span>
-                  </article>
-                ))}
-              </div>
-            </section>
-
-            <section className={styles.packetDetail} aria-labelledby="selected-packet-title">
-              <header>
-                <div>
-                  <h2 id="selected-packet-title">Claim Packet: Gada Ahmed Jamal</h2>
-                  <p>Claim # CLM-10421 <span /> Customer # CUS-77834 <span /> VIN 1FTEW1EP8KFA39217</p>
-                </div>
-                <StatusBadge label="Missing" tone="warning" />
-              </header>
-              <nav aria-label="Packet sections"><a href="#requirements">Requirements</a><a href="#documents">Documents (2)</a><a href="#details">Details</a></nav>
-              <section className={styles.overviewPanel} aria-labelledby="packet-overview-title">
-                <h3 id="packet-overview-title">Packet overview</h3>
-                <dl>
-                  {packetFacts.map(([label, value]) => (
-                    <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
-                  ))}
-                </dl>
-              </section>
-              <div className={styles.requirementHeader}><h3 id="requirements">Required Documents</h3><span>2 of 4 received</span></div>
-              <div className={styles.requirements}>
-                {requirements.map((requirement) => (
-                  <article key={requirement.name}>
-                    <FileCheck2 size={23} />
-                    <div><strong>{requirement.name}</strong><span>{requirement.description}</span></div>
-                    <StatusBadge label={requirement.status} tone={requirement.tone} />
-                    <button aria-label={`More actions for ${requirement.name}`} type="button"><MoreHorizontal size={17} /></button>
-                  </article>
-                ))}
-              </div>
-              <section className={styles.documentsPanel} aria-labelledby="documents">
-                <h3 id="documents">Linked documents</h3>
-                {linkedDocuments.map((document) => (
-                  <article key={document.name}>
-                    <FileText size={18} />
-                    <div><strong>{document.name}</strong><span>{document.source}</span></div>
-                    <StatusBadge label={document.status} tone={document.tone} />
-                    <button aria-label={`Open ${document.name}`} type="button"><ExternalLink size={15} /></button>
-                  </article>
-                ))}
-              </section>
-            </section>
-
-            <aside className={styles.reviewPanel} aria-label="Packet review">
-              <header><h2>Review</h2><p>Review documents and update packet status.</p></header>
-              <button className={styles.acceptAction} type="button"><CheckCircle2 size={16} />Accept packet</button>
-              <button className={styles.correctionAction} type="button"><AlertTriangle size={16} />Needs correction</button>
-              <button className={styles.requestAction} type="button"><FilePlus2 size={16} />Request document</button>
-              <button className={styles.archiveAction} type="button"><Archive size={16} />Send to archive</button>
-              <label>Notes (optional)<textarea placeholder="Add a note about this packet..." /></label>
-            </aside>
-
-            <section className={styles.bottomRail} aria-label="Packet controls and source details">
-              <section className={styles.blockerPanel} aria-labelledby="blocker-title">
-                <h3 id="blocker-title"><AlertTriangle size={16} />Blockers</h3>
-                {blockers.map((blocker) => <p key={blocker}>{blocker}</p>)}
-              </section>
-              <section className={styles.advisoryPanel} aria-labelledby="advisory-title">
-                <h3 id="advisory-title"><ShieldCheck size={16} />Advisory</h3>
-                <p>Do not mark this claim packet accepted until damage photos and tow/storage authorization are present or waived by a manager.</p>
-                {advisorySuggestions.map((suggestion) => (
-                  <p key={`${suggestion.kind}-${suggestion.evidence}`}>{suggestion.label}: {suggestion.reviewRequired ? "review required before acceptance" : "accepted"}</p>
-                ))}
-              </section>
-              <section className={styles.providerPanel} aria-labelledby="provider-title">
-                <h3 id="provider-title"><Clock3 size={16} />Provider status</h3>
-                <dl>
-                  <div><dt>Carrier</dt><dd>Northstar Mutual</dd></div>
-                  <div><dt>Provider action</dt><dd>Awaiting adjuster upload</dd></div>
-                  <div><dt>SLA</dt><dd>4 business hours left</dd></div>
-                  <div><dt>Safety gate</dt><dd>{packetEvaluation.status}</dd></div>
-                </dl>
-              </section>
-              <section className={styles.providerActions} aria-labelledby="provider-actions-title">
-                <h3 id="provider-actions-title">Provider actions</h3>
-                {providerActions.map(({ icon: Icon, label, text }) => (
-                  <button key={label} type="button"><Icon size={16} /><span>{label}</span><small>{text}</small></button>
-                ))}
-              </section>
-              <div className={styles.auditBox}>
-                <strong>Audit &amp; Source</strong>
-                <dl>
-                  <div><dt>Uploaded by</dt><dd>Maria Lopez</dd></div>
-                  <div><dt>Upload date</dt><dd>Oct 14, 2024 9:32 AM</dd></div>
-                  <div><dt>Source</dt><dd>Customer Portal</dd></div>
-                  <div><dt>Last updated</dt><dd>Oct 14, 2024 10:15 AM</dd></div>
-                  <div><dt>Access</dt><dd>Deny by default</dd></div>
-                  <div><dt>Actions</dt><dd>Permission + audit</dd></div>
-                </dl>
-                <a href="#audit">View audit history</a>
-              </div>
-              <section className={styles.archivePanel} aria-labelledby="archive-title">
-                <h3 id="archive-title"><Archive size={16} />Archive controls</h3>
-                <dl>
-                  {archiveItems.map((item) => (
-                    <div key={item.label}><dt>{item.label}</dt><dd>{item.value}</dd></div>
-                  ))}
-                  <div><dt>Legal hold</dt><dd>Blocks destructive cleanup</dd></div>
-                  <div><dt>Delete</dt><dd>Disabled in milestones 1-8</dd></div>
-                </dl>
-              </section>
-            </section>
-          </div>
+          <section className={styles.docAuditTimeline} aria-label="Document audit trail">
+            <header><h2>Audit & source</h2><span>Latest selected document trail</span></header>
+            {selectedDocument?.auditTrail.map((event) => (
+              <article key={`${event.action}-${event.at}`}>
+                <span>{new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(new Date(event.at))}</span>
+                <strong>{formatLabel(event.action)}</strong>
+                <small>{event.actor} · {event.note}</small>
+              </article>
+            ))}
+          </section>
         </main>
       </div>
     </section>

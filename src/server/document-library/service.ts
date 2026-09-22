@@ -156,9 +156,24 @@ function demoState(): DocumentLibraryState {
   };
 }
 
+let currentLibraryState: DocumentLibraryState | null = null;
+
+function getCurrentLibraryState() {
+  currentLibraryState ??= demoState();
+  return currentLibraryState;
+}
+
+export function resetDocumentLibraryDemoState() {
+  currentLibraryState = null;
+}
+
 function stringField(input: Record<string, unknown>, key: string) {
   const value = input[key];
   return typeof value === "string" ? value.trim() : "";
+}
+
+function commandIdempotencyKey(input: Record<string, unknown>) {
+  return stringField(input, "idempotencyKey") || `document-library-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function parseOwner(input: unknown): DocumentRecord["owner"] {
@@ -198,7 +213,7 @@ function parseDocumentLibraryCommand(input: Record<string, unknown>): DocumentLi
       action,
       documentType: stringField(input, "documentType"),
       fileName: stringField(input, "fileName"),
-      idempotencyKey: stringField(input, "idempotencyKey"),
+      idempotencyKey: commandIdempotencyKey(input),
       owner: parseOwner(input.owner),
       packetId: stringField(input, "packetId") || undefined,
       reason: stringField(input, "reason"),
@@ -211,7 +226,7 @@ function parseDocumentLibraryCommand(input: Record<string, unknown>): DocumentLi
     return {
       action,
       documentId: stringField(input, "documentId"),
-      idempotencyKey: stringField(input, "idempotencyKey"),
+      idempotencyKey: commandIdempotencyKey(input),
       packetId: stringField(input, "packetId"),
       reason: stringField(input, "reason")
     };
@@ -221,14 +236,14 @@ function parseDocumentLibraryCommand(input: Record<string, unknown>): DocumentLi
       action,
       decision: stringField(input, "decision") as ReviewDecision,
       documentId: stringField(input, "documentId") || stringField(input, "subjectId"),
-      idempotencyKey: stringField(input, "idempotencyKey"),
+      idempotencyKey: commandIdempotencyKey(input),
       reason: stringField(input, "reason") || undefined
     };
   }
   if (action === "WAIVE_REQUIREMENT") {
     return {
       action,
-      idempotencyKey: stringField(input, "idempotencyKey"),
+      idempotencyKey: commandIdempotencyKey(input),
       packetId: stringField(input, "packetId"),
       reason: stringField(input, "reason"),
       requirementId: stringField(input, "requirementId")
@@ -238,7 +253,7 @@ function parseDocumentLibraryCommand(input: Record<string, unknown>): DocumentLi
     return {
       action,
       documentId: stringField(input, "documentId") || stringField(input, "subjectId"),
-      idempotencyKey: stringField(input, "idempotencyKey"),
+      idempotencyKey: commandIdempotencyKey(input),
       reason: stringField(input, "reason")
     };
   }
@@ -247,10 +262,11 @@ function parseDocumentLibraryCommand(input: Record<string, unknown>): DocumentLi
 
 export async function getDocumentLibrary(actor: AuthenticatedUser | null, dependencies: Dependencies = {}) {
   requireDocumentLibraryAccess(actor);
+  const state = getCurrentLibraryState();
   const generatedAt = (dependencies.now?.() ?? new Date(GENERATED_AT)).toISOString();
-  const resolvedPackets = packets.map((packet) => resolvePacket(packet, documents));
-  const archivePreviews = documents.map((document) => previewArchiveEligibility(document, packets));
-  const providerReferences = documents.flatMap((document) => document.providerReferences.map((reference) => ({
+  const resolvedPackets = state.packets.map((packet) => resolvePacket(packet, state.documents));
+  const archivePreviews = state.documents.map((document) => previewArchiveEligibility(document, state.packets));
+  const providerReferences = state.documents.flatMap((document) => document.providerReferences.map((reference) => ({
     ...reference,
     documentId: document.id,
     documentType: document.documentType
@@ -259,7 +275,7 @@ export async function getDocumentLibrary(actor: AuthenticatedUser | null, depend
   return {
     archivePreviews,
     contractVersion: DOCUMENT_LIBRARY_CONTRACT_VERSION,
-    documents,
+    documents: state.documents,
     generatedAt,
     packets: resolvedPackets,
     providerActions: [
@@ -278,9 +294,9 @@ export async function getDocumentLibrary(actor: AuthenticatedUser | null, depend
         state: requirement.state
       }))),
     summary: {
-      documents: documents.length,
-      legalHold: documents.filter((document) => document.legalHold).length,
-      packets: packets.length,
+      documents: state.documents.length,
+      legalHold: state.documents.filter((document) => document.legalHold).length,
+      packets: state.packets.length,
       providerReferences: providerReferences.length,
       readyPackets: resolvedPackets.filter((packet) => packet.status === "COMPLETE").length,
       reviewItems: resolvedPackets.flatMap((packet) => packet.requirements).filter((requirement) => requirement.state !== "ACCEPTED" && requirement.state !== "WAIVED").length
@@ -292,7 +308,7 @@ export async function executeDocumentLibraryAction(actor: AuthenticatedUser | nu
   const input = value && typeof value === "object" ? value as Record<string, unknown> : {};
   const action = input.action;
   const subjectId = typeof input.subjectId === "string" ? input.subjectId.trim() : "";
-  const idempotencyKey = typeof input.idempotencyKey === "string" ? input.idempotencyKey.trim() : "";
+  const idempotencyKey = commandIdempotencyKey(input);
   const providerActions = new Set<ProviderActionKind>(["EXPORT_PACKET", "UPLOAD_TO_PROVIDER", "REQUEST_ESIGNATURE", "IMPORT_SIGNED_DOCUMENT", "RECONCILE_PROVIDER_STATUS"]);
   const reviewDecisions = new Set<ReviewDecision>(["ACCEPT", "REJECT", "NEEDS_CORRECTION", "WAIVE_REQUIREMENT"]);
   const documentActionKinds = new Set<DocumentLibraryActionKind>(["REVIEW_DOCUMENT", "PREVIEW_ARCHIVE", "SET_LEGAL_HOLD", "RELEASE_LEGAL_HOLD", "ARCHIVE_DOCUMENT", "RESTORE_DOCUMENT", "CREATE_DOCUMENT", "LINK_DOCUMENT_TO_PACKET", "WAIVE_REQUIREMENT"]);
@@ -310,8 +326,9 @@ export async function executeDocumentLibraryAction(actor: AuthenticatedUser | nu
       actorId: user.id,
       command,
       now: dependencies.now?.(),
-      state: demoState()
+      state: getCurrentLibraryState()
     });
+    currentLibraryState = result.state;
     return {
       auditEvent: result.auditEvent,
       command: result.document || result.packet ? {
@@ -329,8 +346,9 @@ export async function executeDocumentLibraryAction(actor: AuthenticatedUser | nu
   if (!subjectId) {
     throw new DocumentLibraryError("DOCUMENT_LIBRARY_INVALID_ACTION", "Choose a supported provider action and subject.");
   }
-  const document = documents.find((item) => item.id === subjectId) ?? null;
-  const packet = packets.find((item) => item.id === subjectId) ?? null;
+  const state = getCurrentLibraryState();
+  const document = state.documents.find((item) => item.id === subjectId) ?? null;
+  const packet = state.packets.find((item) => item.id === subjectId) ?? null;
   if (!document && !packet) {
     throw new DocumentLibraryError("DOCUMENT_LIBRARY_NOT_FOUND", "Document Library subject was not found.");
   }
@@ -355,7 +373,7 @@ export async function executeDocumentLibraryAction(actor: AuthenticatedUser | nu
   if (action === "PREVIEW_ARCHIVE") {
     if (!document) throw new DocumentLibraryError("DOCUMENT_LIBRARY_INVALID_ACTION", "Archive preview requires a document subject.");
     return {
-      archiveAction: previewArchiveAction(document, packets),
+      archiveAction: previewArchiveAction(document, state.packets),
       contractVersion: DOCUMENT_LIBRARY_CONTRACT_VERSION,
       previewedBy: user.id
     };

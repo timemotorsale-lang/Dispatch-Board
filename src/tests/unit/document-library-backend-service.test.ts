@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import { previewProviderAction, resolvePacket, type DocumentRecord, type PacketRecord } from "@/server/document-library/domain";
-import { executeDocumentLibraryAction, getDocumentLibrary, previewDocumentLibraryProviderAction } from "@/server/document-library/service";
+import { executeDocumentLibraryAction, getDocumentLibrary, previewDocumentLibraryProviderAction, resetDocumentLibraryDemoState } from "@/server/document-library/service";
 
 const manager = {
   duties: { all: [], direct: [], roleDefaults: [] },
@@ -13,6 +13,10 @@ const manager = {
 };
 
 describe("document library backend service", () => {
+  beforeEach(() => {
+    resetDocumentLibraryDemoState();
+  });
+
   it("projects packets, review blockers, archive previews, and provider references", async () => {
     const result = await getDocumentLibrary(manager);
 
