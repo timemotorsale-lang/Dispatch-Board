@@ -72,6 +72,9 @@ describe("document library landing", () => {
 
     expect(markup).toContain("Claim Packet: Gada Ahmed Jamal");
     expect(markup).toContain("2 of 4 required accepted.");
+    expect(markup).toContain("50% packet ready");
+    expect(markup).toContain("2 open blockers");
+    expect(markup).toContain("Next requirement");
     expect(markup).toContain("Insurance claim intake form");
     expect(markup).toContain("Customer authorization");
     expect(markup).toContain("Damage photos");

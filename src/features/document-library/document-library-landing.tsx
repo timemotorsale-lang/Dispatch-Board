@@ -232,6 +232,18 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
   const filteredReviewQueue = useMemo(() => reviewQueue.filter((item) => queueFilter === "ALL" || item.state === queueFilter), [queueFilter, reviewQueue]);
   const queueStates = useMemo(() => Array.from(new Set(reviewQueue.map((item) => item.state))), [reviewQueue]);
   const selectedPacketBlocker = selectedPacket?.requirements.find((requirement) => requirement.state !== "ACCEPTED" && requirement.state !== "WAIVED") ?? null;
+  const selectedPacketReadiness = useMemo(() => {
+    if (!selectedPacket) return null;
+    const blockers = selectedPacket.requirements.filter((requirement) => requirement.state !== "ACCEPTED" && requirement.state !== "WAIVED");
+    const percent = selectedPacket.completion.required > 0
+      ? Math.round((selectedPacket.completion.accepted / selectedPacket.completion.required) * 100)
+      : 100;
+    return {
+      blockers,
+      nextRequirement: blockers[0] ?? null,
+      percent
+    };
+  }, [selectedPacket]);
 
   const documentInsights = useMemo(() => {
     if (!library) return new Map<string, { archiveEligible: boolean; linkedPacketCount: number; worklistReason: string }>();
@@ -685,6 +697,28 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
                   <>
                     <h3>{selectedPacket.title}</h3>
                     <p>{selectedPacket.completion.accepted} of {selectedPacket.completion.required} required accepted.</p>
+                    {selectedPacketReadiness ? (
+                      <div className={styles.docPacketReadiness}>
+                        <div>
+                          <strong>{selectedPacketReadiness.percent}% packet ready</strong>
+                          <span>{selectedPacketReadiness.blockers.length} open blocker{selectedPacketReadiness.blockers.length === 1 ? "" : "s"}</span>
+                        </div>
+                        <div className={styles.docPacketProgress} aria-label={`${selectedPacketReadiness.percent}% packet ready`}>
+                          <span style={{ width: `${selectedPacketReadiness.percent}%` }} />
+                        </div>
+                        {selectedPacketReadiness.nextRequirement ? (
+                          <article>
+                            <span><strong>Next requirement</strong><small>{selectedPacketReadiness.nextRequirement.blocker ?? `${selectedPacketReadiness.nextRequirement.label} needs review.`}</small></span>
+                            <button disabled={actionBusy} onClick={() => void waiveRequirement(selectedPacketReadiness.nextRequirement!.id, selectedPacketReadiness.nextRequirement!.label)} type="button">Waive</button>
+                          </article>
+                        ) : (
+                          <article>
+                            <span><strong>Ready for handoff</strong><small>All required packet documents are accepted or waived.</small></span>
+                            <button disabled={actionBusy} onClick={() => void previewProviderAction("EXPORT_PACKET", selectedPacket.id, "Packet export")} type="button">Preview export</button>
+                          </article>
+                        )}
+                      </div>
+                    ) : null}
                     {selectedDocument ? (
                       <div className={styles.docPacketActionBar}>
                         <span>{selectedPacket.documents.includes(selectedDocument.id) ? "Selected document is already linked." : `Link ${selectedDocument.fileName} to this packet.`}</span>
