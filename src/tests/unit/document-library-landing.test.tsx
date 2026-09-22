@@ -87,6 +87,11 @@ describe("document library landing", () => {
     const markup = await renderLoadedLibrary();
 
     expect(markup).toContain("Document command intelligence");
+    expect(markup).toContain("Assistant work queue");
+    expect(markup).toContain("Do this next");
+    expect(markup).toContain("Plain-language document tasks ranked by urgency");
+    expect(markup).toContain("Collect document");
+    expect(markup).toContain("Resolve hold");
     expect(markup).toContain("Intelligence");
     expect(markup).toContain("Legal holds");
     expect(markup).toContain("Missing requirements");

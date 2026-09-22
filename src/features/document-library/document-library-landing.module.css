@@ -1384,6 +1384,16 @@
   background: #fff;
 }
 
+.docAssistantQueue {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--document-line);
+  border-radius: 8px;
+  padding: 14px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, .055);
+}
+
 .docIntelligenceCenter {
   display: grid;
   gap: 12px;
@@ -1404,6 +1414,7 @@
   box-shadow: 0 12px 30px rgba(15, 23, 42, .055);
 }
 
+.docAssistantQueue header,
 .docIntelligenceCenter header,
 .docRolloutPanel header {
   display: grid;
@@ -1414,6 +1425,7 @@
   padding-bottom: 12px;
 }
 
+.docAssistantQueue header span,
 .docIntelligenceCenter header span,
 .docRolloutPanel header span {
   display: inline-flex;
@@ -1426,6 +1438,8 @@
   text-transform: uppercase;
 }
 
+.docAssistantQueue h2,
+.docAssistantCards h3,
 .docIntelligenceCenter h2,
 .docRecommendationGrid h3,
 .docRolloutPanel h2,
@@ -1434,17 +1448,120 @@
   color: var(--document-text);
 }
 
+.docAssistantQueue h2,
 .docIntelligenceCenter h2,
 .docRolloutPanel h2 {
   margin-top: 4px;
   font-size: 20px;
 }
 
+.docAssistantQueue p,
 .docIntelligenceCenter p,
 .docRolloutPanel p {
   margin: 5px 0 0;
   color: var(--document-muted);
   font-size: 13px;
+}
+
+.docAssistantCards {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.docAssistantCards article {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 9px;
+  min-width: 0;
+  border: 1px solid var(--document-line);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--document-surface-soft);
+}
+
+.docAssistantRank {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: var(--document-accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.docAssistantCards article > div:nth-child(2) {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.docAssistantCards article > div:nth-child(2) > span {
+  color: var(--document-accent);
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.docAssistantCards h3 {
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docAssistantCards p {
+  display: -webkit-box;
+  overflow: hidden;
+  min-height: 34px;
+  margin: 0;
+  color: var(--document-muted);
+  font-size: 12px;
+  line-height: 1.42;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.docAssistantCards small {
+  overflow: hidden;
+  color: var(--document-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docAssistantCards footer {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--document-line);
+  padding-top: 9px;
+}
+
+.docAssistantCards footer button {
+  min-height: 34px;
+  border: 1px solid var(--document-accent);
+  border-radius: 7px;
+  background: var(--document-accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.docAssistantCards footer button:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+.docAssistantEmpty {
+  grid-column: 1 / -1;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto;
+  align-items: center;
 }
 
 .docIntelligenceScore {
@@ -2666,6 +2783,7 @@
     grid-template-columns: 1fr;
   }
 
+  .docAssistantCards,
   .docRiskFlags,
   .docRecommendationGrid,
   .docRolloutGrid,
@@ -2687,6 +2805,7 @@
   .docIntakeGrid,
   .docMetrics,
   .docMetaGrid,
+  .docAssistantCards,
   .docRiskFlags,
   .docRecommendationGrid,
   .docRolloutGrid,
@@ -2696,6 +2815,7 @@
     grid-template-columns: 1fr;
   }
 
+  .docAssistantQueue header,
   .docIntelligenceCenter header,
   .docRolloutPanel header {
     grid-template-columns: 1fr;

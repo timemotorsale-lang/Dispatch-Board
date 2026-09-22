@@ -213,6 +213,28 @@ function priorityTone(priority: string): StatusTone {
   return "info";
 }
 
+function assistantVerb(kind: string) {
+  if (kind === "MISSING_REQUIREMENT") return "Collect document";
+  if (kind === "LEGAL_HOLD_BLOCKER") return "Resolve hold";
+  if (kind === "CORRECTION_REQUIRED") return "Fix correction";
+  if (kind === "PACKET_HANDOFF_READY") return "Preview handoff";
+  if (kind === "PROVIDER_REFERENCE_STALE") return "Check provider";
+  if (kind === "ARCHIVE_READY") return "Review archive";
+  if (kind === "DUPLICATE_CANDIDATE") return "Compare files";
+  return "Open task";
+}
+
+function assistantPlainState(kind: string) {
+  if (kind === "MISSING_REQUIREMENT") return "Missing";
+  if (kind === "LEGAL_HOLD_BLOCKER") return "Blocked";
+  if (kind === "CORRECTION_REQUIRED") return "Needs correction";
+  if (kind === "PACKET_HANDOFF_READY") return "Ready";
+  if (kind === "PROVIDER_REFERENCE_STALE") return "Needs check";
+  if (kind === "ARCHIVE_READY") return "Cleanup";
+  if (kind === "DUPLICATE_CANDIDATE") return "Possible duplicate";
+  return "Task";
+}
+
 function documentCategory(document: DocumentRecord) {
   const text = `${document.documentType} ${document.owner.type} ${document.fileName}`.toUpperCase();
   return documentCategories.find((category) => category.match.some((term) => text.includes(term))) ?? documentCategories[0];
@@ -360,6 +382,35 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
         matchesWorklist;
     });
   }, [categoryFilter, documentInsights, library, query, statusFilter, worklistFilter]);
+  const assistantWorkQueue = useMemo(() => library?.intelligence?.recommendations.slice(0, 5) ?? [], [library]);
+
+  function runAssistantTask(recommendation: NonNullable<DocumentLibraryModel["intelligence"]>["recommendations"][number]) {
+    openIntelligenceRecommendation(recommendation);
+    if (recommendation.kind === "MISSING_REQUIREMENT") {
+      setWorklistFilter("NEEDS_REVIEW");
+      setNotice(`${recommendation.title}: use intake to add or link the missing document.`);
+      return;
+    }
+    if (recommendation.kind === "LEGAL_HOLD_BLOCKER") {
+      setWorklistFilter("LEGAL_HOLD");
+      setNotice(`${recommendation.title}: add a reason, then release or keep the hold.`);
+      return;
+    }
+    if (recommendation.kind === "PACKET_HANDOFF_READY" && recommendation.targetPacketId) {
+      void previewProviderAction("EXPORT_PACKET", recommendation.targetPacketId, "Packet export");
+      return;
+    }
+    if (recommendation.kind === "PROVIDER_REFERENCE_STALE" && recommendation.targetDocumentId) {
+      void previewProviderAction("RECONCILE_PROVIDER_STATUS", recommendation.targetDocumentId, "Provider status check");
+      return;
+    }
+    if (recommendation.kind === "ARCHIVE_READY") {
+      setWorklistFilter("ARCHIVE_CANDIDATES");
+      setNotice(`${recommendation.title}: add a reason before archiving.`);
+      return;
+    }
+    setNotice(`${recommendation.title}: ${recommendation.rationale}`);
+  }
 
   function openIntelligenceRecommendation(recommendation: NonNullable<DocumentLibraryModel["intelligence"]>["recommendations"][number]) {
     if (recommendation.targetDocumentId) setSelectedDocumentId(recommendation.targetDocumentId);
@@ -571,6 +622,44 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
         <article><strong>{summary.reviewItems}</strong><span>Review items</span></article>
         <article><strong>{summary.legalHold}</strong><span>Legal holds</span></article>
         <article><strong>{summary.providerReferences}</strong><span>Provider refs</span></article>
+      </section>
+
+      <section className={styles.docAssistantQueue} aria-label="Document assistant work queue">
+        <header>
+          <div>
+            <span><Sparkles size={16} />Assistant work queue</span>
+            <h2>Do this next</h2>
+            <p>Plain-language document tasks ranked by urgency, packet impact, and release risk.</p>
+          </div>
+          <StatusBadge label={assistantWorkQueue.length > 0 ? `${assistantWorkQueue.length} TASKS` : "CLEAR"} tone={assistantWorkQueue.length > 0 ? "info" : "success"} />
+        </header>
+        <div className={styles.docAssistantCards}>
+          {assistantWorkQueue.length > 0 ? assistantWorkQueue.map((recommendation, index) => (
+            <article key={recommendation.id}>
+              <div className={styles.docAssistantRank}>{index + 1}</div>
+              <div>
+                <span>{assistantPlainState(recommendation.kind)}</span>
+                <h3>{recommendation.title}</h3>
+                <p>{recommendation.rationale}</p>
+                <small>{recommendation.evidence[0]}</small>
+              </div>
+              <footer>
+                <StatusBadge label={recommendation.priority} tone={priorityTone(recommendation.priority)} />
+                <button disabled={actionBusy} onClick={() => runAssistantTask(recommendation)} type="button">{assistantVerb(recommendation.kind)}</button>
+              </footer>
+            </article>
+          )) : (
+            <article className={styles.docAssistantEmpty}>
+              <div className={styles.docAssistantRank}><CheckCircle2 size={18} /></div>
+              <div>
+                <span>Clear</span>
+                <h3>No document tasks need attention</h3>
+                <p>New uploads, packet gaps, holds, or provider checks will appear here automatically.</p>
+                <small>Keep working from packet handoff or archive cleanup as needed.</small>
+              </div>
+            </article>
+          )}
+        </div>
       </section>
 
       {library.intelligence ? (
