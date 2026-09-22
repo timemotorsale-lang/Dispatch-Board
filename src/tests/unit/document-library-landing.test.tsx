@@ -44,6 +44,8 @@ describe("document library landing", () => {
     expect(markup).toContain("Document intake");
     expect(markup).toContain("Action reason");
     expect(markup).toContain("Review decision");
+    expect(markup).toContain("Recommended next actions");
+    expect(markup).toContain("Clear next packet blocker");
     expect(markup).toContain("Needs correction");
     expect(markup).toContain("Governance");
     expect(markup).toContain("Set hold");

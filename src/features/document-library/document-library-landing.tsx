@@ -221,6 +221,7 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
 
   const filteredReviewQueue = useMemo(() => reviewQueue.filter((item) => queueFilter === "ALL" || item.state === queueFilter), [queueFilter, reviewQueue]);
   const queueStates = useMemo(() => Array.from(new Set(reviewQueue.map((item) => item.state))), [reviewQueue]);
+  const selectedPacketBlocker = selectedPacket?.requirements.find((requirement) => requirement.state !== "ACCEPTED" && requirement.state !== "WAIVED") ?? null;
 
   const filteredDocuments = useMemo(() => {
     if (!library) return [];
@@ -569,6 +570,38 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
                   <p className={selectedDocument.legalHold ? styles.readinessRisk : styles.readinessGood}><LockKeyhole size={15} />{selectedDocument.legalHold ? "Legal hold active" : "No legal hold"}</p>
                   <p className={selectedDocument.sensitivity === "RESTRICTED" || selectedDocument.sensitivity === "SECURITY_AUDIT" ? styles.readinessRisk : styles.readinessGood}><ShieldCheck size={15} />{formatLabel(selectedDocument.sensitivity)}</p>
                   <p className={selectedDocument.status === "ACCEPTED" ? styles.readinessGood : styles.readinessWatch}><FileCheck2 size={15} />{formatLabel(selectedDocument.status)}</p>
+                  <div className={styles.docGuidedActions}>
+                    <header><strong>Recommended next actions</strong><small>Based on the selected document and packet.</small></header>
+                    {selectedDocument.status !== "ACCEPTED" && selectedDocument.status !== "ARCHIVED" ? (
+                      <article>
+                        <span><strong>Review selected document</strong><small>Accept it if complete, or request correction before it can satisfy packet requirements.</small></span>
+                        <button disabled={actionBusy} onClick={() => void reviewSelectedDocument("ACCEPT")} type="button">Accept</button>
+                      </article>
+                    ) : null}
+                    {selectedDocument.legalHold ? (
+                      <article>
+                        <span><strong>Resolve legal hold</strong><small>This document cannot satisfy a packet while the hold is active.</small></span>
+                        <button disabled={actionBusy} onClick={() => void toggleLegalHold()} type="button">Release hold</button>
+                      </article>
+                    ) : null}
+                    {selectedPacket && !selectedPacket.documents.includes(selectedDocument.id) ? (
+                      <article>
+                        <span><strong>Link to selected packet</strong><small>Add this document to {selectedPacket.title} for requirement matching.</small></span>
+                        <button disabled={actionBusy} onClick={() => void linkSelectedDocumentToPacket()} type="button">Link</button>
+                      </article>
+                    ) : null}
+                    {selectedPacketBlocker ? (
+                      <article>
+                        <span><strong>Clear next packet blocker</strong><small>{selectedPacketBlocker.blocker ?? `${selectedPacketBlocker.label} needs review.`}</small></span>
+                        <button disabled={actionBusy} onClick={() => void waiveRequirement(selectedPacketBlocker.id, selectedPacketBlocker.label)} type="button">Waive</button>
+                      </article>
+                    ) : (
+                      <article>
+                        <span><strong>Packet ready for handoff</strong><small>Preview export or e-signature when the packet has no open blockers.</small></span>
+                        <button disabled={actionBusy || !selectedPacket} onClick={() => selectedPacket ? void previewProviderAction("EXPORT_PACKET", selectedPacket.id, "Packet export") : undefined} type="button">Preview export</button>
+                      </article>
+                    )}
+                  </div>
                   <label className={styles.docReasonBox}>Action reason<textarea onChange={(event) => setActionReason(event.target.value)} placeholder="Reason for review, hold, archive, link, or waiver" value={actionReason} /></label>
                   <div className={styles.docActionPanel}>
                     <strong>Review decision</strong>
