@@ -91,6 +91,24 @@ type DocumentLibraryModel = {
     url: string | null;
   }>;
   reviewQueue: Array<{ blocker: string | null; documentId: string | null; packetId: string; packetTitle: string; requirementId: string; state: string }>;
+  storageRollout?: {
+    durableRepository?: { enabled: boolean; mode: string; version: string };
+    gate: {
+      blockers: Array<{ key: string; label: string; reason: string }>;
+      milestones: Array<{ key: string; label: string; reason: string; status: "COMPLETE" | "BLOCKED" }>;
+      readyForRelease: boolean;
+    };
+    packetTemplates: Array<{ templateKey: string; title: string; workflow: string }>;
+    persistencePlan: {
+      auditEvents: number;
+      documents: number;
+      packetDocuments: number;
+      packetRequirements: number;
+      packets: number;
+      providerReferences: number;
+    };
+    platformVersion: string;
+  };
   summary: {
     documents: number;
     legalHold: number;
@@ -571,6 +589,46 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
                 </footer>
               </article>
             ))}
+          </div>
+        </section>
+      ) : null}
+
+      {library.storageRollout ? (
+        <section className={styles.docRolloutPanel} aria-label="Document release rollout readiness">
+          <header>
+            <div>
+              <span><ShieldCheck size={16} />Release rollout</span>
+              <h2>{library.storageRollout.gate.readyForRelease ? "Ready for rollout" : "Release gate in review"}</h2>
+              <p>{library.storageRollout.gate.blockers.length > 0
+                ? `${library.storageRollout.gate.blockers.length} blocker remains before adoption.`
+                : "All release milestones have evidence."}</p>
+            </div>
+            <StatusBadge label={library.storageRollout.durableRepository?.mode ?? "IN_MEMORY_REVIEW"} tone={library.storageRollout.durableRepository?.enabled ? "success" : "warning"} />
+          </header>
+          <div className={styles.docRolloutGrid}>
+            <div className={styles.docRolloutMilestones}>
+              {library.storageRollout.gate.milestones.map((milestone) => (
+                <article key={milestone.key}>
+                  <span><strong>{milestone.label}</strong><small>{milestone.reason}</small></span>
+                  <StatusBadge label={milestone.status} tone={milestone.status === "COMPLETE" ? "success" : "warning"} />
+                </article>
+              ))}
+            </div>
+            <aside className={styles.docRolloutEvidence}>
+              <h3>Persistence evidence</h3>
+              <dl>
+                <div><dt>Documents</dt><dd>{library.storageRollout.persistencePlan.documents}</dd></div>
+                <div><dt>Packets</dt><dd>{library.storageRollout.persistencePlan.packets}</dd></div>
+                <div><dt>Requirements</dt><dd>{library.storageRollout.persistencePlan.packetRequirements}</dd></div>
+                <div><dt>Packet links</dt><dd>{library.storageRollout.persistencePlan.packetDocuments}</dd></div>
+                <div><dt>Provider refs</dt><dd>{library.storageRollout.persistencePlan.providerReferences}</dd></div>
+                <div><dt>Audit events</dt><dd>{library.storageRollout.persistencePlan.auditEvents}</dd></div>
+              </dl>
+              <h3>Packet templates</h3>
+              <ul>
+                {library.storageRollout.packetTemplates.map((template) => <li key={template.templateKey}>{template.title} · {template.workflow}</li>)}
+              </ul>
+            </aside>
           </div>
         </section>
       ) : null}

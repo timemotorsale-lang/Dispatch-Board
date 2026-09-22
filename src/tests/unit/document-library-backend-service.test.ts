@@ -53,6 +53,11 @@ describe("document library backend service", () => {
       gate: {
         readyForRelease: false
       },
+      durableRepository: {
+        enabled: false,
+        mode: "IN_MEMORY_REVIEW",
+        version: "document-library.durable-repository/v1"
+      },
       persistencePlan: {
         documents: 3,
         packets: 2,

@@ -2,6 +2,10 @@ import type { AuthenticatedUser } from "@/server/auth/store";
 import { isManager } from "@/server/policies/access";
 import { canOpenDocumentLibrary } from "@/server/document-library/permission-policy";
 import { buildDocumentLibraryIntelligence } from "@/server/document-library/intelligence";
+import {
+  DOCUMENT_LIBRARY_DURABLE_REPOSITORY_VERSION,
+  isDocumentLibraryDurableRepositoryEnabled
+} from "@/server/document-library/durable-repository";
 
 import {
   DOCUMENT_LIBRARY_CONTRACT_VERSION,
@@ -280,6 +284,7 @@ export async function getDocumentLibrary(actor: AuthenticatedUser | null, depend
     documentType: document.documentType
   })));
   const persistencePlan = buildDocumentLibraryPersistencePlan(state);
+  const durableRepositoryEnabled = isDocumentLibraryDurableRepositoryEnabled();
 
   return {
     archivePreviews,
@@ -306,9 +311,14 @@ export async function getDocumentLibrary(actor: AuthenticatedUser | null, depend
     storageRollout: {
       gate: evaluateDocumentStorageReleaseGate(buildDocumentStorageRolloutEvidence({
         actor: user,
-        durableRepositoryEnabled: false,
+        durableRepositoryEnabled,
         state
       })),
+      durableRepository: {
+        enabled: durableRepositoryEnabled,
+        mode: durableRepositoryEnabled ? "DATABASE_BACKED" : "IN_MEMORY_REVIEW",
+        version: DOCUMENT_LIBRARY_DURABLE_REPOSITORY_VERSION
+      },
       packetTemplates: defaultDocumentPacketTemplates,
       persistencePlan: {
         auditEvents: persistencePlan.auditEvents.length,

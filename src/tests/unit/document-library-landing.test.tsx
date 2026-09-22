@@ -92,6 +92,12 @@ describe("document library landing", () => {
     expect(markup).toContain("Missing requirements");
     expect(markup).toContain("Resolve legal hold");
     expect(markup).toContain("Collect Damage photos");
+    expect(markup).toContain("Release rollout");
+    expect(markup).toContain("Release gate in review");
+    expect(markup).toContain("Durable schema and migration");
+    expect(markup).toContain("Database-backed repository");
+    expect(markup).toContain("Persistence evidence");
+    expect(markup).toContain("In Memory Review");
     expect(markup).toContain("Review queue");
     expect(markup).toContain("Prioritize missing, blocked, legal-hold, and correction items");
     expect(markup).toContain("Queue filter");
