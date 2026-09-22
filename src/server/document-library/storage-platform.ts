@@ -126,6 +126,7 @@ export const defaultDocumentPacketTemplates: DocumentLibraryPacketTemplate[] = [
     requirements: [
       { documentType: "INSURANCE_CLAIM_INTAKE", label: "Insurance claim intake form", required: true },
       { documentType: "CUSTOMER_AUTHORIZATION", label: "Customer authorization", required: true },
+      { documentType: "INSURANCE_ESTIMATE", label: "Insurance estimate", required: true },
       { documentType: "DAMAGE_PHOTOS", label: "Damage photos", required: true },
       { documentType: "TOW_STORAGE_FORM", label: "Tow / storage form", required: true }
     ],
