@@ -2998,6 +2998,207 @@ model VendorDocument {
   @@index([organizationId, documentType, createdAt])
 }
 
+model DocumentLibraryDocument {
+  id                     String                             @id @default(cuid())
+  organizationId         String
+  locationId             String?
+  ownerType              String
+  ownerId                String
+  ownerLabel             String
+  documentType           String
+  fileName               String
+  status                 String                             @default("RECEIVED")
+  sensitivity            String                             @default("INTERNAL")
+  source                 String                             @default("MANUAL_UPLOAD")
+  retentionCategory      String
+  legalHold              Boolean                            @default(false)
+  storageProvider        String
+  storageReference       String
+  storageVersion         Int                                @default(1)
+  currentVersionId       String?
+  checksumSha256         String?
+  sizeBytes              Int?
+  contentType            String?
+  classificationSnapshot Json?
+  createdByUserId        String?
+  updatedByUserId        String?
+  archivedAt             DateTime?
+  createdAt              DateTime                           @default(now())
+  updatedAt              DateTime                           @updatedAt
+  auditEvents            DocumentLibraryAuditEvent[]
+  packetLinks            DocumentLibraryPacketDocument[]
+  providerReferences     DocumentLibraryProviderReference[]
+  versions               DocumentLibraryObjectVersion[]
+
+  @@index([organizationId, ownerType, ownerId])
+  @@index([organizationId, documentType, status])
+  @@index([organizationId, legalHold, status])
+  @@index([organizationId, updatedAt])
+  @@index([storageProvider, storageReference])
+}
+
+model DocumentLibraryObjectVersion {
+  id               String                  @id @default(cuid())
+  organizationId   String
+  documentId       String
+  version          Int
+  storageProvider  String
+  storageReference String
+  fileName         String
+  contentType      String?
+  sizeBytes        Int?
+  checksumSha256   String?
+  createdByUserId  String?
+  createdAt        DateTime                @default(now())
+  document         DocumentLibraryDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, version])
+  @@index([organizationId, documentId, createdAt])
+  @@index([storageProvider, storageReference])
+}
+
+model DocumentLibraryPacket {
+  id                     String                             @id @default(cuid())
+  organizationId         String
+  locationId             String?
+  ownerType              String
+  ownerId                String
+  ownerLabel             String
+  packetType             String
+  workflow               String
+  title                  String
+  status                 String                             @default("MISSING")
+  requirementTemplateKey String?
+  createdByUserId        String?
+  updatedByUserId        String?
+  createdAt              DateTime                           @default(now())
+  updatedAt              DateTime                           @updatedAt
+  auditEvents            DocumentLibraryAuditEvent[]
+  documents              DocumentLibraryPacketDocument[]
+  requirements           DocumentLibraryPacketRequirement[]
+
+  @@index([organizationId, ownerType, ownerId])
+  @@index([organizationId, workflow, status])
+  @@index([organizationId, updatedAt])
+}
+
+model DocumentLibraryPacketRequirement {
+  id              String                @id @default(cuid())
+  organizationId  String
+  packetId        String
+  documentType    String
+  label           String
+  required        Boolean               @default(true)
+  status          String                @default("MISSING")
+  waivedByUserId  String?
+  waiverReason    String?
+  waivedAt        DateTime?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  packet          DocumentLibraryPacket @relation(fields: [packetId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, packetId, status])
+  @@index([organizationId, documentType])
+}
+
+model DocumentLibraryPacketDocument {
+  id              String                  @id @default(cuid())
+  organizationId  String
+  packetId        String
+  documentId      String
+  relationship    String                  @default("REQUIRED")
+  linkedByUserId  String?
+  linkedAt        DateTime                @default(now())
+  reason          String?
+  document        DocumentLibraryDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  packet          DocumentLibraryPacket   @relation(fields: [packetId], references: [id], onDelete: Cascade)
+
+  @@unique([packetId, documentId])
+  @@index([organizationId, documentId])
+  @@index([organizationId, packetId, linkedAt])
+}
+
+model DocumentLibraryProviderReference {
+  id             String                  @id @default(cuid())
+  organizationId String
+  documentId     String
+  family         String
+  provider       String
+  externalId     String
+  health         String                  @default("READY_REVIEW")
+  readOnly       Boolean                 @default(true)
+  url            String?
+  payload        Json?
+  lastVerifiedAt DateTime?
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  document       DocumentLibraryDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, provider, externalId])
+  @@index([organizationId, documentId])
+  @@index([organizationId, family, health])
+}
+
+model DocumentLibraryPacketTemplate {
+  id             String   @id @default(cuid())
+  organizationId String
+  templateKey    String
+  title          String
+  workflow       String
+  packetType     String
+  status         String   @default("DRAFT")
+  requirements   Json
+  createdByUserId String?
+  updatedByUserId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, templateKey])
+  @@index([organizationId, workflow, status])
+}
+
+model DocumentLibraryAuditEvent {
+  id             String                   @id @default(cuid())
+  organizationId String
+  locationId     String?
+  documentId     String?
+  packetId       String?
+  actorUserId    String
+  subjectType    String
+  subjectId      String
+  action         String
+  idempotencyKey String
+  note           String
+  priorValue     Json?
+  newValue       Json?
+  metadata       Json?
+  occurredAt     DateTime                 @default(now())
+  createdAt      DateTime                 @default(now())
+  document       DocumentLibraryDocument? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  packet         DocumentLibraryPacket?   @relation(fields: [packetId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, action, idempotencyKey])
+  @@index([organizationId, subjectType, subjectId, occurredAt])
+  @@index([organizationId, documentId, occurredAt])
+  @@index([organizationId, packetId, occurredAt])
+}
+
+model DocumentLibraryReleaseGate {
+  id                String   @id @default(cuid())
+  organizationId    String
+  gateKey           String
+  status            String
+  checklist         Json
+  evidence          Json
+  evaluatedByUserId String?
+  evaluatedAt       DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([organizationId, gateKey])
+  @@index([organizationId, status, evaluatedAt])
+}
+
 model VendorInvoiceBatch {
   id              String                   @id @default(cuid())
   organizationId  String
