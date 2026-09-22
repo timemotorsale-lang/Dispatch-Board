@@ -2,7 +2,9 @@
 
 import {
   Archive,
+  AlertTriangle,
   BadgeDollarSign,
+  Brain,
   Camera,
   Car,
   CheckCircle2,
@@ -17,6 +19,7 @@ import {
   LockKeyhole,
   Search,
   ShieldCheck,
+  Sparkles,
   Truck,
   UserRound,
   Wrench
@@ -56,6 +59,25 @@ type DocumentLibraryModel = {
   contractVersion: string;
   documents: DocumentRecord[];
   generatedAt: string;
+  intelligence?: {
+    confidence: number;
+    generatedBy: string;
+    recommendations: Array<{
+      actionLabel: string;
+      confidence: number;
+      evidence: string[];
+      id: string;
+      kind: string;
+      priority: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+      rationale: string;
+      targetDocumentId: string | null;
+      targetPacketId: string | null;
+      title: string;
+    }>;
+    riskFlags: Array<{ count: number; label: string; priority: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" }>;
+    score: number;
+    summary: string;
+  };
   packets: LibraryPacket[];
   providerReferences: Array<{
     documentId: string;
@@ -141,6 +163,12 @@ function statusTone(status: string): StatusTone {
   if (status === "NEEDS_CORRECTION" || status === "MISSING" || status === "BLOCKED") return "warning";
   if (status === "REJECTED") return "danger";
   return "neutral";
+}
+
+function priorityTone(priority: string): StatusTone {
+  if (priority === "CRITICAL") return "danger";
+  if (priority === "HIGH" || priority === "MEDIUM") return "warning";
+  return "info";
 }
 
 function documentCategory(document: DocumentRecord) {
@@ -290,6 +318,12 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
         matchesWorklist;
     });
   }, [categoryFilter, documentInsights, library, query, statusFilter, worklistFilter]);
+
+  function openIntelligenceRecommendation(recommendation: NonNullable<DocumentLibraryModel["intelligence"]>["recommendations"][number]) {
+    if (recommendation.targetDocumentId) setSelectedDocumentId(recommendation.targetDocumentId);
+    if (recommendation.targetPacketId) setSelectedPacketId(recommendation.targetPacketId);
+    setNotice(`${recommendation.title}: ${recommendation.rationale}`);
+  }
 
   function reconcileAction(result: DocumentLibraryActionResponse) {
     setLibraryState((current) => {
@@ -496,6 +530,50 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
         <article><strong>{summary.legalHold}</strong><span>Legal holds</span></article>
         <article><strong>{summary.providerReferences}</strong><span>Provider refs</span></article>
       </section>
+
+      {library.intelligence ? (
+        <section className={styles.docIntelligenceCenter} aria-label="Document intelligence">
+          <header>
+            <div>
+              <span><Brain size={16} />Intelligence</span>
+              <h2>Document command intelligence</h2>
+              <p>{library.intelligence.summary}</p>
+            </div>
+            <div className={styles.docIntelligenceScore}>
+              <strong>{library.intelligence.score}</strong>
+              <span>{library.intelligence.confidence}% confidence</span>
+            </div>
+          </header>
+          <div className={styles.docRiskFlags}>
+            {library.intelligence.riskFlags.map((flag) => (
+              <article key={flag.label}>
+                <AlertTriangle size={15} />
+                <span><strong>{flag.count}</strong><small>{flag.label}</small></span>
+                <StatusBadge label={flag.priority} tone={priorityTone(flag.priority)} />
+              </article>
+            ))}
+          </div>
+          <div className={styles.docRecommendationGrid}>
+            {library.intelligence.recommendations.map((recommendation) => (
+              <article key={recommendation.id}>
+                <div>
+                  <span><Sparkles size={15} />{formatLabel(recommendation.kind)}</span>
+                  <h3>{recommendation.title}</h3>
+                  <p>{recommendation.rationale}</p>
+                  <ul>
+                    {recommendation.evidence.slice(0, 2).map((evidence) => <li key={evidence}>{evidence}</li>)}
+                  </ul>
+                </div>
+                <footer>
+                  <StatusBadge label={recommendation.priority} tone={priorityTone(recommendation.priority)} />
+                  <small>{recommendation.confidence}% confidence</small>
+                  <button onClick={() => openIntelligenceRecommendation(recommendation)} type="button">{recommendation.actionLabel}</button>
+                </footer>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className={styles.docReviewCommandCenter} aria-label="Review queue command center">
         <header>

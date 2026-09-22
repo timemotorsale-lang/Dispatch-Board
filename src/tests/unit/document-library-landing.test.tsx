@@ -86,6 +86,12 @@ describe("document library landing", () => {
   it("renders a live review queue for packet blockers", async () => {
     const markup = await renderLoadedLibrary();
 
+    expect(markup).toContain("Document command intelligence");
+    expect(markup).toContain("Intelligence");
+    expect(markup).toContain("Legal holds");
+    expect(markup).toContain("Missing requirements");
+    expect(markup).toContain("Resolve legal hold");
+    expect(markup).toContain("Collect Damage photos");
     expect(markup).toContain("Review queue");
     expect(markup).toContain("Prioritize missing, blocked, legal-hold, and correction items");
     expect(markup).toContain("Queue filter");

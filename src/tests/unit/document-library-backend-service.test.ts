@@ -37,6 +37,18 @@ describe("document library backend service", () => {
       legalHold: true
     });
     expect(result.providerReferences.every((reference) => reference.readOnly)).toBe(true);
+    expect(result.intelligence).toMatchObject({
+      generatedBy: "document-library.intelligence/v1",
+      recommendations: expect.arrayContaining([
+        expect.objectContaining({
+          kind: "LEGAL_HOLD_BLOCKER",
+          priority: "CRITICAL"
+        }),
+        expect.objectContaining({
+          kind: "MISSING_REQUIREMENT"
+        })
+      ])
+    });
     expect(result.storageRollout).toMatchObject({
       gate: {
         readyForRelease: false

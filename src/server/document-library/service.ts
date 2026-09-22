@@ -1,6 +1,7 @@
 import type { AuthenticatedUser } from "@/server/auth/store";
 import { isManager } from "@/server/policies/access";
 import { canOpenDocumentLibrary } from "@/server/document-library/permission-policy";
+import { buildDocumentLibraryIntelligence } from "@/server/document-library/intelligence";
 
 import {
   DOCUMENT_LIBRARY_CONTRACT_VERSION,
@@ -285,6 +286,7 @@ export async function getDocumentLibrary(actor: AuthenticatedUser | null, depend
     contractVersion: DOCUMENT_LIBRARY_CONTRACT_VERSION,
     documents: state.documents,
     generatedAt,
+    intelligence: buildDocumentLibraryIntelligence(state),
     packets: resolvedPackets,
     providerActions: [
       previewProviderAction({ action: "EXPORT_PACKET", idempotencyKey: "read-model-preview", subjectId: "packet-claim-10421" }),
