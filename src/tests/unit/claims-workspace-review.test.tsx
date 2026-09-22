@@ -30,7 +30,7 @@ describe("claims workspace review", () => {
     expect(html).toContain("Activity Timeline");
     expect(html).toContain("Next Action");
     expect(html).toContain("Money &amp; Recovery");
-    expect(html).toContain("Rental tracker");
+    expect(html).toContain("Open recovery workspace");
     expect(html).toContain("Handoff Readiness");
     expect(html).toContain("Contact adjuster");
     expect(html).toContain("Repair order handoff");

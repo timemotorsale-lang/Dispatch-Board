@@ -403,9 +403,34 @@
   padding: 8px 12px;
 }
 
-.recoveryPanel {
+.recoveryPanel,
+.recoveryWorkspace {
   display: grid;
   gap: 10px;
+}
+
+.recoveryCompact {
+  display: grid;
+  gap: 10px;
+}
+
+.recoveryCompactFacts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.recoveryOpenButton {
+  min-height: 40px;
+  border: 1px solid #284bd0;
+  border-radius: 8px;
+  background: #284bd0;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 900;
+  padding: 8px 12px;
 }
 
 .recoverySummary {
@@ -464,6 +489,17 @@
 .payerSplit small {
   font-size: 0.76rem;
   text-transform: none;
+}
+
+.recoveryDrawer {
+  width: min(1220px, calc(100vw - 24px));
+}
+
+.recoveryCommand {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.72fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
 }
 
 .drawerBackdrop {
@@ -1289,6 +1325,11 @@
   .executionGrid,
   .carrierGrid,
   .ownerGrid,
+  .payerSplit,
+  .recoveryCommand,
+  .recoveryCompactFacts,
+  .recoveryGrid,
+  .recoverySummary,
   .toolGrid {
     grid-template-columns: 1fr;
   }

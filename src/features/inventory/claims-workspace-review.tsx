@@ -171,6 +171,7 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
   const [activeExtraTool, setActiveExtraTool] = useState<ExtraActionTool>("call");
   const [extraToolsOpen, setExtraToolsOpen] = useState(false);
   const [isWorking, setIsWorking] = useState(false);
+  const [moneyDrawerOpen, setMoneyDrawerOpen] = useState(false);
   const [printDocument, setPrintDocument] = useState<{ html: string; title: string } | null>(null);
   const [reminderDate, setReminderDate] = useState("");
   const [reminderPickerOpen, setReminderPickerOpen] = useState(false);
@@ -655,66 +656,27 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
             <div className={styles.panelHeader}>
               <div>
                 <h2>Money & Recovery</h2>
-                <p>Billing, payer split, rental risk, and payment follow-up stay execution-ready.</p>
+                <p>One money action stays visible. Open the workspace for invoice, rental, and payment detail.</p>
               </div>
               <StatusBadge tone={billingRecovery.invoicePacket.ready ? "good" : "warning"}>{billingRecovery.invoicePacket.status.replaceAll("_", " ").toLowerCase()}</StatusBadge>
             </div>
-            <div className={styles.recoveryPanel}>
-              <div className={styles.recoverySummary}>
-                {[
-                  ["Billed", billingRecovery.summary.billedAmountLabel],
-                  ["Approved", billingRecovery.summary.approvedAmountLabel],
-                  ["Deductible", billingRecovery.summary.deductibleLabel],
-                  ["Paid", billingRecovery.summary.paidAmountLabel],
-                  ["Balance", billingRecovery.summary.balanceLabel]
-                ].map(([label, value]) => (
-                  <div className={styles.fact} key={label}>
-                    <span>{label}</span>
-                    <strong>{value}</strong>
-                  </div>
-                ))}
-              </div>
+            <div className={styles.recoveryCompact}>
               <article className={styles.recoveryAction}>
                 <span className={styles.cardEyebrow}>Money action</span>
                 <strong>{billingRecovery.nextAction.label}</strong>
                 <p>{billingRecovery.nextAction.reason}</p>
-                <div className={styles.ownerGrid}>
-                  <div className={styles.fact}>
-                    <span>Owner</span>
-                    <strong>{billingRecovery.nextAction.ownerRole}</strong>
-                  </div>
-                  <div className={styles.fact}>
-                    <span>Due</span>
-                    <strong>{billingRecovery.nextAction.dueLabel}</strong>
-                  </div>
-                </div>
               </article>
-              <div className={styles.recoveryGrid}>
-                <article>
-                  <span className={styles.cardEyebrow}>{billingRecovery.invoicePacket.title}</span>
-                  <strong>{billingRecovery.invoicePacket.ready ? "Ready to send" : "Missing packet items"}</strong>
-                  <p>{billingRecovery.invoicePacket.ready ? "Packet is ready for billing follow-up." : billingRecovery.invoicePacket.missing.slice(0, 3).join(", ")}</p>
-                </article>
-                <article>
-                  <span className={styles.cardEyebrow}>Rental tracker</span>
+              <div className={styles.recoveryCompactFacts}>
+                <div className={styles.fact}>
+                  <span>Balance</span>
+                  <strong>{billingRecovery.summary.balanceLabel}</strong>
+                </div>
+                <div className={styles.fact}>
+                  <span>Rental</span>
                   <strong>{billingRecovery.rental.status.replaceAll("_", " ").toLowerCase()}</strong>
-                  <p>{billingRecovery.rental.summary}</p>
-                </article>
-                <article>
-                  <span className={styles.cardEyebrow}>Short-pay watch</span>
-                  <strong>{billingRecovery.shortPayWatch.active ? "Review needed" : "Clear"}</strong>
-                  <p>{billingRecovery.shortPayWatch.reason}</p>
-                </article>
+                </div>
               </div>
-              <div className={styles.payerSplit}>
-                {billingRecovery.payerSplit.map((payer) => (
-                  <div key={`${payer.payer}-${payer.title}`}>
-                    <span>{payer.payer.replaceAll("_", " ")}</span>
-                    <strong>{payer.title}</strong>
-                    <small>{payer.amountLabel} - {payer.status.toLowerCase()}</small>
-                  </div>
-                ))}
-              </div>
+              <button className={styles.recoveryOpenButton} onClick={() => setMoneyDrawerOpen(true)} type="button">Open recovery workspace</button>
             </div>
           </section>
 
@@ -756,6 +718,107 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
           </section>
         </aside>
       </div>
+
+      {moneyDrawerOpen ? (
+        <div className={styles.drawerBackdrop} role="presentation">
+          <aside aria-label="Money and Recovery Workspace" aria-modal="true" className={`${styles.timelineDrawer} ${styles.recoveryDrawer}`} role="dialog">
+            <header>
+              <div>
+                <span className={styles.cardEyebrow}>Billing execution</span>
+                <h2>Money & Recovery</h2>
+                <p>Work the carrier invoice, deductible, rental support, payment proof, and short-pay follow-up from one focused space.</p>
+              </div>
+              <button aria-label="Close Money and Recovery" onClick={() => setMoneyDrawerOpen(false)} type="button">x</button>
+            </header>
+            <section className={styles.recoveryWorkspace} aria-label="Billing and recovery workspace">
+              <div className={styles.recoveryCommand}>
+                <article className={styles.recoveryAction}>
+                  <span className={styles.cardEyebrow}>Recommended now</span>
+                  <strong>{billingRecovery.nextAction.label}</strong>
+                  <p>{billingRecovery.nextAction.reason}</p>
+                  <div className={styles.ownerGrid}>
+                    <div className={styles.fact}>
+                      <span>Owner</span>
+                      <strong>{billingRecovery.nextAction.ownerRole}</strong>
+                    </div>
+                    <div className={styles.fact}>
+                      <span>Due</span>
+                      <strong>{billingRecovery.nextAction.dueLabel}</strong>
+                    </div>
+                  </div>
+                </article>
+                <form action={recordActivityUpdate} className={`${styles.executionForm} ${styles.timelineForm}`}>
+                  <strong>Record recovery action</strong>
+                  <div>
+                    <select name="updateType" defaultValue="Payment follow-up">
+                      <option>Payment follow-up</option>
+                      <option>Carrier invoice sent</option>
+                      <option>Warranty authorization</option>
+                      <option>Rental extension</option>
+                      <option>Short-pay review</option>
+                    </select>
+                    <select name="category" defaultValue="PAYMENT">
+                      <option value="PAYMENT">Payment proof</option>
+                      <option value="ESTIMATE">Estimate / supplement</option>
+                      <option value="RENTAL">Rental support</option>
+                      <option value="AUTHORIZATION">Authorization</option>
+                    </select>
+                    <input name="title" placeholder="Evidence title" />
+                    <input name="file" type="file" />
+                  </div>
+                  <label className={styles.noteField}>
+                    <span>Recovery note</span>
+                    <textarea name="note" placeholder="Example: Carrier invoice sent to adjuster with estimate, authorization, and rental support attached." rows={4} />
+                  </label>
+                  <button disabled={!claimId || isWorking} type="submit">{isWorking ? "Recording..." : "Record recovery action"}</button>
+                </form>
+              </div>
+              <div className={styles.recoverySummary}>
+                {[
+                  ["Billed", billingRecovery.summary.billedAmountLabel],
+                  ["Approved", billingRecovery.summary.approvedAmountLabel],
+                  ["Deductible", billingRecovery.summary.deductibleLabel],
+                  ["Paid", billingRecovery.summary.paidAmountLabel],
+                  ["Balance", billingRecovery.summary.balanceLabel]
+                ].map(([label, value]) => (
+                  <div className={styles.fact} key={label}>
+                    <span>{label}</span>
+                    <strong>{value}</strong>
+                  </div>
+                ))}
+              </div>
+              <div className={styles.recoveryGrid}>
+                <article>
+                  <span className={styles.cardEyebrow}>{billingRecovery.invoicePacket.title}</span>
+                  <strong>{billingRecovery.invoicePacket.ready ? "Ready to send" : "Missing packet items"}</strong>
+                  <p>{billingRecovery.invoicePacket.ready ? "Packet is ready for billing follow-up." : billingRecovery.invoicePacket.missing.join(", ")}</p>
+                </article>
+                <article>
+                  <span className={styles.cardEyebrow}>Rental tracker</span>
+                  <strong>{billingRecovery.rental.status.replaceAll("_", " ").toLowerCase()}</strong>
+                  <p>{billingRecovery.rental.summary}</p>
+                </article>
+                <article>
+                  <span className={styles.cardEyebrow}>Short-pay watch</span>
+                  <strong>{billingRecovery.shortPayWatch.active ? "Review needed" : "Clear"}</strong>
+                  <p>{billingRecovery.shortPayWatch.reason}</p>
+                </article>
+              </div>
+              <div className={styles.payerSplit}>
+                {billingRecovery.payerSplit.map((payer) => (
+                  <div key={`${payer.payer}-${payer.title}`}>
+                    <span>{payer.payer.replaceAll("_", " ")}</span>
+                    <strong>{payer.title}</strong>
+                    <small>{payer.amountLabel} - {payer.status.toLowerCase()}</small>
+                  </div>
+                ))}
+              </div>
+            </section>
+            {actionError ? <p className={styles.actionError}>{actionError}</p> : null}
+            {actionMessage ? <p className={styles.actionMessage}>{actionMessage}</p> : null}
+          </aside>
+        </div>
+      ) : null}
 
       {activityDrawerOpen ? (
         <div className={styles.drawerBackdrop} role="presentation">
