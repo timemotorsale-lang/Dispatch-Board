@@ -148,6 +148,7 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
+  const [queueFilter, setQueueFilter] = useState("ALL");
   const [selectedDocumentId, setSelectedDocumentId] = useState(initialLibrary?.documents[0]?.id ?? "");
   const [selectedPacketId, setSelectedPacketId] = useState(initialLibrary?.packets[0]?.id ?? "");
   const [notice, setNotice] = useState(error ?? "Document console ready.");
@@ -202,6 +203,24 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
     if (!library || !selectedDocument) return [];
     return library.providerReferences.filter((reference) => reference.documentId === selectedDocument.id);
   }, [library, selectedDocument]);
+
+  const reviewQueue = useMemo(() => {
+    if (!library) return [];
+    return library.packets.flatMap((packet) => packet.requirements
+      .filter((requirement) => requirement.state !== "ACCEPTED" && requirement.state !== "WAIVED")
+      .map((requirement) => ({
+        blocker: requirement.blocker,
+        documentId: requirement.documentId,
+        packetId: packet.id,
+        packetTitle: packet.title,
+        requirementId: requirement.id,
+        requirementLabel: requirement.label,
+        state: requirement.state
+      })));
+  }, [library]);
+
+  const filteredReviewQueue = useMemo(() => reviewQueue.filter((item) => queueFilter === "ALL" || item.state === queueFilter), [queueFilter, reviewQueue]);
+  const queueStates = useMemo(() => Array.from(new Set(reviewQueue.map((item) => item.state))), [reviewQueue]);
 
   const filteredDocuments = useMemo(() => {
     if (!library) return [];
@@ -428,6 +447,41 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
         <article><strong>{summary.reviewItems}</strong><span>Review items</span></article>
         <article><strong>{summary.legalHold}</strong><span>Legal holds</span></article>
         <article><strong>{summary.providerReferences}</strong><span>Provider refs</span></article>
+      </section>
+
+      <section className={styles.docReviewCommandCenter} aria-label="Review queue command center">
+        <header>
+          <div>
+            <h2>Review queue</h2>
+            <p>Prioritize missing, blocked, legal-hold, and correction items across every governed packet.</p>
+          </div>
+          <label>Queue filter<select onChange={(event) => setQueueFilter(event.target.value)} value={queueFilter}><option value="ALL">All blockers</option>{queueStates.map((state) => <option key={state} value={state}>{formatLabel(state)}</option>)}</select></label>
+        </header>
+        <div className={styles.docReviewQueueGrid}>
+          {filteredReviewQueue.length > 0 ? filteredReviewQueue.map((item) => (
+            <article key={`${item.packetId}-${item.requirementId}`}>
+              <div>
+                <strong>{item.requirementLabel}</strong>
+                <span>{item.packetTitle}</span>
+                <small>{item.blocker ?? "Needs staff review before completion."}</small>
+              </div>
+              <StatusBadge label={item.state} />
+              <button onClick={() => {
+                setSelectedPacketId(item.packetId);
+                if (item.documentId) setSelectedDocumentId(item.documentId);
+              }} type="button">Open</button>
+            </article>
+          )) : (
+            <article className={styles.docReviewQueueEmpty}>
+              <div>
+                <strong>No active blockers</strong>
+                <span>Every required packet item is accepted or waived.</span>
+                <small>New intake or corrections will appear here automatically.</small>
+              </div>
+              <StatusBadge label="COMPLETE" />
+            </article>
+          )}
+        </div>
       </section>
 
       <div className={styles.docConsoleLayout}>

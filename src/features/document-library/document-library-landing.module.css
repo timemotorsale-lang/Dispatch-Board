@@ -1376,6 +1376,97 @@
   font-weight: 850;
 }
 
+.docReviewCommandCenter {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--document-line);
+  padding: 14px 18px 16px;
+  background: #fff;
+}
+
+.docReviewCommandCenter header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(190px, 260px);
+  gap: 14px;
+  align-items: end;
+}
+
+.docReviewCommandCenter h2 {
+  margin: 0;
+  color: var(--document-text);
+  font-size: 18px;
+}
+
+.docReviewCommandCenter p {
+  margin: 4px 0 0;
+  color: var(--document-muted);
+  font-size: 13px;
+}
+
+.docReviewCommandCenter label {
+  display: grid;
+  gap: 5px;
+  color: var(--document-muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.docReviewQueueGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.docReviewQueueGrid article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 9px;
+  border: 1px solid var(--document-line);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--document-surface-soft);
+}
+
+.docReviewQueueGrid article > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.docReviewQueueGrid strong,
+.docReviewQueueGrid span,
+.docReviewQueueGrid small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docReviewQueueGrid strong {
+  color: var(--document-text);
+  font-size: 13px;
+}
+
+.docReviewQueueGrid span,
+.docReviewQueueGrid small {
+  color: var(--document-muted);
+  font-size: 12px;
+}
+
+.docReviewQueueGrid button {
+  grid-column: 1 / -1;
+  min-height: 32px;
+  border: 1px solid var(--document-line-strong);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--document-accent);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.docReviewQueueEmpty {
+  grid-column: 1 / -1;
+}
+
 .docConsoleLayout {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
@@ -1388,6 +1479,7 @@
 .docLibraryList,
 .docPreviewPanel,
 .docReadinessPanel,
+.docReviewCommandCenter,
 .docPacketWorkspace,
 .docAuditTimeline {
   border: 1px solid var(--document-line);

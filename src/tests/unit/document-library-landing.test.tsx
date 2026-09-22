@@ -65,6 +65,18 @@ describe("document library landing", () => {
     expect(markup).toContain("Waive");
   });
 
+  it("renders a live review queue for packet blockers", async () => {
+    const markup = await renderLoadedLibrary();
+
+    expect(markup).toContain("Review queue");
+    expect(markup).toContain("Prioritize missing, blocked, legal-hold, and correction items");
+    expect(markup).toContain("Queue filter");
+    expect(markup).toContain("All blockers");
+    expect(markup).toContain("Damage photos is missing.");
+    expect(markup).toContain("Title document is under legal hold");
+    expect(markup.match(/Open/g)?.length).toBeGreaterThanOrEqual(3);
+  });
+
   it("renders provider references and governed handoff previews", async () => {
     const markup = await renderLoadedLibrary();
 
