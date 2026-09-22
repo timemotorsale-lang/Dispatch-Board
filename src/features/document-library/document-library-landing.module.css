@@ -1268,3 +1268,604 @@
     display: none;
   }
 }
+
+.docConsoleHero {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(360px, 620px) auto;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid var(--document-line);
+  border-radius: 8px;
+  padding: 16px;
+  background: rgba(255, 255, 255, .9);
+  box-shadow: 0 14px 36px rgba(20, 32, 54, .07);
+}
+
+.docConsoleHero h1 {
+  margin: 0;
+  color: var(--document-text);
+  font-size: 34px;
+  line-height: 1.05;
+}
+
+.docConsoleHero p {
+  margin: 6px 0 0;
+  color: var(--document-muted);
+  font-size: 15px;
+}
+
+.docSearch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  border: 1px solid var(--document-line);
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #fff;
+  color: var(--document-muted);
+}
+
+.docSearch input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--document-text);
+  font: inherit;
+}
+
+.docHeroActions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.docHeroActions a,
+.docIntakePanel footer button,
+.actionStack button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  border: 1px solid var(--document-accent);
+  border-radius: 7px;
+  padding: 0 12px;
+  background: var(--document-accent);
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.docHeroActions a:last-child,
+.actionStack button {
+  background: #fff;
+  color: var(--document-accent);
+}
+
+.docMetrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.docMetrics article {
+  border: 1px solid var(--document-line);
+  border-radius: 8px;
+  padding: 12px;
+  background: #fff;
+}
+
+.docMetrics strong {
+  display: block;
+  color: var(--document-text);
+  font-size: 28px;
+  line-height: 1;
+}
+
+.docMetrics span {
+  display: block;
+  margin-top: 5px;
+  color: var(--document-muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.docConsoleLayout {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 16px;
+  min-width: 0;
+}
+
+.docFilterRail,
+.docIntakePanel,
+.docLibraryList,
+.docPreviewPanel,
+.docReadinessPanel,
+.docPacketWorkspace,
+.docAuditTimeline {
+  border: 1px solid var(--document-line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, .055);
+}
+
+.docFilterRail {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 16px;
+}
+
+.docFilterRail header,
+.docIntakePanel header,
+.docLibraryList header,
+.docPacketWorkspace header,
+.docAuditTimeline header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid var(--document-line);
+  padding-bottom: 10px;
+}
+
+.docFilterRail header strong,
+.docIntakePanel h2,
+.docLibraryList h2,
+.docPreviewPanel h2,
+.docReadinessPanel h2,
+.docPacketWorkspace h2,
+.docAuditTimeline h2 {
+  margin: 0;
+  color: var(--document-text);
+  font-size: 18px;
+}
+
+.docFilterRail header button {
+  border: 0;
+  background: transparent;
+  color: var(--document-accent);
+  font: inherit;
+  font-weight: 900;
+}
+
+.docFilterRail label {
+  display: grid;
+  gap: 7px;
+  color: var(--document-text);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.docFilterRail select,
+.docIntakeGrid input,
+.docIntakeGrid select,
+.docIntakeGrid textarea {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--document-line);
+  border-radius: 7px;
+  padding: 0 10px;
+  background: #fff;
+  color: var(--document-text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.docCategoryList {
+  display: grid;
+  gap: 6px;
+}
+
+.docCategoryList button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 0 8px;
+  background: var(--document-surface-soft);
+  color: var(--document-text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 850;
+  text-align: left;
+}
+
+.docCategoryList .activeCategory {
+  border-color: var(--document-accent);
+  background: var(--document-accent-soft);
+  color: var(--document-accent);
+}
+
+.docConsoleMain {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.docIntakePanel {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.docIntakePanel header span,
+.docPreviewPanel header span {
+  color: var(--document-muted);
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.docIntakeGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.docIntakeGrid label {
+  display: grid;
+  gap: 5px;
+  color: var(--document-muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.docIntakeGrid textarea {
+  min-height: 70px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.wideField {
+  grid-column: 1 / -1;
+}
+
+.docIntakePanel footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--document-line);
+  padding-top: 12px;
+}
+
+.docIntakePanel footer span {
+  color: var(--document-muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.docWorkGrid {
+  display: grid;
+  grid-template-columns: minmax(300px, .9fr) minmax(0, 1.4fr) minmax(260px, .75fr);
+  gap: 16px;
+  align-items: start;
+  min-width: 0;
+}
+
+.docLibraryList {
+  overflow: hidden;
+}
+
+.docLibraryList header,
+.docPacketWorkspace header,
+.docAuditTimeline header {
+  padding: 14px 16px 10px;
+}
+
+.docLibraryList header span,
+.docPacketWorkspace header span,
+.docAuditTimeline header span {
+  color: var(--document-muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.docLibraryList > div {
+  display: grid;
+}
+
+.docLibraryList button,
+.docPacketList button {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 68px;
+  border: 0;
+  border-top: 1px solid var(--document-line);
+  padding: 10px 12px;
+  background: #fff;
+  color: var(--document-text);
+  font: inherit;
+  text-align: left;
+}
+
+.docLibraryList button svg {
+  color: var(--document-accent);
+}
+
+.selectedDocumentRow,
+.selectedPacketButton {
+  box-shadow: inset 4px 0 0 var(--document-accent);
+  background: var(--document-accent-soft) !important;
+}
+
+.docLibraryList strong,
+.docPacketList strong,
+.docRequirementList strong {
+  display: block;
+  overflow: hidden;
+  color: var(--document-text);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docLibraryList small,
+.docPacketList small,
+.docRequirementList small {
+  display: block;
+  overflow: hidden;
+  color: var(--document-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docPreviewPanel,
+.docReadinessPanel {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.docPreviewPanel header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.docPreviewPanel h2 {
+  overflow-wrap: anywhere;
+}
+
+.docPreviewPanel p {
+  margin: 5px 0 0;
+  color: var(--document-muted);
+  font-size: 13px;
+}
+
+.docPreviewCanvas {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  min-height: 230px;
+  border: 1px dashed var(--document-line-strong);
+  border-radius: 8px;
+  background: linear-gradient(180deg, #fbfdff, #f3f7fc);
+  text-align: center;
+}
+
+.docPreviewCanvas svg {
+  color: var(--document-accent);
+}
+
+.docPreviewCanvas a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--document-accent);
+  font-size: 12px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.docMetaGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.docMetaGrid div,
+.calendar-enterprise-draft div {
+  display: grid;
+  gap: 3px;
+  border: 1px solid var(--document-line);
+  border-radius: 7px;
+  padding: 8px;
+  background: var(--document-surface-soft);
+}
+
+.docMetaGrid dt {
+  color: var(--document-muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.docMetaGrid dd {
+  margin: 0;
+  color: var(--document-text);
+  font-size: 12px;
+  font-weight: 850;
+  overflow-wrap: anywhere;
+}
+
+.docReadinessPanel header {
+  display: grid;
+  gap: 4px;
+}
+
+.docReadinessPanel p {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  border-radius: 7px;
+  margin: 0;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.readinessGood {
+  background: var(--document-success-soft);
+  color: var(--document-success);
+}
+
+.readinessWatch {
+  background: var(--document-warning-soft);
+  color: var(--document-warning);
+}
+
+.readinessRisk {
+  background: var(--document-danger-soft);
+  color: var(--document-danger);
+}
+
+.actionStack {
+  display: grid;
+  gap: 4px;
+}
+
+.actionStack small {
+  color: var(--document-muted);
+  font-size: 11px;
+}
+
+.docPacketWorkspace,
+.docAuditTimeline {
+  display: grid;
+  gap: 12px;
+  padding-bottom: 14px;
+}
+
+.docPacketGrid {
+  display: grid;
+  grid-template-columns: minmax(300px, .85fr) minmax(0, 1.15fr);
+  gap: 14px;
+  padding: 0 14px;
+}
+
+.docPacketList {
+  border: 1px solid var(--document-line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.docPacketList button {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.docPacketDetail {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--document-line);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--document-surface-soft);
+}
+
+.docPacketDetail h3 {
+  margin: 0;
+  color: var(--document-text);
+}
+
+.docPacketDetail p {
+  margin: 0;
+  color: var(--document-muted);
+}
+
+.docRequirementList {
+  display: grid;
+  gap: 8px;
+}
+
+.docRequirementList article {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--document-line);
+  border-radius: 7px;
+  padding: 8px;
+  background: #fff;
+}
+
+.docRequirementList svg {
+  color: var(--document-accent);
+}
+
+.docAuditTimeline {
+  padding: 0 0 14px;
+}
+
+.docAuditTimeline article {
+  display: grid;
+  grid-template-columns: 180px minmax(0, .85fr) minmax(0, 1.4fr);
+  gap: 10px;
+  border-top: 1px solid var(--document-line);
+  padding: 10px 14px;
+}
+
+.docAuditTimeline span,
+.docAuditTimeline small {
+  color: var(--document-muted);
+  font-size: 12px;
+}
+
+.docAuditTimeline strong {
+  color: var(--document-text);
+  font-size: 13px;
+}
+
+@media (max-width: 1280px) {
+  .docConsoleHero,
+  .docConsoleLayout,
+  .docWorkGrid,
+  .docPacketGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .docHeroActions {
+    justify-content: flex-start;
+  }
+
+  .docIntakeGrid,
+  .docMetrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .docIntakeGrid,
+  .docMetrics,
+  .docMetaGrid,
+  .docAuditTimeline article {
+    grid-template-columns: 1fr;
+  }
+
+  .docHeroActions {
+    flex-direction: column;
+  }
+
+  .docHeroActions a {
+    width: 100%;
+  }
+}
