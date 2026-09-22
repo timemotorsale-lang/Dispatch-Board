@@ -92,7 +92,23 @@ type DocumentLibraryModel = {
   }>;
   reviewQueue: Array<{ blocker: string | null; documentId: string | null; packetId: string; packetTitle: string; requirementId: string; state: string }>;
   storageRollout?: {
-    durableRepository?: { enabled: boolean; mode: string; version: string };
+    durableRepository?: {
+      enabled: boolean;
+      mode: string;
+      sync: null | {
+        gateReady: boolean;
+        snapshot: {
+          auditEvents: number;
+          documents: number;
+          packetDocuments: number;
+          packetRequirements: number;
+          packets: number;
+          providerReferences: number;
+        };
+        templates: number;
+      };
+      version: string;
+    };
     gate: {
       blockers: Array<{ key: string; label: string; reason: string }>;
       milestones: Array<{ key: string; label: string; reason: string; status: "COMPLETE" | "BLOCKED" }>;
@@ -136,6 +152,14 @@ type DocumentLibraryActionResponse = {
     auditRequired: true;
     liveProviderWriteEnabled: false;
     permission: string;
+    rollbackPosture: string;
+    state: string;
+    subjectId: string;
+  };
+  providerExecution?: {
+    action: string;
+    auditAction: string;
+    idempotencyKey: string;
     rollbackPosture: string;
     state: string;
     subjectId: string;

@@ -129,6 +129,21 @@ describe("document library backend service", () => {
     expect(() => previewProviderAction({ action: "EXPORT_PACKET", idempotencyKey: "", subjectId: "packet-1" })).toThrow("idempotency key");
   });
 
+  it("confirms provider execution posture without enabling live external writes", async () => {
+    await expect(executeDocumentLibraryAction(manager, {
+      action: "REQUEST_ESIGNATURE",
+      confirmationToken: "confirm:REQUEST_ESIGNATURE:doc-customer-authorization-1",
+      idempotencyKey: "esign-confirm-1",
+      subjectId: "doc-customer-authorization-1"
+    })).resolves.toMatchObject({
+      liveProviderWriteEnabled: false,
+      providerExecution: {
+        auditAction: "PROVIDER_REQUEST_ESIGNATURE_CONFIRMED",
+        state: "CONFIRMED_WRITE_HELD_FOR_ADAPTER"
+      }
+    });
+  });
+
   it("executes review and legal-hold commands with audit/idempotency while leaving provider writes disabled", async () => {
     await expect(executeDocumentLibraryAction(manager, {
       action: "REVIEW_DOCUMENT",

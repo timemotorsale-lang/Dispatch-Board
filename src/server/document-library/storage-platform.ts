@@ -164,7 +164,7 @@ export function validateDocumentUpload(candidate: DocumentUploadCandidate): Docu
     ...(!fileName ? ["File name is required."] : []),
     ...(fileName.includes("/") || fileName.includes("\\") ? ["File name cannot include path separators."] : []),
     ...(!allowedContentTypes.has(contentType) ? ["File type is not allowed for document storage."] : []),
-    ...(candidate.sizeBytes <= 0 ? ["File must not be empty."] : []),
+    ...(!Number.isFinite(candidate.sizeBytes) || candidate.sizeBytes <= 0 ? ["File must not be empty."] : []),
     ...(candidate.sizeBytes > MAX_UPLOAD_BYTES ? ["File exceeds the 25 MB document limit."] : [])
   ];
   const warnings = [
