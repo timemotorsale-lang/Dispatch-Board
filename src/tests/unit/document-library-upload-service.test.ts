@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { createCloudObjectStorageAdapter, sha256Hex } from "@/server/document-library/storage-adapter";
 import { stageDocumentLibraryUpload } from "@/server/document-library/upload-service";
 
 const staff = {
@@ -90,6 +91,71 @@ describe("document library upload service", () => {
           type: "CLAIM"
         }
       }
+    });
+  });
+
+  it("stores governed upload bytes when a storage adapter is configured", async () => {
+    const bytes = new TextEncoder().encode("carrier estimate");
+    const checksumSha256 = sha256Hex(bytes);
+    const storageAdapter = createCloudObjectStorageAdapter({
+      async putObject(object) {
+        return { reference: `cloud://dispatch/${object.key}` };
+      }
+    });
+
+    await expect(stageDocumentLibraryUpload(staff, {
+      bytes,
+      checksumSha256,
+      contentType: "application/pdf",
+      context: {
+        console: "CLAIMS_WORKSPACE",
+        ownerId: "claim-10421",
+        ownerLabel: "Claim #CLM-10421",
+        purpose: "Insurance claim estimate from carrier.",
+        reason: "Carrier estimate received."
+      },
+      fileName: "insurance-estimate.pdf"
+    }, {
+      documentIdFactory: () => "doc-estimate-1",
+      organizationId: "dealer-1",
+      storageAdapter
+    })).resolves.toMatchObject({
+      storedObject: {
+        checksumSha256,
+        objectKey: "documents/dealer-1/claim/claim-10421/doc-estimate-1/v1/insurance-estimate.pdf",
+        provider: "CLOUD_OBJECT",
+        reference: "cloud://dispatch/documents/dealer-1/claim/claim-10421/doc-estimate-1/v1/insurance-estimate.pdf"
+      },
+      storageDraft: {
+        checksumSha256,
+        reference: "cloud://dispatch/documents/dealer-1/claim/claim-10421/doc-estimate-1/v1/insurance-estimate.pdf"
+      },
+      storagePolicy: {
+        accepted: true,
+        classification: {
+          documentType: "INSURANCE_ESTIMATE"
+        }
+      }
+    });
+  });
+
+  it("blocks configured storage until owner context and business reason are supplied", async () => {
+    const bytes = new TextEncoder().encode("customer document");
+    const checksumSha256 = sha256Hex(bytes);
+
+    await expect(stageDocumentLibraryUpload(staff, {
+      bytes,
+      checksumSha256,
+      contentType: "application/pdf",
+      fileName: "authorization.pdf"
+    }, {
+      storageAdapter: createCloudObjectStorageAdapter({
+        async putObject() {
+          return undefined;
+        }
+      })
+    })).rejects.toMatchObject({
+      code: "DOCUMENT_LIBRARY_INVALID_ACTION"
     });
   });
 

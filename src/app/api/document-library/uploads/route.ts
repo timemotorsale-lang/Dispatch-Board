@@ -8,6 +8,7 @@ import {
   DocumentLibraryError,
   type DocumentLibraryFailureCode
 } from "@/server/document-library/domain";
+import { createLocalPrivateDocumentStorageAdapter } from "@/server/document-library/storage-adapter";
 import { stageDocumentLibraryUpload } from "@/server/document-library/upload-service";
 
 const TYPED_CODES = new Set<DocumentLibraryFailureCode>([
@@ -31,8 +32,10 @@ async function payloadFromRequest(request: Request) {
     if (!(file instanceof File)) return {};
     const buffer = Buffer.from(await file.arrayBuffer());
     return {
+      bytes: new Uint8Array(buffer),
       checksumSha256: createHash("sha256").update(buffer).digest("hex"),
       contentType: file.type,
+      context: Object.fromEntries(form.entries().filter(([key]) => key !== "file")),
       fileName: file.name,
       sizeBytes: file.size
     };
@@ -42,7 +45,11 @@ async function payloadFromRequest(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    return NextResponse.json(await stageDocumentLibraryUpload(await getCurrentUser(), await payloadFromRequest(request)));
+    const storageRoot = process.env.DOCUMENT_LIBRARY_LOCAL_STORAGE_ROOT?.trim();
+    return NextResponse.json(await stageDocumentLibraryUpload(await getCurrentUser(), await payloadFromRequest(request), {
+      organizationId: process.env.DOCUMENT_LIBRARY_ORGANIZATION_ID?.trim() || "default-org",
+      storageAdapter: storageRoot ? createLocalPrivateDocumentStorageAdapter({ rootDir: storageRoot }) : undefined
+    }));
   } catch (error) {
     const code = error instanceof Error && "code" in error ? String((error as { code?: string }).code) : undefined;
     const typed = typeof code === "string" && TYPED_CODES.has(code as DocumentLibraryFailureCode);
