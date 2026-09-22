@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState, type FormEvent } from "react";
 
-import type { DocumentRecord, DocumentSensitivity, DocumentStatus } from "@/server/document-library/domain";
+import type { DocumentRecord, DocumentSensitivity, DocumentStatus, ReviewDecision } from "@/server/document-library/domain";
 
 import styles from "./document-library-landing.module.css";
 
@@ -44,6 +44,7 @@ type LibraryPacket = {
     label: string;
     required: boolean;
     state: string;
+    waived?: { by: string; reason: string; waivedAt: string };
   }>;
   status: string;
   title: string;
@@ -71,6 +72,15 @@ type DocumentLibraryModel = {
 type DocumentLibraryLandingProps = {
   error?: string | null;
   initialLibrary: DocumentLibraryModel | null;
+};
+
+type DocumentLibraryActionResponse = {
+  command?: {
+    action: string;
+    document?: DocumentRecord;
+    packet?: LibraryPacket;
+  };
+  error?: string;
 };
 
 const documentCategories = [
@@ -114,39 +124,16 @@ function StatusBadge({ label, tone = statusTone(label) }: { label: string; tone?
   return <span className={`${styles.statusBadge} ${styles[tone]}`}><CheckCircle2 size={13} />{formatLabel(label)}</span>;
 }
 
-function ActionButton({ action, label, subjectId }: { action: string; label: string; subjectId: string }) {
-  const [message, setMessage] = useState("");
-
-  async function previewAction() {
-    const response = await fetch("/api/document-library/actions", {
-      body: JSON.stringify({
-        action,
-        idempotencyKey: `document-console-${action}-${subjectId}-${Date.now()}`,
-        reason: `${label} requested from document console.`,
-        subjectId
-      }),
-      headers: { "Content-Type": "application/json" },
-      method: "POST"
-    });
-    const result = await response.json().catch(() => null) as { error?: string; command?: unknown; providerAction?: unknown } | null;
-    setMessage(response.ok ? "Ready for governed review." : result?.error ?? "Action unavailable.");
-  }
-
-  return (
-    <div className={styles.actionStack}>
-      <button onClick={() => void previewAction()} type="button">{label}</button>
-      {message ? <small>{message}</small> : null}
-    </div>
-  );
-}
-
 export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibraryLandingProps) {
+  const [libraryState, setLibraryState] = useState(initialLibrary);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [selectedDocumentId, setSelectedDocumentId] = useState(initialLibrary?.documents[0]?.id ?? "");
   const [selectedPacketId, setSelectedPacketId] = useState(initialLibrary?.packets[0]?.id ?? "");
   const [notice, setNotice] = useState(error ?? "Document console ready.");
+  const [actionReason, setActionReason] = useState("");
+  const [actionBusy, setActionBusy] = useState(false);
   const [intake, setIntake] = useState({
     documentType: "CUSTOMER_AUTHORIZATION",
     fileName: "",
@@ -159,10 +146,37 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
     source: "MANUAL_UPLOAD" as DocumentRecord["source"]
   });
 
-  const library = initialLibrary;
+  const library = libraryState;
   const selectedDocument = library?.documents.find((document) => document.id === selectedDocumentId) ?? library?.documents[0] ?? null;
   const selectedPacket = library?.packets.find((packet) => packet.id === selectedPacketId) ?? library?.packets[0] ?? null;
-  const selectedArchivePreview = library?.archivePreviews.find((preview) => preview.documentId === selectedDocument?.id) ?? null;
+  const selectedArchivePreview = useMemo(() => {
+    if (!selectedDocument || !library) return null;
+    const activePackets = library.packets.filter((packet) => packet.documents.includes(selectedDocument.id));
+    const reasons = [
+      ...(selectedDocument.legalHold ? ["Document is under legal hold."] : []),
+      ...(activePackets.length > 0 ? ["Document is still linked to active packet work."] : [])
+    ];
+    return {
+      documentId: selectedDocument.id,
+      eligible: reasons.length === 0,
+      legalHold: selectedDocument.legalHold,
+      reasons,
+      retentionCategory: selectedDocument.retentionCategory
+    };
+  }, [library, selectedDocument]);
+
+  const summary = useMemo(() => {
+    const packets = library?.packets ?? [];
+    const documents = library?.documents ?? [];
+    return {
+      documents: documents.length,
+      legalHold: documents.filter((document) => document.legalHold).length,
+      packets: packets.length,
+      providerReferences: documents.reduce((count, document) => count + document.providerReferences.length, 0),
+      readyPackets: packets.filter((packet) => packet.status === "COMPLETE").length,
+      reviewItems: packets.flatMap((packet) => packet.requirements).filter((requirement) => requirement.state !== "ACCEPTED" && requirement.state !== "WAIVED").length
+    };
+  }, [library]);
 
   const filteredDocuments = useMemo(() => {
     if (!library) return [];
@@ -185,6 +199,129 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
     });
   }, [categoryFilter, library, query, statusFilter]);
 
+  function reconcileAction(result: DocumentLibraryActionResponse) {
+    setLibraryState((current) => {
+      if (!current) return current;
+      const document = result.command?.document;
+      const packet = result.command?.packet;
+      return {
+        ...current,
+        documents: document
+          ? current.documents.some((item) => item.id === document.id)
+            ? current.documents.map((item) => item.id === document.id ? document : item)
+            : [document, ...current.documents]
+          : current.documents,
+        packets: packet
+          ? current.packets.some((item) => item.id === packet.id)
+            ? current.packets.map((item) => item.id === packet.id ? packet : item)
+            : [packet, ...current.packets]
+          : current.packets
+      };
+    });
+    if (result.command?.document) setSelectedDocumentId(result.command.document.id);
+    if (result.command?.packet) setSelectedPacketId(result.command.packet.id);
+  }
+
+  async function runDocumentAction(payload: Record<string, unknown>, successMessage: string) {
+    setActionBusy(true);
+    try {
+      const response = await fetch("/api/document-library/actions", {
+        body: JSON.stringify(payload),
+        headers: { "Content-Type": "application/json" },
+        method: "POST"
+      });
+      const result = await response.json().catch(() => null) as DocumentLibraryActionResponse | null;
+      if (!response.ok) {
+        setNotice(result?.error ?? "Document action could not be completed.");
+        return false;
+      }
+      if (result) reconcileAction(result);
+      setNotice(successMessage);
+      return true;
+    } catch {
+      setNotice("Document action could not reach the console service.");
+      return false;
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function reviewSelectedDocument(decision: ReviewDecision) {
+    if (!selectedDocument) return;
+    const reason = actionReason.trim() || (decision === "ACCEPT" ? "Accepted from document console." : "");
+    if (!reason) {
+      setNotice("Add a reason before requesting correction or rejecting a document.");
+      return;
+    }
+    const complete = await runDocumentAction({
+      action: "REVIEW_DOCUMENT",
+      decision,
+      documentId: selectedDocument.id,
+      reason
+    }, `${selectedDocument.fileName} marked ${formatLabel(decision)}.`);
+    if (complete) setActionReason("");
+  }
+
+  async function toggleLegalHold() {
+    if (!selectedDocument) return;
+    const reason = actionReason.trim();
+    if (!reason) {
+      setNotice("Add a reason before changing legal hold.");
+      return;
+    }
+    const action = selectedDocument.legalHold ? "RELEASE_LEGAL_HOLD" : "SET_LEGAL_HOLD";
+    const complete = await runDocumentAction({
+      action,
+      documentId: selectedDocument.id,
+      reason
+    }, selectedDocument.legalHold ? "Legal hold released." : "Legal hold applied.");
+    if (complete) setActionReason("");
+  }
+
+  async function toggleArchive() {
+    if (!selectedDocument) return;
+    const reason = actionReason.trim();
+    if (!reason) {
+      setNotice("Add a reason before archiving or restoring.");
+      return;
+    }
+    const action = selectedDocument.status === "ARCHIVED" ? "RESTORE_DOCUMENT" : "ARCHIVE_DOCUMENT";
+    const complete = await runDocumentAction({
+      action,
+      documentId: selectedDocument.id,
+      reason
+    }, selectedDocument.status === "ARCHIVED" ? "Document restored to review." : "Document archived.");
+    if (complete) setActionReason("");
+  }
+
+  async function linkSelectedDocumentToPacket() {
+    if (!selectedDocument || !selectedPacket) return;
+    const reason = actionReason.trim() || `Linked ${selectedDocument.fileName} to ${selectedPacket.title}.`;
+    const complete = await runDocumentAction({
+      action: "LINK_DOCUMENT_TO_PACKET",
+      documentId: selectedDocument.id,
+      packetId: selectedPacket.id,
+      reason
+    }, `${selectedDocument.fileName} linked to ${selectedPacket.title}.`);
+    if (complete) setActionReason("");
+  }
+
+  async function waiveRequirement(requirementId: string, requirementLabel: string) {
+    if (!selectedPacket) return;
+    const reason = actionReason.trim();
+    if (!reason) {
+      setNotice(`Add a reason before waiving ${requirementLabel}.`);
+      return;
+    }
+    const complete = await runDocumentAction({
+      action: "WAIVE_REQUIREMENT",
+      packetId: selectedPacket.id,
+      reason,
+      requirementId
+    }, `${requirementLabel} waived for ${selectedPacket.title}.`);
+    if (complete) setActionReason("");
+  }
+
   async function submitIntake(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!intake.fileName.trim() || !intake.documentType.trim() || !intake.ownerId.trim() || !intake.ownerLabel.trim() || !intake.reference.trim() || !intake.reason.trim()) {
@@ -192,28 +329,20 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
       return;
     }
 
-    const response = await fetch("/api/document-library/actions", {
-      body: JSON.stringify({
-        action: "CREATE_DOCUMENT",
-        documentType: intake.documentType,
-        fileName: intake.fileName,
-        idempotencyKey: `document-console-create-${Date.now()}`,
-        owner: { id: intake.ownerId, label: intake.ownerLabel, type: intake.ownerType },
-        packetId: selectedPacket?.id,
-        reason: intake.reason,
-        sensitivity: intake.sensitivity,
-        source: intake.source,
-        storage: { provider: intake.source === "EXTERNAL_LINK" ? "EXTERNAL_LINK" : "INTERNAL", reference: intake.reference, version: 1 }
-      }),
-      headers: { "Content-Type": "application/json" },
-      method: "POST"
-    });
-    const result = await response.json().catch(() => null) as { command?: { document?: DocumentRecord }; error?: string } | null;
-    if (!response.ok) {
-      setNotice(result?.error ?? "Document intake failed.");
-      return;
+    const complete = await runDocumentAction({
+      action: "CREATE_DOCUMENT",
+      documentType: intake.documentType,
+      fileName: intake.fileName,
+      owner: { id: intake.ownerId, label: intake.ownerLabel, type: intake.ownerType },
+      packetId: selectedPacket?.id,
+      reason: intake.reason,
+      sensitivity: intake.sensitivity,
+      source: intake.source,
+      storage: { provider: intake.source === "EXTERNAL_LINK" ? "EXTERNAL_LINK" : "INTERNAL", reference: intake.reference, version: 1 }
+    }, `Document ${intake.fileName} accepted into governed intake.`);
+    if (complete) {
+      setIntake((current) => ({ ...current, fileName: "", reason: "", reference: "" }));
     }
-    setNotice(result?.command?.document ? `Document ${result.command.document.fileName} accepted into governed intake preview.` : "Document intake command accepted.");
   }
 
   if (!library) {
@@ -247,11 +376,11 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
       </header>
 
       <section className={styles.docMetrics} aria-label="Document library summary">
-        <article><strong>{library.summary.documents}</strong><span>Documents</span></article>
-        <article><strong>{library.summary.packets}</strong><span>Packets</span></article>
-        <article><strong>{library.summary.reviewItems}</strong><span>Review items</span></article>
-        <article><strong>{library.summary.legalHold}</strong><span>Legal holds</span></article>
-        <article><strong>{library.summary.providerReferences}</strong><span>Provider refs</span></article>
+        <article><strong>{summary.documents}</strong><span>Documents</span></article>
+        <article><strong>{summary.packets}</strong><span>Packets</span></article>
+        <article><strong>{summary.reviewItems}</strong><span>Review items</span></article>
+        <article><strong>{summary.legalHold}</strong><span>Legal holds</span></article>
+        <article><strong>{summary.providerReferences}</strong><span>Provider refs</span></article>
       </section>
 
       <div className={styles.docConsoleLayout}>
@@ -339,9 +468,23 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
                   <p className={selectedDocument.legalHold ? styles.readinessRisk : styles.readinessGood}><LockKeyhole size={15} />{selectedDocument.legalHold ? "Legal hold active" : "No legal hold"}</p>
                   <p className={selectedDocument.sensitivity === "RESTRICTED" || selectedDocument.sensitivity === "SECURITY_AUDIT" ? styles.readinessRisk : styles.readinessGood}><ShieldCheck size={15} />{formatLabel(selectedDocument.sensitivity)}</p>
                   <p className={selectedDocument.status === "ACCEPTED" ? styles.readinessGood : styles.readinessWatch}><FileCheck2 size={15} />{formatLabel(selectedDocument.status)}</p>
-                  <ActionButton action="REVIEW_DOCUMENT" label="Preview review" subjectId={selectedDocument.id} />
-                  <ActionButton action="PREVIEW_ARCHIVE" label="Preview archive" subjectId={selectedDocument.id} />
-                  <ActionButton action={selectedDocument.legalHold ? "RELEASE_LEGAL_HOLD" : "SET_LEGAL_HOLD"} label={selectedDocument.legalHold ? "Release legal hold" : "Set legal hold"} subjectId={selectedDocument.id} />
+                  <label className={styles.docReasonBox}>Action reason<textarea onChange={(event) => setActionReason(event.target.value)} placeholder="Reason for review, hold, archive, link, or waiver" value={actionReason} /></label>
+                  <div className={styles.docActionPanel}>
+                    <strong>Review decision</strong>
+                    <div className={styles.docActionGrid}>
+                      <button disabled={actionBusy} onClick={() => void reviewSelectedDocument("ACCEPT")} type="button">Accept</button>
+                      <button disabled={actionBusy} onClick={() => void reviewSelectedDocument("NEEDS_CORRECTION")} type="button">Needs correction</button>
+                      <button disabled={actionBusy} onClick={() => void reviewSelectedDocument("REJECT")} type="button">Reject</button>
+                    </div>
+                  </div>
+                  <div className={styles.docActionPanel}>
+                    <strong>Governance</strong>
+                    <div className={styles.docActionGrid}>
+                      <button disabled={actionBusy} onClick={() => void toggleLegalHold()} type="button">{selectedDocument.legalHold ? "Release hold" : "Set hold"}</button>
+                      <button disabled={actionBusy || (!selectedArchivePreview?.eligible && selectedDocument.status !== "ARCHIVED")} onClick={() => void toggleArchive()} type="button">{selectedDocument.status === "ARCHIVED" ? "Restore" : "Archive"}</button>
+                    </div>
+                    <small>{selectedArchivePreview?.eligible ? "Archive eligible." : selectedArchivePreview?.reasons.join(" ") || "Archive requires review."}</small>
+                  </div>
                 </>
               ) : null}
             </aside>
@@ -363,12 +506,21 @@ export function DocumentLibraryLanding({ error, initialLibrary }: DocumentLibrar
                   <>
                     <h3>{selectedPacket.title}</h3>
                     <p>{selectedPacket.completion.accepted} of {selectedPacket.completion.required} required accepted.</p>
+                    {selectedDocument ? (
+                      <div className={styles.docPacketActionBar}>
+                        <span>{selectedPacket.documents.includes(selectedDocument.id) ? "Selected document is already linked." : `Link ${selectedDocument.fileName} to this packet.`}</span>
+                        <button disabled={actionBusy || selectedPacket.documents.includes(selectedDocument.id)} onClick={() => void linkSelectedDocumentToPacket()} type="button">Link selected</button>
+                      </div>
+                    ) : null}
                     <div className={styles.docRequirementList}>
                       {selectedPacket.requirements.map((requirement) => (
                         <article key={requirement.id}>
                           <FileCheck2 size={17} />
                           <span><strong>{requirement.label}</strong><small>{requirement.blocker ?? "Requirement satisfied or waived."}</small></span>
                           <StatusBadge label={requirement.state} />
+                          {requirement.state !== "ACCEPTED" && requirement.state !== "WAIVED" ? (
+                            <button disabled={actionBusy} onClick={() => void waiveRequirement(requirement.id, requirement.label)} type="button">Waive</button>
+                          ) : null}
                         </article>
                       ))}
                     </div>

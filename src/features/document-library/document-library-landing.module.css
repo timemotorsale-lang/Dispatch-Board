@@ -1749,6 +1749,70 @@
   font-size: 11px;
 }
 
+.docReasonBox {
+  display: grid;
+  gap: 6px;
+  color: var(--document-muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.docReasonBox textarea {
+  min-height: 78px;
+  resize: vertical;
+}
+
+.docActionPanel {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--document-line);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--document-surface-soft);
+}
+
+.docActionPanel strong {
+  color: var(--document-text);
+  font-size: 12px;
+}
+
+.docActionPanel small {
+  color: var(--document-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.docActionGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.docActionGrid button,
+.docPacketActionBar button,
+.docRequirementList button {
+  min-height: 34px;
+  border: 1px solid var(--document-line-strong);
+  border-radius: 7px;
+  padding: 0 10px;
+  background: #fff;
+  color: var(--document-text);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.docActionGrid button:first-child {
+  background: var(--document-accent);
+  color: #fff;
+}
+
+.docActionGrid button:disabled,
+.docPacketActionBar button:disabled,
+.docRequirementList button:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
 .docPacketWorkspace,
 .docAuditTimeline {
   display: grid;
@@ -1792,6 +1856,26 @@
   color: var(--document-muted);
 }
 
+.docPacketActionBar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--document-line);
+  border-radius: 8px;
+  padding: 9px;
+  background: #fff;
+}
+
+.docPacketActionBar span {
+  overflow: hidden;
+  color: var(--document-muted);
+  font-size: 12px;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .docRequirementList {
   display: grid;
   gap: 8px;
@@ -1799,13 +1883,17 @@
 
 .docRequirementList article {
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) auto;
+  grid-template-columns: 22px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 8px;
   border: 1px solid var(--document-line);
   border-radius: 7px;
   padding: 8px;
   background: #fff;
+}
+
+.docRequirementList button {
+  min-width: 68px;
 }
 
 .docRequirementList svg {
