@@ -37,6 +37,14 @@ describe("claims workspace service", () => {
     expect(model.claims[0].href).toContain("/vehicles/claims-workspace?claimId=");
     expect(model.filters.map((filter) => filter.id)).toEqual(["all", "blocked", "waitingCarrier", "readyHandoff", "paymentWatch", "aging"]);
     expect(model.intakeForms.map((form) => form.id)).toContain("insurance-claim-intake");
+    expect(model.commandCenter.scopes).toEqual(["Claims", "Vehicles", "Documents", "Money", "Tasks", "Timeline"]);
+    expect(model.executionCards.map((card) => card.title)).toContain("Missing photos");
+    expect(model.statusSignals.map((signal) => signal.label)).toContain("Authorization gaps");
+    expect(model.guardrails.map((guardrail) => guardrail.label)).toContain("Invoice packet gate");
+    expect(model.documentShortcuts.map((shortcut) => shortcut.label)).toContain("Authorizations");
+    expect(model.financialExceptions.map((exception) => exception.label)).toContain("Blocked billing");
+    expect(model.templates.map((template) => template.label)).toContain("Carrier adjuster call");
+    expect(model.timeline.length).toBeGreaterThan(0);
   });
 
   it("creates a durable claim record, flags duplicates, and produces checklist/readiness guidance", async () => {

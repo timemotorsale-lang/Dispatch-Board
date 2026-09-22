@@ -8,6 +8,15 @@ describe("claims desk", () => {
     const html = renderToStaticMarkup(<ClaimsDesk />);
 
     expect(html).toContain("Claim Desk Workbench");
+    expect(html).toContain("Command search");
+    expect(html).toContain("Next-action engine");
+    expect(html).toContain("Status intelligence");
+    expect(html).toContain("Workflow guardrails");
+    expect(html).toContain("Unified timeline");
+    expect(html).toContain("Document shortcuts");
+    expect(html).toContain("Money exceptions");
+    expect(html).toContain("Execution templates");
+    expect(html).toContain("Role-simple queue");
     expect(html).toContain("Find existing");
     expect(html).toContain("Start claim intake");
     expect(html).toContain("Start claim");
@@ -26,5 +35,16 @@ describe("claims desk", () => {
     expect(html).not.toContain("Desk signals");
     expect(html).not.toContain("Handoff lanes");
     expect(html).toContain("opens the workspace");
+  });
+
+  it("renders a working existing-claim search control", () => {
+    const html = renderToStaticMarkup(<ClaimsDesk initialTool="find" />);
+
+    expect(html).toContain('role="search"');
+    expect(html).toContain('aria-label="Search existing claims"');
+    expect(html).toContain('type="search"');
+    expect(html).toContain('placeholder="Customer, VIN, plate, phone, claim #, RO #"');
+    expect(html).toContain('type="submit"');
+    expect(html).toContain(">Search</button>");
   });
 });

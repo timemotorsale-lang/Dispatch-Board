@@ -121,8 +121,311 @@
   padding: 0 12px;
 }
 
-.searchBox strong {
+.searchField {
+  min-width: 0;
+  flex: 1;
+}
+
+.searchField input {
+  width: 100%;
+  min-height: 42px;
+  border: 0;
+  outline: 0;
+  background: transparent;
   color: #07132d;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.searchField input::placeholder {
+  color: #728099;
+  opacity: 1;
+}
+
+.searchBox button {
+  min-height: 34px;
+  border: 1px solid #284bd0;
+  border-radius: 8px;
+  background: #284bd0;
+  color: #fff;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  padding: 7px 12px;
+}
+
+.searchBox .clearSearchButton {
+  border-color: #c5d2e7;
+  background: #fff;
+  color: #0c2a61;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.commandCenter,
+.insightPanel {
+  display: grid;
+  gap: 12px;
+  border: 1px solid #d6e0f0;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 18px 50px rgba(17, 39, 83, 0.08);
+}
+
+.commandCenter {
+  padding: 14px;
+}
+
+.insightPanel {
+  margin-bottom: 14px;
+  padding: 12px;
+  background: #fbfdff;
+  box-shadow: none;
+}
+
+.commandHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.commandHeader h2 {
+  margin: 4px 0 0;
+  color: #07132d;
+  font-size: 1.18rem;
+  line-height: 1.18;
+  letter-spacing: 0;
+}
+
+.commandSearch {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.commandSearch input {
+  min-height: 44px;
+  min-width: 0;
+  border: 1px solid #c5d2e7;
+  border-radius: 8px;
+  background: #fff;
+  color: #07132d;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 800;
+  padding: 0 12px;
+}
+
+.commandSearch button,
+.actionCard button,
+.shortcutCard button,
+.moneyCard button {
+  min-height: 40px;
+  border: 1px solid #284bd0;
+  border-radius: 8px;
+  background: #284bd0;
+  color: #fff;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 900;
+  padding: 8px 12px;
+}
+
+.scopeRail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.scopeRail span {
+  border: 1px solid #d6e0f0;
+  border-radius: 999px;
+  background: #f5f8fd;
+  color: #526481;
+  font-size: 0.72rem;
+  font-weight: 900;
+  padding: 5px 9px;
+}
+
+.commandResults {
+  display: grid;
+  gap: 7px;
+  padding: 10px;
+  border: 1px solid #d6e0f0;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.commandResults strong {
+  color: #07132d;
+  font-size: 0.86rem;
+}
+
+.commandResults a {
+  display: grid;
+  gap: 2px;
+  border-top: 1px solid #e4ebf5;
+  color: #0c2a61;
+  font-size: 0.84rem;
+  font-weight: 900;
+  padding-top: 7px;
+  text-decoration: none;
+}
+
+.commandResults small {
+  color: #526481;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.intelligenceGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.intelligenceGrid button {
+  min-height: 96px;
+  display: grid;
+  gap: 5px;
+  align-content: start;
+  justify-items: start;
+  border: 1px solid #d6e0f0;
+  border-radius: 8px;
+  background: #fbfdff;
+  color: #07132d;
+  font: inherit;
+  padding: 10px;
+  text-align: left;
+}
+
+.intelligenceGrid button[aria-pressed="true"] {
+  border-color: #284bd0;
+  box-shadow: inset 4px 0 #284bd0;
+}
+
+.intelligenceGrid span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: #eaf0ff;
+  color: #1c3fb6;
+  font-size: 0.72rem;
+  font-weight: 950;
+}
+
+.intelligenceGrid strong {
+  font-size: 0.84rem;
+  line-height: 1.15;
+}
+
+.intelligenceGrid small {
+  color: #526481;
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1.28;
+}
+
+.actionCardGrid,
+.signalGrid,
+.shortcutGrid,
+.moneyGrid,
+.templateGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.guardrailStack,
+.timelineStack {
+  display: grid;
+  gap: 8px;
+}
+
+.actionCard,
+.signalCard,
+.guardrailRow,
+.timelineItem,
+.shortcutCard,
+.moneyCard,
+.templateCard {
+  display: grid;
+  gap: 7px;
+  align-content: start;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.actionCard,
+.shortcutCard,
+.moneyCard,
+.templateCard {
+  border: 1px solid #d6e0f0;
+  background: #fff;
+}
+
+.actionCard span,
+.shortcutCard span,
+.moneyCard span,
+.templateCard span,
+.timelineItem span,
+.guardrailRow span {
+  color: #526481;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.signalCard strong {
+  color: #07132d;
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.actionCard strong,
+.signalCard span,
+.guardrailRow strong,
+.timelineItem strong,
+.shortcutCard strong,
+.moneyCard strong,
+.templateCard strong {
+  color: #07132d;
+  font-size: 0.88rem;
+  line-height: 1.2;
+}
+
+.actionCard p,
+.signalCard p,
+.guardrailRow p,
+.timelineItem p,
+.shortcutCard p,
+.moneyCard p,
+.templateCard p {
+  margin: 0;
+  color: #526481;
+  font-size: 0.78rem;
+  font-weight: 750;
+  line-height: 1.34;
+}
+
+.templateCard small {
+  color: #526481;
+  font-size: 0.72rem;
+  font-weight: 850;
 }
 
 .workspace {
@@ -516,6 +819,15 @@
     grid-template-columns: 1fr;
   }
 
+  .intelligenceGrid,
+  .actionCardGrid,
+  .signalGrid,
+  .shortcutGrid,
+  .moneyGrid,
+  .templateGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .searchPanel {
     min-width: 0;
   }
@@ -533,6 +845,24 @@
     grid-template-columns: 1fr;
   }
 
+  .commandHeader,
+  .commandSearch {
+    grid-template-columns: 1fr;
+  }
+
+  .commandHeader {
+    flex-direction: column;
+  }
+
+  .intelligenceGrid,
+  .actionCardGrid,
+  .signalGrid,
+  .shortcutGrid,
+  .moneyGrid,
+  .templateGrid {
+    grid-template-columns: 1fr;
+  }
+
   .formFooter {
     align-items: stretch;
     flex-direction: column;
@@ -547,6 +877,16 @@
     align-items: flex-start;
   }
 
+  .searchBox {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 8px;
+  }
+
+  .searchBox button {
+    width: 100%;
+  }
+
   .primaryAction,
   .secondaryAction {
     width: 100%;
@@ -557,10 +897,21 @@
   color: var(--app-text);
 }
 
+:global(html[data-app-theme="dark"]) .commandCenter,
+:global(html[data-app-theme="dark"]) .insightPanel,
+:global(html[data-app-theme="dark"]) .commandSearch input,
+:global(html[data-app-theme="dark"]) .scopeRail span,
+:global(html[data-app-theme="dark"]) .commandResults,
+:global(html[data-app-theme="dark"]) .intelligenceGrid button,
+:global(html[data-app-theme="dark"]) .actionCard,
+:global(html[data-app-theme="dark"]) .shortcutCard,
+:global(html[data-app-theme="dark"]) .moneyCard,
+:global(html[data-app-theme="dark"]) .templateCard,
 :global(html[data-app-theme="dark"]) .hero,
 :global(html[data-app-theme="dark"]) .panel,
 :global(html[data-app-theme="dark"]) .searchPanel,
 :global(html[data-app-theme="dark"]) .searchBox,
+:global(html[data-app-theme="dark"]) .searchField input,
 :global(html[data-app-theme="dark"]) .queue,
 :global(html[data-app-theme="dark"]) .filterBar,
 :global(html[data-app-theme="dark"]) .filterBar button,
@@ -582,7 +933,13 @@
   box-shadow: none;
 }
 
+:global(html[data-app-theme="dark"]) .intelligenceGrid button[aria-pressed="true"] {
+  border-color: var(--app-primary);
+  box-shadow: inset 4px 0 var(--app-primary);
+}
+
 :global(html[data-app-theme="dark"]) .badge,
+:global(html[data-app-theme="dark"]) .intelligenceGrid span,
 :global(html[data-app-theme="dark"]) .filterBar button strong,
 :global(html[data-app-theme="dark"]) .lane > span {
   background: var(--app-surface-soft);
@@ -622,9 +979,20 @@
   color: var(--app-text);
 }
 
+:global(html[data-app-theme="dark"]) .commandHeader h2,
+:global(html[data-app-theme="dark"]) .commandResults strong,
+:global(html[data-app-theme="dark"]) .intelligenceGrid strong,
+:global(html[data-app-theme="dark"]) .signalCard strong,
+:global(html[data-app-theme="dark"]) .actionCard strong,
+:global(html[data-app-theme="dark"]) .signalCard span,
+:global(html[data-app-theme="dark"]) .guardrailRow strong,
+:global(html[data-app-theme="dark"]) .timelineItem strong,
+:global(html[data-app-theme="dark"]) .shortcutCard strong,
+:global(html[data-app-theme="dark"]) .moneyCard strong,
+:global(html[data-app-theme="dark"]) .templateCard strong,
 :global(html[data-app-theme="dark"]) .hero h1,
 :global(html[data-app-theme="dark"]) .panelHeader h2,
-:global(html[data-app-theme="dark"]) .searchBox strong,
+:global(html[data-app-theme="dark"]) .searchField input,
 :global(html[data-app-theme="dark"]) .claimRow strong,
 :global(html[data-app-theme="dark"]) .lane strong,
 :global(html[data-app-theme="dark"]) .guardrail strong,
@@ -634,6 +1002,23 @@
   color: var(--app-text);
 }
 
+:global(html[data-app-theme="dark"]) .scopeRail span,
+:global(html[data-app-theme="dark"]) .commandResults small,
+:global(html[data-app-theme="dark"]) .intelligenceGrid small,
+:global(html[data-app-theme="dark"]) .actionCard span,
+:global(html[data-app-theme="dark"]) .shortcutCard span,
+:global(html[data-app-theme="dark"]) .moneyCard span,
+:global(html[data-app-theme="dark"]) .templateCard span,
+:global(html[data-app-theme="dark"]) .timelineItem span,
+:global(html[data-app-theme="dark"]) .guardrailRow span,
+:global(html[data-app-theme="dark"]) .actionCard p,
+:global(html[data-app-theme="dark"]) .signalCard p,
+:global(html[data-app-theme="dark"]) .guardrailRow p,
+:global(html[data-app-theme="dark"]) .timelineItem p,
+:global(html[data-app-theme="dark"]) .shortcutCard p,
+:global(html[data-app-theme="dark"]) .moneyCard p,
+:global(html[data-app-theme="dark"]) .templateCard p,
+:global(html[data-app-theme="dark"]) .templateCard small,
 :global(html[data-app-theme="dark"]) .hero p,
 :global(html[data-app-theme="dark"]) .panelHeader p,
 :global(html[data-app-theme="dark"]) .searchPanel p,
@@ -656,10 +1041,25 @@
 
 :global(html[data-app-theme="dark"]) .topActions button,
 :global(html[data-app-theme="dark"]) .primaryAction,
-:global(html[data-app-theme="dark"]) .formFooter button {
+:global(html[data-app-theme="dark"]) .formFooter button,
+:global(html[data-app-theme="dark"]) .commandSearch button,
+:global(html[data-app-theme="dark"]) .actionCard button,
+:global(html[data-app-theme="dark"]) .shortcutCard button,
+:global(html[data-app-theme="dark"]) .moneyCard button,
+:global(html[data-app-theme="dark"]) .searchBox button {
   background: var(--app-primary);
   border-color: var(--app-primary-strong);
   color: var(--app-primary-text);
+}
+
+:global(html[data-app-theme="dark"]) .searchField input::placeholder {
+  color: var(--app-text-muted);
+}
+
+:global(html[data-app-theme="dark"]) .searchBox .clearSearchButton {
+  background: var(--app-surface);
+  border-color: var(--app-border);
+  color: var(--app-text);
 }
 
 :global(html[data-app-theme="dark"]) :where(.topActions button, .primaryAction, .secondaryAction, .formFooter button):disabled {

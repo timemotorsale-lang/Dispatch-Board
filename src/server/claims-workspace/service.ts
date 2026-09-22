@@ -250,11 +250,44 @@ export type ClaimsDeskReadModel = {
     provider: string;
     queueTags: Array<"blocked" | "waitingCarrier" | "readyHandoff" | "paymentWatch" | "aging">;
   }>;
+  commandCenter: {
+    indexedRecords: number;
+    placeholder: string;
+    scopes: string[];
+  };
   contractVersion: typeof CLAIMS_WORKSPACE_CONTRACT_VERSION;
+  documentShortcuts: Array<{
+    actionLabel: string;
+    count: number;
+    detail: string;
+    label: string;
+    tone: "info" | "good" | "warning" | "danger";
+  }>;
+  executionCards: Array<{
+    actionLabel: string;
+    detail: string;
+    id: string;
+    ownerRole: string;
+    title: string;
+    tone: "info" | "good" | "warning" | "danger";
+  }>;
   filters: Array<{
     count: number;
     id: "all" | "blocked" | "waitingCarrier" | "readyHandoff" | "paymentWatch" | "aging";
     label: string;
+  }>;
+  financialExceptions: Array<{
+    actionLabel: string;
+    amountLabel: string;
+    detail: string;
+    label: string;
+    tone: "info" | "good" | "warning" | "danger";
+  }>;
+  guardrails: Array<{
+    enforced: boolean;
+    label: string;
+    reason: string;
+    tone: "info" | "good" | "warning" | "danger";
   }>;
   intakeForms: typeof INSURANCE_CLAIM_INTAKE_FORM_PACKET;
   metrics: {
@@ -265,6 +298,24 @@ export type ClaimsDeskReadModel = {
     readyHandoff: number;
     waitingCarrier: number;
   };
+  statusSignals: Array<{
+    count: number;
+    detail: string;
+    label: string;
+    tone: "info" | "good" | "warning" | "danger";
+  }>;
+  templates: Array<{
+    body: string;
+    channel: "Call" | "Email" | "SMS" | "Internal";
+    label: string;
+    requiredContext: string[];
+  }>;
+  timeline: Array<{
+    atLabel: string;
+    detail: string;
+    label: string;
+    tone: "info" | "good" | "warning" | "danger";
+  }>;
 };
 
 export type ClaimDuplicateWarning = {
@@ -579,6 +630,11 @@ export async function getClaimsDeskReadModel(actor: AuthenticatedUser | null, in
   const repository = deps(input).repository;
   const aggregates = await repository.listClaims();
   const readModels = aggregates.map((aggregate) => toClaimReadModel(aggregate, aggregates));
+  const blocked = readModels.filter((model) => queueTags(model).includes("blocked"));
+  const waitingCarrier = readModels.filter((model) => queueTags(model).includes("waitingCarrier"));
+  const readyHandoff = readModels.filter((model) => queueTags(model).includes("readyHandoff"));
+  const paymentWatch = readModels.filter((model) => queueTags(model).includes("paymentWatch"));
+  const aging = readModels.filter((model) => queueTags(model).includes("aging"));
   return {
     claims: readModels.map((model) => ({
       action: model.claim.ownerUserId ? (model.claim.stage === "INTAKE" ? "Resume" : "Open") : "Assign",
@@ -591,25 +647,176 @@ export async function getClaimsDeskReadModel(actor: AuthenticatedUser | null, in
       provider: model.claim.carrierName || "Carrier unknown",
       queueTags: queueTags(model)
     })),
+    commandCenter: {
+      indexedRecords: readModels.length,
+      placeholder: "Search claim, customer, VIN, plate, carrier, blocker, invoice, rental, or document...",
+      scopes: ["Claims", "Vehicles", "Documents", "Money", "Tasks", "Timeline"]
+    },
     contractVersion: CLAIMS_WORKSPACE_CONTRACT_VERSION,
+    documentShortcuts: buildDeskDocumentShortcuts(readModels),
+    executionCards: buildDeskExecutionCards(readModels),
     filters: [
       { count: readModels.length, id: "all", label: "All" },
-      { count: readModels.filter((model) => queueTags(model).includes("blocked")).length, id: "blocked", label: "Blocked" },
-      { count: readModels.filter((model) => queueTags(model).includes("waitingCarrier")).length, id: "waitingCarrier", label: "Waiting carrier" },
-      { count: readModels.filter((model) => queueTags(model).includes("readyHandoff")).length, id: "readyHandoff", label: "Ready handoff" },
-      { count: readModels.filter((model) => queueTags(model).includes("paymentWatch")).length, id: "paymentWatch", label: "Payment watch" },
-      { count: readModels.filter((model) => queueTags(model).includes("aging")).length, id: "aging", label: "Aging" }
+      { count: blocked.length, id: "blocked", label: "Blocked" },
+      { count: waitingCarrier.length, id: "waitingCarrier", label: "Waiting carrier" },
+      { count: readyHandoff.length, id: "readyHandoff", label: "Ready handoff" },
+      { count: paymentWatch.length, id: "paymentWatch", label: "Payment watch" },
+      { count: aging.length, id: "aging", label: "Aging" }
     ],
+    financialExceptions: buildDeskFinancialExceptions(readModels),
+    guardrails: buildDeskGuardrails(readModels),
     intakeForms: INSURANCE_CLAIM_INTAKE_FORM_PACKET,
     metrics: {
-      agingClaims: readModels.filter((model) => claimAgeDays(model.claim) >= 3).length,
-      blockedClaims: readModels.filter((model) => model.primaryBlocker.startsWith("Missing") || model.primaryBlocker.includes("blocked")).length,
+      agingClaims: aging.length,
+      blockedClaims: blocked.length,
       openClaims: readModels.filter((model) => model.claim.status === "OPEN").length,
-      paymentWatch: readModels.filter((model) => model.claim.stage === "PAYMENT_FOLLOW_UP").length,
-      readyHandoff: readModels.filter((model) => model.handoff.allowed).length,
-      waitingCarrier: readModels.filter((model) => model.primaryBlocker.includes("carrier") || model.primaryBlocker.includes("adjuster")).length
-    }
+      paymentWatch: paymentWatch.length,
+      readyHandoff: readyHandoff.length,
+      waitingCarrier: waitingCarrier.length
+    },
+    statusSignals: buildDeskStatusSignals(readModels),
+    templates: buildDeskTemplates(readModels),
+    timeline: buildDeskTimeline(readModels)
   };
+}
+
+function buildDeskExecutionCards(readModels: ClaimReadModel[]): ClaimsDeskReadModel["executionCards"] {
+  const recommended = [...readModels]
+    .sort((left, right) => executionPriority(right) - executionPriority(left))
+    .slice(0, 4);
+  return recommended.map((model) => ({
+    actionLabel: model.nextAction.label,
+    detail: `${model.claim.customerName} - ${model.nextAction.reason}`,
+    id: model.claim.id,
+    ownerRole: model.nextAction.ownerRole,
+    title: model.primaryBlocker,
+    tone: model.handoff.allowed ? "good" : model.primaryBlocker.startsWith("Missing") ? "warning" : "info"
+  }));
+}
+
+function executionPriority(model: ClaimReadModel) {
+  if (!model.claim.ownerUserId) return 7;
+  if (model.primaryBlocker.includes("authorization")) return 6;
+  if (model.primaryBlocker.includes("photo")) return 5;
+  if (model.carrierTracker.approvalStatus === "needs_adjuster") return 4;
+  if (model.handoff.allowed) return 3;
+  if (model.billingRecovery.invoicePacket.status === "READY_TO_SEND") return 2;
+  return 1;
+}
+
+function buildDeskStatusSignals(readModels: ClaimReadModel[]): ClaimsDeskReadModel["statusSignals"] {
+  const unassigned = readModels.filter((model) => !model.claim.ownerUserId).length;
+  const missingAuthorization = readModels.filter((model) => model.primaryBlocker.includes("authorization")).length;
+  const ready = readModels.filter((model) => model.handoff.allowed).length;
+  const rentalRisk = readModels.filter((model) => model.billingRecovery.rental.overageRisk !== "NONE").length;
+  return [
+    { count: missingAuthorization, detail: "Claims blocked before repair handoff.", label: "Authorization gaps", tone: missingAuthorization ? "warning" : "good" },
+    { count: unassigned, detail: "Claims without an accountable owner.", label: "Owner gaps", tone: unassigned ? "danger" : "good" },
+    { count: ready, detail: "Claims ready to move into repair order execution.", label: "Ready handoffs", tone: ready ? "good" : "info" },
+    { count: rentalRisk, detail: "Daily rentals needing extension or approved-days support.", label: "Rental risk", tone: rentalRisk ? "warning" : "good" }
+  ];
+}
+
+function buildDeskGuardrails(readModels: ClaimReadModel[]): ClaimsDeskReadModel["guardrails"] {
+  const handoffBlocked = readModels.some((model) => !model.handoff.allowed);
+  const duplicateSensitive = readModels.some((model) => model.duplicateWarnings.length > 0);
+  const paymentBlocked = readModels.some((model) => model.billingRecovery.invoicePacket.status === "BLOCKED");
+  return [
+    {
+      enforced: handoffBlocked,
+      label: "Repair handoff gate",
+      reason: "Authorization, photos, claim identity, and owner must be complete before repair handoff.",
+      tone: handoffBlocked ? "warning" : "good"
+    },
+    {
+      enforced: duplicateSensitive,
+      label: "Duplicate claim prevention",
+      reason: "Exact claim numbers and strong VIN matches require review before creating another record.",
+      tone: duplicateSensitive ? "danger" : "good"
+    },
+    {
+      enforced: paymentBlocked,
+      label: "Invoice packet gate",
+      reason: "Carrier billing stays blocked until payer contact, authorization, estimate, and final invoice support are ready.",
+      tone: paymentBlocked ? "warning" : "good"
+    }
+  ];
+}
+
+function buildDeskDocumentShortcuts(readModels: ClaimReadModel[]): ClaimsDeskReadModel["documentShortcuts"] {
+  const missing = (category: ClaimEvidenceCategory) => readModels.filter((model) => model.checklist.some((item) => item.category === category && item.state === "MISSING")).length;
+  const paymentMissing = readModels.filter((model) => model.documentPlan.some((item) => item.category === "PAYMENT" && item.state === "MISSING")).length;
+  return [
+    { actionLabel: "Open authorization queue", count: missing("AUTHORIZATION"), detail: "Signed authorization needed before repair handoff.", label: "Authorizations", tone: missing("AUTHORIZATION") ? "warning" : "good" },
+    { actionLabel: "Open photo queue", count: missing("DAMAGE_PHOTO") + missing("VIN_PHOTO") + missing("ODOMETER_PHOTO"), detail: "Damage, VIN, and odometer evidence for handoff.", label: "Photo evidence", tone: missing("DAMAGE_PHOTO") ? "warning" : "good" },
+    { actionLabel: "Open estimate queue", count: missing("ESTIMATE"), detail: "Carrier estimate, supplement, or internal appraisal support.", label: "Estimates", tone: missing("ESTIMATE") ? "warning" : "good" },
+    { actionLabel: "Open payment queue", count: paymentMissing, detail: "Payment proof, deductible support, and closeout recovery.", label: "Payment proof", tone: paymentMissing ? "info" : "good" }
+  ];
+}
+
+function buildDeskFinancialExceptions(readModels: ClaimReadModel[]): ClaimsDeskReadModel["financialExceptions"] {
+  const rental = readModels.filter((model) => model.billingRecovery.rental.overageRisk !== "NONE");
+  const blockedPackets = readModels.filter((model) => model.billingRecovery.invoicePacket.status === "BLOCKED");
+  const readyPackets = readModels.filter((model) => model.billingRecovery.invoicePacket.status === "READY_TO_SEND");
+  const shortPay = readModels.filter((model) => model.billingRecovery.shortPayWatch.active);
+  return [
+    { actionLabel: "Review rentals", amountLabel: `${rental.length} open`, detail: "Rental support exists without approved-days or extension documentation.", label: "Daily rental risk", tone: rental.length ? "warning" : "good" },
+    { actionLabel: "Complete packets", amountLabel: `${blockedPackets.length} blocked`, detail: "Invoice packet still missing payer, authorization, estimate, or final RO support.", label: "Blocked billing", tone: blockedPackets.length ? "warning" : "good" },
+    { actionLabel: "Send invoices", amountLabel: `${readyPackets.length} ready`, detail: "Recovery packets ready for carrier or warranty billing.", label: "Ready to bill", tone: readyPackets.length ? "good" : "info" },
+    { actionLabel: "Audit short-pay", amountLabel: `${shortPay.length} watch`, detail: "Payment proof exists before the recovery packet is complete.", label: "Short-pay watch", tone: shortPay.length ? "danger" : "good" }
+  ];
+}
+
+function buildDeskTemplates(readModels: ClaimReadModel[]): ClaimsDeskReadModel["templates"] {
+  const firstCarrier = readModels.find((model) => model.claim.carrierName)?.claim.carrierName ?? "carrier";
+  return [
+    {
+      body: `Call ${firstCarrier}, confirm adjuster contact, claim status, estimate timing, rental responsibility, and next approval step.`,
+      channel: "Call",
+      label: "Carrier adjuster call",
+      requiredContext: ["Carrier", "Claim number", "Policy number", "Vehicle"]
+    },
+    {
+      body: "Please sign the repair authorization so we can communicate with the carrier and move the claim toward repair handoff.",
+      channel: "SMS",
+      label: "Authorization request",
+      requiredContext: ["Customer", "Claim", "Authorization document"]
+    },
+    {
+      body: "Invoice packet is ready for review: estimate, authorization, final repair support, deductible status, and rental support.",
+      channel: "Email",
+      label: "Carrier invoice packet",
+      requiredContext: ["Estimate", "Authorization", "Final invoice", "Payment instructions"]
+    },
+    {
+      body: "Manager review requested for claim exception before handoff, billing, or closeout proceeds.",
+      channel: "Internal",
+      label: "Manager exception",
+      requiredContext: ["Blocker", "Reason", "Requested owner"]
+    }
+  ];
+}
+
+function buildDeskTimeline(readModels: ClaimReadModel[]): ClaimsDeskReadModel["timeline"] {
+  return readModels
+    .flatMap((model) => {
+      const newestActivity = model.activities[0];
+      return [
+        {
+          atLabel: model.summary.ageLabel,
+          detail: `${model.claim.customerName} - ${model.nextAction.reason}`,
+          label: model.nextAction.label,
+          tone: (model.handoff.allowed ? "good" : model.primaryBlocker.startsWith("Missing") ? "warning" : "info") as "info" | "good" | "warning" | "danger"
+        },
+        ...(newestActivity ? [{
+          atLabel: "Latest activity",
+          detail: newestActivity.detail,
+          label: newestActivity.action.toLowerCase().replaceAll("_", " "),
+          tone: "info" as const
+        }] : [])
+      ];
+    })
+    .slice(0, 6);
 }
 
 function queueTags(model: ClaimReadModel): Array<"blocked" | "waitingCarrier" | "readyHandoff" | "paymentWatch" | "aging"> {
