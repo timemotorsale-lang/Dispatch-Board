@@ -3,6 +3,7 @@
 import {
   AlertTriangle,
   CalendarClock,
+  CalendarDays,
   Camera,
   CarFront,
   CheckSquare,
@@ -47,6 +48,10 @@ type AdvisorViewMode = "CALM" | "HIGH_VOLUME";
 type AdvisorWorkspaceSection = "COO_WORKBOOK" | "INBOX" | "WORK";
 type WorkbookViewMode = "COO" | "MY";
 type InboxFilter = "ALL" | InboxItem["audience"] | "NEEDS_RESPONSE";
+type FocusCompassVisualMode = "LIST" | "TIMELINE" | "CALENDAR";
+type FocusCompassCalendarView = "DAY" | "WEEK" | "MONTH";
+type FocusCalendarSlotType = "FOCUS_BLOCK" | "TASK" | "REMINDER" | "APPOINTMENT" | "FOLLOW_UP";
+type FocusCalendarSlot = { focusKey: string; id: string; notes: string; time: string; title: string; type: FocusCalendarSlotType };
 
 type WorkbookScopeSearchParams = {
   get(name: string): string | null;
@@ -116,8 +121,58 @@ function focusMustWinKey(horizon: FocusCompassHorizon, item: FocusCompassMustWin
   return `${horizon}:${item.owner}:${item.title}`;
 }
 
+function focusCalendarTone(item: FocusCompassMustWin) {
+  const status = item.status.toLocaleLowerCase();
+  const impact = item.impact.toLocaleLowerCase();
+  if (status.includes("done") || status.includes("complete") || status.includes("on track")) return "done";
+  if (status.includes("carry")) return "carryover";
+  if (status.includes("risk") || status.includes("block") || status.includes("watch") || impact.includes("critical") || impact.includes("high")) return "risk";
+  return "active";
+}
+
+function focusCalendarBucketIndex(item: FocusCompassMustWin, index: number, bucketCount: number) {
+  if (bucketCount <= 1) return 0;
+  const status = item.status.toLocaleLowerCase();
+  if (status.includes("carry")) return 0;
+  if (status.includes("done") || status.includes("complete")) return bucketCount - 1;
+  return Math.min(bucketCount - 1, Math.max(0, index % bucketCount));
+}
+
 function dateLabel(value: string) {
   return new Date(value).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function parseBoardDate(value: string) {
+  const parsed = new Date(`${value}T12:00:00`);
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+}
+
+function isoDate(value: Date) {
+  const year = value.getFullYear();
+  const month = `${value.getMonth() + 1}`.padStart(2, "0");
+  const day = `${value.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function addDays(value: Date, days: number) {
+  const next = new Date(value);
+  next.setDate(value.getDate() + days);
+  return next;
+}
+
+function startOfWeek(value: Date) {
+  const next = new Date(value);
+  const day = next.getDay();
+  next.setDate(next.getDate() - day);
+  return next;
+}
+
+function calendarDayLabel(value: Date) {
+  return value.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+}
+
+function calendarMonthLabel(value: Date) {
+  return value.toLocaleDateString([], { month: "long", year: "numeric" });
 }
 
 function stageLabel(value: string) {
@@ -353,7 +408,7 @@ type SearchableWorkItem = {
 };
 export type CooWorkbookTool = "CHECKLIST" | "TO_DO_LIST" | "QUICK_UPDATE" | "ACTION_PLAN" | "CARRYOVER" | "REPORT_SEEDS" | "STAFF_SUPPORT" | "DRAFTS" | "BRING_FORWARD" | "PURCHASE_APPRAISAL_CAPTURE" | "FOCUS_COMPASS" | "MORE_TOOLS";
 type FocusCompassHorizon = "TODAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR";
-type FocusCompassMustWin = { impact: string; owner: string; status: string; title: string };
+type FocusCompassMustWin = { calendarDate?: string; calendarReason?: string; impact: string; owner: string; status: string; title: string };
 type FocusCompassProofItem = { id: string; label: string; weight: number };
 type FocusCompassExecutionItem = { done: boolean; id: string; label: string };
 
@@ -656,6 +711,11 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
   const [quickUpdateSaveNotice, setQuickUpdateSaveNotice] = useState("");
   const [focusCompassHorizon, setFocusCompassHorizon] = useState<FocusCompassHorizon>("TODAY");
   const [focusCompassRole, setFocusCompassRole] = useState("All Roles");
+  const [focusCompassVisualMode, setFocusCompassVisualMode] = useState<FocusCompassVisualMode>("LIST");
+  const [focusCompassCalendarView, setFocusCompassCalendarView] = useState<FocusCompassCalendarView>("WEEK");
+  const [selectedFocusCalendarDate, setSelectedFocusCalendarDate] = useState(model.boardDate);
+  const [focusCalendarSlots, setFocusCalendarSlots] = useState<Record<string, FocusCalendarSlot[]>>({});
+  const [focusSlotDraft, setFocusSlotDraft] = useState({ focusKey: "", notes: "", time: "09:00", title: "", type: "FOCUS_BLOCK" as FocusCalendarSlotType });
   const [activeFocusProofDrawerKey, setActiveFocusProofDrawerKey] = useState<string | null>(null);
   const [focusProofChecked, setFocusProofChecked] = useState<Record<string, boolean>>({});
   const [focusExecutionDrafts, setFocusExecutionDrafts] = useState<Record<string, string>>({});
@@ -1353,8 +1413,8 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
         why: "Today’s view keeps staff on one next action, the must-wins, and the risks that can block a clean close."
       },
       mustWins: [
-        ...activeDailyFocusItems.slice(0, 3).map((item) => ({ impact: item.priority, owner: activeWorkbookOwner, status: item.status.replaceAll("_", " "), title: item.outcome })),
-        ...checklistItems.filter((item) => !item.done).slice(0, 2).map((item) => ({ impact: item.priority, owner: activeWorkbookOwner, status: checklistStatusLabel(item), title: item.text }))
+        ...activeDailyFocusItems.slice(0, 3).map((item) => ({ calendarDate: item.sourceBoardDate ?? model.boardDate, calendarReason: item.sourceBoardDate && item.sourceBoardDate !== model.boardDate ? "Carried from prior focus" : item.mustCloseToday ? "Must close today" : "Active today", impact: item.priority, owner: activeWorkbookOwner, status: item.status.replaceAll("_", " "), title: item.outcome })),
+        ...checklistItems.filter((item) => !item.done).slice(0, 2).map((item) => ({ calendarDate: model.boardDate, calendarReason: item.carryoverReady ? "Carryover candidate" : "Open checklist item", impact: item.priority, owner: activeWorkbookOwner, status: checklistStatusLabel(item), title: item.text }))
       ].slice(0, 5),
       radar: [
         { detail: `${activeWorkbook.risk.watchCount} watch signal(s)`, severity: activeWorkbook.risk.watchCount ? "Med" : "Low", title: "Watch items" },
@@ -1521,6 +1581,63 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
     { label: "Risk control", value: clampFocusScore(activeWorkbook.risk.score + Math.min(10, focusProofEarned)) },
     { label: "Noise", value: clampFocusScore(45 + focusNoiseCleared * 10) }
   ];
+  const focusCompassVisualModes: Array<{ icon: typeof ListChecks; label: string; value: FocusCompassVisualMode }> = [
+    { icon: ListChecks, label: "List", value: "LIST" },
+    { icon: Clock3, label: "Timeline", value: "TIMELINE" },
+    { icon: CalendarDays, label: "Calendar", value: "CALENDAR" }
+  ];
+  const focusVisualItems = activeFocusMustWins.map((item, index) => {
+    const drawerKey = focusMustWinKey(focusCompassHorizon, item);
+    const proofItems = focusProofItemsFor(item, focusCompassHorizon);
+    const executionItems = focusExecutionItems[drawerKey] ?? [];
+
+    return {
+      bucketIndex: focusCalendarBucketIndex(item, index, activeFocusCompass.timeline.length),
+      calendarDate: item.calendarDate ?? model.boardDate,
+      calendarReason: item.calendarReason ?? "Focus item",
+      drawerKey,
+      executionDone: executionItems.filter((step) => step.done).length,
+      executionTotal: executionItems.length,
+      index,
+      item,
+      proofDone: proofItems.filter((proof) => focusProofChecked[focusProofKey(focusCompassHorizon, item, proof)]).length,
+      proofTotal: proofItems.length,
+      tone: focusCalendarTone(item)
+    };
+  });
+  const focusCalendarAnchor = parseBoardDate(model.boardDate);
+  const selectedFocusCalendarAnchor = parseBoardDate(selectedFocusCalendarDate);
+  const focusCalendarMonthStart = new Date(focusCalendarAnchor.getFullYear(), focusCalendarAnchor.getMonth(), 1);
+  const focusCalendarMonthGridStart = startOfWeek(focusCalendarMonthStart);
+  const focusCalendarDays = focusCompassCalendarView === "DAY"
+    ? [selectedFocusCalendarAnchor]
+    : focusCompassCalendarView === "WEEK"
+      ? Array.from({ length: 7 }, (_, index) => addDays(startOfWeek(focusCalendarAnchor), index))
+      : Array.from({ length: 42 }, (_, index) => addDays(focusCalendarMonthGridStart, index));
+  const focusCalendarDayItems = focusCalendarDays.map((day) => {
+    const dateKey = isoDate(day);
+    return {
+      dateKey,
+      day,
+      items: focusVisualItems.filter((item) => item.calendarDate === dateKey),
+      outsideMonth: focusCompassCalendarView === "MONTH" && day.getMonth() !== focusCalendarAnchor.getMonth()
+    };
+  });
+  const focusCalendarUndatedItems = focusVisualItems.filter((item) => !item.calendarDate);
+  const selectedFocusCalendarDay = focusCalendarDayItems.find((item) => item.dateKey === selectedFocusCalendarDate) ?? {
+    dateKey: selectedFocusCalendarDate,
+    day: parseBoardDate(selectedFocusCalendarDate),
+    items: focusVisualItems.filter((item) => item.calendarDate === selectedFocusCalendarDate),
+    outsideMonth: false
+  };
+  const selectedFocusCalendarSlots = [...(focusCalendarSlots[selectedFocusCalendarDate] ?? [])].sort((left, right) => left.time.localeCompare(right.time));
+  const focusSlotTypeLabels: Record<FocusCalendarSlotType, string> = {
+    APPOINTMENT: "Appointment",
+    FOCUS_BLOCK: "Focus block",
+    FOLLOW_UP: "Follow-up",
+    REMINDER: "Reminder",
+    TASK: "Task"
+  };
   const focusBlockerChoices = ["No owner", "Waiting on customer", "Waiting on vendor", "Missing info", "Decision needed", "Too many priorities"];
   const toolCards = [
     { description: "Stay focused across today, week, month, quarter, and year", href: "/vehicles/coo-workbook/focus-compass", icon: Gauge, title: "Focus Compass" },
@@ -3131,6 +3248,13 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
             ))}
           </div>
         </div>
+        <div className="advisor-focus-view-switch" aria-label="Focus Compass visual mode">
+          {focusCompassVisualModes.map(({ icon: Icon, label, value }) => (
+            <button aria-pressed={focusCompassVisualMode === value} key={value} onClick={() => setFocusCompassVisualMode(value)} type="button">
+              <Icon /> {label}
+            </button>
+          ))}
+        </div>
 
         <div className="advisor-focus-compass-hero">
           <article className="advisor-focus-now">
@@ -3165,6 +3289,156 @@ export function CooDailyWorkbook({ compact = false, closedRepairOrderId = null, 
             </div>
           </article>
         </div>
+
+        {focusCompassVisualMode !== "LIST" ? <section className={`advisor-focus-visual advisor-focus-visual-${focusCompassVisualMode.toLocaleLowerCase()}`} aria-label={focusCompassVisualMode === "CALENDAR" ? "Focus deadline calendar" : "Focus timeline"}>
+          <header>
+            <div>
+              <strong>{focusCompassVisualMode === "CALENDAR" ? "Focus Deadline Calendar" : "Focus Timeline"}</strong>
+              <small>{focusCompassHorizon === "TODAY" ? model.boardDate : activeFocusCompass.title} · {focusCompassRole}</small>
+            </div>
+            <span>{activeFocusMustWins.length} focus item{activeFocusMustWins.length === 1 ? "" : "s"}</span>
+          </header>
+          {focusCompassVisualMode === "TIMELINE" ? <div className="advisor-focus-timeline-review">
+            {focusVisualItems.map((visual) => (
+              <button className={visual.tone} key={`${visual.drawerKey}-timeline`} onClick={() => setActiveFocusProofDrawerKey(visual.drawerKey)} type="button">
+                <b>{visual.index + 1}</b>
+                <span>
+                  <strong>{visual.item.title}</strong>
+                  <small>{activeFocusCompass.timeline[visual.bucketIndex]} · {visual.item.owner} · {visual.item.status}</small>
+                </span>
+                <em>{visual.proofDone}/{visual.proofTotal} proof</em>
+              </button>
+            ))}
+          </div> : <>
+            <div className="advisor-focus-calendar-controls" aria-label="Focus calendar range">
+              {(["DAY", "WEEK", "MONTH"] as FocusCompassCalendarView[]).map((view) => (
+                <button aria-pressed={focusCompassCalendarView === view} key={view} onClick={() => setFocusCompassCalendarView(view)} type="button">
+                  {view === "DAY" ? "Day" : view === "WEEK" ? "Week" : "Month"}
+                </button>
+              ))}
+              <span>{focusCompassCalendarView === "MONTH" ? calendarMonthLabel(focusCalendarAnchor) : focusCompassCalendarView === "WEEK" ? `Week of ${calendarDayLabel(startOfWeek(focusCalendarAnchor))}` : calendarDayLabel(selectedFocusCalendarAnchor)}</span>
+            </div>
+            <div className={`advisor-focus-calendar-grid ${focusCompassCalendarView.toLocaleLowerCase()}`}>
+              {focusCalendarDayItems.map(({ dateKey, day, items, outsideMonth }) => (
+                <article className={[
+                  items.length ? "" : "empty",
+                  outsideMonth ? "outside-month" : "",
+                  selectedFocusCalendarDate === dateKey ? "selected" : ""
+                ].filter(Boolean).join(" ")} key={dateKey}>
+                  <header>
+                    <button className="advisor-focus-calendar-day-trigger" onClick={() => setSelectedFocusCalendarDate(dateKey)} type="button">
+                      <strong>{focusCompassCalendarView === "MONTH" ? day.getDate() : calendarDayLabel(day)}</strong>
+                      <small>{items.length} item{items.length === 1 ? "" : "s"}</small>
+                    </button>
+                  </header>
+                  <div>
+                    {items.length ? items.map((visual) => (
+                      <button className={visual.tone} key={`${visual.drawerKey}-calendar-${dateKey}`} onClick={() => {
+                        setSelectedFocusCalendarDate(dateKey);
+                        setActiveFocusProofDrawerKey(visual.drawerKey);
+                      }} type="button">
+                        <span><strong>{visual.item.title}</strong><small>{visual.calendarReason} · {visual.item.owner} · {visual.item.status}</small></span>
+                        <em>{visual.proofDone}/{visual.proofTotal}</em>
+                      </button>
+                    )) : <p>{focusCompassCalendarView === "DAY" ? "No focus placed on this day" : "Open capacity"}</p>}
+                  </div>
+                </article>
+              ))}
+            </div>
+            {focusCalendarUndatedItems.length ? <div className="advisor-focus-calendar-undated">
+              <strong>Needs date</strong>
+              {focusCalendarUndatedItems.map((visual) => <button className={visual.tone} key={`${visual.drawerKey}-undated`} onClick={() => setActiveFocusProofDrawerKey(visual.drawerKey)} type="button">{visual.item.title}</button>)}
+            </div> : null}
+            <section className="advisor-focus-day-planner" aria-label="Selected day focus planner">
+              <header>
+                <div>
+                  <strong>{calendarDayLabel(selectedFocusCalendarDay.day)}</strong>
+                  <small>{selectedFocusCalendarDay.items.length} focus item{selectedFocusCalendarDay.items.length === 1 ? "" : "s"} · {selectedFocusCalendarSlots.length} planned slot{selectedFocusCalendarSlots.length === 1 ? "" : "s"}</small>
+                </div>
+                <span>Review draft</span>
+              </header>
+              <div className="advisor-focus-day-layout">
+                <div className="advisor-focus-day-list">
+                  <strong>Focus on this day</strong>
+                  {selectedFocusCalendarDay.items.length ? selectedFocusCalendarDay.items.map((visual) => (
+                    <button className={visual.tone} key={`${visual.drawerKey}-selected-day`} onClick={() => setActiveFocusProofDrawerKey(visual.drawerKey)} type="button">
+                      <span>
+                        <strong>{visual.item.title}</strong>
+                        <small>{visual.calendarReason} · {visual.item.owner}</small>
+                      </span>
+                      <em>{visual.proofDone}/{visual.proofTotal}</em>
+                    </button>
+                  )) : <p>No focus items are placed on this date yet.</p>}
+                </div>
+                <form className="advisor-focus-slot-form" onSubmit={(event) => {
+                  event.preventDefault();
+                  const title = focusSlotDraft.title.trim();
+                  if (!title) return;
+                  const slot: FocusCalendarSlot = {
+                    ...focusSlotDraft,
+                    id: `${Date.now()}-${title}`,
+                    notes: focusSlotDraft.notes.trim(),
+                    title
+                  };
+                  setFocusCalendarSlots((current) => ({
+                    ...current,
+                    [selectedFocusCalendarDate]: [...(current[selectedFocusCalendarDate] ?? []), slot]
+                  }));
+                  setFocusSlotDraft((current) => ({ ...current, notes: "", title: "" }));
+                }}>
+                  <header>
+                    <strong>Add a slot</strong>
+                    <small>Plan the day before it becomes live workflow.</small>
+                  </header>
+                  <label>
+                    Time
+                    <input value={focusSlotDraft.time} onChange={(event) => setFocusSlotDraft((current) => ({ ...current, time: event.target.value }))} type="time" />
+                  </label>
+                  <label>
+                    Slot type
+                    <select value={focusSlotDraft.type} onChange={(event) => setFocusSlotDraft((current) => ({ ...current, type: event.target.value as FocusCalendarSlotType }))}>
+                      {Object.entries(focusSlotTypeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    </select>
+                  </label>
+                  <label>
+                    Link to focus
+                    <select value={focusSlotDraft.focusKey} onChange={(event) => setFocusSlotDraft((current) => ({ ...current, focusKey: event.target.value }))}>
+                      <option value="">No linked focus</option>
+                      {selectedFocusCalendarDay.items.map((visual) => <option key={visual.drawerKey} value={visual.drawerKey}>{visual.item.title}</option>)}
+                    </select>
+                  </label>
+                  <label>
+                    Title
+                    <input placeholder="What should happen?" value={focusSlotDraft.title} onChange={(event) => setFocusSlotDraft((current) => ({ ...current, title: event.target.value }))} />
+                  </label>
+                  <label className="wide">
+                    Notes
+                    <textarea placeholder="Optional details, person, or result expected." value={focusSlotDraft.notes} onChange={(event) => setFocusSlotDraft((current) => ({ ...current, notes: event.target.value }))} />
+                  </label>
+                  <button type="submit">Add to day</button>
+                </form>
+                <div className="advisor-focus-slot-list">
+                  <strong>Planned slots</strong>
+                  {selectedFocusCalendarSlots.length ? selectedFocusCalendarSlots.map((slot) => {
+                    const linkedFocus = focusVisualItems.find((visual) => visual.drawerKey === slot.focusKey);
+                    return <article key={slot.id}>
+                      <time>{slot.time}</time>
+                      <span>
+                        <strong>{slot.title}</strong>
+                        <small>{focusSlotTypeLabels[slot.type]}{linkedFocus ? ` · ${linkedFocus.item.title}` : ""}</small>
+                        {slot.notes ? <p>{slot.notes}</p> : null}
+                      </span>
+                      <button aria-label={`Remove ${slot.title}`} onClick={() => setFocusCalendarSlots((current) => ({
+                        ...current,
+                        [selectedFocusCalendarDate]: (current[selectedFocusCalendarDate] ?? []).filter((item) => item.id !== slot.id)
+                      }))} type="button"><X /></button>
+                    </article>;
+                  }) : <p>No time blocks planned yet.</p>}
+                </div>
+              </div>
+            </section>
+          </>}
+        </section> : null}
 
         <div className="advisor-focus-compass-grid">
           <section className="advisor-focus-panel advisor-focus-must">

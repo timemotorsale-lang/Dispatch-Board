@@ -997,6 +997,9 @@ describe("ServiceAdvisorHome", () => {
     expect(purchaseCaptureHtml).toContain("No customer, inventory, quote, invoice, or appraisal records were changed");
     expect(focusCompassHtml).toContain("Focus Compass");
     expect(focusCompassHtml).toContain("Now Focus");
+    expect(focusCompassHtml).toContain("List");
+    expect(focusCompassHtml).toContain("Timeline");
+    expect(focusCompassHtml).toContain("Calendar");
     expect(focusCompassHtml).toContain("Today’s Must-Wins");
     expect(focusCompassHtml).toContain("Risk Radar");
     expect(focusCompassHtml).toContain("Distraction Filter");
