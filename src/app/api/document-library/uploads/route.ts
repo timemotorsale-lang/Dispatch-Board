@@ -8,7 +8,7 @@ import {
   DocumentLibraryError,
   type DocumentLibraryFailureCode
 } from "@/server/document-library/domain";
-import { createLocalPrivateDocumentStorageAdapter } from "@/server/document-library/storage-adapter";
+import { resolveDocumentStorageRuntimeFromEnv } from "@/server/document-library/storage-config";
 import { stageDocumentLibraryUpload } from "@/server/document-library/upload-service";
 
 const TYPED_CODES = new Set<DocumentLibraryFailureCode>([
@@ -45,10 +45,10 @@ async function payloadFromRequest(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const storageRoot = process.env.DOCUMENT_LIBRARY_LOCAL_STORAGE_ROOT?.trim();
+    const storage = resolveDocumentStorageRuntimeFromEnv();
     return NextResponse.json(await stageDocumentLibraryUpload(await getCurrentUser(), await payloadFromRequest(request), {
-      organizationId: process.env.DOCUMENT_LIBRARY_ORGANIZATION_ID?.trim() || "default-org",
-      storageAdapter: storageRoot ? createLocalPrivateDocumentStorageAdapter({ rootDir: storageRoot }) : undefined
+      organizationId: storage.organizationId,
+      storageAdapter: storage.adapter
     }));
   } catch (error) {
     const code = error instanceof Error && "code" in error ? String((error as { code?: string }).code) : undefined;

@@ -6,6 +6,7 @@ import {
   DOCUMENT_LIBRARY_DURABLE_REPOSITORY_VERSION,
   isDocumentLibraryDurableRepositoryEnabled
 } from "@/server/document-library/durable-repository";
+import { authorizeDocumentObjectAccess, type DocumentObjectAccessPurpose } from "@/server/document-library/object-access";
 
 import {
   DOCUMENT_LIBRARY_CONTRACT_VERSION,
@@ -351,6 +352,25 @@ export async function getDocumentLibrary(actor: AuthenticatedUser | null, depend
       readyPackets: resolvedPackets.filter((packet) => packet.status === "COMPLETE").length,
       reviewItems: resolvedPackets.flatMap((packet) => packet.requirements).filter((requirement) => requirement.state !== "ACCEPTED" && requirement.state !== "WAIVED").length
     }
+  };
+}
+
+export async function getDocumentObjectAccess(actor: AuthenticatedUser | null, input: {
+  documentId: string;
+  linkedRecordAccess?: boolean;
+  purpose: DocumentObjectAccessPurpose;
+}) {
+  const user = requireDocumentLibraryAccess(actor);
+  const document = getCurrentLibraryState().documents.find((item) => item.id === input.documentId) ?? null;
+  return {
+    contractVersion: DOCUMENT_LIBRARY_CONTRACT_VERSION,
+    objectAccess: authorizeDocumentObjectAccess({
+      actor: user,
+      document,
+      linkedRecordAccess: input.linkedRecordAccess,
+      purpose: input.purpose
+    }),
+    requestedBy: user.id
   };
 }
 

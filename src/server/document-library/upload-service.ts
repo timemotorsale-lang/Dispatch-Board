@@ -107,6 +107,15 @@ export async function stageDocumentLibraryUpload(
     contractVersion: DOCUMENT_LIBRARY_CONTRACT_VERSION,
     stagedBy: user.id,
     storedObject,
+    storageAuditEvent: storedObject ? {
+      action: "DOCUMENT_OBJECT_STORED",
+      actorId: user.id,
+      checksumSha256: storedObject.checksumSha256,
+      objectKey: storedObject.objectKey,
+      provider: storedObject.provider,
+      reference: storedObject.reference,
+      sizeBytes: storedObject.sizeBytes
+    } : null,
     storageDraft: {
       checksumSha256: checksum,
       contentType: validation.normalized.contentType,

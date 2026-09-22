@@ -126,6 +126,12 @@ describe("document library upload service", () => {
         provider: "CLOUD_OBJECT",
         reference: "cloud://dispatch/documents/dealer-1/claim/claim-10421/doc-estimate-1/v1/insurance-estimate.pdf"
       },
+      storageAuditEvent: {
+        action: "DOCUMENT_OBJECT_STORED",
+        actorId: "staff-1",
+        checksumSha256,
+        provider: "CLOUD_OBJECT"
+      },
       storageDraft: {
         checksumSha256,
         reference: "cloud://dispatch/documents/dealer-1/claim/claim-10421/doc-estimate-1/v1/insurance-estimate.pdf"

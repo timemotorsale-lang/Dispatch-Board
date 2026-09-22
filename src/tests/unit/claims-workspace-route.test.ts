@@ -12,10 +12,12 @@ import { POST as ATTACH_EVIDENCE } from "@/app/api/claims-workspace/claims/[clai
 import { POST as REQUEST_HANDOFF } from "@/app/api/claims-workspace/claims/[claimId]/handoff/route";
 import { setClaimsWorkspaceRepositoryForTesting } from "@/server/claims-workspace/repository-factory";
 import { createInMemoryClaimsWorkspaceRepository } from "@/server/claims-workspace/service";
+import { getDocumentLibrary, resetDocumentLibraryDemoState } from "@/server/document-library/service";
 
 describe("claims workspace API routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetDocumentLibraryDemoState();
     setClaimsWorkspaceRepositoryForTesting(createInMemoryClaimsWorkspaceRepository());
     mocks.getCurrentUser.mockResolvedValue({
       duties: { all: [], direct: [], roleDefaults: [] },
@@ -100,6 +102,51 @@ describe("claims workspace API routes", () => {
       claim: { adjusterName: "Pat Adjuster" },
       carrierTracker: { nextContact: "Request estimate or approval" }
     });
+  });
+
+  it("stores multipart insurance estimate evidence through the document library boundary", async () => {
+    const createResponse = await CREATE_CLAIM(new Request("http://local/api/claims-workspace/claims", {
+      body: JSON.stringify({
+        carrierName: "Progressive",
+        claimNumber: "API-EST-1",
+        customerName: "Estimate Customer",
+        description: "Carrier estimate received.",
+        vehicleVin: "API-VIN-EST-1"
+      }),
+      method: "POST"
+    }));
+    const created = await createResponse.json();
+    const claimId = created.readModel.claim.id;
+    const form = new FormData();
+    form.set("category", "ESTIMATE");
+    form.set("title", "Carrier estimate");
+    form.set("reason", "Carrier estimate received for claim review.");
+    form.set("file", new File([new Blob(["estimate bytes"], { type: "application/pdf" })], "carrier-estimate.pdf", { type: "application/pdf" }));
+
+    const response = await ATTACH_EVIDENCE(new Request(`http://local/api/claims-workspace/claims/${claimId}/evidence`, {
+      body: form,
+      method: "POST"
+    }), {
+      params: Promise.resolve({ claimId })
+    });
+
+    expect(response.status).toBe(201);
+    const payload = await response.json();
+    expect(payload.evidence[0]).toMatchObject({
+      category: "ESTIMATE",
+      documentLibraryId: expect.stringMatching(/^doc-manual-/),
+      fileName: "carrier-estimate.pdf",
+      title: "Carrier estimate"
+    });
+    const library = await getDocumentLibrary({
+      duties: { all: [], direct: [], roleDefaults: [] },
+      email: "advisor@example.com",
+      id: "advisor-route",
+      isActive: true,
+      name: "Advisor Route",
+      roles: ["Service Advisor"]
+    });
+    expect(library.documents.some((document) => document.documentType === "INSURANCE_ESTIMATE" && document.owner.id === claimId)).toBe(true);
   });
 
   it("requires manager approval for blocked handoff exceptions at the API boundary", async () => {
