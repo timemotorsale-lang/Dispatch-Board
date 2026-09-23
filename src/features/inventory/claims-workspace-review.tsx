@@ -41,6 +41,47 @@ const fallbackTasks = [
   { actionLabel: "Upload photos", detail: "Visible damage photos and closeups.", dueLabel: "Today", ownerRole: "Intake staff", status: "ready", title: "Take damage photos" }
 ] as const;
 
+const fallbackBillingRecovery: ClaimReadModel["billingRecovery"] = {
+  blockers: ["Carrier / adjuster missing", "Signed authorization missing", "Approved estimate or supplement missing"],
+  invoicePacket: {
+    missing: ["Carrier / adjuster", "Signed authorization", "Approved estimate or supplement"],
+    ready: false,
+    required: ["Claim number", "Carrier / adjuster", "Signed authorization", "Approved estimate or supplement", "Final invoice / repair order"],
+    status: "BLOCKED",
+    title: "Carrier invoice packet"
+  },
+  nextAction: {
+    dueLabel: "Today",
+    label: "Confirm payer contact",
+    ownerRole: "Service advisor",
+    reason: "Carrier, adjuster, or warranty payer contact must be complete before billing."
+  },
+  payerSplit: [
+    { amountLabel: "Pending packet", payer: "INSURANCE", status: "BLOCKED", title: "Insurance carrier" },
+    { amountLabel: "Deductible pending", payer: "CUSTOMER", status: "PENDING", title: "Customer deductible" },
+    { amountLabel: "No rental active", payer: "INSURANCE", status: "PENDING", title: "Rental recovery" }
+  ],
+  rental: {
+    approvedDaysLabel: "Not started",
+    overageRisk: "NONE",
+    payer: "INSURANCE",
+    status: "NOT_STARTED",
+    summary: "No active rental evidence is attached to this claim.",
+    usedDaysLabel: "0 days"
+  },
+  shortPayWatch: {
+    active: false,
+    reason: "No short-pay issue detected."
+  },
+  summary: {
+    approvedAmountLabel: "Pending approval",
+    balanceLabel: "Blocked",
+    billedAmountLabel: "Not ready",
+    deductibleLabel: "Pending",
+    paidAmountLabel: "No payment posted"
+  }
+};
+
 type ExtraActionTool = "text" | "call" | "email" | "appointment" | "file" | "repair";
 
 const extraActionTools: Array<{ id: ExtraActionTool; label: string; detail: string }> = [
@@ -90,6 +131,24 @@ function readinessLabel(status: string) {
   return "Not yet";
 }
 
+type ManualFieldTone = "filled" | "pending" | "missing";
+
+const manualFieldToneClass: Record<ManualFieldTone, string> = {
+  filled: styles.manualFilled,
+  pending: styles.manualPending,
+  missing: styles.manualMissing
+};
+
+function hasManualValue(value: unknown) {
+  if (value === null || value === undefined) return false;
+  return String(value).trim().length > 0;
+}
+
+function manualFieldClassName(value: unknown, options: { required?: boolean; wide?: boolean } = {}) {
+  const tone: ManualFieldTone = hasManualValue(value) ? "filled" : options.required ? "missing" : "pending";
+  return [manualFieldToneClass[tone], options.wide ? styles.fullField : null].filter(Boolean).join(" ");
+}
+
 function activityActorName(activity: ClaimReadModel["activities"][number]) {
   if (activity.actorUserName) return activity.actorUserName;
   if (activity.actorUserId === "seed") return "System";
@@ -123,13 +182,15 @@ function todayInputDate() {
   return date.toISOString().slice(0, 10);
 }
 
-export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
+export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string; model?: ClaimReadModel }) {
   const [actionError, setActionError] = useState("");
   const [actionMessage, setActionMessage] = useState("");
   const [activityDrawerOpen, setActivityDrawerOpen] = useState(false);
   const [activeExtraTool, setActiveExtraTool] = useState<ExtraActionTool>("call");
   const [extraToolsOpen, setExtraToolsOpen] = useState(false);
+  const [estimateDrawerOpen, setEstimateDrawerOpen] = useState(false);
   const [isWorking, setIsWorking] = useState(false);
+  const [moneyDrawerOpen, setMoneyDrawerOpen] = useState(false);
   const [printDocument, setPrintDocument] = useState<{ html: string; title: string } | null>(null);
   const [reminderDate, setReminderDate] = useState("");
   const [reminderPickerOpen, setReminderPickerOpen] = useState(false);
@@ -170,7 +231,24 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
       model?.evidence.find((evidence) => activity.action === "CLAIM_EVIDENCE_ATTACHED" && activity.detail.startsWith(`${evidence.title} attached as `))
     ])
   );
+  const evidenceRows = model ? [...model.evidence].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()) : [];
   const taskRows = model?.executionTasks ?? fallbackTasks;
+  const billingRecovery = model?.billingRecovery ?? fallbackBillingRecovery;
+  const estimateReview: ClaimReadModel["estimateReview"] = model?.estimateReview ?? {
+    approvedAmountCents: null,
+    approvedAmountLabel: "Pending approval",
+    confidence: "NEEDS_REVIEW" as const,
+    detail: "No carrier estimate or supplement has been attached to this claim yet.",
+    status: "MISSING" as const
+  };
+  const estimateEvidence = estimateReview.sourceTitle
+    ? evidenceRows.find((evidence) =>
+      evidence.id === estimateReview.evidenceId ||
+      evidence.documentLibraryId === estimateReview.documentLibraryId ||
+      (evidence.fileName && evidence.fileName === estimateReview.fileName) ||
+      evidence.title === estimateReview.sourceTitle
+    )
+    : undefined;
   const carrier = model?.carrierTracker ?? {
     adjuster: "Needed",
     approvalStatus: "needs_adjuster",
@@ -182,6 +260,26 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
   };
   const claimId = model?.claim.id;
   const claimReturnHref = claimId ? `/vehicles/claims-workspace?claimId=${encodeURIComponent(claimId)}` : "/vehicles/claims-workspace";
+  const repairTaskCustomer = model?.claim.customerName ?? "Claim customer";
+  const repairTaskVehicle = [model?.claim.vehicleYear, model?.claim.vehicleMake, model?.claim.vehicleModel].filter(Boolean).join(" ");
+  const repairTaskContext = new URLSearchParams({
+    brief: [
+      "Open the repair-start task after customer and carrier approval are confirmed.",
+      `Claim: ${model?.claim.claimNumber || claimId || "Pending claim number"}.`,
+      `Carrier: ${model?.claim.carrierName || carrier.carrier || "Pending carrier"}.`,
+      `Approved amount: ${estimateReview.approvedAmountLabel}.`,
+      "Confirm authorization, approved estimate or supplement, stop rules, owner, and first repair action before work begins."
+    ].join("\n"),
+    customerReference: repairTaskCustomer,
+    expectedOutcome: "Repairs are ready to start with approval, authorization, scope, owner, and the first repair action documented.",
+    intakeType: "Repair Order / Authorization",
+    returnTo: claimReturnHref,
+    sourceTitle: "Claims Desk repair approval handoff",
+    title: `Start approved repairs for ${repairTaskCustomer}`,
+    workflowArea: "SERVICE_ADVISOR"
+  });
+  if (repairTaskVehicle) repairTaskContext.set("vehicleReference", repairTaskVehicle);
+  const startRepairTaskHref = `/tasks/intake?${repairTaskContext.toString()}`;
   const appointmentContext = new URLSearchParams({
     action: "new",
     reason: model?.nextAction.reason ?? "Claim follow-up from Claims Workspace.",
@@ -216,6 +314,32 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
     }
   }
 
+  async function submitEvidenceForm(path: string, formData: FormData) {
+    setActionError("");
+    setActionMessage("");
+    setIsWorking(true);
+    try {
+      const file = formData.get("file");
+      const hasFile = file instanceof File && file.size > 0;
+      const response = await fetch(path, hasFile ? {
+        body: formData,
+        method: "POST"
+      } : {
+        body: JSON.stringify(Object.fromEntries(formData.entries())),
+        headers: { "Content-Type": "application/json" },
+        method: "POST"
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(payload?.error ?? "The claim evidence could not be recorded.");
+      setActionMessage(hasFile ? "File uploaded and linked to the claim. Refreshing workspace..." : "Evidence recorded. Refreshing workspace...");
+      window.location.reload();
+    } catch (caught) {
+      setActionError(caught instanceof Error ? caught.message : "The claim evidence could not be recorded.");
+    } finally {
+      setIsWorking(false);
+    }
+  }
+
   async function recordCarrierCall(formData: FormData) {
     if (!claimId) return;
     await submitJson(`/api/claims-workspace/claims/${encodeURIComponent(claimId)}`, Object.fromEntries(formData.entries()), "PATCH");
@@ -231,14 +355,11 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
     const updateType = String(formData.get("updateType") ?? "").trim();
 
     if (category !== "ACTIVITY_ONLY" && (title || fileName)) {
-      await submitJson(`/api/claims-workspace/claims/${encodeURIComponent(claimId)}/evidence`, {
-        category,
-        fileName,
-        notes: note,
-        relationshipTargets: ["CLAIM", "CUSTOMER", "VEHICLE"],
-        status: "RECEIVED",
-        title: title || fileName || updateType
-      });
+      formData.set("notes", note);
+      formData.set("relationshipTargets", "CLAIM,CUSTOMER,VEHICLE,REPAIR_ORDER");
+      formData.set("status", "RECEIVED");
+      if (!title) formData.set("title", fileName || updateType);
+      await submitEvidenceForm(`/api/claims-workspace/claims/${encodeURIComponent(claimId)}/evidence`, formData);
       return;
     }
 
@@ -272,6 +393,11 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
     if (!model) return;
     const evidence = evidenceByActivityId.get(activity.id);
     if (!evidence) return;
+    return buildEvidenceDocumentFromEvidence(evidence, activityActorName(activity), activity.detail);
+  }
+
+  function buildEvidenceDocumentFromEvidence(evidence: ClaimReadModel["evidence"][number], actorName = "Claim workspace", fallbackDetail = "") {
+    if (!model) return;
     const printedAt = new Date().toLocaleString();
     const rows = [
       ["Customer", model.claim.customerName],
@@ -284,9 +410,9 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
       ["File name", evidence.fileName || "No file name captured"],
       ["Status", evidence.status.replaceAll("_", " ")],
       ["Attached at", new Date(evidence.createdAt).toLocaleString()],
-      ["Recorded by", activityActorName(activity)]
+      ["Recorded by", actorName]
     ];
-    const notes = evidence.notes || activity.detail;
+    const notes = evidence.notes || fallbackDetail || "No additional evidence note was captured.";
     return {
       html: `
         <header>
@@ -309,6 +435,23 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
     const document = buildEvidenceDocument(activity);
     if (!document) return;
     setPrintDocument(document);
+  }
+
+  function openUploadedEvidenceDocument(evidence: ClaimReadModel["evidence"][number]) {
+    const document = buildEvidenceDocumentFromEvidence(evidence);
+    if (!document) return;
+    setPrintDocument(document);
+    setActivityDrawerOpen(true);
+  }
+
+  function originalEvidenceHref(evidence: ClaimReadModel["evidence"][number]) {
+    return claimId && evidence.documentLibraryId
+      ? `/api/claims-workspace/claims/${encodeURIComponent(claimId)}/evidence/${encodeURIComponent(evidence.id)}/content`
+      : null;
+  }
+
+  function originalEvidenceUnavailableLabel(evidence: ClaimReadModel["evidence"][number]) {
+    return evidence.documentLibraryId ? "Original source unavailable" : "Original file not captured";
   }
 
   function printEvidenceDocument(activity: ClaimReadModel["activities"][number]) {
@@ -427,6 +570,17 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
         </aside>
       </header>
 
+      {loadError ? (
+        <section className={`${styles.panel} ${styles.safeModeNotice}`}>
+          <div>
+            <span className={styles.cardEyebrow}>Safe mode</span>
+            <strong>Claim details are temporarily limited</strong>
+            <p>{loadError}</p>
+          </div>
+          <StatusBadge tone="warning">Retry from Claim Desk</StatusBadge>
+        </section>
+      ) : null}
+
       <div className={styles.workspace}>
         <div className={styles.mainStack}>
           <section className={styles.panel}>
@@ -469,36 +623,36 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
               <form action={saveSnapshot} className={styles.snapshotEditForm}>
                 <fieldset>
                   <legend>Customer</legend>
-                  <label><span>Customer name</span><input name="customerName" defaultValue={model.claim.customerName} /></label>
-                  <label><span>Phone</span><input name="customerPhone" defaultValue={model.claim.customerPhone ?? ""} /></label>
-                  <label><span>Email</span><input name="customerEmail" defaultValue={model.claim.customerEmail ?? ""} type="email" /></label>
-                  <label className={styles.fullField}><span>Address line 1</span><input name="customerAddressLine1" defaultValue={model.claim.customerAddressLine1 ?? ""} /></label>
-                  <label><span>Address line 2</span><input name="customerAddressLine2" defaultValue={model.claim.customerAddressLine2 ?? ""} /></label>
-                  <label><span>City</span><input name="customerCity" defaultValue={model.claim.customerCity ?? ""} /></label>
-                  <label><span>State</span><input name="customerState" defaultValue={model.claim.customerState ?? ""} /></label>
-                  <label><span>ZIP</span><input name="customerPostalCode" defaultValue={model.claim.customerPostalCode ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.customerName, { required: true })}><span>Customer name</span><input name="customerName" defaultValue={model.claim.customerName} /></label>
+                  <label className={manualFieldClassName(model.claim.customerPhone)}><span>Phone</span><input name="customerPhone" defaultValue={model.claim.customerPhone ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.customerEmail)}><span>Email</span><input name="customerEmail" defaultValue={model.claim.customerEmail ?? ""} type="email" /></label>
+                  <label className={manualFieldClassName(model.claim.customerAddressLine1, { wide: true })}><span>Address line 1</span><input name="customerAddressLine1" defaultValue={model.claim.customerAddressLine1 ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.customerAddressLine2)}><span>Address line 2</span><input name="customerAddressLine2" defaultValue={model.claim.customerAddressLine2 ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.customerCity)}><span>City</span><input name="customerCity" defaultValue={model.claim.customerCity ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.customerState)}><span>State</span><input name="customerState" defaultValue={model.claim.customerState ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.customerPostalCode)}><span>ZIP</span><input name="customerPostalCode" defaultValue={model.claim.customerPostalCode ?? ""} /></label>
                 </fieldset>
                 <fieldset>
                   <legend>Vehicle</legend>
-                  <label><span>VIN</span><input name="vehicleVin" defaultValue={model.claim.vehicleVin ?? ""} /></label>
-                  <label><span>Year</span><input name="vehicleYear" defaultValue={model.claim.vehicleYear ?? ""} /></label>
-                  <label><span>Make</span><input name="vehicleMake" defaultValue={model.claim.vehicleMake ?? ""} /></label>
-                  <label><span>Model</span><input name="vehicleModel" defaultValue={model.claim.vehicleModel ?? ""} /></label>
-                  <label><span>Color</span><input name="vehicleColor" defaultValue={model.claim.vehicleColor ?? ""} /></label>
-                  <label><span>Mileage</span><input name="vehicleMileage" defaultValue={model.claim.vehicleMileage ?? ""} /></label>
-                  <label><span>Plate</span><input name="vehiclePlate" defaultValue={model.claim.vehiclePlate ?? ""} /></label>
-                  <label><span>Stock #</span><input name="vehicleStockNumber" defaultValue={model.claim.vehicleStockNumber ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.vehicleVin, { required: true })}><span>VIN</span><input name="vehicleVin" defaultValue={model.claim.vehicleVin ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.vehicleYear)}><span>Year</span><input name="vehicleYear" defaultValue={model.claim.vehicleYear ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.vehicleMake)}><span>Make</span><input name="vehicleMake" defaultValue={model.claim.vehicleMake ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.vehicleModel)}><span>Model</span><input name="vehicleModel" defaultValue={model.claim.vehicleModel ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.vehicleColor)}><span>Color</span><input name="vehicleColor" defaultValue={model.claim.vehicleColor ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.vehicleMileage)}><span>Mileage</span><input name="vehicleMileage" defaultValue={model.claim.vehicleMileage ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.vehiclePlate)}><span>Plate</span><input name="vehiclePlate" defaultValue={model.claim.vehiclePlate ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.vehicleStockNumber)}><span>Stock #</span><input name="vehicleStockNumber" defaultValue={model.claim.vehicleStockNumber ?? ""} /></label>
                 </fieldset>
                 <fieldset>
                   <legend>Claim details</legend>
-                  <label><span>Carrier</span><input name="carrierName" defaultValue={model.claim.carrierName ?? ""} /></label>
-                  <label><span>Claim #</span><input name="claimNumber" defaultValue={model.claim.claimNumber ?? ""} /></label>
-                  <label><span>Adjuster</span><input name="adjusterName" defaultValue={model.claim.adjusterName ?? ""} /></label>
-                  <label><span>Policy #</span><input name="policyNumber" defaultValue={model.claim.policyNumber ?? ""} /></label>
-                  <label><span>Deductible</span><input name="deductible" defaultValue={model.claim.deductible ?? ""} /></label>
-                  <label><span>Loss date</span><input name="lossDate" defaultValue={model.claim.lossDate ?? ""} type="date" /></label>
-                  <label className={styles.fullField}><span>Loss location</span><input name="lossLocation" defaultValue={model.claim.lossLocation ?? ""} /></label>
-                  <label className={styles.fullField}><span>Incident summary</span><textarea name="description" defaultValue={model.claim.description ?? ""} rows={4} /></label>
+                  <label className={manualFieldClassName(model.claim.carrierName, { required: true })}><span>Carrier</span><input name="carrierName" defaultValue={model.claim.carrierName ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.claimNumber, { required: true })}><span>Claim #</span><input name="claimNumber" defaultValue={model.claim.claimNumber ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.adjusterName, { required: true })}><span>Adjuster</span><input name="adjusterName" defaultValue={model.claim.adjusterName ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.policyNumber, { required: true })}><span>Policy #</span><input name="policyNumber" defaultValue={model.claim.policyNumber ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.deductible, { required: true })}><span>Deductible</span><input name="deductible" defaultValue={model.claim.deductible ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.lossDate, { required: true })}><span>Loss date</span><input name="lossDate" defaultValue={model.claim.lossDate ?? ""} type="date" /></label>
+                  <label className={manualFieldClassName(model.claim.lossLocation, { wide: true })}><span>Loss location</span><input name="lossLocation" defaultValue={model.claim.lossLocation ?? ""} /></label>
+                  <label className={manualFieldClassName(model.claim.description, { required: true, wide: true })}><span>Incident summary</span><textarea name="description" defaultValue={model.claim.description ?? ""} rows={4} /></label>
                 </fieldset>
                 <div className={styles.snapshotEditFooter}>
                   <button disabled={!claimId || isWorking} type="submit">{isWorking ? "Saving..." : "Save snapshot"}</button>
@@ -544,6 +698,42 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
                 </article>
               ))}
             </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.panelHeader}>
+              <div>
+                <h2>Uploaded Files</h2>
+                <p>Every upload port feeds this same evidence list, so files can be found, reviewed, and used by the claim desk.</p>
+              </div>
+              <StatusBadge>{evidenceRows.length} file{evidenceRows.length === 1 ? "" : "s"}</StatusBadge>
+            </div>
+            {evidenceRows.length ? (
+              <div className={styles.uploadedEvidenceList}>
+                {evidenceRows.map((evidence) => (
+                  <article className={styles.uploadedEvidenceItem} key={evidence.id}>
+                    <div>
+                      <span>{evidence.category.replaceAll("_", " ")}</span>
+                      <strong>{evidence.title}</strong>
+                      <small>{evidence.fileName || "No file name captured"} - {new Date(evidence.createdAt).toLocaleString()}</small>
+                    </div>
+                    {originalEvidenceHref(evidence) ? (
+                      <div className={styles.uploadedEvidenceActions}>
+                        <a href={originalEvidenceHref(evidence) ?? "#"} rel="noreferrer" target="_blank">View document</a>
+                        <button onClick={() => openUploadedEvidenceDocument(evidence)} type="button">View summary</button>
+                      </div>
+                    ) : (
+                      <div className={styles.uploadedEvidenceActions}>
+                        <button onClick={() => openUploadedEvidenceDocument(evidence)} type="button">View summary</button>
+                        <span>{originalEvidenceUnavailableLabel(evidence)}</span>
+                      </div>
+                    )}
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className={styles.emptyEvidence}>No uploaded files yet. Attach authorization, photos, estimates, rental support, or payment proof from any action tool.</p>
+            )}
           </section>
 
         </div>
@@ -601,6 +791,76 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
           <section className={styles.panel}>
             <div className={styles.panelHeader}>
               <div>
+                <h2>Money & Recovery</h2>
+                <p>One money action stays visible. Open the workspace for invoice, rental, and payment detail.</p>
+              </div>
+              <StatusBadge tone={billingRecovery.invoicePacket.ready ? "good" : "warning"}>{billingRecovery.invoicePacket.status.replaceAll("_", " ").toLowerCase()}</StatusBadge>
+            </div>
+            <div className={styles.recoveryCompact}>
+              <article className={styles.recoveryAction}>
+                <span className={styles.cardEyebrow}>Money action</span>
+                <strong>{billingRecovery.nextAction.label}</strong>
+                <p>{billingRecovery.nextAction.reason}</p>
+              </article>
+              <div className={styles.recoveryCompactFacts}>
+                <div className={styles.fact}>
+                  <span>Approved repairs</span>
+                  <strong>{estimateReview.approvedAmountLabel}</strong>
+                </div>
+                <div className={styles.fact}>
+                  <span>Balance</span>
+                  <strong>{billingRecovery.summary.balanceLabel}</strong>
+                </div>
+                <div className={styles.fact}>
+                  <span>Rental</span>
+                  <strong>{billingRecovery.rental.status.replaceAll("_", " ").toLowerCase()}</strong>
+                </div>
+              </div>
+              <button className={styles.recoveryOpenButton} onClick={() => setMoneyDrawerOpen(true)} type="button">Open recovery workspace</button>
+            </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.panelHeader}>
+              <div>
+                <h2>Carrier Estimate</h2>
+                <p>Uploaded estimates live in claim evidence, feed the approved repair amount, and remain reviewable before billing.</p>
+              </div>
+              <StatusBadge tone={estimateReview.status === "AMOUNT_FOUND" ? "good" : estimateReview.status === "REVIEW_NEEDED" ? "warning" : "info"}>
+                {estimateReview.status.replaceAll("_", " ").toLowerCase()}
+              </StatusBadge>
+            </div>
+            <article className={styles.estimateCard}>
+              <span className={styles.cardEyebrow}>Approved repairs</span>
+              <strong>{estimateReview.approvedAmountLabel}</strong>
+              <p>{estimateReview.detail}</p>
+              <div className={styles.estimateFacts}>
+                <div className={styles.fact}>
+                  <span>Source</span>
+                  <strong>{estimateReview.sourceTitle ?? "No estimate uploaded"}</strong>
+                </div>
+                <div className={styles.fact}>
+                  <span>File</span>
+                  {estimateEvidence && originalEvidenceHref(estimateEvidence) ? (
+                    <a className={styles.inlineDocumentLink} href={originalEvidenceHref(estimateEvidence) ?? "#"} rel="noreferrer" target="_blank">
+                      {estimateReview.fileName ?? "Open uploaded estimate"}
+                    </a>
+                  ) : (
+                    <strong>{estimateReview.fileName ?? "No file captured"}</strong>
+                  )}
+                </div>
+                <div className={styles.fact}>
+                  <span>Stored in</span>
+                  <strong>Claim evidence / Document library</strong>
+                </div>
+              </div>
+              <button onClick={() => setEstimateDrawerOpen(true)} type="button">Review estimate</button>
+            </article>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.panelHeader}>
+              <div>
                 <h2>Handoff Readiness</h2>
                 <p>Clear gates prevent premature handoff while allowing approved exceptions.</p>
               </div>
@@ -637,6 +897,176 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
         </aside>
       </div>
 
+      {moneyDrawerOpen ? (
+        <div className={styles.drawerBackdrop} role="presentation">
+          <aside aria-label="Money and Recovery Workspace" aria-modal="true" className={`${styles.timelineDrawer} ${styles.recoveryDrawer}`} role="dialog">
+            <header>
+              <div>
+                <span className={styles.cardEyebrow}>Billing execution</span>
+                <h2>Money & Recovery</h2>
+                <p>Work the carrier invoice, deductible, rental support, payment proof, and short-pay follow-up from one focused space.</p>
+              </div>
+              <button aria-label="Close Money and Recovery" onClick={() => setMoneyDrawerOpen(false)} type="button">x</button>
+            </header>
+            <section className={styles.recoveryWorkspace} aria-label="Billing and recovery workspace">
+              <div className={styles.recoveryCommand}>
+                <article className={styles.recoveryAction}>
+                  <span className={styles.cardEyebrow}>Recommended now</span>
+                  <strong>{billingRecovery.nextAction.label}</strong>
+                  <p>{billingRecovery.nextAction.reason}</p>
+                  <div className={styles.ownerGrid}>
+                    <div className={styles.fact}>
+                      <span>Owner</span>
+                      <strong>{billingRecovery.nextAction.ownerRole}</strong>
+                    </div>
+                    <div className={styles.fact}>
+                      <span>Due</span>
+                      <strong>{billingRecovery.nextAction.dueLabel}</strong>
+                    </div>
+                  </div>
+                </article>
+                <form action={recordActivityUpdate} className={`${styles.executionForm} ${styles.timelineForm}`}>
+                  <strong>Record recovery action</strong>
+                  <div>
+                    <select name="updateType" defaultValue="Payment follow-up">
+                      <option>Payment follow-up</option>
+                      <option>Carrier invoice sent</option>
+                      <option>Warranty authorization</option>
+                      <option>Rental extension</option>
+                      <option>Short-pay review</option>
+                    </select>
+                    <select name="category" defaultValue="PAYMENT">
+                      <option value="PAYMENT">Payment proof</option>
+                      <option value="ESTIMATE">Estimate / supplement</option>
+                      <option value="RENTAL">Rental support</option>
+                      <option value="AUTHORIZATION">Authorization</option>
+                    </select>
+                    <input name="title" placeholder="Evidence title" />
+                    <input name="file" type="file" />
+                  </div>
+                  <label className={styles.noteField}>
+                    <span>Recovery note</span>
+                    <textarea name="note" placeholder="Example: Carrier invoice sent to adjuster with estimate, authorization, and rental support attached." rows={4} />
+                  </label>
+                  <button disabled={!claimId || isWorking} type="submit">{isWorking ? "Recording..." : "Record recovery action"}</button>
+                </form>
+              </div>
+              <div className={styles.recoverySummary}>
+                {[
+                  ["Billed", billingRecovery.summary.billedAmountLabel],
+                  ["Approved", billingRecovery.summary.approvedAmountLabel],
+                  ["Deductible", billingRecovery.summary.deductibleLabel],
+                  ["Paid", billingRecovery.summary.paidAmountLabel],
+                  ["Balance", billingRecovery.summary.balanceLabel]
+                ].map(([label, value]) => (
+                  <div className={styles.fact} key={label}>
+                    <span>{label}</span>
+                    <strong>{value}</strong>
+                  </div>
+                ))}
+              </div>
+              <div className={styles.recoveryGrid}>
+                <article>
+                  <span className={styles.cardEyebrow}>{billingRecovery.invoicePacket.title}</span>
+                  <strong>{billingRecovery.invoicePacket.ready ? "Ready to send" : "Missing packet items"}</strong>
+                  <p>{billingRecovery.invoicePacket.ready ? "Packet is ready for billing follow-up." : billingRecovery.invoicePacket.missing.join(", ")}</p>
+                </article>
+                <article>
+                  <span className={styles.cardEyebrow}>Rental tracker</span>
+                  <strong>{billingRecovery.rental.status.replaceAll("_", " ").toLowerCase()}</strong>
+                  <p>{billingRecovery.rental.summary}</p>
+                </article>
+                <article>
+                  <span className={styles.cardEyebrow}>Short-pay watch</span>
+                  <strong>{billingRecovery.shortPayWatch.active ? "Review needed" : "Clear"}</strong>
+                  <p>{billingRecovery.shortPayWatch.reason}</p>
+                </article>
+              </div>
+              <div className={styles.payerSplit}>
+                {billingRecovery.payerSplit.map((payer) => (
+                  <div key={`${payer.payer}-${payer.title}`}>
+                    <span>{payer.payer.replaceAll("_", " ")}</span>
+                    <strong>{payer.title}</strong>
+                    <small>{payer.amountLabel} - {payer.status.toLowerCase()}</small>
+                  </div>
+                ))}
+              </div>
+            </section>
+            {actionError ? <p className={styles.actionError}>{actionError}</p> : null}
+            {actionMessage ? <p className={styles.actionMessage}>{actionMessage}</p> : null}
+          </aside>
+        </div>
+      ) : null}
+
+      {estimateDrawerOpen ? (
+        <div className={styles.drawerBackdrop} role="presentation">
+          <aside aria-label="Carrier Estimate Review" aria-modal="true" className={`${styles.timelineDrawer} ${styles.estimateDrawer}`} role="dialog">
+            <header>
+              <div>
+                <span className={styles.cardEyebrow}>Estimate intelligence</span>
+                <h2>Carrier Estimate Review</h2>
+                <p>Verify the uploaded estimate, approved repair amount, and where this amount flows before relying on it for billing.</p>
+              </div>
+              <button aria-label="Close Carrier Estimate Review" onClick={() => setEstimateDrawerOpen(false)} type="button">x</button>
+            </header>
+            <section className={styles.estimateReviewGrid}>
+              <article className={styles.estimateHeroCard}>
+                <span className={styles.cardEyebrow}>Approved repair amount</span>
+                <strong>{estimateReview.approvedAmountLabel}</strong>
+                <p>{estimateReview.detail}</p>
+                <StatusBadge tone={estimateReview.confidence === "HIGH" ? "good" : estimateReview.confidence === "MEDIUM" ? "info" : "warning"}>
+                  {estimateReview.confidence.replaceAll("_", " ").toLowerCase()}
+                </StatusBadge>
+              </article>
+              <article className={styles.estimateSourceCard}>
+                <strong>Where it goes</strong>
+                <p>The uploaded estimate is recorded as ESTIMATE evidence, appears in the claim activity timeline, updates Money & Recovery approved amount, and supports the invoice packet.</p>
+                <div className={styles.estimateFacts}>
+                  <div className={styles.fact}>
+                    <span>Evidence title</span>
+                    <strong>{estimateReview.sourceTitle ?? "Pending upload"}</strong>
+                  </div>
+                  <div className={styles.fact}>
+                    <span>File</span>
+                    {estimateEvidence && originalEvidenceHref(estimateEvidence) ? (
+                      <a className={styles.inlineDocumentLink} href={originalEvidenceHref(estimateEvidence) ?? "#"} rel="noreferrer" target="_blank">
+                        {estimateReview.fileName ?? "Open uploaded estimate"}
+                      </a>
+                    ) : (
+                      <strong>{estimateReview.fileName ?? "No file captured"}</strong>
+                    )}
+                  </div>
+                  <div className={styles.fact}>
+                    <span>Received</span>
+                    <strong>{estimateReview.receivedAt ? new Date(estimateReview.receivedAt).toLocaleString() : "Not received"}</strong>
+                  </div>
+                  <div className={styles.fact}>
+                    <span>Library link</span>
+                    <strong>{estimateReview.documentLibraryId ?? "Pending document object"}</strong>
+                  </div>
+                </div>
+              </article>
+            </section>
+            <form action={recordActivityUpdate} className={`${styles.executionForm} ${styles.timelineForm}`}>
+              <strong>Attach carrier estimate or supplement</strong>
+              <input name="category" type="hidden" value="ESTIMATE" />
+              <div>
+                <input name="title" placeholder="Evidence title, e.g. Progressive estimate approved $4,812.44" />
+                <input name="nextAction" placeholder="Next action after estimate review" />
+                <input name="file" type="file" />
+              </div>
+              <label className={styles.noteField}>
+                <span>Estimate note</span>
+                <textarea name="note" placeholder="Paste or summarize the estimate total, approved repair amount, supplement amount, deductible, and any carrier conditions." rows={5} />
+              </label>
+              <button disabled={!claimId || isWorking} type="submit">{isWorking ? "Recording..." : "Attach / read estimate"}</button>
+            </form>
+            {actionError ? <p className={styles.actionError}>{actionError}</p> : null}
+            {actionMessage ? <p className={styles.actionMessage}>{actionMessage}</p> : null}
+          </aside>
+        </div>
+      ) : null}
+
       {activityDrawerOpen ? (
         <div className={styles.drawerBackdrop} role="presentation">
           <aside aria-label="Activity Timeline" aria-modal="true" className={styles.timelineDrawer} role="dialog">
@@ -666,6 +1096,7 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
                   <option value="DAMAGE_PHOTO">Attach damage photos</option>
                   <option value="AUTHORIZATION">Attach authorization</option>
                   <option value="ESTIMATE">Attach estimate / supplement</option>
+                  <option value="RENTAL">Attach rental support</option>
                   <option value="REPAIR_HANDOFF">Attach handoff evidence</option>
                   <option value="PAYMENT">Attach payment proof</option>
                 </select>
@@ -699,7 +1130,10 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
                       <p><strong>{evidenceByActivityId.get(activity.id)?.title}</strong></p>
                       <span>{evidenceByActivityId.get(activity.id)?.category.replaceAll("_", " ")} evidence attached{evidenceByActivityId.get(activity.id)?.fileName ? ` - ${evidenceByActivityId.get(activity.id)?.fileName}` : ""}</span>
                       <div className={styles.timelineActions}>
-                        <button onClick={() => openEvidenceDocument(activity)} type="button">View document</button>
+                        {originalEvidenceHref(evidenceByActivityId.get(activity.id)!) ? (
+                          <a href={originalEvidenceHref(evidenceByActivityId.get(activity.id)!) ?? "#"} rel="noreferrer" target="_blank">View document</a>
+                        ) : null}
+                        <button onClick={() => openEvidenceDocument(activity)} type="button">View summary</button>
                         <button onClick={() => printEvidenceDocument(activity)} type="button">Print</button>
                       </div>
                     </>
@@ -844,6 +1278,7 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
                         <option value="VIN_PHOTO">VIN photo</option>
                         <option value="ODOMETER_PHOTO">Odometer photo</option>
                         <option value="ESTIMATE">Estimate / supplement</option>
+                        <option value="RENTAL">Rental support</option>
                         <option value="REPAIR_HANDOFF">Repair handoff evidence</option>
                         <option value="PAYMENT">Payment proof</option>
                       </select>
@@ -853,7 +1288,7 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
                     </div>
                     <label className={styles.noteField}>
                       <span>Evidence note</span>
-                      <textarea name="note" placeholder="Explain what was uploaded and how it moves the claim forward." rows={5} />
+                      <textarea name="note" placeholder="Explain what was uploaded and how it moves the claim forward. For estimates, include the approved repair amount or paste the estimate total so the workspace can read it." rows={5} />
                     </label>
                     <button disabled={!claimId || isWorking} type="submit">Attach / record file</button>
                   </form>
@@ -861,6 +1296,11 @@ export function ClaimsWorkspaceReview({ model }: { model?: ClaimReadModel }) {
                 {activeExtraTool === "repair" ? (
                   <form action={requestHandoff} className={`${styles.executionForm} ${styles.timelineForm}`}>
                     <strong>Repair workflow</strong>
+                    <div className={styles.repairTaskLinkCard}>
+                      <span>After approval</span>
+                      <p>Open a task for the repair start so authorization, approved scope, owner, and first action stay tied to this claim.</p>
+                      <Link href={startRepairTaskHref}>Open start repairs task</Link>
+                    </div>
                     <label className={styles.noteField}>
                       <span>Handoff or exception reason</span>
                       <textarea name="exceptionReason" placeholder="Optional manager exception reason if repair handoff is blocked" rows={5} />

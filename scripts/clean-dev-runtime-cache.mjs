@@ -46,8 +46,10 @@ for (const cacheName of projectCacheNames) {
 const resolvedRuntimeCacheBase = path.resolve(runtimeCacheBase);
 const expectedRuntimeParent = path.resolve(path.join(process.env.LOCALAPPDATA || os.tmpdir(), "DispatchBoard"));
 
-if (isInside(expectedRuntimeParent, resolvedRuntimeCacheBase)) {
+if (process.env.CLEAN_NEXT_RUNTIME_CACHE === "1" && isInside(expectedRuntimeParent, resolvedRuntimeCacheBase)) {
   await removeKnownCache(resolvedRuntimeCacheBase, expectedRuntimeParent);
+} else if (isInside(expectedRuntimeParent, resolvedRuntimeCacheBase)) {
+  console.log("Preserved shared Next dev runtime caches. Set CLEAN_NEXT_RUNTIME_CACHE=1 to remove them.");
 }
 
 console.log("Cleaned stale Next dev runtime caches for this Dispatch Board workspace.");

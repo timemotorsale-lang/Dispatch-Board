@@ -123,6 +123,30 @@
   padding: 14px;
 }
 
+.safeModeNotice {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border-color: #ffd98b;
+  background: #fffaf0;
+}
+
+.safeModeNotice strong {
+  display: block;
+  margin-top: 3px;
+  color: #07132d;
+  font-size: 0.98rem;
+  line-height: 1.25;
+}
+
+.safeModeNotice p {
+  margin: 5px 0 0;
+  color: #526481;
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
 .panelHeader {
   align-items: flex-start;
   margin-bottom: 10px;
@@ -231,7 +255,7 @@
 }
 
 .snapshotEditForm label span {
-  color: #526481;
+  color: #07132d;
   font-size: 0.72rem;
   font-weight: 900;
   letter-spacing: 0.08em;
@@ -242,17 +266,52 @@
 .snapshotEditForm textarea {
   width: 100%;
   min-height: 38px;
-  border: 1px solid #c5d2e7;
+  border: 1px solid #8fb0ff;
   border-radius: 8px;
-  background: #fff;
-  color: #07132d;
+  background: #eef5ff;
+  color: #123fa4;
+  caret-color: #284bd0;
   font: inherit;
   font-size: 0.82rem;
   padding: 8px 10px;
+  box-shadow: inset 4px 0 #3767f4;
 }
 
 .snapshotEditForm textarea {
   resize: vertical;
+}
+
+.manualFilled input,
+.manualFilled textarea {
+  border-color: #8fb0ff;
+  background: #eef5ff;
+  color: #123fa4;
+  box-shadow: inset 4px 0 #3767f4;
+}
+
+.manualPending input,
+.manualPending textarea {
+  border-color: #ffd98b;
+  background: #fff7e3;
+  color: #7a4a00;
+  box-shadow: inset 4px 0 #f6b23c;
+}
+
+.manualMissing input,
+.manualMissing textarea {
+  border-color: #ffcaca;
+  background: #fff0f0;
+  color: #9f1d1d;
+  box-shadow: inset 4px 0 #d73b3b;
+}
+
+.snapshotEditForm input:focus,
+.snapshotEditForm textarea:focus,
+.executionForm input:focus,
+.executionForm select:focus,
+.executionForm textarea:focus {
+  outline: 2px solid rgba(40, 75, 208, 0.28);
+  outline-offset: 2px;
 }
 
 .fullField {
@@ -379,6 +438,185 @@
   padding: 8px 12px;
 }
 
+.recoveryPanel,
+.recoveryWorkspace {
+  display: grid;
+  gap: 10px;
+}
+
+.estimateCard,
+.estimateHeroCard,
+.estimateSourceCard {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #dce5f3;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.estimateCard > strong,
+.estimateHeroCard > strong {
+  color: #07132d;
+  font-size: 1.35rem;
+  line-height: 1.1;
+}
+
+.estimateCard p,
+.estimateHeroCard p,
+.estimateSourceCard p {
+  margin: 0;
+  color: #526481;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.estimateCard button {
+  justify-self: start;
+  min-height: 38px;
+  border: 1px solid #284bd0;
+  border-radius: 8px;
+  background: #284bd0;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 900;
+  padding: 8px 12px;
+}
+
+.estimateFacts,
+.estimateReviewGrid {
+  display: grid;
+  gap: 8px;
+}
+
+.estimateFacts {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.estimateReviewGrid {
+  grid-template-columns: minmax(280px, 0.7fr) minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.estimateDrawer {
+  width: min(980px, calc(100vw - 24px));
+}
+
+.estimateSourceCard > strong {
+  color: #07132d;
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.inlineDocumentLink {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  color: #0c2a61;
+  font-size: 0.82rem;
+  font-weight: 950;
+  line-height: 1.25;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+
+.recoveryCompact {
+  display: grid;
+  gap: 10px;
+}
+
+.recoveryCompactFacts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.recoveryOpenButton {
+  min-height: 40px;
+  border: 1px solid #284bd0;
+  border-radius: 8px;
+  background: #284bd0;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 900;
+  padding: 8px 12px;
+}
+
+.recoverySummary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.recoveryAction,
+.recoveryGrid article,
+.payerSplit div {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid #dce5f3;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.recoveryAction strong,
+.recoveryGrid strong,
+.payerSplit strong {
+  color: #07132d;
+  line-height: 1.22;
+}
+
+.recoveryAction p,
+.recoveryGrid p {
+  margin: 0;
+  color: #526481;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.recoveryGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.payerSplit {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.payerSplit span,
+.payerSplit small {
+  color: #526481;
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.payerSplit small {
+  font-size: 0.76rem;
+  text-transform: none;
+}
+
+.recoveryDrawer {
+  width: min(1220px, calc(100vw - 24px));
+}
+
+.recoveryCommand {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.72fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
 .drawerBackdrop {
   position: fixed;
   inset: 0;
@@ -500,6 +738,53 @@
   color: #526481;
   font-size: 0.8rem;
   line-height: 1.45;
+}
+
+.repairTaskLinkCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #cbd8ef;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.repairTaskLinkCard span {
+  color: #526481;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.repairTaskLinkCard p {
+  grid-column: 1;
+  margin: 0;
+  color: #263750;
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.repairTaskLinkCard a {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  border: 1px solid #284bd0;
+  border-radius: 8px;
+  background: #284bd0;
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 900;
+  line-height: 1.2;
+  padding: 9px 12px;
+  text-decoration: none;
+  white-space: nowrap;
 }
 
 .executionForm {
@@ -634,13 +919,38 @@
 .executionForm textarea {
   width: 100%;
   min-height: 38px;
-  border: 1px solid #c5d2e7;
+  border: 1px solid #8fb0ff;
   border-radius: 8px;
-  background: #fff;
-  color: #07132d;
+  background: #eef5ff;
+  color: #123fa4;
+  caret-color: #284bd0;
   font: inherit;
   font-size: 0.82rem;
   padding: 8px 10px;
+  box-shadow: inset 4px 0 #3767f4;
+}
+
+.executionForm input::placeholder,
+.executionForm textarea::placeholder {
+  color: #7a4a00;
+}
+
+.executionForm input:not([type="hidden"]):not([type="file"]):placeholder-shown,
+.executionForm textarea:placeholder-shown,
+.executionForm input[type="file"] {
+  border-color: #ffd98b;
+  background: #fff7e3;
+  color: #7a4a00;
+  box-shadow: inset 4px 0 #f6b23c;
+}
+
+.executionForm input:required:invalid,
+.executionForm textarea:required:invalid,
+.executionForm select:required:invalid {
+  border-color: #ffcaca;
+  background: #fff0f0;
+  color: #9f1d1d;
+  box-shadow: inset 4px 0 #d73b3b;
 }
 
 .executionForm textarea {
@@ -653,7 +963,7 @@
 }
 
 .noteField span {
-  color: #526481;
+  color: #07132d;
   font-size: 0.72rem;
   font-weight: 900;
   letter-spacing: 0.11em;
@@ -791,6 +1101,99 @@
 
 .evidenceList {
   display: grid;
+}
+
+.uploadedEvidenceList {
+  display: grid;
+  gap: 8px;
+}
+
+.uploadedEvidenceItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid #dce5f3;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.uploadedEvidenceItem span {
+  display: block;
+  color: #526481;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.uploadedEvidenceItem strong {
+  display: block;
+  margin-top: 3px;
+  color: #07132d;
+  font-size: 0.9rem;
+  line-height: 1.22;
+}
+
+.uploadedEvidenceItem small,
+.emptyEvidence {
+  color: #526481;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.uploadedEvidenceItem button {
+  min-height: 36px;
+  border: 1px solid #284bd0;
+  border-radius: 8px;
+  background: #284bd0;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  padding: 8px 12px;
+}
+
+.uploadedEvidenceActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.uploadedEvidenceActions a,
+.timelineActions a {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #284bd0;
+  border-radius: 8px;
+  background: #284bd0;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 900;
+  line-height: 1.2;
+  padding: 8px 11px;
+  text-decoration: none;
+}
+
+.uploadedEvidenceActions span {
+  align-self: center;
+  color: #526481;
+  font-size: 0.74rem;
+  font-weight: 850;
+}
+
+.emptyEvidence {
+  margin: 0;
+  padding: 10px;
+  border: 1px solid #dce5f3;
+  border-radius: 8px;
+  background: #fbfdff;
 }
 
 .executionGrid,
@@ -1115,6 +1518,7 @@
 :global(html[data-app-theme="dark"]) .timelineReport > header > span,
 :global(html[data-app-theme="dark"]) .timeline time,
 :global(html[data-app-theme="dark"]) .timeline small,
+:global(html[data-app-theme="dark"]) .snapshotEditForm label span,
 :global(html[data-app-theme="dark"]) .noteField span {
   color: #a9b8ce;
 }
@@ -1137,6 +1541,20 @@
   color: #a9b8ce;
 }
 
+:global(html[data-app-theme="dark"]) .repairTaskLinkCard {
+  border-color: #304058;
+  background: #16243a;
+}
+
+:global(html[data-app-theme="dark"]) .repairTaskLinkCard p {
+  color: #d7e3f8;
+}
+
+:global(html[data-app-theme="dark"]) .repairTaskLinkCard a {
+  border-color: #8aa7ff;
+  background: #5d75e9;
+}
+
 :global(html[data-app-theme="dark"]) .toolGridPanel button[aria-pressed="true"] {
   border-color: #8aa7ff;
   background: #22385c;
@@ -1145,6 +1563,10 @@
 
 :global(html[data-app-theme="dark"]) .appointmentToolHeader a {
   color: #f8fbff;
+}
+
+:global(html[data-app-theme="dark"]) .inlineDocumentLink {
+  color: #dbe6ff;
 }
 
 :global(html[data-app-theme="dark"]) .appointmentToolHeader span {
@@ -1178,6 +1600,53 @@
   color: #f8fbff;
 }
 
+:global(html[data-app-theme="dark"]) .snapshotEditForm input,
+:global(html[data-app-theme="dark"]) .snapshotEditForm textarea,
+:global(html[data-app-theme="dark"]) .executionForm input,
+:global(html[data-app-theme="dark"]) .executionForm select,
+:global(html[data-app-theme="dark"]) .executionForm textarea {
+  border-color: #5f83ff;
+  background: #152845;
+  color: #dbe6ff;
+  caret-color: #9cb5ff;
+  box-shadow: inset 4px 0 #6f8dff;
+}
+
+:global(html[data-app-theme="dark"]) .manualPending input,
+:global(html[data-app-theme="dark"]) .manualPending textarea,
+:global(html[data-app-theme="dark"]) .executionForm input:not([type="hidden"]):not([type="file"]):placeholder-shown,
+:global(html[data-app-theme="dark"]) .executionForm textarea:placeholder-shown,
+:global(html[data-app-theme="dark"]) .executionForm input[type="file"] {
+  border-color: #c18a2b;
+  background: #332916;
+  color: #ffe1a6;
+  box-shadow: inset 4px 0 #e0a13a;
+}
+
+:global(html[data-app-theme="dark"]) .executionForm input::placeholder,
+:global(html[data-app-theme="dark"]) .executionForm textarea::placeholder {
+  color: #f4ca79;
+}
+
+:global(html[data-app-theme="dark"]) .manualMissing input,
+:global(html[data-app-theme="dark"]) .manualMissing textarea,
+:global(html[data-app-theme="dark"]) .executionForm input:required:invalid,
+:global(html[data-app-theme="dark"]) .executionForm textarea:required:invalid,
+:global(html[data-app-theme="dark"]) .executionForm select:required:invalid {
+  border-color: #d86666;
+  background: #3a1f25;
+  color: #ffd1d1;
+  box-shadow: inset 4px 0 #ef6666;
+}
+
+:global(html[data-app-theme="dark"]) .snapshotEditForm input:focus,
+:global(html[data-app-theme="dark"]) .snapshotEditForm textarea:focus,
+:global(html[data-app-theme="dark"]) .executionForm input:focus,
+:global(html[data-app-theme="dark"]) .executionForm select:focus,
+:global(html[data-app-theme="dark"]) .executionForm textarea:focus {
+  outline-color: rgba(138, 167, 255, 0.44);
+}
+
 @media (max-width: 1180px) {
   .hero,
   .workspace {
@@ -1202,6 +1671,13 @@
   .executionGrid,
   .carrierGrid,
   .ownerGrid,
+  .payerSplit,
+  .recoveryCommand,
+  .recoveryCompactFacts,
+  .recoveryGrid,
+  .recoverySummary,
+  .estimateFacts,
+  .estimateReviewGrid,
   .toolGrid {
     grid-template-columns: 1fr;
   }
@@ -1213,6 +1689,16 @@
   .evidenceRow {
     grid-template-columns: 1fr;
     padding: 12px 0;
+  }
+
+  .uploadedEvidenceItem {
+    grid-template-columns: 1fr;
+  }
+
+  .uploadedEvidenceActions,
+  .uploadedEvidenceItem button,
+  .uploadedEvidenceActions a {
+    width: 100%;
   }
 
   .taskItem {
@@ -1237,5 +1723,16 @@
 
   .executionForm button {
     justify-self: stretch;
+  }
+
+  .repairTaskLinkCard {
+    grid-template-columns: 1fr;
+  }
+
+  .repairTaskLinkCard a {
+    grid-column: 1;
+    grid-row: auto;
+    width: 100%;
+    white-space: normal;
   }
 }

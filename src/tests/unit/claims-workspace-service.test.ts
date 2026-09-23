@@ -37,6 +37,14 @@ describe("claims workspace service", () => {
     expect(model.claims[0].href).toContain("/vehicles/claims-workspace?claimId=");
     expect(model.filters.map((filter) => filter.id)).toEqual(["all", "blocked", "waitingCarrier", "readyHandoff", "paymentWatch", "aging"]);
     expect(model.intakeForms.map((form) => form.id)).toContain("insurance-claim-intake");
+    expect(model.commandCenter.scopes).toEqual(["Claims", "Vehicles", "Documents", "Money", "Tasks", "Timeline"]);
+    expect(model.executionCards.map((card) => card.title)).toContain("Missing photos");
+    expect(model.statusSignals.map((signal) => signal.label)).toContain("Authorization gaps");
+    expect(model.guardrails.map((guardrail) => guardrail.label)).toContain("Invoice packet gate");
+    expect(model.documentShortcuts.map((shortcut) => shortcut.label)).toContain("Authorizations");
+    expect(model.financialExceptions.map((exception) => exception.label)).toContain("Blocked billing");
+    expect(model.templates.map((template) => template.label)).toContain("Carrier adjuster call");
+    expect(model.timeline.length).toBeGreaterThan(0);
   });
 
   it("creates a durable claim record, flags duplicates, and produces checklist/readiness guidance", async () => {
@@ -73,8 +81,21 @@ describe("claims workspace service", () => {
     expect(created.readModel.handoff.allowed).toBe(false);
     expect(created.readModel.executionTasks.map((task) => task.title)).toContain("Get customer authorization");
     expect(created.readModel.documentPlan.map((item) => item.label)).toContain("Customer repair authorization");
+    expect(created.readModel.documentPlan.map((item) => item.label)).toContain("Rental support");
     expect(created.readModel.photoPlan.map((item) => item.label)).toContain("Damage overview and closeups");
     expect(created.readModel.carrierTracker.nextContact).toBe("Call carrier for adjuster");
+    expect(created.readModel.billingRecovery).toMatchObject({
+      invoicePacket: {
+        ready: false,
+        status: "BLOCKED"
+      },
+      nextAction: {
+        label: "Confirm payer contact"
+      },
+      rental: {
+        status: "NOT_STARTED"
+      }
+    });
 
     await expect(createInsuranceClaim(actor, {
       carrierName: "State Farm",
@@ -127,6 +148,104 @@ describe("claims workspace service", () => {
     const handedOff = await requestClaimHandoff(actor, claimId, {}, { repository });
     expect(handedOff.claim.stage).toBe("REPAIR_HANDOFF");
     expect(handedOff.claim.nextAction).toBe("Open or link repair order");
+  });
+
+  it("surfaces billing recovery and rental extension work as simple next actions", async () => {
+    const repository = createInMemoryClaimsWorkspaceRepository([]);
+    const created = await createInsuranceClaim(actor, {
+      adjusterName: "Pat Adjuster",
+      carrierName: "Progressive",
+      claimNumber: "MN-66002",
+      customerName: "Rental Customer",
+      deductible: "$500",
+      description: "Left front damage.",
+      ownerUserId: "advisor-1",
+      vehicleVin: "VIN-RENTAL-001"
+    }, { repository });
+    const claimId = created.readModel.claim.id;
+
+    for (const [category, title, notes] of [
+      ["AUTHORIZATION", "Signed authorization", ""],
+      ["ESTIMATE", "Carrier estimate", ""],
+      ["RENTAL", "Rental agreement", "Daily rental started; approved days not captured yet."]
+    ] as const) {
+      await attachClaimEvidence(actor, claimId, {
+        category,
+        notes,
+        relationshipTargets: ["CLAIM"],
+        status: "RECEIVED",
+        title
+      }, { repository });
+    }
+
+    const model = await getClaimWorkspaceReadModel(actor, claimId, { repository });
+    expect(model.billingRecovery.nextAction).toMatchObject({
+      label: "Request rental extension",
+      ownerRole: "Service advisor"
+    });
+    expect(model.billingRecovery.rental).toMatchObject({
+      overageRisk: "NEEDS_EXTENSION",
+      status: "EXTENSION_NEEDED"
+    });
+    expect(model.billingRecovery.payerSplit.some((payer) => payer.title === "Rental recovery" && payer.status === "BLOCKED")).toBe(true);
+  });
+
+  it("reads approved repair amount from carrier estimate evidence and reflects it in recovery", async () => {
+    const repository = createInMemoryClaimsWorkspaceRepository([]);
+    const created = await createInsuranceClaim(actor, {
+      adjusterName: "Pat Adjuster",
+      carrierName: "Progressive",
+      claimNumber: "MN-67002",
+      customerName: "Estimate Customer",
+      description: "Rear body damage.",
+      ownerUserId: "advisor-1",
+      vehicleVin: "VIN-ESTIMATE-001"
+    }, { repository });
+
+    const model = await attachClaimEvidence(actor, created.readModel.claim.id, {
+      category: "ESTIMATE",
+      fileName: "progressive-estimate.pdf",
+      notes: "Carrier estimate approved repair amount $4,812.44 after teardown.",
+      relationshipTargets: ["CLAIM", "REPAIR_ORDER"],
+      status: "RECEIVED",
+      title: "Progressive approved estimate"
+    }, { repository });
+
+    expect(model.estimateReview).toMatchObject({
+      approvedAmountCents: 481244,
+      approvedAmountLabel: "$4,812.44",
+      confidence: "HIGH",
+      fileName: "progressive-estimate.pdf",
+      status: "AMOUNT_FOUND"
+    });
+    expect(model.billingRecovery.summary.approvedAmountLabel).toBe("$4,812.44");
+    expect(model.billingRecovery.payerSplit[0].amountLabel).toBe("$4,812.44");
+  });
+
+  it("recognizes an estimate uploaded through another evidence port", async () => {
+    const repository = createInMemoryClaimsWorkspaceRepository([]);
+    const created = await createInsuranceClaim(actor, {
+      carrierName: "AllState Insurance",
+      claimNumber: "MN-68002",
+      customerName: "Cross Port Customer",
+      description: "Front collision estimate.",
+      ownerUserId: "advisor-1",
+      vehicleVin: "VIN-CROSS-PORT-001"
+    }, { repository });
+
+    const model = await attachClaimEvidence(actor, created.readModel.claim.id, {
+      category: "AUTHORIZATION",
+      fileName: "allstate-estimate.pdf",
+      notes: "Uploaded from Extra Action Tools. Approved repair amount $6,210.75.",
+      relationshipTargets: ["CLAIM"],
+      status: "RECEIVED",
+      title: "AllState carrier estimate"
+    }, { repository });
+
+    expect(model.evidence[0]).toMatchObject({ category: "ESTIMATE" });
+    expect(model.checklist.find((item) => item.category === "ESTIMATE")).toMatchObject({ state: "RECEIVED" });
+    expect(model.estimateReview.approvedAmountLabel).toBe("$6,210.75");
+    expect(model.billingRecovery.summary.approvedAmountLabel).toBe("$6,210.75");
   });
 
   it("requires manager authority before approving a blocked repair handoff exception", async () => {

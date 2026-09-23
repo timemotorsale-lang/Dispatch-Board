@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 
 import { INSURANCE_CLAIM_INTAKE_FORM_PACKET } from "@/lib/insurance-claim-intake-form-packet";
 import type { AuthenticatedUser } from "@/server/auth/store";
+import { resolveDocumentStorageRuntimeFromEnv } from "@/server/document-library/storage-config";
 
 export const CLAIMS_WORKSPACE_CONTRACT_VERSION = "claims-workspace/v1";
 export const CLAIMS_WORKSPACE_ERROR_CONTRACT_VERSION = "claims-workspace-error/v1";
@@ -24,6 +25,7 @@ export type ClaimEvidenceCategory =
   | "ODOMETER_PHOTO"
   | "INSURANCE_CARD"
   | "ESTIMATE"
+  | "RENTAL"
   | "TOW_STORAGE"
   | "PAYMENT"
   | "REPAIR_HANDOFF"
@@ -147,6 +149,61 @@ export type ClaimCarrierTracker = {
   statusLabel: string;
 };
 
+export type ClaimBillingRecovery = {
+  blockers: string[];
+  invoicePacket: {
+    missing: string[];
+    ready: boolean;
+    required: string[];
+    status: "BLOCKED" | "READY_TO_SEND" | "SENT" | "PAID";
+    title: string;
+  };
+  nextAction: {
+    dueLabel: string;
+    label: string;
+    ownerRole: string;
+    reason: string;
+  };
+  payerSplit: Array<{
+    amountLabel: string;
+    payer: "INSURANCE" | "WARRANTY" | "CUSTOMER" | "INTERNAL";
+    status: "PENDING" | "READY" | "BILLED" | "PAID" | "BLOCKED";
+    title: string;
+  }>;
+  rental: {
+    approvedDaysLabel: string;
+    overageRisk: "NONE" | "NEEDS_EXTENSION" | "OVER_LIMIT";
+    payer: "INSURANCE" | "WARRANTY" | "CUSTOMER" | "INTERNAL";
+    status: "NOT_STARTED" | "ACTIVE" | "EXTENSION_NEEDED" | "READY_TO_BILL";
+    summary: string;
+    usedDaysLabel: string;
+  };
+  shortPayWatch: {
+    active: boolean;
+    reason: string;
+  };
+  summary: {
+    approvedAmountLabel: string;
+    balanceLabel: string;
+    billedAmountLabel: string;
+    deductibleLabel: string;
+    paidAmountLabel: string;
+  };
+};
+
+export type ClaimEstimateReview = {
+  approvedAmountCents: number | null;
+  approvedAmountLabel: string;
+  confidence: "HIGH" | "MEDIUM" | "NEEDS_REVIEW";
+  detail: string;
+  documentLibraryId?: string;
+  evidenceId?: string;
+  fileName?: string;
+  receivedAt?: string;
+  sourceTitle?: string;
+  status: "MISSING" | "AMOUNT_FOUND" | "REVIEW_NEEDED";
+};
+
 export type ClaimWorkspaceSummary = {
   ageLabel: string;
   assignedOwner: string;
@@ -167,12 +224,15 @@ export type ClaimExecutionTask = {
 
 export type ClaimReadModel = {
   activities: ClaimActivityRecord[];
+  billingRecovery: ClaimBillingRecovery;
   checklist: ClaimChecklistItem[];
   claim: InsuranceClaimRecord;
   carrierTracker: ClaimCarrierTracker;
   contractVersion: typeof CLAIMS_WORKSPACE_CONTRACT_VERSION;
   documentPlan: ClaimDocumentPlanItem[];
   duplicateWarnings: ClaimDuplicateWarning[];
+  documentStorageReady: boolean;
+  estimateReview: ClaimEstimateReview;
   evidence: ClaimEvidenceRecord[];
   executionTasks: ClaimExecutionTask[];
   handoff: {
@@ -206,11 +266,44 @@ export type ClaimsDeskReadModel = {
     provider: string;
     queueTags: Array<"blocked" | "waitingCarrier" | "readyHandoff" | "paymentWatch" | "aging">;
   }>;
+  commandCenter: {
+    indexedRecords: number;
+    placeholder: string;
+    scopes: string[];
+  };
   contractVersion: typeof CLAIMS_WORKSPACE_CONTRACT_VERSION;
+  documentShortcuts: Array<{
+    actionLabel: string;
+    count: number;
+    detail: string;
+    label: string;
+    tone: "info" | "good" | "warning" | "danger";
+  }>;
+  executionCards: Array<{
+    actionLabel: string;
+    detail: string;
+    id: string;
+    ownerRole: string;
+    title: string;
+    tone: "info" | "good" | "warning" | "danger";
+  }>;
   filters: Array<{
     count: number;
     id: "all" | "blocked" | "waitingCarrier" | "readyHandoff" | "paymentWatch" | "aging";
     label: string;
+  }>;
+  financialExceptions: Array<{
+    actionLabel: string;
+    amountLabel: string;
+    detail: string;
+    label: string;
+    tone: "info" | "good" | "warning" | "danger";
+  }>;
+  guardrails: Array<{
+    enforced: boolean;
+    label: string;
+    reason: string;
+    tone: "info" | "good" | "warning" | "danger";
   }>;
   intakeForms: typeof INSURANCE_CLAIM_INTAKE_FORM_PACKET;
   metrics: {
@@ -221,6 +314,24 @@ export type ClaimsDeskReadModel = {
     readyHandoff: number;
     waitingCarrier: number;
   };
+  statusSignals: Array<{
+    count: number;
+    detail: string;
+    label: string;
+    tone: "info" | "good" | "warning" | "danger";
+  }>;
+  templates: Array<{
+    body: string;
+    channel: "Call" | "Email" | "SMS" | "Internal";
+    label: string;
+    requiredContext: string[];
+  }>;
+  timeline: Array<{
+    atLabel: string;
+    detail: string;
+    label: string;
+    tone: "info" | "good" | "warning" | "danger";
+  }>;
 };
 
 export type ClaimDuplicateWarning = {
@@ -535,6 +646,11 @@ export async function getClaimsDeskReadModel(actor: AuthenticatedUser | null, in
   const repository = deps(input).repository;
   const aggregates = await repository.listClaims();
   const readModels = aggregates.map((aggregate) => toClaimReadModel(aggregate, aggregates));
+  const blocked = readModels.filter((model) => queueTags(model).includes("blocked"));
+  const waitingCarrier = readModels.filter((model) => queueTags(model).includes("waitingCarrier"));
+  const readyHandoff = readModels.filter((model) => queueTags(model).includes("readyHandoff"));
+  const paymentWatch = readModels.filter((model) => queueTags(model).includes("paymentWatch"));
+  const aging = readModels.filter((model) => queueTags(model).includes("aging"));
   return {
     claims: readModels.map((model) => ({
       action: model.claim.ownerUserId ? (model.claim.stage === "INTAKE" ? "Resume" : "Open") : "Assign",
@@ -547,25 +663,176 @@ export async function getClaimsDeskReadModel(actor: AuthenticatedUser | null, in
       provider: model.claim.carrierName || "Carrier unknown",
       queueTags: queueTags(model)
     })),
+    commandCenter: {
+      indexedRecords: readModels.length,
+      placeholder: "Search claim, customer, VIN, plate, carrier, blocker, invoice, rental, or document...",
+      scopes: ["Claims", "Vehicles", "Documents", "Money", "Tasks", "Timeline"]
+    },
     contractVersion: CLAIMS_WORKSPACE_CONTRACT_VERSION,
+    documentShortcuts: buildDeskDocumentShortcuts(readModels),
+    executionCards: buildDeskExecutionCards(readModels),
     filters: [
       { count: readModels.length, id: "all", label: "All" },
-      { count: readModels.filter((model) => queueTags(model).includes("blocked")).length, id: "blocked", label: "Blocked" },
-      { count: readModels.filter((model) => queueTags(model).includes("waitingCarrier")).length, id: "waitingCarrier", label: "Waiting carrier" },
-      { count: readModels.filter((model) => queueTags(model).includes("readyHandoff")).length, id: "readyHandoff", label: "Ready handoff" },
-      { count: readModels.filter((model) => queueTags(model).includes("paymentWatch")).length, id: "paymentWatch", label: "Payment watch" },
-      { count: readModels.filter((model) => queueTags(model).includes("aging")).length, id: "aging", label: "Aging" }
+      { count: blocked.length, id: "blocked", label: "Blocked" },
+      { count: waitingCarrier.length, id: "waitingCarrier", label: "Waiting carrier" },
+      { count: readyHandoff.length, id: "readyHandoff", label: "Ready handoff" },
+      { count: paymentWatch.length, id: "paymentWatch", label: "Payment watch" },
+      { count: aging.length, id: "aging", label: "Aging" }
     ],
+    financialExceptions: buildDeskFinancialExceptions(readModels),
+    guardrails: buildDeskGuardrails(readModels),
     intakeForms: INSURANCE_CLAIM_INTAKE_FORM_PACKET,
     metrics: {
-      agingClaims: readModels.filter((model) => claimAgeDays(model.claim) >= 3).length,
-      blockedClaims: readModels.filter((model) => model.primaryBlocker.startsWith("Missing") || model.primaryBlocker.includes("blocked")).length,
+      agingClaims: aging.length,
+      blockedClaims: blocked.length,
       openClaims: readModels.filter((model) => model.claim.status === "OPEN").length,
-      paymentWatch: readModels.filter((model) => model.claim.stage === "PAYMENT_FOLLOW_UP").length,
-      readyHandoff: readModels.filter((model) => model.handoff.allowed).length,
-      waitingCarrier: readModels.filter((model) => model.primaryBlocker.includes("carrier") || model.primaryBlocker.includes("adjuster")).length
-    }
+      paymentWatch: paymentWatch.length,
+      readyHandoff: readyHandoff.length,
+      waitingCarrier: waitingCarrier.length
+    },
+    statusSignals: buildDeskStatusSignals(readModels),
+    templates: buildDeskTemplates(readModels),
+    timeline: buildDeskTimeline(readModels)
   };
+}
+
+function buildDeskExecutionCards(readModels: ClaimReadModel[]): ClaimsDeskReadModel["executionCards"] {
+  const recommended = [...readModels]
+    .sort((left, right) => executionPriority(right) - executionPriority(left))
+    .slice(0, 4);
+  return recommended.map((model) => ({
+    actionLabel: model.nextAction.label,
+    detail: `${model.claim.customerName} - ${model.nextAction.reason}`,
+    id: model.claim.id,
+    ownerRole: model.nextAction.ownerRole,
+    title: model.primaryBlocker,
+    tone: model.handoff.allowed ? "good" : model.primaryBlocker.startsWith("Missing") ? "warning" : "info"
+  }));
+}
+
+function executionPriority(model: ClaimReadModel) {
+  if (!model.claim.ownerUserId) return 7;
+  if (model.primaryBlocker.includes("authorization")) return 6;
+  if (model.primaryBlocker.includes("photo")) return 5;
+  if (model.carrierTracker.approvalStatus === "needs_adjuster") return 4;
+  if (model.handoff.allowed) return 3;
+  if (model.billingRecovery.invoicePacket.status === "READY_TO_SEND") return 2;
+  return 1;
+}
+
+function buildDeskStatusSignals(readModels: ClaimReadModel[]): ClaimsDeskReadModel["statusSignals"] {
+  const unassigned = readModels.filter((model) => !model.claim.ownerUserId).length;
+  const missingAuthorization = readModels.filter((model) => model.primaryBlocker.includes("authorization")).length;
+  const ready = readModels.filter((model) => model.handoff.allowed).length;
+  const rentalRisk = readModels.filter((model) => model.billingRecovery.rental.overageRisk !== "NONE").length;
+  return [
+    { count: missingAuthorization, detail: "Claims blocked before repair handoff.", label: "Authorization gaps", tone: missingAuthorization ? "warning" : "good" },
+    { count: unassigned, detail: "Claims without an accountable owner.", label: "Owner gaps", tone: unassigned ? "danger" : "good" },
+    { count: ready, detail: "Claims ready to move into repair order execution.", label: "Ready handoffs", tone: ready ? "good" : "info" },
+    { count: rentalRisk, detail: "Daily rentals needing extension or approved-days support.", label: "Rental risk", tone: rentalRisk ? "warning" : "good" }
+  ];
+}
+
+function buildDeskGuardrails(readModels: ClaimReadModel[]): ClaimsDeskReadModel["guardrails"] {
+  const handoffBlocked = readModels.some((model) => !model.handoff.allowed);
+  const duplicateSensitive = readModels.some((model) => model.duplicateWarnings.length > 0);
+  const paymentBlocked = readModels.some((model) => model.billingRecovery.invoicePacket.status === "BLOCKED");
+  return [
+    {
+      enforced: handoffBlocked,
+      label: "Repair handoff gate",
+      reason: "Authorization, photos, claim identity, and owner must be complete before repair handoff.",
+      tone: handoffBlocked ? "warning" : "good"
+    },
+    {
+      enforced: duplicateSensitive,
+      label: "Duplicate claim prevention",
+      reason: "Exact claim numbers and strong VIN matches require review before creating another record.",
+      tone: duplicateSensitive ? "danger" : "good"
+    },
+    {
+      enforced: paymentBlocked,
+      label: "Invoice packet gate",
+      reason: "Carrier billing stays blocked until payer contact, authorization, estimate, and final invoice support are ready.",
+      tone: paymentBlocked ? "warning" : "good"
+    }
+  ];
+}
+
+function buildDeskDocumentShortcuts(readModels: ClaimReadModel[]): ClaimsDeskReadModel["documentShortcuts"] {
+  const missing = (category: ClaimEvidenceCategory) => readModels.filter((model) => model.checklist.some((item) => item.category === category && item.state === "MISSING")).length;
+  const paymentMissing = readModels.filter((model) => model.documentPlan.some((item) => item.category === "PAYMENT" && item.state === "MISSING")).length;
+  return [
+    { actionLabel: "Open authorization queue", count: missing("AUTHORIZATION"), detail: "Signed authorization needed before repair handoff.", label: "Authorizations", tone: missing("AUTHORIZATION") ? "warning" : "good" },
+    { actionLabel: "Open photo queue", count: missing("DAMAGE_PHOTO") + missing("VIN_PHOTO") + missing("ODOMETER_PHOTO"), detail: "Damage, VIN, and odometer evidence for handoff.", label: "Photo evidence", tone: missing("DAMAGE_PHOTO") ? "warning" : "good" },
+    { actionLabel: "Open estimate queue", count: missing("ESTIMATE"), detail: "Carrier estimate, supplement, or internal appraisal support.", label: "Estimates", tone: missing("ESTIMATE") ? "warning" : "good" },
+    { actionLabel: "Open payment queue", count: paymentMissing, detail: "Payment proof, deductible support, and closeout recovery.", label: "Payment proof", tone: paymentMissing ? "info" : "good" }
+  ];
+}
+
+function buildDeskFinancialExceptions(readModels: ClaimReadModel[]): ClaimsDeskReadModel["financialExceptions"] {
+  const rental = readModels.filter((model) => model.billingRecovery.rental.overageRisk !== "NONE");
+  const blockedPackets = readModels.filter((model) => model.billingRecovery.invoicePacket.status === "BLOCKED");
+  const readyPackets = readModels.filter((model) => model.billingRecovery.invoicePacket.status === "READY_TO_SEND");
+  const shortPay = readModels.filter((model) => model.billingRecovery.shortPayWatch.active);
+  return [
+    { actionLabel: "Review rentals", amountLabel: `${rental.length} open`, detail: "Rental support exists without approved-days or extension documentation.", label: "Daily rental risk", tone: rental.length ? "warning" : "good" },
+    { actionLabel: "Complete packets", amountLabel: `${blockedPackets.length} blocked`, detail: "Invoice packet still missing payer, authorization, estimate, or final RO support.", label: "Blocked billing", tone: blockedPackets.length ? "warning" : "good" },
+    { actionLabel: "Send invoices", amountLabel: `${readyPackets.length} ready`, detail: "Recovery packets ready for carrier or warranty billing.", label: "Ready to bill", tone: readyPackets.length ? "good" : "info" },
+    { actionLabel: "Audit short-pay", amountLabel: `${shortPay.length} watch`, detail: "Payment proof exists before the recovery packet is complete.", label: "Short-pay watch", tone: shortPay.length ? "danger" : "good" }
+  ];
+}
+
+function buildDeskTemplates(readModels: ClaimReadModel[]): ClaimsDeskReadModel["templates"] {
+  const firstCarrier = readModels.find((model) => model.claim.carrierName)?.claim.carrierName ?? "carrier";
+  return [
+    {
+      body: `Call ${firstCarrier}, confirm adjuster contact, claim status, estimate timing, rental responsibility, and next approval step.`,
+      channel: "Call",
+      label: "Carrier adjuster call",
+      requiredContext: ["Carrier", "Claim number", "Policy number", "Vehicle"]
+    },
+    {
+      body: "Please sign the repair authorization so we can communicate with the carrier and move the claim toward repair handoff.",
+      channel: "SMS",
+      label: "Authorization request",
+      requiredContext: ["Customer", "Claim", "Authorization document"]
+    },
+    {
+      body: "Invoice packet is ready for review: estimate, authorization, final repair support, deductible status, and rental support.",
+      channel: "Email",
+      label: "Carrier invoice packet",
+      requiredContext: ["Estimate", "Authorization", "Final invoice", "Payment instructions"]
+    },
+    {
+      body: "Manager review requested for claim exception before handoff, billing, or closeout proceeds.",
+      channel: "Internal",
+      label: "Manager exception",
+      requiredContext: ["Blocker", "Reason", "Requested owner"]
+    }
+  ];
+}
+
+function buildDeskTimeline(readModels: ClaimReadModel[]): ClaimsDeskReadModel["timeline"] {
+  return readModels
+    .flatMap((model) => {
+      const newestActivity = model.activities[0];
+      return [
+        {
+          atLabel: model.summary.ageLabel,
+          detail: `${model.claim.customerName} - ${model.nextAction.reason}`,
+          label: model.nextAction.label,
+          tone: (model.handoff.allowed ? "good" : model.primaryBlocker.startsWith("Missing") ? "warning" : "info") as "info" | "good" | "warning" | "danger"
+        },
+        ...(newestActivity ? [{
+          atLabel: "Latest activity",
+          detail: newestActivity.detail,
+          label: newestActivity.action.toLowerCase().replaceAll("_", " "),
+          tone: "info" as const
+        }] : [])
+      ];
+    })
+    .slice(0, 6);
 }
 
 function queueTags(model: ClaimReadModel): Array<"blocked" | "waitingCarrier" | "readyHandoff" | "paymentWatch" | "aging"> {
@@ -740,14 +1007,18 @@ function toClaimReadModel(aggregate: ClaimWorkspaceAggregate, allClaims: ClaimWo
   const readiness = buildReadiness(aggregate, checklist, handoffBlockers);
   const documentPlan = buildDocumentPlan(checklist);
   const photoPlan = buildPhotoPlan(checklist);
+  const estimateReview = buildEstimateReview(aggregate);
   return {
     activities: aggregate.activities,
+    billingRecovery: buildBillingRecovery(aggregate, checklist, estimateReview),
     carrierTracker: buildCarrierTracker(aggregate),
     checklist,
     claim: aggregate.claim,
     contractVersion: CLAIMS_WORKSPACE_CONTRACT_VERSION,
     documentPlan,
+    documentStorageReady: resolveDocumentStorageRuntimeFromEnv().readiness.readyForByteStorage,
     duplicateWarnings: detectDuplicates(aggregate.claim, allClaims.filter((item) => item.claim.id !== aggregate.claim.id)),
+    estimateReview,
     evidence: aggregate.evidence,
     executionTasks: buildExecutionTasks(aggregate, checklist, handoffBlockers, primaryBlocker),
     handoff: {
@@ -799,6 +1070,14 @@ function buildDocumentPlan(checklist: ClaimChecklistItem[]): ClaimDocumentPlanIt
       libraryTarget: "Repair order",
       requiredBefore: "Repair handoff",
       state: state("ESTIMATE")
+    },
+    {
+      category: "RENTAL",
+      detail: "Rental agreement, approved days, extension approval, or no-rental note.",
+      label: "Rental support",
+      libraryTarget: "Claim jacket",
+      requiredBefore: "Payment follow-up",
+      state: state("RENTAL")
     },
     {
       category: "PAYMENT",
@@ -887,6 +1166,199 @@ function buildWorkspaceSummary(aggregate: ClaimWorkspaceAggregate): ClaimWorkspa
     photoCount: aggregate.evidence.filter((item) => item.category.includes("PHOTO")).length,
     stageLabel: aggregate.claim.stage.toLowerCase().replaceAll("_", " ")
   };
+}
+
+function moneyStatus(ready: boolean, paid: boolean): "PENDING" | "READY" | "BILLED" | "PAID" | "BLOCKED" {
+  if (paid) return "PAID";
+  return ready ? "READY" : "BLOCKED";
+}
+
+function buildBillingRecovery(aggregate: ClaimWorkspaceAggregate, checklist: ClaimChecklistItem[], estimateReview: ClaimEstimateReview): ClaimBillingRecovery {
+  const claim = aggregate.claim;
+  const evidence = aggregate.evidence;
+  const hasAuthorization = checklist.some((item) => item.category === "AUTHORIZATION" && (item.state === "RECEIVED" || item.state === "EXCEPTION_ACCEPTED"));
+  const hasEstimate = checklist.some((item) => item.category === "ESTIMATE" && (item.state === "RECEIVED" || item.state === "EXCEPTION_ACCEPTED"));
+  const hasPayment = evidence.some((item) => item.category === "PAYMENT" && item.status === "RECEIVED");
+  const hasRental = evidence.some((item) => item.category === "RENTAL" && item.status === "RECEIVED");
+  const hasRentalExtension = evidence.some((item) => item.category === "RENTAL" && /extension|extra day|additional day|approved through|approved until/i.test(`${item.title} ${item.notes ?? ""}`));
+  const carrierReady = Boolean(claim.carrierName && (claim.adjusterName || claim.adjusterPhone || claim.adjusterEmail));
+  const finalInvoiceReady = ["REPAIR_HANDOFF", "PAYMENT_FOLLOW_UP", "CLOSEOUT", "CLOSED"].includes(claim.stage);
+  const required = ["Claim number", "Carrier / adjuster", "Signed authorization", "Approved estimate or supplement", "Final invoice / repair order"];
+  const missing = [
+    ...(!claim.claimNumber && !claim.duplicateExceptionReason ? ["Claim number"] : []),
+    ...(!carrierReady ? ["Carrier / adjuster"] : []),
+    ...(!hasAuthorization ? ["Signed authorization"] : []),
+    ...(!hasEstimate ? ["Approved estimate or supplement"] : []),
+    ...(!finalInvoiceReady ? ["Final invoice / repair order"] : [])
+  ];
+  const ready = missing.length === 0;
+  const rentalStatus: ClaimBillingRecovery["rental"]["status"] = hasRentalExtension
+    ? "READY_TO_BILL"
+    : hasRental
+      ? "EXTENSION_NEEDED"
+      : "NOT_STARTED";
+  const blockers = [
+    ...missing.map((item) => `${item} missing`),
+    ...(hasRental && !hasRentalExtension ? ["Rental extension or approved-days support is needed before billing rental overage."] : [])
+  ];
+  const nextAction = hasRental && !hasRentalExtension
+    ? {
+      dueLabel: "Today",
+      label: "Request rental extension",
+      ownerRole: "Service advisor",
+      reason: "Rental support exists, but approved days or extension approval is not documented."
+    }
+    : !carrierReady
+      ? {
+        dueLabel: "Today",
+        label: "Confirm payer contact",
+        ownerRole: "Service advisor",
+        reason: "Carrier, adjuster, or warranty payer contact must be complete before billing."
+      }
+      : !hasAuthorization
+        ? {
+          dueLabel: "Today",
+          label: "Get billing authorization",
+          ownerRole: "Service advisor",
+          reason: "Billing is blocked until signed customer authorization is attached."
+        }
+        : !hasEstimate
+          ? {
+            dueLabel: "Today",
+            label: "Attach approved estimate",
+            ownerRole: "Service advisor",
+            reason: "Carrier or warranty invoice requires approved estimate, supplement, or authorization support."
+          }
+          : ready && !hasPayment
+            ? {
+              dueLabel: "Today",
+              label: "Send carrier invoice",
+              ownerRole: "Service advisor",
+              reason: "Recovery packet is ready. Send invoice and begin payment follow-up."
+            }
+            : {
+              dueLabel: "Today",
+              label: "Post payment proof",
+              ownerRole: "Office",
+              reason: "Payment evidence closes the recovery loop and supports claim closeout."
+            };
+
+  return {
+    blockers,
+    invoicePacket: {
+      missing,
+      ready,
+      required,
+      status: hasPayment ? "PAID" : ready ? "READY_TO_SEND" : "BLOCKED",
+      title: claim.carrierName ? "Carrier invoice packet" : "Recovery packet"
+    },
+    nextAction,
+    payerSplit: [
+      {
+        amountLabel: estimateReview.approvedAmountLabel,
+        payer: "INSURANCE",
+        status: moneyStatus(ready, hasPayment),
+        title: claim.carrierName || "Insurance carrier"
+      },
+      {
+        amountLabel: claim.deductible || "Deductible pending",
+        payer: "CUSTOMER",
+        status: claim.deductible ? "READY" : "PENDING",
+        title: "Customer deductible"
+      },
+      {
+        amountLabel: hasRental ? "Rental support attached" : "No rental active",
+        payer: "INSURANCE",
+        status: hasRental ? hasRentalExtension ? "READY" : "BLOCKED" : "PENDING",
+        title: "Rental recovery"
+      }
+    ],
+    rental: {
+      approvedDaysLabel: hasRentalExtension ? "Extension documented" : hasRental ? "Approval needed" : "Not started",
+      overageRisk: hasRental && !hasRentalExtension ? "NEEDS_EXTENSION" : "NONE",
+      payer: "INSURANCE",
+      status: rentalStatus,
+      summary: hasRental
+        ? hasRentalExtension
+          ? "Rental support is documented and ready for recovery review."
+          : "Rental support is attached; document approved days or extension before billing."
+        : "No active rental evidence is attached to this claim.",
+      usedDaysLabel: hasRental ? "Active rental evidence" : "0 days"
+    },
+    shortPayWatch: {
+      active: hasPayment && !ready,
+      reason: hasPayment && !ready ? "Payment proof exists before the recovery packet is complete; review for short-pay or misapplied payment." : "No short-pay issue detected."
+    },
+    summary: {
+      approvedAmountLabel: estimateReview.approvedAmountLabel,
+      balanceLabel: hasPayment ? "Review paid balance" : ready ? "Carrier balance pending" : "Blocked",
+      billedAmountLabel: ready ? "Ready for invoice" : "Not ready",
+      deductibleLabel: claim.deductible || "Pending",
+      paidAmountLabel: hasPayment ? "Payment proof attached" : "No payment posted"
+    }
+  };
+}
+
+function buildEstimateReview(aggregate: ClaimWorkspaceAggregate): ClaimEstimateReview {
+  const estimate = [...aggregate.evidence]
+    .filter((item) => isEstimateEvidence(item) && item.status !== "BLOCKED")
+    .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())[0];
+  if (!estimate) {
+    return {
+      approvedAmountCents: null,
+      approvedAmountLabel: "Pending approval",
+      confidence: "NEEDS_REVIEW",
+      detail: "No carrier estimate or supplement has been attached to this claim yet.",
+      status: "MISSING"
+    };
+  }
+
+  const evidenceText = [estimate.title, estimate.fileName, estimate.notes].filter(Boolean).join(" ");
+  const approvedAmountCents = extractApprovedAmountCents(evidenceText);
+  const amountFound = approvedAmountCents !== null;
+
+  return {
+    approvedAmountCents,
+    approvedAmountLabel: amountFound ? formatMoneyCents(approvedAmountCents) : "Estimate attached - amount review needed",
+    confidence: amountFound ? /approved|allowed|net|total|estimate|repair/i.test(evidenceText) ? "HIGH" : "MEDIUM" : "NEEDS_REVIEW",
+    detail: amountFound
+      ? "Approved repair amount was read from the uploaded estimate evidence text and should be verified in review before billing."
+      : "Estimate evidence is attached, but the approved repair amount was not found in the title, file name, or note.",
+    documentLibraryId: estimate.documentLibraryId,
+    evidenceId: estimate.id,
+    fileName: estimate.fileName,
+    receivedAt: estimate.createdAt,
+    sourceTitle: estimate.title,
+    status: amountFound ? "AMOUNT_FOUND" : "REVIEW_NEEDED"
+  };
+}
+
+function isEstimateEvidence(item: ClaimEvidenceRecord) {
+  if (item.category === "ESTIMATE") return true;
+  return /estimate|supplement|approved repair|repair amount|carrier total|net claim|preliminary/i.test(evidenceSearchText(item));
+}
+
+function extractApprovedAmountCents(value: string) {
+  const normalized = value.replace(/\s+/g, " ");
+  const targeted = normalized.match(/(?:approved|allowed|net|total|estimate|repair|supplement)[^$0-9]{0,40}\$?\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?|[0-9]+(?:\.[0-9]{2})?)/i);
+  const amountText = targeted?.[1] ?? [...normalized.matchAll(/\$?\s*([0-9]{1,3}(?:,[0-9]{3})+(?:\.[0-9]{2})?|[0-9]+(?:\.[0-9]{2})?)/g)]
+    .map((match) => match[1])
+    .map((candidate) => moneyTextToCents(candidate))
+    .filter((candidate) => candidate >= 100_00)
+    .sort((left, right) => right - left)[0];
+  if (typeof amountText === "number") return amountText;
+  if (!amountText) return null;
+  const cents = moneyTextToCents(amountText);
+  return cents > 0 ? cents : null;
+}
+
+function moneyTextToCents(value: string) {
+  const parsed = Number(value.replaceAll(",", ""));
+  return Number.isFinite(parsed) ? Math.round(parsed * 100) : 0;
+}
+
+function formatMoneyCents(value: number) {
+  return new Intl.NumberFormat("en-US", { currency: "USD", style: "currency" }).format(value / 100);
 }
 
 function buildExecutionTasks(
@@ -988,7 +1460,7 @@ function checklistItem(
   factComplete: boolean,
   evidence: ClaimEvidenceRecord[]
 ): ClaimChecklistItem {
-  const existing = evidence.find((item) => item.category === category);
+  const existing = evidence.find((item) => category === "ESTIMATE" ? isEstimateEvidence(item) : item.category === category);
   return {
     category,
     detail,
@@ -1113,12 +1585,17 @@ function normalizeClaimCreate(raw: ClaimCreateInput): Omit<InsuranceClaimRecord,
 }
 
 function normalizeEvidence(raw: ClaimEvidenceInput): Omit<ClaimEvidenceRecord, "createdAt" | "createdByUserId" | "id"> {
-  const category = choice(raw.category, ["AUTHORIZATION", "CLAIM_IDENTITY", "DAMAGE_PHOTO", "VIN_PHOTO", "ODOMETER_PHOTO", "INSURANCE_CARD", "ESTIMATE", "TOW_STORAGE", "PAYMENT", "REPAIR_HANDOFF", "CLOSEOUT"] as const, "Evidence category");
+  const selectedCategory = choice(raw.category, ["AUTHORIZATION", "CLAIM_IDENTITY", "DAMAGE_PHOTO", "VIN_PHOTO", "ODOMETER_PHOTO", "INSURANCE_CARD", "ESTIMATE", "RENTAL", "TOW_STORAGE", "PAYMENT", "REPAIR_HANDOFF", "CLOSEOUT"] as const, "Evidence category");
   const title = text(raw.title);
   if (!title) throw new ClaimsWorkspaceError("CLAIM_INVALID", "Evidence title is required.");
   const status = choice(raw.status ?? "RECEIVED", ["RECEIVED", "NOT_APPLICABLE", "BLOCKED", "EXCEPTION_ACCEPTED"] as const, "Evidence status");
+  const inferredCategory = inferEvidenceCategory(selectedCategory, {
+    fileName: text(raw.fileName),
+    notes: text(raw.notes),
+    title
+  });
   return {
-    category,
+    category: inferredCategory,
     documentLibraryId: text(raw.documentLibraryId),
     fileName: text(raw.fileName),
     notes: text(raw.notes),
@@ -1126,6 +1603,22 @@ function normalizeEvidence(raw: ClaimEvidenceInput): Omit<ClaimEvidenceRecord, "
     status,
     title
   };
+}
+
+function inferEvidenceCategory(
+  selectedCategory: ClaimEvidenceCategory,
+  evidence: Pick<ClaimEvidenceRecord, "fileName" | "notes" | "title">
+): ClaimEvidenceCategory {
+  const haystack = evidenceSearchText(evidence);
+  if (/estimate|supplement|approved repair|repair amount|carrier total|net claim|preliminary estimate/i.test(haystack)) return "ESTIMATE";
+  if (/rental|loaner|daily rate|approved days|extension/i.test(haystack)) return "RENTAL";
+  if (/payment|paid|check|eft|deductible|short-pay|short pay/i.test(haystack)) return "PAYMENT";
+  if (/authorization|signed auth|repair auth|signature/i.test(haystack)) return "AUTHORIZATION";
+  return selectedCategory;
+}
+
+function evidenceSearchText(evidence: Pick<ClaimEvidenceRecord, "fileName" | "notes" | "title">) {
+  return [evidence.title, evidence.fileName, evidence.notes].filter(Boolean).join(" ");
 }
 
 function normalizeExecutionUpdate(raw: ClaimExecutionUpdateInput): Partial<InsuranceClaimRecord> {
