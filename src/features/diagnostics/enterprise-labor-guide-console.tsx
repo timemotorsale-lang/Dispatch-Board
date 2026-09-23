@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Brain, Check, ChevronLeft, ClipboardCheck, Edit3, FileText, Grid2X2, List, Package, Plus, ScanBarcode, Search, ShoppingCart, Trash2, UserRound, X } from "lucide-react";
+import { BookOpen, Brain, Check, ChevronLeft, ClipboardCheck, Edit3, Package, Plus, ScanBarcode, Search, ShoppingCart, Trash2, UserRound, X } from "lucide-react";
 import Link from "next/link";
 import type { KeyboardEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -202,7 +202,6 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   const [query, setQuery] = useState(initialQuery);
   const [enginePrompt, setEnginePrompt] = useState("");
   const [analyzedEnginePrompt, setAnalyzedEnginePrompt] = useState("");
-  const [view, setView] = useState<"list" | "board">("list");
   const [openGroupId, setOpenGroupId] = useState<string>("");
   const [workTab, setWorkTab] = useState<WorkTab>(initialWorkTab);
   const [selectedLabor, setSelectedLabor] = useState<SelectedLabor[]>(initialSelectedWork === "empty" ? [] : (initialSelectedWork === "transmission" ? transmissionStarter : brakeStarter).map((operation) => ({ ...operation, rowId: operation.id })));
@@ -345,7 +344,6 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   const policyRequiredCount = estimateParts.filter((item) => item.source === "POLICY_REQUIRED").length;
   const canCreateEstimate = Boolean(selectedRepairOrder) && Boolean(selectedLabor.length || selectedParts.length);
   const totalWorkLines = estimateLabor.length + estimateParts.length;
-  const pricingReady = pendingPricingCount === 0;
   const createEstimateReason = !selectedRepairOrder
     ? "Select the repair order shown in the customer and vehicle lookup before creating this estimate."
     : !selectedLabor.length && !selectedParts.length
@@ -429,11 +427,6 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
       return;
     }
     setOpenGroupId("");
-  }
-
-  function openCatalogView(nextView: "list" | "board") {
-    setView(nextView);
-    setOpenGroupId((current) => current || groupedCatalog[0]?.id || "");
   }
 
   function startLaborEdit(item: SelectedLabor) {
@@ -699,12 +692,6 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
   const reviewScope = estimateReviewScope(selectedRepairOrder?.vehicle.id ?? `${contextVehicle ?? ""}|${contextVin ?? ""}`, lineItems);
   const guidedReady = manualReviewComplete(laborReview, reviewScope) && !estimateParts.some(part => part.pricingStatus === "PRICE_PENDING");
   const reviewReady = manualReviewComplete(laborReview, reviewScope);
-  const estimatePath = [
-    { label: "Search work", note: mode === "manual" ? "Catalog lookup ready" : "AI assist ready", ready: Boolean(query.trim() || analyzedEnginePrompt || totalWorkLines) },
-    { label: "Add labor and parts", note: totalWorkLines ? `${totalWorkLines} line${totalWorkLines === 1 ? "" : "s"} selected` : "Choose the needed repair", ready: totalWorkLines > 0 },
-    { label: "Review pricing", note: pricingReady ? "Prices clear" : `${pendingPricingCount} quote${pendingPricingCount === 1 ? "" : "s"} needed`, ready: pricingReady },
-    { label: "Create estimate", note: canCreateEstimate && guidedReady ? "Ready for handoff" : "Finish vehicle and review", ready: canCreateEstimate && guidedReady },
-  ];
 
   async function presentEstimate() {
     if (!selectedRepairOrder) {
@@ -838,7 +825,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
             setClinical(value.clinical ?? {});
             setLaborReview(value.laborReview ?? emptyManualLaborReview);
             draft.adopt(latest); setSelectedRepairOrder(value.ro); setManualDetails(value.manual); setSelectedLabor(value.labor); setSelectedParts(value.parts); setEvidenceDrafts(value.evidence); setEstimateAttempt(value.attempt);
-            setNotice(`Resumed ${latest.title}.`);
+            setNotice("");
           } catch (error) { setNotice(error instanceof Error ? error.message : "Unable to resume draft."); }
         }} type="button">Resume {saved.title}</button>
         <button aria-label={`Archive saved quote ${saved.title}`} disabled={busy || draft.saving} onClick={async () => {
@@ -868,12 +855,6 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
 
       </>}>
       <div className={styles.console} aria-label="Estimate editor">
-      <section className={styles.dailyFlow} aria-label="Daily labor guide workflow">
-        <article data-ready={Boolean(selectedRepairOrder)}><strong>1. Vehicle</strong><span>{selectedRepairOrder?.repairOrderNumber ?? "Select RO or quote first"}</span><button onClick={() => setDetailsOpen(true)} type="button">Choose</button></article>
-        <article data-ready={estimateLabor.length > 0 || estimateParts.length > 0}><strong>2. Work</strong><span>{estimateLabor.length + estimateParts.length ? `${estimateLabor.length + estimateParts.length} line${estimateLabor.length + estimateParts.length === 1 ? "" : "s"} ready` : "Find labor or parts"}</span><button onClick={() => revealWorkTools("labor")} type="button">Add work</button></article>
-        <article data-ready={manualReviewComplete(laborReview, reviewScope) && pendingPricingCount === 0}><strong>3. Readiness</strong><span>{manualReviewComplete(laborReview, reviewScope) && pendingPricingCount === 0 ? "Clear for presentation check" : "Items need attention"}</span><button onClick={() => revealWorkTools("selected")} type="button">Check</button></article>
-        <article data-ready={canCreateEstimate && guidedReady}><strong>4. Handoff</strong><span>{canCreateEstimate && guidedReady ? "Estimate can be presented" : "Save as draft first"}</span><button disabled={busy || draft.saving} onClick={() => void draft.save()} type="button">Save</button></article>
-      </section>
       <div ref={estimateGuideRef} tabIndex={-1}>
       <GuidedEstimate vehicle={contextVehicle} vin={contextVin} hasRO={Boolean(selectedRepairOrder)} lines={[
         ...estimateLabor.map(item => ({ id: item.rowId, title: item.title, kind: "Labor" as const, quantity: item.hours, price: laborRate, pending: false, editable: selectedLabor.some(row => row.rowId === item.rowId) })),
@@ -883,30 +864,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
         else setSelectedParts(rows => rows.map(row => row.id === line.id ? { ...row, ...(field === "quantity" ? { quantity: Math.max(1, Math.floor(value)) } : { unitPrice: value, pricingStatus: "ESTIMATED" as const }) } : row));
       }} />
       </div>
-      <details className={styles.workTools} open={workToolsOpen} onToggle={(event) => setWorkToolsOpen(event.currentTarget.open)} ref={workToolsRef} tabIndex={-1}><summary><span>Labor & parts estimate builder</span><small>Search, add, review, create estimate</small></summary>
-      <section className={styles.estimateCommandCenter} aria-label="Labor and parts estimate command">
-        <div className={styles.estimateCommandCopy}>
-          <span>Estimate workstation</span>
-          <h2>Find labor and parts fast</h2>
-          <p>Search the repair, add the right labor or parts, review the live total, then create the estimate for internal or customer-facing use.</p>
-        </div>
-        <dl className={styles.estimateCommandFacts}>
-          <div><dt>Vehicle</dt><dd>{contextVehicle ?? "Not selected"}</dd></div>
-          <div><dt>RO</dt><dd>{selectedRepairOrder?.repairOrderNumber ?? "Draft quote"}</dd></div>
-          <div><dt>Work lines</dt><dd>{totalWorkLines}</dd></div>
-          <div><dt>Total</dt><dd>{money(total)}</dd></div>
-        </dl>
-      </section>
-      <ol className={styles.estimatePath} aria-label="Estimate builder path">
-        {estimatePath.map((step, index) => (
-          <li data-ready={step.ready} key={step.label}>
-            <span>{index + 1}</span>
-            <strong>{step.label}</strong>
-            <small>{step.note}</small>
-          </li>
-        ))}
-      </ol>
-      <p className={styles.sourceNote} role="note">Internal preparation quote. Review VIN, configuration, source, repair basis, and pricing before external presentation.</p>
+      <details className={styles.workTools} open={workToolsOpen} onToggle={(event) => setWorkToolsOpen(event.currentTarget.open)} ref={workToolsRef} tabIndex={-1}><summary><span>Find labor or parts</span><small>Catalog, parts, evidence, notes</small></summary>
       <div className={styles.modeTabs} role="tablist" aria-label="RO creation mode">
         <button aria-selected={mode === "manual"} onClick={() => setMode("manual")} role="tab" type="button"><BookOpen />Manual Labor Guide</button>
         <button aria-selected={mode === "engine"} onClick={() => setMode("engine")} role="tab" type="button"><Brain />Labor Intelligence Engine</button>
@@ -919,10 +877,6 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
               <span className={styles.catalogEyebrow}>{mode === "manual" ? "Complete Repair Catalog" : "Labor Intelligence Engine"}</span>
               <h2>{mode === "manual" ? "Find labor or parts" : "Describe the work once"}</h2>
               <p>{mode === "manual" ? "Use one search box, pick the closest repair group, then add the line to the estimate worksheet." : "Write the concern in plain language, then accept, edit, or remove the suggested labor lines."}</p>
-            </div>
-            <div className={styles.viewToggle}>
-              <button aria-pressed={view === "list"} onClick={() => openCatalogView("list")} type="button"><List />List</button>
-              <button aria-pressed={view === "board"} onClick={() => openCatalogView("board")} type="button"><Grid2X2 />Board</button>
             </div>
           </div>
 
@@ -992,7 +946,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
             {repairTaxonomy.map((system) => <button aria-current={system.id === activeSystemId} key={system.id} onClick={() => updateActiveSystem(system.id)} type="button">{system.title}</button>)}
           </div>
 
-          <div className={view === "list" ? styles.catalogList : styles.catalogBoard}>
+          <div className={styles.catalogList}>
             <section className={styles.operationGroups} aria-label={normalizedQuery ? "Matching repair groups" : `${activeSystem?.title ?? "Repair"} groups`}>
               {groupedCatalog.length === 0 ? (
                 <div className={styles.emptyCatalogResult}>
@@ -1011,7 +965,7 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
                   </button>
                   {visibleGroupId === group.id ? (
                     <div className={styles.operationResults}>
-                      {group.operations.slice(0, view === "list" ? 12 : 8).map((operation) => (
+                      {group.operations.slice(0, 12).map((operation) => (
                         <article key={operation.id} onDoubleClick={() => addLabor(operation)} role="group">
                           <button className={styles.operationChoice} onClick={() => addLabor(operation)} type="button">
                             <strong>{operation.title}</strong>
@@ -1128,12 +1082,6 @@ export function EnterpriseLaborGuideConsole({ activeRepairOrder, initialMode = "
                 <h2>Live estimate preview</h2>
                 <strong>{money(total)}</strong>
                 <small>{totalWorkLines ? `${totalWorkLines} line${totalWorkLines === 1 ? "" : "s"} ready for review` : "Add labor or parts to build the estimate"}</small>
-              </div>
-              <div className={styles.previewReadiness} aria-label="Estimate readiness">
-                <span data-ready={Boolean(selectedRepairOrder)}><ClipboardCheck />{selectedRepairOrder ? "RO loaded" : "RO needed"}</span>
-                <span data-ready={totalWorkLines > 0}><FileText />{totalWorkLines ? "Work added" : "Add work"}</span>
-                <span data-ready={pricingReady}><ShoppingCart />{pricingReady ? "Pricing clear" : "Price parts"}</span>
-                <span data-ready={reviewReady}><Check />{reviewReady ? "Review clear" : "Review needed"}</span>
               </div>
               <dl>
                 <div><dt>Labor</dt><dd>{totalHours.toFixed(1)} hrs</dd></div>

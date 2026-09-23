@@ -714,7 +714,6 @@ function CompactSourceStatus({ model }: { model: CrmNextCommandCenter }) {
           {source.label}: {source.state.replaceAll("_", " ")}
         </Link>
       ))}
-      <small>No live communications</small>
     </div>
   );
 }
@@ -1672,11 +1671,6 @@ export function CrmNextOwnershipSupportView({ model }: { model: CrmNextCommandCe
                   <h3>{record.title}</h3>
                   <p>{record.status}</p>
                   <p className={styles.muted}>{record.nextAction}</p>
-                  <div className={styles.metaLine}>
-                    <b className={levelClass(record.priority)}>{record.priority}</b>
-                    <span>{record.permission}</span>
-                    <small>{record.owner}</small>
-                  </div>
                 </Link>
               ))}
           </div>

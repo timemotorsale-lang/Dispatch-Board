@@ -9,7 +9,8 @@ describe("simplified diagnostic workspace", () => {
     expect(html.match(/<h1>/g)).toHaveLength(1);
     for (const section of ["Overview", "Findings &amp; tests", "Estimate", "Authorization", "Verification"]) expect(html).toContain(section);
     expect(html).toContain("Unfinished estimate");
-    expect(html).toContain('aria-pressed="true"');
+    expect(html).not.toContain(">Overview</button>");
+    expect(html).not.toContain('aria-pressed="true"');
     expect(html).toContain("Preliminary quote · no repair order");
     expect(html).toContain('href="/my-tasks"');
     expect(html).not.toContain("Open authorization workbench");

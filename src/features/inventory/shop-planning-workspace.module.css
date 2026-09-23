@@ -29,6 +29,12 @@
 :global(html[data-app-theme="dark"]) .staffNow span{color:#bbf7d0}
 :global(html[data-app-theme="dark"]) .staffNow h2,:global(html[data-app-theme="dark"]) .staffNow p{color:var(--ink)}
 :global(html[data-app-theme="dark"]) .staffNow>a,:global(html[data-app-theme="dark"]) .primaryJumpAction{background:#256d49;color:#f0fdf4;box-shadow:none}
+:global(html[data-app-theme="dark"]) .repairTypePicker{border-color:#4f6df5;background:var(--app-surface,#101f31);box-shadow:none}
+:global(html[data-app-theme="dark"]) .repairTypePicker header span{color:#9db8ff}
+:global(html[data-app-theme="dark"]) .repairTypePicker h2{color:var(--ink)}
+:global(html[data-app-theme="dark"]) .repairTypePicker p{color:var(--muted)}
+:global(html[data-app-theme="dark"]) .pathPicker button{border-color:var(--app-border-strong,#344a64);color:var(--ink);background:var(--app-surface-soft,#14253a)}
+:global(html[data-app-theme="dark"]) .pathPicker .pathActive{border-color:#6f8cff;color:#fff;background:#4f6df5;box-shadow:none}
 :global(html[data-app-theme="dark"]) .mission{border-color:var(--line);color:var(--ink);background:var(--app-surface,#101f31)}
 :global(html[data-app-theme="dark"]) .mission>svg,:global(html[data-app-theme="dark"]) .mission span{color:#9db8ff}
 :global(html[data-app-theme="dark"]) .mission p,:global(html[data-app-theme="dark"]) .mission aside span{color:var(--muted)}
