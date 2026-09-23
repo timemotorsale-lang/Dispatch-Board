@@ -260,6 +260,26 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
   };
   const claimId = model?.claim.id;
   const claimReturnHref = claimId ? `/vehicles/claims-workspace?claimId=${encodeURIComponent(claimId)}` : "/vehicles/claims-workspace";
+  const repairTaskCustomer = model?.claim.customerName ?? "Claim customer";
+  const repairTaskVehicle = [model?.claim.vehicleYear, model?.claim.vehicleMake, model?.claim.vehicleModel].filter(Boolean).join(" ");
+  const repairTaskContext = new URLSearchParams({
+    brief: [
+      "Open the repair-start task after customer and carrier approval are confirmed.",
+      `Claim: ${model?.claim.claimNumber || claimId || "Pending claim number"}.`,
+      `Carrier: ${model?.claim.carrierName || carrier.carrier || "Pending carrier"}.`,
+      `Approved amount: ${estimateReview.approvedAmountLabel}.`,
+      "Confirm authorization, approved estimate or supplement, stop rules, owner, and first repair action before work begins."
+    ].join("\n"),
+    customerReference: repairTaskCustomer,
+    expectedOutcome: "Repairs are ready to start with approval, authorization, scope, owner, and the first repair action documented.",
+    intakeType: "Repair Order / Authorization",
+    returnTo: claimReturnHref,
+    sourceTitle: "Claims Desk repair approval handoff",
+    title: `Start approved repairs for ${repairTaskCustomer}`,
+    workflowArea: "SERVICE_ADVISOR"
+  });
+  if (repairTaskVehicle) repairTaskContext.set("vehicleReference", repairTaskVehicle);
+  const startRepairTaskHref = `/tasks/intake?${repairTaskContext.toString()}`;
   const appointmentContext = new URLSearchParams({
     action: "new",
     reason: model?.nextAction.reason ?? "Claim follow-up from Claims Workspace.",
@@ -1276,6 +1296,11 @@ export function ClaimsWorkspaceReview({ loadError, model }: { loadError?: string
                 {activeExtraTool === "repair" ? (
                   <form action={requestHandoff} className={`${styles.executionForm} ${styles.timelineForm}`}>
                     <strong>Repair workflow</strong>
+                    <div className={styles.repairTaskLinkCard}>
+                      <span>After approval</span>
+                      <p>Open a task for the repair start so authorization, approved scope, owner, and first action stay tied to this claim.</p>
+                      <Link href={startRepairTaskHref}>Open start repairs task</Link>
+                    </div>
                     <label className={styles.noteField}>
                       <span>Handoff or exception reason</span>
                       <textarea name="exceptionReason" placeholder="Optional manager exception reason if repair handoff is blocked" rows={5} />
