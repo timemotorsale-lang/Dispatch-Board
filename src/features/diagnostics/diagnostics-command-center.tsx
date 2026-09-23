@@ -2,10 +2,8 @@
 
 import {
   AlertTriangle,
-  CheckCircle2,
   ChevronDown,
   CircleGauge,
-  Clock3,
   Filter,
   Plus,
   ScanLine,
@@ -32,7 +30,6 @@ const terminalStatuses = new Set(["VERIFIED_CLOSED", "INCONCLUSIVE", "NO_FAULT_F
 const waitingStatuses = new Set(["WAITING_FOR_VEHICLE", "WAITING_FOR_AUTHORIZATION", "WAITING_FOR_TOOL", "WAITING_FOR_INFORMATION", "WAITING_FOR_PART"]);
 
 const label = (value: string) => value.replaceAll("_", " ").toLocaleLowerCase().replace(/^./, (letter) => letter.toUpperCase());
-const rolloutDate = (value: string | null) => value ? new Date(value).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" }) : "Not scheduled";
 
 function stageLabel(item: CaseItem) {
   const labels: Record<string, string> = {
@@ -185,15 +182,6 @@ export function DiagnosticsCommandCenter({ model }: { model: DiagnosticsCommandC
       <div className={styles.masterShortcuts}><span>Quick start:</span><Link href="/diagnostics/master-technician?q=Help%20me%20decide%20whether%20this%20vehicle%20can%20be%20diagnosed%20in-house.">In-house or vendor?</Link><Link href="/diagnostics/master-technician?q=Review%20a%20vendor%20diagnosis%20and%20tell%20me%20what%20evidence%20is%20missing.">Review vendor diagnosis</Link></div>
     </section>
 
-    <details className={styles.systemSummary}><summary><span><i />Systems operational</span><small>Evidence, reasoning, labor, and audit tools available</small><ChevronDown /></summary><div><p><strong>Diagnostic case creation is enabled.</strong> Rollout target: {rolloutDate(model.rollout.targetAt)}. Evidence, reasoning, publishing, and AI remain separately controlled.</p><Link href="/settings/vehicle-operations">View system controls</Link></div></details>
-
-    <section className={styles.commandMetrics} aria-label="Diagnostic case summary">
-      <button onClick={() => { setView("ALL"); setQuickFilter("ACTIVE"); }} type="button"><Stethoscope /><span>Active Cases</span><strong>{model.summary.active}</strong><small>{model.summary.mine} assigned to me</small></button>
-      <button onClick={() => { setView("ALL"); setQuickFilter("AWAITING_TEST"); }} type="button"><Clock3 /><span>Awaiting Test</span><strong>{model.summary.awaitingTest}</strong><small>Needs test progression</small></button>
-      <button className={styles.metricBlocked} onClick={() => { setView("ALL"); setQuickFilter("BLOCKED"); }} type="button"><AlertTriangle /><span>Blocked</span><strong>{model.summary.blocked}</strong><small>{model.summary.escalated} escalated</small></button>
-      <button className={styles.metricReady} onClick={() => { setView("ALL"); setQuickFilter("HANDOFF"); }} type="button"><CheckCircle2 /><span>Ready for Handoff</span><strong>{model.summary.readyForHandoff}</strong><small>Confirmed or planning</small></button>
-    </section>
-
     <nav className={styles.viewTabs} aria-label="Diagnostic case views">
       {(["MINE", "RISK", "ALL"] as const).map((item) => <button aria-current={view === item ? "page" : undefined} key={item} onClick={() => selectView(item)} type="button">{item === "MINE" ? "My View" : item === "RISK" ? "Risk View" : "All Cases"}</button>)}
       <span>Today: <strong>{model.summary.today.opened}</strong> opened <i>•</i> <strong>{model.summary.today.diagnosed}</strong> diagnosed <i>•</i> <strong>{model.summary.today.verified}</strong> verified</span>
@@ -219,9 +207,11 @@ export function DiagnosticsCommandCenter({ model }: { model: DiagnosticsCommandC
 
       <div className={styles.queueToolbar}>
         <div className={styles.queueChips}>
-          <button aria-pressed={quickFilter === "ALL" && view === "ALL"} onClick={() => { setView("ALL"); setQuickFilter("ALL"); }} type="button">All Cases</button>
-          <button aria-pressed={view === "MINE"} onClick={() => selectView("MINE")} type="button">My Cases</button>
-          <button aria-pressed={view === "RISK"} onClick={() => selectView("RISK")} type="button">SLA Risk</button>
+          <button aria-pressed={quickFilter === "ALL"} onClick={() => setQuickFilter("ALL")} type="button">Any status</button>
+          <button aria-pressed={view === "ALL" && quickFilter === "ACTIVE"} onClick={() => { setView("ALL"); setQuickFilter("ACTIVE"); }} type="button">Active {model.summary.active}</button>
+          <button aria-pressed={view === "ALL" && quickFilter === "AWAITING_TEST"} onClick={() => { setView("ALL"); setQuickFilter("AWAITING_TEST"); }} type="button">Awaiting {model.summary.awaitingTest}</button>
+          <button aria-pressed={view === "ALL" && quickFilter === "BLOCKED"} onClick={() => { setView("ALL"); setQuickFilter("BLOCKED"); }} type="button">Blocked {model.summary.blocked}</button>
+          <button aria-pressed={view === "ALL" && quickFilter === "HANDOFF"} onClick={() => { setView("ALL"); setQuickFilter("HANDOFF"); }} type="button">Handoff {model.summary.readyForHandoff}</button>
         </div>
         <label className={styles.queueSearch}><Search /><span className="sr-only">Search diagnostic cases</span><input onChange={(event) => setQuery(event.target.value)} placeholder="Search VIN, RO, customer, or concern..." value={query} /></label>
         <div className={styles.bulkControl}>

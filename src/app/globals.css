@@ -8778,6 +8778,35 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
 
 .dispatch-console-header { position: sticky; top: 58px; z-index: 24; display: grid; grid-template-columns: minmax(230px, auto) minmax(0, 1fr); align-items: end; gap: 12px 24px; min-width: 0; padding: 15px 16px 0; background: #fff; border-bottom: 1px solid #dfe5ed; }
 .dispatch-console-header-with-launcher { grid-template-columns: minmax(230px, auto) minmax(0, 1fr) auto; }
+.dispatch-console-header-actions { position: relative; display: flex; align-items: center; align-self: center; gap: 8px; min-width: 0; margin-bottom: 8px; }
+.dispatch-workflow-review-launcher { position: relative; width: min(310px, 30vw); min-width: 230px; }
+.dispatch-workflow-review-launcher label { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 8px; min-height: 40px; padding: 6px 8px 6px 11px; border: 1px solid #c9d7ed; border-radius: 8px; color: #48617f; background: #f7faff; box-shadow: 0 2px 7px rgb(15 23 42 / 6%); }
+.dispatch-workflow-review-launcher input { min-width: 0; border: 0; outline: 0; color: #12335f; background: transparent; font: inherit; font-size:11.5px; font-weight: 750; }
+.dispatch-workflow-review-launcher input::placeholder { color: #64748b; }
+.dispatch-workflow-review-launcher label b { border: 1px solid #d9c174; border-radius: 999px; padding: 3px 6px; color: #7a4c00; background: #fff7d6; font-size: 10px; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; }
+.dispatch-workflow-review-results { position: absolute; top: calc(100% + 8px); right: 0; z-index: 80; display: none; width: min(420px, 88vw); max-height: min(640px, 72vh); overflow: auto; border: 1px solid #cbd7e6; border-radius: 12px; padding: 8px; color: #17233c; background: #fff; box-shadow: 0 18px 42px rgb(15 23 42 / 16%); }
+.dispatch-workflow-review-launcher:focus-within .dispatch-workflow-review-results { display: grid; gap: 6px; }
+.dispatch-workflow-review-results header { display: flex; justify-content: space-between; gap: 12px; padding: 4px 5px 7px; border-bottom: 1px solid #e4ebf4; }
+.dispatch-workflow-review-results header strong { font-size:11.5px; }
+.dispatch-workflow-review-results header small { color: #6d7d91; font-size:11.5px; font-weight: 700; }
+.dispatch-workflow-review-results a,
+.dispatch-workflow-review-results > span,
+.dispatch-workflow-review-results p { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 10px; align-items: center; margin: 0; border: 1px solid #e0e8f3; border-radius: 9px; padding: 9px 10px; color: #223552; background: #f8fbff; text-decoration: none; }
+.dispatch-workflow-review-results a:hover { border-color: #9ab7e2; background: #eef5ff; }
+.dispatch-workflow-review-results a > span,
+.dispatch-workflow-review-results > span > span { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.dispatch-workflow-review-results a strong,
+.dispatch-workflow-review-results > span strong { overflow: hidden; font-size:12px; text-overflow: ellipsis; white-space: nowrap; }
+.dispatch-workflow-review-results a b,
+.dispatch-workflow-review-results > span b { border-radius: 999px; padding: 3px 6px; color: #1d5fd1; background: #eaf2ff; font-size: 10px; font-weight: 900; text-transform: uppercase; }
+.dispatch-workflow-review-results a b[data-status="Live"] { color: #166534; background: #dcfce7; }
+.dispatch-workflow-review-results a b[data-status="Manager"] { color: #713f12; background: #fef3c7; }
+.dispatch-workflow-review-results a b[data-status="Planned"],
+.dispatch-workflow-review-results > span b[data-status="Planned"] { color: #5b6472; background: #edf1f5; }
+.dispatch-workflow-review-results small,
+.dispatch-workflow-review-results em { grid-column: 1 / -1; color: #617087; font-size:11.5px; font-style: normal; line-height: 1.35; }
+.dispatch-workflow-review-results em { color: #7a5a12; font-weight: 750; }
+.dispatch-workflow-review-disabled { opacity: .78; }
 .dispatch-workspace-launcher { align-self: center; display: inline-flex; align-items: center; gap: 9px; min-height: 40px; margin-bottom: 8px; padding: 6px 12px; border: 1px solid #c9d7ed; border-radius: 8px; color: #12335f; background: #f7faff; box-shadow: 0 2px 7px rgb(15 23 42 / 6%); text-decoration: none; }
 .dispatch-workspace-launcher:hover { border-color: #8eafe2; background: #eef5ff; }
 .dispatch-workspace-launcher > span { display: grid; gap: 1px; }
@@ -8854,6 +8883,7 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
   .ccc-store-context { padding: 0 8px; }
   .dispatch-console-header { grid-template-columns: 190px minmax(0, 1fr); gap: 8px; }
   .dispatch-console-header-with-launcher { grid-template-columns: 190px minmax(0, 1fr) auto; }
+  .dispatch-workflow-review-launcher { width: 230px; }
   .dispatch-workspace-launcher small { display: none; }
   .dispatch-console-tabs a { padding-inline: 8px; }
   .ccc-home-console-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -8879,6 +8909,10 @@ html[data-app-theme="dark"] .inventory-console-route-divider { background:#34465
   .dispatch-console-header-with-launcher { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
   .dispatch-console-header-with-launcher .dispatch-console-title { min-width: 0; }
   .dispatch-console-header-with-launcher .dispatch-console-tabs { grid-column: 1 / -1; }
+  .dispatch-console-header-actions { margin: 0; }
+  .dispatch-workflow-review-launcher { width: min(52vw, 260px); min-width: 0; }
+  .dispatch-workflow-review-launcher label { padding-inline: 9px; }
+  .dispatch-workflow-review-launcher label b { display: none; }
   .dispatch-workspace-launcher { margin: 0; padding-inline: 10px; }
   .dispatch-workspace-launcher > span { display: none; }
   .dispatch-console-title { padding-bottom: 10px; }
@@ -22976,6 +23010,52 @@ html[data-app-theme="dark"] .dispatch-console-header {
 html[data-app-theme="dark"] .dispatch-console-title h1,
 html[data-app-theme="dark"] .dispatch-console-tabs a { color: var(--ink); }
 html[data-app-theme="dark"] .dispatch-console-title p { color: var(--muted); }
+html[data-app-theme="dark"] .dispatch-workflow-review-launcher label,
+html[data-app-theme="dark"] .dispatch-workspace-launcher {
+  color: var(--ink);
+  background: var(--surface-soft);
+  border-color: var(--line-strong);
+  box-shadow: none;
+}
+html[data-app-theme="dark"] .dispatch-workflow-review-launcher input {
+  color: var(--ink);
+}
+html[data-app-theme="dark"] .dispatch-workflow-review-launcher input::placeholder,
+html[data-app-theme="dark"] .dispatch-workspace-launcher small {
+  color: var(--muted);
+}
+html[data-app-theme="dark"] .dispatch-workflow-review-launcher label b {
+  color: #fcd34d;
+  background: rgba(251,191,36,.12);
+  border-color: rgba(251,191,36,.38);
+}
+html[data-app-theme="dark"] .dispatch-workflow-review-results {
+  color: var(--ink);
+  background: var(--surface);
+  border-color: var(--line-strong);
+  box-shadow: 0 18px 42px rgba(0,0,0,.36);
+}
+html[data-app-theme="dark"] .dispatch-workflow-review-results header {
+  border-color: var(--line);
+}
+html[data-app-theme="dark"] .dispatch-workflow-review-results a,
+html[data-app-theme="dark"] .dispatch-workflow-review-results > span,
+html[data-app-theme="dark"] .dispatch-workflow-review-results p {
+  color: var(--ink);
+  background: var(--surface-soft);
+  border-color: var(--line-strong);
+}
+html[data-app-theme="dark"] .dispatch-workflow-review-results a:hover {
+  background: #182d46;
+  border-color: #4d6f9d;
+}
+html[data-app-theme="dark"] .dispatch-workflow-review-results small,
+html[data-app-theme="dark"] .dispatch-workflow-review-results header small {
+  color: var(--muted);
+}
+html[data-app-theme="dark"] .dispatch-workflow-review-results em {
+  color: #fcd34d;
+}
 
 html[data-app-theme="dark"] .app-content > :not(.customer-console) :where(
   .hero-panel,

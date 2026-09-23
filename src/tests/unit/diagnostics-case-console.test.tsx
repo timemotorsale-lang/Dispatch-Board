@@ -45,7 +45,6 @@ describe("diagnostics case console", () => {
     expect(html).toContain("What is the vehicle doing?");
     expect(html).toContain("Get the next test");
     expect(html).toContain("More tools");
-    expect(html).toContain("Systems operational");
     expect(html).toContain("In-house or vendor?");
     expect(html).toContain('href="/diagnostics/master-technician?q=');
     expect(html).toContain("New Diagnostic Case");

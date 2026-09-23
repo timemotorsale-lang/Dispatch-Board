@@ -714,7 +714,6 @@ function CompactSourceStatus({ model }: { model: CrmNextCommandCenter }) {
           {source.label}: {source.state.replaceAll("_", " ")}
         </Link>
       ))}
-      <small>No live communications</small>
     </div>
   );
 }
@@ -1496,9 +1495,8 @@ export function CrmNextTimelineView({ model }: { model: CrmNextCommandCenter }) 
         {events.length > 0 ? (
           <div className={styles.commList}>
             {events.map((event) => (
-              <Link className={styles.communicationItem} href={event.href} key={event.id}>
-                <strong>{event.source}</strong>
-                <span>{event.label}<small>{event.detail}</small></span>
+              <Link className={`${styles.communicationItem} ${styles.timelineCommunicationItem}`} href={event.href} key={event.id}>
+                <span><strong>{event.label}</strong><small>{event.detail}</small></span>
                 <small>{event.occurredAt}</small>
               </Link>
             ))}
@@ -1673,11 +1671,6 @@ export function CrmNextOwnershipSupportView({ model }: { model: CrmNextCommandCe
                   <h3>{record.title}</h3>
                   <p>{record.status}</p>
                   <p className={styles.muted}>{record.nextAction}</p>
-                  <div className={styles.metaLine}>
-                    <b className={levelClass(record.priority)}>{record.priority}</b>
-                    <span>{record.permission}</span>
-                    <small>{record.owner}</small>
-                  </div>
                 </Link>
               ))}
           </div>

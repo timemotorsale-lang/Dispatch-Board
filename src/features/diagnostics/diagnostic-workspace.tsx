@@ -7,6 +7,7 @@ import { DiagnosticEvidencePanel } from "./diagnostic-evidence-panel";
 import type { ClinicalDrafts } from "@/lib/diagnostic-clinical-draft";
 
 const sections = ["Overview", "Findings & tests", "Estimate", "Authorization", "Verification"] as const;
+const workflowSections = sections.filter((name) => name !== "Overview");
 type Section = typeof sections[number];
 type Planning = {
   nextAction: string;
@@ -82,7 +83,7 @@ export function DiagnosticWorkspace({ vehicle, customer, vin, concern, repairOrd
       <div hidden={!toolPanelOpen} className={styles.tools}>{tools}</div>
       {feedback}
       {leaving ? <p role="status">Saving your draft before opening the next workspace…</p> : null}
-      <nav className={styles.tabs} aria-label="Workspace sections">{sections.map(name => <button id={`${prefix}-${name.replaceAll(" ", "-")}`} type="button" key={name} aria-pressed={section === name} aria-controls={`${prefix}-panel-${name.replaceAll(" ", "-")}`} onClick={() => setSection(name)}>{name}</button>)}</nav>
+      <nav className={styles.tabs} aria-label="Workspace sections">{workflowSections.map(name => <button id={`${prefix}-${name.replaceAll(" ", "-")}`} type="button" key={name} aria-pressed={section === name} aria-controls={`${prefix}-panel-${name.replaceAll(" ", "-")}`} onClick={() => setSection(name)}>{name}</button>)}</nav>
       {repairOrderId && section !== "Estimate" ? <div className={styles.progress}><span>{planning ? `Recorded stage: ${planning.stage.replaceAll("_", " ")}` : loadError || "Loading recorded progress…"}</span><button type="button" onClick={() => { setSnapshot(null); setLoadError(""); setRefresh(value => value + 1); }}>Refresh progress</button></div> : null}
       <section id={`${prefix}-panel-Overview`} aria-labelledby={`${prefix}-Overview`} hidden={section !== "Overview"} className={styles.panel}>
         <h2>What needs to happen next?</h2><p>{concern || "Enter customer and vehicle details or select an existing repair order. You can prepare a quote without creating an RO."}</p>
