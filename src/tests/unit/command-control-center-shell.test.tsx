@@ -29,7 +29,7 @@ describe("Command Control Center shell", () => {
     expect(markup).toContain("Workspace Launcher");
     expect(markup).toContain("CEO · COO · My Work");
     expect(markup).toContain("Find workflow or tool");
-    expect(markup).toContain("Workflow finder review");
+    expect(markup).toContain("Workflow finder");
     expect(markup).toContain("Search by task or workflow, like workbook");
     expect(markup).not.toContain('href="/my-tasks"');
     expect(markup).not.toContain('href="/tasks"');
@@ -89,7 +89,7 @@ describe("Command Control Center shell", () => {
     expect(markup).not.toContain('href="/board');
     expect(markup).not.toContain("Workspace Launcher");
     expect(markup).toContain("Find workflow or tool");
-    expect(markup).toContain("Review");
+    expect(markup).toContain("Live");
     expect(markup).not.toContain('href="/projects"');
     expect(markup).not.toContain('href="/appointments"');
   });
