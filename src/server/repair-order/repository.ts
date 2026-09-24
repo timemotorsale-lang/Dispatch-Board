@@ -47,7 +47,54 @@ export function createRepairOrderRepository(database: PrismaClient = prisma) { r
     const rows=await database.repairOrder.findMany({where:{organizationId,vehicleId,closedAt:null},orderBy:{openedAt:"asc"},select:{id:true,repairOrderNumber:true,stage:true,operatingState:true,version:true,serviceVisit:{select:{concernSummary:true}}}});
     return rows.map(({serviceVisit,...row})=>({...row,concernSummary:serviceVisit.concernSummary}));
   },
-  async search(organizationId: string, input: { page: number; pageSize: number; query: string; state?: string; vehicleId?: string }) { const where: Prisma.RepairOrderWhereInput = { organizationId, closedAt: null, ...(input.vehicleId ? { vehicleId: input.vehicleId } : {}) }; if (input.state) where.operatingState = input.state as Prisma.EnumRepairOrderOperatingStateFilter; if (input.query.trim()) where.AND = input.query.trim().split(/\s+/).map((token) => ({ OR: [{ repairOrderNumber: { contains: token, mode: "insensitive" } }, { nextAction: { contains: token, mode: "insensitive" } }, { vehicle: { vehicleNumber: { contains: token, mode: "insensitive" } } }, { vehicle: { vin: { contains: token.toUpperCase() } } }, { customer: { displayName: { contains: token, mode: "insensitive" } } }, { inventoryUnit: { inventoryNumber: { contains: token, mode: "insensitive" } } }, { ownerUser: { name: { contains: token, mode: "insensitive" } } }, { vendorWorks: { some: { OR: [{ vendorName: { contains: token, mode: "insensitive" } }, { currentLocation: { contains: token, mode: "insensitive" } }, { nextAction: { contains: token, mode: "insensitive" } }] } } }] })); const [total,items]=await Promise.all([database.repairOrder.count({where}),database.repairOrder.findMany({where,orderBy:[{targetAt:"asc"},{repairOrderNumber:"asc"}],skip:(input.page-1)*input.pageSize,take:input.pageSize,include:{vehicle:{select:vehicleSelect},customer:{select:{id:true,displayName:true}},inventoryUnit:{select:{id:true,inventoryNumber:true}},ownerUser:{select:{id:true,name:true}},location:{select:{id:true,code:true,name:true}},serviceVisit:{select:{concernSummary:true,transportMode:true}},vendorWorks:{orderBy:{updatedAt:"desc"},select:vendorWorkSelect},advisorUpdates:{orderBy:{version:"desc"},take:8,select:{id:true,contactChannel:true,contactDirection:true,contactOutcome:true,customerVisibleSummary:true,internalNotes:true,exceptionCodes:true,nextContactAt:true,occurredAt:true,statusCode:true,version:true,authorUser:{select:{id:true,name:true}}}},_count:{select:{stateEvents:true}}}})]); return {items,page:input.page,pageSize:input.pageSize,total,totalPages:Math.max(1,Math.ceil(total/input.pageSize))}; },
+  async search(organizationId: string, input: { page: number; pageSize: number; query: string; state?: string; vehicleId?: string }) {
+    const where: Prisma.RepairOrderWhereInput = { organizationId, closedAt: null, ...(input.vehicleId ? { vehicleId: input.vehicleId } : {}) };
+    if (input.state) where.operatingState = input.state as Prisma.EnumRepairOrderOperatingStateFilter;
+    const tokens = input.query.trim().split(/\s+/).filter(Boolean);
+    if (tokens.length) {
+      where.AND = tokens.map((token) => {
+        const tokenMatches: Prisma.RepairOrderWhereInput[] = [
+          { repairOrderNumber: { contains: token, mode: "insensitive" } },
+          { nextAction: { contains: token, mode: "insensitive" } },
+          { vehicle: { vehicleNumber: { contains: token, mode: "insensitive" } } },
+          { vehicle: { vin: { contains: token.toUpperCase() } } },
+          { vehicle: { stockNumber: { contains: token, mode: "insensitive" } } },
+          { vehicle: { licensePlate: { contains: token, mode: "insensitive" } } },
+          { vehicle: { make: { contains: token, mode: "insensitive" } } },
+          { vehicle: { model: { contains: token, mode: "insensitive" } } },
+          { customer: { displayName: { contains: token, mode: "insensitive" } } },
+          { inventoryUnit: { inventoryNumber: { contains: token, mode: "insensitive" } } },
+          { ownerUser: { name: { contains: token, mode: "insensitive" } } },
+          { serviceVisit: { concernSummary: { contains: token, mode: "insensitive" } } },
+          { vendorWorks: { some: { OR: [{ vendorName: { contains: token, mode: "insensitive" } }, { currentLocation: { contains: token, mode: "insensitive" } }, { nextAction: { contains: token, mode: "insensitive" } }] } } },
+        ];
+        const year = Number(token);
+        if (/^\d{4}$/.test(token) && Number.isInteger(year)) tokenMatches.push({ vehicle: { year } });
+        return { OR: tokenMatches };
+      });
+    }
+    const [total, items] = await Promise.all([
+      database.repairOrder.count({ where }),
+      database.repairOrder.findMany({
+        where,
+        orderBy: [{ targetAt: "asc" }, { repairOrderNumber: "asc" }],
+        skip: (input.page - 1) * input.pageSize,
+        take: input.pageSize,
+        include: {
+          vehicle: { select: vehicleSelect },
+          customer: { select: { id: true, displayName: true } },
+          inventoryUnit: { select: { id: true, inventoryNumber: true } },
+          ownerUser: { select: { id: true, name: true } },
+          location: { select: { id: true, code: true, name: true } },
+          serviceVisit: { select: { concernSummary: true, transportMode: true } },
+          vendorWorks: { orderBy: { updatedAt: "desc" }, select: vendorWorkSelect },
+          advisorUpdates: { orderBy: { version: "desc" }, take: 8, select: { id: true, contactChannel: true, contactDirection: true, contactOutcome: true, customerVisibleSummary: true, internalNotes: true, exceptionCodes: true, nextContactAt: true, occurredAt: true, statusCode: true, version: true, authorUser: { select: { id: true, name: true } } } },
+          _count: { select: { stateEvents: true } },
+        },
+      }),
+    ]);
+    return { items, page: input.page, pageSize: input.pageSize, total, totalPages: Math.max(1, Math.ceil(total / input.pageSize)) };
+  },
   getDetail(organizationId: string, id: string) { return database.repairOrder.findFirst({ where: { id, organizationId }, include: detailInclude }); },
   getCloseContext(organizationId: string, id: string) { return database.repairOrder.findFirst({ where: { id, organizationId }, select: { closedAt: true, id: true, locationId: true, stage: true, vehicleId: true, version: true } }); },
   async getCreateOptions(organizationId: string) {
